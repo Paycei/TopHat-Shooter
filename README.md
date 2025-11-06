@@ -1,28 +1,4 @@
-# TopHat Shooter - Chaos Edition
-
-A chaotic top-down shooter built with Nim and Raylib featuring shape-shifting bosses, aggressive AI, and maximum on-screen action!
-
-## What's New in Chaos Edition
-
-### Heavily Buffed Enemies
-- **Triangles**: Now chase freely between dashes with erratic movement
-- **Cubes**: Back away from players while shooting - true ranged enemies
-- **Stars**: Reduced required hits (nerfed for better pacing)
-
-### Shape-Shifting Bosses
-Bosses transform between Circle/Cube/Triangle/Star forms every 8 seconds with unique abilities:
-- Teleport bursts
-- 360° shockwave attacks  
-- Bullet storms
-- Minion spawning
-- Phase-specific attack patterns
-
-### Maximum Chaos
-- Overlapping enemy waves
-- 2x faster spawn rates
-- 20% faster projectiles
-- Particle effects on everything
-- More bullets, more enemies, more action!
+# TopHat Shooter
 
 ## Building
 
