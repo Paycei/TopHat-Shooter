@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, random
+import raylib, types, game, shop, wall, particle, random, math
 
 const
   screenWidth = 1024
@@ -8,8 +8,11 @@ const
 proc drawMenu(game: Game) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
   
-  # Title
-  drawText("TopHat SHOOTER", screenWidth div 2 - 220, 150, 50, Yellow)
+  # Title with pulsing effect
+  let pulse = 1.0 + 0.1 * sin(game.time * 3)
+  let titleSize = (50 * pulse).int32
+  drawText("TopHat SHOOTER", screenWidth div 2 - 220, 150, titleSize, Yellow)
+  drawText("CHAOS EDITION", screenWidth div 2 - 150, 200, 25, Red)
   
   # Menu options
   let startY = 320
@@ -37,11 +40,13 @@ proc drawHelp(game: Game) =
     "TAB - Open Shop",
     "ESC - Pause/Menu",
     "",
-    "ENEMIES:",
-    "Circles - Chase you",
-    "Cubes - Shoot from distance",
-    "Triangles - Fast dash attacks",
-    "Stars - Require many hits to kill",
+    "ENEMIES (unlock progressively):",
+    "Phase 1: Circles - Basic chasers",
+    "Phase 2: Cubes - Ranged shooters (10s)",
+    "Phase 3: Stars - Tanky targets (25s)",
+    "Phase 4: Triangles - Dash attackers (40s)",
+    "Phase 5: Full chaos! (60s+)",
+    "Bosses: Shape-shift with crazy attacks",
     "",
     "POWERUPS:",
     "+ (Green) - Health",
@@ -51,7 +56,7 @@ proc drawHelp(game: Game) =
     "F (Orange) - Fire Rate Boost",
     "M (Purple) - Coin Magnet",
     "",
-    "Survive as long as possible!"
+    "Survive the progressive chaos as long as possible!"
   ]
   
   for line in instructions:
@@ -64,7 +69,7 @@ proc drawHelp(game: Game) =
 proc main() =
   randomize()
   
-  initWindow(screenWidth, screenHeight, "TopHat-Shooter")
+  initWindow(screenWidth, screenHeight, "TopHat-Shooter: Chaos Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   
@@ -76,6 +81,9 @@ proc main() =
     
     case currentGame.state
     of gsMenu:
+      # Update time for menu animations
+      currentGame.time += dt
+      
       # Menu navigation
       if isKeyPressed(Down):
         currentGame.menuSelection = (currentGame.menuSelection + 1) mod 3
@@ -123,6 +131,7 @@ proc main() =
                                 currentGame.enemies, 25):
           currentGame.walls.add(newWall(mousePos.x, mousePos.y))
           currentGame.player.walls -= 1
+          spawnExplosion(currentGame.particles, mousePos.x, mousePos.y, Brown, 15)
       
       # Pause
       if isKeyPressed(Escape):

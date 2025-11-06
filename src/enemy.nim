@@ -1,10 +1,10 @@
-import raylib, types, random, math
+import raylib, types, random, math, wall
 
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy =
   let strengthMultiplier = pow(1.15, difficulty)  # Exponential scaling
   
   case enemyType
-  of etCircle:  # Normal chaser
+  of etCircle:  # Normal chaser - slightly buffed
     let size = 10 + difficulty * 1.5 + rand(5).float32
     result = Enemy(
       pos: newVector2f(x, y),
@@ -12,91 +12,115 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       radius: size,
       hp: 1.0 * strengthMultiplier,
       maxHp: 1.0 * strengthMultiplier,
-      speed: 80 + difficulty * 8,
+      speed: 90 + difficulty * 10,  # Faster
       damage: 1,
       color: if difficulty < 5: Red elif difficulty < 10: Orange else: Maroon,
       enemyType: etCircle,
       isBoss: false,
+      bossPhase: bpCircle,
+      phaseChangeTimer: 0,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
       hitCount: 0,
       requiredHits: 0,
-      lastContactDamageTime: 0
+      lastContactDamageTime: 0,
+      teleportTimer: 0,
+      shockwaveTimer: 0,
+      burstTimer: 0,
+      lastWallDamageTime: 0
     )
   
-  of etCube:  # Stationary/slow shooter
+  of etCube:  # Ranged shooter - BUFFED: backs away from player
     result = Enemy(
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 12 + difficulty * 1.2,
-      hp: 1.5 * strengthMultiplier,
-      maxHp: 1.5 * strengthMultiplier,
-      speed: 30 + difficulty * 2,  # Very slow
+      hp: 2.0 * strengthMultiplier,  # More HP
+      maxHp: 2.0 * strengthMultiplier,
+      speed: 55 + difficulty * 3,  # Faster for kiting
       damage: 1,
       color: Purple,
       enemyType: etCube,
       isBoss: false,
+      bossPhase: bpCircle,
+      phaseChangeTimer: 0,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
       hitCount: 0,
       requiredHits: 0,
-      lastContactDamageTime: 0
+      lastContactDamageTime: 0,
+      teleportTimer: 0,
+      shockwaveTimer: 0,
+      burstTimer: 0,
+      lastWallDamageTime: 0
     )
   
-  of etTriangle:  # Fast dash attacker
+  of etTriangle:  # HEAVILY BUFFED: dash + free movement
     result = Enemy(
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 11 + difficulty * 1.0,
-      hp: 1.0 * strengthMultiplier,
-      maxHp: 0.8 * strengthMultiplier,
-      speed: 150 + difficulty * 12,  # Very fast
+      hp: 1.2 * strengthMultiplier,  # More HP
+      maxHp: 1.2 * strengthMultiplier,
+      speed: 160 + difficulty * 15,  # Even faster
       damage: 2,
       color: Pink,
       enemyType: etTriangle,
       isBoss: false,
+      bossPhase: bpCircle,
+      phaseChangeTimer: 0,
       shootTimer: 0,
       spawnTimer: 0,
-      dashTimer: 1.125,
+      dashTimer: 1.5,  # Dash cooldown
       hitCount: 0,
       requiredHits: 0,
-      lastContactDamageTime: 0
+      lastContactDamageTime: 0,
+      teleportTimer: 0,
+      shockwaveTimer: 0,
+      burstTimer: 0,
+      lastWallDamageTime: 0
     )
   
-  of etStar:  # Requires many hits
-    let hits = 15 + (difficulty * 8).int
+  of etStar:  # NERFED: fewer required hits
+    let hits = 8 + (difficulty * 3).int  # Reduced from 15 + diff*8
     result = Enemy(
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 18 + difficulty * 2,
       hp: 9999.0,  # High HP, but uses hit counter instead
       maxHp: 9999.0,
-      speed: 40 + difficulty * 3,  # Slow
+      speed: 45 + difficulty * 4,  # Slightly faster
       damage: 2,
       color: Color(r: 255, g: 215, b: 0, a: 255),  # Gold
       enemyType: etStar,
       isBoss: false,
+      bossPhase: bpCircle,
+      phaseChangeTimer: 0,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
       hitCount: 0,
       requiredHits: hits,
-      lastContactDamageTime: 0
+      lastContactDamageTime: 0,
+      teleportTimer: 0,
+      shockwaveTimer: 0,
+      burstTimer: 0,
+      lastWallDamageTime: 0
     )
 
 proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
-  let strengthMultiplier = pow(1.2, difficulty)
+  let strengthMultiplier = pow(1.25, difficulty)  # Stronger scaling
   
   result = Enemy(
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
-    radius: 45 + difficulty * 3,
-    hp: 50 + difficulty * 30 * strengthMultiplier,
-    maxHp: 50 + difficulty * 30 * strengthMultiplier,
-    speed: 50 + difficulty * 4,
-    damage: 2 + (difficulty / 10).int,  # Scales with time
+    radius: 50 + difficulty * 4,  # Bigger
+    hp: 80 + difficulty * 40 * strengthMultiplier,  # Much more HP
+    maxHp: 80 + difficulty * 40 * strengthMultiplier,
+    speed: 60 + difficulty * 5,  # Faster
+    damage: 2 + (difficulty / 8).int,  # More damage
     color: case bossType
       of btShooter: DarkPurple
       of btSummoner: DarkGreen
@@ -105,32 +129,81 @@ proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
     enemyType: etCircle,
     isBoss: true,
     bossType: bossType,
+    bossPhase: bpCircle,
+    phaseChangeTimer: 8.0,  # Change phase every 8 seconds
     shootTimer: 0,
     spawnTimer: 0,
     dashTimer: 0,
     hitCount: 0,
     requiredHits: 0,
-    lastContactDamageTime: 0
+    lastContactDamageTime: 0,
+    teleportTimer: 12.0,  # Teleport periodically
+    shockwaveTimer: 6.0,  # Shockwave attack
+    burstTimer: 0.5,  # Rapid fire bursts
+    lastWallDamageTime: 0
   )
 
-proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall]): bool =
+proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32): bool =
   if enemy.isBoss:
     enemy.shootTimer += dt
     enemy.spawnTimer += dt
+    enemy.phaseChangeTimer -= dt
+    enemy.teleportTimer -= dt
+    enemy.shockwaveTimer -= dt
+    enemy.burstTimer += dt
     
-    # Boss movement
+    # Phase change mechanic - bosses change form!
+    if enemy.phaseChangeTimer <= 0:
+      enemy.bossPhase = BossPhase((enemy.bossPhase.int + 1) mod 4)
+      enemy.phaseChangeTimer = 8.0
+      
+      # Visual change based on phase
+      case enemy.bossPhase
+      of bpCircle:
+        enemy.color = case enemy.bossType
+          of btShooter: DarkPurple
+          of btSummoner: DarkGreen
+          of btCharger: DarkBlue
+          of btOrbit: Violet
+      of bpCube:
+        enemy.color = Color(r: 100, g: 50, b: 150, a: 255)
+      of bpTriangle:
+        enemy.color = Color(r: 200, g: 50, b: 100, a: 255)
+      of bpStar:
+        enemy.color = Color(r: 255, g: 180, b: 0, a: 255)
+    
+    # Phase-based behavior modifiers
+    var speedMod = 1.0
+    case enemy.bossPhase
+    of bpCircle:
+      speedMod = 1.0
+    of bpCube:
+      speedMod = 0.6  # Slower, defensive
+    of bpTriangle:
+      speedMod = 1.8  # Much faster, aggressive
+    of bpStar:
+      speedMod = 0.8  # Moderate speed
+    
+    # Boss movement with wall collision
     let dir = (playerPos - enemy.pos).normalize()
     var canMove = true
-    let nextPos = enemy.pos + dir * enemy.speed * dt
+    let nextPos = enemy.pos + dir * enemy.speed * speedMod * dt
     
     for wall in walls:
       if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
         canMove = false
+        
+        # Boss colliding with wall - damage both (1 dmg/sec)
+        if currentTime - enemy.lastWallDamageTime >= 1.0:
+          wall.takeDamage(1.0)
+          enemy.hp -= 1.0
+          enemy.lastWallDamageTime = currentTime
         break
     
     if canMove:
-      enemy.vel = dir * enemy.speed
+      enemy.vel = dir * enemy.speed * speedMod
       enemy.pos = enemy.pos + enemy.vel * dt
+    
   else:
     case enemy.enemyType
     of etCircle:  # Normal chaser
@@ -141,28 +214,96 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       for wall in walls:
         if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
           canMove = false
+          
+          # Enemy colliding with wall - damage both (1 dmg/sec)
+          if currentTime - enemy.lastWallDamageTime >= 1.0:
+            wall.takeDamage(1.0)
+            enemy.hp -= 1.0
+            enemy.lastWallDamageTime = currentTime
           break
       
       if canMove:
         enemy.vel = dir * enemy.speed
         enemy.pos = enemy.pos + enemy.vel * dt
     
-    of etCube:  # Shooter - barely moves
+    of etCube:  # BUFFED: Backs away when player is close
       enemy.shootTimer += dt
+      let distToPlayer = distance(enemy.pos, playerPos)
       let dir = (playerPos - enemy.pos).normalize()
-      let slowMove = dir * enemy.speed * dt * 0.5
-      enemy.pos = enemy.pos + slowMove
+      
+      # Kiting behavior: maintain optimal distance
+      const optimalDistance = 250.0
+      const retreatDistance = 150.0
+      
+      if distToPlayer < retreatDistance:
+        # Too close - back away!
+        let retreatDir = dir * -1.0
+        let nextPos = enemy.pos + retreatDir * enemy.speed * dt
+        var canMove = true
+        
+        for wall in walls:
+          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+            canMove = false
+            
+            # Enemy colliding with wall - damage both (1 dmg/sec)
+            if currentTime - enemy.lastWallDamageTime >= 1.0:
+              wall.takeDamage(1.0)
+              enemy.hp -= 1.0
+              enemy.lastWallDamageTime = currentTime
+            break
+        
+        if canMove:
+          enemy.pos = nextPos
+      elif distToPlayer > optimalDistance:
+        # Too far - move closer
+        let nextPos = enemy.pos + dir * enemy.speed * 0.5 * dt
+        var canMove = true
+        
+        for wall in walls:
+          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+            canMove = false
+            
+            # Enemy colliding with wall - damage both (1 dmg/sec)
+            if currentTime - enemy.lastWallDamageTime >= 1.0:
+              wall.takeDamage(1.0)
+              enemy.hp -= 1.0
+              enemy.lastWallDamageTime = currentTime
+            break
+        
+        if canMove:
+          enemy.pos = nextPos
+      # else: in optimal range, stay put
     
-    of etTriangle:  # Dash attacker
+    of etTriangle:  # BUFFED: Free movement + aggressive repositioning
       enemy.dashTimer -= dt
+      
       if enemy.dashTimer <= 0:
-        # Dash toward player
+        # Execute dash toward player
         let dir = (playerPos - enemy.pos).normalize()
-        enemy.vel = dir * enemy.speed * 2.0
-        enemy.dashTimer = 2.0 + rand(1.0)
+        enemy.vel = dir * enemy.speed * 3.0  # Super fast dash
+        enemy.dashTimer = 1.8 + rand(0.8)
       else:
-        # Slow down after dash
-        enemy.vel = enemy.vel * 0.95
+        # Between dashes: actively chase player with free movement
+        let dir = (playerPos - enemy.pos).normalize()
+        let distToPlayer = distance(enemy.pos, playerPos)
+        
+        # Add some erratic movement for unpredictability
+        let erraticAngle = rand(0.5) - 0.25
+        let erraticDir = newVector2f(
+          dir.x * cos(erraticAngle) - dir.y * sin(erraticAngle),
+          dir.x * sin(erraticAngle) + dir.y * cos(erraticAngle)
+        )
+        
+        # Chase at full speed between dashes
+        if distToPlayer > 100:
+          enemy.vel = erraticDir * enemy.speed
+        else:
+          # Circle around player when close
+          let tangent = newVector2f(-dir.y, dir.x)
+          enemy.vel = (erraticDir * 0.5 + tangent * 0.5).normalize() * enemy.speed
+        
+        # Slow down velocity gradually
+        enemy.vel = enemy.vel * 0.92
       
       var canMove = true
       let nextPos = enemy.pos + enemy.vel * dt
@@ -170,7 +311,13 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       for wall in walls:
         if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
           canMove = false
-          enemy.vel = newVector2f(0, 0)
+          enemy.vel = enemy.vel * 0.3  # Bounce off walls
+          
+          # Enemy colliding with wall - damage both (1 dmg/sec)
+          if currentTime - enemy.lastWallDamageTime >= 1.0:
+            wall.takeDamage(1.0)
+            enemy.hp -= 1.0
+            enemy.lastWallDamageTime = currentTime
           break
       
       if canMove:
@@ -178,8 +325,23 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
     
     of etStar:  # Slow, tank enemy
       let dir = (playerPos - enemy.pos).normalize()
-      enemy.vel = dir * enemy.speed
-      enemy.pos = enemy.pos + enemy.vel * dt
+      let nextPos = enemy.pos + dir * enemy.speed * dt
+      var canMove = true
+      
+      for wall in walls:
+        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+          canMove = false
+          
+          # Enemy colliding with wall - damage both (1 dmg/sec)
+          if currentTime - enemy.lastWallDamageTime >= 1.0:
+            wall.takeDamage(1.0)
+            enemy.hp -= 1.0
+            enemy.lastWallDamageTime = currentTime
+          break
+      
+      if canMove:
+        enemy.vel = dir * enemy.speed
+        enemy.pos = nextPos
   
   # Check if star enemy is defeated by hit count
   if enemy.enemyType == etStar and enemy.hitCount >= enemy.requiredHits:
@@ -189,17 +351,55 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
 
 proc drawEnemy*(enemy: Enemy) =
   if enemy.isBoss:
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius, Black)
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3, White)
+    # Draw based on current phase
+    case enemy.bossPhase
+    of bpCircle:
+      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius, Black)
+      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3, White)
+    
+    of bpCube:
+      # Square form
+      let size = enemy.radius * 1.2
+      drawRectangle((enemy.pos.x - size).int32, (enemy.pos.y - size).int32, 
+                    (size * 2).int32, (size * 2).int32, enemy.color)
+      drawRectangleLines((enemy.pos.x - size).int32, (enemy.pos.y - size).int32, 
+                         (size * 2).int32, (size * 2).int32, Black)
+    
+    of bpTriangle:
+      # Triangle form
+      let v1 = Vector2(x: enemy.pos.x, y: enemy.pos.y - enemy.radius)
+      let v2 = Vector2(x: enemy.pos.x - enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
+      let v3 = Vector2(x: enemy.pos.x + enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
+      drawTriangle(v1, v2, v3, enemy.color)
+      drawTriangleLines(v1, v2, v3, Black)
+    
+    of bpStar:
+      # Star form
+      let points = 5
+      for i in 0..<points*2:
+        let angle = i.float32 * PI / points.float32
+        let r = if i mod 2 == 0: enemy.radius else: enemy.radius * 0.5
+        let x = enemy.pos.x + cos(angle) * r
+        let y = enemy.pos.y + sin(angle) * r
+        
+        if i == 0:
+          continue
+        
+        let prevAngle = (i-1).float32 * PI / points.float32
+        let prevR = if (i-1) mod 2 == 0: enemy.radius else: enemy.radius * 0.5
+        let prevX = enemy.pos.x + cos(prevAngle) * prevR
+        let prevY = enemy.pos.y + sin(prevAngle) * prevR
+        
+        drawLine(Vector2(x: prevX, y: prevY), Vector2(x: x, y: y), 3, enemy.color)
     
     # Boss HP bar
-    let barWidth = enemy.radius * 2
-    let barHeight = 6.0
+    let barWidth = enemy.radius * 2.5
+    let barHeight = 8.0
     let hpPercent = enemy.hp / enemy.maxHp
-    drawRectangle((enemy.pos.x - enemy.radius).int32, (enemy.pos.y - enemy.radius - 12).int32, 
+    drawRectangle((enemy.pos.x - enemy.radius * 1.25).int32, (enemy.pos.y - enemy.radius - 16).int32, 
                   barWidth.int32, barHeight.int32, Red)
-    drawRectangle((enemy.pos.x - enemy.radius).int32, (enemy.pos.y - enemy.radius - 12).int32, 
+    drawRectangle((enemy.pos.x - enemy.radius * 1.25).int32, (enemy.pos.y - enemy.radius - 16).int32, 
                   (barWidth * hpPercent).int32, barHeight.int32, Green)
   else:
     case enemy.enemyType
@@ -266,27 +466,38 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
     x = -30
     y = rand(screenHeight.int).float32
   
-  # Weighted enemy type selection based on difficulty
+  # PROGRESSIVE DIFFICULTY SYSTEM - enemies unlock in phases
   let roll = rand(100)
   var enemyType: EnemyType
   
-  if difficulty < 2:
-    # Early game: mostly circles
-    if roll < 80: enemyType = etCircle
-    elif roll < 95: enemyType = etCube
-    else: enemyType = etTriangle
-  elif difficulty < 5:
-    # Mid game: more variety
+  if difficulty < 1.0:
+    # Phase 1 (0-10s): Only circles - learn the basics
+    enemyType = etCircle
+  
+  elif difficulty < 2.5:
+    # Phase 2 (10-25s): Circles + Cubes - introduce ranged enemies
+    if roll < 70: enemyType = etCircle
+    else: enemyType = etCube
+  
+  elif difficulty < 4.0:
+    # Phase 3 (25-40s): Add Stars - introduce tanky enemies
     if roll < 50: enemyType = etCircle
-    elif roll < 75: enemyType = etCube
-    elif roll < 95: enemyType = etTriangle
+    elif roll < 80: enemyType = etCube
     else: enemyType = etStar
-  else:
-    # Late game: all types common
+  
+  elif difficulty < 6.0:
+    # Phase 4 (40-60s): Add Triangles - full enemy roster
     if roll < 40: enemyType = etCircle
     elif roll < 65: enemyType = etCube
-    elif roll < 85: enemyType = etTriangle
-    else: enemyType = etStar
+    elif roll < 85: enemyType = etStar
+    else: enemyType = etTriangle
+  
+  else:
+    # Phase 5 (60s+): Balanced chaos - all types common
+    if roll < 30: enemyType = etCircle
+    elif roll < 55: enemyType = etCube
+    elif roll < 75: enemyType = etStar
+    else: enemyType = etTriangle
   
   newEnemy(x, y, difficulty, enemyType)
 

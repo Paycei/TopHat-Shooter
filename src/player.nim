@@ -1,4 +1,4 @@
-import raylib, types, math
+import raylib, types, wall
 
 proc newPlayer*(x, y: float32): Player =
   result = Player(
@@ -24,7 +24,7 @@ proc newPlayer*(x, y: float32): Player =
     magnetTimer: 0
   )
 
-proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32) =
+proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
   # Update powerup timers
   if player.speedBoostTimer > 0:
     player.speedBoostTimer -= dt
@@ -53,7 +53,18 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   else:
     player.vel = newVector2f(0, 0)
   
-  player.pos = player.pos + player.vel * dt
+  # Calculate next position
+  let nextPos = player.pos + player.vel * dt
+  
+  # Check wall collisions - player is blocked by walls
+  var canMove = true
+  for w in walls:
+    if checkPlayerWallCollision(nextPos, player.radius, w):
+      canMove = false
+      break
+  
+  if canMove:
+    player.pos = nextPos
   
   # Clamp to screen
   if player.pos.x < player.radius: player.pos.x = player.radius

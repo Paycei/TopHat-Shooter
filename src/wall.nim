@@ -1,4 +1,4 @@
-import raylib, types, math
+import raylib, types
 
 proc newWall*(x, y: float32): Wall =
   result = Wall(
@@ -30,6 +30,13 @@ proc drawWall*(wall: Wall) =
 
 proc takeDamage*(wall: Wall, damage: float32) =
   wall.hp -= damage
+  if wall.hp < 0: wall.hp = 0
+
+proc checkEnemyWallCollision*(enemy: Enemy, wall: Wall): bool =
+  distance(enemy.pos, wall.pos) < enemy.radius + wall.radius
+
+proc checkPlayerWallCollision*(playerPos: Vector2f, playerRadius: float32, wall: Wall): bool =
+  distance(playerPos, wall.pos) < playerRadius + wall.radius
 
 proc isValidWallPlacement*(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall], enemies: seq[Enemy], radius: float32): bool =
   # Check if too close to player

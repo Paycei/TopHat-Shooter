@@ -16,6 +16,12 @@ type
     btCharger,   # Dashes toward player
     btOrbit      # Shoots orbiting projectiles
 
+  BossPhase* = enum
+    bpCircle,    # Normal circular boss form
+    bpCube,      # Cube form - defensive, shoots more
+    bpTriangle,  # Triangle form - aggressive dashes
+    bpStar       # Star form - bullet storm phase
+
   ConsumableType* = enum
     ctHealth,
     ctCoin,
@@ -61,12 +67,18 @@ type
     enemyType*: EnemyType
     isBoss*: bool
     bossType*: BossType
+    bossPhase*: BossPhase
+    phaseChangeTimer*: float32
     shootTimer*: float32
     spawnTimer*: float32
     dashTimer*: float32
     hitCount*: int
     requiredHits*: int
     lastContactDamageTime*: float32
+    teleportTimer*: float32
+    shockwaveTimer*: float32
+    burstTimer*: float32
+    lastWallDamageTime*: float32
 
   Bullet* = ref object
     pos*: Vector2f
@@ -74,6 +86,7 @@ type
     radius*: float32
     damage*: float32
     fromPlayer*: bool
+    lifetime*: float32
 
   Coin* = ref object
     pos*: Vector2f
@@ -94,6 +107,14 @@ type
     maxHp*: float32
     duration*: float32
 
+  Particle* = ref object
+    pos*: Vector2f
+    vel*: Vector2f
+    color*: Color
+    lifetime*: float32
+    maxLifetime*: float32
+    size*: float32
+
   ShopItem* = object
     name*: string
     description*: string
@@ -108,6 +129,7 @@ type
     coins*: seq[Coin]
     consumables*: seq[Consumable]
     walls*: seq[Wall]
+    particles*: seq[Particle]
     time*: float32
     spawnTimer*: float32
     bossTimer*: float32
