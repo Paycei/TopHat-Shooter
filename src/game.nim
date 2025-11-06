@@ -105,8 +105,36 @@ proc updateGame*(game: Game, dt: float32) =
     
     if not updateEnemy(enemy, game.player.pos, dt, game.walls, game.time):
       # Enemy died - drop coins and particles
-      let coinValue = if enemy.isBoss: 15 else: (if enemy.enemyType == etStar: 5 else: 1)
+      let coinValue = if enemy.isBoss:
+        # Boss drops scale with difficulty: 15 + 5 per difficulty level
+        15 + (game.difficulty * 5).int
+      else:
+        # Regular enemies drop based on type
+        case enemy.enemyType
+        of etCircle: 1
+        of etCube: 2
+        of etTriangle: 3
+        of etStar: 5
+      
       game.coins.add(newCoin(enemy.pos.x, enemy.pos.y, coinValue))
+      
+      # Star explosion on death - damages player if too close
+      if enemy.enemyType == etStar:
+        const explosionRadius = 80.0  # Medium-sized explosion
+        const explosionDamage = 2.0
+        
+        # Check if player is in explosion radius
+        let distToPlayer = distance(enemy.pos, game.player.pos)
+        if distToPlayer < explosionRadius:
+          takeDamage(game.player, explosionDamage)
+          if game.player.hp <= 0:
+            game.state = gsGameOver
+        
+        # Create large explosion visual
+        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+                      Color(r: 255, g: 150, b: 0, a: 255), 40)
+        # Add shockwave ring
+        spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, explosionRadius)
       
       # Death particles
       let particleColor = enemy.color

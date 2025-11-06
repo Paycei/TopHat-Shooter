@@ -476,26 +476,26 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
   
   elif difficulty < 2.5:
     # Phase 2 (10-25s): Circles + Cubes - introduce ranged enemies
-    if roll < 70: enemyType = etCircle
+    if roll < 75: enemyType = etCircle
     else: enemyType = etCube
   
   elif difficulty < 4.0:
     # Phase 3 (25-40s): Add Stars - introduce tanky enemies
-    if roll < 50: enemyType = etCircle
-    elif roll < 80: enemyType = etCube
+    if roll < 55: enemyType = etCircle
+    elif roll < 75: enemyType = etCube  # Reduced from 80
     else: enemyType = etStar
   
   elif difficulty < 6.0:
     # Phase 4 (40-60s): Add Triangles - full enemy roster
-    if roll < 40: enemyType = etCircle
-    elif roll < 65: enemyType = etCube
+    if roll < 45: enemyType = etCircle
+    elif roll < 60: enemyType = etCube  # Reduced from 65
     elif roll < 85: enemyType = etStar
     else: enemyType = etTriangle
   
   else:
     # Phase 5 (60s+): Balanced chaos - all types common
-    if roll < 30: enemyType = etCircle
-    elif roll < 55: enemyType = etCube
+    if roll < 35: enemyType = etCircle
+    elif roll < 50: enemyType = etCube  # Reduced from 55
     elif roll < 75: enemyType = etStar
     else: enemyType = etTriangle
   
