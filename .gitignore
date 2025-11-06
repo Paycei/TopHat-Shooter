@@ -1,4 +1,4 @@
 nimcache/
 nimblecache/
 htmldocs/
-src/main.exe
+*.exe
