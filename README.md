@@ -27,12 +27,7 @@ Bosses transform between Circle/Cube/Triangle/Star forms every 8 seconds with un
 ## Building
 
 ```bash
-nim c -d:release --opt:speed src/main.nim
-```
-
-Or use nimble:
-```bash
-nimble build
+nim c -d:release --opt:speed --passL:icono.res src/main.nim
 ```
 
 ## Controls
@@ -66,8 +61,6 @@ Optimized for 60 FPS even with:
 - 200+ bullets active
 - 500+ particles rendering
 - Multiple bosses simultaneously
-
-Nim's performance makes the chaos smooth!
 
 ## License
 
