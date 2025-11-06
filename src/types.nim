@@ -1,0 +1,146 @@
+import raylib, math
+
+type
+  GameState* = enum
+    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp
+
+  EnemyType* = enum
+    etCircle,    # Normal chasers
+    etCube,      # Stationary/slow shooters
+    etTriangle,  # Fast dash attackers
+    etStar       # High HP, needs many hits
+
+  BossType* = enum
+    btShooter,   # Shoots spiral of bullets
+    btSummoner,  # Spawns many minions
+    btCharger,   # Dashes toward player
+    btOrbit      # Shoots orbiting projectiles
+
+  ConsumableType* = enum
+    ctHealth,
+    ctCoin,
+    ctSpeed,
+    ctInvincibility,
+    ctFireRate,
+    ctMagnet
+
+  Vector2f* = object
+    x*, y*: float32
+
+  Player* = ref object
+    pos*: Vector2f
+    vel*: Vector2f
+    radius*: float32
+    baseRadius*: float32
+    hp*: float32
+    maxHp*: float32
+    speed*: float32
+    baseSpeed*: float32
+    damage*: float32
+    fireRate*: float32
+    bulletSpeed*: float32
+    lastShot*: float32
+    autoShoot*: bool
+    coins*: int
+    kills*: int
+    walls*: int
+    speedBoostTimer*: float32
+    invincibilityTimer*: float32
+    fireRateBoostTimer*: float32
+    magnetTimer*: float32
+
+  Enemy* = ref object
+    pos*: Vector2f
+    vel*: Vector2f
+    radius*: float32
+    hp*: float32
+    maxHp*: float32
+    speed*: float32
+    damage*: int
+    color*: Color
+    enemyType*: EnemyType
+    isBoss*: bool
+    bossType*: BossType
+    shootTimer*: float32
+    spawnTimer*: float32
+    dashTimer*: float32
+    hitCount*: int
+    requiredHits*: int
+    lastContactDamageTime*: float32
+
+  Bullet* = ref object
+    pos*: Vector2f
+    vel*: Vector2f
+    radius*: float32
+    damage*: float32
+    fromPlayer*: bool
+
+  Coin* = ref object
+    pos*: Vector2f
+    radius*: float32
+    value*: int
+    lifetime*: float32
+
+  Consumable* = ref object
+    pos*: Vector2f
+    radius*: float32
+    consumableType*: ConsumableType
+    lifetime*: float32
+
+  Wall* = ref object
+    pos*: Vector2f
+    radius*: float32
+    hp*: float32
+    maxHp*: float32
+    duration*: float32
+
+  ShopItem* = object
+    name*: string
+    description*: string
+    baseCost*: int
+    bought*: int
+
+  Game* = ref object
+    state*: GameState
+    player*: Player
+    enemies*: seq[Enemy]
+    bullets*: seq[Bullet]
+    coins*: seq[Coin]
+    consumables*: seq[Consumable]
+    walls*: seq[Wall]
+    time*: float32
+    spawnTimer*: float32
+    bossTimer*: float32
+    bossCount*: int
+    difficulty*: float32
+    screenWidth*: int32
+    screenHeight*: int32
+    shopItems*: array[6, ShopItem]
+    selectedShopItem*: int
+    menuSelection*: int
+
+proc newVector2f*(x, y: float32): Vector2f =
+  result.x = x
+  result.y = y
+
+proc `+`*(a, b: Vector2f): Vector2f =
+  newVector2f(a.x + b.x, a.y + b.y)
+
+proc `-`*(a, b: Vector2f): Vector2f =
+  newVector2f(a.x - b.x, a.y - b.y)
+
+proc `*`*(a: Vector2f, s: float32): Vector2f =
+  newVector2f(a.x * s, a.y * s)
+
+proc length*(v: Vector2f): float32 =
+  sqrt(v.x * v.x + v.y * v.y)
+
+proc normalize*(v: Vector2f): Vector2f =
+  let l = v.length()
+  if l > 0:
+    newVector2f(v.x / l, v.y / l)
+  else:
+    newVector2f(0, 0)
+
+proc distance*(a, b: Vector2f): float32 =
+  (b - a).length()
