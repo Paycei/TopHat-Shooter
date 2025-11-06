@@ -2,7 +2,7 @@ import raylib, math
 
 type
   GameState* = enum
-    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp
+    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown
 
   EnemyType* = enum
     etCircle,    # Normal chasers
@@ -140,6 +140,7 @@ type
     shopItems*: array[6, ShopItem]
     selectedShopItem*: int
     menuSelection*: int
+    countdownTimer*: float32
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

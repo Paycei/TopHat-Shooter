@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, random, math
+import raylib, types, game, shop, wall, particle, random, math, strutils
 
 const
   screenWidth = 1024
@@ -167,13 +167,72 @@ proc main() =
       if isKeyPressed(Enter):
         buyShopItem(currentGame, currentGame.selectedShopItem)
       
-      # Close shop
+      # Close shop - start countdown
       if isKeyPressed(Tab) or isKeyPressed(Escape):
-        currentGame.state = gsPlaying
+        currentGame.state = gsCountdown
+        currentGame.countdownTimer = 0.5
       
       beginDrawing()
       drawGame(currentGame)
       drawShop(currentGame)
+      endDrawing()
+    
+    of gsCountdown:
+      # Countdown timer
+      currentGame.countdownTimer -= dt
+      
+      if currentGame.countdownTimer <= 0:
+        currentGame.state = gsPlaying
+      
+      beginDrawing()
+      drawGame(currentGame)
+      
+      # Draw stylish countdown overlay
+      let countdownValue = max(currentGame.countdownTimer, 0.0)
+      let pulse = 1.0 + sin(currentGame.countdownTimer * 10) * 0.1
+      let alpha = uint8(200.0 * (countdownValue + 0.3))
+      
+      # Dark overlay that fades out
+      drawRectangle(0, 0, screenWidth, screenHeight, 
+                   Color(r: 0, g: 0, b: 0, a: alpha))
+      
+      # Countdown text with scale pulse
+      let textSize = (120 * pulse).int32
+      let countdownText = formatFloat(countdownValue, ffDecimal, 1)
+      let textWidth = measureText(countdownText, textSize)
+      
+      # Glow effect - draw multiple times with offset
+      for i in 1..3:
+        let glowAlpha = uint8(50.0 * (4 - i).float)
+        let glowSize = textSize + i * 4
+        let glowWidth = measureText(countdownText, glowSize.int32)
+        drawText(countdownText,
+                (screenWidth div 2 - glowWidth div 2).int32,
+                (screenHeight div 2 - glowSize div 2).int32,
+                glowSize.int32,
+                Color(r: 255, g: 200, b: 0, a: glowAlpha))
+      
+      # Main text
+      let textColor = if countdownValue > 0.5:
+        Color(r: 255, g: 255, b: 100, a: 255)
+      else:
+        Color(r: 100, g: 255, b: 100, a: 255)
+      
+      drawText(countdownText,
+              screenWidth div 2 - textWidth div 2,
+              screenHeight div 2 - textSize div 2,
+              textSize,
+              textColor)
+      
+      # Subtitle
+      let subtitle = "Get Ready!"
+      let subWidth = measureText(subtitle, 30)
+      drawText(subtitle,
+              screenWidth div 2 - subWidth div 2,
+              screenHeight div 2 + 80,
+              30,
+              Color(r: 200, g: 200, b: 200, a: alpha))
+      
       endDrawing()
     
     of gsGameOver:
