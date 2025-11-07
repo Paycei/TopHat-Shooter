@@ -10,6 +10,13 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puMultiShot: "Multi-Shot"
   of puExplosiveBullets: "Explosive Rounds"
   of puLifeSteal: "Life Steal"
+  of puRapidFire: "Rapid Fire"
+  of puMaxHealth: "Vitality"
+  of puSpeedBoost: "Agility"
+  of puBulletDamage: "Power"
+  of puBulletSpeed: "Velocity"
+  of puLuckyCoins: "Greed"
+  of puWallMaster: "Fortify"
 
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
@@ -53,6 +60,41 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "Heal 1 HP per 10 kills"
     of 2: "Heal 1 HP per 7 kills"
     else: "Heal 1 HP per 4 kills"
+  of puRapidFire:
+    case level
+    of 1: "+25% fire rate"
+    of 2: "+50% fire rate"
+    else: "+80% fire rate"
+  of puMaxHealth:
+    case level
+    of 1: "+2 max HP"
+    of 2: "+4 max HP"
+    else: "+7 max HP"
+  of puSpeedBoost:
+    case level
+    of 1: "+20% movement speed"
+    of 2: "+40% movement speed"
+    else: "+70% movement speed"
+  of puBulletDamage:
+    case level
+    of 1: "+50% bullet damage"
+    of 2: "+100% bullet damage"
+    else: "+180% bullet damage"
+  of puBulletSpeed:
+    case level
+    of 1: "+30% bullet speed"
+    of 2: "+60% bullet speed"
+    else: "+100% bullet speed"
+  of puLuckyCoins:
+    case level
+    of 1: "+30% coin drops"
+    of 2: "+70% coin drops"
+    else: "+150% coin drops"
+  of puWallMaster:
+    case level
+    of 1: "Walls have +50% HP"
+    of 2: "Walls have +120% HP"
+    else: "Walls have +250% HP"
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -66,20 +108,43 @@ proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
       return p.level
   return 0
 
-proc generatePowerUpChoices*(player: Player): array[3, PowerUp] =
+proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3, PowerUp] =
   # Generate 3 random power-up options
   var availablePowerUps: seq[PowerUp] = @[]
   
-  for powerType in PowerUpType:
-    let currentLevel = getPowerUpLevel(player, powerType)
+  # Define legendary-only powerups (stronger versions)
+  let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
+                        puBulletSpeed, puLuckyCoins, puWallMaster]
+  
+  if isLegendary:
+    # Boss defeated - offer legendary upgrades
+    for powerType in legendaryTypes:
+      let currentLevel = getPowerUpLevel(player, powerType)
+      if currentLevel == 0:
+        availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
+      elif currentLevel < 3:
+        availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prLegendary))
     
-    if currentLevel == 0:
-      # Can offer level 1
-      availablePowerUps.add(PowerUp(powerType: powerType, level: 1))
-    elif currentLevel < 3:
-      # Can offer upgrade to next level
-      availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1))
-    # If level 3, don't add to available options
+    # Also include maxed common powerups as legendary versions
+    for powerType in PowerUpType:
+      if powerType in legendaryTypes:
+        continue
+      let currentLevel = getPowerUpLevel(player, powerType)
+      if currentLevel == 0:
+        availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
+      elif currentLevel < 3:
+        availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prLegendary))
+  else:
+    # Normal wave - offer common upgrades (exclude legendary-only types)
+    for powerType in PowerUpType:
+      if powerType in legendaryTypes:
+        continue
+      
+      let currentLevel = getPowerUpLevel(player, powerType)
+      if currentLevel == 0:
+        availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prCommon))
+      elif currentLevel < 3:
+        availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prCommon))
   
   # Shuffle and pick 3
   for i in countdown(availablePowerUps.high, 1):
@@ -91,16 +156,102 @@ proc generatePowerUpChoices*(player: Player): array[3, PowerUp] =
     if i < availablePowerUps.len:
       result[i] = availablePowerUps[i]
     else:
-      # If we run out, offer random level 1 power-ups
-      result[i] = PowerUp(powerType: PowerUpType(rand(7)), level: 1)
+      # If we run out, offer random power-ups
+      if isLegendary:
+        let randomType = legendaryTypes[rand(legendaryTypes.high)]
+        result[i] = PowerUp(powerType: randomType, level: 1, rarity: prLegendary)
+      else:
+        var randomType: PowerUpType
+        while true:
+          randomType = PowerUpType(rand(PowerUpType.high.ord))
+          if randomType notin legendaryTypes:
+            break
+        result[i] = PowerUp(powerType: randomType, level: 1, rarity: prCommon)
 
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
+  # Apply immediate stat bonuses for new powerup types
+  case powerUp.powerType
+  of puRapidFire:
+    let bonus = case powerUp.level
+      of 1: 0.75
+      of 2: 0.5
+      else: 0.45
+    player.fireRate *= bonus
+  of puMaxHealth:
+    let hpBonus = case powerUp.level
+      of 1: 2.0
+      of 2: 4.0
+      else: 7.0
+    player.maxHp += hpBonus
+    player.hp += hpBonus
+  of puSpeedBoost:
+    let speedBonus = case powerUp.level
+      of 1: 1.2
+      of 2: 1.4
+      else: 1.7
+    player.speed *= speedBonus
+    player.baseSpeed *= speedBonus
+  of puBulletDamage:
+    let damageBonus = case powerUp.level
+      of 1: 1.5
+      of 2: 2.0
+      else: 2.8
+    player.damage *= damageBonus
+  of puBulletSpeed:
+    let speedMultiplier = case powerUp.level
+      of 1: 1.3
+      of 2: 1.6
+      else: 2.0
+    player.bulletSpeed *= speedMultiplier
+  else:
+    discard
+  
   # Check if player already has this power-up
   var found = false
   for i in 0..<player.powerUps.len:
     if player.powerUps[i].powerType == powerUp.powerType:
       # Upgrade existing power-up
+      let oldLevel = player.powerUps[i].level
       player.powerUps[i].level = powerUp.level
+      player.powerUps[i].rarity = powerUp.rarity
+      
+      # Apply upgrade bonuses
+      case powerUp.powerType
+      of puRapidFire:
+        let bonus = case powerUp.level
+          of 2: 0.67  # Going from 0.75 to 0.5
+          of 3: 0.9   # Going from 0.5 to 0.45
+          else: 1.0
+        player.fireRate *= bonus
+      of puMaxHealth:
+        let hpBonus = case powerUp.level
+          of 2: 2.0  # Additional 2 HP
+          of 3: 3.0  # Additional 3 HP
+          else: 0.0
+        player.maxHp += hpBonus
+        player.hp += hpBonus
+      of puSpeedBoost:
+        let speedBonus = case powerUp.level
+          of 2: 1.167  # 1.4 / 1.2
+          of 3: 1.214  # 1.7 / 1.4
+          else: 1.0
+        player.speed *= speedBonus
+        player.baseSpeed *= speedBonus
+      of puBulletDamage:
+        let damageBonus = case powerUp.level
+          of 2: 1.333  # 2.0 / 1.5
+          of 3: 1.4    # 2.8 / 2.0
+          else: 1.0
+        player.damage *= damageBonus
+      of puBulletSpeed:
+        let speedMultiplier = case powerUp.level
+          of 2: 1.231  # 1.6 / 1.3
+          of 3: 1.25   # 2.0 / 1.6
+          else: 1.0
+        player.bulletSpeed *= speedMultiplier
+      else:
+        discard
+      
       found = true
       break
   
@@ -109,15 +260,32 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.powerUps.add(powerUp)
 
 proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: bool) =
-  # Card background
-  let bgColor = if isSelected: 
-    Color(r: 80, g: 120, b: 200, a: 255)
+  # Card background - different colors for legendary
+  let bgColor = if powerUp.rarity == prLegendary:
+    if isSelected:
+      Color(r: 150, g: 100, b: 200, a: 255)  # Legendary selected
+    else:
+      Color(r: 80, g: 40, b: 120, a: 255)    # Legendary base
   else:
-    Color(r: 50, g: 50, b: 70, a: 255)
+    if isSelected:
+      Color(r: 80, g: 120, b: 200, a: 255)  # Common selected
+    else:
+      Color(r: 50, g: 50, b: 70, a: 255)    # Common base
   
   drawRectangle(x, y, width, height, bgColor)
-  drawRectangleLines(x, y, width, height, 
-    if isSelected: Yellow else: Color(r: 150, g: 150, b: 150, a: 255))
+  
+  # Border - golden for legendary
+  let borderColor = if powerUp.rarity == prLegendary:
+    if isSelected: Gold else: Color(r: 200, g: 150, b: 50, a: 255)
+  else:
+    if isSelected: Yellow else: Color(r: 150, g: 150, b: 150, a: 255)
+  
+  drawRectangleLines(x, y, width, height, borderColor)
+  
+  # Legendary glow effect
+  if powerUp.rarity == prLegendary:
+    drawRectangleLines(x - 2, y - 2, width + 4, height + 4, 
+                      Color(r: 255, g: 215, b: 0, a: 100))
   
   # Power-up icon/visual indicator
   let iconY = y + 40
@@ -174,6 +342,71 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     # Draw heart shape approximation
     drawCircle(Vector2(x: (centerX - 5).float32, y: (iconY - 3).float32), 6, Pink)
     drawCircle(Vector2(x: (centerX + 5).float32, y: (iconY - 3).float32), 6, Pink)
+  of puRapidFire:
+    # Three bullets in rapid succession
+    for i in 0..<3:
+      let offsetX = (i - 1) * 15
+      drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 6, Orange)
+    # Speed lines
+    for i in 0..2:
+      let lineY = iconY + (i - 1) * 10
+      drawLine(Vector2(x: (centerX - 30).float32, y: lineY.float32),
+              Vector2(x: (centerX - 15).float32, y: lineY.float32), 2, Yellow)
+  of puMaxHealth:
+    # Heart with plus
+    drawCircle(Vector2(x: (centerX - 5).float32, y: (iconY - 2).float32), 10, Red)
+    drawCircle(Vector2(x: (centerX + 5).float32, y: (iconY - 2).float32), 10, Red)
+    drawCircle(Vector2(x: centerX.float32, y: (iconY + 6).float32), 10, Red)
+    drawText("+", centerX - 5, iconY - 8, 16, White)
+  of puSpeedBoost:
+    # Running figure with speed lines
+    drawCircle(Vector2(x: centerX.float32, y: (iconY - 10).float32), 8, SkyBlue)
+    drawLine(Vector2(x: centerX.float32, y: (iconY - 2).float32),
+            Vector2(x: centerX.float32, y: (iconY + 15).float32), 3, SkyBlue)
+    for i in 0..3:
+      let lineX = centerX - 25 + i * 15
+      drawLine(Vector2(x: lineX.float32, y: iconY.float32),
+              Vector2(x: (lineX + 10).float32, y: iconY.float32), 2, White)
+  of puBulletDamage:
+    # Fist with impact
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, DarkGray)
+    # Impact lines
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0
+      let startDist = 15.0
+      let endDist = 25.0
+      let x1 = centerX.float32 + cos(angle) * startDist
+      let y1 = iconY.float32 + sin(angle) * startDist
+      let x2 = centerX.float32 + cos(angle) * endDist
+      let y2 = iconY.float32 + sin(angle) * endDist
+      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, Red)
+  of puBulletSpeed:
+    # Fast bullet trail
+    drawCircle(Vector2(x: (centerX + 20).float32, y: iconY.float32), 6, Yellow)
+    for i in 0..4:
+      let alpha = 255 - i * 50
+      drawCircle(Vector2(x: (centerX + 20 - i * 8).float32, y: iconY.float32), 
+                4, Color(r: 255, g: 255, b: 0, a: alpha.uint8))
+  of puLuckyCoins:
+    # Multiple coins
+    for i in 0..2:
+      let offsetX = (i - 1) * 15
+      drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 8, Gold)
+      drawText("$", int32(centerX + offsetX - 4), int32(iconY - 6), 12, DarkGray)
+  of puWallMaster:
+    # Brick wall
+    for row in 0..2:
+      for col in 0..2:
+        let offsetX = (col - 1) * 12
+        let offsetY = (row - 1) * 12
+        drawRectangle(int32(centerX + offsetX - 5), int32(iconY + offsetY - 5), 10.int32, 10.int32, Brown)
+        drawRectangleLines(int32(centerX + offsetX - 5), int32(iconY + offsetY - 5), 10.int32, 10.int32, Black)
+  
+  # Rarity indicator
+  if powerUp.rarity == prLegendary:
+    let rarityText = "LEGENDARY"
+    let rarityWidth = measureText(rarityText, 14)
+    drawText(rarityText, x + (width - rarityWidth) div 2, y + 10, 14, Gold)
   
   # Power-up name
   let name = getPowerUpName(powerUp.powerType)
@@ -183,7 +416,8 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
   # Level indicator
   let levelText = "Level " & $powerUp.level
   let levelWidth = measureText(levelText, 16)
-  drawText(levelText, x + (width - levelWidth) div 2, y + 115, 16, Gold)
+  let levelColor = if powerUp.rarity == prLegendary: Gold else: Yellow
+  drawText(levelText, x + (width - levelWidth) div 2, y + 115, 16, levelColor)
   
   # Description
   let desc = getPowerUpDescription(powerUp.powerType, powerUp.level)
@@ -215,9 +449,16 @@ proc drawPowerUpSelection*(game: Game) =
   # Dark overlay
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 220))
   
+  # Determine if this is a legendary selection (after boss)
+  let isLegendary = game.powerUpChoices[0].rarity == prLegendary
+  
   # Title
-  drawText("BOSS DEFEATED!", screenWidth div 2 - 200, 80, 50, Gold)
-  drawText("Choose Your Power-Up", screenWidth div 2 - 180, 140, 30, White)
+  if isLegendary:
+    drawText("BOSS DEFEATED!", screenWidth div 2 - 200, 60, 50, Gold)
+    drawText("Choose Your LEGENDARY Upgrade", screenWidth div 2 - 230, 120, 30, Color(r: 255, g: 215, b: 0, a: 255))
+  else:
+    drawText("WAVE COMPLETE!", screenWidth div 2 - 180, 80, 50, Green)
+    drawText("Choose Your Power-Up", screenWidth div 2 - 180, 140, 30, White)
   
   # Draw 3 cards
   let cardWidth = 200
@@ -225,14 +466,13 @@ proc drawPowerUpSelection*(game: Game) =
   let spacing = 40
   let totalWidth = cardWidth * 3 + spacing * 2
   let startX = (screenWidth - totalWidth) div 2
-  let cardY = 200
+  let cardY = if isLegendary: 180 else: 200
   
   for i in 0..2:
     let cardX = startX + i * (cardWidth + spacing)
     drawPowerUpCard(cardX.int32, cardY.int32, cardWidth.int32, cardHeight.int32,
                    game.powerUpChoices[i], i == game.selectedPowerUp)
-
   
   # Instructions
-  drawText("Use ARROW KEYS to select, ENTER to choose", 
-          screenWidth div 2 - 250, screenHeight - 100, 20, LightGray)
+  drawText("ARROW KEYS: select | ENTER: choose | ESC: skip", 
+          screenWidth div 2 - 280, screenHeight - 100, 20, LightGray)

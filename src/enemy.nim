@@ -139,14 +139,14 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
     )
 
 proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
-  let strengthMultiplier = pow(1.25, difficulty)  # Stronger scaling
+  let strengthMultiplier = pow(1.15, difficulty)  # Reduced from 1.25
   
   result = Enemy(
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
     radius: 50 + difficulty * 4,  # Bigger
-    hp: 80 + difficulty * 40 * strengthMultiplier,  # Much more HP
-    maxHp: 80 + difficulty * 40 * strengthMultiplier,
+    hp: 40 + difficulty * 20 * strengthMultiplier,  # NERFED: Was 80 + difficulty * 40
+    maxHp: 40 + difficulty * 20 * strengthMultiplier,
     speed: 60 + difficulty * 5,  # Faster
     damage: 2 + (difficulty / 8).int,  # More damage
     color: case bossType

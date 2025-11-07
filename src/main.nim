@@ -18,7 +18,7 @@ proc drawMenu(game: Game) =
   let startY = 320
   let spacing = 60
   
-  let menuItems = ["Start Game", "Help", "Quit"]
+  let menuItems = ["Play", "Survival Mode", "Help", "Quit"]
   for i in 0..<menuItems.len:
     let y = startY + i * spacing
     let color = if i == game.menuSelection: Gold else: White
@@ -33,6 +33,7 @@ proc drawHelp(game: Game) =
   
   var y: int32 = 130
   let instructions = [
+    "CONTROLS:",
     "WASD - Move",
     "Mouse/Space - Shoot",
     "F - Toggle Auto-Shoot",
@@ -40,29 +41,31 @@ proc drawHelp(game: Game) =
     "TAB - Open Shop",
     "ESC - Pause/Menu",
     "",
-    "ENEMIES (unlock progressively):",
-    "Phase 1: Circles - Basic chasers",
-    "Phase 2: Cubes - Ranged shooters (10s)",
-    "Phase 3: Stars - Tanky targets (25s)",
-    "Phase 4: Triangles - Dash attackers (40s)",
-    "Phase 5: Full chaos! (60s+)",
-    "Bosses: Shape-shift with crazy attacks",
+    "WAVE-BASED MODE (Main):",
+    "Clear waves of enemies for upgrades",
+    "Defeat all enemies to advance waves",
+    "Boss appears every 3 waves",
+    "Choose power-ups after each wave",
+    "Legendary upgrades after boss defeats",
     "",
-    "POWERUPS:",
-    "+ (Green) - Health",
-    "$ (Gold) - 5 Coins",
-    "S (SkyBlue) - Speed Boost",
-    "! (Magenta) - Invincibility",
-    "F (Orange) - Fire Rate Boost",
-    "M (Purple) - Coin Magnet",
+    "SURVIVAL MODE (Classic):",
+    "Survive endless enemy hordes",
+    "Enemies spawn progressively harder",
+    "Boss appears every 60 seconds",
     "",
-    "Survive the progressive chaos as long as possible!"
+    "ENEMIES:",
+    "Circles - Basic chasers",
+    "Cubes - Ranged shooters",
+    "Stars - Tanky targets",
+    "Triangles - Dash attackers",
+    "Hexagons - Teleporting chaos",
+    "Bosses - Shape-shift with special attacks"
   ]
   
   for line in instructions:
     if line.len > 0:
-      drawText(line, 150, y, 20, White)
-    y += 25
+      drawText(line, 120, y, 18, White)
+    y += 22
   
   drawText("Press ESC to return", screenWidth div 2 - 130, screenHeight - 60, 20, LightGray)
 
@@ -86,18 +89,23 @@ proc main() =
       
       # Menu navigation
       if isKeyPressed(Down):
-        currentGame.menuSelection = (currentGame.menuSelection + 1) mod 3
+        currentGame.menuSelection = (currentGame.menuSelection + 1) mod 4
       if isKeyPressed(Up):
-        currentGame.menuSelection = (currentGame.menuSelection - 1 + 3) mod 3
+        currentGame.menuSelection = (currentGame.menuSelection - 1 + 4) mod 4
       
       if isKeyPressed(Enter):
         case currentGame.menuSelection
-        of 0:  # Start Game
+        of 0:  # Wave-Based Mode
           currentGame = newGame(screenWidth, screenHeight)
+          currentGame.mode = gmWaveBased
           currentGame.state = gsPlaying
-        of 1:  # Help
+        of 1:  # Time Survival Mode
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.mode = gmTimeSurvival
+          currentGame.state = gsPlaying
+        of 2:  # Help
           currentGame.state = gsHelp
-        of 2:  # Quit
+        of 3:  # Quit
           break
         else: discard
       
@@ -129,7 +137,7 @@ proc main() =
         
         if isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls, 
                                 currentGame.enemies, 25):
-          currentGame.walls.add(newWall(mousePos.x, mousePos.y))
+          currentGame.walls.add(newWall(mousePos.x, mousePos.y, currentGame.player))
           currentGame.player.walls -= 1
           spawnExplosion(currentGame.particles, mousePos.x, mousePos.y, Brown, 15)
       
@@ -255,6 +263,7 @@ proc main() =
     of gsGameOver:
       if isKeyPressed(R):
         currentGame = newGame(screenWidth, screenHeight)
+        currentGame.mode = gmWaveBased  # Default to wave-based on restart
         currentGame.state = gsPlaying
       
       if isKeyPressed(Escape):
@@ -263,6 +272,23 @@ proc main() =
       
       beginDrawing()
       drawGameOver(currentGame)
+      endDrawing()
+    
+    of gsWaveTransition:
+      # Wave transition - countdown before next wave starts
+      currentGame.waveCompleteTimer -= dt
+      
+      if currentGame.waveCompleteTimer <= 0:
+        currentGame.state = gsCountdown
+        currentGame.countdownTimer = 0.5
+      
+      if isKeyPressed(Enter):
+        # Skip to countdown immediately
+        currentGame.state = gsCountdown
+        currentGame.countdownTimer = 0.5
+      
+      beginDrawing()
+      drawWaveTransition(currentGame)
       endDrawing()
   
   closeWindow()

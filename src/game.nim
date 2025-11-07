@@ -3,6 +3,7 @@ import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, parti
 proc newGame*(screenWidth, screenHeight: int32): Game =
   result = Game(
     state: gsPlaying,
+    mode: gmWaveBased,  # Default to wave-based mode
     player: newPlayer(screenWidth.float32 / 2, screenHeight.float32 / 2),
     enemies: @[],
     bullets: @[],
@@ -24,8 +25,49 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     bossActive: false,
     bossSpawnTimer: 0,
     timerFrozen: false,
-    frozenTimeDisplay: 0
+    frozenTimeDisplay: 0,
+    # Wave-based mode fields
+    currentWave: 1,
+    wavesUntilBoss: 3,
+    waveEnemiesRemaining: 0,
+    waveEnemiesTotal: 0,
+    waveInProgress: false,
+    waveCompleteTimer: 0
   )
+
+proc calculateWaveEnemyCount(waveNumber: int): int =
+  # Scale enemy count based on wave number
+  # Start with 8 enemies, add 2-4 per wave
+  result = 8 + (waveNumber - 1) * 3
+  # Cap at 40 enemies per wave
+  if result > 40:
+    result = 40
+
+proc startWave*(game: Game) =
+  game.waveInProgress = true
+  game.waveEnemiesTotal = calculateWaveEnemyCount(game.currentWave)
+  game.waveEnemiesRemaining = game.waveEnemiesTotal
+  game.spawnTimer = 0
+
+proc spawnWaveEnemy*(game: Game) =
+  if game.waveEnemiesRemaining > 0:
+    # Calculate difficulty based on wave number
+    let waveDifficulty = (game.currentWave - 1).float32 * 0.8
+    game.enemies.add(spawnEnemy(game.screenWidth, game.screenHeight, waveDifficulty))
+    game.waveEnemiesRemaining -= 1
+
+proc checkWaveComplete*(game: Game): bool =
+  # Wave is complete when all enemies are defeated and none remain to spawn
+  return game.waveEnemiesRemaining == 0 and game.enemies.len == 0
+
+proc advanceWave*(game: Game) =
+  game.currentWave += 1
+  game.wavesUntilBoss -= 1
+  
+  # Check if it's time for a boss
+  if game.wavesUntilBoss == 0:
+    game.wavesUntilBoss = 3  # Reset counter
+    # Boss wave will be triggered in update loop
 
 proc shootBullet*(game: Game, direction: Vector2f) =
   let currentFireRate = getCurrentFireRate(game.player)
@@ -136,75 +178,133 @@ proc updateGame*(game: Game, dt: float32) =
       let dir = nearestEnemy.pos - game.player.pos
       shootBullet(game, dir)
   
-  # SMOOTHER EARLY GAME - Slower spawning, longer ramp
-  let baseSpawnRate =
-    if game.difficulty < 1.5:
-      3.0  # Early: very slow (0–15s)
-    elif game.difficulty < 3.0:
-      2.3 / (1.0 + (game.difficulty - 1.5) * 0.3)  # Early ramp (15–30s)
-    elif game.difficulty < 6.0:
-      1.8 / (1.0 + (game.difficulty - 3.0) * 0.25)  # Smooth ramp (30–60s)
-    elif game.difficulty < 9.0:
-      1.4 / (1.0 + (game.difficulty - 6.0) * 0.15)  # Midgame plateau (60–90s)
-    elif game.difficulty < 13.0:
-      1.2 / (1.0 + (game.difficulty - 9.0) * 0.1)   # Late ramp (90–130s)
-    else:
-      max(0.9, 1.0 / (1.0 + (game.difficulty - 13.0) * 0.05))  # Endgame: slow soft cap
-  
-  let waveSpawnRate = baseSpawnRate * 0.7  # Extra fast during waves
-  
-  # Overlapping wave system - multiple mini-waves
-  let waveProgress = (game.time mod 15.0) / 15.0
-  let isWaveActive = waveProgress > 0.6  # 40% of time is wave mode
-  
-  # Reduce spawn rate by 50% during boss fights
-  var currentSpawnRate = if isWaveActive: waveSpawnRate else: baseSpawnRate
-  if game.bossActive:
-    currentSpawnRate = currentSpawnRate * 2.0  # Double the spawn time = 50% spawn rate
-  
-  if game.spawnTimer > currentSpawnRate:
-    game.enemies.add(spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty))
-    game.spawnTimer = 0
+  # MODE-SPECIFIC ENEMY SPAWNING
+  if game.mode == gmWaveBased:
+    # WAVE-BASED MODE: Spawn enemies in defined waves
+    if not game.waveInProgress and not game.bossActive:
+      # Start a new wave
+      startWave(game)
     
-    # During waves, spawn multiple enemies at once (but not during boss fights)
-    if isWaveActive and rand(100) < 60 and not game.bossActive:
+    if game.waveInProgress and game.bossSpawnTimer <= 0:
+      # Spawn wave enemies gradually
+      let spawnRate = 0.8  # Spawn an enemy every 0.8 seconds
+      if game.spawnTimer > spawnRate and game.waveEnemiesRemaining > 0:
+        spawnWaveEnemy(game)
+        game.spawnTimer = 0
+      
+      # Check if wave is complete
+      if checkWaveComplete(game):
+        game.waveInProgress = false
+        
+        # Check if it's time for a boss wave
+        if game.wavesUntilBoss == 1:
+          # Next wave is a boss wave
+          game.wavesUntilBoss = 0
+          game.waveCompleteTimer = 2.0
+          game.state = gsWaveTransition
+        else:
+          # Regular wave complete - show power-up selection
+          game.powerUpChoices = generatePowerUpChoices(game.player, false)
+          game.selectedPowerUp = 0
+          game.state = gsPowerUpSelect
+    
+    # Boss wave spawning
+    if game.wavesUntilBoss == 0 and not game.bossActive and game.bossSpawnTimer <= 0:
+      game.bossCount += 1
+      game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, 
+                                (game.currentWave - 1).float32 * 0.8, game.bossCount))
+      game.bossActive = true
+      game.bossSpawnTimer = 2.5
+      game.frozenTimeDisplay = game.time
+      
+      # Entrance particles
+      let boss = game.enemies[^1]
+      case boss.bossType
+      of btShooter:
+        for i in 0..<60:
+          let angle = i.float32 * 0.1
+          let dist = i.float32 * 3
+          let x = boss.pos.x + cos(angle) * dist
+          let y = boss.pos.y + sin(angle) * dist
+          spawnExplosion(game.particles, x, y, Purple, 3)
+      of btSummoner:
+        for ring in 0..4:
+          spawnShockwave(game.particles, boss.pos.x, boss.pos.y, ring.float32 * 50 + 50)
+      of btCharger:
+        for i in 0..20:
+          let x = boss.pos.x - i.float32 * 15
+          spawnExplosion(game.particles, x, boss.pos.y, Blue, 5)
+      of btOrbit:
+        for i in 0..<40:
+          let angle = i.float32 * PI * 2.0 / 40.0
+          let dist = 80.0
+          let x = boss.pos.x + cos(angle) * dist
+          let y = boss.pos.y + sin(angle) * dist
+          spawnExplosion(game.particles, x, y, Violet, 4)
+  
+  else:
+    # TIME SURVIVAL MODE: Original time-based spawning
+    let baseSpawnRate =
+      if game.difficulty < 1.5:
+        3.0
+      elif game.difficulty < 3.0:
+        2.3 / (1.0 + (game.difficulty - 1.5) * 0.3)
+      elif game.difficulty < 6.0:
+        1.8 / (1.0 + (game.difficulty - 3.0) * 0.25)
+      elif game.difficulty < 9.0:
+        1.4 / (1.0 + (game.difficulty - 6.0) * 0.15)
+      elif game.difficulty < 13.0:
+        1.2 / (1.0 + (game.difficulty - 9.0) * 0.1)
+      else:
+        max(0.9, 1.0 / (1.0 + (game.difficulty - 13.0) * 0.05))
+    
+    let waveSpawnRate = baseSpawnRate * 0.7
+    let waveProgress = (game.time mod 15.0) / 15.0
+    let isWaveActive = waveProgress > 0.6
+    
+    var currentSpawnRate = if isWaveActive: waveSpawnRate else: baseSpawnRate
+    if game.bossActive:
+      currentSpawnRate = currentSpawnRate * 2.0
+    
+    if game.spawnTimer > currentSpawnRate:
       game.enemies.add(spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty))
-  
-  # Boss spawn every 60 seconds
-  if game.time >= game.bossTimer and not game.bossActive:
-    game.bossCount += 1
-    game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, game.difficulty, game.bossCount))
-    game.bossTimer += 60.0
-    game.bossActive = true
-    game.bossSpawnTimer = 2.5  # Freeze timer for 2.5 seconds (entrance animation + warning)
-    game.frozenTimeDisplay = game.time
+      game.spawnTimer = 0
+      
+      if isWaveActive and rand(100) < 60 and not game.bossActive:
+        game.enemies.add(spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty))
     
-    # Create dramatic entrance particles based on boss type
-    let boss = game.enemies[^1]
-    case boss.bossType
-    of btShooter:  # Purple spiral from top
-      for i in 0..<60:
-        let angle = i.float32 * 0.1
-        let dist = i.float32 * 3
-        let x = boss.pos.x + cos(angle) * dist
-        let y = boss.pos.y + sin(angle) * dist
-        spawnExplosion(game.particles, x, y, Purple, 3)
-    of btSummoner:  # Green spreading waves from bottom
-      for ring in 0..4:
-        spawnShockwave(game.particles, boss.pos.x, boss.pos.y, ring.float32 * 50 + 50)
-    of btCharger:  # Blue lightning trail from left
-      for i in 0..20:
-        let x = boss.pos.x - i.float32 * 15
-        spawnExplosion(game.particles, x, boss.pos.y, Blue, 5)
-    of btOrbit:  # Violet spiraling particles from right
-      for i in 0..<40:
-        let angle = i.float32 * PI * 2.0 / 40.0
-        let dist = 80.0
-        let x = boss.pos.x + cos(angle) * dist
-        let y = boss.pos.y + sin(angle) * dist
-        spawnExplosion(game.particles, x, y, Violet, 4)
-    
-    # Don't spawn extra minions on boss arrival - boss should be the focus
+    # Boss spawn every 60 seconds
+    if game.time >= game.bossTimer and not game.bossActive:
+      game.bossCount += 1
+      game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, game.difficulty, game.bossCount))
+      game.bossTimer += 60.0
+      game.bossActive = true
+      game.bossSpawnTimer = 2.5
+      game.frozenTimeDisplay = game.time
+      
+      let boss = game.enemies[^1]
+      case boss.bossType
+      of btShooter:
+        for i in 0..<60:
+          let angle = i.float32 * 0.1
+          let dist = i.float32 * 3
+          let x = boss.pos.x + cos(angle) * dist
+          let y = boss.pos.y + sin(angle) * dist
+          spawnExplosion(game.particles, x, y, Purple, 3)
+      of btSummoner:
+        for ring in 0..4:
+          spawnShockwave(game.particles, boss.pos.x, boss.pos.y, ring.float32 * 50 + 50)
+      of btCharger:
+        for i in 0..20:
+          let x = boss.pos.x - i.float32 * 15
+          spawnExplosion(game.particles, x, boss.pos.y, Blue, 5)
+      of btOrbit:
+        for i in 0..<40:
+          let angle = i.float32 * PI * 2.0 / 40.0
+          let dist = 80.0
+          let x = boss.pos.x + cos(angle) * dist
+          let y = boss.pos.y + sin(angle) * dist
+          spawnExplosion(game.particles, x, y, Violet, 4)
   
   # Update enemies
   var i = 0
@@ -279,7 +379,14 @@ proc updateGame*(game: Game, dt: float32) =
       # Check if boss was defeated
       if enemy.isBoss:
         bossDefeated = true
-        game.bossActive = false  # Boss defeated, allow normal spawning again
+        game.bossActive = false
+        
+        # Mode-specific boss defeat handling
+        if game.mode == gmWaveBased:
+          # Wave mode: advance wave and reset boss counter
+          advanceWave(game)
+          game.wavesUntilBoss = 3
+        # Time survival mode continues with existing logic
       
       game.enemies.delete(i)
       continue
@@ -436,7 +543,14 @@ proc updateGame*(game: Game, dt: float32) =
   
   # If boss was defeated, trigger power-up selection
   if bossDefeated:
-    game.powerUpChoices = generatePowerUpChoices(game.player)
+    # Mode-specific boss defeat rewards
+    if game.mode == gmWaveBased:
+      # Wave mode: offer legendary upgrades
+      game.powerUpChoices = generatePowerUpChoices(game.player, true)
+    else:
+      # Time survival: offer regular upgrades
+      game.powerUpChoices = generatePowerUpChoices(game.player, false)
+    
     game.selectedPowerUp = 0
     game.state = gsPowerUpSelect
     # Clear all enemies and bullets for clean screen
@@ -705,6 +819,22 @@ proc drawGame*(game: Game) =
              (game.screenHeight div 2 - 60).int32, 40, warningColor)
   drawText("Walls: " & $game.player.walls, 10, 110, 20, Brown)
   
+  # Mode-specific UI
+  if game.mode == gmWaveBased:
+    # Wave information
+    drawText("Wave: " & $game.currentWave, 10, 135, 20, Yellow)
+    
+    if game.waveInProgress and not game.bossActive:
+      let enemiesLeft = game.waveEnemiesRemaining + game.enemies.len
+      drawText("Enemies: " & $enemiesLeft & "/" & $game.waveEnemiesTotal, 10, 160, 18, Orange)
+    elif game.bossActive:
+      drawText("BOSS WAVE", 10, 160, 20, Red)
+  else:
+    # Time survival mode - show chaos meter
+    let chaosLevel = min(game.difficulty * 10, 100).int
+    drawText("Chaos: " & $chaosLevel & "%", 10, 135, 18, 
+            if chaosLevel < 30: Green elif chaosLevel < 70: Orange else: Red)
+  
   # Boss health bar (top of screen)
   if game.bossActive:
     for enemy in game.enemies:
@@ -734,15 +864,11 @@ proc drawGame*(game: Game) =
         drawText(hpText, int32(game.screenWidth div 2 - hpTextWidth div 2), int32(barY + 4), 16, White)
         break
   
-  # Wave indicator
-  let waveProgress = (game.time mod 15.0) / 15.0
-  if waveProgress > 0.6 and not game.bossActive:
-    drawText("*** WAVE ***", game.screenWidth div 2 - 80, 10, 25, Red)
-  
-  # Chaos meter
-  let chaosLevel = min(game.difficulty * 10, 100).int
-  drawText("Chaos: " & $chaosLevel & "%", 10, 135, 18, 
-          if chaosLevel < 30: Green elif chaosLevel < 70: Orange else: Red)
+  # Time survival mode - show wave indicator (only for time survival)
+  if game.mode == gmTimeSurvival:
+    let waveProgress = (game.time mod 15.0) / 15.0
+    if waveProgress > 0.6 and not game.bossActive:
+      drawText("*** WAVE ***", game.screenWidth div 2 - 80, 10, 25, Red)
   
   # Active power-ups display (left side)
   if game.player.powerUps.len > 0:
@@ -803,4 +929,29 @@ proc drawGameOver*(game: Game) =
   drawText("Kills: " & $game.player.kills, game.screenWidth div 2 - 60, game.screenHeight div 2 + 40, 25, White)
   drawText("Coins Earned: " & $game.player.coins, game.screenWidth div 2 - 130, game.screenHeight div 2 + 80, 25, Gold)
   
+  # Show wave number if in wave mode
+  if game.mode == gmWaveBased:
+    drawText("Wave Reached: " & $game.currentWave, game.screenWidth div 2 - 120, game.screenHeight div 2 - 40, 25, Yellow)
+  
   drawText("Press R to restart or ESC to menu", game.screenWidth div 2 - 190, game.screenHeight div 2 + 140, 20, LightGray)
+
+proc drawWaveTransition*(game: Game) =
+  # Draw the game in background
+  drawGame(game)
+  
+  # Dark overlay
+  drawRectangle(0, 0, game.screenWidth, game.screenHeight, Color(r: 0, g: 0, b: 0, a: 180))
+  
+  # Title
+  drawText("GET READY!", game.screenWidth div 2 - 120, game.screenHeight div 2 - 80, 50, Yellow)
+  
+  # Boss wave notification
+  drawText("BOSS WAVE INCOMING", game.screenWidth div 2 - 180, game.screenHeight div 2, 35, Red)
+  
+  # Countdown
+  let countdown = (game.waveCompleteTimer + 0.5).int
+  let countText = $countdown
+  let countWidth = measureText(countText, 60)
+  drawText(countText, game.screenWidth div 2 - countWidth div 2, game.screenHeight div 2 + 60, 60, Gold)
+  
+  drawText("Press ENTER to start", game.screenWidth div 2 - 130, game.screenHeight - 80, 20, LightGray)

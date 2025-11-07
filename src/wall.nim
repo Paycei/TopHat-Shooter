@@ -1,11 +1,22 @@
-import raylib, types
+import raylib, types, powerup
 
-proc newWall*(x, y: float32): Wall =
+proc newWall*(x, y: float32, player: Player): Wall =
+  # Calculate HP based on WallMaster powerup
+  let baseHp = 10.0
+  let wallMasterLevel = getPowerUpLevel(player, puWallMaster)
+  let hpMultiplier = case wallMasterLevel
+    of 1: 1.5
+    of 2: 2.2
+    of 3: 3.5
+    else: 1.0
+  
+  let maxHp = baseHp * hpMultiplier
+  
   result = Wall(
     pos: newVector2f(x, y),
     radius: 25,
-    hp: 10,
-    maxHp: 10,
+    hp: maxHp,
+    maxHp: maxHp,
     duration: 30.0
   )
 

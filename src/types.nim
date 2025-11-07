@@ -2,7 +2,11 @@ import raylib, math
 
 type
   GameState* = enum
-    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsPowerUpSelect
+    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsPowerUpSelect, gsWaveTransition
+  
+  GameMode* = enum
+    gmWaveBased,      # New primary mode: waves → upgrades → boss → legendary
+    gmTimeSurvival    # Old mode: time-based survival
 
   EnemyType* = enum
     etCircle,    # Normal chasers
@@ -39,11 +43,23 @@ type
     puPiercingShots,   # Bullets pass through enemies
     puMultiShot,       # Shoots in 3 directions
     puExplosiveBullets,# Bullets explode on impact
-    puLifeSteal        # Gain HP from kills
+    puLifeSteal,       # Gain HP from kills
+    puRapidFire,       # Increased fire rate
+    puMaxHealth,       # Increase max HP
+    puSpeedBoost,      # Permanent speed increase
+    puBulletDamage,    # Increased bullet damage
+    puBulletSpeed,     # Faster bullets
+    puLuckyCoins,      # Enemies drop more coins
+    puWallMaster       # Place stronger walls
+  
+  PowerUpRarity* = enum
+    prCommon,          # Normal upgrades after waves
+    prLegendary        # Special upgrades after bosses
 
   PowerUp* = object
     powerType*: PowerUpType
     level*: int  # 1, 2, or 3
+    rarity*: PowerUpRarity  # Common or Legendary
 
   Vector2f* = object
     x*, y*: float32
@@ -148,6 +164,7 @@ type
 
   Game* = ref object
     state*: GameState
+    mode*: GameMode  # New: Track game mode
     player*: Player
     enemies*: seq[Enemy]
     bullets*: seq[Bullet]
@@ -172,6 +189,13 @@ type
     bossSpawnTimer*: float32             # Timer for boss entrance animation
     timerFrozen*: bool                   # Is the game timer frozen?
     frozenTimeDisplay*: float32          # Display value when timer is frozen
+    # Wave-based mode fields
+    currentWave*: int                    # Current wave number (1-based)
+    wavesUntilBoss*: int                 # Waves remaining until boss (3 waves per boss)
+    waveEnemiesRemaining*: int           # Enemies left to spawn in current wave
+    waveEnemiesTotal*: int               # Total enemies in current wave
+    waveInProgress*: bool                # Is a wave currently active?
+    waveCompleteTimer*: float32          # Delay before showing upgrade selection
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x
