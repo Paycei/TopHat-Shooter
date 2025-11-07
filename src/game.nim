@@ -20,7 +20,11 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     shopItems: initShopItems(),
     selectedShopItem: 0,
     menuSelection: 0,
-    selectedPowerUp: 0
+    selectedPowerUp: 0,
+    bossActive: false,
+    bossSpawnTimer: 0,
+    timerFrozen: false,
+    frozenTimeDisplay: 0
   )
 
 proc shootBullet*(game: Game, direction: Vector2f) =
@@ -76,7 +80,16 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Yellow, 5)
 
 proc updateGame*(game: Game, dt: float32) =
-  game.time += dt
+  # Handle boss spawn timer and timer freezing
+  if game.bossSpawnTimer > 0:
+    game.bossSpawnTimer -= dt
+    game.timerFrozen = true
+    # Don't update game time while timer is frozen
+  else:
+    if game.timerFrozen:
+      game.timerFrozen = false
+    game.time += dt
+  
   game.spawnTimer += dt
   game.difficulty = game.time / 10.0  # Difficulty increases every 10 seconds
   
@@ -144,25 +157,54 @@ proc updateGame*(game: Game, dt: float32) =
   let waveProgress = (game.time mod 15.0) / 15.0
   let isWaveActive = waveProgress > 0.6  # 40% of time is wave mode
   
-  let currentSpawnRate = if isWaveActive: waveSpawnRate else: baseSpawnRate
+  # Reduce spawn rate by 50% during boss fights
+  var currentSpawnRate = if isWaveActive: waveSpawnRate else: baseSpawnRate
+  if game.bossActive:
+    currentSpawnRate = currentSpawnRate * 2.0  # Double the spawn time = 50% spawn rate
   
   if game.spawnTimer > currentSpawnRate:
     game.enemies.add(spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty))
     game.spawnTimer = 0
     
-    # During waves, spawn multiple enemies at once!
-    if isWaveActive and rand(100) < 60:
+    # During waves, spawn multiple enemies at once (but not during boss fights)
+    if isWaveActive and rand(100) < 60 and not game.bossActive:
       game.enemies.add(spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty))
   
   # Boss spawn every 60 seconds
-  if game.time >= game.bossTimer:
+  if game.time >= game.bossTimer and not game.bossActive:
     game.bossCount += 1
     game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, game.difficulty, game.bossCount))
     game.bossTimer += 60.0
+    game.bossActive = true
+    game.bossSpawnTimer = 2.5  # Freeze timer for 2.5 seconds (entrance animation + warning)
+    game.frozenTimeDisplay = game.time
     
-    # Spawn extra minions when boss arrives
-    for i in 0..2:
-      game.enemies.add(spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty))
+    # Create dramatic entrance particles based on boss type
+    let boss = game.enemies[^1]
+    case boss.bossType
+    of btShooter:  # Purple spiral from top
+      for i in 0..<60:
+        let angle = i.float32 * 0.1
+        let dist = i.float32 * 3
+        let x = boss.pos.x + cos(angle) * dist
+        let y = boss.pos.y + sin(angle) * dist
+        spawnExplosion(game.particles, x, y, Purple, 3)
+    of btSummoner:  # Green spreading waves from bottom
+      for ring in 0..4:
+        spawnShockwave(game.particles, boss.pos.x, boss.pos.y, ring.float32 * 50 + 50)
+    of btCharger:  # Blue lightning trail from left
+      for i in 0..20:
+        let x = boss.pos.x - i.float32 * 15
+        spawnExplosion(game.particles, x, boss.pos.y, Blue, 5)
+    of btOrbit:  # Violet spiraling particles from right
+      for i in 0..<40:
+        let angle = i.float32 * PI * 2.0 / 40.0
+        let dist = 80.0
+        let x = boss.pos.x + cos(angle) * dist
+        let y = boss.pos.y + sin(angle) * dist
+        spawnExplosion(game.particles, x, y, Violet, 4)
+    
+    # Don't spawn extra minions on boss arrival - boss should be the focus
   
   # Update enemies
   var i = 0
@@ -237,6 +279,7 @@ proc updateGame*(game: Game, dt: float32) =
       # Check if boss was defeated
       if enemy.isBoss:
         bossDefeated = true
+        game.bossActive = false  # Boss defeated, allow normal spawning again
       
       game.enemies.delete(i)
       continue
@@ -631,19 +674,81 @@ proc drawGame*(game: Game) =
   drawPlayer(game.player)
   
   # Draw UI
-  let minutes = (game.time / 60.0).int
-  let seconds = (game.time mod 60.0).int
+  let displayTime = if game.timerFrozen: game.frozenTimeDisplay else: game.time
+  let minutes = (displayTime / 60.0).int
+  let seconds = (displayTime mod 60.0).int
   let timeText = $minutes & ":" & (if seconds < 10: "0" else: "") & $seconds
   
   drawText("HP: " & $game.player.hp.int & "/" & $game.player.maxHp.int, 10, 10, 20, if game.player.hp <= 1: Red else: White)
   drawText("Coins: " & $game.player.coins, 10, 35, 20, Gold)
   drawText("Kills: " & $game.player.kills, 10, 60, 20, White)
-  drawText("Time: " & timeText, 10, 85, 20, White)
+  
+  # Animate timer when frozen
+  let timeColor = if game.timerFrozen:
+    let pulse = ((game.bossSpawnTimer * 4.0).int mod 2)
+    if pulse == 0: Yellow else: Orange
+  else:
+    White
+  drawText("Time: " & timeText, 10, 85, 20, timeColor)
+  
+  # Boss warning indicator
+  if game.bossSpawnTimer > 0:
+    let warningAlpha = ((game.bossSpawnTimer * 6.0).int mod 2)
+    let warningColor = if warningAlpha == 0:
+      Color(r: 255, g: 50, b: 50, a: 255)
+    else:
+      Color(r: 255, g: 100, b: 100, a: 200)
+    
+    let warningText = "!!! BOSS INCOMING !!!"
+    let textWidth = measureText(warningText, 40)
+    drawText(warningText, (game.screenWidth div 2 - textWidth div 2).int32, 
+             (game.screenHeight div 2 - 60).int32, 40, warningColor)
+    
+    # Show which boss
+    if game.enemies.len > 0 and game.enemies[^1].isBoss:
+      let boss = game.enemies[^1]
+      let bossName = case boss.bossType
+        of btShooter: "THE SPIRAL SHOOTER"
+        of btSummoner: "THE DARK SUMMONER"
+        of btCharger: "THE VOID CHARGER"
+        of btOrbit: "THE ORBIT MASTER"
+      let nameWidth = measureText(bossName, 25)
+      drawText(bossName, (game.screenWidth div 2 - nameWidth div 2).int32,
+               (game.screenHeight div 2 - 10).int32, 25, White)
   drawText("Walls: " & $game.player.walls, 10, 110, 20, Brown)
+  
+  # Boss health bar (top of screen)
+  if game.bossActive:
+    for enemy in game.enemies:
+      if enemy.isBoss and enemy.entranceTimer <= 0:
+        let barWidth = 400
+        let barHeight = 25
+        let barX = game.screenWidth div 2 - barWidth div 2
+        let barY = 15
+        let hpPercent = enemy.hp / enemy.maxHp
+
+        
+        # Health bar background
+        drawRectangle(int32(barX), int32(barY), int32(barWidth), int32(barHeight),
+                      Color(r: 60, g: 20, b: 20, a: 255))
+        
+        # Health bar fill with gradient
+        let fillWidth = (barWidth.float32 * hpPercent).int32
+        let barColor = if hpPercent > 0.6: Green elif hpPercent > 0.3: Yellow else: Red
+        drawRectangle(int32(barX), int32(barY), fillWidth, int32(barHeight), barColor)
+        
+        # Health bar border
+        drawRectangleLines(int32(barX), int32(barY), int32(barWidth), int32(barHeight), White)
+        
+        # HP text
+        let hpText = $(enemy.hp.int) & " / " & $(enemy.maxHp.int)
+        let hpTextWidth = measureText(hpText, 16)
+        drawText(hpText, int32(game.screenWidth div 2 - hpTextWidth div 2), int32(barY + 4), 16, White)
+        break
   
   # Wave indicator
   let waveProgress = (game.time mod 15.0) / 15.0
-  if waveProgress > 0.6:
+  if waveProgress > 0.6 and not game.bossActive:
     drawText("*** WAVE ***", game.screenWidth div 2 - 80, 10, 25, Red)
   
   # Chaos meter

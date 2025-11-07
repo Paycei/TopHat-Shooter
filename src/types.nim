@@ -98,6 +98,8 @@ type
     burstTimer*: float32
     lastWallDamageTime*: float32
     hexTeleportTimer*: float32  # For hexagon enemy teleports
+    entranceTimer*: float32      # For boss entrance animation
+    targetPos*: Vector2f         # Target position for entrance
 
   Bullet* = ref object
     pos*: Vector2f
@@ -166,6 +168,10 @@ type
     countdownTimer*: float32
     powerUpChoices*: array[3, PowerUp]  # Three power-ups to choose from
     selectedPowerUp*: int                # Currently selected card (0-2)
+    bossActive*: bool                    # Is a boss currently alive?
+    bossSpawnTimer*: float32             # Timer for boss entrance animation
+    timerFrozen*: bool                   # Is the game timer frozen?
+    frozenTimeDisplay*: float32          # Display value when timer is frozen
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

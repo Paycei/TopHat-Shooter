@@ -168,11 +168,34 @@ proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
     teleportTimer: 12.0,  # Teleport periodically
     shockwaveTimer: 6.0,  # Shockwave attack
     burstTimer: 0.5,  # Rapid fire bursts
-    lastWallDamageTime: 0
+    lastWallDamageTime: 0,
+    entranceTimer: 0,
+    targetPos: newVector2f(x, y)
   )
 
 proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32): bool =
   if enemy.isBoss:
+    # Handle entrance animation
+    if enemy.entranceTimer > 0:
+      enemy.entranceTimer -= dt
+      
+      # Smooth entrance movement
+      let progress = 1.0 - (enemy.entranceTimer / 2.0)
+      let easedProgress = progress * progress  # Ease-in
+      
+      # Interpolate to target position
+      let startPos = case enemy.bossType
+        of btShooter: newVector2f(enemy.targetPos.x, -100)
+        of btSummoner: newVector2f(enemy.targetPos.x, enemy.targetPos.y + 300)
+        of btCharger: newVector2f(-100, enemy.targetPos.y)
+        of btOrbit: newVector2f(enemy.targetPos.x + 300, enemy.targetPos.y)
+      
+      enemy.pos.x = startPos.x + (enemy.targetPos.x - startPos.x) * easedProgress
+      enemy.pos.y = startPos.y + (enemy.targetPos.y - startPos.y) * easedProgress
+      
+      # Boss is invulnerable during entrance
+      return true
+    
     enemy.shootTimer += dt
     enemy.spawnTimer += dt
     enemy.phaseChangeTimer -= dt
@@ -411,6 +434,42 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
 
 proc drawEnemy*(enemy: Enemy) =
   if enemy.isBoss:
+    # Draw unique boss aura/effect based on type
+    case enemy.bossType
+    of btShooter:  # Rotating purple aura
+      let time = getTime() * 2.0
+      for i in 0..5:
+        let angle = time + i.float32 * PI * 2.0 / 6.0
+        let dist = enemy.radius + 20 + sin(time * 3.0) * 10
+        let x = enemy.pos.x + cos(angle) * dist
+        let y = enemy.pos.y + sin(angle) * dist
+        drawCircle(Vector2(x: x, y: y), 8, Color(r: 128, g: 0, b: 255, a: 100))
+    
+    of btSummoner:  # Pulsing green rings
+      let pulse = sin(getTime() * 3.0) * 15 + 30
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + pulse, 
+                     Color(r: 0, g: 255, b: 100, a: 150))
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + pulse + 15, 
+                     Color(r: 0, g: 200, b: 80, a: 100))
+    
+    of btCharger:  # Electric blue crackling
+      for i in 0..3:
+        let angle = rand(1.0) * PI * 2.0
+        let dist = enemy.radius + 10 + rand(15).float32
+        let x = enemy.pos.x + cos(angle) * dist
+        let y = enemy.pos.y + sin(angle) * dist
+        drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y), Vector2(x: x, y: y), 2, 
+                Color(r: 100, g: 200, b: 255, a: 180))
+    
+    of btOrbit:  # Violet orbiting particles
+      let time = getTime() * 4.0
+      for i in 0..7:
+        let angle = time + i.float32 * PI * 2.0 / 8.0
+        let dist = enemy.radius + 35
+        let x = enemy.pos.x + cos(angle) * dist
+        let y = enemy.pos.y + sin(angle) * dist
+        drawCircle(Vector2(x: x, y: y), 6, Color(r: 200, g: 100, b: 255, a: 150))
+    
     # Draw based on current phase
     case enemy.bossPhase
     of bpCircle:
@@ -589,15 +648,38 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
   newEnemy(x, y, difficulty, enemyType)
 
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int): Enemy =
-  let side = rand(3)
-  var x, y: float32
-  
-  case side
-  of 0: x = rand(screenWidth.int).float32; y = -50
-  of 1: x = screenWidth.float32 + 50; y = rand(screenHeight.int).float32
-  of 2: x = rand(screenWidth.int).float32; y = screenHeight.float32 + 50
-  else: x = -50; y = rand(screenHeight.int).float32
-  
-  # Cycle through boss types
+  # Fixed spawn positions for each boss type
   let bossType = BossType((bossCount - 1) mod 4)
-  newBoss(x, y, difficulty, bossType)
+  
+  # Determine fixed center position based on boss type
+  let centerX = screenWidth.float32 / 2
+  let centerY = screenHeight.float32 / 2
+  var targetX, targetY: float32
+  var startX, startY: float32
+  
+  case bossType
+  of btShooter:  # Top center - descends from above
+    targetX = centerX
+    targetY = centerY - 100
+    startX = centerX
+    startY = -100
+  of btSummoner:  # Bottom center - rises from below
+    targetX = centerX
+    targetY = centerY + 100
+    startX = centerX
+    startY = screenHeight.float32 + 100
+  of btCharger:  # Left center - charges from left
+    targetX = centerX - 120
+    targetY = centerY
+    startX = -100
+    startY = centerY
+  of btOrbit:  # Right center - spirals in from right
+    targetX = centerX + 120
+    targetY = centerY
+    startX = screenWidth.float32 + 100
+    startY = centerY
+  
+  var boss = newBoss(startX, startY, difficulty, bossType)
+  boss.entranceTimer = 2.0  # 2 second entrance animation
+  boss.targetPos = newVector2f(targetX, targetY)
+  boss
