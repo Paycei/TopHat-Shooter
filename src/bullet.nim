@@ -1,6 +1,7 @@
 import raylib, types
 
-proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true): Bullet =
+proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true, 
+                isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false): Bullet =
   # BUFFED: Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -10,7 +11,11 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     radius: if fromPlayer: 4 else: 6,
     damage: damage,
     fromPlayer: fromPlayer,
-    lifetime: 5.0  # Bullets despawn after 5 seconds
+    lifetime: 5.0,  # Bullets despawn after 5 seconds
+    isHoming: isHoming,
+    isPiercing: isPiercing,
+    isExplosive: isExplosive,
+    piercedEnemies: 0
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
@@ -19,13 +24,23 @@ proc updateBullet*(bullet: Bullet, dt: float32): bool =
   return bullet.lifetime > 0
 
 proc drawBullet*(bullet: Bullet) =
-  let color = if bullet.fromPlayer: Yellow else: Pink
+  var color = if bullet.fromPlayer: Yellow else: Pink
+  
+  # Special bullet types have special colors
+  if bullet.fromPlayer:
+    if bullet.isHoming: color = Magenta
+    elif bullet.isPiercing: color = SkyBlue
+    elif bullet.isExplosive: color = Orange
+  
   drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
   
-  # Add glow effect for more visual chaos
+  # Add glow effect
   if not bullet.fromPlayer:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
                    Color(r: 255, g: 100, b: 150, a: 100))
+  elif bullet.isExplosive:
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
+                   Color(r: 255, g: 150, b: 0, a: 150))
 
 proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool =
   bullet.pos.x < -50 or bullet.pos.x > screenWidth.float32 + 50 or
@@ -42,3 +57,8 @@ proc checkBulletPlayerCollision*(bullet: Bullet, player: Player): bool =
 proc checkBulletWallCollision*(bullet: Bullet, wall: Wall): bool =
   if bullet.fromPlayer: return false # Player bullets pass through walls
   distance(bullet.pos, wall.pos) < bullet.radius + wall.radius
+
+proc checkShieldCollision*(bullet: Bullet, shieldPos: Vector2f): bool =
+  # Check if enemy bullet hits player's rotating shield
+  if bullet.fromPlayer: return false
+  distance(bullet.pos, shieldPos) < bullet.radius + 6

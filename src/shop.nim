@@ -1,16 +1,16 @@
 import raylib, types, math
 
 proc initShopItems*(): array[6, ShopItem] =
-  result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 10, bought: 0)
-  result[1] = ShopItem(name: "Fire Rate +", description: "Shoot faster", baseCost: 15, bought: 0)
-  result[2] = ShopItem(name: "Move Speed +", description: "Move faster", baseCost: 12, bought: 0)
-  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 20, bought: 0)
-  result[4] = ShopItem(name: "Bullet Speed +", description: "Faster bullets", baseCost: 10, bought: 0)
-  result[5] = ShopItem(name: "Wall (x3)", description: "Buy 3 deployable walls", baseCost: 25, bought: 0)
+  result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 8, bought: 0)
+  result[1] = ShopItem(name: "Fire Rate +", description: "Shoot faster", baseCost: 10, bought: 0)
+  result[2] = ShopItem(name: "Move Speed +", description: "Move faster", baseCost: 8, bought: 0)
+  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 15, bought: 0)
+  result[4] = ShopItem(name: "Bullet Speed +", description: "Faster bullets", baseCost: 7, bought: 0)
+  result[5] = ShopItem(name: "Wall (x3)", description: "Buy 3 deployable walls", baseCost: 18, bought: 0)
 
 proc getCurrentCost*(item: ShopItem): int =
-  # Exponential cost scaling: baseCost * 1.4^bought
-  (item.baseCost.float32 * pow(1.4, item.bought.float32)).int
+  # Slightly lower exponential cost scaling: baseCost * 1.3^bought
+  (item.baseCost.float32 * pow(1.3, item.bought.float32)).int
 
 proc drawShop*(game: Game) =
   let screenWidth = game.screenWidth
@@ -60,19 +60,19 @@ proc buyShopItem*(game: Game, index: int) =
   item.bought += 1
   
   case index
-  of 0: # Damage - exponential scaling
-    game.player.damage += 0.3 * pow(1.1, item.bought.float32)
-  of 1: # Fire Rate - diminishing returns
-    game.player.fireRate *= 0.88
+  of 0: # Damage - better scaling
+    game.player.damage += 0.5 * pow(1.1, item.bought.float32)
+  of 1: # Fire Rate - better diminishing returns
+    game.player.fireRate *= 0.85
     if game.player.fireRate < 0.05: game.player.fireRate = 0.05
-  of 2: # Move Speed - linear but with good scaling
-    game.player.speed += 15
-    game.player.baseSpeed += 15
-  of 3: # Max Health - linear scaling
-    game.player.maxHp += 1
-    game.player.hp += 1
-  of 4: # Bullet Speed - linear scaling
-    game.player.bulletSpeed += 40
+  of 2: # Move Speed - better linear scaling
+    game.player.speed += 20
+    game.player.baseSpeed += 20
+  of 3: # Max Health - more impactful
+    game.player.maxHp += 2
+    game.player.hp += 2
+  of 4: # Bullet Speed - better scaling
+    game.player.bulletSpeed += 60
   of 5: # Walls - fixed amount
     game.player.walls += 3
   else: discard

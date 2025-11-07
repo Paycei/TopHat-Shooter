@@ -107,7 +107,35 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       teleportTimer: 0,
       shockwaveTimer: 0,
       burstTimer: 0,
-      lastWallDamageTime: 0
+      lastWallDamageTime: 0,
+      hexTeleportTimer: 0
+    )
+  
+  of etHexagon:  # Teleporting chaos enemy - shoots while teleporting!
+    result = Enemy(
+      pos: newVector2f(x, y),
+      vel: newVector2f(0, 0),
+      radius: 14 + difficulty * 1.5,
+      hp: 3.0 * strengthMultiplier,
+      maxHp: 3.0 * strengthMultiplier,
+      speed: 70 + difficulty * 8,  # Medium speed
+      damage: 1,
+      color: Color(r: 128, g: 0, b: 255, a: 255),  # Purple
+      enemyType: etHexagon,
+      isBoss: false,
+      bossPhase: bpCircle,
+      phaseChangeTimer: 0,
+      shootTimer: 0,
+      spawnTimer: 0,
+      dashTimer: 0,
+      hitCount: 0,
+      requiredHits: 0,
+      lastContactDamageTime: 0,
+      teleportTimer: 0,
+      shockwaveTimer: 0,
+      burstTimer: 0,
+      lastWallDamageTime: 0,
+      hexTeleportTimer: 2.5 + rand(1.0)  # Teleports every 2.5-3.5s
     )
 
 proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
@@ -342,6 +370,38 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       if canMove:
         enemy.vel = dir * enemy.speed
         enemy.pos = nextPos
+    
+    of etHexagon:  # Teleporting chaos enemy
+      enemy.hexTeleportTimer -= dt
+      enemy.shootTimer += dt
+      
+      if enemy.hexTeleportTimer <= 0:
+        # Teleport to random position near player
+        let angle = rand(1.0) * PI * 2.0
+        let teleportDist = 150.0 + rand(100.0)
+        enemy.pos.x = playerPos.x + cos(angle) * teleportDist
+        enemy.pos.y = playerPos.y + sin(angle) * teleportDist
+        
+        # Reset timer
+        enemy.hexTeleportTimer = 2.5 + rand(1.0)
+      else:
+        # Normal movement between teleports
+        let dir = (playerPos - enemy.pos).normalize()
+        let nextPos = enemy.pos + dir * enemy.speed * dt
+        var canMove = true
+        
+        for wall in walls:
+          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+            canMove = false
+            
+            if currentTime - enemy.lastWallDamageTime >= 1.0:
+              wall.takeDamage(1.0)
+              enemy.hp -= 1.0
+              enemy.lastWallDamageTime = currentTime
+            break
+        
+        if canMove:
+          enemy.pos = nextPos
   
   # Check if star enemy is defeated by hit count
   if enemy.enemyType == etStar and enemy.hitCount >= enemy.requiredHits:
@@ -447,6 +507,24 @@ proc drawEnemy*(enemy: Enemy) =
       let text = $remaining
       let textWidth = measureText(text, 14)
       drawText(text, (enemy.pos.x - textWidth / 2).int32, (enemy.pos.y - 7).int32, 14, Black)
+    
+    of etHexagon:
+      # Draw as hexagon with teleport glow
+      let points = 6
+      for i in 0..<points:
+        let angle = i.float32 * PI / 3.0
+        let nextAngle = (i + 1).float32 * PI / 3.0
+        let x1 = enemy.pos.x + cos(angle) * enemy.radius
+        let y1 = enemy.pos.y + sin(angle) * enemy.radius
+        let x2 = enemy.pos.x + cos(nextAngle) * enemy.radius
+        let y2 = enemy.pos.y + sin(nextAngle) * enemy.radius
+        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
+      
+      # Teleport warning glow
+      if enemy.hexTeleportTimer < 0.5:
+        let glowAlpha = ((enemy.hexTeleportTimer * 4.0).int mod 2) * 150
+        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 5, 
+                  Color(r: 255, g: 255, b: 0, a: glowAlpha.uint8))
 
 proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
   let side = rand(3)
@@ -470,32 +548,41 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
   let roll = rand(100)
   var enemyType: EnemyType
   
-  if difficulty < 1.0:
-    # Phase 1 (0-10s): Only circles - learn the basics
+  if difficulty < 1.5:
+    # Phase 1 (0-15s): Only circles - learn the basics (extended)
     enemyType = etCircle
   
-  elif difficulty < 2.5:
-    # Phase 2 (10-25s): Circles + Cubes - introduce ranged enemies
-    if roll < 75: enemyType = etCircle
+  elif difficulty < 3.0:
+    # Phase 2 (15-30s): Circles + Cubes - introduce ranged enemies
+    if roll < 80: enemyType = etCircle
     else: enemyType = etCube
   
-  elif difficulty < 4.0:
-    # Phase 3 (25-40s): Add Stars - introduce tanky enemies
-    if roll < 55: enemyType = etCircle
-    elif roll < 75: enemyType = etCube  # Reduced from 80
-    else: enemyType = etStar
+  elif difficulty < 4.5:
+    # Phase 3 (30-45s): Add Hexagons - teleporting enemies
+    if roll < 50: enemyType = etCircle
+    elif roll < 75: enemyType = etCube
+    else: enemyType = etHexagon
   
   elif difficulty < 6.0:
-    # Phase 4 (40-60s): Add Triangles - full enemy roster
-    if roll < 45: enemyType = etCircle
-    elif roll < 60: enemyType = etCube  # Reduced from 65
-    elif roll < 85: enemyType = etStar
+    # Phase 4 (45-60s): Add Stars - tanky enemies
+    if roll < 40: enemyType = etCircle
+    elif roll < 60: enemyType = etCube
+    elif roll < 80: enemyType = etHexagon
+    else: enemyType = etStar
+  
+  elif difficulty < 8.0:
+    # Phase 5 (60-80s): Add Triangles - full roster
+    if roll < 25: enemyType = etCircle
+    elif roll < 45: enemyType = etCube
+    elif roll < 60: enemyType = etHexagon
+    elif roll < 80: enemyType = etStar
     else: enemyType = etTriangle
   
   else:
-    # Phase 5 (60s+): Balanced chaos - all types common
-    if roll < 35: enemyType = etCircle
-    elif roll < 50: enemyType = etCube  # Reduced from 55
+    # Phase 6 (80s+): Balanced chaos - all types common
+    if roll < 20: enemyType = etCircle
+    elif roll < 40: enemyType = etCube
+    elif roll < 55: enemyType = etHexagon
     elif roll < 75: enemyType = etStar
     else: enemyType = etTriangle
   

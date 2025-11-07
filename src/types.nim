@@ -2,13 +2,14 @@ import raylib, math
 
 type
   GameState* = enum
-    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown
+    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsPowerUpSelect
 
   EnemyType* = enum
     etCircle,    # Normal chasers
     etCube,      # Stationary/slow shooters
     etTriangle,  # Fast dash attackers
-    etStar       # High HP, needs many hits
+    etStar,      # High HP, needs many hits
+    etHexagon    # Teleporting chaos enemy
 
   BossType* = enum
     btShooter,   # Shoots spiral of bullets
@@ -29,6 +30,20 @@ type
     ctInvincibility,
     ctFireRate,
     ctMagnet
+
+  PowerUpType* = enum
+    puDoubleShot,      # Shoots 2 bullets at once
+    puRotatingShield,  # Orbiting protective shield
+    puDamageZone,      # Passive damage aura
+    puHomingBullets,   # Bullets track enemies
+    puPiercingShots,   # Bullets pass through enemies
+    puMultiShot,       # Shoots in 3 directions
+    puExplosiveBullets,# Bullets explode on impact
+    puLifeSteal        # Gain HP from kills
+
+  PowerUp* = object
+    powerType*: PowerUpType
+    level*: int  # 1, 2, or 3
 
   Vector2f* = object
     x*, y*: float32
@@ -54,6 +69,9 @@ type
     invincibilityTimer*: float32
     fireRateBoostTimer*: float32
     magnetTimer*: float32
+    powerUps*: seq[PowerUp]  # Active permanent power-ups
+    shieldAngle*: float32     # For rotating shield
+    killsSinceLastHeal*: int  # For life steal tracking
 
   Enemy* = ref object
     pos*: Vector2f
@@ -79,6 +97,7 @@ type
     shockwaveTimer*: float32
     burstTimer*: float32
     lastWallDamageTime*: float32
+    hexTeleportTimer*: float32  # For hexagon enemy teleports
 
   Bullet* = ref object
     pos*: Vector2f
@@ -87,6 +106,10 @@ type
     damage*: float32
     fromPlayer*: bool
     lifetime*: float32
+    isHoming*: bool
+    isPiercing*: bool
+    isExplosive*: bool
+    piercedEnemies*: int
 
   Coin* = ref object
     pos*: Vector2f
@@ -141,6 +164,8 @@ type
     selectedShopItem*: int
     menuSelection*: int
     countdownTimer*: float32
+    powerUpChoices*: array[3, PowerUp]  # Three power-ups to choose from
+    selectedPowerUp*: int                # Currently selected card (0-2)
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

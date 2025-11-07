@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, random, math, strutils
+import raylib, types, game, shop, wall, particle, powerup, random, math, strutils
 
 const
   screenWidth = 1024
@@ -51,7 +51,7 @@ proc drawHelp(game: Game) =
     "POWERUPS:",
     "+ (Green) - Health",
     "$ (Gold) - 5 Coins",
-    "S (Cyan) - Speed Boost",
+    "S (SkyBlue) - Speed Boost",
     "! (Magenta) - Invincibility",
     "F (Orange) - Fire Rate Boost",
     "M (Purple) - Coin Magnet",
@@ -233,6 +233,23 @@ proc main() =
               30,
               Color(r: 200, g: 200, b: 200, a: alpha))
       
+      endDrawing()
+    
+    of gsPowerUpSelect:
+      # Navigate power-up choices
+      if isKeyPressed(Left):
+        currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3
+      if isKeyPressed(Right):
+        currentGame.selectedPowerUp = (currentGame.selectedPowerUp + 1) mod 3
+      
+      # Select power-up
+      if isKeyPressed(Enter):
+        applyPowerUp(currentGame.player, currentGame.powerUpChoices[currentGame.selectedPowerUp])
+        currentGame.state = gsCountdown
+        currentGame.countdownTimer = 0.5
+      
+      beginDrawing()
+      drawPowerUpSelection(currentGame)
       endDrawing()
     
     of gsGameOver:

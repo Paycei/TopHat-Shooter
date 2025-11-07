@@ -1,4 +1,4 @@
-import raylib, types, wall
+import raylib, types, wall, math
 
 proc newPlayer*(x, y: float32): Player =
   result = Player(
@@ -6,13 +6,13 @@ proc newPlayer*(x, y: float32): Player =
     vel: newVector2f(0, 0),
     radius: 12,
     baseRadius: 12,
-    hp: 2,  # Nerfed from 3
-    maxHp: 2,
-    speed: 180,  # Nerfed from 200
-    baseSpeed: 180,
+    hp: 5,  # 5 for early game comfort
+    maxHp: 5,
+    speed: 180,  # 180 for better feel
+    baseSpeed: 200,
     damage: 1,
-    fireRate: 0.4,  # Nerfed from 0.3 (slower)
-    bulletSpeed: 400,
+    fireRate: 0.4,  #  0.4 for smoother shooting
+    bulletSpeed: 300,
     lastShot: 0,
     autoShoot: false,
     coins: 0,
@@ -21,7 +21,10 @@ proc newPlayer*(x, y: float32): Player =
     speedBoostTimer: 0,
     invincibilityTimer: 0,
     fireRateBoostTimer: 0,
-    magnetTimer: 0
+    magnetTimer: 0,
+    powerUps: @[],
+    shieldAngle: 0,
+    killsSinceLastHeal: 0
   )
 
 proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
@@ -73,9 +76,23 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.pos.y > screenHeight.float32 - player.radius: player.pos.y = screenHeight.float32 - player.radius
   
   # Scale radius with max HP (grows as player gets stronger)
-  player.radius = player.baseRadius + (player.maxHp - 2) * 1.5
+  player.radius = player.baseRadius + (player.maxHp - 3) * 1.5
+  
+  # Update shield angle for rotating shield power-up
+  player.shieldAngle += dt * 2.0
 
 proc drawPlayer*(player: Player) =
+  # Damage zone visual (if player has it)
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puDamageZone:
+      let zoneRadius = case powerUp.level
+        of 1: 50.0
+        of 2: 100.0
+        else: 150.0
+      let alpha = 30 + (sin(player.shieldAngle * 3) * 15).int
+      drawCircle(Vector2(x: player.pos.x, y: player.pos.y), zoneRadius, 
+                Color(r: 255, g: 100, b: 0, a: alpha.uint8))
+  
   # Invincibility visual effect
   if player.invincibilityTimer > 0:
     let flash = ((player.invincibilityTimer * 10).int mod 2 == 0)
@@ -91,6 +108,22 @@ proc drawPlayer*(player: Player) =
   # Speed boost indicator
   if player.speedBoostTimer > 0:
     drawCircleLines(player.pos.x.int32, player.pos.y.int32, player.radius + 3, Green)
+  
+  # Rotating shield visual (if player has it)
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puRotatingShield:
+      let shieldCount = case powerUp.level
+        of 1: 2
+        of 2: 3
+        else: 4
+      let shieldRadius = player.radius + 20
+      
+      for i in 0..<shieldCount:
+        let angle = player.shieldAngle + (i.float32 * PI * 2.0 / shieldCount.float32)
+        let shieldX = player.pos.x + cos(angle) * shieldRadius
+        let shieldY = player.pos.y + sin(angle) * shieldRadius
+        drawCircle(Vector2(x: shieldX, y: shieldY), 6, SkyBlue)
+        drawCircleLines(shieldX.int32, shieldY.int32, 6, DarkBlue)
 
 proc takeDamage*(player: Player, damage: float32) =
   if player.invincibilityTimer > 0:
