@@ -124,12 +124,19 @@ proc updateGame*(game: Game, dt: float32) =
       shootBullet(game, dir)
   
   # SMOOTHER EARLY GAME - Slower spawning, longer ramp
-  let baseSpawnRate = if game.difficulty < 1.5: 
-    3.0  # Much slower at start (0-15s)
-  elif game.difficulty < 3.5:
-    2.0 / (1.0 + (game.difficulty - 1.5) * 0.2)  # Gentler ramp (15-35s)
-  else:
-    1.3 / (1.0 + (game.difficulty - 3.5) * 0.3)  # Still ramps up (35s+)
+  let baseSpawnRate =
+    if game.difficulty < 1.5:
+      3.0  # Early: very slow (0–15s)
+    elif game.difficulty < 3.0:
+      2.3 / (1.0 + (game.difficulty - 1.5) * 0.3)  # Early ramp (15–30s)
+    elif game.difficulty < 6.0:
+      1.8 / (1.0 + (game.difficulty - 3.0) * 0.25)  # Smooth ramp (30–60s)
+    elif game.difficulty < 9.0:
+      1.4 / (1.0 + (game.difficulty - 6.0) * 0.15)  # Midgame plateau (60–90s)
+    elif game.difficulty < 13.0:
+      1.2 / (1.0 + (game.difficulty - 9.0) * 0.1)   # Late ramp (90–130s)
+    else:
+      max(0.9, 1.0 / (1.0 + (game.difficulty - 13.0) * 0.05))  # Endgame: slow soft cap
   
   let waveSpawnRate = baseSpawnRate * 0.7  # Extra fast during waves
   
@@ -181,7 +188,7 @@ proc updateGame*(game: Game, dt: float32) =
       
       # Star explosion on death - damages player if too close
       if enemy.enemyType == etStar:
-        const explosionRadius = 80.0  # Medium-sized explosion
+        const explosionRadius = 120.0  # LARGER explosion radius
         const explosionDamage = 2.0
         
         # Check if player is in explosion radius
@@ -191,11 +198,15 @@ proc updateGame*(game: Game, dt: float32) =
           if game.player.hp <= 0:
             game.state = gsGameOver
         
-        # Create large explosion visual
+        # Create MASSIVE explosion visual with multiple layers
         spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
-                      Color(r: 255, g: 150, b: 0, a: 255), 40)
-        # Add shockwave ring
+                      Color(r: 255, g: 150, b: 0, a: 255), 60)  # More particles
+        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+                      Color(r: 255, g: 220, b: 100, a: 255), 40)  # Bright inner core
+        # Add multiple shockwave rings for clarity
         spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, explosionRadius)
+        spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, explosionRadius * 0.7)
+        spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, explosionRadius * 0.4)
       
       # Death particles
       let particleColor = enemy.color
@@ -475,8 +486,10 @@ proc updateGame*(game: Game, dt: float32) =
               if dist < explosionRadius:
                 game.enemies[k].hp -= bullet.damage * 0.5
             
-            # Visual explosion
-            spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Orange, 25)
+            # Enhanced visual explosion with shockwave
+            spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Orange, 35)
+            spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Yellow, 20)
+            spawnShockwave(game.particles, bullet.pos.x, bullet.pos.y, explosionRadius)
           
           # Piercing bullets can hit multiple enemies
           if bullet.isPiercing:

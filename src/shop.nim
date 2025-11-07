@@ -1,12 +1,12 @@
 import raylib, types, math
 
 proc initShopItems*(): array[6, ShopItem] =
-  result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 8, bought: 0)
-  result[1] = ShopItem(name: "Fire Rate +", description: "Shoot faster", baseCost: 10, bought: 0)
-  result[2] = ShopItem(name: "Move Speed +", description: "Move faster", baseCost: 8, bought: 0)
-  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 15, bought: 0)
-  result[4] = ShopItem(name: "Bullet Speed +", description: "Faster bullets", baseCost: 7, bought: 0)
-  result[5] = ShopItem(name: "Wall (x3)", description: "Buy 3 deployable walls", baseCost: 18, bought: 0)
+  result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 7, bought: 0)
+  result[1] = ShopItem(name: "Fire Rate +", description: "Shoot faster", baseCost: 9, bought: 0)
+  result[2] = ShopItem(name: "Move Speed +", description: "Move faster", baseCost: 7, bought: 0)
+  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 12, bought: 0)
+  result[4] = ShopItem(name: "Bullet Speed +", description: "Faster bullets", baseCost: 6, bought: 0)
+  result[5] = ShopItem(name: "Wall (x4)", description: "Buy 4 deployable walls", baseCost: 15, bought: 0)
 
 proc getCurrentCost*(item: ShopItem): int =
   # Slightly lower exponential cost scaling: baseCost * 1.3^bought
@@ -60,19 +60,19 @@ proc buyShopItem*(game: Game, index: int) =
   item.bought += 1
   
   case index
-  of 0: # Damage - better scaling
-    game.player.damage += 0.5 * pow(1.1, item.bought.float32)
-  of 1: # Fire Rate - better diminishing returns
-    game.player.fireRate *= 0.85
-    if game.player.fireRate < 0.05: game.player.fireRate = 0.05
-  of 2: # Move Speed - better linear scaling
-    game.player.speed += 20
-    game.player.baseSpeed += 20
-  of 3: # Max Health - more impactful
-    game.player.maxHp += 2
-    game.player.hp += 2
-  of 4: # Bullet Speed - better scaling
-    game.player.bulletSpeed += 60
-  of 5: # Walls - fixed amount
-    game.player.walls += 3
+  of 0: # Damage - MORE POWERFUL scaling
+    game.player.damage += 0.7 * pow(1.12, item.bought.float32)
+  of 1: # Fire Rate - better diminishing returns, more impactful
+    game.player.fireRate *= 0.82
+    if game.player.fireRate < 0.04: game.player.fireRate = 0.04
+  of 2: # Move Speed - MUCH FASTER gains
+    game.player.speed += 28
+    game.player.baseSpeed += 28
+  of 3: # Max Health - MORE HP per purchase
+    game.player.maxHp += 3
+    game.player.hp += 3
+  of 4: # Bullet Speed - SIGNIFICANTLY faster
+    game.player.bulletSpeed += 80
+  of 5: # Walls - MORE walls per purchase
+    game.player.walls += 4
   else: discard

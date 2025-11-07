@@ -12,7 +12,7 @@ proc newPlayer*(x, y: float32): Player =
     baseSpeed: 200,
     damage: 1,
     fireRate: 0.4,  #  0.4 for smoother shooting
-    bulletSpeed: 300,
+    bulletSpeed: 350,
     lastShot: 0,
     autoShoot: false,
     coins: 0,
@@ -76,7 +76,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.pos.y > screenHeight.float32 - player.radius: player.pos.y = screenHeight.float32 - player.radius
   
   # Scale radius with max HP (grows as player gets stronger)
-  player.radius = player.baseRadius + (player.maxHp - 3) * 1.5
+  player.radius = player.baseRadius + (player.maxHp - 6) * 1
   
   # Update shield angle for rotating shield power-up
   player.shieldAngle += dt * 2.0

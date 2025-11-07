@@ -6,9 +6,9 @@ proc newParticle*(x, y: float32, color: Color, speed: float32 = 100.0): Particle
     pos: newVector2f(x, y),
     vel: newVector2f(cos(angle) * speed, sin(angle) * speed),
     color: color,
-    lifetime: 0.5 + rand(0.5),
-    maxLifetime: 0.5 + rand(0.5),
-    size: 2 + rand(4).float32
+    lifetime: 0.6 + rand(0.6),  # Longer lifetime for visibility
+    maxLifetime: 0.6 + rand(0.6),
+    size: 3 + rand(5).float32  # Larger particles
   )
 
 proc updateParticle*(particle: Particle, dt: float32): bool =

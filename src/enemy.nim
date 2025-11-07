@@ -84,7 +84,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
     )
   
   of etStar:  # NERFED: fewer required hits
-    let hits = 8 + (difficulty * 3).int  # Reduced from 15 + diff*8
+    let hits = 7 + (difficulty * 2.5).int  # Reduced from 15 + diff*8
     result = Enemy(
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
@@ -552,34 +552,34 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
     # Phase 1 (0-15s): Only circles - learn the basics (extended)
     enemyType = etCircle
   
-  elif difficulty < 3.0:
-    # Phase 2 (15-30s): Circles + Cubes - introduce ranged enemies
-    if roll < 80: enemyType = etCircle
+  elif difficulty < 4.0:
+    # Phase 2 (15-40s): Circles + Cubes - introduce ranged enemies
+    if roll < 90: enemyType = etCircle
     else: enemyType = etCube
   
-  elif difficulty < 4.5:
-    # Phase 3 (30-45s): Add Hexagons - teleporting enemies
-    if roll < 50: enemyType = etCircle
-    elif roll < 75: enemyType = etCube
+  elif difficulty < 6.0:
+    # Phase 3 (40-60s): Add Hexagons - teleporting enemies
+    if roll < 70: enemyType = etCircle
+    elif roll < 85: enemyType = etCube
     else: enemyType = etHexagon
   
-  elif difficulty < 6.0:
-    # Phase 4 (45-60s): Add Stars - tanky enemies
-    if roll < 40: enemyType = etCircle
-    elif roll < 60: enemyType = etCube
+  elif difficulty < 12.0:
+    # Phase 4 (60-120s): Add Stars - tanky enemies
+    if roll < 50: enemyType = etCircle
+    elif roll < 55: enemyType = etCube
     elif roll < 80: enemyType = etHexagon
     else: enemyType = etStar
   
-  elif difficulty < 8.0:
-    # Phase 5 (60-80s): Add Triangles - full roster
-    if roll < 25: enemyType = etCircle
-    elif roll < 45: enemyType = etCube
-    elif roll < 60: enemyType = etHexagon
+  elif difficulty < 18.0:
+    # Phase 5 (90-120s): Add Triangles - full roster
+    if roll < 30: enemyType = etCircle
+    elif roll < 50: enemyType = etCube
+    elif roll < 65: enemyType = etHexagon
     elif roll < 80: enemyType = etStar
     else: enemyType = etTriangle
   
   else:
-    # Phase 6 (80s+): Balanced chaos - all types common
+    # Phase 6 (180s+): Balanced chaos - all types common
     if roll < 20: enemyType = etCircle
     elif roll < 40: enemyType = etCube
     elif roll < 55: enemyType = etHexagon
