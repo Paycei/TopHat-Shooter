@@ -701,20 +701,8 @@ proc drawGame*(game: Game) =
     
     let warningText = "!!! BOSS INCOMING !!!"
     let textWidth = measureText(warningText, 40)
-    drawText(warningText, (game.screenWidth div 2 - textWidth div 2).int32, 
+    drawText(warningText, (game.screenWidth div 2 - textWidth div 2).int32,
              (game.screenHeight div 2 - 60).int32, 40, warningColor)
-    
-    # Show which boss
-    if game.enemies.len > 0 and game.enemies[^1].isBoss:
-      let boss = game.enemies[^1]
-      let bossName = case boss.bossType
-        of btShooter: "THE SPIRAL SHOOTER"
-        of btSummoner: "THE DARK SUMMONER"
-        of btCharger: "THE VOID CHARGER"
-        of btOrbit: "THE ORBIT MASTER"
-      let nameWidth = measureText(bossName, 25)
-      drawText(bossName, (game.screenWidth div 2 - nameWidth div 2).int32,
-               (game.screenHeight div 2 - 10).int32, 25, White)
   drawText("Walls: " & $game.player.walls, 10, 110, 20, Brown)
   
   # Boss health bar (top of screen)
