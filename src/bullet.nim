@@ -1,7 +1,9 @@
 import raylib, types
 
 proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true, 
-                isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false): Bullet =
+                isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false,
+                hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0, 
+                poisonDuration: float32 = 0): Bullet =
   # BUFFED: Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -15,7 +17,11 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     isHoming: isHoming,
     isPiercing: isPiercing,
     isExplosive: isExplosive,
-    piercedEnemies: 0
+    piercedEnemies: 0,
+    bounceCount: if hasBounce: 0 else: -1,
+    hasSplit: not canSplit,
+    slowAmount: slowAmount,
+    poisonDuration: poisonDuration
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
@@ -31,6 +37,9 @@ proc drawBullet*(bullet: Bullet) =
     if bullet.isHoming: color = Magenta
     elif bullet.isPiercing: color = SkyBlue
     elif bullet.isExplosive: color = Orange
+    elif bullet.slowAmount > 0: color = Color(r: 150, g: 200, b: 255, a: 255)
+    elif bullet.poisonDuration > 0: color = Green
+    elif bullet.bounceCount >= 0: color = Color(r: 255, g: 200, b: 0, a: 255)
   
   drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
   
@@ -41,6 +50,12 @@ proc drawBullet*(bullet: Bullet) =
   elif bullet.isExplosive:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
                    Color(r: 255, g: 150, b: 0, a: 150))
+  elif bullet.slowAmount > 0:
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+                   Color(r: 100, g: 150, b: 255, a: 150))
+  elif bullet.poisonDuration > 0:
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+                   Color(r: 50, g: 255, b: 50, a: 150))
 
 proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool =
   bullet.pos.x < -50 or bullet.pos.x > screenWidth.float32 + 50 or

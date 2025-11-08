@@ -14,7 +14,6 @@ proc newPlayer*(x, y: float32): Player =
     fireRate: 0.45,  #  0.45 for smoother shooting
     bulletSpeed: 300,
     lastShot: 0,
-    autoShoot: false,
     coins: 0,
     kills: 0,
     walls: 0,
@@ -24,7 +23,11 @@ proc newPlayer*(x, y: float32): Player =
     magnetTimer: 0,
     powerUps: @[],
     shieldAngle: 0,
-    killsSinceLastHeal: 0
+    killsSinceLastHeal: 0,
+    regenTimer: 0,
+    lastDamageTaken: 0,
+    rageStacks: 0,
+    critCharge: 0
   )
 
 proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
@@ -116,14 +119,41 @@ proc drawPlayer*(player: Player) =
         of 1: 2
         of 2: 3
         else: 4
-      let shieldRadius = player.radius + 20
       
+      # Shield scales with player size for better visual feedback
+      let shieldRadius = player.radius * 2.0 + 15
+      let shieldThickness = 3.0
+      
+      # Draw smooth curved shield lines instead of circles
       for i in 0..<shieldCount:
-        let angle = player.shieldAngle + (i.float32 * PI * 2.0 / shieldCount.float32)
-        let shieldX = player.pos.x + cos(angle) * shieldRadius
-        let shieldY = player.pos.y + sin(angle) * shieldRadius
-        drawCircle(Vector2(x: shieldX, y: shieldY), 6, SkyBlue)
-        drawCircleLines(shieldX.int32, shieldY.int32, 6, DarkBlue)
+        let angle1 = player.shieldAngle + (i.float32 * PI * 2.0 / shieldCount.float32)
+        let angle2 = angle1 + (PI * 2.0 / shieldCount.float32)
+        
+        # Draw arc segments for smooth curved appearance
+        let segments = 16
+        for j in 0..<segments:
+          let t1 = j.float32 / segments.float32
+          let t2 = (j + 1).float32 / segments.float32
+          let a1 = angle1 + t1 * (angle2 - angle1)
+          let a2 = angle1 + t2 * (angle2 - angle1)
+          
+          let x1 = player.pos.x + cos(a1) * shieldRadius
+          let y1 = player.pos.y + sin(a1) * shieldRadius
+          let x2 = player.pos.x + cos(a2) * shieldRadius
+          let y2 = player.pos.y + sin(a2) * shieldRadius
+          
+          drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), shieldThickness, SkyBlue)
+        
+        # Add energy glow at shield endpoints
+        let endAngle1 = angle1
+        let endAngle2 = angle2
+        let ex1 = player.pos.x + cos(endAngle1) * shieldRadius
+        let ey1 = player.pos.y + sin(endAngle1) * shieldRadius
+        let ex2 = player.pos.x + cos(endAngle2) * shieldRadius
+        let ey2 = player.pos.y + sin(endAngle2) * shieldRadius
+        
+        drawCircle(Vector2(x: ex1, y: ey1), 5, Color(r: 135, g: 206, b: 235, a: 200))
+        drawCircle(Vector2(x: ex2, y: ey2), 5, Color(r: 135, g: 206, b: 235, a: 200))
 
 proc takeDamage*(player: Player, damage: float32) =
   if player.invincibilityTimer > 0:

@@ -2,7 +2,7 @@ import raylib, math
 
 type
   GameState* = enum
-    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsPowerUpSelect, gsWaveTransition
+    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsPowerUpSelect
   
   GameMode* = enum
     gmWaveBased,      # New primary mode: waves → upgrades → boss → legendary
@@ -50,7 +50,22 @@ type
     puBulletDamage,    # Increased bullet damage
     puBulletSpeed,     # Faster bullets
     puLuckyCoins,      # Enemies drop more coins
-    puWallMaster       # Place stronger walls
+    puWallMaster,      # Place stronger walls
+    puAutoShoot,       # Auto-target nearest enemy
+    puBulletSize,      # Larger projectiles
+    puRegeneration,    # Slowly restore HP
+    puDodgeChance,     # Chance to evade damage
+    puCriticalHit,     # Random critical damage
+    puVampirism,       # Lifesteal on hit
+    puBulletBounce,    # Bullets ricochet
+    puSlowField,       # Enemies move slower nearby
+    puRage,            # Damage increases at low HP
+    puBerserker,       # Attack speed at low HP
+    puThorns,          # Reflect damage to attackers
+    puBulletSplit,     # Bullets split on impact
+    puChainLightning,  # Damage chains between enemies
+    puFrostShots,      # Bullets slow enemies
+    puPoisonDamage     # Damage over time effect
   
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
@@ -77,7 +92,6 @@ type
     fireRate*: float32
     bulletSpeed*: float32
     lastShot*: float32
-    autoShoot*: bool
     coins*: int
     kills*: int
     walls*: int
@@ -88,6 +102,10 @@ type
     powerUps*: seq[PowerUp]  # Active permanent power-ups
     shieldAngle*: float32     # For rotating shield
     killsSinceLastHeal*: int  # For life steal tracking
+    regenTimer*: float32      # For regeneration power-up
+    lastDamageTaken*: float32 # For dodge chance timing
+    rageStacks*: int          # For rage power-up
+    critCharge*: float32      # For critical hit timing
 
   Enemy* = ref object
     pos*: Vector2f
@@ -116,6 +134,11 @@ type
     hexTeleportTimer*: float32  # For hexagon enemy teleports
     entranceTimer*: float32      # For boss entrance animation
     targetPos*: Vector2f         # Target position for entrance
+    slowTimer*: float32          # For slow field effect
+    slowAmount*: float32         # Slow multiplier
+    poisonTimer*: float32        # For poison damage over time
+    poisonDamage*: float32       # Poison tick damage
+    chainLightningCooldown*: float32  # For chain lightning tracking
 
   Bullet* = ref object
     pos*: Vector2f
@@ -128,6 +151,10 @@ type
     isPiercing*: bool
     isExplosive*: bool
     piercedEnemies*: int
+    bounceCount*: int        # For bullet bounce
+    hasSplit*: bool          # For bullet split (prevent infinite splitting)
+    slowAmount*: float32     # For frost shots
+    poisonDuration*: float32 # For poison damage
 
   Coin* = ref object
     pos*: Vector2f
@@ -187,15 +214,12 @@ type
     selectedPowerUp*: int                # Currently selected card (0-2)
     bossActive*: bool                    # Is a boss currently alive?
     bossSpawnTimer*: float32             # Timer for boss entrance animation
-    timerFrozen*: bool                   # Is the game timer frozen?
-    frozenTimeDisplay*: float32          # Display value when timer is frozen
     # Wave-based mode fields
     currentWave*: int                    # Current wave number (1-based)
     wavesUntilBoss*: int                 # Waves remaining until boss (3 waves per boss)
     waveEnemiesRemaining*: int           # Enemies left to spawn in current wave
     waveEnemiesTotal*: int               # Total enemies in current wave
     waveInProgress*: bool                # Is a wave currently active?
-    waveCompleteTimer*: float32          # Delay before showing upgrade selection
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

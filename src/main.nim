@@ -122,10 +122,6 @@ proc main() =
       endDrawing()
     
     of gsPlaying:
-      # Toggle auto-shoot
-      if isKeyPressed(F):
-        currentGame.player.autoShoot = not currentGame.player.autoShoot
-      
       # Open shop
       if isKeyPressed(Tab):
         currentGame.state = gsShop
@@ -272,23 +268,6 @@ proc main() =
       
       beginDrawing()
       drawGameOver(currentGame)
-      endDrawing()
-    
-    of gsWaveTransition:
-      # Wave transition - countdown before next wave starts
-      currentGame.waveCompleteTimer -= dt
-      
-      if currentGame.waveCompleteTimer <= 0:
-        currentGame.state = gsCountdown
-        currentGame.countdownTimer = 0.5
-      
-      if isKeyPressed(Enter):
-        # Skip to countdown immediately
-        currentGame.state = gsCountdown
-        currentGame.countdownTimer = 0.5
-      
-      beginDrawing()
-      drawWaveTransition(currentGame)
       endDrawing()
   
   closeWindow()

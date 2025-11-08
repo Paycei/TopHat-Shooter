@@ -24,15 +24,12 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     selectedPowerUp: 0,
     bossActive: false,
     bossSpawnTimer: 0,
-    timerFrozen: false,
-    frozenTimeDisplay: 0,
     # Wave-based mode fields
     currentWave: 1,
     wavesUntilBoss: 3,
     waveEnemiesRemaining: 0,
     waveEnemiesTotal: 0,
-    waveInProgress: false,
-    waveCompleteTimer: 0
+    waveInProgress: false
   )
 
 proc calculateWaveEnemyCount(waveNumber: int): int =
@@ -134,16 +131,78 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let hasExplosive = hasPowerUp(game.player, puExplosiveBullets)
     let hasDoubleShot = hasPowerUp(game.player, puDoubleShot)
     let hasMultiShot = hasPowerUp(game.player, puMultiShot)
+    let hasBounce = hasPowerUp(game.player, puBulletBounce)
+    let hasSplit = hasPowerUp(game.player, puBulletSplit)
+    let hasFrost = hasPowerUp(game.player, puFrostShots)
+    let hasPoison = hasPowerUp(game.player, puPoisonDamage)
     
     # Base bullet properties
-    let speed = game.player.bulletSpeed * 1.2
-    let damage = game.player.damage
+    var speed = game.player.bulletSpeed * 1.2
+    var damage = game.player.damage
+    var bulletRadius = 4.0
     
-    if hasDoubleShot:
-      # Shoot 2, 3, or 4 bullets based on level
+    # Apply bullet size power-up
+    if hasPowerUp(game.player, puBulletSize):
+      let sizeLevel = getPowerUpLevel(game.player, puBulletSize)
+      let sizeMultiplier = case sizeLevel
+        of 1: 1.4
+        of 2: 1.8
+        else: 2.4
+      bulletRadius *= sizeMultiplier
+    
+    # Apply critical hit chance
+    if hasPowerUp(game.player, puCriticalHit):
+      let critLevel = getPowerUpLevel(game.player, puCriticalHit)
+      let critChance = case critLevel
+        of 1: 15
+        of 2: 20
+        else: 25
+      let critMultiplier = case critLevel
+        of 1: 2.0
+        of 2: 2.5
+        else: 3.0
+      if rand(99) < critChance:
+        damage *= critMultiplier
+    
+    # Calculate slow and poison effects
+    var slowEffect = 0.0
+    var poisonEffect = 0.0
+    if hasFrost:
+      let frostLevel = getPowerUpLevel(game.player, puFrostShots)
+      slowEffect = case frostLevel
+        of 1: 0.25
+        of 2: 0.4
+        else: 0.6
+    if hasPoison:
+      let poisonLevel = getPowerUpLevel(game.player, puPoisonDamage)
+      poisonEffect = case poisonLevel
+        of 1: 4.0
+        of 2: 5.0
+        else: 6.0
+    
+    # Check for combined multishot and doubleshot (fixed overlap issue)
+    if hasDoubleShot and hasMultiShot:
+      # When both active, use multishot pattern only (no overlap)
+      let multiLevel = getPowerUpLevel(game.player, puMultiShot)
+      let bulletCount = if multiLevel == 3: 5 else: 3
+      let spreadAngle = if multiLevel == 2: 0.5 else: 0.3
+      
+      for i in 0..<bulletCount:
+        let angle = (i - bulletCount div 2).float32 * spreadAngle
+        let spreadDir = newVector2f(
+          direction.x * cos(angle) - direction.y * sin(angle),
+          direction.x * sin(angle) + direction.y * cos(angle)
+        )
+        let bullet = newBullet(game.player.pos.x, game.player.pos.y, spreadDir, 
+                              speed, damage, true, hasHoming, hasPiercing, hasExplosive,
+                              hasBounce, hasSplit, slowEffect, poisonEffect)
+        bullet.radius = bulletRadius
+        game.bullets.add(bullet)
+    elif hasDoubleShot:
+      # Shoot 2, 3, or 4 bullets based on level (fixed spread)
       let level = getPowerUpLevel(game.player, puDoubleShot)
       let bulletCount = level + 1
-      let spread = 0.15
+      let spread = 0.12  # Tighter spread to prevent excessive overlap
       
       for i in 0..<bulletCount:
         let spreadAngle = (i.float32 - (bulletCount - 1).float32 / 2.0) * spread
@@ -151,10 +210,13 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           direction.x * cos(spreadAngle) - direction.y * sin(spreadAngle),
           direction.x * sin(spreadAngle) + direction.y * cos(spreadAngle)
         )
-        game.bullets.add(newBullet(game.player.pos.x, game.player.pos.y, spreadDir, 
-                                  speed, damage, true, hasHoming, hasPiercing, hasExplosive))
+        let bullet = newBullet(game.player.pos.x, game.player.pos.y, spreadDir, 
+                              speed, damage, true, hasHoming, hasPiercing, hasExplosive,
+                              hasBounce, hasSplit, slowEffect, poisonEffect)
+        bullet.radius = bulletRadius
+        game.bullets.add(bullet)
     elif hasMultiShot:
-      # Shoot in multiple directions
+      # Shoot in multiple directions (distinct from doubleshot)
       let level = getPowerUpLevel(game.player, puMultiShot)
       let bulletCount = if level == 3: 5 else: 3
       let spreadAngle = if level == 2: 0.5 else: 0.3
@@ -165,12 +227,18 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           direction.x * cos(angle) - direction.y * sin(angle),
           direction.x * sin(angle) + direction.y * cos(angle)
         )
-        game.bullets.add(newBullet(game.player.pos.x, game.player.pos.y, spreadDir, 
-                                  speed, damage, true, hasHoming, hasPiercing, hasExplosive))
+        let bullet = newBullet(game.player.pos.x, game.player.pos.y, spreadDir, 
+                              speed, damage, true, hasHoming, hasPiercing, hasExplosive,
+                              hasBounce, hasSplit, slowEffect, poisonEffect)
+        bullet.radius = bulletRadius
+        game.bullets.add(bullet)
     else:
       # Normal single shot
-      game.bullets.add(newBullet(game.player.pos.x, game.player.pos.y, direction, 
-                                  speed, damage, true, hasHoming, hasPiercing, hasExplosive))
+      let bullet = newBullet(game.player.pos.x, game.player.pos.y, direction, 
+                            speed, damage, true, hasHoming, hasPiercing, hasExplosive,
+                            hasBounce, hasSplit, slowEffect, poisonEffect)
+      bullet.radius = bulletRadius
+      game.bullets.add(bullet)
     
     game.player.lastShot = game.time
     
@@ -178,15 +246,12 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Yellow, 5)
 
 proc updateGame*(game: Game, dt: float32) =
-  # Handle boss spawn timer and timer freezing
+  # Handle boss spawn warning timer (non-blocking)
   if game.bossSpawnTimer > 0:
     game.bossSpawnTimer -= dt
-    game.timerFrozen = true
-    # Don't update game time while timer is frozen
-  else:
-    if game.timerFrozen:
-      game.timerFrozen = false
-    game.time += dt
+  
+  # Always update game time
+  game.time += dt
   
   game.spawnTimer += dt
   game.difficulty = game.time / 10.0  # Difficulty increases every 10 seconds
@@ -219,20 +284,35 @@ proc updateGame*(game: Game, dt: float32) =
     if shootDir.length() > 0:
       shootBullet(game, shootDir)
   
-  # Auto-shoot
-  if game.player.autoShoot and game.enemies.len > 0:
-    var nearestEnemy: Enemy = nil
-    var nearestDist = 350.0
+  # Auto-shoot (now a power-up!)
+  if hasPowerUp(game.player, puAutoShoot) and game.enemies.len > 0:
+    let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
     
-    for enemy in game.enemies:
-      let dist = distance(game.player.pos, enemy.pos)
-      if dist < nearestDist:
-        nearestDist = dist
-        nearestEnemy = enemy
+    # Auto-shoot has reduced fire rate and range at lower levels
+    let autoFireMult = case autoLevel
+      of 1: 0.6   # 60% of normal fire rate
+      of 2: 0.8   # 80% of normal fire rate
+      else: 1.0   # Full fire rate at level 3
     
-    if nearestEnemy != nil:
-      let dir = nearestEnemy.pos - game.player.pos
-      shootBullet(game, dir)
+    let autoRange = case autoLevel
+      of 1: 250.0
+      of 2: 350.0
+      else: 450.0
+    
+    let autoFireRate = getCurrentFireRate(game.player) / autoFireMult
+    if game.time - game.player.lastShot >= autoFireRate:
+      var nearestEnemy: Enemy = nil
+      var nearestDist = autoRange
+      
+      for enemy in game.enemies:
+        let dist = distance(game.player.pos, enemy.pos)
+        if dist < nearestDist:
+          nearestDist = dist
+          nearestEnemy = enemy
+      
+      if nearestEnemy != nil:
+        let dir = nearestEnemy.pos - game.player.pos
+        shootBullet(game, dir)
   
   # MODE-SPECIFIC ENEMY SPAWNING
   if game.mode == gmWaveBased:
@@ -261,12 +341,14 @@ proc updateGame*(game: Game, dt: float32) =
         game.currentWave += 1
         game.wavesUntilBoss -= 1
 
-        # If wavesUntilBoss reached zero, schedule a boss wave next
+        # If wavesUntilBoss reached zero, schedule a boss wave next (no pause needed)
         if game.wavesUntilBoss <= 0:
-          # Do not reset wavesUntilBoss here — the boss-spawning logic checks for 0.
-          # We'll show a short transition before the boss arrives.
-          game.waveCompleteTimer = 2.0
-          game.state = gsWaveTransition
+          # Trigger boss warning for 1.5 seconds, but gameplay continues
+          game.bossSpawnTimer = 1.5
+          # Offer power-up selection before boss
+          game.powerUpChoices = generatePowerUpChoices(game.player, false)
+          game.selectedPowerUp = 0
+          game.state = gsPowerUpSelect
         else:
           # Regular wave complete: show power-up choices
           game.powerUpChoices = generatePowerUpChoices(game.player, false)
@@ -274,15 +356,15 @@ proc updateGame*(game: Game, dt: float32) =
           game.state = gsPowerUpSelect
     
     # Boss wave spawning
-    if game.wavesUntilBoss == 0 and not game.bossActive and game.bossSpawnTimer <= 0:
+    if game.wavesUntilBoss == 0 and not game.bossActive and game.state == gsPlaying:
       game.bossCount += 1
       # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
       let bossDifficulty = (game.currentWave - 1).float32 / 3.0
       game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, 
                                 bossDifficulty, game.bossCount))
       game.bossActive = true
-      game.bossSpawnTimer = 2.5
-      game.frozenTimeDisplay = game.time
+      game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
+      game.wavesUntilBoss = 3  # Reset for next boss
       
       # Entrance particles
       let boss = game.enemies[^1]
@@ -346,8 +428,7 @@ proc updateGame*(game: Game, dt: float32) =
       game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, game.difficulty, game.bossCount))
       game.bossTimer += 60.0
       game.bossActive = true
-      game.bossSpawnTimer = 2.5
-      game.frozenTimeDisplay = game.time
+      game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
       
       let boss = game.enemies[^1]
       case boss.bossType
@@ -629,7 +710,7 @@ proc updateGame*(game: Game, dt: float32) =
   while i < game.bullets.len:
     let bullet = game.bullets[i]
     
-    # Homing bullet logic
+    # Homing bullet logic (NERFED at low levels)
     if bullet.isHoming and bullet.fromPlayer and game.enemies.len > 0:
       # Find nearest enemy
       var nearestEnemy: Enemy = nil
@@ -642,12 +723,12 @@ proc updateGame*(game: Game, dt: float32) =
           nearestEnemy = enemy
       
       if nearestEnemy != nil:
-        # Adjust velocity toward enemy
+        # HEAVILY NERFED tracking at level 1, noticeable at level 2, strong at level 3
         let level = getPowerUpLevel(game.player, puHomingBullets)
         let turnRate = case level
-          of 1: 0.05
-          of 2: 0.1
-          else: 0.15
+          of 1: 0.015  # VERY weak tracking, barely noticeable
+          of 2: 0.06   # Moderate tracking
+          else: 0.15   # Strong tracking
         
         let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
         let currentDir = bullet.vel.normalize()
@@ -658,22 +739,32 @@ proc updateGame*(game: Game, dt: float32) =
       game.bullets.delete(i)
       continue
     
-    # Check rotating shield collision
+    # Check rotating shield collision (updated for scaled shield)
     if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):
       let level = getPowerUpLevel(game.player, puRotatingShield)
       let shieldCount = level + 1
-      let shieldRadius = game.player.radius + 20
+      let shieldRadius = game.player.radius * 2.0 + 15  # Match new shield size
       var hitShield = false
       
+      # Check collision with shield arcs
       for j in 0..<shieldCount:
-        let angle = game.player.shieldAngle + (j.float32 * PI * 2.0 / shieldCount.float32)
-        let shieldX = game.player.pos.x + cos(angle) * shieldRadius
-        let shieldY = game.player.pos.y + sin(angle) * shieldRadius
-        let shieldPos = newVector2f(shieldX, shieldY)
+        let angle1 = game.player.shieldAngle + (j.float32 * PI * 2.0 / shieldCount.float32)
+        let angle2 = angle1 + (PI * 2.0 / shieldCount.float32)
         
-        if checkShieldCollision(bullet, shieldPos):
-          hitShield = true
-          spawnExplosion(game.particles, shieldX, shieldY, SkyBlue, 8)
+        # Check multiple points along the arc
+        for k in 0..16:
+          let t = k.float32 / 16.0
+          let angle = angle1 + t * (angle2 - angle1)
+          let shieldX = game.player.pos.x + cos(angle) * shieldRadius
+          let shieldY = game.player.pos.y + sin(angle) * shieldRadius
+          let shieldPos = newVector2f(shieldX, shieldY)
+          
+          if distance(bullet.pos, shieldPos) < bullet.radius + 6:
+            hitShield = true
+            spawnExplosion(game.particles, shieldX, shieldY, SkyBlue, 8)
+            break
+        
+        if hitShield:
           break
       
       if hitShield:
@@ -855,24 +946,16 @@ proc drawGame*(game: Game) =
   drawPlayer(game.player)
   
   # Draw UI
-  let displayTime = if game.timerFrozen: game.frozenTimeDisplay else: game.time
-  let minutes = (displayTime / 60.0).int
-  let seconds = (displayTime mod 60.0).int
+  let minutes = (game.time / 60.0).int
+  let seconds = (game.time mod 60.0).int
   let timeText = $minutes & ":" & (if seconds < 10: "0" else: "") & $seconds
   
   drawText("HP: " & $game.player.hp.int & "/" & $game.player.maxHp.int, 10, 10, 20, if game.player.hp <= 1: Red else: White)
   drawText("Coins: " & $game.player.coins, 10, 35, 20, Gold)
   drawText("Kills: " & $game.player.kills, 10, 60, 20, White)
+  drawText("Time: " & timeText, 10, 85, 20, White)
   
-  # Animate timer when frozen
-  let timeColor = if game.timerFrozen:
-    let pulse = ((game.bossSpawnTimer * 4.0).int mod 2)
-    if pulse == 0: Yellow else: Orange
-  else:
-    White
-  drawText("Time: " & timeText, 10, 85, 20, timeColor)
-  
-  # Boss warning indicator
+  # Simple boss warning text (no timer pause)
   if game.bossSpawnTimer > 0:
     let warningAlpha = ((game.bossSpawnTimer * 6.0).int mod 2)
     let warningColor = if warningAlpha == 0:
@@ -880,7 +963,7 @@ proc drawGame*(game: Game) =
     else:
       Color(r: 255, g: 100, b: 100, a: 200)
     
-    let warningText = "!!! BOSS INCOMING !!!"
+    let warningText = "BOSS INCOMING"
     let textWidth = measureText(warningText, 40)
     drawText(warningText, (game.screenWidth div 2 - textWidth div 2).int32,
              (game.screenHeight div 2 - 60).int32, 40, warningColor)
@@ -976,16 +1059,20 @@ proc drawGame*(game: Game) =
   let shotsPerSec = 1.0 / getCurrentFireRate(game.player)
   drawText("Fire Rate: " & $(shotsPerSec.int) & "/s", game.screenWidth - 200, yOffset, 16, White)
   yOffset += 20
-  drawText("Auto: " & (if game.player.autoShoot: "ON" else: "OFF"), game.screenWidth - 200, yOffset, 16, 
-           if game.player.autoShoot: Green else: Red)
+  
+  # Only show auto-shoot status if player has the power-up
+  if hasPowerUp(game.player, puAutoShoot):
+    let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
+    drawText("Auto: L" & $autoLevel, game.screenWidth - 200, yOffset, 16, Green)
+    yOffset += 20
   
   # Stats
-  drawText("Enemies: " & $game.enemies.len, game.screenWidth - 200, yOffset + 30, 14, LightGray)
-  drawText("Bullets: " & $game.bullets.len, game.screenWidth - 200, yOffset + 48, 14, LightGray)
-  drawText("Particles: " & $game.particles.len, game.screenWidth - 200, yOffset + 66, 14, LightGray)
+  drawText("Enemies: " & $game.enemies.len, game.screenWidth - 200, yOffset + 10, 14, LightGray)
+  drawText("Bullets: " & $game.bullets.len, game.screenWidth - 200, yOffset + 28, 14, LightGray)
+  drawText("Particles: " & $game.particles.len, game.screenWidth - 200, yOffset + 46, 14, LightGray)
   
-  drawText("F: Auto | TAB: Shop | E: Wall | ESC: Pause", 
-           game.screenWidth div 2 - 240, game.screenHeight - 25, 16, LightGray)
+  drawText("TAB: Shop | E: Wall | ESC: Pause", 
+           game.screenWidth div 2 - 180, game.screenHeight - 25, 16, LightGray)
 
 proc drawGameOver*(game: Game) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
@@ -1023,10 +1110,5 @@ proc drawWaveTransition*(game: Game) =
   
   drawText("INCOMING", game.screenWidth div 2 - 75, game.screenHeight div 2 + 40, 30, Orange)
   
-  # Countdown
-  let countdown = (game.waveCompleteTimer + 0.5).int
-  let countText = $countdown
-  let countWidth = measureText(countText, 60)
-  drawText(countText, game.screenWidth div 2 - countWidth div 2, game.screenHeight div 2 + 90, 60, Gold)
-  
+
   drawText("Press ENTER to start", game.screenWidth div 2 - 130, game.screenHeight - 80, 20, LightGray)

@@ -17,7 +17,21 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puBulletSpeed: "Velocity"
   of puLuckyCoins: "Greed"
   of puWallMaster: "Fortify"
-
+  of puAutoShoot: "Auto-Target"
+  of puBulletSize: "Giant Bullets"
+  of puRegeneration: "Regeneration"
+  of puDodgeChance: "Evasion"
+  of puCriticalHit: "Critical Strike"
+  of puVampirism: "Vampirism"
+  of puBulletBounce: "Ricochet"
+  of puSlowField: "Slow Field"
+  of puRage: "Rage"
+  of puBerserker: "Berserker"
+  of puThorns: "Thorns"
+  of puBulletSplit: "Split Shot"
+  of puChainLightning: "Chain Lightning"
+  of puFrostShots: "Frost Shots"
+  of puPoisonDamage: "Poison"
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
   of puDoubleShot:
@@ -37,9 +51,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "10 dmg/sec in 150 radius"
   of puHomingBullets:
     case level
-    of 1: "Bullets slightly track enemies"
-    of 2: "Bullets track enemies well"
-    else: "Bullets aggressively track enemies"
+    of 1: "Bullets barely track enemies"
+    of 2: "Bullets track enemies"
+    else: "Bullets aggressively track"
   of puPiercingShots:
     case level
     of 1: "Bullets pierce 1 enemy"
@@ -95,6 +109,81 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "Walls have +50% HP"
     of 2: "Walls have +120% HP"
     else: "Walls have +250% HP"
+  of puAutoShoot:
+    case level
+    of 1: "Auto-fire (60% rate, 250 range)"
+    of 2: "Auto-fire (80% rate, 350 range)"
+    else: "Auto-fire (full rate, 450 range)"
+  of puBulletSize:
+    case level
+    of 1: "+40% bullet size"
+    of 2: "+80% bullet size"
+    else: "+140% bullet size"
+  of puRegeneration:
+    case level
+    of 1: "Regen 1 HP per 10s"
+    of 2: "Regen 1 HP per 6s"
+    else: "Regen 1 HP per 3s"
+  of puDodgeChance:
+    case level
+    of 1: "12% chance to dodge hits"
+    of 2: "20% chance to dodge hits"
+    else: "30% chance to dodge hits"
+  of puCriticalHit:
+    case level
+    of 1: "15% chance for 2x damage"
+    of 2: "20% chance for 2.5x damage"
+    else: "25% chance for 3x damage"
+  of puVampirism:
+    case level
+    of 1: "Heal 5% of bullet damage"
+    of 2: "Heal 10% of bullet damage"
+    else: "Heal 18% of bullet damage"
+  of puBulletBounce:
+    case level
+    of 1: "Bullets bounce once"
+    of 2: "Bullets bounce twice"
+    else: "Bullets bounce 3 times"
+  of puSlowField:
+    case level
+    of 1: "Slow enemies 20% in 100 radius"
+    of 2: "Slow enemies 35% in 150 radius"
+    else: "Slow enemies 50% in 200 radius"
+  of puRage:
+    case level
+    of 1: "+5% dmg per 10% HP lost"
+    of 2: "+8% dmg per 10% HP lost"
+    else: "+12% dmg per 10% HP lost"
+  of puBerserker:
+    case level
+    of 1: "+5% fire rate per 10% HP lost"
+    of 2: "+8% fire rate per 10% HP lost"
+    else: "+15% fire rate per 10% HP lost"
+  of puThorns:
+    case level
+    of 1: "Reflect 20% damage to attacker"
+    of 2: "Reflect 40% damage to attacker"
+    else: "Reflect 70% damage to attacker"
+  of puBulletSplit:
+    case level
+    of 1: "Bullets split into 2 on hit"
+    of 2: "Bullets split into 3 on hit"
+    else: "Bullets split into 4 on hit"
+  of puChainLightning:
+    case level
+    of 1: "Hit chains to 1 enemy (70% dmg)"
+    of 2: "Hit chains to 2 enemies (80% dmg)"
+    else: "Hit chains to 3 enemies (90% dmg)"
+  of puFrostShots:
+    case level
+    of 1: "Bullets slow enemies 25% (2s)"
+    of 2: "Bullets slow enemies 40% (3s)"
+    else: "Bullets slow enemies 60% (4s)"
+  of puPoisonDamage:
+    case level
+    of 1: "Bullets poison (1 dmg/s, 4s)"
+    of 2: "Bullets poison (2 dmg/s, 5s)"
+    else: "Bullets poison (4 dmg/s, 6s)"
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -117,7 +206,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
                         puBulletSpeed, puLuckyCoins, puWallMaster]
   
   if isLegendary:
-    # Boss defeated - offer legendary upgrades
+    # Boss defeated - offer legendary upgrades ONLY
+    # First prioritize legendary-exclusive types
     for powerType in legendaryTypes:
       let currentLevel = getPowerUpLevel(player, powerType)
       if currentLevel == 0:
@@ -125,7 +215,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
       elif currentLevel < 3:
         availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prLegendary))
     
-    # Also include maxed common powerups as legendary versions
+    # Then include common powerups as legendary versions (for upgrade paths)
     for powerType in PowerUpType:
       if powerType in legendaryTypes:
         continue
@@ -151,12 +241,12 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     let j = rand(i)
     swap(availablePowerUps[i], availablePowerUps[j])
   
-  # Fill result with up to 3 power-ups
+  # Fill result with up to 3 power-ups, maintaining rarity correctly
   for i in 0..2:
     if i < availablePowerUps.len:
       result[i] = availablePowerUps[i]
     else:
-      # If we run out, offer random power-ups
+      # If we run out, create random power-ups with CORRECT rarity
       if isLegendary:
         let randomType = legendaryTypes[rand(legendaryTypes.high)]
         result[i] = PowerUp(powerType: randomType, level: 1, rarity: prLegendary)
@@ -297,12 +387,22 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       let offsetX = (i - powerUp.level div 2) * 12
       drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 8, Yellow)
   of puRotatingShield:
-    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 15, Blue)
-    for i in 0..<powerUp.level + 1:
-      let angle = i.float32 * PI * 2.0 / (powerUp.level + 1).float32
-      let shieldX = centerX.float32 + cos(angle) * 25
-      let shieldY = iconY.float32 + sin(angle) * 25
-      drawCircle(Vector2(x: shieldX, y: shieldY), 5, SkyBlue)
+    # Draw the new curved shield visual
+    let shieldRadius = 20.0
+    let shieldCount = powerUp.level + 1
+    for i in 0..<shieldCount:
+      let angle1 = i.float32 * PI * 2.0 / shieldCount.float32
+      let angle2 = (i + 1).float32 * PI * 2.0 / shieldCount.float32
+      for j in 0..8:
+        let t1 = j.float32 / 8.0
+        let t2 = (j + 1).float32 / 8.0
+        let a1 = angle1 + t1 * (angle2 - angle1) * 0.8
+        let a2 = angle1 + t2 * (angle2 - angle1) * 0.8
+        let x1 = centerX.float32 + cos(a1) * shieldRadius
+        let y1 = iconY.float32 + sin(a1) * shieldRadius
+        let x2 = centerX.float32 + cos(a2) * shieldRadius
+        let y2 = iconY.float32 + sin(a2) * shieldRadius
+        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, SkyBlue)
   of puDamageZone:
     let zoneRadius = 10 + powerUp.level * 8
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), zoneRadius.float32, 
@@ -310,7 +410,6 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     drawCircleLines(centerX.int32, iconY.int32, zoneRadius.float32, Orange)
   of puHomingBullets:
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 8, Magenta)
-    # Draw curved path
     for i in 0..5:
       let t = i.float32 / 5.0
       let curve = sin(t * PI) * 15.0
@@ -339,27 +438,22 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 5, Orange)
   of puLifeSteal:
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Red)
-    # Draw heart shape approximation
     drawCircle(Vector2(x: (centerX - 5).float32, y: (iconY - 3).float32), 6, Pink)
     drawCircle(Vector2(x: (centerX + 5).float32, y: (iconY - 3).float32), 6, Pink)
   of puRapidFire:
-    # Three bullets in rapid succession
     for i in 0..<3:
       let offsetX = (i - 1) * 15
       drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 6, Orange)
-    # Speed lines
     for i in 0..2:
       let lineY = iconY + (i - 1) * 10
       drawLine(Vector2(x: (centerX - 30).float32, y: lineY.float32),
               Vector2(x: (centerX - 15).float32, y: lineY.float32), 2, Yellow)
   of puMaxHealth:
-    # Heart with plus
     drawCircle(Vector2(x: (centerX - 5).float32, y: (iconY - 2).float32), 10, Red)
     drawCircle(Vector2(x: (centerX + 5).float32, y: (iconY - 2).float32), 10, Red)
     drawCircle(Vector2(x: centerX.float32, y: (iconY + 6).float32), 10, Red)
     drawText("+", centerX - 5, iconY - 8, 16, White)
   of puSpeedBoost:
-    # Running figure with speed lines
     drawCircle(Vector2(x: centerX.float32, y: (iconY - 10).float32), 8, SkyBlue)
     drawLine(Vector2(x: centerX.float32, y: (iconY - 2).float32),
             Vector2(x: centerX.float32, y: (iconY + 15).float32), 3, SkyBlue)
@@ -368,9 +462,7 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       drawLine(Vector2(x: lineX.float32, y: iconY.float32),
               Vector2(x: (lineX + 10).float32, y: iconY.float32), 2, White)
   of puBulletDamage:
-    # Fist with impact
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, DarkGray)
-    # Impact lines
     for i in 0..7:
       let angle = i.float32 * PI / 4.0
       let startDist = 15.0
@@ -381,26 +473,130 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       let y2 = iconY.float32 + sin(angle) * endDist
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, Red)
   of puBulletSpeed:
-    # Fast bullet trail
     drawCircle(Vector2(x: (centerX + 20).float32, y: iconY.float32), 6, Yellow)
     for i in 0..4:
       let alpha = 255 - i * 50
       drawCircle(Vector2(x: (centerX + 20 - i * 8).float32, y: iconY.float32), 
                 4, Color(r: 255, g: 255, b: 0, a: alpha.uint8))
   of puLuckyCoins:
-    # Multiple coins
     for i in 0..2:
       let offsetX = (i - 1) * 15
       drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 8, Gold)
       drawText("$", int32(centerX + offsetX - 4), int32(iconY - 6), 12, DarkGray)
   of puWallMaster:
-    # Brick wall
     for row in 0..2:
       for col in 0..2:
         let offsetX = (col - 1) * 12
         let offsetY = (row - 1) * 12
         drawRectangle(int32(centerX + offsetX - 5), int32(iconY + offsetY - 5), 10.int32, 10.int32, Brown)
         drawRectangleLines(int32(centerX + offsetX - 5), int32(iconY + offsetY - 5), 10.int32, 10.int32, Black)
+  of puAutoShoot:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 10, Blue)
+    for i in 0..3:
+      let angle = i.float32 * PI / 2.0
+      let x = centerX.float32 + cos(angle) * 20
+      let y = iconY.float32 + sin(angle) * 20
+      drawLine(Vector2(x: centerX.float32, y: iconY.float32), Vector2(x: x, y: y), 2, Yellow)
+  of puBulletSize:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 6 + powerUp.level.float32 * 3.float32, Yellow)
+    drawCircleLines(centerX.int32, iconY.int32, 6 + powerUp.level.float32 * 3.float32, Orange)
+  of puRegeneration:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Green)
+    drawText("+", centerX - 6, iconY - 8, 18, White)
+    for i in 0..3:
+      let angle = i.float32 * PI / 2.0
+      let dist = 18.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist
+      drawCircle(Vector2(x: x, y: y), 3, Green)
+  of puDodgeChance:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Color(r: 100, g: 100, b: 200, a: 150))
+    drawCircle(Vector2(x: (centerX - 8).float32, y: iconY.float32), 5, Blue)
+    drawCircle(Vector2(x: (centerX + 8).float32, y: iconY.float32), 5, Blue)
+  of puCriticalHit:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 10, Red)
+    drawText("!", centerX - 3, iconY - 8, 18, Yellow)
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0
+      let dist = 18.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist
+      drawCircle(Vector2(x: x, y: y), 2, Orange)
+  of puVampirism:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Red)
+    drawCircle(Vector2(x: (centerX - 5).float32, y: (iconY - 3).float32), 6, Red)
+    drawCircle(Vector2(x: (centerX + 5).float32, y: (iconY - 3).float32), 6, Red)
+    drawText("+", centerX - 4, iconY + 5, 12, Green)
+  of puBulletBounce:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 6, Yellow)
+    let bounces = powerUp.level
+    for i in 1..bounces:
+      let offsetX = i * 15
+      let offsetY = if i mod 2 == 0: -10 else: 10
+      drawCircle(Vector2(x: (centerX + offsetX).float32, y: (iconY + offsetY).float32), 6, Yellow)
+      drawLine(Vector2(x: (centerX + (i-1) * 15).float32, y: (iconY + (if (i-1) mod 2 == 0: -10 else: 10)).float32),
+              Vector2(x: (centerX + offsetX).float32, y: (iconY + offsetY).float32), 2, Orange)
+  of puSlowField:
+    let radius = 10 + powerUp.level * 5
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), radius.float32, 
+              Color(r: 100, g: 150, b: 255, a: 80))
+    drawCircleLines(centerX.int32, iconY.int32, radius.float32, Blue)
+    drawText("SLOW", centerX - 18, iconY - 6, 12, White)
+  of puRage:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Red)
+    for i in 0..5:
+      let angle = i.float32 * PI / 3.0
+      let dist = 18.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist
+      drawLine(Vector2(x: centerX.float32, y: iconY.float32), Vector2(x: x, y: y), 3, Orange)
+  of puBerserker:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Red)
+    for i in 0..<3:
+      let offsetX = (i - 1) * 12
+      drawCircle(Vector2(x: (centerX + offsetX).float32, y: (iconY - 15).float32), 4, Red)
+  of puThorns:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 10, Brown)
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0
+      let dist = 12.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist
+      drawLine(Vector2(x: centerX.float32, y: iconY.float32), Vector2(x: x, y: y), 2, Gray)
+  of puBulletSplit:
+    drawCircle(Vector2(x: centerX.float32, y: (iconY - 10).float32), 6, Yellow)
+    let splits = powerUp.level + 1
+    for i in 0..<splits:
+      let angle = (i - splits div 2).float32 * 0.4
+      let x = centerX.float32 + sin(angle) * 20
+      let y = iconY.float32 + 10 + cos(angle) * 5
+      drawCircle(Vector2(x: x, y: y), 4, Orange)
+      drawLine(Vector2(x: centerX.float32, y: iconY.float32), Vector2(x: x, y: y), 2, Yellow)
+  of puChainLightning:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 8, Yellow)
+    let chains = powerUp.level
+    for i in 1..chains:
+      let offsetX = i * 15
+      drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 6, Color(r: 200, g: 200, b: 0, a: 200))
+      for j in 0..3:
+        let x1 = centerX.float32 + ((i-1) * 15).float32 + j.float32 * 3.75
+        let y1 = iconY.float32 + (if j mod 2 == 0: -5 else: 5).float32
+        let x2 = x1 + 3.75
+        let y2 = iconY.float32 + (if j mod 2 == 0: 5 else: -5).float32
+        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, Color(r: 255, g: 255, b: 100, a: 255))
+  of puFrostShots:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 8, SkyBlue)
+    for i in 0..5:
+      let angle = i.float32 * PI / 3.0
+      let dist = 16.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist
+      drawCircle(Vector2(x: x, y: y), 3, Color(r: 200, g: 230, b: 255, a: 255))
+  of puPoisonDamage:
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 10, Green)
+    for i in 0..3:
+      let offsetY = -15 + i * 5
+      drawCircle(Vector2(x: centerX.float32, y: (iconY + offsetY).float32), 4, Color(r: 100, g: 255, b: 100, a: 180))
   
   # Rarity indicator
   if powerUp.rarity == prLegendary:
