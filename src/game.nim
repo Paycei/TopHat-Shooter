@@ -37,11 +37,11 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
 
 proc calculateWaveEnemyCount(waveNumber: int): int =
   # Scale enemy count based on wave number
-  # Start with 8 enemies, add 2-4 per wave
-  result = 8 + (waveNumber - 1) * 3
-  # Cap at 40 enemies per wave
-  if result > 40:
-    result = 40
+  # Start with 10 enemies, add 3-4 per wave
+  result = 10 + (waveNumber - 1) * 3
+  # Cap at 45 enemies per wave
+  if result > 45:
+    result = 45
 
 proc startWave*(game: Game) =
   game.waveInProgress = true
@@ -51,9 +51,65 @@ proc startWave*(game: Game) =
 
 proc spawnWaveEnemy*(game: Game) =
   if game.waveEnemiesRemaining > 0:
-    # Calculate difficulty based on wave number
-    let waveDifficulty = (game.currentWave - 1).float32 * 0.8
-    game.enemies.add(spawnEnemy(game.screenWidth, game.screenHeight, waveDifficulty))
+    # Progressive enemy variety based on wave number (mimics time survival progression)
+    # Map waves to equivalent time survival difficulty for consistent balance
+    let wave = game.currentWave
+    let roll = rand(100)
+    var enemyType: EnemyType
+    
+    if wave <= 2:
+      # Waves 1-2: Only circles (tutorial waves)
+      enemyType = etCircle
+    
+    elif wave <= 4:
+      # Waves 3-4: Introduce cubes (ranged enemies)
+      if roll < 80: enemyType = etCircle
+      else: enemyType = etCube
+    
+    elif wave <= 6:
+      # Waves 5-6: Add hexagons (teleporting chaos)
+      if roll < 65: enemyType = etCircle
+      elif roll < 85: enemyType = etCube
+      else: enemyType = etHexagon
+    
+    elif wave <= 10:
+      # Waves 7-10: Add stars (tanky enemies)
+      if roll < 45: enemyType = etCircle
+      elif roll < 55: enemyType = etCube
+      elif roll < 75: enemyType = etHexagon
+      else: enemyType = etStar
+    
+    elif wave <= 15:
+      # Waves 11-15: Full roster with triangles
+      if roll < 30: enemyType = etCircle
+      elif roll < 50: enemyType = etCube
+      elif roll < 65: enemyType = etHexagon
+      elif roll < 80: enemyType = etStar
+      else: enemyType = etTriangle
+    
+    else:
+      # Wave 16+: Balanced chaos - all enemy types
+      if roll < 20: enemyType = etCircle
+      elif roll < 40: enemyType = etCube
+      elif roll < 55: enemyType = etHexagon
+      elif roll < 75: enemyType = etStar
+      else: enemyType = etTriangle
+    
+    # Difficulty scaling: increase every 3 waves (similar to time survival's 30s intervals)
+    let baseDifficulty = (wave - 1).float32 / 3.0
+    let strengthMultiplier = pow(1.15, baseDifficulty)
+    
+    # Spawn enemy at calculated difficulty
+    let side = rand(3)
+    var x, y: float32
+    
+    case side
+    of 0: x = rand(game.screenWidth.int).float32; y = -30
+    of 1: x = game.screenWidth.float32 + 30; y = rand(game.screenHeight.int).float32
+    of 2: x = rand(game.screenWidth.int).float32; y = game.screenHeight.float32 + 30
+    else: x = -30; y = rand(game.screenHeight.int).float32
+    
+    game.enemies.add(newEnemy(x, y, baseDifficulty, enemyType))
     game.waveEnemiesRemaining -= 1
 
 proc checkWaveComplete*(game: Game): bool =
@@ -181,29 +237,38 @@ proc updateGame*(game: Game, dt: float32) =
   # MODE-SPECIFIC ENEMY SPAWNING
   if game.mode == gmWaveBased:
     # WAVE-BASED MODE: Spawn enemies in defined waves
-    if not game.waveInProgress and not game.bossActive:
+    if not game.waveInProgress and not game.bossActive and game.state == gsPlaying:
       # Start a new wave
       startWave(game)
     
     if game.waveInProgress and game.bossSpawnTimer <= 0:
-      # Spawn wave enemies gradually
-      let spawnRate = 0.8  # Spawn an enemy every 0.8 seconds
-      if game.spawnTimer > spawnRate and game.waveEnemiesRemaining > 0:
+      # Spawn wave enemies gradually with dynamic rate
+      # Earlier waves spawn faster for momentum, later waves space out for intensity
+      let baseSpawnRate = if game.currentWave <= 3: 0.6
+                         elif game.currentWave <= 7: 0.7
+                         elif game.currentWave <= 12: 0.75
+                         else: 0.8
+      
+      if game.spawnTimer > baseSpawnRate and game.waveEnemiesRemaining > 0:
         spawnWaveEnemy(game)
         game.spawnTimer = 0
       
       # Check if wave is complete
       if checkWaveComplete(game):
         game.waveInProgress = false
-        
-        # Check if it's time for a boss wave
-        if game.wavesUntilBoss == 1:
-          # Next wave is a boss wave
-          game.wavesUntilBoss = 0
+
+        # Advance wave counters so the next wave uses the next wave number
+        game.currentWave += 1
+        game.wavesUntilBoss -= 1
+
+        # If wavesUntilBoss reached zero, schedule a boss wave next
+        if game.wavesUntilBoss <= 0:
+          # Do not reset wavesUntilBoss here — the boss-spawning logic checks for 0.
+          # We'll show a short transition before the boss arrives.
           game.waveCompleteTimer = 2.0
           game.state = gsWaveTransition
         else:
-          # Regular wave complete - show power-up selection
+          # Regular wave complete: show power-up choices
           game.powerUpChoices = generatePowerUpChoices(game.player, false)
           game.selectedPowerUp = 0
           game.state = gsPowerUpSelect
@@ -211,8 +276,10 @@ proc updateGame*(game: Game, dt: float32) =
     # Boss wave spawning
     if game.wavesUntilBoss == 0 and not game.bossActive and game.bossSpawnTimer <= 0:
       game.bossCount += 1
+      # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
+      let bossDifficulty = (game.currentWave - 1).float32 / 3.0
       game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, 
-                                (game.currentWave - 1).float32 * 0.8, game.bossCount))
+                                bossDifficulty, game.bossCount))
       game.bossActive = true
       game.bossSpawnTimer = 2.5
       game.frozenTimeDisplay = game.time
@@ -384,8 +451,8 @@ proc updateGame*(game: Game, dt: float32) =
         # Mode-specific boss defeat handling
         if game.mode == gmWaveBased:
           # Wave mode: advance wave and reset boss counter
-          advanceWave(game)
-          game.wavesUntilBoss = 3
+          game.currentWave += 1
+          game.wavesUntilBoss = 3  # Next boss in 3 waves
         # Time survival mode continues with existing logic
       
       game.enemies.delete(i)
@@ -822,13 +889,17 @@ proc drawGame*(game: Game) =
   # Mode-specific UI
   if game.mode == gmWaveBased:
     # Wave information
-    drawText("Wave: " & $game.currentWave, 10, 135, 20, Yellow)
+    let waveDisplay = if game.bossActive:
+      "Boss Wave " & $(game.currentWave)
+    else:
+      "Wave " & $(game.currentWave)
+    drawText(waveDisplay, 10, 135, 20, if game.bossActive: Red else: Yellow)
     
     if game.waveInProgress and not game.bossActive:
       let enemiesLeft = game.waveEnemiesRemaining + game.enemies.len
       drawText("Enemies: " & $enemiesLeft & "/" & $game.waveEnemiesTotal, 10, 160, 18, Orange)
     elif game.bossActive:
-      drawText("BOSS WAVE", 10, 160, 20, Red)
+      drawText("Defeat the Boss!", 10, 160, 18, Red)
   else:
     # Time survival mode - show chaos meter
     let chaosLevel = min(game.difficulty * 10, 100).int
@@ -945,13 +1016,17 @@ proc drawWaveTransition*(game: Game) =
   # Title
   drawText("GET READY!", game.screenWidth div 2 - 120, game.screenHeight div 2 - 80, 50, Yellow)
   
-  # Boss wave notification
-  drawText("BOSS WAVE INCOMING", game.screenWidth div 2 - 180, game.screenHeight div 2, 35, Red)
+  # Boss wave notification with wave number
+  let bossWaveText = "BOSS WAVE " & $(game.currentWave + 1)
+  let bossTextWidth = measureText(bossWaveText, 35)
+  drawText(bossWaveText, game.screenWidth div 2 - bossTextWidth div 2, game.screenHeight div 2, 35, Red)
+  
+  drawText("INCOMING", game.screenWidth div 2 - 75, game.screenHeight div 2 + 40, 30, Orange)
   
   # Countdown
   let countdown = (game.waveCompleteTimer + 0.5).int
   let countText = $countdown
   let countWidth = measureText(countText, 60)
-  drawText(countText, game.screenWidth div 2 - countWidth div 2, game.screenHeight div 2 + 60, 60, Gold)
+  drawText(countText, game.screenWidth div 2 - countWidth div 2, game.screenHeight div 2 + 90, 60, Gold)
   
   drawText("Press ENTER to start", game.screenWidth div 2 - 130, game.screenHeight - 80, 20, LightGray)

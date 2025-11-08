@@ -12,7 +12,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       radius: size,
       hp: 1.0 * strengthMultiplier,
       maxHp: 1.0 * strengthMultiplier,
-      speed: 90 + difficulty * 10,  # Faster
+      speed: 100 + difficulty * 10,  # Faster
       damage: 1,
       color: if difficulty < 5: Red elif difficulty < 10: Orange else: Maroon,
       enemyType: etCircle,
@@ -38,7 +38,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       radius: 12 + difficulty * 1.2,
       hp: 2.0 * strengthMultiplier,  # More HP
       maxHp: 2.0 * strengthMultiplier,
-      speed: 55 + difficulty * 3,  # Faster for kiting
+      speed: 60 + difficulty * 3,  # Faster for kiting
       damage: 1,
       color: Purple,
       enemyType: etCube,

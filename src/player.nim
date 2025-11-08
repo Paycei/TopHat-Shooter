@@ -8,11 +8,11 @@ proc newPlayer*(x, y: float32): Player =
     baseRadius: 12,
     hp: 5,  # 5 for early game comfort
     maxHp: 5,
-    speed: 180,  # 180 for better feel
-    baseSpeed: 200,
+    speed: 170,  # 170 for better feel
+    baseSpeed: 170,
     damage: 1,
-    fireRate: 0.4,  #  0.4 for smoother shooting
-    bulletSpeed: 350,
+    fireRate: 0.45,  #  0.45 for smoother shooting
+    bulletSpeed: 300,
     lastShot: 0,
     autoShoot: false,
     coins: 0,

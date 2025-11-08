@@ -1,4 +1,4 @@
-import raylib, types, math, powerup, strutils
+import raylib, types, math, powerup
 
 proc initShopItems*(): array[6, ShopItem] =
   result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 7, bought: 0)
