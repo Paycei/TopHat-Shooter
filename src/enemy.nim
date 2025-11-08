@@ -174,6 +174,11 @@ proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
   )
 
 proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32): bool =
+  # Apply slow field effect to enemy speed
+  var effectiveSpeed = enemy.speed
+  if enemy.slowAmount > 0:
+    effectiveSpeed = enemy.speed * (1.0 - enemy.slowAmount)
+  
   if enemy.isBoss:
     # Handle entrance animation
     if enemy.entranceTimer > 0:
@@ -238,7 +243,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
     # Boss movement with wall collision
     let dir = (playerPos - enemy.pos).normalize()
     var canMove = true
-    let nextPos = enemy.pos + dir * enemy.speed * speedMod * dt
+    let nextPos = enemy.pos + dir * effectiveSpeed * speedMod * dt
     
     for wall in walls:
       if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
@@ -252,7 +257,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         break
     
     if canMove:
-      enemy.vel = dir * enemy.speed * speedMod
+      enemy.vel = dir * effectiveSpeed * speedMod
       enemy.pos = enemy.pos + enemy.vel * dt
     
   else:
@@ -260,7 +265,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
     of etCircle:  # Normal chaser
       let dir = (playerPos - enemy.pos).normalize()
       var canMove = true
-      let nextPos = enemy.pos + dir * enemy.speed * dt
+      let nextPos = enemy.pos + dir * effectiveSpeed * dt
       
       for wall in walls:
         if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
@@ -274,7 +279,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       if canMove:
-        enemy.vel = dir * enemy.speed
+        enemy.vel = dir * effectiveSpeed
         enemy.pos = enemy.pos + enemy.vel * dt
     
     of etCube:  # BUFFED: Backs away when player is close
@@ -289,7 +294,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       if distToPlayer < retreatDistance:
         # Too close - back away!
         let retreatDir = dir * -1.0
-        let nextPos = enemy.pos + retreatDir * enemy.speed * dt
+        let nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
         var canMove = true
         
         for wall in walls:
@@ -307,7 +312,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           enemy.pos = nextPos
       elif distToPlayer > optimalDistance:
         # Too far - move closer
-        let nextPos = enemy.pos + dir * enemy.speed * 0.5 * dt
+        let nextPos = enemy.pos + dir * effectiveSpeed * 0.5 * dt
         var canMove = true
         
         for wall in walls:
@@ -325,36 +330,38 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           enemy.pos = nextPos
       # else: in optimal range, stay put
     
-    of etTriangle:  # BUFFED: Free movement + aggressive repositioning
+    of etTriangle:  # BUFFED: Dash + erratic movement - FULLY FUNCTIONAL
       enemy.dashTimer -= dt
       
       if enemy.dashTimer <= 0:
-        # Execute dash toward player
+        # Execute dash toward player's CURRENT position
         let dir = (playerPos - enemy.pos).normalize()
-        enemy.vel = dir * enemy.speed * 3.0  # Super fast dash
-        enemy.dashTimer = 1.8 + rand(0.8)
+        enemy.vel = dir * effectiveSpeed * 3.5  # Super fast dash
+        enemy.dashTimer = 2.0 + rand(1.0)  # Reset dash cooldown (2-3 seconds)
       else:
-        # Between dashes: actively chase player with free movement
+        # Between dashes: erratic aggressive chasing behavior
         let dir = (playerPos - enemy.pos).normalize()
         let distToPlayer = distance(enemy.pos, playerPos)
         
-        # Add some erratic movement for unpredictability
-        let erraticAngle = rand(0.5) - 0.25
-        let erraticDir = newVector2f(
-          dir.x * cos(erraticAngle) - dir.y * sin(erraticAngle),
-          dir.x * sin(erraticAngle) + dir.y * cos(erraticAngle)
+        # Time-based sine wave for smooth unpredictable zigzag pattern
+        let zigzagAngle = sin(currentTime * 7.0 + enemy.pos.x * 0.05) * 0.5
+        let zigzagDir = newVector2f(
+          dir.x * cos(zigzagAngle) - dir.y * sin(zigzagAngle),
+          dir.x * sin(zigzagAngle) + dir.y * cos(zigzagAngle)
         )
         
-        # Chase at full speed between dashes
-        if distToPlayer > 100:
-          enemy.vel = erraticDir * enemy.speed
+        if distToPlayer > 120:
+          # Long range: aggressive chase with zigzag
+          enemy.vel = zigzagDir * effectiveSpeed * 0.9
         else:
-          # Circle around player when close
+          # Close range: circle strafe with unpredictable weaving
           let tangent = newVector2f(-dir.y, dir.x)
-          enemy.vel = (erraticDir * 0.5 + tangent * 0.5).normalize() * enemy.speed
+          let weaveIntensity = sin(currentTime * 10.0 + enemy.pos.y * 0.05) * 0.5
+          let circleDir = (zigzagDir * (0.5 + weaveIntensity * 0.2) + tangent * (0.5 - weaveIntensity * 0.2)).normalize()
+          enemy.vel = circleDir * effectiveSpeed * 0.95
         
-        # Slow down velocity gradually
-        enemy.vel = enemy.vel * 0.92
+        # Maintain momentum with very light damping
+        enemy.vel = enemy.vel * 0.98
       
       var canMove = true
       let nextPos = enemy.pos + enemy.vel * dt
@@ -362,7 +369,9 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       for wall in walls:
         if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
           canMove = false
-          enemy.vel = enemy.vel * 0.3  # Bounce off walls
+          # Aggressive wall bounce maintains speed
+          let wallDir = (enemy.pos - wall.pos).normalize()
+          enemy.vel = wallDir * effectiveSpeed * 0.85
           
           # Enemy colliding with wall - damage both (1 dmg/sec)
           if currentTime - enemy.lastWallDamageTime >= 1.0:
@@ -376,7 +385,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
     
     of etStar:  # Slow, tank enemy
       let dir = (playerPos - enemy.pos).normalize()
-      let nextPos = enemy.pos + dir * enemy.speed * dt
+      let nextPos = enemy.pos + dir * effectiveSpeed * dt
       var canMove = true
       
       for wall in walls:
@@ -391,7 +400,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       if canMove:
-        enemy.vel = dir * enemy.speed
+        enemy.vel = dir * effectiveSpeed
         enemy.pos = nextPos
     
     of etHexagon:  # Teleporting chaos enemy
@@ -410,7 +419,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       else:
         # Normal movement between teleports
         let dir = (playerPos - enemy.pos).normalize()
-        let nextPos = enemy.pos + dir * enemy.speed * dt
+        let nextPos = enemy.pos + dir * effectiveSpeed * dt
         var canMove = true
         
         for wall in walls:
@@ -603,7 +612,7 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
     x = -30
     y = rand(screenHeight.int).float32
   
-  # PROGRESSIVE DIFFICULTY SYSTEM - enemies unlock in phases
+  # PROGRESSIVE DIFFICULTY SYSTEM - enemies unlock in phases (REBALANCED)
   let roll = rand(100)
   var enemyType: EnemyType
   
@@ -617,33 +626,33 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
     else: enemyType = etCube
   
   elif difficulty < 6.0:
-    # Phase 3 (40-60s): Add Hexagons - teleporting enemies
+    # Phase 3 (40-60s): Add Triangles - dash enemies (swapped with hexagon)
     if roll < 70: enemyType = etCircle
     elif roll < 85: enemyType = etCube
-    else: enemyType = etHexagon
+    else: enemyType = etTriangle
   
   elif difficulty < 12.0:
     # Phase 4 (60-120s): Add Stars - tanky enemies
     if roll < 50: enemyType = etCircle
     elif roll < 55: enemyType = etCube
-    elif roll < 80: enemyType = etHexagon
+    elif roll < 70: enemyType = etTriangle
     else: enemyType = etStar
   
   elif difficulty < 18.0:
-    # Phase 5 (90-120s): Add Triangles - full roster
+    # Phase 5 (120-180s): Add Hexagons - teleporting chaos (was phase 3)
     if roll < 30: enemyType = etCircle
-    elif roll < 50: enemyType = etCube
-    elif roll < 65: enemyType = etHexagon
-    elif roll < 80: enemyType = etStar
-    else: enemyType = etTriangle
+    elif roll < 40: enemyType = etCube
+    elif roll < 55: enemyType = etTriangle
+    elif roll < 75: enemyType = etStar
+    else: enemyType = etHexagon
   
   else:
     # Phase 6 (180s+): Balanced chaos - all types common
     if roll < 20: enemyType = etCircle
-    elif roll < 40: enemyType = etCube
-    elif roll < 55: enemyType = etHexagon
-    elif roll < 75: enemyType = etStar
-    else: enemyType = etTriangle
+    elif roll < 35: enemyType = etCube
+    elif roll < 55: enemyType = etTriangle
+    elif roll < 70: enemyType = etStar
+    else: enemyType = etHexagon
   
   newEnemy(x, y, difficulty, enemyType)
 

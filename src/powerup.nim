@@ -41,9 +41,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Shoot 4 bullets at once"
   of puRotatingShield:
     case level
-    of 1: "2 shields block enemy bullets"
-    of 2: "3 shields block enemy bullets"
-    else: "4 shields block enemy bullets"
+    of 1: "2 shields (50% coverage)"
+    of 2: "3 shields (70% coverage)"
+    else: "4 shields (85% coverage)"
   of puDamageZone:
     case level
     of 1: "2 dmg/sec in 50 radius"
@@ -121,9 +121,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "+140% bullet size"
   of puRegeneration:
     case level
-    of 1: "Regen 1 HP per 10s"
-    of 2: "Regen 1 HP per 6s"
-    else: "Regen 1 HP per 3s"
+    of 1: "Regen 1 HP per 15s"
+    of 2: "Regen 1 HP per 11s"
+    else: "Regen 1 HP per 8s"
   of puDodgeChance:
     case level
     of 1: "12% chance to dodge hits"
@@ -146,9 +146,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Bullets bounce 3 times"
   of puSlowField:
     case level
-    of 1: "Slow enemies 20% in 100 radius"
-    of 2: "Slow enemies 35% in 150 radius"
-    else: "Slow enemies 50% in 200 radius"
+    of 1: "Slow enemies 35% in 120 radius"
+    of 2: "Slow enemies 50% in 170 radius"
+    else: "Slow enemies 65% in 220 radius"
   of puRage:
     case level
     of 1: "+5% dmg per 10% HP lost"
@@ -301,7 +301,6 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   for i in 0..<player.powerUps.len:
     if player.powerUps[i].powerType == powerUp.powerType:
       # Upgrade existing power-up
-      let oldLevel = player.powerUps[i].level
       player.powerUps[i].level = powerUp.level
       player.powerUps[i].rarity = powerUp.rarity
       

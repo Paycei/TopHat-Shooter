@@ -106,6 +106,7 @@ type
     lastDamageTaken*: float32 # For dodge chance timing
     rageStacks*: int          # For rage power-up
     critCharge*: float32      # For critical hit timing
+    autoShootEnabled*: bool   # Toggle for auto-shoot powerup
 
   Enemy* = ref object
     pos*: Vector2f

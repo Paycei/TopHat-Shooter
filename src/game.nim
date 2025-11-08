@@ -64,33 +64,33 @@ proc spawnWaveEnemy*(game: Game) =
       else: enemyType = etCube
     
     elif wave <= 6:
-      # Waves 5-6: Add hexagons (teleporting chaos)
+      # Waves 5-6: Add triangles (dash enemies, swapped with hexagon)
       if roll < 65: enemyType = etCircle
       elif roll < 85: enemyType = etCube
-      else: enemyType = etHexagon
+      else: enemyType = etTriangle
     
     elif wave <= 10:
       # Waves 7-10: Add stars (tanky enemies)
       if roll < 45: enemyType = etCircle
       elif roll < 55: enemyType = etCube
-      elif roll < 75: enemyType = etHexagon
+      elif roll < 70: enemyType = etTriangle
       else: enemyType = etStar
     
     elif wave <= 15:
-      # Waves 11-15: Full roster with triangles
+      # Waves 11-15: Add hexagons (teleporting chaos, moved later)
       if roll < 30: enemyType = etCircle
-      elif roll < 50: enemyType = etCube
-      elif roll < 65: enemyType = etHexagon
-      elif roll < 80: enemyType = etStar
-      else: enemyType = etTriangle
+      elif roll < 40: enemyType = etCube
+      elif roll < 55: enemyType = etTriangle
+      elif roll < 75: enemyType = etStar
+      else: enemyType = etHexagon
     
     else:
       # Wave 16+: Balanced chaos - all enemy types
       if roll < 20: enemyType = etCircle
-      elif roll < 40: enemyType = etCube
-      elif roll < 55: enemyType = etHexagon
-      elif roll < 75: enemyType = etStar
-      else: enemyType = etTriangle
+      elif roll < 35: enemyType = etCube
+      elif roll < 55: enemyType = etTriangle
+      elif roll < 70: enemyType = etStar
+      else: enemyType = etHexagon
     
     # Difficulty scaling: increase every 3 waves (similar to time survival's 30s intervals)
     let baseDifficulty = (wave - 1).float32 / 3.0
@@ -136,9 +136,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let hasFrost = hasPowerUp(game.player, puFrostShots)
     let hasPoison = hasPowerUp(game.player, puPoisonDamage)
     
-    # Base bullet properties
+    # Base bullet properties - use current damage with Rage bonus
     var speed = game.player.bulletSpeed * 1.2
-    var damage = game.player.damage
+    var damage = getCurrentDamage(game.player)
     var bulletRadius = 4.0
     
     # Apply bullet size power-up
@@ -276,6 +276,46 @@ proc updateGame*(game: Game, dt: float32) =
       if dist < zoneRadius:
         enemy.hp -= zoneDamage * dt
   
+  # Regeneration power-up effect - NERFED
+  if hasPowerUp(game.player, puRegeneration):
+    game.player.regenTimer += dt
+    let level = getPowerUpLevel(game.player, puRegeneration)
+    let regenInterval = case level
+      of 1: 15.0  # NERFED from 12s to 15s
+      of 2: 11.0  # NERFED from 8s to 11s
+      else: 8.0   # NERFED from 5s to 8s
+    
+    if game.player.regenTimer >= regenInterval:
+      heal(game.player, 1)
+      game.player.regenTimer = 0
+      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 10)
+  
+  # Slow Field power-up effect - BUFFED for more impact
+  if hasPowerUp(game.player, puSlowField):
+    let level = getPowerUpLevel(game.player, puSlowField)
+    let slowPercent = case level
+      of 1: 0.50  # BUFFED from 35% to 50% slow
+      of 2: 0.65  # BUFFED from 50% to 65% slow
+      else: 0.75  # BUFFED from 65% to 75% slow
+    let slowRadius = case level
+      of 1: 150.0  # BUFFED from 120 to 150
+      of 2: 200.0  # BUFFED from 170 to 200
+      else: 250.0  # BUFFED from 220 to 250
+    
+    for enemy in game.enemies:
+      let dist = distance(game.player.pos, enemy.pos)
+      if dist < slowRadius:
+        # Apply slow effect
+        enemy.slowTimer = 0.2  # Refresh slow duration
+        enemy.slowAmount = slowPercent
+      else:
+        # Decay slow effect when outside range
+        if enemy.slowTimer > 0:
+          enemy.slowTimer -= dt
+          if enemy.slowTimer <= 0:
+            enemy.slowAmount = 0
+
+  
   # Check shooting
   let mousePos = getMousePosition()
   let shootDir = newVector2f(mousePos.x - game.player.pos.x, mousePos.y - game.player.pos.y)
@@ -284,8 +324,8 @@ proc updateGame*(game: Game, dt: float32) =
     if shootDir.length() > 0:
       shootBullet(game, shootDir)
   
-  # Auto-shoot (now a power-up!)
-  if hasPowerUp(game.player, puAutoShoot) and game.enemies.len > 0:
+  # Auto-shoot (now a toggleable power-up!) - Toggle handled in main.nim with F key
+  if hasPowerUp(game.player, puAutoShoot) and game.player.autoShootEnabled and game.enemies.len > 0:
     let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
     
     # Auto-shoot has reduced fire rate and range at lower levels
@@ -459,6 +499,18 @@ proc updateGame*(game: Game, dt: float32) =
   var bossDefeated = false
   while i < game.enemies.len:
     let enemy = game.enemies[i]
+    
+    # Update poison damage over time
+    if enemy.poisonTimer > 0:
+      enemy.poisonTimer -= dt
+      enemy.hp -= enemy.poisonDamage * dt
+      # Poison visual effect
+      if (game.time * 10).int mod 3 == 0:
+        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Green, 2)
+    
+    # Update chain lightning cooldown
+    if enemy.chainLightningCooldown > 0:
+      enemy.chainLightningCooldown -= dt
     
     if not updateEnemy(enemy, game.player.pos, dt, game.walls, game.time):
       # Enemy died - drop coins and particles
@@ -671,7 +723,19 @@ proc updateGame*(game: Game, dt: float32) =
       if enemy.isBoss:
         # Boss deals continuous damage
         if game.time - enemy.lastContactDamageTime >= 0.5:  # 2 HP per second
-          takeDamage(game.player, enemy.damage.float32)
+          var bossContactDamage = enemy.damage.float32
+          
+          # Thorns reflection damage
+          if hasPowerUp(game.player, puThorns):
+            let thornsLevel = getPowerUpLevel(game.player, puThorns)
+            let reflectPercent = case thornsLevel
+              of 1: 0.20
+              of 2: 0.40
+              else: 0.70
+            enemy.hp -= bossContactDamage * reflectPercent
+            spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Red, 8)
+          
+          takeDamage(game.player, bossContactDamage)
           enemy.lastContactDamageTime = game.time
           spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Red, 10)
           
@@ -679,7 +743,20 @@ proc updateGame*(game: Game, dt: float32) =
             game.state = gsGameOver
       else:
         # Regular enemies die on contact
-        takeDamage(game.player, enemy.damage.float32)
+        var enemyContactDamage = enemy.damage.float32
+        
+        # Thorns reflection damage - kills enemy if damage exceeds HP
+        if hasPowerUp(game.player, puThorns):
+          let thornsLevel = getPowerUpLevel(game.player, puThorns)
+          let reflectPercent = case thornsLevel
+            of 1: 0.20
+            of 2: 0.40
+            else: 0.70
+          let reflectedDamage = enemyContactDamage * reflectPercent
+          enemy.hp -= reflectedDamage
+          spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Red, 6)
+        
+        takeDamage(game.player, enemyContactDamage)
         enemy.hp = 0
         game.enemies.delete(i)
         
@@ -739,19 +816,31 @@ proc updateGame*(game: Game, dt: float32) =
       game.bullets.delete(i)
       continue
     
-    # Check rotating shield collision (updated for scaled shield)
+    # Check rotating shield collision (HEAVILY NERFED - gaps in coverage)
     if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):
       let level = getPowerUpLevel(game.player, puRotatingShield)
       let shieldCount = level + 1
-      let shieldRadius = game.player.radius * 2.0 + 15  # Match new shield size
+      let shieldRadius = game.player.radius * 2.0 + 15
       var hitShield = false
       
-      # Check collision with shield arcs
+      # Level-based coverage: L1=20%, L2=40%, L3=70% (never full 360°)
+      let arcCoverage = case level
+        of 1: 0.20  # Only 25% of each arc is active
+        of 2: 0.40  # 45% coverage
+        else: 0.70  # 70% coverage, still has gaps
+      
+      # Check collision with shield arcs (with gaps)
       for j in 0..<shieldCount:
-        let angle1 = game.player.shieldAngle + (j.float32 * PI * 2.0 / shieldCount.float32)
-        let angle2 = angle1 + (PI * 2.0 / shieldCount.float32)
+        let baseAngle = game.player.shieldAngle + (j.float32 * PI * 2.0 / shieldCount.float32)
+        let fullArcLength = PI * 2.0 / shieldCount.float32
+        let activeArcLength = fullArcLength * arcCoverage
         
-        # Check multiple points along the arc
+        # Center the active arc portion, leaving gaps at the edges
+        let gapSize = (fullArcLength - activeArcLength) / 2.0
+        let angle1 = baseAngle + gapSize
+        let angle2 = angle1 + activeArcLength
+        
+        # Check multiple points along the ACTIVE portion of the arc
         for k in 0..16:
           let t = k.float32 / 16.0
           let angle = angle1 + t * (angle2 - angle1)
@@ -782,6 +871,78 @@ proc updateGame*(game: Game, dt: float32) =
           else:
             game.enemies[j].hp -= bullet.damage
           hitEnemy = true
+          
+          # Apply frost shot slow effect
+          if bullet.slowAmount > 0 and hasPowerUp(game.player, puFrostShots):
+            game.enemies[j].slowTimer = bullet.poisonDuration
+            game.enemies[j].slowAmount = bullet.slowAmount
+          
+          # Apply poison damage over time
+          if bullet.poisonDuration > 0 and hasPowerUp(game.player, puPoisonDamage):
+            let poisonLevel = getPowerUpLevel(game.player, puPoisonDamage)
+            let poisonDmg = case poisonLevel
+              of 1: 1.0
+              of 2: 2.0
+              else: 4.0
+            game.enemies[j].poisonTimer = bullet.poisonDuration
+            game.enemies[j].poisonDamage = poisonDmg
+          
+          # Chain lightning effect - hits nearby enemies
+          if hasPowerUp(game.player, puChainLightning) and game.enemies[j].chainLightningCooldown <= 0:
+            let chainLevel = getPowerUpLevel(game.player, puChainLightning)
+            let chainCount = chainLevel  # 1, 2, or 3 chains
+            let chainDamage = case chainLevel
+              of 1: 0.7
+              of 2: 0.8
+              else: 0.9
+            let chainRange = 120.0
+            
+            # Mark this enemy to prevent re-chaining
+            game.enemies[j].chainLightningCooldown = 0.3
+            
+            # Find nearby enemies to chain to
+            var chained = 0
+            for k in 0..<game.enemies.len:
+              if k != j and chained < chainCount:
+                let dist = distance(game.enemies[j].pos, game.enemies[k].pos)
+                if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
+                  game.enemies[k].hp -= bullet.damage * chainDamage
+                  game.enemies[k].chainLightningCooldown = 0.3
+                  chained += 1
+                  
+                  # Lightning visual effect
+                  for step in 0..10:
+                    let t = step.float32 / 10.0
+                    let x = game.enemies[j].pos.x + (game.enemies[k].pos.x - game.enemies[j].pos.x) * t
+                    let y = game.enemies[j].pos.y + (game.enemies[k].pos.y - game.enemies[j].pos.y) * t
+                    spawnExplosion(game.particles, x, y, Color(r: 255, g: 255, b: 100, a: 255), 2)
+          
+          # Bullet split on hit
+          if hasPowerUp(game.player, puBulletSplit) and not bullet.hasSplit:
+            let splitLevel = getPowerUpLevel(game.player, puBulletSplit)
+            let splitCount = splitLevel + 1  # 2, 3, or 4 bullets
+            
+            for split in 0..<splitCount:
+              let angle = split.float32 * PI * 2.0 / splitCount.float32
+              let dir = newVector2f(cos(angle), sin(angle))
+              let splitBullet = newBullet(bullet.pos.x, bullet.pos.y, dir, 
+                                         bullet.vel.length() * 0.7, bullet.damage * 0.5, true,
+                                         bullet.isHoming, bullet.isPiercing, bullet.isExplosive,
+                                         bullet.bounceCount >= 0, false, bullet.slowAmount, bullet.poisonDuration)
+              splitBullet.hasSplit = true  # Prevent infinite splitting
+              game.bullets.add(splitBullet)
+          
+          # Vampirism healing - restore HP based on damage dealt
+          if hasPowerUp(game.player, puVampirism):
+            let vampLevel = getPowerUpLevel(game.player, puVampirism)
+            let healPercent = case vampLevel
+              of 1: 0.05  # 5%
+              of 2: 0.10  # 10%
+              else: 0.18  # 18%
+            let healAmount = bullet.damage * healPercent
+            heal(game.player, healAmount)
+            if healAmount > 0.01:  # Only show particles if significant healing
+              spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 3)
           
           # Impact particles
           spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, 
@@ -815,12 +976,59 @@ proc updateGame*(game: Game, dt: float32) =
             else:
               hitEnemy = false  # Don't delete bullet yet
           
+          # Bullet bounce off enemies (if not piercing/exploding)
+          if bullet.bounceCount >= 0 and not bullet.isPiercing and not bullet.isExplosive:
+            let bounceLevel = getPowerUpLevel(game.player, puBulletBounce)
+            let maxBounces = bounceLevel  # 1, 2, or 3 bounces
+            
+            if bullet.bounceCount < maxBounces:
+              # Bounce toward a different random enemy
+              var bounceTarget: Enemy = nil
+              for k in 0..<game.enemies.len:
+                if k != j and (bounceTarget == nil or rand(100) < 50):
+                  bounceTarget = game.enemies[k]
+              
+              if bounceTarget != nil:
+                let bounceDir = (bounceTarget.pos - bullet.pos).normalize()
+                bullet.vel = bounceDir * bullet.vel.length()
+                bullet.bounceCount += 1
+                hitEnemy = false  # Don't delete bullet
+                spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Yellow, 8)
+              else:
+                hitEnemy = true
+            else:
+              hitEnemy = true
+          
           if hitEnemy:
             break
     else:
       # Enemy bullet hitting player
       if checkBulletPlayerCollision(bullet, game.player):
-        takeDamage(game.player, 1)
+        var bulletDamage = 1.0
+        
+        # Thorns reflection - damage the originating enemy
+        if hasPowerUp(game.player, puThorns):
+          let thornsLevel = getPowerUpLevel(game.player, puThorns)
+          let reflectPercent = case thornsLevel
+            of 1: 0.20
+            of 2: 0.40
+            else: 0.70
+          let reflectedDamage = bulletDamage * reflectPercent
+          
+          # Find nearest enemy to reflect damage to
+          var nearestEnemy: Enemy = nil
+          var nearestDist = 999999.0
+          for enemy in game.enemies:
+            let dist = distance(bullet.pos, enemy.pos)
+            if dist < nearestDist:
+              nearestDist = dist
+              nearestEnemy = enemy
+          
+          if nearestEnemy != nil:
+            nearestEnemy.hp -= reflectedDamage
+            spawnExplosion(game.particles, nearestEnemy.pos.x, nearestEnemy.pos.y, Red, 5)
+        
+        takeDamage(game.player, bulletDamage)
         hitEnemy = true
         spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Red, 8)
         
@@ -1054,11 +1262,37 @@ proc drawGame*(game: Game) =
             game.screenWidth - 200, yOffset, 16, Purple)
     yOffset += 20
   
-  drawText("Damage: " & $(game.player.damage.int), game.screenWidth - 200, yOffset, 16, White)
+  drawText("Damage: " & $(getCurrentDamage(game.player).int), game.screenWidth - 200, yOffset, 16, White)
   yOffset += 20
   let shotsPerSec = 1.0 / getCurrentFireRate(game.player)
   drawText("Fire Rate: " & $(shotsPerSec.int) & "/s", game.screenWidth - 200, yOffset, 16, White)
   yOffset += 20
+  
+  # Show Rage/Berserker bonuses when HP is low
+  if hasPowerUp(game.player, puRage) or hasPowerUp(game.player, puBerserker):
+    let hpPercent = game.player.hp / game.player.maxHp
+    if hpPercent < 0.7:
+      if hasPowerUp(game.player, puRage):
+        let rageLevel = getPowerUpLevel(game.player, puRage)
+        let rageMultiplier = 
+          case rageLevel
+          of 1: 0.5
+          of 2: 0.8
+          else: 1.2
+        drawText("Rage: +" & $((1.0 - hpPercent) * 100.0 * rageMultiplier).int & "% dmg",
+                game.screenWidth - 200, yOffset, 14, Red)
+        yOffset += 18
+
+      if hasPowerUp(game.player, puBerserker):
+        let berserkLevel = getPowerUpLevel(game.player, puBerserker)
+        let berserkMultiplier = 
+          case berserkLevel
+          of 1: 0.5
+          of 2: 0.8
+          else: 1.5
+        drawText("Berserk: +" & $((1.0 - hpPercent) * 100.0 * berserkMultiplier).int & "% rate",
+                game.screenWidth - 200, yOffset, 14, Orange)
+        yOffset += 18
   
   # Only show auto-shoot status if player has the power-up
   if hasPowerUp(game.player, puAutoShoot):

@@ -14,8 +14,29 @@ proc drawMenu(game: Game) =
   drawText("TopHat SHOOTER", screenWidth div 2 - 220, 150, titleSize, Yellow)
   drawText("CHAOS EDITION", screenWidth div 2 - 150, 200, 25, Red)
   
+  # Flashy UPDATE 2! badge with glow effect
+  let updatePulse = 1.0 + 0.2 * sin(game.time * 6)
+  let updateSize = (28 * updatePulse).int32
+  let updateX = screenWidth div 2 - 70
+  let updateY = 240
+  
+  # Glow layers
+  for i in 1..3:
+    let glowAlpha = uint8(40 * (4 - i))  # already integer, no float needed
+    let glowSize: int32 = int32(updateSize + i * 3)
+    drawText("UPDATE 2!", int32(updateX - i), int32(updateY - i), glowSize,
+            Color(r: 255'u8, g: 100'u8, b: 0'u8, a: glowAlpha))
+
+  # Main update text with gradient effect
+  let updateColor = if (game.time * 3).int mod 2 == 0:
+    Color(r: 255'u8, g: 150'u8, b: 50'u8, a: 255'u8)
+  else:
+    Color(r: 255'u8, g: 200'u8, b: 100'u8, a: 255'u8)
+
+  drawText("UPDATE 2!", int32(updateX), int32(updateY), int32(updateSize), updateColor)
+  
   # Menu options
-  let startY = 320
+  let startY = 340
   let spacing = 60
   
   let menuItems = ["Play", "Survival Mode", "Help", "Quit"]
@@ -36,7 +57,7 @@ proc drawHelp(game: Game) =
     "CONTROLS:",
     "WASD - Move",
     "Mouse/Space - Shoot",
-    "F - Toggle Auto-Shoot",
+    "F - Toggle Auto-Shoot (requires powerup)",
     "E - Place Wall (requires walls in inventory)",
     "TAB - Open Shop",
     "ESC - Pause/Menu",
@@ -136,6 +157,13 @@ proc main() =
           currentGame.walls.add(newWall(mousePos.x, mousePos.y, currentGame.player))
           currentGame.player.walls -= 1
           spawnExplosion(currentGame.particles, mousePos.x, mousePos.y, Brown, 15)
+      
+      # Toggle auto-shoot with F key
+      if isKeyPressed(F) and hasPowerUp(currentGame.player, puAutoShoot):
+        currentGame.player.autoShootEnabled = not currentGame.player.autoShootEnabled
+        let feedbackColor = if currentGame.player.autoShootEnabled: Green else: Red
+        spawnExplosion(currentGame.particles, currentGame.player.pos.x, currentGame.player.pos.y, 
+                      feedbackColor, 20)
       
       # Pause
       if isKeyPressed(Escape):
