@@ -8,44 +8,157 @@ const
 proc drawMenu(game: Game) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
   
-  # Title with pulsing effect
-  let pulse = 1.0 + 0.1 * sin(game.time * 3)
-  let titleSize = (50 * pulse).int32
+  # Animated background chaos particles
+  for i in 0..<50:
+    let offset = i.float32 * 0.7
+    let x = ((game.time * 30.0 + offset * 20) mod screenWidth.float32).int32
+    let y = ((game.time * 15.0 + offset * 40) mod screenHeight.float32).int32
+    let size = 2 + (sin(game.time * 4.0 + offset) * 2).int32
+    let alpha = uint8(50 + sin(game.time * 3.0 + offset) * 30)
+    drawCircle(Vector2(x: x.float32, y: y.float32), size.float32, 
+              Color(r: 100'u8, g: 150'u8, b: 255'u8, a: alpha))
+  
+  # Chaotic rotating shapes in background
+  for i in 0..<8:
+    let angle = game.time * 0.5 + i.float32 * PI / 4.0
+    let radius = 150.0 + sin(game.time * 2.0 + i.float32) * 50.0
+    let x = screenWidth.float32 / 2 + cos(angle) * radius
+    let y = 120.0 + sin(angle) * radius * 0.5
+    let size = 15 + (sin(game.time * 3.0 + i.float32) * 8).int32
+    let alpha = uint8(30 + (sin(game.time * 4.0 + i.float32) * 20))
+    drawCircle(Vector2(x: x, y: y), size.float32, 
+              Color(r: 255'u8, g: 200'u8, b: 50'u8, a: alpha))
+  
+  # Lightning-style lines in background
+  for i in 0..<6:
+    let x1 = rand(screenWidth).float32
+    let y1 = rand(100).float32
+    let x2 = x1 + (sin(game.time * 8.0 + i.float32) * 80)
+    let y2 = y1 + 50 + (cos(game.time * 6.0 + i.float32) * 30)
+    let alpha = uint8((sin(game.time * 10.0 + i.float32) * 40 + 60))
+    drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2,
+            Color(r: 255'u8, g: 100'u8, b: 255'u8, a: alpha))
+  
+  # Title with explosive pulsing effect
+  let pulse = 1.0 + 0.15 * sin(game.time * 4)
+  let titleSize = (55 * pulse).int32
+  
+  # Multi-layer title glow
+  for layer in 1..3:
+    let glowOffset = layer.float32 * 3
+    let glowAlpha = uint8(60 / layer)
+    drawText("TopHat SHOOTER", 
+            (screenWidth div 2 - 220 - layer).int32, (150 - layer).int32, 
+            (titleSize + layer * 2).int32,
+            Color(r: 255'u8, g: 255'u8, b: 0'u8, a: glowAlpha))
+  
   drawText("TopHat SHOOTER", screenWidth div 2 - 220, 150, titleSize, Yellow)
-  drawText("CHAOS EDITION", screenWidth div 2 - 150, 200, 25, Red)
   
-  # Flashy UPDATE 2! badge with glow effect
-  let updatePulse = 1.0 + 0.2 * sin(game.time * 6)
-  let updateSize = (28 * updatePulse).int32
-  let updateX = screenWidth div 2 - 70
-  let updateY = 240
-  
-  # Glow layers
-  for i in 1..3:
-    let glowAlpha = uint8(40 * (4 - i))  # already integer, no float needed
-    let glowSize: int32 = int32(updateSize + i * 3)
-    drawText("UPDATE 2!", int32(updateX - i), int32(updateY - i), glowSize,
-            Color(r: 255'u8, g: 100'u8, b: 0'u8, a: glowAlpha))
-
-  # Main update text with gradient effect
-  let updateColor = if (game.time * 3).int mod 2 == 0:
-    Color(r: 255'u8, g: 150'u8, b: 50'u8, a: 255'u8)
+  # Chaotic subtitle with multiple effects
+  let chaosShake = (sin(game.time * 15.0) * 3).int32
+  let chaosColor = if (game.time * 4).int mod 3 == 0:
+    Color(r: 255'u8, g: 50'u8, b: 50'u8, a: 255'u8)
+  elif (game.time * 4).int mod 3 == 1:
+    Color(r: 255'u8, g: 150'u8, b: 0'u8, a: 255'u8)
   else:
-    Color(r: 255'u8, g: 200'u8, b: 100'u8, a: 255'u8)
-
+    Color(r: 255'u8, g: 255'u8, b: 50'u8, a: 255'u8)
+  
+  drawText("CHAOS EDITION", screenWidth div 2 - 150 + chaosShake, 200, 28, chaosColor)
+  
+  # Ultra flashy UPDATE 2! badge with extreme effects
+  let updatePulse = 1.0 + 0.3 * sin(game.time * 8)
+  let updateSize = (32 * updatePulse).int32
+  let updateX = screenWidth div 2 - 80
+  let updateY = 245
+  
+  # Rotating glow halo
+  for i in 0..<12:
+    let angle = game.time * 3.0 + i.float32 * PI / 6.0
+    let haloX = updateX.float32 + cos(angle) * 60
+    let haloY = updateY.float32 + sin(angle) * 25
+    drawCircle(Vector2(x: haloX, y: haloY), 5, 
+              Color(r: 255'u8, g: 150'u8, b: 0'u8, a: 80'u8))
+  
+  # Explosive glow layers
+  for i in 1..4:
+    let glowAlpha = uint8(50 * (5 - i))
+    let glowSize: int32 = int32(updateSize + i * 4)
+    drawText("UPDATE 2!", int32(updateX - i * 2), int32(updateY - i * 2), glowSize,
+            Color(r: 255'u8, g: 120'u8, b: 0'u8, a: glowAlpha))
+  
+  # Animated color shift
+  let updateColor = 
+    if (game.time * 5).int mod 4 == 0:
+      Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 255'u8)
+    elif (game.time * 5).int mod 4 == 1:
+      Color(r: 255'u8, g: 100'u8, b: 255'u8, a: 255'u8)
+    elif (game.time * 5).int mod 4 == 2:
+      Color(r: 50'u8, g: 255'u8, b: 255'u8, a: 255'u8)
+    else:
+      Color(r: 255'u8, g: 50'u8, b: 50'u8, a: 255'u8)
+  
   drawText("UPDATE 2!", int32(updateX), int32(updateY), int32(updateSize), updateColor)
   
-  # Menu options
-  let startY = 340
-  let spacing = 60
+  # Electric sparks around update badge
+  if (game.time * 20).int mod 3 == 0:
+    for spark in 0..<8:
+      let angle = spark.float32 * PI / 4.0 + game.time * 10.0
+      let sparkDist = 70.0 + rand(20).float32
+      let sx = updateX.float32 + cos(angle) * sparkDist
+      let sy = updateY.float32 + sin(angle) * sparkDist
+      drawCircle(Vector2(x: sx, y: sy), 3, 
+                Color(r: 255'u8, g: 255'u8, b: 100'u8, a: 200'u8))
+  
+  # Menu options with animated effects
+  let startY = 360
+  let spacing = 65
   
   let menuItems = ["Play", "Survival Mode", "Help", "Quit"]
   for i in 0..<menuItems.len:
     let y = startY + i * spacing
-    let color = if i == game.menuSelection: Gold else: White
-    let text = if i == game.menuSelection: "> " & menuItems[i] & " <" else: menuItems[i]
-    let textWidth = measureText(text, 30)
-    drawText(text, screenWidth div 2 - textWidth div 2, y.int32, 30, color)
+    let isSelected = i == game.menuSelection
+    
+    # Animated selection glow
+    if isSelected:
+      let glowPulse = sin(game.time * 6.0) * 0.3 + 0.7
+      let glowSize = 15 + (glowPulse * 10).int32
+      drawCircle(Vector2(x: (screenWidth div 2).float32, y: y.float32 + 15), 
+                glowSize.float32, Color(r: 255'u8, g: 200'u8, b: 0'u8, a: 80'u8))
+    
+    let color = if isSelected: Gold else: White
+    let text = if isSelected: ">>> " & menuItems[i] & " <<<" else: menuItems[i]
+    let textWidth = measureText(text, 32)
+    
+    # Selected item shadow
+    if isSelected:
+      drawText(text, screenWidth div 2 - textWidth div 2 + 2, (y + 2).int32, 32, 
+              Color(r: 0'u8, g: 0'u8, b: 0'u8, a: 150'u8))
+    
+    drawText(text, screenWidth div 2 - textWidth div 2, y.int32, 32, color)
+  
+  # Custom animated crosshair cursor
+  let mousePos = getMousePosition()
+  let cursorPulse = sin(game.time * 8.0) * 2 + 8
+  
+  # Outer rotating ring
+  for i in 0..<8:
+    let angle = game.time * 4.0 + i.float32 * PI / 4.0
+    let x = mousePos.x + cos(angle) * cursorPulse
+    let y = mousePos.y + sin(angle) * cursorPulse
+    drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
+  
+  # Crosshair lines
+  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
+          Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
+  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
+          Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
+          Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
+          Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
+  
+  # Center dot
+  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
 
 proc drawHelp(game: Game) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
@@ -96,6 +209,7 @@ proc main() =
   initWindow(screenWidth, screenHeight, "TopHat-Shooter: Chaos Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
+  hideCursor()  # Hide default cursor for custom cursor
   
   var currentGame = newGame(screenWidth, screenHeight)
   currentGame.state = gsMenu

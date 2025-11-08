@@ -83,15 +83,15 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       lastWallDamageTime: 0
     )
   
-  of etStar:  # NERFED: fewer required hits
-    let hits = 7 + (difficulty * 2.5).int  # Reduced from 15 + diff*8
+  of etStar:  # BALANCED: reduced HP but increased speed
+    let hits = 5 + (difficulty * 1.8).int  # HEAVILY REDUCED: from 7 + diff*2.5
     result = Enemy(
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 18 + difficulty * 2,
       hp: 9999.0,  # High HP, but uses hit counter instead
       maxHp: 9999.0,
-      speed: 45 + difficulty * 4,  # Slightly faster
+      speed: 70 + difficulty * 6,  # BUFFED: much faster (was 45 + diff*4)
       damage: 2,
       color: Color(r: 255, g: 215, b: 0, a: 255),  # Gold
       enemyType: etStar,
@@ -139,14 +139,14 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
     )
 
 proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
-  let strengthMultiplier = pow(1.15, difficulty)  # Reduced from 1.25
+  let strengthMultiplier = pow(1.18, difficulty)  # Increased from 1.15
   
   result = Enemy(
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
     radius: 50 + difficulty * 4,  # Bigger
-    hp: 40 + difficulty * 20 * strengthMultiplier,  # NERFED: Was 80 + difficulty * 40
-    maxHp: 40 + difficulty * 20 * strengthMultiplier,
+    hp: 65 + difficulty * 28 * strengthMultiplier,  # BUFFED: increased from 40 + diff*20
+    maxHp: 65 + difficulty * 28 * strengthMultiplier,
     speed: 60 + difficulty * 5,  # Faster
     damage: 2 + (difficulty / 8).int,  # More damage
     color: case bossType
@@ -544,12 +544,33 @@ proc drawEnemy*(enemy: Enemy) =
                          (size * 2).int32, (size * 2).int32, Black)
     
     of etTriangle:
-      # Draw as triangle
+      # Draw dash trail for visual feedback
+      if enemy.dashTimer > 1.5:  # During dash (timer counts down from 2-3s)
+        # Motion blur trail
+        for i in 1..5:
+          let trailAlpha = uint8(180 - i * 30)
+          let trailScale = 1.0 - (i.float32 * 0.15)
+          let trailX = enemy.pos.x - enemy.vel.x * i.float32 * 0.02
+          let trailY = enemy.pos.y - enemy.vel.y * i.float32 * 0.02
+          let r = enemy.radius * trailScale
+          let tv1 = Vector2(x: trailX, y: trailY - r)
+          let tv2 = Vector2(x: trailX - r * 0.87, y: trailY + r * 0.5)
+          let tv3 = Vector2(x: trailX + r * 0.87, y: trailY + r * 0.5)
+          drawTriangle(tv1, tv2, tv3, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: trailAlpha))
+      
+      # Draw main triangle
       let v1 = Vector2(x: enemy.pos.x, y: enemy.pos.y - enemy.radius)
       let v2 = Vector2(x: enemy.pos.x - enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
       let v3 = Vector2(x: enemy.pos.x + enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
       drawTriangle(v1, v2, v3, enemy.color)
       drawTriangleLines(v1, v2, v3, Black)
+      
+      # Dash charge indicator
+      if enemy.dashTimer < 0.5 and enemy.dashTimer > 0:
+        let chargePercent = 1.0 - (enemy.dashTimer / 0.5)
+        let glowIntensity = uint8(chargePercent * 200)
+        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 5, 
+                  Color(r: 255'u8, g: 100'u8, b: 255'u8, a: glowIntensity))
     
     of etStar:
       # Draw as star with hit counter

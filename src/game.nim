@@ -1307,6 +1307,30 @@ proc drawGame*(game: Game) =
   
   drawText("TAB: Shop | E: Wall | ESC: Pause", 
            game.screenWidth div 2 - 180, game.screenHeight - 25, 16, LightGray)
+  
+  # Custom animated crosshair cursor
+  let mousePos = getMousePosition()
+  let cursorPulse = sin(game.time * 8.0) * 2 + 8
+  
+  # Outer rotating ring
+  for i in 0..<8:
+    let angle = game.time * 4.0 + i.float32 * PI / 4.0
+    let x = mousePos.x + cos(angle) * cursorPulse
+    let y = mousePos.y + sin(angle) * cursorPulse
+    drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
+  
+  # Crosshair lines
+  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
+          Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
+  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
+          Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
+          Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
+          Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
+  
+  # Center dot
+  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
 
 proc drawGameOver*(game: Game) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
