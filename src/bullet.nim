@@ -1,9 +1,9 @@
-import raylib, types
+import raylib, types, math
 
 proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true, 
                 isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false,
                 hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0, 
-                poisonDuration: float32 = 0): Bullet =
+                poisonDuration: float32 = 0, isPentagon: bool = false): Bullet =
   # BUFFED: Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -20,8 +20,10 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     piercedEnemies: 0,
     bounceCount: if hasBounce: 0 else: -1,
     hasSplit: not canSplit,
-    slowAmount: slowAmount,
-    poisonDuration: poisonDuration
+    slowAmount: slowAmount,  # Slow effect magnitude (0-1 range)
+    poisonDuration: poisonDuration,  # Poison duration in seconds
+    isPentagon: isPentagon,
+    hitEnemies: @[]  # Initialize empty sequence
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
@@ -41,12 +43,40 @@ proc drawBullet*(bullet: Bullet) =
     elif bullet.poisonDuration > 0: color = Green
     elif bullet.bounceCount >= 0: color = Color(r: 255, g: 200, b: 0, a: 255)
   
-  drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
+  # Draw pentagon shape for pentagon bullets
+  if bullet.isPentagon:
+    # Draw pentagon shape
+    let points = 5
+    for i in 0..<points:
+      let angle = i.float32 * PI * 2.0 / 5.0 - PI / 2.0  # Start from top
+      let nextAngle = (i + 1).float32 * PI * 2.0 / 5.0 - PI / 2.0
+      let x1 = bullet.pos.x + cos(angle) * bullet.radius
+      let y1 = bullet.pos.y + sin(angle) * bullet.radius
+      let x2 = bullet.pos.x + cos(nextAngle) * bullet.radius
+      let y2 = bullet.pos.y + sin(nextAngle) * bullet.radius
+      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3, color)
+    # Fill center
+    drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius * 0.5, color)
+  else:
+    # Normal circle bullet
+    drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
   
   # Add glow effect
   if not bullet.fromPlayer:
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
-                   Color(r: 255, g: 100, b: 150, a: 100))
+    if bullet.isPentagon:
+      # Pentagon glow
+      for i in 0..<5:
+        let angle = i.float32 * PI * 2.0 / 5.0 - PI / 2.0
+        let nextAngle = (i + 1).float32 * PI * 2.0 / 5.0 - PI / 2.0
+        let x1 = bullet.pos.x + cos(angle) * (bullet.radius + 3)
+        let y1 = bullet.pos.y + sin(angle) * (bullet.radius + 3)
+        let x2 = bullet.pos.x + cos(nextAngle) * (bullet.radius + 3)
+        let y2 = bullet.pos.y + sin(nextAngle) * (bullet.radius + 3)
+        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2,
+                Color(r: 0, g: 200, b: 150, a: 100))
+    else:
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
+                     Color(r: 255, g: 100, b: 150, a: 100))
   elif bullet.isExplosive:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
                    Color(r: 255, g: 150, b: 0, a: 150))

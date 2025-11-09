@@ -1,4 +1,4 @@
-import raylib, types, wall, math, random
+import raylib, types, wall, math, random, std/tables
 
 proc newPlayer*(x, y: float32): Player =
   result = Player(
@@ -8,8 +8,8 @@ proc newPlayer*(x, y: float32): Player =
     baseRadius: 12,
     hp: 5,  # 5 for early game comfort
     maxHp: 5,
-    speed: 170,  # 170 for better feel
-    baseSpeed: 170,
+    speed: 175,  # 175 for better feel
+    baseSpeed: 175,
     damage: 1,
     fireRate: 0.45,  #  0.45 for smoother shooting
     bulletSpeed: 300,
@@ -28,7 +28,11 @@ proc newPlayer*(x, y: float32): Player =
     lastDamageTaken: 0,
     rageStacks: 0,
     critCharge: 0,
-    autoShootEnabled: true  # Auto-shoot starts enabled
+    autoShootEnabled: true,  # Auto-shoot starts enabled
+    activePowerUps: @[],
+    powerUpTimers: initTable[PowerUpType, float32](),
+    auraRadius: 42.0,  # Invisible coin collection aura - 3.5x base radius
+    doubleShotDelay: 0
   )
 
 proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
@@ -41,6 +45,10 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.fireRateBoostTimer -= dt
   if player.magnetTimer > 0:
     player.magnetTimer -= dt
+  
+  # Update double-shot delay timer
+  if player.doubleShotDelay > 0:
+    player.doubleShotDelay -= dt
   
   # Calculate current speed with boost
   var currentSpeed = player.speed
@@ -82,8 +90,11 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # Scale radius with max HP (grows as player gets stronger)
   player.radius = player.baseRadius + (player.maxHp - 6) * 1
   
-  # Update shield angle for rotating shield power-up
-  player.shieldAngle += dt * 2.0
+  # Scale aura with player radius - MUCH LARGER collection area
+  player.auraRadius = player.radius * 3.5  # 3.5x player size for generous collection
+  
+  # Update shield angle for rotating shield power-up - NERFED rotation speed
+  player.shieldAngle += dt * 1.0  # Reduced from 2.0 to 1.0 (50% slower)
 
 proc drawPlayer*(player: Player) =
   # Damage zone visual (if player has it)
@@ -97,17 +108,19 @@ proc drawPlayer*(player: Player) =
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), zoneRadius, 
                 Color(r: 255, g: 100, b: 0, a: alpha.uint8))
     
-    # Slow field visual
+    # Slow field visual - NERFED, smaller and more transparent
     if powerUp.powerType == puSlowField:
       let slowRadius = case powerUp.level
-        of 1: 150.0
-        of 2: 200.0
-        else: 250.0
-      let alpha = 20 + (sin(player.shieldAngle * 2) * 10).int
+        of 1: 120.0  # NERFED from 150
+        of 2: 160.0  # NERFED from 200
+        else: 200.0  # NERFED from 250
+      let alpha = 15 + (sin(player.shieldAngle * 2) * 8).int  # More transparent
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), slowRadius,
                 Color(r: 100, g: 150, b: 255, a: alpha.uint8))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, slowRadius,
-                     Color(r: 100, g: 150, b: 255, a: 80))
+                     Color(r: 100, g: 150, b: 255, a: 60))  # Less visible
+  
+  # NOTE: Coin collection aura is INVISIBLE - no visual rendering
   
   # Dodge flash effect
   if player.lastDamageTaken == 0 and player.hp > 0:
@@ -140,14 +153,14 @@ proc drawPlayer*(player: Player) =
         else: 4
       
       # Shield scales with player size for better visual feedback
-      let shieldRadius = player.radius * 2.0 + 15
+      let shieldRadius = player.radius * 2.5 + 15  # Reduced from +15 to +10
       let shieldThickness = 3.0
       
-      # Level-based coverage matches collision: L1=50%, L2=70%, L3=85%
+      # Level-based coverage matches collision: NERFED values
       let arcCoverage = case level
-        of 1: 0.50
-        of 2: 0.70
-        else: 0.85
+        of 1: 0.25  # 10% coverage (was 50%)
+        of 2: 0.35  # 20% coverage (was 70%)
+        else: 0.45  # 35% coverage (was 85%)
       
       # Draw partial curved shield lines with visible gaps
       for i in 0..<shieldCount:

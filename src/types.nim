@@ -1,19 +1,25 @@
-import raylib, math
+import raylib, math, std/tables
 
 type
   GameState* = enum
-    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsPowerUpSelect
+    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsPowerUpSelect, gsSettings
   
   GameMode* = enum
     gmWaveBased,      # New primary mode: waves → upgrades → boss → legendary
     gmTimeSurvival    # Old mode: time-based survival
 
   EnemyType* = enum
-    etCircle,    # Normal chasers
-    etCube,      # Stationary/slow shooters
-    etTriangle,  # Fast dash attackers
-    etStar,      # High HP, needs many hits
-    etHexagon    # Teleporting chaos enemy
+    etCircle,      # Normal chasers
+    etCube,        # Stationary/slow shooters
+    etTriangle,    # Fast dash attackers
+    etStar,        # High HP, needs many hits, dashes when close
+    etHexagon,     # Teleporting chaos enemy
+    etCross,       # Shows visual warning before cross-shaped attack
+    etDiamond,     # Shoots slow projectiles while dashing
+    etOctagon,     # Ranged - many slow inaccurate projectiles
+    etPentagon,    # Ranged - single fast bullet, low fire rate
+    etTrickster,   # Shows false warning, attacks differently
+    etPhantom      # Unpredictable - teleports with fake clones
 
   BossType* = enum
     btShooter,   # Shoots spiral of bullets
@@ -57,7 +63,7 @@ type
     puDodgeChance,     # Chance to evade damage
     puCriticalHit,     # Random critical damage
     puVampirism,       # Lifesteal on hit
-    puBulletBounce,    # Bullets ricochet
+    puBulletRicochet,  # Bullets ricochet off enemies
     puSlowField,       # Enemies move slower nearby
     puRage,            # Damage increases at low HP
     puBerserker,       # Attack speed at low HP
@@ -79,6 +85,12 @@ type
   Vector2f* = object
     x*, y*: float32
 
+  AttackWarning* = ref object
+    pos*: Vector2f
+    attackType*: string  # "cross", "burst", "fake"
+    lifetime*: float32
+    maxLifetime*: float32
+
   Player* = ref object
     pos*: Vector2f
     vel*: Vector2f
@@ -99,14 +111,18 @@ type
     invincibilityTimer*: float32
     fireRateBoostTimer*: float32
     magnetTimer*: float32
-    powerUps*: seq[PowerUp]  # Active permanent power-ups
-    shieldAngle*: float32     # For rotating shield
-    killsSinceLastHeal*: int  # For life steal tracking
-    regenTimer*: float32      # For regeneration power-up
-    lastDamageTaken*: float32 # For dodge chance timing
-    rageStacks*: int          # For rage power-up
-    critCharge*: float32      # For critical hit timing
-    autoShootEnabled*: bool   # Toggle for auto-shoot powerup
+    powerUps*: seq[PowerUp]
+    shieldAngle*: float32
+    killsSinceLastHeal*: int
+    regenTimer*: float32
+    lastDamageTaken*: float32
+    rageStacks*: int
+    critCharge*: float32
+    autoShootEnabled*: bool
+    powerUpTimers*: Table[PowerUpType, float32]
+    activePowerUps*: seq[PowerUpType]
+    auraRadius*: float32  # Invisible coin collection aura
+    doubleShotDelay*: float32  # Timer for double-shot rapid succession
 
   Enemy* = ref object
     pos*: Vector2f
@@ -132,14 +148,22 @@ type
     shockwaveTimer*: float32
     burstTimer*: float32
     lastWallDamageTime*: float32
-    hexTeleportTimer*: float32  # For hexagon enemy teleports
-    entranceTimer*: float32      # For boss entrance animation
-    targetPos*: Vector2f         # Target position for entrance
-    slowTimer*: float32          # For slow field effect
-    slowAmount*: float32         # Slow multiplier
-    poisonTimer*: float32        # For poison damage over time
-    poisonDamage*: float32       # Poison tick damage
-    chainLightningCooldown*: float32  # For chain lightning tracking
+    hexTeleportTimer*: float32
+    entranceTimer*: float32
+    targetPos*: Vector2f
+    slowTimer*: float32
+    slowAmount*: float32
+    poisonTimer*: float32
+    poisonDamage*: float32
+    chainLightningCooldown*: float32
+    # New fields for advanced enemies
+    attackWarningTimer*: float32
+    attackExecuteTimer*: float32
+    attackPhase*: int  # 0=patrol, 1=warning, 2=execute
+    dashCooldown*: float32
+    fakeWarningTimer*: float32
+    clonePositions*: seq[Vector2f]
+    cloneTimer*: float32
 
   Bullet* = ref object
     pos*: Vector2f
@@ -152,10 +176,12 @@ type
     isPiercing*: bool
     isExplosive*: bool
     piercedEnemies*: int
-    bounceCount*: int        # For bullet bounce
-    hasSplit*: bool          # For bullet split (prevent infinite splitting)
-    slowAmount*: float32     # For frost shots
-    poisonDuration*: float32 # For poison damage
+    bounceCount*: int
+    hasSplit*: bool
+    slowAmount*: float32
+    poisonDuration*: float32
+    isPentagon*: bool  # Special pentagon-shaped bullets
+    hitEnemies*: seq[int]  # Track enemy indices already hit by this bullet
 
   Coin* = ref object
     pos*: Vector2f
@@ -184,6 +210,16 @@ type
     maxLifetime*: float32
     size*: float32
 
+  Laser* = ref object
+    pos*: Vector2f          # Center position
+    direction*: int         # 0=horizontal, 1=vertical, 2=both (cross)
+    length*: float32        # How far the laser extends
+    thickness*: float32     # Width of the laser beam
+    damage*: int            # Damage dealt
+    lifetime*: float32      # How long the laser stays
+    maxLifetime*: float32   # Original duration
+    hasHitPlayer*: bool     # Track if already damaged player this laser
+
   ShopItem* = object
     name*: string
     description*: string
@@ -192,7 +228,7 @@ type
 
   Game* = ref object
     state*: GameState
-    mode*: GameMode  # New: Track game mode
+    mode*: GameMode
     player*: Player
     enemies*: seq[Enemy]
     bullets*: seq[Bullet]
@@ -200,6 +236,8 @@ type
     consumables*: seq[Consumable]
     walls*: seq[Wall]
     particles*: seq[Particle]
+    attackWarnings*: seq[AttackWarning]
+    lasers*: seq[Laser]  # Add laser tracking
     time*: float32
     spawnTimer*: float32
     bossTimer*: float32
@@ -211,16 +249,18 @@ type
     selectedShopItem*: int
     menuSelection*: int
     countdownTimer*: float32
-    powerUpChoices*: array[3, PowerUp]  # Three power-ups to choose from
-    selectedPowerUp*: int                # Currently selected card (0-2)
-    bossActive*: bool                    # Is a boss currently alive?
-    bossSpawnTimer*: float32             # Timer for boss entrance animation
+    powerUpChoices*: array[3, PowerUp]
+    selectedPowerUp*: int
+    bossActive*: bool
+    bossSpawnTimer*: float32
+    cameFromPowerUpSelect*: bool
+    gameOverSoundPlayed*: bool
     # Wave-based mode fields
-    currentWave*: int                    # Current wave number (1-based)
-    wavesUntilBoss*: int                 # Waves remaining until boss (3 waves per boss)
-    waveEnemiesRemaining*: int           # Enemies left to spawn in current wave
-    waveEnemiesTotal*: int               # Total enemies in current wave
-    waveInProgress*: bool                # Is a wave currently active?
+    currentWave*: int
+    wavesUntilBoss*: int
+    waveEnemiesRemaining*: int
+    waveEnemiesTotal*: int
+    waveInProgress*: bool
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x
@@ -247,3 +287,23 @@ proc normalize*(v: Vector2f): Vector2f =
 
 proc distance*(a, b: Vector2f): float32 =
   (b - a).length()
+
+proc newAttackWarning*(x, y: float32, attackType: string, duration: float32): AttackWarning =
+  AttackWarning(
+    pos: newVector2f(x, y),
+    attackType: attackType,
+    lifetime: duration,
+    maxLifetime: duration
+  )
+
+proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32): Laser =
+  Laser(
+    pos: newVector2f(x, y),
+    direction: direction,
+    length: length,
+    thickness: thickness,
+    damage: damage,
+    lifetime: duration,
+    maxLifetime: duration,
+    hasHitPlayer: false
+  )

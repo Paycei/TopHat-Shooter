@@ -1,16 +1,16 @@
-import raylib, types, math, powerup
+import raylib, types, math, powerup, sound
 
 proc initShopItems*(): array[6, ShopItem] =
-  result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 7, bought: 0)
-  result[1] = ShopItem(name: "Fire Rate +", description: "Shoot faster", baseCost: 9, bought: 0)
+  result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 8, bought: 0)
+  result[1] = ShopItem(name: "Fire Rate +", description: "Shoot faster", baseCost: 10, bought: 0)
   result[2] = ShopItem(name: "Move Speed +", description: "Move faster", baseCost: 7, bought: 0)
   result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 12, bought: 0)
   result[4] = ShopItem(name: "Bullet Speed +", description: "Faster bullets", baseCost: 6, bought: 0)
   result[5] = ShopItem(name: "Wall (x4)", description: "Buy 4 deployable walls", baseCost: 15, bought: 0)
 
 proc getCurrentCost*(item: ShopItem): int =
-  # Slightly lower exponential cost scaling: baseCost * 1.3^bought
-  (item.baseCost.float32 * pow(1.3, item.bought.float32)).int
+  # More aggressive exponential cost scaling: baseCost * 1.5^bought
+  (item.baseCost.float32 * pow(1.5, item.bought.float32)).int
 
 proc drawShop*(game: Game) =
   let screenWidth = game.screenWidth
@@ -20,8 +20,12 @@ proc drawShop*(game: Game) =
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 200))
   
   # Shop title
-  drawText("SHOP (TAB to close)", screenWidth div 2 - 150, 30, 30, Yellow)
+  drawText("SHOP (ESC to continue)", screenWidth div 2 - 150, 30, 30, Yellow)
   drawText("Coins: " & $game.player.coins, screenWidth div 2 - 100, 70, 20, Gold)
+  
+  # Add selection pointer on the left (matching main menu style)
+  let pointerPulse = sin(getTime() * 6.0) * 0.3 + 0.7
+  let pointerSize = 10 + (pointerPulse * 5).int32
   
   # Display owned permanent upgrades on the left side
   var upgradeY: int32 = 120
@@ -62,6 +66,15 @@ proc drawShop*(game: Game) =
     let item = game.shopItems[i]
     let cost = getCurrentCost(item)
     
+    # Draw selection pointer (left of selected item)
+    if i == game.selectedShopItem:
+      let pointerX = shopStartX - 35
+      let pointerY = y + 30
+      drawCircle(Vector2(x: pointerX.float32, y: pointerY.float32), pointerSize.float32,
+                Color(r: 255'u8, g: 200'u8, b: 0'u8, a: 200'u8))
+      # Draw arrow pointing right
+      drawText(">", (pointerX - 5).int32, (pointerY - 10).int32, 20, Gold)
+    
     var bgColor = if i == game.selectedShopItem: DarkGray else: Gray
     if game.player.coins < cost:
       bgColor = Color(r: 60, g: 60, b: 60, a: 255)
@@ -77,7 +90,7 @@ proc drawShop*(game: Game) =
     let costColor = if game.player.coins >= cost: Green else: Red
     drawText(costText, shopStartX + 270, y.int32 + 20, 18, costColor)
   
-  drawText("ARROW KEYS: select | ENTER: buy | TAB/ESC: close", 
+  drawText("ARROW KEYS: select | ENTER: buy | ESC: continue", 
           screenWidth div 2 - 280, screenHeight - 50, 18, LightGray)
 
 proc buyShopItem*(game: Game, index: int) =
@@ -85,25 +98,31 @@ proc buyShopItem*(game: Game, index: int) =
   
   let item = addr game.shopItems[index]
   let cost = getCurrentCost(item[])
-  if game.player.coins < cost: return
+  if game.player.coins < cost:
+    # Play error sound (using menu nav sound at lower volume)
+    playSound(stMenuNav, 0.3)
+    return
+  
+  # Play purchase sound (using coin pickup)
+  playSound(stCoinPickup, 0.8)
   
   game.player.coins -= cost
   item.bought += 1
   
   case index
-  of 0: # Damage - MORE POWERFUL scaling
-    game.player.damage += 0.7 * pow(1.12, item.bought.float32)
-  of 1: # Fire Rate - better diminishing returns, more impactful
-    game.player.fireRate *= 0.82
-    if game.player.fireRate < 0.04: game.player.fireRate = 0.04
-  of 2: # Move Speed - MUCH FASTER gains
-    game.player.speed += 28
-    game.player.baseSpeed += 28
-  of 3: # Max Health - MORE HP per purchase
-    game.player.maxHp += 3
-    game.player.hp += 3
-  of 4: # Bullet Speed - SIGNIFICANTLY faster
-    game.player.bulletSpeed += 80
-  of 5: # Walls - MORE walls per purchase
+  of 0: # Damage - NERFED scaling
+    game.player.damage += 0.5 * pow(1.08, item.bought.float32)
+  of 1: # Fire Rate - NERFED, better diminishing returns
+    game.player.fireRate *= 0.88
+    if game.player.fireRate < 0.05: game.player.fireRate = 0.05
+  of 2: # Move Speed - NERFED gains
+    game.player.speed += 18
+    game.player.baseSpeed += 18
+  of 3: # Max Health - NERFED HP per purchase
+    game.player.maxHp += 2
+    game.player.hp += 2
+  of 4: # Bullet Speed - NERFED
+    game.player.bulletSpeed += 50
+  of 5: # Walls - Same as before
     game.player.walls += 4
   else: discard

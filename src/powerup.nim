@@ -23,7 +23,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puDodgeChance: "Evasion"
   of puCriticalHit: "Critical Strike"
   of puVampirism: "Vampirism"
-  of puBulletBounce: "Ricochet"
+  of puBulletRicochet: "Ricochet"
   of puSlowField: "Slow Field"
   of puRage: "Rage"
   of puBerserker: "Berserker"
@@ -36,14 +36,14 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
   of puDoubleShot:
     case level
-    of 1: "Shoot 2 bullets at once"
-    of 2: "Shoot 3 bullets at once"
-    else: "Shoot 4 bullets at once"
+    of 1: "Fire 2 bullets per shot"
+    of 2: "Fire 3 bullets per shot"
+    else: "Fire 4 bullets per shot"
   of puRotatingShield:
     case level
-    of 1: "2 shields (50% coverage)"
-    of 2: "3 shields (70% coverage)"
-    else: "4 shields (85% coverage)"
+    of 1: "2 shields (20% coverage)"
+    of 2: "3 shields (40% coverage)"
+    else: "4 shields (70% coverage)"
   of puDamageZone:
     case level
     of 1: "2 dmg/sec in 50 radius"
@@ -139,16 +139,16 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "Heal 5% of bullet damage"
     of 2: "Heal 10% of bullet damage"
     else: "Heal 18% of bullet damage"
-  of puBulletBounce:
+  of puBulletRicochet:
     case level
-    of 1: "Bullets bounce once"
-    of 2: "Bullets bounce twice"
-    else: "Bullets bounce 3 times"
+    of 1: "Bullets ricochet once"
+    of 2: "Bullets ricochet twice"
+    else: "Bullets ricochet 3 times"
   of puSlowField:
     case level
-    of 1: "Slow enemies 35% in 120 radius"
-    of 2: "Slow enemies 50% in 170 radius"
-    else: "Slow enemies 65% in 220 radius"
+    of 1: "Slow enemies 30% in 120 radius"
+    of 2: "Slow enemies 45% in 160 radius"
+    else: "Slow enemies 55% in 200 radius"
   of puRage:
     case level
     of 1: "+5% dmg per 10% HP lost"
@@ -176,9 +176,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Hit chains to 3 enemies (90% dmg)"
   of puFrostShots:
     case level
-    of 1: "Bullets slow enemies 25% (2s)"
-    of 2: "Bullets slow enemies 40% (3s)"
-    else: "Bullets slow enemies 60% (4s)"
+    of 1: "Bullets slow enemies 25% (permanent)"
+    of 2: "Bullets slow enemies 40% (permanent)"
+    else: "Bullets slow enemies 60% (permanent)"
   of puPoisonDamage:
     case level
     of 1: "Bullets poison (1 dmg/s, 4s)"
@@ -387,7 +387,7 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 8, Yellow)
   of puRotatingShield:
     # Draw the new curved shield visual
-    let shieldRadius = 20.0
+    let shieldRadius = 10.0
     let shieldCount = powerUp.level + 1
     for i in 0..<shieldCount:
       let angle1 = i.float32 * PI * 2.0 / shieldCount.float32
@@ -526,7 +526,7 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     drawCircle(Vector2(x: (centerX - 5).float32, y: (iconY - 3).float32), 6, Red)
     drawCircle(Vector2(x: (centerX + 5).float32, y: (iconY - 3).float32), 6, Red)
     drawText("+", centerX - 4, iconY + 5, 12, Green)
-  of puBulletBounce:
+  of puBulletRicochet:
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 6, Yellow)
     let bounces = powerUp.level
     for i in 1..bounces:
@@ -649,11 +649,11 @@ proc drawPowerUpSelection*(game: Game) =
   
   # Title
   if isLegendary:
-    drawText("BOSS DEFEATED!", screenWidth div 2 - 200, 60, 50, Gold)
-    drawText("Choose Your LEGENDARY Upgrade", screenWidth div 2 - 230, 120, 30, Color(r: 255, g: 215, b: 0, a: 255))
+    drawText("BOSS DEFEATED!", screenWidth div 2 - 200, 40, 50, Gold)
+    drawText("Choose Your LEGENDARY Upgrade", screenWidth div 2 - 230, 100, 30, Color(r: 255, g: 215, b: 0, a: 255))
   else:
-    drawText("WAVE COMPLETE!", screenWidth div 2 - 180, 80, 50, Green)
-    drawText("Choose Your Power-Up", screenWidth div 2 - 180, 140, 30, White)
+    drawText("WAVE COMPLETE!", screenWidth div 2 - 180, 60, 50, Green)
+    drawText("Choose Your Power-Up", screenWidth div 2 - 180, 120, 30, White)
   
   # Draw 3 cards
   let cardWidth = 200
@@ -661,13 +661,19 @@ proc drawPowerUpSelection*(game: Game) =
   let spacing = 40
   let totalWidth = cardWidth * 3 + spacing * 2
   let startX = (screenWidth - totalWidth) div 2
-  let cardY = if isLegendary: 180 else: 200
+  let cardY = if isLegendary: 160 else: 180
   
   for i in 0..2:
     let cardX = startX + i * (cardWidth + spacing)
     drawPowerUpCard(cardX.int32, cardY.int32, cardWidth.int32, cardHeight.int32,
                    game.powerUpChoices[i], i == game.selectedPowerUp)
   
-  # Instructions
-  drawText("ARROW KEYS: select | ENTER: choose | ESC: skip", 
-          screenWidth div 2 - 280, screenHeight - 100, 20, LightGray)
+  # Combined Shop/Power-up instructions
+  drawText("ARROW KEYS: select | ENTER: choose power-up", 
+          screenWidth div 2 - 280, screenHeight - 120, 20, LightGray)
+  drawText("ESC: skip power-up", 
+          screenWidth div 2 - 200, screenHeight - 90, 18, Color(r: 180, g: 180, b: 180, a: 255))
+  
+  # Display coin count
+  let coinText = "Coins: " & $game.player.coins
+  drawText(coinText, screenWidth div 2 - 60, screenHeight - 55, 22, Gold)
