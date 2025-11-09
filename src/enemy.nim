@@ -345,9 +345,9 @@ proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
     radius: 50 + difficulty * 4,
-    hp: 65 + difficulty * 28 * strengthMultiplier,
-    maxHp: 65 + difficulty * 28 * strengthMultiplier,
-    speed: 60 + difficulty * 5,
+    hp: 100 + difficulty * 30 * strengthMultiplier,
+    maxHp: 100 + difficulty * 30 * strengthMultiplier,
+    speed: 75 + difficulty * 5,
     damage: 2 + (difficulty / 8).int,
     color: case bossType
       of btShooter: DarkPurple
