@@ -1,3 +1,4 @@
+AI README - lazyness
 # 🎩 TopHat Shooter
 
 **Version 2.0** - A fast-paced, wave-based bullet hell shooter built with Nim and Raylib
