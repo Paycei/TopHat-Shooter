@@ -145,7 +145,7 @@ Built with:
 - ✅ Full shop and upgrade system
 - ✅ Particle effects and visual polish
 - ✅ Audio system integration
-- ✅ Performance optimizations for smooth 60 FPS
+- ✅ Performance optimizations for smooth performance
 - ✅ Comprehensive balance adjustments
 
 ---
@@ -169,10 +169,6 @@ Contributions, issues, and feature requests are welcome!
 ## 👨‍💻 Author
 
 **Paycei**
-
----
-
-Experience intense bullet hell action, strategic upgrades, and epic boss battles. Every run is different with procedural wave generation and randomized power-ups. Test your skills and see how long you can survive!
 
 ---
 
