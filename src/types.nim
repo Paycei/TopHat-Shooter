@@ -19,7 +19,8 @@ type
     etOctagon,     # Ranged - many slow inaccurate projectiles
     etPentagon,    # Ranged - single fast bullet, low fire rate
     etTrickster,   # Shows false warning, attacks differently
-    etPhantom      # Unpredictable - teleports with fake clones
+    etPhantom,     # Unpredictable - teleports with fake clones
+    etSniper       # Rare - charges one-shot epic attack with warning
 
   BossType* = enum
     btShooter,   # Shoots spiral of bullets

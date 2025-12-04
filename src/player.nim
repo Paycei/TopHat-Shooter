@@ -4,14 +4,14 @@ proc newPlayer*(x, y: float32): Player =
   result = Player(
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
-    radius: 12,
-    baseRadius: 12,
-    hp: 5,  # 5 for early game comfort
-    maxHp: 5,
-    speed: 175,  # 175 for better feel
+    radius: 13,
+    baseRadius: 13,
+    hp: 7,
+    maxHp: 7,
+    speed: 175,
     baseSpeed: 175,
     damage: 1,
-    fireRate: 0.45,  #  0.45 for smoother shooting
+    fireRate: 0.43,
     bulletSpeed: 300,
     lastShot: 0,
     coins: 0,
@@ -31,7 +31,7 @@ proc newPlayer*(x, y: float32): Player =
     autoShootEnabled: true,  # Auto-shoot starts enabled
     activePowerUps: @[],
     powerUpTimers: initTable[PowerUpType, float32](),
-    auraRadius: 42.0,  # Invisible coin collection aura - 3.5x base radius
+    auraRadius: 50.0,  # Invisible coin collection aura
     doubleShotDelay: 0
   )
 
@@ -238,7 +238,7 @@ proc getCurrentFireRate*(player: Player): float32 =
   
   # Fire rate boost consumable
   if player.fireRateBoostTimer > 0:
-    rate *= 0.5
+    rate *= 0.6
   
   # Berserker power-up - fire rate increases when HP is low
   for powerUp in player.powerUps:

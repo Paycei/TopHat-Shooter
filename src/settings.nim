@@ -7,6 +7,7 @@ type
     musicVolume*: float32
     inputBuffer*: string
     editingFPS*: bool
+    fullscreen*: bool
 
 var globalSettings*: Settings
 
@@ -16,7 +17,8 @@ proc initSettings*(): Settings =
     volume: 0.5,
     musicVolume: 0.5,
     inputBuffer: "60",
-    editingFPS: false
+    editingFPS: false,
+    fullscreen: false
   )
   globalSettings = result
 
@@ -106,6 +108,28 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32) =
   let musicVolumePercent = int(settings.musicVolume * 100)
   drawText($musicVolumePercent & "%", musicSliderX + sliderWidth + 20, musicVolumeY, 24, White)
   
+  # Fullscreen Setting
+  let fullscreenY: int32 = 420
+  drawText("Fullscreen:", 200'i32, fullscreenY, 24, White)
+  
+  # Fullscreen checkbox
+  let checkboxX: int32 = 400
+  let checkboxY: int32 = fullscreenY + 5
+  let checkboxSize: int32 = 25
+  let checkboxColor = Color(r: 60, g: 60, b: 80, a: 255)
+  
+  drawRectangle(checkboxX, checkboxY, checkboxSize, checkboxSize, checkboxColor)
+  drawRectangleLines(checkboxX, checkboxY, checkboxSize, checkboxSize, Gray)
+  
+  # Draw checkmark if fullscreen is enabled
+  if settings.fullscreen:
+    drawLine(Vector2(x: (checkboxX + 5).float32, y: (checkboxY + 12).float32),
+            Vector2(x: (checkboxX + 12).float32, y: (checkboxY + 20).float32), 3, Green)
+    drawLine(Vector2(x: (checkboxX + 12).float32, y: (checkboxY + 20).float32),
+            Vector2(x: (checkboxX + 22).float32, y: (checkboxY + 5).float32), 3, Green)
+  
+  drawText("(F11 to toggle)", checkboxX + checkboxSize + 20, fullscreenY, 20, LightGray)
+  
   # Back instruction
   drawText("Press ESC to return to menu", screenWidth div 2 - 180, 
           screenHeight - 80, 20, LightGray)
@@ -191,6 +215,19 @@ proc updateSettings*(settings: Settings) =
         let relativeX = mousePos.x - sliderX.float32
         settings.musicVolume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
         setMusicVolume(settings.musicVolume)
+  
+  # Handle fullscreen checkbox click
+  if isMouseButtonPressed(Left):
+    let checkboxX: int32 = 400
+    let checkboxY: int32 = 425
+    let checkboxSize: int32 = 25
+    
+    let mousePos = getMousePosition()
+    if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
+       mousePos.y >= checkboxY.float32 and mousePos.y <= (checkboxY + checkboxSize).float32:
+      settings.fullscreen = not settings.fullscreen
+      toggleFullscreen()
+      playSound(stMenuNav)
 
 proc applySettings*(settings: Settings) =
   setTargetFPS(settings.fpsLimit)

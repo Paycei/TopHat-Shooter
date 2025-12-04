@@ -121,9 +121,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "+140% bullet size"
   of puRegeneration:
     case level
-    of 1: "Regen 1 HP per 15s"
-    of 2: "Regen 1 HP per 11s"
-    else: "Regen 1 HP per 8s"
+    of 1: "Regen 1 HP per 12s"
+    of 2: "Regen 1 HP per 9s"
+    else: "Regen 1 HP per 6s"
   of puDodgeChance:
     case level
     of 1: "12% chance to dodge hits"
@@ -136,9 +136,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "25% chance for 3x damage"
   of puVampirism:
     case level
-    of 1: "Heal 5% of bullet damage"
-    of 2: "Heal 10% of bullet damage"
-    else: "Heal 18% of bullet damage"
+    of 1: "Heal 2% of bullet damage"
+    of 2: "Heal 4% of bullet damage"
+    else: "Heal 7% of bullet damage"
   of puBulletRicochet:
     case level
     of 1: "Bullets ricochet once"
@@ -669,7 +669,7 @@ proc drawPowerUpSelection*(game: Game) =
                    game.powerUpChoices[i], i == game.selectedPowerUp)
   
   # Combined Shop/Power-up instructions
-  drawText("ARROW KEYS: select | ENTER: choose power-up", 
+  drawText("A/D or ARROW KEYS: select | ENTER: choose power-up", 
           screenWidth div 2 - 280, screenHeight - 120, 20, LightGray)
   drawText("ESC: skip power-up", 
           screenWidth div 2 - 200, screenHeight - 90, 18, Color(r: 180, g: 180, b: 180, a: 255))

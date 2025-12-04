@@ -154,15 +154,15 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       attackPhase: 0
     )
   
-  of etCross:  # Shows cross warning before attack - BUFFED
+  of etCross:  # Shows cross warning before attack
     result = Enemy(
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
-      radius: 17 + difficulty * 1.5,  # INCREASED from 15
-      hp: 4.0 * strengthMultiplier,   # INCREASED from 2.5
-      maxHp: 4.0 * strengthMultiplier,
+      radius: 17 + difficulty * 1.5,
+      hp: 5.0 * strengthMultiplier,
+      maxHp: 5.0 * strengthMultiplier,
       speed: 50 + difficulty * 4,
-      damage: 2,
+      damage: 5,
       color: Color(r: 255, g: 100, b: 0, a: 255),
       enemyType: etCross,
       isBoss: false,
@@ -338,16 +338,46 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       cloneTimer: 2.0 + rand(1.5)
     )
 
+  of etSniper:  # Rare one-shot enemy with epic charging attack
+    result = Enemy(
+      pos: newVector2f(x, y),
+      vel: newVector2f(0, 0),
+      radius: 14 + difficulty * 1.2,
+      hp: 6.0 * strengthMultiplier,
+      maxHp: 6.0 * strengthMultiplier,
+      speed: 40 + difficulty * 2,  # Slow, methodical movement
+      damage: 8,  # Very high damage - one-shot attack
+      color: Color(r: 200, g: 50, b: 200, a: 255),  # Bright magenta
+      enemyType: etSniper,
+      isBoss: false,
+      bossPhase: bpCircle,
+      phaseChangeTimer: 0,
+      shootTimer: 0,
+      spawnTimer: 0,
+      dashTimer: 0,
+      hitCount: 0,
+      requiredHits: 0,
+      lastContactDamageTime: 0,
+      teleportTimer: 0,
+      shockwaveTimer: 0,
+      burstTimer: 0,
+      lastWallDamageTime: 0,
+      hexTeleportTimer: 0,
+      attackWarningTimer: 0,
+      attackExecuteTimer: 3.0,  # 3 second charge time before attack
+      attackPhase: 0  # 0=hunting, 1=charging, 2=cooldown
+    )
+
 proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
-  let strengthMultiplier = pow(1.18, difficulty)
+  let strengthMultiplier = pow(1.15, difficulty)  # Reduced from 1.18
   
   result = Enemy(
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
-    radius: 50 + difficulty * 4,
-    hp: 100 + difficulty * 30 * strengthMultiplier,
-    maxHp: 100 + difficulty * 30 * strengthMultiplier,
-    speed: 75 + difficulty * 5,
+    radius: 50 + difficulty * 3,
+    hp: 55 + difficulty * 18 * strengthMultiplier,  # Reduced from 75 + difficulty * 25
+    maxHp: 55 + difficulty * 18 * strengthMultiplier,
+    speed: 65 + difficulty * 4,
     damage: 2 + (difficulty / 8).int,
     color: case bossType
       of btShooter: DarkPurple
@@ -358,7 +388,7 @@ proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
     isBoss: true,
     bossType: bossType,
     bossPhase: bpCircle,
-    phaseChangeTimer: 8.0,
+    phaseChangeTimer: 9.0,
     shootTimer: 0,
     spawnTimer: 0,
     dashTimer: 0,
@@ -366,7 +396,7 @@ proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
     requiredHits: 0,
     lastContactDamageTime: 0,
     teleportTimer: 12.0,
-    shockwaveTimer: 6.0,
+    shockwaveTimer: 9.0,
     burstTimer: 0.5,
     lastWallDamageTime: 0,
     entranceTimer: 0,
@@ -406,7 +436,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
     
     if enemy.phaseChangeTimer <= 0:
       enemy.bossPhase = BossPhase((enemy.bossPhase.int + 1) mod 4)
-      enemy.phaseChangeTimer = 8.0
+      enemy.phaseChangeTimer = 6.5  # Reduced from 8.0
       case enemy.bossPhase
       of bpCircle: enemy.color = case enemy.bossType
         of btShooter: DarkPurple
@@ -806,6 +836,51 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       if canMove:
         enemy.pos = nextPos
+    
+    of etSniper:
+      # Sniper enemy - charges a powerful one-shot attack with warning
+      let distToPlayer = distance(enemy.pos, playerPos)
+      
+      case enemy.attackPhase
+      of 0:  # Hunting phase - moves toward player
+        let dir = (playerPos - enemy.pos).normalize()
+        let nextPos = enemy.pos + dir * effectiveSpeed * 0.8 * dt
+        var canMove = true
+        for wall in walls:
+          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+            canMove = false
+            break
+        if canMove:
+          enemy.pos = nextPos
+        
+        # When close enough, start charging
+        if distToPlayer < 300:
+          enemy.attackPhase = 1
+          enemy.attackWarningTimer = 0
+      
+      of 1:  # Charging phase - stands still, glows brighter
+        enemy.attackWarningTimer += dt
+        # Visual charging: change color intensity
+        let chargeAmount = enemy.attackWarningTimer / enemy.attackExecuteTimer
+        let intensity = uint8(150 + chargeAmount * 105)
+        enemy.color = Color(r: intensity, g: 50, b: intensity, a: 255)
+        
+        # When charge completes, fire the one-shot
+        if enemy.attackWarningTimer >= enemy.attackExecuteTimer:
+          let dir = (playerPos - enemy.pos).normalize()
+          # Fire a large, fast, high-damage bullet
+          let bullet = newBullet(enemy.pos.x, enemy.pos.y, dir, 400.0, (enemy.damage * 2).float32, false)
+          game.bullets.add(bullet)
+          enemy.attackPhase = 2
+          enemy.attackExecuteTimer = 2.0  # Cooldown before next charge
+          enemy.color = Color(r: 200, g: 50, b: 200, a: 255)  # Reset color
+      
+      of 2:  # Cooldown phase - recover before hunting again
+        enemy.attackExecuteTimer -= dt
+        if enemy.attackExecuteTimer <= 0:
+          enemy.attackPhase = 0
+      else:
+        discard
   
   # Update poison
   if enemy.poisonTimer > 0:
@@ -1092,6 +1167,36 @@ proc drawEnemy*(enemy: Enemy) =
       drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + mysterPulse,
                      Color(r: 255, g: 0, b: 255, a: 100))
     
+    of etSniper:
+      # Draw sniper with charging visualization
+      # Main body - circular with crosshair
+      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
+      
+      # Crosshair pattern
+      let crossSize = enemy.radius * 0.6
+      drawLine(Vector2(x: enemy.pos.x - crossSize, y: enemy.pos.y),
+              Vector2(x: enemy.pos.x + crossSize, y: enemy.pos.y), 2,
+              Color(r: 255, g: 255, b: 255, a: 200))
+      drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y - crossSize),
+              Vector2(x: enemy.pos.x, y: enemy.pos.y + crossSize), 2,
+              Color(r: 255, g: 255, b: 255, a: 200))
+      
+      # Center dot
+      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), 3.0, Red)
+      
+      # Charging effect - expanding rings when charging
+      if enemy.attackPhase == 1:
+        let chargePercent = enemy.attackWarningTimer / enemy.attackExecuteTimer
+        let ringAlpha = uint8((sin(getTime() * 10.0) * 0.5 + 0.5) * 200)
+        let ringRadius = enemy.radius + (chargePercent * 20.0)
+        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius,
+                       Color(r: 200, g: 50, b: 200, a: ringAlpha))
+        
+        # Inner pulsing ring
+        let innerRing = enemy.radius + (chargePercent * 10.0)
+        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, innerRing,
+                       Color(r: 255, g: 150, b: 255, a: 100))
+    
     of etPhantom:
       # Draw phantom with transparency
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
@@ -1327,18 +1432,19 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
     elif roll < 91: enemyType = etHexagon
     else: enemyType = etTrickster
   else:
-    # Phase 8: All enemies including Phantom
-    if roll < 10: enemyType = etCircle
-    elif roll < 18: enemyType = etPentagon
-    elif roll < 26: enemyType = etCube
-    elif roll < 34: enemyType = etTriangle
-    elif roll < 44: enemyType = etStar
-    elif roll < 52: enemyType = etCross
-    elif roll < 60: enemyType = etDiamond
-    elif roll < 70: enemyType = etOctagon
-    elif roll < 78: enemyType = etHexagon
-    elif roll < 89: enemyType = etTrickster
-    else: enemyType = etPhantom
+    # Phase 8: All enemies including Phantom and rare Sniper
+    if roll < 9: enemyType = etCircle
+    elif roll < 17: enemyType = etPentagon
+    elif roll < 25: enemyType = etCube
+    elif roll < 33: enemyType = etTriangle
+    elif roll < 43: enemyType = etStar
+    elif roll < 51: enemyType = etCross
+    elif roll < 59: enemyType = etDiamond
+    elif roll < 68: enemyType = etOctagon
+    elif roll < 76: enemyType = etHexagon
+    elif roll < 87: enemyType = etTrickster
+    elif roll < 98: enemyType = etPhantom
+    else: enemyType = etSniper  # Very rare 2% chance
   
   newEnemy(x, y, difficulty, enemyType)
 

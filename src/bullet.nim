@@ -1,5 +1,7 @@
 import raylib, types, math
 
+const BASE_PLAYER_BULLET_RADIUS* = 4.5
+
 proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true, 
                 isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false,
                 hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0, 
@@ -10,7 +12,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
   result = Bullet(
     pos: newVector2f(x, y),
     vel: direction.normalize() * finalSpeed,
-    radius: if fromPlayer: 4 else: 6,
+    radius: if fromPlayer: BASE_PLAYER_BULLET_RADIUS else: 6,
     damage: damage,
     fromPlayer: fromPlayer,
     lifetime: 5.0,  # Bullets despawn after 5 seconds

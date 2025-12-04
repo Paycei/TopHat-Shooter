@@ -235,7 +235,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Base bullet properties - use current damage with Rage bonus
     var speed = game.player.bulletSpeed * 1.2
     var damage = getCurrentDamage(game.player)
-    var bulletRadius = 4.0
+    var bulletRadius = BASE_PLAYER_BULLET_RADIUS
     
     # Apply bullet size power-up
     if hasPowerUp(game.player, puBulletSize):
@@ -373,8 +373,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let hasPoison = hasPowerUp(game.player, puPoisonDamage)
   
   var speed = game.player.bulletSpeed * 1.2
-  var damage = getCurrentDamage(game.player)
-  var bulletRadius = 4.0
+  var damage = getCurrentDamage(game.player) * 0.75  # Second bullet reduced by 25%
+  var bulletRadius = BASE_PLAYER_BULLET_RADIUS
   
   if hasPowerUp(game.player, puBulletSize):
     let sizeLevel = getPowerUpLevel(game.player, puBulletSize)
@@ -505,14 +505,14 @@ proc updateGame*(game: var Game, dt: float32) =
       if dist < zoneRadius:
         enemy.hp -= zoneDamage * dt
   
-  # Regeneration power-up effect - NERFED
+  # Regeneration power-up effect - BUFFED
   if hasPowerUp(game.player, puRegeneration):
     game.player.regenTimer += dt
     let level = getPowerUpLevel(game.player, puRegeneration)
     let regenInterval = case level
-      of 1: 15.0  # NERFED from 12s to 15s
-      of 2: 11.0  # NERFED from 8s to 11s
-      else: 8.0   # NERFED from 5s to 8s
+      of 1: 12.0  # BUFFED from 15s to 12s
+      of 2: 9.0   # BUFFED from 11s to 9s
+      else: 6.0   # BUFFED from 8s to 6s
     
     if game.player.regenTimer >= regenInterval:
       heal(game.player, 1)
@@ -790,15 +790,16 @@ proc updateGame*(game: var Game, dt: float32) =
         case enemy.enemyType
         of etCircle: 1
         of etCube: 3           # More coins since it's now harder
-        of etTriangle: 3
+        of etTriangle: 2
         of etStar: 5
         of etHexagon: 3
         of etCross: 3
         of etDiamond: 3
         of etOctagon: 2
         of etPentagon: 1       # Early game enemy, low coins
-        of etTrickster: 4
-        of etPhantom: 4
+        of etTrickster: 6
+        of etPhantom: 6
+        of etSniper: 5
       
       game.coins.add(newCoin(enemy.pos.x, enemy.pos.y, coinValue))
       
@@ -1079,12 +1080,12 @@ proc updateGame*(game: var Game, dt: float32) =
           nearestEnemy = enemy
       
       if nearestEnemy != nil:
-        # HEAVILY NERFED tracking at level 1, noticeable at level 2, strong at level 3
+        # BUFFED tracking - improved at all levels
         let level = getPowerUpLevel(game.player, puHomingBullets)
         let turnRate = case level
-          of 1: 0.015  # VERY weak tracking, barely noticeable
-          of 2: 0.06   # Moderate tracking
-          else: 0.15   # Strong tracking
+          of 1: 0.033   # BUFFED from 0.015 - noticeable weak tracking
+          of 2: 0.10   # BUFFED from 0.06 - strong tracking
+          else: 0.20   # BUFFED from 0.15 - aggressive tracking
         
         let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
         let currentDir = bullet.vel.normalize()
@@ -1227,9 +1228,9 @@ proc updateGame*(game: var Game, dt: float32) =
           if hasPowerUp(game.player, puVampirism):
             let vampLevel = getPowerUpLevel(game.player, puVampirism)
             let healPercent = case vampLevel
-              of 1: 0.05  # 5%
-              of 2: 0.10  # 10%
-              else: 0.18  # 18%
+              of 1: 0.02  # 2% (reduced from 5%)
+              of 2: 0.04  # 4% (reduced from 10%)
+              else: 0.07  # 7% (reduced from 18%)
             let healAmount = bullet.damage * healPercent
             heal(game.player, healAmount)
             if healAmount > 0.01:  # Only show particles if significant healing

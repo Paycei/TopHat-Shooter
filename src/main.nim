@@ -8,7 +8,7 @@ const
 proc drawMenu(game: Game) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
   
-  # Subtle animated background particles (reduced from 50 to 25)
+  # Subtle animated background particles
   for i in 0..<25:
     let offset = i.float32 * 0.7
     let x = ((game.time * 20.0 + offset * 20) mod screenWidth.float32).int32
@@ -18,44 +18,49 @@ proc drawMenu(game: Game) =
     drawCircle(Vector2(x: x.float32, y: y.float32), size.float32, 
               Color(r: 100'u8, g: 150'u8, b: 255'u8, a: alpha))
   
-  # Reduced rotating shapes (from 8 to 4)
-  for i in 0..<4:
-    let angle = game.time * 0.3 + i.float32 * PI / 2.0
-    let radius = 120.0 + sin(game.time * 1.5 + i.float32) * 30.0
+  # Gentle floating orbs around title
+  for i in 0..<6:
+    let angle = game.time * 0.4 + i.float32 * PI / 3.0
+    let radius = 150.0 + sin(game.time * 1.2 + i.float32) * 20.0
     let x = screenWidth.float32 / 2 + cos(angle) * radius
-    let y = 120.0 + sin(angle) * radius * 0.5
-    let size = 12 + (sin(game.time * 2.0 + i.float32) * 5).int32
-    let alpha = uint8(20 + (sin(game.time * 2.0 + i.float32) * 10))
+    let y = 140.0 + sin(angle) * radius * 0.4
+    let size = 8 + (sin(game.time * 2.0 + i.float32) * 3).int32
+    let alpha = uint8(25 + (sin(game.time * 2.0 + i.float32) * 12))
     drawCircle(Vector2(x: x, y: y), size.float32, 
               Color(r: 255'u8, g: 200'u8, b: 50'u8, a: alpha))
   
-  # Title with subtle pulse (reduced from 0.15 to 0.08)
-  let pulse = 1.0 + 0.08 * sin(game.time * 3)
-  let titleSize = (55 * pulse).int32
+  # Title with subtle wave effect
+  let titleText = "TopHat SHOOTER"
+  let baseY = 150
+  let baseTitleSize = 55
   
-  # Simplified title glow (single layer instead of 3)
-  drawText("TopHat SHOOTER", 
-          (screenWidth div 2 - 218).int32, 151.int32, 
-          (titleSize + 2).int32,
-          Color(r: 255'u8, g: 255'u8, b: 0'u8, a: 40'u8))
+  # Gentle glow
+  drawText(titleText, screenWidth.int32 div 2 - 218, 151, baseTitleSize.int32 + 2,
+          Color(r: 255'u8, g: 255'u8, b: 0'u8, a: 50'u8))
   
-  drawText("TopHat SHOOTER", screenWidth div 2 - 220, 150, titleSize, Yellow)
+  # Main title with subtle per-character wave
+  for i in 0..<titleText.len:
+    let charWave = sin(game.time * 3.0 + i.float32 * 0.4) * 2.0
+    let charX = screenWidth div 2 - 220 + i * 31
+    let charY = baseY.float32 + charWave
+    drawText($titleText[i], charX.int32, charY.int32, baseTitleSize.int32, Yellow)
   
-  # Simplified subtitle (removed shake and color change)
-  drawText("CHAOS EDITION", screenWidth div 2 - 150, 200, 28, Orange)
+  # Subtitle with gentle pulse
+  let subtitlePulse = 1.0 + sin(game.time * 2.5) * 0.06
+  let subtitleSize = (28.float32 * subtitlePulse).int32
+  drawText("CHAOS EDITION", screenWidth div 2 - 150, 200, subtitleSize, Orange)
   
-  # Simplified UPDATE 2! badge (removed extreme effects)
-  let updateSize = 30
+  # UPDATE 3 badge with subtle glow
   let updateX = screenWidth div 2 - 80
   let updateY = 245
+  let updatePulse = 1.0 + sin(game.time * 4.0) * 0.1
+  let updateSize = (30.float32 * updatePulse).int32
   
-  # Simple glow
-  drawText("UPDATE 2!", int32(updateX - 1), int32(updateY - 1), updateSize.int32,
+  drawText("UPDATE 3!", int32(updateX - 1), int32(updateY - 1), updateSize + 2,
           Color(r: 255'u8, g: 120'u8, b: 0'u8, a: 80'u8))
+  drawText("UPDATE 3!", int32(updateX), int32(updateY), updateSize, Gold)
   
-  drawText("UPDATE 2!", int32(updateX), int32(updateY), updateSize.int32, Gold)
-  
-  # Menu options with minimal animation
+  # Menu options with subtle selection indicator
   let startY = 360
   let spacing = 65
   
@@ -64,15 +69,15 @@ proc drawMenu(game: Game) =
     let y = startY + i * spacing
     let isSelected = i == game.menuSelection
     
-    # selection glow
+    # Simple selection glow
     if isSelected:
       let glowPulse = sin(game.time * 6.0) * 0.3 + 0.7
-      let glowSize = 15 + (glowPulse * 10).int32
+      let glowSize = 18 + (glowPulse * 8).int32
       drawCircle(Vector2(x: (screenWidth div 2).float32, y: y.float32 + 15),
-                glowSize.float32, Color(r: 255'u8, g: 200'u8, b: 0'u8, a: 80'u8))
+                glowSize.float32, Color(r: 255'u8, g: 200'u8, b: 0'u8, a: 100'u8))
     
     let color = if isSelected: Gold else: White
-    let text = if isSelected: "> " & menuItems[i] else: menuItems[i]
+    let text = if isSelected: "> " & menuItems[i] & " <" else: menuItems[i]
     let textWidth = measureText(text, 32)
     
     drawText(text, screenWidth div 2 - textWidth div 2, y.int32, 32, color)
@@ -108,7 +113,7 @@ proc drawHelp(game: Game) =
   var y: int32 = 130
   let instructions = [
     "CONTROLS:",
-    "WASD - Move",
+    "WASD - Move / Menu Navigation",
     "Mouse/Space - Shoot",
     "F - Toggle Auto-Shoot (requires powerup)",
     "E - Place Wall (requires walls in inventory)",
@@ -126,14 +131,6 @@ proc drawHelp(game: Game) =
     "Survive endless enemy hordes",
     "Enemies spawn progressively harder",
     "Boss appears every 60 seconds",
-    "",
-    "ENEMIES:",
-    "Circles - Basic chasers",
-    "Cubes - Ranged shooters",
-    "Stars - Tanky targets",
-    "Triangles - Dash attackers",
-    "Hexagons - Teleporting chaos",
-    "Bosses - Shape-shift with special attacks"
   ]
   
   for line in instructions:
@@ -170,6 +167,11 @@ proc main() =
     # Update music stream (required for continuous playback)
     updateMusic()
     
+    # Handle fullscreen toggle with F11
+    if isKeyPressed(F11):
+      settings.fullscreen = not settings.fullscreen
+      toggleFullscreen()
+    
     case currentGame.state
     of gsMenu:
       # Play menu music
@@ -179,14 +181,14 @@ proc main() =
       currentGame.time += dt
       
       # Menu navigation
-      if isKeyPressed(Down):
+      if isKeyPressed(Down) or isKeyPressed(S):
         currentGame.menuSelection = (currentGame.menuSelection + 1) mod 5
         playSound(stMenuNav)
-      if isKeyPressed(Up):
+      if isKeyPressed(Up) or isKeyPressed(W):
         currentGame.menuSelection = (currentGame.menuSelection - 1 + 5) mod 5
         playSound(stMenuNav)
       
-      if isKeyPressed(Enter):
+      if isKeyPressed(Enter) or isKeyPressed(E):
         playSound(stMenuSelect)
         case currentGame.menuSelection
         of 0:  # Wave-Based Mode
@@ -309,13 +311,13 @@ proc main() =
       playMusic(mtPowerUp)
       
       # Navigate shop
-      if isKeyPressed(Down):
+      if isKeyPressed(Down) or isKeyPressed(S):
         currentGame.selectedShopItem = (currentGame.selectedShopItem + 1) mod 6
-      if isKeyPressed(Up):
+      if isKeyPressed(Up) or isKeyPressed(W):
         currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + 6) mod 6
       
       # Buy item
-      if isKeyPressed(Enter):
+      if isKeyPressed(Enter) or isKeyPressed(E):
         buyShopItem(currentGame, currentGame.selectedShopItem)
       
       # Close shop - always continue to next wave (no going back to power-up selection)
@@ -395,13 +397,13 @@ proc main() =
       playMusic(mtPowerUp)
       
       # Navigate power-up choices
-      if isKeyPressed(Left):
+      if isKeyPressed(Left) or isKeyPressed(A):
         currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3
-      if isKeyPressed(Right):
+      if isKeyPressed(Right) or isKeyPressed(D):
         currentGame.selectedPowerUp = (currentGame.selectedPowerUp + 1) mod 3
       
       # Select power-up
-      if isKeyPressed(Enter):
+      if isKeyPressed(Enter) or isKeyPressed(E):
         applyPowerUp(currentGame.player, currentGame.powerUpChoices[currentGame.selectedPowerUp])
         # Automatically go to shop after power-up selection
         currentGame.cameFromPowerUpSelect = true

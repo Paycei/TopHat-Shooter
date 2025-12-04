@@ -90,7 +90,7 @@ proc drawShop*(game: Game) =
     let costColor = if game.player.coins >= cost: Green else: Red
     drawText(costText, shopStartX + 270, y.int32 + 20, 18, costColor)
   
-  drawText("ARROW KEYS: select | ENTER: buy | ESC: continue", 
+  drawText("W/S or ARROW KEYS: select | ENTER: buy | ESC: continue", 
           screenWidth div 2 - 280, screenHeight - 50, 18, LightGray)
 
 proc buyShopItem*(game: Game, index: int) =
