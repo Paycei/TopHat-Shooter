@@ -198,38 +198,32 @@ proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
   return 0
 
 proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3, PowerUp] =
-  # Generate 3 random power-up options
+  # Generate 3 random power-up options with COMPLETELY SEPARATE pools
   var availablePowerUps: seq[PowerUp] = @[]
   
-  # Define legendary-only powerups (stronger versions)
-  let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
-                        puBulletSpeed, puLuckyCoins, puWallMaster]
+  # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
+  let legendaryOnlyTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
+                            puBulletSpeed, puLuckyCoins, puWallMaster]
+  
+  # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
+  let normalOnlyTypes = [puDoubleShot, puRotatingShield, puDamageZone, puHomingBullets,
+                         puPiercingShots, puMultiShot, puExplosiveBullets, puLifeSteal,
+                         puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
+                         puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
+                         puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
+                         puFrostShots, puPoisonDamage]
   
   if isLegendary:
-    # Boss defeated - offer legendary upgrades ONLY
-    # First prioritize legendary-exclusive types
-    for powerType in legendaryTypes:
-      let currentLevel = getPowerUpLevel(player, powerType)
-      if currentLevel == 0:
-        availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
-      elif currentLevel < 3:
-        availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prLegendary))
-    
-    # Then include common powerups as legendary versions (for upgrade paths)
-    for powerType in PowerUpType:
-      if powerType in legendaryTypes:
-        continue
+    # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
+    for powerType in legendaryOnlyTypes:
       let currentLevel = getPowerUpLevel(player, powerType)
       if currentLevel == 0:
         availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
       elif currentLevel < 3:
         availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prLegendary))
   else:
-    # Normal wave - offer common upgrades (exclude legendary-only types)
-    for powerType in PowerUpType:
-      if powerType in legendaryTypes:
-        continue
-      
+    # NORMAL WAVE - offer ONLY normal power-ups (exclude legendary-exclusive types)
+    for powerType in normalOnlyTypes:
       let currentLevel = getPowerUpLevel(player, powerType)
       if currentLevel == 0:
         availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prCommon))
@@ -246,16 +240,12 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     if i < availablePowerUps.len:
       result[i] = availablePowerUps[i]
     else:
-      # If we run out, create random power-ups with CORRECT rarity
+      # If we run out, create random power-ups from the CORRECT pool
       if isLegendary:
-        let randomType = legendaryTypes[rand(legendaryTypes.high)]
+        let randomType = legendaryOnlyTypes[rand(legendaryOnlyTypes.high)]
         result[i] = PowerUp(powerType: randomType, level: 1, rarity: prLegendary)
       else:
-        var randomType: PowerUpType
-        while true:
-          randomType = PowerUpType(rand(PowerUpType.high.ord))
-          if randomType notin legendaryTypes:
-            break
+        let randomType = normalOnlyTypes[rand(normalOnlyTypes.high)]
         result[i] = PowerUp(powerType: randomType, level: 1, rarity: prCommon)
 
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
