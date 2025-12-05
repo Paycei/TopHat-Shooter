@@ -61,3 +61,12 @@ proc drawConsumable*(consumable: Consumable) =
 
 proc checkPlayerCollision*(consumable: Consumable, player: Player): bool =
   distance(consumable.pos, player.pos) < consumable.radius + player.radius
+
+proc isInPlayerAura*(consumable: Consumable, player: Player): bool =
+  # Check if consumable is within player's collection aura
+  distance(consumable.pos, player.pos) < player.auraRadius
+
+proc moveConsumableToPlayer*(consumable: Consumable, playerPos: Vector2f, dt: float32) =
+  let dir = (playerPos - consumable.pos).normalize()
+  let pullSpeed = 300.0
+  consumable.pos = consumable.pos + dir * pullSpeed * dt

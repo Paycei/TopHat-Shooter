@@ -112,17 +112,17 @@ proc buyShopItem*(game: Game, index: int) =
   case index
   of 0: # Damage - NERFED scaling
     game.player.damage += 0.5 * pow(1.08, item.bought.float32)
-  of 1: # Fire Rate - NERFED, better diminishing returns
-    game.player.fireRate *= 0.88
-    if game.player.fireRate < 0.05: game.player.fireRate = 0.05
-  of 2: # Move Speed - NERFED gains
-    game.player.speed += 18
-    game.player.baseSpeed += 18
+  of 1: # Fire Rate - HEAVILY NERFED
+    game.player.fireRate *= 0.92
+    if game.player.fireRate < 0.08: game.player.fireRate = 0.08
+  of 2: # Move Speed - HEAVILY NERFED
+    game.player.speed += 12
+    game.player.baseSpeed += 12
   of 3: # Max Health - NERFED HP per purchase
     game.player.maxHp += 2
     game.player.hp += 2
-  of 4: # Bullet Speed - NERFED
-    game.player.bulletSpeed += 50
+  of 4: # Bullet Speed - HEAVILY NERFED
+    game.player.bulletSpeed += 25
   of 5: # Walls - Same as before
     game.player.walls += 4
   else: discard

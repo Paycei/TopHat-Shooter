@@ -5,7 +5,7 @@ const BASE_PLAYER_BULLET_RADIUS* = 4.5
 proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true, 
                 isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false,
                 hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0, 
-                poisonDuration: float32 = 0, isPentagon: bool = false): Bullet =
+                poisonDuration: float32 = 0, isPentagon: bool = false, isEcho: bool = false): Bullet =
   # BUFFED: Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -25,19 +25,31 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     slowAmount: slowAmount,  # Slow effect magnitude (0-1 range)
     poisonDuration: poisonDuration,  # Poison duration in seconds
     isPentagon: isPentagon,
-    hitEnemies: @[]  # Initialize empty sequence
+    hitEnemies: @[],  # Initialize empty sequence
+    travelDistance: 0.0,  # Track distance for Overcharge
+    isEcho: isEcho,  # Whether this is an echo trail bullet
+    echoTrailTimer: 0.0  # Timer for spawning echo trails
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
-  bullet.pos = bullet.pos + bullet.vel * dt
+  # Track distance traveled for Overcharge power-up
+  let movement = bullet.vel * dt
+  bullet.travelDistance += movement.length()
+  
+  bullet.pos = bullet.pos + movement
   bullet.lifetime -= dt
   return bullet.lifetime > 0
 
 proc drawBullet*(bullet: Bullet) =
   var color = if bullet.fromPlayer: Yellow else: Pink
   
+  # Echo bullets are semi-transparent and fade out
+  if bullet.isEcho:
+    let fadeAlpha = uint8((bullet.lifetime / 0.5) * 150.0)  # Fade based on remaining lifetime
+    color = Color(r: 200, g: 200, b: 255, a: fadeAlpha)  # Ghost blue-white
+  
   # Special bullet types have special colors
-  if bullet.fromPlayer:
+  if bullet.fromPlayer and not bullet.isEcho:
     if bullet.isHoming: color = Magenta
     elif bullet.isPiercing: color = SkyBlue
     elif bullet.isExplosive: color = Orange
@@ -88,6 +100,51 @@ proc drawBullet*(bullet: Bullet) =
   elif bullet.poisonDuration > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 50, g: 255, b: 50, a: 150))
+  
+  # Overcharge visual effect - glow that increases with distance
+  if bullet.fromPlayer and bullet.travelDistance > 0:
+    # Calculate charge level based on distance (0.0 to 1.0)
+    let chargeLevel = min(bullet.travelDistance / 2500.0, 1.0)  # Max at 2500 units
+    
+    if chargeLevel > 0.1:  # Only show glow when bullet has traveled some distance
+      # Color shift: Yellow (low) → Orange (mid) → Red (high)
+      let glowColor = if chargeLevel < 0.33:
+        # Yellow to Orange
+        let t = chargeLevel / 0.33
+        Color(
+          r: 255,
+          g: uint8(255.0 - t * 100.0),  # 255 → 155
+          b: 0,
+          a: uint8(100.0 + chargeLevel * 100.0)
+        )
+      elif chargeLevel < 0.66:
+        # Orange to Red
+        let t = (chargeLevel - 0.33) / 0.33
+        Color(
+          r: 255,
+          g: uint8(155.0 - t * 155.0),  # 155 → 0
+          b: 0,
+          a: uint8(100.0 + chargeLevel * 100.0)
+        )
+      else:
+        # Deep Red (max charge)
+        Color(
+          r: 255,
+          g: 0,
+          b: 0,
+          a: uint8(100.0 + chargeLevel * 100.0)
+        )
+      
+      # Draw expanding glow rings
+      let glowRadius = bullet.radius + 2 + chargeLevel * 4
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius, glowColor)
+      
+      # Add a second, larger glow ring for high charge
+      if chargeLevel > 0.5:
+        let outerGlow = glowColor
+        let outerRadius = glowRadius + 3
+        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, outerRadius, 
+                       Color(r: outerGlow.r, g: outerGlow.g, b: outerGlow.b, a: outerGlow.a div 2))
 
 proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool =
   bullet.pos.x < -50 or bullet.pos.x > screenWidth.float32 + 50 or

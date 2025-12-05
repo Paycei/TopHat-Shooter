@@ -32,7 +32,16 @@ proc newPlayer*(x, y: float32): Player =
     activePowerUps: @[],
     powerUpTimers: initTable[PowerUpType, float32](),
     auraRadius: 50.0,  # Invisible coin collection aura
-    doubleShotDelay: 0
+    doubleShotDelay: 0,
+    # Initialize legendary power-up cooldowns
+    timeWarpCooldown: 0,
+    timeWarpActive: false,
+    timeWarpDuration: 0,
+    timeWarpUsesThisWave: 0,
+    timeWarpMaxUsesPerWave: 1,  # Default to level 1
+    phaseShiftCooldown: 0,
+    phaseShiftInvulnTimer: 0,
+    lastPhaseShiftPos: newVector2f(x, y)
   )
 
 proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
@@ -49,6 +58,18 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # Update double-shot delay timer
   if player.doubleShotDelay > 0:
     player.doubleShotDelay -= dt
+  
+  # Update legendary power-up cooldowns
+  if player.timeWarpCooldown > 0:
+    player.timeWarpCooldown -= dt
+  if player.timeWarpDuration > 0:
+    player.timeWarpDuration -= dt
+    if player.timeWarpDuration <= 0:
+      player.timeWarpActive = false
+  if player.phaseShiftCooldown > 0:
+    player.phaseShiftCooldown -= dt
+  if player.phaseShiftInvulnTimer > 0:
+    player.phaseShiftInvulnTimer -= dt
   
   # Calculate current speed with boost
   var currentSpeed = player.speed
@@ -127,8 +148,15 @@ proc drawPlayer*(player: Player) =
     drawText("DODGE!", (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
     player.lastDamageTaken = -1  # Clear flag
   
+  # Phase Shift invulnerability visual effect
+  if player.phaseShiftInvulnTimer > 0:
+    let pulseAlpha = (sin(player.phaseShiftInvulnTimer * 20.0) * 50 + 150).int
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 5, 
+              Color(r: 0, g: 255, b: 255, a: pulseAlpha.uint8))
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, 
+              Color(r: 100, g: 255, b: 255, a: 200))
   # Invincibility visual effect
-  if player.invincibilityTimer > 0:
+  elif player.invincibilityTimer > 0:
     let flash = ((player.invincibilityTimer * 10).int mod 2 == 0)
     if flash:
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, Gold)
@@ -197,9 +225,15 @@ proc drawPlayer*(player: Player) =
         drawCircle(Vector2(x: ex1, y: ey1), 5, Color(r: 135, g: 206, b: 235, a: 200))
         drawCircle(Vector2(x: ex2, y: ey2), 5, Color(r: 135, g: 206, b: 235, a: 200))
 
-proc takeDamage*(player: Player, damage: float32) =
+proc takeDamage*(player: Player, damage: float32): bool =
+  ## Returns true if player died (HP reached 0), false otherwise
+  # Invincibility from consumables
   if player.invincibilityTimer > 0:
-    return
+    return false
+  
+  # Phase Shift invulnerability
+  if player.phaseShiftInvulnTimer > 0:
+    return false
   
   # Dodge chance power-up
   for powerUp in player.powerUps:
@@ -211,11 +245,15 @@ proc takeDamage*(player: Player, damage: float32) =
       if rand(99) < dodgeChance:
         # Dodged! Visual feedback
         player.lastDamageTaken = 0
-        return
+        return false
   
+  let hpBefore = player.hp
   player.hp -= damage
   if player.hp < 0: player.hp = 0
   player.lastDamageTaken = damage
+  
+  # Return true only if HP reached 0 from a positive value
+  return hpBefore > 0 and player.hp <= 0
 
 proc heal*(player: Player, amount: float32) =
   player.hp += amount

@@ -1,5 +1,8 @@
 import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math
 
+# CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
+const BOSS_WAVE_SPAWN_MULTIPLIER = 0.8  # 80% of normal spawn = 20% reduction
+
 proc newGame*(screenWidth, screenHeight: int32): Game =
   result = Game(
     state: gsPlaying,
@@ -33,7 +36,9 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     wavesUntilBoss: 5,  # CHANGED: Boss appears every 5 waves instead of 3
     waveEnemiesRemaining: 0,
     waveEnemiesTotal: 0,
-    waveInProgress: false
+    waveInProgress: false,
+    # Cheat tracking
+    cheatsUsed: false  # Reset to false at start of each run
   )
 
 proc calculateWaveEnemyCount(waveNumber: int): int =
@@ -46,9 +51,16 @@ proc calculateWaveEnemyCount(waveNumber: int): int =
 
 proc startWave*(game: Game) =
   game.waveInProgress = true
-  game.waveEnemiesTotal = calculateWaveEnemyCount(game.currentWave)
-  game.waveEnemiesRemaining = game.waveEnemiesTotal
+  var waveEnemyCount = calculateWaveEnemyCount(game.currentWave)
+  
+  game.waveEnemiesTotal = waveEnemyCount
+  game.waveEnemiesRemaining = waveEnemyCount
   game.spawnTimer = 0
+  
+  # Reset all active ability cooldowns for new wave
+  game.player.timeWarpUsesThisWave = 0
+  game.player.timeWarpCooldown = 0
+  game.player.phaseShiftCooldown = 0
 
 proc spawnWaveEnemies*(game: Game, count: int) =
   # Spawn multiple enemies at once
@@ -235,6 +247,11 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Base bullet properties - use current damage with Rage bonus
     var speed = game.player.bulletSpeed * 1.2
     var damage = getCurrentDamage(game.player)
+    
+    # NERF: Homing bullets deal 10% less damage
+    if hasHoming:
+      damage *= 0.9
+    
     var bulletRadius = BASE_PLAYER_BULLET_RADIUS
     
     # Apply bullet size power-up
@@ -428,11 +445,17 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   playSound(stShoot, 0.25)
 
 proc updateGame*(game: var Game, dt: float32) =
+  # Time Warp effect - apply slow to delta time for enemies/bullets
+  var effectiveDt = dt
+  if game.player.timeWarpActive:
+    let slowFactor = 0.50  # 50% slow = 50% speed (single level)
+    effectiveDt = dt * slowFactor
+  
   # Handle boss spawn warning timer (non-blocking)
   if game.bossSpawnTimer > 0:
     game.bossSpawnTimer -= dt
   
-  # Always update game time
+  # Always update game time (player time not affected)
   game.time += dt
   
   game.spawnTimer += dt
@@ -474,10 +497,9 @@ proc updateGame*(game: var Game, dt: float32) =
         discard
       
       if hit:
-        takeDamage(game.player, laser.damage.float32)
-        game.lasers[j].hasHitPlayer = true
-        if game.player.hp <= 0:
+        if takeDamage(game.player, laser.damage.float32):
           game.state = gsGameOver
+        game.lasers[j].hasHitPlayer = true
     
     # Remove expired lasers
     if game.lasers[j].lifetime <= 0:
@@ -543,6 +565,47 @@ proc updateGame*(game: var Game, dt: float32) =
           enemy.slowTimer -= dt
           if enemy.slowTimer <= 0:
             enemy.slowAmount = 0
+  
+  # Gravity Well (Singularity) - Pull enemies toward player with bonus effect on ranged
+  if hasPowerUp(game.player, puGravityWell):
+    let pullRadius = 300.0  # Single level - balanced radius
+    let basePullStrength = 100.0
+    
+    for enemy in game.enemies:
+      let dist = distance(game.player.pos, enemy.pos)
+      if dist < pullRadius and dist > 10.0:  # Don't pull if too close
+        # Calculate direction to player
+        let toPlayer = (game.player.pos - enemy.pos).normalize()
+        
+        # Check if this is a ranged enemy (gets 50% extra pull)
+        let isRanged = enemy.enemyType in [etCube, etPentagon, etOctagon, etHexagon, etSniper]
+        let pullMultiplier = if isRanged: 1.5 else: 1.0
+        
+        # Apply pull force (stronger when closer)
+        let pullForce = basePullStrength * pullMultiplier * (1.0 - (dist / pullRadius))
+        enemy.pos.x += toPlayer.x * pullForce * dt
+        enemy.pos.y += toPlayer.y * pullForce * dt
+        
+        # Spawn visual particles for gravity effect (more for ranged enemies)
+        let particleChance = if isRanged: 25 else: 15
+        if rand(100) < particleChance:
+          let particleAngle = rand(1.0) * PI * 2.0
+          let particleDist = rand(pullRadius)
+          let particleX = game.player.pos.x + cos(particleAngle) * particleDist
+          let particleY = game.player.pos.y + sin(particleAngle) * particleDist
+          let particleColor = if isRanged: Color(r: 138, g: 43, b: 226, a: 220) else: Color(r: 75, g: 0, b: 130, a: 200)
+          spawnExplosion(game.particles, particleX, particleY, particleColor, 2)
+    
+    # Also pull coins
+    let coinPullMultiplier = 0.0  # No coins for now
+    for coin in game.coins:
+      let dist = distance(game.player.pos, coin.pos)
+      if dist < pullRadius and dist > 10.0:
+        let toPlayer = (game.player.pos - coin.pos).normalize()
+        let pullForce = basePullStrength * coinPullMultiplier * (1.0 - (dist / pullRadius))
+        coin.pos.x += toPlayer.x * pullForce * dt
+        coin.pos.y += toPlayer.y * pullForce * dt
+
 
   
   # Check shooting
@@ -613,15 +676,15 @@ proc updateGame*(game: var Game, dt: float32) =
       # DYNAMIC MULTIPLE ENEMY SPAWNING
       # Spawn 1-3 enemies at once based on wave progression
       let spawnCount = if game.currentWave <= 3: 1
-                      elif game.currentWave <= 7: (if rand(100) < 50: 1 else: 2)
-                      elif game.currentWave <= 12: (if rand(100) < 30: 1 elif rand(100) < 70: 2 else: 3)
-                      else: (if rand(100) < 20: 1 elif rand(100) < 50: 2 else: 3)
+                       elif game.currentWave <= 7: (if rand(100) < 50: 1 else: 2)
+                       elif game.currentWave <= 12: (if rand(100) < 30: 1 elif rand(100) < 70: 2 else: 3)
+                       else: (if rand(100) < 20: 1 elif rand(100) < 50: 2 else: 3)
       
       # SLOWER SPAWN RATE - increased from 0.6-0.8 to 0.8-1.2
       let baseSpawnRate = if game.currentWave <= 3: 1.0
-                         elif game.currentWave <= 7: 1.1
-                         elif game.currentWave <= 12: 1.15
-                         else: 1.2
+                          elif game.currentWave <= 7: 1.1
+                          elif game.currentWave <= 12: 1.15
+                          else: 1.2
       
       if game.spawnTimer > baseSpawnRate and game.waveEnemiesRemaining > 0:
         spawnWaveEnemies(game, spawnCount)
@@ -666,6 +729,10 @@ proc updateGame*(game: var Game, dt: float32) =
       game.bossActive = true
       game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
       game.wavesUntilBoss = 5  # Reset for next boss (every 5 waves)
+      
+      # Reduce remaining enemies by 20% when boss spawns
+      if game.waveEnemiesRemaining > 0:
+        game.waveEnemiesRemaining = (game.waveEnemiesRemaining.float32 * 0.8).int
       
       # Play boss spawn sound
       playSound(stBossSpawn)
@@ -774,9 +841,9 @@ proc updateGame*(game: var Game, dt: float32) =
     
     # Update chain lightning cooldown
     if enemy.chainLightningCooldown > 0:
-      enemy.chainLightningCooldown -= dt
+      enemy.chainLightningCooldown -= effectiveDt  # Use slowed time
     
-    if not updateEnemy(enemy, game.player.pos, dt, game.walls, game.time, game):
+    if not updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game):  # Use slowed time
       # Enemy died - drop coins and particles
       
       # Play enemy death sound
@@ -814,8 +881,7 @@ proc updateGame*(game: var Game, dt: float32) =
         # Check if player is in explosion radius
         let distToPlayer = distance(enemy.pos, game.player.pos)
         if distToPlayer < explosionRadius:
-          takeDamage(game.player, explosionDamage)
-          if game.player.hp <= 0:
+          if takeDamage(game.player, explosionDamage):
             game.state = gsGameOver
         
         # Create MASSIVE explosion visual with multiple layers
@@ -845,9 +911,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let level = getPowerUpLevel(game.player, puLifeSteal)
         game.player.killsSinceLastHeal += 1
         let healsPerKills = case level
-          of 1: 10
-          of 2: 7
-          else: 4
+          of 1: 15
+          of 2: 10
+          else: 6
         
         if game.player.killsSinceLastHeal >= healsPerKills:
           heal(game.player, 1)
@@ -1013,13 +1079,11 @@ proc updateGame*(game: var Game, dt: float32) =
             enemy.hp -= bossContactDamage * reflectPercent
             spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Red, 8)
           
-          takeDamage(game.player, bossContactDamage)
+          if takeDamage(game.player, bossContactDamage):
+            game.state = gsGameOver
           playSound(stPlayerHit, 0.6)
           enemy.lastContactDamageTime = game.time
           spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Red, 10)
-          
-          if game.player.hp <= 0:
-            game.state = gsGameOver
       else:
         # Regular enemies die on contact
         var enemyContactDamage = enemy.damage.float32
@@ -1035,13 +1099,11 @@ proc updateGame*(game: var Game, dt: float32) =
           enemy.hp -= reflectedDamage
           spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Red, 6)
         
-        takeDamage(game.player, enemyContactDamage)
+        if takeDamage(game.player, enemyContactDamage):
+          game.state = gsGameOver
         playSound(stPlayerHit, 0.5)
         enemy.hp = 0
         game.enemies.delete(enemyIdx)
-        
-        if game.player.hp <= 0:
-          game.state = gsGameOver
         continue
     
     enemyIdx += 1
@@ -1080,21 +1142,47 @@ proc updateGame*(game: var Game, dt: float32) =
           nearestEnemy = enemy
       
       if nearestEnemy != nil:
-        # BUFFED tracking - improved at all levels
+        # NERFED tracking - slower turn rate
         let level = getPowerUpLevel(game.player, puHomingBullets)
         let turnRate = case level
-          of 1: 0.033   # BUFFED from 0.015 - noticeable weak tracking
-          of 2: 0.10   # BUFFED from 0.06 - strong tracking
-          else: 0.20   # BUFFED from 0.15 - aggressive tracking
+          of 1: 0.020   # NERFED from 0.033 - very weak tracking
+          of 2: 0.055   # NERFED from 0.10 - moderate tracking
+          else: 0.12    # NERFED from 0.20 - good tracking
         
         let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
         let currentDir = bullet.vel.normalize()
         let newDir = (currentDir * (1.0 - turnRate) + toEnemy * turnRate).normalize()
         bullet.vel = newDir * bullet.vel.length()
 
-    if not updateBullet(bullet, dt) or isOffScreen(bullet, game.screenWidth, game.screenHeight):
+    # Use effectiveDt for enemy bullets (slowed by Time Warp), normal dt for player bullets
+    let bulletDt = if bullet.fromPlayer: dt else: effectiveDt
+    if not updateBullet(bullet, bulletDt) or isOffScreen(bullet, game.screenWidth, game.screenHeight):
       game.bullets.delete(i)
       continue
+    
+    # Echo Shots - spawn ghost trail bullets (SINGLE LEVEL)
+    if bullet.fromPlayer and not bullet.isEcho and hasPowerUp(game.player, puEchoShots):
+      bullet.echoTrailTimer += bulletDt
+      
+      let spawnInterval = 0.08  # Single level - balanced spawn rate
+      let echoDamageMultiplier = 0.40  # Single level - 40% damage
+      
+      if bullet.echoTrailTimer >= spawnInterval:
+        bullet.echoTrailTimer = 0.0
+        
+        # Create a fading ghost bullet at current position
+        let echoBullet = newBullet(bullet.pos.x, bullet.pos.y, bullet.vel.normalize(),
+                                   bullet.vel.length() * 0.5,  # Slower than main bullet
+                                   bullet.damage * echoDamageMultiplier,
+                                   true, bullet.isHoming, bullet.isPiercing, bullet.isExplosive,
+                                   bullet.bounceCount >= 0, false, bullet.slowAmount, 
+                                   bullet.poisonDuration, bullet.isPentagon, true)  # isEcho = true
+        
+        # Echo bullets have short lifetime for fade effect
+        echoBullet.lifetime = 0.35  # Single level - balanced lifetime
+        
+        echoBullet.radius = bullet.radius * 0.8  # Slightly smaller
+        game.bullets.add(echoBullet)
 
     # Check rotating shield collision
     if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):
@@ -1156,11 +1244,21 @@ proc updateGame*(game: var Game, dt: float32) =
           # Play enemy hit sound
           playSound(stEnemyHit, 0.3)
           
+          # Calculate final damage with Overcharge modifier
+          var finalDamage = bullet.damage
+          if hasPowerUp(game.player, puOvercharge):
+            # Single level only - balanced scaling
+            let dmgPerUnit = 0.04 / 100.0  # +4% per 100 units
+            let maxBonus = 1.0  # Max 100% bonus damage
+            
+            let bonusMultiplier = min(bullet.travelDistance * dmgPerUnit, maxBonus)
+            finalDamage = bullet.damage * (1.0 + bonusMultiplier)
+          
           if game.enemies[j].enemyType == etStar:
             # Stars use hit counter
             game.enemies[j].hitCount += 1
           else:
-            game.enemies[j].hp -= bullet.damage
+            game.enemies[j].hp -= finalDamage
           hitEnemy = true
           
           # Apply frost shot slow effect - INDEFINITE (permanent until enemy dies)
@@ -1197,7 +1295,7 @@ proc updateGame*(game: var Game, dt: float32) =
               if k != j and chained < chainCount:
                 let dist = distance(game.enemies[j].pos, game.enemies[k].pos)
                 if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
-                  game.enemies[k].hp -= bullet.damage * chainDamage
+                  game.enemies[k].hp -= finalDamage * chainDamage
                   game.enemies[k].chainLightningCooldown = 0.3
                   chained += 1
                   
@@ -1217,7 +1315,7 @@ proc updateGame*(game: var Game, dt: float32) =
               let angle = split.float32 * PI * 2.0 / splitCount.float32
               let dir = newVector2f(cos(angle), sin(angle))
               let splitBullet = newBullet(bullet.pos.x, bullet.pos.y, dir, 
-                                         bullet.vel.length() * 0.7, bullet.damage * 0.5, true,
+                                         bullet.vel.length() * 0.7, finalDamage * 0.5, true,
                                          bullet.isHoming, bullet.isPiercing, bullet.isExplosive,
                                          bullet.bounceCount >= 0, false, bullet.slowAmount, bullet.poisonDuration)
               splitBullet.hasSplit = true  # Prevent infinite splitting
@@ -1231,7 +1329,7 @@ proc updateGame*(game: var Game, dt: float32) =
               of 1: 0.02  # 2% (reduced from 5%)
               of 2: 0.04  # 4% (reduced from 10%)
               else: 0.07  # 7% (reduced from 18%)
-            let healAmount = bullet.damage * healPercent
+            let healAmount = finalDamage * healPercent
             heal(game.player, healAmount)
             if healAmount > 0.01:  # Only show particles if significant healing
               spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 3)
@@ -1253,7 +1351,7 @@ proc updateGame*(game: var Game, dt: float32) =
             for k in 0..<game.enemies.len:
               let dist = distance(bullet.pos, game.enemies[k].pos)
               if dist < explosionRadius:
-                game.enemies[k].hp -= bullet.damage * 0.5
+                game.enemies[k].hp -= finalDamage * 0.5
             
             # Enhanced visual explosion with shockwave
             spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Orange, 35)
@@ -1325,12 +1423,10 @@ proc updateGame*(game: var Game, dt: float32) =
             nearestEnemy.hp -= reflectedDamage
             spawnExplosion(game.particles, nearestEnemy.pos.x, nearestEnemy.pos.y, Red, 5)
         
-        takeDamage(game.player, bulletDamage)
+        if takeDamage(game.player, bulletDamage):
+          game.state = gsGameOver
         hitEnemy = true
         spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Red, 8)
-        
-        if game.player.hp <= 0:
-          game.state = gsGameOver
     
     # Check bullet-wall collision (only enemy bullets)
     if not bullet.fromPlayer:
@@ -1385,6 +1481,16 @@ proc updateGame*(game: var Game, dt: float32) =
       game.consumables.delete(i)
       continue
     
+    # Check if consumable is in player's collection aura (auto-collect like coins)
+    if isInPlayerAura(game.consumables[i], game.player):
+      # Pull consumable toward player with magnet animation
+      moveConsumableToPlayer(game.consumables[i], game.player.pos, dt)
+      
+      # Add subtle particle trail for magnet effect
+      if rand(100) < 30:  # 30% chance per frame
+        spawnExplosion(game.particles, game.consumables[i].pos.x, game.consumables[i].pos.y, 
+                      Purple, 1)
+    
     if checkPlayerCollision(game.consumables[i], game.player):
       playSound(stPowerUp, 0.6)
       
@@ -1401,6 +1507,13 @@ proc updateGame*(game: var Game, dt: float32) =
         activateFireRateBoost(game.player)
       of ctMagnet:
         activateMagnet(game.player)
+        # Spawn 3 coins in random positions around the player
+        for _ in 0..<3:
+          let angle = rand(1.0) * PI * 2.0
+          let distance = 50.0 + rand(150.0)
+          let coinX = game.player.pos.x + cos(angle) * distance
+          let coinY = game.player.pos.y + sin(angle) * distance
+          game.coins.add(newCoin(coinX, coinY, 1))
       
       let particleColor = case game.consumables[i].consumableType
         of ctHealth: Green
@@ -1468,6 +1581,28 @@ proc drawGame*(game: Game) =
   # Draw enemies
   for enemy in game.enemies:
     drawEnemy(enemy)
+  
+  # Draw Gravity Well visual effect
+  if hasPowerUp(game.player, puGravityWell):
+    let level = getPowerUpLevel(game.player, puGravityWell)
+    let pullRadius = if level == 1: 250.0 else: 350.0
+    
+    # Draw swirling vortex rings
+    for ring in 1..4:
+      let ringRadius = pullRadius * (ring.float32 / 4.0)
+      let alpha = uint8(60 - ring * 10)
+      let rotationOffset = (game.time * (ring.float32 * 0.5)).float32
+      
+      # Draw spiral dots around each ring
+      for i in 0..15:
+        let angle = (i.float32 / 16.0) * PI * 2.0 + rotationOffset
+        let x = game.player.pos.x + cos(angle) * ringRadius
+        let y = game.player.pos.y + sin(angle) * ringRadius
+        drawCircle(Vector2(x: x, y: y), 3, Color(r: 75, g: 0, b: 130, a: alpha))
+    
+    # Draw outer radius circle (very faint)
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius, 
+                   Color(r: 138, g: 43, b: 226, a: 40))
   
   # Draw player
   drawPlayer(game.player)
@@ -1624,8 +1759,43 @@ proc drawGame*(game: Game) =
   drawText("Bullets: " & $game.bullets.len, game.screenWidth - 200, yOffset + 28, 14, LightGray)
   drawText("Particles: " & $game.particles.len, game.screenWidth - 200, yOffset + 46, 14, LightGray)
   
+  # Legendary power-up display (bottom-left corner) - INLINE with Q key hint
+  var legendaryYOffset: int32 = game.screenHeight - 80
+  
+  # Time Warp - only show if has uses available this wave OR actively timing down
+  if hasPowerUp(game.player, puTimeWarp):
+    let usesAvailable = game.player.timeWarpMaxUsesPerWave - game.player.timeWarpUsesThisWave
+    # Show only if has uses left OR is active/on cooldown
+    if usesAvailable > 0:
+      if game.player.timeWarpActive:
+        drawText("Chronos - Q: ACTIVE", 10, legendaryYOffset, 14, 
+                Color(r: 200, g: 100, b: 255, a: 255))
+        legendaryYOffset += 18
+      elif game.player.timeWarpCooldown > 0:
+        drawText("Chronos - Q: " & $(game.player.timeWarpCooldown.int + 1) & "s", 10, legendaryYOffset, 14, 
+                Color(r: 100, g: 100, b: 100, a: 200))
+        legendaryYOffset += 18
+      else:
+        drawText("Chronos - Q: Ready (" & $usesAvailable & "/" & $game.player.timeWarpMaxUsesPerWave & ")", 10, legendaryYOffset, 14,
+                Color(r: 200, g: 100, b: 255, a: 255))
+        legendaryYOffset += 18
+  
+  # Phase Shift - always show if available (has cooldown mechanic)
+  if hasPowerUp(game.player, puPhaseShift):
+    if game.player.phaseShiftInvulnTimer > 0:
+      drawText("Phase - Q: DASH", 10, legendaryYOffset, 14, SkyBlue)
+      legendaryYOffset += 18
+    elif game.player.phaseShiftCooldown > 0:
+      drawText("Phase - Q: " & $(game.player.phaseShiftCooldown.int + 1) & "s", 10, legendaryYOffset, 14,
+              Color(r: 100, g: 100, b: 100, a: 200))
+      legendaryYOffset += 18
+    else:
+      drawText("Phase - Q: Ready", 10, legendaryYOffset, 14, SkyBlue)
+      legendaryYOffset += 18
+  
+  # Instructions only for non-legendary keys
   drawText("E: Wall | ESC: Pause", 
-           game.screenWidth div 2 - 180, game.screenHeight - 25, 16, LightGray)
+           game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
   
   # Custom animated crosshair cursor
   let mousePos = getMousePosition()
@@ -1668,7 +1838,14 @@ proc drawGameOver*(game: Game) =
   if game.mode == gmWaveBased:
     drawText("Wave Reached: " & $game.currentWave, game.screenWidth div 2 - 120, game.screenHeight div 2 - 40, 25, Yellow)
   
-  drawText("Press R to restart or ESC to menu", game.screenWidth div 2 - 190, game.screenHeight div 2 + 140, 20, LightGray)
+  # Show cheat indicator
+  var yOffset = 120
+  if game.cheatsUsed:
+    drawText("Cheats Used: YES", game.screenWidth.int32 div 2 - 100, game.screenHeight.int32 div 2 + yOffset.int32, 20, Color(r: 255, g: 100, b: 100, a: 255))
+  else:
+    drawText("Cheats Used: NO", game.screenWidth div 2 - 95, game.screenHeight div 2 + yOffset.int32, 20, Color(r: 100, g: 255, b: 100, a: 255))
+  
+  drawText("Press R to restart or ESC to menu", game.screenWidth div 2 - 190, game.screenHeight div 2 + 160, 20, LightGray)
 
 proc drawWaveTransition*(game: Game) =
   # Draw the game in background

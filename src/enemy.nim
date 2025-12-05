@@ -60,7 +60,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       lastWallDamageTime: 0,
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
-      attackPhase: 0
+      attackPhase: 0,
+      hasEnteredScreen: false  # Ranged enemy - must enter screen first
     )
   
   of etTriangle:  # Dash + erratic movement
@@ -242,7 +243,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       hexTeleportTimer: 0,
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
-      attackPhase: 0
+      attackPhase: 0,
+      hasEnteredScreen: false  # Ranged enemy - must enter screen first
     )
   
   of etPentagon:  # Single fast bullet, low fire rate
@@ -272,7 +274,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       hexTeleportTimer: 0,
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
-      attackPhase: 0
+      attackPhase: 0,
+      hasEnteredScreen: false  # Ranged enemy - must enter screen first
     )
   
   of etTrickster:  # False warning, real attack elsewhere
@@ -488,38 +491,47 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         enemy.pos = enemy.pos + enemy.vel * dt
     
     of etCube:
+      # Check if enemy is fully inside screen bounds
+      if not enemy.hasEnteredScreen:
+        if enemy.pos.x > enemy.radius and enemy.pos.x < game.screenWidth.float32 - enemy.radius and
+           enemy.pos.y > enemy.radius and enemy.pos.y < game.screenHeight.float32 - enemy.radius:
+          enemy.hasEnteredScreen = true
+      
       enemy.shootTimer += dt
       let distToPlayer = distance(enemy.pos, playerPos)
       let dir = (playerPos - enemy.pos).normalize()
       const optimalDistance = 250.0
       const retreatDistance = 150.0
+      
+      # Calculate next position
+      var nextPos = enemy.pos
       if distToPlayer < retreatDistance:
         let retreatDir = dir * -1.0
-        let nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
-        var canMove = true
-        for wall in walls:
-          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-            canMove = false
-            if currentTime - enemy.lastWallDamageTime >= 1.0:
-              wall.takeDamage(1.0)
-              enemy.hp -= 1.0
-              enemy.lastWallDamageTime = currentTime
-            break
-        if canMove:
-          enemy.pos = nextPos
+        nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
       elif distToPlayer > optimalDistance:
-        let nextPos = enemy.pos + dir * effectiveSpeed * 0.5 * dt
-        var canMove = true
-        for wall in walls:
-          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-            canMove = false
-            if currentTime - enemy.lastWallDamageTime >= 1.0:
-              wall.takeDamage(1.0)
-              enemy.hp -= 1.0
-              enemy.lastWallDamageTime = currentTime
-            break
-        if canMove:
-          enemy.pos = nextPos
+        # Allow approach movement always (not restricted by hasEnteredScreen)
+        nextPos = enemy.pos + dir * effectiveSpeed * 0.5 * dt
+      
+      # Check wall collisions
+      var canMove = true
+      for wall in walls:
+        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+          canMove = false
+          if currentTime - enemy.lastWallDamageTime >= 1.0:
+            wall.takeDamage(1.0)
+            enemy.hp -= 1.0
+            enemy.lastWallDamageTime = currentTime
+          break
+      
+      # Screen boundary check - keep ranged enemies inside once entered
+      # Only prevent leaving screen, allow entering freely
+      if enemy.hasEnteredScreen:
+        if nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
+           nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius:
+          canMove = false
+      
+      if canMove:
+        enemy.pos = nextPos
     
     of etTriangle:
       enemy.dashTimer -= dt
@@ -690,6 +702,12 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         enemy.pos = nextPos
     
     of etOctagon:
+      # Check if enemy is fully inside screen bounds
+      if not enemy.hasEnteredScreen:
+        if enemy.pos.x > enemy.radius and enemy.pos.x < game.screenWidth.float32 - enemy.radius and
+           enemy.pos.y > enemy.radius and enemy.pos.y < game.screenHeight.float32 - enemy.radius:
+          enemy.hasEnteredScreen = true
+      
       # Many slow inaccurate projectiles
       enemy.shootTimer += dt
       if enemy.shootTimer > 0.4:  # Very frequent
@@ -706,18 +724,37 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       # Slow backing movement
       let dir = (playerPos - enemy.pos).normalize()
       let distToPlayer = distance(enemy.pos, playerPos)
+      var nextPos = enemy.pos
+      
       if distToPlayer < 200:
+        # Allow retreat movement always (not restricted by hasEnteredScreen)
         let retreatDir = dir * -1.0
-        let nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
-        var canMove = true
-        for wall in walls:
-          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-            canMove = false
-            break
-        if canMove:
-          enemy.pos = nextPos
+        nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
+      
+      # Check wall collisions
+      var canMove = true
+      for wall in walls:
+        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+          canMove = false
+          break
+      
+      # Screen boundary check - keep ranged enemies inside once entered
+      # Only prevent leaving screen, allow entering freely
+      if enemy.hasEnteredScreen:
+        if nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
+           nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius:
+          canMove = false
+      
+      if canMove:
+        enemy.pos = nextPos
     
     of etPentagon:
+      # Check if enemy is fully inside screen bounds
+      if not enemy.hasEnteredScreen:
+        if enemy.pos.x > enemy.radius and enemy.pos.x < game.screenWidth.float32 - enemy.radius and
+           enemy.pos.y > enemy.radius and enemy.pos.y < game.screenHeight.float32 - enemy.radius:
+          enemy.hasEnteredScreen = true
+      
       # BUFFED: Pentagon-shaped bullet projectile, larger size
       enemy.shootTimer += dt
       if enemy.shootTimer > 2.5:  # Low fire rate
@@ -732,25 +769,32 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       let dir = (playerPos - enemy.pos).normalize()
       let distToPlayer = distance(enemy.pos, playerPos)
       const optimalDistance = 300.0
+      
+      var nextPos = enemy.pos
       if distToPlayer < optimalDistance - 50:
+        # Allow retreat movement always (not restricted by hasEnteredScreen)
         let retreatDir = dir * -1.0
-        let nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
-        var canMove = true
-        for wall in walls:
-          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-            canMove = false
-            break
-        if canMove:
-          enemy.pos = nextPos
+        nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
       elif distToPlayer > optimalDistance + 50:
-        let nextPos = enemy.pos + dir * effectiveSpeed * 0.6 * dt
-        var canMove = true
-        for wall in walls:
-          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-            canMove = false
-            break
-        if canMove:
-          enemy.pos = nextPos
+        # Allow approach movement always (not restricted by hasEnteredScreen)
+        nextPos = enemy.pos + dir * effectiveSpeed * 0.6 * dt
+      
+      # Check wall collisions
+      var canMove = true
+      for wall in walls:
+        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+          canMove = false
+          break
+      
+      # Screen boundary check - keep ranged enemies inside once entered
+      # Only prevent leaving screen, allow entering freely
+      if enemy.hasEnteredScreen:
+        if nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
+           nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius:
+          canMove = false
+      
+      if canMove:
+        enemy.pos = nextPos
     
     of etTrickster:
       # Shows false warning, attacks differently

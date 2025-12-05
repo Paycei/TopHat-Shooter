@@ -72,7 +72,12 @@ type
     puBulletSplit,     # Bullets split on impact
     puChainLightning,  # Damage chains between enemies
     puFrostShots,      # Bullets slow enemies
-    puPoisonDamage     # Damage over time effect
+    puPoisonDamage,    # Damage over time effect
+    puTimeWarp,        # Slow down time globally
+    puGravityWell,     # Pull enemies toward you
+    puPhaseShift,      # Teleport dash through enemies
+    puOvercharge,      # Bullets gain power over distance
+    puEchoShots        # Bullets leave damaging trails
   
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
@@ -124,6 +129,15 @@ type
     activePowerUps*: seq[PowerUpType]
     auraRadius*: float32  # Invisible coin collection aura
     doubleShotDelay*: float32  # Timer for double-shot rapid succession
+    # New legendary power-up timers and states
+    timeWarpCooldown*: float32
+    timeWarpActive*: bool
+    timeWarpDuration*: float32
+    timeWarpUsesThisWave*: int  # Track uses per wave
+    timeWarpMaxUsesPerWave*: int  # Depends on level (1, 2, or 3)
+    phaseShiftCooldown*: float32
+    phaseShiftInvulnTimer*: float32
+    lastPhaseShiftPos*: Vector2f
 
   Enemy* = ref object
     pos*: Vector2f
@@ -165,6 +179,8 @@ type
     fakeWarningTimer*: float32
     clonePositions*: seq[Vector2f]
     cloneTimer*: float32
+    # Field for ranged enemy screen restriction
+    hasEnteredScreen*: bool  # Tracks if ranged enemy is fully inside screen
 
   Bullet* = ref object
     pos*: Vector2f
@@ -183,6 +199,10 @@ type
     poisonDuration*: float32
     isPentagon*: bool  # Special pentagon-shaped bullets
     hitEnemies*: seq[int]  # Track enemy indices already hit by this bullet
+    # New legendary power-up bullet properties
+    travelDistance*: float32  # Track distance for Overcharge
+    isEcho*: bool  # True if this is an echo clone bullet
+    echoTrailTimer*: float32  # Timer for spawning echo clones
 
   Coin* = ref object
     pos*: Vector2f
@@ -262,6 +282,8 @@ type
     waveEnemiesRemaining*: int
     waveEnemiesTotal*: int
     waveInProgress*: bool
+    # Cheat tracking
+    cheatsUsed*: bool  # Set to true if cheat menu opened during run
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

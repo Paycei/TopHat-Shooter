@@ -34,7 +34,7 @@ proc initCheatMenu*(): CheatMenu =
   )
   globalCheatMenu = result
 
-proc checkCheatSequence*(menu: CheatMenu, currentTime: float32) =
+proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) =
   if not CHEATS_ENABLED: return
 
   # Reset sequence if too much time has passed
@@ -65,6 +65,11 @@ proc checkCheatSequence*(menu: CheatMenu, currentTime: float32) =
           menu.active = not menu.active
           playSound(stMenuSelect)
           menu.keySequence.setLen(0)
+          
+          # Mark that cheats were used if menu opened during gameplay
+          if menu.active and game.state == gsPlaying:
+            game.cheatsUsed = true
+          
           return
 
       # Reset if sequence gets too long
@@ -75,13 +80,13 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
   if not menu.active or not CHEATS_ENABLED:
     return
   
-  # Close menu with Escape or clicking X
+  # Close menu with Escape
   if isKeyPressed(KeyboardKey.Escape):
     menu.active = false
     playSound(stMenuNav)
     return
   
-  # Tab switching
+  # Tab switching with keyboard
   if isKeyPressed(KeyboardKey.One) or isKeyPressed(KeyboardKey.Kp1):
     menu.currentTab = cmtWaves
     playSound(stMenuNav)
@@ -101,6 +106,13 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
       menu.scrollOffset = max(0, menu.scrollOffset - 1)
     elif isKeyPressed(KeyboardKey.Down):
       menu.scrollOffset += 1
+    
+    # Mouse wheel scrolling
+    let wheelMove = getMouseWheelMove()
+    if wheelMove < 0:
+      menu.scrollOffset += 1
+    elif wheelMove > 0:
+      menu.scrollOffset = max(0, menu.scrollOffset - 1)
 
 proc applyWaveCheat*(game: var Game, action: string) =
   case action
@@ -187,22 +199,58 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
   let titleWidth = measureText(title, 20)
   drawText(title, panelX + (panelWidth - titleWidth) div 2, panelY + 10, 20, Yellow)
   
-  # Close instruction
-  drawText("Press ESC to close", panelX + 10, panelY + 35, 12, Gray)
+  # Close button (X)
+  let closeButtonSize: int32 = 30
+  let closeX = panelX + panelWidth - closeButtonSize - 10
+  let closeY = panelY + 10
+  let closeRect = Rectangle(x: closeX.float32, y: closeY.float32, width: closeButtonSize.float32, height: closeButtonSize.float32)
+  let closeHovered = checkCollisionPointRec(getMousePosition(), closeRect)
   
-  # Tab buttons
+  drawRectangle(closeX, closeY, closeButtonSize, closeButtonSize, 
+                if closeHovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255))
+  drawRectangleLines(closeX, closeY, closeButtonSize, closeButtonSize, Red)
+  drawText("X", closeX + 9, closeY + 7, 16, White)
+  
+  if closeHovered and isMouseButtonPressed(Left):
+    menu.active = false
+    playSound(stMenuNav)
+    return
+  
+  # Close instruction
+  drawText("Press ESC or click X to close", panelX + 10, panelY + 35, 12, Gray)
+  
+  # Tab buttons with mouse support
   let tabY = panelY + 60
   let tabWidth = panelWidth div 4
   
   let tabs = ["1. Waves", "2. Power-Ups", "3. Stats", "4. Permanent"]
   for i in 0'i32..3'i32:
     let tabX = panelX + (i * tabWidth)
-    let tabColor = if CheatMenuTab(i) == menu.currentTab: Yellow else: Gray
-    drawRectangle(tabX, tabY, tabWidth, 30, Color(r: 20, g: 20, b: 30, a: 255))
+    let tabRect = Rectangle(x: tabX.float32, y: tabY.float32, width: tabWidth.float32, height: 30.float32)
+    let tabHovered = checkCollisionPointRec(getMousePosition(), tabRect)
+    let isActiveTab = CheatMenuTab(i) == menu.currentTab
+    
+    var tabColor: Color
+    if isActiveTab:
+      tabColor = if tabHovered: Color(r: 255, g: 255, b: 0, a: 255) else: Yellow
+    else:
+      tabColor = if tabHovered: Color(r: 180, g: 180, b: 180, a: 255) else: Gray
+    
+    let bgColor = if isActiveTab: 
+      Color(r: 40, g: 40, b: 50, a: 255)
+    else:
+      if tabHovered: Color(r: 35, g: 35, b: 45, a: 255) else: Color(r: 20, g: 20, b: 30, a: 255)
+    
+    drawRectangle(tabX, tabY, tabWidth, 30, bgColor)
     drawRectangleLines(tabX, tabY, tabWidth, 30, tabColor)
     let tabText = tabs[i]
     let textWidth = measureText(tabText, 14)
     drawText(tabText, tabX + (tabWidth - textWidth) div 2, tabY + 8, 14, tabColor)
+    
+    # Handle tab click
+    if tabHovered and isMouseButtonPressed(Left):
+      menu.currentTab = CheatMenuTab(i)
+      playSound(stMenuNav)
   
   # Content area
   let contentY = tabY + 40
@@ -217,6 +265,11 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     drawStatsTab(panelX, contentY, panelWidth, contentHeight, game)
   of cmtPermanentPowerUps:
     drawPermanentPowerUpsTab(panelX, contentY, panelWidth, contentHeight, game, menu)
+  
+  # Draw cursor on top of everything when menu is active
+  let mousePos = getMousePosition()
+  drawCircle(mousePos, 4, Color(r: 255, g: 255, b: 255, a: 200))
+  drawCircleLines(mousePos.x.int32, mousePos.y.int32, 4, Black)
 
 proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10
@@ -500,7 +553,8 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puSpeedBoost, puBulletDamage, puBulletSpeed, puLuckyCoins, puWallMaster,
     puAutoShoot, puBulletSize, puRegeneration, puDodgeChance, puCriticalHit,
     puVampirism, puBulletRicochet, puSlowField, puRage, puBerserker,
-    puThorns, puBulletSplit, puChainLightning, puFrostShots, puPoisonDamage
+    puThorns, puBulletSplit, puChainLightning, puFrostShots, puPoisonDamage,
+    puTimeWarp, puGravityWell, puPhaseShift, puOvercharge, puEchoShots
   ]
   
   # Scrollable area setup

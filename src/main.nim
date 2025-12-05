@@ -246,7 +246,7 @@ proc main() =
         playMusic(mtWave)
       
       # Check for cheat menu activation
-      checkCheatSequence(cheatMenu, currentGame.time)
+      checkCheatSequence(cheatMenu, currentGame, currentGame.time)
       
       # Update cheat menu if active (pauses game)
       if cheatMenu.active:
@@ -273,6 +273,77 @@ proc main() =
         let feedbackColor = if currentGame.player.autoShootEnabled: Green else: Red
         spawnExplosion(currentGame.particles, currentGame.player.pos.x, currentGame.player.pos.y, 
                       feedbackColor, 20)
+      
+      # Activate ALL legendary power-ups with Q key (simultaneous activation)
+      if isKeyPressed(Q):
+        var anyActivated = false
+        
+        # Time Warp - slow down time (3 LEVELS - adds +1 use per wave)
+        if hasPowerUp(currentGame.player, puTimeWarp) and currentGame.player.timeWarpCooldown <= 0:
+          # Check if uses available for this wave
+          if currentGame.player.timeWarpUsesThisWave < currentGame.player.timeWarpMaxUsesPerWave:
+            let duration = 3.5
+            let cooldown = 20.0  # 20 second cooldown between uses
+            
+            currentGame.player.timeWarpActive = true
+            currentGame.player.timeWarpDuration = duration
+            currentGame.player.timeWarpCooldown = cooldown
+            currentGame.player.timeWarpUsesThisWave += 1  # Increment uses
+            spawnExplosion(currentGame.particles, currentGame.player.pos.x, currentGame.player.pos.y, 
+                          Color(r: 138, g: 43, b: 226, a: 255), 30)
+            anyActivated = true
+        
+        # Phase Shift - teleport dash (SINGLE LEVEL - scales with speed)
+        if hasPowerUp(currentGame.player, puPhaseShift) and currentGame.player.phaseShiftCooldown <= 0:
+          # Distance scales with player movement speed (base 140, scales up with speed)
+          let baseDistance = 140.0
+          let speedRatio = currentGame.player.speed / currentGame.player.baseSpeed
+          let dashDistance = baseDistance * speedRatio
+          
+          let cooldown = 10.0  # 10 second cooldown
+          let invulnDuration = 0.6
+          
+          # Calculate dash direction - PRIORITIZE WASD movement direction
+          var dashDir = newVector2f(0, 0)
+          if isKeyDown(W): dashDir.y -= 1
+          if isKeyDown(S): dashDir.y += 1
+          if isKeyDown(A): dashDir.x -= 1
+          if isKeyDown(D): dashDir.x += 1
+          
+          # Always activate cooldown and invulnerability
+          currentGame.player.phaseShiftCooldown = cooldown
+          currentGame.player.phaseShiftInvulnTimer = invulnDuration
+          
+          if dashDir.length() > 0:
+            # Dash in movement direction
+            dashDir = dashDir.normalize()
+            currentGame.player.lastPhaseShiftPos = currentGame.player.pos
+            currentGame.player.pos.x += dashDir.x * dashDistance
+            currentGame.player.pos.y += dashDir.y * dashDistance
+            
+            # Keep player in bounds
+            currentGame.player.pos.x = max(currentGame.player.radius, 
+                                           min(currentGame.player.pos.x, 
+                                               currentGame.screenWidth.float32 - currentGame.player.radius))
+            currentGame.player.pos.y = max(currentGame.player.radius, 
+                                           min(currentGame.player.pos.y, 
+                                               currentGame.screenHeight.float32 - currentGame.player.radius))
+            
+            # Visual effects at start and end position
+            spawnExplosion(currentGame.particles, currentGame.player.lastPhaseShiftPos.x, 
+                          currentGame.player.lastPhaseShiftPos.y, SkyBlue, 25)
+            spawnExplosion(currentGame.particles, currentGame.player.pos.x, 
+                          currentGame.player.pos.y, SkyBlue, 25)
+          else:
+            # Dash in place - just visual effect
+            spawnExplosion(currentGame.particles, currentGame.player.pos.x, 
+                          currentGame.player.pos.y, SkyBlue, 30)
+          
+          anyActivated = true
+        
+        # Play sound if any ability was activated
+        if anyActivated:
+          playSound(stPowerUp)
       
       # Pause
       if isKeyPressed(Escape):
@@ -321,7 +392,7 @@ proc main() =
         buyShopItem(currentGame, currentGame.selectedShopItem)
       
       # Close shop - always continue to next wave (no going back to power-up selection)
-      if isKeyPressed(Escape):
+      if isKeyPressed(Escape) or isKeyPressed(Q):
         currentGame.cameFromPowerUpSelect = false
         currentGame.state = gsCountdown
         currentGame.countdownTimer = 0.5
@@ -430,7 +501,7 @@ proc main() =
         currentGame.mode = gmWaveBased  # Default to wave-based on restart
         currentGame.state = gsPlaying
       
-      if isKeyPressed(Escape):
+      if isKeyPressed(Escape) or isKeyPressed(Q):
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.state = gsMenu
       

@@ -32,6 +32,11 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puChainLightning: "Chain Lightning"
   of puFrostShots: "Frost Shots"
   of puPoisonDamage: "Poison"
+  of puTimeWarp: "Chronos"
+  of puGravityWell: "Singularity"
+  of puPhaseShift: "Phase Walker"
+  of puOvercharge: "Momentum"
+  of puEchoShots: "Echo Strike"
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
   of puDoubleShot:
@@ -50,10 +55,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 2: "5 dmg/sec in 100 radius"
     else: "10 dmg/sec in 150 radius"
   of puHomingBullets:
-    case level
-    of 1: "Bullets barely track enemies"
-    of 2: "Bullets track enemies"
-    else: "Bullets aggressively track"
+    # Single level only - balanced tracking
+    "Bullets track enemies (10% dmg penalty)"
   of puPiercingShots:
     case level
     of 1: "Bullets pierce 1 enemy"
@@ -71,44 +74,37 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Bullets explode (large radius)"
   of puLifeSteal:
     case level
-    of 1: "Heal 1 HP per 10 kills"
-    of 2: "Heal 1 HP per 7 kills"
-    else: "Heal 1 HP per 4 kills"
+    of 1: "Heal 1 HP per 15 kills"
+    of 2: "Heal 1 HP per 10 kills"
+    else: "Heal 1 HP per 6 kills"
   of puRapidFire:
     case level
-    of 1: "+25% fire rate"
-    of 2: "+50% fire rate"
+    of 1: "+40% fire rate"
     else: "+80% fire rate"
   of puMaxHealth:
     case level
-    of 1: "+2 max HP"
-    of 2: "+4 max HP"
-    else: "+7 max HP"
+    of 1: "+3 max HP"
+    else: "+6 max HP"
   of puSpeedBoost:
     case level
-    of 1: "+20% movement speed"
-    of 2: "+40% movement speed"
-    else: "+70% movement speed"
+    of 1: "+30% movement speed"
+    else: "+60% movement speed"
   of puBulletDamage:
     case level
-    of 1: "+50% bullet damage"
-    of 2: "+100% bullet damage"
-    else: "+180% bullet damage"
+    of 1: "+70% bullet damage"
+    else: "+140% bullet damage"
   of puBulletSpeed:
     case level
     of 1: "+30% bullet speed"
-    of 2: "+60% bullet speed"
-    else: "+100% bullet speed"
+    else: "+60% bullet speed"
   of puLuckyCoins:
     case level
-    of 1: "+30% coin drops"
-    of 2: "+70% coin drops"
-    else: "+150% coin drops"
+    of 1: "+50% coin drops"
+    else: "+120% coin drops"
   of puWallMaster:
     case level
-    of 1: "Walls have +50% HP"
-    of 2: "Walls have +120% HP"
-    else: "Walls have +250% HP"
+    of 1: "Walls have +80% HP"
+    else: "Walls have +180% HP"
   of puAutoShoot:
     case level
     of 1: "Auto-fire (60% rate, 250 range)"
@@ -184,6 +180,23 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "Bullets poison (1 dmg/s, 4s)"
     of 2: "Bullets poison (2 dmg/s, 5s)"
     else: "Bullets poison (4 dmg/s, 6s)"
+  of puTimeWarp:
+    case level
+    of 1: "Slow time 50% for 3.5s (1 use/wave, 20s cd)"
+    of 2: "Slow time 50% for 3.5s (2 uses/wave, 20s cd)"
+    else: "Slow time 50% for 3.5s (3 uses/wave, 20s cd)"
+  of puGravityWell:
+    # Single level only - balanced passive pull
+    "Pull enemies in 300 radius"
+  of puPhaseShift:
+    # Single level only - balanced teleport (NERFED)
+    "Dash forward (10s cd, 0.6s invuln, scales with speed)"
+  of puOvercharge:
+    # Single level only - balanced momentum system
+    "+4% dmg per 100 units (max 100%)"
+  of puEchoShots:
+    # Single level only - balanced echo trail
+    "Bullets leave ghost trail (40% dmg)"
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -202,8 +215,10 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   var availablePowerUps: seq[PowerUp] = @[]
   
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
+  # All legendary active abilities are SINGLE LEVEL ONLY
   let legendaryOnlyTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
-                            puBulletSpeed, puLuckyCoins, puWallMaster]
+                            puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
+                            puGravityWell, puPhaseShift, puOvercharge, puEchoShots]
   
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
   let normalOnlyTypes = [puDoubleShot, puRotatingShield, puDamageZone, puHomingBullets,
@@ -217,10 +232,23 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
     for powerType in legendaryOnlyTypes:
       let currentLevel = getPowerUpLevel(player, powerType)
-      if currentLevel == 0:
-        availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
-      elif currentLevel < 3:
-        availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prLegendary))
+      # Special handling for single-level legendary actives
+      if powerType in [puPhaseShift, puGravityWell, puOvercharge, puEchoShots]:
+        # These are SINGLE LEVEL ONLY
+        if currentLevel == 0:
+          availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
+      elif powerType == puTimeWarp:
+        # Time Warp has 3 levels (adds +1 use per wave each level)
+        if currentLevel == 0:
+          availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
+        elif currentLevel < 3:
+          availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prLegendary))
+      else:
+        # Multi-level legendary passives (up to level 3)
+        if currentLevel == 0:
+          availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
+        elif currentLevel < 3:
+          availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prLegendary))
   else:
     # NORMAL WAVE - offer ONLY normal power-ups (exclude legendary-exclusive types)
     for powerType in normalOnlyTypes:
@@ -283,6 +311,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       of 2: 1.6
       else: 2.0
     player.bulletSpeed *= speedMultiplier
+  of puTimeWarp:
+    # Time Warp uses are based on level: 1, 2, or 3 uses per wave
+    player.timeWarpMaxUsesPerWave = powerUp.level
   else:
     discard
   
@@ -586,6 +617,90 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     for i in 0..3:
       let offsetY = -15 + i * 5
       drawCircle(Vector2(x: centerX.float32, y: (iconY + offsetY).float32), 4, Color(r: 100, g: 255, b: 100, a: 180))
+  of puTimeWarp:
+    # Clock with time distortion effect
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 15, Color(r: 138, g: 43, b: 226, a: 150))
+    drawCircleLines(centerX.int32, iconY.int32, 15, Color(r: 186, g: 85, b: 211, a: 255))
+    # Clock hands
+    drawLine(Vector2(x: centerX.float32, y: iconY.float32), 
+            Vector2(x: centerX.float32, y: (iconY - 10).float32), 3, White)
+    drawLine(Vector2(x: centerX.float32, y: iconY.float32), 
+            Vector2(x: (centerX + 8).float32, y: iconY.float32), 2, White)
+    # Time distortion waves
+    for i in 1..3:
+      let waveRadius = 15 + i * 8
+      drawCircleLines(centerX.int32, iconY.int32, waveRadius.float32, 
+                     Color(r: 138, g: 43, b: 226, a: uint8(100 - i * 25)))
+  of puGravityWell:
+    # Swirling vortex effect
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 5, Color(r: 75, g: 0, b: 130, a: 255))
+    for ring in 1..4:
+      let ringRadius = 5 + ring * 6
+      for i in 0..7:
+        let angle = (i.float32 + ring.float32 * 0.5) * PI / 4.0
+        let x = centerX.float32 + cos(angle) * ringRadius.float32
+        let y = iconY.float32 + sin(angle) * ringRadius.float32
+        let size = 3 - ring div 2
+        drawCircle(Vector2(x: x, y: y), size.float32, 
+                  Color(r: 138, g: 43, b: 226, a: uint8(200 - ring * 40)))
+    # Inward arrows
+    for i in 0..3:
+      let angle = i.float32 * PI / 2.0
+      let startX = centerX.float32 + cos(angle) * 25
+      let startY = iconY.float32 + sin(angle) * 25
+      let endX = centerX.float32 + cos(angle) * 12
+      let endY = iconY.float32 + sin(angle) * 12
+      drawLine(Vector2(x: startX, y: startY), Vector2(x: endX, y: endY), 2, Purple)
+  of puPhaseShift:
+    # Ghost trail effect with player silhouette
+    for i in 0..3:
+      let alpha = uint8(180 - i * 40)
+      let offsetX = i * 6
+      drawCircle(Vector2(x: (centerX - offsetX).float32, y: iconY.float32), 
+                10, Color(r: 64, g: 224, b: 208, a: alpha))
+    # Main player position with glow
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 10, SkyBlue)
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, 
+              Color(r: 0, g: 255, b: 255, a: 100))
+    # Phase shift lines
+    for i in 0..2:
+      let lineY = iconY - 8 + i * 8
+      drawLine(Vector2(x: (centerX - 25).float32, y: lineY.float32),
+              Vector2(x: (centerX - 15).float32, y: lineY.float32), 2, 
+              Color(r: 64, g: 224, b: 208, a: 150))
+  of puOvercharge:
+    # Energy buildup with increasing size
+    for i in 0..4:
+      let size = 4 + i * 2
+      let offsetX = -20 + i * 10
+      let brightness = uint8(100 + i * 30)
+      drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 
+                size.float32, Color(r: brightness, g: brightness, b: 0, a: 200))
+      # Energy trail
+      if i > 0:
+        let prevX = centerX + offsetX - 10
+        drawLine(Vector2(x: prevX.float32, y: iconY.float32),
+                Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 
+                2, Color(r: 255, g: 200, b: 0, a: 150))
+    # Power arrow
+    drawLine(Vector2(x: (centerX - 28).float32, y: iconY.float32),
+            Vector2(x: (centerX + 28).float32, y: iconY.float32), 3, Orange)
+  of puEchoShots:
+    # Main bullet
+    drawCircle(Vector2(x: (centerX - 20).float32, y: iconY.float32), 8, Yellow)
+    # Echo trail bullets
+    for i in 1..7:
+      let alpha = uint8(200 - i * 25)
+      let offsetX = -20 + i * 6
+      let size = 8 - i div 2
+      drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 
+                size.float32, Color(r: 255, g: 255, b: 0, a: alpha))
+    # Motion lines
+    for i in 0..3:
+      let lineY = iconY - 12 + i * 8
+      drawLine(Vector2(x: (centerX - 30).float32, y: lineY.float32),
+              Vector2(x: (centerX - 15).float32, y: lineY.float32), 2, 
+              Color(r: 255, g: 215, b: 0, a: 100))
   
   # Rarity indicator
   if powerUp.rarity == prLegendary:
