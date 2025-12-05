@@ -193,12 +193,13 @@ proc spawnWaveEnemy*(game: Game) =
       else: enemyType = etHexagon
     
     else:
-      # Wave 16+: Balanced chaos - all enemy types
-      if roll < 20: enemyType = etCircle
-      elif roll < 35: enemyType = etCube
-      elif roll < 55: enemyType = etTriangle
-      elif roll < 70: enemyType = etStar
-      else: enemyType = etHexagon
+      # Wave 16+: Balanced chaos - all enemy types including rare Sniper
+      if roll < 18: enemyType = etCircle
+      elif roll < 33: enemyType = etCube
+      elif roll < 50: enemyType = etTriangle
+      elif roll < 65: enemyType = etStar
+      elif roll < 95: enemyType = etHexagon
+      else: enemyType = etSniper  # Very rare 5% chance at wave 16+
     
     # Difficulty scaling: increase every 3 waves (similar to time survival's 30s intervals)
     let baseDifficulty = (wave - 1).float32 / 3.0

@@ -1,4 +1,4 @@
-import raylib, types, sound, std/tables
+import raylib, types, sound, std/tables, math
 from powerup import applyPowerUp, getPowerUpName
 
 # TOGGLE THIS TO ENABLE/DISABLE CHEATS
@@ -9,7 +9,8 @@ type
     cmtWaves,
     cmtPowerUps,
     cmtStats,
-    cmtPermanentPowerUps
+    cmtPermanentPowerUps,
+    cmtEnemies  # New tab for enemy list
 
   CheatMenu* = ref object
     active*: bool
@@ -99,6 +100,9 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
   elif isKeyPressed(KeyboardKey.Four) or isKeyPressed(KeyboardKey.Kp4):
     menu.currentTab = cmtPermanentPowerUps
     playSound(stMenuNav)
+  elif isKeyPressed(KeyboardKey.Five) or isKeyPressed(KeyboardKey.Kp5):
+    menu.currentTab = cmtEnemies
+    playSound(stMenuNav)
   
   # Handle scrolling for permanent power-ups tab
   if menu.currentTab == cmtPermanentPowerUps:
@@ -176,6 +180,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game)
 proc drawPowerUpsTab(x, y, width, height: int32, game: var Game)
 proc drawStatsTab(x, y, width, height: int32, game: var Game)
 proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu)
+proc drawEnemiesTab(x, y, width, height: int32, game: var Game)  # New tab
 
 proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: int32) =
   if not menu.active or not CHEATS_ENABLED:
@@ -221,10 +226,10 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
   
   # Tab buttons with mouse support
   let tabY = panelY + 60
-  let tabWidth = panelWidth div 4
+  let tabWidth = panelWidth div 5  # Changed from div 4 to div 5
   
-  let tabs = ["1. Waves", "2. Power-Ups", "3. Stats", "4. Permanent"]
-  for i in 0'i32..3'i32:
+  let tabs = ["1. Waves", "2. Power", "3. Stats", "4. Perma", "5. Enemies"]
+  for i in 0'i32..4'i32:  # Changed from 3 to 4
     let tabX = panelX + (i * tabWidth)
     let tabRect = Rectangle(x: tabX.float32, y: tabY.float32, width: tabWidth.float32, height: 30.float32)
     let tabHovered = checkCollisionPointRec(getMousePosition(), tabRect)
@@ -244,8 +249,8 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     drawRectangle(tabX, tabY, tabWidth, 30, bgColor)
     drawRectangleLines(tabX, tabY, tabWidth, 30, tabColor)
     let tabText = tabs[i]
-    let textWidth = measureText(tabText, 14)
-    drawText(tabText, tabX + (tabWidth - textWidth) div 2, tabY + 8, 14, tabColor)
+    let textWidth = measureText(tabText, 12)  # Changed from 14 to 12 for smaller font
+    drawText(tabText, tabX + (tabWidth - textWidth) div 2, tabY + 9, 12, tabColor)
     
     # Handle tab click
     if tabHovered and isMouseButtonPressed(Left):
@@ -265,6 +270,8 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     drawStatsTab(panelX, contentY, panelWidth, contentHeight, game)
   of cmtPermanentPowerUps:
     drawPermanentPowerUpsTab(panelX, contentY, panelWidth, contentHeight, game, menu)
+  of cmtEnemies:
+    drawEnemiesTab(panelX, contentY, panelWidth, contentHeight, game)
   
   # Draw cursor on top of everything when menu is active
   let mousePos = getMousePosition()
@@ -625,3 +632,127 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
       drawText("▲ UP to scroll up", x + width - 150, scrollY, 10, Yellow)
     if menu.scrollOffset < maxScroll:
       drawText("▼ DOWN to scroll down", x + width - 180, scrollY + 12, 10, Yellow)
+
+proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
+  var currentY = y + 10
+  
+  drawText("Active Enemies (" & $game.enemies.len & " alive)", x + 20, currentY, 16, Yellow)
+  currentY += 30
+  
+  if game.enemies.len == 0:
+    drawText("No enemies currently alive", x + 30, currentY, 14, Gray)
+    return
+  
+  # Draw enemy list with visual indicators
+  let itemHeight: int32 = 45
+  let maxVisible = (height - 60) div itemHeight
+  
+  for i in 0..<min(game.enemies.len, maxVisible):
+    let enemy = game.enemies[i]
+    let itemY = currentY + i.int32 * itemHeight
+    
+    # Background box for each enemy
+    let boxColor = if enemy.isBoss: 
+      Color(r: 60, g: 10, b: 10, a: 255)
+    else:
+      Color(r: 40, g: 40, b: 50, a: 255)
+    
+    drawRectangle(x + 20, itemY, width - 40, itemHeight - 5, boxColor)
+    drawRectangleLines(x + 20, itemY, width - 40, itemHeight - 5, 
+                      if enemy.isBoss: Red else: Gray)
+    
+    # Draw enemy icon/shape (miniature version)
+    let iconX = x + 35
+    let iconY = itemY + 20
+    let iconSize = 15.0
+    
+    case enemy.enemyType
+    of etCircle:
+      drawCircle(Vector2(x: iconX.float32, y: iconY.float32), iconSize, enemy.color)
+    of etCube:
+      drawRectangle((iconX - iconSize.int32), (iconY - iconSize.int32), 
+                   (iconSize * 2).int32, (iconSize * 2).int32, enemy.color)
+    of etTriangle:
+      let v1 = Vector2(x: iconX.float32, y: (iconY.float32 - iconSize))
+      let v2 = Vector2(x: (iconX.float32 - iconSize), y: (iconY.float32 + iconSize))
+      let v3 = Vector2(x: (iconX.float32 + iconSize), y: (iconY.float32 + iconSize))
+      drawTriangle(v1, v2, v3, enemy.color)
+    of etStar:
+      # Draw simple star shape
+      for j in 0..<5:
+        let angle = j.float32 * PI * 2.0 / 5.0 - PI / 2.0
+        let x1 = iconX.float32 + cos(angle) * iconSize
+        let y1 = iconY.float32 + sin(angle) * iconSize
+        drawCircle(Vector2(x: x1, y: y1), 3, enemy.color)
+    of etHexagon:
+      # Draw hexagon
+      for j in 0..<6:
+        let angle = j.float32 * PI * 2.0 / 6.0
+        let nextAngle = (j + 1).float32 * PI * 2.0 / 6.0
+        let x1 = iconX.float32 + cos(angle) * iconSize
+        let y1 = iconY.float32 + sin(angle) * iconSize
+        let x2 = iconX.float32 + cos(nextAngle) * iconSize
+        let y2 = iconY.float32 + sin(nextAngle) * iconSize
+        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
+    of etPentagon:
+      # Draw pentagon
+      for j in 0..<5:
+        let angle = j.float32 * PI * 2.0 / 5.0 - PI / 2.0
+        let nextAngle = (j + 1).float32 * PI * 2.0 / 5.0 - PI / 2.0
+        let x1 = iconX.float32 + cos(angle) * iconSize
+        let y1 = iconY.float32 + sin(angle) * iconSize
+        let x2 = iconX.float32 + cos(nextAngle) * iconSize
+        let y2 = iconY.float32 + sin(nextAngle) * iconSize
+        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
+    else:
+      # Default circle for other types
+      drawCircle(Vector2(x: iconX.float32, y: iconY.float32), iconSize, enemy.color)
+    
+    # Enemy name and type
+    let nameX = x + 65
+    let enemyName = if enemy.isBoss:
+      "BOSS - " & $enemy.bossType
+    else:
+      case enemy.enemyType
+      of etCircle: "Circle Chaser"
+      of etCube: "Cube Shooter"
+      of etTriangle: "Triangle Dasher"
+      of etStar: "Star Tank"
+      of etHexagon: "Hexagon Teleporter"
+      of etCross: "Cross Laser"
+      of etDiamond: "Diamond Shooter"
+      of etOctagon: "Octagon Sprayer"
+      of etPentagon: "Pentagon Sniper"
+      of etTrickster: "Trickster"
+      of etPhantom: "Phantom"
+      of etSniper: "SNIPER"
+    
+    let nameColor = if enemy.isBoss: Red 
+                    elif enemy.enemyType == etSniper: Magenta
+                    else: White
+    drawText(enemyName, nameX, itemY + 5, 12, nameColor)
+    
+    # HP bar
+    let hpBarX = nameX
+    let hpBarY = itemY + 22
+    let hpBarWidth = 180.0
+    let hpBarHeight = 8.0
+    let hpPercent = enemy.hp / enemy.maxHp
+    
+    # Background
+    drawRectangle(hpBarX, hpBarY, hpBarWidth.int32, hpBarHeight.int32, 
+                 Color(r: 50, g: 50, b: 50, a: 255))
+    # HP fill
+    drawRectangle(hpBarX, hpBarY, (hpBarWidth * hpPercent).int32, hpBarHeight.int32, 
+                 if hpPercent > 0.5: Green elif hpPercent > 0.2: Orange else: Red)
+    # Border
+    drawRectangleLines(hpBarX, hpBarY, hpBarWidth.int32, hpBarHeight.int32, White)
+    
+    # HP text
+    drawText($int(enemy.hp) & "/" & $int(enemy.maxHp), hpBarX + 190, hpBarY, 10, White)
+  
+  # Show count if more enemies than can display
+  if game.enemies.len > maxVisible:
+    let remainingY = y + height - 20
+    drawText("+ " & $(game.enemies.len - maxVisible) & " more enemies...", 
+            x + 20, remainingY, 12, Yellow)
