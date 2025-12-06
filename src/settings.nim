@@ -8,6 +8,7 @@ type
     inputBuffer*: string
     editingFPS*: bool
     fullscreen*: bool
+    showFPS*: bool  # New setting to show FPS counter
 
 var globalSettings*: Settings
 
@@ -18,7 +19,8 @@ proc initSettings*(): Settings =
     musicVolume: 0.5,
     inputBuffer: "60",
     editingFPS: false,
-    fullscreen: false
+    fullscreen: false,
+    showFPS: false  # FPS counter disabled by default
   )
   globalSettings = result
 
@@ -130,6 +132,24 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32) =
   
   drawText("(F11 to toggle)", checkboxX + checkboxSize + 20, fullscreenY, 20, LightGray)
   
+  # Show FPS Setting
+  let showFPSY: int32 = 490
+  drawText("Show FPS:", 200'i32, showFPSY, 24, White)
+  
+  # Show FPS checkbox
+  let fpsCheckboxX: int32 = 400
+  let fpsCheckboxY: int32 = showFPSY + 5
+  
+  drawRectangle(fpsCheckboxX, fpsCheckboxY, checkboxSize, checkboxSize, checkboxColor)
+  drawRectangleLines(fpsCheckboxX, fpsCheckboxY, checkboxSize, checkboxSize, Gray)
+  
+  # Draw checkmark if show FPS is enabled
+  if settings.showFPS:
+    drawLine(Vector2(x: (fpsCheckboxX + 5).float32, y: (fpsCheckboxY + 12).float32),
+            Vector2(x: (fpsCheckboxX + 12).float32, y: (fpsCheckboxY + 20).float32), 3, Green)
+    drawLine(Vector2(x: (fpsCheckboxX + 12).float32, y: (fpsCheckboxY + 20).float32),
+            Vector2(x: (fpsCheckboxX + 22).float32, y: (fpsCheckboxY + 5).float32), 3, Green)
+  
   # Back instruction
   drawText("Press ESC to return to menu", screenWidth div 2 - 180, 
           screenHeight - 80, 20, LightGray)
@@ -221,12 +241,21 @@ proc updateSettings*(settings: Settings) =
     let checkboxX: int32 = 400
     let checkboxY: int32 = 425
     let checkboxSize: int32 = 25
+    let fpsCheckboxY: int32 = 495
     
     let mousePos = getMousePosition()
+    
+    # Fullscreen checkbox
     if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
        mousePos.y >= checkboxY.float32 and mousePos.y <= (checkboxY + checkboxSize).float32:
       settings.fullscreen = not settings.fullscreen
       toggleFullscreen()
+      playSound(stMenuNav)
+    
+    # Show FPS checkbox
+    if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
+       mousePos.y >= fpsCheckboxY.float32 and mousePos.y <= (fpsCheckboxY + checkboxSize).float32:
+      settings.showFPS = not settings.showFPS
       playSound(stMenuNav)
 
 proc applySettings*(settings: Settings) =

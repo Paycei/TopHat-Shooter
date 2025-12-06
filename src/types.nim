@@ -209,6 +209,7 @@ type
     radius*: float32
     value*: int
     lifetime*: float32
+    isBossCoin*: bool  # Special coin from boss that must be collected to end wave
 
   Consumable* = ref object
     pos*: Vector2f
@@ -274,6 +275,7 @@ type
     selectedPowerUp*: int
     bossActive*: bool
     bossSpawnTimer*: float32
+    bossCoinActive*: bool  # True when boss coin needs to be collected to end wave
     cameFromPowerUpSelect*: bool
     gameOverSoundPlayed*: bool
     # Wave-based mode fields

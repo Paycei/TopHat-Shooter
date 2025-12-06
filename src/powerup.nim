@@ -64,9 +64,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Bullets pierce 3 enemies"
   of puMultiShot:
     case level
-    of 1: "Shoot in 3 directions (narrow)"
-    of 2: "Shoot in 3 directions (wide)"
-    else: "Shoot in 5 directions"
+    of 1: "Shoot in 2 directions (narrow, -33% dmg)"
+    of 2: "Shoot in 3 directions (wide, -45% dmg)"
+    else: "Shoot in 5 directions (-55% dmg)"
   of puExplosiveBullets:
     case level
     of 1: "Bullets explode (small radius)"
@@ -74,13 +74,13 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Bullets explode (large radius)"
   of puLifeSteal:
     case level
-    of 1: "Heal 1 HP per 15 kills"
-    of 2: "Heal 1 HP per 10 kills"
-    else: "Heal 1 HP per 6 kills"
+    of 1: "Heal 1 HP per 20 kills"
+    of 2: "Heal 1 HP per 15 kills"
+    else: "Heal 1 HP per 10 kills"
   of puRapidFire:
     case level
-    of 1: "+40% fire rate"
-    else: "+80% fire rate"
+    of 1: "+25% fire rate"
+    else: "+50% fire rate"
   of puMaxHealth:
     case level
     of 1: "+3 max HP"
@@ -95,8 +95,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "+140% bullet damage"
   of puBulletSpeed:
     case level
-    of 1: "+30% bullet speed"
-    else: "+60% bullet speed"
+    of 1: "+20% bullet speed"
+    else: "+40% bullet speed"
   of puLuckyCoins:
     case level
     of 1: "+50% coin drops"
@@ -281,9 +281,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   case powerUp.powerType
   of puRapidFire:
     let bonus = case powerUp.level
-      of 1: 0.75
-      of 2: 0.5
-      else: 0.45
+      of 1: 0.8   # 20% faster (was 0.75 = 25% faster)
+      of 2: 0.67  # 33% faster (was 0.5 = 50% faster)
+      else: 0.67
     player.fireRate *= bonus
   of puMaxHealth:
     let hpBonus = case powerUp.level
@@ -307,9 +307,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.damage *= damageBonus
   of puBulletSpeed:
     let speedMultiplier = case powerUp.level
-      of 1: 1.3
-      of 2: 1.6
-      else: 2.0
+      of 1: 1.2   # +20% (was 1.3 = +30%)
+      of 2: 1.4   # +40% (was 1.6 = +60%)
+      else: 1.4
     player.bulletSpeed *= speedMultiplier
   of puTimeWarp:
     # Time Warp uses are based on level: 1, 2, or 3 uses per wave
@@ -329,8 +329,8 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       case powerUp.powerType
       of puRapidFire:
         let bonus = case powerUp.level
-          of 2: 0.67  # Going from 0.75 to 0.5
-          of 3: 0.9   # Going from 0.5 to 0.45
+          of 2: 0.8375  # Going from 0.8 to 0.67 (0.67/0.8)
+          of 3: 1.0     # Level 3 not used for legendary
           else: 1.0
         player.fireRate *= bonus
       of puMaxHealth:
@@ -355,8 +355,8 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
         player.damage *= damageBonus
       of puBulletSpeed:
         let speedMultiplier = case powerUp.level
-          of 2: 1.231  # 1.6 / 1.3
-          of 3: 1.25   # 2.0 / 1.6
+          of 2: 1.167  # 1.4 / 1.2 (going from +20% to +40%)
+          of 3: 1.0    # Level 3 not used for legendary
           else: 1.0
         player.bulletSpeed *= speedMultiplier
       else:

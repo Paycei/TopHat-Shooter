@@ -1,7 +1,16 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math
+import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings
 
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
-const BOSS_WAVE_SPAWN_MULTIPLIER = 0.8  # 80% of normal spawn = 20% reduction
+const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
+
+# CONFIGURABLE: Loot boundary margins (how far from edge loot can spawn)
+const LOOT_MARGIN = 50.0  # Distance from screen edge
+
+proc clampLootPosition(x, y: float32, screenWidth, screenHeight: int32): tuple[x, y: float32] =
+  ## Clamps a position to be within screen bounds with margin
+  ## Used to push loot spawned out-of-bounds back into playable area
+  result.x = clamp(x, LOOT_MARGIN, screenWidth.float32 - LOOT_MARGIN)
+  result.y = clamp(y, LOOT_MARGIN, screenHeight.float32 - LOOT_MARGIN)
 
 proc newGame*(screenWidth, screenHeight: int32): Game =
   result = Game(
@@ -29,6 +38,7 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     selectedPowerUp: 0,
     bossActive: false,
     bossSpawnTimer: 0,
+    bossCoinActive: false,
     cameFromPowerUpSelect: false,
     gameOverSoundPlayed: false,
     # Wave-based mode fields
@@ -53,6 +63,10 @@ proc startWave*(game: Game) =
   game.waveInProgress = true
   var waveEnemyCount = calculateWaveEnemyCount(game.currentWave)
   
+  # Apply boss wave reduction if this is a boss wave
+  if game.wavesUntilBoss == 0:
+    waveEnemyCount = (waveEnemyCount.float32 * BOSS_WAVE_SPAWN_MULTIPLIER).int
+  
   game.waveEnemiesTotal = waveEnemyCount
   game.waveEnemiesRemaining = waveEnemyCount
   game.spawnTimer = 0
@@ -70,75 +84,117 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       let roll = rand(100)
       var enemyType: EnemyType
 
-      # Progressive enemy variety (matching difficulty-based progression)
-      # Pentagon replaces early Cubes, Cubes appear later and buffed
-      if wave <= 2:
-        # Waves 1-2: Only circles - learn basics
+      # NEW ENEMY EVERY 5 WAVES with high spawn rate for that enemy
+      # Each new enemy gets 40-50% spawn rate in their introduction wave range
+      if wave <= 5:
+        # Waves 1-5: Only CIRCLES (tutorial phase)
         enemyType = etCircle
-      elif wave <= 5:
-        # Waves 3-5: Add Pentagon (easier ranged enemy)
-        if roll < 80: enemyType = etCircle
+      
+      elif wave <= 10:
+        # Waves 6-10: Introduce PENTAGON (ranged basics)
+        # Pentagon is the star here with 45% spawn rate
+        if roll < 45: enemyType = etPentagon  # NEW ENEMY - prominent
+        elif roll < 75: enemyType = etCircle
+        else: enemyType = etCircle  # Keep it simple
+      
+      elif wave <= 15:
+        # Waves 11-15: Introduce TRIANGLE (dash enemy)
+        # Triangle gets 40% spawn rate
+        if roll < 40: enemyType = etTriangle  # NEW ENEMY - prominent
+        elif roll < 65: enemyType = etCircle
         else: enemyType = etPentagon
-      elif wave <= 8:
-        # Waves 6-8: Add Triangles, CUBES START appearing
-        if roll < 60: enemyType = etCircle
+      
+      elif wave <= 20:
+        # Waves 16-20: Introduce CUBE (stationary shooter)
+        # Cube gets 35% spawn rate
+        if roll < 35: enemyType = etCube  # NEW ENEMY - prominent
+        elif roll < 55: enemyType = etCircle
+        elif roll < 75: enemyType = etPentagon
+        else: enemyType = etTriangle
+      
+      elif wave <= 25:
+        # Waves 21-25: Introduce STAR (tanky enemy)
+        # Star gets 30% spawn rate
+        if roll < 30: enemyType = etStar  # NEW ENEMY - prominent
+        elif roll < 48: enemyType = etCircle
+        elif roll < 63: enemyType = etCube
+        elif roll < 78: enemyType = etPentagon
+        else: enemyType = etTriangle
+      
+      elif wave <= 30:
+        # Waves 26-30: Introduce CROSS (bullet spread)
+        # Cross gets 25% spawn rate
+        if roll < 25: enemyType = etCross  # NEW ENEMY - prominent
+        elif roll < 42: enemyType = etCircle
+        elif roll < 56: enemyType = etCube
+        elif roll < 68: enemyType = etStar
         elif roll < 80: enemyType = etPentagon
-        elif roll < 95: enemyType = etTriangle
-        else: enemyType = etCube
-      elif wave <= 12:
-        # Waves 9-12: Add Stars + Cross, Cubes more common
-        if roll < 40: enemyType = etCircle
-        elif roll < 55: enemyType = etPentagon
-        elif roll < 65: enemyType = etCube
-        elif roll < 80: enemyType = etTriangle
-        elif roll < 90: enemyType = etStar
-        else: enemyType = etCross
-      elif wave <= 16:
-        # Waves 13-16: Add Diamond + Octagon
-        if roll < 25: enemyType = etCircle
-        elif roll < 38: enemyType = etPentagon
-        elif roll < 50: enemyType = etCube
-        elif roll < 62: enemyType = etTriangle
-        elif roll < 75: enemyType = etStar
-        elif roll < 83: enemyType = etCross
-        elif roll < 91: enemyType = etDiamond
-        else: enemyType = etOctagon
-      elif wave <= 21:
-        # Waves 17-21: Add Hexagon
-        if roll < 18: enemyType = etCircle
-        elif roll < 30: enemyType = etPentagon
-        elif roll < 42: enemyType = etCube
-        elif roll < 54: enemyType = etTriangle
-        elif roll < 66: enemyType = etStar
+        else: enemyType = etTriangle
+      
+      elif wave <= 35:
+        # Waves 31-35: Introduce DIAMOND (orbit shooter)
+        # Diamond gets 22% spawn rate
+        if roll < 22: enemyType = etDiamond  # NEW ENEMY - prominent
+        elif roll < 38: enemyType = etCircle
+        elif roll < 51: enemyType = etCube
+        elif roll < 63: enemyType = etStar
         elif roll < 74: enemyType = etCross
-        elif roll < 82: enemyType = etDiamond
-        elif roll < 91: enemyType = etOctagon
-        else: enemyType = etHexagon
-      elif wave <= 27:
-        # Waves 22-27: Add Trickster
-        if roll < 12: enemyType = etCircle
-        elif roll < 22: enemyType = etPentagon
-        elif roll < 32: enemyType = etCube
-        elif roll < 42: enemyType = etTriangle
+        elif roll < 84: enemyType = etPentagon
+        else: enemyType = etTriangle
+      
+      elif wave <= 40:
+        # Waves 36-40: Introduce OCTAGON (laser shooter)
+        # Octagon gets 20% spawn rate
+        if roll < 20: enemyType = etOctagon  # NEW ENEMY - prominent
+        elif roll < 34: enemyType = etCircle
+        elif roll < 46: enemyType = etCube
+        elif roll < 58: enemyType = etStar
+        elif roll < 68: enemyType = etCross
+        elif roll < 77: enemyType = etDiamond
+        elif roll < 86: enemyType = etPentagon
+        else: enemyType = etTriangle
+      
+      elif wave <= 45:
+        # Waves 41-45: Introduce HEXAGON (teleporter)
+        # Hexagon gets 18% spawn rate
+        if roll < 18: enemyType = etHexagon  # NEW ENEMY - prominent
+        elif roll < 31: enemyType = etCircle
+        elif roll < 43: enemyType = etCube
         elif roll < 54: enemyType = etStar
-        elif roll < 63: enemyType = etCross
-        elif roll < 72: enemyType = etDiamond
-        elif roll < 82: enemyType = etOctagon
-        elif roll < 91: enemyType = etHexagon
-        else: enemyType = etTrickster
+        elif roll < 64: enemyType = etCross
+        elif roll < 73: enemyType = etDiamond
+        elif roll < 81: enemyType = etOctagon
+        elif roll < 89: enemyType = etPentagon
+        else: enemyType = etTriangle
+      
+      elif wave <= 50:
+        # Waves 46-50: Introduce TRICKSTER (deceptive attacks)
+        # Trickster gets 16% spawn rate
+        if roll < 16: enemyType = etTrickster  # NEW ENEMY - prominent
+        elif roll < 28: enemyType = etCircle
+        elif roll < 39: enemyType = etCube
+        elif roll < 49: enemyType = etStar
+        elif roll < 58: enemyType = etCross
+        elif roll < 66: enemyType = etDiamond
+        elif roll < 74: enemyType = etOctagon
+        elif roll < 82: enemyType = etHexagon
+        elif roll < 90: enemyType = etPentagon
+        else: enemyType = etTriangle
+      
       else:
-        # Waves 28+: All enemies including Phantom
-        if roll < 10: enemyType = etCircle
-        elif roll < 18: enemyType = etPentagon
-        elif roll < 26: enemyType = etCube
-        elif roll < 34: enemyType = etTriangle
-        elif roll < 44: enemyType = etStar
-        elif roll < 52: enemyType = etCross
-        elif roll < 60: enemyType = etDiamond
-        elif roll < 70: enemyType = etOctagon
-        elif roll < 78: enemyType = etHexagon
-        elif roll < 89: enemyType = etTrickster
-        else: enemyType = etPhantom
+        # Waves 51+: Introduce PHANTOM (unpredictable teleporter) + balanced roster
+        # Phantom gets 15% spawn rate
+        if roll < 15: enemyType = etPhantom  # NEW ENEMY - prominent
+        elif roll < 26: enemyType = etCircle
+        elif roll < 36: enemyType = etCube
+        elif roll < 45: enemyType = etStar
+        elif roll < 53: enemyType = etCross
+        elif roll < 61: enemyType = etDiamond
+        elif roll < 69: enemyType = etOctagon
+        elif roll < 77: enemyType = etHexagon
+        elif roll < 85: enemyType = etTrickster
+        elif roll < 92: enemyType = etPentagon
+        else: enemyType = etTriangle
       
       # Difficulty scaling
       let baseDifficulty = (wave - 1).float32 / 3.0
@@ -219,8 +275,9 @@ proc spawnWaveEnemy*(game: Game) =
     game.waveEnemiesRemaining -= 1
 
 proc checkWaveComplete*(game: Game): bool =
-  # Wave is complete when all enemies are defeated and none remain to spawn
-  return game.waveEnemiesRemaining == 0 and game.enemies.len == 0
+  # Wave is complete when all enemies are defeated, none remain to spawn, 
+  # AND boss coin has been collected (if there was one)
+  return game.waveEnemiesRemaining == 0 and game.enemies.len == 0 and not game.bossCoinActive
 
 proc advanceWave*(game: Game) =
   game.currentWave += 1
@@ -252,6 +309,15 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # NERF: Homing bullets deal 10% less damage
     if hasHoming:
       damage *= 0.9
+    
+    # NERF: Multi-shot bullets deal less damage per bullet (scales with level)
+    if hasMultiShot:
+      let multiLevel = getPowerUpLevel(game.player, puMultiShot)
+      let damageMultiplier = case multiLevel
+        of 1: 0.67   # -33% damage (2 bullets = 134% total)
+        of 2: 0.55    # -45% damage (3 bullets = 150% total)
+        else: 0.45   # -55% damage (4 bullets = 180% total)
+      damage *= damageMultiplier
     
     var bulletRadius = BASE_PLAYER_BULLET_RADIUS
     
@@ -393,6 +459,15 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   var speed = game.player.bulletSpeed * 1.2
   var damage = getCurrentDamage(game.player) * 0.75  # Second bullet reduced by 25%
   var bulletRadius = BASE_PLAYER_BULLET_RADIUS
+  
+  # NERF: Multi-shot bullets deal less damage per bullet (scales with level)
+  if hasMultiShot:
+    let multiLevel = getPowerUpLevel(game.player, puMultiShot)
+    let damageMultiplier = case multiLevel
+      of 1: 0.67   # -33% damage (2 bullets = 134% total)
+      of 2: 0.5    # -50% damage (3 bullets = 150% total)
+      else: 0.45   # -55% damage (4 bullets = 180% total)
+    damage *= damageMultiplier
   
   if hasPowerUp(game.player, puBulletSize):
     let sizeLevel = getPowerUpLevel(game.player, puBulletSize)
@@ -669,17 +744,19 @@ proc updateGame*(game: var Game, dt: float32) =
   # MODE-SPECIFIC ENEMY SPAWNING
   if game.mode == gmWaveBased:
     # WAVE-BASED MODE: Spawn enemies in defined waves
-    if not game.waveInProgress and not game.bossActive and game.state == gsPlaying:
+    # Don't start a new wave if we're waiting for boss coin collection
+    if not game.waveInProgress and not game.bossActive and not game.bossCoinActive and game.state == gsPlaying:
       # Start a new wave
       startWave(game)
     
     if game.waveInProgress and game.bossSpawnTimer <= 0:
-      # DYNAMIC MULTIPLE ENEMY SPAWNING
-      # Spawn 1-3 enemies at once based on wave progression
+      # DYNAMIC MULTIPLE ENEMY SPAWNING - scales more with wave number
+      # More enemies spawn at once as waves progress
       let spawnCount = if game.currentWave <= 3: 1
-                       elif game.currentWave <= 7: (if rand(100) < 50: 1 else: 2)
-                       elif game.currentWave <= 12: (if rand(100) < 30: 1 elif rand(100) < 70: 2 else: 3)
-                       else: (if rand(100) < 20: 1 elif rand(100) < 50: 2 else: 3)
+                       elif game.currentWave <= 8: (if rand(100) < 50: 1 else: 2)
+                       elif game.currentWave <= 15: (if rand(100) < 30: 1 elif rand(100) < 70: 2 else: 3)
+                       elif game.currentWave <= 25: (if rand(100) < 20: 2 elif rand(100) < 60: 3 else: 4)
+                       else: (if rand(100) < 15: 2 elif rand(100) < 45: 3 elif rand(100) < 75: 4 else: 5)
       
       # SLOWER SPAWN RATE - increased from 0.6-0.8 to 0.8-1.2
       let baseSpawnRate = if game.currentWave <= 3: 1.0
@@ -698,9 +775,12 @@ proc updateGame*(game: var Game, dt: float32) =
         # Play wave complete sound
         playSound(stWaveComplete)
 
-        # Advance wave counters so the next wave uses the next wave number
-        game.currentWave += 1
-        game.wavesUntilBoss -= 1
+        # DON'T advance wave here if we're waiting for boss coin
+        # The wave will advance when the boss coin is collected
+        if not game.bossCoinActive:
+          # Advance wave counters so the next wave uses the next wave number
+          game.currentWave += 1
+          game.wavesUntilBoss -= 1
 
         # ADJUSTED: Power-ups less frequent (every 2 waves instead of every wave)
         let shouldOfferPowerUp = (game.currentWave mod 2) == 0
@@ -713,15 +793,16 @@ proc updateGame*(game: var Game, dt: float32) =
           game.powerUpChoices = generatePowerUpChoices(game.player, false)
           game.selectedPowerUp = 0
           game.state = gsPowerUpSelect
-        elif shouldOfferPowerUp:
+        elif shouldOfferPowerUp and not game.bossCoinActive:
           # Regular wave complete: show power-up choices (every 2 waves)
+          # Don't show power-up if waiting for boss coin collection
           game.powerUpChoices = generatePowerUpChoices(game.player, false)
           game.selectedPowerUp = 0
           game.state = gsPowerUpSelect
         # Otherwise, wave completes and next wave starts immediately
     
-    # Boss wave spawning
-    if game.wavesUntilBoss == 0 and not game.bossActive and game.state == gsPlaying:
+    # Boss wave spawning - don't spawn if there's a boss coin waiting to be collected
+    if game.wavesUntilBoss == 0 and not game.bossActive and not game.bossCoinActive and game.state == gsPlaying:
       game.bossCount += 1
       # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
       let bossDifficulty = (game.currentWave - 1).float32 / 3.0
@@ -729,11 +810,7 @@ proc updateGame*(game: var Game, dt: float32) =
                                 bossDifficulty, game.bossCount))
       game.bossActive = true
       game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
-      game.wavesUntilBoss = 5  # Reset for next boss (every 5 waves)
-      
-      # Reduce remaining enemies by 20% when boss spawns
-      if game.waveEnemiesRemaining > 0:
-        game.waveEnemiesRemaining = (game.waveEnemiesRemaining.float32 * 0.8).int
+      # Don't reset wavesUntilBoss here - it will be reset when boss coin is collected
       
       # Play boss spawn sound
       playSound(stBossSpawn)
@@ -854,22 +931,28 @@ proc updateGame*(game: var Game, dt: float32) =
         # Boss drops scale with difficulty: 15 + 5 per difficulty level
         30 + (game.difficulty * 3.5).int
       else:
-        # Regular enemies drop based on type
-        case enemy.enemyType
-        of etCircle: 1
-        of etCube: 3           # More coins since it's now harder
-        of etTriangle: 2
-        of etStar: 5
-        of etHexagon: 3
-        of etCross: 3
-        of etDiamond: 3
-        of etOctagon: 2
-        of etPentagon: 1       # Early game enemy, low coins
-        of etTrickster: 6
-        of etPhantom: 6
-        of etSniper: 5
+        # Regular enemies drop based on type, with small wave scaling
+        # Every 5 waves adds 1 coin (very slow scaling)
+        let waveBonus = (game.currentWave div 5)
+        let baseValue = case enemy.enemyType
+          of etCircle: 1
+          of etCube: 3           # More coins since it's now harder
+          of etTriangle: 2
+          of etStar: 5
+          of etHexagon: 3
+          of etCross: 3
+          of etDiamond: 3
+          of etOctagon: 2
+          of etPentagon: 1       # Early game enemy, low coins
+          of etTrickster: 6
+          of etPhantom: 6
+          of etSniper: 5
+        baseValue + waveBonus
       
-      game.coins.add(newCoin(enemy.pos.x, enemy.pos.y, coinValue))
+      # Clamp coin position to be in bounds (for enemies killed out-of-bounds)
+      let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
+      # Boss coins are special and must be collected to end the wave
+      game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, enemy.isBoss))
       
       # Star explosion on death - damages player if too close
       if enemy.enemyType == etStar:
@@ -903,7 +986,9 @@ proc updateGame*(game: var Game, dt: float32) =
       # Drop consumable
       let dropChance = if enemy.isBoss: 80 elif enemy.enemyType == etStar: 40 else: 15
       if rand(99) < dropChance:
-        game.consumables.add(newConsumable(enemy.pos.x, enemy.pos.y, game.difficulty))
+        # Clamp consumable position to be in bounds (for enemies killed out-of-bounds)
+        let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
+        game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, game.difficulty))
       
       game.player.kills += 1
       
@@ -912,9 +997,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let level = getPowerUpLevel(game.player, puLifeSteal)
         game.player.killsSinceLastHeal += 1
         let healsPerKills = case level
-          of 1: 15
-          of 2: 10
-          else: 6
+          of 1: 20
+          of 2: 15
+          else: 10
         
         if game.player.killsSinceLastHeal >= healsPerKills:
           heal(game.player, 1)
@@ -926,12 +1011,11 @@ proc updateGame*(game: var Game, dt: float32) =
         bossDefeated = true
         game.bossActive = false
         
-        # Mode-specific boss defeat handling
-        if game.mode == gmWaveBased:
-          # Wave mode: advance wave and reset boss counter
-          game.currentWave += 1
-          game.wavesUntilBoss = 5  # Next boss in 5 waves
-        # Time survival mode continues with existing logic
+        # Mark that a boss coin is now active and must be collected
+        game.bossCoinActive = true
+        
+        # Mode-specific boss defeat handling - NO longer advance wave here
+        # Wave will advance when boss coin is collected
       
       game.enemies.delete(enemyIdx)
       continue
@@ -1109,16 +1193,11 @@ proc updateGame*(game: var Game, dt: float32) =
     
     enemyIdx += 1
   
-  # If boss was defeated, trigger power-up selection
-  if bossDefeated:
-    # Mode-specific boss defeat rewards
-    if game.mode == gmWaveBased:
-      # Wave mode: offer legendary upgrades
-      game.powerUpChoices = generatePowerUpChoices(game.player, true)
-    else:
-      # Time survival: offer regular upgrades
-      game.powerUpChoices = generatePowerUpChoices(game.player, false)
-    
+  # If boss was defeated in TIME SURVIVAL mode, trigger power-up selection
+  # In WAVE mode, power-ups are only given between waves, not on boss defeat
+  if bossDefeated and game.mode == gmTimeSurvival:
+    # Time survival: offer regular upgrades after boss
+    game.powerUpChoices = generatePowerUpChoices(game.player, false)
     game.selectedPowerUp = 0
     game.state = gsPowerUpSelect
     # Clear all enemies and bullets for clean screen
@@ -1467,9 +1546,29 @@ proc updateGame*(game: var Game, dt: float32) =
     
     # Collect coin on contact
     if checkPlayerCollision(game.coins[i], game.player):
+      let isBossCoin = game.coins[i].isBossCoin
       game.player.coins += game.coins[i].value
-      playSound(stCoinPickup, 0.5)
-      spawnExplosion(game.particles, game.coins[i].pos.x, game.coins[i].pos.y, Gold, 6)
+      playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
+      # Boss coins have red particles, regular coins have gold
+      let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold
+      spawnExplosion(game.particles, game.coins[i].pos.x, game.coins[i].pos.y, coinParticleColor, if isBossCoin: 20 else: 6)
+      
+      # If this was a boss coin, end the boss wave and advance
+      if isBossCoin and game.bossCoinActive:
+        game.bossCoinActive = false
+        if game.mode == gmWaveBased:
+          # Advance to next wave after boss completion
+          game.currentWave += 1
+          game.wavesUntilBoss -= 1
+          # Reset wavesUntilBoss if it hits 0 or below
+          if game.wavesUntilBoss <= 0:
+            game.wavesUntilBoss = 5  # Next boss in 5 waves
+          
+          # Offer LEGENDARY power-up after completing boss wave
+          game.powerUpChoices = generatePowerUpChoices(game.player, true)
+          game.selectedPowerUp = 0
+          game.state = gsPowerUpSelect
+      
       game.coins.delete(i)
       continue
     
@@ -1514,7 +1613,9 @@ proc updateGame*(game: var Game, dt: float32) =
           let distance = 50.0 + rand(150.0)
           let coinX = game.player.pos.x + cos(angle) * distance
           let coinY = game.player.pos.y + sin(angle) * distance
-          game.coins.add(newCoin(coinX, coinY, 1))
+          # Clamp coin position to be in bounds (in case player is near edge)
+          let clampedPos = clampLootPosition(coinX, coinY, game.screenWidth, game.screenHeight)
+          game.coins.add(newCoin(clampedPos.x, clampedPos.y, 1))
       
       let particleColor = case game.consumables[i].consumableType
         of ctHealth: Green
@@ -1618,6 +1719,12 @@ proc drawGame*(game: Game) =
   drawText("Kills: " & $game.player.kills, 10, 60, 20, White)
   drawText("Time: " & timeText, 10, 85, 20, White)
   
+  # Show FPS if enabled in settings
+  if globalSettings != nil and globalSettings.showFPS:
+    let fps = getFPS()
+    let fpsColor = if fps >= 55: Green elif fps >= 30: Yellow else: Red
+    drawText("FPS: " & $fps, game.screenWidth - 100, 10, 20, fpsColor)
+  
   # Simple boss warning text (no timer pause)
   if game.bossSpawnTimer > 0:
     let warningAlpha = ((game.bossSpawnTimer * 6.0).int mod 2)
@@ -1646,6 +1753,10 @@ proc drawGame*(game: Game) =
       drawText("Enemies: " & $enemiesLeft & "/" & $game.waveEnemiesTotal, 10, 160, 18, Orange)
     elif game.bossActive:
       drawText("Defeat the Boss!", 10, 160, 18, Red)
+    elif game.bossCoinActive:
+      # Show message when boss is defeated but coin not yet collected
+      let pulseAlpha = (sin(game.time * 4.0) * 60 + 195).int.uint8
+      drawText("Collect the Boss Coin!", 10, 160, 18, Color(r: 255, g: 215, b: 0, a: pulseAlpha))
   else:
     # Time survival mode - show chaos meter
     let chaosLevel = min(game.difficulty * 10, 100).int

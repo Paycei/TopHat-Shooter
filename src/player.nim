@@ -4,14 +4,14 @@ proc newPlayer*(x, y: float32): Player =
   result = Player(
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
-    radius: 13,
-    baseRadius: 13,
+    radius: 14,
+    baseRadius: 14,
     hp: 7,
     maxHp: 7,
     speed: 175,
     baseSpeed: 175,
     damage: 1,
-    fireRate: 0.43,
+    fireRate: 0.42,
     bulletSpeed: 300,
     lastShot: 0,
     coins: 0,
@@ -108,8 +108,14 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.pos.y < player.radius: player.pos.y = player.radius
   if player.pos.y > screenHeight.float32 - player.radius: player.pos.y = screenHeight.float32 - player.radius
   
-  # Scale radius with max HP (grows as player gets stronger)
-  player.radius = player.baseRadius + (player.maxHp - 6) * 1
+  # Scale radius with max HP using square root for diminishing returns
+  # Formula: baseRadius + sqrt(maxHp - 7) * scaleFactor
+  # This makes high HP less impactful on size than low HP gains
+  # At 7 HP (starting): 14 + sqrt(0) * 2 = 14 (same as base)
+  # At 11 HP: 14 + sqrt(4) * 2 = 14 + 4.0 = 18.0 (was 19 with linear)
+  # At 21 HP: 14 + sqrt(14) * 2 = 14 + 7.48 = 21.48 (was 29 with linear)
+  let hpAboveBase = max(0.0, player.maxHp - 7.0)
+  player.radius = player.baseRadius + sqrt(hpAboveBase) * 2.0
   
   # Scale aura with player radius - MUCH LARGER collection area
   player.auraRadius = player.radius * 3.5  # 3.5x player size for generous collection
