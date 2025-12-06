@@ -931,9 +931,9 @@ proc updateGame*(game: var Game, dt: float32) =
         # Boss drops scale with difficulty: 15 + 5 per difficulty level
         30 + (game.difficulty * 3.5).int
       else:
-        # Regular enemies drop based on type, with small wave scaling
-        # Every 5 waves adds 1 coin (very slow scaling)
-        let waveBonus = (game.currentWave div 5)
+        # Regular enemies drop based on type, with minimal wave scaling
+        # Every 10 waves adds 1 coin (very slow scaling) - REDUCED from 5 to 10
+        let waveBonus = (game.currentWave div 10)  # Much slower scaling
         let baseValue = case enemy.enemyType
           of etCircle: 1
           of etCube: 3           # More coins since it's now harder
@@ -1327,11 +1327,24 @@ proc updateGame*(game: var Game, dt: float32) =
           # Calculate final damage with Overcharge modifier
           var finalDamage = bullet.damage
           if hasPowerUp(game.player, puOvercharge):
-            # Single level only - balanced scaling
-            let dmgPerUnit = 0.04 / 100.0  # +4% per 100 units
-            let maxBonus = 1.0  # Max 100% bonus damage
+            let level = getPowerUpLevel(game.player, puOvercharge)
+            let dmgPerUnit = 0.04 / 100.0  # +4% per 100 units traveled
             
-            let bonusMultiplier = min(bullet.travelDistance * dmgPerUnit, maxBonus)
+            # Max bonus and range scale with level
+            let maxBonus = case level
+              of 1: 0.4  # Max 40% bonus
+              of 2: 0.8  # Max 80% bonus
+              else: 1.2  # Max 120% bonus
+            
+            # Max range for bonus (units traveled)
+            let maxRange = case level
+              of 1: 40.0   # Very short range
+              of 2: 70.0   # Medium range
+              else: 100.0  # Long range
+            
+            # Capped by both maxBonus and maxRange
+            let distanceBonus = min(bullet.travelDistance * dmgPerUnit, bullet.travelDistance / maxRange * maxBonus)
+            let bonusMultiplier = min(distanceBonus, maxBonus)
             finalDamage = bullet.damage * (1.0 + bonusMultiplier)
           
           if game.enemies[j].enemyType == etStar:
@@ -1557,6 +1570,19 @@ proc updateGame*(game: var Game, dt: float32) =
       if isBossCoin and game.bossCoinActive:
         game.bossCoinActive = false
         if game.mode == gmWaveBased:
+          # Create explosion particles for all remaining enemies before clearing them
+          for enemy in game.enemies:
+            spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+                          Color(r: 255, g: 50, b: 50, a: 255), 15)
+          
+          # Clear all remaining enemies and bullets when boss wave completes
+          game.enemies = @[]
+          game.bullets = @[]
+          
+          # Reset wave enemy counters to prevent double wave advance
+          game.waveEnemiesRemaining = 0
+          game.waveInProgress = false
+          
           # Advance to next wave after boss completion
           game.currentWave += 1
           game.wavesUntilBoss -= 1
@@ -1677,8 +1703,9 @@ proc drawGame*(game: Game) =
     drawConsumable(consumable)
   
   # Draw bullets
+  let hasOvercharge = hasPowerUp(game.player, puOvercharge)
   for bullet in game.bullets:
-    drawBullet(bullet)
+    drawBullet(bullet, hasOvercharge)
   
   # Draw enemies
   for enemy in game.enemies:
@@ -1719,11 +1746,14 @@ proc drawGame*(game: Game) =
   drawText("Kills: " & $game.player.kills, 10, 60, 20, White)
   drawText("Time: " & timeText, 10, 85, 20, White)
   
-  # Show FPS if enabled in settings
+  # Show FPS if enabled in settings (subtle display)
   if globalSettings != nil and globalSettings.showFPS:
     let fps = getFPS()
-    let fpsColor = if fps >= 55: Green elif fps >= 30: Yellow else: Red
-    drawText("FPS: " & $fps, game.screenWidth - 100, 10, 20, fpsColor)
+    # Subtle gray colors instead of bright colors
+    let fpsColor = if fps >= 55: Color(r: 150, g: 150, b: 150, a: 200)  # Good FPS - light gray
+                   elif fps >= 30: Color(r: 180, g: 160, b: 100, a: 200)  # Medium FPS - muted yellow
+                   else: Color(r: 180, g: 120, b: 120, a: 200)  # Low FPS - muted red
+    drawText("FPS: " & $fps, game.screenWidth - 100, 10, 16, fpsColor)  # Smaller font (16 instead of 20)
   
   # Simple boss warning text (no timer pause)
   if game.bossSpawnTimer > 0:

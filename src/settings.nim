@@ -61,8 +61,23 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32) =
   # Instructions
   drawText("Click to edit, Enter to confirm", 200'i32, fpsY + 35, 16, LightGray)
   
+  # FPS Warning - Show if FPS is set higher than recommended
+  if settings.fpsLimit > 60:
+    let warningY = fpsY + 60
+    let warningColor = if settings.fpsLimit > 300: 
+      Color(r: 255, g: 50, b: 50, a: 255)  # Red for very high FPS
+    else: 
+      Color(r: 255, g: 200, b: 0, a: 255)  # Orange for moderately high FPS
+    
+    if settings.fpsLimit > 300:
+      drawText("WARNING: FPS > 300 may cause visual bugs!", 200'i32, warningY, 18, warningColor)
+      drawText("Recommended: 60 FPS for best stability", 200'i32, warningY + 22, 16, 
+               Color(r: 255, g: 150, b: 150, a: 255))
+    else:
+      drawText("Note: 60 FPS recommended for best stability", 200'i32, warningY, 16, warningColor)
+  
   # Volume Setting
-  let volumeY: int32 = 280
+  let volumeY: int32 = 330  # Moved down to make space for warning
   drawText("Sound Effects:", 200'i32, volumeY, 24, White)
   
   # Volume slider
@@ -87,7 +102,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32) =
   drawText($volumePercent & "%", sliderX + sliderWidth + 20, volumeY, 24, White)
   
   # Music Volume Setting
-  let musicVolumeY: int32 = 350
+  let musicVolumeY: int32 = 400  # Moved down to make space for warning
   drawText("Music:", 200'i32, musicVolumeY, 24, White)
   
   # Music volume slider
@@ -111,7 +126,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32) =
   drawText($musicVolumePercent & "%", musicSliderX + sliderWidth + 20, musicVolumeY, 24, White)
   
   # Fullscreen Setting
-  let fullscreenY: int32 = 420
+  let fullscreenY: int32 = 470  # Moved down to make space for warning
   drawText("Fullscreen:", 200'i32, fullscreenY, 24, White)
   
   # Fullscreen checkbox
@@ -133,7 +148,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32) =
   drawText("(F11 to toggle)", checkboxX + checkboxSize + 20, fullscreenY, 20, LightGray)
   
   # Show FPS Setting
-  let showFPSY: int32 = 490
+  let showFPSY: int32 = 540  # Moved down to make space for warning
   drawText("Show FPS:", 200'i32, showFPSY, 24, White)
   
   # Show FPS checkbox
@@ -204,7 +219,7 @@ proc updateSettings*(settings: Settings) =
       if settings.inputBuffer.len > 0:
         try:
           let newFps = parseInt(settings.inputBuffer)
-          if newFps >= 30 and newFps <= 300:
+          if newFps >= 30 and newFps <= 9999:  # Increased from 300 to 9999
             settings.fpsLimit = newFps.int32
             setTargetFPS(settings.fpsLimit)
             playSound(stMenuSelect)
@@ -217,9 +232,9 @@ proc updateSettings*(settings: Settings) =
   # Handle volume slider
   if isMouseButtonDown(Left):
     let sliderX: int32 = 400
-    let sliderY: int32 = 285
+    let sliderY: int32 = 335  # Updated from 285 to match new volumeY (330+5)
     let sliderWidth: int32 = 300
-    let musicSliderY: int32 = 355
+    let musicSliderY: int32 = 405  # Updated from 355 to match new musicVolumeY (400+5)
     
     let mousePos = getMousePosition()
     
@@ -239,9 +254,9 @@ proc updateSettings*(settings: Settings) =
   # Handle fullscreen checkbox click
   if isMouseButtonPressed(Left):
     let checkboxX: int32 = 400
-    let checkboxY: int32 = 425
+    let checkboxY: int32 = 475  # Updated from 425 to match new fullscreenY (470+5)
     let checkboxSize: int32 = 25
-    let fpsCheckboxY: int32 = 495
+    let fpsCheckboxY: int32 = 545  # Updated from 495 to match new showFPSY (540+5)
     
     let mousePos = getMousePosition()
     

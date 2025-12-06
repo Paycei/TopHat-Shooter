@@ -15,7 +15,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     radius: if fromPlayer: BASE_PLAYER_BULLET_RADIUS else: 6,
     damage: damage,
     fromPlayer: fromPlayer,
-    lifetime: 5.0,  # Bullets despawn after 5 seconds
+    lifetime: 4.0,  # Bullets despawn after 3 seconds (reduced from 5)
     isHoming: isHoming,
     isPiercing: isPiercing,
     isExplosive: isExplosive,
@@ -40,7 +40,7 @@ proc updateBullet*(bullet: Bullet, dt: float32): bool =
   bullet.lifetime -= dt
   return bullet.lifetime > 0
 
-proc drawBullet*(bullet: Bullet) =
+proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
   var color = if bullet.fromPlayer: Yellow else: Pink
   
   # Echo bullets are semi-transparent and fade out
@@ -101,8 +101,8 @@ proc drawBullet*(bullet: Bullet) =
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 50, g: 255, b: 50, a: 150))
   
-  # Overcharge visual effect - glow that increases with distance
-  if bullet.fromPlayer and bullet.travelDistance > 0:
+  # Overcharge visual effect - ONLY if player has the power-up
+  if hasOvercharge and bullet.fromPlayer and bullet.travelDistance > 0:
     # Calculate charge level based on distance (0.0 to 1.0)
     let chargeLevel = min(bullet.travelDistance / 2500.0, 1.0)  # Max at 2500 units
     

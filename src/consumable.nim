@@ -22,7 +22,7 @@ proc newConsumable*(x, y: float32, difficulty: float32): Consumable =
     pos: newVector2f(x, y),
     radius: 8,
     consumableType: cType,
-    lifetime: 12.0
+    lifetime: 15.0
   )
 
 proc updateConsumable*(consumable: Consumable, dt: float32): bool =

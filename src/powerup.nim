@@ -192,8 +192,10 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     # Single level only - balanced teleport (NERFED)
     "Dash forward (10s cd, 0.6s invuln, scales with speed)"
   of puOvercharge:
-    # Single level only - balanced momentum system
-    "+4% dmg per 100 units (max 100%)"
+    case level
+    of 1: "+4% dmg per 100 units (max 40%, 40 range)"
+    of 2: "+4% dmg per 100 units (max 80%, 70 range)"
+    else: "+4% dmg per 100 units (max 120%, 100 range)"
   of puEchoShots:
     # Single level only - balanced echo trail
     "Bullets leave ghost trail (40% dmg)"
@@ -233,12 +235,12 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     for powerType in legendaryOnlyTypes:
       let currentLevel = getPowerUpLevel(player, powerType)
       # Special handling for single-level legendary actives
-      if powerType in [puPhaseShift, puGravityWell, puOvercharge, puEchoShots]:
+      if powerType in [puPhaseShift, puGravityWell, puEchoShots]:
         # These are SINGLE LEVEL ONLY
         if currentLevel == 0:
           availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
-      elif powerType == puTimeWarp:
-        # Time Warp has 3 levels (adds +1 use per wave each level)
+      elif powerType in [puTimeWarp, puOvercharge]:
+        # Time Warp and Overcharge have 3 levels
         if currentLevel == 0:
           availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
         elif currentLevel < 3:
