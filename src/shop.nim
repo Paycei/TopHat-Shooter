@@ -114,7 +114,7 @@ proc buyShopItem*(game: Game, index: int) =
     game.player.damage += 0.25 * pow(1.05, item.bought.float32)
   of 1: # Fire Rate - HEAVILY NERFED (reduced from 0.92 to 0.96)
     game.player.fireRate *= 0.96
-    if game.player.fireRate < 0.9: game.player.fireRate = 0.9 # Cap at 0.9
+    if game.player.fireRate < 0.09: game.player.fireRate = 0.9 # Cap at 0.9
   of 2: # Move Speed - HEAVILY NERFED
     game.player.speed += 11
     game.player.baseSpeed += 11
