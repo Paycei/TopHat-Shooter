@@ -11,7 +11,7 @@ proc newPlayer*(x, y: float32): Player =
     speed: 175,
     baseSpeed: 175,
     damage: 1,
-    fireRate: 0.42,
+    fireRate: 0.415,
     bulletSpeed: 300,
     lastShot: 0,
     coins: 0,
@@ -232,7 +232,7 @@ proc drawPlayer*(player: Player) =
         drawCircle(Vector2(x: ex2, y: ey2), 5, Color(r: 135, g: 206, b: 235, a: 200))
 
 proc takeDamage*(player: Player, damage: float32): bool =
-  ## Returns true if player died (HP reached 0), false otherwise
+  ## Returns true if player died (HP reached 0 or below), false otherwise
   # Invincibility from consumables
   if player.invincibilityTimer > 0:
     return false
@@ -253,13 +253,16 @@ proc takeDamage*(player: Player, damage: float32): bool =
         player.lastDamageTaken = 0
         return false
   
-  let hpBefore = player.hp
   player.hp -= damage
-  if player.hp < 0: player.hp = 0
+  
+  # Clamp HP to 0 minimum
+  if player.hp < 0: 
+    player.hp = 0
+  
   player.lastDamageTaken = damage
   
-  # Return true only if HP reached 0 from a positive value
-  return hpBefore > 0 and player.hp <= 0
+  # Return true if HP reached 0 or below (death condition)
+  return player.hp <= 0
 
 proc heal*(player: Player, amount: float32) =
   player.hp += amount
@@ -284,10 +287,15 @@ proc getCurrentFireRate*(player: Player): float32 =
   if player.fireRateBoostTimer > 0:
     rate *= 0.6
   
-  # Double Shot penalty - 40% slower fire rate
+  # Double Shot penalty - 45% slower fire rate (increased from 40%)
   for powerUp in player.powerUps:
     if powerUp.powerType == puDoubleShot:
-      rate *= 1.4  # 40% slower (higher value = slower)
+      rate *= 1.45  # 45% slower (higher value = slower)
+  
+  # Multi Shot penalty - 35% slower fire rate (new)
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puMultiShot:
+      rate *= 1.35  # 35% slower
   
   # Berserker power-up - fire rate increases when HP is low
   for powerUp in player.powerUps:

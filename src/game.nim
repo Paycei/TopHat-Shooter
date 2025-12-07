@@ -12,6 +12,28 @@ proc clampLootPosition(x, y: float32, screenWidth, screenHeight: int32): tuple[x
   result.x = clamp(x, LOOT_MARGIN, screenWidth.float32 - LOOT_MARGIN)
   result.y = clamp(y, LOOT_MARGIN, screenHeight.float32 - LOOT_MARGIN)
 
+proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
+  ## Applies elite damage modifiers (tank reduction, shield absorption)
+  ## Returns the actual damage to apply to enemy HP
+  ## Handles multiple elite types for wave 25+ elites
+  result = baseDamage
+  
+  # Tank elite: 60% damage reduction (buffed from 50%)
+  # If multiple elites include Tank, apply reduction
+  if enemy.isElite and etTank in enemy.eliteTypes:
+    result *= 0.4  # 60% reduction means 40% damage taken
+  
+  # Shielded elite: shield absorbs damage first
+  if enemy.isElite and etShielded in enemy.eliteTypes and enemy.shieldHp > 0:
+    if enemy.shieldHp >= result:
+      # Shield absorbs all damage
+      enemy.shieldHp -= result
+      result = 0
+    else:
+      # Shield breaks, remaining damage goes to HP
+      result -= enemy.shieldHp
+      enemy.shieldHp = 0
+
 proc newGame*(screenWidth, screenHeight: int32): Game =
   result = Game(
     state: gsPlaying,
@@ -207,7 +229,9 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       of 2: x = rand(game.screenWidth.int).float32; y = game.screenHeight.float32 + 30
       else: x = -30; y = rand(game.screenHeight.int).float32
       
-      game.enemies.add(newEnemy(x, y, baseDifficulty, enemyType))
+      let enemy = newEnemy(x, y, baseDifficulty, enemyType)
+      makeElite(enemy, wave)  # Chance to make enemy elite based on wave
+      game.enemies.add(enemy)
       game.waveEnemiesRemaining -= 1
 
 proc spawnWaveEnemy*(game: Game) =
@@ -271,7 +295,9 @@ proc spawnWaveEnemy*(game: Game) =
     of 2: x = rand(game.screenWidth.int).float32; y = game.screenHeight.float32 + 30
     else: x = -30; y = rand(game.screenHeight.int).float32
     
-    game.enemies.add(newEnemy(x, y, baseDifficulty, enemyType))
+    let enemy = newEnemy(x, y, baseDifficulty, enemyType)
+    makeElite(enemy, wave)  # Chance to make enemy elite based on wave
+    game.enemies.add(enemy)
     game.waveEnemiesRemaining -= 1
 
 proc checkWaveComplete*(game: Game): bool =
@@ -310,13 +336,17 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     if hasHoming:
       damage *= 0.9
     
+    # NERF: Double-shot bullets deal 15% less damage per bullet
+    if hasDoubleShot:
+      damage *= 0.85  # 15% less damage
+    
     # NERF: Multi-shot bullets deal less damage per bullet (scales with level)
     if hasMultiShot:
       let multiLevel = getPowerUpLevel(game.player, puMultiShot)
       let damageMultiplier = case multiLevel
-        of 1: 0.67   # -33% damage (2 bullets = 134% total)
-        of 2: 0.55    # -45% damage (3 bullets = 150% total)
-        else: 0.45   # -55% damage (4 bullets = 180% total)
+        of 1: 0.60   # -40% damage (2 bullets = 120% total)
+        of 2: 0.50   # -50% damage (3 bullets = 150% total)
+        else: 0.42   # -58% damage (4 bullets = 168% total)
       damage *= damageMultiplier
     
     var bulletRadius = BASE_PLAYER_BULLET_RADIUS
@@ -586,6 +616,30 @@ proc updateGame*(game: var Game, dt: float32) =
   # Update player (with wall collision)
   updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
   
+  # Player poison damage from venomous elites
+  # Uses accumulator system to ensure only whole number damage is applied
+  if game.player.poisonTimer > 0:
+    game.player.poisonTimer -= dt
+    
+    # Accumulate fractional damage
+    game.player.poisonAccumulator += game.player.poisonDamage * dt
+    
+    # Apply damage in whole number increments
+    if game.player.poisonAccumulator >= 1.0:
+      let wholeDamage = game.player.poisonAccumulator.int.float32  # Floor to whole number
+      game.player.poisonAccumulator -= wholeDamage  # Keep remainder
+      
+      if takeDamage(game.player, wholeDamage):
+        game.state = gsGameOver
+      
+      # Additional safety check: ensure game ends if HP reaches 0
+      if game.player.hp <= 0:
+        game.state = gsGameOver
+    
+    # Poison visual effect
+    if (game.time * 10).int mod 3 == 0:
+      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 2)
+  
   # Damage zone power-up effect
   if hasPowerUp(game.player, puDamageZone):
     let level = getPowerUpLevel(game.player, puDamageZone)
@@ -601,7 +655,8 @@ proc updateGame*(game: var Game, dt: float32) =
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < zoneRadius:
-        enemy.hp -= zoneDamage * dt
+        let actualDamage = applyEliteModifiers(enemy, zoneDamage * dt)
+        enemy.hp -= actualDamage
   
   # Regeneration power-up effect - BUFFED
   if hasPowerUp(game.player, puRegeneration):
@@ -865,11 +920,15 @@ proc updateGame*(game: var Game, dt: float32) =
       currentSpawnRate = currentSpawnRate * 2.0
     
     if game.spawnTimer > currentSpawnRate:
-      game.enemies.add(spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty))
+      let enemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty)
+      makeElite(enemy, (game.difficulty * 3).int)  # Use difficulty as wave equivalent
+      game.enemies.add(enemy)
       game.spawnTimer = 0
       
       if isWaveActive and rand(100) < 60 and not game.bossActive:
-        game.enemies.add(spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty))
+        let waveEnemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty)
+        makeElite(waveEnemy, (game.difficulty * 3).int)
+        game.enemies.add(waveEnemy)
     
     # Boss spawn every 60 seconds
     if game.time >= game.bossTimer and not game.bossActive:
@@ -909,6 +968,9 @@ proc updateGame*(game: var Game, dt: float32) =
   while enemyIdx < game.enemies.len:
     let enemy = game.enemies[enemyIdx]
     
+    # Update elite effects (regeneration, etc.)
+    updateEliteEffects(enemy, dt)
+    
     # Update poison damage over time
     if enemy.poisonTimer > 0:
       enemy.poisonTimer -= dt
@@ -927,7 +989,8 @@ proc updateGame*(game: var Game, dt: float32) =
       # Play enemy death sound
       playSound(stEnemyDeath, if enemy.isBoss: 1.0 else: 0.4)
       
-      let coinValue = if enemy.isBoss:
+      # Calculate coin value with elite multiplier
+      var coinValue = if enemy.isBoss:
         # Boss drops scale with difficulty: 15 + 5 per difficulty level
         30 + (game.difficulty * 3.5).int
       else:
@@ -949,10 +1012,34 @@ proc updateGame*(game: var Game, dt: float32) =
           of etSniper: 5
         baseValue + waveBonus
       
+      # Elite enemies drop 1.5x coins (less common but tougher)
+      if enemy.isElite:
+        coinValue = (coinValue.float32 * 1.5).int
+      
       # Clamp coin position to be in bounds (for enemies killed out-of-bounds)
       let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
       # Boss coins are special and must be collected to end the wave
       game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, enemy.isBoss))
+      
+      # Elite Explosive death effect
+      # Handles multiple elite types (wave 25+)
+      if enemy.isElite and etExplosive in enemy.eliteTypes:
+        const eliteExplosionRadius = 100.0
+        const eliteExplosionDamage = 2.0
+        
+        # Play explosion sound
+        playSound(stExplosion, 0.7)
+        
+        # Check if player is in explosion radius
+        let distToPlayer = distance(enemy.pos, game.player.pos)
+        if distToPlayer < eliteExplosionRadius:
+          if takeDamage(game.player, eliteExplosionDamage):
+            game.state = gsGameOver
+        
+        # Create explosion visual
+        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+                      Color(r: 255, g: 128, b: 0, a: 255), 40)
+        spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, eliteExplosionRadius)
       
       # Star explosion on death - damages player if too close
       if enemy.enemyType == etStar:
@@ -1161,7 +1248,9 @@ proc updateGame*(game: var Game, dt: float32) =
               of 1: 0.20
               of 2: 0.40
               else: 0.70
-            enemy.hp -= bossContactDamage * reflectPercent
+            let reflectDamage = bossContactDamage * reflectPercent
+            let actualDamage = applyEliteModifiers(enemy, reflectDamage)
+            enemy.hp -= actualDamage
             spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Red, 8)
           
           if takeDamage(game.player, bossContactDamage):
@@ -1173,6 +1262,15 @@ proc updateGame*(game: var Game, dt: float32) =
         # Regular enemies die on contact
         var enemyContactDamage = enemy.damage.float32
         
+        # Venomous elite effect - applies poison to player
+        # Handles multiple elite types (wave 25+)
+        # NERFED: Reduced poison damage from 1.0 DPS to 0.5 DPS (1.5 total over 3s instead of 3.0)
+        if enemy.isElite and etVenomous in enemy.eliteTypes:
+          game.player.poisonTimer = 3.0  # 3 seconds of poison
+          game.player.poisonDamage = 0.5  # 0.5 DPS = 1.5 total damage (NERFED from 1.0)
+          game.player.poisonAccumulator = 0.0  # Reset accumulator for new poison application
+          spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 10)
+        
         # Thorns reflection damage - kills enemy if damage exceeds HP
         if hasPowerUp(game.player, puThorns):
           let thornsLevel = getPowerUpLevel(game.player, puThorns)
@@ -1181,7 +1279,8 @@ proc updateGame*(game: var Game, dt: float32) =
             of 2: 0.40
             else: 0.70
           let reflectedDamage = enemyContactDamage * reflectPercent
-          enemy.hp -= reflectedDamage
+          let actualDamage = applyEliteModifiers(enemy, reflectedDamage)
+          enemy.hp -= actualDamage
           spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Red, 6)
         
         if takeDamage(game.player, enemyContactDamage):
@@ -1351,7 +1450,26 @@ proc updateGame*(game: var Game, dt: float32) =
             # Stars use hit counter
             game.enemies[j].hitCount += 1
           else:
-            game.enemies[j].hp -= finalDamage
+            # Apply elite modifiers to damage
+            var actualDamage = finalDamage
+            
+            # Tank elite: 60% damage reduction (buffed from 50%)
+            # Handles multiple elite types (wave 25+)
+            if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
+              actualDamage *= 0.4  # 60% reduction means 40% damage taken
+            
+            # Shielded elite: shield absorbs damage first
+            if game.enemies[j].isElite and etShielded in game.enemies[j].eliteTypes and game.enemies[j].shieldHp > 0:
+              if game.enemies[j].shieldHp >= actualDamage:
+                # Shield absorbs all damage
+                game.enemies[j].shieldHp -= actualDamage
+                actualDamage = 0
+              else:
+                # Shield breaks, remaining damage goes to HP
+                actualDamage -= game.enemies[j].shieldHp
+                game.enemies[j].shieldHp = 0
+            
+            game.enemies[j].hp -= actualDamage
           hitEnemy = true
           
           # Apply frost shot slow effect - INDEFINITE (permanent until enemy dies)
@@ -1388,7 +1506,9 @@ proc updateGame*(game: var Game, dt: float32) =
               if k != j and chained < chainCount:
                 let dist = distance(game.enemies[j].pos, game.enemies[k].pos)
                 if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
-                  game.enemies[k].hp -= finalDamage * chainDamage
+                  let chainDmg = finalDamage * chainDamage
+                  let actualDamage = applyEliteModifiers(game.enemies[k], chainDmg)
+                  game.enemies[k].hp -= actualDamage
                   game.enemies[k].chainLightningCooldown = 0.3
                   chained += 1
                   
@@ -1444,7 +1564,9 @@ proc updateGame*(game: var Game, dt: float32) =
             for k in 0..<game.enemies.len:
               let dist = distance(bullet.pos, game.enemies[k].pos)
               if dist < explosionRadius:
-                game.enemies[k].hp -= finalDamage * 0.5
+                let explosionDmg = finalDamage * 0.5
+                let actualDamage = applyEliteModifiers(game.enemies[k], explosionDmg)
+                game.enemies[k].hp -= actualDamage
             
             # Enhanced visual explosion with shockwave
             spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Orange, 35)
@@ -1513,7 +1635,8 @@ proc updateGame*(game: var Game, dt: float32) =
               nearestEnemy = enemy
           
           if nearestEnemy != nil:
-            nearestEnemy.hp -= reflectedDamage
+            let actualDamage = applyEliteModifiers(nearestEnemy, reflectedDamage)
+            nearestEnemy.hp -= actualDamage
             spawnExplosion(game.particles, nearestEnemy.pos.x, nearestEnemy.pos.y, Red, 5)
         
         if takeDamage(game.player, bulletDamage):
@@ -1674,6 +1797,11 @@ proc updateGame*(game: var Game, dt: float32) =
       game.particles.delete(i)
       continue
     i += 1
+  
+  # CRITICAL SAFETY CHECK: Ensure player death is always detected
+  # This catches edge cases where HP reaches 0 but game didn't transition to game over
+  if game.player.hp <= 0 and game.state == gsPlaying:
+    game.state = gsGameOver
 
 proc drawGame*(game: Game) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
@@ -1709,6 +1837,9 @@ proc drawGame*(game: Game) =
   
   # Draw enemies
   for enemy in game.enemies:
+    # Draw elite aura first (so it appears behind the enemy)
+    if enemy.isElite:
+      drawEliteAura(enemy, game.time)
     drawEnemy(enemy)
   
   # Draw Gravity Well visual effect

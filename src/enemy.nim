@@ -1516,3 +1516,235 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
   boss.entranceTimer = 2.0
   boss.targetPos = newVector2f(targetX, targetY)
   boss
+
+proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
+  ## Converts a regular enemy into an elite with enhanced stats and special abilities
+  ## Elite chance increases with wave number: base 3% + 0.5% per wave (capped at 15%)
+  ## At wave 25+, elites can have multiple effects (2-3 types combined)
+  
+  # Don't make bosses elite
+  if enemy.isBoss:
+    return
+  
+  # Calculate elite chance based on wave (3% + 0.5% per wave, max 15%)
+  let eliteChance = min(3 + (waveNumber.float32 * 0.5).int, 15)
+  if rand(99) >= eliteChance:
+    return
+  
+  enemy.isElite = true
+  enemy.eliteAuraPhase = 0.0
+  enemy.eliteTypes = @[]  # Initialize empty list for multiple types
+  
+  # Elite scaling multiplier based on wave (elites scale better than regular enemies)
+  # 1.0 at wave 1, increases by 0.15 per wave (15% per wave vs 15% for regular enemies)
+  let eliteScaling = 1.0 + (waveNumber.float32 * 0.15)
+  
+  # Determine number of elite effects based on wave
+  let numEffects = if waveNumber >= 25:
+    # Waves 25+: 2-3 effects (50% chance for 2, 50% chance for 3)
+    if rand(1) == 0: 2 else: 3
+  else:
+    # Waves 1-24: Single effect
+    1
+  
+  # Choose random elite types (ensure no duplicates)
+  var availableTypes = @[etSwift, etTank, etVenomous, etExplosive, etRegenerative, etShielded]
+  for i in 0..<numEffects:
+    if availableTypes.len == 0:
+      break
+    let idx = rand(availableTypes.len - 1)
+    enemy.eliteTypes.add(availableTypes[idx])
+    availableTypes.delete(idx)
+  
+  # For backward compatibility, set primary eliteType to first in list
+  enemy.eliteType = if enemy.eliteTypes.len > 0: enemy.eliteTypes[0] else: etNone
+  
+  # Apply elite modifications for ALL types in the list
+  for eType in enemy.eliteTypes:
+    case eType
+    of etSwift:
+      # 75% faster movement and attack speed (buffed from 50%)
+      enemy.speed *= (1.75 * eliteScaling)
+      enemy.shootTimer *= 0.57  # Even faster shooting
+      if enemy.dashCooldown > 0:
+        enemy.dashCooldown *= 0.57
+      # Swift elites are slightly smaller but faster
+      enemy.radius *= 0.9
+      enemy.damage += 1 + (waveNumber div 5)  # +1 damage per 5 waves
+      enemy.maxHp *= eliteScaling
+      enemy.hp *= eliteScaling
+    
+    of etTank:
+      # 4x HP, 60% damage reduction, slower movement (buffed from 3x HP, 50% reduction)
+      enemy.maxHp *= (4.0 * eliteScaling)
+      enemy.hp *= (4.0 * eliteScaling)
+      enemy.speed *= 0.7  # Slower (was 0.75)
+      # Tank elites are larger
+      enemy.radius *= 1.4  # Bigger (was 1.3)
+      enemy.damage += 2 + (waveNumber div 4)  # +1 damage per 4 waves
+    
+    of etVenomous:
+      # Poisons player on contact (applied in collision code)
+      # Faster and more aggressive
+      enemy.speed *= (1.3 * eliteScaling)
+      enemy.damage += 2 + (waveNumber div 5)  # +1 damage per 5 waves
+      enemy.maxHp *= (1.3 * eliteScaling)
+      enemy.hp *= (1.3 * eliteScaling)
+    
+    of etExplosive:
+      # Explodes on death (handled in death code)
+      # More HP to make explosion more dangerous
+      enemy.maxHp *= (2.0 * eliteScaling)
+      enemy.hp *= (2.0 * eliteScaling)
+      enemy.damage += 2 + (waveNumber div 5)  # +1 damage per 5 waves
+      enemy.speed *= (1.1 * eliteScaling * 0.9)  # Scale speed but keep it moderate
+    
+    of etRegenerative:
+      # Regenerates 8% HP per second (buffed from 5%)
+      enemy.regenTimer = 0.0
+      # More HP to make regen meaningful
+      enemy.maxHp *= (2.5 * eliteScaling)
+      enemy.hp *= (2.5 * eliteScaling)
+      enemy.damage += 1 + (waveNumber div 6)  # +1 damage per 6 waves
+    
+    of etShielded:
+      # Has a shield that absorbs damage
+      enemy.maxHp *= (1.3 * eliteScaling)
+      enemy.hp *= (1.3 * eliteScaling)
+      let shieldAmount = enemy.maxHp * 0.75  # Shield = 75% of max HP (buffed from 50%)
+      enemy.shieldHp = shieldAmount
+      enemy.maxShieldHp = shieldAmount
+      enemy.damage += 1 + (waveNumber div 5)  # +1 damage per 5 waves
+    
+    else:
+      discard
+  
+  # All elites drop slightly more coins (1.5x multiplier applied in game.nim)
+  # All elites are slightly larger for visibility (if not already modified by Swift or Tank)
+  if etSwift notin enemy.eliteTypes and etTank notin enemy.eliteTypes:
+    enemy.radius *= 1.15  # Buffed visibility (was 1.1)
+
+proc getEliteAuraColor*(eliteType: EliteType): Color =
+  ## Returns the aura color for each elite type
+  case eliteType
+  of etNone: White  # Should never be called
+  of etSwift: SkyBlue
+  of etTank: Gray
+  of etVenomous: Green
+  of etExplosive: Orange
+  of etRegenerative: Color(r: 255, g: 100, b: 255, a: 255)  # Magenta
+  of etShielded: Color(r: 100, g: 200, b: 255, a: 255)  # Cyan
+
+proc getEliteName*(eliteType: EliteType): string =
+  ## Returns the display name for each elite type
+  case eliteType
+  of etNone: ""
+  of etSwift: "Swift"
+  of etTank: "Tank"
+  of etVenomous: "Venomous"
+  of etExplosive: "Explosive"
+  of etRegenerative: "Regenerative"
+  of etShielded: "Shielded"
+
+proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
+  ## Draws the visual aura around elite enemies
+  ## For multi-elite enemies (wave 25+), draws layered auras with different colors
+  if not enemy.isElite or enemy.eliteTypes.len == 0:
+    return
+  
+  # Pulsing aura effect
+  enemy.eliteAuraPhase += 0.05
+  let pulseIntensity = sin(enemy.eliteAuraPhase) * 0.3 + 0.7  # 0.4 to 1.0
+  
+  # Draw auras for each elite type (layered effect for multiple types)
+  for idx, eType in enemy.eliteTypes:
+    let auraColor = getEliteAuraColor(eType)
+    # Each aura is slightly offset for visibility
+    let radiusOffset = idx.float32 * 4.0
+    let auraRadius = enemy.radius + 8.0 + radiusOffset + (sin(gameTime * 3.0 + idx.float32) * 3.0)
+    
+    # Draw outer glow rings (multiple for depth)
+    for i in 0..2:
+      let ringRadius = auraRadius + i.float32 * 4.0
+      let alpha = uint8((180 - i * 50).float32 * pulseIntensity * 0.8)  # Slightly more transparent for multiple
+      let ringColor = Color(
+        r: auraColor.r,
+        g: auraColor.g,
+        b: auraColor.b,
+        a: alpha
+      )
+      drawCircleLines(
+        enemy.pos.x.int32,
+        enemy.pos.y.int32,
+        ringRadius,
+        ringColor
+      )
+    
+    # Draw inner filled circle for core glow
+    let coreAlpha = uint8(60.0 * pulseIntensity)  # Less opaque for layering
+    let coreColor = Color(
+      r: auraColor.r,
+      g: auraColor.g,
+      b: auraColor.b,
+      a: coreAlpha
+    )
+    drawCircle(
+      Vector2(x: enemy.pos.x, y: enemy.pos.y),
+      auraRadius - 4.0,
+      coreColor
+    )
+  
+  # Draw shield bar for shielded elites
+  if etShielded in enemy.eliteTypes and enemy.shieldHp > 0:
+    let barWidth = enemy.radius * 2.0
+    let barHeight = 4.0
+    let barX = enemy.pos.x - barWidth / 2.0
+    let barY = enemy.pos.y - enemy.radius - 12.0
+    
+    # Shield background
+    drawRectangle(
+      barX.int32,
+      barY.int32,
+      barWidth.int32,
+      barHeight.int32,
+      Color(r: 40, g: 40, b: 40, a: 200)
+    )
+    
+    # Shield fill
+    let shieldPercent = enemy.shieldHp / enemy.maxShieldHp
+    drawRectangle(
+      barX.int32,
+      barY.int32,
+      (barWidth * shieldPercent).int32,
+      barHeight.int32,
+      Color(r: 100, g: 200, b: 255, a: 255)
+    )
+    
+    # Shield border
+    drawRectangleLines(
+      barX.int32,
+      barY.int32,
+      barWidth.int32,
+      barHeight.int32,
+      Color(r: 150, g: 220, b: 255, a: 255)
+    )
+
+proc updateEliteEffects*(enemy: Enemy, dt: float32) =
+  ## Updates elite-specific effects like regeneration
+  ## Handles multiple elite types (wave 25+)
+  if not enemy.isElite:
+    return
+  
+  # Process each elite type effect
+  for eType in enemy.eliteTypes:
+    case eType
+    of etRegenerative:
+      # Regenerate 8% max HP per second (buffed from 5%)
+      enemy.regenTimer += dt
+      if enemy.regenTimer >= 0.2:  # Update every 0.2 seconds
+        let regenAmount = enemy.maxHp * 0.016  # 1.6% per 0.2s = 8% per second
+        enemy.hp = min(enemy.hp + regenAmount, enemy.maxHp)
+        enemy.regenTimer = 0.0
+    
+    else:
+      discard

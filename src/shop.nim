@@ -6,7 +6,7 @@ proc initShopItems*(): array[6, ShopItem] =
   result[2] = ShopItem(name: "Move Speed +", description: "Move faster", baseCost: 7, bought: 0)
   result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 12, bought: 0)
   result[4] = ShopItem(name: "Bullet Speed +", description: "Faster bullets", baseCost: 6, bought: 0)
-  result[5] = ShopItem(name: "Wall (x4)", description: "Buy 4 deployable walls", baseCost: 15, bought: 0)
+  result[5] = ShopItem(name: "Wall (x5)", description: "Buy 5 deployable walls", baseCost: 15, bought: 0)
 
 proc getCurrentCost*(item: ShopItem): int =
   # More aggressive exponential cost scaling: baseCost * 1.5^bought
@@ -110,19 +110,19 @@ proc buyShopItem*(game: Game, index: int) =
   item.bought += 1
   
   case index
-  of 0: # Damage - NERFED scaling
-    game.player.damage += 0.5 * pow(1.08, item.bought.float32)
-  of 1: # Fire Rate - HEAVILY NERFED (reduced from 0.92 to 0.95)
-    game.player.fireRate *= 0.95
-    if game.player.fireRate < 0.08: game.player.fireRate = 0.08
+  of 0: # Damage - NERFED scaling and base
+    game.player.damage += 0.25 * pow(1.05, item.bought.float32)
+  of 1: # Fire Rate - HEAVILY NERFED (reduced from 0.92 to 0.96)
+    game.player.fireRate *= 0.96
+    if game.player.fireRate < 0.9: game.player.fireRate = 0.9 # Cap at 0.9
   of 2: # Move Speed - HEAVILY NERFED
-    game.player.speed += 12
-    game.player.baseSpeed += 12
+    game.player.speed += 11
+    game.player.baseSpeed += 11
   of 3: # Max Health - NERFED HP per purchase
     game.player.maxHp += 2
     game.player.hp += 2
-  of 4: # Bullet Speed - HEAVILY NERFED (reduced from 25 to 15)
-    game.player.bulletSpeed += 15
-  of 5: # Walls - Same as before
-    game.player.walls += 4
+  of 4: # Bullet Speed - HEAVILY NERFED (reduced from 25 to 10)
+    game.player.bulletSpeed += 10
+  of 5: # Walls - BUFFED (increased from 4 to 5 per purchase)
+    game.player.walls += 5
   else: discard

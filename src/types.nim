@@ -34,6 +34,15 @@ type
     bpTriangle,  # Triangle form - aggressive dashes
     bpStar       # Star form - bullet storm phase
 
+  EliteType* = enum
+    etNone,        # Not elite
+    etSwift,       # 50% faster movement and attack speed
+    etTank,        # 3x HP, 50% damage reduction
+    etVenomous,    # Poisons player on contact
+    etExplosive,   # Explodes on death, damaging player
+    etRegenerative,# Slowly regenerates HP over time
+    etShielded     # Has a damage-absorbing shield
+
   ConsumableType* = enum
     ctHealth,
     ctCoin,
@@ -138,6 +147,10 @@ type
     phaseShiftCooldown*: float32
     phaseShiftInvulnTimer*: float32
     lastPhaseShiftPos*: Vector2f
+    # Poison tracking (for venomous elite enemies)
+    poisonTimer*: float32
+    poisonDamage*: float32
+    poisonAccumulator*: float32  # Accumulates fractional poison damage until it reaches 1.0
 
   Enemy* = ref object
     pos*: Vector2f
@@ -181,6 +194,14 @@ type
     cloneTimer*: float32
     # Field for ranged enemy screen restriction
     hasEnteredScreen*: bool  # Tracks if ranged enemy is fully inside screen
+    # Elite enemy fields
+    isElite*: bool  # Whether this is an elite enemy
+    eliteType*: EliteType  # Type of elite modifier (primary type for backward compatibility)
+    eliteTypes*: seq[EliteType]  # Multiple elite types for high-wave elites (wave 25+)
+    eliteAuraPhase*: float32  # For animating the elite aura
+    shieldHp*: float32  # For shielded elites
+    maxShieldHp*: float32  # Maximum shield HP
+    regenTimer*: float32  # For regenerative elites
 
   Bullet* = ref object
     pos*: Vector2f
