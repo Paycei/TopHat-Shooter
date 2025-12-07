@@ -2,7 +2,6 @@
 
 **Version 2.0** - A fast-paced, wave-based bullet hell shooter built with Nim and Raylib
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Nim](https://img.shields.io/badge/Nim-2.0.0+-blue.svg)](https://nim-lang.org/)
 [![Tests](https://img.shields.io/badge/tests-92%20passing-brightgreen.svg)](tests/README.md)
 
@@ -265,7 +264,7 @@ TopHat-Shooter/
 │   └── README.md         # Test documentation (600+ lines)
 ├── TopHatShooter.nimble  # Package configuration
 ├── icono.res             # Windows icon resource
-├── LICENSE               # MIT License
+├── LICENSE               # Apache 2.0 License
 └── README.md             # This file
 ```
 
@@ -362,34 +361,6 @@ Try to achieve these self-imposed goals:
 - 🎖️ **Coin Collector**: Accumulate 1000+ coins
 - 🎖️ **Power Build**: Collect 20+ power-ups in one run
 - 🎖️ **Boss Rush**: Defeat 10 bosses in one run
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-```
-MIT License - Copyright (c) 2025 Paycei
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
 
 ---
 
