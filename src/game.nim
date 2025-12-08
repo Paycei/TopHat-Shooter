@@ -847,12 +847,14 @@ proc updateGame*(game: var Game, dt: float32) =
           # ALWAYS offer power-up before boss (critical moment)
           game.powerUpChoices = generatePowerUpChoices(game.player, false)
           game.selectedPowerUp = 0
+          initPowerUpRollAnimation(game)  # Start roll animation
           game.state = gsPowerUpSelect
         elif shouldOfferPowerUp and not game.bossCoinActive:
           # Regular wave complete: show power-up choices (every 2 waves)
           # Don't show power-up if waiting for boss coin collection
           game.powerUpChoices = generatePowerUpChoices(game.player, false)
           game.selectedPowerUp = 0
+          initPowerUpRollAnimation(game)  # Start roll animation
           game.state = gsPowerUpSelect
         # Otherwise, wave completes and next wave starts immediately
     
@@ -1298,6 +1300,7 @@ proc updateGame*(game: var Game, dt: float32) =
     # Time survival: offer regular upgrades after boss
     game.powerUpChoices = generatePowerUpChoices(game.player, false)
     game.selectedPowerUp = 0
+    initPowerUpRollAnimation(game)
     game.state = gsPowerUpSelect
     # Clear all enemies and bullets for clean screen
     game.enemies = @[]
@@ -1716,6 +1719,7 @@ proc updateGame*(game: var Game, dt: float32) =
           # Offer LEGENDARY power-up after completing boss wave
           game.powerUpChoices = generatePowerUpChoices(game.player, true)
           game.selectedPowerUp = 0
+          initPowerUpRollAnimation(game)
           game.state = gsPowerUpSelect
       
       game.coins.delete(i)

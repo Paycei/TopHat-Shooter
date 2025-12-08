@@ -467,23 +467,27 @@ proc main() =
       # Play power-up selection music
       playMusic(mtPowerUp)
       
-      # Navigate power-up choices
-      if isKeyPressed(Left) or isKeyPressed(A):
-        currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3
-      if isKeyPressed(Right) or isKeyPressed(D):
-        currentGame.selectedPowerUp = (currentGame.selectedPowerUp + 1) mod 3
+      # Update roll animation
+      updatePowerUpRollAnimation(currentGame, dt)
       
-      # Select power-up
-      if isKeyPressed(Enter) or isKeyPressed(E):
-        applyPowerUp(currentGame.player, currentGame.powerUpChoices[currentGame.selectedPowerUp])
-        # Automatically go to shop after power-up selection
-        currentGame.cameFromPowerUpSelect = true
-        currentGame.state = gsShop
-      
-      # Skip power-up selection
-      if isKeyPressed(Escape):
-        currentGame.state = gsCountdown
-        currentGame.countdownTimer = 0.5
+      # Only allow input after animation completes
+      if currentGame.canSelectPowerUp:
+        # Navigate power-up choices
+        if isKeyPressed(Left) or isKeyPressed(A):
+          currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3
+        if isKeyPressed(Right) or isKeyPressed(D):
+          currentGame.selectedPowerUp = (currentGame.selectedPowerUp + 1) mod 3
+        
+        # Select power-up
+        if isKeyPressed(Enter) or isKeyPressed(E):
+          applyPowerUp(currentGame.player, currentGame.powerUpChoices[currentGame.selectedPowerUp])
+          currentGame.cameFromPowerUpSelect = true
+          currentGame.state = gsShop
+        
+        # Skip power-up selection
+        if isKeyPressed(Escape):
+          currentGame.state = gsCountdown
+          currentGame.countdownTimer = 0.5
       
       beginDrawing()
       drawPowerUpSelection(currentGame)

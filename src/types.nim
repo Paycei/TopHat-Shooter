@@ -302,7 +302,7 @@ type
     rollAnimationTimer*: float32
     rollSpeed*: array[3, float32]  # Individual roll speeds for each slot
     rollPosition*: array[3, float32]  # Current scroll position for each slot
-    finalPowerUps*: array[3, PowerUp]  # The actual final power-ups
+    rollPowerUpList*: array[3, seq[PowerUp]]  # List of power-ups scrolling in each slot
     canSelectPowerUp*: bool  # Whether player can select (false during animation)
     bossActive*: bool
     bossSpawnTimer*: float32

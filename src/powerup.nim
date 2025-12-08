@@ -751,18 +751,18 @@ proc drawPowerUpSelection*(game: Game) =
   # Dark overlay
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 220))
   
-  # Determine if this is a legendary selection (after boss)
+  # Determine if this is a legendary selection
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
   
   # Title
   if isLegendary:
     drawText("BOSS DEFEATED!", screenWidth div 2 - 200, 40, 50, Gold)
-    drawText("Choose Your LEGENDARY Upgrade", screenWidth div 2 - 230, 100, 30, Color(r: 255, g: 215, b: 0, a: 255))
+    drawText("Choose Your LEGENDARY Upgrade", screenWidth div 2 - 230, 100, 30, Gold)
   else:
     drawText("WAVE COMPLETE!", screenWidth div 2 - 180, 60, 50, Green)
     drawText("Choose Your Power-Up", screenWidth div 2 - 180, 120, 30, White)
   
-  # Draw 3 cards
+  # Card dimensions
   let cardWidth = 200
   let cardHeight = 240
   let spacing = 40
@@ -770,17 +770,176 @@ proc drawPowerUpSelection*(game: Game) =
   let startX = (screenWidth - totalWidth) div 2
   let cardY = if isLegendary: 160 else: 180
   
-  for i in 0..2:
-    let cardX = startX + i * (cardWidth + spacing)
-    drawPowerUpCard(cardX.int32, cardY.int32, cardWidth.int32, cardHeight.int32,
-                   game.powerUpChoices[i], i == game.selectedPowerUp)
+  # Stop times for animation
+  let stopTimes = [
+    if isLegendary: 1.5 else: 1.0,
+    if isLegendary: 3.5 else: 2.5,
+    if isLegendary: 6.0 else: 4.0
+  ]
   
-  # Combined Shop/Power-up instructions
-  drawText("A/D or ARROW KEYS: select | ENTER: choose power-up", 
-          screenWidth div 2 - 280, screenHeight - 120, 20, LightGray)
-  drawText("ESC: skip power-up", 
-          screenWidth div 2 - 200, screenHeight - 90, 18, Color(r: 180, g: 180, b: 180, a: 255))
+  # Draw each slot
+  for slotIdx in 0..2:
+    let cardX = startX + slotIdx * (cardWidth + spacing)
+    let slotStopped = game.rollAnimationTimer >= stopTimes[slotIdx]
+    
+    if game.rollAnimationActive:
+      # ROLLING ANIMATION MODE
+      beginScissorMode(cardX.int32, cardY.int32, cardWidth.int32, cardHeight.int32)
+      
+      if slotStopped:
+        # Slot stopped - show final power-up
+        drawPowerUpCard(cardX.int32, cardY.int32, cardWidth.int32, cardHeight.int32,
+                       game.powerUpChoices[slotIdx], false)
+      else:
+        # Slot rolling - draw scrolling list
+        for j in 0..<game.rollPowerUpList[slotIdx].len:
+          let yPos = cardY.float32 - game.rollPosition[slotIdx] + (j.float32 * cardHeight.float32)
+          
+          # Only draw if visible
+          if yPos > (cardY - cardHeight).float32 and yPos < (cardY + cardHeight * 2).float32:
+            drawPowerUpCard(cardX.int32, yPos.int32, cardWidth.int32, cardHeight.int32,
+                           game.rollPowerUpList[slotIdx][j], false)
+      
+      endScissorMode()
+      
+      # Frame color changes when stopped
+      let frameColor = if slotStopped:
+        (if isLegendary: Gold else: Yellow)
+      else:
+        Color(r: 150, g: 150, b: 150, a: 255)
+      
+      # Draw thick frame when stopped
+      if slotStopped:
+        for t in 0..2:
+          drawRectangleLines((cardX - t).int32, (cardY - t).int32,
+                            (cardWidth + t*2).int32, (cardHeight + t*2).int32, frameColor)
+      else:
+        drawRectangleLines(cardX.int32, cardY.int32, cardWidth.int32, cardHeight.int32, frameColor)
+      
+      # Legendary glow
+      if isLegendary and slotStopped:
+        drawRectangleLines((cardX - 3).int32, (cardY - 3).int32,
+                          (cardWidth + 6).int32, (cardHeight + 6).int32,
+                          Color(r: 255, g: 215, b: 0, a: 150))
+    else:
+      # SELECTION MODE (animation finished)
+      drawPowerUpCard(cardX.int32, cardY.int32, cardWidth.int32, cardHeight.int32,
+                     game.powerUpChoices[slotIdx], 
+                     slotIdx == game.selectedPowerUp and game.canSelectPowerUp)
   
-  # Display coin count
+  # Status messages
+  if game.rollAnimationActive:
+    let s1 = game.rollAnimationTimer >= stopTimes[0]
+    let s2 = game.rollAnimationTimer >= stopTimes[1]
+    let s3 = game.rollAnimationTimer >= stopTimes[2]
+    
+    var msg = "Rolling..."
+    if s1 and not s2:
+      msg = "First slot locked..."
+    elif s2 and not s3:
+      msg = "Second slot locked! Final roll..."
+    elif s3:
+      msg = "All locked! Choose your power-up!"
+    
+    let w = measureText(msg, 24)
+    drawText(msg, screenWidth div 2 - w div 2, screenHeight - 150, 24, Yellow)
+  else:
+    drawText("A/D or ARROW KEYS: select | ENTER: choose", 
+            screenWidth div 2 - 260, screenHeight - 120, 20, LightGray)
+    drawText("ESC: skip", screenWidth div 2 - 60, screenHeight - 90, 18, Gray)
+  
+  # Coin count
   let coinText = "Coins: " & $game.player.coins
   drawText(coinText, screenWidth div 2 - 60, screenHeight - 55, 22, Gold)
+# ============================================================================
+# SLOT MACHINE ROLL ANIMATION SYSTEM
+# ============================================================================
+
+proc generateRandomPowerUp(player: Player, isLegendary: bool): PowerUp =
+  ## Generate a random power-up for the roll animation display
+  let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
+                        puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
+                        puGravityWell, puPhaseShift, puOvercharge, puEchoShots]
+  
+  let normalTypes = [puDoubleShot, puRotatingShield, puDamageZone, puHomingBullets,
+                     puPiercingShots, puMultiShot, puExplosiveBullets, puLifeSteal,
+                     puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
+                     puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
+                     puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
+                     puFrostShots, puPoisonDamage]
+  
+  if isLegendary:
+    let t = legendaryTypes[rand(legendaryTypes.high)]
+    result = PowerUp(powerType: t, level: rand(1..3), rarity: prLegendary)
+  else:
+    let t = normalTypes[rand(normalTypes.high)]
+    result = PowerUp(powerType: t, level: rand(1..3), rarity: prCommon)
+
+proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
+  ## Update the slot machine roll animation with velocity-based scrolling
+  if not game.rollAnimationActive:
+    return
+  
+  game.rollAnimationTimer += deltaTime
+  
+  let isLegendary = game.powerUpChoices[0].rarity == prLegendary
+  
+  # Stop times for each slot
+  let stopTimes = [
+    if isLegendary: 1.5 else: 1.0,
+    if isLegendary: 3.5 else: 2.5,
+    if isLegendary: 6.0 else: 4.0
+  ]
+  
+  for i in 0..2:
+    let finalIndex = game.rollPowerUpList[i].len - 1
+    let finalPosition = finalIndex.float32 * 240.0
+    
+    if game.rollAnimationTimer < stopTimes[i]:
+      # Still rolling - use velocity-based movement with smooth deceleration
+      let progress = game.rollAnimationTimer / stopTimes[i]
+      
+      # Quadratic ease-out: fast at start, slow at end
+      let speedMultiplier = 1.0 - (progress * progress)
+      let baseSpeed = if isLegendary: 1200.0 else: 1000.0
+      
+      game.rollSpeed[i] = baseSpeed * speedMultiplier
+      game.rollPosition[i] += game.rollSpeed[i] * deltaTime
+      
+      # Clamp to not overshoot
+      if game.rollPosition[i] > finalPosition:
+        game.rollPosition[i] = finalPosition
+    else:
+      # Locked at final position
+      game.rollPosition[i] = finalPosition
+      game.rollSpeed[i] = 0.0
+  
+  # Complete when all stopped
+  if game.rollAnimationTimer >= stopTimes[2] + 0.3:
+    game.rollAnimationActive = false
+    game.canSelectPowerUp = true
+
+proc initPowerUpRollAnimation*(game: Game) =
+  ## Initialize roll animation - final power-up appears every 3rd position
+  game.rollAnimationActive = true
+  game.rollAnimationTimer = 0
+  game.canSelectPowerUp = false
+  
+  let isLegendary = game.powerUpChoices[0].rarity == prLegendary
+  
+  for i in 0..2:
+    game.rollPosition[i] = 0
+    game.rollSpeed[i] = 0
+    game.rollPowerUpList[i] = @[]
+    
+    # Build list: show final power-up every 3rd position
+    for j in 0..<15:
+      if j mod 3 == 2:
+        # Every 3rd item: the ACTUAL final power-up
+        game.rollPowerUpList[i].add(game.powerUpChoices[i])
+      else:
+        # Other items: random
+        game.rollPowerUpList[i].add(generateRandomPowerUp(game.player, isLegendary))
+    
+    # CRITICAL: Last item MUST be the final power-up
+    game.rollPowerUpList[i].add(game.powerUpChoices[i])

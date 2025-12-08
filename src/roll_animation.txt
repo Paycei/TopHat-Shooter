@@ -1,0 +1,92 @@
+# ============================================================================
+# SLOT MACHINE ROLL ANIMATION SYSTEM
+# ============================================================================
+
+proc generateRandomPowerUp(player: Player, isLegendary: bool): PowerUp =
+  ## Generate a random power-up for the roll animation display
+  let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
+                        puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
+                        puGravityWell, puPhaseShift, puOvercharge, puEchoShots]
+  
+  let normalTypes = [puDoubleShot, puRotatingShield, puDamageZone, puHomingBullets,
+                     puPiercingShots, puMultiShot, puExplosiveBullets, puLifeSteal,
+                     puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
+                     puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
+                     puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
+                     puFrostShots, puPoisonDamage]
+  
+  if isLegendary:
+    let t = legendaryTypes[rand(legendaryTypes.high)]
+    result = PowerUp(powerType: t, level: rand(1..3), rarity: prLegendary)
+  else:
+    let t = normalTypes[rand(normalTypes.high)]
+    result = PowerUp(powerType: t, level: rand(1..3), rarity: prCommon)
+
+proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
+  ## Update the slot machine roll animation with velocity-based scrolling
+  if not game.rollAnimationActive:
+    return
+  
+  game.rollAnimationTimer += deltaTime
+  
+  let isLegendary = game.powerUpChoices[0].rarity == prLegendary
+  
+  # Stop times for each slot
+  let stopTimes = [
+    if isLegendary: 1.5 else: 1.0,
+    if isLegendary: 3.5 else: 2.5,
+    if isLegendary: 6.0 else: 4.0
+  ]
+  
+  for i in 0..2:
+    let finalIndex = game.rollPowerUpList[i].len - 1
+    let finalPosition = finalIndex.float32 * 240.0
+    
+    if game.rollAnimationTimer < stopTimes[i]:
+      # Still rolling - use velocity-based movement with smooth deceleration
+      let progress = game.rollAnimationTimer / stopTimes[i]
+      
+      # Quadratic ease-out: fast at start, slow at end
+      let speedMultiplier = 1.0 - (progress * progress)
+      let baseSpeed = if isLegendary: 1200.0 else: 1000.0
+      
+      game.rollSpeed[i] = baseSpeed * speedMultiplier
+      game.rollPosition[i] += game.rollSpeed[i] * deltaTime
+      
+      # Clamp to not overshoot
+      if game.rollPosition[i] > finalPosition:
+        game.rollPosition[i] = finalPosition
+    else:
+      # Locked at final position
+      game.rollPosition[i] = finalPosition
+      game.rollSpeed[i] = 0.0
+  
+  # Complete when all stopped
+  if game.rollAnimationTimer >= stopTimes[2] + 0.3:
+    game.rollAnimationActive = false
+    game.canSelectPowerUp = true
+
+proc initPowerUpRollAnimation*(game: Game) =
+  ## Initialize roll animation - final power-up appears every 3rd position
+  game.rollAnimationActive = true
+  game.rollAnimationTimer = 0
+  game.canSelectPowerUp = false
+  
+  let isLegendary = game.powerUpChoices[0].rarity == prLegendary
+  
+  for i in 0..2:
+    game.rollPosition[i] = 0
+    game.rollSpeed[i] = 0
+    game.rollPowerUpList[i] = @[]
+    
+    # Build list: show final power-up every 3rd position
+    for j in 0..<15:
+      if j mod 3 == 2:
+        # Every 3rd item: the ACTUAL final power-up
+        game.rollPowerUpList[i].add(game.powerUpChoices[i])
+      else:
+        # Other items: random
+        game.rollPowerUpList[i].add(generateRandomPowerUp(game.player, isLegendary))
+    
+    # CRITICAL: Last item MUST be the final power-up
+    game.rollPowerUpList[i].add(game.powerUpChoices[i])
