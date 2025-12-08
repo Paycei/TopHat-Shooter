@@ -202,6 +202,8 @@ type
     shieldHp*: float32  # For shielded elites
     maxShieldHp*: float32  # Maximum shield HP
     regenTimer*: float32  # For regenerative elites
+    # Cross enemy rotation during dash
+    rotation*: float32  # Current rotation angle in radians
 
   Bullet* = ref object
     pos*: Vector2f
@@ -262,6 +264,7 @@ type
     lifetime*: float32      # How long the laser stays
     maxLifetime*: float32   # Original duration
     hasHitPlayer*: bool     # Track if already damaged player this laser
+    rotation*: float32      # Rotation angle in radians (for rotating lasers)
 
   ShopItem* = object
     name*: string
@@ -294,6 +297,13 @@ type
     countdownTimer*: float32
     powerUpChoices*: array[3, PowerUp]
     selectedPowerUp*: int
+    # Power-up roll animation fields
+    rollAnimationActive*: bool
+    rollAnimationTimer*: float32
+    rollSpeed*: array[3, float32]  # Individual roll speeds for each slot
+    rollPosition*: array[3, float32]  # Current scroll position for each slot
+    finalPowerUps*: array[3, PowerUp]  # The actual final power-ups
+    canSelectPowerUp*: bool  # Whether player can select (false during animation)
     bossActive*: bool
     bossSpawnTimer*: float32
     bossCoinActive*: bool  # True when boss coin needs to be collected to end wave
@@ -342,7 +352,7 @@ proc newAttackWarning*(x, y: float32, attackType: string, duration: float32): At
     maxLifetime: duration
   )
 
-proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32): Laser =
+proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0): Laser =
   Laser(
     pos: newVector2f(x, y),
     direction: direction,
@@ -351,5 +361,6 @@ proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage
     damage: damage,
     lifetime: duration,
     maxLifetime: duration,
-    hasHitPlayer: false
+    hasHitPlayer: false,
+    rotation: rotation
   )

@@ -110,11 +110,22 @@ proc buyShopItem*(game: Game, index: int) =
   item.bought += 1
   
   case index
-  of 0: # Damage - NERFED scaling and base
-    game.player.damage += 0.25 * pow(1.05, item.bought.float32)
-  of 1: # Fire Rate - HEAVILY NERFED (reduced from 0.92 to 0.96)
-    game.player.fireRate *= 0.96
-    if game.player.fireRate < 0.9: game.player.fireRate = 0.9 # Cap at 0.9
+  of 0: # Damage - Slightly reduced exponential scaling
+    game.player.damage += 0.2 * pow(1.035, item.bought.float32)
+  of 1: # Fire Rate - Diminishing returns with reduced initial benefit
+    # At base (0.415): ~2.5% improvement per purchase (was 4%)
+    # At fast (0.20): ~1.5% improvement per purchase
+    # At very fast (0.10): ~1.0% improvement per purchase
+    let currentRate = game.player.fireRate
+    let scalingFactor = 0.025  # Reduced from 0.04 to 0.025 (37.5% reduction in base benefit)
+    
+    # Diminishing returns curve adjusted to be more aggressive
+    # Using power of 0.6 instead of 0.5 (sqrt) for slightly stronger diminishing returns
+    let diminishingFactor = pow(currentRate / 0.415, 0.6)
+    let effectiveReduction = currentRate * scalingFactor * diminishingFactor
+    
+    game.player.fireRate -= effectiveReduction
+    if game.player.fireRate < 0.08: game.player.fireRate = 0.08  # Hard cap
   of 2: # Move Speed - HEAVILY NERFED
     game.player.speed += 11
     game.player.baseSpeed += 11

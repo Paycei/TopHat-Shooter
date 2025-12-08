@@ -182,7 +182,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       hexTeleportTimer: 0,
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
-      attackPhase: 0  # 0=patrol, 1=warning, 2=execute
+      attackPhase: 0,  # 0=patrol, 1=warning, 2=execute
+      rotation: 0.0    # For visual rotation during dash
     )
   
   of etDiamond:  # Shoots while dashing
@@ -619,11 +620,11 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           enemy.pos = nextPos
     
     of etCross:
-      # Shows cross warning before attack
+      # Shows cross warning before attack, then dashes while rotating
       case enemy.attackPhase
       of 0:  # Patrol - slow movement
         let dir = (playerPos - enemy.pos).normalize()
-        let nextPos = enemy.pos + dir * effectiveSpeed * 0.5 * dt
+        let nextPos = enemy.pos + dir * effectiveSpeed * dt
         var canMove = true
         for wall in walls:
           if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
@@ -639,24 +640,58 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           # Add warning to game
           game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "cross", 1.2))
       
-      of 1:  # Warning phase - stop moving
+      of 1:  # Warning phase - stop moving, prepare for dash
         enemy.attackWarningTimer -= dt
         if enemy.attackWarningTimer <= 0:
           enemy.attackPhase = 2
-          enemy.attackExecuteTimer = 0.3  # Quick execution
+          enemy.attackExecuteTimer = 0.5  # Dash duration (increased from 0.3)
+          # Store dash direction toward player
+          let dashDir = (playerPos - enemy.pos).normalize()
+          enemy.vel = dashDir * effectiveSpeed * 4.0  # Fast dash (4x normal speed)
       
-      of 2:  # Execute attack - create LASER cross pattern (instant damage zone)
-        enemy.attackExecuteTimer += dt
-        if enemy.attackExecuteTimer >= 0.05:  # Fire laser after brief delay
-          # Create cross laser - instant damage zone that stays for a bit
-          game.lasers.add(newLaser(
-            enemy.pos.x, enemy.pos.y,
-            2,              # direction: 2 = cross (both horizontal and vertical)
-            200.0,          # length: how far the laser extends (reduced from 400)
-            15.0,           # thickness: width of laser beam (reduced from 25)
-            2,              # damage
-            0.4             # duration: stays for 0.4 seconds
-          ))
+      of 2:  # Execute attack - DASH with rotation while firing laser
+        enemy.attackExecuteTimer -= dt
+        
+        # Fire laser CONTINUOUSLY during dash, following the enemy position AND rotation
+        # Laser follows the enemy during the entire dash
+        game.lasers.add(newLaser(
+          enemy.pos.x, enemy.pos.y,
+          2,              # direction: 2 = cross (both horizontal and vertical)
+          120.0,          # length: REDUCED from 200 to 120 (shorter lasers)
+          20.0,           # thickness: width of laser beam
+          2,              # damage
+          dt,             # duration: just this frame, will be recreated next frame
+          enemy.rotation  # rotation: pass the enemy's current rotation
+        ))
+        
+        # Rotate during dash (FASTER rotation in OPPOSITE direction)
+        enemy.rotation -= dt * -12.5  # 12.5 radians per second (negative = clockwise)
+        
+        # Dash movement with rotation
+        if enemy.attackExecuteTimer > 0:
+          # Continue dashing
+          let nextPos = enemy.pos + enemy.vel * dt
+          var canMove = true
+          for wall in walls:
+            if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+              canMove = false
+              # Bounce off walls during dash
+              let wallDir = (enemy.pos - wall.pos).normalize()
+              enemy.vel = wallDir * effectiveSpeed * 3.0
+              break
+          
+          if canMove:
+            enemy.pos = nextPos
+          
+          # Gradually slow down during dash
+          enemy.vel = enemy.vel * 0.96
+        else:
+          # Dash finished, reset to patrol
+          enemy.attackPhase = 0
+          enemy.attackWarningTimer = 0
+          enemy.attackExecuteTimer = 0
+          enemy.vel = newVector2f(0, 0)
+          enemy.rotation = 0.0  # Reset rotation
           
           # Reset to patrol phase after firing
           enemy.attackPhase = 0
@@ -1107,23 +1142,45 @@ proc drawEnemy*(enemy: Enemy) =
                   Color(r: 255, g: 255, b: 0, a: glowAlpha.uint8))
     
     of etCross:
-      # Draw improved cross shape with more detail
+      # Draw improved cross shape with rotation support
       let armLength = enemy.radius * 0.75
-      let armThickness = 5.0  # Changed to float
+      let armThickness = 5.0
       
-      # Draw cross arms with gradient effect
-      drawLine(Vector2(x: enemy.pos.x - armLength, y: enemy.pos.y),
-              Vector2(x: enemy.pos.x + armLength, y: enemy.pos.y), armThickness, enemy.color)
-      drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y - armLength),
-              Vector2(x: enemy.pos.x, y: enemy.pos.y + armLength), armThickness, enemy.color)
+      # Apply rotation (during dash)
+      let rotAngle = enemy.rotation
       
-      # Draw inner bright cross
+      # Calculate rotated cross arms
+      # Horizontal arm (rotated)
+      let hx1 = enemy.pos.x + cos(rotAngle) * (-armLength)
+      let hy1 = enemy.pos.y + sin(rotAngle) * (-armLength)
+      let hx2 = enemy.pos.x + cos(rotAngle) * armLength
+      let hy2 = enemy.pos.y + sin(rotAngle) * armLength
+      
+      # Vertical arm (rotated 90 degrees from horizontal)
+      let vAngle = rotAngle + PI / 2.0
+      let vx1 = enemy.pos.x + cos(vAngle) * (-armLength)
+      let vy1 = enemy.pos.y + sin(vAngle) * (-armLength)
+      let vx2 = enemy.pos.x + cos(vAngle) * armLength
+      let vy2 = enemy.pos.y + sin(vAngle) * armLength
+      
+      # Draw rotated cross arms
+      drawLine(Vector2(x: hx1, y: hy1), Vector2(x: hx2, y: hy2), armThickness, enemy.color)
+      drawLine(Vector2(x: vx1, y: vy1), Vector2(x: vx2, y: vy2), armThickness, enemy.color)
+      
+      # Draw inner bright cross (also rotated)
       let innerLength = armLength * 0.6
-      drawLine(Vector2(x: enemy.pos.x - innerLength, y: enemy.pos.y),
-              Vector2(x: enemy.pos.x + innerLength, y: enemy.pos.y), 2,
+      let ihx1 = enemy.pos.x + cos(rotAngle) * (-innerLength)
+      let ihy1 = enemy.pos.y + sin(rotAngle) * (-innerLength)
+      let ihx2 = enemy.pos.x + cos(rotAngle) * innerLength
+      let ihy2 = enemy.pos.y + sin(rotAngle) * innerLength
+      let ivx1 = enemy.pos.x + cos(vAngle) * (-innerLength)
+      let ivy1 = enemy.pos.y + sin(vAngle) * (-innerLength)
+      let ivx2 = enemy.pos.x + cos(vAngle) * innerLength
+      let ivy2 = enemy.pos.y + sin(vAngle) * innerLength
+      
+      drawLine(Vector2(x: ihx1, y: ihy1), Vector2(x: ihx2, y: ihy2), 2,
               Color(r: 255, g: 150, b: 50, a: 255))
-      drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y - innerLength),
-              Vector2(x: enemy.pos.x, y: enemy.pos.y + innerLength), 2,
+      drawLine(Vector2(x: ivx1, y: ivy1), Vector2(x: ivx2, y: ivy2), 2,
               Color(r: 255, g: 150, b: 50, a: 255))
       
       # Draw central core
@@ -1138,6 +1195,24 @@ proc drawEnemy*(enemy: Enemy) =
                        Color(r: 255, g: 50, b: 0, a: pulseIntensity))
         drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 12,
                        Color(r: 255, g: 0, b: 0, a: (pulseIntensity div 2).uint8))
+      
+      # Dash effect - motion blur trail during phase 2
+      if enemy.attackPhase == 2:
+        for i in 1..3:
+          let trailAlpha = uint8(150 - i * 40)
+          let trailScale = 1.0 - (i.float32 * 0.15)
+          let trailX = enemy.pos.x - enemy.vel.x * i.float32 * 0.03
+          let trailY = enemy.pos.y - enemy.vel.y * i.float32 * 0.03
+          let trailLength = armLength * trailScale
+          
+          # Trail horizontal
+          let thx1 = trailX + cos(rotAngle - i.float32 * 0.3) * (-trailLength)
+          let thy1 = trailY + sin(rotAngle - i.float32 * 0.3) * (-trailLength)
+          let thx2 = trailX + cos(rotAngle - i.float32 * 0.3) * trailLength
+          let thy2 = trailY + sin(rotAngle - i.float32 * 0.3) * trailLength
+          
+          drawLine(Vector2(x: thx1, y: thy1), Vector2(x: thx2, y: thy2), 2,
+                  Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: trailAlpha))
     
     of etDiamond:
       # Draw diamond shape
@@ -1353,55 +1428,73 @@ proc drawLaser*(laser: Laser) =
       coreColor
     )
   
-  of 2:  # Cross laser (both horizontal and vertical)
-    # Horizontal outer glow
-    drawRectangle(
-      (laser.pos.x - laser.length).int32,
-      (laser.pos.y - laser.thickness - 6).int32,
-      (laser.length * 2).int32,
-      (laser.thickness * 2 + 12).int32,
-      outerGlow
-    )
-    # Horizontal mid glow
-    drawRectangle(
-      (laser.pos.x - laser.length).int32,
-      (laser.pos.y - laser.thickness - 2).int32,
-      (laser.length * 2).int32,
-      (laser.thickness * 2 + 4).int32,
-      midGlow
-    )
-    # Horizontal core
-    drawRectangle(
-      (laser.pos.x - laser.length).int32,
-      (laser.pos.y - laser.thickness).int32,
-      (laser.length * 2).int32,
-      (laser.thickness * 2).int32,
-      coreColor
-    )
-    # Vertical outer glow
-    drawRectangle(
-      (laser.pos.x - laser.thickness - 6).int32,
-      (laser.pos.y - laser.length).int32,
-      (laser.thickness * 2 + 12).int32,
-      (laser.length * 2).int32,
-      outerGlow
-    )
-    # Vertical mid glow
-    drawRectangle(
-      (laser.pos.x - laser.thickness - 2).int32,
-      (laser.pos.y - laser.length).int32,
-      (laser.thickness * 2 + 4).int32,
-      (laser.length * 2).int32,
-      midGlow
-    )
-    # Vertical core
-    drawRectangle(
-      (laser.pos.x - laser.thickness).int32,
-      (laser.pos.y - laser.length).int32,
-      (laser.thickness * 2).int32,
-      (laser.length * 2).int32,
-      coreColor
-    )
+  of 2:  # Cross laser (both horizontal and vertical) with rotation
+    # Helper to calculate rotated endpoints
+    proc getRotatedEnd(centerX, centerY, length, angle: float32): Vector2 =
+      Vector2(
+        x: centerX + cos(angle) * length,
+        y: centerY + sin(angle) * length
+      )
+    
+    # Draw horizontal beam (along rotation angle)
+    let horizStart = getRotatedEnd(laser.pos.x, laser.pos.y, -laser.length, laser.rotation)
+    let horizEnd = getRotatedEnd(laser.pos.x, laser.pos.y, laser.length, laser.rotation)
+    
+    # Draw multiple parallel lines to simulate thickness with glow
+    # Outer glow
+    for offset in -6 .. 6:
+      let perpAngle = laser.rotation + PI / 2.0
+      let offsetX = cos(perpAngle) * offset.float32
+      let offsetY = sin(perpAngle) * offset.float32
+      drawLine(
+        Vector2(x: horizStart.x + offsetX, y: horizStart.y + offsetY),
+        Vector2(x: horizEnd.x + offsetX, y: horizEnd.y + offsetY),
+        3,
+        outerGlow
+      )
+    # Mid glow
+    for offset in -2 .. 2:
+      let perpAngle = laser.rotation + PI / 2.0
+      let offsetX = cos(perpAngle) * offset.float32
+      let offsetY = sin(perpAngle) * offset.float32
+      drawLine(
+        Vector2(x: horizStart.x + offsetX, y: horizStart.y + offsetY),
+        Vector2(x: horizEnd.x + offsetX, y: horizEnd.y + offsetY),
+        3,
+        midGlow
+      )
+    # Core
+    drawLine(horizStart, horizEnd, 3, coreColor)
+    
+    # Draw vertical beam (perpendicular, 90 degrees offset)
+    let vertAngle = laser.rotation + PI / 2.0
+    let vertStart = getRotatedEnd(laser.pos.x, laser.pos.y, -laser.length, vertAngle)
+    let vertEnd = getRotatedEnd(laser.pos.x, laser.pos.y, laser.length, vertAngle)
+    
+    # Outer glow
+    for offset in -6 .. 6:
+      let perpAngle = vertAngle + PI / 2.0
+      let offsetX = cos(perpAngle) * offset.float32
+      let offsetY = sin(perpAngle) * offset.float32
+      drawLine(
+        Vector2(x: vertStart.x + offsetX, y: vertStart.y + offsetY),
+        Vector2(x: vertEnd.x + offsetX, y: vertEnd.y + offsetY),
+        3,
+        outerGlow
+      )
+    # Mid glow
+    for offset in -2 .. 2:
+      let perpAngle = vertAngle + PI / 2.0
+      let offsetX = cos(perpAngle) * offset.float32
+      let offsetY = sin(perpAngle) * offset.float32
+      drawLine(
+        Vector2(x: vertStart.x + offsetX, y: vertStart.y + offsetY),
+        Vector2(x: vertEnd.x + offsetX, y: vertEnd.y + offsetY),
+        3,
+        midGlow
+      )
+    # Core
+    drawLine(vertStart, vertEnd, 3, coreColor)
   
   else:
     discard
