@@ -825,17 +825,7 @@ proc drawPowerUpSelection*(game: Game) =
   
   # Status messages
   if game.rollAnimationActive:
-    let s1 = game.rollAnimationTimer >= stopTimes[0]
-    let s2 = game.rollAnimationTimer >= stopTimes[1]
-    let s3 = game.rollAnimationTimer >= stopTimes[2]
-    
     var msg = "Rolling..."
-    if s1 and not s2:
-      msg = "First slot locked..."
-    elif s2 and not s3:
-      msg = "Second slot locked! Final roll..."
-    elif s3:
-      msg = "All locked! Choose your power-up!"
     
     let w = measureText(msg, 24)
     drawText(msg, screenWidth div 2 - w div 2, screenHeight - 150, 24, Yellow)
