@@ -121,10 +121,10 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
 proc applyWaveCheat*(game: var Game, action: string) =
   case action
   of "skip":
-    if game.waveInProgress:
-      # Kill all enemies to complete wave
-      game.enemies.setLen(0)
-      playSound(stWaveComplete)
+    # Matar todos los enemigos vivos usando la ruta normal
+    game.enemies.setLen(0)
+    # Cancelar TODOS los enemigos que faltaban por spawnear
+    game.waveEnemiesRemaining = 0
   of "next":
     game.currentWave += 1
     playSound(stMenuSelect)

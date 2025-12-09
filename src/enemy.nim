@@ -350,7 +350,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       hp: 6.0 * strengthMultiplier,
       maxHp: 6.0 * strengthMultiplier,
       speed: 40 + difficulty * 2,  # Slow, methodical movement
-      damage: 999,  # Very high damage - one-shot attack
+      damage: 999,  # One-shot attack
       color: Color(r: 200, g: 50, b: 200, a: 255),  # Bright magenta
       enemyType: etSniper,
       isBoss: false,
