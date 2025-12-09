@@ -59,9 +59,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "Bullets track enemies (10% dmg penalty)"
   of puPiercingShots:
     case level
-    of 1: "Bullets pierce 1 enemy"
-    of 2: "Bullets pierce 2 enemies"
-    else: "Bullets pierce 3 enemies"
+    of 1: "Bullets pierce 1 enemy (-33% damage per pierce)"
+    of 2: "Bullets pierce 2 enemies (-33% damage per pierce)"
+    else: "Bullets pierce 3 enemies (-33% damage per pierce)"
   of puMultiShot:
     case level
     of 1: "Shoot in 2 directions (narrow, -33% dmg)"

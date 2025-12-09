@@ -1657,15 +1657,15 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
     case eType
     of etSwift:
       # 75% faster movement and attack speed (buffed from 50%)
-      enemy.speed *= (1.75 * eliteScaling)
+      enemy.speed *= (1.65 * eliteScaling)
       enemy.shootTimer *= 0.57  # Even faster shooting
       if enemy.dashCooldown > 0:
         enemy.dashCooldown *= 0.57
       # Swift elites are slightly smaller but faster
       enemy.radius *= 0.9
       enemy.damage += 1 + (waveNumber div 5)  # +1 damage per 5 waves
-      enemy.maxHp *= eliteScaling
-      enemy.hp *= eliteScaling
+      enemy.maxHp *= (1.1 * eliteScaling)
+      enemy.hp *= (1.1 * eliteScaling)
     
     of etTank:
       # 4x HP, 60% damage reduction, slower movement (buffed from 3x HP, 50% reduction)

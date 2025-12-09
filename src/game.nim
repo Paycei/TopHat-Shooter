@@ -336,9 +336,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     if hasHoming:
       damage *= 0.9
     
-    # NERF: Double-shot bullets deal 15% less damage per bullet
+    # NERF: Double-shot bullets deal 20% less damage per bullet
     if hasDoubleShot:
-      damage *= 0.85  # 15% less damage
+      damage *= 0.8  # 20% less damage
     
     # NERF: Multi-shot bullets deal less damage per bullet (scales with level)
     if hasMultiShot:
@@ -1580,6 +1580,7 @@ proc updateGame*(game: var Game, dt: float32) =
           if bullet.isPiercing:
             let level = getPowerUpLevel(game.player, puPiercingShots)
             bullet.piercedEnemies += 1
+            bullet.damage *= 0.67  # Reduce damage by 33% per pierce
             # Level 1 = pierce 1 (hit 2 total), Level 2 = pierce 2 (hit 3 total), etc.
             if bullet.piercedEnemies > level:
               hitEnemy = true  # Delete bullet after hitting level+1 enemies

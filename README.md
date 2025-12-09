@@ -176,15 +176,8 @@ Each boss cycles through **4 forms**: Circle → Cube → Triangle → Star
 nimble build
 ```
 
-**Optimized release build (recommended):**
 ```bash
-nim c -d:release --opt:speed --passL:icono.res src/main.nim
-```
-
-**Windows icon (if rebuilding):**
-```bash
-# Icon resource is already compiled as icono.res
-# The --passL:icono.res flag includes it in the build
+nim c -d:release --opt:speed --app:gui --passL:icono.res -o:TopHatShooter.exe src\main.nim
 ```
 
 The compiled executable will be available as `TopHatShooter.exe` (Windows) or equivalent for your platform.
