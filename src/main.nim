@@ -1,9 +1,34 @@
-import raylib, types, game, shop, wall, particle, powerup, random, math, strutils, sound, settings, cheat
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat
 
 const
   screenWidth = 1024
   screenHeight = 768
   targetFPS = 60
+
+proc drawCustomCursor*(time: float32) =
+  ## Draw custom crosshair cursor (only when system cursor is hidden)
+  let mousePos = getMousePosition()
+  let cursorPulse = sin(time * 8.0) * 2 + 8
+  
+  # Outer rotating ring
+  for i in 0..<8:
+    let angle = time * 4.0 + i.float32 * PI / 4.0
+    let x = mousePos.x + cos(angle) * cursorPulse
+    let y = mousePos.y + sin(angle) * cursorPulse
+    drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
+  
+  # Crosshair lines
+  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
+          Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
+  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
+          Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
+          Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
+          Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
+  
+  # Center dot
+  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
 
 proc drawMenu(game: Game) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
@@ -65,6 +90,21 @@ proc drawMenu(game: Game) =
   let spacing = 65
   
   let menuItems = ["Play", "Survival Mode", "Settings", "Help", "Quit"]
+  
+  # Mouse hover detection (only if mouse support is enabled)
+  if globalSettings.mouseSupport:
+    let mousePos = getMousePosition()
+    for i in 0..<menuItems.len:
+      let y = startY + i * spacing
+      let text = if i == game.menuSelection: "> " & menuItems[i] & " <" else: menuItems[i]
+      let textWidth = measureText(text, 32)
+      let textX = screenWidth div 2 - textWidth div 2
+      
+      # Check if mouse is hovering over this menu item
+      if mousePos.x >= textX.float32 and mousePos.x <= (textX + textWidth).float32 and
+         mousePos.y >= y.float32 and mousePos.y <= (y + 32).float32:
+        game.menuSelection = i
+  
   for i in 0..<menuItems.len:
     let y = startY + i * spacing
     let isSelected = i == game.menuSelection
@@ -82,28 +122,9 @@ proc drawMenu(game: Game) =
     
     drawText(text, screenWidth div 2 - textWidth div 2, y.int32, 32, color)
   
-  # crosshair cursor
-  let mousePos = getMousePosition()
-  let cursorPulse = sin(game.time * 8.0) * 2 + 8
-  
-  # Outer rotating ring
-  for i in 0..<8:
-    let angle = game.time * 4.0 + i.float32 * PI / 4.0
-    let x = mousePos.x + cos(angle) * cursorPulse
-    let y = mousePos.y + sin(angle) * cursorPulse
-    drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
-  # Crosshair lines
-  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
-          Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
-          Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
-          Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
-          Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
-  
-  # Center dot
-  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
+  # Draw custom cursor only if system cursor is hidden
+  if not isCursorOnScreen():
+    drawCustomCursor(game.time)
 
 proc drawHelp(game: Game) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
@@ -117,6 +138,7 @@ proc drawHelp(game: Game) =
     "Mouse/Space - Shoot",
     "F - Toggle Auto-Shoot (requires powerup)",
     "E - Place Wall (requires walls in inventory)",
+    "Q - Activate Legendary Power-Ups",
     "ESC - Pause/Menu",
     "",
     "WAVE-BASED MODE (Main):",
@@ -139,7 +161,10 @@ proc drawHelp(game: Game) =
     y += 22
   
   drawText("Press ESC to return", screenWidth div 2 - 130, screenHeight - 60, 20, LightGray)
-
+  
+  # Draw custom cursor only if system cursor is hidden
+  if not isCursorOnScreen():
+    drawCustomCursor(game.time)
 proc main() =
   randomize()
   
@@ -172,6 +197,23 @@ proc main() =
       settings.fullscreen = not settings.fullscreen
       toggleFullscreen()
     
+    # Control cursor visibility based on game state and settings
+    case currentGame.state
+    of gsMenu, gsHelp, gsShop, gsPowerUpSelect:
+      # In menu states, mouse support setting determines cursor behavior
+      if settings.mouseSupport:
+        showCursor()
+      else:
+        hideCursor()
+    of gsSettings:
+      # Always show cursor in settings (needed for interaction)
+      showCursor()
+    of gsPlaying, gsPaused, gsWaveCleared, gsCountdown, gsGameOver:
+      # Always hide cursor during gameplay (custom cursor used)
+      hideCursor()
+    else:
+      hideCursor()
+    
     case currentGame.state
     of gsMenu:
       # Play menu music
@@ -188,24 +230,44 @@ proc main() =
         currentGame.menuSelection = (currentGame.menuSelection - 1 + 5) mod 5
         playSound(stMenuNav)
       
-      if isKeyPressed(Enter) or isKeyPressed(E):
-        playSound(stMenuSelect)
-        case currentGame.menuSelection
-        of 0:  # Wave-Based Mode
-          currentGame = newGame(screenWidth, screenHeight)
-          currentGame.mode = gmWaveBased
-          currentGame.state = gsPlaying
-        of 1:  # Time Survival Mode
-          currentGame = newGame(screenWidth, screenHeight)
-          currentGame.mode = gmTimeSurvival
-          currentGame.state = gsPlaying
-        of 2:  # Settings
-          currentGame.state = gsSettings
-        of 3:  # Help
-          currentGame.state = gsHelp
-        of 4:  # Quit
-          break
-        else: discard
+      if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
+        # For mouse clicks, verify we're clicking on a menu item (only if mouse support enabled)
+        var validClick = isKeyPressed(Enter) or isKeyPressed(E)
+        if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport:
+          let mousePos = getMousePosition()
+          let startY = 360
+          let spacing = 65
+          let menuItems = ["Play", "Survival Mode", "Settings", "Help", "Quit"]
+          
+          for i in 0..<menuItems.len:
+            let y = startY + i * spacing
+            let text = if i == currentGame.menuSelection: "> " & menuItems[i] & " <" else: menuItems[i]
+            let textWidth = measureText(text, 32)
+            let textX = screenWidth div 2 - textWidth div 2
+            
+            if mousePos.x >= textX.float32 and mousePos.x <= (textX + textWidth).float32 and
+               mousePos.y >= y.float32 and mousePos.y <= (y + 32).float32:
+              validClick = true
+              break
+        
+        if validClick:
+          playSound(stMenuSelect)
+          case currentGame.menuSelection
+          of 0:  # Wave-Based Mode
+            currentGame = newGame(screenWidth, screenHeight)
+            currentGame.mode = gmWaveBased
+            currentGame.state = gsPlaying  # Start playing immediately
+          of 1:  # Time Survival Mode
+            currentGame = newGame(screenWidth, screenHeight)
+            currentGame.mode = gmTimeSurvival
+            currentGame.state = gsPlaying  # Start playing immediately
+          of 2:  # Settings
+            currentGame.state = gsSettings
+          of 3:  # Help
+            currentGame.state = gsHelp
+          of 4:  # Quit
+            break
+          else: discard
       
       beginDrawing()
       drawMenu(currentGame)
@@ -235,7 +297,7 @@ proc main() =
       updateSettings(settings)
       
       beginDrawing()
-      drawSettings(settings, screenWidth, screenHeight)
+      drawSettings(settings, screenWidth, screenHeight, currentGame.time)
       endDrawing()
     
     of gsPlaying:
@@ -381,15 +443,31 @@ proc main() =
       # Play power-up music in shop
       playMusic(mtPowerUp)
       
-      # Navigate shop
+      # Navigate shop with keyboard
       if isKeyPressed(Down) or isKeyPressed(S):
         currentGame.selectedShopItem = (currentGame.selectedShopItem + 1) mod 6
       if isKeyPressed(Up) or isKeyPressed(W):
         currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + 6) mod 6
       
-      # Buy item
-      if isKeyPressed(Enter) or isKeyPressed(E):
-        buyShopItem(currentGame, currentGame.selectedShopItem)
+      # Buy item with keyboard or mouse
+      if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
+        # For mouse clicks, verify we're clicking on a shop item (only if mouse support enabled)
+        var validClick = isKeyPressed(Enter) or isKeyPressed(E)
+        if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport:
+          let mousePos = getMousePosition()
+          let shopStartX = currentGame.screenWidth div 2 - 200
+          let startY = 120
+          let itemHeight = 70
+          
+          for i in 0..5:
+            let y = startY + i * itemHeight
+            if mousePos.x >= shopStartX.float32 and mousePos.x <= (shopStartX + 400).float32 and
+               mousePos.y >= y.float32 and mousePos.y <= (y + 60).float32:
+              validClick = true
+              break
+        
+        if validClick:
+          buyShopItem(currentGame, currentGame.selectedShopItem)
       
       # Close shop - always continue to next wave (no going back to power-up selection)
       if isKeyPressed(Escape) or isKeyPressed(Q):
@@ -418,7 +496,7 @@ proc main() =
       # Draw stylish countdown overlay
       let countdownValue = max(currentGame.countdownTimer, 0.0)
       let pulse = 1.0 + sin(currentGame.countdownTimer * 10) * 0.1
-      let alpha = uint8(200.0 * (countdownValue + 0.3))
+      let alpha = uint8(200.0 * (countdownValue + 0.1))
       
       # Dark overlay that fades out
       drawRectangle(0, 0, screenWidth, screenHeight, 
@@ -426,6 +504,7 @@ proc main() =
       
       # Countdown text with scale pulse
       let textSize = (120 * pulse).int32
+      # Always show numeric countdown
       let countdownText = formatFloat(countdownValue, ffDecimal, 1)
       let textWidth = measureText(countdownText, textSize)
       
@@ -453,13 +532,103 @@ proc main() =
               textColor)
       
       # Subtitle
-      let subtitle = "Get Ready!"
-      let subWidth = measureText(subtitle, 30)
+      let subtitle = "READY?"
+      let subWidth = measureText(subtitle, 40)
       drawText(subtitle,
               screenWidth div 2 - subWidth div 2,
               screenHeight div 2 + 80,
-              30,
-              Color(r: 200, g: 200, b: 200, a: alpha))
+              40,
+              Color(r: 255, g: 255, b: 100, a: alpha))
+      
+      endDrawing()
+    
+    of gsWaveCleared:
+      # Keep wave music during wave cleared screen
+      playMusic(mtWave)
+      
+      # Update wave cleared timer
+      currentGame.waveClearedTimer -= dt
+      
+      # Continue coin collection during this phase
+      updatePlayer(currentGame.player, dt, screenWidth, screenHeight, currentGame.walls)
+      
+      # Update coins and handle collection
+      var i = 0
+      while i < currentGame.coins.len:
+        if not updateCoin(currentGame.coins[i], dt, currentGame.coins.len):
+          currentGame.coins.delete(i)
+          continue
+        
+        # Check if coin is in player's collection aura (auto-collect)
+        if checkAuraCollision(currentGame.coins[i], currentGame.player, currentGame.player.auraRadius):
+          moveCoinToPlayer(currentGame.coins[i], currentGame.player.pos, dt)
+        
+        # Enhanced magnet effect from consumable
+        if currentGame.player.magnetTimer > 0:
+          moveCoinToPlayer(currentGame.coins[i], currentGame.player.pos, dt)
+        
+        # Collect coin on contact
+        if checkPlayerCollision(currentGame.coins[i], currentGame.player):
+          currentGame.player.coins += currentGame.coins[i].value
+          playSound(stCoinPickup, 0.5)
+          spawnExplosion(currentGame.particles, currentGame.coins[i].pos.x, currentGame.coins[i].pos.y, Gold, 6)
+          currentGame.coins.delete(i)
+          continue
+        
+        i += 1
+      
+      # Update particles and remove dead ones
+      var pi = 0
+      while pi < currentGame.particles.len:
+        if not updateParticle(currentGame.particles[pi], dt):
+          currentGame.particles.delete(pi)
+        else:
+          pi += 1
+      
+      # Transition to power-up selection or next wave
+      if currentGame.waveClearedTimer <= 0:
+        let shouldOfferPowerUp = currentGame.cameFromPowerUpSelect
+        
+        if shouldOfferPowerUp and not currentGame.bossCoinActive:
+          # Determine if it's a boss wave power-up
+          let isBossWave = currentGame.wavesUntilBoss <= 0
+          
+          if isBossWave:
+            # Trigger boss warning
+            currentGame.bossSpawnTimer = 1.5
+            # ALWAYS offer power-up before boss (critical moment)
+            currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
+          else:
+            # Regular wave power-up
+            currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
+          
+          currentGame.selectedPowerUp = 0
+          initPowerUpRollAnimation(currentGame)
+          currentGame.state = gsPowerUpSelect
+        else:
+          # No power-up, go straight to next wave
+          currentGame.state = gsPlaying
+          startWave(currentGame)
+      
+      beginDrawing()
+      drawGame(currentGame)
+      
+      # Draw "WAVE CLEARED!" text (static, no pulsing)
+      let waveText = "WAVE CLEARED!"
+      let waveTextSize = 48.int32
+      let waveTextWidth = measureText(waveText, waveTextSize)
+      
+      # Simple centered text with subtle shadow
+      let textX = (screenWidth div 2 - waveTextWidth div 2).int32
+      let textY = 40.int32
+      
+      # Shadow
+      drawText(waveText, textX + 2.int32, textY + 2.int32, waveTextSize,
+              Color(r: 0, g: 0, b: 0, a: 100))
+      
+      # Main text
+      drawText(waveText, textX, textY, waveTextSize,
+              Color(r: 150, g: 255, b: 150, a: 255))
       
       endDrawing()
     
@@ -472,17 +641,36 @@ proc main() =
       
       # Only allow input after animation completes
       if currentGame.canSelectPowerUp:
-        # Navigate power-up choices
+        # Navigate power-up choices with keyboard
         if isKeyPressed(Left) or isKeyPressed(A):
           currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3
         if isKeyPressed(Right) or isKeyPressed(D):
           currentGame.selectedPowerUp = (currentGame.selectedPowerUp + 1) mod 3
         
-        # Select power-up
-        if isKeyPressed(Enter) or isKeyPressed(E):
-          applyPowerUp(currentGame.player, currentGame.powerUpChoices[currentGame.selectedPowerUp])
-          currentGame.cameFromPowerUpSelect = true
-          currentGame.state = gsShop
+        # Select power-up with keyboard or mouse
+        if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
+          # For mouse clicks, verify we're clicking on a card (only if mouse support enabled)
+          var validClick = isKeyPressed(Enter) or isKeyPressed(E)
+          if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport:
+            let mousePos = getMousePosition()
+            let cardWidth = 200
+            let cardHeight = 240
+            let spacing = 40
+            let totalWidth = cardWidth * 3 + spacing * 2
+            let startX = (currentGame.screenWidth - totalWidth) div 2
+            let cardY = if currentGame.powerUpChoices[0].rarity == prLegendary: 160 else: 180
+            
+            for i in 0..2:
+              let cardX = startX + i * (cardWidth + spacing)
+              if mousePos.x >= cardX.float32 and mousePos.x <= (cardX + cardWidth).float32 and
+                 mousePos.y >= cardY.float32 and mousePos.y <= (cardY + cardHeight).float32:
+                validClick = true
+                break
+          
+          if validClick:
+            applyPowerUp(currentGame.player, currentGame.powerUpChoices[currentGame.selectedPowerUp])
+            currentGame.cameFromPowerUpSelect = true
+            currentGame.state = gsShop
         
         # Skip power-up selection
         if isKeyPressed(Escape):

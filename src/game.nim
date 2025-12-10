@@ -58,6 +58,8 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     selectedShopItem: 0,
     menuSelection: 0,
     selectedPowerUp: 0,
+    countdownTimer: 0.3,  # Start with ready countdown
+    waveClearedTimer: 0,
     bossActive: false,
     bossSpawnTimer: 0,
     bossCoinActive: false,
@@ -65,7 +67,7 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     gameOverSoundPlayed: false,
     # Wave-based mode fields
     currentWave: 1,
-    wavesUntilBoss: 5,  # CHANGED: Boss appears every 5 waves instead of 3
+    wavesUntilBoss: 4,  # Boss appears at waves 5, 10, 15, etc.
     waveEnemiesRemaining: 0,
     waveEnemiesTotal: 0,
     waveInProgress: false,
@@ -92,6 +94,17 @@ proc startWave*(game: Game) =
   game.waveEnemiesTotal = waveEnemyCount
   game.waveEnemiesRemaining = waveEnemyCount
   game.spawnTimer = 0
+  
+  # PLAYER SCALING: Tiny progressive stat increases per wave
+  # Very small scaling (0.001-0.002 per wave) to keep player slightly ahead
+  let waveScaling = 1.0 + (game.currentWave.float32 * 0.0015)  # 0.15% per wave
+  
+  # Apply scaling to base stats (scales with original values, not current)
+  game.player.maxHp = 7.0 * waveScaling
+  game.player.hp = min(game.player.hp, game.player.maxHp)  # Don't reduce HP if already higher
+  game.player.damage = 1.0 * waveScaling
+  game.player.speed = 175.0 * waveScaling
+  game.player.baseSpeed = 175.0 * waveScaling
   
   # Reset all active ability cooldowns for new wave
   game.player.timeWarpUsesThisWave = 0
@@ -311,7 +324,7 @@ proc advanceWave*(game: Game) =
   
   # Check if it's time for a boss (every 5 waves now)
   if game.wavesUntilBoss == 0:
-    game.wavesUntilBoss = 5  # Reset counter - boss every 5 waves
+    game.wavesUntilBoss = 4  # Reset counter - boss every 5 waves
     # Boss wave will be triggered in update loop
 
 proc shootBullet*(game: Game, direction: Vector2f) =
@@ -336,19 +349,10 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     if hasHoming:
       damage *= 0.9
     
-    # NERF: Double-shot bullets deal 20% less damage per bullet
+    # BUFFED: Double-shot bullets deal 10% less damage per bullet (was 20%)
     if hasDoubleShot:
-      damage *= 0.8  # 20% less damage
-    
-    # NERF: Multi-shot bullets deal less damage per bullet (scales with level)
-    if hasMultiShot:
-      let multiLevel = getPowerUpLevel(game.player, puMultiShot)
-      let damageMultiplier = case multiLevel
-        of 1: 0.60   # -40% damage (2 bullets = 120% total)
-        of 2: 0.50   # -50% damage (3 bullets = 150% total)
-        else: 0.42   # -58% damage (4 bullets = 168% total)
-      damage *= damageMultiplier
-    
+      damage *= 0.9  # 10% less damage per bullet
+        
     var bulletRadius = BASE_PLAYER_BULLET_RADIUS
     
     # Apply bullet size power-up
@@ -391,15 +395,11 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         else: 6.0
     
     if hasDoubleShot and hasMultiShot:
-      # When both active: Fire multishot pattern, then schedule second burst
-      let multiLevel = getPowerUpLevel(game.player, puMultiShot)
-      let multiCount = case multiLevel
-        of 1: 2
-        of 2: 3
-        else: 4
-      let spreadAngle = if multiLevel == 1: 0.2 elif multiLevel == 2: 0.3 else: 0.4
+      # When both active: Fire multishot pattern (3 directions), then schedule second burst
+      let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
+      let spreadAngle = 0.3  # Fixed spread for 3-shot pattern
       let doubleLevel = getPowerUpLevel(game.player, puDoubleShot)
-      let burstCount = doubleLevel + 3  # Level 1 = 2 bursts, Level 2 = 3, Level 3 = 4
+      let burstCount = doubleLevel + 1  # Level 1 = 2 bursts, Level 2 = 3, Level 3 = 4
       
       # Fire first burst
       for i in 0..<multiCount:
@@ -420,7 +420,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     elif hasDoubleShot:
       # Fire in quick succession (. .) pattern
       let level = getPowerUpLevel(game.player, puDoubleShot)
-      let burstCount = level + 3  # Level 1 = 2, Level 2 = 3, Level 3 = 4
+      let burstCount = level + 1  # Level 1 = 2, Level 2 = 3, Level 3 = 4
       
       # Fire first bullet immediately
       let bullet = newBullet(game.player.pos.x, game.player.pos.y, direction, 
@@ -432,13 +432,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       # Schedule remaining bullets with small delays (0.08s between each)
       game.player.doubleShotDelay = 0.08 * (burstCount - 1).float32
     elif hasMultiShot:
-      # Shoot in multiple directions
-      let level = getPowerUpLevel(game.player, puMultiShot)
-      let bulletCount = case level
-        of 1: 2
-        of 2: 3
-        else: 4
-      let spreadAngle = if level == 1: 0.2 elif level == 2: 0.3 else: 0.4
+      # Shoot in 3 directions (legendary, no nerfs)
+      let bulletCount = 3  # Always 3 bullets
+      let spreadAngle = 0.3  # Fixed spread
       
       for i in 0..<bulletCount:
         let angle = (i.float32 - (bulletCount - 1).float32 / 2.0) * spreadAngle
@@ -487,7 +483,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let hasPoison = hasPowerUp(game.player, puPoisonDamage)
   
   var speed = game.player.bulletSpeed * 1.2
-  var damage = getCurrentDamage(game.player) * 0.75  # Second bullet reduced by 25%
+  var damage = getCurrentDamage(game.player) * 0.85  # BUFFED: Second bullet reduced by 15% (was 25%)
   var bulletRadius = BASE_PLAYER_BULLET_RADIUS
   
   # NERF: Multi-shot bullets deal less damage per bullet (scales with level)
@@ -523,12 +519,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       else: 6.0
   
   if hasMultiShot:
-    let multiLevel = getPowerUpLevel(game.player, puMultiShot)
-    let multiCount = case multiLevel
-      of 1: 2
-      of 2: 3
-      else: 4
-    let spreadAngle = if multiLevel == 1: 0.2 elif multiLevel == 2: 0.3 else: 0.4
+    let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
+    let spreadAngle = 0.3  # Fixed spread
     
     for i in 0..<multiCount:
       let angle = (i.float32 - (multiCount - 1).float32 / 2.0) * spreadAngle
@@ -644,13 +636,13 @@ proc updateGame*(game: var Game, dt: float32) =
   if hasPowerUp(game.player, puDamageZone):
     let level = getPowerUpLevel(game.player, puDamageZone)
     let zoneDamage = case level
-      of 1: 2.0
-      of 2: 5.0
-      else: 10.0
+      of 1: 3.0
+      of 2: 6.0
+      else: 12.0
     let zoneRadius = case level
-      of 1: 50.0
-      of 2: 100.0
-      else: 150.0
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
     
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
@@ -658,19 +650,8 @@ proc updateGame*(game: var Game, dt: float32) =
         let actualDamage = applyEliteModifiers(enemy, zoneDamage * dt)
         enemy.hp -= actualDamage
   
-  # Regeneration power-up effect - BUFFED
-  if hasPowerUp(game.player, puRegeneration):
-    game.player.regenTimer += dt
-    let level = getPowerUpLevel(game.player, puRegeneration)
-    let regenInterval = case level
-      of 1: 12.0  # BUFFED from 15s to 12s
-      of 2: 9.0   # BUFFED from 11s to 9s
-      else: 6.0   # BUFFED from 8s to 6s
-    
-    if game.player.regenTimer >= regenInterval:
-      heal(game.player, 1)
-      game.player.regenTimer = 0
-      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 10)
+  # Regeneration power-up is now handled per wave completion, not per time interval
+  # See wave completion code for regeneration logic
   
   # Slow Field power-up effect - NERFED for balance
   if hasPowerUp(game.player, puSlowField):
@@ -680,9 +661,9 @@ proc updateGame*(game: var Game, dt: float32) =
       of 2: 0.45  # NERFED from 65% to 45% slow
       else: 0.55  # NERFED from 75% to 55% slow
     let slowRadius = case level
-      of 1: 120.0  # NERFED from 150 to 120
-      of 2: 160.0  # NERFED from 200 to 160
-      else: 200.0  # NERFED from 250 to 200
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
     
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
@@ -696,6 +677,191 @@ proc updateGame*(game: var Game, dt: float32) =
           enemy.slowTimer -= dt
           if enemy.slowTimer <= 0:
             enemy.slowAmount = 0
+  
+  # Fire Aura power-up effect - applies burning damage over time
+  if hasPowerUp(game.player, puFireAura):
+    let level = getPowerUpLevel(game.player, puFireAura)
+    let fireDamagePerSec = case level
+      of 1: 1.5
+      of 2: 3.0
+      else: 6.0
+    let fireDuration = case level
+      of 1: 2.0
+      of 2: 3.0
+      else: 4.0
+    let fireRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    for enemy in game.enemies:
+      let dist = distance(game.player.pos, enemy.pos)
+      if dist < fireRadius:
+        # Apply fire effect
+        enemy.fireTimer = fireDuration
+        enemy.fireDamage = fireDamagePerSec
+        
+        # Apply 5% slow effect
+        enemy.slowTimer = 0.2
+        if enemy.slowAmount < 0.05:
+          enemy.slowAmount = 0.05
+        
+        # Visual fire particles
+        if rand(100) < 8:  # 8% chance per frame
+          let particleAngle = rand(1.0) * PI * 2.0
+          let particleDist = rand(enemy.radius + 5.0)
+          let particleX = enemy.pos.x + cos(particleAngle) * particleDist
+          let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 3.0
+          spawnExplosion(game.particles, particleX, particleY, Red, 2)
+  
+  # Apply fire damage over time to burning enemies
+  for enemy in game.enemies:
+    if enemy.fireTimer > 0:
+      enemy.fireTimer -= dt
+      let actualDamage = applyEliteModifiers(enemy, enemy.fireDamage * dt)
+      enemy.hp -= actualDamage
+      
+      # Visual fire effect while burning
+      if rand(100) < 15 and enemy.fireTimer > 0:
+        let particleAngle = rand(1.0) * PI * 2.0
+        let particleDist = rand(enemy.radius)
+        let particleX = enemy.pos.x + cos(particleAngle) * particleDist
+        let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 5.0
+        let fireColor = if rand(2) == 0: Red else: Orange
+        spawnExplosion(game.particles, particleX, particleY, fireColor, 2)
+  
+  # Lightning Aura power-up effect - low damage with chain lightning
+  if hasPowerUp(game.player, puLightningAura):
+    let level = getPowerUpLevel(game.player, puLightningAura)
+    let lightningDamagePerSec = case level
+      of 1: 0.8
+      of 2: 1.6
+      else: 3.2
+    let maxChains = case level
+      of 1: 1
+      of 2: 2
+      else: 3
+    let lightningRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    let chainRange = 80.0  # Distance lightning can chain between enemies
+    
+    # Build list of enemies in range
+    var enemiesInRange: seq[tuple[enemy: Enemy, dist: float32]] = @[]
+    for enemy in game.enemies:
+      let dist = distance(game.player.pos, enemy.pos)
+      if dist < lightningRadius:
+        enemiesInRange.add((enemy: enemy, dist: dist))
+    
+    # Apply damage and chain lightning
+    var processedEnemies: seq[Enemy] = @[]
+    for entry in enemiesInRange:
+      let enemy = entry.enemy
+      if enemy notin processedEnemies:
+        # Apply initial damage
+        let actualDamage = applyEliteModifiers(enemy, lightningDamagePerSec * dt)
+        enemy.hp -= actualDamage
+        processedEnemies.add(enemy)
+        
+        # Apply 5% slow effect
+        enemy.slowTimer = 0.2
+        if enemy.slowAmount < 0.05:
+          enemy.slowAmount = 0.05
+        
+        # Visual lightning spark
+        if rand(100) < 10:
+          spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+                        Color(r: 150, g: 200, b: 255, a: 255), 3)
+        
+        # Chain to nearby enemies
+        var currentEnemy = enemy
+        for chainNum in 1..maxChains:
+          # Find nearest unchained enemy within chain range
+          var nearestDist = chainRange + 1.0
+          var nearestEnemy: Enemy = nil
+          
+          for other in game.enemies:
+            if other != currentEnemy and other notin processedEnemies:
+              let chainDist = distance(currentEnemy.pos, other.pos)
+              if chainDist < chainRange and chainDist < nearestDist:
+                nearestDist = chainDist
+                nearestEnemy = other
+          
+          if nearestEnemy != nil:
+            # Apply chained damage (same as initial)
+            let chainedDamage = applyEliteModifiers(nearestEnemy, lightningDamagePerSec * dt)
+            nearestEnemy.hp -= chainedDamage
+            processedEnemies.add(nearestEnemy)
+            
+            # Apply 5% slow effect to chained enemy
+            nearestEnemy.slowTimer = 0.2
+            if nearestEnemy.slowAmount < 0.05:
+              nearestEnemy.slowAmount = 0.05
+            
+            # Visual chain lightning particle
+            if rand(100) < 20:
+              let midX = (currentEnemy.pos.x + nearestEnemy.pos.x) / 2.0
+              let midY = (currentEnemy.pos.y + nearestEnemy.pos.y) / 2.0
+              spawnExplosion(game.particles, midX, midY,
+                            Color(r: 200, g: 220, b: 255, a: 200), 2)
+            
+            currentEnemy = nearestEnemy
+          else:
+            break  # No more enemies to chain to
+  
+  # Poison Aura power-up effect - low damage, longer duration
+  if hasPowerUp(game.player, puPoisonAura):
+    let level = getPowerUpLevel(game.player, puPoisonAura)
+    let poisonDamagePerSec = case level
+      of 1: 0.6
+      of 2: 1.2
+      else: 2.4
+    let poisonDuration = case level
+      of 1: 6.0
+      of 2: 8.0
+      else: 10.0
+    let poisonRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    for enemy in game.enemies:
+      let dist = distance(game.player.pos, enemy.pos)
+      if dist < poisonRadius:
+        # Apply poison aura effect (separate from bullet poison)
+        enemy.poisonAuraTimer = poisonDuration
+        enemy.poisonAuraDamage = poisonDamagePerSec
+        
+        # Apply 5% slow effect
+        enemy.slowTimer = 0.2
+        if enemy.slowAmount < 0.05:
+          enemy.slowAmount = 0.05
+        
+        # Visual poison particles
+        if rand(100) < 6:  # 6% chance per frame
+          let particleAngle = rand(1.0) * PI * 2.0
+          let particleDist = rand(enemy.radius + 5.0)
+          let particleX = enemy.pos.x + cos(particleAngle) * particleDist
+          let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 3.0
+          spawnExplosion(game.particles, particleX, particleY, 
+                        Color(r: 100, g: 255, a: 200), 2)
+  
+  # Apply poison aura damage over time to poisoned enemies
+  for enemy in game.enemies:
+    if enemy.poisonAuraTimer > 0:
+      enemy.poisonAuraTimer -= dt
+      let actualDamage = applyEliteModifiers(enemy, enemy.poisonAuraDamage * dt)
+      enemy.hp -= actualDamage
+      
+      # Visual poison effect while poisoned
+      if rand(100) < 12 and enemy.poisonAuraTimer > 0:
+        let particleAngle = rand(1.0) * PI * 2.0
+        let particleDist = rand(enemy.radius)
+        let particleX = enemy.pos.x + cos(particleAngle) * particleDist
+        let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 4.0
+        spawnExplosion(game.particles, particleX, particleY,
+                      Color(r: 100, g: 255, b: 100, a: 180), 2)
   
   # Gravity Well (Singularity) - Pull enemies toward player with bonus effect on ranged
   if hasPowerUp(game.player, puGravityWell):
@@ -753,8 +919,13 @@ proc updateGame*(game: var Game, dt: float32) =
       let hasMultiShot = hasPowerUp(game.player, puMultiShot)
       fireDoubleShotBurst(game, shootDir, hasMultiShot)
     
-    # Fire additional bursts for level 2 and 3
+    # Fire additional bursts for level 2 (crosses 0.16s)
     if prevDelay > 0.16 and game.player.doubleShotDelay <= 0.16:
+      let hasMultiShot = hasPowerUp(game.player, puMultiShot)
+      fireDoubleShotBurst(game, shootDir, hasMultiShot)
+    
+    # Fire additional burst for level 3 (crosses 0.24s)
+    if prevDelay > 0.24 and game.player.doubleShotDelay <= 0.24:
       let hasMultiShot = hasPowerUp(game.player, puMultiShot)
       fireDoubleShotBurst(game, shootDir, hasMultiShot)
     
@@ -827,6 +998,25 @@ proc updateGame*(game: var Game, dt: float32) =
       if checkWaveComplete(game):
         game.waveInProgress = false
         
+        # Regeneration power-up - heal variable HP per wave based on level
+        if hasPowerUp(game.player, puRegeneration):
+          let level = getPowerUpLevel(game.player, puRegeneration)
+          var healAmount = 0
+          
+          case level
+          of 1:
+            # Level 1: 1-2 health (50/50 chance)
+            healAmount = 1 + rand(1)  # rand(1) gives 0 or 1
+          of 2:
+            # Level 2: 1-2 health +1 = 2-3 health
+            healAmount = 2 + rand(1)  # 2 or 3
+          else:
+            # Level 3: 1-3 health +1 = 2-4 health
+            healAmount = 2 + rand(2)  # 2, 3, or 4
+          
+          heal(game.player, healAmount.float32)
+          spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 15)
+        
         # Play wave complete sound
         playSound(stWaveComplete)
 
@@ -840,23 +1030,13 @@ proc updateGame*(game: var Game, dt: float32) =
         # ADJUSTED: Power-ups less frequent (every 2 waves instead of every wave)
         let shouldOfferPowerUp = (game.currentWave mod 2) == 0
         
-        # If wavesUntilBoss reached zero, schedule a boss wave next (no pause needed)
-        if game.wavesUntilBoss <= 0:
-          # Trigger boss warning for 1.5 seconds, but gameplay continues
-          game.bossSpawnTimer = 1.5
-          # ALWAYS offer power-up before boss (critical moment)
-          game.powerUpChoices = generatePowerUpChoices(game.player, false)
-          game.selectedPowerUp = 0
-          initPowerUpRollAnimation(game)  # Start roll animation
-          game.state = gsPowerUpSelect
-        elif shouldOfferPowerUp and not game.bossCoinActive:
-          # Regular wave complete: show power-up choices (every 2 waves)
-          # Don't show power-up if waiting for boss coin collection
-          game.powerUpChoices = generatePowerUpChoices(game.player, false)
-          game.selectedPowerUp = 0
-          initPowerUpRollAnimation(game)  # Start roll animation
-          game.state = gsPowerUpSelect
-        # Otherwise, wave completes and next wave starts immediately
+        # Transition to wave cleared state for 0.3s to let players collect coins
+        game.waveClearedTimer = 0.3
+        game.state = gsWaveCleared
+        
+        # Store whether we should offer power-up after the timer
+        # Store this in cameFromPowerUpSelect as a temporary flag
+        game.cameFromPowerUpSelect = shouldOfferPowerUp or (game.wavesUntilBoss <= 0)
     
     # Boss wave spawning - don't spawn if there's a boss coin waiting to be collected
     if game.wavesUntilBoss == 0 and not game.bossActive and not game.bossCoinActive and game.state == gsPlaying:
@@ -1132,53 +1312,115 @@ proc updateGame*(game: var Game, dt: float32) =
       if enemy.shockwaveTimer <= 0:
         spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, enemy.radius + 100)
         
-        # Spawn bullets in shockwave pattern
+        # Spawn bullets in shockwave pattern - NERFED damage
         for angle in 0..<16:
           let rad = angle.float32 * PI / 8.0
           let dir = newVector2f(cos(rad), sin(rad))
-          game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 220, 1, false))
+          game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 220, 0.75, false, isBossBullet=true))
         
         enemy.shockwaveTimer = 5.0 + rand(3.0)
       
-      # Phase-based attacks
+      # Phase-based attacks WITH PROGRESSIVE ABILITIES
+      # Bosses gain new abilities based on bossCount (how many bosses defeated)
       case enemy.bossPhase
       of bpCircle:
-        # Original boss behavior
+        # Original boss behavior + progressive abilities
         case enemy.bossType
-        of btShooter:  # Spiral shooter - MORE BULLETS
-          if enemy.shootTimer > 0.8:  # Faster
-            for angle in 0..<12:  # More bullets
+        of btShooter:  # Spiral shooter
+          if enemy.shootTimer > 0.8:
+            # Basic spiral attack
+            for angle in 0..<12:
               let rad = angle.float32 * PI / 6.0 + game.time * 2
               let dir = newVector2f(cos(rad), sin(rad))
-              game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 240, 1, false))
+              game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 240, 0.75, false, isBossBullet=true))
+            
+            # PROGRESSIVE ABILITY: Rotating laser beams (unlocks at boss 2+)
+            if game.bossCount >= 2:
+              let laserAngle = game.time * 2.5  # Rotation speed
+              for i in 0..<3:  # 3 rotating laser arms
+                let armAngle = laserAngle + i.float32 * (PI * 2.0 / 3.0)
+                game.lasers.add(newLaser(
+                  enemy.pos.x, enemy.pos.y,
+                  0,  # horizontal (will be rotated)
+                  150.0,  # length
+                  15.0,   # thickness
+                  1,      # damage
+                  0.1,    # very short lifetime (visual only)
+                  armAngle  # rotation
+                ))
+            
             enemy.shootTimer = 0
         
-        of btSummoner:  # Spawn minions - MORE MINIONS
-          if enemy.spawnTimer > 3.0:  # Faster
-            for _ in 0..3:  # More minions
+        of btSummoner:  # Spawn minions
+          if enemy.spawnTimer > 3.0:
+            # Basic minion spawning
+            for _ in 0..3:
               let angle = rand(1.0) * PI * 2
               let spawnDist = enemy.radius + 20
               let spawnX = enemy.pos.x + cos(angle) * spawnDist
               let spawnY = enemy.pos.y + sin(angle) * spawnDist
               game.enemies.add(newEnemy(spawnX, spawnY, game.difficulty, etCircle))
+            
+            # PROGRESSIVE ABILITY: Spawn near player (unlocks at boss 3+)
+            if game.bossCount >= 3:
+              for _ in 0..1:  # 2 enemies near player
+                let angle = rand(1.0) * PI * 2
+                let spawnDist = 120.0 + rand(50.0)
+                let spawnX = game.player.pos.x + cos(angle) * spawnDist
+                let spawnY = game.player.pos.y + sin(angle) * spawnDist
+                # Clamp to screen bounds
+                let clampedX = clamp(spawnX, 50.0, game.screenWidth.float32 - 50.0)
+                let clampedY = clamp(spawnY, 50.0, game.screenHeight.float32 - 50.0)
+                game.enemies.add(newEnemy(clampedX, clampedY, game.difficulty, etTriangle))
+                # Warning particles
+                spawnExplosion(game.particles, clampedX, clampedY, Red, 20)
+            
             enemy.spawnTimer = 0
         
-        of btCharger:  # Dash attacks - FASTER
-          if enemy.shootTimer > 2.0:  # Faster
+        of btCharger:  # Dash attacks
+          if enemy.shootTimer > 2.0:
             let dir = (game.player.pos - enemy.pos).normalize()
-            enemy.vel = dir * enemy.speed * 4.0  # Faster dash
+            enemy.vel = dir * enemy.speed * 4.0
+            
+            # PROGRESSIVE ABILITY: Leave damaging trail (unlocks at boss 2+)
+            if game.bossCount >= 2:
+              # Spawn damage zone particles along dash path
+              for i in 0..8:
+                let trailPos = enemy.pos - dir * (i.float32 * 20.0)
+                spawnExplosion(game.particles, trailPos.x, trailPos.y, 
+                             Color(r: 255, g: 100, b: 0, a: 200), 12)
+                
+                # Damage player if in trail
+                if distance(game.player.pos, trailPos) < 30:
+                  if game.time - enemy.lastContactDamageTime >= 0.3:
+                    if takeDamage(game.player, 1.0):
+                      game.state = gsGameOver
+                    enemy.lastContactDamageTime = game.time
+            
             enemy.shootTimer = 0
         
-        of btOrbit:  # Orbiting projectiles - MORE CHAOS
-          if enemy.shootTimer > 0.2:  # Much faster
+        of btOrbit:  # Orbiting projectiles
+          if enemy.shootTimer > 0.2:
             let angle = game.time * 4
             let orbitRadius = enemy.radius + 30
-            for i in 0..<6:  # More bullets
+            for i in 0..<6:
               let a = angle + i.float32 * PI / 3.0
               let bulletX = enemy.pos.x + cos(a) * orbitRadius
               let bulletY = enemy.pos.y + sin(a) * orbitRadius
               let dir = (game.player.pos - newVector2f(bulletX, bulletY)).normalize()
-              game.bullets.add(newBullet(bulletX, bulletY, dir, 200, 1, false))
+              game.bullets.add(newBullet(bulletX, bulletY, dir, 200, 0.75, false, isBossBullet=true))
+            
+            # PROGRESSIVE ABILITY: Homing orbital bullets (unlocks at boss 3+)
+            if game.bossCount >= 3 and (game.time.int mod 3) == 0:  # Every 3 seconds
+              let homingAngle = rand(1.0) * PI * 2.0
+              let bulletX = enemy.pos.x + cos(homingAngle) * orbitRadius
+              let bulletY = enemy.pos.y + sin(homingAngle) * orbitRadius
+              let homingBullet = newBullet(bulletX, bulletY, 
+                                          (game.player.pos - newVector2f(bulletX, bulletY)).normalize(),
+                                          180, 1.0, false, true, false, false, false, false, 
+                                          0, 0, false, false, true)  # isBossBullet=true
+              game.bullets.add(homingBullet)
+            
             enemy.shootTimer = 0
       
       of bpCube:
@@ -1187,7 +1429,20 @@ proc updateGame*(game: var Game, dt: float32) =
           for angle in 0..<8:
             let rad = angle.float32 * PI / 4.0
             let dir = newVector2f(cos(rad), sin(rad))
-            game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 200, 1, false))
+            game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 200, 0.75, false, isBossBullet=true))
+          
+          # PROGRESSIVE ABILITY: Cross lasers (unlocks at boss 4+)
+          if game.bossCount >= 4:
+            game.lasers.add(newLaser(
+              enemy.pos.x, enemy.pos.y,
+              2,  # cross pattern
+              180.0,  # length
+              20.0,   # thickness
+              2,      # higher damage
+              0.4,    # longer duration
+              0.0     # no rotation
+            ))
+          
           enemy.burstTimer = 0
       
       of bpTriangle:
@@ -1200,7 +1455,16 @@ proc updateGame*(game: var Game, dt: float32) =
               dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
               dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
             )
-            game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, spreadDir, 280, 1, false))
+            game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, spreadDir, 280, 0.75, false, isBossBullet=true))
+          
+          # PROGRESSIVE ABILITY: Predict player position (unlocks at boss 5+)
+          if game.bossCount >= 5:
+            # Calculate predicted player position based on velocity
+            let predictTime = 0.5  # Predict 0.5 seconds ahead
+            let predictedPos = game.player.pos + game.player.vel * predictTime
+            let predictDir = (predictedPos - enemy.pos).normalize()
+            game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, predictDir, 350, 1.0, false, isBossBullet=true))
+          
           enemy.burstTimer = 0
       
       of bpStar:
@@ -1208,7 +1472,16 @@ proc updateGame*(game: var Game, dt: float32) =
         if enemy.burstTimer > 0.15:
           let angle = rand(1.0) * PI * 2.0
           let dir = newVector2f(cos(angle), sin(angle))
-          game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 250, 1, false))
+          game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 250, 0.75, false, isBossBullet=true))
+          
+          # PROGRESSIVE ABILITY: Star burst attack (unlocks at boss 6+)
+          if game.bossCount >= 6 and (game.time * 100).int mod 100 == 0:  # Occasionally
+            # Spawn 5-pointed star burst
+            for i in 0..<5:
+              let starAngle = i.float32 * (PI * 2.0 / 5.0)
+              let starDir = newVector2f(cos(starAngle), sin(starAngle))
+              game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, starDir, 300, 1.0, false, isBossBullet=true))
+          
           enemy.burstTimer = 0
     
     # Hexagon enemies shoot chaotically
@@ -1247,9 +1520,9 @@ proc updateGame*(game: var Game, dt: float32) =
           if hasPowerUp(game.player, puThorns):
             let thornsLevel = getPowerUpLevel(game.player, puThorns)
             let reflectPercent = case thornsLevel
-              of 1: 0.20
-              of 2: 0.40
-              else: 0.70
+              of 1: 0.35  # BUFFED from 0.20 to 0.35
+              of 2: 0.60  # BUFFED from 0.40 to 0.60
+              else: 1.00  # BUFFED from 0.70 to 1.00 (full reflection!)
             let reflectDamage = bossContactDamage * reflectPercent
             let actualDamage = applyEliteModifiers(enemy, reflectDamage)
             enemy.hp -= actualDamage
@@ -1277,9 +1550,9 @@ proc updateGame*(game: var Game, dt: float32) =
         if hasPowerUp(game.player, puThorns):
           let thornsLevel = getPowerUpLevel(game.player, puThorns)
           let reflectPercent = case thornsLevel
-            of 1: 0.20
-            of 2: 0.40
-            else: 0.70
+            of 1: 0.35  # BUFFED from 0.20 to 0.35
+            of 2: 0.60  # BUFFED from 0.40 to 0.60
+            else: 1.00  # BUFFED from 0.70 to 1.00 (full reflection!)
           let reflectedDamage = enemyContactDamage * reflectPercent
           let actualDamage = applyEliteModifiers(enemy, reflectedDamage)
           enemy.hp -= actualDamage
@@ -1624,9 +1897,9 @@ proc updateGame*(game: var Game, dt: float32) =
         if hasPowerUp(game.player, puThorns):
           let thornsLevel = getPowerUpLevel(game.player, puThorns)
           let reflectPercent = case thornsLevel
-            of 1: 0.20
-            of 2: 0.40
-            else: 0.70
+            of 1: 0.35  # BUFFED from 0.20 to 0.35
+            of 2: 0.60  # BUFFED from 0.40 to 0.60
+            else: 1.00  # BUFFED from 0.70 to 1.00 (full reflection!)
           let reflectedDamage = bulletDamage * reflectPercent
           
           # Find nearest enemy to reflect damage to

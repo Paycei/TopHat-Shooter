@@ -16,4 +16,4 @@ task run, "Run the game for development":
   exec "nim c -r src/main.nim"
 
 task build, "Build the game for release":
-  exec "nim c -d:release --opt:speed --app:gui --passL:icono.res -o:TopHatShooter.exe src\main.nim"
+  exec "nim c -d:release --opt:speed --app:gui --passL:icono.res -o:TopHatShooter.exe src/main.nim"

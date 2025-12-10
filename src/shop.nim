@@ -4,13 +4,13 @@ proc initShopItems*(): array[6, ShopItem] =
   result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 8, bought: 0)
   result[1] = ShopItem(name: "Fire Rate +", description: "Shoot faster", baseCost: 10, bought: 0)
   result[2] = ShopItem(name: "Move Speed +", description: "Move faster", baseCost: 7, bought: 0)
-  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 12, bought: 0)
+  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 11, bought: 0)
   result[4] = ShopItem(name: "Bullet Speed +", description: "Faster bullets", baseCost: 6, bought: 0)
-  result[5] = ShopItem(name: "Wall (x5)", description: "Buy 5 deployable walls", baseCost: 15, bought: 0)
+  result[5] = ShopItem(name: "Wall (x5)", description: "Buy 5 deployable walls", baseCost: 14, bought: 0)
 
 proc getCurrentCost*(item: ShopItem): int =
   # More aggressive exponential cost scaling: baseCost * 1.5^bought
-  (item.baseCost.float32 * pow(1.5, item.bought.float32)).int
+  (item.baseCost.float32 * pow(1.45, item.bought.float32)).int
 
 proc drawShop*(game: Game) =
   let screenWidth = game.screenWidth
@@ -61,10 +61,18 @@ proc drawShop*(game: Game) =
   let startY = 120
   let itemHeight = 70
   
+  # Mouse hover detection
+  let mousePos = getMousePosition()
+  
   for i in 0..5:
     let y = startY + i * itemHeight
     let item = game.shopItems[i]
     let cost = getCurrentCost(item)
+    
+    # Check if mouse is hovering over this item
+    if mousePos.x >= shopStartX.float32 and mousePos.x <= (shopStartX + 400).float32 and
+       mousePos.y >= y.float32 and mousePos.y <= (y + 60).float32:
+      game.selectedShopItem = i
     
     # Draw selection pointer (left of selected item)
     if i == game.selectedShopItem:
@@ -90,8 +98,34 @@ proc drawShop*(game: Game) =
     let costColor = if game.player.coins >= cost: Green else: Red
     drawText(costText, shopStartX + 270, y.int32 + 20, 18, costColor)
   
-  drawText("W/S or ARROW KEYS: select | ENTER: buy | ESC: continue", 
-          screenWidth div 2 - 280, screenHeight - 50, 18, LightGray)
+  drawText("W/S or ARROW KEYS: select | MOUSE: hover/click | ENTER: buy | ESC: continue", 
+          screenWidth div 2 - 350, screenHeight - 50, 18, LightGray)
+  
+  # Draw custom cursor only if system cursor is hidden
+  if not isCursorOnScreen():
+    let mousePos = getMousePosition()
+    let time = getTime()
+    let cursorPulse = sin(time * 8.0) * 2 + 8
+    
+    # Outer rotating ring
+    for i in 0..<8:
+      let angle = time * 4.0 + i.float32 * PI / 4.0
+      let x = mousePos.x + cos(angle) * cursorPulse
+      let y = mousePos.y + sin(angle) * cursorPulse
+      drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
+    
+    # Crosshair lines
+    drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
+            Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
+    drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
+            Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
+    drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
+            Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
+    drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
+            Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
+    
+    # Center dot
+    drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
 
 proc buyShopItem*(game: Game, index: int) =
   if index < 0 or index > 5: return
@@ -125,7 +159,7 @@ proc buyShopItem*(game: Game, index: int) =
     let effectiveReduction = currentRate * scalingFactor * diminishingFactor
     
     game.player.fireRate -= effectiveReduction
-    if game.player.fireRate < 0.08: game.player.fireRate = 0.08  # Hard cap
+    if game.player.fireRate < 0.07: game.player.fireRate = 0.07  # Hard cap
   of 2: # Move Speed - HEAVILY NERFED
     game.player.speed += 11
     game.player.baseSpeed += 11

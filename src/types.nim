@@ -2,7 +2,7 @@ import raylib, math, std/tables
 
 type
   GameState* = enum
-    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsPowerUpSelect, gsSettings
+    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings
   
   GameMode* = enum
     gmWaveBased,      # New primary mode: waves → upgrades → boss → legendary
@@ -82,6 +82,9 @@ type
     puChainLightning,  # Damage chains between enemies
     puFrostShots,      # Bullets slow enemies
     puPoisonDamage,    # Damage over time effect
+    puFireAura,        # Fire damage over time aura
+    puLightningAura,   # Lightning damage that chains between enemies
+    puPoisonAura,      # Poison damage over time aura (lower damage, longer duration)
     puTimeWarp,        # Slow down time globally
     puGravityWell,     # Pull enemies toward you
     puPhaseShift,      # Teleport dash through enemies
@@ -183,6 +186,10 @@ type
     slowAmount*: float32
     poisonTimer*: float32
     poisonDamage*: float32
+    poisonAuraTimer*: float32  # Separate timer for poison aura effect
+    poisonAuraDamage*: float32  # Separate damage for poison aura
+    fireTimer*: float32
+    fireDamage*: float32
     chainLightningCooldown*: float32
     # New fields for advanced enemies
     attackWarningTimer*: float32
@@ -226,6 +233,7 @@ type
     travelDistance*: float32  # Track distance for Overcharge
     isEcho*: bool  # True if this is an echo clone bullet
     echoTrailTimer*: float32  # Timer for spawning echo clones
+    isBossBullet*: bool  # True if this bullet was fired by a boss (for glow effect)
 
   Coin* = ref object
     pos*: Vector2f
@@ -295,6 +303,7 @@ type
     selectedShopItem*: int
     menuSelection*: int
     countdownTimer*: float32
+    waveClearedTimer*: float32  # Timer for wave cleared transition
     powerUpChoices*: array[3, PowerUp]
     selectedPowerUp*: int
     # Power-up roll animation fields
