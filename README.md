@@ -1,82 +1,53 @@
-🎩 TopHat Shooter
+# 🎩 TopHat Shooter
 
-TopHat Shooter es un bullet hell rápido, caótico y lleno de cinemática gloriosa, hecho en Nim + Raylib. Lucha contra oleadas, mejora tu build y destruye jefes cada 5 rondas.
+![Nim](https://img.shields.io/badge/Nim-FFE953?style=for-the-badge&logo=nim&logoColor=black)
+![Raylib](https://img.shields.io/badge/Raylib-000000?style=for-the-badge&logo=c&logoColor=white)
+![Repo Size](https://img.shields.io/github/repo-size/Paycei/TopHat-Shooter?style=for-the-badge)
+![License](https://img.shields.io/github/license/Paycei/TopHat-Shooter?style=for-the-badge)
 
-Contenido:
+**TopHat Shooter** es un *bullet hell* rápido, caótico y lleno de cinemática gloriosa, hecho en **Nim + Raylib**.  
+Lucha contra oleadas, mejora tu *build* y destruye jefes cada **5 rondas**.
 
-Dos modos de juego
+---
 
-Waves: avanza por oleadas, consigue mejoras y enfréntate a jefes.
+## Contenido
 
-Survival: resiste todo lo que puedas mientras el caos escala.
+### Modos de juego
+- **Waves**: avanza por oleadas, consigue mejoras y enfréntate a jefes.
+- **Survival**: resiste todo lo que puedas mientras el caos escala.
 
-11 tipos de enemigos, cada uno con un comportamiento distinto.
+### Enemigos y jefes
+- **11 tipos de enemigos**, cada uno con un comportamiento distinto.
+- **Jefes cada 5 oleadas**, con fases cambiantes y recompensas legendarias.
 
-Jefes cada 5 oleadas, con fases cambiantes y recompensas legendarias.
+### Progresión y combate
+- **30+ power-ups**, desde *multishot* hasta control del tiempo.
+- **Tienda permanente**: mejora daño, velocidad, vida y más.
+- **6 consumibles** y **muros defensivos** para crear espacio.
 
-30+ power-ups, desde multishot hasta control del tiempo.
+### Rendimiento y calidad
+- Optimizado para **60+ FPS**, incluso con cientos de balas en pantalla.
+- **92 tests** asegurando que nada explote (a menos que deba explotar).
 
-Tienda permanente: mejora daño, velocidad, vida y más.
+---
 
-6 consumibles y muros defensivos para crear espacio.
+## Controles
 
-Optimizado para 60+ FPS incluso con cientos de balas en pantalla.
+| Tecla           | Acción                          |
+|-----------------|--------------------------------|
+| WASD            | Moverse                        |
+| Mouse / Space   | Disparar                       |
+| F               | Auto-Shoot                     |
+| E               | Colocar muro                   |
+| Q               | Usar power-up activo(s)        |
+| ESC             | Pausa                          |
 
-92 tests asegurando que nada explote (a menos que deba explotar).
+---
 
-🎮 Controles
-Tecla	Acción
-WASD	Moverse
-Mouse / Space	Disparar
-F	Auto-Shoot
-E	Colocar muro
-Q  Usar power up activo/s
-ESC	Pausa
-🚀 Instalar y jugar
+## Instalación y ejecución
+
+```bash
 git clone https://github.com/yourusername/TopHat-Shooter.git
 cd TopHat-Shooter
 nimble install
 nimble run
-
-
-Build de lanzamiento:
-
-nimble build
-
-Performance
-
-El juego está preparado para manejar:
-
-+50 enemigos simultáneos
-
-+200 balas activas
-
-+500 partículas
-
-Jefes con múltiples fases
-
-Todo fluido a 60 FPS
-
-Tests
-
-Ejecuta todos los tests:
-
-nim c -r tests/test_game.nim
-
-
-Cobertura aproximada: 87%
-
-🛠️ Estructura del proyecto (resumen)
-src/
-  main.nim       # Loop principal
-  game.nim       # Lógica del juego
-  player.nim     # Jugador
-  enemy.nim      # IA enemiga
-  bullet.nim     # Balas
-  powerup.nim    # Mejores permanentes
-  wall.nim       # Muros defensivos
-  shop.nim       # Tienda
-tests/
-  test_game.nim  # Suite de tests
-
-Paycei
