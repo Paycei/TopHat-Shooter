@@ -125,7 +125,7 @@ proc buyShopItem*(game: Game, index: int) =
     let effectiveReduction = currentRate * scalingFactor * diminishingFactor
     
     game.player.fireRate -= effectiveReduction
-    if game.player.fireRate < 0.08: game.player.fireRate = 0.08  # Hard cap
+    if game.player.fireRate < 0.07: game.player.fireRate = 0.07  # Hard cap
   of 2: # Move Speed - HEAVILY NERFED
     game.player.speed += 11
     game.player.baseSpeed += 11

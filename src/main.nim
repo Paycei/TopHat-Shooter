@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, random, math, strutils, sound, settings, cheat
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat
 
 const
   screenWidth = 1024
@@ -194,11 +194,11 @@ proc main() =
         of 0:  # Wave-Based Mode
           currentGame = newGame(screenWidth, screenHeight)
           currentGame.mode = gmWaveBased
-          currentGame.state = gsPlaying
+          currentGame.state = gsPlaying  # Start playing immediately
         of 1:  # Time Survival Mode
           currentGame = newGame(screenWidth, screenHeight)
           currentGame.mode = gmTimeSurvival
-          currentGame.state = gsPlaying
+          currentGame.state = gsPlaying  # Start playing immediately
         of 2:  # Settings
           currentGame.state = gsSettings
         of 3:  # Help
@@ -418,7 +418,7 @@ proc main() =
       # Draw stylish countdown overlay
       let countdownValue = max(currentGame.countdownTimer, 0.0)
       let pulse = 1.0 + sin(currentGame.countdownTimer * 10) * 0.1
-      let alpha = uint8(200.0 * (countdownValue + 0.3))
+      let alpha = uint8(200.0 * (countdownValue + 0.1))
       
       # Dark overlay that fades out
       drawRectangle(0, 0, screenWidth, screenHeight, 
@@ -426,6 +426,7 @@ proc main() =
       
       # Countdown text with scale pulse
       let textSize = (120 * pulse).int32
+      # Always show numeric countdown
       let countdownText = formatFloat(countdownValue, ffDecimal, 1)
       let textWidth = measureText(countdownText, textSize)
       
@@ -453,13 +454,103 @@ proc main() =
               textColor)
       
       # Subtitle
-      let subtitle = "Get Ready!"
-      let subWidth = measureText(subtitle, 30)
+      let subtitle = "READY?"
+      let subWidth = measureText(subtitle, 40)
       drawText(subtitle,
               screenWidth div 2 - subWidth div 2,
               screenHeight div 2 + 80,
-              30,
-              Color(r: 200, g: 200, b: 200, a: alpha))
+              40,
+              Color(r: 255, g: 255, b: 100, a: alpha))
+      
+      endDrawing()
+    
+    of gsWaveCleared:
+      # Keep wave music during wave cleared screen
+      playMusic(mtWave)
+      
+      # Update wave cleared timer
+      currentGame.waveClearedTimer -= dt
+      
+      # Continue coin collection during this phase
+      updatePlayer(currentGame.player, dt, screenWidth, screenHeight, currentGame.walls)
+      
+      # Update coins and handle collection
+      var i = 0
+      while i < currentGame.coins.len:
+        if not updateCoin(currentGame.coins[i], dt, currentGame.coins.len):
+          currentGame.coins.delete(i)
+          continue
+        
+        # Check if coin is in player's collection aura (auto-collect)
+        if checkAuraCollision(currentGame.coins[i], currentGame.player, currentGame.player.auraRadius):
+          moveCoinToPlayer(currentGame.coins[i], currentGame.player.pos, dt)
+        
+        # Enhanced magnet effect from consumable
+        if currentGame.player.magnetTimer > 0:
+          moveCoinToPlayer(currentGame.coins[i], currentGame.player.pos, dt)
+        
+        # Collect coin on contact
+        if checkPlayerCollision(currentGame.coins[i], currentGame.player):
+          currentGame.player.coins += currentGame.coins[i].value
+          playSound(stCoinPickup, 0.5)
+          spawnExplosion(currentGame.particles, currentGame.coins[i].pos.x, currentGame.coins[i].pos.y, Gold, 6)
+          currentGame.coins.delete(i)
+          continue
+        
+        i += 1
+      
+      # Update particles and remove dead ones
+      var pi = 0
+      while pi < currentGame.particles.len:
+        if not updateParticle(currentGame.particles[pi], dt):
+          currentGame.particles.delete(pi)
+        else:
+          pi += 1
+      
+      # Transition to power-up selection or next wave
+      if currentGame.waveClearedTimer <= 0:
+        let shouldOfferPowerUp = currentGame.cameFromPowerUpSelect
+        
+        if shouldOfferPowerUp and not currentGame.bossCoinActive:
+          # Determine if it's a boss wave power-up
+          let isBossWave = currentGame.wavesUntilBoss <= 0
+          
+          if isBossWave:
+            # Trigger boss warning
+            currentGame.bossSpawnTimer = 1.5
+            # ALWAYS offer power-up before boss (critical moment)
+            currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
+          else:
+            # Regular wave power-up
+            currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
+          
+          currentGame.selectedPowerUp = 0
+          initPowerUpRollAnimation(currentGame)
+          currentGame.state = gsPowerUpSelect
+        else:
+          # No power-up, go straight to next wave
+          currentGame.state = gsPlaying
+          startWave(currentGame)
+      
+      beginDrawing()
+      drawGame(currentGame)
+      
+      # Draw "WAVE CLEARED!" text (static, no pulsing)
+      let waveText = "WAVE CLEARED!"
+      let waveTextSize = 48.int32
+      let waveTextWidth = measureText(waveText, waveTextSize)
+      
+      # Simple centered text with subtle shadow
+      let textX = (screenWidth div 2 - waveTextWidth div 2).int32
+      let textY = 40.int32
+      
+      # Shadow
+      drawText(waveText, textX + 2.int32, textY + 2.int32, waveTextSize,
+              Color(r: 0, g: 0, b: 0, a: 100))
+      
+      # Main text
+      drawText(waveText, textX, textY, waveTextSize,
+              Color(r: 150, g: 255, b: 150, a: 255))
       
       endDrawing()
     

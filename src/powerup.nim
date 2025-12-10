@@ -32,6 +32,9 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puChainLightning: "Chain Lightning"
   of puFrostShots: "Frost Shots"
   of puPoisonDamage: "Poison"
+  of puFireAura: "Fire Aura"
+  of puLightningAura: "Lightning Aura"
+  of puPoisonAura: "Poison Aura"
   of puTimeWarp: "Chronos"
   of puGravityWell: "Singularity"
   of puPhaseShift: "Phase Walker"
@@ -51,9 +54,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "4 shields (70% coverage)"
   of puDamageZone:
     case level
-    of 1: "2 dmg/sec in 50 radius"
-    of 2: "5 dmg/sec in 100 radius"
-    else: "10 dmg/sec in 150 radius"
+    of 1: "3 dmg/sec in 120 radius"
+    of 2: "6 dmg/sec in 160 radius"
+    else: "12 dmg/sec in 200 radius"
   of puHomingBullets:
     # Single level only - balanced tracking
     "Bullets track enemies (10% dmg penalty)"
@@ -180,6 +183,21 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "Bullets poison (1 dmg/s, 4s)"
     of 2: "Bullets poison (2 dmg/s, 5s)"
     else: "Bullets poison (4 dmg/s, 6s)"
+  of puFireAura:
+    case level
+    of 1: "Burn enemies 1.5 dmg/s in 120 radius (2s)"
+    of 2: "Burn enemies 3 dmg/s in 160 radius (3s)"
+    else: "Burn enemies 6 dmg/s in 200 radius (4s)"
+  of puLightningAura:
+    case level
+    of 1: "Zap 0.8 dmg/s in 120 radius (chains 1x)"
+    of 2: "Zap 1.6 dmg/s in 160 radius (chains 2x)"
+    else: "Zap 3.2 dmg/s in 200 radius (chains 3x)"
+  of puPoisonAura:
+    case level
+    of 1: "Poison 0.6 dmg/s in 120 radius (6s duration)"
+    of 2: "Poison 1.2 dmg/s in 160 radius (8s duration)"
+    else: "Poison 2.4 dmg/s in 200 radius (10s duration)"
   of puTimeWarp:
     case level
     of 1: "Slow time 50% for 3.5s (1 use/wave, 20s cd)"
@@ -228,7 +246,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
                          puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                          puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
                          puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
-                         puFrostShots, puPoisonDamage]
+                         puFrostShots, puPoisonDamage, puFireAura, puLightningAura, puPoisonAura]
   
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
@@ -619,6 +637,58 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     for i in 0..3:
       let offsetY = -15 + i * 5
       drawCircle(Vector2(x: centerX.float32, y: (iconY + offsetY).float32), 4, Color(r: 100, g: 255, b: 100, a: 180))
+  of puFireAura:
+    # Fire aura with flames
+    let auraRadius = 10 + powerUp.level * 5
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), auraRadius.float32, 
+              Color(r: 255, g: 100, b: 0, a: 100))
+    drawCircleLines(centerX.int32, iconY.int32, auraRadius.float32, Orange)
+    # Flame particles
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0
+      let dist = 12.0 + (i mod 2).float32 * 4.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist - 5.0
+      drawCircle(Vector2(x: x, y: y), 3, Red)
+      drawCircle(Vector2(x: x, y: y - 2), 2, Yellow)
+  of puLightningAura:
+    # Lightning aura with electric arcs
+    let auraRadius = 10 + powerUp.level * 5
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), auraRadius.float32,
+              Color(r: 100, g: 150, b: 255, a: 100))
+    drawCircleLines(centerX.int32, iconY.int32, auraRadius.float32, Color(r: 150, g: 200, b: 255, a: 255))
+    # Lightning bolts
+    for i in 0..5:
+      let angle = i.float32 * PI / 3.0
+      let dist = 15.0
+      let x1 = centerX.float32 + cos(angle) * 5.0
+      let y1 = iconY.float32 + sin(angle) * 5.0
+      let x2 = centerX.float32 + cos(angle) * dist
+      let y2 = iconY.float32 + sin(angle) * dist
+      # Zigzag lightning effect
+      for j in 0..2:
+        let t1 = j.float32 / 3.0
+        let t2 = (j + 1).float32 / 3.0
+        let mx1 = x1 + (x2 - x1) * t1 + (if j mod 2 == 0: 2.0 else: -2.0)
+        let my1 = y1 + (y2 - y1) * t1 + (if j mod 2 == 0: -2.0 else: 2.0)
+        let mx2 = x1 + (x2 - x1) * t2 + (if (j+1) mod 2 == 0: 2.0 else: -2.0)
+        let my2 = y1 + (y2 - y1) * t2 + (if (j+1) mod 2 == 0: -2.0 else: 2.0)
+        drawLine(Vector2(x: mx1, y: my1), Vector2(x: mx2, y: my2), 2, Color(r: 200, g: 220, b: 255, a: 255))
+  of puPoisonAura:
+    # Poison aura with toxic cloud
+    let auraRadius = 10 + powerUp.level * 5
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), auraRadius.float32,
+              Color(r: 100, g: 200, b: 100, a: 100))
+    drawCircleLines(centerX.int32, iconY.int32, auraRadius.float32, Color(r: 100, g: 255, b: 100, a: 255))
+    # Toxic bubbles floating up
+    for i in 0..6:
+      let angle = i.float32 * PI * 2.0 / 7.0
+      let dist = 8.0 + (i mod 3).float32 * 4.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist - (i mod 2).float32 * 5.0
+      let bubbleSize = 3 - (i mod 3)
+      drawCircle(Vector2(x: x, y: y), bubbleSize.float32, Color(r: 120, g: 255, b: 120, a: 200))
+      drawCircleLines(x.int32, y.int32, bubbleSize.float32, Color(r: 80, g: 200, b: 80, a: 255))
   of puTimeWarp:
     # Clock with time distortion effect
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 15, Color(r: 138, g: 43, b: 226, a: 150))
@@ -770,6 +840,16 @@ proc drawPowerUpSelection*(game: Game) =
   let startX = (screenWidth - totalWidth) div 2
   let cardY = if isLegendary: 160 else: 180
   
+  # Mouse hover detection (only when selection is enabled)
+  if game.canSelectPowerUp:
+    let mousePos = getMousePosition()
+    for i in 0..2:
+      let cardX = startX + i * (cardWidth + spacing)
+      if mousePos.x >= cardX.float32 and mousePos.x <= (cardX + cardWidth).float32 and
+         mousePos.y >= cardY.float32 and mousePos.y <= (cardY + cardHeight).float32:
+        game.selectedPowerUp = i
+        break
+  
   # Stop times for animation
   let stopTimes = [
     if isLegendary: 2.0 else: 1.5,  # Slot 1: back to original time
@@ -852,7 +932,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
                      puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                      puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
                      puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
-                     puFrostShots, puPoisonDamage]
+                     puFrostShots, puPoisonDamage, puFireAura, puLightningAura, puPoisonAura]
   
   var availableTypes: seq[PowerUpType]
   if isLegendary:

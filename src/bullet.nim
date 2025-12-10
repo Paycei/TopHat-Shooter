@@ -5,7 +5,8 @@ const BASE_PLAYER_BULLET_RADIUS* = 4.5
 proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true, 
                 isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false,
                 hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0, 
-                poisonDuration: float32 = 0, isPentagon: bool = false, isEcho: bool = false): Bullet =
+                poisonDuration: float32 = 0, isPentagon: bool = false, isEcho: bool = false, 
+                isBossBullet: bool = false): Bullet =
   # BUFFED: Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -28,7 +29,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     hitEnemies: @[],  # Initialize empty sequence
     travelDistance: 0.0,  # Track distance for Overcharge
     isEcho: isEcho,  # Whether this is an echo trail bullet
-    echoTrailTimer: 0.0  # Timer for spawning echo trails
+    echoTrailTimer: 0.0,  # Timer for spawning echo trails
+    isBossBullet: isBossBullet  # Mark boss bullets for glow effect
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
@@ -77,7 +79,16 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
   
   # Add glow effect
   if not bullet.fromPlayer:
-    if bullet.isPentagon:
+    # Boss bullets get a special strong glow effect
+    if bullet.isBossBullet:
+      # Multiple glow rings for boss bullets
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4, 
+                     Color(r: 255, g: 50, b: 150, a: 200))
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 7, 
+                     Color(r: 255, g: 100, b: 150, a: 120))
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 10, 
+                     Color(r: 255, g: 150, b: 180, a: 60))
+    elif bullet.isPentagon:
       # Pentagon glow
       for i in 0..<5:
         let angle = i.float32 * PI * 2.0 / 5.0 - PI / 2.0

@@ -128,24 +128,60 @@ proc drawPlayer*(player: Player) =
   for powerUp in player.powerUps:
     if powerUp.powerType == puDamageZone:
       let zoneRadius = case powerUp.level
-        of 1: 50.0
-        of 2: 100.0
-        else: 150.0
+        of 1: 120.0
+        of 2: 160.0
+        else: 200.0
       let alpha = 30 + (sin(player.shieldAngle * 3) * 15).int
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), zoneRadius, 
                 Color(r: 255, g: 100, b: 0, a: alpha.uint8))
     
-    # Slow field visual - NERFED, smaller and more transparent
+    # Slow field visual
     if powerUp.powerType == puSlowField:
       let slowRadius = case powerUp.level
-        of 1: 120.0  # NERFED from 150
-        of 2: 160.0  # NERFED from 200
-        else: 200.0  # NERFED from 250
-      let alpha = 15 + (sin(player.shieldAngle * 2) * 8).int  # More transparent
+        of 1: 120.0
+        of 2: 160.0
+        else: 200.0
+      let alpha = 15 + (sin(player.shieldAngle * 2) * 8).int
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), slowRadius,
                 Color(r: 100, g: 150, b: 255, a: alpha.uint8))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, slowRadius,
-                     Color(r: 100, g: 150, b: 255, a: 60))  # Less visible
+                     Color(r: 100, g: 150, b: 255, a: 60))
+    
+    # Fire aura visual
+    if powerUp.powerType == puFireAura:
+      let fireRadius = case powerUp.level
+        of 1: 120.0
+        of 2: 160.0
+        else: 200.0
+      let alpha = 40 + (sin(player.shieldAngle * 4) * 20).int
+      drawCircle(Vector2(x: player.pos.x, y: player.pos.y), fireRadius,
+                Color(r: 255, g: 50, b: 0, a: alpha.uint8))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, fireRadius,
+                     Color(r: 255, g: 100, b: 0, a: 100))
+    
+    # Lightning aura visual
+    if powerUp.powerType == puLightningAura:
+      let lightningRadius = case powerUp.level
+        of 1: 120.0
+        of 2: 160.0
+        else: 200.0
+      let alpha = 25 + (sin(player.shieldAngle * 5) * 15).int
+      drawCircle(Vector2(x: player.pos.x, y: player.pos.y), lightningRadius,
+                Color(r: 100, g: 150, b: 255, a: alpha.uint8))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, lightningRadius,
+                     Color(r: 150, g: 200, b: 255, a: 80))
+    
+    # Poison aura visual
+    if powerUp.powerType == puPoisonAura:
+      let poisonRadius = case powerUp.level
+        of 1: 120.0
+        of 2: 160.0
+        else: 200.0
+      let alpha = 35 + (sin(player.shieldAngle * 3) * 20).int
+      drawCircle(Vector2(x: player.pos.x, y: player.pos.y), poisonRadius,
+                Color(r: 100, g: 200, b: 100, a: alpha.uint8))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, poisonRadius,
+                     Color(r: 100, g: 255, b: 100, a: 70))
   
   # NOTE: Coin collection aura is INVISIBLE - no visual rendering
   
