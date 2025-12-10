@@ -1626,15 +1626,20 @@ proc updateGame*(game: var Game, dt: float32) =
         bullet.echoTrailTimer = 0.0
         
         # Create a fading ghost bullet at current position
+        # SYNERGY: Echo bullets inherit ALL properties and can split/ricochet
         let echoBullet = newBullet(bullet.pos.x, bullet.pos.y, bullet.vel.normalize(),
                                    bullet.vel.length() * 0.5,  # Slower than main bullet
                                    bullet.damage * echoDamageMultiplier,
                                    true, bullet.isHoming, bullet.isPiercing, bullet.isExplosive,
-                                   bullet.bounceCount >= 0, false, bullet.slowAmount, 
+                                   bullet.bounceCount >= 0, true, bullet.slowAmount,  # canSplit = true for synergy
                                    bullet.poisonDuration, bullet.isPentagon, true)  # isEcho = true
         
         # Echo bullets have short lifetime for fade effect
         echoBullet.lifetime = 0.35  # Single level - balanced lifetime
+        
+        # SYNERGY: Echo bullets inherit ricochet progress
+        if bullet.bounceCount >= 0:
+          echoBullet.bounceCount = 0  # Start fresh bounces for echo
         
         echoBullet.radius = bullet.radius * 0.8  # Slightly smaller
         game.bullets.add(echoBullet)
@@ -1795,7 +1800,7 @@ proc updateGame*(game: var Game, dt: float32) =
                     let y = game.enemies[j].pos.y + (game.enemies[k].pos.y - game.enemies[j].pos.y) * t
                     spawnExplosion(game.particles, x, y, Color(r: 255, g: 255, b: 100, a: 255), 2)
           
-          # Bullet split on hit
+          # Bullet split on hit - SYNERGY: Inherits ALL bullet properties
           if hasPowerUp(game.player, puBulletSplit) and not bullet.hasSplit:
             let splitLevel = getPowerUpLevel(game.player, puBulletSplit)
             let splitCount = splitLevel + 1  # 2, 3, or 4 bullets
@@ -1803,12 +1808,31 @@ proc updateGame*(game: var Game, dt: float32) =
             for split in 0..<splitCount:
               let angle = split.float32 * PI * 2.0 / splitCount.float32
               let dir = newVector2f(cos(angle), sin(angle))
+              
+              # SYNERGY: Split bullets inherit ALL properties including ricochet count
               let splitBullet = newBullet(bullet.pos.x, bullet.pos.y, dir, 
                                          bullet.vel.length() * 0.7, finalDamage * 0.5, true,
                                          bullet.isHoming, bullet.isPiercing, bullet.isExplosive,
                                          bullet.bounceCount >= 0, false, bullet.slowAmount, bullet.poisonDuration)
               splitBullet.hasSplit = true  # Prevent infinite splitting
-              splitBullet.hitEnemies = bullet.hitEnemies  # Inherit hit list to prevent re-hitting
+              
+              # SYNERGY: Copy hit list for independent tracking (each split bullet tracks its own hits)
+              for enemyIdx in bullet.hitEnemies:
+                splitBullet.hitEnemies.add(enemyIdx)
+              
+              # SYNERGY: Inherit bounce state for ricochet + split combo
+              if bullet.bounceCount >= 0:
+                splitBullet.bounceCount = bullet.bounceCount  # Maintain current bounce count
+              
+              # SYNERGY: Split bullets maintain travel distance for Overcharge
+              splitBullet.travelDistance = bullet.travelDistance
+              
+              # SYNERGY: Split bullets inherit bullet size
+              splitBullet.radius = bullet.radius * 0.9  # Slightly smaller than parent
+              
+              # SYNERGY: Split bullets can be Echo bullets
+              splitBullet.isEcho = bullet.isEcho
+              
               game.bullets.add(splitBullet)
           
           # Vampirism healing - restore HP based on damage dealt
@@ -1860,8 +1884,8 @@ proc updateGame*(game: var Game, dt: float32) =
             else:
               hitEnemy = false  # Don't delete bullet yet, continue piercing
           
-          # Bullet ricochet off enemies (if not piercing/exploding)
-          if bullet.bounceCount >= 0 and not bullet.isPiercing and not bullet.isExplosive:
+          # Bullet ricochet off enemies - SYNERGY: Works with split and can trigger split on each hit
+          if bullet.bounceCount >= 0 and not bullet.isPiercing:
             let ricochetLevel = getPowerUpLevel(game.player, puBulletRicochet)
             let maxRicochets = ricochetLevel  # 1, 2, or 3 ricochets
             
@@ -1879,6 +1903,11 @@ proc updateGame*(game: var Game, dt: float32) =
                 let ricochetDir = (ricochetTarget.pos - bullet.pos).normalize()
                 bullet.vel = ricochetDir * bullet.vel.length()
                 bullet.bounceCount += 1
+                
+                # SYNERGY: Reset split flag so ricochet bullets can split again on next hit
+                if hasPowerUp(game.player, puBulletSplit):
+                  bullet.hasSplit = false
+                
                 hitEnemy = false  # Don't delete bullet
                 spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Yellow, 8)
               else:
