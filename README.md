@@ -2,6 +2,7 @@
 
 ![Nim](https://img.shields.io/badge/Nim-FFE953?style=for-the-badge&logo=nim&logoColor=black)
 ![Raylib](https://img.shields.io/badge/Raylib-000000?style=for-the-badge&logo=c&logoColor=white)
+
 ![Repo Size](https://img.shields.io/github/repo-size/Paycei/TopHat-Shooter?style=for-the-badge)
 ![License](https://img.shields.io/github/license/Paycei/TopHat-Shooter?style=for-the-badge)
 
