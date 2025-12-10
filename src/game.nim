@@ -95,6 +95,17 @@ proc startWave*(game: Game) =
   game.waveEnemiesRemaining = waveEnemyCount
   game.spawnTimer = 0
   
+  # PLAYER SCALING: Tiny progressive stat increases per wave
+  # Very small scaling (0.001-0.002 per wave) to keep player slightly ahead
+  let waveScaling = 1.0 + (game.currentWave.float32 * 0.0015)  # 0.15% per wave
+  
+  # Apply scaling to base stats (scales with original values, not current)
+  game.player.maxHp = 7.0 * waveScaling
+  game.player.hp = min(game.player.hp, game.player.maxHp)  # Don't reduce HP if already higher
+  game.player.damage = 1.0 * waveScaling
+  game.player.speed = 175.0 * waveScaling
+  game.player.baseSpeed = 175.0 * waveScaling
+  
   # Reset all active ability cooldowns for new wave
   game.player.timeWarpUsesThisWave = 0
   game.player.timeWarpCooldown = 0
@@ -341,16 +352,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # BUFFED: Double-shot bullets deal 10% less damage per bullet (was 20%)
     if hasDoubleShot:
       damage *= 0.9  # 10% less damage per bullet
-    
-    # NERF: Multi-shot bullets deal less damage per bullet (scales with level)
-    if hasMultiShot:
-      let multiLevel = getPowerUpLevel(game.player, puMultiShot)
-      let damageMultiplier = case multiLevel
-        of 1: 0.60   # -40% damage (2 bullets = 120% total)
-        of 2: 0.50   # -50% damage (3 bullets = 150% total)
-        else: 0.42   # -58% damage (4 bullets = 168% total)
-      damage *= damageMultiplier
-    
+        
     var bulletRadius = BASE_PLAYER_BULLET_RADIUS
     
     # Apply bullet size power-up
@@ -393,15 +395,11 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         else: 6.0
     
     if hasDoubleShot and hasMultiShot:
-      # When both active: Fire multishot pattern, then schedule second burst
-      let multiLevel = getPowerUpLevel(game.player, puMultiShot)
-      let multiCount = case multiLevel
-        of 1: 2
-        of 2: 3
-        else: 4
-      let spreadAngle = if multiLevel == 1: 0.2 elif multiLevel == 2: 0.3 else: 0.4
+      # When both active: Fire multishot pattern (3 directions), then schedule second burst
+      let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
+      let spreadAngle = 0.3  # Fixed spread for 3-shot pattern
       let doubleLevel = getPowerUpLevel(game.player, puDoubleShot)
-      let burstCount = doubleLevel + 3  # Level 1 = 2 bursts, Level 2 = 3, Level 3 = 4
+      let burstCount = doubleLevel + 1  # Level 1 = 2 bursts, Level 2 = 3, Level 3 = 4
       
       # Fire first burst
       for i in 0..<multiCount:
@@ -422,7 +420,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     elif hasDoubleShot:
       # Fire in quick succession (. .) pattern
       let level = getPowerUpLevel(game.player, puDoubleShot)
-      let burstCount = level + 3  # Level 1 = 2, Level 2 = 3, Level 3 = 4
+      let burstCount = level + 1  # Level 1 = 2, Level 2 = 3, Level 3 = 4
       
       # Fire first bullet immediately
       let bullet = newBullet(game.player.pos.x, game.player.pos.y, direction, 
@@ -434,13 +432,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       # Schedule remaining bullets with small delays (0.08s between each)
       game.player.doubleShotDelay = 0.08 * (burstCount - 1).float32
     elif hasMultiShot:
-      # Shoot in multiple directions
-      let level = getPowerUpLevel(game.player, puMultiShot)
-      let bulletCount = case level
-        of 1: 2
-        of 2: 3
-        else: 4
-      let spreadAngle = if level == 1: 0.2 elif level == 2: 0.3 else: 0.4
+      # Shoot in 3 directions (legendary, no nerfs)
+      let bulletCount = 3  # Always 3 bullets
+      let spreadAngle = 0.3  # Fixed spread
       
       for i in 0..<bulletCount:
         let angle = (i.float32 - (bulletCount - 1).float32 / 2.0) * spreadAngle
@@ -525,12 +519,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       else: 6.0
   
   if hasMultiShot:
-    let multiLevel = getPowerUpLevel(game.player, puMultiShot)
-    let multiCount = case multiLevel
-      of 1: 2
-      of 2: 3
-      else: 4
-    let spreadAngle = if multiLevel == 1: 0.2 elif multiLevel == 2: 0.3 else: 0.4
+    let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
+    let spreadAngle = 0.3  # Fixed spread
     
     for i in 0..<multiCount:
       let angle = (i.float32 - (multiCount - 1).float32 / 2.0) * spreadAngle
@@ -929,8 +919,13 @@ proc updateGame*(game: var Game, dt: float32) =
       let hasMultiShot = hasPowerUp(game.player, puMultiShot)
       fireDoubleShotBurst(game, shootDir, hasMultiShot)
     
-    # Fire additional bursts for level 2 and 3
+    # Fire additional bursts for level 2 (crosses 0.16s)
     if prevDelay > 0.16 and game.player.doubleShotDelay <= 0.16:
+      let hasMultiShot = hasPowerUp(game.player, puMultiShot)
+      fireDoubleShotBurst(game, shootDir, hasMultiShot)
+    
+    # Fire additional burst for level 3 (crosses 0.24s)
+    if prevDelay > 0.24 and game.player.doubleShotDelay <= 0.24:
       let hasMultiShot = hasPowerUp(game.player, puMultiShot)
       fireDoubleShotBurst(game, shootDir, hasMultiShot)
     
@@ -1019,7 +1014,7 @@ proc updateGame*(game: var Game, dt: float32) =
             # Level 3: 1-3 health +1 = 2-4 health
             healAmount = 2 + rand(2)  # 2, 3, or 4
           
-          heal(game.player, healAmount)
+          heal(game.player, healAmount.float32)
           spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 15)
         
         # Play wave complete sound
@@ -1325,58 +1320,133 @@ proc updateGame*(game: var Game, dt: float32) =
         
         enemy.shockwaveTimer = 5.0 + rand(3.0)
       
-      # Phase-based attacks
+      # Phase-based attacks WITH PROGRESSIVE ABILITIES
+      # Bosses gain new abilities based on bossCount (how many bosses defeated)
       case enemy.bossPhase
       of bpCircle:
-        # Original boss behavior
+        # Original boss behavior + progressive abilities
         case enemy.bossType
-        of btShooter:  # Spiral shooter - MORE BULLETS, NERFED damage
-          if enemy.shootTimer > 0.8:  # Faster
-            for angle in 0..<12:  # More bullets
+        of btShooter:  # Spiral shooter
+          if enemy.shootTimer > 0.8:
+            # Basic spiral attack
+            for angle in 0..<12:
               let rad = angle.float32 * PI / 6.0 + game.time * 2
               let dir = newVector2f(cos(rad), sin(rad))
               game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 240, 0.75, false, isBossBullet=true))
+            
+            # PROGRESSIVE ABILITY: Rotating laser beams (unlocks at boss 2+)
+            if game.bossCount >= 2:
+              let laserAngle = game.time * 2.5  # Rotation speed
+              for i in 0..<3:  # 3 rotating laser arms
+                let armAngle = laserAngle + i.float32 * (PI * 2.0 / 3.0)
+                game.lasers.add(newLaser(
+                  enemy.pos.x, enemy.pos.y,
+                  0,  # horizontal (will be rotated)
+                  150.0,  # length
+                  15.0,   # thickness
+                  1,      # damage
+                  0.1,    # very short lifetime (visual only)
+                  armAngle  # rotation
+                ))
+            
             enemy.shootTimer = 0
         
-        of btSummoner:  # Spawn minions - MORE MINIONS
-          if enemy.spawnTimer > 3.0:  # Faster
-            for _ in 0..3:  # More minions
+        of btSummoner:  # Spawn minions
+          if enemy.spawnTimer > 3.0:
+            # Basic minion spawning
+            for _ in 0..3:
               let angle = rand(1.0) * PI * 2
               let spawnDist = enemy.radius + 20
               let spawnX = enemy.pos.x + cos(angle) * spawnDist
               let spawnY = enemy.pos.y + sin(angle) * spawnDist
               game.enemies.add(newEnemy(spawnX, spawnY, game.difficulty, etCircle))
+            
+            # PROGRESSIVE ABILITY: Spawn near player (unlocks at boss 3+)
+            if game.bossCount >= 3:
+              for _ in 0..1:  # 2 enemies near player
+                let angle = rand(1.0) * PI * 2
+                let spawnDist = 120.0 + rand(50.0)
+                let spawnX = game.player.pos.x + cos(angle) * spawnDist
+                let spawnY = game.player.pos.y + sin(angle) * spawnDist
+                # Clamp to screen bounds
+                let clampedX = clamp(spawnX, 50.0, game.screenWidth.float32 - 50.0)
+                let clampedY = clamp(spawnY, 50.0, game.screenHeight.float32 - 50.0)
+                game.enemies.add(newEnemy(clampedX, clampedY, game.difficulty, etTriangle))
+                # Warning particles
+                spawnExplosion(game.particles, clampedX, clampedY, Red, 20)
+            
             enemy.spawnTimer = 0
         
-        of btCharger:  # Dash attacks - FASTER
-          if enemy.shootTimer > 2.0:  # Faster
+        of btCharger:  # Dash attacks
+          if enemy.shootTimer > 2.0:
             let dir = (game.player.pos - enemy.pos).normalize()
-            enemy.vel = dir * enemy.speed * 4.0  # Faster dash
+            enemy.vel = dir * enemy.speed * 4.0
+            
+            # PROGRESSIVE ABILITY: Leave damaging trail (unlocks at boss 2+)
+            if game.bossCount >= 2:
+              # Spawn damage zone particles along dash path
+              for i in 0..8:
+                let trailPos = enemy.pos - dir * (i.float32 * 20.0)
+                spawnExplosion(game.particles, trailPos.x, trailPos.y, 
+                             Color(r: 255, g: 100, b: 0, a: 200), 12)
+                
+                # Damage player if in trail
+                if distance(game.player.pos, trailPos) < 30:
+                  if game.time - enemy.lastContactDamageTime >= 0.3:
+                    if takeDamage(game.player, 1.0):
+                      game.state = gsGameOver
+                    enemy.lastContactDamageTime = game.time
+            
             enemy.shootTimer = 0
         
-        of btOrbit:  # Orbiting projectiles - MORE CHAOS, NERFED damage
-          if enemy.shootTimer > 0.2:  # Much faster
+        of btOrbit:  # Orbiting projectiles
+          if enemy.shootTimer > 0.2:
             let angle = game.time * 4
             let orbitRadius = enemy.radius + 30
-            for i in 0..<6:  # More bullets
+            for i in 0..<6:
               let a = angle + i.float32 * PI / 3.0
               let bulletX = enemy.pos.x + cos(a) * orbitRadius
               let bulletY = enemy.pos.y + sin(a) * orbitRadius
               let dir = (game.player.pos - newVector2f(bulletX, bulletY)).normalize()
               game.bullets.add(newBullet(bulletX, bulletY, dir, 200, 0.75, false, isBossBullet=true))
+            
+            # PROGRESSIVE ABILITY: Homing orbital bullets (unlocks at boss 3+)
+            if game.bossCount >= 3 and (game.time.int mod 3) == 0:  # Every 3 seconds
+              let homingAngle = rand(1.0) * PI * 2.0
+              let bulletX = enemy.pos.x + cos(homingAngle) * orbitRadius
+              let bulletY = enemy.pos.y + sin(homingAngle) * orbitRadius
+              let homingBullet = newBullet(bulletX, bulletY, 
+                                          (game.player.pos - newVector2f(bulletX, bulletY)).normalize(),
+                                          180, 1.0, false, true, false, false, false, false, 
+                                          0, 0, false, false, true)  # isBossBullet=true
+              game.bullets.add(homingBullet)
+            
             enemy.shootTimer = 0
       
       of bpCube:
-        # Defensive phase - shoots in all directions, NERFED damage
+        # Defensive phase - shoots in all directions
         if enemy.burstTimer > 1.0:
           for angle in 0..<8:
             let rad = angle.float32 * PI / 4.0
             let dir = newVector2f(cos(rad), sin(rad))
             game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 200, 0.75, false, isBossBullet=true))
+          
+          # PROGRESSIVE ABILITY: Cross lasers (unlocks at boss 4+)
+          if game.bossCount >= 4:
+            game.lasers.add(newLaser(
+              enemy.pos.x, enemy.pos.y,
+              2,  # cross pattern
+              180.0,  # length
+              20.0,   # thickness
+              2,      # higher damage
+              0.4,    # longer duration
+              0.0     # no rotation
+            ))
+          
           enemy.burstTimer = 0
       
       of bpTriangle:
-        # Aggressive phase - rapid dashes and shots, NERFED damage
+        # Aggressive phase - rapid dashes and shots
         if enemy.burstTimer > 0.5:
           let dir = (game.player.pos - enemy.pos).normalize()
           for i in 0..2:
@@ -1386,14 +1456,32 @@ proc updateGame*(game: var Game, dt: float32) =
               dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
             )
             game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, spreadDir, 280, 0.75, false, isBossBullet=true))
+          
+          # PROGRESSIVE ABILITY: Predict player position (unlocks at boss 5+)
+          if game.bossCount >= 5:
+            # Calculate predicted player position based on velocity
+            let predictTime = 0.5  # Predict 0.5 seconds ahead
+            let predictedPos = game.player.pos + game.player.vel * predictTime
+            let predictDir = (predictedPos - enemy.pos).normalize()
+            game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, predictDir, 350, 1.0, false, isBossBullet=true))
+          
           enemy.burstTimer = 0
       
       of bpStar:
-        # Bullet storm phase! NERFED damage
+        # Bullet storm phase!
         if enemy.burstTimer > 0.15:
           let angle = rand(1.0) * PI * 2.0
           let dir = newVector2f(cos(angle), sin(angle))
           game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 250, 0.75, false, isBossBullet=true))
+          
+          # PROGRESSIVE ABILITY: Star burst attack (unlocks at boss 6+)
+          if game.bossCount >= 6 and (game.time * 100).int mod 100 == 0:  # Occasionally
+            # Spawn 5-pointed star burst
+            for i in 0..<5:
+              let starAngle = i.float32 * (PI * 2.0 / 5.0)
+              let starDir = newVector2f(cos(starAngle), sin(starAngle))
+              game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, starDir, 300, 1.0, false, isBossBullet=true))
+          
           enemy.burstTimer = 0
     
     # Hexagon enemies shoot chaotically

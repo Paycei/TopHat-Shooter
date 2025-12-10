@@ -66,10 +66,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 2: "Bullets pierce 2 enemies (-33% damage per pierce)"
     else: "Bullets pierce 3 enemies (-33% damage per pierce)"
   of puMultiShot:
-    case level
-    of 1: "Shoot in 2 directions (narrow, -33% dmg)"
-    of 2: "Shoot in 3 directions (wide, -45% dmg)"
-    else: "Shoot in 5 directions (-55% dmg)"
+    # Single level only - 3 directions, no nerfs
+    "Shoot in 3 directions"
   of puExplosiveBullets:
     case level
     of 1: "Bullets explode (small radius)"
@@ -86,8 +84,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "+50% fire rate"
   of puMaxHealth:
     case level
-    of 1: "+3 max HP"
-    else: "+6 max HP"
+    of 1: "+5 max HP"
+    else: "+10 max HP"
   of puSpeedBoost:
     case level
     of 1: "+30% movement speed"
@@ -238,11 +236,11 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   # All legendary active abilities are SINGLE LEVEL ONLY
   let legendaryOnlyTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
                             puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
-                            puGravityWell, puPhaseShift, puOvercharge, puEchoShots]
+                            puGravityWell, puPhaseShift, puOvercharge, puEchoShots, puMultiShot]
   
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
   let normalOnlyTypes = [puDoubleShot, puRotatingShield, puDamageZone, puHomingBullets,
-                         puPiercingShots, puMultiShot, puExplosiveBullets, puLifeSteal,
+                         puPiercingShots, puExplosiveBullets, puLifeSteal,
                          puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                          puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
                          puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
@@ -253,7 +251,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     for powerType in legendaryOnlyTypes:
       let currentLevel = getPowerUpLevel(player, powerType)
       # Special handling for single-level legendary actives
-      if powerType in [puPhaseShift, puGravityWell, puEchoShots]:
+      if powerType in [puPhaseShift, puGravityWell, puEchoShots, puMultiShot]:
         # These are SINGLE LEVEL ONLY
         if currentLevel == 0:
           availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
@@ -307,9 +305,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.fireRate *= bonus
   of puMaxHealth:
     let hpBonus = case powerUp.level
-      of 1: 2.0
-      of 2: 4.0
-      else: 7.0
+      of 1: 5.0
+      of 2: 10.0
+      else: 10.0
     player.maxHp += hpBonus
     player.hp += hpBonus
   of puSpeedBoost:
@@ -355,8 +353,8 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
         player.fireRate *= bonus
       of puMaxHealth:
         let hpBonus = case powerUp.level
-          of 2: 2.0  # Additional 2 HP
-          of 3: 3.0  # Additional 3 HP
+          of 2: 5.0  # Additional 5 HP
+          of 3: 5.0  # Additional 5 HP
           else: 0.0
         player.maxHp += hpBonus
         player.hp += hpBonus
@@ -462,8 +460,9 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     drawLine(Vector2(x: (centerX - 30).float32, y: iconY.float32), 
             Vector2(x: (centerX + 30).float32, y: iconY.float32), 3, SkyBlue)
   of puMultiShot:
-    let bulletCount = if powerUp.level == 3: 5 else: 3
-    let spread = if powerUp.level == 2: 0.5 else: 0.3
+    # Always 3 bullets for legendary Multi-Shot
+    let bulletCount = 3
+    let spread = 0.3
     for i in 0..<bulletCount:
       let angle = (i - bulletCount div 2).float32 * spread
       let endX = centerX.float32 + sin(angle) * 25
@@ -910,13 +909,38 @@ proc drawPowerUpSelection*(game: Game) =
     let w = measureText(msg, 24)
     drawText(msg, screenWidth div 2 - w div 2, screenHeight - 150, 24, Yellow)
   else:
-    drawText("A/D or ARROW KEYS: select | ENTER: choose", 
-            screenWidth div 2 - 260, screenHeight - 120, 20, LightGray)
+    drawText("A/D or ARROW KEYS: select | MOUSE: hover/click | ENTER: choose", 
+            screenWidth div 2 - 320, screenHeight - 120, 20, LightGray)
     drawText("ESC: skip", screenWidth div 2 - 60, screenHeight - 90, 18, Gray)
   
   # Coin count
   let coinText = "Coins: " & $game.player.coins
   drawText(coinText, screenWidth div 2 - 60, screenHeight - 55, 22, Gold)
+  
+  # Draw custom cursor only if system cursor is hidden
+  if not isCursorOnScreen():
+    let mousePos = getMousePosition()
+    let cursorPulse = sin(game.time * 8.0) * 2 + 8
+    
+    # Outer rotating ring
+    for i in 0..<8:
+      let angle = game.time * 4.0 + i.float32 * PI / 4.0
+      let x = mousePos.x + cos(angle) * cursorPulse
+      let y = mousePos.y + sin(angle) * cursorPulse
+      drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
+    
+    # Crosshair lines
+    drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
+            Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
+    drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
+            Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
+    drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
+            Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
+    drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
+            Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
+    
+    # Center dot
+    drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
 # ============================================================================
 # SLOT MACHINE ROLL ANIMATION SYSTEM
 # ============================================================================

@@ -328,10 +328,7 @@ proc getCurrentFireRate*(player: Player): float32 =
     if powerUp.powerType == puDoubleShot:
       rate *= 1.45  # 45% slower (higher value = slower)
   
-  # Multi Shot penalty - 35% slower fire rate (new)
-  for powerUp in player.powerUps:
-    if powerUp.powerType == puMultiShot:
-      rate *= 1.35  # 35% slower
+  # Multi-Shot: No fire rate penalty (legendary power-up)
   
   # Berserker power-up - fire rate increases when HP is low
   for powerUp in player.powerUps:
