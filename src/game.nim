@@ -2699,6 +2699,35 @@ proc drawGame*(game: Game) =
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, windRadius, 
                    Color(r: 180, g: 220, b: 255, a: 50))
   
+  # Draw Arcane Aura visual effect
+  if hasPowerUp(game.player, puMagicAura):
+    let level = getPowerUpLevel(game.player, puMagicAura)
+    let arcaneRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    # Draw pulsing arcane aura rings
+    let pulse = (sin(game.time * 3.5) * 0.2 + 0.8).float32
+    for ring in 1..3:
+      let ringRadius = arcaneRadius * (ring.float32 / 3.0) * pulse
+      let alpha = uint8(50 - ring * 10)
+      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius, 
+                     Color(r: 200, g: 100, b: 255, a: alpha))
+    
+    # Draw outer radius circle with clear border
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, arcaneRadius, 
+                   Color(r: 200, g: 100, b: 255, a: 150))
+    
+    # Draw arcane sparkles/particles around the aura for effect
+    for i in 0..11:
+      let angle = i.float32 * PI * 2.0 / 12.0
+      let dist = arcaneRadius * (0.85 + (sin(game.time * 4.0 + angle) * 0.15))
+      let x = game.player.pos.x + cos(angle) * dist
+      let y = game.player.pos.y + sin(angle) * dist
+      let sparkleSize = 2 + (sin(game.time * 5.0 + angle) * 1.5).int
+      drawCircle(Vector2(x: x, y: y), sparkleSize.float32, Color(r: 220, g: 150, b: 255, a: 200))
+  
   # Draw player
   drawPlayer(game.player)
   

@@ -356,11 +356,11 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
 proc drawPowerUpsTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10
   
-  drawText("Click to activate power-up (30 seconds)", x + 20, currentY, 14, Gray)
+  drawText("Click to activate consumable (30 seconds)", x + 20, currentY, 14, Gray)
   currentY += 30
   
-  # Active power-ups display
-  drawText("Active Power-Ups:", x + 20, currentY, 16, Yellow)
+  # Active consumables display
+  drawText("Active Consumables:", x + 20, currentY, 16, Yellow)
   currentY += 25
   
   if game.player.activePowerUps.len == 0:
@@ -374,23 +374,20 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game) =
   
   currentY += 20
   
-  # Power-up buttons
+  # Consumable buttons (Speed, Invincibility, Fire Rate, Magnet, Health, Coin)
   let buttonWidth: int32 = 250
   let buttonHeight: int32 = 35
   let centerX = x + (width - buttonWidth) div 2
   
-  let powerUps = [
-    (puRapidFire, "Rapid Fire", Color(r: 255, g: 100, b: 100, a: 255)),
-    (puPiercingShots, "Piercing Shots", Color(r: 100, g: 150, b: 255, a: 255)),
-    (puHomingBullets, "Homing Shots", Color(r: 255, g: 100, b: 255, a: 255)),
-    (puRotatingShield, "Rotating Shield", Color(r: 100, g: 255, b: 255, a: 255)),
-    (puSpeedBoost, "Speed Boost", Color(r: 255, g: 255, b: 100, a: 255)),
-    (puWindBullets, "Wind Bullets", Color(r: 200, g: 230, b: 255, a: 255)),
-    (puWindAura, "Wind Aura", Color(r: 180, g: 220, b: 255, a: 255))
+  let consumables = [
+    ("Speed Boost", "Speed", Color(r: 255, g: 255, b: 100, a: 255)),
+    ("Invincibility", "Invincibility", Color(r: 255, g: 100, b: 255, a: 255)),
+    ("Fire Rate", "Fire Rate", Color(r: 255, g: 100, b: 100, a: 255)),
+    ("Magnet", "Magnet", Color(r: 255, g: 200, b: 0, a: 255))
   ]
   
-  for powerUpData in powerUps:
-    let (powerUpType, name, color) = powerUpData
+  for consumableData in consumables:
+    let (name, typeStr, color) = consumableData
     let rect = Rectangle(x: centerX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
     let hovered = checkCollisionPointRec(getMousePosition(), rect)
     
@@ -411,7 +408,19 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game) =
     drawText(name, centerX + (buttonWidth - textWidth) div 2, currentY + 10, 14, Black)
     
     if hovered and isMouseButtonPressed(Left):
-      applyPowerUpCheat(game, powerUpType)
+      # Apply consumable based on type
+      case typeStr
+      of "Speed":
+        game.player.speedBoostTimer = 30.0
+      of "Invincibility":
+        game.player.invincibilityTimer = 30.0
+      of "Fire Rate":
+        game.player.fireRateBoostTimer = 30.0
+      of "Magnet":
+        game.player.magnetTimer = 30.0
+      else:
+        discard
+      playSound(stPowerUp)
     
     currentY += buttonHeight + 8
 
@@ -587,7 +596,8 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puThorns, puBulletSplit, puChainLightning, puFrostShots, puPoisonDamage,
     puFireBullets, puWindBullets, puFireAura, puLightningAura, puPoisonAura, puWindAura,
     puTimeWarp, puGravityWell, puPhaseShift, puOvercharge, puEchoShots,
-    puRotatingOrbs, puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb
+    puRotatingOrbs, puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puMagicOrb,
+    puMagicBullets, puMagicAura
   ]
   
   # Scrollable area setup

@@ -382,31 +382,43 @@ proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType):
   )
 
 proc createRotatingOrbs*(player: Player, level: int) =
-  ## Create rotating orbs based on power-up level
-  ## Level 1: 3 orbs, Level 2: 5 orbs, Level 3: 7 orbs
-  let orbCount = case level
-    of 1: 3
-    of 2: 5
-    else: 7
+  ## Create rotating orbs based on power-up level (Legendary version)
+  ## All 6 elements, each element forms a triangle around the player
+  ## Triangles are positioned at different base angles to avoid overlaps
   
   let orbRadius = player.radius * 2.5 + 20  # Orbit radius around player
   
   # Clear existing orbs
   player.rotatingOrbs = @[]
   
-  # Create orbs evenly distributed around the circle
-  # Use different elements for variety
-  let elements = [etPoison, etFire, etLightning, etWind, etFrost]
+  # Define the 6 element types and their base angles
+  let elements = [etPoison, etFire, etLightning, etWind, etFrost, etMagic]
   
-  for i in 0..<orbCount:
-    let angle = (i.float32 / orbCount.float32) * PI * 2.0
-    let elementType = elements[i mod elements.len]
-    player.rotatingOrbs.add(newRotatingOrb(angle, orbRadius, elementType))
+  # Each element gets a base angle (hexagon pattern: 60° apart)
+  let baseAngles = [
+    0.0,                # Poison: 0°
+    PI / 3.0,           # Fire: 60°
+    PI * 2.0 / 3.0,     # Lightning: 120°
+    PI,                 # Wind: 180°
+    PI * 4.0 / 3.0,     # Frost: 240°
+    PI * 5.0 / 3.0      # Magic: 300°
+  ]
+  
+  # For legendary, create all 6 triangles with 3 orbs each
+  for elementIdx in 0..<6:
+    let baseAngle = baseAngles[elementIdx]
+    let element = elements[elementIdx]
+    
+    # Create triangle with 3 orbs
+    # Triangle spacing: 120° apart (forming equilateral triangle)
+    for orbIdx in 0..2:
+      let orbAngle = baseAngle + (orbIdx.float32 * PI * 2.0 / 3.0)
+      player.rotatingOrbs.add(newRotatingOrb(orbAngle, orbRadius, element))
 
 proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) =
   ## Create orbs of a specific element based on level
-  ## Level 1: 1 orb, Level 2: 2 orbs, Level 3: 3 orbs
-  let orbCount = level
+  ## Level 1: 1 orb (top of triangle), Level 2: 2 orbs (top + bottom), Level 3: 3 orbs (full triangle)
+  ## Each element has a predefined base angle so triangles don't overlap
   let orbRadius = player.radius * 2.5 + 20  # Orbit radius around player
   
   # Find existing orbs of this element and remove them
@@ -417,14 +429,32 @@ proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) 
     else:
       i += 1
   
-  # Create new orbs of this element
-  # Distribute evenly, but offset based on total orb count for visual variety
-  let totalOrbs = player.rotatingOrbs.len + orbCount
-  let startAngle = player.rotatingOrbs.len.float32 * (PI * 2.0 / totalOrbs.float32)
+  # Define fixed base angles for each element (in a hexagon pattern)
+  # These angles position each element's triangle without overlapping
+  let baseAngleForElement = case elementType
+    of etPoison: 0.0                           # Poison triangle at 0°
+    of etFire: PI / 3.0                        # Fire triangle at 60°
+    of etLightning: PI * 2.0 / 3.0             # Lightning triangle at 120°
+    of etWind: PI                              # Wind triangle at 180°
+    of etFrost: PI * 4.0 / 3.0                 # Frost triangle at 240°
+    of etMagic: PI * 5.0 / 3.0                 # Magic triangle at 300°
+    of etNone: 0.0
   
-  for i in 0..<orbCount:
-    let angle = startAngle + (i.float32 * PI * 2.0 / totalOrbs.float32)
-    player.rotatingOrbs.add(newRotatingOrb(angle, orbRadius, elementType))
+  # Create orbs forming a triangle around the element's base angle
+  # Triangle vertices are 120° apart
+  case level
+  of 1:
+    # Level 1: Single orb at the top of the triangle (base angle)
+    player.rotatingOrbs.add(newRotatingOrb(baseAngleForElement, orbRadius, elementType))
+  of 2:
+    # Level 2: Top + bottom-left of triangle
+    player.rotatingOrbs.add(newRotatingOrb(baseAngleForElement, orbRadius, elementType))
+    player.rotatingOrbs.add(newRotatingOrb(baseAngleForElement + PI * 2.0 / 3.0, orbRadius, elementType))
+  else:  # 3 or more
+    # Level 3: Full triangle (3 orbs at 120° intervals)
+    for orbIdx in 0..2:
+      let orbAngle = baseAngleForElement + (orbIdx.float32 * PI * 2.0 / 3.0)
+      player.rotatingOrbs.add(newRotatingOrb(orbAngle, orbRadius, elementType))
 
 proc getElementColor*(elementType: ElementType): Color =
   ## Get the visual color for each element type
@@ -483,13 +513,8 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Time Warp uses are based on level: 1, 2, or 3 uses per wave
     player.timeWarpMaxUsesPerWave = powerUp.level
   of puRotatingOrbs:
-    # Legendary: Create all 6 elemental orbs (1 of each, level 1 only)
-    let orbRadius = player.radius * 2.5 + 20
-    let elements = [etPoison, etFire, etLightning, etWind, etFrost, etMagic]
-    player.rotatingOrbs = @[]
-    for i in 0..<6:
-      let angle = (i.float32 / 6.0) * PI * 2.0
-      player.rotatingOrbs.add(newRotatingOrb(angle, orbRadius, elements[i]))
+    # Legendary: Create all 6 elemental orbs at their predefined positions
+    createRotatingOrbs(player, powerUp.level)
   of puPoisonOrb:
     createElementalOrbs(player, etPoison, powerUp.level)
   of puFireOrb:
@@ -558,13 +583,8 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           else: 1.0
         player.bulletSpeed *= speedMultiplier
       of puRotatingOrbs:
-        # Legendary: Always has all 6 elements (no upgrade)
-        let orbRadius = player.radius * 2.5 + 20
-        let elements = [etPoison, etFire, etLightning, etWind, etFrost, etMagic]
-        player.rotatingOrbs = @[]
-        for i in 0..<6:
-          let angle = (i.float32 / 6.0) * PI * 2.0
-          player.rotatingOrbs.add(newRotatingOrb(angle, orbRadius, elements[i]))
+        # Legendary: Always has all 6 elements at predefined positions (no upgrade)
+        createRotatingOrbs(player, powerUp.level)
       of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb:
         # Recreate orbs with new level (more orbs of this element)
         let elementType = case powerUp.powerType
