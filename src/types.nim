@@ -101,7 +101,13 @@ type
     puFrostOrb,        # Frost elemental orb
     puMagicOrb,        # Magic elemental orb
     puMagicBullets,    # Magic bullet version - enhanced damage
-    puMagicAura        # Magic aura version - enhanced damage
+    puMagicAura,       # Magic aura version - enhanced damage
+    puFireMastery,     # LEGENDARY: Enhance all fire effects (damage, duration, slow)
+    puPoisonMastery,   # LEGENDARY: Enhance all poison effects (damage, duration, slow)
+    puFrostMastery,    # LEGENDARY: Enhance all frost effects (damage, duration, slow)
+    puArcaneMastery,   # LEGENDARY: Enhance all arcane effects (damage, duration)
+    puLightningMastery,# LEGENDARY: Enhance all lightning effects (damage, duration, slow)
+    puWindMastery      # LEGENDARY: Enhance all wind effects (damage, duration, slow)
   
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
@@ -181,6 +187,13 @@ type
     # Rotating orbs power-up
     rotatingOrbs*: seq[RotatingOrb]
     orbRotationAngle*: float32  # Base rotation angle for all orbs
+    # Elemental Mastery power-ups (LEGENDARY - enhance elemental effects)
+    hasFireMastery*: bool
+    hasPoisonMastery*: bool
+    hasFrostMastery*: bool
+    hasArcaneMastery*: bool
+    hasLightningMastery*: bool
+    hasWindMastery*: bool
     # Poison tracking (for venomous elite enemies)
     poisonTimer*: float32
     poisonDamage*: float32

@@ -97,7 +97,7 @@ proc drawMenu(game: Game) =
   # Subtitle with gentle pulse
   let subtitlePulse = 1.0 + sin(game.time * 2.5) * 0.06
   let subtitleSize = (28.float32 * subtitlePulse).int32
-  drawText("CHAOS EDITION", screenWidth div 2 - 150, 200, subtitleSize, Orange)
+  drawText("ELEMENTAL UPDATE", screenWidth div 2 - 150, 200, subtitleSize, Orange)
   
   # UPDATE 3 badge with subtle glow
   let updateX = screenWidth div 2 - 80
@@ -105,9 +105,9 @@ proc drawMenu(game: Game) =
   let updatePulse = 1.0 + sin(game.time * 4.0) * 0.1
   let updateSize = (30.float32 * updatePulse).int32
   
-  drawText("UPDATE 3!", int32(updateX - 1), int32(updateY - 1), updateSize + 2,
+  drawText("UPDATE 4!", int32(updateX - 1), int32(updateY - 1), updateSize + 2,
           Color(r: 255'u8, g: 120'u8, b: 0'u8, a: 80'u8))
-  drawText("UPDATE 3!", int32(updateX), int32(updateY), updateSize, Gold)
+  drawText("UPDATE 4!", int32(updateX), int32(updateY), updateSize, Gold)
   
   # Menu options with subtle selection indicator
   let startY = 360
@@ -192,7 +192,7 @@ proc drawHelp(game: Game) =
 proc main() =
   randomize()
   
-  initWindow(screenWidth, screenHeight, "TopHat-Shooter: Chaos Edition")
+  initWindow(screenWidth, screenHeight, "TopHat-Shooter: Elemental Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor

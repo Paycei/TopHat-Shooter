@@ -387,6 +387,10 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       if rand(99) < critChance:
         damage *= critMultiplier
     
+    # Apply Arcane Mastery bonus to magic bullets
+    if hasMagic and game.player.hasArcaneMastery:
+      damage *= 3.0  # +200% additional damage on top of Magic Bullets bonus
+    
     # Calculate slow, poison, fire, and wind effects
     var slowEffect = 0.0
     var poisonEffect = 0.0
@@ -399,6 +403,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         of 1: 0.25
         of 2: 0.4
         else: 0.6
+      # Apply Frost Mastery bonus if owned
+      if game.player.hasFrostMastery:
+        slowEffect += 0.2  # +20% slow (total up to 80%)
     if hasPoison:
       let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
       let poisonBaseScaling = game.player.damage * 0.1
@@ -837,13 +844,22 @@ proc updateGame*(game: var Game, dt: float32) =
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < fireRadius:
-        # Apply fire effect using new system
-        applyEffect(enemy, etFire, fireDamagePerSec, fireDuration, "aura")
+        var actualFireDamage = fireDamagePerSec
+        var actualFireDuration = fireDuration
         
-        # Apply 5% slow effect
-        enemy.slowTimer = 0.2
-        if enemy.slowAmount < 0.05:
-          enemy.slowAmount = 0.05
+        # Apply Fire Mastery bonuses if owned
+        if game.player.hasFireMastery:
+          actualFireDamage *= 2.5  # +150% damage
+          actualFireDuration *= 2.0  # +100% duration
+        
+        # Apply fire effect using new system
+        applyEffect(enemy, etFire, actualFireDamage, actualFireDuration, "aura")
+        
+        # Apply slow ONLY if player has Fire Mastery
+        if game.player.hasFireMastery:
+          enemy.slowTimer = 0.2
+          if enemy.slowAmount < 0.35:
+            enemy.slowAmount = 0.35  # 35% slow
         
         # Visual fire particles
         if rand(100) < 8:  # 8% chance per frame
@@ -857,11 +873,11 @@ proc updateGame*(game: var Game, dt: float32) =
   if hasPowerUp(game.player, puLightningAura):
     let level = getPowerUpLevel(game.player, puLightningAura)
     let damageScaling = game.player.damage * 0.1
-    let lightningDamagePerSec = case level
+    var lightningDamagePerSec = case level
       of 1: 0.3 + damageScaling
       of 2: 0.6 + damageScaling
       else: 1.0 + damageScaling
-    let maxChains = case level
+    var maxChains = case level
       of 1: 1
       of 2: 2
       else: 3
@@ -870,6 +886,11 @@ proc updateGame*(game: var Game, dt: float32) =
       of 2: 160.0
       else: 200.0
     let chainRange = 80.0  # Distance lightning can chain between enemies
+    
+    # Apply Lightning Mastery bonuses if owned
+    if game.player.hasLightningMastery:
+      lightningDamagePerSec *= 2.5  # +150% damage
+      maxChains += 1  # +1 chain
     
     # Build list of enemies in range
     var enemiesInRange: seq[tuple[enemy: Enemy, dist: float32]] = @[]
@@ -888,10 +909,11 @@ proc updateGame*(game: var Game, dt: float32) =
         enemy.hp -= actualDamage
         processedEnemies.add(enemy)
         
-        # Apply 5% slow effect
-        enemy.slowTimer = 0.2
-        if enemy.slowAmount < 0.05:
-          enemy.slowAmount = 0.05
+        # Apply slow ONLY if player has Lightning Mastery
+        if game.player.hasLightningMastery:
+          enemy.slowTimer = 0.2
+          if enemy.slowAmount < 0.25:
+            enemy.slowAmount = 0.25  # 25% slow
         
         # Visual lightning spark
         if rand(100) < 10:
@@ -938,7 +960,7 @@ proc updateGame*(game: var Game, dt: float32) =
   if hasPowerUp(game.player, puMagicAura):
     let level = getPowerUpLevel(game.player, puMagicAura)
     let damageScaling = game.player.damage * 0.1
-    let magicDamagePerSec = case level
+    var magicDamagePerSec = case level
       of 1: 0.5 + damageScaling
       of 2: 1.0 + damageScaling
       else: 1.5 + damageScaling
@@ -946,6 +968,10 @@ proc updateGame*(game: var Game, dt: float32) =
       of 1: 120.0
       of 2: 160.0
       else: 200.0
+    
+    # Apply Arcane Mastery bonuses if owned
+    if game.player.hasArcaneMastery:
+      magicDamagePerSec *= 3.0  # +200% damage
     
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
@@ -982,13 +1008,22 @@ proc updateGame*(game: var Game, dt: float32) =
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < poisonRadius:
-        # Apply poison aura effect (separate from bullet poison)
-        applyEffect(enemy, etPoison, poisonDamagePerSec, poisonDuration, "aura")
+        var actualPoisonDamage = poisonDamagePerSec
+        var actualPoisonDuration = poisonDuration
         
-        # Apply 5% slow effect
-        enemy.slowTimer = 0.2
-        if enemy.slowAmount < 0.05:
-          enemy.slowAmount = 0.05
+        # Apply Poison Mastery bonuses if owned
+        if game.player.hasPoisonMastery:
+          actualPoisonDamage *= 2.5  # +150% damage
+          actualPoisonDuration *= 2.0  # +100% duration
+        
+        # Apply poison aura effect (separate from bullet poison)
+        applyEffect(enemy, etPoison, actualPoisonDamage, actualPoisonDuration, "aura")
+        
+        # Apply slow ONLY if player has Poison Mastery
+        if game.player.hasPoisonMastery:
+          enemy.slowTimer = 0.2
+          if enemy.slowAmount < 0.30:
+            enemy.slowAmount = 0.30  # 30% slow
         
         # Visual poison particles
         if rand(100) < 6:  # 6% chance per frame
@@ -1002,7 +1037,7 @@ proc updateGame*(game: var Game, dt: float32) =
   # Wind Aura power-up effect - pushes enemies away from player (slow aura but different mechanic)
   if hasPowerUp(game.player, puWindAura):
     let level = getPowerUpLevel(game.player, puWindAura)
-    let pushStrength = case level
+    var pushStrength = case level
       of 1: 50.0   # Weak push
       of 2: 80.0   # Medium push
       else: 120.0  # Strong push
@@ -1010,6 +1045,10 @@ proc updateGame*(game: var Game, dt: float32) =
       of 1: 120.0
       of 2: 160.0
       else: 200.0
+    
+    # Apply Wind Mastery bonuses if owned
+    if game.player.hasWindMastery:
+      pushStrength *= 2.5  # Stronger push (+150%)
     
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
@@ -1024,6 +1063,12 @@ proc updateGame*(game: var Game, dt: float32) =
         let pushForce = pushStrength * (1.0 - (dist / windRadius)) * bossResistance
         enemy.pos.x += pushDir.x * pushForce * dt
         enemy.pos.y += pushDir.y * pushForce * dt
+        
+        # Apply slow ONLY if player has Wind Mastery
+        if game.player.hasWindMastery:
+          enemy.slowTimer = 0.2
+          if enemy.slowAmount < 0.40:
+            enemy.slowAmount = 0.40  # 40% slow
         
         # Visual wind particles (outward from player toward enemies)
         if rand(100) < 8:  # 8% chance per frame
@@ -1132,8 +1177,14 @@ proc updateGame*(game: var Game, dt: float32) =
               canHit = false
           
           if canHit:
-            # Apply damage
-            let actualDamage = applyEliteModifiers(enemy, baseDamage)
+            # Apply damage (with element-specific bonuses)
+            var actualBaseDamage = baseDamage
+            
+            # Apply Arcane Mastery bonus for Magic orbs
+            if orb.elementType == etMagic and game.player.hasArcaneMastery:
+              actualBaseDamage *= 3.0  # +200% damage
+            
+            let actualDamage = applyEliteModifiers(enemy, actualBaseDamage)
             enemy.hp -= actualDamage
             
             # Record hit time
@@ -1142,34 +1193,63 @@ proc updateGame*(game: var Game, dt: float32) =
             # Apply element-specific effects
             case orb.elementType
             of etPoison:
-              # Poison: 0.3 dmg/sec for 4 seconds + 5% slow (NERFED base, scaled with player damage)
+              # Poison: 0.3 dmg/sec for 4 seconds (NERFED base, scaled with player damage)
               let poisonDamageScaling = game.player.damage * 0.1
-              applyEffect(enemy, etPoison, 0.3 + poisonDamageScaling, 4.0, "orb")
-              enemy.slowTimer = 0.2
-              if enemy.slowAmount < 0.05:
-                enemy.slowAmount = 0.05
+              var poisonDmg = 0.3 + poisonDamageScaling
+              var poisonDur = 4.0
+              
+              # Apply Poison Mastery bonuses if owned
+              if game.player.hasPoisonMastery:
+                poisonDmg *= 2.5  # +150% damage
+                poisonDur *= 2.0  # +100% duration
+              
+              applyEffect(enemy, etPoison, poisonDmg, poisonDur, "orb")
+              
+              # Apply slow ONLY if player has Poison Mastery
+              if game.player.hasPoisonMastery:
+                enemy.slowTimer = 0.2
+                if enemy.slowAmount < 0.30:
+                  enemy.slowAmount = 0.30  # 30% slow
+              
               # Green particles
               spawnExplosion(game.particles, orbX, orbY, 
                            Color(r: 100, g: 255, b: 100, a: 255), 5)
             
             of etFire:
-              # Fire: 0.4 dmg/sec for 2 seconds + 5% slow (NERFED base, scaled with player damage)
+              # Fire: 0.4 dmg/sec for 2 seconds (NERFED base, scaled with player damage)
               let fireDamageScaling = game.player.damage * 0.1
-              applyEffect(enemy, etFire, 0.4 + fireDamageScaling, 2.0, "orb")
-              enemy.slowTimer = 0.2
-              if enemy.slowAmount < 0.05:
-                enemy.slowAmount = 0.05
+              var fireDmg = 0.4 + fireDamageScaling
+              var fireDur = 2.0
+              
+              # Apply Fire Mastery bonuses if owned
+              if game.player.hasFireMastery:
+                fireDmg *= 2.5  # +150% damage
+                fireDur *= 2.0  # +100% duration
+              
+              applyEffect(enemy, etFire, fireDmg, fireDur, "orb")
+              
+              # Apply slow ONLY if player has Fire Mastery
+              if game.player.hasFireMastery:
+                enemy.slowTimer = 0.2
+                if enemy.slowAmount < 0.35:
+                  enemy.slowAmount = 0.35  # 35% slow
+              
               # Orange/red particles
               spawnExplosion(game.particles, orbX, orbY, Orange, 5)
               spawnExplosion(game.particles, orbX, orbY, Red, 3)
             
             of etLightning:
-              # Lightning: Instant damage + chain to 1 nearby enemy
+              # Lightning: Instant damage + chain to nearby enemy
               # Already dealt base damage, now chain
               let chainRange = 80.0
+              var chainCount = 1  # Default chain count
               var nearestDist = chainRange + 1.0
               var nearestEnemy: Enemy = nil
               var nearestIdx = -1
+              
+              # Apply Lightning Mastery bonuses if owned
+              if game.player.hasLightningMastery:
+                chainCount = 2  # +1 additional chain
               
               var checkIdx = 0
               for other in game.enemies:
@@ -1186,9 +1266,46 @@ proc updateGame*(game: var Game, dt: float32) =
                 let chainDamage = applyEliteModifiers(nearestEnemy, baseDamage * 0.7)
                 nearestEnemy.hp -= chainDamage
                 
+                # Apply slow if has Lightning Mastery
+                if game.player.hasLightningMastery:
+                  nearestEnemy.slowTimer = 0.2
+                  if nearestEnemy.slowAmount < 0.25:
+                    nearestEnemy.slowAmount = 0.25  # 25% slow
+                
                 # Visual chain
                 spawnExplosion(game.particles, nearestEnemy.pos.x, nearestEnemy.pos.y,
                              Color(r: 200, g: 220, b: 255, a: 255), 3)
+                
+                # If has Lightning Mastery, chain one more time
+                if game.player.hasLightningMastery:
+                  var secondNearestDist = chainRange + 1.0
+                  var secondNearestEnemy: Enemy = nil
+                  
+                  for other in game.enemies:
+                    if other != enemy and other != nearestEnemy:
+                      let chainDist = distance(nearestEnemy.pos, other.pos)
+                      if chainDist < chainRange and chainDist < secondNearestDist:
+                        secondNearestDist = chainDist
+                        secondNearestEnemy = other
+                  
+                  if secondNearestEnemy != nil:
+                    let secondChainDamage = applyEliteModifiers(secondNearestEnemy, baseDamage * 0.7)
+                    secondNearestEnemy.hp -= secondChainDamage
+                    
+                    # Apply slow to second chain
+                    secondNearestEnemy.slowTimer = 0.2
+                    if secondNearestEnemy.slowAmount < 0.25:
+                      secondNearestEnemy.slowAmount = 0.25
+                    
+                    # Visual chain
+                    spawnExplosion(game.particles, secondNearestEnemy.pos.x, secondNearestEnemy.pos.y,
+                                 Color(r: 200, g: 220, b: 255, a: 255), 3)
+              
+              # Apply slow to primary target if has Lightning Mastery
+              if game.player.hasLightningMastery:
+                enemy.slowTimer = 0.2
+                if enemy.slowAmount < 0.25:
+                  enemy.slowAmount = 0.25  # 25% slow
               
               # Yellow particles
               spawnExplosion(game.particles, orbX, orbY, Yellow, 5)
@@ -1196,19 +1313,38 @@ proc updateGame*(game: var Game, dt: float32) =
             of etWind:
               # Wind: Knockback away from player
               let pushDir = (enemy.pos - game.player.pos).normalize()
-              let pushForce = 200.0  # Strong knockback
+              var pushForce = 200.0  # Strong knockback
               let bossResistance = if enemy.isBoss: 0.1 else: 1.0
+              
+              # Apply Wind Mastery bonuses if owned
+              if game.player.hasWindMastery:
+                pushForce *= 2.5  # Stronger push (+150%)
+              
               enemy.pos.x += pushDir.x * pushForce * dt * bossResistance
               enemy.pos.y += pushDir.y * pushForce * dt * bossResistance
+              
+              # Apply slow ONLY if player has Wind Mastery
+              if game.player.hasWindMastery:
+                enemy.slowTimer = 0.2
+                if enemy.slowAmount < 0.40:
+                  enemy.slowAmount = 0.40  # 40% slow
+              
               # Cyan particles
               spawnExplosion(game.particles, orbX, orbY,
                            Color(r: 200, g: 230, b: 255, a: 255), 5)
             
             of etFrost:
-              # Frost: 30% slow effect (permanent until removed)
+              # Frost: 30% slow effect base (permanent until removed)
               enemy.slowTimer = 999.0  # Very long duration
-              if enemy.slowAmount < 0.3:
-                enemy.slowAmount = 0.3
+              var frostSlow = 0.3  # Base 30% slow
+              
+              # Apply Frost Mastery bonus if owned
+              if game.player.hasFrostMastery:
+                frostSlow = 0.5  # +20% slow (50% total with mastery)
+              
+              if enemy.slowAmount < frostSlow:
+                enemy.slowAmount = frostSlow
+              
               # Light blue particles
               spawnExplosion(game.particles, orbX, orbY,
                            Color(r: 150, g: 200, b: 255, a: 255), 5)
@@ -2166,27 +2302,45 @@ proc updateGame*(game: var Game, dt: float32) =
           if bullet.poisonDuration > 0 and hasPowerUp(game.player, puPoisonShot):
             let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
             let poisonBaseScaling = game.player.damage * 0.1
-            let poisonDmg = case poisonLevel
+            var poisonDmg = case poisonLevel
               of 1: 1.0 + poisonBaseScaling
               of 2: 1.5 + poisonBaseScaling
               else: 2.0 + poisonBaseScaling
-            applyEffect(game.enemies[j], etPoison, poisonDmg, bullet.poisonDuration, "shot")
-            # Poison bullets also slow enemies by 5%
-            game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, bullet.poisonDuration)
-            game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, 0.05)
+            var poisonDur = bullet.poisonDuration
+            
+            # Apply Poison Mastery bonuses if owned
+            if game.player.hasPoisonMastery:
+              poisonDmg *= 2.5  # +150% damage
+              poisonDur *= 2.0  # +100% duration
+            
+            applyEffect(game.enemies[j], etPoison, poisonDmg, poisonDur, "shot")
+            
+            # Apply slow ONLY if player has Poison Mastery
+            if game.player.hasPoisonMastery:
+              game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, poisonDur)
+              game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, 0.30)  # 30% slow
           
           # Apply fire damage over time
           if bullet.fireDuration > 0 and hasPowerUp(game.player, puFireBullets):
             let fireLevel = getPowerUpLevel(game.player, puFireBullets)
             let fireBaseScaling = game.player.damage * 0.1
-            let fireDmg = case fireLevel
+            var fireDmg = case fireLevel
               of 1: 0.5 + fireBaseScaling
               of 2: 1.0 + fireBaseScaling
               else: 1.5 + fireBaseScaling
-            applyEffect(game.enemies[j], etFire, fireDmg, bullet.fireDuration, "shot")
-            # Fire bullets also slow enemies by 5%
-            game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, bullet.fireDuration)
-            game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, 0.05)
+            var fireDur = bullet.fireDuration
+            
+            # Apply Fire Mastery bonuses if owned
+            if game.player.hasFireMastery:
+              fireDmg *= 2.5  # +150% damage
+              fireDur *= 2.0  # +100% duration
+            
+            applyEffect(game.enemies[j], etFire, fireDmg, fireDur, "shot")
+            
+            # Apply slow ONLY if player has Fire Mastery
+            if game.player.hasFireMastery:
+              game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, fireDur)
+              game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, 0.35)  # 35% slow
           
           # Apply wind push force (knock back effect)
           if bullet.windPushForce > 0 and hasPowerUp(game.player, puWindBullets):
@@ -2194,9 +2348,21 @@ proc updateGame*(game: var Game, dt: float32) =
             let pushDir = (game.enemies[j].pos - game.player.pos).normalize()
             # Bosses are much more resistant to wind push (10% effectiveness)
             let bossResistance = if game.enemies[j].isBoss: 0.1 else: 1.0
+            
+            # Apply Wind Mastery bonuses if owned
+            var actualWindForce = bullet.windPushForce
+            if game.player.hasWindMastery:
+              actualWindForce *= 2.5  # Stronger push (+150%)
+            
             # Apply knockback force
-            game.enemies[j].pos.x += pushDir.x * bullet.windPushForce * dt * bossResistance
-            game.enemies[j].pos.y += pushDir.y * bullet.windPushForce * dt * bossResistance
+            game.enemies[j].pos.x += pushDir.x * actualWindForce * dt * bossResistance
+            game.enemies[j].pos.y += pushDir.y * actualWindForce * dt * bossResistance
+            
+            # Apply slow ONLY if player has Wind Mastery
+            if game.player.hasWindMastery:
+              game.enemies[j].slowTimer = 0.2
+              if game.enemies[j].slowAmount < 0.40:
+                game.enemies[j].slowAmount = 0.40  # 40% slow
             
             # Visual wind effect particles
             for k in 0..3:

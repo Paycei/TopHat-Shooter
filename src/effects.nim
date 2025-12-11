@@ -1,4 +1,4 @@
-import types, math, tables
+import types, tables
 
 # Sistema de gestión de efectos con fallback
 # Previene stacking de efectos iguales pero permite fallback a efecto de menor poder

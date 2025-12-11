@@ -52,6 +52,12 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puMagicBullets: "Magic Bullets"
   of puMagicAura: "Magic Aura"
   of puMagicOrb: "Arcane Orbs"
+  of puFireMastery: "Inferno Mastery"
+  of puPoisonMastery: "Toxic Overlord"
+  of puFrostMastery: "Frost King"
+  of puArcaneMastery: "Arcane Ascension"
+  of puLightningMastery: "Storm Lord"
+  of puWindMastery: "Wind Master"
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
   of puDoubleShot:
@@ -91,33 +97,26 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 2: "Heal 1 HP per 15 kills"
     else: "Heal 1 HP per 10 kills"
   of puRapidFire:
-    case level
-    of 1: "+25% fire rate"
-    else: "+50% fire rate"
+    # Single level only - LEGENDARY
+    "+40% fire rate"
   of puMaxHealth:
-    case level
-    of 1: "+5 max HP"
-    else: "+10 max HP"
+    # Single level only - LEGENDARY
+    "+10 max HP"
   of puSpeedBoost:
-    case level
-    of 1: "+30% movement speed"
-    else: "+60% movement speed"
+    # Single level only - LEGENDARY
+    "+50% movement speed"
   of puBulletDamage:
-    case level
-    of 1: "+70% bullet damage"
-    else: "+140% bullet damage"
+    # Single level only - LEGENDARY
+    "+100% bullet damage"
   of puBulletSpeed:
-    case level
-    of 1: "+20% bullet speed"
-    else: "+40% bullet speed"
+    # Single level only - LEGENDARY
+    "+35% bullet speed"
   of puLuckyCoins:
-    case level
-    of 1: "+50% coin drops"
-    else: "+120% coin drops"
+    # Single level only - LEGENDARY
+    "+100% coin drops"
   of puWallMaster:
-    case level
-    of 1: "Walls have +80% HP"
-    else: "Walls have +180% HP"
+    # Single level only - LEGENDARY
+    "Walls have +150% HP"
   of puAutoShoot:
     case level
     of 1: "Auto-fire (60% rate, 250 range)"
@@ -190,14 +189,14 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Bullets slow enemies 60% (permanent)"
   of puPoisonShot:
     case level
-    of 1: "Bullets poison (0.5 dmg/s, 4s, 5% slow)"
-    of 2: "Bullets poison (1 dmg/s, 5s, 5% slow)"
-    else: "Bullets poison (2 dmg/s, 6s, 5% slow)"
+    of 1: "Bullets poison (0.5 dmg/s, 4s)"
+    of 2: "Bullets poison (1 dmg/s, 5s)"
+    else: "Bullets poison (2 dmg/s, 6s)"
   of puFireBullets:
     case level
-    of 1: "Bullets burn (0.3 dmg/s, 2s, 5% slow)"
-    of 2: "Bullets burn (0.75 dmg/s, 3s, 5% slow)"
-    else: "Bullets burn (1.5 dmg/s, 4s, 5% slow)"
+    of 1: "Bullets burn (0.3 dmg/s, 2s)"
+    of 2: "Bullets burn (0.75 dmg/s, 3s)"
+    else: "Bullets burn (1.5 dmg/s, 4s)"
   of puWindBullets:
     case level
     of 1: "Bullets knock back enemies (weak push)"
@@ -224,27 +223,23 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 2: "Push enemies away in 160 radius (medium)"
     else: "Push enemies away in 200 radius (strong)"
   of puTimeWarp:
-    case level
-    of 1: "Slow time 50% for 3.5s (1 use/wave, 20s cd)"
-    of 2: "Slow time 50% for 3.5s (2 uses/wave, 20s cd)"
-    else: "Slow time 50% for 3.5s (3 uses/wave, 20s cd)"
+    # Single level only - LEGENDARY
+    "Slow time 50% for 4s (2 uses/wave, 18s cd)"
   of puGravityWell:
-    # Single level only - balanced passive pull
+    # Single level only - LEGENDARY passive pull
     "Pull enemies in 300 radius"
   of puPhaseShift:
-    # Single level only - balanced teleport (NERFED)
-    "Dash forward (10s cd, 0.6s invuln, scales with speed)"
+    # Single level only - LEGENDARY teleport
+    "Dash forward (9s cd, 0.7s invuln, scales with speed)"
   of puOvercharge:
-    case level
-    of 1: "+4% dmg per 100 units (max 40%, 40 range)"
-    of 2: "+4% dmg per 100 units (max 80%, 70 range)"
-    else: "+4% dmg per 100 units (max 120%, 100 range)"
+    # Single level only - LEGENDARY
+    "+5% dmg per 100 units traveled (max 100%, 80 range)"
   of puEchoShots:
-    # Single level only - balanced echo trail
-    "Bullets leave ghost trail (40% dmg)"
+    # Single level only - LEGENDARY echo trail
+    "Bullets leave ghost trail (50% dmg)"
   of puRotatingOrbs:
-    # Single level only - legendary power-up with all elements
-    "All 5 elemental orbs (2 dmg/hit)"
+    # Single level only - LEGENDARY power-up with all elements
+    "All 6 elemental orbs (2.5 dmg/hit)"
   of puPoisonOrb:
     case level
     of 1: "1 poison orb (0.3 dmg/s, DoT, scales)"
@@ -285,6 +280,24 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "Arcane aura 2 dmg/s in 120 radius (magical effect)"
     of 2: "Arcane aura 4 dmg/s in 160 radius (magical effect)"
     else: "Arcane aura 8 dmg/s in 200 radius (magical effect)"
+  of puFireMastery:
+    # Single level only - LEGENDARY mastery
+    "Fire effects: +150% dmg, +100% duration, +35% slow"
+  of puPoisonMastery:
+    # Single level only - LEGENDARY mastery
+    "Poison effects: +150% dmg, +100% duration, +30% slow"
+  of puFrostMastery:
+    # Single level only - LEGENDARY mastery
+    "Frost effects: +150% dmg, +100% duration, +20% slow (total 80%)"
+  of puArcaneMastery:
+    # Single level only - LEGENDARY mastery
+    "Arcane effects: +200% dmg, +100% duration, piercing"
+  of puLightningMastery:
+    # Single level only - LEGENDARY mastery
+    "Lightning effects: +150% dmg, +100% duration, +25% slow, +1 chain"
+  of puWindMastery:
+    # Single level only - LEGENDARY mastery
+    "Wind effects: +150% dmg, +100% duration, +40% slow, stronger push"
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -303,11 +316,12 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   var availablePowerUps: seq[PowerUp] = @[]
   
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
-  # All legendary active abilities are SINGLE LEVEL ONLY
+  # ALL legendary powerups are SINGLE LEVEL ONLY
   let legendaryOnlyTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
                             puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
                             puGravityWell, puPhaseShift, puOvercharge, puEchoShots, puMultiShot,
-                            puRotatingOrbs]
+                            puRotatingOrbs, puFireMastery, puPoisonMastery, puFrostMastery,
+                            puArcaneMastery, puLightningMastery, puWindMastery]
   
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
   let normalOnlyTypes = [puDoubleShot, puRotatingShield, puDamageZone, puHomingBullets,
@@ -322,25 +336,12 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
+    # ALL LEGENDARY POWERUPS ARE SINGLE LEVEL ONLY
     for powerType in legendaryOnlyTypes:
       let currentLevel = getPowerUpLevel(player, powerType)
-      # Special handling for single-level legendary actives
-      if powerType in [puPhaseShift, puGravityWell, puEchoShots, puMultiShot]:
-        # These are SINGLE LEVEL ONLY
-        if currentLevel == 0:
-          availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
-      elif powerType in [puTimeWarp, puOvercharge]:
-        # Time Warp and Overcharge have 3 levels
-        if currentLevel == 0:
-          availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
-        elif currentLevel < 3:
-          availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prLegendary))
-      else:
-        # Multi-level legendary passives (up to level 3)
-        if currentLevel == 0:
-          availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
-        elif currentLevel < 3:
-          availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prLegendary))
+      if currentLevel == 0:
+        # All legendaries are single-level, only offer if not owned
+        availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
   else:
     # NORMAL WAVE - offer ONLY normal power-ups (exclude legendary-exclusive types)
     for powerType in normalOnlyTypes:
@@ -479,40 +480,25 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   # Apply immediate stat bonuses for new powerup types
   case powerUp.powerType
   of puRapidFire:
-    let bonus = case powerUp.level
-      of 1: 0.8   # 20% faster (was 0.75 = 25% faster)
-      of 2: 0.67  # 33% faster (was 0.5 = 50% faster)
-      else: 0.67
-    player.fireRate *= bonus
+    # Single level only - +40% fire rate
+    player.fireRate *= 0.714  # 1 / 1.4
   of puMaxHealth:
-    let hpBonus = case powerUp.level
-      of 1: 5.0
-      of 2: 10.0
-      else: 10.0
-    player.maxHp += hpBonus
-    player.hp += hpBonus
+    # Single level only - +10 HP
+    player.maxHp += 10.0
+    player.hp += 10.0
   of puSpeedBoost:
-    let speedBonus = case powerUp.level
-      of 1: 1.2
-      of 2: 1.4
-      else: 1.7
-    player.speed *= speedBonus
-    player.baseSpeed *= speedBonus
+    # Single level only - +50% speed
+    player.speed *= 1.5
+    player.baseSpeed *= 1.5
   of puBulletDamage:
-    let damageBonus = case powerUp.level
-      of 1: 1.5
-      of 2: 2.0
-      else: 2.8
-    player.damage *= damageBonus
+    # Single level only - +100% damage
+    player.damage *= 2.0
   of puBulletSpeed:
-    let speedMultiplier = case powerUp.level
-      of 1: 1.2   # +20% (was 1.3 = +30%)
-      of 2: 1.4   # +40% (was 1.6 = +60%)
-      else: 1.4
-    player.bulletSpeed *= speedMultiplier
+    # Single level only - +35% speed
+    player.bulletSpeed *= 1.35
   of puTimeWarp:
-    # Time Warp uses are based on level: 1, 2, or 3 uses per wave
-    player.timeWarpMaxUsesPerWave = powerUp.level
+    # Single level only - 2 uses per wave
+    player.timeWarpMaxUsesPerWave = 2
   of puRotatingOrbs:
     # Legendary: Create all 6 elemental orbs at their predefined positions
     createRotatingOrbs(player, powerUp.level)
@@ -538,54 +524,37 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puMagicAura:
     # Magic aura is tracked via powerUps (pure damage effect applied in game.nim)
     discard
+  of puFireMastery:
+    # LEGENDARY: Enhance fire effects
+    player.hasFireMastery = true
+  of puPoisonMastery:
+    # LEGENDARY: Enhance poison effects
+    player.hasPoisonMastery = true
+  of puFrostMastery:
+    # LEGENDARY: Enhance frost effects
+    player.hasFrostMastery = true
+  of puArcaneMastery:
+    # LEGENDARY: Enhance arcane effects
+    player.hasArcaneMastery = true
+  of puLightningMastery:
+    # LEGENDARY: Enhance lightning effects
+    player.hasLightningMastery = true
+  of puWindMastery:
+    # LEGENDARY: Enhance wind effects
+    player.hasWindMastery = true
   else:
     discard
   
-  # Check if player already has this power-up
+  # Check if player already has this power-up (should not happen for single-level legendaries)
   var found = false
   for i in 0..<player.powerUps.len:
     if player.powerUps[i].powerType == powerUp.powerType:
-      # Upgrade existing power-up
+      # For multi-level power-ups only (normal ones)
       player.powerUps[i].level = powerUp.level
       player.powerUps[i].rarity = powerUp.rarity
       
-      # Apply upgrade bonuses
+      # Apply upgrade bonuses for normal power-ups that have levels
       case powerUp.powerType
-      of puRapidFire:
-        let bonus = case powerUp.level
-          of 2: 0.8375  # Going from 0.8 to 0.67 (0.67/0.8)
-          of 3: 1.0     # Level 3 not used for legendary
-          else: 1.0
-        player.fireRate *= bonus
-      of puMaxHealth:
-        let hpBonus = case powerUp.level
-          of 2: 5.0  # Additional 5 HP
-          of 3: 5.0  # Additional 5 HP
-          else: 0.0
-        player.maxHp += hpBonus
-        player.hp += hpBonus
-      of puSpeedBoost:
-        let speedBonus = case powerUp.level
-          of 2: 1.167  # 1.4 / 1.2
-          of 3: 1.214  # 1.7 / 1.4
-          else: 1.0
-        player.speed *= speedBonus
-        player.baseSpeed *= speedBonus
-      of puBulletDamage:
-        let damageBonus = case powerUp.level
-          of 2: 1.333  # 2.0 / 1.5
-          of 3: 1.4    # 2.8 / 2.0
-          else: 1.0
-        player.damage *= damageBonus
-      of puBulletSpeed:
-        let speedMultiplier = case powerUp.level
-          of 2: 1.167  # 1.4 / 1.2 (going from +20% to +40%)
-          of 3: 1.0    # Level 3 not used for legendary
-          else: 1.0
-        player.bulletSpeed *= speedMultiplier
-      of puRotatingOrbs:
-        # Legendary: Always has all 6 elements at predefined positions (no upgrade)
-        createRotatingOrbs(player, powerUp.level)
       of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb:
         # Recreate orbs with new level (more orbs of this element)
         let elementType = case powerUp.powerType
@@ -1122,6 +1091,110 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       let y = iconY.float32 + sin(angle) * dist - 5.0
       drawCircle(Vector2(x: x, y: y), 3, Color(r: 200, g: 100, b: 255, a: 220))
       drawCircleLines(x.int32, y.int32, 3, Color(r: 255, g: 150, b: 200, a: 200))
+  of puFireMastery:
+    # LEGENDARY Fire Mastery - crown of flames
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 18, Color(r: 255, g: 100, b: 0, a: 150))
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Red)
+    # Crown points (flames)
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0
+      let dist = 22.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist - 8.0
+      drawCircle(Vector2(x: x, y: y), 5, Orange)
+      drawCircle(Vector2(x: x, y: y - 3), 3, Yellow)
+    # Inner glow
+    drawCircleLines(centerX.int32, iconY.int32, 15, Gold)
+  of puPoisonMastery:
+    # LEGENDARY Poison Mastery - toxic skull
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 18, Color(r: 100, g: 200, b: 100, a: 150))
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Green)
+    # Dripping toxic effect
+    for i in 0..5:
+      let angle = i.float32 * PI / 3.0
+      let x = centerX.float32 + cos(angle) * 15.0
+      let y = iconY.float32 + sin(angle) * 15.0
+      for j in 0..2:
+        let dropY = y + j.float32 * 5.0
+        let dropSize = (3 - j).float32
+        drawCircle(Vector2(x: x, y: dropY), dropSize, Color(r: 100, g: 255, b: 100, a: uint8(200 - j * 50)))
+    drawCircleLines(centerX.int32, iconY.int32, 15, Color(r: 150, g: 255, b: 150, a: 255))
+  of puFrostMastery:
+    # LEGENDARY Frost Mastery - ice crown
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 18, Color(r: 150, g: 200, b: 255, a: 150))
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, SkyBlue)
+    # Ice crystals
+    for i in 0..5:
+      let angle = i.float32 * PI / 3.0
+      let dist = 20.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist
+      # Draw diamond shape for crystal
+      let size = 6.0
+      drawLine(Vector2(x: x, y: y - size), Vector2(x: x + size * 0.5, y: y), 2, Color(r: 200, g: 230, b: 255, a: 255))
+      drawLine(Vector2(x: x + size * 0.5, y: y), Vector2(x: x, y: y + size), 2, Color(r: 200, g: 230, b: 255, a: 255))
+      drawLine(Vector2(x: x, y: y + size), Vector2(x: x - size * 0.5, y: y), 2, Color(r: 200, g: 230, b: 255, a: 255))
+      drawLine(Vector2(x: x - size * 0.5, y: y), Vector2(x: x, y: y - size), 2, Color(r: 200, g: 230, b: 255, a: 255))
+    drawCircleLines(centerX.int32, iconY.int32, 15, Color(r: 180, g: 220, b: 255, a: 255))
+  of puArcaneMastery:
+    # LEGENDARY Arcane Mastery - magical tome
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 18, Color(r: 200, g: 100, b: 255, a: 150))
+    drawRectangle((centerX - 10).int32, (iconY - 12).int32, 20, 24, Color(r: 120, g: 60, b: 180, a: 255))
+    drawRectangleLines((centerX - 10).int32, (iconY - 12).int32, 20, 24, Color(r: 200, g: 100, b: 255, a: 255))
+    # Magical runes
+    for i in 0..2:
+      let offsetY = -6 + i * 6
+      drawCircle(Vector2(x: centerX.float32, y: (iconY + offsetY).float32), 2, Gold)
+    # Magical aura
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0
+      let dist = 22.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist
+      drawCircle(Vector2(x: x, y: y), 2, Color(r: 255, g: 150, b: 255, a: 200))
+  of puLightningMastery:
+    # LEGENDARY Lightning Mastery - storm crown
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 18, Color(r: 255, g: 255, b: 100, a: 150))
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Yellow)
+    # Lightning bolts radiating out
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0
+      let dist = 20.0
+      let x1 = centerX.float32 + cos(angle) * 5.0
+      let y1 = iconY.float32 + sin(angle) * 5.0
+      let x2 = centerX.float32 + cos(angle) * dist
+      let y2 = iconY.float32 + sin(angle) * dist
+      # Zigzag effect
+      for j in 0..2:
+        let t1 = j.float32 / 3.0
+        let t2 = (j + 1).float32 / 3.0
+        let mx1 = x1 + (x2 - x1) * t1 + (if j mod 2 == 0: 3.0 else: -3.0)
+        let my1 = y1 + (y2 - y1) * t1 + (if j mod 2 == 0: -3.0 else: 3.0)
+        let mx2 = x1 + (x2 - x1) * t2 + (if (j+1) mod 2 == 0: 3.0 else: -3.0)
+        let my2 = y1 + (y2 - y1) * t2 + (if (j+1) mod 2 == 0: -3.0 else: 3.0)
+        drawLine(Vector2(x: mx1, y: my1), Vector2(x: mx2, y: my2), 3, Color(r: 255, g: 255, b: 200, a: 255))
+    drawCircleLines(centerX.int32, iconY.int32, 15, Gold)
+  of puWindMastery:
+    # LEGENDARY Wind Mastery - tornado
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 18, Color(r: 220, g: 240, b: 255, a: 120))
+    # Spiral tornado effect
+    for ring in 0..4:
+      let ringRadius = 4.0 + ring.float32 * 4.0
+      for i in 0..5:
+        let angle = (i.float32 / 6.0 + ring.float32 * 0.3) * PI * 2.0
+        let x = centerX.float32 + cos(angle) * ringRadius
+        let y = iconY.float32 + sin(angle) * ringRadius + ring.float32 * 2.0
+        drawCircle(Vector2(x: x, y: y), 2, Color(r: 200, g: 230, b: 255, a: uint8(220 - ring * 30)))
+    # Wind lines
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0
+      let startDist = 5.0
+      let endDist = 20.0
+      let x1 = centerX.float32 + cos(angle) * startDist
+      let y1 = iconY.float32 + sin(angle) * startDist
+      let x2 = centerX.float32 + cos(angle) * endDist
+      let y2 = iconY.float32 + sin(angle) * endDist
+      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, Color(r: 180, g: 220, b: 255, a: 180))
   
   # Rarity indicator
   if powerUp.rarity == prLegendary:

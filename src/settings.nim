@@ -192,7 +192,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   # Show Cursor in Menus Setting (only visible when mouseSupport is disabled)
   if not settings.mouseSupport:
     let showCursorY: int32 = 680
-    drawText("Show Cursor in Menus:", 200'i32, showCursorY, 24, White)
+    drawText("Show Cursor:", 200'i32, showCursorY, 24, White)
     
     # Show Cursor checkbox
     let cursorCheckboxX: int32 = 400
@@ -210,9 +210,9 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
     
     drawText("(visual only, no interaction)", cursorCheckboxX + checkboxSize + 20, showCursorY, 20, LightGray)
   
-  # Back instruction
+  # Back instruction (moved down to not overlap with last option)
   drawText("Press ESC to return to menu", screenWidth div 2 - 180, 
-          screenHeight - 80, 20, LightGray)
+          screenHeight - 50, 20, LightGray)
   
   # ALWAYS draw custom cursor (never show system cursor)
   let mousePos = getMousePosition()
