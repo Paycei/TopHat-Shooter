@@ -683,8 +683,8 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
                         y: (iconY.float32 - curve)), 3, Purple)
   of puPiercingShots:
     for i in 0..<powerUp.level + 1:
-      let offsetX = centerX - 20 + i * 20
-      drawCircle(Vector2(x: offsetX.float32, y: iconY.float32), 8, Skyblue)
+      let offsetX = (centerX - 20 + i * 20).float32
+      drawCircle(Vector2(x: offsetX, y: iconY.float32), 8, Skyblue)
     drawLine(Vector2(x: (centerX - 30).float32, y: iconY.float32), 
             Vector2(x: (centerX + 30).float32, y: iconY.float32), 3, SkyBlue)
   of puMultiShot:
@@ -712,9 +712,9 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       let offsetX = (i - 1) * 15
       drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 6, Orange)
     for i in 0..2:
-      let lineY = iconY + (i - 1) * 10
-      drawLine(Vector2(x: (centerX - 30).float32, y: lineY.float32),
-              Vector2(x: (centerX - 15).float32, y: lineY.float32), 2, Yellow)
+      let lineY = (iconY + (i - 1) * 10).float32
+      drawLine(Vector2(x: (centerX - 30).float32, y: lineY),
+              Vector2(x: (centerX - 15).float32, y: lineY), 2, Yellow)
   of puMaxHealth:
     drawCircle(Vector2(x: (centerX - 5).float32, y: (iconY - 2).float32), 10, Red)
     drawCircle(Vector2(x: (centerX + 5).float32, y: (iconY - 2).float32), 10, Red)
@@ -725,9 +725,9 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     drawLine(Vector2(x: centerX.float32, y: (iconY - 2).float32),
             Vector2(x: centerX.float32, y: (iconY + 15).float32), 3, SkyBlue)
     for i in 0..3:
-      let lineX = centerX - 25 + i * 15
-      drawLine(Vector2(x: lineX.float32, y: iconY.float32),
-              Vector2(x: (lineX + 10).float32, y: iconY.float32), 2, White)
+      let lineX = (centerX - 25 + i * 15).float32
+      drawLine(Vector2(x: lineX, y: iconY.float32),
+              Vector2(x: lineX + 10.0, y: iconY.float32), 2, White)
   of puBulletDamage:
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, DarkGray)
     for i in 0..7:
@@ -882,9 +882,9 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     for i in 0..3:
       let offsetX = -10 - i * 8
       let offsetY = (i mod 2) * 6 - 3
-      let lineLength = 8 - i.float * 1.5
+      let lineLength = 8 - i.float32 * 1.5
       drawLine(Vector2(x: (centerX + offsetX).float32, y: (iconY + offsetY).float32),
-              Vector2(x: (centerX.float + offsetX.float - lineLength).float32, y: (iconY + offsetY).float32),
+              Vector2(x: (centerX.float32 + offsetX.float32 - lineLength), y: (iconY + offsetY).float32),
               2, Color(r: 180, g: 220, b: 255, a: uint8(220 - i * 40)))
   of puFireAura:
     # Fire aura with flames
@@ -1002,9 +1002,9 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
               Color(r: 0, g: 255, b: 255, a: 100))
     # Phase shift lines
     for i in 0..2:
-      let lineY = iconY - 8 + i * 8
-      drawLine(Vector2(x: (centerX - 25).float32, y: lineY.float32),
-              Vector2(x: (centerX - 15).float32, y: lineY.float32), 2, 
+      let lineY = (iconY - 8 + i * 8).float32
+      drawLine(Vector2(x: (centerX - 25).float32, y: lineY),
+              Vector2(x: (centerX - 15).float32, y: lineY), 2, 
               Color(r: 64, g: 224, b: 208, a: 150))
   of puOvercharge:
     # Energy buildup with increasing size
@@ -1016,8 +1016,8 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
                 size.float32, Color(r: brightness, g: brightness, b: 0, a: 200))
       # Energy trail
       if i > 0:
-        let prevX = centerX + offsetX - 10
-        drawLine(Vector2(x: prevX.float32, y: iconY.float32),
+        let prevX = (centerX + offsetX - 10).float32
+        drawLine(Vector2(x: prevX, y: iconY.float32),
                 Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 
                 2, Color(r: 255, g: 200, b: 0, a: 150))
     # Power arrow

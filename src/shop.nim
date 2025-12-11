@@ -149,7 +149,7 @@ proc buyShopItem*(game: Game, index: int) =
   
   case index
   of 0: # Damage - Slightly reduced exponential scaling
-    game.player.damage += 0.2 * pow(1.035, item.bought.float32)
+    game.player.damage += 0.25 * pow(1.0375, item.bought.float32)
   of 1: # Fire Rate - Diminishing returns with reduced initial benefit
     # At base (0.415): ~2.5% improvement per purchase (was 4%)
     # At fast (0.20): ~1.5% improvement per purchase
@@ -165,8 +165,8 @@ proc buyShopItem*(game: Game, index: int) =
     game.player.fireRate -= effectiveReduction
     if game.player.fireRate < 0.07: game.player.fireRate = 0.07  # Hard cap
   of 2: # Move Speed - HEAVILY NERFED
-    game.player.speed += 11
-    game.player.baseSpeed += 11
+    game.player.speed += 12
+    game.player.baseSpeed += 12
   of 3: # Max Health - NERFED HP per purchase
     game.player.maxHp += 2
     game.player.hp += 2
