@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings
+import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables
 
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -1061,6 +1061,154 @@ proc updateGame*(game: var Game, dt: float32) =
         coin.pos.x += toPlayer.x * pullForce * dt
         coin.pos.y += toPlayer.y * pullForce * dt
 
+
+  # Rotating Orbs power-up - elemental orbs that orbit the player and damage enemies
+  # Check for both the legendary all-element version and individual element power-ups
+  if hasPowerUp(game.player, puRotatingOrbs) or 
+     hasPowerUp(game.player, puPoisonOrb) or 
+     hasPowerUp(game.player, puFireOrb) or 
+     hasPowerUp(game.player, puLightningOrb) or 
+     hasPowerUp(game.player, puWindOrb) or 
+     hasPowerUp(game.player, puFrostOrb):
+    
+    # Calculate base damage (2.0 for legendary, element-specific for individual)
+    let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
+      2.0  # Legendary version has fixed damage
+    else:
+      # For individual orbs, use level-based damage
+      var maxDamage = 0.0
+      if hasPowerUp(game.player, puPoisonOrb):
+        maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puPoisonOrb)))
+      if hasPowerUp(game.player, puFireOrb):
+        maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puFireOrb)))
+      if hasPowerUp(game.player, puLightningOrb):
+        maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puLightningOrb)))
+      if hasPowerUp(game.player, puWindOrb):
+        maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puWindOrb)))
+      if hasPowerUp(game.player, puFrostOrb):
+        maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puFrostOrb)))
+      maxDamage
+    
+    let orbRadius = 6.0  # Size of each orb hitbox
+    
+    # Update each orb and check for collisions
+    for orb in game.player.rotatingOrbs:
+      # Calculate orb position
+      let angle = game.player.orbRotationAngle + orb.angle
+      let orbX = game.player.pos.x + cos(angle) * orb.radius
+      let orbY = game.player.pos.y + sin(angle) * orb.radius
+      let orbPos = newVector2f(orbX, orbY)
+      
+      # Check collision with enemies
+      var enemyIdx = 0
+      for enemy in game.enemies:
+        let dist = distance(orbPos, enemy.pos)
+        
+        # Check if orb is touching enemy
+        if dist < orbRadius + enemy.radius:
+          # Check if we haven't hit this enemy recently (cooldown per enemy)
+          let currentTime = game.time
+          var canHit = true
+          
+          if orb.lastHitTime.hasKey(enemyIdx):
+            # 0.5 second cooldown per enemy (prevents multi-hitting same enemy)
+            if currentTime - orb.lastHitTime[enemyIdx] < 0.5:
+              canHit = false
+          
+          if canHit:
+            # Apply damage
+            let actualDamage = applyEliteModifiers(enemy, baseDamage)
+            enemy.hp -= actualDamage
+            
+            # Record hit time
+            orb.lastHitTime[enemyIdx] = currentTime
+            
+            # Apply element-specific effects
+            case orb.elementType
+            of etPoison:
+              # Poison: 1 dmg/sec for 4 seconds + 5% slow
+              enemy.poisonTimer = 4.0
+              enemy.poisonDamage = 1.0
+              enemy.slowTimer = 0.2
+              if enemy.slowAmount < 0.05:
+                enemy.slowAmount = 0.05
+              # Green particles
+              spawnExplosion(game.particles, orbX, orbY, 
+                           Color(r: 100, g: 255, b: 100, a: 255), 5)
+            
+            of etFire:
+              # Fire: 1.5 dmg/sec for 2 seconds + 5% slow
+              enemy.fireTimer = 2.0
+              enemy.fireDamage = 1.5
+              enemy.slowTimer = 0.2
+              if enemy.slowAmount < 0.05:
+                enemy.slowAmount = 0.05
+              # Orange/red particles
+              spawnExplosion(game.particles, orbX, orbY, Orange, 5)
+              spawnExplosion(game.particles, orbX, orbY, Red, 3)
+            
+            of etLightning:
+              # Lightning: Instant damage + chain to 1 nearby enemy
+              # Already dealt base damage, now chain
+              let chainRange = 80.0
+              var nearestDist = chainRange + 1.0
+              var nearestEnemy: Enemy = nil
+              var nearestIdx = -1
+              
+              var checkIdx = 0
+              for other in game.enemies:
+                if other != enemy:
+                  let chainDist = distance(enemy.pos, other.pos)
+                  if chainDist < chainRange and chainDist < nearestDist:
+                    nearestDist = chainDist
+                    nearestEnemy = other
+                    nearestIdx = checkIdx
+                checkIdx += 1
+              
+              if nearestEnemy != nil:
+                # Deal 70% damage to chained enemy
+                let chainDamage = applyEliteModifiers(nearestEnemy, baseDamage * 0.7)
+                nearestEnemy.hp -= chainDamage
+                
+                # Visual chain
+                spawnExplosion(game.particles, nearestEnemy.pos.x, nearestEnemy.pos.y,
+                             Color(r: 200, g: 220, b: 255, a: 255), 3)
+              
+              # Yellow particles
+              spawnExplosion(game.particles, orbX, orbY, Yellow, 5)
+            
+            of etWind:
+              # Wind: Knockback away from player
+              let pushDir = (enemy.pos - game.player.pos).normalize()
+              let pushForce = 200.0  # Strong knockback
+              let bossResistance = if enemy.isBoss: 0.1 else: 1.0
+              enemy.pos.x += pushDir.x * pushForce * dt * bossResistance
+              enemy.pos.y += pushDir.y * pushForce * dt * bossResistance
+              # Cyan particles
+              spawnExplosion(game.particles, orbX, orbY,
+                           Color(r: 200, g: 230, b: 255, a: 255), 5)
+            
+            of etFrost:
+              # Frost: 30% slow effect (permanent until removed)
+              enemy.slowTimer = 999.0  # Very long duration
+              if enemy.slowAmount < 0.3:
+                enemy.slowAmount = 0.3
+              # Light blue particles
+              spawnExplosion(game.particles, orbX, orbY,
+                           Color(r: 150, g: 200, b: 255, a: 255), 5)
+            
+            of etNone:
+              discard
+        
+        enemyIdx += 1
+      
+      # Clean up old hit times (>2 seconds ago) to prevent memory growth
+      var toRemove: seq[int] = @[]
+      for enemyIdx, hitTime in orb.lastHitTime:
+        if game.time - hitTime > 2.0:
+          toRemove.add(enemyIdx)
+      for idx in toRemove:
+        orb.lastHitTime.del(idx)
 
   
   # Check shooting

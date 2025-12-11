@@ -61,6 +61,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
     elif bullet.windPushForce > 0: color = Color(r: 200, g: 230, b: 255, a: 255)  # Light cyan for wind
     elif bullet.slowAmount > 0: color = Color(r: 150, g: 200, b: 255, a: 255)
     elif bullet.poisonDuration > 0: color = Green
+    elif bullet.fireDuration > 0: color = Color(r: 255, g: 80, b: 20, a: 255)  # Bright orange-red for fire
     elif bullet.bounceCount >= 0: color = Color(r: 255, g: 200, b: 0, a: 255)
   
   # Draw pentagon shape for pentagon bullets
@@ -118,6 +119,9 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
   elif bullet.poisonDuration > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 50, g: 255, b: 50, a: 150))
+  elif bullet.fireDuration > 0:
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+                   Color(r: 255, g: 100, b: 30, a: 180))
   
   # Overcharge visual effect - ONLY if player has the power-up
   if hasOvercharge and bullet.fromPlayer and bullet.travelDistance > 0:

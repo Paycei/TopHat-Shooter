@@ -92,7 +92,13 @@ type
     puGravityWell,     # Pull enemies toward you
     puPhaseShift,      # Teleport dash through enemies
     puOvercharge,      # Bullets gain power over distance
-    puEchoShots        # Bullets leave damaging trails
+    puEchoShots,       # Bullets leave damaging trails
+    puRotatingOrbs,    # Rotating elemental orbs around player (LEGENDARY - all elements)
+    puPoisonOrb,       # Poison elemental orb
+    puFireOrb,         # Fire elemental orb
+    puLightningOrb,    # Lightning elemental orb
+    puWindOrb,         # Wind elemental orb
+    puFrostOrb         # Frost elemental orb
   
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
@@ -111,6 +117,21 @@ type
     attackType*: string  # "cross", "burst", "fake"
     lifetime*: float32
     maxLifetime*: float32
+
+  ElementType* = enum
+    etPoison,      # Green - poison damage over time
+    etFire,        # Red/Orange - fire damage over time  
+    etLightning,   # Yellow/Blue - instant damage + chain
+    etWind,        # Cyan - knockback
+    etFrost,       # Light blue - slow effect
+    etNone         # No element (shouldn't happen)
+
+  RotatingOrb* = ref object
+    angle*: float32                    # Current angle around player
+    radius*: float32                   # Distance from player
+    elementType*: ElementType          # Which element this orb has
+    hitEnemies*: seq[int]              # Track which enemies were hit (by index)
+    lastHitTime*: Table[int, float32]  # Track when each enemy was last hit
 
   Player* = ref object
     pos*: Vector2f
@@ -153,6 +174,9 @@ type
     phaseShiftCooldown*: float32
     phaseShiftInvulnTimer*: float32
     lastPhaseShiftPos*: Vector2f
+    # Rotating orbs power-up
+    rotatingOrbs*: seq[RotatingOrb]
+    orbRotationAngle*: float32  # Base rotation angle for all orbs
     # Poison tracking (for venomous elite enemies)
     poisonTimer*: float32
     poisonDamage*: float32

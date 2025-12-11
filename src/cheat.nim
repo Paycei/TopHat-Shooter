@@ -168,13 +168,13 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
       game.player.powerUps.delete(i)
       break
   
-  # Reset player stats to base values and reapply all remaining power-ups
+  # Reset player stats to TRUE base values (matching newPlayer) and reapply all remaining power-ups
   # This ensures stat modifications from the removed power-up are undone
-  game.player.baseSpeed = 200.0
-  game.player.fireRate = 0.15
-  game.player.damage = 5.0
-  game.player.bulletSpeed = 600.0
-  game.player.maxHp = 100.0
+  game.player.baseSpeed = 175.0  # Changed from 200.0 to match newPlayer
+  game.player.fireRate = 0.415   # Changed from 0.15 to match newPlayer
+  game.player.damage = 1.0       # Changed from 5.0 to match newPlayer
+  game.player.bulletSpeed = 300.0  # Changed from 600.0 to match newPlayer
+  game.player.maxHp = 7.0        # Changed from 100.0 to match newPlayer
   game.player.hp = min(game.player.hp, game.player.maxHp)
   
   # Reapply all remaining power-ups
@@ -586,7 +586,8 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puVampirism, puBulletRicochet, puSlowField, puRage, puBerserker,
     puThorns, puBulletSplit, puChainLightning, puFrostShots, puPoisonDamage,
     puFireBullets, puWindBullets, puFireAura, puLightningAura, puPoisonAura, puWindAura,
-    puTimeWarp, puGravityWell, puPhaseShift, puOvercharge, puEchoShots
+    puTimeWarp, puGravityWell, puPhaseShift, puOvercharge, puEchoShots,
+    puRotatingOrbs, puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb
   ]
   
   # Scrollable area setup

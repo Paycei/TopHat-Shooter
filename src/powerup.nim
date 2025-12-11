@@ -1,4 +1,4 @@
-import raylib, types, random, math, strutils, settings
+import raylib, types, random, math, strutils, settings, tables
 
 proc getPowerUpName*(powerType: PowerUpType): string =
   case powerType
@@ -43,6 +43,12 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puPhaseShift: "Phase Walker"
   of puOvercharge: "Momentum"
   of puEchoShots: "Echo Strike"
+  of puRotatingOrbs: "Elemental Orbs"
+  of puPoisonOrb: "Poison Orb"
+  of puFireOrb: "Fire Orb"
+  of puLightningOrb: "Lightning Orb"
+  of puWindOrb: "Wind Orb"
+  of puFrostOrb: "Frost Orb"
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
   of puDoubleShot:
@@ -233,6 +239,34 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   of puEchoShots:
     # Single level only - balanced echo trail
     "Bullets leave ghost trail (40% dmg)"
+  of puRotatingOrbs:
+    # Single level only - legendary power-up with all elements
+    "All 5 elemental orbs (2 dmg/hit)"
+  of puPoisonOrb:
+    case level
+    of 1: "1 poison orb (1 dmg/hit, DoT)"
+    of 2: "2 poison orbs (1.5 dmg/hit, DoT)"
+    else: "3 poison orbs (2 dmg/hit, DoT)"
+  of puFireOrb:
+    case level
+    of 1: "1 fire orb (1 dmg/hit, DoT)"
+    of 2: "2 fire orbs (1.5 dmg/hit, DoT)"
+    else: "3 fire orbs (2 dmg/hit, DoT)"
+  of puLightningOrb:
+    case level
+    of 1: "1 lightning orb (1.5 dmg/hit)"
+    of 2: "2 lightning orbs (2 dmg/hit)"
+    else: "3 lightning orbs (2.5 dmg/hit)"
+  of puWindOrb:
+    case level
+    of 1: "1 wind orb (1 dmg/hit, push)"
+    of 2: "2 wind orbs (1.5 dmg/hit, push)"
+    else: "3 wind orbs (2 dmg/hit, push)"
+  of puFrostOrb:
+    case level
+    of 1: "1 frost orb (1 dmg/hit, slow)"
+    of 2: "2 frost orbs (1.5 dmg/hit, slow)"
+    else: "3 frost orbs (2 dmg/hit, slow)"
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -263,7 +297,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
                          puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
                          puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
                          puFrostShots, puPoisonDamage, puFireBullets, puWindBullets,
-                         puFireAura, puLightningAura, puPoisonAura, puWindAura]
+                         puFireAura, puLightningAura, puPoisonAura, puWindAura, puRotatingOrbs]
   
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
@@ -313,6 +347,82 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
         let randomType = normalOnlyTypes[rand(normalOnlyTypes.high)]
         result[i] = PowerUp(powerType: randomType, level: 1, rarity: prCommon)
 
+# ============================================================================
+# ROTATING ORBS POWER-UP SYSTEM
+# ============================================================================
+
+proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType): RotatingOrb =
+  ## Create a new rotating orb with specified angle, radius, and element
+  result = RotatingOrb(
+    angle: angle,
+    radius: radius,
+    elementType: elementType,
+    hitEnemies: @[],
+    lastHitTime: initTable[int, float32]()
+  )
+
+proc createRotatingOrbs*(player: Player, level: int) =
+  ## Create rotating orbs based on power-up level
+  ## Level 1: 3 orbs, Level 2: 5 orbs, Level 3: 7 orbs
+  let orbCount = case level
+    of 1: 3
+    of 2: 5
+    else: 7
+  
+  let orbRadius = player.radius * 2.5 + 20  # Orbit radius around player
+  
+  # Clear existing orbs
+  player.rotatingOrbs = @[]
+  
+  # Create orbs evenly distributed around the circle
+  # Use different elements for variety
+  let elements = [etPoison, etFire, etLightning, etWind, etFrost]
+  
+  for i in 0..<orbCount:
+    let angle = (i.float32 / orbCount.float32) * PI * 2.0
+    let elementType = elements[i mod elements.len]
+    player.rotatingOrbs.add(newRotatingOrb(angle, orbRadius, elementType))
+
+proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) =
+  ## Create orbs of a specific element based on level
+  ## Level 1: 1 orb, Level 2: 2 orbs, Level 3: 3 orbs
+  let orbCount = level
+  let orbRadius = player.radius * 2.5 + 20  # Orbit radius around player
+  
+  # Find existing orbs of this element and remove them
+  var i = 0
+  while i < player.rotatingOrbs.len:
+    if player.rotatingOrbs[i].elementType == elementType:
+      player.rotatingOrbs.delete(i)
+    else:
+      i += 1
+  
+  # Create new orbs of this element
+  # Distribute evenly, but offset based on total orb count for visual variety
+  let totalOrbs = player.rotatingOrbs.len + orbCount
+  let startAngle = player.rotatingOrbs.len.float32 * (PI * 2.0 / totalOrbs.float32)
+  
+  for i in 0..<orbCount:
+    let angle = startAngle + (i.float32 * PI * 2.0 / totalOrbs.float32)
+    player.rotatingOrbs.add(newRotatingOrb(angle, orbRadius, elementType))
+
+proc getElementColor*(elementType: ElementType): Color =
+  ## Get the visual color for each element type
+  case elementType
+  of etPoison: Color(r: 100, g: 255, b: 100, a: 255)
+  of etFire: Color(r: 255, g: 100, b: 0, a: 255)
+  of etLightning: Color(r: 255, g: 255, b: 100, a: 255)
+  of etWind: Color(r: 200, g: 230, b: 255, a: 255)
+  of etFrost: Color(r: 150, g: 200, b: 255, a: 255)
+  of etNone: White
+
+proc getElementDamage*(level: int): float32 =
+  ## Get base damage per hit based on power-up level
+  case level
+  of 1: 1.5
+  of 2: 2.0
+  else: 2.5
+
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   # Apply immediate stat bonuses for new powerup types
   case powerUp.powerType
@@ -351,6 +461,26 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puTimeWarp:
     # Time Warp uses are based on level: 1, 2, or 3 uses per wave
     player.timeWarpMaxUsesPerWave = powerUp.level
+  of puRotatingOrbs:
+    # Legendary: Create all 5 elemental orbs (1 of each, level 1 only)
+    createRotatingOrbs(player, 1)  # Creates 3 orbs with mixed elements
+    # Add 2 more to get all 5 elements
+    let orbRadius = player.radius * 2.5 + 20
+    let elements = [etPoison, etFire, etLightning, etWind, etFrost]
+    player.rotatingOrbs = @[]
+    for i in 0..<5:
+      let angle = (i.float32 / 5.0) * PI * 2.0
+      player.rotatingOrbs.add(newRotatingOrb(angle, orbRadius, elements[i]))
+  of puPoisonOrb:
+    createElementalOrbs(player, etPoison, powerUp.level)
+  of puFireOrb:
+    createElementalOrbs(player, etFire, powerUp.level)
+  of puLightningOrb:
+    createElementalOrbs(player, etLightning, powerUp.level)
+  of puWindOrb:
+    createElementalOrbs(player, etWind, powerUp.level)
+  of puFrostOrb:
+    createElementalOrbs(player, etFrost, powerUp.level)
   else:
     discard
   
@@ -396,6 +526,24 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           of 3: 1.0    # Level 3 not used for legendary
           else: 1.0
         player.bulletSpeed *= speedMultiplier
+      of puRotatingOrbs:
+        # Legendary: Always has all 5 elements (no upgrade)
+        let orbRadius = player.radius * 2.5 + 20
+        let elements = [etPoison, etFire, etLightning, etWind, etFrost]
+        player.rotatingOrbs = @[]
+        for i in 0..<5:
+          let angle = (i.float32 / 5.0) * PI * 2.0
+          player.rotatingOrbs.add(newRotatingOrb(angle, orbRadius, elements[i]))
+      of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb:
+        # Recreate orbs with new level (more orbs of this element)
+        let elementType = case powerUp.powerType
+          of puPoisonOrb: etPoison
+          of puFireOrb: etFire
+          of puLightningOrb: etLightning
+          of puWindOrb: etWind
+          of puFrostOrb: etFrost
+          else: etNone
+        createElementalOrbs(player, elementType, powerUp.level)
       else:
         discard
       
@@ -830,6 +978,58 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       drawLine(Vector2(x: (centerX - 30).float32, y: lineY.float32),
               Vector2(x: (centerX - 15).float32, y: lineY.float32), 2, 
               Color(r: 255, g: 215, b: 0, a: 100))
+  of puRotatingOrbs:
+    # Draw all 5 elemental orbs around center (legendary)
+    let orbDistance = 15.0
+    let elements = [etPoison, etFire, etLightning, etWind, etFrost]
+    
+    for i in 0..<5:
+      let angle = (i.float32 / 5.0) * PI * 2.0
+      let x = centerX.float32 + cos(angle) * orbDistance
+      let y = iconY.float32 + sin(angle) * orbDistance
+      let color = getElementColor(elements[i])
+      
+      # Draw orb
+      drawCircle(Vector2(x: x, y: y), 6, color)
+      drawCircleLines(x.int32, y.int32, 6, 
+                     Color(r: color.r div 2, g: color.g div 2, b: color.b div 2, a: 255))
+    
+    # Draw center (player)
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 6, Blue)
+    
+    # Draw orbit path
+    drawCircleLines(centerX.int32, iconY.int32, orbDistance, 
+                   Color(r: 100, g: 100, b: 150, a: 100))
+  of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb:
+    # Draw specific element orbs based on level
+    let elementType = case powerUp.powerType
+      of puPoisonOrb: etPoison
+      of puFireOrb: etFire
+      of puLightningOrb: etLightning
+      of puWindOrb: etWind
+      of puFrostOrb: etFrost
+      else: etNone
+    
+    let color = getElementColor(elementType)
+    let orbCount = powerUp.level
+    let orbDistance = 15.0
+    
+    for i in 0..<orbCount:
+      let angle = (i.float32 / orbCount.float32) * PI * 2.0
+      let x = centerX.float32 + cos(angle) * orbDistance
+      let y = iconY.float32 + sin(angle) * orbDistance
+      
+      # Draw orb
+      drawCircle(Vector2(x: x, y: y), 6, color)
+      drawCircleLines(x.int32, y.int32, 6, 
+                     Color(r: color.r div 2, g: color.g div 2, b: color.b div 2, a: 255))
+    
+    # Draw center (player)
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 6, Blue)
+    
+    # Draw orbit path
+    drawCircleLines(centerX.int32, iconY.int32, orbDistance, 
+                   Color(r: 100, g: 100, b: 150, a: 100))
   
   # Rarity indicator
   if powerUp.rarity == prLegendary:

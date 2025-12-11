@@ -1,4 +1,4 @@
-import raylib, types, wall, math, random, std/tables
+import raylib, types, wall, math, random, std/tables, powerup
 
 proc newPlayer*(x, y: float32): Player =
   result = Player(
@@ -41,7 +41,9 @@ proc newPlayer*(x, y: float32): Player =
     timeWarpMaxUsesPerWave: 1,  # Default to level 1
     phaseShiftCooldown: 0,
     phaseShiftInvulnTimer: 0,
-    lastPhaseShiftPos: newVector2f(x, y)
+    lastPhaseShiftPos: newVector2f(x, y),
+    rotatingOrbs: @[],
+    orbRotationAngle: 0
   )
 
 proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
@@ -122,6 +124,9 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   
   # Update shield angle for rotating shield power-up - NERFED rotation speed
   player.shieldAngle += dt * 1.0  # Reduced from 2.0 to 1.0 (50% slower)
+  
+  # Update rotating orbs angle
+  player.orbRotationAngle += dt * 2.0  # Rotate orbs around player
 
 proc drawPlayer*(player: Player) =
   # Damage zone visual (if player has it)
@@ -266,6 +271,36 @@ proc drawPlayer*(player: Player) =
         
         drawCircle(Vector2(x: ex1, y: ey1), 5, Color(r: 135, g: 206, b: 235, a: 200))
         drawCircle(Vector2(x: ex2, y: ey2), 5, Color(r: 135, g: 206, b: 235, a: 200))
+  
+  # Draw rotating orbs (if player has them)
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puRotatingOrbs:
+      for orb in player.rotatingOrbs:
+        # Calculate orb position
+        let angle = player.orbRotationAngle + orb.angle
+        let orbX = player.pos.x + cos(angle) * orb.radius
+        let orbY = player.pos.y + sin(angle) * orb.radius
+        
+        # Get element color
+        let color = getElementColor(orb.elementType)
+        
+        # Draw orb
+        drawCircle(Vector2(x: orbX, y: orbY), 6, color)
+        
+        # Draw orb glow
+        drawCircleLines(
+          orbX.int32, orbY.int32, 6,
+          Color(
+            r: uint8(int(color.r) div 2),
+            g: uint8(int(color.g) div 2),
+            b: uint8(int(color.b) div 2),
+            a: 255
+          )
+        )
+
+        # Draw inner glow for extra effect
+        drawCircle(Vector2(x: orbX, y: orbY), 3,
+                  Color(r: 255, g: 255, b: 255, a: 150))
 
 proc takeDamage*(player: Player, damage: float32): bool =
   ## Returns true if player died (HP reached 0 or below), false otherwise
