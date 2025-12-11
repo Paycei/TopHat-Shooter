@@ -177,3 +177,106 @@ proc checkShieldCollision*(bullet: Bullet, shieldPos: Vector2f): bool =
   # Check if enemy bullet hits player's rotating shield
   if bullet.fromPlayer: return false
   distance(bullet.pos, shieldPos) < bullet.radius + 6
+
+## Utility functions for bullet synergies and cloning
+
+proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f, 
+                  damageMultiplier: float32 = 1.0, speedMultiplier: float32 = 1.0,
+                  radiusMultiplier: float32 = 1.0, preventSplit: bool = false): Bullet =
+  ## Clone a bullet preserving ALL its properties for perfect synergy
+  ## This ensures Split Shot, Echo, and other effects inherit all bullet modifiers
+  result = newBullet(
+    newPos.x, newPos.y, newVel.normalize(),
+    original.vel.length() * speedMultiplier,
+    original.damage * damageMultiplier,
+    original.fromPlayer,
+    original.isHoming,
+    original.isPiercing,
+    original.isExplosive,
+    original.bounceCount >= 0,  # hasBounce
+    not preventSplit,  # canSplit (inverse of preventSplit)
+    original.slowAmount,
+    original.poisonDuration,
+    original.isPentagon,
+    original.isEcho,
+    original.isBossBullet
+  )
+  
+  # Copy additional state that needs to be preserved
+  result.radius = original.radius * radiusMultiplier
+  result.travelDistance = original.travelDistance  # Preserve Overcharge progress
+  result.bounceCount = original.bounceCount  # Preserve ricochet state
+  result.piercedEnemies = original.piercedEnemies  # Preserve pierce state
+  result.hasSplit = preventSplit or original.hasSplit  # Preserve split state
+  
+  # Copy hit enemies list for independent tracking
+  for enemyIdx in original.hitEnemies:
+    result.hitEnemies.add(enemyIdx)
+
+proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int, 
+                        damageMultiplier: float32 = 0.5, speedMultiplier: float32 = 0.7) =
+  ## Create split bullets that inherit ALL properties from source bullet
+  ## SYNERGY SYSTEM: Split bullets maintain explosive, homing, piercing, poison, etc.
+  for split in 0..<splitCount:
+    let angle = split.float32 * PI * 2.0 / splitCount.float32
+    let dir = newVector2f(cos(angle), sin(angle))
+    let vel = dir * sourceBullet.vel.length() * speedMultiplier
+    
+    let splitBullet = cloneBullet(
+      sourceBullet,
+      sourceBullet.pos,
+      vel,
+      damageMultiplier,
+      speedMultiplier,
+      0.9,  # Slightly smaller radius
+      true  # Prevent infinite splitting
+    )
+    
+    game.bullets.add(splitBullet)
+
+proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f,
+                          damageMultiplier: float32 = 0.75) =
+  ## Create a ricochet bullet that inherits ALL properties
+  ## SYNERGY SYSTEM: Ricochet bullets can split, explode, poison, etc.
+  let toTarget = (targetPos - sourceBullet.pos).normalize()
+  let vel = toTarget * sourceBullet.vel.length()
+  
+  let ricochetBullet = cloneBullet(
+    sourceBullet,
+    sourceBullet.pos,
+    vel,
+    damageMultiplier,
+    1.0,  # Same speed
+    1.0,  # Same size
+    false  # Can still split
+  )
+  
+  # Increment bounce count for the new bullet
+  ricochetBullet.bounceCount += 1
+  
+  game.bullets.add(ricochetBullet)
+
+proc createEchoBullet*(game: Game, sourceBullet: Bullet, 
+                      damageMultiplier: float32 = 0.4, speedMultiplier: float32 = 0.5,
+                      lifetime: float32 = 0.35) =
+  ## Create an echo trail bullet that inherits ALL properties
+  ## SYNERGY SYSTEM: Echo bullets can split, ricochet, explode, etc.
+  let echoBullet = cloneBullet(
+    sourceBullet,
+    sourceBullet.pos,
+    sourceBullet.vel,
+    damageMultiplier,
+    speedMultiplier,
+    0.8,  # Slightly smaller
+    false  # Can split (for echo + split synergy)
+  )
+  
+  # Make it an echo bullet with limited lifetime
+  echoBullet.isEcho = true
+  echoBullet.lifetime = lifetime
+  
+  # Reset bounce count for echoes (they get fresh ricochets)
+  if echoBullet.bounceCount >= 0:
+    echoBullet.bounceCount = 0
+  
+  game.bullets.add(echoBullet)

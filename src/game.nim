@@ -1629,24 +1629,8 @@ proc updateGame*(game: var Game, dt: float32) =
       if bullet.echoTrailTimer >= spawnInterval:
         bullet.echoTrailTimer = 0.0
         
-        # Create a fading ghost bullet at current position
-        # SYNERGY: Echo bullets inherit ALL properties and can split/ricochet
-        let echoBullet = newBullet(bullet.pos.x, bullet.pos.y, bullet.vel.normalize(),
-                                   bullet.vel.length() * 0.5,  # Slower than main bullet
-                                   bullet.damage * echoDamageMultiplier,
-                                   true, bullet.isHoming, bullet.isPiercing, bullet.isExplosive,
-                                   bullet.bounceCount >= 0, true, bullet.slowAmount,  # canSplit = true for synergy
-                                   bullet.poisonDuration, bullet.isPentagon, true)  # isEcho = true
-        
-        # Echo bullets have short lifetime for fade effect
-        echoBullet.lifetime = 0.35  # Single level - balanced lifetime
-        
-        # SYNERGY: Echo bullets inherit ricochet progress
-        if bullet.bounceCount >= 0:
-          echoBullet.bounceCount = 0  # Start fresh bounces for echo
-        
-        echoBullet.radius = bullet.radius * 0.8  # Slightly smaller
-        game.bullets.add(echoBullet)
+        # Create echo bullet with full synergy support
+        createEchoBullet(game, bullet, echoDamageMultiplier, 0.5, 0.35)
 
     # Check rotating shield collision
     if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):
@@ -1809,35 +1793,8 @@ proc updateGame*(game: var Game, dt: float32) =
             let splitLevel = getPowerUpLevel(game.player, puBulletSplit)
             let splitCount = splitLevel + 1  # 2, 3, or 4 bullets
             
-            for split in 0..<splitCount:
-              let angle = split.float32 * PI * 2.0 / splitCount.float32
-              let dir = newVector2f(cos(angle), sin(angle))
-              
-              # SYNERGY: Split bullets inherit ALL properties including ricochet count
-              let splitBullet = newBullet(bullet.pos.x, bullet.pos.y, dir, 
-                                         bullet.vel.length() * 0.7, finalDamage * 0.5, true,
-                                         bullet.isHoming, bullet.isPiercing, bullet.isExplosive,
-                                         bullet.bounceCount >= 0, false, bullet.slowAmount, bullet.poisonDuration)
-              splitBullet.hasSplit = true  # Prevent infinite splitting
-              
-              # SYNERGY: Copy hit list for independent tracking (each split bullet tracks its own hits)
-              for enemyIdx in bullet.hitEnemies:
-                splitBullet.hitEnemies.add(enemyIdx)
-              
-              # SYNERGY: Inherit bounce state for ricochet + split combo
-              if bullet.bounceCount >= 0:
-                splitBullet.bounceCount = bullet.bounceCount  # Maintain current bounce count
-              
-              # SYNERGY: Split bullets maintain travel distance for Overcharge
-              splitBullet.travelDistance = bullet.travelDistance
-              
-              # SYNERGY: Split bullets inherit bullet size
-              splitBullet.radius = bullet.radius * 0.9  # Slightly smaller than parent
-              
-              # SYNERGY: Split bullets can be Echo bullets
-              splitBullet.isEcho = bullet.isEcho
-              
-              game.bullets.add(splitBullet)
+            # Use the new synergy system to create split bullets
+            createSplitBullets(game, bullet, splitCount, 0.5, 0.7)
           
           # Vampirism healing - restore HP based on damage dealt
           if hasPowerUp(game.player, puVampirism):
