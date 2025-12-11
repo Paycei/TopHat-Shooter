@@ -1013,7 +1013,6 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       else:
         discard
   
-  # Update poison
   # Update all active effects for this enemy
   let effectDamage = updateEffects(enemy, dt)
   if effectDamage > 0:
@@ -1022,6 +1021,12 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
   # Update chain lightning cooldown
   if enemy.chainLightningCooldown > 0:
     enemy.chainLightningCooldown -= dt
+  
+  # Update slow timer (from Chain Lightning stun and other effects)
+  if enemy.slowTimer > 0:
+    enemy.slowTimer -= dt
+    if enemy.slowTimer <= 0:
+      enemy.slowAmount = 0
   
   # Check if star is defeated by hit count
   if enemy.enemyType == etStar and enemy.hitCount >= enemy.requiredHits:

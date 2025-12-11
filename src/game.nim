@@ -1627,6 +1627,12 @@ proc updateGame*(game: var Game, dt: float32) =
     if enemy.chainLightningCooldown > 0:
       enemy.chainLightningCooldown -= effectiveDt  # Use slowed time
     
+    # Update slow timer (from Chain Lightning stun and other effects)
+    if enemy.slowTimer > 0:
+      enemy.slowTimer -= effectiveDt
+      if enemy.slowTimer <= 0:
+        enemy.slowAmount = 0
+    
     if not updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game):  # Use slowed time
       # Enemy died - drop coins and particles
       

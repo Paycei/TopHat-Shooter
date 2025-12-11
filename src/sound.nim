@@ -491,222 +491,273 @@ proc createShield(filename: string): Sound =
   let tempPath = getTempDir() / filename
   result = loadSound(tempPath)
 
-# ============================================================================
+# ===============================
 # BACKGROUND MUSIC GENERATION
-# ============================================================================
+# ===============================
 
-# Generate a looping music track with melody and harmony
-proc generateMusicTrack(filename: string, bpm: float32, measures: int, 
-                       melody: seq[float32], harmony: seq[float32], 
-                       bassline: seq[float32]) =
+# Advanced music generation with multiple layers and electronic elements
+proc generateAdvancedMusic(filename: string, bpm: float32, duration: float32,
+                          chordProg: seq[tuple[root: float32, fifth: float32, third: float32]],
+                          melody: seq[float32], arpPattern: seq[int],
+                          kickPattern: seq[bool], snarePattern: seq[bool],
+                          hasDrops: bool = false, intensity: float32 = 1.0) =
   let sampleRate: uint32 = 44100
-  let beatsPerMeasure = 4
-  let secondsPerBeat = 60.0 / bpm
-  let duration = measures.float32 * beatsPerMeasure.float32 * secondsPerBeat
   let frameCount = int(sampleRate.float32 * duration)
   var samples = newSeq[int16](frameCount)
   
-  let beatLength = int(sampleRate.float32 * secondsPerBeat)
+  let beatLength = int(sampleRate.float32 * (60.0 / bpm))
+  let sixteenthLength = beatLength div 4
   
   for i in 0..<frameCount:
     let t = i.float32 / sampleRate.float32
-    let beatIndex = (i div beatLength) mod (measures * beatsPerMeasure)
-    let noteIndex = beatIndex mod melody.len
-    
-    # Progress within current beat for envelope
+    let beatNum = i div beatLength
     let beatProgress = (i mod beatLength).float32 / beatLength.float32
+    let sixteenthNum = i div sixteenthLength
     
-    # Melody (lead synth)
-    let melodyFreq = melody[noteIndex]
-    let melodyEnv = applyADSR(beatProgress, 0.05, 0.1, 0.7, 0.15)
-    let melodyValue = if melodyFreq > 0:
-      sin(2.0 * PI * melodyFreq * t) * 0.25 * melodyEnv
+    # Determine current chord and melody note
+    let chordIdx = (beatNum div 4) mod chordProg.len
+    let melodyIdx = beatNum mod melody.len
+    let currentChord = chordProg[chordIdx]
+    let currentNote = melody[melodyIdx]
+    
+    # Build/drop dynamics for intense sections (MEJORADO para mejor looping)
+    var dynamicMultiplier = 1.0
+    if hasDrops:
+      let measureNum = beatNum div 4
+      let beatInMeasureProgress = beatProgress
+      
+      # Build up every 8 measures - más gradual
+      if measureNum mod 8 >= 6:
+        let buildProgress = ((measureNum mod 8) - 6).float32 / 2.0 + beatInMeasureProgress / 8.0
+        dynamicMultiplier = 0.7 + buildProgress * 0.3  # De 0.7 a 1.0 (menos drástico)
+      # Drop intensity every 8 measures - sin subir tanto el volumen
+      elif measureNum mod 8 < 2:
+        dynamicMultiplier = 1.1  # Era 1.3, ahora 1.1 para evitar distorsión
+      # Mantener energía constante el resto del tiempo
+      else:
+        dynamicMultiplier = 1.0
+    
+    # === LAYER 1: SUB BASS (wobble for intense parts) ===
+    var bassValue = 0.0
+    if intensity > 0.7:
+      # Wobble bass for intense sections - SUAVIZADO
+      let wobbleFreq = 3.0 + sin(t * 1.5) * 1.5  # Más lento y suave
+      let wobble = sin(2.0 * PI * wobbleFreq * t) * 0.4 + 0.6  # Menos extremo
+      bassValue = sin(2.0 * PI * currentChord.root * 0.5 * t) * 0.35 * wobble * dynamicMultiplier
     else:
-      0.0
+      # Smooth sub bass for chill sections
+      let bassEnv = applyADSR(beatProgress, 0.05, 0.2, 0.6, 0.15)
+      bassValue = sin(2.0 * PI * currentChord.root * 0.5 * t) * 0.35 * bassEnv
     
-    # Harmony (pad)
-    let harmonyFreq = harmony[noteIndex mod harmony.len]
-    let harmonyValue = if harmonyFreq > 0:
-      sin(2.0 * PI * harmonyFreq * t) * 0.15 +
-      sin(2.0 * PI * harmonyFreq * 1.5 * t) * 0.08
-    else:
-      0.0
+    # === LAYER 2: ARPEGGIATOR (signature electronic sound) ===
+    var arpValue = 0.0
+    let arpIdx = sixteenthNum mod arpPattern.len
+    let arpNote = case arpPattern[arpIdx]
+      of 0: currentChord.root
+      of 1: currentChord.third
+      of 2: currentChord.fifth
+      else: currentChord.root * 2.0
     
-    # Bassline (sub bass)
-    let bassFreq = bassline[noteIndex mod bassline.len]
-    let bassEnv = applyADSR(beatProgress, 0.02, 0.15, 0.5, 0.33)
-    let bassValue = if bassFreq > 0:
-      sin(2.0 * PI * bassFreq * t) * 0.35 * bassEnv
-    else:
-      0.0
+    let arpEnv = applyADSR((i mod sixteenthLength).float32 / sixteenthLength.float32, 
+                           0.01, 0.05, 0.3, 0.64)
+    # Saw wave for that classic synth arp sound
+    let sawWave = (t * arpNote * 2.0) mod 1.0 - 0.5
+    arpValue = sawWave * 0.14 * arpEnv * dynamicMultiplier  # Reducido: 0.18 → 0.14
     
-    # Mix all layers
-    let value = melodyValue + harmonyValue + bassValue
-    samples[i] = int16(clamp(value * 32767.0, -32767.0, 32767.0))
+    # === LAYER 3: PAD CHORDS (atmospheric) ===
+    var padValue = 0.0
+    # Multiple detuned oscillators for rich pad sound
+    let detune = 0.02
+    padValue = (sin(2.0 * PI * currentChord.root * t) * 0.12 +
+                sin(2.0 * PI * currentChord.root * (1.0 + detune) * t) * 0.12 +
+                sin(2.0 * PI * currentChord.third * t) * 0.09 +
+                sin(2.0 * PI * currentChord.fifth * t) * 0.09) * (0.5 + beatProgress * 0.5)
+    
+    # === LAYER 4: LEAD MELODY ===
+    var leadValue = 0.0
+    if currentNote > 0:
+      let leadEnv = applyADSR(beatProgress, 0.08, 0.12, 0.7, 0.1)
+      # Square wave for punchy lead
+      let squareWave = if sin(2.0 * PI * currentNote * t) > 0: 1.0 else: -1.0
+      # Add some detuned saw for thickness
+      let sawLead = (t * currentNote * 2.0) mod 1.0 - 0.5
+      leadValue = (squareWave * 0.09 + sawLead * 0.06) * leadEnv * intensity * dynamicMultiplier  # Reducido más: 0.12→0.09, 0.08→0.06
+    
+    # === LAYER 5: PERCUSSION (kicks and snares) ===
+    var drumValue = 0.0
+    
+    # Kick drum
+    if kickPattern[beatNum mod kickPattern.len] and beatProgress < 0.2:
+      let kickFreq = 60.0 * exp(-beatProgress * 25.0)
+      let kickEnv = exp(-beatProgress * 15.0)
+      drumValue += sin(2.0 * PI * kickFreq * (beatProgress * 60.0 / bpm)) * 0.5 * kickEnv
+    
+    # Snare drum
+    if snarePattern[beatNum mod snarePattern.len] and beatProgress < 0.15:
+      let snareEnv = exp(-beatProgress * 35.0)
+      let snareNoise = rand(-1.0..1.0) * 0.3 * snareEnv
+      let snareTone = sin(2.0 * PI * 200.0 * (beatProgress * 60.0 / bpm)) * 0.2 * snareEnv
+      drumValue += snareNoise + snareTone
+    
+    # === LAYER 6: HI-HATS (for groove) ===
+    var hihatValue = 0.0
+    if sixteenthNum mod 2 == 0:
+      let hihatProgress = (i mod sixteenthLength).float32 / sixteenthLength.float32
+      let hihatEnv = exp(-hihatProgress * 45.0)
+      hihatValue = rand(-1.0..1.0) * 0.04 * hihatEnv * intensity  # Reducido más: 0.06 → 0.04
+    
+    # === MIX ALL LAYERS ===
+    let finalValue = bassValue + arpValue + padValue + leadValue + drumValue + hihatValue
+    samples[i] = int16(clamp(finalValue * 32767.0 * 0.85, -32767.0, 32767.0))
   
   writeWavFile(filename, samples, sampleRate)
 
-# Menu music - calm, ambient, welcoming
+# Menu music - AMBIENT ELECTROCHILLWAVE
+# Dreamy, smooth, welcoming atmosphere
 proc createMenuMusic(filename: string): Music =
-  # C major scale - peaceful and inviting
-  # Slow tempo, ambient feel
+  # Chord progression: Am - F - C - G (chill and welcoming)
+  let chordProg = @[
+    (root: 220.00'f32, fifth: 329.63'f32, third: 261.63'f32),  # Am
+    (root: 174.61'f32, fifth: 261.63'f32, third: 220.00'f32),  # F
+    (root: 261.63'f32, fifth: 392.00'f32, third: 329.63'f32),  # C
+    (root: 196.00'f32, fifth: 293.66'f32, third: 246.94'f32)   # G
+  ]
+  
+  # Dreamy, flowing melody with rests for breathing room
   let melody = @[
-    523.25'f32,  # C5
-    587.33'f32,  # D5
-    659.25'f32,  # E5
-    587.33'f32,  # D5
-    523.25'f32,  # C5
-    0.0'f32,     # Rest
-    392.00'f32,  # G4
-    440.00'f32,  # A4
-    493.88'f32,  # B4
-    440.00'f32,  # A4
-    523.25'f32,  # C5
-    0.0'f32,     # Rest
-    659.25'f32,  # E5
-    587.33'f32,  # D5
-    523.25'f32,  # C5
-    0.0'f32      # Rest
+    659.25'f32, 0.0'f32, 587.33'f32, 523.25'f32,  # E5, rest, D5, C5
+    587.33'f32, 0.0'f32, 659.25'f32, 783.99'f32,  # D5, rest, E5, G5
+    659.25'f32, 587.33'f32, 523.25'f32, 0.0'f32,  # E5, D5, C5, rest
+    440.00'f32, 493.88'f32, 523.25'f32, 0.0'f32   # A4, B4, C5, rest
   ]
   
-  let harmony = @[
-    261.63'f32,  # C4
-    293.66'f32,  # D4
-    329.63'f32,  # E4
-    392.00'f32   # G4
-  ]
+  # Gentle arpeggiator pattern (root, third, fifth, octave)
+  let arpPattern = @[0, 1, 2, 3, 2, 1, 0, 0]
   
-  let bassline = @[
-    130.81'f32,  # C3
-    146.83'f32,  # D3
-    164.81'f32,  # E3
-    196.00'f32   # G3
-  ]
+  # Subtle kick pattern (not too prominent)
+  let kickPattern = @[true, false, false, false,
+                      false, false, true, false]
   
-  generateMusicTrack(filename, 80.0, 4, melody, harmony, bassline)
+  # No snare for chill vibe
+  let snarePattern = @[false, false, false, false,
+                       false, false, false, false]
+  
+  generateAdvancedMusic(filename, 85.0, 32.0, chordProg, melody, 
+                       arpPattern, kickPattern, snarePattern, 
+                       hasDrops=false, intensity=0.5)
+  
   let tempPath = getTempDir() / filename
   result = loadMusicStream(tempPath)
 
-# Wave music - energetic, driving, action-packed
+# Wave music - ELECTRO HOUSE FRENÉTICO (MEJORADO LOOPING)
+# High-energy, driving, with smooth loops
 proc createWaveMusic(filename: string): Music =
-  # A minor - energetic and driving
-  # Fast tempo for action
+  # Chord progression: Em - C - G - D (epic and driving)
+  let chordProg = @[
+    (root: 164.81'f32, fifth: 246.94'f32, third: 196.00'f32),  # Em
+    (root: 130.81'f32, fifth: 196.00'f32, third: 164.81'f32),  # C
+    (root: 196.00'f32, fifth: 293.66'f32, third: 246.94'f32),  # G
+    (root: 146.83'f32, fifth: 220.00'f32, third: 184.99'f32)   # D
+  ]
+  
+  # Fast, energetic melody - AJUSTADA para mejor loop
+  # Termina en la misma nota que empieza para transición suave
   let melody = @[
-    880.00'f32,  # A5
-    783.99'f32,  # G5
-    659.25'f32,  # E5
-    783.99'f32,  # G5
-    880.00'f32,  # A5
-    987.77'f32,  # B5
-    880.00'f32,  # A5
-    783.99'f32,  # G5
-    659.25'f32,  # E5
-    587.33'f32,  # D5
-    659.25'f32,  # E5
-    783.99'f32,  # G5
-    880.00'f32,  # A5
-    0.0'f32,     # Rest
-    880.00'f32,  # A5
-    0.0'f32      # Rest
+    1318.51'f32, 987.77'f32, 1318.51'f32, 1567.98'f32,  # E6, B5, E6, G6
+    1318.51'f32, 1046.50'f32, 987.77'f32, 1318.51'f32,  # E6, C6, B5, E6
+    1567.98'f32, 1318.51'f32, 1174.66'f32, 1046.50'f32, # G6, E6, D6, C6
+    987.77'f32, 1174.66'f32, 1318.51'f32, 1318.51'f32   # B5, D6, E6, E6 (vuelve a E6)
   ]
   
-  let harmony = @[
-    440.00'f32,  # A4
-    329.63'f32,  # E4
-    293.66'f32,  # D4
-    392.00'f32   # G4
-  ]
+  # Fast arpeggiator for that electronic intensity
+  let arpPattern = @[0, 2, 1, 3, 2, 1, 3, 0]
   
-  let bassline = @[
-    220.00'f32,  # A3
-    164.81'f32,  # E3
-    146.83'f32,  # D3
-    196.00'f32   # G3
-  ]
+  # Four-on-the-floor kick (classic EDM)
+  let kickPattern = @[true, false, false, false,
+                      true, false, false, false]
   
-  generateMusicTrack(filename, 140.0, 4, melody, harmony, bassline)
+  # Powerful snare on 2 and 4
+  let snarePattern = @[false, false, false, false,
+                       true, false, false, false]
+  
+  generateAdvancedMusic(filename, 140.0, 32.0, chordProg, melody, 
+                       arpPattern, kickPattern, snarePattern, 
+                       hasDrops=true, intensity=0.85)  # Era 0.9, bajado a 0.85
+  
   let tempPath = getTempDir() / filename
   result = loadMusicStream(tempPath)
 
-# Power-up music - uplifting, victorious, hopeful
+# Power-up music - FUTURE BASS VICTORIOSO
+# Uplifting, triumphant but chill and smooth
 proc createPowerUpMusic(filename: string): Music =
-  # C major - bright and hopeful
-  # Medium tempo
+  # Chord progression: C - Am - F - G (uplifting and hopeful)
+  let chordProg = @[
+    (root: 261.63'f32, fifth: 392.00'f32, third: 329.63'f32),  # C
+    (root: 220.00'f32, fifth: 329.63'f32, third: 261.63'f32),  # Am
+    (root: 174.61'f32, fifth: 261.63'f32, third: 220.00'f32),  # F
+    (root: 196.00'f32, fifth: 293.66'f32, third: 246.94'f32)   # G
+  ]
+  
+  # Uplifting, triumphant melody with positive vibes
   let melody = @[
-    523.25'f32,  # C5
-    659.25'f32,  # E5
-    783.99'f32,  # G5
-    1046.50'f32, # C6
-    783.99'f32,  # G5
-    659.25'f32,  # E5
-    783.99'f32,  # G5
-    659.25'f32,  # E5
-    523.25'f32,  # C5
-    587.33'f32,  # D5
-    659.25'f32,  # E5
-    587.33'f32,  # D5
-    523.25'f32,  # C5
-    0.0'f32,     # Rest
-    783.99'f32,  # G5
-    0.0'f32      # Rest
+    1046.50'f32, 1174.66'f32, 1318.51'f32, 1568.00'f32, # C6, D6, E6, G6
+    1318.51'f32, 1046.50'f32, 1174.66'f32, 1046.50'f32, # E6, C6, D6, C6
+    1318.51'f32, 1568.00'f32, 1760.00'f32, 1568.00'f32, # E6, G6, A6, G6
+    1318.51'f32, 1174.66'f32, 1046.50'f32, 1174.66'f32  # E6, D6, C6, D6
   ]
   
-  let harmony = @[
-    261.63'f32,  # C4
-    329.63'f32,  # E4
-    392.00'f32,  # G4
-    261.63'f32   # C4
-  ]
+  # Bouncy arpeggiator for future bass feel
+  let arpPattern = @[0, 3, 2, 1, 3, 0, 2, 1]
   
-  let bassline = @[
-    130.81'f32,  # C3
-    164.81'f32,  # E3
-    196.00'f32,  # G3
-    130.81'f32   # C3
-  ]
+  # Relaxed kick pattern
+  let kickPattern = @[true, false, false, true,
+                      false, false, true, false]
   
-  generateMusicTrack(filename, 110.0, 4, melody, harmony, bassline)
+  # Subtle snare
+  let snarePattern = @[false, false, true, false,
+                       false, false, false, false]
+  
+  generateAdvancedMusic(filename, 110.0, 32.0, chordProg, melody, 
+                       arpPattern, kickPattern, snarePattern, 
+                       hasDrops=false, intensity=0.7)
+  
   let tempPath = getTempDir() / filename
   result = loadMusicStream(tempPath)
 
-# Boss music - intense, dramatic, ominous
+# Boss music - BRUTAL DUBSTEP/DRUM&BASS HÍBRIDO (SUAVIZADO)
+# Intense but not ear-piercing - aggressive energy without distortion
 proc createBossMusic(filename: string): Music =
-  # D minor - dark and intense
-  # Fast tempo, aggressive
+  # Chord progression: Dm - Bb - F - C (dark and aggressive)
+  let chordProg = @[
+    (root: 146.83'f32, fifth: 220.00'f32, third: 174.61'f32),  # Dm
+    (root: 116.54'f32, fifth: 174.61'f32, third: 146.83'f32),  # Bb
+    (root: 174.61'f32, fifth: 261.63'f32, third: 220.00'f32),  # F
+    (root: 130.81'f32, fifth: 196.00'f32, third: 164.81'f32)   # C
+  ]
+  
+  # AGGRESSIVE melody - UNA OCTAVA MÁS BAJA para evitar estridencia
   let melody = @[
-    587.33'f32,  # D5
-    698.46'f32,  # F5
-    880.00'f32,  # A5
-    987.77'f32,  # B5
-    1174.66'f32, # D6
-    987.77'f32,  # B5
-    880.00'f32,  # A5
-    698.46'f32,  # F5
-    587.33'f32,  # D5
-    523.25'f32,  # C5
-    587.33'f32,  # D5
-    698.46'f32,  # F5
-    880.00'f32,  # A5
-    0.0'f32,     # Rest
-    880.00'f32,  # A5
-    0.0'f32      # Rest
+    587.33'f32, 698.46'f32, 783.99'f32, 880.00'f32,   # D5, F5, G5, A5
+    987.77'f32, 880.00'f32, 783.99'f32, 698.46'f32,   # B5, A5, G5, F5
+    783.99'f32, 880.00'f32, 1046.50'f32, 987.77'f32,  # G5, A5, C6, B5
+    880.00'f32, 783.99'f32, 698.46'f32, 587.33'f32    # A5, G5, F5, D5
   ]
   
-  let harmony = @[
-    293.66'f32,  # D4
-    349.23'f32,  # F4
-    440.00'f32,  # A4
-    261.63'f32   # C4
-  ]
+  # INSANE arpeggiator speed
+  let arpPattern = @[0, 3, 1, 2, 3, 0, 2, 1]
   
-  let bassline = @[
-    146.83'f32,  # D3
-    174.61'f32,  # F3
-    220.00'f32,  # A3
-    130.81'f32   # C3
-  ]
+  # HEAVY four-on-the-floor + double kicks
+  let kickPattern = @[true, true, false, false,
+                      true, true, false, false]
   
-  generateMusicTrack(filename, 160.0, 4, melody, harmony, bassline)
+  # AGGRESSIVE snare pattern
+  let snarePattern = @[false, false, true, false,
+                       false, true, true, false]
+  
+  generateAdvancedMusic(filename, 170.0, 32.0, chordProg, melody, 
+                       arpPattern, kickPattern, snarePattern, 
+                       hasDrops=true, intensity=1.0)  # Era 1.3, ahora 1.0
+  
   let tempPath = getTempDir() / filename
   result = loadMusicStream(tempPath)
 
@@ -755,23 +806,27 @@ proc generateAllMusic(sys: SoundSystem) =
   if sys.musicGenerated:
     return
   
-  echo "Generating epic background music tracks..."
+  echo "=========================="
+  echo "🎵 GENERATING MUSIC 🎵"
+  echo "=========================="
   
   try:
-    echo "  - Menu music (dreamy atmospheric)"
+    echo "  🌙 Menu music (Ambient Electrochillwave - Dreamy & Smooth)"
     sys.cachedMusic[mtMenu] = createMenuMusic("menu_music.wav")
     
-    echo "  - Wave combat music (high-energy electronic)"
+    echo "  ⚡ Wave combat music (Electro House - HIGH ENERGY!)"
     sys.cachedMusic[mtWave] = createWaveMusic("wave_music.wav")
     
-    echo "  - Power-up music (triumphant heroic)"
+    echo "  ✨ Power-up music (Future Bass - Victorious & Uplifting)"
     sys.cachedMusic[mtPowerUp] = createPowerUpMusic("powerup_music.wav")
     
-    echo "  - Boss fight music (epic battle theme)"
+    echo "  💀 Boss fight music (DUBSTEP/DnB HYBRID - ULTRA BRUTAL!)"
     sys.cachedMusic[mtBoss] = createBossMusic("boss_music.wav")
     
     sys.musicGenerated = true
-    echo "All epic music tracks generated successfully!"
+    echo "==================================================="
+    echo "✅ ALL TRACKS GENERATED SUCCESSFULLY!"
+    echo "==================================================="
   except Exception as e:
     echo "ERROR generating music: ", e.msg
     echo "  ", e.getStackTrace()
