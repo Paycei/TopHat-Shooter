@@ -5,7 +5,7 @@
 
 ![License](https://img.shields.io/github/license/Paycei/TopHat-Shooter?style=for-the-badge)
 
-**TopHat Shooter** es un *bullet hell* rápido, caótico y lleno de cinemática gloriosa, hecho en **Nim + Raylib**.  
+**TopHat Shooter** es un *bullet hell* rápido, caótico y con buena música, hecho en **Nim + Raylib**.  
 Lucha contra oleadas, mejora tu *build* y destruye jefes cada **5 rondas**.
 
 ---
@@ -50,4 +50,4 @@ Lucha contra oleadas, mejora tu *build* y destruye jefes cada **5 rondas**.
 git clone https://github.com/yourusername/TopHat-Shooter.git
 cd TopHat-Shooter
 nimble install
-nimble run
+nim c -d:release --opt:speed --app:gui --passL:icono.res -o:TopHatShooter.exe src/main.nim
