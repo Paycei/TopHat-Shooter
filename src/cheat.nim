@@ -161,6 +161,28 @@ proc applyPermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType, level
   applyPowerUp(game.player, PowerUp(powerType: powerUpType, level: level, rarity: prCommon))
   playSound(stPowerUp)
 
+proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
+  # Find and remove the power-up from player's list
+  for i in countdown(game.player.powerUps.len - 1, 0):
+    if game.player.powerUps[i].powerType == powerUpType:
+      game.player.powerUps.delete(i)
+      break
+  
+  # Reset player stats to base values and reapply all remaining power-ups
+  # This ensures stat modifications from the removed power-up are undone
+  game.player.baseSpeed = 200.0
+  game.player.fireRate = 0.15
+  game.player.damage = 5.0
+  game.player.bulletSpeed = 600.0
+  game.player.maxHp = 100.0
+  game.player.hp = min(game.player.hp, game.player.maxHp)
+  
+  # Reapply all remaining power-ups
+  for powerUp in game.player.powerUps:
+    applyPowerUp(game.player, powerUp)
+  
+  playSound(stMenuSelect)
+
 proc applyStatCheat*(game: var Game, stat: string, value: float32) =
   case stat
   of "health":
@@ -362,7 +384,9 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game) =
     (puPiercingShots, "Piercing Shots", Color(r: 100, g: 150, b: 255, a: 255)),
     (puHomingBullets, "Homing Shots", Color(r: 255, g: 100, b: 255, a: 255)),
     (puRotatingShield, "Rotating Shield", Color(r: 100, g: 255, b: 255, a: 255)),
-    (puSpeedBoost, "Speed Boost", Color(r: 255, g: 255, b: 100, a: 255))
+    (puSpeedBoost, "Speed Boost", Color(r: 255, g: 255, b: 100, a: 255)),
+    (puWindBullets, "Wind Bullets", Color(r: 200, g: 230, b: 255, a: 255)),
+    (puWindAura, "Wind Aura", Color(r: 180, g: 220, b: 255, a: 255))
   ]
   
   for powerUpData in powerUps:
@@ -561,7 +585,8 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puAutoShoot, puBulletSize, puRegeneration, puDodgeChance, puCriticalHit,
     puVampirism, puBulletRicochet, puSlowField, puRage, puBerserker,
     puThorns, puBulletSplit, puChainLightning, puFrostShots, puPoisonDamage,
-    puFireAura, puLightningAura, puPoisonAura, puTimeWarp, puGravityWell, puPhaseShift, puOvercharge, puEchoShots
+    puFireBullets, puWindBullets, puFireAura, puLightningAura, puPoisonAura, puWindAura,
+    puTimeWarp, puGravityWell, puPhaseShift, puOvercharge, puEchoShots
   ]
   
   # Scrollable area setup
@@ -595,33 +620,46 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     let nameColor = if currentLevel > 0: Green else: White
     drawText(name, x + 30, itemY + 7, 12, nameColor)
     
-    # Draw level buttons (Lv1, Lv2, Lv3)
-    let buttonStartX = x + width - 170
+    # Draw level buttons (Lv0 to remove, Lv1, Lv2, Lv3)
+    let buttonStartX = x + width - 220
     
-    for level in 1..3:
-      let btnX = buttonStartX + (level - 1).int32 * (buttonWidth + buttonSpacing)
+    for level in 0..3:
+      let btnX = buttonStartX + level.int32 * (buttonWidth + buttonSpacing)
       let rect = Rectangle(x: btnX.float32, y: itemY.float32, width: buttonWidth.float32, height: (itemHeight - 5).float32)
       let hovered = checkCollisionPointRec(getMousePosition(), rect)
       
       # Button color based on current level
       var btnColor: Color
-      if level == currentLevel:
-        btnColor = if hovered: Color(r: 0, g: 150, b: 0, a: 255) else: Color(r: 0, g: 100, b: 0, a: 255)
-      elif level < currentLevel:
-        btnColor = Color(r: 0, g: 70, b: 0, a: 150)
+      if level == 0:
+        # Level 0 = Remove button (red)
+        if currentLevel == 0:
+          btnColor = Color(r: 40, g: 40, b: 40, a: 255)  # Already removed (grayed out)
+        else:
+          btnColor = if hovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255)
       else:
-        btnColor = if hovered: Color(r: 80, g: 80, b: 80, a: 255) else: Color(r: 50, g: 50, b: 50, a: 255)
+        # Level 1-3 buttons
+        if level == currentLevel:
+          btnColor = if hovered: Color(r: 0, g: 150, b: 0, a: 255) else: Color(r: 0, g: 100, b: 0, a: 255)
+        elif level < currentLevel:
+          btnColor = Color(r: 0, g: 70, b: 0, a: 150)
+        else:
+          btnColor = if hovered: Color(r: 80, g: 80, b: 80, a: 255) else: Color(r: 50, g: 50, b: 50, a: 255)
       
       drawRectangle(btnX, itemY, buttonWidth, itemHeight - 5, btnColor)
       drawRectangleLines(btnX, itemY, buttonWidth, itemHeight - 5, 
-                        if level == currentLevel: Yellow else: Gray)
+                        if level == currentLevel: Yellow else: 
+                        if level == 0: Red else: Gray)
       
-      let btnText = "Lv" & $level
+      let btnText = if level == 0: "Del" else: "Lv" & $level
       let btnTextWidth = measureText(btnText, 10)
       drawText(btnText, btnX + (buttonWidth - btnTextWidth) div 2, itemY + 8, 10, White)
       
       if hovered and isMouseButtonPressed(Left):
-        applyPermanentPowerUpCheat(game, powerType, level)
+        if level == 0:
+          # Remove the power-up
+          removePermanentPowerUpCheat(game, powerType)
+        else:
+          applyPermanentPowerUpCheat(game, powerType, level)
   
   # Draw scroll indicator
   if maxScroll > 0:

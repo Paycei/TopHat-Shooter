@@ -715,7 +715,14 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
             dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
             dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
           )
-          game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, spreadDir, 150, 1, false))
+          game.bullets.add(newBullet(
+            x = enemy.pos.x,
+            y = enemy.pos.y,
+            direction = spreadDir,
+            speed = 150,
+            damage = 1,
+            fromPlayer = false
+          ))
       else:
         let dir = (playerPos - enemy.pos).normalize()
         enemy.vel = dir * effectiveSpeed * 0.7
@@ -724,7 +731,14 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       if enemy.shootTimer > 1.0:
         let angle = rand(1.0) * PI * 2.0
         let dir = newVector2f(cos(angle), sin(angle))
-        game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 140, 1, false))
+        game.bullets.add(newBullet(
+          x = enemy.pos.x,
+          y = enemy.pos.y,
+          direction = dir,
+          speed = 140,
+          damage = 1,
+          fromPlayer = false
+        ))
         enemy.shootTimer = 0
       
       var canMove = true
@@ -753,7 +767,14 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           dir.x * cos(inaccuracy) - dir.y * sin(inaccuracy),
           dir.x * sin(inaccuracy) + dir.y * cos(inaccuracy)
         )
-        game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, inaccurateDir, 120, 1, false))
+        game.bullets.add(newBullet(
+          x = enemy.pos.x,
+          y = enemy.pos.y,
+          direction = inaccurateDir,
+          speed = 120,
+          damage = 1,
+          fromPlayer = false
+        ))
         enemy.shootTimer = 0
       
       # Slow backing movement
@@ -794,8 +815,26 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       enemy.shootTimer += dt
       if enemy.shootTimer > 2.5:  # Low fire rate
         let dir = (playerPos - enemy.pos).normalize()
-        let pentagonBullet = newBullet(enemy.pos.x, enemy.pos.y, dir, 400, 2, false,
-                                       false, false, false, false, false, 0, 0, true)  # isPentagon = true
+        let pentagonBullet = newBullet(
+          x = enemy.pos.x,
+          y = enemy.pos.y,
+          direction = dir,
+          speed = 400.0,
+          damage = 2.0,
+          fromPlayer = false,
+          isHoming = false,
+          isPiercing = false,
+          isExplosive = false,
+          hasBounce = false,
+          canSplit = false,
+          slowAmount = 0.0,
+          poisonDuration = 0.0,
+          fireDuration = 0.0,
+          windPushForce = 0.0,
+          isPentagon = true,
+          isEcho = false,
+          isBossBullet = false
+        )
         pentagonBullet.radius = 10  # MUCH LARGER bullet (was 6 for enemy bullets)
         game.bullets.add(pentagonBullet)
         enemy.shootTimer = 0

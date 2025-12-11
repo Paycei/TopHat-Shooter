@@ -5,7 +5,8 @@ const BASE_PLAYER_BULLET_RADIUS* = 4.5
 proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true, 
                 isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false,
                 hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0, 
-                poisonDuration: float32 = 0, isPentagon: bool = false, isEcho: bool = false, 
+                poisonDuration: float32 = 0, fireDuration: float32 = 0, windPushForce: float32 = 0,
+                isPentagon: bool = false, isEcho: bool = false, 
                 isBossBullet: bool = false): Bullet =
   # BUFFED: Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
@@ -25,6 +26,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     hasSplit: not canSplit,
     slowAmount: slowAmount,  # Slow effect magnitude (0-1 range)
     poisonDuration: poisonDuration,  # Poison duration in seconds
+    fireDuration: fireDuration,  # Fire duration in seconds
+    windPushForce: windPushForce,  # Wind push force
     isPentagon: isPentagon,
     hitEnemies: @[],  # Initialize empty sequence
     travelDistance: 0.0,  # Track distance for Overcharge
@@ -55,6 +58,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
     if bullet.isHoming: color = Magenta
     elif bullet.isPiercing: color = SkyBlue
     elif bullet.isExplosive: color = Orange
+    elif bullet.windPushForce > 0: color = Color(r: 200, g: 230, b: 255, a: 255)  # Light cyan for wind
     elif bullet.slowAmount > 0: color = Color(r: 150, g: 200, b: 255, a: 255)
     elif bullet.poisonDuration > 0: color = Green
     elif bullet.bounceCount >= 0: color = Color(r: 255, g: 200, b: 0, a: 255)
@@ -105,6 +109,9 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
   elif bullet.isExplosive:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
                    Color(r: 255, g: 150, b: 0, a: 150))
+  elif bullet.windPushForce > 0:
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+                   Color(r: 180, g: 220, b: 255, a: 150))
   elif bullet.slowAmount > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 100, g: 150, b: 255, a: 150))
@@ -197,6 +204,8 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     not preventSplit,  # canSplit (inverse of preventSplit)
     original.slowAmount,
     original.poisonDuration,
+    original.fireDuration,
+    original.windPushForce,  # Preserve wind push force
     original.isPentagon,
     original.isEcho,
     original.isBossBullet

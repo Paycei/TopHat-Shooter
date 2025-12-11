@@ -32,9 +32,12 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puChainLightning: "Chain Lightning"
   of puFrostShots: "Frost Shots"
   of puPoisonDamage: "Poison"
+  of puFireBullets: "Fire Bullets"
+  of puWindBullets: "Wind Bullets"
   of puFireAura: "Fire Aura"
   of puLightningAura: "Lightning Aura"
   of puPoisonAura: "Poison Aura"
+  of puWindAura: "Wind Aura"
   of puTimeWarp: "Chronos"
   of puGravityWell: "Singularity"
   of puPhaseShift: "Phase Walker"
@@ -168,9 +171,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Bullets split into 4 on hit"
   of puChainLightning:
     case level
-    of 1: "Hit chains to 1 enemy (70% dmg)"
-    of 2: "Hit chains to 2 enemies (80% dmg)"
-    else: "Hit chains to 3 enemies (90% dmg)"
+    of 1: "Hit chains to 1 enemy (70% dmg, 0.05s stun)"
+    of 2: "Hit chains to 2 enemies (80% dmg, 0.05s stun)"
+    else: "Hit chains to 3 enemies (90% dmg, 0.05s stun)"
   of puFrostShots:
     case level
     of 1: "Bullets slow enemies 25% (permanent)"
@@ -178,9 +181,19 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Bullets slow enemies 60% (permanent)"
   of puPoisonDamage:
     case level
-    of 1: "Bullets poison (1 dmg/s, 4s)"
-    of 2: "Bullets poison (2 dmg/s, 5s)"
-    else: "Bullets poison (4 dmg/s, 6s)"
+    of 1: "Bullets poison (1 dmg/s, 4s, 5% slow)"
+    of 2: "Bullets poison (2 dmg/s, 5s, 5% slow)"
+    else: "Bullets poison (4 dmg/s, 6s, 5% slow)"
+  of puFireBullets:
+    case level
+    of 1: "Bullets burn (1.5 dmg/s, 2s, 5% slow)"
+    of 2: "Bullets burn (3 dmg/s, 3s, 5% slow)"
+    else: "Bullets burn (6 dmg/s, 4s, 5% slow)"
+  of puWindBullets:
+    case level
+    of 1: "Bullets knock back enemies (weak push)"
+    of 2: "Bullets knock back enemies (medium push)"
+    else: "Bullets knock back enemies (strong push)"
   of puFireAura:
     case level
     of 1: "Burn enemies 1.5 dmg/s in 120 radius (2s)"
@@ -196,6 +209,11 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "Poison 0.6 dmg/s in 120 radius (6s duration)"
     of 2: "Poison 1.2 dmg/s in 160 radius (8s duration)"
     else: "Poison 2.4 dmg/s in 200 radius (10s duration)"
+  of puWindAura:
+    case level
+    of 1: "Push enemies away in 120 radius (weak)"
+    of 2: "Push enemies away in 160 radius (medium)"
+    else: "Push enemies away in 200 radius (strong)"
   of puTimeWarp:
     case level
     of 1: "Slow time 50% for 3.5s (1 use/wave, 20s cd)"
@@ -244,7 +262,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
                          puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                          puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
                          puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
-                         puFrostShots, puPoisonDamage, puFireAura, puLightningAura, puPoisonAura]
+                         puFrostShots, puPoisonDamage, puFireBullets, puWindBullets,
+                         puFireAura, puLightningAura, puPoisonAura, puWindAura]
   
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
@@ -636,6 +655,28 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     for i in 0..3:
       let offsetY = -15 + i * 5
       drawCircle(Vector2(x: centerX.float32, y: (iconY + offsetY).float32), 4, Color(r: 100, g: 255, b: 100, a: 180))
+  of puFireBullets:
+    # Fire bullet with flame trail
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 8, Red)
+    drawCircle(Vector2(x: (centerX - 2).float32, y: (iconY - 2).float32), 4, Orange)
+    drawCircle(Vector2(x: (centerX + 2).float32, y: (iconY - 2).float32), 4, Orange)
+    # Flame trail
+    for i in 1..4:
+      let offsetX = -i * 6
+      let size = 6 - i
+      drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), size.float32, 
+                Color(r: 255, g: (100 + i * 30).uint8, b: 0, a: uint8(200 - i * 40)))
+  of puWindBullets:
+    # Wind bullet with air currents
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 8, Color(r: 200, g: 230, b: 255, a: 255))
+    # Wind lines pushing backwards
+    for i in 0..3:
+      let offsetX = -10 - i * 8
+      let offsetY = (i mod 2) * 6 - 3
+      let lineLength = 8 - i.float * 1.5
+      drawLine(Vector2(x: (centerX + offsetX).float32, y: (iconY + offsetY).float32),
+              Vector2(x: (centerX.float + offsetX.float - lineLength).float32, y: (iconY + offsetY).float32),
+              2, Color(r: 180, g: 220, b: 255, a: uint8(220 - i * 40)))
   of puFireAura:
     # Fire aura with flames
     let auraRadius = 10 + powerUp.level * 5
@@ -688,6 +729,23 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       let bubbleSize = 3 - (i mod 3)
       drawCircle(Vector2(x: x, y: y), bubbleSize.float32, Color(r: 120, g: 255, b: 120, a: 200))
       drawCircleLines(x.int32, y.int32, bubbleSize.float32, Color(r: 80, g: 200, b: 80, a: 255))
+  of puWindAura:
+    # Wind aura with outward air currents
+    let auraRadius = 10 + powerUp.level * 5
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), auraRadius.float32,
+              Color(r: 220, g: 240, b: 255, a: 80))
+    drawCircleLines(centerX.int32, iconY.int32, auraRadius.float32, Color(r: 200, g: 230, b: 255, a: 255))
+    # Outward wind lines from center
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0
+      let startDist = 3.0
+      let endDist = 12.0 + (i mod 2).float32 * 3.0
+      let x1 = centerX.float32 + cos(angle) * startDist
+      let y1 = iconY.float32 + sin(angle) * startDist
+      let x2 = centerX.float32 + cos(angle) * endDist
+      let y2 = iconY.float32 + sin(angle) * endDist
+      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, 
+              Color(r: 200, g: 230, b: 255, a: uint8(200 - (i mod 3) * 40)))
   of puTimeWarp:
     # Clock with time distortion effect
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 15, Color(r: 138, g: 43, b: 226, a: 150))
@@ -956,7 +1014,8 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
                      puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                      puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
                      puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
-                     puFrostShots, puPoisonDamage, puFireAura, puLightningAura, puPoisonAura]
+                     puFrostShots, puPoisonDamage, puFireBullets,
+                     puFireAura, puLightningAura, puPoisonAura]
   
   var availableTypes: seq[PowerUpType]
   if isLegendary:

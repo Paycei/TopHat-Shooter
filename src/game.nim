@@ -344,6 +344,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let hasSplit = hasPowerUp(game.player, puBulletSplit)
     let hasFrost = hasPowerUp(game.player, puFrostShots)
     let hasPoison = hasPowerUp(game.player, puPoisonDamage)
+    let hasFire = hasPowerUp(game.player, puFireBullets)
     
     # Base bullet properties - use current damage with Rage bonus
     var speed = game.player.bulletSpeed * 1.2
@@ -382,9 +383,12 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       if rand(99) < critChance:
         damage *= critMultiplier
     
-    # Calculate slow and poison effects
+    # Calculate slow, poison, fire, and wind effects
     var slowEffect = 0.0
     var poisonEffect = 0.0
+    var fireEffect = 0.0
+    var windEffect = 0.0
+    
     if hasFrost:
       let frostLevel = getPowerUpLevel(game.player, puFrostShots)
       slowEffect = case frostLevel
@@ -397,6 +401,20 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         of 1: 4.0
         of 2: 5.0
         else: 6.0
+    if hasFire:
+      let fireLevel = getPowerUpLevel(game.player, puFireBullets)
+      fireEffect = case fireLevel
+        of 1: 2.0
+        of 2: 3.0
+        else: 4.0
+    
+    # Wind bullets push effect
+    if hasPowerUp(game.player, puWindBullets):
+      let windLevel = getPowerUpLevel(game.player, puWindBullets)
+      windEffect = case windLevel
+        of 1: 100.0   # Weak push
+        of 2: 200.0   # Medium push
+        else: 350.0   # Strong push
     
     if hasDoubleShot and hasMultiShot:
       # When both active: Fire multishot pattern (3 directions), then schedule second burst
@@ -412,9 +430,23 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           direction.x * cos(angle) - direction.y * sin(angle),
           direction.x * sin(angle) + direction.y * cos(angle)
         )
-        let bullet = newBullet(game.player.pos.x, game.player.pos.y, spreadDir, 
-                              speed, damage, true, hasHoming, hasPiercing, hasExplosive,
-                              hasRicochet, hasSplit, slowEffect, poisonEffect)
+        let bullet = newBullet(
+          x = game.player.pos.x,
+          y = game.player.pos.y,
+          direction = spreadDir,
+          speed = speed,
+          damage = damage,
+          fromPlayer = true,
+          isHoming = hasHoming,
+          isPiercing = hasPiercing,
+          isExplosive = hasExplosive,
+          hasBounce = hasRicochet,
+          canSplit = hasSplit,
+          slowAmount = slowEffect,
+          poisonDuration = poisonEffect,
+          fireDuration = fireEffect,
+          windPushForce = windEffect
+        )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
       
@@ -427,9 +459,23 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       let burstCount = level + 1  # Level 1 = 2, Level 2 = 3, Level 3 = 4
       
       # Fire first bullet immediately
-      let bullet = newBullet(game.player.pos.x, game.player.pos.y, direction, 
-                            speed, damage, true, hasHoming, hasPiercing, hasExplosive,
-                            hasRicochet, hasSplit, slowEffect, poisonEffect)
+      let bullet = newBullet(
+        x = game.player.pos.x,
+        y = game.player.pos.y,
+        direction = direction,
+        speed = speed,
+        damage = damage,
+        fromPlayer = true,
+        isHoming = hasHoming,
+        isPiercing = hasPiercing,
+        isExplosive = hasExplosive,
+        hasBounce = hasRicochet,
+        canSplit = hasSplit,
+        slowAmount = slowEffect,
+        poisonDuration = poisonEffect,
+        fireDuration = fireEffect,
+        windPushForce = windEffect
+      )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
       
@@ -446,16 +492,44 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           direction.x * cos(angle) - direction.y * sin(angle),
           direction.x * sin(angle) + direction.y * cos(angle)
         )
-        let bullet = newBullet(game.player.pos.x, game.player.pos.y, spreadDir, 
-                              speed, damage, true, hasHoming, hasPiercing, hasExplosive,
-                              hasRicochet, hasSplit, slowEffect, poisonEffect)
+        let bullet = newBullet(
+          x = game.player.pos.x,
+          y = game.player.pos.y,
+          direction = spreadDir,
+          speed = speed,
+          damage = damage,
+          fromPlayer = true,
+          isHoming = hasHoming,
+          isPiercing = hasPiercing,
+          isExplosive = hasExplosive,
+          hasBounce = hasRicochet,
+          canSplit = hasSplit,
+          slowAmount = slowEffect,
+          poisonDuration = poisonEffect,
+          fireDuration = fireEffect,
+          windPushForce = windEffect
+        )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
     else:
       # Normal single shot
-      let bullet = newBullet(game.player.pos.x, game.player.pos.y, direction, 
-                            speed, damage, true, hasHoming, hasPiercing, hasExplosive,
-                            hasRicochet, hasSplit, slowEffect, poisonEffect)
+      let bullet = newBullet(
+        x = game.player.pos.x,
+        y = game.player.pos.y,
+        direction = direction,
+        speed = speed,
+        damage = damage,
+        fromPlayer = true,
+        isHoming = hasHoming,
+        isPiercing = hasPiercing,
+        isExplosive = hasExplosive,
+        hasBounce = hasRicochet,
+        canSplit = hasSplit,
+        slowAmount = slowEffect,
+        poisonDuration = poisonEffect,
+        fireDuration = fireEffect,
+        windPushForce = windEffect
+      )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
     
@@ -469,6 +543,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     if hasHoming: particleColor = Magenta
     elif hasPiercing: particleColor = SkyBlue
     elif hasExplosive: particleColor = Orange
+    elif windEffect > 0: particleColor = Color(r: 200, g: 230, b: 255, a: 255)
     elif slowEffect > 0: particleColor = Color(r: 150, g: 200, b: 255, a: 255)
     elif poisonEffect > 0: particleColor = Green
     elif hasRicochet: particleColor = Color(r: 255, g: 200, b: 0, a: 255)
@@ -485,6 +560,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let hasSplit = hasPowerUp(game.player, puBulletSplit)
   let hasFrost = hasPowerUp(game.player, puFrostShots)
   let hasPoison = hasPowerUp(game.player, puPoisonDamage)
+  let hasFire = hasPowerUp(game.player, puFireBullets)
   
   var speed = game.player.bulletSpeed * 1.2
   var damage = getCurrentDamage(game.player) * 0.85  # BUFFED: Second bullet reduced by 15% (was 25%)
@@ -509,6 +585,9 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   
   var slowEffect = 0.0
   var poisonEffect = 0.0
+  var fireEffect = 0.0
+  var windEffect = 0.0
+  
   if hasFrost:
     let frostLevel = getPowerUpLevel(game.player, puFrostShots)
     slowEffect = case frostLevel
@@ -521,6 +600,18 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       of 1: 4.0
       of 2: 5.0
       else: 6.0
+  if hasFire:
+    let fireLevel = getPowerUpLevel(game.player, puFireBullets)
+    fireEffect = case fireLevel
+      of 1: 2.0
+      of 2: 3.0
+      else: 4.0
+  if hasPowerUp(game.player, puWindBullets):
+    let windLevel = getPowerUpLevel(game.player, puWindBullets)
+    windEffect = case windLevel
+      of 1: 100.0   # Weak push
+      of 2: 200.0   # Medium push
+      else: 350.0   # Strong push
   
   if hasMultiShot:
     let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
@@ -532,15 +623,43 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         direction.x * cos(angle) - direction.y * sin(angle),
         direction.x * sin(angle) + direction.y * cos(angle)
       )
-      let bullet = newBullet(game.player.pos.x, game.player.pos.y, spreadDir, 
-                            speed, damage, true, hasHoming, hasPiercing, hasExplosive,
-                            hasRicochet, hasSplit, slowEffect, poisonEffect)
+      let bullet = newBullet(
+        x = game.player.pos.x,
+        y = game.player.pos.y,
+        direction = spreadDir,
+        speed = speed,
+        damage = damage,
+        fromPlayer = true,
+        isHoming = hasHoming,
+        isPiercing = hasPiercing,
+        isExplosive = hasExplosive,
+        hasBounce = hasRicochet,
+        canSplit = hasSplit,
+        slowAmount = slowEffect,
+        poisonDuration = poisonEffect,
+        fireDuration = fireEffect,
+        windPushForce = windEffect
+      )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
   else:
-    let bullet = newBullet(game.player.pos.x, game.player.pos.y, direction, 
-                          speed, damage, true, hasHoming, hasPiercing, hasExplosive,
-                          hasRicochet, hasSplit, slowEffect, poisonEffect)
+    let bullet = newBullet(
+      x = game.player.pos.x,
+      y = game.player.pos.y,
+      direction = direction,
+      speed = speed,
+      damage = damage,
+      fromPlayer = true,
+      isHoming = hasHoming,
+      isPiercing = hasPiercing,
+      isExplosive = hasExplosive,
+      hasBounce = hasRicochet,
+      canSplit = hasSplit,
+      slowAmount = slowEffect,
+      poisonDuration = poisonEffect,
+      fireDuration = fireEffect,
+      windPushForce = windEffect
+    )
     bullet.radius = bulletRadius
     game.bullets.add(bullet)
   
@@ -866,6 +985,41 @@ proc updateGame*(game: var Game, dt: float32) =
         let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 4.0
         spawnExplosion(game.particles, particleX, particleY,
                       Color(r: 100, g: 255, b: 100, a: 180), 2)
+  
+  # Wind Aura power-up effect - pushes enemies away from player (slow aura but different mechanic)
+  if hasPowerUp(game.player, puWindAura):
+    let level = getPowerUpLevel(game.player, puWindAura)
+    let pushStrength = case level
+      of 1: 50.0   # Weak push
+      of 2: 80.0   # Medium push
+      else: 120.0  # Strong push
+    let windRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    for enemy in game.enemies:
+      let dist = distance(game.player.pos, enemy.pos)
+      if dist < windRadius and dist > 5.0:  # Don't push if too close
+        # Calculate push direction (away from player)
+        let pushDir = (enemy.pos - game.player.pos).normalize()
+        
+        # Bosses are much more resistant to wind push (10% effectiveness)
+        let bossResistance = if enemy.isBoss: 0.1 else: 1.0
+        
+        # Apply push force (stronger when closer)
+        let pushForce = pushStrength * (1.0 - (dist / windRadius)) * bossResistance
+        enemy.pos.x += pushDir.x * pushForce * dt
+        enemy.pos.y += pushDir.y * pushForce * dt
+        
+        # Visual wind particles (outward from player toward enemies)
+        if rand(100) < 8:  # 8% chance per frame
+          let particleAngle = rand(1.0) * PI * 2.0
+          let particleDist = rand(windRadius * 0.8)
+          let particleX = game.player.pos.x + cos(particleAngle) * particleDist
+          let particleY = game.player.pos.y + sin(particleAngle) * particleDist
+          spawnExplosion(game.particles, particleX, particleY, 
+                        Color(r: 200, g: 230, b: 255, a: 150), 2)
   
   # Gravity Well (Singularity) - Pull enemies toward player with bonus effect on ranged
   if hasPowerUp(game.player, puGravityWell):
@@ -1320,7 +1474,15 @@ proc updateGame*(game: var Game, dt: float32) =
         for angle in 0..<16:
           let rad = angle.float32 * PI / 8.0
           let dir = newVector2f(cos(rad), sin(rad))
-          game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 220, 0.75, false, isBossBullet=true))
+          game.bullets.add(newBullet(
+            x = enemy.pos.x,
+            y = enemy.pos.y,
+            direction = dir,
+            speed = 220,
+            damage = 0.75,
+            fromPlayer = false,
+            isBossBullet = true
+          ))
         
         enemy.shockwaveTimer = 5.0 + rand(3.0)
       
@@ -1336,7 +1498,15 @@ proc updateGame*(game: var Game, dt: float32) =
             for angle in 0..<12:
               let rad = angle.float32 * PI / 6.0 + game.time * 2
               let dir = newVector2f(cos(rad), sin(rad))
-              game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 240, 0.75, false, isBossBullet=true))
+              game.bullets.add(newBullet(
+                x = enemy.pos.x,
+                y = enemy.pos.y,
+                direction = dir,
+                speed = 240,
+                damage = 0.75,
+                fromPlayer = false,
+                isBossBullet = true
+              ))
             
             # PROGRESSIVE ABILITY: Rotating laser beams (unlocks at boss 2+)
             if game.bossCount >= 2:
@@ -1412,17 +1582,41 @@ proc updateGame*(game: var Game, dt: float32) =
               let bulletX = enemy.pos.x + cos(a) * orbitRadius
               let bulletY = enemy.pos.y + sin(a) * orbitRadius
               let dir = (game.player.pos - newVector2f(bulletX, bulletY)).normalize()
-              game.bullets.add(newBullet(bulletX, bulletY, dir, 200, 0.75, false, isBossBullet=true))
+              game.bullets.add(newBullet(
+                x = bulletX,
+                y = bulletY,
+                direction = dir,
+                speed = 200,
+                damage = 0.75,
+                fromPlayer = false,
+                isBossBullet = true
+              ))
             
             # PROGRESSIVE ABILITY: Homing orbital bullets (unlocks at boss 3+)
             if game.bossCount >= 3 and (game.time.int mod 3) == 0:  # Every 3 seconds
               let homingAngle = rand(1.0) * PI * 2.0
               let bulletX = enemy.pos.x + cos(homingAngle) * orbitRadius
               let bulletY = enemy.pos.y + sin(homingAngle) * orbitRadius
-              let homingBullet = newBullet(bulletX, bulletY, 
-                                          (game.player.pos - newVector2f(bulletX, bulletY)).normalize(),
-                                          180, 1.0, false, true, false, false, false, false, 
-                                          0, 0, false, false, true)  # isBossBullet=true
+              let homingBullet = newBullet(
+                x = bulletX,
+                y = bulletY,
+                direction = normalize(game.player.pos - newVector2f(bulletX, bulletY)),
+                speed = 180.0,
+                damage = 1.0'f32,
+                fromPlayer = false,
+                isHoming = true,
+                isPiercing = false,
+                isExplosive = false,
+                hasBounce = false,
+                canSplit = false,
+                slowAmount = 0.0,
+                poisonDuration = 0.0,
+                fireDuration = 0.0,
+                windPushForce = 0.0,
+                isPentagon = false,
+                isEcho = false,
+                isBossBullet = true
+              )
               game.bullets.add(homingBullet)
             
             enemy.shootTimer = 0
@@ -1433,7 +1627,15 @@ proc updateGame*(game: var Game, dt: float32) =
           for angle in 0..<8:
             let rad = angle.float32 * PI / 4.0
             let dir = newVector2f(cos(rad), sin(rad))
-            game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 200, 0.75, false, isBossBullet=true))
+            game.bullets.add(newBullet(
+              x = enemy.pos.x,
+              y = enemy.pos.y,
+              direction = dir,
+              speed = 200,
+              damage = 0.75,
+              fromPlayer = false,
+              isBossBullet = true
+            ))
           
           # PROGRESSIVE ABILITY: Cross lasers (unlocks at boss 4+)
           if game.bossCount >= 4:
@@ -1459,7 +1661,15 @@ proc updateGame*(game: var Game, dt: float32) =
               dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
               dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
             )
-            game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, spreadDir, 280, 0.75, false, isBossBullet=true))
+            game.bullets.add(newBullet(
+              x = enemy.pos.x,
+              y = enemy.pos.y,
+              direction = spreadDir,
+              speed = 280,
+              damage = 0.75,
+              fromPlayer = false,
+              isBossBullet = true
+            ))
           
           # PROGRESSIVE ABILITY: Predict player position (unlocks at boss 5+)
           if game.bossCount >= 5:
@@ -1467,7 +1677,15 @@ proc updateGame*(game: var Game, dt: float32) =
             let predictTime = 0.5  # Predict 0.5 seconds ahead
             let predictedPos = game.player.pos + game.player.vel * predictTime
             let predictDir = (predictedPos - enemy.pos).normalize()
-            game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, predictDir, 350, 1.0, false, isBossBullet=true))
+            game.bullets.add(newBullet(
+              x = enemy.pos.x,
+              y = enemy.pos.y,
+              direction = predictDir,
+              speed = 350,
+              damage = 1.0,
+              fromPlayer = false,
+              isBossBullet = true
+            ))
           
           enemy.burstTimer = 0
       
@@ -1476,7 +1694,15 @@ proc updateGame*(game: var Game, dt: float32) =
         if enemy.burstTimer > 0.15:
           let angle = rand(1.0) * PI * 2.0
           let dir = newVector2f(cos(angle), sin(angle))
-          game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 250, 0.75, false, isBossBullet=true))
+          game.bullets.add(newBullet(
+            x = enemy.pos.x,
+            y = enemy.pos.y,
+            direction = dir,
+            speed = 250,
+            damage = 0.75,
+            fromPlayer = false,
+            isBossBullet = true
+          ))
           
           # PROGRESSIVE ABILITY: Star burst attack (unlocks at boss 6+)
           if game.bossCount >= 6 and (game.time * 100).int mod 100 == 0:  # Occasionally
@@ -1484,7 +1710,15 @@ proc updateGame*(game: var Game, dt: float32) =
             for i in 0..<5:
               let starAngle = i.float32 * (PI * 2.0 / 5.0)
               let starDir = newVector2f(cos(starAngle), sin(starAngle))
-              game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, starDir, 300, 1.0, false, isBossBullet=true))
+              game.bullets.add(newBullet(
+                x = enemy.pos.x,
+                y = enemy.pos.y,
+                direction = starDir,
+                speed = 300,
+                damage = 1.0,
+                fromPlayer = false,
+                isBossBullet = true
+              ))
           
           enemy.burstTimer = 0
     
@@ -1495,7 +1729,14 @@ proc updateGame*(game: var Game, dt: float32) =
       for _ in 0..<bulletCount:
         let angle = rand(1.0) * PI * 2.0
         let dir = newVector2f(cos(angle), sin(angle))
-        game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 220, 1, false))
+        game.bullets.add(newBullet(
+          x = enemy.pos.x,
+          y = enemy.pos.y,
+          direction = dir,
+          speed = 220,
+          damage = 1,
+          fromPlayer = false
+        ))
       enemy.shootTimer = 0
     
     # Cube enemies shoot - BUFFED
@@ -1509,7 +1750,14 @@ proc updateGame*(game: var Game, dt: float32) =
           dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
           dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
         )
-        game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, spreadDir, 260, 1, false))
+        game.bullets.add(newBullet(
+          x = enemy.pos.x,
+          y = enemy.pos.y,
+          direction = spreadDir,
+          speed = 260,
+          damage = 1,
+          fromPlayer = false
+        ))
       
       enemy.shootTimer = 0
     
@@ -1755,6 +2003,41 @@ proc updateGame*(game: var Game, dt: float32) =
               else: 4.0
             game.enemies[j].poisonTimer = bullet.poisonDuration
             game.enemies[j].poisonDamage = poisonDmg
+            # Poison bullets also slow enemies by 5%
+            game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, bullet.poisonDuration)
+            game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, 0.05)
+          
+          # Apply fire damage over time
+          if bullet.fireDuration > 0 and hasPowerUp(game.player, puFireBullets):
+            let fireLevel = getPowerUpLevel(game.player, puFireBullets)
+            let fireDmg = case fireLevel
+              of 1: 1.5
+              of 2: 3.0
+              else: 6.0
+            game.enemies[j].fireTimer = bullet.fireDuration
+            game.enemies[j].fireDamage = fireDmg
+            # Fire bullets also slow enemies by 5%
+            game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, bullet.fireDuration)
+            game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, 0.05)
+          
+          # Apply wind push force (knock back effect)
+          if bullet.windPushForce > 0 and hasPowerUp(game.player, puWindBullets):
+            # Calculate push direction (away from player toward enemy)
+            let pushDir = (game.enemies[j].pos - game.player.pos).normalize()
+            # Bosses are much more resistant to wind push (10% effectiveness)
+            let bossResistance = if game.enemies[j].isBoss: 0.1 else: 1.0
+            # Apply knockback force
+            game.enemies[j].pos.x += pushDir.x * bullet.windPushForce * dt * bossResistance
+            game.enemies[j].pos.y += pushDir.y * bullet.windPushForce * dt * bossResistance
+            
+            # Visual wind effect particles
+            for k in 0..3:
+              let particleAngle = rand(1.0) * PI * 2.0
+              let particleDist = rand(game.enemies[j].radius + 10.0)
+              let particleX = game.enemies[j].pos.x + cos(particleAngle) * particleDist
+              let particleY = game.enemies[j].pos.y + sin(particleAngle) * particleDist
+              spawnExplosion(game.particles, particleX, particleY, 
+                            Color(r: 200, g: 230, b: 255, a: 180), 2)
           
           # Chain lightning effect - hits nearby enemies
           if hasPowerUp(game.player, puChainLightning) and game.enemies[j].chainLightningCooldown <= 0:
@@ -1765,6 +2048,10 @@ proc updateGame*(game: var Game, dt: float32) =
               of 2: 0.8
               else: 0.9
             let chainRange = 120.0
+            
+            # Lightning bullets stun enemies for 0.05s (applied to primary target)
+            game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, 0.05)
+            game.enemies[j].slowAmount = 1.0  # 100% slow = stun
             
             # Mark this enemy to prevent re-chaining
             game.enemies[j].chainLightningCooldown = 0.3
@@ -1779,6 +2066,9 @@ proc updateGame*(game: var Game, dt: float32) =
                   let actualDamage = applyEliteModifiers(game.enemies[k], chainDmg)
                   game.enemies[k].hp -= actualDamage
                   game.enemies[k].chainLightningCooldown = 0.3
+                  # Lightning also stuns chained enemies for 0.05s
+                  game.enemies[k].slowTimer = max(game.enemies[k].slowTimer, 0.05)
+                  game.enemies[k].slowAmount = 1.0  # 100% slow = stun
                   chained += 1
                   
                   # Lightning visual effect
@@ -2131,6 +2421,94 @@ proc drawGame*(game: Game) =
     # Draw outer radius circle (very faint)
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius, 
                    Color(r: 138, g: 43, b: 226, a: 40))
+  
+  # Draw Fire Aura visual effect
+  if hasPowerUp(game.player, puFireAura):
+    let level = getPowerUpLevel(game.player, puFireAura)
+    let fireRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    # Draw pulsing fire rings
+    let pulse = (sin(game.time * 3.0) * 0.2 + 0.8).float32
+    for ring in 1..3:
+      let ringRadius = fireRadius * (ring.float32 / 3.0) * pulse
+      let alpha = uint8(50 - ring * 10)
+      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius, 
+                     Color(r: 255, g: 100, b: 0, a: alpha))
+    
+    # Draw outer radius circle
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, fireRadius, 
+                   Color(r: 255, g: 80, b: 0, a: 60))
+  
+  # Draw Lightning Aura visual effect
+  if hasPowerUp(game.player, puLightningAura):
+    let level = getPowerUpLevel(game.player, puLightningAura)
+    let lightningRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    # Draw electric arcs
+    let pulse = (sin(game.time * 5.0) * 0.15 + 0.85).float32
+    for arc in 1..2:
+      let arcRadius = lightningRadius * (arc.float32 / 2.0) * pulse
+      let alpha = uint8(40 - arc * 10)
+      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, arcRadius, 
+                     Color(r: 150, g: 200, b: 255, a: alpha))
+    
+    # Draw outer radius circle
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, lightningRadius, 
+                   Color(r: 100, g: 180, b: 255, a: 50))
+  
+  # Draw Poison Aura visual effect
+  if hasPowerUp(game.player, puPoisonAura):
+    let level = getPowerUpLevel(game.player, puPoisonAura)
+    let poisonRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    # Draw toxic cloud rings
+    let pulse = (sin(game.time * 2.5) * 0.25 + 0.75).float32
+    for ring in 1..3:
+      let ringRadius = poisonRadius * (ring.float32 / 3.0) * pulse
+      let alpha = uint8(45 - ring * 10)
+      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius, 
+                     Color(r: 100, g: 255, b: 100, a: alpha))
+    
+    # Draw outer radius circle
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, poisonRadius, 
+                   Color(r: 80, g: 220, b: 80, a: 55))
+  
+  # Draw Wind Aura visual effect
+  if hasPowerUp(game.player, puWindAura):
+    let level = getPowerUpLevel(game.player, puWindAura)
+    let windRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    # Draw swirling wind rings
+    let rotationSpeed = game.time * 2.0
+    for ring in 1..3:
+      let ringRadius = windRadius * (ring.float32 / 3.0)
+      let alpha = uint8(40 - ring * 8)
+      
+      # Draw wind streaks around the ring
+      for streak in 0..11:
+        let baseAngle = (streak.float32 / 12.0) * PI * 2.0 + rotationSpeed * (ring.float32 * 0.5)
+        let x1 = game.player.pos.x + cos(baseAngle) * ringRadius
+        let y1 = game.player.pos.y + sin(baseAngle) * ringRadius
+        let x2 = game.player.pos.x + cos(baseAngle + 0.3) * (ringRadius + 8.0)
+        let y2 = game.player.pos.y + sin(baseAngle + 0.3) * (ringRadius + 8.0)
+        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, 
+                Color(r: 200, g: 230, b: 255, a: alpha))
+    
+    # Draw outer radius circle
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, windRadius, 
+                   Color(r: 180, g: 220, b: 255, a: 50))
   
   # Draw player
   drawPlayer(game.player)

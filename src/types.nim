@@ -82,9 +82,12 @@ type
     puChainLightning,  # Damage chains between enemies
     puFrostShots,      # Bullets slow enemies
     puPoisonDamage,    # Damage over time effect
+    puFireBullets,     # Bullets apply fire damage over time
+    puWindBullets,     # Bullets push enemies backwards
     puFireAura,        # Fire damage over time aura
     puLightningAura,   # Lightning damage that chains between enemies
     puPoisonAura,      # Poison damage over time aura (lower damage, longer duration)
+    puWindAura,        # Pushes enemies away from player
     puTimeWarp,        # Slow down time globally
     puGravityWell,     # Pull enemies toward you
     puPhaseShift,      # Teleport dash through enemies
@@ -227,6 +230,8 @@ type
     hasSplit*: bool
     slowAmount*: float32
     poisonDuration*: float32
+    fireDuration*: float32  # Duration of fire effect applied on hit
+    windPushForce*: float32  # Force to push enemies backwards
     isPentagon*: bool  # Special pentagon-shaped bullets
     hitEnemies*: seq[int]  # Track enemy indices already hit by this bullet
     # New legendary power-up bullet properties
