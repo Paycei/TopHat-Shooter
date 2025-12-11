@@ -1,4 +1,4 @@
-import raylib, types, random, math, wall, bullet, effects, tables
+import raylib, types, random, math, wall, bullet, effects, tables, boss_definitions
 
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy =
   let strengthMultiplier = pow(1.15, difficulty)
@@ -1638,30 +1638,96 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
   
   newEnemy(x, y, difficulty, enemyType)
 
-proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int): Enemy =
-  let bossType = BossType((bossCount - 1) mod 4)
-  let centerX = screenWidth.float32 / 2
-  let centerY = screenHeight.float32 / 2
-  var targetX, targetY, startX, startY: float32
+proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
+  # Check if this should be a custom boss (waves 5-60, every 5 waves)
+  let useCustomBoss = isCustomBoss(waveNumber)
   
-  case bossType
-  of btShooter:
-    targetX = centerX; targetY = centerY - 100
-    startX = centerX; startY = -100
-  of btSummoner:
-    targetX = centerX; targetY = centerY + 100
-    startX = centerX; startY = screenHeight.float32 + 100
-  of btCharger:
-    targetX = centerX - 120; targetY = centerY
-    startX = -100; startY = centerY
-  of btOrbit:
-    targetX = centerX + 120; targetY = centerY
-    startX = screenWidth.float32 + 100; startY = centerY
-  
-  var boss = newBoss(startX, startY, difficulty, bossType)
-  boss.entranceTimer = 2.0
-  boss.targetPos = newVector2f(targetX, targetY)
-  boss
+  if useCustomBoss:
+    # Use custom boss definitions
+    let bossDef = getBossForWave(waveNumber)
+    let centerX = screenWidth.float32 / 2
+    let centerY = screenHeight.float32 / 2
+    var targetX, targetY, startX, startY: float32
+    
+    # Position based on boss ID (varied entrance positions)
+    case (bossDef.bossID - 1) mod 4
+    of 0:  # From top
+      targetX = centerX; targetY = centerY - 80
+      startX = centerX; startY = -100
+    of 1:  # From bottom
+      targetX = centerX; targetY = centerY + 80
+      startX = centerX; startY = screenHeight.float32 + 100
+    of 2:  # From left
+      targetX = centerX - 100; targetY = centerY
+      startX = -100; startY = centerY
+    of 3:  # From right
+      targetX = centerX + 100; targetY = centerY
+      startX = screenWidth.float32 + 100; startY = centerY
+    else:
+      targetX = centerX; targetY = centerY
+      startX = centerX; startY = -100
+    
+    # Create boss with custom stats
+    let scaledHP = getScaledBossHP(bossDef, waveNumber)
+    let scaledSpeed = getScaledBossSpeed(bossDef, waveNumber)
+    let scaledDamage = getScaledBossDamage(bossDef, waveNumber)
+    
+    result = Enemy(
+      pos: newVector2f(startX, startY),
+      vel: newVector2f(0, 0),
+      radius: bossDef.baseRadius,
+      hp: scaledHP,
+      maxHp: scaledHP,
+      speed: scaledSpeed,
+      damage: scaledDamage,
+      color: bossDef.color,
+      enemyType: etCircle,
+      isBoss: true,
+      bossType: BossType((bossDef.bossID - 1) mod 4),  # For compatibility with existing code
+      bossPhase: bpCircle,
+      phaseChangeTimer: 8.0,
+      shootTimer: 0,
+      spawnTimer: 0,
+      dashTimer: 0,
+      hitCount: 0,
+      requiredHits: 0,
+      lastContactDamageTime: 0,
+      teleportTimer: 10.0,
+      shockwaveTimer: 8.0,
+      burstTimer: 0.5,
+      lastWallDamageTime: 0,
+      entranceTimer: 2.5,
+      targetPos: newVector2f(targetX, targetY),
+      attackWarningTimer: 0,
+      attackExecuteTimer: 0,
+      attackPhase: 0,
+      activeEffects: initTable[ElementType, ActiveEffect]()
+    )
+  else:
+    # Fall back to old boss system (for non-boss waves or after wave 60+)
+    let bossType = BossType((bossCount - 1) mod 4)
+    let centerX = screenWidth.float32 / 2
+    let centerY = screenHeight.float32 / 2
+    var targetX, targetY, startX, startY: float32
+    
+    case bossType
+    of btShooter:
+      targetX = centerX; targetY = centerY - 100
+      startX = centerX; startY = -100
+    of btSummoner:
+      targetX = centerX; targetY = centerY + 100
+      startX = centerX; startY = screenHeight.float32 + 100
+    of btCharger:
+      targetX = centerX - 120; targetY = centerY
+      startX = -100; startY = centerY
+    of btOrbit:
+      targetX = centerX + 120; targetY = centerY
+      startX = screenWidth.float32 + 100; startY = centerY
+    
+    var boss = newBoss(startX, startY, difficulty, bossType)
+    boss.entranceTimer = 2.0
+    boss.targetPos = newVector2f(targetX, targetY)
+    result = boss
 
 proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   ## Converts a regular enemy into an elite with enhanced stats and special abilities

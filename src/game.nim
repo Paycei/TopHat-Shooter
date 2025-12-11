@@ -99,16 +99,19 @@ proc startWave*(game: Game) =
   game.waveEnemiesRemaining = waveEnemyCount
   game.spawnTimer = 0
   
-  # PLAYER SCALING: Tiny progressive stat increases per wave
-  # Very small scaling (0.001-0.002 per wave) to keep player slightly ahead
-  let waveScaling = 1.0 + (game.currentWave.float32 * 0.0015)  # 0.15% per wave
+  # PLAYER SCALING: Multiply current stats by 1.25% per wave (preserves shop purchases and power-ups)
+  # This applies scaling multiplicatively to whatever stats the player has built up
+  let waveScaling = 1.0125  # 1.25% increase per wave
   
-  # Apply scaling to base stats (scales with original values, not current)
-  game.player.maxHp = 7.0 * waveScaling
-  game.player.hp = min(game.player.hp, game.player.maxHp)  # Don't reduce HP if already higher
-  game.player.damage = 1.0 * waveScaling
-  game.player.speed = 175.0 * waveScaling
-  game.player.baseSpeed = 175.0 * waveScaling
+  # Apply multiplicative scaling to current stats (preserves all upgrades)
+  game.player.maxHp *= waveScaling
+  game.player.hp = min(game.player.hp * waveScaling, game.player.maxHp)  # Scale current HP but cap at maxHp
+  game.player.damage *= waveScaling
+  game.player.speed *= waveScaling
+  game.player.baseSpeed *= waveScaling
+  game.player.bulletSpeed *= waveScaling
+  # Fire rate gets faster (lower number = faster), so we divide instead of multiply
+  game.player.fireRate /= waveScaling
   
   # Reset all active ability cooldowns for new wave
   game.player.timeWarpUsesThisWave = 0
@@ -1368,7 +1371,7 @@ proc updateGame*(game: var Game, dt: float32) =
       # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
       let bossDifficulty = (game.currentWave - 1).float32 / 3.0
       game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, 
-                                bossDifficulty, game.bossCount))
+                                bossDifficulty, game.bossCount, game.currentWave))
       game.bossActive = true
       game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
       # Don't reset wavesUntilBoss here - it will be reset when boss coin is collected
@@ -1439,7 +1442,7 @@ proc updateGame*(game: var Game, dt: float32) =
     # Boss spawn every 60 seconds
     if game.time >= game.bossTimer and not game.bossActive:
       game.bossCount += 1
-      game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, game.difficulty, game.bossCount))
+      game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, game.difficulty, game.bossCount, game.currentWave))
       game.bossTimer += 60.0
       game.bossActive = true
       game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay

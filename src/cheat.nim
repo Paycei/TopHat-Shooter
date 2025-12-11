@@ -172,10 +172,35 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   # This ensures stat modifications from the removed power-up are undone
   game.player.baseSpeed = 175.0  # Changed from 200.0 to match newPlayer
   game.player.fireRate = 0.415   # Changed from 0.15 to match newPlayer
-  game.player.damage = 1.0       # Changed from 5.0 to match newPlayer
+  game.player.damage = 1.0       # Base damage before shop purchases
   game.player.bulletSpeed = 300.0  # Changed from 600.0 to match newPlayer
-  game.player.maxHp = 7.0        # Changed from 100.0 to match newPlayer
+  game.player.maxHp = 7.0        # Base max HP before shop purchases
   game.player.hp = min(game.player.hp, game.player.maxHp)
+  
+  # Reapply shop purchases for damage, health, speed, fire rate, and bullet speed
+  # This ensures shop-bought stats are preserved when removing power-ups
+  for i in 0..<game.shopItems[0].bought:  # Damage purchases
+    game.player.damage += 0.25 * pow(1.0375, (i + 1).float32)
+  
+  for i in 0..<game.shopItems[2].bought:  # Move speed purchases
+    game.player.speed += 12
+    game.player.baseSpeed += 12
+  
+  for i in 0..<game.shopItems[3].bought:  # Max health purchases
+    game.player.maxHp += 2
+  game.player.hp = min(game.player.hp, game.player.maxHp)
+  
+  for i in 0..<game.shopItems[4].bought:  # Bullet speed purchases
+    game.player.bulletSpeed += 10
+  
+  # Fire rate needs special handling due to diminishing returns
+  for i in 0..<game.shopItems[1].bought:
+    let currentRate = game.player.fireRate
+    let scalingFactor = 0.025
+    let diminishingFactor = pow(currentRate / 0.415, 0.6)
+    let effectiveReduction = currentRate * scalingFactor * diminishingFactor
+    game.player.fireRate -= effectiveReduction
+    if game.player.fireRate < 0.07: game.player.fireRate = 0.07
   
   # Reapply all remaining power-ups
   for powerUp in game.player.powerUps:
