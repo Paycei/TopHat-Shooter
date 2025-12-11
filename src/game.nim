@@ -72,7 +72,11 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     waveEnemiesTotal: 0,
     waveInProgress: false,
     # Cheat tracking
-    cheatsUsed: false  # Reset to false at start of each run
+    cheatsUsed: false,  # Reset to false at start of each run
+    # Mouse tracking for menu navigation
+    lastMousePos: newVector2f(0, 0),
+    mouseMovedRecently: false,
+    keyboardUsedRecently: false
   )
 
 proc calculateWaveEnemyCount(waveNumber: int): int =

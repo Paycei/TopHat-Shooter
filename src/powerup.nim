@@ -1,4 +1,4 @@
-import raylib, types, random, math, strutils
+import raylib, types, random, math, strutils, settings
 
 proc getPowerUpName*(powerType: PowerUpType): string =
   case powerType
@@ -839,8 +839,8 @@ proc drawPowerUpSelection*(game: Game) =
   let startX = (screenWidth - totalWidth) div 2
   let cardY = if isLegendary: 160 else: 180
   
-  # Mouse hover detection (only when selection is enabled)
-  if game.canSelectPowerUp:
+  # Mouse hover detection (ONLY when selection enabled AND mouse support enabled AND mouse moved recently AND keyboard NOT used recently)
+  if game.canSelectPowerUp and globalSettings.mouseSupport and game.mouseMovedRecently and not game.keyboardUsedRecently:
     let mousePos = getMousePosition()
     for i in 0..2:
       let cardX = startX + i * (cardWidth + spacing)
@@ -917,8 +917,8 @@ proc drawPowerUpSelection*(game: Game) =
   let coinText = "Coins: " & $game.player.coins
   drawText(coinText, screenWidth div 2 - 60, screenHeight - 55, 22, Gold)
   
-  # Draw custom cursor only if system cursor is hidden
-  if not isCursorOnScreen():
+  # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
+  if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
     let mousePos = getMousePosition()
     let cursorPulse = sin(game.time * 8.0) * 2 + 8
     

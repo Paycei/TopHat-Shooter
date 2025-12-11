@@ -326,6 +326,10 @@ type
     waveInProgress*: bool
     # Cheat tracking
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
+    # Mouse tracking for menu navigation
+    lastMousePos*: Vector2f  # Track mouse position to detect movement
+    mouseMovedRecently*: bool  # True if mouse has moved since last keyboard input
+    keyboardUsedRecently*: bool  # True if keyboard was just used (disables mouse temporarily)
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

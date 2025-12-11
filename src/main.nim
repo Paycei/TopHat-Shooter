@@ -4,6 +4,27 @@ const
   screenWidth = 1024
   screenHeight = 768
   targetFPS = 60
+  MOUSE_MOVEMENT_THRESHOLD = 2.0  # Minimum pixel movement to count as "mouse moved"
+
+proc hasMouseMoved*(game: Game): bool =
+  ## Detects if mouse has actually moved (not just hovering)
+  let currentPos = getMousePosition()
+  let dx = abs(currentPos.x - game.lastMousePos.x)
+  let dy = abs(currentPos.y - game.lastMousePos.y)
+  result = (dx > MOUSE_MOVEMENT_THRESHOLD or dy > MOUSE_MOVEMENT_THRESHOLD)
+
+proc updateMouseTracking*(game: Game) =
+  ## Updates mouse position tracking and resets keyboard flag if mouse moved
+  let currentPos = getMousePosition()
+  if hasMouseMoved(game):
+    game.mouseMovedRecently = true
+    game.keyboardUsedRecently = false
+  game.lastMousePos = newVector2f(currentPos.x, currentPos.y)
+
+proc markKeyboardUsed*(game: Game) =
+  ## Marks that keyboard was just used, disabling mouse selection temporarily
+  game.keyboardUsedRecently = true
+  game.mouseMovedRecently = false
 
 proc drawCustomCursor*(time: float32) =
   ## Draw custom crosshair cursor (only when system cursor is hidden)
@@ -26,6 +47,9 @@ proc drawCustomCursor*(time: float32) =
           Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
   drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
           Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
+  
+  # Center dot
+  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
   
   # Center dot
   drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
@@ -91,8 +115,8 @@ proc drawMenu(game: Game) =
   
   let menuItems = ["Play", "Survival Mode", "Settings", "Help", "Quit"]
   
-  # Mouse hover detection (only if mouse support is enabled)
-  if globalSettings.mouseSupport:
+  # Mouse hover detection (ONLY if mouse moved recently AND mouse support enabled AND keyboard NOT used recently)
+  if globalSettings.mouseSupport and game.mouseMovedRecently and not game.keyboardUsedRecently:
     let mousePos = getMousePosition()
     for i in 0..<menuItems.len:
       let y = startY + i * spacing
@@ -122,8 +146,8 @@ proc drawMenu(game: Game) =
     
     drawText(text, screenWidth div 2 - textWidth div 2, y.int32, 32, color)
   
-  # Draw custom cursor only if system cursor is hidden
-  if not isCursorOnScreen():
+  # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
+  if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
     drawCustomCursor(game.time)
 
 proc drawHelp(game: Game) =
@@ -162,8 +186,8 @@ proc drawHelp(game: Game) =
   
   drawText("Press ESC to return", screenWidth div 2 - 130, screenHeight - 60, 20, LightGray)
   
-  # Draw custom cursor only if system cursor is hidden
-  if not isCursorOnScreen():
+  # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
+  if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
     drawCustomCursor(game.time)
 proc main() =
   randomize()
@@ -197,22 +221,8 @@ proc main() =
       settings.fullscreen = not settings.fullscreen
       toggleFullscreen()
     
-    # Control cursor visibility based on game state and settings
-    case currentGame.state
-    of gsMenu, gsHelp, gsShop, gsPowerUpSelect:
-      # In menu states, mouse support setting determines cursor behavior
-      if settings.mouseSupport:
-        showCursor()
-      else:
-        hideCursor()
-    of gsSettings:
-      # Always show cursor in settings (needed for interaction)
-      showCursor()
-    of gsPlaying, gsPaused, gsWaveCleared, gsCountdown, gsGameOver:
-      # Always hide cursor during gameplay (custom cursor used)
-      hideCursor()
-    else:
-      hideCursor()
+    # ALWAYS hide system cursor - we always use custom cursor
+    hideCursor()
     
     case currentGame.state
     of gsMenu:
@@ -222,18 +232,23 @@ proc main() =
       # Update time for menu animations
       currentGame.time += dt
       
-      # Menu navigation
+      # Update mouse tracking
+      updateMouseTracking(currentGame)
+      
+      # Menu navigation - keyboard has priority
       if isKeyPressed(Down) or isKeyPressed(S):
         currentGame.menuSelection = (currentGame.menuSelection + 1) mod 5
         playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
       if isKeyPressed(Up) or isKeyPressed(W):
         currentGame.menuSelection = (currentGame.menuSelection - 1 + 5) mod 5
         playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
       
       if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
-        # For mouse clicks, verify we're clicking on a menu item (only if mouse support enabled)
+        # For mouse clicks, verify we're clicking on a menu item (only if mouse support enabled AND mouse moved recently)
         var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-        if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport:
+        if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport and currentGame.mouseMovedRecently:
           let mousePos = getMousePosition()
           let startY = 360
           let spacing = 65
@@ -443,17 +458,22 @@ proc main() =
       # Play power-up music in shop
       playMusic(mtPowerUp)
       
+      # Update mouse tracking
+      updateMouseTracking(currentGame)
+      
       # Navigate shop with keyboard
       if isKeyPressed(Down) or isKeyPressed(S):
         currentGame.selectedShopItem = (currentGame.selectedShopItem + 1) mod 6
+        markKeyboardUsed(currentGame)
       if isKeyPressed(Up) or isKeyPressed(W):
         currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + 6) mod 6
+        markKeyboardUsed(currentGame)
       
       # Buy item with keyboard or mouse
       if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
-        # For mouse clicks, verify we're clicking on a shop item (only if mouse support enabled)
+        # For mouse clicks, verify we're clicking on a shop item (only if mouse support enabled AND mouse moved recently)
         var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-        if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport:
+        if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport and currentGame.mouseMovedRecently:
           let mousePos = getMousePosition()
           let shopStartX = currentGame.screenWidth div 2 - 200
           let startY = 120
@@ -639,19 +659,24 @@ proc main() =
       # Update roll animation
       updatePowerUpRollAnimation(currentGame, dt)
       
+      # Update mouse tracking
+      updateMouseTracking(currentGame)
+      
       # Only allow input after animation completes
       if currentGame.canSelectPowerUp:
         # Navigate power-up choices with keyboard
         if isKeyPressed(Left) or isKeyPressed(A):
           currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3
+          markKeyboardUsed(currentGame)
         if isKeyPressed(Right) or isKeyPressed(D):
           currentGame.selectedPowerUp = (currentGame.selectedPowerUp + 1) mod 3
+          markKeyboardUsed(currentGame)
         
         # Select power-up with keyboard or mouse
         if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
-          # For mouse clicks, verify we're clicking on a card (only if mouse support enabled)
+          # For mouse clicks, verify we're clicking on a card (only if mouse support enabled AND mouse moved recently)
           var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-          if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport:
+          if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport and currentGame.mouseMovedRecently:
             let mousePos = getMousePosition()
             let cardWidth = 200
             let cardHeight = 240

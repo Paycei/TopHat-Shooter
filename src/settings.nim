@@ -10,6 +10,7 @@ type
     fullscreen*: bool
     showFPS*: bool  # New setting to show FPS counter
     mouseSupport*: bool  # Enable mouse support in menus (always works in-game and settings)
+    showCursorInMenus*: bool  # Show cursor in menus when mouseSupport is disabled
 
 var globalSettings*: Settings
 
@@ -22,7 +23,8 @@ proc initSettings*(): Settings =
     editingFPS: false,
     fullscreen: false,
     showFPS: false,  # FPS counter disabled by default
-    mouseSupport: true  # Mouse support enabled by default
+    mouseSupport: true,  # Mouse support enabled by default
+    showCursorInMenus: true  # Show cursor in menus by default
   )
   globalSettings = result
 
@@ -187,34 +189,54 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   
   drawText("(enable for menu navigation)", mouseCheckboxX + checkboxSize + 20, mouseSupportY, 20, LightGray)
   
+  # Show Cursor in Menus Setting (only visible when mouseSupport is disabled)
+  if not settings.mouseSupport:
+    let showCursorY: int32 = 680
+    drawText("Show Cursor in Menus:", 200'i32, showCursorY, 24, White)
+    
+    # Show Cursor checkbox
+    let cursorCheckboxX: int32 = 400
+    let cursorCheckboxY: int32 = showCursorY + 5
+    
+    drawRectangle(cursorCheckboxX, cursorCheckboxY, checkboxSize, checkboxSize, checkboxColor)
+    drawRectangleLines(cursorCheckboxX, cursorCheckboxY, checkboxSize, checkboxSize, Gray)
+    
+    # Draw checkmark if show cursor is enabled
+    if settings.showCursorInMenus:
+      drawLine(Vector2(x: (cursorCheckboxX + 5).float32, y: (cursorCheckboxY + 12).float32),
+              Vector2(x: (cursorCheckboxX + 12).float32, y: (cursorCheckboxY + 20).float32), 3, Green)
+      drawLine(Vector2(x: (cursorCheckboxX + 12).float32, y: (cursorCheckboxY + 20).float32),
+              Vector2(x: (cursorCheckboxX + 22).float32, y: (cursorCheckboxY + 5).float32), 3, Green)
+    
+    drawText("(visual only, no interaction)", cursorCheckboxX + checkboxSize + 20, showCursorY, 20, LightGray)
+  
   # Back instruction
   drawText("Press ESC to return to menu", screenWidth div 2 - 180, 
           screenHeight - 80, 20, LightGray)
   
-  # Draw custom cursor only if system cursor is hidden
-  if not isCursorOnScreen():
-    let mousePos = getMousePosition()
-    let cursorPulse = sin(time * 8.0) * 2 + 8
-    
-    # Outer rotating ring
-    for i in 0..<8:
-      let angle = time * 4.0 + i.float32 * PI / 4.0
-      let x = mousePos.x + cos(angle) * cursorPulse
-      let y = mousePos.y + sin(angle) * cursorPulse
-      drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
-    
-    # Crosshair lines
-    drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
-            Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
-    drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
-            Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
-    drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
-            Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
-    drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
-            Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
-    
-    # Center dot
-    drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
+  # ALWAYS draw custom cursor (never show system cursor)
+  let mousePos = getMousePosition()
+  let cursorPulse = sin(time * 8.0) * 2 + 8
+  
+  # Outer rotating ring
+  for i in 0..<8:
+    let angle = time * 4.0 + i.float32 * PI / 4.0
+    let x = mousePos.x + cos(angle) * cursorPulse
+    let y = mousePos.y + sin(angle) * cursorPulse
+    drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
+  
+  # Crosshair lines
+  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
+          Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
+  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
+          Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
+          Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
+          Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
+  
+  # Center dot
+  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
 
 proc updateSettings*(settings: Settings) =
   # Handle FPS input box click
@@ -289,6 +311,7 @@ proc updateSettings*(settings: Settings) =
     let checkboxSize: int32 = 25
     let fpsCheckboxY: int32 = 545  # Updated from 495 to match new showFPSY (540+5)
     let mouseCheckboxY: int32 = 615  # New mouseSupportY (610+5)
+    let cursorCheckboxY: int32 = 685  # New showCursorY (680+5)
     
     let mousePos = getMousePosition()
     
@@ -310,6 +333,13 @@ proc updateSettings*(settings: Settings) =
        mousePos.y >= mouseCheckboxY.float32 and mousePos.y <= (mouseCheckboxY + checkboxSize).float32:
       settings.mouseSupport = not settings.mouseSupport
       playSound(stMenuNav)
+    
+    # Show Cursor in Menus checkbox (only when mouseSupport is disabled)
+    if not settings.mouseSupport:
+      if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
+         mousePos.y >= cursorCheckboxY.float32 and mousePos.y <= (cursorCheckboxY + checkboxSize).float32:
+        settings.showCursorInMenus = not settings.showCursorInMenus
+        playSound(stMenuNav)
 
 proc applySettings*(settings: Settings) =
   setTargetFPS(settings.fpsLimit)

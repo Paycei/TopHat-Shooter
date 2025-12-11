@@ -1,4 +1,4 @@
-import raylib, types, math, powerup, sound
+import raylib, types, math, powerup, sound, settings
 
 proc initShopItems*(): array[6, ShopItem] =
   result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 8, bought: 0)
@@ -61,18 +61,22 @@ proc drawShop*(game: Game) =
   let startY = 120
   let itemHeight = 70
   
-  # Mouse hover detection
-  let mousePos = getMousePosition()
+  # Mouse hover detection (ONLY if mouse support enabled AND mouse moved recently AND keyboard NOT used recently)
+  if globalSettings.mouseSupport and game.mouseMovedRecently and not game.keyboardUsedRecently:
+    let mousePos = getMousePosition()
+    
+    for i in 0..5:
+      let y = startY + i * itemHeight
+      
+      # Check if mouse is hovering over this item
+      if mousePos.x >= shopStartX.float32 and mousePos.x <= (shopStartX + 400).float32 and
+         mousePos.y >= y.float32 and mousePos.y <= (y + 60).float32:
+        game.selectedShopItem = i
   
   for i in 0..5:
     let y = startY + i * itemHeight
     let item = game.shopItems[i]
     let cost = getCurrentCost(item)
-    
-    # Check if mouse is hovering over this item
-    if mousePos.x >= shopStartX.float32 and mousePos.x <= (shopStartX + 400).float32 and
-       mousePos.y >= y.float32 and mousePos.y <= (y + 60).float32:
-      game.selectedShopItem = i
     
     # Draw selection pointer (left of selected item)
     if i == game.selectedShopItem:
@@ -101,8 +105,8 @@ proc drawShop*(game: Game) =
   drawText("W/S or ARROW KEYS: select | MOUSE: hover/click | ENTER: buy | ESC: continue", 
           screenWidth div 2 - 350, screenHeight - 50, 18, LightGray)
   
-  # Draw custom cursor only if system cursor is hidden
-  if not isCursorOnScreen():
+  # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
+  if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
     let mousePos = getMousePosition()
     let time = getTime()
     let cursorPulse = sin(time * 8.0) * 2 + 8
