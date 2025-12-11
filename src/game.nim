@@ -343,7 +343,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let hasRicochet = hasPowerUp(game.player, puBulletRicochet)
     let hasSplit = hasPowerUp(game.player, puBulletSplit)
     let hasFrost = hasPowerUp(game.player, puFrostShots)
-    let hasPoison = hasPowerUp(game.player, puPoisonDamage)
+    let hasPoison = hasPowerUp(game.player, puPoisonShot)
     let hasFire = hasPowerUp(game.player, puFireBullets)
     let hasMagic = hasPowerUp(game.player, puMagicBullets)
     
@@ -397,17 +397,19 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         of 2: 0.4
         else: 0.6
     if hasPoison:
-      let poisonLevel = getPowerUpLevel(game.player, puPoisonDamage)
+      let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
+      let poisonBaseScaling = game.player.damage * 0.1
       poisonEffect = case poisonLevel
-        of 1: 4.0
-        of 2: 5.0
-        else: 6.0
+        of 1: 1.0 + poisonBaseScaling
+        of 2: 1.5 + poisonBaseScaling
+        else: 2.0 + poisonBaseScaling
     if hasFire:
       let fireLevel = getPowerUpLevel(game.player, puFireBullets)
+      let fireBaseScaling = game.player.damage * 0.1
       fireEffect = case fireLevel
-        of 1: 2.0
-        of 2: 3.0
-        else: 4.0
+        of 1: 0.5 + fireBaseScaling
+        of 2: 1.0 + fireBaseScaling
+        else: 1.5 + fireBaseScaling
     
     # Wind bullets push effect
     if hasPowerUp(game.player, puWindBullets):
@@ -565,7 +567,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let hasRicochet = hasPowerUp(game.player, puBulletRicochet)
   let hasSplit = hasPowerUp(game.player, puBulletSplit)
   let hasFrost = hasPowerUp(game.player, puFrostShots)
-  let hasPoison = hasPowerUp(game.player, puPoisonDamage)
+  let hasPoison = hasPowerUp(game.player, puPoisonShot)
   let hasFire = hasPowerUp(game.player, puFireBullets)
   let hasMagic = hasPowerUp(game.player, puMagicBullets)
   
@@ -602,17 +604,19 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       of 2: 0.4
       else: 0.6
   if hasPoison:
-    let poisonLevel = getPowerUpLevel(game.player, puPoisonDamage)
+    let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
+    let poisonBaseScaling = game.player.damage * 0.1
     poisonEffect = case poisonLevel
-      of 1: 4.0
-      of 2: 5.0
-      else: 6.0
+      of 1: 1.0 + poisonBaseScaling
+      of 2: 1.5 + poisonBaseScaling
+      else: 2.0 + poisonBaseScaling
   if hasFire:
     let fireLevel = getPowerUpLevel(game.player, puFireBullets)
+    let fireBaseScaling = game.player.damage * 0.1
     fireEffect = case fireLevel
-      of 1: 2.0
-      of 2: 3.0
-      else: 4.0
+      of 1: 0.5 + fireBaseScaling
+      of 2: 1.0 + fireBaseScaling
+      else: 1.5 + fireBaseScaling
   if hasPowerUp(game.player, puWindBullets):
     let windLevel = getPowerUpLevel(game.player, puWindBullets)
     windEffect = case windLevel
@@ -813,10 +817,11 @@ proc updateGame*(game: var Game, dt: float32) =
   # Fire Aura power-up effect - applies burning damage over time
   if hasPowerUp(game.player, puFireAura):
     let level = getPowerUpLevel(game.player, puFireAura)
+    let damageScaling = game.player.damage * 0.1
     let fireDamagePerSec = case level
-      of 1: 1.5
-      of 2: 3.0
-      else: 6.0
+      of 1: 0.5 + damageScaling
+      of 2: 1.0 + damageScaling
+      else: 1.5 + damageScaling
     let fireDuration = case level
       of 1: 2.0
       of 2: 3.0
@@ -865,10 +870,11 @@ proc updateGame*(game: var Game, dt: float32) =
   # Lightning Aura power-up effect - low damage with chain lightning
   if hasPowerUp(game.player, puLightningAura):
     let level = getPowerUpLevel(game.player, puLightningAura)
+    let damageScaling = game.player.damage * 0.1
     let lightningDamagePerSec = case level
-      of 1: 0.8
-      of 2: 1.6
-      else: 3.2
+      of 1: 0.3 + damageScaling
+      of 2: 0.6 + damageScaling
+      else: 1.0 + damageScaling
     let maxChains = case level
       of 1: 1
       of 2: 2
@@ -945,10 +951,11 @@ proc updateGame*(game: var Game, dt: float32) =
   # Magic Aura power-up effect - pure arcane damage
   if hasPowerUp(game.player, puMagicAura):
     let level = getPowerUpLevel(game.player, puMagicAura)
+    let damageScaling = game.player.damage * 0.1
     let magicDamagePerSec = case level
-      of 1: 2.0
-      of 2: 4.0
-      else: 8.0
+      of 1: 0.5 + damageScaling
+      of 2: 1.0 + damageScaling
+      else: 1.5 + damageScaling
     let magicRadius = case level
       of 1: 120.0
       of 2: 160.0
@@ -972,10 +979,11 @@ proc updateGame*(game: var Game, dt: float32) =
   # Poison Aura power-up effect - low damage, longer duration
   if hasPowerUp(game.player, puPoisonAura):
     let level = getPowerUpLevel(game.player, puPoisonAura)
+    let damageScaling = game.player.damage * 0.1
     let poisonDamagePerSec = case level
-      of 1: 0.6
-      of 2: 1.2
-      else: 2.4
+      of 1: 0.2 + damageScaling
+      of 2: 0.4 + damageScaling
+      else: 0.6 + damageScaling
     let poisonDuration = case level
       of 1: 6.0
       of 2: 8.0
@@ -1107,9 +1115,12 @@ proc updateGame*(game: var Game, dt: float32) =
      hasPowerUp(game.player, puWindOrb) or 
      hasPowerUp(game.player, puFrostOrb):
     
-    # Calculate base damage (2.0 for legendary, element-specific for individual)
+    # Calculate base damage (NERFED: 1.0 for legendary, element-specific for individual)
+    # Add small damage scaling from player's damage stat (10% of player damage)
+    let damageScaling = game.player.damage * 0.1
+    
     let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
-      2.0  # Legendary version has fixed damage
+      1.0 + damageScaling  # Legendary version has fixed damage + scaling
     else:
       # For individual orbs, use level-based damage
       var maxDamage = 0.0
@@ -1123,7 +1134,7 @@ proc updateGame*(game: var Game, dt: float32) =
         maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puWindOrb)))
       if hasPowerUp(game.player, puFrostOrb):
         maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puFrostOrb)))
-      maxDamage
+      maxDamage + damageScaling
     
     let orbRadius = 6.0  # Size of each orb hitbox
     
@@ -1162,9 +1173,10 @@ proc updateGame*(game: var Game, dt: float32) =
             # Apply element-specific effects
             case orb.elementType
             of etPoison:
-              # Poison: 1 dmg/sec for 4 seconds + 5% slow
+              # Poison: 0.3 dmg/sec for 4 seconds + 5% slow (NERFED base, scaled with player damage)
+              let poisonDamageScaling = game.player.damage * 0.1
               enemy.poisonTimer = 4.0
-              enemy.poisonDamage = 1.0
+              enemy.poisonDamage = 0.3 + poisonDamageScaling
               enemy.slowTimer = 0.2
               if enemy.slowAmount < 0.05:
                 enemy.slowAmount = 0.05
@@ -1173,9 +1185,10 @@ proc updateGame*(game: var Game, dt: float32) =
                            Color(r: 100, g: 255, b: 100, a: 255), 5)
             
             of etFire:
-              # Fire: 1.5 dmg/sec for 2 seconds + 5% slow
+              # Fire: 0.4 dmg/sec for 2 seconds + 5% slow (NERFED base, scaled with player damage)
+              let fireDamageScaling = game.player.damage * 0.1
               enemy.fireTimer = 2.0
-              enemy.fireDamage = 1.5
+              enemy.fireDamage = 0.4 + fireDamageScaling
               enemy.slowTimer = 0.2
               if enemy.slowAmount < 0.05:
                 enemy.slowAmount = 0.05
@@ -2184,12 +2197,13 @@ proc updateGame*(game: var Game, dt: float32) =
             game.enemies[j].slowAmount = bullet.slowAmount
           
           # Apply poison damage over time
-          if bullet.poisonDuration > 0 and hasPowerUp(game.player, puPoisonDamage):
-            let poisonLevel = getPowerUpLevel(game.player, puPoisonDamage)
+          if bullet.poisonDuration > 0 and hasPowerUp(game.player, puPoisonShot):
+            let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
+            let poisonBaseScaling = game.player.damage * 0.1
             let poisonDmg = case poisonLevel
-              of 1: 1.0
-              of 2: 2.0
-              else: 4.0
+              of 1: 1.0 + poisonBaseScaling
+              of 2: 1.5 + poisonBaseScaling
+              else: 2.0 + poisonBaseScaling
             game.enemies[j].poisonTimer = bullet.poisonDuration
             game.enemies[j].poisonDamage = poisonDmg
             # Poison bullets also slow enemies by 5%
@@ -2199,10 +2213,11 @@ proc updateGame*(game: var Game, dt: float32) =
           # Apply fire damage over time
           if bullet.fireDuration > 0 and hasPowerUp(game.player, puFireBullets):
             let fireLevel = getPowerUpLevel(game.player, puFireBullets)
+            let fireBaseScaling = game.player.damage * 0.1
             let fireDmg = case fireLevel
-              of 1: 1.5
-              of 2: 3.0
-              else: 6.0
+              of 1: 0.5 + fireBaseScaling
+              of 2: 1.0 + fireBaseScaling
+              else: 1.5 + fireBaseScaling
             game.enemies[j].fireTimer = bullet.fireDuration
             game.enemies[j].fireDamage = fireDmg
             # Fire bullets also slow enemies by 5%

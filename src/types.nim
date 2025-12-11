@@ -81,7 +81,7 @@ type
     puBulletSplit,     # Bullets split on impact
     puChainLightning,  # Damage chains between enemies
     puFrostShots,      # Bullets slow enemies
-    puPoisonDamage,    # Damage over time effect
+    puPoisonShot,      # Poison bullets that apply DoT effect
     puFireBullets,     # Bullets apply fire damage over time
     puWindBullets,     # Bullets push enemies backwards
     puFireAura,        # Fire damage over time aura

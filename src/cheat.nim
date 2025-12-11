@@ -593,10 +593,10 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puSpeedBoost, puBulletDamage, puBulletSpeed, puLuckyCoins, puWallMaster,
     puAutoShoot, puBulletSize, puRegeneration, puDodgeChance, puCriticalHit,
     puVampirism, puBulletRicochet, puSlowField, puRage, puBerserker,
-    puThorns, puBulletSplit, puChainLightning, puFrostShots, puPoisonDamage,
+    puThorns, puBulletSplit, puChainLightning, puFrostShots, puPoisonShot,
     puFireBullets, puWindBullets, puFireAura, puLightningAura, puPoisonAura, puWindAura,
     puTimeWarp, puGravityWell, puPhaseShift, puOvercharge, puEchoShots,
-    puRotatingOrbs, puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puMagicOrb,
+    puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puMagicOrb,
     puMagicBullets, puMagicAura
   ]
   

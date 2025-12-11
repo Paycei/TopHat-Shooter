@@ -31,7 +31,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puBulletSplit: "Split Shot"
   of puChainLightning: "Chain Lightning"
   of puFrostShots: "Frost Shots"
-  of puPoisonDamage: "Poison"
+  of puPoisonShot: "Poison Shots"
   of puFireBullets: "Fire Bullets"
   of puWindBullets: "Wind Bullets"
   of puFireAura: "Fire Aura"
@@ -188,16 +188,16 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "Bullets slow enemies 25% (permanent)"
     of 2: "Bullets slow enemies 40% (permanent)"
     else: "Bullets slow enemies 60% (permanent)"
-  of puPoisonDamage:
+  of puPoisonShot:
     case level
-    of 1: "Bullets poison (1 dmg/s, 4s, 5% slow)"
-    of 2: "Bullets poison (2 dmg/s, 5s, 5% slow)"
-    else: "Bullets poison (4 dmg/s, 6s, 5% slow)"
+    of 1: "Bullets poison (0.5 dmg/s, 4s, 5% slow)"
+    of 2: "Bullets poison (1 dmg/s, 5s, 5% slow)"
+    else: "Bullets poison (2 dmg/s, 6s, 5% slow)"
   of puFireBullets:
     case level
-    of 1: "Bullets burn (1.5 dmg/s, 2s, 5% slow)"
-    of 2: "Bullets burn (3 dmg/s, 3s, 5% slow)"
-    else: "Bullets burn (6 dmg/s, 4s, 5% slow)"
+    of 1: "Bullets burn (0.3 dmg/s, 2s, 5% slow)"
+    of 2: "Bullets burn (0.75 dmg/s, 3s, 5% slow)"
+    else: "Bullets burn (1.5 dmg/s, 4s, 5% slow)"
   of puWindBullets:
     case level
     of 1: "Bullets knock back enemies (weak push)"
@@ -247,14 +247,14 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "All 5 elemental orbs (2 dmg/hit)"
   of puPoisonOrb:
     case level
-    of 1: "1 poison orb (1 dmg/hit, DoT)"
-    of 2: "2 poison orbs (1.5 dmg/hit, DoT)"
-    else: "3 poison orbs (2 dmg/hit, DoT)"
+    of 1: "1 poison orb (0.3 dmg/s, DoT, scales)"
+    of 2: "2 poison orbs (0.3 dmg/s, DoT, scales)"
+    else: "3 poison orbs (0.3 dmg/s, DoT, scales)"
   of puFireOrb:
     case level
-    of 1: "1 fire orb (1 dmg/hit, DoT)"
-    of 2: "2 fire orbs (1.5 dmg/hit, DoT)"
-    else: "3 fire orbs (2 dmg/hit, DoT)"
+    of 1: "1 fire orb (0.4 dmg/s, DoT, scales)"
+    of 2: "2 fire orbs (0.4 dmg/s, DoT, scales)"
+    else: "3 fire orbs (0.4 dmg/s, DoT, scales)"
   of puLightningOrb:
     case level
     of 1: "1 lightning orb (1.5 dmg/hit)"
@@ -306,7 +306,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   # All legendary active abilities are SINGLE LEVEL ONLY
   let legendaryOnlyTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
                             puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
-                            puGravityWell, puPhaseShift, puOvercharge, puEchoShots, puMultiShot]
+                            puGravityWell, puPhaseShift, puOvercharge, puEchoShots, puMultiShot,
+                            puRotatingOrbs]
   
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
   let normalOnlyTypes = [puDoubleShot, puRotatingShield, puDamageZone, puHomingBullets,
@@ -314,8 +315,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
                          puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                          puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
                          puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
-                         puFrostShots, puPoisonDamage, puFireBullets, puWindBullets,
-                         puFireAura, puLightningAura, puPoisonAura, puWindAura, puRotatingOrbs,
+                         puFrostShots, puPoisonShot, puFireBullets, puWindBullets,
+                         puFireAura, puLightningAura, puPoisonAura, puWindAura,
                          puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puMagicOrb,
                          puMagicBullets, puMagicAura]
   
@@ -468,11 +469,11 @@ proc getElementColor*(elementType: ElementType): Color =
   of etNone: White
 
 proc getElementDamage*(level: int): float32 =
-  ## Get base damage per hit based on power-up level
+  ## Get base damage per hit based on power-up level (NERFED)
   case level
-  of 1: 1.5
-  of 2: 2.0
-  else: 2.5
+  of 1: 0.5
+  of 2: 0.75
+  else: 1.0
 
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   # Apply immediate stat bonuses for new powerup types
@@ -858,7 +859,7 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       let x = centerX.float32 + cos(angle) * dist
       let y = iconY.float32 + sin(angle) * dist
       drawCircle(Vector2(x: x, y: y), 3, Color(r: 200, g: 230, b: 255, a: 255))
-  of puPoisonDamage:
+  of puPoisonShot:
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 10, Green)
     for i in 0..3:
       let offsetY = -15 + i * 5
@@ -1305,7 +1306,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
                      puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                      puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
                      puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
-                     puFrostShots, puPoisonDamage, puFireBullets,
+                     puFrostShots, puPoisonShot, puFireBullets,
                      puFireAura, puLightningAura, puPoisonAura, puMagicBullets, puMagicAura,
                      puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puMagicOrb]
   
