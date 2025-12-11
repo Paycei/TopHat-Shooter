@@ -1,4 +1,4 @@
-import raylib, types, random, math, wall, bullet
+import raylib, types, random, math, wall, bullet, effects, tables
 
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy =
   let strengthMultiplier = pow(1.15, difficulty)
@@ -31,7 +31,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       lastWallDamageTime: 0,
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
-      attackPhase: 0
+      attackPhase: 0,
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
   of etCube:  # Ranged shooter - backs away (BUFFED - larger and more threatening)
@@ -61,7 +62,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,
-      hasEnteredScreen: false  # Ranged enemy - must enter screen first
+      hasEnteredScreen: false,  # Ranged enemy - must enter screen first
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
   of etTriangle:  # Dash + erratic movement
@@ -90,7 +92,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       lastWallDamageTime: 0,
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
-      attackPhase: 0
+      attackPhase: 0,
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
   of etStar:  # Tank that dashes when close
@@ -122,7 +125,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,
-      dashCooldown: 2.0  # Dash every 2 seconds when close
+      dashCooldown: 2.0,  # Dash every 2 seconds when close
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
   of etHexagon:  # Teleporting chaos
@@ -152,7 +156,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       hexTeleportTimer: 2.5 + rand(1.0),
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
-      attackPhase: 0
+      attackPhase: 0,
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
   of etCross:  # Shows cross warning before attack
@@ -183,7 +188,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,  # 0=patrol, 1=warning, 2=execute
-      rotation: 0.0    # For visual rotation during dash
+      rotation: 0.0,    # For visual rotation during dash
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
   of etDiamond:  # Shoots while dashing
@@ -214,7 +220,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,
-      dashCooldown: 2.5 + rand(1.0)
+      dashCooldown: 2.5 + rand(1.0),
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
   of etOctagon:  # Many slow inaccurate projectiles
@@ -245,7 +252,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,
-      hasEnteredScreen: false  # Ranged enemy - must enter screen first
+      hasEnteredScreen: false,  # Ranged enemy - must enter screen first
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
   of etPentagon:  # Single fast bullet, low fire rate
@@ -276,7 +284,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,
-      hasEnteredScreen: false  # Ranged enemy - must enter screen first
+      hasEnteredScreen: false,  # Ranged enemy - must enter screen first
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
   of etTrickster:  # False warning, real attack elsewhere
@@ -307,7 +316,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,
-      fakeWarningTimer: 3.0 + rand(2.0)
+      fakeWarningTimer: 3.0 + rand(2.0),
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
   of etPhantom:  # Unpredictable teleporter with fake clones
@@ -339,7 +349,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       attackExecuteTimer: 0,
       attackPhase: 0,
       clonePositions: @[],
-      cloneTimer: 2.0 + rand(1.5)
+      cloneTimer: 2.0 + rand(1.5),
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
 
   of etSniper:  # Rare one-shot enemy with epic charging attack
@@ -369,7 +380,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       hexTeleportTimer: 0,
       attackWarningTimer: 0,
       attackExecuteTimer: 3.0,  # 3 second charge time before attack
-      attackPhase: 0  # 0=hunting, 1=charging, 2=cooldown
+      attackPhase: 0,  # 0=hunting, 1=charging, 2=cooldown
+      activeEffects: initTable[ElementType, ActiveEffect]()
     )
 
 proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
@@ -407,7 +419,8 @@ proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
     targetPos: newVector2f(x, y),
     attackWarningTimer: 0,
     attackExecuteTimer: 0,
-    attackPhase: 0
+    attackPhase: 0,
+    activeEffects: initTable[ElementType, ActiveEffect]()
   )
 
 proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
@@ -1001,9 +1014,10 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         discard
   
   # Update poison
-  if enemy.poisonTimer > 0:
-    enemy.poisonTimer -= dt
-    enemy.hp -= enemy.poisonDamage * dt
+  # Update all active effects for this enemy
+  let effectDamage = updateEffects(enemy, dt)
+  if effectDamage > 0:
+    enemy.hp -= effectDamage
   
   # Update chain lightning cooldown
   if enemy.chainLightningCooldown > 0:

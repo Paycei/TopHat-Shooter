@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables
+import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects
 
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -834,9 +834,8 @@ proc updateGame*(game: var Game, dt: float32) =
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < fireRadius:
-        # Apply fire effect
-        enemy.fireTimer = fireDuration
-        enemy.fireDamage = fireDamagePerSec
+        # Apply fire effect using new system
+        applyEffect(enemy, etFire, fireDamagePerSec, fireDuration, "aura")
         
         # Apply 5% slow effect
         enemy.slowTimer = 0.2
@@ -850,22 +849,6 @@ proc updateGame*(game: var Game, dt: float32) =
           let particleX = enemy.pos.x + cos(particleAngle) * particleDist
           let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 3.0
           spawnExplosion(game.particles, particleX, particleY, Red, 2)
-  
-  # Apply fire damage over time to burning enemies
-  for enemy in game.enemies:
-    if enemy.fireTimer > 0:
-      enemy.fireTimer -= dt
-      let actualDamage = applyEliteModifiers(enemy, enemy.fireDamage * dt)
-      enemy.hp -= actualDamage
-      
-      # Visual fire effect while burning
-      if rand(100) < 15 and enemy.fireTimer > 0:
-        let particleAngle = rand(1.0) * PI * 2.0
-        let particleDist = rand(enemy.radius)
-        let particleX = enemy.pos.x + cos(particleAngle) * particleDist
-        let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 5.0
-        let fireColor = if rand(2) == 0: Red else: Orange
-        spawnExplosion(game.particles, particleX, particleY, fireColor, 2)
   
   # Lightning Aura power-up effect - low damage with chain lightning
   if hasPowerUp(game.player, puLightningAura):
@@ -997,8 +980,7 @@ proc updateGame*(game: var Game, dt: float32) =
       let dist = distance(game.player.pos, enemy.pos)
       if dist < poisonRadius:
         # Apply poison aura effect (separate from bullet poison)
-        enemy.poisonAuraTimer = poisonDuration
-        enemy.poisonAuraDamage = poisonDamagePerSec
+        applyEffect(enemy, etPoison, poisonDamagePerSec, poisonDuration, "aura")
         
         # Apply 5% slow effect
         enemy.slowTimer = 0.2
@@ -1013,22 +995,6 @@ proc updateGame*(game: var Game, dt: float32) =
           let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 3.0
           spawnExplosion(game.particles, particleX, particleY, 
                         Color(r: 100, g: 255, a: 200), 2)
-  
-  # Apply poison aura damage over time to poisoned enemies
-  for enemy in game.enemies:
-    if enemy.poisonAuraTimer > 0:
-      enemy.poisonAuraTimer -= dt
-      let actualDamage = applyEliteModifiers(enemy, enemy.poisonAuraDamage * dt)
-      enemy.hp -= actualDamage
-      
-      # Visual poison effect while poisoned
-      if rand(100) < 12 and enemy.poisonAuraTimer > 0:
-        let particleAngle = rand(1.0) * PI * 2.0
-        let particleDist = rand(enemy.radius)
-        let particleX = enemy.pos.x + cos(particleAngle) * particleDist
-        let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 4.0
-        spawnExplosion(game.particles, particleX, particleY,
-                      Color(r: 100, g: 255, b: 100, a: 180), 2)
   
   # Wind Aura power-up effect - pushes enemies away from player (slow aura but different mechanic)
   if hasPowerUp(game.player, puWindAura):
@@ -1175,8 +1141,7 @@ proc updateGame*(game: var Game, dt: float32) =
             of etPoison:
               # Poison: 0.3 dmg/sec for 4 seconds + 5% slow (NERFED base, scaled with player damage)
               let poisonDamageScaling = game.player.damage * 0.1
-              enemy.poisonTimer = 4.0
-              enemy.poisonDamage = 0.3 + poisonDamageScaling
+              applyEffect(enemy, etPoison, 0.3 + poisonDamageScaling, 4.0, "orb")
               enemy.slowTimer = 0.2
               if enemy.slowAmount < 0.05:
                 enemy.slowAmount = 0.05
@@ -1187,8 +1152,7 @@ proc updateGame*(game: var Game, dt: float32) =
             of etFire:
               # Fire: 0.4 dmg/sec for 2 seconds + 5% slow (NERFED base, scaled with player damage)
               let fireDamageScaling = game.player.damage * 0.1
-              enemy.fireTimer = 2.0
-              enemy.fireDamage = 0.4 + fireDamageScaling
+              applyEffect(enemy, etFire, 0.4 + fireDamageScaling, 2.0, "orb")
               enemy.slowTimer = 0.2
               if enemy.slowAmount < 0.05:
                 enemy.slowAmount = 0.05
@@ -1514,12 +1478,11 @@ proc updateGame*(game: var Game, dt: float32) =
     updateEliteEffects(enemy, dt)
     
     # Update poison damage over time
-    if enemy.poisonTimer > 0:
-      enemy.poisonTimer -= dt
-      enemy.hp -= enemy.poisonDamage * dt
-      # Poison visual effect
-      if (game.time * 10).int mod 3 == 0:
-        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Green, 2)
+    # Update all active effects for this enemy
+    let effectDamage = updateEffects(enemy, effectiveDt)
+    if effectDamage > 0:
+      let actualDamage = applyEliteModifiers(enemy, effectDamage)
+      enemy.hp -= actualDamage
     
     # Update chain lightning cooldown
     if enemy.chainLightningCooldown > 0:
@@ -2204,8 +2167,7 @@ proc updateGame*(game: var Game, dt: float32) =
               of 1: 1.0 + poisonBaseScaling
               of 2: 1.5 + poisonBaseScaling
               else: 2.0 + poisonBaseScaling
-            game.enemies[j].poisonTimer = bullet.poisonDuration
-            game.enemies[j].poisonDamage = poisonDmg
+            applyEffect(game.enemies[j], etPoison, poisonDmg, bullet.poisonDuration, "shot")
             # Poison bullets also slow enemies by 5%
             game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, bullet.poisonDuration)
             game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, 0.05)
@@ -2218,8 +2180,7 @@ proc updateGame*(game: var Game, dt: float32) =
               of 1: 0.5 + fireBaseScaling
               of 2: 1.0 + fireBaseScaling
               else: 1.5 + fireBaseScaling
-            game.enemies[j].fireTimer = bullet.fireDuration
-            game.enemies[j].fireDamage = fireDmg
+            applyEffect(game.enemies[j], etFire, fireDmg, bullet.fireDuration, "shot")
             # Fire bullets also slow enemies by 5%
             game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, bullet.fireDuration)
             game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, 0.05)

@@ -2,3 +2,6 @@ nimcache/
 nimblecache/
 htmldocs/
 *.exe
+nimble.develop
+nimble.paths
+nimbledeps

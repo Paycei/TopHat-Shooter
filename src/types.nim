@@ -186,6 +186,18 @@ type
     poisonDamage*: float32
     poisonAccumulator*: float32  # Accumulates fractional poison damage until it reaches 1.0
 
+  EffectInstance* = object
+    elementType*: ElementType
+    damagePerSec*: float32
+    remainingDuration*: float32
+    maxDuration*: float32
+    isActive*: bool
+    source*: string
+
+  ActiveEffect* = object
+    primary*: EffectInstance
+    fallback*: EffectInstance
+
   Enemy* = ref object
     pos*: Vector2f
     vel*: Vector2f
@@ -215,12 +227,7 @@ type
     targetPos*: Vector2f
     slowTimer*: float32
     slowAmount*: float32
-    poisonTimer*: float32
-    poisonDamage*: float32
-    poisonAuraTimer*: float32  # Separate timer for poison aura effect
-    poisonAuraDamage*: float32  # Separate damage for poison aura
-    fireTimer*: float32
-    fireDamage*: float32
+    activeEffects*: Table[ElementType, ActiveEffect]  # Unified effect system
     chainLightningCooldown*: float32
     # New fields for advanced enemies
     attackWarningTimer*: float32

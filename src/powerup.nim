@@ -1119,7 +1119,7 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       let angle = i.float32 * PI / 4.0  # Static animation in card view
       let dist = 12.0 + (i mod 2).float32 * 4.0
       let x = centerX.float32 + cos(angle) * dist
-      let y = centerX.float32 + sin(angle) * dist - 5.0
+      let y = iconY.float32 + sin(angle) * dist - 5.0
       drawCircle(Vector2(x: x, y: y), 3, Color(r: 200, g: 100, b: 255, a: 220))
       drawCircleLines(x.int32, y.int32, 3, Color(r: 255, g: 150, b: 200, a: 200))
   
