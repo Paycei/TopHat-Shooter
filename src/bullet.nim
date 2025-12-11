@@ -7,7 +7,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0, 
                 poisonDuration: float32 = 0, fireDuration: float32 = 0, windPushForce: float32 = 0,
                 isPentagon: bool = false, isEcho: bool = false, 
-                isBossBullet: bool = false): Bullet =
+                isBossBullet: bool = false, isMagicBullet: bool = false): Bullet =
   # BUFFED: Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -33,7 +33,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     travelDistance: 0.0,  # Track distance for Overcharge
     isEcho: isEcho,  # Whether this is an echo trail bullet
     echoTrailTimer: 0.0,  # Timer for spawning echo trails
-    isBossBullet: isBossBullet  # Mark boss bullets for glow effect
+    isBossBullet: isBossBullet,  # Mark boss bullets for glow effect
+    isMagicBullet: isMagicBullet  # Magic bullet from magic bullets power-up
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
@@ -55,7 +56,8 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
   
   # Special bullet types have special colors
   if bullet.fromPlayer and not bullet.isEcho:
-    if bullet.isHoming: color = Magenta
+    if bullet.isMagicBullet: color = Color(r: 200, g: 100, b: 255, a: 255)  # Purple for magic
+    elif bullet.isHoming: color = Magenta
     elif bullet.isPiercing: color = SkyBlue
     elif bullet.isExplosive: color = Orange
     elif bullet.windPushForce > 0: color = Color(r: 200, g: 230, b: 255, a: 255)  # Light cyan for wind
@@ -122,6 +124,12 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
   elif bullet.fireDuration > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 255, g: 100, b: 30, a: 180))
+  elif bullet.isMagicBullet:
+    # Magic bullet glow - purple arcane aura
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+                   Color(r: 200, g: 100, b: 255, a: 200))
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
+                   Color(r: 150, g: 50, b: 200, a: 100))
   
   # Overcharge visual effect - ONLY if player has the power-up
   if hasOvercharge and bullet.fromPlayer and bullet.travelDistance > 0:

@@ -98,7 +98,10 @@ type
     puFireOrb,         # Fire elemental orb
     puLightningOrb,    # Lightning elemental orb
     puWindOrb,         # Wind elemental orb
-    puFrostOrb         # Frost elemental orb
+    puFrostOrb,        # Frost elemental orb
+    puMagicOrb,        # Magic elemental orb
+    puMagicBullets,    # Magic bullet version - enhanced damage
+    puMagicAura        # Magic aura version - enhanced damage
   
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
@@ -124,6 +127,7 @@ type
     etLightning,   # Yellow/Blue - instant damage + chain
     etWind,        # Cyan - knockback
     etFrost,       # Light blue - slow effect
+    etMagic,       # Purple - enhanced damage + magical effect
     etNone         # No element (shouldn't happen)
 
   RotatingOrb* = ref object
@@ -263,6 +267,7 @@ type
     isEcho*: bool  # True if this is an echo clone bullet
     echoTrailTimer*: float32  # Timer for spawning echo clones
     isBossBullet*: bool  # True if this bullet was fired by a boss (for glow effect)
+    isMagicBullet*: bool  # True if this bullet is from magic bullet power-up
 
   Coin* = ref object
     pos*: Vector2f

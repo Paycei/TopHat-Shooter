@@ -49,6 +49,9 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puLightningOrb: "Lightning Orb"
   of puWindOrb: "Wind Orb"
   of puFrostOrb: "Frost Orb"
+  of puMagicBullets: "Magic Bullets"
+  of puMagicAura: "Magic Aura"
+  of puMagicOrb: "Arcane Orbs"
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
   of puDoubleShot:
@@ -267,6 +270,21 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "1 frost orb (1 dmg/hit, slow)"
     of 2: "2 frost orbs (1.5 dmg/hit, slow)"
     else: "3 frost orbs (2 dmg/hit, slow)"
+  of puMagicOrb:
+    case level
+    of 1: "1 magic orb (1.5 dmg/hit, arcane)"
+    of 2: "2 magic orbs (2 dmg/hit, arcane)"
+    else: "3 magic orbs (2.5 dmg/hit, arcane)"
+  of puMagicBullets:
+    case level
+    of 1: "Bullets enhanced with arcane power (+50% damage, purple glow)"
+    of 2: "Bullets enhanced with arcane power (+100% damage, purple glow)"
+    else: "Bullets enhanced with arcane power (+150% damage, purple glow)"
+  of puMagicAura:
+    case level
+    of 1: "Arcane aura 2 dmg/s in 120 radius (magical effect)"
+    of 2: "Arcane aura 4 dmg/s in 160 radius (magical effect)"
+    else: "Arcane aura 8 dmg/s in 200 radius (magical effect)"
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -297,7 +315,9 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
                          puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
                          puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
                          puFrostShots, puPoisonDamage, puFireBullets, puWindBullets,
-                         puFireAura, puLightningAura, puPoisonAura, puWindAura, puRotatingOrbs]
+                         puFireAura, puLightningAura, puPoisonAura, puWindAura, puRotatingOrbs,
+                         puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puMagicOrb,
+                         puMagicBullets, puMagicAura]
   
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
@@ -414,6 +434,7 @@ proc getElementColor*(elementType: ElementType): Color =
   of etLightning: Color(r: 255, g: 255, b: 100, a: 255)
   of etWind: Color(r: 200, g: 230, b: 255, a: 255)
   of etFrost: Color(r: 150, g: 200, b: 255, a: 255)
+  of etMagic: Color(r: 200, g: 100, b: 255, a: 255)  # Purple for magic
   of etNone: White
 
 proc getElementDamage*(level: int): float32 =
@@ -462,14 +483,12 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Time Warp uses are based on level: 1, 2, or 3 uses per wave
     player.timeWarpMaxUsesPerWave = powerUp.level
   of puRotatingOrbs:
-    # Legendary: Create all 5 elemental orbs (1 of each, level 1 only)
-    createRotatingOrbs(player, 1)  # Creates 3 orbs with mixed elements
-    # Add 2 more to get all 5 elements
+    # Legendary: Create all 6 elemental orbs (1 of each, level 1 only)
     let orbRadius = player.radius * 2.5 + 20
-    let elements = [etPoison, etFire, etLightning, etWind, etFrost]
+    let elements = [etPoison, etFire, etLightning, etWind, etFrost, etMagic]
     player.rotatingOrbs = @[]
-    for i in 0..<5:
-      let angle = (i.float32 / 5.0) * PI * 2.0
+    for i in 0..<6:
+      let angle = (i.float32 / 6.0) * PI * 2.0
       player.rotatingOrbs.add(newRotatingOrb(angle, orbRadius, elements[i]))
   of puPoisonOrb:
     createElementalOrbs(player, etPoison, powerUp.level)
@@ -481,6 +500,18 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     createElementalOrbs(player, etWind, powerUp.level)
   of puFrostOrb:
     createElementalOrbs(player, etFrost, powerUp.level)
+  of puMagicOrb:
+    createElementalOrbs(player, etMagic, powerUp.level)
+  of puMagicBullets:
+    # Magic bullets just increase damage
+    let damageBonus = case powerUp.level
+      of 1: 1.5   # +50% damage
+      of 2: 2.0   # +100% damage
+      else: 2.5   # +150% damage
+    player.damage *= damageBonus
+  of puMagicAura:
+    # Magic aura is tracked via powerUps (pure damage effect applied in game.nim)
+    discard
   else:
     discard
   
@@ -527,12 +558,12 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           else: 1.0
         player.bulletSpeed *= speedMultiplier
       of puRotatingOrbs:
-        # Legendary: Always has all 5 elements (no upgrade)
+        # Legendary: Always has all 6 elements (no upgrade)
         let orbRadius = player.radius * 2.5 + 20
-        let elements = [etPoison, etFire, etLightning, etWind, etFrost]
+        let elements = [etPoison, etFire, etLightning, etWind, etFrost, etMagic]
         player.rotatingOrbs = @[]
-        for i in 0..<5:
-          let angle = (i.float32 / 5.0) * PI * 2.0
+        for i in 0..<6:
+          let angle = (i.float32 / 6.0) * PI * 2.0
           player.rotatingOrbs.add(newRotatingOrb(angle, orbRadius, elements[i]))
       of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb:
         # Recreate orbs with new level (more orbs of this element)
@@ -544,6 +575,15 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           of puFrostOrb: etFrost
           else: etNone
         createElementalOrbs(player, elementType, powerUp.level)
+      of puMagicOrb:
+        # Recreate magic orbs with new level
+        createElementalOrbs(player, etMagic, powerUp.level)
+      of puMagicBullets:
+        let damageBonus = case powerUp.level
+          of 2: 1.333  # 2.0 / 1.5
+          of 3: 1.25   # 2.5 / 2.0
+          else: 1.0
+        player.damage *= damageBonus
       else:
         discard
       
@@ -979,12 +1019,12 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
               Vector2(x: (centerX - 15).float32, y: lineY.float32), 2, 
               Color(r: 255, g: 215, b: 0, a: 100))
   of puRotatingOrbs:
-    # Draw all 5 elemental orbs around center (legendary)
+    # Draw all 6 elemental orbs around center (legendary)
     let orbDistance = 15.0
-    let elements = [etPoison, etFire, etLightning, etWind, etFrost]
+    let elements = [etPoison, etFire, etLightning, etWind, etFrost, etMagic]
     
-    for i in 0..<5:
-      let angle = (i.float32 / 5.0) * PI * 2.0
+    for i in 0..<6:
+      let angle = (i.float32 / 6.0) * PI * 2.0
       let x = centerX.float32 + cos(angle) * orbDistance
       let y = iconY.float32 + sin(angle) * orbDistance
       let color = getElementColor(elements[i])
@@ -1000,7 +1040,7 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     # Draw orbit path
     drawCircleLines(centerX.int32, iconY.int32, orbDistance, 
                    Color(r: 100, g: 100, b: 150, a: 100))
-  of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb:
+  of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puMagicOrb:
     # Draw specific element orbs based on level
     let elementType = case powerUp.powerType
       of puPoisonOrb: etPoison
@@ -1008,6 +1048,7 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       of puLightningOrb: etLightning
       of puWindOrb: etWind
       of puFrostOrb: etFrost
+      of puMagicOrb: etMagic
       else: etNone
     
     let color = getElementColor(elementType)
@@ -1030,6 +1071,36 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     # Draw orbit path
     drawCircleLines(centerX.int32, iconY.int32, orbDistance, 
                    Color(r: 100, g: 100, b: 150, a: 100))
+  of puMagicBullets:
+    # Magic bullets with arcane glow
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 8, Color(r: 200, g: 100, b: 255, a: 255))
+    drawCircleLines(centerX.int32, iconY.int32, 8, Color(r: 150, g: 50, b: 200, a: 255))
+    # Arcane particles around the bullet
+    for i in 0..5:
+      let angle = i.float32 * PI / 3.0
+      let dist = 16.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist
+      drawCircle(Vector2(x: x, y: y), 3, Color(r: 200, g: 100, b: 255, a: 200))
+    # Arcane trail
+    for i in 1..3:
+      let offsetX = -i * 8
+      drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 
+                (4 - i div 2).float32, Color(r: 180, g: 80, b: 220, a: uint8(150 - i * 40)))
+  of puMagicAura:
+    # Magic aura with arcane energy
+    let auraRadius = 10 + powerUp.level * 5
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), auraRadius.float32,
+              Color(r: 200, g: 100, b: 255, a: 100))
+    drawCircleLines(centerX.int32, iconY.int32, auraRadius.float32, Color(r: 200, g: 100, b: 255, a: 255))
+    # Arcane runes/symbols rotating around
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0  # Static animation in card view
+      let dist = 12.0 + (i mod 2).float32 * 4.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = centerX.float32 + sin(angle) * dist - 5.0
+      drawCircle(Vector2(x: x, y: y), 3, Color(r: 200, g: 100, b: 255, a: 220))
+      drawCircleLines(x.int32, y.int32, 3, Color(r: 255, g: 150, b: 200, a: 200))
   
   # Rarity indicator
   if powerUp.rarity == prLegendary:
@@ -1215,7 +1286,8 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
                      puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
                      puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
                      puFrostShots, puPoisonDamage, puFireBullets,
-                     puFireAura, puLightningAura, puPoisonAura]
+                     puFireAura, puLightningAura, puPoisonAura, puMagicBullets, puMagicAura,
+                     puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puMagicOrb]
   
   var availableTypes: seq[PowerUpType]
   if isLegendary:

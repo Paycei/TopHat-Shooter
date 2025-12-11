@@ -345,6 +345,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let hasFrost = hasPowerUp(game.player, puFrostShots)
     let hasPoison = hasPowerUp(game.player, puPoisonDamage)
     let hasFire = hasPowerUp(game.player, puFireBullets)
+    let hasMagic = hasPowerUp(game.player, puMagicBullets)
     
     # Base bullet properties - use current damage with Rage bonus
     var speed = game.player.bulletSpeed * 1.2
@@ -445,7 +446,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           slowAmount = slowEffect,
           poisonDuration = poisonEffect,
           fireDuration = fireEffect,
-          windPushForce = windEffect
+          windPushForce = windEffect,
+          isMagicBullet = hasMagic
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -474,7 +476,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         slowAmount = slowEffect,
         poisonDuration = poisonEffect,
         fireDuration = fireEffect,
-        windPushForce = windEffect
+        windPushForce = windEffect,
+        isMagicBullet = hasMagic
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -507,7 +510,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           slowAmount = slowEffect,
           poisonDuration = poisonEffect,
           fireDuration = fireEffect,
-          windPushForce = windEffect
+          windPushForce = windEffect,
+          isMagicBullet = hasMagic
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -528,7 +532,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         slowAmount = slowEffect,
         poisonDuration = poisonEffect,
         fireDuration = fireEffect,
-        windPushForce = windEffect
+        windPushForce = windEffect,
+        isMagicBullet = hasMagic
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -540,7 +545,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     
     # Determine particle color based on bullet type - MATCHES BULLET COLOR
     var particleColor = Yellow  # Default
-    if hasHoming: particleColor = Magenta
+    if hasMagic: particleColor = Color(r: 200, g: 100, b: 255, a: 255)
+    elif hasHoming: particleColor = Magenta
     elif hasPiercing: particleColor = SkyBlue
     elif hasExplosive: particleColor = Orange
     elif windEffect > 0: particleColor = Color(r: 200, g: 230, b: 255, a: 255)
@@ -561,6 +567,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let hasFrost = hasPowerUp(game.player, puFrostShots)
   let hasPoison = hasPowerUp(game.player, puPoisonDamage)
   let hasFire = hasPowerUp(game.player, puFireBullets)
+  let hasMagic = hasPowerUp(game.player, puMagicBullets)
   
   var speed = game.player.bulletSpeed * 1.2
   var damage = getCurrentDamage(game.player) * 0.85  # BUFFED: Second bullet reduced by 15% (was 25%)
@@ -638,7 +645,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         slowAmount = slowEffect,
         poisonDuration = poisonEffect,
         fireDuration = fireEffect,
-        windPushForce = windEffect
+        windPushForce = windEffect,
+        isMagicBullet = hasMagic
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -658,7 +666,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       slowAmount = slowEffect,
       poisonDuration = poisonEffect,
       fireDuration = fireEffect,
-      windPushForce = windEffect
+      windPushForce = windEffect,
+      isMagicBullet = hasMagic
     )
     bullet.radius = bulletRadius
     game.bullets.add(bullet)
@@ -933,6 +942,33 @@ proc updateGame*(game: var Game, dt: float32) =
           else:
             break  # No more enemies to chain to
   
+  # Magic Aura power-up effect - pure arcane damage
+  if hasPowerUp(game.player, puMagicAura):
+    let level = getPowerUpLevel(game.player, puMagicAura)
+    let magicDamagePerSec = case level
+      of 1: 2.0
+      of 2: 4.0
+      else: 8.0
+    let magicRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    for enemy in game.enemies:
+      let dist = distance(game.player.pos, enemy.pos)
+      if dist < magicRadius:
+        let actualDamage = applyEliteModifiers(enemy, magicDamagePerSec * dt)
+        enemy.hp -= actualDamage
+        
+        # Visual arcane particles (purple sparkles)
+        if rand(100) < 12:  # 12% chance per frame
+          let particleAngle = rand(1.0) * PI * 2.0
+          let particleDist = rand(enemy.radius + 3.0)
+          let particleX = enemy.pos.x + cos(particleAngle) * particleDist
+          let particleY = enemy.pos.y + sin(particleAngle) * particleDist
+          spawnExplosion(game.particles, particleX, particleY, 
+                        Color(r: 200, g: 100, b: 255, a: 255), 2)
+  
   # Poison Aura power-up effect - low damage, longer duration
   if hasPowerUp(game.player, puPoisonAura):
     let level = getPowerUpLevel(game.player, puPoisonAura)
@@ -1196,6 +1232,11 @@ proc updateGame*(game: var Game, dt: float32) =
               # Light blue particles
               spawnExplosion(game.particles, orbX, orbY,
                            Color(r: 150, g: 200, b: 255, a: 255), 5)
+            
+            of etMagic:
+              # Magic: Pure arcane damage (already dealt) + purple sparkles
+              spawnExplosion(game.particles, orbX, orbY,
+                           Color(r: 200, g: 100, b: 255, a: 255), 5)
             
             of etNone:
               discard
