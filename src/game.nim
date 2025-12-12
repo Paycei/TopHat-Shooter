@@ -354,10 +354,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     var speed = game.player.bulletSpeed * 1.2
     var damage = getCurrentDamage(game.player)
     
-    # NERF: Homing bullets deal 10% less damage
-    if hasHoming:
-      damage *= 0.9
-    
     # BUFFED: Double-shot bullets deal 10% less damage per bullet (was 20%)
     if hasDoubleShot:
       damage *= 0.9  # 10% less damage per bullet
@@ -2128,25 +2124,27 @@ proc updateGame*(game: var Game, dt: float32) =
   while i < game.bullets.len:
     let bullet = game.bullets[i]
     
-    # Homing bullet logic (NERFED at low levels)
+    # Homing bullet logic (LEGENDARY - Single Level)
     if bullet.isHoming and bullet.fromPlayer and game.enemies.len > 0:
-      # Find nearest enemy
+      # NERF: Very limited tracking range - greatly reduced
+      let trackingRange = 160.0  # Down from unlimited - much shorter range
+      
+      # Find nearest enemy that CAN be hit (not already pierced through)
       var nearestEnemy: Enemy = nil
       var nearestDist = 999999.0
       
-      for enemy in game.enemies:
+      for enemyIdx in 0..<game.enemies.len:
+        let enemy = game.enemies[enemyIdx]
         let dist = distance(bullet.pos, enemy.pos)
-        if dist < nearestDist:
+        
+        # Only track if within range AND not already pierced/hit by this bullet
+        if dist < trackingRange and dist < nearestDist and enemyIdx notin bullet.hitEnemies:
           nearestDist = dist
           nearestEnemy = enemy
       
       if nearestEnemy != nil:
-        # NERFED tracking - slower turn rate
-        let level = getPowerUpLevel(game.player, puHomingBullets)
-        let turnRate = case level
-          of 1: 0.020   # NERFED from 0.033 - very weak tracking
-          of 2: 0.055   # NERFED from 0.10 - moderate tracking
-          else: 0.12    # NERFED from 0.20 - good tracking
+        # LEGENDARY: Strong, balanced tracking - single level
+        let turnRate = 0.05  # Good tracking without being overpowered
         
         let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
         let currentDir = bullet.vel.normalize()

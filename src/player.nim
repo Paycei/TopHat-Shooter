@@ -376,6 +376,11 @@ proc getCurrentFireRate*(player: Player): float32 =
   if player.fireRateBoostTimer > 0:
     rate *= 0.6
   
+  # Homing Bullets penalty - 10% slower fire rate (legendary power-up, single level)
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puHomingBullets:
+      rate *= 1.1  # 10% slower (higher value = slower)
+  
   # Double Shot penalty - 25% slower fire rate (legendary power-up, single level)
   for powerUp in player.powerUps:
     if powerUp.powerType == puDoubleShot:

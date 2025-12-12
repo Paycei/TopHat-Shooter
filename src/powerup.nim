@@ -74,8 +74,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 2: "6 dmg/sec in 160 radius"
     else: "12 dmg/sec in 200 radius"
   of puHomingBullets:
-    # Single level only - balanced tracking
-    "Bullets track enemies (10% dmg penalty)"
+    # Single level only - LEGENDARY balanced tracking
+    "Bullets track enemies (-10% dmg)"
   of puPiercingShots:
     case level
     of 1: "Bullets pierce 1 enemy (-33% damage per pierce)"
@@ -319,10 +319,11 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
                             puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
                             puGravityWell, puPhaseShift, puOvercharge, puEchoShots, puMultiShot,
                             puRotatingOrbs, puFireMastery, puPoisonMastery, puFrostMastery,
-                            puArcaneMastery, puLightningMastery, puWindMastery, puDoubleShot]
+                            puArcaneMastery, puLightningMastery, puWindMastery, puDoubleShot,
+                            puHomingBullets]
   
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
-  let normalOnlyTypes = [puRotatingShield, puDamageZone, puHomingBullets,
+  let normalOnlyTypes = [puRotatingShield, puDamageZone,
                          puPiercingShots, puExplosiveBullets, puLifeSteal,
                          puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                          puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
@@ -1370,9 +1371,10 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
   ## Generate a random power-up for the roll animation display, excluding a specific type
   let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
                         puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
-                        puGravityWell, puPhaseShift, puOvercharge, puEchoShots]
+                        puGravityWell, puPhaseShift, puOvercharge, puEchoShots,
+                        puHomingBullets]
   
-  let normalTypes = [puDoubleShot, puRotatingShield, puDamageZone, puHomingBullets,
+  let normalTypes = [puDoubleShot, puRotatingShield, puDamageZone,
                      puPiercingShots, puMultiShot, puExplosiveBullets, puLifeSteal,
                      puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                      puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
