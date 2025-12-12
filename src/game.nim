@@ -433,8 +433,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       # When both active: Fire multishot pattern (3 directions), then schedule second burst
       let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
       let spreadAngle = 0.3  # Fixed spread for 3-shot pattern
-      let doubleLevel = getPowerUpLevel(game.player, puDoubleShot)
-      let burstCount = doubleLevel + 1  # Level 1 = 2 bursts, Level 2 = 3, Level 3 = 4
       
       # Fire first burst
       for i in 0..<multiCount:
@@ -464,14 +462,11 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
       
-      # Schedule remaining bursts with small delays (rapid succession)
-      game.player.doubleShotDelay = 0.08 * (burstCount - 1).float32
+      # Schedule second burst with small delay (0.08s) - LEGENDARY Double Shot is single level
+      game.player.doubleShotDelay = 0.08
     
     elif hasDoubleShot:
-      # Fire in quick succession (. .) pattern
-      let level = getPowerUpLevel(game.player, puDoubleShot)
-      let burstCount = level + 1  # Level 1 = 2, Level 2 = 3, Level 3 = 4
-      
+      # LEGENDARY: Fire 2 bullets in quick succession (single level only)
       # Fire first bullet immediately
       let bullet = newBullet(
         x = game.player.pos.x,
@@ -494,8 +489,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
       
-      # Schedule remaining bullets with small delays (0.08s between each)
-      game.player.doubleShotDelay = 0.08 * (burstCount - 1).float32
+      # Schedule second bullet with small delay (0.08s)
+      game.player.doubleShotDelay = 0.08
     elif hasMultiShot:
       # Shoot in 3 directions (legendary, no nerfs)
       let bulletCount = 3  # Always 3 bullets
@@ -1373,28 +1368,15 @@ proc updateGame*(game: var Game, dt: float32) =
   let shootDir = newVector2f(mousePos.x - game.player.pos.x, mousePos.y - game.player.pos.y)
   
   # Handle delayed double-shot bursts (rapid succession)
+  # LEGENDARY Double Shot: Only 1 additional burst after 0.08s delay
   if game.player.doubleShotDelay > 0:
-    let prevDelay = game.player.doubleShotDelay
     game.player.doubleShotDelay -= dt
     
-    # Fire burst when delay crosses 0.08s threshold
-    if prevDelay > 0.08 and game.player.doubleShotDelay <= 0.08:
+    # Fire second burst when delay reaches 0 (after 0.08s has elapsed)
+    if game.player.doubleShotDelay <= 0:
       let hasMultiShot = hasPowerUp(game.player, puMultiShot)
       fireDoubleShotBurst(game, shootDir, hasMultiShot)
-    
-    # Fire additional bursts for level 2 (crosses 0.16s)
-    if prevDelay > 0.16 and game.player.doubleShotDelay <= 0.16:
-      let hasMultiShot = hasPowerUp(game.player, puMultiShot)
-      fireDoubleShotBurst(game, shootDir, hasMultiShot)
-    
-    # Fire additional burst for level 3 (crosses 0.24s)
-    if prevDelay > 0.24 and game.player.doubleShotDelay <= 0.24:
-      let hasMultiShot = hasPowerUp(game.player, puMultiShot)
-      fireDoubleShotBurst(game, shootDir, hasMultiShot)
-    
-    # Clamp to 0
-    if game.player.doubleShotDelay < 0:
-      game.player.doubleShotDelay = 0
+      game.player.doubleShotDelay = 0  # Reset to 0
   
   if isMouseButtonDown(Left) or isKeyDown(Space):
     if shootDir.length() > 0:

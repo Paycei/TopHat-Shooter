@@ -61,10 +61,8 @@ proc getPowerUpName*(powerType: PowerUpType): string =
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
   of puDoubleShot:
-    case level
-    of 1: "Fire 2 bullets per shot"
-    of 2: "Fire 3 bullets per shot"
-    else: "Fire 4 bullets per shot"
+    # Single level only - LEGENDARY
+    "Fire 2 bullets per shot (-25% fire rate)"
   of puRotatingShield:
     case level
     of 1: "2 shields (20% coverage)"
@@ -321,10 +319,10 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
                             puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
                             puGravityWell, puPhaseShift, puOvercharge, puEchoShots, puMultiShot,
                             puRotatingOrbs, puFireMastery, puPoisonMastery, puFrostMastery,
-                            puArcaneMastery, puLightningMastery, puWindMastery]
+                            puArcaneMastery, puLightningMastery, puWindMastery, puDoubleShot]
   
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
-  let normalOnlyTypes = [puDoubleShot, puRotatingShield, puDamageZone, puHomingBullets,
+  let normalOnlyTypes = [puRotatingShield, puDamageZone, puHomingBullets,
                          puPiercingShots, puExplosiveBullets, puLifeSteal,
                          puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                          puCriticalHit, puVampirism, puBulletRicochet, puSlowField,

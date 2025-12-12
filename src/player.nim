@@ -57,9 +57,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.magnetTimer > 0:
     player.magnetTimer -= dt
   
-  # Update double-shot delay timer
-  if player.doubleShotDelay > 0:
-    player.doubleShotDelay -= dt
+  # NOTE: double-shot delay timer is updated in game.nim where firing logic lives
   
   # Update legendary power-up cooldowns
   if player.timeWarpCooldown > 0:
@@ -378,10 +376,10 @@ proc getCurrentFireRate*(player: Player): float32 =
   if player.fireRateBoostTimer > 0:
     rate *= 0.6
   
-  # Double Shot penalty - 45% slower fire rate (increased from 40%)
+  # Double Shot penalty - 25% slower fire rate (legendary power-up, single level)
   for powerUp in player.powerUps:
     if powerUp.powerType == puDoubleShot:
-      rate *= 1.45  # 45% slower (higher value = slower)
+      rate *= 1.25  # 25% slower (higher value = slower)
   
   # Multi-Shot: No fire rate penalty (legendary power-up)
   

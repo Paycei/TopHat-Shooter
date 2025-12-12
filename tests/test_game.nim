@@ -655,7 +655,7 @@ suite "Boss Spawn Mechanics":
 
 suite "Damage Calculations":
   test "Fire rate penalty for Double Shot":
-    ## Double Shot increases fire rate by 40% (1.4x slower)
+    ## Double Shot increases fire rate by 25% (1.25x slower)
     ## This balances the extra bullets
     let player = newPlayer(100.0, 100.0)
     let initialFireRate = player.fireRate
