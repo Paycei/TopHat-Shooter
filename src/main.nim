@@ -418,6 +418,19 @@ proc main() =
           
           anyActivated = true
         
+        # Parry - active defense ability (SINGLE LEVEL - invincible + bounce bullets)
+        if hasPowerUp(currentGame.player, puParry) and currentGame.player.parryCooldown <= 0:
+          let duration = 0.5  # 0.5 second parry window
+          let cooldown = 8.0  # 8 second cooldown
+          
+          currentGame.player.parryActive = true
+          currentGame.player.parryDuration = duration
+          currentGame.player.parryCooldown = cooldown
+          
+          spawnExplosion(currentGame.particles, currentGame.player.pos.x, currentGame.player.pos.y, 
+                        Color(r: 255, g: 255, b: 255, a: 255), 35)
+          anyActivated = true
+        
         # Play sound if any ability was activated
         if anyActivated:
           playSound(stPowerUp)

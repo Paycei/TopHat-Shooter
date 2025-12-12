@@ -2491,6 +2491,21 @@ proc updateGame*(game: var Game, dt: float32) =
     else:
       # Enemy bullet hitting player
       if checkBulletPlayerCollision(bullet, game.player):
+        # Parry - bounce bullets back (LEGENDARY active ability)
+        if game.player.parryActive:
+          # Reverse bullet direction - bounce it back toward source
+          let towardEnemy = (bullet.pos - game.player.pos).normalize()
+          bullet.vel = towardEnemy * bullet.vel.length()
+          bullet.fromPlayer = false  # Mark as enemy bullet so it can hit enemies
+          
+          # Visual effect for parry bounce
+          spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, 
+                        Color(r: 255, g: 255, b: 200, a: 255), 12)
+          
+          # Bullet continues bouncing, don't delete it
+          i += 1
+          continue
+        
         var bulletDamage = 1.0
         
         # Thorns reflection - damage the originating enemy
@@ -2750,17 +2765,37 @@ proc drawGame*(game: Game) =
       of 2: 160.0
       else: 200.0
     
-    # Draw pulsing fire rings
+    # IMPROVED: Multi-layered fire aura with better animation
     let pulse = (sin(game.time * 3.0) * 0.2 + 0.8).float32
-    for ring in 1..3:
-      let ringRadius = fireRadius * (ring.float32 / 3.0) * pulse
-      let alpha = uint8(50 - ring * 10)
-      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius, 
-                     Color(r: 255, g: 100, b: 0, a: alpha))
+    let flicker = (sin(game.time * 15.0) * 0.1 + 0.9).float32
     
-    # Draw outer radius circle
+    # Inner glow (bright core)
+    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), 
+               fireRadius * 0.3 * pulse, Color(r: 255, g: 200, b: 100, a: 40))
+    
+    # Multiple animated fire rings with gradient
+    for ring in 1..5:
+      let progress = ring.float32 / 5.0
+      let ringRadius = fireRadius * progress * pulse * flicker
+      let alpha = uint8((60 - ring * 8).float32 * flicker)
+      let redShift = uint8(255 - progress * 50)
+      let greenShift = uint8(100 + progress * 50)
+      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius, 
+                     Color(r: redShift, g: greenShift, b: 0, a: alpha))
+    
+    # Rotating flame wisps
+    for i in 0..7:
+      let angle = game.time * 2.0 + i.float32 * PI / 4.0
+      let dist = fireRadius * 0.7 + sin(game.time * 3.0 + i.float32) * 15.0
+      let x = game.player.pos.x + cos(angle) * dist
+      let y = game.player.pos.y + sin(angle) * dist - abs(sin(game.time * 4.0 + i.float32)) * 8.0
+      drawCircle(Vector2(x: x, y: y), 4 + sin(game.time * 5.0 + i.float32) * 2, 
+                Color(r: 255, g: 150, b: 50, a: 180))
+      drawCircle(Vector2(x: x, y: y - 2), 2, Color(r: 255, g: 255, b: 100, a: 220))
+    
+    # Outer border with ember particles
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, fireRadius, 
-                   Color(r: 255, g: 80, b: 0, a: 60))
+                   Color(r: 255, g: 80, b: 0, a: 80))
   
   # Draw Lightning Aura visual effect
   if hasPowerUp(game.player, puLightningAura):
@@ -2770,17 +2805,48 @@ proc drawGame*(game: Game) =
       of 2: 160.0
       else: 200.0
     
-    # Draw electric arcs
+    # IMPROVED: Electric storm effect with crackling energy
     let pulse = (sin(game.time * 5.0) * 0.15 + 0.85).float32
-    for arc in 1..2:
-      let arcRadius = lightningRadius * (arc.float32 / 2.0) * pulse
-      let alpha = uint8(40 - arc * 10)
+    let crackle = (sin(game.time * 20.0) * 0.5 + 0.5).float32
+    
+    # Inner electric core
+    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), 
+               lightningRadius * 0.25 * pulse, Color(r: 150, g: 200, b: 255, a: 50))
+    
+    # Animated electric arcs
+    for arc in 1..4:
+      let arcRadius = lightningRadius * (arc.float32 / 4.0) * pulse
+      let alpha = uint8((50 - arc * 8).float32 * (0.7 + crackle * 0.3))
       drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, arcRadius, 
                      Color(r: 150, g: 200, b: 255, a: alpha))
     
-    # Draw outer radius circle
+    # Lightning bolts shooting outward
+    for i in 0..11:
+      if (game.time * 10.0).int mod (i + 2) == 0:  # Sporadic bolts
+        let angle = i.float32 * PI * 2.0 / 12.0 + game.time * 0.5
+        let startDist = lightningRadius * 0.4
+        let endDist = lightningRadius * 0.95
+        let x1 = game.player.pos.x + cos(angle) * startDist
+        let y1 = game.player.pos.y + sin(angle) * startDist
+        let x2 = game.player.pos.x + cos(angle) * endDist
+        let y2 = game.player.pos.y + sin(angle) * endDist
+        
+        # Jagged lightning effect
+        var segments = 4
+        var prevX = x1
+        var prevY = y1
+        for seg in 1..segments:
+          let t = seg.float32 / segments.float32
+          let nextX = x1 + (x2 - x1) * t + (if seg mod 2 == 0: -5.0 else: 5.0)
+          let nextY = y1 + (y2 - y1) * t + (if seg mod 2 == 0: 5.0 else: -5.0)
+          drawLine(Vector2(x: prevX, y: prevY), Vector2(x: nextX, y: nextY), 2, 
+                  Color(r: 200, g: 220, b: 255, a: 200))
+          prevX = nextX
+          prevY = nextY
+    
+    # Outer border with electric glow
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, lightningRadius, 
-                   Color(r: 100, g: 180, b: 255, a: 50))
+                   Color(r: 100, g: 180, b: 255, a: 70))
   
   # Draw Poison Aura visual effect
   if hasPowerUp(game.player, puPoisonAura):
@@ -2790,17 +2856,40 @@ proc drawGame*(game: Game) =
       of 2: 160.0
       else: 200.0
     
-    # Draw toxic cloud rings
+    # IMPROVED: Toxic cloud with floating bubbles
     let pulse = (sin(game.time * 2.5) * 0.25 + 0.75).float32
-    for ring in 1..3:
-      let ringRadius = poisonRadius * (ring.float32 / 3.0) * pulse
-      let alpha = uint8(45 - ring * 10)
+    let drift = game.time * 0.8
+    
+    # Dense toxic fog (inner)
+    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), 
+               poisonRadius * 0.35 * pulse, Color(r: 80, g: 200, b: 80, a: 30))
+    
+    # Multiple toxic cloud layers
+    for ring in 1..4:
+      let ringRadius = poisonRadius * (ring.float32 / 4.0) * pulse
+      let alpha = uint8((50 - ring * 10))
       drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius, 
                      Color(r: 100, g: 255, b: 100, a: alpha))
     
-    # Draw outer radius circle
+    # Floating toxic bubbles rising
+    for i in 0..15:
+      let angle = i.float32 * PI * 2.0 / 16.0
+      let baseDist = poisonRadius * 0.6
+      let floatOffset = sin(drift + i.float32 * 0.5) * 20.0
+      let dist = baseDist + floatOffset
+      let riseOffset = (game.time * 15.0 + i.float32 * 10.0) mod 30.0 - 15.0
+      let x = game.player.pos.x + cos(angle) * dist
+      let y = game.player.pos.y + sin(angle) * dist - riseOffset
+      let bubbleSize = 3 + (i mod 3).float32
+      
+      # Bubble with highlight
+      drawCircle(Vector2(x: x, y: y), bubbleSize, Color(r: 120, g: 255, b: 120, a: 160))
+      drawCircle(Vector2(x: x - 1, y: y - 1), bubbleSize * 0.4, Color(r: 180, g: 255, b: 180, a: 200))
+      drawCircleLines(x.int32, y.int32, bubbleSize, Color(r: 80, g: 200, b: 80, a: 200))
+    
+    # Outer border
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, poisonRadius, 
-                   Color(r: 80, g: 220, b: 80, a: 55))
+                   Color(r: 80, g: 220, b: 80, a: 75))
   
   # Draw Wind Aura visual effect
   if hasPowerUp(game.player, puWindAura):
@@ -2810,25 +2899,53 @@ proc drawGame*(game: Game) =
       of 2: 160.0
       else: 200.0
     
-    # Draw swirling wind rings
-    let rotationSpeed = game.time * 2.0
-    for ring in 1..3:
-      let ringRadius = windRadius * (ring.float32 / 3.0)
-      let alpha = uint8(40 - ring * 8)
-      
-      # Draw wind streaks around the ring
-      for streak in 0..11:
-        let baseAngle = (streak.float32 / 12.0) * PI * 2.0 + rotationSpeed * (ring.float32 * 0.5)
-        let x1 = game.player.pos.x + cos(baseAngle) * ringRadius
-        let y1 = game.player.pos.y + sin(baseAngle) * ringRadius
-        let x2 = game.player.pos.x + cos(baseAngle + 0.3) * (ringRadius + 8.0)
-        let y2 = game.player.pos.y + sin(baseAngle + 0.3) * (ringRadius + 8.0)
-        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, 
-                Color(r: 200, g: 230, b: 255, a: alpha))
+    # IMPROVED: Swirling cyclone effect with dynamic air currents
+    let rotationSpeed = game.time * 2.5
+    let turbulence = sin(game.time * 3.0) * 0.1
     
-    # Draw outer radius circle
+    # Inner vortex core
+    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), 
+               windRadius * 0.2, Color(r: 220, g: 240, b: 255, a: 35))
+    
+    # Spiraling wind streams (multiple layers)
+    for ring in 1..4:
+      let ringRadius = windRadius * (ring.float32 / 4.0)
+      let spiralOffset = rotationSpeed * (1.0 + ring.float32 * 0.2)
+      
+      # Multiple wind streaks per ring
+      for streak in 0..15:
+        let baseAngle = (streak.float32 / 16.0) * PI * 2.0 + spiralOffset
+        let angleVariation = turbulence * sin(streak.float32 * 0.5)
+        let angle = baseAngle + angleVariation
+        
+        # Draw flowing wind lines with trail effect
+        let segments = 3
+        for seg in 0..<segments:
+          let segProgress = seg.float32 / segments.float32
+          let startDist = ringRadius * (0.9 + segProgress * 0.1)
+          let endDist = ringRadius * (0.95 + segProgress * 0.15)
+          let angleOffset = 0.15 + segProgress * 0.1
+          
+          let x1 = game.player.pos.x + cos(angle) * startDist
+          let y1 = game.player.pos.y + sin(angle) * startDist
+          let x2 = game.player.pos.x + cos(angle + angleOffset) * endDist
+          let y2 = game.player.pos.y + sin(angle + angleOffset) * endDist
+          
+          let alpha = uint8((50 - ring * 8 - seg * 5).float32)
+          drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, 
+                  Color(r: 200, g: 230, b: 255, a: alpha))
+    
+    # Floating air particles
+    for i in 0..11:
+      let angle = i.float32 * PI * 2.0 / 12.0 + rotationSpeed * 0.3
+      let dist = windRadius * 0.7 + sin(game.time * 2.0 + i.float32) * 25.0
+      let x = game.player.pos.x + cos(angle) * dist
+      let y = game.player.pos.y + sin(angle) * dist
+      drawCircle(Vector2(x: x, y: y), 2, Color(r: 220, g: 240, b: 255, a: 150))
+    
+    # Outer border
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, windRadius, 
-                   Color(r: 180, g: 220, b: 255, a: 50))
+                   Color(r: 180, g: 220, b: 255, a: 65))
   
   # Draw Arcane Aura visual effect
   if hasPowerUp(game.player, puMagicAura):
@@ -2838,26 +2955,48 @@ proc drawGame*(game: Game) =
       of 2: 160.0
       else: 200.0
     
-    # Draw pulsing arcane aura rings
+    # IMPROVED: Mystical arcane energy with orbiting runes
     let pulse = (sin(game.time * 3.5) * 0.2 + 0.8).float32
-    for ring in 1..3:
-      let ringRadius = arcaneRadius * (ring.float32 / 3.0) * pulse
-      let alpha = uint8(50 - ring * 10)
+    let runeRotation = game.time * 1.5
+    
+    # Magical core glow
+    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), 
+               arcaneRadius * 0.3 * pulse, Color(r: 200, g: 100, b: 255, a: 45))
+    
+    # Pulsing arcane rings with gradient
+    for ring in 1..5:
+      let progress = ring.float32 / 5.0
+      let ringRadius = arcaneRadius * progress * pulse
+      let alpha = uint8((55 - ring * 8).float32 * pulse)
+      let colorShift = uint8(200 - progress * 50)
       drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius, 
-                     Color(r: 200, g: 100, b: 255, a: alpha))
+                     Color(r: colorShift, g: 100, b: 255, a: alpha))
     
-    # Draw outer radius circle with clear border
-    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, arcaneRadius, 
-                   Color(r: 200, g: 100, b: 255, a: 150))
-    
-    # Draw arcane sparkles/particles around the aura for effect
+    # Orbiting arcane runes/symbols (outer ring)
     for i in 0..11:
-      let angle = i.float32 * PI * 2.0 / 12.0
-      let dist = arcaneRadius * (0.85 + (sin(game.time * 4.0 + angle) * 0.15))
+      let angle = i.float32 * PI * 2.0 / 12.0 + runeRotation
+      let dist = arcaneRadius * (0.85 + sin(game.time * 4.0 + angle) * 0.15)
       let x = game.player.pos.x + cos(angle) * dist
       let y = game.player.pos.y + sin(angle) * dist
-      let sparkleSize = 2 + (sin(game.time * 5.0 + angle) * 1.5).int
-      drawCircle(Vector2(x: x, y: y), sparkleSize.float32, Color(r: 220, g: 150, b: 255, a: 200))
+      
+      # Rune symbol (small cross/star pattern)
+      let runeSize = 4 + sin(game.time * 5.0 + i.float32) * 2
+      drawCircle(Vector2(x: x, y: y), runeSize, Color(r: 220, g: 150, b: 255, a: 220))
+      # Rune glow
+      drawCircle(Vector2(x: x, y: y), runeSize * 1.5, Color(r: 200, g: 100, b: 255, a: 80))
+    
+    # Floating sparkles (inner region)
+    for i in 0..7:
+      let angle = i.float32 * PI * 2.0 / 8.0 - runeRotation * 0.7
+      let dist = arcaneRadius * 0.5 + sin(game.time * 3.0 + i.float32) * 20.0
+      let x = game.player.pos.x + cos(angle) * dist
+      let y = game.player.pos.y + sin(angle) * dist
+      let sparkleSize = 2 + (sin(game.time * 6.0 + i.float32) * 1.5)
+      drawCircle(Vector2(x: x, y: y), sparkleSize.float32, Color(r: 255, g: 200, b: 255, a: 180))
+    
+    # Outer arcane border
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, arcaneRadius, 
+                   Color(r: 200, g: 100, b: 255, a: 180))
   
   # Draw player
   drawPlayer(game.player)
@@ -3059,6 +3198,19 @@ proc drawGame*(game: Game) =
       legendaryYOffset += 18
     else:
       drawText("Phase - Q: Ready", 10, legendaryYOffset, 14, SkyBlue)
+      legendaryYOffset += 18
+  
+  # Parry - active defense ability with cooldown display
+  if hasPowerUp(game.player, puParry):
+    if game.player.parryActive:
+      drawText("Parry - Q: ACTIVE", 10, legendaryYOffset, 14, White)
+      legendaryYOffset += 18
+    elif game.player.parryCooldown > 0:
+      drawText("Parry - Q: " & $(game.player.parryCooldown.int + 1) & "s", 10, legendaryYOffset, 14,
+              Color(r: 100, g: 100, b: 100, a: 200))
+      legendaryYOffset += 18
+    else:
+      drawText("Parry - Q: Ready", 10, legendaryYOffset, 14, White)
       legendaryYOffset += 18
   
   # Instructions only for non-legendary keys

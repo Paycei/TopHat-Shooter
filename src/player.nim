@@ -43,7 +43,11 @@ proc newPlayer*(x, y: float32): Player =
     phaseShiftInvulnTimer: 0,
     lastPhaseShiftPos: newVector2f(x, y),
     rotatingOrbs: @[],
-    orbRotationAngle: 0
+    orbRotationAngle: 0,
+    # Parry power-up (LEGENDARY - active ability)
+    parryActive: false,
+    parryCooldown: 0,
+    parryDuration: 0
   )
 
 proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
@@ -70,6 +74,14 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.phaseShiftCooldown -= dt
   if player.phaseShiftInvulnTimer > 0:
     player.phaseShiftInvulnTimer -= dt
+  
+  # Update Parry power-up timers
+  if player.parryActive:
+    player.parryDuration -= dt
+    if player.parryDuration <= 0:
+      player.parryActive = false
+  if player.parryCooldown > 0:
+    player.parryCooldown -= dt
   
   # Calculate current speed with boost
   var currentSpeed = player.speed
@@ -212,6 +224,14 @@ proc drawPlayer*(player: Player) =
               Color(r: 0, g: 255, b: 255, a: pulseAlpha.uint8))
     drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, 
               Color(r: 100, g: 255, b: 255, a: 200))
+  # Parry active visual effect - white/silver shield
+  elif player.parryActive:
+    let pulseAlpha = (sin(player.parryDuration * 20.0) * 50 + 150).int
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 5, 
+              Color(r: 255, g: 255, b: 255, a: pulseAlpha.uint8))
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, 
+              Color(r: 200, g: 200, b: 200, a: 200))
+    drawText("PARRY!", (player.pos.x - 25).int32, (player.pos.y - 40).int32, 16, White)
   # Invincibility visual effect
   elif player.invincibilityTimer > 0:
     let flash = ((player.invincibilityTimer * 10).int mod 2 == 0)
@@ -302,28 +322,85 @@ proc drawPlayer*(player: Player) =
       # Get element color
       let color = getElementColor(orb.elementType)
       
-      # Draw orb
+      # IMPROVED: Multi-layered orb with glow effects and trails
+      # Outer glow aura
+      drawCircle(Vector2(x: orbX, y: orbY), 12, 
+                Color(r: color.r, g: color.g, b: color.b, a: 30))
+      drawCircle(Vector2(x: orbX, y: orbY), 9, 
+                Color(r: color.r, g: color.g, b: color.b, a: 60))
+      
+      # Main orb body
       drawCircle(Vector2(x: orbX, y: orbY), 6, color)
       
-      # Draw orb glow
-      drawCircleLines(
-        orbX.int32, orbY.int32, 6,
-        Color(
-          r: uint8(int(color.r) div 2),
-          g: uint8(int(color.g) div 2),
-          b: uint8(int(color.b) div 2),
-          a: 255
-        )
-      )
-
-      # Draw inner glow for extra effect
+      # Pulsing energy ring
+      let pulseSize = 7 + sin(angle * 3.0) * 1.5
+      drawCircleLines(orbX.int32, orbY.int32, pulseSize, 
+                     Color(r: color.r, g: color.g, b: color.b, a: 180))
+      
+      # Bright core with highlight
       drawCircle(Vector2(x: orbX, y: orbY), 3,
-                Color(r: 255, g: 255, b: 255, a: 150))
+                Color(r: 255, g: 255, b: 255, a: 200))
+      drawCircle(Vector2(x: orbX - 1.5, y: orbY - 1.5), 1.5,
+                Color(r: 255, g: 255, b: 255, a: 255))
+      
+      # Element-specific visual effects
+      case orb.elementType:
+      of etFire:
+        # Flickering flame particles
+        for i in 0..2:
+          let flameAngle = angle + i.float32 * 2.0
+          let flameDist = 8 + sin(flameAngle * 5.0) * 2
+          let fx = orbX + cos(flameAngle) * flameDist
+          let fy = orbY + sin(flameAngle) * flameDist - abs(sin(flameAngle * 3.0)) * 3
+          drawCircle(Vector2(x: fx, y: fy), 2, Color(r: 255, g: 150, b: 50, a: 180))
+      of etLightning:
+        # Electric sparks
+        if (angle * 10.0).int mod 3 == 0:
+          for i in 0..3:
+            let sparkAngle = angle + i.float32 * PI / 2.0
+            let sx = orbX + cos(sparkAngle) * 10
+            let sy = orbY + sin(sparkAngle) * 10
+            drawLine(Vector2(x: orbX, y: orbY), Vector2(x: sx, y: sy), 1,
+                    Color(r: 200, g: 220, b: 255, a: 150))
+      of etPoison:
+        # Dripping poison drops
+        let dropY = orbY + abs(sin(angle * 2.0)) * 5
+        drawCircle(Vector2(x: orbX, y: dropY), 1.5, Color(r: 120, g: 255, b: 120, a: 180))
+      of etWind:
+        # Swirling air streams
+        for i in 0..2:
+          let streamAngle = angle - i.float32 * 0.5
+          let sx = orbX + cos(streamAngle) * (8 + i.float32 * 2)
+          let sy = orbY + sin(streamAngle) * (8 + i.float32 * 2)
+          drawCircle(Vector2(x: sx, y: sy), 1, Color(r: 220, g: 240, b: 255, a: 120))
+      of etMagic:
+        # Orbiting runes
+        for i in 0..2:
+          let runeAngle = -angle * 2.0 + i.float32 * PI * 2.0 / 3.0
+          let rx = orbX + cos(runeAngle) * 8
+          let ry = orbY + sin(runeAngle) * 8
+          drawCircle(Vector2(x: rx, y: ry), 1.5, Color(r: 220, g: 150, b: 255, a: 200))
+      of etFrost:
+        # Ice crystals
+        for i in 0..5:
+          let crystalAngle = i.float32 * PI / 3.0
+          let cx1 = orbX + cos(crystalAngle) * 7
+          let cy1 = orbY + sin(crystalAngle) * 7
+          let cx2 = orbX + cos(crystalAngle) * 9
+          let cy2 = orbY + sin(crystalAngle) * 9
+          drawLine(Vector2(x: cx1, y: cy1), Vector2(x: cx2, y: cy2), 1,
+                  Color(r: 150, g: 200, b: 255, a: 180))
+      else:
+        discard  # etNone or other unknown types
 
 proc takeDamage*(player: Player, damage: float32): bool =
   ## Returns true if player died (HP reached 0 or below), false otherwise
   # Invincibility from consumables
   if player.invincibilityTimer > 0:
+    return false
+  
+  # Parry invulnerability - also bounces bullets
+  if player.parryActive:
     return false
   
   # Phase Shift invulnerability

@@ -107,7 +107,8 @@ type
     puFrostMastery,    # LEGENDARY: Enhance all frost effects (damage, duration, slow)
     puArcaneMastery,   # LEGENDARY: Enhance all arcane effects (damage, duration)
     puLightningMastery,# LEGENDARY: Enhance all lightning effects (damage, duration, slow)
-    puWindMastery      # LEGENDARY: Enhance all wind effects (damage, duration, slow)
+    puWindMastery,     # LEGENDARY: Enhance all wind effects (damage, duration, slow)
+    puParry            # LEGENDARY: Active ability - invincible + bounce bullets (0.5s, 8s cd)
   
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
@@ -198,6 +199,10 @@ type
     poisonTimer*: float32
     poisonDamage*: float32
     poisonAccumulator*: float32  # Accumulates fractional poison damage until it reaches 1.0
+    # Parry power-up (LEGENDARY - active ability)
+    parryActive*: bool  # True when actively parrying
+    parryCooldown*: float32  # Cooldown timer between parries
+    parryDuration*: float32  # How long the parry state lasts
 
   EffectInstance* = object
     elementType*: ElementType

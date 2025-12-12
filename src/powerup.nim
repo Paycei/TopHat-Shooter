@@ -58,6 +58,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puArcaneMastery: "Arcane Ascension"
   of puLightningMastery: "Storm Lord"
   of puWindMastery: "Wind Master"
+  of puParry: "Parry"
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
   of puDoubleShot:
@@ -296,6 +297,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   of puWindMastery:
     # Single level only - LEGENDARY mastery
     "Wind effects: +150% dmg, +100% duration, +40% slow, stronger push"
+  of puParry:
+    # Single level only - LEGENDARY active ability
+    "Active: Invincible for 0.5s, bounce enemy bullets (8s cooldown)"
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -320,7 +324,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
                             puGravityWell, puPhaseShift, puOvercharge, puEchoShots, puMultiShot,
                             puRotatingOrbs, puFireMastery, puPoisonMastery, puFrostMastery,
                             puArcaneMastery, puLightningMastery, puWindMastery, puDoubleShot,
-                            puHomingBullets]
+                            puHomingBullets, puParry]
   
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
   let normalOnlyTypes = [puRotatingShield, puDamageZone,
@@ -1194,6 +1198,27 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       let x2 = centerX.float32 + cos(angle) * endDist
       let y2 = iconY.float32 + sin(angle) * endDist
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, Color(r: 180, g: 220, b: 255, a: 180))
+  of puParry:
+    # LEGENDARY Parry - defensive shield with reflective effect
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 18, Color(r: 255, g: 255, b: 255, a: 150))
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Color(r: 200, g: 200, b: 200, a: 200))
+    # Shield layers with reflective glow
+    for ring in 1..3:
+      let ringRadius = 8.0 + ring.float32 * 3.0
+      drawCircleLines(centerX.int32, iconY.int32, ringRadius, 
+                     Color(r: 255, g: 255, b: uint8(200 - ring * 30), a: uint8(220 - ring * 40)))
+    # Bouncing bullet effect (small circle bouncing off)
+    for i in 0..5:
+      let angle = i.float32 * PI / 3.0
+      let dist = 18.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist
+      drawCircle(Vector2(x: x, y: y), 3, Color(r: 255, g: 255, b: 150, a: 200))
+    # Center crosshairs for defensive stance
+    drawLine(Vector2(x: (centerX - 8).float32, y: iconY.float32), 
+            Vector2(x: (centerX + 8).float32, y: iconY.float32), 2, White)
+    drawLine(Vector2(x: centerX.float32, y: (iconY - 8).float32), 
+            Vector2(x: centerX.float32, y: (iconY + 8).float32), 2, White)
   
   # Rarity indicator
   if powerUp.rarity == prLegendary:
