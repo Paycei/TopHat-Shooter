@@ -396,7 +396,7 @@ Tests memory and performance safeguards.
 ### 33. Power-Up Balance (3 tests)
 Tests upgrade balance and fairness.
 
-- **Regeneration intervals**: 12s → 9s → 6s healing
+- **Regeneration healing**: 1-2 HP (L1) → 2-4 HP (L2) → 3-6 HP (L3) per wave
 - **Damage Zone scaling**: Radius and DPS per level
 - **Auto-shoot penalties**: Fire rate reduction (60%, 80%, 100%)
 
