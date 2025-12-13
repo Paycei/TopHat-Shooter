@@ -187,7 +187,7 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
     game.player.baseSpeed += 12
   
   for i in 0..<game.shopItems[3].bought:  # Max health purchases
-    game.player.maxHp += 2
+    game.player.maxHp += 3
   game.player.hp = min(game.player.hp, game.player.maxHp)
   
   for i in 0..<game.shopItems[4].bought:  # Bullet speed purchases

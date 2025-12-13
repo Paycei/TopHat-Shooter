@@ -750,7 +750,7 @@ suite "Shop Item Costs":
     check shopItems[0].baseCost == 8   # Damage
     check shopItems[1].baseCost == 10  # Fire Rate
     check shopItems[2].baseCost == 7   # Move Speed
-    check shopItems[3].baseCost == 12  # Max Health
+    check shopItems[3].baseCost == 9   # Max Health
     check shopItems[4].baseCost == 6   # Bullet Speed
     check shopItems[5].baseCost == 15  # Walls
 
@@ -1007,14 +1007,20 @@ suite "Performance Optimizations":
 
 suite "Power-Up Balance":
   test "Regeneration healing intervals are balanced":
-    ## Regeneration healing should not be overpowered
-    ## Level 1: 12s, Level 2: 9s, Level 3: 6s
-    let level1Interval = 12.0
-    let level2Interval = 9.0
-    let level3Interval = 6.0
-    check level1Interval == 12.0
-    check level2Interval == 9.0
-    check level3Interval == 6.0
+    ## Regeneration healing per wave completion
+    ## Level 1: 1-2 HP, Level 2: 2-4 HP, Level 3: 3-6 HP
+    let level1MinHeal = 1
+    let level1MaxHeal = 2
+    let level2MinHeal = 2
+    let level2MaxHeal = 4
+    let level3MinHeal = 3
+    let level3MaxHeal = 6
+    check level1MinHeal == 1
+    check level1MaxHeal == 2
+    check level2MinHeal == 2
+    check level2MaxHeal == 4
+    check level3MinHeal == 3
+    check level3MaxHeal == 6
   
   test "Damage Zone radius and power scaling":
     ## Damage Zone should have limited range

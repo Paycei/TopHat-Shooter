@@ -1446,14 +1446,14 @@ proc updateGame*(game: var Game, dt: float32) =
           
           case level
           of 1:
-            # Level 1: 1-2 health (50/50 chance)
+            # Level 1: 1-2 health (base)
             healAmount = 1 + rand(1)  # rand(1) gives 0 or 1
           of 2:
-            # Level 2: 1-2 health +1 = 2-3 health
-            healAmount = 2 + rand(1)  # 2 or 3
-          else:
-            # Level 3: 1-3 health +1 = 2-4 health
+            # Level 2: 2-4 health (+1 to +2 bonus)
             healAmount = 2 + rand(2)  # 2, 3, or 4
+          else:
+            # Level 3: 3-6 health (+2 to +4 bonus)
+            healAmount = 3 + rand(3)  # 3, 4, 5, or 6
           
           heal(game.player, healAmount.float32)
           spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 15)
@@ -2367,7 +2367,15 @@ proc updateGame*(game: var Game, dt: float32) =
               of 1: 0.7
               of 2: 0.8
               else: 0.9
-            let chainRange = 120.0
+            # Chain range increases with level: 120, 140, 160
+            var chainRange = case chainLevel
+              of 1: 120.0
+              of 2: 140.0
+              else: 160.0
+            
+            # Lightning Mastery increases range by 50%
+            if game.player.hasLightningMastery:
+              chainRange *= 1.5
             
             # Lightning bullets stun enemies for 0.05s (applied to primary target)
             game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, 0.05)
@@ -2410,8 +2418,8 @@ proc updateGame*(game: var Game, dt: float32) =
           if hasPowerUp(game.player, puVampirism):
             let vampLevel = getPowerUpLevel(game.player, puVampirism)
             let healPercent = case vampLevel
-              of 1: 0.02  # 2% (reduced from 5%)
-              of 2: 0.04  # 4% (reduced from 10%)
+              of 1: 0.03  # 2% (reduced from 5%)
+              of 2: 0.05  # 4% (reduced from 10%)
               else: 0.07  # 7% (reduced from 18%)
             let healAmount = finalDamage * healPercent
             heal(game.player, healAmount)

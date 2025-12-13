@@ -1753,8 +1753,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   enemy.eliteTypes = @[]  # Initialize empty list for multiple types
   
   # Elite scaling multiplier based on wave (elites scale better than regular enemies)
-  # 1.0 at wave 1, increases by 0.15 per wave (15% per wave vs 15% for regular enemies)
-  let eliteScaling = 1.0 + (waveNumber.float32 * 0.15)
+  # 1.0 at wave 1, increases by 0.125 per wave (12.5% per wave vs 15% for regular enemies)
+  let eliteScaling = 1.0 + (waveNumber.float32 * 0.125)
   
   # Determine number of elite effects based on wave
   let numEffects = if waveNumber >= 25:
@@ -1780,8 +1780,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   for eType in enemy.eliteTypes:
     case eType
     of etSwift:
-      # 75% faster movement and attack speed (buffed from 50%)
-      enemy.speed *= (1.65 * eliteScaling)
+      # 50% faster movement and attack speed
+      enemy.speed *= (1.40 * eliteScaling)
       enemy.shootTimer *= 0.57  # Even faster shooting
       if enemy.dashCooldown > 0:
         enemy.dashCooldown *= 0.57
@@ -1803,7 +1803,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
     of etVenomous:
       # Poisons player on contact (applied in collision code)
       # Faster and more aggressive
-      enemy.speed *= (1.3 * eliteScaling)
+      enemy.speed *= (1.2 * eliteScaling)
       enemy.damage += 2 + (waveNumber div 5)  # +1 damage per 5 waves
       enemy.maxHp *= (1.3 * eliteScaling)
       enemy.hp *= (1.3 * eliteScaling)

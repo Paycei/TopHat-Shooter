@@ -4,7 +4,7 @@ proc initShopItems*(): array[6, ShopItem] =
   result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 8, bought: 0)
   result[1] = ShopItem(name: "Fire Rate +", description: "Shoot faster", baseCost: 10, bought: 0)
   result[2] = ShopItem(name: "Move Speed +", description: "Move faster", baseCost: 7, bought: 0)
-  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 11, bought: 0)
+  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 9, bought: 0)
   result[4] = ShopItem(name: "Bullet Speed +", description: "Faster bullets", baseCost: 6, bought: 0)
   result[5] = ShopItem(name: "Wall (x5)", description: "Buy 5 deployable walls", baseCost: 14, bought: 0)
 
@@ -167,9 +167,9 @@ proc buyShopItem*(game: Game, index: int) =
   of 2: # Move Speed - HEAVILY NERFED
     game.player.speed += 12
     game.player.baseSpeed += 12
-  of 3: # Max Health - NERFED HP per purchase
-    game.player.maxHp += 2
-    game.player.hp += 2
+  of 3: # Max Health - Increased from +2 to +3 HP per purchase
+    game.player.maxHp += 3
+    game.player.hp += 3
   of 4: # Bullet Speed - HEAVILY NERFED (reduced from 25 to 10)
     game.player.bulletSpeed += 10
   of 5: # Walls - BUFFED (increased from 4 to 5 per purchase)

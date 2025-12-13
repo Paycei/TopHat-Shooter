@@ -100,7 +100,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "+40% fire rate"
   of puMaxHealth:
     # Single level only - LEGENDARY
-    "+10 max HP"
+    "+15 max HP"
   of puSpeedBoost:
     # Single level only - LEGENDARY
     "+50% movement speed"
@@ -128,9 +128,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "+140% bullet size"
   of puRegeneration:
     case level
-    of 1: "Regen 1 HP per 12s"
-    of 2: "Regen 1 HP per 9s"
-    else: "Regen 1 HP per 6s"
+    of 1: "Regen 1-2 HP per wave"
+    of 2: "Regen 2-4 HP per wave"
+    else: "Regen 3-6 HP per wave"
   of puDodgeChance:
     case level
     of 1: "12% chance to dodge hits"
@@ -143,8 +143,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "25% chance for 3x damage"
   of puVampirism:
     case level
-    of 1: "Heal 2% of bullet damage"
-    of 2: "Heal 4% of bullet damage"
+    of 1: "Heal 3% of bullet damage"
+    of 2: "Heal 5% of bullet damage"
     else: "Heal 7% of bullet damage"
   of puBulletRicochet:
     case level
@@ -178,9 +178,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Bullets split into 4 on hit"
   of puChainLightning:
     case level
-    of 1: "Hit chains to 1 enemy (70% dmg, 0.05s stun)"
-    of 2: "Hit chains to 2 enemies (80% dmg, 0.05s stun)"
-    else: "Hit chains to 3 enemies (90% dmg, 0.05s stun)"
+    of 1: "Hit chains to 1 enemy (70% dmg, 120 range, 0.05s stun)"
+    of 2: "Hit chains to 2 enemies (80% dmg, 140 range, 0.05s stun)"
+    else: "Hit chains to 3 enemies (90% dmg, 160 range, 0.05s stun)"
   of puFrostShots:
     case level
     of 1: "Bullets slow enemies 25% (permanent)"
@@ -293,7 +293,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "Arcane effects: +200% dmg, +100% duration, piercing"
   of puLightningMastery:
     # Single level only - LEGENDARY mastery
-    "Lightning effects: +150% dmg, +100% duration, +25% slow, +1 chain"
+    "Lightning effects: +150% dmg, +100% duration, +25% slow, +1 chain, +50% range"
   of puWindMastery:
     # Single level only - LEGENDARY mastery
     "Wind effects: +150% dmg, +100% duration, +40% slow, stronger push"
@@ -486,9 +486,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Single level only - +40% fire rate
     player.fireRate *= 0.714  # 1 / 1.4
   of puMaxHealth:
-    # Single level only - +10 HP
-    player.maxHp += 10.0
-    player.hp += 10.0
+    # Single level only - +15 HP
+    player.maxHp += 15.0
+    player.hp += 15.0
   of puSpeedBoost:
     # Single level only - +50% speed
     player.speed *= 1.5
