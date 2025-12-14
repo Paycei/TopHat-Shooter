@@ -18,10 +18,10 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   ## Handles multiple elite types for wave 25+ elites
   result = baseDamage
   
-  # Tank elite: 60% damage reduction (buffed from 50%)
+  # Tank elite: 65% damage reduction (buffed from 50%)
   # If multiple elites include Tank, apply reduction
   if enemy.isElite and etTank in enemy.eliteTypes:
-    result *= 0.4  # 60% reduction means 40% damage taken
+    result *= 0.35  # 65% reduction
   
   # Shielded elite: shield absorbs damage first
   if enemy.isElite and etShielded in enemy.eliteTypes and enemy.shieldHp > 0:
@@ -33,6 +33,24 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
       # Shield breaks, remaining damage goes to HP
       result -= enemy.shieldHp
       enemy.shieldHp = 0
+
+proc applyCriticalHit(player: Player, baseDamage: float32): float32 =
+  ## Applies critical hit chance to any damage source
+  ## Returns damage with critical multiplier applied if crit occurs
+  if not hasPowerUp(player, puCriticalHit):
+    return baseDamage
+  
+  let critLevel = getPowerUpLevel(player, puCriticalHit)
+  let critChance = case critLevel
+    of 1: 20  # Increased from 15%
+    of 2: 35  # Increased from 20%
+    else: 50  # Increased from 25%
+  let critMultiplier = 2.0  # Fixed multiplier (was 2.0, 2.5, 3.0)
+  
+  if rand(99) < critChance:
+    return baseDamage * critMultiplier
+  else:
+    return baseDamage
 
 proc newGame*(screenWidth, screenHeight: int32): Game =
   result = Game(
@@ -369,19 +387,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         else: 2.4
       bulletRadius *= sizeMultiplier
     
-    # Apply critical hit chance
-    if hasPowerUp(game.player, puCriticalHit):
-      let critLevel = getPowerUpLevel(game.player, puCriticalHit)
-      let critChance = case critLevel
-        of 1: 15
-        of 2: 20
-        else: 25
-      let critMultiplier = case critLevel
-        of 1: 2.0
-        of 2: 2.5
-        else: 3.0
-      if rand(99) < critChance:
-        damage *= critMultiplier
+    # Apply critical hit chance using global function
+    damage = applyCriticalHit(game.player, damage)
     
     # Apply Arcane Mastery bonus to magic bullets
     if hasMagic and game.player.hasArcaneMastery:
@@ -784,7 +791,8 @@ proc updateGame*(game: var Game, dt: float32) =
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < zoneRadius:
-        let actualDamage = applyEliteModifiers(enemy, zoneDamage * dt)
+        let damageWithCrit = applyCriticalHit(game.player, zoneDamage * dt)
+        let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
   
   # Regeneration power-up is now handled per wave completion, not per time interval
@@ -895,8 +903,9 @@ proc updateGame*(game: var Game, dt: float32) =
     for entry in enemiesInRange:
       let enemy = entry.enemy
       if enemy notin processedEnemies:
-        # Apply initial damage
-        let actualDamage = applyEliteModifiers(enemy, lightningDamagePerSec * dt)
+        # Apply initial damage with crit chance
+        let damageWithCrit = applyCriticalHit(game.player, lightningDamagePerSec * dt)
+        let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
         processedEnemies.add(enemy)
         
@@ -926,8 +935,9 @@ proc updateGame*(game: var Game, dt: float32) =
                 nearestEnemy = other
           
           if nearestEnemy != nil:
-            # Apply chained damage (same as initial)
-            let chainedDamage = applyEliteModifiers(nearestEnemy, lightningDamagePerSec * dt)
+            # Apply chained damage (same as initial) with crit chance
+            let chainDamageWithCrit = applyCriticalHit(game.player, lightningDamagePerSec * dt)
+            let chainedDamage = applyEliteModifiers(nearestEnemy, chainDamageWithCrit)
             nearestEnemy.hp -= chainedDamage
             processedEnemies.add(nearestEnemy)
             
@@ -967,7 +977,8 @@ proc updateGame*(game: var Game, dt: float32) =
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < magicRadius:
-        let actualDamage = applyEliteModifiers(enemy, magicDamagePerSec * dt)
+        let damageWithCrit = applyCriticalHit(game.player, magicDamagePerSec * dt)
+        let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
         
         # Visual arcane particles (purple sparkles)
@@ -1175,7 +1186,8 @@ proc updateGame*(game: var Game, dt: float32) =
             if orb.elementType == etMagic and game.player.hasArcaneMastery:
               actualBaseDamage *= 3.0  # +200% damage
             
-            let actualDamage = applyEliteModifiers(enemy, actualBaseDamage)
+            let damageWithCrit = applyCriticalHit(game.player, actualBaseDamage)
+            let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
             enemy.hp -= actualDamage
             
             # Record hit time
@@ -1253,8 +1265,9 @@ proc updateGame*(game: var Game, dt: float32) =
                 checkIdx += 1
               
               if nearestEnemy != nil:
-                # Deal 70% damage to chained enemy
-                let chainDamage = applyEliteModifiers(nearestEnemy, baseDamage * 0.7)
+                # Deal 70% damage to chained enemy with crit chance
+                let chainDamageWithCrit = applyCriticalHit(game.player, baseDamage * 0.7)
+                let chainDamage = applyEliteModifiers(nearestEnemy, chainDamageWithCrit)
                 nearestEnemy.hp -= chainDamage
                 
                 # Apply slow if has Lightning Mastery
@@ -1280,7 +1293,8 @@ proc updateGame*(game: var Game, dt: float32) =
                         secondNearestEnemy = other
                   
                   if secondNearestEnemy != nil:
-                    let secondChainDamage = applyEliteModifiers(secondNearestEnemy, baseDamage * 0.7)
+                    let secondChainDamageWithCrit = applyCriticalHit(game.player, baseDamage * 0.7)
+                    let secondChainDamage = applyEliteModifiers(secondNearestEnemy, secondChainDamageWithCrit)
                     secondNearestEnemy.hp -= secondChainDamage
                     
                     # Apply slow to second chain
@@ -2063,8 +2077,9 @@ proc updateGame*(game: var Game, dt: float32) =
               of 1: 0.35  # BUFFED from 0.20 to 0.35
               of 2: 0.60  # BUFFED from 0.40 to 0.60
               else: 1.00  # BUFFED from 0.70 to 1.00 (full reflection!)
-            let reflectDamage = bossContactDamage * reflectPercent
-            let actualDamage = applyEliteModifiers(enemy, reflectDamage)
+            let reflectDamageBase = bossContactDamage * reflectPercent
+            let reflectDamageWithCrit = applyCriticalHit(game.player, reflectDamageBase)
+            let actualDamage = applyEliteModifiers(enemy, reflectDamageWithCrit)
             enemy.hp -= actualDamage
             spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Red, 8)
           
@@ -2093,8 +2108,9 @@ proc updateGame*(game: var Game, dt: float32) =
             of 1: 0.35  # BUFFED from 0.20 to 0.35
             of 2: 0.60  # BUFFED from 0.40 to 0.60
             else: 1.00  # BUFFED from 0.70 to 1.00 (full reflection!)
-          let reflectedDamage = enemyContactDamage * reflectPercent
-          let actualDamage = applyEliteModifiers(enemy, reflectedDamage)
+          let reflectedDamageBase = enemyContactDamage * reflectPercent
+          let reflectedDamageWithCrit = applyCriticalHit(game.player, reflectedDamageBase)
+          let actualDamage = applyEliteModifiers(enemy, reflectedDamageWithCrit)
           enemy.hp -= actualDamage
           spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Red, 6)
         
@@ -2390,8 +2406,9 @@ proc updateGame*(game: var Game, dt: float32) =
               if k != j and chained < chainCount:
                 let dist = distance(game.enemies[j].pos, game.enemies[k].pos)
                 if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
-                  let chainDmg = finalDamage * chainDamage
-                  let actualDamage = applyEliteModifiers(game.enemies[k], chainDmg)
+                  let chainDmgBase = finalDamage * chainDamage
+                  let chainDmgWithCrit = applyCriticalHit(game.player, chainDmgBase)
+                  let actualDamage = applyEliteModifiers(game.enemies[k], chainDmgWithCrit)
                   game.enemies[k].hp -= actualDamage
                   game.enemies[k].chainLightningCooldown = 0.3
                   # Lightning also stuns chained enemies for 0.05s

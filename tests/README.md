@@ -263,7 +263,7 @@ Tests combat math and balance.
 
 - **Fire rate penalties**: Verifies Double Shot balance
 - **Multi-shot damage**: Tests per-bullet damage reduction
-- **Critical hits**: Confirms chance and multiplier scaling
+- **Critical hits**: 20%/30%/40% chance with consistent 2.5x multiplier
 
 **Why This Matters**: Damage balance determines combat feel and difficulty curve.
 

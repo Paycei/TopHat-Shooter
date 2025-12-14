@@ -167,9 +167,10 @@ proc buyShopItem*(game: Game, index: int) =
   of 2: # Move Speed - HEAVILY NERFED
     game.player.speed += 12
     game.player.baseSpeed += 12
-  of 3: # Max Health - Increased from +2 to +3 HP per purchase
-    game.player.maxHp += 3
-    game.player.hp += 3
+  of 3: # Max Health - Scales with purchases: 3, 4, 5, 6, 7 HP (capped at +7)
+    let healthGain = min(3 + game.shopItems[3].bought, 7)  # 3 base + 1 per purchase, max 7
+    game.player.maxHp += healthGain.float32
+    game.player.hp += healthGain.float32
   of 4: # Bullet Speed - HEAVILY NERFED (reduced from 25 to 10)
     game.player.bulletSpeed += 10
   of 5: # Walls - BUFFED (increased from 4 to 5 per purchase)

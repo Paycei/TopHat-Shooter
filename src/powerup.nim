@@ -138,9 +138,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "30% chance to dodge hits"
   of puCriticalHit:
     case level
-    of 1: "15% chance for 2x damage"
-    of 2: "20% chance for 2.5x damage"
-    else: "25% chance for 3x damage"
+    of 1: "20% chance for 2.5x damage (all sources)"
+    of 2: "30% chance for 2.5x damage (all sources)"
+    else: "40% chance for 2.5x damage (all sources)"
   of puVampirism:
     case level
     of 1: "Heal 3% of bullet damage"

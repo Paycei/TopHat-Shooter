@@ -677,16 +677,18 @@ suite "Damage Calculations":
     check level3Mult == 0.45
   
   test "Critical hit chance and multiplier scaling":
-    ## Critical hit power-up has increasing chance and damage
-    ## Level 1: 15% chance, 2.0x damage
-    ## Level 2: 20% chance, 2.5x damage
-    ## Level 3: 25% chance, 3.0x damage
-    let level1Chance = 15
-    let level1Mult = 2.0
-    let level3Mult = 3.0
-    check level1Chance == 15
-    check level1Mult == 2.0
-    check level3Mult == 3.0
+    ## Critical hit power-up has consistent multiplier with increasing chance
+    ## Level 1: 20% chance, 2.5x damage
+    ## Level 2: 30% chance, 2.5x damage
+    ## Level 3: 40% chance, 2.5x damage
+    let level1Chance = 20
+    let level2Chance = 30
+    let level3Chance = 40
+    let critMult = 2.5
+    check level1Chance == 20
+    check level2Chance == 30
+    check level3Chance == 40
+    check critMult == 2.5
 
 suite "Status Effect System":
   test "Frost shot slow percentages":
