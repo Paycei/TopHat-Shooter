@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, save_system, statistics
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics
 
 const
   screenWidth = 1024
@@ -317,7 +317,7 @@ proc main() =
           let mousePos = getMousePosition()
           let startY = 360
           let spacing = 65
-          let menuItems = ["Play", "Survival Mode", "Settings", "Help", "Quit"]
+          let menuItems = ["Play", "Survival Mode", "Statistics", "Settings", "Help", "Quit"]
           
           for i in 0..<menuItems.len:
             let y = startY + i * spacing
@@ -538,6 +538,72 @@ proc main() =
       # Keep current music playing but muted or paused
       # Music continues in background during pause
       
+      # Update time for animations even when paused
+      currentGame.time += dt
+      
+      # Update mouse tracking
+      updateMouseTracking(currentGame)
+      
+      # Pause menu navigation - keyboard has priority
+      if isKeyPressed(Down) or isKeyPressed(S):
+        currentGame.menuSelection = (currentGame.menuSelection + 1) mod 2
+        playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
+      if isKeyPressed(Up) or isKeyPressed(W):
+        currentGame.menuSelection = (currentGame.menuSelection - 1 + 2) mod 2
+        playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
+      
+      # Mouse hover detection (ONLY if mouse moved recently AND mouse support enabled AND keyboard NOT used recently)
+      if globalSettings.mouseSupport and currentGame.mouseMovedRecently and not currentGame.keyboardUsedRecently:
+        let mousePos = getMousePosition()
+        let pauseOptions = ["Resume", "Main Menu"]
+        let optionStartY = screenHeight div 2 + 20
+        let optionSpacing = 60
+        
+        for i in 0..<pauseOptions.len:
+          let y = optionStartY + i * optionSpacing
+          let text = if i == currentGame.menuSelection: "> " & pauseOptions[i] & " <" else: pauseOptions[i]
+          let textWidth = measureText(text, 32)
+          let textX = screenWidth div 2 - textWidth div 2
+          
+          # Check if mouse is hovering over this menu item
+          if mousePos.x >= textX.float32 and mousePos.x <= (textX + textWidth).float32 and
+             mousePos.y >= y.float32 and mousePos.y <= (y + 32).float32:
+            currentGame.menuSelection = i
+      
+      # Select pause menu option
+      if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
+        # For mouse clicks, verify we're clicking on a menu item (only if mouse support enabled AND mouse moved recently)
+        var validClick = isKeyPressed(Enter) or isKeyPressed(E)
+        if not validClick and isMouseButtonPressed(Left) and globalSettings.mouseSupport and currentGame.mouseMovedRecently:
+          let mousePos = getMousePosition()
+          let pauseOptions = ["Resume", "Main Menu"]
+          let optionStartY = screenHeight div 2 + 20
+          let optionSpacing = 60
+          
+          for i in 0..<pauseOptions.len:
+            let y = optionStartY + i * optionSpacing
+            let text = if i == currentGame.menuSelection: "> " & pauseOptions[i] & " <" else: pauseOptions[i]
+            let textWidth = measureText(text, 32)
+            let textX = screenWidth div 2 - textWidth div 2
+            
+            if mousePos.x >= textX.float32 and mousePos.x <= (textX + textWidth).float32 and
+               mousePos.y >= y.float32 and mousePos.y <= (y + 32).float32:
+              validClick = true
+              break
+        
+        if validClick:
+          playSound(stMenuSelect)
+          case currentGame.menuSelection
+          of 0:  # Resume
+            currentGame.state = gsPlaying
+          of 1:  # Main Menu
+            currentGame = newGame(screenWidth, screenHeight)
+            currentGame.state = gsMenu
+          else: discard
+      
+      # Also allow ESC to resume
       if isKeyPressed(Escape):
         currentGame.state = gsPlaying
       
@@ -546,8 +612,36 @@ proc main() =
       
       # Draw pause overlay
       drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 150))
-      drawText("PAUSED", screenWidth div 2 - 100, screenHeight div 2 - 40, 50, White)
-      drawText("Press ESC to resume", screenWidth div 2 - 120, screenHeight div 2 + 20, 20, LightGray)
+      drawText("PAUSED", screenWidth div 2 - 100, screenHeight div 2 - 80, 50, White)
+      
+      # Draw pause menu options
+      let pauseOptions = ["Resume", "Main Menu"]
+      let optionStartY = screenHeight div 2 + 20
+      let optionSpacing = 60
+      
+      for i in 0..<pauseOptions.len:
+        let y = optionStartY + i * optionSpacing
+        let isSelected = i == currentGame.menuSelection
+        
+        # Selection glow
+        if isSelected:
+          let glowPulse = sin(currentGame.time * 6.0) * 0.3 + 0.7
+          let glowSize = 18 + (glowPulse * 8).int32
+          drawCircle(Vector2(x: (screenWidth div 2).float32, y: y.float32 + 15),
+                    glowSize.float32, Color(r: 255'u8, g: 200'u8, b: 0'u8, a: 100'u8))
+        
+        let color = if isSelected: Gold else: White
+        let text = if isSelected: "> " & pauseOptions[i] & " <" else: pauseOptions[i]
+        let textWidth = measureText(text, 32)
+        drawText(text, screenWidth div 2 - textWidth div 2, y.int32, 32, color)
+      
+      # Draw instructions
+      drawText("Press ESC to resume", screenWidth div 2 - 130, screenHeight - 60, 20, LightGray)
+      
+      # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
+      if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
+        drawCustomCursor(currentGame.time)
+      
       endDrawing()
     
     of gsShop:
