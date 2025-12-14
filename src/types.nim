@@ -2,7 +2,7 @@ import raylib, math, std/tables
 
 type
   GameState* = enum
-    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings
+    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings, gsStatistics
   
   GameMode* = enum
     gmWaveBased,      # New primary mode: waves → upgrades → boss → legendary

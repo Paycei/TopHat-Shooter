@@ -1,16 +1,6 @@
-import raylib, strutils, sound, math
+import raylib, strutils, sound, math, save_system, settings_types
 
-type
-  Settings* = ref object
-    fpsLimit*: int32
-    volume*: float32
-    musicVolume*: float32
-    inputBuffer*: string
-    editingFPS*: bool
-    fullscreen*: bool
-    showFPS*: bool  # New setting to show FPS counter
-    mouseSupport*: bool  # Enable mouse support in menus (always works in-game and settings)
-    showCursorInMenus*: bool  # Show cursor in menus when mouseSupport is disabled
+export settings_types
 
 var globalSettings*: Settings
 
@@ -27,6 +17,9 @@ proc initSettings*(): Settings =
     showCursorInMenus: true  # Show cursor in menus by default
   )
   globalSettings = result
+  
+  # Try to load saved settings
+  discard loadSettings(result)
 
 proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: float32) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
@@ -276,6 +269,8 @@ proc updateSettings*(settings: Settings) =
             settings.fpsLimit = newFps.int32
             setTargetFPS(settings.fpsLimit)
             playSound(stMenuSelect)
+            # Save settings after changing FPS
+            discard saveSettings(settings)
           else:
             playSound(stMenuNav, 0.3)  # Error sound
         except:
@@ -304,6 +299,10 @@ proc updateSettings*(settings: Settings) =
         settings.musicVolume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
         setMusicVolume(settings.musicVolume)
   
+  # Save settings when volume sliders are released
+  if isMouseButtonReleased(Left):
+    discard saveSettings(settings)
+  
   # Handle fullscreen checkbox click
   if isMouseButtonPressed(Left):
     let checkboxX: int32 = 400
@@ -321,18 +320,21 @@ proc updateSettings*(settings: Settings) =
       settings.fullscreen = not settings.fullscreen
       toggleFullscreen()
       playSound(stMenuNav)
+      discard saveSettings(settings)
     
     # Show FPS checkbox
     if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
        mousePos.y >= fpsCheckboxY.float32 and mousePos.y <= (fpsCheckboxY + checkboxSize).float32:
       settings.showFPS = not settings.showFPS
       playSound(stMenuNav)
+      discard saveSettings(settings)
     
     # Mouse Support checkbox
     if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
        mousePos.y >= mouseCheckboxY.float32 and mousePos.y <= (mouseCheckboxY + checkboxSize).float32:
       settings.mouseSupport = not settings.mouseSupport
       playSound(stMenuNav)
+      discard saveSettings(settings)
     
     # Show Cursor in Menus checkbox (only when mouseSupport is disabled)
     if not settings.mouseSupport:
@@ -340,6 +342,7 @@ proc updateSettings*(settings: Settings) =
          mousePos.y >= cursorCheckboxY.float32 and mousePos.y <= (cursorCheckboxY + checkboxSize).float32:
         settings.showCursorInMenus = not settings.showCursorInMenus
         playSound(stMenuNav)
+        discard saveSettings(settings)
 
 proc applySettings*(settings: Settings) =
   setTargetFPS(settings.fpsLimit)

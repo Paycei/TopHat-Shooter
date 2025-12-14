@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, save_system, statistics
 
 const
   screenWidth = 1024
@@ -113,7 +113,7 @@ proc drawMenu(game: Game) =
   let startY = 360
   let spacing = 65
   
-  let menuItems = ["Play", "Survival Mode", "Settings", "Help", "Quit"]
+  let menuItems = ["Play", "Survival Mode", "Statistics", "Settings", "Help", "Quit"]
   
   # Mouse hover detection (ONLY if mouse moved recently AND mouse support enabled AND keyboard NOT used recently)
   if globalSettings.mouseSupport and game.mouseMovedRecently and not game.keyboardUsedRecently:
@@ -189,6 +189,65 @@ proc drawHelp(game: Game) =
   # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
   if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
     drawCustomCursor(game.time)
+
+proc drawStatistics(game: Game, stats: Statistics) =
+  clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
+  
+  drawText("STATISTICS", screenWidth div 2 - 120, 40, 40, Yellow)
+  
+  # Global stats
+  var y: int32 = 110
+  drawText("OVERALL", 100, y, 28, Gold)
+  y += 35
+  drawText("Total Games: " & $stats.totalGamesPlayed, 100, y, 20, White)
+  y += 25
+  drawText("Total Playtime: " & formatTime(stats.totalPlayTime), 100, y, 20, White)
+  y += 35
+  
+  # Wave Mode stats
+  drawText("WAVE MODE", 100, y, 28, Color(r: 100, g: 200, b: 255, a: 255))
+  y += 35
+  drawText("Games Played: " & $stats.waveMode.gamesPlayed, 120, y, 18, White)
+  y += 23
+  drawText("Highest Wave: " & $stats.waveMode.highestWaveReached, 120, y, 18, White)
+  y += 23
+  drawText("Avg Wave Reached: " & formatFloat(stats.waveMode.averageWaveReached, ffDecimal, 1), 120, y, 18, White)
+  y += 23
+  drawText("Best Kills: " & $stats.waveMode.bestKills, 120, y, 18, White)
+  y += 23
+  drawText("Best Coins: " & $stats.waveMode.bestCoins, 120, y, 18, Gold)
+  y += 23
+  drawText("Total Kills: " & $stats.waveMode.totalKills, 120, y, 18, White)
+  y += 23
+  drawText("Bosses Defeated: " & $stats.waveMode.bossesDefeated, 120, y, 18, Red)
+  y += 23
+  drawText("Playtime: " & formatTime(stats.waveMode.totalTimePlayed), 120, y, 18, White)
+  y += 35
+  
+  # Time Survival Mode stats
+  drawText("TIME SURVIVAL MODE", 100, y, 28, Color(r: 255, g: 150, b: 100, a: 255))
+  y += 35
+  drawText("Games Played: " & $stats.timeMode.gamesPlayed, 120, y, 18, White)
+  y += 23
+  drawText("Longest Survival: " & formatTime(stats.timeMode.longestSurvivalTime), 120, y, 18, White)
+  y += 23
+  drawText("Avg Survival: " & formatTime(stats.timeMode.averageSurvivalTime), 120, y, 18, White)
+  y += 23
+  drawText("Best Kills: " & $stats.timeMode.bestKills, 120, y, 18, White)
+  y += 23
+  drawText("Best Coins: " & $stats.timeMode.bestCoins, 120, y, 18, Gold)
+  y += 23
+  drawText("Total Kills: " & $stats.timeMode.totalKills, 120, y, 18, White)
+  y += 23
+  drawText("Bosses Defeated: " & $stats.timeMode.bossesDefeated, 120, y, 18, Red)
+  
+  drawText("Press ESC to return", screenWidth div 2 - 130, screenHeight - 60, 20, LightGray)
+  
+  # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
+  if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
+    drawCustomCursor(game.time)
+
+
 proc main() =
   randomize()
   
@@ -206,6 +265,12 @@ proc main() =
   # Initialize settings
   let settings = initSettings()
   applySettings(settings)
+  
+  # Initialize and load statistics
+  let stats = initStatistics()
+  discard loadStatistics(stats)
+  
+  var statsSavedThisGame = false  # Track if stats were saved for current game
   
   var currentGame = newGame(screenWidth, screenHeight)
   currentGame.state = gsMenu
@@ -237,11 +302,11 @@ proc main() =
       
       # Menu navigation - keyboard has priority
       if isKeyPressed(Down) or isKeyPressed(S):
-        currentGame.menuSelection = (currentGame.menuSelection + 1) mod 5
+        currentGame.menuSelection = (currentGame.menuSelection + 1) mod 6
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
       if isKeyPressed(Up) or isKeyPressed(W):
-        currentGame.menuSelection = (currentGame.menuSelection - 1 + 5) mod 5
+        currentGame.menuSelection = (currentGame.menuSelection - 1 + 6) mod 6
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
       
@@ -272,15 +337,19 @@ proc main() =
             currentGame = newGame(screenWidth, screenHeight)
             currentGame.mode = gmWaveBased
             currentGame.state = gsPlaying  # Start playing immediately
+            statsSavedThisGame = false  # Reset for new game
           of 1:  # Time Survival Mode
             currentGame = newGame(screenWidth, screenHeight)
             currentGame.mode = gmTimeSurvival
             currentGame.state = gsPlaying  # Start playing immediately
-          of 2:  # Settings
+            statsSavedThisGame = false  # Reset for new game
+          of 2:  # Statistics
+            currentGame.state = gsStatistics
+          of 3:  # Settings
             currentGame.state = gsSettings
-          of 3:  # Help
+          of 4:  # Help
             currentGame.state = gsHelp
-          of 4:  # Quit
+          of 5:  # Quit
             break
           else: discard
       
@@ -315,6 +384,20 @@ proc main() =
       drawSettings(settings, screenWidth, screenHeight, currentGame.time)
       endDrawing()
     
+    of gsStatistics:
+      # Keep menu music playing during statistics screen
+      playMusic(mtMenu)
+      
+      # Update time for animations
+      currentGame.time += dt
+      
+      if isKeyPressed(Escape):
+        currentGame.state = gsMenu
+      
+      beginDrawing()
+      drawStatistics(currentGame, stats)
+      endDrawing()
+
     of gsPlaying:
       # Dynamic music based on game state
       if currentGame.bossActive:
@@ -725,15 +808,35 @@ proc main() =
         stopMusic()
         playSound(stGameOver, 1.0)
         currentGame.gameOverSoundPlayed = true
+        
+        # Save statistics only once per game over
+        if not statsSavedThisGame and not currentGame.cheatsUsed:
+          # Calculate bosses defeated based on wave progress
+          let bossesKilled = if currentGame.mode == gmWaveBased:
+            (currentGame.currentWave - 1) div 5  # Boss every 5 waves
+          else:
+            currentGame.bossCount
+          
+          updateStats(stats, 
+                     currentGame.mode == gmWaveBased,
+                     currentGame.currentWave,
+                     currentGame.time,
+                     currentGame.player.kills,
+                     currentGame.player.coins,
+                     bossesKilled)
+          discard saveStatistics(stats)
+          statsSavedThisGame = true
       
       if isKeyPressed(R):
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.mode = gmWaveBased  # Default to wave-based on restart
         currentGame.state = gsPlaying
+        statsSavedThisGame = false  # Reset for new game
       
       if isKeyPressed(Escape) or isKeyPressed(Q):
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.state = gsMenu
+        statsSavedThisGame = false  # Reset for new game
       
       beginDrawing()
       drawGameOver(currentGame)

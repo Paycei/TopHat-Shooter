@@ -5,3 +5,8 @@ htmldocs/
 nimble.develop
 nimble.paths
 nimbledeps
+
+# Save files
+settings.json
+
+stats.json
