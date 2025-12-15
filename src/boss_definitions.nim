@@ -189,8 +189,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapBurst,
               damage: 1.0,
               cooldown: 2.5,
-              projectileSpeed: 200.0,
-              projectileCount: 6,
+              projectileSpeed: 150.0,
+              projectileCount: 5,
               spreadAngle: 60.0,
               durationOrRadius: 0.0
             )
