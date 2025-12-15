@@ -122,12 +122,12 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   
   # Scale radius with max HP using square root for diminishing returns
   # Formula: baseRadius + sqrt(maxHp - 7) * scaleFactor
-  # This makes high HP less impactful on size than low HP gains
-  # At 7 HP (starting): 14 + sqrt(0) * 2 = 14 (same as base)
-  # At 11 HP: 14 + sqrt(4) * 2 = 14 + 4.0 = 18.0 (was 19 with linear)
-  # At 21 HP: 14 + sqrt(14) * 2 = 14 + 7.48 = 21.48 (was 29 with linear)
+  # REDUCED: scaleFactor from 2.0 to 1.0 for less dramatic size scaling
+  # At 7 HP (starting): 14 + sqrt(0) * 1 = 14 (same as base)
+  # At 11 HP: 14 + sqrt(4) * 1 = 14 + 2.0 = 16.0 (was 18.0)
+  # At 21 HP: 14 + sqrt(14) * 1 = 14 + 3.74 = 17.74 (was 21.48)
   let hpAboveBase = max(0.0, player.maxHp - 7.0)
-  player.radius = player.baseRadius + sqrt(hpAboveBase) * 2.0
+  player.radius = player.baseRadius + sqrt(hpAboveBase) * 1.0
   
   # Scale aura with player radius - MUCH LARGER collection area
   player.auraRadius = player.radius * 3.5  # 3.5x player size for generous collection
@@ -313,6 +313,9 @@ proc drawPlayer*(player: Player) =
                          hasPowerUp(player, puMagicOrb))
   
   if hasAnyOrbPowerUp and player.rotatingOrbs.len > 0:
+    # Scale orb size with player size (increased from 0.3 to 0.45)
+    let orbSizeScale = 6.0 + (player.radius - player.baseRadius) * 0.45
+    
     for orb in player.rotatingOrbs:
       # Calculate orb position
       let angle = player.orbRotationAngle + orb.angle
@@ -323,24 +326,24 @@ proc drawPlayer*(player: Player) =
       let color = getElementColor(orb.elementType)
       
       # IMPROVED: Multi-layered orb with glow effects and trails
-      # Outer glow aura
-      drawCircle(Vector2(x: orbX, y: orbY), 12, 
+      # Outer glow aura - scaled
+      drawCircle(Vector2(x: orbX, y: orbY), 12 + (orbSizeScale - 6.0) * 2.0, 
                 Color(r: color.r, g: color.g, b: color.b, a: 30))
-      drawCircle(Vector2(x: orbX, y: orbY), 9, 
+      drawCircle(Vector2(x: orbX, y: orbY), 9 + (orbSizeScale - 6.0) * 1.5, 
                 Color(r: color.r, g: color.g, b: color.b, a: 60))
       
-      # Main orb body
-      drawCircle(Vector2(x: orbX, y: orbY), 6, color)
+      # Main orb body - scaled
+      drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale, color)
       
-      # Pulsing energy ring
-      let pulseSize = 7 + sin(angle * 3.0) * 1.5
+      # Pulsing energy ring - scaled
+      let pulseSize = (7 + orbSizeScale - 6.0) + sin(angle * 3.0) * 1.5
       drawCircleLines(orbX.int32, orbY.int32, pulseSize, 
                      Color(r: color.r, g: color.g, b: color.b, a: 180))
       
-      # Bright core with highlight
-      drawCircle(Vector2(x: orbX, y: orbY), 3,
+      # Bright core with highlight - scaled
+      drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale * 0.5,
                 Color(r: 255, g: 255, b: 255, a: 200))
-      drawCircle(Vector2(x: orbX - 1.5, y: orbY - 1.5), 1.5,
+      drawCircle(Vector2(x: orbX - (orbSizeScale * 0.25), y: orbY - (orbSizeScale * 0.25)), orbSizeScale * 0.25,
                 Color(r: 255, g: 255, b: 255, a: 255))
       
       # Element-specific visual effects

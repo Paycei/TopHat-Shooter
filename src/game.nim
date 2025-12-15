@@ -152,8 +152,8 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 10:
         # Waves 6-10: Introduce PENTAGON (ranged basics)
-        # Pentagon is the star here with 45% spawn rate
-        if roll < 45: enemyType = etPentagon  # NEW ENEMY - prominent
+        # Pentagon is the star here with 40% spawn rate
+        if roll < 40: enemyType = etPentagon  # NEW ENEMY - prominent
         elif roll < 75: enemyType = etCircle
         else: enemyType = etCircle  # Keep it simple
       
@@ -271,72 +271,6 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       makeElite(enemy, wave)  # Chance to make enemy elite based on wave
       game.enemies.add(enemy)
       game.waveEnemiesRemaining -= 1
-
-proc spawnWaveEnemy*(game: Game) =
-  if game.waveEnemiesRemaining > 0:
-    # Progressive enemy variety based on wave number (mimics time survival progression)
-    # Map waves to equivalent time survival difficulty for consistent balance
-    let wave = game.currentWave
-    let roll = rand(100)
-    var enemyType: EnemyType
-    
-    if wave <= 2:
-      # Waves 1-2: Only circles (tutorial waves)
-      enemyType = etCircle
-    
-    elif wave <= 4:
-      # Waves 3-4: Introduce cubes (ranged enemies)
-      if roll < 80: enemyType = etCircle
-      else: enemyType = etCube
-    
-    elif wave <= 6:
-      # Waves 5-6: Add triangles (dash enemies, swapped with hexagon)
-      if roll < 65: enemyType = etCircle
-      elif roll < 85: enemyType = etCube
-      else: enemyType = etTriangle
-    
-    elif wave <= 10:
-      # Waves 7-10: Add stars (tanky enemies)
-      if roll < 45: enemyType = etCircle
-      elif roll < 55: enemyType = etCube
-      elif roll < 70: enemyType = etTriangle
-      else: enemyType = etStar
-    
-    elif wave <= 15:
-      # Waves 11-15: Add hexagons (teleporting chaos, moved later)
-      if roll < 30: enemyType = etCircle
-      elif roll < 40: enemyType = etCube
-      elif roll < 55: enemyType = etTriangle
-      elif roll < 75: enemyType = etStar
-      else: enemyType = etHexagon
-    
-    else:
-      # Wave 16+: Balanced chaos - all enemy types including rare Sniper
-      if roll < 18: enemyType = etCircle
-      elif roll < 33: enemyType = etCube
-      elif roll < 50: enemyType = etTriangle
-      elif roll < 65: enemyType = etStar
-      elif roll < 95: enemyType = etHexagon
-      else: enemyType = etSniper  # Very rare 5% chance at wave 16+
-    
-    # Difficulty scaling: increase every 3 waves (similar to time survival's 30s intervals)
-    let baseDifficulty = (wave - 1).float32 / 3.0
-    let strengthMultiplier = pow(1.15, baseDifficulty)
-    
-    # Spawn enemy at calculated difficulty
-    let side = rand(3)
-    var x, y: float32
-    
-    case side
-    of 0: x = rand(game.screenWidth.int).float32; y = -30
-    of 1: x = game.screenWidth.float32 + 30; y = rand(game.screenHeight.int).float32
-    of 2: x = rand(game.screenWidth.int).float32; y = game.screenHeight.float32 + 30
-    else: x = -30; y = rand(game.screenHeight.int).float32
-    
-    let enemy = newEnemy(x, y, baseDifficulty, enemyType)
-    makeElite(enemy, wave)  # Chance to make enemy elite based on wave
-    game.enemies.add(enemy)
-    game.waveEnemiesRemaining -= 1
 
 proc checkWaveComplete*(game: Game): bool =
   # Wave is complete when all enemies are defeated, none remain to spawn, 
@@ -1131,14 +1065,14 @@ proc updateGame*(game: var Game, dt: float32) =
      hasPowerUp(game.player, puWindOrb) or 
      hasPowerUp(game.player, puFrostOrb):
     
-    # Calculate base damage (NERFED: 1.0 for legendary, element-specific for individual)
+    # Calculate base damage (BUFFED RANGE 2-6, but reduced multiplier)
     # Add small damage scaling from player's damage stat (10% of player damage)
-    let damageScaling = game.player.damage * 0.1
+    let damageScaling = game.player.damage * 0.05  # Reduced from 0.1 to 0.05 for compensation
     
     let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
-      1.0 + damageScaling  # Legendary version has fixed damage + scaling
+      0.5 + damageScaling  # Legendary version reduced from 1.0 to 0.5 for compensation
     else:
-      # For individual orbs, use level-based damage
+      # For individual orbs, use level-based damage (multiplied by 0.5 to balance the 2-6 buff)
       var maxDamage = 0.0
       if hasPowerUp(game.player, puPoisonOrb):
         maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puPoisonOrb)))
@@ -1150,9 +1084,10 @@ proc updateGame*(game: var Game, dt: float32) =
         maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puWindOrb)))
       if hasPowerUp(game.player, puFrostOrb):
         maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puFrostOrb)))
-      maxDamage + damageScaling
+      (maxDamage * 0.5) + damageScaling  # Multiply by 0.5 to balance the 2-6 range
     
-    let orbRadius = 6.0  # Size of each orb hitbox
+    let orbRadius = 6.0  # Visual orb size - matches drawn size
+    let orbDetectionRange = 0.0  # No extra detection range
     
     # Update each orb and check for collisions
     for orb in game.player.rotatingOrbs:
@@ -1167,8 +1102,8 @@ proc updateGame*(game: var Game, dt: float32) =
       for enemy in game.enemies:
         let dist = distance(orbPos, enemy.pos)
         
-        # Check if orb is touching enemy
-        if dist < orbRadius + enemy.radius:
+        # Check if orb is touching enemy (with increased detection range)
+        if dist < orbRadius + enemy.radius + orbDetectionRange:
           # Check if we haven't hit this enemy recently (cooldown per enemy)
           let currentTime = game.time
           var canHit = true
@@ -2063,8 +1998,10 @@ proc updateGame*(game: var Game, dt: float32) =
       
       enemy.shootTimer = 0
     
-    # Check collision with player
-    if distance(enemy.pos, game.player.pos) < enemy.radius + game.player.radius:
+    # Check collision with player (with small coyote/forgiveness zone on edges)
+    # Reduce effective collision radius by 8% for slight edge forgiveness
+    let effectivePlayerRadius = game.player.radius * 0.92  # 8% reduction = coyote
+    if distance(enemy.pos, game.player.pos) < enemy.radius + effectivePlayerRadius:
       if enemy.isBoss:
         # Boss deals continuous damage
         if game.time - enemy.lastContactDamageTime >= 0.5:  # 2 HP per second

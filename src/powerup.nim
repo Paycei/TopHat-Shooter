@@ -390,8 +390,12 @@ proc createRotatingOrbs*(player: Player, level: int) =
   ## Create rotating orbs based on power-up level (Legendary version)
   ## All 6 elements, each element forms a triangle around the player
   ## Triangles are positioned at different base angles to avoid overlaps
+  ## Orb radius scales with player size to maintain distance
   
-  let orbRadius = player.radius * 2.5 + 20  # Orbit radius around player
+  # Dynamic orbit radius: scales with player size + fixed offset
+  # player.radius * 3.5 ensures orbs scale MUCH MORE with player
+  # + 25 maintains minimum distance from player
+  let orbRadius = player.radius * 3.5 + 25
   
   # Clear existing orbs
   player.rotatingOrbs = @[]
@@ -422,9 +426,14 @@ proc createRotatingOrbs*(player: Player, level: int) =
 
 proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) =
   ## Create orbs of a specific element based on level
-  ## Level 1: 1 orb (top of triangle), Level 2: 2 orbs (top + bottom), Level 3: 3 orbs (full triangle)
-  ## Each element has a predefined base angle so triangles don't overlap
-  let orbRadius = player.radius * 2.5 + 20  # Orbit radius around player
+  ## Level 1: 2 orbs, Level 2: 4 orbs, Level 3: 6 orbs
+  ## Distribuidos en círculo alrededor del jugador
+  ## Orb radius scales with player size to maintain distance
+  
+  # Dynamic orbit radius: scales with player size + fixed offset
+  # player.radius * 3.5 ensures orbs scale MUCH MORE with player
+  # + 25 maintains minimum distance from player
+  let orbRadius = player.radius * 3.5 + 25
   
   # Find existing orbs of this element and remove them
   var i = 0
@@ -434,32 +443,26 @@ proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) 
     else:
       i += 1
   
-  # Define fixed base angles for each element (in a hexagon pattern)
-  # These angles position each element's triangle without overlapping
+  # Define fixed base angle for each element (offset para que no se solapen)
   let baseAngleForElement = case elementType
-    of etPoison: 0.0                           # Poison triangle at 0°
-    of etFire: PI / 3.0                        # Fire triangle at 60°
-    of etLightning: PI * 2.0 / 3.0             # Lightning triangle at 120°
-    of etWind: PI                              # Wind triangle at 180°
-    of etFrost: PI * 4.0 / 3.0                 # Frost triangle at 240°
-    of etMagic: PI * 5.0 / 3.0                 # Magic triangle at 300°
+    of etPoison: 0.0                           # Poison at 0°
+    of etFire: PI / 3.0                        # Fire at 60°
+    of etLightning: PI * 2.0 / 3.0             # Lightning at 120°
+    of etWind: PI                              # Wind at 180°
+    of etFrost: PI * 4.0 / 3.0                 # Frost at 240°
+    of etMagic: PI * 5.0 / 3.0                 # Magic at 300°
     of etNone: 0.0
   
-  # Create orbs forming a triangle around the element's base angle
-  # Triangle vertices are 120° apart
-  case level
-  of 1:
-    # Level 1: Single orb at the top of the triangle (base angle)
-    player.rotatingOrbs.add(newRotatingOrb(baseAngleForElement, orbRadius, elementType))
-  of 2:
-    # Level 2: Top + bottom-left of triangle
-    player.rotatingOrbs.add(newRotatingOrb(baseAngleForElement, orbRadius, elementType))
-    player.rotatingOrbs.add(newRotatingOrb(baseAngleForElement + PI * 2.0 / 3.0, orbRadius, elementType))
-  else:  # 3 or more
-    # Level 3: Full triangle (3 orbs at 120° intervals)
-    for orbIdx in 0..2:
-      let orbAngle = baseAngleForElement + (orbIdx.float32 * PI * 2.0 / 3.0)
-      player.rotatingOrbs.add(newRotatingOrb(orbAngle, orbRadius, elementType))
+  # Create orbs distributed in circle based on level
+  let orbCount = case level
+    of 1: 2
+    of 2: 4
+    else: 6
+  
+  # Distribute orbs evenly around the circle
+  for orbIdx in 0..<orbCount:
+    let orbAngle = baseAngleForElement + (orbIdx.float32 * PI * 2.0 / orbCount.float32)
+    player.rotatingOrbs.add(newRotatingOrb(orbAngle, orbRadius, elementType))
 
 proc getElementColor*(elementType: ElementType): Color =
   ## Get the visual color for each element type
@@ -473,11 +476,12 @@ proc getElementColor*(elementType: ElementType): Color =
   of etNone: White
 
 proc getElementDamage*(level: int): float32 =
-  ## Get base damage per hit based on power-up level (NERFED)
+  ## Get base damage per hit based on power-up level (BUFFED RANGE: 2-6)
+  ## Compensated with reduced damage multiplier in game logic
   case level
-  of 1: 0.5
-  of 2: 0.75
-  else: 1.0
+  of 1: 2.0
+  of 2: 4.0
+  else: 6.0
 
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   # Apply immediate stat bonuses for new powerup types
