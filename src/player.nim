@@ -1,4 +1,4 @@
-import raylib, types, wall, math, random, std/tables, powerup
+import raylib, types, wall, math, random, powerup
 
 proc newPlayer*(x, y: float32): Player =
   result = Player(
@@ -29,8 +29,6 @@ proc newPlayer*(x, y: float32): Player =
     rageStacks: 0,
     critCharge: 0,
     autoShootEnabled: true,  # Auto-shoot starts enabled
-    activePowerUps: @[],
-    powerUpTimers: initTable[PowerUpType, float32](),
     auraRadius: 50.0,  # Invisible coin collection aura
     doubleShotDelay: 0,
     # Initialize legendary power-up cooldowns

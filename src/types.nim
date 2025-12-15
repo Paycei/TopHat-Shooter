@@ -172,8 +172,6 @@ type
     rageStacks*: int
     critCharge*: float32
     autoShootEnabled*: bool
-    powerUpTimers*: Table[PowerUpType, float32]
-    activePowerUps*: seq[PowerUpType]
     auraRadius*: float32  # Invisible coin collection aura
     doubleShotDelay*: float32  # Timer for double-shot rapid succession
     # New legendary power-up timers and states

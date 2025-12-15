@@ -1,4 +1,4 @@
-import raylib, types, sound, std/tables, math
+import raylib, types, sound, math
 from powerup import applyPowerUp, getPowerUpName
 
 # TOGGLE THIS TO ENABLE/DISABLE CHEATS
@@ -138,11 +138,6 @@ proc applyWaveCheat*(game: var Game, action: string) =
     playSound(stBossSpawn)
   else:
     discard
-
-proc applyPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
-  game.player.activePowerUps.add(powerUpType)
-  game.player.powerUpTimers[powerUpType] = 30.0  # 30 seconds
-  playSound(stPowerUp)
 
 proc applyPermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType, level: int) =
   # Check if player already has this power-up
@@ -384,21 +379,6 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game) =
   
   drawText("Click to activate consumable (30 seconds)", x + 20, currentY, 14, Gray)
   currentY += 30
-  
-  # Active consumables display
-  drawText("Active Consumables:", x + 20, currentY, 16, Yellow)
-  currentY += 25
-  
-  if game.player.activePowerUps.len == 0:
-    drawText("  None", x + 30, currentY, 14, Gray)
-    currentY += 20
-  else:
-    for powerUp in game.player.activePowerUps:
-      let timeLeft = game.player.powerUpTimers[powerUp]
-      drawText("  " & $powerUp & " (" & $int(timeLeft) & "s)", x + 30, currentY, 14, Green)
-      currentY += 20
-  
-  currentY += 20
   
   # Consumable buttons (Speed, Invincibility, Fire Rate, Magnet, Health, Coin)
   let buttonWidth: int32 = 250
