@@ -251,6 +251,8 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
 
 proc updateSettings*(settings: Settings) =
+  var settingsChanged = false
+  
   # Handle FPS input box click
   let boxX: int32 = 400
   let boxY: int32 = 115
@@ -285,10 +287,12 @@ proc updateSettings*(settings: Settings) =
         try:
           let newFps = parseInt(settings.inputBuffer)
           if newFps >= 30 and newFps <= 9999:
+            let oldFps = settings.fpsLimit
             settings.fpsLimit = newFps.int32
             setTargetFPS(settings.fpsLimit)
             playSound(stMenuSelect)
-            discard saveSettings(settings)
+            if oldFps != settings.fpsLimit:
+              settingsChanged = true
           else:
             playSound(stMenuNav, 0.3)
         except:
@@ -296,6 +300,7 @@ proc updateSettings*(settings: Settings) =
       settings.editingFPS = false
   
   # Handle volume slider
+  var volumeChangedThisFrame = false
   if isMouseButtonDown(Left):
     let sliderX: int32 = 400
     let sliderY: int32 = 255  # volumeY (250) + 5
@@ -308,18 +313,24 @@ proc updateSettings*(settings: Settings) =
     if mousePos.y >= sliderY.float32 and mousePos.y <= (sliderY + 20).float32:
       if mousePos.x >= sliderX.float32 and mousePos.x <= (sliderX + sliderWidth).float32:
         let relativeX = mousePos.x - sliderX.float32
+        let oldVolume = settings.volume
         settings.volume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
+        if oldVolume != settings.volume:
+          volumeChangedThisFrame = true
     
     # Music volume slider
     if mousePos.y >= musicSliderY.float32 and mousePos.y <= (musicSliderY + 20).float32:
       if mousePos.x >= sliderX.float32 and mousePos.x <= (sliderX + sliderWidth).float32:
         let relativeX = mousePos.x - sliderX.float32
+        let oldMusicVolume = settings.musicVolume
         settings.musicVolume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
         setMusicVolume(settings.musicVolume)
+        if oldMusicVolume != settings.musicVolume:
+          volumeChangedThisFrame = true
   
-  # Save settings when volume sliders are released
-  if isMouseButtonReleased(Left):
-    discard saveSettings(settings)
+  # Save settings when volume sliders are released (only if changed)
+  if isMouseButtonReleased(Left) and volumeChangedThisFrame:
+    settingsChanged = true
   
   # Handle checkbox clicks
   if isMouseButtonPressed(Left):
@@ -340,43 +351,47 @@ proc updateSettings*(settings: Settings) =
       settings.fullscreen = not settings.fullscreen
       toggleFullscreen()
       playSound(stMenuNav)
-      discard saveSettings(settings)
+      settingsChanged = true
     
     # Show FPS checkbox
-    if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
+    elif mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
        mousePos.y >= fpsCheckboxY.float32 and mousePos.y <= (fpsCheckboxY + checkboxSize).float32:
       settings.showFPS = not settings.showFPS
       playSound(stMenuNav)
-      discard saveSettings(settings)
+      settingsChanged = true
     
     # Mouse Support checkbox
-    if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
+    elif mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
        mousePos.y >= mouseCheckboxY.float32 and mousePos.y <= (mouseCheckboxY + checkboxSize).float32:
       settings.mouseSupport = not settings.mouseSupport
       playSound(stMenuNav)
-      discard saveSettings(settings)
+      settingsChanged = true
     
     # Show Cursor in Menus checkbox (only when mouseSupport is disabled)
-    if not settings.mouseSupport:
+    elif not settings.mouseSupport:
       if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
          mousePos.y >= cursorCheckboxY.float32 and mousePos.y <= (cursorCheckboxY + checkboxSize).float32:
         settings.showCursorInMenus = not settings.showCursorInMenus
         playSound(stMenuNav)
-        discard saveSettings(settings)
+        settingsChanged = true
     
     # Show Debug Stats checkbox
     if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
        mousePos.y >= debugCheckboxY.float32 and mousePos.y <= (debugCheckboxY + checkboxSize).float32:
       settings.showDebugStats = not settings.showDebugStats
       playSound(stMenuNav)
-      discard saveSettings(settings)
+      settingsChanged = true
     
     # Show Hints checkbox
-    if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
+    elif mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
        mousePos.y >= hintsCheckboxY.float32 and mousePos.y <= (hintsCheckboxY + checkboxSize).float32:
       settings.showHints = not settings.showHints
       playSound(stMenuNav)
-      discard saveSettings(settings)
+      settingsChanged = true
+  
+  # Only save if settings actually changed
+  if settingsChanged:
+    discard saveSettings(settings)
 
 proc applySettings*(settings: Settings) =
   setTargetFPS(settings.fpsLimit)

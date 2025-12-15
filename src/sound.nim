@@ -24,6 +24,61 @@ type
 var globalSoundSystem*: SoundSystem
 
 # ============================================================================
+# CACHE MANAGEMENT
+# ============================================================================
+
+proc getCacheDir(): string =
+  result = getTempDir() / "tophat_sound_cache"
+  if not dirExists(result):
+    createDir(result)
+
+proc getSoundCacheFile(soundType: SoundType): string =
+  let cacheDir = getCacheDir()
+  let soundName = case soundType
+    of stShoot: "shoot"
+    of stEnemyHit: "hit"
+    of stEnemyDeath: "death"
+    of stPlayerHit: "playerhit"
+    of stCoinPickup: "coin"
+    of stPowerUp: "powerup"
+    of stBossSpawn: "boss"
+    of stExplosion: "explosion"
+    of stWallPlace: "wall"
+    of stTeleport: "teleport"
+    of stMenuNav: "menunav"
+    of stMenuSelect: "menuselect"
+    of stWaveComplete: "wavecomplete"
+    of stShield: "shield"
+    of stGameOver: "gameover"
+  result = cacheDir / (soundName & ".wav")
+
+proc getMusicCacheFile(track: MusicTrack): string =
+  let cacheDir = getCacheDir()
+  let trackName = case track
+    of mtMenu: "menu"
+    of mtWave: "wave"
+    of mtPowerUp: "powerup_music"
+    of mtBoss: "boss_music"
+  result = cacheDir / (trackName & ".wav")
+
+proc isSoundCached(soundType: SoundType): bool =
+  fileExists(getSoundCacheFile(soundType))
+
+proc isMusicCached(track: MusicTrack): bool =
+  fileExists(getMusicCacheFile(track))
+
+proc countCachedAssets(): tuple[sounds: int, music: int, total: int] =
+  result.sounds = 0
+  result.music = 0
+  for st in SoundType:
+    if isSoundCached(st):
+      inc result.sounds
+  for mt in MusicTrack:
+    if isMusicCached(mt):
+      inc result.music
+  result.total = result.sounds + result.music
+
+# ============================================================================
 # CORE AUDIO UTILITIES - Optimized
 # ============================================================================
 
@@ -38,11 +93,6 @@ proc applyADSR(progress: float32, attack, decay, sustain, release: float32): flo
   else:
     let releaseProgress = (progress - (1.0 - release)) / release
     return sustain * (1.0 - releaseProgress)
-
-proc generateHarmonics(t: float32, baseFreq: float32, harmonics: seq[tuple[mult: float32, amp: float32]]): float32 {.inline.} =
-  result = 0.0
-  for h in harmonics:
-    result += sin(2.0 * PI * baseFreq * h.mult * t) * h.amp
 
 proc writeWavFile(filename: string, samples: seq[int16], sampleRate: uint32) =
   var stream = newFileStream(filename, fmWrite)
@@ -73,7 +123,7 @@ proc writeWavFile(filename: string, samples: seq[int16], sampleRate: uint32) =
     stream.write(sample)
 
 # ============================================================================
-# SOUND GENERATION - Simplified and optimized
+# SOUND GENERATION - Simplified and optimized with caching
 # ============================================================================
 
 proc createSimpleSound(filename: string, duration: float32, 
@@ -92,8 +142,8 @@ proc createSimpleSound(filename: string, duration: float32,
     let value = sin(2.0 * PI * freq * t) * env * amplitude
     samples[i] = int16(value * 32767.0)
   
-  writeWavFile(getTempDir() / filename, samples, sampleRate)
-  result = loadSound(getTempDir() / filename)
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
 
 proc createLaserShoot(filename: string): Sound =
   createSimpleSound(filename, 0.12,
@@ -114,8 +164,8 @@ proc createImpactHit(filename: string): Sound =
     let thump = sin(2.0 * PI * 80.0 * t * exp(-progress * 8.0)) * 0.6
     samples[i] = int16((noise + thump) * envelope * 32767.0)
   
-  writeWavFile(getTempDir() / filename, samples, sampleRate)
-  result = loadSound(getTempDir() / filename)
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
 
 proc createEnemyDeath(filename: string): Sound =
   createSimpleSound(filename, 0.4,
@@ -144,8 +194,8 @@ proc createCoinPickup(filename: string): Sound =
     let envelope = applyADSR(progress, 0.1, 0.2, 0.4, 0.3)
     samples[i] = int16(sin(2.0 * PI * freq * t) * envelope * 0.35 * 32767.0)
   
-  writeWavFile(getTempDir() / filename, samples, sampleRate)
-  result = loadSound(getTempDir() / filename)
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
 
 proc createPowerUp(filename: string): Sound =
   let sampleRate: uint32 = 44100
@@ -164,8 +214,8 @@ proc createPowerUp(filename: string): Sound =
                  sin(2.0 * PI * 783.99 * pitchRise * vibrato * t) * 0.3) * envelope
     samples[i] = int16(value * 0.4 * 32767.0)
   
-  writeWavFile(getTempDir() / filename, samples, sampleRate)
-  result = loadSound(getTempDir() / filename)
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
 
 proc createBossSpawn(filename: string): Sound =
   createSimpleSound(filename, 1.2,
@@ -188,8 +238,8 @@ proc createExplosion(filename: string): Sound =
     let noise = rand(-1.0..1.0) * (if progress < 0.1: 0.3 else: 0.1) * exp(-progress * 15.0)
     samples[i] = int16((boom + punch + noise) * envelope * 0.6 * 32767.0)
   
-  writeWavFile(getTempDir() / filename, samples, sampleRate)
-  result = loadSound(getTempDir() / filename)
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
 
 proc createWallPlace(filename: string): Sound =
   createSimpleSound(filename, 0.25,
@@ -224,8 +274,8 @@ proc createMenuSelect(filename: string): Sound =
     let envelope = applyADSR(progress, 0.1, 0.2, 0.5, 0.2)
     samples[i] = int16(sin(2.0 * PI * freq * t) * envelope * 0.35 * 32767.0)
   
-  writeWavFile(getTempDir() / filename, samples, sampleRate)
-  result = loadSound(getTempDir() / filename)
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
 
 proc createWaveComplete(filename: string): Sound =
   let sampleRate: uint32 = 44100
@@ -243,8 +293,8 @@ proc createWaveComplete(filename: string): Sound =
     let envelope = applyADSR(progress, 0.1, 0.15, 0.7, 0.05)
     samples[i] = int16(sin(2.0 * PI * freq * t) * envelope * 0.4 * 32767.0)
   
-  writeWavFile(getTempDir() / filename, samples, sampleRate)
-  result = loadSound(getTempDir() / filename)
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
 
 proc createShield(filename: string): Sound =
   createSimpleSound(filename, 0.35,
@@ -276,17 +326,42 @@ proc createGameOverSound(filename: string): Sound =
         value += sin(2.0 * PI * note.freq * t) * envelope * 0.4
     samples[i] = int16(clamp(value * 32767.0, -32767.0, 32767.0))
   
-  writeWavFile(getTempDir() / filename, samples, sampleRate)
-  result = loadSound(getTempDir() / filename)
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
+
+# ============================================================================
+# SOUND LOADING WITH CACHE - New optimized system
+# ============================================================================
+
+proc loadOrGenerateSound(soundType: SoundType): Sound =
+  let cacheFile = getSoundCacheFile(soundType)
+  
+  if fileExists(cacheFile):
+    return loadSound(cacheFile)
+  
+  # Generate the sound based on type
+  case soundType
+  of stShoot: result = createLaserShoot(cacheFile)
+  of stEnemyHit: result = createImpactHit(cacheFile)
+  of stEnemyDeath: result = createEnemyDeath(cacheFile)
+  of stPlayerHit: result = createPlayerHit(cacheFile)
+  of stCoinPickup: result = createCoinPickup(cacheFile)
+  of stPowerUp: result = createPowerUp(cacheFile)
+  of stBossSpawn: result = createBossSpawn(cacheFile)
+  of stExplosion: result = createExplosion(cacheFile)
+  of stWallPlace: result = createWallPlace(cacheFile)
+  of stTeleport: result = createTeleport(cacheFile)
+  of stMenuNav: result = createMenuNav(cacheFile)
+  of stMenuSelect: result = createMenuSelect(cacheFile)
+  of stWaveComplete: result = createWaveComplete(cacheFile)
+  of stShield: result = createShield(cacheFile)
+  of stGameOver: result = createGameOverSound(cacheFile)
 
 # ============================================================================
 # MUSIC GENERATION - Optimized with caching and reduced duration
 # ============================================================================
 
-proc getCacheDir(): string =
-  result = getTempDir() / "tophat_music_cache"
-  if not dirExists(result):
-    createDir(result)
+const MUSIC_DURATION = 16.0
 
 proc generateAdvancedMusic(filename: string, bpm: float32, duration: float32,
                           chordProg: seq[tuple[root: float32, fifth: float32, third: float32]],
@@ -381,9 +456,6 @@ proc generateAdvancedMusic(filename: string, bpm: float32, duration: float32,
   
   writeWavFile(filename, samples, sampleRate)
 
-# Reduced duration to 16 seconds for faster loading
-const MUSIC_DURATION = 16.0
-
 proc createMenuMusic(filename: string): Music =
   let chordProg = @[
     (root: 220.00'f32, fifth: 329.63'f32, third: 261.63'f32),
@@ -476,54 +548,88 @@ proc createBossMusic(filename: string): Music =
                        arpPattern, kickPattern, snarePattern, true, 1.0)
   result = loadMusicStream(filename)
 
-# Lazy loading with file caching
 proc loadOrGenerateMusic(track: MusicTrack): Music =
-  let cacheDir = getCacheDir()
-  let trackName = case track
-    of mtMenu: "menu"
-    of mtWave: "wave"
-    of mtPowerUp: "powerup"
-    of mtBoss: "boss"
+  let cacheFile = getMusicCacheFile(track)
   
-  let cachedFile = cacheDir / (trackName & "_music.wav")
+  if fileExists(cacheFile):
+    return loadMusicStream(cacheFile)
   
-  if fileExists(cachedFile):
-    echo "  Loading cached ", trackName, " music"
-    return loadMusicStream(cachedFile)
-  
-  echo "  Generating ", trackName, " music (will be cached)"
+  # Generate the music based on track
   case track
-  of mtMenu: result = createMenuMusic(cachedFile)
-  of mtWave: result = createWaveMusic(cachedFile)
-  of mtPowerUp: result = createPowerUpMusic(cachedFile)
-  of mtBoss: result = createBossMusic(cachedFile)
+  of mtMenu: result = createMenuMusic(cacheFile)
+  of mtWave: result = createWaveMusic(cacheFile)
+  of mtPowerUp: result = createPowerUpMusic(cacheFile)
+  of mtBoss: result = createBossMusic(cacheFile)
+
+# ============================================================================
+# PRE-GENERATION SYSTEM - New optimized initialization
+# ============================================================================
+
+proc preGenerateAllAssets*(verbose: bool = true) =
+  ## Pre-generate all sounds and music that aren't already cached
+  ## This prevents any in-game stuttering from asset generation
+  
+  let cached = countCachedAssets()
+  let totalAssets = SoundType.high.ord + 1 + MusicTrack.high.ord + 1
+  
+  if cached.total == totalAssets:
+    if verbose:
+      echo "✓ All ", totalAssets, " assets already cached - ready to play!"
+    return
+  
+  if verbose:
+    echo "=========================================="
+    echo "Pre-generating game assets..."
+    echo "Cached: ", cached.sounds, "/", SoundType.high.ord + 1, " sounds, ", 
+         cached.music, "/", MusicTrack.high.ord + 1, " music tracks"
+    echo "=========================================="
+  
+  var assetsGenerated = 0
+  let assetsToGenerate = totalAssets - cached.total
+  
+  # Generate all sounds
+  for soundType in SoundType:
+    if not isSoundCached(soundType):
+      if verbose:
+        inc assetsGenerated
+        let progress = (assetsGenerated.float32 / assetsToGenerate.float32 * 100.0).int
+        echo "[", progress, "%] Generating sound: ", soundType, "..."
+      discard loadOrGenerateSound(soundType)
+  
+  # Generate all music
+  for track in MusicTrack:
+    if not isMusicCached(track):
+      if verbose:
+        inc assetsGenerated
+        let progress = (assetsGenerated.float32 / assetsToGenerate.float32 * 100.0).int
+        echo "[", progress, "%] Generating music: ", track, "..."
+      discard loadOrGenerateMusic(track)
+  
+  if verbose:
+    echo "=========================================="
+    echo "✓ Asset generation complete!"
+    echo "  Total assets: ", totalAssets
+    echo "  Cache location: ", getCacheDir()
+    echo "=========================================="
 
 proc generateAllSounds(sys: SoundSystem) =
+  ## Load all sounds into memory from cache or generate if needed
   if sys.soundsGenerated:
     return
   
-  echo "Generating procedural sounds..."
+  echo "Loading procedural sounds into memory..."
   try:
-    sys.cachedSounds[stShoot] = createLaserShoot("shoot.wav")
-    sys.cachedSounds[stEnemyHit] = createImpactHit("hit.wav")
-    sys.cachedSounds[stEnemyDeath] = createEnemyDeath("death.wav")
-    sys.cachedSounds[stPlayerHit] = createPlayerHit("playerhit.wav")
-    sys.cachedSounds[stCoinPickup] = createCoinPickup("coin.wav")
-    sys.cachedSounds[stPowerUp] = createPowerUp("powerup.wav")
-    sys.cachedSounds[stBossSpawn] = createBossSpawn("boss.wav")
-    sys.cachedSounds[stExplosion] = createExplosion("explosion.wav")
-    sys.cachedSounds[stWallPlace] = createWallPlace("wall.wav")
-    sys.cachedSounds[stTeleport] = createTeleport("teleport.wav")
-    sys.cachedSounds[stMenuNav] = createMenuNav("menunav.wav")
-    sys.cachedSounds[stMenuSelect] = createMenuSelect("menuselect.wav")
-    sys.cachedSounds[stWaveComplete] = createWaveComplete("wavecomplete.wav")
-    sys.cachedSounds[stShield] = createShield("shield.wav")
-    sys.cachedSounds[stGameOver] = createGameOverSound("gameover.wav")
+    for st in SoundType:
+      sys.cachedSounds[st] = loadOrGenerateSound(st)
     sys.soundsGenerated = true
-    echo "All sounds generated successfully!"
+    echo "All sounds loaded successfully!"
   except Exception as e:
-    echo "ERROR generating sounds: ", e.msg
+    echo "ERROR loading sounds: ", e.msg
     sys.soundsGenerated = false
+
+# ============================================================================
+# SYSTEM INITIALIZATION AND MANAGEMENT
+# ============================================================================
 
 proc initSoundSystem*(): SoundSystem =
   echo "Initializing sound system..."
@@ -543,8 +649,14 @@ proc initSoundSystem*(): SoundSystem =
     )
     
     globalSoundSystem = result
+    
+    # Pre-generate all assets if not cached
+    preGenerateAllAssets(verbose = true)
+    
+    # Load all sounds into memory
     generateAllSounds(result)
-    echo "Sound system initialized (music will load on demand)!"
+    
+    echo "Sound system initialized!"
   except Exception as e:
     echo "ERROR initializing sound system: ", e.msg
     return SoundSystem(enabled: false, masterVolume: 0.5, musicVolume: 0.5, initialized: false)
@@ -553,6 +665,10 @@ proc closeSoundSystem*(sys: SoundSystem) =
   if sys != nil and sys.initialized:
     closeAudioDevice()
     echo "Sound system closed"
+
+# ============================================================================
+# PLAYBACK FUNCTIONS
+# ============================================================================
 
 proc playSound*(soundType: SoundType, volumeMultiplier: float32 = 1.0) =
   if globalSoundSystem == nil or not globalSoundSystem.enabled or not globalSoundSystem.soundsGenerated:

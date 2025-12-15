@@ -397,15 +397,15 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
     )
 
 proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
-  let strengthMultiplier = pow(1.15, difficulty)  # Reduced from 1.18
+  let strengthMultiplier = pow(1.18, difficulty)  # INCREASED from 1.15 for better scaling
   
   result = Enemy(
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
     radius: 50 + difficulty * 3,
     collisionRadius: (50 + difficulty * 3) * 0.4,  # 40% of visual size for boss collision
-    hp: 55 + difficulty * 18 * strengthMultiplier,  # Reduced from 75 + difficulty * 25
-    maxHp: 55 + difficulty * 18 * strengthMultiplier,
+    hp: 40 + difficulty * 25 * strengthMultiplier,  # INCREASED from 55 + difficulty * 18
+    maxHp: 40 + difficulty * 25 * strengthMultiplier,
     speed: 65 + difficulty * 4,
     damage: 2 + (difficulty / 8).int,
     color: case bossType
@@ -1751,6 +1751,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   ## Converts a regular enemy into an elite with enhanced stats and special abilities
   ## Elite chance increases with wave number: base 3% + 0.5% per wave (capped at 15%)
   ## At wave 25+, elites can have multiple effects (2-3 types combined)
+  ## BALANCED: Multiple effects apply with diminishing returns to prevent exponential growth
   
   # Don't make bosses elite
   if enemy.isBoss:
@@ -1765,14 +1766,14 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   enemy.eliteAuraPhase = 0.0
   enemy.eliteTypes = @[]  # Initialize empty list for multiple types
   
-  # Elite scaling multiplier based on wave (elites scale better than regular enemies)
-  # 1.0 at wave 1, increases by 0.125 per wave (12.5% per wave vs 15% for regular enemies)
-  let eliteScaling = 1.0 + (waveNumber.float32 * 0.125)
+  # Elite scaling multiplier based on wave (5% per wave)
+  let eliteScaling = 1.0 + (waveNumber.float32 * 0.05)
   
   # Determine number of elite effects based on wave
+  # BALANCED: Max 2 effects for wave 25+, not 3 (reduces exponential stacking)
   let numEffects = if waveNumber >= 25:
-    # Waves 25+: 2-3 effects (50% chance for 2, 50% chance for 3)
-    if rand(1) == 0: 2 else: 3
+    # Waves 25+: 1-2 effects (50% for dual effect)
+    if rand(99) < 50: 2 else: 1
   else:
     # Waves 1-24: Single effect
     1
@@ -1789,64 +1790,81 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   # For backward compatibility, set primary eliteType to first in list
   enemy.eliteType = if enemy.eliteTypes.len > 0: enemy.eliteTypes[0] else: etNone
   
+  # Multiplier for multiple effects (diminishing returns)
+  # 1 effect = 100%, 2 effects = 75% effectiveness to prevent stacking exponentially
+  let effectMultiplier = if enemy.eliteTypes.len >= 2: 0.75 else: 1.0
+  
+  # BASE ELITE BONUS: All elites get a base stat increase
+  # This represents them being fundamentally stronger than normal enemies
+  let baseEliteBonus = 1.3  # 30% base bonus to all stats
+  enemy.maxHp *= baseEliteBonus
+  enemy.hp *= baseEliteBonus
+  enemy.damage = (enemy.damage.float32 * baseEliteBonus).int
+  
   # Apply elite modifications for ALL types in the list
   for eType in enemy.eliteTypes:
     case eType
     of etSwift:
-      # 50% faster movement and attack speed
-      enemy.speed *= (1.40 * eliteScaling)
-      enemy.shootTimer *= 0.57  # Even faster shooting
+      # 30% faster movement (reduced from 40% for balance)
+      enemy.speed *= (1.30 * eliteScaling * effectMultiplier)
+      # Cap speed increase
+      let maxSpeed = 400.0
+      if enemy.speed > maxSpeed:
+        enemy.speed = maxSpeed
+      enemy.shootTimer *= 0.65  # Faster shooting (reduced from 0.57)
       if enemy.dashCooldown > 0:
-        enemy.dashCooldown *= 0.57
-      # Swift elites are slightly smaller but faster
+        enemy.dashCooldown *= 0.65
+      # Swift elites are smaller
       enemy.radius *= 0.9
-      enemy.collisionRadius *= 0.9  # Scale collision radius too
-      enemy.damage += 1 + (waveNumber div 5)  # +1 damage per 5 waves
-      enemy.maxHp *= (1.1 * eliteScaling)
-      enemy.hp *= (1.1 * eliteScaling)
+      enemy.collisionRadius *= 0.9
+      enemy.damage += 1 + (waveNumber div 8)  # Reduced scaling (was div 5)
+      enemy.maxHp *= (0.85 * eliteScaling)  # Reduced from 0.9
+      enemy.hp *= (0.85 * eliteScaling)
     
     of etTank:
-      # 4x HP, 60% damage reduction, slower movement (buffed from 3x HP, 50% reduction)
-      enemy.maxHp *= (4.0 * eliteScaling)
-      enemy.hp *= (4.0 * eliteScaling)
-      enemy.speed *= 0.7  # Slower (was 0.75)
+      # BALANCED: 3.2x HP with reduced damage reduction (INCREASED from 2.5x)
+      # Multiple effects further reduce HP scaling
+      enemy.maxHp *= (3.2 * eliteScaling * effectMultiplier)
+      enemy.hp *= (3.2 * eliteScaling * effectMultiplier)
+      enemy.speed *= 0.75  # Slower
       # Tank elites are larger
-      enemy.radius *= 1.4  # Bigger (was 1.3)
-      enemy.collisionRadius *= 1.4  # Scale collision radius too
-      enemy.damage += 2 + (waveNumber div 4)  # +1 damage per 4 waves
+      enemy.radius *= 1.3
+      enemy.collisionRadius *= 1.3
+      enemy.damage += 2 + (waveNumber div 5)  # Increased scaling (was div 6)
     
     of etVenomous:
-      # Poisons player on contact (applied in collision code)
-      # Faster and more aggressive
-      enemy.speed *= (1.2 * eliteScaling)
-      enemy.damage += 2 + (waveNumber div 5)  # +1 damage per 5 waves
-      enemy.maxHp *= (1.3 * eliteScaling)
-      enemy.hp *= (1.3 * eliteScaling)
+      # Poisons player on contact
+      # Balanced growth
+      enemy.speed *= (1.15 * eliteScaling * effectMultiplier)  # Reduced from 1.2
+      enemy.damage += 2 + (waveNumber div 7)  # Increased scaling (was div 8)
+      enemy.maxHp *= (1.5 * eliteScaling * effectMultiplier)  # Increased from 1.2
+      enemy.hp *= (1.5 * eliteScaling * effectMultiplier)
     
     of etExplosive:
-      # Explodes on death (handled in death code)
-      # More HP to make explosion more dangerous
-      enemy.maxHp *= (2.0 * eliteScaling)
-      enemy.hp *= (2.0 * eliteScaling)
-      enemy.damage += 2 + (waveNumber div 5)  # +1 damage per 5 waves
-      enemy.speed *= (1.1 * eliteScaling * 0.9)  # Scale speed but keep it moderate
+      # Explodes on death
+      # Multiple effects reduce HP scaling
+      enemy.maxHp *= (2.1 * eliteScaling * effectMultiplier)  # Increased from 1.7
+      enemy.hp *= (2.1 * eliteScaling * effectMultiplier)
+      enemy.damage += 2 + (waveNumber div 7)  # Increased scaling (was div 8)
+      enemy.speed *= (1.0 * eliteScaling * effectMultiplier)  # Reduced speed impact
     
     of etRegenerative:
-      # Regenerates 8% HP per second (buffed from 5%)
+      # Regenerates 5% HP per second
       enemy.regenTimer = 0.0
-      # More HP to make regen meaningful
-      enemy.maxHp *= (2.5 * eliteScaling)
-      enemy.hp *= (2.5 * eliteScaling)
-      enemy.damage += 1 + (waveNumber div 6)  # +1 damage per 6 waves
+      # Multiple effects reduce HP scaling
+      enemy.maxHp *= (2.0 * eliteScaling * effectMultiplier)  # Increased from 1.6
+      enemy.hp *= (2.0 * eliteScaling * effectMultiplier)
+      enemy.damage += 1 + (waveNumber div 8)  # Increased from (was div 10)
     
     of etShielded:
       # Has a shield that absorbs damage
-      enemy.maxHp *= (1.3 * eliteScaling)
-      enemy.hp *= (1.3 * eliteScaling)
-      let shieldAmount = enemy.maxHp * 0.75  # Shield = 75% of max HP (buffed from 50%)
+      # Multiple effects reduce HP and shield scaling
+      enemy.maxHp *= (1.5 * eliteScaling * effectMultiplier)  # Increased from 1.2
+      enemy.hp *= (1.5 * eliteScaling * effectMultiplier)
+      let shieldAmount = enemy.maxHp * 0.6  # Shield = 60% of max HP (was 75%, reduced)
       enemy.shieldHp = shieldAmount
       enemy.maxShieldHp = shieldAmount
-      enemy.damage += 1 + (waveNumber div 5)  # +1 damage per 5 waves
+      enemy.damage += 2 + (waveNumber div 7)  # Increased scaling (was div 8)
     
     else:
       discard
@@ -1854,8 +1872,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   # All elites drop slightly more coins (1.5x multiplier applied in game.nim)
   # All elites are slightly larger for visibility (if not already modified by Swift or Tank)
   if etSwift notin enemy.eliteTypes and etTank notin enemy.eliteTypes:
-    enemy.radius *= 1.15  # Buffed visibility (was 1.1)
-    enemy.collisionRadius *= 1.15  # Scale collision radius too
+    enemy.radius *= 1.15
+    enemy.collisionRadius *= 1.15
 
 proc getEliteAuraColor*(eliteType: EliteType): Color =
   ## Returns the aura color for each elite type
@@ -1927,6 +1945,50 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
       coreColor
     )
   
+  # Draw health bar for Tank elites (above shield bar if present)
+  if etTank in enemy.eliteTypes:
+    let barWidth = enemy.radius * 2.0
+    let barHeight = 5.0
+    # If shielded, place HP bar above shield bar; otherwise at default position
+    let barY = if etShielded in enemy.eliteTypes:
+      enemy.pos.y - enemy.radius - 20.0  # Above shield bar (which is at -12)
+    else:
+      enemy.pos.y - enemy.radius - 12.0  # Default position
+    let barX = enemy.pos.x - barWidth / 2.0
+    
+    # HP background (red)
+    drawRectangle(
+      barX.int32,
+      barY.int32,
+      barWidth.int32,
+      barHeight.int32,
+      Color(r: 80, g: 20, b: 20, a: 200)
+    )
+    
+    # HP fill (green to yellow gradient based on health)
+    let hpPercent = enemy.hp / enemy.maxHp
+    let fillColor = if hpPercent > 0.5:
+      Color(r: uint8(100 + (1.0 - hpPercent) * 155), g: 255, b: 0, a: 255)  # Green to yellow
+    else:
+      Color(r: 255, g: uint8(hpPercent * 510), b: 0, a: 255)  # Yellow to red
+    
+    drawRectangle(
+      barX.int32,
+      barY.int32,
+      (barWidth * hpPercent).int32,
+      barHeight.int32,
+      fillColor
+    )
+    
+    # HP border
+    drawRectangleLines(
+      barX.int32,
+      barY.int32,
+      barWidth.int32,
+      barHeight.int32,
+      Color(r: 200, g: 100, b: 0, a: 255)
+    )
+  
   # Draw shield bar for shielded elites
   if etShielded in enemy.eliteTypes and enemy.shieldHp > 0:
     let barWidth = enemy.radius * 2.0
@@ -1972,10 +2034,10 @@ proc updateEliteEffects*(enemy: Enemy, dt: float32) =
   for eType in enemy.eliteTypes:
     case eType
     of etRegenerative:
-      # Regenerate 8% max HP per second (buffed from 5%)
+      # Regenerate 5% max HP per second
       enemy.regenTimer += dt
       if enemy.regenTimer >= 0.2:  # Update every 0.2 seconds
-        let regenAmount = enemy.maxHp * 0.016  # 1.6% per 0.2s = 8% per second
+        let regenAmount = enemy.maxHp * 0.01  # 1.0% per 0.2s = 5% per second
         enemy.hp = min(enemy.hp + regenAmount, enemy.maxHp)
         enemy.regenTimer = 0.0
     

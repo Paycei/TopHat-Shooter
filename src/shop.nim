@@ -4,7 +4,7 @@ proc initShopItems*(): array[6, ShopItem] =
   result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 8, bought: 0)
   result[1] = ShopItem(name: "Fire Rate +", description: "Shoot faster", baseCost: 10, bought: 0)
   result[2] = ShopItem(name: "Move Speed +", description: "Move faster", baseCost: 7, bought: 0)
-  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 9, bought: 0)
+  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 10, bought: 0)
   result[4] = ShopItem(name: "Bullet Speed +", description: "Faster bullets", baseCost: 6, bought: 0)
   result[5] = ShopItem(name: "Wall (x5)", description: "Buy 5 deployable walls", baseCost: 14, bought: 0)
 

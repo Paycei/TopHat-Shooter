@@ -5,9 +5,7 @@ proc newWall*(x, y: float32, player: Player): Wall =
   let baseHp = 10.0
   let wallMasterLevel = getPowerUpLevel(player, puWallMaster)
   let hpMultiplier = case wallMasterLevel
-    of 1: 1.5
-    of 2: 2.2
-    of 3: 3.5
+    of 1: 2.5
     else: 1.0
   
   let maxHp = baseHp * hpMultiplier
@@ -51,22 +49,12 @@ proc checkPlayerWallCollision*(playerPos: Vector2f, playerRadius: float32, wall:
 
 proc isValidWallPlacement*(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall], enemies: seq[Enemy], radius: float32): bool =
   # Check if too close to player
-  if distance(pos, playerPos) < radius * 3:
+  if distance(pos, playerPos) < radius * 2:
     return false
   
   # Check overlap with other walls
   for wall in walls:
     if distance(pos, wall.pos) < radius + wall.radius:
       return false
-  
-  # Basic check: don't place if it completely surrounds player
-  # (simplified - just check if too many walls around player)
-  var wallsNearPlayer = 0
-  for wall in walls:
-    if distance(wall.pos, playerPos) < 100:
-      wallsNearPlayer += 1
-  
-  if wallsNearPlayer >= 3:
-    return false
   
   return true

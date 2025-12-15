@@ -115,7 +115,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "+100% coin drops"
   of puWallMaster:
     # Single level only - LEGENDARY
-    "Walls have +150% HP"
+    "Walls have +250% HP"
   of puAutoShoot:
     case level
     of 1: "Auto-fire (60% rate, 250 range)"
@@ -143,9 +143,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "40% chance for 2.5x damage (all sources)"
   of puVampirism:
     case level
-    of 1: "Heal 3% of bullet damage"
-    of 2: "Heal 5% of bullet damage"
-    else: "Heal 7% of bullet damage"
+    of 1: "Heal 2.5% of bullet damage"
+    of 2: "Heal 3.5% of bullet damage"
+    else: "Heal 5% of bullet damage"
   of puBulletRicochet:
     case level
     of 1: "Bullets ricochet once"

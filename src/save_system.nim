@@ -36,7 +36,9 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "fullscreen": settings.fullscreen,
     "showFPS": settings.showFPS,
     "mouseSupport": settings.mouseSupport,
-    "showCursorInMenus": settings.showCursorInMenus
+    "showCursorInMenus": settings.showCursorInMenus,
+    "showDebugStats": settings.showDebugStats,
+    "showHints": settings.showHints
   }
 
 # Load Settings from JSON
@@ -61,6 +63,12 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
   
   if jsonNode.hasKey("showCursorInMenus"):
     settings.showCursorInMenus = jsonNode["showCursorInMenus"].getBool()
+  
+  if jsonNode.hasKey("showDebugStats"):
+    settings.showDebugStats = jsonNode["showDebugStats"].getBool()
+  
+  if jsonNode.hasKey("showHints"):
+    settings.showHints = jsonNode["showHints"].getBool()
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =

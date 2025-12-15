@@ -21,7 +21,7 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   # Tank elite: 65% damage reduction (buffed from 50%)
   # If multiple elites include Tank, apply reduction
   if enemy.isElite and etTank in enemy.eliteTypes:
-    result *= 0.35  # 65% reduction
+    result *= 0.5  # 50% reduction
   
   # Shielded elite: shield absorbs damage first
   if enemy.isElite and etShielded in enemy.eliteTypes and enemy.shieldHp > 0:
@@ -1715,19 +1715,37 @@ proc updateGame*(game: var Game, dt: float32) =
       # Teleport ability
       if enemy.teleportTimer <= 0:
         # Short teleport burst
-        let angle = rand(1.0) * PI * 2.0
-        let teleportDist = 150 + rand(100).float32
-        enemy.pos.x += cos(angle) * teleportDist
-        enemy.pos.y += sin(angle) * teleportDist
+        var newX: float32
+        var newY: float32
+        var validTeleport = false
         
-        # Clamp to screen
-        if enemy.pos.x < 50: enemy.pos.x = 50
-        if enemy.pos.x > game.screenWidth.float32 - 50: enemy.pos.x = game.screenWidth.float32 - 50
-        if enemy.pos.y < 50: enemy.pos.y = 50
-        if enemy.pos.y > game.screenHeight.float32 - 50: enemy.pos.y = game.screenHeight.float32 - 50
+        # Keep trying to find a valid teleport position that's at least 10 pixels away from player
+        for _ in 0..<10:
+          let angle = rand(1.0) * PI * 2.0
+          let teleportDist = 150 + rand(100).float32
+          newX = enemy.pos.x + cos(angle) * teleportDist
+          newY = enemy.pos.y + sin(angle) * teleportDist
+          
+          # Check distance to player - must be at least 10 pixels away
+          let distToPlayer = distance(newVector2f(newX, newY), game.player.pos)
+          if distToPlayer >= 10.0:
+            validTeleport = true
+            break
+        
+        # Only teleport if we found a valid position, otherwise skip this teleport
+        if validTeleport:
+          enemy.pos.x = newX
+          enemy.pos.y = newY
+          
+          # Clamp to screen
+          if enemy.pos.x < 50: enemy.pos.x = 50
+          if enemy.pos.x > game.screenWidth.float32 - 50: enemy.pos.x = game.screenWidth.float32 - 50
+          if enemy.pos.y < 50: enemy.pos.y = 50
+          if enemy.pos.y > game.screenHeight.float32 - 50: enemy.pos.y = game.screenHeight.float32 - 50
+          
+          spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Purple, 30)
         
         enemy.teleportTimer = 10.0 + rand(5.0)
-        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Purple, 30)
       
       # Shockwave attack
       if enemy.shockwaveTimer <= 0:
@@ -2398,9 +2416,9 @@ proc updateGame*(game: var Game, dt: float32) =
           if hasPowerUp(game.player, puVampirism):
             let vampLevel = getPowerUpLevel(game.player, puVampirism)
             let healPercent = case vampLevel
-              of 1: 0.03  # 2% (reduced from 5%)
-              of 2: 0.05  # 4% (reduced from 10%)
-              else: 0.07  # 7% (reduced from 18%)
+              of 1: 0.02  # 2.0% (reduced from 5%)
+              of 2: 0.03  # 3.0% (reduced from 10%)
+              else: 0.04  # 4.0% (reduced from 18%)
             let healAmount = finalDamage * healPercent
             heal(game.player, healAmount)
             if healAmount > 0.01:  # Only show particles if significant healing
