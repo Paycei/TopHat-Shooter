@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects
+import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils
 
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -94,7 +94,9 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     # Mouse tracking for menu navigation
     lastMousePos: newVector2f(0, 0),
     mouseMovedRecently: false,
-    keyboardUsedRecently: false
+    keyboardUsedRecently: false,
+    # State tracking for settings return
+    previousState: gsMenu  # Default to menu
   )
 
 proc calculateWaveEnemyCount(waveNumber: int): int =
@@ -2972,7 +2974,7 @@ proc drawGame*(game: Game) =
   drawText("Coins: " & $game.player.coins, 10, 35, 20, Gold)
   drawText("Kills: " & $game.player.kills, 10, 60, 20, White)
   drawText("Time: " & timeText, 10, 85, 20, White)
-  
+
   # Show FPS if enabled in settings (subtle display)
   if globalSettings != nil and globalSettings.showFPS:
     let fps = getFPS()
@@ -3057,7 +3059,7 @@ proc drawGame*(game: Game) =
   
   # Active power-ups display (left side)
   if game.player.powerUps.len > 0:
-    var puYOffset: int32 = 170
+    var puYOffset: int32 = 185
     drawText("Power-Ups:", 10, puYOffset, 16, Yellow)
     puYOffset += 20
     for powerUp in game.player.powerUps:
@@ -3065,68 +3067,70 @@ proc drawGame*(game: Game) =
       drawText(name & " L" & $powerUp.level, 10, puYOffset.int32, 14, White)
       puYOffset += 18
   
-  # Active powerup timers (right side)
-  var yOffset: int32 = 10
+  # Active powerup timers (right side) - ALL controlled by showDebugStats setting
+  if globalSettings != nil and globalSettings.showDebugStats:
+    var yOffset: int32 = 10
 
-  if game.player.speedBoostTimer > 0:
-    drawText("Speed Boost: " & $(game.player.speedBoostTimer.int + 1) & "s",
-           game.screenWidth - 200, yOffset, 16, SkyBlue)
+    if game.player.speedBoostTimer > 0:
+      drawText("Speed Boost: " & $(game.player.speedBoostTimer.int + 1) & "s",
+             game.screenWidth - 200, yOffset, 16, SkyBlue)
+      yOffset += 20
+    if game.player.invincibilityTimer > 0:
+      drawText("Invincible: " & $(game.player.invincibilityTimer.int + 1) & "s", 
+              game.screenWidth - 200, yOffset, 16, Magenta)
+      yOffset += 20
+    if game.player.fireRateBoostTimer > 0:
+      drawText("Fire Rate: " & $(game.player.fireRateBoostTimer.int + 1) & "s", 
+              game.screenWidth - 200, yOffset, 16, Orange)
+      yOffset += 20
+    if game.player.magnetTimer > 0:
+      drawText("Magnet: " & $(game.player.magnetTimer.int + 1) & "s", 
+              game.screenWidth - 200, yOffset, 16, Purple)
+      yOffset += 20
+    
+    # Show stats panel (damage and fire rate with 2 decimals)
+    drawText("Damage: " & formatFloat(getCurrentDamage(game.player), ffDecimal, 2), game.screenWidth - 200, yOffset, 16, White)
     yOffset += 20
-  if game.player.invincibilityTimer > 0:
-    drawText("Invincible: " & $(game.player.invincibilityTimer.int + 1) & "s", 
-            game.screenWidth - 200, yOffset, 16, Magenta)
-    yOffset += 20
-  if game.player.fireRateBoostTimer > 0:
-    drawText("Fire Rate: " & $(game.player.fireRateBoostTimer.int + 1) & "s", 
-            game.screenWidth - 200, yOffset, 16, Orange)
-    yOffset += 20
-  if game.player.magnetTimer > 0:
-    drawText("Magnet: " & $(game.player.magnetTimer.int + 1) & "s", 
-            game.screenWidth - 200, yOffset, 16, Purple)
+    let shotsPerSec = 1.0 / getCurrentFireRate(game.player)
+    drawText("Fire Rate: " & formatFloat(shotsPerSec, ffDecimal, 2) & "/s", game.screenWidth - 200, yOffset, 16, White)
     yOffset += 20
   
-  drawText("Damage: " & $(getCurrentDamage(game.player).int), game.screenWidth - 200, yOffset, 16, White)
-  yOffset += 20
-  let shotsPerSec = 1.0 / getCurrentFireRate(game.player)
-  drawText("Fire Rate: " & $(shotsPerSec.int) & "/s", game.screenWidth - 200, yOffset, 16, White)
-  yOffset += 20
-  
-  # Show Rage/Berserker bonuses when HP is low
-  if hasPowerUp(game.player, puRage) or hasPowerUp(game.player, puBerserker):
-    let hpPercent = game.player.hp / game.player.maxHp
-    if hpPercent < 0.7:
-      if hasPowerUp(game.player, puRage):
-        let rageLevel = getPowerUpLevel(game.player, puRage)
-        let rageMultiplier = 
-          case rageLevel
-          of 1: 0.5
-          of 2: 0.8
-          else: 1.2
-        drawText("Rage: +" & $((1.0 - hpPercent) * 100.0 * rageMultiplier).int & "% dmg",
-                game.screenWidth - 200, yOffset, 14, Red)
-        yOffset += 18
+    # Show Rage/Berserker bonuses when HP is low
+    if hasPowerUp(game.player, puRage) or hasPowerUp(game.player, puBerserker):
+      let hpPercent = game.player.hp / game.player.maxHp
+      if hpPercent < 0.7:
+        if hasPowerUp(game.player, puRage):
+          let rageLevel = getPowerUpLevel(game.player, puRage)
+          let rageMultiplier = 
+            case rageLevel
+            of 1: 0.5
+            of 2: 0.8
+            else: 1.2
+          drawText("Rage: +" & $((1.0 - hpPercent) * 100.0 * rageMultiplier).int & "% dmg",
+                  game.screenWidth - 200, yOffset, 14, Red)
+          yOffset += 18
 
-      if hasPowerUp(game.player, puBerserker):
-        let berserkLevel = getPowerUpLevel(game.player, puBerserker)
-        let berserkMultiplier = 
-          case berserkLevel
-          of 1: 0.5
-          of 2: 0.8
-          else: 1.5
-        drawText("Berserk: +" & $((1.0 - hpPercent) * 100.0 * berserkMultiplier).int & "% rate",
-                game.screenWidth - 200, yOffset, 14, Orange)
-        yOffset += 18
-  
-  # Only show auto-shoot status if player has the power-up
-  if hasPowerUp(game.player, puAutoShoot):
-    let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
-    drawText("Auto: L" & $autoLevel, game.screenWidth - 200, yOffset, 16, Green)
-    yOffset += 20
-  
-  # Stats
-  drawText("Enemies: " & $game.enemies.len, game.screenWidth - 200, yOffset + 10, 14, LightGray)
-  drawText("Bullets: " & $game.bullets.len, game.screenWidth - 200, yOffset + 28, 14, LightGray)
-  drawText("Particles: " & $game.particles.len, game.screenWidth - 200, yOffset + 46, 14, LightGray)
+        if hasPowerUp(game.player, puBerserker):
+          let berserkLevel = getPowerUpLevel(game.player, puBerserker)
+          let berserkMultiplier = 
+            case berserkLevel
+            of 1: 0.5
+            of 2: 0.8
+            else: 1.5
+          drawText("Berserk: +" & $((1.0 - hpPercent) * 100.0 * berserkMultiplier).int & "% rate",
+                  game.screenWidth - 200, yOffset, 14, Orange)
+          yOffset += 18
+    
+    # Only show auto-shoot status if player has the power-up
+    if hasPowerUp(game.player, puAutoShoot):
+      let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
+      drawText("Auto: L" & $autoLevel, game.screenWidth - 200, yOffset, 16, Green)
+      yOffset += 20
+    
+    # Stats
+    drawText("Enemies: " & $game.enemies.len, game.screenWidth - 200, yOffset + 10, 14, LightGray)
+    drawText("Bullets: " & $game.bullets.len, game.screenWidth - 200, yOffset + 28, 14, LightGray)
+    drawText("Particles: " & $game.particles.len, game.screenWidth - 200, yOffset + 46, 14, LightGray)
   
   # Legendary power-up display (bottom-left corner) - INLINE with Q key hint
   var legendaryYOffset: int32 = game.screenHeight - 80

@@ -346,6 +346,7 @@ proc main() =
           of 2:  # Statistics
             currentGame.state = gsStatistics
           of 3:  # Settings
+            currentGame.previousState = gsMenu
             currentGame.state = gsSettings
           of 4:  # Help
             currentGame.state = gsHelp
@@ -373,7 +374,7 @@ proc main() =
       playMusic(mtMenu)
       
       if isKeyPressed(Escape):
-        currentGame.state = gsMenu
+        currentGame.state = currentGame.previousState  # Return to where we came from
         setGameVolume(settings.volume)  # Apply volume changes
         setMusicVolume(settings.musicVolume)  # Apply music volume changes
         playSound(stMenuSelect)
@@ -546,18 +547,18 @@ proc main() =
       
       # Pause menu navigation - keyboard has priority
       if isKeyPressed(Down) or isKeyPressed(S):
-        currentGame.menuSelection = (currentGame.menuSelection + 1) mod 2
+        currentGame.menuSelection = (currentGame.menuSelection + 1) mod 3
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
       if isKeyPressed(Up) or isKeyPressed(W):
-        currentGame.menuSelection = (currentGame.menuSelection - 1 + 2) mod 2
+        currentGame.menuSelection = (currentGame.menuSelection - 1 + 3) mod 3
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
       
       # Mouse hover detection (ONLY if mouse moved recently AND mouse support enabled AND keyboard NOT used recently)
       if globalSettings.mouseSupport and currentGame.mouseMovedRecently and not currentGame.keyboardUsedRecently:
         let mousePos = getMousePosition()
-        let pauseOptions = ["Resume", "Main Menu"]
+        let pauseOptions = ["Resume", "Settings", "Main Menu"]
         let optionStartY = screenHeight div 2 + 20
         let optionSpacing = 60
         
@@ -578,7 +579,7 @@ proc main() =
         var validClick = isKeyPressed(Enter) or isKeyPressed(E)
         if not validClick and isMouseButtonPressed(Left) and globalSettings.mouseSupport and currentGame.mouseMovedRecently:
           let mousePos = getMousePosition()
-          let pauseOptions = ["Resume", "Main Menu"]
+          let pauseOptions = ["Resume", "Settings", "Main Menu"]
           let optionStartY = screenHeight div 2 + 20
           let optionSpacing = 60
           
@@ -598,7 +599,10 @@ proc main() =
           case currentGame.menuSelection
           of 0:  # Resume
             currentGame.state = gsPlaying
-          of 1:  # Main Menu
+          of 1:  # Settings
+            currentGame.previousState = gsPaused
+            currentGame.state = gsSettings
+          of 2:  # Main Menu
             currentGame = newGame(screenWidth, screenHeight)
             currentGame.state = gsMenu
           else: discard
@@ -615,7 +619,7 @@ proc main() =
       drawText("PAUSED", screenWidth div 2 - 100, screenHeight div 2 - 80, 50, White)
       
       # Draw pause menu options
-      let pauseOptions = ["Resume", "Main Menu"]
+      let pauseOptions = ["Resume", "Settings", "Main Menu"]
       let optionStartY = screenHeight div 2 + 20
       let optionSpacing = 60
       

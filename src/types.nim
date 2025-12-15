@@ -387,6 +387,8 @@ type
     lastMousePos*: Vector2f  # Track mouse position to detect movement
     mouseMovedRecently*: bool  # True if mouse has moved since last keyboard input
     keyboardUsedRecently*: bool  # True if keyboard was just used (disables mouse temporarily)
+    # State tracking for settings return
+    previousState*: GameState  # Track where we came from to return correctly
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x
