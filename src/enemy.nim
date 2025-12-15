@@ -10,6 +10,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: size,
+      collisionRadius: size * 0.4,  # 40% of visual size for enemy collision
       hp: 1.0 * strengthMultiplier,
       maxHp: 1.0 * strengthMultiplier,
       speed: 100 + difficulty * 10,
@@ -39,7 +40,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
     result = Enemy(
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
-      radius: 18 + difficulty * 1.8,  # INCREASED from 12 + difficulty * 1.2
+      radius: 18 + difficulty * 1.6,  # INCREASED from 12 + difficulty * 1.2
+      collisionRadius: (18 + difficulty * 1.6) * 0.4,  # 40% of visual size
       hp: 3.0 * strengthMultiplier,   # INCREASED from 2.0
       maxHp: 3.0 * strengthMultiplier,
       speed: 55 + difficulty * 3,     # DECREASED from 60 (more threatening when larger)
@@ -71,6 +73,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 11 + difficulty * 1.0,
+      collisionRadius: (11 + difficulty * 1.0) * 0.4,  # 40% of visual size
       hp: 1.2 * strengthMultiplier,
       maxHp: 1.2 * strengthMultiplier,
       speed: 160 + difficulty * 15,
@@ -102,6 +105,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 18 + difficulty * 2,
+      collisionRadius: (18 + difficulty * 2) * 0.4,  # 40% of visual size
       hp: 9999.0,
       maxHp: 9999.0,
       speed: 70 + difficulty * 6,
@@ -134,6 +138,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 14 + difficulty * 1.5,
+      collisionRadius: (14 + difficulty * 1.5) * 0.4,  # 40% of visual size
       hp: 3.0 * strengthMultiplier,
       maxHp: 3.0 * strengthMultiplier,
       speed: 70 + difficulty * 8,
@@ -165,6 +170,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 17 + difficulty * 1.5,
+      collisionRadius: (17 + difficulty * 1.5) * 0.4,  # 40% of visual size
       hp: 5.0 * strengthMultiplier,
       maxHp: 5.0 * strengthMultiplier,
       speed: 50 + difficulty * 4,
@@ -197,6 +203,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 13 + difficulty * 1.1,
+      collisionRadius: (13 + difficulty * 1.1) * 0.4,  # 40% of visual size
       hp: 1.8 * strengthMultiplier,
       maxHp: 1.8 * strengthMultiplier,
       speed: 140 + difficulty * 12,
@@ -229,6 +236,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 16 + difficulty * 1.4,
+      collisionRadius: (16 + difficulty * 1.4) * 0.4,  # 40% of visual size
       hp: 3.5 * strengthMultiplier,
       maxHp: 3.5 * strengthMultiplier,
       speed: 90 + difficulty * 2,
@@ -261,6 +269,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 14 + difficulty * 1.2,
+      collisionRadius: (14 + difficulty * 1.2) * 0.4,  # 40% of visual size
       hp: 2.2 * strengthMultiplier,
       maxHp: 2.2 * strengthMultiplier,
       speed: 55 + difficulty * 3,
@@ -293,6 +302,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 17 + difficulty * 1.5,
+      collisionRadius: (17 + difficulty * 1.5) * 0.4,  # 40% of visual size
       hp: 3.0 * strengthMultiplier,
       maxHp: 3.0 * strengthMultiplier,
       speed: 65 + difficulty * 5,
@@ -325,6 +335,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 15 + difficulty * 1.3,
+      collisionRadius: (15 + difficulty * 1.3) * 0.4,  # 40% of visual size
       hp: 2.8 * strengthMultiplier,
       maxHp: 2.8 * strengthMultiplier,
       speed: 80 + difficulty * 6,
@@ -358,6 +369,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 14 + difficulty * 1.2,
+      collisionRadius: (14 + difficulty * 1.2) * 0.4,  # 40% of visual size
       hp: 6.0 * strengthMultiplier,
       maxHp: 6.0 * strengthMultiplier,
       speed: 40 + difficulty * 2,  # Slow, methodical movement
@@ -391,6 +403,7 @@ proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
     radius: 50 + difficulty * 3,
+    collisionRadius: (50 + difficulty * 3) * 0.4,  # 40% of visual size for boss collision
     hp: 55 + difficulty * 18 * strengthMultiplier,  # Reduced from 75 + difficulty * 25
     maxHp: 55 + difficulty * 18 * strengthMultiplier,
     speed: 65 + difficulty * 4,
@@ -1787,6 +1800,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
         enemy.dashCooldown *= 0.57
       # Swift elites are slightly smaller but faster
       enemy.radius *= 0.9
+      enemy.collisionRadius *= 0.9  # Scale collision radius too
       enemy.damage += 1 + (waveNumber div 5)  # +1 damage per 5 waves
       enemy.maxHp *= (1.1 * eliteScaling)
       enemy.hp *= (1.1 * eliteScaling)
@@ -1798,6 +1812,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.speed *= 0.7  # Slower (was 0.75)
       # Tank elites are larger
       enemy.radius *= 1.4  # Bigger (was 1.3)
+      enemy.collisionRadius *= 1.4  # Scale collision radius too
       enemy.damage += 2 + (waveNumber div 4)  # +1 damage per 4 waves
     
     of etVenomous:
@@ -1840,6 +1855,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   # All elites are slightly larger for visibility (if not already modified by Swift or Tank)
   if etSwift notin enemy.eliteTypes and etTank notin enemy.eliteTypes:
     enemy.radius *= 1.15  # Buffed visibility (was 1.1)
+    enemy.collisionRadius *= 1.15  # Scale collision radius too
 
 proc getEliteAuraColor*(eliteType: EliteType): Color =
   ## Returns the aura color for each elite type

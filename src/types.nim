@@ -217,7 +217,8 @@ type
   Enemy* = ref object
     pos*: Vector2f
     vel*: Vector2f
-    radius*: float32
+    radius*: float32              # Combat hitbox (visual size, used for bullets/player collision)
+    collisionRadius*: float32     # Enemy-to-enemy collision hitbox (~60% of radius)
     hp*: float32
     maxHp*: float32
     speed*: float32

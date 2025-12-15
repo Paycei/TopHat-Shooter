@@ -1686,6 +1686,30 @@ proc updateGame*(game: var Game, dt: float32) =
       game.enemies.delete(enemyIdx)
       continue
     
+    enemyIdx += 1
+  
+  # Enemy-to-enemy collision detection (prevents overlapping)
+  # Uses smaller collisionRadius for more natural-feeling spacing
+  for i in 0..<game.enemies.len:
+    for j in (i + 1)..<game.enemies.len:
+      let dist = distance(game.enemies[i].pos, game.enemies[j].pos)
+      let minDist = game.enemies[i].collisionRadius + game.enemies[j].collisionRadius
+      
+      if dist < minDist and dist > 0:
+        # Enemies are overlapping - push them apart
+        let overlap = minDist - dist
+        let pushDir = (game.enemies[j].pos - game.enemies[i].pos).normalize()
+        
+        # Push each enemy half the overlap distance (equal force)
+        let pushAmount = overlap * 0.5
+        game.enemies[i].pos = game.enemies[i].pos - pushDir * pushAmount
+        game.enemies[j].pos = game.enemies[j].pos + pushDir * pushAmount
+  
+  # Boss attack loop
+  enemyIdx = 0
+  while enemyIdx < game.enemies.len:
+    let enemy = game.enemies[enemyIdx]
+    
     # BOSS SPECIAL ATTACKS - HEAVILY BUFFED
     if enemy.isBoss:
       # Teleport ability
