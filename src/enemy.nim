@@ -10,13 +10,14 @@ proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
     return baseSpeed
   let reductionFactor = ln(speedRatio) * 0.2
   return baseSpeed / (1.0 + reductionFactor)
-proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy =
+proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
   let strengthMultiplier = pow(1.15, difficulty)
   
   case enemyType
   of etCircle:  # Normal chaser
     let size = 10 + difficulty * 1.5 + rand(5).float32
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: size,
@@ -47,6 +48,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
   
   of etCube:  # Ranged shooter - backs away (BUFFED - larger and more threatening)
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 18 + difficulty * 1.6,  # INCREASED from 12 + difficulty * 1.2
@@ -78,6 +80,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
   
   of etTriangle:  # Dash + erratic movement
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 11 + difficulty * 1.0,
@@ -109,6 +112,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
   of etStar:  # Tank that dashes when close
     let hits = 5 + (difficulty * 1.8).int
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 18 + difficulty * 2,
@@ -141,6 +145,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
   
   of etHexagon:  # Teleporting chaos
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 14 + difficulty * 1.5,
@@ -174,6 +179,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
   
   of etCross:  # Shows cross warning before attack
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 17 + difficulty * 1.5,
@@ -208,6 +214,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
   
   of etDiamond:  # Shoots while dashing
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 13 + difficulty * 1.1,
@@ -242,6 +249,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
   
   of etOctagon:  # Many slow inaccurate projectiles
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 16 + difficulty * 1.4,
@@ -276,6 +284,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
   
   of etPentagon:  # Single fast bullet, low fire rate
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 14 + difficulty * 1.2,
@@ -310,6 +319,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
   
   of etTrickster:  # False warning, real attack elsewhere
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 17 + difficulty * 1.5,
@@ -344,6 +354,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
   
   of etPhantom:  # Unpredictable teleporter with fake clones
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 15 + difficulty * 1.3,
@@ -379,6 +390,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
 
   of etSniper:  # Rare one-shot enemy with epic charging attack
     result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
       pos: newVector2f(x, y),
       vel: newVector2f(0, 0),
       radius: 14 + difficulty * 1.2,
@@ -409,6 +421,9 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       attackPhase: 0,  # 0=hunting, 1=charging, 2=cooldown
       activeEffects: initTable[ElementType, ActiveEffect]()
     )
+  
+  # Increment enemy ID counter for next enemy
+  game.nextEnemyId += 1
 
 proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
   # Apply slow field effect
@@ -793,11 +808,19 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       # Screen boundary check - keep ranged enemies inside once entered
-      # Only prevent leaving screen, allow entering freely
+      # Only prevent leaving screen if already inside, allow entering freely
+      # Clamp position instead of blocking movement to prevent getting stuck
       if enemy.hasEnteredScreen:
-        if nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
-           nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius:
-          canMove = false
+        # Check if next position would go outside bounds
+        if nextPos.x < enemy.radius:
+          nextPos.x = enemy.radius
+        elif nextPos.x > game.screenWidth.float32 - enemy.radius:
+          nextPos.x = game.screenWidth.float32 - enemy.radius
+        
+        if nextPos.y < enemy.radius:
+          nextPos.y = enemy.radius
+        elif nextPos.y > game.screenHeight.float32 - enemy.radius:
+          nextPos.y = game.screenHeight.float32 - enemy.radius
       
       if canMove:
         enemy.pos = nextPos
@@ -859,11 +882,19 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       # Screen boundary check - keep ranged enemies inside once entered
-      # Only prevent leaving screen, allow entering freely
+      # Only prevent leaving screen if already inside, allow entering freely
+      # Clamp position instead of blocking movement to prevent getting stuck
       if enemy.hasEnteredScreen:
-        if nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
-           nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius:
-          canMove = false
+        # Check if next position would go outside bounds
+        if nextPos.x < enemy.radius:
+          nextPos.x = enemy.radius
+        elif nextPos.x > game.screenWidth.float32 - enemy.radius:
+          nextPos.x = game.screenWidth.float32 - enemy.radius
+        
+        if nextPos.y < enemy.radius:
+          nextPos.y = enemy.radius
+        elif nextPos.y > game.screenHeight.float32 - enemy.radius:
+          nextPos.y = game.screenHeight.float32 - enemy.radius
       
       if canMove:
         enemy.pos = nextPos
@@ -1483,7 +1514,7 @@ proc drawLaser*(laser: Laser) =
     discard
 
 
-proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
+proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Game): Enemy =
   let side = rand(3)
   var x, y: float32
   
@@ -1566,7 +1597,7 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
     elif roll < 98: enemyType = etPhantom
     else: enemyType = etSniper  # Very rare 2% chance
   
-  newEnemy(x, y, difficulty, enemyType)
+  newEnemy(x, y, difficulty, enemyType, game)
 
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
   ## Spawns a boss - either custom (waves 5-60) or legacy (after wave 60)

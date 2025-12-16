@@ -203,6 +203,7 @@ type
     fallback*: EffectInstance
 
   Enemy* = ref object
+    id*: int                      # Unique identifier for tracking bullet hits
     pos*: Vector2f
     vel*: Vector2f
     radius*: float32              # Combat hitbox (visual size, used for bullets/player collision)
@@ -378,6 +379,8 @@ type
     keyboardUsedRecently*: bool  # True if keyboard was just used (disables mouse temporarily)
     # State tracking for settings return
     previousState*: GameState  # Track where we came from to return correctly
+    # Enemy ID counter for unique tracking
+    nextEnemyId*: int  # Counter for assigning unique IDs to enemies
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

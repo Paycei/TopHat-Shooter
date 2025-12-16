@@ -96,7 +96,9 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     mouseMovedRecently: false,
     keyboardUsedRecently: false,
     # State tracking for settings return
-    previousState: gsMenu  # Default to menu
+    previousState: gsMenu,  # Default to menu
+    # Enemy ID counter for unique tracking
+    nextEnemyId: 0  # Start at 0, increment with each enemy created
   )
 
 proc calculateWaveEnemyCount(waveNumber: int): int =
@@ -269,7 +271,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       of 2: x = rand(game.screenWidth.int).float32; y = game.screenHeight.float32 + 30
       else: x = -30; y = rand(game.screenHeight.int).float32
       
-      let enemy = newEnemy(x, y, baseDifficulty, enemyType)
+      let enemy = newEnemy(x, y, baseDifficulty, enemyType, game)
       makeElite(enemy, wave)  # Chance to make enemy elite based on wave
       game.enemies.add(enemy)
       game.waveEnemiesRemaining -= 1
@@ -1492,13 +1494,13 @@ proc updateGame*(game: var Game, dt: float32) =
       currentSpawnRate = currentSpawnRate * 2.0
     
     if game.spawnTimer > currentSpawnRate:
-      let enemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty)
+      let enemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty, game)
       makeElite(enemy, (game.difficulty * 3).int)  # Use difficulty as wave equivalent
       game.enemies.add(enemy)
       game.spawnTimer = 0
       
       if isWaveActive and rand(100) < 60 and not game.bossActive:
-        let waveEnemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty)
+        let waveEnemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty, game)
         makeElite(waveEnemy, (game.difficulty * 3).int)
         game.enemies.add(waveEnemy)
     
@@ -1994,13 +1996,13 @@ proc updateGame*(game: var Game, dt: float32) =
     var hitEnemy = false
     if bullet.fromPlayer:
       for j in 0..<game.enemies.len:
-        # Skip if this bullet already hit this enemy
-        if j in bullet.hitEnemies:
+        # Skip if this bullet already hit this enemy (using enemy ID)
+        if game.enemies[j].id in bullet.hitEnemies:
           continue
           
         if checkBulletEnemyCollision(bullet, game.enemies[j]):
-          # Mark this enemy as hit by this bullet
-          bullet.hitEnemies.add(j)
+          # Mark this enemy as hit by this bullet (using enemy ID, not index)
+          bullet.hitEnemies.add(game.enemies[j].id)
           
           # Play enemy hit sound
           playSound(stEnemyHit, 0.3)
@@ -2245,14 +2247,19 @@ proc updateGame*(game: var Game, dt: float32) =
             let maxRicochets = ricochetLevel  # 1, 2, or 3 ricochets
             
             if bullet.bounceCount < maxRicochets:
-              # Ricochet toward a different enemy that hasn't been hit yet
+              # Ricochet toward the NEAREST enemy that hasn't been hit yet
               var ricochetTarget: Enemy = nil
               var targetIndex = -1
+              var nearestDist = 999999.0
+              
               for k in 0..<game.enemies.len:
-                # Skip current enemy, already-hit enemies, and use random selection
-                if k != j and k notin bullet.hitEnemies and (ricochetTarget == nil or rand(100) < 50):
-                  ricochetTarget = game.enemies[k]
-                  targetIndex = k
+                # Skip current enemy and already-hit enemies (using enemy ID)
+                if k != j and game.enemies[k].id notin bullet.hitEnemies:
+                  let dist = distance(bullet.pos, game.enemies[k].pos)
+                  if dist < nearestDist:
+                    nearestDist = dist
+                    ricochetTarget = game.enemies[k]
+                    targetIndex = k
               
               if ricochetTarget != nil:
                 let ricochetDir = (ricochetTarget.pos - bullet.pos).normalize()
@@ -2280,7 +2287,7 @@ proc updateGame*(game: var Game, dt: float32) =
           # Reverse bullet direction - bounce it back toward source
           let towardEnemy = (bullet.pos - game.player.pos).normalize()
           bullet.vel = towardEnemy * bullet.vel.length()
-          bullet.fromPlayer = false  # Mark as enemy bullet so it can hit enemies
+          bullet.fromPlayer = true  # Mark as player bullet so it can damage enemies
           
           # Visual effect for parry bounce
           spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, 
