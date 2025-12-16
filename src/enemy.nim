@@ -1699,6 +1699,12 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
     let scaledSpeed = getScaledBossSpeed(bossDef, waveNumber)
     let scaledDamage = getScaledBossDamage(bossDef, waveNumber)
     
+    # Initialize attack timers for first phase
+    var initialAttackTimers: seq[float32] = @[]
+    if bossDef.phases.len > 0:
+      for attack in bossDef.phases[0].attacks:
+        initialAttackTimers.add(attack.cooldown)  # Start with cooldown so attacks don't fire immediately
+    
     result = Enemy(
       pos: newVector2f(startX, startY),
       vel: newVector2f(0, 0),
@@ -1712,6 +1718,9 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       enemyType: etCircle,
       isBoss: true,
       isCustomBoss: true,  # Custom boss with advanced phase system
+      bossDefinitionID: bossDef.bossID,
+      currentPhaseIndex: 0,
+      attackTimers: initialAttackTimers,
       startPos: newVector2f(startX, startY),
       shootTimer: 0,
       spawnTimer: 0,

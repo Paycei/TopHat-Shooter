@@ -255,6 +255,10 @@ type
     regenTimer*: float32  # For regenerative elites
     # Cross enemy rotation during dash
     rotation*: float32  # Current rotation angle in radians
+    # Custom boss fields (for boss_definitions system)
+    bossDefinitionID*: int  # Which boss definition this uses (1-12)
+    currentPhaseIndex*: int  # Current phase index (0, 1, 2, etc.)
+    attackTimers*: seq[float32]  # Individual cooldown timer for each attack in current phase
 
   Bullet* = ref object
     pos*: Vector2f

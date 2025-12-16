@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils
+import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions
 
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -624,6 +624,255 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
     game.bullets.add(bullet)
   
   playSound(stShoot, 0.25)
+
+proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
+  ## Executes a single boss attack based on its pattern type
+  let toPlayer = (game.player.pos - enemy.pos).normalize()
+  
+  case attack.attackType
+  of bapSpiral:
+    # Rotating spiral pattern
+    for i in 0..<attack.projectileCount:
+      let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32 + game.time * attack.spreadAngle.degToRad()
+      let dir = newVector2f(cos(angle), sin(angle))
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+  
+  of bapBurst:
+    # Rapid burst in spread pattern
+    let baseAngle = arctan2(toPlayer.y, toPlayer.x)
+    for i in 0..<attack.projectileCount:
+      let offset = (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
+      let angle = baseAngle + offset
+      let dir = newVector2f(cos(angle), sin(angle))
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+  
+  of bapWave:
+    # Sine wave pattern
+    for i in 0..<attack.projectileCount:
+      let t = i.float32 / attack.projectileCount.float32
+      let angle = t * attack.spreadAngle.degToRad() - attack.spreadAngle.degToRad() / 2.0 + arctan2(toPlayer.y, toPlayer.x)
+      let dir = newVector2f(cos(angle), sin(angle))
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+  
+  of bapTargeted:
+    # Direct shots at player
+    for i in 0..<attack.projectileCount:
+      let spread = if attack.projectileCount > 1:
+        (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
+      else: 0.0
+      let angle = arctan2(toPlayer.y, toPlayer.x) + spread
+      let dir = newVector2f(cos(angle), sin(angle))
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+  
+  of bapCircle:
+    # Perfect circle of bullets
+    for i in 0..<attack.projectileCount:
+      let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
+      let dir = newVector2f(cos(angle), sin(angle))
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+  
+  of bapLaser:
+    # Cross or rotating laser pattern
+    for i in 0..<attack.projectileCount:
+      let angle = i.float32 * attack.spreadAngle.degToRad() + game.time
+      game.lasers.add(newLaser(
+        enemy.pos.x, enemy.pos.y,
+        direction = 2,  # Cross pattern
+        length = 800.0,
+        thickness = 15.0,
+        damage = attack.damage.int * phase.damageMultiplier.int,
+        duration = attack.durationOrRadius,
+        rotation = angle
+      ))
+  
+  of bapBarrage:
+    # Massive bullet spray
+    for i in 0..<attack.projectileCount:
+      let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
+      let dir = newVector2f(cos(angle), sin(angle))
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+  
+  of bapPulse:
+    # Expanding ring (handled as circle with specific speed)
+    for i in 0..<24:  # Fixed count for pulse
+      let angle = i.float32 * PI * 2.0 / 24.0
+      let dir = newVector2f(cos(angle), sin(angle))
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+  
+  of bapSummon:
+    # Spawn minion enemies around the boss
+    for i in 0..<attack.projectileCount:
+      let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
+      let spawnDist = enemy.radius + 60.0  # Spawn outside boss radius
+      let spawnX = enemy.pos.x + cos(angle) * spawnDist
+      let spawnY = enemy.pos.y + sin(angle) * spawnDist
+      
+      # Create a minion enemy - use circle type as default minion
+      let minion = newEnemy(
+        spawnX, spawnY, 
+        game.difficulty * 0.6,  # Minions are weaker than regular enemies
+        etCircle,
+        game
+      )
+      game.enemies.add(minion)
+    
+    # Visual feedback for summoning
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
+  
+  of bapMeteor:
+    # Falling projectiles from above 
+    for i in 0..<attack.projectileCount:
+      # Randomly place meteors around player
+      let offsetX = (rand(1.0) - 0.5) * attack.durationOrRadius * 2.0
+      let targetX = game.player.pos.x + offsetX
+      
+      # Spawn meteor from above
+      let startY = -50.0
+      
+      # Spawn the actual meteor bullet from top of screen
+      game.bullets.add(newBullet(
+        x = targetX, y = startY, direction = newVector2f(0, 1),
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+  
+  of bapOrbit:
+    # Orbiting projectiles around boss (implementation creates rotating bullets)
+    for i in 0..<attack.projectileCount:
+      let angle = i.float32 * attack.spreadAngle.degToRad() + game.time * 2.0
+      let orbitRadius = attack.durationOrRadius
+      let orbitX = enemy.pos.x + cos(angle) * orbitRadius
+      let orbitY = enemy.pos.y + sin(angle) * orbitRadius
+      
+      # Create bullet at orbit position moving tangentially
+      let tangentAngle = angle + PI / 2.0
+      let dir = newVector2f(cos(tangentAngle), sin(tangentAngle))
+      
+      game.bullets.add(newBullet(
+        x = orbitX, y = orbitY, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+  
+  of bapChain:
+    # Chain lightning effect (creates expanding circle with electric effect)
+    let chainCount = attack.projectileCount
+    for i in 0..<chainCount:
+      let angle = i.float32 * PI * 2.0 / chainCount.float32 + rand(0.5)
+      let dir = newVector2f(cos(angle), sin(angle))
+      
+      # Create multiple bullets in chain sequence
+      for j in 0..2:
+        let distance = j.float32 * 60.0
+        game.bullets.add(newBullet(
+          x = enemy.pos.x + dir.x * distance, 
+          y = enemy.pos.y + dir.y * distance,
+          direction = dir,
+          speed = attack.projectileSpeed,
+          damage = attack.damage * phase.damageMultiplier * 0.6,  # Chain hits are weaker
+          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        ))
+    
+    # Visual effect
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Yellow, 20)
+  
+  of bapTeleport:
+    # Teleport to new location and shoot
+    let newX = game.screenWidth.float32 * (0.2 + rand(0.6))
+    let newY = game.screenHeight.float32 * (0.2 + rand(0.6))
+    
+    # Visual effect at old position
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
+    
+    # Teleport boss
+    enemy.pos = newVector2f(newX, newY)
+    
+    # Visual effect at new position
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
+    
+    # Shoot burst after teleport
+    if attack.projectileCount > 0:
+      for i in 0..<attack.projectileCount:
+        let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
+        let dir = newVector2f(cos(angle), sin(angle))
+        game.bullets.add(newBullet(
+          x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+          speed = 200.0, damage = attack.damage * phase.damageMultiplier,
+          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        ))
+  
+  of bapDash:
+    # Dash toward player at high speed
+    let dashDir = toPlayer
+    let dashSpeed = attack.projectileSpeed
+    
+    # Store dash velocity (this would need enemy velocity tracking)
+    # For now, create a fast-moving "charge" effect with bullets
+    for i in 0..4:
+      game.bullets.add(newBullet(
+        x = enemy.pos.x + dashDir.x * i.float32 * 40.0,
+        y = enemy.pos.y + dashDir.y * i.float32 * 40.0,
+        direction = dashDir,
+        speed = dashSpeed,
+        damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+    
+    # Move boss forward
+    enemy.pos = enemy.pos + dashDir * 80.0
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 10)
+  
+  of bapSnipe:
+    # Precise aimed shots
+    for i in 0..<attack.projectileCount:
+      let spread = if attack.projectileCount > 1:
+        (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
+      else: 0.0
+      let angle = arctan2(toPlayer.y, toPlayer.x) + spread
+      let dir = newVector2f(cos(angle), sin(angle))
+      
+      # Fire precise shot
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+      ))
+  
+  else:
+    # Fallback for any unimplemented patterns
+    game.bullets.add(newBullet(
+      x = enemy.pos.x, y = enemy.pos.y, direction = toPlayer,
+      speed = 150.0, damage = attack.damage * phase.damageMultiplier,
+      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+    ))
 
 proc updateGame*(game: var Game, dt: float32) =
   # Time Warp effect - apply slow to delta time for enemies/bullets
@@ -1756,30 +2005,38 @@ proc updateGame*(game: var Game, dt: float32) =
           
           enemy.shockwaveTimer = 5.0 + rand(3.0)
       
-      # CUSTOM BOSS ATTACKS
+      # CUSTOM BOSS ATTACKS - Full pattern system from boss_definitions.nim
       if enemy.isCustomBoss and enemy.entranceTimer <= 0 and enemy.entranceWait <= 0:
-        enemy.shootTimer += dt
-        
-        # Get boss definition and current phase
-        # Attack pattern: Spiral shots that scale with HP
+        # Get boss definition and check for phase transitions
+        let bossDef = getBossDefinition(enemy.bossDefinitionID)
         let hpPercent = enemy.hp / enemy.maxHp
         
-        if enemy.shootTimer > 0.8:
-          let attackCount = if hpPercent > 0.6: 8 elif hpPercent > 0.3: 12 else: 16
-          for i in 0..<attackCount:
-            let angle = i.float32 * PI * 2.0 / attackCount.float32 + game.time * 2.0
-            let dir = newVector2f(cos(angle), sin(angle))
-            game.bullets.add(newBullet(
-              x = enemy.pos.x,
-              y = enemy.pos.y,
-              direction = dir,
-              speed = 200,
-              damage = 0.75,
-              fromPlayer = false,
-              isBossBullet = true,
-              sourceEnemyId = enemy.id
-            ))
-          enemy.shootTimer = 0
+        # Check if we need to transition to a new phase
+        for i, phase in bossDef.phases:
+          if hpPercent <= phase.hpThreshold and i > enemy.currentPhaseIndex:
+            enemy.currentPhaseIndex = i
+            # Reinitialize attack timers for new phase
+            enemy.attackTimers = @[]
+            for attack in phase.attacks:
+              enemy.attackTimers.add(0.0)  # Reset timers to 0 so new phase attacks immediately
+            # Update boss color and apply phase modifiers
+            enemy.color = phase.color
+            enemy.speed = bossDef.baseSpeed * phase.speedMultiplier
+            break
+        
+        # Update attack timers
+        for i in 0..<enemy.attackTimers.len:
+          enemy.attackTimers[i] -= dt
+        
+        # Execute attacks when timers expire
+        if enemy.currentPhaseIndex < bossDef.phases.len:
+          let phase = bossDef.phases[enemy.currentPhaseIndex]
+          for i, attack in phase.attacks:
+            if i < enemy.attackTimers.len and enemy.attackTimers[i] <= 0:
+              # Execute this attack based on its pattern
+              executeCustomBossAttack(game, enemy, attack, phase, bossDef)
+              # Reset timer
+              enemy.attackTimers[i] = attack.cooldown
       
       # Phase-based attacks WITH PROGRESSIVE ABILITIES
       # Bosses gain new abilities based on bossCount (how many bosses defeated)
