@@ -87,9 +87,9 @@ type
     puLightningOrb,    # Lightning elemental orb
     puWindOrb,         # Wind elemental orb
     puFrostOrb,        # Frost elemental orb
-    puMagicOrb,        # Magic elemental orb
-    puMagicBullets,    # Magic bullet version - enhanced damage
-    puMagicAura,       # Magic aura version - enhanced damage
+    puArcaneOrb,       # Arcane elemental orb
+    puArcaneBullets,   # Arcane bullet version - enhanced damage
+    puArcaneAura,      # Arcane aura version - enhanced damage
     puFireMastery,     # LEGENDARY: Enhance all fire effects (damage, duration, slow)
     puPoisonMastery,   # LEGENDARY: Enhance all poison effects (damage, duration, slow)
     puFrostMastery,    # LEGENDARY: Enhance all frost effects (damage, duration, slow)
@@ -122,7 +122,7 @@ type
     etLightning,   # Yellow/Blue - instant damage + chain
     etWind,        # Cyan - knockback
     etFrost,       # Light blue - slow effect
-    etMagic,       # Purple - enhanced damage + magical effect
+    etArcane,       # Purple - enhanced damage + magical effect
     etNone         # No element (shouldn't happen)
 
   RotatingOrb* = ref object
@@ -279,7 +279,7 @@ type
     isEcho*: bool  # True if this is an echo clone bullet
     echoTrailTimer*: float32  # Timer for spawning echo clones
     isBossBullet*: bool  # True if this bullet was fired by a boss (for glow effect)
-    isMagicBullet*: bool  # True if this bullet is from magic bullet power-up
+    isArcaneBullet*: bool  # True if this bullet is from arcane bullet power-up
 
   Coin* = ref object
     pos*: Vector2f

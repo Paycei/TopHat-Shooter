@@ -11,7 +11,7 @@ proc newPlayer*(x, y: float32): Player =
     speed: 175,
     baseSpeed: 175,
     damage: 1,
-    fireRate: 0.415,
+    fireRate: 0.42,
     bulletSpeed: 300,
     lastShot: 0,
     coins: 0,
@@ -143,7 +143,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
                          hasPowerUp(player, puLightningOrb) or
                          hasPowerUp(player, puWindOrb) or
                          hasPowerUp(player, puFrostOrb) or
-                         hasPowerUp(player, puMagicOrb))
+                         hasPowerUp(player, puArcaneOrb))
   
   if not hasAnyOrbPowerUp and player.rotatingOrbs.len > 0:
     player.rotatingOrbs = @[]
@@ -308,7 +308,7 @@ proc drawPlayer*(player: Player) =
                          hasPowerUp(player, puLightningOrb) or
                          hasPowerUp(player, puWindOrb) or
                          hasPowerUp(player, puFrostOrb) or
-                         hasPowerUp(player, puMagicOrb))
+                         hasPowerUp(player, puArcaneOrb))
   
   if hasAnyOrbPowerUp and player.rotatingOrbs.len > 0:
     # Scale orb size with player size (increased from 0.3 to 0.45)
@@ -374,7 +374,7 @@ proc drawPlayer*(player: Player) =
           let sx = orbX + cos(streamAngle) * (8 + i.float32 * 2)
           let sy = orbY + sin(streamAngle) * (8 + i.float32 * 2)
           drawCircle(Vector2(x: sx, y: sy), 1, Color(r: 220, g: 240, b: 255, a: 120))
-      of etMagic:
+      of etArcane:
         # Orbiting runes
         for i in 0..2:
           let runeAngle = -angle * 2.0 + i.float32 * PI * 2.0 / 3.0

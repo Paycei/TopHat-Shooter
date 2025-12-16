@@ -302,7 +302,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let hasFrost = hasPowerUp(game.player, puFrostShots)
     let hasPoison = hasPowerUp(game.player, puPoisonShot)
     let hasFire = hasPowerUp(game.player, puFireBullets)
-    let hasMagic = hasPowerUp(game.player, puMagicBullets)
+    let hasArcane = hasPowerUp(game.player, puArcaneBullets)
     
     # Base bullet properties - use current damage with Rage bonus
     var speed = game.player.bulletSpeed * 1.2
@@ -326,9 +326,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Apply critical hit chance using global function
     damage = applyCriticalHit(game.player, damage)
     
-    # Apply Arcane Mastery bonus to magic bullets
-    if hasMagic and game.player.hasArcaneMastery:
-      damage *= 3.0  # +200% additional damage on top of Magic Bullets bonus
+    # Apply Arcane Mastery bonus to Arcane bullets
+    if hasArcane and game.player.hasArcaneMastery:
+      damage *= 3.0  # +200% additional damage on top of Arcane Bullets bonus
     
     # Calculate slow, poison, fire, and wind effects
     var slowEffect = 0.0
@@ -396,7 +396,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           poisonDuration = poisonEffect,
           fireDuration = fireEffect,
           windPushForce = windEffect,
-          isMagicBullet = hasMagic
+          isArcaneBullet = hasArcane
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -423,7 +423,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         poisonDuration = poisonEffect,
         fireDuration = fireEffect,
         windPushForce = windEffect,
-        isMagicBullet = hasMagic
+        isArcaneBullet = hasArcane
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -457,7 +457,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           poisonDuration = poisonEffect,
           fireDuration = fireEffect,
           windPushForce = windEffect,
-          isMagicBullet = hasMagic
+          isArcaneBullet = hasArcane
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -479,7 +479,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         poisonDuration = poisonEffect,
         fireDuration = fireEffect,
         windPushForce = windEffect,
-        isMagicBullet = hasMagic
+        isArcaneBullet = hasArcane
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -491,7 +491,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     
     # Determine particle color based on bullet type - MATCHES BULLET COLOR
     var particleColor = Yellow  # Default
-    if hasMagic: particleColor = Color(r: 200, g: 100, b: 255, a: 255)
+    if hasArcane: particleColor = Color(r: 200, g: 100, b: 255, a: 255)
     elif hasHoming: particleColor = Magenta
     elif hasPiercing: particleColor = SkyBlue
     elif hasExplosive: particleColor = Orange
@@ -514,7 +514,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let hasFrost = hasPowerUp(game.player, puFrostShots)
   let hasPoison = hasPowerUp(game.player, puPoisonShot)
   let hasFire = hasPowerUp(game.player, puFireBullets)
-  let hasMagic = hasPowerUp(game.player, puMagicBullets)
+  let hasArcane = hasPowerUp(game.player, puArcaneBullets)
   
   var speed = game.player.bulletSpeed * 1.2
   var damage = getCurrentDamage(game.player) * 0.85  # BUFFED: Second bullet reduced by 15% (was 25%)
@@ -595,7 +595,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         poisonDuration = poisonEffect,
         fireDuration = fireEffect,
         windPushForce = windEffect,
-        isMagicBullet = hasMagic
+        isArcaneBullet = hasArcane
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -616,7 +616,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       poisonDuration = poisonEffect,
       fireDuration = fireEffect,
       windPushForce = windEffect,
-      isMagicBullet = hasMagic
+      isArcaneBullet = hasArcane
     )
     bullet.radius = bulletRadius
     game.bullets.add(bullet)
@@ -764,7 +764,7 @@ proc updateGame*(game: var Game, dt: float32) =
   # Fire Aura power-up effect - applies burning damage over time
   if hasPowerUp(game.player, puFireAura):
     let level = getPowerUpLevel(game.player, puFireAura)
-    let damageScaling = game.player.damage * 0.1
+    let damageScaling = game.player.damage * 0.2
     let fireDamagePerSec = case level
       of 1: 0.5 + damageScaling
       of 2: 1.0 + damageScaling
@@ -810,7 +810,7 @@ proc updateGame*(game: var Game, dt: float32) =
   # Lightning Aura power-up effect - low damage with chain lightning
   if hasPowerUp(game.player, puLightningAura):
     let level = getPowerUpLevel(game.player, puLightningAura)
-    let damageScaling = game.player.damage * 0.1
+    let damageScaling = game.player.damage * 0.2
     var lightningDamagePerSec = case level
       of 1: 0.3 + damageScaling
       of 2: 0.6 + damageScaling
@@ -898,27 +898,27 @@ proc updateGame*(game: var Game, dt: float32) =
           else:
             break  # No more enemies to chain to
   
-  # Magic Aura power-up effect - pure arcane damage
-  if hasPowerUp(game.player, puMagicAura):
-    let level = getPowerUpLevel(game.player, puMagicAura)
-    let damageScaling = game.player.damage * 0.1
-    var magicDamagePerSec = case level
+  # Arcane Aura power-up effect - pure arcane damage
+  if hasPowerUp(game.player, puArcaneAura):
+    let level = getPowerUpLevel(game.player, puArcaneAura)
+    let damageScaling = game.player.damage * 0.2
+    var arcaneDamagePerSec = case level
       of 1: 0.5 + damageScaling
       of 2: 1.0 + damageScaling
       else: 1.5 + damageScaling
-    let magicRadius = case level
+    let arcaneRadius = case level
       of 1: 120.0
       of 2: 160.0
       else: 200.0
     
     # Apply Arcane Mastery bonuses if owned
     if game.player.hasArcaneMastery:
-      magicDamagePerSec *= 3.0  # +200% damage
+      arcaneDamagePerSec *= 3.0  # +200% damage
     
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
-      if dist < magicRadius:
-        let damageWithCrit = applyCriticalHit(game.player, magicDamagePerSec * dt)
+      if dist < arcaneRadius:
+        let damageWithCrit = applyCriticalHit(game.player, arcaneDamagePerSec * dt)
         let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
         
@@ -935,7 +935,7 @@ proc updateGame*(game: var Game, dt: float32) =
   # Poison Aura power-up effect - low damage, longer duration
   if hasPowerUp(game.player, puPoisonAura):
     let level = getPowerUpLevel(game.player, puPoisonAura)
-    let damageScaling = game.player.damage * 0.1
+    let damageScaling = game.player.damage * 0.2
     let poisonDamagePerSec = case level
       of 1: 0.2 + damageScaling
       of 2: 0.4 + damageScaling
@@ -1077,11 +1077,11 @@ proc updateGame*(game: var Game, dt: float32) =
      hasPowerUp(game.player, puFrostOrb):
     
     # Calculate base damage (BUFFED RANGE 2-6, but reduced multiplier)
-    # Add small damage scaling from player's damage stat (10% of player damage)
-    let damageScaling = game.player.damage * 0.05  # Reduced from 0.1 to 0.05 for compensation
+    # Add small damage scaling from player's damage stat (20% of player damage)
+    let damageScaling = game.player.damage * 0.1
     
     let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
-      0.5 + damageScaling  # Legendary version reduced from 1.0 to 0.5 for compensation
+      0.1 + damageScaling  # Legendary version
     else:
       # For individual orbs, use level-based damage (multiplied by 0.5 to balance the 2-6 buff)
       var maxDamage = 0.0
@@ -1128,8 +1128,8 @@ proc updateGame*(game: var Game, dt: float32) =
             # Apply damage (with element-specific bonuses)
             var actualBaseDamage = baseDamage
             
-            # Apply Arcane Mastery bonus for Magic orbs
-            if orb.elementType == etMagic and game.player.hasArcaneMastery:
+            # Apply Arcane Mastery bonus for Arcane orbs
+            if orb.elementType == etArcane and game.player.hasArcaneMastery:
               actualBaseDamage *= 3.0  # +200% damage
             
             let damageWithCrit = applyCriticalHit(game.player, actualBaseDamage)
@@ -1300,8 +1300,8 @@ proc updateGame*(game: var Game, dt: float32) =
               spawnExplosion(game.particles, orbX, orbY,
                            Color(r: 150, g: 200, b: 255, a: 255), 5)
             
-            of etMagic:
-              # Magic: Pure arcane damage (already dealt) + purple sparkles
+            of etArcane:
+              # Arcane: Pure arcane damage (already dealt) + purple sparkles
               spawnExplosion(game.particles, orbX, orbY,
                            Color(r: 200, g: 100, b: 255, a: 255), 5)
             
@@ -2194,9 +2194,9 @@ proc updateGame*(game: var Game, dt: float32) =
           if hasPowerUp(game.player, puVampirism):
             let vampLevel = getPowerUpLevel(game.player, puVampirism)
             let healPercent = case vampLevel
-              of 1: 0.02  # 2.0% (reduced from 5%)
-              of 2: 0.03  # 3.0% (reduced from 10%)
-              else: 0.04  # 4.0% (reduced from 18%)
+              of 1: 0.015  # 1.5% (reduced from 5%)
+              of 2: 0.025  # 2.5% (reduced from 10%)
+              else: 0.035  # 3.5% (reduced from 18%)
             let healAmount = finalDamage * healPercent
             heal(game.player, healAmount)
             if healAmount > 0.01:  # Only show particles if significant healing
@@ -2733,8 +2733,8 @@ proc drawGame*(game: Game) =
                    Color(r: 180, g: 220, b: 255, a: 65))
   
   # Draw Arcane Aura visual effect
-  if hasPowerUp(game.player, puMagicAura):
-    let level = getPowerUpLevel(game.player, puMagicAura)
+  if hasPowerUp(game.player, puArcaneAura):
+    let level = getPowerUpLevel(game.player, puArcaneAura)
     let arcaneRadius = case level
       of 1: 120.0
       of 2: 160.0
@@ -2744,7 +2744,7 @@ proc drawGame*(game: Game) =
     let pulse = (sin(game.time * 3.5) * 0.2 + 0.8).float32
     let runeRotation = game.time * 1.5
     
-    # Magical core glow
+    # Arcane core glow
     drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), 
                arcaneRadius * 0.3 * pulse, Color(r: 200, g: 100, b: 255, a: 45))
     
@@ -3073,3 +3073,4 @@ proc drawWaveTransition*(game: Game) =
   
 
   drawText("Press ENTER to start", game.screenWidth div 2 - 130, game.screenHeight - 80, 20, LightGray)
+
