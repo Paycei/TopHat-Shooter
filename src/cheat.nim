@@ -594,18 +594,18 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   
   # Define all power-up types
   let allPowerUpTypes = [
-    puDoubleShot, puRotatingShield, puDamageZone, puHomingBullets, puPiercingShots,
-    puMultiShot, puExplosiveBullets, puLifeSteal, puRapidFire, puMaxHealth,
-    puSpeedBoost, puBulletDamage, puBulletSpeed, puLuckyCoins, puWallMaster,
-    puAutoShoot, puBulletSize, puRegeneration, puDodgeChance, puCriticalHit,
-    puVampirism, puBulletRicochet, puSlowField, puRage, puBerserker,
-    puThorns, puBulletSplit, puChainLightning, puFrostShots, puPoisonShot,
-    puFireBullets, puWindBullets, puFireAura, puLightningAura, puPoisonAura, puWindAura,
-    puTimeWarp, puGravityWell, puPhaseShift, puOvercharge, puEchoShots,
-    puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb,
-    puArcaneBullets, puArcaneAura, puRotatingOrbs,
-    puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, 
-    puLightningMastery, puWindMastery, puParry
+    puArcaneAura, puArcaneBullets, puArcaneMastery, puArcaneOrb, puAutoShoot,
+    puBerserker, puBulletDamage, puBulletRicochet, puBulletSize, puBulletSpeed,
+    puBulletSplit, puChainLightning, puCriticalHit, puDamageZone, puDodgeChance,
+    puDoubleShot, puEchoShots, puExplosiveBullets, puFireAura, puFireBullets,
+    puFireMastery, puFireOrb, puFrostMastery, puFrostOrb, puFrostShots,
+    puGravityWell, puLightningAura, puLightningMastery, puLightningOrb, puLifeSteal,
+    puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot, puOvercharge,
+    puParry, puPhaseShift, puPiercingShots, puPoisonAura, puPoisonMastery,
+    puPoisonOrb, puPoisonShot, puRage, puRapidFire, puRegeneration,
+    puRotatingOrbs, puRotatingShield, puSlowField, puSpeedBoost, puThorns,
+    puTimeWarp, puVampirism, puWallMaster, puWindAura, puWindBullets,
+    puWindMastery, puWindOrb
   ]
   
   # Scrollable area setup

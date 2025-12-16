@@ -294,7 +294,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
   let currentFireRate = getCurrentFireRate(game.player)
   if game.time - game.player.lastShot >= currentFireRate:
     # Check for power-ups that modify shooting
-    let hasHoming = hasPowerUp(game.player, puHomingBullets)
+    let hasHoming = hasPowerUp(game.player, puMagicalBullets)
     let hasPiercing = hasPowerUp(game.player, puPiercingShots)
     let hasExplosive = hasPowerUp(game.player, puExplosiveBullets)
     let hasDoubleShot = hasPowerUp(game.player, puDoubleShot)
@@ -508,7 +508,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
 
 # Helper to fire delayed double-shot bursts
 proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
-  let hasHoming = hasPowerUp(game.player, puHomingBullets)
+  let hasHoming = hasPowerUp(game.player, puMagicalBullets)
   let hasPiercing = hasPowerUp(game.player, puPiercingShots)
   let hasExplosive = hasPowerUp(game.player, puExplosiveBullets)
   let hasRicochet = hasPowerUp(game.player, puBulletRicochet)
@@ -1750,7 +1750,8 @@ proc updateGame*(game: var Game, dt: float32) =
               speed = 220,
               damage = 0.75,
               fromPlayer = false,
-              isBossBullet = true
+              isBossBullet = true,
+              sourceEnemyId = enemy.id
             ))
           
           enemy.shockwaveTimer = 5.0 + rand(3.0)
@@ -1775,7 +1776,8 @@ proc updateGame*(game: var Game, dt: float32) =
               speed = 200,
               damage = 0.75,
               fromPlayer = false,
-              isBossBullet = true
+              isBossBullet = true,
+              sourceEnemyId = enemy.id
             ))
           enemy.shootTimer = 0
       
@@ -1796,7 +1798,8 @@ proc updateGame*(game: var Game, dt: float32) =
           direction = dir,
           speed = 220,
           damage = 1,
-          fromPlayer = false
+          fromPlayer = false,
+          sourceEnemyId = enemy.id
         ))
       enemy.shootTimer = 0
     
@@ -1817,7 +1820,8 @@ proc updateGame*(game: var Game, dt: float32) =
           direction = spreadDir,
           speed = 260,
           damage = 1,
-          fromPlayer = false
+          fromPlayer = false,
+          sourceEnemyId = enemy.id
         ))
       
       enemy.shootTimer = 0
@@ -1933,6 +1937,14 @@ proc updateGame*(game: var Game, dt: float32) =
     if not updateBullet(bullet, bulletDt) or isOffScreen(bullet, game.screenWidth, game.screenHeight):
       game.bullets.delete(i)
       continue
+    
+    # Update sourceEnemyPos to track the enemy's current position
+    # This ensures parried bullets go to where the enemy last was, not where it shot from
+    if not bullet.fromPlayer and bullet.sourceEnemyId >= 0:
+      for enemy in game.enemies:
+        if enemy.id == bullet.sourceEnemyId:
+          bullet.sourceEnemyPos = enemy.pos
+          break
     
     # Echo Shots - spawn ghost trail bullets (SINGLE LEVEL)
     if bullet.fromPlayer and not bullet.isEcho and hasPowerUp(game.player, puEchoShots):
@@ -2284,9 +2296,32 @@ proc updateGame*(game: var Game, dt: float32) =
       if checkBulletPlayerCollision(bullet, game.player):
         # Parry - bounce bullets back (LEGENDARY active ability)
         if game.player.parryActive:
-          # Reverse bullet direction - bounce it back toward source
-          let towardEnemy = (bullet.pos - game.player.pos).normalize()
-          bullet.vel = towardEnemy * bullet.vel.length()
+          # FIX: Bounce toward the enemy that shot the bullet
+          # If enemy is dead, bounce toward where it was when it shot
+          var targetPos: Vector2f
+          var foundTarget = false
+          
+          # Try to find the living enemy that shot this bullet by ID
+          if bullet.sourceEnemyId >= 0:
+            for enemy in game.enemies:
+              if enemy.id == bullet.sourceEnemyId:
+                targetPos = enemy.pos
+                foundTarget = true
+                break
+          
+          # If source enemy is dead/missing, use the position where bullet was shot from
+          if not foundTarget:
+            targetPos = bullet.sourceEnemyPos
+            foundTarget = true
+          
+          # Calculate bounce direction toward target position
+          let bounceDir = if foundTarget:
+            (targetPos - bullet.pos).normalize()
+          else:
+            # Ultimate fallback: bounce away from player (should never happen)
+            (bullet.pos - game.player.pos).normalize()
+          
+          bullet.vel = bounceDir * bullet.vel.length()
           bullet.fromPlayer = true  # Mark as player bullet so it can damage enemies
           
           # Visual effect for parry bounce
@@ -2367,7 +2402,12 @@ proc updateGame*(game: var Game, dt: float32) =
     # Collect coin on contact
     if checkPlayerCollision(game.coins[i], game.player):
       let isBossCoin = game.coins[i].isBossCoin
-      game.player.coins += game.coins[i].value
+      # Apply Lucky Coins (Greed) multiplier - doubles coins collected
+      let coinValue = if hasPowerUp(game.player, puLuckyCoins):
+        game.coins[i].value * 2
+      else:
+        game.coins[i].value
+      game.player.coins += coinValue
       playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
       # Boss coins have red particles, regular coins have gold
       let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold

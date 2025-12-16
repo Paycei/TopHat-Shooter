@@ -43,7 +43,7 @@ type
     puDoubleShot,      # Shoots 2 bullets at once
     puRotatingShield,  # Orbiting protective shield
     puDamageZone,      # Passive damage aura
-    puHomingBullets,   # Bullets track enemies
+    puMagicalBullets,  # Bullets track enemies
     puPiercingShots,   # Bullets pass through enemies
     puMultiShot,       # Shoots in 3 directions
     puExplosiveBullets,# Bullets explode on impact
@@ -53,7 +53,7 @@ type
     puSpeedBoost,      # Permanent speed increase
     puBulletDamage,    # Increased bullet damage
     puBulletSpeed,     # Faster bullets
-    puLuckyCoins,      # Enemies drop more coins
+    puLuckyCoins,      # Doubles coins collected
     puWallMaster,      # Place stronger walls
     puAutoShoot,       # Auto-target nearest enemy
     puBulletSize,      # Larger projectiles
@@ -275,6 +275,8 @@ type
     windPushForce*: float32  # Force to push enemies backwards
     isPentagon*: bool  # Special pentagon-shaped bullets
     hitEnemies*: seq[int]  # Track enemy indices already hit by this bullet
+    sourceEnemyId*: int  # ID of the enemy that shot this bullet (for parry)
+    sourceEnemyPos*: Vector2f  # Position where the bullet was shot from (for parry fallback)
     # New legendary power-up bullet properties
     travelDistance*: float32  # Track distance for Overcharge
     isEcho*: bool  # True if this is an echo clone bullet

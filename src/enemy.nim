@@ -537,11 +537,25 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       # Screen boundary check - keep ranged enemies inside once entered
-      # Only prevent leaving screen, allow entering freely
+      # FIX: Allow movement toward screen when off-screen, prevent leaving when inside
       if enemy.hasEnteredScreen:
-        if nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
-           nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius:
-          canMove = false
+        let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
+                         nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
+        
+        if isOffScreen:
+          # Calculate direction toward screen center
+          let screenCenterX = game.screenWidth.float32 / 2.0
+          let screenCenterY = game.screenHeight.float32 / 2.0
+          let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
+          let movementDir = (nextPos - enemy.pos).normalize()
+          
+          # Calculate dot product to see if movement is toward center
+          let dotProduct = towardCenter.x * movementDir.x + towardCenter.y * movementDir.y
+          
+          # Only block movement if it's moving away from center (dot < 0)
+          # Allow movement if it's toward center (dot >= 0)
+          if dotProduct < 0:
+            canMove = false
       
       if canMove:
         enemy.pos = nextPos
@@ -734,7 +748,8 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
             direction = spreadDir,
             speed = 150,
             damage = 1,
-            fromPlayer = false
+            fromPlayer = false,
+            sourceEnemyId = enemy.id
           ))
       else:
         let dir = (playerPos - enemy.pos).normalize()
@@ -750,7 +765,8 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           direction = dir,
           speed = 140,
           damage = 1,
-          fromPlayer = false
+          fromPlayer = false,
+          sourceEnemyId = enemy.id
         ))
         enemy.shootTimer = 0
       
@@ -786,7 +802,8 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           direction = inaccurateDir,
           speed = 120,
           damage = 1,
-          fromPlayer = false
+          fromPlayer = false,
+          sourceEnemyId = enemy.id
         ))
         enemy.shootTimer = 0
       
@@ -808,19 +825,35 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       # Screen boundary check - keep ranged enemies inside once entered
-      # Only prevent leaving screen if already inside, allow entering freely
+      # FIX: Allow movement toward screen when off-screen, prevent leaving when inside
       # Clamp position instead of blocking movement to prevent getting stuck
       if enemy.hasEnteredScreen:
-        # Check if next position would go outside bounds
-        if nextPos.x < enemy.radius:
-          nextPos.x = enemy.radius
-        elif nextPos.x > game.screenWidth.float32 - enemy.radius:
-          nextPos.x = game.screenWidth.float32 - enemy.radius
+        let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
+                         nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
         
-        if nextPos.y < enemy.radius:
-          nextPos.y = enemy.radius
-        elif nextPos.y > game.screenHeight.float32 - enemy.radius:
-          nextPos.y = game.screenHeight.float32 - enemy.radius
+        if isOffScreen:
+          # Calculate direction toward screen center
+          let screenCenterX = game.screenWidth.float32 / 2.0
+          let screenCenterY = game.screenHeight.float32 / 2.0
+          let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
+          let movementDir = (nextPos - enemy.pos).normalize()
+          
+          # Calculate dot product to see if movement is toward center
+          let dotProduct = towardCenter.x * movementDir.x + towardCenter.y * movementDir.y
+          
+          # Only block movement if it's moving away from center (dot < 0)
+          # Allow movement if it's toward center (dot >= 0)
+          if dotProduct < 0:
+            # Clamp to screen bounds instead of blocking
+            if nextPos.x < enemy.radius:
+              nextPos.x = enemy.radius
+            elif nextPos.x > game.screenWidth.float32 - enemy.radius:
+              nextPos.x = game.screenWidth.float32 - enemy.radius
+            
+            if nextPos.y < enemy.radius:
+              nextPos.y = enemy.radius
+            elif nextPos.y > game.screenHeight.float32 - enemy.radius:
+              nextPos.y = game.screenHeight.float32 - enemy.radius
       
       if canMove:
         enemy.pos = nextPos
@@ -854,7 +887,8 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           windPushForce = 0.0,
           isPentagon = true,
           isEcho = false,
-          isBossBullet = false
+          isBossBullet = false,
+          sourceEnemyId = enemy.id
         )
         pentagonBullet.radius = 10  # MUCH LARGER bullet (was 6 for enemy bullets)
         game.bullets.add(pentagonBullet)
@@ -882,19 +916,35 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       # Screen boundary check - keep ranged enemies inside once entered
-      # Only prevent leaving screen if already inside, allow entering freely
+      # FIX: Allow movement toward screen when off-screen, prevent leaving when inside
       # Clamp position instead of blocking movement to prevent getting stuck
       if enemy.hasEnteredScreen:
-        # Check if next position would go outside bounds
-        if nextPos.x < enemy.radius:
-          nextPos.x = enemy.radius
-        elif nextPos.x > game.screenWidth.float32 - enemy.radius:
-          nextPos.x = game.screenWidth.float32 - enemy.radius
+        let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
+                         nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
         
-        if nextPos.y < enemy.radius:
-          nextPos.y = enemy.radius
-        elif nextPos.y > game.screenHeight.float32 - enemy.radius:
-          nextPos.y = game.screenHeight.float32 - enemy.radius
+        if isOffScreen:
+          # Calculate direction toward screen center
+          let screenCenterX = game.screenWidth.float32 / 2.0
+          let screenCenterY = game.screenHeight.float32 / 2.0
+          let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
+          let movementDir = (nextPos - enemy.pos).normalize()
+          
+          # Calculate dot product to see if movement is toward center
+          let dotProduct = towardCenter.x * movementDir.x + towardCenter.y * movementDir.y
+          
+          # Only block movement if it's moving away from center (dot < 0)
+          # Allow movement if it's toward center (dot >= 0)
+          if dotProduct < 0:
+            # Clamp to screen bounds instead of blocking
+            if nextPos.x < enemy.radius:
+              nextPos.x = enemy.radius
+            elif nextPos.x > game.screenWidth.float32 - enemy.radius:
+              nextPos.x = game.screenWidth.float32 - enemy.radius
+            
+            if nextPos.y < enemy.radius:
+              nextPos.y = enemy.radius
+            elif nextPos.y > game.screenHeight.float32 - enemy.radius:
+              nextPos.y = game.screenHeight.float32 - enemy.radius
       
       if canMove:
         enemy.pos = nextPos
@@ -917,7 +967,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         for i in 0..<6:
           let bulletAngle = i.float32 * PI / 3.0
           let dir = newVector2f(cos(bulletAngle), sin(bulletAngle))
-          game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 250, 1, false))
+          game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 250, 1, false, sourceEnemyId = enemy.id))
         
         enemy.fakeWarningTimer = 3.0 + rand(2.0)
       
@@ -965,7 +1015,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           shootPos = enemy.clonePositions[rand(enemy.clonePositions.len - 1)]
         
         let dir = (playerPos - shootPos).normalize()
-        game.bullets.add(newBullet(shootPos.x, shootPos.y, dir, 260, 1, false))
+        game.bullets.add(newBullet(shootPos.x, shootPos.y, dir, 260, 1, false, sourceEnemyId = enemy.id))
         enemy.shootTimer = 0
       
       # Erratic movement
@@ -1016,7 +1066,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         if enemy.attackWarningTimer >= enemy.attackExecuteTimer:
           let dir = (playerPos - enemy.pos).normalize()
           # Fire a large, fast, high-damage bullet
-          let bullet = newBullet(enemy.pos.x, enemy.pos.y, dir, 400.0, (enemy.damage * 2).float32, false)
+          let bullet = newBullet(enemy.pos.x, enemy.pos.y, dir, 400.0, (enemy.damage * 2).float32, false, sourceEnemyId = enemy.id)
           game.bullets.add(bullet)
           enemy.attackPhase = 2
           enemy.attackExecuteTimer = 2.0  # Cooldown before next charge
@@ -1157,8 +1207,8 @@ proc drawEnemy*(enemy: Enemy) =
     
     of etCross:
       # Draw improved cross shape with rotation support
-      let armLength = enemy.radius * 0.75
-      let armThickness = 5.0
+      let armLength = enemy.radius * 0.8  # Slightly longer arms
+      let armThickness = 8.0  # Increased from 5.0 for better visibility
       
       # Apply rotation (during dash)
       let rotAngle = enemy.rotation
@@ -1177,12 +1227,13 @@ proc drawEnemy*(enemy: Enemy) =
       let vx2 = enemy.pos.x + cos(vAngle) * armLength
       let vy2 = enemy.pos.y + sin(vAngle) * armLength
       
-      # Draw rotated cross arms
+      # Draw rotated cross arms with thicker lines
       drawLine(Vector2(x: hx1, y: hy1), Vector2(x: hx2, y: hy2), armThickness, enemy.color)
       drawLine(Vector2(x: vx1, y: vy1), Vector2(x: vx2, y: vy2), armThickness, enemy.color)
       
-      # Draw inner bright cross (also rotated)
-      let innerLength = armLength * 0.6
+      # Draw inner bright cross (also rotated) - slightly thicker
+      let innerLength = armLength * 0.65
+      let innerThickness = 3.5  # Increased from 2.0
       let ihx1 = enemy.pos.x + cos(rotAngle) * (-innerLength)
       let ihy1 = enemy.pos.y + sin(rotAngle) * (-innerLength)
       let ihx2 = enemy.pos.x + cos(rotAngle) * innerLength
@@ -1192,14 +1243,14 @@ proc drawEnemy*(enemy: Enemy) =
       let ivx2 = enemy.pos.x + cos(vAngle) * innerLength
       let ivy2 = enemy.pos.y + sin(vAngle) * innerLength
       
-      drawLine(Vector2(x: ihx1, y: ihy1), Vector2(x: ihx2, y: ihy2), 2,
+      drawLine(Vector2(x: ihx1, y: ihy1), Vector2(x: ihx2, y: ihy2), innerThickness,
               Color(r: 255, g: 150, b: 50, a: 255))
-      drawLine(Vector2(x: ivx1, y: ivy1), Vector2(x: ivx2, y: ivy2), 2,
+      drawLine(Vector2(x: ivx1, y: ivy1), Vector2(x: ivx2, y: ivy2), innerThickness,
               Color(r: 255, g: 150, b: 50, a: 255))
       
-      # Draw central core
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.45, enemy.color)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.25,
+      # Draw central core - slightly larger
+      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.5, enemy.color)
+      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
                 Color(r: 255, g: 150, b: 0, a: 255))
       
       # Warning glow with pulsing effect

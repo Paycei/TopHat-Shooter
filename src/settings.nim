@@ -515,3 +515,6 @@ proc updateSettings*(settings: Settings) =
 
 proc applySettings*(settings: Settings) =
   setTargetFPS(settings.fpsLimit)
+  # Apply volume settings to sound system
+  setGameVolume(settings.volume)
+  setMusicVolume(settings.musicVolume)

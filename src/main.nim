@@ -787,7 +787,12 @@ proc main() =
         
         # Collect coin on contact
         if checkPlayerCollision(currentGame.coins[i], currentGame.player):
-          currentGame.player.coins += currentGame.coins[i].value
+          # Apply Lucky Coins (Greed) multiplier - doubles coins collected
+          let coinValue = if hasPowerUp(currentGame.player, puLuckyCoins):
+            currentGame.coins[i].value * 2
+          else:
+            currentGame.coins[i].value
+          currentGame.player.coins += coinValue
           playSound(stCoinPickup, 0.5)
           spawnExplosion(currentGame.particles, currentGame.coins[i].pos.x, currentGame.coins[i].pos.y, Gold, 6)
           currentGame.coins.delete(i)

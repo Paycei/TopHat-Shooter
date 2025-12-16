@@ -5,7 +5,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puDoubleShot: "Double Shot"
   of puRotatingShield: "Rotating Shield"
   of puDamageZone: "Damage Aura"
-  of puHomingBullets: "Homing Bullets"
+  of puMagicalBullets: "Magical Bullets"
   of puPiercingShots: "Piercing Shots"
   of puMultiShot: "Multi-Shot"
   of puExplosiveBullets: "Explosive Rounds"
@@ -74,9 +74,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "3 dmg/sec in 120 radius"
     of 2: "6 dmg/sec in 160 radius"
     else: "12 dmg/sec in 200 radius"
-  of puHomingBullets:
-    # Single level only - LEGENDARY balanced tracking
-    "Bullets track enemies (-10% dmg)"
+  of puMagicalBullets:
+    # Single level only - LEGENDARY
+    "Bullets track nearest enemy"
   of puPiercingShots:
     case level
     of 1: "Bullets pierce 1 enemy (-33% damage per pierce)"
@@ -112,7 +112,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "+35% bullet speed"
   of puLuckyCoins:
     # Single level only - LEGENDARY
-    "+100% coin drops"
+    "Doubles all coins collected"
   of puWallMaster:
     # Single level only - LEGENDARY
     "Walls have +250% HP"
@@ -319,23 +319,25 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
   # ALL legendary powerups are SINGLE LEVEL ONLY
-  let legendaryOnlyTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
-                            puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
-                            puGravityWell, puPhaseShift, puOvercharge, puEchoShots, puMultiShot,
-                            puRotatingOrbs, puFireMastery, puPoisonMastery, puFrostMastery,
-                            puArcaneMastery, puLightningMastery, puWindMastery, puDoubleShot,
-                            puHomingBullets, puParry]
+  let legendaryOnlyTypes = [
+    puArcaneMastery, puBulletDamage, puBulletSpeed, puDoubleShot, puEchoShots,
+    puFireMastery, puFrostMastery, puGravityWell, puLightningMastery,
+    puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot, puOvercharge,
+    puParry, puPhaseShift, puPoisonMastery, puRapidFire, puRotatingOrbs,
+    puSpeedBoost, puTimeWarp, puWallMaster, puWindMastery
+  ]
   
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
-  let normalOnlyTypes = [puRotatingShield, puDamageZone,
-                         puPiercingShots, puExplosiveBullets, puLifeSteal,
-                         puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
-                         puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
-                         puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
-                         puFrostShots, puPoisonShot, puFireBullets, puWindBullets,
-                         puFireAura, puLightningAura, puPoisonAura, puWindAura,
-                         puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb,
-                         puArcaneBullets, puArcaneAura]
+  let normalOnlyTypes = [
+    puArcaneAura, puArcaneBullets, puArcaneOrb, puAutoShoot, puBerserker,
+    puBulletRicochet, puBulletSize, puBulletSplit, puChainLightning,
+    puCriticalHit, puDamageZone, puDodgeChance, puExplosiveBullets,
+    puFireAura, puFireBullets, puFireOrb, puFrostOrb, puFrostShots,
+    puLightningAura, puLightningOrb, puLifeSteal, puPiercingShots,
+    puPoisonAura, puPoisonOrb, puPoisonShot, puRage, puRegeneration,
+    puRotatingShield, puSlowField, puThorns, puVampirism, puWindAura,
+    puWindBullets, puWindOrb
+  ]
   
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
@@ -650,7 +652,7 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), zoneRadius.float32, 
               Color(r: 255, g: 100, b: 0, a: 100))
     drawCircleLines(centerX.int32, iconY.int32, zoneRadius.float32, Orange)
-  of puHomingBullets:
+  of puMagicalBullets:
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 8, Magenta)
     for i in 0..5:
       let t = i.float32 / 5.0
@@ -1401,7 +1403,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
   let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
                         puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
                         puGravityWell, puPhaseShift, puOvercharge, puEchoShots,
-                        puHomingBullets]
+                        puMagicalBullets]
   
   let normalTypes = [puDoubleShot, puRotatingShield, puDamageZone,
                      puPiercingShots, puMultiShot, puExplosiveBullets, puLifeSteal,

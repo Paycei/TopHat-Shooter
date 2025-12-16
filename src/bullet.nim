@@ -7,7 +7,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0, 
                 poisonDuration: float32 = 0, fireDuration: float32 = 0, windPushForce: float32 = 0,
                 isPentagon: bool = false, isEcho: bool = false, 
-                isBossBullet: bool = false, isArcaneBullet: bool = false): Bullet =
+                isBossBullet: bool = false, isArcaneBullet: bool = false,
+                sourceEnemyId: int = -1): Bullet =
   # BUFFED: Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -30,6 +31,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     windPushForce: windPushForce,  # Wind push force
     isPentagon: isPentagon,
     hitEnemies: @[],  # Initialize empty sequence
+    sourceEnemyId: sourceEnemyId,  # Track which enemy shot this bullet
+    sourceEnemyPos: newVector2f(x, y),  # Store the position where bullet was shot from
     travelDistance: 0.0,  # Track distance for Overcharge
     isEcho: isEcho,  # Whether this is an echo trail bullet
     echoTrailTimer: 0.0,  # Timer for spawning echo trails
@@ -238,9 +241,32 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
                         damageMultiplier: float32 = 0.5, speedMultiplier: float32 = 0.7) =
   ## Create split bullets that inherit ALL properties from source bullet
   ## SYNERGY SYSTEM: Split bullets maintain explosive, homing, piercing, poison, etc.
+  
+  # Get the original bullet's direction angle
+  let baseAngle = arctan2(sourceBullet.vel.y, sourceBullet.vel.x)
+  
+  # Create spread based on number of splits
+  # For 2 splits: -22.5° and +22.5° from original direction
+  # For 3 splits: -30°, 0°, +30° from original direction
+  # For 4 splits: -37.5°, -12.5°, +12.5°, +37.5° from original direction
+  let spreadAngle = case splitCount
+    of 2: PI / 8.0  # 22.5 degrees
+    of 3: PI / 6.0  # 30 degrees
+    of 4: PI / 4.8  # 37.5 degrees
+    else: PI / 6.0
+  
   for split in 0..<splitCount:
-    let angle = split.float32 * PI * 2.0 / splitCount.float32
-    let dir = newVector2f(cos(angle), sin(angle))
+    # Calculate angle offset from center
+    let offsetAngle = if splitCount == 2:
+      # For 2 bullets: split left and right
+      if split == 0: -spreadAngle else: spreadAngle
+    else:
+      # For 3+ bullets: distribute evenly with center bullet at original angle
+      let halfCount = (splitCount - 1).float32 / 2.0
+      (split.float32 - halfCount) * (spreadAngle * 2.0 / (splitCount - 1).float32)
+    
+    let finalAngle = baseAngle + offsetAngle
+    let dir = newVector2f(cos(finalAngle), sin(finalAngle))
     let vel = dir * sourceBullet.vel.length() * speedMultiplier
     
     let splitBullet = cloneBullet(
