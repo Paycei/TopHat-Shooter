@@ -627,7 +627,7 @@ proc updateGame*(game: var Game, dt: float32) =
   # Time Warp effect - apply slow to delta time for enemies/bullets
   var effectiveDt = dt
   if game.player.timeWarpActive:
-    let slowFactor = 0.50  # 50% slow = 50% speed (single level)
+    let slowFactor = 0.5  # 50% slow = 50% speed (single level)
     effectiveDt = dt * slowFactor
   
   # Handle boss spawn warning timer (non-blocking)

@@ -229,7 +229,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "Pull enemies in 300 radius"
   of puPhaseShift:
     # Single level only - LEGENDARY teleport
-    "Dash forward (9s cd, 0.7s invuln, scales with speed)"
+    "Dash forward (5s cd, 0.5s invuln, scales with speed)"
   of puOvercharge:
     # Single level only - LEGENDARY
     "+5% dmg per 100 units traveled (max 100%, 80 range)"
@@ -299,7 +299,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "Wind effects: +150% dmg, +100% duration, +40% slow, stronger push"
   of puParry:
     # Single level only - LEGENDARY active ability
-    "Active: Invincible for 0.5s, bounce enemy bullets (8s cooldown)"
+    "Active: Invincible for 0.5s, bounce enemy bullets (5s cooldown)"
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:

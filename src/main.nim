@@ -465,8 +465,8 @@ proc main() =
           let speedRatio = currentGame.player.speed / currentGame.player.baseSpeed
           let dashDistance = baseDistance * speedRatio
           
-          let cooldown = 10.0  # 10 second cooldown
-          let invulnDuration = 0.6
+          let cooldown = 5.0  # 5 second cooldown
+          let invulnDuration = 0.5  # 0.5 second invulnerability after dash
           
           # Calculate dash direction - PRIORITIZE WASD movement direction
           var dashDir = newVector2f(0, 0)
@@ -509,7 +509,7 @@ proc main() =
         # Parry - active defense ability (SINGLE LEVEL - invincible + bounce bullets)
         if hasPowerUp(currentGame.player, puParry) and currentGame.player.parryCooldown <= 0:
           let duration = 0.5  # 0.5 second parry window
-          let cooldown = 8.0  # 8 second cooldown
+          let cooldown = 5.0  # 5 second cooldown
           
           currentGame.player.parryActive = true
           currentGame.player.parryDuration = duration

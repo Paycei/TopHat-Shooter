@@ -96,7 +96,7 @@ type
     puArcaneMastery,   # LEGENDARY: Enhance all arcane effects (damage, duration)
     puLightningMastery,# LEGENDARY: Enhance all lightning effects (damage, duration, slow)
     puWindMastery,     # LEGENDARY: Enhance all wind effects (damage, duration, slow)
-    puParry            # LEGENDARY: Active ability - invincible + bounce bullets (0.5s, 8s cd)
+    puParry            # LEGENDARY: Active ability - invincible + bounce bullets (0.5s, 5s cd)
   
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
