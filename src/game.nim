@@ -2622,7 +2622,7 @@ proc updateGame*(game: var Game, dt: float32) =
           game.wavesUntilBoss -= 1
           # Reset wavesUntilBoss if it hits 0 or below
           if game.wavesUntilBoss <= 0:
-            game.wavesUntilBoss = 5  # Next boss in 5 waves
+            game.wavesUntilBoss = 4  # Next boss in 5 waves (every 5 waves: 5, 10, 15, etc)
           
           # Offer LEGENDARY power-up after completing boss wave
           game.powerUpChoices = generatePowerUpChoices(game.player, true)
