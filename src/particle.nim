@@ -13,7 +13,8 @@ proc newParticle*(x, y: float32, color: Color, speed: float32 = 100.0): Particle
 
 proc updateParticle*(particle: Particle, dt: float32): bool =
   particle.pos = particle.pos + particle.vel * dt
-  particle.vel = particle.vel * 0.95  # Slow down
+  # Frame-independent slowdown: pow(0.95, 60*dt) simulates 60 FPS behavior at any framerate
+  particle.vel = particle.vel * pow(0.95, 60.0 * dt)
   particle.lifetime -= dt
   return particle.lifetime > 0
 

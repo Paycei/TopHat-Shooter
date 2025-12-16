@@ -581,7 +581,8 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           let weaveIntensity = sin(currentTime * 10.0 + enemy.pos.y * 0.05) * 0.5
           let circleDir = (zigzagDir * (0.5 + weaveIntensity * 0.2) + tangent * (0.5 - weaveIntensity * 0.2)).normalize()
           enemy.vel = circleDir * effectiveSpeed * 0.95
-        enemy.vel = enemy.vel * 0.98
+        # Frame-independent velocity dampening
+        enemy.vel = enemy.vel * pow(0.98, 60.0 * dt)
       var canMove = true
       let nextPos = enemy.pos + enemy.vel * dt
       for wall in walls:
@@ -709,8 +710,8 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           if canMove:
             enemy.pos = nextPos
           
-          # Gradually slow down during dash
-          enemy.vel = enemy.vel * 0.96
+          # Gradually slow down during dash (frame-independent)
+          enemy.vel = enemy.vel * pow(0.96, 60.0 * dt)
         else:
           # Dash finished, reset to patrol
           enemy.attackPhase = 0

@@ -495,6 +495,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     elif hasHoming: particleColor = Magenta
     elif hasPiercing: particleColor = SkyBlue
     elif hasExplosive: particleColor = Orange
+    elif fireEffect > 0: particleColor = Color(r: 255, g: 80, b: 20, a: 255)
     elif windEffect > 0: particleColor = Color(r: 200, g: 230, b: 255, a: 255)
     elif slowEffect > 0: particleColor = Color(r: 150, g: 200, b: 255, a: 255)
     elif poisonEffect > 0: particleColor = Green
@@ -708,8 +709,9 @@ proc updateGame*(game: var Game, dt: float32) =
       if game.player.hp <= 0:
         game.state = gsGameOver
     
-    # Poison visual effect
-    if (game.time * 10).int mod 3 == 0:
+    # Poison visual effect (frame-independent)
+    # Spawn ~20 particles/sec
+    if rand(1.0) < (20.0 * dt):
       spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 2)
   
   # Damage zone power-up effect
@@ -796,8 +798,9 @@ proc updateGame*(game: var Game, dt: float32) =
           if enemy.slowAmount < 0.35:
             enemy.slowAmount = 0.35  # 35% slow
         
-        # Visual fire particles
-        if rand(100) < 8:  # 8% chance per frame
+        # Visual fire particles (frame-independent)
+        # 8% @ 60fps = 4.8 particles/sec → use dt scaling
+        if rand(1.0) < (4.8 * dt):
           let particleAngle = rand(1.0) * PI * 2.0
           let particleDist = rand(enemy.radius + 5.0)
           let particleX = enemy.pos.x + cos(particleAngle) * particleDist
@@ -851,8 +854,9 @@ proc updateGame*(game: var Game, dt: float32) =
           if enemy.slowAmount < 0.25:
             enemy.slowAmount = 0.25  # 25% slow
         
-        # Visual lightning spark
-        if rand(100) < 10:
+        # Visual lightning spark (frame-independent)
+        # 10% @ 60fps = 6 particles/sec
+        if rand(1.0) < (6.0 * dt):
           spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
                         Color(r: 150, g: 200, b: 255, a: 255), 3)
         
@@ -882,8 +886,9 @@ proc updateGame*(game: var Game, dt: float32) =
             if nearestEnemy.slowAmount < 0.05:
               nearestEnemy.slowAmount = 0.05
             
-            # Visual chain lightning particle
-            if rand(100) < 20:
+            # Visual chain lightning particle (frame-independent)
+            # 20% @ 60fps = 12 particles/sec
+            if rand(1.0) < (12.0 * dt):
               let midX = (currentEnemy.pos.x + nearestEnemy.pos.x) / 2.0
               let midY = (currentEnemy.pos.y + nearestEnemy.pos.y) / 2.0
               spawnExplosion(game.particles, midX, midY,
@@ -917,8 +922,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
         
-        # Visual arcane particles (purple sparkles)
-        if rand(100) < 12:  # 12% chance per frame
+        # Visual arcane particles (purple sparkles) (frame-independent)
+        # 12% @ 60fps = 7.2 particles/sec
+        if rand(1.0) < (7.2 * dt):
           let particleAngle = rand(1.0) * PI * 2.0
           let particleDist = rand(enemy.radius + 3.0)
           let particleX = enemy.pos.x + cos(particleAngle) * particleDist
@@ -963,8 +969,9 @@ proc updateGame*(game: var Game, dt: float32) =
           if enemy.slowAmount < 0.30:
             enemy.slowAmount = 0.30  # 30% slow
         
-        # Visual poison particles
-        if rand(100) < 6:  # 6% chance per frame
+        # Visual poison particles (frame-independent)
+        # 6% @ 60fps = 3.6 particles/sec
+        if rand(1.0) < (3.6 * dt):
           let particleAngle = rand(1.0) * PI * 2.0
           let particleDist = rand(enemy.radius + 5.0)
           let particleX = enemy.pos.x + cos(particleAngle) * particleDist
@@ -1008,8 +1015,9 @@ proc updateGame*(game: var Game, dt: float32) =
           if enemy.slowAmount < 0.40:
             enemy.slowAmount = 0.40  # 40% slow
         
-        # Visual wind particles (outward from player toward enemies)
-        if rand(100) < 8:  # 8% chance per frame
+        # Visual wind particles (outward from player toward enemies) (frame-independent)
+        # 8% @ 60fps = 4.8 particles/sec
+        if rand(1.0) < (4.8 * dt):
           let particleAngle = rand(1.0) * PI * 2.0
           let particleDist = rand(windRadius * 0.8)
           let particleX = game.player.pos.x + cos(particleAngle) * particleDist
@@ -1037,9 +1045,10 @@ proc updateGame*(game: var Game, dt: float32) =
         enemy.pos.x += toPlayer.x * pullForce * dt
         enemy.pos.y += toPlayer.y * pullForce * dt
         
-        # Spawn visual particles for gravity effect (more for ranged enemies)
-        let particleChance = if isRanged: 25 else: 15
-        if rand(100) < particleChance:
+        # Spawn visual particles for gravity effect (more for ranged enemies) (frame-independent)
+        # 25% @ 60fps = 15 particles/sec for ranged, 15% = 9 particles/sec for melee
+        let particleRate = if isRanged: 15.0 else: 9.0
+        if rand(1.0) < (particleRate * dt):
           let particleAngle = rand(1.0) * PI * 2.0
           let particleDist = rand(pullRadius)
           let particleX = game.player.pos.x + cos(particleAngle) * particleDist
@@ -2569,8 +2578,9 @@ proc updateGame*(game: var Game, dt: float32) =
       # Pull coin toward player with magnet animation
       moveCoinToPlayer(game.coins[i], game.player.pos, dt)
       
-      # Add subtle particle trail for magnet effect
-      if rand(100) < 30:  # 30% chance per frame
+      # Add subtle particle trail for magnet effect (frame-independent)
+      # 30% @ 60fps = 18 particles/sec
+      if rand(1.0) < (18.0 * dt):
         spawnExplosion(game.particles, game.coins[i].pos.x, game.coins[i].pos.y, 
                       Color(r: 255, g: 215, b: 0, a: 150), 1)
     

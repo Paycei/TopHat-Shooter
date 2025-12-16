@@ -1,7 +1,5 @@
 import raylib, strutils, sound, math, save_system, settings_types
 
-export settings_types
-
 var globalSettings*: Settings
 
 proc initSettings*(): Settings =
@@ -59,19 +57,6 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   
   # Instructions
   drawText("Click to edit, Enter to confirm", 200'i32, fpsY + 35, 16, LightGray)
-  
-  # FPS Warning - Show if FPS is set higher than recommended (COMPACT)
-  if settings.fpsLimit > 60:
-    let warningY = fpsY + 58
-    let warningColor = if settings.fpsLimit > 300: 
-      Color(r: 255, g: 50, b: 50, a: 255)  # Red for very high FPS
-    else: 
-      Color(r: 255, g: 200, b: 0, a: 255)  # Orange for moderately high FPS
-    
-    if settings.fpsLimit > 300:
-      drawText("WARNING: FPS > 300 may cause bugs! (60 recommended)", 200'i32, warningY, 15, warningColor)
-    else:
-      drawText("Note: 60 FPS recommended for stability", 200'i32, warningY, 15, warningColor)
   
   # Volume Setting
   let volumeY: int32 = 250
