@@ -1492,31 +1492,29 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
 # Helper Functions
 
 proc isCustomBoss*(waveNumber: int): bool =
-  ## Checks if the current wave should spawn a custom boss (waves 5-60, every 5 waves)
-  waveNumber <= 60 and waveNumber mod 5 == 0
+  ## Checks if the current wave should spawn a custom boss (every 5 waves, no limit)
+  waveNumber mod 5 == 0
 
 proc getCustomBossNumber*(waveNumber: int): int =
   ## Returns the custom boss number (1-12) for the given wave
+  ## After wave 60, continues with boss 12 (The Final Sentinel)
   if waveNumber <= 0 or waveNumber mod 5 != 0:
     return 0
   
   let bossNumber = waveNumber div 5
   if bossNumber > 12:
-    return 0  # Use random after boss 12
+    return 12  # Boss 12 (The Final Sentinel) continues indefinitely with scaled stats
   
   return bossNumber
 
 proc getBossForWave*(waveNumber: int): BossDefinition =
   ## Gets the appropriate boss definition for a wave number
+  ## After wave 60, uses boss 12 (The Final Sentinel) with stats scaled per wave
   if not isCustomBoss(waveNumber):
     # Not a boss wave, return empty definition
     return BossDefinition()
   
   let bossNumber = getCustomBossNumber(waveNumber)
-  if bossNumber == 0:
-    # After wave 60, use random bosses
-    return getBossDefinition(rand(11) + 1)
-  
   return getBossDefinition(bossNumber)
 
 proc getCurrentPhase*(boss: BossDefinition, currentHpPercent: float32): BossPhaseDefinition =

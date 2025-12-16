@@ -22,18 +22,6 @@ type
     etPhantom,     # Unpredictable - teleports with fake clones
     etSniper       # Rare - charges one-shot epic attack with warning
 
-  BossType* = enum
-    btShooter,   # Shoots spiral of bullets
-    btSummoner,  # Spawns many minions
-    btCharger,   # Dashes toward player
-    btOrbit      # Shoots orbiting projectiles
-
-  BossPhase* = enum
-    bpCircle,    # Normal circular boss form
-    bpCube,      # Cube form - defensive, shoots more
-    bpTriangle,  # Triangle form - aggressive dashes
-    bpStar       # Star form - bullet storm phase
-
   EliteType* = enum
     etNone,        # Not elite
     etSwift,       # 50% faster movement and attack speed
@@ -226,11 +214,7 @@ type
     color*: Color
     enemyType*: EnemyType
     isBoss*: bool
-    isCustomBoss*: bool           # True for custom bosses (waves 5-60 with advanced phase system)
-                                  # False for legacy bosses (standard transformation system)
-    bossType*: BossType
-    bossPhase*: BossPhase
-    phaseChangeTimer*: float32
+    isCustomBoss*: bool           # True for custom bosses
     shootTimer*: float32
     spawnTimer*: float32
     dashTimer*: float32
@@ -243,8 +227,10 @@ type
     lastWallDamageTime*: float32
     hexTeleportTimer*: float32
     entranceTimer*: float32
+    startPos*: Vector2f            # Position at start of entrance animation
     targetPos*: Vector2f
     slowTimer*: float32
+    entranceWait*: float32        # Brief wait after arrival before boss begins attacking
     slowAmount*: float32
     activeEffects*: Table[ElementType, ActiveEffect]  # Unified effect system
     chainLightningCooldown*: float32

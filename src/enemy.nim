@@ -19,8 +19,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etCircle,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -51,8 +49,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etCube,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -84,8 +80,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etTriangle,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 1.5,
@@ -117,8 +111,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etStar,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -151,8 +143,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etHexagon,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
+
+
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -184,8 +176,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etCross,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
+
+
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -218,8 +210,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etDiamond,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
+
+
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -252,8 +244,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etOctagon,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
+
+
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -286,8 +278,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etPentagon,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
+
+
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -320,8 +312,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etTrickster,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
+
+
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -354,8 +346,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etPhantom,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
+
+
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -389,8 +381,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       enemyType: etSniper,
       isBoss: false,
       isCustomBoss: false,
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,
+
+
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -408,47 +400,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       activeEffects: initTable[ElementType, ActiveEffect]()
     )
 
-proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
-  let strengthMultiplier = pow(1.18, difficulty)  # INCREASED from 1.15 for better scaling
-  
-  result = Enemy(
-    pos: newVector2f(x, y),
-    vel: newVector2f(0, 0),
-    radius: 50 + difficulty * 3,
-    collisionRadius: (50 + difficulty * 3) * 0.4,  # 40% of visual size for boss collision
-    hp: 40 + difficulty * 25 * strengthMultiplier,  # INCREASED from 55 + difficulty * 18
-    maxHp: 40 + difficulty * 25 * strengthMultiplier,
-    speed: 65 + difficulty * 4,
-    damage: 2 + (difficulty / 8).int,
-    color: case bossType
-      of btShooter: DarkPurple
-      of btSummoner: DarkGreen
-      of btCharger: DarkBlue
-      of btOrbit: Violet,
-    enemyType: etCircle,
-    isBoss: true,
-    isCustomBoss: false,  # Legacy boss
-    bossType: bossType,
-    bossPhase: bpCircle,
-    phaseChangeTimer: 9.0,
-    shootTimer: 0,
-    spawnTimer: 0,
-    dashTimer: 0,
-    hitCount: 0,
-    requiredHits: 0,
-    lastContactDamageTime: 0,
-    teleportTimer: 12.0,
-    shockwaveTimer: 9.0,
-    burstTimer: 0.5,
-    lastWallDamageTime: 0,
-    entranceTimer: 0,
-    targetPos: newVector2f(x, y),
-    attackWarningTimer: 0,
-    attackExecuteTimer: 0,
-    attackPhase: 0,
-    activeEffects: initTable[ElementType, ActiveEffect]()
-  )
-
 proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
   # Apply slow field effect
   var effectiveSpeed = enemy.speed
@@ -456,55 +407,46 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
     effectiveSpeed = enemy.speed * (1.0 - enemy.slowAmount)
   
   if enemy.isBoss:
-    # Boss update logic (keeping existing)
+    # Boss update logic
     if enemy.entranceTimer > 0:
       enemy.entranceTimer -= dt
-      let progress = 1.0 - (enemy.entranceTimer / 2.0)
-      let easedProgress = progress * progress
-      let startPos = case enemy.bossType
-        of btShooter: newVector2f(enemy.targetPos.x, -100)
-        of btSummoner: newVector2f(enemy.targetPos.x, enemy.targetPos.y + 300)
-        of btCharger: newVector2f(-100, enemy.targetPos.y)
-        of btOrbit: newVector2f(enemy.targetPos.x + 300, enemy.targetPos.y)
-      enemy.pos.x = startPos.x + (enemy.targetPos.x - startPos.x) * easedProgress
-      enemy.pos.y = startPos.y + (enemy.targetPos.y - startPos.y) * easedProgress
+      let progress = clamp(1.0 - (enemy.entranceTimer / 1.0), 0.0, 1.0)
+      # Linear interpolation (no smoothing)
+      enemy.pos.x = enemy.startPos.x + (enemy.targetPos.x - enemy.startPos.x) * progress
+      enemy.pos.y = enemy.startPos.y + (enemy.targetPos.y - enemy.startPos.y) * progress
+      # If arrival completed this frame, prime shooting so it happens immediately
+      if enemy.entranceTimer <= 0:
+        enemy.pos = enemy.targetPos
+        enemy.shootTimer = 0.81
       return true
     
     enemy.shootTimer += dt
     enemy.spawnTimer += dt
     
     # ========================================================================
-    # LEGACY BOSS TRANSFORMATION SYSTEM
+    # CUSTOM BOSS COLOR UPDATE (HP-based phases)
     # ========================================================================
-    # Only legacy bosses use time-based phase transformations
-    # Custom bosses (isCustomBoss=true) use HP-based phases instead
+    # Update custom boss color based on HP percentage and phase definitions
     # ========================================================================
-    if not enemy.isCustomBoss:
-      enemy.phaseChangeTimer -= dt
+    let hpPercent = enemy.hp / enemy.maxHp
+    if hpPercent <= 0.25:
+      # Final phase - bright glow
+      enemy.color = Color(r: 255, g: 100, b: 255, a: 255)  # Magenta glow
+    elif hpPercent <= 0.35:
+      # Third phase
+      enemy.color = Color(r: 255, g: 150, b: 0, a: 255)  # Orange
+    elif hpPercent <= 0.5:
+      # Second phase  
+      enemy.color = Color(r: 255, g: 50, b: 50, a: 255)  # Red
+    elif hpPercent <= 0.7:
+      # Getting damaged
+      enemy.color = Color(r: 200, g: 100, b: 50, a: 255)  # Dark orange
+    # else: keep original color (full HP)
     
-    # Transform legacy boss when timer expires (Circle -> Cube -> Triangle -> Star)
-    if not enemy.isCustomBoss and enemy.phaseChangeTimer <= 0:
-      enemy.bossPhase = BossPhase((enemy.bossPhase.int + 1) mod 4)
-      enemy.phaseChangeTimer = 6.5  # Reduced from 8.0
-      case enemy.bossPhase
-      of bpCircle: enemy.color = case enemy.bossType
-        of btShooter: DarkPurple
-        of btSummoner: DarkGreen
-        of btCharger: DarkBlue
-        of btOrbit: Violet
-      of bpCube: enemy.color = Color(r: 100, g: 50, b: 150, a: 255)
-      of bpTriangle: enemy.color = Color(r: 200, g: 50, b: 100, a: 255)
-      of bpStar: enemy.color = Color(r: 255, g: 180, b: 0, a: 255)
-    
-    var speedMod = case enemy.bossPhase
-      of bpCircle: 1.0
-      of bpCube: 0.6
-      of bpTriangle: 1.8
-      of bpStar: 0.8
     
     let dir = (playerPos - enemy.pos).normalize()
     var canMove = true
-    let nextPos = enemy.pos + dir * effectiveSpeed * speedMod * dt
+    let nextPos = enemy.pos + dir * effectiveSpeed * dt
     for wall in walls:
       if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
         canMove = false
@@ -514,7 +456,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           enemy.lastWallDamageTime = currentTime
         break
     if canMove:
-      enemy.vel = dir * effectiveSpeed * speedMod
+      enemy.vel = dir * effectiveSpeed
       enemy.pos = enemy.pos + enemy.vel * dt
   
   else:
@@ -1069,70 +1011,10 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
 
 proc drawEnemy*(enemy: Enemy) =
   if enemy.isBoss:
-    # Boss drawing (keeping existing code)
-    case enemy.bossType
-    of btShooter:
-      let time = getTime() * 2.0
-      for i in 0..5:
-        let angle = time + i.float32 * PI * 2.0 / 6.0
-        let dist = enemy.radius + 20 + sin(time * 3.0) * 10
-        let x = enemy.pos.x + cos(angle) * dist
-        let y = enemy.pos.y + sin(angle) * dist
-        drawCircle(Vector2(x: x, y: y), 8, Color(r: 128, g: 0, b: 255, a: 100))
-    of btSummoner:
-      let pulse = sin(getTime() * 3.0) * 15 + 30
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + pulse, 
-                     Color(r: 0, g: 255, b: 100, a: 150))
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + pulse + 15, 
-                     Color(r: 0, g: 200, b: 80, a: 100))
-    of btCharger:
-      for i in 0..3:
-        let angle = rand(1.0) * PI * 2.0
-        let dist = enemy.radius + 10 + rand(15).float32
-        let x = enemy.pos.x + cos(angle) * dist
-        let y = enemy.pos.y + sin(angle) * dist
-        drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y), Vector2(x: x, y: y), 2, 
-                Color(r: 100, g: 200, b: 255, a: 180))
-    of btOrbit:
-      let time = getTime() * 4.0
-      for i in 0..7:
-        let angle = time + i.float32 * PI * 2.0 / 8.0
-        let dist = enemy.radius + 35
-        let x = enemy.pos.x + cos(angle) * dist
-        let y = enemy.pos.y + sin(angle) * dist
-        drawCircle(Vector2(x: x, y: y), 6, Color(r: 200, g: 100, b: 255, a: 150))
-    
-    case enemy.bossPhase
-    of bpCircle:
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius, Black)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3, White)
-    of bpCube:
-      let size = enemy.radius * 1.2
-      drawRectangle((enemy.pos.x - size).int32, (enemy.pos.y - size).int32, 
-                    (size * 2).int32, (size * 2).int32, enemy.color)
-      drawRectangleLines((enemy.pos.x - size).int32, (enemy.pos.y - size).int32, 
-                         (size * 2).int32, (size * 2).int32, Black)
-    of bpTriangle:
-      let v1 = Vector2(x: enemy.pos.x, y: enemy.pos.y - enemy.radius)
-      let v2 = Vector2(x: enemy.pos.x - enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
-      let v3 = Vector2(x: enemy.pos.x + enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
-      drawTriangle(v1, v2, v3, enemy.color)
-      drawTriangleLines(v1, v2, v3, Black)
-    of bpStar:
-      let points = 5
-      for i in 0..<points*2:
-        let angle = i.float32 * PI / points.float32
-        let r = if i mod 2 == 0: enemy.radius else: enemy.radius * 0.5
-        let x = enemy.pos.x + cos(angle) * r
-        let y = enemy.pos.y + sin(angle) * r
-        if i == 0:
-          continue
-        let prevAngle = (i-1).float32 * PI / points.float32
-        let prevR = if (i-1) mod 2 == 0: enemy.radius else: enemy.radius * 0.5
-        let prevX = enemy.pos.x + cos(prevAngle) * prevR
-        let prevY = enemy.pos.y + sin(prevAngle) * prevR
-        drawLine(Vector2(x: prevX, y: prevY), Vector2(x: x, y: y), 3, enemy.color)
+    # Boss drawing - custom bosses use HP-based appearance
+    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius, Black)
+    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3, White)
     
     let barWidth = enemy.radius * 2.5
     let barHeight = 8.0
@@ -1679,18 +1561,15 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
   ## Spawns a boss - either custom (waves 5-60) or legacy (after wave 60)
   ## 
-  ## CUSTOM BOSSES (waves 5-60, every 5 waves):
+  ## CUSTOM BOSSES (every 5 waves):
   ##   - Use definitions from boss_definitions.nim
-  ##   - HP-based phase system (no transformations)
+  ##   - HP-based phase system
   ##   - Unique attack patterns and abilities per boss
-  ##   - isCustomBoss = true, phaseChangeTimer = 0 (unused)
+  ##   - isCustomBoss = true
   ##
-  ## LEGACY BOSSES (after wave 60 or non-boss waves):
-  ##   - Use old boss system with 4 types
-  ##   - Time-based transformation system (Circle -> Cube -> Triangle -> Star)
-  ##   - isCustomBoss = false, phaseChangeTimer = active
+  ## Boss 12 (The Final Sentinel) repeats after wave 60 with increased stats
   ##
-  # Check if this should be a custom boss (waves 5-60, every 5 waves)
+  # Check if this should be a custom boss (every 5 waves)
   let useCustomBoss = isCustomBoss(waveNumber)
   
   if useCustomBoss:
@@ -1732,6 +1611,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       pos: newVector2f(startX, startY),
       vel: newVector2f(0, 0),
       radius: bossDef.baseRadius,
+      collisionRadius: bossDef.baseRadius * 0.4,  # FIX: Add collision radius (40% of visual size)
       hp: scaledHP,
       maxHp: scaledHP,
       speed: scaledSpeed,
@@ -1740,9 +1620,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       enemyType: etCircle,
       isBoss: true,
       isCustomBoss: true,  # Custom boss with advanced phase system
-      bossType: BossType((bossDef.bossID - 1) mod 4),  # For compatibility with existing code
-      bossPhase: bpCircle,
-      phaseChangeTimer: 0,  # Custom bosses don't use legacy phase timer
+      startPos: newVector2f(startX, startY),
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -1753,43 +1631,14 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       shockwaveTimer: 8.0,
       burstTimer: 0.5,
       lastWallDamageTime: 0,
-      entranceTimer: 2.5,
+      entranceTimer: 1.0,
+      entranceWait: 0.0,
       targetPos: newVector2f(targetX, targetY),
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,
       activeEffects: initTable[ElementType, ActiveEffect]()
     )
-  else:
-    # ========================================================================
-    # LEGACY BOSS CREATION (After wave 60 or non-boss waves)
-    # ========================================================================
-    # Legacy bosses use the old transformation system (Circle -> Cube -> Triangle -> Star)
-    # They transform every ~9 seconds via phaseChangeTimer
-    # ========================================================================
-    let bossType = BossType((bossCount - 1) mod 4)
-    let centerX = screenWidth.float32 / 2
-    let centerY = screenHeight.float32 / 2
-    var targetX, targetY, startX, startY: float32
-    
-    case bossType
-    of btShooter:
-      targetX = centerX; targetY = centerY - 100
-      startX = centerX; startY = -100
-    of btSummoner:
-      targetX = centerX; targetY = centerY + 100
-      startX = centerX; startY = screenHeight.float32 + 100
-    of btCharger:
-      targetX = centerX - 120; targetY = centerY
-      startX = -100; startY = centerY
-    of btOrbit:
-      targetX = centerX + 120; targetY = centerY
-      startX = screenWidth.float32 + 100; startY = centerY
-    
-    var boss = newBoss(startX, startY, difficulty, bossType)
-    boss.entranceTimer = 2.0
-    boss.targetPos = newVector2f(targetX, targetY)
-    result = boss
 
 proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   ## Converts a regular enemy into an elite with enhanced stats and special abilities
@@ -1810,8 +1659,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   enemy.eliteAuraPhase = 0.0
   enemy.eliteTypes = @[]  # Initialize empty list for multiple types
   
-  # Elite scaling multiplier based on wave (5% per wave)
-  let eliteScaling = 1.0 + (waveNumber.float32 * 0.05)
+  # Elite scaling multiplier based on wave (7.5% per wave)
+  let eliteScaling = 1.0 + (waveNumber.float32 * 0.075)
   
   # Determine number of elite effects based on wave
   # BALANCED: Max 2 effects for wave 25+, not 3 (reduces exponential stacking)
@@ -1849,19 +1698,19 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   for eType in enemy.eliteTypes:
     case eType
     of etSwift:
-      # 30% faster movement (reduced from 40% for balance)
-      enemy.speed *= (1.30 * eliteScaling * effectMultiplier)
+      # 40% faster movement
+      enemy.speed *= (1.40 * eliteScaling * effectMultiplier)
       # Cap speed increase
-      let maxSpeed = 400.0
+      let maxSpeed = 4000.0
       if enemy.speed > maxSpeed:
         enemy.speed = maxSpeed
-      enemy.shootTimer *= 0.65  # Faster shooting (reduced from 0.57)
+      enemy.shootTimer *= 0.6  # Faster shooting
       if enemy.dashCooldown > 0:
         enemy.dashCooldown *= 0.65
       # Swift elites are smaller
       enemy.radius *= 0.9
       enemy.collisionRadius *= 0.9
-      enemy.damage += 1 + (waveNumber div 8)  # Reduced scaling (was div 5)
+      enemy.damage += 1 + (waveNumber div 5)
       enemy.maxHp *= (0.85 * eliteScaling)  # Reduced from 0.9
       enemy.hp *= (0.85 * eliteScaling)
     
@@ -1874,7 +1723,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Tank elites are larger
       enemy.radius *= 1.3
       enemy.collisionRadius *= 1.3
-      enemy.damage += 2 + (waveNumber div 5)  # Increased scaling (was div 6)
+      enemy.damage += waveNumber div 5  # Increased scaling
     
     of etVenomous:
       # Poisons player on contact
@@ -1898,17 +1747,17 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Multiple effects reduce HP scaling
       enemy.maxHp *= (2.0 * eliteScaling * effectMultiplier)  # Increased from 1.6
       enemy.hp *= (2.0 * eliteScaling * effectMultiplier)
-      enemy.damage += 1 + (waveNumber div 8)  # Increased from (was div 10)
+      enemy.damage += 1 + (waveNumber div 5)
     
     of etShielded:
       # Has a shield that absorbs damage
       # Multiple effects reduce HP and shield scaling
-      enemy.maxHp *= (1.5 * eliteScaling * effectMultiplier)  # Increased from 1.2
-      enemy.hp *= (1.5 * eliteScaling * effectMultiplier)
-      let shieldAmount = enemy.maxHp * 0.6  # Shield = 60% of max HP (was 75%, reduced)
+      enemy.maxHp *= (1.2 * eliteScaling * effectMultiplier)  # Increased from 1.2
+      enemy.hp *= (1.2 * eliteScaling * effectMultiplier)
+      let shieldAmount = enemy.maxHp * 0.75  # Shield = 75% of max HP
       enemy.shieldHp = shieldAmount
       enemy.maxShieldHp = shieldAmount
-      enemy.damage += 2 + (waveNumber div 7)  # Increased scaling (was div 8)
+      enemy.damage += 2 + (waveNumber div 5)
     
     else:
       discard

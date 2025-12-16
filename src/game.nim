@@ -1444,11 +1444,12 @@ proc updateGame*(game: var Game, dt: float32) =
       game.bossCount += 1
       # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
       let bossDifficulty = (game.currentWave - 1).float32 / 3.0
-      # FIX: Use currentWave + 1 since we haven't advanced the wave yet
-      # The boss should spawn for the wave we're ABOUT to start, not the one we just finished
-      let actualBossWave = game.currentWave + 1
-      game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, 
-                                bossDifficulty, game.bossCount, actualBossWave))
+      # FIX: Use a boss wave that maps to the boss block (ceil to next multiple of 5)
+      # This allows debug spawns when wavesUntilBoss is forced to 0 (boss appears
+      # for the current boss block: waves 1-5 => boss 1, 6-10 => boss 2, etc.)
+      let bossBlockWave = ((game.currentWave - 1) div 5 + 1) * 5
+      game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight,
+                bossDifficulty, game.bossCount, bossBlockWave))
       game.bossActive = true
       game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
       # Don't reset wavesUntilBoss here - it will be reset when boss coin is collected
@@ -1458,28 +1459,13 @@ proc updateGame*(game: var Game, dt: float32) =
       
       # Entrance particles
       let boss = game.enemies[^1]
-      case boss.bossType
-      of btShooter:
-        for i in 0..<60:
-          let angle = i.float32 * 0.1
-          let dist = i.float32 * 3
-          let x = boss.pos.x + cos(angle) * dist
-          let y = boss.pos.y + sin(angle) * dist
-          spawnExplosion(game.particles, x, y, Purple, 3)
-      of btSummoner:
-        for ring in 0..4:
-          spawnShockwave(game.particles, boss.pos.x, boss.pos.y, ring.float32 * 50 + 50)
-      of btCharger:
-        for i in 0..20:
-          let x = boss.pos.x - i.float32 * 15
-          spawnExplosion(game.particles, x, boss.pos.y, Blue, 5)
-      of btOrbit:
-        for i in 0..<40:
-          let angle = i.float32 * PI * 2.0 / 40.0
-          let dist = 80.0
-          let x = boss.pos.x + cos(angle) * dist
-          let y = boss.pos.y + sin(angle) * dist
-          spawnExplosion(game.particles, x, y, Violet, 4)
+      # Spawn entrance particles for custom boss
+      for i in 0..<60:
+        let angle = i.float32 * 0.1
+        let dist = i.float32 * 3
+        let x = boss.pos.x + cos(angle) * dist
+        let y = boss.pos.y + sin(angle) * dist
+        spawnExplosion(game.particles, x, y, boss.color, 3)
   
   else:
     # TIME SURVIVAL MODE: Original time-based spawning
@@ -1525,28 +1511,13 @@ proc updateGame*(game: var Game, dt: float32) =
       game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
       
       let boss = game.enemies[^1]
-      case boss.bossType
-      of btShooter:
-        for i in 0..<60:
-          let angle = i.float32 * 0.1
-          let dist = i.float32 * 3
-          let x = boss.pos.x + cos(angle) * dist
-          let y = boss.pos.y + sin(angle) * dist
-          spawnExplosion(game.particles, x, y, Purple, 3)
-      of btSummoner:
-        for ring in 0..4:
-          spawnShockwave(game.particles, boss.pos.x, boss.pos.y, ring.float32 * 50 + 50)
-      of btCharger:
-        for i in 0..20:
-          let x = boss.pos.x - i.float32 * 15
-          spawnExplosion(game.particles, x, boss.pos.y, Blue, 5)
-      of btOrbit:
-        for i in 0..<40:
-          let angle = i.float32 * PI * 2.0 / 40.0
-          let dist = 80.0
-          let x = boss.pos.x + cos(angle) * dist
-          let y = boss.pos.y + sin(angle) * dist
-          spawnExplosion(game.particles, x, y, Violet, 4)
+      # Spawn entrance particles for custom boss
+      for i in 0..<60:
+        let angle = i.float32 * 0.1
+        let dist = i.float32 * 3
+        let x = boss.pos.x + cos(angle) * dist
+        let y = boss.pos.y + sin(angle) * dist
+        spawnExplosion(game.particles, x, y, boss.color, 3)
   
   # Update enemies
   var enemyIdx = 0
@@ -1724,202 +1695,77 @@ proc updateGame*(game: var Game, dt: float32) =
     
     # BOSS SPECIAL ATTACKS - HEAVILY BUFFED
     if enemy.isBoss:
-      # Teleport ability
-      if enemy.teleportTimer <= 0:
-        # Short teleport burst
-        var newX: float32
-        var newY: float32
-        var validTeleport = false
-        
-        # Keep trying to find a valid teleport position that's at least 10 pixels away from player
-        for _ in 0..<10:
-          let angle = rand(1.0) * PI * 2.0
-          let teleportDist = 150 + rand(100).float32
-          newX = enemy.pos.x + cos(angle) * teleportDist
-          newY = enemy.pos.y + sin(angle) * teleportDist
+      # Legacy boss attacks (teleport + shockwave)
+      # DISABLED FOR CUSTOM BOSSES - they use custom attack patterns instead
+      if not enemy.isCustomBoss:
+        # Teleport ability
+        if enemy.teleportTimer <= 0:
+          # Short teleport burst
+          var newX: float32
+          var newY: float32
+          var validTeleport = false
           
-          # Check distance to player - must be at least 10 pixels away
-          let distToPlayer = distance(newVector2f(newX, newY), game.player.pos)
-          if distToPlayer >= 10.0:
-            validTeleport = true
-            break
-        
-        # Only teleport if we found a valid position, otherwise skip this teleport
-        if validTeleport:
-          enemy.pos.x = newX
-          enemy.pos.y = newY
+          # Keep trying to find a valid teleport position that's at least 10 pixels away from player
+          for _ in 0..<10:
+            let angle = rand(1.0) * PI * 2.0
+            let teleportDist = 150 + rand(100).float32
+            newX = enemy.pos.x + cos(angle) * teleportDist
+            newY = enemy.pos.y + sin(angle) * teleportDist
+            
+            # Check distance to player - must be at least 10 pixels away
+            let distToPlayer = distance(newVector2f(newX, newY), game.player.pos)
+            if distToPlayer >= 10.0:
+              validTeleport = true
+              break
           
-          # Clamp to screen
-          if enemy.pos.x < 50: enemy.pos.x = 50
-          if enemy.pos.x > game.screenWidth.float32 - 50: enemy.pos.x = game.screenWidth.float32 - 50
-          if enemy.pos.y < 50: enemy.pos.y = 50
-          if enemy.pos.y > game.screenHeight.float32 - 50: enemy.pos.y = game.screenHeight.float32 - 50
+          # Only teleport if we found a valid position, otherwise skip this teleport
+          if validTeleport:
+            enemy.pos.x = newX
+            enemy.pos.y = newY
+            
+            # Clamp to screen
+            if enemy.pos.x < 50: enemy.pos.x = 50
+            if enemy.pos.x > game.screenWidth.float32 - 50: enemy.pos.x = game.screenWidth.float32 - 50
+            if enemy.pos.y < 50: enemy.pos.y = 50
+            if enemy.pos.y > game.screenHeight.float32 - 50: enemy.pos.y = game.screenHeight.float32 - 50
+            
+            spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Purple, 30)
           
-          spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Purple, 30)
+          enemy.teleportTimer = 10.0 + rand(5.0)
         
-        enemy.teleportTimer = 10.0 + rand(5.0)
-      
-      # Shockwave attack
-      if enemy.shockwaveTimer <= 0:
-        spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, enemy.radius + 100)
-        
-        # Spawn bullets in shockwave pattern - NERFED damage
-        for angle in 0..<16:
-          let rad = angle.float32 * PI / 8.0
-          let dir = newVector2f(cos(rad), sin(rad))
-          game.bullets.add(newBullet(
-            x = enemy.pos.x,
-            y = enemy.pos.y,
-            direction = dir,
-            speed = 220,
-            damage = 0.75,
-            fromPlayer = false,
-            isBossBullet = true
-          ))
-        
-        enemy.shockwaveTimer = 5.0 + rand(3.0)
-      
-      # Phase-based attacks WITH PROGRESSIVE ABILITIES
-      # Bosses gain new abilities based on bossCount (how many bosses defeated)
-      case enemy.bossPhase
-      of bpCircle:
-        # Original boss behavior + progressive abilities
-        case enemy.bossType
-        of btShooter:  # Spiral shooter
-          if enemy.shootTimer > 0.8:
-            # Basic spiral attack
-            for angle in 0..<12:
-              let rad = angle.float32 * PI / 6.0 + game.time * 2
-              let dir = newVector2f(cos(rad), sin(rad))
-              game.bullets.add(newBullet(
-                x = enemy.pos.x,
-                y = enemy.pos.y,
-                direction = dir,
-                speed = 240,
-                damage = 0.75,
-                fromPlayer = false,
-                isBossBullet = true
-              ))
-            
-            # PROGRESSIVE ABILITY: Rotating laser beams (unlocks at boss 2+)
-            if game.bossCount >= 2:
-              let laserAngle = game.time * 2.5  # Rotation speed
-              for i in 0..<3:  # 3 rotating laser arms
-                let armAngle = laserAngle + i.float32 * (PI * 2.0 / 3.0)
-                game.lasers.add(newLaser(
-                  enemy.pos.x, enemy.pos.y,
-                  0,  # horizontal (will be rotated)
-                  150.0,  # length
-                  15.0,   # thickness
-                  1,      # damage
-                  0.1,    # very short lifetime (visual only)
-                  armAngle  # rotation
-                ))
-            
-            enemy.shootTimer = 0
-        
-        of btSummoner:  # Spawn minions
-          if enemy.spawnTimer > 3.0:
-            # Basic minion spawning
-            for _ in 0..3:
-              let angle = rand(1.0) * PI * 2
-              let spawnDist = enemy.radius + 20
-              let spawnX = enemy.pos.x + cos(angle) * spawnDist
-              let spawnY = enemy.pos.y + sin(angle) * spawnDist
-              game.enemies.add(newEnemy(spawnX, spawnY, game.difficulty, etCircle))
-            
-            # PROGRESSIVE ABILITY: Spawn near player (unlocks at boss 3+)
-            if game.bossCount >= 3:
-              for _ in 0..1:  # 2 enemies near player
-                let angle = rand(1.0) * PI * 2
-                let spawnDist = 120.0 + rand(50.0)
-                let spawnX = game.player.pos.x + cos(angle) * spawnDist
-                let spawnY = game.player.pos.y + sin(angle) * spawnDist
-                # Clamp to screen bounds
-                let clampedX = clamp(spawnX, 50.0, game.screenWidth.float32 - 50.0)
-                let clampedY = clamp(spawnY, 50.0, game.screenHeight.float32 - 50.0)
-                game.enemies.add(newEnemy(clampedX, clampedY, game.difficulty, etTriangle))
-                # Warning particles
-                spawnExplosion(game.particles, clampedX, clampedY, Red, 20)
-            
-            enemy.spawnTimer = 0
-        
-        of btCharger:  # Dash attacks
-          if enemy.shootTimer > 2.0:
-            let dir = (game.player.pos - enemy.pos).normalize()
-            enemy.vel = dir * enemy.speed * 4.0
-            
-            # PROGRESSIVE ABILITY: Leave damaging trail (unlocks at boss 2+)
-            if game.bossCount >= 2:
-              # Spawn damage zone particles along dash path
-              for i in 0..8:
-                let trailPos = enemy.pos - dir * (i.float32 * 20.0)
-                spawnExplosion(game.particles, trailPos.x, trailPos.y, 
-                             Color(r: 255, g: 100, b: 0, a: 200), 12)
-                
-                # Damage player if in trail
-                if distance(game.player.pos, trailPos) < 30:
-                  if game.time - enemy.lastContactDamageTime >= 0.3:
-                    if takeDamage(game.player, 1.0):
-                      game.state = gsGameOver
-                    enemy.lastContactDamageTime = game.time
-            
-            enemy.shootTimer = 0
-        
-        of btOrbit:  # Orbiting projectiles
-          if enemy.shootTimer > 0.2:
-            let angle = game.time * 4
-            let orbitRadius = enemy.radius + 30
-            for i in 0..<6:
-              let a = angle + i.float32 * PI / 3.0
-              let bulletX = enemy.pos.x + cos(a) * orbitRadius
-              let bulletY = enemy.pos.y + sin(a) * orbitRadius
-              let dir = (game.player.pos - newVector2f(bulletX, bulletY)).normalize()
-              game.bullets.add(newBullet(
-                x = bulletX,
-                y = bulletY,
-                direction = dir,
-                speed = 200,
-                damage = 0.75,
-                fromPlayer = false,
-                isBossBullet = true
-              ))
-            
-            # PROGRESSIVE ABILITY: Homing orbital bullets (unlocks at boss 3+)
-            if game.bossCount >= 3 and (game.time.int mod 3) == 0:  # Every 3 seconds
-              let homingAngle = rand(1.0) * PI * 2.0
-              let bulletX = enemy.pos.x + cos(homingAngle) * orbitRadius
-              let bulletY = enemy.pos.y + sin(homingAngle) * orbitRadius
-              let homingBullet = newBullet(
-                x = bulletX,
-                y = bulletY,
-                direction = normalize(game.player.pos - newVector2f(bulletX, bulletY)),
-                speed = 180.0,
-                damage = 1.0'f32,
-                fromPlayer = false,
-                isHoming = true,
-                isPiercing = false,
-                isExplosive = false,
-                hasBounce = false,
-                canSplit = false,
-                slowAmount = 0.0,
-                poisonDuration = 0.0,
-                fireDuration = 0.0,
-                windPushForce = 0.0,
-                isPentagon = false,
-                isEcho = false,
-                isBossBullet = true
-              )
-              game.bullets.add(homingBullet)
-            
-            enemy.shootTimer = 0
-      
-      of bpCube:
-        # Defensive phase - shoots in all directions
-        if enemy.burstTimer > 1.0:
-          for angle in 0..<8:
-            let rad = angle.float32 * PI / 4.0
+        # Shockwave attack
+        if enemy.shockwaveTimer <= 0:
+          spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, enemy.radius + 100)
+          
+          # Spawn bullets in shockwave pattern - NERFED damage
+          for angle in 0..<16:
+            let rad = angle.float32 * PI / 8.0
             let dir = newVector2f(cos(rad), sin(rad))
+            game.bullets.add(newBullet(
+              x = enemy.pos.x,
+              y = enemy.pos.y,
+              direction = dir,
+              speed = 220,
+              damage = 0.75,
+              fromPlayer = false,
+              isBossBullet = true
+            ))
+          
+          enemy.shockwaveTimer = 5.0 + rand(3.0)
+      
+      # CUSTOM BOSS ATTACKS
+      if enemy.isCustomBoss and enemy.entranceTimer <= 0 and enemy.entranceWait <= 0:
+        enemy.shootTimer += dt
+        
+        # Get boss definition and current phase
+        # Attack pattern: Spiral shots that scale with HP
+        let hpPercent = enemy.hp / enemy.maxHp
+        
+        if enemy.shootTimer > 0.8:
+          let attackCount = if hpPercent > 0.6: 8 elif hpPercent > 0.3: 12 else: 16
+          for i in 0..<attackCount:
+            let angle = i.float32 * PI * 2.0 / attackCount.float32 + game.time * 2.0
+            let dir = newVector2f(cos(angle), sin(angle))
             game.bullets.add(newBullet(
               x = enemy.pos.x,
               y = enemy.pos.y,
@@ -1929,94 +1775,14 @@ proc updateGame*(game: var Game, dt: float32) =
               fromPlayer = false,
               isBossBullet = true
             ))
-          
-          # PROGRESSIVE ABILITY: Cross lasers (unlocks at boss 4+)
-          if game.bossCount >= 4:
-            game.lasers.add(newLaser(
-              enemy.pos.x, enemy.pos.y,
-              2,  # cross pattern
-              180.0,  # length
-              20.0,   # thickness
-              2,      # higher damage
-              0.4,    # longer duration
-              0.0     # no rotation
-            ))
-          
-          enemy.burstTimer = 0
+          enemy.shootTimer = 0
       
-      of bpTriangle:
-        # Aggressive phase - rapid dashes and shots
-        if enemy.burstTimer > 0.5:
-          let dir = (game.player.pos - enemy.pos).normalize()
-          for i in 0..2:
-            let spreadAngle = (i - 1).float32 * 0.3
-            let spreadDir = newVector2f(
-              dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
-              dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
-            )
-            game.bullets.add(newBullet(
-              x = enemy.pos.x,
-              y = enemy.pos.y,
-              direction = spreadDir,
-              speed = 280,
-              damage = 0.75,
-              fromPlayer = false,
-              isBossBullet = true
-            ))
-          
-          # PROGRESSIVE ABILITY: Predict player position (unlocks at boss 5+)
-          if game.bossCount >= 5:
-            # Calculate predicted player position based on velocity
-            let predictTime = 0.5  # Predict 0.5 seconds ahead
-            let predictedPos = game.player.pos + game.player.vel * predictTime
-            let predictDir = (predictedPos - enemy.pos).normalize()
-            game.bullets.add(newBullet(
-              x = enemy.pos.x,
-              y = enemy.pos.y,
-              direction = predictDir,
-              speed = 350,
-              damage = 1.0,
-              fromPlayer = false,
-              isBossBullet = true
-            ))
-          
-          enemy.burstTimer = 0
-      
-      of bpStar:
-        # Bullet storm phase!
-        if enemy.burstTimer > 0.15:
-          let angle = rand(1.0) * PI * 2.0
-          let dir = newVector2f(cos(angle), sin(angle))
-          game.bullets.add(newBullet(
-            x = enemy.pos.x,
-            y = enemy.pos.y,
-            direction = dir,
-            speed = 250,
-            damage = 0.75,
-            fromPlayer = false,
-            isBossBullet = true
-          ))
-          
-          # PROGRESSIVE ABILITY: Star burst attack (unlocks at boss 6+)
-          if game.bossCount >= 6 and (game.time * 100).int mod 100 == 0:  # Occasionally
-            # Spawn 5-pointed star burst
-            for i in 0..<5:
-              let starAngle = i.float32 * (PI * 2.0 / 5.0)
-              let starDir = newVector2f(cos(starAngle), sin(starAngle))
-              game.bullets.add(newBullet(
-                x = enemy.pos.x,
-                y = enemy.pos.y,
-                direction = starDir,
-                speed = 300,
-                damage = 1.0,
-                fromPlayer = false,
-                isBossBullet = true
-              ))
-          
-          enemy.burstTimer = 0
+      # Phase-based attacks WITH PROGRESSIVE ABILITIES
+      # Bosses gain new abilities based on bossCount (how many bosses defeated)
+      # ONLY FOR LEGACY BOSSES - Custom bosses use HP-based phase system from boss_definitions.nim
     
-    # Hexagon enemies shoot chaotically
-    if enemy.enemyType == etHexagon and enemy.shootTimer > 1.2:
+    # Hexagon enemies shoot chaotically (applies to all hexagon enemies, not just bosses)
+    if enemy.enemyType == etHexagon and enemy.shootTimer > 1.0:
       # Shoot 2-4 bullets in random directions
       let bulletCount = 2 + rand(2)
       for _ in 0..<bulletCount:

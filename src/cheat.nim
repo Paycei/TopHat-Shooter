@@ -768,7 +768,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
     # Enemy name and type
     let nameX = x + 65
     let enemyName = if enemy.isBoss:
-      "BOSS - " & $enemy.bossType
+      "CUSTOM BOSS"
     else:
       case enemy.enemyType
       of etCircle: "Circle Chaser"
