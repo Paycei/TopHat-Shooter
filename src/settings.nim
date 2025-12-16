@@ -9,6 +9,8 @@ proc initSettings*(): Settings =
     musicVolume: 0.5,
     inputBuffer: "60",
     editingFPS: false,
+    editingVolume: false,
+    editingMusicVolume: false,
     fullscreen: false,
     showFPS: false,  # FPS counter disabled by default
     mouseSupport: true,  # Mouse support enabled by default
@@ -65,7 +67,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   # Volume slider
   let sliderX: int32 = 400
   let sliderY: int32 = volumeY + 5
-  let sliderWidth: int32 = 300
+  let sliderWidth: int32 = 200
   let sliderHeight: int32 = 20
   
   # Slider background
@@ -79,9 +81,29 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   # Slider border
   drawRectangleLines(sliderX, sliderY, sliderWidth, sliderHeight, Gray)
   
-  # Volume percentage
+  # Volume input box
+  let volumeInputX: int32 = sliderX + sliderWidth + 20
+  let volumeInputY: int32 = volumeY - 5
+  let volumeBoxWidth: int32 = 100
+  let volumeBoxHeight: int32 = 35
+  
+  let volumeBoxColor = if settings.editingVolume:
+    Color(r: 100, g: 100, b: 150, a: 255)
+  else:
+    Color(r: 60, g: 60, b: 80, a: 255)
+  
+  drawRectangle(volumeInputX, volumeInputY, volumeBoxWidth, volumeBoxHeight, volumeBoxColor)
+  drawRectangleLines(volumeInputX, volumeInputY, volumeBoxWidth, volumeBoxHeight, 
+                    if settings.editingVolume: Gold else: Gray)
+  
   let volumePercent = int(settings.volume * 100)
-  drawText($volumePercent & "%", sliderX + sliderWidth + 20, volumeY, 24, White)
+  let volumeDisplayText = if settings.editingVolume:
+    settings.inputBuffer & "%_"
+  else:
+    $volumePercent & "%"
+  
+  let volumeTextWidth = measureText(volumeDisplayText, 20)
+  drawText(volumeDisplayText, volumeInputX + (volumeBoxWidth - volumeTextWidth) div 2, volumeInputY + 7, 20, White)
   
   # Music Volume Setting
   let musicVolumeY: int32 = 310
@@ -90,22 +112,43 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   # Music volume slider
   let musicSliderX: int32 = 400
   let musicSliderY: int32 = musicVolumeY + 5
+  let musicSliderWidth: int32 = 200
   
   # Slider background
-  drawRectangle(musicSliderX, musicSliderY, sliderWidth, sliderHeight, 
+  drawRectangle(musicSliderX, musicSliderY, musicSliderWidth, sliderHeight, 
                Color(r: 60, g: 60, b: 80, a: 255))
   
   # Slider fill
-  let musicFillWidth = int32(sliderWidth.float32 * settings.musicVolume)
+  let musicFillWidth = int32(musicSliderWidth.float32 * settings.musicVolume)
   drawRectangle(musicSliderX, musicSliderY, musicFillWidth, sliderHeight, 
                Color(r: 100, g: 150, b: 255, a: 255))
   
   # Slider border
-  drawRectangleLines(musicSliderX, musicSliderY, sliderWidth, sliderHeight, Gray)
+  drawRectangleLines(musicSliderX, musicSliderY, musicSliderWidth, sliderHeight, Gray)
   
-  # Music volume percentage
-  let musicVolumePercent = int(settings.musicVolume * 100)
-  drawText($musicVolumePercent & "%", musicSliderX + sliderWidth + 20, musicVolumeY, 24, White)
+  # Music volume input box
+  let musicInputX: int32 = musicSliderX + musicSliderWidth + 20
+  let musicInputY: int32 = musicVolumeY - 5
+  let musicBoxWidth: int32 = 100
+  let musicBoxHeight: int32 = 35
+  
+  let musicBoxColor = if settings.editingMusicVolume:
+    Color(r: 100, g: 100, b: 150, a: 255)
+  else:
+    Color(r: 60, g: 60, b: 80, a: 255)
+  
+  drawRectangle(musicInputX, musicInputY, musicBoxWidth, musicBoxHeight, musicBoxColor)
+  drawRectangleLines(musicInputX, musicInputY, musicBoxWidth, musicBoxHeight, 
+                    if settings.editingMusicVolume: Gold else: Gray)
+  
+  let musicPercent = int(settings.musicVolume * 100)
+  let musicDisplayText = if settings.editingMusicVolume:
+    settings.inputBuffer & "%_"
+  else:
+    $musicPercent & "%"
+  
+  let musicTextWidth = measureText(musicDisplayText, 20)
+  drawText(musicDisplayText, musicInputX + (musicBoxWidth - musicTextWidth) div 2, musicInputY + 7, 20, White)
   
   # Checkbox settings (compact layout)
   let checkboxSize: int32 = 25
@@ -156,7 +199,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
     drawLine(Vector2(x: (checkboxX + 12).float32, y: (mouseCheckboxY + 20).float32),
             Vector2(x: (checkboxX + 22).float32, y: (mouseCheckboxY + 5).float32), 3, Green)
   
-  drawText("(menu navigation)", checkboxX + checkboxSize + 20, mouseSupportY, 20, LightGray)
+  drawText("(new menu navigation)", checkboxX + checkboxSize + 20, mouseSupportY, 20, LightGray)
   
   # Show Cursor in Menus Setting (only visible when mouseSupport is disabled)
   if not settings.mouseSupport:
@@ -244,14 +287,45 @@ proc updateSettings*(settings: Settings) =
   let boxWidth: int32 = 150
   let boxHeight: int32 = 35
   
+  # Handle Volume input boxes click
+  let volumeInputX: int32 = 620
+  let volumeInputY: int32 = 245
+  let volumeBoxWidth: int32 = 100
+  let volumeBoxHeight: int32 = 35
+  
+  let musicInputX: int32 = 620
+  let musicInputY: int32 = 305
+  let musicBoxWidth: int32 = 100
+  let musicBoxHeight: int32 = 35
+  
   if isMouseButtonPressed(Left):
     let mousePos = getMousePosition()
+    
+    # FPS input box click
     if mousePos.x >= boxX.float32 and mousePos.x <= (boxX + boxWidth).float32 and
        mousePos.y >= boxY.float32 and mousePos.y <= (boxY + boxHeight).float32:
       settings.editingFPS = true
+      settings.editingVolume = false
+      settings.editingMusicVolume = false
+      settings.inputBuffer = ""
+    # Volume input box click
+    elif mousePos.x >= volumeInputX.float32 and mousePos.x <= (volumeInputX + volumeBoxWidth).float32 and
+       mousePos.y >= volumeInputY.float32 and mousePos.y <= (volumeInputY + volumeBoxHeight).float32:
+      settings.editingVolume = true
+      settings.editingFPS = false
+      settings.editingMusicVolume = false
+      settings.inputBuffer = ""
+    # Music input box click
+    elif mousePos.x >= musicInputX.float32 and mousePos.x <= (musicInputX + musicBoxWidth).float32 and
+       mousePos.y >= musicInputY.float32 and mousePos.y <= (musicInputY + musicBoxHeight).float32:
+      settings.editingMusicVolume = true
+      settings.editingFPS = false
+      settings.editingVolume = false
       settings.inputBuffer = ""
     else:
       settings.editingFPS = false
+      settings.editingVolume = false
+      settings.editingMusicVolume = false
   
   # Handle FPS input
   if settings.editingFPS:
@@ -284,12 +358,73 @@ proc updateSettings*(settings: Settings) =
           playSound(stMenuNav, 0.3)
       settings.editingFPS = false
   
-  # Handle volume slider
+  # Handle Volume input
+  if settings.editingVolume:
+    # Get text input
+    let key = getCharPressed()
+    if key > 0:
+      let ch = char(key)
+      if ch in '0'..'9' and settings.inputBuffer.len < 3:
+        settings.inputBuffer.add(ch)
+    
+    # Handle backspace
+    if isKeyPressed(Backspace) and settings.inputBuffer.len > 0:
+      settings.inputBuffer.setLen(settings.inputBuffer.len - 1)
+    
+    # Handle enter to confirm
+    if isKeyPressed(Enter):
+      if settings.inputBuffer.len > 0:
+        try:
+          let newVolume = parseInt(settings.inputBuffer)
+          if newVolume >= 0 and newVolume <= 9999:
+            let oldVolume = settings.volume
+            settings.volume = (newVolume.float32 / 100.0)
+            playSound(stMenuSelect)
+            if oldVolume != settings.volume:
+              settingsChanged = true
+          else:
+            playSound(stMenuNav, 0.3)
+        except:
+          playSound(stMenuNav, 0.3)
+      settings.editingVolume = false
+  
+  # Handle Music Volume input
+  if settings.editingMusicVolume:
+    # Get text input
+    let key = getCharPressed()
+    if key > 0:
+      let ch = char(key)
+      if ch in '0'..'9' and settings.inputBuffer.len < 3:
+        settings.inputBuffer.add(ch)
+    
+    # Handle backspace
+    if isKeyPressed(Backspace) and settings.inputBuffer.len > 0:
+      settings.inputBuffer.setLen(settings.inputBuffer.len - 1)
+    
+    # Handle enter to confirm
+    if isKeyPressed(Enter):
+      if settings.inputBuffer.len > 0:
+        try:
+          let newMusicVolume = parseInt(settings.inputBuffer)
+          if newMusicVolume >= 0 and newMusicVolume <= 9999:
+            let oldMusicVolume = settings.musicVolume
+            settings.musicVolume = (newMusicVolume.float32 / 100.0)
+            setMusicVolume(settings.musicVolume)
+            playSound(stMenuSelect)
+            if oldMusicVolume != settings.musicVolume:
+              settingsChanged = true
+          else:
+            playSound(stMenuNav, 0.3)
+        except:
+          playSound(stMenuNav, 0.3)
+      settings.editingMusicVolume = false
+  
+  # Handle volume slider (only when not editing manually)
   var volumeChangedThisFrame = false
-  if isMouseButtonDown(Left):
+  if isMouseButtonDown(Left) and not settings.editingVolume and not settings.editingMusicVolume:
     let sliderX: int32 = 400
     let sliderY: int32 = 255  # volumeY (250) + 5
-    let sliderWidth: int32 = 300
+    let sliderWidth: int32 = 200
     let musicSliderY: int32 = 315  # musicVolumeY (310) + 5
     
     let mousePos = getMousePosition()

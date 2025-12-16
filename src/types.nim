@@ -226,6 +226,8 @@ type
     color*: Color
     enemyType*: EnemyType
     isBoss*: bool
+    isCustomBoss*: bool           # True for custom bosses (waves 5-60 with advanced phase system)
+                                  # False for legacy bosses (standard transformation system)
     bossType*: BossType
     bossPhase*: BossPhase
     phaseChangeTimer*: float32

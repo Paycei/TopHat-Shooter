@@ -18,6 +18,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: if difficulty < 5: Red elif difficulty < 10: Orange else: Maroon,
       enemyType: etCircle,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -49,6 +50,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Purple,
       enemyType: etCube,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -81,6 +83,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Pink,
       enemyType: etTriangle,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -113,6 +116,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Color(r: 255, g: 215, b: 0, a: 255),
       enemyType: etStar,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -146,6 +150,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Color(r: 128, g: 0, b: 255, a: 255),
       enemyType: etHexagon,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -178,6 +183,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Color(r: 255, g: 100, b: 0, a: 255),
       enemyType: etCross,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -211,6 +217,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Color(r: 0, g: 200, b: 255, a: 255),
       enemyType: etDiamond,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -244,6 +251,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Color(r: 150, g: 150, b: 0, a: 255),
       enemyType: etOctagon,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -277,6 +285,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Color(r: 0, g: 150, b: 100, a: 255),
       enemyType: etPentagon,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -310,6 +319,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Color(r: 200, g: 0, b: 200, a: 255),
       enemyType: etTrickster,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -343,6 +353,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Color(r: 100, g: 100, b: 255, a: 180),
       enemyType: etPhantom,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -377,6 +388,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
       color: Color(r: 200, g: 50, b: 200, a: 255),  # Bright magenta
       enemyType: etSniper,
       isBoss: false,
+      isCustomBoss: false,
       bossPhase: bpCircle,
       phaseChangeTimer: 0,
       shootTimer: 0,
@@ -415,6 +427,7 @@ proc newBoss*(x, y: float32, difficulty: float32, bossType: BossType): Enemy =
       of btOrbit: Violet,
     enemyType: etCircle,
     isBoss: true,
+    isCustomBoss: false,  # Legacy boss
     bossType: bossType,
     bossPhase: bpCircle,
     phaseChangeTimer: 9.0,
@@ -459,12 +472,18 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
     
     enemy.shootTimer += dt
     enemy.spawnTimer += dt
-    enemy.phaseChangeTimer -= dt
-    enemy.teleportTimer -= dt
-    enemy.shockwaveTimer -= dt
-    enemy.burstTimer += dt
     
-    if enemy.phaseChangeTimer <= 0:
+    # ========================================================================
+    # LEGACY BOSS TRANSFORMATION SYSTEM
+    # ========================================================================
+    # Only legacy bosses use time-based phase transformations
+    # Custom bosses (isCustomBoss=true) use HP-based phases instead
+    # ========================================================================
+    if not enemy.isCustomBoss:
+      enemy.phaseChangeTimer -= dt
+    
+    # Transform legacy boss when timer expires (Circle -> Cube -> Triangle -> Star)
+    if not enemy.isCustomBoss and enemy.phaseChangeTimer <= 0:
       enemy.bossPhase = BossPhase((enemy.bossPhase.int + 1) mod 4)
       enemy.phaseChangeTimer = 6.5  # Reduced from 8.0
       case enemy.bossPhase
@@ -1658,11 +1677,29 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32): Enemy =
   newEnemy(x, y, difficulty, enemyType)
 
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
+  ## Spawns a boss - either custom (waves 5-60) or legacy (after wave 60)
+  ## 
+  ## CUSTOM BOSSES (waves 5-60, every 5 waves):
+  ##   - Use definitions from boss_definitions.nim
+  ##   - HP-based phase system (no transformations)
+  ##   - Unique attack patterns and abilities per boss
+  ##   - isCustomBoss = true, phaseChangeTimer = 0 (unused)
+  ##
+  ## LEGACY BOSSES (after wave 60 or non-boss waves):
+  ##   - Use old boss system with 4 types
+  ##   - Time-based transformation system (Circle -> Cube -> Triangle -> Star)
+  ##   - isCustomBoss = false, phaseChangeTimer = active
+  ##
   # Check if this should be a custom boss (waves 5-60, every 5 waves)
   let useCustomBoss = isCustomBoss(waveNumber)
   
   if useCustomBoss:
-    # Use custom boss definitions
+    # ========================================================================
+    # CUSTOM BOSS CREATION (Waves 5-60, every 5 waves)
+    # ========================================================================
+    # Custom bosses use the advanced definition system from boss_definitions.nim
+    # They have HP-based phases (defined in BossDefinition) and don't transform
+    # ========================================================================
     let bossDef = getBossForWave(waveNumber)
     let centerX = screenWidth.float32 / 2
     let centerY = screenHeight.float32 / 2
@@ -1702,9 +1739,10 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       color: bossDef.color,
       enemyType: etCircle,
       isBoss: true,
+      isCustomBoss: true,  # Custom boss with advanced phase system
       bossType: BossType((bossDef.bossID - 1) mod 4),  # For compatibility with existing code
       bossPhase: bpCircle,
-      phaseChangeTimer: 8.0,
+      phaseChangeTimer: 0,  # Custom bosses don't use legacy phase timer
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -1723,7 +1761,12 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       activeEffects: initTable[ElementType, ActiveEffect]()
     )
   else:
-    # Fall back to old boss system (for non-boss waves or after wave 60+)
+    # ========================================================================
+    # LEGACY BOSS CREATION (After wave 60 or non-boss waves)
+    # ========================================================================
+    # Legacy bosses use the old transformation system (Circle -> Cube -> Triangle -> Star)
+    # They transform every ~9 seconds via phaseChangeTimer
+    # ========================================================================
     let bossType = BossType((bossCount - 1) mod 4)
     let centerX = screenWidth.float32 / 2
     let centerY = screenHeight.float32 / 2

@@ -2,7 +2,7 @@ import json, os, settings_types
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
-  when defined(windows):
+  when defined(windows):  
     result = getEnv("APPDATA")
   elif defined(macosx):
     result = getEnv("HOME") & "/Library/Application Support"

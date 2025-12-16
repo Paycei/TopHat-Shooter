@@ -5,6 +5,8 @@ type
     musicVolume*: float32
     inputBuffer*: string
     editingFPS*: bool
+    editingVolume*: bool
+    editingMusicVolume*: bool
     fullscreen*: bool
     showFPS*: bool  # New setting to show FPS counter
     mouseSupport*: bool  # Enable mouse support in menus (always works in-game and settings)

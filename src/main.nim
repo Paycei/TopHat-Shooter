@@ -266,6 +266,10 @@ proc main() =
   let settings = initSettings()
   applySettings(settings)
   
+  # Apply fullscreen setting if it was saved
+  if settings.fullscreen:
+    toggleFullscreen()
+  
   # Initialize and load statistics
   let stats = initStatistics()
   discard loadStatistics(stats)

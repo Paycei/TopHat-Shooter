@@ -1444,8 +1444,11 @@ proc updateGame*(game: var Game, dt: float32) =
       game.bossCount += 1
       # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
       let bossDifficulty = (game.currentWave - 1).float32 / 3.0
+      # FIX: Use currentWave + 1 since we haven't advanced the wave yet
+      # The boss should spawn for the wave we're ABOUT to start, not the one we just finished
+      let actualBossWave = game.currentWave + 1
       game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, 
-                                bossDifficulty, game.bossCount, game.currentWave))
+                                bossDifficulty, game.bossCount, actualBossWave))
       game.bossActive = true
       game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
       # Don't reset wavesUntilBoss here - it will be reset when boss coin is collected

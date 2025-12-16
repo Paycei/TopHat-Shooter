@@ -3,9 +3,7 @@
 
 import math, random, raylib
 
-# ============================================================================
 # Boss Configuration System
-# ============================================================================
 
 type
   BossAttackPattern* = enum
@@ -59,9 +57,7 @@ type
     specialAbilities*: seq[string]
     description*: string
 
-# ============================================================================
 # Boss Definitions (1-12) - CUSTOM UNIQUE BOSSES
-# ============================================================================
 
 proc getBossDefinition*(bossNumber: int): BossDefinition =
   case bossNumber
@@ -1493,9 +1489,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     let randomBossType = rand(11) + 1
     return getBossDefinition(randomBossType)
 
-# ============================================================================
 # Helper Functions
-# ============================================================================
 
 proc isCustomBoss*(waveNumber: int): bool =
   ## Checks if the current wave should spawn a custom boss (waves 5-60, every 5 waves)
@@ -1565,9 +1559,7 @@ proc getAllBossNames*(): seq[string] =
     let boss = getBossDefinition(i)
     result.add(boss.name)
 
-# ============================================================================
 # Boss Stats Scaling
-# ============================================================================
 
 proc getScaledBossHP*(baseBoss: BossDefinition, waveNumber: int): float32 =
   ## Scales boss HP based on wave number
@@ -1589,9 +1581,7 @@ proc getScaledAttackDamage*(baseAttack: BossAttack, waveNumber: int): float32 =
   let waveScale = 1.0 + ((waveNumber.float32 - 5.0) * 0.10)  # 10% increase per wave after wave 5
   baseAttack.damage * waveScale
 
-# ============================================================================
 # Boss Visual Effects
-# ============================================================================
 
 proc getBossGlowIntensity*(visualEffect: string, gameTime: float32): float32 =
   ## Returns glow intensity for boss visual effects
@@ -1611,6 +1601,4 @@ proc shouldSpawnParticles*(visualEffect: string): bool =
   ## Determines if boss should spawn visual particles
   visualEffect in ["glow", "aura", "pulse"]
 
-# ============================================================================
 # Export all types and procedures
-# ============================================================================
