@@ -1,5 +1,15 @@
 import raylib, types, random, math, wall, bullet, effects, tables, boss_definitions
 
+
+proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
+  ## Reduces speed for very fast enemies, but only noticeable after wave ~20
+  if waveNumber < 18:
+    return baseSpeed
+  let speedRatio = baseSpeed / 100.0
+  if speedRatio <= 1.0:
+    return baseSpeed
+  let reductionFactor = ln(speedRatio) * 0.2
+  return baseSpeed / (1.0 + reductionFactor)
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy =
   let strengthMultiplier = pow(1.15, difficulty)
   
@@ -402,9 +412,9 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType): Enemy 
 
 proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
   # Apply slow field effect
-  var effectiveSpeed = enemy.speed
+  var effectiveSpeed = getEffectiveSpeed(enemy.speed, game.currentWave)
   if enemy.slowAmount > 0:
-    effectiveSpeed = enemy.speed * (1.0 - enemy.slowAmount)
+    effectiveSpeed = effectiveSpeed * (1.0 - enemy.slowAmount)
   
   if enemy.isBoss:
     # Boss update logic
