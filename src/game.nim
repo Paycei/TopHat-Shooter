@@ -1033,20 +1033,27 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     
     # Calculate all laser angles for the warning system
     var warningAngles: seq[float32] = @[]
-    for i in 0..<laserCount:
+    
+    # FIX: For cross_laser pattern, always create 4 beams (cardinal directions)
+    let actualLaserCount = if patternType == "cross_laser": 4 else: laserCount
+    
+    for i in 0..<actualLaserCount:
       let angle = case patternType
         of "rotating_grid":
           # Grid pattern - two perpendicular sets
-          if i.float < laserCount / 2:
-            i.float32 * attack.spreadAngle.degToRad() / (laserCount / 2).float32
+          if i.float < actualLaserCount / 2:
+            i.float32 * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32
           else:
-            (i.float32 - laserCount.float / 2.0) * attack.spreadAngle.degToRad() / (laserCount / 2).float32 + PI / 2.0
+            (i.float32 - actualLaserCount.float / 2.0) * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32 + PI / 2.0
         of "prismatic_cage":
           # Many radial lasers
-          i.float32 * PI * 2.0 / laserCount.float32
+          i.float32 * PI * 2.0 / actualLaserCount.float32
+        of "cross_laser":
+          # Cross pattern - always 4 beams in cardinal directions (0°, 90°, 180°, 270°)
+          i.float32 * (PI / 2.0) + game.time
         else:
-          # Cross pattern (default)
-          i.float32 * attack.spreadAngle.degToRad() + game.time
+          # Default pattern - distribute evenly
+          i.float32 * (PI * 2.0) / actualLaserCount.float32 + game.time
       warningAngles.add(angle)
     
     # Add boss laser warning with proper visual indicators

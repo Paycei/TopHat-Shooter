@@ -1499,9 +1499,17 @@ proc drawAttackWarning*(warning: AttackWarning) =
     discard
 
 proc drawLaser*(laser: Laser) =
-  # Calculate alpha based on lifetime (fade out at the end)
+  # Calculate alpha based on lifetime with accelerated fade
   let fadePercent = laser.lifetime / laser.maxLifetime
-  let baseAlpha = uint8(fadePercent * 200 + 55)  # 55-255 alpha
+  
+  # FIX: Accelerated fade in last 30% of lifetime for smoother disappearance
+  let adjustedFade = if fadePercent < 0.3:
+    # Quick fade in final 30% of lifetime: 0.3 -> 0.0 becomes 1.0 -> 0.0
+    fadePercent / 0.3
+  else:
+    1.0
+  
+  let baseAlpha = uint8(adjustedFade * 200 + 55)  # 55-255 alpha
   
   # Enhanced laser colors with bright core
   let outerGlow = Color(r: 255, g: 100, b: 0, a: (baseAlpha div 3).uint8)
