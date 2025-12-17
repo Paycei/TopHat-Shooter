@@ -742,6 +742,8 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         etCircle,
         game
       )
+      # Mark as boss-spawned so it doesn't drop coins (prevent farming)
+      minion.spawnedByBoss = true
       game.enemies.add(minion)
     
     # Visual feedback for summoning
@@ -1802,37 +1804,39 @@ proc updateGame*(game: var Game, dt: float32) =
       # Play enemy death sound
       playSound(stEnemyDeath, if enemy.isBoss: 1.0 else: 0.4)
       
-      # Calculate coin value with elite multiplier
-      var coinValue = if enemy.isBoss:
-        # Boss drops scale with difficulty: 15 + 5 per difficulty level
-        30 + (game.difficulty * 3.5).int
-      else:
-        # Regular enemies drop based on type, with minimal wave scaling
-        # Every 10 waves adds 1 coin (very slow scaling) - REDUCED from 5 to 10
-        let waveBonus = (game.currentWave div 10)  # Much slower scaling
-        let baseValue = case enemy.enemyType
-          of etCircle: 1
-          of etCube: 3           # More coins since it's now harder
-          of etTriangle: 2
-          of etStar: 5
-          of etHexagon: 3
-          of etCross: 3
-          of etDiamond: 3
-          of etOctagon: 2
-          of etPentagon: 1       # Early game enemy, low coins
-          of etTrickster: 6
-          of etPhantom: 6
-          of etSniper: 5
-        baseValue + waveBonus
-      
-      # Elite enemies drop 1.5x coins (less common but tougher)
-      if enemy.isElite:
-        coinValue = (coinValue.float32 * 1.5).int
-      
-      # Clamp coin position to be in bounds (for enemies killed out-of-bounds)
-      let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
-      # Boss coins are special and must be collected to end the wave
-      game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, enemy.isBoss))
+      # Boss-spawned minions don't drop coins (prevent farming)
+      if not enemy.spawnedByBoss:
+        # Calculate coin value with elite multiplier
+        var coinValue = if enemy.isBoss:
+          # Boss drops scale with difficulty: 15 + 5 per difficulty level
+          30 + (game.difficulty * 3.5).int
+        else:
+          # Regular enemies drop based on type, with minimal wave scaling
+          # Every 10 waves adds 1 coin (very slow scaling) - REDUCED from 5 to 10
+          let waveBonus = (game.currentWave div 10)  # Much slower scaling
+          let baseValue = case enemy.enemyType
+            of etCircle: 1
+            of etCube: 3           # More coins since it's now harder
+            of etTriangle: 2
+            of etStar: 5
+            of etHexagon: 3
+            of etCross: 3
+            of etDiamond: 3
+            of etOctagon: 2
+            of etPentagon: 1       # Early game enemy, low coins
+            of etTrickster: 6
+            of etPhantom: 6
+            of etSniper: 5
+          baseValue + waveBonus
+        
+        # Elite enemies drop 1.5x coins (less common but tougher)
+        if enemy.isElite:
+          coinValue = (coinValue.float32 * 1.5).int
+        
+        # Clamp coin position to be in bounds (for enemies killed out-of-bounds)
+        let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
+        # Boss coins are special and must be collected to end the wave
+        game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, enemy.isBoss))
       
       # Elite Explosive death effect
       # Handles multiple elite types (wave 25+)
@@ -2162,12 +2166,12 @@ proc updateGame*(game: var Game, dt: float32) =
   while i < game.bullets.len:
     let bullet = game.bullets[i]
     
-    # Homing bullet logic (LEGENDARY - Single Level)
+    # Homing bullet logic (LEGENDARY - Single Level) - NERFED
     if bullet.isHoming and bullet.fromPlayer and game.enemies.len > 0:
-      # NERF: Very limited tracking range - greatly reduced
-      let trackingRange = 160.0  # Down from unlimited - much shorter range
+      # HEAVY NERF: Much shorter tracking range and weaker turn rate
+      let trackingRange = 120.0  # NERFED from 160.0 - very short range now
       
-      # Find nearest enemy that CAN be hit (not already pierced through)
+      # Find nearest enemy that HASN'T been hit by this bullet yet
       var nearestEnemy: Enemy = nil
       var nearestDist = 999999.0
       
@@ -2175,14 +2179,14 @@ proc updateGame*(game: var Game, dt: float32) =
         let enemy = game.enemies[enemyIdx]
         let dist = distance(bullet.pos, enemy.pos)
         
-        # Only track if within range AND not already pierced/hit by this bullet
-        if dist < trackingRange and dist < nearestDist and enemyIdx notin bullet.hitEnemies:
+        # Only track if within range AND not already hit by this bullet (using enemy ID)
+        if dist < trackingRange and dist < nearestDist and enemy.id notin bullet.hitEnemies:
           nearestDist = dist
           nearestEnemy = enemy
       
       if nearestEnemy != nil:
-        # LEGENDARY: Strong, balanced tracking - single level
-        let turnRate = 0.05  # Good tracking without being overpowered
+        # HEAVY NERF: Much weaker tracking - bullets barely curve
+        let turnRate = 0.02  # NERFED from 0.05 - very weak tracking now
         
         let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
         let currentDir = bullet.vel.normalize()

@@ -253,6 +253,7 @@ type
     shieldHp*: float32  # For shielded elites
     maxShieldHp*: float32  # Maximum shield HP
     regenTimer*: float32  # For regenerative elites
+    spawnedByBoss*: bool  # True if spawned by boss summon attack (no coin drops)
     # Cross enemy rotation during dash
     rotation*: float32  # Current rotation angle in radians
     # Custom boss fields (for boss_definitions system)

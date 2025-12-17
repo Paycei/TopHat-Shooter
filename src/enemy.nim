@@ -422,6 +422,9 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
+  # Initialize boss-spawned flag (default: false, set to true by boss summon)
+  result.spawnedByBoss = false
+  
   # Increment enemy ID counter for next enemy
   game.nextEnemyId += 1
 

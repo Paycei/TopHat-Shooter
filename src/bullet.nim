@@ -223,7 +223,8 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     original.windPushForce,  # Preserve wind push force
     original.isPentagon,
     original.isEcho,
-    original.isBossBullet
+    original.isBossBullet,
+    original.isArcaneBullet  # Preserve arcane bullet property for split shots
   )
   
   # Copy additional state that needs to be preserved
