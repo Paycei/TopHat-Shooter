@@ -231,12 +231,12 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
   
-  of 3:  # Wave 15 - THE METEOR STRIKER
+  of 3:  # Wave 15 - THE METEOR STRIKER - NERFED
     result = BossDefinition(
       name: "The Meteor Striker",
       bossID: 3,
-      baseHP: 280.0,
-      baseSpeed: 85.0,
+      baseHP: 260.0,  # NERFED from 280.0 (7% less HP)
+      baseSpeed: 75.0,  # NERFED from 85.0 (slower base speed)
       baseDamage: 2,
       baseRadius: 48.0,
       color: Color(r: 255, g: 100, b: 0, a: 255),
@@ -246,7 +246,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Orbital Strike",
           hpThreshold: 1.0,
-          speedMultiplier: 1.2,
+          speedMultiplier: 1.1,  # NERFED from 1.2 (slower phase 1)
           damageMultiplier: 1.0,
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 100, b: 0, a: 255),
@@ -256,8 +256,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapMeteor,
               damage: 2.0,
-              cooldown: 3.0,
-              projectileSpeed: 300.0,
+              cooldown: 3.2,  # NERFED from 3.0 (less frequent)
+              projectileSpeed: 280.0,  # NERFED from 300.0 (easier to dodge)
               projectileCount: 4,
               spreadAngle: 0.0,
               durationOrRadius: 80.0,
@@ -266,8 +266,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 1.5,
-              projectileSpeed: 250.0,
+              cooldown: 1.7,  # NERFED from 1.5 (less frequent)
+              projectileSpeed: 230.0,  # NERFED from 250.0 (easier to dodge)
               projectileCount: 1,
               spreadAngle: 0.0,
               durationOrRadius: 0.0
@@ -277,8 +277,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Cataclysm",
           hpThreshold: 0.5,
-          speedMultiplier: 1.5,
-          damageMultiplier: 1.5,
+          speedMultiplier: 1.35,  # NERFED from 1.5 (slower phase 2)
+          damageMultiplier: 1.4,  # NERFED from 1.5 (less damage)
           defenseMultiplier: 0.8,
           color: Color(r: 255, g: 50, b: 0, a: 255),
           visualEffect: "aura",
@@ -287,9 +287,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapMeteor,
               damage: 2.0,
-              cooldown: 2.0,
-              projectileSpeed: 350.0,
-              projectileCount: 8,
+              cooldown: 2.3,  # NERFED from 2.0 (less frequent)
+              projectileSpeed: 330.0,  # NERFED from 350.0 (easier to dodge)
+              projectileCount: 7,  # NERFED from 8 (fewer meteors)
               spreadAngle: 0.0,
               durationOrRadius: 100.0,
               specialData: "massive_impact"
@@ -297,8 +297,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapPulse,
               damage: 1.0,
-              cooldown: 4.0,
-              projectileSpeed: 200.0,
+              cooldown: 4.5,  # NERFED from 4.0 (less frequent)
+              projectileSpeed: 190.0,  # NERFED from 200.0 (easier to dodge)
               projectileCount: 0,
               spreadAngle: 0.0,
               durationOrRadius: 150.0
@@ -308,8 +308,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Apocalypse",
           hpThreshold: 0.25,
-          speedMultiplier: 2.0,
-          damageMultiplier: 2.0,
+          speedMultiplier: 1.5,  # HEAVILY NERFED from 2.0 (much slower phase 3)
+          damageMultiplier: 1.7,  # NERFED from 2.0 (less damage)
           defenseMultiplier: 0.7,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
@@ -317,10 +317,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapMeteor,
-              damage: 3.0,
-              cooldown: 1.5,
-              projectileSpeed: 400.0,
-              projectileCount: 12,
+              damage: 2.5,  # NERFED from 3.0 (less damage)
+              cooldown: 1.75,  # NERFED from 1.5 (less frequent)
+              projectileSpeed: 370.0,  # NERFED from 400.0 (easier to dodge)
+              projectileCount: 11,  # NERFED from 12 (fewer meteors)
               spreadAngle: 0.0,
               durationOrRadius: 120.0,
               specialData: "apocalypse_mode"
@@ -328,9 +328,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 2.5,
-              projectileSpeed: 180.0,
-              projectileCount: 20,
+              cooldown: 3.0,  # NERFED from 2.5 (less frequent)
+              projectileSpeed: 170.0,  # NERFED from 180.0 (easier to dodge)
+              projectileCount: 16,  # NERFED from 20 (fewer bullets)
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             )
