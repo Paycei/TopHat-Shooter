@@ -692,6 +692,9 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
   
   of bapLaser:
+    # Add warning visual before laser fires (0.3 second telegraph)
+    game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "cross", 0.3))
+    
     # Cross or rotating laser pattern
     for i in 0..<attack.projectileCount:
       let angle = i.float32 * attack.spreadAngle.degToRad() + game.time

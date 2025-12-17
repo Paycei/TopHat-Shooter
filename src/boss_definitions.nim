@@ -170,7 +170,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 4.0,  # BUFFED from 5.0 (more frequent summons)
+              cooldown: 4.5,  # BUFFED from 5.0 (more frequent summons)
               projectileSpeed: 0.0,
               projectileCount: 4,  # BUFFED from 3 (more minions)
               spreadAngle: 0.0,
@@ -201,9 +201,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 2.8,  # BUFFED from 3.5 (much more frequent)
+              cooldown: 3.25,  # BUFFED from 3.5 (more frequent)
               projectileSpeed: 0.0,
-              projectileCount: 6,  # BUFFED from 5 (more minions)
+              projectileCount: 5,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
               specialData: "minion_triangle"
@@ -220,7 +220,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapCircle,  # NEW: Added circle attack for chaos
               damage: 1.0,
-              cooldown: 4.5,
+              cooldown: 4.0,
               projectileSpeed: 150.0,
               projectileCount: 12,
               spreadAngle: 360.0,
@@ -339,12 +339,12 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
   
-  of 4:  # Wave 20 - THE LASER ARCHITECT
+  of 4:  # Wave 20 - THE LASER ARCHITECT - BUFFED FOR CHAOS
     result = BossDefinition(
       name: "The Laser Architect",
       bossID: 4,
-      baseHP: 380.0,
-      baseSpeed: 75.0,
+      baseHP: 390.0,  # BUFFED from 380.0
+      baseSpeed: 77.5,  # BUFFED from 75.0 (more aggressive)
       baseDamage: 2,
       baseRadius: 52.0,
       color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -354,7 +354,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Blueprint",
           hpThreshold: 1.0,
-          speedMultiplier: 1.0,
+          speedMultiplier: 1.1,  # BUFFED from 1.0 (faster from the start)
           damageMultiplier: 1.0,
           defenseMultiplier: 1.3,
           color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -364,7 +364,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 2.0,
-              cooldown: 4.0,
+              cooldown: 3.5,  # BUFFED from 4.0 (more frequent lasers)
               projectileSpeed: 0.0,
               projectileCount: 2,
               spreadAngle: 90.0,
@@ -374,10 +374,19 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapWave,
               damage: 1.0,
-              cooldown: 2.5,
-              projectileSpeed: 170.0,
+              cooldown: 2.25,  # BUFFED from 2.5 (faster)
+              projectileSpeed: 180.0,  # BUFFED from 170.0
+              projectileCount: 6,  # BUFFED from 5 (more bullets)
+              spreadAngle: 50.0,  # BUFFED from 45.0 (wider spread)
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,  # NEW ATTACK: Direct player targeting
+              damage: 1.0,
+              cooldown: 3.0,
+              projectileSpeed: 250.0,
               projectileCount: 5,
-              spreadAngle: 45.0,
+              spreadAngle: 10.0,
               durationOrRadius: 0.0
             )
           ]
@@ -385,8 +394,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Construction",
           hpThreshold: 0.65,
-          speedMultiplier: 1.2,
-          damageMultiplier: 1.3,
+          speedMultiplier: 1.33,  # BUFFED from 1.2 (faster)
+          damageMultiplier: 1.33,  # BUFFED from 1.3
           defenseMultiplier: 1.2,
           color: Color(r: 0, g: 255, b: 255, a: 255),
           visualEffect: "pulse",
@@ -395,7 +404,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 2.0,
-              cooldown: 3.0,
+              cooldown: 2.2,  # BUFFED from 3.0 (much more frequent)
               projectileSpeed: 0.0,
               projectileCount: 4,
               spreadAngle: 45.0,
@@ -405,10 +414,28 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 1.0,
-              projectileSpeed: 280.0,
-              projectileCount: 3,
-              spreadAngle: 15.0,
+              cooldown: 0.8,  # BUFFED from 1.0 (very rapid)
+              projectileSpeed: 300.0,  # BUFFED from 280.0
+              projectileCount: 4,  # BUFFED from 3 (more bullets)
+              spreadAngle: 20.0,  # BUFFED from 15.0
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapCircle,  # NEW ATTACK: Circle pattern for chaos
+              damage: 1.0,
+              cooldown: 3.5,
+              projectileSpeed: 160.0,
+              projectileCount: 16,
+              spreadAngle: 360.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapBurst,  # NEW ATTACK: Burst fire for pressure
+              damage: 1.0,
+              cooldown: 2.5,
+              projectileSpeed: 220.0,
+              projectileCount: 8,
+              spreadAngle: 60.0,
               durationOrRadius: 0.0
             )
           ]
@@ -426,7 +453,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 3.0,
-              cooldown: 2.5,
+              cooldown: 1.8,  # BUFFED from 2.5 (rapid lasers)
               projectileSpeed: 0.0,
               projectileCount: 8,
               spreadAngle: 22.5,
@@ -436,10 +463,37 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 3.5,
-              projectileSpeed: 150.0,
-              projectileCount: 24,
+              cooldown: 2.5,  # BUFFED from 3.5 (more frequent)
+              projectileSpeed: 170.0,  # BUFFED from 150.0
+              projectileCount: 28,  # BUFFED from 24 (more bullets)
               spreadAngle: 360.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapBarrage,  # NEW ATTACK: Massive spray
+              damage: 2.0,
+              cooldown: 3.0,
+              projectileSpeed: 240.0,
+              projectileCount: 32,
+              spreadAngle: 360.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapPulse,  # NEW ATTACK: Expanding pulse
+              damage: 2.0,
+              cooldown: 4.0,
+              projectileSpeed: 200.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 180.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,  # CONTINUED: Relentless targeting
+              damage: 2.0,
+              cooldown: 0.6,  # VERY RAPID
+              projectileSpeed: 320.0,
+              projectileCount: 5,
+              spreadAngle: 25.0,
               durationOrRadius: 0.0
             )
           ]
@@ -447,12 +501,12 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
   
-  of 5:  # Wave 25 - THE VOID DANCER
+  of 5:  # Wave 25 - THE VOID DANCER - BUFFED FOR EXTREME CHAOS
     result = BossDefinition(
       name: "The Void Dancer",
       bossID: 5,
-      baseHP: 500.0,
-      baseSpeed: 95.0,
+      baseHP: 550.0,  # BUFFED from 500.0 (10% more HP)
+      baseSpeed: 90.0,  # BUFFED from 95.0 (fast)
       baseDamage: 2,
       baseRadius: 46.0,
       color: Color(r: 80, g: 0, b: 120, a: 255),
@@ -472,7 +526,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 2.0,
-              cooldown: 3.5,
+              cooldown: 2.5,  # BUFFED from 3.5 (teleports more often)
               projectileSpeed: 0.0,
               projectileCount: 0,
               spreadAngle: 0.0,
@@ -482,10 +536,19 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBurst,
               damage: 1.0,
-              cooldown: 2.0,
-              projectileSpeed: 220.0,
-              projectileCount: 8,
-              spreadAngle: 45.0,
+              cooldown: 1.5,  # BUFFED from 2.0 (faster bursts)
+              projectileSpeed: 240.0,  # BUFFED from 220.0
+              projectileCount: 10,  # BUFFED from 8 (more bullets)
+              spreadAngle: 50.0,  # BUFFED from 45.0
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,  # NEW: Direct player shots
+              damage: 1.0,
+              cooldown: 1.8,
+              projectileSpeed: 280.0,
+              projectileCount: 3,
+              spreadAngle: 15.0,
               durationOrRadius: 0.0
             )
           ]
@@ -493,8 +556,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Shadow Realm",
           hpThreshold: 0.6,
-          speedMultiplier: 1.6,
-          damageMultiplier: 1.4,
+          speedMultiplier: 1.5,
+          damageMultiplier: 1.5,  # BUFFED from 1.4
           defenseMultiplier: 0.9,
           color: Color(r: 120, g: 0, b: 180, a: 255),
           visualEffect: "aura",
@@ -503,7 +566,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 2.0,
-              cooldown: 2.5,
+              cooldown: 1.8,  # BUFFED from 2.5 (very frequent teleports)
               projectileSpeed: 0.0,
               projectileCount: 3,
               spreadAngle: 0.0,
@@ -513,10 +576,28 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapWave,
               damage: 1.0,
-              cooldown: 1.5,
-              projectileSpeed: 200.0,
-              projectileCount: 6,
-              spreadAngle: 60.0,
+              cooldown: 1.2,  # BUFFED from 1.5 (rapid waves)
+              projectileSpeed: 220.0,  # BUFFED from 200.0
+              projectileCount: 8,  # BUFFED from 6 (more bullets)
+              spreadAngle: 70.0,  # BUFFED from 60.0 (wider)
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapCircle,  # NEW: Circle pattern for chaos
+              damage: 1.0,
+              cooldown: 2.5,
+              projectileSpeed: 190.0,
+              projectileCount: 16,
+              spreadAngle: 360.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapSpiral,  # NEW: Spiral pattern while teleporting
+              damage: 1.0,
+              cooldown: 2.0,
+              projectileSpeed: 180.0,
+              projectileCount: 12,
+              spreadAngle: 30.0,
               durationOrRadius: 0.0
             )
           ]
@@ -524,8 +605,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Void Ascension",
           hpThreshold: 0.35,
-          speedMultiplier: 2.0,
-          damageMultiplier: 1.6,
+          speedMultiplier: 1.6,  # BUFFED from 2.0 (blazingly fast)
+          damageMultiplier: 1.8,  # BUFFED from 1.6
           defenseMultiplier: 0.8,
           color: Color(r: 160, g: 40, b: 220, a: 255),
           visualEffect: "glow",
@@ -534,7 +615,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 3.0,
-              cooldown: 2.0,
+              cooldown: 1.2,  # BUFFED from 2.0 (constant teleporting)
               projectileSpeed: 0.0,
               projectileCount: 5,
               spreadAngle: 0.0,
@@ -543,11 +624,47 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 1.0,
-              cooldown: 3.0,
-              projectileSpeed: 180.0,
-              projectileCount: 20,
-              spreadAngle: 180.0,
+              damage: 2.0,  # BUFFED from 1.0 (more damage)
+              cooldown: 2.0,  # BUFFED from 3.0 (more frequent)
+              projectileSpeed: 220.0,  # BUFFED from 180.0
+              projectileCount: 32,  # BUFFED from 20 (60% more bullets)
+              spreadAngle: 360.0,  # BUFFED from 180.0 (full circle)
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapPulse,  # NEW: Expanding void pulse
+              damage: 2.0,
+              cooldown: 3.5,
+              projectileSpeed: 250.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 200.0
+            ),
+            BossAttack(
+              attackType: bapDash,  # NEW: Void dash attack
+              damage: 3.0,
+              cooldown: 4.0,
+              projectileSpeed: 600.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapWave,  # NEW: Continuous waves
+              damage: 2.0,
+              cooldown: 1.0,
+              projectileSpeed: 240.0,
+              projectileCount: 10,
+              spreadAngle: 80.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,  # NEW: Rapid targeting
+              damage: 2.0,
+              cooldown: 0.8,
+              projectileSpeed: 300.0,
+              projectileCount: 5,
+              spreadAngle: 20.0,
               durationOrRadius: 0.0
             )
           ]
