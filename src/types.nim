@@ -112,9 +112,16 @@ type
 
   AttackWarning* = ref object
     pos*: Vector2f
-    attackType*: string  # "cross", "burst", "fake"
+    attackType*: string  # "cross", "burst", "fake", "boss_laser"
     lifetime*: float32
     maxLifetime*: float32
+    # Boss laser warning fields
+    laserAngles*: seq[float32]  # Angles for each laser beam
+    laserLength*: float32        # Length of laser beams
+    laserCount*: int             # Number of laser beams
+    laserDamage*: int            # Damage of lasers when fired
+    laserDuration*: float32      # How long lasers stay active
+    lasersCreated*: bool         # Flag to track if lasers were already created
 
   ElementType* = enum
     etPoison,      # Green - poison damage over time
@@ -420,7 +427,29 @@ proc newAttackWarning*(x, y: float32, attackType: string, duration: float32): At
     pos: newVector2f(x, y),
     attackType: attackType,
     lifetime: duration,
-    maxLifetime: duration
+    maxLifetime: duration,
+    laserAngles: @[],
+    laserLength: 0.0,
+    laserCount: 0,
+    laserDamage: 0,
+    laserDuration: 0.0,
+    lasersCreated: false
+  )
+
+proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32], 
+                         length: float32, damage: int, laserDuration: float32): AttackWarning =
+  ## Creates a warning specifically for boss laser attacks with multiple beams
+  AttackWarning(
+    pos: newVector2f(x, y),
+    attackType: "boss_laser",
+    lifetime: duration,
+    maxLifetime: duration,
+    laserAngles: angles,
+    laserLength: length,
+    laserCount: angles.len,
+    laserDamage: damage,
+    laserDuration: laserDuration,
+    lasersCreated: false
   )
 
 proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0): Laser =

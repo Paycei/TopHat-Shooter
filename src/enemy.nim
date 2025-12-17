@@ -1430,6 +1430,71 @@ proc drawAttackWarning*(warning: AttackWarning) =
                    Color(r: 255, g: 255, b: 0, a: alpha))
     drawText("!", (warning.pos.x - 8).int32, (warning.pos.y - 12).int32, 24,
             Color(r: 255, g: 255, b: 0, a: alpha))
+  
+  of "boss_laser":
+    # IMPROVED: Boss laser warning with accurate beam visualization
+    # Shows exactly where each laser beam will appear
+    for angle in warning.laserAngles:
+      # Calculate laser endpoints based on angle
+      let startX = warning.pos.x + cos(angle) * 40.0  # Start from boss center (offset)
+      let startY = warning.pos.y + sin(angle) * 40.0
+      let endX = warning.pos.x + cos(angle) * warning.laserLength
+      let endY = warning.pos.y + sin(angle) * warning.laserLength
+      
+      # Draw warning line (pulsing)
+      let warningThickness = 8 + pulse * 0.3
+      drawLine(
+        Vector2(x: startX, y: startY),
+        Vector2(x: endX, y: endY),
+        warningThickness,
+        Color(r: 255, g: 50, b: 0, a: alpha)
+      )
+      
+      # Draw inner glow line
+      drawLine(
+        Vector2(x: startX, y: startY),
+        Vector2(x: endX, y: endY),
+        3,
+        Color(r: 255, g: 200, b: 100, a: (alpha div 2).uint8)
+      )
+      
+      # Draw danger markers along the beam path
+      for i in 0..4:
+        let markerDist = warning.laserLength * (i.float32 / 4.0) * 0.7  # 70% of length
+        let markerX = warning.pos.x + cos(angle) * markerDist
+        let markerY = warning.pos.y + sin(angle) * markerDist
+        let markerSize = 6.0 + sin(getTime() * 15.0 + i.float32) * 2.0
+        drawCircle(
+          Vector2(x: markerX, y: markerY),
+          markerSize,
+          Color(r: 255, g: 0, b: 0, a: (alpha div 2).uint8)
+        )
+    
+    # Draw central danger indicator at boss position
+    let centralPulse = sin(getTime() * 12.0) * 0.3 + 0.7
+    drawCircleLines(
+      warning.pos.x.int32, warning.pos.y.int32,
+      50.0 + pulse * 1.5,
+      Color(r: 255, g: 0, b: 0, a: uint8(alpha.float32 * centralPulse))
+    )
+    drawCircleLines(
+      warning.pos.x.int32, warning.pos.y.int32,
+      70.0 + pulse * 1.5,
+      Color(r: 255, g: 100, b: 0, a: uint8(alpha.float32 * centralPulse * 0.6))
+    )
+    
+    # Draw "DANGER" text
+    let dangerText = "LASER INCOMING"
+    let textSize = 16
+    let textWidth = measureText(dangerText, textSize.int32)
+    drawText(
+      dangerText,
+      (warning.pos.x - textWidth / 2).int32,
+      (warning.pos.y - 90).int32,
+      textSize.int32,
+      Color(r: 255, g: 255, b: 255, a: alpha)
+    )
+  
   else:
     discard
 

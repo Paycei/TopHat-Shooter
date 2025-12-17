@@ -637,12 +637,17 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   case phase.specialBehavior
   of "circle_movement":
-    # Orbit around center using time-based angle (prevents teleportation)
+    # FIXED: Smooth velocity-based orbiting (no teleportation)
+    # Calculate target position on circle
     let orbitRadius = 200.0
-    let orbitSpeed = 0.4  # Radians per second (decreased from 90.0/200.0 for smoother motion)
+    let orbitSpeed = 0.4  # Radians per second
     let angle = game.time * orbitSpeed
-    enemy.pos.x = centerX + cos(angle) * orbitRadius
-    enemy.pos.y = centerY + sin(angle) * orbitRadius
+    let targetX = centerX + cos(angle) * orbitRadius
+    let targetY = centerY + sin(angle) * orbitRadius
+    
+    # Move toward target position smoothly using velocity
+    let toTarget = (newVector2f(targetX, targetY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toTarget * enemy.speed * dt
   
   of "circle_player":
     # Orbit around player specifically
@@ -757,6 +762,192 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Extremely fast movement toward player
     enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.5 * dt
   
+  # ======================================================================
+  # NEW IMPLEMENTATIONS: Missing specialBehavior patterns
+  # ======================================================================
+  
+  of "meteor_storm":
+    # Fast erratic movement while raining meteors
+    let angle = game.time * 2.8 + sin(game.time * 4.0) * 0.5
+    let meteorDir = newVector2f(cos(angle), sin(angle))
+    enemy.pos = enemy.pos + meteorDir * enemy.speed * dt * 0.9
+  
+  of "summon_frenzy":
+    # Rapid teleporting movement for summon phase
+    let frenzyCycle = sin(game.time * 3.0)
+    if frenzyCycle > 0.8:
+      # Quick dash toward player
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.4 * dt
+    else:
+      # Circular movement away
+      let tangent = newVector2f(-toPlayer.y, toPlayer.x)
+      enemy.pos = enemy.pos + tangent * enemy.speed * 0.8 * dt
+  
+  of "enraged":
+    # Aggressive zigzag movement toward player
+    let zigzagAngle = sin(game.time * 8.0) * 0.8
+    let zigzagDir = newVector2f(
+      toPlayer.x * cos(zigzagAngle) - toPlayer.y * sin(zigzagAngle),
+      toPlayer.x * sin(zigzagAngle) + toPlayer.y * cos(zigzagAngle)
+    )
+    enemy.pos = enemy.pos + zigzagDir * enemy.speed * 1.3 * dt
+  
+  of "balanced_assault":
+    # Measured approach - maintains optimal distance
+    const optimalDist = 180.0
+    if playerDist > optimalDist + 50:
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
+    elif playerDist < optimalDist - 50:
+      enemy.pos = enemy.pos + toPlayer * -1.0 * enemy.speed * dt
+    else:
+      # Circle strafe at optimal distance
+      let tangent = newVector2f(-toPlayer.y, toPlayer.x)
+      enemy.pos = enemy.pos + tangent * enemy.speed * 0.7 * dt
+  
+  of "aggressive_mixed":
+    # Alternates between aggressive and tactical movement
+    if (game.time * 10).int mod 7 < 4:
+      # Aggressive: charge player
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.2 * dt
+    else:
+      # Tactical: circle strafe
+      let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
+      let mixedDir = (toPlayer * 0.4 + strafeDir * 0.6).normalize()
+      enemy.pos = enemy.pos + mixedDir * enemy.speed * dt
+  
+  of "adaptive_combat":
+    # Adapts movement based on player distance
+    if playerDist > 300:
+      # Far: aggressive chase
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.4 * dt
+    elif playerDist > 150:
+      # Medium: tactical circle
+      let angle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
+      let newAngle = angle + (100.0 * dt / 180.0)
+      enemy.pos.x = game.player.pos.x + cos(newAngle) * 200.0
+      enemy.pos.y = game.player.pos.y + sin(newAngle) * 200.0
+    else:
+      # Close: retreat while facing player
+      enemy.pos = enemy.pos + toPlayer * -1.0 * enemy.speed * 0.8 * dt
+  
+  of "final_form":
+    # Ultimate chaotic movement - combines multiple patterns
+    let phase1 = toPlayer * sin(game.time * 4.0)
+    let phase2 = newVector2f(-toPlayer.y, toPlayer.x) * cos(game.time * 3'f32)
+    let phase3 = sin(game.time * 5.0) * 0.3
+    let combinedDir = (phase1 + phase2).normalize()
+    enemy.pos = enemy.pos + combinedDir * enemy.speed * (1.3 + phase3) * dt
+  
+  of "berserk_rampage":
+    # Rapid charging in random directions with player tracking
+    if (game.time * 2.0).int mod 3 == 0:
+      # Charge at player
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.8 * dt
+    else:
+      # Wild movement with player bias
+      let randomAngle = sin(game.time * 12.0 + enemy.pos.x * 0.05) * PI
+      let wildDir = newVector2f(cos(randomAngle), sin(randomAngle))
+      let biasedDir = (wildDir * 0.6 + toPlayer * 0.4).normalize()
+      enemy.pos = enemy.pos + biasedDir * enemy.speed * 1.4 * dt
+  
+  of "prism_defense":
+    # Slow methodical movement with defensive positioning
+    let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
+    let defensivePos = (toCenter * 0.7 + toPlayer * 0.3).normalize()
+    enemy.pos = enemy.pos + defensivePos * enemy.speed * 0.5 * dt
+  
+  of "prism_array":
+    # Triangular pattern movement around center
+    let triPhase = game.time * 0.8
+    let triAngle = (triPhase * 2.0 * PI / 3.0).int mod 3
+    let targetAngle = triAngle.float32 * 2.0 * PI / 3.0
+    let triRadius = 150.0
+    let targetX = centerX + cos(targetAngle) * triRadius
+    let targetY = centerY + sin(targetAngle) * triRadius
+    let toTarget = (newVector2f(targetX, targetY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toTarget * enemy.speed * dt
+  
+  of "light_cascade":
+    # Rapid sweeping movement across the arena
+    let sweep = sin(game.time * 1.5) * (game.screenWidth.float32 * 0.4)
+    let targetX = centerX + sweep
+    let targetY = centerY + cos(game.time * 1.2) * 80.0
+    let toTarget = (newVector2f(targetX, targetY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toTarget * enemy.speed * 1.2 * dt
+  
+  of "slow_time":
+    # Deliberate slow movement with time distortion effect
+    let slowDir = toPlayer * 0.3 + newVector2f(sin(game.time), cos(game.time)) * 0.7
+    enemy.pos = enemy.pos + slowDir.normalize() * enemy.speed * 0.4 * dt
+  
+  of "time_distortion":
+    # Erratic time-warped movement
+    let warpPhase = sin(game.time * 6.0)
+    if warpPhase > 0.5:
+      # Fast forward
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.6 * dt
+    elif warpPhase < -0.5:
+      # Rewind (retreat)
+      enemy.pos = enemy.pos + toPlayer * -1.0 * enemy.speed * dt
+    else:
+      # Normal time
+      let perpDir = newVector2f(-toPlayer.y, toPlayer.x)
+      enemy.pos = enemy.pos + perpDir * enemy.speed * 0.8 * dt
+  
+  of "time_collapse":
+    # Rapid unpredictable teleport-like movement
+    let collapsePhase = (game.time * 5.0).int mod 4
+    case collapsePhase
+    of 0:
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 2.0 * dt
+    of 1:
+      let perpDir = newVector2f(-toPlayer.y, toPlayer.x)
+      enemy.pos = enemy.pos + perpDir * enemy.speed * 1.5 * dt
+    of 2:
+      enemy.pos = enemy.pos + toPlayer * -1.0 * enemy.speed * dt
+    else:
+      let diagDir = (toPlayer + newVector2f(-toPlayer.y, toPlayer.x)).normalize()
+      enemy.pos = enemy.pos + diagDir * enemy.speed * 1.3 * dt
+  
+  of "chaotic_movement":
+    # Pure chaos - unpredictable random movement
+    let chaosAngle = rand(1.0) * PI * 2.0
+    let chaosDir = newVector2f(cos(chaosAngle), sin(chaosAngle))
+    let playerBias = toPlayer * 0.3  # Slight player tracking
+    let finalDir = (chaosDir * 0.7 + playerBias).normalize()
+    enemy.pos = enemy.pos + finalDir * enemy.speed * 1.2 * dt
+  
+  of "entropy_field":
+    # Spiral outward from center with chaos
+    let spiralAngle = game.time * 2.0
+    let spiralRadius = 100'f32 + float32((int(game.time * 20.0)) mod 150)
+    let spiralX = centerX + cos(spiralAngle) * spiralRadius.float32
+    let spiralY = centerY + sin(spiralAngle) * spiralRadius.float32
+    let toSpiral = (newVector2f(spiralX, spiralY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toSpiral * enemy.speed * 1.1 * dt
+  
+  of "total_chaos":
+    # Maximum chaos - combines all unpredictable patterns
+    let chaosMix = rand(100)
+    if chaosMix < 30:
+      # Random teleport-like dash
+      let dashAngle = rand(1.0) * PI * 2.0
+      let dashDir = newVector2f(cos(dashAngle), sin(dashAngle))
+      enemy.pos = enemy.pos + dashDir * enemy.speed * 2.0 * dt
+    elif chaosMix < 60:
+      # Aggressive player tracking
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.8 * dt
+    elif chaosMix < 80:
+      # Spiral movement
+      let angle = game.time * 4.0
+      let spiralDir = newVector2f(cos(angle), sin(angle))
+      enemy.pos = enemy.pos + spiralDir * enemy.speed * 1.4 * dt
+    else:
+      # Retreat in circles
+      let retreatAngle = arctan2(toPlayer.y, toPlayer.x) + PI / 2.0
+      let retreatDir = newVector2f(cos(retreatAngle), sin(retreatAngle))
+      enemy.pos = enemy.pos + retreatDir * enemy.speed * dt
+  
   else:
     # Unknown behavior - default to aggressive
     enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
@@ -828,6 +1019,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
   
   of bapLaser:
+    # IMPROVED: Boss laser with proper warning system
     # Laser patterns customized via specialData
     # "cross_laser" = standard cross pattern
     # "rotating_grid" = rotating grid of lasers
@@ -839,10 +1031,8 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       of "prismatic_cage": attack.projectileCount * 3  # Triple density for cage
       else: attack.projectileCount
     
-    # Add warning visual before lasers fire
-    game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "cross", 0.3))
-    
-    # Create lasers based on pattern
+    # Calculate all laser angles for the warning system
+    var warningAngles: seq[float32] = @[]
     for i in 0..<laserCount:
       let angle = case patternType
         of "rotating_grid":
@@ -857,16 +1047,23 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         else:
           # Cross pattern (default)
           i.float32 * attack.spreadAngle.degToRad() + game.time
-      
-      game.lasers.add(newLaser(
-        enemy.pos.x, enemy.pos.y,
-        direction = 2,  # Cross pattern
-        length = 800.0,
-        thickness = 15.0,
-        damage = attack.damage.int * phase.damageMultiplier.int,
-        duration = attack.durationOrRadius,
-        rotation = angle
-      ))
+      warningAngles.add(angle)
+    
+    # Add boss laser warning with proper visual indicators
+    # WARNING: Show for 1.2 seconds before firing (much longer than current 0.3s)
+    const BOSS_LASER_WARNING_TIME = 1.2
+    let laserDamage = (attack.damage * phase.damageMultiplier).int
+    game.attackWarnings.add(newBossLaserWarning(
+      enemy.pos.x, enemy.pos.y, 
+      BOSS_LASER_WARNING_TIME,
+      warningAngles,
+      800.0,  # Warning length matches laser length
+      laserDamage,
+      attack.durationOrRadius  # Laser active duration
+    ))
+    
+    # NOTE: Lasers are NOT created immediately
+    # They will be created when warning lifetime reaches 0 (handled in updateGame)
   
   of bapBarrage:
     # Massive bullet spray
@@ -1172,10 +1369,32 @@ proc updateGame*(game: var Game, dt: float32) =
   game.spawnTimer += dt
   game.difficulty = game.time / 10.0  # Difficulty increases every 10 seconds
   
-  # Update attack warnings
+  # Update attack warnings and create lasers from boss warnings when they expire
   var i = 0
   while i < game.attackWarnings.len:
     game.attackWarnings[i].lifetime -= dt
+    
+    # BOSS LASER SYSTEM: Create lasers when warning expires (at 0.1s remaining for smooth transition)
+    if game.attackWarnings[i].attackType == "boss_laser" and 
+       not game.attackWarnings[i].lasersCreated and
+       game.attackWarnings[i].lifetime <= 0.1:
+      
+      # Create all the lasers for this warning
+      for angle in game.attackWarnings[i].laserAngles:
+        game.lasers.add(newLaser(
+          game.attackWarnings[i].pos.x,
+          game.attackWarnings[i].pos.y,
+          direction = 2,  # Cross pattern (will use rotation)
+          length = game.attackWarnings[i].laserLength,
+          thickness = 15.0,
+          damage = game.attackWarnings[i].laserDamage,
+          duration = game.attackWarnings[i].laserDuration,
+          rotation = angle
+        ))
+      
+      # Mark lasers as created
+      game.attackWarnings[i].lasersCreated = true
+    
     if game.attackWarnings[i].lifetime <= 0:
       game.attackWarnings.delete(i)
       continue
