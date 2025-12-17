@@ -625,6 +625,142 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   
   playSound(stShoot, 0.25)
 
+proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefinition, dt: float32) =
+  ## Updates boss movement based on phase specialBehavior
+  if phase.specialBehavior == "":
+    return  # No special behavior
+  
+  let playerDist = distance(enemy.pos, game.player.pos)
+  let toPlayer = (game.player.pos - enemy.pos).normalize()
+  let centerX = game.screenWidth.float32 / 2.0
+  let centerY = game.screenHeight.float32 / 2.0
+  
+  case phase.specialBehavior
+  of "circle_movement":
+    # Orbit around center using time-based angle (prevents teleportation)
+    let orbitRadius = 200.0
+    let orbitSpeed = 0.4  # Radians per second (decreased from 90.0/200.0 for smoother motion)
+    let angle = game.time * orbitSpeed
+    enemy.pos.x = centerX + cos(angle) * orbitRadius
+    enemy.pos.y = centerY + sin(angle) * orbitRadius
+  
+  of "circle_player":
+    # Orbit around player specifically
+    let orbitRadius = 180.0
+    let orbitSpeed = 80.0
+    let angle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
+    let newAngle = angle + (orbitSpeed * dt / orbitRadius)
+    enemy.pos.x = game.player.pos.x + cos(newAngle) * orbitRadius
+    enemy.pos.y = game.player.pos.y + sin(newAngle) * orbitRadius
+  
+  of "aggressive":
+    # Chase player directly
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
+  
+  of "defensive":
+    # Keep distance from player
+    if playerDist < 250.0:
+      let retreatDir = toPlayer * -1.0
+      enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.5 * dt
+    else:
+      # Drift toward center if far from player
+      let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
+      enemy.pos = enemy.pos + toCenter * enemy.speed * 0.3 * dt
+  
+  of "geometric_movement":
+    # Square/geometric pattern movement
+    let patternPhase = game.time * 1.0
+    let sinePhase = sin(patternPhase) * 150.0
+    let cosinePhase = cos(patternPhase) * 150.0
+    enemy.pos.x = centerX + sinePhase
+    enemy.pos.y = centerY + cosinePhase
+  
+  of "teleport_pattern":
+    # Occasionally teleport (handled via attacks, just face player here)
+    if playerDist > 150.0:
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * dt * 0.5
+  
+  of "clone_assault":
+    # Erratic movement toward player with sudden direction changes
+    if game.time.int mod 2 == 0:  # Change direction every 2 seconds
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
+    else:
+      let perpDir = newVector2f(-toPlayer.y, toPlayer.x)
+      enemy.pos = enemy.pos + perpDir * enemy.speed * dt
+  
+  of "reality_break":
+    # Chaotic unpredictable movement
+    let randomAngle = rand(1.0) * PI * 2.0
+    let randomDir = newVector2f(cos(randomAngle), sin(randomAngle))
+    enemy.pos = enemy.pos + randomDir * enemy.speed * dt
+  
+  of "laser_web":
+    # Stay in center, minimal movement
+    let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toCenter * 20.0 * dt  # Very slow drift to center
+  
+  of "laser_chaos":
+    # Rapid erratic movement
+    let angle = game.time * 3.0 + enemy.pos.x * 0.01
+    let chaosDir = newVector2f(cos(angle), sin(angle))
+    enemy.pos = enemy.pos + chaosDir * enemy.speed * dt * 0.8
+  
+  of "slow_charge":
+    # Slow movement toward player, charging up
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 0.3 * dt
+  
+  of "electric_storm":
+    # Fast erratic movement
+    let angle = game.time * 2.5
+    let stormDir = newVector2f(cos(angle + enemy.pos.x * 0.02), sin(angle + enemy.pos.y * 0.02))
+    enemy.pos = enemy.pos + stormDir * enemy.speed * dt
+  
+  of "overcharged":
+    # Very fast aggressive movement
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.2 * dt
+  
+  of "deploy_satellites":
+    # Stationary in center
+    enemy.pos = newVector2f(centerX, centerY)
+  
+  of "multi_orbital":
+    # Slow rotation around player
+    let orbitRadius = 150.0
+    let orbitSpeed = 50.0
+    let angle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
+    let newAngle = angle + (orbitSpeed * dt / orbitRadius)
+    enemy.pos.x = game.player.pos.x + cos(newAngle) * orbitRadius
+    enemy.pos.y = game.player.pos.y + sin(newAngle) * orbitRadius
+  
+  of "orbital_chaos":
+    # Fast erratic orbital movement
+    let orbitRadius = 200.0 + sin(game.time) * 50.0
+    let orbitSpeed = 150.0
+    let angle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
+    let newAngle = angle + (orbitSpeed * dt / orbitRadius)
+    enemy.pos.x = game.player.pos.x + cos(newAngle) * orbitRadius
+    enemy.pos.y = game.player.pos.y + sin(newAngle) * orbitRadius
+  
+  of "aggressive_chase":
+    # Fast aggressive chase
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.1 * dt
+  
+  of "enraged_assault":
+    # Rapid aggressive movement with occasional direction change
+    if game.time.int mod 3 == 0:
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.3 * dt
+    else:
+      let sideDir = newVector2f(-toPlayer.y, toPlayer.x)
+      enemy.pos = enemy.pos + sideDir * enemy.speed * dt
+  
+  of "unstoppable":
+    # Extremely fast movement toward player
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.5 * dt
+  
+  else:
+    # Unknown behavior - default to aggressive
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
+
 proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
   ## Executes a single boss attack based on its pattern type
   let toPlayer = (game.player.pos - enemy.pos).normalize()
@@ -692,12 +828,36 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
   
   of bapLaser:
-    # Add warning visual before laser fires (0.3 second telegraph)
+    # Laser patterns customized via specialData
+    # "cross_laser" = standard cross pattern
+    # "rotating_grid" = rotating grid of lasers
+    # "prismatic_cage" = many lasers creating cage effect
+    
+    let patternType = attack.specialData
+    let laserCount = case patternType
+      of "rotating_grid": attack.projectileCount * 2  # Double density for grid
+      of "prismatic_cage": attack.projectileCount * 3  # Triple density for cage
+      else: attack.projectileCount
+    
+    # Add warning visual before lasers fire
     game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "cross", 0.3))
     
-    # Cross or rotating laser pattern
-    for i in 0..<attack.projectileCount:
-      let angle = i.float32 * attack.spreadAngle.degToRad() + game.time
+    # Create lasers based on pattern
+    for i in 0..<laserCount:
+      let angle = case patternType
+        of "rotating_grid":
+          # Grid pattern - two perpendicular sets
+          if i.float < laserCount / 2:
+            i.float32 * attack.spreadAngle.degToRad() / (laserCount / 2).float32
+          else:
+            (i.float32 - laserCount.float / 2.0) * attack.spreadAngle.degToRad() / (laserCount / 2).float32 + PI / 2.0
+        of "prismatic_cage":
+          # Many radial lasers
+          i.float32 * PI * 2.0 / laserCount.float32
+        else:
+          # Cross pattern (default)
+          i.float32 * attack.spreadAngle.degToRad() + game.time
+      
       game.lasers.add(newLaser(
         enemy.pos.x, enemy.pos.y,
         direction = 2,  # Cross pattern
@@ -731,33 +891,81 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
   
   of bapSummon:
-    # Spawn minion enemies around the boss
+    # Spawn minion enemies around the boss - customizable via specialData
+    # Parse specialData to determine minion types: "minion_circle", "minion_triangle", "minion_mixed"
+    var minionType = etCircle  # Default
+    var useVariation = false
+    
+    if attack.specialData != "":
+      case attack.specialData
+      of "minion_circle":
+        minionType = etCircle
+      of "minion_triangle":
+        minionType = etTriangle
+      of "minion_cube":
+        minionType = etCube
+      of "minion_pentagon":
+        minionType = etPentagon
+      of "minion_mixed":
+        useVariation = true  # Vary minion types
+      else:
+        minionType = etCircle
+    
     for i in 0..<attack.projectileCount:
       let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
       let spawnDist = enemy.radius + 60.0  # Spawn outside boss radius
       let spawnX = enemy.pos.x + cos(angle) * spawnDist
       let spawnY = enemy.pos.y + sin(angle) * spawnDist
       
-      # Create a minion enemy - use circle type as default minion
+      # Determine this minion's type
+      var thisType = minionType
+      if useVariation:
+        # Vary between circle, triangle, and cube based on index
+        thisType = case i mod 3
+          of 0: etCircle
+          of 1: etTriangle
+          else: etCube
+      
+      # Create minion with determined type
       let minion = newEnemy(
         spawnX, spawnY, 
         game.difficulty * 0.6,  # Minions are weaker than regular enemies
-        etCircle,
+        thisType,
         game
       )
       # Mark as boss-spawned so it doesn't drop coins (prevent farming)
       minion.spawnedByBoss = true
+      
+      # NERF: Make boss-summoned minions smaller and slower
+      minion.radius = minion.radius * 0.65  # 35% smaller
+      minion.collisionRadius = minion.collisionRadius * 0.65  # Keep collision consistent
+      minion.speed = minion.speed * 0.70  # 30% slower
+      
       game.enemies.add(minion)
     
     # Visual feedback for summoning
     spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
   
   of bapMeteor:
-    # Falling projectiles from above 
+    # Falling projectiles from above - customizable via specialData
+    # "warn_impact" = show visual warnings before meteors hit
+    # "massive_impact" = larger impact radius
+    # "apocalypse_mode" = massive meteors with longer warnings
+    
+    let showWarning = attack.specialData.contains("warn")
+    let impactRadius = case attack.specialData
+      of "massive_impact": attack.durationOrRadius * 1.5
+      of "apocalypse_mode": attack.durationOrRadius * 2.0
+      else: attack.durationOrRadius
+    
     for i in 0..<attack.projectileCount:
       # Randomly place meteors around player
-      let offsetX = (rand(1.0) - 0.5) * attack.durationOrRadius * 2.0
+      let offsetX = (rand(1.0) - 0.5) * impactRadius * 2.0
       let targetX = game.player.pos.x + offsetX
+      
+      # Show warning circle if specified
+      if showWarning:
+        game.attackWarnings.add(newAttackWarning(targetX, game.screenHeight.float32 + 50.0, "meteor", 0.5))
       
       # Spawn meteor from above
       let startY = -50.0
@@ -770,32 +978,61 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
   
   of bapOrbit:
-    # Orbiting projectiles around boss (implementation creates rotating bullets)
-    for i in 0..<attack.projectileCount:
-      let angle = i.float32 * attack.spreadAngle.degToRad() + game.time * 2.0
-      let orbitRadius = attack.durationOrRadius
-      let orbitX = enemy.pos.x + cos(angle) * orbitRadius
-      let orbitY = enemy.pos.y + sin(angle) * orbitRadius
+    # Orbiting projectiles around boss - customized via specialData
+    # "satellite_orbit" = standard single orbit
+    # "dual_layer_orbit" = two layers rotating at different speeds
+    # "orbital_storm" = multiple dense layers
+    
+    let orbitMode = attack.specialData
+    let layerCount = case orbitMode
+      of "dual_layer_orbit": 2
+      of "orbital_storm": 3
+      else: 1
+    
+    for layer in 0..<layerCount:
+      let layerOffset = layer.float32 * PI * 2.0 / layerCount.float32
+      let layerSpeedMultiplier = 1.0 + (layer.float32 * 0.5)  # Layers rotate at different speeds
+      let bulletsPerLayer = if orbitMode == "orbital_storm": attack.projectileCount * 2 else: attack.projectileCount
       
-      # Create bullet at orbit position moving tangentially
-      let tangentAngle = angle + PI / 2.0
-      let dir = newVector2f(cos(tangentAngle), sin(tangentAngle))
-      
-      game.bullets.add(newBullet(
-        x = orbitX, y = orbitY, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
-      ))
+      for i in 0..<bulletsPerLayer:
+        let angle = i.float32 * attack.spreadAngle.degToRad() + (game.time * 2.0 * layerSpeedMultiplier) + layerOffset
+        let orbitRadius = attack.durationOrRadius * (0.8 + layer.float32 * 0.3)  # Different radius per layer
+        let orbitX = enemy.pos.x + cos(angle) * orbitRadius
+        let orbitY = enemy.pos.y + sin(angle) * orbitRadius
+        
+        # Create bullet at orbit position moving tangentially
+        let tangentAngle = angle + PI / 2.0
+        let dir = newVector2f(cos(tangentAngle), sin(tangentAngle))
+        
+        game.bullets.add(newBullet(
+          x = orbitX, y = orbitY, direction = dir,
+          speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        ))
   
   of bapChain:
-    # Chain lightning effect (creates expanding circle with electric effect)
-    let chainCount = attack.projectileCount
-    for i in 0..<chainCount:
-      let angle = i.float32 * PI * 2.0 / chainCount.float32 + rand(0.5)
+    # Chain lightning effect - customized via specialData
+    # "chain_4_targets" = 4 target chain
+    # "chain_lightning_storm" = dense multi-chain
+    # "massive_chain" = extra-dense chains
+    
+    let chainMode = attack.specialData
+    let effectiveChainCount = case chainMode
+      of "chain_lightning_storm": attack.projectileCount + 2
+      of "massive_chain": attack.projectileCount + 4
+      else: attack.projectileCount
+    
+    let bulletMultiplier = case chainMode
+      of "massive_chain": 4
+      of "chain_lightning_storm": 3
+      else: 3
+    
+    for i in 0..<effectiveChainCount:
+      let angle = i.float32 * PI * 2.0 / effectiveChainCount.float32 + rand(0.5)
       let dir = newVector2f(cos(angle), sin(angle))
       
       # Create multiple bullets in chain sequence
-      for j in 0..2:
+      for j in 0..<bulletMultiplier:
         let distance = j.float32 * 60.0
         game.bullets.add(newBullet(
           x = enemy.pos.x + dir.x * distance, 
@@ -810,29 +1047,50 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Yellow, 20)
   
   of bapTeleport:
-    # Teleport to new location and shoot
-    let newX = game.screenWidth.float32 * (0.2 + rand(0.6))
-    let newY = game.screenHeight.float32 * (0.2 + rand(0.6))
+    # Teleport to new location and shoot - customized via specialData
+    # "afterimage_burst" = creates multiple images with burst effect
+    # "triple_clone" = teleports to 3 locations simultaneously
+    # "dimensional_rift" = creates rift visual effect
     
-    # Visual effect at old position
+    let teleportMode = attack.specialData
+    let teleportCount = case teleportMode
+      of "triple_clone": 3
+      else: 1
+    
+    # Create visual effect for each teleport
     spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
     
-    # Teleport boss
-    enemy.pos = newVector2f(newX, newY)
-    
-    # Visual effect at new position
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
-    
-    # Shoot burst after teleport
-    if attack.projectileCount > 0:
-      for i in 0..<attack.projectileCount:
-        let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
-        let dir = newVector2f(cos(angle), sin(angle))
-        game.bullets.add(newBullet(
-          x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-          speed = 200.0, damage = attack.damage * phase.damageMultiplier,
-          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
-        ))
+    # Perform teleports
+    var teleportPositions: seq[Vector2f] = @[]
+    for t in 0..<teleportCount:
+      let newX = game.screenWidth.float32 * (0.2 + rand(0.6))
+      let newY = game.screenHeight.float32 * (0.2 + rand(0.6))
+      teleportPositions.add(newVector2f(newX, newY))
+      
+      # Teleport boss to first position (update actual position)
+      if t == 0:
+        enemy.pos = newVector2f(newX, newY)
+      
+      # Visual effect at new position
+      spawnExplosion(game.particles, newX, newY, phase.color, 15)
+      
+      # Shoot burst after each teleport
+      if attack.projectileCount > 0:
+        for i in 0..<attack.projectileCount:
+          let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
+          let dir = newVector2f(cos(angle), sin(angle))
+          
+          # For triple clone, shoot from alternate positions too
+          let shootPos = if teleportMode == "triple_clone" and t > 0:
+            teleportPositions[t]
+          else:
+            enemy.pos
+          
+          game.bullets.add(newBullet(
+            x = shootPos.x, y = shootPos.y, direction = dir,
+            speed = 200.0, damage = attack.damage * phase.damageMultiplier,
+            fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+          ))
   
   of bapDash:
     # Dash toward player at high speed
@@ -2030,6 +2288,11 @@ proc updateGame*(game: var Game, dt: float32) =
             enemy.color = phase.color
             enemy.speed = bossDef.baseSpeed * phase.speedMultiplier
             break
+        
+        # Update boss behavior based on specialBehavior
+        if enemy.currentPhaseIndex < bossDef.phases.len:
+          let phase = bossDef.phases[enemy.currentPhaseIndex]
+          updateCustomBossBehavior(game, enemy, phase, dt)
         
         # Update attack timers
         for i in 0..<enemy.attackTimers.len:
