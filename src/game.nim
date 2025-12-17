@@ -911,40 +911,58 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       else:
         minionType = etCircle
     
-    for i in 0..<attack.projectileCount:
-      let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
-      let spawnDist = enemy.radius + 60.0  # Spawn outside boss radius
-      let spawnX = enemy.pos.x + cos(angle) * spawnDist
-      let spawnY = enemy.pos.y + sin(angle) * spawnDist
-      
-      # Determine this minion's type
-      var thisType = minionType
-      if useVariation:
-        # Vary between circle, triangle, and cube based on index
-        thisType = case i mod 3
-          of 0: etCircle
-          of 1: etTriangle
-          else: etCube
-      
-      # Create minion with determined type
-      let minion = newEnemy(
-        spawnX, spawnY, 
-        game.difficulty * 0.6,  # Minions are weaker than regular enemies
-        thisType,
-        game
-      )
-      # Mark as boss-spawned so it doesn't drop coins (prevent farming)
-      minion.spawnedByBoss = true
-      
-      # NERF: Make boss-summoned minions smaller and slower
-      minion.radius = minion.radius * 0.65  # 35% smaller
-      minion.collisionRadius = minion.collisionRadius * 0.65  # Keep collision consistent
-      minion.speed = minion.speed * 0.70  # 30% slower
-      
-      game.enemies.add(minion)
+    # CAP: Count existing boss-spawned enemies to prevent overwhelming defensive builds
+    var bossSpawnedCount = 0
+    for e in game.enemies:
+      if e.spawnedByBoss:
+        bossSpawnedCount += 1
     
-    # Visual feedback for summoning
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
+    # Maximum boss-spawned enemies allowed at once (configurable cap)
+    const MAX_BOSS_SPAWNED_ENEMIES = 12
+    
+    # Calculate how many we can actually spawn
+    let maxToSpawn = max(0, MAX_BOSS_SPAWNED_ENEMIES - bossSpawnedCount)
+    let actualSpawnCount = min(attack.projectileCount, maxToSpawn)
+    
+    # Only proceed if we can spawn at least one enemy
+    if actualSpawnCount <= 0:
+      # Skip spawning but still show visual feedback
+      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 8)
+    else:
+      for i in 0..<actualSpawnCount:
+        let angle = i.float32 * PI * 2.0 / actualSpawnCount.float32
+        let spawnDist = enemy.radius + 60.0  # Spawn outside boss radius
+        let spawnX = enemy.pos.x + cos(angle) * spawnDist
+        let spawnY = enemy.pos.y + sin(angle) * spawnDist
+        
+        # Determine this minion's type
+        var thisType = minionType
+        if useVariation:
+          # Vary between circle, triangle, and cube based on index
+          thisType = case i mod 3
+            of 0: etCircle
+            of 1: etTriangle
+            else: etCube
+        
+        # Create minion with determined type
+        let minion = newEnemy(
+          spawnX, spawnY, 
+          game.difficulty * 0.6,  # Minions are weaker than regular enemies
+          thisType,
+          game
+        )
+        # Mark as boss-spawned so it doesn't drop coins (prevent farming)
+        minion.spawnedByBoss = true
+        
+        # NERF: Make boss-summoned minions smaller and slower
+        minion.radius = minion.radius * 0.65  # 35% smaller
+        minion.collisionRadius = minion.collisionRadius * 0.65  # Keep collision consistent
+        minion.speed = minion.speed * 0.70  # 30% slower
+        
+        game.enemies.add(minion)
+      
+      # Visual feedback for summoning
+      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
   
   of bapMeteor:
     # Falling projectiles from above - customizable via specialData
