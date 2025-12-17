@@ -65,8 +65,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Spiral Guardian",
       bossID: 1,
-      baseHP: 180.0,  # BUFFED from 120.0 (50% more HP)
-      baseSpeed: 85.0,  # BUFFED from 70.0 (faster movement)
+      baseHP: 150.0,  # BUFFED from 120.0 (more HP)
+      baseSpeed: 80.0,  # BUFFED from 70.0 (faster movement)
       baseDamage: 1,
       baseRadius: 45.0,
       color: Color(r: 100, g: 50, b: 200, a: 255),
@@ -106,8 +106,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Spiral Rage",
           hpThreshold: 0.5,
-          speedMultiplier: 1.4,  # BUFFED from 1.3 (more aggressive)
-          damageMultiplier: 1.3,  # BUFFED from 1.2
+          speedMultiplier: 1.33,  # BUFFED from 1.3
+          damageMultiplier: 1.33,  # BUFFED from 1.2
           defenseMultiplier: 0.9,
           color: Color(r: 150, g: 30, b: 255, a: 255),
           visualEffect: "aura",
@@ -116,9 +116,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 1.0,  # BUFFED from 1.5 (much faster)
-              projectileSpeed: 200.0,  # BUFFED from 180.0
-              projectileCount: 16,  # BUFFED from 12 (more bullets)
+              cooldown: 1.25,  # BUFFED from 1.5 (faster)
+              projectileSpeed: 190.0,  # BUFFED from 180.0
+              projectileCount: 15,  # BUFFED from 12 (more bullets)
               spreadAngle: 30.0,
               durationOrRadius: 0.0
             ),
@@ -135,8 +135,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapTargeted,  # MORE AGGRESSIVE: Targeted shots
               damage: 1.0,
               cooldown: 1.5,
-              projectileSpeed: 220.0,
-              projectileCount: 5,
+              projectileSpeed: 190.0,
+              projectileCount: 4,
               spreadAngle: 25.0,
               durationOrRadius: 0.0
             )
@@ -149,7 +149,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Summoner King",
       bossID: 2,
-      baseHP: 300.0,  # BUFFED from 200.0 (50% more HP)
+      baseHP: 250.0,  # BUFFED from 200.0 (25% more HP)
       baseSpeed: 70.0,  # BUFFED from 60.0 (faster movement)
       baseDamage: 1,
       baseRadius: 50.0,
@@ -180,8 +180,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapWave,  # NEW: Added wave attack in phase 1
               damage: 1.0,
-              cooldown: 3.0,
-              projectileSpeed: 160.0,
+              cooldown: 2.75,
+              projectileSpeed: 150.0,
               projectileCount: 5,
               spreadAngle: 50.0,
               durationOrRadius: 0.0
@@ -192,7 +192,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Swarm Commander",
           hpThreshold: 0.6,
           speedMultiplier: 1.1,  # BUFFED from 1.0 (faster)
-          damageMultiplier: 1.4,  # BUFFED from 1.3
+          damageMultiplier: 1.35,  # BUFFED from 1.3
           defenseMultiplier: 1.1,
           color: Color(r: 30, g: 200, b: 30, a: 255),
           visualEffect: "glow",
@@ -212,8 +212,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapBurst,
               damage: 1.0,
               cooldown: 2.0,  # BUFFED from 2.5 (faster)
-              projectileSpeed: 180.0,  # BUFFED from 150.0
-              projectileCount: 7,  # BUFFED from 5 (more bullets)
+              projectileSpeed: 170.0,  # BUFFED from 150.0
+              projectileCount: 6,  # BUFFED from 5 (more bullets)
               spreadAngle: 60.0,
               durationOrRadius: 0.0
             ),
