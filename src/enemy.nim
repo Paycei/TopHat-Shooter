@@ -86,7 +86,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       collisionRadius: (11 + difficulty * 1.0) * 0.4,  # 40% of visual size
       hp: 1.2 * strengthMultiplier,
       maxHp: 1.2 * strengthMultiplier,
-      speed: 160 + difficulty * 15,
+      speed: 155 + difficulty * 10,
       damage: 2,
       color: Pink,
       enemyType: etTriangle,
@@ -1861,7 +1861,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # 40% faster movement
       enemy.speed *= (1.40 * eliteScaling * effectMultiplier)
       # Cap speed increase
-      let maxSpeed = 4000.0
+      let maxSpeed = 1000.0
       if enemy.speed > maxSpeed:
         enemy.speed = maxSpeed
       enemy.shootTimer *= 0.6  # Faster shooting

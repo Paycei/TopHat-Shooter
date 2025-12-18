@@ -324,6 +324,15 @@ type
     maxLifetime*: float32
     size*: float32
 
+  DamageNumber* = ref object
+    pos*: Vector2f          # Current position
+    vel*: Vector2f          # Velocity (moves upward and fades)
+    damage*: float32        # Amount of damage to display
+    lifetime*: float32      # How long the number has existed
+    maxLifetime*: float32   # Total duration before disappearing
+    fromPlayer*: bool       # True if player dealt damage, false if enemy dealt damage
+    isCritical*: bool       # True for critical hits (larger, different color)
+
   Laser* = ref object
     pos*: Vector2f          # Center position
     direction*: int         # 0=horizontal, 1=vertical, 2=both (cross)
@@ -353,6 +362,7 @@ type
     particles*: seq[Particle]
     attackWarnings*: seq[AttackWarning]
     lasers*: seq[Laser]  # Add laser tracking
+    damageNumbers*: seq[DamageNumber]  # Floating damage numbers
     time*: float32
     spawnTimer*: float32
     bossTimer*: float32

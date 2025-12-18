@@ -1416,6 +1416,16 @@ proc updateGame*(game: var Game, dt: float32) =
       if hit:
         if takeDamage(game.player, laser.damage.float32):
           game.state = gsGameOver
+        
+        # Create damage number for laser damage
+        game.damageNumbers.add(newDamageNumber(
+          game.player.pos.x,
+          game.player.pos.y,
+          laser.damage.float32,
+          fromPlayer = false,
+          isCritical = false
+        ))
+        
         game.lasers[j].hasHitPlayer = true
     
     # Remove expired lasers
@@ -1442,6 +1452,15 @@ proc updateGame*(game: var Game, dt: float32) =
       
       if takeDamage(game.player, wholeDamage):
         game.state = gsGameOver
+      
+      # Create damage number for poison damage
+      game.damageNumbers.add(newDamageNumber(
+        game.player.pos.x,
+        game.player.pos.y,
+        wholeDamage,
+        fromPlayer = false,
+        isCritical = false
+      ))
       
       # Additional safety check: ensure game ends if HP reaches 0
       if game.player.hp <= 0:
@@ -2337,6 +2356,15 @@ proc updateGame*(game: var Game, dt: float32) =
         if distToPlayer < eliteExplosionRadius:
           if takeDamage(game.player, eliteExplosionDamage):
             game.state = gsGameOver
+          
+          # Create damage number for explosion damage
+          game.damageNumbers.add(newDamageNumber(
+            game.player.pos.x,
+            game.player.pos.y,
+            eliteExplosionDamage,
+            fromPlayer = false,
+            isCritical = false
+          ))
         
         # Create explosion visual
         spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
@@ -2356,6 +2384,15 @@ proc updateGame*(game: var Game, dt: float32) =
         if distToPlayer < explosionRadius:
           if takeDamage(game.player, explosionDamage):
             game.state = gsGameOver
+          
+          # Create damage number for boss explosion damage
+          game.damageNumbers.add(newDamageNumber(
+            game.player.pos.x,
+            game.player.pos.y,
+            explosionDamage,
+            fromPlayer = false,
+            isCritical = false
+          ))
         
         # Create MASSIVE explosion visual with multiple layers
         spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
@@ -2601,6 +2638,16 @@ proc updateGame*(game: var Game, dt: float32) =
           
           if takeDamage(game.player, bossContactDamage):
             game.state = gsGameOver
+          
+          # Create damage number for boss contact damage
+          game.damageNumbers.add(newDamageNumber(
+            game.player.pos.x,
+            game.player.pos.y,
+            bossContactDamage,
+            fromPlayer = false,
+            isCritical = false
+          ))
+          
           playSound(stPlayerHit, 0.6)
           enemy.lastContactDamageTime = game.time
           spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Red, 10)
@@ -2632,6 +2679,16 @@ proc updateGame*(game: var Game, dt: float32) =
         
         if takeDamage(game.player, enemyContactDamage):
           game.state = gsGameOver
+        
+        # Create damage number for enemy contact damage
+        game.damageNumbers.add(newDamageNumber(
+          game.player.pos.x,
+          game.player.pos.y,
+          enemyContactDamage,
+          fromPlayer = false,
+          isCritical = false
+        ))
+        
         playSound(stPlayerHit, 0.5)
         enemy.hp = 0
         game.enemies.delete(enemyIdx)
@@ -2817,6 +2874,16 @@ proc updateGame*(game: var Game, dt: float32) =
                 game.enemies[j].shieldHp = 0
             
             game.enemies[j].hp -= actualDamage
+            
+            # Create damage number (player damage to enemy)
+            let isCrit = finalDamage > bullet.damage  # Critical if final damage exceeds base damage
+            game.damageNumbers.add(newDamageNumber(
+              game.enemies[j].pos.x, 
+              game.enemies[j].pos.y, 
+              actualDamage, 
+              fromPlayer = true,
+              isCritical = isCrit
+            ))
           hitEnemy = true
           
           # Apply frost shot slow effect - INDEFINITE (permanent until enemy dies)
@@ -3110,6 +3177,16 @@ proc updateGame*(game: var Game, dt: float32) =
         
         if takeDamage(game.player, bulletDamage):
           game.state = gsGameOver
+        
+        # Create damage number (enemy damage to player)
+        game.damageNumbers.add(newDamageNumber(
+          game.player.pos.x, 
+          game.player.pos.y, 
+          bulletDamage, 
+          fromPlayer = false,
+          isCritical = false
+        ))
+        
         hitEnemy = true
         spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Red, 8)
     
@@ -3271,6 +3348,14 @@ proc updateGame*(game: var Game, dt: float32) =
   while i < game.particles.len:
     if not updateParticle(game.particles[i], dt):
       game.particles.delete(i)
+      continue
+    i += 1
+  
+  # Update damage numbers
+  i = 0
+  while i < game.damageNumbers.len:
+    if not updateDamageNumber(game.damageNumbers[i], dt):
+      game.damageNumbers.delete(i)
       continue
     i += 1
   
@@ -3583,6 +3668,10 @@ proc drawGame*(game: Game) =
   
   # Draw player
   drawPlayer(game.player)
+  
+  # Draw damage numbers (on top of everything except UI)
+  for damageNum in game.damageNumbers:
+    drawDamageNumber(damageNum)
   
   # Draw UI
   let minutes = (game.time / 60.0).int
