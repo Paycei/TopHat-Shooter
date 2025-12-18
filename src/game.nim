@@ -762,195 +762,175 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Extremely fast movement toward player
     enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.5 * dt
   
-  # ======================================================================
-  # NEW IMPLEMENTATIONS: Missing specialBehavior patterns
-  # ======================================================================
-  
   of "meteor_storm":
-    # Fast erratic movement while raining meteors
-    let angle = game.time * 2.8 + sin(game.time * 4.0) * 0.5
-    let meteorDir = newVector2f(cos(angle), sin(angle))
-    enemy.pos = enemy.pos + meteorDir * enemy.speed * dt * 0.9
-  
-  of "summon_frenzy":
-    # Rapid teleporting movement for summon phase
-    let frenzyCycle = sin(game.time * 3.0)
-    if frenzyCycle > 0.8:
-      # Quick dash toward player
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.4 * dt
-    else:
-      # Circular movement away
-      let tangent = newVector2f(-toPlayer.y, toPlayer.x)
-      enemy.pos = enemy.pos + tangent * enemy.speed * 0.8 * dt
-  
-  of "enraged":
-    # Aggressive zigzag movement toward player
-    let zigzagAngle = sin(game.time * 8.0) * 0.8
-    let zigzagDir = newVector2f(
-      toPlayer.x * cos(zigzagAngle) - toPlayer.y * sin(zigzagAngle),
-      toPlayer.x * sin(zigzagAngle) + toPlayer.y * cos(zigzagAngle)
-    )
-    enemy.pos = enemy.pos + zigzagDir * enemy.speed * 1.3 * dt
-  
-  of "balanced_assault":
-    # Measured approach - maintains optimal distance
-    const optimalDist = 180.0
-    if playerDist > optimalDist + 50:
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
-    elif playerDist < optimalDist - 50:
-      enemy.pos = enemy.pos + toPlayer * -1.0 * enemy.speed * dt
-    else:
-      # Circle strafe at optimal distance
-      let tangent = newVector2f(-toPlayer.y, toPlayer.x)
-      enemy.pos = enemy.pos + tangent * enemy.speed * 0.7 * dt
-  
-  of "aggressive_mixed":
-    # Alternates between aggressive and tactical movement
-    if (game.time * 10).int mod 7 < 4:
-      # Aggressive: charge player
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.2 * dt
-    else:
-      # Tactical: circle strafe
-      let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
-      let mixedDir = (toPlayer * 0.4 + strafeDir * 0.6).normalize()
-      enemy.pos = enemy.pos + mixedDir * enemy.speed * dt
-  
-  of "adaptive_combat":
-    # Adapts movement based on player distance
-    if playerDist > 300:
-      # Far: aggressive chase
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.4 * dt
-    elif playerDist > 150:
-      # Medium: tactical circle
-      let angle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
-      let newAngle = angle + (100.0 * dt / 180.0)
-      enemy.pos.x = game.player.pos.x + cos(newAngle) * 200.0
-      enemy.pos.y = game.player.pos.y + sin(newAngle) * 200.0
-    else:
-      # Close: retreat while facing player
-      enemy.pos = enemy.pos + toPlayer * -1.0 * enemy.speed * 0.8 * dt
-  
-  of "final_form":
-    # Ultimate chaotic movement - combines multiple patterns
-    let phase1 = toPlayer * sin(game.time * 4.0)
-    let phase2 = newVector2f(-toPlayer.y, toPlayer.x) * cos(game.time * 3'f32)
-    let phase3 = sin(game.time * 5.0) * 0.3
-    let combinedDir = (phase1 + phase2).normalize()
-    enemy.pos = enemy.pos + combinedDir * enemy.speed * (1.3 + phase3) * dt
-  
-  of "berserk_rampage":
-    # Rapid charging in random directions with player tracking
-    if (game.time * 2.0).int mod 3 == 0:
-      # Charge at player
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.8 * dt
-    else:
-      # Wild movement with player bias
-      let randomAngle = sin(game.time * 12.0 + enemy.pos.x * 0.05) * PI
-      let wildDir = newVector2f(cos(randomAngle), sin(randomAngle))
-      let biasedDir = (wildDir * 0.6 + toPlayer * 0.4).normalize()
-      enemy.pos = enemy.pos + biasedDir * enemy.speed * 1.4 * dt
-  
-  of "prism_defense":
-    # Slow methodical movement with defensive positioning
-    let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
-    let defensivePos = (toCenter * 0.7 + toPlayer * 0.3).normalize()
-    enemy.pos = enemy.pos + defensivePos * enemy.speed * 0.5 * dt
-  
-  of "prism_array":
-    # Triangular pattern movement around center
-    let triPhase = game.time * 0.8
-    let triAngle = (triPhase * 2.0 * PI / 3.0).int mod 3
-    let targetAngle = triAngle.float32 * 2.0 * PI / 3.0
-    let triRadius = 150.0
-    let targetX = centerX + cos(targetAngle) * triRadius
-    let targetY = centerY + sin(targetAngle) * triRadius
-    let toTarget = (newVector2f(targetX, targetY) - enemy.pos).normalize()
+    # Rapid circling movement with erratic patterns (Meteor Striker phase 2)
+    let meteorAngle = game.time * 2.0 + sin(game.time * 3.0) * 0.5
+    let meteorRadius = 180.0 + cos(game.time * 1.5) * 30.0
+    let meteorX = game.player.pos.x + cos(meteorAngle) * meteorRadius
+    let meteorY = game.player.pos.y + sin(meteorAngle) * meteorRadius
+    let toTarget = (newVector2f(meteorX, meteorY) - enemy.pos).normalize()
     enemy.pos = enemy.pos + toTarget * enemy.speed * dt
   
+  of "summon_frenzy":
+    # Defensive positioning with occasional aggressive bursts (Summoner King phase 2)
+    if game.time.int mod 5 == 0:
+      # Aggressive burst every 5 seconds
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.2 * dt
+    else:
+      # Maintain defensive distance
+      if playerDist < 220.0:
+        let retreatDir = toPlayer * -1.0
+        enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.7 * dt
+      else:
+        # Slow drift toward center
+        let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
+        enemy.pos = enemy.pos + toCenter * enemy.speed * 0.4 * dt
+  
+  of "berserk_rampage":
+    # Extremely fast aggressive chase with wild movements (Berserker phase 3)
+    let berserkerAngle = sin(game.time * 8.0) * 0.6
+    let wildDir = newVector2f(
+      toPlayer.x * cos(berserkerAngle) - toPlayer.y * sin(berserkerAngle),
+      toPlayer.x * sin(berserkerAngle) + toPlayer.y * cos(berserkerAngle)
+    )
+    enemy.pos = enemy.pos + wildDir * enemy.speed * 1.6 * dt
+  
+  of "prism_defense":
+    # Stationary with slight orbital movement (Prism Architect phase 1)
+    let prismOrbitRadius = 80.0
+    let prismAngle = game.time * 0.5
+    let prismX = centerX + cos(prismAngle) * prismOrbitRadius
+    let prismY = centerY + sin(prismAngle) * prismOrbitRadius
+    let toOrbit = (newVector2f(prismX, prismY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toOrbit * enemy.speed * 0.6 * dt
+  
+  of "prism_array":
+    # Figure-8 movement pattern (Prism Architect phase 2)
+    let figure8Time = game.time * 1.5
+    let figure8X = centerX + sin(figure8Time) * 150.0
+    let figure8Y = centerY + sin(figure8Time * 2.0) * 100.0
+    let toFigure8 = (newVector2f(figure8X, figure8Y) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toFigure8 * enemy.speed * dt
+  
   of "light_cascade":
-    # Rapid sweeping movement across the arena
-    let sweep = sin(game.time * 1.5) * (game.screenWidth.float32 * 0.4)
-    let targetX = centerX + sweep
-    let targetY = centerY + cos(game.time * 1.2) * 80.0
-    let toTarget = (newVector2f(targetX, targetY) - enemy.pos).normalize()
-    enemy.pos = enemy.pos + toTarget * enemy.speed * 1.2 * dt
+    # Rapid sweeping movement across the arena (Prism Architect phase 3)
+    let sweepAngle = game.time * 2.5
+    let sweepRadius = 180.0
+    let sweepX = centerX + cos(sweepAngle) * sweepRadius
+    let sweepY = centerY + sin(sweepAngle) * sweepRadius
+    enemy.pos = newVector2f(sweepX, sweepY)  # Direct teleportation for smooth sweep
   
   of "slow_time":
-    # Deliberate slow movement with time distortion effect
-    let slowDir = toPlayer * 0.3 + newVector2f(sin(game.time), cos(game.time)) * 0.7
-    enemy.pos = enemy.pos + slowDir.normalize() * enemy.speed * 0.4 * dt
+    # Very slow methodical movement (Timekeeper phase 1)
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 0.4 * dt
   
   of "time_distortion":
-    # Erratic time-warped movement
-    let warpPhase = sin(game.time * 6.0)
-    if warpPhase > 0.5:
-      # Fast forward
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.6 * dt
-    elif warpPhase < -0.5:
-      # Rewind (retreat)
-      enemy.pos = enemy.pos + toPlayer * -1.0 * enemy.speed * dt
-    else:
-      # Normal time
-      let perpDir = newVector2f(-toPlayer.y, toPlayer.x)
-      enemy.pos = enemy.pos + perpDir * enemy.speed * 0.8 * dt
+    # Stuttering movement with temporal echoes (Timekeeper phase 2)
+    if (game.time * 4.0).int mod 2 == 0:
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.5 * dt
+    # else: freeze in place (temporal pause)
   
   of "time_collapse":
-    # Rapid unpredictable teleport-like movement
-    let collapsePhase = (game.time * 5.0).int mod 4
-    case collapsePhase
-    of 0:
+    # Ultra-fast blinking movement (Timekeeper phase 3)
+    let blinkFrequency = game.time * 6.0
+    if (blinkFrequency).int mod 3 == 0:
+      # Rapid blink toward player
       enemy.pos = enemy.pos + toPlayer * enemy.speed * 2.0 * dt
-    of 1:
-      let perpDir = newVector2f(-toPlayer.y, toPlayer.x)
-      enemy.pos = enemy.pos + perpDir * enemy.speed * 1.5 * dt
-    of 2:
-      enemy.pos = enemy.pos + toPlayer * -1.0 * enemy.speed * dt
     else:
-      let diagDir = (toPlayer + newVector2f(-toPlayer.y, toPlayer.x)).normalize()
-      enemy.pos = enemy.pos + diagDir * enemy.speed * 1.3 * dt
+      # Strafe around player
+      let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
+      enemy.pos = enemy.pos + strafeDir * enemy.speed * 1.2 * dt
   
   of "chaotic_movement":
-    # Pure chaos - unpredictable random movement
+    # Unpredictable random movement (Chaos Weaver phase 1)
     let chaosAngle = rand(1.0) * PI * 2.0
-    let chaosDir = newVector2f(cos(chaosAngle), sin(chaosAngle))
-    let playerBias = toPlayer * 0.3  # Slight player tracking
-    let finalDir = (chaosDir * 0.7 + playerBias).normalize()
-    enemy.pos = enemy.pos + finalDir * enemy.speed * 1.2 * dt
+    let chaosFactor = sin(game.time * 7.0 + enemy.pos.x * 0.03) * 0.8
+    let chaosDir = newVector2f(cos(chaosAngle + chaosFactor), sin(chaosAngle + chaosFactor))
+    enemy.pos = enemy.pos + chaosDir * enemy.speed * 0.9 * dt
   
   of "entropy_field":
-    # Spiral outward from center with chaos
-    let spiralAngle = game.time * 2.0
-    let spiralRadius = 100'f32 + float32((int(game.time * 20.0)) mod 150)
-    let spiralX = centerX + cos(spiralAngle) * spiralRadius.float32
-    let spiralY = centerY + sin(spiralAngle) * spiralRadius.float32
-    let toSpiral = (newVector2f(spiralX, spiralY) - enemy.pos).normalize()
-    enemy.pos = enemy.pos + toSpiral * enemy.speed * 1.1 * dt
+    # Erratic spiraling with sudden direction changes (Chaos Weaver phase 2)
+    let entropySpiral = game.time * 3.0 + sin(game.time * 5.0)
+    let entropyRadius = 160.0 + sin(game.time * 2.0) * 40.0
+    let entropyX = game.player.pos.x + cos(entropySpiral) * entropyRadius
+    let entropyY = game.player.pos.y + sin(entropySpiral) * entropyRadius
+    enemy.pos = newVector2f(entropyX, entropyY)
   
   of "total_chaos":
-    # Maximum chaos - combines all unpredictable patterns
-    let chaosMix = rand(100)
-    if chaosMix < 30:
-      # Random teleport-like dash
-      let dashAngle = rand(1.0) * PI * 2.0
-      let dashDir = newVector2f(cos(dashAngle), sin(dashAngle))
-      enemy.pos = enemy.pos + dashDir * enemy.speed * 2.0 * dt
-    elif chaosMix < 60:
-      # Aggressive player tracking
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.8 * dt
-    elif chaosMix < 80:
-      # Spiral movement
-      let angle = game.time * 4.0
-      let spiralDir = newVector2f(cos(angle), sin(angle))
-      enemy.pos = enemy.pos + spiralDir * enemy.speed * 1.4 * dt
+    # Maximum chaos - random teleports and movements (Chaos Weaver phase 3)
+    if (game.time * 3.0).int mod 4 == 0:
+      # Random teleport near player
+      let chaosAngle = rand(1.0) * PI * 2.0
+      let chaosDist = 120.0 + rand(80.0)
+      enemy.pos = newVector2f(
+        game.player.pos.x + cos(chaosAngle) * chaosDist,
+        game.player.pos.y + sin(chaosAngle) * chaosDist
+      )
     else:
-      # Retreat in circles
-      let retreatAngle = arctan2(toPlayer.y, toPlayer.x) + PI / 2.0
-      let retreatDir = newVector2f(cos(retreatAngle), sin(retreatAngle))
-      enemy.pos = enemy.pos + retreatDir * enemy.speed * dt
+      # Wild erratic movement
+      let wildAngle = game.time * 10.0 + rand(1.0)
+      let wildDir = newVector2f(cos(wildAngle), sin(wildAngle))
+      enemy.pos = enemy.pos + wildDir * enemy.speed * 1.4 * dt
+  
+  of "balanced_assault":
+    # Steady circling with balanced approach (Omega Entity phase 1)
+    let balanceAngle = game.time * 1.2
+    let balanceRadius = 190.0
+    let balanceX = centerX + cos(balanceAngle) * balanceRadius
+    let balanceY = centerY + sin(balanceAngle) * balanceRadius
+    let toBalance = (newVector2f(balanceX, balanceY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toBalance * enemy.speed * dt
+  
+  of "aggressive_mixed":
+    # Alternating between chase and strafe (Omega Entity phase 2)
+    if (game.time * 2.0).int mod 3 == 0:
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.2 * dt
+    else:
+      let mixedStrafe = newVector2f(-toPlayer.y, toPlayer.x)
+      enemy.pos = enemy.pos + mixedStrafe * enemy.speed * 0.9 * dt
+  
+  of "adaptive_combat":
+    # Smart positioning based on player distance (Omega Entity phase 3)
+    if playerDist < 150.0:
+      # Retreat and reposition
+      let adaptRetreat = toPlayer * -1.0
+      enemy.pos = enemy.pos + adaptRetreat * enemy.speed * 1.1 * dt
+    elif playerDist > 280.0:
+      # Close distance aggressively
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.3 * dt
+    else:
+      # Optimal range - circle strafe
+      let adaptStrafe = newVector2f(-toPlayer.y, toPlayer.x)
+      enemy.pos = enemy.pos + adaptStrafe * enemy.speed * dt
+  
+  of "final_form":
+    # Ultimate pattern - combines teleportation, aggression, and unpredictability (Omega Entity phase 4)
+    let finalPhase = (game.time * 4.0).int mod 6
+    case finalPhase
+    of 0, 1:
+      # Aggressive chase
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.8 * dt
+    of 2:
+      # Rapid teleport near player
+      let finalAngle = rand(1.0) * PI * 2.0
+      enemy.pos = newVector2f(
+        game.player.pos.x + cos(finalAngle) * 140.0,
+        game.player.pos.y + sin(finalAngle) * 140.0
+      )
+    of 3, 4:
+      # Circle strafe at high speed
+      let finalOrbitAngle = game.time * 5.0
+      let finalOrbitRadius = 180.0
+      enemy.pos.x = game.player.pos.x + cos(finalOrbitAngle) * finalOrbitRadius
+      enemy.pos.y = game.player.pos.y + sin(finalOrbitAngle) * finalOrbitRadius
+    else:
+      # Erratic chaos movement
+      let chaosAngle = game.time * 8.0 + sin(game.time * 3.0)
+      let chaosDir = newVector2f(cos(chaosAngle), sin(chaosAngle))
+      enemy.pos = enemy.pos + chaosDir * enemy.speed * 1.5 * dt
   
   else:
-    # Unknown behavior - default to aggressive
-    enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
+    discard
 
 proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
   ## Executes a single boss attack based on its pattern type
@@ -2575,7 +2555,7 @@ proc updateGame*(game: var Game, dt: float32) =
       enemy.shootTimer = 0
     
     # Cube enemies shoot - BUFFED
-    if enemy.enemyType == etCube and enemy.shootTimer > 1.5:  # Faster
+    if enemy.enemyType == etCube and enemy.shootTimer > 1.75:  # Faster
       let dir = (game.player.pos - enemy.pos).normalize()
       
       # Shoot 3-shot burst
@@ -3755,7 +3735,7 @@ proc drawGame*(game: Game) =
             case berserkLevel
             of 1: 0.5
             of 2: 0.8
-            else: 1.5
+            else: 1.2
           drawText("Berserk: +" & $((1.0 - hpPercent) * 100.0 * berserkMultiplier).int & "% rate",
                   game.screenWidth - 200, yOffset, 14, Orange)
           yOffset += 18

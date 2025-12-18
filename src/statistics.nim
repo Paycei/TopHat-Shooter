@@ -181,7 +181,6 @@ proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int,
       (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) / 
       float32(modeStats.gamesPlayed)
 
-
 # ====================
 # STATISTICS SAVE/LOAD
 # ====================

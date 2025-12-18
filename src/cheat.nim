@@ -1,7 +1,7 @@
 import raylib, types, sound, math
 from powerup import applyPowerUp, getPowerUpName
 
-# TOGGLE THIS TO ENABLE/DISABLE CHEATS
+# ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
 
 type

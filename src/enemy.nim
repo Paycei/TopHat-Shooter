@@ -1,6 +1,5 @@
 import raylib, types, random, math, wall, bullet, effects, tables, boss_definitions
 
-
 proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
   ## Reduces speed for very fast enemies, but only noticeable after wave ~20
   if waveNumber < 18:
@@ -158,8 +157,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       enemyType: etHexagon,
       isBoss: false,
       isCustomBoss: false,
-
-
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -192,8 +189,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       enemyType: etCross,
       isBoss: false,
       isCustomBoss: false,
-
-
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -227,8 +222,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       enemyType: etDiamond,
       isBoss: false,
       isCustomBoss: false,
-
-
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -262,8 +255,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       enemyType: etOctagon,
       isBoss: false,
       isCustomBoss: false,
-
-
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -297,8 +288,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       enemyType: etPentagon,
       isBoss: false,
       isCustomBoss: false,
-
-
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -332,8 +321,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       enemyType: etTrickster,
       isBoss: false,
       isCustomBoss: false,
-
-
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -367,8 +354,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       enemyType: etPhantom,
       isBoss: false,
       isCustomBoss: false,
-
-
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -398,13 +383,11 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 6.0 * strengthMultiplier,
       maxHp: 6.0 * strengthMultiplier,
       speed: 40 + difficulty * 2,  # Slow, methodical movement
-      damage: 999,  # One-shot attack
+      damage: 9999,  # One-shot attack
       color: Color(r: 200, g: 50, b: 200, a: 255),  # Bright magenta
       enemyType: etSniper,
       isBoss: false,
       isCustomBoss: false,
-
-
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
