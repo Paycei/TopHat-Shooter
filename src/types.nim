@@ -2,7 +2,7 @@ import raylib, math, std/tables
 
 type
   GameState* = enum
-    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings, gsStatistics
+    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings, gsStatistics, gsRunStats
   
   GameMode* = enum
     gmWaveBased,      # New primary mode: waves → upgrades → boss → legendary
@@ -395,6 +395,7 @@ type
     waveEnemiesRemaining*: int
     waveEnemiesTotal*: int
     waveInProgress*: bool
+    waveStartTime*: float32  # Track when current wave started for statistics
     # Cheat tracking
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
     # Mouse tracking for menu navigation
@@ -405,6 +406,10 @@ type
     previousState*: GameState  # Track where we came from to return correctly
     # Enemy ID counter for unique tracking
     nextEnemyId*: int  # Counter for assigning unique IDs to enemies
+    # Run statistics tracking
+    showRunStatsGraphs*: bool  # Toggle for showing graphs in run stats screen
+    # Statistics menu tab selection
+    statsMenuTab*: int  # 0 = Lifetime stats, 1 = Last Run stats
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

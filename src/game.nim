@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions
+import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics_integration
 
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -89,6 +89,7 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     waveEnemiesRemaining: 0,
     waveEnemiesTotal: 0,
     waveInProgress: false,
+    waveStartTime: 0.0,
     # Cheat tracking
     cheatsUsed: false,  # Reset to false at start of each run
     # Mouse tracking for menu navigation
@@ -98,8 +99,13 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     # State tracking for settings return
     previousState: gsMenu,  # Default to menu
     # Enemy ID counter for unique tracking
-    nextEnemyId: 0  # Start at 0, increment with each enemy created
+    nextEnemyId: 0,  # Start at 0, increment with each enemy created
+    # Statistics menu tab
+    statsMenuTab: 0  # 0 = Lifetime, 1 = Last Run
   )
+  
+  # Initialize run statistics tracking
+  initializeRunTracking(result)
 
 proc calculateWaveEnemyCount(waveNumber: int): int =
   # Scale enemy count based on wave number (SLOWER PROGRESSION)
@@ -111,6 +117,7 @@ proc calculateWaveEnemyCount(waveNumber: int): int =
 
 proc startWave*(game: Game) =
   game.waveInProgress = true
+  game.waveStartTime = game.time  # Track when this wave started
   var waveEnemyCount = calculateWaveEnemyCount(game.currentWave)
   
   # Apply boss wave reduction if this is a boss wave
@@ -402,6 +409,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
+        trackBulletFired(game)  # Track shot for statistics
       
       # Schedule second burst with small delay (0.08s) - LEGENDARY Double Shot is single level
       game.player.doubleShotDelay = 0.08
@@ -429,6 +437,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
+      trackBulletFired(game)  # Track shot for statistics
       
       # Schedule second bullet with small delay (0.08s)
       game.player.doubleShotDelay = 0.08
@@ -463,6 +472,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
+        trackBulletFired(game)  # Track shot for statistics
     else:
       # Normal single shot
       let bullet = newBullet(
@@ -485,6 +495,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
+      trackBulletFired(game)  # Track shot for statistics
     
     game.player.lastShot = game.time
     
@@ -601,6 +612,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
+      trackBulletFired(game)  # Track shot for statistics
   else:
     let bullet = newBullet(
       x = game.player.pos.x,
@@ -622,6 +634,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
     )
     bullet.radius = bulletRadius
     game.bullets.add(bullet)
+    trackBulletFired(game)  # Track shot for statistics
   
   playSound(stShoot, 0.25)
 
@@ -1352,6 +1365,9 @@ proc updateGame*(game: var Game, dt: float32) =
   
   # Always update game time (player time not affected)
   game.time += dt
+  
+  # Track movement and update run duration for statistics
+  trackMovementFrame(game, dt)
   
   game.spawnTimer += dt
   game.difficulty = game.time / 10.0  # Difficulty increases every 10 seconds
@@ -2156,6 +2172,10 @@ proc updateGame*(game: var Game, dt: float32) =
       if checkWaveComplete(game):
         game.waveInProgress = false
         
+        # Track wave completion for statistics
+        let waveTime = game.time - game.waveStartTime
+        trackWaveCompletion(game, game.currentWave, waveTime)
+        
         # Regeneration power-up - heal variable HP per wave based on level
         if hasPowerUp(game.player, puRegeneration):
           let level = getPowerUpLevel(game.player, puRegeneration)
@@ -2874,6 +2894,10 @@ proc updateGame*(game: var Game, dt: float32) =
                 game.enemies[j].shieldHp = 0
             
             game.enemies[j].hp -= actualDamage
+            
+            # Track bullet hit for statistics
+            trackBulletHit(game, bullet, game.enemies[j], actualDamage)
+            attributeDamageToActivePowerUps(game, actualDamage)
             
             # Create damage number (player damage to enemy)
             let isCrit = finalDamage > bullet.damage  # Critical if final damage exceeds base damage

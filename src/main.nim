@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics_integration, run_statistics_ui
 
 const
   screenWidth = 1024
@@ -193,55 +193,103 @@ proc drawHelp(game: Game) =
 proc drawStatistics(game: Game, stats: Statistics) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
   
+  # Title
   drawText("STATISTICS", screenWidth div 2 - 120, 40, 40, Yellow)
   
-  # Global stats
-  var y: int32 = 110
-  drawText("OVERALL", 100, y, 28, Gold)
-  y += 35
-  drawText("Total Games: " & $stats.totalGamesPlayed, 100, y, 20, White)
-  y += 25
-  drawText("Total Playtime: " & formatTime(stats.totalPlayTime), 100, y, 20, White)
-  y += 35
+  # Tab buttons
+  let tab1X = screenWidth div 2 - 180
+  let tab2X = screenWidth div 2 + 20
+  let tabY = 95
+  let tabWidth = 160
+  let tabHeight = 35
   
-  # Wave Mode stats
-  drawText("WAVE MODE", 100, y, 28, Color(r: 100, g: 200, b: 255, a: 255))
-  y += 35
-  drawText("Games Played: " & $stats.waveMode.gamesPlayed, 120, y, 18, White)
-  y += 23
-  drawText("Highest Wave: " & $stats.waveMode.highestWaveReached, 120, y, 18, White)
-  y += 23
-  drawText("Avg Wave Reached: " & formatFloat(stats.waveMode.averageWaveReached, ffDecimal, 1), 120, y, 18, White)
-  y += 23
-  drawText("Best Kills: " & $stats.waveMode.bestKills, 120, y, 18, White)
-  y += 23
-  drawText("Best Coins: " & $stats.waveMode.bestCoins, 120, y, 18, Gold)
-  y += 23
-  drawText("Total Kills: " & $stats.waveMode.totalKills, 120, y, 18, White)
-  y += 23
-  drawText("Bosses Defeated: " & $stats.waveMode.bossesDefeated, 120, y, 18, Red)
-  y += 23
-  drawText("Playtime: " & formatTime(stats.waveMode.totalTimePlayed), 120, y, 18, White)
-  y += 35
+  # Tab 1: Lifetime Stats
+  let tab1Color = if game.statsMenuTab == 0: Gold else: Color(r: 100, g: 100, b: 120, a: 255)
+  let tab1BgColor = if game.statsMenuTab == 0: Color(r: 60, g: 60, b: 70, a: 255) else: Color(r: 40, g: 40, b: 50, a: 255)
+  drawRectangle(int32(tab1X), int32(tabY), int32(tabWidth), int32(tabHeight), tab1BgColor)
+  drawRectangleLines(Rectangle(x: tab1X.float32, y: tabY.float32, width: tabWidth.float32, height: tabHeight.float32), 2, tab1Color)
+  drawText("1. LIFETIME", int32(tab1X) + 15, int32(tabY) + 8, 18, tab1Color)
   
-  # Time Survival Mode stats
-  drawText("TIME SURVIVAL MODE", 100, y, 28, Color(r: 255, g: 150, b: 100, a: 255))
-  y += 35
-  drawText("Games Played: " & $stats.timeMode.gamesPlayed, 120, y, 18, White)
-  y += 23
-  drawText("Longest Survival: " & formatTime(stats.timeMode.longestSurvivalTime), 120, y, 18, White)
-  y += 23
-  drawText("Avg Survival: " & formatTime(stats.timeMode.averageSurvivalTime), 120, y, 18, White)
-  y += 23
-  drawText("Best Kills: " & $stats.timeMode.bestKills, 120, y, 18, White)
-  y += 23
-  drawText("Best Coins: " & $stats.timeMode.bestCoins, 120, y, 18, Gold)
-  y += 23
-  drawText("Total Kills: " & $stats.timeMode.totalKills, 120, y, 18, White)
-  y += 23
-  drawText("Bosses Defeated: " & $stats.timeMode.bossesDefeated, 120, y, 18, Red)
+  # Tab 2: Last Run Stats
+  let hasLastRun = hasLastRunStats()
+  let tab2Color = if game.statsMenuTab == 1: 
+                    (if hasLastRun: Gold else: Color(r: 80, g: 80, b: 80, a: 255))
+                  else: 
+                    (if hasLastRun: Color(r: 100, g: 100, b: 120, a: 255) else: Color(r: 60, g: 60, b: 60, a: 255))
+  let tab2BgColor = if game.statsMenuTab == 1: Color(r: 60, g: 60, b: 70, a: 255) else: Color(r: 40, g: 40, b: 50, a: 255)
+  drawRectangle(int32(tab2X), int32(tabY), int32(tabWidth), int32(tabHeight), tab2BgColor)
+  drawRectangleLines(Rectangle(x: tab2X.float32, y: tabY.float32, width: tabWidth.float32, height: tabHeight.float32), 2, tab2Color)
+  drawText("2. LAST RUN", int32(tab2X) + 15, int32(tabY) + 8, 18, tab2Color)
   
-  drawText("Press ESC to return", screenWidth div 2 - 130, screenHeight - 60, 20, LightGray)
+  # Content area starts below tabs
+  let contentY: int32 = 150
+  
+  if game.statsMenuTab == 0:
+    # === LIFETIME STATISTICS ===
+    var y: int32 = contentY
+    drawText("OVERALL", 100, y, 28, Gold)
+    y += 35
+    drawText("Total Games: " & $stats.totalGamesPlayed, 100, y, 20, White)
+    y += 25
+    drawText("Total Playtime: " & formatTime(stats.totalPlayTime), 100, y, 20, White)
+    y += 35
+    
+    # Wave Mode stats
+    drawText("WAVE MODE", 100, y, 28, Color(r: 100, g: 200, b: 255, a: 255))
+    y += 35
+    drawText("Games Played: " & $stats.waveMode.gamesPlayed, 120, y, 18, White)
+    y += 23
+    drawText("Highest Wave: " & $stats.waveMode.highestWaveReached, 120, y, 18, White)
+    y += 23
+    drawText("Avg Wave Reached: " & formatFloat(stats.waveMode.averageWaveReached, ffDecimal, 1), 120, y, 18, White)
+    y += 23
+    drawText("Best Kills: " & $stats.waveMode.bestKills, 120, y, 18, White)
+    y += 23
+    drawText("Best Coins: " & $stats.waveMode.bestCoins, 120, y, 18, Gold)
+    y += 23
+    drawText("Total Kills: " & $stats.waveMode.totalKills, 120, y, 18, White)
+    y += 23
+    drawText("Bosses Defeated: " & $stats.waveMode.bossesDefeated, 120, y, 18, Red)
+    y += 23
+    drawText("Playtime: " & formatTime(stats.waveMode.totalTimePlayed), 120, y, 18, White)
+    y += 35
+    
+    # Time Survival Mode stats
+    drawText("TIME SURVIVAL MODE", 100, y, 28, Color(r: 255, g: 150, b: 100, a: 255))
+    y += 35
+    drawText("Games Played: " & $stats.timeMode.gamesPlayed, 120, y, 18, White)
+    y += 23
+    drawText("Longest Survival: " & formatTime(stats.timeMode.longestSurvivalTime), 120, y, 18, White)
+    y += 23
+    drawText("Avg Survival: " & formatTime(stats.timeMode.averageSurvivalTime), 120, y, 18, White)
+    y += 23
+    drawText("Best Kills: " & $stats.timeMode.bestKills, 120, y, 18, White)
+    y += 23
+    drawText("Best Coins: " & $stats.timeMode.bestCoins, 120, y, 18, Gold)
+    y += 23
+    drawText("Total Kills: " & $stats.timeMode.totalKills, 120, y, 18, White)
+    y += 23
+    drawText("Bosses Defeated: " & $stats.timeMode.bossesDefeated, 120, y, 18, Red)
+  
+  elif game.statsMenuTab == 1:
+    # === LAST RUN STATISTICS ===
+    if hasLastRun:
+      let runStats = getLastRunStats()
+      # Use the full run statistics screen but in compact form
+      drawRunStatisticsScreen(runStats, screenWidth, screenHeight, game.time, true)
+    else:
+      # No last run available
+      drawText("No previous run statistics available", 
+              screenWidth div 2 - 220, screenHeight div 2 - 40, 20, Color(r: 150, g: 150, b: 150, a: 255))
+      drawText("Complete a game to see detailed run statistics here", 
+              screenWidth div 2 - 260, screenHeight div 2, 18, Color(r: 120, g: 120, b: 120, a: 255))
+  
+  # Footer instructions
+  let footerText = if hasLastRun: 
+                     "Press 1 for Lifetime | 2 for Last Run | ESC to return"
+                   else:
+                     "Press 1 for Lifetime | ESC to return"
+  drawText(footerText, screenWidth div 2 - 250, screenHeight - 60, 20, LightGray)
   
   # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
   if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
@@ -340,11 +388,13 @@ proc main() =
           of 0:  # Wave-Based Mode
             currentGame = newGame(screenWidth, screenHeight)
             currentGame.mode = gmWaveBased
+            initializeRunTracking(currentGame)  # Start tracking
             currentGame.state = gsPlaying  # Start playing immediately
             statsSavedThisGame = false  # Reset for new game
           of 1:  # Time Survival Mode
             currentGame = newGame(screenWidth, screenHeight)
             currentGame.mode = gmTimeSurvival
+            initializeRunTracking(currentGame)  # Start tracking
             currentGame.state = gsPlaying  # Start playing immediately
             statsSavedThisGame = false  # Reset for new game
           of 2:  # Statistics
@@ -395,6 +445,12 @@ proc main() =
       
       # Update time for animations
       currentGame.time += dt
+      
+      # Tab switching: 1 = Lifetime, 2 = Last Run
+      if isKeyPressed(One):
+        currentGame.statsMenuTab = 0
+      if isKeyPressed(Two):
+        currentGame.statsMenuTab = 1
       
       if isKeyPressed(Escape):
         currentGame.state = gsMenu
@@ -916,6 +972,11 @@ proc main() =
         playSound(stGameOver, 1.0)
         currentGame.gameOverSoundPlayed = true
         
+        # Finalize run tracking and save for menu viewing
+        if hasValidRunStats():
+          finalizeRunTracking(currentGame)
+          saveLastCompletedRun()  # NEW: Save run stats for menu viewing
+        
         # Save statistics only once per game over
         if not statsSavedThisGame and not currentGame.cheatsUsed:
           # Calculate bosses defeated based on wave progress
@@ -934,9 +995,14 @@ proc main() =
           discard saveStatistics(stats)
           statsSavedThisGame = true
       
+      # Navigate to run stats screen
+      if isKeyPressed(Tab) and hasValidRunStats():
+        currentGame.state = gsRunStats
+      
       if isKeyPressed(R):
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.mode = gmWaveBased  # Default to wave-based on restart
+        initializeRunTracking(currentGame)  # Start tracking
         currentGame.state = gsPlaying
         statsSavedThisGame = false  # Reset for new game
       
@@ -947,6 +1013,59 @@ proc main() =
       
       beginDrawing()
       drawGameOver(currentGame)
+      
+      # Show hint to view stats
+      if hasValidRunStats():
+        drawText("Press TAB for detailed run statistics", 
+                screenWidth div 2 - 200, screenHeight - 120, 18, Gold)
+      
+      endDrawing()
+    
+    of gsRunStats:
+      # Display detailed run statistics
+      
+      # Update time for animations
+      currentGame.time += dt
+      
+      # Toggle graphs
+      if isKeyPressed(Tab):
+        currentGame.showRunStatsGraphs = not currentGame.showRunStatsGraphs
+      
+      # Return to game over screen
+      if isKeyPressed(Escape):
+        currentGame.state = gsGameOver
+      
+      # Quick restart
+      if isKeyPressed(R):
+        currentGame = newGame(screenWidth, screenHeight)
+        currentGame.mode = gmWaveBased
+        initializeRunTracking(currentGame)
+        currentGame.state = gsPlaying
+        statsSavedThisGame = false
+      
+      # Return to menu
+      if isKeyPressed(Q):
+        currentGame = newGame(screenWidth, screenHeight)
+        currentGame.state = gsMenu
+        statsSavedThisGame = false
+      
+      beginDrawing()
+      if hasValidRunStats():
+        drawRunStatisticsScreen(currentRunStats, screenWidth, screenHeight, 
+                               currentGame.time, currentGame.showRunStatsGraphs)
+      else:
+        # Fallback if no stats available
+        clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
+        drawText("No statistics available", 
+                screenWidth div 2 - 150, screenHeight div 2, 24, Red)
+        drawText("Press ESC to return", 
+                screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
+      
+      # Show navigation hints
+      let hintY = screenHeight - 30
+      drawText("R - Restart | Q - Menu | ESC - Back | TAB - Toggle Graphs", 
+              (screenWidth div 2 - 280).int32, hintY.int32, 16.int32, Gold)
+      
       endDrawing()
   
   # Cleanup
