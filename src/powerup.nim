@@ -22,7 +22,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puRegeneration: "Regeneration"
   of puDodgeChance: "Evasion"
   of puCriticalHit: "Critical Strike"
-  of puVampirism: "Vampirism"
+  of puBloodBullets: "Bloody Bullets"
   of puBulletRicochet: "Ricochet"
   of puSlowField: "Slow Field"
   of puRage: "Rage"
@@ -44,11 +44,11 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puOvercharge: "Momentum"
   of puEchoShots: "Echo Strike"
   of puRotatingOrbs: "Elemental Orbs"
-  of puPoisonOrb: "Poison Orb"
-  of puFireOrb: "Fire Orb"
-  of puLightningOrb: "Lightning Orb"
-  of puWindOrb: "Wind Orb"
-  of puFrostOrb: "Frost Orb"
+  of puPoisonOrb: "Poison Orbs"
+  of puFireOrb: "Fire Orbs"
+  of puLightningOrb: "Lightning Orbs"
+  of puWindOrb: "Wind Orbs"
+  of puFrostOrb: "Frost Orbs"
   of puArcaneBullets: "Arcane Bullets"
   of puArcaneAura: "Arcane Aura"
   of puArcaneOrb: "Arcane Orbs"
@@ -59,6 +59,9 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puLightningMastery: "Storm Lord"
   of puWindMastery: "Wind Master"
   of puParry: "Parry"
+  of puBloodOrb: "Blood Orbs"
+  of puBloodAura: "Blood Aura"
+  of puBloodMastery: "Blood Lord"
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
   of puDoubleShot:
@@ -117,10 +120,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     # Single level only - LEGENDARY
     "Walls have +250% HP"
   of puAutoShoot:
-    case level
-    of 1: "Auto-fire (60% rate, 250 range)"
-    of 2: "Auto-fire (80% rate, 350 range)"
-    else: "Auto-fire (full rate, 450 range)"
+    # Single level only - LEGENDARY
+    "Auto-fire at nearest enemy (full rate, 450 range)"
   of puBulletSize:
     case level
     of 1: "+40% bullet size"
@@ -141,11 +142,11 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: "20% chance for 2.5x damage (all sources)"
     of 2: "30% chance for 2.5x damage (all sources)"
     else: "40% chance for 2.5x damage (all sources)"
-  of puVampirism:
+  of puBloodBullets:
     case level
-    of 1: "Heal 2.5% of bullet damage"
-    of 2: "Heal 3.5% of bullet damage"
-    else: "Heal 5% of bullet damage"
+    of 1: "Heal 2.5% of bullet damage (blood element)"
+    of 2: "Heal 3.5% of bullet damage (blood element)"
+    else: "Heal 5% of bullet damage (blood element)"
   of puBulletRicochet:
     case level
     of 1: "Bullets ricochet once (75% damage per ricochet)"
@@ -300,6 +301,19 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   of puParry:
     # Single level only - LEGENDARY active ability
     "Active: Invincible for 0.5s, bounce enemy bullets (5s cooldown)"
+  of puBloodOrb:
+    case level
+    of 1: "2 blood orbs (1.5 dmg/hit, lifesteal)"
+    of 2: "4 blood orbs (2 dmg/hit, lifesteal)"
+    else: "6 blood orbs (2.5 dmg/hit, lifesteal)"
+  of puBloodAura:
+    case level
+    of 1: "Blood aura 1.5 dmg/s in 120 radius, heal 2.5% dealt"
+    of 2: "Blood aura 3 dmg/s in 160 radius, heal 5% dealt"
+    else: "Blood aura 6 dmg/s in 200 radius, heal 10% dealt"
+  of puBloodMastery:
+    # Single level only - LEGENDARY mastery
+    "Blood effects: +150% dmg, +100% duration, +50% lifesteal"
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -315,29 +329,35 @@ proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
 
 proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3, PowerUp] =
   # Generate 3 random power-up options with COMPLETELY SEPARATE pools
+  # IMPORTANT: Only ONE orb type and ONE aura type maximum per roll
   var availablePowerUps: seq[PowerUp] = @[]
   
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
   # ALL legendary powerups are SINGLE LEVEL ONLY
   let legendaryOnlyTypes = [
-    puArcaneMastery, puBulletDamage, puBulletSpeed, puDoubleShot, puEchoShots,
-    puFireMastery, puFrostMastery, puGravityWell, puLightningMastery,
-    puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot, puOvercharge,
-    puParry, puPhaseShift, puPoisonMastery, puRapidFire, puRotatingOrbs,
-    puSpeedBoost, puTimeWarp, puWallMaster, puWindMastery
+    puArcaneMastery, puAutoShoot, puBloodMastery, puBulletDamage, puBulletSpeed, 
+    puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell, 
+    puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot, 
+    puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire, 
+    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWindMastery
   ]
   
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
   let normalOnlyTypes = [
-    puArcaneAura, puArcaneBullets, puArcaneOrb, puAutoShoot, puBerserker,
-    puBulletRicochet, puBulletSize, puBulletSplit, puChainLightning,
+    puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura, 
+    puBloodOrb, puBulletRicochet, puBulletSize, puBulletSplit, puChainLightning,
     puCriticalHit, puDamageZone, puDodgeChance, puExplosiveBullets,
     puFireAura, puFireBullets, puFireOrb, puFrostOrb, puFrostShots,
     puLightningAura, puLightningOrb, puLifeSteal, puPiercingShots,
     puPoisonAura, puPoisonOrb, puPoisonShot, puRage, puRegeneration,
-    puRotatingShield, puSlowField, puThorns, puVampirism, puWindAura,
+    puRotatingShield, puSlowField, puThorns, puBloodBullets, puWindAura,
     puWindBullets, puWindOrb
   ]
+  
+  # Define orb, aura, and bullet groups for exclusivity
+  let orbTypes = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb, puRotatingOrbs]
+  let auraTypes = [puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura, puDamageZone]
+  let bulletTypes = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets]
   
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
@@ -356,23 +376,82 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
       elif currentLevel < 3:
         availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prCommon))
   
-  # Shuffle and pick 3
+  # Shuffle available power-ups
   for i in countdown(availablePowerUps.high, 1):
     let j = rand(i)
     swap(availablePowerUps[i], availablePowerUps[j])
   
-  # Fill result with up to 3 power-ups, maintaining rarity correctly
+  # NEW: Apply grouping logic - ensure at most 1 orb, 1 aura, and 1 elemental bullet
+  var selectedPowerUps: seq[PowerUp] = @[]
+  var hasOrb = false
+  var hasAura = false
+  var hasBullet = false
+  
+  for powerUp in availablePowerUps:
+    if selectedPowerUps.len >= 3:
+      break
+    
+    # Check if this is an orb type
+    let isOrb = powerUp.powerType in orbTypes
+    # Check if this is an aura type
+    let isAura = powerUp.powerType in auraTypes
+    # Check if this is an elemental bullet type
+    let isBullet = powerUp.powerType in bulletTypes
+    
+    # Skip if we already have an orb and this is an orb
+    if isOrb and hasOrb:
+      continue
+    
+    # Skip if we already have an aura and this is an aura
+    if isAura and hasAura:
+      continue
+    
+    # Skip if we already have a bullet and this is a bullet
+    if isBullet and hasBullet:
+      continue
+    
+    # Add this power-up and mark categories
+    selectedPowerUps.add(powerUp)
+    if isOrb:
+      hasOrb = true
+    if isAura:
+      hasAura = true
+    if isBullet:
+      hasBullet = true
+  
+  # Fill result with selected power-ups (up to 3)
   for i in 0..2:
-    if i < availablePowerUps.len:
-      result[i] = availablePowerUps[i]
+    if i < selectedPowerUps.len:
+      result[i] = selectedPowerUps[i]
     else:
       # If we run out, create random power-ups from the CORRECT pool
-      if isLegendary:
-        let randomType = legendaryOnlyTypes[rand(legendaryOnlyTypes.high)]
-        result[i] = PowerUp(powerType: randomType, level: 1, rarity: prLegendary)
-      else:
-        let randomType = normalOnlyTypes[rand(normalOnlyTypes.high)]
-        result[i] = PowerUp(powerType: randomType, level: 1, rarity: prCommon)
+      # Make sure we don't violate orb/aura/bullet restrictions
+      var attempts = 0
+      while attempts < 100:  # Prevent infinite loop
+        let randomPowerUp = if isLegendary:
+          let randomType = legendaryOnlyTypes[rand(legendaryOnlyTypes.high)]
+          PowerUp(powerType: randomType, level: 1, rarity: prLegendary)
+        else:
+          let randomType = normalOnlyTypes[rand(normalOnlyTypes.high)]
+          PowerUp(powerType: randomType, level: 1, rarity: prCommon)
+        
+        let isOrb = randomPowerUp.powerType in orbTypes
+        let isAura = randomPowerUp.powerType in auraTypes
+        let isBullet = randomPowerUp.powerType in bulletTypes
+        
+        # Check if this violates our grouping rules
+        if (isOrb and hasOrb) or (isAura and hasAura) or (isBullet and hasBullet):
+          attempts += 1
+          continue
+        
+        result[i] = randomPowerUp
+        if isOrb:
+          hasOrb = true
+        if isAura:
+          hasAura = true
+        if isBullet:
+          hasBullet = true
+        break
 
 # ============================================================================
 # ROTATING ORBS POWER-UP SYSTEM
@@ -453,6 +532,7 @@ proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) 
     of etWind: PI                              # Wind at 180°
     of etFrost: PI * 4.0 / 3.0                 # Frost at 240°
     of etArcane: PI * 5.0 / 3.0                 # Arcane at 300°
+    of etBlood: PI / 6.0                       # Blood at 30°
     of etNone: 0.0
   
   # Create orbs distributed in circle based on level
@@ -475,6 +555,7 @@ proc getElementColor*(elementType: ElementType): Color =
   of etWind: Color(r: 200, g: 230, b: 255, a: 255)
   of etFrost: Color(r: 150, g: 200, b: 255, a: 255)
   of etArcane: Color(r: 200, g: 100, b: 255, a: 255)  # Purple for arcane
+  of etBlood: Color(r: 255, g: 50, b: 50, a: 255)     # Red for blood
   of etNone: White
 
 proc getElementDamage*(level: int): float32 =
@@ -551,6 +632,14 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puWindMastery:
     # LEGENDARY: Enhance wind effects
     player.hasWindMastery = true
+  of puBloodMastery:
+    # LEGENDARY: Enhance blood effects
+    player.hasBloodMastery = true
+  of puBloodOrb:
+    createElementalOrbs(player, etBlood, powerUp.level)
+  of puBloodAura:
+    # Blood aura is tracked via powerUps (lifesteal effect applied in game.nim)
+    discard
   else:
     discard
   
@@ -564,7 +653,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       
       # Apply upgrade bonuses for normal power-ups that have levels
       case powerUp.powerType
-      of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb:
+      of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puBloodOrb:
         # Recreate orbs with new level (more orbs of this element)
         let elementType = case powerUp.powerType
           of puPoisonOrb: etPoison
@@ -572,6 +661,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           of puLightningOrb: etLightning
           of puWindOrb: etWind
           of puFrostOrb: etFrost
+          of puBloodOrb: etBlood
           else: etNone
         createElementalOrbs(player, elementType, powerUp.level)
       of puArcaneOrb:
@@ -767,7 +857,7 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       let x = centerX.float32 + cos(angle) * dist
       let y = iconY.float32 + sin(angle) * dist
       drawCircle(Vector2(x: x, y: y), 2, Orange)
-  of puVampirism:
+  of puBloodBullets:
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Red)
     drawCircle(Vector2(x: (centerX - 5).float32, y: (iconY - 3).float32), 6, Red)
     drawCircle(Vector2(x: (centerX + 5).float32, y: (iconY - 3).float32), 6, Red)
@@ -1039,8 +1129,8 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     # Draw orbit path
     drawCircleLines(centerX.int32, iconY.int32, orbDistance, 
                    Color(r: 100, g: 100, b: 150, a: 100))
-  of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb:
-    # Draw specific element orbs based on level
+  of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb:
+    # Draw specific element orbs based on level (2/4/6 pattern)
     let elementType = case powerUp.powerType
       of puPoisonOrb: etPoison
       of puFireOrb: etFire
@@ -1048,10 +1138,15 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       of puWindOrb: etWind
       of puFrostOrb: etFrost
       of puArcaneOrb: etArcane
+      of puBloodOrb: etBlood
       else: etNone
     
     let color = getElementColor(elementType)
-    let orbCount = powerUp.level
+    # Map levels to correct orb counts: Level 1=2, Level 2=4, Level 3=6
+    let orbCount = case powerUp.level
+      of 1: 2
+      of 2: 4
+      else: 6
     let orbDistance = 15.0
     
     for i in 0..<orbCount:
@@ -1225,6 +1320,43 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
             Vector2(x: (centerX + 8).float32, y: iconY.float32), 2, White)
     drawLine(Vector2(x: centerX.float32, y: (iconY - 8).float32), 
             Vector2(x: centerX.float32, y: (iconY + 8).float32), 2, White)
+  of puBloodAura:
+    # Blood aura with blood droplets and lifesteal effect
+    let auraRadius = 10 + powerUp.level * 5
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), auraRadius.float32,
+              Color(r: 255, g: 50, b: 50, a: 100))
+    drawCircleLines(centerX.int32, iconY.int32, auraRadius.float32, Color(r: 255, g: 50, b: 50, a: 255))
+    # Blood droplets floating around
+    for i in 0..6:
+      let angle = i.float32 * PI * 2.0 / 7.0
+      let dist = 8.0 + (i mod 3).float32 * 4.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist + (i mod 2).float32 * 5.0
+      let dropSize = 3 - (i mod 3)
+      drawCircle(Vector2(x: x, y: y), dropSize.float32, Color(r: 200, g: 50, b: 50, a: 220))
+      drawCircle(Vector2(x: x, y: y + 2), (dropSize - 1).float32, Color(r: 150, g: 30, b: 30, a: 200))
+    # Lifesteal heart symbol
+    drawCircle(Vector2(x: (centerX - 3).float32, y: (iconY - 2).float32), 4, Red)
+    drawCircle(Vector2(x: (centerX + 3).float32, y: (iconY - 2).float32), 4, Red)
+    drawCircle(Vector2(x: centerX.float32, y: (iconY + 3).float32), 5, Red)
+  of puBloodMastery:
+    # LEGENDARY Blood Mastery - crimson crown with blood orbs
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 18, Color(r: 255, g: 50, b: 50, a: 150))
+    drawCircle(Vector2(x: centerX.float32, y: iconY.float32), 12, Red)
+    # Blood orbs orbiting
+    for i in 0..7:
+      let angle = i.float32 * PI / 4.0
+      let dist = 22.0
+      let x = centerX.float32 + cos(angle) * dist
+      let y = iconY.float32 + sin(angle) * dist - 8.0
+      drawCircle(Vector2(x: x, y: y), 5, Color(r: 200, g: 50, b: 50, a: 255))
+      drawCircle(Vector2(x: x, y: y + 2), 3, Color(r: 150, g: 30, b: 30, a: 255))
+    # Inner glow with lifesteal heart
+    drawCircleLines(centerX.int32, iconY.int32, 15, Color(r: 255, g: 100, b: 100, a: 255))
+    # Central heart symbol
+    drawCircle(Vector2(x: (centerX - 3).float32, y: (iconY - 2).float32), 3, Color(r: 255, g: 200, b: 200, a: 255))
+    drawCircle(Vector2(x: (centerX + 3).float32, y: (iconY - 2).float32), 3, Color(r: 255, g: 200, b: 200, a: 255))
+    drawCircle(Vector2(x: centerX.float32, y: (iconY + 2).float32), 4, Color(r: 255, g: 200, b: 200, a: 255))
   
   # Rarity indicator
   if powerUp.rarity == prLegendary:
@@ -1408,7 +1540,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
   let normalTypes = [puDoubleShot, puRotatingShield, puDamageZone,
                      puPiercingShots, puMultiShot, puExplosiveBullets, puLifeSteal,
                      puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
-                     puCriticalHit, puVampirism, puBulletRicochet, puSlowField,
+                     puCriticalHit, puBloodBullets, puBulletRicochet, puSlowField,
                      puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
                      puFrostShots, puPoisonShot, puFireBullets,
                      puFireAura, puLightningAura, puPoisonAura, puArcaneBullets, puArcaneAura,

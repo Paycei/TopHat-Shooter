@@ -405,6 +405,39 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       activeEffects: initTable[ElementType, ActiveEffect]()
     )
   
+  of etMage:  # Summons meteorites and shoots homing magic bullets
+    result = Enemy(
+      id: game.nextEnemyId,  # Assign unique ID
+      pos: newVector2f(x, y),
+      vel: newVector2f(0, 0),
+      radius: 16 + difficulty * 1.4,
+      collisionRadius: (16 + difficulty * 1.4) * 0.4,  # 40% of visual size
+      hp: 5.0 * strengthMultiplier,
+      maxHp: 5.0 * strengthMultiplier,
+      speed: 50 + difficulty * 3,  # Slow, floats around
+      damage: 2,
+      color: Color(r: 138, g: 43, b: 226, a: 255),  # Purple/violet for magic
+      enemyType: etMage,
+      isBoss: false,
+      isCustomBoss: false,
+      shootTimer: 0,
+      spawnTimer: 0,  # Used for meteorite spawning
+      dashTimer: 0,
+      hitCount: 0,
+      requiredHits: 0,
+      lastContactDamageTime: 0,
+      teleportTimer: 0,
+      shockwaveTimer: 0,
+      burstTimer: 0,
+      lastWallDamageTime: 0,
+      hexTeleportTimer: 0,
+      attackWarningTimer: 0,
+      attackExecuteTimer: 0,
+      attackPhase: 0,  # 0=shoot bullets, 1=summon meteorites
+      hasEnteredScreen: false,  # Ranged enemy - must enter screen first
+      activeEffects: initTable[ElementType, ActiveEffect]()
+    )
+  
   # Initialize boss-spawned flag (default: false, set to true by boss summon)
   result.spawnedByBoss = false
   
@@ -1069,6 +1102,124 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           enemy.attackPhase = 0
       else:
         discard
+    
+    of etMage:
+      # Check if enemy is fully inside screen bounds
+      if not enemy.hasEnteredScreen:
+        if enemy.pos.x > enemy.radius and enemy.pos.x < game.screenWidth.float32 - enemy.radius and
+           enemy.pos.y > enemy.radius and enemy.pos.y < game.screenHeight.float32 - enemy.radius:
+          enemy.hasEnteredScreen = true
+      
+      # Update timers
+      enemy.shootTimer += dt  # For homing bullets
+      enemy.spawnTimer += dt  # For meteorites
+      
+      # Shoot homing magic bullets periodically
+      if enemy.shootTimer > 2.5:  # Every 2.5 seconds
+        let dir = (playerPos - enemy.pos).normalize()
+        let bullet = newBullet(
+          x = enemy.pos.x,
+          y = enemy.pos.y,
+          direction = dir,
+          speed = 220.0,
+          damage = 1.5,
+          fromPlayer = false,
+          isHoming = true,  # Makes bullets track player
+          isPiercing = false,
+          isExplosive = false,
+          hasBounce = false,
+          canSplit = false,
+          slowAmount = 0.0,
+          poisonDuration = 0.0,
+          fireDuration = 0.0,
+          windPushForce = 0.0,
+          isPentagon = false,
+          isEcho = false,
+          isBossBullet = false,
+          sourceEnemyId = enemy.id
+        )
+        bullet.radius = 8  # Larger magic bullets
+        game.bullets.add(bullet)
+        enemy.shootTimer = 0
+      
+      # Summon meteorites periodically
+      if enemy.spawnTimer > 4.0:  # Every 4 seconds
+        # Summon 2-3 meteorites at random positions near player
+        let meteorCount = 2 + rand(1)
+        for i in 0..<meteorCount:
+          # Target position near player (random offset)
+          let offsetX = (rand(200.0) - 100.0)
+          let offsetY = (rand(200.0) - 100.0)
+          let targetX = playerPos.x + offsetX
+          let targetY = playerPos.y + offsetY
+          
+          # Spawn position above screen
+          let spawnX = targetX
+          let spawnY = -50.0
+          
+          # Create meteorite with warning
+          let meteorite = newMeteorite(
+            targetX = targetX,
+            targetY = targetY,
+            spawnX = spawnX,
+            spawnY = spawnY,
+            damage = 3,  # High damage on impact
+            warningTime = 1.5  # 1.5 second warning before impact
+          )
+          game.meteorites.add(meteorite)
+        
+        enemy.spawnTimer = 0
+      
+      # Floating movement (backs away from player, maintains distance)
+      let dir = (playerPos - enemy.pos).normalize()
+      let distToPlayer = distance(enemy.pos, playerPos)
+      const optimalDistance = 250.0
+      const retreatDistance = 180.0
+      
+      var nextPos = enemy.pos
+      if distToPlayer < retreatDistance:
+        # Too close - retreat
+        let retreatDir = dir * -1.0
+        nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
+      elif distToPlayer > optimalDistance:
+        # Too far - approach slowly
+        nextPos = enemy.pos + dir * effectiveSpeed * 0.5 * dt
+      else:
+        # Optimal distance - float sideways
+        let tangent = newVector2f(-dir.y, dir.x)
+        nextPos = enemy.pos + tangent * effectiveSpeed * 0.3 * dt
+      
+      # Check wall collisions
+      var canMove = true
+      for wall in walls:
+        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+          canMove = false
+          if currentTime - enemy.lastWallDamageTime >= 1.0:
+            wall.takeDamage(1.0)
+            trackWallDamaged(game)
+            enemy.hp -= 1.0
+            enemy.lastWallDamageTime = currentTime
+          break
+      
+      # Screen boundary check - keep ranged enemies inside once entered
+      if enemy.hasEnteredScreen:
+        let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
+                         nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
+        
+        if isOffScreen:
+          # Clamp to screen bounds
+          if nextPos.x < enemy.radius:
+            nextPos.x = enemy.radius
+          elif nextPos.x > game.screenWidth.float32 - enemy.radius:
+            nextPos.x = game.screenWidth.float32 - enemy.radius
+          
+          if nextPos.y < enemy.radius:
+            nextPos.y = enemy.radius
+          elif nextPos.y > game.screenHeight.float32 - enemy.radius:
+            nextPos.y = game.screenHeight.float32 - enemy.radius
+      
+      if canMove:
+        enemy.pos = nextPos
   
   # Update all active effects for this enemy
   let effectDamage = updateEffects(enemy, dt)
@@ -1384,6 +1535,62 @@ proc drawEnemy*(enemy: Enemy) =
         let cloneAlpha = uint8((sin(getTime() * 5.0) * 0.5 + 0.5) * 120)
         drawCircle(Vector2(x: clonePos.x, y: clonePos.y), enemy.radius * 0.7,
                   Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: cloneAlpha))
+    
+    of etMage:
+      # Draw mage with magical floating effect
+      # Floating animation (vertical bob)
+      let floatOffset = sin(getTime() * 2.0) * 4.0
+      let centerY = enemy.pos.y + floatOffset
+      
+      # Magical aura (outer glow)
+      let auraRadius = enemy.radius + 8
+      let auraPulse = (sin(getTime() * 4.0) * 0.3 + 0.7)
+      drawCircle(Vector2(x: enemy.pos.x, y: centerY), auraRadius, 
+                Color(r: 138, g: 43, b: 226, a: uint8(60 * auraPulse)))
+      
+      # Main body (purple circle)
+      drawCircle(Vector2(x: enemy.pos.x, y: centerY), enemy.radius, enemy.color)
+      drawCircleLines(enemy.pos.x.int32, centerY.int32, enemy.radius, 
+                     Color(r: 186, g: 85, b: 211, a: 255))
+      
+      # Magic staff/wand (small line extending from body)
+      let staffAngle = getTime() * 1.5
+      let staffLength = enemy.radius * 0.8
+      let staffEndX = enemy.pos.x + cos(staffAngle) * staffLength
+      let staffEndY = centerY + sin(staffAngle) * staffLength
+      drawLine(Vector2(x: enemy.pos.x, y: centerY),
+              Vector2(x: staffEndX, y: staffEndY), 3,
+              Color(r: 200, g: 150, b: 255, a: 255))
+      # Staff orb
+      drawCircle(Vector2(x: staffEndX, y: staffEndY), 4, 
+                Color(r: 255, g: 200, b: 255, a: 255))
+      
+      # Orbiting magic runes (3 runes)
+      for i in 0..2:
+        let runeAngle = getTime() * 2.0 + (i.float32 * PI * 2.0 / 3.0)
+        let runeDist = enemy.radius + 12
+        let runeX = enemy.pos.x + cos(runeAngle) * runeDist
+        let runeY = centerY + sin(runeAngle) * runeDist
+        drawCircle(Vector2(x: runeX, y: runeY), 3, 
+                  Color(r: 255, g: 150, b: 255, a: 200))
+        # Rune glow
+        drawCircleLines(runeX.int32, runeY.int32, 4, 
+                       Color(r: 200, g: 100, b: 255, a: 150))
+      
+      # Magic particles floating upward
+      for i in 0..4:
+        let particleTime = getTime() * 1.5 + i.float32
+        let particleY = centerY - (particleTime mod 20.0) * 2.0
+        let particleX = enemy.pos.x + sin(particleTime) * 8.0
+        let particleAlpha = uint8(255 - ((particleTime mod 20.0) / 20.0) * 255)
+        drawCircle(Vector2(x: particleX, y: particleY), 2, 
+                  Color(r: 200, g: 100, b: 255, a: particleAlpha))
+      
+      # Casting indicator when shooting
+      if enemy.shootTimer > 2.0:  # About to shoot
+        let chargeGlow = (sin((enemy.shootTimer - 2.0) * 10.0) * 0.5 + 0.5)
+        drawCircleLines(enemy.pos.x.int32, centerY.int32, enemy.radius + 6,
+                       Color(r: 255, g: 100, b: 255, a: uint8(150 * chargeGlow)))
 
 proc drawAttackWarning*(warning: AttackWarning) =
   let alpha = uint8((warning.lifetime / warning.maxLifetime) * 200)
@@ -1698,18 +1905,19 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
     elif roll < 91: enemyType = etHexagon
     else: enemyType = etTrickster
   else:
-    # Phase 8: All enemies including Phantom and rare Sniper
-    if roll < 9: enemyType = etCircle
-    elif roll < 17: enemyType = etPentagon
-    elif roll < 25: enemyType = etCube
-    elif roll < 33: enemyType = etTriangle
-    elif roll < 43: enemyType = etStar
-    elif roll < 51: enemyType = etCross
-    elif roll < 59: enemyType = etDiamond
-    elif roll < 68: enemyType = etOctagon
-    elif roll < 76: enemyType = etHexagon
-    elif roll < 87: enemyType = etTrickster
-    elif roll < 98: enemyType = etPhantom
+    # Phase 8: All enemies including Phantom, Mage, and rare Sniper
+    if roll < 8: enemyType = etCircle
+    elif roll < 15: enemyType = etPentagon
+    elif roll < 22: enemyType = etCube
+    elif roll < 29: enemyType = etTriangle
+    elif roll < 38: enemyType = etStar
+    elif roll < 45: enemyType = etCross
+    elif roll < 52: enemyType = etDiamond
+    elif roll < 60: enemyType = etOctagon
+    elif roll < 68: enemyType = etHexagon
+    elif roll < 78: enemyType = etTrickster
+    elif roll < 88: enemyType = etPhantom
+    elif roll < 98: enemyType = etMage  # 10% chance - powerful magic user
     else: enemyType = etSniper  # Very rare 2% chance
   
   newEnemy(x, y, difficulty, enemyType, game)
@@ -1824,8 +2032,10 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   enemy.eliteAuraPhase = 0.0
   enemy.eliteTypes = @[]  # Initialize empty list for multiple types
   
-  # Elite scaling multiplier based on wave (7.5% per wave)
+  # Elite scaling multiplier based on wave (7.5% per wave for HP/damage)
   let eliteScaling = 1.0 + (waveNumber.float32 * 0.075)
+  # Reduced speed scaling for elites (2.5% per wave instead of 7.5%)
+  let eliteSpeedScaling = 1.0 + (waveNumber.float32 * 0.025)
   
   # Determine number of elite effects based on wave
   # BALANCED: Max 2 effects for wave 25+, not 3 (reduces exponential stacking)
@@ -1863,8 +2073,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   for eType in enemy.eliteTypes:
     case eType
     of etSwift:
-      # 40% faster movement
-      enemy.speed *= (1.40 * eliteScaling * effectMultiplier)
+      # 33% faster movement (reduced from 40%) + reduced speed scaling
+      enemy.speed *= (1.33 * eliteSpeedScaling * effectMultiplier)
       # Cap speed increase
       let maxSpeed = 1000.0
       if enemy.speed > maxSpeed:
@@ -1892,19 +2102,19 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
     
     of etVenomous:
       # Poisons player on contact
-      # Balanced growth
-      enemy.speed *= (1.15 * eliteScaling * effectMultiplier)  # Reduced from 1.2
+      # Balanced growth with reduced speed scaling
+      enemy.speed *= (1.15 * eliteSpeedScaling * effectMultiplier)  # Uses speed scaling
       enemy.damage += 2 + (waveNumber div 7)  # Increased scaling (was div 8)
-      enemy.maxHp *= (1.5 * eliteScaling * effectMultiplier)  # Increased from 1.2
+      enemy.maxHp *= (1.5 * eliteScaling * effectMultiplier)  # Uses normal scaling
       enemy.hp *= (1.5 * eliteScaling * effectMultiplier)
     
     of etExplosive:
       # Explodes on death
-      # Multiple effects reduce HP scaling
+      # Multiple effects reduce HP scaling but use reduced speed scaling
       enemy.maxHp *= (2.1 * eliteScaling * effectMultiplier)  # Increased from 1.7
       enemy.hp *= (2.1 * eliteScaling * effectMultiplier)
       enemy.damage += 2 + (waveNumber div 7)  # Increased scaling (was div 8)
-      enemy.speed *= (1.0 * eliteScaling * effectMultiplier)  # Reduced speed impact
+      enemy.speed *= (1.0 * eliteSpeedScaling * effectMultiplier)  # Uses speed scaling
     
     of etRegenerative:
       # Regenerates 5% HP per second

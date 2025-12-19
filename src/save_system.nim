@@ -431,7 +431,7 @@ proc parsePowerUpType(s: string): PowerUpType =
   of "puRegeneration": puRegeneration
   of "puDodgeChance": puDodgeChance
   of "puCriticalHit": puCriticalHit
-  of "puVampirism": puVampirism
+  of "puBloodBullets": puBloodBullets
   of "puBulletRicochet": puBulletRicochet
   of "puSlowField": puSlowField
   of "puRage": puRage
@@ -468,6 +468,9 @@ proc parsePowerUpType(s: string): PowerUpType =
   of "puLightningMastery": puLightningMastery
   of "puWindMastery": puWindMastery
   of "puParry": puParry
+  of "puBloodOrb": puBloodOrb
+  of "puBloodAura": puBloodAura
+  of "puBloodMastery": puBloodMastery
   else: puDoubleShot
 
 # Helper to parse GameMode from string

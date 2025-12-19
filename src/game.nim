@@ -256,16 +256,16 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         # Waves 51+: Introduce PHANTOM (unpredictable teleporter) + balanced roster
         # Phantom gets 15% spawn rate
         if roll < 15: enemyType = etPhantom  # NEW ENEMY - prominent
-        elif roll < 26: enemyType = etCircle
-        elif roll < 36: enemyType = etCube
-        elif roll < 45: enemyType = etStar
-        elif roll < 53: enemyType = etCross
-        elif roll < 61: enemyType = etDiamond
-        elif roll < 69: enemyType = etOctagon
-        elif roll < 77: enemyType = etHexagon
-        elif roll < 85: enemyType = etTrickster
-        elif roll < 92: enemyType = etPentagon
-        else: enemyType = etTriangle
+        elif roll < 26: enemyType = etCube # Don't spawn circles or triangles after wave 50
+        elif roll < 35: enemyType = etStar
+        elif roll < 43: enemyType = etCross
+        elif roll < 51: enemyType = etDiamond
+        elif roll < 59: enemyType = etOctagon
+        elif roll < 67: enemyType = etHexagon
+        elif roll < 75: enemyType = etTrickster
+        elif roll < 82: enemyType = etPentagon
+        elif roll < 98: enemyType = etMage
+        else: enemyType = etSniper
       
       # Difficulty scaling
       let baseDifficulty = (wave - 1).float32 / 3.0
@@ -1344,14 +1344,6 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
         fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
       ))
-  
-  else:
-    # Fallback for any unimplemented patterns
-    game.bullets.add(newBullet(
-      x = enemy.pos.x, y = enemy.pos.y, direction = toPlayer,
-      speed = 150.0, damage = attack.damage * phase.damageMultiplier,
-      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
-    ))
 
 proc updateGame*(game: var Game, dt: float32) =
   # Time Warp effect - apply slow to delta time for enemies/bullets
@@ -1850,6 +1842,62 @@ proc updateGame*(game: var Game, dt: float32) =
           spawnExplosion(game.particles, particleX, particleY, 
                         Color(r: 200, g: 230, b: 255, a: 150), 2)
   
+  # Blood Aura power-up effect - damage with lifesteal
+  if hasPowerUp(game.player, puBloodAura):
+    let level = getPowerUpLevel(game.player, puBloodAura)
+    let damageScaling = game.player.damage * 0.2
+    var bloodDamagePerSec = case level
+      of 1: 0.5 + damageScaling
+      of 2: 1.0 + damageScaling
+      else: 1.5 + damageScaling
+    let lifestealPercent = case level
+      of 1: 0.025  # 2.5% lifesteal
+      of 2: 0.05  # 5% lifesteal
+      else: 0.075  # 7.5% lifesteal
+    let bloodRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    # Apply Blood Mastery bonuses if owned
+    var actualLifestealPercent = lifestealPercent
+    if game.player.hasBloodMastery:
+      bloodDamagePerSec *= 2.5  # +150% damage
+      actualLifestealPercent *= 2.5  # +150% lifesteal
+    
+    for enemy in game.enemies:
+      let dist = distance(game.player.pos, enemy.pos)
+      if dist < bloodRadius:
+        # Apply blood damage with crit chance
+        let damageWithCrit = applyCriticalHit(game.player, bloodDamagePerSec * dt)
+        let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
+        enemy.hp -= actualDamage
+        
+        # Heal player based on damage dealt
+        let healAmount = actualDamage * actualLifestealPercent
+        game.player.hp = min(game.player.hp + healAmount, game.player.maxHp)
+        
+        # Create damage number for blood zone (only periodically to avoid spam)
+        if rand(1.0) < (2.0 * dt):  # Show ~2 numbers per second per enemy
+          game.damageNumbers.add(newDamageNumber(
+            enemy.pos.x,
+            enemy.pos.y,
+            actualDamage / dt,  # Show damage per second rate
+            fromPlayer = true,
+            isCritical = damageWithCrit > bloodDamagePerSec * dt,
+            damageType = dtDefault  # Blood uses default red color
+          ))
+        
+        # Visual blood particles (frame-independent)
+        # 8% @ 60fps = 4.8 particles/sec
+        if rand(1.0) < (4.8 * dt):
+          let particleAngle = rand(1.0) * PI * 2.0
+          let particleDist = rand(enemy.radius + 5.0)
+          let particleX = enemy.pos.x + cos(particleAngle) * particleDist
+          let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 3.0
+          spawnExplosion(game.particles, particleX, particleY, 
+                        Color(r: 255, g: 50, b: 50, a: 255), 2)
+  
   # Gravity Well (Singularity) - Pull enemies toward player with bonus effect on ranged
   if hasPowerUp(game.player, puGravityWell):
     let pullRadius = 300.0  # Single level - balanced radius
@@ -2160,6 +2208,21 @@ proc updateGame*(game: var Game, dt: float32) =
               spawnExplosion(game.particles, orbX, orbY,
                            Color(r: 200, g: 100, b: 255, a: 255), 5)
             
+            of etBlood:
+              # Blood: Lifesteal effect - heal player for % of damage dealt
+              var lifestealPercent = 0.05  # Base 5% lifesteal
+              
+              # Apply Blood Mastery bonus if owned
+              if game.player.hasBloodMastery:
+                lifestealPercent *= 2.5  # +150% lifesteal (12.5% total)
+              
+              let healAmount = baseDamage * lifestealPercent
+              game.player.hp = min(game.player.hp + healAmount, game.player.maxHp)
+              
+              # Red blood particles
+              spawnExplosion(game.particles, orbX, orbY,
+                           Color(r: 255, g: 50, b: 50, a: 255), 5)
+            
             of etNone:
               discard
         
@@ -2197,15 +2260,15 @@ proc updateGame*(game: var Game, dt: float32) =
   if hasPowerUp(game.player, puAutoShoot) and game.player.autoShootEnabled and game.enemies.len > 0:
     let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
     
-    # Auto-shoot has reduced fire rate and range at lower levels
+    # LEGENDARY Auto-Shoot: Full fire rate at level 1
     let autoFireMult = case autoLevel
-      of 1: 0.6   # 60% of normal fire rate
-      of 2: 0.8   # 80% of normal fire rate
-      else: 1.0   # Full fire rate at level 3
+      of 1: 1.0   # 100% of normal fire rate
+      of 2: 1.0
+      else: 1.0
     
     let autoRange = case autoLevel
-      of 1: 250.0
-      of 2: 350.0
+      of 1: 450.0
+      of 2: 450.0
       else: 450.0
     
     let autoFireRate = getCurrentFireRate(game.player) / autoFireMult
@@ -2453,6 +2516,7 @@ proc updateGame*(game: var Game, dt: float32) =
             of etTrickster: 6
             of etPhantom: 6
             of etSniper: 5
+            of etMage: 4           # Mage enemy coin value
           baseValue + waveBonus
         
         # Elite enemies drop 1.5x coins (less common but tougher)
@@ -3204,8 +3268,8 @@ proc updateGame*(game: var Game, dt: float32) =
             createSplitBullets(game, bullet, splitCount, 0.5, 0.7)
           
           # Vampirism healing - restore HP based on damage dealt
-          if hasPowerUp(game.player, puVampirism):
-            let vampLevel = getPowerUpLevel(game.player, puVampirism)
+          if hasPowerUp(game.player, puBloodBullets):
+            let vampLevel = getPowerUpLevel(game.player, puBloodBullets)
             let healPercent = case vampLevel
               of 1: 0.015  # 1.5% (reduced from 5%)
               of 2: 0.025  # 2.5% (reduced from 10%)
@@ -3901,6 +3965,70 @@ proc drawGame*(game: Game) =
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, arcaneRadius, 
                    Color(r: 200, g: 100, b: 255, a: 180))
   
+  # Draw Blood Aura visual effect
+  if hasPowerUp(game.player, puBloodAura):
+    let level = getPowerUpLevel(game.player, puBloodAura)
+    let bloodRadius = case level
+      of 1: 120.0
+      of 2: 160.0
+      else: 200.0
+    
+    # IMPROVED: Crimson blood aura with droplets and pulsing effect
+    let pulse = (sin(game.time * 2.8) * 0.25 + 0.75).float32
+    let heartbeat = abs(sin(game.time * 4.0))  # Pulsating heartbeat effect
+    
+    # Dark blood core
+    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), 
+               bloodRadius * 0.25 * pulse, Color(r: 150, g: 30, b: 30, a: 50))
+    
+    # Pulsing blood rings (heartbeat effect)
+    for ring in 1..4:
+      let progress = ring.float32 / 4.0
+      let ringRadius = bloodRadius * progress * pulse * (1.0 + heartbeat * 0.1)
+      let alpha = uint8((60 - ring * 10).float32 * (0.8 + heartbeat * 0.2))
+      let colorIntensity = uint8(255 - progress * 100)
+      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius, 
+                     Color(r: colorIntensity, g: 50, b: 50, a: alpha))
+    
+    # Floating blood droplets (dripping effect)
+    for i in 0..13:
+      let angle = i.float32 * PI * 2.0 / 14.0 + game.time * 0.5
+      let dist = bloodRadius * 0.65 + sin(game.time * 2.5 + i.float32) * 15.0
+      let dropFall = (game.time * 25.0 + i.float32 * 5.0) mod 40.0
+      let x = game.player.pos.x + cos(angle) * dist
+      let y = game.player.pos.y + sin(angle) * dist + dropFall - 20.0
+      
+      # Blood droplet with teardrop shape
+      let dropSize = 4 - (dropFall / 20.0)
+      if dropSize > 1.0:
+        drawCircle(Vector2(x: x, y: y), dropSize.float32, Color(r: 200, g: 50, b: 50, a: 200))
+        drawCircle(Vector2(x: x, y: y + 1), dropSize.float32 * 0.7, Color(r: 150, g: 30, b: 30, a: 200))
+    
+    # Swirling blood mist particles
+    for i in 0..9:
+      let angle = i.float32 * PI * 2.0 / 10.0 - game.time * 1.2
+      let dist = bloodRadius * 0.8 + sin(game.time * 3.0 + i.float32) * 20.0
+      let x = game.player.pos.x + cos(angle) * dist
+      let y = game.player.pos.y + sin(angle) * dist
+      drawCircle(Vector2(x: x, y: y), 3, Color(r: 255, g: 80, b: 80, a: 140))
+    
+    # Lifesteal heart symbols (pulsing at corners)
+    for corner in 0..3:
+      let angle = corner.float32 * PI / 2.0 + PI / 4.0
+      let dist = bloodRadius * 0.4
+      let x = game.player.pos.x + cos(angle) * dist
+      let y = game.player.pos.y + sin(angle) * dist
+      let heartSize = 3 + heartbeat * 2
+      
+      # Simple heart shape using two circles and triangle
+      drawCircle(Vector2(x: x - heartSize, y: y), heartSize, Color(r: 255, g: 100, b: 100, a: 180))
+      drawCircle(Vector2(x: x + heartSize, y: y), heartSize, Color(r: 255, g: 100, b: 100, a: 180))
+      drawCircle(Vector2(x: x, y: y + heartSize), heartSize * 1.2, Color(r: 255, g: 100, b: 100, a: 180))
+    
+    # Outer blood border
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, bloodRadius, 
+                   Color(r: 200, g: 40, b: 40, a: 85))
+  
   # Draw player
   drawPlayer(game.player)
   
@@ -4242,4 +4370,3 @@ proc drawWaveTransition*(game: Game) =
   
 
   drawText("Press ENTER to start", game.screenWidth div 2 - 130, game.screenHeight - 80, 20, LightGray)
-

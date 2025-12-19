@@ -181,7 +181,7 @@ proc attributeDamageToActivePowerUps*(game: Game, baseDamage: float32) =
       contributionFactor = 0.12  # Crit damage
     of puFireBullets, puPoisonShot, puFrostShots, puArcaneBullets:
       contributionFactor = 0.10  # Elemental damage
-    of puFireAura, puLightningAura, puPoisonAura:
+    of puFireAura, puLightningAura, puPoisonAura, puBloodAura, puArcaneAura, puWindAura:
       contributionFactor = 0.15  # Aura damage
     of puDamageZone:
       contributionFactor = 0.10
@@ -197,7 +197,7 @@ proc attributeDamageToActivePowerUps*(game: Game, baseDamage: float32) =
       contributionFactor = 0.09
     # Masteries amplify elemental effects
     of puFireMastery, puPoisonMastery, puFrostMastery, 
-       puArcaneMastery, puLightningMastery, puWindMastery:
+       puArcaneMastery, puLightningMastery, puWindMastery, puBloodMastery:
       contributionFactor = 0.20
     else:
       contributionFactor = 0.0

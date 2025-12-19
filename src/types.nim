@@ -20,7 +20,8 @@ type
     etPentagon,    # Ranged - single fast bullet, low fire rate
     etTrickster,   # Shows false warning, attacks differently
     etPhantom,     # Unpredictable - teleports with fake clones
-    etSniper       # Rare - charges one-shot epic attack with warning
+    etSniper,      # Rare - charges one-shot epic attack with warning
+    etMage         # Summons meteorites and shoots homing magic bullets
 
   EliteType* = enum
     etNone,        # Not elite
@@ -60,7 +61,7 @@ type
     puRegeneration,    # Slowly restore HP
     puDodgeChance,     # Chance to evade damage
     puCriticalHit,     # Random critical damage
-    puVampirism,       # Lifesteal on hit
+    puBloodBullets,       # Lifesteal on hit
     puBulletRicochet,  # Bullets ricochet off enemies
     puSlowField,       # Enemies move slower nearby
     puRage,            # Damage increases at low HP
@@ -96,7 +97,10 @@ type
     puArcaneMastery,   # LEGENDARY: Enhance all arcane effects (damage, duration)
     puLightningMastery,# LEGENDARY: Enhance all lightning effects (damage, duration, slow)
     puWindMastery,     # LEGENDARY: Enhance all wind effects (damage, duration, slow)
-    puParry            # LEGENDARY: Active ability - invincible + bounce bullets (0.5s, 5s cd)
+    puParry,           # LEGENDARY: Active ability - invincible + bounce bullets (0.5s, 5s cd)
+    puBloodOrb,        # Blood elemental orb
+    puBloodAura,       # Blood damage aura with lifesteal
+    puBloodMastery     # LEGENDARY: Enhance all blood effects (damage, lifesteal)
   
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
@@ -130,7 +134,8 @@ type
     etLightning,   # Yellow/Blue - instant damage + chain
     etWind,        # Cyan - knockback
     etFrost,       # Light blue - slow effect
-    etArcane,       # Purple - enhanced damage + magical effect
+    etArcane,      # Purple - enhanced damage + magical effect
+    etBlood,       # Dark red - damage + lifesteal
     etNone         # No element (shouldn't happen)
 
   RotatingOrb* = ref object
@@ -189,6 +194,7 @@ type
     hasArcaneMastery*: bool
     hasLightningMastery*: bool
     hasWindMastery*: bool
+    hasBloodMastery*: bool
     # Poison tracking (for venomous elite enemies)
     poisonTimer*: float32
     poisonDamage*: float32
@@ -358,6 +364,15 @@ type
     rotation*: float32      # Rotation angle in radians (for rotating lasers)
     enemyType*: EnemyType   # Type of enemy that created this laser
 
+  Meteorite* = ref object
+    pos*: Vector2f          # Current position
+    targetPos*: Vector2f    # Where it will land
+    vel*: Vector2f          # Velocity (falling)
+    radius*: float32        # Size of meteorite
+    damage*: int            # Damage on impact
+    warningTimer*: float32  # Time before impact
+    maxWarningTime*: float32 # Total warning duration
+
   ShopItem* = object
     name*: string
     description*: string
@@ -376,6 +391,7 @@ type
     particles*: seq[Particle]
     attackWarnings*: seq[AttackWarning]
     lasers*: seq[Laser]  # Add laser tracking
+    meteorites*: seq[Meteorite]  # Add meteorite tracking
     damageNumbers*: seq[DamageNumber]  # Floating damage numbers
     time*: float32
     spawnTimer*: float32
@@ -494,4 +510,16 @@ proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage
     hasHitPlayer: false,
     rotation: rotation,
     enemyType: enemyType
+  )
+
+proc newMeteorite*(targetX, targetY: float32, spawnX, spawnY: float32, damage: int, warningTime: float32): Meteorite =
+  ## Create a new meteorite that falls from the sky
+  Meteorite(
+    pos: newVector2f(spawnX, spawnY),
+    targetPos: newVector2f(targetX, targetY),
+    vel: newVector2f(0, 0),
+    radius: 15.0,
+    damage: damage,
+    warningTimer: warningTime,
+    maxWarningTime: warningTime
   )

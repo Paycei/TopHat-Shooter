@@ -604,7 +604,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puParry, puPhaseShift, puPiercingShots, puPoisonAura, puPoisonMastery,
     puPoisonOrb, puPoisonShot, puRage, puRapidFire, puRegeneration,
     puRotatingOrbs, puRotatingShield, puSlowField, puSpeedBoost, puThorns,
-    puTimeWarp, puVampirism, puWallMaster, puWindAura, puWindBullets,
+    puTimeWarp, puBloodBullets, puWallMaster, puWindAura, puWindBullets,
     puWindMastery, puWindOrb
   ]
   
@@ -783,6 +783,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
       of etTrickster: "Trickster"
       of etPhantom: "Phantom"
       of etSniper: "SNIPER"
+      of etMage: "Mage"
     
     let nameColor = if enemy.isBoss: Red 
                     elif enemy.enemyType == etSniper: Magenta
