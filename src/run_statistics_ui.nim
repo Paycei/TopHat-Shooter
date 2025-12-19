@@ -4,7 +4,7 @@
 # Displays on Game Over screen and Main Menu
 # ============================================================================
 
-import raylib, run_statistics_types, types, strutils, math, times, std/tables, algorithm
+import raylib, run_statistics_types, types, strutils, math, std/tables
 
 # ============================================================================
 # UI CONSTANTS
@@ -107,6 +107,9 @@ proc drawTimelineGraph*(x, y, width, height: int32, title: string,
   if dataPoints.len == 0:
     return
   
+  # Ensure maxValue is non-zero to avoid division by zero
+  let safeMaxValue = max(maxValue, 0.01)
+  
   # Card background
   drawRectangle(x, y, width, height, CARD_BG_COLOR)
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: width.float32, height: height.float32),
@@ -140,9 +143,9 @@ proc drawTimelineGraph*(x, y, width, height: int32, title: string,
   # Draw line graph
   for i in 0..<dataPoints.len-1:
     let x1Norm = (dataPoints[i][0] - minTime) / timeRange
-    let y1Norm = 1.0 - (dataPoints[i][1] / maxValue)
+    let y1Norm = 1.0 - (dataPoints[i][1] / safeMaxValue)
     let x2Norm = (dataPoints[i+1][0] - minTime) / timeRange
-    let y2Norm = 1.0 - (dataPoints[i+1][1] / maxValue)
+    let y2Norm = 1.0 - (dataPoints[i+1][1] / safeMaxValue)
     
     let x1Px = graphX.float32 + x1Norm * graphWidth.float32
     let y1Px = graphY.float32 + y1Norm * graphHeight.float32
@@ -155,7 +158,7 @@ proc drawTimelineGraph*(x, y, width, height: int32, title: string,
   
   # Y-axis labels
   drawText("0", x + 5, graphY + graphHeight - 10, 10, LightGray)
-  drawText(formatLargeNumber(maxValue), x + 5, graphY, 10, LightGray)
+  drawText(formatLargeNumber(safeMaxValue), x + 5, graphY, 10, LightGray)
 
 proc drawHeatmap*(x, y, width, height: int32, positions: seq[Vector2f], 
                  screenWidth, screenHeight: int32) =
@@ -262,7 +265,7 @@ proc drawMovementStats*(stats: MovementStats, x, y: int32, gameTime: float32) =
 
 proc drawResourceStats*(stats: ResourceStats, x, y: int32, gameTime: float32) =
   ## Draw resource management statistics
-  drawStatCard(x, y, 300, 270, "RESOURCES", gameTime)
+  drawStatCard(x, y, 300, 310, "RESOURCES", gameTime)
   
   var lineY = y + 40
   
@@ -281,19 +284,43 @@ proc drawResourceStats*(stats: ResourceStats, x, y: int32, gameTime: float32) =
   # Walls
   drawMetricRow(x + 10, lineY, "Walls Placed", $stats.wallsPlaced)
   lineY += 20
-  drawMetricRow(x + 10, lineY, "Walls Destroyed", $stats.wallsDestroyed)
+  drawMetricRow(x + 10, lineY, "Walls Damaged", $stats.wallsDamaged, Orange)
+  lineY += 20
+  drawMetricRow(x + 10, lineY, "Walls Destroyed", $stats.wallsDestroyed, Red)
   lineY += 20
   drawMetricRow(x + 10, lineY, "Damage Blocked", formatLargeNumber(stats.wallDamageBlocked), GOOD_COLOR)
-  lineY += 30
+  lineY += 20
   
   # Consumables
   drawMetricRow(x + 10, lineY, "Consumables", $stats.consumablesCollected)
-  lineY += 20
-  drawMetricRow(x + 10, lineY, "Health Potions", $stats.healthPotionsUsed, Green)
+  lineY += 18
+  
+  # Show breakdown by type if available
+  if stats.consumablesByType.len > 0:
+    for consumType, count in stats.consumablesByType:
+      let consumName = case consumType
+        of ctHealth: "HP"
+        of ctCoin: "Coins"
+        of ctSpeed: "Speed"
+        of ctInvincibility: "Invuln"
+        of ctFireRate: "Fire"
+        of ctMagnet: "Magnet"
+      let consumColor = case consumType
+        of ctHealth: Green
+        of ctCoin: Gold
+        of ctSpeed: SkyBlue
+        of ctInvincibility: Magenta
+        of ctFireRate: Orange
+        of ctMagnet: Purple
+      drawText(consumName, x + 20, lineY, 14, LightGray)
+      let countStr = $count
+      let countWidth = measureText(countStr, 14)
+      drawText(countStr, x + 250 - countWidth, lineY, 14, consumColor)
+      lineY += 16
 
 proc drawPowerUpStats*(stats: PowerUpStats, x, y: int32, gameTime: float32) =
   ## Draw power-up statistics
-  drawStatCard(x, y, 300, 200, "POWER-UPS", gameTime)
+  drawStatCard(x, y, 300, 150, "POWER-UPS", gameTime)
   
   var lineY = y + 40
   
@@ -302,17 +329,10 @@ proc drawPowerUpStats*(stats: PowerUpStats, x, y: int32, gameTime: float32) =
   drawMetricRow(x + 10, lineY, "Common", $stats.commonPowerUps, White)
   lineY += 20
   drawMetricRow(x + 10, lineY, "Legendary", $stats.legendaryPowerUps, Gold)
-  lineY += 30
-  
-  drawMetricRow(x + 10, lineY, "Level 1", $stats.level1PowerUps)
-  lineY += 20
-  drawMetricRow(x + 10, lineY, "Level 2", $stats.level2PowerUps)
-  lineY += 20
-  drawMetricRow(x + 10, lineY, "Level 3", $stats.level3PowerUps)
   
   # Most effective power-up
   if stats.damageContribution.len > 0:
-    lineY += 30
+    lineY += 25
     let mvp = $stats.mostEffectivePowerUp
     drawText("MVP: " & mvp, x + 10, lineY, 14, ACCENT_COLOR)
 
@@ -373,6 +393,194 @@ proc drawPlayStyleAnalysis*(stats: ComparisonStats, x, y: int32, gameTime: float
   lineY += 20
   drawProgressBar(x + 10, lineY, 280, 20, stats.cautionRating, 100.0, SkyBlue)
 
+proc drawDetailedPowerUpScreen*(stats: PowerUpStats, combat: CombatStats, 
+                                screenWidth, screenHeight: int32, gameTime: float32) =
+  ## Draw detailed power-up breakdown with per-powerup statistics
+  clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
+  
+  # Title - moved lower for better spacing
+  drawText("POWER-UP BREAKDOWN", screenWidth div 2 - 200, 70, 36, ACCENT_COLOR)
+  
+  # Summary stats - moved lower
+  let summaryText = $stats.totalPowerUps & " Total | " & 
+                   $stats.legendaryPowerUps & " Legendary | " &
+                   $stats.commonPowerUps & " Common"
+  let summaryWidth = measureText(summaryText, 18)
+  drawText(summaryText, screenWidth div 2 - summaryWidth div 2, 115, 18, LightGray)
+  
+  var currentY: int32 = 160
+  
+  # Power-up timeline (left side, narrower)
+  drawStatCard(30, currentY, 500, 320, "POWER-UP TIMELINE", gameTime)
+  var timelineY = currentY + 40
+  
+  if stats.powerUpsChosen.len > 0:
+    for i, choice in stats.powerUpsChosen:
+      let timestamp = formatDuration(choice[0])
+      let powerup = choice[1]
+      let powerupName = $powerup.powerType
+      
+      # Determine rarity color
+      let rarityColor = if powerup.rarity == prLegendary: 
+        Gold 
+      else:
+        case powerup.level
+        of 1: White
+        of 2: Color(r: 150, g: 200, b: 255, a: 255)
+        of 3: Color(r: 200, g: 150, b: 255, a: 255)
+        else: White
+      
+      # Draw power-up entry
+      drawText(timestamp, 40, timelineY, 14, LightGray)
+      drawText(powerupName, 120, timelineY, 14, rarityColor)
+      drawText("Lvl " & $powerup.level, 300, timelineY, 14, Orange)
+      
+      # Show contribution if available
+      if stats.damageContribution.hasKey(powerup.powerType):
+        let damage = stats.damageContribution[powerup.powerType]
+        let dmgStr = formatLargeNumber(damage)
+        drawText(dmgStr & " dmg", 370, timelineY, 14, ACCENT_COLOR)
+      
+      if stats.killContribution.hasKey(powerup.powerType):
+        let kills = stats.killContribution[powerup.powerType]
+        drawText($kills & " kills", 460, timelineY, 14, Gold)
+      
+      timelineY += 18
+      
+      # Scroll warning if too many
+      if timelineY > currentY + 300:
+        drawText("... (" & $(stats.powerUpsChosen.len - i - 1) & " more)", 
+                40, timelineY, 14, Color(r: 150, g: 150, b: 150, a: 255))
+        break
+  else:
+    drawText("No power-ups selected", 40, timelineY, 16, LightGray)
+  
+  # Power-up effectiveness ranking (right side, adjusted position and width to fit screen)
+  drawStatCard(540, currentY, 470, 320, "EFFECTIVENESS RANKING", gameTime)
+  var rankY = currentY + 40
+  
+  # Sort by damage contribution
+  var contributions: seq[(PowerUpType, float32)] = @[]
+  for ptype, damage in stats.damageContribution:
+    contributions.add((ptype, damage))
+  
+  # Simple bubble sort by damage (descending)
+  for i in 0..<contributions.len:
+    for j in 0..<contributions.len - i - 1:
+      if contributions[j][1] < contributions[j + 1][1]:
+        let temp = contributions[j]
+        contributions[j] = contributions[j + 1]
+        contributions[j + 1] = temp
+  
+  if contributions.len > 0:
+    drawText("RANK", 550, rankY, 14, ACCENT_COLOR)
+    drawText("POWER-UP", 600, rankY, 14, ACCENT_COLOR)
+    drawText("DAMAGE", 770, rankY, 14, ACCENT_COLOR)
+    drawText("% OF TOTAL", 890, rankY, 14, ACCENT_COLOR)
+    rankY += 25
+    
+    let totalDamage = combat.totalDamageDealt
+    
+    for i, contrib in contributions:
+      let rank = i + 1
+      let ptype = contrib[0]
+      let damage = contrib[1]
+      let percent = if totalDamage > 0: (damage / totalDamage) * 100.0 else: 0.0
+      
+      # Medal for top 3
+      let medalColor = case rank
+        of 1: Gold
+        of 2: Color(r: 192, g: 192, b: 192, a: 255)  # Silver
+        of 3: Color(r: 205, g: 127, b: 50, a: 255)   # Bronze
+        else: White
+      
+      drawText($rank & ".", 555, rankY, 14, medalColor)
+      drawText($ptype, 600, rankY, 14, White)
+      drawText(formatLargeNumber(damage), 770, rankY, 14, ACCENT_COLOR)
+      drawText(formatPercent(percent), 890, rankY, 14, getQualityColor(percent, 10.0))
+      
+      # Draw progress bar for visual comparison (adjusted position and width)
+      let barWidth = int32((damage / contributions[0][1]) * 150.0)
+      drawRectangle(710, rankY + 2, barWidth, 10, 
+                   Color(r: 100, g: 200, b: 255, a: 200))
+      
+      rankY += 22
+      
+      if rankY > currentY + 300:
+        break
+  else:
+    drawText("No damage contribution data available", 550, rankY, 16, LightGray)
+  
+  # Summary cards at bottom (adjusted to fit on screen)
+  currentY += 340
+  
+  # Synergy analysis
+  drawStatCard(30, currentY, 350, 180, "SYNERGY ANALYSIS", gameTime)
+  var synergyY = currentY + 40
+  
+  let synergyColor = getQualityColor(stats.synergyScore, 50.0)
+  drawMetricRow(40, synergyY, "Synergy Score", 
+               formatLargeNumber(stats.synergyScore), synergyColor)
+  synergyY += 25
+  
+  drawMetricRow(40, synergyY, "Has Synergy", 
+               if stats.hasSynergy: "Yes" else: "No",
+               if stats.hasSynergy: GOOD_COLOR else: BAD_COLOR)
+  synergyY += 25
+  
+  if stats.elementalCombo.len > 0:
+    drawText("Active Elements:", 40, synergyY, 14, White)
+    synergyY += 20
+    for elem in stats.elementalCombo:
+      drawText("  • " & $elem, 50, synergyY, 14, ACCENT_COLOR)
+      synergyY += 18
+  
+  # Level distribution (adjusted width to fit screen)
+  drawStatCard(400, currentY, 300, 180, "LEVEL DISTRIBUTION", gameTime)
+  var levelY = currentY + 40
+  
+  let maxLevelCount = max(max(stats.level1PowerUps, stats.level2PowerUps), stats.level3PowerUps)
+  
+  drawText("Level 1", 410, levelY, 14, White)
+  drawProgressBar(490, levelY, 170, 20, stats.level1PowerUps.float32, 
+                 maxLevelCount.float32, White)
+  drawText($stats.level1PowerUps, 670, levelY, 14, White)
+  levelY += 30
+  
+  drawText("Level 2", 410, levelY, 14, White)
+  drawProgressBar(490, levelY, 170, 20, stats.level2PowerUps.float32, 
+                 maxLevelCount.float32, Color(r: 150, g: 200, b: 255, a: 255))
+  drawText($stats.level2PowerUps, 670, levelY, 14, White)
+  levelY += 30
+  
+  drawText("Level 3", 410, levelY, 14, White)
+  drawProgressBar(490, levelY, 170, 20, stats.level3PowerUps.float32, 
+                 maxLevelCount.float32, Color(r: 200, g: 150, b: 255, a: 255))
+  drawText($stats.level3PowerUps, 670, levelY, 14, White)
+  
+  # MVP section (adjusted position and width to fit screen)
+  drawStatCard(710, currentY, 300, 180, "MOST VALUABLE POWER-UP", gameTime)
+  var mvpY = currentY + 50
+  
+  let mvpName = $stats.mostEffectivePowerUp
+  let mvpSize: int32 = 20
+  let mvpWidth = measureText(mvpName, mvpSize)
+  drawText(mvpName, 860 - mvpWidth div 2, mvpY, mvpSize, Gold)
+  mvpY += 40
+  
+  if stats.damageContribution.hasKey(stats.mostEffectivePowerUp):
+    let mvpDamage = stats.damageContribution[stats.mostEffectivePowerUp]
+    let dmgStr = formatLargeNumber(mvpDamage) & " damage"
+    let dmgWidth = measureText(dmgStr, 16)
+    drawText(dmgStr, 860 - dmgWidth div 2, mvpY, 16, ACCENT_COLOR)
+    mvpY += 25
+  
+  if stats.killContribution.hasKey(stats.mostEffectivePowerUp):
+    let mvpKills = stats.killContribution[stats.mostEffectivePowerUp]
+    let killStr = $mvpKills & " kills"
+    let killWidth = measureText(killStr, 16)
+    drawText(killStr, 860 - killWidth div 2, mvpY, 16, Gold)
+
 # ============================================================================
 # COMPOSITE SCREENS
 # ============================================================================
@@ -391,38 +599,42 @@ proc drawRunStatisticsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
   let summaryWidth = measureText(summaryText, 18)
   drawText(summaryText, screenWidth div 2 - summaryWidth div 2, 65, 18, LightGray)
   
-  # Layout: 3 columns
+  # Layout: 3 columns with adjusted spacing
   let colWidth = 310
-  let col1X = 30
-  let col2X = col1X + colWidth + 20
-  let col3X = col2X + colWidth + 20
+  let col1X = 20
+  let col2X = col1X + colWidth + 15
+  let col3X = col2X + colWidth + 15
   
   var currentY = 100
   
   # Column 1
   drawCombatStats(stats.combat, col1X.int32, currentY.int32, gameTime)
-  drawResourceStats(stats.resources, col1X.int32, (currentY + 360).int32, gameTime)
   
   # Column 2
   drawMovementStats(stats.movement, col2X.int32, currentY.int32, gameTime)
-  drawPlayStyleAnalysis(stats.comparison, col2X.int32, (currentY + 360).int32, gameTime)
   
   # Column 3
-  drawPerformanceStats(stats.performance, col3X.int32, currentY.int32, gameTime)
-  drawPowerUpStats(stats.powerUps, col3X.int32, (currentY + 250).int32, gameTime)
+  drawResourceStats(stats.resources, col3X.int32, currentY.int32, gameTime)
   
-  # Graphs at bottom if enabled
-  if showGraphs and screenHeight > 700:
-    let graphY = 590
+  # Second row - adjusted Y position to avoid overlap, removed power-ups section
+  let row2Y = currentY + 360
+  drawPerformanceStats(stats.performance, col1X.int32, row2Y.int32, gameTime)
+  drawPlayStyleAnalysis(stats.comparison, col2X.int32, row2Y.int32, gameTime)
+  
+  # Graphs section (replacing power-ups section)
+  if showGraphs:
     if stats.performance.dpsHistory.len > 0:
-      drawTimelineGraph(col1X.int32, graphY.int32, 300, 140, "DPS Over Time", 
-                       stats.performance.dpsHistory, stats.performance.peakDPS * 1.1, GRAPH_LINE_COLOR)
-    
-    if stats.movement.positionHeatmap.len > 0:
-      drawHeatmap(col2X.int32, graphY.int32, 300, 140, stats.movement.positionHeatmap, 
-                 1024, 768)  # Assuming screen size, should pass actual
+      # DPS over time graph
+      let maxDPS = max(stats.performance.peakDPS, 1.0)  # Ensure non-zero
+      drawTimelineGraph(col3X.int32, row2Y.int32, 310, 200, "DPS OVER TIME", 
+                       stats.performance.dpsHistory, maxDPS, 
+                       Color(r: 255, g: 150, b: 50, a: 255))
+    else:
+      # No graph data available
+      drawStatCard(col3X.int32, row2Y.int32, 310, 200, "DPS OVER TIME", gameTime)
+      drawText("No graph data recorded", col3X.int32 + 50, row2Y.int32 + 90, 14, LightGray)
   
-  # Footer instructions
-  let footerY = screenHeight - 35
-  drawText("Press TAB to toggle graphs | ESC to return", 
-          screenWidth div 2 - 250, footerY, 16, LightGray)
+  # Footer instructions - positioned at actual bottom
+  let footerY = screenHeight - 30
+  drawText("Press TAB or ESC to return to Game Over", 
+          screenWidth div 2 - 200, footerY, 16, LightGray)

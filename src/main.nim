@@ -197,8 +197,9 @@ proc drawStatistics(game: Game, stats: Statistics) =
   drawText("STATISTICS", screenWidth div 2 - 120, 40, 40, Yellow)
   
   # Tab buttons
-  let tab1X = screenWidth div 2 - 180
-  let tab2X = screenWidth div 2 + 20
+  let tab1X = screenWidth div 2 - 260
+  let tab2X = screenWidth div 2 - 80
+  let tab3X = screenWidth div 2 + 100
   let tabY = 95
   let tabWidth = 160
   let tabHeight = 35
@@ -220,6 +221,16 @@ proc drawStatistics(game: Game, stats: Statistics) =
   drawRectangle(int32(tab2X), int32(tabY), int32(tabWidth), int32(tabHeight), tab2BgColor)
   drawRectangleLines(Rectangle(x: tab2X.float32, y: tabY.float32, width: tabWidth.float32, height: tabHeight.float32), 2, tab2Color)
   drawText("2. LAST RUN", int32(tab2X) + 15, int32(tabY) + 8, 18, tab2Color)
+  
+  # Tab 3: Power-ups
+  let tab3Color = if game.statsMenuTab == 2:
+                    (if hasLastRun: Gold else: Color(r: 80, g: 80, b: 80, a: 255))
+                  else:
+                    (if hasLastRun: Color(r: 100, g: 100, b: 120, a: 255) else: Color(r: 60, g: 60, b: 60, a: 255))
+  let tab3BgColor = if game.statsMenuTab == 2: Color(r: 60, g: 60, b: 70, a: 255) else: Color(r: 40, g: 40, b: 50, a: 255)
+  drawRectangle(int32(tab3X), int32(tabY), int32(tabWidth), int32(tabHeight), tab3BgColor)
+  drawRectangleLines(Rectangle(x: tab3X.float32, y: tabY.float32, width: tabWidth.float32, height: tabHeight.float32), 2, tab3Color)
+  drawText("3. POWER-UPS", int32(tab3X) + 10, int32(tabY) + 8, 18, tab3Color)
   
   # Content area starts below tabs
   let contentY: int32 = 150
@@ -284,12 +295,25 @@ proc drawStatistics(game: Game, stats: Statistics) =
       drawText("Complete a game to see detailed run statistics here", 
               screenWidth div 2 - 260, screenHeight div 2, 18, Color(r: 120, g: 120, b: 120, a: 255))
   
+  elif game.statsMenuTab == 2:
+    # === POWER-UP BREAKDOWN ===
+    if hasLastRun:
+      let runStats = getLastRunStats()
+      drawDetailedPowerUpScreen(runStats.powerUps, runStats.combat, 
+                               screenWidth, screenHeight, game.time)
+    else:
+      # No last run available
+      drawText("No power-up statistics available", 
+              screenWidth div 2 - 220, screenHeight div 2 - 40, 20, Color(r: 150, g: 150, b: 150, a: 255))
+      drawText("Complete a game to see power-up breakdown here", 
+              screenWidth div 2 - 260, screenHeight div 2, 18, Color(r: 120, g: 120, b: 120, a: 255))
+  
   # Footer instructions
   let footerText = if hasLastRun: 
-                     "Press 1 for Lifetime | 2 for Last Run | ESC to return"
+                     "Press 1 for Lifetime | 2 for Last Run | 3 for Power-Ups | ESC to return"
                    else:
                      "Press 1 for Lifetime | ESC to return"
-  drawText(footerText, screenWidth div 2 - 250, screenHeight - 60, 20, LightGray)
+  drawText(footerText, screenWidth div 2 - 330, screenHeight - 60, 20, LightGray)
   
   # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
   if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
@@ -446,11 +470,13 @@ proc main() =
       # Update time for animations
       currentGame.time += dt
       
-      # Tab switching: 1 = Lifetime, 2 = Last Run
+      # Tab switching: 1 = Lifetime, 2 = Last Run, 3 = Power-Ups
       if isKeyPressed(One):
         currentGame.statsMenuTab = 0
       if isKeyPressed(Two):
         currentGame.statsMenuTab = 1
+      if isKeyPressed(Three):
+        currentGame.statsMenuTab = 2
       
       if isKeyPressed(Escape):
         currentGame.state = gsMenu
@@ -487,6 +513,7 @@ proc main() =
             currentGame.walls.add(newWall(mousePos.x, mousePos.y, currentGame.player))
             currentGame.player.walls -= 1
             spawnExplosion(currentGame.particles, mousePos.x, mousePos.y, Brown, 15)
+            trackWallPlacement(currentGame, wallPos)
 
       # Toggle auto-shoot with F key
       if isKeyPressed(F) and hasPowerUp(currentGame.player, puAutoShoot):
@@ -952,7 +979,12 @@ proc main() =
                 break
           
           if validClick:
-            applyPowerUp(currentGame.player, currentGame.powerUpChoices[currentGame.selectedPowerUp])
+            let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
+            applyPowerUp(currentGame.player, chosenPowerUp)
+            
+            # Track power-up selection for statistics
+            trackPowerUpSelection(currentGame, chosenPowerUp)
+            
             currentGame.cameFromPowerUpSelect = true
             currentGame.state = gsShop
         
@@ -999,6 +1031,7 @@ proc main() =
       if isKeyPressed(Tab) and hasValidRunStats():
         currentGame.state = gsRunStats
       
+      # Keyboard controls
       if isKeyPressed(R):
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.mode = gmWaveBased  # Default to wave-based on restart
@@ -1010,6 +1043,38 @@ proc main() =
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.state = gsMenu
         statsSavedThisGame = false  # Reset for new game
+      
+      # Mouse click handling for buttons
+      if isMouseButtonPressed(Left):
+        let mousePos = getMousePosition()
+        let buttonY = screenHeight div 2 + 200
+        let buttonWidth = 200
+        let buttonHeight = 50
+        let buttonSpacing = 220
+        
+        # Restart button
+        let restartX = screenWidth div 2 - buttonSpacing
+        let restartRect = Rectangle(x: restartX.float32, y: buttonY.float32,
+                                     width: buttonWidth.float32, height: buttonHeight.float32)
+        
+        # Menu button  
+        let menuX = screenWidth div 2 + 20
+        let menuRect = Rectangle(x: menuX.float32, y: buttonY.float32,
+                                 width: buttonWidth.float32, height: buttonHeight.float32)
+        
+        # Check clicks
+        if checkCollisionPointRec(mousePos, restartRect):
+          # Restart game
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.mode = gmWaveBased
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        elif checkCollisionPointRec(mousePos, menuRect):
+          # Return to menu
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.state = gsMenu
+          statsSavedThisGame = false
       
       beginDrawing()
       drawGameOver(currentGame)
@@ -1027,11 +1092,11 @@ proc main() =
       # Update time for animations
       currentGame.time += dt
       
-      # Toggle graphs
+      # Toggle graphs OR return to game over with Tab
       if isKeyPressed(Tab):
-        currentGame.showRunStatsGraphs = not currentGame.showRunStatsGraphs
+        currentGame.state = gsGameOver
       
-      # Return to game over screen
+      # Return to game over screen with Escape (same as Tab now)
       if isKeyPressed(Escape):
         currentGame.state = gsGameOver
       

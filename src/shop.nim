@@ -1,4 +1,4 @@
-import raylib, types, math, powerup, sound, settings
+import raylib, types, math, powerup, sound, settings, run_statistics_integration
 
 proc initShopItems*(): array[6, ShopItem] =
   result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 8, bought: 0)
@@ -146,6 +146,9 @@ proc buyShopItem*(game: Game, index: int) =
   
   game.player.coins -= cost
   item.bought += 1
+  
+  # Track shop purchase for statistics
+  trackShopPurchase(game, item.name, cost)
   
   case index
   of 0: # Damage - Slightly reduced exponential scaling

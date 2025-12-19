@@ -124,7 +124,7 @@ type
     # Consumables
     consumablesCollected*: int
     consumablesByType*: Table[ConsumableType, int]
-    healthPotionsUsed*: int
+    healthConsumablesUsed*: int  # Track health consumable usage
     
     # Shop
     shopPurchases*: seq[(float32, string)]  # timestamp, item name

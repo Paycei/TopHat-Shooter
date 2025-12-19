@@ -1059,7 +1059,8 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       warningAngles,
       800.0,  # Warning length matches laser length
       laserDamage,
-      attack.durationOrRadius  # Laser active duration
+      attack.durationOrRadius,  # Laser active duration
+      enemy.enemyType  # Track which enemy type created this attack
     ))
     
     # NOTE: Lasers are NOT created immediately
@@ -1392,7 +1393,8 @@ proc updateGame*(game: var Game, dt: float32) =
           thickness = 15.0,
           damage = game.attackWarnings[i].laserDamage,
           duration = game.attackWarnings[i].laserDuration,
-          rotation = angle
+          rotation = angle,
+          enemyType = game.attackWarnings[i].enemyType
         ))
       
       # Mark lasers as created
@@ -1433,6 +1435,9 @@ proc updateGame*(game: var Game, dt: float32) =
         if takeDamage(game.player, laser.damage.float32):
           game.state = gsGameOver
         
+        # Track damage taken for statistics
+        trackPlayerDamage(game, laser.damage.float32, laser.enemyType)
+        
         # Create damage number for laser damage
         game.damageNumbers.add(newDamageNumber(
           game.player.pos.x,
@@ -1468,6 +1473,9 @@ proc updateGame*(game: var Game, dt: float32) =
       
       if takeDamage(game.player, wholeDamage):
         game.state = gsGameOver
+      
+      # Track poison damage for statistics
+      trackPlayerDamage(game, wholeDamage, etCircle)
       
       # Create damage number for poison damage
       game.damageNumbers.add(newDamageNumber(
@@ -2377,6 +2385,9 @@ proc updateGame*(game: var Game, dt: float32) =
           if takeDamage(game.player, eliteExplosionDamage):
             game.state = gsGameOver
           
+          # Track explosion damage for statistics
+          trackPlayerDamage(game, eliteExplosionDamage, enemy.enemyType)
+          
           # Create damage number for explosion damage
           game.damageNumbers.add(newDamageNumber(
             game.player.pos.x,
@@ -2404,6 +2415,9 @@ proc updateGame*(game: var Game, dt: float32) =
         if distToPlayer < explosionRadius:
           if takeDamage(game.player, explosionDamage):
             game.state = gsGameOver
+          
+          # Track boss explosion damage for statistics
+          trackPlayerDamage(game, explosionDamage, enemy.enemyType)
           
           # Create damage number for boss explosion damage
           game.damageNumbers.add(newDamageNumber(
@@ -2437,6 +2451,9 @@ proc updateGame*(game: var Game, dt: float32) =
         game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, game.difficulty))
       
       game.player.kills += 1
+      
+      # Track enemy kill for statistics
+      trackEnemyKilled(game, enemy)
       
       # Life steal power-up effect
       if hasPowerUp(game.player, puLifeSteal):
@@ -2635,8 +2652,8 @@ proc updateGame*(game: var Game, dt: float32) =
       enemy.shootTimer = 0
     
     # Check collision with player (with small coyote/forgiveness zone on edges)
-    # Reduce effective collision radius by 8% for slight edge forgiveness
-    let effectivePlayerRadius = game.player.radius * 0.92  # 8% reduction = coyote
+    # Reduce effective collision radius by 10% for slight edge forgiveness
+    let effectivePlayerRadius = game.player.radius * 0.90  # 10% reduction = coyote
     if distance(enemy.pos, game.player.pos) < enemy.radius + effectivePlayerRadius:
       if enemy.isBoss:
         # Boss deals continuous damage
@@ -2658,6 +2675,9 @@ proc updateGame*(game: var Game, dt: float32) =
           
           if takeDamage(game.player, bossContactDamage):
             game.state = gsGameOver
+          
+          # Track boss contact damage for statistics
+          trackPlayerDamage(game, bossContactDamage, enemy.enemyType)
           
           # Create damage number for boss contact damage
           game.damageNumbers.add(newDamageNumber(
@@ -2699,6 +2719,9 @@ proc updateGame*(game: var Game, dt: float32) =
         
         if takeDamage(game.player, enemyContactDamage):
           game.state = gsGameOver
+        
+        # Track enemy contact damage for statistics
+        trackPlayerDamage(game, enemyContactDamage, enemy.enemyType)
         
         # Create damage number for enemy contact damage
         game.damageNumbers.add(newDamageNumber(
@@ -2763,6 +2786,9 @@ proc updateGame*(game: var Game, dt: float32) =
     # Use effectiveDt for enemy bullets (slowed by Time Warp), normal dt for player bullets
     let bulletDt = if bullet.fromPlayer: dt else: effectiveDt
     if not updateBullet(bullet, bulletDt) or isOffScreen(bullet, game.screenWidth, game.screenHeight):
+      # Track bullet despawn (missed shot) for player bullets only
+      if bullet.fromPlayer:
+        trackBulletDespawn(game, bullet, false)
       game.bullets.delete(i)
       continue
     
@@ -3182,7 +3208,7 @@ proc updateGame*(game: var Game, dt: float32) =
           let reflectPercent = case thornsLevel
             of 1: 0.35  # BUFFED from 0.20 to 0.35
             of 2: 0.60  # BUFFED from 0.40 to 0.60
-            else: 1.00  # BUFFED from 0.70 to 1.00 (full reflection!)
+            else: 1.00  # BUFFED from 0.70 to 1.00
           let reflectedDamage = bulletDamage * reflectPercent
           
           # Find nearest enemy to reflect damage to
@@ -3202,6 +3228,12 @@ proc updateGame*(game: var Game, dt: float32) =
         if takeDamage(game.player, bulletDamage):
           game.state = gsGameOver
         
+        # Track bullet damage for statistics (try to get enemy type from sourceEnemyId)
+        var sourceEnemyType = etCircle
+        if bullet.sourceEnemyId >= 0 and bullet.sourceEnemyId < game.enemies.len:
+          sourceEnemyType = game.enemies[bullet.sourceEnemyId].enemyType
+        trackPlayerDamage(game, bulletDamage, sourceEnemyType)
+        
         # Create damage number (enemy damage to player)
         game.damageNumbers.add(newDamageNumber(
           game.player.pos.x, 
@@ -3220,6 +3252,7 @@ proc updateGame*(game: var Game, dt: float32) =
         if checkBulletWallCollision(bullet, wall):
           hitEnemy = true
           wall.takeDamage(bullet.damage)  # Full bullet damage
+          trackWallDamaged(game)
           spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Brown, 4)
           break
     
@@ -3260,6 +3293,10 @@ proc updateGame*(game: var Game, dt: float32) =
       else:
         game.coins[i].value
       game.player.coins += coinValue
+      
+      # Track coin pickup for statistics
+      trackCoinPickup(game, coinValue)
+      
       playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
       # Boss coins have red particles, regular coins have gold
       let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold
@@ -3320,6 +3357,9 @@ proc updateGame*(game: var Game, dt: float32) =
     if checkPlayerCollision(game.consumables[i], game.player):
       playSound(stPowerUp, 0.6)
       
+      # Track consumable pickup for statistics
+      trackConsumablePickup(game, game.consumables[i].consumableType)
+      
       case game.consumables[i].consumableType
       of ctHealth:
         heal(game.player, 1)
@@ -3362,6 +3402,8 @@ proc updateGame*(game: var Game, dt: float32) =
   i = 0
   while i < game.walls.len:
     if not updateWall(game.walls[i], dt):
+      let damageBlocked = game.walls[i].maxHp - game.walls[i].hp
+      trackWallDestruction(game, damageBlocked)
       spawnExplosion(game.particles, game.walls[i].pos.x, game.walls[i].pos.y, Brown, 20)
       game.walls.delete(i)
       continue
@@ -3963,7 +4005,54 @@ proc drawGameOver*(game: Game) =
   else:
     drawText("Cheats Used: NO", game.screenWidth div 2 - 95, game.screenHeight div 2 + yOffset.int32, 20, Color(r: 100, g: 255, b: 100, a: 255))
   
-  drawText("Press R to restart or ESC to menu", game.screenWidth div 2 - 190, game.screenHeight div 2 + 160, 20, LightGray)
+  # Draw buttons at the bottom
+  let buttonY = game.screenHeight div 2 + 200
+  let buttonWidth: int32 = 200
+  let buttonHeight: int32 = 50
+  let buttonSpacing = 220
+  
+  # Restart button
+  let restartX = game.screenWidth div 2 - buttonSpacing
+  let restartRect = Rectangle(x: restartX.float32, y: buttonY.float32, 
+                               width: buttonWidth.float32, height: buttonHeight.float32)
+  
+  # Menu button
+  let menuX = game.screenWidth div 2 + 20
+  let menuRect = Rectangle(x: menuX.float32, y: buttonY.float32,
+                           width: buttonWidth.float32, height: buttonHeight.float32)
+  
+  # Check mouse hover for both buttons
+  let mousePos = getMousePosition()
+  let hoverRestart = checkCollisionPointRec(mousePos, restartRect)
+  let hoverMenu = checkCollisionPointRec(mousePos, menuRect)
+  
+  # Draw restart button
+  let restartBgColor = if hoverRestart: 
+    Color(r: 60, g: 60, b: 80, a: 255) 
+  else: 
+    Color(r: 40, g: 40, b: 60, a: 255)
+  let restartBorderColor = if hoverRestart:
+    Color(r: 100, g: 200, b: 255, a: 255)
+  else:
+    Color(r: 80, g: 80, b: 100, a: 255)
+  
+  drawRectangle(restartX.int32, buttonY, buttonWidth, buttonHeight, restartBgColor)
+  drawRectangleLines(restartRect, 2, restartBorderColor)
+  drawText("RESTART (R)", (restartX + 30).int32, (buttonY + 15).int32, 20, White)
+  
+  # Draw menu button
+  let menuBgColor = if hoverMenu:
+    Color(r: 60, g: 60, b: 80, a: 255)
+  else:
+    Color(r: 40, g: 40, b: 60, a: 255)
+  let menuBorderColor = if hoverMenu:
+    Color(r: 100, g: 200, b: 255, a: 255)
+  else:
+    Color(r: 80, g: 80, b: 100, a: 255)
+  
+  drawRectangle(menuX.int32, buttonY, buttonWidth, buttonHeight, menuBgColor)
+  drawRectangleLines(menuRect, 2, menuBorderColor)
+  drawText("MENU (ESC)", (menuX + 35).int32, (buttonY + 15).int32, 20, White)
 
 proc drawWaveTransition*(game: Game) =
   # Draw the game in background

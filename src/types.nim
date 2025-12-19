@@ -122,6 +122,7 @@ type
     laserDamage*: int            # Damage of lasers when fired
     laserDuration*: float32      # How long lasers stay active
     lasersCreated*: bool         # Flag to track if lasers were already created
+    enemyType*: EnemyType        # Type of enemy creating this attack
 
   ElementType* = enum
     etPoison,      # Green - poison damage over time
@@ -343,6 +344,7 @@ type
     maxLifetime*: float32   # Original duration
     hasHitPlayer*: bool     # Track if already damaged player this laser
     rotation*: float32      # Rotation angle in radians (for rotating lasers)
+    enemyType*: EnemyType   # Type of enemy that created this laser
 
   ShopItem* = object
     name*: string
@@ -452,7 +454,7 @@ proc newAttackWarning*(x, y: float32, attackType: string, duration: float32): At
   )
 
 proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32], 
-                         length: float32, damage: int, laserDuration: float32): AttackWarning =
+                         length: float32, damage: int, laserDuration: float32, enemyType: EnemyType = etCircle): AttackWarning =
   ## Creates a warning specifically for boss laser attacks with multiple beams
   AttackWarning(
     pos: newVector2f(x, y),
@@ -464,10 +466,11 @@ proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32]
     laserCount: angles.len,
     laserDamage: damage,
     laserDuration: laserDuration,
-    lasersCreated: false
+    lasersCreated: false,
+    enemyType: enemyType
   )
 
-proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0): Laser =
+proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0, enemyType: EnemyType = etCircle): Laser =
   Laser(
     pos: newVector2f(x, y),
     direction: direction,
@@ -477,5 +480,6 @@ proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage
     lifetime: duration,
     maxLifetime: duration,
     hasHitPlayer: false,
-    rotation: rotation
+    rotation: rotation,
+    enemyType: enemyType
   )

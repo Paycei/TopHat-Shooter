@@ -281,6 +281,12 @@ proc recordWallDestroyed*(damageBlocked: float32) =
   currentRunStats.resources.wallsDestroyed += 1
   currentRunStats.resources.wallDamageBlocked += damageBlocked
 
+proc recordWallDamaged*() =
+  ## Track wall taking damage (but not destroyed)
+  if currentRunStats.isNil: return
+  
+  currentRunStats.resources.wallsDamaged += 1
+
 proc recordConsumable*(consumType: ConsumableType) =
   ## Track consumable pickup
   if currentRunStats.isNil: return
@@ -292,7 +298,7 @@ proc recordConsumable*(consumType: ConsumableType) =
   currentRunStats.resources.consumablesByType[consumType] += 1
   
   if consumType == ctHealth:
-    currentRunStats.resources.healthPotionsUsed += 1
+    currentRunStats.resources.healthConsumablesUsed += 1
 
 # ============================================================================
 # POWER-UP TRACKING

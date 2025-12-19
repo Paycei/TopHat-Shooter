@@ -241,34 +241,34 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "All 6 elemental orbs (2.5 dmg/hit)"
   of puPoisonOrb:
     case level
-    of 1: "1 poison orb (0.3 dmg/s"
-    of 2: "2 poison orbs (0.3 dmg/s)"
-    else: "3 poison orbs (0.3 dmg/s)"
+    of 1: "2 poison orbs (0.3 dmg/s"
+    of 2: "4 poison orbs (0.3 dmg/s)"
+    else: "6 poison orbs (0.3 dmg/s)"
   of puFireOrb:
     case level
-    of 1: "1 fire orb (0.4 dmg/s)"
-    of 2: "2 fire orbs (0.4 dmg/s)"
-    else: "3 fire orbs (0.4 dmg/s)"
+    of 1: "2 fire orbs (0.4 dmg/s)"
+    of 2: "4 fire orbs (0.4 dmg/s)"
+    else: "6 fire orbs (0.4 dmg/s)"
   of puLightningOrb:
     case level
-    of 1: "1 lightning orb (1.5 dmg/hit)"
-    of 2: "2 lightning orbs (2 dmg/hit)"
-    else: "3 lightning orbs (2.5 dmg/hit)"
+    of 1: "2 lightning orbs (1.5 dmg/hit)"
+    of 2: "4 lightning orbs (2 dmg/hit)"
+    else: "6 lightning orbs (2.5 dmg/hit)"
   of puWindOrb:
     case level
-    of 1: "1 wind orb (1 dmg/hit, push)"
-    of 2: "2 wind orbs (1.5 dmg/hit, push)"
-    else: "3 wind orbs (2 dmg/hit, push)"
+    of 1: "2 wind orbs (1 dmg/hit, push)"
+    of 2: "4 wind orbs (1.5 dmg/hit, push)"
+    else: "6 wind orbs (2 dmg/hit, push)"
   of puFrostOrb:
     case level
-    of 1: "1 frost orb (1 dmg/hit, slow)"
-    of 2: "2 frost orbs (1.5 dmg/hit, slow)"
-    else: "3 frost orbs (2 dmg/hit, slow)"
+    of 1: "2 frost orbs (1 dmg/hit, slow)"
+    of 2: "4 frost orbs (1.5 dmg/hit, slow)"
+    else: "6 frost orbs (2 dmg/hit, slow)"
   of puArcaneOrb:
     case level
-    of 1: "1 arcane orb (1.5 dmg/hit, arcane)"
-    of 2: "2 arcane orbs (2 dmg/hit, arcane)"
-    else: "3 arcane orbs (2.5 dmg/hit, arcane)"
+    of 1: "2 arcane orbs (1.5 dmg/hit, arcane)"
+    of 2: "4 arcane orbs (2 dmg/hit, arcane)"
+    else: "6 arcane orbs (2.5 dmg/hit, arcane)"
   of puArcaneBullets:
     case level
     of 1: "Bullets enhanced with arcane power (+50% bullet damage, arcane)"

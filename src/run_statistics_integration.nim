@@ -4,7 +4,7 @@
 # Import this and call tracking procs from game.nim
 # ============================================================================
 
-import run_statistics, types, player, bullet, enemy
+import run_statistics, types
 
 export run_statistics
 
@@ -112,6 +112,10 @@ proc trackWallPlacement*(game: Game, pos: Vector2f) =
 proc trackWallDestruction*(game: Game, damageBlocked: float32) =
   ## Call when a wall is destroyed
   recordWallDestroyed(damageBlocked)
+
+proc trackWallDamaged*(game: Game) =
+  ## Call when a wall takes damage but is not destroyed
+  recordWallDamaged()
 
 proc trackConsumablePickup*(game: Game, consumType: ConsumableType) =
   ## Call when player picks up a consumable

@@ -1,4 +1,4 @@
-import raylib, types, random, math, wall, bullet, effects, tables, boss_definitions
+import raylib, types, random, math, wall, bullet, effects, tables, boss_definitions, run_statistics_integration
 
 proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
   ## Reduces speed for very fast enemies, but only noticeable after wave ~20
@@ -463,6 +463,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         canMove = false
         if currentTime - enemy.lastWallDamageTime >= 1.0:
           wall.takeDamage(1.0)
+          trackWallDamaged(game)
           enemy.hp -= 1.0
           enemy.lastWallDamageTime = currentTime
         break
@@ -578,6 +579,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           enemy.vel = wallDir * effectiveSpeed * 0.85
           if currentTime - enemy.lastWallDamageTime >= 1.0:
             wall.takeDamage(1.0)
+            trackWallDamaged(game)
             enemy.hp -= 1.0
             enemy.lastWallDamageTime = currentTime
           break
@@ -602,6 +604,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           canMove = false
           if currentTime - enemy.lastWallDamageTime >= 1.0:
             wall.takeDamage(1.0)
+            trackWallDamaged(game)
             enemy.hp -= 1.0
             enemy.lastWallDamageTime = currentTime
           break
@@ -626,6 +629,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
             canMove = false
             if currentTime - enemy.lastWallDamageTime >= 1.0:
               wall.takeDamage(1.0)
+              trackWallDamaged(game)
               enemy.hp -= 1.0
               enemy.lastWallDamageTime = currentTime
             break
@@ -674,7 +678,8 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           20.0,           # thickness: width of laser beam
           2,              # damage
           dt,             # duration: just this frame, will be recreated next frame
-          enemy.rotation  # rotation: pass the enemy's current rotation
+          enemy.rotation, # rotation: pass the enemy's current rotation
+          enemy.enemyType # enemyType: track which enemy type created this laser
         ))
         
         # Rotate during dash (FASTER rotation in OPPOSITE direction)
