@@ -4,7 +4,7 @@
 # Called from game update loops to record gameplay data
 # ============================================================================
 
-import run_statistics_types, types, math, times, std/tables, strutils
+import run_statistics_types, types, math, times, std/tables, strutils, save_system
 
 export run_statistics_types
 
@@ -546,10 +546,23 @@ proc calculatePlayStyle*() =
 var lastCompletedRun*: RunStatistics = nil
 
 proc saveLastCompletedRun*() =
-  ## Store a copy of the current run for viewing in main menu
+  ## Store a copy of the current run for viewing in main menu and save to disk
   if not currentRunStats.isNil:
     lastCompletedRun = currentRunStats
-    echo "[Stats] Last run saved for menu viewing"
+    # Save to disk using save_system
+    if saveLastRunStats(currentRunStats):
+      echo "[Stats] Last run saved to memory and disk"
+    else:
+      echo "[Stats] Last run saved to memory only (disk save failed)"
+
+proc loadLastCompletedRun*() =
+  ## Load the last completed run from disk on startup
+  let loadedStats = loadLastRunStats()
+  if not loadedStats.isNil:
+    lastCompletedRun = loadedStats
+    echo "[Stats] Last run loaded from disk"
+  else:
+    echo "[Stats] No previous run found on disk"
 
 proc hasLastRunStats*(): bool =
   ## Check if we have a previous run to display

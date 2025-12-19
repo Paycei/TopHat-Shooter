@@ -40,10 +40,11 @@ proc spawnShockwave*(particles: var seq[Particle], x, y: float32, radius: float3
 # DAMAGE NUMBERS SYSTEM
 # ============================================================================
 
-proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritical: bool = false): DamageNumber =
+proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritical: bool = false, damageType: DamageType = dtDefault): DamageNumber =
   ## Create a new floating damage number
   ## fromPlayer: true if player dealt damage to enemy, false if enemy dealt damage to player
   ## isCritical: true for critical hits (larger size, different color)
+  ## damageType: type of damage for color coding
   let baseVelocityY = -80.0  # Move upward faster
   let horizontalSpread = (rand(1.0) - 0.5) * 100.0  # More horizontal movement for bounce effect
   
@@ -54,7 +55,8 @@ proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritic
     lifetime: 0,
     maxLifetime: 1.5,  # Visible for 1.5 seconds for full bounce animation
     fromPlayer: fromPlayer,
-    isCritical: isCritical
+    isCritical: isCritical,
+    damageType: damageType
   )
 
 proc updateDamageNumber*(dmgNum: DamageNumber, dt: float32): bool =
@@ -77,21 +79,77 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
   let progress = dmgNum.lifetime / dmgNum.maxLifetime
   let alpha = (1.0 - progress) * 255.0  # Fade out over time
   
-  # Determine color and size based on type
+  # Determine color and size based on type and damage source
   var color: Color
   var fontSize: int32
   
   if dmgNum.isCritical:
-    # Critical hits: larger, yellow text
+    # Critical hits: larger, yellow text (for player crits)
     color = Color(r: 255, g: 255, b: 50, a: alpha.uint8)
     fontSize = 24
   elif dmgNum.fromPlayer:
-    # Player damage to enemy: white/red
-    color = Color(r: 255, g: 100, b: 100, a: alpha.uint8)
+    # Player damage to enemy: color by damage type
+    case dmgNum.damageType
+    of dtFire:
+      # Fire damage: bright red/orange
+      color = Color(r: 255, g: 80, b: 0, a: alpha.uint8)
+    of dtPoison:
+      # Poison damage: toxic green
+      color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
+    of dtLaser:
+      # Laser damage: cool blue
+      color = Color(r: 150, g: 150, b: 255, a: alpha.uint8)
+    of dtLightning:
+      # Lightning damage: electric yellow
+      color = Color(r: 255, g: 255, b: 80, a: alpha.uint8)
+    of dtArcane:
+      # Arcane damage: purple
+      color = Color(r: 180, g: 50, b: 200, a: alpha.uint8)
+    of dtExplosion:
+      # Explosion damage: bright orange
+      color = Color(r: 255, g: 165, b: 0, a: alpha.uint8)
+    of dtCritical:
+      # Shouldn't happen (isCritical flag handles this), but yellow
+      color = Color(r: 255, g: 255, b: 50, a: alpha.uint8)
+    of dtHeal:
+      # Healing: bright green (should only happen for player)
+      color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
+    of dtDefault:
+      # Default damage: white (standard bullets, orbs)
+      color = Color(r: 255, g: 255, b: 255, a: alpha.uint8)
+    
     fontSize = 18
   else:
-    # Enemy damage to player: orange/red (more alarming)
-    color = Color(r: 255, g: 150, b: 0, a: alpha.uint8)
+    # Enemy damage to player: color coded by damage type
+    case dmgNum.damageType
+    of dtFire:
+      # Fire damage: bright red/orange
+      color = Color(r: 255, g: 80, b: 0, a: alpha.uint8)
+    of dtPoison:
+      # Poison damage: toxic green
+      color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
+    of dtLaser:
+      # Laser damage: cool blue
+      color = Color(r: 200, g: 50, b: 255, a: alpha.uint8)
+    of dtLightning:
+      # Lightning damage: electric yellow
+      color = Color(r: 255, g: 255, b: 80, a: alpha.uint8)
+    of dtArcane:
+      # Arcane damage: purple
+      color = Color(r: 180, g: 50, b: 200, a: alpha.uint8)
+    of dtExplosion:
+      # Explosion damage: bright orange/yellow
+      color = Color(r: 255, g: 165, b: 0, a: alpha.uint8)
+    of dtCritical:
+      # Should not happen for enemy damage, but handle it
+      color = Color(r: 255, g: 255, b: 50, a: alpha.uint8)
+    of dtHeal:
+      # Healing on enemy? Shouldn't happen, but bright green
+      color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
+    of dtDefault:
+      # Default contact damage: orange/red (more alarming)
+      color = Color(r: 255, g: 150, b: 0, a: alpha.uint8)
+    
     fontSize = 20
   
   # Format damage text

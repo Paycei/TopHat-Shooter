@@ -346,6 +346,9 @@ proc main() =
   let stats = initStatistics()
   discard loadStatistics(stats)
   
+  # Load last completed run statistics
+  loadLastCompletedRun()
+  
   var statsSavedThisGame = false  # Track if stats were saved for current game
   
   var currentGame = newGame(screenWidth, screenHeight)

@@ -325,6 +325,17 @@ type
     maxLifetime*: float32
     size*: float32
 
+  DamageType* = enum
+    dtDefault,      # White - regular contact damage
+    dtFire,         # Red/Orange - fire damage
+    dtPoison,       # Green - poison damage
+    dtLaser,        # Purple - laser damage
+    dtLightning,    # Yellow - lightning damage
+    dtArcane,       # Purple - arcane damage
+    dtExplosion,    # Orange - explosion damage
+    dtCritical,     # Yellow - critical hits (from player)
+    dtHeal          # Green - healing (positive numbers)
+
   DamageNumber* = ref object
     pos*: Vector2f          # Current position
     vel*: Vector2f          # Velocity (moves upward and fades)
@@ -333,6 +344,7 @@ type
     maxLifetime*: float32   # Total duration before disappearing
     fromPlayer*: bool       # True if player dealt damage, false if enemy dealt damage
     isCritical*: bool       # True for critical hits (larger, different color)
+    damageType*: DamageType # Type of damage for color coding
 
   Laser* = ref object
     pos*: Vector2f          # Center position
