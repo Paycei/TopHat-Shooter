@@ -55,59 +55,148 @@ proc drawCustomCursor*(time: float32) =
   drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
 
 proc drawMenu(game: Game) =
-  clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
+  # Dark gradient background
+  drawRectangleGradientV(0, 0, screenWidth, screenHeight, 
+                         Color(r: 8, g: 10, b: 20, a: 255),
+                         Color(r: 20, g: 12, b: 35, a: 255))
   
-  # Subtle animated background particles
-  for i in 0..<25:
-    let offset = i.float32 * 0.7
-    let x = ((game.time * 20.0 + offset * 20) mod screenWidth.float32).int32
-    let y = ((game.time * 10.0 + offset * 40) mod screenHeight.float32).int32
-    let size = 2 + (sin(game.time * 2.0 + offset) * 1).int32
-    let alpha = uint8(30 + sin(game.time * 2.0 + offset) * 15)
+  # Animated starfield background
+  for i in 0..<60:
+    let offset = i.float32 * 1.2
+    let speedFactor = 1.0 + (i mod 3).float32 * 0.5
+    let x = ((game.time * 15.0 * speedFactor + offset * 30) mod (screenWidth.float32 + 100)).int32
+    let y = ((offset * 15) mod screenHeight.float32).int32
+    let size = 1 + (i mod 3)
+    let twinkle = (sin(game.time * 4.0 + offset) * 0.5 + 0.5)
+    let alpha = uint8(100 + twinkle * 155)
     drawCircle(Vector2(x: x.float32, y: y.float32), size.float32, 
-              Color(r: 100'u8, g: 150'u8, b: 255'u8, a: alpha))
+               Color(r: 200'u8, g: 200'u8, b: 255'u8, a: alpha))
   
-  # Gentle floating orbs around title
-  for i in 0..<6:
-    let angle = game.time * 0.4 + i.float32 * PI / 3.0
-    let radius = 150.0 + sin(game.time * 1.2 + i.float32) * 20.0
+  # Large elemental particle swirls (background layer)
+  for i in 0..<30:
+    let offset = i.float32 * 0.9
+    let angle = game.time * 0.3 + offset * 0.5
+    let radius = 250.0 + sin(game.time * 0.8 + offset) * 80.0
     let x = screenWidth.float32 / 2 + cos(angle) * radius
-    let y = 140.0 + sin(angle) * radius * 0.4
-    let size = 8 + (sin(game.time * 2.0 + i.float32) * 3).int32
-    let alpha = uint8(25 + (sin(game.time * 2.0 + i.float32) * 12))
-    drawCircle(Vector2(x: x, y: y), size.float32, 
-              Color(r: 255'u8, g: 200'u8, b: 50'u8, a: alpha))
+    let y = 200.0 + sin(angle * 0.7) * radius * 0.6
+    let size = 3 + (sin(game.time * 2.5 + offset) * 2).int32
+    let pulse = sin(game.time * 3.0 + offset) * 0.4 + 0.6
+    let alpha = uint8(30 + pulse * 40)
+    
+    # Elemental colors cycle
+    let elementIndex = i mod 6
+    var color: Color
+    case elementIndex
+    of 0: color = Color(r: 255'u8, g: 120'u8, b: 50'u8, a: alpha)   # Fire
+    of 1: color = Color(r: 120'u8, g: 200'u8, b: 255'u8, a: alpha)  # Frost
+    of 2: color = Color(r: 255'u8, g: 255'u8, b: 80'u8, a: alpha)   # Lightning
+    of 3: color = Color(r: 100'u8, g: 255'u8, b: 150'u8, a: alpha)  # Poison
+    of 4: color = Color(r: 200'u8, g: 100'u8, b: 255'u8, a: alpha)  # Arcane
+    else: color = Color(r: 255'u8, g: 70'u8, b: 70'u8, a: alpha)    # Blood
+    
+    drawCircle(Vector2(x: x, y: y), size.float32, color)
+    # Inner glow
+    drawCircle(Vector2(x: x, y: y), (size.float32 * 0.5),
+               Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(alpha div 3)))
   
-  # Title with subtle wave effect
+  # Orbiting elemental orbs around title (mid layer)
+  for i in 0..<6:
+    let angle = game.time * 0.6 + i.float32 * PI / 3.0
+    let radius = 200.0 + sin(game.time * 1.5 + i.float32) * 30.0
+    let x = screenWidth.float32 / 2 + cos(angle) * radius
+    let y = 160.0 + sin(angle) * radius * 0.4
+    let size = 14 + (sin(game.time * 2.5 + i.float32) * 5).int32
+    let pulse = sin(game.time * 3.0 + i.float32) * 0.3 + 0.7
+    let alpha = uint8(80 + pulse * 120)
+    
+    # Assign elemental colors
+    var orbColor: Color
+    case i
+    of 0: orbColor = Color(r: 255'u8, g: 130'u8, b: 50'u8, a: alpha)   # Fire
+    of 1: orbColor = Color(r: 140'u8, g: 210'u8, b: 255'u8, a: alpha)  # Frost
+    of 2: orbColor = Color(r: 255'u8, g: 255'u8, b: 100'u8, a: alpha)  # Lightning
+    of 3: orbColor = Color(r: 110'u8, g: 255'u8, b: 110'u8, a: alpha)  # Poison
+    of 4: orbColor = Color(r: 210'u8, g: 110'u8, b: 255'u8, a: alpha)  # Arcane
+    else: orbColor = Color(r: 255'u8, g: 60'u8, b: 60'u8, a: alpha)    # Blood
+    
+    # Trail effect
+    let trailAngle = angle - 0.15
+    let trailX = screenWidth.float32 / 2 + cos(trailAngle) * radius
+    let trailY = 160.0 + sin(trailAngle) * radius * 0.4
+    drawCircle(Vector2(x: trailX, y: trailY), (size.float32 * 0.6),
+               Color(r: orbColor.r, g: orbColor.g, b: orbColor.b, a: uint8(alpha div 3)))
+    
+    # Main orb with glow
+    drawCircle(Vector2(x: x, y: y), size.float32, orbColor)
+    drawCircle(Vector2(x: x, y: y), (size.float32 * 0.65),
+               Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(alpha div 2)))
+    drawCircle(Vector2(x: x, y: y), (size.float32 * 0.35),
+               Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 255'u8))
+  
+  # Title with elemental gradient effect
   let titleText = "TopHat SHOOTER"
-  let baseY = 150
-  let baseTitleSize = 55
+  let baseY = 140
+  let baseTitleSize = 60
   
-  # Gentle glow
-  drawText(titleText, screenWidth.int32 div 2 - 218, 151, baseTitleSize.int32 + 2,
-          Color(r: 255'u8, g: 255'u8, b: 0'u8, a: 50'u8))
+  # Multi-layered glow with elemental colors
+  drawText(titleText, screenWidth.int32 div 2 - 250, 142, baseTitleSize.int32 + 4,
+          Color(r: 255'u8, g: 150'u8, b: 0'u8, a: 40'u8))
+  drawText(titleText, screenWidth.int32 div 2 - 250, 143, baseTitleSize.int32 + 3,
+          Color(r: 200'u8, g: 100'u8, b: 255'u8, a: 40'u8))
   
-  # Main title with subtle per-character wave
+  # Main title with subtle per-character wave and elemental colors
   for i in 0..<titleText.len:
-    let charWave = sin(game.time * 3.0 + i.float32 * 0.4) * 2.0
-    let charX = screenWidth div 2 - 220 + i * 31
+    let charWave = sin(game.time * 3.0 + i.float32 * 0.4) * 2.5
+    let charX = screenWidth div 2 - 220 + i * 32
     let charY = baseY.float32 + charWave
-    drawText($titleText[i], charX.int32, charY.int32, baseTitleSize.int32, Yellow)
+    
+    # Cycle through elemental colors for each character
+    let colorIndex = (i + (game.time * 2.0).int) mod 6
+    var charColor: Color
+    case colorIndex
+    of 0: charColor = Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 255'u8)   # Lightning
+    of 1: charColor = Color(r: 255'u8, g: 120'u8, b: 50'u8, a: 255'u8)   # Fire
+    of 2: charColor = Color(r: 150'u8, g: 200'u8, b: 255'u8, a: 255'u8)  # Frost
+    of 3: charColor = Color(r: 100'u8, g: 255'u8, b: 150'u8, a: 255'u8)  # Poison
+    of 4: charColor = Color(r: 200'u8, g: 120'u8, b: 255'u8, a: 255'u8)  # Arcane
+    else: charColor = Color(r: 255'u8, g: 100'u8, b: 100'u8, a: 255'u8)  # Blood
+    
+    drawText($titleText[i], charX.int32, charY.int32, baseTitleSize.int32, charColor)
   
-  # Subtitle with gentle pulse
-  let subtitlePulse = 1.0 + sin(game.time * 2.5) * 0.06
-  let subtitleSize = (28.float32 * subtitlePulse).int32
-  drawText("ELEMENTAL UPDATE", screenWidth div 2 - 150, 200, subtitleSize, Orange)
+  # Subtitle with pulsing elemental energy
+  let subtitlePulse = 1.0 + sin(game.time * 3.0) * 0.08
+  let subtitleSize = (32.float32 * subtitlePulse).int32
+  let subtitleGlow = uint8(100 + sin(game.time * 4.0) * 50)
   
-  # UPDATE badge with subtle glow
-  let updateX = screenWidth div 2 - 80
-  let updateY = 245
-  let updatePulse = 1.0 + sin(game.time * 4.0) * 0.1
-  let updateSize = (30.float32 * updatePulse).int32
+  drawText("ELEMENTAL UPDATE", screenWidth div 2 - 170, 212, subtitleSize + 2,
+          Color(r: 160'u8, g: 90'u8, b: 230'u8, a: subtitleGlow))
+  drawText("ELEMENTAL UPDATE", screenWidth div 2 - 170, 210, subtitleSize,
+          Color(r: 255'u8, g: 180'u8, b: 100'u8, a: 255'u8))
   
-  drawText("UPDATE 4.1!", int32(updateX - 1), int32(updateY - 1), updateSize + 2,
-          Color(r: 255'u8, g: 120'u8, b: 0'u8, a: 80'u8))
-  drawText("UPDATE 4.1!", int32(updateX), int32(updateY), updateSize, Gold)
+  # Version badge with animated elemental border
+  let versionX = screenWidth div 2 - 52.5
+  let versionY = 260
+  let versionPulse = 1.0 + sin(game.time * 5.0) * 0.12
+  let versionSize = (26.float32 * versionPulse).int32
+  
+  # Rotating elemental ring around version
+  for i in 0..<8:
+    let ringAngle = game.time * 4.0 + i.float32 * PI / 4.0
+    let ringX = versionX.float32 + 50 + cos(ringAngle) * 45
+    let ringY = versionY.float32 + 13 + sin(ringAngle) * 20
+    let ringColorIndex = i mod 6
+    var ringColor: Color
+    case ringColorIndex
+    of 0: ringColor = Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 150'u8)
+    of 1: ringColor = Color(r: 255'u8, g: 100'u8, b: 50'u8, a: 150'u8)
+    of 2: ringColor = Color(r: 150'u8, g: 200'u8, b: 255'u8, a: 150'u8)
+    of 3: ringColor = Color(r: 100'u8, g: 255'u8, b: 100'u8, a: 150'u8)
+    of 4: ringColor = Color(r: 200'u8, g: 100'u8, b: 255'u8, a: 150'u8)
+    else: ringColor = Color(r: 255'u8, g: 50'u8, b: 50'u8, a: 150'u8)
+    drawCircle(Vector2(x: ringX, y: ringY), 3, ringColor)
+  
+  drawText("v4.1", int32(versionX + 27.5), int32(versionY), versionSize,
+          Color(r: 255'u8, g: 220'u8, b: 100'u8, a: 255'u8))
   
   # Menu options with subtle selection indicator
   let startY = 360

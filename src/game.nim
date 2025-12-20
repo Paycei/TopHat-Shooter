@@ -367,9 +367,11 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Apply critical hit chance using global function
     damage = applyCriticalHit(game.player, damage)
     
-    # Apply Arcane Mastery bonus to Arcane bullets
+    # Apply Arcane Mastery bonus to Arcane bullets (damage + piercing)
+    var arcanePiercing = hasPiercing  # Start with base piercing status
     if hasArcane and game.player.hasArcaneMastery:
       damage *= 3.0  # +200% additional damage on top of Arcane Bullets bonus
+      arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
     
     # Calculate slow, poison, fire, and wind effects
     var slowEffect = 0.0
@@ -457,7 +459,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         damage = damage,
         fromPlayer = true,
         isHoming = hasHoming,
-        isPiercing = hasPiercing,
+        isPiercing = arcanePiercing,
         isExplosive = hasExplosive,
         hasBounce = hasRicochet,
         canSplit = hasSplit,
@@ -515,7 +517,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         damage = damage,
         fromPlayer = true,
         isHoming = hasHoming,
-        isPiercing = hasPiercing,
+        isPiercing = arcanePiercing,
         isExplosive = hasExplosive,
         hasBounce = hasRicochet,
         canSplit = hasSplit,
@@ -564,6 +566,11 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   var speed = game.player.bulletSpeed * 1.2
   var damage = getCurrentDamage(game.player) * 0.85  # BUFFED: Second bullet reduced by 15% (was 25%)
   var bulletRadius = BASE_PLAYER_BULLET_RADIUS
+  
+  # Apply Arcane Mastery piercing bonus
+  var arcanePiercing = hasPiercing
+  if hasArcane and game.player.hasArcaneMastery:
+    arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
   
   # NERF: Multi-shot bullets deal less damage per bullet (scales with level)
   if hasMultiShot:
@@ -632,7 +639,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         damage = damage,
         fromPlayer = true,
         isHoming = hasHoming,
-        isPiercing = hasPiercing,
+        isPiercing = arcanePiercing,
         isExplosive = hasExplosive,
         hasBounce = hasRicochet,
         canSplit = hasSplit,
@@ -2258,8 +2265,12 @@ proc updateGame*(game: var Game, dt: float32) =
                   isCritical = false,
                   damageType = dtHeal
                 ))
+                
+                # Green healing particles at player position
+                spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, 
+                             Color(r: 100, g: 255, b: 100, a: 255), 3)
               
-              # Red blood particles
+              # Red blood particles at hit location
               spawnExplosion(game.particles, orbX, orbY,
                            Color(r: 255, g: 50, b: 50, a: 255), 5)
             
