@@ -339,12 +339,12 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
   
-  of 4:  # Wave 20 - THE LASER ARCHITECT - BUFFED FOR CHAOS
+  of 4:  # Wave 20 - THE LASER ARCHITECT - NERFED FOR BALANCE
     result = BossDefinition(
       name: "The Laser Architect",
       bossID: 4,
-      baseHP: 390.0,  # BUFFED from 380.0
-      baseSpeed: 77.5,  # BUFFED from 75.0 (more aggressive)
+      baseHP: 360.0,  # NERFED from 390.0 (easier to kill)
+      baseSpeed: 72.0,  # NERFED from 77.5 (slower movement)
       baseDamage: 2,
       baseRadius: 52.0,
       color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -354,7 +354,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Blueprint",
           hpThreshold: 1.0,
-          speedMultiplier: 1.1,  # BUFFED from 1.0 (faster from the start)
+          speedMultiplier: 1.0,  # NERFED from 1.1 (slower)
           damageMultiplier: 1.0,
           defenseMultiplier: 1.3,
           color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -364,29 +364,29 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 2.0,
-              cooldown: 3.5,  # BUFFED from 4.0 (more frequent lasers)
+              cooldown: 4.5,  # NERFED from 3.5 (less frequent)
               projectileSpeed: 0.0,
               projectileCount: 2,
               spreadAngle: 90.0,
-              durationOrRadius: 3.0,
+              durationOrRadius: 2.5,  # NERFED from 3.0 (shorter duration)
               specialData: "cross_laser"
             ),
             BossAttack(
               attackType: bapWave,
               damage: 1.0,
-              cooldown: 2.25,  # BUFFED from 2.5 (faster)
-              projectileSpeed: 180.0,  # BUFFED from 170.0
-              projectileCount: 6,  # BUFFED from 5 (more bullets)
-              spreadAngle: 50.0,  # BUFFED from 45.0 (wider spread)
+              cooldown: 2.75,  # NERFED from 2.25 (less frequent)
+              projectileSpeed: 160.0,  # NERFED from 180.0 (easier to dodge)
+              projectileCount: 5,  # NERFED from 6 (fewer bullets)
+              spreadAngle: 45.0,  # NERFED from 50.0 (tighter spread)
               durationOrRadius: 0.0
             ),
             BossAttack(
-              attackType: bapTargeted,  # NEW ATTACK: Direct player targeting
+              attackType: bapTargeted,  # NERFED: Less aggressive targeting
               damage: 1.0,
-              cooldown: 3.0,
-              projectileSpeed: 250.0,
-              projectileCount: 5,
-              spreadAngle: 10.0,
+              cooldown: 3.5,  # NERFED from 3.0 (less frequent)
+              projectileSpeed: 220.0,  # NERFED from 250.0 (easier to dodge)
+              projectileCount: 3,  # NERFED from 5 (fewer bullets)
+              spreadAngle: 8.0,  # NERFED from 10.0 (tighter, easier to dodge as group)
               durationOrRadius: 0.0
             )
           ]
@@ -394,8 +394,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Construction",
           hpThreshold: 0.65,
-          speedMultiplier: 1.33,  # BUFFED from 1.2 (faster)
-          damageMultiplier: 1.33,  # BUFFED from 1.3
+          speedMultiplier: 1.2,  # NERFED from 1.33 (slower)
+          damageMultiplier: 1.2,  # NERFED from 1.33 (less damage)
           defenseMultiplier: 1.2,
           color: Color(r: 0, g: 255, b: 255, a: 255),
           visualEffect: "pulse",
@@ -404,38 +404,38 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 2.0,
-              cooldown: 2.2,  # BUFFED from 3.0 (much more frequent)
+              cooldown: 3.5,  # NERFED from 2.2 (much less frequent)
               projectileSpeed: 0.0,
-              projectileCount: 4,
+              projectileCount: 3,  # NERFED from 4 (fewer lasers)
               spreadAngle: 45.0,
-              durationOrRadius: 3.5,
+              durationOrRadius: 3.0,  # NERFED from 3.5 (shorter duration)
               specialData: "rotating_grid"
             ),
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 0.8,  # BUFFED from 1.0 (very rapid)
-              projectileSpeed: 300.0,  # BUFFED from 280.0
-              projectileCount: 4,  # BUFFED from 3 (more bullets)
-              spreadAngle: 20.0,  # BUFFED from 15.0
+              cooldown: 1.5,  # HEAVILY NERFED from 0.8 (much less rapid)
+              projectileSpeed: 260.0,  # NERFED from 300.0 (easier to dodge)
+              projectileCount: 3,  # NERFED from 4 (fewer bullets)
+              spreadAngle: 15.0,  # NERFED from 20.0 (tighter spread)
               durationOrRadius: 0.0
             ),
             BossAttack(
-              attackType: bapCircle,  # NEW ATTACK: Circle pattern for chaos
+              attackType: bapCircle,  # NERFED: Less aggressive circle
               damage: 1.0,
-              cooldown: 3.5,
-              projectileSpeed: 160.0,
-              projectileCount: 16,
+              cooldown: 4.5,  # NERFED from 3.5 (less frequent)
+              projectileSpeed: 145.0,  # NERFED from 160.0 (easier to dodge)
+              projectileCount: 12,  # NERFED from 16 (fewer bullets)
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
-              attackType: bapBurst,  # NEW ATTACK: Burst fire for pressure
+              attackType: bapBurst,  # NERFED: Less aggressive burst
               damage: 1.0,
-              cooldown: 2.5,
-              projectileSpeed: 220.0,
-              projectileCount: 8,
-              spreadAngle: 60.0,
+              cooldown: 3.0,  # NERFED from 2.5 (less frequent)
+              projectileSpeed: 190.0,  # NERFED from 220.0 (easier to dodge)
+              projectileCount: 6,  # NERFED from 8 (fewer bullets)
+              spreadAngle: 50.0,  # NERFED from 60.0 (tighter spread)
               durationOrRadius: 0.0
             )
           ]
@@ -443,8 +443,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Masterpiece",
           hpThreshold: 0.3,
-          speedMultiplier: 1.4,
-          damageMultiplier: 1.5,
+          speedMultiplier: 1.2,  # HEAVILY NERFED from 1.3 (much slower)
+          damageMultiplier: 1.2,  # HEAVILY NERFED from 1.3 (less damage)
           defenseMultiplier: 1.0,
           color: Color(r: 100, g: 255, b: 255, a: 255),
           visualEffect: "aura",
@@ -452,48 +452,48 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapLaser,
-              damage: 3.0,
-              cooldown: 1.8,  # BUFFED from 2.5 (rapid lasers)
+              damage: 2.0,  # HEAVILY NERFED from 2.5 (less damage)
+              cooldown: 4.0,  # HEAVILY NERFED from 2.5 (much less spam)
               projectileSpeed: 0.0,
-              projectileCount: 8,
+              projectileCount: 4,  # HEAVILY NERFED from 6 (much fewer lasers)
               spreadAngle: 22.5,
-              durationOrRadius: 4.0,
+              durationOrRadius: 2.5,  # HEAVILY NERFED from 3.5 (much shorter)
               specialData: "prismatic_cage"
             ),
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 2.5,  # BUFFED from 3.5 (more frequent)
-              projectileSpeed: 170.0,  # BUFFED from 150.0
-              projectileCount: 28,  # BUFFED from 24 (more bullets)
+              cooldown: 4.5,  # HEAVILY NERFED from 3.5 (much less frequent)
+              projectileSpeed: 140.0,  # HEAVILY NERFED from 155.0 (much easier to dodge)
+              projectileCount: 16,  # HEAVILY NERFED from 20 (much fewer bullets)
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
-              attackType: bapBarrage,  # NEW ATTACK: Massive spray
-              damage: 2.0,
-              cooldown: 3.0,
-              projectileSpeed: 240.0,
-              projectileCount: 32,
+              attackType: bapBarrage,  # EXTREMELY NERFED: Much less overwhelming
+              damage: 1.0,  # NERFED from 2.0 (less damage)
+              cooldown: 6.0,  # EXTREMELY NERFED from 4.5 (rare special attack)
+              projectileSpeed: 190.0,  # HEAVILY NERFED from 210.0 (very easy to dodge)
+              projectileCount: 16,  # EXTREMELY NERFED from 20 (half of original 32)
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
-              attackType: bapPulse,  # NEW ATTACK: Expanding pulse
-              damage: 2.0,
-              cooldown: 4.0,
-              projectileSpeed: 200.0,
+              attackType: bapPulse,  # HEAVILY NERFED: Much less aggressive
+              damage: 1.0,  # HEAVILY NERFED from 1.5 (much less damage)
+              cooldown: 6.5,  # HEAVILY NERFED from 5.0 (rare special attack)
+              projectileSpeed: 160.0,  # HEAVILY NERFED from 175.0 (easier to dodge)
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 180.0
+              durationOrRadius: 140.0  # HEAVILY NERFED from 160.0 (smaller radius)
             ),
             BossAttack(
-              attackType: bapTargeted,  # CONTINUED: Relentless targeting
-              damage: 2.0,
-              cooldown: 0.6,  # VERY RAPID
-              projectileSpeed: 320.0,
-              projectileCount: 5,
-              spreadAngle: 25.0,
+              attackType: bapTargeted,  # EXTREMELY NERFED: No longer relentless
+              damage: 1.0,  # HEAVILY NERFED from 1.5 (much less damage)
+              cooldown: 2.0,  # EXTREMELY NERFED from 1.2 (much less rapid)
+              projectileSpeed: 250.0,  # HEAVILY NERFED from 280.0 (easier to dodge)
+              projectileCount: 2,  # HEAVILY NERFED from 3 (fewer bullets)
+              spreadAngle: 12.0,  # NERFED from 18.0 (tighter spread)
               durationOrRadius: 0.0
             )
           ]
