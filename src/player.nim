@@ -48,6 +48,17 @@ proc newPlayer*(x, y: float32): Player =
     parryDuration: 0
   )
 
+proc hasAnyOrbPowerUp*(player: Player): bool =
+  ## Check if player has any orb power-up equipped
+  return hasPowerUp(player, puRotatingOrbs) or
+         hasPowerUp(player, puPoisonOrb) or
+         hasPowerUp(player, puFireOrb) or
+         hasPowerUp(player, puLightningOrb) or
+         hasPowerUp(player, puWindOrb) or
+         hasPowerUp(player, puFrostOrb) or
+         hasPowerUp(player, puArcaneOrb) or
+         hasPowerUp(player, puBloodOrb)
+
 proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
   # Update powerup timers
   if player.speedBoostTimer > 0:
@@ -137,16 +148,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   player.orbRotationAngle += dt * 2.0  # Rotate orbs around player
   
   # Clean up orbs if no orb power-ups are active
-  let hasAnyOrbPowerUp = (hasPowerUp(player, puRotatingOrbs) or
-                         hasPowerUp(player, puPoisonOrb) or
-                         hasPowerUp(player, puFireOrb) or
-                         hasPowerUp(player, puLightningOrb) or
-                         hasPowerUp(player, puWindOrb) or
-                         hasPowerUp(player, puFrostOrb) or
-                         hasPowerUp(player, puArcaneOrb) or
-                         hasPowerUp(player, puBloodOrb))
-  
-  if not hasAnyOrbPowerUp and player.rotatingOrbs.len > 0:
+  if not hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
     player.rotatingOrbs = @[]
 
 proc drawPlayer*(player: Player) =
@@ -303,16 +305,7 @@ proc drawPlayer*(player: Player) =
   
   # Draw rotating orbs (if player has any orb power-ups)
   # Check if player has any orb power-ups before rendering
-  let hasAnyOrbPowerUp = (hasPowerUp(player, puRotatingOrbs) or
-                         hasPowerUp(player, puPoisonOrb) or
-                         hasPowerUp(player, puFireOrb) or
-                         hasPowerUp(player, puLightningOrb) or
-                         hasPowerUp(player, puWindOrb) or
-                         hasPowerUp(player, puFrostOrb) or
-                         hasPowerUp(player, puArcaneOrb) or
-                         hasPowerUp(player, puBloodOrb))
-  
-  if hasAnyOrbPowerUp and player.rotatingOrbs.len > 0:
+  if hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
     # Scale orb size with player size (increased from 0.3 to 0.45)
     let orbSizeScale = 6.0 + (player.radius - player.baseRadius) * 0.45
     

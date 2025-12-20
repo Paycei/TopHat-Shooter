@@ -1,10 +1,18 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics_integration, run_statistics_ui
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics_integration, run_statistics_ui, settings_types
 
 const
   screenWidth = 1024
   screenHeight = 768
   targetFPS = 60
   MOUSE_MOVEMENT_THRESHOLD = 2.0  # Minimum pixel movement to count as "mouse moved"
+
+proc isMenuClickValid*(game: Game, settings: Settings, mousePos: Vector2f, buttonX: int32, buttonY: int32, buttonWidth: int32, buttonHeight: int32): bool =
+  ## Helper function to validate mouse clicks in menus
+  ## Returns true if mouse click is within button bounds and mouse support is enabled
+  if not settings.mouseSupport or not game.mouseMovedRecently:
+    return false
+  return mousePos.x >= buttonX.float32 and mousePos.x <= (buttonX + buttonWidth).float32 and
+         mousePos.y >= buttonY.float32 and mousePos.y <= (buttonY + buttonHeight).float32
 
 proc hasMouseMoved*(game: Game): bool =
   ## Detects if mouse has actually moved (not just hovering)
@@ -47,9 +55,6 @@ proc drawCustomCursor*(time: float32) =
           Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
   drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
           Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
-  
-  # Center dot
-  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
   
   # Center dot
   drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
@@ -481,7 +486,7 @@ proc main() =
       if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
         # For mouse clicks, verify we're clicking on a menu item (only if mouse support enabled AND mouse moved recently)
         var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-        if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport and currentGame.mouseMovedRecently:
+        if not validClick and isMouseButtonPressed(Left):
           let mousePos = getMousePosition()
           let startY = 360
           let spacing = 65
@@ -493,8 +498,7 @@ proc main() =
             let textWidth = measureText(text, 32)
             let textX = screenWidth div 2 - textWidth div 2
             
-            if mousePos.x >= textX.float32 and mousePos.x <= (textX + textWidth).float32 and
-               mousePos.y >= y.float32 and mousePos.y <= (y + 32).float32:
+            if isMenuClickValid(currentGame, settings, Vector2f(x: mousePos.x, y: mousePos.y), textX, int32(y), textWidth, int32(32)):
               validClick = true
               break
         
@@ -756,7 +760,7 @@ proc main() =
       if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
         # For mouse clicks, verify we're clicking on a menu item (only if mouse support enabled AND mouse moved recently)
         var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-        if not validClick and isMouseButtonPressed(Left) and globalSettings.mouseSupport and currentGame.mouseMovedRecently:
+        if not validClick and isMouseButtonPressed(Left):
           let mousePos = getMousePosition()
           let pauseOptions = ["Resume", "Settings", "Main Menu"]
           let optionStartY = screenHeight div 2 + 20
@@ -768,8 +772,7 @@ proc main() =
             let textWidth = measureText(text, 32)
             let textX = screenWidth div 2 - textWidth div 2
             
-            if mousePos.x >= textX.float32 and mousePos.x <= (textX + textWidth).float32 and
-               mousePos.y >= y.float32 and mousePos.y <= (y + 32).float32:
+            if isMenuClickValid(currentGame, globalSettings, Vector2f(x: mousePos.x, y: mousePos.y), textX, int32(y), textWidth, int32(32)):
               validClick = true
               break
         
@@ -846,7 +849,7 @@ proc main() =
       if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
         # For mouse clicks, verify we're clicking on a shop item (only if mouse support enabled AND mouse moved recently)
         var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-        if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport and currentGame.mouseMovedRecently:
+        if not validClick and isMouseButtonPressed(Left):
           let mousePos = getMousePosition()
           let shopStartX = currentGame.screenWidth div 2 - 200
           let startY = 120
@@ -854,8 +857,7 @@ proc main() =
           
           for i in 0..5:
             let y = startY + i * itemHeight
-            if mousePos.x >= shopStartX.float32 and mousePos.x <= (shopStartX + 400).float32 and
-               mousePos.y >= y.float32 and mousePos.y <= (y + 60).float32:
+            if isMenuClickValid(currentGame, settings, Vector2f(x: mousePos.x, y: mousePos.y), shopStartX, int32(y), 400, 60):
               validClick = true
               break
         
@@ -1054,7 +1056,7 @@ proc main() =
         if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
           # For mouse clicks, verify we're clicking on a card (only if mouse support enabled AND mouse moved recently)
           var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-          if not validClick and isMouseButtonPressed(Left) and settings.mouseSupport and currentGame.mouseMovedRecently:
+          if not validClick and isMouseButtonPressed(Left):
             let mousePos = getMousePosition()
             let cardWidth = 200
             let cardHeight = 240
@@ -1065,8 +1067,7 @@ proc main() =
             
             for i in 0..2:
               let cardX = startX + i * (cardWidth + spacing)
-              if mousePos.x >= cardX.float32 and mousePos.x <= (cardX + cardWidth).float32 and
-                 mousePos.y >= cardY.float32 and mousePos.y <= (cardY + cardHeight).float32:
+              if isMenuClickValid(currentGame, settings, Vector2f(x: mousePos.x, y: mousePos.y), int32(cardX), int32(cardY), int32(cardWidth), int32(cardHeight)):
                 validClick = true
                 break
           
