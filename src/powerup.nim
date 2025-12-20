@@ -288,7 +288,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "Poison effects: +150% dmg, +100% duration, +30% slow"
   of puFrostMastery:
     # Single level only - LEGENDARY mastery
-    "Frost effects: +150% dmg, +100% duration, +20% slow (total 80%)"
+    "Frost effects: +150% dmg, +100% duration, +20% slow"
   of puArcaneMastery:
     # Single level only - LEGENDARY mastery
     "Arcane effects: +200% dmg, +100% duration, piercing"

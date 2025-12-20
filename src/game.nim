@@ -2248,6 +2248,17 @@ proc updateGame*(game: var Game, dt: float32) =
               let healAmount = baseDamage * lifestealPercent
               game.player.hp = min(game.player.hp + healAmount, game.player.maxHp)
               
+              # Create heal number for blood orb lifesteal
+              if healAmount > 0.01:
+                game.damageNumbers.add(newDamageNumber(
+                  game.player.pos.x,
+                  game.player.pos.y,
+                  healAmount,
+                  fromPlayer = true,
+                  isCritical = false,
+                  damageType = dtHeal
+                ))
+              
               # Red blood particles
               spawnExplosion(game.particles, orbX, orbY,
                            Color(r: 255, g: 50, b: 50, a: 255), 5)
@@ -3122,23 +3133,37 @@ proc updateGame*(game: var Game, dt: float32) =
               actualDamage *= 0.4  # 60% reduction means 40% damage taken
             
             # Shielded elite: shield absorbs damage first
+            var shieldDamage = 0.0  # Track damage absorbed by shield
             if game.enemies[j].isElite and etShielded in game.enemies[j].eliteTypes and game.enemies[j].shieldHp > 0:
               if game.enemies[j].shieldHp >= actualDamage:
                 # Shield absorbs all damage
+                shieldDamage = actualDamage
                 game.enemies[j].shieldHp -= actualDamage
                 actualDamage = 0
               else:
                 # Shield breaks, remaining damage goes to HP
+                shieldDamage = game.enemies[j].shieldHp
                 actualDamage -= game.enemies[j].shieldHp
                 game.enemies[j].shieldHp = 0
             
             game.enemies[j].hp -= actualDamage
             
             # Track bullet hit for statistics
-            trackBulletHit(game, bullet, game.enemies[j], actualDamage)
-            attributeDamageToActivePowerUps(game, actualDamage)
+            trackBulletHit(game, bullet, game.enemies[j], actualDamage + shieldDamage)
+            attributeDamageToActivePowerUps(game, actualDamage + shieldDamage)
             
-            # Create damage number (player damage to enemy) - only if damage was dealt
+            # Create damage number for shield damage (cyan/blue colored for shields)
+            if shieldDamage > 0:
+              game.damageNumbers.add(newDamageNumber(
+                game.enemies[j].pos.x, 
+                game.enemies[j].pos.y, 
+                shieldDamage, 
+                fromPlayer = true,
+                isCritical = false,
+                damageType = dtLightning  # Use lightning color (cyan/blue) for shield damage
+              ))
+            
+            # Create damage number for HP damage (player damage to enemy) - only if damage was dealt
             if actualDamage > 0:
               let isCrit = finalDamage > bullet.damage  # Critical if final damage exceeds base damage
               game.damageNumbers.add(newDamageNumber(
@@ -3298,17 +3323,32 @@ proc updateGame*(game: var Game, dt: float32) =
             # Use the new synergy system to create split bullets
             createSplitBullets(game, bullet, splitCount, 0.5, 0.7)
           
-          # Vampirism healing - restore HP based on damage dealt
+          # Blood bullet healing - restore HP based on damage dealt
           if hasPowerUp(game.player, puBloodBullets):
             let vampLevel = getPowerUpLevel(game.player, puBloodBullets)
-            let healPercent = case vampLevel
+            var healPercent = case vampLevel
               of 1: 0.015  # 1.5% (reduced from 5%)
               of 2: 0.025  # 2.5% (reduced from 10%)
               else: 0.035  # 3.5% (reduced from 18%)
+            
+            # Apply Blood Mastery bonus if owned
+            if game.player.hasBloodMastery:
+              healPercent *= 2.5  # +150% lifesteal
+            
             let healAmount = finalDamage * healPercent
             heal(game.player, healAmount)
             if healAmount > 0.01:  # Only show particles if significant healing
               spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 3)
+              
+              # Create heal number for blood bullet lifesteal
+              game.damageNumbers.add(newDamageNumber(
+                game.player.pos.x,
+                game.player.pos.y,
+                healAmount,
+                fromPlayer = true,
+                isCritical = false,
+                damageType = dtHeal
+              ))
           
           # Impact particles
           spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, 
