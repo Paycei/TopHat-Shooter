@@ -49,7 +49,7 @@ proc updateBullet*(bullet: Bullet, dt: float32): bool =
   bullet.lifetime -= dt
   return bullet.lifetime > 0
 
-proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
+proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false) =
   var color = if bullet.fromPlayer: Yellow else: Pink
   
   # Echo bullets are semi-transparent and fade out
@@ -59,7 +59,8 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
   
   # Special bullet types have special colors
   if bullet.fromPlayer and not bullet.isEcho:
-    if bullet.isArcaneBullet: color = Color(r: 200, g: 100, b: 255, a: 255)  # Purple for arcane
+    if hasBloodBullets: color = Color(r: 200, g: 50, b: 50, a: 255)  # Dark red for blood bullets
+    elif bullet.isArcaneBullet: color = Color(r: 200, g: 100, b: 255, a: 255)  # Purple for arcane
     elif bullet.isHoming: color = Magenta
     elif bullet.isPiercing: color = SkyBlue
     elif bullet.isExplosive: color = Orange
@@ -86,6 +87,22 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false) =
   else:
     # Normal circle bullet
     drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
+  
+  # Blood bullets: Add dripping blood effect
+  if hasBloodBullets and bullet.fromPlayer and not bullet.isEcho:
+    # Create 2-3 blood drips trailing behind the bullet
+    for i in 0..2:
+      let dripOffset = i.float32 * 4.0 + 3.0
+      # Calculate drip position behind bullet (opposite to velocity)
+      let dripX = bullet.pos.x - bullet.vel.normalize().x * dripOffset
+      let dripY = bullet.pos.y - bullet.vel.normalize().y * dripOffset + i.float32 * 2.0  # Slight fall effect
+      let dripSize = bullet.radius * (0.5 - i.float32 * 0.1)  # Smaller drips behind
+      let dripAlpha = uint8(180 - i * 50)  # Fade drips
+      drawCircle(Vector2(x: dripX, y: dripY), dripSize, 
+                Color(r: 150, g: 30, b: 30, a: dripAlpha))
+      # Add a darker blood dot below each drip for extra drippiness
+      drawCircle(Vector2(x: dripX, y: dripY + dripSize * 0.5), dripSize * 0.4,
+                Color(r: 100, g: 20, b: 20, a: dripAlpha))
   
   # Add glow effect
   if not bullet.fromPlayer:

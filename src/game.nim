@@ -52,6 +52,38 @@ proc applyCriticalHit(player: Player, baseDamage: float32): float32 =
   else:
     return baseDamage
 
+proc accumulateAndShowAuraDamage(game: Game, enemy: Enemy, actualDamage: float32, dt: float32, 
+                                  damageType: DamageType, wasCrit: bool = false) =
+  ## Accumulates aura damage and displays damage numbers reliably
+  ## Shows accumulated damage every 0.5 seconds to ensure visibility
+  ## Handles shield absorption and zero-damage cases gracefully
+  const DAMAGE_NUMBER_INTERVAL = 0.5  # Show damage numbers every 0.5 seconds
+  
+  # Accumulate damage (even if 0, we track it)
+  enemy.auraDamageAccumulator += actualDamage
+  
+  # Check if enough time has passed to show a damage number
+  let timeSinceLastNumber = game.time - enemy.lastAuraDamageNumberTime
+  
+  if timeSinceLastNumber >= DAMAGE_NUMBER_INTERVAL:
+    # Time to show accumulated damage
+    if enemy.auraDamageAccumulator > 0:
+      # Convert accumulated damage to per-second rate for display
+      let damagePerSecond = enemy.auraDamageAccumulator / timeSinceLastNumber
+      
+      game.damageNumbers.add(newDamageNumber(
+        enemy.pos.x,
+        enemy.pos.y,
+        damagePerSecond,
+        fromPlayer = true,
+        isCritical = wasCrit,
+        damageType = damageType
+      ))
+    
+    # Reset accumulator and timer
+    enemy.auraDamageAccumulator = 0
+    enemy.lastAuraDamageNumberTime = game.time
+
 proc newGame*(screenWidth, screenHeight: int32): Game =
   result = Game(
     state: gsPlaying,
@@ -1508,16 +1540,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
         
-        # Create damage number for damage zone (only periodically to avoid spam)
-        if rand(1.0) < (2.0 * dt):  # Show ~2 numbers per second per enemy
-          game.damageNumbers.add(newDamageNumber(
-            enemy.pos.x,
-            enemy.pos.y,
-            actualDamage / dt,  # Show damage per second rate
-            fromPlayer = true,
-            isCritical = damageWithCrit > zoneDamage * dt,
-            damageType = dtDefault  # Damage zone is physical/default damage
-          ))
+        # Use new accumulation system for reliable damage numbers
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtDefault, 
+                                     damageWithCrit > zoneDamage * dt)
   
   # Regeneration power-up is now handled per wave completion, not per time interval
   # See wave completion code for regeneration logic
@@ -1634,15 +1659,9 @@ proc updateGame*(game: var Game, dt: float32) =
         enemy.hp -= actualDamage
         processedEnemies.add(enemy)
         
-        # Create damage number for lightning zone
-        game.damageNumbers.add(newDamageNumber(
-          enemy.pos.x,
-          enemy.pos.y,
-          actualDamage / dt,  # Show damage per second rate
-          fromPlayer = true,
-          isCritical = damageWithCrit > lightningDamagePerSec * dt,
-          damageType = dtLightning  # Lightning uses yellow color
-        ))
+        # Use new accumulation system for reliable damage numbers
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtLightning,
+                                     damageWithCrit > lightningDamagePerSec * dt)
         
         # Apply slow ONLY if player has Lightning Mastery
         if game.player.hasLightningMastery:
@@ -1677,15 +1696,9 @@ proc updateGame*(game: var Game, dt: float32) =
             nearestEnemy.hp -= chainedDamage
             processedEnemies.add(nearestEnemy)
             
-            # Create damage number for chained lightning
-            game.damageNumbers.add(newDamageNumber(
-              nearestEnemy.pos.x,
-              nearestEnemy.pos.y,
-              chainedDamage / dt,  # Show damage per second rate
-              fromPlayer = true,
-              isCritical = chainDamageWithCrit > lightningDamagePerSec * dt,
-              damageType = dtLightning  # Lightning uses yellow color
-            ))
+            # Use accumulation system for chained lightning to prevent spam
+            accumulateAndShowAuraDamage(game, nearestEnemy, chainedDamage, dt, dtLightning,
+                                       chainDamageWithCrit > lightningDamagePerSec * dt)
             
             # Apply 5% slow effect to chained enemy
             nearestEnemy.slowTimer = 0.2
@@ -1728,16 +1741,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
         
-        # Create damage number for arcane zone (only periodically to avoid spam)
-        if rand(1.0) < (2.0 * dt):  # Show ~2 numbers per second per enemy
-          game.damageNumbers.add(newDamageNumber(
-            enemy.pos.x,
-            enemy.pos.y,
-            actualDamage / dt,  # Show damage per second rate
-            fromPlayer = true,
-            isCritical = damageWithCrit > arcaneDamagePerSec * dt,
-            damageType = dtArcane  # Arcane uses purple color
-          ))
+        # Use new accumulation system for reliable damage numbers
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtArcane,
+                                     damageWithCrit > arcaneDamagePerSec * dt)
         
         # Visual arcane particles (purple sparkles) (frame-independent)
         # 12% @ 60fps = 7.2 particles/sec
@@ -1865,6 +1871,13 @@ proc updateGame*(game: var Game, dt: float32) =
       bloodDamagePerSec *= 2.5  # +150% damage
       actualLifestealPercent *= 2.5  # +150% lifesteal
     
+    # Static variable to track last healing number display time
+    var lastBloodHealTime {.global.} = 0.0
+    const BLOOD_HEAL_DISPLAY_INTERVAL = 0.5  # Show healing number every 0.5 seconds
+    
+    # Accumulate healing for display (show healing number once per 0.5s)
+    var totalHealing = 0.0
+    
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < bloodRadius:
@@ -1873,20 +1886,12 @@ proc updateGame*(game: var Game, dt: float32) =
         let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
         
-        # Heal player based on damage dealt
-        let healAmount = actualDamage * actualLifestealPercent
-        game.player.hp = min(game.player.hp + healAmount, game.player.maxHp)
+        # Accumulate healing based on damage dealt
+        totalHealing += actualDamage * actualLifestealPercent
         
-        # Create damage number for blood zone (only periodically to avoid spam)
-        if rand(1.0) < (2.0 * dt):  # Show ~2 numbers per second per enemy
-          game.damageNumbers.add(newDamageNumber(
-            enemy.pos.x,
-            enemy.pos.y,
-            actualDamage / dt,  # Show damage per second rate
-            fromPlayer = true,
-            isCritical = damageWithCrit > bloodDamagePerSec * dt,
-            damageType = dtDefault  # Blood uses default red color
-          ))
+        # Use new accumulation system for reliable damage numbers (use dtFire for red blood damage)
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtFire,
+                                     damageWithCrit > bloodDamagePerSec * dt)
         
         # Visual blood particles (frame-independent)
         # 8% @ 60fps = 4.8 particles/sec
@@ -1897,6 +1902,22 @@ proc updateGame*(game: var Game, dt: float32) =
           let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 3.0
           spawnExplosion(game.particles, particleX, particleY, 
                         Color(r: 255, g: 50, b: 50, a: 255), 2)
+    
+    # Apply accumulated healing to player
+    if totalHealing > 0:
+      game.player.hp = min(game.player.hp + totalHealing, game.player.maxHp)
+      
+      # Show healing number periodically using tracked time
+      if game.time - lastBloodHealTime >= BLOOD_HEAL_DISPLAY_INTERVAL:
+        game.damageNumbers.add(newDamageNumber(
+          game.player.pos.x,
+          game.player.pos.y,
+          totalHealing / dt,  # Show as healing per second rate
+          fromPlayer = true,
+          isCritical = false,
+          damageType = dtHeal
+        ))
+        lastBloodHealTime = game.time
   
   # Gravity Well (Singularity) - Pull enemies toward player with bonus effect on ranged
   if hasPowerUp(game.player, puGravityWell):
@@ -1947,7 +1968,9 @@ proc updateGame*(game: var Game, dt: float32) =
      hasPowerUp(game.player, puFireOrb) or 
      hasPowerUp(game.player, puLightningOrb) or 
      hasPowerUp(game.player, puWindOrb) or 
-     hasPowerUp(game.player, puFrostOrb):
+     hasPowerUp(game.player, puFrostOrb) or
+     hasPowerUp(game.player, puArcaneOrb) or
+     hasPowerUp(game.player, puBloodOrb):
     
     # Calculate base damage (BUFFED RANGE 2-6, but reduced multiplier)
     # Add small damage scaling from player's damage stat (20% of player damage)
@@ -1968,6 +1991,10 @@ proc updateGame*(game: var Game, dt: float32) =
         maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puWindOrb)))
       if hasPowerUp(game.player, puFrostOrb):
         maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puFrostOrb)))
+      if hasPowerUp(game.player, puArcaneOrb):
+        maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puArcaneOrb)))
+      if hasPowerUp(game.player, puBloodOrb):
+        maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puBloodOrb)))
       (maxDamage * 0.5) + damageScaling  # Multiply by 0.5 to balance the 2-6 range
     
     let orbRadius = 6.0  # Visual orb size - matches drawn size
@@ -2100,14 +2127,15 @@ proc updateGame*(game: var Game, dt: float32) =
                 nearestEnemy.hp -= chainDamage
                 
                 # Create damage number for lightning orb chain
-                game.damageNumbers.add(newDamageNumber(
-                  nearestEnemy.pos.x,
-                  nearestEnemy.pos.y,
-                  chainDamage,
-                  fromPlayer = true,
-                  isCritical = chainDamageWithCrit > baseDamage * 0.7,
-                  damageType = dtLightning  # Lightning uses yellow color
-                ))
+                if chainDamage > 0:
+                  game.damageNumbers.add(newDamageNumber(
+                    nearestEnemy.pos.x,
+                    nearestEnemy.pos.y,
+                    chainDamage,
+                    fromPlayer = true,
+                    isCritical = chainDamageWithCrit > baseDamage * 0.7,
+                    damageType = dtLightning  # Lightning uses yellow color
+                  ))
                 
                 # Apply slow if has Lightning Mastery
                 if game.player.hasLightningMastery:
@@ -2137,14 +2165,15 @@ proc updateGame*(game: var Game, dt: float32) =
                     secondNearestEnemy.hp -= secondChainDamage
                     
                     # Create damage number for second lightning orb chain
-                    game.damageNumbers.add(newDamageNumber(
-                      secondNearestEnemy.pos.x,
-                      secondNearestEnemy.pos.y,
-                      secondChainDamage,
-                      fromPlayer = true,
-                      isCritical = secondChainDamageWithCrit > baseDamage * 0.7,
-                      damageType = dtLightning  # Lightning uses yellow color
-                    ))
+                    if secondChainDamage > 0:
+                      game.damageNumbers.add(newDamageNumber(
+                        secondNearestEnemy.pos.x,
+                        secondNearestEnemy.pos.y,
+                        secondChainDamage,
+                        fromPlayer = true,
+                        isCritical = secondChainDamageWithCrit > baseDamage * 0.7,
+                        damageType = dtLightning  # Lightning uses yellow color
+                      ))
                     
                     # Apply slow to second chain
                     secondNearestEnemy.slowTimer = 0.2
@@ -3109,15 +3138,16 @@ proc updateGame*(game: var Game, dt: float32) =
             trackBulletHit(game, bullet, game.enemies[j], actualDamage)
             attributeDamageToActivePowerUps(game, actualDamage)
             
-            # Create damage number (player damage to enemy)
-            let isCrit = finalDamage > bullet.damage  # Critical if final damage exceeds base damage
-            game.damageNumbers.add(newDamageNumber(
-              game.enemies[j].pos.x, 
-              game.enemies[j].pos.y, 
-              actualDamage, 
-              fromPlayer = true,
-              isCritical = isCrit
-            ))
+            # Create damage number (player damage to enemy) - only if damage was dealt
+            if actualDamage > 0:
+              let isCrit = finalDamage > bullet.damage  # Critical if final damage exceeds base damage
+              game.damageNumbers.add(newDamageNumber(
+                game.enemies[j].pos.x, 
+                game.enemies[j].pos.y, 
+                actualDamage, 
+                fromPlayer = true,
+                isCritical = isCrit
+              ))
           hitEnemy = true
           
           # Apply frost shot slow effect - INDEFINITE (permanent until enemy dies)
@@ -3237,14 +3267,15 @@ proc updateGame*(game: var Game, dt: float32) =
                   game.enemies[k].hp -= actualDamage
                   
                   # Create damage number for chain lightning damage
-                  game.damageNumbers.add(newDamageNumber(
-                    game.enemies[k].pos.x,
-                    game.enemies[k].pos.y,
-                    actualDamage,
-                    fromPlayer = true,
-                    isCritical = chainDmgWithCrit > chainDmgBase,
-                    damageType = dtLightning  # Chain lightning uses yellow color
-                  ))
+                  if actualDamage > 0:
+                    game.damageNumbers.add(newDamageNumber(
+                      game.enemies[k].pos.x,
+                      game.enemies[k].pos.y,
+                      actualDamage,
+                      fromPlayer = true,
+                      isCritical = chainDmgWithCrit > chainDmgBase,
+                      damageType = dtLightning  # Chain lightning uses yellow color
+                    ))
                   
                   game.enemies[k].chainLightningCooldown = 0.3
                   # Lightning also stuns chained enemies for 0.05s
@@ -3301,14 +3332,15 @@ proc updateGame*(game: var Game, dt: float32) =
                 game.enemies[k].hp -= actualDamage
                 
                 # Create damage number for explosive bullet area damage
-                game.damageNumbers.add(newDamageNumber(
-                  game.enemies[k].pos.x,
-                  game.enemies[k].pos.y,
-                  actualDamage,
-                  fromPlayer = true,
-                  isCritical = false,
-                  damageType = dtExplosion
-                ))
+                if actualDamage > 0:
+                  game.damageNumbers.add(newDamageNumber(
+                    game.enemies[k].pos.x,
+                    game.enemies[k].pos.y,
+                    actualDamage,
+                    fromPlayer = true,
+                    isCritical = false,
+                    damageType = dtExplosion
+                  ))
             
             # Enhanced visual explosion with shockwave
             spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Orange, 35)
@@ -3692,8 +3724,9 @@ proc drawGame*(game: Game) =
   
   # Draw bullets
   let hasOvercharge = hasPowerUp(game.player, puOvercharge)
+  let hasBloodBullets = hasPowerUp(game.player, puBloodBullets)
   for bullet in game.bullets:
-    drawBullet(bullet, hasOvercharge)
+    drawBullet(bullet, hasOvercharge, hasBloodBullets)
   
   # Draw enemies
   for enemy in game.enemies:

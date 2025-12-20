@@ -22,7 +22,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puRegeneration: "Regeneration"
   of puDodgeChance: "Evasion"
   of puCriticalHit: "Critical Strike"
-  of puBloodBullets: "Bloody Bullets"
+  of puBloodBullets: "Blood Bullets"
   of puBulletRicochet: "Ricochet"
   of puSlowField: "Slow Field"
   of puRage: "Rage"

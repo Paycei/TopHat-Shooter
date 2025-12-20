@@ -274,6 +274,9 @@ type
     bossDefinitionID*: int  # Which boss definition this uses (1-12)
     currentPhaseIndex*: int  # Current phase index (0, 1, 2, etc.)
     attackTimers*: seq[float32]  # Individual cooldown timer for each attack in current phase
+    # Damage accumulation for continuous damage sources (auras, DOT)
+    auraDamageAccumulator*: float32  # Accumulates aura damage over time
+    lastAuraDamageNumberTime*: float32  # Last time a damage number was shown for auras
 
   Bullet* = ref object
     pos*: Vector2f

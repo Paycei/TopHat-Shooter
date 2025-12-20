@@ -156,8 +156,10 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
   let damageText = 
     if dmgNum.damage >= 10.0:
       $dmgNum.damage.int  # Show as integer for large values
-    else:
+    elif dmgNum.damage >= 1.0:
       formatFloat(dmgNum.damage, ffDecimal, 1)  # Show 1 decimal for small values
+    else:
+      formatFloat(dmgNum.damage, ffDecimal, 2)  # Show 2 decimals for very small values
   
   # Draw text with slight outline for better visibility
   let textWidth = measureText($damageText, fontSize)

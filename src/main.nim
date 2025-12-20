@@ -99,15 +99,15 @@ proc drawMenu(game: Game) =
   let subtitleSize = (28.float32 * subtitlePulse).int32
   drawText("ELEMENTAL UPDATE", screenWidth div 2 - 150, 200, subtitleSize, Orange)
   
-  # UPDATE 3 badge with subtle glow
+  # UPDATE badge with subtle glow
   let updateX = screenWidth div 2 - 80
   let updateY = 245
   let updatePulse = 1.0 + sin(game.time * 4.0) * 0.1
   let updateSize = (30.float32 * updatePulse).int32
   
-  drawText("UPDATE 4!", int32(updateX - 1), int32(updateY - 1), updateSize + 2,
+  drawText("UPDATE 4.1!", int32(updateX - 1), int32(updateY - 1), updateSize + 2,
           Color(r: 255'u8, g: 120'u8, b: 0'u8, a: 80'u8))
-  drawText("UPDATE 4!", int32(updateX), int32(updateY), updateSize, Gold)
+  drawText("UPDATE 4.1!", int32(updateX), int32(updateY), updateSize, Gold)
   
   # Menu options with subtle selection indicator
   let startY = 360

@@ -1,16 +1,39 @@
 import raylib, types, random, math, wall, bullet, effects, tables, boss_definitions, run_statistics_integration
 
 proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
-  ## Reduces speed for very fast enemies, but only noticeable after wave ~20
-  if waveNumber < 18:
-    return baseSpeed
-  let speedRatio = baseSpeed / 100.0
-  if speedRatio <= 1.0:
-    return baseSpeed
-  let reductionFactor = ln(speedRatio) * 0.2
+  ## NATURAL SPEED REDUCTION: Pure mathematical scaling with NO hardcoded thresholds
+  ## Reduction emerges naturally from wave progression and enemy speed
+  ## Exponential scaling for fast enemies that grows stronger over time
+  
+  # Reference speed: typical wave 1 enemy speed
+  const REFERENCE_SPEED = 100.0
+  
+  # Calculate speed excess over reference (how much faster than normal)
+  let speedRatio = baseSpeed / REFERENCE_SPEED
+  
+  # Wave pressure: natural logarithmic growth that increases smoothly with waves
+  # ln(1 + wave/10) creates unbounded growth without thresholds:
+  # Wave 1 -> 0.095, Wave 10 -> 0.693, Wave 20 -> 1.099, Wave 50 -> 1.705
+  let wavePressure = ln(1.0 + waveNumber.float32 / 10.0)
+  
+  # Speed excess factor: exponential penalty for being faster than reference
+  # Uses sqrt to convert ratio to excess smoothly:
+  # 1.5x speed -> 1.22x factor, 2x -> 1.41x, 3x -> 1.73x, 4x -> 2.0x
+  # max(0, ...) ensures no penalty for slower enemies
+  let speedExcessFactor = max(0.0, sqrt(speedRatio) - 1.0)
+  
+  # Combined reduction: (speed_excess)^1.8 * wave_pressure * 0.28
+  # Power of 1.8 creates strong exponential scaling for fast enemies
+  # Coefficient 0.28 provides balanced reduction that grows naturally
+  # Result: fast enemies in late waves get heavily reduced, but it's gradual
+  let reductionFactor = pow(speedExcessFactor, 1.8) * wavePressure * 0.28
+  
+  # Apply reduction with natural diminishing returns
+  # Formula: speed / (1 + factor) can never reduce to 0
   return baseSpeed / (1.0 + reductionFactor)
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
-  let strengthMultiplier = pow(1.15, difficulty)
+  # BUFFED HEALTH SCALING: Increased from 1.15 to 1.18 (3% more HP per wave)
+  let strengthMultiplier = pow(1.18, difficulty)
   
   case enemyType
   of etCircle:  # Normal chaser

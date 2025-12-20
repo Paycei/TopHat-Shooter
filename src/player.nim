@@ -143,7 +143,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
                          hasPowerUp(player, puLightningOrb) or
                          hasPowerUp(player, puWindOrb) or
                          hasPowerUp(player, puFrostOrb) or
-                         hasPowerUp(player, puArcaneOrb))
+                         hasPowerUp(player, puArcaneOrb) or
+                         hasPowerUp(player, puBloodOrb))
   
   if not hasAnyOrbPowerUp and player.rotatingOrbs.len > 0:
     player.rotatingOrbs = @[]
@@ -308,7 +309,8 @@ proc drawPlayer*(player: Player) =
                          hasPowerUp(player, puLightningOrb) or
                          hasPowerUp(player, puWindOrb) or
                          hasPowerUp(player, puFrostOrb) or
-                         hasPowerUp(player, puArcaneOrb))
+                         hasPowerUp(player, puArcaneOrb) or
+                         hasPowerUp(player, puBloodOrb))
   
   if hasAnyOrbPowerUp and player.rotatingOrbs.len > 0:
     # Scale orb size with player size (increased from 0.3 to 0.45)

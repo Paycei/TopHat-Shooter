@@ -605,7 +605,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puPoisonOrb, puPoisonShot, puRage, puRapidFire, puRegeneration,
     puRotatingOrbs, puRotatingShield, puSlowField, puSpeedBoost, puThorns,
     puTimeWarp, puBloodBullets, puWallMaster, puWindAura, puWindBullets,
-    puWindMastery, puWindOrb
+    puWindMastery, puWindOrb, puBloodAura, puBloodMastery, puBloodOrb
   ]
   
   # Scrollable area setup
