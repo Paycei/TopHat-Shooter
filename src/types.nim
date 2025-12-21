@@ -6,7 +6,8 @@ type
   
   GameMode* = enum
     gmWaveBased,      # New primary mode: waves → upgrades → boss → legendary
-    gmTimeSurvival    # Old mode: time-based survival
+    gmTimeSurvival,   # Old mode: time-based survival
+    gmSandbox         # Testing mode with spawner controls
 
   EnemyType* = enum
     etCircle,      # Normal chasers
@@ -451,6 +452,13 @@ type
     showRunStatsGraphs*: bool  # Toggle for showing graphs in run stats screen
     # Statistics menu tab selection
     statsMenuTab*: int  # 0 = Lifetime stats, 1 = Last Run stats
+    # Sandbox mode fields
+    sandboxSidebarOpen*: bool  # Is the sandbox control sidebar visible
+    sandboxTypingBuffer*: string  # Buffer for detecting "ttt" input
+    sandboxSelectedTab*: int  # Current tab in sandbox UI (0=Enemies, 1=Bosses, 2=Controls)
+    sandboxScrollOffset*: int32  # Scroll position in sidebar
+    sandboxGodMode*: bool  # Player invulnerability
+    sandboxFreezeEnemies*: bool  # Freeze all enemy movement
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

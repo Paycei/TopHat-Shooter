@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, settings_types, save_system
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, settings_types, save_system, sandbox
 
 const
   screenWidth = 1024
@@ -475,6 +475,22 @@ proc main() =
       # Update mouse tracking
       updateMouseTracking(currentGame)
       
+      # Handle "ttt" command for sandbox mode
+      let charPressed = getCharPressed()
+      if charPressed > 0:
+        currentGame.sandboxTypingBuffer &= chr(charPressed).toLowerAscii()
+        # Keep only last 10 characters
+        if currentGame.sandboxTypingBuffer.len > 10:
+          currentGame.sandboxTypingBuffer = currentGame.sandboxTypingBuffer[^10..^1]
+        # Check if "asd" was typed
+        if "asd" in currentGame.sandboxTypingBuffer:
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.mode = gmSandbox
+          currentGame.state = gsPlaying
+          currentGame.sandboxSidebarOpen = true
+          statsSavedThisGame = false
+          playSound(stMenuSelect)
+      
       # Menu navigation - keyboard has priority
       if isKeyPressed(Down) or isKeyPressed(S):
         currentGame.menuSelection = (currentGame.menuSelection + 1) mod 6
@@ -710,10 +726,41 @@ proc main() =
       
       # Update game (only if cheat menu is not active)
       if not cheatMenu.active:
-        updateGame(currentGame, dt)
+        if currentGame.mode == gmSandbox:
+          # Handle sandbox input
+          handleSandboxInput(currentGame, screenWidth, screenHeight)
+          # Update sandbox mode (god mode, freeze enemies, etc.)
+          updateSandboxMode(currentGame, dt)
+          # Update game normally (unless enemies are frozen)
+          if not currentGame.sandboxFreezeEnemies:
+            updateGame(currentGame, dt)
+          else:
+            # Still update player, bullets, particles, but not enemies
+            updatePlayer(
+              currentGame.player,
+              dt,
+              int32(currentGame.screenWidth),
+              int32(currentGame.screenHeight),
+              currentGame.walls
+            )
+            for bullet in currentGame.bullets:
+              bullet.pos.x += bullet.vel.x * dt
+              bullet.pos.y += bullet.vel.y * dt
+            # Update particles and remove dead ones
+            var aliveParticles: seq[Particle] = @[]
+            for particle in currentGame.particles:
+              if updateParticle(particle, dt):
+                aliveParticles.add(particle)
+            currentGame.particles = aliveParticles
+        else:
+          updateGame(currentGame, dt)
       
       beginDrawing()
       drawGame(currentGame)
+      
+      # Draw sandbox UI if in sandbox mode
+      if currentGame.mode == gmSandbox:
+        drawSandboxSidebar(currentGame, screenWidth, screenHeight)
       
       # Draw cheat menu overlay if active
       drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
