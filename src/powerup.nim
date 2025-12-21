@@ -1,5 +1,8 @@
 import raylib, types, random, math, strutils, settings, tables
 
+# Forward declarations for reroll system
+proc attemptRerollPowerUps*(game: Game): bool
+
 proc getPowerUpName*(powerType: PowerUpType): string =
   case powerType
   of puDoubleShot: "Double Shot"
@@ -1536,10 +1539,53 @@ proc drawPowerUpSelection*(game: Game) =
     drawText("A/D or ARROW KEYS: select | MOUSE: hover/click | ENTER: choose", 
             screenWidth div 2 - 320, screenHeight - 120, 20, LightGray)
     drawText("ESC: skip", screenWidth div 2 - 60, screenHeight - 90, 18, Gray)
+    
+    # Reroll button
+    let rerollBtnX = screenWidth div 2 - 120
+    let rerollBtnY = screenHeight - 290
+    let rerollBtnWidth = 240.int32
+    let rerollBtnHeight = 40.int32
+    let canAffordReroll = game.player.coins >= game.rerollCost
+    let rerollBtnColor = if canAffordReroll:
+      Color(r: 120, g: 120, b: 120, a: 220)  # Lighter gray if affordable
+    else:
+      Color(r: 70, g: 70, b: 70, a: 220)    # Darker gray if not affordable
+    let rerollBtnBorderColor = if canAffordReroll:
+      Color(r: 180, g: 180, b: 180, a: 255)  # Lighter gray border
+    else:
+      Color(r: 100, g: 100, b: 100, a: 255)  # Darker gray border
+    
+    # Draw button background
+    drawRectangle(rerollBtnX, rerollBtnY, rerollBtnWidth, rerollBtnHeight, rerollBtnColor)
+    
+    # Draw button border
+    drawRectangleLines(Rectangle(x: rerollBtnX.float32, y: rerollBtnY.float32, 
+                                  width: rerollBtnWidth.float32, height: rerollBtnHeight.float32), 
+                      2, rerollBtnBorderColor)
+    
+    # Draw button text
+    let rerollText = "R: Reroll (" & $game.rerollCost & " coins)"
+    let rerollTextWidth = measureText(rerollText, 18)
+    drawText(rerollText, rerollBtnX + (rerollBtnWidth - rerollTextWidth.int32) div 2, 
+            rerollBtnY + 10, 18, White)
+    
+    # Check for button click (ONLY if can afford and mouse support enabled)
+    if canAffordReroll and getMousePosition().x >= rerollBtnX.float32 and 
+       getMousePosition().x <= (rerollBtnX + rerollBtnWidth).float32 and
+       getMousePosition().y >= rerollBtnY.float32 and 
+       getMousePosition().y <= (rerollBtnY + rerollBtnHeight).float32:
+      # Mouse is over button - add hover effect
+      drawRectangleLines(Rectangle(x: (rerollBtnX - 2).float32, y: (rerollBtnY - 2).float32, 
+                                    width: (rerollBtnWidth + 4).float32, height: (rerollBtnHeight + 4).float32), 
+                        2, Color(r: 220, g: 220, b: 220, a: 255))
+      
+      # Check for click
+      if isMouseButtonPressed(Left):
+        discard attemptRerollPowerUps(game)
   
   # Coin count
   let coinText = "Coins: " & $game.player.coins
-  drawText(coinText, screenWidth div 2 - 60, screenHeight - 55, 22, Gold)
+  drawText(coinText, screenWidth div 2 - 60, screenHeight - 25, 22, Gold)
   
   # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
   if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
@@ -1720,3 +1766,44 @@ proc initPowerUpRollAnimation*(game: Game) =
     let lastIdx = game.rollPowerUpList[i].len - 1
     echo "Slot ", i, " list length: ", game.rollPowerUpList[i].len
     echo "Slot ", i, " last item (idx ", lastIdx, "): ", getPowerUpName(game.rollPowerUpList[i][lastIdx].powerType)
+
+# ============================================================================
+# POWER-UP REROLL SYSTEM
+# ============================================================================
+
+proc calculateRerollCost*(baseReroll: int): int =
+  ## Calculate the cost of the next reroll based on how many have been done
+  ## First reroll: baseReroll (e.g., 50 coins)
+  ## Each subsequent reroll costs more
+  baseReroll
+
+proc attemptRerollPowerUps*(game: Game): bool =
+  ## Try to reroll the power-up options
+  ## Returns true if successful, false if insufficient coins
+  
+  # Check if player has enough coins
+  if game.player.coins < game.rerollCost:
+    return false
+  
+  # Deduct coins
+  game.player.coins -= game.rerollCost
+  
+  # Generate new power-up choices (same legendary/normal status)
+  let isLegendary = game.powerUpChoices[0].rarity == prLegendary
+  game.powerUpChoices = generatePowerUpChoices(game.player, isLegendary)
+  
+  # Reset selection to first option
+  game.selectedPowerUp = 0
+  
+  # Initialize reroll animation (same as new power-up selection)
+  initPowerUpRollAnimation(game)
+  
+  # Increase cost for next reroll (adds 50 coins for difficulty)
+  game.rerollCost += 50
+  
+  return true
+
+proc initializeRerollCost*(game: Game) =
+  ## Initialize the reroll cost at the start of a power-up selection
+  ## Base cost: 50 coins for first reroll, increases by 50 each time
+  game.rerollCost = 50

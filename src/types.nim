@@ -425,6 +425,7 @@ type
     rollPosition*: array[3, float32]  # Current scroll position for each slot
     rollPowerUpList*: array[3, seq[PowerUp]]  # List of power-ups scrolling in each slot
     canSelectPowerUp*: bool  # Whether player can select (false during animation)
+    rerollCost*: int  # Cost of next reroll (increases after each use)
     bossActive*: bool
     bossSpawnTimer*: float32
     bossCoinActive*: bool  # True when boss coin needs to be collected to end wave

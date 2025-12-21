@@ -554,6 +554,7 @@ proc main() =
         setGameVolume(settings.volume)  # Apply volume changes
         setMusicVolume(settings.musicVolume)  # Apply music volume changes
         playSound(stMenuSelect)
+        saveSettings(settings)  # Ensure settings are saved when exiting
       
       updateSettings(settings)
       
@@ -1006,6 +1007,7 @@ proc main() =
           
           currentGame.selectedPowerUp = 0
           initPowerUpRollAnimation(currentGame)
+          initializeRerollCost(currentGame)
           currentGame.state = gsPowerUpSelect
         else:
           # No power-up, go straight to next wave
@@ -1053,6 +1055,12 @@ proc main() =
         if isKeyPressed(Right) or isKeyPressed(D):
           currentGame.selectedPowerUp = (currentGame.selectedPowerUp + 1) mod 3
           markKeyboardUsed(currentGame)
+        
+        # Reroll power-ups with R key
+        if isKeyPressed(R):
+          if attemptRerollPowerUps(currentGame):
+            markKeyboardUsed(currentGame)
+          # If reroll failed (not enough coins), do nothing (could add sound here)
         
         # Select power-up with keyboard or mouse
         if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):

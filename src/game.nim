@@ -114,6 +114,7 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     selectedPowerUp: 0,
     countdownTimer: 0.3,  # Start with ready countdown
     waveClearedTimer: 0,
+    rerollCost: 0,  # Initialize reroll cost (set properly when entering power-up selection)
     bossActive: false,
     bossSpawnTimer: 0,
     bossCoinActive: false,
