@@ -353,6 +353,10 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     var speed = game.player.bulletSpeed * 1.2
     var damage = getCurrentDamage(game.player)
     
+    # Track base damage before power-up multipliers for attribution
+    let damageBeforePowerUps = game.player.damage  # Pure base damage (no Rage)
+    let damageWithRage = damage  # Includes Rage bonus
+    
     # BUFFED: Double-shot bullets deal 10% less damage per bullet (was 20%)
     if hasDoubleShot:
       damage *= 0.9  # 10% less damage per bullet
@@ -368,13 +372,34 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         else: 2.4
       bulletRadius *= sizeMultiplier
     
-    # Apply critical hit chance using global function
+    # Track Bullet Damage power-up contribution
+    # This power-up doubles base damage (applied in applyPowerUp)
+    var bulletDamageBonus = 0.0
+    if hasPowerUp(game.player, puBulletDamage):
+      bulletDamageBonus = damageBeforePowerUps  # The extra 100% (base damage doubled)
+    
+    # Track Arcane Bullets contribution
+    var arcaneBulletsBonus = 0.0
+    if hasArcane:
+      let arcaneLevel = getPowerUpLevel(game.player, puArcaneBullets)
+      let arcaneMultiplier = case arcaneLevel
+        of 1: 0.5   # +50%
+        of 2: 1.0   # +100%
+        else: 1.5   # +150%
+      arcaneBulletsBonus = damageBeforePowerUps * arcaneMultiplier
+    
+    # Apply critical hit chance and track bonus damage
+    let damageBeforeCrit = damage
     damage = applyCriticalHit(game.player, damage)
+    let critBonus = damage - damageBeforeCrit
     
     # Apply Arcane Mastery bonus to Arcane bullets (damage + piercing)
     var arcanePiercing = hasPiercing  # Start with base piercing status
+    var arcaneMasteryBonus = 0.0
     if hasArcane and game.player.hasArcaneMastery:
+      let damageBeforeMastery = damage
       damage *= 3.0  # +200% additional damage on top of Arcane Bullets bonus
+      arcaneMasteryBonus = damage - damageBeforeMastery  # The extra 200%
       arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
     
     # Calculate slow, poison, fire, and wind effects
@@ -420,7 +445,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
       let spreadAngle = 0.3  # Fixed spread for 3-shot pattern
       
-      # Fire first burst
+      # Fire first burst (3 bullets = 1 normal + 2 bonus from Multi-Shot)
       for i in 0..<multiCount:
         let angle = (i.float32 - (multiCount - 1).float32 / 2.0) * spreadAngle
         let spreadDir = newVector2f(
@@ -443,18 +468,20 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           poisonDuration = poisonEffect,
           fireDuration = fireEffect,
           windPushForce = windEffect,
-          isArcaneBullet = hasArcane
+          isArcaneBullet = hasArcane,
+          isBonusFromMultiShot = (i > 0)  # First bullet (i=0) is normal, rest are bonus
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
       
       # Schedule second burst with small delay (0.08s) - LEGENDARY Double Shot is single level
+      # This second burst will also have 3 bullets, all marked as bonus from Double Shot
       game.player.doubleShotDelay = 0.08
     
     elif hasDoubleShot:
       # LEGENDARY: Fire 2 bullets in quick succession (single level only)
-      # Fire first bullet immediately
+      # Fire first bullet immediately (this is the normal bullet)
       let bullet = newBullet(
         x = game.player.pos.x,
         y = game.player.pos.y,
@@ -471,13 +498,14 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         poisonDuration = poisonEffect,
         fireDuration = fireEffect,
         windPushForce = windEffect,
-        isArcaneBullet = hasArcane
+        isArcaneBullet = hasArcane,
+        isBonusFromDoubleShot = false  # First bullet is normal
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
       
-      # Schedule second bullet with small delay (0.08s)
+      # Schedule second bullet with small delay (0.08s) - will be marked as bonus
       game.player.doubleShotDelay = 0.08
     elif hasMultiShot:
       # Shoot in 3 directions (legendary, no nerfs)
@@ -506,7 +534,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           poisonDuration = poisonEffect,
           fireDuration = fireEffect,
           windPushForce = windEffect,
-          isArcaneBullet = hasArcane
+          isArcaneBullet = hasArcane,
+          isBonusFromMultiShot = (i > 0)  # First bullet (i=0) is normal, rest are bonus
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -651,7 +680,9 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         poisonDuration = poisonEffect,
         fireDuration = fireEffect,
         windPushForce = windEffect,
-        isArcaneBullet = hasArcane
+        isArcaneBullet = hasArcane,
+        isBonusFromDoubleShot = true,  # Second burst is always bonus from Double Shot
+        isBonusFromMultiShot = (i > 0)  # Side bullets also bonus from Multi-Shot
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -673,7 +704,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       poisonDuration = poisonEffect,
       fireDuration = fireEffect,
       windPushForce = windEffect,
-      isArcaneBullet = hasArcane
+      isArcaneBullet = hasArcane,
+      isBonusFromDoubleShot = true  # Second burst is bonus from Double Shot
     )
     bullet.radius = bulletRadius
     game.bullets.add(bullet)
@@ -3182,6 +3214,7 @@ proc updateGame*(game: var Game, dt: float32) =
           
           # Calculate final damage with Overcharge modifier
           var finalDamage = bullet.damage
+          var overchargeExtraDamage = 0.0
           if hasPowerUp(game.player, puOvercharge):
             let level = getPowerUpLevel(game.player, puOvercharge)
             let dmgPerUnit = 0.04 / 100.0  # +4% per 100 units traveled
@@ -3202,6 +3235,7 @@ proc updateGame*(game: var Game, dt: float32) =
             let distanceBonus = min(bullet.travelDistance * dmgPerUnit, bullet.travelDistance / maxRange * maxBonus)
             let bonusMultiplier = min(distanceBonus, maxBonus)
             finalDamage = bullet.damage * (1.0 + bonusMultiplier)
+            overchargeExtraDamage = finalDamage - bullet.damage
           
           if game.enemies[j].enemyType == etStar:
             # Stars use hit counter
@@ -3233,7 +3267,36 @@ proc updateGame*(game: var Game, dt: float32) =
             
             # Track bullet hit for statistics
             trackBulletHit(game, bullet, game.enemies[j], actualDamage + shieldDamage)
-            attributeDamageToActivePowerUps(game, actualDamage + shieldDamage)
+            
+            # Track power-up damage contributions (only ACTUAL extra damage they caused)
+            
+            # Track Overcharge damage contribution (only extra damage from distance)
+            if overchargeExtraDamage > 0:
+              trackPowerUpDamage(game, puOvercharge, overchargeExtraDamage)
+            
+            # Track Rage damage contribution (only extra damage from low HP)
+            for powerUp in game.player.powerUps:
+              if powerUp.powerType == puRage:
+                let hpPercent = game.player.hp / game.player.maxHp
+                let hpLost = 1.0 - hpPercent
+                let bonusPerTenPercent = case powerUp.level
+                  of 1: 0.05
+                  of 2: 0.08
+                  else: 0.12
+                let damageBonus = hpLost * 10.0 * bonusPerTenPercent
+                if damageBonus > 0:
+                  # Calculate actual rage damage: base damage * bonus percentage
+                  let rageDamageRatio = damageBonus / (1.0 + damageBonus)
+                  let rageDamage = actualDamage * rageDamageRatio
+                  trackPowerUpDamage(game, puRage, rageDamage)
+            
+            # Track Multi-Shot contribution (only from bonus bullets)
+            if bullet.isBonusFromMultiShot:
+              trackPowerUpDamage(game, puMultiShot, actualDamage)
+            
+            # Track Double Shot contribution (only from bonus bullets)
+            if bullet.isBonusFromDoubleShot:
+              trackPowerUpDamage(game, puDoubleShot, actualDamage)
             
             # Create damage number for shield damage (cyan/blue colored for shields)
             if shieldDamage > 0:
@@ -3453,6 +3516,10 @@ proc updateGame*(game: var Game, dt: float32) =
                 let explosionDmg = finalDamage * 0.5
                 let actualDamage = applyEliteModifiers(game.enemies[k], explosionDmg)
                 game.enemies[k].hp -= actualDamage
+                
+                # Track explosive bullet damage contribution
+                if actualDamage > 0:
+                  trackPowerUpDamage(game, puExplosiveBullets, actualDamage)
                 
                 # Create damage number for explosive bullet area damage
                 if actualDamage > 0:

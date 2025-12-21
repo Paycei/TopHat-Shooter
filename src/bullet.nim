@@ -8,7 +8,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 poisonDuration: float32 = 0, fireDuration: float32 = 0, windPushForce: float32 = 0,
                 isPentagon: bool = false, isEcho: bool = false, 
                 isBossBullet: bool = false, isArcaneBullet: bool = false,
-                sourceEnemyId: int = -1): Bullet =
+                sourceEnemyId: int = -1,
+                isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false): Bullet =
   # BUFFED: Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -37,7 +38,9 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     isEcho: isEcho,  # Whether this is an echo trail bullet
     echoTrailTimer: 0.0,  # Timer for spawning echo trails
     isBossBullet: isBossBullet,  # Mark boss bullets for glow effect
-    isArcaneBullet: isArcaneBullet  # Arcane bullet from arcane bullets power-up
+    isArcaneBullet: isArcaneBullet,  # Arcane bullet from arcane bullets power-up
+    isBonusFromMultiShot: isBonusFromMultiShot,  # Bonus bullet from Multi-Shot
+    isBonusFromDoubleShot: isBonusFromDoubleShot  # Bonus bullet from Double Shot
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =

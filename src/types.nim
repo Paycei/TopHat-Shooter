@@ -310,6 +310,9 @@ type
     echoTrailTimer*: float32  # Timer for spawning echo clones
     isBossBullet*: bool  # True if this bullet was fired by a boss (for glow effect)
     isArcaneBullet*: bool  # True if this bullet is from arcane bullet power-up
+    # Bonus bullet tracking for statistics
+    isBonusFromMultiShot*: bool  # True if this is a bonus bullet from Multi-Shot
+    isBonusFromDoubleShot*: bool  # True if this is a bonus bullet from Double Shot
 
   Coin* = ref object
     pos*: Vector2f
