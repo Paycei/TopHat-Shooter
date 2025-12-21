@@ -1551,6 +1551,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
         
+        # Track damage zone damage for statistics
+        trackPowerUpDamage(game, puDamageZone, actualDamage)
+        
         # Use new accumulation system for reliable damage numbers
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtDefault, 
                                      damageWithCrit > zoneDamage * dt)
@@ -1670,6 +1673,9 @@ proc updateGame*(game: var Game, dt: float32) =
         enemy.hp -= actualDamage
         processedEnemies.add(enemy)
         
+        # Track lightning aura damage for statistics
+        trackPowerUpDamage(game, puLightningAura, actualDamage)
+        
         # Use new accumulation system for reliable damage numbers
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtLightning,
                                      damageWithCrit > lightningDamagePerSec * dt)
@@ -1706,6 +1712,9 @@ proc updateGame*(game: var Game, dt: float32) =
             let chainedDamage = applyEliteModifiers(nearestEnemy, chainDamageWithCrit)
             nearestEnemy.hp -= chainedDamage
             processedEnemies.add(nearestEnemy)
+            
+            # Track chained lightning damage for statistics
+            trackPowerUpDamage(game, puLightningAura, chainedDamage)
             
             # Use accumulation system for chained lightning to prevent spam
             accumulateAndShowAuraDamage(game, nearestEnemy, chainedDamage, dt, dtLightning,
@@ -1751,6 +1760,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let damageWithCrit = applyCriticalHit(game.player, arcaneDamagePerSec * dt)
         let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
+        
+        # Track arcane aura damage for statistics
+        trackPowerUpDamage(game, puArcaneAura, actualDamage)
         
         # Use new accumulation system for reliable damage numbers
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtArcane,
@@ -1896,6 +1908,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let damageWithCrit = applyCriticalHit(game.player, bloodDamagePerSec * dt)
         let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
         enemy.hp -= actualDamage
+        
+        # Track blood aura damage for statistics
+        trackPowerUpDamage(game, puBloodAura, actualDamage)
         
         # Accumulate healing based on damage dealt
         totalHealing += actualDamage * actualLifestealPercent
@@ -2046,6 +2061,21 @@ proc updateGame*(game: var Game, dt: float32) =
             let damageWithCrit = applyCriticalHit(game.player, actualBaseDamage)
             let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
             enemy.hp -= actualDamage
+            
+            # Track orb damage for statistics - determine which power-up type to attribute
+            if hasPowerUp(game.player, puRotatingOrbs):
+              trackPowerUpDamage(game, puRotatingOrbs, actualDamage)
+            else:
+              # Track individual orb type
+              case orb.elementType
+              of etPoison: trackPowerUpDamage(game, puPoisonOrb, actualDamage)
+              of etFire: trackPowerUpDamage(game, puFireOrb, actualDamage)
+              of etLightning: trackPowerUpDamage(game, puLightningOrb, actualDamage)
+              of etWind: trackPowerUpDamage(game, puWindOrb, actualDamage)
+              of etFrost: trackPowerUpDamage(game, puFrostOrb, actualDamage)
+              of etArcane: trackPowerUpDamage(game, puArcaneOrb, actualDamage)
+              of etBlood: trackPowerUpDamage(game, puBloodOrb, actualDamage)
+              of etNone: discard
             
             # Create damage number for orbital damage
             game.damageNumbers.add(newDamageNumber(
@@ -2512,6 +2542,26 @@ proc updateGame*(game: var Game, dt: float32) =
       let actualDamage = applyEliteModifiers(enemy, effectDamage)
       enemy.hp -= actualDamage
       
+      # Track DoT damage for power-up statistics based on active effect sources
+      if hasActiveEffect(enemy, etPoison):
+        # Check source to determine which power-up to attribute
+        let poisonEffect = enemy.activeEffects[etPoison]
+        if poisonEffect.primary.source == "aura":
+          trackPowerUpDamage(game, puPoisonAura, actualDamage)
+        elif poisonEffect.primary.source == "shot" or poisonEffect.primary.source == "bullet":
+          trackPowerUpDamage(game, puPoisonShot, actualDamage)
+        elif poisonEffect.primary.source == "orb":
+          trackPowerUpDamage(game, puPoisonOrb, actualDamage)
+      elif hasActiveEffect(enemy, etFire):
+        # Check source to determine which power-up to attribute
+        let fireEffect = enemy.activeEffects[etFire]
+        if fireEffect.primary.source == "aura":
+          trackPowerUpDamage(game, puFireAura, actualDamage)
+        elif fireEffect.primary.source == "shot" or fireEffect.primary.source == "bullet":
+          trackPowerUpDamage(game, puFireBullets, actualDamage)
+        elif fireEffect.primary.source == "orb":
+          trackPowerUpDamage(game, puFireOrb, actualDamage)
+      
       # Create damage number for DOT effects (periodically to avoid spam)
       if rand(1.0) < (1.5 * dt):  # Show ~1.5 numbers per second
         # Determine damage type based on active effects
@@ -2887,6 +2937,9 @@ proc updateGame*(game: var Game, dt: float32) =
             let actualDamage = applyEliteModifiers(enemy, reflectDamageWithCrit)
             enemy.hp -= actualDamage
             
+            # Track thorns damage for statistics
+            trackPowerUpDamage(game, puThorns, actualDamage)
+            
             # Create damage number for thorns reflection (boss contact)
             game.damageNumbers.add(newDamageNumber(
               enemy.pos.x,
@@ -2942,6 +2995,9 @@ proc updateGame*(game: var Game, dt: float32) =
           let reflectedDamageWithCrit = applyCriticalHit(game.player, reflectedDamageBase)
           let actualDamage = applyEliteModifiers(enemy, reflectedDamageWithCrit)
           enemy.hp -= actualDamage
+          
+          # Track thorns damage for statistics
+          trackPowerUpDamage(game, puThorns, actualDamage)
           
           # Create damage number for thorns reflection (enemy contact)
           game.damageNumbers.add(newDamageNumber(
@@ -3506,7 +3562,7 @@ proc updateGame*(game: var Game, dt: float32) =
         
         var bulletDamage = 1.0
         
-        # Thorns reflection - damage the originating enemy
+        # Thorns reflection - damage the originating enemy (the one that shot the bullet)
         if hasPowerUp(game.player, puThorns):
           let thornsLevel = getPowerUpLevel(game.player, puThorns)
           let reflectPercent = case thornsLevel
@@ -3515,30 +3571,31 @@ proc updateGame*(game: var Game, dt: float32) =
             else: 1.00  # BUFFED from 0.70 to 1.00
           let reflectedDamage = bulletDamage * reflectPercent
           
-          # Find nearest enemy to reflect damage to
-          var nearestEnemy: Enemy = nil
-          var nearestDist = 999999.0
+          # Find the enemy that shot this bullet using sourceEnemyId
+          var sourceEnemy: Enemy = nil
           for enemy in game.enemies:
-            let dist = distance(bullet.pos, enemy.pos)
-            if dist < nearestDist:
-              nearestDist = dist
-              nearestEnemy = enemy
+            if enemy.id == bullet.sourceEnemyId:
+              sourceEnemy = enemy
+              break
           
-          if nearestEnemy != nil:
-            let actualDamage = applyEliteModifiers(nearestEnemy, reflectedDamage)
-            nearestEnemy.hp -= actualDamage
+          if sourceEnemy != nil:
+            let actualDamage = applyEliteModifiers(sourceEnemy, reflectedDamage)
+            sourceEnemy.hp -= actualDamage
+            
+            # Track thorns damage for statistics
+            trackPowerUpDamage(game, puThorns, actualDamage)
             
             # Create damage number for thorns reflection (bullet)
             game.damageNumbers.add(newDamageNumber(
-              nearestEnemy.pos.x,
-              nearestEnemy.pos.y,
+              sourceEnemy.pos.x,
+              sourceEnemy.pos.y,
               actualDamage,
               fromPlayer = true,
               isCritical = false,
               damageType = dtDefault
             ))
             
-            spawnExplosion(game.particles, nearestEnemy.pos.x, nearestEnemy.pos.y, Red, 5)
+            spawnExplosion(game.particles, sourceEnemy.pos.x, sourceEnemy.pos.y, Red, 5)
         
         if takeDamage(game.player, bulletDamage):
           game.state = gsGameOver

@@ -715,15 +715,27 @@ proc attributeDamageToActivePowerUps*(game: Game, baseDamage: float32) =
     of puPiercingShots: contributionFactor = 0.08
     of puMultiShot, puDoubleShot: contributionFactor = 0.10
     of puBulletSpeed: contributionFactor = 0.05
+    of puBulletSize: contributionFactor = 0.06 * powerUp.level.float32
     of puRapidFire: contributionFactor = 0.10
     of puMagicalBullets, puCriticalHit: contributionFactor = 0.12
-    of puFireBullets, puPoisonShot, puFrostShots, puArcaneBullets: contributionFactor = 0.10
+    of puFireBullets, puPoisonShot, puFrostShots, puArcaneBullets, puWindBullets: contributionFactor = 0.10
     of puFireAura, puLightningAura, puPoisonAura, puBloodAura, puArcaneAura, puWindAura: 
       contributionFactor = 0.15
     of puDamageZone, puChainLightning: contributionFactor = 0.12
     of puBulletRicochet, puBulletSplit, puOvercharge, puEchoShots: contributionFactor = 0.08
+    of puBloodBullets: contributionFactor = 0.10 * powerUp.level.float32
+    of puLifeSteal: contributionFactor = 0.05 * powerUp.level.float32
+    of puRage, puBerserker: contributionFactor = 0.10 * powerUp.level.float32
+    of puThorns: contributionFactor = 0.08 * powerUp.level.float32
+    of puRotatingOrbs: contributionFactor = 0.15
+    of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb:
+      contributionFactor = 0.12 * powerUp.level.float32
     of puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, 
        puLightningMastery, puWindMastery, puBloodMastery: contributionFactor = 0.20
+    of puAutoShoot, puGravityWell, puPhaseShift, puTimeWarp, puParry: contributionFactor = 0.05
+    of puMaxHealth, puSpeedBoost, puRegeneration: contributionFactor = 0.02
+    of puDodgeChance: contributionFactor = 0.03 * powerUp.level.float32
+    of puRotatingShield, puWallMaster, puLuckyCoins, puSlowField: contributionFactor = 0.0
     else: contributionFactor = 0.0
     
     if contributionFactor > 0:
