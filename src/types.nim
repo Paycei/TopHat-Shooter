@@ -231,7 +231,6 @@ type
     hp*: float32
     maxHp*: float32
     speed*: float32
-    damage*: int              # Legacy field for backward compatibility
     contactDamage*: int       # Damage dealt on contact/collision
     rangedDamage*: int        # Damage dealt by bullets/projectiles
     color*: Color

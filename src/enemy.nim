@@ -47,7 +47,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 1.0 * strengthMultiplier,
       maxHp: 1.0 * strengthMultiplier,
       speed: 100 + difficulty * 10,
-      damage: 1,
       contactDamage: 1,
       rangedDamage: 0,  # Circle enemies don't shoot
       color: if difficulty < 5: Red elif difficulty < 10: Orange else: Maroon,
@@ -79,7 +78,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 3.0 * strengthMultiplier,   # INCREASED from 2.0
       maxHp: 3.0 * strengthMultiplier,
       speed: 55 + difficulty * 3,     # DECREASED from 60 (more threatening when larger)
-      damage: 2,                      # INCREASED from 1
       contactDamage: 1,               # Lower contact damage for ranged enemy
       rangedDamage: 2,                # Higher ranged damage (their specialty)
       color: Purple,
@@ -112,7 +110,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 1.2 * strengthMultiplier,
       maxHp: 1.2 * strengthMultiplier,
       speed: 155 + difficulty * 10,
-      damage: 2,
       contactDamage: 2,
       rangedDamage: 0,  # Triangle enemies don't shoot
       color: Pink,
@@ -145,7 +142,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 9999.0,
       maxHp: 9999.0,
       speed: 70 + difficulty * 6,
-      damage: 2,
       contactDamage: 2,
       rangedDamage: 0,  # Star enemies don't shoot
       color: Color(r: 255, g: 215, b: 0, a: 255),
@@ -179,7 +175,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 3.0 * strengthMultiplier,
       maxHp: 3.0 * strengthMultiplier,
       speed: 70 + difficulty * 8,
-      damage: 1,
       contactDamage: 1,
       rangedDamage: 1,  # Hexagon shoots chaotically
       color: Color(r: 128, g: 0, b: 255, a: 255),
@@ -212,7 +207,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 5.0 * strengthMultiplier,
       maxHp: 5.0 * strengthMultiplier,
       speed: 50 + difficulty * 4,
-      damage: 5,
       contactDamage: 5,  # High contact damage (warning attack)
       rangedDamage: 0,   # Cross enemies don't shoot
       color: Color(r: 255, g: 100, b: 0, a: 255),
@@ -246,7 +240,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 1.8 * strengthMultiplier,
       maxHp: 1.8 * strengthMultiplier,
       speed: 140 + difficulty * 12,
-      damage: 1,
       contactDamage: 1,
       rangedDamage: 1,  # Shoots while dashing
       color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -280,7 +273,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 3.5 * strengthMultiplier,
       maxHp: 3.5 * strengthMultiplier,
       speed: 90 + difficulty * 2,
-      damage: 1,
       contactDamage: 1,
       rangedDamage: 1,  # Shoots many slow projectiles
       color: Color(r: 150, g: 150, b: 0, a: 255),
@@ -314,7 +306,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 2.2 * strengthMultiplier,
       maxHp: 2.2 * strengthMultiplier,
       speed: 55 + difficulty * 3,
-      damage: 1,
       color: Color(r: 0, g: 150, b: 100, a: 255),
       enemyType: etPentagon,
       isBoss: false,
@@ -346,7 +337,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 3.0 * strengthMultiplier,
       maxHp: 3.0 * strengthMultiplier,
       speed: 65 + difficulty * 5,
-      damage: 2,
       contactDamage: 2,
       rangedDamage: 0,  # Trickster doesn't shoot, just tricks
       color: Color(r: 200, g: 0, b: 200, a: 255),
@@ -380,7 +370,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 2.8 * strengthMultiplier,
       maxHp: 2.8 * strengthMultiplier,
       speed: 80 + difficulty * 6,
-      damage: 2,
       contactDamage: 2,
       rangedDamage: 0,  # Phantom teleports, doesn't shoot
       color: Color(r: 100, g: 100, b: 255, a: 180),
@@ -415,7 +404,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 6.0 * strengthMultiplier,
       maxHp: 6.0 * strengthMultiplier,
       speed: 40 + difficulty * 2,  # Slow, methodical movement
-      damage: 9999,  # One-shot attack
       contactDamage: 3,  # Moderate contact damage
       rangedDamage: 9999,  # One-shot ranged attack
       color: Color(r: 200, g: 50, b: 200, a: 255),  # Bright magenta
@@ -448,7 +436,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 5.0 * strengthMultiplier,
       maxHp: 5.0 * strengthMultiplier,
       speed: 50 + difficulty * 3,  # Slow, floats around
-      damage: 2,
       contactDamage: 1,
       rangedDamage: 2,  # Summons meteorites and homing bullets
       color: Color(r: 138, g: 43, b: 226, a: 255),  # Purple/violet for magic
@@ -2022,7 +2009,6 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       hp: scaledHP,
       maxHp: scaledHP,
       speed: scaledSpeed,
-      damage: scaledDamage,
       contactDamage: scaledDamage,  # Boss contact damage
       rangedDamage: scaledDamage,   # Boss ranged damage
       color: bossDef.color,
@@ -2106,7 +2092,6 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   let baseEliteBonus = 1.3  # 30% base bonus to all stats
   enemy.maxHp *= baseEliteBonus
   enemy.hp *= baseEliteBonus
-  enemy.damage = (enemy.damage.float32 * baseEliteBonus).int
   enemy.contactDamage = (enemy.contactDamage.float32 * baseEliteBonus).int
   enemy.rangedDamage = (enemy.rangedDamage.float32 * baseEliteBonus).int
   
@@ -2126,7 +2111,6 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Swift elites are smaller
       enemy.radius *= 0.9
       enemy.collisionRadius *= 0.9
-      enemy.damage += 1 + (waveNumber div 5)
       enemy.contactDamage += 1 + (waveNumber div 5)
       enemy.rangedDamage += 1 + (waveNumber div 5)
       enemy.maxHp *= (0.85 * eliteScaling)  # Reduced from 0.9
@@ -2141,7 +2125,6 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Tank elites are larger
       enemy.radius *= 1.3
       enemy.collisionRadius *= 1.3
-      enemy.damage += waveNumber div 5  # Increased scaling
       enemy.contactDamage += waveNumber div 5
       enemy.rangedDamage += waveNumber div 5
     
@@ -2149,7 +2132,6 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Poisons player on contact
       # Balanced growth with reduced speed scaling
       enemy.speed *= (1.15 * eliteSpeedScaling * effectMultiplier)  # Uses speed scaling
-      enemy.damage += 2 + (waveNumber div 7)  # Increased scaling (was div 8)
       enemy.contactDamage += 2 + (waveNumber div 7)
       enemy.rangedDamage += 2 + (waveNumber div 7)
       enemy.maxHp *= (1.5 * eliteScaling * effectMultiplier)  # Uses normal scaling
@@ -2160,7 +2142,6 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Multiple effects reduce HP scaling but use reduced speed scaling
       enemy.maxHp *= (2.1 * eliteScaling * effectMultiplier)  # Increased from 1.7
       enemy.hp *= (2.1 * eliteScaling * effectMultiplier)
-      enemy.damage += 2 + (waveNumber div 7)  # Increased scaling (was div 8)
       enemy.contactDamage += 2 + (waveNumber div 7)
       enemy.rangedDamage += 2 + (waveNumber div 7)
       enemy.speed *= (1.0 * eliteSpeedScaling * effectMultiplier)  # Uses speed scaling
@@ -2171,7 +2152,6 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Multiple effects reduce HP scaling
       enemy.maxHp *= (2.0 * eliteScaling * effectMultiplier)  # Increased from 1.6
       enemy.hp *= (2.0 * eliteScaling * effectMultiplier)
-      enemy.damage += 1 + (waveNumber div 5)
       enemy.contactDamage += 1 + (waveNumber div 5)
       enemy.rangedDamage += 1 + (waveNumber div 5)
     
@@ -2183,7 +2163,6 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       let shieldAmount = enemy.maxHp * 0.75  # Shield = 75% of max HP
       enemy.shieldHp = shieldAmount
       enemy.maxShieldHp = shieldAmount
-      enemy.damage += 2 + (waveNumber div 5)
       enemy.contactDamage += 2 + (waveNumber div 5)
       enemy.rangedDamage += 2 + (waveNumber div 5)
     

@@ -535,7 +535,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBurst,
-              damage: 1.0,
+              damage: 2.0,
               cooldown: 1.5,  # BUFFED from 2.0 (faster bursts)
               projectileSpeed: 240.0,  # BUFFED from 220.0
               projectileCount: 10,  # BUFFED from 8 (more bullets)
@@ -544,7 +544,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,  # NEW: Direct player shots
-              damage: 1.0,
+              damage: 2.0,
               cooldown: 1.8,
               projectileSpeed: 280.0,
               projectileCount: 3,
@@ -575,7 +575,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 1.0,
+              damage: 2.0,
               cooldown: 1.2,  # BUFFED from 1.5 (rapid waves)
               projectileSpeed: 220.0,  # BUFFED from 200.0
               projectileCount: 8,  # BUFFED from 6 (more bullets)
@@ -584,7 +584,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,  # NEW: Circle pattern for chaos
-              damage: 1.0,
+              damage: 2.0,
               cooldown: 2.5,
               projectileSpeed: 190.0,
               projectileCount: 16,
@@ -593,7 +593,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapSpiral,  # NEW: Spiral pattern while teleporting
-              damage: 1.0,
+              damage: 2.0,
               cooldown: 2.0,
               projectileSpeed: 180.0,
               projectileCount: 12,
@@ -624,7 +624,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 2.0,  # BUFFED from 1.0 (more damage)
+              damage: 2.5,  # BUFFED from 1.0 (more damage)
               cooldown: 2.0,  # BUFFED from 3.0 (more frequent)
               projectileSpeed: 220.0,  # BUFFED from 180.0
               projectileCount: 32,  # BUFFED from 20 (60% more bullets)
@@ -633,7 +633,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,  # NEW: Expanding void pulse
-              damage: 2.0,
+              damage: 2.5,
               cooldown: 3.5,
               projectileSpeed: 250.0,
               projectileCount: 0,
@@ -651,7 +651,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,  # NEW: Continuous waves
-              damage: 2.0,
+              damage: 2.5,
               cooldown: 1.0,
               projectileSpeed: 240.0,
               projectileCount: 10,
@@ -660,7 +660,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,  # NEW: Rapid targeting
-              damage: 2.0,
+              damage: 2.5,
               cooldown: 0.8,
               projectileSpeed: 300.0,
               projectileCount: 5,
