@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics_integration, run_statistics_ui, settings_types
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, settings_types, save_system
 
 const
   screenWidth = 1024
@@ -441,7 +441,9 @@ proc main() =
   discard loadStatistics(stats)
   
   # Load last completed run statistics
-  loadLastCompletedRun()
+  let loadedRunStats = loadLastRunStats()
+  if not loadedRunStats.isNil:
+    loadLastCompletedRun(loadedRunStats)
   
   var statsSavedThisGame = false  # Track if stats were saved for current game
   
@@ -1100,7 +1102,10 @@ proc main() =
         # Finalize run tracking and save for menu viewing
         if hasValidRunStats():
           finalizeRunTracking(currentGame)
-          saveLastCompletedRun()  # NEW: Save run stats for menu viewing
+          saveLastCompletedRun()  # Save to memory
+          # Also save to disk
+          if not currentRunStats.isNil:
+            discard saveLastRunStats(currentRunStats)
         
         # Save statistics only once per game over
         if not statsSavedThisGame and not currentGame.cheatsUsed:

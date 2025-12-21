@@ -1,8 +1,48 @@
-import json, os, times, statistics_types
+# ============================================================================
+# GLOBAL STATISTICS SYSTEM
+# Lifetime/aggregate statistics across all game sessions
+# Consolidated from: statistics_types, statistics
+# ============================================================================
 
-export statistics_types
+import json, os, times, save_system
+
+# ============================================================================
+# TYPE DEFINITIONS
+# ============================================================================
+
+type
+  GameModeStats* = object
+    gamesPlayed*: int
+    totalKills*: int
+    totalCoins*: int
+    totalTimePlayed*: float32  # in seconds
+    bestScore*: int  # Highest wave reached (wave mode) or longest time survived (time mode)
+    bestKills*: int  # Most kills in a single run
+    bestCoins*: int  # Most coins collected in a single run
+    averageWaveReached*: float32  # Only for wave mode
+    averageSurvivalTime*: float32  # Only for time mode
+    totalDeaths*: int
+    bossesDefeated*: int
+    highestWaveReached*: int  # For wave mode
+    longestSurvivalTime*: float32  # For time mode (in seconds)
+
+  Statistics* = ref object
+    waveMode*: GameModeStats
+    timeMode*: GameModeStats
+    totalGamesPlayed*: int
+    totalPlayTime*: float32  # Total time across all modes
+    firstPlayDate*: string
+    lastPlayDate*: string
+
+# ============================================================================
+# GLOBAL STATISTICS INSTANCE
+# ============================================================================
 
 var globalStats*: Statistics
+
+# ============================================================================
+# INITIALIZATION
+# ============================================================================
 
 proc initStatistics*(): Statistics =
   result = Statistics(
@@ -43,7 +83,10 @@ proc initStatistics*(): Statistics =
   )
   globalStats = result
 
-# Convert GameModeStats to JSON
+# ============================================================================
+# JSON SERIALIZATION
+# ============================================================================
+
 proc gameModeStatsToJson(stats: GameModeStats): JsonNode =
   result = %* {
     "gamesPlayed": stats.gamesPlayed,
@@ -61,7 +104,6 @@ proc gameModeStatsToJson(stats: GameModeStats): JsonNode =
     "longestSurvivalTime": stats.longestSurvivalTime
   }
 
-# Load GameModeStats from JSON
 proc jsonToGameModeStats(jsonNode: JsonNode, stats: var GameModeStats) =
   if jsonNode.hasKey("gamesPlayed"):
     stats.gamesPlayed = jsonNode["gamesPlayed"].getInt()
@@ -90,7 +132,6 @@ proc jsonToGameModeStats(jsonNode: JsonNode, stats: var GameModeStats) =
   if jsonNode.hasKey("longestSurvivalTime"):
     stats.longestSurvivalTime = jsonNode["longestSurvivalTime"].getFloat()
 
-# Convert Statistics to JSON
 proc statisticsToJson*(stats: Statistics): JsonNode =
   result = %* {
     "waveMode": gameModeStatsToJson(stats.waveMode),
@@ -101,7 +142,6 @@ proc statisticsToJson*(stats: Statistics): JsonNode =
     "lastPlayDate": stats.lastPlayDate
   }
 
-# Load Statistics from JSON
 proc jsonToStatistics*(jsonNode: JsonNode, stats: Statistics) =
   if jsonNode.hasKey("waveMode"):
     jsonToGameModeStats(jsonNode["waveMode"], stats.waveMode)
@@ -116,7 +156,10 @@ proc jsonToStatistics*(jsonNode: JsonNode, stats: Statistics) =
   if jsonNode.hasKey("lastPlayDate"):
     stats.lastPlayDate = jsonNode["lastPlayDate"].getStr()
 
-# Helper to format time duration
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
 proc formatTime*(seconds: float32): string =
   let totalSecs = int(seconds)
   let hours = totalSecs div 3600
@@ -130,23 +173,22 @@ proc formatTime*(seconds: float32): string =
   else:
     result = $secs & "s"
 
-# Update statistics after a game ends
+# ============================================================================
+# STATISTICS UPDATE
+# ============================================================================
+
 proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int, 
                   timeSurvived: float32, kills: int, coins: int, 
                   bossesKilled: int) =
-  # Update last play date
   stats.lastPlayDate = $now()
   if stats.firstPlayDate == "":
     stats.firstPlayDate = stats.lastPlayDate
   
-  # Update total stats
   stats.totalGamesPlayed += 1
   stats.totalPlayTime += timeSurvived
   
-  # Select the appropriate mode stats
   var modeStats = if isWaveMode: addr stats.waveMode else: addr stats.timeMode
   
-  # Update mode-specific stats
   modeStats.gamesPlayed += 1
   modeStats.totalKills += kills
   modeStats.totalCoins += coins
@@ -154,40 +196,32 @@ proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int,
   modeStats.totalDeaths += 1
   modeStats.bossesDefeated += bossesKilled
   
-  # Update best scores
   if kills > modeStats.bestKills:
     modeStats.bestKills = kills
   if coins > modeStats.bestCoins:
     modeStats.bestCoins = coins
   
   if isWaveMode:
-    # Wave mode: track highest wave reached
     if waveReached > modeStats.highestWaveReached:
       modeStats.highestWaveReached = waveReached
       modeStats.bestScore = waveReached
     
-    # Update average wave reached
     modeStats.averageWaveReached = 
       (modeStats.averageWaveReached * float32(modeStats.gamesPlayed - 1) + float32(waveReached)) / 
       float32(modeStats.gamesPlayed)
   else:
-    # Time mode: track longest survival time
     if timeSurvived > modeStats.longestSurvivalTime:
       modeStats.longestSurvivalTime = timeSurvived
       modeStats.bestScore = int(timeSurvived)
     
-    # Update average survival time
     modeStats.averageSurvivalTime = 
       (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) / 
       float32(modeStats.gamesPlayed)
 
-# ====================
-# STATISTICS SAVE/LOAD
-# ====================
+# ============================================================================
+# SAVE/LOAD
+# ============================================================================
 
-import save_system
-
-# Save Statistics to file
 proc saveStatistics*(stats: Statistics): bool =
   try:
     let jsonData = statisticsToJson(stats)
@@ -203,7 +237,6 @@ proc saveStatistics*(stats: Statistics): bool =
     echo "Unexpected error saving statistics: ", e.msg
     return false
 
-# Load Statistics from file
 proc loadStatistics*(stats: Statistics): bool =
   try:
     let savePath = getStatsPath()

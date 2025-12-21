@@ -1,4 +1,4 @@
-import raylib, types, random, math, wall, bullet, effects, tables, boss_definitions, run_statistics_integration
+import raylib, types, random, math, wall, bullet, effects, tables, boss_definitions, run_statistics
 
 proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
   ## NATURAL SPEED REDUCTION: Pure mathematical scaling with NO hardcoded thresholds

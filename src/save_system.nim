@@ -1,4 +1,4 @@
-import json, os, settings_types, run_statistics_types, types, std/tables
+import json, os, settings_types, run_statistics, types, std/tables
 
 # Get AppData directory path
 proc getAppDataPath*(): string =

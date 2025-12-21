@@ -1,17 +1,173 @@
 # ============================================================================
-# RUN STATISTICS TRACKING
-# Core tracking logic for per-run statistics
-# Called from game update loops to record gameplay data
+# RUN STATISTICS SYSTEM
+# Complete per-run statistics tracking and integration
+# Consolidated from: run_statistics_types, run_statistics, run_statistics_integration
 # ============================================================================
 
-import run_statistics_types, types, math, times, std/tables, strutils, save_system
+import types, std/tables, times, math, strutils
 
-export run_statistics_types
-
-# Forward declarations
+# Forward declarations for functions defined later in file
 proc calculateDerivedMetrics*()
 proc updateDPS*(damage: float32)
 proc calculatePlayStyle*()
+
+# ============================================================================
+# TYPE DEFINITIONS
+# Per-run (single game session) statistics tracking
+# Tracks ALL measurable gameplay data for analysis and visualization
+# ============================================================================
+
+type
+  # EVENT TRACKING - Time-series events for detailed timeline analysis
+  GameEventType* = enum
+    geKill, geDamageTaken, geDamageDealt, gePowerUpChosen, geShopPurchase,
+    geWaveComplete, geBossSpawn, geBossDefeat, geNearDeath, geLegendaryUsed,
+    geWallPlaced, geCoinCollected, geConsumableUsed
+  
+  GameEvent* = object
+    timestamp*: float32
+    eventType*: GameEventType
+    value*: float32
+    details*: string
+    position*: Vector2f
+  
+  # COMBAT STATISTICS
+  CombatStats* = object
+    shotsFired*, shotsHit*, shotsMissed*: int
+    accuracyPercent*: float32
+    totalDamageDealt*, totalDamageTaken*, largestSingleHit*: float32
+    damageTakenByType*: Table[EnemyType, float32]
+    totalKills*, eliteKills*, bossKills*: int
+    killsByType*: Table[EnemyType, int]
+    criticalHits*, piercingShots*, explosiveKills*, ricochets*, chainLightningProcs*: int
+    homingBullets*, piercingBullets*, explosiveBullets*, splitBullets*: int
+  
+  # MOVEMENT & SURVIVABILITY
+  MovementStats* = object
+    totalDistanceTraveled*, averageSpeed*: float32
+    positionHeatmap*: seq[Vector2f]
+    phaseShiftsUsed*, timeWarpsUsed*, parriesUsed*, successfulParries*: int
+    totalPhaseShiftDistance*, totalTimeWarpDuration*: float32
+    timeInvincible*, timeAtCriticalHP*, timeAtLowHP*: float32
+    nearDeathCount*, hitsTakenCount*: int
+    longestNoDamageStreak*, currentNoDamageStreak*, averageTimeBetweenHits*: float32
+    damageAvoided*: float32
+  
+  # RESOURCE MANAGEMENT
+  ResourceStats* = object
+    coinsEarned*, coinsSpent*, coinsAtEnd*: int
+    coinEfficiency*: float32
+    wallsPlaced*, wallsDamaged*, wallsDestroyed*: int
+    wallDamageBlocked*: float32
+    consumablesCollected*, healthConsumablesUsed*: int
+    consumablesByType*: Table[ConsumableType, int]
+    shopPurchases*: seq[(float32, string)]
+    totalSpentInShop*, shopVisits*: int
+  
+  # POWER-UP ANALYTICS
+  PowerUpStats* = object
+    powerUpsChosen*: seq[(float32, PowerUp)]
+    totalPowerUps*, commonPowerUps*, legendaryPowerUps*: int
+    damageContribution*: Table[PowerUpType, float32]
+    killContribution*: Table[PowerUpType, int]
+    mostEffectivePowerUp*, leastEffectivePowerUp*: PowerUpType
+    synergyScore*: float32
+    elementalCombo*: seq[PowerUpType]
+    hasSynergy*: bool
+    level1PowerUps*, level2PowerUps*, level3PowerUps*: int
+  
+  # PERFORMANCE METRICS
+  PerformanceStats* = object
+    waveTimes*: seq[float32]
+    averageWaveTime*, fastestWave*, slowestWave*: float32
+    peakDPS*, averageDPS*: float32
+    dpsHistory*: seq[(float32, float32)]
+    currentDPSWindow*: seq[(float32, float32)]
+    killsPerMinute*, damagePerShot*, shotEfficiency*: float32
+    longestKillStreak*, currentKillStreak*: int
+    killStreakHistory*: seq[(float32, int)]
+  
+  # COMPARISON METRICS
+  ComparisonStats* = object
+    accuracyVsOptimal*, dpsVsOptimal*, survivalVsPredicted*: float32
+    powerUpQualityScore*, resourceUsageScore*, positioningScore*: float32
+    playStyle*: string
+    aggressionRating*, cautionRating*: float32
+  
+  # COMPLETE RUN STATISTICS
+  RunStatistics* = ref object
+    gameMode*: GameMode
+    startTime*, endTime*: string
+    runDuration*: float32
+    waveReached*, finalScore*: int
+    cheatsUsed*, died*: bool
+    combat*: CombatStats
+    movement*: MovementStats
+    resources*: ResourceStats
+    powerUps*: PowerUpStats
+    performance*: PerformanceStats
+    comparison*: ComparisonStats
+    events*: seq[GameEvent]
+    finalHP*, finalMaxHP*: float32
+    finalCoins*: int
+    finalPowerUps*: seq[PowerUp]
+
+# ============================================================================
+# INITIALIZATION HELPERS
+# ============================================================================
+
+proc initCombatStats*(): CombatStats =
+  CombatStats(
+    killsByType: initTable[EnemyType, int](),
+    damageTakenByType: initTable[EnemyType, float32]()
+  )
+
+proc initMovementStats*(): MovementStats =
+  MovementStats(positionHeatmap: @[])
+
+proc initResourceStats*(): ResourceStats =
+  ResourceStats(
+    consumablesByType: initTable[ConsumableType, int](),
+    shopPurchases: @[]
+  )
+
+proc initPowerUpStats*(): PowerUpStats =
+  PowerUpStats(
+    powerUpsChosen: @[],
+    damageContribution: initTable[PowerUpType, float32](),
+    killContribution: initTable[PowerUpType, int](),
+    elementalCombo: @[]
+  )
+
+proc initPerformanceStats*(): PerformanceStats =
+  PerformanceStats(
+    waveTimes: @[],
+    dpsHistory: @[],
+    currentDPSWindow: @[],
+    killStreakHistory: @[]
+  )
+
+proc initComparisonStats*(): ComparisonStats =
+  ComparisonStats(
+    playStyle: "Balanced",
+    aggressionRating: 50.0,
+    cautionRating: 50.0
+  )
+
+proc initRunStatistics*(): RunStatistics =
+  RunStatistics(
+    startTime: $now(),
+    endTime: "",
+    runDuration: 0.0,
+    combat: initCombatStats(),
+    movement: initMovementStats(),
+    resources: initResourceStats(),
+    powerUps: initPowerUpStats(),
+    performance: initPerformanceStats(),
+    comparison: initComparisonStats(),
+    events: @[],
+    finalPowerUps: @[]
+  )
 
 # ============================================================================
 # GLOBAL RUN STATS INSTANCE
@@ -24,15 +180,12 @@ var currentRunStats*: RunStatistics = nil
 # ============================================================================
 
 proc startNewRun*(gameMode: GameMode) =
-  ## Initialize statistics tracking for a new game run
   currentRunStats = initRunStatistics()
   currentRunStats.gameMode = gameMode
   currentRunStats.startTime = $now()
-  
   echo "[Stats] New run started: ", gameMode
 
 proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool, died: bool) =
-  ## Finalize statistics at end of run
   if currentRunStats.isNil:
     return
   
@@ -41,16 +194,12 @@ proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool
   currentRunStats.finalScore = finalScore
   currentRunStats.cheatsUsed = cheatsUsed
   currentRunStats.died = died
-  
-  # Capture final player state
   currentRunStats.finalHP = player.hp
   currentRunStats.finalMaxHP = player.maxHp
   currentRunStats.finalCoins = player.coins
   currentRunStats.finalPowerUps = player.powerUps
   
-  # Calculate derived metrics
   calculateDerivedMetrics()
-  
   echo "[Stats] Run ended - Wave: ", waveReached, " Score: ", finalScore
 
 # ============================================================================
@@ -58,12 +207,10 @@ proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool
 # ============================================================================
 
 proc recordShotFired*() =
-  ## Track a bullet being fired by player
   if currentRunStats.isNil: return
   currentRunStats.combat.shotsFired += 1
 
 proc recordShotHit*(damage: float32, enemyType: EnemyType, isCrit: bool = false) =
-  ## Track a bullet hitting an enemy
   if currentRunStats.isNil: return
   
   currentRunStats.combat.shotsHit += 1
@@ -75,37 +222,30 @@ proc recordShotHit*(damage: float32, enemyType: EnemyType, isCrit: bool = false)
   if isCrit:
     currentRunStats.combat.criticalHits += 1
   
-  # Update DPS tracking
   updateDPS(damage)
 
 proc recordShotMissed*() =
-  ## Track a bullet missing (despawned without hitting)
   if currentRunStats.isNil: return
   currentRunStats.combat.shotsMissed += 1
 
 proc recordKill*(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2f) =
-  ## Track an enemy kill
   if currentRunStats.isNil: return
   
   currentRunStats.combat.totalKills += 1
   
-  # Track by type
   if not currentRunStats.combat.killsByType.hasKey(enemyType):
     currentRunStats.combat.killsByType[enemyType] = 0
   currentRunStats.combat.killsByType[enemyType] += 1
   
-  # Special enemy types
   if isElite:
     currentRunStats.combat.eliteKills += 1
   if isBoss:
     currentRunStats.combat.bossKills += 1
   
-  # Kill streak tracking
   currentRunStats.performance.currentKillStreak += 1
   if currentRunStats.performance.currentKillStreak > currentRunStats.performance.longestKillStreak:
     currentRunStats.performance.longestKillStreak = currentRunStats.performance.currentKillStreak
   
-  # Add event
   currentRunStats.events.add(GameEvent(
     timestamp: gameTime,
     eventType: geKill,
@@ -115,26 +255,20 @@ proc recordKill*(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: fl
   ))
 
 proc recordDamageTaken*(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2f) =
-  ## Track damage received by player
   if currentRunStats.isNil: return
   
   currentRunStats.combat.totalDamageTaken += damage
   currentRunStats.movement.hitsTakenCount += 1
   
-  # Track by enemy type
   if not currentRunStats.combat.damageTakenByType.hasKey(enemyType):
     currentRunStats.combat.damageTakenByType[enemyType] = 0.0
   currentRunStats.combat.damageTakenByType[enemyType] += damage
   
-  # Reset no-damage streak
   if currentRunStats.movement.currentNoDamageStreak > currentRunStats.movement.longestNoDamageStreak:
     currentRunStats.movement.longestNoDamageStreak = currentRunStats.movement.currentNoDamageStreak
   currentRunStats.movement.currentNoDamageStreak = 0.0
-  
-  # Reset kill streak
   currentRunStats.performance.currentKillStreak = 0
   
-  # Add event
   currentRunStats.events.add(GameEvent(
     timestamp: gameTime,
     eventType: geDamageTaken,
@@ -144,70 +278,50 @@ proc recordDamageTaken*(damage: float32, enemyType: EnemyType, gameTime: float32
   ))
 
 proc recordSpecialMechanic*(mechType: string) =
-  ## Track special bullet mechanics being used
   if currentRunStats.isNil: return
   
   case mechType
-  of "piercing":
-    currentRunStats.combat.piercingShots += 1
-  of "explosive":
-    currentRunStats.combat.explosiveKills += 1
-  of "ricochet":
-    currentRunStats.combat.ricochets += 1
-  of "chain_lightning":
-    currentRunStats.combat.chainLightningProcs += 1
-  of "homing":
-    currentRunStats.combat.homingBullets += 1
-  of "split":
-    currentRunStats.combat.splitBullets += 1
-  else:
-    discard
+  of "piercing": currentRunStats.combat.piercingShots += 1
+  of "explosive": currentRunStats.combat.explosiveKills += 1
+  of "ricochet": currentRunStats.combat.ricochets += 1
+  of "chain_lightning": currentRunStats.combat.chainLightningProcs += 1
+  of "homing": currentRunStats.combat.homingBullets += 1
+  of "split": currentRunStats.combat.splitBullets += 1
+  else: discard
 
 # ============================================================================
 # MOVEMENT TRACKING
 # ============================================================================
 
 proc updateMovement*(player: Player, dt: float32, gameTime: float32) =
-  ## Track player movement and positioning
   if currentRunStats.isNil: return
   
-  # Calculate distance traveled
   let speed = player.vel.length()
   currentRunStats.movement.totalDistanceTraveled += speed * dt
   
-  # Sample position for heatmap (every 0.5 seconds)
   if gameTime - int(gameTime / 0.5).float32 * 0.5 < dt:
     currentRunStats.movement.positionHeatmap.add(player.pos)
   
-  # Track time at low HP
   let hpPercent = player.hp / player.maxHp
   if hpPercent < 0.25:
     currentRunStats.movement.timeAtCriticalHP += dt
   if hpPercent < 0.5:
     currentRunStats.movement.timeAtLowHP += dt
   
-  # Update no-damage streak
   currentRunStats.movement.currentNoDamageStreak += dt
   
-  # Track invincibility time
   if player.invincibilityTimer > 0 or player.phaseShiftInvulnTimer > 0 or player.parryActive:
     currentRunStats.movement.timeInvincible += dt
 
 proc recordLegendaryAbility*(abilityType: string, gameTime: float32, playerPos: Vector2f) =
-  ## Track legendary ability usage
   if currentRunStats.isNil: return
   
   case abilityType
-  of "phase_shift":
-    currentRunStats.movement.phaseShiftsUsed += 1
-  of "time_warp":
-    currentRunStats.movement.timeWarpsUsed += 1
-  of "parry":
-    currentRunStats.movement.parriesUsed += 1
-  else:
-    discard
+  of "phase_shift": currentRunStats.movement.phaseShiftsUsed += 1
+  of "time_warp": currentRunStats.movement.timeWarpsUsed += 1
+  of "parry": currentRunStats.movement.parriesUsed += 1
+  else: discard
   
-  # Add event
   currentRunStats.events.add(GameEvent(
     timestamp: gameTime,
     eventType: geLegendaryUsed,
@@ -217,16 +331,13 @@ proc recordLegendaryAbility*(abilityType: string, gameTime: float32, playerPos: 
   ))
 
 proc recordSuccessfulParry*() =
-  ## Track a bullet successfully reflected by parry
   if currentRunStats.isNil: return
   currentRunStats.movement.successfulParries += 1
 
 proc recordNearDeath*(gameTime: float32, playerPos: Vector2f) =
-  ## Track HP dropping below 10
   if currentRunStats.isNil: return
   
   currentRunStats.movement.nearDeathCount += 1
-  
   currentRunStats.events.add(GameEvent(
     timestamp: gameTime,
     eventType: geNearDeath,
@@ -240,12 +351,10 @@ proc recordNearDeath*(gameTime: float32, playerPos: Vector2f) =
 # ============================================================================
 
 proc recordCoinEarned*(amount: int) =
-  ## Track coins collected
   if currentRunStats.isNil: return
   currentRunStats.resources.coinsEarned += amount
 
 proc recordCoinSpent*(amount: int, itemName: string, gameTime: float32) =
-  ## Track coins spent in shop
   if currentRunStats.isNil: return
   
   currentRunStats.resources.coinsSpent += amount
@@ -257,15 +366,13 @@ proc recordCoinSpent*(amount: int, itemName: string, gameTime: float32) =
     eventType: geShopPurchase,
     value: amount.float32,
     details: itemName,
-    position: newVector2f(0, 0)  # Shop has no position
+    position: newVector2f(0, 0)
   ))
 
 proc recordWallPlaced*(gameTime: float32, pos: Vector2f) =
-  ## Track wall placement
   if currentRunStats.isNil: return
   
   currentRunStats.resources.wallsPlaced += 1
-  
   currentRunStats.events.add(GameEvent(
     timestamp: gameTime,
     eventType: geWallPlaced,
@@ -275,20 +382,16 @@ proc recordWallPlaced*(gameTime: float32, pos: Vector2f) =
   ))
 
 proc recordWallDestroyed*(damageBlocked: float32) =
-  ## Track wall destruction
   if currentRunStats.isNil: return
   
   currentRunStats.resources.wallsDestroyed += 1
   currentRunStats.resources.wallDamageBlocked += damageBlocked
 
 proc recordWallDamaged*() =
-  ## Track wall taking damage (but not destroyed)
   if currentRunStats.isNil: return
-  
   currentRunStats.resources.wallsDamaged += 1
 
 proc recordConsumable*(consumType: ConsumableType) =
-  ## Track consumable pickup
   if currentRunStats.isNil: return
   
   currentRunStats.resources.consumablesCollected += 1
@@ -305,27 +408,20 @@ proc recordConsumable*(consumType: ConsumableType) =
 # ============================================================================
 
 proc recordPowerUpChosen*(powerUp: PowerUp, gameTime: float32) =
-  ## Track power-up selection
   if currentRunStats.isNil: return
   
   currentRunStats.powerUps.powerUpsChosen.add((gameTime, powerUp))
   currentRunStats.powerUps.totalPowerUps += 1
   
   case powerUp.rarity
-  of prCommon:
-    currentRunStats.powerUps.commonPowerUps += 1
-  of prLegendary:
-    currentRunStats.powerUps.legendaryPowerUps += 1
+  of prCommon: currentRunStats.powerUps.commonPowerUps += 1
+  of prLegendary: currentRunStats.powerUps.legendaryPowerUps += 1
   
   case powerUp.level
-  of 1:
-    currentRunStats.powerUps.level1PowerUps += 1
-  of 2:
-    currentRunStats.powerUps.level2PowerUps += 1
-  of 3:
-    currentRunStats.powerUps.level3PowerUps += 1
-  else:
-    discard
+  of 1: currentRunStats.powerUps.level1PowerUps += 1
+  of 2: currentRunStats.powerUps.level2PowerUps += 1
+  of 3: currentRunStats.powerUps.level3PowerUps += 1
+  else: discard
   
   currentRunStats.events.add(GameEvent(
     timestamp: gameTime,
@@ -336,7 +432,6 @@ proc recordPowerUpChosen*(powerUp: PowerUp, gameTime: float32) =
   ))
 
 proc recordPowerUpDamage*(powerType: PowerUpType, damage: float32) =
-  ## Track damage contribution from specific power-up
   if currentRunStats.isNil: return
   
   if not currentRunStats.powerUps.damageContribution.hasKey(powerType):
@@ -344,7 +439,6 @@ proc recordPowerUpDamage*(powerType: PowerUpType, damage: float32) =
   currentRunStats.powerUps.damageContribution[powerType] += damage
 
 proc recordPowerUpKill*(powerType: PowerUpType) =
-  ## Track kills attributed to specific power-up
   if currentRunStats.isNil: return
   
   if not currentRunStats.powerUps.killContribution.hasKey(powerType):
@@ -356,11 +450,9 @@ proc recordPowerUpKill*(powerType: PowerUpType) =
 # ============================================================================
 
 proc recordWaveComplete*(waveNumber: int, waveTime: float32, gameTime: float32) =
-  ## Track wave completion
   if currentRunStats.isNil: return
   
   currentRunStats.performance.waveTimes.add(waveTime)
-  
   currentRunStats.events.add(GameEvent(
     timestamp: gameTime,
     eventType: geWaveComplete,
@@ -370,20 +462,15 @@ proc recordWaveComplete*(waveNumber: int, waveTime: float32, gameTime: float32) 
   ))
 
 proc updateDPS*(damage: float32) =
-  ## Update DPS tracking (called on damage dealt)
   if currentRunStats.isNil: return
   
   let currentTime = currentRunStats.runDuration
-  
-  # Add to rolling window (last 5 seconds)
   currentRunStats.performance.currentDPSWindow.add((currentTime, damage))
   
-  # Remove old entries
   while currentRunStats.performance.currentDPSWindow.len > 0 and 
         currentTime - currentRunStats.performance.currentDPSWindow[0][0] > 5.0:
     currentRunStats.performance.currentDPSWindow.delete(0)
   
-  # Calculate current DPS
   var totalDamage = 0.0
   for entry in currentRunStats.performance.currentDPSWindow:
     totalDamage += entry[1]
@@ -393,13 +480,11 @@ proc updateDPS*(damage: float32) =
   
   currentRunStats.performance.peakDPS = max(currentRunStats.performance.peakDPS, currentDPS)
   
-  # Sample DPS history every second
   if currentRunStats.performance.dpsHistory.len == 0 or 
      currentTime - currentRunStats.performance.dpsHistory[^1][0] >= 1.0:
     currentRunStats.performance.dpsHistory.add((currentTime, currentDPS.float32))
 
 proc updateRunDuration*(dt: float32) =
-  ## Update total run time
   if currentRunStats.isNil: return
   currentRunStats.runDuration += dt
 
@@ -407,40 +492,61 @@ proc updateRunDuration*(dt: float32) =
 # DERIVED METRICS CALCULATION
 # ============================================================================
 
-proc calculateDerivedMetrics*() =
-  ## Calculate all derived statistics at end of run
+proc calculatePlayStyle*() =
   if currentRunStats.isNil: return
   
-  # Combat accuracy
+  var aggressionScore = 0.0
+  if currentRunStats.performance.averageDPS > 50: aggressionScore += 30
+  if currentRunStats.combat.accuracyPercent > 60: aggressionScore += 20
+  if currentRunStats.movement.averageSpeed > 100: aggressionScore += 20
+  if currentRunStats.movement.timeAtCriticalHP / currentRunStats.runDuration > 0.1: aggressionScore += 30
+  
+  var cautionScore = 0.0
+  if currentRunStats.combat.totalDamageTaken < 50: cautionScore += 30
+  if currentRunStats.movement.longestNoDamageStreak > 30: cautionScore += 25
+  if currentRunStats.resources.wallsPlaced > 5: cautionScore += 20
+  if currentRunStats.resources.coinsAtEnd > 100: cautionScore += 25
+  
+  currentRunStats.comparison.aggressionRating = aggressionScore
+  currentRunStats.comparison.cautionRating = cautionScore
+  
+  if aggressionScore > 70:
+    currentRunStats.comparison.playStyle = "Aggressive"
+  elif cautionScore > 70:
+    currentRunStats.comparison.playStyle = "Defensive"
+  elif currentRunStats.movement.phaseShiftsUsed > 10:
+    currentRunStats.comparison.playStyle = "Mobile"
+  elif currentRunStats.movement.timeAtCriticalHP > 10:
+    currentRunStats.comparison.playStyle = "Tank"
+  else:
+    currentRunStats.comparison.playStyle = "Balanced"
+
+proc calculateDerivedMetrics*() =
+  if currentRunStats.isNil: return
+  
   let totalShots = currentRunStats.combat.shotsFired
   if totalShots > 0:
     currentRunStats.combat.accuracyPercent = 
       (currentRunStats.combat.shotsHit.float32 / totalShots.float32) * 100.0
   
-  # Average DPS
   if currentRunStats.runDuration > 0:
     currentRunStats.performance.averageDPS = 
       currentRunStats.combat.totalDamageDealt / currentRunStats.runDuration
-    
-    # Kills per minute
     currentRunStats.performance.killsPerMinute = 
       (currentRunStats.combat.totalKills.float32 / currentRunStats.runDuration) * 60.0
   
-  # Wave time stats
   if currentRunStats.performance.waveTimes.len > 0:
     currentRunStats.performance.averageWaveTime = 
       currentRunStats.performance.waveTimes.sum() / currentRunStats.performance.waveTimes.len.float32
     currentRunStats.performance.fastestWave = currentRunStats.performance.waveTimes.min()
     currentRunStats.performance.slowestWave = currentRunStats.performance.waveTimes.max()
   
-  # Shot efficiency
   if currentRunStats.combat.shotsFired > 0:
     currentRunStats.performance.damagePerShot = 
       currentRunStats.combat.totalDamageDealt / currentRunStats.combat.shotsFired.float32
     currentRunStats.performance.shotEfficiency = 
       currentRunStats.combat.totalDamageDealt / currentRunStats.combat.shotsFired.float32
   
-  # Resource efficiency
   if currentRunStats.combat.totalKills > 0:
     currentRunStats.resources.coinEfficiency = 
       currentRunStats.resources.coinsEarned.float32 / currentRunStats.combat.totalKills.float32
@@ -448,7 +554,6 @@ proc calculateDerivedMetrics*() =
   currentRunStats.resources.coinsAtEnd = 
     currentRunStats.resources.coinsEarned - currentRunStats.resources.coinsSpent
   
-  # Movement averages
   if currentRunStats.runDuration > 0:
     currentRunStats.movement.averageSpeed = 
       currentRunStats.movement.totalDistanceTraveled / currentRunStats.runDuration
@@ -457,7 +562,6 @@ proc calculateDerivedMetrics*() =
     currentRunStats.movement.averageTimeBetweenHits = 
       currentRunStats.runDuration / currentRunStats.movement.hitsTakenCount.float32
   
-  # Power-up effectiveness (find most/least effective)
   var maxDamage = 0.0
   var minDamage = float32.high
   var maxPowerUp = puDoubleShot
@@ -475,99 +579,153 @@ proc calculateDerivedMetrics*() =
     currentRunStats.powerUps.mostEffectivePowerUp = maxPowerUp
     currentRunStats.powerUps.leastEffectivePowerUp = minPowerUp
   
-  # Play style analysis
   calculatePlayStyle()
-  
   echo "[Stats] Derived metrics calculated"
-
-proc calculatePlayStyle*() =
-  ## Analyze play style based on behavior patterns
-  if currentRunStats.isNil: return
-  
-  # Aggression rating: based on DPS, accuracy, movement
-  var aggressionScore = 0.0
-  
-  # High DPS = aggressive
-  if currentRunStats.performance.averageDPS > 50:
-    aggressionScore += 30
-  
-  # High accuracy = aggressive (taking aimed shots)
-  if currentRunStats.combat.accuracyPercent > 60:
-    aggressionScore += 20
-  
-  # Lots of movement = aggressive
-  if currentRunStats.movement.averageSpeed > 100:
-    aggressionScore += 20
-  
-  # Close-range time = aggressive
-  if currentRunStats.movement.timeAtCriticalHP / currentRunStats.runDuration > 0.1:
-    aggressionScore += 30
-  
-  # Caution rating: based on damage taken, positioning, resources
-  var cautionScore = 0.0
-  
-  # Low damage taken = cautious
-  if currentRunStats.combat.totalDamageTaken < 50:
-    cautionScore += 30
-  
-  # Long no-damage streaks = cautious
-  if currentRunStats.movement.longestNoDamageStreak > 30:
-    cautionScore += 25
-  
-  # Wall usage = cautious
-  if currentRunStats.resources.wallsPlaced > 5:
-    cautionScore += 20
-  
-  # Saved coins = cautious
-  if currentRunStats.resources.coinsAtEnd > 100:
-    cautionScore += 25
-  
-  currentRunStats.comparison.aggressionRating = aggressionScore
-  currentRunStats.comparison.cautionRating = cautionScore
-  
-  # Classify play style
-  if aggressionScore > 70:
-    currentRunStats.comparison.playStyle = "Aggressive"
-  elif cautionScore > 70:
-    currentRunStats.comparison.playStyle = "Defensive"
-  elif currentRunStats.movement.phaseShiftsUsed > 10:
-    currentRunStats.comparison.playStyle = "Mobile"
-  elif currentRunStats.movement.timeAtCriticalHP > 10:
-    currentRunStats.comparison.playStyle = "Tank"
-  else:
-    currentRunStats.comparison.playStyle = "Balanced"
-
 
 # ============================================================================
 # LAST RUN STORAGE
-# Keep a copy of the last completed run for viewing in main menu
 # ============================================================================
 
 var lastCompletedRun*: RunStatistics = nil
 
 proc saveLastCompletedRun*() =
-  ## Store a copy of the current run for viewing in main menu and save to disk
+  ## Store a copy of the current run for viewing (save to disk handled externally)
   if not currentRunStats.isNil:
     lastCompletedRun = currentRunStats
-    # Save to disk using save_system
-    if saveLastRunStats(currentRunStats):
-      echo "[Stats] Last run saved to memory and disk"
-    else:
-      echo "[Stats] Last run saved to memory only (disk save failed)"
+    echo "[Stats] Last run saved to memory"
 
-proc loadLastCompletedRun*() =
-  ## Load the last completed run from disk on startup
-  let loadedStats = loadLastRunStats()
+proc loadLastCompletedRun*(loadedStats: RunStatistics) =
+  ## Load a previously completed run from external source
   if not loadedStats.isNil:
     lastCompletedRun = loadedStats
-    echo "[Stats] Last run loaded from disk"
+    echo "[Stats] Last run loaded into memory"
   else:
-    echo "[Stats] No previous run found on disk"
+    echo "[Stats] No previous run data provided"
 
 proc hasLastRunStats*(): bool =
-  ## Check if we have a previous run to display
   result = not lastCompletedRun.isNil
 
 proc getLastRunStats*(): RunStatistics =
-  ## Get the last completed run statistics
   result = lastCompletedRun
+
+# ============================================================================
+# INTEGRATION WITH GAME SYSTEM
+# Functions to hook statistics tracking into game update loops
+# ============================================================================
+
+# Game Lifecycle
+proc initializeRunTracking*(game: Game) =
+  startNewRun(game.mode)
+  game.showRunStatsGraphs = true
+
+proc finalizeRunTracking*(game: Game) =
+  let waveReached = if game.mode == gmWaveBased: game.currentWave else: int(game.time / 60)
+  let finalScore = game.player.kills
+  endRun(game.player, waveReached, finalScore, game.cheatsUsed, true)
+
+proc hasValidRunStats*(): bool =
+  result = not currentRunStats.isNil and currentRunStats.runDuration > 0
+
+# Combat Integration
+proc trackBulletFired*(game: Game) =
+  recordShotFired()
+
+proc trackBulletHit*(game: Game, bullet: Bullet, enemy: Enemy, damage: float32) =
+  let isCrit = damage > bullet.damage * 1.5
+  recordShotHit(damage, enemy.enemyType, isCrit)
+  
+  if bullet.isPiercing: recordSpecialMechanic("piercing")
+  if bullet.isExplosive: recordSpecialMechanic("explosive")
+  if bullet.isHoming: recordSpecialMechanic("homing")
+  if bullet.hasSplit: recordSpecialMechanic("split")
+
+proc trackBulletDespawn*(game: Game, bullet: Bullet, hitEnemy: bool) =
+  if not hitEnemy and bullet.lifetime > 0.1:
+    recordShotMissed()
+
+proc trackEnemyKilled*(game: Game, enemy: Enemy) =
+  recordKill(enemy.enemyType, enemy.isElite, enemy.isBoss, game.time, enemy.pos)
+
+proc trackPlayerDamage*(game: Game, damage: float32, enemyType: EnemyType) =
+  recordDamageTaken(damage, enemyType, game.time, game.player.pos)
+  
+  if game.player.hp < 10 and game.player.hp > 0:
+    recordNearDeath(game.time, game.player.pos)
+
+# Movement Integration
+proc trackMovementFrame*(game: Game, dt: float32) =
+  updateMovement(game.player, dt, game.time)
+  updateRunDuration(dt)
+
+proc trackPhaseShift*(game: Game) =
+  recordLegendaryAbility("phase_shift", game.time, game.player.pos)
+
+proc trackTimeWarp*(game: Game) =
+  recordLegendaryAbility("time_warp", game.time, game.player.pos)
+
+proc trackParry*(game: Game) =
+  recordLegendaryAbility("parry", game.time, game.player.pos)
+
+proc trackParrySuccess*(game: Game) =
+  recordSuccessfulParry()
+
+# Resource Integration
+proc trackCoinPickup*(game: Game, amount: int) =
+  recordCoinEarned(amount)
+
+proc trackShopPurchase*(game: Game, itemName: string, cost: int) =
+  recordCoinSpent(cost, itemName, game.time)
+
+proc trackWallPlacement*(game: Game, pos: Vector2f) =
+  recordWallPlaced(game.time, pos)
+
+proc trackWallDestruction*(game: Game, damageBlocked: float32) =
+  recordWallDestroyed(damageBlocked)
+
+proc trackWallDamaged*(game: Game) =
+  recordWallDamaged()
+
+proc trackConsumablePickup*(game: Game, consumType: ConsumableType) =
+  recordConsumable(consumType)
+
+# Power-Up Integration
+proc trackPowerUpSelection*(game: Game, powerUp: PowerUp) =
+  recordPowerUpChosen(powerUp, game.time)
+
+proc trackPowerUpDamage*(game: Game, powerType: PowerUpType, damage: float32) =
+  recordPowerUpDamage(powerType, damage)
+
+proc trackPowerUpKill*(game: Game, powerType: PowerUpType) =
+  recordPowerUpKill(powerType)
+
+# Performance Integration
+proc trackWaveCompletion*(game: Game, waveNumber: int, waveTime: float32) =
+  recordWaveComplete(waveNumber, waveTime, game.time)
+
+# Power-Up Damage Attribution Helper
+proc attributeDamageToActivePowerUps*(game: Game, baseDamage: float32) =
+  if currentRunStats.isNil: return
+  
+  for powerUp in game.player.powerUps:
+    var contributionFactor = 0.0
+    
+    case powerUp.powerType
+    of puBulletDamage: contributionFactor = 0.15 * powerUp.level.float32
+    of puExplosiveBullets: contributionFactor = 0.10
+    of puPiercingShots: contributionFactor = 0.08
+    of puMultiShot, puDoubleShot: contributionFactor = 0.10
+    of puBulletSpeed: contributionFactor = 0.05
+    of puRapidFire: contributionFactor = 0.10
+    of puMagicalBullets, puCriticalHit: contributionFactor = 0.12
+    of puFireBullets, puPoisonShot, puFrostShots, puArcaneBullets: contributionFactor = 0.10
+    of puFireAura, puLightningAura, puPoisonAura, puBloodAura, puArcaneAura, puWindAura: 
+      contributionFactor = 0.15
+    of puDamageZone, puChainLightning: contributionFactor = 0.12
+    of puBulletRicochet, puBulletSplit, puOvercharge, puEchoShots: contributionFactor = 0.08
+    of puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, 
+       puLightningMastery, puWindMastery, puBloodMastery: contributionFactor = 0.20
+    else: contributionFactor = 0.0
+    
+    if contributionFactor > 0:
+      let attributedDamage = baseDamage * contributionFactor
+      recordPowerUpDamage(powerUp.powerType, attributedDamage)
