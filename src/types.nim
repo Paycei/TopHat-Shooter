@@ -234,7 +234,6 @@ type
     color*: Color
     enemyType*: EnemyType
     isBoss*: bool
-    isCustomBoss*: bool           # True for custom bosses
     shootTimer*: float32
     spawnTimer*: float32
     dashTimer*: float32

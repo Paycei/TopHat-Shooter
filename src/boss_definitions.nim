@@ -1644,7 +1644,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
 
 # Helper Functions
 
-proc isCustomBoss*(waveNumber: int): bool =
+proc isBossWave*(waveNumber: int): bool =
   ## Checks if the current wave should spawn a custom boss (every 5 waves, no limit)
   waveNumber mod 5 == 0
 
@@ -1663,7 +1663,7 @@ proc getCustomBossNumber*(waveNumber: int): int =
 proc getBossForWave*(waveNumber: int): BossDefinition =
   ## Gets the appropriate boss definition for a wave number
   ## After wave 60, uses boss 12 (The Final Sentinel) with stats scaled per wave
-  if not isCustomBoss(waveNumber):
+  if not isBossWave(waveNumber):
     # Not a boss wave, return empty definition
     return BossDefinition()
   

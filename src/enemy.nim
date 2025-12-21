@@ -51,7 +51,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: if difficulty < 5: Red elif difficulty < 10: Orange else: Maroon,
       enemyType: etCircle,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -82,7 +81,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Purple,
       enemyType: etCube,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -114,7 +112,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Pink,
       enemyType: etTriangle,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 1.5,
@@ -146,7 +143,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Color(r: 255, g: 215, b: 0, a: 255),
       enemyType: etStar,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -179,7 +175,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Color(r: 128, g: 0, b: 255, a: 255),
       enemyType: etHexagon,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -211,7 +206,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Color(r: 255, g: 100, b: 0, a: 255),
       enemyType: etCross,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -244,7 +238,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Color(r: 0, g: 200, b: 255, a: 255),
       enemyType: etDiamond,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -277,7 +270,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Color(r: 150, g: 150, b: 0, a: 255),
       enemyType: etOctagon,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -310,7 +302,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Color(r: 0, g: 150, b: 100, a: 255),
       enemyType: etPentagon,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -343,7 +334,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Color(r: 200, g: 0, b: 200, a: 255),
       enemyType: etTrickster,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -376,7 +366,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Color(r: 100, g: 100, b: 255, a: 180),
       enemyType: etPhantom,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -410,7 +399,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Color(r: 200, g: 50, b: 200, a: 255),  # Bright magenta
       enemyType: etSniper,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -442,7 +430,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       color: Color(r: 138, g: 43, b: 226, a: 255),  # Purple/violet for magic
       enemyType: etMage,
       isBoss: false,
-      isCustomBoss: false,
       shootTimer: 0,
       spawnTimer: 0,  # Used for meteorite spawning
       dashTimer: 0,
@@ -1946,22 +1933,21 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
   newEnemy(x, y, difficulty, enemyType, game)
 
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
-  ## Spawns a boss - either custom (waves 5-60) or legacy (after wave 60)
+  ## Spawns a boss - either custom (waves 1-60) or random (after wave 60)
   ## 
   ## CUSTOM BOSSES (every 5 waves):
   ##   - Use definitions from boss_definitions.nim
   ##   - HP-based phase system
   ##   - Unique attack patterns and abilities per boss
-  ##   - isCustomBoss = true
   ##
   ## Boss 12 (The Final Sentinel) repeats after wave 60 with increased stats
   ##
   # Check if this should be a custom boss (every 5 waves)
-  let useCustomBoss = isCustomBoss(waveNumber)
+  let useCustomBoss = isBossWave(waveNumber)
   
   if useCustomBoss:
     # ========================================================================
-    # CUSTOM BOSS CREATION (Waves 5-60, every 5 waves)
+    # CUSTOM BOSS CREATION (Waves 1-60, every 5 waves)
     # ========================================================================
     # Custom bosses use the advanced definition system from boss_definitions.nim
     # They have HP-based phases (defined in BossDefinition) and don't transform
@@ -2012,7 +1998,6 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       color: bossDef.color,
       enemyType: etCircle,
       isBoss: true,
-      isCustomBoss: true,  # Custom boss with advanced phase system
       bossDefinitionID: bossDef.bossID,
       currentPhaseIndex: 0,
       attackTimers: initialAttackTimers,

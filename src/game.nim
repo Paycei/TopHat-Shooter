@@ -2803,47 +2803,42 @@ proc updateGame*(game: var Game, dt: float32) =
     # BOSS SPECIAL ATTACKS
     if enemy.isBoss:
       # CUSTOM BOSS ATTACKS - Full pattern system from boss_definitions.nim
-      if enemy.isCustomBoss and enemy.entranceTimer <= 0 and enemy.entranceWait <= 0:
-        # Get boss definition and check for phase transitions
-        let bossDef = getBossDefinition(enemy.bossDefinitionID)
-        let hpPercent = enemy.hp / enemy.maxHp
-        
-        # Check if we need to transition to a new phase
-        for i, phase in bossDef.phases:
-          if hpPercent <= phase.hpThreshold and i > enemy.currentPhaseIndex:
-            enemy.currentPhaseIndex = i
-            # Reinitialize attack timers for new phase
-            enemy.attackTimers = @[]
-            for attack in phase.attacks:
-              enemy.attackTimers.add(0.0)  # Reset timers to 0 so new phase attacks immediately
-            # Update boss color and apply phase modifiers
-            enemy.color = phase.color
-            enemy.speed = bossDef.baseSpeed * phase.speedMultiplier
-            break
-        
-        # Update boss behavior based on specialBehavior
-        if enemy.currentPhaseIndex < bossDef.phases.len:
-          let phase = bossDef.phases[enemy.currentPhaseIndex]
-          updateCustomBossBehavior(game, enemy, phase, dt)
-        
-        # Update attack timers
-        for i in 0..<enemy.attackTimers.len:
-          enemy.attackTimers[i] -= dt
-        
-        # Execute attacks when timers expire
-        if enemy.currentPhaseIndex < bossDef.phases.len:
-          let phase = bossDef.phases[enemy.currentPhaseIndex]
-          for i, attack in phase.attacks:
-            if i < enemy.attackTimers.len and enemy.attackTimers[i] <= 0:
-              # Execute this attack based on its pattern
-              executeCustomBossAttack(game, enemy, attack, phase, bossDef)
-              # Reset timer
-              enemy.attackTimers[i] = attack.cooldown
+      # Get boss definition and check for phase transitions
+      let bossDef = getBossDefinition(enemy.bossDefinitionID)
+      let hpPercent = enemy.hp / enemy.maxHp
       
-      # Phase-based attacks WITH PROGRESSIVE ABILITIES
-      # Bosses gain new abilities based on bossCount (how many bosses defeated)
-      # ONLY FOR LEGACY BOSSES - Custom bosses use HP-based phase system from boss_definitions.nim
-    
+      # Check if we need to transition to a new phase
+      for i, phase in bossDef.phases:
+        if hpPercent <= phase.hpThreshold and i > enemy.currentPhaseIndex:
+          enemy.currentPhaseIndex = i
+          # Reinitialize attack timers for new phase
+          enemy.attackTimers = @[]
+          for attack in phase.attacks:
+            enemy.attackTimers.add(0.0)  # Reset timers to 0 so new phase attacks immediately
+          # Update boss color and apply phase modifiers
+          enemy.color = phase.color
+          enemy.speed = bossDef.baseSpeed * phase.speedMultiplier
+          break
+        
+      # Update boss behavior based on specialBehavior
+      if enemy.currentPhaseIndex < bossDef.phases.len:
+        let phase = bossDef.phases[enemy.currentPhaseIndex]
+        updateCustomBossBehavior(game, enemy, phase, dt)
+      
+      # Update attack timers
+      for i in 0..<enemy.attackTimers.len:
+        enemy.attackTimers[i] -= dt
+      
+      # Execute attacks when timers expire
+      if enemy.currentPhaseIndex < bossDef.phases.len:
+        let phase = bossDef.phases[enemy.currentPhaseIndex]
+        for i, attack in phase.attacks:
+          if i < enemy.attackTimers.len and enemy.attackTimers[i] <= 0:
+            # Execute this attack based on its pattern
+            executeCustomBossAttack(game, enemy, attack, phase, bossDef)
+            # Reset timer
+            enemy.attackTimers[i] = attack.cooldown
+
     # Hexagon enemies shoot chaotically (applies to all hexagon enemies, not just bosses)
     if enemy.enemyType == etHexagon and enemy.shootTimer > 1.0:
       # Shoot 2-4 bullets in random directions

@@ -4,7 +4,7 @@
 # Displays on Game Over screen and Main Menu
 # ============================================================================
 
-import raylib, run_statistics, types, strutils, math, std/tables, powerup
+import raylib, run_statistics, types, strutils, std/tables, powerup
 
 # ============================================================================
 # UI CONSTANTS
