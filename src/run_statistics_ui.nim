@@ -56,9 +56,7 @@ proc getQualityColor*(value: float32, threshold: float32 = 50.0): Color =
 # ============================================================================
 
 proc drawStatCard*(x, y, width, height: int32, title: string, gameTime: float32) =
-  ## Draw a background card for stats section
-  let pulse = sin(gameTime * 2.0) * 5 + 5
-  
+
   # Shadow
   drawRectangle(x + 3, y + 3, width, height, 
                Color(r: 0, g: 0, b: 0, a: 80))

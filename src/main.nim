@@ -554,7 +554,6 @@ proc main() =
         setGameVolume(settings.volume)  # Apply volume changes
         setMusicVolume(settings.musicVolume)  # Apply music volume changes
         playSound(stMenuSelect)
-        saveSettings(settings)  # Ensure settings are saved when exiting
       
       updateSettings(settings)
       

@@ -52,7 +52,7 @@ proc applyCriticalHit(player: Player, baseDamage: float32): float32 =
   else:
     return baseDamage
 
-proc accumulateAndShowAuraDamage(game: Game, enemy: Enemy, actualDamage: float32, dt: float32, 
+proc accumulateAndShowAuraDamage(game: Game, enemy: Enemy, actualDamage: float32,
                                   damageType: DamageType, wasCrit: bool = false) =
   ## Accumulates aura damage and displays damage numbers reliably
   ## Shows accumulated damage every 0.5 seconds to ensure visibility
@@ -356,7 +356,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     
     # Track base damage before power-up multipliers for attribution
     let damageBeforePowerUps = game.player.damage  # Pure base damage (no Rage)
-    let damageWithRage = damage  # Includes Rage bonus
     
     # BUFFED: Double-shot bullets deal 10% less damage per bullet (was 20%)
     if hasDoubleShot:
@@ -389,10 +388,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         else: 1.5   # +150%
       arcaneBulletsBonus = damageBeforePowerUps * arcaneMultiplier
     
-    # Apply critical hit chance and track bonus damage
-    let damageBeforeCrit = damage
+    # Apply critical hit chance
     damage = applyCriticalHit(game.player, damage)
-    let critBonus = damage - damageBeforeCrit
     
     # Apply Arcane Mastery bonus to Arcane bullets (damage + piercing)
     var arcanePiercing = hasPiercing  # Start with base piercing status
@@ -1588,7 +1585,7 @@ proc updateGame*(game: var Game, dt: float32) =
         trackPowerUpDamage(game, puDamageZone, actualDamage)
         
         # Use new accumulation system for reliable damage numbers
-        accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtDefault, 
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtDefault, 
                                      damageWithCrit > zoneDamage * dt)
   
   # Regeneration power-up is now handled per wave completion, not per time interval
@@ -1710,7 +1707,7 @@ proc updateGame*(game: var Game, dt: float32) =
         trackPowerUpDamage(game, puLightningAura, actualDamage)
         
         # Use new accumulation system for reliable damage numbers
-        accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtLightning,
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtLightning,
                                      damageWithCrit > lightningDamagePerSec * dt)
         
         # Apply slow ONLY if player has Lightning Mastery
@@ -1750,7 +1747,7 @@ proc updateGame*(game: var Game, dt: float32) =
             trackPowerUpDamage(game, puLightningAura, chainedDamage)
             
             # Use accumulation system for chained lightning to prevent spam
-            accumulateAndShowAuraDamage(game, nearestEnemy, chainedDamage, dt, dtLightning,
+            accumulateAndShowAuraDamage(game, nearestEnemy, chainedDamage, dtLightning,
                                        chainDamageWithCrit > lightningDamagePerSec * dt)
             
             # Apply 5% slow effect to chained enemy
@@ -1798,7 +1795,7 @@ proc updateGame*(game: var Game, dt: float32) =
         trackPowerUpDamage(game, puArcaneAura, actualDamage)
         
         # Use new accumulation system for reliable damage numbers
-        accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtArcane,
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtArcane,
                                      damageWithCrit > arcaneDamagePerSec * dt)
         
         # Visual arcane particles (purple sparkles) (frame-independent)
@@ -1949,7 +1946,7 @@ proc updateGame*(game: var Game, dt: float32) =
         totalHealing += actualDamage * actualLifestealPercent
         
         # Use new accumulation system for reliable damage numbers (use dtFire for red blood damage)
-        accumulateAndShowAuraDamage(game, enemy, actualDamage, dt, dtFire,
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtFire,
                                      damageWithCrit > bloodDamagePerSec * dt)
         
         # Visual blood particles (frame-independent)
@@ -2008,7 +2005,6 @@ proc updateGame*(game: var Game, dt: float32) =
           let particleY = game.player.pos.y + sin(particleAngle) * particleDist
           let particleColor = if isRanged: Color(r: 138, g: 43, b: 226, a: 220) else: Color(r: 75, g: 0, b: 130, a: 200)
           spawnExplosion(game.particles, particleX, particleY, particleColor, 2)
-    
     # Also pull coins
     let coinPullMultiplier = 0.0  # No coins for now
     for coin in game.coins:
@@ -2018,7 +2014,6 @@ proc updateGame*(game: var Game, dt: float32) =
         let pullForce = basePullStrength * coinPullMultiplier * (1.0 - (dist / pullRadius))
         coin.pos.x += toPlayer.x * pullForce * dt
         coin.pos.y += toPlayer.y * pullForce * dt
-
 
   # Rotating Orbs power-up - elemental orbs that orbit the player and damage enemies
   # Check for both the legendary all-element version and individual element power-ups
@@ -2805,67 +2800,8 @@ proc updateGame*(game: var Game, dt: float32) =
   while enemyIdx < game.enemies.len:
     let enemy = game.enemies[enemyIdx]
     
-    # BOSS SPECIAL ATTACKS - HEAVILY BUFFED
+    # BOSS SPECIAL ATTACKS
     if enemy.isBoss:
-      # Legacy boss attacks (teleport + shockwave)
-      # DISABLED FOR CUSTOM BOSSES - they use custom attack patterns instead
-      if not enemy.isCustomBoss:
-        # Teleport ability
-        if enemy.teleportTimer <= 0:
-          # Short teleport burst
-          var newX: float32
-          var newY: float32
-          var validTeleport = false
-          
-          # Keep trying to find a valid teleport position that's at least 10 pixels away from player
-          for _ in 0..<10:
-            let angle = rand(1.0) * PI * 2.0
-            let teleportDist = 150 + rand(100).float32
-            newX = enemy.pos.x + cos(angle) * teleportDist
-            newY = enemy.pos.y + sin(angle) * teleportDist
-            
-            # Check distance to player - must be at least 10 pixels away
-            let distToPlayer = distance(newVector2f(newX, newY), game.player.pos)
-            if distToPlayer >= 10.0:
-              validTeleport = true
-              break
-          
-          # Only teleport if we found a valid position, otherwise skip this teleport
-          if validTeleport:
-            enemy.pos.x = newX
-            enemy.pos.y = newY
-            
-            # Clamp to screen
-            if enemy.pos.x < 50: enemy.pos.x = 50
-            if enemy.pos.x > game.screenWidth.float32 - 50: enemy.pos.x = game.screenWidth.float32 - 50
-            if enemy.pos.y < 50: enemy.pos.y = 50
-            if enemy.pos.y > game.screenHeight.float32 - 50: enemy.pos.y = game.screenHeight.float32 - 50
-            
-            spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Purple, 30)
-          
-          enemy.teleportTimer = 10.0 + rand(5.0)
-        
-        # Shockwave attack
-        if enemy.shockwaveTimer <= 0:
-          spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, enemy.radius + 100)
-          
-          # Spawn bullets in shockwave pattern - NERFED damage
-          for angle in 0..<16:
-            let rad = angle.float32 * PI / 8.0
-            let dir = newVector2f(cos(rad), sin(rad))
-            game.bullets.add(newBullet(
-              x = enemy.pos.x,
-              y = enemy.pos.y,
-              direction = dir,
-              speed = 220,
-              damage = 0.75,
-              fromPlayer = false,
-              isBossBullet = true,
-              sourceEnemyId = enemy.id
-            ))
-          
-          enemy.shockwaveTimer = 5.0 + rand(3.0)
-      
       # CUSTOM BOSS ATTACKS - Full pattern system from boss_definitions.nim
       if enemy.isCustomBoss and enemy.entranceTimer <= 0 and enemy.entranceWait <= 0:
         # Get boss definition and check for phase transitions
