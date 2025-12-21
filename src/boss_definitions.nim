@@ -108,7 +108,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.5,
           speedMultiplier: 0.95,
           damageMultiplier: 1.0,
-          defenseMultiplier: 0.8,
+          defenseMultiplier: 0.9,
           color: Color(r: 150, g: 30, b: 255, a: 255),
           visualEffect: "aura",
           specialBehavior: "aggressive",
@@ -149,7 +149,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Summoner King",
       bossID: 2,
-      baseHP: 175.0,
+      baseHP: 200.0,
       baseSpeed: 70.0,  # BUFFED from 60.0 (faster movement)
       baseDamage: 1,
       baseRadius: 50.0,
@@ -193,7 +193,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.6,
           speedMultiplier: 1.0,  # NERFED from 1.1 (less mobile)
           damageMultiplier: 1.2,  # NERFED from 1.35 (less damage)
-          defenseMultiplier: 0.75,
+          defenseMultiplier: 0.8,
           color: Color(r: 30, g: 200, b: 30, a: 255),
           visualEffect: "glow",
           specialBehavior: "summon_frenzy",
@@ -235,7 +235,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Meteor Striker",
       bossID: 3,
-      baseHP: 260.0,  # NERFED from 280.0 (7% less HP)
+      baseHP: 250.0,  # NERFED from 280.0
       baseSpeed: 75.0,  # NERFED from 85.0 (slower base speed)
       baseDamage: 2,
       baseRadius: 48.0,
@@ -279,7 +279,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.5,
           speedMultiplier: 1.35,  # NERFED from 1.5 (slower phase 2)
           damageMultiplier: 1.4,  # NERFED from 1.5 (less damage)
-          defenseMultiplier: 0.8,
+          defenseMultiplier: 1.0,
           color: Color(r: 255, g: 50, b: 0, a: 255),
           visualEffect: "aura",
           specialBehavior: "meteor_storm",
@@ -310,7 +310,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.25,
           speedMultiplier: 1.5,  # HEAVILY NERFED from 2.0 (much slower phase 3)
           damageMultiplier: 1.7,  # NERFED from 2.0 (less damage)
-          defenseMultiplier: 0.7,
+          defenseMultiplier: 0.9,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
           specialBehavior: "enraged",
@@ -343,7 +343,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Laser Architect",
       bossID: 4,
-      baseHP: 360.0,  # NERFED from 390.0 (easier to kill)
+      baseHP: 350.0,  # NERFED from 390.0 (easier to kill)
       baseSpeed: 72.0,  # NERFED from 77.5 (slower movement)
       baseDamage: 2,
       baseRadius: 52.0,
@@ -356,7 +356,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 1.0,  # NERFED from 1.1 (slower)
           damageMultiplier: 1.0,
-          defenseMultiplier: 1.3,
+          defenseMultiplier: 1.2,
           color: Color(r: 0, g: 200, b: 255, a: 255),
           visualEffect: "shield",
           specialBehavior: "geometric_movement",
@@ -396,7 +396,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.65,
           speedMultiplier: 1.2,  # NERFED from 1.33 (slower)
           damageMultiplier: 1.2,  # NERFED from 1.33 (less damage)
-          defenseMultiplier: 1.2,
+          defenseMultiplier: 1.1,
           color: Color(r: 0, g: 255, b: 255, a: 255),
           visualEffect: "pulse",
           specialBehavior: "laser_web",
@@ -505,8 +505,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Void Dancer",
       bossID: 5,
-      baseHP: 550.0,  # BUFFED from 500.0 (10% more HP)
-      baseSpeed: 90.0,
+      baseHP: 450.0,  # NERFED from 550.0
+      baseSpeed: 80.0,
       baseDamage: 2,
       baseRadius: 46.0,
       color: Color(r: 80, g: 0, b: 120, a: 255),
@@ -516,9 +516,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Phase Walk",
           hpThreshold: 1.0,
-          speedMultiplier: 1.3,
+          speedMultiplier: 1.1,
           damageMultiplier: 1.0,
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.0,
           color: Color(r: 80, g: 0, b: 120, a: 255),
           visualEffect: "pulse",
           specialBehavior: "teleport_pattern",
@@ -556,7 +556,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Shadow Realm",
           hpThreshold: 0.6,
-          speedMultiplier: 1.5,
+          speedMultiplier: 1.3,
           damageMultiplier: 1.5,  # BUFFED from 1.4
           defenseMultiplier: 0.9,
           color: Color(r: 120, g: 0, b: 180, a: 255),
@@ -605,7 +605,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Void Ascension",
           hpThreshold: 0.35,
-          speedMultiplier: 1.6,  # BUFFED from 2.0 (blazingly fast)
+          speedMultiplier: 1.4,  # NERFED from 2.0
           damageMultiplier: 1.8,  # BUFFED from 1.6
           defenseMultiplier: 0.8,
           color: Color(r: 160, g: 40, b: 220, a: 255),

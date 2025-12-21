@@ -48,6 +48,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 1.0 * strengthMultiplier,
       speed: 100 + difficulty * 10,
       damage: 1,
+      contactDamage: 1,
+      rangedDamage: 0,  # Circle enemies don't shoot
       color: if difficulty < 5: Red elif difficulty < 10: Orange else: Maroon,
       enemyType: etCircle,
       isBoss: false,
@@ -78,6 +80,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 3.0 * strengthMultiplier,
       speed: 55 + difficulty * 3,     # DECREASED from 60 (more threatening when larger)
       damage: 2,                      # INCREASED from 1
+      contactDamage: 1,               # Lower contact damage for ranged enemy
+      rangedDamage: 2,                # Higher ranged damage (their specialty)
       color: Purple,
       enemyType: etCube,
       isBoss: false,
@@ -109,6 +113,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 1.2 * strengthMultiplier,
       speed: 155 + difficulty * 10,
       damage: 2,
+      contactDamage: 2,
+      rangedDamage: 0,  # Triangle enemies don't shoot
       color: Pink,
       enemyType: etTriangle,
       isBoss: false,
@@ -140,6 +146,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 9999.0,
       speed: 70 + difficulty * 6,
       damage: 2,
+      contactDamage: 2,
+      rangedDamage: 0,  # Star enemies don't shoot
       color: Color(r: 255, g: 215, b: 0, a: 255),
       enemyType: etStar,
       isBoss: false,
@@ -172,6 +180,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 3.0 * strengthMultiplier,
       speed: 70 + difficulty * 8,
       damage: 1,
+      contactDamage: 1,
+      rangedDamage: 1,  # Hexagon shoots chaotically
       color: Color(r: 128, g: 0, b: 255, a: 255),
       enemyType: etHexagon,
       isBoss: false,
@@ -203,6 +213,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 5.0 * strengthMultiplier,
       speed: 50 + difficulty * 4,
       damage: 5,
+      contactDamage: 5,  # High contact damage (warning attack)
+      rangedDamage: 0,   # Cross enemies don't shoot
       color: Color(r: 255, g: 100, b: 0, a: 255),
       enemyType: etCross,
       isBoss: false,
@@ -235,6 +247,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 1.8 * strengthMultiplier,
       speed: 140 + difficulty * 12,
       damage: 1,
+      contactDamage: 1,
+      rangedDamage: 1,  # Shoots while dashing
       color: Color(r: 0, g: 200, b: 255, a: 255),
       enemyType: etDiamond,
       isBoss: false,
@@ -267,6 +281,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 3.5 * strengthMultiplier,
       speed: 90 + difficulty * 2,
       damage: 1,
+      contactDamage: 1,
+      rangedDamage: 1,  # Shoots many slow projectiles
       color: Color(r: 150, g: 150, b: 0, a: 255),
       enemyType: etOctagon,
       isBoss: false,
@@ -298,7 +314,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 2.2 * strengthMultiplier,
       maxHp: 2.2 * strengthMultiplier,
       speed: 55 + difficulty * 3,
-      damage: 2,
+      damage: 1,
       color: Color(r: 0, g: 150, b: 100, a: 255),
       enemyType: etPentagon,
       isBoss: false,
@@ -331,6 +347,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 3.0 * strengthMultiplier,
       speed: 65 + difficulty * 5,
       damage: 2,
+      contactDamage: 2,
+      rangedDamage: 0,  # Trickster doesn't shoot, just tricks
       color: Color(r: 200, g: 0, b: 200, a: 255),
       enemyType: etTrickster,
       isBoss: false,
@@ -363,6 +381,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 2.8 * strengthMultiplier,
       speed: 80 + difficulty * 6,
       damage: 2,
+      contactDamage: 2,
+      rangedDamage: 0,  # Phantom teleports, doesn't shoot
       color: Color(r: 100, g: 100, b: 255, a: 180),
       enemyType: etPhantom,
       isBoss: false,
@@ -396,6 +416,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 6.0 * strengthMultiplier,
       speed: 40 + difficulty * 2,  # Slow, methodical movement
       damage: 9999,  # One-shot attack
+      contactDamage: 3,  # Moderate contact damage
+      rangedDamage: 9999,  # One-shot ranged attack
       color: Color(r: 200, g: 50, b: 200, a: 255),  # Bright magenta
       enemyType: etSniper,
       isBoss: false,
@@ -427,6 +449,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       maxHp: 5.0 * strengthMultiplier,
       speed: 50 + difficulty * 3,  # Slow, floats around
       damage: 2,
+      contactDamage: 1,
+      rangedDamage: 2,  # Summons meteorites and homing bullets
       color: Color(r: 138, g: 43, b: 226, a: 255),  # Purple/violet for magic
       enemyType: etMage,
       isBoss: false,
@@ -450,6 +474,10 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   
   # Initialize boss-spawned flag (default: false, set to true by boss summon)
   result.spawnedByBoss = false
+  
+  # Initialize defense multiplier (default: 1.0 = no reduction, bosses override this)
+  if not result.isBoss:
+    result.defenseMultiplier = 1.0
   
   # Increment enemy ID counter for next enemy
   game.nextEnemyId += 1
@@ -781,7 +809,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
             y = enemy.pos.y,
             direction = spreadDir,
             speed = 150,
-            damage = 1,
+            damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
             fromPlayer = false,
             sourceEnemyId = enemy.id
           ))
@@ -798,7 +826,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           y = enemy.pos.y,
           direction = dir,
           speed = 140,
-          damage = 1,
+          damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
           fromPlayer = false,
           sourceEnemyId = enemy.id
         ))
@@ -835,7 +863,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           y = enemy.pos.y,
           direction = inaccurateDir,
           speed = 120,
-          damage = 1,
+          damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
           fromPlayer = false,
           sourceEnemyId = enemy.id
         ))
@@ -908,7 +936,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           y = enemy.pos.y,
           direction = dir,
           speed = 400.0,
-          damage = 2.0,
+          damage = enemy.rangedDamage.float32,  # FIX: Use enemy's ranged damage
           fromPlayer = false,
           isHoming = false,
           isPiercing = false,
@@ -1100,7 +1128,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         if enemy.attackWarningTimer >= enemy.attackExecuteTimer:
           let dir = (playerPos - enemy.pos).normalize()
           # Fire a large, fast, high-damage bullet
-          let bullet = newBullet(enemy.pos.x, enemy.pos.y, dir, 400.0, (enemy.damage * 2).float32, false, sourceEnemyId = enemy.id)
+          let bullet = newBullet(enemy.pos.x, enemy.pos.y, dir, 400.0, enemy.rangedDamage.float32, false, sourceEnemyId = enemy.id)  # FIX: Use enemy's ranged damage
           game.bullets.add(bullet)
           enemy.attackPhase = 2
           enemy.attackExecuteTimer = 2.0  # Cooldown before next charge
@@ -1132,7 +1160,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           y = enemy.pos.y,
           direction = dir,
           speed = 220.0,
-          damage = 1.5,
+          damage = enemy.rangedDamage.float32,  # FIX: Use enemy's ranged damage
           fromPlayer = false,
           isHoming = true,  # Makes bullets track player
           isPiercing = false,
@@ -1995,6 +2023,8 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       maxHp: scaledHP,
       speed: scaledSpeed,
       damage: scaledDamage,
+      contactDamage: scaledDamage,  # Boss contact damage
+      rangedDamage: scaledDamage,   # Boss ranged damage
       color: bossDef.color,
       enemyType: etCircle,
       isBoss: true,
@@ -2018,6 +2048,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,
+      defenseMultiplier: if bossDef.phases.len > 0: bossDef.phases[0].defenseMultiplier else: 1.0,
       activeEffects: initTable[ElementType, ActiveEffect]()
     )
 
@@ -2076,6 +2107,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   enemy.maxHp *= baseEliteBonus
   enemy.hp *= baseEliteBonus
   enemy.damage = (enemy.damage.float32 * baseEliteBonus).int
+  enemy.contactDamage = (enemy.contactDamage.float32 * baseEliteBonus).int
+  enemy.rangedDamage = (enemy.rangedDamage.float32 * baseEliteBonus).int
   
   # Apply elite modifications for ALL types in the list
   for eType in enemy.eliteTypes:
@@ -2094,6 +2127,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.radius *= 0.9
       enemy.collisionRadius *= 0.9
       enemy.damage += 1 + (waveNumber div 5)
+      enemy.contactDamage += 1 + (waveNumber div 5)
+      enemy.rangedDamage += 1 + (waveNumber div 5)
       enemy.maxHp *= (0.85 * eliteScaling)  # Reduced from 0.9
       enemy.hp *= (0.85 * eliteScaling)
     
@@ -2107,12 +2142,16 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.radius *= 1.3
       enemy.collisionRadius *= 1.3
       enemy.damage += waveNumber div 5  # Increased scaling
+      enemy.contactDamage += waveNumber div 5
+      enemy.rangedDamage += waveNumber div 5
     
     of etVenomous:
       # Poisons player on contact
       # Balanced growth with reduced speed scaling
       enemy.speed *= (1.15 * eliteSpeedScaling * effectMultiplier)  # Uses speed scaling
       enemy.damage += 2 + (waveNumber div 7)  # Increased scaling (was div 8)
+      enemy.contactDamage += 2 + (waveNumber div 7)
+      enemy.rangedDamage += 2 + (waveNumber div 7)
       enemy.maxHp *= (1.5 * eliteScaling * effectMultiplier)  # Uses normal scaling
       enemy.hp *= (1.5 * eliteScaling * effectMultiplier)
     
@@ -2122,6 +2161,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.maxHp *= (2.1 * eliteScaling * effectMultiplier)  # Increased from 1.7
       enemy.hp *= (2.1 * eliteScaling * effectMultiplier)
       enemy.damage += 2 + (waveNumber div 7)  # Increased scaling (was div 8)
+      enemy.contactDamage += 2 + (waveNumber div 7)
+      enemy.rangedDamage += 2 + (waveNumber div 7)
       enemy.speed *= (1.0 * eliteSpeedScaling * effectMultiplier)  # Uses speed scaling
     
     of etRegenerative:
@@ -2131,6 +2172,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.maxHp *= (2.0 * eliteScaling * effectMultiplier)  # Increased from 1.6
       enemy.hp *= (2.0 * eliteScaling * effectMultiplier)
       enemy.damage += 1 + (waveNumber div 5)
+      enemy.contactDamage += 1 + (waveNumber div 5)
+      enemy.rangedDamage += 1 + (waveNumber div 5)
     
     of etShielded:
       # Has a shield that absorbs damage
@@ -2141,6 +2184,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.shieldHp = shieldAmount
       enemy.maxShieldHp = shieldAmount
       enemy.damage += 2 + (waveNumber div 5)
+      enemy.contactDamage += 2 + (waveNumber div 5)
+      enemy.rangedDamage += 2 + (waveNumber div 5)
     
     else:
       discard

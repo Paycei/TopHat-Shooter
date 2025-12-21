@@ -13,10 +13,14 @@ proc clampLootPosition(x, y: float32, screenWidth, screenHeight: int32): tuple[x
   result.y = clamp(y, LOOT_MARGIN, screenHeight.float32 - LOOT_MARGIN)
 
 proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
-  ## Applies elite damage modifiers (tank reduction, shield absorption)
+  ## Applies elite damage modifiers (tank reduction, shield absorption) and boss defense multiplier
   ## Returns the actual damage to apply to enemy HP
   ## Handles multiple elite types for wave 25+ elites
   result = baseDamage
+  
+  # Boss defense multiplier: reduces all incoming damage
+  if enemy.isBoss and enemy.defenseMultiplier > 0:
+    result *= enemy.defenseMultiplier
   
   # Tank elite: 65% damage reduction (buffed from 50%)
   # If multiple elites include Tank, apply reduction
@@ -141,8 +145,8 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     statsMenuTab: 0  # 0 = Lifetime, 1 = Last Run
   )
   
-  # Initialize run statistics tracking
-  initializeRunTracking(result)
+  # Note: initializeRunTracking is called explicitly when starting a game
+  # (not in sandbox mode) to ensure correct mode is tracked
 
 proc calculateWaveEnemyCount(waveNumber: int): int =
   # Scale enemy count based on wave number (SLOWER PROGRESSION)
@@ -1436,7 +1440,10 @@ proc updateGame*(game: var Game, dt: float32) =
   trackMovementFrame(game, dt)
   
   game.spawnTimer += dt
-  game.difficulty = game.time / 10.0  # Difficulty increases every 10 seconds
+  
+  # Difficulty increases over time (not in sandbox mode)
+  if game.mode != gmSandbox:
+    game.difficulty = game.time / 10.0  # Difficulty increases every 10 seconds
   
   # Update attack warnings and create lasers from boss warnings when they expire
   var i = 0
@@ -1478,20 +1485,28 @@ proc updateGame*(game: var Game, dt: float32) =
     # Check if player is hit by laser (only once per laser)
     if not game.lasers[j].hasHitPlayer and game.player.invincibilityTimer <= 0:
       let laser = game.lasers[j]
+      
+      # Transform player position into laser's local space (accounting for rotation)
       let dx = game.player.pos.x - laser.pos.x
       let dy = game.player.pos.y - laser.pos.y
       
+      # Rotate point by -rotation to get local coordinates
+      let cosR = cos(-laser.rotation)
+      let sinR = sin(-laser.rotation)
+      let localX = dx * cosR - dy * sinR
+      let localY = dx * sinR + dy * cosR
+      
       var hit = false
       case laser.direction
-      of 0:  # Horizontal laser
-        if abs(dy) < laser.thickness and abs(dx) < laser.length:
+      of 0:  # Horizontal laser (extends along X axis in local space)
+        if abs(localY) < laser.thickness and abs(localX) < laser.length:
           hit = true
-      of 1:  # Vertical laser
-        if abs(dx) < laser.thickness and abs(dy) < laser.length:
+      of 1:  # Vertical laser (extends along Y axis in local space)
+        if abs(localX) < laser.thickness and abs(localY) < laser.length:
           hit = true
-      of 2:  # Cross (both horizontal and vertical)
-        if (abs(dy) < laser.thickness and abs(dx) < laser.length) or
-           (abs(dx) < laser.thickness and abs(dy) < laser.length):
+      of 2:  # Cross (both horizontal and vertical in local space)
+        if (abs(localY) < laser.thickness and abs(localX) < laser.length) or
+           (abs(localX) < laser.thickness and abs(localY) < laser.length):
           hit = true
       else:
         discard
@@ -2400,12 +2415,13 @@ proc updateGame*(game: var Game, dt: float32) =
         shootBullet(game, dir)
   
   # MODE-SPECIFIC ENEMY SPAWNING
-  if game.mode == gmWaveBased:
+  if game.mode != gmSandbox:
+    if game.mode == gmWaveBased:
     # WAVE-BASED MODE: Spawn enemies in defined waves
     # Don't start a new wave if we're waiting for boss coin collection
-    if not game.waveInProgress and not game.bossActive and not game.bossCoinActive and game.state == gsPlaying:
-      # Start a new wave
-      startWave(game)
+      if not game.waveInProgress and not game.bossActive and not game.bossCoinActive and game.state == gsPlaying:
+        # Start a new wave
+        startWave(game)
     
     if game.waveInProgress and game.bossSpawnTimer <= 0:
       # DYNAMIC MULTIPLE ENEMY SPAWNING - scales more with wave number
@@ -2501,58 +2517,51 @@ proc updateGame*(game: var Game, dt: float32) =
         let x = boss.pos.x + cos(angle) * dist
         let y = boss.pos.y + sin(angle) * dist
         spawnExplosion(game.particles, x, y, boss.color, 3)
-  
-  else:
-    # TIME SURVIVAL MODE: Original time-based spawning
-    let baseSpawnRate =
-      if game.difficulty < 1.5:
-        3.0
-      elif game.difficulty < 3.0:
-        2.3 / (1.0 + (game.difficulty - 1.5) * 0.3)
-      elif game.difficulty < 6.0:
-        1.8 / (1.0 + (game.difficulty - 3.0) * 0.25)
-      elif game.difficulty < 9.0:
-        1.4 / (1.0 + (game.difficulty - 6.0) * 0.15)
-      elif game.difficulty < 13.0:
-        1.2 / (1.0 + (game.difficulty - 9.0) * 0.1)
-      else:
-        max(0.9, 1.0 / (1.0 + (game.difficulty - 13.0) * 0.05))
     
-    let waveSpawnRate = baseSpawnRate * 0.7
-    let waveProgress = (game.time mod 15.0) / 15.0
-    let isWaveActive = waveProgress > 0.6
-    
-    var currentSpawnRate = if isWaveActive: waveSpawnRate else: baseSpawnRate
-    if game.bossActive:
-      currentSpawnRate = currentSpawnRate * 2.0
-    
-    if game.spawnTimer > currentSpawnRate:
-      let enemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty, game)
-      makeElite(enemy, (game.difficulty * 3).int)  # Use difficulty as wave equivalent
-      game.enemies.add(enemy)
-      game.spawnTimer = 0
+    else:
+      # TIME SURVIVAL MODE: Original time-based spawning
+      let baseSpawnRate =
+        if game.difficulty < 1.5:
+          3.0
+        elif game.difficulty < 3.0:
+          2.3 / (1.0 + (game.difficulty - 1.5) * 0.3)
+        elif game.difficulty < 6.0:
+          1.8 / (1.0 + (game.difficulty - 3.0) * 0.25)
+        elif game.difficulty < 9.0:
+          1.4 / (1.0 + (game.difficulty - 6.0) * 0.15)
+        elif game.difficulty < 13.0:
+          1.2 / (1.0 + (game.difficulty - 9.0) * 0.1)
+        else:
+          max(0.9, 1.0 / (1.0 + (game.difficulty - 13.0) * 0.05))
       
-      if isWaveActive and rand(100) < 60 and not game.bossActive:
-        let waveEnemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty, game)
-        makeElite(waveEnemy, (game.difficulty * 3).int)
-        game.enemies.add(waveEnemy)
-    
-    # Boss spawn every 60 seconds
-    if game.time >= game.bossTimer and not game.bossActive:
-      game.bossCount += 1
-      game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight, game.difficulty, game.bossCount, game.currentWave))
-      game.bossTimer += 60.0
-      game.bossActive = true
-      game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
+      let waveSpawnRate = baseSpawnRate * 0.7
+      let waveProgress = (game.time mod 15.0) / 15.0
+      let isWaveActive = waveProgress > 0.6
       
-      let boss = game.enemies[^1]
-      # Spawn entrance particles for custom boss
-      for i in 0..<60:
-        let angle = i.float32 * 0.1
-        let dist = i.float32 * 3
-        let x = boss.pos.x + cos(angle) * dist
-        let y = boss.pos.y + sin(angle) * dist
-        spawnExplosion(game.particles, x, y, boss.color, 3)
+      var currentSpawnRate = if isWaveActive: waveSpawnRate else: baseSpawnRate
+      if game.bossActive:
+        currentSpawnRate = currentSpawnRate * 2.0
+      
+      if game.spawnTimer > currentSpawnRate:
+        let enemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty, game)
+        makeElite(enemy, (game.difficulty * 3).int)  # Use difficulty as wave equivalent
+        game.enemies.add(enemy)
+        game.spawnTimer = 0
+        
+        if isWaveActive and rand(100) < 60 and not game.bossActive:
+          let waveEnemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty, game)
+          makeElite(waveEnemy, (game.difficulty * 3).int)
+          game.enemies.add(waveEnemy)
+        
+        let boss = game.enemies[^1]
+        # Spawn entrance particles for custom boss
+        for i in 0..<60:
+          let angle = i.float32 * 0.1
+          let dist = i.float32 * 3
+          let x = boss.pos.x + cos(angle) * dist
+          let y = boss.pos.y + sin(angle) * dist
+          spawnExplosion(game.particles, x, y, boss.color, 3)
+  # End of enemy spawning logic (excluded for sandbox mode)
   
   # Update enemies
   var enemyIdx = 0
@@ -2818,6 +2827,7 @@ proc updateGame*(game: var Game, dt: float32) =
           # Update boss color and apply phase modifiers
           enemy.color = phase.color
           enemy.speed = bossDef.baseSpeed * phase.speedMultiplier
+          enemy.defenseMultiplier = phase.defenseMultiplier  # Apply defense multiplier from phase
           break
         
       # Update boss behavior based on specialBehavior
@@ -2851,7 +2861,7 @@ proc updateGame*(game: var Game, dt: float32) =
           y = enemy.pos.y,
           direction = dir,
           speed = 220,
-          damage = 1,
+          damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
           fromPlayer = false,
           sourceEnemyId = enemy.id
         ))
@@ -2873,7 +2883,7 @@ proc updateGame*(game: var Game, dt: float32) =
           y = enemy.pos.y,
           direction = spreadDir,
           speed = 260,
-          damage = 1,
+          damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
           fromPlayer = false,
           sourceEnemyId = enemy.id
         ))
@@ -2887,7 +2897,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if enemy.isBoss:
         # Boss deals continuous damage
         if game.time - enemy.lastContactDamageTime >= 0.5:  # 2 HP per second
-          var bossContactDamage = enemy.damage.float32
+          var bossContactDamage = enemy.contactDamage.float32  # FIX: Use contactDamage instead of damage
           
           # Thorns reflection damage
           if hasPowerUp(game.player, puThorns):
@@ -2937,7 +2947,7 @@ proc updateGame*(game: var Game, dt: float32) =
           spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Red, 10)
       else:
         # Regular enemies die on contact
-        var enemyContactDamage = enemy.damage.float32
+        var enemyContactDamage = enemy.contactDamage.float32  # FIX: Use contactDamage instead of damage
         
         # Venomous elite effect - applies poison to player
         # Handles multiple elite types (wave 25+)
@@ -3559,7 +3569,7 @@ proc updateGame*(game: var Game, dt: float32) =
           i += 1
           continue
         
-        var bulletDamage = 1.0
+        var bulletDamage = bullet.damage  # FIX: Use the actual bullet damage instead of hardcoded 1.0
         
         # Thorns reflection - damage the originating enemy (the one that shot the bullet)
         if hasPowerUp(game.player, puThorns):
@@ -4244,10 +4254,11 @@ proc drawGame*(game: Game) =
       let pulseAlpha = (sin(game.time * 4.0) * 60 + 195).int.uint8
       drawText("Collect the Boss Coin!", 10, 160, 18, Color(r: 255, g: 215, b: 0, a: pulseAlpha))
   else:
-    # Time survival mode - show chaos meter
-    let chaosLevel = min(game.difficulty * 10, 100).int
-    drawText("Chaos: " & $chaosLevel & "%", 10, 135, 18, 
-            if chaosLevel < 30: Green elif chaosLevel < 70: Orange else: Red)
+    # Time survival mode - show chaos meter (not shown in sandbox)
+    if game.mode == gmTimeSurvival:
+      let chaosLevel = min(game.difficulty * 10, 100).int
+      drawText("Chaos: " & $chaosLevel & "%", 10, 135, 18, 
+              if chaosLevel < 30: Green elif chaosLevel < 70: Orange else: Red)
   
   # Boss health bar (top of screen)
   if game.bossActive:
@@ -4413,29 +4424,8 @@ proc drawGame*(game: Game) =
   drawText("E: Wall | ESC: Pause", 
            game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
   
-  # Custom animated crosshair cursor
-  let mousePos = getMousePosition()
-  let cursorPulse = sin(game.time * 8.0) * 2 + 8
-  
-  # Outer rotating ring
-  for i in 0..<8:
-    let angle = game.time * 4.0 + i.float32 * PI / 4.0
-    let x = mousePos.x + cos(angle) * cursorPulse
-    let y = mousePos.y + sin(angle) * cursorPulse
-    drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
-  
-  # Crosshair lines
-  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
-          Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
-          Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
-          Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
-          Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
-  
-  # Center dot
-  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
+  # Note: Custom cursor is now drawn in main.nim after all UI overlays
+  # This ensures the cursor appears above sandbox menu and other overlays
 
 proc drawGameOver*(game: Game) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))

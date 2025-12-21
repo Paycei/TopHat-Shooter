@@ -231,7 +231,9 @@ type
     hp*: float32
     maxHp*: float32
     speed*: float32
-    damage*: int
+    damage*: int              # Legacy field for backward compatibility
+    contactDamage*: int       # Damage dealt on contact/collision
+    rangedDamage*: int        # Damage dealt by bullets/projectiles
     color*: Color
     enemyType*: EnemyType
     isBoss*: bool
@@ -279,6 +281,7 @@ type
     bossDefinitionID*: int  # Which boss definition this uses (1-12)
     currentPhaseIndex*: int  # Current phase index (0, 1, 2, etc.)
     attackTimers*: seq[float32]  # Individual cooldown timer for each attack in current phase
+    defenseMultiplier*: float32  # Damage reduction multiplier (1.0 = no reduction, 0.5 = 50% damage taken)
     # Damage accumulation for continuous damage sources (auras, DOT)
     auraDamageAccumulator*: float32  # Accumulates aura damage over time
     lastAuraDamageNumberTime*: float32  # Last time a damage number was shown for auras

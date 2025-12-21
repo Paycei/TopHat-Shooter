@@ -765,6 +765,9 @@ proc main() =
       # Draw cheat menu overlay if active
       drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
       
+      # Draw custom cursor during gameplay
+      drawCustomCursor(currentGame.time)
+      
       endDrawing()
     
     of gsPaused:
@@ -922,6 +925,10 @@ proc main() =
       beginDrawing()
       drawGame(currentGame)
       drawShop(currentGame)
+      
+      # Draw custom cursor
+      drawCustomCursor(currentGame.time)
+      
       endDrawing()
     
     of gsCountdown:
@@ -983,6 +990,9 @@ proc main() =
               screenHeight div 2 + 80,
               40,
               Color(r: 255, g: 255, b: 100, a: alpha))
+      
+      # Draw custom cursor
+      drawCustomCursor(currentGame.time)
       
       endDrawing()
     

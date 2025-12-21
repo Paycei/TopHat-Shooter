@@ -11,7 +11,7 @@
 # - Wave/difficulty controls
 # ============================================================================
 
-import raylib, types, enemy, std/strutils, random
+import raylib, types, enemy, powerup, std/strutils, random
 
 const
   SIDEBAR_WIDTH = 300
@@ -151,6 +151,16 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   # Add coins button
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 180, g: 140, b: 0, a: 255))
   drawText("Add 1000 Coins", contentX + 5, currentY + 10, 16, White)
+  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
+  
+  # Open Shop button
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 70, g: 120, b: 180, a: 255))
+  drawText("Open Shop", contentX + 5, currentY + 10, 16, White)
+  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
+  
+  # Open Power-Up Selection button
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 70, b: 180, a: 255))
+  drawText("Roll Power-Ups", contentX + 5, currentY + 10, 16, White)
 
 proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   if not game.sandboxSidebarOpen:
@@ -216,10 +226,11 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
   for enemyType in enemyTypes:
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
-      # Spawn enemy at center of screen
+      # Spawn enemy at center of screen and add to enemies list
       let spawnX = screenWidth.float32 / 2
       let spawnY = screenHeight.float32 / 2
-      discard newEnemy(spawnX, spawnY, game.difficulty, enemyType, game)
+      let enemy = newEnemy(spawnX, spawnY, game.difficulty, enemyType, game)
+      game.enemies.add(enemy)
       return
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
   
@@ -232,7 +243,8 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
       let spawnX = (rand(screenWidth.int - 100) + 50).float32
       let spawnY = (rand(screenHeight.int - 100) + 50).float32
       let randomType = enemyTypes[rand(enemyTypes.len - 1)]
-      discard newEnemy(spawnX, spawnY, game.difficulty, randomType, game)
+      let enemy = newEnemy(spawnX, spawnY, game.difficulty, randomType, game)
+      game.enemies.add(enemy)
 
 proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
   let startY = 45 + TAB_HEIGHT + 5
@@ -315,6 +327,25 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     game.player.coins += 1000
+    return
+  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
+  
+  # Open Shop button
+  if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
+     mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
+    game.state = gsShop
+    game.selectedShopItem = 0
+    return
+  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
+  
+  # Roll Power-Ups button
+  if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
+     mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
+    game.powerUpChoices = generatePowerUpChoices(game.player, false)
+    game.selectedPowerUp = 0
+    initPowerUpRollAnimation(game)
+    initializeRerollCost(game)
+    game.state = gsPowerUpSelect
 
 proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
   if not game.sandboxSidebarOpen:
@@ -347,7 +378,6 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
       return
     
     # Check tabs
-    let tabs = ["Enemies", "Bosses", "Controls"]
     let tabWidth = (SIDEBAR_WIDTH - SIDEBAR_PADDING * 4) div 3
     let tabY = 45
     for i in 0..2:
