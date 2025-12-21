@@ -1595,7 +1595,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBarrage,
               damage: 5.0,
-              cooldown: 1.0,
+              cooldown: 0.8,
               projectileSpeed: 320.0,
               projectileCount: 60,
               spreadAngle: 360.0,
@@ -1605,9 +1605,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 6.0,
-              cooldown: 3.0,
+              cooldown: 2.5,
               projectileSpeed: 0.0,
-              projectileCount: 8,
+              projectileCount: 5,
               spreadAngle: 45.0,
               durationOrRadius: 5.0,
               specialData: "omega_beam"
@@ -1615,7 +1615,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 6.0,
-              cooldown: 2.0,
+              cooldown: 1.8,
               projectileSpeed: 0.0,
               projectileCount: 6,
               spreadAngle: 0.0,
@@ -1625,7 +1625,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapPulse,
               damage: 5.0,
-              cooldown: 3.5,
+              cooldown: 3.0,
               projectileSpeed: 300.0,
               projectileCount: 0,
               spreadAngle: 0.0,

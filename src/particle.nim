@@ -112,13 +112,17 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
       # Shouldn't happen (isCritical flag handles this), but yellow
       color = Color(r: 255, g: 255, b: 50, a: alpha.uint8)
     of dtHeal:
-      # Healing: bright green (should only happen for player)
+      # Healing: bright green (scales with heal amount)
       color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
+      # Size scales with healing amount: minimum 12, maximum 20
+      # Smaller heals get smaller text, larger heals get larger text
+      fontSize = int32(clamp(12.0 + (dmgNum.damage / 50.0) * 8.0, 12.0, 20.0))
     of dtDefault:
       # Default damage: white (standard bullets, orbs)
       color = Color(r: 255, g: 255, b: 255, a: alpha.uint8)
     
-    fontSize = 18
+    if dmgNum.damageType != dtHeal:
+      fontSize = 18
   else:
     # Enemy damage to player: color coded by damage type
     case dmgNum.damageType

@@ -4,7 +4,7 @@
 # Displays on Game Over screen and Main Menu
 # ============================================================================
 
-import raylib, run_statistics, types, strutils, math, std/tables
+import raylib, run_statistics, types, strutils, math, std/tables, powerup
 
 # ============================================================================
 # UI CONSTANTS
@@ -418,7 +418,7 @@ proc drawDetailedPowerUpScreen*(stats: PowerUpStats, combat: CombatStats,
     for i, choice in stats.powerUpsChosen:
       let timestamp = formatDuration(choice[0])
       let powerup = choice[1]
-      let powerupName = $powerup.powerType
+      let powerupName = getPowerUpName(powerup.powerType)
       
       # Determine rarity color
       let rarityColor = if powerup.rarity == prLegendary: 
@@ -495,7 +495,7 @@ proc drawDetailedPowerUpScreen*(stats: PowerUpStats, combat: CombatStats,
         else: White
       
       drawText($rank & ".", 555, rankY, 14, medalColor)
-      drawText($ptype, 600, rankY, 14, White)
+      drawText(getPowerUpName(ptype), 600, rankY, 14, White)
       drawText(formatLargeNumber(damage), 770, rankY, 14, ACCENT_COLOR)
       drawText(formatPercent(percent), 890, rankY, 14, getQualityColor(percent, 10.0))
       
@@ -562,7 +562,7 @@ proc drawDetailedPowerUpScreen*(stats: PowerUpStats, combat: CombatStats,
   drawStatCard(710, currentY, 300, 180, "MOST VALUABLE POWER-UP", gameTime)
   var mvpY = currentY + 50
   
-  let mvpName = $stats.mostEffectivePowerUp
+  let mvpName = getPowerUpName(stats.mostEffectivePowerUp)
   let mvpSize: int32 = 20
   let mvpWidth = measureText(mvpName, mvpSize)
   drawText(mvpName, 860 - mvpWidth div 2, mvpY, mvpSize, Gold)
