@@ -23,6 +23,10 @@ proc newPlayer*(x, y: float32): Player =
     magnetTimer: 0,
     powerUps: @[],
     shieldAngle: 0,
+    shieldHealths: @[],      # Will be populated when power-up is acquired
+    shieldMaxHealth: 3.0,    # Starting health per shield (increases with upgrades)
+    shieldRegenTimers: @[],  # Will be populated when power-up is acquired
+    shieldRegenDelay: 4.0,   # Shields regenerate after 4 seconds (reduced by upgrades)
     killsSinceLastHeal: 0,
     regenTimer: 0,
     lastDamageTaken: 0,
@@ -144,6 +148,27 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # Update shield angle for rotating shield power-up - NERFED rotation speed
   player.shieldAngle += dt * 1.0  # Reduced from 2.0 to 1.0 (50% slower)
   
+  # Update shield health and regeneration
+  if hasPowerUp(player, puRotatingShield):
+    let shieldCount = 3  # Always 3 shields regardless of level
+    # Ensure arrays are initialized
+    if player.shieldHealths.len != shieldCount:
+      player.shieldHealths = @[]
+      player.shieldRegenTimers = @[]
+      for i in 0..<shieldCount:
+        player.shieldHealths.add(player.shieldMaxHealth)
+        player.shieldRegenTimers.add(0.0)
+    
+    # Update regeneration timers and restore destroyed shields
+    for i in 0..<player.shieldHealths.len:
+      if player.shieldHealths[i] <= 0:
+        # Shield is destroyed, increment regen timer
+        player.shieldRegenTimers[i] += dt
+        if player.shieldRegenTimers[i] >= player.shieldRegenDelay:
+          # Restore shield to full health
+          player.shieldHealths[i] = player.shieldMaxHealth
+          player.shieldRegenTimers[i] = 0.0
+  
   # Update rotating orbs angle
   player.orbRotationAngle += dt * 2.0  # Rotate orbs around player
   
@@ -253,10 +278,7 @@ proc drawPlayer*(player: Player) =
   for powerUp in player.powerUps:
     if powerUp.powerType == puRotatingShield:
       let level = powerUp.level
-      let shieldCount = case level
-        of 1: 2
-        of 2: 3
-        else: 4
+      let shieldCount = 3  # Always 3 shields regardless of level
       
       # Shield scales with player size for better visual feedback
       let shieldRadius = player.radius * 2.5 + 15  # Reduced from +15 to +10
@@ -264,12 +286,16 @@ proc drawPlayer*(player: Player) =
       
       # Level-based coverage matches collision: NERFED values
       let arcCoverage = case level
-        of 1: 0.25  # 10% coverage (was 50%)
-        of 2: 0.35  # 20% coverage (was 70%)
-        else: 0.45  # 35% coverage (was 85%)
+        of 1: 0.30  # 30% coverage (was 50%)
+        of 2: 0.35  # 35% coverage (was 70%)
+        else: 0.40  # 40% coverage (was 85%)
       
       # Draw partial curved shield lines with visible gaps
       for i in 0..<shieldCount:
+        # Skip destroyed shields
+        if i < player.shieldHealths.len and player.shieldHealths[i] <= 0:
+          continue
+          
         let baseAngle = player.shieldAngle + (i.float32 * PI * 2.0 / shieldCount.float32)
         let fullArcLength = PI * 2.0 / shieldCount.float32
         let activeArcLength = fullArcLength * arcCoverage
@@ -278,6 +304,15 @@ proc drawPlayer*(player: Player) =
         let gapSize = (fullArcLength - activeArcLength) / 2.0
         let angle1 = baseAngle + gapSize
         let angle2 = angle1 + activeArcLength
+        
+        # Determine shield color based on health - cyan/teal theme
+        var shieldColor = Color(r: 0, g: 255, b: 255, a: 255)  # Cyan
+        if i < player.shieldHealths.len:
+          let healthPercent = player.shieldHealths[i] / player.shieldMaxHealth
+          if healthPercent < 0.4:
+            shieldColor = Color(r: 200, g: 50, b: 200, a: 255)  # Magenta when low
+          elif healthPercent < 0.7:
+            shieldColor = Color(r: 255, g: 100, b: 255, a: 255)  # Light magenta when medium
         
         # Draw arc segments for the ACTIVE portion only
         let segments = 16
@@ -292,7 +327,7 @@ proc drawPlayer*(player: Player) =
           let x2 = player.pos.x + cos(a2) * shieldRadius
           let y2 = player.pos.y + sin(a2) * shieldRadius
           
-          drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), shieldThickness, SkyBlue)
+          drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), shieldThickness, shieldColor)
         
         # Add energy glow at shield endpoints (shows active coverage)
         let ex1 = player.pos.x + cos(angle1) * shieldRadius
@@ -300,8 +335,8 @@ proc drawPlayer*(player: Player) =
         let ex2 = player.pos.x + cos(angle2) * shieldRadius
         let ey2 = player.pos.y + sin(angle2) * shieldRadius
         
-        drawCircle(Vector2(x: ex1, y: ey1), 5, Color(r: 135, g: 206, b: 235, a: 200))
-        drawCircle(Vector2(x: ex2, y: ey2), 5, Color(r: 135, g: 206, b: 235, a: 200))
+        drawCircle(Vector2(x: ex1, y: ey1), 5, shieldColor)
+        drawCircle(Vector2(x: ex2, y: ey2), 5, shieldColor)
   
   # Draw rotating orbs (if player has any orb power-ups)
   # Check if player has any orb power-ups before rendering

@@ -167,6 +167,11 @@ type
     magnetTimer*: float32
     powerUps*: seq[PowerUp]
     shieldAngle*: float32
+    # Rotating shield health tracking (individual shields)
+    shieldHealths*: seq[float32]  # Health of each shield segment
+    shieldMaxHealth*: float32     # Maximum health per shield
+    shieldRegenTimers*: seq[float32]  # Regen timer for each shield
+    shieldRegenDelay*: float32    # Time before shield starts regenerating
     killsSinceLastHeal*: int
     regenTimer*: float32
     lastDamageTaken*: float32

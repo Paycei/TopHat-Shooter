@@ -59,6 +59,10 @@ proc accumulateAndShowAuraDamage(game: Game, enemy: Enemy, actualDamage: float32
   ## Handles shield absorption and zero-damage cases gracefully
   const DAMAGE_NUMBER_INTERVAL = 0.5  # Show damage numbers every 0.5 seconds
   
+  # Initialize timer on first aura damage tick to prevent 0 damage reporting
+  if enemy.lastAuraDamageNumberTime == 0:
+    enemy.lastAuraDamageNumberTime = game.time
+  
   # Accumulate damage (even if 0, we track it)
   enemy.auraDamageAccumulator += actualDamage
   
@@ -3051,18 +3055,23 @@ proc updateGame*(game: var Game, dt: float32) =
     # Check rotating shield collision
     if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):
       let level = getPowerUpLevel(game.player, puRotatingShield)
-      let shieldCount = level + 1
+      let shieldCount = 3  # Always 3 shields regardless of level
       let shieldRadius = game.player.radius * 2.5 + 15  # Reduced from +15 to +10
       var hitShield = false
+      var hitShieldIndex = -1
 
       # Level-based coverage: NERFED - much smaller coverage
       let arcCoverage = case level
-        of 1: 0.25  # Only 10% of each arc is active (was 15%)
-        of 2: 0.35  # 20% coverage (was 30%)
-        else: 0.45  # 35% coverage, significant gaps (was 50%)
+        of 1: 0.30  # 30% coverage
+        of 2: 0.35  # 35% coverage
+        else: 0.40  # 40% coverage
 
       # Check collision with shield arcs (with gaps)
       for j in 0..<shieldCount:
+        # Skip destroyed shields
+        if j < game.player.shieldHealths.len and game.player.shieldHealths[j] <= 0:
+          continue
+          
         let baseAngle = game.player.shieldAngle + (j.float32 * PI * 2.0 / shieldCount.float32)
         let fullArcLength = PI * 2.0 / shieldCount.float32
         let activeArcLength = fullArcLength * arcCoverage
@@ -3082,14 +3091,21 @@ proc updateGame*(game: var Game, dt: float32) =
           
           if distance(bullet.pos, shieldPos) < bullet.radius + 4:  # Reduced from +6 to +4
             hitShield = true
+            hitShieldIndex = j
             playSound(stShield, 0.4)
-            spawnExplosion(game.particles, shieldX, shieldY, SkyBlue, 8)
+            spawnExplosion(game.particles, shieldX, shieldY, Color(r: 0, g: 255, b: 255, a: 255), 8)  # Cyan explosion
             break
         
         if hitShield:
           break
       
-      if hitShield:
+      if hitShield and hitShieldIndex >= 0:
+        # Damage the specific shield
+        if hitShieldIndex < game.player.shieldHealths.len:
+          game.player.shieldHealths[hitShieldIndex] -= 1.0
+          # Reset regen timer for this shield
+          if hitShieldIndex < game.player.shieldRegenTimers.len:
+            game.player.shieldRegenTimers[hitShieldIndex] = 0.0
         game.bullets.delete(i)
         continue
     
@@ -4248,6 +4264,9 @@ proc drawGame*(game: Game) =
     yOffset += 20
     let shotsPerSec = 1.0 / getCurrentFireRate(game.player)
     drawText("Fire Rate: " & formatFloat(shotsPerSec, ffDecimal, 2) & "/s", game.screenWidth - 200, yOffset, 16, White)
+    yOffset += 20
+    # Show speed stat
+    drawText("Speed: " & formatFloat(game.player.speed, ffDecimal, 2), game.screenWidth - 200, yOffset, 16, White)
     yOffset += 20
   
     # Show Rage/Berserker bonuses when HP is low

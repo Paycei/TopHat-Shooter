@@ -69,9 +69,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "Fire 2 bullets per shot (-25% fire rate)"
   of puRotatingShield:
     case level
-    of 1: "2 shields (20% coverage)"
-    of 2: "3 shields (40% coverage)"
-    else: "4 shields (70% coverage)"
+    of 1: "3 shields (30% coverage, 3 HP, 4s respawn)"
+    of 2: "3 shields (35% coverage, 4 HP, 3s respawn)"
+    else: "3 shields (40% coverage, 5 HP, 2s respawn)"
   of puDamageZone:
     case level
     of 1: "3 dmg/sec in 120 radius"
@@ -592,6 +592,28 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puRotatingOrbs:
     # Legendary: Create all 6 elemental orbs at their predefined positions
     createRotatingOrbs(player, powerUp.level)
+  of puRotatingShield:
+    # Initialize shield health arrays - always 3 shields
+    let shieldCount = 3
+    player.shieldHealths = @[]
+    player.shieldRegenTimers = @[]
+    
+    # Health increases with level: 3 HP, 4 HP, 5 HP
+    let shieldHealth = case powerUp.level
+      of 1: 3.0
+      of 2: 4.0
+      else: 5.0
+    player.shieldMaxHealth = shieldHealth
+    
+    for i in 0..<shieldCount:
+      player.shieldHealths.add(shieldHealth)
+      player.shieldRegenTimers.add(0.0)
+    
+    # Reduce regen delay with upgrades: level 1=4s, level 2=3s, level 3=2s
+    player.shieldRegenDelay = case powerUp.level
+      of 1: 4.0
+      of 2: 3.0
+      else: 2.0
   of puPoisonOrb:
     createElementalOrbs(player, etPoison, powerUp.level)
   of puFireOrb:
@@ -653,6 +675,23 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       
       # Apply upgrade bonuses for normal power-ups that have levels
       case powerUp.powerType
+      of puRotatingShield:
+        # Update shield health and cooldown based on new level
+        let shieldHealth = case powerUp.level
+          of 1: 3.0
+          of 2: 4.0
+          else: 5.0
+        player.shieldMaxHealth = shieldHealth
+        
+        # Restore all shields to new max health
+        for i in 0..<player.shieldHealths.len:
+          player.shieldHealths[i] = shieldHealth
+        
+        # Update regen delay
+        player.shieldRegenDelay = case powerUp.level
+          of 1: 4.0
+          of 2: 3.0
+          else: 2.0
       of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puBloodOrb:
         # Recreate orbs with new level (more orbs of this element)
         let elementType = case powerUp.powerType
@@ -721,9 +760,9 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
       let offsetX = (i - powerUp.level div 2) * 12
       drawCircle(Vector2(x: (centerX + offsetX).float32, y: iconY.float32), 8, Yellow)
   of puRotatingShield:
-    # Draw the new curved shield visual
+    # Draw the new curved shield visual - always 3 shields
     let shieldRadius = 10.0
-    let shieldCount = powerUp.level + 1
+    let shieldCount = 3
     for i in 0..<shieldCount:
       let angle1 = i.float32 * PI * 2.0 / shieldCount.float32
       let angle2 = (i + 1).float32 * PI * 2.0 / shieldCount.float32
@@ -736,7 +775,7 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
         let y1 = iconY.float32 + sin(a1) * shieldRadius
         let x2 = centerX.float32 + cos(a2) * shieldRadius
         let y2 = iconY.float32 + sin(a2) * shieldRadius
-        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, SkyBlue)
+        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, Color(r: 0, g: 255, b: 255, a: 255))  # Cyan
   of puDamageZone:
     let zoneRadius = 10 + powerUp.level * 8
     drawCircle(Vector2(x: centerX.float32, y: iconY.float32), zoneRadius.float32, 
