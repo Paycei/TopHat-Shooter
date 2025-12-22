@@ -366,7 +366,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 2.0,
               cooldown: 4.5,  # NERFED from 3.5 (less frequent)
               projectileSpeed: 0.0,
-              projectileCount: 2,
+              projectileCount: 3,
               spreadAngle: 90.0,
               durationOrRadius: 2.5,  # NERFED from 3.0 (shorter duration)
               specialData: "cross_laser"
@@ -385,7 +385,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 1.0,
               cooldown: 3.5,  # NERFED from 3.0 (less frequent)
               projectileSpeed: 220.0,  # NERFED from 250.0 (easier to dodge)
-              projectileCount: 3,  # NERFED from 5 (fewer bullets)
+              projectileCount: 4,  # NERFED from 5 (fewer bullets)
               spreadAngle: 8.0,  # NERFED from 10.0 (tighter, easier to dodge as group)
               durationOrRadius: 0.0
             )
@@ -459,6 +459,16 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               spreadAngle: 22.5,
               durationOrRadius: 2.5,  # HEAVILY NERFED from 3.5 (much shorter)
               specialData: "prismatic_cage"
+            ),
+            BossAttack(
+              attackType: bapLaser,
+              damage: 2.5,  # High damage for precision attack
+              cooldown: 1.0,  # Rapid fire laser spam
+              projectileSpeed: 0.0,
+              projectileCount: 1,  # 1 laser per shot
+              spreadAngle: 0.0,  # Not used for laser_snipe
+              durationOrRadius: 1.5,  # Short duration (1.5 seconds)
+              specialData: "laser_snipe"  # NEW: Rapid tracking lasers
             ),
             BossAttack(
               attackType: bapCircle,

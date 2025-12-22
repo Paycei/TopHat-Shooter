@@ -1654,41 +1654,81 @@ proc drawAttackWarning*(warning: AttackWarning) =
   of "boss_laser":
     # IMPROVED: Boss laser warning with accurate beam visualization
     # Shows exactly where each laser beam will appear
+    # Different drawing based on pattern type
+    let isRadialPattern = warning.laserPattern in ["prismatic_cage", "laser_snipe"]
+    
     for angle in warning.laserAngles:
-      # Calculate laser endpoints based on angle
-      let startX = warning.pos.x + cos(angle) * 40.0  # Start from boss center (offset)
-      let startY = warning.pos.y + sin(angle) * 40.0
-      let endX = warning.pos.x + cos(angle) * warning.laserLength
-      let endY = warning.pos.y + sin(angle) * warning.laserLength
-      
-      # Draw warning line (pulsing)
-      let warningThickness = 8 + pulse * 0.3
-      drawLine(
-        Vector2(x: startX, y: startY),
-        Vector2(x: endX, y: endY),
-        warningThickness,
-        Color(r: 255, g: 50, b: 0, a: alpha)
-      )
-      
-      # Draw inner glow line
-      drawLine(
-        Vector2(x: startX, y: startY),
-        Vector2(x: endX, y: endY),
-        3,
-        Color(r: 255, g: 200, b: 100, a: (alpha div 2).uint8)
-      )
-      
-      # Draw danger markers along the beam path
-      for i in 0..4:
-        let markerDist = warning.laserLength * (i.float32 / 4.0) * 0.7  # 70% of length
-        let markerX = warning.pos.x + cos(angle) * markerDist
-        let markerY = warning.pos.y + sin(angle) * markerDist
-        let markerSize = 6.0 + sin(getTime() * 15.0 + i.float32) * 2.0
-        drawCircle(
-          Vector2(x: markerX, y: markerY),
-          markerSize,
-          Color(r: 255, g: 0, b: 0, a: (alpha div 2).uint8)
+      if isRadialPattern:
+        # Radial pattern: Draw from boss center outward only
+        let startX = warning.pos.x + cos(angle) * 40.0  # Start from boss center (small offset)
+        let startY = warning.pos.y + sin(angle) * 40.0
+        let endX = warning.pos.x + cos(angle) * warning.laserLength
+        let endY = warning.pos.y + sin(angle) * warning.laserLength
+        
+        # Draw warning line (pulsing)
+        let warningThickness = 8 + pulse * 0.3
+        drawLine(
+          Vector2(x: startX, y: startY),
+          Vector2(x: endX, y: endY),
+          warningThickness,
+          Color(r: 255, g: 50, b: 0, a: alpha)
         )
+        
+        # Draw inner glow line
+        drawLine(
+          Vector2(x: startX, y: startY),
+          Vector2(x: endX, y: endY),
+          3,
+          Color(r: 255, g: 200, b: 100, a: (alpha div 2).uint8)
+        )
+        
+        # Draw danger markers along the beam path
+        for i in 0..4:
+          let markerDist = 40.0 + (warning.laserLength - 40.0) * (i.float32 / 4.0) * 0.7
+          let markerX = warning.pos.x + cos(angle) * markerDist
+          let markerY = warning.pos.y + sin(angle) * markerDist
+          let markerSize = 6.0 + sin(getTime() * 15.0 + i.float32) * 2.0
+          drawCircle(
+            Vector2(x: markerX, y: markerY),
+            markerSize,
+            Color(r: 255, g: 0, b: 0, a: (alpha div 2).uint8)
+          )
+      else:
+        # Cross pattern: Draw in both directions (extends through center)
+        let startX = warning.pos.x + cos(angle) * (-warning.laserLength)
+        let startY = warning.pos.y + sin(angle) * (-warning.laserLength)
+        let endX = warning.pos.x + cos(angle) * warning.laserLength
+        let endY = warning.pos.y + sin(angle) * warning.laserLength
+        
+        # Draw warning line (pulsing)
+        let warningThickness = 8 + pulse * 0.3
+        drawLine(
+          Vector2(x: startX, y: startY),
+          Vector2(x: endX, y: endY),
+          warningThickness,
+          Color(r: 255, g: 50, b: 0, a: alpha)
+        )
+        
+        # Draw inner glow line
+        drawLine(
+          Vector2(x: startX, y: startY),
+          Vector2(x: endX, y: endY),
+          3,
+          Color(r: 255, g: 200, b: 100, a: (alpha div 2).uint8)
+        )
+        
+        # Draw danger markers along the beam path (both sides)
+        for i in -2..2:
+          if i == 0: continue  # Skip center
+          let markerDist = warning.laserLength * (i.float32 / 2.0) * 0.7
+          let markerX = warning.pos.x + cos(angle) * markerDist
+          let markerY = warning.pos.y + sin(angle) * markerDist
+          let markerSize = 6.0 + sin(getTime() * 15.0 + i.float32) * 2.0
+          drawCircle(
+            Vector2(x: markerX, y: markerY),
+            markerSize,
+            Color(r: 255, g: 0, b: 0, a: (alpha div 2).uint8)
+          )
     
     # Draw central danger indicator at boss position
     let centralPulse = sin(getTime() * 12.0) * 0.3 + 0.7
@@ -1856,6 +1896,44 @@ proc drawLaser*(laser: Laser) =
       )
     # Core
     drawLine(vertStart, vertEnd, 3, coreColor)
+  
+  of 3:  # Single rotated beam (for radial/prismatic patterns)
+    # Helper to calculate rotated endpoints
+    proc getRotatedEnd(centerX, centerY, length, angle: float32): Vector2 =
+      Vector2(
+        x: centerX + cos(angle) * length,
+        y: centerY + sin(angle) * length
+      )
+    
+    # Draw single beam along rotation angle - RADIAL (from center outward only)
+    let beamStart = Vector2(x: laser.pos.x, y: laser.pos.y)  # Start at boss center
+    let beamEnd = getRotatedEnd(laser.pos.x, laser.pos.y, laser.length, laser.rotation)  # Extend outward
+    
+    # Draw multiple parallel lines to simulate thickness with glow
+    # Outer glow
+    for offset in -6 .. 6:
+      let perpAngle = laser.rotation + PI / 2.0
+      let offsetX = cos(perpAngle) * offset.float32
+      let offsetY = sin(perpAngle) * offset.float32
+      drawLine(
+        Vector2(x: beamStart.x + offsetX, y: beamStart.y + offsetY),
+        Vector2(x: beamEnd.x + offsetX, y: beamEnd.y + offsetY),
+        3,
+        outerGlow
+      )
+    # Mid glow
+    for offset in -2 .. 2:
+      let perpAngle = laser.rotation + PI / 2.0
+      let offsetX = cos(perpAngle) * offset.float32
+      let offsetY = sin(perpAngle) * offset.float32
+      drawLine(
+        Vector2(x: beamStart.x + offsetX, y: beamStart.y + offsetY),
+        Vector2(x: beamEnd.x + offsetX, y: beamEnd.y + offsetY),
+        3,
+        midGlow
+      )
+    # Core
+    drawLine(beamStart, beamEnd, 3, coreColor)
   
   else:
     discard

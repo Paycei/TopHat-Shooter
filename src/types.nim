@@ -120,6 +120,7 @@ type
     attackType*: string  # "cross", "burst", "fake", "boss_laser"
     lifetime*: float32
     maxLifetime*: float32
+    sourceEnemyId*: int  # ID of enemy that created this warning (for tracking movement)
     # Boss laser warning fields
     laserAngles*: seq[float32]  # Angles for each laser beam
     laserLength*: float32        # Length of laser beams
@@ -127,6 +128,7 @@ type
     laserDamage*: int            # Damage of lasers when fired
     laserDuration*: float32      # How long lasers stay active
     lasersCreated*: bool         # Flag to track if lasers were already created
+    laserPattern*: string        # Pattern type: "cross_laser", "rotating_grid", "prismatic_cage"
     enemyType*: EnemyType        # Type of enemy creating this attack
 
   ElementType* = enum
@@ -488,12 +490,13 @@ proc normalize*(v: Vector2f): Vector2f =
 proc distance*(a, b: Vector2f): float32 =
   (b - a).length()
 
-proc newAttackWarning*(x, y: float32, attackType: string, duration: float32): AttackWarning =
+proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
   AttackWarning(
     pos: newVector2f(x, y),
     attackType: attackType,
     lifetime: duration,
     maxLifetime: duration,
+    sourceEnemyId: sourceEnemyId,
     laserAngles: @[],
     laserLength: 0.0,
     laserCount: 0,
@@ -503,19 +506,23 @@ proc newAttackWarning*(x, y: float32, attackType: string, duration: float32): At
   )
 
 proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32], 
-                         length: float32, damage: int, laserDuration: float32, enemyType: EnemyType = etCircle): AttackWarning =
+                         length: float32, damage: int, laserDuration: float32, 
+                         pattern: string = "", enemyType: EnemyType = etCircle, 
+                         sourceEnemyId: int = -1): AttackWarning =
   ## Creates a warning specifically for boss laser attacks with multiple beams
   AttackWarning(
     pos: newVector2f(x, y),
     attackType: "boss_laser",
     lifetime: duration,
     maxLifetime: duration,
+    sourceEnemyId: sourceEnemyId,
     laserAngles: angles,
     laserLength: length,
     laserCount: angles.len,
     laserDamage: damage,
     laserDuration: laserDuration,
     lasersCreated: false,
+    laserPattern: pattern,
     enemyType: enemyType
   )
 

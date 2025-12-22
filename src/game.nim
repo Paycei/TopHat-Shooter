@@ -1091,9 +1091,10 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
   of bapLaser:
     # IMPROVED: Boss laser with proper warning system
     # Laser patterns customized via specialData
-    # "cross_laser" = standard cross pattern
-    # "rotating_grid" = rotating grid of lasers
-    # "prismatic_cage" = many lasers creating cage effect
+    # "cross_laser" = standard cross pattern (4 perpendicular beams)
+    # "rotating_grid" = rotating grid of lasers (cross pattern)
+    # "prismatic_cage" = many random lasers biased towards player
+    # "laser_snipe" = rapid-fire lasers aimed directly at player
     
     let patternType = attack.specialData
     let laserCount = case patternType
@@ -1116,8 +1117,20 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           else:
             (i.float32 - actualLaserCount.float / 2.0) * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32 + PI / 2.0
         of "prismatic_cage":
-          # Many radial lasers
-          i.float32 * PI * 2.0 / actualLaserCount.float32
+          # Random radial lasers biased towards player direction
+          # 60% of lasers aim near player, 40% are completely random
+          let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, game.player.pos.x - enemy.pos.x)
+          if rand(100) < 60:
+            # Aim near player with some spread (±45 degrees)
+            angleToPlayer + (rand(1.0) - 0.5) * (PI / 2.0)
+          else:
+            # Completely random direction
+            rand(1.0) * PI * 2.0
+        of "laser_snipe":
+          # Rapid fire lasers aimed directly at player with minimal spread
+          let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, game.player.pos.x - enemy.pos.x)
+          # Very tight spread around player position (±5 degrees)
+          angleToPlayer + (rand(1.0) - 0.5) * 0.175
         of "cross_laser":
           # Cross pattern - always 4 beams in cardinal directions (0°, 90°, 180°, 270°)
           i.float32 * (PI / 2.0) + game.time
@@ -1130,14 +1143,31 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # WARNING: Show for 1.2 seconds before firing (much longer than current 0.3s)
     const BOSS_LASER_WARNING_TIME = 1.2
     let laserDamage = (attack.damage * phase.damageMultiplier).int
+    
+    # Adjust laser length based on pattern type
+    # For prismatic_cage and laser_snipe, calculate length to reach screen edge
+    # Use diagonal distance from center to corner to ensure full coverage
+    let laserLength = if patternType in ["prismatic_cage", "laser_snipe"]:
+      # Calculate diagonal distance from center to corner for full screen coverage
+      # Add extra margin to guarantee lasers always reach beyond screen edges
+      let centerX = game.screenWidth.float32 / 2.0
+      let centerY = game.screenHeight.float32 / 2.0
+      let diagonalDistance = sqrt(centerX * centerX + centerY * centerY)
+      # Use 1.5x diagonal distance to ensure lasers always extend beyond screen
+      diagonalDistance * 1.5
+    else:
+      800.0
+    
     game.attackWarnings.add(newBossLaserWarning(
       enemy.pos.x, enemy.pos.y, 
       BOSS_LASER_WARNING_TIME,
       warningAngles,
-      800.0,  # Warning length matches laser length
+      laserLength,  # Adjusted based on pattern type
       laserDamage,
       attack.durationOrRadius,  # Laser active duration
-      enemy.enemyType  # Track which enemy type created this attack
+      patternType,  # Pass the pattern type for proper laser creation
+      enemy.enemyType,  # Track which enemy type created this attack
+      enemy.id  # Pass enemy ID so warning can follow boss
     ))
     
     # NOTE: Lasers are NOT created immediately
@@ -1450,21 +1480,49 @@ proc updateGame*(game: var Game, dt: float32) =
   while i < game.attackWarnings.len:
     game.attackWarnings[i].lifetime -= dt
     
+    # Update warning position to follow the boss that created it
+    if game.attackWarnings[i].sourceEnemyId >= 0:
+      # Find the boss enemy
+      for enemy in game.enemies:
+        if enemy.id == game.attackWarnings[i].sourceEnemyId:
+          # Update warning position to boss's current position
+          game.attackWarnings[i].pos = enemy.pos
+          break
+    
     # BOSS LASER SYSTEM: Create lasers when warning expires (at 0.1s remaining for smooth transition)
     if game.attackWarnings[i].attackType == "boss_laser" and 
        not game.attackWarnings[i].lasersCreated and
        game.attackWarnings[i].lifetime <= 0.1:
       
-      # Create all the lasers for this warning
+      # Find the boss to get current position for laser spawn
+      var laserSpawnPos = game.attackWarnings[i].pos
+      if game.attackWarnings[i].sourceEnemyId >= 0:
+        for enemy in game.enemies:
+          if enemy.id == game.attackWarnings[i].sourceEnemyId:
+            laserSpawnPos = enemy.pos
+            break
+      
+      # Determine laser direction type based on pattern
+      # direction = 2: Cross pattern (two perpendicular beams) - for cross_laser, rotating_grid
+      # direction = 3: Single rotated beam - for prismatic_cage, laser_snipe, and other radial patterns
+      let laserDirection = if game.attackWarnings[i].laserPattern in ["cross_laser", "rotating_grid"]:
+        2  # Cross pattern
+      else:
+        3  # Single rotated beam (for prismatic_cage, laser_snipe, and other radial patterns)
+      
+      # Reduce laser duration - all lasers last shorter now (0.5x duration)
+      let reducedDuration = game.attackWarnings[i].laserDuration * 0.5
+      
+      # Create all the lasers for this warning at boss's current position
       for angle in game.attackWarnings[i].laserAngles:
         game.lasers.add(newLaser(
-          game.attackWarnings[i].pos.x,
-          game.attackWarnings[i].pos.y,
-          direction = 2,  # Cross pattern (will use rotation)
+          laserSpawnPos.x,
+          laserSpawnPos.y,
+          direction = laserDirection,
           length = game.attackWarnings[i].laserLength,
           thickness = 15.0,
           damage = game.attackWarnings[i].laserDamage,
-          duration = game.attackWarnings[i].laserDuration,
+          duration = reducedDuration,  # Reduced duration
           rotation = angle,
           enemyType = game.attackWarnings[i].enemyType
         ))
@@ -1507,6 +1565,10 @@ proc updateGame*(game: var Game, dt: float32) =
       of 2:  # Cross (both horizontal and vertical in local space)
         if (abs(localY) < laser.thickness and abs(localX) < laser.length) or
            (abs(localX) < laser.thickness and abs(localY) < laser.length):
+          hit = true
+      of 3:  # Single radial beam (extends outward along rotation angle)
+        # Check if player is in the beam: within thickness and from center to length
+        if abs(localY) < laser.thickness and localX >= 0 and localX < laser.length:
           hit = true
       else:
         discard
