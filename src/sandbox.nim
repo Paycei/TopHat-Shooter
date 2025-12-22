@@ -11,7 +11,7 @@
 # - Wave/difficulty controls
 # ============================================================================
 
-import raylib, types, enemy, powerup, std/strutils, random
+import raylib, types, enemy, powerup, boss_definitions, std/strutils, random
 
 const
   SIDEBAR_WIDTH = 300
@@ -34,19 +34,19 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   
   # List all enemy types with spawn buttons
   let enemyTypes = [
-    ("Circle", etCircle, "Fast chaser"),
-    ("Cube", etCube, "Large tank"),
-    ("Triangle", etTriangle, "Dasher"),
-    ("Star", etStar, "Multi-hit"),
-    ("Hexagon", etHexagon, "Teleporter"),
-    ("Cross", etCross, "Heavy damage"),
-    ("Diamond", etDiamond, "Speed demon"),
-    ("Octagon", etOctagon, "Spawner"),
-    ("Pentagon", etPentagon, "Shooter"),
-    ("Trickster", etTrickster, "Unpredictable"),
-    ("Phantom", etPhantom, "Phaser"),
-    ("Sniper", etSniper, "One-shot"),
-    ("Mage", etMage, "Meteorite")
+    ("Circle", etCircle, "Normal chasers"),
+    ("Cube", etCube, "Stationary/slow shooters"),
+    ("Triangle", etTriangle, "Fast dash attackers"),
+    ("Star", etStar, "High HP, needs many hits"),
+    ("Hexagon", etHexagon, "Teleporting chaos enemy"),
+    ("Cross", etCross, "Cross-shaped attack pattern"),
+    ("Diamond", etDiamond, "Shoots while dashing"),
+    ("Octagon", etOctagon, "Many slow projectiles"),
+    ("Pentagon", etPentagon, "Single fast bullet"),
+    ("Trickster", etTrickster, "False warnings, unpredictable"),
+    ("Phantom", etPhantom, "Teleports with fake clones"),
+    ("Sniper", etSniper, "Charges one-shot attack"),
+    ("Mage", etMage, "Summons meteorites")
   ]
   
   for (name, enemyType, desc) in enemyTypes:
@@ -71,28 +71,15 @@ proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   drawText("Spawn Bosses:", contentX, currentY, 18, White)
   currentY += 25
   
-  # List all boss types
-  let bossTypes = [
-    (1, "Crimson Warden", "First guardian"),
-    (2, "Violet Enforcer", "Bullet hell"),
-    (3, "Azure Duelist", "Laser master"),
-    (4, "Amber Tyrant", "Tank boss"),
-    (5, "Emerald Sentinel", "Shield master"),
-    (6, "Obsidian Overlord", "Dark powers"),
-    (7, "Golden Sovereign", "Summon lord"),
-    (8, "Sapphire Executor", "Speed demon"),
-    (9, "Ruby Destroyer", "Meteor caller"),
-    (10, "Platinum Monarch", "Multi-phase"),
-    (11, "Diamond Leviathan", "Bullet chaos"),
-    (12, "Final Sentinel", "Ultimate boss")
-  ]
-  
-  for (bossId, name, desc) in bossTypes:
+  # Dynamically fetch all boss definitions
+  for bossId in 1..12:
+    let bossDef = getBossDefinition(bossId)
+    
     if currentY > startY - 50 and currentY < screenHeight - 50:
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 50, b: 50, a: 255))
       drawRectangleLines(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 80, b: 80, a: 255))
-      drawText($bossId & ". " & name, contentX + 5, currentY + 5, 16, Red)
-      drawText(desc, contentX + 5, currentY + 20, 12, Color(r: 200, g: 150, b: 150, a: 255))
+      drawText($bossId & ". " & bossDef.name, contentX + 5, currentY + 5, 16, Red)
+      drawText(bossDef.description, contentX + 5, currentY + 20, 12, Color(r: 200, g: 150, b: 150, a: 255))
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
 proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =

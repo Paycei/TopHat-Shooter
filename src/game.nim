@@ -2580,7 +2580,7 @@ proc updateGame*(game: var Game, dt: float32) =
         let y = boss.pos.y + sin(angle) * dist
         spawnExplosion(game.particles, x, y, boss.color, 3)
     
-    else:
+    elif game.mode == gmTimeSurvival:
       # TIME SURVIVAL MODE: Original time-based spawning
       let baseSpawnRate =
         if game.difficulty < 1.5:
