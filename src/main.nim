@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, settings_types, save_system, sandbox
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, settings_types, save_system, sandbox, discord_presence
 
 const
   screenWidth = 1024
@@ -422,6 +422,9 @@ proc main() =
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor
   
+  # Initialize Discord Rich Presence
+  initDiscordPresence()
+  
   # Initialize sound system
   discard initSoundSystem()
   
@@ -452,6 +455,9 @@ proc main() =
   
   while not windowShouldClose():
     let dt = getFrameTime()
+    
+    # Update Discord Rich Presence
+    updateDiscordPresence(currentGame)
     
     # Update music stream (required for continuous playback)
     updateMusic()
@@ -1298,6 +1304,7 @@ proc main() =
   # Cleanup
   stopMusic()
   closeSoundSystem(globalSoundSystem)
+  shutdownDiscordPresence()
   closeWindow()
 
 when isMainModule:

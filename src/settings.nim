@@ -420,7 +420,6 @@ proc updateSettings*(settings: Settings) =
       settings.editingMusicVolume = false
   
   # Handle volume slider (only when not editing manually)
-  var volumeChangedThisFrame = false
   if isMouseButtonDown(Left) and not settings.editingVolume and not settings.editingMusicVolume:
     let sliderX: int32 = 400
     let sliderY: int32 = 255  # volumeY (250) + 5
@@ -436,7 +435,7 @@ proc updateSettings*(settings: Settings) =
         let oldVolume = settings.volume
         settings.volume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
         if oldVolume != settings.volume:
-          volumeChangedThisFrame = true
+          settingsChanged = true  # Mark as changed immediately when dragging
     
     # Music volume slider
     if mousePos.y >= musicSliderY.float32 and mousePos.y <= (musicSliderY + 20).float32:
@@ -446,11 +445,7 @@ proc updateSettings*(settings: Settings) =
         settings.musicVolume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
         setMusicVolume(settings.musicVolume)
         if oldMusicVolume != settings.musicVolume:
-          volumeChangedThisFrame = true
-  
-  # Save settings when volume sliders are released (only if changed)
-  if isMouseButtonReleased(Left) and volumeChangedThisFrame:
-    settingsChanged = true
+          settingsChanged = true  # Mark as changed immediately when dragging
   
   # Handle checkbox clicks
   if isMouseButtonPressed(Left):

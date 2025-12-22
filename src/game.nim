@@ -218,10 +218,10 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 20:
         # Waves 16-20: Introduce CUBE (stationary shooter)
-        # Cube gets 35% spawn rate
-        if roll < 35: enemyType = etCube  # NEW ENEMY - prominent
-        elif roll < 55: enemyType = etCircle
-        elif roll < 75: enemyType = etPentagon
+        # Cube gets 30% spawn rate
+        if roll < 30: enemyType = etCube  # NEW ENEMY - prominent
+        elif roll < 45: enemyType = etCircle
+        elif roll < 65: enemyType = etPentagon
         else: enemyType = etTriangle
       
       elif wave <= 25:
@@ -2944,7 +2944,7 @@ proc updateGame*(game: var Game, dt: float32) =
           x = enemy.pos.x,
           y = enemy.pos.y,
           direction = spreadDir,
-          speed = 260,
+          speed = 250,
           damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
           fromPlayer = false,
           sourceEnemyId = enemy.id
@@ -2965,9 +2965,9 @@ proc updateGame*(game: var Game, dt: float32) =
           if hasPowerUp(game.player, puThorns):
             let thornsLevel = getPowerUpLevel(game.player, puThorns)
             let reflectPercent = case thornsLevel
-              of 1: 0.35  # BUFFED from 0.20 to 0.35
-              of 2: 0.60  # BUFFED from 0.40 to 0.60
-              else: 1.00  # BUFFED from 0.70 to 1.00 (full reflection!)
+              of 1: 0.5  # BUFFED from 0.20 to 0.35
+              of 2: 1.0  # BUFFED from 0.40 to 0.60
+              else: 1.5  # BUFFED from 0.70 to 1.00 (full reflection!)
             let reflectDamageBase = bossContactDamage * reflectPercent
             let reflectDamageWithCrit = applyCriticalHit(game.player, reflectDamageBase)
             let actualDamage = applyEliteModifiers(enemy, reflectDamageWithCrit)
@@ -3710,6 +3710,56 @@ proc updateGame*(game: var Game, dt: float32) =
     if hitEnemy:
       game.bullets.delete(i)
       continue
+    
+    i += 1
+  
+  # Update meteorites (from etMage enemy)
+  i = 0
+  while i < game.meteorites.len:
+    let meteorite = game.meteorites[i]
+    
+    # Update warning timer
+    if meteorite.warningTimer > 0:
+      meteorite.warningTimer -= dt
+    else:
+      # Warning finished - meteorite starts falling
+      # Calculate velocity toward target
+      let direction = (meteorite.targetPos - meteorite.pos).normalize()
+      meteorite.vel = direction * 800.0  # Fast falling speed
+      
+      # Update position
+      meteorite.pos = meteorite.pos + meteorite.vel * dt
+      
+      # Check if meteorite reached target (or went past it)
+      let distToTarget = distance(meteorite.pos, meteorite.targetPos)
+      if distToTarget < 20.0 or meteorite.pos.y > meteorite.targetPos.y:
+        # Meteorite impact!
+        # Check collision with player
+        if distance(meteorite.pos, game.player.pos) < meteorite.radius + game.player.radius:
+          if takeDamage(game.player, meteorite.damage.float32):
+            game.state = gsGameOver
+          
+          # Track meteorite damage
+          trackPlayerDamage(game, meteorite.damage.float32, etMage)
+          
+          # Create damage number
+          game.damageNumbers.add(newDamageNumber(
+            game.player.pos.x,
+            game.player.pos.y,
+            meteorite.damage.float32,
+            fromPlayer = false,
+            isCritical = false,
+            damageType = dtExplosion
+          ))
+          
+          playSound(stPlayerHit, 0.6)
+        
+        # Create explosion effect
+        spawnExplosion(game.particles, meteorite.pos.x, meteorite.pos.y, Orange, 25)
+        
+        # Remove meteorite after impact
+        game.meteorites.delete(i)
+        continue
     
     i += 1
   

@@ -172,9 +172,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "+12% fire rate per 10% HP lost"
   of puThorns:
     case level
-    of 1: "Reflect 35% damage to attacker"
-    of 2: "Reflect 60% damage to attacker"
-    else: "Reflect 100% damage to attacker"
+    of 1: "Reflect 50% damage to attacker"
+    of 2: "Reflect 100% damage to attacker"
+    else: "Reflect 150% damage to attacker"
   of puBulletSplit:
     case level
     of 1: "Bullets split into 2 on hit"
