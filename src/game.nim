@@ -2250,8 +2250,7 @@ proc updateGame*(game: var Game, dt: float32) =
     
     # Poison visual effect (frame-independent)
     # Spawn ~20 particles/sec
-    if rand(1.0) < (20.0 * dt):
-      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 2)
+    spawnTimedParticles(game.particles, game.player.pos.x, game.player.pos.y, 20.0, Green, 2, dt)
   
   # Damage zone power-up effect
   if hasPowerUp(game.player, puDamageZone):
@@ -2346,12 +2345,8 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual fire particles (frame-independent)
         # 8% @ 60fps = 4.8 particles/sec → use dt scaling
-        if rand(1.0) < (4.8 * dt):
-          let particleAngle = rand(1.0) * PI * 2.0
-          let particleDist = rand(enemy.radius + 5.0)
-          let particleX = enemy.pos.x + cos(particleAngle) * particleDist
-          let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 3.0
-          spawnExplosion(game.particles, particleX, particleY, Red, 2)
+        spawnTimedParticlesAround(game.particles, enemy.pos.x, enemy.pos.y, 
+                                 enemy.radius + 5.0, 4.8, Red, 2, dt, -3.0)
   
   # Lightning Aura power-up effect - low damage with chain lightning
   if hasPowerUp(game.player, puLightningAura):
@@ -2409,9 +2404,8 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual lightning spark (frame-independent)
         # 10% @ 60fps = 6 particles/sec
-        if rand(1.0) < (6.0 * dt):
-          spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
-                        Color(r: 150, g: 200, b: 255, a: 255), 3)
+        spawnTimedParticles(game.particles, enemy.pos.x, enemy.pos.y, 6.0,
+                           Color(r: 150, g: 200, b: 255, a: 255), 3, dt)
         
         # Chain to nearby enemies
         var currentEnemy = enemy
@@ -2448,11 +2442,10 @@ proc updateGame*(game: var Game, dt: float32) =
             
             # Visual chain lightning particle (frame-independent)
             # 20% @ 60fps = 12 particles/sec
-            if rand(1.0) < (12.0 * dt):
-              let midX = (currentEnemy.pos.x + nearestEnemy.pos.x) / 2.0
-              let midY = (currentEnemy.pos.y + nearestEnemy.pos.y) / 2.0
-              spawnExplosion(game.particles, midX, midY,
-                            Color(r: 200, g: 220, b: 255, a: 200), 2)
+            let midX = (currentEnemy.pos.x + nearestEnemy.pos.x) / 2.0
+            let midY = (currentEnemy.pos.y + nearestEnemy.pos.y) / 2.0
+            spawnTimedParticles(game.particles, midX, midY, 12.0,
+                               Color(r: 200, g: 220, b: 255, a: 200), 2, dt)
             
             currentEnemy = nearestEnemy
           else:
@@ -2491,13 +2484,9 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual arcane particles (purple sparkles) (frame-independent)
         # 12% @ 60fps = 7.2 particles/sec
-        if rand(1.0) < (7.2 * dt):
-          let particleAngle = rand(1.0) * PI * 2.0
-          let particleDist = rand(enemy.radius + 3.0)
-          let particleX = enemy.pos.x + cos(particleAngle) * particleDist
-          let particleY = enemy.pos.y + sin(particleAngle) * particleDist
-          spawnExplosion(game.particles, particleX, particleY, 
-                        Color(r: 200, g: 100, b: 255, a: 255), 2)
+        spawnTimedParticlesAround(game.particles, enemy.pos.x, enemy.pos.y, 
+                                 enemy.radius + 3.0, 7.2, 
+                                 Color(r: 200, g: 100, b: 255, a: 255), 2, dt)
   
   # Poison Aura power-up effect - low damage, longer duration
   if hasPowerUp(game.player, puPoisonAura):
@@ -2538,13 +2527,9 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual poison particles (frame-independent)
         # 6% @ 60fps = 3.6 particles/sec
-        if rand(1.0) < (3.6 * dt):
-          let particleAngle = rand(1.0) * PI * 2.0
-          let particleDist = rand(enemy.radius + 5.0)
-          let particleX = enemy.pos.x + cos(particleAngle) * particleDist
-          let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 3.0
-          spawnExplosion(game.particles, particleX, particleY, 
-                        Color(r: 100, g: 255, a: 200), 2)
+        spawnTimedParticlesAround(game.particles, enemy.pos.x, enemy.pos.y, 
+                                 enemy.radius + 5.0, 3.6, 
+                                 Color(r: 100, g: 255, a: 200), 2, dt, -3.0)
   
   # Wind Aura power-up effect - pushes enemies away from player (slow aura but different mechanic)
   if hasPowerUp(game.player, puWindAura):
@@ -2584,13 +2569,9 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual wind particles (outward from player toward enemies) (frame-independent)
         # 8% @ 60fps = 4.8 particles/sec
-        if rand(1.0) < (4.8 * dt):
-          let particleAngle = rand(1.0) * PI * 2.0
-          let particleDist = rand(windRadius * 0.8)
-          let particleX = game.player.pos.x + cos(particleAngle) * particleDist
-          let particleY = game.player.pos.y + sin(particleAngle) * particleDist
-          spawnExplosion(game.particles, particleX, particleY, 
-                        Color(r: 200, g: 230, b: 255, a: 150), 2)
+        spawnTimedParticlesAround(game.particles, game.player.pos.x, game.player.pos.y, 
+                                 windRadius * 0.8, 4.8, 
+                                 Color(r: 200, g: 230, b: 255, a: 150), 2, dt)
   
   # Blood Aura power-up effect - damage with lifesteal
   if hasPowerUp(game.player, puBloodAura):
@@ -2642,13 +2623,9 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual blood particles (frame-independent)
         # 8% @ 60fps = 4.8 particles/sec
-        if rand(1.0) < (4.8 * dt):
-          let particleAngle = rand(1.0) * PI * 2.0
-          let particleDist = rand(enemy.radius + 5.0)
-          let particleX = enemy.pos.x + cos(particleAngle) * particleDist
-          let particleY = enemy.pos.y + sin(particleAngle) * particleDist - 3.0
-          spawnExplosion(game.particles, particleX, particleY, 
-                        Color(r: 255, g: 50, b: 50, a: 255), 2)
+        spawnTimedParticlesAround(game.particles, enemy.pos.x, enemy.pos.y, 
+                                 enemy.radius + 5.0, 4.8, 
+                                 Color(r: 255, g: 50, b: 50, a: 255), 2, dt, -3.0)
     
     # Apply accumulated healing to player
     if totalHealing > 0:
@@ -2683,13 +2660,9 @@ proc updateGame*(game: var Game, dt: float32) =
         # Spawn visual particles for gravity effect (more for ranged enemies) (frame-independent)
         # 25% @ 60fps = 15 particles/sec for ranged, 15% = 9 particles/sec for melee
         let particleRate = if isRanged: 15.0 else: 9.0
-        if rand(1.0) < (particleRate * dt):
-          let particleAngle = rand(1.0) * PI * 2.0
-          let particleDist = rand(pullRadius)
-          let particleX = game.player.pos.x + cos(particleAngle) * particleDist
-          let particleY = game.player.pos.y + sin(particleAngle) * particleDist
-          let particleColor = if isRanged: Color(r: 138, g: 43, b: 226, a: 220) else: Color(r: 75, g: 0, b: 130, a: 200)
-          spawnExplosion(game.particles, particleX, particleY, particleColor, 2)
+        let particleColor = if isRanged: Color(r: 138, g: 43, b: 226, a: 220) else: Color(r: 75, g: 0, b: 130, a: 200)
+        spawnTimedParticlesAround(game.particles, game.player.pos.x, game.player.pos.y,
+                                 pullRadius, particleRate, particleColor, 2, dt)
     # Also pull coins
     let coinPullMultiplier = 0.0  # No coins for now
     for coin in game.coins:
@@ -3956,10 +3929,8 @@ proc updateGame*(game: var Game, dt: float32) =
       moveCoinToPlayer(game.coins[i], game.player.pos, dt)
       
       # Add subtle particle trail for magnet effect (frame-independent)
-      # 30% @ 60fps = 18 particles/sec
-      if rand(1.0) < (18.0 * dt):
-        spawnExplosion(game.particles, game.coins[i].pos.x, game.coins[i].pos.y, 
-                      Color(r: 255, g: 215, b: 0, a: 150), 1)
+      spawnTimedParticles(game.particles, game.coins[i].pos.x, game.coins[i].pos.y, 18.0,
+                         Color(r: 255, g: 215, b: 0, a: 150), 1, dt)
     
     # Enhanced magnet effect from consumable
     if game.player.magnetTimer > 0:
@@ -4030,10 +4001,9 @@ proc updateGame*(game: var Game, dt: float32) =
       # Pull consumable toward player with magnet animation
       moveConsumableToPlayer(game.consumables[i], game.player.pos, dt)
       
-      # Add subtle particle trail for magnet effect
-      if rand(100) < 30:  # 30% chance per frame
-        spawnExplosion(game.particles, game.consumables[i].pos.x, game.consumables[i].pos.y, 
-                      Purple, 1)
+      # Add subtle particle trail for magnet effect (frame-independent)
+      spawnTimedParticles(game.particles, game.consumables[i].pos.x, game.consumables[i].pos.y,
+                         18.0, Purple, 1, dt)
     
     if checkPlayerCollision(game.consumables[i], game.player):
       playSound(stPowerUp, 0.6)

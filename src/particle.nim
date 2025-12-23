@@ -28,6 +28,29 @@ proc spawnExplosion*(particles: var seq[Particle], x, y: float32, color: Color, 
   for i in 0..<count:
     particles.add(newParticle(x, y, color, 80 + rand(120).float32))
 
+proc spawnTimedParticles*(particles: var seq[Particle], x, y: float32, rate: float32, 
+                          color: Color, count: int, dt: float32) =
+  ## Frame-independent particle spawning helper
+  ## rate: particles per second to spawn
+  ## Uses probabilistic spawning: if rand(1.0) < (rate * dt)
+  if rand(1.0) < (rate * dt):
+    spawnExplosion(particles, x, y, color, count)
+
+proc spawnTimedParticlesAround*(particles: var seq[Particle], centerX, centerY: float32, 
+                                maxRadius: float32, rate: float32, color: Color, 
+                                count: int, dt: float32, offsetY: float32 = 0.0) =
+  ## Frame-independent particle spawning helper with random positioning around a center
+  ## Spawns particles at a random angle and distance from center point
+  ## rate: particles per second to spawn
+  ## maxRadius: maximum distance from center
+  ## offsetY: optional Y offset for particles (e.g. -3.0 for rising flames)
+  if rand(1.0) < (rate * dt):
+    let particleAngle = rand(1.0) * PI * 2.0
+    let particleDist = rand(maxRadius)
+    let particleX = centerX + cos(particleAngle) * particleDist
+    let particleY = centerY + sin(particleAngle) * particleDist + offsetY
+    spawnExplosion(particles, particleX, particleY, color, count)
+
 proc spawnShockwave*(particles: var seq[Particle], x, y: float32, radius: float32) =
   let particleCount = (radius * 0.5).int
   for i in 0..<particleCount:
