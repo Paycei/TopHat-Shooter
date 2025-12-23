@@ -348,6 +348,13 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
       result -= enemy.shieldHp
       enemy.shieldHp = 0
 
+proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
+  ## Helper to apply damage to enemy with elite modifiers
+  ## Combines applyEliteModifiers and HP reduction in one call
+  ## Returns the actual damage dealt after modifiers
+  result = applyEliteModifiers(enemy, baseDamage)
+  enemy.hp -= result
+
 proc applyCriticalHit(player: Player, baseDamage: float32): float32 =
   ## Applies critical hit chance to any damage source
   ## Returns damage with critical multiplier applied if crit occurs
@@ -1788,8 +1795,7 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
     actualBaseDamage *= 3.0  # +200% damage
   
   let damageWithCrit = applyCriticalHit(game.player, actualBaseDamage)
-  let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
-  enemy.hp -= actualDamage
+  let actualDamage = damageEnemy(enemy, damageWithCrit)
   
   # Track statistics for the orb type
   if hasPowerUp(game.player, puRotatingOrbs):
@@ -1886,8 +1892,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     # Apply chain damage
     if nearestEnemy != nil:
       let chainDamageWithCrit = applyCriticalHit(game.player, baseDamage * 0.7)
-      let chainDamage = applyEliteModifiers(nearestEnemy, chainDamageWithCrit)
-      nearestEnemy.hp -= chainDamage
+      let chainDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
       
       game.showDamage(nearestEnemy.pos, chainDamage, fromPlayer = true,
                       isCritical = chainDamageWithCrit > baseDamage * 0.7, damageType = dtLightning)
@@ -1915,8 +1920,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
         
         if secondNearestEnemy != nil:
           let secondChainDamageWithCrit = applyCriticalHit(game.player, baseDamage * 0.7)
-          let secondChainDamage = applyEliteModifiers(secondNearestEnemy, secondChainDamageWithCrit)
-          secondNearestEnemy.hp -= secondChainDamage
+          let secondChainDamage = damageEnemy(secondNearestEnemy, secondChainDamageWithCrit)
           
           game.showDamage(secondNearestEnemy.pos, secondChainDamage, fromPlayer = true,
                           isCritical = secondChainDamageWithCrit > baseDamage * 0.7, damageType = dtLightning)
@@ -2268,8 +2272,7 @@ proc updateGame*(game: var Game, dt: float32) =
       let dist = distance(game.player.pos, enemy.pos)
       if dist < zoneRadius:
         let damageWithCrit = applyCriticalHit(game.player, zoneDamage * dt)
-        let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
-        enemy.hp -= actualDamage
+        let actualDamage = damageEnemy(enemy, damageWithCrit)
         
         # Track damage zone damage for statistics
         trackPowerUpDamage(game, puDamageZone, actualDamage)
@@ -2385,8 +2388,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if enemy notin processedEnemies:
         # Apply initial damage with crit chance
         let damageWithCrit = applyCriticalHit(game.player, lightningDamagePerSec * dt)
-        let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
-        enemy.hp -= actualDamage
+        let actualDamage = damageEnemy(enemy, damageWithCrit)
         processedEnemies.add(enemy)
         
         # Track lightning aura damage for statistics
@@ -2424,8 +2426,7 @@ proc updateGame*(game: var Game, dt: float32) =
           if nearestEnemy != nil:
             # Apply chained damage (same as initial) with crit chance
             let chainDamageWithCrit = applyCriticalHit(game.player, lightningDamagePerSec * dt)
-            let chainedDamage = applyEliteModifiers(nearestEnemy, chainDamageWithCrit)
-            nearestEnemy.hp -= chainedDamage
+            let chainedDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
             processedEnemies.add(nearestEnemy)
             
             # Track chained lightning damage for statistics
@@ -2472,8 +2473,7 @@ proc updateGame*(game: var Game, dt: float32) =
       let dist = distance(game.player.pos, enemy.pos)
       if dist < arcaneRadius:
         let damageWithCrit = applyCriticalHit(game.player, arcaneDamagePerSec * dt)
-        let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
-        enemy.hp -= actualDamage
+        let actualDamage = damageEnemy(enemy, damageWithCrit)
         
         # Track arcane aura damage for statistics
         trackPowerUpDamage(game, puArcaneAura, actualDamage)
@@ -2608,8 +2608,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if dist < bloodRadius:
         # Apply blood damage with crit chance
         let damageWithCrit = applyCriticalHit(game.player, bloodDamagePerSec * dt)
-        let actualDamage = applyEliteModifiers(enemy, damageWithCrit)
-        enemy.hp -= actualDamage
+        let actualDamage = damageEnemy(enemy, damageWithCrit)
         
         # Track blood aura damage for statistics
         trackPowerUpDamage(game, puBloodAura, actualDamage)
@@ -2888,8 +2887,7 @@ proc updateGame*(game: var Game, dt: float32) =
     # Update all active effects for this enemy
     let effectDamage = updateEffects(enemy, effectiveDt)
     if effectDamage > 0:
-      let actualDamage = applyEliteModifiers(enemy, effectDamage)
-      enemy.hp -= actualDamage
+      let actualDamage = damageEnemy(enemy, effectDamage)
       
       # Track DoT damage for power-up statistics based on active effect sources
       if hasActiveEffect(enemy, etPoison):
@@ -3202,8 +3200,7 @@ proc updateGame*(game: var Game, dt: float32) =
               else: 1.5  # BUFFED from 0.70 to 1.00 (full reflection!)
             let reflectDamageBase = bossContactDamage * reflectPercent
             let reflectDamageWithCrit = applyCriticalHit(game.player, reflectDamageBase)
-            let actualDamage = applyEliteModifiers(enemy, reflectDamageWithCrit)
-            enemy.hp -= actualDamage
+            let actualDamage = damageEnemy(enemy, reflectDamageWithCrit)
             
             # Track thorns damage for statistics
             trackPowerUpDamage(game, puThorns, actualDamage)
@@ -3249,8 +3246,7 @@ proc updateGame*(game: var Game, dt: float32) =
             else: 1.00  # BUFFED from 0.70 to 1.00 (full reflection!)
           let reflectedDamageBase = enemyContactDamage * reflectPercent
           let reflectedDamageWithCrit = applyCriticalHit(game.player, reflectedDamageBase)
-          let actualDamage = applyEliteModifiers(enemy, reflectedDamageWithCrit)
-          enemy.hp -= actualDamage
+          let actualDamage = damageEnemy(enemy, reflectedDamageWithCrit)
           
           # Track thorns damage for statistics
           trackPowerUpDamage(game, puThorns, actualDamage)
@@ -3632,8 +3628,7 @@ proc updateGame*(game: var Game, dt: float32) =
                 if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
                   let chainDmgBase = finalDamage * chainDamage
                   let chainDmgWithCrit = applyCriticalHit(game.player, chainDmgBase)
-                  let actualDamage = applyEliteModifiers(game.enemies[k], chainDmgWithCrit)
-                  game.enemies[k].hp -= actualDamage
+                  let actualDamage = damageEnemy(game.enemies[k], chainDmgWithCrit)
                   
                   # Create damage number for chain lightning damage
                   if actualDamage > 0:
@@ -3699,8 +3694,7 @@ proc updateGame*(game: var Game, dt: float32) =
               let dist = distance(bullet.pos, game.enemies[k].pos)
               if dist < explosionRadius:
                 let explosionDmg = finalDamage * 0.5
-                let actualDamage = applyEliteModifiers(game.enemies[k], explosionDmg)
-                game.enemies[k].hp -= actualDamage
+                let actualDamage = damageEnemy(game.enemies[k], explosionDmg)
                 
                 # Track explosive bullet damage contribution
                 if actualDamage > 0:
@@ -3824,8 +3818,7 @@ proc updateGame*(game: var Game, dt: float32) =
               break
           
           if sourceEnemy != nil:
-            let actualDamage = applyEliteModifiers(sourceEnemy, reflectedDamage)
-            sourceEnemy.hp -= actualDamage
+            let actualDamage = damageEnemy(sourceEnemy, reflectedDamage)
             
             # Track thorns damage for statistics
             trackPowerUpDamage(game, puThorns, actualDamage)
