@@ -59,10 +59,7 @@ proc spawnShockwave*(particles: var seq[Particle], x, y: float32, radius: float3
     let py = y + sin(angle) * radius
     particles.add(newParticle(px, py, Color(r: 255, g: 200, b: 100, a: 255), 50))
 
-# ============================================================================
 # DAMAGE NUMBERS SYSTEM
-# ============================================================================
-
 proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritical: bool = false, damageType: DamageType = dtDefault): DamageNumber =
   ## Create a new floating damage number
   ## fromPlayer: true if player dealt damage to enemy, false if enemy dealt damage to player

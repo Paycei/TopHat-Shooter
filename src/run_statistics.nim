@@ -1,9 +1,3 @@
-# ============================================================================
-# RUN STATISTICS SYSTEM
-# Complete per-run statistics tracking and integration
-# Consolidated from: run_statistics_types, run_statistics, run_statistics_integration
-# ============================================================================
-
 import types, std/tables, times, math, strutils
 
 # Forward declarations for functions defined later in file
@@ -11,12 +5,7 @@ proc calculateDerivedMetrics*()
 proc updateDPS*(damage: float32)
 proc calculatePlayStyle*()
 
-# ============================================================================
-# TYPE DEFINITIONS
-# Per-run (single game session) statistics tracking
 # Tracks ALL measurable gameplay data for analysis and visualization
-# ============================================================================
-
 type
   # EVENT TRACKING - Time-series events for detailed timeline analysis
   GameEventType* = enum
@@ -112,10 +101,7 @@ type
     finalCoins*: int
     finalPowerUps*: seq[PowerUp]
 
-# ============================================================================
 # INITIALIZATION HELPERS
-# ============================================================================
-
 proc initCombatStats*(): CombatStats =
   CombatStats(
     killsByType: initTable[EnemyType, int](),
@@ -169,16 +155,10 @@ proc initRunStatistics*(): RunStatistics =
     finalPowerUps: @[]
   )
 
-# ============================================================================
 # GLOBAL RUN STATS INSTANCE
-# ============================================================================
-
 var currentRunStats*: RunStatistics = nil
 
-# ============================================================================
 # RUN LIFECYCLE
-# ============================================================================
-
 proc startNewRun*(gameMode: GameMode) =
   currentRunStats = initRunStatistics()
   currentRunStats.gameMode = gameMode
@@ -202,10 +182,7 @@ proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool
   calculateDerivedMetrics()
   echo "[Stats] Run ended - Wave: ", waveReached, " Score: ", finalScore
 
-# ============================================================================
 # COMBAT TRACKING
-# ============================================================================
-
 proc recordShotFired*() =
   if currentRunStats.isNil: return
   currentRunStats.combat.shotsFired += 1
@@ -289,10 +266,7 @@ proc recordSpecialMechanic*(mechType: string) =
   of "split": currentRunStats.combat.splitBullets += 1
   else: discard
 
-# ============================================================================
 # MOVEMENT TRACKING
-# ============================================================================
-
 proc updateMovement*(player: Player, dt: float32, gameTime: float32) =
   if currentRunStats.isNil: return
   
@@ -346,10 +320,7 @@ proc recordNearDeath*(gameTime: float32, playerPos: Vector2f) =
     position: playerPos
   ))
 
-# ============================================================================
 # RESOURCE TRACKING
-# ============================================================================
-
 proc recordCoinEarned*(amount: int) =
   if currentRunStats.isNil: return
   currentRunStats.resources.coinsEarned += amount
@@ -403,10 +374,7 @@ proc recordConsumable*(consumType: ConsumableType) =
   if consumType == ctHealth:
     currentRunStats.resources.healthConsumablesUsed += 1
 
-# ============================================================================
 # POWER-UP TRACKING
-# ============================================================================
-
 proc recordPowerUpChosen*(powerUp: PowerUp, gameTime: float32) =
   if currentRunStats.isNil: return
   
@@ -445,10 +413,7 @@ proc recordPowerUpKill*(powerType: PowerUpType) =
     currentRunStats.powerUps.killContribution[powerType] = 0
   currentRunStats.powerUps.killContribution[powerType] += 1
 
-# ============================================================================
 # PERFORMANCE TRACKING
-# ============================================================================
-
 proc recordWaveComplete*(waveNumber: int, waveTime: float32, gameTime: float32) =
   if currentRunStats.isNil: return
   
@@ -488,10 +453,7 @@ proc updateRunDuration*(dt: float32) =
   if currentRunStats.isNil: return
   currentRunStats.runDuration += dt
 
-# ============================================================================
 # DERIVED METRICS CALCULATION
-# ============================================================================
-
 proc calculatePlayStyle*() =
   if currentRunStats.isNil: return
   
@@ -582,10 +544,7 @@ proc calculateDerivedMetrics*() =
   calculatePlayStyle()
   echo "[Stats] Derived metrics calculated"
 
-# ============================================================================
 # LAST RUN STORAGE
-# ============================================================================
-
 var lastCompletedRun*: RunStatistics = nil
 
 proc saveLastCompletedRun*() =
@@ -607,11 +566,6 @@ proc hasLastRunStats*(): bool =
 
 proc getLastRunStats*(): RunStatistics =
   result = lastCompletedRun
-
-# ============================================================================
-# INTEGRATION WITH GAME SYSTEM
-# Functions to hook statistics tracking into game update loops
-# ============================================================================
 
 # Game Lifecycle
 proc initializeRunTracking*(game: Game) =

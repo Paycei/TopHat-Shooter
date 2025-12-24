@@ -3,7 +3,7 @@ import raylib, math, std/tables
 type
   GameState* = enum
     gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings, gsStatistics, gsRunStats
-  
+
   GameMode* = enum
     gmWaveBased,      # New primary mode: waves → upgrades → boss → legendary
     gmTimeSurvival,   # Old mode: time-based survival
@@ -62,7 +62,7 @@ type
     puRegeneration,    # Slowly restore HP
     puDodgeChance,     # Chance to evade damage
     puCriticalHit,     # Random critical damage
-    puBloodBullets,       # Lifesteal on hit
+    puBloodBullets,    # Lifesteal on hit
     puBulletRicochet,  # Bullets ricochet off enemies
     puSlowField,       # Enemies move slower nearby
     puRage,            # Damage increases at low HP
@@ -102,7 +102,7 @@ type
     puBloodOrb,        # Blood elemental orb
     puBloodAura,       # Blood damage aura with lifesteal
     puBloodMastery     # LEGENDARY: Enhance all blood effects (damage, lifesteal)
-  
+
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
     prLegendary        # Special upgrades after bosses
@@ -133,7 +133,7 @@ type
 
   ElementType* = enum
     etPoison,      # Green - poison damage over time
-    etFire,        # Red/Orange - fire damage over time  
+    etFire,        # Red/Orange - fire damage over time
     etLightning,   # Yellow/Blue - instant damage + chain
     etWind,        # Cyan - knockback
     etFrost,       # Light blue - slow effect
@@ -229,7 +229,7 @@ type
     pos*: Vector2f
     vel*: Vector2f
     radius*: float32              # Combat hitbox (visual size, used for bullets/player collision)
-    collisionRadius*: float32     # Enemy-to-enemy collision hitbox (~60% of radius)
+    collisionRadius*: float32     # Enemy-to-enemy collision hitbox
     hp*: float32
     maxHp*: float32
     speed*: float32

@@ -492,11 +492,8 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
     enemy.shootTimer += dt
     enemy.spawnTimer += dt
     
-    # ========================================================================
     # CUSTOM BOSS COLOR UPDATE (HP-based phases)
-    # ========================================================================
     # Update custom boss color based on HP percentage and phase definitions
-    # ========================================================================
     let hpPercent = enemy.hp / enemy.maxHp
     if hpPercent <= 0.25:
       # Final phase - bright glow
@@ -2039,12 +2036,9 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
   let useCustomBoss = isBossWave(waveNumber)
   
   if useCustomBoss:
-    # ========================================================================
     # CUSTOM BOSS CREATION (Waves 1-60, every 5 waves)
-    # ========================================================================
     # Custom bosses use the advanced definition system from boss_definitions.nim
     # They have HP-based phases (defined in BossDefinition) and don't transform
-    # ========================================================================
     let bossDef = getBossForWave(waveNumber)
     let centerX = screenWidth.float32 / 2
     let centerY = screenHeight.float32 / 2

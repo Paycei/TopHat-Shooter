@@ -1,14 +1,4 @@
-# ============================================================================
-# GLOBAL STATISTICS SYSTEM
-# Lifetime/aggregate statistics across all game sessions
-# Consolidated from: statistics_types, statistics
-# ============================================================================
-
 import json, os, times, save_system
-
-# ============================================================================
-# TYPE DEFINITIONS
-# ============================================================================
 
 type
   GameModeStats* = object
@@ -34,16 +24,10 @@ type
     firstPlayDate*: string
     lastPlayDate*: string
 
-# ============================================================================
 # GLOBAL STATISTICS INSTANCE
-# ============================================================================
-
 var globalStats*: Statistics
 
-# ============================================================================
 # INITIALIZATION
-# ============================================================================
-
 proc initStatistics*(): Statistics =
   result = Statistics(
     waveMode: GameModeStats(
@@ -83,10 +67,7 @@ proc initStatistics*(): Statistics =
   )
   globalStats = result
 
-# ============================================================================
 # JSON SERIALIZATION
-# ============================================================================
-
 proc gameModeStatsToJson(stats: GameModeStats): JsonNode =
   result = %* {
     "gamesPlayed": stats.gamesPlayed,
@@ -156,10 +137,7 @@ proc jsonToStatistics*(jsonNode: JsonNode, stats: Statistics) =
   if jsonNode.hasKey("lastPlayDate"):
     stats.lastPlayDate = jsonNode["lastPlayDate"].getStr()
 
-# ============================================================================
 # HELPER FUNCTIONS
-# ============================================================================
-
 proc formatTime*(seconds: float32): string =
   let totalSecs = int(seconds)
   let hours = totalSecs div 3600
@@ -173,10 +151,7 @@ proc formatTime*(seconds: float32): string =
   else:
     result = $secs & "s"
 
-# ============================================================================
 # STATISTICS UPDATE
-# ============================================================================
-
 proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int, 
                   timeSurvived: float32, kills: int, coins: int, 
                   bossesKilled: int) =
@@ -218,10 +193,7 @@ proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int,
       (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) / 
       float32(modeStats.gamesPlayed)
 
-# ============================================================================
 # SAVE/LOAD
-# ============================================================================
-
 proc saveStatistics*(stats: Statistics): bool =
   try:
     let jsonData = statisticsToJson(stats)

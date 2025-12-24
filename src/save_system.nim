@@ -1,4 +1,21 @@
-import json, os, settings_types, run_statistics, types, std/tables
+import json, os, run_statistics, types, std/tables
+
+# Settings type definition (moved from settings_types.nim)
+type
+  Settings* = ref object
+    fpsLimit*: int32
+    volume*: float32
+    musicVolume*: float32
+    inputBuffer*: string
+    editingFPS*: bool
+    editingVolume*: bool
+    editingMusicVolume*: bool
+    fullscreen*: bool
+    showFPS*: bool  # New setting to show FPS counter
+    mouseSupport*: bool  # Enable mouse support in menus (always works in-game and settings)
+    showCursorInMenus*: bool  # Show cursor in menus when mouseSupport is disabled
+    showDebugStats*: bool  # Show fire rate and damage in debug panel
+    showHints*: bool  # Show on-screen hints (E: Wall, ESC: Pause, etc)
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -111,11 +128,6 @@ proc loadSettings*(settings: Settings): bool =
   except Exception as e:
     echo "Unexpected error loading settings: ", e.msg
     return false
-
-
-# ============================================================================
-# RUN STATISTICS SAVE/LOAD
-# ============================================================================
 
 # Helper to convert Table[EnemyType, int] to JSON
 proc enemyTypeIntTableToJson(table: Table[EnemyType, int]): JsonNode =

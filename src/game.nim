@@ -3,9 +3,7 @@ import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, parti
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
 
-# ==================== BOSS WAVE MANAGER ====================
 # Centralized boss wave and coin management
-
 proc startBossWave*(manager: var BossWaveManager) =
   manager.active = true; manager.coinActive = false
 
@@ -45,8 +43,7 @@ proc completeBossWave*(game: Game) =
   initPowerUpRollAnimation(game)
   game.state = gsPowerUpSelect
 
-# ==================== AURA SYSTEM REFACTORING ====================
-# Unified aura configuration and rendering system to eliminate code duplication
+# Unified aura configuration and rendering system
 
 type
   AuraVisualStyle = enum
@@ -353,8 +350,6 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
   # Draw outer border (common to all auras)
   drawCircleLines(pos.x.int32, pos.y.int32, config.radius, config.borderColor)
 
-# ==================== END AURA SYSTEM ====================
-
 # CONFIGURABLE: Loot boundary margins (how far from edge loot can spawn)
 const LOOT_MARGIN = 50.0  # Distance from screen edge
 
@@ -415,9 +410,7 @@ proc applyCriticalHit(player: Player, baseDamage: float32): float32 =
   else:
     return baseDamage
 
-# ============================================================================
 # DAMAGE NUMBERS HELPER
-# ============================================================================
 
 proc showDamage*(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool, 
                 isCritical: bool = false, damageType: DamageType = dtDefault) =
@@ -453,6 +446,243 @@ proc accumulateAndShowAuraDamage(game: Game, enemy: Enemy, actualDamage: float32
     # Reset accumulator and timer
     enemy.auraDamageAccumulator = 0
     enemy.lastAuraDamageNumberTime = game.time
+
+# UNIFIED BULLET EFFECT SYSTEM
+
+type
+  BulletEffectType* = enum
+    befFrost
+    befPoison
+    befFire
+    befWind
+    befChainLightning
+    befBlood
+
+  BulletEffect* = object
+    effectType*: BulletEffectType
+    baseDamage*: float32
+    duration*: float32
+    hasMastery*: bool
+    level*: int
+
+proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
+  ## Extract all active bullet effects from a bullet
+  result = @[]
+  
+  # Frost effect
+  if bullet.slowAmount > 0 and hasPowerUp(game.player, puFrostShots):
+    result.add(BulletEffect(
+      effectType: befFrost,
+      baseDamage: bullet.damage,
+      duration: 999999.0,  # Infinite
+      hasMastery: game.player.hasFrostMastery,
+      level: getPowerUpLevel(game.player, puFrostShots)
+    ))
+  
+  # Poison effect
+  if bullet.poisonDuration > 0 and hasPowerUp(game.player, puPoisonShot):
+    let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
+    let poisonBaseScaling = game.player.damage * 0.1
+    let poisonDmg = case poisonLevel
+      of 1: 1.0 + poisonBaseScaling
+      of 2: 1.5 + poisonBaseScaling
+      else: 2.0 + poisonBaseScaling
+    
+    result.add(BulletEffect(
+      effectType: befPoison,
+      baseDamage: poisonDmg,
+      duration: bullet.poisonDuration,
+      hasMastery: game.player.hasPoisonMastery,
+      level: poisonLevel
+    ))
+  
+  # Fire effect
+  if bullet.fireDuration > 0 and hasPowerUp(game.player, puFireBullets):
+    let fireLevel = getPowerUpLevel(game.player, puFireBullets)
+    let fireBaseScaling = game.player.damage * 0.1
+    let fireDmg = case fireLevel
+      of 1: 0.5 + fireBaseScaling
+      of 2: 1.0 + fireBaseScaling
+      else: 1.5 + fireBaseScaling
+    
+    result.add(BulletEffect(
+      effectType: befFire,
+      baseDamage: fireDmg,
+      duration: bullet.fireDuration,
+      hasMastery: game.player.hasFireMastery,
+      level: fireLevel
+    ))
+  
+  # Wind effect
+  if bullet.windPushForce > 0 and hasPowerUp(game.player, puWindBullets):
+    result.add(BulletEffect(
+      effectType: befWind,
+      baseDamage: bullet.damage,
+      duration: 0.0,  # Instant effect
+      hasMastery: game.player.hasWindMastery,
+      level: getPowerUpLevel(game.player, puWindBullets)
+    ))
+  
+  # Chain Lightning effect
+  if hasPowerUp(game.player, puChainLightning):
+    result.add(BulletEffect(
+      effectType: befChainLightning,
+      baseDamage: bullet.damage,
+      duration: 0.0,  # Instant effect
+      hasMastery: game.player.hasLightningMastery,
+      level: getPowerUpLevel(game.player, puChainLightning)
+    ))
+  
+  # Blood effect
+  if hasPowerUp(game.player, puBloodBullets):
+    result.add(BulletEffect(
+      effectType: befBlood,
+      baseDamage: bullet.damage,
+      duration: 0.0,  # Instant effect
+      hasMastery: game.player.hasBloodMastery,
+      level: getPowerUpLevel(game.player, puBloodBullets)
+    ))
+
+proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy, 
+                       bullet: Bullet, dt: float32) =
+  ## Apply a single bullet effect to an enemy
+  case effect.effectType
+  of befFrost:
+    # Frost: Permanent slow
+    enemy.slowTimer = effect.duration
+    enemy.slowAmount = bullet.slowAmount
+  
+  of befPoison:
+    # Poison: DoT effect
+    var poisonDmg = effect.baseDamage
+    var poisonDur = effect.duration
+    
+    if effect.hasMastery:
+      poisonDmg *= 2.5  # +150% damage
+      poisonDur *= 2.0  # +100% duration
+    
+    applyEffect(enemy, etPoison, poisonDmg, poisonDur, "shot")
+    
+    # Apply slow only with mastery
+    if effect.hasMastery:
+      enemy.slowTimer = max(enemy.slowTimer, poisonDur)
+      enemy.slowAmount = max(enemy.slowAmount, 0.30)  # 30% slow
+  
+  of befFire:
+    # Fire: DoT effect
+    var fireDmg = effect.baseDamage
+    var fireDur = effect.duration
+    
+    if effect.hasMastery:
+      fireDmg *= 2.5  # +150% damage
+      fireDur *= 2.0  # +100% duration
+    
+    applyEffect(enemy, etFire, fireDmg, fireDur, "shot")
+    
+    # Apply slow only with mastery
+    if effect.hasMastery:
+      enemy.slowTimer = max(enemy.slowTimer, fireDur)
+      enemy.slowAmount = max(enemy.slowAmount, 0.35)  # 35% slow
+  
+  of befWind:
+    # Wind: Knockback
+    let pushDir = (enemy.pos - game.player.pos).normalize()
+    let bossResistance = if enemy.isBoss: 0.1 else: 1.0
+    
+    var actualWindForce = bullet.windPushForce
+    if effect.hasMastery:
+      actualWindForce *= 2.5  # +150% stronger
+    
+    enemy.pos.x += pushDir.x * actualWindForce * dt * bossResistance
+    enemy.pos.y += pushDir.y * actualWindForce * dt * bossResistance
+    
+    # Apply slow only with mastery
+    if effect.hasMastery:
+      enemy.slowTimer = 0.2
+      if enemy.slowAmount < 0.40:
+        enemy.slowAmount = 0.40  # 40% slow
+    
+    # Visual wind effect particles
+    for k in 0..3:
+      let particleAngle = rand(1.0) * PI * 2.0
+      let particleDist = rand(enemy.radius + 10.0)
+      let particleX = enemy.pos.x + cos(particleAngle) * particleDist
+      let particleY = enemy.pos.y + sin(particleAngle) * particleDist
+      spawnExplosion(game.particles, particleX, particleY, 
+                    Color(r: 200, g: 230, b: 255, a: 180), 2)
+  
+  of befChainLightning:
+    # Chain lightning: Chain to nearby enemies
+    if enemy.chainLightningCooldown <= 0:
+      let chainCount = effect.level  # 1, 2, or 3 chains
+      let chainDamage = case effect.level
+        of 1: 0.7
+        of 2: 0.8
+        else: 0.9
+      
+      var chainRange = case effect.level
+        of 1: 120.0
+        of 2: 140.0
+        else: 160.0
+      
+      if effect.hasMastery:
+        chainRange *= 1.5  # +50% range
+      
+      # Stun primary target
+      enemy.slowTimer = max(enemy.slowTimer, 0.05)
+      enemy.slowAmount = 1.0  # 100% slow = stun
+      enemy.chainLightningCooldown = 0.3
+      
+      # Find nearby enemies to chain to
+      var chained = 0
+      for k in 0..<game.enemies.len:
+        if game.enemies[k] != enemy and chained < chainCount:
+          let dist = distance(enemy.pos, game.enemies[k].pos)
+          if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
+            let chainDmgBase = effect.baseDamage * chainDamage
+            let chainDmgWithCrit = applyCriticalHit(game.player, chainDmgBase)
+            let actualDamage = damageEnemy(game.enemies[k], chainDmgWithCrit)
+            
+            # Create damage number
+            if actualDamage > 0:
+              showDamage(game, game.enemies[k].pos, actualDamage, true, 
+                        chainDmgWithCrit > chainDmgBase, dtLightning)
+            
+            game.enemies[k].chainLightningCooldown = 0.3
+            game.enemies[k].slowTimer = max(game.enemies[k].slowTimer, 0.05)
+            game.enemies[k].slowAmount = 1.0
+            chained += 1
+            
+            # Lightning visual effect
+            for step in 0..10:
+              let t = step.float32 / 10.0
+              let x = enemy.pos.x + (game.enemies[k].pos.x - enemy.pos.x) * t
+              let y = enemy.pos.y + (game.enemies[k].pos.y - enemy.pos.y) * t
+              spawnExplosion(game.particles, x, y, Color(r: 255, g: 255, b: 100, a: 255), 2)
+  
+  of befBlood:
+    # Blood: Lifesteal
+    var healPercent = case effect.level
+      of 1: 0.015  # 1.5%
+      of 2: 0.025  # 2.5%
+      else: 0.035  # 3.5%
+    
+    if effect.hasMastery:
+      healPercent *= 2.5  # +150% lifesteal
+    
+    let healAmount = effect.baseDamage * healPercent
+    heal(game.player, healAmount)
+    
+    if healAmount > 0.01:
+      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 3)
+      showDamage(game, game.player.pos, healAmount, true, false, dtHeal)
+
+proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float32) =
+  ## Apply all bullet effects to an enemy - unified entry point
+  let effects = getBulletEffects(game, bullet)
+  
+  for effect in effects:
+    applyBulletEffect(game, effect, enemy, bullet, dt)
 
 proc newGame*(screenWidth, screenHeight: int32): Game =
   result = Game(
@@ -1813,9 +2043,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
       ))
 
-# ============================================================================
-# ORBITAL WEAPONS SYSTEM - REFACTORED
-# ============================================================================
+# ORBITAL WEAPONS SYSTEM
 
 proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy, 
                     baseDamage: float32, orbPos: Vector2f, currentTime: float32,
@@ -2119,10 +2347,7 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
     for idx in toRemove:
       orb.lastHitTime.del(idx)
 
-# ============================================================================
 # MAIN GAME UPDATE LOOP
-# ============================================================================
-
 proc updateGame*(game: var Game, dt: float32) =
   # Time Warp effect - apply slow to delta time for enemies/bullets
   var effectiveDt = dt
@@ -3555,138 +3780,8 @@ proc updateGame*(game: var Game, dt: float32) =
               showDamage(game, game.enemies[j].pos, actualDamage, true, isCrit)
           hitEnemy = true
           
-          # Apply frost shot slow effect - INDEFINITE (permanent until enemy dies)
-          if bullet.slowAmount > 0 and hasPowerUp(game.player, puFrostShots):
-            game.enemies[j].slowTimer = 999999.0  # Effectively infinite
-            game.enemies[j].slowAmount = bullet.slowAmount
-          
-          # Apply poison damage over time
-          if bullet.poisonDuration > 0 and hasPowerUp(game.player, puPoisonShot):
-            let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
-            let poisonBaseScaling = game.player.damage * 0.1
-            var poisonDmg = case poisonLevel
-              of 1: 1.0 + poisonBaseScaling
-              of 2: 1.5 + poisonBaseScaling
-              else: 2.0 + poisonBaseScaling
-            var poisonDur = bullet.poisonDuration
-            
-            # Apply Poison Mastery bonuses if owned
-            if game.player.hasPoisonMastery:
-              poisonDmg *= 2.5  # +150% damage
-              poisonDur *= 2.0  # +100% duration
-            
-            applyEffect(game.enemies[j], etPoison, poisonDmg, poisonDur, "shot")
-            
-            # Apply slow ONLY if player has Poison Mastery
-            if game.player.hasPoisonMastery:
-              game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, poisonDur)
-              game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, 0.30)  # 30% slow
-          
-          # Apply fire damage over time
-          if bullet.fireDuration > 0 and hasPowerUp(game.player, puFireBullets):
-            let fireLevel = getPowerUpLevel(game.player, puFireBullets)
-            let fireBaseScaling = game.player.damage * 0.1
-            var fireDmg = case fireLevel
-              of 1: 0.5 + fireBaseScaling
-              of 2: 1.0 + fireBaseScaling
-              else: 1.5 + fireBaseScaling
-            var fireDur = bullet.fireDuration
-            
-            # Apply Fire Mastery bonuses if owned
-            if game.player.hasFireMastery:
-              fireDmg *= 2.5  # +150% damage
-              fireDur *= 2.0  # +100% duration
-            
-            applyEffect(game.enemies[j], etFire, fireDmg, fireDur, "shot")
-            
-            # Apply slow ONLY if player has Fire Mastery
-            if game.player.hasFireMastery:
-              game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, fireDur)
-              game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, 0.35)  # 35% slow
-          
-          # Apply wind push force (knock back effect)
-          if bullet.windPushForce > 0 and hasPowerUp(game.player, puWindBullets):
-            # Calculate push direction (away from player toward enemy)
-            let pushDir = (game.enemies[j].pos - game.player.pos).normalize()
-            # Bosses are much more resistant to wind push (10% effectiveness)
-            let bossResistance = if game.enemies[j].isBoss: 0.1 else: 1.0
-            
-            # Apply Wind Mastery bonuses if owned
-            var actualWindForce = bullet.windPushForce
-            if game.player.hasWindMastery:
-              actualWindForce *= 2.5  # Stronger push (+150%)
-            
-            # Apply knockback force
-            game.enemies[j].pos.x += pushDir.x * actualWindForce * dt * bossResistance
-            game.enemies[j].pos.y += pushDir.y * actualWindForce * dt * bossResistance
-            
-            # Apply slow ONLY if player has Wind Mastery
-            if game.player.hasWindMastery:
-              game.enemies[j].slowTimer = 0.2
-              if game.enemies[j].slowAmount < 0.40:
-                game.enemies[j].slowAmount = 0.40  # 40% slow
-            
-            # Visual wind effect particles
-            for k in 0..3:
-              let particleAngle = rand(1.0) * PI * 2.0
-              let particleDist = rand(game.enemies[j].radius + 10.0)
-              let particleX = game.enemies[j].pos.x + cos(particleAngle) * particleDist
-              let particleY = game.enemies[j].pos.y + sin(particleAngle) * particleDist
-              spawnExplosion(game.particles, particleX, particleY, 
-                            Color(r: 200, g: 230, b: 255, a: 180), 2)
-          
-          # Chain lightning effect - hits nearby enemies
-          if hasPowerUp(game.player, puChainLightning) and game.enemies[j].chainLightningCooldown <= 0:
-            let chainLevel = getPowerUpLevel(game.player, puChainLightning)
-            let chainCount = chainLevel  # 1, 2, or 3 chains
-            let chainDamage = case chainLevel
-              of 1: 0.7
-              of 2: 0.8
-              else: 0.9
-            # Chain range increases with level: 120, 140, 160
-            var chainRange = case chainLevel
-              of 1: 120.0
-              of 2: 140.0
-              else: 160.0
-            
-            # Lightning Mastery increases range by 50%
-            if game.player.hasLightningMastery:
-              chainRange *= 1.5
-            
-            # Lightning bullets stun enemies for 0.05s (applied to primary target)
-            game.enemies[j].slowTimer = max(game.enemies[j].slowTimer, 0.05)
-            game.enemies[j].slowAmount = 1.0  # 100% slow = stun
-            
-            # Mark this enemy to prevent re-chaining
-            game.enemies[j].chainLightningCooldown = 0.3
-            
-            # Find nearby enemies to chain to
-            var chained = 0
-            for k in 0..<game.enemies.len:
-              if k != j and chained < chainCount:
-                let dist = distance(game.enemies[j].pos, game.enemies[k].pos)
-                if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
-                  let chainDmgBase = finalDamage * chainDamage
-                  let chainDmgWithCrit = applyCriticalHit(game.player, chainDmgBase)
-                  let actualDamage = damageEnemy(game.enemies[k], chainDmgWithCrit)
-                  
-                  # Create damage number for chain lightning damage
-                  if actualDamage > 0:
-                    showDamage(game, game.enemies[k].pos, actualDamage, true, 
-                              chainDmgWithCrit > chainDmgBase, dtLightning)
-                  
-                  game.enemies[k].chainLightningCooldown = 0.3
-                  # Lightning also stuns chained enemies for 0.05s
-                  game.enemies[k].slowTimer = max(game.enemies[k].slowTimer, 0.05)
-                  game.enemies[k].slowAmount = 1.0  # 100% slow = stun
-                  chained += 1
-                  
-                  # Lightning visual effect
-                  for step in 0..10:
-                    let t = step.float32 / 10.0
-                    let x = game.enemies[j].pos.x + (game.enemies[k].pos.x - game.enemies[j].pos.x) * t
-                    let y = game.enemies[j].pos.y + (game.enemies[k].pos.y - game.enemies[j].pos.y) * t
-                    spawnExplosion(game.particles, x, y, Color(r: 255, g: 255, b: 100, a: 255), 2)
+          # UNIFIED BULLET EFFECT SYSTEM
+          applyBulletEffects(game, bullet, game.enemies[j], dt)
           
           # Bullet split on hit - SYNERGY: Inherits ALL bullet properties
           if hasPowerUp(game.player, puBulletSplit) and not bullet.hasSplit:
@@ -3695,26 +3790,6 @@ proc updateGame*(game: var Game, dt: float32) =
             
             # Use the new synergy system to create split bullets
             createSplitBullets(game, bullet, splitCount, 0.5, 0.7)
-          
-          # Blood bullet healing - restore HP based on damage dealt
-          if hasPowerUp(game.player, puBloodBullets):
-            let vampLevel = getPowerUpLevel(game.player, puBloodBullets)
-            var healPercent = case vampLevel
-              of 1: 0.015  # 1.5% (reduced from 5%)
-              of 2: 0.025  # 2.5% (reduced from 10%)
-              else: 0.035  # 3.5% (reduced from 18%)
-            
-            # Apply Blood Mastery bonus if owned
-            if game.player.hasBloodMastery:
-              healPercent *= 2.5  # +150% lifesteal
-            
-            let healAmount = finalDamage * healPercent
-            heal(game.player, healAmount)
-            if healAmount > 0.01:  # Only show particles if significant healing
-              spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 3)
-              
-              # Create heal number for blood bullet lifesteal
-              showDamage(game, game.player.pos, healAmount, true, false, dtHeal)
           
           # Impact particles
           spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, 
@@ -4155,7 +4230,7 @@ proc drawGame*(game: Game) =
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius, 
                    Color(r: 138, g: 43, b: 226, a: 40))
   
-  # ==================== UNIFIED AURA RENDERING ====================
+  # UNIFIED AURA RENDERING
   # Draw all active aura effects using the unified aura system
   const AURA_TYPES = [puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
   for auraType in AURA_TYPES:
@@ -4163,7 +4238,6 @@ proc drawGame*(game: Game) =
       let level = getPowerUpLevel(game.player, auraType)
       let config = getAuraConfig(auraType, level)
       drawAuraEffect(game.player.pos, config, game.time)
-  # ==================== END UNIFIED AURA RENDERING ====================
   
   # Draw player
   drawPlayer(game.player)

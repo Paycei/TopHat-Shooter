@@ -1,15 +1,4 @@
-# ============================================================================
 # SANDBOX MODE - Testing and Development Tools
-# ============================================================================
-# Comprehensive testing environment for game developers
-# Features:
-# - Enemy spawner with all types
-# - Boss spawner with all bosses
-# - God mode toggle
-# - Enemy freeze
-# - Clear all enemies
-# - Wave/difficulty controls
-# ============================================================================
 
 import raylib, types, enemy, powerup, boss_definitions, std/strutils, random
 
@@ -21,9 +10,7 @@ const
   TAB_HEIGHT = 40
   SCROLL_SPEED = 20
 
-# ============================================================================
-# SANDBOX UI DRAWING
-# ============================================================================
+# UI DRAWING
 proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   var currentY: int32 = startY + 10 - game.sandboxScrollOffset
   let contentX: int32 = sidebarX + SIDEBAR_PADDING
@@ -198,9 +185,7 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   else:
     discard
 
-# ============================================================================
 # INPUT HANDLING
-# ============================================================================
 proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
   let startY = 45 + TAB_HEIGHT + 5
   var currentY = startY + 35 - game.sandboxScrollOffset  # After "Spawn Enemies:" text
@@ -386,10 +371,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
     else:
       discard
 
-# ============================================================================
 # SANDBOX MODE UPDATES
-# ============================================================================
-
 proc updateSandboxMode*(game: Game, dt: float32) =
   # Apply god mode
   if game.sandboxGodMode:

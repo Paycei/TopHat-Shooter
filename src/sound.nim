@@ -23,10 +23,7 @@ type
 
 var globalSoundSystem*: SoundSystem
 
-# ============================================================================
 # CACHE MANAGEMENT
-# ============================================================================
-
 proc getCacheDir(): string =
   result = getTempDir() / "tophat_sound_cache"
   if not dirExists(result):
@@ -78,9 +75,7 @@ proc countCachedAssets(): tuple[sounds: int, music: int, total: int] =
       inc result.music
   result.total = result.sounds + result.music
 
-# ============================================================================
 # CORE AUDIO UTILITIES - Optimized
-# ============================================================================
 
 proc applyADSR(progress: float32, attack, decay, sustain, release: float32): float32 {.inline.} =
   if progress < attack:
@@ -122,10 +117,7 @@ proc writeWavFile(filename: string, samples: seq[int16], sampleRate: uint32) =
   for sample in samples:
     stream.write(sample)
 
-# ============================================================================
-# SOUND GENERATION - Simplified and optimized with caching
-# ============================================================================
-
+# SOUND GENERATION
 proc createSimpleSound(filename: string, duration: float32, 
                       freqFunc: proc(t, progress: float32): float32,
                       envelope: proc(progress: float32): float32,
@@ -329,10 +321,7 @@ proc createGameOverSound(filename: string): Sound =
   writeWavFile(filename, samples, sampleRate)
   result = loadSound(filename)
 
-# ============================================================================
-# SOUND LOADING WITH CACHE - New optimized system
-# ============================================================================
-
+# SOUND LOADING WITH CACHE
 proc loadOrGenerateSound(soundType: SoundType): Sound =
   let cacheFile = getSoundCacheFile(soundType)
   
@@ -357,10 +346,7 @@ proc loadOrGenerateSound(soundType: SoundType): Sound =
   of stShield: result = createShield(cacheFile)
   of stGameOver: result = createGameOverSound(cacheFile)
 
-# ============================================================================
-# MUSIC GENERATION - Optimized with caching and reduced duration
-# ============================================================================
-
+# MUSIC GENERATION
 const MUSIC_DURATION = 16.0
 
 proc generateAdvancedMusic(filename: string, bpm: float32, duration: float32,
@@ -561,10 +547,7 @@ proc loadOrGenerateMusic(track: MusicTrack): Music =
   of mtPowerUp: result = createPowerUpMusic(cacheFile)
   of mtBoss: result = createBossMusic(cacheFile)
 
-# ============================================================================
-# PRE-GENERATION SYSTEM - New optimized initialization
-# ============================================================================
-
+# PRE-GENERATION SYSTEM
 proc preGenerateAllAssets*(verbose: bool = true) =
   ## Pre-generate all sounds and music that aren't already cached
   ## This prevents any in-game stuttering from asset generation
@@ -627,10 +610,7 @@ proc generateAllSounds(sys: SoundSystem) =
     echo "ERROR loading sounds: ", e.msg
     sys.soundsGenerated = false
 
-# ============================================================================
 # SYSTEM INITIALIZATION AND MANAGEMENT
-# ============================================================================
-
 proc initSoundSystem*(): SoundSystem =
   echo "Initializing sound system..."
   try:
@@ -666,10 +646,7 @@ proc closeSoundSystem*(sys: SoundSystem) =
     closeAudioDevice()
     echo "Sound system closed"
 
-# ============================================================================
 # PLAYBACK FUNCTIONS
-# ============================================================================
-
 proc playSound*(soundType: SoundType, volumeMultiplier: float32 = 1.0) =
   if globalSoundSystem == nil or not globalSoundSystem.enabled or not globalSoundSystem.soundsGenerated:
     return

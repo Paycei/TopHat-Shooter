@@ -456,10 +456,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
           hasBullet = true
         break
 
-# ============================================================================
-# ROTATING ORBS POWER-UP SYSTEM
-# ============================================================================
-
+# ROTATING ORBS SYSTEM
 proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType): RotatingOrb =
   ## Create a new rotating orb with specified angle, radius, and element
   result = RotatingOrb(
@@ -1611,10 +1608,8 @@ proc drawPowerUpSelection*(game: Game) =
     
     # Center dot
     drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
-# ============================================================================
-# SLOT MACHINE ROLL ANIMATION SYSTEM
-# ============================================================================
 
+# SLOT MACHINE ROLL ANIMATION SYSTEM
 proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeType: PowerUpType): PowerUp =
   ## Generate a random power-up for the roll animation display, excluding a specific type
   let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
@@ -1766,10 +1761,6 @@ proc initPowerUpRollAnimation*(game: Game) =
     let lastIdx = game.rollPowerUpList[i].len - 1
     echo "Slot ", i, " list length: ", game.rollPowerUpList[i].len
     echo "Slot ", i, " last item (idx ", lastIdx, "): ", getPowerUpName(game.rollPowerUpList[i][lastIdx].powerType)
-
-# ============================================================================
-# POWER-UP REROLL SYSTEM
-# ============================================================================
 
 proc calculateRerollCost*(baseReroll: int): int =
   ## Calculate the cost of the next reroll based on how many have been done

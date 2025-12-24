@@ -1,28 +1,20 @@
-# ============================================================================
 # RUN STATISTICS UI
 # Visual rendering of per-run statistics with graphs and comparisons
 # Displays on Game Over screen and Main Menu
-# ============================================================================
 
 import raylib, run_statistics, types, strutils, std/tables, powerup
 
-# ============================================================================
 # UI CONSTANTS
-# ============================================================================
-
 const
-  CARD_BG_COLOR = Color(r: 30, g: 30, b: 40, a: 230)
-  CARD_BORDER_COLOR = Color(r: 80, g: 80, b: 100, a: 255)
-  ACCENT_COLOR = Color(r: 255, g: 200, b: 50, a: 255)
-  GOOD_COLOR = Color(r: 80, g: 255, b: 80, a: 255)
-  BAD_COLOR = Color(r: 255, g: 80, b: 80, a: 255)
-  GRAPH_LINE_COLOR = Color(r: 100, g: 200, b: 255, a: 255)
-  GRAPH_GRID_COLOR = Color(r: 60, g: 60, b: 80, a: 100)
+  CARD_BG_COLOR: Color = Color(r: 30, g: 30, b: 40, a: 230)
+  CARD_BORDER_COLOR: Color = Color(r: 80, g: 80, b: 100, a: 255)
+  ACCENT_COLOR: Color = Color(r: 255, g: 200, b: 50, a: 255)
+  GOOD_COLOR: Color = Color(r: 80, g: 255, b: 80, a: 255)
+  BAD_COLOR: Color = Color(r: 255, g: 80, b: 80, a: 255)
+  GRAPH_LINE_COLOR: Color = Color(r: 100, g: 200, b: 255, a: 255)
+  GRAPH_GRID_COLOR: Color = Color(r: 60, g: 60, b: 80, a: 100)
 
-# ============================================================================
-# HELPER PROCS FOR FORMATTING
-# ============================================================================
-
+# HELPER PROCS (FORMATTING)
 proc formatPercent*(value: float32): string =
   ## Format percentage with 1 decimal place
   result = value.formatFloat(ffDecimal, 1) & "%"
@@ -51,10 +43,7 @@ proc getQualityColor*(value: float32, threshold: float32 = 50.0): Color =
   else:
     return BAD_COLOR
 
-# ============================================================================
 # CARD DRAWING HELPERS
-# ============================================================================
-
 proc drawStatCard*(x, y, width, height: int32, title: string, gameTime: float32) =
 
   # Shadow
@@ -94,10 +83,7 @@ proc drawProgressBar*(x, y, width, height: int32, value, maxValue: float32, colo
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: width.float32, height: height.float32),
                       1, Color(r: 100, g: 100, b: 120, a: 255))
 
-# ============================================================================
 # GRAPH VISUALIZATION
-# ============================================================================
-
 proc drawTimelineGraph*(x, y, width, height: int32, title: string, 
                        dataPoints: seq[(float32, float32)], 
                        maxValue: float32, color: Color = GRAPH_LINE_COLOR) =
@@ -191,10 +177,7 @@ proc drawHeatmap*(x, y, width, height: int32, positions: seq[Vector2f],
     drawCircle(Vector2(x: mapPosX, y: mapPosY), 2, 
               Color(r: 255, g: 200, b: 50, a: 100))
 
-# ============================================================================
 # MAIN STAT SECTIONS
-# ============================================================================
-
 proc drawCombatStats*(stats: CombatStats, x, y: int32, gameTime: float32) =
   ## Draw combat statistics section
   drawStatCard(x, y, 300, 340, "COMBAT", gameTime)
@@ -579,10 +562,7 @@ proc drawDetailedPowerUpScreen*(stats: PowerUpStats, combat: CombatStats,
     let killWidth = measureText(killStr, 16)
     drawText(killStr, 860 - killWidth div 2, mvpY, 16, Gold)
 
-# ============================================================================
 # COMPOSITE SCREENS
-# ============================================================================
-
 proc drawRunStatisticsScreen*(stats: RunStatistics, screenWidth, screenHeight: int32, 
                               gameTime: float32, showGraphs: bool = true) =
   ## Draw complete run statistics screen (for Game Over)
