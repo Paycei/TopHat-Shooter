@@ -11,7 +11,7 @@ proc newPlayer*(x, y: float32): Player =
     speed: 175,
     baseSpeed: 175,
     damage: 1,
-    fireRate: 0.42,
+    fireRate: 0.425,
     bulletSpeed: 300,
     lastShot: 0,
     coins: 0,
@@ -476,46 +476,3 @@ proc activateFireRateBoost*(player: Player) =
 
 proc activateMagnet*(player: Player) =
   player.magnetTimer = 10.0
-
-proc getCurrentFireRate*(player: Player): float32 =
-  var rate = player.fireRate
-  
-  # Fire rate boost consumable
-  if player.fireRateBoostTimer > 0:
-    rate *= 0.6
-  
-  # Double Shot penalty - 25% slower fire rate (legendary power-up, single level)
-  for powerUp in player.powerUps:
-    if powerUp.powerType == puDoubleShot:
-      rate *= 1.25  # 25% slower (higher value = slower)
-  
-  # Berserker power-up - fire rate increases when HP is low
-  for powerUp in player.powerUps:
-    if powerUp.powerType == puBerserker:
-      let hpPercent = player.hp / player.maxHp
-      let hpLost = 1.0 - hpPercent
-      let bonusPerTenPercent = case powerUp.level
-        of 1: 0.05  # 5% per 10% HP lost
-        of 2: 0.08  # 8% per 10% HP lost
-        else: 0.15  # 15% per 10% HP lost
-      let fireRateBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
-      rate *= (1.0 / fireRateBonus)  # Lower fire rate value = faster shooting
-  
-  return rate
-
-proc getCurrentDamage*(player: Player): float32 =
-  var damage = player.damage
-  
-  # Rage power-up - damage increases when HP is low
-  for powerUp in player.powerUps:
-    if powerUp.powerType == puRage:
-      let hpPercent = player.hp / player.maxHp
-      let hpLost = 1.0 - hpPercent
-      let bonusPerTenPercent = case powerUp.level
-        of 1: 0.05  # 5% per 10% HP lost
-        of 2: 0.08  # 8% per 10% HP lost
-        else: 0.12  # 12% per 10% HP lost
-      let damageBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
-      damage *= damageBonus
-  
-  return damage

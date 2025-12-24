@@ -392,21 +392,82 @@ proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
   result = applyEliteModifiers(enemy, baseDamage)
   enemy.hp -= result
 
-proc applyCriticalHit(player: Player, baseDamage: float32): float32 =
-  ## Applies critical hit chance to any damage source
-  ## Returns damage with critical multiplier applied if crit occurs
-  if not hasPowerUp(player, puCriticalHit):
+# CENTRALIZED COMBAT STATS SYSTEM
+# Single source of truth for all combat-related stat calculations
+type CombatStats* = object
+  damage*: float32          # Final damage with all bonuses
+  baseDamage*: float32      # Base damage before power-ups (for attribution)
+  fireRate*: float32        # Current fire rate with all modifiers
+  critChance*: int          # Critical hit chance (0-100)
+  critMultiplier*: float32  # Critical hit damage multiplier
+  hasCrit*: bool            # Whether player has crit power-up
+
+proc calculateCombatStats*(player: Player): CombatStats =
+  ## Calculates all combat stats in one place
+  ## Single source of truth for damage, fire rate, crit chance calculations
+  result.baseDamage = player.damage
+  result.damage = player.damage
+  result.fireRate = player.fireRate
+  result.critChance = 0
+  result.critMultiplier = 2.0
+  result.hasCrit = false
+  
+  # === DAMAGE CALCULATIONS ===
+  
+  # Rage power-up - damage increases when HP is low
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puRage:
+      let hpPercent = player.hp / player.maxHp
+      let hpLost = 1.0 - hpPercent
+      let bonusPerTenPercent = case powerUp.level
+        of 1: 0.05  # 5% per 10% HP lost
+        of 2: 0.08  # 8% per 10% HP lost
+        else: 0.12  # 12% per 10% HP lost
+      let damageBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
+      result.damage *= damageBonus
+  
+  # === FIRE RATE CALCULATIONS ===
+  
+  # Fire rate boost consumable
+  if player.fireRateBoostTimer > 0:
+    result.fireRate *= 0.6
+  
+  # Double Shot penalty - 25% slower fire rate
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puDoubleShot:
+      result.fireRate *= 1.25  # 25% slower (higher value = slower)
+  
+  # Berserker power-up - fire rate increases when HP is low
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puBerserker:
+      let hpPercent = player.hp / player.maxHp
+      let hpLost = 1.0 - hpPercent
+      let bonusPerTenPercent = case powerUp.level
+        of 1: 0.05  # 5% per 10% HP lost
+        of 2: 0.08  # 8% per 10% HP lost
+        else: 0.15  # 15% per 10% HP lost
+      let fireRateBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
+      result.fireRate *= (1.0 / fireRateBonus)  # Lower fire rate value = faster shooting
+  
+  # === CRITICAL HIT CALCULATIONS ===
+  
+  if hasPowerUp(player, puCriticalHit):
+    result.hasCrit = true
+    let critLevel = getPowerUpLevel(player, puCriticalHit)
+    result.critChance = case critLevel
+      of 1: 20  # 20% chance
+      of 2: 35  # 35% chance
+      else: 50  # 50% chance
+    result.critMultiplier = 2.0  # Fixed 2x multiplier
+
+proc applyCriticalHitFromStats*(stats: CombatStats, baseDamage: float32): float32 =
+  ## Applies critical hit using pre-calculated stats
+  ## Returns damage with critical multiplier if crit occurs
+  if not stats.hasCrit:
     return baseDamage
   
-  let critLevel = getPowerUpLevel(player, puCriticalHit)
-  let critChance = case critLevel
-    of 1: 20  # Increased from 15%
-    of 2: 35  # Increased from 20%
-    else: 50  # Increased from 25%
-  let critMultiplier = 2.0  # Fixed multiplier (was 2.0, 2.5, 3.0)
-  
-  if rand(99) < critChance:
-    return baseDamage * critMultiplier
+  if rand(99) < stats.critChance:
+    return baseDamage * stats.critMultiplier
   else:
     return baseDamage
 
@@ -544,8 +605,9 @@ proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
     ))
 
 proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy, 
-                       bullet: Bullet, dt: float32) =
+                       bullet: Bullet, dt: float32, stats: CombatStats) =
   ## Apply a single bullet effect to an enemy
+  ## Uses pre-calculated combat stats for critical hit calculations
   case effect.effectType
   of befFrost:
     # Frost: Permanent slow
@@ -640,7 +702,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
           let dist = distance(enemy.pos, game.enemies[k].pos)
           if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
             let chainDmgBase = effect.baseDamage * chainDamage
-            let chainDmgWithCrit = applyCriticalHit(game.player, chainDmgBase)
+            let chainDmgWithCrit = applyCriticalHitFromStats(stats, chainDmgBase)
             let actualDamage = damageEnemy(game.enemies[k], chainDmgWithCrit)
             
             # Create damage number
@@ -681,8 +743,11 @@ proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float
   ## Apply all bullet effects to an enemy - unified entry point
   let effects = getBulletEffects(game, bullet)
   
+  # Calculate combat stats once for all effects
+  let stats = calculateCombatStats(game.player)
+  
   for effect in effects:
-    applyBulletEffect(game, effect, enemy, bullet, dt)
+    applyBulletEffect(game, effect, enemy, bullet, dt, stats)
 
 proc newGame*(screenWidth, screenHeight: int32): Game =
   result = Game(
@@ -930,8 +995,10 @@ proc advanceWave*(game: Game) =
     # Boss wave will be triggered in update loop
 
 proc shootBullet*(game: Game, direction: Vector2f) =
-  let currentFireRate = getCurrentFireRate(game.player)
-  if game.time - game.player.lastShot >= currentFireRate:
+  # Calculate all combat stats once at the start
+  let stats = calculateCombatStats(game.player)
+  
+  if game.time - game.player.lastShot >= stats.fireRate:
     # Check for power-ups that modify shooting
     let hasHoming: bool = hasPowerUp(game.player, puMagicalBullets)
     let hasPiercing: bool = hasPowerUp(game.player, puPiercingShots)
@@ -945,12 +1012,12 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let hasFire: bool = hasPowerUp(game.player, puFireBullets)
     let hasArcane: bool = hasPowerUp(game.player, puArcaneBullets)
     
-    # Base bullet properties - use current damage with Rage bonus
+    # Base bullet properties - use calculated stats
     var speed = game.player.bulletSpeed * 1.2
-    var damage = getCurrentDamage(game.player)
+    var damage = stats.damage  # Already includes Rage bonus
     
     # Track base damage before power-up multipliers for attribution
-    let damageBeforePowerUps = game.player.damage  # Pure base damage (no Rage)
+    let damageBeforePowerUps = stats.baseDamage  # Pure base damage (no Rage)
     
     # BUFFED: Double-shot bullets deal 10% less damage per bullet (was 20%)
     if hasDoubleShot:
@@ -983,8 +1050,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         else: 1.5   # +150%
       arcaneBulletsBonus = damageBeforePowerUps * arcaneMultiplier
     
-    # Apply critical hit chance
-    damage = applyCriticalHit(game.player, damage)
+    # Apply critical hit chance using pre-calculated stats
+    damage = applyCriticalHitFromStats(stats, damage)
     
     # Apply Arcane Mastery bonus to Arcane bullets (damage + piercing)
     var arcanePiercing = hasPiercing  # Start with base piercing status
@@ -1179,6 +1246,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
 
 # Helper to fire delayed double-shot bursts
 proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
+  # Calculate combat stats once for the burst
+  let burstStats = calculateCombatStats(game.player)
+  
   let hasHoming = hasPowerUp(game.player, puMagicalBullets)
   let hasPiercing = hasPowerUp(game.player, puPiercingShots)
   let hasExplosive = hasPowerUp(game.player, puExplosiveBullets)
@@ -1190,7 +1260,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let hasArcane = hasPowerUp(game.player, puArcaneBullets)
   
   var speed = game.player.bulletSpeed * 1.2
-  var damage = getCurrentDamage(game.player) * 0.85  # BUFFED: Second bullet reduced by 15% (was 25%)
+  var damage = burstStats.damage * 0.85  # BUFFED: Second bullet reduced by 15% (was 25%)
   var bulletRadius = BASE_PLAYER_BULLET_RADIUS
   
   # Apply Arcane Mastery piercing bonus
@@ -2063,7 +2133,9 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   if orb.elementType == etArcane and game.player.hasArcaneMastery:
     actualBaseDamage *= 3.0  # +200% damage
   
-  let damageWithCrit = applyCriticalHit(game.player, actualBaseDamage)
+  # Use centralized stats for crit calculation
+  let stats = calculateCombatStats(game.player)
+  let damageWithCrit = applyCriticalHitFromStats(stats, actualBaseDamage)
   let actualDamage = damageEnemy(enemy, damageWithCrit)
   
   # Track statistics for the orb type
@@ -2093,6 +2165,9 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
 proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy, 
                      baseDamage: float32, orbPos: Vector2f, dt: float32) =
   ## Apply element-specific effects from orb to enemy
+  
+  # Calculate combat stats once for all effect calculations
+  let stats = calculateCombatStats(game.player)
   
   case orb.elementType
   of etPoison:
@@ -2160,7 +2235,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     
     # Apply chain damage
     if nearestEnemy != nil:
-      let chainDamageWithCrit = applyCriticalHit(game.player, baseDamage * 0.7)
+      let chainDamageWithCrit = applyCriticalHitFromStats(stats, baseDamage * 0.7)
       let chainDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
       
       game.showDamage(nearestEnemy.pos, chainDamage, fromPlayer = true,
@@ -2188,7 +2263,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
               secondNearestEnemy = other
         
         if secondNearestEnemy != nil:
-          let secondChainDamageWithCrit = applyCriticalHit(game.player, baseDamage * 0.7)
+          let secondChainDamageWithCrit = applyCriticalHitFromStats(stats, baseDamage * 0.7)
           let secondChainDamage = damageEnemy(secondNearestEnemy, secondChainDamageWithCrit)
           
           game.showDamage(secondNearestEnemy.pos, secondChainDamage, fromPlayer = true,
@@ -2534,10 +2609,13 @@ proc updateGame*(game: var Game, dt: float32) =
       of 2: 160.0
       else: 200.0
     
+    # Calculate combat stats once before loop
+    let stats = calculateCombatStats(game.player)
+    
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < zoneRadius:
-        let damageWithCrit = applyCriticalHit(game.player, zoneDamage * dt)
+        let damageWithCrit = applyCriticalHitFromStats(stats, zoneDamage * dt)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
         
         # Track damage zone damage for statistics
@@ -2647,13 +2725,16 @@ proc updateGame*(game: var Game, dt: float32) =
       if dist < lightningRadius:
         enemiesInRange.add((enemy: enemy, dist: dist))
     
+    # Calculate combat stats once before loop
+    let stats = calculateCombatStats(game.player)
+    
     # Apply damage and chain lightning
     var processedEnemies: seq[Enemy] = @[]
     for entry in enemiesInRange:
       let enemy = entry.enemy
       if enemy notin processedEnemies:
-        # Apply initial damage with crit chance
-        let damageWithCrit = applyCriticalHit(game.player, lightningDamagePerSec * dt)
+        # Apply initial damage with crit chance using centralized stats
+        let damageWithCrit = applyCriticalHitFromStats(stats, lightningDamagePerSec * dt)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
         processedEnemies.add(enemy)
         
@@ -2690,8 +2771,8 @@ proc updateGame*(game: var Game, dt: float32) =
                 nearestEnemy = other
           
           if nearestEnemy != nil:
-            # Apply chained damage (same as initial) with crit chance
-            let chainDamageWithCrit = applyCriticalHit(game.player, lightningDamagePerSec * dt)
+            # Apply chained damage (same as initial) with crit chance using centralized stats
+            let chainDamageWithCrit = applyCriticalHitFromStats(stats, lightningDamagePerSec * dt)
             let chainedDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
             processedEnemies.add(nearestEnemy)
             
@@ -2735,10 +2816,13 @@ proc updateGame*(game: var Game, dt: float32) =
     if game.player.hasArcaneMastery:
       arcaneDamagePerSec *= 3.0  # +200% damage
     
+    # Calculate combat stats once before loop
+    let arcaneStats = calculateCombatStats(game.player)
+    
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < arcaneRadius:
-        let damageWithCrit = applyCriticalHit(game.player, arcaneDamagePerSec * dt)
+        let damageWithCrit = applyCriticalHitFromStats(arcaneStats, arcaneDamagePerSec * dt)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
         
         # Track arcane aura damage for statistics
@@ -2869,11 +2953,14 @@ proc updateGame*(game: var Game, dt: float32) =
     # Accumulate healing for display (show healing number once per 0.5s)
     var totalHealing = 0.0
     
+    # Calculate combat stats once before loop
+    let bloodStats = calculateCombatStats(game.player)
+    
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < bloodRadius:
-        # Apply blood damage with crit chance
-        let damageWithCrit = applyCriticalHit(game.player, bloodDamagePerSec * dt)
+        # Apply blood damage with crit chance using centralized stats
+        let damageWithCrit = applyCriticalHitFromStats(bloodStats, bloodDamagePerSec * dt)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
         
         # Track blood aura damage for statistics
@@ -2976,7 +3063,8 @@ proc updateGame*(game: var Game, dt: float32) =
       of 2: 450.0
       else: 450.0
     
-    let autoFireRate = getCurrentFireRate(game.player) / autoFireMult
+    let stats = calculateCombatStats(game.player)
+    let autoFireRate = stats.fireRate / autoFireMult
     if game.time - game.player.lastShot >= autoFireRate:
       var nearestEnemy: Enemy = nil
       var nearestDist = autoRange
@@ -3141,6 +3229,9 @@ proc updateGame*(game: var Game, dt: float32) =
   # End of enemy spawning logic (excluded for sandbox mode)
   
   # Update enemies
+  # Calculate combat stats once for all Thorns damage calculations in enemy loop
+  let thornStats = calculateCombatStats(game.player)
+  
   var enemyIdx = 0
   var bossDefeated = false
   while enemyIdx < game.enemies.len:
@@ -3464,7 +3555,7 @@ proc updateGame*(game: var Game, dt: float32) =
               of 2: 1.0  # BUFFED from 0.40 to 0.60
               else: 1.5  # BUFFED from 0.70 to 1.00 (full reflection!)
             let reflectDamageBase = bossContactDamage * reflectPercent
-            let reflectDamageWithCrit = applyCriticalHit(game.player, reflectDamageBase)
+            let reflectDamageWithCrit = applyCriticalHitFromStats(thornStats, reflectDamageBase)
             let actualDamage = damageEnemy(enemy, reflectDamageWithCrit)
             
             # Track thorns damage for statistics
@@ -3510,7 +3601,7 @@ proc updateGame*(game: var Game, dt: float32) =
             of 2: 0.60  # BUFFED from 0.40 to 0.60
             else: 1.00  # BUFFED from 0.70 to 1.00 (full reflection!)
           let reflectedDamageBase = enemyContactDamage * reflectPercent
-          let reflectedDamageWithCrit = applyCriticalHit(game.player, reflectedDamageBase)
+          let reflectedDamageWithCrit = applyCriticalHitFromStats(thornStats, reflectedDamageBase)
           let actualDamage = damageEnemy(enemy, reflectedDamageWithCrit)
           
           # Track thorns damage for statistics
@@ -4371,9 +4462,10 @@ proc drawGame*(game: Game) =
       yOffset += 20
     
     # Show stats panel (damage and fire rate with 2 decimals)
-    drawText("Damage: " & formatFloat(getCurrentDamage(game.player), ffDecimal, 2), game.screenWidth - 200, yOffset, 16, White)
+    let stats = calculateCombatStats(game.player)
+    drawText("Damage: " & formatFloat(stats.damage, ffDecimal, 2), game.screenWidth - 200, yOffset, 16, White)
     yOffset += 20
-    let shotsPerSec = 1.0 / getCurrentFireRate(game.player)
+    let shotsPerSec = 1.0 / stats.fireRate
     drawText("Fire Rate: " & formatFloat(shotsPerSec, ffDecimal, 2) & "/s", game.screenWidth - 200, yOffset, 16, White)
     yOffset += 20
     # Show speed stat
