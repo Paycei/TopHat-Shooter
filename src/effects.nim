@@ -84,7 +84,6 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
       enemy.activeEffects[effectType] = updated
     # Si es más débil que el actual activo, no hacemos nada (ignora el efecto débil)
 
-
 proc updateEffects*(enemy: Enemy, dt: float32): float32 =
   ## Actualiza todos los efectos del enemigo y retorna el daño total a aplicar
   ## Retorna: daño total que debe aplicarse este frame
@@ -125,37 +124,8 @@ proc updateEffects*(enemy: Enemy, dt: float32): float32 =
   
   return totalDamage
 
-
-proc getActiveEffectDamage*(enemy: Enemy, elementType: ElementType): float32 =
-  ## Retorna el daño por segundo del efecto activo de un tipo
-  if not enemy.activeEffects.hasKey(elementType):
-    return 0.0
-  
-  let effect = enemy.activeEffects[elementType]
-  if effect.primary.isActive:
-    return effect.primary.damagePerSec
-  return 0.0
-
-
-proc getActiveEffectDuration*(enemy: Enemy, elementType: ElementType): float32 =
-  ## Retorna la duración restante del efecto activo
-  if not enemy.activeEffects.hasKey(elementType):
-    return 0.0
-  
-  let effect = enemy.activeEffects[elementType]
-  if effect.primary.isActive:
-    return effect.primary.remainingDuration
-  return 0.0
-
-
 proc hasActiveEffect*(enemy: Enemy, elementType: ElementType): bool =
   ## Retorna true si hay un efecto activo de ese tipo
   if not enemy.activeEffects.hasKey(elementType):
     return false
   return enemy.activeEffects[elementType].primary.isActive
-
-
-proc clearEffect*(enemy: Enemy, elementType: ElementType) =
-  ## Elimina completamente un efecto (primario y fallback)
-  if enemy.activeEffects.hasKey(elementType):
-    enemy.activeEffects.del(elementType)
