@@ -607,7 +607,7 @@ proc main() =
 
     of gsPlaying:
       # Dynamic music based on game state
-      if currentGame.bossActive:
+      if currentGame.bossWaveManager.isBossActive():
         playMusic(mtBoss)
       else:
         playMusic(mtWave)
@@ -1054,7 +1054,7 @@ proc main() =
       if currentGame.waveClearedTimer <= 0:
         let shouldOfferPowerUp = currentGame.cameFromPowerUpSelect
         
-        if shouldOfferPowerUp and not currentGame.bossCoinActive:
+        if shouldOfferPowerUp and not currentGame.bossWaveManager.isBossCoinActive():
           # Determine if it's a boss wave power-up
           let isBossWave = currentGame.wavesUntilBoss <= 0
           

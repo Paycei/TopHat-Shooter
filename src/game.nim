@@ -3,6 +3,48 @@ import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, parti
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
 
+# ==================== BOSS WAVE MANAGER ====================
+# Centralized boss wave and coin management
+
+proc startBossWave*(manager: var BossWaveManager) =
+  manager.active = true; manager.coinActive = false
+
+proc bossDefeated*(manager: var BossWaveManager) =
+  manager.active = false; manager.coinActive = true
+
+proc bossCoinCollected*(manager: var BossWaveManager) =
+  manager.coinActive = false
+
+proc canStartNewWave*(manager: BossWaveManager): bool =
+  not manager.active and not manager.coinActive
+
+proc canSpawnBoss*(manager: BossWaveManager): bool =
+  not manager.active and not manager.coinActive
+
+proc isBossActive*(manager: BossWaveManager): bool = manager.active
+proc isBossCoinActive*(manager: BossWaveManager): bool = manager.coinActive
+
+proc completeBossWave*(game: Game) =
+  ## Centralized boss wave completion - handles cleanup, advancement, power-up
+  for enemy in game.enemies:
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+                  Color(r: 255, g: 50, b: 50, a: 255), 15)
+  
+  game.enemies = @[]
+  game.bullets = @[]
+  game.waveEnemiesRemaining = 0
+  game.waveInProgress = false
+  game.currentWave += 1
+  game.wavesUntilBoss -= 1
+  
+  if game.wavesUntilBoss <= 0:
+    game.wavesUntilBoss = 4  # Next boss in 5 waves
+  
+  game.powerUpChoices = generatePowerUpChoices(game.player, true)
+  game.selectedPowerUp = 0
+  initPowerUpRollAnimation(game)
+  game.state = gsPowerUpSelect
+
 # ==================== AURA SYSTEM REFACTORING ====================
 # Unified aura configuration and rendering system to eliminate code duplication
 
@@ -439,9 +481,8 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     countdownTimer: 0.3,  # Start with ready countdown
     waveClearedTimer: 0,
     rerollCost: 0,  # Initialize reroll cost (set properly when entering power-up selection)
-    bossActive: false,
+    bossWaveManager: BossWaveManager(active: false, coinActive: false),
     bossSpawnTimer: 0,
-    bossCoinActive: false,
     cameFromPowerUpSelect: false,
     gameOverSoundPlayed: false,
     # Wave-based mode fields
@@ -647,7 +688,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
 proc checkWaveComplete*(game: Game): bool =
   # Wave is complete when all enemies are defeated, none remain to spawn, 
   # AND boss coin has been collected (if there was one)
-  return game.waveEnemiesRemaining == 0 and game.enemies.len == 0 and not game.bossCoinActive
+  return game.waveEnemiesRemaining == 0 and game.enemies.len == 0 and not game.bossWaveManager.isBossCoinActive()
 
 proc advanceWave*(game: Game) =
   game.currentWave += 1
@@ -2730,7 +2771,7 @@ proc updateGame*(game: var Game, dt: float32) =
     if game.mode == gmWaveBased:
     # WAVE-BASED MODE: Spawn enemies in defined waves
     # Don't start a new wave if we're waiting for boss coin collection
-      if not game.waveInProgress and not game.bossActive and not game.bossCoinActive and game.state == gsPlaying:
+      if not game.waveInProgress and game.bossWaveManager.canStartNewWave() and game.state == gsPlaying:
         # Start a new wave
         startWave(game)
     
@@ -2785,7 +2826,7 @@ proc updateGame*(game: var Game, dt: float32) =
 
         # DON'T advance wave here if we're waiting for boss coin
         # The wave will advance when the boss coin is collected
-        if not game.bossCoinActive:
+        if not game.bossWaveManager.isBossCoinActive():
           # Advance wave counters so the next wave uses the next wave number
           game.currentWave += 1
           game.wavesUntilBoss -= 1
@@ -2802,7 +2843,7 @@ proc updateGame*(game: var Game, dt: float32) =
         game.cameFromPowerUpSelect = shouldOfferPowerUp or (game.wavesUntilBoss <= 0)
     
     # Boss wave spawning - don't spawn if there's a boss coin waiting to be collected
-    if game.wavesUntilBoss == 0 and not game.bossActive and not game.bossCoinActive and game.state == gsPlaying:
+    if game.wavesUntilBoss == 0 and game.bossWaveManager.canSpawnBoss() and game.state == gsPlaying:
       game.bossCount += 1
       # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
       let bossDifficulty = (game.currentWave - 1).float32 / 3.0
@@ -2812,7 +2853,7 @@ proc updateGame*(game: var Game, dt: float32) =
       let bossBlockWave = ((game.currentWave - 1) div 5 + 1) * 5
       game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight,
                 bossDifficulty, game.bossCount, bossBlockWave))
-      game.bossActive = true
+      game.bossWaveManager.startBossWave()  # Mark boss wave as active
       game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
       # Don't reset wavesUntilBoss here - it will be reset when boss coin is collected
       
@@ -2850,7 +2891,7 @@ proc updateGame*(game: var Game, dt: float32) =
       let isWaveActive = waveProgress > 0.6
       
       var currentSpawnRate = if isWaveActive: waveSpawnRate else: baseSpawnRate
-      if game.bossActive:
+      if game.bossWaveManager.isBossActive():
         currentSpawnRate = currentSpawnRate * 2.0
       
       if game.spawnTimer > currentSpawnRate:
@@ -2859,7 +2900,7 @@ proc updateGame*(game: var Game, dt: float32) =
         game.enemies.add(enemy)
         game.spawnTimer = 0
         
-        if isWaveActive and rand(100) < 60 and not game.bossActive:
+        if isWaveActive and rand(100) < 60 and not game.bossWaveManager.isBossActive():
           let waveEnemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty, game)
           makeElite(waveEnemy, (game.difficulty * 3).int)
           game.enemies.add(waveEnemy)
@@ -3066,10 +3107,9 @@ proc updateGame*(game: var Game, dt: float32) =
       # Check if boss was defeated
       if enemy.isBoss:
         bossDefeated = true
-        game.bossActive = false
         
         # Mark that a boss coin is now active and must be collected
-        game.bossCoinActive = true
+        game.bossWaveManager.bossDefeated()
         
         # Mode-specific boss defeat handling - NO longer advance wave here
         # Wave will advance when boss coin is collected
@@ -3948,34 +3988,11 @@ proc updateGame*(game: var Game, dt: float32) =
       spawnExplosion(game.particles, game.coins[i].pos.x, game.coins[i].pos.y, coinParticleColor, if isBossCoin: 20 else: 6)
       
       # If this was a boss coin, end the boss wave and advance
-      if isBossCoin and game.bossCoinActive:
-        game.bossCoinActive = false
+      if isBossCoin and game.bossWaveManager.isBossCoinActive():
+        game.bossWaveManager.bossCoinCollected()  # Mark boss coin as collected
         if game.mode == gmWaveBased:
-          # Create explosion particles for all remaining enemies before clearing them
-          for enemy in game.enemies:
-            spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
-                          Color(r: 255, g: 50, b: 50, a: 255), 15)
-          
-          # Clear all remaining enemies and bullets when boss wave completes
-          game.enemies = @[]
-          game.bullets = @[]
-          
-          # Reset wave enemy counters to prevent double wave advance
-          game.waveEnemiesRemaining = 0
-          game.waveInProgress = false
-          
-          # Advance to next wave after boss completion
-          game.currentWave += 1
-          game.wavesUntilBoss -= 1
-          # Reset wavesUntilBoss if it hits 0 or below
-          if game.wavesUntilBoss <= 0:
-            game.wavesUntilBoss = 4  # Next boss in 5 waves (every 5 waves: 5, 10, 15, etc)
-          
-          # Offer LEGENDARY power-up after completing boss wave
-          game.powerUpChoices = generatePowerUpChoices(game.player, true)
-          game.selectedPowerUp = 0
-          initPowerUpRollAnimation(game)
-          game.state = gsPowerUpSelect
+          # Use centralized boss wave completion logic
+          game.completeBossWave()
       
       game.coins.delete(i)
       continue
@@ -4191,18 +4208,18 @@ proc drawGame*(game: Game) =
   # Mode-specific UI
   if game.mode == gmWaveBased:
     # Wave information
-    let waveDisplay = if game.bossActive:
+    let waveDisplay = if game.bossWaveManager.isBossActive():
       "Boss Wave " & $(game.currentWave)
     else:
       "Wave " & $(game.currentWave)
-    drawText(waveDisplay, 10, 135, 20, if game.bossActive: Red else: Yellow)
+    drawText(waveDisplay, 10, 135, 20, if game.bossWaveManager.isBossActive(): Red else: Yellow)
     
-    if game.waveInProgress and not game.bossActive:
+    if game.waveInProgress and not game.bossWaveManager.isBossActive():
       let enemiesLeft = game.waveEnemiesRemaining + game.enemies.len
       drawText("Enemies: " & $enemiesLeft & "/" & $game.waveEnemiesTotal, 10, 160, 18, Orange)
-    elif game.bossActive:
+    elif game.bossWaveManager.isBossActive():
       drawText("Defeat the Boss!", 10, 160, 18, Red)
-    elif game.bossCoinActive:
+    elif game.bossWaveManager.isBossCoinActive():
       # Show message when boss is defeated but coin not yet collected
       let pulseAlpha = (sin(game.time * 4.0) * 60 + 195).int.uint8
       drawText("Collect the Boss Coin!", 10, 160, 18, Color(r: 255, g: 215, b: 0, a: pulseAlpha))
@@ -4214,7 +4231,7 @@ proc drawGame*(game: Game) =
               if chaosLevel < 30: Green elif chaosLevel < 70: Orange else: Red)
   
   # Boss health bar (top of screen)
-  if game.bossActive:
+  if game.bossWaveManager.isBossActive():
     for enemy in game.enemies:
       if enemy.isBoss and enemy.entranceTimer <= 0:
         let barWidth = 400
@@ -4245,7 +4262,7 @@ proc drawGame*(game: Game) =
   # Time survival mode - show wave indicator (only for time survival)
   if game.mode == gmTimeSurvival:
     let waveProgress = (game.time mod 15.0) / 15.0
-    if waveProgress > 0.6 and not game.bossActive:
+    if waveProgress > 0.6 and not game.bossWaveManager.isBossActive():
       drawText("*** WAVE ***", game.screenWidth div 2 - 80, 10, 25, Red)
   
   # Active power-ups display (left side)

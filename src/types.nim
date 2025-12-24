@@ -394,6 +394,11 @@ type
     baseCost*: int
     bought*: int
 
+  # Boss wave management - centralizes boss coin logic
+  BossWaveManager* = object
+    active*: bool        # True when a boss is currently spawned
+    coinActive*: bool    # True when boss coin needs to be collected
+
   Game* = ref object
     state*: GameState
     mode*: GameMode
@@ -430,9 +435,8 @@ type
     rollPowerUpList*: array[3, seq[PowerUp]]  # List of power-ups scrolling in each slot
     canSelectPowerUp*: bool  # Whether player can select (false during animation)
     rerollCost*: int  # Cost of next reroll (increases after each use)
-    bossActive*: bool
+    bossWaveManager*: BossWaveManager  # Centralized boss wave and coin management
     bossSpawnTimer*: float32
-    bossCoinActive*: bool  # True when boss coin needs to be collected to end wave
     cameFromPowerUpSelect*: bool
     gameOverSoundPlayed*: bool
     # Wave-based mode fields
