@@ -31,7 +31,7 @@ proc updateDiscordForPlaying*(client: DiscordClient, game: Game) =
     state = detailsText,
     details = &"Playing {modeText}",
     largeImage = "game_icon",
-    largeText = "Top Hat Shooter",
+    largeText = "TopHat Shooter",
     startTime = game.time.int64
   )
   
@@ -44,9 +44,9 @@ proc updateDiscordForMenu*(client: DiscordClient) =
   
   let presence = createPresence(
     state = "In Menu",
-    details = "Top Hat Shooter",
+    details = "TopHat Shooter",
     largeImage = "game_icon",
-    largeText = "Top Hat Shooter"
+    largeText = "TopHat Shooter"
   )
   
   updatePresence(client, presence)
@@ -65,7 +65,7 @@ proc updateDiscordForPaused*(client: DiscordClient, game: Game) =
     state = "Paused",
     details = &"{modeText} - Paused",
     largeImage = "game_icon",
-    largeText = "Top Hat Shooter"
+    largeText = "TopHat Shooter"
   )
   
   updatePresence(client, presence)

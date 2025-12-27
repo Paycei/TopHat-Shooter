@@ -1,10 +1,13 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config
 
 const
   screenWidth = 1024
   screenHeight = 768
   targetFPS = 60
   MOUSE_MOVEMENT_THRESHOLD = 2.0  # Minimum pixel movement to count as "mouse moved"
+
+# Global Discord client that persists across game sessions
+var globalDiscordClient: DiscordClient = nil
 
 var
   renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
@@ -516,8 +519,14 @@ proc main() =
   var statsSavedThisGame = false  # Track if stats were saved for current game
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   
+  # Initialize global Discord client (persists across game sessions)
+  globalDiscordClient = newDiscordClient(DISCORD_APP_ID)
+  discard globalDiscordClient.connect()  # Start background thread
+  
   var currentGame = newGame(screenWidth, screenHeight)
   currentGame.state = gsMenu
+  # Assign global Discord client to game
+  currentGame.discordClient = globalDiscordClient
   
   while not windowShouldClose():
     # Check if fullscreen toggle was requested - just toggle the window mode directly
@@ -564,6 +573,7 @@ proc main() =
         # Check if "asd" was typed
         if "asd" in currentGame.sandboxTypingBuffer:
           currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
           currentGame.mode = gmSandbox
           currentGame.state = gsPlaying
           currentGame.sandboxSidebarOpen = true
@@ -604,12 +614,14 @@ proc main() =
           case currentGame.menuSelection
           of 0:  # Wave-Based Mode
             currentGame = newGame(screenWidth, screenHeight)
+            currentGame.discordClient = globalDiscordClient
             currentGame.mode = gmWaveBased
             initializeRunTracking(currentGame)  # Start tracking
             currentGame.state = gsPlaying  # Start playing immediately
             statsSavedThisGame = false  # Reset for new game
           of 1:  # Time Survival Mode
             currentGame = newGame(screenWidth, screenHeight)
+            currentGame.discordClient = globalDiscordClient
             currentGame.mode = gmTimeSurvival
             initializeRunTracking(currentGame)  # Start tracking
             currentGame.state = gsPlaying  # Start playing immediately
@@ -625,13 +637,10 @@ proc main() =
             break
           else: discard
       
-      # Update Discord Rich Presence (throttled to once per 5 seconds)
+      # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
-        currentGame.discordUpdateTimer += getFrameTime()
-        if currentGame.discordUpdateTimer >= 5.0:
-          runCallbacks(currentGame.discordClient)
-          updateDiscordForMenu(currentGame.discordClient)
-          currentGame.discordUpdateTimer = 0.0
+        runCallbacks(currentGame.discordClient)
+        updateDiscordForMenu(currentGame.discordClient)
       
       beginGameDrawing()
       drawMenu(currentGame)
@@ -701,13 +710,10 @@ proc main() =
       else:
         playMusic(mtWave)
       
-      # Update Discord Rich Presence (throttled to once per 15 seconds)
+      # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil and not cheatMenu.active:
-        currentGame.discordUpdateTimer += getFrameTime()
-        if currentGame.discordUpdateTimer >= 15.0:
-          runCallbacks(currentGame.discordClient)
-          updateDiscordForPlaying(currentGame.discordClient, currentGame)
-          currentGame.discordUpdateTimer = 0.0
+        runCallbacks(currentGame.discordClient)
+        updateDiscordForPlaying(currentGame.discordClient, currentGame)
       
       # Check for cheat menu activation
       checkCheatSequence(cheatMenu, currentGame, currentGame.time)
@@ -940,7 +946,9 @@ proc main() =
             currentGame.previousState = gsPaused
             currentGame.state = gsSettings
           of 2:  # Main Menu
+            cleanupGame(currentGame)  # Clean up resources before creating new game
             currentGame = newGame(screenWidth, screenHeight)
+            currentGame.discordClient = globalDiscordClient
             currentGame.state = gsMenu
           else: discard
       
@@ -948,13 +956,10 @@ proc main() =
       if isKeyPressed(Escape):
         currentGame.state = gsPlaying
       
-      # Update Discord Rich Presence (throttled to once per 5 seconds)
+      # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
-        currentGame.discordUpdateTimer += getFrameTime()
-        if currentGame.discordUpdateTimer >= 5.0:
-          runCallbacks(currentGame.discordClient)
-          updateDiscordForPaused(currentGame.discordClient, currentGame)
-          currentGame.discordUpdateTimer = 0.0
+        runCallbacks(currentGame.discordClient)
+        updateDiscordForPaused(currentGame.discordClient, currentGame)
       
       beginGameDrawing()
       drawGame(currentGame)
@@ -1311,13 +1316,16 @@ proc main() =
       # Keyboard controls
       if isKeyPressed(R):
         currentGame = newGame(screenWidth, screenHeight)
+        currentGame.discordClient = globalDiscordClient
         currentGame.mode = gmWaveBased  # Default to wave-based on restart
         initializeRunTracking(currentGame)  # Start tracking
         currentGame.state = gsPlaying
         statsSavedThisGame = false  # Reset for new game
       
       if isKeyPressed(Escape) or isKeyPressed(Q):
+        cleanupGame(currentGame)  # Clean up resources before creating new game
         currentGame = newGame(screenWidth, screenHeight)
+        currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         statsSavedThisGame = false  # Reset for new game
       
@@ -1343,13 +1351,16 @@ proc main() =
         if checkCollisionPointRec(mousePos, restartRect):
           # Restart game
           currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
           currentGame.mode = gmWaveBased
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         elif checkCollisionPointRec(mousePos, menuRect):
           # Return to menu
+          cleanupGame(currentGame)  # Clean up resources before creating new game
           currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
           currentGame.state = gsMenu
           statsSavedThisGame = false
       
@@ -1360,6 +1371,9 @@ proc main() =
       if hasValidRunStats():
         drawText("Press TAB for detailed run statistics", 
                 screenWidth div 2 - 200, screenHeight - 120, 18, Gold)
+      
+      # Draw custom cursor on game over screen
+      drawCustomCursor(currentGame.time)
       
       endGameDrawing()
     
@@ -1380,6 +1394,7 @@ proc main() =
       # Quick restart
       if isKeyPressed(R):
         currentGame = newGame(screenWidth, screenHeight)
+        currentGame.discordClient = globalDiscordClient
         currentGame.mode = gmWaveBased
         initializeRunTracking(currentGame)
         currentGame.state = gsPlaying
@@ -1387,7 +1402,9 @@ proc main() =
       
       # Return to menu
       if isKeyPressed(Q):
+        cleanupGame(currentGame)  # Clean up resources before creating new game
         currentGame = newGame(screenWidth, screenHeight)
+        currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         statsSavedThisGame = false
       
@@ -1410,9 +1427,9 @@ proc main() =
       
       endGameDrawing()
   
-  # Cleanup Discord Rich Presence
-  if not currentGame.discordClient.isNil:
-    cleanupDiscord(currentGame.discordClient)
+  # Cleanup global Discord Rich Presence client
+  if not globalDiscordClient.isNil:
+    disconnect(globalDiscordClient)
   
   # Cleanup
   stopMusic()

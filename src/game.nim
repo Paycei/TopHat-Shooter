@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, discord_presence, discord_config, times
+import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics
 
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -749,6 +749,30 @@ proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float
   for effect in effects:
     applyBulletEffect(game, effect, enemy, bullet, dt, stats)
 
+proc cleanupGame*(game: Game) =
+  ## Clean up game resources before creating a new game
+  ## This prevents memory leaks and performance issues when returning to menu
+  
+  # Don't cleanup Discord client - it's global and persists across sessions
+  # Just clear the reference
+  game.discordClient = nil
+  
+  # Clear all game objects to help garbage collector
+  game.enemies = @[]
+  game.bullets = @[]
+  game.coins = @[]
+  game.consumables = @[]
+  game.walls = @[]
+  game.particles = @[]
+  game.attackWarnings = @[]
+  game.lasers = @[]
+  game.meteorites = @[]
+  game.damageNumbers = @[]
+  
+  # Clear player rotating orbs
+  if not game.player.isNil:
+    game.player.rotatingOrbs = @[]
+
 proc newGame*(screenWidth, screenHeight: int32): Game =
   result = Game(
     state: gsPlaying,
@@ -798,23 +822,11 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     # Enemy ID counter for unique tracking
     nextEnemyId: 0,  # Start at 0, increment with each enemy created
     # Statistics menu tab
-    statsMenuTab: 0,  # 0 = Lifetime, 1 = Last Run
-    # Discord update throttling
-    discordUpdateTimer: 0.0
+    statsMenuTab: 0  # 0 = Lifetime, 1 = Last Run
   )
   
-  # Initialize Discord Rich Presence
-  result.discordClient = newDiscordClient(DISCORD_APP_ID)
-  if result.discordClient.connect():
-    let startTime = epochTime().int64
-    let presence = createPresence(
-      state = "In Menu",
-      details = "TopHat Shooter",
-      largeImage = "game_icon",  # Add this image to your Discord app
-      largeText = "TopHat Shooter",
-      startTime = startTime
-    )
-    result.discordClient.updatePresence(presence)
+  # Discord client is assigned from global instance in main.nim
+  # Don't create a new client here to avoid threading issues
   
   # Note: initializeRunTracking is called explicitly when starting a game
   # (not in sandbox mode) to ensure correct mode is tracked
@@ -3661,32 +3673,48 @@ proc updateGame*(game: var Game, dt: float32) =
   while i < game.bullets.len:
     let bullet = game.bullets[i]
     
-    # Homing bullet logic (LEGENDARY - Single Level) - NERFED
-    if bullet.isHoming and bullet.fromPlayer and game.enemies.len > 0:
-      # HEAVY NERF: Much shorter tracking range and weaker turn rate
-      let trackingRange = 120.0  # NERFED from 160.0 - very short range now
-      
-      # Find nearest enemy that HASN'T been hit by this bullet yet
-      var nearestEnemy: Enemy = nil
-      var nearestDist = 999999.0
-      
-      for enemyIdx in 0..<game.enemies.len:
-        let enemy = game.enemies[enemyIdx]
-        let dist = distance(bullet.pos, enemy.pos)
+    # Homing bullet logic
+    if bullet.isHoming:
+      if bullet.fromPlayer and game.enemies.len > 0:
+        # Player homing bullets track enemies (LEGENDARY - Single Level) - NERFED
+        # HEAVY NERF: Much shorter tracking range and weaker turn rate
+        let trackingRange = 120.0  # NERFED from 160.0 - very short range now
         
-        # Only track if within range AND not already hit by this bullet (using enemy ID)
-        if dist < trackingRange and dist < nearestDist and enemy.id notin bullet.hitEnemies:
-          nearestDist = dist
-          nearestEnemy = enemy
-      
-      if nearestEnemy != nil:
-        # HEAVY NERF: Much weaker tracking - bullets barely curve
-        let turnRate = 0.02  # NERFED from 0.05 - very weak tracking now
+        # Find nearest enemy that HASN'T been hit by this bullet yet
+        var nearestEnemy: Enemy = nil
+        var nearestDist = 999999.0
         
-        let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
-        let currentDir = bullet.vel.normalize()
-        let newDir = (currentDir * (1.0 - turnRate) + toEnemy * turnRate).normalize()
-        bullet.vel = newDir * bullet.vel.length()
+        for enemyIdx in 0..<game.enemies.len:
+          let enemy = game.enemies[enemyIdx]
+          let dist = distance(bullet.pos, enemy.pos)
+          
+          # Only track if within range AND not already hit by this bullet (using enemy ID)
+          if dist < trackingRange and dist < nearestDist and enemy.id notin bullet.hitEnemies:
+            nearestDist = dist
+            nearestEnemy = enemy
+        
+        if nearestEnemy != nil:
+          # HEAVY NERF: Much weaker tracking - bullets barely curve
+          let turnRate = 0.02  # NERFED from 0.05 - very weak tracking now
+          
+          let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
+          let currentDir = bullet.vel.normalize()
+          let newDir = (currentDir * (1.0 - turnRate) + toEnemy * turnRate).normalize()
+          bullet.vel = newDir * bullet.vel.length()
+      
+      elif not bullet.fromPlayer:
+        # Enemy homing bullets track the player (etMage magic bullets)
+        let trackingRange = 400.0  # Longer range for enemy homing
+        let dist = distance(bullet.pos, game.player.pos)
+        
+        if dist < trackingRange:
+          # Gentle tracking strength for enemy bullets - dodgeable
+          let turnRate = 0.005  # Reduced from 0.02 - very gentle curve
+          
+          let toPlayer = (game.player.pos - bullet.pos).normalize()
+          let currentDir = bullet.vel.normalize()
+          let newDir = (currentDir * (1.0 - turnRate) + toPlayer * turnRate).normalize()
+          bullet.vel = newDir * bullet.vel.length()
 
     # Use effectiveDt for enemy bullets (slowed by Time Warp), normal dt for player bullets
     let bulletDt = if bullet.fromPlayer: dt else: effectiveDt
