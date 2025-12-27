@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics
+import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, discord_presence, discord_config, times
 
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -800,6 +800,19 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     # Statistics menu tab
     statsMenuTab: 0  # 0 = Lifetime, 1 = Last Run
   )
+  
+  # Initialize Discord Rich Presence
+  result.discordClient = newDiscordClient(DISCORD_APP_ID)
+  if result.discordClient.connect():
+    let startTime = epochTime().int64
+    let presence = createPresence(
+      state = "In Menu",
+      details = "Top Hat Shooter",
+      largeImage = "game_icon",  # Add this image to your Discord app
+      largeText = "Top Hat Shooter",
+      startTime = startTime
+    )
+    result.discordClient.updatePresence(presence)
   
   # Note: initializeRunTracking is called explicitly when starting a game
   # (not in sandbox mode) to ensure correct mode is tracked

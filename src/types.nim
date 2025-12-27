@@ -1,4 +1,4 @@
-import raylib, math, std/tables
+import raylib, math, std/tables, discord_presence
 
 type
   GameState* = enum
@@ -467,6 +467,8 @@ type
     sandboxScrollOffset*: int32  # Scroll position in sidebar
     sandboxGodMode*: bool  # Player invulnerability
     sandboxFreezeEnemies*: bool  # Freeze all enemy movement
+    # Discord Rich Presence
+    discordClient*: DiscordClient  # Discord Rich Presence client
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

@@ -6,9 +6,5 @@ nimble.develop
 nimble.paths
 nimbledeps
 
-# Save files
-settings.json
-
-stats.json
-src/discord_presence.nim
-src/discord-rpc.dll
+# Discord configuration (contains sensitive App ID)
+src/discord_config.nim

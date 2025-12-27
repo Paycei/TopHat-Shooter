@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_presence
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence
 
 const
   screenWidth = 1024
@@ -422,9 +422,6 @@ proc main() =
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor
   
-  # Initialize Discord Rich Presence
-  initDiscordPresence()
-  
   # Initialize sound system
   discard initSoundSystem()
   
@@ -455,9 +452,6 @@ proc main() =
   
   while not windowShouldClose():
     let dt = getFrameTime()
-    
-    # Update Discord Rich Presence
-    updateDiscordPresence(currentGame)
     
     # Update music stream (required for continuous playback)
     updateMusic()
@@ -552,6 +546,11 @@ proc main() =
             break
           else: discard
       
+      # Update Discord Rich Presence
+      if not currentGame.discordClient.isNil:
+        runCallbacks(currentGame.discordClient)
+        updateDiscordForMenu(currentGame.discordClient)
+      
       beginDrawing()
       drawMenu(currentGame)
       endDrawing()
@@ -611,6 +610,13 @@ proc main() =
         playMusic(mtBoss)
       else:
         playMusic(mtWave)
+      
+      # Update Discord Rich Presence
+      if not currentGame.discordClient.isNil and not cheatMenu.active:
+        runCallbacks(currentGame.discordClient)
+        # Update presence every 15 seconds to show current progress
+        if (currentGame.time.int mod 15) == 0:
+          updateDiscordForPlaying(currentGame.discordClient, currentGame)
       
       # Check for cheat menu activation
       checkCheatSequence(cheatMenu, currentGame, currentGame.time)
@@ -850,6 +856,11 @@ proc main() =
       # Also allow ESC to resume
       if isKeyPressed(Escape):
         currentGame.state = gsPlaying
+      
+      # Update Discord Rich Presence
+      if not currentGame.discordClient.isNil:
+        runCallbacks(currentGame.discordClient)
+        updateDiscordForPaused(currentGame.discordClient, currentGame)
       
       beginDrawing()
       drawGame(currentGame)
@@ -1169,6 +1180,10 @@ proc main() =
         playSound(stGameOver, 1.0)
         currentGame.gameOverSoundPlayed = true
         
+        # Clear Discord Rich Presence
+        if not currentGame.discordClient.isNil:
+          clearPresence(currentGame.discordClient)
+        
         # Finalize run tracking and save for menu viewing
         if hasValidRunStats():
           finalizeRunTracking(currentGame)
@@ -1301,10 +1316,13 @@ proc main() =
       
       endDrawing()
   
+  # Cleanup Discord Rich Presence
+  if not currentGame.discordClient.isNil:
+    cleanupDiscord(currentGame.discordClient)
+  
   # Cleanup
   stopMusic()
   closeSoundSystem(globalSoundSystem)
-  shutdownDiscordPresence()
   closeWindow()
 
 when isMainModule:
