@@ -86,8 +86,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 1.0,  # NERFED from 0.875 (slower attacks)
-              projectileSpeed: 150.0,  # NERFED from 170.0 (easier to dodge)
+              cooldown: 0.9,  # NERFED from 0.875 (slower attacks)
+              projectileSpeed: 160.0,  # NERFED from 170.0 (easier to dodge)
               projectileCount: 8,  # NERFED from 10 (less bullets)
               spreadAngle: 45.0,
               durationOrRadius: 0.0
@@ -116,8 +116,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 1.5,  # NERFED from 1.0 (slower attacks)
-              projectileSpeed: 165.0,  # NERFED from 185.0 (easier to dodge)
+              cooldown: 1.4,  # NERFED from 1.0 (slower attacks)
+              projectileSpeed: 170.0,  # NERFED from 185.0 (easier to dodge)
               projectileCount: 10,  # NERFED from 12 (less bullets)
               spreadAngle: 30.0,
               durationOrRadius: 0.0

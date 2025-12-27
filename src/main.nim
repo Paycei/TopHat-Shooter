@@ -6,6 +6,58 @@ const
   targetFPS = 60
   MOUSE_MOVEMENT_THRESHOLD = 2.0  # Minimum pixel movement to count as "mouse moved"
 
+var
+  renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
+  renderScale: float32 = 1.0
+  renderOffsetX: float32 = 0.0
+  renderOffsetY: float32 = 0.0
+
+proc updateRenderScale() =
+  ## Calculate letterbox scaling for current window size
+  let windowWidth = getScreenWidth()
+  let windowHeight = getScreenHeight()
+  
+  let scaleX = windowWidth.float32 / screenWidth.float32
+  let scaleY = windowHeight.float32 / screenHeight.float32
+  
+  # Use smaller scale to maintain aspect ratio
+  renderScale = min(scaleX, scaleY)
+  
+  # Calculate centering offsets
+  let scaledWidth = screenWidth.float32 * renderScale
+  let scaledHeight = screenHeight.float32 * renderScale
+  renderOffsetX = (windowWidth.float32 - scaledWidth) / 2.0
+  renderOffsetY = (windowHeight.float32 - scaledHeight) / 2.0
+
+proc getVirtualMousePosition(): Vector2 =
+  ## Convert screen mouse position to virtual game coordinates
+  let screenPos = getMousePosition()
+  result.x = (screenPos.x - renderOffsetX) / renderScale
+  result.y = (screenPos.y - renderOffsetY) / renderScale
+  # Clamp to game bounds
+  result.x = clamp(result.x, 0.0, screenWidth.float32)
+  result.y = clamp(result.y, 0.0, screenHeight.float32)
+
+proc beginGameDrawing() =
+  ## Begin drawing to the virtual render target
+  beginTextureMode(renderTarget)
+
+proc endGameDrawing() =
+  ## End drawing to render target and blit to screen with letterboxing
+  endTextureMode()
+  
+  beginDrawing()
+  clearBackground(Black)  # Black bars for letterboxing
+  
+  # Draw the scaled render texture
+  let source = Rectangle(x: 0, y: 0, width: screenWidth.float32, height: -screenHeight.float32)
+  let dest = Rectangle(x: renderOffsetX, y: renderOffsetY,
+                       width: screenWidth.float32 * renderScale,
+                       height: screenHeight.float32 * renderScale)
+  drawTexture(renderTarget.texture, source, dest, Vector2(x: 0, y: 0), 0, White)
+  
+  endDrawing()
+
 proc isMenuClickValid*(game: Game, settings: Settings, mousePos: Vector2f, buttonX: int32, buttonY: int32, buttonWidth: int32, buttonHeight: int32): bool =
   ## Helper function to validate mouse clicks in menus
   ## Returns true if mouse click is within button bounds and mouse support is enabled
@@ -16,14 +68,14 @@ proc isMenuClickValid*(game: Game, settings: Settings, mousePos: Vector2f, butto
 
 proc hasMouseMoved*(game: Game): bool =
   ## Detects if mouse has actually moved (not just hovering)
-  let currentPos = getMousePosition()
+  let currentPos = getVirtualMousePosition()
   let dx = abs(currentPos.x - game.lastMousePos.x)
   let dy = abs(currentPos.y - game.lastMousePos.y)
   result = (dx > MOUSE_MOVEMENT_THRESHOLD or dy > MOUSE_MOVEMENT_THRESHOLD)
 
 proc updateMouseTracking*(game: Game) =
   ## Updates mouse position tracking and resets keyboard flag if mouse moved
-  let currentPos = getMousePosition()
+  let currentPos = getVirtualMousePosition()
   if hasMouseMoved(game):
     game.mouseMovedRecently = true
     game.keyboardUsedRecently = false
@@ -417,10 +469,31 @@ proc drawStatistics(game: Game, stats: Statistics) =
 proc main() =
   randomize()
   
+  # Initialize settings first to check fullscreen preference
+  let settings = initSettings()
+  
+  # Set up window with appropriate flags based on saved settings
+  if settings.fullscreen:
+    setConfigFlags(flags(WindowUndecorated, WindowResizable))
+  else:
+    setConfigFlags(flags(WindowResizable))
+  
   initWindow(screenWidth, screenHeight, "TopHat-Shooter: Elemental Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor
+  
+  # Apply fullscreen if needed (resize and position)
+  if settings.fullscreen:
+    let monitor = getCurrentMonitor()
+    let monitorWidth = getMonitorWidth(monitor)
+    let monitorHeight = getMonitorHeight(monitor)
+    setWindowSize(monitorWidth, monitorHeight)
+    setWindowPosition(0, 0)
+  
+  # Create render target for letterboxing
+  renderTarget = loadRenderTexture(screenWidth, screenHeight)
+  updateRenderScale()
   
   # Initialize sound system
   discard initSoundSystem()
@@ -428,13 +501,8 @@ proc main() =
   # Initialize cheat menu
   let cheatMenu = initCheatMenu()
   
-  # Initialize settings
-  let settings = initSettings()
+  # Apply remaining settings
   applySettings(settings)
-  
-  # Apply fullscreen setting if it was saved
-  if settings.fullscreen:
-    toggleFullscreen()
   
   # Initialize and load statistics
   let stats = initStatistics()
@@ -446,20 +514,31 @@ proc main() =
     loadLastCompletedRun(loadedRunStats)
   
   var statsSavedThisGame = false  # Track if stats were saved for current game
+  var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   
   var currentGame = newGame(screenWidth, screenHeight)
   currentGame.state = gsMenu
   
   while not windowShouldClose():
+    # Check if fullscreen toggle was requested - just toggle the window mode directly
+    if fullscreenToggleRequested:
+      fullscreenToggleRequested = false
+      toggleBorderlessWindowed()
+      updateRenderScale()
+      discard saveSettings(settings)
+    
     let dt = getFrameTime()
+    
+    # Update render scale every frame in case window was resized
+    updateRenderScale()
     
     # Update music stream (required for continuous playback)
     updateMusic()
     
-    # Handle fullscreen toggle with F11
+    # Handle fullscreen toggle with F11 (borderless window)
     if isKeyPressed(F11):
       settings.fullscreen = not settings.fullscreen
-      toggleFullscreen()
+      fullscreenToggleRequested = true
     
     # ALWAYS hide system cursor - we always use custom cursor
     hideCursor()
@@ -546,14 +625,17 @@ proc main() =
             break
           else: discard
       
-      # Update Discord Rich Presence
+      # Update Discord Rich Presence (throttled to once per 5 seconds)
       if not currentGame.discordClient.isNil:
-        runCallbacks(currentGame.discordClient)
-        updateDiscordForMenu(currentGame.discordClient)
+        currentGame.discordUpdateTimer += getFrameTime()
+        if currentGame.discordUpdateTimer >= 5.0:
+          runCallbacks(currentGame.discordClient)
+          updateDiscordForMenu(currentGame.discordClient)
+          currentGame.discordUpdateTimer = 0.0
       
-      beginDrawing()
+      beginGameDrawing()
       drawMenu(currentGame)
-      endDrawing()
+      endGameDrawing()
     
     of gsHelp:
       # Keep menu music playing during help screen
@@ -562,13 +644,16 @@ proc main() =
       if isKeyPressed(Escape):
         currentGame.state = gsMenu
       
-      beginDrawing()
+      beginGameDrawing()
       drawHelp(currentGame)
-      endDrawing()
+      endGameDrawing()
     
     of gsSettings:
       # Keep menu music playing during settings
       playMusic(mtMenu)
+      
+      # Update time first
+      currentGame.time += dt
       
       if isKeyPressed(Escape):
         currentGame.state = currentGame.previousState  # Return to where we came from
@@ -576,11 +661,16 @@ proc main() =
         setMusicVolume(settings.musicVolume)  # Apply music volume changes
         playSound(stMenuSelect)
       
-      updateSettings(settings)
+      let requestFullscreenToggle = updateSettings(settings)
       
-      beginDrawing()
+      # Always draw the frame first
+      beginGameDrawing()
       drawSettings(settings, screenWidth, screenHeight, currentGame.time)
-      endDrawing()
+      endGameDrawing()
+      
+      # Then handle fullscreen toggle after frame is complete
+      if requestFullscreenToggle:
+        fullscreenToggleRequested = true
     
     of gsStatistics:
       # Keep menu music playing during statistics screen
@@ -600,9 +690,9 @@ proc main() =
       if isKeyPressed(Escape):
         currentGame.state = gsMenu
       
-      beginDrawing()
+      beginGameDrawing()
       drawStatistics(currentGame, stats)
-      endDrawing()
+      endGameDrawing()
 
     of gsPlaying:
       # Dynamic music based on game state
@@ -611,12 +701,13 @@ proc main() =
       else:
         playMusic(mtWave)
       
-      # Update Discord Rich Presence
+      # Update Discord Rich Presence (throttled to once per 15 seconds)
       if not currentGame.discordClient.isNil and not cheatMenu.active:
-        runCallbacks(currentGame.discordClient)
-        # Update presence every 15 seconds to show current progress
-        if (currentGame.time.int mod 15) == 0:
+        currentGame.discordUpdateTimer += getFrameTime()
+        if currentGame.discordUpdateTimer >= 15.0:
+          runCallbacks(currentGame.discordClient)
           updateDiscordForPlaying(currentGame.discordClient, currentGame)
+          currentGame.discordUpdateTimer = 0.0
       
       # Check for cheat menu activation
       checkCheatSequence(cheatMenu, currentGame, currentGame.time)
@@ -767,7 +858,7 @@ proc main() =
         else:
           updateGame(currentGame, dt)
       
-      beginDrawing()
+      beginGameDrawing()
       drawGame(currentGame)
       
       # Draw sandbox UI if in sandbox mode
@@ -780,7 +871,7 @@ proc main() =
       # Draw custom cursor during gameplay
       drawCustomCursor(currentGame.time)
       
-      endDrawing()
+      endGameDrawing()
     
     of gsPaused:
       # Keep current music playing but muted or paused
@@ -857,12 +948,15 @@ proc main() =
       if isKeyPressed(Escape):
         currentGame.state = gsPlaying
       
-      # Update Discord Rich Presence
+      # Update Discord Rich Presence (throttled to once per 5 seconds)
       if not currentGame.discordClient.isNil:
-        runCallbacks(currentGame.discordClient)
-        updateDiscordForPaused(currentGame.discordClient, currentGame)
+        currentGame.discordUpdateTimer += getFrameTime()
+        if currentGame.discordUpdateTimer >= 5.0:
+          runCallbacks(currentGame.discordClient)
+          updateDiscordForPaused(currentGame.discordClient, currentGame)
+          currentGame.discordUpdateTimer = 0.0
       
-      beginDrawing()
+      beginGameDrawing()
       drawGame(currentGame)
       
       # Draw pause overlay
@@ -897,7 +991,7 @@ proc main() =
       if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
         drawCustomCursor(currentGame.time)
       
-      endDrawing()
+      endGameDrawing()
     
     of gsShop:
       # Play power-up music in shop
@@ -939,14 +1033,14 @@ proc main() =
         currentGame.state = gsCountdown
         currentGame.countdownTimer = 0.5
       
-      beginDrawing()
+      beginGameDrawing()
       drawGame(currentGame)
       drawShop(currentGame)
       
       # Draw custom cursor
       drawCustomCursor(currentGame.time)
       
-      endDrawing()
+      endGameDrawing()
     
     of gsCountdown:
       # Keep wave music during countdown
@@ -958,7 +1052,7 @@ proc main() =
       if currentGame.countdownTimer <= 0:
         currentGame.state = gsPlaying
       
-      beginDrawing()
+      beginGameDrawing()
       drawGame(currentGame)
       
       # Draw stylish countdown overlay
@@ -1011,7 +1105,7 @@ proc main() =
       # Draw custom cursor
       drawCustomCursor(currentGame.time)
       
-      endDrawing()
+      endGameDrawing()
     
     of gsWaveCleared:
       # Keep wave music during wave cleared screen
@@ -1087,7 +1181,7 @@ proc main() =
           currentGame.state = gsPlaying
           startWave(currentGame)
       
-      beginDrawing()
+      beginGameDrawing()
       drawGame(currentGame)
       
       # Draw "WAVE CLEARED!" text (static, no pulsing)
@@ -1107,7 +1201,7 @@ proc main() =
       drawText(waveText, textX, textY, waveTextSize,
               Color(r: 150, g: 255, b: 150, a: 255))
       
-      endDrawing()
+      endGameDrawing()
     
     of gsPowerUpSelect:
       # Play power-up selection music
@@ -1169,9 +1263,9 @@ proc main() =
           currentGame.state = gsCountdown
           currentGame.countdownTimer = 0.5
       
-      beginDrawing()
+      beginGameDrawing()
       drawPowerUpSelection(currentGame)
-      endDrawing()
+      endGameDrawing()
     
     of gsGameOver:
       # Stop music and play game over sound once
@@ -1259,7 +1353,7 @@ proc main() =
           currentGame.state = gsMenu
           statsSavedThisGame = false
       
-      beginDrawing()
+      beginGameDrawing()
       drawGameOver(currentGame)
       
       # Show hint to view stats
@@ -1267,7 +1361,7 @@ proc main() =
         drawText("Press TAB for detailed run statistics", 
                 screenWidth div 2 - 200, screenHeight - 120, 18, Gold)
       
-      endDrawing()
+      endGameDrawing()
     
     of gsRunStats:
       # Display detailed run statistics
@@ -1297,7 +1391,7 @@ proc main() =
         currentGame.state = gsMenu
         statsSavedThisGame = false
       
-      beginDrawing()
+      beginGameDrawing()
       if hasValidRunStats():
         drawRunStatisticsScreen(currentRunStats, screenWidth, screenHeight, 
                                currentGame.time, currentGame.showRunStatsGraphs)
@@ -1314,7 +1408,7 @@ proc main() =
       drawText("R - Restart | Q - Menu | ESC - Back | TAB - Toggle Graphs", 
               (screenWidth div 2 - 280).int32, hintY.int32, 16.int32, Gold)
       
-      endDrawing()
+      endGameDrawing()
   
   # Cleanup Discord Rich Presence
   if not currentGame.discordClient.isNil:

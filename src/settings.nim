@@ -158,7 +158,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   
   # Fullscreen Setting
   let fullscreenY: int32 = 370
-  drawText("Fullscreen:", 200'i32, fullscreenY, 24, White)
+  drawText("Borderless Fullscreen:", 200'i32, fullscreenY, 24, White)
   let fullscreenCheckY: int32 = fullscreenY + 5
   
   drawRectangle(checkboxX, fullscreenCheckY, checkboxSize, checkboxSize, checkboxColor)
@@ -170,7 +170,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
     drawLine(Vector2(x: (checkboxX + 12).float32, y: (fullscreenCheckY + 20).float32),
             Vector2(x: (checkboxX + 22).float32, y: (fullscreenCheckY + 5).float32), 3, Green)
   
-  drawText("(F11 to toggle)", checkboxX + checkboxSize + 20, fullscreenY, 20, LightGray)
+  drawText("(Press F11 to toggle)", checkboxX + checkboxSize + 20, fullscreenY, 20, LightGray)
   
   # Show FPS Setting
   let showFPSY: int32 = 425
@@ -279,8 +279,10 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   # Center dot
   drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
 
-proc updateSettings*(settings: Settings) =
+proc updateSettings*(settings: Settings): bool =
+  ## Returns true if fullscreen toggle was requested
   var settingsChanged = false
+  var fullscreenToggleRequested = false
   
   # Handle FPS input box click
   let boxX: int32 = 400
@@ -461,13 +463,13 @@ proc updateSettings*(settings: Settings) =
     
     let mousePos = getMousePosition()
     
-    # Fullscreen checkbox
+    # Fullscreen checkbox - just toggle the setting, F11 applies it
     if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
        mousePos.y >= fullscreenCheckY.float32 and mousePos.y <= (fullscreenCheckY + checkboxSize).float32:
       settings.fullscreen = not settings.fullscreen
-      toggleFullscreen()
       playSound(stMenuNav)
       settingsChanged = true
+      fullscreenToggleRequested = true  # Request window recreation
     
     # Show FPS checkbox
     elif mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
@@ -508,6 +510,8 @@ proc updateSettings*(settings: Settings) =
   # Only save if settings actually changed
   if settingsChanged:
     discard saveSettings(settings)
+  
+  return fullscreenToggleRequested
 
 proc applySettings*(settings: Settings) =
   setTargetFPS(settings.fpsLimit)

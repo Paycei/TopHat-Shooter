@@ -798,7 +798,9 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     # Enemy ID counter for unique tracking
     nextEnemyId: 0,  # Start at 0, increment with each enemy created
     # Statistics menu tab
-    statsMenuTab: 0  # 0 = Lifetime, 1 = Last Run
+    statsMenuTab: 0,  # 0 = Lifetime, 1 = Last Run
+    # Discord update throttling
+    discordUpdateTimer: 0.0
   )
   
   # Initialize Discord Rich Presence
@@ -807,9 +809,9 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     let startTime = epochTime().int64
     let presence = createPresence(
       state = "In Menu",
-      details = "Top Hat Shooter",
+      details = "TopHat Shooter",
       largeImage = "game_icon",  # Add this image to your Discord app
-      largeText = "Top Hat Shooter",
+      largeText = "TopHat Shooter",
       startTime = startTime
     )
     result.discordClient.updatePresence(presence)

@@ -469,6 +469,7 @@ type
     sandboxFreezeEnemies*: bool  # Freeze all enemy movement
     # Discord Rich Presence
     discordClient*: DiscordClient  # Discord Rich Presence client
+    discordUpdateTimer*: float32  # Timer to throttle Discord updates
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x
