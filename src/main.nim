@@ -528,10 +528,26 @@ proc main() =
   currentGame.discordClient = globalDiscordClient
   
   while not windowShouldClose():
-    # Check if fullscreen toggle was requested - just toggle the window mode directly
+    # Check if fullscreen toggle was requested
     if fullscreenToggleRequested:
       fullscreenToggleRequested = false
-      toggleBorderlessWindowed()
+      
+      if settings.fullscreen:
+        # Going to fullscreen - maximize to monitor size
+        let monitor = getCurrentMonitor()
+        let monitorWidth = getMonitorWidth(monitor)
+        let monitorHeight = getMonitorHeight(monitor)
+        setWindowSize(monitorWidth, monitorHeight)
+        setWindowPosition(0, 0)
+      else:
+        # Going to windowed - restore original window size
+        setWindowSize(screenWidth, screenHeight)
+        # Center the window on screen
+        let monitor = getCurrentMonitor()
+        let monitorWidth = getMonitorWidth(monitor)
+        let monitorHeight = getMonitorHeight(monitor)
+        setWindowPosition((monitorWidth - screenWidth) div 2, (monitorHeight - screenHeight) div 2)
+      
       updateRenderScale()
       discard saveSettings(settings)
     

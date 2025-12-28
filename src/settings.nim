@@ -158,7 +158,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   
   # Fullscreen Setting
   let fullscreenY: int32 = 370
-  drawText("Borderless Fullscreen:", 200'i32, fullscreenY, 24, White)
+  drawText("Fullscreen:", 200'i32, fullscreenY, 24, White)
   let fullscreenCheckY: int32 = fullscreenY + 5
   
   drawRectangle(checkboxX, fullscreenCheckY, checkboxSize, checkboxSize, checkboxColor)
