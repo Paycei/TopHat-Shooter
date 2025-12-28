@@ -1421,9 +1421,9 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   if hasPowerUp(game.player, puBulletSize):
     let sizeLevel = getPowerUpLevel(game.player, puBulletSize)
     let sizeMultiplier = case sizeLevel
-      of 1: 1.4
-      of 2: 1.8
-      else: 2.4
+      of 1: 1.5
+      of 2: 2.0
+      else: 2.5
     bulletRadius *= sizeMultiplier
   
   var slowEffect = 0.0
