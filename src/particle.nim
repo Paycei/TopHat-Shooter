@@ -104,8 +104,26 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
   var fontSize: int32
   
   if dmgNum.isCritical:
-    # Critical hits: larger, yellow text (for player crits)
-    color = Color(r: 255, g: 255, b: 50, a: alpha.uint8)
+    # Critical hits: use element color but larger size
+    # Determine color based on damage type first
+    case dmgNum.damageType
+    of dtFire:
+      color = Color(r: 255, g: 80, b: 0, a: alpha.uint8)
+    of dtPoison:
+      color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
+    of dtLaser:
+      color = Color(r: 150, g: 150, b: 255, a: alpha.uint8)
+    of dtLightning:
+      color = Color(r: 255, g: 255, b: 80, a: alpha.uint8)
+    of dtArcane:
+      color = Color(r: 180, g: 50, b: 200, a: alpha.uint8)
+    of dtExplosion:
+      color = Color(r: 255, g: 165, b: 0, a: alpha.uint8)
+    of dtHeal:
+      color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
+    else:
+      # Default and dtCritical: yellow for generic crits
+      color = Color(r: 255, g: 255, b: 50, a: alpha.uint8)
     fontSize = 24
   elif dmgNum.fromPlayer:
     # Player damage to enemy: color by damage type
@@ -134,9 +152,12 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
     of dtHeal:
       # Healing: bright green (scales with heal amount)
       color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
-      # Size scales with healing amount: minimum 12, maximum 20
-      # Smaller heals get smaller text, larger heals get larger text
-      fontSize = int32(clamp(12.0 + (dmgNum.damage / 50.0) * 8.0, 12.0, 20.0))
+      # Size scales with healing amount: small heals = smaller, large heals = larger
+      # 0.1 heal = 12, 1.0 heal = 16, 5.0 heal = 20, 10+ heal = 24
+      if dmgNum.damage < 1.0:
+        fontSize = int32(clamp(12.0 + dmgNum.damage * 4.0, 12.0, 16.0))
+      else:
+        fontSize = int32(clamp(16.0 + (dmgNum.damage / 5.0) * 4.0, 16.0, 24.0))
     of dtDefault:
       # Default damage: white (standard bullets, orbs)
       color = Color(r: 255, g: 255, b: 255, a: alpha.uint8)
@@ -185,8 +206,11 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
     else:
       formatFloat(dmgNum.damage, ffDecimal, 2)  # Show 2 decimals for very small values
   
+  # Add exclamation mark for critical hits
+  let displayText = if dmgNum.isCritical: damageText & "!" else: damageText
+  
   # Draw text with slight outline for better visibility
-  let textWidth = measureText($damageText, fontSize)
+  let textWidth = measureText($displayText, fontSize)
   let x = (dmgNum.pos.x - textWidth.float32 / 2.0).int32
   let y = dmgNum.pos.y.int32
   
@@ -194,8 +218,8 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
   for dx in [-1, 0, 1]:
     for dy in [-1, 0, 1]:
       if dx != 0 or dy != 0:
-        drawText($damageText, int32(x + dx), int32(y + dy), fontSize,
+        drawText($displayText, int32(x + dx), int32(y + dy), fontSize,
                 Color(r: 0, g: 0, b: 0, a: uint8(alpha * 0.8)))
   
   # Main text
-  drawText($damageText, x, y, fontSize, color)
+  drawText($displayText, x, y, fontSize, color)

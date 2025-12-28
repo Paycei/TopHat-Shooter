@@ -557,7 +557,7 @@ proc preGenerateAllAssets*(verbose: bool = true) =
   
   if cached.total == totalAssets:
     if verbose:
-      echo "✓ All ", totalAssets, " assets already cached - ready to play!"
+      echo "All ", totalAssets, " assets already cached - ready to play!"
     return
   
   if verbose:
@@ -590,7 +590,7 @@ proc preGenerateAllAssets*(verbose: bool = true) =
   
   if verbose:
     echo "=========================================="
-    echo "✓ Asset generation complete!"
+    echo "  Asset generation complete!"
     echo "  Total assets: ", totalAssets
     echo "  Cache location: ", getCacheDir()
     echo "=========================================="

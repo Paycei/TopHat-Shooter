@@ -65,6 +65,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puBloodOrb: "Blood Orbs"
   of puBloodAura: "Blood Aura"
   of puBloodMastery: "Blood Lord"
+
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
   of puDoubleShot:
@@ -106,7 +107,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "+40% fire rate"
   of puMaxHealth:
     # Single level only - LEGENDARY
-    "+15 max HP"
+    "+14 max HP"
   of puSpeedBoost:
     # Single level only - LEGENDARY
     "+50% movement speed"
@@ -124,12 +125,12 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "Walls have +250% HP"
   of puAutoShoot:
     # Single level only - LEGENDARY
-    "Auto-fire at nearest enemy (full rate, 450 range)"
+    "Auto-fire at nearest enemy (90% fire rate, 450 range)"
   of puBulletSize:
     case level
-    of 1: "+40% bullet size"
-    of 2: "+80% bullet size"
-    else: "+140% bullet size"
+    of 1: "+50% bullet size"
+    of 2: "+100% bullet size"
+    else: "+150% bullet size"
   of puRegeneration:
     case level
     of 1: "Regen 1-2 HP per wave"
@@ -137,7 +138,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Regen 3-6 HP per wave"
   of puDodgeChance:
     case level
-    of 1: "12% chance to dodge hits"
+    of 1: "15% chance to dodge hits"
     of 2: "20% chance to dodge hits"
     else: "30% chance to dodge hits"
   of puCriticalHit:
@@ -183,8 +184,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   of puChainLightning:
     case level
     of 1: "Hit chains to 1 enemy (70% dmg, 120 range, 0.05s stun)"
-    of 2: "Hit chains to 2 enemies (80% dmg, 140 range, 0.05s stun)"
-    else: "Hit chains to 3 enemies (90% dmg, 160 range, 0.05s stun)"
+    of 2: "Hit chains to 2 enemies (85% dmg, 140 range, 0.05s stun)"
+    else: "Hit chains to 3 enemies (100% dmg, 160 range, 0.05s stun)"
   of puFrostShots:
     case level
     of 1: "Bullets slow enemies 25% (permanent)"
@@ -573,9 +574,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Single level only - +40% fire rate
     player.fireRate *= 0.714  # 1 / 1.4
   of puMaxHealth:
-    # Single level only - +15 HP
-    player.maxHp += 15.0
-    player.hp += 15.0
+    # Single level only - +14 HP
+    player.maxHp += 14.0
+    player.hp += 14.0
   of puSpeedBoost:
     # Single level only - +50% speed
     player.speed *= 1.5

@@ -468,7 +468,6 @@ proc drawStatistics(game: Game, stats: Statistics) =
   if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
     drawCustomCursor(game.time)
 
-
 proc main() =
   randomize()
   

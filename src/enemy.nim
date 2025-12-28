@@ -1935,7 +1935,6 @@ proc drawLaser*(laser: Laser) =
   else:
     discard
 
-
 proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Game): Enemy =
   let side = rand(3)
   var x, y: float32

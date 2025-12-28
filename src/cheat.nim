@@ -686,9 +686,9 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     drawText("Showing " & $(startIdx + 1) & "-" & $endIdx & " of " & $allPowerUpTypes.len, 
             x + 20, scrollY, 10, Gray)
     if menu.scrollOffset > 0:
-      drawText("▲ UP to scroll up", x + width - 150, scrollY, 10, Yellow)
+      drawText("UP to scroll up", x + width - 150, scrollY, 10, Yellow)
     if menu.scrollOffset < maxScroll:
-      drawText("▼ DOWN to scroll down", x + width - 180, scrollY + 12, 10, Yellow)
+      drawText("DOWN to scroll down", x + width - 180, scrollY + 12, 10, Yellow)
 
 proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10

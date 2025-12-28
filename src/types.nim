@@ -5,7 +5,7 @@ type
     gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings, gsStatistics, gsRunStats
 
   GameMode* = enum
-    gmWaveBased,      # New primary mode: waves → upgrades → boss → legendary
+    gmWaveBased,      # New primary mode: waves -> upgrades -> boss -> legendary
     gmTimeSurvival,   # Old mode: time-based survival
     gmSandbox         # Testing mode with spawner controls
 
@@ -286,6 +286,8 @@ type
     # Damage accumulation for continuous damage sources (auras, DOT)
     auraDamageAccumulator*: float32  # Accumulates aura damage over time
     lastAuraDamageNumberTime*: float32  # Last time a damage number was shown for auras
+    auraDamageHadCrit*: bool  # Track if any crit occurred during accumulation period
+    lastAuraDamageType*: DamageType  # Track the damage type of accumulated aura damage
 
   Bullet* = ref object
     pos*: Vector2f
@@ -317,6 +319,7 @@ type
     # Bonus bullet tracking for statistics
     isBonusFromMultiShot*: bool  # True if this is a bonus bullet from Multi-Shot
     isBonusFromDoubleShot*: bool  # True if this is a bonus bullet from Double Shot
+    wasCrit*: bool  # True if this bullet rolled a critical hit
 
   Coin* = ref object
     pos*: Vector2f

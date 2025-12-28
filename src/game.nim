@@ -471,6 +471,17 @@ proc applyCriticalHitFromStats*(stats: CombatStats, baseDamage: float32): float3
   else:
     return baseDamage
 
+proc applyCriticalHitWithFlag*(stats: CombatStats, baseDamage: float32): tuple[damage: float32, wasCrit: bool] =
+  ## Applies critical hit using pre-calculated stats
+  ## Returns tuple with damage and whether a crit occurred
+  if not stats.hasCrit:
+    return (baseDamage, false)
+  
+  if rand(99) < stats.critChance:
+    return (baseDamage * stats.critMultiplier, true)
+  else:
+    return (baseDamage, false)
+
 # DAMAGE NUMBERS HELPER
 
 proc showDamage*(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool, 
@@ -492,21 +503,115 @@ proc accumulateAndShowAuraDamage(game: Game, enemy: Enemy, actualDamage: float32
   # Accumulate damage (even if 0, we track it)
   enemy.auraDamageAccumulator += actualDamage
   
+  # Track the damage type for this accumulation period
+  enemy.lastAuraDamageType = damageType
+  
+  # Track if ANY tick was a crit during this accumulation period
+  if wasCrit:
+    enemy.auraDamageHadCrit = true
+  
   # Check if enough time has passed to show a damage number
   let timeSinceLastNumber = game.time - enemy.lastAuraDamageNumberTime
   
   if timeSinceLastNumber >= DAMAGE_NUMBER_INTERVAL:
-    # Time to show accumulated damage
+    # Time to show accumulated damage (raw damage, not per-second)
     if enemy.auraDamageAccumulator > 0:
-      # Convert accumulated damage to per-second rate for display
-      let damagePerSecond = enemy.auraDamageAccumulator / timeSinceLastNumber
-      
-      game.showDamage(enemy.pos, damagePerSecond, fromPlayer = true, 
-                      isCritical = wasCrit, damageType = damageType)
+      # Show the raw accumulated damage with crit status
+      game.showDamage(enemy.pos, enemy.auraDamageAccumulator, fromPlayer = true, 
+                      isCritical = enemy.auraDamageHadCrit, damageType = damageType)
     
-    # Reset accumulator and timer
+    # Reset accumulator, timer, and crit tracker
     enemy.auraDamageAccumulator = 0
+    enemy.auraDamageHadCrit = false
     enemy.lastAuraDamageNumberTime = game.time
+
+proc flushAccumulatedAuraDamage*(game: Game, enemy: Enemy) =
+  ## Force display of any accumulated aura damage (used when enemy dies)
+  ## This ensures players see the total damage dealt even if enemy dies before 0.5s interval
+  if enemy.auraDamageAccumulator > 0:
+    game.showDamage(enemy.pos, enemy.auraDamageAccumulator, fromPlayer = true,
+                    isCritical = enemy.auraDamageHadCrit, damageType = enemy.lastAuraDamageType)
+    # Reset accumulator and crit tracker
+    enemy.auraDamageAccumulator = 0
+    enemy.auraDamageHadCrit = false
+
+# THORNS REFLECTION HELPER
+
+proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: float32, 
+                            targetEnemy: Enemy, reflectType: string): float32 =
+  ## Centralized thorns reflection calculation
+  ## reflectType: "contact" for enemy contact, "bullet" for enemy bullets, "boss" for boss contact
+  ## Returns actual damage dealt (after shields/reductions)
+  if not hasPowerUp(player, puThorns):
+    return 0.0
+  
+  let thornsLevel = getPowerUpLevel(player, puThorns)
+  
+  # Different reflection percentages for different damage types
+  let reflectPercent = case reflectType
+    of "bullet":
+      case thornsLevel
+      of 1: 0.5  # 50% reflection for bullets
+      of 2: 1.0  # 100% reflection
+      else: 1.5  # 150% reflection
+    of "boss", "contact":
+      case thornsLevel
+      of 1: 0.5  # 50% reflection for contact
+      of 2: 1.0  # 100% reflection
+      else: 1.5  # 150% reflection
+    else: 0.0
+  
+  let reflectDamageBase = damageToReflect * reflectPercent
+  
+  # Apply critical hit chance to thorns reflection
+  let thornStats = calculateCombatStats(player)
+  let reflectDamageWithCrit = applyCriticalHitFromStats(thornStats, reflectDamageBase)
+  let actualDamage = damageEnemy(targetEnemy, reflectDamageWithCrit)
+  
+  # Track thorns damage for statistics
+  trackPowerUpDamage(game, puThorns, actualDamage)
+  
+  # Create damage number for thorns reflection
+  game.showDamage(targetEnemy.pos, actualDamage, fromPlayer = true,
+                  isCritical = reflectDamageWithCrit > reflectDamageBase, damageType = dtDefault)
+  
+  # Visual feedback
+  spawnExplosion(game.particles, targetEnemy.pos.x, targetEnemy.pos.y, Red, 
+                if reflectType == "boss": 8 elif reflectType == "contact": 6 else: 5)
+  
+  return actualDamage
+
+# COMMON HELPER FUNCTIONS FOR POWER-UP CALCULATIONS
+
+proc getAuraRadius*(level: int): float32 =
+  ## Standard aura radius based on level (used by most aura effects)
+  case level
+  of 1: 120.0
+  of 2: 160.0
+  else: 200.0
+
+proc getExplosionRadius*(level: int): float32 =
+  ## Standard explosion radius for explosive bullets
+  case level
+  of 1: 40.0
+  of 2: 60.0
+  else: 80.0
+
+proc getBulletDamageType*(bullet: Bullet): DamageType =
+  ## Determine the damage type for a bullet based on its properties
+  ## Returns the appropriate elemental type or dtDefault for normal bullets
+  if bullet.isArcaneBullet:
+    return dtArcane
+  elif bullet.fireDuration > 0:
+    return dtFire
+  elif bullet.poisonDuration > 0:
+    return dtPoison
+  elif bullet.slowAmount > 0:
+    return dtFire  # Frost uses fire color (cold blue doesn't exist in current palette)
+  elif bullet.windPushForce > 0:
+    return dtDefault  # Wind uses default white
+  else:
+    return dtDefault  # Normal bullets use white
 
 # UNIFIED BULLET EFFECT SYSTEM
 
@@ -679,13 +784,13 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       let chainCount = effect.level  # 1, 2, or 3 chains
       let chainDamage = case effect.level
         of 1: 0.7
-        of 2: 0.8
-        else: 0.9
+        of 2: 0.85
+        else: 1.0
       
       var chainRange = case effect.level
-        of 1: 120.0
-        of 2: 140.0
-        else: 160.0
+        of 1: 125.0
+        of 2: 150.0
+        else: 175.0
       
       if effect.hasMastery:
         chainRange *= 1.5  # +50% range
@@ -1056,9 +1161,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     if hasPowerUp(game.player, puBulletSize):
       let sizeLevel = getPowerUpLevel(game.player, puBulletSize)
       let sizeMultiplier = case sizeLevel
-        of 1: 1.4
-        of 2: 1.8
-        else: 2.4
+        of 1: 1.5
+        of 2: 2.0
+        else: 2.5
       bulletRadius *= sizeMultiplier
     
     # Track Bullet Damage power-up contribution
@@ -1077,8 +1182,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         else: 1.5   # +150%
       arcaneBulletsBonus = damageBeforePowerUps * arcaneMultiplier
     
-    # Apply critical hit chance using pre-calculated stats
-    damage = applyCriticalHitFromStats(stats, damage)
+    # Apply critical hit chance using pre-calculated stats and capture if it was a crit
+    let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, damage)
+    damage = damageWithCrit
     
     # Apply Arcane Mastery bonus to Arcane bullets (damage + piercing)
     var arcanePiercing = hasPiercing  # Start with base piercing status
@@ -1156,7 +1262,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           fireDuration = fireEffect,
           windPushForce = windEffect,
           isArcaneBullet = hasArcane,
-          isBonusFromMultiShot = (i > 0)  # First bullet (i=0) is normal, rest are bonus
+          isBonusFromMultiShot = (i > 0),  # First bullet (i=0) is normal, rest are bonus
+          wasCrit = wasCrit
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -1186,7 +1293,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         fireDuration = fireEffect,
         windPushForce = windEffect,
         isArcaneBullet = hasArcane,
-        isBonusFromDoubleShot = false  # First bullet is normal
+        isBonusFromDoubleShot = false,  # First bullet is normal
+        wasCrit = wasCrit
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -1222,7 +1330,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           fireDuration = fireEffect,
           windPushForce = windEffect,
           isArcaneBullet = hasArcane,
-          isBonusFromMultiShot = (i > 0)  # First bullet (i=0) is normal, rest are bonus
+          isBonusFromMultiShot = (i > 0),  # First bullet (i=0) is normal, rest are bonus
+          wasCrit = wasCrit
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -1245,7 +1354,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         poisonDuration = poisonEffect,
         fireDuration = fireEffect,
         windPushForce = windEffect,
-        isArcaneBullet = hasArcane
+        isArcaneBullet = hasArcane,
+        wasCrit = wasCrit
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -1303,6 +1413,10 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       of 2: 0.5    # -50% damage (3 bullets = 150% total)
       else: 0.45   # -55% damage (4 bullets = 180% total)
     damage *= damageMultiplier
+  
+  # Roll for critical hit
+  let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(burstStats, damage)
+  damage = damageWithCrit
   
   if hasPowerUp(game.player, puBulletSize):
     let sizeLevel = getPowerUpLevel(game.player, puBulletSize)
@@ -1372,7 +1486,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         windPushForce = windEffect,
         isArcaneBullet = hasArcane,
         isBonusFromDoubleShot = true,  # Second burst is always bonus from Double Shot
-        isBonusFromMultiShot = (i > 0)  # Side bullets also bonus from Multi-Shot
+        isBonusFromMultiShot = (i > 0),  # Side bullets also bonus from Multi-Shot
+        wasCrit = wasCrit
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -1395,7 +1510,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       fireDuration = fireEffect,
       windPushForce = windEffect,
       isArcaneBullet = hasArcane,
-      isBonusFromDoubleShot = true  # Second burst is bonus from Double Shot
+      isBonusFromDoubleShot = true,  # Second burst is bonus from Double Shot
+      wasCrit = wasCrit
     )
     bullet.radius = bulletRadius
     game.bullets.add(bullet)
@@ -1809,7 +1925,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           # 60% of lasers aim near player, 40% are completely random
           let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, game.player.pos.x - enemy.pos.x)
           if rand(100) < 60:
-            # Aim near player with some spread (±45 degrees)
+            # Aim near player with some spread (45 degrees)
             angleToPlayer + (rand(1.0) - 0.5) * (PI / 2.0)
           else:
             # Completely random direction
@@ -1817,7 +1933,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         of "laser_snipe":
           # Rapid fire lasers aimed directly at player with minimal spread
           let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, game.player.pos.x - enemy.pos.x)
-          # Very tight spread around player position (±5 degrees)
+          # Very tight spread around player position (5 degrees)
           angleToPlayer + (rand(1.0) - 0.5) * 0.175
         of "cross_laser":
           # Cross pattern - always 4 beams in cardinal directions (0°, 90°, 180°, 270°)
@@ -2631,10 +2747,7 @@ proc updateGame*(game: var Game, dt: float32) =
       of 1: 3.0
       of 2: 6.0
       else: 12.0
-    let zoneRadius = case level
-      of 1: 120.0
-      of 2: 160.0
-      else: 200.0
+    let zoneRadius = getAuraRadius(level)
     
     # Calculate combat stats once before loop
     let stats = calculateCombatStats(game.player)
@@ -2642,15 +2755,14 @@ proc updateGame*(game: var Game, dt: float32) =
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < zoneRadius:
-        let damageWithCrit = applyCriticalHitFromStats(stats, zoneDamage * dt)
+        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, zoneDamage * dt)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
         
         # Track damage zone damage for statistics
         trackPowerUpDamage(game, puDamageZone, actualDamage)
         
         # Use new accumulation system for reliable damage numbers
-        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtDefault, 
-                                     damageWithCrit > zoneDamage * dt)
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtDefault, wasCrit)
   
   # Regeneration power-up is now handled per wave completion, not per time interval
   # See wave completion code for regeneration logic
@@ -2662,10 +2774,7 @@ proc updateGame*(game: var Game, dt: float32) =
       of 1: 0.30  # NERFED from 50% to 30% slow
       of 2: 0.45  # NERFED from 65% to 45% slow
       else: 0.55  # NERFED from 75% to 55% slow
-    let slowRadius = case level
-      of 1: 120.0
-      of 2: 160.0
-      else: 200.0
+    let slowRadius = getAuraRadius(level)
     
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
@@ -2692,10 +2801,7 @@ proc updateGame*(game: var Game, dt: float32) =
       of 1: 2.0
       of 2: 3.0
       else: 4.0
-    let fireRadius = case level
-      of 1: 120.0
-      of 2: 160.0
-      else: 200.0
+    let fireRadius = getAuraRadius(level)
     
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
@@ -2718,7 +2824,7 @@ proc updateGame*(game: var Game, dt: float32) =
             enemy.slowAmount = 0.35  # 35% slow
         
         # Visual fire particles (frame-independent)
-        # 8% @ 60fps = 4.8 particles/sec → use dt scaling
+        # 8% @ 60fps = 4.8 particles/sec -> use dt scaling
         spawnTimedParticlesAround(game.particles, enemy.pos.x, enemy.pos.y, 
                                  enemy.radius + 5.0, 4.8, Red, 2, dt, -3.0)
   
@@ -2734,10 +2840,7 @@ proc updateGame*(game: var Game, dt: float32) =
       of 1: 1
       of 2: 2
       else: 3
-    let lightningRadius = case level
-      of 1: 120.0
-      of 2: 160.0
-      else: 200.0
+    let lightningRadius = getAuraRadius(level)
     let chainRange = 80.0  # Distance lightning can chain between enemies
     
     # Apply Lightning Mastery bonuses if owned
@@ -2761,7 +2864,7 @@ proc updateGame*(game: var Game, dt: float32) =
       let enemy = entry.enemy
       if enemy notin processedEnemies:
         # Apply initial damage with crit chance using centralized stats
-        let damageWithCrit = applyCriticalHitFromStats(stats, lightningDamagePerSec * dt)
+        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, lightningDamagePerSec * dt)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
         processedEnemies.add(enemy)
         
@@ -2769,8 +2872,7 @@ proc updateGame*(game: var Game, dt: float32) =
         trackPowerUpDamage(game, puLightningAura, actualDamage)
         
         # Use new accumulation system for reliable damage numbers
-        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtLightning,
-                                     damageWithCrit > lightningDamagePerSec * dt)
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtLightning, wasCrit)
         
         # Apply slow ONLY if player has Lightning Mastery
         if game.player.hasLightningMastery:
@@ -2799,7 +2901,7 @@ proc updateGame*(game: var Game, dt: float32) =
           
           if nearestEnemy != nil:
             # Apply chained damage (same as initial) with crit chance using centralized stats
-            let chainDamageWithCrit = applyCriticalHitFromStats(stats, lightningDamagePerSec * dt)
+            let (chainDamageWithCrit, chainWasCrit) = applyCriticalHitWithFlag(stats, lightningDamagePerSec * dt)
             let chainedDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
             processedEnemies.add(nearestEnemy)
             
@@ -2807,8 +2909,7 @@ proc updateGame*(game: var Game, dt: float32) =
             trackPowerUpDamage(game, puLightningAura, chainedDamage)
             
             # Use accumulation system for chained lightning to prevent spam
-            accumulateAndShowAuraDamage(game, nearestEnemy, chainedDamage, dtLightning,
-                                       chainDamageWithCrit > lightningDamagePerSec * dt)
+            accumulateAndShowAuraDamage(game, nearestEnemy, chainedDamage, dtLightning, chainWasCrit)
             
             # Apply 5% slow effect to chained enemy
             nearestEnemy.slowTimer = 0.2
@@ -2834,10 +2935,7 @@ proc updateGame*(game: var Game, dt: float32) =
       of 1: 0.5 + damageScaling
       of 2: 1.0 + damageScaling
       else: 1.5 + damageScaling
-    let arcaneRadius = case level
-      of 1: 120.0
-      of 2: 160.0
-      else: 200.0
+    let arcaneRadius = getAuraRadius(level)
     
     # Apply Arcane Mastery bonuses if owned
     if game.player.hasArcaneMastery:
@@ -2849,15 +2947,14 @@ proc updateGame*(game: var Game, dt: float32) =
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < arcaneRadius:
-        let damageWithCrit = applyCriticalHitFromStats(arcaneStats, arcaneDamagePerSec * dt)
+        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(arcaneStats, arcaneDamagePerSec * dt)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
         
         # Track arcane aura damage for statistics
         trackPowerUpDamage(game, puArcaneAura, actualDamage)
         
         # Use new accumulation system for reliable damage numbers
-        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtArcane,
-                                     damageWithCrit > arcaneDamagePerSec * dt)
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtArcane, wasCrit)
         
         # Visual arcane particles (purple sparkles) (frame-independent)
         # 12% @ 60fps = 7.2 particles/sec
@@ -2987,7 +3084,7 @@ proc updateGame*(game: var Game, dt: float32) =
       let dist = distance(game.player.pos, enemy.pos)
       if dist < bloodRadius:
         # Apply blood damage with crit chance using centralized stats
-        let damageWithCrit = applyCriticalHitFromStats(bloodStats, bloodDamagePerSec * dt)
+        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(bloodStats, bloodDamagePerSec * dt)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
         
         # Track blood aura damage for statistics
@@ -2997,8 +3094,7 @@ proc updateGame*(game: var Game, dt: float32) =
         totalHealing += actualDamage * actualLifestealPercent
         
         # Use new accumulation system for reliable damage numbers (use dtFire for red blood damage)
-        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtFire,
-                                     damageWithCrit > bloodDamagePerSec * dt)
+        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtFire, wasCrit)
         
         # Visual blood particles (frame-independent)
         # 8% @ 60fps = 4.8 particles/sec
@@ -3012,7 +3108,8 @@ proc updateGame*(game: var Game, dt: float32) =
       
       # Show healing number periodically using tracked time
       if game.time - lastBloodHealTime >= BLOOD_HEAL_DISPLAY_INTERVAL:
-        game.showDamage(game.player.pos, totalHealing / dt, fromPlayer = true,
+        # Display raw accumulated healing (not per-second)
+        game.showDamage(game.player.pos, totalHealing, fromPlayer = true,
                         isCritical = false, damageType = dtHeal)
         lastBloodHealTime = game.time
   
@@ -3081,9 +3178,9 @@ proc updateGame*(game: var Game, dt: float32) =
     
     # LEGENDARY Auto-Shoot: Full fire rate at level 1
     let autoFireMult = case autoLevel
-      of 1: 1.0   # 100% of normal fire rate
-      of 2: 1.0
-      else: 1.0
+      of 1: 0.9   # 90% of normal fire rate
+      of 2: 0.9
+      else: 0.9
     
     let autoRange = case autoLevel
       of 1: 450.0
@@ -3253,12 +3350,9 @@ proc updateGame*(game: var Game, dt: float32) =
           let x = boss.pos.x + cos(angle) * dist
           let y = boss.pos.y + sin(angle) * dist
           spawnExplosion(game.particles, x, y, boss.color, 3)
-  # End of enemy spawning logic (excluded for sandbox mode)
-  
+
   # Update enemies
-  # Calculate combat stats once for all Thorns damage calculations in enemy loop
-  let thornStats = calculateCombatStats(game.player)
-  
+
   var enemyIdx = 0
   var bossDefeated = false
   while enemyIdx < game.enemies.len:
@@ -3293,19 +3387,18 @@ proc updateGame*(game: var Game, dt: float32) =
         elif fireEffect.primary.source == "orb":
           trackPowerUpDamage(game, puFireOrb, actualDamage)
       
-      # Create damage number for DOT effects (periodically to avoid spam)
-      if rand(1.0) < (2.0 * dt):  # Show ~2.0 numbers per second
-        # Determine damage type based on active effects
-        var dotDamageType = dtDefault
-        if hasActiveEffect(enemy, etPoison):
-          dotDamageType = dtPoison
-        elif hasActiveEffect(enemy, etFire):
-          dotDamageType = dtFire
-        elif hasActiveEffect(enemy, etLightning):
-          dotDamageType = dtLightning  # Use lightning color for lightning
-        
-        game.showDamage(enemy.pos, actualDamage / effectiveDt, fromPlayer = true,
-                        isCritical = false, damageType = dotDamageType)
+      # Use accumulation system for reliable DOT damage numbers
+      # Determine damage type based on active effects
+      var dotDamageType = dtDefault
+      if hasActiveEffect(enemy, etPoison):
+        dotDamageType = dtPoison
+      elif hasActiveEffect(enemy, etFire):
+        dotDamageType = dtFire
+      elif hasActiveEffect(enemy, etLightning):
+        dotDamageType = dtLightning  # Use lightning color for lightning
+      
+      # Use accumulation system like auras (shows every 0.5s)
+      accumulateAndShowAuraDamage(game, enemy, actualDamage, dotDamageType, false)
     
     # Update chain lightning cooldown
     if enemy.chainLightningCooldown > 0:
@@ -3318,6 +3411,9 @@ proc updateGame*(game: var Game, dt: float32) =
         enemy.slowAmount = 0
     
     if not updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game):  # Use slowed time
+      # Enemy died - show any accumulated aura damage before death
+      flushAccumulatedAuraDamage(game, enemy)
+      
       # Enemy died - drop coins and particles
       
       # Play enemy death sound
@@ -3575,24 +3671,7 @@ proc updateGame*(game: var Game, dt: float32) =
           var bossContactDamage = enemy.contactDamage.float32  # FIX: Use contactDamage instead of damage
           
           # Thorns reflection damage
-          if hasPowerUp(game.player, puThorns):
-            let thornsLevel = getPowerUpLevel(game.player, puThorns)
-            let reflectPercent = case thornsLevel
-              of 1: 0.5  # BUFFED from 0.20 to 0.35
-              of 2: 1.0  # BUFFED from 0.40 to 0.60
-              else: 1.5  # BUFFED from 0.70 to 1.00 (full reflection!)
-            let reflectDamageBase = bossContactDamage * reflectPercent
-            let reflectDamageWithCrit = applyCriticalHitFromStats(thornStats, reflectDamageBase)
-            let actualDamage = damageEnemy(enemy, reflectDamageWithCrit)
-            
-            # Track thorns damage for statistics
-            trackPowerUpDamage(game, puThorns, actualDamage)
-            
-            # Create damage number for thorns reflection (boss contact)
-            game.showDamage(enemy.pos, actualDamage, fromPlayer = true,
-                            isCritical = reflectDamageWithCrit > reflectDamageBase, damageType = dtDefault)
-            
-            spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Red, 8)
+          discard applyThornsReflection(game, game.player, bossContactDamage, enemy, "boss")
           
           if takeDamage(game.player, bossContactDamage):
             game.state = gsGameOver
@@ -3621,24 +3700,7 @@ proc updateGame*(game: var Game, dt: float32) =
           spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 10)
         
         # Thorns reflection damage - kills enemy if damage exceeds HP
-        if hasPowerUp(game.player, puThorns):
-          let thornsLevel = getPowerUpLevel(game.player, puThorns)
-          let reflectPercent = case thornsLevel
-            of 1: 0.35  # BUFFED from 0.20 to 0.35
-            of 2: 0.60  # BUFFED from 0.40 to 0.60
-            else: 1.00  # BUFFED from 0.70 to 1.00 (full reflection!)
-          let reflectedDamageBase = enemyContactDamage * reflectPercent
-          let reflectedDamageWithCrit = applyCriticalHitFromStats(thornStats, reflectedDamageBase)
-          let actualDamage = damageEnemy(enemy, reflectedDamageWithCrit)
-          
-          # Track thorns damage for statistics
-          trackPowerUpDamage(game, puThorns, actualDamage)
-          
-          # Create damage number for thorns reflection (enemy contact)
-          game.showDamage(enemy.pos, actualDamage, fromPlayer = true,
-                          isCritical = reflectedDamageWithCrit > reflectedDamageBase, damageType = dtDefault)
-          
-          spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Red, 6)
+        discard applyThornsReflection(game, game.player, enemyContactDamage, enemy, "contact")
         
         if takeDamage(game.player, enemyContactDamage):
           game.state = gsGameOver
@@ -3843,6 +3905,9 @@ proc updateGame*(game: var Game, dt: float32) =
             finalDamage = bullet.damage * (1.0 + bonusMultiplier)
             overchargeExtraDamage = finalDamage - bullet.damage
           
+          # Use the bullet's stored crit status (rolled when bullet was created)
+          let isCrit = bullet.wasCrit
+          
           if game.enemies[j].enemyType == etStar:
             # Stars use hit counter
             game.enemies[j].hitCount += 1
@@ -3904,14 +3969,14 @@ proc updateGame*(game: var Game, dt: float32) =
             if bullet.isBonusFromDoubleShot:
               trackPowerUpDamage(game, puDoubleShot, actualDamage)
             
-            # Create damage number for shield damage (cyan/blue colored for shields)
+            # Create damage number for shield damage (blue colored for shields)
             if shieldDamage > 0:
-              showDamage(game, game.enemies[j].pos, shieldDamage, true, false, dtLightning)
+              showDamage(game, game.enemies[j].pos, shieldDamage, true, isCrit, dtLaser)
             
             # Create damage number for HP damage (player damage to enemy) - only if damage was dealt
             if actualDamage > 0:
-              let isCrit = finalDamage > bullet.damage  # Critical if final damage exceeds base damage
-              showDamage(game, game.enemies[j].pos, actualDamage, true, isCrit)
+              let bulletDmgType = getBulletDamageType(bullet)
+              showDamage(game, game.enemies[j].pos, actualDamage, true, isCrit, bulletDmgType)
           hitEnemy = true
           
           # UNIFIED BULLET EFFECT SYSTEM
@@ -3933,10 +3998,7 @@ proc updateGame*(game: var Game, dt: float32) =
           if bullet.isExplosive:
             playSound(stExplosion, 0.5)
             let level = getPowerUpLevel(game.player, puExplosiveBullets)
-            let explosionRadius = case level
-              of 1: 40.0
-              of 2: 60.0
-              else: 80.0
+            let explosionRadius = getExplosionRadius(level)
             
             # Damage all enemies in radius
             for k in 0..<game.enemies.len:
@@ -3951,7 +4013,7 @@ proc updateGame*(game: var Game, dt: float32) =
                 
                 # Create damage number for explosive bullet area damage
                 if actualDamage > 0:
-                  showDamage(game, game.enemies[k].pos, actualDamage, true, false, dtExplosion)
+                  showDamage(game, game.enemies[k].pos, actualDamage, true, isCrit, dtExplosion)
             
             # Enhanced visual explosion with shockwave
             spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Orange, 35)
@@ -4052,13 +4114,6 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Thorns reflection - damage the originating enemy (the one that shot the bullet)
         if hasPowerUp(game.player, puThorns):
-          let thornsLevel = getPowerUpLevel(game.player, puThorns)
-          let reflectPercent = case thornsLevel
-            of 1: 0.35  # BUFFED from 0.20 to 0.35
-            of 2: 0.60  # BUFFED from 0.40 to 0.60
-            else: 1.00  # BUFFED from 0.70 to 1.00
-          let reflectedDamage = bulletDamage * reflectPercent
-          
           # Find the enemy that shot this bullet using sourceEnemyId
           var sourceEnemy: Enemy = nil
           for enemy in game.enemies:
@@ -4067,15 +4122,7 @@ proc updateGame*(game: var Game, dt: float32) =
               break
           
           if sourceEnemy != nil:
-            let actualDamage = damageEnemy(sourceEnemy, reflectedDamage)
-            
-            # Track thorns damage for statistics
-            trackPowerUpDamage(game, puThorns, actualDamage)
-            
-            # Create damage number for thorns reflection (bullet)
-            showDamage(game, sourceEnemy.pos, actualDamage, true, false, dtDefault)
-            
-            spawnExplosion(game.particles, sourceEnemy.pos.x, sourceEnemy.pos.y, Red, 5)
+            discard applyThornsReflection(game, game.player, bulletDamage, sourceEnemy, "bullet")
         
         if takeDamage(game.player, bulletDamage):
           game.state = gsGameOver
@@ -4106,6 +4153,9 @@ proc updateGame*(game: var Game, dt: float32) =
           hitEnemy = true
           wall.takeDamage(bullet.damage)  # Full bullet damage
           trackWallDamaged(game)
+          # Show wall damage number (red to indicate enemy damage to structures)
+          showDamage(game, bullet.pos, bullet.damage, fromPlayer = false,
+                     isCritical = false, damageType = dtDefault)
           spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Brown, 4)
           break
     

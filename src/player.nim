@@ -442,7 +442,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
   for powerUp in player.powerUps:
     if powerUp.powerType == puDodgeChance:
       let dodgeChance = case powerUp.level
-        of 1: 12
+        of 1: 15
         of 2: 20
         else: 30
       if rand(99) < dodgeChance:

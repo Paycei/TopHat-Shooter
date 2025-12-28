@@ -9,7 +9,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 isPentagon: bool = false, isEcho: bool = false, 
                 isBossBullet: bool = false, isArcaneBullet: bool = false,
                 sourceEnemyId: int = -1,
-                isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false): Bullet =
+                isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
+                wasCrit: bool = false): Bullet =
   # BUFFED: Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -19,7 +20,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     radius: if fromPlayer: BASE_PLAYER_BULLET_RADIUS else: 6,
     damage: damage,
     fromPlayer: fromPlayer,
-    lifetime: 4.0,  # Bullets despawn after 3 seconds (reduced from 5)
+    lifetime: 4.0,  # Bullets despawn after 4 seconds (reduced from 5)
     isHoming: isHoming,
     isPiercing: isPiercing,
     isExplosive: isExplosive,
@@ -40,7 +41,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     isBossBullet: isBossBullet,  # Mark boss bullets for glow effect
     isArcaneBullet: isArcaneBullet,  # Arcane bullet from arcane bullets power-up
     isBonusFromMultiShot: isBonusFromMultiShot,  # Bonus bullet from Multi-Shot
-    isBonusFromDoubleShot: isBonusFromDoubleShot  # Bonus bullet from Double Shot
+    isBonusFromDoubleShot: isBonusFromDoubleShot,  # Bonus bullet from Double Shot
+    wasCrit: wasCrit  # Whether this bullet was a critical hit
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
@@ -160,13 +162,13 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     let chargeLevel = min(bullet.travelDistance / 2500.0, 1.0)  # Max at 2500 units
     
     if chargeLevel > 0.1:  # Only show glow when bullet has traveled some distance
-      # Color shift: Yellow (low) → Orange (mid) → Red (high)
+      # Color shift: Yellow (low) -> Orange (mid) -> Red (high)
       let glowColor = if chargeLevel < 0.33:
         # Yellow to Orange
         let t = chargeLevel / 0.33
         Color(
           r: 255,
-          g: uint8(255.0 - t * 100.0),  # 255 → 155
+          g: uint8(255.0 - t * 100.0),  # 255 -> 155
           b: 0,
           a: uint8(100.0 + chargeLevel * 100.0)
         )
@@ -175,7 +177,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
         let t = (chargeLevel - 0.33) / 0.33
         Color(
           r: 255,
-          g: uint8(155.0 - t * 155.0),  # 155 → 0
+          g: uint8(155.0 - t * 155.0),  # 155 -> 0
           b: 0,
           a: uint8(100.0 + chargeLevel * 100.0)
         )
