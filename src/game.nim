@@ -4056,6 +4056,9 @@ proc updateGame*(game: var Game, dt: float32) =
                 bullet.vel = ricochetDir * bullet.vel.length()
                 bullet.bounceCount += 1
                 
+                # Reduce damage by 25% per ricochet
+                bullet.damage = bullet.damage * 0.75
+                
                 # SYNERGY: Reset split flag so ricochet bullets can split again on next hit
                 if hasPowerUp(game.player, puBulletSplit):
                   bullet.hasSplit = false
@@ -4182,23 +4185,30 @@ proc updateGame*(game: var Game, dt: float32) =
       # Update position
       meteorite.pos = meteorite.pos + meteorite.vel * dt
       
+      # Check collision with player while falling
+      if distance(meteorite.pos, game.player.pos) < meteorite.radius + game.player.radius:
+        if takeDamage(game.player, meteorite.damage.float32):
+          game.state = gsGameOver
+        
+        # Track meteorite damage
+        trackPlayerDamage(game, meteorite.damage.float32, etMage)
+        
+        # Create damage number
+        showDamage(game, game.player.pos, meteorite.damage.float32, false, false, dtExplosion)
+        
+        playSound(stPlayerHit, 0.6)
+        
+        # Create explosion effect
+        spawnExplosion(game.particles, meteorite.pos.x, meteorite.pos.y, Orange, 25)
+        
+        # Remove meteorite after hitting player
+        game.meteorites.delete(i)
+        continue
+      
       # Check if meteorite reached target (or went past it)
       let distToTarget = distance(meteorite.pos, meteorite.targetPos)
       if distToTarget < 20.0 or meteorite.pos.y > meteorite.targetPos.y:
-        # Meteorite impact!
-        # Check collision with player
-        if distance(meteorite.pos, game.player.pos) < meteorite.radius + game.player.radius:
-          if takeDamage(game.player, meteorite.damage.float32):
-            game.state = gsGameOver
-          
-          # Track meteorite damage
-          trackPlayerDamage(game, meteorite.damage.float32, etMage)
-          
-          # Create damage number
-          showDamage(game, game.player.pos, meteorite.damage.float32, false, false, dtExplosion)
-          
-          playSound(stPlayerHit, 0.6)
-        
+        # Meteorite impact at ground - no player hit
         # Create explosion effect
         spawnExplosion(game.particles, meteorite.pos.x, meteorite.pos.y, Orange, 25)
         
@@ -4366,6 +4376,25 @@ proc drawGame*(game: Game) =
   # Draw lasers (after warnings, before walls for visual layering)
   for laser in game.lasers:
     drawLaser(laser)
+  
+  # Draw meteorites (show both warning and falling meteorites)
+  for meteorite in game.meteorites:
+    if meteorite.warningTimer > 0:
+      # Draw warning indicator at target position (flashing)
+      let warningAlpha = if (meteorite.warningTimer * 6.0).int mod 2 == 0: uint8(200) else: uint8(100)
+      drawCircleLines(meteorite.targetPos.x.int32, meteorite.targetPos.y.int32, meteorite.radius, 
+                     Color(r: 255, g: 100, b: 0, a: warningAlpha))
+      drawCircleLines(meteorite.targetPos.x.int32, meteorite.targetPos.y.int32, meteorite.radius + 5, 
+                     Color(r: 255, g: 50, b: 0, a: warningAlpha div 2))
+    else:
+      # Draw falling meteorite
+      drawCircle(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), meteorite.radius, 
+                Color(r: 255, g: 100, b: 0, a: 255))
+      # Add fiery glow effect
+      drawCircleLines(meteorite.pos.x.int32, meteorite.pos.y.int32, meteorite.radius + 3, 
+                     Color(r: 255, g: 150, b: 0, a: 200))
+      drawCircleLines(meteorite.pos.x.int32, meteorite.pos.y.int32, meteorite.radius + 6, 
+                     Color(r: 255, g: 200, b: 50, a: 100))
   
   # Draw walls
   for wall in game.walls:
