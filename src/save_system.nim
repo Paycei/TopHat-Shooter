@@ -19,7 +19,7 @@ type
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
-  when defined(windows):  
+  when defined(windows):
     result = getEnv("APPDATA")
   elif defined(macosx):
     result = getEnv("HOME") & "/Library/Application Support"
@@ -65,28 +65,28 @@ proc settingsToJson*(settings: Settings): JsonNode =
 proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
   if jsonNode.hasKey("fpsLimit"):
     settings.fpsLimit = jsonNode["fpsLimit"].getInt().int32
-  
+
   if jsonNode.hasKey("volume"):
     settings.volume = jsonNode["volume"].getFloat()
-  
+
   if jsonNode.hasKey("musicVolume"):
     settings.musicVolume = jsonNode["musicVolume"].getFloat()
-  
+
   if jsonNode.hasKey("fullscreen"):
     settings.fullscreen = jsonNode["fullscreen"].getBool()
-  
+
   if jsonNode.hasKey("showFPS"):
     settings.showFPS = jsonNode["showFPS"].getBool()
-  
+
   if jsonNode.hasKey("mouseSupport"):
     settings.mouseSupport = jsonNode["mouseSupport"].getBool()
-  
+
   if jsonNode.hasKey("showCursorInMenus"):
     settings.showCursorInMenus = jsonNode["showCursorInMenus"].getBool()
-  
+
   if jsonNode.hasKey("showDebugStats"):
     settings.showDebugStats = jsonNode["showDebugStats"].getBool()
-  
+
   if jsonNode.hasKey("showHints"):
     settings.showHints = jsonNode["showHints"].getBool()
 
@@ -113,7 +113,7 @@ proc loadSettings*(settings: Settings): bool =
     if not fileExists(savePath):
       echo "No save file found at ", savePath, ", using default settings"
       return false
-    
+
     let jsonString = readFile(savePath)
     let jsonData = parseJson(jsonString)
     jsonToSettings(jsonData, settings)
@@ -211,7 +211,7 @@ proc movementStatsToJson(stats: MovementStats): JsonNode =
   var positionsArray = newJArray()
   for pos in stats.positionHeatmap:
     positionsArray.add(%* {"x": pos.x, "y": pos.y})
-  
+
   result = %* {
     "totalDistanceTraveled": stats.totalDistanceTraveled,
     "averageSpeed": stats.averageSpeed,
@@ -238,7 +238,7 @@ proc resourceStatsToJson(stats: ResourceStats): JsonNode =
   var purchasesArray = newJArray()
   for purchase in stats.shopPurchases:
     purchasesArray.add(%* {"timestamp": purchase[0], "item": purchase[1]})
-  
+
   result = %* {
     "coinsEarned": stats.coinsEarned,
     "coinsSpent": stats.coinsSpent,
@@ -264,11 +264,11 @@ proc powerUpStatsToJson(stats: PowerUpStats): JsonNode =
       "timestamp": choice[0],
       "powerUp": powerUpToJson(choice[1])
     })
-  
+
   var elementalArray = newJArray()
   for powerUpType in stats.elementalCombo:
     elementalArray.add(%($powerUpType))
-  
+
   result = %* {
     "powerUpsChosen": chosenArray,
     "totalPowerUps": stats.totalPowerUps,
@@ -291,15 +291,15 @@ proc performanceStatsToJson(stats: PerformanceStats): JsonNode =
   var waveTimesArray = newJArray()
   for time in stats.waveTimes:
     waveTimesArray.add(%time)
-  
+
   var dpsHistoryArray = newJArray()
   for entry in stats.dpsHistory:
     dpsHistoryArray.add(%* {"timestamp": entry[0], "dps": entry[1]})
-  
+
   var streakHistoryArray = newJArray()
   for entry in stats.killStreakHistory:
     streakHistoryArray.add(%* {"timestamp": entry[0], "streak": entry[1]})
-  
+
   result = %* {
     "waveTimes": waveTimesArray,
     "averageWaveTime": stats.averageWaveTime,
@@ -334,15 +334,15 @@ proc comparisonStatsToJson(stats: ComparisonStats): JsonNode =
 proc runStatisticsToJson*(runStats: RunStatistics): JsonNode =
   if runStats.isNil:
     return newJNull()
-  
+
   var eventsArray = newJArray()
   for event in runStats.events:
     eventsArray.add(gameEventToJson(event))
-  
+
   var finalPowerUpsArray = newJArray()
   for powerUp in runStats.finalPowerUps:
     finalPowerUpsArray.add(powerUpToJson(powerUp))
-  
+
   result = %* {
     "gameMode": $runStats.gameMode,
     "startTime": runStats.startTime,
@@ -371,7 +371,7 @@ proc saveLastRunStats*(runStats: RunStatistics): bool =
     if runStats.isNil:
       echo "No run stats to save"
       return false
-    
+
     let jsonData = runStatisticsToJson(runStats)
     let jsonString = jsonData.pretty()
     let savePath = getLastRunStatsPath()
@@ -523,7 +523,7 @@ proc jsonToGameEvent(j: JsonNode): GameEvent =
     )
   )
 
-# Convert JSON to PowerUp  
+# Convert JSON to PowerUp
 proc jsonToPowerUp(j: JsonNode): PowerUp =
   result = PowerUp(
     powerType: parsePowerUpType(j["powerType"].getStr()),
@@ -541,16 +541,16 @@ proc jsonToCombatStats(j: JsonNode): CombatStats =
   result.totalDamageDealt = j["totalDamageDealt"].getFloat().float32
   result.totalDamageTaken = j["totalDamageTaken"].getFloat().float32
   result.largestSingleHit = j["largestSingleHit"].getFloat().float32
-  
+
   # Parse tables
   for key, val in j["damageTakenByType"]:
     result.damageTakenByType[parseEnemyType(key)] = val.getFloat().float32
-  
+
   result.totalKills = j["totalKills"].getInt()
-  
+
   for key, val in j["killsByType"]:
     result.killsByType[parseEnemyType(key)] = val.getInt()
-  
+
   result.eliteKills = j["eliteKills"].getInt()
   result.bossKills = j["bossKills"].getInt()
   result.criticalHits = j["criticalHits"].getInt()
@@ -568,14 +568,14 @@ proc jsonToMovementStats(j: JsonNode): MovementStats =
   result = initMovementStats()
   result.totalDistanceTraveled = j["totalDistanceTraveled"].getFloat().float32
   result.averageSpeed = j["averageSpeed"].getFloat().float32
-  
+
   # Parse position heatmap
   for pos in j["positionHeatmap"]:
     result.positionHeatmap.add(newVector2f(
       pos["x"].getFloat().float32,
       pos["y"].getFloat().float32
     ))
-  
+
   result.phaseShiftsUsed = j["phaseShiftsUsed"].getInt()
   result.totalPhaseShiftDistance = j["totalPhaseShiftDistance"].getFloat().float32
   result.timeWarpsUsed = j["timeWarpsUsed"].getInt()
@@ -592,7 +592,7 @@ proc jsonToMovementStats(j: JsonNode): MovementStats =
   result.hitsTakenCount = j["hitsTakenCount"].getInt()
   result.averageTimeBetweenHits = j["averageTimeBetweenHits"].getFloat().float32
 
-# Convert JSON to ResourceStats  
+# Convert JSON to ResourceStats
 proc jsonToResourceStats(j: JsonNode): ResourceStats =
   result = initResourceStats()
   result.coinsEarned = j["coinsEarned"].getInt()
@@ -604,54 +604,54 @@ proc jsonToResourceStats(j: JsonNode): ResourceStats =
   result.wallsDestroyed = j["wallsDestroyed"].getInt()
   result.wallDamageBlocked = j["wallDamageBlocked"].getFloat().float32
   result.consumablesCollected = j["consumablesCollected"].getInt()
-  
+
   # Parse consumables table
   for key, val in j["consumablesByType"]:
     result.consumablesByType[parseConsumableType(key)] = val.getInt()
-  
+
   result.healthConsumablesUsed = j["healthConsumablesUsed"].getInt()
-  
+
   # Parse shop purchases
   for purchase in j["shopPurchases"]:
     result.shopPurchases.add((
       purchase["timestamp"].getFloat().float32,
       purchase["item"].getStr()
     ))
-  
+
   result.totalSpentInShop = j["totalSpentInShop"].getInt()
   result.shopVisits = j["shopVisits"].getInt()
 
 # Convert JSON to PowerUpStats
 proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
   result = initPowerUpStats()
-  
+
   # Parse power-ups chosen
   for choice in j["powerUpsChosen"]:
     result.powerUpsChosen.add((
       choice["timestamp"].getFloat().float32,
       jsonToPowerUp(choice["powerUp"])
     ))
-  
+
   result.totalPowerUps = j["totalPowerUps"].getInt()
   result.commonPowerUps = j["commonPowerUps"].getInt()
   result.legendaryPowerUps = j["legendaryPowerUps"].getInt()
-  
+
   # Parse damage contribution table
   for key, val in j["damageContribution"]:
     result.damageContribution[parsePowerUpType(key)] = val.getFloat().float32
-  
+
   # Parse kill contribution table
   for key, val in j["killContribution"]:
     result.killContribution[parsePowerUpType(key)] = val.getInt()
-  
+
   result.mostEffectivePowerUp = parsePowerUpType(j["mostEffectivePowerUp"].getStr())
   result.leastEffectivePowerUp = parsePowerUpType(j["leastEffectivePowerUp"].getStr())
   result.synergyScore = j["synergyScore"].getFloat().float32
-  
+
   # Parse elemental combo
   for element in j["elementalCombo"]:
     result.elementalCombo.add(parsePowerUpType(element.getStr()))
-  
+
   result.hasSynergy = j["hasSynergy"].getBool()
   result.level1PowerUps = j["level1PowerUps"].getInt()
   result.level2PowerUps = j["level2PowerUps"].getInt()
@@ -660,30 +660,30 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
 # Convert JSON to PerformanceStats
 proc jsonToPerformanceStats(j: JsonNode): PerformanceStats =
   result = initPerformanceStats()
-  
+
   # Parse wave times
   for time in j["waveTimes"]:
     result.waveTimes.add(time.getFloat().float32)
-  
+
   result.averageWaveTime = j["averageWaveTime"].getFloat()
   result.fastestWave = j["fastestWave"].getFloat()
   result.slowestWave = j["slowestWave"].getFloat()
   result.peakDPS = j["peakDPS"].getFloat()
   result.averageDPS = j["averageDPS"].getFloat()
-  
+
   # Parse DPS history
   for entry in j["dpsHistory"]:
     result.dpsHistory.add((
       entry["timestamp"].getFloat().float32,
       entry["dps"].getFloat().float32
     ))
-  
+
   result.killsPerMinute = j["killsPerMinute"].getFloat()
   result.damagePerShot = j["damagePerShot"].getFloat()
   result.shotEfficiency = j["shotEfficiency"].getFloat()
   result.longestKillStreak = j["longestKillStreak"].getInt()
   result.currentKillStreak = j["currentKillStreak"].getInt()
-  
+
   # Parse kill streak history
   for entry in j["killStreakHistory"]:
     result.killStreakHistory.add((
@@ -727,11 +727,11 @@ proc jsonToRunStatistics(j: JsonNode): RunStatistics =
     finalCoins: j["finalCoins"].getInt(),
     finalPowerUps: @[]
   )
-  
+
   # Parse events
   for event in j["events"]:
     result.events.add(jsonToGameEvent(event))
-  
+
   # Parse final power-ups
   for powerUp in j["finalPowerUps"]:
     result.finalPowerUps.add(jsonToPowerUp(powerUp))
@@ -743,7 +743,7 @@ proc loadLastRunStats*(): RunStatistics =
     if not fileExists(savePath):
       echo "No last run stats file found at ", savePath
       return nil
-    
+
     let jsonString = readFile(savePath)
     let jsonData = parseJson(jsonString)
     result = jsonToRunStatistics(jsonData)

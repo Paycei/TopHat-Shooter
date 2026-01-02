@@ -1,25 +1,22 @@
 ## Discord Rich Presence Helper Functions
 ## Provides high-level functions to update Discord presence based on game state
 
-import discord_presence, types, strformat, math
+import discord_presence, types, strformat, math, gamemode_definitions
 
 proc updateDiscordForPlaying*(client: DiscordClient, game: Game) =
   ## Update Discord presence for active gameplay
   if not client.isConnected():
     return
   
-  let modeText = case game.mode
-    of gmWaveBased: "Wave Mode"
-    of gmTimeSurvival: "Survival Mode"
-    of gmSandbox: "Sandbox Mode"
+  let modeText = getGameModeName(game.mode)
   
   var detailsText = ""
-  if game.mode == gmWaveBased:
+  if isWaveMode(game.mode):
     if game.bossWaveManager.active:
       detailsText = &"Fighting Boss (Wave {game.currentWave})"
     else:
       detailsText = &"Wave {game.currentWave} | {game.player.kills} Kills"
-  elif game.mode == gmTimeSurvival:
+  elif isTimeSurvivalMode(game.mode):
     let minutes = (game.time / 60.0).int
     let seconds = (game.time.float32.mod(60.0'f32)).int
     let secondsStr = if seconds < 10: "0" & $seconds else: $seconds
@@ -56,10 +53,7 @@ proc updateDiscordForPaused*(client: DiscordClient, game: Game) =
   if not client.isConnected():
     return
   
-  let modeText = case game.mode
-    of gmWaveBased: "Wave Mode"
-    of gmTimeSurvival: "Survival Mode"
-    of gmSandbox: "Sandbox Mode"
+  let modeText = getGameModeName(game.mode)
   
   let presence = createPresence(
     state = "Paused",

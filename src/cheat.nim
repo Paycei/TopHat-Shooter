@@ -1,4 +1,4 @@
-import raylib, types, sound, math
+import raylib, types, sound, math, gamemode_definitions
 from powerup import applyPowerUp, getPowerUpName
 
 # ENABLE/DISABLE CHEATS
@@ -37,6 +37,9 @@ proc initCheatMenu*(): CheatMenu =
 
 proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) =
   if not CHEATS_ENABLED: return
+  
+  # Check if cheats are allowed in current gamemode
+  if not canUseCheats(game.mode): return
 
   # Reset sequence if too much time has passed
   if currentTime - menu.lastKeyTime > 1.0:
@@ -79,6 +82,11 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
 
 proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
   if not menu.active or not CHEATS_ENABLED:
+    return
+  
+  # Check if cheats are allowed in current gamemode
+  if not canUseCheats(game.mode):
+    menu.active = false
     return
   
   # Close menu with Escape

@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions
 
 const
   screenWidth = 1024
@@ -630,14 +630,14 @@ proc main() =
           of 0:  # Wave-Based Mode
             currentGame = newGame(screenWidth, screenHeight)
             currentGame.discordClient = globalDiscordClient
-            currentGame.mode = gmWaveBased
+            setGameMode(currentGame, gmWaveBased)
             initializeRunTracking(currentGame)  # Start tracking
             currentGame.state = gsPlaying  # Start playing immediately
             statsSavedThisGame = false  # Reset for new game
           of 1:  # Time Survival Mode
             currentGame = newGame(screenWidth, screenHeight)
             currentGame.discordClient = globalDiscordClient
-            currentGame.mode = gmTimeSurvival
+            setGameMode(currentGame, gmTimeSurvival)
             initializeRunTracking(currentGame)  # Start tracking
             currentGame.state = gsPlaying  # Start playing immediately
             statsSavedThisGame = false  # Reset for new game
@@ -850,7 +850,7 @@ proc main() =
       
       # Update game (only if cheat menu is not active)
       if not cheatMenu.active:
-        if currentGame.mode == gmSandbox:
+        if isSandboxMode(currentGame.mode):
           # Handle sandbox input
           handleSandboxInput(currentGame, screenWidth, screenHeight)
           # Update sandbox mode (god mode, freeze enemies, etc.)
@@ -883,7 +883,7 @@ proc main() =
       drawGame(currentGame)
       
       # Draw sandbox UI if in sandbox mode
-      if currentGame.mode == gmSandbox:
+      if isSandboxMode(currentGame.mode):
         drawSandboxSidebar(currentGame, screenWidth, screenHeight)
       
       # Draw cheat menu overlay if active
@@ -1309,13 +1309,13 @@ proc main() =
         # Save statistics only once per game over
         if not statsSavedThisGame and not currentGame.cheatsUsed:
           # Calculate bosses defeated based on wave progress
-          let bossesKilled = if currentGame.mode == gmWaveBased:
+          let bossesKilled = if shouldUseWaves(currentGame.mode):
             (currentGame.currentWave - 1) div 5  # Boss every 5 waves
           else:
             currentGame.bossCount
           
           updateStats(stats, 
-                     currentGame.mode == gmWaveBased,
+                     shouldUseWaves(currentGame.mode),
                      currentGame.currentWave,
                      currentGame.time,
                      currentGame.player.kills,
@@ -1332,7 +1332,7 @@ proc main() =
       if isKeyPressed(R):
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.discordClient = globalDiscordClient
-        currentGame.mode = gmWaveBased  # Default to wave-based on restart
+        setGameMode(currentGame, gmWaveBased)  # Default to wave-based on restart
         initializeRunTracking(currentGame)  # Start tracking
         currentGame.state = gsPlaying
         statsSavedThisGame = false  # Reset for new game
@@ -1367,7 +1367,7 @@ proc main() =
           # Restart game
           currentGame = newGame(screenWidth, screenHeight)
           currentGame.discordClient = globalDiscordClient
-          currentGame.mode = gmWaveBased
+          setGameMode(currentGame, gmWaveBased)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false

@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics
+import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions
 
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -879,9 +879,12 @@ proc cleanupGame*(game: Game) =
     game.player.rotatingOrbs = @[]
 
 proc newGame*(screenWidth, screenHeight: int32): Game =
+  let defaultMode = gmWaveBased  # Default to wave-based mode
+  let modeDef = getGameModeDefinition(defaultMode)
+  
   result = Game(
     state: gsPlaying,
-    mode: gmWaveBased,  # Default to wave-based mode
+    mode: defaultMode,
     player: newPlayer(screenWidth.float32 / 2, screenHeight.float32 / 2),
     enemies: @[],
     bullets: @[],
@@ -930,11 +933,32 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     statsMenuTab: 0  # 0 = Lifetime, 1 = Last Run
   )
   
+  # Apply gamemode-specific starting values
+  result.player.hp = modeDef.playerStartHP
+  result.player.maxHp = modeDef.playerStartHP
+  result.player.coins = modeDef.playerStartCoins
+  
   # Discord client is assigned from global instance in main.nim
   # Don't create a new client here to avoid threading issues
   
   # Note: initializeRunTracking is called explicitly when starting a game
   # (not in sandbox mode) to ensure correct mode is tracked
+
+proc setGameMode*(game: Game, mode: GameMode) =
+  ## Changes the game mode and applies mode-specific settings
+  game.mode = mode
+  let modeDef = getGameModeDefinition(mode)
+  
+  # Apply mode-specific starting values
+  game.player.hp = modeDef.playerStartHP
+  game.player.maxHp = modeDef.playerStartHP
+  game.player.coins = modeDef.playerStartCoins
+  
+  # Reset wave-specific state if not using waves
+  if not modeDef.usesWaves:
+    game.currentWave = 1
+    game.waveInProgress = false
+    game.waveEnemiesRemaining = 0
 
 proc calculateWaveEnemyCount(waveNumber: int): int =
   # Scale enemy count based on wave number (SLOWER PROGRESSION)
@@ -2586,8 +2610,9 @@ proc updateGame*(game: var Game, dt: float32) =
   game.spawnTimer += dt
   
   # Difficulty increases over time (not in sandbox mode)
-  if game.mode != gmSandbox:
-    game.difficulty = game.time / 10.0  # Difficulty increases every 10 seconds
+  if not isSandboxMode(game.mode):
+    let modeDef = getGameModeDefinition(game.mode)
+    game.difficulty = (game.time / 10.0) * modeDef.difficultyScale
   
   # Update attack warnings and create lasers from boss warnings when they expire
   var i = 0
@@ -3204,8 +3229,8 @@ proc updateGame*(game: var Game, dt: float32) =
         shootBullet(game, dir)
   
   # MODE-SPECIFIC ENEMY SPAWNING
-  if game.mode != gmSandbox:
-    if game.mode == gmWaveBased:
+  if not isSandboxMode(game.mode):
+    if shouldUseWaves(game.mode):
     # WAVE-BASED MODE: Spawn enemies in defined waves
     # Don't start a new wave if we're waiting for boss coin collection
       if not game.waveInProgress and game.bossWaveManager.canStartNewWave() and game.state == gsPlaying:
@@ -3307,8 +3332,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let y = boss.pos.y + sin(angle) * dist
         spawnExplosion(game.particles, x, y, boss.color, 3)
     
-    elif game.mode == gmTimeSurvival:
+    elif isTimeSurvivalMode(game.mode):
       # TIME SURVIVAL MODE: Original time-based spawning
+      let modeDef = getGameModeDefinition(game.mode)
       let baseSpawnRate =
         if game.difficulty < 1.5:
           3.0
@@ -3720,7 +3746,7 @@ proc updateGame*(game: var Game, dt: float32) =
   
   # If boss was defeated in TIME SURVIVAL mode, trigger power-up selection
   # In WAVE mode, power-ups are only given between waves, not on boss defeat
-  if bossDefeated and game.mode == gmTimeSurvival:
+  if bossDefeated and not shouldUseWaves(game.mode):
     # Time survival: offer regular upgrades after boss
     game.powerUpChoices = generatePowerUpChoices(game.player, false)
     game.selectedPowerUp = 0
@@ -4259,7 +4285,7 @@ proc updateGame*(game: var Game, dt: float32) =
       # If this was a boss coin, end the boss wave and advance
       if isBossCoin and game.bossWaveManager.isBossCoinActive():
         game.bossWaveManager.bossCoinCollected()  # Mark boss coin as collected
-        if game.mode == gmWaveBased:
+        if shouldUseWaves(game.mode):
           # Use centralized boss wave completion logic
           game.completeBossWave()
       
@@ -4493,7 +4519,7 @@ proc drawGame*(game: Game) =
   drawText("Walls: " & $game.player.walls, 10, 110, 20, Brown)
   
   # Mode-specific UI
-  if game.mode == gmWaveBased:
+  if shouldUseWaves(game.mode):
     # Wave information
     let waveDisplay = if game.bossWaveManager.isBossActive():
       "Boss Wave " & $(game.currentWave)
@@ -4512,7 +4538,7 @@ proc drawGame*(game: Game) =
       drawText("Collect the Boss Coin!", 10, 160, 18, Color(r: 255, g: 215, b: 0, a: pulseAlpha))
   else:
     # Time survival mode - show chaos meter (not shown in sandbox)
-    if game.mode == gmTimeSurvival:
+    if isTimeSurvivalMode(game.mode):
       let chaosLevel = min(game.difficulty * 10, 100).int
       drawText("Chaos: " & $chaosLevel & "%", 10, 135, 18, 
               if chaosLevel < 30: Green elif chaosLevel < 70: Orange else: Red)
@@ -4547,7 +4573,7 @@ proc drawGame*(game: Game) =
         break
   
   # Time survival mode - show wave indicator (only for time survival)
-  if game.mode == gmTimeSurvival:
+  if isTimeSurvivalMode(game.mode):
     let waveProgress = (game.time mod 15.0) / 15.0
     if waveProgress > 0.6 and not game.bossWaveManager.isBossActive():
       drawText("*** WAVE ***", game.screenWidth div 2 - 80, 10, 25, Red)
@@ -4699,7 +4725,7 @@ proc drawGameOver*(game: Game) =
   drawText("Coins Earned: " & $game.player.coins, game.screenWidth div 2 - 130, game.screenHeight div 2 + 80, 25, Gold)
   
   # Show wave number if in wave mode
-  if game.mode == gmWaveBased:
+  if shouldUseWaves(game.mode):
     drawText("Wave Reached: " & $game.currentWave, game.screenWidth div 2 - 120, game.screenHeight div 2 - 40, 25, Yellow)
   
   # Show cheat indicator
