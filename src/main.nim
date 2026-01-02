@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, splash, desktop
 
 const
   screenWidth = 1024
@@ -523,9 +523,13 @@ proc main() =
   discard globalDiscordClient.connect()  # Start background thread
   
   var currentGame = newGame(screenWidth, screenHeight)
-  currentGame.state = gsMenu
+  currentGame.state = gsSplash  # Start with splash screen
   # Assign global Discord client to game
   currentGame.discordClient = globalDiscordClient
+  
+  # Initialize OS-themed screens
+  var splashScreen = newSplashScreen()
+  var osDesktop = newOSDesktop()
   
   while not windowShouldClose():
     # Check if fullscreen toggle was requested
@@ -568,6 +572,19 @@ proc main() =
     hideCursor()
     
     case currentGame.state
+    of gsSplash:
+      # Update splash screen
+      updateSplashScreen(splashScreen, dt)
+      
+      # Skip splash with any key
+      if splashScreen.complete and (isKeyPressed(Space) or isKeyPressed(Enter) or 
+                                     isKeyPressed(Escape) or isMouseButtonPressed(Left)):
+        currentGame.state = gsMenu
+      
+      beginGameDrawing()
+      drawSplashScreen(splashScreen, screenWidth, screenHeight)
+      endGameDrawing()
+    
     of gsMenu:
       # Play menu music
       playMusic(mtMenu)
@@ -575,82 +592,40 @@ proc main() =
       # Update time for menu animations
       currentGame.time += dt
       
-      # Update mouse tracking
-      updateMouseTracking(currentGame)
+      # Update OS desktop
+      updateOSDesktop(osDesktop, dt)
       
-      # Handle "ttt" command for sandbox mode
-      let charPressed = getCharPressed()
-      if charPressed > 0:
-        currentGame.sandboxTypingBuffer &= chr(charPressed).toLowerAscii()
-        # Keep only last 10 characters
-        if currentGame.sandboxTypingBuffer.len > 10:
-          currentGame.sandboxTypingBuffer = currentGame.sandboxTypingBuffer[^10..^1]
-        # Check if "asd" was typed
-        if "asd" in currentGame.sandboxTypingBuffer:
+      # Handle OS desktop input and get action
+      let action = handleDesktopInput(osDesktop, currentGame)
+      
+      # Process desktop actions
+      if action >= 0:
+        playSound(stMenuSelect)
+        case action
+        of 0:  # Play.exe - Wave-Based Mode
           currentGame = newGame(screenWidth, screenHeight)
           currentGame.discordClient = globalDiscordClient
-          currentGame.mode = gmSandbox
+          setGameMode(currentGame, gmWaveBased)
+          initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
-          currentGame.sandboxSidebarOpen = true
           statsSavedThisGame = false
-          playSound(stMenuSelect)
-      
-      # Menu navigation - keyboard has priority
-      if isKeyPressed(Down) or isKeyPressed(S):
-        currentGame.menuSelection = (currentGame.menuSelection + 1) mod 6
-        playSound(stMenuNav)
-        markKeyboardUsed(currentGame)
-      if isKeyPressed(Up) or isKeyPressed(W):
-        currentGame.menuSelection = (currentGame.menuSelection - 1 + 6) mod 6
-        playSound(stMenuNav)
-        markKeyboardUsed(currentGame)
-      
-      if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
-        # For mouse clicks, verify we're clicking on a menu item (only if mouse support enabled AND mouse moved recently)
-        var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-        if not validClick and isMouseButtonPressed(Left):
-          let mousePos = getMousePosition()
-          let startY = 360
-          let spacing = 65
-          let menuItems = ["Play", "Survival Mode", "Statistics", "Settings", "Help", "Quit"]
-          
-          for i in 0..<menuItems.len:
-            let y = startY + i * spacing
-            let text = if i == currentGame.menuSelection: "> " & menuItems[i] & " <" else: menuItems[i]
-            let textWidth = measureText(text, 32)
-            let textX = screenWidth div 2 - textWidth div 2
-            
-            if isMenuClickValid(currentGame, settings, Vector2f(x: mousePos.x, y: mousePos.y), textX, int32(y), textWidth, int32(32)):
-              validClick = true
-              break
-        
-        if validClick:
-          playSound(stMenuSelect)
-          case currentGame.menuSelection
-          of 0:  # Wave-Based Mode
-            currentGame = newGame(screenWidth, screenHeight)
-            currentGame.discordClient = globalDiscordClient
-            setGameMode(currentGame, gmWaveBased)
-            initializeRunTracking(currentGame)  # Start tracking
-            currentGame.state = gsPlaying  # Start playing immediately
-            statsSavedThisGame = false  # Reset for new game
-          of 1:  # Time Survival Mode
-            currentGame = newGame(screenWidth, screenHeight)
-            currentGame.discordClient = globalDiscordClient
-            setGameMode(currentGame, gmTimeSurvival)
-            initializeRunTracking(currentGame)  # Start tracking
-            currentGame.state = gsPlaying  # Start playing immediately
-            statsSavedThisGame = false  # Reset for new game
-          of 2:  # Statistics
-            currentGame.state = gsStatistics
-          of 3:  # Settings
-            currentGame.previousState = gsMenu
-            currentGame.state = gsSettings
-          of 4:  # Help
-            currentGame.state = gsHelp
-          of 5:  # Quit
-            break
-          else: discard
+        of 1:  # Survival.exe - Time Survival Mode
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmTimeSurvival)
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        of 2:  # Stats.exe - Statistics
+          currentGame.state = gsStatistics
+        of 3:  # Settings.exe - Settings
+          currentGame.previousState = gsMenu
+          currentGame.state = gsSettings
+        of 4:  # Help.txt - Help
+          currentGame.state = gsHelp
+        of 5:  # Shutdown.exe - Quit
+          break
+        else: discard
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
@@ -658,7 +633,11 @@ proc main() =
         updateDiscordForMenu(currentGame.discordClient)
       
       beginGameDrawing()
-      drawMenu(currentGame)
+      drawOSDesktop(osDesktop, screenWidth, screenHeight)
+      
+      # Draw custom cursor on menu
+      drawCustomCursor(currentGame.time)
+      
       endGameDrawing()
     
     of gsHelp:

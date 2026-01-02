@@ -2,7 +2,7 @@ import raylib, math, std/tables, discord_presence
 
 type
   GameState* = enum
-    gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings, gsStatistics, gsRunStats
+    gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings, gsStatistics, gsRunStats
 
   GameMode* = enum
     gmWaveBased,      # New primary mode: waves -> upgrades -> boss -> legendary
