@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, splash, desktop
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, splash, desktop, os_window, settings_window, help_window, stats_window, os_window, settings_window, help_window, stats_window
 
 const
   screenWidth = 1024
@@ -8,6 +8,11 @@ const
 
 # Global Discord client that persists across game sessions
 var globalDiscordClient: DiscordClient = nil
+
+# Global OS windows
+var osSettingsWindow: SettingsWindow = nil
+var osHelpWindow: HelpWindow = nil
+var osStatsWindow: StatsWindow = nil
 
 var
   renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
@@ -531,6 +536,11 @@ proc main() =
   var splashScreen = newSplashScreen()
   var osDesktop = newOSDesktop()
   
+  # Initialize OS windows (lazy initialization - create when first needed)
+  osSettingsWindow = nil
+  osHelpWindow = nil
+  osStatsWindow = nil
+  
   while not windowShouldClose():
     # Check if fullscreen toggle was requested
     if fullscreenToggleRequested:
@@ -595,8 +605,34 @@ proc main() =
       # Update OS desktop
       updateOSDesktop(osDesktop, dt)
       
-      # Handle OS desktop input and get action
-      let action = handleDesktopInput(osDesktop, currentGame)
+      # Check if any windows are blocking desktop interaction
+      # Only handle desktop input if no windows are open and covering the desktop
+      let mousePos = getMousePosition()
+      var windowBlocking = false
+      
+      if not osSettingsWindow.isNil and osSettingsWindow.window.visible and not osSettingsWindow.window.minimized:
+        if checkCollisionPointRec(mousePos, Rectangle(x: osSettingsWindow.window.x.float32,
+                                                       y: osSettingsWindow.window.y.float32,
+                                                       width: osSettingsWindow.window.width.float32,
+                                                       height: osSettingsWindow.window.height.float32)):
+          windowBlocking = true
+      
+      if not windowBlocking and not osHelpWindow.isNil and osHelpWindow.window.visible and not osHelpWindow.window.minimized:
+        if checkCollisionPointRec(mousePos, Rectangle(x: osHelpWindow.window.x.float32,
+                                                       y: osHelpWindow.window.y.float32,
+                                                       width: osHelpWindow.window.width.float32,
+                                                       height: osHelpWindow.window.height.float32)):
+          windowBlocking = true
+      
+      if not windowBlocking and not osStatsWindow.isNil and osStatsWindow.window.visible and not osStatsWindow.window.minimized:
+        if checkCollisionPointRec(mousePos, Rectangle(x: osStatsWindow.window.x.float32,
+                                                       y: osStatsWindow.window.y.float32,
+                                                       width: osStatsWindow.window.width.float32,
+                                                       height: osStatsWindow.window.height.float32)):
+          windowBlocking = true
+      
+      # Handle OS desktop input and get action (only if no windows are blocking)
+      let action = if not windowBlocking: handleDesktopInput(osDesktop, currentGame) else: -1
       
       # Process desktop actions
       if action >= 0:
@@ -616,13 +652,21 @@ proc main() =
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
-        of 2:  # Stats.exe - Statistics
-          currentGame.state = gsStatistics
-        of 3:  # Settings.exe - Settings
-          currentGame.previousState = gsMenu
-          currentGame.state = gsSettings
-        of 4:  # Help.txt - Help
-          currentGame.state = gsHelp
+        of 2:  # Stats.exe - Open Statistics Window
+          if osStatsWindow.isNil:
+            osStatsWindow = newStatsWindow(screenWidth, screenHeight, stats)
+          osStatsWindow.window.visible = true
+          osStatsWindow.window.focused = true
+        of 3:  # Settings.exe - Open Settings Window
+          if osSettingsWindow.isNil:
+            osSettingsWindow = newSettingsWindow(screenWidth, screenHeight, settings)
+          osSettingsWindow.window.visible = true
+          osSettingsWindow.window.focused = true
+        of 4:  # Help.txt - Open Help Window
+          if osHelpWindow.isNil:
+            osHelpWindow = newHelpWindow(screenWidth, screenHeight)
+          osHelpWindow.window.visible = true
+          osHelpWindow.window.focused = true
         of 5:  # Shutdown.exe - Quit
           break
         else: discard
@@ -632,8 +676,30 @@ proc main() =
         runCallbacks(currentGame.discordClient)
         updateDiscordForMenu(currentGame.discordClient)
       
+      # Update OS windows if they exist and are visible
+      if not osSettingsWindow.isNil and osSettingsWindow.window.visible:
+        let result = updateSettingsWindow(osSettingsWindow, dt, screenWidth, screenHeight)
+        if result.fullscreenToggle:
+          fullscreenToggleRequested = true
+      
+      if not osStatsWindow.isNil and osStatsWindow.window.visible:
+        discard updateStatsWindow(osStatsWindow, dt, screenWidth, screenHeight)
+      
+      if not osHelpWindow.isNil and osHelpWindow.window.visible:
+        discard updateHelpWindow(osHelpWindow, dt, screenWidth, screenHeight)
+      
       beginGameDrawing()
       drawOSDesktop(osDesktop, screenWidth, screenHeight)
+      
+      # Draw OS windows on top if visible
+      if not osStatsWindow.isNil and osStatsWindow.window.visible:
+        drawStatsWindow(osStatsWindow, currentGame)
+      
+      if not osSettingsWindow.isNil and osSettingsWindow.window.visible:
+        drawSettingsWindow(osSettingsWindow)
+      
+      if not osHelpWindow.isNil and osHelpWindow.window.visible:
+        drawHelpWindow(osHelpWindow)
       
       # Draw custom cursor on menu
       drawCustomCursor(currentGame.time)
@@ -644,11 +710,24 @@ proc main() =
       # Keep menu music playing during help screen
       playMusic(mtMenu)
       
-      if isKeyPressed(Escape):
+      # Open OS help window if not already open
+      if osHelpWindow.isNil:
+        osHelpWindow = newHelpWindow(screenWidth, screenHeight)
+      if not osHelpWindow.window.visible:
+        osHelpWindow.window.visible = true
+        osHelpWindow.window.focused = true
+      
+      # Update help window
+      let shouldClose = updateHelpWindow(osHelpWindow, dt, screenWidth, screenHeight)
+      
+      if isKeyPressed(Escape) or shouldClose or not osHelpWindow.window.visible:
+        osHelpWindow.window.visible = false
         currentGame.state = gsMenu
       
       beginGameDrawing()
-      drawHelp(currentGame)
+      drawOSDesktop(osDesktop, screenWidth, screenHeight)
+      drawHelpWindow(osHelpWindow)
+      drawCustomCursor(currentGame.time)
       endGameDrawing()
     
     of gsSettings:
@@ -658,22 +737,39 @@ proc main() =
       # Update time first
       currentGame.time += dt
       
-      if isKeyPressed(Escape):
+      # Open OS settings window if not already open
+      if osSettingsWindow.isNil:
+        osSettingsWindow = newSettingsWindow(screenWidth, screenHeight, settings)
+      if not osSettingsWindow.window.visible:
+        osSettingsWindow.window.visible = true
+        osSettingsWindow.window.focused = true
+      
+      # Update settings window
+      let result = updateSettingsWindow(osSettingsWindow, dt, screenWidth, screenHeight)
+      
+      if isKeyPressed(Escape) or result.shouldClose or not osSettingsWindow.window.visible:
+        osSettingsWindow.window.visible = false
         currentGame.state = currentGame.previousState  # Return to where we came from
         setGameVolume(settings.volume)  # Apply volume changes
         setMusicVolume(settings.musicVolume)  # Apply music volume changes
         playSound(stMenuSelect)
       
-      let requestFullscreenToggle = updateSettings(settings)
+      if result.fullscreenToggle:
+        fullscreenToggleRequested = true
       
       # Always draw the frame first
       beginGameDrawing()
-      drawSettings(settings, screenWidth, screenHeight, currentGame.time)
-      endGameDrawing()
+      # Draw appropriate background based on where we came from
+      if currentGame.previousState == gsMenu:
+        drawOSDesktop(osDesktop, screenWidth, screenHeight)
+      else:
+        # From game pause - show game in background with overlay
+        drawGame(currentGame)
+        drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 150))
       
-      # Then handle fullscreen toggle after frame is complete
-      if requestFullscreenToggle:
-        fullscreenToggleRequested = true
+      drawSettingsWindow(osSettingsWindow)
+      drawCustomCursor(currentGame.time)
+      endGameDrawing()
     
     of gsStatistics:
       # Keep menu music playing during statistics screen
@@ -682,19 +778,24 @@ proc main() =
       # Update time for animations
       currentGame.time += dt
       
-      # Tab switching: 1 = Lifetime, 2 = Last Run, 3 = Power-Ups
-      if isKeyPressed(One):
-        currentGame.statsMenuTab = 0
-      if isKeyPressed(Two):
-        currentGame.statsMenuTab = 1
-      if isKeyPressed(Three):
-        currentGame.statsMenuTab = 2
+      # Open OS stats window if not already open
+      if osStatsWindow.isNil:
+        osStatsWindow = newStatsWindow(screenWidth, screenHeight, stats)
+      if not osStatsWindow.window.visible:
+        osStatsWindow.window.visible = true
+        osStatsWindow.window.focused = true
       
-      if isKeyPressed(Escape):
+      # Update stats window
+      let shouldClose = updateStatsWindow(osStatsWindow, dt, screenWidth, screenHeight)
+      
+      if isKeyPressed(Escape) or shouldClose or not osStatsWindow.window.visible:
+        osStatsWindow.window.visible = false
         currentGame.state = gsMenu
       
       beginGameDrawing()
-      drawStatistics(currentGame, stats)
+      drawOSDesktop(osDesktop, screenWidth, screenHeight)
+      drawStatsWindow(osStatsWindow, currentGame)
+      drawCustomCursor(currentGame.time)
       endGameDrawing()
 
     of gsPlaying:

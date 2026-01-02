@@ -328,6 +328,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
   ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Help, 5=Quit
   ## Returns -1 if no action
+  ## Note: Window occlusion should be handled by the calling code
   
   # Get mouse position
   let mousePos = getMousePosition()

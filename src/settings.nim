@@ -1,5 +1,6 @@
-import raylib, strutils, sound, math, save_system
-export Settings  # Re-export Settings type from save_system
+from save_system import Settings, saveSettings, loadSettings
+import raylib, strutils, sound, math
+export Settings  # Re-export Settings type
 
 var globalSettings*: Settings
 
