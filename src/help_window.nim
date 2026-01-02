@@ -22,7 +22,6 @@ const
     ("powerups", "Power-up reference guide"),
     ("enemies", "Enemy types and strategies"),
     ("bosses", "Boss fight strategies"),
-    ("tips", "Pro tips and tricks"),
     ("stats", "Statistics and tracking info"),
     ("shop", "Shop and economy guide"),
     ("legendary", "Legendary abilities guide"),
@@ -179,24 +178,6 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  • Multiple phases, unique attacks", White)
       help.addOutput("", White)
     
-    of "tips":
-      help.addOutput("", White)
-      help.addOutput("═══════════════════════════════════════", Color(r: 0, g: 255, b: 255, a: 255))
-      help.addOutput("  PRO TIPS", Color(r: 0, g: 255, b: 255, a: 255))
-      help.addOutput("═══════════════════════════════════════", Color(r: 0, g: 255, b: 255, a: 255))
-      help.addOutput("", White)
-      help.addOutput("STRATEGY", Color(r: 255, g: 200, b: 50, a: 255))
-      help.addOutput("  • Keep moving! Standing still is death", White)
-      help.addOutput("  • Use walls strategically", White)
-      help.addOutput("  • Save legendary abilities for bosses", White)
-      help.addOutput("  • Build synergistic power-ups", White)
-      help.addOutput("", White)
-      help.addOutput("OPTIMIZATION", Color(r: 255, g: 200, b: 50, a: 255))
-      help.addOutput("  • Prioritize damage early game", White)
-      help.addOutput("  • Speed is life in late game", White)
-      help.addOutput("  • Don't hoard coins - spend them!", White)
-      help.addOutput("", White)
-    
     of "bosses":
       help.addOutput("", White)
       help.addOutput("═══════════════════════════════════════", Color(r: 255, g: 100, b: 100, a: 255))
@@ -311,9 +292,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
         if searchTerm in "wall":
           help.addOutput("Found in 'controls':", White)
           help.addOutput("  E .............. Place Wall", LightGray)
-          help.addOutput("Found in 'tips':", White)
-          help.addOutput("  • Use walls strategically", LightGray)
-          found += 2
+          found += 1
         
         if searchTerm in "legendary" or searchTerm in "ability" or searchTerm in "power":
           help.addOutput("Found in 'controls':", White)
@@ -444,8 +423,11 @@ proc drawHelpWindow*(help: HelpWindow) =
     let scrollBarH = contentH - 50
     let scrollThumbH = max(20, int(float32(scrollBarH) * 
                         float32(visibleLines) / float32(help.outputLines.len)))
-    let scrollThumbY = scrollBarY + int(float32(scrollBarH - scrollThumbH) * 
-                        float32(help.scrollOffset) / float32(max(1, help.outputLines.len - visibleLines)))
+    let scrollThumbY = clamp(
+      scrollBarY + int(float32(scrollBarH - scrollThumbH) * 
+                        float32(help.scrollOffset) / float32(max(1, help.outputLines.len - visibleLines))),
+      scrollBarY,
+      scrollBarY + scrollBarH - scrollThumbH)
     
     # Scroll track
     drawRectangle(scrollBarX.int32, scrollBarY.int32, 6, scrollBarH.int32,

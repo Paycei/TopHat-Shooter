@@ -1,7 +1,7 @@
 ## OS-Themed Settings Control Panel
 ## Tabbed settings interface matching the OS visual language
 
-import raylib, strutils, sound, math, save_system, os_window, settings
+import raylib, strutils, sound, save_system, os_window, settings
 # Use globalSettings from settings module, don't redefine it
 
 type
@@ -384,10 +384,10 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   # Handle Graphics tab interactions
   if settingsWin.currentTab == stGraphics:
     if isMouseButtonPressed(Left):
-      let fsCheckX = contentX + 300
+      let fsCheckX = contentX + 320
       let fsCheckY = contentY + 50
       
-      # Fullscreen checkbox
+      # Fullscreen checkbox (25x25 hit area)
       if mousePos.x >= fsCheckX.float32 and mousePos.x <= (fsCheckX + 25).float32 and
          mousePos.y >= fsCheckY.float32 and mousePos.y <= (fsCheckY + 25).float32:
         settingsWin.settings.fullscreen = not settingsWin.settings.fullscreen
@@ -395,7 +395,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsChanged = true
       
       # FPS input box
-      let boxX = contentX + 300
+      let boxX = contentX + 320
       let boxY = contentY + 80
       let boxWidth = 120
       let boxHeight = 30
@@ -406,16 +406,18 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       else:
         settingsWin.editingFPS = false
       
-      # Show FPS checkbox
+      # Show FPS checkbox (25x25 hit area)
+      let fpsCheckX = contentX + 320
       let fpsCheckY = contentY + 125
-      if mousePos.x >= (contentX + 300).float32 and mousePos.x <= (contentX + 325).float32 and
+      if mousePos.x >= fpsCheckX.float32 and mousePos.x <= (fpsCheckX + 25).float32 and
          mousePos.y >= fpsCheckY.float32 and mousePos.y <= (fpsCheckY + 25).float32:
         settingsWin.settings.showFPS = not settingsWin.settings.showFPS
         settingsChanged = true
       
-      # Debug checkbox
+      # Debug checkbox (25x25 hit area)
+      let debugCheckX = contentX + 320
       let debugCheckY = contentY + 160
-      if mousePos.x >= (contentX + 300).float32 and mousePos.x <= (contentX + 325).float32 and
+      if mousePos.x >= debugCheckX.float32 and mousePos.x <= (debugCheckX + 25).float32 and
          mousePos.y >= debugCheckY.float32 and mousePos.y <= (debugCheckY + 25).float32:
         settingsWin.settings.showDebugStats = not settingsWin.settings.showDebugStats
         settingsChanged = true
@@ -444,51 +446,71 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   
   # Handle Audio tab interactions
   if settingsWin.currentTab == stAudio:
-    let volumeSliderX = contentX + 230
-    let volumeSliderY = contentY + 65
+    let volumeSliderX = contentX + 250
+    let volumeSliderY = contentY + 45
     let sliderWidth = 300
     let sliderHeight = 20
     
-    # Volume slider
-    if isMouseButtonDown(Left):
-      if mousePos.x >= volumeSliderX.float32 and 
-         mousePos.x <= (volumeSliderX + sliderWidth).float32 and
-         mousePos.y >= volumeSliderY.float32 and 
-         mousePos.y <= (volumeSliderY + sliderHeight).float32:
-        settingsWin.draggingVolume = true
-        let relativeX = mousePos.x - volumeSliderX.float32
-        settingsWin.settings.volume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
-        settingsChanged = true
-      
-      # Music slider
-      let musicSliderY = contentY + 110
-      if mousePos.x >= volumeSliderX.float32 and 
-         mousePos.x <= (volumeSliderX + sliderWidth).float32 and
-         mousePos.y >= musicSliderY.float32 and 
-         mousePos.y <= (musicSliderY + sliderHeight).float32:
-        settingsWin.draggingMusic = true
-        let relativeX = mousePos.x - volumeSliderX.float32
-        settingsWin.settings.musicVolume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
-        setMusicVolume(settingsWin.settings.musicVolume)
-        settingsChanged = true
-    else:
+    # Volume slider - check if mouse is over it first
+    let volumeHovered = mousePos.x >= volumeSliderX.float32 and 
+                        mousePos.x <= (volumeSliderX + sliderWidth).float32 and
+                        mousePos.y >= volumeSliderY.float32 and 
+                        mousePos.y <= (volumeSliderY + sliderHeight).float32
+    
+    # Start dragging on click
+    if isMouseButtonPressed(Left) and volumeHovered:
+      settingsWin.draggingVolume = true
+    
+    # Continue dragging or handle click
+    if settingsWin.draggingVolume or (isMouseButtonDown(Left) and volumeHovered):
+      settingsWin.draggingVolume = true
+      let relativeX = mousePos.x - volumeSliderX.float32
+      settingsWin.settings.volume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
+      settingsChanged = true
+    
+    # Stop dragging on release
+    if not isMouseButtonDown(Left):
       settingsWin.draggingVolume = false
+    
+    # Music slider
+    let musicSliderY = contentY + 90
+    let musicHovered = mousePos.x >= volumeSliderX.float32 and 
+                       mousePos.x <= (volumeSliderX + sliderWidth).float32 and
+                       mousePos.y >= musicSliderY.float32 and 
+                       mousePos.y <= (musicSliderY + sliderHeight).float32
+    
+    # Start dragging on click
+    if isMouseButtonPressed(Left) and musicHovered:
+      settingsWin.draggingMusic = true
+    
+    # Continue dragging or handle click
+    if settingsWin.draggingMusic or (isMouseButtonDown(Left) and musicHovered):
+      settingsWin.draggingMusic = true
+      let relativeX = mousePos.x - volumeSliderX.float32
+      settingsWin.settings.musicVolume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
+      setMusicVolume(settingsWin.settings.musicVolume)
+      settingsChanged = true
+    
+    # Stop dragging on release
+    if not isMouseButtonDown(Left):
       settingsWin.draggingMusic = false
   
   # Handle Controls tab interactions
   if settingsWin.currentTab == stControls:
     if isMouseButtonPressed(Left):
-      # Mouse support checkbox
+      # Mouse support checkbox (25x25 hit area)
+      let mouseCheckX = contentX + 320
       let mouseCheckY = contentY + 55
-      if mousePos.x >= (contentX + 300).float32 and mousePos.x <= (contentX + 325).float32 and
+      if mousePos.x >= mouseCheckX.float32 and mousePos.x <= (mouseCheckX + 25).float32 and
          mousePos.y >= mouseCheckY.float32 and mousePos.y <= (mouseCheckY + 25).float32:
         settingsWin.settings.mouseSupport = not settingsWin.settings.mouseSupport
         settingsChanged = true
       
-      # Show cursor checkbox (only if mouse disabled)
+      # Show cursor checkbox (25x25 hit area, only if mouse disabled)
       if not settingsWin.settings.mouseSupport:
+        let cursorCheckX = contentX + 320
         let cursorCheckY = contentY + 95
-        if mousePos.x >= (contentX + 300).float32 and mousePos.x <= (contentX + 325).float32 and
+        if mousePos.x >= cursorCheckX.float32 and mousePos.x <= (cursorCheckX + 25).float32 and
            mousePos.y >= cursorCheckY.float32 and mousePos.y <= (cursorCheckY + 25).float32:
           settingsWin.settings.showCursorInMenus = not settingsWin.settings.showCursorInMenus
           settingsChanged = true
@@ -496,9 +518,10 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   # Handle Gameplay tab interactions
   if settingsWin.currentTab == stGameplay:
     if isMouseButtonPressed(Left):
-      # Show hints checkbox
+      # Show hints checkbox (25x25 hit area)
+      let hintsCheckX = contentX + 320
       let hintsCheckY = contentY + 55
-      if mousePos.x >= (contentX + 300).float32 and mousePos.x <= (contentX + 325).float32 and
+      if mousePos.x >= hintsCheckX.float32 and mousePos.x <= (hintsCheckX + 25).float32 and
          mousePos.y >= hintsCheckY.float32 and mousePos.y <= (hintsCheckY + 25).float32:
         settingsWin.settings.showHints = not settingsWin.settings.showHints
         settingsChanged = true

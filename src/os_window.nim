@@ -1,7 +1,7 @@
 ## OS Window Framework
 ## Base system for all OS-style windows (Settings, Stats, Help)
 
-import raylib, math
+import raylib
 
 type
   OSWindowType* = enum
@@ -55,13 +55,21 @@ proc updateOSWindow*(window: OSWindow, dt: float32) =
   window.time += dt
 
 proc isPointInTitleBar*(window: OSWindow, mouseX, mouseY: float32): bool =
-  if not window.visible or window.minimized:
+  if not window.visible:
     return false
   
-  result = mouseX >= window.x.float32 and 
-           mouseX <= (window.x + window.width).float32 and
-           mouseY >= window.y.float32 and 
-           mouseY <= (window.y + TITLE_BAR_HEIGHT).float32
+  # If minimized, check against mini title bar
+  if window.minimized:
+    let miniWidth = 200
+    result = mouseX >= window.x.float32 and 
+             mouseX <= (window.x + miniWidth).float32 and
+             mouseY >= window.y.float32 and 
+             mouseY <= (window.y + TITLE_BAR_HEIGHT).float32
+  else:
+    result = mouseX >= window.x.float32 and 
+             mouseX <= (window.x + window.width).float32 and
+             mouseY >= window.y.float32 and 
+             mouseY <= (window.y + TITLE_BAR_HEIGHT).float32
 
 proc isPointInWindow*(window: OSWindow, mouseX, mouseY: float32): bool =
   if not window.visible or window.minimized:
@@ -86,17 +94,29 @@ proc isPointInCloseButton*(window: OSWindow, mouseX, mouseY: float32): bool =
            mouseY <= (buttonY + buttonSize).float32
 
 proc isPointInMinimizeButton*(window: OSWindow, mouseX, mouseY: float32): bool =
-  if not window.visible or window.minimized:
+  if not window.visible:
     return false
   
-  let buttonX = window.x + window.width - 50
-  let buttonY = window.y + 5
-  let buttonSize = 20
-  
-  result = mouseX >= buttonX.float32 and 
-           mouseX <= (buttonX + buttonSize).float32 and
-           mouseY >= buttonY.float32 and 
-           mouseY <= (buttonY + buttonSize).float32
+  # If minimized, check for restore button (in mini title bar)
+  if window.minimized:
+    let miniWidth = 200
+    let buttonX = window.x + miniWidth - 25
+    let buttonY = window.y + 5
+    let buttonSize = 20
+    
+    result = mouseX >= buttonX.float32 and 
+             mouseX <= (buttonX + buttonSize).float32 and
+             mouseY >= buttonY.float32 and 
+             mouseY <= (buttonY + buttonSize).float32
+  else:
+    let buttonX = window.x + window.width - 50
+    let buttonY = window.y + 5
+    let buttonSize = 20
+    
+    result = mouseX >= buttonX.float32 and 
+             mouseX <= (buttonX + buttonSize).float32 and
+             mouseY >= buttonY.float32 and 
+             mouseY <= (buttonY + buttonSize).float32
 
 proc getResizeEdge*(window: OSWindow, mouseX, mouseY: float32): int =
   ## Returns which edge is being hovered for resizing
@@ -197,6 +217,57 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int): boo
 
 proc drawWindowChrome*(window: OSWindow) =
   if not window.visible:
+    return
+  
+  # If minimized, only draw a small title bar representation
+  if window.minimized:
+    let miniWidth = 200
+    let miniHeight = TITLE_BAR_HEIGHT
+    
+    # Draw minimized window as small title bar at original position
+    drawRectangle(window.x.int32, window.y.int32, 
+                 miniWidth.int32, miniHeight.int32,
+                 Color(r: 40, g: 40, b: 50, a: 240))
+    
+    let borderColor = if window.focused:
+      Color(r: 0, g: 200, b: 255, a: 255)
+    else:
+      Color(r: 80, g: 80, b: 100, a: 255)
+    
+    drawRectangleLines(Rectangle(x: window.x.float32, y: window.y.float32,
+                                  width: miniWidth.float32, height: miniHeight.float32),
+                      WINDOW_BORDER, borderColor)
+    
+    # Icon
+    let iconSize = 16
+    let iconX = window.x + 8
+    let iconY = window.y + 7
+    drawRectangle(iconX.int32, iconY.int32, iconSize.int32, iconSize.int32, window.iconColor)
+    
+    # Title text (truncated)
+    drawText(window.title, (window.x + 32).int32, (window.y + 6).int32, 18,
+            Color(r: 0, g: 200, b: 255, a: 255))
+    
+    # Restore button (using maximize icon)
+    let buttonSize = 20
+    let buttonY = window.y + 5
+    let restoreX = window.x + miniWidth - 25
+    
+    let mousePos = getMousePosition()
+    let hoverRestore = mousePos.x >= restoreX.float32 and 
+                       mousePos.x <= (restoreX + buttonSize).float32 and
+                       mousePos.y >= buttonY.float32 and 
+                       mousePos.y <= (buttonY + buttonSize).float32
+    
+    drawRectangle(restoreX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
+                 if hoverRestore: Color(r: 100, g: 200, b: 100, a: 255)
+                 else: Color(r: 60, g: 60, b: 70, a: 255))
+    drawRectangle((restoreX + 5).int32, (buttonY + 5).int32, 10, 10,
+                 Color(r: 200, g: 200, b: 200, a: 255))
+    drawRectangleLines(Rectangle(x: (restoreX + 5).float32, y: (buttonY + 5).float32,
+                                  width: 10.0, height: 10.0),
+                      1, White)
+    
     return
   
   # Shadow

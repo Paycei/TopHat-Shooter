@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, splash, desktop, os_window, settings_window, help_window, stats_window, os_window, settings_window, help_window, stats_window
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, splash, desktop, os_window, settings_window, help_window, stats_window
 
 const
   screenWidth = 1024
@@ -653,8 +653,17 @@ proc main() =
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 2:  # Stats.exe - Open Statistics Window
+          # Reload stats from disk before opening window
+          discard loadStatistics(stats)
+          let freshRunStats = loadLastRunStats()
+          if not freshRunStats.isNil:
+            loadLastCompletedRun(freshRunStats)
+          
           if osStatsWindow.isNil:
             osStatsWindow = newStatsWindow(screenWidth, screenHeight, stats)
+          else:
+            # Update stats reference if window already exists
+            osStatsWindow.stats = stats
           osStatsWindow.window.visible = true
           osStatsWindow.window.focused = true
         of 3:  # Settings.exe - Open Settings Window
@@ -779,8 +788,17 @@ proc main() =
       currentGame.time += dt
       
       # Open OS stats window if not already open
+      # Reload stats from disk before opening
+      discard loadStatistics(stats)
+      let freshRunStats = loadLastRunStats()
+      if not freshRunStats.isNil:
+        loadLastCompletedRun(freshRunStats)
+      
       if osStatsWindow.isNil:
         osStatsWindow = newStatsWindow(screenWidth, screenHeight, stats)
+      else:
+        # Update stats reference if window already exists
+        osStatsWindow.stats = stats
       if not osStatsWindow.window.visible:
         osStatsWindow.window.visible = true
         osStatsWindow.window.focused = true
