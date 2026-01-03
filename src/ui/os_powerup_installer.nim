@@ -3,7 +3,7 @@
 ## REDESIGNED with improved visuals, animations, and polish
 ## NOW WITH SLOT MACHINE ROLL ANIMATION!
 
-import raylib, types, math, strutils, random
+import raylib, types, math, strutils, random, icon_drawing
 
 # Roll animation uses data from game.rollPosition, game.rollSpeed, game.rollPowerUpList
 # No need for separate global state - the animation system in powerup.nim handles it
@@ -416,9 +416,8 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
                                 width: iconSize.float32, height: iconSize.float32),
                     1, accentColor)
   
-  let iconChar = if powerUp.rarity == prLegendary: "★" else: "⚙"
-  let charWidth = measureText(iconChar, 32)
-  drawText(iconChar, int32(iconX + (iconSize - charWidth) div 2), yOffset + 8, int32(32), accentColor)
+  # Draw power-up specific icon using graphics
+  drawPowerUpIcon(int32(iconX), yOffset, int32(iconSize), powerUp.powerType, accentColor)
   yOffset += int32(iconSize + 15)
   
   # Process name

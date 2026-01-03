@@ -2,7 +2,7 @@
 ## Shop screen redesigned as a modern OS storefront interface
 ## Matches the new OS theme from power-up installer and game over screens
 
-import raylib, types, math, powerup, sound, settings, run_statistics
+import raylib, types, math, powerup, sound, settings, run_statistics, ui/icon_drawing
 
 const
   SHOP_WIDTH = 950
@@ -26,7 +26,7 @@ proc getCurrentCost*(item: ShopItem): int =
 
 proc drawModernShopButton(x, y, width, height: int32, text: string, 
                          cost: int, canAfford: bool, isSelected: bool,
-                         time: float32, icon: string = "📦", bought: int = 0, description: string = "") =
+                         time: float32, itemIndex: int = 0, bought: int = 0, description: string = "") =
   ## Draw a modern styled shop item button
   
   # Button shadow
@@ -63,10 +63,13 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
                                 width: width.float32, height: height.float32),
                     borderWidth, borderColor)
   
-  # Icon - smaller for reduced item height
-  drawText(icon, x + 8, y + int32(height div 2) - 12, 24,
-          if canAfford: Color(r: 100, g: 200, b: 255, a: 255)
-          else: Color(r: 80, g: 90, b: 100, a: 255))
+  # Icon - drawn programmatically
+  let iconColor = if canAfford: 
+    Color(r: 100, g: 200, b: 255, a: 255)
+  else: 
+    Color(r: 80, g: 90, b: 100, a: 255)
+  
+  drawShopIcon(x + 8, y + int32(height div 2) - 14, 28, itemIndex, iconColor)
   
   # Text color
   let textColor = if not canAfford: 
@@ -74,8 +77,8 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
   else: 
     White
   
-  let textX = x + 45
-  drawText(text, textX, y + 6, 15, textColor)
+  let textX = x + 50
+  drawText(text, textX, y + 8, 14, textColor)
   
   # Description (if provided)
   if description.len > 0:
@@ -83,7 +86,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
       Color(r: 160, g: 170, b: 180, a: 255)
     else:
       Color(r: 90, g: 95, b: 100, a: 255)
-    drawText(description, textX, y + 22, 10, descColor)
+    drawText(description, textX, y + 24, 10, descColor)
   
   # Cost display and owned count on same line to save space
   let costText = $cost & " CR"
@@ -92,12 +95,12 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
   else: 
     Color(r: 120, g: 120, b: 130, a: 255)
   
-  drawText(costText, textX, y + 38, 11, costColor)
+  drawText(costText, textX, y + 42, 11, costColor)
   
   # Purchase count on same line
   let countText = "Owned: " & $bought
   let costWidth = measureText(costText, 11)
-  drawText(countText, textX + costWidth + 80, y + 38, 10,
+  drawText(countText, textX + costWidth + 80, y + 42, 10,
           Color(r: 150, g: 160, b: 170, a: 255))
 
 proc drawShop*(game: Game) =
@@ -244,9 +247,7 @@ proc drawShop*(game: Game) =
       if checkCollisionPointRec(mousePos, itemRect):
         game.selectedShopItem = i
   
-  # Draw shop items
-  let shopIcons = ["⚔", "⚡", "👟", "❤", "🚀", "🧱"]
-  
+  # Draw shop items with programmatic icons
   for i in 0..5:
     let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
     let item = game.shopItems[i]
@@ -254,10 +255,10 @@ proc drawShop*(game: Game) =
     let canAfford = game.player.coins >= cost
     let isSelected = i == game.selectedShopItem
     
-    # Draw item button with description
+    # Draw item button
     drawModernShopButton(shopX, itemY.int32, shopWidth, ITEM_HEIGHT,
                         item.name, cost, canAfford, isSelected,
-                        game.time, shopIcons[i], item.bought, item.description)
+                        game.time, i, item.bought)
   
   # Bottom panel with controls - reduced height
   let bottomY = windowY + SHOP_HEIGHT - 65
