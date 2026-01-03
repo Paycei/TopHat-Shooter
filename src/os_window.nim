@@ -1,9 +1,17 @@
 ## OS Window Framework
 ## Base system for all OS-style windows (Settings, Stats, Help)
+## Enhanced with panel-like animations and effects
 
-import raylib
+import raylib, math
 
 type
+  WindowAnimation* = enum
+    waNone,         # No animation
+    waSlideIn,      # Sliding in from off-screen
+    waSlideOut,     # Sliding out off-screen
+    waMinimizing,   # Animating to minimized state
+    waRestoring     # Animating from minimized to full
+  
   OSWindowType* = enum
     owtSettings
     owtStatistics
@@ -25,6 +33,14 @@ type
     # Resizing
     resizing*: bool
     resizeEdge*: int  # 0=none, 1=right, 2=bottom, 3=corner
+    
+    # Panel-like animations
+    animation*: WindowAnimation
+    animationTimer*: float32
+    animationDuration*: float32
+    targetX*, targetY*: int
+    startX*, startY*: int
+    savedWidth*, savedHeight*: int  # For minimize/restore
 
 const
   TITLE_BAR_HEIGHT* = 30
@@ -48,11 +64,82 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     focused: true,
     dragging: false,
     resizing: false,
-    time: 0
+    time: 0,
+    animation: waNone,
+    animationTimer: 0.0,
+    animationDuration: 0.3,
+    targetX: x,
+    targetY: y,
+    startX: x,
+    startY: y,
+    savedWidth: width,
+    savedHeight: height
   )
+
+proc startSlideInAnimation*(window: OSWindow, screenWidth, screenHeight: int) =
+  ## Start slide-in animation from bottom
+  window.animation = waSlideIn
+  window.animationTimer = 0.0
+  window.startY = screenHeight
+  window.targetY = window.y
+  window.y = window.startY
+
+proc startSlideOutAnimation*(window: OSWindow, screenHeight: int) =
+  ## Start slide-out animation to bottom
+  window.animation = waSlideOut
+  window.animationTimer = 0.0
+  window.startY = window.y
+  window.targetY = screenHeight
+
+proc startMinimizeAnimation*(window: OSWindow) =
+  ## Start minimize animation
+  window.animation = waMinimizing
+  window.animationTimer = 0.0
+  window.savedWidth = window.width
+  window.savedHeight = window.height
+
+proc startRestoreAnimation*(window: OSWindow) =
+  ## Start restore animation
+  window.animation = waRestoring
+  window.animationTimer = 0.0
 
 proc updateOSWindow*(window: OSWindow, dt: float32) =
   window.time += dt
+  
+  # Update animations
+  if window.animation != waNone:
+    window.animationTimer += dt
+    let progress = min(1.0, window.animationTimer / window.animationDuration)
+    
+    # Easing function (ease-out cubic)
+    let easedProgress = 1.0 - pow(1.0 - progress, 3.0)
+    
+    case window.animation
+    of waSlideIn:
+      window.y = int(window.startY.float32 + (window.targetY - window.startY).float32 * easedProgress)
+      if progress >= 1.0:
+        window.animation = waNone
+        window.y = window.targetY
+    
+    of waSlideOut:
+      window.y = int(window.startY.float32 + (window.targetY - window.startY).float32 * easedProgress)
+      if progress >= 1.0:
+        window.animation = waNone
+        window.visible = false
+        window.y = window.targetY
+    
+    of waMinimizing:
+      if progress >= 1.0:
+        window.animation = waNone
+        window.minimized = true
+    
+    of waRestoring:
+      if progress >= 1.0:
+        window.animation = waNone
+        window.minimized = false
+    
+    of waNone:
+      discard
 
 proc isPointInTitleBar*(window: OSWindow, mouseX, mouseY: float32): bool =
   if not window.visible:
@@ -192,7 +279,10 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int): boo
     if isPointInMinimizeButton(window, mousePos.x, mousePos.y):
       # Only toggle minimize if not currently resizing or dragging
       if not window.resizing and not window.dragging:
-        window.minimized = not window.minimized
+        if window.minimized:
+          startRestoreAnimation(window)
+        else:
+          startMinimizeAnimation(window)
         # Reset any drag or resize state when minimizing/unminimizing
         window.dragging = false
         window.resizing = false
@@ -219,8 +309,33 @@ proc drawWindowChrome*(window: OSWindow) =
   if not window.visible:
     return
   
+  # Calculate animation scale for minimize/restore
+  var scaleX = 1.0
+  var scaleY = 1.0
+  var alpha = 1.0
+  
+  if window.animation == waMinimizing:
+    let progress = min(1.0, window.animationTimer / window.animationDuration)
+    let easedProgress = pow(progress, 2.0)  # Ease-in for minimizing
+    scaleX = 1.0 - (0.8 * easedProgress)
+    scaleY = 1.0 - (0.9 * easedProgress)
+    alpha = 1.0 - (0.5 * easedProgress)
+  elif window.animation == waRestoring:
+    let progress = min(1.0, window.animationTimer / window.animationDuration)
+    let easedProgress = 1.0 - pow(1.0 - progress, 2.0)  # Ease-out for restoring
+    scaleX = 0.2 + (0.8 * easedProgress)
+    scaleY = 0.1 + (0.9 * easedProgress)
+    alpha = 0.5 + (0.5 * easedProgress)
+  
+  let scaledWidth = int(window.width.float32 * scaleX)
+  let scaledHeight = int(window.height.float32 * scaleY)
+  let centerX = window.x + window.width div 2
+  let centerY = window.y + window.height div 2
+  let drawX = centerX - scaledWidth div 2
+  let drawY = centerY - scaledHeight div 2
+  
   # If minimized, only draw a small title bar representation
-  if window.minimized:
+  if window.minimized and window.animation != waRestoring:
     let miniWidth = 200
     let miniHeight = TITLE_BAR_HEIGHT
     
@@ -270,63 +385,89 @@ proc drawWindowChrome*(window: OSWindow) =
     
     return
   
-  # Shadow
-  drawRectangle((window.x + 3).int32, (window.y + 3).int32, 
-               window.width.int32, window.height.int32,
-               Color(r: 0, g: 0, b: 0, a: 100))
+  # Apply animation alpha to all colors
+  let alphaMultiplier = uint8(alpha * 255)
+  
+  # Enhanced shadow with panel-like glow
+  let shadowAlpha = uint8(100 * alpha)
+  drawRectangle((drawX + 3).int32, (drawY + 3).int32, 
+               scaledWidth.int32, scaledHeight.int32,
+               Color(r: 0, g: 0, b: 0, a: shadowAlpha))
+  
+  # Panel glow effect when focused
+  if window.focused and alpha > 0.8:
+    let glowPulse = sin(window.time * 3.0) * 0.3 + 0.7
+    let glowSize = 6
+    for i in 1..glowSize:
+      let glowAlpha = uint8((30.0 / i.float32) * glowPulse * alpha)
+      drawRectangleLines(Rectangle(
+        x: (drawX - i).float32, 
+        y: (drawY - i).float32,
+        width: (scaledWidth + i * 2).float32, 
+        height: (scaledHeight + i * 2).float32
+      ), 1, Color(r: 0, g: 200, b: 255, a: glowAlpha))
   
   # Main window background
-  drawRectangle(window.x.int32, window.y.int32, 
-               window.width.int32, window.height.int32,
-               Color(r: 20, g: 20, b: 30, a: 240))
+  let bgAlpha = uint8(240.0 * alpha)
+  drawRectangle(drawX.int32, drawY.int32, 
+               scaledWidth.int32, scaledHeight.int32,
+               Color(r: 20, g: 20, b: 30, a: bgAlpha))
   
   # Border with glow if focused
   let borderColor = if window.focused:
-    Color(r: 0, g: 200, b: 255, a: 255)
+    Color(r: 0, g: 200, b: 255, a: alphaMultiplier)
   else:
-    Color(r: 80, g: 80, b: 100, a: 255)
+    Color(r: 80, g: 80, b: 100, a: alphaMultiplier)
   
-  drawRectangleLines(Rectangle(x: window.x.float32, y: window.y.float32,
-                                width: window.width.float32, height: window.height.float32),
+  drawRectangleLines(Rectangle(x: drawX.float32, y: drawY.float32,
+                                width: scaledWidth.float32, height: scaledHeight.float32),
                     WINDOW_BORDER, borderColor)
   
   # Title bar
-  drawRectangle(window.x.int32, window.y.int32, 
-               window.width.int32, TITLE_BAR_HEIGHT.int32,
-               Color(r: 40, g: 40, b: 50, a: 255))
+  let titleBarAlpha = uint8(255.0 * alpha)
+  drawRectangle(drawX.int32, drawY.int32, 
+               scaledWidth.int32, TITLE_BAR_HEIGHT.int32,
+               Color(r: 40, g: 40, b: 50, a: titleBarAlpha))
   
-  # Icon
-  let iconSize = 16
-  let iconX = window.x + 8
-  let iconY = window.y + 7
-  drawRectangle(iconX.int32, iconY.int32, iconSize.int32, iconSize.int32, window.iconColor)
+  # Icon (scaled with window)
+  let iconSize = int(16.0 * min(scaleX, scaleY))
+  let iconX = drawX + int(8.0 * scaleX)
+  let iconY = drawY + int(7.0 * scaleY)
+  drawRectangle(iconX.int32, iconY.int32, iconSize.int32, iconSize.int32, 
+               Color(r: window.iconColor.r, g: window.iconColor.g, 
+                     b: window.iconColor.b, a: alphaMultiplier))
   
-  # Title text
-  drawText(window.title, (window.x + 32).int32, (window.y + 6).int32, 18,
-          Color(r: 0, g: 200, b: 255, a: 255))
+  # Title text (fade with alpha)
+  let titleTextAlpha = uint8(255.0 * alpha)
+  drawText(window.title, (drawX + int(32.0 * scaleX)).int32, (drawY + int(6.0 * scaleY)).int32, int32(18.0 * min(scaleX, scaleY)),
+          Color(r: 0, g: 200, b: 255, a: titleTextAlpha))
   
-  # Window buttons
-  let buttonSize = 20
-  let buttonY = window.y + 5
+  # Window buttons (scaled)
+  let buttonSize = int(20.0 * min(scaleX, scaleY))
+  let buttonY = drawY + int(5.0 * scaleY)
+  let buttonAlpha = alphaMultiplier
   
   # Close button
-  let closeX = window.x + window.width - 25
+  let closeX = drawX + scaledWidth - int(25.0 * scaleX)
   let mousePos = getMousePosition()
   let hoverClose = isPointInCloseButton(window, mousePos.x, mousePos.y)
   
   drawRectangle(closeX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
-               if hoverClose: Color(r: 255, g: 80, b: 80, a: 255)
-               else: Color(r: 60, g: 60, b: 70, a: 255))
-  drawText("X", (closeX + 6).int32, (buttonY + 2).int32, 16, White)
+               if hoverClose: Color(r: 255, g: 80, b: 80, a: buttonAlpha)
+               else: Color(r: 60, g: 60, b: 70, a: buttonAlpha))
+  drawText("X", (closeX + int(6.0 * scaleX)).int32, (buttonY + int(2.0 * scaleY)).int32, int32(16.0 * min(scaleX, scaleY)), 
+          Color(r: 255, g: 255, b: 255, a: buttonAlpha))
   
   # Minimize button
-  let minX = window.x + window.width - 50
+  let minX = drawX + scaledWidth - int(50.0 * scaleX)
   let hoverMin = isPointInMinimizeButton(window, mousePos.x, mousePos.y)
   
   drawRectangle(minX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
-               if hoverMin: Color(r: 100, g: 150, b: 200, a: 255)
-               else: Color(r: 60, g: 60, b: 70, a: 255))
-  drawRectangle((minX + 5).int32, (buttonY + 14).int32, 10, 2, White)
+               if hoverMin: Color(r: 100, g: 150, b: 200, a: buttonAlpha)
+               else: Color(r: 60, g: 60, b: 70, a: buttonAlpha))
+  drawRectangle((minX + int(5.0 * scaleX)).int32, (buttonY + int(14.0 * scaleY)).int32, 
+               int(10.0 * scaleX).int32, int(2.0 * scaleY).int32, 
+               Color(r: 255, g: 255, b: 255, a: buttonAlpha))
 
 proc drawResizeIndicator*(window: OSWindow) =
   ## Draw resize indicators on edges

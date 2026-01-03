@@ -50,13 +50,14 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
     statsWin.window.visible = false
     return true
   
-  # Tab switching with number keys
-  if isKeyPressed(One): statsWin.currentTab = stLifetime
-  if isKeyPressed(Two): statsWin.currentTab = stLastRun
-  if isKeyPressed(Three): statsWin.currentTab = stPowerUps
+  # Tab switching with number keys (only when not minimized)
+  if not statsWin.window.minimized:
+    if isKeyPressed(One): statsWin.currentTab = stLifetime
+    if isKeyPressed(Two): statsWin.currentTab = stLastRun
+    if isKeyPressed(Three): statsWin.currentTab = stPowerUps
   
-  # Tab switching with mouse
-  if isMouseButtonPressed(Left):
+  # Tab switching with mouse (only when not minimized)
+  if not statsWin.window.minimized and isMouseButtonPressed(Left):
     let mousePos = getMousePosition()
     let tabY = statsWin.window.y + TITLE_BAR_HEIGHT + 10
     let tabHeight = 35

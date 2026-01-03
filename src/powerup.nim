@@ -1,4 +1,4 @@
-import raylib, types, random, math, strutils, settings, tables
+import raylib, types, random, math, strutils, settings, tables, ui/os_powerup_installer
 
 # Forward declarations for reroll system
 proc attemptRerollPowerUps*(game: Game): bool
@@ -1439,176 +1439,9 @@ proc drawPowerUpCard*(x, y, width, height: int32, powerUp: PowerUp, isSelected: 
     drawText(desc, x + (width - descWidth) div 2, y + 140, 14, LightGray)
 
 proc drawPowerUpSelection*(game: Game) =
-  let screenWidth = game.screenWidth
-  let screenHeight = game.screenHeight
-  
-  # Dark overlay
-  drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 220))
-  
-  # Determine if this is a legendary selection
-  let isLegendary = game.powerUpChoices[0].rarity == prLegendary
-  
-  # Title
-  if isLegendary:
-    drawText("BOSS DEFEATED!", screenWidth div 2 - 200, 40, 50, Gold)
-    drawText("Choose Your LEGENDARY Upgrade", screenWidth div 2 - 230, 100, 30, Gold)
-  else:
-    drawText("WAVE COMPLETE!", screenWidth div 2 - 180, 60, 50, Green)
-    drawText("Choose Your Power-Up", screenWidth div 2 - 180, 120, 30, White)
-  
-  # Card dimensions
-  let cardWidth = 200
-  let cardHeight = 240
-  let spacing = 40
-  let totalWidth = cardWidth * 3 + spacing * 2
-  let startX = (screenWidth - totalWidth) div 2
-  let cardY = if isLegendary: 160 else: 180
-  
-  # Mouse hover detection (ONLY when selection enabled AND mouse support enabled AND mouse moved recently AND keyboard NOT used recently)
-  if game.canSelectPowerUp and globalSettings.mouseSupport and game.mouseMovedRecently and not game.keyboardUsedRecently:
-    let mousePos = getMousePosition()
-    for i in 0..2:
-      let cardX = startX + i * (cardWidth + spacing)
-      if mousePos.x >= cardX.float32 and mousePos.x <= (cardX + cardWidth).float32 and
-         mousePos.y >= cardY.float32 and mousePos.y <= (cardY + cardHeight).float32:
-        game.selectedPowerUp = i
-        break
-  
-  # Stop times for animation
-  let stopTimes = [
-    if isLegendary: 2.0 else: 1.5,  # Slot 1: back to original time
-    if isLegendary: 3.0 else: 2.5,
-    if isLegendary: 4.5 else: 3.5
-  ]
-  
-  # Draw each slot
-  for slotIdx in 0..2:
-    let cardX = startX + slotIdx * (cardWidth + spacing)
-    let slotStopped = game.rollAnimationTimer >= stopTimes[slotIdx]
-    
-    if game.rollAnimationActive:
-      # ROLLING/STOPPED ANIMATION MODE - always use scissor + scroll rendering
-      beginScissorMode(cardX.int32, cardY.int32, cardWidth.int32, cardHeight.int32)
-      
-      # Draw the scrolling list (works for both rolling and stopped states)
-      for j in 0..<game.rollPowerUpList[slotIdx].len:
-        let yPos = cardY.float32 - game.rollPosition[slotIdx] + (j.float32 * cardHeight.float32)
-        
-        # Only draw if visible (with some buffer for smooth scrolling)
-        if yPos > (cardY - cardHeight).float32 and yPos < (cardY + cardHeight * 2).float32:
-          drawPowerUpCard(cardX.int32, yPos.int32, cardWidth.int32, cardHeight.int32,
-                         game.rollPowerUpList[slotIdx][j], false)
-      
-      endScissorMode()
-      
-      # Frame color changes when stopped
-      let frameColor = if slotStopped:
-        (if isLegendary: Gold else: Yellow)
-      else:
-        Color(r: 150, g: 150, b: 150, a: 255)
-      
-      # Draw thick frame when stopped
-      if slotStopped:
-        for t in 0..2:
-          drawRectangleLines((cardX - t).int32, (cardY - t).int32,
-                            (cardWidth + t*2).int32, (cardHeight + t*2).int32, frameColor)
-      else:
-        drawRectangleLines(cardX.int32, cardY.int32, cardWidth.int32, cardHeight.int32, frameColor)
-      
-      # Legendary glow
-      if isLegendary and slotStopped:
-        drawRectangleLines((cardX - 3).int32, (cardY - 3).int32,
-                          (cardWidth + 6).int32, (cardHeight + 6).int32,
-                          Color(r: 255, g: 215, b: 0, a: 150))
-    
-    else:
-      # SELECTION MODE (animation completely finished)
-      drawPowerUpCard(cardX.int32, cardY.int32, cardWidth.int32, cardHeight.int32,
-                     game.powerUpChoices[slotIdx], 
-                     slotIdx == game.selectedPowerUp and game.canSelectPowerUp)
-  
-  # Status messages
-  if game.rollAnimationActive:
-    var msg = "Rolling..."
-    
-    let w = measureText(msg, 24)
-    drawText(msg, screenWidth div 2 - w div 2, screenHeight - 150, 24, Yellow)
-  else:
-    drawText("A/D or ARROW KEYS: select | MOUSE: hover/click | ENTER: choose", 
-            screenWidth div 2 - 320, screenHeight - 120, 20, LightGray)
-    drawText("ESC: skip", screenWidth div 2 - 60, screenHeight - 90, 18, Gray)
-    
-    # Reroll button
-    let rerollBtnX = screenWidth div 2 - 120
-    let rerollBtnY = screenHeight - 290
-    let rerollBtnWidth = 240.int32
-    let rerollBtnHeight = 40.int32
-    let canAffordReroll = game.player.coins >= game.rerollCost
-    let rerollBtnColor = if canAffordReroll:
-      Color(r: 120, g: 120, b: 120, a: 220)  # Lighter gray if affordable
-    else:
-      Color(r: 70, g: 70, b: 70, a: 220)    # Darker gray if not affordable
-    let rerollBtnBorderColor = if canAffordReroll:
-      Color(r: 180, g: 180, b: 180, a: 255)  # Lighter gray border
-    else:
-      Color(r: 100, g: 100, b: 100, a: 255)  # Darker gray border
-    
-    # Draw button background
-    drawRectangle(rerollBtnX, rerollBtnY, rerollBtnWidth, rerollBtnHeight, rerollBtnColor)
-    
-    # Draw button border
-    drawRectangleLines(Rectangle(x: rerollBtnX.float32, y: rerollBtnY.float32, 
-                                  width: rerollBtnWidth.float32, height: rerollBtnHeight.float32), 
-                      2, rerollBtnBorderColor)
-    
-    # Draw button text
-    let rerollText = "R: Reroll (" & $game.rerollCost & " coins)"
-    let rerollTextWidth = measureText(rerollText, 18)
-    drawText(rerollText, rerollBtnX + (rerollBtnWidth - rerollTextWidth.int32) div 2, 
-            rerollBtnY + 10, 18, White)
-    
-    # Check for button click (ONLY if can afford and mouse support enabled)
-    if canAffordReroll and getMousePosition().x >= rerollBtnX.float32 and 
-       getMousePosition().x <= (rerollBtnX + rerollBtnWidth).float32 and
-       getMousePosition().y >= rerollBtnY.float32 and 
-       getMousePosition().y <= (rerollBtnY + rerollBtnHeight).float32:
-      # Mouse is over button - add hover effect
-      drawRectangleLines(Rectangle(x: (rerollBtnX - 2).float32, y: (rerollBtnY - 2).float32, 
-                                    width: (rerollBtnWidth + 4).float32, height: (rerollBtnHeight + 4).float32), 
-                        2, Color(r: 220, g: 220, b: 220, a: 255))
-      
-      # Check for click
-      if isMouseButtonPressed(Left):
-        discard attemptRerollPowerUps(game)
-  
-  # Coin count
-  let coinText = "Coins: " & $game.player.coins
-  drawText(coinText, screenWidth div 2 - 60, screenHeight - 25, 22, Gold)
-  
-  # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
-  if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
-    let mousePos = getMousePosition()
-    let cursorPulse = sin(game.time * 8.0) * 2 + 8
-    
-    # Outer rotating ring
-    for i in 0..<8:
-      let angle = game.time * 4.0 + i.float32 * PI / 4.0
-      let x = mousePos.x + cos(angle) * cursorPulse
-      let y = mousePos.y + sin(angle) * cursorPulse
-      drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
-    
-    # Crosshair lines
-    drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
-            Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
-    drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
-            Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
-    drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
-            Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
-    drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
-            Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
-    
-    # Center dot
-    drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
+  # Use the new OS-style power-up installer interface
+  drawOSPowerUpInstaller(game)
+
 
 # SLOT MACHINE ROLL ANIMATION SYSTEM
 proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeType: PowerUpType): PowerUp =
@@ -1660,7 +1493,7 @@ proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
   game.rollAnimationTimer += deltaTime
   
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
-  let cardHeight = 240.0  # Must match the cardHeight in drawPowerUpSelection
+  let cardHeight = 380.0  # Must match CARD_HEIGHT in os_powerup_installer.nim
   
   # Stop times for each slot
   let stopTimes = [

@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions
+import raylib, types, player, enemy, bullet, consumable, coin, wall, shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, os_background, os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels
 
 # CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -930,7 +930,11 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     # Enemy ID counter for unique tracking
     nextEnemyId: 0,  # Start at 0, increment with each enemy created
     # Statistics menu tab
-    statsMenuTab: 0  # 0 = Lifetime, 1 = Last Run
+    statsMenuTab: 0,  # 0 = Lifetime, 1 = Last Run
+    # OS-Style Visual System
+    osBackground: newOSBackground(),
+    osHUD: newOSHUD(),
+    pauseMenuTab: tmtProcesses  # Default to Processes tab in task manager
   )
   
   # Apply gamemode-specific starting values
@@ -4389,7 +4393,11 @@ proc updateGame*(game: var Game, dt: float32) =
     game.state = gsGameOver
 
 proc drawGame*(game: Game) =
-  clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
+  # Update and draw OS-style background
+  let dt = getFrameTime()
+  updateOSBackground(game.osBackground, dt, game.player.hp, game.player.maxHp, 
+                     game.bossWaveManager.isBossActive())
+  drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight)
   
   # Draw particles first (background layer)
   for particle in game.particles:
@@ -4446,6 +4454,12 @@ proc drawGame*(game: Game) =
     if enemy.isElite:
       drawEliteAura(enemy, game.time)
     drawEnemy(enemy)
+    
+    # Draw OS-style enemy labels above each enemy
+    drawEnemyLabel(enemy, showHealthBar = true)
+    
+    # Draw warning indicators for elite/boss enemies
+    drawEnemyWarningIndicator(enemy)
   
   # Draw Gravity Well visual effect
   if hasPowerUp(game.player, puGravityWell):
@@ -4485,26 +4499,20 @@ proc drawGame*(game: Game) =
   for damageNum in game.damageNumbers:
     drawDamageNumber(damageNum)
   
-  # Draw UI
-  let minutes = (game.time / 60.0).int
-  let seconds = (game.time mod 60.0).int
-  let timeText = $minutes & ":" & (if seconds < 10: "0" else: "") & $seconds
+  # Update OS-style HUD
+  updateOSHUD(game.osHUD, dt)
   
-  drawText("HP: " & $game.player.hp.int & "/" & $game.player.maxHp.int, 10, 10, 20, if game.player.hp <= 1: Red else: White)
-  drawText("Coins: " & $game.player.coins, 10, 35, 20, Gold)
-  drawText("Kills: " & $game.player.kills, 10, 60, 20, White)
-  drawText("Time: " & timeText, 10, 85, 20, White)
+  # Draw unified combined HUD panel (top-left, almost touching top)
+  drawCombinedHUDPanel(game, 10, 2)
+  
+  # Draw OS-style threat counter
+  drawThreatCounter(game.screenWidth, game.screenHeight, game.enemies.len)
+  
+  # Draw action log (notifications)
+  drawActionLog(game.osHUD, game.screenWidth, game.screenHeight)
 
-  # Show FPS if enabled in settings (subtle display)
-  if globalSettings != nil and globalSettings.showFPS:
-    let fps = getFPS()
-    # Subtle gray colors instead of bright colors
-    let fpsColor = if fps >= 55: Color(r: 150, g: 150, b: 150, a: 200)  # Good FPS - light gray
-                   elif fps >= 30: Color(r: 180, g: 160, b: 100, a: 200)  # Medium FPS - muted yellow
-                   else: Color(r: 180, g: 120, b: 120, a: 200)  # Low FPS - muted red
-    drawText("FPS: " & $fps, game.screenWidth - 100, 10, 16, fpsColor)  # Smaller font (16 instead of 20)
   
-  # Simple boss warning text (no timer pause)
+  # Simple boss warning text
   if game.bossSpawnTimer > 0:
     let warningAlpha = ((game.bossSpawnTimer * 6.0).int mod 2)
     let warningColor = if warningAlpha == 0:
@@ -4516,32 +4524,9 @@ proc drawGame*(game: Game) =
     let textWidth = measureText(warningText, 40)
     drawText(warningText, (game.screenWidth div 2 - textWidth div 2).int32,
              (game.screenHeight div 2 - 60).int32, 40, warningColor)
-  drawText("Walls: " & $game.player.walls, 10, 110, 20, Brown)
   
-  # Mode-specific UI
-  if shouldUseWaves(game.mode):
-    # Wave information
-    let waveDisplay = if game.bossWaveManager.isBossActive():
-      "Boss Wave " & $(game.currentWave)
-    else:
-      "Wave " & $(game.currentWave)
-    drawText(waveDisplay, 10, 135, 20, if game.bossWaveManager.isBossActive(): Red else: Yellow)
-    
-    if game.waveInProgress and not game.bossWaveManager.isBossActive():
-      let enemiesLeft = game.waveEnemiesRemaining + game.enemies.len
-      drawText("Enemies: " & $enemiesLeft & "/" & $game.waveEnemiesTotal, 10, 160, 18, Orange)
-    elif game.bossWaveManager.isBossActive():
-      drawText("Defeat the Boss!", 10, 160, 18, Red)
-    elif game.bossWaveManager.isBossCoinActive():
-      # Show message when boss is defeated but coin not yet collected
-      let pulseAlpha = (sin(game.time * 4.0) * 60 + 195).int.uint8
-      drawText("Collect the Boss Coin!", 10, 160, 18, Color(r: 255, g: 215, b: 0, a: pulseAlpha))
-  else:
-    # Time survival mode - show chaos meter (not shown in sandbox)
-    if isTimeSurvivalMode(game.mode):
-      let chaosLevel = min(game.difficulty * 10, 100).int
-      drawText("Chaos: " & $chaosLevel & "%", 10, 135, 18, 
-              if chaosLevel < 30: Green elif chaosLevel < 70: Orange else: Red)
+  # Mode-specific UI removed - now handled by OS-Style Left Info Panel
+  # (Wave info, enemies count, etc. are all in the left panel)
   
   # Boss health bar (top of screen)
   if game.bossWaveManager.isBossActive():
@@ -4578,84 +4563,23 @@ proc drawGame*(game: Game) =
     if waveProgress > 0.6 and not game.bossWaveManager.isBossActive():
       drawText("*** WAVE ***", game.screenWidth div 2 - 80, 10, 25, Red)
   
-  # Active power-ups display (left side)
-  if game.player.powerUps.len > 0:
-    var puYOffset: int32 = 185
-    drawText("Power-Ups:", 10, puYOffset, 16, Yellow)
-    puYOffset += 20
-    for powerUp in game.player.powerUps:
-      let name = getPowerUpName(powerUp.powerType)
-      drawText(name & " L" & $powerUp.level, 10, puYOffset.int32, 14, White)
-      puYOffset += 18
+  # Combined HUD panel already shows all info, no need for separate panels
   
-  # Active powerup timers (right side) - ALL controlled by showDebugStats setting
+  # OS-Style Debug Panel (right side, touching right edge) - controlled by showDebugStats setting
   if globalSettings != nil and globalSettings.showDebugStats:
-    var yOffset: int32 = 10
-
-    if game.player.speedBoostTimer > 0:
-      drawText("Speed Boost: " & $(game.player.speedBoostTimer.int + 1) & "s",
-             game.screenWidth - 200, yOffset, 16, SkyBlue)
-      yOffset += 20
-    if game.player.invincibilityTimer > 0:
-      drawText("Invincible: " & $(game.player.invincibilityTimer.int + 1) & "s", 
-              game.screenWidth - 200, yOffset, 16, Magenta)
-      yOffset += 20
-    if game.player.fireRateBoostTimer > 0:
-      drawText("Fire Rate: " & $(game.player.fireRateBoostTimer.int + 1) & "s", 
-              game.screenWidth - 200, yOffset, 16, Orange)
-      yOffset += 20
-    if game.player.magnetTimer > 0:
-      drawText("Magnet: " & $(game.player.magnetTimer.int + 1) & "s", 
-              game.screenWidth - 200, yOffset, 16, Purple)
-      yOffset += 20
-    
-    # Show stats panel (damage and fire rate with 2 decimals)
-    let stats = calculateCombatStats(game.player)
-    drawText("Damage: " & formatFloat(stats.damage, ffDecimal, 2), game.screenWidth - 200, yOffset, 16, White)
-    yOffset += 20
-    let shotsPerSec = 1.0 / stats.fireRate
-    drawText("Fire Rate: " & formatFloat(shotsPerSec, ffDecimal, 2) & "/s", game.screenWidth - 200, yOffset, 16, White)
-    yOffset += 20
-    # Show speed stat
-    drawText("Speed: " & formatFloat(game.player.speed, ffDecimal, 2), game.screenWidth - 200, yOffset, 16, White)
-    yOffset += 20
-  
-    # Show Rage/Berserker bonuses when HP is low
-    if hasPowerUp(game.player, puRage) or hasPowerUp(game.player, puBerserker):
-      let hpPercent = game.player.hp / game.player.maxHp
-      if hpPercent < 0.7:
-        if hasPowerUp(game.player, puRage):
-          let rageLevel = getPowerUpLevel(game.player, puRage)
-          let rageMultiplier = 
-            case rageLevel
-            of 1: 0.5
-            of 2: 0.8
-            else: 1.2
-          drawText("Rage: +" & $((1.0 - hpPercent) * 100.0 * rageMultiplier).int & "% dmg",
-                  game.screenWidth - 200, yOffset, 14, Red)
-          yOffset += 18
-
-        if hasPowerUp(game.player, puBerserker):
-          let berserkLevel = getPowerUpLevel(game.player, puBerserker)
-          let berserkMultiplier = 
-            case berserkLevel
-            of 1: 0.5
-            of 2: 0.8
-            else: 1.2
-          drawText("Berserk: +" & $((1.0 - hpPercent) * 100.0 * berserkMultiplier).int & "% rate",
-                  game.screenWidth - 200, yOffset, 14, Orange)
-          yOffset += 18
+    drawDebugPanel(game, game.screenWidth, 2)
     
     # Only show auto-shoot status if player has the power-up
     if hasPowerUp(game.player, puAutoShoot):
       let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
-      drawText("Auto: L" & $autoLevel, game.screenWidth - 200, yOffset, 16, Green)
-      yOffset += 20
+      var debugYOffset: int32 = 10
+      drawText("Auto: L" & $autoLevel, game.screenWidth - 200, debugYOffset, 16, Green)
+      debugYOffset += 20
     
-    # Stats
-    drawText("Enemies: " & $game.enemies.len, game.screenWidth - 200, yOffset + 10, 14, LightGray)
-    drawText("Bullets: " & $game.bullets.len, game.screenWidth - 200, yOffset + 28, 14, LightGray)
-    drawText("Particles: " & $game.particles.len, game.screenWidth - 200, yOffset + 46, 14, LightGray)
+      # Stats
+      drawText("Enemies: " & $game.enemies.len, game.screenWidth - 200, debugYOffset + 10, 14, LightGray)
+      drawText("Bullets: " & $game.bullets.len, game.screenWidth - 200, debugYOffset + 28, 14, LightGray)
+      drawText("Particles: " & $game.particles.len, game.screenWidth - 200, debugYOffset + 46, 14, LightGray)
   
   # Legendary power-up display (bottom-left corner) - INLINE with Q key hint
   var legendaryYOffset: int32 = game.screenHeight - 80
@@ -4712,77 +4636,8 @@ proc drawGame*(game: Game) =
   # This ensures the cursor appears above sandbox menu and other overlays
 
 proc drawGameOver*(game: Game) =
-  clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
-  
-  drawText("GAME OVER", game.screenWidth div 2 - 150, game.screenHeight div 2 - 100, 50, Red)
-  
-  let minutes = (game.time / 60.0).int
-  let seconds = (game.time mod 60.0).int
-  let timeText = $minutes & ":" & (if seconds < 10: "0" else: "") & $seconds
-  
-  drawText("Time Survived: " & timeText, game.screenWidth div 2 - 120, game.screenHeight div 2, 25, White)
-  drawText("Kills: " & $game.player.kills, game.screenWidth div 2 - 60, game.screenHeight div 2 + 40, 25, White)
-  drawText("Coins Earned: " & $game.player.coins, game.screenWidth div 2 - 130, game.screenHeight div 2 + 80, 25, Gold)
-  
-  # Show wave number if in wave mode
-  if shouldUseWaves(game.mode):
-    drawText("Wave Reached: " & $game.currentWave, game.screenWidth div 2 - 120, game.screenHeight div 2 - 40, 25, Yellow)
-  
-  # Show cheat indicator
-  var yOffset = 120
-  if game.cheatsUsed:
-    drawText("Cheats Used: YES", game.screenWidth.int32 div 2 - 100, game.screenHeight.int32 div 2 + yOffset.int32, 20, Color(r: 255, g: 100, b: 100, a: 255))
-  else:
-    drawText("Cheats Used: NO", game.screenWidth div 2 - 95, game.screenHeight div 2 + yOffset.int32, 20, Color(r: 100, g: 255, b: 100, a: 255))
-  
-  # Draw buttons at the bottom
-  let buttonY = game.screenHeight div 2 + 200
-  let buttonWidth: int32 = 200
-  let buttonHeight: int32 = 50
-  let buttonSpacing = 220
-  
-  # Restart button
-  let restartX = game.screenWidth div 2 - buttonSpacing
-  let restartRect = Rectangle(x: restartX.float32, y: buttonY.float32, 
-                               width: buttonWidth.float32, height: buttonHeight.float32)
-  
-  # Menu button
-  let menuX = game.screenWidth div 2 + 20
-  let menuRect = Rectangle(x: menuX.float32, y: buttonY.float32,
-                           width: buttonWidth.float32, height: buttonHeight.float32)
-  
-  # Check mouse hover for both buttons
-  let mousePos = getMousePosition()
-  let hoverRestart = checkCollisionPointRec(mousePos, restartRect)
-  let hoverMenu = checkCollisionPointRec(mousePos, menuRect)
-  
-  # Draw restart button
-  let restartBgColor = if hoverRestart: 
-    Color(r: 60, g: 60, b: 80, a: 255) 
-  else: 
-    Color(r: 40, g: 40, b: 60, a: 255)
-  let restartBorderColor = if hoverRestart:
-    Color(r: 100, g: 200, b: 255, a: 255)
-  else:
-    Color(r: 80, g: 80, b: 100, a: 255)
-  
-  drawRectangle(restartX.int32, buttonY, buttonWidth, buttonHeight, restartBgColor)
-  drawRectangleLines(restartRect, 2, restartBorderColor)
-  drawText("RESTART (R)", (restartX + 30).int32, (buttonY + 15).int32, 20, White)
-  
-  # Draw menu button
-  let menuBgColor = if hoverMenu:
-    Color(r: 60, g: 60, b: 80, a: 255)
-  else:
-    Color(r: 40, g: 40, b: 60, a: 255)
-  let menuBorderColor = if hoverMenu:
-    Color(r: 100, g: 200, b: 255, a: 255)
-  else:
-    Color(r: 80, g: 80, b: 100, a: 255)
-  
-  drawRectangle(menuX.int32, buttonY, buttonWidth, buttonHeight, menuBgColor)
-  drawRectangleLines(menuRect, 2, menuBorderColor)
-  drawText("MENU (ESC)", (menuX + 35).int32, (buttonY + 15).int32, 20, White)
+  # Use the new OS-style system crash screen
+  drawSystemCrash(game)
 
 proc drawWaveTransition*(game: Game) =
   # Draw the game in background
@@ -4801,5 +4656,4 @@ proc drawWaveTransition*(game: Game) =
   
   drawText("INCOMING", game.screenWidth div 2 - 75, game.screenHeight div 2 + 40, 30, Orange)
   
-
   drawText("Press ENTER to start", game.screenWidth div 2 - 130, game.screenHeight - 80, 20, LightGray)

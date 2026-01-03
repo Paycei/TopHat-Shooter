@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, splash, desktop, os_window, settings_window, help_window, stats_window
+import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, splash, desktop, os_window, settings_window, help_window, stats_window, ui/os_task_manager
 
 const
   screenWidth = 1024
@@ -1002,71 +1002,37 @@ proc main() =
       # Update mouse tracking
       updateMouseTracking(currentGame)
       
-      # Pause menu navigation - keyboard has priority
-      if isKeyPressed(Down) or isKeyPressed(S):
-        currentGame.menuSelection = (currentGame.menuSelection + 1) mod 3
+      # Pause menu navigation - Tab switching (Left/Right or A/D)
+      if isKeyPressed(Left) or isKeyPressed(A):
+        currentGame.pauseMenuTab = case currentGame.pauseMenuTab
+          of tmtProcesses: tmtPerformance
+          of tmtPerformance: tmtProcesses
+          else: tmtProcesses
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
-      if isKeyPressed(Up) or isKeyPressed(W):
-        currentGame.menuSelection = (currentGame.menuSelection - 1 + 3) mod 3
+      elif isKeyPressed(Right) or isKeyPressed(D):
+        currentGame.pauseMenuTab = case currentGame.pauseMenuTab
+          of tmtProcesses: tmtPerformance
+          of tmtPerformance: tmtProcesses
+          else: tmtProcesses
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
       
-      # Mouse hover detection (ONLY if mouse moved recently AND mouse support enabled AND keyboard NOT used recently)
-      if globalSettings.mouseSupport and currentGame.mouseMovedRecently and not currentGame.keyboardUsedRecently:
-        let mousePos = getMousePosition()
-        let pauseOptions = ["Resume", "Settings", "Main Menu"]
-        let optionStartY = screenHeight div 2 + 20
-        let optionSpacing = 60
-        
-        for i in 0..<pauseOptions.len:
-          let y = optionStartY + i * optionSpacing
-          let text = if i == currentGame.menuSelection: "> " & pauseOptions[i] & " <" else: pauseOptions[i]
-          let textWidth = measureText(text, 32)
-          let textX = screenWidth div 2 - textWidth div 2
-          
-          # Check if mouse is hovering over this menu item
-          if mousePos.x >= textX.float32 and mousePos.x <= (textX + textWidth).float32 and
-             mousePos.y >= y.float32 and mousePos.y <= (y + 32).float32:
-            currentGame.menuSelection = i
-      
-      # Select pause menu option
-      if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
-        # For mouse clicks, verify we're clicking on a menu item (only if mouse support enabled AND mouse moved recently)
-        var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-        if not validClick and isMouseButtonPressed(Left):
-          let mousePos = getMousePosition()
-          let pauseOptions = ["Resume", "Settings", "Main Menu"]
-          let optionStartY = screenHeight div 2 + 20
-          let optionSpacing = 60
-          
-          for i in 0..<pauseOptions.len:
-            let y = optionStartY + i * optionSpacing
-            let text = if i == currentGame.menuSelection: "> " & pauseOptions[i] & " <" else: pauseOptions[i]
-            let textWidth = measureText(text, 32)
-            let textX = screenWidth div 2 - textWidth div 2
-            
-            if isMenuClickValid(currentGame, globalSettings, Vector2f(x: mousePos.x, y: mousePos.y), textX, int32(y), textWidth, int32(32)):
-              validClick = true
-              break
-        
-        if validClick:
-          playSound(stMenuSelect)
-          case currentGame.menuSelection
-          of 0:  # Resume
-            currentGame.state = gsPlaying
-          of 1:  # Settings
-            currentGame.previousState = gsPaused
-            currentGame.state = gsSettings
-          of 2:  # Main Menu
-            cleanupGame(currentGame)  # Clean up resources before creating new game
-            currentGame = newGame(screenWidth, screenHeight)
-            currentGame.discordClient = globalDiscordClient
-            currentGame.state = gsMenu
-          else: discard
-      
-      # Also allow ESC to resume
-      if isKeyPressed(Escape):
+      # Actions
+      if isKeyPressed(Space):  # Resume
+        currentGame.state = gsPlaying
+        playSound(stMenuSelect)
+      elif isKeyPressed(Tab):  # Open Settings
+        currentGame.previousState = gsPaused
+        currentGame.state = gsSettings
+        playSound(stMenuSelect)
+      elif isKeyPressed(Q):  # Quit to main menu
+        cleanupGame(currentGame)
+        currentGame = newGame(screenWidth, screenHeight)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+        playSound(stMenuSelect)
+      elif isKeyPressed(Escape):  # ESC also resumes
         currentGame.state = gsPlaying
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
@@ -1077,33 +1043,28 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
       
-      # Draw pause overlay
-      drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 150))
-      drawText("PAUSED", screenWidth div 2 - 100, screenHeight div 2 - 80, 50, White)
+      # Draw OS-style Task Manager pause menu and handle mouse interactions
+      let menuResult = drawOSTaskManager(currentGame, currentGame.pauseMenuTab)
       
-      # Draw pause menu options
-      let pauseOptions = ["Resume", "Settings", "Main Menu"]
-      let optionStartY = screenHeight div 2 + 20
-      let optionSpacing = 60
+      # Handle tab changes from mouse
+      if menuResult.newTab != currentGame.pauseMenuTab:
+        currentGame.pauseMenuTab = menuResult.newTab
+        playSound(stMenuNav)
       
-      for i in 0..<pauseOptions.len:
-        let y = optionStartY + i * optionSpacing
-        let isSelected = i == currentGame.menuSelection
-        
-        # Selection glow
-        if isSelected:
-          let glowPulse = sin(currentGame.time * 6.0) * 0.3 + 0.7
-          let glowSize = 18 + (glowPulse * 8).int32
-          drawCircle(Vector2(x: (screenWidth div 2).float32, y: y.float32 + 15),
-                    glowSize.float32, Color(r: 255'u8, g: 200'u8, b: 0'u8, a: 100'u8))
-        
-        let color = if isSelected: Gold else: White
-        let text = if isSelected: "> " & pauseOptions[i] & " <" else: pauseOptions[i]
-        let textWidth = measureText(text, 32)
-        drawText(text, screenWidth div 2 - textWidth div 2, y.int32, 32, color)
-      
-      # Draw instructions
-      drawText("Press ESC to resume", screenWidth div 2 - 130, screenHeight - 60, 20, LightGray)
+      # Handle button clicks
+      if menuResult.resumeClicked:
+        currentGame.state = gsPlaying
+        playSound(stMenuSelect)
+      elif menuResult.settingsClicked:
+        currentGame.previousState = gsPaused
+        currentGame.state = gsSettings
+        playSound(stMenuSelect)
+      elif menuResult.exitClicked:
+        cleanupGame(currentGame)
+        currentGame = newGame(screenWidth, screenHeight)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+        playSound(stMenuSelect)
       
       # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
       if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
@@ -1126,24 +1087,58 @@ proc main() =
         currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + 6) mod 6
         markKeyboardUsed(currentGame)
       
-      # Buy item with keyboard or mouse
-      if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
-        # For mouse clicks, verify we're clicking on a shop item (only if mouse support enabled AND mouse moved recently)
-        var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-        if not validClick and isMouseButtonPressed(Left):
-          let mousePos = getMousePosition()
-          let shopStartX = currentGame.screenWidth div 2 - 200
-          let startY = 120
-          let itemHeight = 70
-          
-          for i in 0..5:
-            let y = startY + i * itemHeight
-            if isMenuClickValid(currentGame, settings, Vector2f(x: mousePos.x, y: mousePos.y), shopStartX, int32(y), 400, 60):
-              validClick = true
-              break
+      # Mouse click handling for shop items
+      if isMouseButtonPressed(Left):
+        let mousePos = getMousePosition()
         
-        if validClick:
+        # Shop dimensions from shop.nim
+        const SHOP_WIDTH = 1100
+        const SHOP_HEIGHT = 700
+        const TITLE_BAR_HEIGHT = 45
+        const SIDEBAR_WIDTH = 320
+        const ITEM_HEIGHT = 90
+        const ITEM_SPACING = 12
+        
+        let windowX = (currentGame.screenWidth - SHOP_WIDTH) div 2
+        let windowY = (currentGame.screenHeight - SHOP_HEIGHT) div 2
+        let sidebarX = windowX + 10
+        let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
+        let shopX = sidebarX + SIDEBAR_WIDTH + 15
+        let shopY = sidebarY + 10
+        let itemsStartY = shopY + 35
+        let shopWidth = SHOP_WIDTH - SIDEBAR_WIDTH - 40
+        
+        # Check shop item clicks
+        var clickedItem = -1
+        for i in 0..5:
+          let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
+          let itemRect = Rectangle(x: shopX.float32, y: itemY.float32,
+                                  width: shopWidth.float32, height: ITEM_HEIGHT.float32)
+          
+          if checkCollisionPointRec(mousePos, itemRect):
+            clickedItem = i
+            break
+        
+        # Check big buy button click
+        let buyButtonWidth = 260
+        let buyButtonHeight = 45
+        let bottomY = windowY + SHOP_HEIGHT - 80
+        let buyButtonX = windowX + SHOP_WIDTH - buyButtonWidth - 25
+        let buyButtonY = bottomY + 18
+        let buyButtonRect = Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
+                                      width: buyButtonWidth.float32, height: buyButtonHeight.float32)
+        
+        if clickedItem >= 0:
+          # Clicked on an item - select and buy it
+          currentGame.selectedShopItem = clickedItem
+          buyShopItem(currentGame, clickedItem)
+        elif checkCollisionPointRec(mousePos, buyButtonRect):
+          # Clicked the buy button - buy selected item
           buyShopItem(currentGame, currentGame.selectedShopItem)
+      
+      # Buy item with keyboard
+      if isKeyPressed(Enter) or isKeyPressed(E):
+        buyShopItem(currentGame, currentGame.selectedShopItem)
       
       # Close shop - always continue to next wave (no going back to power-up selection)
       if isKeyPressed(Escape) or isKeyPressed(Q):
@@ -1347,34 +1342,87 @@ proc main() =
             markKeyboardUsed(currentGame)
           # If reroll failed (not enough coins), do nothing (could add sound here)
         
-        # Select power-up with keyboard or mouse
-        if isKeyPressed(Enter) or isKeyPressed(E) or isMouseButtonPressed(Left):
-          # For mouse clicks, verify we're clicking on a card (only if mouse support enabled AND mouse moved recently)
-          var validClick = isKeyPressed(Enter) or isKeyPressed(E)
-          if not validClick and isMouseButtonPressed(Left):
-            let mousePos = getMousePosition()
-            let cardWidth = 200
-            let cardHeight = 240
-            let spacing = 40
-            let totalWidth = cardWidth * 3 + spacing * 2
-            let startX = (currentGame.screenWidth - totalWidth) div 2
-            let cardY = if currentGame.powerUpChoices[0].rarity == prLegendary: 160 else: 180
-            
-            for i in 0..2:
-              let cardX = startX + i * (cardWidth + spacing)
-              if isMenuClickValid(currentGame, settings, Vector2f(x: mousePos.x, y: mousePos.y), int32(cardX), int32(cardY), int32(cardWidth), int32(cardHeight)):
-                validClick = true
-                break
+        # Mouse hover detection for card selection
+        if isMouseButtonPressed(Left) or getMousePosition().x != 0:
+          let mousePos = getMousePosition()
+          # Use actual UI dimensions from os_powerup_installer.nim
+          const INSTALLER_WIDTH = 1000
+          const INSTALLER_HEIGHT = 650
+          const TITLE_BAR_HEIGHT = 45
+          const CARD_WIDTH = 280
+          const CARD_HEIGHT = 380
+          const CARD_SPACING = 35
           
-          if validClick:
-            let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
-            applyPowerUp(currentGame.player, chosenPowerUp)
+          let windowX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
+          let windowY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
+          let yPos = windowY + TITLE_BAR_HEIGHT + 75
+          let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
+          let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
+          
+          # Check which card mouse is over
+          for i in 0..2:
+            let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
+            let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
+                                     width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
             
-            # Track power-up selection for statistics
-            trackPowerUpSelection(currentGame, chosenPowerUp)
+            if checkCollisionPointRec(mousePos, cardRect):
+              currentGame.selectedPowerUp = i
+              break
+        
+        # Select power-up with keyboard or mouse click on card
+        if isKeyPressed(Enter) or isKeyPressed(E):
+          let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
+          applyPowerUp(currentGame.player, chosenPowerUp)
+          
+          # Track power-up selection for statistics
+          trackPowerUpSelection(currentGame, chosenPowerUp)
+          
+          currentGame.cameFromPowerUpSelect = true
+          currentGame.state = gsShop
+        
+        # Mouse click to select
+        if isMouseButtonPressed(Left):
+          let mousePos = getMousePosition()
+          const INSTALLER_WIDTH = 1000
+          const INSTALLER_HEIGHT = 650
+          const TITLE_BAR_HEIGHT = 45
+          const CARD_WIDTH = 280
+          const CARD_HEIGHT = 380
+          const CARD_SPACING = 35
+          
+          let windowX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
+          let windowY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
+          let yPos = windowY + TITLE_BAR_HEIGHT + 75
+          let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
+          let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
+          
+          # Check card clicks
+          for i in 0..2:
+            let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
+            let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
+                                     width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
             
-            currentGame.cameFromPowerUpSelect = true
-            currentGame.state = gsShop
+            if checkCollisionPointRec(mousePos, cardRect):
+              currentGame.selectedPowerUp = i
+              let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
+              applyPowerUp(currentGame.player, chosenPowerUp)
+              trackPowerUpSelection(currentGame, chosenPowerUp)
+              currentGame.cameFromPowerUpSelect = true
+              currentGame.state = gsShop
+              break
+          
+          # Check reroll button click
+          let rerollX = windowX + 50
+          let rerollWidth = 220
+          let bottomY = windowY + INSTALLER_HEIGHT - 120
+          let buttonY = bottomY + 15
+          let buttonHeight = 42
+          
+          let rerollRect = Rectangle(x: rerollX.float32, y: buttonY.float32,
+                                      width: rerollWidth.float32, height: buttonHeight.float32)
+          
+          if checkCollisionPointRec(mousePos, rerollRect):
+            discard attemptRerollPowerUps(currentGame)
         
         # Skip power-up selection
         if isKeyPressed(Escape):
@@ -1383,6 +1431,7 @@ proc main() =
       
       beginGameDrawing()
       drawPowerUpSelection(currentGame)
+      drawCustomCursor(currentGame.time)
       endGameDrawing()
     
     of gsGameOver:
@@ -1442,23 +1491,35 @@ proc main() =
         currentGame.state = gsMenu
         statsSavedThisGame = false  # Reset for new game
       
-      # Mouse click handling for buttons
+      # Mouse click handling for buttons (using actual coordinates from os_system_screens.nim)
       if isMouseButtonPressed(Left):
         let mousePos = getMousePosition()
-        let buttonY = screenHeight div 2 + 200
-        let buttonWidth = 200
-        let buttonHeight = 50
-        let buttonSpacing = 220
         
-        # Restart button
-        let restartX = screenWidth div 2 - buttonSpacing
-        let restartRect = Rectangle(x: restartX.float32, y: buttonY.float32,
-                                     width: buttonWidth.float32, height: buttonHeight.float32)
+        # Constants from os_system_screens.nim
+        const SCREEN_WIDTH = 900
+        const SCREEN_HEIGHT = 550
+        const BUTTON_WIDTH = 220
+        const BUTTON_HEIGHT = 48
         
-        # Menu button  
-        let menuX = screenWidth div 2 + 20
-        let menuRect = Rectangle(x: menuX.float32, y: buttonY.float32,
-                                 width: buttonWidth.float32, height: buttonHeight.float32)
+        let windowY = (screenHeight - SCREEN_HEIGHT) div 2
+        let buttonY = windowY + SCREEN_HEIGHT - 100
+        let buttonSpacing = 40
+        let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
+        let buttonsX = (screenWidth - totalButtonWidth) div 2
+        
+        # Restart button (first button)
+        let restartRect = Rectangle(x: buttonsX.float32, y: buttonY.float32,
+                                     width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
+        
+        # View Stats button (second button)
+        let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
+        let statsRect = Rectangle(x: statsX.float32, y: buttonY.float32,
+                                  width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
+        
+        # Exit button (third button)
+        let exitX = statsX + BUTTON_WIDTH + buttonSpacing
+        let exitRect = Rectangle(x: exitX.float32, y: buttonY.float32,
+                                 width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
         
         # Check clicks
         if checkCollisionPointRec(mousePos, restartRect):
@@ -1469,9 +1530,13 @@ proc main() =
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
-        elif checkCollisionPointRec(mousePos, menuRect):
+        elif checkCollisionPointRec(mousePos, statsRect):
+          # View stats
+          if hasValidRunStats():
+            currentGame.state = gsRunStats
+        elif checkCollisionPointRec(mousePos, exitRect):
           # Return to menu
-          cleanupGame(currentGame)  # Clean up resources before creating new game
+          cleanupGame(currentGame)
           currentGame = newGame(screenWidth, screenHeight)
           currentGame.discordClient = globalDiscordClient
           currentGame.state = gsMenu

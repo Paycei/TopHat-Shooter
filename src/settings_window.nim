@@ -358,8 +358,8 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   let contentX = settingsWin.window.x + WINDOW_PADDING
   let contentY = settingsWin.window.y + TITLE_BAR_HEIGHT + 60
   
-  # Tab switching with mouse
-  if isMouseButtonPressed(Left):
+  # Tab switching with mouse (only when not minimized)
+  if not settingsWin.window.minimized and isMouseButtonPressed(Left):
     let tabY = settingsWin.window.y + TITLE_BAR_HEIGHT + 10
     let tabHeight = 35
     let tabWidth = 140
@@ -372,11 +372,12 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         break
       tabX += tabWidth + 10
   
-  # Tab switching with number keys
-  if isKeyPressed(One): settingsWin.currentTab = stGraphics
-  if isKeyPressed(Two): settingsWin.currentTab = stAudio
-  if isKeyPressed(Three): settingsWin.currentTab = stControls
-  if isKeyPressed(Four): settingsWin.currentTab = stGameplay
+  # Tab switching with number keys (only when not minimized)
+  if not settingsWin.window.minimized:
+    if isKeyPressed(One): settingsWin.currentTab = stGraphics
+    if isKeyPressed(Two): settingsWin.currentTab = stAudio
+    if isKeyPressed(Three): settingsWin.currentTab = stControls
+    if isKeyPressed(Four): settingsWin.currentTab = stGameplay
   
   var fullscreenToggle = false
   var settingsChanged = false

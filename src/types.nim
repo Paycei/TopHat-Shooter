@@ -397,6 +397,45 @@ type
     baseCost*: int
     bought*: int
 
+  # OS-Style Visual System Types
+  DataPacket* = object
+    x*, y*: float32
+    speed*: float32
+    alpha*: uint8
+    
+  CircuitLine* = object
+    y*: float32
+    speed*: float32
+    pulseOffset*: float32
+    
+  OSBackgroundState* = object
+    dataPackets*: seq[DataPacket]
+    circuitLines*: seq[CircuitLine]
+    gridPulseTime*: float32
+    alertLevel*: float32  # 0.0 = normal, 1.0 = critical
+
+  NotificationType* = enum
+    ntInfo,     # [INFO] messages
+    ntWarning,  # [WARN] messages
+    ntError,    # [ERR] messages
+    ntCritical  # [CRITICAL] messages
+    
+  OSNotification* = object
+    message*: string
+    notifType*: NotificationType
+    lifetime*: float32
+    fadeTime*: float32
+    
+  OSHUDState* = object
+    notifications*: seq[OSNotification]
+    panelPulse*: float32
+    minimized*: bool
+  
+  TaskManagerTab* = enum
+    tmtProcesses,    # Active power-ups
+    tmtPerformance,  # Stats and metrics
+    tmtSettings      # Game settings access
+
   # Boss wave management - centralizes boss coin logic
   BossWaveManager* = object
     active*: bool        # True when a boss is currently spawned
@@ -472,6 +511,10 @@ type
     sandboxFreezeEnemies*: bool  # Freeze all enemy movement
     # Discord Rich Presence
     discordClient*: DiscordClient  # Discord Rich Presence client
+    # OS-Style Visual System
+    osBackground*: OSBackgroundState  # Animated background system
+    osHUD*: OSHUDState  # OS-style HUD and notifications
+    pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x
