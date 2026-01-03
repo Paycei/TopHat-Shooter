@@ -310,7 +310,6 @@ const
   CARD_HEIGHT = 380
   CARD_SPACING = 35
   PROGRESS_BAR_HEIGHT = 22
-  SHADOW_OFFSET = 6
 
 proc drawModernButton(x, y, width, height: int32, text: string, 
                      enabled: bool = true, highlight: bool = false, 
@@ -609,7 +608,6 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   
   # Enhanced progress bar with segments
   let barWidth = width - 24
-  let fillPercent = powerUp.level.float32 / 3.0
   
   # Bar shadow
   drawRectangle(x + 14, yOffset + 2, barWidth, PROGRESS_BAR_HEIGHT,
@@ -626,7 +624,6 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
             Color(r: 50, g: 60, b: 75, a: 255))
   
   # Fill bar with gradient per level
-  let fillWidth = (barWidth.float32 * fillPercent).int32
   for level in 1..powerUp.level:
     let segmentStart: int32 = int32(x + 12 + (barWidth * (level - 1)) div 3)
     let segmentEnd: int32 = int32(x + 12 + (barWidth * level) div 3)

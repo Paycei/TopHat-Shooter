@@ -1,4 +1,4 @@
-import raylib, types, game, shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, run_statistics_ui, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, splash, desktop, os_window, settings_window, help_window, stats_window, ui/os_task_manager
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/settings_window, ui/help_window, ui/stats_window, ui/os_task_manager
 
 const
   screenWidth = 1024
@@ -1228,11 +1228,11 @@ proc main() =
       # Update time for animations
       currentGame.time += dt
       
-      # Toggle graphs OR return to game over with Tab
+      # Return to game over with Tab
       if isKeyPressed(Tab):
         currentGame.state = gsGameOver
       
-      # Return to game over screen with Escape (same as Tab now)
+      # Return to game over screen with Escape
       if isKeyPressed(Escape):
         currentGame.state = gsGameOver
       
@@ -1255,7 +1255,7 @@ proc main() =
       
       beginGameDrawing()
       if hasValidRunStats():
-        drawRunStatisticsScreen(currentRunStats, screenWidth, screenHeight, 
+        drawGameOverStatsScreen(currentRunStats, screenWidth, screenHeight, 
                                currentGame.time, currentGame.showRunStatsGraphs)
       else:
         # Fallback if no stats available
@@ -1264,11 +1264,6 @@ proc main() =
                 screenWidth div 2 - 150, screenHeight div 2, 24, Red)
         drawText("Press ESC to return", 
                 screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
-      
-      # Show navigation hints
-      let hintY = screenHeight - 30
-      drawText("R - Restart | Q - Menu | ESC - Back | TAB - Toggle Graphs", 
-              (screenWidth div 2 - 280).int32, hintY.int32, 16.int32, Gold)
       
       endGameDrawing()
   

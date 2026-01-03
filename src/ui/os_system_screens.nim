@@ -65,7 +65,6 @@ proc drawStat(x, y: int32, label, value: string, icon: string = "•",
   drawText(icon, x, y, 16, Color(r: 0, g: 180, b: 255, a: 255))
   drawText(label, x + 30, y + 2, 15, Color(r: 180, g: 190, b: 200, a: 255))
   
-  let valueWidth = measureText(value, 15)
   drawText(value, x + 450, y + 2, 15, valueColor)
 
 proc drawSystemCrash*(game: Game) =

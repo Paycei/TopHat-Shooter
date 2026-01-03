@@ -4,7 +4,6 @@ import raylib, types, math
 
 const
   PANEL_PADDING = 10
-  PANEL_BORDER = 2
   TITLE_BAR_HEIGHT = 24
   HEADER_BG_COLOR = Color(r: 15, g: 20, b: 30, a: 120)
   ACCENT_COLOR = Color(r: 0, g: 200, b: 255, a: 255)
