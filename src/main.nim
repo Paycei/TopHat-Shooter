@@ -119,360 +119,6 @@ proc drawCustomCursor*(time: float32) =
   # Center dot
   drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
 
-proc drawMenu(game: Game) =
-  # Dark gradient background
-  drawRectangleGradientV(0, 0, screenWidth, screenHeight, 
-                         Color(r: 8, g: 10, b: 20, a: 255),
-                         Color(r: 20, g: 12, b: 35, a: 255))
-  
-  # Animated starfield background
-  for i in 0..<60:
-    let offset = i.float32 * 1.2
-    let speedFactor = 1.0 + (i mod 3).float32 * 0.5
-    let x = ((game.time * 15.0 * speedFactor + offset * 30) mod (screenWidth.float32 + 100)).int32
-    let y = ((offset * 15) mod screenHeight.float32).int32
-    let size = 1 + (i mod 3)
-    let twinkle = (sin(game.time * 4.0 + offset) * 0.5 + 0.5)
-    let alpha = uint8(100 + twinkle * 155)
-    drawCircle(Vector2(x: x.float32, y: y.float32), size.float32, 
-               Color(r: 200'u8, g: 200'u8, b: 255'u8, a: alpha))
-  
-  # Large elemental particle swirls (background layer)
-  for i in 0..<30:
-    let offset = i.float32 * 0.9
-    let angle = game.time * 0.3 + offset * 0.5
-    let radius = 250.0 + sin(game.time * 0.8 + offset) * 80.0
-    let x = screenWidth.float32 / 2 + cos(angle) * radius
-    let y = 200.0 + sin(angle * 0.7) * radius * 0.6
-    let size = 3 + (sin(game.time * 2.5 + offset) * 2).int32
-    let pulse = sin(game.time * 3.0 + offset) * 0.4 + 0.6
-    let alpha = uint8(30 + pulse * 40)
-    
-    # Elemental colors cycle
-    let elementIndex = i mod 6
-    var color: Color
-    case elementIndex
-    of 0: color = Color(r: 255'u8, g: 120'u8, b: 50'u8, a: alpha)   # Fire
-    of 1: color = Color(r: 120'u8, g: 200'u8, b: 255'u8, a: alpha)  # Frost
-    of 2: color = Color(r: 255'u8, g: 255'u8, b: 80'u8, a: alpha)   # Lightning
-    of 3: color = Color(r: 100'u8, g: 255'u8, b: 150'u8, a: alpha)  # Poison
-    of 4: color = Color(r: 200'u8, g: 100'u8, b: 255'u8, a: alpha)  # Arcane
-    else: color = Color(r: 255'u8, g: 70'u8, b: 70'u8, a: alpha)    # Blood
-    
-    drawCircle(Vector2(x: x, y: y), size.float32, color)
-    # Inner glow
-    drawCircle(Vector2(x: x, y: y), (size.float32 * 0.5),
-               Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(alpha div 3)))
-  
-  # Orbiting elemental orbs around title (mid layer)
-  for i in 0..<6:
-    let angle = game.time * 0.6 + i.float32 * PI / 3.0
-    let radius = 200.0 + sin(game.time * 1.5 + i.float32) * 30.0
-    let x = screenWidth.float32 / 2 + cos(angle) * radius
-    let y = 160.0 + sin(angle) * radius * 0.4
-    let size = 14 + (sin(game.time * 2.5 + i.float32) * 5).int32
-    let pulse = sin(game.time * 3.0 + i.float32) * 0.3 + 0.7
-    let alpha = uint8(80 + pulse * 120)
-    
-    # Assign elemental colors
-    var orbColor: Color
-    case i
-    of 0: orbColor = Color(r: 255'u8, g: 130'u8, b: 50'u8, a: alpha)   # Fire
-    of 1: orbColor = Color(r: 140'u8, g: 210'u8, b: 255'u8, a: alpha)  # Frost
-    of 2: orbColor = Color(r: 255'u8, g: 255'u8, b: 100'u8, a: alpha)  # Lightning
-    of 3: orbColor = Color(r: 110'u8, g: 255'u8, b: 110'u8, a: alpha)  # Poison
-    of 4: orbColor = Color(r: 210'u8, g: 110'u8, b: 255'u8, a: alpha)  # Arcane
-    else: orbColor = Color(r: 255'u8, g: 60'u8, b: 60'u8, a: alpha)    # Blood
-    
-    # Trail effect
-    let trailAngle = angle - 0.15
-    let trailX = screenWidth.float32 / 2 + cos(trailAngle) * radius
-    let trailY = 160.0 + sin(trailAngle) * radius * 0.4
-    drawCircle(Vector2(x: trailX, y: trailY), (size.float32 * 0.6),
-               Color(r: orbColor.r, g: orbColor.g, b: orbColor.b, a: uint8(alpha div 3)))
-    
-    # Main orb with glow
-    drawCircle(Vector2(x: x, y: y), size.float32, orbColor)
-    drawCircle(Vector2(x: x, y: y), (size.float32 * 0.65),
-               Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(alpha div 2)))
-    drawCircle(Vector2(x: x, y: y), (size.float32 * 0.35),
-               Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 255'u8))
-  
-  # Title with elemental gradient effect
-  let titleText = "TopHat SHOOTER"
-  let baseY = 140
-  let baseTitleSize = 60
-  
-  # Multi-layered glow with elemental colors
-  drawText(titleText, screenWidth.int32 div 2 - 250, 142, baseTitleSize.int32 + 4,
-          Color(r: 255'u8, g: 150'u8, b: 0'u8, a: 40'u8))
-  drawText(titleText, screenWidth.int32 div 2 - 250, 143, baseTitleSize.int32 + 3,
-          Color(r: 200'u8, g: 100'u8, b: 255'u8, a: 40'u8))
-  
-  # Main title with subtle per-character wave and elemental colors
-  for i in 0..<titleText.len:
-    let charWave = sin(game.time * 3.0 + i.float32 * 0.4) * 2.5
-    let charX = screenWidth div 2 - 220 + i * 32
-    let charY = baseY.float32 + charWave
-    
-    # Cycle through elemental colors for each character
-    let colorIndex = (i + (game.time * 2.0).int) mod 6
-    var charColor: Color
-    case colorIndex
-    of 0: charColor = Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 255'u8)   # Lightning
-    of 1: charColor = Color(r: 255'u8, g: 120'u8, b: 50'u8, a: 255'u8)   # Fire
-    of 2: charColor = Color(r: 150'u8, g: 200'u8, b: 255'u8, a: 255'u8)  # Frost
-    of 3: charColor = Color(r: 100'u8, g: 255'u8, b: 150'u8, a: 255'u8)  # Poison
-    of 4: charColor = Color(r: 200'u8, g: 120'u8, b: 255'u8, a: 255'u8)  # Arcane
-    else: charColor = Color(r: 255'u8, g: 100'u8, b: 100'u8, a: 255'u8)  # Blood
-    
-    drawText($titleText[i], charX.int32, charY.int32, baseTitleSize.int32, charColor)
-  
-  # Subtitle with pulsing elemental energy
-  let subtitlePulse = 1.0 + sin(game.time * 3.0) * 0.08
-  let subtitleSize = (32.float32 * subtitlePulse).int32
-  let subtitleGlow = uint8(100 + sin(game.time * 4.0) * 50)
-  
-  drawText("ELEMENTAL UPDATE", screenWidth div 2 - 170, 212, subtitleSize + 2,
-          Color(r: 160'u8, g: 90'u8, b: 230'u8, a: subtitleGlow))
-  drawText("ELEMENTAL UPDATE", screenWidth div 2 - 170, 210, subtitleSize,
-          Color(r: 255'u8, g: 180'u8, b: 100'u8, a: 255'u8))
-  
-  # Version badge with animated elemental border
-  let versionX = screenWidth div 2 - 52.5
-  let versionY = 260
-  let versionPulse = 1.0 + sin(game.time * 5.0) * 0.12
-  let versionSize = (26.float32 * versionPulse).int32
-  
-  # Rotating elemental ring around version
-  for i in 0..<8:
-    let ringAngle = game.time * 4.0 + i.float32 * PI / 4.0
-    let ringX = versionX.float32 + 50 + cos(ringAngle) * 45
-    let ringY = versionY.float32 + 13 + sin(ringAngle) * 20
-    let ringColorIndex = i mod 6
-    var ringColor: Color
-    case ringColorIndex
-    of 0: ringColor = Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 150'u8)
-    of 1: ringColor = Color(r: 255'u8, g: 100'u8, b: 50'u8, a: 150'u8)
-    of 2: ringColor = Color(r: 150'u8, g: 200'u8, b: 255'u8, a: 150'u8)
-    of 3: ringColor = Color(r: 100'u8, g: 255'u8, b: 100'u8, a: 150'u8)
-    of 4: ringColor = Color(r: 200'u8, g: 100'u8, b: 255'u8, a: 150'u8)
-    else: ringColor = Color(r: 255'u8, g: 50'u8, b: 50'u8, a: 150'u8)
-    drawCircle(Vector2(x: ringX, y: ringY), 3, ringColor)
-  
-  drawText("v4.1", int32(versionX + 27.5), int32(versionY), versionSize,
-          Color(r: 255'u8, g: 220'u8, b: 100'u8, a: 255'u8))
-  
-  # Menu options with subtle selection indicator
-  let startY = 360
-  let spacing = 65
-  
-  let menuItems = ["Play", "Survival Mode", "Statistics", "Settings", "Help", "Quit"]
-  
-  # Mouse hover detection (ONLY if mouse moved recently AND mouse support enabled AND keyboard NOT used recently)
-  if globalSettings.mouseSupport and game.mouseMovedRecently and not game.keyboardUsedRecently:
-    let mousePos = getMousePosition()
-    for i in 0..<menuItems.len:
-      let y = startY + i * spacing
-      let text = if i == game.menuSelection: "> " & menuItems[i] & " <" else: menuItems[i]
-      let textWidth = measureText(text, 32)
-      let textX = screenWidth div 2 - textWidth div 2
-      
-      # Check if mouse is hovering over this menu item
-      if mousePos.x >= textX.float32 and mousePos.x <= (textX + textWidth).float32 and
-         mousePos.y >= y.float32 and mousePos.y <= (y + 32).float32:
-        game.menuSelection = i
-  
-  for i in 0..<menuItems.len:
-    let y = startY + i * spacing
-    let isSelected = i == game.menuSelection
-    
-    # Simple selection glow
-    if isSelected:
-      let glowPulse = sin(game.time * 6.0) * 0.3 + 0.7
-      let glowSize = 18 + (glowPulse * 8).int32
-      drawCircle(Vector2(x: (screenWidth div 2).float32, y: y.float32 + 15),
-                glowSize.float32, Color(r: 255'u8, g: 200'u8, b: 0'u8, a: 100'u8))
-    
-    let color = if isSelected: Gold else: White
-    let text = if isSelected: "> " & menuItems[i] & " <" else: menuItems[i]
-    let textWidth = measureText(text, 32)
-    
-    drawText(text, screenWidth div 2 - textWidth div 2, y.int32, 32, color)
-  
-  # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
-  if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
-    drawCustomCursor(game.time)
-
-proc drawHelp(game: Game) =
-  clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
-  
-  drawText("HOW TO PLAY", screenWidth div 2 - 130, 50, 40, Yellow)
-  
-  var y: int32 = 130
-  let instructions = [
-    "CONTROLS:",
-    "WASD - Move / Menu Navigation",
-    "Mouse/Space - Shoot",
-    "F - Toggle Auto-Shoot (requires powerup)",
-    "E - Place Wall (requires walls in inventory)",
-    "Q - Activate Legendary Power-Ups",
-    "ESC - Pause/Menu",
-    "",
-    "WAVE-BASED MODE (Main):",
-    "Clear waves of enemies for upgrades",
-    "Defeat all enemies to advance waves",
-    "Boss appears every 5 waves",
-    "Choose power-ups after waves (every 2nd wave)",
-    "Shop opens after selecting powerup",
-    "Legendary upgrades after boss defeats",
-    "",
-    "SURVIVAL MODE (Classic):",
-    "Survive endless enemy hordes",
-    "Enemies spawn progressively harder",
-    "Boss appears every 60 seconds",
-  ]
-  
-  for line in instructions:
-    if line.len > 0:
-      drawText(line, 120, y, 18, White)
-    y += 22
-  
-  drawText("Press ESC to return", screenWidth div 2 - 130, screenHeight - 60, 20, LightGray)
-  
-  # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
-  if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
-    drawCustomCursor(game.time)
-
-proc drawStatistics(game: Game, stats: Statistics) =
-  clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
-  
-  # Title
-  drawText("STATISTICS", screenWidth div 2 - 120, 40, 40, Yellow)
-  
-  # Tab buttons
-  let tab1X = screenWidth div 2 - 260
-  let tab2X = screenWidth div 2 - 80
-  let tab3X = screenWidth div 2 + 100
-  let tabY = 95
-  let tabWidth = 160
-  let tabHeight = 35
-  
-  # Tab 1: Lifetime Stats
-  let tab1Color = if game.statsMenuTab == 0: Gold else: Color(r: 100, g: 100, b: 120, a: 255)
-  let tab1BgColor = if game.statsMenuTab == 0: Color(r: 60, g: 60, b: 70, a: 255) else: Color(r: 40, g: 40, b: 50, a: 255)
-  drawRectangle(int32(tab1X), int32(tabY), int32(tabWidth), int32(tabHeight), tab1BgColor)
-  drawRectangleLines(Rectangle(x: tab1X.float32, y: tabY.float32, width: tabWidth.float32, height: tabHeight.float32), 2, tab1Color)
-  drawText("1. LIFETIME", int32(tab1X) + 15, int32(tabY) + 8, 18, tab1Color)
-  
-  # Tab 2: Last Run Stats
-  let hasLastRun = hasLastRunStats()
-  let tab2Color = if game.statsMenuTab == 1: 
-                    (if hasLastRun: Gold else: Color(r: 80, g: 80, b: 80, a: 255))
-                  else: 
-                    (if hasLastRun: Color(r: 100, g: 100, b: 120, a: 255) else: Color(r: 60, g: 60, b: 60, a: 255))
-  let tab2BgColor = if game.statsMenuTab == 1: Color(r: 60, g: 60, b: 70, a: 255) else: Color(r: 40, g: 40, b: 50, a: 255)
-  drawRectangle(int32(tab2X), int32(tabY), int32(tabWidth), int32(tabHeight), tab2BgColor)
-  drawRectangleLines(Rectangle(x: tab2X.float32, y: tabY.float32, width: tabWidth.float32, height: tabHeight.float32), 2, tab2Color)
-  drawText("2. LAST RUN", int32(tab2X) + 15, int32(tabY) + 8, 18, tab2Color)
-  
-  # Tab 3: Power-ups
-  let tab3Color = if game.statsMenuTab == 2:
-                    (if hasLastRun: Gold else: Color(r: 80, g: 80, b: 80, a: 255))
-                  else:
-                    (if hasLastRun: Color(r: 100, g: 100, b: 120, a: 255) else: Color(r: 60, g: 60, b: 60, a: 255))
-  let tab3BgColor = if game.statsMenuTab == 2: Color(r: 60, g: 60, b: 70, a: 255) else: Color(r: 40, g: 40, b: 50, a: 255)
-  drawRectangle(int32(tab3X), int32(tabY), int32(tabWidth), int32(tabHeight), tab3BgColor)
-  drawRectangleLines(Rectangle(x: tab3X.float32, y: tabY.float32, width: tabWidth.float32, height: tabHeight.float32), 2, tab3Color)
-  drawText("3. POWER-UPS", int32(tab3X) + 10, int32(tabY) + 8, 18, tab3Color)
-  
-  # Content area starts below tabs
-  let contentY: int32 = 150
-  
-  if game.statsMenuTab == 0:
-    # === LIFETIME STATISTICS ===
-    var y: int32 = contentY
-    drawText("OVERALL", 100, y, 28, Gold)
-    y += 35
-    drawText("Total Games: " & $stats.totalGamesPlayed, 100, y, 20, White)
-    y += 25
-    drawText("Total Playtime: " & formatTime(stats.totalPlayTime), 100, y, 20, White)
-    y += 35
-    
-    # Wave Mode stats
-    drawText("WAVE MODE", 100, y, 28, Color(r: 100, g: 200, b: 255, a: 255))
-    y += 35
-    drawText("Games Played: " & $stats.waveMode.gamesPlayed, 120, y, 18, White)
-    y += 23
-    drawText("Highest Wave: " & $stats.waveMode.highestWaveReached, 120, y, 18, White)
-    y += 23
-    drawText("Avg Wave Reached: " & formatFloat(stats.waveMode.averageWaveReached, ffDecimal, 1), 120, y, 18, White)
-    y += 23
-    drawText("Best Kills: " & $stats.waveMode.bestKills, 120, y, 18, White)
-    y += 23
-    drawText("Best Coins: " & $stats.waveMode.bestCoins, 120, y, 18, Gold)
-    y += 23
-    drawText("Total Kills: " & $stats.waveMode.totalKills, 120, y, 18, White)
-    y += 23
-    drawText("Bosses Defeated: " & $stats.waveMode.bossesDefeated, 120, y, 18, Red)
-    y += 23
-    drawText("Playtime: " & formatTime(stats.waveMode.totalTimePlayed), 120, y, 18, White)
-    y += 35
-    
-    # Time Survival Mode stats
-    drawText("TIME SURVIVAL MODE", 100, y, 28, Color(r: 255, g: 150, b: 100, a: 255))
-    y += 35
-    drawText("Games Played: " & $stats.timeMode.gamesPlayed, 120, y, 18, White)
-    y += 23
-    drawText("Longest Survival: " & formatTime(stats.timeMode.longestSurvivalTime), 120, y, 18, White)
-    y += 23
-    drawText("Avg Survival: " & formatTime(stats.timeMode.averageSurvivalTime), 120, y, 18, White)
-    y += 23
-    drawText("Best Kills: " & $stats.timeMode.bestKills, 120, y, 18, White)
-    y += 23
-    drawText("Best Coins: " & $stats.timeMode.bestCoins, 120, y, 18, Gold)
-    y += 23
-    drawText("Total Kills: " & $stats.timeMode.totalKills, 120, y, 18, White)
-    y += 23
-    drawText("Bosses Defeated: " & $stats.timeMode.bossesDefeated, 120, y, 18, Red)
-  
-  elif game.statsMenuTab == 1:
-    # === LAST RUN STATISTICS ===
-    if hasLastRun:
-      let runStats = getLastRunStats()
-      # Use the full run statistics screen but in compact form
-      drawRunStatisticsScreen(runStats, screenWidth, screenHeight, game.time, true)
-    else:
-      # No last run available
-      drawText("No previous run statistics available", 
-              screenWidth div 2 - 220, screenHeight div 2 - 40, 20, Color(r: 150, g: 150, b: 150, a: 255))
-      drawText("Complete a game to see detailed run statistics here", 
-              screenWidth div 2 - 260, screenHeight div 2, 18, Color(r: 120, g: 120, b: 120, a: 255))
-  
-  elif game.statsMenuTab == 2:
-    # === POWER-UP BREAKDOWN ===
-    if hasLastRun:
-      let runStats = getLastRunStats()
-      drawDetailedPowerUpScreen(runStats.powerUps, runStats.combat, 
-                               screenWidth, screenHeight, game.time)
-    else:
-      # No last run available
-      drawText("No power-up statistics available", 
-              screenWidth div 2 - 220, screenHeight div 2 - 40, 20, Color(r: 150, g: 150, b: 150, a: 255))
-      drawText("Complete a game to see power-up breakdown here", 
-              screenWidth div 2 - 260, screenHeight div 2, 18, Color(r: 120, g: 120, b: 120, a: 255))
-  
-  # Footer instructions
-  let footerText = if hasLastRun: 
-                     "Press 1 for Lifetime | 2 for Last Run | 3 for Power-Ups | ESC to return"
-                   else:
-                     "Press 1 for Lifetime | ESC to return"
-  drawText(footerText, screenWidth div 2 - 330, screenHeight - 60, 20, LightGray)
-  
-  # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
-  if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
-    drawCustomCursor(game.time)
-
 proc main() =
   randomize()
   
@@ -1092,49 +738,63 @@ proc main() =
         let mousePos = getMousePosition()
         
         # Shop dimensions from shop.nim
-        const SHOP_WIDTH = 1100
-        const SHOP_HEIGHT = 700
+        const SHOP_WIDTH = 950
+        const SHOP_HEIGHT = 600
         const TITLE_BAR_HEIGHT = 45
-        const SIDEBAR_WIDTH = 320
-        const ITEM_HEIGHT = 90
-        const ITEM_SPACING = 12
+        const SIDEBAR_WIDTH = 280
+        const ITEM_HEIGHT = 60
+        const ITEM_SPACING = 6
         
         let windowX = (currentGame.screenWidth - SHOP_WIDTH) div 2
         let windowY = (currentGame.screenHeight - SHOP_HEIGHT) div 2
-        let sidebarX = windowX + 10
-        let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
-        let shopX = sidebarX + SIDEBAR_WIDTH + 15
-        let shopY = sidebarY + 10
-        let itemsStartY = shopY + 35
-        let shopWidth = SHOP_WIDTH - SIDEBAR_WIDTH - 40
         
-        # Check shop item clicks
-        var clickedItem = -1
-        for i in 0..5:
-          let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
-          let itemRect = Rectangle(x: shopX.float32, y: itemY.float32,
-                                  width: shopWidth.float32, height: ITEM_HEIGHT.float32)
+        # Check close button click (X button in title bar)
+        let closeButtonSize = 28
+        let closeButtonX = windowX + SHOP_WIDTH - closeButtonSize - 10
+        let closeButtonY = windowY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
+        let closeButtonRect = Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
+                                        width: closeButtonSize.float32, height: closeButtonSize.float32)
+        
+        if checkCollisionPointRec(mousePos, closeButtonRect):
+          # Close shop and continue to next wave
+          currentGame.cameFromPowerUpSelect = false
+          currentGame.state = gsCountdown
+          currentGame.countdownTimer = 0.5
+        else:
+          let sidebarX = windowX + 10
+          let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
+          let shopX = sidebarX + SIDEBAR_WIDTH + 15
+          let shopY = sidebarY + 10
+          let itemsStartY = shopY + 35
+          let shopWidth = SHOP_WIDTH - SIDEBAR_WIDTH - 40
           
-          if checkCollisionPointRec(mousePos, itemRect):
-            clickedItem = i
-            break
-        
-        # Check big buy button click
-        let buyButtonWidth = 260
-        let buyButtonHeight = 45
-        let bottomY = windowY + SHOP_HEIGHT - 80
-        let buyButtonX = windowX + SHOP_WIDTH - buyButtonWidth - 25
-        let buyButtonY = bottomY + 18
-        let buyButtonRect = Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
-                                      width: buyButtonWidth.float32, height: buyButtonHeight.float32)
-        
-        if clickedItem >= 0:
-          # Clicked on an item - select and buy it
-          currentGame.selectedShopItem = clickedItem
-          buyShopItem(currentGame, clickedItem)
-        elif checkCollisionPointRec(mousePos, buyButtonRect):
-          # Clicked the buy button - buy selected item
-          buyShopItem(currentGame, currentGame.selectedShopItem)
+          # Check shop item clicks
+          var clickedItem = -1
+          for i in 0..5:
+            let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
+            let itemRect = Rectangle(x: shopX.float32, y: itemY.float32,
+                                    width: shopWidth.float32, height: ITEM_HEIGHT.float32)
+            
+            if checkCollisionPointRec(mousePos, itemRect):
+              clickedItem = i
+              break
+          
+          # Check big buy button click
+          let buyButtonWidth = 220
+          let buyButtonHeight = 38
+          let bottomY = windowY + SHOP_HEIGHT - 65
+          let buyButtonX = windowX + SHOP_WIDTH - buyButtonWidth - 20
+          let buyButtonY = bottomY + 12
+          let buyButtonRect = Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
+                                        width: buyButtonWidth.float32, height: buyButtonHeight.float32)
+          
+          if clickedItem >= 0:
+            # Clicked on an item - select and buy it
+            currentGame.selectedShopItem = clickedItem
+            buyShopItem(currentGame, clickedItem)
+          elif checkCollisionPointRec(mousePos, buyButtonRect):
+            # Clicked the buy button - buy selected item
+            buyShopItem(currentGame, currentGame.selectedShopItem)
       
       # Buy item with keyboard
       if isKeyPressed(Enter) or isKeyPressed(E):
@@ -1396,33 +1056,45 @@ proc main() =
           let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
           let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
           
-          # Check card clicks
-          for i in 0..2:
-            let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
-            let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
-                                     width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
+          # Check close button click (X button in title bar)
+          let closeButtonSize = 28
+          let closeButtonX = windowX + INSTALLER_WIDTH - closeButtonSize - 10
+          let closeButtonY = windowY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
+          let closeButtonRect = Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
+                                          width: closeButtonSize.float32, height: closeButtonSize.float32)
+          
+          if checkCollisionPointRec(mousePos, closeButtonRect):
+            # Close installer and go to shop
+            currentGame.cameFromPowerUpSelect = true
+            currentGame.state = gsShop
+          else:
+            # Check card clicks
+            for i in 0..2:
+              let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
+              let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
+                                       width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
+              
+              if checkCollisionPointRec(mousePos, cardRect):
+                currentGame.selectedPowerUp = i
+                let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
+                applyPowerUp(currentGame.player, chosenPowerUp)
+                trackPowerUpSelection(currentGame, chosenPowerUp)
+                currentGame.cameFromPowerUpSelect = true
+                currentGame.state = gsShop
+                break
             
-            if checkCollisionPointRec(mousePos, cardRect):
-              currentGame.selectedPowerUp = i
-              let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
-              applyPowerUp(currentGame.player, chosenPowerUp)
-              trackPowerUpSelection(currentGame, chosenPowerUp)
-              currentGame.cameFromPowerUpSelect = true
-              currentGame.state = gsShop
-              break
-          
-          # Check reroll button click
-          let rerollX = windowX + 50
-          let rerollWidth = 220
-          let bottomY = windowY + INSTALLER_HEIGHT - 120
-          let buttonY = bottomY + 15
-          let buttonHeight = 42
-          
-          let rerollRect = Rectangle(x: rerollX.float32, y: buttonY.float32,
-                                      width: rerollWidth.float32, height: buttonHeight.float32)
-          
-          if checkCollisionPointRec(mousePos, rerollRect):
-            discard attemptRerollPowerUps(currentGame)
+            # Check reroll button click
+            let rerollX = windowX + 50
+            let rerollWidth = 220
+            let bottomY = windowY + INSTALLER_HEIGHT - 120
+            let buttonY = bottomY + 15
+            let buttonHeight = 42
+            
+            let rerollRect = Rectangle(x: rerollX.float32, y: buttonY.float32,
+                                        width: rerollWidth.float32, height: buttonHeight.float32)
+            
+            if checkCollisionPointRec(mousePos, rerollRect):
+              discard attemptRerollPowerUps(currentGame)
         
         # Skip power-up selection
         if isKeyPressed(Escape):
@@ -1544,11 +1216,6 @@ proc main() =
       
       beginGameDrawing()
       drawGameOver(currentGame)
-      
-      # Show hint to view stats
-      if hasValidRunStats():
-        drawText("Press TAB for detailed run statistics", 
-                screenWidth div 2 - 200, screenHeight - 120, 18, Gold)
       
       # Draw custom cursor on game over screen
       drawCustomCursor(currentGame.time)

@@ -272,9 +272,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
                    Color(r: 0, g: 30, b: 40, a: 50))
       
       let timeLeft = game.player.speedBoostTimer.int + 1
-      drawText("⚡ Speed", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+      drawText("[>] Speed", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("⚡ Speed", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
+      drawText("[>] Speed", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
               Color(r: 100, g: 220, b: 255, a: 255))
       
       drawText($timeLeft & "s", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 24,
@@ -290,9 +290,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
                    Color(r: 30, g: 0, b: 30, a: 50))
       
       let timeLeft = game.player.invincibilityTimer.int + 1
-      drawText("🛡 Invuln", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+      drawText("[S] Invuln", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("🛡 Invuln", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
+      drawText("[S] Invuln", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
               Color(r: 255, g: 100, b: 255, a: 255))
       
       drawText($timeLeft & "s", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 24,
@@ -308,9 +308,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
                    Color(r: 30, g: 20, b: 0, a: 50))
       
       let timeLeft = game.player.fireRateBoostTimer.int + 1
-      drawText("🔥 Fire", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+      drawText("[F] Fire", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("🔥 Fire", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
+      drawText("[F] Fire", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
               Color(r: 255, g: 150, b: 50, a: 255))
       
       drawText($timeLeft & "s", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 24,
@@ -326,9 +326,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
                    Color(r: 12, g: 18, b: 28, a: 50))
       
       let timeLeft = game.player.magnetTimer.int + 1
-      drawText("🧲 Magnet", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
+      drawText("[M] Magnet", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
               Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("🧲 Magnet", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
+      drawText("[M] Magnet", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
               Color(r: 200, g: 100, b: 255, a: 255))
       
       drawText($timeLeft & "s", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 30,
@@ -344,9 +344,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
                    Color(r: 18, g: 25, b: 35, a: 70))
       
       let timeLeft = game.player.timeWarpDuration.int + 1
-      drawText("⏱ Time Warp", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
+      drawText("[T] Time Warp", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
               Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("⏱ Time Warp", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
+      drawText("[T] Time Warp", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
               Color(r: 100, g: 255, b: 255, a: 255))
       
       drawText($timeLeft & "s", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 30,
@@ -361,9 +361,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
                    DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 6, DEBUG_LINE_HEIGHT,
                    Color(r: 12, g: 18, b: 28, a: 50))
       
-      drawText("👻 Phase", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
+      drawText("[P] Phase", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
               Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("👻 Phase", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
+      drawText("[P] Phase", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
               Color(r: 150, g: 255, b: 200, a: 255))
       
       drawText("Active", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 40,
@@ -378,9 +378,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
                    DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 6, DEBUG_LINE_HEIGHT,
                    Color(r: 18, g: 25, b: 35, a: 70))
       
-      drawText("⚔ Parry", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
+      drawText("[X] Parry", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
               Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("⚔ Parry", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
+      drawText("[X] Parry", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
               Color(r: 255, g: 255, b: 100, a: 255))
       
       drawText("Active", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 40,
@@ -484,9 +484,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
         else: 1.2
       let rageBonus = ((1.0 - hpPercent) * 100.0 * rageMultiplier).int
       
-      drawText("⚔ Rage:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
+      drawText("[X] Rage:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 130))
-      drawText("⚔ Rage:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
+      drawText("[X] Rage:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 100, b: 100, a: 255))
       
       let bonusText = "+" & $rageBonus & "% dmg"
@@ -505,9 +505,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
         else: 1.2
       let berserkBonus = ((1.0 - hpPercent) * 100.0 * berserkMultiplier).int
       
-      drawText("⚡ Berserk:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
+      drawText("[!] Berserk:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 130))
-      drawText("⚡ Berserk:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
+      drawText("[!] Berserk:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 150, b: 50, a: 255))
       
       let bonusText = "+" & $berserkBonus & "% rate"

@@ -166,10 +166,21 @@ proc drawShop*(game: Game) =
                Color(r: 0, g: 140, b: 200, a: 255))
   
   # Title text
-  let titleText = "💰 CREDIT STORE - UPGRADES AVAILABLE"
+  let titleText = "[$] CREDIT STORE - UPGRADES AVAILABLE"
   let titleColor = Color(r: 100, g: 200, b: 255, a: 255)
   drawText(titleText, windowX + 17, windowY + 13, 22, Color(r: 0, g: 0, b: 0, a: 120))
   drawText(titleText, windowX + 15, windowY + 11, 22, titleColor)
+  
+  # Close button
+  let buttonSize = 28
+  let closeButtonY = windowY + int32((TITLE_BAR_HEIGHT - buttonSize) div 2)
+  let closeX = windowX + SHOP_WIDTH - int32(buttonSize) - 10
+  drawRectangle(closeX, closeButtonY, int32(buttonSize), int32(buttonSize), 
+               Color(r: 220, g: 50, b: 50, a: 255))
+  drawRectangleLines(Rectangle(x: closeX.float32, y: closeButtonY.float32,
+                                width: buttonSize.float32, height: buttonSize.float32),
+                    1, Color(r: 180, g: 30, b: 30, a: 255))
+  drawText("X", closeX + 8, closeButtonY + 5, 18, White)
   
   # Coin display in title bar
   let coinText = $game.player.coins & " CR"
@@ -190,7 +201,7 @@ proc drawShop*(game: Game) =
   # Sidebar header
   drawRectangle(sidebarX, sidebarY, SIDEBAR_WIDTH, 35,
                Color(r: 40, g: 50, b: 65, a: 255))
-  drawText("📋 ACTIVE UPGRADES", sidebarX + 10, sidebarY + 9, 16,
+  drawText("[L] ACTIVE UPGRADES", sidebarX + 10, sidebarY + 9, 16,
           Color(r: 150, g: 200, b: 255, a: 255))
   
   # Display owned permanent upgrades
@@ -319,7 +330,7 @@ proc drawShop*(game: Game) =
                     2.5, buyBorderColor)
   
   # Button text
-  let buyText = if canBuy: "💳 BUY SELECTED" else: "⚠ INSUFFICIENT CREDITS"
+  let buyText = if canBuy: "[$] BUY SELECTED" else: "[!] INSUFFICIENT CREDITS"
   let buyTextWidth = measureText(buyText, 16)
   let buyTextX = buyButtonX + (buyButtonWidth - buyTextWidth) div 2
   

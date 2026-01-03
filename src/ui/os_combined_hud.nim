@@ -202,8 +202,8 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
                Color(r: 0, g: 30, b: 40, a: 50))
   
   # Charges - bright cyan
-  drawText("◆", finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 100))
-  drawText("◆", finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset, 9, Color(r: 0, g: 220, b: 255, a: 255))
+  drawText("[#]", finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 100))
+  drawText("[#]", finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset, 9, Color(r: 0, g: 220, b: 255, a: 255))
   let chargeText = $game.player.walls
   drawText(chargeText, finalPanelX + COMBINED_PANEL_PADDING + 17, yOffset, 10, 
           if game.player.walls > 0: Color(r: 255, g: 255, b: 255, a: 255) 
@@ -215,8 +215,8 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   drawText($game.player.coins, finalPanelX + COMBINED_PANEL_WIDTH div 2 - 5, yOffset, 10, Color(r: 255, g: 255, b: 255, a: 255))
   
   # Processes - purple
-  drawText("⚙", finalPanelX + COMBINED_PANEL_WIDTH - 40 + 1, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 100))
-  drawText("⚙", finalPanelX + COMBINED_PANEL_WIDTH - 40, yOffset, 9, Color(r: 180, g: 100, b: 255, a: 255))
+  drawText("[*]", finalPanelX + COMBINED_PANEL_WIDTH - 40 + 1, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 100))
+  drawText("[*]", finalPanelX + COMBINED_PANEL_WIDTH - 40, yOffset, 9, Color(r: 180, g: 100, b: 255, a: 255))
   drawText($game.player.powerUps.len, finalPanelX + COMBINED_PANEL_WIDTH - 27, yOffset, 10, Color(r: 255, g: 255, b: 255, a: 255))
   
   yOffset += 14
@@ -238,9 +238,9 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     
     # Wave display - more compact
     let waveDisplay = if game.bossWaveManager.active:
-      "⚠ BOSS W" & $game.currentWave
+      "[!] BOSS W" & $game.currentWave
     else:
-      "▶ Wave " & $game.currentWave
+      "> Wave " & $game.currentWave
     
     let waveColor = if game.bossWaveManager.active:
       Color(r: 255, g: 80, b: 80, a: 255)
@@ -275,17 +275,17 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
       yOffset += 8  # Reduced spacing
     
     elif game.bossWaveManager.active:
-      drawText("⚔ BOSS FIGHT", finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
+      drawText("[X] BOSS FIGHT", finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 130))
-      drawText("⚔ BOSS FIGHT", finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
+      drawText("[X] BOSS FIGHT", finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 100, b: 100, a: 255))
       yOffset += 14  # Reduced spacing
     
     elif game.bossWaveManager.coinActive:
       let pulseAlpha = (sin(game.time * 4.0) * 60 + 195).int.uint8
-      drawText("💰 Collect", finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
+      drawText("[$] Collect", finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 130))
-      drawText("💰 Collect", finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
+      drawText("[$] Collect", finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 215, b: 0, a: pulseAlpha))
       yOffset += 14  # Reduced spacing
   

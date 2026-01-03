@@ -116,7 +116,7 @@ proc drawSystemCrash*(game: Game) =
   drawRectangleLines(Rectangle(x: iconBoxX.float32, y: yOffset.float32,
                                 width: 100.0, height: 100.0),
                     2, Color(r: 80, g: 140, b: 220, a: 255))
-  drawText("⚠", iconBoxX + 25, yOffset + 20, 60,
+  drawText("[!]", iconBoxX + 25, yOffset + 20, 60,
           Color(r: 255, g: 200, b: 100, a: 255))
   
   yOffset += 110
@@ -142,14 +142,14 @@ proc drawSystemCrash*(game: Game) =
                                 width: (SCREEN_WIDTH - 60).float32, height: 35.0),
                     1, Color(r: 60, g: 100, b: 160, a: 255))
   
-  drawText("⚡", windowX + 40, yOffset + 8, 18, Color(r: 255, g: 200, b: 100, a: 255))
+  drawText("[!]", windowX + 40, yOffset + 8, 18, Color(r: 255, g: 200, b: 100, a: 255))
   drawText("ERROR CODE: INTEGRITY_DEPLETED_0x00000000", 
           windowX + 70, yOffset + 10, 14,
           Color(r: 255, g: 255, b: 255, a: 255))
   yOffset += 55
   
   # Session statistics header
-  drawText("═══ SESSION DIAGNOSTICS ═══", windowX + 30, yOffset, 16,
+  drawText("=== SESSION DIAGNOSTICS ===", windowX + 30, yOffset, 16,
           Color(r: 150, g: 180, b: 220, a: 255))
   yOffset += 35
   
@@ -160,19 +160,19 @@ proc drawSystemCrash*(game: Game) =
                  (if seconds < 10: "0" else: "") & $seconds
   
   # Draw statistics with icons
-  drawStat(windowX + 40, yOffset, "Wave Reached:", $game.currentWave, "▶",
+  drawStat(windowX + 40, yOffset, "Wave Reached:", $game.currentWave, ">",
           Color(r: 255, g: 200, b: 100, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "System Uptime:", timeText, "⏱",
+  drawStat(windowX + 40, yOffset, "System Uptime:", timeText, "[T]",
           Color(r: 150, g: 200, b: 255, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "Threats Eliminated:", $game.player.kills, "⚔",
+  drawStat(windowX + 40, yOffset, "Threats Eliminated:", $game.player.kills, "[X]",
           Color(r: 255, g: 150, b: 150, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "Resources Collected:", $game.player.coins, "💰",
+  drawStat(windowX + 40, yOffset, "Resources Collected:", $game.player.coins, "[$]",
           Color(r: 255, g: 215, b: 0, a: 255))
   yOffset += 50
   
@@ -184,12 +184,12 @@ proc drawSystemCrash*(game: Game) =
   
   # Restart button (primary)
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "⟳ RESTART SYSTEM", "[SPACE]", true, game.time)
+                  "[R] RESTART SYSTEM", "[SPACE]", true, game.time)
   
   # View Stats button
   let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
   drawModernButton(int32(statsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "📊 VIEW LOGS", "[TAB]", false, game.time)
+                  "[V] VIEW LOGS", "[TAB]", false, game.time)
   
   # Exit button
   let exitX = statsX + BUTTON_WIDTH + buttonSpacing
@@ -201,7 +201,7 @@ proc drawSystemCrash*(game: Game) =
   drawRectangle(windowX, footerY, SCREEN_WIDTH, 35,
                Color(r: 30, g: 60, b: 110, a: 255))
   
-  let footerText = "⚠ System will remain in failed state until manual restart"
+  let footerText = "[!] System will remain in failed state until manual restart"
   let footerWidth = measureText(footerText, 13)
   drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
           Color(r: 180, g: 190, b: 200, a: 255))
@@ -268,7 +268,7 @@ proc drawSystemSecured*(game: Game) =
   drawRectangleLines(Rectangle(x: iconBoxX.float32, y: yOffset.float32,
                                 width: 100.0, height: 100.0),
                     2, Color(r: 0, g: 200, b: 100, a: 255))
-  drawText("🛡", iconBoxX + 25, yOffset + 20, 60,
+  drawText("[OK]", iconBoxX + 25, yOffset + 20, 60,
           Color(r: 100, g: 255, b: 150, a: 255))
   
   yOffset += 110
@@ -299,7 +299,7 @@ proc drawSystemSecured*(game: Game) =
   yOffset += 55
   
   # Performance report header
-  drawText("═══ PERFORMANCE REPORT ═══", windowX + 30, yOffset, 16,
+  drawText("=== PERFORMANCE REPORT ===", windowX + 30, yOffset, 16,
           Color(r: 150, g: 220, b: 180, a: 255))
   yOffset += 35
   
@@ -334,12 +334,12 @@ proc drawSystemSecured*(game: Game) =
   
   # Continue button (primary)
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "▶ CONTINUE", "[SPACE]", true, game.time)
+                  "> CONTINUE", "[SPACE]", true, game.time)
   
   # Save Stats button
   let saveX = buttonsX + BUTTON_WIDTH + buttonSpacing
   drawModernButton(int32(saveX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "💾 SAVE LOG", "[TAB]", false, game.time)
+                  "[S] SAVE LOG", "[TAB]", false, game.time)
   
   # Exit button
   let exitX = saveX + BUTTON_WIDTH + buttonSpacing

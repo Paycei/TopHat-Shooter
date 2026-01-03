@@ -2,7 +2,7 @@
 ## Draw enemies with modern process/threat labels
 ## REDESIGNED with improved readability, animations, and visual effects
 
-import raylib, types, math, strutils
+import raylib, types, math
 
 proc getEnemyProcessName*(enemy: Enemy): string =
   ## Generate a process name for an enemy based on type
@@ -142,11 +142,11 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true) =
   let iconY = labelY.int32 + 4
   
   if enemy.isBoss:
-    drawText("⚠", iconX, iconY, fontSize, Color(r: 255, g: 100, b: 100, a: alpha))
+    drawText("[!]", iconX, iconY, fontSize, Color(r: 255, g: 100, b: 100, a: alpha))
   elif enemy.isElite:
-    drawText("★", iconX, iconY, fontSize, Color(r: 255, g: 215, b: 0, a: alpha))
+    drawText("[*]", iconX, iconY, fontSize, Color(r: 255, g: 215, b: 0, a: alpha))
   else:
-    drawText("●", iconX, iconY - 1, fontSize - 2, accentColor)
+    drawText("*", iconX, iconY - 1, fontSize - 2, accentColor)
   
   let textX = if enemy.isBoss or enemy.isElite: iconX + 16 else: iconX + 12
   drawText(processName, textX, iconY, fontSize, textColor)
@@ -302,7 +302,7 @@ proc drawThreatCounter*(screenWidth, screenHeight: int32, threatCount: int) =
   let iconY = counterY + 10
   let iconPulse = if threatCount > 15: sin(getTime() * 8.0) * 0.3 + 0.7 else: 1.0
   
-  drawText("⚠", int32(iconX), int32(iconY), int32(20), 
+  drawText("[!]", int32(iconX), int32(iconY), int32(20), 
           Color(r: uint8(accentColor.r.float32 * iconPulse),
                 g: uint8(accentColor.g.float32 * iconPulse),
                 b: uint8(accentColor.b.float32 * iconPulse),
