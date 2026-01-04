@@ -1242,7 +1242,7 @@ proc main() =
       if (isKeyPressed(Space) or isKeyPressed(R)) or 
          (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 0):
         # Store the current game mode before restarting
-        let previousMode = currentGame.gameMode
+        let previousMode = currentGame.mode
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
@@ -1305,7 +1305,7 @@ proc main() =
       if isMouseButtonPressed(Left):
         if checkCollisionPointRec(mousePos, restartRect):
           # Restart game - preserve game mode
-          let previousMode = currentGame.gameMode
+          let previousMode = currentGame.mode
           currentGame = newGame(screenWidth, screenHeight)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, previousMode)  # Preserve the game mode

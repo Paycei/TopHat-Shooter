@@ -593,7 +593,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
       let centerX = badgeX + badgeSize div 2
       let centerY = yOffset + badgeSize div 2
       drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 4, White)
-      drawText("✓", centerX - 4, centerY - 5, 10, tierColor)
+      drawText("v", centerX - 3, centerY - 5, 10, tierColor)
     else:
       # Inactive tier badge (grayed out)
       drawRectangle(badgeX, yOffset, badgeSize, badgeSize,
@@ -783,7 +783,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   
   # Instruction
   var yPos = windowY + TITLE_BAR_HEIGHT + 25
-  drawText("▼ SELECT UPGRADE TO INSTALL:", windowX + 25, yPos, 17, 
+  drawText("v SELECT UPGRADE TO INSTALL:", windowX + 25, yPos, 17, 
           Color(r: 200, g: 220, b: 240, a: 255))
   yPos += 50
   

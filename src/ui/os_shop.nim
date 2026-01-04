@@ -1,4 +1,4 @@
-## OS-Style Shop System - Enhanced Edition
+﻿## OS-Style Shop System - Enhanced Edition
 ## Shop screen redesigned as a modern OS storefront interface
 ## Matches the new OS theme from power-up installer and game over screens
 
@@ -225,7 +225,7 @@ proc drawShop*(game: Game) =
                        else: Color(r: 200, g: 220, b: 255, a: 255)
       
       # Upgrade name with level
-      drawText("▸ " & name, upgradeX, upgradeY, 14, rarityColor)
+      drawText("> " & name, upgradeX, upgradeY, 14, rarityColor)
       let levelWidth = measureText(levelText, 11)
       drawText(levelText, upgradeX + SIDEBAR_WIDTH - levelWidth - 24, upgradeY + 2, 11,
               Color(r: 100, g: 200, b: 255, a: 255))
@@ -241,7 +241,7 @@ proc drawShop*(game: Game) =
   let shopY = sidebarY + 10
   let shopWidth = SHOP_WIDTH - SIDEBAR_WIDTH - 40
   
-  drawText("▼ AVAILABLE PURCHASES:", shopX, shopY, 16,
+  drawText("v AVAILABLE PURCHASES:", shopX, shopY, 16,
           Color(r: 200, g: 220, b: 240, a: 255))
   
   let itemsStartY = shopY + 35

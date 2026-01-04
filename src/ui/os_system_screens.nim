@@ -1,4 +1,4 @@
-## OS-Style System Screens - Enhanced Edition
+﻿## OS-Style System Screens - Enhanced Edition
 ## Game Over as Modern System Crash, Victory as System Secured
 ## REDESIGNED with improved visuals, animations, and polish
 
@@ -59,7 +59,7 @@ proc drawModernButton(x, y, width, height: int32, text: string,
     drawText(hotkey, hkX, y + height - 18, 12,
             Color(r: 200, g: 210, b: 220, a: 255))
 
-proc drawStat(x, y: int32, label, value: string, icon: string = "•",
+proc drawStat(x, y: int32, label, value: string, icon: string = "-",
               valueColor: Color = White) =
   ## Draw a formatted stat line with icon
   drawText(icon, x, y, 16, Color(r: 0, g: 180, b: 255, a: 255))
@@ -253,12 +253,12 @@ proc drawSystemSecured*(game: Game) =
   # Glow effect
   for i in 1..3:
     let offset = i * 10
-    drawText("✓", int32(checkX - offset div 2), int32(yOffset - offset div 2), 
+    drawText("[OK]", int32(checkX - offset div 2), int32(yOffset - offset div 2), 
             int32(checkSize + offset), 
             Color(r: 0, g: uint8(255 * checkPulse), b: uint8(120 * checkPulse), 
                   a: uint8(30 / i.float32)))
   
-  drawText("✓", checkX, yOffset, checkSize.int32,
+  drawText("[OK]", checkX, yOffset, checkSize.int32,
           Color(r: 0, g: 255, b: 120, a: 255))
   
   # Success icon box
@@ -280,7 +280,7 @@ proc drawSystemSecured*(game: Game) =
   yOffset += 55
   
   # Success subtitle
-  let statusLine = "SYSTEM STATUS: ● SECURE"
+  let statusLine = "SYSTEM STATUS: [*] SECURE"
   drawText(statusLine, windowX + 30, yOffset, 24,
           Color(r: 150, g: 255, b: 180, a: 255))
   yOffset += 50
@@ -292,7 +292,7 @@ proc drawSystemSecured*(game: Game) =
                                 width: (SCREEN_WIDTH - 60).float32, height: 35.0),
                     1, Color(r: 0, g: 180, b: 100, a: 255))
   
-  drawText("✓", windowX + 40, yOffset + 6, 20, Color(r: 100, g: 255, b: 150, a: 255))
+  drawText("[OK]", windowX + 40, yOffset + 6, 20, Color(r: 100, g: 255, b: 150, a: 255))
   drawText("SECURITY LEVEL: MAXIMUM | ALL PROCESSES STABLE", 
           windowX + 70, yOffset + 10, 14,
           Color(r: 200, g: 255, b: 220, a: 255))
@@ -310,19 +310,19 @@ proc drawSystemSecured*(game: Game) =
                  (if seconds < 10: "0" else: "") & $seconds
   
   # Draw statistics with icons and tree structure
-  drawStat(windowX + 40, yOffset, "Waves Survived:", $game.currentWave, "├",
+  drawStat(windowX + 40, yOffset, "Waves Survived:", $game.currentWave, "|-",
           Color(r: 150, g: 255, b: 180, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "Threats Eliminated:", $game.player.kills, "├",
+  drawStat(windowX + 40, yOffset, "Threats Eliminated:", $game.player.kills, "|-",
           Color(r: 150, g: 255, b: 180, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "Resources Collected:", $game.player.coins, "├",
+  drawStat(windowX + 40, yOffset, "Resources Collected:", $game.player.coins, "|-",
           Color(r: 255, g: 215, b: 0, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "Mission Duration:", timeText, "└",
+  drawStat(windowX + 40, yOffset, "Mission Duration:", timeText, "\\-",
           Color(r: 150, g: 200, b: 255, a: 255))
   yOffset += 50
   
@@ -351,7 +351,7 @@ proc drawSystemSecured*(game: Game) =
   drawRectangle(windowX, footerY, SCREEN_WIDTH, 35,
                Color(r: 30, g: 60, b: 45, a: 255))
   
-  let footerText = "✓ All systems operational | Defensive grid at maximum efficiency"
+  let footerText = "[OK] All systems operational | Defensive grid at maximum efficiency"
   let footerWidth = measureText(footerText, 13)
   drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
           Color(r: 180, g: 220, b: 190, a: 255))

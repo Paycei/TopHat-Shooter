@@ -1,4 +1,4 @@
-## OS-Themed Statistics Window - ENHANCED EDITION
+﻿## OS-Themed Statistics Window - ENHANCED EDITION
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
 import raylib, ui/os_window, statistics, run_statistics, types, math, powerup, strutils, std/tables
@@ -295,7 +295,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     # Existing lifetime stats implementation
     var y = tabContentY + 20
     
-    drawText("═══ SYSTEM PERFORMANCE MONITOR ═══", (contentX + 20).int32, y.int32, 
+    drawText("=== SYSTEM PERFORMANCE MONITOR ===", (contentX + 20).int32, y.int32, 
             20, Color(r: 0, g: 200, b: 255, a: 255))
     y += 35
     
@@ -632,7 +632,7 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
   # Title bar
   drawRectangle(panelX, panelY, panelWidth, 32, Color(r: 40, g: 40, b: 50, a: 255))
   drawRectangle(panelX, panelY, panelWidth, 2, Color(r: 0, g: 180, b: 255, a: 255))
-  drawText("■ System Analytics - Run Report", (panelX + 8).int32, (panelY + 8).int32, 16, White)
+  drawText("[#] System Analytics - Run Report", (panelX + 8).int32, (panelY + 8).int32, 16, White)
   
   # Content area
   let contentX = panelX + 15
