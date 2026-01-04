@@ -306,6 +306,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       hp: 2.2 * strengthMultiplier,
       maxHp: 2.2 * strengthMultiplier,
       speed: 55 + difficulty * 3,
+      contactDamage: 1,  # Low contact damage for ranged enemy
+      rangedDamage: 3,   # High ranged damage (fast bullets)
       color: Color(r: 0, g: 150, b: 100, a: 255),
       enemyType: etPentagon,
       isBoss: false,
@@ -558,13 +560,20 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       const optimalDistance = 250.0
       const retreatDistance = 150.0
       
-      # Calculate next position
+      # Movement behavior: force entry when off-screen, then maintain optimal distance
       var nextPos = enemy.pos
-      if distToPlayer < retreatDistance:
+      if not enemy.hasEnteredScreen:
+        # FORCE movement toward screen center until fully inside
+        let screenCenterX = game.screenWidth.float32 / 2.0
+        let screenCenterY = game.screenHeight.float32 / 2.0
+        let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
+        nextPos = enemy.pos + towardCenter * effectiveSpeed * dt
+      elif distToPlayer < retreatDistance:
+        # Once inside, retreat when too close
         let retreatDir = dir * -1.0
         nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
       elif distToPlayer > optimalDistance:
-        # Allow approach movement always (not restricted by hasEnteredScreen)
+        # Approach when too far (but only when already inside screen)
         nextPos = enemy.pos + dir * effectiveSpeed * 0.5 * dt
       
       # Check wall collisions
@@ -853,13 +862,19 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         ))
         enemy.shootTimer = 0
       
-      # Slow backing movement
+      # Movement behavior: force entry when off-screen, then back away when close
       let dir = (playerPos - enemy.pos).normalize()
       let distToPlayer = distance(enemy.pos, playerPos)
       var nextPos = enemy.pos
       
-      if distToPlayer < 200:
-        # Allow retreat movement always (not restricted by hasEnteredScreen)
+      if not enemy.hasEnteredScreen:
+        # FORCE movement toward screen center until fully inside
+        let screenCenterX = game.screenWidth.float32 / 2.0
+        let screenCenterY = game.screenHeight.float32 / 2.0
+        let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
+        nextPos = enemy.pos + towardCenter * effectiveSpeed * dt
+      elif distToPlayer < 200:
+        # Once inside, back away from player when too close
         let retreatDir = dir * -1.0
         nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
       
@@ -872,7 +887,6 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       
       # Screen boundary check - keep ranged enemies inside once entered
       # FIX: Allow movement toward screen when off-screen, prevent leaving when inside
-      # Clamp position instead of blocking movement to prevent getting stuck
       if enemy.hasEnteredScreen:
         let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
                          nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
@@ -890,16 +904,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           # Only block movement if it's moving away from center (dot < 0)
           # Allow movement if it's toward center (dot >= 0)
           if dotProduct < 0:
-            # Clamp to screen bounds instead of blocking
-            if nextPos.x < enemy.radius:
-              nextPos.x = enemy.radius
-            elif nextPos.x > game.screenWidth.float32 - enemy.radius:
-              nextPos.x = game.screenWidth.float32 - enemy.radius
-            
-            if nextPos.y < enemy.radius:
-              nextPos.y = enemy.radius
-            elif nextPos.y > game.screenHeight.float32 - enemy.radius:
-              nextPos.y = game.screenHeight.float32 - enemy.radius
+            canMove = false
       
       if canMove:
         enemy.pos = nextPos
@@ -940,18 +945,24 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         game.bullets.add(pentagonBullet)
         enemy.shootTimer = 0
       
-      # Maintain distance
+      # Movement behavior: force entry when off-screen, then maintain optimal distance
       let dir = (playerPos - enemy.pos).normalize()
       let distToPlayer = distance(enemy.pos, playerPos)
       const optimalDistance = 300.0
       
       var nextPos = enemy.pos
-      if distToPlayer < optimalDistance - 50:
-        # Allow retreat movement always (not restricted by hasEnteredScreen)
+      if not enemy.hasEnteredScreen:
+        # FORCE movement toward screen center until fully inside
+        let screenCenterX = game.screenWidth.float32 / 2.0
+        let screenCenterY = game.screenHeight.float32 / 2.0
+        let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
+        nextPos = enemy.pos + towardCenter * effectiveSpeed * dt
+      elif distToPlayer < optimalDistance - 50:
+        # Once inside, retreat when too close
         let retreatDir = dir * -1.0
         nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
       elif distToPlayer > optimalDistance + 50:
-        # Allow approach movement always (not restricted by hasEnteredScreen)
+        # Approach when too far (but only when already inside screen)
         nextPos = enemy.pos + dir * effectiveSpeed * 0.6 * dt
       
       # Check wall collisions
@@ -963,7 +974,6 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
       
       # Screen boundary check - keep ranged enemies inside once entered
       # FIX: Allow movement toward screen when off-screen, prevent leaving when inside
-      # Clamp position instead of blocking movement to prevent getting stuck
       if enemy.hasEnteredScreen:
         let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
                          nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
@@ -981,16 +991,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           # Only block movement if it's moving away from center (dot < 0)
           # Allow movement if it's toward center (dot >= 0)
           if dotProduct < 0:
-            # Clamp to screen bounds instead of blocking
-            if nextPos.x < enemy.radius:
-              nextPos.x = enemy.radius
-            elif nextPos.x > game.screenWidth.float32 - enemy.radius:
-              nextPos.x = game.screenWidth.float32 - enemy.radius
-            
-            if nextPos.y < enemy.radius:
-              nextPos.y = enemy.radius
-            elif nextPos.y > game.screenHeight.float32 - enemy.radius:
-              nextPos.y = game.screenHeight.float32 - enemy.radius
+            canMove = false
       
       if canMove:
         enemy.pos = nextPos
@@ -1192,19 +1193,25 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         
         enemy.spawnTimer = 0
       
-      # Floating movement (backs away from player, maintains distance)
+      # Movement behavior: force entry when off-screen, then maintain optimal distance
       let dir = (playerPos - enemy.pos).normalize()
       let distToPlayer = distance(enemy.pos, playerPos)
       const optimalDistance = 250.0
       const retreatDistance = 180.0
       
       var nextPos = enemy.pos
-      if distToPlayer < retreatDistance:
-        # Too close - retreat
+      if not enemy.hasEnteredScreen:
+        # FORCE movement toward screen center until fully inside
+        let screenCenterX = game.screenWidth.float32 / 2.0
+        let screenCenterY = game.screenHeight.float32 / 2.0
+        let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
+        nextPos = enemy.pos + towardCenter * effectiveSpeed * dt
+      elif distToPlayer < retreatDistance:
+        # Once inside, retreat when too close
         let retreatDir = dir * -1.0
         nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
       elif distToPlayer > optimalDistance:
-        # Too far - approach slowly
+        # Approach when too far (but only when already inside screen)
         nextPos = enemy.pos + dir * effectiveSpeed * 0.5 * dt
       else:
         # Optimal distance - float sideways
@@ -1224,21 +1231,25 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       # Screen boundary check - keep ranged enemies inside once entered
+      # FIX: Allow movement toward screen when off-screen, prevent leaving when inside
       if enemy.hasEnteredScreen:
         let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
                          nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
         
         if isOffScreen:
-          # Clamp to screen bounds
-          if nextPos.x < enemy.radius:
-            nextPos.x = enemy.radius
-          elif nextPos.x > game.screenWidth.float32 - enemy.radius:
-            nextPos.x = game.screenWidth.float32 - enemy.radius
+          # Calculate direction toward screen center
+          let screenCenterX = game.screenWidth.float32 / 2.0
+          let screenCenterY = game.screenHeight.float32 / 2.0
+          let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
+          let movementDir = (nextPos - enemy.pos).normalize()
           
-          if nextPos.y < enemy.radius:
-            nextPos.y = enemy.radius
-          elif nextPos.y > game.screenHeight.float32 - enemy.radius:
-            nextPos.y = game.screenHeight.float32 - enemy.radius
+          # Calculate dot product to see if movement is toward center
+          let dotProduct = towardCenter.x * movementDir.x + towardCenter.y * movementDir.y
+          
+          # Only block movement if it's moving away from center (dot < 0)
+          # Allow movement if it's toward center (dot >= 0)
+          if dotProduct < 0:
+            canMove = false
       
       if canMove:
         enemy.pos = nextPos

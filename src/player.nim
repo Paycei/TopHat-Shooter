@@ -236,8 +236,6 @@ proc drawPlayer*(player: Player) =
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, poisonRadius,
                      Color(r: 100, g: 255, b: 100, a: 70))
   
-  # NOTE: Coin collection aura is INVISIBLE - no visual rendering
-  
   # Dodge flash effect
   if player.lastDamageTaken == 0 and player.hp > 0:
     drawText("DODGE!", (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
