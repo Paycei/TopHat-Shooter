@@ -324,6 +324,13 @@ proc main() =
           osHelpWindow.window.focused = true
         of 5:  # Shutdown.exe - Quit
           break
+        of 6:  # Sandbox.exe - Sandbox Mode
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmSandbox)
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
         else: discard
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
@@ -373,9 +380,38 @@ proc main() =
         osHelpWindow.window.focused = true
       
       # Update help window
-      let shouldClose = updateHelpWindow(osHelpWindow, dt, screenWidth, screenHeight)
+      let iconToExecute = updateHelpWindow(osHelpWindow, dt, screenWidth, screenHeight)
       
-      if isKeyPressed(Escape) or shouldClose or not osHelpWindow.window.visible:
+      # Handle icon execution
+      if iconToExecute >= 0:
+        osHelpWindow.window.visible = false
+        case iconToExecute
+        of 0:  # Play
+          # Start a fresh Wave-Based game (same pattern as main menu start)
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmWaveBased)
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        of 1:  # Survival
+          # Start a fresh Time Survival game
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmTimeSurvival)
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        of 2:  # Stats
+          currentGame.state = gsStatistics
+        of 3:  # Settings
+          currentGame.state = gsSettings
+        of 5:  # Quit
+          break
+        else:
+          discard
+      
+      if isKeyPressed(Escape) or not osHelpWindow.window.visible:
         osHelpWindow.window.visible = false
         currentGame.state = gsMenu
       
@@ -1143,57 +1179,83 @@ proc main() =
           discard saveStatistics(stats)
           statsSavedThisGame = true
       
-      # Navigate to run stats screen
-      if isKeyPressed(Tab) and hasValidRunStats():
-        currentGame.state = gsRunStats
+      # Update mouse tracking
+      updateMouseTracking(currentGame)
       
-      # Keyboard controls
-      if isKeyPressed(R):
+      # Keyboard navigation - A/D/LEFT/RIGHT to change button selection
+      if isKeyPressed(Left) or isKeyPressed(A):
+        currentGame.selectedGameOverButton = (currentGame.selectedGameOverButton - 1 + 3) mod 3
+        playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
+      elif isKeyPressed(Right) or isKeyPressed(D):
+        currentGame.selectedGameOverButton = (currentGame.selectedGameOverButton + 1) mod 3
+        playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
+      
+      # Execute action based on selected button or direct key press
+      # SPACE and R both trigger restart (button 0)
+      if (isKeyPressed(Space) or isKeyPressed(R)) or 
+         (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 0):
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, gmWaveBased)  # Default to wave-based on restart
         initializeRunTracking(currentGame)  # Start tracking
         currentGame.state = gsPlaying
+        playSound(stMenuSelect)
         statsSavedThisGame = false  # Reset for new game
-      
-      if isKeyPressed(Escape) or isKeyPressed(Q):
+      # TAB or V to view stats (button 1)
+      elif (isKeyPressed(Tab) or isKeyPressed(V)) or 
+           (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 1):
+        if hasValidRunStats():
+          currentGame.state = gsRunStats
+          playSound(stMenuSelect)
+      # ESC or Q to exit (button 2)
+      elif (isKeyPressed(Escape) or isKeyPressed(Q)) or 
+           (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 2):
         cleanupGame(currentGame)  # Clean up resources before creating new game
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
+        playSound(stMenuSelect)
         statsSavedThisGame = false  # Reset for new game
       
-      # Mouse click handling for buttons (using actual coordinates from os_system_screens.nim)
+      # Mouse hover detection for button highlighting
+      let mousePos = getMousePosition()
+      const SCREEN_WIDTH = 900
+      const SCREEN_HEIGHT = 600  # Updated to match new height
+      const BUTTON_WIDTH = 220
+      const BUTTON_HEIGHT = 48
+      
+      let windowY = (screenHeight - SCREEN_HEIGHT) div 2
+      let buttonY = windowY + SCREEN_HEIGHT - 100  # Updated to match new position
+      let buttonSpacing = 40
+      let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
+      let buttonsX = (screenWidth - totalButtonWidth) div 2
+      
+      # Restart button (button 0)
+      let restartRect = Rectangle(x: buttonsX.float32, y: buttonY.float32,
+                                   width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
+      
+      # View Stats button (button 1)
+      let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
+      let statsRect = Rectangle(x: statsX.float32, y: buttonY.float32,
+                                width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
+      
+      # Exit button (button 2)
+      let exitX = statsX + BUTTON_WIDTH + buttonSpacing
+      let exitRect = Rectangle(x: exitX.float32, y: buttonY.float32,
+                               width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
+      
+      # Mouse hover - update selected button
+      if checkCollisionPointRec(mousePos, restartRect):
+        currentGame.selectedGameOverButton = 0
+      elif checkCollisionPointRec(mousePos, statsRect):
+        currentGame.selectedGameOverButton = 1
+      elif checkCollisionPointRec(mousePos, exitRect):
+        currentGame.selectedGameOverButton = 2
+      
+      # Mouse click handling
       if isMouseButtonPressed(Left):
-        let mousePos = getMousePosition()
-        
-        # Constants from os_system_screens.nim
-        const SCREEN_WIDTH = 900
-        const SCREEN_HEIGHT = 550
-        const BUTTON_WIDTH = 220
-        const BUTTON_HEIGHT = 48
-        
-        let windowY = (screenHeight - SCREEN_HEIGHT) div 2
-        let buttonY = windowY + SCREEN_HEIGHT - 100
-        let buttonSpacing = 40
-        let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
-        let buttonsX = (screenWidth - totalButtonWidth) div 2
-        
-        # Restart button (first button)
-        let restartRect = Rectangle(x: buttonsX.float32, y: buttonY.float32,
-                                     width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
-        
-        # View Stats button (second button)
-        let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
-        let statsRect = Rectangle(x: statsX.float32, y: buttonY.float32,
-                                  width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
-        
-        # Exit button (third button)
-        let exitX = statsX + BUTTON_WIDTH + buttonSpacing
-        let exitRect = Rectangle(x: exitX.float32, y: buttonY.float32,
-                                 width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
-        
-        # Check clicks
         if checkCollisionPointRec(mousePos, restartRect):
           # Restart game
           currentGame = newGame(screenWidth, screenHeight)
@@ -1201,17 +1263,20 @@ proc main() =
           setGameMode(currentGame, gmWaveBased)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
+          playSound(stMenuSelect)
           statsSavedThisGame = false
         elif checkCollisionPointRec(mousePos, statsRect):
           # View stats
           if hasValidRunStats():
             currentGame.state = gsRunStats
+            playSound(stMenuSelect)
         elif checkCollisionPointRec(mousePos, exitRect):
           # Return to menu
           cleanupGame(currentGame)
           currentGame = newGame(screenWidth, screenHeight)
           currentGame.discordClient = globalDiscordClient
           currentGame.state = gsMenu
+          playSound(stMenuSelect)
           statsSavedThisGame = false
       
       beginGameDrawing()

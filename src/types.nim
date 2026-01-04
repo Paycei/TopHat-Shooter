@@ -515,6 +515,7 @@ type
     osBackground*: OSBackgroundState  # Animated background system
     osHUD*: OSHUDState  # OS-style HUD and notifications
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
+    selectedGameOverButton*: int  # Selected button on game over screen (0=Restart, 1=Stats, 2=Exit)
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x

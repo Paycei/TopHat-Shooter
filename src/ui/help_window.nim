@@ -13,6 +13,7 @@ type
     outputLines*: seq[tuple[text: string, color: Color]]
     scrollOffset*: int
     cursorBlink*: float32
+    pendingIconExecution*: int  # -1 = none, 0-6 = icon to execute (6 = sandbox)
 
 const
   HELP_COMMANDS: seq[HelpCommand] = @[
@@ -26,7 +27,9 @@ const
     ("shop", "Shop and economy guide"),
     ("legendary", "Legendary abilities guide"),
     ("search", "Search help topics (usage: search <term>)"),
-    ("clear", "Clear the screen")
+    ("clear", "Clear the screen"),
+    ("", "──────────────────────────────────────"),
+    ("play/survival/sandbox/settings/quit", "Launch desktop icons by name")
   ]
 
 proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
@@ -49,7 +52,8 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
     currentInput: "",
     outputLines: @[],
     scrollOffset: 0,
-    cursorBlink: 0
+    cursorBlink: 0,
+    pendingIconExecution: -1
   )
   
   # Add welcome message
@@ -313,9 +317,35 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
         
         help.addOutput("", White)
     
+    # Desktop icon execution commands
+    of "play", "play.exe":
+      help.addOutput("Launching Play.exe...", Color(r: 100, g: 200, b: 255, a: 255))
+      help.pendingIconExecution = 0
+    
+    of "survival", "survival.exe":
+      help.addOutput("Launching Survival.exe...", Color(r: 255, g: 150, b: 100, a: 255))
+      help.pendingIconExecution = 1
+    
+    of "stats.exe", "statistics":
+      help.addOutput("Opening Stats.exe...", Color(r: 255, g: 200, b: 50, a: 255))
+      help.pendingIconExecution = 2
+    
+    of "settings", "settings.exe":
+      help.addOutput("Opening Settings.exe...", Color(r: 200, g: 100, b: 255, a: 255))
+      help.pendingIconExecution = 3
+    
+    of "sandbox", "sandbox.exe":
+      help.addOutput("Launching Sandbox.exe...", Color(r: 255, g: 165, b: 0, a: 255))
+      help.pendingIconExecution = 6  # New index for sandbox
+    
+    of "quit", "shutdown", "shutdown.exe", "exit":
+      help.addOutput("Shutting down...", Color(r: 255, g: 100, b: 100, a: 255))
+      help.pendingIconExecution = 5
+    
     else:
       help.addOutput("Unknown command: " & command, Red)
       help.addOutput("Type 'help' for available commands", LightGray)
+      help.addOutput("Tip: You can also type icon names like 'play' or 'settings'", Color(r: 150, g: 150, b: 150, a: 255))
       help.addOutput("", White)
   
   except Exception as e:
@@ -325,19 +355,27 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     help.addOutput("", White)
 
 
-proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int): bool =
-  ## Returns true if window should close
+proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int): int =
+  ## Returns icon to execute: -1 = none, 0-6 = desktop icon index (6 = sandbox)
+  ## Window closing is handled by setting help.window.visible = false
   updateOSWindow(help.window, dt)
   help.cursorBlink += dt
   
   if not help.window.visible:
-    return false
+    return -1
+  
+  # Check for pending icon execution
+  if help.pendingIconExecution >= 0:
+    let iconToExecute = help.pendingIconExecution
+    help.pendingIconExecution = -1
+    help.window.visible = false  # Close help window after executing icon
+    return iconToExecute
   
   # Check if window should close
   let shouldClose = handleOSWindowInput(help.window, screenWidth, screenHeight)
   if shouldClose:
     help.window.visible = false
-    return true
+    return -1
   
   # Handle text input with safety checks
   let key = getCharPressed()
@@ -364,7 +402,7 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
     help.scrollOffset = clamp(help.scrollOffset - int(wheel * 3), 0, 
                               max(0, help.outputLines.len - 15))
   
-  return false
+  return -1  # No icon to execute
 
 
 proc drawHelpWindow*(help: HelpWindow) =

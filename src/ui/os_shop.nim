@@ -284,7 +284,7 @@ proc drawShop*(game: Game) =
           Color(r: 0, g: 180, b: 255, a: 255))
   
   let instructY = ctrlY + 18
-  drawText("↑↓/W/S Navigate", windowX + 20, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText("UP/DOWN/W/S Navigate", windowX + 20, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
   drawText("ENTER/CLICK Buy", windowX + 160, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   

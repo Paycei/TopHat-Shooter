@@ -116,13 +116,13 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     0
   
   let waveInfoHeight = if (game.mode == gmWaveBased):
-    if game.waveInProgress and not game.bossWaveManager.active: 65
-    elif game.bossWaveManager.active or game.bossWaveManager.coinActive: 50
-    else: 35
+    if game.waveInProgress and not game.bossWaveManager.active: 35
+    elif game.bossWaveManager.active or game.bossWaveManager.coinActive: 32
+    else: 28
   else:
     0
   
-  let totalHeight = 95 + powerUpHeight + waveInfoHeight + (if powerUpHeight > 0: COMBINED_SECTION_SPACING else: 0)
+  let totalHeight = 82 + powerUpHeight + waveInfoHeight + (if powerUpHeight > 0: COMBINED_SECTION_SPACING else: 0)
   
   # Main panel background - more transparent and colorful
   drawRectangle(finalPanelX, yOffset, COMBINED_PANEL_WIDTH, totalHeight.int32,
@@ -227,16 +227,16 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     drawLine(Vector2(x: (finalPanelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
             Vector2(x: (finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
             1, Color(r: 0, g: 200, b: 255, a: 100))
-    yOffset += 4
+    yOffset += 3
     
-    # Wave header - matches debug panel style
+    # Wave header - compact
     drawText("Wave Info:", finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9,
             Color(r: 0, g: 0, b: 0, a: 100))
     drawText("Wave Info:", finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset, 9,
             Color(r: 150, g: 150, b: 150, a: 255))
-    yOffset += 12
+    yOffset += 10
     
-    # Wave display - more compact
+    # Wave display - compact
     let waveDisplay = if game.bossWaveManager.active:
       "[!] BOSS W" & $game.currentWave
     else:
@@ -247,39 +247,77 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     else:
       Color(r: 120, g: 255, b: 120, a: 255)
     
-    drawText(waveDisplay, finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 12,
+    drawText(waveDisplay, finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 11,
             Color(r: 0, g: 0, b: 0, a: 130))
-    drawText(waveDisplay, finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 12, waveColor)
-    yOffset += 16  # Reduced spacing
+    drawText(waveDisplay, finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 11, waveColor)
+    yOffset += 13
     
-    # Enemy counter (only for normal waves) - more compact
+    # Enemy Counter (single bar that empties as enemies are killed)
     if game.waveInProgress and not game.bossWaveManager.active:
-      let enemiesLeft = game.waveEnemiesRemaining + game.enemies.len
-      let threatText = $enemiesLeft & "/" & $game.waveEnemiesTotal
+      let currentEnemies = game.enemies.len  # Enemies currently on screen
+      let toSpawn = game.waveEnemiesRemaining  # Enemies yet to spawn
+      let totalRemaining = currentEnemies + toSpawn
       
-      drawText(threatText, finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 100))
-      drawText(threatText, finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10, Color(r: 180, g: 180, b: 180, a: 255))
-      yOffset += 12  # Reduced spacing
+      # Threat level colors based on remaining percentage
+      let remainingPercent = totalRemaining.float32 / game.waveEnemiesTotal.float32
+      let threatColor = if remainingPercent > 0.6:
+        Color(r: 255, g: 50, b: 50, a: 255)
+      elif remainingPercent > 0.3:
+        Color(r: 255, g: 165, b: 0, a: 255)
+      else:
+        Color(r: 100, g: 220, b: 120, a: 255)
       
-      # Compact progress bar
-      let progressBarWidth = barWidth
-      let progress = 1.0 - (enemiesLeft.float32 / game.waveEnemiesTotal.float32)
+      # Warning icon with pulse for high threat
+      let iconPulse = if remainingPercent > 0.5: sin(game.time * 8.0) * 0.3 + 0.7 else: 1.0
+      let pulseColor = Color(
+        r: uint8(threatColor.r.float32 * iconPulse),
+        g: uint8(threatColor.g.float32 * iconPulse),
+        b: uint8(threatColor.b.float32 * iconPulse),
+        a: 255
+      )
       
-      drawRectangle(finalPanelX + COMBINED_PANEL_PADDING, yOffset, progressBarWidth, 5,  # Thinner bar
-                   Color(r: 15, g: 20, b: 25, a: 80))
+      drawText("[!]", finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 14,
+              Color(r: 0, g: 0, b: 0, a: 130))
+      drawText("[!]", finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 14, pulseColor)
       
-      let progressFillWidth = (progressBarWidth.float32 * progress).int32
-      drawRectangle(finalPanelX + COMBINED_PANEL_PADDING, yOffset, progressFillWidth, 5,
-                   Color(r: 0, g: 200, b: 100, a: 180))
+      # Enemy count display
+      let countText = $totalRemaining & " left"
+      let countWidth = measureText(countText, 12)
+      let countX = finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - countWidth - 5
       
-      yOffset += 8  # Reduced spacing
+      drawText(countText, countX + 1, yOffset + 2, 12, Color(r: 0, g: 0, b: 0, a: 130))
+      drawText(countText, countX, yOffset + 1, 12, threatColor)
+      
+      yOffset += 14
+      
+      # Single bar that empties as enemies are killed
+      let barWidth: int32 = COMBINED_PANEL_WIDTH - (COMBINED_PANEL_PADDING * 2)
+      let barFillPercent = totalRemaining.float32 / game.waveEnemiesTotal.float32
+      
+      # Bar background (empty state)
+      drawRectangle(finalPanelX + COMBINED_PANEL_PADDING, yOffset, barWidth, 6,
+                   Color(r: 15, g: 20, b: 25, a: 120))
+      
+      # Bar fill (remaining enemies - starts full, decreases as you kill)
+      let fillWidth = (barWidth.float32 * barFillPercent).int32
+      drawRectangle(finalPanelX + COMBINED_PANEL_PADDING, yOffset, fillWidth, 6, threatColor)
+      
+      # Border
+      drawRectangleLines(Rectangle(
+        x: (finalPanelX + COMBINED_PANEL_PADDING).float32,
+        y: yOffset.float32,
+        width: barWidth.float32,
+        height: 6.0
+      ), 1, Color(r: 0, g: 200, b: 255, a: 140))
+      
+      yOffset += 8
     
-    elif game.bossWaveManager.active:
+    if game.bossWaveManager.active:
       drawText("[X] BOSS FIGHT", finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 130))
       drawText("[X] BOSS FIGHT", finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 100, b: 100, a: 255))
-      yOffset += 14  # Reduced spacing
+      yOffset += 12
     
     elif game.bossWaveManager.coinActive:
       let pulseAlpha = (sin(game.time * 4.0) * 60 + 195).int.uint8
@@ -287,7 +325,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
               Color(r: 0, g: 0, b: 0, a: 130))
       drawText("[$] Collect", finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 215, b: 0, a: pulseAlpha))
-      yOffset += 14  # Reduced spacing
+      yOffset += 12
   
   # ============ ACTIVE POWER-UPS (Compact List) ============
   if game.player.powerUps.len > 0:
@@ -295,16 +333,16 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     drawLine(Vector2(x: (finalPanelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
             Vector2(x: (finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
             1, Color(r: 0, g: 200, b: 255, a: 100))
-    yOffset += 4
+    yOffset += 3
     
-    # "Active Processes" header - matches debug panel style
+    # "Active Processes" header - compact
     let processCount = game.player.powerUps.len
     let processHeader = "Active [" & $processCount & "]:"
     drawText(processHeader, finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9,
             Color(r: 0, g: 0, b: 0, a: 100))
     drawText(processHeader, finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset, 9,
             Color(r: 200, g: 220, b: 240, a: 255))
-    yOffset += 12
+    yOffset += 10
     
     # List power-ups (limit to 5) - with alternating backgrounds like debug panel
     for i in 0..<min(numPowerUps, 5):
@@ -361,5 +399,5 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
       
       drawText(moreText, finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 8,
               Color(r: 0, g: 0, b: 0, a: 100))
-      drawText(moreText, panelX + COMBINED_PANEL_PADDING + 7, yOffset, 8,
+      drawText(moreText, finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 8,
               Color(r: 120, g: 120, b: 120, a: 255))

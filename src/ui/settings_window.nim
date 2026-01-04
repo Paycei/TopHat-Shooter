@@ -339,6 +339,17 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                      mousePos.y <= (yPos + 25).float32
   drawCheckbox(hintsCheckX, yPos, 25, settingsWin.settings.showHints, hintsHovered)
   drawText("(E: Wall, ESC: Pause tips)", (hintsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 35
+  
+  # Show Enemy Labels
+  drawText("Show Enemy Labels", (contentX + 40).int32, yPos.int32, 18, White)
+  let labelsCheckX = contentX + 320
+  let labelsHovered = mousePos.x >= labelsCheckX.float32 and 
+                      mousePos.x <= (labelsCheckX + 25).float32 and
+                      mousePos.y >= yPos.float32 and 
+                      mousePos.y <= (yPos + 25).float32
+  drawCheckbox(labelsCheckX, yPos, 25, settingsWin.settings.showEnemyLabels, labelsHovered)
+  drawText("(Enemy name tags)", (labelsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
 
 proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32, 
                           screenWidth, screenHeight: int): tuple[shouldClose: bool, fullscreenToggle: bool] =
@@ -525,6 +536,14 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       if mousePos.x >= hintsCheckX.float32 and mousePos.x <= (hintsCheckX + 25).float32 and
          mousePos.y >= hintsCheckY.float32 and mousePos.y <= (hintsCheckY + 25).float32:
         settingsWin.settings.showHints = not settingsWin.settings.showHints
+        settingsChanged = true
+      
+      # Show enemy labels checkbox (25x25 hit area)
+      let labelsCheckX = contentX + 320
+      let labelsCheckY = contentY + 90
+      if mousePos.x >= labelsCheckX.float32 and mousePos.x <= (labelsCheckX + 25).float32 and
+         mousePos.y >= labelsCheckY.float32 and mousePos.y <= (labelsCheckY + 25).float32:
+        settingsWin.settings.showEnemyLabels = not settingsWin.settings.showEnemyLabels
         settingsChanged = true
   
   # Save settings if changed

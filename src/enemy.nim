@@ -2072,6 +2072,16 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       for attack in bossDef.phases[0].attacks:
         initialAttackTimers.add(attack.cooldown)  # Start with cooldown so attacks don't fire immediately
     
+    # Apply first phase multipliers to initial stats
+    let firstPhaseSpeed = if bossDef.phases.len > 0: 
+      scaledSpeed * bossDef.phases[0].speedMultiplier 
+    else: 
+      scaledSpeed
+    let firstPhaseDefense = if bossDef.phases.len > 0: 
+      bossDef.phases[0].defenseMultiplier 
+    else: 
+      1.0
+    
     result = Enemy(
       pos: newVector2f(startX, startY),
       vel: newVector2f(0, 0),
@@ -2079,7 +2089,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       collisionRadius: bossDef.baseRadius * 0.4,  # FIX: Add collision radius (40% of visual size)
       hp: scaledHP,
       maxHp: scaledHP,
-      speed: scaledSpeed,
+      speed: firstPhaseSpeed,  # Apply speedMultiplier from first phase
       contactDamage: scaledDamage,  # Boss contact damage
       rangedDamage: scaledDamage,   # Boss ranged damage
       color: bossDef.color,
@@ -2105,7 +2115,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,
-      defenseMultiplier: if bossDef.phases.len > 0: bossDef.phases[0].defenseMultiplier else: 1.0,
+      defenseMultiplier: firstPhaseDefense,  # Apply defenseMultiplier from first phase
       activeEffects: initTable[ElementType, ActiveEffect]()
     )
 
@@ -2143,7 +2153,12 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
     1
   
   # Choose random elite types (ensure no duplicates)
-  var availableTypes = @[etSwift, etTank, etVenomous, etExplosive, etRegenerative, etShielded]
+  # STAR ENEMY RESTRICTION: Stars cannot get Tank, Shielded, or Regenerative (they're already tanky)
+  var availableTypes = if enemy.enemyType == etStar:
+    @[etSwift, etVenomous, etExplosive]  # Exclude Tank, Shielded, and Regenerative
+  else:
+    @[etSwift, etTank, etVenomous, etExplosive, etRegenerative, etShielded]
+  
   for i in 0..<numEffects:
     if availableTypes.len == 0:
       break

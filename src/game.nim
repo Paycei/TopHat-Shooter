@@ -20,6 +20,7 @@ proc canSpawnBoss*(manager: BossWaveManager): bool =
   not manager.active and not manager.coinActive
 
 proc isBossActive*(manager: BossWaveManager): bool = manager.active
+
 proc isBossCoinActive*(manager: BossWaveManager): bool = manager.coinActive
 
 proc completeBossWave*(game: Game) =
@@ -369,7 +370,7 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   if enemy.isBoss and enemy.defenseMultiplier > 0:
     result *= enemy.defenseMultiplier
   
-  # Tank elite: 65% damage reduction (buffed from 50%)
+  # Tank elite: 50% damage reduction
   # If multiple elites include Tank, apply reduction
   if enemy.isElite and etTank in enemy.eliteTypes:
     result *= 0.5  # 50% reduction
@@ -934,7 +935,8 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     # OS-Style Visual System
     osBackground: newOSBackground(),
     osHUD: newOSHUD(),
-    pauseMenuTab: tmtProcesses  # Default to Processes tab in task manager
+    pauseMenuTab: tmtProcesses,  # Default to Processes tab in task manager
+    selectedGameOverButton: 0  # Default to Restart button
   )
   
   # Apply gamemode-specific starting values
@@ -3626,7 +3628,9 @@ proc updateGame*(game: var Game, dt: float32) =
             enemy.attackTimers.add(0.0)  # Reset timers to 0 so new phase attacks immediately
           # Update boss color and apply phase modifiers
           enemy.color = phase.color
-          enemy.speed = bossDef.baseSpeed * phase.speedMultiplier
+          # Apply phase speedMultiplier to wave-scaled base speed
+          let scaledBaseSpeed = getScaledBossSpeed(bossDef, game.currentWave)
+          enemy.speed = scaledBaseSpeed * phase.speedMultiplier
           enemy.defenseMultiplier = phase.defenseMultiplier  # Apply defense multiplier from phase
           break
         
@@ -3943,6 +3947,12 @@ proc updateGame*(game: var Game, dt: float32) =
           else:
             # Apply elite modifiers to damage
             var actualDamage = finalDamage
+            
+            # BOSS DEFENSE: Apply defenseMultiplier first (CRITICAL FIX)
+            # Higher defenseMultiplier = MORE defense (takes LESS damage)
+            # 0.5 = half defense (takes 2x damage), 1.0 = normal, 2.0 = double defense (takes 0.5x damage)
+            if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
+              actualDamage /= game.enemies[j].defenseMultiplier
             
             # Tank elite: 60% damage reduction (buffed from 50%)
             # Handles multiple elite types (wave 25+)
@@ -4455,7 +4465,7 @@ proc drawGame*(game: Game) =
     drawEnemy(enemy)
     
     # Draw OS-style enemy labels above each enemy
-    drawEnemyLabel(enemy, showHealthBar = true)
+    drawEnemyLabel(enemy, showHealthBar = true, enabled = globalSettings.showEnemyLabels)
     
     # Draw warning indicators for elite/boss enemies
     drawEnemyWarningIndicator(enemy)
@@ -4503,9 +4513,6 @@ proc drawGame*(game: Game) =
   
   # Draw unified combined HUD panel (top-left, almost touching top)
   drawCombinedHUDPanel(game, 10, 2)
-  
-  # Draw OS-style threat counter
-  drawThreatCounter(game.screenWidth, game.screenHeight, game.enemies.len)
   
   # Draw action log (notifications)
   drawActionLog(game.osHUD, game.screenWidth, game.screenHeight)
@@ -4636,7 +4643,7 @@ proc drawGame*(game: Game) =
 
 proc drawGameOver*(game: Game) =
   # Use the new OS-style system crash screen
-  drawSystemCrash(game)
+  drawSystemCrash(game, game.selectedGameOverButton)
 
 proc drawWaveTransition*(game: Game) =
   # Draw the game in background

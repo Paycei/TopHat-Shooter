@@ -16,6 +16,7 @@ type
     showCursorInMenus*: bool  # Show cursor in menus when mouseSupport is disabled
     showDebugStats*: bool  # Show fire rate and damage in debug panel
     showHints*: bool  # Show on-screen hints (E: Wall, ESC: Pause, etc)
+    showEnemyLabels*: bool  # Show enemy name labels above enemies
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -58,7 +59,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "mouseSupport": settings.mouseSupport,
     "showCursorInMenus": settings.showCursorInMenus,
     "showDebugStats": settings.showDebugStats,
-    "showHints": settings.showHints
+    "showHints": settings.showHints,
+    "showEnemyLabels": settings.showEnemyLabels
   }
 
 # Load Settings from JSON
@@ -89,6 +91,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("showHints"):
     settings.showHints = jsonNode["showHints"].getBool()
+
+  if jsonNode.hasKey("showEnemyLabels"):
+    settings.showEnemyLabels = jsonNode["showEnemyLabels"].getBool()
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =

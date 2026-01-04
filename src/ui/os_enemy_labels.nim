@@ -42,19 +42,19 @@ proc getEnemyProcessName*(enemy: Enemy): string =
   
   result = prefix & baseNames & "_" & $idSuffix & ext
 
-proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true) =
+proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = true) =
   ## Draw enhanced OS-style label above enemy with modern styling
-  if enemy.entranceTimer > 0:
-    return  # Don't show label during entrance
+  if not enabled or enemy.entranceTimer > 0:
+    return  # Don't show label if disabled or during entrance
   
   let processName = getEnemyProcessName(enemy)
-  let fontSize: int32 = if enemy.isBoss: 12 else: 10
+  let fontSize: int32 = if enemy.isBoss: 9 else: 7  # Even smaller fonts (was 12/10)
   let labelWidth = measureText(processName, fontSize)
   
-  # Calculate label dimensions
-  let labelPadding = if enemy.isBoss: 8 else: 6
+  # Calculate label dimensions - much more compact
+  let labelPadding = if enemy.isBoss: 4 else: 3  # Minimal padding (was 8/6)
   let totalWidth = labelWidth + labelPadding * 2
-  let labelHeight = if showHealthBar: 38 else: 20
+  let labelHeight = if showHealthBar: (if enemy.isBoss: 20 else: 18) else: 14  # Much shorter (was 38/28)
   
   let labelX = enemy.pos.x - (totalWidth.float32 / 2.0)
   let labelY = enemy.pos.y - enemy.radius - labelHeight.float32 - 8
@@ -93,11 +93,11 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true) =
   
   drawRectangle(labelX.int32, labelY.int32, totalWidth.int32, labelHeight.int32, bgColor)
   
-  # Top accent bar based on threat level
+  # Top accent bar based on threat level (toned down for elites)
   let accentColor = if enemy.isBoss:
     Color(r: 255, g: 50, b: 50, a: alpha)
   elif enemy.isElite:
-    Color(r: 255, g: 215, b: 0, a: alpha)
+    Color(r: 200, g: 170, b: 60, a: uint8(alpha.float32 * 0.8))  # Less shiny gold
   else:
     Color(r: 0, g: 180, b: 255, a: uint8(alpha.float32 * 0.8))
   
@@ -116,11 +116,11 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true) =
       1, Color(r: 255, g: 100, b: 100, a: glowAlpha)
     )
   
-  # Label border with enhanced styling
+  # Label border with enhanced styling (toned down for elites)
   let borderColor = if enemy.isBoss:
     Color(r: 255, g: 80, b: 80, a: alpha)
   elif enemy.isElite:
-    Color(r: 255, g: 215, b: 0, a: alpha)
+    Color(r: 180, g: 160, b: 80, a: uint8(alpha.float32 * 0.9))  # Duller gold
   else:
     Color(r: 80, g: 100, b: 130, a: uint8(alpha.float32 * 0.9))
   
@@ -129,37 +129,38 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true) =
                                 width: totalWidth.float32, height: labelHeight.float32),
                     borderWidth, borderColor)
   
-  # Process name with better formatting
+  # Process name with better formatting (toned down for elites)
   let textColor = if enemy.isBoss:
     Color(r: 255, g: 120, b: 120, a: alpha)
   elif enemy.isElite:
-    Color(r: 255, g: 215, b: 0, a: alpha)
+    Color(r: 210, g: 190, b: 100, a: alpha)  # Less bright gold
   else:
     Color(r: 200, g: 210, b: 220, a: alpha)
   
-  # Icon prefix for threat classification
+  # Icon prefix for threat classification (simplified)
   let iconX = labelX.int32 + 3
   let iconY = labelY.int32 + 4
   
   if enemy.isBoss:
-    drawText("[!]", iconX, iconY, fontSize, Color(r: 255, g: 100, b: 100, a: alpha))
+    drawText("[X]", iconX, iconY, fontSize, Color(r: 220, g: 80, b: 80, a: alpha))
   elif enemy.isElite:
-    drawText("[*]", iconX, iconY, fontSize, Color(r: 255, g: 215, b: 0, a: alpha))
+    drawText("[E]", iconX, iconY, fontSize, Color(r: 200, g: 180, b: 80, a: alpha))
   else:
     drawText("*", iconX, iconY - 1, fontSize - 2, accentColor)
   
   let textX = if enemy.isBoss or enemy.isElite: iconX + 16 else: iconX + 12
   drawText(processName, textX, iconY, fontSize, textColor)
   
-  # Enhanced health bar (if enabled)
+  # Enhanced health bar (if enabled) - more compact
   if showHealthBar and (enemy.isElite or enemy.isBoss or enemy.maxHp > 30):
-    let barY = labelY + 18
+    let barY = labelY + 14  # Closer to label (was 18)
     let barWidth = totalWidth - 6
     let barX = labelX + 3
     let hpPercent = enemy.hp / enemy.maxHp
+    let barHeight = 7  # Shorter bar (was 10)
     
     # Bar background with depth
-    drawRectangle(barX.int32, barY.int32, barWidth.int32, 10,
+    drawRectangle(barX.int32, barY.int32, barWidth.int32, barHeight.int32,
                  Color(r: 30, g: 35, b: 45, a: uint8(alpha.float32 * 0.9)))
     
     # Bar fill with gradient effect
@@ -175,30 +176,36 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true) =
     else:
       Color(r: 255, g: 100, b: 100, a: alpha)
     
-    drawRectangle(barX.int32, barY.int32, fillWidth.int32, 10, barColor)
+    drawRectangle(barX.int32, barY.int32, fillWidth.int32, barHeight.int32, barColor)
     
-    # Shine effect on health bar
+    # Shine effect on health bar (toned down for elites)
+    let shineAlpha = if enemy.isElite: 
+      uint8(alpha.float32 * 0.2)  # Much less shiny
+    else:
+      uint8(alpha.float32 * 0.3)
+    
     drawRectangle(barX.int32, barY.int32, fillWidth.int32, 2,
-                 Color(r: 255, g: 255, b: 255, a: uint8(alpha.float32 * 0.4)))
+                 Color(r: 255, g: 255, b: 255, a: shineAlpha))
     
     # Bar border
     drawRectangleLines(Rectangle(x: barX, y: barY,
-                                  width: barWidth.float32, height: 10.0),
+                                  width: barWidth.float32, height: barHeight.float32),
                       1, Color(r: 70, g: 85, b: 100, a: uint8(alpha.float32 * 0.8)))
     
-    # HP text for bosses and elites
+    # HP text for bosses and elites - smaller text
     if enemy.isBoss or enemy.isElite:
       let hpText = $(enemy.hp.int) & "/" & $(enemy.maxHp.int)
-      let hpTextWidth = measureText(hpText, 8)
+      let hpTextSize: int32 = 7  # Smaller font (was 8)
+      let hpTextWidth = measureText(hpText, hpTextSize)
       let hpTextX = barX + (float32(barWidth) - hpTextWidth.float32) / 2
       
       # Text shadow
-      drawText(hpText, (hpTextX + 1).int32, (barY + 2).int32, 8,
+      drawText(hpText, (hpTextX + 1).int32, (barY + 1).int32, hpTextSize.int32,
               Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.7)))
-      drawText(hpText, hpTextX.int32, (barY + 1).int32, 8, White)
+      drawText(hpText, hpTextX.int32, barY.int32, hpTextSize.int32, White)
 
 proc drawEnemyWarningIndicator*(enemy: Enemy) =
-  ## Draw enhanced warning indicator for dangerous enemies
+  ## Draw simplified warning indicator for dangerous enemies (no exclamation mark)
   if not (enemy.isElite or enemy.isBoss):
     return
   
@@ -209,33 +216,32 @@ proc drawEnemyWarningIndicator*(enemy: Enemy) =
   if warningY < -60 or warningY > 780:
     return
   
-  # Animated pulsing effect
-  let pulse = sin(getTime() * 7.0) * 0.4 + 0.6
-  let alpha = uint8(140 + pulse * 115)
+  # Subtle pulsing effect (toned down)
+  let pulse = sin(getTime() * 4.0) * 0.2 + 0.7  # Slower, less intense pulse
+  let alpha = uint8(100 + pulse * 80)  # Less bright
   
   let warningColor = if enemy.isBoss:
-    Color(r: 255, g: 50, b: 50, a: alpha)
+    Color(r: 220, g: 60, b: 60, a: alpha)
   else:
-    Color(r: 255, g: 215, b: 0, a: alpha)
+    Color(r: 200, g: 170, b: 60, a: alpha)  # Duller gold for elites
   
-  # Warning icon with glow
+  # Warning icon (simplified, no glow layers)
   let iconX = enemy.pos.x
   let iconY = warningY
-  let iconSize = if enemy.isBoss: 16 else: 12
+  let iconSize = if enemy.isBoss: 14 else: 10
   
-  # Glow layers
-  for i in 1..3:
-    let glowSize = iconSize + i * 6
-    let glowAlpha = uint8(alpha.float32 / (i.float32 * 2.0))
-    let glowColor = if enemy.isBoss:
-      Color(r: 255, g: 100, b: 100, a: glowAlpha)
-    else:
-      Color(r: 255, g: 215, b: 0, a: glowAlpha)
-    
-    drawCircle(iconX.int32, iconY.int32, (glowSize div 2).float32, glowColor)
+  # Single subtle glow
+  let glowSize = iconSize + 4
+  let glowAlpha = uint8(alpha.float32 * 0.3)
+  let glowColor = if enemy.isBoss:
+    Color(r: 220, g: 80, b: 80, a: glowAlpha)
+  else:
+    Color(r: 200, g: 170, b: 60, a: glowAlpha)
   
-  # Warning triangle
-  let size = if enemy.isBoss: 10.0 else: 8.0
+  drawCircle(iconX.int32, iconY.int32, (glowSize div 2).float32, glowColor)
+  
+  # Warning triangle (no exclamation mark)
+  let size = if enemy.isBoss: 9.0 else: 7.0
   let x = iconX
   let y = iconY
   
@@ -245,10 +251,6 @@ proc drawEnemyWarningIndicator*(enemy: Enemy) =
     Vector2(x: x + size, y: y - size),       # Top right
     warningColor
   )
-  
-  # Exclamation mark
-  let markSize = if enemy.isBoss: 14 else: 12
-  drawText("!", (x - 4).int32, (y - size + 1).int32, markSize.int32, Black)
 
 proc drawThreatCounter*(screenWidth, screenHeight: int32, threatCount: int) =
   ## Draw enhanced system threat counter in corner

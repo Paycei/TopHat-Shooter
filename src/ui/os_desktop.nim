@@ -11,6 +11,7 @@ type
     diSettings      # Settings panel (Settings.exe)
     diHelp          # Help/Documentation (Help.txt)
     diQuit          # Shutdown (Shutdown.exe)
+    diSandbox       # Sandbox mode (Sandbox.exe)
   
   DesktopIcon* = object
     iconType*: DesktopIconType
@@ -62,7 +63,10 @@ proc newOSDesktop*(): OSDesktop =
                   iconColor: Color(r: 100, g: 255, b: 150, a: 255)),
       DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 5, 
                   selected: false, name: "Shutdown.exe",
-                  iconColor: Color(r: 255, g: 100, b: 100, a: 255))
+                  iconColor: Color(r: 255, g: 100, b: 100, a: 255)),
+      DesktopIcon(iconType: diSandbox, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y, 
+                  selected: false, name: "Sandbox.exe",
+                  iconColor: Color(r: 255, g: 165, b: 0, a: 255))
     ],
     selectedIcon: 0,
     time: 0,
@@ -182,6 +186,15 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 18, icon.iconColor)
     drawRectangle((centerX - 2).int32, (centerY - 18).int32, 4, 15, Black)
     drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 12, Black)
+  
+  of diSandbox:
+    # Sandbox/testing icon - wrench and hammer crossed
+    # Wrench
+    drawRectangle((centerX - 15).int32, (centerY - 5).int32, 12, 3, icon.iconColor)
+    drawCircle(Vector2(x: (centerX - 15).float32, y: centerY.float32), 5, icon.iconColor)
+    # Hammer
+    drawRectangle((centerX + 3).int32, (centerY - 15).int32, 3, 12, icon.iconColor)
+    drawRectangle((centerX).int32, (centerY - 18).int32, 9, 6, icon.iconColor)
   
   # Icon label with shadow
   let labelY = icon.y + ICON_SIZE + 8
@@ -320,13 +333,13 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
           Color(r: 100, g: 255, b: 150, a: 255))
   
   # Bottom desktop info (version and edition)
-  drawText("TopHat-Shooter OS v4.1", 10, (screenHeight - 60).int32, 14,
+  drawText("TopHat-Shooter OS v4.1", 10, (screenHeight - 75).int32, 14,
           Color(r: 100, g: 100, b: 120, a: 200))
-  drawText("[Elemental Edition]", 10, (screenHeight - 45).int32, 12,
+  drawText("[Elemental Edition]", 10, (screenHeight - 58).int32, 12,
           Color(r: 150, g: 150, b: 170, a: 180))
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
-  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Help, 5=Quit
+  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Help, 5=Quit, 6=Sandbox
   ## Returns -1 if no action
   ## Note: Window occlusion should be handled by the calling code
   

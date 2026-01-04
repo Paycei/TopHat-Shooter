@@ -65,8 +65,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Spiral Guardian",
       bossID: 1,
-      baseHP: 130.0,  # NERFED from 150.0 (dies faster)
-      baseSpeed: 60.0,  # NERFED from 65.0 (moves slower)
+      baseHP: 125.0,  # NERFED from 150.0 (dies faster)
+      baseSpeed: 50.0,  # NERFED from 65.0 (moves slower)
       baseDamage: 1,
       baseRadius: 45.0,
       color: Color(r: 100, g: 50, b: 200, a: 255),
@@ -78,7 +78,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 1.0,
           damageMultiplier: 1.0,
-          defenseMultiplier: 1.0,
+          defenseMultiplier: 0.85,
           color: Color(r: 100, g: 50, b: 200, a: 255),
           visualEffect: "pulse",
           specialBehavior: "circle_movement",
@@ -86,17 +86,17 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 0.9,  # NERFED from 0.875 (slower attacks)
+              cooldown: 0.7,  # BUFFED from 0.9 (faster attacks)
               projectileSpeed: 160.0,  # NERFED from 170.0 (easier to dodge)
-              projectileCount: 8,  # NERFED from 10 (less bullets)
+              projectileCount: 10,  # BUFFED from 8 (more bullets)
               spreadAngle: 45.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 2.25,  # NERFED from 1.75 (less frequent)
-              projectileSpeed: 175.0,  # NERFED from 200.0 (slower)
+              cooldown: 1.5,  # BUFFED from 2.25 (more frequent)
+              projectileSpeed: 195.0,  # NERFED from 200.0 (slower)
               projectileCount: 3,
               spreadAngle: 20.0,
               durationOrRadius: 0.0
@@ -105,10 +105,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         ),
         BossPhaseDefinition(
           name: "Spiral Rage",
-          hpThreshold: 0.5,
-          speedMultiplier: 0.95,
+          hpThreshold: 0.35,
+          speedMultiplier: 0.975,
           damageMultiplier: 1.0,
-          defenseMultiplier: 0.9,
+          defenseMultiplier: 1.1,
           color: Color(r: 150, g: 30, b: 255, a: 255),
           visualEffect: "aura",
           specialBehavior: "aggressive",
@@ -116,7 +116,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 1.4,  # NERFED from 1.0 (slower attacks)
+              cooldown: 1.0,  # NERFED from 1.0 (slower attacks)
               projectileSpeed: 170.0,  # NERFED from 185.0 (easier to dodge)
               projectileCount: 10,  # NERFED from 12 (less bullets)
               spreadAngle: 30.0,
@@ -125,7 +125,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 3.5,  # NERFED from 2.5 (less frequent)
+              cooldown: 3.0,  # NERFED from 2.5 (less frequent)
               projectileSpeed: 112.5,  # NERFED from 125.0 (easier to dodge)
               projectileCount: 10,  # NERFED from 12 (less bullets)
               spreadAngle: 360.0,
@@ -134,8 +134,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 3.0,  # NERFED from 2.5 (less frequent)
-              projectileSpeed: 175.0,  # NERFED from 200.0 (easier to dodge)
+              cooldown: 2.5,  # BUFFED from 3.5
+              projectileSpeed: 200.0,  # BUFFED from 185.0
               projectileCount: 4,
               spreadAngle: 25.0,
               durationOrRadius: 0.0

@@ -18,7 +18,8 @@ proc initSettings*(): Settings =
     mouseSupport: true,  # Mouse support enabled by default
     showCursorInMenus: true,  # Show cursor in menus by default
     showDebugStats: false,  # Debug stats disabled by default
-    showHints: true  # Hints enabled by default
+    showHints: true,  # Hints enabled by default
+    showEnemyLabels: true  # Enemy labels enabled by default
   )
   globalSettings = result
   
@@ -251,6 +252,22 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
             Vector2(x: (checkboxX + 22).float32, y: (hintsCheckboxY + 5).float32), 3, Green)
   
   drawText("(E: Wall, ESC: Pause)", checkboxX + checkboxSize + 20, showHintsY, 20, LightGray)
+  
+  # Show Enemy Labels Setting - position changes based on whether Show Cursor is visible
+  let showEnemyLabelsY: int32 = if not settings.mouseSupport: 700 else: 645
+  drawText("Show Enemy Labels:", 200'i32, showEnemyLabelsY, 24, White)
+  let enemyLabelsCheckboxY: int32 = showEnemyLabelsY + 5
+  
+  drawRectangle(checkboxX, enemyLabelsCheckboxY, checkboxSize, checkboxSize, checkboxColor)
+  drawRectangleLines(checkboxX, enemyLabelsCheckboxY, checkboxSize, checkboxSize, Gray)
+  
+  if settings.showEnemyLabels:
+    drawLine(Vector2(x: (checkboxX + 5).float32, y: (enemyLabelsCheckboxY + 12).float32),
+            Vector2(x: (checkboxX + 12).float32, y: (enemyLabelsCheckboxY + 20).float32), 3, Green)
+    drawLine(Vector2(x: (checkboxX + 12).float32, y: (enemyLabelsCheckboxY + 20).float32),
+            Vector2(x: (checkboxX + 22).float32, y: (enemyLabelsCheckboxY + 5).float32), 3, Green)
+  
+  drawText("(name tags above enemies)", checkboxX + checkboxSize + 20, showEnemyLabelsY, 20, LightGray)
   
   # Back instruction
   drawText("Press ESC to return to menu", screenWidth div 2 - 180, 
@@ -505,6 +522,14 @@ proc updateSettings*(settings: Settings): bool =
     elif mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
        mousePos.y >= hintsCheckboxY.float32 and mousePos.y <= (hintsCheckboxY + checkboxSize).float32:
       settings.showHints = not settings.showHints
+      playSound(stMenuNav)
+      settingsChanged = true
+    
+    # Show Enemy Labels checkbox
+    let enemyLabelsCheckboxY: int32 = if not settings.mouseSupport: 705 else: 650  # Dynamic based on mouse support
+    if mousePos.x >= checkboxX.float32 and mousePos.x <= (checkboxX + checkboxSize).float32 and
+       mousePos.y >= enemyLabelsCheckboxY.float32 and mousePos.y <= (enemyLabelsCheckboxY + checkboxSize).float32:
+      settings.showEnemyLabels = not settings.showEnemyLabels
       playSound(stMenuNav)
       settingsChanged = true
   

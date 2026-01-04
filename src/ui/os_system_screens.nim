@@ -6,7 +6,7 @@ import raylib, types, math
 
 const
   SCREEN_WIDTH = 900
-  SCREEN_HEIGHT = 550
+  SCREEN_HEIGHT = 600  # Increased from 550 to 650 for more space
   BUTTON_WIDTH = 220
   BUTTON_HEIGHT = 48
   STAT_LINE_HEIGHT = 32
@@ -67,8 +67,9 @@ proc drawStat(x, y: int32, label, value: string, icon: string = "•",
   
   drawText(value, x + 450, y + 2, 15, valueColor)
 
-proc drawSystemCrash*(game: Game) =
+proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   ## Draw the enhanced Game Over screen as a modern system crash
+  ## selectedButton: 0=Restart, 1=Stats, 2=Exit
   let screenWidth = game.screenWidth
   let screenHeight = game.screenHeight
   
@@ -173,27 +174,27 @@ proc drawSystemCrash*(game: Game) =
   
   drawStat(windowX + 40, yOffset, "Resources Collected:", $game.player.coins, "[$]",
           Color(r: 255, g: 215, b: 0, a: 255))
-  yOffset += 50
+  yOffset += 50  # Good spacing before buttons
   
-  # Action buttons section
-  let buttonY = windowY + SCREEN_HEIGHT - 100
+  # Action buttons section - Positioned at bottom with proper spacing
+  let buttonY = windowY + SCREEN_HEIGHT - 100  # 100px from bottom (plenty of space now)
   let buttonSpacing = 40
   let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
   let buttonsX = (screenWidth - totalButtonWidth) div 2
   
-  # Restart button (primary)
+  # Restart button (0) - Highlight if selected
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "[R] RESTART SYSTEM", "[SPACE]", true, game.time)
+                  "RESTART SYSTEM", "[R] [SPACE]", selectedButton == 0, game.time)
   
-  # View Stats button
+  # View Stats button (1) - Highlight if selected
   let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
   drawModernButton(int32(statsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "[V] VIEW LOGS", "[TAB]", false, game.time)
+                  "VIEW LOGS", "[V] [TAB]", selectedButton == 1, game.time)
   
-  # Exit button
+  # Exit button (2) - Highlight if selected
   let exitX = statsX + BUTTON_WIDTH + buttonSpacing
   drawModernButton(int32(exitX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "EXIT", "[ESC]", false, game.time)
+                  "EXIT", "[ESC] [Q]", selectedButton == 2, game.time)
   
   # Footer warning text
   let footerY = windowY + SCREEN_HEIGHT - 35
