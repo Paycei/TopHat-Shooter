@@ -333,9 +333,9 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
           Color(r: 100, g: 255, b: 150, a: 255))
   
   # Bottom desktop info (version and edition)
-  drawText("TopHat-Shooter OS v4.1", 10, (screenHeight - 75).int32, 14,
+  drawText("TopHat-Shooter", 10, (screenHeight - 75).int32, 14,
           Color(r: 100, g: 100, b: 120, a: 200))
-  drawText("[Elemental Edition]", 10, (screenHeight - 58).int32, 12,
+  drawText("[OS v5.0 Edition]", 10, (screenHeight - 58).int32, 12,
           Color(r: 150, g: 150, b: 170, a: 180))
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =

@@ -27,7 +27,7 @@ proc newSplashScreen*(): SplashScreen =
     phase: bpBIOS,
     timer: 0,
     bootMessages: @[
-      "BIOS v4.1.0 - TopHat Systems",
+      "BIOS v5.0.0 - TopHat Systems",
       "CPU: ElementalCore i9-9900K @ 3.60GHz",
       "Memory: 16384 MB OK",
       "Detecting hardware...",
@@ -35,7 +35,7 @@ proc newSplashScreen*(): SplashScreen =
       "Loading bootloader...",
       "GRUB version 2.04",
       "",
-      "Loading kernel: tophat-shooter-4.1",
+      "Loading kernel: tophat-shooter-5.0",
       "Initializing game engine...",
       "Starting graphics subsystem...",
       "Loading audio drivers...",
@@ -50,7 +50,7 @@ proc newSplashScreen*(): SplashScreen =
       "[ OK ] Statistics Tracker",
       "[ OK ] Discord Integration",
       "",
-      "TopHat-Shooter OS 4.1 [Elemental Edition]",
+      "TopHat-Shooter OS [OS v5.0 Edition]",
       "Ready to play.",
       ""
     ],
