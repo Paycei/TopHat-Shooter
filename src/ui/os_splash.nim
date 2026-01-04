@@ -50,7 +50,7 @@ proc newSplashScreen*(): SplashScreen =
       "[ OK ] Statistics Tracker",
       "[ OK ] Discord Integration",
       "",
-      "TopHat-Shooter OS [OS v5.0 Edition]",
+      "TopHat-Shooter OS [v5.0 Edition]",
       "Ready to play.",
       ""
     ],
