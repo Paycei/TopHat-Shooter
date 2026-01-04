@@ -348,7 +348,52 @@ proc main() =
         discard updateStatsWindow(osStatsWindow, dt, screenWidth, screenHeight)
       
       if not osHelpWindow.isNil and osHelpWindow.window.visible:
-        discard updateHelpWindow(osHelpWindow, dt, screenWidth, screenHeight)
+        let iconToExecute = updateHelpWindow(osHelpWindow, dt, screenWidth, screenHeight)
+        # Handle icon execution from help window commands
+        if iconToExecute >= 0:
+          osHelpWindow.window.visible = false
+          playSound(stMenuSelect)
+          case iconToExecute
+          of 0:  # Play.exe - Wave-Based Mode
+            currentGame = newGame(screenWidth, screenHeight)
+            currentGame.discordClient = globalDiscordClient
+            setGameMode(currentGame, gmWaveBased)
+            initializeRunTracking(currentGame)
+            currentGame.state = gsPlaying
+            statsSavedThisGame = false
+          of 1:  # Survival.exe - Time Survival Mode
+            currentGame = newGame(screenWidth, screenHeight)
+            currentGame.discordClient = globalDiscordClient
+            setGameMode(currentGame, gmTimeSurvival)
+            initializeRunTracking(currentGame)
+            currentGame.state = gsPlaying
+            statsSavedThisGame = false
+          of 2:  # Stats.exe - Open Statistics Window
+            discard loadStatistics(stats)
+            let freshRunStats = loadLastRunStats()
+            if not freshRunStats.isNil:
+              loadLastCompletedRun(freshRunStats)
+            if osStatsWindow.isNil:
+              osStatsWindow = newStatsWindow(screenWidth, screenHeight, stats)
+            else:
+              osStatsWindow.stats = stats
+            osStatsWindow.window.visible = true
+            osStatsWindow.window.focused = true
+          of 3:  # Settings.exe - Open Settings Window
+            if osSettingsWindow.isNil:
+              osSettingsWindow = newSettingsWindow(screenWidth, screenHeight, settings)
+            osSettingsWindow.window.visible = true
+            osSettingsWindow.window.focused = true
+          of 5:  # Shutdown.exe - Quit
+            break
+          of 6:  # Sandbox.exe - Sandbox Mode
+            currentGame = newGame(screenWidth, screenHeight)
+            currentGame.discordClient = globalDiscordClient
+            setGameMode(currentGame, gmSandbox)
+            initializeRunTracking(currentGame)
+            currentGame.state = gsPlaying
+            statsSavedThisGame = false
+          else: discard
       
       beginGameDrawing()
       drawOSDesktop(osDesktop, screenWidth, screenHeight)
@@ -1196,9 +1241,11 @@ proc main() =
       # SPACE and R both trigger restart (button 0)
       if (isKeyPressed(Space) or isKeyPressed(R)) or 
          (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 0):
+        # Store the current game mode before restarting
+        let previousMode = currentGame.gameMode
         currentGame = newGame(screenWidth, screenHeight)
         currentGame.discordClient = globalDiscordClient
-        setGameMode(currentGame, gmWaveBased)  # Default to wave-based on restart
+        setGameMode(currentGame, previousMode)  # Preserve the game mode
         initializeRunTracking(currentGame)  # Start tracking
         currentGame.state = gsPlaying
         playSound(stMenuSelect)
@@ -1257,10 +1304,11 @@ proc main() =
       # Mouse click handling
       if isMouseButtonPressed(Left):
         if checkCollisionPointRec(mousePos, restartRect):
-          # Restart game
+          # Restart game - preserve game mode
+          let previousMode = currentGame.gameMode
           currentGame = newGame(screenWidth, screenHeight)
           currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, gmWaveBased)
+          setGameMode(currentGame, previousMode)  # Preserve the game mode
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           playSound(stMenuSelect)

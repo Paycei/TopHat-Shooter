@@ -53,7 +53,9 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
   
   # Calculate label dimensions - much more compact
   let labelPadding = if enemy.isBoss: 4 else: 3  # Minimal padding (was 8/6)
-  let totalWidth = labelWidth + labelPadding * 2
+  # Add space for icon prefix: [X]/[E] icons are ~16px, * icon is ~12px
+  let iconWidth = if enemy.isBoss or enemy.isElite: 20 else: 14
+  let totalWidth = labelWidth + labelPadding * 2 + iconWidth
   let labelHeight = if showHealthBar: (if enemy.isBoss: 20 else: 18) else: 14  # Much shorter (was 38/28)
   
   let labelX = enemy.pos.x - (totalWidth.float32 / 2.0)

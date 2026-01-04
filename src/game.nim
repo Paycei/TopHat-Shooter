@@ -2084,9 +2084,11 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             else: etCube
         
         # Create minion with determined type
+        # FIXED: Boss minions should NOT scale with time - use fixed difficulty
+        # Use a fixed base difficulty (1.0) so minions don't become stronger over time
         let minion = newEnemy(
           spawnX, spawnY, 
-          game.difficulty * 0.6,  # Minions are weaker than regular enemies
+          1.0,  # Fixed difficulty - does NOT scale with time
           thisType,
           game
         )

@@ -358,10 +358,11 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     puWindBullets, puWindOrb
   ]
   
-  # Define orb, aura, and bullet groups for exclusivity
+  # Define orb, aura, bullet, and mastery groups for exclusivity
   let orbTypes = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb, puRotatingOrbs]
   let auraTypes = [puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura, puDamageZone]
   let bulletTypes = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets]
+  let masteryTypes = [puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, puLightningMastery, puWindMastery, puBloodMastery]
   
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
@@ -385,11 +386,12 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     let j = rand(i)
     swap(availablePowerUps[i], availablePowerUps[j])
   
-  # NEW: Apply grouping logic - ensure at most 1 orb, 1 aura, and 1 elemental bullet
+  # NEW: Apply grouping logic - ensure at most 1 orb, 1 aura, 1 elemental bullet, and 1 mastery
   var selectedPowerUps: seq[PowerUp] = @[]
   var hasOrb = false
   var hasAura = false
   var hasBullet = false
+  var hasMastery = false
   
   for powerUp in availablePowerUps:
     if selectedPowerUps.len >= 3:
@@ -401,6 +403,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     let isAura = powerUp.powerType in auraTypes
     # Check if this is an elemental bullet type
     let isBullet = powerUp.powerType in bulletTypes
+    # Check if this is a mastery type
+    let isMastery = powerUp.powerType in masteryTypes
     
     # Skip if we already have an orb and this is an orb
     if isOrb and hasOrb:
@@ -414,6 +418,10 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     if isBullet and hasBullet:
       continue
     
+    # Skip if we already have a mastery and this is a mastery
+    if isMastery and hasMastery:
+      continue
+    
     # Add this power-up and mark categories
     selectedPowerUps.add(powerUp)
     if isOrb:
@@ -422,6 +430,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
       hasAura = true
     if isBullet:
       hasBullet = true
+    if isMastery:
+      hasMastery = true
   
   # Fill result with selected power-ups (up to 3)
   for i in 0..2:
@@ -429,7 +439,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
       result[i] = selectedPowerUps[i]
     else:
       # If we run out, create random power-ups from the CORRECT pool
-      # Make sure we don't violate orb/aura/bullet restrictions
+      # Make sure we don't violate orb/aura/bullet/mastery restrictions
       var attempts = 0
       while attempts < 100:  # Prevent infinite loop
         let randomPowerUp = if isLegendary:
@@ -442,9 +452,10 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
         let isOrb = randomPowerUp.powerType in orbTypes
         let isAura = randomPowerUp.powerType in auraTypes
         let isBullet = randomPowerUp.powerType in bulletTypes
+        let isMastery = randomPowerUp.powerType in masteryTypes
         
         # Check if this violates our grouping rules
-        if (isOrb and hasOrb) or (isAura and hasAura) or (isBullet and hasBullet):
+        if (isOrb and hasOrb) or (isAura and hasAura) or (isBullet and hasBullet) or (isMastery and hasMastery):
           attempts += 1
           continue
         
@@ -455,6 +466,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
           hasAura = true
         if isBullet:
           hasBullet = true
+        if isMastery:
+          hasMastery = true
         break
 
 # ROTATING ORBS SYSTEM

@@ -549,6 +549,9 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   yOffset += 42
   
   # Enhanced Progress section with level badges
+  # Legendary power-ups only have 1 tier, others have 3
+  let maxTiers = if powerUp.rarity == prLegendary: 1 else: 3
+  
   drawText("UPGRADE TIER:", x + 12, yOffset, 12,  
           Color(r: 140, g: 160, b: 180, a: 255))
   yOffset += 20
@@ -556,10 +559,10 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   # Level indicator badges (visual tier system)
   let badgeSize: int32 = 18
   let badgeSpacing: int32 = 8
-  let totalBadgeWidth: int32 = (badgeSize * 3) + (badgeSpacing * 2)
+  let totalBadgeWidth: int32 = (badgeSize * maxTiers).int32 + (badgeSpacing * (maxTiers - 1)).int32
   let badgeStartX: int32 = x + (width - totalBadgeWidth) div 2
   
-  for tier in 1..3:
+  for tier in 1..maxTiers:
     let badgeX: int32 = int32(badgeStartX + (tier - 1) * (badgeSize + badgeSpacing))
     let isActive = tier <= powerUp.level
     
@@ -617,16 +620,17 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   drawRectangle(x + 12, yOffset, barWidth, PROGRESS_BAR_HEIGHT,
                Color(r: 28, g: 32, b: 42, a: 255))
   
-  # Draw segment dividers
-  for i in 1..2:
-    let segmentX: int32 = int32(x + 12 + (barWidth * i) div 3)
-    drawLine(segmentX, yOffset, segmentX, yOffset + PROGRESS_BAR_HEIGHT,
-            Color(r: 50, g: 60, b: 75, a: 255))
+  # Draw segment dividers (only if there are multiple tiers)
+  if maxTiers > 1:
+    for i in 1..(maxTiers - 1):
+      let segmentX: int32 = int32(x + 12 + (barWidth * i) div maxTiers)
+      drawLine(segmentX, yOffset, segmentX, yOffset + PROGRESS_BAR_HEIGHT,
+              Color(r: 50, g: 60, b: 75, a: 255))
   
   # Fill bar with gradient per level
   for level in 1..powerUp.level:
-    let segmentStart: int32 = int32(x + 12 + (barWidth * (level - 1)) div 3)
-    let segmentEnd: int32 = int32(x + 12 + (barWidth * level) div 3)
+    let segmentStart: int32 = int32(x + 12 + (barWidth * (level - 1)) div maxTiers)
+    let segmentEnd: int32 = int32(x + 12 + (barWidth * level) div maxTiers)
     let segmentWidth: int32 = segmentEnd - segmentStart
     
     let levelColor = case level
@@ -651,7 +655,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
                     2, Color(r: 80, g: 95, b: 115, a: 255))
   
   # Level text with better styling
-  let levelText = "TIER " & $powerUp.level & " / 3"
+  let levelText = "TIER " & $powerUp.level & " / " & $maxTiers
   let levelWidth = measureText(levelText, 12)
   # Text background
   let textBgX = x + 12 + (barWidth - levelWidth - 8) div 2
