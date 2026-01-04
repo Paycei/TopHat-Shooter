@@ -86,17 +86,17 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 0.7,  # BUFFED from 0.9 (faster attacks)
+              cooldown: 0.75,  # BUFFED from 0.9 (faster attacks)
               projectileSpeed: 160.0,  # NERFED from 170.0 (easier to dodge)
-              projectileCount: 10,  # BUFFED from 8 (more bullets)
+              projectileCount: 9,  # BUFFED from 8 (more bullets)
               spreadAngle: 45.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 1.5,  # BUFFED from 2.25 (more frequent)
-              projectileSpeed: 195.0,  # NERFED from 200.0 (slower)
+              cooldown: 1.75,  # BUFFED from 2.25 (more frequent)
+              projectileSpeed: 190.0,  # NERFED from 200.0 (slower)
               projectileCount: 3,
               spreadAngle: 20.0,
               durationOrRadius: 0.0
@@ -134,7 +134,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 2.5,  # BUFFED from 3.5
+              cooldown: 2.75,  # BUFFED from 3.5
               projectileSpeed: 200.0,  # BUFFED from 185.0
               projectileCount: 4,
               spreadAngle: 25.0,
@@ -768,7 +768,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Critical Overload",
           hpThreshold: 0.3,
-          speedMultiplier: 1.2,  # HEAVILY NERFED from 1.3
+          speedMultiplier: 1.1,  # HEAVILY NERFED from 1.3
           damageMultiplier: 1.5,  # HEAVILY NERFED from 1.7
           defenseMultiplier: 0.9,
           color: Color(r: 255, g: 200, b: 0, a: 255),
@@ -1005,7 +1005,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Unstoppable",
           hpThreshold: 0.3,
-          speedMultiplier: 1.4,  # HEAVILY NERFED from 1.6
+          speedMultiplier: 1.2,  # HEAVILY NERFED from 1.6
           damageMultiplier: 1.7,  # HEAVILY NERFED from 2.0
           defenseMultiplier: 0.8,
           color: Color(r: 255, g: 0, b: 0, a: 255),
@@ -1093,7 +1093,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Spectrum",
           hpThreshold: 0.6,
           speedMultiplier: 1.05,  # HEAVILY NERFED from 1.15
-          damageMultiplier: 1.2,  # HEAVILY NERFED from 1.35
+          damageMultiplier: 1.1,  # HEAVILY NERFED from 1.35
           defenseMultiplier: 1.2,
           color: Color(r: 255, g: 180, b: 255, a: 255),
           visualEffect: "aura",
@@ -1263,7 +1263,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Future",
           hpThreshold: 0.4,
-          speedMultiplier: 1.25,  # HEAVILY NERFED from 1.8
+          speedMultiplier: 1.2,  # HEAVILY NERFED from 1.8
           damageMultiplier: 1.4,  # HEAVILY NERFED from 2.0
           defenseMultiplier: 0.9,  # NERFED from 1.0
           color: Color(r: 100, g: 255, b: 255, a: 255),
@@ -1320,7 +1320,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Discord",
           hpThreshold: 1.0,
-          speedMultiplier: 1.1,  # NERFED from 1.3
+          speedMultiplier: 1.05,  # NERFED from 1.3
           damageMultiplier: 0.9,  # NERFED from 1.0
           defenseMultiplier: 1.2,  # NERFED from 1.3
           color: Color(r: 180, g: 0, b: 180, a: 255),
@@ -1361,7 +1361,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Entropy",
           hpThreshold: 0.6,
-          speedMultiplier: 1.2,  # HEAVILY NERFED from 1.6
+          speedMultiplier: 1.1,  # HEAVILY NERFED from 1.6
           damageMultiplier: 1.2,  # HEAVILY NERFED from 1.5
           defenseMultiplier: 1.0,  # NERFED from 1.1
           color: Color(r: 200, g: 40, b: 200, a: 255),
@@ -1412,7 +1412,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Pure Chaos",
           hpThreshold: 0.35,
-          speedMultiplier: 1.35,  # HEAVILY NERFED from 2.0
+          speedMultiplier: 1.2,  # HEAVILY NERFED from 2.0
           damageMultiplier: 1.4,  # HEAVILY NERFED from 2.0
           defenseMultiplier: 0.85,  # NERFED from 0.9
           color: Color(r: 255, g: 100, b: 255, a: 255),
@@ -1547,7 +1547,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Gamma Phase",
           hpThreshold: 0.5,
-          speedMultiplier: 1.2,  # HEAVILY NERFED from 1.5
+          speedMultiplier: 1.15,  # HEAVILY NERFED from 1.5
           damageMultiplier: 1.25,  # HEAVILY NERFED from 1.6
           defenseMultiplier: 1.0,  # NERFED from 1.1
           color: Color(r: 255, g: 255, b: 0, a: 255),
@@ -1595,9 +1595,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Omega Phase",
           hpThreshold: 0.25,
-          speedMultiplier: 1.4,  # HEAVILY NERFED from 2.0
-          damageMultiplier: 1.6,  # HEAVILY NERFED from 2.5
-          defenseMultiplier: 0.9,  # NERFED from 1.0
+          speedMultiplier: 1.2,  # HEAVILY NERFED from 2.0
+          damageMultiplier: 1.5,  # HEAVILY NERFED from 2.5
+          defenseMultiplier: 0.8,  # NERFED from 1.0
           color: Color(r: 255, g: 0, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "final_form",
