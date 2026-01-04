@@ -288,6 +288,9 @@ type
     lastAuraDamageNumberTime*: float32  # Last time a damage number was shown for auras
     auraDamageHadCrit*: bool  # Track if any crit occurred during accumulation period
     lastAuraDamageType*: DamageType  # Track the damage type of accumulated aura damage
+    # Contact damage accumulation (for player passing through enemies)
+    contactDamageAccumulator*: float32  # Accumulates contact damage over time
+    lastContactDamageNumberTime*: float32  # Last time a damage number was shown for contact
 
   Bullet* = ref object
     pos*: Vector2f

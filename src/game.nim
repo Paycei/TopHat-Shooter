@@ -536,6 +536,40 @@ proc flushAccumulatedAuraDamage*(game: Game, enemy: Enemy) =
     enemy.auraDamageAccumulator = 0
     enemy.auraDamageHadCrit = false
 
+proc accumulateAndShowContactDamage(game: Game, enemy: Enemy, actualDamage: float32) =
+  ## Accumulates contact damage and displays damage numbers every 0.5 seconds
+  ## Shows accumulated damage to prevent spam from 10 HP/sec ticks
+  const DAMAGE_NUMBER_INTERVAL = 0.5  # Show damage numbers every 0.5 seconds
+  
+  # Initialize timer on first contact damage tick
+  if enemy.lastContactDamageNumberTime == 0:
+    enemy.lastContactDamageNumberTime = game.time
+  
+  # Accumulate damage
+  enemy.contactDamageAccumulator += actualDamage
+  
+  # Check if enough time has passed to show a damage number
+  let timeSinceLastNumber = game.time - enemy.lastContactDamageNumberTime
+  
+  if timeSinceLastNumber >= DAMAGE_NUMBER_INTERVAL:
+    # Time to show accumulated damage
+    if enemy.contactDamageAccumulator > 0:
+      game.showDamage(enemy.pos, enemy.contactDamageAccumulator, fromPlayer = true, 
+                      isCritical = false, damageType = dtDefault)
+    
+    # Reset accumulator and timer
+    enemy.contactDamageAccumulator = 0
+    enemy.lastContactDamageNumberTime = game.time
+
+proc flushAccumulatedContactDamage*(game: Game, enemy: Enemy) =
+  ## Force display of any accumulated contact damage (used when enemy dies)
+  ## This ensures players see the total damage dealt even if enemy dies before 0.5s interval
+  if enemy.contactDamageAccumulator > 0:
+    game.showDamage(enemy.pos, enemy.contactDamageAccumulator, fromPlayer = true,
+                    isCritical = false, damageType = dtDefault)
+    # Reset accumulator
+    enemy.contactDamageAccumulator = 0
+
 # THORNS REFLECTION HELPER
 
 proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: float32, 
@@ -3722,34 +3756,50 @@ proc updateGame*(game: var Game, dt: float32) =
           enemy.lastContactDamageTime = game.time
           spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Red, 10)
       else:
-        # Regular enemies die on contact
-        var enemyContactDamage = enemy.contactDamage.float32  # FIX: Use contactDamage instead of damage
-        
-        # Venomous elite effect - applies poison to player
-        # Handles multiple elite types (wave 25+)
-        # NERFED: Reduced poison damage from 1.0 DPS to 0.5 DPS (1.5 total over 3s instead of 3.0)
-        if enemy.isElite and etVenomous in enemy.eliteTypes:
-          game.player.poisonTimer = 3.0  # 3 seconds of poison
-          game.player.poisonDamage = 0.5  # 0.5 DPS = 1.5 total damage (NERFED from 1.0)
-          game.player.poisonAccumulator = 0.0  # Reset accumulator for new poison application
-          spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 10)
-        
-        # Thorns reflection damage - kills enemy if damage exceeds HP
-        discard applyThornsReflection(game, game.player, enemyContactDamage, enemy, "contact")
-        
-        if takeDamage(game.player, enemyContactDamage):
-          game.state = gsGameOver
-        
-        # Track enemy contact damage for statistics
-        trackPlayerDamage(game, enemyContactDamage, enemy.enemyType)
-        
-        # Create damage number for enemy contact damage
-        showDamage(game, game.player.pos, enemyContactDamage, false, false, dtDefault)
-        
-        playSound(stPlayerHit, 0.5)
-        enemy.hp = 0
-        game.enemies.delete(enemyIdx)
-        continue
+        # Regular enemies take continuous damage from player contact (10 HP/sec)
+        if game.time - enemy.lastContactDamageTime >= 0.1:  # Check every 0.1 seconds
+          var enemyContactDamage = enemy.contactDamage.float32  # Damage enemy deals to player
+          
+          # Venomous elite effect - applies poison to player
+          # Handles multiple elite types (wave 25+)
+          # NERFED: Reduced poison damage from 1.0 DPS to 0.5 DPS (1.5 total over 3s instead of 3.0)
+          if enemy.isElite and etVenomous in enemy.eliteTypes:
+            game.player.poisonTimer = 3.0  # 3 seconds of poison
+            game.player.poisonDamage = 0.5  # 0.5 DPS = 1.5 total damage (NERFED from 1.0)
+            game.player.poisonAccumulator = 0.0  # Reset accumulator for new poison application
+            spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 10)
+          
+          # Thorns reflection damage - damages enemy but doesn't kill instantly
+          discard applyThornsReflection(game, game.player, enemyContactDamage, enemy, "contact")
+          
+          if takeDamage(game.player, enemyContactDamage):
+            game.state = gsGameOver
+          
+          # Track enemy contact damage for statistics
+          trackPlayerDamage(game, enemyContactDamage, enemy.enemyType)
+          
+          # Create damage number for player taking damage
+          showDamage(game, game.player.pos, enemyContactDamage, false, false, dtDefault)
+          
+          playSound(stPlayerHit, 0.5)
+          
+          # Deal 1 HP damage to enemy (10 times per second = 10 HP/sec)
+          let contactDamageToEnemy = 1.0
+          enemy.hp -= contactDamageToEnemy
+          enemy.lastContactDamageTime = game.time
+          
+          # Accumulate damage for damage number display (shows every 0.5s)
+          accumulateAndShowContactDamage(game, enemy, contactDamageToEnemy)
+          
+          # Visual feedback for enemy taking contact damage (small explosion)
+          spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, enemy.color, 3)
+          
+          # Remove enemy if HP reaches 0
+          if enemy.hp <= 0:
+            # Flush any accumulated contact damage before death
+            flushAccumulatedContactDamage(game, enemy)
+            game.enemies.delete(enemyIdx)
+            continue
     
     enemyIdx += 1
   
