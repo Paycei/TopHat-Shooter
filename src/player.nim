@@ -339,8 +339,9 @@ proc drawPlayer*(player: Player) =
   # Draw rotating orbs (if player has any orb power-ups)
   # Check if player has any orb power-ups before rendering
   if hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
-    # Scale orb size with player size (increased from 0.3 to 0.45)
-    let orbSizeScale = 6.0 + (player.radius - player.baseRadius) * 0.45
+    # BUFFED: Increased base size from 6.0 to 9.0 to 13.0 and scale from 0.45 to 0.6 to 0.85
+    # Scale orb size with player size (larger orbs for better visibility and impact)
+    let orbSizeScale = 13.0 + (player.radius - player.baseRadius) * 0.85
     
     for orb in player.rotatingOrbs:
       # Calculate orb position
@@ -352,10 +353,10 @@ proc drawPlayer*(player: Player) =
       let color = getElementColor(orb.elementType)
       
       # IMPROVED: Multi-layered orb with glow effects and trails
-      # Outer glow aura - scaled
-      drawCircle(Vector2(x: orbX, y: orbY), 12 + (orbSizeScale - 6.0) * 2.0, 
+      # Outer glow aura - FIXED: Reduced glow size from 12/9 to 8/6 for less overwhelming effect
+      drawCircle(Vector2(x: orbX, y: orbY), 8 + (orbSizeScale - 6.0) * 1.2, 
                 Color(r: color.r, g: color.g, b: color.b, a: 30))
-      drawCircle(Vector2(x: orbX, y: orbY), 9 + (orbSizeScale - 6.0) * 1.5, 
+      drawCircle(Vector2(x: orbX, y: orbY), 6 + (orbSizeScale - 6.0) * 1.0, 
                 Color(r: color.r, g: color.g, b: color.b, a: 60))
       
       # Main orb body - scaled
@@ -366,11 +367,11 @@ proc drawPlayer*(player: Player) =
       drawCircleLines(orbX.int32, orbY.int32, pulseSize, 
                      Color(r: color.r, g: color.g, b: color.b, a: 180))
       
-      # Bright core with highlight - scaled
-      drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale * 0.5,
-                Color(r: 255, g: 255, b: 255, a: 200))
-      drawCircle(Vector2(x: orbX - (orbSizeScale * 0.25), y: orbY - (orbSizeScale * 0.25)), orbSizeScale * 0.25,
-                Color(r: 255, g: 255, b: 255, a: 255))
+      # Bright core with highlight - FIXED: Made highlight much more subtle (reduced size and opacity)
+      drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale * 0.4,
+                Color(r: 255, g: 255, b: 255, a: 150))
+      drawCircle(Vector2(x: orbX - (orbSizeScale * 0.15), y: orbY - (orbSizeScale * 0.15)), orbSizeScale * 0.15,
+                Color(r: 255, g: 255, b: 255, a: 180))
       
       # Element-specific visual effects
       case orb.elementType:

@@ -54,7 +54,7 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
   )
   
   # Add welcome message
-  result.outputLines.add(("TopHat-Shooter Help System v5.0", Color(r: 0, g: 255, b: 255, a: 255)))
+  result.outputLines.add(("TopHat-ShooterOS Help System v5.0", Color(r: 0, g: 255, b: 255, a: 255)))
   result.outputLines.add(("Type 'help' for commands or a topic name to learn more.", White))
   result.outputLines.add(("", White))
 

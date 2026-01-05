@@ -82,9 +82,6 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       # Inner valley
       let x2 = cx.float32 + cos(angle2) * (rad * 0.4)
       let y2 = cy.float32 + sin(angle2) * (rad * 0.4)
-      # Next outer point
-      let x3 = cx.float32 + cos(angle3) * rad
-      let y3 = cy.float32 + sin(angle3) * rad
       # Draw filled triangle
       drawTriangle(Vector2(x: cx.float32, y: cy.float32), Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), color)
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, Color(r: min(color.r + 60, 255), g: min(color.g + 60, 255), b: min(color.b + 60, 255), a: color.a))

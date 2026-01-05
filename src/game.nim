@@ -390,6 +390,11 @@ proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
   ## Helper to apply damage to enemy with elite modifiers
   ## Combines applyEliteModifiers and HP reduction in one call
   ## Returns the actual damage dealt after modifiers
+  
+  # Check boss invulnerability (during phase transitions)
+  if enemy.isBoss and enemy.invulnerabilityTimer > 0:
+    return 0.0  # No damage dealt during invulnerability
+  
   result = applyEliteModifiers(enemy, baseDamage)
   enemy.hp -= result
 
@@ -569,6 +574,17 @@ proc flushAccumulatedContactDamage*(game: Game, enemy: Enemy) =
                     isCritical = false, damageType = dtDefault)
     # Reset accumulator
     enemy.contactDamageAccumulator = 0
+
+proc calculateMaxHealthContactDamageScale*(player: Player): float32 =
+  ## Calculate damage scaling for player->enemy contact damage based on player's max health
+  ## Higher max health = slightly more contact damage (low scaling)
+  ## This provides gradual power progression as player increases max HP
+
+  # Base max health is 7.0, low scaling: +1% damage per point of max HP above base
+  let baseMaxHp = 7.0
+  let hpAboveBase = max(player.maxHp - baseMaxHp, 0.0)
+  let healthBonus = hpAboveBase * 0.01  # 1% per HP point
+  return 1.0 + healthBonus
 
 # THORNS REFLECTION HELPER
 
@@ -1242,8 +1258,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       let arcaneLevel = getPowerUpLevel(game.player, puArcaneBullets)
       let arcaneMultiplier = case arcaneLevel
         of 1: 0.5   # +50%
-        of 2: 1.0   # +100%
-        else: 1.5   # +150%
+        of 2: 0.85   # +85%
+        else: 1.30   # +130%
       arcaneBulletsBonus = damageBeforePowerUps * arcaneMultiplier
     
     # Apply critical hit chance using pre-calculated stats and capture if it was a crit
@@ -1255,8 +1271,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     var arcaneMasteryBonus = 0.0
     if hasArcane and game.player.hasArcaneMastery:
       let damageBeforeMastery = damage
-      damage *= 3.0  # +200% additional damage on top of Arcane Bullets bonus
-      arcaneMasteryBonus = damage - damageBeforeMastery  # The extra 200%
+      damage *= 2.5  # +150% additional damage on top of Arcane Bullets bonus
+      arcaneMasteryBonus = damage - damageBeforeMastery  # The extra 150%
       arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
     
     # Calculate slow, poison, fire, and wind effects
@@ -1672,6 +1688,75 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Slow movement toward player, charging up
     enemy.pos = enemy.pos + toPlayer * enemy.speed * 0.3 * dt
   
+  of "electric_buildup":
+    # ENHANCED: Twitchy, charging movement (Chain Reactor phase 1)
+    # Moves slowly with sudden micro-movements like electricity
+    let chargeJitter = sin(game.time * 30.0 + cos(game.time * 40.0)) * 20.0 * dt
+    let baseMove = toPlayer * enemy.speed * 0.6 * dt
+    
+    # Multiple jitter directions for electric feel
+    let jitterAngle = game.time * 35.0
+    let jitterX = cos(jitterAngle) * chargeJitter + cos(jitterAngle * 1.7) * chargeJitter * 0.5
+    let jitterY = sin(jitterAngle) * chargeJitter + sin(jitterAngle * 1.3) * chargeJitter * 0.5
+    
+    enemy.pos = enemy.pos + baseMove + newVector2f(jitterX, jitterY)
+    
+    # Constant electric particles
+    if (game.time * 20.0).int mod 3 == 0:
+      let sparkX = enemy.pos.x + (rand(1.0) - 0.5) * enemy.radius * 2
+      let sparkY = enemy.pos.y + (rand(1.0) - 0.5) * enemy.radius * 2
+      spawnExplosion(game.particles, sparkX, sparkY,
+                     Color(r: 255, g: 255, b: 150, a: 255), 1)
+  
+  of "electric_surge":
+    # ENHANCED: Rapid zigzag movement like lightning bolt
+    let surgePhase = (game.time * 15.0).int mod 4
+    let surgeAngle = case surgePhase
+      of 0: arctan2(toPlayer.y, toPlayer.x) + 0.5
+      of 1: arctan2(toPlayer.y, toPlayer.x) - 0.5  
+      of 2: arctan2(toPlayer.y, toPlayer.x) + 0.3
+      else: arctan2(toPlayer.y, toPlayer.x) - 0.3
+    
+    let surgeDir = newVector2f(cos(surgeAngle), sin(surgeAngle))
+    enemy.pos = enemy.pos + surgeDir * enemy.speed * 1.0 * dt
+    
+    # Dense electric particles
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y,
+                   Color(r: 220, g: 230, b: 255, a: 200), 2)
+  
+  of "critical_discharge":
+    # ENHANCED: Ultra-chaotic movement with mini-teleports
+    if rand(100) < 8:  # 8% chance per frame to micro-teleport
+      let zapAngle = rand(1.0) * PI * 2.0
+      let zapDist = 30.0 + rand(50.0)
+      enemy.pos = enemy.pos + newVector2f(cos(zapAngle) * zapDist, sin(zapAngle) * zapDist)
+      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y,
+                     Color(r: 255, g: 255, b: 255, a: 255), 15)
+    else:
+      # Normal zigzag but very fast
+      let dischargeAngle = game.time * 25.0 + sin(game.time * 50.0)
+      let chaosDir = newVector2f(cos(dischargeAngle), sin(dischargeAngle))
+      enemy.pos = enemy.pos + chaosDir * enemy.speed * 1.3 * dt
+  
+  of "orbital_pattern":
+    # Slow, calculated circular orbit (Orbital Commander phase 1)
+    let orbitAngle = game.time * 0.8
+    let orbitRadius = 200.0
+    let orbitX = centerX + cos(orbitAngle) * orbitRadius
+    let orbitY = centerY + sin(orbitAngle) * orbitRadius
+    let toOrbit = (newVector2f(orbitX, orbitY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toOrbit * enemy.speed * dt
+  
+  of "satellite_swarm":
+    # Complex multi-layer orbit (Orbital Commander phase 2)
+    let swarmAngle1 = game.time * 1.2
+    let swarmAngle2 = game.time * 0.6
+    let innerRadius = 150.0 + sin(game.time * 2.0) * 30.0
+    let outerRadius = 200.0
+    let avgX = (cos(swarmAngle1) * innerRadius + cos(swarmAngle2) * outerRadius) / 2.0
+    let avgY = (sin(swarmAngle1) * innerRadius + sin(swarmAngle2) * outerRadius) / 2.0
+    enemy.pos = newVector2f(centerX + avgX, centerY + avgY)
+  
   of "electric_storm":
     # Fast erratic movement
     let angle = game.time * 2.5
@@ -1815,20 +1900,33 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     enemy.pos = newVector2f(entropyX, entropyY)
   
   of "total_chaos":
-    # Maximum chaos - random teleports and movements (Chaos Weaver phase 3)
-    if (game.time * 3.0).int mod 4 == 0:
-      # Random teleport near player
+    # ENHANCED: Maximum chaos - truly unpredictable
+    # Random micro-teleport chance EVERY FRAME
+    if rand(100) < 8:  # 8% chance per frame = ~5 teleports per second
       let chaosAngle = rand(1.0) * PI * 2.0
-      let chaosDist = 120.0 + rand(80.0)
+      let chaosDist = 80.0 + rand(180.0)
+      let newX = game.player.pos.x + cos(chaosAngle) * chaosDist
+      let newY = game.player.pos.y + sin(chaosAngle) * chaosDist
+      
+      # Ensure within bounds
       enemy.pos = newVector2f(
-        game.player.pos.x + cos(chaosAngle) * chaosDist,
-        game.player.pos.y + sin(chaosAngle) * chaosDist
+        clamp(newX, 50.0, game.screenWidth.float32 - 50.0),
+        clamp(newY, 50.0, game.screenHeight.float32 - 50.0)
       )
+      
+      # Chaotic teleport effect
+      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y,
+                     Color(r: uint8(255 - rand(100)), g: uint8(rand(255)), 
+                           b: uint8(255 - rand(100)), a: 255), 25)
     else:
-      # Wild erratic movement
-      let wildAngle = game.time * 10.0 + rand(1.0)
-      let wildDir = newVector2f(cos(wildAngle), sin(wildAngle))
-      enemy.pos = enemy.pos + wildDir * enemy.speed * 1.4 * dt
+      # Erratic movement with random speed bursts
+      let speedMult = 0.8 + rand(0.8)  # 80% to 160% speed
+      let wildAngle = game.time * 12.0 + rand(2.0)
+      let wildDir = newVector2f(
+        cos(wildAngle + sin(game.time * 8.0)),
+        sin(wildAngle + cos(game.time * 11.0))
+      )
+      enemy.pos = enemy.pos + wildDir * enemy.speed * speedMult * dt
   
   of "balanced_assault":
     # Steady circling with balanced approach (Omega Entity phase 1)
@@ -1886,6 +1984,27 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       let chaosAngle = game.time * 8.0 + sin(game.time * 3.0)
       let chaosDir = newVector2f(cos(chaosAngle), sin(chaosAngle))
       enemy.pos = enemy.pos + chaosDir * enemy.speed * 1.5 * dt
+  
+  of "enraged":
+    # Enraged behavior - Extremely aggressive meteor striker behavior (Apocalypse phase)
+    # Ultra-fast aggressive pursuit with erratic movement patterns
+    let enragedSpeed = enemy.speed * 1.2  # 20% speed boost when enraged
+    let enragedAngle = game.time * 4.0 + sin(game.time * 6.0) * 0.8
+    
+    # Primary movement: Aggressive chase with weaving patterns
+    let baseChase = toPlayer * enragedSpeed * dt
+    let weaveOffset = newVector2f(
+      sin(enragedAngle) * 30.0 * dt,
+      cos(enragedAngle * 1.3) * 30.0 * dt
+    )
+    
+    # Combine chase and weave for unpredictable aggressive movement
+    enemy.pos = enemy.pos + baseChase + weaveOffset
+    
+    # Occasional burst movement for added aggression
+    if (game.time * 5.0).int mod 7 == 0:
+      # Sudden burst toward player
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 0.8 * dt
   
   else:
     discard
@@ -1985,15 +2104,22 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           else:
             (i.float32 - actualLaserCount.float / 2.0) * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32 + PI / 2.0
         of "prismatic_cage":
-          # Random radial lasers biased towards player direction
-          # 60% of lasers aim near player, 40% are completely random
-          let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, game.player.pos.x - enemy.pos.x)
-          if rand(100) < 60:
-            # Aim near player with some spread (45 degrees)
-            angleToPlayer + (rand(1.0) - 0.5) * (PI / 2.0)
+          # FIXED: Reduced laser count to prevent lag/crash
+          # Calculate angle biased toward player with radial spread
+          let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, 
+                                       game.player.pos.x - enemy.pos.x)
+          
+          # Create proper radial pattern with player bias
+          let segmentAngle = (PI * 2.0) / actualLaserCount.float32
+          let baseAngle = i.float32 * segmentAngle
+          
+          # 40% of lasers aim near player, 60% are radial
+          if rand(100) < 40:
+            # Aim toward player with spread
+            angleToPlayer + (rand(1.0) - 0.5) * (PI / 3.0)  # ±60° spread
           else:
-            # Completely random direction
-            rand(1.0) * PI * 2.0
+            # Radial distribution with slight randomization
+            baseAngle + (rand(1.0) - 0.5) * 0.2  # ±6° randomization
         of "laser_snipe":
           # Rapid fire lasers aimed directly at player with minimal spread
           let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, game.player.pos.x - enemy.pos.x)
@@ -2038,30 +2164,200 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       enemy.id  # Pass enemy ID so warning can follow boss
     ))
     
-    # NOTE: Lasers are NOT created immediately
-    # They will be created when warning lifetime reaches 0 (handled in updateGame)
-  
   of bapBarrage:
-    # Massive bullet spray
-    for i in 0..<attack.projectileCount:
-      let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
+    # ENHANCED BARRAGE SYSTEM - Massive bullet spray with multiple themes
+    # SpecialData modes:
+    # - "voltage_burst": Electric explosion with yellow bullets (Boss 6)
+    # - "blood_burst": Berserker rage explosion with red bullets (Boss 8)
+    # - "orbital_bombardment": Space bombardment from above (Boss 7)
+    # - "chaos_storm", "entropy_burst": Randomized chaos attacks (Boss 11)
+    
+    let barrageMode = attack.specialData
+    let isChaosAttack = barrageMode in ["chaos_storm", "entropy_burst"]
+    let isElectricAttack = barrageMode == "voltage_burst"
+    let isBerserkAttack = barrageMode == "blood_burst"
+    let isOrbitalAttack = barrageMode == "orbital_bombardment"
+    
+    # Randomize count ±30% for chaos
+    let bulletCount = if isChaosAttack:
+      (attack.projectileCount.float32 * (0.7 + rand(0.6))).int
+    else:
+      attack.projectileCount
+    
+    # Randomize spread for chaos
+    let spreadAngle = if isChaosAttack:
+      180.0 + rand(180.0)  # Might not even be 360!
+    else:
+      360.0
+    
+    # MODE-SPECIFIC PRE-EXPLOSION EFFECTS
+    if isElectricAttack:
+      # Create electric sparks radiating outward
+      for i in 0..<bulletCount div 2:
+        let angle = i.float32 * PI * 2.0 / (bulletCount div 2).float32
+        let sparkX = enemy.pos.x + cos(angle) * 40.0
+        let sparkY = enemy.pos.y + sin(angle) * 40.0
+        spawnExplosion(game.particles, sparkX, sparkY,
+                      Color(r: 255, g: 255, b: 100, a: 255), 4)
+    
+    elif isBerserkAttack:
+      # Create blood/rage particles in circular waves
+      for ring in 0..2:
+        let ringRadius = 35.0 + ring.float32 * 25.0
+        for i in 0..<12:
+          let angle = i.float32 * PI * 2.0 / 12.0
+          let bloodX = enemy.pos.x + cos(angle) * ringRadius
+          let bloodY = enemy.pos.y + sin(angle) * ringRadius
+          spawnExplosion(game.particles, bloodX, bloodY,
+                        Color(r: 200 + rand(55).uint8, g: 0, b: 0, a: 255), 5)
+      
+      # Screen shake for rage
+      game.screenShakeIntensity = 25.0
+      game.screenShakeDecay = 35.0
+    
+    elif isOrbitalAttack:
+      # Create star field effect - bullets rain from space
+      for i in 0..<8:
+        let angle = i.float32 * PI * 2.0 / 8.0
+        let starX = enemy.pos.x + cos(angle) * 60.0
+        let starY = enemy.pos.y + sin(angle) * 60.0
+        spawnExplosion(game.particles, starX, starY,
+                      Color(r: 200, g: 150, b: 255, a: 255), 6)
+    
+    for i in 0..<bulletCount:
+      let angle = if isChaosAttack:
+        (i.float32 / bulletCount.float32) * spreadAngle.degToRad() + rand(1.0)
+      else:
+        i.float32 * PI * 2.0 / bulletCount.float32
+      
       let dir = newVector2f(cos(angle), sin(angle))
+      
+      # Randomize speed ±25% for chaos
+      let speed = if isChaosAttack:
+        attack.projectileSpeed * (0.75 + rand(0.5))
+      else:
+        attack.projectileSpeed
+      
+      # Randomize damage ±10% for chaos
+      let damage = if isChaosAttack:
+        attack.damage * phase.damageMultiplier * (0.9 + rand(0.2))
+      else:
+        attack.damage * phase.damageMultiplier
+      
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        speed = speed, damage = damage,
         fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
       ))
+    
+    # MODE-SPECIFIC EXPLOSIONS
+    let (explosionSize, explosionColor) = case barrageMode
+      of "voltage_burst":
+        (45, Color(r: 255, g: 255, b: 200, a: 255))  # Bright yellow electric
+      of "blood_burst":
+        (50, Color(r: 255, g: 0, b: 0, a: 255))  # Massive red rage explosion
+      of "orbital_bombardment":
+        (40, Color(r: 180, g: 120, b: 255, a: 255))  # Purple space explosion
+      of "chaos_storm", "entropy_burst":
+        (35, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255))  # Random chaos
+      else:
+        (30, phase.color)  # Standard
+    
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
   
   of bapPulse:
-    # Expanding ring (handled as circle with specific speed)
-    for i in 0..<24:  # Fixed count for pulse
-      let angle = i.float32 * PI * 2.0 / 24.0
+    # ENHANCED PULSE SYSTEM - Expanding ring with multiple thematic variants
+    # SpecialData modes:
+    # - "electric_discharge": Electric shockwave with crackling particles (Boss 6)
+    # - "ground_slam": Berserker impact with rocks/debris (Boss 8 Phase 2)
+    # - "earthquake": MASSIVE berserker slam, screen shake, cracks (Boss 8 Phase 3)
+    # - "overload_pulse": Intense electric overload (Boss 6 Phase 3)
+    # - "gravity_pulse": Space-themed gravity wave (Boss 7)
+    # - Default: Standard pulse
+    
+    let pulseMode = attack.specialData
+    
+    # Configure pulse behavior and visuals based on mode
+    let (bulletCount, particleColor, shakeIntensity, explosionSize) = case pulseMode
+      of "electric_discharge":
+        (32, Color(r: 255, g: 255, b: 150, a: 255), 25.0, 35)  # Dense electric pulse
+      of "ground_slam":
+        (28, Color(r: 150, g: 75, b: 30, a: 255), 35.0, 40)  # Fewer but stronger, brown/rock color
+      of "earthquake":
+        (36, Color(r: 100, g: 50, b: 20, a: 255), 50.0, 60)  # MASSIVE slam, huge shake
+      of "overload_pulse":
+        (40, Color(r: 255, g: 255, b: 255, a: 255), 40.0, 50)  # Maximum density, white overload
+      of "gravity_pulse":
+        (30, Color(r: 150, g: 100, b: 255, a: 255), 30.0, 45)  # Space purple
+      else:
+        (24, phase.color, 20.0, 35)  # Standard pulse
+    
+    # TRIGGER SCREEN SHAKE (varies by mode)
+    game.screenShakeIntensity = shakeIntensity
+    game.screenShakeDecay = 35.0
+    
+    # Create expanding pulse ring
+    for i in 0..<bulletCount:
+      let angle = i.float32 * PI * 2.0 / bulletCount.float32
       let dir = newVector2f(cos(angle), sin(angle))
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
         fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
       ))
+    
+    # MODE-SPECIFIC VISUAL ENHANCEMENTS
+    case pulseMode:
+      of "electric_discharge", "overload_pulse":
+        # Create multiple expanding particle rings
+        let ringCount = if pulseMode == "overload_pulse": 4 else: 3
+        for ring in 0..<ringCount:
+          let ringRadius = 30.0 + ring.float32 * 25.0
+          for i in 0..<16:
+            let angle = i.float32 * PI * 2.0 / 16.0
+            let sparkX = enemy.pos.x + cos(angle) * ringRadius
+            let sparkY = enemy.pos.y + sin(angle) * ringRadius
+            spawnExplosion(game.particles, sparkX, sparkY,
+                          Color(r: 255, g: 255, b: 200, a: 255), 3)
+      
+      of "ground_slam", "earthquake":
+        # Create rock/debris particles flying outward
+        let debrisCount = if pulseMode == "earthquake": 32 else: 20
+        for i in 0..<debrisCount:
+          let angle = i.float32 * PI * 2.0 / debrisCount.float32
+          let debrisRadius = 40.0 + rand(60.0)
+          let debrisX = enemy.pos.x + cos(angle) * debrisRadius
+          let debrisY = enemy.pos.y + sin(angle) * debrisRadius
+          # Brown/orange debris colors
+          spawnExplosion(game.particles, debrisX, debrisY,
+                        Color(r: 120 + rand(80).uint8, g: 60 + rand(40).uint8, b: 20, a: 255), 4)
+        
+        # Earthquake gets GROUND CRACKS (radial lines)
+        if pulseMode == "earthquake":
+          for i in 0..<8:
+            let angle = i.float32 * PI * 2.0 / 8.0
+            for step in 1..10:
+              let crackRadius = step.float32 * 15.0
+              let crackX = enemy.pos.x + cos(angle) * crackRadius
+              let crackY = enemy.pos.y + sin(angle) * crackRadius
+              spawnExplosion(game.particles, crackX, crackY,
+                            Color(r: 80, g: 40, b: 10, a: 255), 2)
+      
+      of "gravity_pulse":
+        # Space-themed spiral particles
+        for ring in 0..3:
+          let ringRadius = 35.0 + ring.float32 * 30.0
+          for i in 0..<12:
+            let angle = i.float32 * PI * 2.0 / 12.0 + ring.float32 * 0.3  # Spiral offset
+            let gravX = enemy.pos.x + cos(angle) * ringRadius
+            let gravY = enemy.pos.y + sin(angle) * ringRadius
+            spawnExplosion(game.particles, gravX, gravY,
+                          Color(r: 150, g: 100, b: 255, a: 255), 3)
+      else:
+        discard  # No extra effects for default
+    
+    # Central explosion (size varies by mode)
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, particleColor, explosionSize)
   
   of bapSummon:
     # Spawn minion enemies around the boss - customizable via specialData
@@ -2171,73 +2467,195 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
   
   of bapOrbit:
-    # Orbiting projectiles around boss - customized via specialData
-    # "satellite_orbit" = standard single orbit
-    # "dual_layer_orbit" = two layers rotating at different speeds
-    # "orbital_storm" = multiple dense layers
+    # ENHANCED ORBITAL SATELLITE SYSTEM
+    # Creates persistent satellites that orbit, shoot, and can be destroyed
+    # FIXED: Only create satellites if they don't exist (prevents respawning bug)
+    # 
+    # SpecialData modes:
+    # - "electric_charges": Electric Boss 6 - yellow sparking satellites
+    # - "satellite_orbit": Orbital Boss 7 - space theme, slower, methodical
+    # - "dual_layer_orbit": Two concentric rings of satellites
+    # - "orbital_storm": Three concentric rings (maximum chaos)
     
-    let orbitMode = attack.specialData
-    let layerCount = case orbitMode
-      of "dual_layer_orbit": 2
-      of "orbital_storm": 3
-      else: 1
-    
-    for layer in 0..<layerCount:
-      let layerOffset = layer.float32 * PI * 2.0 / layerCount.float32
-      let layerSpeedMultiplier = 1.0 + (layer.float32 * 0.5)  # Layers rotate at different speeds
-      let bulletsPerLayer = if orbitMode == "orbital_storm": attack.projectileCount * 2 else: attack.projectileCount
+    # Only create satellites if they don't already exist
+    if enemy.satellites.len == 0:
+      let orbitMode = attack.specialData
+      let satelliteCount = attack.projectileCount
+      let baseOrbitRadius = attack.durationOrRadius
       
-      for i in 0..<bulletsPerLayer:
-        let angle = i.float32 * attack.spreadAngle.degToRad() + (game.time * 2.0 * layerSpeedMultiplier) + layerOffset
-        let orbitRadius = attack.durationOrRadius * (0.8 + layer.float32 * 0.3)  # Different radius per layer
-        let orbitX = enemy.pos.x + cos(angle) * orbitRadius
-        let orbitY = enemy.pos.y + sin(angle) * orbitRadius
+      # Configure layers based on mode
+      let (layerCount, rotationSpeed, satelliteColor) = case orbitMode
+        of "electric_charges":
+          (1, 1.2, Color(r: 255, g: 255, b: 100, a: 255))  # Single fast layer, yellow
+        of "satellite_orbit":
+          (1, 0.6, Color(r: 150, g: 100, b: 255, a: 255))  # Single slow layer, purple
+        of "dual_layer_orbit":
+          (2, 1.0, Color(r: 200, g: 150, b: 255, a: 255))  # Two layers, medium speed
+        of "orbital_storm":
+          (3, 1.3, Color(r: 180, g: 120, b: 255, a: 255))  # Three layers, fast
+        else:
+          (1, 1.0, phase.color)  # Default single layer
+      
+      # Create satellites in multiple orbital layers
+      for layer in 0..<layerCount:
+        # Calculate satellites per layer (distribute evenly)
+        let satsThisLayer = satelliteCount div layerCount
+        let layerRadius = baseOrbitRadius + (layer.float32 * 50.0)  # Each layer 50px apart
+        let angleOffset = if layer mod 2 == 0: 0.0 else: (PI / satsThisLayer.float32)  # Stagger alternating layers
         
-        # Create bullet at orbit position moving tangentially
-        let tangentAngle = angle + PI / 2.0
-        let dir = newVector2f(cos(tangentAngle), sin(tangentAngle))
-        
-        game.bullets.add(newBullet(
-          x = orbitX, y = orbitY, direction = dir,
-          speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
-        ))
+        for i in 0..<satsThisLayer:
+          let angle = i.float32 * (PI * 2.0 / satsThisLayer.float32) + angleOffset
+          enemy.satellites.add(OrbitalSatellite(
+            pos: newVector2f(
+              enemy.pos.x + cos(angle) * layerRadius,
+              enemy.pos.y + sin(angle) * layerRadius
+            ),
+            angle: angle,
+            radius: layerRadius,
+            hp: 15,  # Tougher satellites
+            shootTimer: 0.5 + rand(1.0) + (layer.float32 * 0.3),  # Later layers shoot slightly later
+            owner: enemy.id,
+            laserActive: false,
+            laserTarget: game.player.pos,  # Initialize with current player position
+            laserChargeTime: 0.0
+          ))
+      
+      # Enhanced visual effects based on mode
+      let (explosionSize, explosionColor) = case orbitMode
+        of "electric_charges":
+          (35, Color(r: 255, g: 255, b: 150, a: 255))  # Bright yellow sparks
+        of "satellite_orbit":
+          (30, Color(r: 150, g: 100, b: 255, a: 255))  # Purple space theme
+        of "dual_layer_orbit":
+          (40, Color(r: 200, g: 150, b: 255, a: 255))  # Bright purple
+        of "orbital_storm":
+          (50, Color(r: 255, g: 200, b: 255, a: 255))  # Massive pink explosion
+        else:
+          (30, phase.color)
+      
+      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
+      
+      # Extra ring effects for multi-layer
+      if layerCount > 1:
+        for layer in 0..<layerCount:
+          let ringRadius = baseOrbitRadius + (layer.float32 * 50.0)
+          for i in 0..<8:
+            let angle = i.float32 * (PI * 2.0 / 8.0)
+            let ringX = enemy.pos.x + cos(angle) * ringRadius
+            let ringY = enemy.pos.y + sin(angle) * ringRadius
+            spawnExplosion(game.particles, ringX, ringY, satelliteColor, 3)
   
   of bapChain:
-    # Chain lightning effect - customized via specialData
-    # "chain_4_targets" = 4 target chain
-    # "chain_lightning_storm" = dense multi-chain
-    # "massive_chain" = extra-dense chains
+    # ENHANCED CHAIN LIGHTNING SYSTEM
+    # Implements proper chain mechanics with visual lightning arcs
+    # SpecialData modes:
+    # - "chain_basic": Simple 3-chain lightning (Phase 1)
+    # - "chain_storm": Multi-target chain web (Phase 2)
+    # - "chain_overload": Maximum chain lightning chaos (Phase 3)
     
     let chainMode = attack.specialData
-    let effectiveChainCount = case chainMode
-      of "chain_lightning_storm": attack.projectileCount + 2
-      of "massive_chain": attack.projectileCount + 4
-      else: attack.projectileCount
     
-    let bulletMultiplier = case chainMode
-      of "massive_chain": 4
-      of "chain_lightning_storm": 3
-      else: 3
+    # Configure chain behavior based on mode
+    let (chainCount, chainsPerDirection, chainRange, chainDecay) = case chainMode
+      of "chain_basic":
+        (attack.projectileCount, 2, attack.durationOrRadius, 0.75)  # 3 directions, 2 chains each, 75% decay
+      of "chain_storm":
+        (attack.projectileCount, 3, attack.durationOrRadius, 0.65)  # 5 directions, 3 chains each, 65% decay
+      of "chain_overload":
+        (attack.projectileCount, 4, attack.durationOrRadius, 0.6)   # 8 directions, 4 chains each, 60% decay
+      else:
+        (attack.projectileCount, 2, attack.durationOrRadius, 0.75)  # Default to basic
     
-    for i in 0..<effectiveChainCount:
-      let angle = i.float32 * PI * 2.0 / effectiveChainCount.float32 + rand(0.5)
-      let dir = newVector2f(cos(angle), sin(angle))
+    # Create chain lightning in multiple directions
+    for i in 0..<chainCount:
+      let baseAngle = i.float32 * (PI * 2.0 / chainCount.float32) + rand(0.3)
+      let dir = newVector2f(cos(baseAngle), sin(baseAngle))
       
-      # Create multiple bullets in chain sequence
-      for j in 0..<bulletMultiplier:
-        let distance = j.float32 * 60.0
+      var currentDamage = attack.damage * phase.damageMultiplier
+      var lastX = enemy.pos.x
+      var lastY = enemy.pos.y
+      
+      # Create chain sequence in this direction
+      for chainStep in 1..chainsPerDirection:
+        let distance = chainStep.float32 * 80.0  # Distance between chain points
+        let chainX = enemy.pos.x + dir.x * distance
+        let chainY = enemy.pos.y + dir.y * distance
+        
+        # Check if chain is still on screen
+        if chainX < 0 or chainX > game.screenWidth.float32 or 
+           chainY < 0 or chainY > game.screenHeight.float32:
+          break
+        
+        # VISUAL: Create jagged lightning bolt between chain points
+        let segments = 8
+        for step in 0..segments:
+          let t = step.float32 / segments.float32
+          let baseX = lastX + (chainX - lastX) * t
+          let baseY = lastY + (chainY - lastY) * t
+          
+          # Jagged zigzag perpendicular to direction
+          let zigzag = if step mod 2 == 0: 15.0 else: -15.0
+          let perpX = -(chainY - lastY) / distance * zigzag
+          let perpY = (chainX - lastX) / distance * zigzag
+          
+          # Bright electric particles
+          spawnExplosion(game.particles, baseX + perpX, baseY + perpY,
+                        Color(r: 255, g: 255, b: 200, a: 255), 2)
+        
+        # Create bullet at chain point
         game.bullets.add(newBullet(
-          x = enemy.pos.x + dir.x * distance, 
-          y = enemy.pos.y + dir.y * distance,
+          x = chainX, y = chainY,
           direction = dir,
-          speed = attack.projectileSpeed,
-          damage = attack.damage * phase.damageMultiplier * 0.6,  # Chain hits are weaker
-          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+          speed = 180.0 + rand(40.0),  # Slightly randomized speed
+          damage = currentDamage,
+          fromPlayer = false, 
+          isBossBullet = true, 
+          sourceEnemyId = enemy.id
         ))
+        
+        # Chain impact explosion
+        spawnExplosion(game.particles, chainX, chainY,
+                      Color(r: 255, g: 255, b: 150, a: 255), 8)
+        
+        # Decay damage for next chain
+        currentDamage *= chainDecay
+        lastX = chainX
+        lastY = chainY
+      
+      # SPECIAL: Chain storm creates branching
+      if chainMode == "chain_storm" and rand(100) < 40:
+        # 40% chance to create a branch
+        let branchAngle = baseAngle + (if rand(2) == 0: 0.6 else: -0.6)
+        let branchDir = newVector2f(cos(branchAngle), sin(branchAngle))
+        let branchDist = 120.0
+        let branchX = enemy.pos.x + branchDir.x * branchDist
+        let branchY = enemy.pos.y + branchDir.y * branchDist
+        
+        if branchX > 0 and branchX < game.screenWidth.float32 and 
+           branchY > 0 and branchY < game.screenHeight.float32:
+          # Visual branch
+          for step in 0..6:
+            let t = step.float32 / 6.0
+            let bX = enemy.pos.x + (branchX - enemy.pos.x) * t
+            let bY = enemy.pos.y + (branchY - enemy.pos.y) * t
+            spawnExplosion(game.particles, bX, bY,
+                          Color(r: 200, g: 230, b: 255, a: 255), 1)
+          
+          game.bullets.add(newBullet(
+            x = branchX, y = branchY,
+            direction = branchDir,
+            speed = 200.0,
+            damage = attack.damage * phase.damageMultiplier * 0.5,
+            fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+          ))
     
-    # Visual effect
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, Yellow, 20)
+    # Central explosion - varies by mode
+    let (explosionSize, explosionColor) = case chainMode
+      of "chain_overload": (40, Color(r: 255, g: 255, b: 255, a: 255))  # White overload
+      of "chain_storm": (30, Color(r: 255, g: 255, b: 150, a: 255))     # Bright yellow
+      else: (20, Color(r: 255, g: 255, b: 100, a: 255))                 # Yellow
+    
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
   
   of bapTeleport:
     # Teleport to new location and shoot - customized via specialData
@@ -2253,7 +2671,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # Create visual effect for each teleport
     spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
     
-    # Perform teleports
+    # Perform teleports and create shooting echoes
     var teleportPositions: seq[Vector2f] = @[]
     for t in 0..<teleportCount:
       let newX = game.screenWidth.float32 * (0.2 + rand(0.6))
@@ -2267,47 +2685,130 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       # Visual effect at new position
       spawnExplosion(game.particles, newX, newY, phase.color, 15)
       
-      # Shoot burst after each teleport
+      # FIXED: Each teleport position shoots bullets (temporal echoes)
       if attack.projectileCount > 0:
         for i in 0..<attack.projectileCount:
           let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
           let dir = newVector2f(cos(angle), sin(angle))
           
-          # For triple clone, shoot from alternate positions too
-          let shootPos = if teleportMode == "triple_clone" and t > 0:
-            teleportPositions[t]
-          else:
-            enemy.pos
-          
+          # Shoot from this specific teleport location
           game.bullets.add(newBullet(
-            x = shootPos.x, y = shootPos.y, direction = dir,
-            speed = 200.0, damage = attack.damage * phase.damageMultiplier,
+            x = newX, y = newY,  # From each echo position
+            direction = dir,
+            speed = 200.0,
+            damage = attack.damage * phase.damageMultiplier * 0.7,  # 70% damage per echo
             fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
           ))
   
   of bapDash:
-    # Dash toward player at high speed
-    let dashDir = toPlayer
-    let dashSpeed = attack.projectileSpeed
+    # BERSERKER DASH SYSTEM - Enhanced with multi-charge mechanics
+    # SpecialData modes:
+    # - "charge_attack": Basic charge with screen shake
+    # - "double_charge": Charges twice in rapid succession
+    # - "rage_charge": THREE charges in combo! Maximum aggression!
     
-    # Store dash velocity (this would need enemy velocity tracking)
-    # For now, create a fast-moving "charge" effect with bullets
-    for i in 0..4:
+    let dashMode = attack.specialData
+    let dashDir = toPlayer
+    var dashSpeed = attack.projectileSpeed
+    
+    # CRITICAL MECHANIC: Cap dash speed to player speed for fairness
+    # Bosses can charge at you, but never faster than you can move away
+    if dashSpeed > game.player.speed:
+      dashSpeed = game.player.speed
+    
+    # Configure dash based on mode
+    let (dashCount, dashDist, shakeIntensity, trailColor) = case dashMode
+      of "charge_attack":
+        (1, 350.0, 25.0, Color(r: 255, g: 50, b: 0, a: 255))  # Single charge, red trail
+      of "double_charge":
+        (2, 300.0, 30.0, Color(r: 255, g: 100, b: 0, a: 255))  # Double charge, bright red
+      of "rage_charge":
+        (3, 280.0, 35.0, Color(r: 255, g: 0, b: 0, a: 255))  # TRIPLE charge, pure red
+      else:
+        (1, 350.0, 20.0, phase.color)  # Default
+    
+    let dashTime = dashDist / dashSpeed  # Calculate duration based on speed
+    
+    # Set up dash state with charge count
+    enemy.isDashing = true
+    enemy.dashVelocity = dashDir * dashSpeed
+    enemy.dashDuration = dashTime
+    enemy.dashMaxDuration = dashTime
+    
+    # Store remaining charges (will re-trigger after current dash finishes)
+    # This is handled in boss update logic by checking dashChargesRemaining
+    
+    # ENHANCED SCREEN SHAKE based on mode
+    game.screenShakeIntensity = shakeIntensity
+    game.screenShakeDecay = 40.0
+    
+    # Create MORE impressive trail effects for rage charges
+    let trailCount = if dashMode == "rage_charge": 8 elif dashMode == "double_charge": 6 else: 4
+    for i in 0..<trailCount:
+      let trailPos = i.float32 * (dashDist / trailCount.float32)
       game.bullets.add(newBullet(
-        x = enemy.pos.x + dashDir.x * i.float32 * 40.0,
-        y = enemy.pos.y + dashDir.y * i.float32 * 40.0,
+        x = enemy.pos.x + dashDir.x * trailPos,
+        y = enemy.pos.y + dashDir.y * trailPos,
         direction = dashDir,
-        speed = dashSpeed,
-        damage = attack.damage * phase.damageMultiplier,
+        speed = dashSpeed * 0.4,  # Trail effect
+        damage = attack.damage * phase.damageMultiplier * 0.6,  # Trail damage
         fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
       ))
     
-    # Move boss forward
-    enemy.pos = enemy.pos + dashDir * 80.0
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 10)
+    # Rage charges get FIRE RING on activation
+    if dashMode == "rage_charge":
+      for i in 0..<16:
+        let angle = i.float32 * (PI * 2.0 / 16.0)
+        let ringX = enemy.pos.x + cos(angle) * 60.0
+        let ringY = enemy.pos.y + sin(angle) * 60.0
+        spawnExplosion(game.particles, ringX, ringY,
+                      Color(r: 255, g: 50, b: 0, a: 255), 5)
+    
+    # Initial visual explosion with enhanced colors
+    let (explosionSize, explosionColor) = case dashMode
+      of "rage_charge": (40, Color(r: 255, g: 0, b: 0, a: 255))
+      of "double_charge": (30, Color(r: 255, g: 100, b: 0, a: 255))
+      else: (20, trailColor)
+    
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
   
   of bapSnipe:
-    # Precise aimed shots
+    # ENHANCED PRECISION SNIPE SYSTEM - Boss 7 Orbital Commander
+    # SpecialData modes:
+    # - "orbital_snipe": Aimed shot from satellite position (shows laser pointer warning)
+    # - "precision_strike": Enhanced double snipe with warning indicators
+    # - "satellite_barrage": Multiple rapid snipes from different angles
+    # - Default: Standard snipe
+    
+    let snipeMode = attack.specialData
+    
+    # Configure snipe behavior
+    let (showWarning, warningTime, bulletColor) = case snipeMode
+      of "orbital_snipe":
+        (true, 0.8, Color(r: 150, g: 100, b: 255, a: 255))  # Purple space snipe with warning
+      of "precision_strike":
+        (true, 0.6, Color(r: 200, g: 150, b: 255, a: 255))  # Bright purple, shorter warning
+      of "satellite_barrage":
+        (true, 0.4, Color(r: 180, g: 120, b: 255, a: 255))  # Quick warnings for rapid fire
+      else:
+        (false, 0.0, phase.color)  # No warning for default
+    
+    # Show warning indicators before firing (if enabled)
+    if showWarning:
+      for i in 0..<attack.projectileCount:
+        let spread = if attack.projectileCount > 1:
+          (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
+        else: 0.0
+        let angle = arctan2(toPlayer.y, toPlayer.x) + spread
+        
+        # Create laser pointer warning from boss to target
+        game.attackWarnings.add(newAttackWarning(
+          enemy.pos.x, enemy.pos.y, 
+          "laser_pointer",  # Special warning type for snipes
+          warningTime
+        ))
+    
+    # Fire the actual snipe shots
     for i in 0..<attack.projectileCount:
       let spread = if attack.projectileCount > 1:
         (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
@@ -2315,12 +2816,25 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       let angle = arctan2(toPlayer.y, toPlayer.x) + spread
       let dir = newVector2f(cos(angle), sin(angle))
       
-      # Fire precise shot
+      # Enhanced bullet for special snipes
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
         fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
       ))
+      
+      # Visual muzzle flash per shot
+      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, bulletColor, 8)
+    
+    # Special visual effects for satellite snipes
+    if snipeMode == "satellite_barrage":
+      # Create star pattern around boss
+      for i in 0..<8:
+        let angle = i.float32 * PI * 2.0 / 8.0
+        let starX = enemy.pos.x + cos(angle) * 50.0
+        let starY = enemy.pos.y + sin(angle) * 50.0
+        spawnExplosion(game.particles, starX, starY,
+                      Color(r: 200, g: 150, b: 255, a: 255), 4)
 
 # ORBITAL WEAPONS SYSTEM
 
@@ -2340,7 +2854,7 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   
   # Apply Arcane Mastery bonus for Arcane orbs
   if orb.elementType == etArcane and game.player.hasArcaneMastery:
-    actualBaseDamage *= 3.0  # +200% damage
+    actualBaseDamage *= 2.5  # +150% damage
   
   # Use centralized stats for crit calculation
   let stats = calculateCombatStats(game.player)
@@ -2598,7 +3112,8 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
       maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puBloodOrb)))
     (maxDamage * 0.5) + damageScaling
   
-  let orbRadius = 6.0
+  # BUFFED: Increased orb collision radius from 6.0 to 9.0 to match new visual size
+  let orbRadius = 9.0
   let orbDetectionRange = 0.0
   
   # Update each orb
@@ -2633,6 +3148,12 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
 
 # MAIN GAME UPDATE LOOP
 proc updateGame*(game: var Game, dt: float32) =
+  # Update screen shake
+  if game.screenShakeIntensity > 0:
+    game.screenShakeIntensity -= game.screenShakeDecay * dt
+    if game.screenShakeIntensity < 0:
+      game.screenShakeIntensity = 0
+  
   # Time Warp effect - apply slow to delta time for enemies/bullets
   var effectiveDt = dt
   if game.player.timeWarpActive:
@@ -3006,7 +3527,7 @@ proc updateGame*(game: var Game, dt: float32) =
     
     # Apply Arcane Mastery bonuses if owned
     if game.player.hasArcaneMastery:
-      arcaneDamagePerSec *= 3.0  # +200% damage
+      arcaneDamagePerSec *= 2.5  # +150% damage
     
     # Calculate combat stats once before loop
     let arcaneStats = calculateCombatStats(game.player)
@@ -3654,10 +4175,38 @@ proc updateGame*(game: var Game, dt: float32) =
       let bossDef = getBossDefinition(enemy.bossDefinitionID)
       let hpPercent = enemy.hp / enemy.maxHp
       
+      # Update invulnerability timer
+      if enemy.invulnerabilityTimer > 0:
+        enemy.invulnerabilityTimer -= dt
+        if enemy.invulnerabilityTimer < 0:
+          enemy.invulnerabilityTimer = 0
+      
       # Check if we need to transition to a new phase
       for i, phase in bossDef.phases:
         if hpPercent <= phase.hpThreshold and i > enemy.currentPhaseIndex:
           enemy.currentPhaseIndex = i
+          
+          # DRAMATIC PHASE TRANSITION EFFECTS
+          # 1. Brief invulnerability
+          enemy.invulnerabilityTimer = 2.0
+          
+          # 2. Screen shake for impact
+          game.screenShakeIntensity = 40.0
+          game.screenShakeDecay = 20.0
+          
+          # 3. Massive particle explosion (expanding rings)
+          for ring in 1..5:
+            for j in 0..23:
+              let angle = j.float32 * PI * 2.0 / 24.0
+              let dist = ring.float32 * 35.0
+              let px = enemy.pos.x + cos(angle) * dist
+              let py = enemy.pos.y + sin(angle) * dist
+              spawnExplosion(game.particles, px, py, phase.color, 8)
+          
+          # 4. Extra burst at center
+          spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+                        Color(r: 255, g: 255, b: 255, a: 255), 40)
+          
           # Reinitialize attack timers for new phase
           enemy.attackTimers = @[]
           for attack in phase.attacks:
@@ -3666,7 +4215,9 @@ proc updateGame*(game: var Game, dt: float32) =
           enemy.color = phase.color
           # Apply phase speedMultiplier to wave-scaled base speed
           let scaledBaseSpeed = getScaledBossSpeed(bossDef, game.currentWave)
-          enemy.speed = scaledBaseSpeed * phase.speedMultiplier
+          let calculatedSpeed = scaledBaseSpeed * phase.speedMultiplier
+          
+          enemy.speed = calculatedSpeed
           enemy.defenseMultiplier = phase.defenseMultiplier  # Apply defense multiplier from phase
           break
         
@@ -3674,6 +4225,29 @@ proc updateGame*(game: var Game, dt: float32) =
       if enemy.currentPhaseIndex < bossDef.phases.len:
         let phase = bossDef.phases[enemy.currentPhaseIndex]
         updateCustomBossBehavior(game, enemy, phase, dt)
+      
+      # Handle boss dash movement (overrides normal movement)
+      if enemy.isDashing:
+        enemy.dashDuration -= dt
+        if enemy.dashDuration > 0:
+          # Apply dash velocity
+          enemy.pos = enemy.pos + enemy.dashVelocity * dt
+          
+          # Create dash trail particles
+          let progress = 1.0 - (enemy.dashDuration / enemy.dashMaxDuration)
+          if progress.int mod 2 == 0:  # Every other frame
+            let trailColor = if enemy.currentPhaseIndex < bossDef.phases.len:
+              bossDef.phases[enemy.currentPhaseIndex].color
+            else:
+              Red
+            spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, trailColor, 5)
+        else:
+          # Dash complete
+          enemy.isDashing = false
+          enemy.dashDuration = 0
+          if enemy.currentPhaseIndex < bossDef.phases.len:
+            let endColor = bossDef.phases[enemy.currentPhaseIndex].color
+            spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, endColor, 20)
       
       # Update attack timers
       for i in 0..<enemy.attackTimers.len:
@@ -3783,8 +4357,13 @@ proc updateGame*(game: var Game, dt: float32) =
           
           playSound(stPlayerHit, 0.5)
           
-          # Deal 1 HP damage to enemy (10 times per second = 10 HP/sec)
-          let contactDamageToEnemy = 1.0
+          # Deal 1 HP base damage to enemy, scaled by player's max health
+          var contactDamageToEnemy = 1.0
+          
+          # MAX HEALTH SCALING: Player deals slightly more damage with higher max HP (low scaling)
+          let maxHpScale = calculateMaxHealthContactDamageScale(game.player)
+          contactDamageToEnemy *= maxHpScale
+          
           enemy.hp -= contactDamageToEnemy
           enemy.lastContactDamageTime = game.time
           
@@ -3814,6 +4393,113 @@ proc updateGame*(game: var Game, dt: float32) =
     # Clear all enemies and bullets for clean screen
     game.enemies = @[]
     game.bullets = @[]
+  
+  # Update boss satellites (persistent orbiting satellites)
+  for enemy in game.enemies:
+    if enemy.isBoss and enemy.satellites.len > 0:
+      var i = enemy.satellites.len - 1
+      while i >= 0:
+        # Update orbit position - faster rotation
+        enemy.satellites[i].angle += dt * 1.2  # BUFFED: Faster rotation (was 0.8)
+        enemy.satellites[i].pos = newVector2f(
+          enemy.pos.x + cos(enemy.satellites[i].angle) * enemy.satellites[i].radius,
+          enemy.pos.y + sin(enemy.satellites[i].angle) * enemy.satellites[i].radius
+        )
+        
+        # LASER TARGETING SYSTEM - Continuous lasers with player coordinate tracking
+        enemy.satellites[i].shootTimer -= dt
+        
+        # Update laser charge/target system
+        if enemy.satellites[i].shootTimer <= 0:
+          if not enemy.satellites[i].laserActive:
+            # Start charging laser - lock onto current player position
+            enemy.satellites[i].laserActive = true
+            enemy.satellites[i].laserTarget = game.player.pos
+            enemy.satellites[i].laserChargeTime = 0.0
+            enemy.satellites[i].shootTimer = 4.5 + rand(1.0)  # Time until next laser cycle
+          else:
+            # Laser cycle complete, deactivate and prepare for next shot
+            enemy.satellites[i].laserActive = false
+        
+        # Laser active - warning phase then fire
+        if enemy.satellites[i].laserActive:
+          enemy.satellites[i].laserChargeTime += dt
+          
+          # Calculate direction through locked target position to screen edge
+          let toTarget = (enemy.satellites[i].laserTarget - enemy.satellites[i].pos).normalize()
+          let targetAngle = arctan2(toTarget.y, toTarget.x)
+          
+          # Calculate maximum laser length to reach screen edge
+          # Project from satellite through target to edge of screen
+          let maxScreenDist = sqrt(game.screenWidth.float32 * game.screenWidth.float32 + 
+                                   game.screenHeight.float32 * game.screenHeight.float32)
+          
+          # WARNING PHASE (first 1.5 seconds)
+          if enemy.satellites[i].laserChargeTime < 1.5:
+            # Update existing warning position to follow satellite, or create new one
+            var warningFound = false
+            for warning in game.attackWarnings:
+              if warning.attackType == "satellite_laser" and 
+                 warning.sourceEnemyId == enemy.id and
+                 warning.fromSatellite:
+                # Update warning position to follow satellite
+                warning.pos = enemy.satellites[i].pos
+                warningFound = true
+                break
+            
+            # Create new warning if doesn't exist
+            if not warningFound:
+              game.attackWarnings.add(newSatelliteLaserWarning(
+                enemy.satellites[i].pos.x,
+                enemy.satellites[i].pos.y,
+                enemy.satellites[i].laserTarget.x,
+                enemy.satellites[i].laserTarget.y,
+                1.5 - enemy.satellites[i].laserChargeTime,
+                enemy.id
+              ))
+          
+          # FIRING PHASE (after warning)
+          else:
+            # Create continuous laser beam that extends through target to edge
+            # Direction 3 = single rotated beam (radial pattern)
+            game.lasers.add(newLaser(
+              enemy.satellites[i].pos.x, 
+              enemy.satellites[i].pos.y,
+              3,                    # direction: 3 = single rotated beam
+              maxScreenDist,        # length: extend all the way across screen
+              12.0,                 # thickness: visible laser beam
+              2,                    # damage
+              dt * 2.0,             # duration: slightly longer than frame for smooth appearance
+              targetAngle,          # rotation: angle through target point
+              enemy.enemyType       # enemyType: track source
+            ))
+            
+            # Visual feedback for laser firing
+            if (enemy.satellites[i].laserChargeTime * 10.0).int mod 2 == 0:  # Pulse effect
+              spawnExplosion(game.particles, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y,
+                            Color(r: 255, g: 200, b: 100, a: 255), 8)
+        
+        # Check if player bullets hit satellite - BUFFED HP
+        var satelliteDestroyed = false
+        for bullet in game.bullets:
+          if bullet.fromPlayer and distance(bullet.pos, enemy.satellites[i].pos) < 15.0:
+            enemy.satellites[i].hp -= 1
+            spawnExplosion(game.particles, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y, 
+                          Color(r: 255, g: 150, b: 0, a: 255), 8)
+            if enemy.satellites[i].hp <= 0:
+              # Satellite destroyed!
+              spawnExplosion(game.particles, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y, 
+                            Red, 25)
+              playSound(stEnemyDeath, 0.4)
+              enemy.satellites.delete(i)
+              satelliteDestroyed = true
+              break
+        
+        if not satelliteDestroyed:
+          i -= 1
+        else:
+          # Already deleted, continue
+          i -= 1
   
   # Update bullets
   i = 0
@@ -3856,7 +4542,7 @@ proc updateGame*(game: var Game, dt: float32) =
         
         if dist < trackingRange:
           # Gentle tracking strength for enemy bullets - dodgeable
-          let turnRate = 0.005  # Reduced from 0.02 - very gentle curve
+          let turnRate = 0.0075  # Reduced from 0.02 - very gentle curve
           
           let toPlayer = (game.player.pos - bullet.pos).normalize()
           let currentDir = bullet.vel.normalize()
@@ -4454,6 +5140,25 @@ proc updateGame*(game: var Game, dt: float32) =
     game.state = gsGameOver
 
 proc drawGame*(game: Game) =
+  # Calculate screen shake offset
+  var shakeOffsetX: float32 = 0
+  var shakeOffsetY: float32 = 0
+  
+  if game.screenShakeIntensity > 0:
+    shakeOffsetX = (rand(1.0) - 0.5) * game.screenShakeIntensity
+    shakeOffsetY = (rand(1.0) - 0.5) * game.screenShakeIntensity
+    
+    # Apply shake using Camera2D for clean implementation
+    var camera = Camera2D(
+      offset: Vector2(x: game.screenWidth.float32 / 2.0 + shakeOffsetX, 
+                     y: game.screenHeight.float32 / 2.0 + shakeOffsetY),
+      target: Vector2(x: game.screenWidth.float32 / 2.0, 
+                     y: game.screenHeight.float32 / 2.0),
+      rotation: 0,
+      zoom: 1.0
+    )
+    beginMode2D(camera)
+  
   # Update and draw OS-style background
   let dt = getFrameTime()
   updateOSBackground(game.osBackground, dt, game.player.hp, game.player.maxHp, 
@@ -4521,6 +5226,75 @@ proc drawGame*(game: Game) =
     
     # Draw warning indicators for elite/boss enemies
     drawEnemyWarningIndicator(enemy)
+    
+    # Draw boss satellites
+    if enemy.isBoss and enemy.satellites.len > 0:
+      for sat in enemy.satellites:
+        # Draw satellite body
+        let satColor = if sat.hp > 5:
+          Color(r: 120, g: 180, b: 255, a: 255)  # Healthy - blue
+        else:
+          Color(r: 255, g: 150, b: 80, a: 255)   # Damaged - orange
+        
+        drawCircle(Vector2(x: sat.pos.x, y: sat.pos.y), 12.0, satColor)
+        drawCircleLines(sat.pos.x.int32, sat.pos.y.int32, 12.0,
+                       Color(r: 200, g: 220, b: 255, a: 255))
+        
+        # Draw HP indicator
+        let hpPercent = sat.hp.float32 / 10.0
+        let barWidth = 20.0
+        let barHeight = 3.0
+        let barX = sat.pos.x - barWidth / 2.0
+        let barY = sat.pos.y - 20.0
+        
+        drawRectangle(barX.int32, barY.int32, barWidth.int32, barHeight.int32,
+                     Color(r: 60, g: 60, b: 60, a: 255))
+        drawRectangle(barX.int32, barY.int32, (barWidth * hpPercent).int32, barHeight.int32,
+                     Color(r: 0, g: 200, b: 255, a: 255))
+        
+        # Draw laser target marker when laser is active
+        if sat.laserActive:
+          # Target crosshair at locked coordinates
+          let targetSize = 15.0
+          let pulseAlpha = uint8(150 + sin(game.time * 8.0) * 105)  # Pulsing effect
+          let targetColor = Color(r: 255, g: 50, b: 50, a: pulseAlpha)
+          
+          # Draw crosshair at target position
+          # Horizontal line
+          drawLine(
+            Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y),
+            Vector2(x: sat.laserTarget.x + targetSize, y: sat.laserTarget.y),
+            2,
+            targetColor
+          )
+          # Vertical line
+          drawLine(
+            Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y - targetSize),
+            Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y + targetSize),
+            2,
+            targetColor
+          )
+          # Outer circle
+          drawCircleLines(sat.laserTarget.x.int32, sat.laserTarget.y.int32, targetSize,
+                         targetColor)
+          # Inner circle with different pulse
+          let innerPulse = 8.0 + sin(game.time * 6.0) * 3.0
+          drawCircleLines(sat.laserTarget.x.int32, sat.laserTarget.y.int32, innerPulse,
+                         Color(r: 255, g: 100, b: 100, a: pulseAlpha))
+          
+          # Draw targeting line from satellite to target
+          let lineAlpha = uint8(100 + sin(game.time * 10.0) * 55)
+          drawLine(
+            Vector2(x: sat.pos.x, y: sat.pos.y),
+            Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y),
+            1,
+            Color(r: 255, g: 150, b: 0, a: lineAlpha)
+          )
+      
+      # Draw orbit trails
+      for sat in enemy.satellites:
+        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sat.radius,
+                       Color(r: 100, g: 150, b: 255, a: 50))
   
   # Draw Gravity Well visual effect
   if hasPowerUp(game.player, puGravityWell):
@@ -4692,6 +5466,10 @@ proc drawGame*(game: Game) =
   
   # Note: Custom cursor is now drawn in main.nim after all UI overlays
   # This ensures the cursor appears above sandbox menu and other overlays
+  
+  # End 2D camera mode if screen shake was applied
+  if game.screenShakeIntensity > 0:
+    endMode2D()
 
 proc drawGameOver*(game: Game) =
   # Use the new OS-style system crash screen

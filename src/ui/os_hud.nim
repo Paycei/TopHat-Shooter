@@ -1,4 +1,4 @@
-## OS-Style HUD System for TopHat-Shooter
+## OS-Style HUD System
 
 import raylib, types, math
 

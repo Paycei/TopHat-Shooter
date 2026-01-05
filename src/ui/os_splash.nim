@@ -33,9 +33,9 @@ proc newSplashScreen*(): SplashScreen =
       "Detecting hardware...",
       "",
       "Loading bootloader...",
-      "GRUB version 2.04",
+      "TSOB version 2.04",
       "",
-      "Loading kernel: tophat-shooter-5.0",
+      "Loading kernel: shooteros-5",
       "Initializing game engine...",
       "Starting graphics subsystem...",
       "Loading audio drivers...",
@@ -50,7 +50,7 @@ proc newSplashScreen*(): SplashScreen =
       "[ OK ] Statistics Tracker",
       "[ OK ] Discord Integration",
       "",
-      "TopHat-Shooter OS [v5.0 Edition]",
+      "TopHat-ShooterOS [v5.0 Edition]",
       "Ready to play.",
       ""
     ],
@@ -126,7 +126,7 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
         color = Color(r: 50, g: 255, b: 50, a: 255)  # Green
       elif msg.contains("BIOS") or msg.contains("GRUB"):
         color = Color(r: 255, g: 200, b: 50, a: 255)  # Yellow
-      elif msg.contains("TopHat-Shooter OS"):
+      elif msg.contains("TopHat-ShooterOS"):
         color = Color(r: 255, g: 100, b: 255, a: 255)  # Magenta
       elif msg.len == 0:
         yPos += 8

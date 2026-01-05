@@ -188,13 +188,47 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 12, Black)
   
   of diSandbox:
-    # Sandbox/testing icon - wrench and hammer crossed
-    # Wrench
-    drawRectangle((centerX - 15).int32, (centerY - 5).int32, 12, 3, icon.iconColor)
-    drawCircle(Vector2(x: (centerX - 15).float32, y: centerY.float32), 5, icon.iconColor)
-    # Hammer
-    drawRectangle((centerX + 3).int32, (centerY - 15).int32, 3, 12, icon.iconColor)
-    drawRectangle((centerX).int32, (centerY - 18).int32, 9, 6, icon.iconColor)
+    # Sandbox/testing icon - laboratory flask/beaker
+    let flaskColor = icon.iconColor
+    let liquidColor = Color(r: 0, g: 200, b: 255, a: 200)
+    
+    # Flask body (trapezoid shape)
+    let baseWidth = 20
+    let topWidth = 12
+    let flaskHeight = 24
+    let flaskBottom = centerY + 12
+    let flaskTop = flaskBottom - flaskHeight
+    
+    # Draw flask outline (wider at bottom, narrower at top)
+    # Bottom rectangle
+    drawRectangle((centerX - baseWidth div 2).int32, (flaskBottom - 16).int32, 
+                 baseWidth.int32, 16.int32, flaskColor)
+    # Neck
+    drawRectangle((centerX - topWidth div 2).int32, (flaskTop).int32, 
+                 topWidth.int32, 8.int32, flaskColor)
+    
+    # Flask sides (trapezoid effect)
+    drawTriangle(
+      Vector2(x: (centerX - topWidth div 2).float32, y: (flaskTop + 8).float32),
+      Vector2(x: (centerX - baseWidth div 2).float32, y: (flaskBottom - 16).float32),
+      Vector2(x: (centerX - topWidth div 2).float32, y: (flaskBottom - 16).float32),
+      flaskColor
+    )
+    drawTriangle(
+      Vector2(x: (centerX + topWidth div 2).float32, y: (flaskTop + 8).float32),
+      Vector2(x: (centerX + baseWidth div 2).float32, y: (flaskBottom - 16).float32),
+      Vector2(x: (centerX + topWidth div 2).float32, y: (flaskBottom - 16).float32),
+      flaskColor
+    )
+    
+    # Liquid inside (partial fill)
+    let liquidHeight = 10
+    drawRectangle((centerX - baseWidth div 2 + 2).int32, (flaskBottom - liquidHeight).int32,
+                 (baseWidth - 4).int32, liquidHeight.int32, liquidColor)
+    
+    # Bubbles in liquid
+    drawCircle(Vector2(x: (centerX - 4).float32, y: (flaskBottom - 5).float32), 2, White)
+    drawCircle(Vector2(x: (centerX + 3).float32, y: (flaskBottom - 8).float32), 1.5, White)
   
   # Icon label with shadow
   let labelY = icon.y + ICON_SIZE + 8
@@ -333,7 +367,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
           Color(r: 100, g: 255, b: 150, a: 255))
   
   # Bottom desktop info (version and edition)
-  drawText("TopHat-Shooter", 10, (screenHeight - 75).int32, 14,
+  drawText("TopHat-ShooterOS", 10, (screenHeight - 75).int32, 14,
           Color(r: 100, g: 100, b: 120, a: 200))
   drawText("[v5.0 Edition]", 10, (screenHeight - 58).int32, 12,
           Color(r: 150, g: 150, b: 170, a: 180))

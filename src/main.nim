@@ -131,7 +131,7 @@ proc main() =
   else:
     setConfigFlags(flags(WindowResizable))
   
-  initWindow(screenWidth, screenHeight, "TopHat-Shooter OS: v5.0 Edition")
+  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v5.0 Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor
@@ -589,12 +589,12 @@ proc main() =
       if isKeyPressed(Q):
         var anyActivated = false
         
-        # Time Warp - slow down time (3 LEVELS - adds +1 use per wave)
+        # Time Warp - slow down time
         if hasPowerUp(currentGame.player, puTimeWarp) and currentGame.player.timeWarpCooldown <= 0:
           # Check if uses available for this wave
           if currentGame.player.timeWarpUsesThisWave < currentGame.player.timeWarpMaxUsesPerWave:
             let duration = 3.5
-            let cooldown = 20.0  # 20 second cooldown between uses
+            let cooldown = 10.0  # 10 second cooldown between uses
             
             currentGame.player.timeWarpActive = true
             currentGame.player.timeWarpDuration = duration
@@ -1268,7 +1268,6 @@ proc main() =
       
       # Mouse hover detection for button highlighting
       let mousePos = getMousePosition()
-      const SCREEN_WIDTH = 900
       const SCREEN_HEIGHT = 600  # Updated to match new height
       const BUTTON_WIDTH = 220
       const BUTTON_HEIGHT = 48

@@ -1,4 +1,4 @@
-## OS-Style Background System for TopHat-Shooter
+## OS-Style Background System
 
 import raylib, math, random, types
 

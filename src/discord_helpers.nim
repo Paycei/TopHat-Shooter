@@ -1,4 +1,4 @@
-## Discord Rich Presence Helper Functions
+﻿## Discord Rich Presence Helper Functions
 ## Provides high-level functions to update Discord presence based on game state
 
 import discord_presence, types, strformat, math, gamemode_definitions
@@ -28,7 +28,7 @@ proc updateDiscordForPlaying*(client: DiscordClient, game: Game) =
     state = detailsText,
     details = &"Playing {modeText}",
     largeImage = "game_icon",
-    largeText = "TopHat Shooter",
+    largeText = "TopHat-ShooterOS",
     startTime = game.time.int64
   )
   
@@ -41,9 +41,9 @@ proc updateDiscordForMenu*(client: DiscordClient) =
   
   let presence = createPresence(
     state = "In Menu",
-    details = "TopHat Shooter",
+    details = "TopHat-ShooterOS",
     largeImage = "game_icon",
-    largeText = "TopHat Shooter"
+    largeText = "TopHat-ShooterOS"
   )
   
   updatePresence(client, presence)
@@ -59,7 +59,7 @@ proc updateDiscordForPaused*(client: DiscordClient, game: Game) =
     state = "Paused",
     details = &"{modeText} - Paused",
     largeImage = "game_icon",
-    largeText = "TopHat Shooter"
+    largeText = "TopHat-ShooterOS"
   )
   
   updatePresence(client, presence)

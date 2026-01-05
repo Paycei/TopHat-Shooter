@@ -117,7 +117,7 @@ type
 
   AttackWarning* = ref object
     pos*: Vector2f
-    attackType*: string  # "cross", "burst", "fake", "boss_laser"
+    attackType*: string  # "cross", "burst", "fake", "boss_laser", "satellite_laser"
     lifetime*: float32
     maxLifetime*: float32
     sourceEnemyId*: int  # ID of enemy that created this warning (for tracking movement)
@@ -130,6 +130,9 @@ type
     lasersCreated*: bool         # Flag to track if lasers were already created
     laserPattern*: string        # Pattern type: "cross_laser", "rotating_grid", "prismatic_cage"
     enemyType*: EnemyType        # Type of enemy creating this attack
+    # Satellite laser warning fields
+    targetPos*: Vector2f         # Target coordinates for satellite laser
+    fromSatellite*: bool         # Flag for satellite laser warnings
 
   ElementType* = enum
     etPoison,      # Green - poison damage over time
@@ -224,6 +227,18 @@ type
     primary*: EffectInstance
     fallback*: EffectInstance
 
+  OrbitalSatellite* = object
+    pos*: Vector2f
+    angle*: float32
+    radius*: float32
+    hp*: int
+    shootTimer*: float32
+    owner*: int  # Enemy ID
+    # Laser targeting system
+    laserActive*: bool
+    laserTarget*: Vector2f  # Current player coordinates to target
+    laserChargeTime*: float32  # Time to charge before firing
+
   Enemy* = ref object
     id*: int                      # Unique identifier for tracking bullet hits
     pos*: Vector2f
@@ -283,6 +298,14 @@ type
     currentPhaseIndex*: int  # Current phase index (0, 1, 2, etc.)
     attackTimers*: seq[float32]  # Individual cooldown timer for each attack in current phase
     defenseMultiplier*: float32  # Damage reduction multiplier (1.0 = no reduction, 0.5 = 50% damage taken)
+    # Boss dash state (for bapDash attack)
+    isDashing*: bool  # Whether boss is currently executing a dash
+    dashVelocity*: Vector2f  # Velocity during dash
+    dashDuration*: float32  # Remaining dash duration
+    dashMaxDuration*: float32  # Total dash duration for this attack
+    # Boss orbital satellites (for Boss 7)
+    satellites*: seq[OrbitalSatellite]  # Persistent satellites that can be destroyed
+    invulnerabilityTimer*: float32  # Brief invulnerability during phase transitions
     # Damage accumulation for continuous damage sources (auras, DOT)
     auraDamageAccumulator*: float32  # Accumulates aura damage over time
     lastAuraDamageNumberTime*: float32  # Last time a damage number was shown for auras
@@ -519,6 +542,9 @@ type
     osHUD*: OSHUDState  # OS-style HUD and notifications
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
     selectedGameOverButton*: int  # Selected button on game over screen (0=Restart, 1=Stats, 2=Exit)
+    # Screen shake system
+    screenShakeIntensity*: float32  # Current shake intensity
+    screenShakeDecay*: float32  # How fast shake decays
 
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x
@@ -558,7 +584,9 @@ proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sou
     laserCount: 0,
     laserDamage: 0,
     laserDuration: 0.0,
-    lasersCreated: false
+    lasersCreated: false,
+    targetPos: newVector2f(0, 0),
+    fromSatellite: false
   )
 
 proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32], 
@@ -580,6 +608,27 @@ proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32]
     lasersCreated: false,
     laserPattern: pattern,
     enemyType: enemyType
+  )
+
+proc newSatelliteLaserWarning*(satelliteX, satelliteY, targetX, targetY: float32, 
+                               duration: float32, sourceEnemyId: int = -1): AttackWarning =
+  ## Creates a warning for satellite laser attacks that extend through a target point
+  AttackWarning(
+    pos: newVector2f(satelliteX, satelliteY),
+    attackType: "satellite_laser",
+    lifetime: duration,
+    maxLifetime: duration,
+    sourceEnemyId: sourceEnemyId,
+    targetPos: newVector2f(targetX, targetY),
+    fromSatellite: true,
+    laserAngles: @[],
+    laserLength: 0.0,
+    laserCount: 0,
+    laserDamage: 0,
+    laserDuration: 0.0,
+    lasersCreated: false,
+    laserPattern: "",
+    enemyType: etCircle
   )
 
 proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0, enemyType: EnemyType = etCircle): Laser =

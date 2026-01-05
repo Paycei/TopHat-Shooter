@@ -1,4 +1,4 @@
-## OS-Style Enemy Labels - Enhanced Edition  
+﻿## OS-Style Enemy Labels - Enhanced Edition  
 ## Draw enemies with modern process/threat labels
 ## REDESIGNED with improved readability, animations, and visual effects
 
@@ -151,10 +151,43 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
     drawText("*", iconX, iconY - 1, fontSize - 2, accentColor)
   
   let textX = if enemy.isBoss or enemy.isElite: iconX + 16 else: iconX + 12
-  drawText(processName, textX, iconY, fontSize, textColor)
   
-  # Enhanced health bar (if enabled) - more compact
-  if showHealthBar and (enemy.isElite or enemy.isBoss or enemy.maxHp > 30):
+  # Star enemies: show hit counter inside the label (right side)
+  if enemy.enemyType == etStar:
+    # Calculate remaining hits (goes down: 5/5 = full, 0/5 = dead)
+    let hitsRemaining = enemy.requiredHits - enemy.hitCount
+    let hitText = $(hitsRemaining) & "/" & $(enemy.requiredHits)
+    let hitTextSize: int32 = 9
+    let hitTextWidth = measureText(hitText, hitTextSize)
+    
+    # Position on the right side of the label
+    let hitTextX = labelX + totalWidth.float32 - hitTextWidth.float32 - 6
+    let hitTextY = labelY + 4
+    
+    # Draw hit counter with color based on remaining hits
+    let hitPercent = hitsRemaining.float32 / enemy.requiredHits.float32
+    let hitColor = if hitPercent > 0.6:
+      Color(r: 255, g: 215, b: 0, a: alpha)  # Gold when healthy
+    elif hitPercent > 0.3:
+      Color(r: 255, g: 180, b: 0, a: alpha)  # Orange when damaged
+    else:
+      Color(r: 255, g: 100, b: 100, a: alpha)  # Red when critical
+    
+    # Shadow
+    drawText(hitText, (hitTextX + 1).int32, (hitTextY + 1).int32, hitTextSize,
+            Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.7)))
+    # Main text
+    drawText(hitText, hitTextX.int32, hitTextY.int32, hitTextSize, hitColor)
+    
+    # Adjust process name width to not overlap with hit counter
+    let processNameMaxWidth = totalWidth.float32 - hitTextWidth.float32 - 20
+    drawText(processName, textX, iconY, fontSize, textColor)
+  else:
+    # Regular enemies: just draw the process name
+    drawText(processName, textX, iconY, fontSize, textColor)
+  
+  # Enhanced health bar (if enabled) - only for non-Star enemies
+  if showHealthBar and (enemy.isElite or enemy.isBoss or enemy.maxHp > 30) and enemy.enemyType != etStar:
     let barY = labelY + 14  # Closer to label (was 18)
     let barWidth = totalWidth - 6
     let barX = labelX + 3

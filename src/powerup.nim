@@ -110,13 +110,13 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "+14 max HP"
   of puSpeedBoost:
     # Single level only - LEGENDARY
-    "+50% movement speed"
+    "+40% movement speed"
   of puBulletDamage:
     # Single level only - LEGENDARY
-    "+100% bullet damage"
+    "+75% bullet damage"
   of puBulletSpeed:
     # Single level only - LEGENDARY
-    "+35% bullet speed"
+    "+40% bullet speed"
   of puLuckyCoins:
     # Single level only - LEGENDARY
     "Doubles all coins collected"
@@ -295,7 +295,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     "Frost effects: +150% dmg, +100% duration, +20% slow"
   of puArcaneMastery:
     # Single level only - LEGENDARY mastery
-    "Arcane effects: +200% dmg, +100% duration, piercing"
+    "Arcane effects: +150% dmg, +100% duration, piercing"
   of puLightningMastery:
     # Single level only - LEGENDARY mastery
     "Lightning effects: +150% dmg, +100% duration, +25% slow, +1 chain, +50% range"
@@ -488,9 +488,10 @@ proc createRotatingOrbs*(player: Player, level: int) =
   ## Orb radius scales with player size to maintain distance
   
   # Dynamic orbit radius: scales with player size + fixed offset
-  # player.radius * 3.5 ensures orbs scale MUCH MORE with player
-  # + 25 maintains minimum distance from player
-  let orbRadius = player.radius * 3.5 + 25
+  # BUFFED: Increased from * 3.5 + 25 to * 4.5 + 40 (much further from player)
+  # player.radius * 4.5 ensures orbs scale MORE with player
+  # + 40 maintains larger minimum distance from player
+  let orbRadius = player.radius * 4.5 + 40
   
   # Clear existing orbs
   player.rotatingOrbs = @[]
@@ -526,9 +527,10 @@ proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) 
   ## Orb radius scales with player size to maintain distance
   
   # Dynamic orbit radius: scales with player size + fixed offset
-  # player.radius * 3.5 ensures orbs scale MUCH MORE with player
-  # + 25 maintains minimum distance from player
-  let orbRadius = player.radius * 3.5 + 25
+  # BUFFED: Increased from * 3.5 + 25 to * 4.5 + 40 (much further from player)
+  # player.radius * 4.5 ensures orbs scale MORE with player
+  # + 40 maintains larger minimum distance from player
+  let orbRadius = player.radius * 4.5 + 40
   
   # Find existing orbs of this element and remove them
   var i = 0
@@ -591,15 +593,15 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.maxHp += 14.0
     player.hp += 14.0
   of puSpeedBoost:
-    # Single level only - +50% speed
-    player.speed *= 1.5
-    player.baseSpeed *= 1.5
+    # Single level only - +40% speed
+    player.speed *= 1.4
+    player.baseSpeed *= 1.4
   of puBulletDamage:
-    # Single level only - +100% damage
-    player.damage *= 2.0
+    # Single level only - +75% damage
+    player.damage *= 1.75
   of puBulletSpeed:
-    # Single level only - +35% speed
-    player.bulletSpeed *= 1.35
+    # Single level only - +40% speed
+    player.bulletSpeed *= 1.4
   of puTimeWarp:
     # Single level only - 2 uses per wave
     player.timeWarpMaxUsesPerWave = 2
