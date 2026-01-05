@@ -1,7 +1,7 @@
-## Combined OS-Style HUD Panel
+﻿## Combined OS-Style HUD Panel
 ## Merges status and info panels into one compact, non-intrusive display
 
-import raylib, types, math, powerup
+import raylib, types, math, ../powerup_data
 
 const
   COMBINED_PANEL_WIDTH = 200

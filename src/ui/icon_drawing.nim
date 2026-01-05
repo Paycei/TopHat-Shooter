@@ -762,6 +762,61 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let rayY = cy.float32 - 3 + sin(angle) * 5
       drawLine(cx - 3, cy - 3, int32(rayX), int32(rayY), Color(r: 255, g: 255, b: 200, a: 200))
     
+  of puRadialBurst:
+    # Circle of bullets radiating outward
+    # Center shadow
+    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), rad * 0.4, Color(r: 0, g: 0, b: 0, a: 60))
+    # Center glow
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.4, color)
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.3, 
+              Color(r: min(color.r + 150, 255), g: min(color.g + 150, 255), b: min(color.b + 150, 255), a: 255))
+    # Radiating bullets in circle
+    for i in 0..7:
+      let angle = i.float32 * PI / 4
+      let bulletX = cx.float32 + cos(angle) * (rad * 0.8)
+      let bulletY = cy.float32 + sin(angle) * (rad * 0.8)
+      # Bullet
+      drawCircle(Vector2(x: bulletX, y: bulletY), 3, color)
+      # Motion trail
+      let trailX = cx.float32 + cos(angle) * (rad * 0.6)
+      let trailY = cy.float32 + sin(angle) * (rad * 0.6)
+      drawLine(Vector2(x: trailX, y: trailY), Vector2(x: bulletX, y: bulletY), 2.0, 
+              Color(r: color.r, g: color.g, b: color.b, a: 150))
+    # Pulse rings
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.5, color)
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.7, 
+                   Color(r: color.r, g: color.g, b: color.b, a: 150))
+  
+  of puWallTurrets:
+    # Wall with turret on top
+    # Wall shadow
+    drawRectangle(cx - 8, cy + 2, 16, 10, Color(r: 0, g: 0, b: 0, a: 60))
+    # Wall body
+    drawRectangle(cx - 10, cy, 20, 10, Color(r: 100, g: 80, b: 60, a: 255))
+    drawRectangleLines(Rectangle(x: (cx - 10).float32, y: cy.float32, width: 20, height: 10), 2.0, 
+                      Color(r: 80, g: 60, b: 40, a: 255))
+    # Brick texture
+    for i in 0..2:
+      drawLine(cx - 10, cy + int32(i * 3 + 3), cx + 10, cy + int32(i * 3 + 3), 
+              Color(r: 80, g: 60, b: 40, a: 150))
+    # Turret base
+    drawCircle(Vector2(x: cx.float32, y: (cy - 3).float32), 6, Color(r: 70, g: 70, b: 80, a: 255))
+    drawCircleLines(Vector2(x: cx.float32, y: (cy - 3).float32), 6, color)
+    # Turret barrel
+    drawRectangle(cx - 2, cy - 12, 4, 10, color)
+    drawRectangleLines(Rectangle(x: (cx - 2).float32, y: (cy - 12).float32, width: 4, height: 10), 1.5, 
+                      Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
+    # Barrel highlight
+    drawRectangle(cx - 1, cy - 12, 2, 10, 
+                 Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 200))
+    # Muzzle flash
+    drawCircle(Vector2(x: cx.float32, y: (cy - 13).float32), 3, Color(r: 255, g: 200, b: 100, a: 255))
+    for i in 0..3:
+      let angle = i.float32 * PI / 2
+      let rayX = cx.float32 + cos(angle - PI / 2) * 5
+      let rayY = cy.float32 - 13 + sin(angle - PI / 2) * 5
+      drawLine(cx, cy - 13, int32(rayX), int32(rayY), Color(r: 255, g: 200, b: 100, a: 200))
+    
   else:
     # Default: Enhanced gear icon for unspecified types
     # Gear body shadow

@@ -1,7 +1,7 @@
 ## OS-Style Task Manager (Pause Menu)
 ## Pause menu styled as system task manager with mouse support
 
-import raylib, types, powerup
+import raylib, types, ../powerup_data
 
 const
   TASK_MANAGER_WIDTH = 700

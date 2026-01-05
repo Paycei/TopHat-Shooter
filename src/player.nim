@@ -49,7 +49,9 @@ proc newPlayer*(x, y: float32): Player =
     # Parry power-up (LEGENDARY - active ability)
     parryActive: false,
     parryCooldown: 0,
-    parryDuration: 0
+    parryDuration: 0,
+    # Radial Burst power-up - start ready to fire
+    radialBurstTimer: 0.0
   )
 
 proc hasAnyOrbPowerUp*(player: Player): bool =

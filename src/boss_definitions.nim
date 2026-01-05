@@ -3,8 +3,6 @@
 
 import math, random, raylib
 
-# Boss Configuration System
-
 type
   BossAttackPattern* = enum
     bapSpiral,           # Shoots bullets in spiral
@@ -39,15 +37,15 @@ type
     hpThreshold*: float32      # Enters this phase when HP drops below this %
     speedMultiplier*: float32
     damageMultiplier*: float32
-    defenseMultiplier*: float32  # Damage reduction
+    defenseMultiplier*: float32
     attacks*: seq[BossAttack]
     color*: Color
     visualEffect*: string      # "glow", "aura", "shield", "pulse"
-    specialBehavior*: string   # Custom behavior flags
+    specialBehavior*: string
 
   BossDefinition* = object
     name*: string
-    bossID*: int               # Boss number (1-12 for custom, 13+ for random)
+    bossID*: int
     baseHP*: float32
     baseSpeed*: float32
     baseDamage*: int
@@ -57,16 +55,14 @@ type
     specialAbilities*: seq[string]
     description*: string
 
-# Boss Definitions (1-12) - CUSTOM UNIQUE BOSSES
-
 proc getBossDefinition*(bossNumber: int): BossDefinition =
   case bossNumber
   of 1:  # Wave 5 - THE SPIRAL GUARDIAN
     result = BossDefinition(
       name: "The Spiral Guardian",
       bossID: 1,
-      baseHP: 125.0,  # NERFED from 150.0 (dies faster)
-      baseSpeed: 50.0,  # NERFED from 65.0 (moves slower)
+      baseHP: 125.0,  # NERFED from 150.0
+      baseSpeed: 50.0,  # NERFED from 65.0
       baseDamage: 1,
       baseRadius: 45.0,
       color: Color(r: 100, g: 50, b: 200, a: 255),
@@ -86,17 +82,17 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 0.75,  # BUFFED from 0.9 (faster attacks)
-              projectileSpeed: 160.0,  # NERFED from 170.0 (easier to dodge)
-              projectileCount: 9,  # BUFFED from 8 (more bullets)
+              cooldown: 0.75,  # BUFFED from 0.9
+              projectileSpeed: 160.0,  # NERFED from 170.0
+              projectileCount: 9,  # BUFFED from 8
               spreadAngle: 45.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 1.75,  # BUFFED from 2.25 (more frequent)
-              projectileSpeed: 190.0,  # NERFED from 200.0 (slower)
+              cooldown: 1.75,  # BUFFED from 2.25
+              projectileSpeed: 190.0,  # NERFED from 200.0
               projectileCount: 3,
               spreadAngle: 20.0,
               durationOrRadius: 0.0
@@ -116,18 +112,18 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 1.0,  # NERFED from 1.0 (slower attacks)
-              projectileSpeed: 170.0,  # NERFED from 185.0 (easier to dodge)
-              projectileCount: 10,  # NERFED from 12 (less bullets)
+              cooldown: 1.0,  # NERFED from 1.0
+              projectileSpeed: 170.0,  # NERFED from 185.0
+              projectileCount: 10,  # NERFED from 12
               spreadAngle: 30.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 3.0,  # NERFED from 2.5 (less frequent)
-              projectileSpeed: 112.5,  # NERFED from 125.0 (easier to dodge)
-              projectileCount: 10,  # NERFED from 12 (less bullets)
+              cooldown: 3.0,  # NERFED from 2.5
+              projectileSpeed: 112.5,  # NERFED from 125.
+              projectileCount: 10,  # NERFED from 12
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
@@ -150,7 +146,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       name: "The Summoner King",
       bossID: 2,
       baseHP: 175.0,
-      baseSpeed: 70.0,  # BUFFED from 60.0 (faster movement)
+      baseSpeed: 70.0,  # BUFFED from 60.0
       baseDamage: 1,
       baseRadius: 50.0,
       color: Color(r: 50, g: 150, b: 50, a: 255),
@@ -160,7 +156,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Legion's Call",
           hpThreshold: 1.0,
-          speedMultiplier: 0.9,  # BUFFED from 0.8 (less slow)
+          speedMultiplier: 0.9,  # BUFFED from 0.8
           damageMultiplier: 1.0,
           defenseMultiplier: 0.9,
           color: Color(r: 50, g: 150, b: 50, a: 255),
@@ -170,7 +166,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 4.5,  # BUFFED from 5.0 (more frequent summons)
+              cooldown: 4.5,  # BUFFED from 5.0
               projectileSpeed: 0.0,
               projectileCount: 4,  # BUFFED from 3 (more minions)
               spreadAngle: 0.0,
@@ -178,7 +174,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "minion_circle"
             ),
             BossAttack(
-              attackType: bapWave,  # NEW: Added wave attack in phase 1
+              attackType: bapWave,
               damage: 1.0,
               cooldown: 2.75,
               projectileSpeed: 150.0,
@@ -191,8 +187,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Swarm Commander",
           hpThreshold: 0.6,
-          speedMultiplier: 1.0,  # NERFED from 1.1 (less mobile)
-          damageMultiplier: 1.2,  # NERFED from 1.35 (less damage)
+          speedMultiplier: 1.0,  # NERFED from 1.1
+          damageMultiplier: 1.2,  # NERFED from 1.35
           defenseMultiplier: 0.8,
           color: Color(r: 30, g: 200, b: 30, a: 255),
           visualEffect: "glow",
@@ -201,7 +197,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 4.0,  # NERFED from 3.5 (less frequent summons)
+              cooldown: 4.0,  # NERFED from 3.5
               projectileSpeed: 0.0,
               projectileCount: 3,  # NERFED from 4 (fewer minions)
               spreadAngle: 0.0,
@@ -211,18 +207,18 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBurst,
               damage: 1.0,
-              cooldown: 2.5,  # NERFED from 2.0 (slower)
-              projectileSpeed: 150.0,  # NERFED from 170.0 (easier to dodge)
-              projectileCount: 5,  # NERFED from 6 (fewer bullets)
+              cooldown: 2.5,  # NERFED from 2.0
+              projectileSpeed: 150.0,  # NERFED from 170.0
+              projectileCount: 5,  # NERFED from 6
               spreadAngle: 60.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 5.0,  # NERFED from 4.0 (less frequent)
-              projectileSpeed: 140.0,  # NERFED from 150.0 (easier to dodge)
-              projectileCount: 10,  # NERFED from 12 (fewer bullets)
+              cooldown: 5.0,  # NERFED from 4.0
+              projectileSpeed: 140.0,  # NERFED from 150.0
+              projectileCount: 10,  # NERFED from 12
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             )
@@ -236,7 +232,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       name: "The Meteor Striker",
       bossID: 3,
       baseHP: 250.0,  # NERFED from 280.0
-      baseSpeed: 65.0,  # NERFED from 75.0 (much slower base speed)
+      baseSpeed: 65.0,  # NERFED from 75.0
       baseDamage: 2,
       baseRadius: 48.0,
       color: Color(r: 255, g: 100, b: 0, a: 255),
@@ -246,7 +242,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Orbital Strike",
           hpThreshold: 1.0,
-          speedMultiplier: 0.95,  # NERFED from 1.05 (slower phase 1)
+          speedMultiplier: 0.95,  # NERFED from 1.05
           damageMultiplier: 1.0,
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 100, b: 0, a: 255),
@@ -256,8 +252,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapMeteor,
               damage: 2.0,
-              cooldown: 3.2,  # NERFED from 3.0 (less frequent)
-              projectileSpeed: 280.0,  # NERFED from 300.0 (easier to dodge)
+              cooldown: 3.2,  # NERFED from 3.0
+              projectileSpeed: 280.0,  # NERFED from 300.0
               projectileCount: 4,
               spreadAngle: 0.0,
               durationOrRadius: 80.0,
@@ -266,8 +262,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 1.7,  # NERFED from 1.5 (less frequent)
-              projectileSpeed: 230.0,  # NERFED from 250.0 (easier to dodge)
+              cooldown: 1.7,  # NERFED from 1.5
+              projectileSpeed: 230.0,  # NERFED from 250.0
               projectileCount: 1,
               spreadAngle: 0.0,
               durationOrRadius: 0.0
@@ -277,8 +273,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Cataclysm",
           hpThreshold: 0.5,
-          speedMultiplier: 1.0,  # NERFED from 1.1 (no speed increase in phase 2)
-          damageMultiplier: 1.4,  # NERFED from 1.5 (less damage)
+          speedMultiplier: 1.0,  # NERFED from 1.1
+          damageMultiplier: 1.4,  # NERFED from 1.5
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 50, b: 0, a: 255),
           visualEffect: "aura",
@@ -287,8 +283,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapMeteor,
               damage: 2.0,
-              cooldown: 2.3,  # NERFED from 2.0 (less frequent)
-              projectileSpeed: 330.0,  # NERFED from 350.0 (easier to dodge)
+              cooldown: 2.3,  # NERFED from 2.0
+              projectileSpeed: 330.0,  # NERFED from 350.0
               projectileCount: 7,  # NERFED from 8 (fewer meteors)
               spreadAngle: 0.0,
               durationOrRadius: 100.0,
@@ -297,8 +293,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapPulse,
               damage: 1.0,
-              cooldown: 4.5,  # NERFED from 4.0 (less frequent)
-              projectileSpeed: 190.0,  # NERFED from 200.0 (easier to dodge)
+              cooldown: 4.5,  # NERFED from 4.0
+              projectileSpeed: 190.0,  # NERFED from 200.0
               projectileCount: 0,
               spreadAngle: 0.0,
               durationOrRadius: 150.0
@@ -308,8 +304,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Apocalypse",
           hpThreshold: 0.25,
-          speedMultiplier: 1.25,  # NERFED from 2.0 (much slower phase 3)
-          damageMultiplier: 1.5,  # NERFED from 2.0 (less damage)
+          speedMultiplier: 1.25,  # NERFED from 2.0
+          damageMultiplier: 1.5,  # NERFED from 2.0
           defenseMultiplier: 0.9,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
@@ -317,9 +313,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapMeteor,
-              damage: 2.5,  # NERFED from 3.0 (less damage)
-              cooldown: 1.75,  # NERFED from 1.5 (less frequent)
-              projectileSpeed: 370.0,  # NERFED from 400.0 (easier to dodge)
+              damage: 2.5,  # NERFED from 3.0
+              cooldown: 1.75,  # NERFED from 1.5
+              projectileSpeed: 370.0,  # NERFED from 400.0
               projectileCount: 11,  # NERFED from 12 (fewer meteors)
               spreadAngle: 0.0,
               durationOrRadius: 120.0,
@@ -328,9 +324,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 3.0,  # NERFED from 2.5 (less frequent)
-              projectileSpeed: 170.0,  # NERFED from 180.0 (easier to dodge)
-              projectileCount: 16,  # NERFED from 20 (fewer bullets)
+              cooldown: 3.0,  # NERFED from 2.5
+              projectileSpeed: 170.0,  # NERFED from 180.0
+              projectileCount: 16,  # NERFED from 20
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             )
@@ -343,8 +339,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Laser Architect",
       bossID: 4,
-      baseHP: 350.0,  # NERFED from 390.0 (easier to kill)
-      baseSpeed: 72.0,  # NERFED from 77.5 (slower movement)
+      baseHP: 350.0,  # NERFED from 390.0
+      baseSpeed: 72.0,  # NERFED from 77.5
       baseDamage: 2,
       baseRadius: 52.0,
       color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -354,7 +350,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Blueprint",
           hpThreshold: 1.0,
-          speedMultiplier: 1.0,  # NERFED from 1.1 (slower)
+          speedMultiplier: 1.0,  # NERFED from 1.1
           damageMultiplier: 1.0,
           defenseMultiplier: 1.2,
           color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -364,29 +360,29 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 2.0,
-              cooldown: 4.5,  # NERFED from 3.5 (less frequent)
+              cooldown: 4.5,  # NERFED from 3.5
               projectileSpeed: 0.0,
               projectileCount: 3,
               spreadAngle: 90.0,
-              durationOrRadius: 2.5,  # NERFED from 3.0 (shorter duration)
+              durationOrRadius: 2.5,  # NERFED from 3.0
               specialData: "cross_laser"
             ),
             BossAttack(
               attackType: bapWave,
               damage: 1.0,
-              cooldown: 2.75,  # NERFED from 2.25 (less frequent)
-              projectileSpeed: 160.0,  # NERFED from 180.0 (easier to dodge)
-              projectileCount: 5,  # NERFED from 6 (fewer bullets)
-              spreadAngle: 45.0,  # NERFED from 50.0 (tighter spread)
+              cooldown: 2.75,  # NERFED from 2.25
+              projectileSpeed: 160.0,  # NERFED from 180.0
+              projectileCount: 5,  # NERFED from 6
+              spreadAngle: 45.0,  # NERFED from 50.0 (tighter)
               durationOrRadius: 0.0
             ),
             BossAttack(
-              attackType: bapTargeted,  # NERFED: Less aggressive targeting
+              attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 3.5,  # NERFED from 3.0 (less frequent)
-              projectileSpeed: 220.0,  # NERFED from 250.0 (easier to dodge)
-              projectileCount: 4,  # NERFED from 5 (fewer bullets)
-              spreadAngle: 8.0,  # NERFED from 10.0 (tighter, easier to dodge as group)
+              cooldown: 3.5,  # NERFED from 3.0
+              projectileSpeed: 220.0,  # NERFED from 250.0
+              projectileCount: 4,  # NERFED from 5
+              spreadAngle: 8.0,  # NERFED from 10.0 (tighter)
               durationOrRadius: 0.0
             )
           ]
@@ -394,8 +390,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Construction",
           hpThreshold: 0.65,
-          speedMultiplier: 1.2,  # NERFED from 1.33 (slower)
-          damageMultiplier: 1.2,  # NERFED from 1.33 (less damage)
+          speedMultiplier: 1.2,  # NERFED from 1.33
+          damageMultiplier: 1.2,  # NERFED from 1.33
           defenseMultiplier: 1.1,
           color: Color(r: 0, g: 255, b: 255, a: 255),
           visualEffect: "pulse",
@@ -404,7 +400,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 2.0,
-              cooldown: 3.5,  # NERFED from 2.2 (much less frequent)
+              cooldown: 3.5,  # NERFED from 2.2
               projectileSpeed: 0.0,
               projectileCount: 3,  # NERFED from 4 (fewer lasers)
               spreadAngle: 45.0,
@@ -414,28 +410,28 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 1.5,  # NERFED from 0.8 (much less rapid)
-              projectileSpeed: 260.0,  # NERFED from 300.0 (easier to dodge)
-              projectileCount: 3,  # NERFED from 4 (fewer bullets)
-              spreadAngle: 15.0,  # NERFED from 20.0 (tighter spread)
+              cooldown: 1.5,  # NERFED from 0.8
+              projectileSpeed: 260.0,  # NERFED from 300.0
+              projectileCount: 3,  # NERFED from 4
+              spreadAngle: 15.0,  # NERFED from 20.0 (tighter)
               durationOrRadius: 0.0
             ),
             BossAttack(
-              attackType: bapCircle,  # NERFED: Less aggressive circle
+              attackType: bapCircle,
               damage: 1.0,
-              cooldown: 4.5,  # NERFED from 3.5 (less frequent)
-              projectileSpeed: 145.0,  # NERFED from 160.0 (easier to dodge)
-              projectileCount: 12,  # NERFED from 16 (fewer bullets)
+              cooldown: 4.5,  # NERFED from 3.5
+              projectileSpeed: 145.0,  # NERFED from 160.0
+              projectileCount: 12,  # NERFED from 16
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapBurst,  # NERFED: Less aggressive burst
               damage: 1.0,
-              cooldown: 3.0,  # NERFED from 2.5 (less frequent)
-              projectileSpeed: 190.0,  # NERFED from 220.0 (easier to dodge)
-              projectileCount: 6,  # NERFED from 8 (fewer bullets)
-              spreadAngle: 50.0,  # NERFED from 60.0 (tighter spread)
+              cooldown: 3.0,  # NERFED from 2.5
+              projectileSpeed: 190.0,  # NERFED from 220.0
+              projectileCount: 6,  # NERFED from 8
+              spreadAngle: 50.0,  # NERFED from 60.0 (tighter)
               durationOrRadius: 0.0
             )
           ]
@@ -443,8 +439,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Masterpiece",
           hpThreshold: 0.3,
-          speedMultiplier: 1.2,  # NERFED from 1.3 (much slower)
-          damageMultiplier: 1.2,  # NERFED from 1.3 (less damage)
+          speedMultiplier: 1.2,  # NERFED from 1.3
+          damageMultiplier: 1.2,  # NERFED from 1.3
           defenseMultiplier: 1.0,
           color: Color(r: 100, g: 255, b: 255, a: 255),
           visualEffect: "aura",
@@ -452,58 +448,58 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapLaser,
-              damage: 2.0,  # NERFED from 2.5 (less damage)
-              cooldown: 4.0,  # NERFED from 2.5 (much less spam)
+              damage: 2.0,  # NERFED from 2.5
+              cooldown: 4.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
-              projectileCount: 4,  # NERFED from 6 (much fewer lasers)
+              projectileCount: 4,  # NERFED from 6 (fewer lasers)
               spreadAngle: 22.5,
-              durationOrRadius: 2.5,  # NERFED from 3.5 (much shorter)
+              durationOrRadius: 2.5,  # NERFED from 3.5 (shorter)
               specialData: "prismatic_cage"
             ),
             BossAttack(
               attackType: bapLaser,
-              damage: 2.5,  # High damage for precision attack
+              damage: 2.5,
               cooldown: 1.0,  # Rapid fire laser spam
               projectileSpeed: 0.0,
-              projectileCount: 1,  # 1 laser per shot
-              spreadAngle: 0.0,  # Not used for laser_snipe
-              durationOrRadius: 1.5,  # Short duration (1.5 seconds)
-              specialData: "laser_snipe"  # NEW: Rapid tracking lasers
+              projectileCount: 1,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.5,  # Short duration
+              specialData: "laser_snipe"  # Rapid tracking lasers
             ),
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 4.5,  # NERFED from 3.5 (much less frequent)
-              projectileSpeed: 140.0,  # NERFED from 155.0 (much easier to dodge)
-              projectileCount: 16,  # NERFED from 20 (much fewer bullets)
+              cooldown: 4.5,  # NERFED from 3.5
+              projectileSpeed: 140.0,  # NERFED from 155.0
+              projectileCount: 16,  # NERFED from 20
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
-              attackType: bapBarrage,  # EXTREMELY NERFED: Much less overwhelming
-              damage: 1.0,  # NERFED from 2.0 (less damage)
-              cooldown: 6.0,  # EXTREMELY NERFED from 4.5 (rare special attack)
-              projectileSpeed: 190.0,  # NERFED from 210.0 (very easy to dodge)
-              projectileCount: 16,  # EXTREMELY NERFED from 20 (half of original 32)
+              attackType: bapBarrage,
+              damage: 1.0,  # NERFED from 2.0
+              cooldown: 6.0,  # NERFED from 4.5
+              projectileSpeed: 190.0,  # NERFED from 210.0
+              projectileCount: 16,  # NERFED from 20
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
-              attackType: bapPulse,  # NERFED: Much less aggressive
-              damage: 1.0,  # NERFED from 1.5 (much less damage)
-              cooldown: 6.5,  # NERFED from 5.0 (rare special attack)
-              projectileSpeed: 160.0,  # NERFED from 175.0 (easier to dodge)
+              attackType: bapPulse,
+              damage: 1.0,  # NERFED from 1.5
+              cooldown: 6.5,  # NERFED from 5.0
+              projectileSpeed: 160.0,  # NERFED from 175.0
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 140.0  # NERFED from 160.0 (smaller radius)
+              durationOrRadius: 140.0  # NERFED from 160.0
             ),
             BossAttack(
-              attackType: bapTargeted,  # EXTREMELY NERFED: No longer relentless
-              damage: 1.0,  # NERFED from 1.5 (much less damage)
-              cooldown: 2.0,  # EXTREMELY NERFED from 1.2 (much less rapid)
-              projectileSpeed: 250.0,  # NERFED from 280.0 (easier to dodge)
-              projectileCount: 2,  # NERFED from 3 (fewer bullets)
-              spreadAngle: 12.0,  # NERFED from 18.0 (tighter spread)
+              attackType: bapTargeted,
+              damage: 1.0,  # NERFED from 1.5
+              cooldown: 2.0,  # EXTREMELY NERFED from 1.2
+              projectileSpeed: 250.0,  # NERFED from 280.0
+              projectileCount: 2,  # NERFED from 3
+              spreadAngle: 12.0,  # NERFED from 18.0 (tighter)
               durationOrRadius: 0.0
             )
           ]
@@ -527,7 +523,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Phase Walk",
           hpThreshold: 1.0,
           speedMultiplier: 0.9,  # NERFED from 1.0
-          damageMultiplier: 0.9,  # NERFED - new nerf
+          damageMultiplier: 0.9,  # NERFED from 1.0
           defenseMultiplier: 1.0,
           color: Color(r: 80, g: 0, b: 120, a: 255),
           visualEffect: "pulse",
@@ -682,12 +678,12 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
   
-  of 6:  # Wave 30 - THE CHAIN REACTOR (Electric/Lightning Boss)
+  of 6:  # Wave 30 - THE CHAIN REACTOR
     result = BossDefinition(
       name: "The Chain Reactor",
       bossID: 6,
       baseHP: 450.0,
-      baseSpeed: 70.0,  # Fast, erratic movement like electricity
+      baseSpeed: 70.0,
       baseDamage: 2,
       baseRadius: 55.0,
       color: Color(r: 255, g: 255, b: 0, a: 255),  # Bright electric yellow
@@ -697,12 +693,12 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Charging",
           hpThreshold: 1.0,
-          speedMultiplier: 0.8,  # Slower while charging
+          speedMultiplier: 0.8,
           damageMultiplier: 0.85,
-          defenseMultiplier: 1.5,  # High defense while charging
+          defenseMultiplier: 1.5,
           color: Color(r: 255, g: 255, b: 0, a: 255),
           visualEffect: "pulse",
-          specialBehavior: "electric_buildup",  # NEW: Twitchy, charging movement
+          specialBehavior: "electric_buildup",  # Twitchy, charging movement
           attacks: @[
             BossAttack(
               attackType: bapChain,
@@ -711,8 +707,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               projectileSpeed: 0.0,
               projectileCount: 3,  # 3 chain lightning bolts
               spreadAngle: 0.0,
-              durationOrRadius: 280.0,  # Chain range
-              specialData: "chain_basic"  # Simple chain effect
+              durationOrRadius: 280.0,  # Range
+              specialData: "chain_basic"
             ),
             BossAttack(
               attackType: bapOrbit,
@@ -741,9 +737,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           speedMultiplier: 1.15,  # Faster, more erratic
           damageMultiplier: 1.2,
           defenseMultiplier: 1.1,
-          color: Color(r: 255, g: 255, b: 150, a: 255),  # Brighter yellow
+          color: Color(r: 255, g: 255, b: 150, a: 255),
           visualEffect: "aura",
-          specialBehavior: "electric_surge",  # NEW: Rapid twitchy movement
+          specialBehavior: "electric_surge",  # Rapid twitchy movement
           attacks: @[
             BossAttack(
               attackType: bapChain,
@@ -758,7 +754,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapOrbit,
               damage: 1.2,
-              cooldown: 0.5,  # Very frequent
+              cooldown: 0.5,
               projectileSpeed: 110.0,
               projectileCount: 5,  # More charges
               spreadAngle: 72.0,
@@ -789,19 +785,19 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Overload",
           hpThreshold: 0.3,
-          speedMultiplier: 1.3,  # Extremely fast and erratic
+          speedMultiplier: 1.2,
           damageMultiplier: 1.4,
           defenseMultiplier: 0.85,
-          color: Color(r: 255, g: 255, b: 255, a: 255),  # Pure white lightning
+          color: Color(r: 255, g: 255, b: 255, a: 255),
           visualEffect: "glow",
-          specialBehavior: "critical_discharge",  # NEW: Chaotic electric movement
+          specialBehavior: "critical_discharge",  # Chaotic electric movement
           attacks: @[
             BossAttack(
               attackType: bapChain,
               damage: 2.5,
               cooldown: 2.0,
               projectileSpeed: 0.0,
-              projectileCount: 8,  # Massive chain count
+              projectileCount: 8,  # Massive
               spreadAngle: 0.0,
               durationOrRadius: 360.0,
               specialData: "chain_overload"  # Maximum chain effect
@@ -841,15 +837,15 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
   
-  of 7:  # Wave 35 - THE ORBITAL COMMANDER (Space/Satellite Boss)
+  of 7:  # Wave 35 - THE ORBITAL COMMANDER
     result = BossDefinition(
       name: "The Orbital Commander",
       bossID: 7,
       baseHP: 600.0,
-      baseSpeed: 60.0,  # Slow, calculated movements
+      baseSpeed: 60.0,
       baseDamage: 2,
       baseRadius: 58.0,
-      color: Color(r: 150, g: 100, b: 255, a: 255),  # Deep purple/space color
+      color: Color(r: 150, g: 100, b: 255, a: 255),
       description: "Commands orbital satellites that strike with astronomical precision",
       specialAbilities: @["satellite_control", "orbital_strike", "gravity_lock"],
       phases: @[
@@ -861,13 +857,13 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           defenseMultiplier: 1.6,  # Heavy armor
           color: Color(r: 150, g: 100, b: 255, a: 255),
           visualEffect: "shield",
-          specialBehavior: "orbital_pattern",  # NEW: Circular orbital movement
+          specialBehavior: "orbital_pattern",  # Circular orbital movement
           attacks: @[
             BossAttack(
               attackType: bapOrbit,
               damage: 1.2,
               cooldown: 1.0,
-              projectileSpeed: 75.0,  # Slow orbital speed
+              projectileSpeed: 75.0,  # Orbital speed
               projectileCount: 3,  # 3 satellites
               spreadAngle: 120.0,
               durationOrRadius: 180.0,  # Wide orbit
@@ -878,7 +874,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 2.5,
               cooldown: 4.0,
               projectileSpeed: 300.0,
-              projectileCount: 1,  # Precise single shot
+              projectileCount: 1,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
               specialData: "orbital_snipe"  # Aimed from satellite
@@ -897,19 +893,19 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Full Deployment",
           hpThreshold: 0.6,
-          speedMultiplier: 1.0,  # Speeds up slightly
+          speedMultiplier: 1.0,
           damageMultiplier: 1.2,
           defenseMultiplier: 1.3,
           color: Color(r: 180, g: 120, b: 255, a: 255),
           visualEffect: "aura",
-          specialBehavior: "satellite_swarm",  # NEW: Multiple orbital patterns
+          specialBehavior: "satellite_swarm",  # Multiple orbital patterns
           attacks: @[
             BossAttack(
               attackType: bapOrbit,
               damage: 1.5,
               cooldown: 0.8,
               projectileSpeed: 95.0,
-              projectileCount: 5,  # More satellites
+              projectileCount: 5,
               spreadAngle: 72.0,
               durationOrRadius: 200.0,
               specialData: "dual_layer_orbit"  # Two orbital layers
@@ -929,7 +925,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 1.5,
               cooldown: 4.5,
               projectileSpeed: 140.0,
-              projectileCount: 16,  # Orbital spread
+              projectileCount: 16,
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
@@ -948,19 +944,19 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Orbital Supremacy",
           hpThreshold: 0.35,
-          speedMultiplier: 1.2,  # Faster movement
+          speedMultiplier: 1.15,
           damageMultiplier: 1.5,
           defenseMultiplier: 1.0,
-          color: Color(r: 200, g: 150, b: 255, a: 255),  # Brighter purple
+          color: Color(r: 200, g: 150, b: 255, a: 255),
           visualEffect: "glow",
-          specialBehavior: "orbital_chaos",  # NEW: Complex orbital patterns
+          specialBehavior: "orbital_chaos",  # Complex orbital patterns
           attacks: @[
             BossAttack(
               attackType: bapOrbit,
               damage: 2.0,
               cooldown: 0.6,
               projectileSpeed: 115.0,
-              projectileCount: 8,  # Many satellites
+              projectileCount: 8,
               spreadAngle: 45.0,
               durationOrRadius: 220.0,
               specialData: "orbital_storm"  # Triple layer orbit
@@ -980,7 +976,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 1.5,
               cooldown: 3.5,
               projectileSpeed: 240.0,
-              projectileCount: 24,  # Satellite bombardment
+              projectileCount: 24,
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               specialData: "orbital_bombardment"
@@ -1000,22 +996,22 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
   
-  of 8:  # Wave 40 - THE BERSERKER JUGGERNAUT (Rage/Melee Boss)
+  of 8:  # Wave 40 - THE BERSERKER JUGGERNAUT
     result = BossDefinition(
       name: "The Berserker Juggernaut",
       bossID: 8,
       baseHP: 700.0,
-      baseSpeed: 50.0,  # Fast and aggressive
+      baseSpeed: 35.0,
       baseDamage: 3,
       baseRadius: 60.0,
-      color: Color(r: 200, g: 0, b: 0, a: 255),  # Deep red
+      color: Color(r: 200, g: 0, b: 0, a: 255),
       description: "An unstoppable force of pure rage that grows stronger as it bleeds",
       specialAbilities: @["rage_buildup", "crushing_charge", "blood_fury"],
       phases: @[
         BossPhaseDefinition(
           name: "Warmup",
           hpThreshold: 1.0,
-          speedMultiplier: 0.9,
+          speedMultiplier: 0.7,
           damageMultiplier: 0.9,
           defenseMultiplier: 1.2,
           color: Color(r: 200, g: 0, b: 0, a: 255),
@@ -1037,7 +1033,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 1.5,
               cooldown: 3.0,
               projectileSpeed: 170.0,
-              projectileCount: 4,  # Rage wave
+              projectileCount: 4,
               spreadAngle: 80.0,
               durationOrRadius: 0.0
             ),
@@ -1055,10 +1051,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Bloodrage",
           hpThreshold: 0.65,
-          speedMultiplier: 1.1,  # Much faster
+          speedMultiplier: 0.8,  # NERFED from 1.1
           damageMultiplier: 1.3,
           defenseMultiplier: 1.0,
-          color: Color(r: 255, g: 30, b: 0, a: 255),  # Bright red rage
+          color: Color(r: 255, g: 30, b: 0, a: 255),
           visualEffect: "aura",
           specialBehavior: "enraged_assault",  # Aggressive movement
           attacks: @[
@@ -1105,10 +1101,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Unstoppable",
           hpThreshold: 0.3,
-          speedMultiplier: 1.2,  # Extremely fast
+          speedMultiplier: 1.0,  # NERFED from 1.2
           damageMultiplier: 1.8,
           defenseMultiplier: 0.8,
-          color: Color(r: 255, g: 0, b: 0, a: 255),  # Pure red
+          color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
           specialBehavior: "berserk_rampage",  # Maximum aggression
           attacks: @[
@@ -1116,7 +1112,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapDash,
               damage: 4.5,
               cooldown: 2.0,  # Constant charging
-              projectileSpeed: 600.0,  # Insanely fast
+              projectileSpeed: 600.0,
               projectileCount: 0,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
@@ -1155,15 +1151,15 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )  
-  of 9:  # Wave 45 - THE PRISM ARCHITECT (Light/Refraction Boss)
+  of 9:  # Wave 45 - THE PRISM ARCHITECT
     result = BossDefinition(
       name: "The Prism Architect",
       bossID: 9,
       baseHP: 850.0,
-      baseSpeed: 65.0,  # Moderate speed, geometric movement
+      baseSpeed: 65.0,
       baseDamage: 3,
       baseRadius: 56.0,
-      color: Color(r: 255, g: 200, b: 255, a: 255),  # Soft prismatic pink
+      color: Color(r: 255, g: 200, b: 255, a: 255),
       description: "Manipulates light itself into geometric prisons of splitting lasers",
       specialAbilities: @["prism_refraction", "light_split", "rainbow_cascade"],
       phases: @[
@@ -1211,10 +1207,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Spectrum Array",
           hpThreshold: 0.6,
-          speedMultiplier: 1.1,  # Faster geometric movement
+          speedMultiplier: 1.1,
           damageMultiplier: 1.25,
           defenseMultiplier: 1.2,
-          color: Color(r: 200, g: 150, b: 255, a: 255),  # Shifting prismatic
+          color: Color(r: 200, g: 150, b: 255, a: 255),
           visualEffect: "aura",
           specialBehavior: "prism_array",  # Figure-8 patterns
           attacks: @[
@@ -1261,10 +1257,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Pure Brilliance",
           hpThreshold: 0.35,
-          speedMultiplier: 1.25,  # Fast sweeping movement
+          speedMultiplier: 1.25,
           damageMultiplier: 1.6,
           defenseMultiplier: 1.0,
-          color: Color(r: 255, g: 255, b: 255, a: 255),  # Pure white light
+          color: Color(r: 255, g: 255, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "light_cascade",  # Sweeping arc movements
           attacks: @[
@@ -1312,24 +1308,24 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
   
-  of 10:  # Wave 50 - THE TIMEKEEPER (Time Manipulation Boss)
+  of 10:  # Wave 50 - THE TIMEKEEPER
     result = BossDefinition(
       name: "The Timekeeper",
       bossID: 10,
       baseHP: 1050.0,
-      baseSpeed: 55.0,  # Slower base, manipulates time
+      baseSpeed: 55.0,
       baseDamage: 4,
       baseRadius: 62.0,
-      color: Color(r: 0, g: 180, b: 180, a: 255),  # Cyan time color
+      color: Color(r: 0, g: 180, b: 180, a: 255),
       description: "Bends the flow of time itself, creating paradoxes and temporal rifts",
       specialAbilities: @["temporal_echo", "time_rewind", "chrono_break"],
       phases: @[
         BossPhaseDefinition(
           name: "Temporal Echo",
           hpThreshold: 1.0,
-          speedMultiplier: 0.7,  # Very slow, methodical
+          speedMultiplier: 0.7,
           damageMultiplier: 0.9,
-          defenseMultiplier: 1.5,  # High defense (time shield)
+          defenseMultiplier: 1.5,
           color: Color(r: 0, g: 180, b: 180, a: 255),
           visualEffect: "pulse",
           specialBehavior: "slow_time",  # Slow methodical movement
@@ -1358,7 +1354,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapTargeted,
               damage: 2.0,
               cooldown: 3.0,
-              projectileSpeed: 160.0,  # Slow bullets
+              projectileSpeed: 160.0,
               projectileCount: 1,
               spreadAngle: 0.0,
               durationOrRadius: 0.0
@@ -1368,7 +1364,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Time Fracture",
           hpThreshold: 0.6,
-          speedMultiplier: 1.1,  # Stuttering speed (time distortion)
+          speedMultiplier: 1.1,
           damageMultiplier: 1.3,
           defenseMultiplier: 1.2,
           color: Color(r: 100, g: 220, b: 220, a: 255),  # Brighter cyan
@@ -1629,7 +1625,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
   
-  of 12:  # Wave 60 - THE OMEGA ENTITY (FINAL CUSTOM BOSS)
+  of 12:  # Wave 60 - THE OMEGA ENTITY
     result = BossDefinition(
       name: "The Omega Entity",
       bossID: 12,

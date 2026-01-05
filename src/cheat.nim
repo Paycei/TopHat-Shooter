@@ -1,5 +1,4 @@
-import raylib, types, sound, math, gamemode_definitions
-from powerup import applyPowerUp, getPowerUpName
+import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data
 
 # ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
@@ -613,7 +612,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puPoisonOrb, puPoisonShot, puRage, puRapidFire, puRegeneration,
     puRotatingOrbs, puRotatingShield, puSlowField, puSpeedBoost, puThorns,
     puTimeWarp, puBloodBullets, puWallMaster, puWindAura, puWindBullets,
-    puWindMastery, puWindOrb, puBloodAura, puBloodMastery, puBloodOrb
+    puWindMastery, puWindOrb, puBloodAura, puBloodMastery, puBloodOrb, puWallTurrets, puRadialBurst
   ]
   
   # Scrollable area setup

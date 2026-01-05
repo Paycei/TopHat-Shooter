@@ -1,4 +1,4 @@
-import raylib, math, std/tables, discord_presence
+﻿import raylib, math, std/tables, discord_presence
 
 type
   GameState* = enum
@@ -56,7 +56,7 @@ type
     puBulletDamage,    # Increased bullet damage
     puBulletSpeed,     # Faster bullets
     puLuckyCoins,      # Doubles coins collected
-    puWallMaster,      # Place stronger walls
+    puWallMaster,      # Place stronger walls and increment turret damage
     puAutoShoot,       # Auto-target nearest enemy
     puBulletSize,      # Larger projectiles
     puRegeneration,    # Slowly restore HP
@@ -101,7 +101,9 @@ type
     puParry,           # LEGENDARY: Active ability - invincible + bounce bullets (0.5s, 5s cd)
     puBloodOrb,        # Blood elemental orb
     puBloodAura,       # Blood damage aura with lifesteal
-    puBloodMastery     # LEGENDARY: Enhance all blood effects (damage, lifesteal)
+    puBloodMastery,    # LEGENDARY: Enhance all blood effects (damage, lifesteal)
+    puRadialBurst,     # Shoots a circle of bullets periodically
+    puWallTurrets      # LEGENDARY: Walls become turrets that shoot enemies
 
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
@@ -214,6 +216,8 @@ type
     parryActive*: bool  # True when actively parrying
     parryCooldown*: float32  # Cooldown timer between parries
     parryDuration*: float32  # How long the parry state lasts
+    # Radial Burst power-up (Normal)
+    radialBurstTimer*: float32  # Timer for periodic radial burst
 
   EffectInstance* = object
     elementType*: ElementType
@@ -366,6 +370,7 @@ type
     hp*: float32
     maxHp*: float32
     duration*: float32
+    shootTimer*: float32  # Timer for turret shooting (puWallTurrets)
 
   Particle* = ref object
     pos*: Vector2f

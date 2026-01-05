@@ -2,7 +2,7 @@
 ## Shop screen redesigned as a modern OS storefront interface
 ## Matches the new OS theme from power-up installer and game over screens
 
-import raylib, types, math, powerup, sound, settings, run_statistics, ui/icon_drawing
+import raylib, types, math, ../powerup_data, sound, settings, run_statistics, ui/icon_drawing
 
 const
   SHOP_WIDTH = 950

@@ -1,6 +1,6 @@
 import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels
 
-# CONFIGURABLE: Boss wave enemy spawn reduction (0.0 = no enemies, 1.0 = full enemies)
+# Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
 
 # Centralized boss wave and coin management
@@ -3297,6 +3297,51 @@ proc updateGame*(game: var Game, dt: float32) =
   # Update player (with wall collision)
   updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
   
+  # Radial Burst power-up - periodic circle of bullets
+  if hasPowerUp(game.player, puRadialBurst):
+    game.player.radialBurstTimer -= dt
+    if game.player.radialBurstTimer <= 0:
+      let level = getPowerUpLevel(game.player, puRadialBurst)
+      let (bulletCount, cooldown) = case level
+        of 1: (8, 4.0)
+        of 2: (10, 3.0)
+        else: (14, 2.0)
+      
+      # Calculate combat stats for radial burst bullets
+      let stats = calculateCombatStats(game.player)
+      
+      # Fire circle of bullets
+      for i in 0..<bulletCount:
+        let angle = (i.float32 / bulletCount.float32) * PI * 2.0
+        let direction = newVector2f(cos(angle), sin(angle))
+        
+        # Create bullet with player's current stats
+        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, stats.damage)
+        
+        game.bullets.add(newBullet(
+          x = game.player.pos.x,
+          y = game.player.pos.y,
+          direction = direction,
+          speed = game.player.bulletSpeed,
+          damage = damageWithCrit,
+          fromPlayer = true,
+          isHoming = false,
+          isPiercing = hasPowerUp(game.player, puPiercingShots),
+          isExplosive = hasPowerUp(game.player, puExplosiveBullets),
+          hasBounce = hasPowerUp(game.player, puBulletRicochet),
+          canSplit = hasPowerUp(game.player, puBulletSplit),
+          slowAmount = 0.0,  # Add elemental effects if player has them
+          poisonDuration = 0.0,
+          fireDuration = 0.0,
+          windPushForce = 0.0
+        ))
+      
+      # Visual feedback
+      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y,
+                    Color(r: 100, g: 200, b: 255, a: 255), 25)
+      
+      game.player.radialBurstTimer = cooldown
+  
   # Player poison damage from venomous elites
   # Uses accumulator system to ensure only whole number damage is applied
   if game.player.poisonTimer > 0:
@@ -5116,6 +5161,57 @@ proc updateGame*(game: var Game, dt: float32) =
       spawnExplosion(game.particles, game.walls[i].pos.x, game.walls[i].pos.y, Brown, 20)
       game.walls.delete(i)
       continue
+    
+    # Wall Turrets power-up - walls shoot at enemies
+    if hasPowerUp(game.player, puWallTurrets):
+      game.walls[i].shootTimer -= dt
+      if game.walls[i].shootTimer <= 0:
+        # Find nearest enemy
+        var nearestEnemy: Enemy = nil
+        var nearestDist = 999999.0
+        for enemy in game.enemies:
+          let dist = distance(game.walls[i].pos, enemy.pos)
+          if dist < nearestDist and dist < 400.0:  # 400px range
+            nearestDist = dist
+            nearestEnemy = enemy
+        
+        # Shoot at nearest enemy
+        if nearestEnemy != nil:
+          let direction = (nearestEnemy.pos - game.walls[i].pos).normalize()
+          
+          # Calculate turret damage based on Fortify level
+          var turretDamage = 1.0
+          if hasPowerUp(game.player, puWallMaster):
+            let fortifyLevel = getPowerUpLevel(game.player, puWallMaster)
+            turretDamage = case fortifyLevel
+              of 1: 1.5  # +50% damage
+              of 2: 2.0  # +100% damage
+              else: 3.0  # +200% damage
+          
+          game.bullets.add(newBullet(
+            x = game.walls[i].pos.x,
+            y = game.walls[i].pos.y,
+            direction = direction,
+            speed = 350.0,
+            damage = turretDamage,
+            fromPlayer = true,  # Count as player damage for scoring
+            isHoming = false,
+            isPiercing = false,
+            isExplosive = false,
+            hasBounce = false,
+            canSplit = false,
+            slowAmount = 0.0,
+            poisonDuration = 0.0,
+            fireDuration = 0.0,
+            windPushForce = 0.0
+          ))
+          
+          # Visual feedback
+          spawnExplosion(game.particles, game.walls[i].pos.x, game.walls[i].pos.y,
+                        Color(r: 255, g: 200, b: 100, a: 255), 8)
+          
+          game.walls[i].shootTimer = 2.0  # 2 second cooldown
+    
     i += 1
   
   # Update particles
@@ -5198,7 +5294,7 @@ proc drawGame*(game: Game) =
   
   # Draw walls
   for wall in game.walls:
-    drawWall(wall)
+    drawWall(wall, game.player)
   
   # Draw coins
   for coin in game.coins:

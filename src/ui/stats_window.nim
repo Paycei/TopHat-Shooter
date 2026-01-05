@@ -1,7 +1,7 @@
 ﻿## OS-Themed Statistics Window - ENHANCED EDITION
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
-import raylib, ui/os_window, statistics, run_statistics, types, math, powerup, strutils, std/tables
+import raylib, ui/os_window, statistics, run_statistics, types, math, ../powerup_data, strutils, std/tables
 
 type
   StatsTab* = enum
