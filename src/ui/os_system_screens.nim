@@ -2,7 +2,7 @@
 ## Game Over as Modern System Crash, Victory as System Secured
 ## REDESIGNED with improved visuals, animations, and polish
 
-import raylib, types, math
+import raylib, ../types, math
 
 const
   SCREEN_WIDTH = 900

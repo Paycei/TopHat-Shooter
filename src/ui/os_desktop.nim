@@ -1,7 +1,7 @@
 ## OS-Themed Desktop Environment Module
 ## Main menu as an operating system desktop
 
-import raylib, types, math, strutils, strformat, times
+import raylib, ../types, math, strutils, strformat, times
 
 type
   DesktopIconType* = enum

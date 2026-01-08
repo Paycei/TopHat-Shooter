@@ -1,7 +1,7 @@
 ## Icon Drawing System - Modern OS Theme with Enhanced Detail
 ## All icons drawn programmatically using shapes with depth and polish
 
-import raylib, types, math
+import raylib, ../types, math
 
 proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   ## Draw power-up icons using geometric shapes with enhanced detail

@@ -1,7 +1,7 @@
 ﻿## OS-Themed Help System
 ## Terminal-style documentation viewer
 
-import raylib, strutils, ui/os_window, math
+import raylib, strutils, os_window, math
 
 type
   HelpCommand* = tuple[cmd: string, desc: string]

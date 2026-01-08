@@ -1,6 +1,6 @@
 ## OS-Style HUD System
 
-import raylib, types, math
+import raylib, ../types, math
 
 const
   PANEL_PADDING = 10

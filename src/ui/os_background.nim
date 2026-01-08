@@ -1,6 +1,6 @@
 ## OS-Style Background System
 
-import raylib, math, random, types
+import raylib, math, random, ../types
 
 const
   GRID_SIZE = 40

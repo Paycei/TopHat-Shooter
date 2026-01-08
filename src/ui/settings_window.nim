@@ -1,7 +1,7 @@
 ## OS-Themed Settings Control Panel
 ## Tabbed settings interface matching the OS visual language
 
-import raylib, strutils, sound, save_system, ui/os_window, settings
+import raylib, strutils, ../sound, ../save_system, os_window, ../settings
 # Use globalSettings from settings module, don't redefine it
 
 type

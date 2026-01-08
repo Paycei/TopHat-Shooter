@@ -2,7 +2,7 @@
 ## Draw enemies with modern process/threat labels
 ## REDESIGNED with improved readability, animations, and visual effects
 
-import raylib, types, math
+import raylib, ../types, math
 
 proc getEnemyProcessName*(enemy: Enemy): string =
   ## Generate a process name for an enemy based on type

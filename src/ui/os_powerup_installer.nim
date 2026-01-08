@@ -1,7 +1,7 @@
 ## OS-Style Process Installer - Enhanced Edition
 ## Power-up selection screen as modern software installation interface
 
-import raylib, types, math, strutils, icon_drawing
+import raylib, ../types, math, strutils, icon_drawing
 
 # Import shared power-up data module (eliminates redundancy with powerup.nim)
 import ../powerup_data

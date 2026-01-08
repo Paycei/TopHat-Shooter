@@ -1,7 +1,7 @@
 ## OS-Style Debug Panel
 ## System diagnostics and performance metrics
 
-import raylib, types, strutils, powerup
+import raylib, ../types, strutils, ../powerup
 
 const
   DEBUG_PANEL_WIDTH = 200
