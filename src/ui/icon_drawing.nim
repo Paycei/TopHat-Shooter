@@ -75,7 +75,6 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for i in 0..<points:
       let angle1 = i.float32 * 2 * PI / points.float32 - PI/2
       let angle2 = (i.float32 + 0.5).float32 * 2 * PI / points.float32 - PI/2
-      let angle3 = (i.float32 + 1).float32 * 2 * PI / points.float32 - PI/2
       # Outer point
       let x1 = cx.float32 + cos(angle1) * rad
       let y1 = cy.float32 + sin(angle1) * rad

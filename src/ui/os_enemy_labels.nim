@@ -179,8 +179,6 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
     # Main text
     drawText(hitText, hitTextX.int32, hitTextY.int32, hitTextSize, hitColor)
     
-    # Adjust process name width to not overlap with hit counter
-    let processNameMaxWidth = totalWidth.float32 - hitTextWidth.float32 - 20
     drawText(processName, textX, iconY, fontSize, textColor)
   else:
     # Regular enemies: just draw the process name

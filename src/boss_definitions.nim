@@ -340,7 +340,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       name: "The Laser Architect",
       bossID: 4,
       baseHP: 350.0,  # NERFED from 390.0
-      baseSpeed: 72.0,  # NERFED from 77.5
+      baseSpeed: 70.0,  # NERFED from 77.5
       baseDamage: 2,
       baseRadius: 52.0,
       color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -1900,7 +1900,7 @@ proc getScaledBossHP*(baseBoss: BossDefinition, waveNumber: int): float32 =
 
 proc getScaledBossSpeed*(baseBoss: BossDefinition, waveNumber: int): float32 =
   ## Scales boss speed based on wave number
-  let waveScale = 1.0 + ((waveNumber.float32 - 5.0) * 0.05)  # 5% increase per wave after wave 5
+  let waveScale = 1.0 + ((waveNumber.float32 - 5.0) * 0.04)  # 4% increase per wave after wave 5
   baseBoss.baseSpeed * waveScale
 
 proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): int =

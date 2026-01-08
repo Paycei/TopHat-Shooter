@@ -1736,7 +1736,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       # Normal zigzag but very fast
       let dischargeAngle = game.time * 25.0 + sin(game.time * 50.0)
       let chaosDir = newVector2f(cos(dischargeAngle), sin(dischargeAngle))
-      enemy.pos = enemy.pos + chaosDir * enemy.speed * 1.3 * dt
+      enemy.pos = enemy.pos + chaosDir * enemy.speed * 1.25 * dt
   
   of "orbital_pattern":
     # Slow, calculated circular orbit (Orbital Commander phase 1)
@@ -1765,7 +1765,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   of "overcharged":
     # Very fast aggressive movement
-    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.2 * dt
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.15 * dt
   
   of "deploy_satellites":
     # Stationary in center
@@ -1791,19 +1791,19 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   of "aggressive_chase":
     # Fast aggressive chase
-    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.1 * dt
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.05 * dt
   
   of "enraged_assault":
     # Rapid aggressive movement with occasional direction change
     if game.time.int mod 3 == 0:
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.3 * dt
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.15 * dt
     else:
       let sideDir = newVector2f(-toPlayer.y, toPlayer.x)
       enemy.pos = enemy.pos + sideDir * enemy.speed * dt
   
   of "unstoppable":
     # Extremely fast movement toward player
-    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.5 * dt
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.25 * dt
   
   of "meteor_storm":
     # Rapid circling movement with erratic patterns (Meteor Striker phase 2)
@@ -1836,7 +1836,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       toPlayer.x * cos(berserkerAngle) - toPlayer.y * sin(berserkerAngle),
       toPlayer.x * sin(berserkerAngle) + toPlayer.y * cos(berserkerAngle)
     )
-    enemy.pos = enemy.pos + wildDir * enemy.speed * 1.6 * dt
+    enemy.pos = enemy.pos + wildDir * enemy.speed * 1.35 * dt
   
   of "prism_defense":
     # Stationary with slight orbital movement (Prism Architect phase 1)
@@ -2502,6 +2502,8 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         let satsThisLayer = satelliteCount div layerCount
         let layerRadius = baseOrbitRadius + (layer.float32 * 50.0)  # Each layer 50px apart
         let angleOffset = if layer mod 2 == 0: 0.0 else: (PI / satsThisLayer.float32)  # Stagger alternating layers
+        # Alternating layers rotate in opposite directions for visual complexity
+        let layerRotationSpeed = if layer mod 2 == 0: rotationSpeed else: -rotationSpeed
         
         for i in 0..<satsThisLayer:
           let angle = i.float32 * (PI * 2.0 / satsThisLayer.float32) + angleOffset
@@ -2512,6 +2514,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             ),
             angle: angle,
             radius: layerRadius,
+            rotationSpeed: layerRotationSpeed,
             hp: 15,  # Tougher satellites
             shootTimer: 0.5 + rand(1.0) + (layer.float32 * 0.3),  # Later layers shoot slightly later
             owner: enemy.id,
@@ -2556,15 +2559,15 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     let chainMode = attack.specialData
     
     # Configure chain behavior based on mode
-    let (chainCount, chainsPerDirection, chainRange, chainDecay) = case chainMode
+    let (chainCount, chainsPerDirection, chainDecay) = case chainMode
       of "chain_basic":
-        (attack.projectileCount, 2, attack.durationOrRadius, 0.75)  # 3 directions, 2 chains each, 75% decay
+        (attack.projectileCount, 2, 0.75)  # 3 directions, 2 chains each, 75% decay
       of "chain_storm":
-        (attack.projectileCount, 3, attack.durationOrRadius, 0.65)  # 5 directions, 3 chains each, 65% decay
+        (attack.projectileCount, 3, 0.65)  # 5 directions, 3 chains each, 65% decay
       of "chain_overload":
-        (attack.projectileCount, 4, attack.durationOrRadius, 0.6)   # 8 directions, 4 chains each, 60% decay
+        (attack.projectileCount, 4, 0.6)   # 8 directions, 4 chains each, 60% decay
       else:
-        (attack.projectileCount, 2, attack.durationOrRadius, 0.75)  # Default to basic
+        (attack.projectileCount, 2, 0.75)  # Default to basic
     
     # Create chain lightning in multiple directions
     for i in 0..<chainCount:
@@ -2717,15 +2720,15 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       dashSpeed = game.player.speed
     
     # Configure dash based on mode
-    let (dashCount, dashDist, shakeIntensity, trailColor) = case dashMode
+    let (dashDist, shakeIntensity, trailColor) = case dashMode
       of "charge_attack":
-        (1, 350.0, 25.0, Color(r: 255, g: 50, b: 0, a: 255))  # Single charge, red trail
+        (350.0, 25.0, Color(r: 255, g: 50, b: 0, a: 255))  # Single charge, red trail
       of "double_charge":
-        (2, 300.0, 30.0, Color(r: 255, g: 100, b: 0, a: 255))  # Double charge, bright red
+        (300.0, 30.0, Color(r: 255, g: 100, b: 0, a: 255))  # Double charge, bright red
       of "rage_charge":
-        (3, 280.0, 35.0, Color(r: 255, g: 0, b: 0, a: 255))  # TRIPLE charge, pure red
+        (280.0, 35.0, Color(r: 255, g: 0, b: 0, a: 255))  # TRIPLE charge, pure red
       else:
-        (1, 350.0, 20.0, phase.color)  # Default
+        (350.0, 20.0, phase.color)  # Default
     
     let dashTime = dashDist / dashSpeed  # Calculate duration based on speed
     
@@ -2795,13 +2798,8 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     
     # Show warning indicators before firing (if enabled)
     if showWarning:
+      # Create one warning indicator per projectile to show attack incoming
       for i in 0..<attack.projectileCount:
-        let spread = if attack.projectileCount > 1:
-          (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
-        else: 0.0
-        let angle = arctan2(toPlayer.y, toPlayer.x) + spread
-        
-        # Create laser pointer warning from boss to target
         game.attackWarnings.add(newAttackWarning(
           enemy.pos.x, enemy.pos.y, 
           "laser_pointer",  # Special warning type for snipes
@@ -3316,7 +3314,7 @@ proc updateGame*(game: var Game, dt: float32) =
         let direction = newVector2f(cos(angle), sin(angle))
         
         # Create bullet with player's current stats
-        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, stats.damage)
+        let damageWithCrit = applyCriticalHitFromStats(stats, stats.damage)
         
         game.bullets.add(newBullet(
           x = game.player.pos.x,
@@ -4444,8 +4442,8 @@ proc updateGame*(game: var Game, dt: float32) =
     if enemy.isBoss and enemy.satellites.len > 0:
       var i = enemy.satellites.len - 1
       while i >= 0:
-        # Update orbit position - faster rotation
-        enemy.satellites[i].angle += dt * 1.2  # BUFFED: Faster rotation (was 0.8)
+        # Update orbit position using individual satellite rotation speed
+        enemy.satellites[i].angle += dt * enemy.satellites[i].rotationSpeed
         enemy.satellites[i].pos = newVector2f(
           enemy.pos.x + cos(enemy.satellites[i].angle) * enemy.satellites[i].radius,
           enemy.pos.y + sin(enemy.satellites[i].angle) * enemy.satellites[i].radius

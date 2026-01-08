@@ -235,6 +235,7 @@ type
     pos*: Vector2f
     angle*: float32
     radius*: float32
+    rotationSpeed*: float32  # Speed of orbital rotation
     hp*: int
     shootTimer*: float32
     owner*: int  # Enemy ID
