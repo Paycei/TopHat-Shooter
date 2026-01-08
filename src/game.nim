@@ -604,12 +604,12 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
       case thornsLevel
       of 1: 0.5  # 50% reflection for bullets
       of 2: 1.0  # 100% reflection
-      else: 1.5  # 150% reflection
+      else: 2.0  # 200% reflection
     of "boss", "contact":
       case thornsLevel
       of 1: 0.5  # 50% reflection for contact
       of 2: 1.0  # 100% reflection
-      else: 1.5  # 150% reflection
+      else: 2.0  # 200% reflection
     else: 0.0
   
   let reflectDamageBase = damageToReflect * reflectPercent
@@ -644,9 +644,9 @@ proc getAuraRadius*(level: int): float32 =
 proc getExplosionRadius*(level: int): float32 =
   ## Standard explosion radius for explosive bullets
   case level
-  of 1: 40.0
-  of 2: 60.0
-  else: 80.0
+  of 1: 50.0
+  of 2: 75.0
+  else: 100.0
 
 proc getBulletDamageType*(bullet: Bullet): DamageType =
   ## Determine the damage type for a bullet based on its properties
@@ -882,8 +882,8 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     # Blood: Lifesteal
     var healPercent = case effect.level
       of 1: 0.015  # 1.5%
-      of 2: 0.025  # 2.5%
-      else: 0.035  # 3.5%
+      of 2: 0.02  # 2%
+      else: 0.03  # 3%
     
     if effect.hasMastery:
       healPercent *= 2.5  # +150% lifesteal
@@ -2105,15 +2105,48 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
   
   of bapCircle:
-    # Perfect circle of bullets
+    # ENHANCED CIRCLE SYSTEM - Perfect ring of bullets with thematic variants
+    # SpecialData modes:
+    # - "time_ring": Temporal distortion ring with pulsing cyan bullets (Boss 10)
+    # - Default: Standard perfect circle
+    
+    let circleMode = attack.specialData
+    
+    # Configure circle behavior based on mode
+    let (bulletSpeed, particleColor, rotationOffset) = case circleMode
+      of "time_ring":
+        (attack.projectileSpeed * 0.85, Color(r: 100, g: 220, b: 220, a: 255), game.time * 0.5)  # Slower temporal bullets with rotation
+      else:
+        (attack.projectileSpeed, phase.color, 0.0)  # Standard
+    
+    # Create pre-fire visual effect for time_ring
+    if circleMode == "time_ring":
+      # Create temporal distortion rings before firing
+      for ring in 0..2:
+        let ringRadius = 30.0 + ring.float32 * 25.0
+        for i in 0..<16:
+          let angle = i.float32 * PI * 2.0 / 16.0
+          let ringX = enemy.pos.x + cos(angle) * ringRadius
+          let ringY = enemy.pos.y + sin(angle) * ringRadius
+          spawnExplosion(game.particles, ringX, ringY,
+                        Color(r: 100, g: 220, b: 220, a: 255), 3)
+    
+    # Create circle of bullets
     for i in 0..<attack.projectileCount:
-      let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
+      let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32 + rotationOffset
       let dir = newVector2f(cos(angle), sin(angle))
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        speed = bulletSpeed, damage = attack.damage * phase.damageMultiplier,
         fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
       ))
+      
+      # Add temporal particle trail for time_ring
+      if circleMode == "time_ring":
+        let trailRadius = 20.0
+        let trailX = enemy.pos.x + cos(angle) * trailRadius
+        let trailY = enemy.pos.y + sin(angle) * trailRadius
+        spawnExplosion(game.particles, trailX, trailY, particleColor, 2)
   
   of bapLaser:
     # IMPROVED: Boss laser with proper warning system
@@ -2123,6 +2156,12 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # - "splitting_laser": Triangle pattern with light refraction (Phase 1)
     # - "hexagonal_prism": Perfect hexagonal 6-way split (Phase 2)
     # - "prismatic_storm": Massive array of splitting light beams (Phase 3)
+    # BOSS 10 (Timekeeper) TEMPORAL PATTERN:
+    # - "temporal_beam": Time-distorted lasers with delayed activation and cyan glow
+    # BOSS 11 (Chaos Weaver) CHAOS PATTERNS:
+    # - "chaos_beam": Unpredictable chaotic laser pattern
+    # BOSS 12 (Omega Entity) ULTIMATE PATTERN:
+    # - "omega_beam": Ultimate laser combining all previous mechanics
     
     let patternType = attack.specialData
     let laserCount = case patternType
@@ -2131,6 +2170,9 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       of "splitting_laser": attack.projectileCount  # Triangle pattern
       of "hexagonal_prism": 6  # Always 6 beams
       of "prismatic_storm": attack.projectileCount * 2  # Massive light show!
+      of "temporal_beam": attack.projectileCount  # Temporal cross pattern
+      of "chaos_beam": rand(attack.projectileCount) + attack.projectileCount  # Random chaos
+      of "omega_beam": attack.projectileCount * 2  # Massive ultimate beams
       else: attack.projectileCount
     
     # Calculate all laser angles for the warning system
@@ -2190,6 +2232,42 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           # Cross pattern - always 4 beams in cardinal directions (0°, 90°, 180°, 270°)
           i.float32 * (PI / 2.0) + game.time
         
+        of "temporal_beam":
+          # TEMPORAL BEAM - Time-distorted cross pattern with slow rotation
+          # Creates 4 beams in rotating cardinal directions
+          # Beams have temporal distortion effect (stuttering, phasing)
+          i.float32 * (PI / 2.0) + game.time * 0.4  # Slower rotation for time effect
+        
+        of "chaos_beam":
+          # CHAOS BEAM - Completely unpredictable laser angles with clustering
+          # Create random cluster center for grouped chaos
+          let clusterCenter = if i == 0: rand(PI * 2.0) else: warningAngles[0] + rand(0.5)
+          let clusterSpread = 0.3 + rand(0.7)  # Variable clustering (0.3-1.0 radians)
+          # Random angle with slight clustering around center for chaotic but not totally random
+          clusterCenter + (rand(1.0) - 0.5) * clusterSpread
+        
+        of "omega_beam":
+          # OMEGA BEAM - Ultimate laser pattern combining ALL previous mechanics
+          # Three different sub-patterns: radial, player-tracking, and temporal spiral
+          
+          # Pattern 1: Rotating radial beams (Boss 4 style) - first third of lasers
+          if i < actualLaserCount div 3:
+            i.float32 * (PI * 2.0) / (actualLaserCount div 3).float32 + game.time * 0.8
+          
+          # Pattern 2: Player-tracking spread (Boss 9 style) - middle third
+          elif i < (actualLaserCount * 2) div 3:
+            let idx = i - (actualLaserCount div 3)
+            let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y,
+                                         game.player.pos.x - enemy.pos.x)
+            let spread = (idx.float32 - (actualLaserCount div 3).float32 / 2.0) * 0.3
+            angleToPlayer + spread
+          
+          # Pattern 3: Temporal spiraling beams (Boss 10 style) - last third
+          else:
+            let idx = i - (actualLaserCount * 2) div 3
+            let spiral = idx.float32 * 0.5 + game.time * 0.6
+            spiral + sin(game.time * 2.0) * 0.4  # Wavy temporal distortion
+        
         else:
           # Default pattern - distribute evenly
           i.float32 * (PI * 2.0) / actualLaserCount.float32 + game.time
@@ -2199,6 +2277,50 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # WARNING: Show for 1.2 seconds before firing (much longer than current 0.3s)
     const BOSS_LASER_WARNING_TIME = 1.2
     let laserDamage = (attack.damage * phase.damageMultiplier).int
+    
+    # PRE-FIRE VISUAL EFFECTS for special laser patterns
+    if patternType == "chaos_beam":
+      # Create flickering chaotic particles along laser paths
+      for angle in warningAngles:
+        for step in 1..8:
+          let dist = step.float32 * 40.0
+          let px = enemy.pos.x + cos(angle) * dist
+          let py = enemy.pos.y + sin(angle) * dist
+          # Flickering random colors for chaos
+          let chaosColor = Color(
+            r: (100 + rand(155)).uint8,
+            g: (50 + rand(205)).uint8,
+            b: (100 + rand(155)).uint8,
+            a: 255
+          )
+          spawnExplosion(game.particles, px, py, chaosColor, 3)
+    
+    elif patternType == "omega_beam":
+      # MASSIVE rainbow particle explosion for ultimate laser
+      for ring in 0..6:
+        let ringRadius = 30.0 + ring.float32 * 28.0
+        for i in 0..<24:
+          let angle = i.float32 * PI * 2.0 / 24.0
+          let px = enemy.pos.x + cos(angle) * ringRadius
+          let py = enemy.pos.y + sin(angle) * ringRadius
+          # Rainbow spectrum
+          let rainbowColor = case i mod 7:
+            of 0: Color(r: 255, g: 0, b: 0, a: 255)
+            of 1: Color(r: 255, g: 127, b: 0, a: 255)
+            of 2: Color(r: 255, g: 255, b: 0, a: 255)
+            of 3: Color(r: 0, g: 255, b: 0, a: 255)
+            of 4: Color(r: 0, g: 255, b: 255, a: 255)
+            of 5: Color(r: 0, g: 0, b: 255, a: 255)
+            else: Color(r: 255, g: 0, b: 255, a: 255)
+          spawnExplosion(game.particles, px, py, rainbowColor, 7)
+      
+      # Add electric arcs (Boss 6 style)
+      for i in 0..<20:
+        let angle = i.float32 * PI * 2.0 / 20.0
+        let arcX = enemy.pos.x + cos(angle) * 70.0
+        let arcY = enemy.pos.y + sin(angle) * 70.0
+        spawnExplosion(game.particles, arcX, arcY,
+                      Color(r: 255, g: 255, b: 200, a: 255), 6)
     
     # Adjust laser length based on pattern type
     # For prismatic_cage and laser_snipe, calculate length to reach screen edge
@@ -2232,17 +2354,21 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # - "voltage_burst": Electric explosion with yellow bullets (Boss 6)
     # - "blood_burst": Berserker rage explosion with red bullets (Boss 8)
     # - "orbital_bombardment": Space bombardment from above (Boss 7)
+    # - "random_spread": Chaotic spread with random angles (Boss 11 Phase 1)
     # - "chaos_storm", "entropy_burst": Randomized chaos attacks (Boss 11)
     # - "chromatic_burst": Rainbow prismatic explosion (Boss 9 Phase 2)
     # - "light_burst": Pure brilliance explosion (Boss 9 Phase 3)
+    # - "time_shatter": Reality-shattering temporal explosion (Boss 10 Phase 3)
+    # - "omega_barrage": Ultimate massive barrage from final boss (Boss 12 Phase 4)
     
     let barrageMode = attack.specialData
-    let isChaosAttack = barrageMode in ["chaos_storm", "entropy_burst"]
+    let isChaosAttack = barrageMode in ["chaos_storm", "entropy_burst", "random_spread"]
     let isElectricAttack = barrageMode == "voltage_burst"
     let isBerserkAttack = barrageMode == "blood_burst"
     let isOrbitalAttack = barrageMode == "orbital_bombardment"
     let isChromaticAttack = barrageMode == "chromatic_burst"
     let isLightAttack = barrageMode == "light_burst"
+    let isTimeShatter = barrageMode == "time_shatter"
     
     # Randomize count ±30% for chaos
     let bulletCount = if isChaosAttack:
@@ -2332,6 +2458,89 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       game.screenShakeIntensity = 30.0
       game.screenShakeDecay = 40.0
     
+    elif isTimeShatter:
+      # TIME SHATTER - Reality-breaking temporal fracture explosion
+      # Create massive expanding temporal cracks radiating outward
+      for ring in 0..6:
+        let ringRadius = 20.0 + ring.float32 * 25.0
+        for i in 0..<20:
+          let angle = i.float32 * PI * 2.0 / 20.0
+          let shatterX = enemy.pos.x + cos(angle) * ringRadius
+          let shatterY = enemy.pos.y + sin(angle) * ringRadius
+          # Bright cyan-white temporal fracture particles
+          let brightness = 100 + (ring * 20)
+          spawnExplosion(game.particles, shatterX, shatterY,
+                        Color(r: brightness.uint8, g: 220 + (ring * 5).uint8, b: 220 + (ring * 5).uint8, a: 255), 5)
+      
+      # Create radiating time crack lines extending far outward
+      for i in 0..<16:
+        let angle = i.float32 * PI * 2.0 / 16.0
+        for step in 1..20:
+          let crackRadius = step.float32 * 20.0
+          let crackX = enemy.pos.x + cos(angle) * crackRadius
+          let crackY = enemy.pos.y + sin(angle) * crackRadius
+          # Cyan temporal cracks with fading intensity
+          let fade = (255 - step * 8).clamp(100, 255)
+          spawnExplosion(game.particles, crackX, crackY,
+                        Color(r: 100, g: 220, b: 220, a: fade.uint8), 3)
+      
+      # Add swirling temporal distortion particles
+      for spiral in 0..<8:
+        for step in 0..15:
+          let spiralAngle = (spiral.float32 * PI / 4.0) + (step.float32 * 0.3)
+          let spiralRadius = step.float32 * 12.0
+          let spiralX = enemy.pos.x + cos(spiralAngle) * spiralRadius
+          let spiralY = enemy.pos.y + sin(spiralAngle) * spiralRadius
+          spawnExplosion(game.particles, spiralX, spiralY,
+                        Color(r: 150, g: 255, b: 255, a: 255), 2)
+      
+      # MASSIVE screen shake for reality-shattering effect
+      game.screenShakeIntensity = 50.0
+      game.screenShakeDecay = 45.0
+    
+    elif barrageMode == "omega_barrage":
+      # OMEGA BARRAGE - Ultimate final boss attack combining all elements
+      # Creates massive multi-colored explosion with all previous boss themes
+      # Rainbow prismatic rings (like Boss 9)
+      for ring in 0..5:
+        let ringRadius = 25.0 + ring.float32 * 30.0
+        for i in 0..<18:
+          let angle = i.float32 * PI * 2.0 / 18.0
+          let omegaX = enemy.pos.x + cos(angle) * ringRadius
+          let omegaY = enemy.pos.y + sin(angle) * ringRadius
+          # Rainbow colors cycling through spectrum
+          let rainbowColor = case i mod 7
+            of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
+            of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
+            of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
+            of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
+            of 4: Color(r: 0, g: 255, b: 255, a: 255)   # Cyan
+            of 5: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
+            else: Color(r: 255, g: 0, b: 255, a: 255)   # Magenta
+          spawnExplosion(game.particles, omegaX, omegaY, rainbowColor, 6)
+      
+      # Electric crackling effects (like Boss 6)
+      for i in 0..<bulletCount div 3:
+        let angle = i.float32 * PI * 2.0 / (bulletCount div 3).float32
+        let sparkX = enemy.pos.x + cos(angle) * 55.0
+        let sparkY = enemy.pos.y + sin(angle) * 55.0
+        spawnExplosion(game.particles, sparkX, sparkY,
+                      Color(r: 255, g: 255, b: 100, a: 255), 5)
+      
+      # Temporal rifts (like Boss 10)
+      for i in 0..<12:
+        let angle = i.float32 * PI * 2.0 / 12.0
+        for step in 1..12:
+          let riftRadius = step.float32 * 22.0
+          let riftX = enemy.pos.x + cos(angle) * riftRadius
+          let riftY = enemy.pos.y + sin(angle) * riftRadius
+          spawnExplosion(game.particles, riftX, riftY,
+                        Color(r: 150, g: 255, b: 255, a: 255), 3)
+      
+      # ABSOLUTELY MASSIVE screen shake - this is the ultimate attack
+      game.screenShakeIntensity = 60.0
+      game.screenShakeDecay = 50.0
+    
     for i in 0..<bulletCount:
       let angle = if isChaosAttack:
         (i.float32 / bulletCount.float32) * spreadAngle.degToRad() + rand(1.0)
@@ -2370,8 +2579,14 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         (42, Color(r: 255, g: 150, b: 255, a: 255))  # Pink/magenta prismatic
       of "light_burst":
         (55, Color(r: 255, g: 255, b: 255, a: 255))  # Massive white brilliance
+      of "time_shatter":
+        (65, Color(r: 150, g: 255, b: 255, a: 255))  # Massive cyan temporal shatter
+      of "random_spread":
+        (32, Color(r: rand(200).uint8 + 55, g: rand(200).uint8 + 55, b: rand(200).uint8 + 55, a: 255))  # Random bright chaos
       of "chaos_storm", "entropy_burst":
         (35, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255))  # Random chaos
+      of "omega_barrage":
+        (70, Color(r: 255, g: 50, b: 255, a: 255))  # MASSIVE pink/magenta final boss explosion
       else:
         (30, phase.color)  # Standard
     
@@ -2386,6 +2601,8 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # - "overload_pulse": Intense electric overload (Boss 6 Phase 3)
     # - "gravity_pulse": Space-themed gravity wave (Boss 7)
     # - "blinding_pulse": Brilliant light explosion (Boss 9 Phase 3)
+    # - "entropy_wave": Chaotic unstable shockwave (Boss 11 Phase 3)
+    # - "omega_pulse": Ultimate combined shockwave (Boss 12 Phase 4)
     # - Default: Standard pulse
     
     let pulseMode = attack.specialData
@@ -2404,6 +2621,14 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         (30, Color(r: 150, g: 100, b: 255, a: 255), 30.0, 45)  # Space purple
       of "blinding_pulse":
         (38, Color(r: 255, g: 255, b: 255, a: 255), 35.0, 55)  # Brilliant white light explosion
+      of "chrono_pulse":
+        (28, Color(r: 100, g: 220, b: 220, a: 255), 30.0, 42)  # Temporal shockwave, cyan
+      of "chrono_break":
+        (36, Color(r: 150, g: 255, b: 255, a: 255), 45.0, 58)  # Massive time shattering pulse
+      of "entropy_wave":
+        (rand(20) + 20, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 40.0, 50)  # Chaotic random pulse
+      of "omega_pulse":
+        (42, Color(r: 255, g: 100, b: 255, a: 255), 55.0, 65)  # ULTIMATE pulse - huge and powerful
       else:
         (24, phase.color, 20.0, 35)  # Standard pulse
     
@@ -2487,6 +2712,119 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
               of 5: Color(r: 230, g: 200, b: 255, a: 255)
               else: Color(r: 255, g: 255, b: 255, a: 255)
             spawnExplosion(game.particles, lightX, lightY, lightColor, 4)
+      
+      of "chrono_pulse":
+        # Temporal distortion waves - expanding time rings
+        for ring in 0..3:
+          let ringRadius = 35.0 + ring.float32 * 28.0
+          for i in 0..<14:
+            let angle = i.float32 * PI * 2.0 / 14.0
+            let timeX = enemy.pos.x + cos(angle) * ringRadius
+            let timeY = enemy.pos.y + sin(angle) * ringRadius
+            # Cyan/turquoise temporal particles with brightness variation
+            let brightness = 100 + (ring * 35)
+            spawnExplosion(game.particles, timeX, timeY,
+                          Color(r: brightness.uint8, g: 220, b: 220, a: 255), 3)
+      
+      of "chrono_break":
+        # MASSIVE reality-breaking time shatter effect
+        # Create multiple layers of temporal fractures
+        for ring in 0..5:
+          let ringRadius = 30.0 + ring.float32 * 30.0
+          for i in 0..<18:
+            let angle = i.float32 * PI * 2.0 / 18.0
+            let shatterX = enemy.pos.x + cos(angle) * ringRadius
+            let shatterY = enemy.pos.y + sin(angle) * ringRadius
+            # Bright cyan-white time shatter particles
+            spawnExplosion(game.particles, shatterX, shatterY,
+                          Color(r: 150, g: 255, b: 255, a: 255), 5)
+        
+        # Add radial time cracks extending outward
+        for i in 0..<12:
+          let angle = i.float32 * PI * 2.0 / 12.0
+          for step in 1..15:
+            let crackRadius = step.float32 * 18.0
+            let crackX = enemy.pos.x + cos(angle) * crackRadius
+            let crackY = enemy.pos.y + sin(angle) * crackRadius
+            spawnExplosion(game.particles, crackX, crackY,
+                          Color(r: 100, g: 220, b: 220, a: 255), 2)
+      
+      of "entropy_wave":
+        # ENTROPY WAVE - Chaotic unstable shockwave with randomized effects
+        # Create multiple chaotic spiral patterns with random colors
+        for spiral in 0..<rand(4) + 3:  # 3-6 spirals
+          for ring in 0..rand(5) + 3:  # Variable rings per spiral
+            let ringRadius = 25.0 + ring.float32 * (20.0 + rand(15.0))
+            let spiralAngle = (spiral.float32 * PI * 2.0 / (spiral + 3).float32) + rand(PI)
+            for i in 0..<rand(8) + 8:  # Variable particle count
+              let angle = i.float32 * PI * 2.0 / (i + 8).float32 + spiralAngle
+              let chaosX = enemy.pos.x + cos(angle) * ringRadius
+              let chaosY = enemy.pos.y + sin(angle) * ringRadius
+              # Completely random colors for pure chaos
+              let chaosColor = Color(
+                r: rand(200).uint8 + 55,
+                g: rand(200).uint8 + 55,
+                b: rand(200).uint8 + 55,
+                a: 255
+              )
+              spawnExplosion(game.particles, chaosX, chaosY, chaosColor, rand(5) + 2)
+        
+        # Add random crackling effects
+        for i in 0..<rand(15) + 10:
+          let randomAngle = rand(PI * 2.0)
+          let randomRadius = rand(120.0) + 30.0
+          let crackX = enemy.pos.x + cos(randomAngle) * randomRadius
+          let crackY = enemy.pos.y + sin(randomAngle) * randomRadius
+          spawnExplosion(game.particles, crackX, crackY,
+                        Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 4)
+      
+      of "omega_pulse":
+        # OMEGA PULSE - Ultimate shockwave combining all boss themes
+        # Rainbow prismatic rings (like Boss 9)
+        for ring in 0..6:
+          let ringRadius = 30.0 + ring.float32 * 32.0
+          for i in 0..<20:
+            let angle = i.float32 * PI * 2.0 / 20.0
+            let omegaX = enemy.pos.x + cos(angle) * ringRadius
+            let omegaY = enemy.pos.y + sin(angle) * ringRadius
+            # Rainbow spectrum
+            let rainbowColor = case i mod 7
+              of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
+              of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
+              of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
+              of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
+              of 4: Color(r: 0, g: 255, b: 255, a: 255)   # Cyan
+              of 5: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
+              else: Color(r: 255, g: 0, b: 255, a: 255)   # Magenta
+            spawnExplosion(game.particles, omegaX, omegaY, rainbowColor, 6)
+        
+        # Electric crackling (like Boss 6)
+        for i in 0..<16:
+          let angle = i.float32 * PI * 2.0 / 16.0
+          let sparkX = enemy.pos.x + cos(angle) * 65.0
+          let sparkY = enemy.pos.y + sin(angle) * 65.0
+          spawnExplosion(game.particles, sparkX, sparkY,
+                        Color(r: 255, g: 255, b: 150, a: 255), 5)
+        
+        # Temporal rifts (like Boss 10)
+        for i in 0..<14:
+          let angle = i.float32 * PI * 2.0 / 14.0
+          for step in 1..18:
+            let riftRadius = step.float32 * 20.0
+            let riftX = enemy.pos.x + cos(angle) * riftRadius
+            let riftY = enemy.pos.y + sin(angle) * riftRadius
+            spawnExplosion(game.particles, riftX, riftY,
+                          Color(r: 150, g: 255, b: 255, a: 255), 3)
+        
+        # Light brilliance bursts (like Boss 9)
+        for burst in 0..4:
+          let burstAngle = burst.float32 * PI * 2.0 / 5.0
+          for step in 0..8:
+            let burstRadius = step.float32 * 25.0
+            let burstX = enemy.pos.x + cos(burstAngle) * burstRadius
+            let burstY = enemy.pos.y + sin(burstAngle) * burstRadius
+            spawnExplosion(game.particles, burstX, burstY,
+                          Color(r: 255, g: 255, b: 255, a: 255), 4)
       
       else:
         discard  # No extra effects for default
@@ -2826,14 +3164,114 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # "afterimage_burst" = creates multiple images with burst effect
     # "triple_clone" = teleports to 3 locations simultaneously
     # "dimensional_rift" = creates rift visual effect
+    # BOSS 10 (Timekeeper) TEMPORAL PATTERNS:
+    # - "time_echo": 2 temporal afterimages that shoot delayed bullets
+    # - "echo_burst": 4 rapidly spawning temporal clones
+    # - "temporal_collapse": 6 reality-breaking teleports creating time rifts
+    # BOSS 11 (Chaos Weaver) CHAOS PATTERNS:
+    # - "chaos_blink": Random teleport with chaotic afterimages
+    # - "reality_shift": Distorts reality with multiple chaotic shifts
+    # - "dimensional_chaos": Maximum chaos - tears through dimensions
+    # BOSS 12 (Omega Entity) ULTIMATE PATTERNS:
+    # - "omega_blink": Ultimate teleport combining all previous mechanics
     
     let teleportMode = attack.specialData
     let teleportCount = case teleportMode
       of "triple_clone": 3
+      of "time_echo": 2
+      of "echo_burst": 4
+      of "temporal_collapse": 6
+      of "chaos_blink": rand(2) + 1  # 1-2 random teleports with unstable reality tears
+      of "reality_shift": rand(2) + 2  # 2-3 reality shifts with dimensional bridges
+      of "dimensional_chaos": rand(3) + 3  # 3-5 chaotic dimension portals with vortexes
+      of "omega_blink": rand(2) + 4  # 4-5 ultimate teleports combining all effects
       else: 1
     
     # Create visual effect for each teleport
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
+    # Enhanced visuals for Timekeeper temporal modes and Chaos Weaver chaos modes
+    let (initialExplosionSize, temporalTrails, chaosEffect) = case teleportMode
+      of "time_echo":
+        (18, true, false)  # Moderate explosion with temporal trails
+      of "echo_burst":
+        (22, true, false)  # Larger explosion, rapid temporal echoes
+      of "temporal_collapse":
+        (30, true, false)  # Massive reality-breaking explosion
+      of "chaos_blink":
+        (20, false, true)  # Random chaos explosion
+      of "reality_shift":
+        (25, false, true)  # Reality-distorting chaos
+      of "dimensional_chaos":
+        (32, false, true)  # Massive dimensional tear
+      of "omega_blink":
+        (35, true, true)  # Ultimate - both temporal and chaos
+      else:
+        (15, false, false)  # Standard explosion
+    
+    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, initialExplosionSize)
+    
+    # Create temporal distortion rings for Timekeeper modes
+    if temporalTrails:
+      let ringCount = case teleportMode
+        of "time_echo": 2
+        of "echo_burst": 3
+        of "temporal_collapse": 4
+        else: 2
+      
+      for ring in 0..<ringCount:
+        let ringRadius = 25.0 + ring.float32 * 20.0
+        for i in 0..<12:
+          let angle = i.float32 * PI * 2.0 / 12.0
+          let ringX = enemy.pos.x + cos(angle) * ringRadius
+          let ringY = enemy.pos.y + sin(angle) * ringRadius
+          # Cyan/turquoise temporal particles
+          spawnExplosion(game.particles, ringX, ringY,
+                        Color(r: 100, g: 220, b: 220, a: 255), 3)
+    
+    # Create chaotic distortion for Chaos Weaver modes
+    if chaosEffect:
+      let chaosRingCount = case teleportMode
+        of "chaos_blink": 2
+        of "reality_shift": 3
+        of "dimensional_chaos": 4
+        of "omega_blink": 5
+        else: 2
+      
+      # ENHANCED CHAOS DISTORTION: Create unstable spiral patterns
+      for spiral in 0..<(rand(3) + 2):  # 2-4 random spirals
+        let spiralAngle = rand(PI * 2.0)
+        for step in 0..12:
+          let radius = step.float32 * 15.0
+          let angle = spiralAngle + (step.float32 * 0.4)
+          let chaosX = enemy.pos.x + cos(angle) * radius
+          let chaosY = enemy.pos.y + sin(angle) * radius
+          # Flickering random bright colors for maximum chaos
+          let chaosColor = Color(
+            r: (100 + rand(155)).uint8,
+            g: (100 + rand(155)).uint8,
+            b: (100 + rand(155)).uint8,
+            a: 255
+          )
+          spawnExplosion(game.particles, chaosX, chaosY, chaosColor, rand(3) + 2)
+      
+      # Add chaotic distortion rings
+      for ring in 0..<chaosRingCount:
+        # Randomize ring radius for chaos
+        let ringRadius = 20.0 + ring.float32 * (15.0 + rand(20.0))
+        let particleCount = rand(8) + 8  # 8-15 particles per ring
+        for i in 0..<particleCount:
+          # Randomize angles for chaotic placement
+          let angle = i.float32 * PI * 2.0 / particleCount.float32 + rand(0.5)
+          let jitter = rand(15.0) - 7.5  # Position jitter for instability
+          let chaosX = enemy.pos.x + cos(angle) * (ringRadius + jitter)
+          let chaosY = enemy.pos.y + sin(angle) * (ringRadius + jitter)
+          # Random bright colors for chaos
+          let chaosColor = Color(
+            r: rand(200).uint8 + 55,
+            g: rand(200).uint8 + 55,
+            b: rand(200).uint8 + 55,
+            a: 255
+          )
+          spawnExplosion(game.particles, chaosX, chaosY, chaosColor, rand(3) + 3)
     
     # Perform teleports and create shooting echoes
     var teleportPositions: seq[Vector2f] = @[]
@@ -2846,23 +3284,241 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       if t == 0:
         enemy.pos = newVector2f(newX, newY)
       
-      # Visual effect at new position
-      spawnExplosion(game.particles, newX, newY, phase.color, 15)
+      # Visual effect at new position with enhanced effects
+      let arrivalExplosionSize = case teleportMode
+        of "time_echo": 18
+        of "echo_burst": 20
+        of "temporal_collapse": 25
+        of "chaos_blink": 22
+        of "reality_shift": 26
+        of "dimensional_chaos": 30
+        of "omega_blink": 35
+        else: 15
+      
+      spawnExplosion(game.particles, newX, newY, phase.color, arrivalExplosionSize)
+      
+      # Add temporal rift effect for Timekeeper modes
+      if teleportMode in ["time_echo", "echo_burst", "temporal_collapse", "omega_blink"]:
+        # Create temporal rift particles
+        for i in 0..<8:
+          let riftAngle = i.float32 * PI * 2.0 / 8.0
+          let riftRadius = 35.0
+          let riftX = newX + cos(riftAngle) * riftRadius
+          let riftY = newY + sin(riftAngle) * riftRadius
+          spawnExplosion(game.particles, riftX, riftY,
+                        Color(r: 150, g: 255, b: 255, a: 255), 4)
+      
+      # Add chaos rift effect for Chaos Weaver modes
+      if teleportMode in ["chaos_blink", "reality_shift", "dimensional_chaos", "omega_blink"]:
+        # Create chaotic distortion rifts with random colors
+        let riftCount = case teleportMode
+          of "chaos_blink": 6
+          of "reality_shift": 10
+          of "dimensional_chaos": 14
+          of "omega_blink": 16
+          else: 6
+        
+        for i in 0..<riftCount:
+          let riftAngle = i.float32 * PI * 2.0 / riftCount.float32 + rand(0.3)
+          let riftRadius = 30.0 + rand(20.0)
+          let riftX = newX + cos(riftAngle) * riftRadius
+          let riftY = newY + sin(riftAngle) * riftRadius
+          # Random vibrant colors for chaos rifts
+          let chaosRiftColor = Color(
+            r: rand(200).uint8 + 55,
+            g: rand(200).uint8 + 55,
+            b: rand(200).uint8 + 55,
+            a: 255
+          )
+          spawnExplosion(game.particles, riftX, riftY, chaosRiftColor, rand(3) + 4)
+        
+        # REALITY SHIFT: Create reality fracture lines between previous and current position
+        if teleportMode == "reality_shift" and t > 0:
+          let prevPos = teleportPositions[t - 1]
+          # Draw crackling energy line between positions
+          let segments = 10
+          for step in 0..segments:
+            let progressT = step.float32 / segments.float32
+            let lineX = prevPos.x + (newX - prevPos.x) * progressT
+            let lineY = prevPos.y + (newY - prevPos.y) * progressT
+            # Alternating dimensional colors for reality bridge
+            let bridgeColor = if step mod 2 == 0:
+              Color(r: 255, g: 50, b: 200, a: 255)  # Magenta
+            else:
+              Color(r: 100, g: 255, b: 200, a: 255)  # Cyan
+            spawnExplosion(game.particles, lineX, lineY, bridgeColor, 3)
+        
+        # DIMENSIONAL CHAOS: Create massive vortex portal at each position
+        if teleportMode == "dimensional_chaos":
+          # Swirling vortex rings
+          for vortexRing in 0..5:
+            let ringRadius = 20.0 + vortexRing.float32 * 18.0
+            let rotation = vortexRing.float32 * 0.6  # Spiral rotation effect
+            let particlesInRing = 12 + vortexRing * 2
+            for i in 0..<particlesInRing:
+              let angle = i.float32 * PI * 2.0 / particlesInRing.float32 + rotation
+              let spiralOffset = sin(angle * 3.0) * 10.0  # Spiral distortion
+              let vortexX = newX + cos(angle) * (ringRadius + spiralOffset)
+              let vortexY = newY + sin(angle) * (ringRadius + spiralOffset)
+              # Swirling dimensional colors (purple->cyan gradient)
+              let vortexColor = Color(
+                r: ((vortexRing * 40 + 55).clamp(0, 255)).uint8,
+                g: ((255 - vortexRing * 30).clamp(100, 255)).uint8,
+                b: ((vortexRing * 35 + 100).clamp(0, 255)).uint8,
+                a: 255
+              )
+              spawnExplosion(game.particles, vortexX, vortexY, vortexColor, 5)
+        
+        # OMEGA BLINK: Massive combined effects from ALL previous bosses
+        if teleportMode == "omega_blink":
+          # Rainbow prismatic bursts (like Boss 9 - Prism Architect)
+          for burst in 0..7:
+            let burstAngle = burst.float32 * PI * 2.0 / 8.0
+            for step in 0..10:
+              let burstDist = step.float32 * 22.0
+              let burstX = newX + cos(burstAngle) * burstDist
+              let burstY = newY + sin(burstAngle) * burstDist
+              # Rainbow spectrum
+              let rainbowColor = case burst mod 7:
+                of 0: Color(r: 255, g: 0, b: 0, a: 255)
+                of 1: Color(r: 255, g: 127, b: 0, a: 255)
+                of 2: Color(r: 255, g: 255, b: 0, a: 255)
+                of 3: Color(r: 0, g: 255, b: 0, a: 255)
+                of 4: Color(r: 0, g: 255, b: 255, a: 255)
+                of 5: Color(r: 0, b: 255, a: 255)
+                else: Color(r: 255, g: 0, b: 255, a: 255)
+              spawnExplosion(game.particles, burstX, burstY, rainbowColor, 4)
+          
+          # Electric arcs (like Boss 6 - Chain Reactor)
+          for i in 0..<12:
+            let arcAngle = i.float32 * PI * 2.0 / 12.0
+            let arcX = newX + cos(arcAngle) * 50.0
+            let arcY = newY + sin(arcAngle) * 50.0
+            spawnExplosion(game.particles, arcX, arcY,
+                          Color(r: 255, g: 255, b: 150, a: 255), 5)
+          
+          # Temporal cracks (like Boss 10 - Timekeeper)
+          for crack in 0..8:
+            let crackAngle = crack.float32 * PI * 2.0 / 9.0
+            for step in 1..12:
+              let crackDist = step.float32 * 18.0
+              let crackX = newX + cos(crackAngle) * crackDist
+              let crackY = newY + sin(crackAngle) * crackDist
+              spawnExplosion(game.particles, crackX, crackY,
+                            Color(r: 150, g: 255, b: 255, a: 255), 3)
+          
+          # ULTIMATE SCREEN SHAKE for omega blink
+          game.screenShakeIntensity = 65.0
+          game.screenShakeDecay = 55.0
       
       # FIXED: Each teleport position shoots bullets (temporal echoes)
       if attack.projectileCount > 0:
+        # Configure bullet behavior based on mode
+        let (bulletSpeed, bulletDamageMultiplier) = case teleportMode
+          of "time_echo":
+            (160.0, 0.65)  # Slower temporal echoes, reduced damage
+          of "echo_burst":
+            (200.0, 0.6)  # Many rapid echoes, lower damage
+          of "temporal_collapse":
+            (180.0, 0.7)  # Moderate speed reality-breaking shots
+          of "chaos_blink":
+            (170.0 + rand(60.0), 0.7)  # Random speed chaos
+          of "reality_shift":
+            (160.0 + rand(80.0), 0.65)  # Highly variable speed
+          of "dimensional_chaos":
+            (150.0 + rand(100.0), 0.75)  # Maximum speed variation
+          of "omega_blink":
+            (220.0, 0.8)  # Fast ultimate shots
+          else:
+            (200.0, 0.7)  # Default
+        
         for i in 0..<attack.projectileCount:
-          let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32
+          # Randomize angle for chaos modes
+          let angle = if teleportMode in ["chaos_blink", "reality_shift", "dimensional_chaos"]:
+            i.float32 * PI * 2.0 / attack.projectileCount.float32 + rand(0.4)
+          else:
+            i.float32 * PI * 2.0 / attack.projectileCount.float32
           let dir = newVector2f(cos(angle), sin(angle))
           
           # Shoot from this specific teleport location
           game.bullets.add(newBullet(
             x = newX, y = newY,  # From each echo position
             direction = dir,
-            speed = 200.0,
-            damage = attack.damage * phase.damageMultiplier * 0.7,  # 70% damage per echo
+            speed = bulletSpeed,
+            damage = attack.damage * phase.damageMultiplier * bulletDamageMultiplier,
             fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
           ))
+        
+        # OMEGA BLINK: Additional dual-ring bullet pattern for ultimate attack
+        if teleportMode == "omega_blink":
+          let bulletRings = 2  # Two rings per teleport
+          for ring in 0..<bulletRings:
+            let bulletsInRing = 8 + ring * 2  # Inner ring: 8, Outer ring: 10
+            for i in 0..<bulletsInRing:
+              let angle = i.float32 * PI * 2.0 / bulletsInRing.float32 + 
+                          (ring.float32 * 0.2)  # Ring offset for spiral effect
+              let dir = newVector2f(cos(angle), sin(angle))
+              let speed = 200.0 + ring.float32 * 30.0  # Outer ring faster
+              
+              game.bullets.add(newBullet(
+                x = newX, y = newY,
+                direction = dir,
+                speed = speed,
+                damage = attack.damage * phase.damageMultiplier * 0.8,
+                fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+              ))
+    
+    # REALITY SHIFT: Create reality bridge bullets between teleport positions
+    if teleportMode == "reality_shift" and teleportPositions.len > 1:
+      for i in 0..<teleportPositions.len:
+        for j in 0..<teleportPositions.len:
+          if i != j and rand(100) < 60:  # 60% chance to connect positions
+            # Fire bullet from position i toward position j (reality bridge)
+            let dir = (teleportPositions[j] - teleportPositions[i]).normalize()
+            game.bullets.add(newBullet(
+              x = teleportPositions[i].x,
+              y = teleportPositions[i].y,
+              direction = dir,
+              speed = 180.0 + rand(60.0),
+              damage = attack.damage * phase.damageMultiplier * 0.65,
+              fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+            ))
+    
+    # DIMENSIONAL CHAOS: Create portal-jumping bullets and extra spray from portals
+    if teleportMode == "dimensional_chaos" and teleportPositions.len > 1:
+      for sourceIdx in 0..<teleportPositions.len:
+        let sourcePos = teleportPositions[sourceIdx]
+        
+        # Random bullet spray from each portal
+        let sprayBullets = rand(5) + 6  # 6-10 bullets per portal
+        for i in 0..<sprayBullets:
+          let angle = rand(PI * 2.0)  # Completely random angles
+          let dir = newVector2f(cos(angle), sin(angle))
+          let speed = 140.0 + rand(120.0)  # Huge speed variation (140-260)
+          
+          game.bullets.add(newBullet(
+            x = sourcePos.x, y = sourcePos.y,
+            direction = dir,
+            speed = speed,
+            damage = attack.damage * phase.damageMultiplier * 0.75,
+            fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+          ))
+        
+        # Portal-jumping bullets that travel between portals
+        if rand(100) < 50:  # 50% chance per portal
+          let targetIdx = (sourceIdx + 1 + rand(teleportPositions.len - 1)) mod teleportPositions.len
+          let targetPos = teleportPositions[targetIdx]
+          let jumpDir = (targetPos - sourcePos).normalize()
+          
+          # Create portal bridge bullets (travel from one portal to another)
+          for i in 0..2:
+            game.bullets.add(newBullet(
+              x = sourcePos.x, y = sourcePos.y,
+              direction = jumpDir,
+              speed = 200.0 + rand(60.0),
+              damage = attack.damage * phase.damageMultiplier * 0.8,
+              fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+            ))
   
   of bapDash:
     # BERSERKER DASH SYSTEM - Enhanced with multi-charge mechanics
@@ -4326,9 +4982,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let level = getPowerUpLevel(game.player, puLifeSteal)
         game.player.killsSinceLastHeal += 1
         let healsPerKills = case level
-          of 1: 20
-          of 2: 15
-          else: 10
+          of 1: 30
+          of 2: 25
+          else: 15
         
         if game.player.killsSinceLastHeal >= healsPerKills:
           heal(game.player, 1)

@@ -27,7 +27,7 @@ proc newSplashScreen*(): SplashScreen =
     phase: bpBIOS,
     timer: 0,
     bootMessages: @[
-      "BIOS v5.0.0 - TopHat Systems",
+      "BIOS v5.1.0 - TopHat Systems",
       "CPU: ElementalCore i9-9900K @ 3.60GHz",
       "Memory: 16384 MB OK",
       "Detecting hardware...",
@@ -50,7 +50,7 @@ proc newSplashScreen*(): SplashScreen =
       "[ OK ] Statistics Tracker",
       "[ OK ] Discord Integration",
       "",
-      "TopHat-ShooterOS [v5.0 Edition]",
+      "TopHat-ShooterOS [v5.1 Edition]",
       "Ready to play.",
       ""
     ],

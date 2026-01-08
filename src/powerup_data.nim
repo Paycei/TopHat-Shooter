@@ -1,6 +1,5 @@
 ## Power-up data module
 ## Contains shared power-up information (names, descriptions)
-## Used by both powerup.nim and ui/os_powerup_installer.nim
 
 import types
 
@@ -102,9 +101,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "Bullets explode (large radius)"
   of puLifeSteal:
     case level
-    of 1: "Heal 1 HP per 20 kills"
-    of 2: "Heal 1 HP per 15 kills"
-    else: "Heal 1 HP per 10 kills"
+    of 1: "Heal 1 HP per 30 kills"
+    of 2: "Heal 1 HP per 25 kills"
+    else: "Heal 1 HP per 15 kills"
   of puRapidFire:
     # Single level only - LEGENDARY
     "+40% fire rate"
@@ -146,14 +145,14 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     else: "30% chance to dodge hits"
   of puCriticalHit:
     case level
-    of 1: "20% chance for 2.5x damage (all sources)"
-    of 2: "30% chance for 2.5x damage (all sources)"
-    else: "40% chance for 2.5x damage (all sources)"
+    of 1: "20% chance for 2x damage (all sources)"
+    of 2: "35% chance for 2x damage (all sources)"
+    else: "50% chance for 2x damage (all sources)"
   of puBloodBullets:
     case level
-    of 1: "Heal 2.5% of bullet damage (blood element)"
-    of 2: "Heal 3.5% of bullet damage (blood element)"
-    else: "Heal 5% of bullet damage (blood element)"
+    of 1: "Heal 1.5% of bullet damage (blood element)"
+    of 2: "Heal 2% of bullet damage (blood element)"
+    else: "Heal 3% of bullet damage (blood element)"
   of puBulletRicochet:
     case level
     of 1: "Bullets ricochet once (75% damage per ricochet)"
@@ -178,7 +177,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     case level
     of 1: "Reflect 50% damage to attacker"
     of 2: "Reflect 100% damage to attacker"
-    else: "Reflect 150% damage to attacker"
+    else: "Reflect 200% damage to attacker"
   of puBulletSplit:
     case level
     of 1: "Bullets split into 2 on hit"
