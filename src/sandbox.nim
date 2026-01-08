@@ -1,6 +1,6 @@
 # SANDBOX MODE - Testing and Development Tools
 
-import raylib, types, enemy, powerup, boss_definitions, std/strutils, random
+import raylib, types, enemy, powerup, boss_definitions, std/strutils, random, localization
 
 const
   SIDEBAR_WIDTH = 300
@@ -16,7 +16,7 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   let contentX: int32 = sidebarX + SIDEBAR_PADDING
   let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
   
-  drawText("Spawn Enemies:", contentX, currentY, 18, White)
+  drawText(t(tkSandboxSpawnEnemies), contentX, currentY, 18, White)
   currentY += 25
   
   # List all enemy types with spawn buttons
@@ -48,14 +48,14 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   currentY += 10
   if currentY > startY - 50 and currentY < screenHeight - 50:
     drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 70, b: 70, a: 255))
-    drawText("Spawn 10 Random", contentX + 5, currentY + 10, 16, Yellow)
+    drawText(t(tkSandboxSpawn10Random), contentX + 5, currentY + 10, 16, Yellow)
 
 proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   var currentY: int32 = startY + 10 - game.sandboxScrollOffset
   let contentX: int32 = sidebarX + SIDEBAR_PADDING
   let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
   
-  drawText("Spawn Bosses:", contentX, currentY, 18, White)
+  drawText(t(tkSandboxSpawnBosses), contentX, currentY, 18, White)
   currentY += 25
   
   # Dynamically fetch all boss definitions
@@ -77,22 +77,22 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   # God Mode toggle
   let godModeColor = if game.sandboxGodMode: Green else: Color(r: 80, g: 80, b: 80, a: 255)
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, godModeColor)
-  drawText("God Mode: " & (if game.sandboxGodMode: "ON" else: "OFF"), contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxGodMode) & " " & (if game.sandboxGodMode: "ON" else: "OFF"), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
   
   # Freeze Enemies toggle
   let freezeColor = if game.sandboxFreezeEnemies: Color(r: 100, g: 150, b: 255, a: 255) else: Color(r: 80, g: 80, b: 80, a: 255)
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, freezeColor)
-  drawText("Freeze Enemies: " & (if game.sandboxFreezeEnemies: "ON" else: "OFF"), contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxFreezeEnemies) & " " & (if game.sandboxFreezeEnemies: "ON" else: "OFF"), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
   
   # Clear All Enemies button
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 50, b: 50, a: 255))
-  drawText("Clear All Enemies", contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxClearAllEnemies), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
   
   # Wave controls
-  drawText("Wave: " & $game.currentWave, contentX, currentY, 16, White)
+  drawText(t(tkSandboxWave) & " " & $game.currentWave, contentX, currentY, 16, White)
   currentY += 25
   drawRectangle(contentX, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, Color(r: 80, g: 80, b: 120, a: 255))
   drawText("Wave -", contentX + 5, currentY + 10, 16, White)
@@ -101,7 +101,7 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
   
   # Difficulty controls
-  drawText("Difficulty: " & formatFloat(game.difficulty, ffDecimal, 1), contentX, currentY, 16, White)
+  drawText(t(tkSandboxDifficulty) & " " & formatFloat(game.difficulty, ffDecimal, 1), contentX, currentY, 16, White)
   currentY += 25
   drawRectangle(contentX, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, Color(r: 120, g: 80, b: 80, a: 255))
   drawText("Diff -", contentX + 5, currentY + 10, 16, White)
@@ -110,31 +110,31 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
   
   # Player stats
-  drawText("HP: " & $game.player.hp & "/" & $game.player.maxHp, contentX, currentY, 14, White)
+  drawText(t(tkSandboxHP) & " " & $game.player.hp & "/" & $game.player.maxHp, contentX, currentY, 14, White)
   currentY += 20
   drawText("Coins: " & $game.player.coins, contentX, currentY, 14, Gold)
   currentY += 20
-  drawText("Enemies: " & $game.enemies.len, contentX, currentY, 14, White)
+  drawText(t(tkSandboxEnemies) & " " & $game.enemies.len, contentX, currentY, 14, White)
   currentY += 25
   
   # Heal button
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 50, g: 150, b: 50, a: 255))
-  drawText("Heal to Full HP", contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxHealFull), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
   
   # Add coins button
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 180, g: 140, b: 0, a: 255))
-  drawText("Add 1000 Coins", contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxAddCoins), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
   
   # Open Shop button
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 70, g: 120, b: 180, a: 255))
-  drawText("Open Shop", contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxOpenShop), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
   
   # Open Power-Up Selection button
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 70, b: 180, a: 255))
-  drawText("Roll Power-Ups", contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxRollPowerUps), contentX + 5, currentY + 10, 16, White)
 
 proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   if not game.sandboxSidebarOpen:
@@ -155,10 +155,10 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   drawText("X", closeX + 8, 8, 20, White)
   
   # Draw title
-  drawText("SANDBOX MODE", sidebarX + 10, 10, 20, Yellow)
+  drawText(t(tkSandboxTitle), sidebarX + 10, 10, 20, Yellow)
   
   # Draw tabs
-  let tabs = ["Enemies", "Bosses", "Controls"]
+  let tabs = [t(tkSandboxTabEnemies), t(tkSandboxTabBosses), t(tkSandboxTabControls)]
   let tabWidth: int32 = (SIDEBAR_WIDTH - SIDEBAR_PADDING * 4) div 3
   var currentY: int32 = 45
   

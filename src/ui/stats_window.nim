@@ -1,7 +1,7 @@
 ﻿## OS-Themed Statistics Window - ENHANCED EDITION
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
-import raylib, os_window, ../statistics, ../run_statistics, ../types, math, ../powerup_data, strutils, std/tables
+import raylib, os_window, ../statistics, ../run_statistics, ../types, math, ../powerup_data, strutils, std/tables, ../localization
 
 type
   StatsTab* = enum
@@ -47,7 +47,7 @@ proc newStatsWindow*(screenWidth, screenHeight: int, stats: Statistics): StatsWi
   let windowY = (screenHeight - windowHeight) div 2
   
   let osWin = newOSWindow(
-    "System Monitor - Player Analytics",
+    t(tkStatsWindowTitle),
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 200, b: 50, a: 255),
@@ -244,9 +244,9 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
   var tabX = contentX
   for tab in [stLifetime, stLastRun, stPowerUps]:
     let tabName = case tab
-      of stLifetime: "Lifetime"
-      of stLastRun: "Last Run"
-      of stPowerUps: "Power-Ups"
+      of stLifetime: t(tkStatsTabLifetime)
+      of stLastRun: t(tkStatsTabLastRun)
+      of stPowerUps: t(tkStatsTabPowerUps)
     
     let isActive = statsWin.currentTab == tab
     let isHovered = mousePos.x >= tabX.float32 and 
@@ -295,7 +295,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     # Existing lifetime stats implementation
     var y = tabContentY + 20
     
-    drawText("=== SYSTEM PERFORMANCE MONITOR ===", (contentX + 20).int32, y.int32, 
+    drawText(t(tkStatsPerformanceMonitor), (contentX + 20).int32, y.int32, 
             20, Color(r: 0, g: 200, b: 255, a: 255))
     y += 35
     
@@ -303,21 +303,21 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     let cardHeight = 70
     
     drawMetricCard(contentX + 20, y, cardWidth, cardHeight,
-                  "TOTAL SESSIONS", $statsWin.stats.totalGamesPlayed,
+                  t(tkStatsTotalSessions), $statsWin.stats.totalGamesPlayed,
                   '#', Gold)
     
     drawMetricCard(contentX + 40 + cardWidth, y, cardWidth, cardHeight,
-                  "PLAYTIME", formatTime(statsWin.stats.totalPlayTime),
+                  t(tkStatsPlaytime), formatTime(statsWin.stats.totalPlayTime),
                   '@', Color(r: 100, g: 200, b: 255, a: 255))
     
     let totalKills = statsWin.stats.waveMode.bestKills + statsWin.stats.timeMode.bestKills
     drawMetricCard(contentX + 60 + cardWidth * 2, y, cardWidth, cardHeight,
-                  "PEAK KILLS", $totalKills,
+                  t(tkStatsPeakKills), $totalKills,
                   '*', Red)
     
     y += cardHeight + 25
     
-    drawText("WAVE MODE METRICS", (contentX + 20).int32, y.int32, 18,
+    drawText(t(tkStatsWaveModeMetrics), (contentX + 20).int32, y.int32, 18,
             Color(r: 100, g: 200, b: 255, a: 255))
     y += 25
     
@@ -342,7 +342,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                  Color(r: 255, g: 100, b: 100, a: 255), statsWin.animTime)
     y += barHeight + 30
     
-    drawText("TIME SURVIVAL METRICS", (contentX + 20).int32, y.int32, 18,
+    drawText(t(tkStatsTimeSurvivalMetrics), (contentX + 20).int32, y.int32, 18,
             Color(r: 255, g: 150, b: 100, a: 255))
     y += 25
     
@@ -375,51 +375,51 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       var y = tabContentY + 12
       
       # Combat Stats Panel
-      drawStatPanel(col1X, y, col1Width, 240, "COMBAT")
+      drawStatPanel(col1X, y, col1Width, 240, t(tkStatsCombat))
       var lineY = y + 36
       
-      drawStatLine(col1X + 10, lineY, "Accuracy", formatPercent(runStats.combat.accuracyPercent),
+      drawStatLine(col1X + 10, lineY, t(tkStatsAccuracy), formatPercent(runStats.combat.accuracyPercent),
                   getQualityColor(runStats.combat.accuracyPercent, 60.0))
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Shots Fired", $runStats.combat.shotsFired)
+      drawStatLine(col1X + 10, lineY, t(tkStatsShotsFired), $runStats.combat.shotsFired)
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Shots Hit", $runStats.combat.shotsHit, Color(r: 80, g: 255, b: 80, a: 255))
+      drawStatLine(col1X + 10, lineY, t(tkStatsShotsHit), $runStats.combat.shotsHit, Color(r: 80, g: 255, b: 80, a: 255))
       lineY += 20
       drawStatLine(col1X + 10, lineY, "Damage Dealt", formatLargeNumber(runStats.combat.totalDamageDealt), Orange)
       lineY += 20
       drawStatLine(col1X + 10, lineY, "Damage Taken", formatLargeNumber(runStats.combat.totalDamageTaken), Red)
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Elite Kills", $runStats.combat.eliteKills, Orange)
+      drawStatLine(col1X + 10, lineY, t(tkStatsEliteKills), $runStats.combat.eliteKills, Orange)
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Boss Kills", $runStats.combat.bossKills, Red)
+      drawStatLine(col1X + 10, lineY, t(tkStatsBossKills), $runStats.combat.bossKills, Red)
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Critical Hits", $runStats.combat.criticalHits, Color(r: 0, g: 180, b: 255, a: 255))
+      drawStatLine(col1X + 10, lineY, t(tkStatsCriticalHits), $runStats.combat.criticalHits, Color(r: 0, g: 180, b: 255, a: 255))
       
       # Movement Stats Panel
-      drawStatPanel(col2X, y, col1Width, 240, "MOVEMENT & SURVIVAL")
+      drawStatPanel(col2X, y, col1Width, 240, t(tkStatsMovementSurvival))
       lineY = y + 36
       
-      drawStatLine(col2X + 10, lineY, "Distance", formatLargeNumber(runStats.movement.totalDistanceTraveled) & "px")
+      drawStatLine(col2X + 10, lineY, t(tkStatsDistance), formatLargeNumber(runStats.movement.totalDistanceTraveled) & "px")
       lineY += 20
-      drawStatLine(col2X + 10, lineY, "Phase Shifts", $runStats.movement.phaseShiftsUsed, SkyBlue)
+      drawStatLine(col2X + 10, lineY, t(tkStatsPhaseShifts), $runStats.movement.phaseShiftsUsed, SkyBlue)
       lineY += 20
-      drawStatLine(col2X + 10, lineY, "Time Warps", $runStats.movement.timeWarpsUsed, Purple)
+      drawStatLine(col2X + 10, lineY, t(tkStatsTimeWarps), $runStats.movement.timeWarpsUsed, Purple)
       lineY += 20
-      drawStatLine(col2X + 10, lineY, "Near Deaths", $runStats.movement.nearDeathCount, Red)
+      drawStatLine(col2X + 10, lineY, t(tkStatsNearDeaths), $runStats.movement.nearDeathCount, Red)
       lineY += 20
-      drawStatLine(col2X + 10, lineY, "Best Streak", formatDuration(runStats.movement.longestNoDamageStreak), Color(r: 80, g: 255, b: 80, a: 255))
+      drawStatLine(col2X + 10, lineY, t(tkStatsBestStreak), formatDuration(runStats.movement.longestNoDamageStreak), Color(r: 80, g: 255, b: 80, a: 255))
       lineY += 20
-      drawStatLine(col2X + 10, lineY, "Time at Low HP", formatDuration(runStats.movement.timeAtLowHP), Orange)
+      drawStatLine(col2X + 10, lineY, t(tkStatsTimeAtLowHP), formatDuration(runStats.movement.timeAtLowHP), Orange)
       
       # Performance Stats Panel
-      drawStatPanel(col3X, y, col1Width, 240, "PERFORMANCE")
+      drawStatPanel(col3X, y, col1Width, 240, t(tkStatsPerformance))
       lineY = y + 36
       
-      drawStatLine(col3X + 10, lineY, "Peak DPS", formatLargeNumber(runStats.performance.peakDPS), Color(r: 0, g: 180, b: 255, a: 255))
+      drawStatLine(col3X + 10, lineY, t(tkStatsPeakDPS), formatLargeNumber(runStats.performance.peakDPS), Color(r: 0, g: 180, b: 255, a: 255))
       lineY += 20
-      drawStatLine(col3X + 10, lineY, "Average DPS", formatLargeNumber(runStats.performance.averageDPS))
+      drawStatLine(col3X + 10, lineY, t(tkStatsAverageDPS), formatLargeNumber(runStats.performance.averageDPS))
       lineY += 20
-      drawStatLine(col3X + 10, lineY, "Kills/Min", formatLargeNumber(runStats.performance.killsPerMinute))
+      drawStatLine(col3X + 10, lineY, t(tkStatsKillsPerMin), formatLargeNumber(runStats.performance.killsPerMinute))
       lineY += 20
       drawStatLine(col3X + 10, lineY, "Best Streak", $runStats.performance.longestKillStreak, Gold)
       lineY += 20
@@ -432,22 +432,22 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       y += 252
       
       # Resources Panel
-      drawStatPanel(col1X, y, col1Width, 200, "RESOURCES")
+      drawStatPanel(col1X, y, col1Width, 200, t(tkStatsResources))
       lineY = y + 36
       
-      drawStatLine(col1X + 10, lineY, "Coins Earned", $runStats.resources.coinsEarned, Gold)
+      drawStatLine(col1X + 10, lineY, t(tkStatsCoinsEarned), $runStats.resources.coinsEarned, Gold)
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Coins Spent", $runStats.resources.coinsSpent)
+      drawStatLine(col1X + 10, lineY, t(tkStatsCoinsSpent), $runStats.resources.coinsSpent)
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Coins Saved", $runStats.resources.coinsAtEnd,
+      drawStatLine(col1X + 10, lineY, t(tkStatsCoinsSaved), $runStats.resources.coinsAtEnd,
                   if runStats.resources.coinsAtEnd > 50: Color(r: 80, g: 255, b: 80, a: 255) else: Gray)
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Walls Placed", $runStats.resources.wallsPlaced)
+      drawStatLine(col1X + 10, lineY, t(tkStatsWallsPlaced), $runStats.resources.wallsPlaced)
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Consumables", $runStats.resources.consumablesCollected, Color(r: 0, g: 180, b: 255, a: 255))
+      drawStatLine(col1X + 10, lineY, t(tkStatsConsumables), $runStats.resources.consumablesCollected, Color(r: 0, g: 180, b: 255, a: 255))
       
       # Play Style Panel
-      drawStatPanel(col2X, y, col1Width, 200, "PLAY STYLE")
+      drawStatPanel(col2X, y, col1Width, 200, t(tkStatsPlayStyle))
       lineY = y + 36
       
       let styleColor = case runStats.comparison.playStyle
@@ -460,7 +460,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       drawText(runStats.comparison.playStyle, (col2X + 10).int32, lineY.int32, 20, styleColor)
       lineY += 35
       
-      drawText("Aggression", (col2X + 10).int32, lineY.int32, 14, White)
+      drawText(t(tkStatsAggression), (col2X + 10).int32, lineY.int32, 14, White)
       lineY += 20
       let aggressionBar = int(runStats.comparison.aggressionRating * 2.4)
       drawRectangle((col2X + 10).int32, lineY.int32, aggressionBar.int32, 16,
@@ -470,7 +470,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                         1, Color(r: 80, g: 80, b: 100, a: 255))
       lineY += 30
       
-      drawText("Caution", (col2X + 10).int32, lineY.int32, 14, White)
+      drawText(t(tkStatsCaution), (col2X + 10).int32, lineY.int32, 14, White)
       lineY += 20
       let cautionBar = int(runStats.comparison.cautionRating * 2.4)
       drawRectangle((col2X + 10).int32, lineY.int32, cautionBar.int32, 16,
@@ -481,7 +481,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       
       # DPS Graph
       if runStats.performance.dpsHistory.len > 0:
-        drawMiniGraph(col3X, y, col1Width, 200, "DPS OVER TIME",
+        drawMiniGraph(col3X, y, col1Width, 200, t(tkStatsDpsOverTime),
                      runStats.performance.dpsHistory,
                      max(runStats.performance.peakDPS, 1.0),
                      Color(r: 255, g: 150, b: 50, a: 255), statsWin.animTime)

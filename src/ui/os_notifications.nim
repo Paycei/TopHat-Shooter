@@ -1,7 +1,7 @@
 ## OS-Style Notification System
 ## Provides toast notifications, system alerts, and command feedback
 
-import raylib, types, math
+import raylib, ../types, math, ../localization
 
 type
   OSToastType* = enum
@@ -155,37 +155,37 @@ proc drawOSToasts*(manager: OSToastManager, screenWidth, screenHeight: int32) =
 
 # Helper procs for common game events
 proc notifyWaveStart*(manager: var OSToastManager, wave: int) =
-  manager.addToast("Wave " & $wave & " initiated", ottCommand)
+  manager.addToast(t(tkNotifWaveInitiated), ottCommand)
 
 proc notifyWaveComplete*(manager: var OSToastManager, wave: int) =
-  manager.addToast("Wave " & $wave & " cleared", ottSuccess)
+  manager.addToast(t(tkNotifWaveCleared), ottSuccess)
 
 proc notifyBossSpawn*(manager: var OSToastManager) =
-  manager.addToast("BOSS PROCESS DETECTED", ottCritical, 4.0)
+  manager.addToast(t(tkNotifBossDetected), ottCritical, 4.0)
 
 proc notifyBossDefeated*(manager: var OSToastManager) =
-  manager.addToast("Boss process terminated", ottAchievement, 4.0)
+  manager.addToast(t(tkNotifBossTerminated), ottAchievement, 4.0)
 
 proc notifyPowerUpCollected*(manager: var OSToastManager, name: string) =
-  manager.addToast("Installed: " & name & ".exe", ottSuccess)
+  manager.addToast(t(tkNotifInstalled) & \" \" & name & \".exe\", ottSuccess)
 
 proc notifyDamageTaken*(manager: var OSToastManager, damage: int) =
-  manager.addToast("Integrity compromised: -" & $damage & " HP", ottError, 2.0)
+  manager.addToast(t(tkNotifIntegrityCompromised) & "-" & $damage & " HP", ottError, 2.0)
 
 proc notifyHealthRestored*(manager: var OSToastManager, amount: int) =
-  manager.addToast("System integrity restored: +" & $amount & " HP", ottSuccess, 2.0)
+  manager.addToast(t(tkNotifIntegrityRestored) & "+" & $amount & " HP", ottSuccess, 2.0)
 
 proc notifyCoinCollected*(manager: var OSToastManager, amount: int) =
-  manager.addToast("Resource acquired: +" & $amount & " credits", ottInfo, 2.0)
+  manager.addToast(t(tkNotifResourceAcquired) & "+" & $amount & " credits", ottInfo, 2.0)
 
 proc notifyAbilityActivated*(manager: var OSToastManager, abilityName: string) =
-  manager.addToast("> EXECUTE: " & abilityName & ".exe", ottCommand, 2.5)
+  manager.addToast(t(tkNotifExecute) & abilityName & ".exe", ottCommand, 2.5)
 
 proc notifyAbilityCooldown*(manager: var OSToastManager, abilityName: string, cooldown: float32) =
-  manager.addToast(abilityName & " cooldown: " & $cooldown.int & "s", ottWarning, 2.0)
+  manager.addToast(abilityName & " " & t(tkNotifCooldown) & " " & $cooldown.int & "s", ottWarning, 2.0)
 
 proc notifyEnemyKilled*(manager: var OSToastManager, enemyName: string, count: int = 1) =
   if count == 1:
-    manager.addToast("Process terminated: " & enemyName, ottInfo, 1.5)
+    manager.addToast(t(tkNotifProcessTerminated) & ": " & enemyName, ottInfo, 1.5)
   else:
-    manager.addToast("Processes terminated: " & enemyName & " (x" & $count & ")", ottInfo, 2.0)
+    manager.addToast(t(tkNotifProcessesTerminated) & ": " & enemyName & " (x" & $count & ")", ottInfo, 2.0)

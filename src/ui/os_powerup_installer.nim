@@ -1,7 +1,7 @@
 ## OS-Style Process Installer - Enhanced Edition
 ## Power-up selection screen as modern software installation interface
 
-import raylib, ../types, math, strutils, icon_drawing
+import raylib, ../types, math, strutils, icon_drawing, ../localization
 
 # Import shared power-up data module (eliminates redundancy with powerup.nim)
 import ../powerup_data
@@ -469,7 +469,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
   let titleIcon = if isLegendary: "[*] " else: "[*] "
   let titleText = if isLegendary:
-    titleIcon & "LEGENDARY UPGRADE INSTALLER"
+    titleIcon & t(tkPowerUpInstallerTitle)
   else:
     titleIcon & "Process Upgrade Manager"
   
@@ -490,7 +490,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   
   # Instruction
   var yPos = windowY + TITLE_BAR_HEIGHT + 25
-  drawText("v SELECT UPGRADE TO INSTALL:", windowX + 25, yPos, 17, 
+  drawText(t(tkPowerUpSelectUpgrade), windowX + 25, yPos, 17, 
           Color(r: 200, g: 220, b: 240, a: 255))
   yPos += 50
   
@@ -545,7 +545,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   
   # "ROLLING..." overlay
   if game.rollAnimationActive:
-    let rollingText = "[!] ROLLING..."
+    let rollingText = t(tkPowerUpRolling)
     let rollingWidth = measureText(rollingText, 32)
     let rollingX = windowX + (INSTALLER_WIDTH - rollingWidth) div 2
     let rollingY = windowY + INSTALLER_HEIGHT div 2 - 16
@@ -591,7 +591,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   let canAffordReroll = game.player.coins >= game.rerollCost
   
   drawModernButton(rerollX, buttonY, int32(rerollWidth), int32(buttonHeight),
-                  "[R] Reroll Options", canAffordReroll, false, game.time)
+                  t(tkPowerUpRerollOptions), canAffordReroll, false, game.time)
   
   let rerollCostText = $game.rerollCost & " credits"
   let costWidth = measureText(rerollCostText, 12)

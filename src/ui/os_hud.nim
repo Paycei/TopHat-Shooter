@@ -1,6 +1,6 @@
 ## OS-Style HUD System
 
-import raylib, ../types, math
+import raylib, ../types, math, ../localization
 
 const
   PANEL_PADDING = 10
@@ -55,8 +55,8 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
   drawRectangle(x, y, panelWidth - 3, TITLE_BAR_HEIGHT, HEADER_BG_COLOR)
   
   # Title text with shadow for readability
-  drawText("SYSTEM STATUS", x + 9, y + 5, 13, Color(r: 0, g: 0, b: 0, a: 140))
-  drawText("SYSTEM STATUS", x + 8, y + 4, 13, ACCENT_COLOR)
+  drawText(t(tkHUDSystemStatus), x + 9, y + 5, 13, Color(r: 0, g: 0, b: 0, a: 140))
+  drawText(t(tkHUDSystemStatus), x + 8, y + 4, 13, ACCENT_COLOR)
   
   # Border with glow effect
   drawRectangleLines(x, y, panelWidth, panelHeight, 
@@ -66,9 +66,9 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
     var yOffset = y + TITLE_BAR_HEIGHT + PANEL_PADDING
     
     # HP Bar (System Integrity) with enhanced styling
-    drawText("INTEGRITY:", x + PANEL_PADDING + 1, yOffset + 1, 11, 
-            Color(r: 0, g: 0, b: 0, a: 130))
-    drawText("INTEGRITY:", x + PANEL_PADDING, yOffset, 11, 
+    drawText(t(tkHUDIntegrity), x + PANEL_PADDING + 1, yOffset + 1, 11,
+           Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkHUDIntegrity), x + PANEL_PADDING, yOffset, 11,
             Color(r: 180, g: 200, b: 220, a: 255))
     yOffset += 16
     
@@ -113,9 +113,9 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
                  Color(r: 15, g: 20, b: 28, a: 70))
     
     # Charges (Walls)
-    drawText("CHARGES", x + PANEL_PADDING + 8, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 120))
-    drawText("CHARGES", x + PANEL_PADDING + 7, yOffset, 10,
+    drawText(t(tkHUDCharges), x + PANEL_PADDING + 8, yOffset + 1, 10,
+           Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkHUDCharges), x + PANEL_PADDING + 7, yOffset, 10,
             Color(r: 180, g: 200, b: 220, a: 255))
     
     let chargesText = $player.walls & " / 6"
@@ -162,9 +162,9 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
     yOffset += 38
     
     # Coins (Cache) with enhanced styling
-    drawText("CACHE", x + PANEL_PADDING + 8, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 120))
-    drawText("CACHE", x + PANEL_PADDING + 7, yOffset, 10,
+    drawText(t(tkHUDCache), x + PANEL_PADDING + 8, yOffset + 1, 10,
+           Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkHUDCache), x + PANEL_PADDING + 7, yOffset, 10,
             Color(r: 180, g: 200, b: 220, a: 255))
     
     let coinText = $player.coins & " credits"

@@ -2,7 +2,7 @@
 ## Shop screen redesigned as a modern OS storefront interface
 ## Matches the new OS theme from power-up installer and game over screens
 
-import raylib, ../types, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing
+import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing
 
 const
   SHOP_WIDTH = 950
@@ -13,12 +13,12 @@ const
   SIDEBAR_WIDTH: int32 = 280
 
 proc initShopItems*(): array[6, ShopItem] =
-  result[0] = ShopItem(name: "Damage +", description: "Increase bullet damage", baseCost: 8, bought: 0)
-  result[1] = ShopItem(name: "Fire Rate +", description: "Shoot faster", baseCost: 10, bought: 0)
-  result[2] = ShopItem(name: "Move Speed +", description: "Move faster", baseCost: 7, bought: 0)
-  result[3] = ShopItem(name: "Max Health +", description: "Increase max HP", baseCost: 10, bought: 0)
-  result[4] = ShopItem(name: "Bullet Speed +", description: "Faster bullets", baseCost: 6, bought: 0)
-  result[5] = ShopItem(name: "Wall (x5)", description: "Buy 5 deployable walls", baseCost: 14, bought: 0)
+  result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: 8, bought: 0)
+  result[1] = ShopItem(name: t(tkShopFireRatePlus), description: t(tkShopFireRatePlusDesc), baseCost: 10, bought: 0)
+  result[2] = ShopItem(name: t(tkShopMoveSpeedPlus), description: t(tkShopMoveSpeedPlusDesc), baseCost: 7, bought: 0)
+  result[3] = ShopItem(name: t(tkShopMaxHealthPlus), description: t(tkShopMaxHealthPlusDesc), baseCost: 10, bought: 0)
+  result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: 6, bought: 0)
+  result[5] = ShopItem(name: t(tkShopWallX5), description: t(tkShopWallX5Desc), baseCost: 14, bought: 0)
 
 proc getCurrentCost*(item: ShopItem): int =
   # More aggressive exponential cost scaling: baseCost * 1.5^bought
@@ -89,7 +89,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
     drawText(description, textX, y + 24, 10, descColor)
   
   # Cost display and owned count on same line to save space
-  let costText = $cost & " CR"
+  let costText = $cost & " " & t(tkShopCredits)
   let costColor = if canAfford: 
     Color(r: 255, g: 215, b: 0, a: 255)
   else: 
@@ -98,7 +98,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
   drawText(costText, textX, y + 42, 11, costColor)
   
   # Purchase count on same line
-  let countText = "Owned: " & $bought
+  let countText = t(tkShopOwned) & ": " & $bought
   let costWidth = measureText(costText, 11)
   drawText(countText, textX + costWidth + 80, y + 42, 10,
           Color(r: 150, g: 160, b: 170, a: 255))
@@ -166,7 +166,7 @@ proc drawShop*(game: Game) =
                Color(r: 0, g: 140, b: 200, a: 255))
   
   # Title text
-  let titleText = "[$] CREDIT STORE - UPGRADES AVAILABLE"
+  let titleText = "[$] " & t(tkShopCreditStore)
   let titleColor = Color(r: 100, g: 200, b: 255, a: 255)
   drawText(titleText, windowX + 17, windowY + 13, 22, Color(r: 0, g: 0, b: 0, a: 120))
   drawText(titleText, windowX + 15, windowY + 11, 22, titleColor)
@@ -183,7 +183,7 @@ proc drawShop*(game: Game) =
   drawText("X", closeX + 8, closeButtonY + 5, 18, White)
   
   # Coin display in title bar
-  let coinText = $game.player.coins & " CR"
+  let coinText = $game.player.coins & " " & t(tkShopCredits)
   let coinWidth = measureText(coinText, 20)
   drawText(coinText, windowX + SHOP_WIDTH - coinWidth - 20, windowY + 12, 20, Gold)
   
@@ -201,7 +201,7 @@ proc drawShop*(game: Game) =
   # Sidebar header
   drawRectangle(sidebarX, sidebarY, SIDEBAR_WIDTH, 35,
                Color(r: 40, g: 50, b: 65, a: 255))
-  drawText("[L] ACTIVE UPGRADES", sidebarX + 10, sidebarY + 9, 16,
+  drawText("[L] " & t(tkShopActiveUpgrades), sidebarX + 10, sidebarY + 9, 16,
           Color(r: 150, g: 200, b: 255, a: 255))
   
   # Display owned permanent upgrades
@@ -209,10 +209,10 @@ proc drawShop*(game: Game) =
   let upgradeX = sidebarX + 12
   
   if game.player.powerUps.len == 0:
-    drawText("No permanent upgrades yet.", upgradeX, upgradeY, 13,
+    drawText(t(tkShopNoPermanent), upgradeX, upgradeY, 13,
             Color(r: 150, g: 160, b: 170, a: 255))
     upgradeY += 18
-    drawText("Defeat waves to unlock!", upgradeX, upgradeY, 12, LightGray)
+    drawText(t(tkShopDefeatWaves), upgradeX, upgradeY, 12, LightGray)
   else:
     for powerUp in game.player.powerUps:
       if upgradeY > sidebarY + sidebarHeight - 60:
@@ -241,7 +241,7 @@ proc drawShop*(game: Game) =
   let shopY = sidebarY + 10
   let shopWidth = SHOP_WIDTH - SIDEBAR_WIDTH - 40
   
-  drawText("v AVAILABLE PURCHASES:", shopX, shopY, 16,
+  drawText("v " & t(tkShopAvailablePurchases), shopX, shopY, 16,
           Color(r: 200, g: 220, b: 240, a: 255))
   
   let itemsStartY = shopY + 35
@@ -280,15 +280,15 @@ proc drawShop*(game: Game) =
   
   # Control instructions with modern styling
   let ctrlY = bottomY + 10
-  drawText("CONTROLS:", windowX + 20, ctrlY, 13,
+  drawText(t(tkShopControls), windowX + 20, ctrlY, 13,
           Color(r: 0, g: 180, b: 255, a: 255))
   
   let instructY = ctrlY + 18
-  drawText("UP/DOWN/W/S Navigate", windowX + 20, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText("UP/DOWN/W/S " & t(tkShopNavigate), windowX + 20, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
-  drawText("ENTER/CLICK Buy", windowX + 160, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText("ENTER/CLICK " & t(tkShopBuy), windowX + 160, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
-  drawText("ESC Continue", windowX + 300, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText("ESC " & t(tkShopContinue), windowX + 300, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
   # Purchase button for selected item (large, prominent)
   let selectedItem = game.shopItems[game.selectedShopItem]
@@ -330,7 +330,7 @@ proc drawShop*(game: Game) =
                     2.5, buyBorderColor)
   
   # Button text
-  let buyText = if canBuy: "[$] BUY SELECTED" else: "[!] INSUFFICIENT CREDITS"
+  let buyText = if canBuy: "[$] " & t(tkShopBuySelected) else: "[!] " & t(tkShopInsufficientCredits)
   let buyTextWidth = measureText(buyText, 16)
   let buyTextX = buyButtonX + (buyButtonWidth - buyTextWidth) div 2
   

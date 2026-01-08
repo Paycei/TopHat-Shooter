@@ -1,7 +1,7 @@
 ﻿## OS-Themed Help System
 ## Terminal-style documentation viewer
 
-import raylib, strutils, os_window, math
+import raylib, strutils, os_window, math, ../localization
 
 type
   HelpCommand* = tuple[cmd: string, desc: string]
@@ -36,7 +36,7 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
   let windowY = (screenHeight - windowHeight) div 2
   
   let osWin = newOSWindow(
-    "Help System - Terminal",
+    t(tkHelpWindowTitle),
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 100, g: 255, b: 150, a: 255),  # Green
@@ -85,7 +85,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     of "help", "?":
       help.addOutput("", White)
       help.addOutput("=======================================", Color(r: 255, g: 200, b: 50, a: 255))
-      help.addOutput("  AVAILABLE COMMANDS", Color(r: 255, g: 200, b: 50, a: 255))
+      help.addOutput("  " & t(tkHelpAvailableCommands), Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("=======================================", Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("", White)
       for helpCmd in HELP_COMMANDS:
@@ -94,7 +94,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     
     of "clear":
       help.outputLines = @[
-        ("TopHat-Shooter Help System v5.1", Color(r: 0, g: 255, b: 255, a: 255)),
+        ("TopHat-ShooterOS Help System v5.1", Color(r: 0, g: 255, b: 255, a: 255)),
         ("Type 'help' for commands.", White),
         ("", White)
       ]
@@ -102,7 +102,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     of "controls":
       help.addOutput("", White)
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
-      help.addOutput("  CONTROLS & KEYBINDINGS", Color(r: 0, g: 255, b: 255, a: 255))
+      help.addOutput("  " & t(tkHelpControlsKeybindings), Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("", White)
       help.addOutput("MOVEMENT", Color(r: 255, g: 200, b: 50, a: 255))
@@ -120,7 +120,6 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("", White)
       help.addOutput("MENU", Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("  ESC ................ Pause / Return to menu", White)
-      help.addOutput("  Tab ................ Quick stats view", White)
       help.addOutput("  F11 ................ Toggle Fullscreen", White)
       help.addOutput("", White)
       help.addOutput("* Requires Auto-Shoot power-up", Color(r: 150, g: 150, b: 150, a: 255))
@@ -129,7 +128,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     of "gameplay":
       help.addOutput("", White)
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
-      help.addOutput("  GAME MODES", Color(r: 0, g: 255, b: 255, a: 255))
+      help.addOutput("  " & t(tkHelpGameplayTopic), Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("", White)
       help.addOutput("WAVE-BASED MODE", Color(r: 255, g: 200, b: 50, a: 255))

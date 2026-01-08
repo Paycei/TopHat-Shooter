@@ -1,7 +1,7 @@
 ## OS-Themed Settings Control Panel
 ## Tabbed settings interface matching the OS visual language
 
-import raylib, strutils, ../sound, ../save_system, os_window, ../settings
+import raylib, strutils, ../sound, ../save_system, os_window, ../settings, ../localization
 # Use globalSettings from settings module, don't redefine it
 
 type
@@ -28,6 +28,11 @@ type
 
 # Don't redefine globalSettings - use the one from settings module
 # Don't redefine initSettings - use the one from settings module
+
+const availableLanguages = [
+  ("English", English),
+  ("Español", Spanish),
+]
 
 proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings): SettingsWindow =
   let windowWidth = 700
@@ -153,12 +158,12 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   var yPos = contentY + 15
   
   # Section: Display
-  drawSectionHeader(contentX + 20, yPos, contentW - 40, "DISPLAY", '@',
+  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionDisplay), '@',
                    Color(r: 100, g: 200, b: 255, a: 255))
   yPos += 35
   
   # Fullscreen toggle
-  drawText("Fullscreen Mode", (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsFullscreen), (contentX + 40).int32, yPos.int32, 18, White)
   let fsCheckX = contentX + 320
   let mousePos = getMousePosition()
   let fsHovered = mousePos.x >= fsCheckX.float32 and 
@@ -166,11 +171,11 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                   mousePos.y >= yPos.float32 and 
                   mousePos.y <= (yPos + 25).float32
   drawCheckbox(fsCheckX, yPos, 25, settingsWin.settings.fullscreen, fsHovered)
-  drawText("(Press F11 to toggle)", (fsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  drawText(t(tkSettingsFullscreenToggle), (fsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 35
   
   # FPS Limit
-  drawText("FPS Limit", (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsFpsLimit), (contentX + 40).int32, yPos.int32, 18, White)
   
   let boxX = contentX + 320
   let boxY = yPos - 5
@@ -199,7 +204,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   yPos += 40
   
   # Show FPS Counter
-  drawText("Show FPS Counter", (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsShowFps), (contentX + 40).int32, yPos.int32, 18, White)
   let fpsCheckX = contentX + 320
   let fpsCheckHovered = mousePos.x >= fpsCheckX.float32 and 
                         mousePos.x <= (fpsCheckX + 25).float32 and
@@ -209,7 +214,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   yPos += 35
   
   # Debug Panel
-  drawText("Debug Panel", (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsDebugPanel), (contentX + 40).int32, yPos.int32, 18, White)
   let debugCheckX = contentX + 320
   let debugHovered = mousePos.x >= debugCheckX.float32 and 
                      mousePos.x <= (debugCheckX + 25).float32 and
@@ -221,14 +226,14 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
   var yPos = contentY + 15
   
   # Section: Volume Control
-  drawSectionHeader(contentX + 20, yPos, contentW - 40, "VOLUME CONTROL", '~',
+  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionVolumeControl), '~',
                    Color(r: 255, g: 200, b: 100, a: 255))
   yPos += 40
   
   let mousePos = getMousePosition()
   
   # Sound Effects Volume
-  drawText("Sound Effects", (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsSoundEffects), (contentX + 40).int32, yPos.int32, 18, White)
   let volumeSliderX = contentX + 250
   let volumeSliderY = yPos + 5
   let sliderWidth = 300
@@ -247,7 +252,7 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
   yPos += 45
   
   # Music Volume
-  drawText("Music", (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsMusic), (contentX + 40).int32, yPos.int32, 18, White)
   let musicSliderX = contentX + 250
   let musicSliderY = yPos + 5
   
@@ -266,27 +271,27 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   var yPos = contentY + 15
   
   # Section: Input Method
-  drawSectionHeader(contentX + 20, yPos, contentW - 40, "INPUT METHOD", '>',
+  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionInputMethod), '>',
                    Color(r: 200, g: 100, b: 255, a: 255))
   yPos += 35
   
   let mousePos = getMousePosition()
   
   # Mouse Support
-  drawText("Mouse Support", (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsMouseSupport), (contentX + 40).int32, yPos.int32, 18, White)
   let mouseCheckX = contentX + 320
   let mouseHovered = mousePos.x >= mouseCheckX.float32 and 
                      mousePos.x <= (mouseCheckX + 25).float32 and
                      mousePos.y >= yPos.float32 and 
                      mousePos.y <= (yPos + 25).float32
   drawCheckbox(mouseCheckX, yPos, 25, settingsWin.settings.mouseSupport, mouseHovered)
-  drawText("(Enable mouse for menu navigation)", (mouseCheckX + 35).int32, 
+  drawText(t(tkSettingsMouseSupportDesc), (mouseCheckX + 35).int32, 
           (yPos + 3).int32, 14, LightGray)
   yPos += 40
   
   # Show Cursor in Menus (only when mouse disabled)
   if not settingsWin.settings.mouseSupport:
-    drawText("Show Cursor in Menus", (contentX + 40).int32, yPos.int32, 18, 
+    drawText(t(tkSettingsShowCursor), (contentX + 40).int32, yPos.int32, 18, 
             Color(r: 180, g: 180, b: 180, a: 255))
     let cursorCheckX = contentX + 320
     let cursorHovered = mousePos.x >= cursorCheckX.float32 and 
@@ -294,25 +299,24 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                        mousePos.y >= yPos.float32 and 
                        mousePos.y <= (yPos + 25).float32
     drawCheckbox(cursorCheckX, yPos, 25, settingsWin.settings.showCursorInMenus, cursorHovered)
-    drawText("(Visual cursor only)", (cursorCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+    drawText(t(tkSettingsShowCursorDesc), (cursorCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
     yPos += 40
   
   # Keyboard Shortcuts section
   yPos += 10
-  drawSectionHeader(contentX + 20, yPos, contentW - 40, "KEYBOARD SHORTCUTS", '#',
+  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionKeyboardShortcuts), '#',
                    Color(r: 100, g: 255, b: 200, a: 255))
   yPos += 35
   
   # Display key bindings
   let shortcuts = [
-    ("WASD / Arrows", "Movement"),
-    ("Mouse / Space", "Shoot"),
-    ("F", "Toggle Auto-Shoot"),
-    ("E", "Place Wall"),
-    ("Q", "Legendary Abilities"),
-    ("ESC", "Pause / Menu"),
-    ("F11", "Toggle Fullscreen"),
-    ("Tab", "Quick Stats")
+    (t(tkSettingsKeyboardWASD), t(tkSettingsKeyboardMovement)),
+    (t(tkSettingsKeyboardMouseSpace), t(tkSettingsKeyboardShoot)),
+    (t(tkSettingsKeyboardF), t(tkSettingsKeyboardToggleAutoShoot)),
+    (t(tkSettingsKeyboardE), t(tkSettingsKeyboardPlaceWall)),
+    (t(tkSettingsKeyboardQ), t(tkSettingsKeyboardLegendaryAbilities)),
+    (t(tkSettingsKeyboardESC), t(tkSettingsKeyboardPauseMenu)),
+    (t(tkSettingsKeyboardF11), t(tkSettingsKeyboardToggleFullscreen)),
   ]
   
   for binding in shortcuts:
@@ -324,32 +328,68 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   var yPos = contentY + 15
   
   # Section: Assistance
-  drawSectionHeader(contentX + 20, yPos, contentW - 40, "ASSISTANCE", '?',
+  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionAssistance), '?',
                    Color(r: 100, g: 255, b: 100, a: 255))
   yPos += 35
   
   let mousePos = getMousePosition()
   
   # Show Hints
-  drawText("Show Hints", (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsShowHints), (contentX + 40).int32, yPos.int32, 18, White)
   let hintsCheckX = contentX + 320
   let hintsHovered = mousePos.x >= hintsCheckX.float32 and 
                      mousePos.x <= (hintsCheckX + 25).float32 and
                      mousePos.y >= yPos.float32 and 
                      mousePos.y <= (yPos + 25).float32
   drawCheckbox(hintsCheckX, yPos, 25, settingsWin.settings.showHints, hintsHovered)
-  drawText("(E: Wall, ESC: Pause tips)", (hintsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  drawText(t(tkSettingsShowHintsDesc), (hintsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 35
   
   # Show Enemy Labels
-  drawText("Show Enemy Labels", (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsShowEnemyLabels), (contentX + 40).int32, yPos.int32, 18, White)
   let labelsCheckX = contentX + 320
   let labelsHovered = mousePos.x >= labelsCheckX.float32 and 
                       mousePos.x <= (labelsCheckX + 25).float32 and
                       mousePos.y >= yPos.float32 and 
                       mousePos.y <= (yPos + 25).float32
   drawCheckbox(labelsCheckX, yPos, 25, settingsWin.settings.showEnemyLabels, labelsHovered)
-  drawText("(Enemy name tags)", (labelsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  drawText(t(tkSettingsShowEnemyLabelsDesc), (labelsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 50
+  
+  # Section: Localization
+  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionLocalization), 'L',
+                   Color(r: 255, g: 200, b: 100, a: 255))
+  yPos += 35
+  
+  # Language selector
+  drawText(t(tkSettingsLanguage), (contentX + 40).int32, yPos.int32, 18, White)
+  let langButtonX = contentX + 320
+  let langButtonY = yPos - 5
+  let langButtonWidth = 200
+  let langButtonHeight = 35
+  
+  let langHovered = mousePos.x >= langButtonX.float32 and 
+                   mousePos.x <= (langButtonX + langButtonWidth).float32 and
+                   mousePos.y >= langButtonY.float32 and 
+                   mousePos.y <= (langButtonY + langButtonHeight).float32
+  
+  let langBgColor = if langHovered:
+    Color(r: 80, g: 80, b: 100, a: 255)
+  else:
+    Color(r: 60, g: 60, b: 80, a: 255)
+  
+  drawRectangle(langButtonX.int32, langButtonY.int32, langButtonWidth.int32, langButtonHeight.int32, langBgColor)
+  drawRectangleLines(Rectangle(x: langButtonX.float32, y: langButtonY.float32,
+                                width: langButtonWidth.float32, height: langButtonHeight.float32),
+                    1, if langHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+  
+  # Display current language with arrows
+  let currentLang = try: parseEnum[Language](settingsWin.settings.language) except: English
+  let langDisplayText = getLanguageName(currentLang)
+  let langTextWidth = measureText(langDisplayText, 18)
+  drawText("<", langButtonX.int32 + 10, yPos.int32, 18, LightGray)
+  drawText(langDisplayText, (langButtonX + (langButtonWidth - langTextWidth) div 2).int32, yPos.int32, 18, White)
+  drawText(">", (langButtonX + langButtonWidth - 25).int32, yPos.int32, 18, LightGray)
 
 proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32, 
                           screenWidth, screenHeight: int): tuple[shouldClose: bool, fullscreenToggle: bool] =
@@ -532,7 +572,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     if isMouseButtonPressed(Left):
       # Show hints checkbox (25x25 hit area)
       let hintsCheckX = contentX + 320
-      let hintsCheckY = contentY + 55
+      let hintsCheckY = contentY + 50
       if mousePos.x >= hintsCheckX.float32 and mousePos.x <= (hintsCheckX + 25).float32 and
          mousePos.y >= hintsCheckY.float32 and mousePos.y <= (hintsCheckY + 25).float32:
         settingsWin.settings.showHints = not settingsWin.settings.showHints
@@ -540,10 +580,25 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       
       # Show enemy labels checkbox (25x25 hit area)
       let labelsCheckX = contentX + 320
-      let labelsCheckY = contentY + 90
+      let labelsCheckY = contentY + 85
       if mousePos.x >= labelsCheckX.float32 and mousePos.x <= (labelsCheckX + 25).float32 and
          mousePos.y >= labelsCheckY.float32 and mousePos.y <= (labelsCheckY + 25).float32:
         settingsWin.settings.showEnemyLabels = not settingsWin.settings.showEnemyLabels
+        settingsChanged = true
+      
+      # Language selector button
+      let langButtonX = contentX + 320
+      let langButtonY = contentY + 175
+      let langButtonWidth = 200
+      let langButtonHeight = 35
+      if mousePos.x >= langButtonX.float32 and mousePos.x <= (langButtonX + langButtonWidth).float32 and
+         mousePos.y >= langButtonY.float32 and mousePos.y <= (langButtonY + langButtonHeight).float32:
+        # Cycle to next language
+        let currentLang = try: parseEnum[Language](settingsWin.settings.language) except: English
+        let nextLang = if currentLang == English: Spanish else: English
+        settingsWin.settings.language = $nextLang
+        setLanguage(nextLang)
+        playSound(stMenuSelect)
         settingsChanged = true
   
   # Save settings if changed
@@ -576,10 +631,10 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
   var tabX = contentX
   for tab in [stGraphics, stAudio, stControls, stGameplay]:
     let tabName = case tab
-      of stGraphics: "Graphics"
-      of stAudio: "Audio"
-      of stControls: "Controls"
-      of stGameplay: "Gameplay"
+      of stGraphics: t(tkSettingsTabGraphics)
+      of stAudio: t(tkSettingsTabAudio)
+      of stControls: t(tkSettingsTabControls)
+      of stGameplay: t(tkSettingsTabGameplay)
     
     let isActive = settingsWin.currentTab == tab
     let isHovered = mousePos.x >= tabX.float32 and 

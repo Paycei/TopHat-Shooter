@@ -1,7 +1,7 @@
 ## OS-Themed Desktop Environment Module
 ## Main menu as an operating system desktop
 
-import raylib, ../types, math, strutils, strformat, times
+import raylib, ../types, ../localization, math, strutils, strformat, times
 
 type
   DesktopIconType* = enum
@@ -43,29 +43,40 @@ const
   DESKTOP_GRID_START_X = 80
   DESKTOP_GRID_START_Y = 80
 
+proc getIconName(iconType: DesktopIconType): string =
+  ## Get the localized name for a desktop icon
+  case iconType
+  of diPlay: t(tkMenuPlay) & ".exe"
+  of diSurvival: t(tkMenuSurvival) & ".exe"
+  of diStatistics: t(tkMenuStats) & ".exe"
+  of diSettings: t(tkMenuSettings) & ".exe"
+  of diHelp: t(tkMenuHelp) & ".txt"
+  of diQuit: t(tkMenuQuit) & ".exe"
+  of diSandbox: t(tkMenuSandbox) & ".exe"
+
 proc newOSDesktop*(): OSDesktop =
   result = OSDesktop(
     icons: @[
       DesktopIcon(iconType: diPlay, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y, 
-                  selected: true, name: "Play.exe",
+                  selected: true, name: getIconName(diPlay),
                   iconColor: Color(r: 100, g: 200, b: 255, a: 255)),
       DesktopIcon(iconType: diSurvival, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING, 
-                  selected: false, name: "Survival.exe",
+                  selected: false, name: getIconName(diSurvival),
                   iconColor: Color(r: 255, g: 150, b: 100, a: 255)),
       DesktopIcon(iconType: diStatistics, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2, 
-                  selected: false, name: "Stats.exe",
+                  selected: false, name: getIconName(diStatistics),
                   iconColor: Color(r: 255, g: 200, b: 50, a: 255)),
       DesktopIcon(iconType: diSettings, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3, 
-                  selected: false, name: "Settings.exe",
+                  selected: false, name: getIconName(diSettings),
                   iconColor: Color(r: 200, g: 100, b: 255, a: 255)),
       DesktopIcon(iconType: diHelp, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 4, 
-                  selected: false, name: "Help.txt",
+                  selected: false, name: getIconName(diHelp),
                   iconColor: Color(r: 100, g: 255, b: 150, a: 255)),
       DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 5, 
-                  selected: false, name: "Shutdown.exe",
+                  selected: false, name: getIconName(diQuit),
                   iconColor: Color(r: 255, g: 100, b: 100, a: 255)),
       DesktopIcon(iconType: diSandbox, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y, 
-                  selected: false, name: "Sandbox.exe",
+                  selected: false, name: getIconName(diSandbox),
                   iconColor: Color(r: 255, g: 165, b: 0, a: 255))
     ],
     selectedIcon: 0,
@@ -78,8 +89,9 @@ proc newOSDesktop*(): OSDesktop =
 proc updateOSDesktop*(desktop: OSDesktop, dt: float32) =
   desktop.time += dt
   
-  # Update all icon selections
+  # Update all icon names to reflect current language
   for i in 0..<desktop.icons.len:
+    desktop.icons[i].name = getIconName(desktop.icons[i].iconType)
     desktop.icons[i].selected = (i == desktop.selectedIcon)
 
 proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =

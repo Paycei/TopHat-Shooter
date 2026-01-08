@@ -1,7 +1,7 @@
 ﻿## Combined OS-Style HUD Panel
 ## Merges status and info panels into one compact, non-intrusive display
 
-import raylib, ../types, math, ../powerup_data
+import raylib, ../types, ../localization, math, ../powerup_data
 
 const
   COMBINED_PANEL_WIDTH = 200
@@ -95,9 +95,9 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     drawRectangle(finalPanelX + 2, yOffset, COMBINED_PANEL_WIDTH - 2, COMBINED_TITLE_HEIGHT,
                  HEADER_BG_COLOR)
     
-    drawText("STATUS", finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset + 3, 11,
+    drawText(t(tkGameStatus), finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset + 3, 11,
             Color(r: 0, g: 0, b: 0, a: 140))
-    drawText("STATUS", finalPanelX + COMBINED_PANEL_PADDING + 4, yOffset + 2, 11,
+    drawText(t(tkGameStatus), finalPanelX + COMBINED_PANEL_PADDING + 4, yOffset + 2, 11,
             ACCENT_COLOR)
     
     # Draw maximize icon (square)
@@ -144,9 +144,9 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   drawRectangle(finalPanelX + 2, yOffset, COMBINED_PANEL_WIDTH - 2, COMBINED_TITLE_HEIGHT,
                HEADER_BG_COLOR)
   
-  drawText("STATUS", finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset + 3, 11,
+  drawText(t(tkGameStatus), finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset + 3, 11,
           Color(r: 0, g: 0, b: 0, a: 140))
-  drawText("STATUS", finalPanelX + COMBINED_PANEL_PADDING + 4, yOffset + 2, 11,
+  drawText(t(tkGameStatus), finalPanelX + COMBINED_PANEL_PADDING + 4, yOffset + 2, 11,
           ACCENT_COLOR)
   
   # Draw minimize icon (horizontal line)
@@ -230,17 +230,17 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     yOffset += 3
     
     # Wave header - compact
-    drawText("Wave Info:", finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9,
+    drawText(t(tkGameWaveInfo), finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9,
             Color(r: 0, g: 0, b: 0, a: 100))
-    drawText("Wave Info:", finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset, 9,
+    drawText(t(tkGameWaveInfo), finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset, 9,
             Color(r: 150, g: 150, b: 150, a: 255))
     yOffset += 10
     
     # Wave display - compact
     let waveDisplay = if game.bossWaveManager.active:
-      "[!] BOSS W" & $game.currentWave
+      "[!] " & t(tkGameBoss) & " W" & $game.currentWave
     else:
-      "> Wave " & $game.currentWave
+      "> " & t(tkGameWave) & " " & $game.currentWave
     
     let waveColor = if game.bossWaveManager.active:
       Color(r: 255, g: 80, b: 80, a: 255)
@@ -281,7 +281,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
       drawText("[!]", finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 14, pulseColor)
       
       # Enemy count display
-      let countText = $totalRemaining & " left"
+      let countText = $totalRemaining & " " & t(tkGameLeft)
       let countWidth = measureText(countText, 12)
       let countX = finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - countWidth - 5
       
@@ -313,17 +313,17 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
       yOffset += 8
     
     if game.bossWaveManager.active:
-      drawText("[X] BOSS FIGHT", finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
+      drawText("[X] " & t(tkGameBossFight), finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 130))
-      drawText("[X] BOSS FIGHT", finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
+      drawText("[X] " & t(tkGameBossFight), finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 100, b: 100, a: 255))
       yOffset += 12
     
     elif game.bossWaveManager.coinActive:
       let pulseAlpha = (sin(game.time * 4.0) * 60 + 195).int.uint8
-      drawText("[$] Collect", finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
+      drawText("[$] " & t(tkGameCollect), finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 130))
-      drawText("[$] Collect", finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
+      drawText("[$] " & t(tkGameCollect), finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 215, b: 0, a: pulseAlpha))
       yOffset += 12
   
@@ -337,7 +337,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     
     # "Active Processes" header - compact
     let processCount = game.player.powerUps.len
-    let processHeader = "Active [" & $processCount & "]:"
+    let processHeader = t(tkGameActive) & " [" & $processCount & "]:"
     drawText(processHeader, finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9,
             Color(r: 0, g: 0, b: 0, a: 100))
     drawText(processHeader, finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset, 9,

@@ -17,6 +17,7 @@ type
     showDebugStats*: bool  # Show fire rate and damage in debug panel
     showHints*: bool  # Show on-screen hints (E: Wall, ESC: Pause, etc)
     showEnemyLabels*: bool  # Show enemy name labels above enemies
+    language*: string  # Language setting (e.g., "english", "spanish")
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -60,7 +61,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "showCursorInMenus": settings.showCursorInMenus,
     "showDebugStats": settings.showDebugStats,
     "showHints": settings.showHints,
-    "showEnemyLabels": settings.showEnemyLabels
+    "showEnemyLabels": settings.showEnemyLabels,
+    "language": settings.language
   }
 
 # Load Settings from JSON
@@ -94,6 +96,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("showEnemyLabels"):
     settings.showEnemyLabels = jsonNode["showEnemyLabels"].getBool()
+
+  if jsonNode.hasKey("language"):
+    settings.language = jsonNode["language"].getStr()
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =

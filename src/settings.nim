@@ -1,5 +1,5 @@
 from save_system import Settings, saveSettings, loadSettings
-import raylib, strutils, sound, math
+import raylib, strutils, sound, math, localization
 export Settings  # Re-export Settings type
 
 var globalSettings*: Settings
@@ -19,22 +19,32 @@ proc initSettings*(): Settings =
     showCursorInMenus: true,  # Show cursor in menus by default
     showDebugStats: false,  # Debug stats disabled by default
     showHints: true,  # Hints enabled by default
-    showEnemyLabels: true  # Enemy labels enabled by default
+    showEnemyLabels: true,  # Enemy labels enabled by default
+    language: "english"  # Default language is English
   )
   globalSettings = result
   
   # Try to load saved settings
   discard loadSettings(result)
+  
+  # Apply loaded language setting
+  try:
+    setLanguage(parseEnum[Language](result.language))
+  except:
+    setLanguage(English)
+    result.language = "english"
 
 proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: float32) =
   clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
   
   # Title
-  drawText("SETTINGS", screenWidth div 2 - 100, 40, 40, Yellow)
+  let titleText = t(tkSettingsTitle)
+  let titleWidth = measureText(titleText, 40)
+  drawText(titleText, screenWidth div 2 - titleWidth div 2, 40, 40, Yellow)
   
   # FPS Limit Setting
   let fpsY: int32 = 120
-  drawText("FPS Limit:", 200'i32, fpsY, 24, White)
+  drawText(t(tkSettingsFpsLimit), 200'i32, fpsY, 24, White)
   
   # FPS input box
   let boxX: int32 = 400
@@ -61,11 +71,11 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   drawText(displayText, boxX + (boxWidth - textWidth) div 2, fpsY, 24, White)
   
   # Instructions
-  drawText("Click to edit, Enter to confirm", 200'i32, fpsY + 35, 16, LightGray)
+  drawText(t(tkSettingsClickEdit), 200'i32, fpsY + 35, 16, LightGray)
   
   # Volume Setting
   let volumeY: int32 = 250
-  drawText("Sound Effects:", 200'i32, volumeY, 24, White)
+  drawText(t(tkSettingsSoundEffects), 200'i32, volumeY, 24, White)
   
   # Volume slider
   let sliderX: int32 = 400
@@ -110,7 +120,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   
   # Music Volume Setting
   let musicVolumeY: int32 = 310
-  drawText("Music:", 200'i32, musicVolumeY, 24, White)
+  drawText(t(tkSettingsMusic), 200'i32, musicVolumeY, 24, White)
   
   # Music volume slider
   let musicSliderX: int32 = 400
@@ -160,7 +170,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   
   # Fullscreen Setting
   let fullscreenY: int32 = 370
-  drawText("Fullscreen:", 200'i32, fullscreenY, 24, White)
+  drawText(t(tkSettingsFullscreen), 200'i32, fullscreenY, 24, White)
   let fullscreenCheckY: int32 = fullscreenY + 5
   
   drawRectangle(checkboxX, fullscreenCheckY, checkboxSize, checkboxSize, checkboxColor)
@@ -172,11 +182,11 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
     drawLine(Vector2(x: (checkboxX + 12).float32, y: (fullscreenCheckY + 20).float32),
             Vector2(x: (checkboxX + 22).float32, y: (fullscreenCheckY + 5).float32), 3, Green)
   
-  drawText("(Press F11 to toggle)", checkboxX + checkboxSize + 20, fullscreenY, 20, LightGray)
+  drawText(t(tkSettingsFullscreenToggle), checkboxX + checkboxSize + 20, fullscreenY, 20, LightGray)
   
   # Show FPS Setting
   let showFPSY: int32 = 425
-  drawText("Show FPS:", 200'i32, showFPSY, 24, White)
+  drawText(t(tkSettingsShowFps), 200'i32, showFPSY, 24, White)
   let fpsCheckboxY: int32 = showFPSY + 5
   
   drawRectangle(checkboxX, fpsCheckboxY, checkboxSize, checkboxSize, checkboxColor)
@@ -190,7 +200,7 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
   
   # Mouse Support Setting
   let mouseSupportY: int32 = 480
-  drawText("Mouse Support:", 200'i32, mouseSupportY, 24, White)
+  drawText(t(tkSettingsMouseSupport), 200'i32, mouseSupportY, 24, White)
   let mouseCheckboxY: int32 = mouseSupportY + 5
   
   drawRectangle(checkboxX, mouseCheckboxY, checkboxSize, checkboxSize, checkboxColor)
@@ -202,12 +212,12 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
     drawLine(Vector2(x: (checkboxX + 12).float32, y: (mouseCheckboxY + 20).float32),
             Vector2(x: (checkboxX + 22).float32, y: (mouseCheckboxY + 5).float32), 3, Green)
   
-  drawText("(new menu navigation)", checkboxX + checkboxSize + 20, mouseSupportY, 20, LightGray)
+  drawText(t(tkSettingsMouseSupportDesc), checkboxX + checkboxSize + 20, mouseSupportY, 20, LightGray)
   
   # Show Cursor in Menus Setting (only visible when mouseSupport is disabled)
   if not settings.mouseSupport:
     let showCursorY: int32 = 535
-    drawText("Show Cursor:", 200'i32, showCursorY, 24, White)
+    drawText(t(tkSettingsShowCursor), 200'i32, showCursorY, 24, White)
     let cursorCheckboxY: int32 = showCursorY + 5
     
     drawRectangle(checkboxX, cursorCheckboxY, checkboxSize, checkboxSize, checkboxColor)
@@ -219,11 +229,11 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
       drawLine(Vector2(x: (checkboxX + 12).float32, y: (cursorCheckboxY + 20).float32),
               Vector2(x: (checkboxX + 22).float32, y: (cursorCheckboxY + 5).float32), 3, Green)
     
-    drawText("(visual only)", checkboxX + checkboxSize + 20, showCursorY, 20, LightGray)
+    drawText(t(tkSettingsShowCursorDesc), checkboxX + checkboxSize + 20, showCursorY, 20, LightGray)
   
   # Show Debug Stats Setting - position changes based on whether Show Cursor is visible
   let showDebugStatsY: int32 = if not settings.mouseSupport: 590 else: 535
-  drawText("Debug Panel:", 200'i32, showDebugStatsY, 24, White)
+  drawText(t(tkSettingsDebugPanel), 200'i32, showDebugStatsY, 24, White)
   let debugCheckboxY: int32 = showDebugStatsY + 5
   
   drawRectangle(checkboxX, debugCheckboxY, checkboxSize, checkboxSize, checkboxColor)
@@ -235,11 +245,11 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
     drawLine(Vector2(x: (checkboxX + 12).float32, y: (debugCheckboxY + 20).float32),
             Vector2(x: (checkboxX + 22).float32, y: (debugCheckboxY + 5).float32), 3, Green)
   
-  drawText("(top-right stats)", checkboxX + checkboxSize + 20, showDebugStatsY, 20, LightGray)
+  drawText(t(tkSettingsDebugPanelDesc), checkboxX + checkboxSize + 20, showDebugStatsY, 20, LightGray)
   
   # Show Hints Setting - position changes based on whether Show Cursor is visible
   let showHintsY: int32 = if not settings.mouseSupport: 645 else: 590
-  drawText("Show Hints:", 200'i32, showHintsY, 24, White)
+  drawText(t(tkSettingsShowHints), 200'i32, showHintsY, 24, White)
   let hintsCheckboxY: int32 = showHintsY + 5
   
   drawRectangle(checkboxX, hintsCheckboxY, checkboxSize, checkboxSize, checkboxColor)
@@ -251,11 +261,11 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
     drawLine(Vector2(x: (checkboxX + 12).float32, y: (hintsCheckboxY + 20).float32),
             Vector2(x: (checkboxX + 22).float32, y: (hintsCheckboxY + 5).float32), 3, Green)
   
-  drawText("(E: Wall, ESC: Pause)", checkboxX + checkboxSize + 20, showHintsY, 20, LightGray)
+  drawText(t(tkSettingsShowHintsDesc), checkboxX + checkboxSize + 20, showHintsY, 20, LightGray)
   
   # Show Enemy Labels Setting - position changes based on whether Show Cursor is visible
   let showEnemyLabelsY: int32 = if not settings.mouseSupport: 700 else: 645
-  drawText("Show Enemy Labels:", 200'i32, showEnemyLabelsY, 24, White)
+  drawText(t(tkSettingsShowEnemyLabels), 200'i32, showEnemyLabelsY, 24, White)
   let enemyLabelsCheckboxY: int32 = showEnemyLabelsY + 5
   
   drawRectangle(checkboxX, enemyLabelsCheckboxY, checkboxSize, checkboxSize, checkboxColor)
@@ -267,10 +277,36 @@ proc drawSettings*(settings: Settings, screenWidth, screenHeight: int32, time: f
     drawLine(Vector2(x: (checkboxX + 12).float32, y: (enemyLabelsCheckboxY + 20).float32),
             Vector2(x: (checkboxX + 22).float32, y: (enemyLabelsCheckboxY + 5).float32), 3, Green)
   
-  drawText("(name tags above enemies)", checkboxX + checkboxSize + 20, showEnemyLabelsY, 20, LightGray)
+  drawText(t(tkSettingsShowEnemyLabelsDesc), checkboxX + checkboxSize + 20, showEnemyLabelsY, 20, LightGray)
+  
+  # Language Setting - position changes based on whether Show Cursor is visible
+  let languageY: int32 = if not settings.mouseSupport: 755 else: 700
+  drawText(t(tkSettingsLanguage), 200'i32, languageY, 24, White)
+  
+  # Language dropdown/cycle button
+  let langButtonX: int32 = checkboxX
+  let langButtonY: int32 = languageY - 5
+  let langButtonWidth: int32 = 200
+  let langButtonHeight: int32 = 35
+  
+  drawRectangle(langButtonX, langButtonY, langButtonWidth, langButtonHeight, 
+               Color(r: 60, g: 60, b: 80, a: 255))
+  drawRectangleLines(langButtonX, langButtonY, langButtonWidth, langButtonHeight, Gold)
+  
+  # Display current language
+  let currentLang = try: parseEnum[Language](settings.language) except: English
+  let langDisplayText = getLanguageName(currentLang)
+  let langTextWidth = measureText(langDisplayText, 24)
+  drawText(langDisplayText, langButtonX + (langButtonWidth - langTextWidth) div 2, languageY, 24, White)
+  
+  # Draw arrows to indicate it's clickable
+  drawText("<", langButtonX + 10, languageY, 24, LightGray)
+  drawText(">", langButtonX + langButtonWidth - 25, languageY, 24, LightGray)
   
   # Back instruction
-  drawText("Press ESC to return to menu", screenWidth div 2 - 180, 
+  let backText = t(tkSettingsBackToMenu)
+  let backTextWidth = measureText(backText, 20)
+  drawText(backText, screenWidth div 2 - backTextWidth div 2, 
           screenHeight - 50, 20, LightGray)
   
   # ALWAYS draw custom cursor (never show system cursor)
@@ -531,6 +567,23 @@ proc updateSettings*(settings: Settings): bool =
        mousePos.y >= enemyLabelsCheckboxY.float32 and mousePos.y <= (enemyLabelsCheckboxY + checkboxSize).float32:
       settings.showEnemyLabels = not settings.showEnemyLabels
       playSound(stMenuNav)
+      settingsChanged = true
+    
+    # Language selector button
+    let languageY: int32 = if not settings.mouseSupport: 755 else: 700
+    let langButtonX: int32 = 400
+    let langButtonY: int32 = languageY - 5
+    let langButtonWidth: int32 = 200
+    let langButtonHeight: int32 = 35
+    
+    if mousePos.x >= langButtonX.float32 and mousePos.x <= (langButtonX + langButtonWidth).float32 and
+       mousePos.y >= langButtonY.float32 and mousePos.y <= (langButtonY + langButtonHeight).float32:
+      # Cycle to next language
+      let currentLang = try: parseEnum[Language](settings.language) except: English
+      let nextLang = if currentLang == English: Spanish else: English
+      settings.language = $nextLang
+      setLanguage(nextLang)
+      playSound(stMenuSelect)
       settingsChanged = true
   
   # Only save if settings actually changed

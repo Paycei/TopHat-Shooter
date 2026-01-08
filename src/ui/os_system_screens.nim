@@ -2,7 +2,7 @@
 ## Game Over as Modern System Crash, Victory as System Secured
 ## REDESIGNED with improved visuals, animations, and polish
 
-import raylib, ../types, math
+import raylib, ../types, math, ../localization
 
 const
   SCREEN_WIDTH = 900
@@ -122,13 +122,13 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   yOffset += 110
   
   # Main error message with better typography
-  let errorTitle = "CRITICAL SYSTEM FAILURE"
+  let errorTitle = t(tkGameOverCriticalFailure)
   drawText(errorTitle, windowX + 30, yOffset, 40,
           Color(r: 255, g: 100, b: 100, a: 255))
   yOffset += 55
   
   # Error subtitle
-  drawText("Your system has encountered a critical error and needs to reboot.",
+  drawText(t(tkGameOverErrorMsg),
           windowX + 30, yOffset, 18, Color(r: 220, g: 230, b: 240, a: 255))
   yOffset += 28
   drawText("All defensive processes have been terminated.",
@@ -164,15 +164,15 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
           Color(r: 255, g: 200, b: 100, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "System Uptime:", timeText, "[T]",
+  drawStat(windowX + 40, yOffset, t(tkGameOverSystemUptime), timeText, "[T]",
           Color(r: 150, g: 200, b: 255, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "Threats Eliminated:", $game.player.kills, "[X]",
+  drawStat(windowX + 40, yOffset, t(tkGameOverThreatsEliminated), $game.player.kills, "[X]",
           Color(r: 255, g: 150, b: 150, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "Resources Collected:", $game.player.coins, "[$]",
+  drawStat(windowX + 40, yOffset, t(tkGameOverResourcesCollected), $game.player.coins, "[$]",
           Color(r: 255, g: 215, b: 0, a: 255))
   yOffset += 50  # Good spacing before buttons
   
@@ -184,12 +184,12 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   
   # Restart button (0) - Highlight if selected
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "RESTART SYSTEM", "[R] [SPACE]", selectedButton == 0, game.time)
+                  t(tkGameOverRestartSystem), "[R] [SPACE]", selectedButton == 0, game.time)
   
   # View Stats button (1) - Highlight if selected
   let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
   drawModernButton(int32(statsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "VIEW LOGS", "[V] [TAB]", selectedButton == 1, game.time)
+                  t(tkGameOverViewLogs), "[V] [TAB]", selectedButton == 1, game.time)
   
   # Exit button (2) - Highlight if selected
   let exitX = statsX + BUTTON_WIDTH + buttonSpacing
@@ -274,13 +274,13 @@ proc drawSystemSecured*(game: Game) =
   yOffset += 110
   
   # Main success message
-  let successTitle = "ALL THREATS NEUTRALIZED"
+  let successTitle = t(tkGameOverTitle)
   drawText(successTitle, windowX + 30, yOffset, 40,
           Color(r: 100, g: 255, b: 150, a: 255))
   yOffset += 55
   
   # Success subtitle
-  let statusLine = "SYSTEM STATUS: [*] SECURE"
+  let statusLine = t(tkGameOverSecure)
   drawText(statusLine, windowX + 30, yOffset, 24,
           Color(r: 150, g: 255, b: 180, a: 255))
   yOffset += 50
@@ -299,7 +299,7 @@ proc drawSystemSecured*(game: Game) =
   yOffset += 55
   
   # Performance report header
-  drawText("=== PERFORMANCE REPORT ===", windowX + 30, yOffset, 16,
+  drawText(t(tkGameOverPerformanceReport), windowX + 30, yOffset, 16,
           Color(r: 150, g: 220, b: 180, a: 255))
   yOffset += 35
   
@@ -310,19 +310,19 @@ proc drawSystemSecured*(game: Game) =
                  (if seconds < 10: "0" else: "") & $seconds
   
   # Draw statistics with icons and tree structure
-  drawStat(windowX + 40, yOffset, "Waves Survived:", $game.currentWave, "|-",
+  drawStat(windowX + 40, yOffset, t(tkGameOverWavesSurvived), $game.currentWave, "|-",
           Color(r: 150, g: 255, b: 180, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "Threats Eliminated:", $game.player.kills, "|-",
+  drawStat(windowX + 40, yOffset, t(tkGameOverThreatsEliminated), $game.player.kills, "|-",
           Color(r: 150, g: 255, b: 180, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "Resources Collected:", $game.player.coins, "|-",
+  drawStat(windowX + 40, yOffset, t(tkGameOverResourcesCollected), $game.player.coins, "|-",
           Color(r: 255, g: 215, b: 0, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
-  drawStat(windowX + 40, yOffset, "Mission Duration:", timeText, "\\-",
+  drawStat(windowX + 40, yOffset, t(tkGameOverMissionDuration), timeText, "\\-",
           Color(r: 150, g: 200, b: 255, a: 255))
   yOffset += 50
   
