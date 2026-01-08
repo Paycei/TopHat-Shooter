@@ -695,7 +695,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.8,
           damageMultiplier: 0.85,
-          defenseMultiplier: 1.5,
+          defenseMultiplier: 1.35,
           color: Color(r: 255, g: 255, b: 0, a: 255),
           visualEffect: "pulse",
           specialBehavior: "electric_buildup",  # Twitchy, charging movement
@@ -852,9 +852,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Satellite Deploy",
           hpThreshold: 1.0,
-          speedMultiplier: 0.75,  # Very slow, calculated
+          speedMultiplier: 0.75,
           damageMultiplier: 0.9,
-          defenseMultiplier: 1.6,  # Heavy armor
+          defenseMultiplier: 1.4,
           color: Color(r: 150, g: 100, b: 255, a: 255),
           visualEffect: "shield",
           specialBehavior: "orbital_pattern",  # Circular orbital movement
@@ -1168,7 +1168,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.8,
           damageMultiplier: 0.9,
-          defenseMultiplier: 1.4,
+          defenseMultiplier: 1.3,
           color: Color(r: 255, g: 200, b: 255, a: 255),
           visualEffect: "shield",
           specialBehavior: "prism_defense",  # Geometric movement
@@ -1209,7 +1209,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.6,
           speedMultiplier: 1.1,
           damageMultiplier: 1.25,
-          defenseMultiplier: 1.2,
+          defenseMultiplier: 1.15,
           color: Color(r: 200, g: 150, b: 255, a: 255),
           visualEffect: "aura",
           specialBehavior: "prism_array",  # Figure-8 patterns
@@ -1256,9 +1256,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         ),
         BossPhaseDefinition(
           name: "Pure Brilliance",
-          hpThreshold: 0.35,
-          speedMultiplier: 1.25,
-          damageMultiplier: 1.6,
+          hpThreshold: 0.33,
+          speedMultiplier: 1.15,
+          damageMultiplier: 1.5,
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 255, b: 255, a: 255),
           visualEffect: "glow",
@@ -1269,7 +1269,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 4.5,
               cooldown: 2.0,
               projectileSpeed: 0.0,
-              projectileCount: 12,  # Massive prism array
+              projectileCount: 7,  # Massive prism array
               spreadAngle: 30.0,
               durationOrRadius: 4.0,
               specialData: "prismatic_storm"  # Many splitting lasers
@@ -1325,7 +1325,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.7,
           damageMultiplier: 0.9,
-          defenseMultiplier: 1.5,
+          defenseMultiplier: 1.4,
           color: Color(r: 0, g: 180, b: 180, a: 255),
           visualEffect: "pulse",
           specialBehavior: "slow_time",  # Slow methodical movement
@@ -1768,7 +1768,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.25,
           speedMultiplier: 1.2,  # NERFED from 2.0
           damageMultiplier: 1.5,  # NERFED from 2.5
-          defenseMultiplier: 0.8,  # NERFED from 1.0
+          defenseMultiplier: 0.85,  # NERFED from 1.0
           color: Color(r: 255, g: 0, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "final_form",

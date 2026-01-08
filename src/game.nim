@@ -2039,16 +2039,56 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
   
   of bapWave:
-    # Sine wave pattern
+    # ENHANCED WAVE SYSTEM with specialData support
+    # SpecialData modes:
+    # - "rainbow_wave": Colorful cascading pattern (Boss 9)
+    # - "temporal_wave": Time-distorted slow bullets (Boss 10)
+    # - Default: Standard sine wave pattern
+    
+    let waveMode = attack.specialData
+    
+    # Configure wave behavior based on mode
+    let (speedMultiplier, colorScheme) = case waveMode
+      of "rainbow_wave":
+        (1.0, "rainbow")  # Normal speed, rainbow particles
+      of "temporal_wave":
+        (0.7, "temporal")  # 30% slower, cyan particles
+      else:
+        (1.0, "default")  # Standard
+    
     for i in 0..<attack.projectileCount:
       let t = i.float32 / attack.projectileCount.float32
       let angle = t * attack.spreadAngle.degToRad() - attack.spreadAngle.degToRad() / 2.0 + arctan2(toPlayer.y, toPlayer.x)
       let dir = newVector2f(cos(angle), sin(angle))
+      
+      let bulletSpeed = attack.projectileSpeed * speedMultiplier
+      
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        speed = bulletSpeed, damage = attack.damage * phase.damageMultiplier,
         fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
       ))
+      
+      # Special visual effects per wave type
+      case colorScheme
+      of "rainbow":
+        # Create rainbow trail particles
+        let hue = (i.float32 / attack.projectileCount.float32) * 255.0
+        let rainbowColor = case i mod 7
+          of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
+          of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
+          of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
+          of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
+          of 4: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
+          of 5: Color(r: 75, g: 0, b: 130, a: 255)    # Indigo
+          else: Color(r: 148, g: 0, b: 211, a: 255)   # Violet
+        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, rainbowColor, 4)
+      of "temporal":
+        # Cyan time-distortion particles
+        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y,
+                      Color(r: 100, g: 220, b: 220, a: 255), 3)
+      else:
+        discard
   
   of bapTargeted:
     # Direct shots at player
@@ -2078,15 +2118,19 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
   of bapLaser:
     # IMPROVED: Boss laser with proper warning system
     # Laser patterns customized via specialData
-    # "cross_laser" = standard cross pattern (4 perpendicular beams)
-    # "rotating_grid" = rotating grid of lasers (cross pattern)
-    # "prismatic_cage" = many random lasers biased towards player
-    # "laser_snipe" = rapid-fire lasers aimed directly at player
+    # EXISTING: "cross_laser", "rotating_grid", "prismatic_cage", "laser_snipe"
+    # BOSS 9 (Prism Architect) NEW PATTERNS:
+    # - "splitting_laser": Triangle pattern with light refraction (Phase 1)
+    # - "hexagonal_prism": Perfect hexagonal 6-way split (Phase 2)
+    # - "prismatic_storm": Massive array of splitting light beams (Phase 3)
     
     let patternType = attack.specialData
     let laserCount = case patternType
       of "rotating_grid": attack.projectileCount * 2  # Double density for grid
       of "prismatic_cage": attack.projectileCount * 3  # Triple density for cage
+      of "splitting_laser": attack.projectileCount  # Triangle pattern
+      of "hexagonal_prism": 6  # Always 6 beams
+      of "prismatic_storm": attack.projectileCount * 2  # Massive light show!
       else: attack.projectileCount
     
     # Calculate all laser angles for the warning system
@@ -2103,6 +2147,21 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             i.float32 * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32
           else:
             (i.float32 - actualLaserCount.float / 2.0) * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32 + PI / 2.0
+        
+        of "splitting_laser":
+          # Triangle pattern (120° apart) that appears to split/refract
+          i.float32 * (PI * 2.0 / 3.0) + game.time * 0.5  # Slow rotation
+        
+        of "hexagonal_prism":
+          # Perfect hexagonal pattern (60° apart) - geometric precision
+          i.float32 * (PI / 3.0) + game.time * 0.3
+        
+        of "prismatic_storm":
+          # Massive radial array with rainbow effect
+          # Create dense radial pattern with slight randomization for light scatter
+          let baseAngle = i.float32 * (PI * 2.0) / actualLaserCount.float32
+          baseAngle + (rand(1.0) - 0.5) * 0.15  # Slight scatter for prismatic effect
+        
         of "prismatic_cage":
           # FIXED: Reduced laser count to prevent lag/crash
           # Calculate angle biased toward player with radial spread
@@ -2120,14 +2179,17 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           else:
             # Radial distribution with slight randomization
             baseAngle + (rand(1.0) - 0.5) * 0.2  # ±6° randomization
+        
         of "laser_snipe":
           # Rapid fire lasers aimed directly at player with minimal spread
           let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, game.player.pos.x - enemy.pos.x)
           # Very tight spread around player position (5 degrees)
           angleToPlayer + (rand(1.0) - 0.5) * 0.175
+        
         of "cross_laser":
           # Cross pattern - always 4 beams in cardinal directions (0°, 90°, 180°, 270°)
           i.float32 * (PI / 2.0) + game.time
+        
         else:
           # Default pattern - distribute evenly
           i.float32 * (PI * 2.0) / actualLaserCount.float32 + game.time
@@ -2171,12 +2233,16 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # - "blood_burst": Berserker rage explosion with red bullets (Boss 8)
     # - "orbital_bombardment": Space bombardment from above (Boss 7)
     # - "chaos_storm", "entropy_burst": Randomized chaos attacks (Boss 11)
+    # - "chromatic_burst": Rainbow prismatic explosion (Boss 9 Phase 2)
+    # - "light_burst": Pure brilliance explosion (Boss 9 Phase 3)
     
     let barrageMode = attack.specialData
     let isChaosAttack = barrageMode in ["chaos_storm", "entropy_burst"]
     let isElectricAttack = barrageMode == "voltage_burst"
     let isBerserkAttack = barrageMode == "blood_burst"
     let isOrbitalAttack = barrageMode == "orbital_bombardment"
+    let isChromaticAttack = barrageMode == "chromatic_burst"
+    let isLightAttack = barrageMode == "light_burst"
     
     # Randomize count ±30% for chaos
     let bulletCount = if isChaosAttack:
@@ -2224,6 +2290,48 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         spawnExplosion(game.particles, starX, starY,
                       Color(r: 200, g: 150, b: 255, a: 255), 6)
     
+    elif isChromaticAttack:
+      # Create rainbow prismatic rings expanding outward
+      for ring in 0..3:
+        let ringRadius = 30.0 + ring.float32 * 20.0
+        for i in 0..<12:
+          let angle = i.float32 * PI * 2.0 / 12.0
+          let prismX = enemy.pos.x + cos(angle) * ringRadius
+          let prismY = enemy.pos.y + sin(angle) * ringRadius
+          # Rainbow colors based on position
+          let rainbowColor = case i mod 7
+            of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
+            of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
+            of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
+            of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
+            of 4: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
+            of 5: Color(r: 75, g: 0, b: 130, a: 255)    # Indigo
+            else: Color(r: 148, g: 0, b: 211, a: 255)   # Violet
+          spawnExplosion(game.particles, prismX, prismY, rainbowColor, 5)
+    
+    elif isLightAttack:
+      # Create brilliant white/rainbow light explosion
+      for ring in 0..4:
+        let ringRadius = 25.0 + ring.float32 * 18.0
+        for i in 0..<16:
+          let angle = i.float32 * PI * 2.0 / 16.0
+          let lightX = enemy.pos.x + cos(angle) * ringRadius
+          let lightY = enemy.pos.y + sin(angle) * ringRadius
+          # Brilliant white with rainbow tint
+          let tint = case (i + ring) mod 7
+            of 0: Color(r: 255, g: 200, b: 200, a: 255)
+            of 1: Color(r: 255, g: 230, b: 200, a: 255)
+            of 2: Color(r: 255, g: 255, b: 200, a: 255)
+            of 3: Color(r: 200, g: 255, b: 200, a: 255)
+            of 4: Color(r: 200, g: 230, b: 255, a: 255)
+            of 5: Color(r: 230, g: 200, b: 255, a: 255)
+            else: Color(r: 255, g: 255, b: 255, a: 255)  # Pure white
+          spawnExplosion(game.particles, lightX, lightY, tint, 6)
+      
+      # Intense screen shake for brilliance
+      game.screenShakeIntensity = 30.0
+      game.screenShakeDecay = 40.0
+    
     for i in 0..<bulletCount:
       let angle = if isChaosAttack:
         (i.float32 / bulletCount.float32) * spreadAngle.degToRad() + rand(1.0)
@@ -2258,6 +2366,10 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         (50, Color(r: 255, g: 0, b: 0, a: 255))  # Massive red rage explosion
       of "orbital_bombardment":
         (40, Color(r: 180, g: 120, b: 255, a: 255))  # Purple space explosion
+      of "chromatic_burst":
+        (42, Color(r: 255, g: 150, b: 255, a: 255))  # Pink/magenta prismatic
+      of "light_burst":
+        (55, Color(r: 255, g: 255, b: 255, a: 255))  # Massive white brilliance
       of "chaos_storm", "entropy_burst":
         (35, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255))  # Random chaos
       else:
@@ -2273,6 +2385,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # - "earthquake": MASSIVE berserker slam, screen shake, cracks (Boss 8 Phase 3)
     # - "overload_pulse": Intense electric overload (Boss 6 Phase 3)
     # - "gravity_pulse": Space-themed gravity wave (Boss 7)
+    # - "blinding_pulse": Brilliant light explosion (Boss 9 Phase 3)
     # - Default: Standard pulse
     
     let pulseMode = attack.specialData
@@ -2289,6 +2402,8 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         (40, Color(r: 255, g: 255, b: 255, a: 255), 40.0, 50)  # Maximum density, white overload
       of "gravity_pulse":
         (30, Color(r: 150, g: 100, b: 255, a: 255), 30.0, 45)  # Space purple
+      of "blinding_pulse":
+        (38, Color(r: 255, g: 255, b: 255, a: 255), 35.0, 55)  # Brilliant white light explosion
       else:
         (24, phase.color, 20.0, 35)  # Standard pulse
     
@@ -2353,6 +2468,26 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             let gravY = enemy.pos.y + sin(angle) * ringRadius
             spawnExplosion(game.particles, gravX, gravY,
                           Color(r: 150, g: 100, b: 255, a: 255), 3)
+      
+      of "blinding_pulse":
+        # Brilliant prismatic light explosion with rainbow rings
+        for ring in 0..5:
+          let ringRadius = 30.0 + ring.float32 * 25.0
+          for i in 0..<20:
+            let angle = i.float32 * PI * 2.0 / 20.0
+            let lightX = enemy.pos.x + cos(angle) * ringRadius
+            let lightY = enemy.pos.y + sin(angle) * ringRadius
+            # Rainbow prismatic effect
+            let lightColor = case (i + ring) mod 7
+              of 0: Color(r: 255, g: 200, b: 200, a: 255)
+              of 1: Color(r: 255, g: 230, b: 200, a: 255)
+              of 2: Color(r: 255, g: 255, b: 200, a: 255)
+              of 3: Color(r: 200, g: 255, b: 200, a: 255)
+              of 4: Color(r: 200, g: 230, b: 255, a: 255)
+              of 5: Color(r: 230, g: 200, b: 255, a: 255)
+              else: Color(r: 255, g: 255, b: 255, a: 255)
+            spawnExplosion(game.particles, lightX, lightY, lightColor, 4)
+      
       else:
         discard  # No extra effects for default
     
@@ -2436,25 +2571,35 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
   
   of bapMeteor:
-    # Falling projectiles from above - customizable via specialData
-    # "warn_impact" = show visual warnings before meteors hit
-    # "massive_impact" = larger impact radius
-    # "apocalypse_mode" = massive meteors with longer warnings
+    # ENHANCED METEOR SYSTEM - Falling projectiles from above
+    # SpecialData modes:
+    # - "warn_impact": Show visual warnings before meteors hit
+    # - "massive_impact": Larger impact radius (Boss 3 Phase 2)
+    # - "apocalypse_mode": Massive meteors with longer warnings (Boss 3 Phase 3)
+    # - "satellite_strike": Orbital bombardment from satellites (Boss 7)
     
-    let showWarning = attack.specialData.contains("warn")
-    let impactRadius = case attack.specialData
-      of "massive_impact": attack.durationOrRadius * 1.5
-      of "apocalypse_mode": attack.durationOrRadius * 2.0
-      else: attack.durationOrRadius
+    let meteorMode = attack.specialData
+    let showWarning = meteorMode.contains("warn") or meteorMode == "satellite_strike"
+    
+    # Configure meteor behavior based on mode
+    let (impactRadius, warningTime, meteorColor, particleCount) = case meteorMode
+      of "massive_impact":
+        (attack.durationOrRadius * 1.5, 0.5, Color(r: 255, g: 100, b: 0, a: 255), 6)
+      of "apocalypse_mode":
+        (attack.durationOrRadius * 2.0, 0.8, Color(r: 255, g: 50, b: 0, a: 255), 8)
+      of "satellite_strike":
+        (attack.durationOrRadius, 0.7, Color(r: 180, g: 120, b: 255, a: 255), 10)  # Purple space theme
+      else:
+        (attack.durationOrRadius, 0.5, Color(r: 255, g: 150, b: 50, a: 255), 4)
     
     for i in 0..<attack.projectileCount:
-      # Randomly place meteors around player
+      # Calculate target position
       let offsetX = (rand(1.0) - 0.5) * impactRadius * 2.0
       let targetX = game.player.pos.x + offsetX
       
       # Show warning circle if specified
       if showWarning:
-        game.attackWarnings.add(newAttackWarning(targetX, game.screenHeight.float32 + 50.0, "meteor", 0.5))
+        game.attackWarnings.add(newAttackWarning(targetX, game.screenHeight.float32 + 50.0, "meteor", warningTime))
       
       # Spawn meteor from above
       let startY = -50.0
@@ -2465,6 +2610,22 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
         fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
       ))
+      
+      # Special visual effects for satellite strikes
+      if meteorMode == "satellite_strike":
+        # Create orbital beam effect from above
+        for step in 0..5:
+          let beamY = startY - (step.float32 * 30.0)
+          spawnExplosion(game.particles, targetX, beamY,
+                        Color(r: 150, g: 100, b: 255, a: 255), 3)
+        
+        # Star field particles at impact point
+        for j in 0..<particleCount:
+          let particleAngle = j.float32 * (PI * 2.0) / particleCount.float32
+          let particleX = targetX + cos(particleAngle) * 25.0
+          let particleY = game.screenHeight.float32
+          spawnExplosion(game.particles, particleX, particleY,
+                        Color(r: 200, g: 150, b: 255, a: 255), 2)
   
   of bapOrbit:
     # ENHANCED ORBITAL SATELLITE SYSTEM
