@@ -170,6 +170,14 @@ type
     tkDebugPanelLowHPBonuses = "debug_panel_low_hp_bonuses"
     tkDebugPanelRage = "debug_panel_rage"
     tkDebugPanelBerserker = "debug_panel_berserker"
+    tkDebugPanelEffectSpeed = "debug_panel_effect_speed"
+    tkDebugPanelEffectInvuln = "debug_panel_effect_invuln"
+    tkDebugPanelEffectFire = "debug_panel_effect_fire"
+    tkDebugPanelEffectMagnet = "debug_panel_effect_magnet"
+    tkDebugPanelEffectTimeWarp = "debug_panel_effect_time_warp"
+    tkDebugPanelEffectPhase = "debug_panel_effect_phase"
+    tkDebugPanelEffectParry = "debug_panel_effect_parry"
+    tkDebugPanelActive = "debug_panel_active"
     
     # Legendary Panel
     tkLegendaryPanelTitle = "legendary_panel_title"
@@ -398,6 +406,9 @@ type
     tkPowerupBloodMastery = "powerup_blood_mastery"
     tkPowerupRadialBurst = "powerup_radial_burst"
     tkPowerupWallTurrets = "powerup_wall_turrets"
+    tkPowerupPulseArmor = "powerup_pulse_armor"
+    tkPowerupHeavyRounds = "powerup_heavy_rounds"
+    tkPowerupFortified = "powerup_fortified"
     
     # Powerup Descriptions (Level 1)
     tkPowerupDoubleShotDesc = "powerup_double_shot_desc"
@@ -534,6 +545,15 @@ type
     tkPowerupRadialBurstDesc2 = "powerup_radial_burst_desc2"
     tkPowerupRadialBurstDesc3 = "powerup_radial_burst_desc3"
     tkPowerupWallTurretsDesc = "powerup_wall_turrets_desc"
+    tkPowerupPulseArmorDesc1 = "powerup_pulse_armor_desc1"
+    tkPowerupPulseArmorDesc2 = "powerup_pulse_armor_desc2"
+    tkPowerupPulseArmorDesc3 = "powerup_pulse_armor_desc3"
+    tkPowerupHeavyRoundsDesc1 = "powerup_heavy_rounds_desc1"
+    tkPowerupHeavyRoundsDesc2 = "powerup_heavy_rounds_desc2"
+    tkPowerupHeavyRoundsDesc3 = "powerup_heavy_rounds_desc3"
+    tkPowerupFortifiedDesc1 = "powerup_fortified_desc1"
+    tkPowerupFortifiedDesc2 = "powerup_fortified_desc2"
+    tkPowerupFortifiedDesc3 = "powerup_fortified_desc3"
     
     # General
     tkYes = "general_yes"
@@ -719,6 +739,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_blood_mastery": "Blood Lord",
     "powerup_radial_burst": "Radial Burst",
     "powerup_wall_turrets": "Wall Sentinels",
+    "powerup_pulse_armor": "Pulse Armor",
+    "powerup_heavy_rounds": "Heavy Rounds",
+    "powerup_fortified": "Fortified",
     
     # Powerup Descriptions
     "powerup_double_shot_desc": "Fire 2 bullets per shot (-25% fire rate)",
@@ -855,6 +878,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_radial_burst_desc2": "Fire 10 bullets in a circle every 3s",
     "powerup_radial_burst_desc3": "Fire 14 bullets in a circle every 2s",
     "powerup_wall_turrets_desc": "Walls shoot enemies (1 dmg, 2s cooldown)",
+    "powerup_pulse_armor_desc1": "Taking damage pushes nearby enemies back",
+    "powerup_pulse_armor_desc2": "Shockwave pushes further and deals 2 damage",
+    "powerup_pulse_armor_desc3": "Shockwave pushes even further and deals 4 damage",
+    "powerup_heavy_rounds_desc1": "Bullets 15% larger with slight knockback",
+    "powerup_heavy_rounds_desc2": "Bullets 25% larger with increased knockback",
+    "powerup_heavy_rounds_desc3": "Bullets 35% larger with strong knockback",
+    "powerup_fortified_desc1": "Reduce damage taken by 10%",
+    "powerup_fortified_desc2": "Reduce damage taken by 15%",
+    "powerup_fortified_desc3": "Reduce damage taken by 20%",
     
     # General
     "general_yes": "Yes",
@@ -1259,6 +1291,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_blood_mastery": "Señor de Sangre",
     "powerup_radial_burst": "Ráfaga Radial",
     "powerup_wall_turrets": "Centinelas de Muro",
+    "powerup_pulse_armor": "Armadura de Pulso",
+    "powerup_heavy_rounds": "Balas Pesadas",
+    "powerup_fortified": "Fortificado",
     
     # Powerup Descriptions
     "powerup_double_shot_desc": "Disparar 2 balas por disparo (-25% cadencia)",
@@ -1395,6 +1430,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_radial_burst_desc2": "Disparar 10 balas en círculo cada 3s",
     "powerup_radial_burst_desc3": "Disparar 14 balas en círculo cada 2s",
     "powerup_wall_turrets_desc": "Muros disparan a enemigos (1 daño, 2s enfriamiento)",
+    "powerup_pulse_armor_desc1": "Al recibir daño, empuja enemigos cercanos",
+    "powerup_pulse_armor_desc2": "Onda empuja más lejos e inflige 2 de daño",
+    "powerup_pulse_armor_desc3": "Onda empuja aún más lejos e inflige 4 de daño",
+    "powerup_heavy_rounds_desc1": "Balas 15% más grandes con ligero retroceso",
+    "powerup_heavy_rounds_desc2": "Balas 25% más grandes con retroceso aumentado",
+    "powerup_heavy_rounds_desc3": "Balas 35% más grandes con fuerte retroceso",
+    "powerup_fortified_desc1": "Reduce daño recibido en 10%",
+    "powerup_fortified_desc2": "Reduce daño recibido en 15%",
+    "powerup_fortified_desc3": "Reduce daño recibido en 20%",
     
     # Stats Window
     "stats_window_title": "Monitor del Sistema - Análisis de Jugador",

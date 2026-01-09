@@ -22,35 +22,34 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
   # ALL legendary powerups are SINGLE LEVEL ONLY
-  let legendaryOnlyTypes = [
-    puArcaneMastery, puAutoShoot, puBloodMastery, puBulletDamage, puBulletSpeed, 
-    puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell, 
-    puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot, 
-    puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire, 
-    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWindMastery
+  let legendaryOnlyTypes: array[0..25, PowerUpType] = [
+    puArcaneMastery, puAutoShoot, puBloodMastery, puBulletDamage, puBulletSpeed,
+    puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
+    puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
+    puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
+    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery
   ]
-  
+
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
-  let normalOnlyTypes = [
-    puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura, 
-    puBloodOrb, puBulletRicochet, puBulletSize, puBulletSplit, puChainLightning,
-    puCriticalHit, puDamageZone, puDodgeChance, puExplosiveBullets,
-    puFireAura, puFireBullets, puFireOrb, puFrostOrb, puFrostShots,
-    puLightningAura, puLightningOrb, puLifeSteal, puPiercingShots,
-    puPoisonAura, puPoisonOrb, puPoisonShot, puRage, puRegeneration,
-    puRotatingShield, puSlowField, puThorns, puBloodBullets, puWindAura,
+  let normalOnlyTypes: array[0..38, PowerUpType] = [
+    puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura,
+    puBloodBullets, puBloodOrb, puBulletRicochet, puBulletSize, puBulletSplit,
+    puChainLightning, puCriticalHit, puDamageZone, puDodgeChance, puExplosiveBullets,
+    puFireAura, puFireBullets, puFireOrb, puFortified, puFrostOrb, puFrostShots,
+    puHeavyRounds, puLifeSteal, puLightningAura, puLightningOrb, puPiercingShots,
+    puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
+    puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
     puWindBullets, puWindOrb
   ]
   
   # Define orb, aura, bullet, and mastery groups for exclusivity
-  let orbTypes = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb, puRotatingOrbs]
-  let auraTypes = [puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura, puDamageZone]
-  let bulletTypes = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets]
-  let masteryTypes = [puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, puLightningMastery, puWindMastery, puBloodMastery]
+  let orbTypes: array[0..7, PowerUpType] = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb, puRotatingOrbs]
+  let auraTypes: array[0..6, PowerUpType] = [puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura, puDamageZone]
+  let bulletTypes: array[0..4, PowerUpType] = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets]
+  let masteryTypes: array[0..6, PowerUpType] = [puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, puLightningMastery, puWindMastery, puBloodMastery]
   
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
-    # ALL LEGENDARY POWERUPS ARE SINGLE LEVEL ONLY
     for powerType in legendaryOnlyTypes:
       let currentLevel = getPowerUpLevel(player, powerType)
       if currentLevel == 0:
@@ -70,7 +69,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     let j = rand(i)
     swap(availablePowerUps[i], availablePowerUps[j])
   
-  # NEW: Apply grouping logic - ensure at most 1 orb, 1 aura, 1 elemental bullet, and 1 mastery
+  # Apply grouping logic - ensure at most 1 orb, 1 aura, 1 elemental bullet, and 1 mastery
   var selectedPowerUps: seq[PowerUp] = @[]
   var hasOrb = false
   var hasAura = false
@@ -362,6 +361,21 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puBloodAura:
     # Blood aura is tracked via powerUps (lifesteal effect applied in game.nim)
     discard
+  of puPulseArmor:
+    # Pulse armor is passive - shockwave emitted when player takes damage
+    # Cooldown timer initialized to 0 (ready to use)
+    player.pulseArmorCooldown = 0.0
+  of puHeavyRounds:
+    # Heavy rounds increase bullet size (like puBulletSize but with knockback)
+    let sizeBonus = case powerUp.level
+      of 1: 1.15   # +15% size
+      of 2: 1.25   # +25% size
+      else: 1.35   # +35% size
+    player.radius *= sizeBonus
+  of puFortified:
+    # Fortified reduces damage taken, applied in player damage logic
+    # No immediate stat changes needed
+    discard
   else:
     discard
   
@@ -412,6 +426,13 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           of 3: 1.25   # 2.5 / 2.0
           else: 1.0
         player.damage *= damageBonus
+      of puHeavyRounds:
+        # When upgrading Heavy Rounds, increase size further
+        let sizeBonus = case powerUp.level
+          of 2: 1.087  # 1.25 / 1.15
+          of 3: 1.08   # 1.35 / 1.25
+          else: 1.0
+        player.radius *= sizeBonus
       else:
         discard
       

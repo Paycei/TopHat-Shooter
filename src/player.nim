@@ -51,7 +51,9 @@ proc newPlayer*(x, y: float32): Player =
     parryCooldown: 0,
     parryDuration: 0,
     # Radial Burst power-up - start ready to fire
-    radialBurstTimer: 0.0
+    radialBurstTimer: 0.0,
+    # Pulse Armor power-up
+    pulseArmorCooldown: 0.0
   )
 
 proc hasAnyOrbPowerUp*(player: Player): bool =
@@ -97,6 +99,10 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       player.parryActive = false
   if player.parryCooldown > 0:
     player.parryCooldown -= dt
+  
+  # Update Pulse Armor cooldown
+  if player.pulseArmorCooldown > 0:
+    player.pulseArmorCooldown -= dt
   
   # Calculate current speed with boost
   var currentSpeed = player.speed
@@ -451,13 +457,31 @@ proc takeDamage*(player: Player, damage: float32): bool =
         player.lastDamageTaken = 0
         return false
   
-  player.hp -= damage
+  # Apply Fortified damage reduction
+  var finalDamage = damage
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puFortified:
+      let reduction = case powerUp.level
+        of 1: 0.10  # 10% reduction
+        of 2: 0.15  # 15% reduction
+        else: 0.20  # 20% reduction
+      finalDamage *= (1.0 - reduction)
+      break
+  
+  player.hp -= finalDamage
   
   # Clamp HP to 0 minimum
   if player.hp < 0: 
     player.hp = 0
   
   player.lastDamageTaken = damage
+  
+  # Pulse Armor - emit shockwave when taking damage (if not on cooldown)
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puPulseArmor and player.pulseArmorCooldown <= 0:
+      # Trigger shockwave - cooldown will be set in game.nim
+      player.pulseArmorCooldown = -1.0  # -1 signals to trigger in game.nim
+      break
   
   # Return true if HP reached 0 or below (death condition)
   return player.hp <= 0

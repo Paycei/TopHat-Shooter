@@ -1065,36 +1065,31 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       var enemyType: EnemyType
 
       # NEW ENEMY EVERY 5 WAVES with high spawn rate for that enemy
-      # Each new enemy gets 40-50% spawn rate in their introduction wave range
       if wave <= 5:
-        # Waves 1-5: Only CIRCLES (tutorial phase)
+        # Waves 1-5: Only CIRCLES
         enemyType = etCircle
       
       elif wave <= 10:
-        # Waves 6-10: Introduce PENTAGON (ranged basics)
-        # Pentagon is the star here with 40% spawn rate
+        # Waves 6-10: Introduce PENTAGON
         if roll < 40: enemyType = etPentagon  # NEW ENEMY - prominent
         elif roll < 75: enemyType = etCircle
         else: enemyType = etCircle  # Keep it simple
       
       elif wave <= 15:
-        # Waves 11-15: Introduce TRIANGLE (dash enemy)
-        # Triangle gets 40% spawn rate
+        # Waves 11-15: Introduce TRIANGLE
         if roll < 40: enemyType = etTriangle  # NEW ENEMY - prominent
         elif roll < 65: enemyType = etCircle
         else: enemyType = etPentagon
       
       elif wave <= 20:
-        # Waves 16-20: Introduce CUBE (stationary shooter)
-        # Cube gets 30% spawn rate
-        if roll < 30: enemyType = etCube  # NEW ENEMY - prominent
-        elif roll < 45: enemyType = etCircle
+        # Waves 16-20: Introduce CUBE
+        if roll < 25: enemyType = etCube  # NEW ENEMY - prominent
+        elif roll < 40: enemyType = etCircle
         elif roll < 65: enemyType = etPentagon
         else: enemyType = etTriangle
       
       elif wave <= 25:
-        # Waves 21-25: Introduce STAR (tanky enemy)
-        # Star gets 30% spawn rate
+        # Waves 21-25: Introduce STAR
         if roll < 30: enemyType = etStar  # NEW ENEMY - prominent
         elif roll < 48: enemyType = etCircle
         elif roll < 63: enemyType = etCube
@@ -1102,8 +1097,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etTriangle
       
       elif wave <= 30:
-        # Waves 26-30: Introduce CROSS (bullet spread)
-        # Cross gets 25% spawn rate
+        # Waves 26-30: Introduce CROSS
         if roll < 25: enemyType = etCross  # NEW ENEMY - prominent
         elif roll < 42: enemyType = etCircle
         elif roll < 56: enemyType = etCube
@@ -1112,8 +1106,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etTriangle
       
       elif wave <= 35:
-        # Waves 31-35: Introduce DIAMOND (orbit shooter)
-        # Diamond gets 22% spawn rate
+        # Waves 31-35: Introduce DIAMOND
         if roll < 22: enemyType = etDiamond  # NEW ENEMY - prominent
         elif roll < 38: enemyType = etCircle
         elif roll < 51: enemyType = etCube
@@ -1123,8 +1116,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etTriangle
       
       elif wave <= 40:
-        # Waves 36-40: Introduce OCTAGON (laser shooter)
-        # Octagon gets 20% spawn rate
+        # Waves 36-40: Introduce OCTAGON
         if roll < 20: enemyType = etOctagon  # NEW ENEMY - prominent
         elif roll < 34: enemyType = etCircle
         elif roll < 46: enemyType = etCube
@@ -1135,45 +1127,53 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etTriangle
       
       elif wave <= 45:
-        # Waves 41-45: Introduce HEXAGON (teleporter)
-        # Hexagon gets 18% spawn rate
+        # Waves 41-45: Introduce HEXAGON
         if roll < 18: enemyType = etHexagon  # NEW ENEMY - prominent
-        elif roll < 31: enemyType = etCircle
-        elif roll < 43: enemyType = etCube
-        elif roll < 54: enemyType = etStar
-        elif roll < 64: enemyType = etCross
+        elif roll < 25: enemyType = etCube # Don't spawn circles after wave 40
+        elif roll < 40: enemyType = etStar
+        elif roll < 60: enemyType = etCross
         elif roll < 73: enemyType = etDiamond
         elif roll < 81: enemyType = etOctagon
         elif roll < 89: enemyType = etPentagon
         else: enemyType = etTriangle
       
       elif wave <= 50:
-        # Waves 46-50: Introduce TRICKSTER (deceptive attacks)
-        # Trickster gets 16% spawn rate
+        # Waves 46-50: Introduce TRICKSTER
         if roll < 16: enemyType = etTrickster  # NEW ENEMY - prominent
-        elif roll < 28: enemyType = etCircle
-        elif roll < 39: enemyType = etCube
-        elif roll < 49: enemyType = etStar
-        elif roll < 58: enemyType = etCross
-        elif roll < 66: enemyType = etDiamond
-        elif roll < 74: enemyType = etOctagon
-        elif roll < 82: enemyType = etHexagon
-        elif roll < 90: enemyType = etPentagon
+        elif roll < 29: enemyType = etCube # Don't spawn circles after wave 40
+        elif roll < 39: enemyType = etStar
+        elif roll < 48: enemyType = etCross
+        elif roll < 56: enemyType = etDiamond
+        elif roll < 64: enemyType = etOctagon
+        elif roll < 72: enemyType = etHexagon
+        elif roll < 85: enemyType = etPentagon
         else: enemyType = etTriangle
       
-      else:
-        # Waves 51+: Introduce PHANTOM (unpredictable teleporter) + balanced roster
-        # Phantom gets 15% spawn rate
+      elif wave <= 50:
+        # Waves 46-50: Introduce TRICKSTER
         if roll < 15: enemyType = etPhantom  # NEW ENEMY - prominent
-        elif roll < 26: enemyType = etCube # Don't spawn circles or triangles after wave 50
+        elif roll < 26: enemyType = etCube # Don't spawn circles after wave 40
         elif roll < 35: enemyType = etStar
         elif roll < 43: enemyType = etCross
         elif roll < 51: enemyType = etDiamond
         elif roll < 59: enemyType = etOctagon
         elif roll < 67: enemyType = etHexagon
-        elif roll < 75: enemyType = etTrickster
-        elif roll < 82: enemyType = etPentagon
-        elif roll < 98: enemyType = etMage
+        elif roll < 80: enemyType = etTrickster
+        elif roll < 99: enemyType = etPentagon
+        else: enemyType = etSniper
+    
+      else:
+        # Waves 56+: Introduce MAGE + balanced roster
+        if roll < 10: enemyType = etMage  # NEW ENEMY - prominent
+        elif roll < 20: enemyType = etCube # Don't spawn circles or pentagons after wave 56
+        elif roll < 30: enemyType = etStar
+        elif roll < 40: enemyType = etCross
+        elif roll < 50: enemyType = etDiamond
+        elif roll < 60: enemyType = etOctagon
+        elif roll < 70: enemyType = etHexagon
+        elif roll < 80: enemyType = etTrickster
+        elif roll < 90: enemyType = etPhantom
+        elif roll < 99: enemyType = etTriangle
         else: enemyType = etSniper
       
       # Difficulty scaling
@@ -1246,6 +1246,15 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         else: 2.5
       bulletRadius *= sizeMultiplier
     
+    # Apply heavy rounds power-up (stacks with bullet size)
+    if hasPowerUp(game.player, puHeavyRounds):
+      let heavyLevel = getPowerUpLevel(game.player, puHeavyRounds)
+      let heavyMultiplier = case heavyLevel
+        of 1: 1.15
+        of 2: 1.25
+        else: 1.35
+      bulletRadius *= heavyMultiplier
+    
     # Track Bullet Damage power-up contribution
     # This power-up doubles base damage (applied in applyPowerUp)
     var bulletDamageBonus = 0.0
@@ -1312,6 +1321,15 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         of 1: 100.0   # Weak push
         of 2: 200.0   # Medium push
         else: 350.0   # Strong push
+    
+    # Heavy Rounds knockback effect (adds to windEffect if both exist)
+    if hasPowerUp(game.player, puHeavyRounds):
+      let heavyLevel = getPowerUpLevel(game.player, puHeavyRounds)
+      let heavyKnockback = case heavyLevel
+        of 1: 80.0    # Slight knockback
+        of 2: 150.0   # Increased knockback
+        else: 250.0   # Strong knockback
+      windEffect += heavyKnockback
     
     if hasDoubleShot and hasMultiShot:
       # When both active: Fire multishot pattern (3 directions), then schedule second burst
@@ -4597,6 +4615,46 @@ proc updateGame*(game: var Game, dt: float32) =
         coin.pos.x += toPlayer.x * pullForce * dt
         coin.pos.y += toPlayer.y * pullForce * dt
 
+  # Pulse Armor - emit shockwave when taking damage
+  if game.player.pulseArmorCooldown < 0:  # -1 signals trigger
+    let level = getPowerUpLevel(game.player, puPulseArmor)
+    if level > 0:
+      let (pushRadius, pushForce, damage, cooldown) = case level
+        of 1: (120.0, 400.0, 0.0, 8.0)    # Level 1: small radius, low force, no damage, 8s cooldown
+        of 2: (160.0, 500.0, 2.0, 6.0)    # Level 2: medium radius, medium force, 2 damage, 6s cooldown
+        else: (200.0, 600.0, 4.0, 4.0)     # Level 3: large radius, high force, 4 damage, 4s cooldown
+      
+      # Push all enemies within radius (and damage them if level > 1)
+      for enemy in game.enemies:
+        let dist = distance(game.player.pos, enemy.pos)
+        if dist < pushRadius and dist > 5.0:
+          # Calculate push direction (away from player)
+          let awayFromPlayer = (enemy.pos - game.player.pos).normalize()
+          
+          # Apply push force (stronger when closer)
+          let actualPushForce = pushForce * (1.0 - (dist / pushRadius))
+          enemy.vel.x += awayFromPlayer.x * actualPushForce
+          enemy.vel.y += awayFromPlayer.y * actualPushForce
+          
+          # Apply damage for level 2 and 3
+          if damage > 0:
+            enemy.hp -= damage
+            # Show damage number
+            game.showDamage(enemy.pos, damage, fromPlayer = true, 
+                          isCritical = false, damageType = dtDefault)
+      
+      # Visual feedback - expanding shockwave ring
+      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y,
+                    Color(r: 100, g: 200, b: 255, a: 255), 40)
+      
+      # Set cooldown
+      game.player.pulseArmorCooldown = cooldown
+      playSound(stExplosion, 0.6)
+  
+  # Update Pulse Armor cooldown
+  if game.player.pulseArmorCooldown > 0:
+    game.player.pulseArmorCooldown -= dt
+
   # Rotating Orbs power-up - elemental orbs that orbit the player and damage enemies
   updateOrbitalWeapons(game, dt)
   
@@ -5176,7 +5234,55 @@ proc updateGame*(game: var Game, dt: float32) =
           # Thorns reflection damage
           discard applyThornsReflection(game, game.player, bossContactDamage, enemy, "boss")
           
-          if takeDamage(game.player, bossContactDamage):
+          let playerDied = takeDamage(game.player, bossContactDamage)
+          
+          # Pulse Armor shockwave when taking damage
+          if not playerDied and hasPowerUp(game.player, puPulseArmor):
+            let pulseLevel = getPowerUpLevel(game.player, puPulseArmor)
+            # Check cooldown (1 second between shockwaves)
+            if game.time - game.player.pulseArmorCooldown >= 1.0:
+              # Shockwave parameters based on level
+              let shockwaveRadius = case pulseLevel
+                of 1: 100.0
+                of 2: 150.0
+                else: 200.0
+              let shockwaveDamage = case pulseLevel
+                of 1: 0.0
+                of 2: 2.0
+                else: 4.0
+              let shockwaveForce = case pulseLevel
+                of 1: 200.0
+                of 2: 300.0
+                else: 400.0
+              
+              # Apply shockwave to all enemies in radius
+              for shockEnemy in game.enemies:
+                let dist = distance(game.player.pos, shockEnemy.pos)
+                if dist < shockwaveRadius:
+                  # Knockback
+                  let pushDir = (shockEnemy.pos - game.player.pos).normalize()
+                  let bossResistance = if shockEnemy.isBoss: 0.2 else: 1.0
+                  shockEnemy.pos.x += pushDir.x * shockwaveForce * 0.016 * bossResistance
+                  shockEnemy.pos.y += pushDir.y * shockwaveForce * 0.016 * bossResistance
+                  
+                  # Damage (only for level 2 and 3)
+                  if shockwaveDamage > 0:
+                    shockEnemy.hp -= shockwaveDamage
+                    showDamage(game, shockEnemy.pos, shockwaveDamage, true, false, dtDefault)
+              
+              # Visual feedback - shockwave ring
+              for i in 0..8:
+                let angle = (i.float32 / 8.0) * PI * 2.0
+                let particlePos = Vector2f(
+                  x: game.player.pos.x + cos(angle) * shockwaveRadius,
+                  y: game.player.pos.y + sin(angle) * shockwaveRadius
+                )
+                spawnExplosion(game.particles, particlePos.x, particlePos.y, 
+                              Color(r: 150, g: 200, b: 255, a: 200), 5)
+              
+              game.player.pulseArmorCooldown = game.time
+          
+          if playerDied:
             game.state = gsGameOver
           
           # Track boss contact damage for statistics
@@ -5206,7 +5312,55 @@ proc updateGame*(game: var Game, dt: float32) =
           # Thorns reflection damage - damages enemy but doesn't kill instantly
           discard applyThornsReflection(game, game.player, enemyContactDamage, enemy, "contact")
           
-          if takeDamage(game.player, enemyContactDamage):
+          let playerDied = takeDamage(game.player, enemyContactDamage)
+          
+          # Pulse Armor shockwave when taking damage
+          if not playerDied and hasPowerUp(game.player, puPulseArmor):
+            let pulseLevel = getPowerUpLevel(game.player, puPulseArmor)
+            # Check cooldown (1 second between shockwaves)
+            if game.time - game.player.pulseArmorCooldown >= 1.0:
+              # Shockwave parameters based on level
+              let shockwaveRadius = case pulseLevel
+                of 1: 100.0
+                of 2: 150.0
+                else: 200.0
+              let shockwaveDamage = case pulseLevel
+                of 1: 0.0
+                of 2: 2.0
+                else: 4.0
+              let shockwaveForce = case pulseLevel
+                of 1: 200.0
+                of 2: 300.0
+                else: 400.0
+              
+              # Apply shockwave to all enemies in radius
+              for shockEnemy in game.enemies:
+                let dist = distance(game.player.pos, shockEnemy.pos)
+                if dist < shockwaveRadius:
+                  # Knockback
+                  let pushDir = (shockEnemy.pos - game.player.pos).normalize()
+                  let bossResistance = if shockEnemy.isBoss: 0.2 else: 1.0
+                  shockEnemy.pos.x += pushDir.x * shockwaveForce * 0.016 * bossResistance
+                  shockEnemy.pos.y += pushDir.y * shockwaveForce * 0.016 * bossResistance
+                  
+                  # Damage (only for level 2 and 3)
+                  if shockwaveDamage > 0:
+                    shockEnemy.hp -= shockwaveDamage
+                    showDamage(game, shockEnemy.pos, shockwaveDamage, true, false, dtDefault)
+              
+              # Visual feedback - shockwave ring
+              for i in 0..8:
+                let angle = (i.float32 / 8.0) * PI * 2.0
+                let particlePos = Vector2f(
+                  x: game.player.pos.x + cos(angle) * shockwaveRadius,
+                  y: game.player.pos.y + sin(angle) * shockwaveRadius
+                )
+                spawnExplosion(game.particles, particlePos.x, particlePos.y, 
+                              Color(r: 150, g: 200, b: 255, a: 200), 5)
+              
+              game.player.pulseArmorCooldown = game.time
+          
+          if playerDied:
             game.state = gsGameOver
           
           # Track enemy contact damage for statistics
@@ -5616,6 +5770,22 @@ proc updateGame*(game: var Game, dt: float32) =
               showDamage(game, game.enemies[j].pos, actualDamage, true, isCrit, bulletDmgType)
           hitEnemy = true
           
+          # Heavy Rounds knockback effect
+          if hasPowerUp(game.player, puHeavyRounds):
+            let heavyLevel = getPowerUpLevel(game.player, puHeavyRounds)
+            let knockbackForce = case heavyLevel
+              of 1: 50.0   # Slight knockback
+              of 2: 100.0  # Increased knockback
+              else: 150.0  # Strong knockback
+            
+            # Calculate knockback direction (away from bullet trajectory)
+            let pushDir = bullet.vel.normalize()
+            let bossResistance = if game.enemies[j].isBoss: 0.2 else: 1.0
+            
+            # Apply knockback to enemy
+            game.enemies[j].pos.x += pushDir.x * knockbackForce * 0.016 * bossResistance
+            game.enemies[j].pos.y += pushDir.y * knockbackForce * 0.016 * bossResistance
+          
           # UNIFIED BULLET EFFECT SYSTEM
           applyBulletEffects(game, bullet, game.enemies[j], dt)
           
@@ -5766,6 +5936,52 @@ proc updateGame*(game: var Game, dt: float32) =
         
         if takeDamage(game.player, bulletDamage):
           game.state = gsGameOver
+        else:
+          # Pulse Armor shockwave when taking damage from bullets
+          if hasPowerUp(game.player, puPulseArmor):
+            let pulseLevel = getPowerUpLevel(game.player, puPulseArmor)
+            # Check cooldown (1 second between shockwaves)
+            if game.time - game.player.pulseArmorCooldown >= 1.0:
+              # Shockwave parameters based on level
+              let shockwaveRadius = case pulseLevel
+                of 1: 100.0
+                of 2: 150.0
+                else: 200.0
+              let shockwaveDamage = case pulseLevel
+                of 1: 0.0
+                of 2: 2.0
+                else: 4.0
+              let shockwaveForce = case pulseLevel
+                of 1: 200.0
+                of 2: 300.0
+                else: 400.0
+              
+              # Apply shockwave to all enemies in radius
+              for shockEnemy in game.enemies:
+                let dist = distance(game.player.pos, shockEnemy.pos)
+                if dist < shockwaveRadius:
+                  # Knockback
+                  let pushDir = (shockEnemy.pos - game.player.pos).normalize()
+                  let bossResistance = if shockEnemy.isBoss: 0.2 else: 1.0
+                  shockEnemy.pos.x += pushDir.x * shockwaveForce * 0.016 * bossResistance
+                  shockEnemy.pos.y += pushDir.y * shockwaveForce * 0.016 * bossResistance
+                  
+                  # Damage (only for level 2 and 3)
+                  if shockwaveDamage > 0:
+                    shockEnemy.hp -= shockwaveDamage
+                    showDamage(game, shockEnemy.pos, shockwaveDamage, true, false, dtDefault)
+              
+              # Visual feedback - shockwave ring
+              for i in 0..8:
+                let angle = (i.float32 / 8.0) * PI * 2.0
+                let particlePos = Vector2f(
+                  x: game.player.pos.x + cos(angle) * shockwaveRadius,
+                  y: game.player.pos.y + sin(angle) * shockwaveRadius
+                )
+                spawnExplosion(game.particles, particlePos.x, particlePos.y, 
+                              Color(r: 150, g: 200, b: 255, a: 200), 5)
+              
+              game.player.pulseArmorCooldown = game.time
         
         # Track bullet damage for statistics (try to get enemy type from sourceEnemyId)
         var sourceEnemyType = etCircle

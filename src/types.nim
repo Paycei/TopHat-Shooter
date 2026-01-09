@@ -104,8 +104,8 @@ type
     puBloodMastery,    # LEGENDARY: Enhance all blood effects (damage, lifesteal)
     puRadialBurst,     # Shoots a circle of bullets periodically
     puWallTurrets,     # LEGENDARY: Walls become turrets that shoot enemies
-    puPulseArmor,      # When you take damage, emit shockwave that pushes enemies
-    puHeavyRounds,     # Larger bullets with knockback
+    puPulseArmor,      # When you take damage, emit shockwave that pushes enemies back
+    puHeavyRounds,     # Larger bullets with knockback (similar to Bullet Size)
     puFortified        # Reduce damage taken
 
   PowerUpRarity* = enum

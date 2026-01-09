@@ -600,19 +600,20 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   currentY += 25
   
   # Define all power-up types
-  let allPowerUpTypes = [
+  let allPowerUpTypes: array[0..64, PowerUpType] = [
     puArcaneAura, puArcaneBullets, puArcaneMastery, puArcaneOrb, puAutoShoot,
-    puBerserker, puBulletDamage, puBulletRicochet, puBulletSize, puBulletSpeed,
-    puBulletSplit, puChainLightning, puCriticalHit, puDamageZone, puDodgeChance,
-    puDoubleShot, puEchoShots, puExplosiveBullets, puFireAura, puFireBullets,
-    puFireMastery, puFireOrb, puFrostMastery, puFrostOrb, puFrostShots,
-    puGravityWell, puLightningAura, puLightningMastery, puLightningOrb, puLifeSteal,
-    puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot, puOvercharge,
-    puParry, puPhaseShift, puPiercingShots, puPoisonAura, puPoisonMastery,
-    puPoisonOrb, puPoisonShot, puRage, puRapidFire, puRegeneration,
-    puRotatingOrbs, puRotatingShield, puSlowField, puSpeedBoost, puThorns,
-    puTimeWarp, puBloodBullets, puWallMaster, puWindAura, puWindBullets,
-    puWindMastery, puWindOrb, puBloodAura, puBloodMastery, puBloodOrb, puWallTurrets, puRadialBurst
+    puBerserker, puBloodAura, puBloodBullets, puBloodMastery, puBloodOrb,
+    puBulletDamage, puBulletRicochet, puBulletSize, puBulletSpeed, puBulletSplit,
+    puChainLightning, puCriticalHit, puDamageZone, puDodgeChance, puDoubleShot,
+    puEchoShots, puExplosiveBullets, puFireAura, puFireBullets, puFireMastery,
+    puFireOrb, puFortified, puFrostMastery, puFrostOrb, puFrostShots,
+    puGravityWell, puHeavyRounds, puLifeSteal, puLightningAura, puLightningMastery,
+    puLightningOrb, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
+    puOvercharge, puParry, puPhaseShift, puPiercingShots, puPoisonAura,
+    puPoisonMastery, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst,
+    puRage, puRapidFire, puRegeneration, puRotatingOrbs, puRotatingShield,
+    puSlowField, puSpeedBoost, puThorns, puTimeWarp, puWallMaster, puWallTurrets,
+    puWindAura, puWindBullets, puWindMastery, puWindOrb
   ]
   
   # Scrollable area setup

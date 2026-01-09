@@ -10,8 +10,8 @@ const
   DEBUG_SECTION_SPACING = 6
   DEBUG_TITLE_HEIGHT = 18
   DEBUG_LINE_HEIGHT = 14
-  HEADER_BG_COLOR = Color(r: 0, g: 100, b: 120, a: 60)
-  ACCENT_COLOR = Color(r: 0, g: 220, b: 255, a: 255)
+  HEADER_BG_COLOR: Color = Color(r: 0, g: 100, b: 120, a: 60)
+  ACCENT_COLOR: Color = Color(r: 0, g: 220, b: 255, a: 255)
 
 # State for panel minimization and dragging
 var debugPanelMinimized* = false
@@ -371,14 +371,14 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
                    DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 6, DEBUG_LINE_HEIGHT,
                    Color(r: 12, g: 18, b: 28, a: 50))
       
-      drawText("[P] Phase", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
+      drawText(t(tkDebugPanelEffectPhase), finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
               Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("[P] Phase", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
+      drawText(t(tkDebugPanelEffectPhase), finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
               Color(r: 150, g: 255, b: 200, a: 255))
       
-      drawText("Active", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 40,
+      drawText(t(tkDebugPanelActive), finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 40,
               yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("Active", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 41,
+      drawText(t(tkDebugPanelActive), finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 41,
               yOffset, 10, Color(r: 180, g: 200, b: 220, a: 255))
       yOffset += DEBUG_LINE_HEIGHT
     
@@ -388,14 +388,14 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
                    DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 6, DEBUG_LINE_HEIGHT,
                    Color(r: 18, g: 25, b: 35, a: 70))
       
-      drawText("[X] Parry", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
+      drawText(t(tkDebugPanelEffectParry), finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
               Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("[X] Parry", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
+      drawText(t(tkDebugPanelEffectParry), finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
               Color(r: 255, g: 255, b: 100, a: 255))
       
-      drawText("Active", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 40,
+      drawText(t(tkDebugPanelActive), finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 40,
               yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
-      drawText("Active", finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 41,
+      drawText(t(tkDebugPanelActive), finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 41,
               yOffset, 10, Color(r: 180, g: 200, b: 220, a: 255))
       yOffset += DEBUG_LINE_HEIGHT
     

@@ -68,6 +68,9 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puBloodMastery: t(tkPowerupBloodMastery)
   of puRadialBurst: t(tkPowerupRadialBurst)
   of puWallTurrets: t(tkPowerupWallTurrets)
+  of puPulseArmor: t(tkPowerupPulseArmor)
+  of puHeavyRounds: t(tkPowerupHeavyRounds)
+  of puFortified: t(tkPowerupFortified)
 
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
@@ -329,3 +332,18 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   of puWallTurrets:
     # Single level only - LEGENDARY
     t(tkPowerupWallTurretsDesc)
+  of puPulseArmor:
+    case level
+    of 1: t(tkPowerupPulseArmorDesc1)
+    of 2: t(tkPowerupPulseArmorDesc2)
+    else: t(tkPowerupPulseArmorDesc3)
+  of puHeavyRounds:
+    case level
+    of 1: t(tkPowerupHeavyRoundsDesc1)
+    of 2: t(tkPowerupHeavyRoundsDesc2)
+    else: t(tkPowerupHeavyRoundsDesc3)
+  of puFortified:
+    case level
+    of 1: t(tkPowerupFortifiedDesc1)
+    of 2: t(tkPowerupFortifiedDesc2)
+    else: t(tkPowerupFortifiedDesc3)
