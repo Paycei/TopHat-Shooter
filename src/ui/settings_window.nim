@@ -1,4 +1,4 @@
-## OS-Themed Settings Control Panel
+﻿## OS-Themed Settings Control Panel
 ## Tabbed settings interface matching the OS visual language
 
 import raylib, strutils, ../sound, ../save_system, os_window, ../settings, ../localization
@@ -423,8 +423,8 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         break
       tabX += tabWidth + 10
   
-  # Tab switching with number keys (only when not minimized)
-  if not settingsWin.window.minimized:
+  # Tab switching with number keys (only when not minimized and not editing FPS)
+  if not settingsWin.window.minimized and not settingsWin.editingFPS:
     if isKeyPressed(One): settingsWin.currentTab = stGraphics
     if isKeyPressed(Two): settingsWin.currentTab = stAudio
     if isKeyPressed(Three): settingsWin.currentTab = stControls
@@ -451,11 +451,24 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       let boxY = contentY + 80
       let boxWidth = 120
       let boxHeight = 30
-      if mousePos.x >= boxX.float32 and mousePos.x <= (boxX + boxWidth).float32 and
-         mousePos.y >= boxY.float32 and mousePos.y <= (boxY + boxHeight).float32:
-        settingsWin.editingFPS = true
-        settingsWin.settings.inputBuffer = ""
+      let boxHit = mousePos.x >= boxX.float32 and mousePos.x <= (boxX + boxWidth).float32 and
+                   mousePos.y >= boxY.float32 and mousePos.y <= (boxY + boxHeight).float32
+      if boxHit:
+        if not settingsWin.editingFPS:
+          settingsWin.editingFPS = true
+          settingsWin.settings.inputBuffer = ""
       else:
+        if settingsWin.editingFPS:
+          # Commit FPS on clicking outside
+          if settingsWin.settings.inputBuffer.len > 0:
+            try:
+              let newFps = parseInt(settingsWin.settings.inputBuffer)
+              if newFps >= 30 and newFps <= 9999:
+                settingsWin.settings.fpsLimit = newFps.int32
+                setTargetFPS(settingsWin.settings.fpsLimit)
+                settingsChanged = true
+            except:
+              discard
         settingsWin.editingFPS = false
       
       # Show FPS checkbox (25x25 hit area)
