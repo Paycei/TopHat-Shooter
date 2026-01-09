@@ -176,7 +176,7 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
                  Color(r: 0, g: 255, b: 255, a: 30))
     splash.glitchTimer = 0
   
-  # "Press any key" when complete
+  # "Press almost any key" when complete
   if splash.timer > 3.0:
     let pulse = (sin(splash.timer * 4.0) * 0.5 + 0.5)
     let alpha = uint8(150 + pulse * 105)

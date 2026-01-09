@@ -744,8 +744,11 @@ proc main() =
       # Music continues in background during pause
       
       # Don't update game time when paused - prevents difficulty from increasing
-      # Don't update mouse tracking
-      discard
+      # Update mouse tracking so the pause menu responds to mouse input immediately
+      updateMouseTracking(currentGame)
+      # If mouse support is enabled, allow mouse interaction right away (no need to move first)
+      if globalSettings.mouseSupport:
+        currentGame.mouseMovedRecently = true
       
       # Pause menu navigation - Tab switching (Left/Right or A/D)
       if isKeyPressed(Left) or isKeyPressed(A):

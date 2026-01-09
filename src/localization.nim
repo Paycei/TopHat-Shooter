@@ -1124,7 +1124,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     
     # System Messages
     "system_defensive_processes": "All defensive processes have been terminated.",
-    "system_press_any_key": "Press any key to continue...",
+    "system_press_any_key": "Press almost any key to continue...",
     "system_no_statistics": "No statistics available",
     "system_press_esc_to_return": "Press ESC to return",
     

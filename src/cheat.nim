@@ -79,6 +79,37 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
       if menu.keySequence.len > CHEAT_SEQUENCE.len:
         menu.keySequence.setLen(0)
 
+  # Also catch the actual '+' character typed (e.g., Shift+'=') which may not register as Equal key in some setups
+  var c = getCharPressed()
+  while c != 0:
+    if c == int('+'):
+      menu.lastKeyTime = currentTime
+      menu.keySequence.add(KeyboardKey.KpAdd)
+
+      # Check sequence (same as above)
+      if menu.keySequence.len == CHEAT_SEQUENCE.len:
+        var matches = true
+        for i in 0..<CHEAT_SEQUENCE.len:
+          if menu.keySequence[i] != CHEAT_SEQUENCE[i]:
+            matches = false
+            break
+
+        if matches:
+          menu.active = not menu.active
+          playSound(stMenuSelect)
+          menu.keySequence.setLen(0)
+          
+          # Mark that cheats were used if menu opened during gameplay
+          if menu.active and game.state == gsPlaying:
+            game.cheatsUsed = true
+          
+          return
+
+      # Reset if sequence gets too long
+      if menu.keySequence.len > CHEAT_SEQUENCE.len:
+        menu.keySequence.setLen(0)
+    c = getCharPressed()
+
 proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
   if not menu.active or not CHEATS_ENABLED:
     return
