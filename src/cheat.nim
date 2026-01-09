@@ -1,4 +1,4 @@
-import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data
+import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data, localization
 
 # ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
@@ -272,7 +272,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     return
   
   # Close instruction
-  drawText("Press ESC or click X to close", panelX + 10, panelY + 35, 12, Gray)
+  drawText(t(tkCheatCloseInstruction), panelX + 10, panelY + 35, 12, Gray)
   
   # Tab buttons with mouse support
   let tabY = panelY + 60

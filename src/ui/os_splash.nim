@@ -1,7 +1,7 @@
 ## OS-Themed Splash Screen Module
 ## Displays a boot-like splash screen when the game starts
 
-import raylib, strutils, math
+import raylib, strutils, math, ../localization
 
 type
   BootPhase* = enum
@@ -180,7 +180,7 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
   if splash.timer > 3.0:
     let pulse = (sin(splash.timer * 4.0) * 0.5 + 0.5)
     let alpha = uint8(150 + pulse * 105)
-    drawText("Press any key to continue...", 
+    drawText(t(tkSystemPressAnyKey), 
             (screenWidth div 2 - 180).int32, 
             (screenHeight - 30).int32, 20, 
             Color(r: 255, g: 255, b: 100, a: alpha))

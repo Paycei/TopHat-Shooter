@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels
+import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -6520,7 +6520,7 @@ proc drawGame*(game: Game) =
   if isTimeSurvivalMode(game.mode):
     let waveProgress = (game.time mod 15.0) / 15.0
     if waveProgress > 0.6 and not game.bossWaveManager.isBossActive():
-      drawText("*** WAVE ***", game.screenWidth div 2 - 80, 10, 25, Red)
+      drawText(t(tkGameWaveAnnouncementMain), game.screenWidth div 2 - 80, 10, 25, Red)
   
   # Combined HUD panel already shows all info, no need for separate panels
   
@@ -6532,7 +6532,7 @@ proc drawGame*(game: Game) =
   drawLegendaryPowerUpsPanel(game, game.screenWidth.int32, game.screenHeight.int32)
 
   # Instructions only for non-legendary keys
-  drawText("E: Wall | ESC: Pause", 
+  drawText(t(tkGameInstructionsWall), 
            game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
   
   # Note: Custom cursor is now drawn in main.nim after all UI overlays
@@ -6554,13 +6554,13 @@ proc drawWaveTransition*(game: Game) =
   drawRectangle(0, 0, game.screenWidth, game.screenHeight, Color(r: 0, g: 0, b: 0, a: 180))
   
   # Title
-  drawText("GET READY!", game.screenWidth div 2 - 120, game.screenHeight div 2 - 80, 50, Yellow)
+  drawText(t(tkGameGetReady), game.screenWidth div 2 - 120, game.screenHeight div 2 - 80, 50, Yellow)
   
   # Boss wave notification with wave number
-  let bossWaveText = "BOSS WAVE " & $(game.currentWave + 1)
+  let bossWaveText = t(tkGameBossWavePrefix) & $(game.currentWave + 1)
   let bossTextWidth = measureText(bossWaveText, 35)
   drawText(bossWaveText, game.screenWidth div 2 - bossTextWidth div 2, game.screenHeight div 2, 35, Red)
   
-  drawText("INCOMING", game.screenWidth div 2 - 75, game.screenHeight div 2 + 40, 30, Orange)
+  drawText(t(tkGameIncoming), game.screenWidth div 2 - 75, game.screenHeight div 2 + 40, 30, Orange)
   
-  drawText("Press ENTER to start", game.screenWidth div 2 - 130, game.screenHeight - 80, 20, LightGray)
+  drawText(t(tkGamePressEnterToStart), game.screenWidth div 2 - 130, game.screenHeight - 80, 20, LightGray)

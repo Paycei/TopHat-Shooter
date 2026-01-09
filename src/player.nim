@@ -1,4 +1,4 @@
-import raylib, types, wall, math, random, powerup
+import raylib, types, wall, math, random, powerup, localization
 
 proc newPlayer*(x, y: float32): Player =
   result = Player(
@@ -246,7 +246,7 @@ proc drawPlayer*(player: Player) =
   
   # Dodge flash effect
   if player.lastDamageTaken == 0 and player.hp > 0:
-    drawText("DODGE!", (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
+    drawText(t(tkPlayerDodge), (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
     player.lastDamageTaken = -1  # Clear flag
   
   # Phase Shift invulnerability visual effect
@@ -263,7 +263,7 @@ proc drawPlayer*(player: Player) =
               Color(r: 255, g: 255, b: 255, a: pulseAlpha.uint8))
     drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, 
               Color(r: 200, g: 200, b: 200, a: 200))
-    drawText("PARRY!", (player.pos.x - 25).int32, (player.pos.y - 40).int32, 16, White)
+    drawText(t(tkPlayerParry), (player.pos.x - 25).int32, (player.pos.y - 40).int32, 16, White)
   # Invincibility visual effect
   elif player.invincibilityTimer > 0:
     let flash = ((player.invincibilityTimer * 10).int mod 2 == 0)

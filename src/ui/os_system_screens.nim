@@ -131,7 +131,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   drawText(t(tkGameOverErrorMsg),
           windowX + 30, yOffset, 18, Color(r: 220, g: 230, b: 240, a: 255))
   yOffset += 28
-  drawText("All defensive processes have been terminated.",
+  drawText(t(tkSystemDefensiveProcesses),
           windowX + 30, yOffset, 18, Color(r: 220, g: 230, b: 240, a: 255))
   yOffset += 50
   

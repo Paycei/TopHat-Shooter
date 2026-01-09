@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/settings_window, ui/help_window, ui/stats_window, ui/os_task_manager
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/settings_window, ui/help_window, ui/stats_window, ui/os_task_manager, localization
 
 const
   screenWidth = 1024
@@ -1372,9 +1372,9 @@ proc main() =
       else:
         # Fallback if no stats available
         clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
-        drawText("No statistics available", 
+        drawText(t(tkSystemNoStatistics), 
                 screenWidth div 2 - 150, screenHeight div 2, 24, Red)
-        drawText("Press ESC to return", 
+        drawText(t(tkSystemPressESCToReturn), 
                 screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
       
       endGameDrawing()

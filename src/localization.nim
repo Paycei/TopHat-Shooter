@@ -219,6 +219,185 @@ type
     tkHelpTypeHelp = "help_type_help"
     tkHelpErrorExecuting = "help_error_executing"
     
+    # Help System - Command descriptions
+    tkHelpCmdHelp = "help_cmd_help"
+    tkHelpCmdControls = "help_cmd_controls"
+    tkHelpCmdGameplay = "help_cmd_gameplay"
+    tkHelpCmdPowerups = "help_cmd_powerups"
+    tkHelpCmdEnemies = "help_cmd_enemies"
+    tkHelpCmdBosses = "help_cmd_bosses"
+    tkHelpCmdShop = "help_cmd_shop"
+    tkHelpCmdLaunchIcons = "help_cmd_launch_icons"
+    
+    # Help System - Controls section
+    tkHelpMovement = "help_movement"
+    tkHelpCombat = "help_combat"
+    tkHelpAbilities = "help_abilities"
+    tkHelpMenu = "help_menu"
+    tkHelpMovementDesc = "help_movement_desc"
+    tkHelpWASD = "help_wasd"
+    tkHelpArrowKeys = "help_arrow_keys"
+    tkHelpLeftMouse = "help_left_mouse"
+    tkHelpSpace = "help_space"
+    tkHelpF = "help_f"
+    tkHelpQ = "help_q"
+    tkHelpE = "help_e"
+    tkHelpESC = "help_esc"
+    tkHelpF11 = "help_f11"
+    tkHelpAutoShootReq = "help_auto_shoot_req"
+    
+    # Help System - Gameplay section
+    tkHelpWaveMode = "help_wave_mode"
+    tkHelpWaveModeDesc = "help_wave_mode_desc"
+    tkHelpSurvivalMode = "help_survival_mode"
+    tkHelpSurvivalModeDesc = "help_survival_mode_desc"
+    tkHelpSandboxMode = "help_sandbox_mode"
+    tkHelpSandboxModeDesc = "help_sandbox_mode_desc"
+    
+    # Help System - Power-ups section
+    tkHelpCommonPowerups = "help_common_powerups"
+    tkHelpElementalOrbs = "help_elemental_orbs"
+    tkHelpElementalAuras = "help_elemental_auras"
+    tkHelpLegendaryPowerups = "help_legendary_powerups"
+    
+    # Help System - Enemy section
+    tkHelpEnemyCircle = "help_enemy_circle"
+    tkHelpEnemyCube = "help_enemy_cube"
+    tkHelpEnemyTriangle = "help_enemy_triangle"
+    tkHelpEnemyStar = "help_enemy_star"
+    tkHelpEnemyHexagon = "help_enemy_hexagon"
+    tkHelpEnemyElite = "help_enemy_elite"
+    
+    # Help System - Boss section
+    tkHelpBossSpawning = "help_boss_spawning"
+    tkHelpBossMechanics = "help_boss_mechanics"
+    tkHelpBossAttacks = "help_boss_attacks"
+    tkHelpBossRewards = "help_boss_rewards"
+    
+    # Help System - Shop section
+    tkHelpAvailableItems = "help_available_items"
+    tkHelpCostScaling = "help_cost_scaling"
+    tkHelpEarningCoins = "help_earning_coins"
+    tkHelpShopAccess = "help_shop_access"
+    
+    # Help System - Powerup names
+    tkHelpDoubleShot = "help_double_shot"
+    tkHelpRotatingShield = "help_rotating_shield"
+    tkHelpDamageZone = "help_damage_zone"
+    tkHelpMagicalBullets = "help_magical_bullets"
+    tkHelpPiercingShots = "help_piercing_shots"
+    tkHelpMultiShot = "help_multi_shot"
+    tkHelpExplosiveBullets = "help_explosive_bullets"
+    tkHelpLifeSteal = "help_life_steal"
+    tkHelpRapidFire = "help_rapid_fire"
+    tkHelpMaxHealth = "help_max_health"
+    tkHelpSpeedBoost = "help_speed_boost"
+    tkHelpBulletDamage = "help_bullet_damage"
+    tkHelpBulletSpeed = "help_bullet_speed"
+    tkHelpLuckyCoins = "help_lucky_coins"
+    tkHelpWallMaster = "help_wall_master"
+    tkHelpAutoShoot = "help_auto_shoot"
+    tkHelpBulletSize = "help_bullet_size"
+    tkHelpRegeneration = "help_regeneration"
+    tkHelpDodgeChance = "help_dodge_chance"
+    tkHelpCriticalHit = "help_critical_hit"
+    tkHelpBloodBullets = "help_blood_bullets"
+    tkHelpBulletRicochet = "help_bullet_ricochet"
+    tkHelpSlowField = "help_slow_field"
+    tkHelpRage = "help_rage"
+    tkHelpBerserker = "help_berserker"
+    tkHelpThorns = "help_thorns"
+    tkHelpBulletSplit = "help_bullet_split"
+    tkHelpChainLightning = "help_chain_lightning"
+    tkHelpFrostShots = "help_frost_shots"
+    tkHelpPoisonShot = "help_poison_shot"
+    tkHelpFireBullets = "help_fire_bullets"
+    tkHelpWindBullets = "help_wind_bullets"
+    tkHelpOvercharge = "help_overcharge"
+    tkHelpEchoShots = "help_echo_shots"
+    tkHelpPoisonOrb = "help_poison_orb"
+    tkHelpFireOrb = "help_fire_orb"
+    tkHelpLightningOrb = "help_lightning_orb"
+    tkHelpWindOrb = "help_wind_orb"
+    tkHelpFrostOrb = "help_frost_orb"
+    tkHelpArcaneOrb = "help_arcane_orb"
+    tkHelpBloodOrb = "help_blood_orb"
+    tkHelpFireAura = "help_fire_aura"
+    tkHelpLightningAura = "help_lightning_aura"
+    tkHelpPoisonAura = "help_poison_aura"
+    tkHelpWindAura = "help_wind_aura"
+    tkHelpArcaneAura = "help_arcane_aura"
+    tkHelpBloodAura = "help_blood_aura"
+    tkHelpTimeWarp = "help_time_warp"
+    tkHelpGravityWell = "help_gravity_well"
+    tkHelpPhaseShift = "help_phase_shift"
+    tkHelpParry = "help_parry"
+    tkHelpRotatingOrbs = "help_rotating_orbs"
+    tkHelpFireMastery = "help_fire_mastery"
+    tkHelpPoisonMastery = "help_poison_mastery"
+    tkHelpFrostMastery = "help_frost_mastery"
+    tkHelpArcaneMastery = "help_arcane_mastery"
+    tkHelpLightningMastery = "help_lightning_mastery"
+    tkHelpWindMastery = "help_wind_mastery"
+    tkHelpBloodMastery = "help_blood_mastery"
+    
+    # Help System - Shop items
+    tkHelpShopDamagePlus = "help_shop_damage_plus"
+    tkHelpShopDamagePlusDesc = "help_shop_damage_plus_desc"
+    tkHelpShopFireRatePlus = "help_shop_fire_rate_plus"
+    tkHelpShopFireRatePlusDesc = "help_shop_fire_rate_plus_desc"
+    tkHelpShopMoveSpeedPlus = "help_shop_move_speed_plus"
+    tkHelpShopMoveSpeedPlusDesc = "help_shop_move_speed_plus_desc"
+    tkHelpShopMaxHealthPlus = "help_shop_max_health_plus"
+    tkHelpShopMaxHealthPlusDesc = "help_shop_max_health_plus_desc"
+    tkHelpShopBulletSpeedPlus = "help_shop_bullet_speed_plus"
+    tkHelpShopBulletSpeedPlusDesc = "help_shop_bullet_speed_plus_desc"
+    tkHelpShopWallX5 = "help_shop_wall_x5"
+    tkHelpShopWallX5Desc = "help_shop_wall_x5_desc"
+    
+    # Help System - Misc
+    tkHelpWaveModeInfo = "help_wave_mode_info"
+    tkHelpSurvivalModeInfo = "help_survival_mode_info"
+    tkHelpEnemyChaser = "help_enemy_chaser"
+    tkHelpEnemyTurret = "help_enemy_turret"
+    tkHelpEnemyDasher = "help_enemy_dasher"
+    tkHelpEnemyTank = "help_enemy_tank"
+    tkHelpEnemyWarper = "help_enemy_warper"
+    tkHelpEnemyEliteDesc = "help_enemy_elite_desc"
+    tkHelpBossEvery5th = "help_boss_every_5th"
+    tkHelpBossEvery60Sec = "help_boss_every_60_sec"
+    tkHelpCostScalingFormula = "help_cost_scaling_formula"
+    tkHelpKillEnemiesToCollect = "help_kill_enemies_to_collect"
+    tkHelpEliteDropMore = "help_elite_drop_more"
+    tkHelpBossDropLarge = "help_boss_drop_large"
+    tkHelpOpensAfterPowerup = "help_opens_after_powerup"
+    tkHelpAvailableBetweenWaves = "help_available_between_waves"
+    
+    # Game Notifications and UI
+    tkGameWaveAnnouncementMain = "game_wave_announcement_main"
+    tkGameInstructionsWall = "game_instructions_wall"
+    tkGameGetReady = "game_get_ready"
+    tkGameBossWavePrefix = "game_boss_wave_prefix"
+    tkGameIncoming = "game_incoming"
+    tkGamePressEnterToStart = "game_press_enter_to_start"
+    tkGameNoData = "game_no_data"
+    tkGameNoGraphData = "game_no_graph_data"
+    tkGameNoPreviousRun = "game_no_previous_run"
+    tkGameCompleteGameStats = "game_complete_game_stats"
+    tkGameNoPowerUpData = "game_no_power_up_data"
+    tkGameWaveLabel = "game_wave_label"
+    tkGameBestStreak = "game_best_streak"
+    
+    # Stats Window
+    tkStatsTimeColumnLabel = "stats_time_column_label"
+    tkStatsDamageColumnLabel = "stats_damage_column_label"
+    tkStatsDealedAbbrev = "stats_dealed_abbrev"
+    tkStatsTakenAbbrev = "stats_taken_abbrev"
+    tkStatsLevelPrefix = "stats_level_prefix"
+    tkStatsTotal = "stats_total"
+    tkStatsLegendaryCount = "stats_legendary_count"
+    tkStatsCommonCount = "stats_common_count"
+    
     # Sandbox Mode
     tkSandboxSpawnEnemies = "sandbox_spawn_enemies"
     tkSandboxSpawn10Random = "sandbox_spawn_10_random"
@@ -555,6 +734,57 @@ type
     tkPowerupFortifiedDesc2 = "powerup_fortified_desc2"
     tkPowerupFortifiedDesc3 = "powerup_fortified_desc3"
     
+    # Player Feedback
+    tkPlayerDodge = "player_dodge"
+    tkPlayerParry = "player_parry"
+    
+    # System Messages
+    tkSystemDefensiveProcesses = "system_defensive_processes"
+    tkSystemPressAnyKey = "system_press_any_key"
+    tkSystemNoStatistics = "system_no_statistics"
+    tkSystemPressESCToReturn = "system_press_esc_to_return"
+    
+    # Cheat Menu Buttons
+    tkCheatCloseInstruction = "cheat_close_instruction"
+    tkCheatPressESCOrClick = "cheat_press_esc_or_click"
+    tkCheatShowingItems = "cheat_showing_items"
+    tkCheatScrollUp = "cheat_scroll_up"
+    tkCheatScrollDown = "cheat_scroll_down"
+    tkCheatNoPowerUpsSelected = "cheat_no_power_ups_selected"
+    
+    # OS Task Manager / System Monitoring
+    tkOSRunningProcesses = "os_running_processes"
+    tkOSNoActiveProcesses = "os_no_active_processes"
+    tkOSProcessName = "os_process_name"
+    tkOSVersion = "os_version"
+    tkOSStatus = "os_status"
+    tkOSSystemPerformance = "os_system_performance"
+    tkOSSystemManager = "os_system_manager"
+    tkOSSystemPaused = "os_system_paused"
+    tkOSPressSpaceContinue = "os_press_space_continue"
+    
+    # OS Desktop / System Info
+    tkOSSystemMonitor = "os_system_monitor"
+    tkOSCPUIdle = "os_cpu_idle"
+    tkOSMemory = "os_memory"
+    tkOSNetwork = "os_network"
+    tkOSTopHatOS = "os_tophat_os"
+    tkOSEdition = "os_edition"
+    tkOSTopHatButton = "os_tophat_button"
+    tkOSNetIndicator = "os_net_indicator"
+    
+    # Stats Labels
+    tkStatsSystemAnalytics = "stats_system_analytics"
+    tkStatsRunReport = "stats_run_report"
+    tkStatsWaveLabel = "stats_wave_label"
+    tkStatsTimeLabel = "stats_time_label"
+    tkStatsKillsLabel = "stats_kills_label"
+    tkStatsAccuracyLabel = "stats_accuracy_label"
+    tkStatsAvgDPS = "stats_avg_dps"
+    
+    # Enemy Labels
+    tkEnemyActiveThreats = "enemy_active_threats"
+    
     # General
     tkYes = "general_yes"
     tkNo = "general_no"
@@ -888,6 +1118,57 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_fortified_desc2": "Reduce damage taken by 15%",
     "powerup_fortified_desc3": "Reduce damage taken by 20%",
     
+    # Player Feedback
+    "player_dodge": "DODGE!",
+    "player_parry": "PARRY!",
+    
+    # System Messages
+    "system_defensive_processes": "All defensive processes have been terminated.",
+    "system_press_any_key": "Press any key to continue...",
+    "system_no_statistics": "No statistics available",
+    "system_press_esc_to_return": "Press ESC to return",
+    
+    # Cheat Menu Buttons
+    "cheat_close_instruction": "Press ESC or click X to close",
+    "cheat_press_esc_or_click": "Press ESC or click X to close",
+    "cheat_showing_items": "Showing",
+    "cheat_scroll_up": "UP to scroll up",
+    "cheat_scroll_down": "DOWN to scroll down",
+    "cheat_no_power_ups_selected": "No power-ups selected",
+    
+    # OS Task Manager / System Monitoring
+    "os_running_processes": "RUNNING PROCESSES:",
+    "os_no_active_processes": "No active processes",
+    "os_process_name": "Process Name",
+    "os_version": "Version",
+    "os_status": "Status",
+    "os_system_performance": "SYSTEM PERFORMANCE:",
+    "os_system_manager": "System Manager",
+    "os_system_paused": "System paused - press SPACE to continue",
+    "os_press_space_continue": "Press SPACE to continue",
+    
+    # OS Desktop / System Info
+    "os_system_monitor": "System Monitor",
+    "os_cpu_idle": "CPU: Idle",
+    "os_memory": "Memory: 2.4 / 16 GB",
+    "os_network": "Network: Connected",
+    "os_tophat_os": "TopHat-ShooterOS",
+    "os_edition": "[v5.1 Edition]",
+    "os_tophat_button": "TopHat",
+    "os_net_indicator": "NET",
+    
+    # Stats Labels
+    "stats_system_analytics": "System Analytics",
+    "stats_run_report": "Run Report",
+    "stats_wave_label": "Wave",
+    "stats_time_label": "TIME",
+    "stats_kills_label": "KILLS",
+    "stats_accuracy_label": "ACCURACY",
+    "stats_avg_dps": "AVG DPS",
+    
+    # Enemy Labels
+    "enemy_active_threats": "ACTIVE THREATS:",
+    
     # General
     "general_yes": "Yes",
     "general_no": "No",
@@ -1039,6 +1320,185 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_unknown_command": "Unknown command:",
     "help_type_help": "Type 'help' for available commands",
     "help_error_executing": "Error executing command:",
+    
+    # Help System - Command descriptions
+    "help_cmd_help": "Show this command list",
+    "help_cmd_controls": "View controls and keybindings",
+    "help_cmd_gameplay": "Game modes and mechanics",
+    "help_cmd_powerups": "Complete power-up reference",
+    "help_cmd_enemies": "Enemy types and behaviors",
+    "help_cmd_bosses": "Boss information",
+    "help_cmd_shop": "Shop items and costs",
+    "help_cmd_launch_icons": "Launch desktop icons by name",
+    
+    # Help System - Controls section
+    "help_movement": "MOVEMENT",
+    "help_combat": "COMBAT",
+    "help_abilities": "ABILITIES",
+    "help_menu": "MENU",
+    "help_movement_desc": "Move player",
+    "help_wasd": "W/A/S/D ............ Move player",
+    "help_arrow_keys": "Arrow Keys ......... Alternative movement",
+    "help_left_mouse": "Left Mouse ......... Shoot",
+    "help_space": "Space .............. Shoot (alternative)",
+    "help_f": "F .................. Toggle Auto-Shoot*",
+    "help_q": "Q .................. Activate Legendary Powers",
+    "help_e": "E .................. Place Wall",
+    "help_esc": "ESC ................ Pause / Return to menu",
+    "help_f11": "F11 ................ Toggle Fullscreen",
+    "help_auto_shoot_req": "* Requires Auto-Shoot power-up",
+    
+    # Help System - Gameplay section
+    "help_wave_mode": "WAVE-BASED MODE",
+    "help_wave_mode_desc": "- Clear waves of enemies\n  - Boss appears every 5th wave\n  - Choose power-up after each wave\n  - Shop opens after power-up selection",
+    "help_survival_mode": "SURVIVAL MODE",
+    "help_survival_mode_desc": "- Survive endless enemy hordes\n  - Enemies spawn continuously\n  - Boss appears every 60 seconds",
+    "help_sandbox_mode": "SANDBOX MODE",
+    "help_sandbox_mode_desc": "- Testing mode with spawner controls\n  - Experiment with different scenarios",
+    
+    # Help System - Power-ups section
+    "help_common_powerups": "COMMON POWER-UPS",
+    "help_elemental_orbs": "ELEMENTAL ORBS",
+    "help_elemental_auras": "ELEMENTAL AURAS",
+    "help_legendary_powerups": "LEGENDARY POWER-UPS (Press Q)",
+    
+    # Help System - Enemy section
+    "help_enemy_circle": "CIRCLE (Chaser)",
+    "help_enemy_cube": "CUBE (Turret)",
+    "help_enemy_triangle": "TRIANGLE (Dasher)",
+    "help_enemy_star": "STAR (Tank)",
+    "help_enemy_hexagon": "HEXAGON (Warper)",
+    "help_enemy_elite": "ELITE VARIANTS",
+    
+    # Help System - Boss section
+    "help_boss_spawning": "BOSS SPAWNING",
+    "help_boss_mechanics": "BOSS MECHANICS",
+    "help_boss_attacks": "BOSS ATTACKS",
+    "help_boss_rewards": "REWARDS",
+    
+    # Help System - Shop section
+    "help_available_items": "AVAILABLE ITEMS",
+    "help_cost_scaling": "COST SCALING",
+    "help_earning_coins": "EARNING COINS",
+    "help_shop_access": "SHOP ACCESS",
+    
+    # Help System - Powerup names
+    "help_double_shot": "Double Shot - Fire 2 bullets per shot",
+    "help_rotating_shield": "Rotating Shield - Orbiting protective shield",
+    "help_damage_zone": "Damage Zone - Passive damage aura",
+    "help_magical_bullets": "Magical Bullets - Bullets track enemies",
+    "help_piercing_shots": "Piercing Shots - Bullets pass through enemies",
+    "help_multi_shot": "Multi Shot - Shoots in 3 directions",
+    "help_explosive_bullets": "Explosive Bullets - Bullets explode on impact",
+    "help_life_steal": "Life Steal - Gain HP from kills",
+    "help_rapid_fire": "Rapid Fire - Increased fire rate",
+    "help_max_health": "Max Health - Increase max HP",
+    "help_speed_boost": "Speed Boost - Permanent speed increase",
+    "help_bullet_damage": "Bullet Damage - Increased bullet damage",
+    "help_bullet_speed": "Bullet Speed - Faster bullets",
+    "help_lucky_coins": "Lucky Coins - Doubles coins collected",
+    "help_wall_master": "Wall Master - Place stronger walls",
+    "help_auto_shoot": "Auto Shoot - Auto-target nearest enemy",
+    "help_bullet_size": "Bullet Size - Larger projectiles",
+    "help_regeneration": "Regeneration - Slowly restore HP",
+    "help_dodge_chance": "Dodge Chance - Chance to evade damage",
+    "help_critical_hit": "Critical Hit - Random critical damage",
+    "help_blood_bullets": "Blood Bullets - Lifesteal on hit",
+    "help_bullet_ricochet": "Bullet Ricochet - Bullets ricochet off enemies",
+    "help_slow_field": "Slow Field - Enemies move slower nearby",
+    "help_rage": "Rage - Damage increases at low HP",
+    "help_berserker": "Berserker - Attack speed at low HP",
+    "help_thorns": "Thorns - Reflect damage to attackers",
+    "help_bullet_split": "Bullet Split - Bullets split on impact",
+    "help_chain_lightning": "Chain Lightning - Damage chains between enemies",
+    "help_frost_shots": "Frost Shots - Bullets slow enemies",
+    "help_poison_shot": "Poison Shot - Poison bullets with DoT",
+    "help_fire_bullets": "Fire Bullets - Fire damage over time",
+    "help_wind_bullets": "Wind Bullets - Bullets push enemies",
+    "help_overcharge": "Overcharge - Bullets gain power over distance",
+    "help_echo_shots": "Echo Shots - Bullets leave damaging trails",
+    "help_poison_orb": "Poison Orb - Poison elemental orb",
+    "help_fire_orb": "Fire Orb - Fire elemental orb",
+    "help_lightning_orb": "Lightning Orb - Lightning elemental orb",
+    "help_wind_orb": "Wind Orb - Wind elemental orb",
+    "help_frost_orb": "Frost Orb - Frost elemental orb",
+    "help_arcane_orb": "Arcane Orb - Arcane elemental orb",
+    "help_blood_orb": "Blood Orb - Blood elemental orb",
+    "help_fire_aura": "Fire Aura - Fire damage over time aura",
+    "help_lightning_aura": "Lightning Aura - Lightning chains between enemies",
+    "help_poison_aura": "Poison Aura - Poison damage over time aura",
+    "help_wind_aura": "Wind Aura - Pushes enemies away",
+    "help_arcane_aura": "Arcane Aura - Enhanced arcane damage aura",
+    "help_blood_aura": "Blood Aura - Damage aura with lifesteal",
+    "help_time_warp": "Time Warp - Slow down time globally",
+    "help_gravity_well": "Gravity Well - Pull enemies toward you",
+    "help_phase_shift": "Phase Shift - Teleport dash through enemies",
+    "help_parry": "Parry - Invincible + bounce bullets",
+    "help_rotating_orbs": "Rotating Orbs - All elemental orbs at once",
+    "help_fire_mastery": "Fire Mastery - Enhance all fire effects",
+    "help_poison_mastery": "Poison Mastery - Enhance all poison effects",
+    "help_frost_mastery": "Frost Mastery - Enhance all frost effects",
+    "help_arcane_mastery": "Arcane Mastery - Enhance all arcane effects",
+    "help_lightning_mastery": "Lightning Mastery - Enhance lightning effects",
+    "help_wind_mastery": "Wind Mastery - Enhance all wind effects",
+    "help_blood_mastery": "Blood Mastery - Enhance all blood effects",
+    
+    # Help System - Shop items
+    "help_shop_damage_plus": "Damage + (8 CR base)",
+    "help_shop_damage_plus_desc": "Increase bullet damage",
+    "help_shop_fire_rate_plus": "Fire Rate + (10 CR base)",
+    "help_shop_fire_rate_plus_desc": "Shoot faster",
+    "help_shop_move_speed_plus": "Move Speed + (7 CR base)",
+    "help_shop_move_speed_plus_desc": "Move faster",
+    "help_shop_max_health_plus": "Max Health + (10 CR base)",
+    "help_shop_max_health_plus_desc": "Increase maximum HP",
+    "help_shop_bullet_speed_plus": "Bullet Speed + (6 CR base)",
+    "help_shop_bullet_speed_plus_desc": "Faster bullet velocity",
+    "help_shop_wall_x5": "Wall x5 (14 CR base)",
+    "help_shop_wall_x5_desc": "Buy 5 deployable walls",
+    
+    # Help System - Misc
+    "help_wave_mode_info": "Wave Mode: Every 5th wave (5, 10, 15...)",
+    "help_survival_mode_info": "Survival Mode: Every 60 seconds",
+    "help_enemy_chaser": "- Normal chasing enemies\n  - Follows player movement\n  - Most common enemy type",
+    "help_enemy_turret": "- Stationary or slow-moving shooters\n  - Fires projectiles at player\n  - Keep your distance",
+    "help_enemy_dasher": "- Fast dash attackers\n  - Quick bursts of speed\n  - Dangerous at close range",
+    "help_enemy_tank": "- High HP enemies\n  - Requires many hits to defeat\n  - Dashes when getting close",
+    "help_enemy_warper": "- Teleporting chaos enemy\n  - Unpredictable movement\n  - Can appear anywhere suddenly",
+    "help_enemy_elite_desc": "- Tougher versions of all enemy types\n  - Drop more coins when defeated\n  - Spawn in later waves",
+    "help_boss_every_5th": "Wave Mode: Every 5th wave (5, 10, 15...)",
+    "help_boss_every_60_sec": "Survival Mode: Every 60 seconds",
+    "help_cost_scaling_formula": "- Costs increase with each purchase\n  - Each buy: cost = baseCost * 1.45^bought",
+    "help_kill_enemies_to_collect": "- Kill enemies to collect coins",
+    "help_elite_drop_more": "- Elite enemies drop more coins",
+    "help_boss_drop_large": "- Bosses drop large amounts",
+    "help_opens_after_powerup": "- Opens after power-up selection",
+    "help_available_between_waves": "- Available between waves",
+    
+    # Game Notifications and UI
+    "game_wave_announcement_main": "*** WAVE ***",
+    "game_instructions_wall": "E: Wall | ESC: Pause",
+    "game_get_ready": "GET READY!",
+    "game_boss_wave_prefix": "BOSS WAVE ",
+    "game_incoming": "INCOMING",
+    "game_press_enter_to_start": "Press ENTER to start",
+    "game_no_data": "No data",
+    "game_no_graph_data": "No graph data",
+    "game_no_previous_run": "No previous run statistics available",
+    "game_complete_game_stats": "Complete a game to see detailed run statistics",
+    "game_no_power_up_data": "No power-up data available",
+    "game_wave_label": "Wave ",
+    "game_best_streak": "Best Streak",
+    
+    # Stats Window
+    "stats_time_column_label": "TIME",
+    "stats_damage_column_label": "DAMAGE",
+    "stats_dealed_abbrev": "Damage Dealt",
+    "stats_taken_abbrev": "Damage Taken",
+    "stats_level_prefix": "Lvl ",
+    "stats_total": "Total",
+    "stats_legendary_count": "Legendary",
+    "stats_common_count": "Common",
     
     # Sandbox Mode
     "sandbox_spawn_enemies": "Spawn Enemies:",
@@ -1586,6 +2046,185 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_type_help": "Escriba 'help' para ver comandos disponibles",
     "help_error_executing": "Error ejecutando comando:",
     
+    # Help System - Command descriptions
+    "help_cmd_help": "Mostrar esta lista de comandos",
+    "help_cmd_controls": "Ver controles y atajos de teclado",
+    "help_cmd_gameplay": "Modos de juego y mecánicas",
+    "help_cmd_powerups": "Referencia completa de mejoras",
+    "help_cmd_enemies": "Tipos de enemigos y comportamientos",
+    "help_cmd_bosses": "Información de jefes",
+    "help_cmd_shop": "Artículos de tienda y costos",
+    "help_cmd_launch_icons": "Lanzar iconos de escritorio por nombre",
+    
+    # Help System - Controls section
+    "help_movement": "MOVIMIENTO",
+    "help_combat": "COMBATE",
+    "help_abilities": "HABILIDADES",
+    "help_menu": "MENÚ",
+    "help_movement_desc": "Mover jugador",
+    "help_wasd": "W/A/S/D ............ Mover jugador",
+    "help_arrow_keys": "Flechas ............ Movimiento alternativo",
+    "help_left_mouse": "Ratón Izq ......... Disparar",
+    "help_space": "Espacio ............ Disparar (alternativo)",
+    "help_f": "F .................. Alternar Disparo Automático*",
+    "help_q": "Q .................. Activar Poderes Legendarios",
+    "help_e": "E .................. Colocar Muro",
+    "help_esc": "ESC ................ Pausa / Volver al menú",
+    "help_f11": "F11 ................ Alternar Pantalla Completa",
+    "help_auto_shoot_req": "* Requiere la mejora Disparo Automático",
+    
+    # Help System - Gameplay section
+    "help_wave_mode": "MODO OLEADAS",
+    "help_wave_mode_desc": "- Elimina oleadas de enemigos\n  - Jefe aparece cada 5ta oleada\n  - Elige mejora después de cada oleada\n  - Tienda abre después de seleccionar mejora",
+    "help_survival_mode": "MODO SUPERVIVENCIA",
+    "help_survival_mode_desc": "- Sobrevive hordas infinitas de enemigos\n  - Los enemigos aparecen continuamente\n  - Jefe aparece cada 60 segundos",
+    "help_sandbox_mode": "MODO SANDBOX",
+    "help_sandbox_mode_desc": "- Modo de prueba con controles de aparición\n  - Experimenta con diferentes escenarios",
+    
+    # Help System - Power-ups section
+    "help_common_powerups": "MEJORAS COMUNES",
+    "help_elemental_orbs": "ORBES ELEMENTALES",
+    "help_elemental_auras": "AURAS ELEMENTALES",
+    "help_legendary_powerups": "MEJORAS LEGENDARIAS (Presiona Q)",
+    
+    # Help System - Enemy section
+    "help_enemy_circle": "CÍRCULO (Perseguidor)",
+    "help_enemy_cube": "CUBO (Torreta)",
+    "help_enemy_triangle": "TRIÁNGULO (Agilista)",
+    "help_enemy_star": "ESTRELLA (Tanque)",
+    "help_enemy_hexagon": "HEXÁGONO (Teletransportador)",
+    "help_enemy_elite": "VARIANTES ÉLITE",
+    
+    # Help System - Boss section
+    "help_boss_spawning": "APARICIÓN DE JEFES",
+    "help_boss_mechanics": "MECÁNICAS DE JEFES",
+    "help_boss_attacks": "ATAQUES DE JEFES",
+    "help_boss_rewards": "RECOMPENSAS",
+    
+    # Help System - Shop section
+    "help_available_items": "ARTÍCULOS DISPONIBLES",
+    "help_cost_scaling": "ESCALADO DE COSTOS",
+    "help_earning_coins": "GANANDO MONEDAS",
+    "help_shop_access": "ACCESO A TIENDA",
+    
+    # Help System - Powerup names
+    "help_double_shot": "Doble Disparo - Dispara 2 balas por tiro",
+    "help_rotating_shield": "Escudo Giratorio - Escudo protector orbitante",
+    "help_damage_zone": "Zona de Daño - Aura de daño pasiva",
+    "help_magical_bullets": "Balas Mágicas - Las balas rastrean enemigos",
+    "help_piercing_shots": "Disparos Penetrantes - Las balas pasan por enemigos",
+    "help_multi_shot": "Disparo Múltiple - Dispara en 3 direcciones",
+    "help_explosive_bullets": "Balas Explosivas - Las balas explotan al impacto",
+    "help_life_steal": "Robo de Vida - Gana HP al matar",
+    "help_rapid_fire": "Fuego Rápido - Tasa de fuego aumentada",
+    "help_max_health": "Salud Máxima - Aumenta HP máximo",
+    "help_speed_boost": "Aumento de Velocidad - Aumento de velocidad permanente",
+    "help_bullet_damage": "Daño de Balas - Daño de balas aumentado",
+    "help_bullet_speed": "Velocidad de Balas - Balas más rápidas",
+    "help_lucky_coins": "Monedas Afortunadas - Duplica monedas recolectadas",
+    "help_wall_master": "Maestro de Muros - Coloca muros más fuertes",
+    "help_auto_shoot": "Disparo Automático - Apunta automáticamente al enemigo más cercano",
+    "help_bullet_size": "Tamaño de Bala - Proyectiles más grandes",
+    "help_regeneration": "Regeneración - Restaura lentamente HP",
+    "help_dodge_chance": "Oportunidad de Esquivar - Oportunidad de evadir daño",
+    "help_critical_hit": "Golpe Crítico - Daño crítico aleatorio",
+    "help_blood_bullets": "Balas de Sangre - Robo de vida al impacto",
+    "help_bullet_ricochet": "Rebote de Balas - Las balas rebotan en enemigos",
+    "help_slow_field": "Campo de Lentitud - Los enemigos se mueven más lentamente",
+    "help_rage": "Furia - El daño aumenta con HP bajo",
+    "help_berserker": "Berserker - Velocidad de ataque con HP bajo",
+    "help_thorns": "Espinas - Refleja daño a atacantes",
+    "help_bullet_split": "División de Balas - Las balas se dividen al impactar",
+    "help_chain_lightning": "Rayo en Cadena - El daño se encadena entre enemigos",
+    "help_frost_shots": "Disparos Helados - Las balas ralentizan enemigos",
+    "help_poison_shot": "Disparo Venenoso - Balas venenosas con DoT",
+    "help_fire_bullets": "Balas de Fuego - Daño de fuego continuo",
+    "help_wind_bullets": "Balas de Viento - Las balas empujan enemigos",
+    "help_overcharge": "Sobrecarga - Las balas ganan poder con la distancia",
+    "help_echo_shots": "Disparos de Eco - Las balas dejan senderos dañinos",
+    "help_poison_orb": "Orbe de Veneno - Orbe elemental de veneno",
+    "help_fire_orb": "Orbe de Fuego - Orbe elemental de fuego",
+    "help_lightning_orb": "Orbe de Rayo - Orbe elemental de rayo",
+    "help_wind_orb": "Orbe de Viento - Orbe elemental de viento",
+    "help_frost_orb": "Orbe de Escarcha - Orbe elemental de escarcha",
+    "help_arcane_orb": "Orbe Arcano - Orbe elemental arcano",
+    "help_blood_orb": "Orbe de Sangre - Orbe elemental de sangre",
+    "help_fire_aura": "Aura de Fuego - Aura de daño de fuego continuo",
+    "help_lightning_aura": "Aura de Rayo - Rayos se encadenan entre enemigos",
+    "help_poison_aura": "Aura de Veneno - Aura de daño venenoso continuo",
+    "help_wind_aura": "Aura de Viento - Empuja enemigos lejos",
+    "help_arcane_aura": "Aura Arcana - Aura de daño arcano mejorada",
+    "help_blood_aura": "Aura de Sangre - Aura de daño con robo de vida",
+    "help_time_warp": "Deformación de Tiempo - Ralentiza el tiempo globalmente",
+    "help_gravity_well": "Pozo de Gravedad - Atrae enemigos hacia ti",
+    "help_phase_shift": "Cambio de Fase - Teletransporte de dash a través de enemigos",
+    "help_parry": "Parada - Invulnerable + rebota balas",
+    "help_rotating_orbs": "Orbes Giratorios - Todos los orbes elementales a la vez",
+    "help_fire_mastery": "Dominio del Fuego - Mejora todos los efectos de fuego",
+    "help_poison_mastery": "Dominio del Veneno - Mejora todos los efectos de veneno",
+    "help_frost_mastery": "Dominio de la Escarcha - Mejora todos los efectos de escarcha",
+    "help_arcane_mastery": "Dominio Arcano - Mejora todos los efectos arcanos",
+    "help_lightning_mastery": "Dominio del Rayo - Mejora los efectos de rayo",
+    "help_wind_mastery": "Dominio del Viento - Mejora todos los efectos de viento",
+    "help_blood_mastery": "Dominio de la Sangre - Mejora todos los efectos de sangre",
+    
+    # Help System - Shop items
+    "help_shop_damage_plus": "Daño + (8 CR base)",
+    "help_shop_damage_plus_desc": "Aumenta daño de balas",
+    "help_shop_fire_rate_plus": "Tasa de Fuego + (10 CR base)",
+    "help_shop_fire_rate_plus_desc": "Dispara más rápido",
+    "help_shop_move_speed_plus": "Velocidad de Movimiento + (7 CR base)",
+    "help_shop_move_speed_plus_desc": "Muévete más rápido",
+    "help_shop_max_health_plus": "Salud Máxima + (10 CR base)",
+    "help_shop_max_health_plus_desc": "Aumenta HP máximo",
+    "help_shop_bullet_speed_plus": "Velocidad de Bala + (6 CR base)",
+    "help_shop_bullet_speed_plus_desc": "Velocidad de bala más rápida",
+    "help_shop_wall_x5": "Muro x5 (14 CR base)",
+    "help_shop_wall_x5_desc": "Compra 5 muros desplegables",
+    
+    # Help System - Misc
+    "help_wave_mode_info": "Modo Oleadas: Cada 5ta oleada (5, 10, 15...)",
+    "help_survival_mode_info": "Modo Supervivencia: Cada 60 segundos",
+    "help_enemy_chaser": "- Enemigos de persecución normal\n  - Sigue el movimiento del jugador\n  - Tipo de enemigo más común",
+    "help_enemy_turret": "- Disparadores estacionarios o lentos\n  - Dispara proyectiles al jugador\n  - Mantén la distancia",
+    "help_enemy_dasher": "- Atacantes de dash rápido\n  - Ráfagas rápidas de velocidad\n  - Peligrosos en combate cercano",
+    "help_enemy_tank": "- Enemigos con HP alto\n  - Requiere muchos golpes para derrotar\n  - Dashea cuando se acerca",
+    "help_enemy_warper": "- Enemigo caótico de teletransportación\n  - Movimiento impredecible\n  - Puede aparecer en cualquier lugar repentinamente",
+    "help_enemy_elite_desc": "- Versiones más fuertes de todos los tipos de enemigos\n  - Dejan caer más monedas al ser derrotados\n  - Aparecen en oleadas posteriores",
+    "help_boss_every_5th": "Modo Oleadas: Cada 5ta oleada (5, 10, 15...)",
+    "help_boss_every_60_sec": "Modo Supervivencia: Cada 60 segundos",
+    "help_cost_scaling_formula": "- Los costos aumentan con cada compra\n  - Cada compra: costo = costBase * 1.45^comprado",
+    "help_kill_enemies_to_collect": "- Mata enemigos para recopilar monedas",
+    "help_elite_drop_more": "- Los enemigos élite dejan caer más monedas",
+    "help_boss_drop_large": "- Los jefes dejan caer grandes cantidades",
+    "help_opens_after_powerup": "- Se abre después de seleccionar mejora",
+    "help_available_between_waves": "- Disponible entre oleadas",
+    
+    # Game Notifications and UI
+    "game_wave_announcement_main": "*** OLEADA ***",
+    "game_instructions_wall": "E: Muro | ESC: Pausa",
+    "game_get_ready": "¡PREPÁRATE!",
+    "game_boss_wave_prefix": "OLEADA DE JEFE ",
+    "game_incoming": "PRÓXIMAMENTE",
+    "game_press_enter_to_start": "Presiona ENTER para comenzar",
+    "game_no_data": "Sin datos",
+    "game_no_graph_data": "Sin datos de gráfico",
+    "game_no_previous_run": "No hay estadísticas de ejecución anterior disponibles",
+    "game_complete_game_stats": "Completa un juego para ver estadísticas de ejecución detalladas",
+    "game_no_power_up_data": "Sin datos de mejoras disponibles",
+    "game_wave_label": "Oleada ",
+    "game_best_streak": "Mejor Racha",
+    
+    # Stats Window
+    "stats_time_column_label": "TIEMPO",
+    "stats_damage_column_label": "DAÑO",
+    "stats_dealed_abbrev": "Daño Infligido",
+    "stats_taken_abbrev": "Daño Recibido",
+    "stats_level_prefix": "Nv ",
+    "stats_total": "Total",
+    "stats_legendary_count": "Legendario",
+    "stats_common_count": "Común",
+    
     # Sandbox Mode
     "sandbox_spawn_enemies": "Aparecer Enemigos:",
     "sandbox_spawn_10_random": "Aparecer 10 Aleatorios",
@@ -1660,6 +2299,57 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "power_up_select_upgrade": "v SELECCIONA MEJORA PARA INSTALAR:",
     "power_up_rolling": "[!] GIRANDO...",
     "power_up_reroll_options": "[R] Opción de Nuevo Intento",
+    
+    # Player Feedback
+    "player_dodge": "¡ESQUIVA!",
+    "player_parry": "¡PARRY!",
+    
+    # System Messages
+    "system_defensive_processes": "Todos los procesos defensivos han sido terminados.",
+    "system_press_any_key": "Presiona cualquier tecla para continuar...",
+    "system_no_statistics": "No hay estadísticas disponibles",
+    "system_press_esc_to_return": "Presiona ESC para volver",
+    
+    # Cheat Menu Buttons
+    "cheat_close_instruction": "Presiona ESC o haz clic en X para cerrar",
+    "cheat_press_esc_or_click": "Presiona ESC o haz clic en X para cerrar",
+    "cheat_showing_items": "Mostrando",
+    "cheat_scroll_up": "ARRIBA para desplazarse hacia arriba",
+    "cheat_scroll_down": "ABAJO para desplazarse hacia abajo",
+    "cheat_no_power_ups_selected": "Sin mejoras seleccionadas",
+    
+    # OS Task Manager / System Monitoring
+    "os_running_processes": "PROCESOS EN EJECUCIÓN:",
+    "os_no_active_processes": "Sin procesos activos",
+    "os_process_name": "Nombre del Proceso",
+    "os_version": "Versión",
+    "os_status": "Estado",
+    "os_system_performance": "DESEMPEÑO DEL SISTEMA:",
+    "os_system_manager": "Administrador del Sistema",
+    "os_system_paused": "Sistema pausado - presiona ESPACIO para continuar",
+    "os_press_space_continue": "Presiona ESPACIO para continuar",
+    
+    # OS Desktop / System Info
+    "os_system_monitor": "Monitor del Sistema",
+    "os_cpu_idle": "CPU: Inactiva",
+    "os_memory": "Memoria: 2.4 / 16 GB",
+    "os_network": "Red: Conectada",
+    "os_tophat_os": "TopHat-ShooterOS",
+    "os_edition": "[Edición v5.1]",
+    "os_tophat_button": "TopHat",
+    "os_net_indicator": "RED",
+    
+    # Stats Labels
+    "stats_system_analytics": "Análisis del Sistema",
+    "stats_run_report": "Informe de Ejecución",
+    "stats_wave_label": "Onda",
+    "stats_time_label": "TIEMPO",
+    "stats_kills_label": "ASESINATOS",
+    "stats_accuracy_label": "PRECISIÓN",
+    "stats_avg_dps": "DPS PROM",
+    
+    # Enemy Labels
+    "enemy_active_threats": "AMENAZAS ACTIVAS:",
     
     # General
     "general_yes": "Sí",

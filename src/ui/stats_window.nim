@@ -179,7 +179,7 @@ proc drawMiniGraph*(x, y, width, height: int, title: string,
   
   if dataPoints.len < 2:
     let noDataY = y + height div 2
-    drawText("No data", (x + width div 2 - 30).int32, noDataY.int32, 12, Gray)
+    drawText(t(tkGameNoData), (x + width div 2 - 30).int32, noDataY.int32, 12, Gray)
     return
   
   let graphX = x + 10
@@ -385,9 +385,9 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsShotsHit), $runStats.combat.shotsHit, Color(r: 80, g: 255, b: 80, a: 255))
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Damage Dealt", formatLargeNumber(runStats.combat.totalDamageDealt), Orange)
+      drawStatLine(col1X + 10, lineY, t(tkStatsDealedAbbrev), formatLargeNumber(runStats.combat.totalDamageDealt), Orange)
       lineY += 20
-      drawStatLine(col1X + 10, lineY, "Damage Taken", formatLargeNumber(runStats.combat.totalDamageTaken), Red)
+      drawStatLine(col1X + 10, lineY, t(tkStatsTakenAbbrev), formatLargeNumber(runStats.combat.totalDamageTaken), Red)
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsEliteKills), $runStats.combat.eliteKills, Orange)
       lineY += 20
@@ -421,7 +421,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       lineY += 20
       drawStatLine(col3X + 10, lineY, t(tkStatsKillsPerMin), formatLargeNumber(runStats.performance.killsPerMinute))
       lineY += 20
-      drawStatLine(col3X + 10, lineY, "Best Streak", $runStats.performance.longestKillStreak, Gold)
+      drawStatLine(col3X + 10, lineY, t(tkGameBestStreak), $runStats.performance.longestKillStreak, Gold)
       lineY += 20
       if runStats.performance.waveTimes.len > 0:
         drawStatLine(col3X + 10, lineY, t(tkStatsAvgWave), formatDuration(runStats.performance.averageWaveTime))
@@ -487,12 +487,12 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                      Color(r: 255, g: 150, b: 50, a: 255), statsWin.animTime)
       else:
         drawStatPanel(col3X, y, col1Width, 200, "DPS OVER TIME")
-        drawText("No graph data", (col3X + col1Width div 2 - 50).int32, (y + 100).int32, 14, Gray)
+        drawText(t(tkGameNoGraphData), (col3X + col1Width div 2 - 50).int32, (y + 100).int32, 14, Gray)
     else:
       let y = tabContentY + tabContentH div 2 - 30
-      drawText("No previous run statistics available", 
+      drawText(t(tkGameNoPreviousRun), 
               (contentX + contentW div 2 - 180).int32, y.int32, 18, LightGray)
-      drawText("Complete a game to see detailed run statistics", 
+      drawText(t(tkGameCompleteGameStats), 
               (contentX + contentW div 2 - 200).int32, (y + 25).int32, 16, Gray)
   
   of stPowerUps:
@@ -531,7 +531,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           
           drawText(timestamp, (col1X + 10).int32, lineY.int32, 13, LightGray)
           drawText(powerupName, (col1X + 80).int32, lineY.int32, 13, rarityColor)
-          drawText("Lvl " & $powerup.level, (col1X + col1Width - 50).int32, lineY.int32, 13, Orange)
+          drawText(t(tkStatsLevelPrefix) & $powerup.level, (col1X + col1Width - 50).int32, lineY.int32, 13, Orange)
           lineY += 18
       else:
         drawText("No power-ups selected", (col1X + 10).int32, lineY.int32, 14, Gray)
@@ -556,7 +556,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       if contributions.len > 0:
         drawText(t(tkStatsRank), (col2X + 10).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
         drawText(t(tkStatsPowerUp), (col2X + 50).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
-        drawText("DAMAGE", (col2X + 180).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
+        drawText(t(tkStatsDamageColumnLabel), (col2X + 180).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
         lineY += 20
         
         let totalDamage = runStats.combat.totalDamageDealt
@@ -583,10 +583,10 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           
           lineY += 18
       else:
-        drawText("No damage data available", (col2X + 10).int32, lineY.int32, 14, Gray)
+        drawText(t(tkStatsNoDamageData), (col2X + 10).int32, lineY.int32, 14, Gray)
     else:
       let y = tabContentY + tabContentH div 2 - 20
-      drawText("No power-up data available", 
+      drawText(t(tkGameNoPowerUpData), 
               (contentX + contentW div 2 - 150).int32, y.int32, 18, LightGray)
   
   drawResizeIndicator(statsWin.window)
