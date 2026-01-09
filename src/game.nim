@@ -4005,10 +4005,15 @@ proc updateGame*(game: var Game, dt: float32) =
   
   game.spawnTimer += dt
   
-  # Difficulty increases over time (not in sandbox mode)
+  # Difficulty scaling (not in sandbox mode)
   if not isSandboxMode(game.mode):
     let modeDef = getGameModeDefinition(game.mode)
-    game.difficulty = (game.time / 10.0) * modeDef.difficultyScale
+    # In wave-based mode, difficulty scales with wave number, not time
+    if game.mode == gmWaveBased:
+      game.difficulty = (game.currentWave.float32 / 5.0) * modeDef.difficultyScale
+    else:
+      # In other modes, difficulty scales with time
+      game.difficulty = (game.time / 10.0) * modeDef.difficultyScale
   
   # Update attack warnings and create lasers from boss warnings when they expire
   var i = 0
@@ -4929,12 +4934,21 @@ proc updateGame*(game: var Game, dt: float32) =
       if not enemy.spawnedByBoss:
         # Calculate coin value with elite multiplier
         var coinValue = if enemy.isBoss:
-          # Boss drops scale with difficulty: 15 + 5 per difficulty level
-          30 + (game.difficulty * 3.5).int
+          # Boss drops - in wave mode scale with waves, in other modes scale with difficulty
+          let baseAmount = if game.mode == gmWaveBased:
+            # Wave-based: scale with wave number instead of time
+            30 + (game.currentWave div 5) * 10  # +10 coins every 5 waves
+          else:
+            # Other modes: scale with difficulty (time-based)
+            30 + (game.difficulty * 3.5).int
+          # Add randomness: ±20% variation
+          let minAmount = (baseAmount.float32 * 0.9).int
+          let maxAmount = (baseAmount.float32 * 1.1).int
+          rand(minAmount..maxAmount)
         else:
-          # Regular enemies drop based on type, with minimal wave scaling
-          # Every 10 waves adds 1 coin (very slow scaling) - REDUCED from 5 to 10
-          let waveBonus = (game.currentWave div 10)  # Much slower scaling
+          # Regular enemies drop based on type
+          # In wave mode, coins don't scale with waves to keep economy consistent
+          let waveBonus = if game.mode == gmWaveBased: 0 else: (game.currentWave div 10)
           let baseValue = case enemy.enemyType
             of etCircle: 1
             of etCube: 3           # More coins since it's now harder
@@ -5028,7 +5042,9 @@ proc updateGame*(game: var Game, dt: float32) =
       if rand(99) < dropChance:
         # Clamp consumable position to be in bounds (for enemies killed out-of-bounds)
         let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
-        game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, game.difficulty))
+        # In wave mode, consumables don't scale with difficulty to keep drop quality consistent
+        let consumableDifficulty = if game.mode == gmWaveBased: 1.0 else: game.difficulty
+        game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
       
       game.player.kills += 1
       
@@ -5580,18 +5596,20 @@ proc updateGame*(game: var Game, dt: float32) =
           bullet.sourceEnemyPos = enemy.pos
           break
     
-    # Echo Shots - spawn ghost trail bullets (SINGLE LEVEL)
+    # Echo Shots - spawn ghost trail bullets (LEGENDARY - BUFFED)
     if bullet.fromPlayer and not bullet.isEcho and hasPowerUp(game.player, puEchoShots):
       bullet.echoTrailTimer += bulletDt
       
-      let spawnInterval = 0.08  # Single level - balanced spawn rate
-      let echoDamageMultiplier = 0.40  # Single level - 40% damage
+      # BUFFED: Faster spawn rate and higher damage
+      let spawnInterval = 0.05  # Was 0.08 - now spawns 60% faster
+      let echoDamageMultiplier = 0.60  # Was 0.40 - now deals 60% damage
       
       if bullet.echoTrailTimer >= spawnInterval:
         bullet.echoTrailTimer = 0.0
         
         # Create echo bullet with full synergy support
-        createEchoBullet(game, bullet, echoDamageMultiplier, 0.5, 0.35)
+        # BUFFED: Longer lifetime and better speed retention
+        createEchoBullet(game, bullet, echoDamageMultiplier, 0.7, 0.5)
 
     # Check rotating shield collision
     if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):

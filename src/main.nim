@@ -232,10 +232,30 @@ proc main() =
       # Update splash screen
       updateSplashScreen(splashScreen, dt)
       
-      # Skip splash with any key
-      if splashScreen.complete and (isKeyPressed(Space) or isKeyPressed(Enter) or 
-                                     isKeyPressed(Escape) or isMouseButtonPressed(Left)):
-        currentGame.state = gsMenu
+      # Skip splash with any key or mouse button
+      var anyKeyPressed = false
+      if splashScreen.complete:
+        # Check for any key press (scan through common keys)
+        if isKeyPressed(Space) or isKeyPressed(Enter) or isKeyPressed(Escape):
+          anyKeyPressed = true
+        else:
+          # Check A-Z by iterating integer range and casting to KeyboardKey
+          for i in ord(A)..ord(Z):
+            if isKeyPressed(KeyboardKey(i)):
+              anyKeyPressed = true
+              break
+          # If still none, check 0-9 (use KeyboardKey.Zero..KeyboardKey.Nine cast via ord)
+          if not anyKeyPressed:
+            for i in ord(KeyboardKey.Zero)..ord(KeyboardKey.Nine):
+              if isKeyPressed(KeyboardKey(i)):
+                anyKeyPressed = true
+                break
+        # Also check mouse buttons
+        if isMouseButtonPressed(Left) or isMouseButtonPressed(Right):
+          anyKeyPressed = true
+        
+        if anyKeyPressed:
+          currentGame.state = gsMenu
       
       beginGameDrawing()
       drawSplashScreen(splashScreen, screenWidth, screenHeight)
@@ -723,11 +743,9 @@ proc main() =
       # Keep current music playing but muted or paused
       # Music continues in background during pause
       
-      # Update time for animations even when paused
-      currentGame.time += dt
-      
-      # Update mouse tracking
-      updateMouseTracking(currentGame)
+      # Don't update game time when paused - prevents difficulty from increasing
+      # Don't update mouse tracking
+      discard
       
       # Pause menu navigation - Tab switching (Left/Right or A/D)
       if isKeyPressed(Left) or isKeyPressed(A):
