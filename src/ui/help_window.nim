@@ -348,26 +348,26 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.pendingIconExecution = 2
     
     of "settings", "settings.exe":
-      help.addOutput("Opening Settings.exe...", Color(r: 200, g: 100, b: 255, a: 255))
+      help.addOutput(t(tkHelpOpeningSettings), Color(r: 200, g: 100, b: 255, a: 255))
       help.pendingIconExecution = 3
     
     of "sandbox", "sandbox.exe":
-      help.addOutput("Launching Sandbox.exe...", Color(r: 255, g: 165, b: 0, a: 255))
+      help.addOutput(t(tkHelpLaunchingSandbox), Color(r: 255, g: 165, b: 0, a: 255))
       help.pendingIconExecution = 6  # New index for sandbox
     
     of "quit", "shutdown", "shutdown.exe", "exit":
-      help.addOutput("Shutting down...", Color(r: 255, g: 100, b: 100, a: 255))
+      help.addOutput(t(tkHelpShuttingDown), Color(r: 255, g: 100, b: 100, a: 255))
       help.pendingIconExecution = 5
     
     else:
-      help.addOutput("Unknown command: " & command, Red)
-      help.addOutput("Type 'help' for available commands", LightGray)
+      help.addOutput(t(tkHelpUnknownCommand) & ": " & command, Red)
+      help.addOutput(t(tkHelpTypeHelp), LightGray)
       help.addOutput("", White)
   
   except Exception as e:
     # Catch any errors during command execution
-    help.addOutput("Error executing command: " & e.msg, Red)
-    help.addOutput("Type 'help' for available commands", LightGray)
+    help.addOutput(t(tkHelpErrorExecuting) & ": " & e.msg, Red)
+    help.addOutput(t(tkHelpTypeHelp), LightGray)
     help.addOutput("", White)
 
 

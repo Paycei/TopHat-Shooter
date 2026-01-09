@@ -600,12 +600,12 @@ proc attemptRerollPowerUps*(game: Game): bool =
   # Initialize reroll animation (same as new power-up selection)
   initPowerUpRollAnimation(game)
   
-  # Increase cost for next reroll (adds 50 coins for difficulty)
-  game.rerollCost += 50
+  # Increase cost for next reroll (adds 25 coins)
+  game.rerollCost += 25
   
   return true
 
 proc initializeRerollCost*(game: Game) =
   ## Initialize the reroll cost at the start of a power-up selection
-  ## Base cost: 50 coins for first reroll, increases by 50 each time
-  game.rerollCost = 50
+  ## Base cost: 25 coins for first reroll, increases by 25 each time
+  game.rerollCost = 25

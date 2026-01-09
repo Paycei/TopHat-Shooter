@@ -6311,66 +6311,10 @@ proc drawGame*(game: Game) =
   # OS-Style Debug Panel (right side, touching right edge) - controlled by showDebugStats setting
   if globalSettings != nil and globalSettings.showDebugStats:
     drawDebugPanel(game, game.screenWidth, 2)
-    
-    # Only show auto-shoot status if player has the power-up
-    if hasPowerUp(game.player, puAutoShoot):
-      let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
-      var debugYOffset: int32 = 10
-      drawText("Auto: L" & $autoLevel, game.screenWidth - 200, debugYOffset, 16, Green)
-      debugYOffset += 20
-    
-      # Stats
-      drawText("Enemies: " & $game.enemies.len, game.screenWidth - 200, debugYOffset + 10, 14, LightGray)
-      drawText("Bullets: " & $game.bullets.len, game.screenWidth - 200, debugYOffset + 28, 14, LightGray)
-      drawText("Particles: " & $game.particles.len, game.screenWidth - 200, debugYOffset + 46, 14, LightGray)
   
-  # Legendary power-up display (bottom-left corner) - INLINE with Q key hint
-  var legendaryYOffset: int32 = game.screenHeight - 80
-  
-  # Time Warp - only show if has uses available this wave OR actively timing down
-  if hasPowerUp(game.player, puTimeWarp):
-    let usesAvailable = game.player.timeWarpMaxUsesPerWave - game.player.timeWarpUsesThisWave
-    # Show only if has uses left OR is active/on cooldown
-    if usesAvailable > 0:
-      if game.player.timeWarpActive:
-        drawText("Chronos - Q: ACTIVE", 10, legendaryYOffset, 14, 
-                Color(r: 200, g: 100, b: 255, a: 255))
-        legendaryYOffset += 18
-      elif game.player.timeWarpCooldown > 0:
-        drawText("Chronos - Q: " & $(game.player.timeWarpCooldown.int + 1) & "s", 10, legendaryYOffset, 14, 
-                Color(r: 100, g: 100, b: 100, a: 200))
-        legendaryYOffset += 18
-      else:
-        drawText("Chronos - Q: Ready (" & $usesAvailable & "/" & $game.player.timeWarpMaxUsesPerWave & ")", 10, legendaryYOffset, 14,
-                Color(r: 200, g: 100, b: 255, a: 255))
-        legendaryYOffset += 18
-  
-  # Phase Shift - always show if available (has cooldown mechanic)
-  if hasPowerUp(game.player, puPhaseShift):
-    if game.player.phaseShiftInvulnTimer > 0:
-      drawText("Phase - Q: DASH", 10, legendaryYOffset, 14, SkyBlue)
-      legendaryYOffset += 18
-    elif game.player.phaseShiftCooldown > 0:
-      drawText("Phase - Q: " & $(game.player.phaseShiftCooldown.int + 1) & "s", 10, legendaryYOffset, 14,
-              Color(r: 100, g: 100, b: 100, a: 200))
-      legendaryYOffset += 18
-    else:
-      drawText("Phase - Q: Ready", 10, legendaryYOffset, 14, SkyBlue)
-      legendaryYOffset += 18
-  
-  # Parry - active defense ability with cooldown display
-  if hasPowerUp(game.player, puParry):
-    if game.player.parryActive:
-      drawText("Parry - Q: ACTIVE", 10, legendaryYOffset, 14, White)
-      legendaryYOffset += 18
-    elif game.player.parryCooldown > 0:
-      drawText("Parry - Q: " & $(game.player.parryCooldown.int + 1) & "s", 10, legendaryYOffset, 14,
-              Color(r: 100, g: 100, b: 100, a: 200))
-      legendaryYOffset += 18
-    else:
-      drawText("Parry - Q: Ready", 10, legendaryYOffset, 14, White)
-      legendaryYOffset += 18
-  
+  # Legendary Power-ups Panel (bottom-left corner) - Always show cooldowns for legendary abilities
+  drawLegendaryPowerUpsPanel(game, game.screenWidth.int32, game.screenHeight.int32)
+
   # Instructions only for non-legendary keys
   drawText("E: Wall | ESC: Pause", 
            game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)

@@ -15,5 +15,5 @@ requires "naylib >= 25.51.1"
 task run, "Run the game for development":
   exec "nim c -r --mm:orc src/main.nim"
 
-task build, "Build the game for release":
-  exec "nim c -d:release --mm:orc --opt:speed --app:gui --passL:icono.res -o:TopHatShooterOS.exe src/main.nim"
+task release, "Build the game for release":
+  exec "nim c -d:danger --mm:orc --opt:speed --app:gui --passL:icono.res -o:TopHatShooterOS.exe src/main.nim"

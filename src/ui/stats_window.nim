@@ -424,9 +424,9 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       drawStatLine(col3X + 10, lineY, "Best Streak", $runStats.performance.longestKillStreak, Gold)
       lineY += 20
       if runStats.performance.waveTimes.len > 0:
-        drawStatLine(col3X + 10, lineY, "Avg Wave", formatDuration(runStats.performance.averageWaveTime))
+        drawStatLine(col3X + 10, lineY, t(tkStatsAvgWave), formatDuration(runStats.performance.averageWaveTime))
         lineY += 20
-        drawStatLine(col3X + 10, lineY, "Fastest Wave", formatDuration(runStats.performance.fastestWave), Color(r: 80, g: 255, b: 80, a: 255))
+        drawStatLine(col3X + 10, lineY, t(tkStatsFastestWave), formatDuration(runStats.performance.fastestWave), Color(r: 80, g: 255, b: 80, a: 255))
       
       # Second row - Resources, Play Style, DPS Graph
       y += 252
@@ -501,7 +501,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       var y = tabContentY + 20
       
       # Header with summary
-      drawText("POWER-UP BREAKDOWN", (contentX + 20).int32, y.int32, 24, Color(r: 255, g: 200, b: 50, a: 255))
+      drawText(t(tkStatsPowerUpBreakdown), (contentX + 20).int32, y.int32, 24, Color(r: 255, g: 200, b: 50, a: 255))
       y += 30
       
       let summaryText = $runStats.powerUps.totalPowerUps & " Total | " & 
@@ -516,7 +516,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       let col2X = col1X + col1Width + 12
       
       # Power-Up Timeline
-      drawStatPanel(col1X, y, col1Width, 400, "TIMELINE")
+      drawStatPanel(col1X, y, col1Width, 400, t(tkStatsTimeline))
       var lineY = y + 36
       
       if runStats.powerUps.powerUpsChosen.len > 0:
@@ -537,7 +537,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         drawText("No power-ups selected", (col1X + 10).int32, lineY.int32, 14, Gray)
       
       # Effectiveness Ranking
-      drawStatPanel(col2X, y, col1Width, 400, "EFFECTIVENESS RANKING")
+      drawStatPanel(col2X, y, col1Width, 400, t(tkStatsEffectivenessRanking))
       lineY = y + 36
       
       # Sort by damage contribution
@@ -554,8 +554,8 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
             contributions[j + 1] = temp
       
       if contributions.len > 0:
-        drawText("RANK", (col2X + 10).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
-        drawText("POWER-UP", (col2X + 50).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
+        drawText(t(tkStatsRank), (col2X + 10).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
+        drawText(t(tkStatsPowerUp), (col2X + 50).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
         drawText("DAMAGE", (col2X + 180).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
         lineY += 20
         

@@ -95,24 +95,24 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   drawText(t(tkSandboxWave) & " " & $game.currentWave, contentX, currentY, 16, White)
   currentY += 25
   drawRectangle(contentX, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, Color(r: 80, g: 80, b: 120, a: 255))
-  drawText("Wave -", contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxWaveMinus), contentX + 5, currentY + 10, 16, White)
   drawRectangle(contentX + buttonWidth div 2 + 3, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, Color(r: 80, g: 80, b: 120, a: 255))
-  drawText("Wave +", contentX + buttonWidth div 2 + 8, currentY + 10, 16, White)
+  drawText(t(tkSandboxWavePlus), contentX + buttonWidth div 2 + 8, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
   
   # Difficulty controls
   drawText(t(tkSandboxDifficulty) & " " & formatFloat(game.difficulty, ffDecimal, 1), contentX, currentY, 16, White)
   currentY += 25
   drawRectangle(contentX, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, Color(r: 120, g: 80, b: 80, a: 255))
-  drawText("Diff -", contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxDiffMinus), contentX + 5, currentY + 10, 16, White)
   drawRectangle(contentX + buttonWidth div 2 + 3, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, Color(r: 120, g: 80, b: 80, a: 255))
-  drawText("Diff +", contentX + buttonWidth div 2 + 8, currentY + 10, 16, White)
+  drawText(t(tkSandboxDiffPlus), contentX + buttonWidth div 2 + 8, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
   
   # Player stats
   drawText(t(tkSandboxHP) & " " & $game.player.hp & "/" & $game.player.maxHp, contentX, currentY, 14, White)
   currentY += 20
-  drawText("Coins: " & $game.player.coins, contentX, currentY, 14, Gold)
+  drawText(t(tkSandboxCoins) & " " & $game.player.coins, contentX, currentY, 14, Gold)
   currentY += 20
   drawText(t(tkSandboxEnemies) & " " & $game.enemies.len, contentX, currentY, 14, White)
   currentY += 25
@@ -142,7 +142,7 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
     let toggleX = screenWidth - 50
     let toggleY = screenHeight div 2 - 30
     drawRectangle(toggleX, toggleY, 40, 60, Color(r: 50, g: 50, b: 50, a: 200))
-    drawText(">>", toggleX + 8, toggleY + 18, 24, White)
+    drawText(t(tkSandboxToggle), toggleX + 8, toggleY + 18, 24, White)
     return
   
   # Draw sidebar background
@@ -152,7 +152,7 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   # Draw close button
   let closeX = sidebarX + SIDEBAR_WIDTH - 35
   drawRectangle(closeX, 5, 30, 30, Color(r: 150, g: 50, b: 50, a: 255))
-  drawText("X", closeX + 8, 8, 20, White)
+  drawText(t(tkSandboxClose), closeX + 8, 8, 20, White)
   
   # Draw title
   drawText(t(tkSandboxTitle), sidebarX + 10, 10, 20, Yellow)

@@ -103,7 +103,10 @@ type
     puBloodAura,       # Blood damage aura with lifesteal
     puBloodMastery,    # LEGENDARY: Enhance all blood effects (damage, lifesteal)
     puRadialBurst,     # Shoots a circle of bullets periodically
-    puWallTurrets      # LEGENDARY: Walls become turrets that shoot enemies
+    puWallTurrets,     # LEGENDARY: Walls become turrets that shoot enemies
+    puPulseArmor,      # When you take damage, emit shockwave that pushes enemies
+    puHeavyRounds,     # Larger bullets with knockback
+    puFortified        # Reduce damage taken
 
   PowerUpRarity* = enum
     prCommon,          # Normal upgrades after waves
@@ -218,6 +221,8 @@ type
     parryDuration*: float32  # How long the parry state lasts
     # Radial Burst power-up (Normal)
     radialBurstTimer*: float32  # Timer for periodic radial burst
+    # Pulse Armor power-up (Normal)
+    pulseArmorCooldown*: float32  # Cooldown after triggering shockwave
 
   EffectInstance* = object
     elementType*: ElementType

@@ -1,7 +1,7 @@
 ## OS-Style Debug Panel
 ## System diagnostics and performance metrics
 
-import raylib, ../types, strutils, ../powerup
+import raylib, ../types, strutils, ../powerup, ../localization
 
 const
   DEBUG_PANEL_WIDTH = 200
@@ -18,6 +18,12 @@ var debugPanelMinimized* = false
 var debugPanelPos* = Vector2(x: -1, y: 2)  # Default position (-1 means aligned to right edge)
 var debugPanelDragging* = false
 var debugPanelDragOffset* = Vector2(x: 0, y: 0)
+
+# State for legendary power-ups panel
+var legendaryPanelMinimized* = false
+var legendaryPanelPos* = Vector2(x: 10, y: -1)  # Default position (-1 for y means bottom-aligned)
+var legendaryPanelDragging* = false
+var legendaryPanelDragOffset* = Vector2(x: 0, y: 0)
 
 ## Calculate basic combat stats for display
 ## This is a simplified version - the full calculation is in game.nim
@@ -169,6 +175,10 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   if activeTimers > 0:
     contentHeight += int32(18 + (activeTimers * DEBUG_LINE_HEIGHT) + DEBUG_SECTION_SPACING)
   
+  # AutoShoot status if player has the power-up
+  if hasPowerUp(game.player, puAutoShoot):
+    contentHeight += int32(18 + DEBUG_LINE_HEIGHT + 8 + DEBUG_SECTION_SPACING)
+  
   # Always show combat stats (FIXED: always add this)
   contentHeight += int32(18 + (DEBUG_LINE_HEIGHT * 3) + 8 + DEBUG_SECTION_SPACING)
   
@@ -199,9 +209,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   # Header bar background - colorful cyan (clickable to minimize)
   drawRectangle(finalPanelX, yOffset, DEBUG_PANEL_WIDTH - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
   
-  drawText("DIAGNOSTICS", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
+  drawText(t(tkDebugPanelDiagnostics), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
           Color(r: 0, g: 0, b: 0, a: 140))
-  drawText("DIAGNOSTICS", finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
+  drawText(t(tkDebugPanelDiagnostics), finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
   
   # Draw minimize icon (horizontal line)
   let iconX = finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 12
@@ -226,9 +236,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   else:
     Color(r: 255, g: 100, b: 100, a: 255)
   
-  drawText("FPS:", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 9,
+  drawText(t(tkDebugPanelFPS) & ":", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 9,
           Color(r: 0, g: 0, b: 0, a: 130))
-  drawText("FPS:", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
+  drawText(t(tkDebugPanelFPS) & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
           Color(r: 180, g: 200, b: 220, a: 255))
   
   drawText($fps, finalPanelX + DEBUG_PANEL_PADDING + 32, yOffset + 1, 11,
@@ -239,9 +249,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   let totalEntities = game.enemies.len + game.bullets.len + game.particles.len
   let entityX = finalPanelX + DEBUG_PANEL_WIDTH div 2 + 2
   
-  drawText("Ent:", entityX + 1, yOffset + 1, 9,
+  drawText(t(tkDebugPanelEntities) & ":", entityX + 1, yOffset + 1, 9,
           Color(r: 0, g: 0, b: 0, a: 130))
-  drawText("Ent:", entityX, yOffset, 9,
+  drawText(t(tkDebugPanelEntities) & ":", entityX, yOffset, 9,
           Color(r: 180, g: 200, b: 220, a: 255))
   
   drawText($totalEntities, entityX + 28, yOffset + 1, 11,
@@ -259,9 +269,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
             1, Color(r: 0, g: 220, b: 255, a: 120))
     yOffset += 3
     
-    drawText("Active Effects:", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 1, 9,
+    drawText(t(tkDebugPanelActiveEffects) & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 1, 9,
             Color(r: 0, g: 0, b: 0, a: 130))
-    drawText("Active Effects:", finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset, 9,
+    drawText(t(tkDebugPanelActiveEffects) & ":", finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset, 9,
             Color(r: 200, g: 220, b: 240, a: 255))
     yOffset += 12
     
@@ -391,6 +401,45 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
     
     yOffset += DEBUG_SECTION_SPACING
   
+  # ============ AUTOSHOOT STATUS SECTION ============
+  if hasPowerUp(game.player, puAutoShoot):
+    # Section separator line
+    drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
+            Vector2(x: (finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),
+            1, Color(r: 0, g: 200, b: 255, a: 100))
+    yOffset += 4
+    
+    drawText(t(tkDebugPanelAutoShoot) & ":", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+            Color(r: 0, g: 0, b: 0, a: 130))
+    drawText(t(tkDebugPanelAutoShoot) & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
+            Color(r: 200, g: 220, b: 240, a: 255))
+    yOffset += 14
+    
+    let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
+    let autoStatus = if game.player.autoShootEnabled and game.enemies.len > 0:
+      t(tkDebugPanelAutoShootActive)
+    else:
+      t(tkDebugPanelAutoShootIdle)
+    let autoColor = if game.player.autoShootEnabled and game.enemies.len > 0:
+      Color(r: 100, g: 255, b: 150, a: 255)  # Green when active
+    else:
+      Color(r: 150, g: 150, b: 150, a: 200)  # Gray when idle
+    
+    drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
+                 DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
+                 Color(r: 0, g: 30, b: 40, a: 50))
+    
+    drawText("[A] L" & $autoLevel, finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+            Color(r: 0, g: 0, b: 0, a: 140))
+    drawText("[A] L" & $autoLevel, finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
+            Color(r: 100, g: 255, b: 100, a: 255))
+    
+    drawText(autoStatus, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 48,
+            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(autoStatus, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 49,
+            yOffset, 10, autoColor)
+    yOffset += DEBUG_LINE_HEIGHT + 8
+  
   # ============ COMBAT STATS SECTION ============
   # Section separator line
   drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
@@ -398,9 +447,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
           1, Color(r: 0, g: 200, b: 255, a: 100))
   yOffset += 4
   
-  drawText("Combat Stats:", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+  drawText(t(tkDebugPanelCombatStats) & ":", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
           Color(r: 0, g: 0, b: 0, a: 130))
-  drawText("Combat Stats:", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
+  drawText(t(tkDebugPanelCombatStats) & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
           Color(r: 200, g: 220, b: 240, a: 255))
   yOffset += 14
   
@@ -413,9 +462,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   
   # Damage
   let damageText = formatFloat(stats.damage, ffDecimal, 2)
-  drawText("Damage:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
+  drawText(t(tkDebugPanelDamage) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
           Color(r: 0, g: 0, b: 0, a: 130))
-  drawText("Damage:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
+  drawText(t(tkDebugPanelDamage) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
           Color(r: 180, g: 200, b: 220, a: 255))
   
   drawText(damageText, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 46,
@@ -427,9 +476,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   # Fire rate (shots per second)
   let shotsPerSec = 1.0 / stats.fireRate
   let fireRateText = formatFloat(shotsPerSec, ffDecimal, 2) & "/s"
-  drawText("Fire Rate:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
+  drawText(t(tkDebugPanelFireRate) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
           Color(r: 0, g: 0, b: 0, a: 130))
-  drawText("Fire Rate:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
+  drawText(t(tkDebugPanelFireRate) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
           Color(r: 180, g: 200, b: 220, a: 255))
   
   drawText(fireRateText, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 46,
@@ -440,9 +489,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   
   # Speed
   let speedText = formatFloat(stats.speed, ffDecimal, 2)
-  drawText("Speed:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
+  drawText(t(tkDebugPanelSpeed) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
           Color(r: 0, g: 0, b: 0, a: 130))
-  drawText("Speed:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
+  drawText(t(tkDebugPanelSpeed) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
           Color(r: 180, g: 200, b: 220, a: 255))
   
   drawText(speedText, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 46,
@@ -459,9 +508,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
             1, Color(r: 255, g: 100, b: 100, a: 120))
     yOffset += 4
     
-    drawText("Low HP Bonuses:", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+    drawText(t(tkDebugPanelLowHPBonuses) & ":", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
             Color(r: 0, g: 0, b: 0, a: 130))
-    drawText("Low HP Bonuses:", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
+    drawText(t(tkDebugPanelLowHPBonuses) & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
             Color(r: 255, g: 120, b: 120, a: 255))
     yOffset += 14
     
@@ -484,9 +533,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
         else: 1.2
       let rageBonus = ((1.0 - hpPercent) * 100.0 * rageMultiplier).int
       
-      drawText("[X] Rage:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
+      drawText("[X] " & t(tkDebugPanelRage) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 130))
-      drawText("[X] Rage:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
+      drawText("[X] " & t(tkDebugPanelRage) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 100, b: 100, a: 255))
       
       let bonusText = "+" & $rageBonus & "% dmg"
@@ -505,9 +554,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
         else: 1.2
       let berserkBonus = ((1.0 - hpPercent) * 100.0 * berserkMultiplier).int
       
-      drawText("[!] Berserk:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
+      drawText("[!] " & t(tkDebugPanelBerserker) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 130))
-      drawText("[!] Berserk:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
+      drawText("[!] " & t(tkDebugPanelBerserker) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 150, b: 50, a: 255))
       
       let bonusText = "+" & $berserkBonus & "% rate"
@@ -516,6 +565,258 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
       drawText(bonusText, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 67,
               yOffset, 10, Color(r: 255, g: 200, b: 150, a: 255))
       yOffset += DEBUG_LINE_HEIGHT
+
+proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
+  ## Draw legendary power-ups status panel in OS style (bottom-left)
+  ## Movable and minimizable like other OS panels
+  let panelWidth: int32 = 220
+  
+  # Check if player has any legendary power-ups
+  var hasAnyLegendary = false
+  if hasPowerUp(game.player, puTimeWarp):
+    hasAnyLegendary = true
+  if hasPowerUp(game.player, puPhaseShift):
+    hasAnyLegendary = true
+  if hasPowerUp(game.player, puParry):
+    hasAnyLegendary = true
+  
+  if not hasAnyLegendary:
+    return
+  
+  # Calculate actual position
+  var actualX = legendaryPanelPos.x.int32
+  var actualY = if legendaryPanelPos.y < 0:
+    screenHeight - 160  # Default bottom position
+  else:
+    legendaryPanelPos.y.int32
+  
+  # Handle dragging
+  let mousePos = getMousePosition()
+  let headerHeight = (DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT).float32
+  let headerRect = Rectangle(
+    x: actualX.float32,
+    y: actualY.float32,
+    width: panelWidth.float32,
+    height: headerHeight
+  )
+  
+  # Start dragging or minimize
+  if isMouseButtonPressed(Left) and checkCollisionPointRec(mousePos, headerRect):
+    # Check if clicking on minimize button area (right side of header)
+    let minimizeButtonX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
+    let minimizeButtonRect = Rectangle(
+      x: minimizeButtonX.float32,
+      y: (actualY + DEBUG_PANEL_PADDING).float32,
+      width: 16,
+      height: DEBUG_TITLE_HEIGHT.float32
+    )
+    
+    if checkCollisionPointRec(mousePos, minimizeButtonRect):
+      # Toggle minimize
+      legendaryPanelMinimized = not legendaryPanelMinimized
+    else:
+      # Start dragging
+      legendaryPanelDragging = true
+      legendaryPanelDragOffset = Vector2(
+        x: mousePos.x - actualX.float32,
+        y: mousePos.y - actualY.float32
+      )
+  
+  # Update dragging
+  if legendaryPanelDragging:
+    if isMouseButtonDown(Left):
+      legendaryPanelPos = Vector2(
+        x: mousePos.x - legendaryPanelDragOffset.x,
+        y: mousePos.y - legendaryPanelDragOffset.y
+      )
+      # Clamp to screen bounds
+      legendaryPanelPos.x = clamp(legendaryPanelPos.x, 0, (screenWidth - panelWidth).float32)
+      legendaryPanelPos.y = clamp(legendaryPanelPos.y, 0, (screenHeight - 50).float32)
+      actualX = legendaryPanelPos.x.int32
+      actualY = legendaryPanelPos.y.int32
+    else:
+      legendaryPanelDragging = false
+  
+  # Calculate content height
+  var contentHeight: int32 = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT
+  
+  if hasPowerUp(game.player, puTimeWarp): 
+    contentHeight += DEBUG_LINE_HEIGHT + 2
+  if hasPowerUp(game.player, puPhaseShift): 
+    contentHeight += DEBUG_LINE_HEIGHT + 2
+  if hasPowerUp(game.player, puParry): 
+    contentHeight += DEBUG_LINE_HEIGHT + 2
+  
+  contentHeight += DEBUG_SECTION_SPACING
+  
+  # If minimized, only draw header bar
+  if legendaryPanelMinimized:
+    # Draw minimized panel (just header)
+    drawRectangle(actualX, actualY, panelWidth, DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT,
+                 Color(r: 5, g: 15, b: 25, a: 45))
+    
+    # Cyan accent stripe on right edge
+    drawRectangle(actualX + panelWidth - 2, actualY, 2, DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT,
+                 Color(r: 0, g: 220, b: 255, a: 180))
+    
+    # Panel border
+    drawRectangleLines(Rectangle(x: actualX.float32, y: actualY.float32,
+                                  width: panelWidth.float32,
+                                  height: (DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT).float32),
+                      DEBUG_PANEL_BORDER, Color(r: 0, g: 220, b: 255, a: 80))
+    
+    var yOffset = actualY + DEBUG_PANEL_PADDING
+    
+    # Header with minimize indicator
+    drawRectangle(actualX, yOffset, panelWidth - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
+    
+    drawText(t(tkLegendaryPanelTitle), actualX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
+            Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkLegendaryPanelTitle), actualX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
+    
+    # Draw maximize icon (square)
+    let iconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
+    let iconY = yOffset + 4
+    drawRectangleLines(Rectangle(x: iconX.float32, y: iconY.float32, width: 10, height: 10),
+                      1, ACCENT_COLOR)
+    
+    return  # Don't draw rest of panel
+  
+  # Panel background
+  drawRectangle(actualX, actualY, panelWidth, contentHeight,
+               Color(r: 5, g: 15, b: 25, a: 45))
+  
+  # Cyan accent stripe on right edge
+  drawRectangle(actualX + panelWidth - 2, actualY, 2, contentHeight,
+               Color(r: 0, g: 220, b: 255, a: 180))
+  
+  # Panel border
+  drawRectangleLines(Rectangle(x: actualX.float32, y: actualY.float32,
+                                width: panelWidth.float32, height: contentHeight.float32),
+                    DEBUG_PANEL_BORDER, Color(r: 0, g: 220, b: 255, a: 80))
+  
+  var yOffset = actualY + DEBUG_PANEL_PADDING
+  
+  # Header bar background
+  drawRectangle(actualX, yOffset, panelWidth - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
+  
+  drawText(t(tkLegendaryPanelTitle), actualX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
+          Color(r: 0, g: 0, b: 0, a: 140))
+  drawText(t(tkLegendaryPanelTitle), actualX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
+  
+  # Draw minimize icon (horizontal line)
+  let iconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
+  let iconY = yOffset + 9
+  drawLine(Vector2(x: iconX.float32, y: iconY.float32),
+          Vector2(x: (iconX + 10).float32, y: iconY.float32),
+          2, ACCENT_COLOR)
+  
+  yOffset += DEBUG_TITLE_HEIGHT + 4
+  
+  # Time Warp
+  if hasPowerUp(game.player, puTimeWarp):
+    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
+                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
+                 Color(r: 18, g: 25, b: 35, a: 50))
+    
+    let timeWarpColor = if game.player.timeWarpActive:
+      Color(r: 100, g: 255, b: 255, a: 255)  # Cyan when active
+    elif game.player.timeWarpCooldown > 0:
+      Color(r: 100, g: 100, b: 100, a: 200)  # Gray when on cooldown
+    else:
+      Color(r: 100, g: 220, b: 255, a: 255)  # Light cyan when ready
+    
+    drawText(t(tkLegendaryChronos), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+            Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkLegendaryChronos), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
+            timeWarpColor)
+    
+    # Get uses available
+    let usesAvailable = game.player.timeWarpMaxUsesPerWave - game.player.timeWarpUsesThisWave
+    let maxUses = game.player.timeWarpMaxUsesPerWave
+    
+    # Status on the right - showing cooldown in seconds and charges as current/max
+    var statusText = ""
+    if game.player.timeWarpActive:
+      statusText = t(tkLegendaryActive) & " (" & $usesAvailable & "/" & $maxUses & ")"
+    elif game.player.timeWarpCooldown > 0:
+      let cooldownSecs = game.player.timeWarpCooldown.int + 1
+      statusText = $cooldownSecs & "s (" & $usesAvailable & "/" & $maxUses & ")"
+    else:
+      statusText = t(tkLegendaryReady) & " (" & $usesAvailable & "/" & $maxUses & ")"
+    
+    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 90,
+            yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 91,
+            yOffset, 9, timeWarpColor)
+    yOffset += DEBUG_LINE_HEIGHT + 2
+  
+  # Phase Shift
+  if hasPowerUp(game.player, puPhaseShift):
+    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
+                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
+                 Color(r: 12, g: 28, b: 25, a: 50))
+    
+    let phaseColor = if game.player.phaseShiftInvulnTimer > 0:
+      Color(r: 150, g: 255, b: 200, a: 255)  # Green when dashing
+    elif game.player.phaseShiftCooldown > 0:
+      Color(r: 100, g: 100, b: 100, a: 200)  # Gray when on cooldown
+    else:
+      Color(r: 100, g: 255, b: 200, a: 255)  # Light green when ready
+    
+    drawText(t(tkLegendaryPhase), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+            Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkLegendaryPhase), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
+            phaseColor)
+    
+    # Status on the right - showing cooldown in seconds
+    var statusText = ""
+    if game.player.phaseShiftInvulnTimer > 0:
+      statusText = t(tkLegendaryDashing)
+    elif game.player.phaseShiftCooldown > 0:
+      let cooldownSecs = game.player.phaseShiftCooldown.int + 1
+      statusText = $cooldownSecs & "s"
+    else:
+      statusText = t(tkLegendaryReady)
+    
+    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 70,
+            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
+            yOffset, 10, phaseColor)
+    yOffset += DEBUG_LINE_HEIGHT + 2
+  
+  # Parry
+  if hasPowerUp(game.player, puParry):
+    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
+                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
+                 Color(r: 25, g: 25, b: 12, a: 50))
+    
+    let parryColor = if game.player.parryActive:
+      Color(r: 255, g: 255, b: 100, a: 255)  # Yellow when active
+    elif game.player.parryCooldown > 0:
+      Color(r: 100, g: 100, b: 100, a: 200)  # Gray when on cooldown
+    else:
+      Color(r: 255, g: 255, b: 150, a: 255)  # Light yellow when ready
+    
+    drawText(t(tkLegendaryParry), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+            Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkLegendaryParry), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
+            parryColor)
+    
+    # Status on the right - showing cooldown in seconds
+    var statusText = ""
+    if game.player.parryActive:
+      statusText = t(tkLegendaryActive)
+    elif game.player.parryCooldown > 0:
+      let cooldownSecs = game.player.parryCooldown.int + 1
+      statusText = $cooldownSecs & "s"
+    else:
+      statusText = t(tkLegendaryReady)
+    
+    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 70,
+            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
+            yOffset, 10, parryColor)
 
 proc drawMinimalDebugInfo*(game: Game, x, y: int32) =
   ## Draw minimal debug info (just FPS and entity count)

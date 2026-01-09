@@ -259,7 +259,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   # Legendary power-ups only have 1 tier, others have 3
   let maxTiers = if powerUp.rarity == prLegendary: 1 else: 3
   
-  drawText("UPGRADE TIER:", x + 12, yOffset, 12,  
+  drawText(t(tkPowerUpUpgradeTier), x + 12, yOffset, 12,  
           Color(r: 140, g: 160, b: 180, a: 255))
   yOffset += 20
   
@@ -471,7 +471,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   let titleText = if isLegendary:
     titleIcon & t(tkPowerUpInstallerTitle)
   else:
-    titleIcon & "Process Upgrade Manager"
+    titleIcon & t(tkPowerUpInstallerTitleGeneric)
   
   let titleColor = if isLegendary: Gold else: Color(r: 100, g: 200, b: 255, a: 255)
   drawText(titleText, windowX + 17, windowY + 13, 22, Color(r: 0, g: 0, b: 0, a: 120))

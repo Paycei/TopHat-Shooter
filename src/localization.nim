@@ -137,6 +137,11 @@ type
     tkGameOverSystemUptime = "game_over_system_uptime"
     tkGameOverRestartSystem = "game_over_restart_system"
     tkGameOverViewLogs = "game_over_view_logs"
+    tkGameOverExit = "game_over_exit"
+    tkGameOverErrorCode = "game_over_error_code"
+    tkGameOverSecurityLevelMax = "game_over_security_level_max"
+    tkGameOverSystemFailedFooter = "game_over_system_failed_footer"
+    tkGameOverSystemSecureFooter = "game_over_system_secure_footer"
     
     # HUD/Notifications
     tkHUDSystemStatus = "hud_system_status"
@@ -149,6 +154,32 @@ type
     tkHUDUptime = "hud_uptime"
     tkHUDThreats = "hud_threats"
     tkNotifWaveInitiated = "notif_wave_initiated"
+    
+    # Debug Panel
+    tkDebugPanelDiagnostics = "debug_panel_diagnostics"
+    tkDebugPanelFPS = "debug_panel_fps"
+    tkDebugPanelEntities = "debug_panel_entities"
+    tkDebugPanelActiveEffects = "debug_panel_active_effects"
+    tkDebugPanelCombatStats = "debug_panel_combat_stats"
+    tkDebugPanelDamage = "debug_panel_damage"
+    tkDebugPanelFireRate = "debug_panel_fire_rate"
+    tkDebugPanelSpeed = "debug_panel_speed"
+    tkDebugPanelAutoShoot = "debug_panel_auto_shoot"
+    tkDebugPanelAutoShootActive = "debug_panel_auto_shoot_active"
+    tkDebugPanelAutoShootIdle = "debug_panel_auto_shoot_idle"
+    tkDebugPanelLowHPBonuses = "debug_panel_low_hp_bonuses"
+    tkDebugPanelRage = "debug_panel_rage"
+    tkDebugPanelBerserker = "debug_panel_berserker"
+    
+    # Legendary Panel
+    tkLegendaryPanelTitle = "legendary_panel_title"
+    tkLegendaryChronos = "legendary_chronos"
+    tkLegendaryPhase = "legendary_phase"
+    tkLegendaryParry = "legendary_parry"
+    tkLegendaryActive = "legendary_active"
+    tkLegendaryReady = "legendary_ready"
+    tkLegendaryDashing = "legendary_dashing"
+    
     tkNotifWaveCleared = "notif_wave_cleared"
     tkNotifBossDetected = "notif_boss_detected"
     tkNotifBossTerminated = "notif_boss_terminated"
@@ -173,6 +204,12 @@ type
     tkHelpClearCommand = "help_clear_command"
     tkHelpCommandSeparator = "help_command_separator"
     tkHelpLaunchTopics = "help_launch_topics"
+    tkHelpOpeningSettings = "help_opening_settings"
+    tkHelpLaunchingSandbox = "help_launching_sandbox"
+    tkHelpShuttingDown = "help_shutting_down"
+    tkHelpUnknownCommand = "help_unknown_command"
+    tkHelpTypeHelp = "help_type_help"
+    tkHelpErrorExecuting = "help_error_executing"
     
     # Sandbox Mode
     tkSandboxSpawnEnemies = "sandbox_spawn_enemies"
@@ -193,6 +230,13 @@ type
     tkSandboxTabEnemies = "sandbox_tab_enemies"
     tkSandboxTabBosses = "sandbox_tab_bosses"
     tkSandboxTabControls = "sandbox_tab_controls"
+    tkSandboxCoins = "sandbox_coins"
+    tkSandboxWaveMinus = "sandbox_wave_minus"
+    tkSandboxWavePlus = "sandbox_wave_plus"
+    tkSandboxDiffMinus = "sandbox_diff_minus"
+    tkSandboxDiffPlus = "sandbox_diff_plus"
+    tkSandboxToggle = "sandbox_toggle"
+    tkSandboxClose = "sandbox_close"
     
     # Cheat Menu
     tkCheatMenuTitle = "cheat_menu_title"
@@ -235,6 +279,8 @@ type
     
     # Power-up Installer
     tkPowerUpInstallerTitle = "power_up_installer_title"
+    tkPowerUpInstallerTitleGeneric = "power_up_installer_title_generic"
+    tkPowerUpUpgradeTier = "power_up_upgrade_tier"
     tkPowerUpInstallerClose = "power_up_installer_close"
     tkPowerUpSelectUpgrade = "power_up_select_upgrade"
     tkPowerUpRolling = "power_up_rolling"
@@ -889,9 +935,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_system_uptime": "System Uptime:",
     "game_over_restart_system": "RESTART SYSTEM",
     "game_over_view_logs": "VIEW LOGS",
+    "game_over_exit": "EXIT",
+    "game_over_error_code": "ERROR CODE: INTEGRITY_DEPLETED_0x00000000",
+    "game_over_security_level_max": "SECURITY LEVEL: MAXIMUM | ALL PROCESSES STABLE",
+    "game_over_system_failed_footer": "[!] System will remain in failed state until manual restart",
+    "game_over_system_secure_footer": "[OK] All systems operational | Defensive grid at maximum efficiency",
     
     # HUD/Notifications
-    "hud_system_status": "SYSTEM STATUS",
     "hud_integrity": "INTEGRITY:",
     "hud_charges": "CHARGES",
     "hud_processes": "PROCESSES",
@@ -902,6 +952,32 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_threats": "THREATS:",
     "notif_wave_initiated": "Wave initiated",
     "notif_wave_cleared": "Wave cleared",
+    
+    # Debug Panel
+    "debug_panel_diagnostics": "DIAGNOSTICS",
+    "debug_panel_fps": "FPS",
+    "debug_panel_entities": "Ent",
+    "debug_panel_active_effects": "Active Effects",
+    "debug_panel_combat_stats": "Combat Stats",
+    "debug_panel_damage": "Damage",
+    "debug_panel_fire_rate": "Fire Rate",
+    "debug_panel_speed": "Speed",
+    "debug_panel_auto_shoot": "AutoShoot",
+    "debug_panel_auto_shoot_active": "ACTIVE",
+    "debug_panel_auto_shoot_idle": "IDLE",
+    "debug_panel_low_hp_bonuses": "Low HP Bonuses",
+    "debug_panel_rage": "Rage",
+    "debug_panel_berserker": "Berserk",
+    
+    # Legendary Panel
+    "legendary_panel_title": "LEGENDARY",
+    "legendary_chronos": "Chronos",
+    "legendary_phase": "Phase",
+    "legendary_parry": "Parry",
+    "legendary_active": "ACTIVE",
+    "legendary_ready": "Ready",
+    "legendary_dashing": "DASHING",
+    
     "notif_boss_detected": "BOSS PROCESS DETECTED",
     "notif_boss_terminated": "Boss process terminated",
     "notif_installed": "Installed:",
@@ -925,6 +1001,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_clear_command": "Clear the screen",
     "help_command_separator": "--------------------------------------",
     "help_launch_topics": "play/survival/sandbox/stats/settings/quit",
+    "help_opening_settings": "Opening Settings.exe...",
+    "help_launching_sandbox": "Launching Sandbox.exe...",
+    "help_shutting_down": "Shutting down...",
+    "help_unknown_command": "Unknown command:",
+    "help_type_help": "Type 'help' for available commands",
+    "help_error_executing": "Error executing command:",
     
     # Sandbox Mode
     "sandbox_spawn_enemies": "Spawn Enemies:",
@@ -945,6 +1027,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "sandbox_tab_enemies": "Enemies",
     "sandbox_tab_bosses": "Bosses",
     "sandbox_tab_controls": "Controls",
+    "sandbox_coins": "Coins:",
+    "sandbox_wave_minus": "Wave -",
+    "sandbox_wave_plus": "Wave +",
+    "sandbox_diff_minus": "Diff -",
+    "sandbox_diff_plus": "Diff +",
+    "sandbox_toggle": ">>",
+    "sandbox_close": "X",
     
     # Cheat Menu
     "cheat_menu_title": "CHEAT MENU (TESTER BUILD)",
@@ -987,6 +1076,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     
     # Power-up Installer
     "power_up_installer_title": "LEGENDARY UPGRADE INSTALLER",
+    "power_up_installer_title_generic": "PROCESS UPGRADE MANAGER",
+    "power_up_upgrade_tier": "UPGRADE TIER:",
     "power_up_installer_close": "X",
     "power_up_select_upgrade": "v SELECT UPGRADE TO INSTALL:",
     "power_up_rolling": "[!] ROLLING...",
@@ -1377,6 +1468,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_system_uptime": "Tiempo de Actividad del Sistema:",
     "game_over_restart_system": "REINICIAR SISTEMA",
     "game_over_view_logs": "VER REGISTROS",
+    "game_over_exit": "SALIR",
+    "game_over_error_code": "CÓDIGO DE ERROR: INTEGRIDAD_AGOTADA_0x00000000",
+    "game_over_security_level_max": "NIVEL DE SEGURIDAD: MÁXIMO | TODOS LOS PROCESOS ESTABLES",
+    "game_over_system_failed_footer": "[!] El sistema permanecerá en estado fallido hasta reinicio manual",
+    "game_over_system_secure_footer": "[OK] Todos los sistemas operacionales | Cuadrícula defensiva en máxima eficiencia",
     
     # HUD/Notifications
     "hud_system_status": "ESTADO DEL SISTEMA",
@@ -1390,6 +1486,32 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_threats": "AMENAZAS:",
     "notif_wave_initiated": "Oleada iniciada",
     "notif_wave_cleared": "Oleada despejada",
+    
+    # Debug Panel
+    "debug_panel_diagnostics": "DIAGNÓSTICOS",
+    "debug_panel_fps": "FPS",
+    "debug_panel_entities": "Ent",
+    "debug_panel_active_effects": "Efectos Activos",
+    "debug_panel_combat_stats": "Estadísticas de Combate",
+    "debug_panel_damage": "Daño",
+    "debug_panel_fire_rate": "Cadencia",
+    "debug_panel_speed": "Velocidad",
+    "debug_panel_auto_shoot": "Disparo Auto",
+    "debug_panel_auto_shoot_active": "ACTIVO",
+    "debug_panel_auto_shoot_idle": "INACTIVO",
+    "debug_panel_low_hp_bonuses": "Bonificaciones Bajo HP",
+    "debug_panel_rage": "Furia",
+    "debug_panel_berserker": "Berserker",
+    
+    # Legendary Panel
+    "legendary_panel_title": "LEGENDARIO",
+    "legendary_chronos": "Chronos",
+    "legendary_phase": "Phase",
+    "legendary_parry": "Parada",
+    "legendary_active": "ACTIVO",
+    "legendary_ready": "Listo",
+    "legendary_dashing": "SALTANDO",
+    
     "notif_boss_detected": "PROCESO DE JEFE DETECTADO",
     "notif_boss_terminated": "Proceso de jefe terminado",
     "notif_installed": "Instalado:",
@@ -1413,6 +1535,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_clear_command": "Limpiar la pantalla",
     "help_command_separator": "--------------------------------------",
     "help_launch_topics": "jugar/supervivencia/sandbox/estadísticas/ajustes/salir",
+    "help_opening_settings": "Abriendo Settings.exe...",
+    "help_launching_sandbox": "Lanzando Sandbox.exe...",
+    "help_shutting_down": "Apagando...",
+    "help_unknown_command": "Comando desconocido:",
+    "help_type_help": "Escriba 'help' para ver comandos disponibles",
+    "help_error_executing": "Error ejecutando comando:",
     
     # Sandbox Mode
     "sandbox_spawn_enemies": "Aparecer Enemigos:",
@@ -1433,6 +1561,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "sandbox_tab_enemies": "Enemigos",
     "sandbox_tab_bosses": "Jefes",
     "sandbox_tab_controls": "Controles",
+    "sandbox_coins": "Monedas:",
+    "sandbox_wave_minus": "Oleada -",
+    "sandbox_wave_plus": "Oleada +",
+    "sandbox_diff_minus": "Dif -",
+    "sandbox_diff_plus": "Dif +",
+    "sandbox_toggle": ">>",
+    "sandbox_close": "X",
     
     # Cheat Menu
     "cheat_menu_title": "MENÚ DE TRUCOS (COMPILACIÓN DE PRUEBA)",
@@ -1475,9 +1610,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     
     # Power-up Installer
     "power_up_installer_title": "INSTALADOR DE MEJORA LEGENDARIA",
+    "power_up_installer_title_generic": "ADMINISTRADOR DE ACTUALIZACIÓN DE PROCESOS",
+    "power_up_upgrade_tier": "NIVEL DE ACTUALIZACIÓN:",
     "power_up_installer_close": "X",
     "power_up_select_upgrade": "v SELECCIONA MEJORA PARA INSTALAR:",
-    "power_up_rolling": "[!] RODANDO...",
+    "power_up_rolling": "[!] GIRANDO...",
     "power_up_reroll_options": "[R] Opción de Nuevo Intento",
     
     # General

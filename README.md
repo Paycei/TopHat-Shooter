@@ -5,7 +5,7 @@
 
 ![License](https://img.shields.io/github/license/Paycei/TopHat-Shooter?style=for-the-badge)
 
-**TopHat-ShooterOS** es un *bullet hell* rápido, caótico y con buena interfaz, hecho en **Nim + Raylib** btw.
+**TopHat-ShooterOS** es un *bullet hell* rápido, caótico y hecho en **Nim + Raylib** btw.
 
 ---
 
@@ -16,13 +16,13 @@
 - **Survival**: resiste todo lo que puedas mientras el caos escala (TODO).
 
 ### Enemigos y jefes
-- **11 tipos de enemigos**, cada uno con un comportamiento distinto.
-- **Jefes cada 5 oleadas**, con fases cambiantes y recompensas legendarias.
+- **13 tipos de enemigos**, cada uno con un comportamiento distinto.
+- **12 Jefes que aparecen cada 5 oleadas**, con fases cambiantes y recompensas legendarias.
 
 ### Progresión y combate
-- **50+ power-ups**, desde *multishot* hasta control del tiempo.
+- **60+ power-ups**, desde *multishot* hasta control del tiempo.
 - **Tienda**: mejora daño, velocidad, vida y más permanentemente.
-- **6 consumibles** y **muros defensivos** (aunque nadie los use).
+- **6 consumibles** y **muros defensivos** (aunque nadie los use están ahí).
 
 ---
 
@@ -45,4 +45,4 @@
 git clone https://github.com/Paycei/TopHat-Shooter.git
 cd TopHat-Shooter
 nimble install
-nimble build
+nimble release

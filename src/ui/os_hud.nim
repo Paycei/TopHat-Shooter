@@ -138,9 +138,9 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
     let processCount = player.powerUps.len
     let processX = x + PANEL_PADDING + 100
     
-    drawText("PROCESSES", processX + 1, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 120))
-    drawText("PROCESSES", processX, yOffset, 10,
+    drawText(t(tkHUDProcesses), processX + 1, yOffset + 1, 10,
+           Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkHUDProcesses), processX, yOffset, 10,
             Color(r: 180, g: 200, b: 220, a: 255))
     
     let processText = $processCount & " active"
@@ -190,7 +190,7 @@ proc drawPerformanceMetrics*(game: Game, x, y: int32) =
   drawRectangle(x, y, panelWidth, TITLE_BAR_HEIGHT,
                Color(r: 25, g: 30, b: 45, a: 220))
   
-  drawText("Performance", x + 8, y + 5, 14, Color(r: 0, g: 200, b: 200, a: 255))
+  drawText(t(tkHUDPerformance), x + 8, y + 5, 14, Color(r: 0, g: 200, b: 200, a: 255))
   
   # Border
   drawRectangleLines(x, y, panelWidth, panelHeight,
@@ -199,7 +199,7 @@ proc drawPerformanceMetrics*(game: Game, x, y: int32) =
   var yOffset = y + TITLE_BAR_HEIGHT + PANEL_PADDING
   
   # Wave number
-  drawText("WAVE: " & $game.currentWave, x + PANEL_PADDING, yOffset, 14, Color(r: 255, g: 255, b: 255, a: 255))
+  drawText(t(tkHUDWave) & " " & $game.currentWave, x + PANEL_PADDING, yOffset, 14, Color(r: 255, g: 255, b: 255, a: 255))
   yOffset += 18
   
   # Uptime
@@ -207,7 +207,7 @@ proc drawPerformanceMetrics*(game: Game, x, y: int32) =
   let seconds = (game.time mod 60.0).int
   let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" & 
                  (if seconds < 10: "0" else: "") & $seconds
-  drawText("UPTIME: " & timeText, x + PANEL_PADDING, yOffset, 14, Color(r: 255, g: 255, b: 255, a: 255))
+  drawText(t(tkHUDUptime) & " " & timeText, x + PANEL_PADDING, yOffset, 14, Color(r: 255, g: 255, b: 255, a: 255))
   yOffset += 18
   
   # Threat count

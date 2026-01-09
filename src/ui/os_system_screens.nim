@@ -6,7 +6,7 @@ import raylib, ../types, math, ../localization
 
 const
   SCREEN_WIDTH = 900
-  SCREEN_HEIGHT = 600  # Increased from 550 to 650 for more space
+  SCREEN_HEIGHT = 600  # Increased from 550 to 600 for more space
   BUTTON_WIDTH = 220
   BUTTON_HEIGHT = 48
   STAT_LINE_HEIGHT = 32
@@ -143,13 +143,13 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
                     1, Color(r: 60, g: 100, b: 160, a: 255))
   
   drawText("[!]", windowX + 40, yOffset + 8, 18, Color(r: 255, g: 200, b: 100, a: 255))
-  drawText("ERROR CODE: INTEGRITY_DEPLETED_0x00000000", 
+  drawText(t(tkGameOverErrorCode), 
           windowX + 70, yOffset + 10, 14,
           Color(r: 255, g: 255, b: 255, a: 255))
   yOffset += 55
   
   # Session statistics header
-  drawText("=== SESSION DIAGNOSTICS ===", windowX + 30, yOffset, 16,
+  drawText("=== " & t(tkGameOverSessionDiagnostics) & " ===", windowX + 30, yOffset, 16,
           Color(r: 150, g: 180, b: 220, a: 255))
   yOffset += 35
   
@@ -160,7 +160,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
                  (if seconds < 10: "0" else: "") & $seconds
   
   # Draw statistics with icons
-  drawStat(windowX + 40, yOffset, "Wave Reached:", $game.currentWave, ">",
+  drawStat(windowX + 40, yOffset, t(tkGameOverWaveReached), $game.currentWave, ">",
           Color(r: 255, g: 200, b: 100, a: 255))
   yOffset += STAT_LINE_HEIGHT
   
@@ -201,7 +201,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   drawRectangle(windowX, footerY, SCREEN_WIDTH, 35,
                Color(r: 30, g: 60, b: 110, a: 255))
   
-  let footerText = "[!] System will remain in failed state until manual restart"
+  let footerText = t(tkGameOverSystemFailedFooter)
   let footerWidth = measureText(footerText, 13)
   drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
           Color(r: 180, g: 190, b: 200, a: 255))
@@ -293,7 +293,7 @@ proc drawSystemSecured*(game: Game) =
                     1, Color(r: 0, g: 180, b: 100, a: 255))
   
   drawText("[OK]", windowX + 40, yOffset + 6, 20, Color(r: 100, g: 255, b: 150, a: 255))
-  drawText("SECURITY LEVEL: MAXIMUM | ALL PROCESSES STABLE", 
+  drawText(t(tkGameOverSecurityLevelMax), 
           windowX + 70, yOffset + 10, 14,
           Color(r: 200, g: 255, b: 220, a: 255))
   yOffset += 55
@@ -334,24 +334,24 @@ proc drawSystemSecured*(game: Game) =
   
   # Continue button (primary)
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "> CONTINUE", "[SPACE]", true, game.time)
+                  t(tkGameOverContinue), "[SPACE]", true, game.time)
   
   # Save Stats button
   let saveX = buttonsX + BUTTON_WIDTH + buttonSpacing
   drawModernButton(int32(saveX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "[S] SAVE LOG", "[TAB]", false, game.time)
+                  t(tkGameOverSaveLog), "[TAB]", false, game.time)
   
   # Exit button
   let exitX = saveX + BUTTON_WIDTH + buttonSpacing
   drawModernButton(int32(exitX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "EXIT", "[ESC]", false, game.time)
+                  t(tkGameOverExit), "[ESC]", false, game.time)
   
   # Footer success text
   let footerY = windowY + SCREEN_HEIGHT - 35
   drawRectangle(windowX, footerY, SCREEN_WIDTH, 35,
                Color(r: 30, g: 60, b: 45, a: 255))
   
-  let footerText = "[OK] All systems operational | Defensive grid at maximum efficiency"
+  let footerText = t(tkGameOverSystemSecureFooter)
   let footerWidth = measureText(footerText, 13)
   drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
           Color(r: 180, g: 220, b: 190, a: 255))
