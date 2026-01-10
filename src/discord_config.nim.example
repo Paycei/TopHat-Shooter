@@ -1,0 +1,4 @@
+﻿## Configuration file for sensitive data
+
+# Discord Rich Presence Configuration
+const DISCORD_APP_ID* = "xxxxxxxxxxxxxxxxxxx"
