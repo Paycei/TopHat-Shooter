@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization
+import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -2091,7 +2091,6 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       case colorScheme
       of "rainbow":
         # Create rainbow trail particles
-        let hue = (i.float32 / attack.projectileCount.float32) * 255.0
         let rainbowColor = case i mod 7
           of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
           of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
@@ -4863,7 +4862,7 @@ proc updateGame*(game: var Game, dt: float32) =
   var enemyIdx = 0
   var bossDefeated = false
   while enemyIdx < game.enemies.len:
-    let enemy = game.enemies[enemyIdx]
+    var enemy = game.enemies[enemyIdx]
     
     # Update elite effects (regeneration, etc.)
     updateEliteEffects(enemy, dt)
@@ -4933,7 +4932,7 @@ proc updateGame*(game: var Game, dt: float32) =
           # Boss drops - in wave mode scale with waves, in other modes scale with difficulty
           let baseAmount = if game.mode == gmWaveBased:
             # Wave-based: scale with wave number instead of time
-            30 + (game.currentWave div 5) * 10  # +10 coins every 5 waves
+            50 + (game.currentWave div 5) * 10  # +10 coins every 5 waves
           else:
             # Other modes: scale with difficulty (time-based)
             30 + (game.difficulty * 3.5).int
@@ -5034,13 +5033,23 @@ proc updateGame*(game: var Game, dt: float32) =
                     if enemy.isBoss: 50 else: 15)
       
       # Drop consumable
-      let dropChance = if enemy.isBoss: 80 elif enemy.enemyType == etStar: 40 else: 15
-      if rand(99) < dropChance:
-        # Clamp consumable position to be in bounds (for enemies killed out-of-bounds)
+      if enemy.isBoss:
+        # BOSSES ALWAYS DROP HEALTH - offset from coin position so it's visible
         let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
-        # In wave mode, consumables don't scale with difficulty to keep drop quality consistent
-        let consumableDifficulty = if game.mode == gmWaveBased: 1.0 else: game.difficulty
-        game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
+        # Offset health drop 40 pixels to the right of the coin
+        let healthX = clampedPos.x + 40.0
+        let healthY = clampedPos.y
+        let healthPos = clampLootPosition(healthX, healthY, game.screenWidth, game.screenHeight)
+        game.consumables.add(newSpecificConsumable(healthPos.x, healthPos.y, ctHealth))
+      else:
+        # Regular enemies have random drop chance
+        let dropChance = if enemy.enemyType == etStar: 40 else: 15
+        if rand(99) < dropChance:
+          # Clamp consumable position to be in bounds (for enemies killed out-of-bounds)
+          let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
+          # In wave mode, consumables don't scale with difficulty to keep drop quality consistent
+          let consumableDifficulty = if game.mode == gmWaveBased: 1.0 else: game.difficulty
+          game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
       
       game.player.kills += 1
       
@@ -5074,6 +5083,8 @@ proc updateGame*(game: var Game, dt: float32) =
       game.enemies.delete(enemyIdx)
       continue
     
+    # Write back modified enemy to array
+    game.enemies[enemyIdx] = enemy
     enemyIdx += 1
   
   # Enemy-to-enemy collision detection (prevents overlapping)
@@ -5137,6 +5148,16 @@ proc updateGame*(game: var Game, dt: float32) =
           spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
                         Color(r: 255, g: 255, b: 255, a: 255), 40)
           
+          # REGENERATE SATELLITES - Clear existing satellites so new phase can spawn correct number
+          # This ensures bosses with satellite attacks get the proper count for the new phase
+          if enemy.satellites.len > 0:
+            # Create destruction effect for each destroyed satellite
+            for satellite in enemy.satellites:
+              spawnExplosion(game.particles, satellite.pos.x, satellite.pos.y,
+                            Color(r: 100, g: 150, b: 255, a: 255), 12)
+            # Clear satellite list - new phase will regenerate with correct count
+            enemy.satellites = @[]
+          
           # Reinitialize attack timers for new phase
           enemy.attackTimers = @[]
           for attack in phase.attacks:
@@ -5193,46 +5214,86 @@ proc updateGame*(game: var Game, dt: float32) =
             # Reset timer
             enemy.attackTimers[i] = attack.cooldown
 
-    # Hexagon enemies shoot chaotically (applies to all hexagon enemies, not just bosses)
-    if enemy.enemyType == etHexagon and enemy.shootTimer > 1.0:
-      # Shoot 2-4 bullets in random directions
-      let bulletCount = 2 + rand(2)
-      for _ in 0..<bulletCount:
-        let angle = rand(1.0) * PI * 2.0
-        let dir = newVector2f(cos(angle), sin(angle))
-        game.bullets.add(newBullet(
-          x = enemy.pos.x,
-          y = enemy.pos.y,
-          direction = dir,
-          speed = 220,
-          damage = enemy.rangedDamage.float32,
-          fromPlayer = false,
-          sourceEnemyId = enemy.id
-        ))
-      enemy.shootTimer = 0
-    
-    # Cube enemies shoot
-    if enemy.enemyType == etCube and enemy.shootTimer > 2.0:
-      let dir = (game.player.pos - enemy.pos).normalize()
+    # Regular enemy shooting (config-driven system)
+    if enemy.enemyType in [etCube, etHexagon, etOctagon, etPentagon, etPhantom, etDiamond, etMage]:
+      let config = getEnemyConfig(enemy.enemyType)
       
-      # Shoot 3-shot burst
-      for i in 0..2:
-        let spreadAngle = (i - 1).float32 * 0.2
-        let spreadDir = newVector2f(
-          dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
-          dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
-        )
-        game.bullets.add(newBullet(
-          x = enemy.pos.x,
-          y = enemy.pos.y,
-          direction = spreadDir,
-          speed = 250,
-          damage = enemy.rangedDamage.float32,
-          fromPlayer = false,
-          sourceEnemyId = enemy.id
-        ))
-      
-      enemy.shootTimer = 0
+      # Only shoot if enemy has ranged attack configured
+      if config.hasRangedAttack:
+        let attackConfig = config.attack
+        
+        # Check shoot timer
+        if enemy.shootTimer > attackConfig.fireRate:
+          let dir = (game.player.pos - enemy.pos).normalize()
+          
+          # Handle burst shooting
+          if attackConfig.usesBurst:
+            for i in 0..<attackConfig.burstCount:
+              let spreadAngle = (i - (attackConfig.burstCount div 2)).float32 * attackConfig.spreadAngle
+              let spreadDir = newVector2f(
+                dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
+                dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
+              )
+              
+              let bullet = newBullet(
+                x = enemy.pos.x,
+                y = enemy.pos.y,
+                direction = spreadDir,
+                speed = attackConfig.bulletSpeed,
+                damage = attackConfig.damage,
+                fromPlayer = false,
+                isHoming = attackConfig.homingStrength > 0,
+                sourceEnemyId = enemy.id
+              )
+              
+              # Apply special bullet properties
+              if attackConfig.isPentagonBullet:
+                bullet.radius = 10  # Larger pentagon bullet
+              
+              game.bullets.add(bullet)
+          else:
+            # Non-burst shooting
+            for i in 0..<attackConfig.bulletCount:
+              var shootDir: Vector2f
+              
+              if attackConfig.spreadAngle >= 6.0:  # Full circle (chaotic)
+                # Random direction for chaotic enemies like Hexagon
+                let angle = rand(1.0) * PI * 2.0
+                shootDir = newVector2f(cos(angle), sin(angle))
+              else:
+                # Spread pattern
+                let spreadAngle = (i - (attackConfig.bulletCount div 2)).float32 * attackConfig.spreadAngle
+                shootDir = newVector2f(
+                  dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
+                  dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
+                )
+              
+              # Add inaccuracy for Octagon
+              if enemy.enemyType == etOctagon:
+                let inaccuracy = (rand(1.0) - 0.5) * attackConfig.spreadAngle
+                shootDir = newVector2f(
+                  shootDir.x * cos(inaccuracy) - shootDir.y * sin(inaccuracy),
+                  shootDir.x * sin(inaccuracy) + shootDir.y * cos(inaccuracy)
+                )
+              
+              let bullet = newBullet(
+                x = enemy.pos.x,
+                y = enemy.pos.y,
+                direction = shootDir,
+                speed = attackConfig.bulletSpeed,
+                damage = attackConfig.damage,
+                fromPlayer = false,
+                isHoming = attackConfig.homingStrength > 0,
+                sourceEnemyId = enemy.id
+              )
+              
+              # Apply special bullet properties
+              if attackConfig.isPentagonBullet:
+                bullet.radius = 10  # Larger pentagon bullet
+              
+              game.bullets.add(bullet)
+          
+          enemy.shootTimer = 0
     
     # Check collision with player (with small coyote/forgiveness zone on edges)
     # Reduce effective collision radius by 10% for slight edge forgiveness

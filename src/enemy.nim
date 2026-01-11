@@ -1,4 +1,4 @@
-﻿import raylib, types, random, math, wall, bullet, effects, tables, boss_definitions, run_statistics
+﻿import raylib, types, random, math, wall, effects, tables, boss_definitions, run_statistics, enemy_config, enemy_helpers
 
 proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
   ## NATURAL SPEED REDUCTION: Pure mathematical scaling with NO hardcoded thresholds
@@ -32,434 +32,49 @@ proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
   # Formula: speed / (1 + factor) can never reduce to 0
   return baseSpeed / (1.0 + reductionFactor)
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
-  # BUFFED HEALTH SCALING: Increased from 1.18 to 1.185 (0.5% more HP per wave)
-  let strengthMultiplier = pow(1.185, difficulty)
+  # Get enemy configuration
+  let config = getEnemyConfig(enemyType)
   
-  case enemyType
-  of etCircle:  # Normal chaser
-    let size = 10 + difficulty * 1.5 + rand(5).float32
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: size,
-      collisionRadius: size * 0.4,  # 40% of visual size for enemy collision
-      hp: 1.0 * strengthMultiplier,
-      maxHp: 1.0 * strengthMultiplier,
-      speed: 100 + difficulty * 10,
-      contactDamage: 1,
-      rangedDamage: 0,  # Circle enemies don't shoot
-      color: if difficulty < 5: Red elif difficulty < 10: Orange else: Maroon,
-      enemyType: etCircle,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
+  # Calculate scaled stats
+  let stats = getScaledEnemyStats(config, difficulty)
   
-  of etCube:  # Ranged shooter - backs away (BUFFED - larger and more threatening)
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 18 + difficulty * 1.6,  # INCREASED from 12 + difficulty * 1.2
-      collisionRadius: (18 + difficulty * 1.6) * 0.4,  # 40% of visual size
-      hp: 3.0 * strengthMultiplier,   # INCREASED from 2.0
-      maxHp: 3.0 * strengthMultiplier,
-      speed: 55 + difficulty * 3,     # DECREASED from 60 (more threatening when larger)
-      contactDamage: 1,               # Lower contact damage for ranged enemy
-      rangedDamage: 2,                # Higher ranged damage (their specialty)
-      color: Purple,
-      enemyType: etCube,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,
-      hasEnteredScreen: false,  # Ranged enemy - must enter screen first
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-  
-  of etTriangle:  # Dash + erratic movement
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 11 + difficulty * 1.0,
-      collisionRadius: (11 + difficulty * 1.0) * 0.4,  # 40% of visual size
-      hp: 1.4 * strengthMultiplier,
-      maxHp: 1.4 * strengthMultiplier,
-      speed: 155 + difficulty * 10,
-      contactDamage: 2,
-      rangedDamage: 0,  # Triangle enemies don't shoot
-      color: Pink,
-      enemyType: etTriangle,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 1.5,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-  
-  of etStar:  # Tank that dashes when close
-    let hits = 5 + (difficulty * 1.8).int
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 18 + difficulty * 2,
-      collisionRadius: (18 + difficulty * 2) * 0.4,  # 40% of visual size
-      hp: 9999.0,
-      maxHp: 9999.0,
-      speed: 70 + difficulty * 6,
-      contactDamage: 2,
-      rangedDamage: 0,  # Star enemies don't shoot
-      color: Color(r: 255, g: 215, b: 0, a: 255),
-      enemyType: etStar,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: hits,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      hexTeleportTimer: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,
-      dashCooldown: 2.0,  # Dash every 2 seconds when close
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-  
-  of etHexagon:  # Teleporting chaos
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 14 + difficulty * 1.5,
-      collisionRadius: (14 + difficulty * 1.5) * 0.4,  # 40% of visual size
-      hp: 5.0 * strengthMultiplier,
-      maxHp: 5.0 * strengthMultiplier,
-      speed: 70 + difficulty * 8,
-      contactDamage: 1,
-      rangedDamage: 1,  # Hexagon shoots chaotically
-      color: Color(r: 128, g: 0, b: 255, a: 255),
-      enemyType: etHexagon,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      hexTeleportTimer: 2.5 + rand(1.0),
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-  
-  of etCross:  # Shows cross warning before attack
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 17 + difficulty * 1.5,
-      collisionRadius: (17 + difficulty * 1.5) * 0.4,  # 40% of visual size
-      hp: 10.0 * strengthMultiplier,
-      maxHp: 10.0 * strengthMultiplier,
-      speed: 50 + difficulty * 4,
-      contactDamage: 5,  # High contact damage (warning attack)
-      rangedDamage: 0,   # Cross enemies don't shoot
-      color: Color(r: 255, g: 100, b: 0, a: 255),
-      enemyType: etCross,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      hexTeleportTimer: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,  # 0=patrol, 1=warning, 2=execute
-      rotation: 0.0,    # For visual rotation during dash
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-  
-  of etDiamond:  # Shoots while dashing
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 13 + difficulty * 1.1,
-      collisionRadius: (13 + difficulty * 1.1) * 0.4,  # 40% of visual size
-      hp: 4.0 * strengthMultiplier,
-      maxHp: 4.0 * strengthMultiplier,
-      speed: 140 + difficulty * 12,
-      contactDamage: 1,
-      rangedDamage: 1,  # Shoots while dashing
-      color: Color(r: 0, g: 200, b: 255, a: 255),
-      enemyType: etDiamond,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      hexTeleportTimer: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,
-      dashCooldown: 2.5 + rand(1.0),
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-  
-  of etOctagon:  # Many slow inaccurate projectiles
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 16 + difficulty * 1.4,
-      collisionRadius: (16 + difficulty * 1.4) * 0.4,  # 40% of visual size
-      hp: 3.5 * strengthMultiplier,
-      maxHp: 3.5 * strengthMultiplier,
-      speed: 90 + difficulty * 2,
-      contactDamage: 1,
-      rangedDamage: 1,  # Shoots many slow projectiles
-      color: Color(r: 150, g: 150, b: 0, a: 255),
-      enemyType: etOctagon,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      hexTeleportTimer: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,
-      hasEnteredScreen: false,  # Ranged enemy - must enter screen first
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-  
-  of etPentagon:  # Single fast bullet, low fire rate
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 14 + difficulty * 1.2,
-      collisionRadius: (14 + difficulty * 1.2) * 0.4,  # 40% of visual size
-      hp: 2.2 * strengthMultiplier,
-      maxHp: 2.2 * strengthMultiplier,
-      speed: 55 + difficulty * 3,
-      contactDamage: 1,  # Low contact damage for ranged enemy
-      rangedDamage: 3,   # High ranged damage (fast bullets)
-      color: Color(r: 0, g: 150, b: 100, a: 255),
-      enemyType: etPentagon,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      hexTeleportTimer: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,
-      hasEnteredScreen: false,  # Ranged enemy - must enter screen first
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-  
-  of etTrickster:  # False warning, real attack elsewhere
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 17 + difficulty * 1.5,
-      collisionRadius: (17 + difficulty * 1.5) * 0.4,  # 40% of visual size
-      hp: 4.0 * strengthMultiplier,
-      maxHp: 4.0 * strengthMultiplier,
-      speed: 65 + difficulty * 5,
-      contactDamage: 2,
-      rangedDamage: 0,  # Trickster doesn't shoot, just tricks
-      color: Color(r: 200, g: 0, b: 200, a: 255),
-      enemyType: etTrickster,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      hexTeleportTimer: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,
-      fakeWarningTimer: 3.0 + rand(2.0),
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-  
-  of etPhantom:  # Unpredictable teleporter with fake clones
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 15 + difficulty * 1.3,
-      collisionRadius: (15 + difficulty * 1.3) * 0.4,  # 40% of visual size
-      hp: 4.0 * strengthMultiplier,
-      maxHp: 4.0 * strengthMultiplier,
-      speed: 80 + difficulty * 6,
-      contactDamage: 2,
-      rangedDamage: 0,  # Phantom teleports, doesn't shoot
-      color: Color(r: 100, g: 100, b: 255, a: 180),
-      enemyType: etPhantom,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      hexTeleportTimer: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,
-      clonePositions: @[],
-      cloneTimer: 2.0 + rand(1.5),
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-
-  of etSniper:  # Rare one-shot enemy with epic charging attack
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 14 + difficulty * 1.2,
-      collisionRadius: (14 + difficulty * 1.2) * 0.4,  # 40% of visual size
-      hp: 6.0 * strengthMultiplier,
-      maxHp: 6.0 * strengthMultiplier,
-      speed: 40 + difficulty * 2,  # Slow, methodical movement
-      contactDamage: 3,  # Moderate contact damage
-      rangedDamage: 9999,  # One-shot ranged attack
-      color: Color(r: 200, g: 50, b: 200, a: 255),  # Bright magenta
-      enemyType: etSniper,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      hexTeleportTimer: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 3.0,  # 3 second charge time before attack
-      attackPhase: 0,  # 0=hunting, 1=charging, 2=cooldown
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
-  
-  of etMage:  # Summons meteorites and shoots homing magic bullets
-    result = Enemy(
-      id: game.nextEnemyId,  # Assign unique ID
-      pos: newVector2f(x, y),
-      vel: newVector2f(0, 0),
-      radius: 16 + difficulty * 1.4,
-      collisionRadius: (16 + difficulty * 1.4) * 0.4,  # 40% of visual size
-      hp: 7.5 * strengthMultiplier,
-      maxHp: 7.5 * strengthMultiplier,
-      speed: 50 + difficulty * 3,  # Slow, floats around
-      contactDamage: 1,
-      rangedDamage: 2,  # Summons meteorites and homing bullets
-      color: Color(r: 138, g: 43, b: 226, a: 255),  # Purple/violet for magic
-      enemyType: etMage,
-      isBoss: false,
-      shootTimer: 0,
-      spawnTimer: 0,  # Used for meteorite spawning
-      dashTimer: 0,
-      hitCount: 0,
-      requiredHits: 0,
-      lastContactDamageTime: 0,
-      teleportTimer: 0,
-      shockwaveTimer: 0,
-      burstTimer: 0,
-      lastWallDamageTime: 0,
-      hexTeleportTimer: 0,
-      attackWarningTimer: 0,
-      attackExecuteTimer: 0,
-      attackPhase: 0,  # 0=shoot bullets, 1=summon meteorites
-      hasEnteredScreen: false,  # Ranged enemy - must enter screen first
-      activeEffects: initTable[ElementType, ActiveEffect]()
-    )
+  # Create base enemy with config values
+  result = Enemy(
+    id: game.nextEnemyId,
+    pos: newVector2f(x, y),
+    vel: newVector2f(0, 0),
+    radius: stats.radius,
+    collisionRadius: stats.radius * 0.4,  # 40% of visual size for enemy collision
+    hp: stats.hp,
+    maxHp: stats.hp,
+    speed: stats.speed,
+    contactDamage: config.contactDamage,
+    rangedDamage: if config.hasRangedAttack: config.attack.damage.int else: 0,
+    color: config.baseColor,
+    enemyType: enemyType,
+    isBoss: false,
+    shootTimer: 0,
+    spawnTimer: 0,
+    dashTimer: if config.movement.dashCooldown > 0: config.movement.dashCooldown else: 0,
+    hitCount: 0,
+    requiredHits: stats.requiredHits,
+    lastContactDamageTime: 0,
+    teleportTimer: 0,
+    shockwaveTimer: 0,
+    burstTimer: 0,
+    lastWallDamageTime: 0,
+    attackWarningTimer: 0,
+    attackExecuteTimer: if config.specialBehaviorType == "charge_shot": 3.0 else: 0,
+    attackPhase: 0,
+    hasEnteredScreen: not config.requiresScreenEntry,  # Inverted logic
+    activeEffects: initTable[ElementType, ActiveEffect](),
+    dashCooldown: config.movement.dashCooldown,
+    hexTeleportTimer: if config.movement.teleportCooldown > 0: config.movement.teleportCooldown + rand(1.0) else: 0,
+    fakeWarningTimer: if config.specialBehaviorType == "fake_warning_teleport": 3.0 + rand(2.0) else: 0,
+    cloneTimer: if config.specialBehaviorType == "clone_teleport": 2.0 + rand(1.5) else: 0,
+    clonePositions: @[],
+    rotation: 0.0
+  )
   
   # Initialize boss-spawned flag (default: false, set to true by boss summon)
   result.spawnedByBoss = false
@@ -471,7 +86,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   # Increment enemy ID counter for next enemy
   game.nextEnemyId += 1
 
-proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
+proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
   # Apply slow field effect
   var effectiveSpeed = getEffectiveSpeed(enemy.speed, game.currentWave)
   if enemy.slowAmount > 0:
@@ -548,75 +163,47 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         enemy.pos = enemy.pos + enemy.vel * dt
     
     of etCube:
-      # Check if enemy is fully inside screen bounds
-      if not enemy.hasEnteredScreen:
-        if enemy.pos.x > enemy.radius and enemy.pos.x < game.screenWidth.float32 - enemy.radius and
-           enemy.pos.y > enemy.radius and enemy.pos.y < game.screenHeight.float32 - enemy.radius:
-          enemy.hasEnteredScreen = true
+      # Get config for this enemy type
+      let config = getEnemyConfig(enemy.enemyType)
       
+      # Update timers
       enemy.shootTimer += dt
-      let distToPlayer = distance(enemy.pos, playerPos)
-      let dir = (playerPos - enemy.pos).normalize()
-      const optimalDistance = 250.0
-      const retreatDistance = 150.0
       
-      # Movement behavior: force entry when off-screen, then maintain optimal distance
-      var nextPos = enemy.pos
+      # Check screen entry
+      checkScreenEntry(enemy, game)
+      
+      # Determine next position
+      var nextPos: Vector2f
       if not enemy.hasEnteredScreen:
-        # FORCE movement toward screen center until fully inside
-        let screenCenterX = game.screenWidth.float32 / 2.0
-        let screenCenterY = game.screenHeight.float32 / 2.0
-        let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
-        nextPos = enemy.pos + towardCenter * effectiveSpeed * dt
-      elif distToPlayer < retreatDistance:
-        # Once inside, retreat when too close
-        let retreatDir = dir * -1.0
-        nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
-      elif distToPlayer > optimalDistance:
-        # Approach when too far (but only when already inside screen)
-        nextPos = enemy.pos + dir * effectiveSpeed * 0.5 * dt
+        # Force entry toward screen center
+        nextPos = forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game)
+      else:
+        # Maintain optimal distance from player
+        nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
       
-      # Check wall collisions
-      var canMove = true
-      for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-          canMove = false
-          if currentTime - enemy.lastWallDamageTime >= 1.0:
-            wall.takeDamage(1.0)
-            enemy.hp -= 1.0
-            enemy.lastWallDamageTime = currentTime
-          break
+      # Check collisions
+      let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
+      let hitBoundary = checkScreenBoundaryCollision(enemy, nextPos, game, config)
       
-      # Screen boundary check - keep ranged enemies inside once entered
-      # Allow movement toward screen when off-screen
-      if enemy.hasEnteredScreen:
-        let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
-                         nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
-        
-        if isOffScreen:
-          # Calculate direction toward screen center
-          let screenCenterX = game.screenWidth.float32 / 2.0
-          let screenCenterY = game.screenHeight.float32 / 2.0
-          let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
-          let movementDir = (nextPos - enemy.pos).normalize()
-          
-          # Calculate dot product to see if movement is toward center
-          let dotProduct = towardCenter.x * movementDir.x + towardCenter.y * movementDir.y
-          
-          # Only block movement if it's moving away from center (dot < 0)
-          # Allow movement if it's toward center (dot >= 0)
-          if dotProduct < 0:
-            canMove = false
-      
-      if canMove:
+      # Apply movement if no collisions
+      if not hitWall and not hitBoundary:
         enemy.pos = nextPos
+      
+      # Execute ranged attack (uses config values)
+      executeRangedAttack(enemy, playerPos, game)
     
     of etTriangle:
+      # Get config for this enemy type
+      let config = getEnemyConfig(enemy.enemyType)
+      
+      # Calculate dash speed multiplier from config (dashSpeed / baseSpeed)
+      let dashMultiplier = config.movement.dashSpeed / config.movement.baseSpeed
+      
       enemy.dashTimer -= dt
       if enemy.dashTimer <= 0:
         let dir = (playerPos - enemy.pos).normalize()
-        enemy.vel = dir * effectiveSpeed * 3.5
-        enemy.dashTimer = 2.0 + rand(1.0)
+        enemy.vel = dir * effectiveSpeed * dashMultiplier
+        enemy.dashTimer = config.movement.dashCooldown + rand(1.0)
       else:
         let dir = (playerPos - enemy.pos).normalize()
         let distToPlayer = distance(enemy.pos, playerPos)
@@ -651,13 +238,19 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         enemy.pos = enemy.pos + enemy.vel * dt
     
     of etStar:
+      # Get config for this enemy type
+      let config = getEnemyConfig(enemy.enemyType)
+      let specialData = parseSpecialData(config.specialData)
+      let dashRange = getSpecialFloat(specialData, "dash_range", 150.0)
+      let dashMultiplier = config.movement.dashSpeed / config.movement.baseSpeed
+      
       # Star dashes when close to player
       enemy.dashCooldown -= dt
       let distToPlayer = distance(enemy.pos, playerPos)
-      if distToPlayer < 150 and enemy.dashCooldown <= 0:
+      if distToPlayer < dashRange and enemy.dashCooldown <= 0:
         let dir = (playerPos - enemy.pos).normalize()
-        enemy.vel = dir * effectiveSpeed * 3.0
-        enemy.dashCooldown = 2.0
+        enemy.vel = dir * effectiveSpeed * dashMultiplier
+        enemy.dashCooldown = config.movement.dashCooldown
       else:
         let dir = (playerPos - enemy.pos).normalize()
         enemy.vel = dir * effectiveSpeed
@@ -676,8 +269,11 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         enemy.pos = nextPos
     
     of etHexagon:
+      # Update timers
       enemy.hexTeleportTimer -= dt
       enemy.shootTimer += dt
+      
+      # Teleport behavior
       if enemy.hexTeleportTimer <= 0:
         let angle = rand(1.0) * PI * 2.0
         let teleportDist = 150.0 + rand(100.0)
@@ -685,20 +281,14 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         enemy.pos.y = playerPos.y + sin(angle) * teleportDist
         enemy.hexTeleportTimer = 2.5 + rand(1.0)
       else:
-        let dir = (playerPos - enemy.pos).normalize()
-        let nextPos = enemy.pos + dir * effectiveSpeed * dt
-        var canMove = true
-        for wall in walls:
-          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-            canMove = false
-            if currentTime - enemy.lastWallDamageTime >= 1.0:
-              wall.takeDamage(1.0)
-              trackWallDamaged(game)
-              enemy.hp -= 1.0
-              enemy.lastWallDamageTime = currentTime
-            break
-        if canMove:
+        # Chase player when not teleporting
+        let nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed)
+        let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
+        if not hitWall:
           enemy.pos = nextPos
+      
+      # Chaotic shooting (uses config for fire rate, bullet count, speed)
+      executeRangedAttack(enemy, playerPos, game)
     
     of etCross:
       # Shows cross warning before attack, then dashes while rotating
@@ -783,222 +373,104 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         discard
     
     of etDiamond:
-      # Shoots slow projectiles while dashing
+      # Get config for this enemy type
+      let config = getEnemyConfig(enemy.enemyType)
+      let dashMultiplier = config.movement.dashSpeed / config.movement.baseSpeed
+      
+      # Dash and shoot behavior
       enemy.dashCooldown -= dt
       enemy.shootTimer += dt
+      
       if enemy.dashCooldown <= 0:
+        # Start dash
         let dir = (playerPos - enemy.pos).normalize()
-        enemy.vel = dir * effectiveSpeed * 2.5
-        enemy.dashCooldown = 2.5 + rand(1.0)
-        # Shoot 3 slow projectiles during dash start
-        for i in -1..1:
-          let spreadAngle = i.float32 * 0.3
-          let spreadDir = newVector2f(
-            dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
-            dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
-          )
-          game.bullets.add(newBullet(
-            x = enemy.pos.x,
-            y = enemy.pos.y,
-            direction = spreadDir,
-            speed = 150,
-            damage = enemy.rangedDamage.float32,
-            fromPlayer = false,
-            sourceEnemyId = enemy.id
-          ))
+        enemy.vel = dir * effectiveSpeed * dashMultiplier
+        enemy.dashCooldown = config.movement.dashCooldown + rand(1.0)
+        
+        # Shoot 3-spread during dash start (uses config)
+        executeRangedAttack(enemy, playerPos, game)
       else:
+        # Normal movement
         let dir = (playerPos - enemy.pos).normalize()
         enemy.vel = dir * effectiveSpeed * 0.7
       
-      # Shoot slow projectiles periodically during movement
-      if enemy.shootTimer > 1.0:
+      # Periodic shooting during movement (random direction)
+      if enemy.shootTimer > config.attack.fireRate:
         let angle = rand(1.0) * PI * 2.0
-        let dir = newVector2f(cos(angle), sin(angle))
-        game.bullets.add(newBullet(
-          x = enemy.pos.x,
-          y = enemy.pos.y,
-          direction = dir,
-          speed = 140,
-          damage = enemy.rangedDamage.float32,
-          fromPlayer = false,
-          sourceEnemyId = enemy.id
-        ))
-        enemy.shootTimer = 0
+        let tempDir = newVector2f(cos(angle), sin(angle))
+        let tempPlayerPos = enemy.pos + tempDir * 100.0  # Fake target
+        executeRangedAttack(enemy, tempPlayerPos, game)
       
-      var canMove = true
+      # Apply movement
       let nextPos = enemy.pos + enemy.vel * dt
-      for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-          canMove = false
-          break
-      if canMove:
+      let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
+      if not hitWall:
         enemy.pos = nextPos
     
     of etOctagon:
-      # Check if enemy is fully inside screen bounds
-      if not enemy.hasEnteredScreen:
-        if enemy.pos.x > enemy.radius and enemy.pos.x < game.screenWidth.float32 - enemy.radius and
-           enemy.pos.y > enemy.radius and enemy.pos.y < game.screenHeight.float32 - enemy.radius:
-          enemy.hasEnteredScreen = true
+      # Get config for this enemy type
+      let config = getEnemyConfig(enemy.enemyType)
       
-      # Many slow inaccurate projectiles
+      # Update timers
       enemy.shootTimer += dt
-      if enemy.shootTimer > 0.4:  # Very frequent
-        let dir = (playerPos - enemy.pos).normalize()
-        # Add random inaccuracy
-        let inaccuracy = (rand(1.0) - 0.5) * 0.8
-        let inaccurateDir = newVector2f(
-          dir.x * cos(inaccuracy) - dir.y * sin(inaccuracy),
-          dir.x * sin(inaccuracy) + dir.y * cos(inaccuracy)
-        )
-        game.bullets.add(newBullet(
-          x = enemy.pos.x,
-          y = enemy.pos.y,
-          direction = inaccurateDir,
-          speed = 120,
-          damage = enemy.rangedDamage.float32,
-          fromPlayer = false,
-          sourceEnemyId = enemy.id
-        ))
-        enemy.shootTimer = 0
       
-      # Movement behavior: force entry when off-screen, then back away when close
-      let dir = (playerPos - enemy.pos).normalize()
-      let distToPlayer = distance(enemy.pos, playerPos)
-      var nextPos = enemy.pos
+      # Check screen entry
+      checkScreenEntry(enemy, game)
       
+      # Determine next position
+      var nextPos: Vector2f
       if not enemy.hasEnteredScreen:
-        # FORCE movement toward screen center until fully inside
-        let screenCenterX = game.screenWidth.float32 / 2.0
-        let screenCenterY = game.screenHeight.float32 / 2.0
-        let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
-        nextPos = enemy.pos + towardCenter * effectiveSpeed * dt
-      elif distToPlayer < 200:
-        # Once inside, back away from player when too close
-        let retreatDir = dir * -1.0
-        nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
+        # Force entry toward screen center
+        nextPos = forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game)
+      else:
+        # Maintain optimal distance from player
+        nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
       
-      # Check wall collisions
-      var canMove = true
-      for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-          canMove = false
-          break
+      # Check collisions
+      let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
+      let hitBoundary = checkScreenBoundaryCollision(enemy, nextPos, game, config)
       
-      # Screen boundary check - keep ranged enemies inside once entered
-      # Allow movement toward screen when off-screen, prevent leaving when inside
-      if enemy.hasEnteredScreen:
-        let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
-                         nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
-        
-        if isOffScreen:
-          # Calculate direction toward screen center
-          let screenCenterX = game.screenWidth.float32 / 2.0
-          let screenCenterY = game.screenHeight.float32 / 2.0
-          let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
-          let movementDir = (nextPos - enemy.pos).normalize()
-          
-          # Calculate dot product to see if movement is toward center
-          let dotProduct = towardCenter.x * movementDir.x + towardCenter.y * movementDir.y
-          
-          # Only block movement if it's moving away from center (dot < 0)
-          # Allow movement if it's toward center (dot >= 0)
-          if dotProduct < 0:
-            canMove = false
-      
-      if canMove:
+      # Apply movement if no collisions
+      if not hitWall and not hitBoundary:
         enemy.pos = nextPos
+      
+      # Rapid fire with inaccuracy (uses config values)
+      executeRangedAttack(enemy, playerPos, game)
     
     of etPentagon:
-      # Check if enemy is fully inside screen bounds
-      if not enemy.hasEnteredScreen:
-        if enemy.pos.x > enemy.radius and enemy.pos.x < game.screenWidth.float32 - enemy.radius and
-           enemy.pos.y > enemy.radius and enemy.pos.y < game.screenHeight.float32 - enemy.radius:
-          enemy.hasEnteredScreen = true
+      # Get config for this enemy type
+      let config = getEnemyConfig(enemy.enemyType)
       
-      # BUFFED: Pentagon-shaped bullet projectile, larger size
+      # Update timers
       enemy.shootTimer += dt
-      if enemy.shootTimer > 2.5:  # Low fire rate
-        let dir = (playerPos - enemy.pos).normalize()
-        let pentagonBullet = newBullet(
-          x = enemy.pos.x,
-          y = enemy.pos.y,
-          direction = dir,
-          speed = 400.0,
-          damage = enemy.rangedDamage.float32,
-          fromPlayer = false,
-          isHoming = false,
-          isPiercing = false,
-          isExplosive = false,
-          hasBounce = false,
-          canSplit = false,
-          slowAmount = 0.0,
-          poisonDuration = 0.0,
-          fireDuration = 0.0,
-          windPushForce = 0.0,
-          isPentagon = true,
-          isEcho = false,
-          isBossBullet = false,
-          sourceEnemyId = enemy.id
-        )
-        pentagonBullet.radius = 10  # MUCH LARGER bullet (was 6 for enemy bullets)
-        game.bullets.add(pentagonBullet)
-        enemy.shootTimer = 0
       
-      # Movement behavior: force entry when off-screen, then maintain optimal distance
-      let dir = (playerPos - enemy.pos).normalize()
-      let distToPlayer = distance(enemy.pos, playerPos)
-      const optimalDistance = 300.0
+      # Check screen entry
+      checkScreenEntry(enemy, game)
       
-      var nextPos = enemy.pos
+      # Determine next position
+      var nextPos: Vector2f
       if not enemy.hasEnteredScreen:
-        # FORCE movement toward screen center until fully inside
-        let screenCenterX = game.screenWidth.float32 / 2.0
-        let screenCenterY = game.screenHeight.float32 / 2.0
-        let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
-        nextPos = enemy.pos + towardCenter * effectiveSpeed * dt
-      elif distToPlayer < optimalDistance - 50:
-        # Once inside, retreat when too close
-        let retreatDir = dir * -1.0
-        nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
-      elif distToPlayer > optimalDistance + 50:
-        # Approach when too far (but only when already inside screen)
-        nextPos = enemy.pos + dir * effectiveSpeed * 0.6 * dt
+        # Force entry toward screen center
+        nextPos = forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game)
+      else:
+        # Maintain optimal distance from player
+        nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
       
-      # Check wall collisions
-      var canMove = true
-      for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-          canMove = false
-          break
+      # Check collisions
+      let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
+      let hitBoundary = checkScreenBoundaryCollision(enemy, nextPos, game, config)
       
-      # Screen boundary check - keep ranged enemies inside once entered
-      # Allow movement toward screen when off-screen, prevent leaving when inside
-      if enemy.hasEnteredScreen:
-        let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
-                         nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
-        
-        if isOffScreen:
-          # Calculate direction toward screen center
-          let screenCenterX = game.screenWidth.float32 / 2.0
-          let screenCenterY = game.screenHeight.float32 / 2.0
-          let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
-          let movementDir = (nextPos - enemy.pos).normalize()
-          
-          # Calculate dot product to see if movement is toward center
-          let dotProduct = towardCenter.x * movementDir.x + towardCenter.y * movementDir.y
-          
-          # Only block movement if it's moving away from center (dot < 0)
-          # Allow movement if it's toward center (dot >= 0)
-          if dotProduct < 0:
-            canMove = false
-      
-      if canMove:
+      # Apply movement if no collisions
+      if not hitWall and not hitBoundary:
         enemy.pos = nextPos
+      
+      # Powerful pentagon sniper shot (uses config values)
+      executeRangedAttack(enemy, playerPos, game)
     
     of etTrickster:
-      # Shows false warning, attacks differently
+      # Fake warning + teleport behavior
       enemy.fakeWarningTimer -= dt
+      
       if enemy.fakeWarningTimer <= 0:
         # Show fake warning at current position
         game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "fake", 1.0))
@@ -1010,26 +482,21 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         let newY = playerPos.y + sin(angle) * dist
         enemy.pos = newVector2f(newX, newY)
         
-        # Shoot from NEW position (not where warning was)
-        for i in 0..<6:
-          let bulletAngle = i.float32 * PI / 3.0
-          let dir = newVector2f(cos(bulletAngle), sin(bulletAngle))
-          game.bullets.add(newBullet(enemy.pos.x, enemy.pos.y, dir, 250, 1, false, sourceEnemyId = enemy.id))
+        # Shoot 6-way burst from NEW position (uses config)
+        executeRangedAttack(enemy, playerPos, game)
         
         enemy.fakeWarningTimer = 3.0 + rand(2.0)
       
       # Normal movement
-      let dir = (playerPos - enemy.pos).normalize()
-      let nextPos = enemy.pos + dir * effectiveSpeed * 0.6 * dt
-      var canMove = true
-      for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-          canMove = false
-          break
-      if canMove:
+      let nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed * 0.6)
+      let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
+      if not hitWall:
         enemy.pos = nextPos
     
     of etPhantom:
+      # Get config for this enemy type
+      let config = getEnemyConfig(enemy.enemyType)
+      
       # Unpredictable teleporter with fake clones
       enemy.cloneTimer -= dt
       enemy.shootTimer += dt
@@ -1053,19 +520,21 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           playerPos.y + sin(teleAngle) * teleDist
         )
         
-        enemy.cloneTimer = 2.0 + rand(1.5)
+        enemy.cloneTimer = config.movement.teleportCooldown + rand(1.5)
       
-      # Shoot from random clone or real position
-      if enemy.shootTimer > 0.8:
+      # Shoot from random clone or real position (uses config fire rate)
+      if enemy.shootTimer > config.attack.fireRate:
         var shootPos = enemy.pos
         if enemy.clonePositions.len > 0 and rand(100) < 60:
           shootPos = enemy.clonePositions[rand(enemy.clonePositions.len - 1)]
         
-        let dir = (playerPos - shootPos).normalize()
-        game.bullets.add(newBullet(shootPos.x, shootPos.y, dir, 260, 1, false, sourceEnemyId = enemy.id))
-        enemy.shootTimer = 0
+        # Temporarily change position to shoot from clone, then restore
+        let originalPos = enemy.pos
+        enemy.pos = shootPos
+        executeRangedAttack(enemy, playerPos, game)
+        enemy.pos = originalPos
       
-      # Erratic movement
+      # Erratic wobbling movement
       let dir = (playerPos - enemy.pos).normalize()
       let wobble = sin(currentTime * 5.0) * 0.7
       let wobbleDir = newVector2f(
@@ -1073,16 +542,19 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         dir.x * sin(wobble) + dir.y * cos(wobble)
       )
       let nextPos = enemy.pos + wobbleDir * effectiveSpeed * 0.7 * dt
-      var canMove = true
-      for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-          canMove = false
-          break
-      if canMove:
+      let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
+      if not hitWall:
         enemy.pos = nextPos
     
     of etSniper:
       # Sniper enemy - charges a powerful one-shot attack with warning
+      # ✅ FULLY UNIFIED: Uses config for trigger range, charge time, cooldown, bullet properties
+      let config = getEnemyConfig(enemy.enemyType)
+      let specialData = parseSpecialData(config.specialData)
+      let triggerRange = getSpecialFloat(specialData, "trigger_range", 300.0)
+      let chargeTime = getSpecialFloat(specialData, "charge_time", 3.0)
+      let cooldownTime = getSpecialFloat(specialData, "cooldown", 2.0)
+      
       let distToPlayer = distance(enemy.pos, playerPos)
       
       case enemy.attackPhase
@@ -1097,10 +569,11 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         if canMove:
           enemy.pos = nextPos
         
-        # When close enough, start charging
-        if distToPlayer < 300:
+        # When close enough, start charging (✅ uses config value)
+        if distToPlayer < triggerRange:
           enemy.attackPhase = 1
           enemy.attackWarningTimer = 0
+          enemy.attackExecuteTimer = chargeTime  # ✅ Store charge time from config
       
       of 1:  # Charging phase - stands still, glows brighter
         enemy.attackWarningTimer += dt
@@ -1109,14 +582,11 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         let intensity = uint8(150 + chargeAmount * 105)
         enemy.color = Color(r: intensity, g: 50, b: intensity, a: 255)
         
-        # When charge completes, fire the one-shot
+        # When charge completes, fire using centralized system (✅ uses config for all bullet properties)
         if enemy.attackWarningTimer >= enemy.attackExecuteTimer:
-          let dir = (playerPos - enemy.pos).normalize()
-          # Fire a large, fast, high-damage bullet
-          let bullet = newBullet(enemy.pos.x, enemy.pos.y, dir, 400.0, enemy.rangedDamage.float32, false, sourceEnemyId = enemy.id)
-          game.bullets.add(bullet)
+          executeRangedAttack(enemy, playerPos, game)
           enemy.attackPhase = 2
-          enemy.attackExecuteTimer = 2.0  # Cooldown before next charge
+          enemy.attackExecuteTimer = cooldownTime  # ✅ Use config cooldown
           enemy.color = Color(r: 200, g: 50, b: 200, a: 255)  # Reset color
       
       of 2:  # Cooldown phase - recover before hunting again
@@ -1127,48 +597,30 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         discard
     
     of etMage:
-      # Check if enemy is fully inside screen bounds
-      if not enemy.hasEnteredScreen:
-        if enemy.pos.x > enemy.radius and enemy.pos.x < game.screenWidth.float32 - enemy.radius and
-           enemy.pos.y > enemy.radius and enemy.pos.y < game.screenHeight.float32 - enemy.radius:
-          enemy.hasEnteredScreen = true
+      # Magical enemy: homing bullets + meteorite summoning
+      # ✅ FULLY UNIFIED: Uses config for all attack values and meteorite parameters
+      let config = getEnemyConfig(enemy.enemyType)
+      
+      # Check screen entry
+      checkScreenEntry(enemy, game)
       
       # Update timers
       enemy.shootTimer += dt  # For homing bullets
       enemy.spawnTimer += dt  # For meteorites
       
-      # Shoot homing magic bullets periodically
-      if enemy.shootTimer > 2.5:  # Every 2.5 seconds
-        let dir = (playerPos - enemy.pos).normalize()
-        let bullet = newBullet(
-          x = enemy.pos.x,
-          y = enemy.pos.y,
-          direction = dir,
-          speed = 220.0,
-          damage = enemy.rangedDamage.float32,
-          fromPlayer = false,
-          isHoming = true,  # Makes bullets track player
-          isPiercing = false,
-          isExplosive = false,
-          hasBounce = false,
-          canSplit = false,
-          slowAmount = 0.0,
-          poisonDuration = 0.0,
-          fireDuration = 0.0,
-          windPushForce = 0.0,
-          isPentagon = false,
-          isEcho = false,
-          isBossBullet = false,
-          sourceEnemyId = enemy.id
-        )
-        bullet.radius = 8  # Larger magic bullets
-        game.bullets.add(bullet)
-        enemy.shootTimer = 0
+      # Shoot homing magic bullets using centralized system (✅ uses config for all properties)
+      executeRangedAttack(enemy, playerPos, game)
       
-      # Summon meteorites periodically
-      if enemy.spawnTimer > 4.0:  # Every 4 seconds
-        # Summon 2-3 meteorites at random positions near player
-        let meteorCount = 2 + rand(1)
+      # Summon meteorites periodically using config values
+      if enemy.spawnTimer > config.specialCooldown:
+        let specialData = parseSpecialData(config.specialData)
+        let baseCount = getSpecialInt(specialData, "meteorite_count", 2)
+        let randomExtra = getSpecialInt(specialData, "meteorite_count_random", 1)
+        let damage = getSpecialInt(specialData, "damage", 3)
+        let warningTime = getSpecialFloat(specialData, "warning_time", 1.5)
+        
+        # ✅ Meteorite count from config
+        let meteorCount = baseCount + (if randomExtra > 0: rand(randomExtra) else: 0)
         for i in 0..<meteorCount:
           # Target position near player (random offset)
           let offsetX = (rand(200.0) - 100.0)
@@ -1180,43 +632,25 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           let spawnX = targetX
           let spawnY = -50.0
           
-          # Create meteorite with warning
+          # ✅ Create meteorite with config damage and warning time
           let meteorite = newMeteorite(
             targetX = targetX,
             targetY = targetY,
             spawnX = spawnX,
             spawnY = spawnY,
-            damage = 3,  # High damage on impact
-            warningTime = 1.5  # 1.5 second warning before impact
+            damage = damage,
+            warningTime = warningTime
           )
           game.meteorites.add(meteorite)
         
         enemy.spawnTimer = 0
       
-      # Movement behavior: force entry when off-screen, then maintain optimal distance
-      let dir = (playerPos - enemy.pos).normalize()
-      let distToPlayer = distance(enemy.pos, playerPos)
-      const optimalDistance = 250.0
-      const retreatDistance = 180.0
-      
-      var nextPos = enemy.pos
+      # Movement: use helper functions for consistent behavior
+      var nextPos: Vector2f
       if not enemy.hasEnteredScreen:
-        # FORCE movement toward screen center until fully inside
-        let screenCenterX = game.screenWidth.float32 / 2.0
-        let screenCenterY = game.screenHeight.float32 / 2.0
-        let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
-        nextPos = enemy.pos + towardCenter * effectiveSpeed * dt
-      elif distToPlayer < retreatDistance:
-        # Once inside, retreat when too close
-        let retreatDir = dir * -1.0
-        nextPos = enemy.pos + retreatDir * effectiveSpeed * dt
-      elif distToPlayer > optimalDistance:
-        # Approach when too far (but only when already inside screen)
-        nextPos = enemy.pos + dir * effectiveSpeed * 0.5 * dt
+        nextPos = forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game)
       else:
-        # Optimal distance - float sideways
-        let tangent = newVector2f(-dir.y, dir.x)
-        nextPos = enemy.pos + tangent * effectiveSpeed * 0.3 * dt
+        nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
       
       # Check wall collisions
       var canMove = true

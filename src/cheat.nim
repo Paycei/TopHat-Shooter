@@ -16,7 +16,8 @@ type
     currentTab*: CheatMenuTab
     keySequence: seq[KeyboardKey]
     lastKeyTime: float32
-    scrollOffset: int
+    scrollOffset: int  # For scrolling the "All Available" list
+    ownedScrollOffset: int  # For scrolling the "Currently Owned" list
 
 # Key sequence for opening cheat menu: C, D, Plus(+)
 const CHEAT_SEQUENCE = @[KeyboardKey.C, KeyboardKey.D, KeyboardKey.KpAdd]
@@ -30,7 +31,8 @@ proc initCheatMenu*(): CheatMenu =
     currentTab: cmtWaves,
     keySequence: @[],
     lastKeyTime: 0.0,
-    scrollOffset: 0
+    scrollOffset: 0,
+    ownedScrollOffset: 0
   )
   globalCheatMenu = result
 
@@ -128,18 +130,28 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
   # Tab switching with keyboard
   if isKeyPressed(KeyboardKey.One) or isKeyPressed(KeyboardKey.Kp1):
     menu.currentTab = cmtWaves
+    menu.scrollOffset = 0  # Reset scroll when changing tabs
+    menu.ownedScrollOffset = 0
     playSound(stMenuNav)
   elif isKeyPressed(KeyboardKey.Two) or isKeyPressed(KeyboardKey.Kp2):
     menu.currentTab = cmtPowerUps
+    menu.scrollOffset = 0  # Reset scroll when changing tabs
+    menu.ownedScrollOffset = 0
     playSound(stMenuNav)
   elif isKeyPressed(KeyboardKey.Three) or isKeyPressed(KeyboardKey.Kp3):
     menu.currentTab = cmtStats
+    menu.scrollOffset = 0  # Reset scroll when changing tabs
+    menu.ownedScrollOffset = 0
     playSound(stMenuNav)
   elif isKeyPressed(KeyboardKey.Four) or isKeyPressed(KeyboardKey.Kp4):
     menu.currentTab = cmtPermanentPowerUps
+    menu.scrollOffset = 0  # Reset scroll when changing tabs
+    menu.ownedScrollOffset = 0
     playSound(stMenuNav)
   elif isKeyPressed(KeyboardKey.Five) or isKeyPressed(KeyboardKey.Kp5):
     menu.currentTab = cmtEnemies
+    menu.scrollOffset = 0  # Reset scroll when changing tabs
+    menu.ownedScrollOffset = 0
     playSound(stMenuNav)
   
   # Handle scrolling for permanent power-ups tab
@@ -336,6 +348,8 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     # Handle tab click
     if tabHovered and isMouseButtonPressed(Left):
       menu.currentTab = CheatMenuTab(i)
+      menu.scrollOffset = 0  # Reset scroll when changing tabs
+      menu.ownedScrollOffset = 0
       playSound(stMenuNav)
   
   # Content area
@@ -608,26 +622,83 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   drawText("Tip: Modify stats to test different scenarios", x + 20, currentY, 12, Gray)
 
 proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu) =
+  let contentHeight = height
+  let dividerY = y + (contentHeight div 2)  # Split screen in half
+  
+  # ========== TOP HALF: Currently Owned Power-Ups (Scrollable) ==========
   var currentY = y + 10
   
-  drawText("Permanent Power-Ups (Click to add/upgrade)", x + 20, currentY, 14, Gray)
+  drawText("Currently Owned (" & $game.player.powerUps.len & ") - Scroll with Mouse Wheel", x + 20, currentY, 14, Yellow)
   currentY += 25
   
-  # Show currently owned permanent power-ups
-  drawText("Currently Owned:", x + 20, currentY, 14, Yellow)
-  currentY += 20
+  # Owned power-ups scrollable area
+  let ownedAreaHeight = dividerY - currentY - 10
+  let ownedItemHeight: int32 = 30
+  let ownedMaxVisible = max(1, ownedAreaHeight div ownedItemHeight)
   
   if game.player.powerUps.len == 0:
     drawText("  None", x + 30, currentY, 12, Gray)
-    currentY += 18
   else:
-    for powerUp in game.player.powerUps:
+    # Handle mouse wheel scrolling for owned list
+    let mousePos = getMousePosition()
+    if mousePos.y >= currentY.float32 and mousePos.y < dividerY.float32:
+      let wheelMove = getMouseWheelMove()
+      if wheelMove < 0:
+        menu.ownedScrollOffset += 1
+      elif wheelMove > 0:
+        menu.ownedScrollOffset = max(0, menu.ownedScrollOffset - 1)
+    
+    # Calculate scroll bounds for owned list
+    let ownedMaxScroll = max(0, game.player.powerUps.len - ownedMaxVisible)
+    if menu.ownedScrollOffset > ownedMaxScroll:
+      menu.ownedScrollOffset = ownedMaxScroll
+    
+    # Draw visible owned power-ups with remove buttons
+    let ownedStartIdx = menu.ownedScrollOffset
+    let ownedEndIdx = min(ownedStartIdx + ownedMaxVisible, game.player.powerUps.len)
+    
+    for i in ownedStartIdx..<ownedEndIdx:
+      let powerUp = game.player.powerUps[i]
       let name = getPowerUpName(powerUp.powerType)
-      drawText("  " & name & " - Level " & $powerUp.level, x + 30, currentY, 12, Green)
-      currentY += 18
+      let itemY = currentY + (i - ownedStartIdx).int32 * ownedItemHeight
+      
+      # Draw power-up name and level
+      drawText("  " & name & " - Lv " & $powerUp.level, x + 30, itemY + 7, 12, Green)
+      
+      # Remove button
+      let removeX = x + width - 80
+      let removeWidth: int32 = 60
+      let removeHeight: int32 = 24
+      let removeRect = Rectangle(x: removeX.float32, y: itemY.float32 + 2, 
+                                  width: removeWidth.float32, height: removeHeight.float32)
+      let removeHovered = checkCollisionPointRec(getMousePosition(), removeRect)
+      
+      drawRectangle(removeX, itemY + 2, removeWidth, removeHeight,
+                    if removeHovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255))
+      drawRectangleLines(removeX, itemY + 2, removeWidth, removeHeight, Red)
+      
+      let removeText = "Remove"
+      let removeTextWidth = measureText(removeText, 10)
+      drawText(removeText, removeX + (removeWidth - removeTextWidth) div 2, itemY + 9, 10, White)
+      
+      if removeHovered and isMouseButtonPressed(Left):
+        removePermanentPowerUpCheat(game, powerUp.powerType)
+    
+    # Scroll indicator for owned list
+    if ownedMaxScroll > 0:
+      let scrollInfoY = dividerY - 18
+      drawText("Showing " & $(ownedStartIdx + 1) & "-" & $ownedEndIdx & " of " & $game.player.powerUps.len, 
+              x + 20, scrollInfoY, 10, Gray)
+
+  # Draw divider line
+  drawLine(Vector2(x: (x + 10).float32, y: dividerY.float32), 
+           Vector2(x: (x + width - 10).float32, y: dividerY.float32), 
+           2, Color(r: 100, g: 100, b: 120, a: 255))
   
-  currentY += 15
-  drawText("All Available Power-Ups (scroll with UP/DOWN):", x + 20, currentY, 14, Yellow)
+  # ========== BOTTOM HALF: All Available Power-Ups (Scrollable) ==========
+  currentY = dividerY + 15
+  
+  drawText("All Available Power-Ups - Scroll with Mouse Wheel", x + 20, currentY, 14, Yellow)
   currentY += 25
   
   # Define all power-up types
@@ -647,11 +718,21 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puWindAura, puWindBullets, puWindMastery, puWindOrb
   ]
   
-  # Scrollable area setup
-  let maxVisibleItems = 8
+  # Scrollable area setup for available list
+  let availableAreaHeight = y + contentHeight - currentY - 10
   let itemHeight: int32 = 30
+  let maxVisibleItems = max(1, availableAreaHeight div itemHeight)
   let buttonWidth: int32 = 45
   let buttonSpacing: int32 = 5
+  
+  # Handle mouse wheel scrolling for available list
+  let mousePos = getMousePosition()
+  if mousePos.y >= currentY.float32 and mousePos.y < (y + contentHeight).float32:
+    let wheelMove = getMouseWheelMove()
+    if wheelMove < 0:
+      menu.scrollOffset += 1
+    elif wheelMove > 0:
+      menu.scrollOffset = max(0, menu.scrollOffset - 1)
   
   # Calculate scroll bounds
   let maxScroll = max(0, allPowerUpTypes.len - maxVisibleItems)
@@ -678,56 +759,39 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     let nameColor = if currentLevel > 0: Green else: White
     drawText(name, x + 30, itemY + 7, 12, nameColor)
     
-    # Draw level buttons (Lv0 to remove, Lv1, Lv2, Lv3)
-    let buttonStartX = x + width - 220
+    # Draw level buttons (Lv1, Lv2, Lv3)
+    let buttonStartX = x + width - 160
     
-    for level in 0..3:
-      let btnX = buttonStartX + level.int32 * (buttonWidth + buttonSpacing)
+    for level in 1..3:
+      let btnX = buttonStartX + (level - 1).int32 * (buttonWidth + buttonSpacing)
       let rect = Rectangle(x: btnX.float32, y: itemY.float32, width: buttonWidth.float32, height: (itemHeight - 5).float32)
       let hovered = checkCollisionPointRec(getMousePosition(), rect)
       
       # Button color based on current level
       var btnColor: Color
-      if level == 0:
-        # Level 0 = Remove button (red)
-        if currentLevel == 0:
-          btnColor = Color(r: 40, g: 40, b: 40, a: 255)  # Already removed (grayed out)
-        else:
-          btnColor = if hovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255)
+      if level == currentLevel:
+        btnColor = if hovered: Color(r: 0, g: 150, b: 0, a: 255) else: Color(r: 0, g: 100, b: 0, a: 255)
+      elif level < currentLevel:
+        btnColor = Color(r: 0, g: 70, b: 0, a: 150)
       else:
-        # Level 1-3 buttons
-        if level == currentLevel:
-          btnColor = if hovered: Color(r: 0, g: 150, b: 0, a: 255) else: Color(r: 0, g: 100, b: 0, a: 255)
-        elif level < currentLevel:
-          btnColor = Color(r: 0, g: 70, b: 0, a: 150)
-        else:
-          btnColor = if hovered: Color(r: 80, g: 80, b: 80, a: 255) else: Color(r: 50, g: 50, b: 50, a: 255)
+        btnColor = if hovered: Color(r: 80, g: 80, b: 80, a: 255) else: Color(r: 50, g: 50, b: 50, a: 255)
       
       drawRectangle(btnX, itemY, buttonWidth, itemHeight - 5, btnColor)
       drawRectangleLines(btnX, itemY, buttonWidth, itemHeight - 5, 
-                        if level == currentLevel: Yellow else: 
-                        if level == 0: Red else: Gray)
+                        if level == currentLevel: Yellow else: Gray)
       
-      let btnText = if level == 0: "Del" else: "Lv" & $level
+      let btnText = "Lv" & $level
       let btnTextWidth = measureText(btnText, 10)
       drawText(btnText, btnX + (buttonWidth - btnTextWidth) div 2, itemY + 8, 10, White)
       
       if hovered and isMouseButtonPressed(Left):
-        if level == 0:
-          # Remove the power-up
-          removePermanentPowerUpCheat(game, powerType)
-        else:
-          applyPermanentPowerUpCheat(game, powerType, level)
+        applyPermanentPowerUpCheat(game, powerType, level)
   
-  # Draw scroll indicator
+  # Draw scroll indicator for available list
   if maxScroll > 0:
-    let scrollY = y + height - 30
+    let scrollY = y + contentHeight - 15
     drawText("Showing " & $(startIdx + 1) & "-" & $endIdx & " of " & $allPowerUpTypes.len, 
             x + 20, scrollY, 10, Gray)
-    if menu.scrollOffset > 0:
-      drawText("UP to scroll up", x + width - 150, scrollY, 10, Yellow)
-    if menu.scrollOffset < maxScroll:
-      drawText("DOWN to scroll down", x + width - 180, scrollY + 12, 10, Yellow)
 
 proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10

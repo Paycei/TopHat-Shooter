@@ -35,6 +35,9 @@ type
     windows*: seq[WindowState]
     showCursor*: bool
     mousePos*: Vector2
+    loadingActive*: bool
+    loadingProgress*: float32
+    loadingText*: string
 
 const
   ICON_SIZE = 64
@@ -83,11 +86,21 @@ proc newOSDesktop*(): OSDesktop =
     time: 0,
     taskbarHeight: TASKBAR_HEIGHT,
     windows: @[],
-    showCursor: true
+    showCursor: true,
+    loadingActive: false,
+    loadingProgress: 0.0,
+    loadingText: ""
   )
 
 proc updateOSDesktop*(desktop: OSDesktop, dt: float32) =
   desktop.time += dt
+  
+  # Update loading animation if active
+  if desktop.loadingActive:
+    desktop.loadingProgress += dt * 2.0  # Progress speed
+    if desktop.loadingProgress >= 1.0:
+      desktop.loadingActive = false
+      desktop.loadingProgress = 0.0
   
   # Update all icon names to reflect current language
   for i in 0..<desktop.icons.len:
@@ -427,3 +440,85 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
     return desktop.selectedIcon
   
   return -1
+
+proc startLoadingAnimation*(desktop: OSDesktop, text: string) =
+  ## Start a loading animation with the given text
+  desktop.loadingActive = true
+  desktop.loadingProgress = 0.0
+  desktop.loadingText = text
+
+proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
+  ## Draw the loading animation overlay if active
+  if not desktop.loadingActive:
+    return
+  
+  # Semi-transparent dark overlay
+  drawRectangle(0, 0, screenWidth.int32, screenHeight.int32,
+               Color(r: 0, g: 0, b: 0, a: 180))
+  
+  # Loading window/panel
+  let panelWidth = 500
+  let panelHeight = 200
+  let panelX = (screenWidth - panelWidth) div 2
+  let panelY = (screenHeight - panelHeight) div 2
+  
+  # Panel background with OS-style border
+  drawRectangle(panelX.int32, panelY.int32, panelWidth.int32, panelHeight.int32,
+               Color(r: 25, g: 30, b: 45, a: 255))
+  drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+                                width: panelWidth.float32, height: panelHeight.float32), 2,
+                    Color(r: 0, g: 180, b: 220, a: 255))
+  
+  # Title bar
+  drawRectangle(panelX.int32, panelY.int32, panelWidth.int32, 30,
+               Color(r: 0, g: 50, b: 80, a: 255))
+  drawText("Loading...", (panelX + 10).int32, (panelY + 7).int32, 16,
+          Color(r: 0, g: 200, b: 255, a: 255))
+  
+  # Loading text
+  let textY = panelY + 60
+  let textWidth = measureText(desktop.loadingText, 20)
+  let textX = panelX + (panelWidth - textWidth) div 2
+  drawText(desktop.loadingText, textX.int32, textY.int32, 20, White)
+  
+  # Progress bar
+  let barWidth = 400
+  let barHeight = 30
+  let barX = panelX + (panelWidth - barWidth) div 2
+  let barY = panelY + 110
+  
+  # Progress bar background
+  drawRectangle(barX.int32, barY.int32, barWidth.int32, barHeight.int32,
+               Color(r: 20, g: 25, b: 35, a: 255))
+  drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
+                                width: barWidth.float32, height: barHeight.float32), 2,
+                    Color(r: 60, g: 80, b: 100, a: 255))
+  
+  # Progress fill with gradient effect
+  let fillWidth = (barWidth.float32 * min(desktop.loadingProgress, 1.0)).int32
+  if fillWidth > 0:
+    drawRectangleGradientH(barX.int32, barY.int32, fillWidth, barHeight.int32,
+                          Color(r: 0, g: 140, b: 200, a: 255),
+                          Color(r: 0, g: 200, b: 255, a: 255))
+  
+  # Progress percentage
+  let percentage = int(min(desktop.loadingProgress, 1.0) * 100.0)
+  let percentText = $percentage & "%"
+  let percentWidth = measureText(percentText, 18)
+  let percentX = barX + (barWidth - percentWidth) div 2
+  let percentY = barY + 6
+  drawText(percentText, percentX.int32, percentY.int32, 18,
+          Color(r: 255, g: 255, b: 255, a: 255))
+  
+  # Animated loading dots
+  let dotCount = 3
+  let dotsY = panelY + 160
+  let dotSpacing = 15
+  let dotsStartX = (screenWidth - (dotCount * dotSpacing)) div 2
+  
+  for i in 0..<dotCount:
+    let dotX = dotsStartX + i * dotSpacing
+    let dotPhase = desktop.time * 3.0 + i.float32 * 0.3
+    let dotAlpha = ((sin(dotPhase) + 1.0) / 2.0 * 200.0 + 55.0).uint8
+    drawCircle(Vector2(x: dotX.float32, y: dotsY.float32), 4,
+              Color(r: 0, g: 200, b: 255, a: dotAlpha))

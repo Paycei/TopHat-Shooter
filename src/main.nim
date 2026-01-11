@@ -193,6 +193,9 @@ proc main() =
   osHelpWindow = nil
   osStatsWindow = nil
   
+  # Track pending game mode launch during loading animation
+  var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox
+  
   while not windowShouldClose():
     # Check if fullscreen toggle was requested
     if fullscreenToggleRequested:
@@ -278,9 +281,41 @@ proc main() =
       # Update OS desktop
       updateOSDesktop(osDesktop, dt)
       
+      # Check if loading animation just finished and launch pending game mode
+      if not osDesktop.loadingActive and pendingGameMode >= 0:
+        case pendingGameMode
+        of 0:  # Wave-Based Mode
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmWaveBased)
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        of 1:  # Time Survival Mode
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmTimeSurvival)
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        of 6:  # Sandbox Mode
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmSandbox)
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        else: discard
+        pendingGameMode = -1  # Reset pending mode
+      
       # Check if any windows are blocking desktop interaction
       # Only handle desktop input if no windows are open and covering the desktop
       let mousePos = getMousePosition()
+      
+      # Play click sound for any left-click on the desktop (anywhere)
+      if isMouseButtonPressed(Left):
+        playSound(stMenuNav, 0.6)
+      
       var windowBlocking = false
       
       if not osSettingsWindow.isNil and osSettingsWindow.window.visible and not osSettingsWindow.window.minimized:
@@ -312,19 +347,11 @@ proc main() =
         playSound(stMenuSelect)
         case action
         of 0:  # Play.exe - Wave-Based Mode
-          currentGame = newGame(screenWidth, screenHeight)
-          currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, gmWaveBased)
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
-          statsSavedThisGame = false
+          startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
+          pendingGameMode = 0
         of 1:  # Survival.exe - Time Survival Mode
-          currentGame = newGame(screenWidth, screenHeight)
-          currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, gmTimeSurvival)
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
-          statsSavedThisGame = false
+          startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
+          pendingGameMode = 1
         of 2:  # Stats.exe - Open Statistics Window
           # Reload stats from disk before opening window
           discard loadStatistics(stats)
@@ -352,12 +379,8 @@ proc main() =
         of 5:  # Shutdown.exe - Quit
           break
         of 6:  # Sandbox.exe - Sandbox Mode
-          currentGame = newGame(screenWidth, screenHeight)
-          currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, gmSandbox)
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
-          statsSavedThisGame = false
+          startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
+          pendingGameMode = 6
         else: discard
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
@@ -386,19 +409,11 @@ proc main() =
           playSound(stMenuSelect)
           case iconToExecute
           of 0:  # Play.exe - Wave-Based Mode
-            currentGame = newGame(screenWidth, screenHeight)
-            currentGame.discordClient = globalDiscordClient
-            setGameMode(currentGame, gmWaveBased)
-            initializeRunTracking(currentGame)
-            currentGame.state = gsPlaying
-            statsSavedThisGame = false
+            startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
+            pendingGameMode = 0
           of 1:  # Survival.exe - Time Survival Mode
-            currentGame = newGame(screenWidth, screenHeight)
-            currentGame.discordClient = globalDiscordClient
-            setGameMode(currentGame, gmTimeSurvival)
-            initializeRunTracking(currentGame)
-            currentGame.state = gsPlaying
-            statsSavedThisGame = false
+            startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
+            pendingGameMode = 1
           of 2:  # Stats.exe - Open Statistics Window
             discard loadStatistics(stats)
             let freshRunStats = loadLastRunStats()
@@ -418,12 +433,8 @@ proc main() =
           of 5:  # Shutdown.exe - Quit
             break
           of 6:  # Sandbox.exe - Sandbox Mode
-            currentGame = newGame(screenWidth, screenHeight)
-            currentGame.discordClient = globalDiscordClient
-            setGameMode(currentGame, gmSandbox)
-            initializeRunTracking(currentGame)
-            currentGame.state = gsPlaying
-            statsSavedThisGame = false
+            startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
+            pendingGameMode = 6
           else: discard
       
       beginGameDrawing()
@@ -439,6 +450,9 @@ proc main() =
       if not osHelpWindow.isNil and osHelpWindow.window.visible:
         drawHelpWindow(osHelpWindow)
       
+      # Draw loading overlay on top of everything if active
+      drawLoadingOverlay(osDesktop, screenWidth, screenHeight)
+      
       # Draw custom cursor on menu
       drawCustomCursor(currentGame.time)
       
@@ -448,12 +462,49 @@ proc main() =
       # Keep menu music playing during help screen
       playMusic(mtMenu)
       
+      # Update time for animations
+      currentGame.time += dt
+      
+      # Update OS desktop for loading animation
+      updateOSDesktop(osDesktop, dt)
+      
+      # Check if loading animation just finished and launch pending game mode
+      if not osDesktop.loadingActive and pendingGameMode >= 0:
+        case pendingGameMode
+        of 0:  # Wave-Based Mode
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmWaveBased)
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        of 1:  # Time Survival Mode
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmTimeSurvival)
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        of 6:  # Sandbox Mode
+          currentGame = newGame(screenWidth, screenHeight)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmSandbox)
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        else: discard
+        pendingGameMode = -1  # Reset pending mode
+      
       # Open OS help window if not already open
       if osHelpWindow.isNil:
         osHelpWindow = newHelpWindow(screenWidth, screenHeight)
       if not osHelpWindow.window.visible:
         osHelpWindow.window.visible = true
         osHelpWindow.window.focused = true
+      
+      # Play click sound for any left-click
+      if isMouseButtonPressed(Left):
+        playSound(stMenuNav, 0.6)
       
       # Update help window
       let iconToExecute = updateHelpWindow(osHelpWindow, dt, screenWidth, screenHeight)
@@ -463,21 +514,11 @@ proc main() =
         osHelpWindow.window.visible = false
         case iconToExecute
         of 0:  # Play
-          # Start a fresh Wave-Based game (same pattern as main menu start)
-          currentGame = newGame(screenWidth, screenHeight)
-          currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, gmWaveBased)
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
-          statsSavedThisGame = false
+          startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
+          pendingGameMode = 0
         of 1:  # Survival
-          # Start a fresh Time Survival game
-          currentGame = newGame(screenWidth, screenHeight)
-          currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, gmTimeSurvival)
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
-          statsSavedThisGame = false
+          startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
+          pendingGameMode = 1
         of 2:  # Stats
           currentGame.state = gsStatistics
         of 3:  # Settings
@@ -494,6 +535,8 @@ proc main() =
       beginGameDrawing()
       drawOSDesktop(osDesktop, screenWidth, screenHeight)
       drawHelpWindow(osHelpWindow)
+      # Draw loading overlay on top of everything if active
+      drawLoadingOverlay(osDesktop, screenWidth, screenHeight)
       drawCustomCursor(currentGame.time)
       endGameDrawing()
     

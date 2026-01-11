@@ -25,6 +25,15 @@ proc newConsumable*(x, y: float32, difficulty: float32): Consumable =
     lifetime: 15.0
   )
 
+proc newSpecificConsumable*(x, y: float32, cType: ConsumableType): Consumable =
+  ## Create a consumable of a specific type (for boss drops, etc.)
+  result = Consumable(
+    pos: newVector2f(x, y),
+    radius: 8,
+    consumableType: cType,
+    lifetime: 15.0
+  )
+
 proc updateConsumable*(consumable: Consumable, dt: float32): bool =
   consumable.lifetime -= dt
   return consumable.lifetime > 0

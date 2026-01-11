@@ -258,7 +258,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   drawText(rarityText, badgeX + 15, yOffset + 8, 14,
           Color(r: 0, g: 0, b: 0, a: 180))
   drawText(rarityText, badgeX + 14, yOffset + 7, 14, rarityColor)
-  yOffset += 36  # Adjusted spacing after badges on same line
+  yOffset += 48  # Increased spacing to push tier section lower
   
   # Legendary power-ups only have 1 tier, others have 3
   let maxTiers = if powerUp.rarity == prLegendary: 1 else: 3
@@ -323,8 +323,8 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   drawText(levelText, textBgX + 4, yOffset + 5, 12, White)
   yOffset += PROGRESS_BAR_HEIGHT + 18
   
-  # Description section with fixed size and enhanced prominence
-  let descBoxHeight: int32 = 75  # Fixed height for description area (reduced to avoid clipping)
+  # Description section with expanded size and enhanced prominence
+  let descBoxHeight: int32 = 105  # Slightly taller for better readability
   let descBoxY = yOffset
   
   # Description background box with border
@@ -359,18 +359,19 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   if currentLine.len > 0:
     descLines.add(currentLine)
   
-  # Draw description lines (top-aligned in the box, larger font)
+  # Draw description lines (top-aligned in the box, larger font, more space)
   let lineHeight = 20
   let textStartY = descBoxY + 12  # Fixed padding from top
   
   for i, line in descLines:
-    let lineY: int32 = textStartY.int32 + int32(i * lineHeight)
-    drawText(line, x + 22, lineY, int32(14), Color(r: 220, g: 230, b: 240, a: 255))
+    if i < 4:  # Show up to 4 lines now with more space
+      let lineY: int32 = textStartY.int32 + int32(i * lineHeight)
+      drawText(line, x + 22, lineY, int32(14), Color(r: 220, g: 230, b: 240, a: 255))
   
-  yOffset += descBoxHeight + 10
+  yOffset += descBoxHeight + 8  # Reduced spacing for better utilization
   
-  # Bottom info
-  let bottomY = y + height - 30
+  # Bottom info - positioned right after description with minimal gap
+  let bottomY = yOffset  # Dynamic positioning instead of fixed
   drawText("[P]", x + 10, bottomY, 14, Color(r: 100, g: 110, b: 120, a: 255))
   drawText(".exe", x + 30, bottomY + 2, 12, Color(r: 120, g: 130, b: 140, a: 255))
   
