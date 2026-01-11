@@ -2,7 +2,6 @@
 ## Tabbed settings interface matching the OS visual language
 
 import raylib, strutils, ../sound, ../save_system, os_window, ../settings, ../localization
-# Use globalSettings from settings module, don't redefine it
 
 type
   SettingsTab* = enum
@@ -25,14 +24,6 @@ type
     # Slider state
     draggingVolume*: bool
     draggingMusic*: bool
-
-# Don't redefine globalSettings - use the one from settings module
-# Don't redefine initSettings - use the one from settings module
-
-const availableLanguages = [
-  ("English", English),
-  ("Español", Spanish),
-]
 
 proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings): SettingsWindow =
   let windowWidth = 700
@@ -680,5 +671,3 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
   
   # Draw resize indicator
   drawResizeIndicator(settingsWin.window)
-
-# Don't redefine applySettings - use the one from settings module
