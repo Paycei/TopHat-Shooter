@@ -1,13 +1,8 @@
-## OS-Style Process Installer - Enhanced Edition
+## OS-Style Process Installer Module
 ## Power-up selection screen as modern software installation interface
-
-import raylib, ../types, math, strutils, icon_drawing, ../localization
-
-# Import shared power-up data module (eliminates redundancy with powerup.nim)
-import ../powerup_data
-
 # The roll animation system is handled in powerup.nim
-# This file only handles the visual drawing of the installer UI
+
+import raylib, ../types, math, strutils, icon_drawing, ../localization, ../powerup_data
 
 const
   INSTALLER_WIDTH = 1000
@@ -163,24 +158,38 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
           if powerUp.rarity == prLegendary: Gold else: Color(r: 100, g: 200, b: 255, a: 255))
   yOffset += 30
   
-  # Enhanced Version badge with styling
+  # Version and Rarity badges on same line (centered together)
   let versionText = "v" & $powerUp.level & ".0"
   let versionWidth = measureText(versionText, 14)
-  let versionX = x + (width - versionWidth - 20) div 2
+  let versionBadgeWidth = versionWidth + 28  # Match rarity badge padding
+  
+  let rarityText = if powerUp.rarity == prLegendary: "[*] LEGENDARY [*]" else: "STANDARD"
+  let rarityWidth: int32 = measureText(rarityText, 14)
+  let rarityBadgeWidth = rarityWidth + 28
+  
+  let badgeSpacing = 15
+  let totalBadgeWidth = versionBadgeWidth + badgeSpacing + rarityBadgeWidth
+  let badgesStartX: int32 = x + int32((width - totalBadgeWidth) div 2)
+  
+  let versionX: int32 = badgesStartX
+  let badgeX: int32 = badgesStartX + versionBadgeWidth + badgeSpacing.int32
+  let badgeHeight: int32 = 28
+  
+  # Version badge
   let versionBgColor = case powerUp.level
     of 1: Color(r: 45, g: 55, b: 80, a: 255)
     of 2: Color(r: 45, g: 70, b: 55, a: 255)
     else: Color(r: 70, g: 50, b: 45, a: 255)
   
   # Version badge shadow
-  drawRectangle(versionX + 1, yOffset + 1, versionWidth + 20, 26,
+  drawRectangle(versionX + 1, yOffset + 1, versionBadgeWidth, badgeHeight,
                Color(r: 0, g: 0, b: 0, a: 80))
   
   # Version badge background
-  drawRectangle(versionX, yOffset, versionWidth + 20, 26, versionBgColor)
+  drawRectangle(versionX, yOffset, versionBadgeWidth, badgeHeight, versionBgColor)
   
   # Highlight stripe
-  drawRectangle(versionX, yOffset, versionWidth + 20, 2,
+  drawRectangle(versionX, yOffset, versionBadgeWidth, 2,
                Color(r: min(versionBgColor.r + 60, 255), g: min(versionBgColor.g + 60, 255), b: min(versionBgColor.b + 60, 255), a: 255))
   
   # Border with level color
@@ -190,24 +199,20 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
     else: Color(r: 180, g: 120, b: 80, a: 255)
   
   drawRectangleLines(Rectangle(x: versionX.float32, y: yOffset.float32,
-                                width: (versionWidth + 20).float32, height: 26.0),
+                                width: versionBadgeWidth.float32, height: badgeHeight.float32),
                     2, versionBorderColor)
   
-  # Version text with shadow
-  drawText(versionText, versionX + 11, yOffset + 7, 14, Color(r: 0, g: 0, b: 0, a: 150))
-  drawText(versionText, versionX + 10, yOffset + 6, 14, Color(r: 200, g: 210, b: 220, a: 255))
-  yOffset += 34
+  # Version text with shadow (centered horizontally and vertically in badge)
+  let versionTextX = versionX + (versionBadgeWidth - versionWidth) div 2
+  let versionTextY = yOffset + (badgeHeight - 14) div 2  # 14 is the font size
+  drawText(versionText, versionTextX + 1, versionTextY + 1, 14, Color(r: 0, g: 0, b: 0, a: 150))
+  drawText(versionText, versionTextX, versionTextY, 14, Color(r: 200, g: 210, b: 220, a: 255))
   
-  # Enhanced Rarity badge with effects
-  let rarityText = if powerUp.rarity == prLegendary: "[*] LEGENDARY [*]" else: "STANDARD"
+  # Rarity badge
   let rarityColor = if powerUp.rarity == prLegendary:
     Color(r: 255, g: 215, b: 0, a: 255)
   else:
     Color(r: 100, g: 180, b: 220, a: 255)
-  
-  let rarityWidth: int32 = measureText(rarityText, 14)
-  let badgeX: int32 = x + (width - rarityWidth - 28) div 2
-  let badgeHeight: int32 = 28
   
   # Legendary glow effect
   if powerUp.rarity == prLegendary and blurAmount > 0.6:
@@ -215,7 +220,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
     # Multiple glow layers
     for i in 1..4:
       let glowSize: int32 = int32(i * 3)
-      drawRectangle(badgeX - glowSize, yOffset - glowSize, 
+      drawRectangle(badgeX.int32 - glowSize, yOffset - glowSize, 
                    rarityWidth + 28 + glowSize * 2, badgeHeight + glowSize * 2,
                    Color(r: 255, g: 215, b: 0, a: uint8((60.0 - i.float * 12.0) * glowPulse * blurAmount)))
     # Sparkle particles around badge
@@ -253,68 +258,15 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   drawText(rarityText, badgeX + 15, yOffset + 8, 14,
           Color(r: 0, g: 0, b: 0, a: 180))
   drawText(rarityText, badgeX + 14, yOffset + 7, 14, rarityColor)
-  yOffset += 42
+  yOffset += 36  # Adjusted spacing after badges on same line
   
-  # Enhanced Progress section with level badges
   # Legendary power-ups only have 1 tier, others have 3
   let maxTiers = if powerUp.rarity == prLegendary: 1 else: 3
   
+  # Compact tier label
   drawText(t(tkPowerUpUpgradeTier), x + 12, yOffset, 12,  
           Color(r: 140, g: 160, b: 180, a: 255))
-  yOffset += 20
-  
-  # Level indicator badges (visual tier system)
-  let badgeSize: int32 = 18
-  let badgeSpacing: int32 = 8
-  let totalBadgeWidth: int32 = (badgeSize * maxTiers).int32 + (badgeSpacing * (maxTiers - 1)).int32
-  let badgeStartX: int32 = x + (width - totalBadgeWidth) div 2
-  
-  for tier in 1..maxTiers:
-    let badgeX: int32 = int32(badgeStartX + (tier - 1) * (badgeSize + badgeSpacing))
-    let isActive = tier <= powerUp.level
-    
-    if isActive:
-      # Active tier badge with glow
-      let tierColor = case tier
-        of 1: Color(r: 80, g: 150, b: 255, a: 255)
-        of 2: Color(r: 80, g: 255, b: 150, a: 255)
-        else: Color(r: 255, g: 140, b: 80, a: 255)
-      
-      # Glow effect for active badges
-      if blurAmount > 0.7:
-        drawRectangle(badgeX - 2, yOffset - 2, badgeSize + 4, badgeSize + 4,
-                     Color(r: tierColor.r, g: tierColor.g, b: tierColor.b, a: 80))
-      
-      # Badge body
-      drawRectangle(badgeX, yOffset, badgeSize, badgeSize, tierColor)
-      # Highlight shine
-      drawRectangle(badgeX, yOffset, badgeSize, 2,
-                   Color(r: min(tierColor.r + 100, 255), g: min(tierColor.g + 100, 255), b: min(tierColor.b + 100, 255), a: 200))
-      drawRectangle(badgeX, yOffset, 2, badgeSize,
-                   Color(r: min(tierColor.r + 60, 255), g: min(tierColor.g + 60, 255), b: min(tierColor.b + 60, 255), a: 150))
-      # Border
-      drawRectangleLines(Rectangle(x: badgeX.float32, y: yOffset.float32,
-                                   width: badgeSize.float32, height: badgeSize.float32),
-                        2, Color(r: min(tierColor.r + 120, 255), g: min(tierColor.g + 120, 255), b: min(tierColor.b + 120, 255), a: 255))
-      # Star/checkmark indicator
-      let centerX = badgeX + badgeSize div 2
-      let centerY = yOffset + badgeSize div 2
-      drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 4, White)
-      drawText("v", centerX - 3, centerY - 5, 10, tierColor)
-    else:
-      # Inactive tier badge (grayed out)
-      drawRectangle(badgeX, yOffset, badgeSize, badgeSize,
-                   Color(r: 35, g: 40, b: 50, a: 255))
-      drawRectangleLines(Rectangle(x: badgeX.float32, y: yOffset.float32,
-                                   width: badgeSize.float32, height: badgeSize.float32),
-                        1, Color(r: 60, g: 70, b: 85, a: 255))
-      # Empty circle
-      let centerX = badgeX + badgeSize div 2
-      let centerY = yOffset + badgeSize div 2
-      drawCircleLines(Vector2(x: centerX.float32, y: centerY.float32), 4, 
-                     Color(r: 80, g: 90, b: 100, a: 255))
-  
-  yOffset += badgeSize + 15
+  yOffset += 18
   
   # Enhanced progress bar with segments
   let barWidth = width - 24
@@ -369,23 +321,35 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   drawRectangle(textBgX, yOffset + 3, levelWidth + 8, 16,
                Color(r: 20, g: 25, b: 35, a: 220))
   drawText(levelText, textBgX + 4, yOffset + 5, 12, White)
-  yOffset += PROGRESS_BAR_HEIGHT + 28
+  yOffset += PROGRESS_BAR_HEIGHT + 18
   
-  # Separator
-  drawRectangle(x + 15, yOffset, width - 30, 1,
-               Color(r: 60, g: 70, b: 85, a: 255))
-  yOffset += 10
+  # Description section with fixed size and enhanced prominence
+  let descBoxHeight: int32 = 75  # Fixed height for description area (reduced to avoid clipping)
+  let descBoxY = yOffset
   
-  # Description
+  # Description background box with border
+  drawRectangle(x + 10, descBoxY, width - 20, descBoxHeight,
+               Color(r: 18, g: 22, b: 32, a: 255))
+  
+  # Subtle inner glow
+  drawRectangle(x + 10, descBoxY, width - 20, 2,
+               Color(r: 0, g: 140, b: 200, a: 80))
+  
+  # Border
+  drawRectangleLines(Rectangle(x: (x + 10).float32, y: descBoxY.float32,
+                                width: (width - 20).float32, height: descBoxHeight.float32),
+                    2, Color(r: 60, g: 80, b: 100, a: 255))
+  
+  # Description text (larger, more prominent)
   let desc = getPowerUpDescription(powerUp.powerType, powerUp.level)
   
   var descLines: seq[string] = @[]
   var currentLine = ""
-  let maxLineWidth = width - 24
+  let maxLineWidth = width - 44  # More padding for readability
   
   for word in desc.split(' '):
     let testLine = if currentLine.len > 0: currentLine & " " & word else: word
-    if measureText(testLine, 13) > maxLineWidth:
+    if measureText(testLine, 14) > maxLineWidth:
       if currentLine.len > 0:
         descLines.add(currentLine)
       currentLine = word
@@ -395,9 +359,15 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   if currentLine.len > 0:
     descLines.add(currentLine)
   
+  # Draw description lines (top-aligned in the box, larger font)
+  let lineHeight = 20
+  let textStartY = descBoxY + 12  # Fixed padding from top
+  
   for i, line in descLines:
-    let lineY = yOffset + int32(i * 18)
-    drawText(line, x + 12, lineY, int32(13), Color(r: 190, g: 200, b: 210, a: 255))
+    let lineY: int32 = textStartY.int32 + int32(i * lineHeight)
+    drawText(line, x + 22, lineY, int32(14), Color(r: 220, g: 230, b: 240, a: 255))
+  
+  yOffset += descBoxHeight + 10
   
   # Bottom info
   let bottomY = y + height - 30
@@ -536,7 +506,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
       # DISABLE CLIPPING
       endScissorMode()
     else:
-      # STATIC MODE - show final selection
+      # Show final selection
       drawProcessCard(cardX, cardY, int32(CARD_WIDTH), int32(CARD_HEIGHT),
                      game.powerUpChoices[i],
                      i == game.selectedPowerUp,
@@ -559,7 +529,6 @@ proc drawOSPowerUpInstaller*(game: Game) =
     drawText(rollingText, rollingX, rollingY, 32,
             Color(r: 255, g: 220, b: 0, a: uint8(255 * pulse)))
     
-    # Sparkles - constrained to window area
     beginScissorMode(windowX + 10, windowY + TITLE_BAR_HEIGHT + 10, 
                      INSTALLER_WIDTH - 20, INSTALLER_HEIGHT - TITLE_BAR_HEIGHT - 140)
     
@@ -574,20 +543,17 @@ proc drawOSPowerUpInstaller*(game: Game) =
     
     endScissorMode()
   
-  # Control panel
   let bottomY = windowY + INSTALLER_HEIGHT - 120
   drawRectangle(windowX, bottomY - 15, INSTALLER_WIDTH, 120,
                Color(r: 30, g: 38, b: 52, a: 255))
   drawRectangle(windowX, bottomY - 15, INSTALLER_WIDTH, 2,
                Color(r: 0, g: 140, b: 200, a: 255))
   
-  # Buttons
   let buttonY = bottomY + 15
   let buttonHeight = 42
   
-  # Reroll button
-  let rerollX = windowX + 50
   let rerollWidth = 220
+  let rerollX: int32 = windowX + int32((INSTALLER_WIDTH - rerollWidth) div 2)  # Center horizontally
   let canAffordReroll = game.player.coins >= game.rerollCost
   
   drawModernButton(rerollX, buttonY, int32(rerollWidth), int32(buttonHeight),

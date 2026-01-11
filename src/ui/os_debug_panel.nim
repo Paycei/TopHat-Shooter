@@ -156,7 +156,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
     
     return  # Don't draw rest of panel
   
-  # Calculate panel height based on content - FIXED: removed base height calculation
+  # Calculate panel height based on content - Removed base height calculation
   var contentHeight: int32 = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 4  # Header
   
   # FPS/Entity row
@@ -179,7 +179,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   if hasPowerUp(game.player, puAutoShoot):
     contentHeight += int32(18 + DEBUG_LINE_HEIGHT + 8 + DEBUG_SECTION_SPACING)
   
-  # Always show combat stats (FIXED: always add this)
+  # Always show combat stats
   contentHeight += int32(18 + (DEBUG_LINE_HEIGHT * 3) + 8 + DEBUG_SECTION_SPACING)
   
   # Add height for rage/berserker bonuses if applicable

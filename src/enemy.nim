@@ -588,7 +588,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       # Screen boundary check - keep ranged enemies inside once entered
-      # FIX: Allow movement toward screen when off-screen, prevent leaving when inside
+      # Allow movement toward screen when off-screen
       if enemy.hasEnteredScreen:
         let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
                          nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
@@ -802,7 +802,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
             y = enemy.pos.y,
             direction = spreadDir,
             speed = 150,
-            damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
+            damage = enemy.rangedDamage.float32,
             fromPlayer = false,
             sourceEnemyId = enemy.id
           ))
@@ -819,7 +819,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           y = enemy.pos.y,
           direction = dir,
           speed = 140,
-          damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
+          damage = enemy.rangedDamage.float32,
           fromPlayer = false,
           sourceEnemyId = enemy.id
         ))
@@ -856,7 +856,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           y = enemy.pos.y,
           direction = inaccurateDir,
           speed = 120,
-          damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
+          damage = enemy.rangedDamage.float32,
           fromPlayer = false,
           sourceEnemyId = enemy.id
         ))
@@ -886,7 +886,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       # Screen boundary check - keep ranged enemies inside once entered
-      # FIX: Allow movement toward screen when off-screen, prevent leaving when inside
+      # Allow movement toward screen when off-screen, prevent leaving when inside
       if enemy.hasEnteredScreen:
         let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
                          nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
@@ -925,7 +925,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           y = enemy.pos.y,
           direction = dir,
           speed = 400.0,
-          damage = enemy.rangedDamage.float32,  # FIX: Use enemy's ranged damage
+          damage = enemy.rangedDamage.float32,
           fromPlayer = false,
           isHoming = false,
           isPiercing = false,
@@ -973,7 +973,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       # Screen boundary check - keep ranged enemies inside once entered
-      # FIX: Allow movement toward screen when off-screen, prevent leaving when inside
+      # Allow movement toward screen when off-screen, prevent leaving when inside
       if enemy.hasEnteredScreen:
         let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
                          nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
@@ -1113,7 +1113,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
         if enemy.attackWarningTimer >= enemy.attackExecuteTimer:
           let dir = (playerPos - enemy.pos).normalize()
           # Fire a large, fast, high-damage bullet
-          let bullet = newBullet(enemy.pos.x, enemy.pos.y, dir, 400.0, enemy.rangedDamage.float32, false, sourceEnemyId = enemy.id)  # FIX: Use enemy's ranged damage
+          let bullet = newBullet(enemy.pos.x, enemy.pos.y, dir, 400.0, enemy.rangedDamage.float32, false, sourceEnemyId = enemy.id)
           game.bullets.add(bullet)
           enemy.attackPhase = 2
           enemy.attackExecuteTimer = 2.0  # Cooldown before next charge
@@ -1145,7 +1145,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           y = enemy.pos.y,
           direction = dir,
           speed = 220.0,
-          damage = enemy.rangedDamage.float32,  # FIX: Use enemy's ranged damage
+          damage = enemy.rangedDamage.float32,
           fromPlayer = false,
           isHoming = true,  # Makes bullets track player
           isPiercing = false,
@@ -1231,7 +1231,7 @@ proc updateEnemy*(enemy: Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wal
           break
       
       # Screen boundary check - keep ranged enemies inside once entered
-      # FIX: Allow movement toward screen when off-screen, prevent leaving when inside
+      # Allow movement toward screen when off-screen, prevent leaving when inside
       if enemy.hasEnteredScreen:
         let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
                          nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
@@ -2192,7 +2192,7 @@ proc drawLaser*(laser: Laser) =
   # Calculate alpha based on lifetime with accelerated fade
   let fadePercent = laser.lifetime / laser.maxLifetime
   
-  # FIX: Accelerated fade in last 30% of lifetime for smoother disappearance
+  # Accelerated fade in last 30% of lifetime for smoother disappearance
   let adjustedFade = if fadePercent < 0.3:
     # Quick fade in final 30% of lifetime: 0.3 -> 0.0 becomes 1.0 -> 0.0
     fadePercent / 0.3
@@ -2456,7 +2456,7 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
 
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
   ## Spawns a boss - either custom (waves 1-60) or random (after wave 60)
-  ## 
+  ##
   ## CUSTOM BOSSES (every 5 waves):
   ##   - Use definitions from boss_definitions.nim
   ##   - HP-based phase system
@@ -2519,7 +2519,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       pos: newVector2f(startX, startY),
       vel: newVector2f(0, 0),
       radius: bossDef.baseRadius,
-      collisionRadius: bossDef.baseRadius * 0.4,  # FIX: Add collision radius (40% of visual size)
+      collisionRadius: bossDef.baseRadius * 0.4,
       hp: scaledHP,
       maxHp: scaledHP,
       speed: firstPhaseSpeed,  # Apply speedMultiplier from first phase

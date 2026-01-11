@@ -361,7 +361,7 @@ proc drawPlayer*(player: Player) =
       let color = getElementColor(orb.elementType)
       
       # IMPROVED: Multi-layered orb with glow effects and trails
-      # Outer glow aura - FIXED: Reduced glow size from 12/9 to 8/6 for less overwhelming effect
+      # Outer glow aura - Reduced glow size from 12/9 to 8/6 for less overwhelming effect
       drawCircle(Vector2(x: orbX, y: orbY), 8 + (orbSizeScale - 6.0) * 1.2, 
                 Color(r: color.r, g: color.g, b: color.b, a: 30))
       drawCircle(Vector2(x: orbX, y: orbY), 6 + (orbSizeScale - 6.0) * 1.0, 
@@ -375,7 +375,7 @@ proc drawPlayer*(player: Player) =
       drawCircleLines(orbX.int32, orbY.int32, pulseSize, 
                      Color(r: color.r, g: color.g, b: color.b, a: 180))
       
-      # Bright core with highlight - FIXED: Made highlight much more subtle (reduced size and opacity)
+      # Bright core with highlight - Made highlight much more subtle
       drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale * 0.4,
                 Color(r: 255, g: 255, b: 255, a: 150))
       drawCircle(Vector2(x: orbX - (orbSizeScale * 0.15), y: orbY - (orbSizeScale * 0.15)), orbSizeScale * 0.15,

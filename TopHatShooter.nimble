@@ -1,6 +1,6 @@
 # Package
 
-version       = "5.1.0"
+version       = "5.1.1"
 author        = "Paycei"
 description   = "TopHat-ShooterOS"
 license       = "Apache 2.0"
@@ -9,7 +9,7 @@ bin           = @["main"]
 
 # Dependencies
 
-requires "nim >= 2.0.0"
+requires "nim >= 2.2.6"
 requires "naylib >= 25.51.1"
 
 task run, "Run the game for development":

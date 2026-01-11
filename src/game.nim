@@ -1629,7 +1629,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   case phase.specialBehavior
   of "circle_movement":
-    # FIXED: Smooth velocity-based orbiting (no teleportation)
+    # Smooth velocity-based orbiting
     # Calculate target position on circle
     let orbitRadius = 200.0
     let orbitSpeed = 0.4  # Radians per second
@@ -2196,7 +2196,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # Calculate all laser angles for the warning system
     var warningAngles: seq[float32] = @[]
     
-    # FIX: For cross_laser pattern, always create 4 beams (cardinal directions)
+    # For cross_laser pattern, always create 4 beams (cardinal directions)
     let actualLaserCount = if patternType == "cross_laser": 4 else: laserCount
     
     for i in 0..<actualLaserCount:
@@ -2223,7 +2223,6 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           baseAngle + (rand(1.0) - 0.5) * 0.15  # Slight scatter for prismatic effect
         
         of "prismatic_cage":
-          # FIXED: Reduced laser count to prevent lag/crash
           # Calculate angle biased toward player with radial spread
           let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, 
                                        game.player.pos.x - enemy.pos.x)
@@ -2905,7 +2904,6 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             else: etCube
         
         # Create minion with determined type
-        # FIXED: Boss minions should NOT scale with time - use fixed difficulty
         # Use a fixed base difficulty (1.0) so minions don't become stronger over time
         let minion = newEnemy(
           spawnX, spawnY, 
@@ -2986,8 +2984,6 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
   of bapOrbit:
     # ENHANCED ORBITAL SATELLITE SYSTEM
     # Creates persistent satellites that orbit, shoot, and can be destroyed
-    # FIXED: Only create satellites if they don't exist (prevents respawning bug)
-    # 
     # SpecialData modes:
     # - "electric_charges": Electric Boss 6 - yellow sparking satellites
     # - "satellite_orbit": Orbital Boss 7 - space theme, slower, methodical
@@ -3429,7 +3425,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           game.screenShakeIntensity = 65.0
           game.screenShakeDecay = 55.0
       
-      # FIXED: Each teleport position shoots bullets (temporal echoes)
+      # Each teleport position shoots bullets
       if attack.projectileCount > 0:
         # Configure bullet behavior based on mode
         let (bulletSpeed, bulletDamageMultiplier) = case teleportMode
@@ -4795,7 +4791,7 @@ proc updateGame*(game: var Game, dt: float32) =
       game.bossCount += 1
       # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
       let bossDifficulty = (game.currentWave - 1).float32 / 3.0
-      # FIX: Use a boss wave that maps to the boss block (ceil to next multiple of 5)
+      # Use a boss wave that maps to the boss block (ceil to next multiple of 5)
       # This allows debug spawns when wavesUntilBoss is forced to 0 (boss appears
       # for the current boss block: waves 1-5 => boss 1, 6-10 => boss 2, etc.)
       let bossBlockWave = ((game.currentWave - 1) div 5 + 1) * 5
@@ -5209,14 +5205,14 @@ proc updateGame*(game: var Game, dt: float32) =
           y = enemy.pos.y,
           direction = dir,
           speed = 220,
-          damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
+          damage = enemy.rangedDamage.float32,
           fromPlayer = false,
           sourceEnemyId = enemy.id
         ))
       enemy.shootTimer = 0
     
-    # Cube enemies shoot - BUFFED
-    if enemy.enemyType == etCube and enemy.shootTimer > 1.75:  # Faster
+    # Cube enemies shoot
+    if enemy.enemyType == etCube and enemy.shootTimer > 2.0:
       let dir = (game.player.pos - enemy.pos).normalize()
       
       # Shoot 3-shot burst
@@ -5231,7 +5227,7 @@ proc updateGame*(game: var Game, dt: float32) =
           y = enemy.pos.y,
           direction = spreadDir,
           speed = 250,
-          damage = enemy.rangedDamage.float32,  # FIX: Convert int to float32
+          damage = enemy.rangedDamage.float32,
           fromPlayer = false,
           sourceEnemyId = enemy.id
         ))
@@ -5245,7 +5241,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if enemy.isBoss:
         # Boss deals continuous damage
         if game.time - enemy.lastContactDamageTime >= 0.5:  # 2 HP per second
-          var bossContactDamage = enemy.contactDamage.float32  # FIX: Use contactDamage instead of damage
+          var bossContactDamage = enemy.contactDamage.float32  # Use contactDamage instead of damage
           
           # Thorns reflection damage
           discard applyThornsReflection(game, game.player, bossContactDamage, enemy, "boss")
@@ -5900,9 +5896,9 @@ proc updateGame*(game: var Game, dt: float32) =
     else:
       # Enemy bullet hitting player
       if checkBulletPlayerCollision(bullet, game.player):
-        # Parry - bounce bullets back (LEGENDARY active ability)
+        # Parry - bounce bullets back
         if game.player.parryActive:
-          # FIX: Bounce toward the enemy that shot the bullet
+          # Bounce toward the enemy that shot the bullet
           # If enemy is dead, bounce toward where it was when it shot
           var targetPos: Vector2f
           var foundTarget = false
@@ -5938,7 +5934,7 @@ proc updateGame*(game: var Game, dt: float32) =
           i += 1
           continue
         
-        var bulletDamage = bullet.damage  # FIX: Use the actual bullet damage instead of hardcoded 1.0
+        var bulletDamage = bullet.damage
         
         # Thorns reflection - damage the originating enemy (the one that shot the bullet)
         if hasPowerUp(game.player, puThorns):
