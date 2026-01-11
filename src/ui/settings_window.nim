@@ -531,11 +531,11 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       settingsWin.draggingVolume = true
       let relativeX = mousePos.x - volumeSliderX.float32
       settingsWin.settings.volume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
-      settingsChanged = true
     
     # Stop dragging on release
-    if not isMouseButtonDown(Left):
+    if settingsWin.draggingVolume and not isMouseButtonDown(Left):
       settingsWin.draggingVolume = false
+      settingsChanged = true  # Only save when slider is released
     
     # Music slider
     let musicSliderY = contentY + 90
@@ -554,11 +554,10 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       let relativeX = mousePos.x - volumeSliderX.float32
       settingsWin.settings.musicVolume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
       setMusicVolume(settingsWin.settings.musicVolume)
-      settingsChanged = true
     
-    # Stop dragging on release
-    if not isMouseButtonDown(Left):
+    if settingsWin.draggingMusic and not isMouseButtonDown(Left):
       settingsWin.draggingMusic = false
+      settingsChanged = true  # Only save when slider is released
   
   # Handle Controls tab interactions
   if settingsWin.currentTab == stControls:

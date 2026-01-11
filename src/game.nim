@@ -6001,13 +6001,16 @@ proc updateGame*(game: var Game, dt: float32) =
               
               game.player.pulseArmorCooldown = game.time
         
-        # Track bullet damage for statistics (try to get enemy type from sourceEnemyId)
+        # Track bullet damage for statistics
         var sourceEnemyType = etCircle
-        if bullet.sourceEnemyId >= 0 and bullet.sourceEnemyId < game.enemies.len:
-          sourceEnemyType = game.enemies[bullet.sourceEnemyId].enemyType
+        if bullet.sourceEnemyId >= 0:
+          for enemy in game.enemies:
+            if enemy.id == bullet.sourceEnemyId:
+              sourceEnemyType = enemy.enemyType
+              break
         trackPlayerDamage(game, bulletDamage, sourceEnemyType)
         
-        # Create damage number (enemy damage to player)
+        # Create damage number (enemy to player)
         # Determine bullet damage type based on bullet properties
         var bulletDamageType = dtDefault
         if bullet.isBossBullet:
@@ -6020,7 +6023,7 @@ proc updateGame*(game: var Game, dt: float32) =
         hitEnemy = true
         spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Red, 8)
     
-    # Check bullet-wall collision (only enemy bullets)
+    # Check bullet-wall collision (enemy bullets)
     if not bullet.fromPlayer:
       for wall in game.walls:
         if checkBulletWallCollision(bullet, wall):
@@ -6514,7 +6517,6 @@ proc drawGame*(game: Game) =
         let barX = game.screenWidth div 2 - barWidth div 2
         let barY = 15
         let hpPercent = enemy.hp / enemy.maxHp
-
         
         # Health bar background
         drawRectangle(int32(barX), int32(barY), int32(barWidth), int32(barHeight),
@@ -6552,9 +6554,6 @@ proc drawGame*(game: Game) =
   # Instructions only for non-legendary keys
   drawText(t(tkGameInstructionsWall), 
            game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
-  
-  # Note: Custom cursor is now drawn in main.nim after all UI overlays
-  # This ensures the cursor appears above sandbox menu and other overlays
   
   # End 2D camera mode if screen shake was applied
   if game.screenShakeIntensity > 0:

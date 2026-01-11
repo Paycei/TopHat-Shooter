@@ -14,12 +14,12 @@ proc initSettings*(): Settings =
     editingVolume: false,
     editingMusicVolume: false,
     fullscreen: false,
-    showFPS: false,  # FPS counter disabled by default
-    mouseSupport: true,  # Mouse support enabled by default
-    showCursorInMenus: true,  # Show cursor in menus by default
-    showDebugStats: false,  # Debug stats disabled by default
-    showHints: true,  # Hints enabled by default
-    showEnemyLabels: true,  # Enemy labels enabled by default
+    showFPS: false,
+    mouseSupport: true,
+    showCursorInMenus: true,
+    showDebugStats: false,
+    showHints: true,
+    showEnemyLabels: true,
     language: "english"  # Default language is English
   )
   globalSettings = result

@@ -170,8 +170,14 @@ proc main() =
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   
   # Initialize global Discord client (persists across game sessions)
-  globalDiscordClient = newDiscordClient(DISCORD_APP_ID)
-  discard globalDiscordClient.connect()  # Start background thread
+  # Wrapped in try-catch to handle Discord connection failures gracefully
+  try:
+    globalDiscordClient = newDiscordClient(DISCORD_APP_ID)
+    if not globalDiscordClient.isNil:
+      discard globalDiscordClient.connect()  # Start background thread
+  except:
+    # Discord initialization failed - continue without Rich Presence
+    globalDiscordClient = nil
   
   var currentGame = newGame(screenWidth, screenHeight)
   currentGame.state = gsSplash  # Start with splash screen
@@ -209,7 +215,8 @@ proc main() =
         setWindowPosition((monitorWidth - screenWidth) div 2, (monitorHeight - screenHeight) div 2)
       
       updateRenderScale()
-      discard saveSettings(settings)
+      if not saveSettings(settings):
+        echo "Warning: Failed to save settings to disk"
     
     let dt = getFrameTime()
     
@@ -355,8 +362,12 @@ proc main() =
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
-        runCallbacks(currentGame.discordClient)
-        updateDiscordForMenu(currentGame.discordClient)
+        try:
+          runCallbacks(currentGame.discordClient)
+          updateDiscordForMenu(currentGame.discordClient)
+        except:
+          # Ignore Discord errors - continue without Rich Presence
+          discard
       
       # Update OS windows if they exist and are visible
       if not osSettingsWindow.isNil and osSettingsWindow.window.visible:
@@ -572,8 +583,12 @@ proc main() =
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil and not cheatMenu.active:
-        runCallbacks(currentGame.discordClient)
-        updateDiscordForPlaying(currentGame.discordClient, currentGame)
+        try:
+          runCallbacks(currentGame.discordClient)
+          updateDiscordForPlaying(currentGame.discordClient, currentGame)
+        except:
+          # Ignore Discord errors - continue without Rich Presence
+          discard
       
       # Check for cheat menu activation
       checkCheatSequence(cheatMenu, currentGame, currentGame.time)
@@ -785,8 +800,12 @@ proc main() =
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
-        runCallbacks(currentGame.discordClient)
-        updateDiscordForPaused(currentGame.discordClient, currentGame)
+        try:
+          runCallbacks(currentGame.discordClient)
+          updateDiscordForPaused(currentGame.discordClient, currentGame)
+        except:
+          # Ignore Discord errors - continue without Rich Presence
+          discard
       
       beginGameDrawing()
       drawGame(currentGame)
@@ -1217,7 +1236,11 @@ proc main() =
         
         # Clear Discord Rich Presence
         if not currentGame.discordClient.isNil:
-          clearPresence(currentGame.discordClient)
+          try:
+            clearPresence(currentGame.discordClient)
+          except:
+            # Ignore Discord errors during game over
+            discard
         
         # Finalize run tracking and save for menu viewing
         if hasValidRunStats():
@@ -1242,8 +1265,11 @@ proc main() =
                      currentGame.player.kills,
                      currentGame.player.coins,
                      bossesKilled)
-          discard saveStatistics(stats)
-          statsSavedThisGame = true
+          # Only mark as saved if save actually succeeded
+          if saveStatistics(stats):
+            statsSavedThisGame = true
+          else:
+            echo "Warning: Failed to save statistics to disk"
       
       # Update mouse tracking
       updateMouseTracking(currentGame)
@@ -1402,7 +1428,11 @@ proc main() =
   
   # Cleanup global Discord Rich Presence client
   if not globalDiscordClient.isNil:
-    disconnect(globalDiscordClient)
+    try:
+      disconnect(globalDiscordClient)
+    except:
+      # Ignore Discord disconnect errors during shutdown
+      discard
   
   # Cleanup
   stopMusic()

@@ -545,13 +545,14 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       for ptype, damage in runStats.powerUps.damageContribution:
         contributions.add((ptype, damage))
       
-      # Bubble sort by damage (descending)
-      for i in 0..<contributions.len:
-        for j in 0..<contributions.len - i - 1:
-          if contributions[j][1] < contributions[j + 1][1]:
-            let temp = contributions[j]
-            contributions[j] = contributions[j + 1]
-            contributions[j + 1] = temp
+      # Bubble sort by damage (descending) - only if we have multiple items
+      if contributions.len > 1:
+        for i in 0..<contributions.len:
+          for j in 0..<contributions.len - i - 1:
+            if contributions[j][1] < contributions[j + 1][1]:
+              let temp = contributions[j]
+              contributions[j] = contributions[j + 1]
+              contributions[j + 1] = temp
       
       if contributions.len > 0:
         drawText(t(tkStatsRank), (col2X + 10).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
