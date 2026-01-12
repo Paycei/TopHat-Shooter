@@ -9,15 +9,15 @@ type
     cmtPowerUps,
     cmtStats,
     cmtPermanentPowerUps,
-    cmtEnemies  # New tab for enemy list
+    cmtEnemies
 
   CheatMenu* = ref object
     active*: bool
     currentTab*: CheatMenuTab
     keySequence: seq[KeyboardKey]
     lastKeyTime: float32
-    scrollOffset: int  # For scrolling the "All Available" list
-    ownedScrollOffset: int  # For scrolling the "Currently Owned" list
+    scrollOffset: int
+    ownedScrollOffset: int
 
 # Key sequence for opening cheat menu: C, D, Plus(+)
 const CHEAT_SEQUENCE = @[KeyboardKey.C, KeyboardKey.D, KeyboardKey.KpAdd]
@@ -39,7 +39,6 @@ proc initCheatMenu*(): CheatMenu =
 proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) =
   if not CHEATS_ENABLED: return
   
-  # Check if cheats are allowed in current gamemode
   if not canUseCheats(game.mode): return
 
   # Reset sequence if too much time has passed
@@ -81,7 +80,7 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
       if menu.keySequence.len > CHEAT_SEQUENCE.len:
         menu.keySequence.setLen(0)
 
-  # Also catch the actual '+' character typed (e.g., Shift+'=') which may not register as Equal key in some setups
+  # Catch the actual '+' character typed (e.g., Shift+'=')
   var c = getCharPressed()
   while c != 0:
     if c == int('+'):
@@ -130,27 +129,27 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
   # Tab switching with keyboard
   if isKeyPressed(KeyboardKey.One) or isKeyPressed(KeyboardKey.Kp1):
     menu.currentTab = cmtWaves
-    menu.scrollOffset = 0  # Reset scroll when changing tabs
+    menu.scrollOffset = 0
     menu.ownedScrollOffset = 0
     playSound(stMenuNav)
   elif isKeyPressed(KeyboardKey.Two) or isKeyPressed(KeyboardKey.Kp2):
     menu.currentTab = cmtPowerUps
-    menu.scrollOffset = 0  # Reset scroll when changing tabs
+    menu.scrollOffset = 0
     menu.ownedScrollOffset = 0
     playSound(stMenuNav)
   elif isKeyPressed(KeyboardKey.Three) or isKeyPressed(KeyboardKey.Kp3):
     menu.currentTab = cmtStats
-    menu.scrollOffset = 0  # Reset scroll when changing tabs
+    menu.scrollOffset = 0
     menu.ownedScrollOffset = 0
     playSound(stMenuNav)
   elif isKeyPressed(KeyboardKey.Four) or isKeyPressed(KeyboardKey.Kp4):
     menu.currentTab = cmtPermanentPowerUps
-    menu.scrollOffset = 0  # Reset scroll when changing tabs
+    menu.scrollOffset = 0
     menu.ownedScrollOffset = 0
     playSound(stMenuNav)
   elif isKeyPressed(KeyboardKey.Five) or isKeyPressed(KeyboardKey.Kp5):
     menu.currentTab = cmtEnemies
-    menu.scrollOffset = 0  # Reset scroll when changing tabs
+    menu.scrollOffset = 0
     menu.ownedScrollOffset = 0
     playSound(stMenuNav)
   
@@ -171,9 +170,7 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
 proc applyWaveCheat*(game: var Game, action: string) =
   case action
   of "skip":
-    # Matar todos los enemigos vivos usando la ruta normal
     game.enemies.setLen(0)
-    # Cancelar TODOS los enemigos que faltaban por spawnear
     game.waveEnemiesRemaining = 0
   of "next":
     game.currentWave += 1
@@ -216,7 +213,7 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   # Reset player stats to TRUE base values (matching newPlayer) and reapply all remaining power-ups
   # This ensures stat modifications from the removed power-up are undone
   game.player.baseSpeed = 175.0  # Changed from 200.0 to match newPlayer
-  game.player.fireRate = 0.415   # Changed from 0.15 to match newPlayer
+  game.player.fireRate = 0.425   # Changed from 0.15 to match newPlayer
   game.player.damage = 1.0       # Base damage before shop purchases
   game.player.bulletSpeed = 300.0  # Changed from 600.0 to match newPlayer
   game.player.maxHp = 7.0        # Base max HP before shop purchases
@@ -262,7 +259,7 @@ proc applyStatCheat*(game: var Game, stat: string, value: float32) =
     game.player.maxHp = value
     game.player.hp = min(game.player.hp, game.player.maxHp)
   of "coins":
-    game.player.coins = int(value)  # coins are integers
+    game.player.coins = int(value)
   of "speed":
     game.player.baseSpeed = value
   else:
@@ -348,7 +345,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     # Handle tab click
     if tabHovered and isMouseButtonPressed(Left):
       menu.currentTab = CheatMenuTab(i)
-      menu.scrollOffset = 0  # Reset scroll when changing tabs
+      menu.scrollOffset = 0
       menu.ownedScrollOffset = 0
       playSound(stMenuNav)
   
