@@ -614,9 +614,13 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
   
   let reflectDamageBase = damageToReflect * reflectPercent
   
+  # Add max HP scaling to thorns (1% of max HP as bonus damage)
+  let hpScaling = player.maxHp * 0.01
+  let reflectDamageWithScaling = reflectDamageBase + hpScaling
+  
   # Apply critical hit chance to thorns reflection
   let thornStats = calculateCombatStats(player)
-  let reflectDamageWithCrit = applyCriticalHitFromStats(thornStats, reflectDamageBase)
+  let reflectDamageWithCrit = applyCriticalHitFromStats(thornStats, reflectDamageWithScaling)
   let actualDamage = damageEnemy(targetEnemy, reflectDamageWithCrit)
   
   # Track thorns damage for statistics
@@ -1262,7 +1266,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       let arcaneMultiplier = case arcaneLevel
         of 1: 0.5   # +50%
         of 2: 0.85   # +85%
-        else: 1.30   # +130%
+        else: 1.20   # +120%
       arcaneBulletsBonus = damageBeforePowerUps * arcaneMultiplier
     
     # Apply critical hit chance using pre-calculated stats and capture if it was a crit
@@ -4613,10 +4617,14 @@ proc updateGame*(game: var Game, dt: float32) =
   if game.player.pulseArmorCooldown < 0:  # -1 signals trigger
     let level = getPowerUpLevel(game.player, puPulseArmor)
     if level > 0:
-      let (pushRadius, pushForce, damage, cooldown) = case level
+      let (pushRadius, pushForce, baseDamage, cooldown) = case level
         of 1: (120.0, 400.0, 0.0, 8.0)    # Level 1: small radius, low force, no damage, 8s cooldown
         of 2: (160.0, 500.0, 2.0, 6.0)    # Level 2: medium radius, medium force, 2 damage, 6s cooldown
         else: (200.0, 600.0, 4.0, 4.0)     # Level 3: large radius, high force, 4 damage, 4s cooldown
+      
+      # Calculate damage scaling from max HP (scales with tank stats)
+      let damageScaling = game.player.maxHp * 0.01  # 1% of max HP as scaling
+      let damage = baseDamage + damageScaling
       
       # Push all enemies within radius (and damage them if level > 1)
       for enemy in game.enemies:
@@ -4631,10 +4639,10 @@ proc updateGame*(game: var Game, dt: float32) =
           enemy.vel.y += awayFromPlayer.y * actualPushForce
           
           # Apply damage for level 2 and 3
-          if damage > 0:
-            enemy.hp -= damage
+          if baseDamage > 0:
+            let actualDamage = damageEnemy(enemy, damage)
             # Show damage number
-            game.showDamage(enemy.pos, damage, fromPlayer = true, 
+            game.showDamage(enemy.pos, actualDamage, fromPlayer = true, 
                           isCritical = false, damageType = dtDefault)
       
       # Visual feedback - expanding shockwave ring
@@ -6276,7 +6284,7 @@ proc updateGame*(game: var Game, dt: float32) =
         if nearestEnemy != nil:
           let direction = (nearestEnemy.pos - game.walls[i].pos).normalize()
           
-          # Calculate turret damage based on Fortify level
+          # Calculate turret damage based on Fortify level and player damage scaling
           var turretDamage = 1.0
           if hasPowerUp(game.player, puWallMaster):
             let fortifyLevel = getPowerUpLevel(game.player, puWallMaster)
@@ -6284,6 +6292,10 @@ proc updateGame*(game: var Game, dt: float32) =
               of 1: 1.5  # +50% damage
               of 2: 2.0  # +100% damage
               else: 3.0  # +200% damage
+          
+          # Add damage scaling from player damage (10% scaling like orbs)
+          let damageScaling = game.player.damage * 0.1
+          turretDamage += damageScaling
           
           game.bullets.add(newBullet(
             x = game.walls[i].pos.x,

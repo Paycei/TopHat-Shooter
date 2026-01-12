@@ -18,7 +18,7 @@ proc initShopItems*(): array[6, ShopItem] =
   result[2] = ShopItem(name: t(tkShopMoveSpeedPlus), description: t(tkShopMoveSpeedPlusDesc), baseCost: 7, bought: 0)
   result[3] = ShopItem(name: t(tkShopMaxHealthPlus), description: t(tkShopMaxHealthPlusDesc), baseCost: 10, bought: 0)
   result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: 6, bought: 0)
-  result[5] = ShopItem(name: t(tkShopWallX5), description: t(tkShopWallX5Desc), baseCost: 14, bought: 0)
+  result[5] = ShopItem(name: t(tkShopWallX4), description: t(tkShopWallX4Desc), baseCost: 14, bought: 0)
 
 proc getCurrentCost*(item: ShopItem): int =
   # More aggressive exponential cost scaling: baseCost * 1.5^bought
@@ -397,11 +397,11 @@ proc buyShopItem*(game: Game, index: int) =
     game.player.speed += 12
     game.player.baseSpeed += 12
   of 3: # Max Health - Scales with purchases: 3, 4, 5, 6, 7 HP (capped at +7)
-    let healthGain = min(3 + game.shopItems[3].bought, 7)
+    let healthGain = min(2 + game.shopItems[3].bought, 7)
     game.player.maxHp += healthGain.float32
     game.player.hp += healthGain.float32
   of 4: # Bullet Speed
     game.player.bulletSpeed += 10
   of 5: # Walls
-    game.player.walls += 5
+    game.player.walls += 4
   else: discard

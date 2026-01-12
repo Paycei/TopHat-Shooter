@@ -175,7 +175,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
         player.shieldHealths.add(player.shieldMaxHealth)
         player.shieldRegenTimers.add(0.0)
     
-    # Update regeneration timers and restore destroyed shields
+    # Update regeneration timers and restore damaged/destroyed shields
     for i in 0..<player.shieldHealths.len:
       if player.shieldHealths[i] <= 0:
         # Shield is destroyed, increment regen timer
@@ -184,6 +184,19 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
           # Restore shield to full health
           player.shieldHealths[i] = player.shieldMaxHealth
           player.shieldRegenTimers[i] = 0.0
+      elif player.shieldHealths[i] < player.shieldMaxHealth:
+        # Shield is damaged but not destroyed - regenerate it
+        player.shieldRegenTimers[i] += dt
+        if player.shieldRegenTimers[i] >= player.shieldRegenDelay:
+          # Regenerate shield health gradually (50% of max health per second)
+          let regenRate = player.shieldMaxHealth * 0.5
+          player.shieldHealths[i] = min(player.shieldHealths[i] + regenRate * dt, player.shieldMaxHealth)
+          # If fully healed, reset timer
+          if player.shieldHealths[i] >= player.shieldMaxHealth:
+            player.shieldRegenTimers[i] = 0.0
+      else:
+        # Shield is at full health, reset timer
+        player.shieldRegenTimers[i] = 0.0
   
   # Update rotating orbs angle
   player.orbRotationAngle += dt * 2.0  # Rotate orbs around player
