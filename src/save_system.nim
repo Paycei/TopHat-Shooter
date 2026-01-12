@@ -28,7 +28,6 @@ proc getAppDataPath*(): string =
   else:  # Linux and other Unix-like systems
     result = getEnv("HOME") & "/.local/share"
   
-  # Add game folder
   result = result / ".tophat" / "shooter"
   
   # Create directory if it doesn't exist

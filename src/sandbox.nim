@@ -44,7 +44,6 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
       drawText(desc, contentX + 5, currentY + 20, 12, Color(r: 180, g: 180, b: 180, a: 255))
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
   
-  # Add spawn multiple enemies button
   currentY += 10
   if currentY > startY - 50 and currentY < screenHeight - 50:
     drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 70, b: 70, a: 255))
@@ -58,7 +57,6 @@ proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   drawText(t(tkSandboxSpawnBosses), contentX, currentY, 18, White)
   currentY += 25
   
-  # Dynamically fetch all boss definitions
   for bossId in 1..12:
     let bossDef = getBossDefinition(bossId)
     
@@ -122,12 +120,10 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   drawText(t(tkSandboxHealFull), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
   
-  # Add coins button
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 180, g: 140, b: 0, a: 255))
   drawText(t(tkSandboxAddCoins), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
   
-  # Open Shop button
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 70, g: 120, b: 180, a: 255))
   drawText(t(tkSandboxOpenShop), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
@@ -307,14 +303,12 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
     return
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
   
-  # Add coins button
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     game.player.coins += 1000
     return
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
   
-  # Open Shop button
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     game.state = gsShop

@@ -80,28 +80,22 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     if selectedPowerUps.len >= 3:
       break
     
-    # Check if this is an orb type
+    # Exceptions
+    
     let isOrb = powerUp.powerType in orbTypes
-    # Check if this is an aura type
     let isAura = powerUp.powerType in auraTypes
-    # Check if this is an elemental bullet type
     let isBullet = powerUp.powerType in bulletTypes
-    # Check if this is a mastery type
     let isMastery = powerUp.powerType in masteryTypes
     
-    # Skip if we already have an orb and this is an orb
     if isOrb and hasOrb:
       continue
     
-    # Skip if we already have an aura and this is an aura
     if isAura and hasAura:
       continue
     
-    # Skip if we already have a bullet and this is a bullet
     if isBullet and hasBullet:
       continue
     
-    # Skip if we already have a mastery and this is a mastery
     if isMastery and hasMastery:
       continue
     
@@ -122,7 +116,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
       result[i] = selectedPowerUps[i]
     else:
       # If we run out, create random power-ups from the CORRECT pool
-      # Make sure we don't violate orb/aura/bullet/mastery restrictions
+      # Make sure to don't violate orb/aura/bullet/mastery pooling
       var attempts = 0
       while attempts < 100:  # Prevent infinite loop
         let randomPowerUp = if isLegendary:
@@ -206,14 +200,10 @@ proc createRotatingOrbs*(player: Player, level: int) =
 proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) =
   ## Create orbs of a specific element based on level
   ## Level 1: 2 orbs, Level 2: 4 orbs, Level 3: 6 orbs
-  ## Distribuidos en círculo alrededor del jugador
   ## Orb radius scales with player size to maintain distance
   
   # Dynamic orbit radius: scales with player size + fixed offset
-  # BUFFED: Increased from * 3.5 + 25 to * 4.5 + 40 (much further from player)
-  # player.radius * 4.5 ensures orbs scale MORE with player
-  # + 40 maintains larger minimum distance from player
-  let orbRadius = player.radius * 4.5 + 40
+  let orbRadius = player.radius * 4.5 + 35
   
   # Find existing orbs of this element and remove them
   var i = 0
@@ -286,7 +276,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Single level only - 2 uses per wave
     player.timeWarpMaxUsesPerWave = 2
   of puRotatingOrbs:
-    # Legendary: Create all 6 elemental orbs at their predefined positions
+    # Create all 6 elemental orbs at their predefined positions
     createRotatingOrbs(player, powerUp.level)
   of puRotatingShield:
     # Initialize shield health arrays - always 3 shields
@@ -330,28 +320,28 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       else: 2.5   # +150% damage
     player.damage *= damageBonus
   of puArcaneAura:
-    # Arcane aura is tracked via powerUps (pure damage effect applied in game.nim)
+    # Arcane aura is tracked via powerUps (damage effect applied in game.nim)
     discard
   of puFireMastery:
-    # LEGENDARY: Enhance fire effects
+    # Enhance fire effects
     player.hasFireMastery = true
   of puPoisonMastery:
-    # LEGENDARY: Enhance poison effects
+    # Enhance poison effects
     player.hasPoisonMastery = true
   of puFrostMastery:
-    # LEGENDARY: Enhance frost effects
+    # Enhance frost effects
     player.hasFrostMastery = true
   of puArcaneMastery:
-    # LEGENDARY: Enhance arcane effects
+    # Enhance arcane effects
     player.hasArcaneMastery = true
   of puLightningMastery:
-    # LEGENDARY: Enhance lightning effects
+    # Enhance lightning effects
     player.hasLightningMastery = true
   of puWindMastery:
-    # LEGENDARY: Enhance wind effects
+    # Enhance wind effects
     player.hasWindMastery = true
   of puBloodMastery:
-    # LEGENDARY: Enhance blood effects
+    # Enhance blood effects
     player.hasBloodMastery = true
   of puBloodOrb:
     createElementalOrbs(player, etBlood, powerUp.level)

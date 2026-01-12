@@ -1,85 +1,9 @@
 import raylib, particle_types, types, random, math, strutils, particle_pool
 
-# Export the particle pool type and functions
 export Particle, ParticlePool, newParticlePool, updateParticlePool, drawParticlePool
 export spawnExplosionPooled, spawnTimedParticlesPooled, spawnTimedParticlesAroundPooled
 export spawnShockwavePooled, clearPool, getPoolStats
 
-# PARTICLE SYSTEM WITH BACKWARDS-COMPATIBLE WRAPPER
-# This file maintains the old API but can optionally use pooling for better performance
-
-# LEGACY FUNCTIONS - These work with seq[Particle] for backwards compatibility
-# Use these if you haven't migrated to pooling yet
-
-proc newParticle*(x, y: float32, color: Color, speed: float32 = 100.0): Particle =
-  let angle = rand(1.0) * PI * 2.0
-  result = Particle(
-    pos: newVector2f(x, y),
-    vel: newVector2f(cos(angle) * speed, sin(angle) * speed),
-    color: color,
-    lifetime: 0.6 + rand(0.6),
-    maxLifetime: 0.6 + rand(0.6),
-    size: 3 + rand(5).float32
-  )
-
-proc updateParticle*(particle: Particle, dt: float32): bool =
-  particle.pos = particle.pos + particle.vel * dt
-  # Frame-independent slowdown: pow(0.95, 60*dt) simulates 60 FPS behavior at any framerate
-  particle.vel = particle.vel * pow(0.95, 60.0 * dt)
-  particle.lifetime -= dt
-  return particle.lifetime > 0
-
-proc drawParticle*(particle: Particle) =
-  let alpha = (particle.lifetime / particle.maxLifetime * 255).uint8
-  var c = particle.color
-  c.a = alpha
-  drawCircle(Vector2(x: particle.pos.x, y: particle.pos.y), particle.size, c)
-
-# LEGACY PARTICLE LIMIT
-const MAX_PARTICLES = 2000  # Hard cap to prevent memory growth
-
-proc spawnExplosion*(particles: var seq[Particle], x, y: float32, color: Color, count: int = 20) =
-  ## LEGACY VERSION - Still uses seq[Particle]
-  ## For better performance, migrate to ParticlePool version
-  
-  # Check particle limit and remove oldest particles if needed
-  if particles.len >= MAX_PARTICLES:
-    let toRemove = min(100, particles.len div 10)
-    particles = particles[toRemove..^1]
-  
-  let spaceAvailable = MAX_PARTICLES - particles.len
-  let particlesToAdd = min(count, spaceAvailable)
-  
-  for i in 0..<particlesToAdd:
-    particles.add(newParticle(x, y, color, 80 + rand(120).float32))
-
-proc spawnTimedParticles*(particles: var seq[Particle], x, y: float32, rate: float32,
-                          color: Color, count: int, dt: float32) =
-  ## LEGACY VERSION - Frame-independent particle spawning
-  if rand(1.0) < (rate * dt):
-    spawnExplosion(particles, x, y, color, count)
-
-proc spawnTimedParticlesAround*(particles: var seq[Particle], centerX, centerY: float32,
-                                maxRadius: float32, rate: float32, color: Color,
-                                count: int, dt: float32, offsetY: float32 = 0.0) =
-  ## LEGACY VERSION - Frame-independent particle spawning with random positioning
-  if rand(1.0) < (rate * dt):
-    let particleAngle = rand(1.0) * PI * 2.0
-    let particleDist = rand(maxRadius)
-    let particleX = centerX + cos(particleAngle) * particleDist
-    let particleY = centerY + sin(particleAngle) * particleDist + offsetY
-    spawnExplosion(particles, particleX, particleY, color, count)
-
-proc spawnShockwave*(particles: var seq[Particle], x, y: float32, radius: float32) =
-  ## LEGACY VERSION - Spawn shockwave particles
-  let particleCount = (radius * 0.5).int
-  for i in 0..<particleCount:
-    let angle = i.float32 / particleCount.float32 * PI * 2.0
-    let px = x + cos(angle) * radius
-    let py = y + sin(angle) * radius
-    particles.add(newParticle(px, py, Color(r: 255, g: 200, b: 100, a: 255), 50))
-
-# DAMAGE NUMBERS SYSTEM (unchanged)
 proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritical: bool = false, damageType: DamageType = dtDefault): DamageNumber =
   let baseVelocityY = -80.0
   let horizontalSpread = (rand(1.0) - 0.5) * 100.0

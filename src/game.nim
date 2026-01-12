@@ -614,7 +614,6 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
   
   let reflectDamageBase = damageToReflect * reflectPercent
   
-  # Add max HP scaling to thorns (1% of max HP as bonus damage)
   let hpScaling = player.maxHp * 0.01
   let reflectDamageWithScaling = reflectDamageBase + hpScaling
   
@@ -923,7 +922,6 @@ proc cleanupGame*(game: Game) =
   game.coins = @[]
   game.consumables = @[]
   game.walls = @[]
-  game.particles = @[]
   game.attackWarnings = @[]
   game.lasers = @[]
   game.meteorites = @[]
@@ -946,10 +944,9 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     coins: @[],
     consumables: @[],
     walls: @[],
-    particles: @[],  # Legacy - kept for backwards compatibility
-    particlePool: newParticlePool(2000),  # New pooled particle system
+    particlePool: newParticlePool(2000),
     attackWarnings: @[],
-    lasers: @[],  # Initialize lasers array
+    lasers: @[],
     time: 0,
     spawnTimer: 0,
     bossTimer: 60.0,
@@ -1076,26 +1073,26 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 10:
         # Waves 6-10: Introduce PENTAGON
-        if roll < 40: enemyType = etPentagon  # NEW ENEMY - prominent
+        if roll < 40: enemyType = etPentagon
         elif roll < 75: enemyType = etCircle
         else: enemyType = etCircle  # Keep it simple
       
       elif wave <= 15:
         # Waves 11-15: Introduce TRIANGLE
-        if roll < 40: enemyType = etTriangle  # NEW ENEMY - prominent
+        if roll < 40: enemyType = etTriangle
         elif roll < 65: enemyType = etCircle
         else: enemyType = etPentagon
       
       elif wave <= 20:
         # Waves 16-20: Introduce CUBE
-        if roll < 25: enemyType = etCube  # NEW ENEMY - prominent
+        if roll < 25: enemyType = etCube
         elif roll < 40: enemyType = etCircle
         elif roll < 65: enemyType = etPentagon
         else: enemyType = etTriangle
       
       elif wave <= 25:
         # Waves 21-25: Introduce STAR
-        if roll < 30: enemyType = etStar  # NEW ENEMY - prominent
+        if roll < 30: enemyType = etStar
         elif roll < 48: enemyType = etCircle
         elif roll < 63: enemyType = etCube
         elif roll < 78: enemyType = etPentagon
@@ -1103,7 +1100,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 30:
         # Waves 26-30: Introduce CROSS
-        if roll < 25: enemyType = etCross  # NEW ENEMY - prominent
+        if roll < 25: enemyType = etCross
         elif roll < 42: enemyType = etCircle
         elif roll < 56: enemyType = etCube
         elif roll < 68: enemyType = etStar
@@ -1112,7 +1109,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 35:
         # Waves 31-35: Introduce DIAMOND
-        if roll < 22: enemyType = etDiamond  # NEW ENEMY - prominent
+        if roll < 22: enemyType = etDiamond
         elif roll < 38: enemyType = etCircle
         elif roll < 51: enemyType = etCube
         elif roll < 63: enemyType = etStar
@@ -1122,7 +1119,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 40:
         # Waves 36-40: Introduce OCTAGON
-        if roll < 20: enemyType = etOctagon  # NEW ENEMY - prominent
+        if roll < 20: enemyType = etOctagon
         elif roll < 34: enemyType = etCircle
         elif roll < 46: enemyType = etCube
         elif roll < 58: enemyType = etStar
@@ -1133,7 +1130,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 45:
         # Waves 41-45: Introduce HEXAGON
-        if roll < 18: enemyType = etHexagon  # NEW ENEMY - prominent
+        if roll < 18: enemyType = etHexagon
         elif roll < 25: enemyType = etCube # Don't spawn circles after wave 40
         elif roll < 40: enemyType = etStar
         elif roll < 60: enemyType = etCross
@@ -1144,7 +1141,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 50:
         # Waves 46-50: Introduce TRICKSTER
-        if roll < 16: enemyType = etTrickster  # NEW ENEMY - prominent
+        if roll < 16: enemyType = etTrickster
         elif roll < 29: enemyType = etCube # Don't spawn circles after wave 40
         elif roll < 39: enemyType = etStar
         elif roll < 48: enemyType = etCross
@@ -1156,7 +1153,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 50:
         # Waves 46-50: Introduce TRICKSTER
-        if roll < 15: enemyType = etPhantom  # NEW ENEMY - prominent
+        if roll < 15: enemyType = etPhantom
         elif roll < 26: enemyType = etCube # Don't spawn circles after wave 40
         elif roll < 35: enemyType = etStar
         elif roll < 43: enemyType = etCross
@@ -1169,7 +1166,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
     
       else:
         # Waves 56+: Introduce MAGE + balanced roster
-        if roll < 10: enemyType = etMage  # NEW ENEMY - prominent
+        if roll < 10: enemyType = etMage
         elif roll < 20: enemyType = etCube # Don't spawn circles or pentagons after wave 56
         elif roll < 30: enemyType = etStar
         elif roll < 40: enemyType = etCross
@@ -6346,14 +6343,6 @@ proc updateGame*(game: var Game, dt: float32) =
   # Update pooled particles (new system - more performant, no allocations)
   updateParticlePool(game.particlePool, dt)
   
-  # Update legacy particles (for backwards compatibility)
-  i = 0
-  while i < game.particles.len:
-    if not updateParticle(game.particles[i], dt):
-      game.particles.delete(i)
-      continue
-    i += 1
-  
   # Update damage numbers
   i = 0
   while i < game.damageNumbers.len:
@@ -6396,10 +6385,6 @@ proc drawGame*(game: Game) =
   # Draw particles first (background layer)
   # Draw pooled particles (new system - more performant)
   drawParticlePool(game.particlePool)
-  
-  # Draw legacy particles (for backwards compatibility)
-  for particle in game.particles:
-    drawParticle(particle)
   
   # Draw attack warnings (before everything else so they're visible)
   for warning in game.attackWarnings:

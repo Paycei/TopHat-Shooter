@@ -126,7 +126,6 @@ proc drawCustomCursor*(time: float32) =
 proc main() =
   randomize()
   
-  # Initialize settings first to check fullscreen preference
   let settings = initSettings()
   
   # Set up window with appropriate flags based on saved settings
@@ -152,16 +151,13 @@ proc main() =
   renderTarget = loadRenderTexture(screenWidth, screenHeight)
   updateRenderScale()
   
-  # Initialize sound system
   discard initSoundSystem()
   
-  # Initialize cheat menu
   let cheatMenu = initCheatMenu()
   
   # Apply remaining settings
   applySettings(settings)
   
-  # Initialize and load statistics
   let stats = initStatistics()
   discard loadStatistics(stats)
   
@@ -189,11 +185,9 @@ proc main() =
   # Assign global Discord client to game
   currentGame.discordClient = globalDiscordClient
   
-  # Initialize OS-themed screens
   var splashScreen = newSplashScreen()
   var osDesktop = newOSDesktop()
   
-  # Initialize OS windows (lazy initialization - create when first needed)
   osSettingsWindow = nil
   osHelpWindow = nil
   osStatsWindow = nil
@@ -791,12 +785,6 @@ proc main() =
             for bullet in currentGame.bullets:
               bullet.pos.x += bullet.vel.x * dt
               bullet.pos.y += bullet.vel.y * dt
-            # Update particles and remove dead ones
-            var aliveParticles: seq[Particle] = @[]
-            for particle in currentGame.particles:
-              if updateParticle(particle, dt):
-                aliveParticles.add(particle)
-            currentGame.particles = aliveParticles
         else:
           updateGame(currentGame, dt)
       
@@ -1108,12 +1096,6 @@ proc main() =
         i += 1
       
       # Update particles and remove dead ones
-      var pi = 0
-      while pi < currentGame.particles.len:
-        if not updateParticle(currentGame.particles[pi], dt):
-          currentGame.particles.delete(pi)
-        else:
-          pi += 1
       
       # Transition to power-up selection or next wave
       if currentGame.waveClearedTimer <= 0:

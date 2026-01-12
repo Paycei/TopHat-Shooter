@@ -9,9 +9,9 @@ type
     gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings, gsStatistics, gsRunStats
 
   GameMode* = enum
-    gmWaveBased,      # New primary mode: waves -> upgrades -> boss -> legendary
-    gmTimeSurvival,   # Old mode: time-based survival
-    gmSandbox         # Testing mode with spawner controls
+    gmWaveBased,
+    gmTimeSurvival,
+    gmSandbox
 
   EnemyType* = enum
     etCircle,      # Normal chasers
@@ -112,8 +112,8 @@ type
     puFortified        # Reduce damage taken
 
   PowerUpRarity* = enum
-    prCommon,          # Normal upgrades after waves
-    prLegendary        # Special upgrades after bosses
+    prCommon,
+    prLegendary
 
   PowerUp* = object
     powerType*: PowerUpType
@@ -191,7 +191,7 @@ type
     autoShootEnabled*: bool
     auraRadius*: float32  # Invisible coin collection aura
     doubleShotDelay*: float32  # Timer for double-shot rapid succession
-    # New legendary power-up timers and states
+
     timeWarpCooldown*: float32
     timeWarpActive*: bool
     timeWarpDuration*: float32
@@ -282,7 +282,7 @@ type
     slowAmount*: float32
     activeEffects*: Table[ElementType, ActiveEffect]  # Unified effect system
     chainLightningCooldown*: float32
-    # New fields for advanced enemies
+
     attackWarningTimer*: float32
     attackExecuteTimer*: float32
     attackPhase*: int  # 0=patrol, 1=warning, 2=execute
@@ -346,7 +346,7 @@ type
     hitEnemies*: seq[int]  # Track enemy indices already hit by this bullet
     sourceEnemyId*: int  # ID of the enemy that shot this bullet (for parry)
     sourceEnemyPos*: Vector2f  # Position where the bullet was shot from (for parry fallback)
-    # New legendary power-up bullet properties
+
     travelDistance*: float32  # Track distance for Overcharge
     isEcho*: bool  # True if this is an echo clone bullet
     echoTrailTimer*: float32  # Timer for spawning echo clones
@@ -479,12 +479,11 @@ type
     coins*: seq[Coin]
     consumables*: seq[Consumable]
     walls*: seq[Wall]
-    particles*: seq[Particle]  # Legacy - kept for backwards compatibility
-    particlePool*: ParticlePool  # New pooled particle system for performance
+    particlePool*: ParticlePool
     attackWarnings*: seq[AttackWarning]
-    lasers*: seq[Laser]  # Add laser tracking
-    meteorites*: seq[Meteorite]  # Add meteorite tracking
-    damageNumbers*: seq[DamageNumber]  # Floating damage numbers
+    lasers*: seq[Laser]
+    meteorites*: seq[Meteorite]
+    damageNumbers*: seq[DamageNumber]
     time*: float32
     frameCount*: int  # Frame counter for satellite optimizations
     spawnTimer*: float32

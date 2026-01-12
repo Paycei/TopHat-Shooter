@@ -54,7 +54,6 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
     pendingIconExecution: -1
   )
   
-  # Add welcome message
   result.outputLines.add(("TopHat-ShooterOS Help System v5.1", Color(r: 0, g: 255, b: 255, a: 255)))
   result.outputLines.add(("Type 'help' for commands or a topic name to learn more.", White))
   result.outputLines.add(("", White))
@@ -63,7 +62,6 @@ proc addOutput*(help: HelpWindow, text: string, color: Color = White) =
   help.outputLines.add((text, color))
 
 proc executeCommand*(help: HelpWindow, cmd: string) =
-  # Add command to history
   help.commandHistory.add(cmd)
   
   # Echo the command

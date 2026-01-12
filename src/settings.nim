@@ -4,7 +4,7 @@
 
 from save_system import Settings, saveSettings, loadSettings
 import raylib, sound, localization, strutils
-export Settings  # Export Settings type
+export Settings
 
 var globalSettings*: Settings
 

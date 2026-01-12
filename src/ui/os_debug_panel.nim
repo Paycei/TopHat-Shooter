@@ -246,7 +246,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   drawText($fps, finalPanelX + DEBUG_PANEL_PADDING + 31, yOffset, 11, fpsColor)
   
   # Entity count - purple color
-  let totalEntities = game.enemies.len + game.bullets.len + game.particles.len
+  let totalEntities = game.enemies.len + game.bullets.len
   let entityX = finalPanelX + DEBUG_PANEL_WIDTH div 2 + 2
   
   drawText(t(tkDebugPanelEntities) & ":", entityX + 1, yOffset + 1, 9,
