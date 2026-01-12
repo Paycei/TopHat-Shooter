@@ -22,8 +22,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
   # ALL legendary powerups are SINGLE LEVEL ONLY
-  let legendaryOnlyTypes: array[0..25, PowerUpType] = [
-    puArcaneMastery, puAutoShoot, puBloodMastery, puBulletDamage, puBulletSpeed,
+  let legendaryOnlyTypes: array[0..24, PowerUpType] = [
+    puArcaneMastery, puAutoShoot, puBloodMastery, puBulletSpeed,
     puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
@@ -279,9 +279,6 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Single level only - +40% speed
     player.speed *= 1.4
     player.baseSpeed *= 1.4
-  of puBulletDamage:
-    # Single level only - +75% damage
-    player.damage *= 1.75
   of puBulletSpeed:
     # Single level only - +40% speed
     player.bulletSpeed *= 1.4
@@ -450,7 +447,7 @@ proc drawPowerUpSelection*(game: Game) =
 # SLOT MACHINE ROLL ANIMATION SYSTEM
 proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeType: PowerUpType): PowerUp =
   ## Generate a random power-up for the roll animation display, excluding a specific type
-  let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost, puBulletDamage, 
+  let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost, 
                         puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
                         puGravityWell, puPhaseShift, puOvercharge, puEchoShots,
                         puMagicalBullets]

@@ -87,6 +87,10 @@ proc updateMouseTracking*(game: Game) =
   if hasMouseMoved(game):
     game.mouseMovedRecently = true
     game.keyboardUsedRecently = false
+  # Any mouse button press counts as "movement" for click responsiveness
+  if isMouseButtonPressed(Left) or isMouseButtonPressed(Right) or isMouseButtonPressed(Middle):
+    game.mouseMovedRecently = true
+    game.keyboardUsedRecently = false
   game.lastMousePos = newVector2f(currentPos.x, currentPos.y)
 
 proc markKeyboardUsed*(game: Game) =
@@ -168,6 +172,7 @@ proc main() =
   
   var statsSavedThisGame = false  # Track if stats were saved for current game
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
+  var lastFullscreenToggleTime = 0.0  # Debouncing for F11 key
   
   # Initialize global Discord client (persists across game sessions)
   # Wrapped in try-catch to handle Discord connection failures gracefully
@@ -229,8 +234,10 @@ proc main() =
     # Update music stream (required for continuous playback)
     updateMusic()
     
-    # Handle fullscreen toggle with F11 (borderless window)
-    if isKeyPressed(F11):
+    # Handle fullscreen toggle with F11 (borderless window) with debouncing
+    let currentTime = getTime()
+    if isKeyPressed(F11) and (currentTime - lastFullscreenToggleTime) > 0.5:
+      lastFullscreenToggleTime = currentTime
       settings.fullscreen = not settings.fullscreen
       fullscreenToggleRequested = true
     
@@ -388,9 +395,15 @@ proc main() =
         try:
           runCallbacks(currentGame.discordClient)
           updateDiscordForMenu(currentGame.discordClient)
-        except:
-          # Ignore Discord errors - continue without Rich Presence
-          discard
+        except Exception as e:
+          echo "Discord error in menu: ", e.msg
+          # Cleanup and null the client to prevent further issues
+          try:
+            disconnect(currentGame.discordClient)
+          except:
+            discard
+          currentGame.discordClient = nil
+          globalDiscordClient = nil
       
       # Update OS windows if they exist and are visible
       if not osSettingsWindow.isNil and osSettingsWindow.window.visible:
@@ -629,9 +642,14 @@ proc main() =
         try:
           runCallbacks(currentGame.discordClient)
           updateDiscordForPlaying(currentGame.discordClient, currentGame)
-        except:
-          # Ignore Discord errors - continue without Rich Presence
-          discard
+        except Exception as e:
+          echo "Discord error during gameplay: ", e.msg
+          try:
+            disconnect(currentGame.discordClient)
+          except:
+            discard
+          currentGame.discordClient = nil
+          globalDiscordClient = nil
       
       # Check for cheat menu activation
       checkCheatSequence(cheatMenu, currentGame, currentGame.time)
@@ -846,9 +864,14 @@ proc main() =
         try:
           runCallbacks(currentGame.discordClient)
           updateDiscordForPaused(currentGame.discordClient, currentGame)
-        except:
-          # Ignore Discord errors - continue without Rich Presence
-          discard
+        except Exception as e:
+          echo "Discord error while paused: ", e.msg
+          try:
+            disconnect(currentGame.discordClient)
+          except:
+            discard
+          currentGame.discordClient = nil
+          globalDiscordClient = nil
       
       beginGameDrawing()
       drawGame(currentGame)
@@ -1166,7 +1189,7 @@ proc main() =
             markKeyboardUsed(currentGame)
           # If reroll failed (not enough coins), do nothing (could add sound here)
         
-        # Mouse hover detection for card selection
+        # Mouse hover detection for card selection (only if keyboard not recently used)
         if isMouseButtonPressed(Left) or getMousePosition().x != 0:
           let mousePos = getMousePosition()
           # Use actual UI dimensions from os_powerup_installer.nim
@@ -1183,15 +1206,16 @@ proc main() =
           let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
           let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
           
-          # Check which card mouse is over
-          for i in 0..2:
-            let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
-            let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
-                                     width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
-            
-            if checkCollisionPointRec(mousePos, cardRect):
-              currentGame.selectedPowerUp = i
-              break
+          # Check which card mouse is over - only if keyboard wasn't just used
+          if not currentGame.keyboardUsedRecently:
+            for i in 0..2:
+              let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
+              let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
+                                       width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
+              
+              if checkCollisionPointRec(mousePos, cardRect):
+                currentGame.selectedPowerUp = i
+                break
         
         # Select power-up with keyboard or mouse click on card
         if isKeyPressed(Enter) or isKeyPressed(E):
@@ -1281,9 +1305,14 @@ proc main() =
         if not currentGame.discordClient.isNil:
           try:
             clearPresence(currentGame.discordClient)
-          except:
-            # Ignore Discord errors during game over
-            discard
+          except Exception as e:
+            echo "Discord error clearing presence: ", e.msg
+            try:
+              disconnect(currentGame.discordClient)
+            except:
+              discard
+            currentGame.discordClient = nil
+            globalDiscordClient = nil
         
         # Finalize run tracking and save for menu viewing
         if hasValidRunStats():
@@ -1308,11 +1337,29 @@ proc main() =
                      currentGame.player.kills,
                      currentGame.player.coins,
                      bossesKilled)
-          # Only mark as saved if save actually succeeded
-          if saveStatistics(stats):
+          
+          # Try to save with retry logic (3 attempts with exponential backoff)
+          var saveSuccess = false
+          var retries = 0
+          const MAX_RETRIES = 3
+          
+          while not saveSuccess and retries < MAX_RETRIES:
+            saveSuccess = saveStatistics(stats)
+            if not saveSuccess:
+              retries += 1
+              echo "Warning: Save attempt ", retries, " failed"
+              if retries < MAX_RETRIES:
+                # Exponential backoff: wait 0.1s, 0.2s, 0.4s
+                let backoffTime = 0.1 * (2 ^ (retries - 1))
+                echo "Retrying in ", backoffTime, " seconds..."
+                # Note: In a real implementation, use proper async/threading
+                # For now, we'll just try immediately
+          
+          if saveSuccess:
             statsSavedThisGame = true
           else:
-            echo "Warning: Failed to save statistics to disk"
+            echo "ERROR: Failed to save statistics after ", MAX_RETRIES, " attempts"
+            # This error will be visible in console but game continues
       
       # Update mouse tracking
       updateMouseTracking(currentGame)

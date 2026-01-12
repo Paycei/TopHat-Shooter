@@ -17,7 +17,6 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puRapidFire: t(tkPowerupRapidFire)
   of puMaxHealth: t(tkPowerupMaxHealth)
   of puSpeedBoost: t(tkPowerupSpeedBoost)
-  of puBulletDamage: t(tkPowerupBulletDamage)
   of puBulletSpeed: t(tkPowerupBulletSpeed)
   of puLuckyCoins: t(tkPowerupLuckyCoins)
   of puWallMaster: t(tkPowerupWallMaster)
@@ -117,9 +116,6 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   of puSpeedBoost:
     # Single level only - LEGENDARY
     t(tkPowerupSpeedBoostDesc)
-  of puBulletDamage:
-    # Single level only - LEGENDARY
-    t(tkPowerupBulletDamageDesc)
   of puBulletSpeed:
     # Single level only - LEGENDARY
     t(tkPowerupBulletSpeedDesc)

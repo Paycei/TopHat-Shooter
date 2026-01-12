@@ -222,7 +222,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for i in 0..2:
       let xOff = int32(-14 - i * 4)
       drawLine(int32(cx + xOff), int32(cy - int32(2 + i * 2)), int32(cx + xOff + 6), int32(cy - int32(2 + i * 2)), Color(r: color.r, g: color.g, b: color.b, a: uint8(120 - i * 30)))
-  of puBulletDamage, puCriticalHit:
+  of puCriticalHit:
     # Detailed sword with gleam
     # Shadow
     drawRectangle(cx - 1, cy - 9, 5, 14, Color(r: 0, g: 0, b: 0, a: 60))

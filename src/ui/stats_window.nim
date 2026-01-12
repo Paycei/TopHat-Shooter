@@ -1,7 +1,7 @@
 ﻿## OS-Themed Statistics Window - ENHANCED EDITION
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
-import raylib, os_window, ../statistics, ../run_statistics, ../types, math, ../powerup_data, strutils, std/tables, ../localization
+import raylib, os_window, ../statistics, ../run_statistics, ../types, math, ../powerup_data, strutils, std/tables, ../localization, algorithm
 
 type
   StatsTab* = enum
@@ -545,14 +545,11 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       for ptype, damage in runStats.powerUps.damageContribution:
         contributions.add((ptype, damage))
       
-      # Bubble sort by damage (descending) - only if we have multiple items
+      # Sort by damage (descending) using efficient built-in sort
       if contributions.len > 1:
-        for i in 0..<contributions.len:
-          for j in 0..<contributions.len - i - 1:
-            if contributions[j][1] < contributions[j + 1][1]:
-              let temp = contributions[j]
-              contributions[j] = contributions[j + 1]
-              contributions[j + 1] = temp
+        contributions.sort(proc (a, b: (PowerUpType, float32)): int = 
+          cmp(b[1], a[1])  # Descending order: b[1] compared to a[1]
+        )
       
       if contributions.len > 0:
         drawText(t(tkStatsRank), (col2X + 10).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))

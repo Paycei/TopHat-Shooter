@@ -53,7 +53,6 @@ type
     puRapidFire,       # Increased fire rate
     puMaxHealth,       # Increase max HP
     puSpeedBoost,      # Permanent speed increase
-    puBulletDamage,    # Increased bullet damage
     puBulletSpeed,     # Faster bullets
     puLuckyCoins,      # Doubles coins collected
     puWallMaster,      # Place stronger walls and increment turret damage

@@ -1255,12 +1255,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         else: 1.35
       bulletRadius *= heavyMultiplier
     
-    # Track Bullet Damage power-up contribution
-    # This power-up doubles base damage (applied in applyPowerUp)
-    var bulletDamageBonus = 0.0
-    if hasPowerUp(game.player, puBulletDamage):
-      bulletDamageBonus = damageBeforePowerUps  # The extra 100% (base damage doubled)
-    
     # Track Arcane Bullets contribution
     var arcaneBulletsBonus = 0.0
     if hasArcane:
@@ -1280,7 +1274,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     var arcaneMasteryBonus = 0.0
     if hasArcane and game.player.hasArcaneMastery:
       let damageBeforeMastery = damage
-      damage *= 2.5  # +150% additional damage on top of Arcane Bullets bonus
+      damage *= 2.0  # +100% additional damage on top of Arcane Bullets bonus
       arcaneMasteryBonus = damage - damageBeforeMastery  # The extra 150%
       arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
     
@@ -3682,7 +3676,7 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   
   # Apply Arcane Mastery bonus for Arcane orbs
   if orb.elementType == etArcane and game.player.hasArcaneMastery:
-    actualBaseDamage *= 2.5  # +150% damage
+    actualBaseDamage *= 2.0  # +100% damage
   
   # Use centralized stats for crit calculation
   let stats = calculateCombatStats(game.player)
@@ -4405,7 +4399,7 @@ proc updateGame*(game: var Game, dt: float32) =
     
     # Apply Arcane Mastery bonuses if owned
     if game.player.hasArcaneMastery:
-      arcaneDamagePerSec *= 2.5  # +150% damage
+      arcaneDamagePerSec *= 2.0  # +100% damage
     
     # Calculate combat stats once before loop
     let arcaneStats = calculateCombatStats(game.player)
@@ -5744,24 +5738,18 @@ proc updateGame*(game: var Game, dt: float32) =
           var finalDamage = bullet.damage
           var overchargeExtraDamage = 0.0
           if hasPowerUp(game.player, puOvercharge):
-            let level = getPowerUpLevel(game.player, puOvercharge)
-            let dmgPerUnit = 0.04 / 100.0  # +4% per 100 units traveled
+            # Overcharge: Bullets gain damage based on distance traveled
+            # +1% damage per 10 units traveled, up to +100% at 1000 units
+            # Formula: damage * (1 + min(travelDistance * 0.001, 1.0))
+            # Examples:
+            #   - 100 units = +10% damage (1.1x)
+            #   - 500 units = +50% damage (1.5x)
+            #   - 1000+ units = +100% damage (2.0x, double damage)
             
-            # Max bonus and range scale with level
-            let maxBonus = case level
-              of 1: 0.4  # Max 40% bonus
-              of 2: 0.8  # Max 80% bonus
-              else: 1.2  # Max 120% bonus
+            let damagePerUnit = 0.001  # 0.1% per unit, 1% per 10 units
+            let maxBonus = 1.0  # Max +100% damage (double damage)
+            let bonusMultiplier = min(bullet.travelDistance * damagePerUnit, maxBonus)
             
-            # Max range for bonus (units traveled)
-            let maxRange = case level
-              of 1: 40.0   # Very short range
-              of 2: 70.0   # Medium range
-              else: 100.0  # Long range
-            
-            # Capped by both maxBonus and maxRange
-            let distanceBonus = min(bullet.travelDistance * dmgPerUnit, bullet.travelDistance / maxRange * maxBonus)
-            let bonusMultiplier = min(distanceBonus, maxBonus)
             finalDamage = bullet.damage * (1.0 + bonusMultiplier)
             overchargeExtraDamage = finalDamage - bullet.damage
           

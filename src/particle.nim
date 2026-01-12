@@ -1,5 +1,8 @@
 import raylib, types, random, math, strutils
 
+# PARTICLE SYSTEM LIMITS
+const MAX_PARTICLES = 2000  # Hard cap to prevent memory growth
+
 proc newParticle*(x, y: float32, color: Color, speed: float32 = 100.0): Particle =
   let angle = rand(1.0) * PI * 2.0
   result = Particle(
@@ -25,7 +28,16 @@ proc drawParticle*(particle: Particle) =
   drawCircle(Vector2(x: particle.pos.x, y: particle.pos.y), particle.size, c)
 
 proc spawnExplosion*(particles: var seq[Particle], x, y: float32, color: Color, count: int = 20) =
-  for i in 0..<count:
+  # Check particle limit and remove oldest particles if needed
+  if particles.len >= MAX_PARTICLES:
+    let toRemove = min(100, particles.len div 10)  # Remove 10% or 100, whichever is smaller
+    particles.delete(0, toRemove - 1)
+  
+  # Calculate how many new particles we can add
+  let spaceAvailable = MAX_PARTICLES - particles.len
+  let particlesToAdd = min(count, spaceAvailable)
+  
+  for i in 0..<particlesToAdd:
     particles.add(newParticle(x, y, color, 80 + rand(120).float32))
 
 proc spawnTimedParticles*(particles: var seq[Particle], x, y: float32, rate: float32, 

@@ -90,32 +90,35 @@ proc applyADSR(progress: float32, attack, decay, sustain, release: float32): flo
     return sustain * (1.0 - releaseProgress)
 
 proc writeWavFile(filename: string, samples: seq[int16], sampleRate: uint32) =
-  var stream = newFileStream(filename, fmWrite)
-  if stream == nil:
-    raise newException(IOError, "Could not create WAV file: " & filename)
-  
-  defer: stream.close()
-  
-  let numSamples = samples.len
-  let dataSize = numSamples * 2
-  let fileSize = 36 + dataSize
-  
-  stream.write("RIFF")
-  stream.write(uint32(fileSize))
-  stream.write("WAVE")
-  stream.write("fmt ")
-  stream.write(uint32(16))
-  stream.write(uint16(1))
-  stream.write(uint16(1))
-  stream.write(uint32(sampleRate))
-  stream.write(uint32(sampleRate * 2))
-  stream.write(uint16(2))
-  stream.write(uint16(16))
-  stream.write("data")
-  stream.write(uint32(dataSize))
-  
-  for sample in samples:
-    stream.write(sample)
+  var stream: FileStream = nil
+  try:
+    stream = newFileStream(filename, fmWrite)
+    if stream == nil:
+      raise newException(IOError, "Could not create WAV file: " & filename)
+    
+    let numSamples = samples.len
+    let dataSize = numSamples * 2
+    let fileSize = 36 + dataSize
+    
+    stream.write("RIFF")
+    stream.write(uint32(fileSize))
+    stream.write("WAVE")
+    stream.write("fmt ")
+    stream.write(uint32(16))
+    stream.write(uint16(1))
+    stream.write(uint16(1))
+    stream.write(uint32(sampleRate))
+    stream.write(uint32(sampleRate * 2))
+    stream.write(uint16(2))
+    stream.write(uint16(16))
+    stream.write("data")
+    stream.write(uint32(dataSize))
+    
+    for sample in samples:
+      stream.write(sample)
+  finally:
+    if not stream.isNil:
+      stream.close()
 
 # SOUND GENERATION
 proc createSimpleSound(filename: string, duration: float32, 
