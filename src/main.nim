@@ -671,14 +671,14 @@ proc main() =
                                   currentGame.enemies, 25):
             currentGame.walls.add(newWall(mousePos.x, mousePos.y, currentGame.player))
             currentGame.player.walls -= 1
-            spawnExplosion(currentGame.particles, mousePos.x, mousePos.y, Brown, 15)
+            spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)
             trackWallPlacement(currentGame, wallPos)
 
       # Toggle auto-shoot with F key
       if isKeyPressed(F) and hasPowerUp(currentGame.player, puAutoShoot):
         currentGame.player.autoShootEnabled = not currentGame.player.autoShootEnabled
         let feedbackColor = if currentGame.player.autoShootEnabled: Green else: Red
-        spawnExplosion(currentGame.particles, currentGame.player.pos.x, currentGame.player.pos.y, 
+        spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y, 
                       feedbackColor, 20)
       
       # Activate ALL legendary power-ups with Q key (simultaneous activation)
@@ -696,7 +696,7 @@ proc main() =
             currentGame.player.timeWarpDuration = duration
             currentGame.player.timeWarpCooldown = cooldown
             currentGame.player.timeWarpUsesThisWave += 1  # Increment uses
-            spawnExplosion(currentGame.particles, currentGame.player.pos.x, currentGame.player.pos.y, 
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y, 
                           Color(r: 138, g: 43, b: 226, a: 255), 30)
             anyActivated = true
         
@@ -737,13 +737,13 @@ proc main() =
                                                currentGame.screenHeight.float32 - currentGame.player.radius))
             
             # Visual effects at start and end position
-            spawnExplosion(currentGame.particles, currentGame.player.lastPhaseShiftPos.x, 
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.lastPhaseShiftPos.x, 
                           currentGame.player.lastPhaseShiftPos.y, SkyBlue, 25)
-            spawnExplosion(currentGame.particles, currentGame.player.pos.x, 
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, 
                           currentGame.player.pos.y, SkyBlue, 25)
           else:
             # Dash in place - just visual effect
-            spawnExplosion(currentGame.particles, currentGame.player.pos.x, 
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, 
                           currentGame.player.pos.y, SkyBlue, 30)
           
           anyActivated = true
@@ -757,7 +757,7 @@ proc main() =
           currentGame.player.parryDuration = duration
           currentGame.player.parryCooldown = cooldown
           
-          spawnExplosion(currentGame.particles, currentGame.player.pos.x, currentGame.player.pos.y, 
+          spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y, 
                         Color(r: 255, g: 255, b: 255, a: 255), 35)
           anyActivated = true
         
@@ -1101,7 +1101,7 @@ proc main() =
             currentGame.coins[i].value
           currentGame.player.coins += coinValue
           playSound(stCoinPickup, 0.5)
-          spawnExplosion(currentGame.particles, currentGame.coins[i].pos.x, currentGame.coins[i].pos.y, Gold, 6)
+          spawnExplosionPooled(currentGame.particlePool, currentGame.coins[i].pos.x, currentGame.coins[i].pos.y, Gold, 6)
           currentGame.coins.delete(i)
           continue
         

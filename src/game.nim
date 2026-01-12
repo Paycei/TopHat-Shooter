@@ -26,7 +26,7 @@ proc isBossCoinActive*(manager: BossWaveManager): bool = manager.coinActive
 proc completeBossWave*(game: Game) =
   ## Centralized boss wave completion - handles cleanup, advancement, power-up
   for enemy in game.enemies:
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                   Color(r: 255, g: 50, b: 50, a: 255), 15)
   
   game.enemies = @[]
@@ -631,7 +631,7 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
                   isCritical = reflectDamageWithCrit > reflectDamageBase, damageType = dtDefault)
   
   # Visual feedback
-  spawnExplosion(game.particles, targetEnemy.pos.x, targetEnemy.pos.y, Red, 
+  spawnExplosionPooled(game.particlePool, targetEnemy.pos.x, targetEnemy.pos.y, Red, 
                 if reflectType == "boss": 8 elif reflectType == "contact": 6 else: 5)
   
   return actualDamage
@@ -830,7 +830,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       let particleDist = rand(enemy.radius + 10.0)
       let particleX = enemy.pos.x + cos(particleAngle) * particleDist
       let particleY = enemy.pos.y + sin(particleAngle) * particleDist
-      spawnExplosion(game.particles, particleX, particleY, 
+      spawnExplosionPooled(game.particlePool, particleX, particleY, 
                     Color(r: 200, g: 230, b: 255, a: 180), 2)
   
   of befChainLightning:
@@ -880,7 +880,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
               let t = step.float32 / 10.0
               let x = enemy.pos.x + (game.enemies[k].pos.x - enemy.pos.x) * t
               let y = enemy.pos.y + (game.enemies[k].pos.y - enemy.pos.y) * t
-              spawnExplosion(game.particles, x, y, Color(r: 255, g: 255, b: 100, a: 255), 2)
+              spawnExplosionPooled(game.particlePool, x, y, Color(r: 255, g: 255, b: 100, a: 255), 2)
   
   of befBlood:
     # Blood: Lifesteal
@@ -896,7 +896,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     heal(game.player, healAmount)
     
     if healAmount > 0.01:
-      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 3)
+      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 3)
       showDamage(game, game.player.pos, healAmount, true, false, dtHeal)
 
 proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float32) =
@@ -946,7 +946,8 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
     coins: @[],
     consumables: @[],
     walls: @[],
-    particles: @[],
+    particles: @[],  # Legacy - kept for backwards compatibility
+    particlePool: newParticlePool(2000),  # New pooled particle system
     attackWarnings: @[],
     lasers: @[],  # Initialize lasers array
     time: 0,
@@ -1475,7 +1476,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     elif hasRicochet: particleColor = Color(r: 255, g: 200, b: 0, a: 255)
     
     # Add muzzle flash particles with matching color
-    spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, particleColor, 5)
+    spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, particleColor, 5)
 
 # Helper to fire delayed double-shot bursts
 proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
@@ -1721,7 +1722,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     if (game.time * 20.0).int mod 3 == 0:
       let sparkX = enemy.pos.x + (rand(1.0) - 0.5) * enemy.radius * 2
       let sparkY = enemy.pos.y + (rand(1.0) - 0.5) * enemy.radius * 2
-      spawnExplosion(game.particles, sparkX, sparkY,
+      spawnExplosionPooled(game.particlePool, sparkX, sparkY,
                      Color(r: 255, g: 255, b: 150, a: 255), 1)
   
   of "electric_surge":
@@ -1737,7 +1738,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     enemy.pos = enemy.pos + surgeDir * enemy.speed * 1.0 * dt
     
     # Dense electric particles
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y,
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                    Color(r: 220, g: 230, b: 255, a: 200), 2)
   
   of "critical_discharge":
@@ -1746,7 +1747,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       let zapAngle = rand(1.0) * PI * 2.0
       let zapDist = 30.0 + rand(50.0)
       enemy.pos = enemy.pos + newVector2f(cos(zapAngle) * zapDist, sin(zapAngle) * zapDist)
-      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y,
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                      Color(r: 255, g: 255, b: 255, a: 255), 15)
     else:
       # Normal zigzag but very fast
@@ -1931,7 +1932,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       )
       
       # Chaotic teleport effect
-      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y,
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                      Color(r: uint8(255 - rand(100)), g: uint8(rand(255)), 
                            b: uint8(255 - rand(100)), a: 255), 25)
     else:
@@ -2097,10 +2098,10 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           of 4: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
           of 5: Color(r: 75, g: 0, b: 130, a: 255)    # Indigo
           else: Color(r: 148, g: 0, b: 211, a: 255)   # Violet
-        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, rainbowColor, 4)
+        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, rainbowColor, 4)
       of "temporal":
         # Cyan time-distortion particles
-        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y,
+        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                       Color(r: 100, g: 220, b: 220, a: 255), 3)
       else:
         discard
@@ -2143,7 +2144,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let angle = i.float32 * PI * 2.0 / 16.0
           let ringX = enemy.pos.x + cos(angle) * ringRadius
           let ringY = enemy.pos.y + sin(angle) * ringRadius
-          spawnExplosion(game.particles, ringX, ringY,
+          spawnExplosionPooled(game.particlePool, ringX, ringY,
                         Color(r: 100, g: 220, b: 220, a: 255), 3)
     
     # Create circle of bullets
@@ -2161,7 +2162,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         let trailRadius = 20.0
         let trailX = enemy.pos.x + cos(angle) * trailRadius
         let trailY = enemy.pos.y + sin(angle) * trailRadius
-        spawnExplosion(game.particles, trailX, trailY, particleColor, 2)
+        spawnExplosionPooled(game.particlePool, trailX, trailY, particleColor, 2)
   
   of bapLaser:
     # IMPROVED: Boss laser with proper warning system
@@ -2307,7 +2308,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             b: (100 + rand(155)).uint8,
             a: 255
           )
-          spawnExplosion(game.particles, px, py, chaosColor, 3)
+          spawnExplosionPooled(game.particlePool, px, py, chaosColor, 3)
     
     elif patternType == "omega_beam":
       # MASSIVE rainbow particle explosion for ultimate laser
@@ -2326,14 +2327,14 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             of 4: Color(r: 0, g: 255, b: 255, a: 255)
             of 5: Color(r: 0, g: 0, b: 255, a: 255)
             else: Color(r: 255, g: 0, b: 255, a: 255)
-          spawnExplosion(game.particles, px, py, rainbowColor, 7)
+          spawnExplosionPooled(game.particlePool, px, py, rainbowColor, 7)
       
       # Add electric arcs (Boss 6 style)
       for i in 0..<20:
         let angle = i.float32 * PI * 2.0 / 20.0
         let arcX = enemy.pos.x + cos(angle) * 70.0
         let arcY = enemy.pos.y + sin(angle) * 70.0
-        spawnExplosion(game.particles, arcX, arcY,
+        spawnExplosionPooled(game.particlePool, arcX, arcY,
                       Color(r: 255, g: 255, b: 200, a: 255), 6)
     
     # Adjust laser length based on pattern type
@@ -2403,7 +2404,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         let angle = i.float32 * PI * 2.0 / (bulletCount div 2).float32
         let sparkX = enemy.pos.x + cos(angle) * 40.0
         let sparkY = enemy.pos.y + sin(angle) * 40.0
-        spawnExplosion(game.particles, sparkX, sparkY,
+        spawnExplosionPooled(game.particlePool, sparkX, sparkY,
                       Color(r: 255, g: 255, b: 100, a: 255), 4)
     
     elif isBerserkAttack:
@@ -2414,7 +2415,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let angle = i.float32 * PI * 2.0 / 12.0
           let bloodX = enemy.pos.x + cos(angle) * ringRadius
           let bloodY = enemy.pos.y + sin(angle) * ringRadius
-          spawnExplosion(game.particles, bloodX, bloodY,
+          spawnExplosionPooled(game.particlePool, bloodX, bloodY,
                         Color(r: 200 + rand(55).uint8, g: 0, b: 0, a: 255), 5)
       
       # Screen shake for rage
@@ -2427,7 +2428,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         let angle = i.float32 * PI * 2.0 / 8.0
         let starX = enemy.pos.x + cos(angle) * 60.0
         let starY = enemy.pos.y + sin(angle) * 60.0
-        spawnExplosion(game.particles, starX, starY,
+        spawnExplosionPooled(game.particlePool, starX, starY,
                       Color(r: 200, g: 150, b: 255, a: 255), 6)
     
     elif isChromaticAttack:
@@ -2447,7 +2448,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             of 4: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
             of 5: Color(r: 75, g: 0, b: 130, a: 255)    # Indigo
             else: Color(r: 148, g: 0, b: 211, a: 255)   # Violet
-          spawnExplosion(game.particles, prismX, prismY, rainbowColor, 5)
+          spawnExplosionPooled(game.particlePool, prismX, prismY, rainbowColor, 5)
     
     elif isLightAttack:
       # Create brilliant white/rainbow light explosion
@@ -2466,7 +2467,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             of 4: Color(r: 200, g: 230, b: 255, a: 255)
             of 5: Color(r: 230, g: 200, b: 255, a: 255)
             else: Color(r: 255, g: 255, b: 255, a: 255)  # Pure white
-          spawnExplosion(game.particles, lightX, lightY, tint, 6)
+          spawnExplosionPooled(game.particlePool, lightX, lightY, tint, 6)
       
       # Intense screen shake for brilliance
       game.screenShakeIntensity = 30.0
@@ -2483,7 +2484,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let shatterY = enemy.pos.y + sin(angle) * ringRadius
           # Bright cyan-white temporal fracture particles
           let brightness = 100 + (ring * 20)
-          spawnExplosion(game.particles, shatterX, shatterY,
+          spawnExplosionPooled(game.particlePool, shatterX, shatterY,
                         Color(r: brightness.uint8, g: 220 + (ring * 5).uint8, b: 220 + (ring * 5).uint8, a: 255), 5)
       
       # Create radiating time crack lines extending far outward
@@ -2495,7 +2496,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let crackY = enemy.pos.y + sin(angle) * crackRadius
           # Cyan temporal cracks with fading intensity
           let fade = (255 - step * 8).clamp(100, 255)
-          spawnExplosion(game.particles, crackX, crackY,
+          spawnExplosionPooled(game.particlePool, crackX, crackY,
                         Color(r: 100, g: 220, b: 220, a: fade.uint8), 3)
       
       # Add swirling temporal distortion particles
@@ -2505,7 +2506,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let spiralRadius = step.float32 * 12.0
           let spiralX = enemy.pos.x + cos(spiralAngle) * spiralRadius
           let spiralY = enemy.pos.y + sin(spiralAngle) * spiralRadius
-          spawnExplosion(game.particles, spiralX, spiralY,
+          spawnExplosionPooled(game.particlePool, spiralX, spiralY,
                         Color(r: 150, g: 255, b: 255, a: 255), 2)
       
       # MASSIVE screen shake for reality-shattering effect
@@ -2531,14 +2532,14 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             of 4: Color(r: 0, g: 255, b: 255, a: 255)   # Cyan
             of 5: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
             else: Color(r: 255, g: 0, b: 255, a: 255)   # Magenta
-          spawnExplosion(game.particles, omegaX, omegaY, rainbowColor, 6)
+          spawnExplosionPooled(game.particlePool, omegaX, omegaY, rainbowColor, 6)
       
       # Electric crackling effects (like Boss 6)
       for i in 0..<bulletCount div 3:
         let angle = i.float32 * PI * 2.0 / (bulletCount div 3).float32
         let sparkX = enemy.pos.x + cos(angle) * 55.0
         let sparkY = enemy.pos.y + sin(angle) * 55.0
-        spawnExplosion(game.particles, sparkX, sparkY,
+        spawnExplosionPooled(game.particlePool, sparkX, sparkY,
                       Color(r: 255, g: 255, b: 100, a: 255), 5)
       
       # Temporal rifts (like Boss 10)
@@ -2548,7 +2549,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let riftRadius = step.float32 * 22.0
           let riftX = enemy.pos.x + cos(angle) * riftRadius
           let riftY = enemy.pos.y + sin(angle) * riftRadius
-          spawnExplosion(game.particles, riftX, riftY,
+          spawnExplosionPooled(game.particlePool, riftX, riftY,
                         Color(r: 150, g: 255, b: 255, a: 255), 3)
       
       # ABSOLUTELY MASSIVE screen shake - this is the ultimate attack
@@ -2604,7 +2605,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       else:
         (30, phase.color)  # Standard
     
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
   
   of bapPulse:
     # ENHANCED PULSE SYSTEM - Expanding ring with multiple thematic variants
@@ -2671,7 +2672,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             let angle = i.float32 * PI * 2.0 / 16.0
             let sparkX = enemy.pos.x + cos(angle) * ringRadius
             let sparkY = enemy.pos.y + sin(angle) * ringRadius
-            spawnExplosion(game.particles, sparkX, sparkY,
+            spawnExplosionPooled(game.particlePool, sparkX, sparkY,
                           Color(r: 255, g: 255, b: 200, a: 255), 3)
       
       of "ground_slam", "earthquake":
@@ -2683,7 +2684,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let debrisX = enemy.pos.x + cos(angle) * debrisRadius
           let debrisY = enemy.pos.y + sin(angle) * debrisRadius
           # Brown/orange debris colors
-          spawnExplosion(game.particles, debrisX, debrisY,
+          spawnExplosionPooled(game.particlePool, debrisX, debrisY,
                         Color(r: 120 + rand(80).uint8, g: 60 + rand(40).uint8, b: 20, a: 255), 4)
         
         # Earthquake gets GROUND CRACKS (radial lines)
@@ -2694,7 +2695,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
               let crackRadius = step.float32 * 15.0
               let crackX = enemy.pos.x + cos(angle) * crackRadius
               let crackY = enemy.pos.y + sin(angle) * crackRadius
-              spawnExplosion(game.particles, crackX, crackY,
+              spawnExplosionPooled(game.particlePool, crackX, crackY,
                             Color(r: 80, g: 40, b: 10, a: 255), 2)
       
       of "gravity_pulse":
@@ -2705,7 +2706,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             let angle = i.float32 * PI * 2.0 / 12.0 + ring.float32 * 0.3  # Spiral offset
             let gravX = enemy.pos.x + cos(angle) * ringRadius
             let gravY = enemy.pos.y + sin(angle) * ringRadius
-            spawnExplosion(game.particles, gravX, gravY,
+            spawnExplosionPooled(game.particlePool, gravX, gravY,
                           Color(r: 150, g: 100, b: 255, a: 255), 3)
       
       of "blinding_pulse":
@@ -2725,7 +2726,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
               of 4: Color(r: 200, g: 230, b: 255, a: 255)
               of 5: Color(r: 230, g: 200, b: 255, a: 255)
               else: Color(r: 255, g: 255, b: 255, a: 255)
-            spawnExplosion(game.particles, lightX, lightY, lightColor, 4)
+            spawnExplosionPooled(game.particlePool, lightX, lightY, lightColor, 4)
       
       of "chrono_pulse":
         # Temporal distortion waves - expanding time rings
@@ -2737,7 +2738,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             let timeY = enemy.pos.y + sin(angle) * ringRadius
             # Cyan/turquoise temporal particles with brightness variation
             let brightness = 100 + (ring * 35)
-            spawnExplosion(game.particles, timeX, timeY,
+            spawnExplosionPooled(game.particlePool, timeX, timeY,
                           Color(r: brightness.uint8, g: 220, b: 220, a: 255), 3)
       
       of "chrono_break":
@@ -2750,7 +2751,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             let shatterX = enemy.pos.x + cos(angle) * ringRadius
             let shatterY = enemy.pos.y + sin(angle) * ringRadius
             # Bright cyan-white time shatter particles
-            spawnExplosion(game.particles, shatterX, shatterY,
+            spawnExplosionPooled(game.particlePool, shatterX, shatterY,
                           Color(r: 150, g: 255, b: 255, a: 255), 5)
         
         # Add radial time cracks extending outward
@@ -2760,7 +2761,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             let crackRadius = step.float32 * 18.0
             let crackX = enemy.pos.x + cos(angle) * crackRadius
             let crackY = enemy.pos.y + sin(angle) * crackRadius
-            spawnExplosion(game.particles, crackX, crackY,
+            spawnExplosionPooled(game.particlePool, crackX, crackY,
                           Color(r: 100, g: 220, b: 220, a: 255), 2)
       
       of "entropy_wave":
@@ -2781,7 +2782,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
                 b: rand(200).uint8 + 55,
                 a: 255
               )
-              spawnExplosion(game.particles, chaosX, chaosY, chaosColor, rand(5) + 2)
+              spawnExplosionPooled(game.particlePool, chaosX, chaosY, chaosColor, rand(5) + 2)
         
         # Add random crackling effects
         for i in 0..<rand(15) + 10:
@@ -2789,7 +2790,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let randomRadius = rand(120.0) + 30.0
           let crackX = enemy.pos.x + cos(randomAngle) * randomRadius
           let crackY = enemy.pos.y + sin(randomAngle) * randomRadius
-          spawnExplosion(game.particles, crackX, crackY,
+          spawnExplosionPooled(game.particlePool, crackX, crackY,
                         Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 4)
       
       of "omega_pulse":
@@ -2810,14 +2811,14 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
               of 4: Color(r: 0, g: 255, b: 255, a: 255)   # Cyan
               of 5: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
               else: Color(r: 255, g: 0, b: 255, a: 255)   # Magenta
-            spawnExplosion(game.particles, omegaX, omegaY, rainbowColor, 6)
+            spawnExplosionPooled(game.particlePool, omegaX, omegaY, rainbowColor, 6)
         
         # Electric crackling (like Boss 6)
         for i in 0..<16:
           let angle = i.float32 * PI * 2.0 / 16.0
           let sparkX = enemy.pos.x + cos(angle) * 65.0
           let sparkY = enemy.pos.y + sin(angle) * 65.0
-          spawnExplosion(game.particles, sparkX, sparkY,
+          spawnExplosionPooled(game.particlePool, sparkX, sparkY,
                         Color(r: 255, g: 255, b: 150, a: 255), 5)
         
         # Temporal rifts (like Boss 10)
@@ -2827,7 +2828,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             let riftRadius = step.float32 * 20.0
             let riftX = enemy.pos.x + cos(angle) * riftRadius
             let riftY = enemy.pos.y + sin(angle) * riftRadius
-            spawnExplosion(game.particles, riftX, riftY,
+            spawnExplosionPooled(game.particlePool, riftX, riftY,
                           Color(r: 150, g: 255, b: 255, a: 255), 3)
         
         # Light brilliance bursts (like Boss 9)
@@ -2837,14 +2838,14 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             let burstRadius = step.float32 * 25.0
             let burstX = enemy.pos.x + cos(burstAngle) * burstRadius
             let burstY = enemy.pos.y + sin(burstAngle) * burstRadius
-            spawnExplosion(game.particles, burstX, burstY,
+            spawnExplosionPooled(game.particlePool, burstX, burstY,
                           Color(r: 255, g: 255, b: 255, a: 255), 4)
       
       else:
         discard  # No extra effects for default
     
     # Central explosion (size varies by mode)
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, particleColor, explosionSize)
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, particleColor, explosionSize)
   
   of bapSummon:
     # Spawn minion enemies around the boss - customizable via specialData
@@ -2883,7 +2884,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # Only proceed if we can spawn at least one enemy
     if actualSpawnCount <= 0:
       # Skip spawning but still show visual feedback
-      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 8)
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 8)
     else:
       for i in 0..<actualSpawnCount:
         let angle = i.float32 * PI * 2.0 / actualSpawnCount.float32
@@ -2919,7 +2920,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         game.enemies.add(minion)
       
       # Visual feedback for summoning
-      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, 15)
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
   
   of bapMeteor:
     # ENHANCED METEOR SYSTEM - Falling projectiles from above
@@ -2967,7 +2968,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         # Create orbital beam effect from above
         for step in 0..5:
           let beamY = startY - (step.float32 * 30.0)
-          spawnExplosion(game.particles, targetX, beamY,
+          spawnExplosionPooled(game.particlePool, targetX, beamY,
                         Color(r: 150, g: 100, b: 255, a: 255), 3)
         
         # Star field particles at impact point
@@ -2975,7 +2976,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let particleAngle = j.float32 * (PI * 2.0) / particleCount.float32
           let particleX = targetX + cos(particleAngle) * 25.0
           let particleY = game.screenHeight.float32
-          spawnExplosion(game.particles, particleX, particleY,
+          spawnExplosionPooled(game.particlePool, particleX, particleY,
                         Color(r: 200, g: 150, b: 255, a: 255), 2)
   
   of bapOrbit:
@@ -3046,7 +3047,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         else:
           (30, phase.color)
       
-      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
       
       # Extra ring effects for multi-layer
       if layerCount > 1:
@@ -3056,7 +3057,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             let angle = i.float32 * (PI * 2.0 / 8.0)
             let ringX = enemy.pos.x + cos(angle) * ringRadius
             let ringY = enemy.pos.y + sin(angle) * ringRadius
-            spawnExplosion(game.particles, ringX, ringY, satelliteColor, 3)
+            spawnExplosionPooled(game.particlePool, ringX, ringY, satelliteColor, 3)
   
   of bapChain:
     # ENHANCED CHAIN LIGHTNING SYSTEM
@@ -3112,7 +3113,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let perpY = (chainX - lastX) / distance * zigzag
           
           # Bright electric particles
-          spawnExplosion(game.particles, baseX + perpX, baseY + perpY,
+          spawnExplosionPooled(game.particlePool, baseX + perpX, baseY + perpY,
                         Color(r: 255, g: 255, b: 200, a: 255), 2)
         
         # Create bullet at chain point
@@ -3127,7 +3128,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         ))
         
         # Chain impact explosion
-        spawnExplosion(game.particles, chainX, chainY,
+        spawnExplosionPooled(game.particlePool, chainX, chainY,
                       Color(r: 255, g: 255, b: 150, a: 255), 8)
         
         # Decay damage for next chain
@@ -3151,7 +3152,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             let t = step.float32 / 6.0
             let bX = enemy.pos.x + (branchX - enemy.pos.x) * t
             let bY = enemy.pos.y + (branchY - enemy.pos.y) * t
-            spawnExplosion(game.particles, bX, bY,
+            spawnExplosionPooled(game.particlePool, bX, bY,
                           Color(r: 200, g: 230, b: 255, a: 255), 1)
           
           game.bullets.add(newBullet(
@@ -3168,7 +3169,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       of "chain_storm": (30, Color(r: 255, g: 255, b: 150, a: 255))     # Bright yellow
       else: (20, Color(r: 255, g: 255, b: 100, a: 255))                 # Yellow
     
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
   
   of bapTeleport:
     # Teleport to new location and shoot - customized via specialData
@@ -3218,7 +3219,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       else:
         (15, false, false)  # Standard explosion
     
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, phase.color, initialExplosionSize)
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, initialExplosionSize)
     
     # Create temporal distortion rings for Timekeeper modes
     if temporalTrails:
@@ -3235,7 +3236,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let ringX = enemy.pos.x + cos(angle) * ringRadius
           let ringY = enemy.pos.y + sin(angle) * ringRadius
           # Cyan/turquoise temporal particles
-          spawnExplosion(game.particles, ringX, ringY,
+          spawnExplosionPooled(game.particlePool, ringX, ringY,
                         Color(r: 100, g: 220, b: 220, a: 255), 3)
     
     # Create chaotic distortion for Chaos Weaver modes
@@ -3262,7 +3263,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             b: (100 + rand(155)).uint8,
             a: 255
           )
-          spawnExplosion(game.particles, chaosX, chaosY, chaosColor, rand(3) + 2)
+          spawnExplosionPooled(game.particlePool, chaosX, chaosY, chaosColor, rand(3) + 2)
       
       # Add chaotic distortion rings
       for ring in 0..<chaosRingCount:
@@ -3282,7 +3283,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             b: rand(200).uint8 + 55,
             a: 255
           )
-          spawnExplosion(game.particles, chaosX, chaosY, chaosColor, rand(3) + 3)
+          spawnExplosionPooled(game.particlePool, chaosX, chaosY, chaosColor, rand(3) + 3)
     
     # Perform teleports and create shooting echoes
     var teleportPositions: seq[Vector2f] = @[]
@@ -3306,7 +3307,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         of "omega_blink": 35
         else: 15
       
-      spawnExplosion(game.particles, newX, newY, phase.color, arrivalExplosionSize)
+      spawnExplosionPooled(game.particlePool, newX, newY, phase.color, arrivalExplosionSize)
       
       # Add temporal rift effect for Timekeeper modes
       if teleportMode in ["time_echo", "echo_burst", "temporal_collapse", "omega_blink"]:
@@ -3316,7 +3317,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           let riftRadius = 35.0
           let riftX = newX + cos(riftAngle) * riftRadius
           let riftY = newY + sin(riftAngle) * riftRadius
-          spawnExplosion(game.particles, riftX, riftY,
+          spawnExplosionPooled(game.particlePool, riftX, riftY,
                         Color(r: 150, g: 255, b: 255, a: 255), 4)
       
       # Add chaos rift effect for Chaos Weaver modes
@@ -3341,7 +3342,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             b: rand(200).uint8 + 55,
             a: 255
           )
-          spawnExplosion(game.particles, riftX, riftY, chaosRiftColor, rand(3) + 4)
+          spawnExplosionPooled(game.particlePool, riftX, riftY, chaosRiftColor, rand(3) + 4)
         
         # REALITY SHIFT: Create reality fracture lines between previous and current position
         if teleportMode == "reality_shift" and t > 0:
@@ -3357,7 +3358,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
               Color(r: 255, g: 50, b: 200, a: 255)  # Magenta
             else:
               Color(r: 100, g: 255, b: 200, a: 255)  # Cyan
-            spawnExplosion(game.particles, lineX, lineY, bridgeColor, 3)
+            spawnExplosionPooled(game.particlePool, lineX, lineY, bridgeColor, 3)
         
         # DIMENSIONAL CHAOS: Create massive vortex portal at each position
         if teleportMode == "dimensional_chaos":
@@ -3378,7 +3379,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
                 b: ((vortexRing * 35 + 100).clamp(0, 255)).uint8,
                 a: 255
               )
-              spawnExplosion(game.particles, vortexX, vortexY, vortexColor, 5)
+              spawnExplosionPooled(game.particlePool, vortexX, vortexY, vortexColor, 5)
         
         # OMEGA BLINK: Massive combined effects from ALL previous bosses
         if teleportMode == "omega_blink":
@@ -3398,14 +3399,14 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
                 of 4: Color(r: 0, g: 255, b: 255, a: 255)
                 of 5: Color(r: 0, b: 255, a: 255)
                 else: Color(r: 255, g: 0, b: 255, a: 255)
-              spawnExplosion(game.particles, burstX, burstY, rainbowColor, 4)
+              spawnExplosionPooled(game.particlePool, burstX, burstY, rainbowColor, 4)
           
           # Electric arcs (like Boss 6 - Chain Reactor)
           for i in 0..<12:
             let arcAngle = i.float32 * PI * 2.0 / 12.0
             let arcX = newX + cos(arcAngle) * 50.0
             let arcY = newY + sin(arcAngle) * 50.0
-            spawnExplosion(game.particles, arcX, arcY,
+            spawnExplosionPooled(game.particlePool, arcX, arcY,
                           Color(r: 255, g: 255, b: 150, a: 255), 5)
           
           # Temporal cracks (like Boss 10 - Timekeeper)
@@ -3415,7 +3416,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
               let crackDist = step.float32 * 18.0
               let crackX = newX + cos(crackAngle) * crackDist
               let crackY = newY + sin(crackAngle) * crackDist
-              spawnExplosion(game.particles, crackX, crackY,
+              spawnExplosionPooled(game.particlePool, crackX, crackY,
                             Color(r: 150, g: 255, b: 255, a: 255), 3)
           
           # ULTIMATE SCREEN SHAKE for omega blink
@@ -3592,7 +3593,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         let angle = i.float32 * (PI * 2.0 / 16.0)
         let ringX = enemy.pos.x + cos(angle) * 60.0
         let ringY = enemy.pos.y + sin(angle) * 60.0
-        spawnExplosion(game.particles, ringX, ringY,
+        spawnExplosionPooled(game.particlePool, ringX, ringY,
                       Color(r: 255, g: 50, b: 0, a: 255), 5)
     
     # Initial visual explosion with enhanced colors
@@ -3601,7 +3602,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       of "double_charge": (30, Color(r: 255, g: 100, b: 0, a: 255))
       else: (20, trailColor)
     
-    spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
   
   of bapSnipe:
     # ENHANCED PRECISION SNIPE SYSTEM - Boss 7 Orbital Commander
@@ -3650,7 +3651,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
       
       # Visual muzzle flash per shot
-      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, bulletColor, 8)
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, bulletColor, 8)
     
     # Special visual effects for satellite snipes
     if snipeMode == "satellite_barrage":
@@ -3659,7 +3660,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         let angle = i.float32 * PI * 2.0 / 8.0
         let starX = enemy.pos.x + cos(angle) * 50.0
         let starY = enemy.pos.y + sin(angle) * 50.0
-        spawnExplosion(game.particles, starX, starY,
+        spawnExplosionPooled(game.particlePool, starX, starY,
                       Color(r: 200, g: 150, b: 255, a: 255), 4)
 
 # ORBITAL WEAPONS SYSTEM
@@ -3738,7 +3739,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
         enemy.slowAmount = 0.30  # 30% slow
     
     # Green particles
-    spawnExplosion(game.particles, orbPos.x, orbPos.y, 
+    spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y, 
                    Color(r: 100, g: 255, b: 100, a: 255), 5)
   
   of etFire:
@@ -3760,8 +3761,8 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
         enemy.slowAmount = 0.35  # 35% slow
     
     # Orange/red particles
-    spawnExplosion(game.particles, orbPos.x, orbPos.y, Orange, 5)
-    spawnExplosion(game.particles, orbPos.x, orbPos.y, Red, 3)
+    spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y, Orange, 5)
+    spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y, Red, 3)
   
   of etLightning:
     # Lightning: Chain to nearby enemies
@@ -3796,7 +3797,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
         if nearestEnemy.slowAmount < 0.25:
           nearestEnemy.slowAmount = 0.25  # 25% slow
       
-      spawnExplosion(game.particles, nearestEnemy.pos.x, nearestEnemy.pos.y,
+      spawnExplosionPooled(game.particlePool, nearestEnemy.pos.x, nearestEnemy.pos.y,
                      Color(r: 200, g: 220, b: 255, a: 255), 3)
       
       # Second chain with Lightning Mastery
@@ -3822,7 +3823,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
           if secondNearestEnemy.slowAmount < 0.25:
             secondNearestEnemy.slowAmount = 0.25
           
-          spawnExplosion(game.particles, secondNearestEnemy.pos.x, secondNearestEnemy.pos.y,
+          spawnExplosionPooled(game.particlePool, secondNearestEnemy.pos.x, secondNearestEnemy.pos.y,
                          Color(r: 200, g: 220, b: 255, a: 255), 3)
     
     # Apply slow to primary target if has Lightning Mastery
@@ -3832,7 +3833,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
         enemy.slowAmount = 0.25
     
     # Yellow particles
-    spawnExplosion(game.particles, orbPos.x, orbPos.y, Yellow, 5)
+    spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y, Yellow, 5)
   
   of etWind:
     # Wind: Knockback
@@ -3853,7 +3854,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
         enemy.slowAmount = 0.40  # 40% slow
     
     # Cyan particles
-    spawnExplosion(game.particles, orbPos.x, orbPos.y,
+    spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
                    Color(r: 200, g: 230, b: 255, a: 255), 5)
   
   of etFrost:
@@ -3868,12 +3869,12 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
       enemy.slowAmount = frostSlow
     
     # Light blue particles
-    spawnExplosion(game.particles, orbPos.x, orbPos.y,
+    spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
                    Color(r: 150, g: 200, b: 255, a: 255), 5)
   
   of etArcane:
     # Arcane: Pure damage (already applied) + purple sparkles
-    spawnExplosion(game.particles, orbPos.x, orbPos.y,
+    spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
                    Color(r: 200, g: 100, b: 255, a: 255), 5)
   
   of etBlood:
@@ -3891,11 +3892,11 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
                       isCritical = false, damageType = dtHeal)
       
       # Green healing particles at player
-      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, 
+      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, 
                      Color(r: 100, g: 255, b: 100, a: 255), 3)
     
     # Red blood particles at hit location
-    spawnExplosion(game.particles, orbPos.x, orbPos.y,
+    spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
                    Color(r: 255, g: 50, b: 50, a: 255), 5)
   
   of etNone:
@@ -3992,6 +3993,9 @@ proc updateGame*(game: var Game, dt: float32) =
   
   # Always update game time (player time not affected)
   game.time += dt
+  
+  # OPTIMIZATION: Track frame count for satellite optimizations
+  game.frameCount += 1
   
   # Track movement and update run duration for statistics
   trackMovementFrame(game, dt)
@@ -4168,7 +4172,7 @@ proc updateGame*(game: var Game, dt: float32) =
         ))
       
       # Visual feedback
-      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y,
+      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                     Color(r: 100, g: 200, b: 255, a: 255), 25)
       
       game.player.radialBurstTimer = cooldown
@@ -4202,7 +4206,7 @@ proc updateGame*(game: var Game, dt: float32) =
     
     # Poison visual effect (frame-independent)
     # Spawn ~20 particles/sec
-    spawnTimedParticles(game.particles, game.player.pos.x, game.player.pos.y, 20.0, Green, 2, dt)
+    spawnTimedParticlesPooled(game.particlePool, game.player.pos.x, game.player.pos.y, 20.0, Green, 2, dt)
   
   # Damage zone power-up effect
   if hasPowerUp(game.player, puDamageZone):
@@ -4289,7 +4293,7 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual fire particles (frame-independent)
         # 8% @ 60fps = 4.8 particles/sec -> use dt scaling
-        spawnTimedParticlesAround(game.particles, enemy.pos.x, enemy.pos.y, 
+        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                                  enemy.radius + 5.0, 4.8, Red, 2, dt, -3.0)
   
   # Lightning Aura power-up effect - low damage with chain lightning
@@ -4346,7 +4350,7 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual lightning spark (frame-independent)
         # 10% @ 60fps = 6 particles/sec
-        spawnTimedParticles(game.particles, enemy.pos.x, enemy.pos.y, 6.0,
+        spawnTimedParticlesPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 6.0,
                            Color(r: 150, g: 200, b: 255, a: 255), 3, dt)
         
         # Chain to nearby enemies
@@ -4384,7 +4388,7 @@ proc updateGame*(game: var Game, dt: float32) =
             # 20% @ 60fps = 12 particles/sec
             let midX = (currentEnemy.pos.x + nearestEnemy.pos.x) / 2.0
             let midY = (currentEnemy.pos.y + nearestEnemy.pos.y) / 2.0
-            spawnTimedParticles(game.particles, midX, midY, 12.0,
+            spawnTimedParticlesPooled(game.particlePool, midX, midY, 12.0,
                                Color(r: 200, g: 220, b: 255, a: 200), 2, dt)
             
             currentEnemy = nearestEnemy
@@ -4422,7 +4426,7 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual arcane particles (purple sparkles) (frame-independent)
         # 12% @ 60fps = 7.2 particles/sec
-        spawnTimedParticlesAround(game.particles, enemy.pos.x, enemy.pos.y, 
+        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                                  enemy.radius + 3.0, 7.2, 
                                  Color(r: 200, g: 100, b: 255, a: 255), 2, dt)
   
@@ -4465,7 +4469,7 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual poison particles (frame-independent)
         # 6% @ 60fps = 3.6 particles/sec
-        spawnTimedParticlesAround(game.particles, enemy.pos.x, enemy.pos.y, 
+        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                                  enemy.radius + 5.0, 3.6, 
                                  Color(r: 100, g: 255, a: 200), 2, dt, -3.0)
   
@@ -4507,7 +4511,7 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual wind particles (outward from player toward enemies) (frame-independent)
         # 8% @ 60fps = 4.8 particles/sec
-        spawnTimedParticlesAround(game.particles, game.player.pos.x, game.player.pos.y, 
+        spawnTimedParticlesAroundPooled(game.particlePool, game.player.pos.x, game.player.pos.y, 
                                  windRadius * 0.8, 4.8, 
                                  Color(r: 200, g: 230, b: 255, a: 150), 2, dt)
   
@@ -4562,7 +4566,7 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Visual blood particles (frame-independent)
         # 8% @ 60fps = 4.8 particles/sec
-        spawnTimedParticlesAround(game.particles, enemy.pos.x, enemy.pos.y, 
+        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                                  enemy.radius + 5.0, 4.8, 
                                  Color(r: 255, g: 50, b: 50, a: 255), 2, dt, -3.0)
     
@@ -4601,7 +4605,7 @@ proc updateGame*(game: var Game, dt: float32) =
         # 25% @ 60fps = 15 particles/sec for ranged, 15% = 9 particles/sec for melee
         let particleRate = if isRanged: 15.0 else: 9.0
         let particleColor = if isRanged: Color(r: 138, g: 43, b: 226, a: 220) else: Color(r: 75, g: 0, b: 130, a: 200)
-        spawnTimedParticlesAround(game.particles, game.player.pos.x, game.player.pos.y,
+        spawnTimedParticlesAroundPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                                  pullRadius, particleRate, particleColor, 2, dt)
     # Also pull coins
     let coinPullMultiplier = 0.0  # No coins for now
@@ -4646,7 +4650,7 @@ proc updateGame*(game: var Game, dt: float32) =
                           isCritical = false, damageType = dtDefault)
       
       # Visual feedback - expanding shockwave ring
-      spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y,
+      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                     Color(r: 100, g: 200, b: 255, a: 255), 40)
       
       # Set cooldown
@@ -4764,7 +4768,7 @@ proc updateGame*(game: var Game, dt: float32) =
             healAmount = 3 + rand(3)  # 3, 4, 5, or 6
           
           heal(game.player, healAmount.float32)
-          spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 15)
+          spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
         
         # Play wave complete sound
         playSound(stWaveComplete)
@@ -4813,7 +4817,7 @@ proc updateGame*(game: var Game, dt: float32) =
         let dist = i.float32 * 3
         let x = boss.pos.x + cos(angle) * dist
         let y = boss.pos.y + sin(angle) * dist
-        spawnExplosion(game.particles, x, y, boss.color, 3)
+        spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
     
     elif isTimeSurvivalMode(game.mode):
       # TIME SURVIVAL MODE: Original time-based spawning
@@ -4857,7 +4861,7 @@ proc updateGame*(game: var Game, dt: float32) =
           let dist = i.float32 * 3
           let x = boss.pos.x + cos(angle) * dist
           let y = boss.pos.y + sin(angle) * dist
-          spawnExplosion(game.particles, x, y, boss.color, 3)
+          spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
 
   # Update enemies
 
@@ -4994,9 +4998,9 @@ proc updateGame*(game: var Game, dt: float32) =
                           isCritical = false, damageType = dtExplosion)
         
         # Create explosion visual
-        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                       Color(r: 255, g: 128, b: 0, a: 255), 40)
-        spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, eliteExplosionRadius)
+        spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, eliteExplosionRadius)
       
       # Star explosion on death - damages player if too close
       if enemy.enemyType == etStar:
@@ -5020,18 +5024,18 @@ proc updateGame*(game: var Game, dt: float32) =
                           isCritical = false, damageType = dtExplosion)
         
         # Create MASSIVE explosion visual with multiple layers
-        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                       Color(r: 255, g: 150, b: 0, a: 255), 60)  # More particles
-        spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                       Color(r: 255, g: 220, b: 100, a: 255), 40)  # Bright inner core
         # Add multiple shockwave rings for clarity
-        spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, explosionRadius)
-        spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, explosionRadius * 0.7)
-        spawnShockwave(game.particles, enemy.pos.x, enemy.pos.y, explosionRadius * 0.4)
+        spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius)
+        spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius * 0.7)
+        spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius * 0.4)
       
       # Death particles
       let particleColor = enemy.color
-      spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, particleColor, 
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, particleColor, 
                     if enemy.isBoss: 50 else: 15)
       
       # Drop consumable
@@ -5070,7 +5074,7 @@ proc updateGame*(game: var Game, dt: float32) =
         if game.player.killsSinceLastHeal >= healsPerKills:
           heal(game.player, 1)
           game.player.killsSinceLastHeal = 0
-          spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 15)
+          spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
       
       # Check if boss was defeated
       if enemy.isBoss:
@@ -5144,10 +5148,10 @@ proc updateGame*(game: var Game, dt: float32) =
               let dist = ring.float32 * 35.0
               let px = enemy.pos.x + cos(angle) * dist
               let py = enemy.pos.y + sin(angle) * dist
-              spawnExplosion(game.particles, px, py, phase.color, 8)
+              spawnExplosionPooled(game.particlePool, px, py, phase.color, 8)
           
           # 4. Extra burst at center
-          spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, 
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                         Color(r: 255, g: 255, b: 255, a: 255), 40)
           
           # REGENERATE SATELLITES - Clear existing satellites so new phase can spawn correct number
@@ -5155,7 +5159,7 @@ proc updateGame*(game: var Game, dt: float32) =
           if enemy.satellites.len > 0:
             # Create destruction effect for each destroyed satellite
             for satellite in enemy.satellites:
-              spawnExplosion(game.particles, satellite.pos.x, satellite.pos.y,
+              spawnExplosionPooled(game.particlePool, satellite.pos.x, satellite.pos.y,
                             Color(r: 100, g: 150, b: 255, a: 255), 12)
             # Clear satellite list - new phase will regenerate with correct count
             enemy.satellites = @[]
@@ -5193,14 +5197,14 @@ proc updateGame*(game: var Game, dt: float32) =
               bossDef.phases[enemy.currentPhaseIndex].color
             else:
               Red
-            spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, trailColor, 5)
+            spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, trailColor, 5)
         else:
           # Dash complete
           enemy.isDashing = false
           enemy.dashDuration = 0
           if enemy.currentPhaseIndex < bossDef.phases.len:
             let endColor = bossDef.phases[enemy.currentPhaseIndex].color
-            spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, endColor, 20)
+            spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, endColor, 20)
       
       # Update attack timers
       for i in 0..<enemy.attackTimers.len:
@@ -5352,7 +5356,7 @@ proc updateGame*(game: var Game, dt: float32) =
                   x: game.player.pos.x + cos(angle) * shockwaveRadius,
                   y: game.player.pos.y + sin(angle) * shockwaveRadius
                 )
-                spawnExplosion(game.particles, particlePos.x, particlePos.y, 
+                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y, 
                               Color(r: 150, g: 200, b: 255, a: 200), 5)
               
               game.player.pulseArmorCooldown = game.time
@@ -5369,7 +5373,7 @@ proc updateGame*(game: var Game, dt: float32) =
           
           playSound(stPlayerHit, 0.6)
           enemy.lastContactDamageTime = game.time
-          spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Red, 10)
+          spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Red, 10)
       else:
         # Regular enemies take continuous damage from player contact (10 HP/sec)
         if game.time - enemy.lastContactDamageTime >= 0.1:  # Check every 0.1 seconds
@@ -5382,7 +5386,7 @@ proc updateGame*(game: var Game, dt: float32) =
             game.player.poisonTimer = 3.0  # 3 seconds of poison
             game.player.poisonDamage = 0.5  # 0.5 DPS = 1.5 total damage (NERFED from 1.0)
             game.player.poisonAccumulator = 0.0  # Reset accumulator for new poison application
-            spawnExplosion(game.particles, game.player.pos.x, game.player.pos.y, Green, 10)
+            spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 10)
           
           # Thorns reflection damage - damages enemy but doesn't kill instantly
           discard applyThornsReflection(game, game.player, enemyContactDamage, enemy, "contact")
@@ -5430,7 +5434,7 @@ proc updateGame*(game: var Game, dt: float32) =
                   x: game.player.pos.x + cos(angle) * shockwaveRadius,
                   y: game.player.pos.y + sin(angle) * shockwaveRadius
                 )
-                spawnExplosion(game.particles, particlePos.x, particlePos.y, 
+                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y, 
                               Color(r: 150, g: 200, b: 255, a: 200), 5)
               
               game.player.pulseArmorCooldown = game.time
@@ -5460,7 +5464,7 @@ proc updateGame*(game: var Game, dt: float32) =
           accumulateAndShowContactDamage(game, enemy, contactDamageToEnemy)
           
           # Visual feedback for enemy taking contact damage (small explosion)
-          spawnExplosion(game.particles, enemy.pos.x, enemy.pos.y, enemy.color, 3)
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.color, 3)
           
           # Remove enemy if HP reaches 0
           if enemy.hp <= 0:
@@ -5484,16 +5488,16 @@ proc updateGame*(game: var Game, dt: float32) =
     game.bullets = @[]
   
   # Update boss satellites (persistent orbiting satellites)
+  # OPTIMIZED: Batch processing and reduced allocations
   for enemy in game.enemies:
     if enemy.isBoss and enemy.satellites.len > 0:
       var i = enemy.satellites.len - 1
       while i >= 0:
         # Update orbit position using individual satellite rotation speed
         enemy.satellites[i].angle += dt * enemy.satellites[i].rotationSpeed
-        enemy.satellites[i].pos = newVector2f(
-          enemy.pos.x + cos(enemy.satellites[i].angle) * enemy.satellites[i].radius,
-          enemy.pos.y + sin(enemy.satellites[i].angle) * enemy.satellites[i].radius
-        )
+        # OPTIMIZATION: Reuse existing Vector2f instead of creating new one
+        enemy.satellites[i].pos.x = enemy.pos.x + cos(enemy.satellites[i].angle) * enemy.satellites[i].radius
+        enemy.satellites[i].pos.y = enemy.pos.y + sin(enemy.satellites[i].angle) * enemy.satellites[i].radius
         
         # LASER TARGETING SYSTEM - Continuous lasers with player coordinate tracking
         enemy.satellites[i].shootTimer -= dt
@@ -5514,75 +5518,90 @@ proc updateGame*(game: var Game, dt: float32) =
         if enemy.satellites[i].laserActive:
           enemy.satellites[i].laserChargeTime += dt
           
-          # Calculate direction through locked target position to screen edge
-          let toTarget = (enemy.satellites[i].laserTarget - enemy.satellites[i].pos).normalize()
-          let targetAngle = arctan2(toTarget.y, toTarget.x)
+          # OPTIMIZATION: Only calculate laser geometry every 3 frames during warning
+          let shouldUpdateLaser = (game.frameCount mod 3 == 0) or (enemy.satellites[i].laserChargeTime >= 1.5)
           
-          # Calculate maximum laser length to reach screen edge
-          # Project from satellite through target to edge of screen
-          let maxScreenDist = sqrt(game.screenWidth.float32 * game.screenWidth.float32 + 
-                                   game.screenHeight.float32 * game.screenHeight.float32)
-          
-          # WARNING PHASE (first 1.5 seconds)
-          if enemy.satellites[i].laserChargeTime < 1.5:
-            # Update existing warning position to follow satellite, or create new one
-            var warningFound = false
-            for warning in game.attackWarnings:
-              if warning.attackType == "satellite_laser" and 
-                 warning.sourceEnemyId == enemy.id and
-                 warning.fromSatellite:
-                # Update warning position to follow satellite
-                warning.pos = enemy.satellites[i].pos
-                warningFound = true
-                break
+          if shouldUpdateLaser:
+            # Calculate direction through locked target position to screen edge
+            let toTarget = (enemy.satellites[i].laserTarget - enemy.satellites[i].pos).normalize()
+            let targetAngle = arctan2(toTarget.y, toTarget.x)
             
-            # Create new warning if doesn't exist
-            if not warningFound:
-              game.attackWarnings.add(newSatelliteLaserWarning(
-                enemy.satellites[i].pos.x,
-                enemy.satellites[i].pos.y,
-                enemy.satellites[i].laserTarget.x,
-                enemy.satellites[i].laserTarget.y,
-                1.5 - enemy.satellites[i].laserChargeTime,
-                enemy.id
-              ))
-          
-          # FIRING PHASE (after warning)
-          else:
-            # Create continuous laser beam that extends through target to edge
-            # Direction 3 = single rotated beam (radial pattern)
-            game.lasers.add(newLaser(
-              enemy.satellites[i].pos.x, 
-              enemy.satellites[i].pos.y,
-              3,                    # direction: 3 = single rotated beam
-              maxScreenDist,        # length: extend all the way across screen
-              12.0,                 # thickness: visible laser beam
-              2,                    # damage
-              dt * 2.0,             # duration: slightly longer than frame for smooth appearance
-              targetAngle,          # rotation: angle through target point
-              enemy.enemyType       # enemyType: track source
-            ))
+            # Calculate maximum laser length to reach screen edge
+            # OPTIMIZATION: Cache this value per enemy instead of recalculating
+            let maxScreenDist = sqrt(game.screenWidth.float32 * game.screenWidth.float32 + 
+                                     game.screenHeight.float32 * game.screenHeight.float32)
             
-            # Visual feedback for laser firing
-            if (enemy.satellites[i].laserChargeTime * 10.0).int mod 2 == 0:  # Pulse effect
-              spawnExplosion(game.particles, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y,
-                            Color(r: 255, g: 200, b: 100, a: 255), 8)
+            # WARNING PHASE (first 1.5 seconds)
+            if enemy.satellites[i].laserChargeTime < 1.5:
+              # Update existing warning position to follow satellite, or create new one
+              var warningFound = false
+              for warning in game.attackWarnings:
+                if warning.attackType == "satellite_laser" and 
+                   warning.sourceEnemyId == enemy.id and
+                   warning.fromSatellite:
+                  # Update warning position to follow satellite
+                  warning.pos = enemy.satellites[i].pos
+                  warningFound = true
+                  break
+              
+              # Create new warning if doesn't exist
+              if not warningFound:
+                game.attackWarnings.add(newSatelliteLaserWarning(
+                  enemy.satellites[i].pos.x,
+                  enemy.satellites[i].pos.y,
+                  enemy.satellites[i].laserTarget.x,
+                  enemy.satellites[i].laserTarget.y,
+                  1.5 - enemy.satellites[i].laserChargeTime,
+                  enemy.id
+                ))
+            
+            # FIRING PHASE (after warning)
+            else:
+              # OPTIMIZATION: Only create laser every 2 frames instead of every frame
+              # Lasers last 2 frames so this maintains continuous beam appearance
+              if game.frameCount mod 2 == 0:
+                game.lasers.add(newLaser(
+                  enemy.satellites[i].pos.x, 
+                  enemy.satellites[i].pos.y,
+                  3,                    # direction: 3 = single rotated beam
+                  maxScreenDist,        # length: extend all the way across screen
+                  12.0,                 # thickness: visible laser beam
+                  2,                    # damage
+                  dt * 3.0,             # duration: 3 frames worth for smooth overlap
+                  targetAngle,          # rotation: angle through target point
+                  enemy.enemyType       # enemyType: track source
+                ))
+              
+              # Visual feedback for laser firing - reduced frequency
+              if game.frameCount mod 8 == 0:  # Reduced from every 2 frames to every 8
+                spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y,
+                              Color(r: 255, g: 200, b: 100, a: 255), 6)  # Smaller particles (6 instead of 8)
         
-        # Check if player bullets hit satellite - BUFFED HP
+        # OPTIMIZATION: Bullet collision - only check if satellite is on screen
         var satelliteDestroyed = false
-        for bullet in game.bullets:
-          if bullet.fromPlayer and distance(bullet.pos, enemy.satellites[i].pos) < 15.0:
-            enemy.satellites[i].hp -= 1
-            spawnExplosion(game.particles, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y, 
-                          Color(r: 255, g: 150, b: 0, a: 255), 8)
-            if enemy.satellites[i].hp <= 0:
-              # Satellite destroyed!
-              spawnExplosion(game.particles, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y, 
-                            Red, 25)
-              playSound(stEnemyDeath, 0.4)
-              enemy.satellites.delete(i)
-              satelliteDestroyed = true
-              break
+        let onScreen = enemy.satellites[i].pos.x > -50 and enemy.satellites[i].pos.x < game.screenWidth.float32 + 50 and
+                       enemy.satellites[i].pos.y > -50 and enemy.satellites[i].pos.y < game.screenHeight.float32 + 50
+        
+        if onScreen:
+          # OPTIMIZATION: Check only player bullets in spatial proximity
+          for bullet in game.bullets:
+            if bullet.fromPlayer:
+              # Quick AABB check before distance calculation
+              let dx = abs(bullet.pos.x - enemy.satellites[i].pos.x)
+              let dy = abs(bullet.pos.y - enemy.satellites[i].pos.y)
+              if dx < 20.0 and dy < 20.0:  # Cheap square check first
+                if dx * dx + dy * dy < 225.0:  # 15.0 * 15.0 = 225.0 (avoid sqrt)
+                  enemy.satellites[i].hp -= 1
+                  spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y, 
+                                Color(r: 255, g: 150, b: 0, a: 255), 6)  # Smaller (6 instead of 8)
+                  if enemy.satellites[i].hp <= 0:
+                    # Satellite destroyed!
+                    spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y, 
+                                  Red, 20)  # Smaller (20 instead of 25)
+                    playSound(stEnemyDeath, 0.4)
+                    enemy.satellites.delete(i)
+                    satelliteDestroyed = true
+                    break
         
         if not satelliteDestroyed:
           i -= 1
@@ -5711,7 +5730,7 @@ proc updateGame*(game: var Game, dt: float32) =
             hitShield = true
             hitShieldIndex = j
             playSound(stShield, 0.4)
-            spawnExplosion(game.particles, shieldX, shieldY, Color(r: 0, g: 255, b: 255, a: 255), 8)  # Cyan explosion
+            spawnExplosionPooled(game.particlePool, shieldX, shieldY, Color(r: 0, g: 255, b: 255, a: 255), 8)  # Cyan explosion
             break
         
         if hitShield:
@@ -5869,7 +5888,7 @@ proc updateGame*(game: var Game, dt: float32) =
             createSplitBullets(game, bullet, splitCount, 0.5, 0.7)
           
           # Impact particles
-          spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, 
+          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, 
                         game.enemies[j].color, 5)
           
           # Explosive bullets create area damage
@@ -5894,9 +5913,9 @@ proc updateGame*(game: var Game, dt: float32) =
                   showDamage(game, game.enemies[k].pos, actualDamage, true, isCrit, dtExplosion)
             
             # Enhanced visual explosion with shockwave
-            spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Orange, 35)
-            spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Yellow, 20)
-            spawnShockwave(game.particles, bullet.pos.x, bullet.pos.y, explosionRadius)
+            spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Orange, 35)
+            spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Yellow, 20)
+            spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
           
           # Piercing bullets can hit multiple enemies
           if bullet.isPiercing:
@@ -5942,7 +5961,7 @@ proc updateGame*(game: var Game, dt: float32) =
                   bullet.hasSplit = false
                 
                 hitEnemy = false  # Don't delete bullet
-                spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Yellow, 8)
+                spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Yellow, 8)
               else:
                 hitEnemy = true
             else:
@@ -5984,7 +6003,7 @@ proc updateGame*(game: var Game, dt: float32) =
           bullet.fromPlayer = true  # Mark as player bullet so it can damage enemies
           
           # Visual effect for parry bounce
-          spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, 
+          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, 
                         Color(r: 255, g: 255, b: 200, a: 255), 12)
           
           # Bullet continues bouncing, don't delete it
@@ -6049,7 +6068,7 @@ proc updateGame*(game: var Game, dt: float32) =
                   x: game.player.pos.x + cos(angle) * shockwaveRadius,
                   y: game.player.pos.y + sin(angle) * shockwaveRadius
                 )
-                spawnExplosion(game.particles, particlePos.x, particlePos.y, 
+                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y, 
                               Color(r: 150, g: 200, b: 255, a: 200), 5)
               
               game.player.pulseArmorCooldown = game.time
@@ -6074,7 +6093,7 @@ proc updateGame*(game: var Game, dt: float32) =
         showDamage(game, game.player.pos, bulletDamage, false, false, bulletDamageType)
         
         hitEnemy = true
-        spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Red, 8)
+        spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Red, 8)
     
     # Check bullet-wall collision (enemy bullets)
     if not bullet.fromPlayer:
@@ -6086,7 +6105,7 @@ proc updateGame*(game: var Game, dt: float32) =
           # Show wall damage number (red to indicate enemy damage to structures)
           showDamage(game, bullet.pos, bullet.damage, fromPlayer = false,
                      isCritical = false, damageType = dtDefault)
-          spawnExplosion(game.particles, bullet.pos.x, bullet.pos.y, Brown, 4)
+          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Brown, 4)
           break
     
     if hitEnemy:
@@ -6126,7 +6145,7 @@ proc updateGame*(game: var Game, dt: float32) =
         playSound(stPlayerHit, 0.6)
         
         # Create explosion effect
-        spawnExplosion(game.particles, meteorite.pos.x, meteorite.pos.y, Orange, 25)
+        spawnExplosionPooled(game.particlePool, meteorite.pos.x, meteorite.pos.y, Orange, 25)
         
         # Remove meteorite after hitting player
         game.meteorites.delete(i)
@@ -6137,7 +6156,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if distToTarget < 20.0 or meteorite.pos.y > meteorite.targetPos.y:
         # Meteorite impact at ground - no player hit
         # Create explosion effect
-        spawnExplosion(game.particles, meteorite.pos.x, meteorite.pos.y, Orange, 25)
+        spawnExplosionPooled(game.particlePool, meteorite.pos.x, meteorite.pos.y, Orange, 25)
         
         # Remove meteorite after impact
         game.meteorites.delete(i)
@@ -6158,7 +6177,7 @@ proc updateGame*(game: var Game, dt: float32) =
       moveCoinToPlayer(game.coins[i], game.player.pos, dt)
       
       # Add subtle particle trail for magnet effect (frame-independent)
-      spawnTimedParticles(game.particles, game.coins[i].pos.x, game.coins[i].pos.y, 18.0,
+      spawnTimedParticlesPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, 18.0,
                          Color(r: 255, g: 215, b: 0, a: 150), 1, dt)
     
     # Enhanced magnet effect from consumable
@@ -6181,7 +6200,7 @@ proc updateGame*(game: var Game, dt: float32) =
       playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
       # Boss coins have red particles, regular coins have gold
       let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold
-      spawnExplosion(game.particles, game.coins[i].pos.x, game.coins[i].pos.y, coinParticleColor, if isBossCoin: 20 else: 6)
+      spawnExplosionPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, coinParticleColor, if isBossCoin: 20 else: 6)
       
       # If this was a boss coin, end the boss wave and advance
       if isBossCoin and game.bossWaveManager.isBossCoinActive():
@@ -6208,7 +6227,7 @@ proc updateGame*(game: var Game, dt: float32) =
       moveConsumableToPlayer(game.consumables[i], game.player.pos, dt)
       
       # Add subtle particle trail for magnet effect (frame-independent)
-      spawnTimedParticles(game.particles, game.consumables[i].pos.x, game.consumables[i].pos.y,
+      spawnTimedParticlesPooled(game.particlePool, game.consumables[i].pos.x, game.consumables[i].pos.y,
                          18.0, Purple, 1, dt)
     
     if checkPlayerCollision(game.consumables[i], game.player):
@@ -6250,7 +6269,7 @@ proc updateGame*(game: var Game, dt: float32) =
         of ctFireRate: Orange
         of ctMagnet: Purple
       
-      spawnExplosion(game.particles, game.consumables[i].pos.x, game.consumables[i].pos.y, 
+      spawnExplosionPooled(game.particlePool, game.consumables[i].pos.x, game.consumables[i].pos.y, 
                     particleColor, 10)
       game.consumables.delete(i)
       continue
@@ -6263,7 +6282,7 @@ proc updateGame*(game: var Game, dt: float32) =
     if not updateWall(game.walls[i], dt):
       let damageBlocked = game.walls[i].maxHp - game.walls[i].hp
       trackWallDestruction(game, damageBlocked)
-      spawnExplosion(game.particles, game.walls[i].pos.x, game.walls[i].pos.y, Brown, 20)
+      spawnExplosionPooled(game.particlePool, game.walls[i].pos.x, game.walls[i].pos.y, Brown, 20)
       game.walls.delete(i)
       continue
     
@@ -6316,7 +6335,7 @@ proc updateGame*(game: var Game, dt: float32) =
           ))
           
           # Visual feedback
-          spawnExplosion(game.particles, game.walls[i].pos.x, game.walls[i].pos.y,
+          spawnExplosionPooled(game.particlePool, game.walls[i].pos.x, game.walls[i].pos.y,
                         Color(r: 255, g: 200, b: 100, a: 255), 8)
           
           game.walls[i].shootTimer = 2.0  # 2 second cooldown
@@ -6324,6 +6343,10 @@ proc updateGame*(game: var Game, dt: float32) =
     i += 1
   
   # Update particles
+  # Update pooled particles (new system - more performant, no allocations)
+  updateParticlePool(game.particlePool, dt)
+  
+  # Update legacy particles (for backwards compatibility)
   i = 0
   while i < game.particles.len:
     if not updateParticle(game.particles[i], dt):
@@ -6371,6 +6394,10 @@ proc drawGame*(game: Game) =
   drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight)
   
   # Draw particles first (background layer)
+  # Draw pooled particles (new system - more performant)
+  drawParticlePool(game.particlePool)
+  
+  # Draw legacy particles (for backwards compatibility)
   for particle in game.particles:
     drawParticle(particle)
   
@@ -6432,8 +6459,16 @@ proc drawGame*(game: Game) =
     # Draw warning indicators for elite/boss enemies
     drawEnemyWarningIndicator(enemy)
     
-    # Draw boss satellites
+    # Draw boss satellites - OPTIMIZED RENDERING
     if enemy.isBoss and enemy.satellites.len > 0:
+      # OPTIMIZATION: Draw orbit trails first in single batch
+      # Only draw trails for every other satellite to reduce draw calls
+      for idx, sat in enemy.satellites:
+        if idx mod 2 == 0:  # Skip every other trail
+          drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sat.radius,
+                         Color(r: 100, g: 150, b: 255, a: 30))  # Reduced alpha (30 instead of 50)
+      
+      # Draw all satellites
       for sat in enemy.satellites:
         # Draw satellite body
         let satColor = if sat.hp > 5:
@@ -6442,64 +6477,39 @@ proc drawGame*(game: Game) =
           Color(r: 255, g: 150, b: 80, a: 255)   # Damaged - orange
         
         drawCircle(Vector2(x: sat.pos.x, y: sat.pos.y), 12.0, satColor)
-        drawCircleLines(sat.pos.x.int32, sat.pos.y.int32, 12.0,
-                       Color(r: 200, g: 220, b: 255, a: 255))
+        # OPTIMIZATION: Skip outline circle to save draw calls
+        # drawCircleLines(sat.pos.x.int32, sat.pos.y.int32, 12.0,
+        #                Color(r: 200, g: 220, b: 255, a: 255))
         
-        # Draw HP indicator
-        let hpPercent = sat.hp.float32 / 10.0
-        let barWidth = 20.0
-        let barHeight = 3.0
-        let barX = sat.pos.x - barWidth / 2.0
-        let barY = sat.pos.y - 20.0
-        
-        drawRectangle(barX.int32, barY.int32, barWidth.int32, barHeight.int32,
-                     Color(r: 60, g: 60, b: 60, a: 255))
-        drawRectangle(barX.int32, barY.int32, (barWidth * hpPercent).int32, barHeight.int32,
-                     Color(r: 0, g: 200, b: 255, a: 255))
+        # OPTIMIZATION: Skip HP bar rendering - satellites are small and HP bars clutter screen
+        # Players can tell health from color change (blue = healthy, orange = damaged)
         
         # Draw laser target marker when laser is active
-        if sat.laserActive:
-          # Target crosshair at locked coordinates
+        # OPTIMIZATION: Only draw during charge phase (< 1.5s), skip during firing to reduce clutter
+        if sat.laserActive and sat.laserChargeTime < 1.5:
+          # SIMPLIFIED crosshair - just two lines and one circle (5 draw calls reduced to 3)
           let targetSize = 15.0
           let pulseAlpha = uint8(150 + sin(game.time * 8.0) * 105)  # Pulsing effect
           let targetColor = Color(r: 255, g: 50, b: 50, a: pulseAlpha)
           
-          # Draw crosshair at target position
-          # Horizontal line
+          # Draw simple crosshair (X pattern)
           drawLine(
-            Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y),
-            Vector2(x: sat.laserTarget.x + targetSize, y: sat.laserTarget.y),
+            Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y - targetSize),
+            Vector2(x: sat.laserTarget.x + targetSize, y: sat.laserTarget.y + targetSize),
             2,
             targetColor
           )
-          # Vertical line
           drawLine(
-            Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y - targetSize),
-            Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y + targetSize),
+            Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y + targetSize),
+            Vector2(x: sat.laserTarget.x + targetSize, y: sat.laserTarget.y - targetSize),
             2,
             targetColor
           )
-          # Outer circle
+          # Single circle only
           drawCircleLines(sat.laserTarget.x.int32, sat.laserTarget.y.int32, targetSize,
                          targetColor)
-          # Inner circle with different pulse
-          let innerPulse = 8.0 + sin(game.time * 6.0) * 3.0
-          drawCircleLines(sat.laserTarget.x.int32, sat.laserTarget.y.int32, innerPulse,
-                         Color(r: 255, g: 100, b: 100, a: pulseAlpha))
           
-          # Draw targeting line from satellite to target
-          let lineAlpha = uint8(100 + sin(game.time * 10.0) * 55)
-          drawLine(
-            Vector2(x: sat.pos.x, y: sat.pos.y),
-            Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y),
-            1,
-            Color(r: 255, g: 150, b: 0, a: lineAlpha)
-          )
-      
-      # Draw orbit trails
-      for sat in enemy.satellites:
-        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sat.radius,
-                       Color(r: 100, g: 150, b: 255, a: 50))
+          # OPTIMIZATION: Skip targeting line during warning phase - laser beam itself is enough visual feedback
   
   # Draw Gravity Well visual effect
   if hasPowerUp(game.player, puGravityWell):

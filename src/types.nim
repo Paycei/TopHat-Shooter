@@ -1,4 +1,8 @@
-﻿import raylib, math, std/tables, discord_presence
+﻿import raylib, std/tables, discord_presence, particle_types
+
+# Re-export particle types for convenience
+export Particle, ParticlePool, Vector2f
+export newVector2f, `+`, `-`, `*`, length, normalize, distance
 
 type
   GameState* = enum
@@ -115,9 +119,6 @@ type
     powerType*: PowerUpType
     level*: int  # 1, 2, or 3
     rarity*: PowerUpRarity  # Common or Legendary
-
-  Vector2f* = object
-    x*, y*: float32
 
   AttackWarning* = ref object
     pos*: Vector2f
@@ -377,14 +378,6 @@ type
     duration*: float32
     shootTimer*: float32  # Timer for turret shooting (puWallTurrets)
 
-  Particle* = ref object
-    pos*: Vector2f
-    vel*: Vector2f
-    color*: Color
-    lifetime*: float32
-    maxLifetime*: float32
-    size*: float32
-
   DamageType* = enum
     dtDefault,      # White - regular contact damage
     dtFire,         # Red/Orange - fire damage
@@ -486,12 +479,14 @@ type
     coins*: seq[Coin]
     consumables*: seq[Consumable]
     walls*: seq[Wall]
-    particles*: seq[Particle]
+    particles*: seq[Particle]  # Legacy - kept for backwards compatibility
+    particlePool*: ParticlePool  # New pooled particle system for performance
     attackWarnings*: seq[AttackWarning]
     lasers*: seq[Laser]  # Add laser tracking
     meteorites*: seq[Meteorite]  # Add meteorite tracking
     damageNumbers*: seq[DamageNumber]  # Floating damage numbers
     time*: float32
+    frameCount*: int  # Frame counter for satellite optimizations
     spawnTimer*: float32
     bossTimer*: float32
     bossCount*: int
@@ -555,32 +550,6 @@ type
     # Screen shake system
     screenShakeIntensity*: float32  # Current shake intensity
     screenShakeDecay*: float32  # How fast shake decays
-
-proc newVector2f*(x, y: float32): Vector2f =
-  result.x = x
-  result.y = y
-
-proc `+`*(a, b: Vector2f): Vector2f =
-  newVector2f(a.x + b.x, a.y + b.y)
-
-proc `-`*(a, b: Vector2f): Vector2f =
-  newVector2f(a.x - b.x, a.y - b.y)
-
-proc `*`*(a: Vector2f, s: float32): Vector2f =
-  newVector2f(a.x * s, a.y * s)
-
-proc length*(v: Vector2f): float32 =
-  sqrt(v.x * v.x + v.y * v.y)
-
-proc normalize*(v: Vector2f): Vector2f =
-  let l = v.length()
-  if l > 0:
-    newVector2f(v.x / l, v.y / l)
-  else:
-    newVector2f(0, 0)
-
-proc distance*(a, b: Vector2f): float32 =
-  (b - a).length()
 
 proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
   AttackWarning(
