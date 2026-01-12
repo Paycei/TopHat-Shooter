@@ -252,13 +252,13 @@ proc main() =
         else:
           # Check A-Z by iterating integer range and casting to KeyboardKey
           for i in ord(A)..ord(Z):
-            if isKeyPressed(KeyboardKey(i)):
+            if isKeyPressed(cast[KeyboardKey](i)):
               anyKeyPressed = true
               break
           # If still none, check 0-9 (use KeyboardKey.Zero..KeyboardKey.Nine cast via ord)
           if not anyKeyPressed:
             for i in ord(KeyboardKey.Zero)..ord(KeyboardKey.Nine):
-              if isKeyPressed(KeyboardKey(i)):
+              if isKeyPressed(cast[KeyboardKey](i)):
                 anyKeyPressed = true
                 break
         # Also check mouse buttons

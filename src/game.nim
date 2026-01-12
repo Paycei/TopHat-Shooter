@@ -2923,9 +2923,9 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # ENHANCED METEOR SYSTEM - Falling projectiles from above
     # SpecialData modes:
     # - "warn_impact": Show visual warnings before meteors hit
-    # - "massive_impact": Larger impact radius (Boss 3 Phase 2)
-    # - "apocalypse_mode": Massive meteors with longer warnings (Boss 3 Phase 3)
-    # - "satellite_strike": Orbital bombardment from satellites (Boss 7)
+    # - "massive_impact": Larger impact radius
+    # - "apocalypse_mode": Massive meteors with longer warnings
+    # - "satellite_strike": Orbital bombardment from satellites
     
     let meteorMode = attack.specialData
     let showWarning = meteorMode.contains("warn") or meteorMode == "satellite_strike"
@@ -5763,15 +5763,15 @@ proc updateGame*(game: var Game, dt: float32) =
           var overchargeExtraDamage = 0.0
           if hasPowerUp(game.player, puOvercharge):
             # Overcharge: Bullets gain damage based on distance traveled
-            # +1% damage per 10 units traveled, up to +100% at 1000 units
-            # Formula: damage * (1 + min(travelDistance * 0.001, 1.0))
+            # +1.5% damage per 10 units traveled, up to +150% at 1000 units
+            # Formula: damage * (1 + min(travelDistance * 0.0015, 1.5))
             # Examples:
-            #   - 100 units = +10% damage (1.1x)
-            #   - 500 units = +50% damage (1.5x)
-            #   - 1000+ units = +100% damage (2.0x, double damage)
+            #   - 100 units = +15% damage (1.15x)
+            #   - 500 units = +75% damage (1.75x)
+            #   - 1000+ units = +150% damage (2.5x, 2.5x damage!)
             
-            let damagePerUnit = 0.001  # 0.1% per unit, 1% per 10 units
-            let maxBonus = 1.0  # Max +100% damage (double damage)
+            let damagePerUnit = 0.0015  # 0.15% per unit, 1.5% per 10 units
+            let maxBonus = 1.5  # Max +150% damage (2.5x total)
             let bonusMultiplier = min(bullet.travelDistance * damagePerUnit, maxBonus)
             
             finalDamage = bullet.damage * (1.0 + bonusMultiplier)
@@ -6151,9 +6151,15 @@ proc updateGame*(game: var Game, dt: float32) =
       # Check if meteorite reached target (or went past it)
       let distToTarget = distance(meteorite.pos, meteorite.targetPos)
       if distToTarget < 20.0 or meteorite.pos.y > meteorite.targetPos.y:
-        # Meteorite impact at ground - no player hit
-        # Create explosion effect
-        spawnExplosionPooled(game.particlePool, meteorite.pos.x, meteorite.pos.y, Orange, 25)
+        # Meteorite impact at ground - use appropriate color based on damage
+        let impactColor = if meteorite.damage > 50.0:
+          Color(r: 255, g: 50, b: 0, a: 255)   # Dark orange for apocalypse
+        elif meteorite.damage > 30.0:
+          Color(r: 255, g: 100, b: 0, a: 255)  # Orange for massive impact
+        else:
+          Color(r: 255, g: 150, b: 50, a: 255) # Default peachy orange
+        # Create explosion effect with appropriate color
+        spawnExplosionPooled(game.particlePool, meteorite.pos.x, meteorite.pos.y, impactColor, 25)
         
         # Remove meteorite after impact
         game.meteorites.delete(i)

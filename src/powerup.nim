@@ -81,7 +81,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
       break
     
     # Exceptions
-    
+
     let isOrb = powerUp.powerType in orbTypes
     let isAura = powerUp.powerType in auraTypes
     let isBullet = powerUp.powerType in bulletTypes
@@ -159,16 +159,13 @@ proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType):
   )
 
 proc createRotatingOrbs*(player: Player, level: int) =
-  ## Create rotating orbs based on power-up level (Legendary version)
   ## All 6 elements, each element forms a triangle around the player
-  ## Triangles are positioned at different base angles to avoid overlaps
   ## Orb radius scales with player size to maintain distance
   
   # Dynamic orbit radius: scales with player size + fixed offset
-  # BUFFED: Increased from * 3.5 + 25 to * 4.5 + 40 (much further from player)
+  # BUFFED: Increased from * 3.5 + 25 to * 4.5 + 35
   # player.radius * 4.5 ensures orbs scale MORE with player
-  # + 40 maintains larger minimum distance from player
-  let orbRadius = player.radius * 4.5 + 40
+  let orbRadius = player.radius * 4.5 + 35
   
   # Clear existing orbs
   player.rotatingOrbs = @[]
