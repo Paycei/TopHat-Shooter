@@ -975,9 +975,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     
     # Powerup Descriptions
     "powerup_double_shot_desc": "Fire additional burst after 0.08s (-10% dmg per bullet, -25% fire rate)",
-    "powerup_rotating_shield_desc1": "3 shields (30% coverage, 3 HP, 5s respawn)",
-    "powerup_rotating_shield_desc2": "3 shields (35% coverage, 4 HP, 4s respawn)",
-    "powerup_rotating_shield_desc3": "3 shields (40% coverage, 5 HP, 3s respawn)",
+    "powerup_rotating_shield_desc1": "3 shields (30% coverage, 3 HP, 5.5s respawn)",
+    "powerup_rotating_shield_desc2": "3 shields (35% coverage, 4 HP, 4.5s respawn)",
+    "powerup_rotating_shield_desc3": "3 shields (40% coverage, 5 HP, 3.75s respawn)",
     "powerup_damage_zone_desc1": "3 dmg/sec in 120 radius (scales with crits)",
     "powerup_damage_zone_desc2": "6 dmg/sec in 160 radius (scales with crits)",
     "powerup_damage_zone_desc3": "12 dmg/sec in 200 radius (scales with crits)",
@@ -1757,9 +1757,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     
     # Powerup Descriptions
     "powerup_double_shot_desc": "Disparar ráfaga adicional después de 0.08s (-10% daño por bala, -25% cadencia)",
-    "powerup_rotating_shield_desc1": "3 escudos (30% cobertura, 3 HP, 5s reaparición)",
-    "powerup_rotating_shield_desc2": "3 escudos (35% cobertura, 4 HP, 4s reaparición)",
-    "powerup_rotating_shield_desc3": "3 escudos (40% cobertura, 5 HP, 3s reaparición)",
+    "powerup_rotating_shield_desc1": "3 escudos (30% cobertura, 3 HP, 5.5s reaparición)",
+    "powerup_rotating_shield_desc2": "3 escudos (35% cobertura, 4 HP, 4.5s reaparición)",
+    "powerup_rotating_shield_desc3": "3 escudos (40% cobertura, 5 HP, 3.75s reaparición)",
     "powerup_damage_zone_desc1": "3 daño/seg en radio 120",
     "powerup_damage_zone_desc2": "6 daño/seg en radio 160",
     "powerup_damage_zone_desc3": "12 daño/seg en radio 200",

@@ -400,9 +400,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
         
         # Update regen delay
         player.shieldRegenDelay = case powerUp.level
-          of 1: 5.0
-          of 2: 4.0
-          else: 3.0
+          of 1: 5.5
+          of 2: 4.5
+          else: 3.75
       of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puBloodOrb:
         # Recreate orbs with new level (more orbs of this element)
         let elementType = case powerUp.powerType
