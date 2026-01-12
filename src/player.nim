@@ -46,6 +46,14 @@ proc newPlayer*(x, y: float32): Player =
     lastPhaseShiftPos: newVector2f(x, y),
     rotatingOrbs: @[],
     orbRotationAngle: 0,
+    # Initialize mastery flags explicitly
+    hasFireMastery: false,
+    hasPoisonMastery: false,
+    hasFrostMastery: false,
+    hasArcaneMastery: false,
+    hasLightningMastery: false,
+    hasWindMastery: false,
+    hasBloodMastery: false,
     # Parry power-up (LEGENDARY - active ability)
     parryActive: false,
     parryCooldown: 0,

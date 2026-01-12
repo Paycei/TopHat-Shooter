@@ -31,7 +31,7 @@ proc spawnExplosion*(particles: var seq[Particle], x, y: float32, color: Color, 
   # Check particle limit and remove oldest particles if needed
   if particles.len >= MAX_PARTICLES:
     let toRemove = min(100, particles.len div 10)  # Remove 10% or 100, whichever is smaller
-    particles.delete(0, toRemove - 1)
+    particles = particles[toRemove..^1]
   
   # Calculate how many new particles we can add
   let spaceAvailable = MAX_PARTICLES - particles.len

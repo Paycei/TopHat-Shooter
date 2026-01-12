@@ -1350,7 +1350,7 @@ proc main() =
               echo "Warning: Save attempt ", retries, " failed"
               if retries < MAX_RETRIES:
                 # Exponential backoff: wait 0.1s, 0.2s, 0.4s
-                let backoffTime = 0.1 * (2 ^ (retries - 1))
+                let backoffTime = 0.1 * pow(2.0, float(retries - 1))
                 echo "Retrying in ", backoffTime, " seconds..."
                 # Note: In a real implementation, use proper async/threading
                 # For now, we'll just try immediately
