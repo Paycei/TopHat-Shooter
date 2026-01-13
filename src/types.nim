@@ -48,7 +48,6 @@ type
   PowerUpType* = enum
     puDoubleShot,      # Shoots 2 bullets at once
     puRotatingShield,  # Orbiting protective shield
-    puDamageZone,      # Passive damage aura
     puMagicalBullets,  # Bullets track enemies
     puPiercingShots,   # Bullets pass through enemies
     puMultiShot,       # Shoots in 3 directions

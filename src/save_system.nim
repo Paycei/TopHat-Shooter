@@ -434,7 +434,6 @@ proc parsePowerUpType(s: string): PowerUpType =
   case s
   of "puDoubleShot": puDoubleShot
   of "puRotatingShield": puRotatingShield
-  of "puDamageZone": puDamageZone
   of "puMagicalBullets": puMagicalBullets
   of "puPiercingShots": puPiercingShots
   of "puMultiShot": puMultiShot

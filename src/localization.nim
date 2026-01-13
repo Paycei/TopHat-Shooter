@@ -283,7 +283,6 @@ type
     # Help System - Powerup names
     tkHelpDoubleShot = "help_double_shot"
     tkHelpRotatingShield = "help_rotating_shield"
-    tkHelpDamageZone = "help_damage_zone"
     tkHelpMagicalBullets = "help_magical_bullets"
     tkHelpPiercingShots = "help_piercing_shots"
     tkHelpMultiShot = "help_multi_shot"
@@ -292,7 +291,6 @@ type
     tkHelpRapidFire = "help_rapid_fire"
     tkHelpMaxHealth = "help_max_health"
     tkHelpSpeedBoost = "help_speed_boost"
-    tkHelpBulletDamage = "help_bullet_damage"
     tkHelpBulletSpeed = "help_bullet_speed"
     tkHelpLuckyCoins = "help_lucky_coins"
     tkHelpWallMaster = "help_wall_master"
@@ -525,7 +523,6 @@ type
     # Powerup Names
     tkPowerupDoubleShot = "powerup_double_shot"
     tkPowerupRotatingShield = "powerup_rotating_shield"
-    tkPowerupDamageZone = "powerup_damage_zone"
     tkPowerupMagicalBullets = "powerup_magical_bullets"
     tkPowerupPiercingShots = "powerup_piercing_shots"
     tkPowerupMultiShot = "powerup_multi_shot"
@@ -534,7 +531,6 @@ type
     tkPowerupRapidFire = "powerup_rapid_fire"
     tkPowerupMaxHealth = "powerup_max_health"
     tkPowerupSpeedBoost = "powerup_speed_boost"
-    tkPowerupBulletDamage = "powerup_bullet_damage"
     tkPowerupBulletSpeed = "powerup_bullet_speed"
     tkPowerupLuckyCoins = "powerup_lucky_coins"
     tkPowerupWallMaster = "powerup_wall_master"
@@ -594,9 +590,6 @@ type
     tkPowerupRotatingShieldDesc1 = "powerup_rotating_shield_desc1"
     tkPowerupRotatingShieldDesc2 = "powerup_rotating_shield_desc2"
     tkPowerupRotatingShieldDesc3 = "powerup_rotating_shield_desc3"
-    tkPowerupDamageZoneDesc1 = "powerup_damage_zone_desc1"
-    tkPowerupDamageZoneDesc2 = "powerup_damage_zone_desc2"
-    tkPowerupDamageZoneDesc3 = "powerup_damage_zone_desc3"
     tkPowerupMagicalBulletsDesc = "powerup_magical_bullets_desc"
     tkPowerupPiercingShotsDesc1 = "powerup_piercing_shots_desc1"
     tkPowerupPiercingShotsDesc2 = "powerup_piercing_shots_desc2"
@@ -611,7 +604,6 @@ type
     tkPowerupRapidFireDesc = "powerup_rapid_fire_desc"
     tkPowerupMaxHealthDesc = "powerup_max_health_desc"
     tkPowerupSpeedBoostDesc = "powerup_speed_boost_desc"
-    tkPowerupBulletDamageDesc = "powerup_bullet_damage_desc"
     tkPowerupBulletSpeedDesc = "powerup_bullet_speed_desc"
     tkPowerupLuckyCoinsDesc = "powerup_lucky_coins_desc"
     tkPowerupWallMasterDesc = "powerup_wall_master_desc"
@@ -909,7 +901,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Powerup Names
     "powerup_double_shot": "Double Shot",
     "powerup_rotating_shield": "Rotating Shield",
-    "powerup_damage_zone": "Damage Aura",
     "powerup_magical_bullets": "Magical Bullets",
     "powerup_piercing_shots": "Piercing Shots",
     "powerup_multi_shot": "Multi-Shot",
@@ -918,7 +909,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_rapid_fire": "Rapid Fire",
     "powerup_max_health": "Vitality",
     "powerup_speed_boost": "Agility",
-    "powerup_bullet_damage": "Power",
     "powerup_bullet_speed": "Velocity",
     "powerup_lucky_coins": "Greed",
     "powerup_wall_master": "Fortify",
@@ -978,10 +968,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_rotating_shield_desc1": "3 shields (30% coverage, 3 HP, 5.5s respawn)",
     "powerup_rotating_shield_desc2": "3 shields (35% coverage, 4 HP, 4.5s respawn)",
     "powerup_rotating_shield_desc3": "3 shields (40% coverage, 5 HP, 3.75s respawn)",
-    "powerup_damage_zone_desc1": "3 dmg/sec in 120 radius (scales with crits)",
-    "powerup_damage_zone_desc2": "6 dmg/sec in 160 radius (scales with crits)",
-    "powerup_damage_zone_desc3": "12 dmg/sec in 200 radius (scales with crits)",
-    "powerup_magical_bullets_desc": "Bullets track nearest enemy (scales with damage)",
+    "powerup_magical_bullets_desc": "Bullets track nearest enemy",
     "powerup_piercing_shots_desc1": "Bullets pierce 1 enemy (-33% damage per pierce)",
     "powerup_piercing_shots_desc2": "Bullets pierce 2 enemies (-33% damage per pierce)",
     "powerup_piercing_shots_desc3": "Bullets pierce 3 enemies (-33% damage per pierce)",
@@ -995,7 +982,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_rapid_fire_desc": "+40% fire rate",
     "powerup_max_health_desc": "+14 max HP",
     "powerup_speed_boost_desc": "+40% movement speed",
-    "powerup_bullet_damage_desc": "+75% bullet damage",
     "powerup_bullet_speed_desc": "+40% bullet speed",
     "powerup_lucky_coins_desc": "Doubles all coins collected",
     "powerup_wall_master_desc": "Walls have +250% HP turrets have +100% damage",
@@ -1012,9 +998,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_critical_hit_desc1": "20% chance for 2x damage (all sources)",
     "powerup_critical_hit_desc2": "35% chance for 2x damage (all sources)",
     "powerup_critical_hit_desc3": "50% chance for 2x damage (all sources)",
-    "powerup_blood_bullets_desc1": "Heal 1.5% of bullet damage (blood element, +10% scaling)",
-    "powerup_blood_bullets_desc2": "Heal 2% of bullet damage (blood element, +10% scaling)",
-    "powerup_blood_bullets_desc3": "Heal 3% of bullet damage (blood element, +10% scaling)",
+    "powerup_blood_bullets_desc1": "Heal 1.5% of bullet damage (blood element)",
+    "powerup_blood_bullets_desc2": "Heal 2% of bullet damage (blood element)",
+    "powerup_blood_bullets_desc3": "Heal 3% of bullet damage (blood element)",
     "powerup_bullet_ricochet_desc1": "Bullets ricochet once (75% damage per ricochet)",
     "powerup_bullet_ricochet_desc2": "Bullets ricochet twice (75% damage per ricochet)",
     "powerup_bullet_ricochet_desc3": "Bullets ricochet 3 times (75% damage per ricochet)",
@@ -1027,9 +1013,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_berserker_desc1": "+5% fire rate per 10% HP lost",
     "powerup_berserker_desc2": "+8% fire rate per 10% HP lost",
     "powerup_berserker_desc3": "+12% fire rate per 10% HP lost",
-    "powerup_thorns_desc1": "Reflect 50% damage to attacker (scales with max HP)",
-    "powerup_thorns_desc2": "Reflect 100% damage to attacker (scales with max HP)",
-    "powerup_thorns_desc3": "Reflect 200% damage to attacker (scales with max HP)",
+    "powerup_thorns_desc1": "Reflect 50% damage to attacker",
+    "powerup_thorns_desc2": "Reflect 100% damage to attacker",
+    "powerup_thorns_desc3": "Reflect 200% damage to attacker",
     "powerup_bullet_split_desc1": "Bullets split into 2 on hit",
     "powerup_bullet_split_desc2": "Bullets split into 3 on hit",
     "powerup_bullet_split_desc3": "Bullets split into 4 on hit",
@@ -1064,7 +1050,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_gravity_well_desc": "Pull enemies in 300 radius",
     "powerup_phase_shift_desc": "Dash forward (5s cd, 0.5s invuln, scales with speed)",
     "powerup_overcharge_desc": "+10% dmg per 100 units traveled (max 150%, reaches at 1000 units)",
-    "powerup_echo_shots_desc": "Bullets leave ghost trail (60% dmg, scales with damage)",
+    "powerup_echo_shots_desc": "Bullets leave ghost trail (60% dmg)",
     "powerup_rotating_orbs_desc": "All 6 elemental orbs (6 dmg/hit)",
     "powerup_poison_orb_desc1": "2 poison orbs (0.3 dmg/s, +10% scaling)",
     "powerup_poison_orb_desc2": "4 poison orbs (0.3 dmg/s, +10% scaling)",
@@ -1107,7 +1093,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_radial_burst_desc1": "Fire 8 bullets in a circle every 4s (scales with damage)",
     "powerup_radial_burst_desc2": "Fire 10 bullets in a circle every 3s (scales with damage)",
     "powerup_radial_burst_desc3": "Fire 14 bullets in a circle every 2s (scales with damage)",
-    "powerup_wall_turrets_desc": "Walls shoot enemies (1 dmg, 2s cooldown, scales with Wall Master)",
+    "powerup_wall_turrets_desc": "Walls shoot enemies (1 dmg, 2s cooldown)",
     "powerup_pulse_armor_desc1": "Taking damage pushes nearby enemies back (scales with max HP)",
     "powerup_pulse_armor_desc2": "Shockwave pushes further and deals 2 damage (scales with max HP)",
     "powerup_pulse_armor_desc3": "Shockwave pushes even further and deals 4 damage (scales with max HP)",
@@ -1385,7 +1371,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Help System - Powerup names
     "help_double_shot": "Double Shot - Fire 2 bullets per shot",
     "help_rotating_shield": "Rotating Shield - Orbiting protective shield",
-    "help_damage_zone": "Damage Zone - Passive damage aura",
     "help_magical_bullets": "Magical Bullets - Bullets track enemies",
     "help_piercing_shots": "Piercing Shots - Bullets pass through enemies",
     "help_multi_shot": "Multi Shot - Shoots in 3 directions",
@@ -1394,7 +1379,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_rapid_fire": "Rapid Fire - Increased fire rate",
     "help_max_health": "Max Health - Increase max HP",
     "help_speed_boost": "Speed Boost - Permanent speed increase",
-    "help_bullet_damage": "Bullet Damage - Increased bullet damage",
     "help_bullet_speed": "Bullet Speed - Faster bullets",
     "help_lucky_coins": "Lucky Coins - Doubles coins collected",
     "help_wall_master": "Wall Master - Place stronger walls",
@@ -1691,7 +1675,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Powerup Names
     "powerup_double_shot": "Disparo Doble",
     "powerup_rotating_shield": "Escudo Giratorio",
-    "powerup_damage_zone": "Aura de Daño",
     "powerup_magical_bullets": "Balas Mágicas",
     "powerup_piercing_shots": "Disparos Perforantes",
     "powerup_multi_shot": "Multidisparo",
@@ -1700,7 +1683,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_rapid_fire": "Fuego Rápido",
     "powerup_max_health": "Vitalidad",
     "powerup_speed_boost": "Agilidad",
-    "powerup_bullet_damage": "Poder",
     "powerup_bullet_speed": "Velocidad",
     "powerup_lucky_coins": "Codicia",
     "powerup_wall_master": "Fortificar",
@@ -1760,9 +1742,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_rotating_shield_desc1": "3 escudos (30% cobertura, 3 HP, 5.5s reaparición)",
     "powerup_rotating_shield_desc2": "3 escudos (35% cobertura, 4 HP, 4.5s reaparición)",
     "powerup_rotating_shield_desc3": "3 escudos (40% cobertura, 5 HP, 3.75s reaparición)",
-    "powerup_damage_zone_desc1": "3 daño/seg en radio 120",
-    "powerup_damage_zone_desc2": "6 daño/seg en radio 160",
-    "powerup_damage_zone_desc3": "12 daño/seg en radio 200",
     "powerup_magical_bullets_desc": "Balas rastrean enemigo más cercano (escala con daño)",
     "powerup_piercing_shots_desc1": "Balas perforan 1 enemigo (-33% daño por perforación)",
     "powerup_piercing_shots_desc2": "Balas perforan 2 enemigos (-33% daño por perforación)",
@@ -1777,7 +1756,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_rapid_fire_desc": "+40% cadencia de fuego",
     "powerup_max_health_desc": "+14 HP máximo",
     "powerup_speed_boost_desc": "+40% velocidad movimiento",
-    "powerup_bullet_damage_desc": "+75% daño de balas",
     "powerup_bullet_speed_desc": "+40% velocidad de balas",
     "powerup_lucky_coins_desc": "Duplica todas las monedas recogidas",
     "powerup_wall_master_desc": "Muros tienen +250% HP torretas +100% daño",
@@ -2110,7 +2088,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Help System - Powerup names
     "help_double_shot": "Doble Disparo - Dispara 2 balas por tiro",
     "help_rotating_shield": "Escudo Giratorio - Escudo protector orbitante",
-    "help_damage_zone": "Zona de Daño - Aura de daño pasiva",
     "help_magical_bullets": "Balas Mágicas - Las balas rastrean enemigos",
     "help_piercing_shots": "Disparos Penetrantes - Las balas pasan por enemigos",
     "help_multi_shot": "Disparo Múltiple - Dispara en 3 direcciones",
@@ -2119,7 +2096,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_rapid_fire": "Fuego Rápido - Tasa de fuego aumentada",
     "help_max_health": "Salud Máxima - Aumenta HP máximo",
     "help_speed_boost": "Aumento de Velocidad - Aumento de velocidad permanente",
-    "help_bullet_damage": "Daño de Balas - Daño de balas aumentado",
     "help_bullet_speed": "Velocidad de Balas - Balas más rápidas",
     "help_lucky_coins": "Monedas Afortunadas - Duplica monedas recolectadas",
     "help_wall_master": "Maestro de Muros - Coloca muros más fuertes",

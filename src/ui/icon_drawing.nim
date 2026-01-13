@@ -45,24 +45,6 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 5, color)
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 7, color)
     
-  of puDamageZone:
-    # Explosive burst with energy rings
-    # Central core
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.4, Color(r: color.r, g: color.g, b: color.b, a: 180))
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.2, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
-    # Energy spikes
-    for i in 0..11:
-      let angle = i.float32 * PI / 6
-      let length = if i mod 2 == 0: rad else: rad * 0.7
-      let x1 = cx.float32 + cos(angle) * (rad * 0.4)
-      let y1 = cy.float32 + sin(angle) * (rad * 0.4)
-      let x2 = cx.float32 + cos(angle) * length
-      let y2 = cy.float32 + sin(angle) * length
-      let thickness = if i mod 2 == 0: 3.0 else: 2.0
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), thickness, color)
-    # Concentric rings
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.6, Color(r: color.r, g: color.g, b: color.b, a: 120))
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.8, Color(r: color.r, g: color.g, b: color.b, a: 80))
   of puMagicalBullets:
     # Mystical star with aura
     let points = 5

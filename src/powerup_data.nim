@@ -8,7 +8,6 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   case powerType
   of puDoubleShot: t(tkPowerupDoubleShot)
   of puRotatingShield: t(tkPowerupRotatingShield)
-  of puDamageZone: t(tkPowerupDamageZone)
   of puMagicalBullets: t(tkPowerupMagicalBullets)
   of puPiercingShots: t(tkPowerupPiercingShots)
   of puMultiShot: t(tkPowerupMultiShot)
@@ -81,11 +80,6 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: t(tkPowerupRotatingShieldDesc1)
     of 2: t(tkPowerupRotatingShieldDesc2)
     else: t(tkPowerupRotatingShieldDesc3)
-  of puDamageZone:
-    case level
-    of 1: t(tkPowerupDamageZoneDesc1)
-    of 2: t(tkPowerupDamageZoneDesc2)
-    else: t(tkPowerupDamageZoneDesc3)
   of puMagicalBullets:
     # Single level only - LEGENDARY
     t(tkPowerupMagicalBulletsDesc)

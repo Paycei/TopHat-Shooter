@@ -31,10 +31,10 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   ]
 
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
-  let normalOnlyTypes: array[0..38, PowerUpType] = [
+  let normalOnlyTypes: array[0..37, PowerUpType] = [
     puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura,
     puBloodBullets, puBloodOrb, puBulletRicochet, puBulletSize, puBulletSplit,
-    puChainLightning, puCriticalHit, puDamageZone, puDodgeChance, puExplosiveBullets,
+    puChainLightning, puCriticalHit, puDodgeChance, puExplosiveBullets,
     puFireAura, puFireBullets, puFireOrb, puFortified, puFrostOrb, puFrostShots,
     puHeavyRounds, puLifeSteal, puLightningAura, puLightningOrb, puPiercingShots,
     puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
@@ -44,7 +44,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   
   # Define orb, aura, bullet, and mastery groups for exclusivity
   let orbTypes: array[0..7, PowerUpType] = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb, puRotatingOrbs]
-  let auraTypes: array[0..6, PowerUpType] = [puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura, puDamageZone]
+  let auraTypes: array[0..5, PowerUpType] = [puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
   let bulletTypes: array[0..4, PowerUpType] = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets]
   let masteryTypes: array[0..6, PowerUpType] = [puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, puLightningMastery, puWindMastery, puBloodMastery]
   
@@ -439,7 +439,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
                         puGravityWell, puPhaseShift, puOvercharge, puEchoShots,
                         puMagicalBullets]
   
-  let normalTypes = [puDoubleShot, puRotatingShield, puDamageZone,
+  let normalTypes = [puDoubleShot, puRotatingShield,
                      puPiercingShots, puMultiShot, puExplosiveBullets, puLifeSteal,
                      puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
                      puCriticalHit, puBloodBullets, puBulletRicochet, puSlowField,

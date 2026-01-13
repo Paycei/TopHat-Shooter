@@ -206,17 +206,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.rotatingOrbs = @[]
 
 proc drawPlayer*(player: Player) =
-  # Damage zone visual (if player has it)
+  # Slow field visual and other aura visuals
   for powerUp in player.powerUps:
-    if powerUp.powerType == puDamageZone:
-      let zoneRadius = case powerUp.level
-        of 1: 120.0
-        of 2: 160.0
-        else: 200.0
-      let alpha = 30 + (sin(player.shieldAngle * 3) * 15).int
-      drawCircle(Vector2(x: player.pos.x, y: player.pos.y), zoneRadius, 
-                Color(r: 255, g: 100, b: 0, a: alpha.uint8))
-    
     # Slow field visual
     if powerUp.powerType == puSlowField:
       let slowRadius = case powerUp.level

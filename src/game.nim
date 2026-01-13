@@ -4205,30 +4205,6 @@ proc updateGame*(game: var Game, dt: float32) =
     # Spawn ~20 particles/sec
     spawnTimedParticlesPooled(game.particlePool, game.player.pos.x, game.player.pos.y, 20.0, Green, 2, dt)
   
-  # Damage zone power-up effect
-  if hasPowerUp(game.player, puDamageZone):
-    let level = getPowerUpLevel(game.player, puDamageZone)
-    let zoneDamage = case level
-      of 1: 3.0
-      of 2: 6.0
-      else: 12.0
-    let zoneRadius = getAuraRadius(level)
-    
-    # Calculate combat stats once before loop
-    let stats = calculateCombatStats(game.player)
-    
-    for enemy in game.enemies:
-      let dist = distance(game.player.pos, enemy.pos)
-      if dist < zoneRadius:
-        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, zoneDamage * dt)
-        let actualDamage = damageEnemy(enemy, damageWithCrit)
-        
-        # Track damage zone damage for statistics
-        trackPowerUpDamage(game, puDamageZone, actualDamage)
-        
-        # Use new accumulation system for reliable damage numbers
-        accumulateAndShowAuraDamage(game, enemy, actualDamage, dtDefault, wasCrit)
-  
   # Regeneration power-up is now handled per wave completion, not per time interval
   # See wave completion code for regeneration logic
   
@@ -6152,9 +6128,9 @@ proc updateGame*(game: var Game, dt: float32) =
       let distToTarget = distance(meteorite.pos, meteorite.targetPos)
       if distToTarget < 20.0 or meteorite.pos.y > meteorite.targetPos.y:
         # Meteorite impact at ground - use appropriate color based on damage
-        let impactColor = if meteorite.damage > 50.0:
+        let impactColor = if meteorite.damage.float > 50.0:
           Color(r: 255, g: 50, b: 0, a: 255)   # Dark orange for apocalypse
-        elif meteorite.damage > 30.0:
+        elif meteorite.damage.float > 30.0:
           Color(r: 255, g: 100, b: 0, a: 255)  # Orange for massive impact
         else:
           Color(r: 255, g: 150, b: 50, a: 255) # Default peachy orange
