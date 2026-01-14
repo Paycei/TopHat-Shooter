@@ -36,7 +36,6 @@ proc newPlayer*(x, y: float32): Player =
     auraRadius: 50.0,  # Invisible coin collection aura
     doubleShotDelay: 0,
     bulletCounter: 0,  # Track bullets fired for special rounds power-up
-    # Initialize legendary power-up cooldowns
     timeWarpCooldown: 0,
     timeWarpActive: false,
     timeWarpDuration: 0,
@@ -47,7 +46,6 @@ proc newPlayer*(x, y: float32): Player =
     lastPhaseShiftPos: newVector2f(x, y),
     rotatingOrbs: @[],
     orbRotationAngle: 0,
-    # Initialize mastery flags explicitly
     hasFireMastery: false,
     hasPoisonMastery: false,
     hasFrostMastery: false,
@@ -55,13 +53,10 @@ proc newPlayer*(x, y: float32): Player =
     hasLightningMastery: false,
     hasWindMastery: false,
     hasBloodMastery: false,
-    # Parry power-up (LEGENDARY - active ability)
     parryActive: false,
     parryCooldown: 0,
     parryDuration: 0,
-    # Radial Burst power-up - start ready to fire
     radialBurstTimer: 0.0,
-    # Pulse Armor power-up
     pulseArmorCooldown: 0.0
   )
 
@@ -262,36 +257,119 @@ proc drawPlayer*(player: Player) =
     drawText(t(tkPlayerDodge), (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
     player.lastDamageTaken = -1  # Clear flag
   
+  # === MODERN OS-STYLE PLAYER RENDERING ===
+  let time = getTime()
+  let pulse = sin(time * 2.0) * 0.5 + 0.5  # Pulsing animation
+  let rotation = time * 0.5  # Slow rotation for hex frame
+  
+  # Determine base color based on state
+  var baseColor = Color(r: 0, g: 200, b: 200, a: 255)  # Cyan (system primary)
+  var coreColor = Color(r: 255, g: 255, b: 255, a: 255)  # White core
+  var glowIntensity = 0.4 + pulse * 0.2  # Subtle pulse
+  
   # Phase Shift invulnerability visual effect
   if player.phaseShiftInvulnTimer > 0:
-    let pulseAlpha = (sin(player.phaseShiftInvulnTimer * 20.0) * 50 + 150).int
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 5, 
-              Color(r: 0, g: 255, b: 255, a: pulseAlpha.uint8))
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, 
-              Color(r: 100, g: 255, b: 255, a: 200))
+    let phaseAlpha = (sin(player.phaseShiftInvulnTimer * 20.0) * 50 + 150).int
+    baseColor = Color(r: 0, g: 255, b: 255, a: 255)  # Bright cyan
+    glowIntensity = 0.8 + pulse * 0.2
+    # Extra glow layers
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8, 
+              Color(r: 0, g: 255, b: 255, a: phaseAlpha.uint8))
+    drawText(t(tkPlayerPhase), (player.pos.x - 30).int32, (player.pos.y - 40).int32, 14, SkyBlue)
   # Parry active visual effect - white/silver shield
   elif player.parryActive:
-    let pulseAlpha = (sin(player.parryDuration * 20.0) * 50 + 150).int
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 5, 
-              Color(r: 255, g: 255, b: 255, a: pulseAlpha.uint8))
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, 
-              Color(r: 200, g: 200, b: 200, a: 200))
+    let parryAlpha = (sin(player.parryDuration * 20.0) * 50 + 150).int
+    baseColor = Color(r: 255, g: 255, b: 255, a: 255)  # White
+    coreColor = Color(r: 220, g: 220, b: 255, a: 255)  # Light blue
+    glowIntensity = 1.0
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8, 
+              Color(r: 255, g: 255, b: 255, a: parryAlpha.uint8))
     drawText(t(tkPlayerParry), (player.pos.x - 25).int32, (player.pos.y - 40).int32, 16, White)
   # Invincibility visual effect
   elif player.invincibilityTimer > 0:
     let flash = ((player.invincibilityTimer * 10).int mod 2 == 0)
     if flash:
-      drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, Gold)
+      baseColor = Color(r: 255, g: 215, b: 0, a: 255)  # Gold
+      coreColor = Color(r: 255, g: 255, b: 200, a: 255)
     else:
-      drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, Blue)
-  else:
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, Blue)
+      baseColor = Color(r: 0, g: 200, b: 255, a: 255)  # Cyan
+    glowIntensity = 0.9
   
-  drawCircleLines(player.pos.x.int32, player.pos.y.int32, player.radius, DarkBlue)
-  
-  # Speed boost indicator
+  # Speed boost color modification
   if player.speedBoostTimer > 0:
-    drawCircleLines(player.pos.x.int32, player.pos.y.int32, player.radius + 3, Green)
+    baseColor = Color(r: 0, g: 255, b: 200, a: 255)  # Green-cyan tint
+    glowIntensity += 0.2
+  
+  # 1. OUTER ENERGY FIELD (background glow)
+  let outerGlowRadius = player.radius + 12
+  for i in 0..2:
+    let layerRadius = outerGlowRadius + i.float32 * 4.0
+    let layerAlpha = uint8((1.0 - i.float32 / 3.0) * glowIntensity * 50)
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), layerRadius,
+              Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
+  
+  # 2. CIRCUIT TRACES (inner glow layer)
+  let numTraces = 6
+  for i in 0..<numTraces:
+    let angle = rotation + i.float32 * PI / 3.0
+    let innerR = player.radius * 0.3
+    let outerR = player.radius * 0.9
+    let x1 = player.pos.x + cos(angle) * innerR
+    let y1 = player.pos.y + sin(angle) * innerR
+    let x2 = player.pos.x + cos(angle) * outerR
+    let y2 = player.pos.y + sin(angle) * outerR
+    let traceAlpha = uint8(80 + pulse * 60)
+    drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1.5,
+            Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255), 
+                  b: min(baseColor.b + 50, 255), a: traceAlpha))
+  
+  # 3. ROTATING HEXAGONAL FRAME
+  let hexRadius = player.radius * 0.85
+  let hexPoints = 6
+  for i in 0..<hexPoints:
+    let angle = rotation + i.float32 * PI / 3.0 - PI / 2.0
+    let nextAngle = rotation + (i + 1).float32 * PI / 3.0 - PI / 2.0
+    let x1 = player.pos.x + cos(angle) * hexRadius
+    let y1 = player.pos.y + sin(angle) * hexRadius
+    let x2 = player.pos.x + cos(nextAngle) * hexRadius
+    let y2 = player.pos.y + sin(nextAngle) * hexRadius
+    drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.5, baseColor)
+    # Corner nodes
+    drawCircle(Vector2(x: x1, y: y1), 2.5, baseColor)
+  
+  # 4. MAIN BODY CIRCLE
+  drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius * 0.6,
+            Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
+  
+  # 5. BRIGHT WHITE CORE
+  drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius * 0.35, coreColor)
+  # Core highlight
+  let highlightX = player.pos.x - player.radius * 0.15
+  let highlightY = player.pos.y - player.radius * 0.15
+  drawCircle(Vector2(x: highlightX, y: highlightY), player.radius * 0.15,
+            Color(r: 255, g: 255, b: 255, a: 180))
+  
+  # 6. DATA PARTICLES (orbiting effect)
+  if player.vel.length() > 10 or pulse > 0.7:
+    let numParticles = 8
+    for i in 0..<numParticles:
+      let particleAngle = time * 3.0 + i.float32 * PI * 2.0 / numParticles.float32
+      let particleDist = player.radius + 6 + sin(time * 4.0 + i.float32) * 2
+      let px = player.pos.x + cos(particleAngle) * particleDist
+      let py = player.pos.y + sin(particleAngle) * particleDist
+      let particleAlpha = uint8(100 + pulse * 80)
+      drawCircle(Vector2(x: px, y: py), 1.8,
+                Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: particleAlpha))
+  
+  # Speed boost indicator (motion trails)
+  if player.speedBoostTimer > 0:
+    for i in 1..3:
+      let trailAlpha = uint8(60 - i * 15)
+      let trailScale = 1.0 - i.float32 * 0.1
+      let trailX = player.pos.x - player.vel.x * i.float32 * 0.015
+      let trailY = player.pos.y - player.vel.y * i.float32 * 0.015
+      drawCircle(Vector2(x: trailX, y: trailY), player.radius * trailScale,
+                Color(r: 0, g: 255, b: 200, a: trailAlpha))
   
   # Rotating shield visual (if player has it) - NERFED with gaps
   for powerUp in player.powerUps:

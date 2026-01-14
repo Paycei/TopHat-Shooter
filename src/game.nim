@@ -1278,7 +1278,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       if game.player.bulletCounter mod roundInterval == 0:
         isSpecialRound = true
         # Special rounds deal bonus damage
-        damage *= 1.5  # +50% bonus damage
+        damage *= 1.75  # +75% bonus damage
     
     # Apply Arcane Mastery bonus to Arcane bullets (damage + piercing)
     var arcanePiercing = hasPiercing  # Start with base piercing status
@@ -5768,16 +5768,16 @@ proc updateGame*(game: var Game, dt: float32) =
             
             game.enemies[j].hp -= actualDamage
             
-            # Giant Slayer: Deal % of enemy max HP as bonus damage
+            # Giant Slayer: Deal % of enemy current HP as bonus damage
             var giantSlayerDamage = 0.0
             if hasPowerUp(game.player, puGiantSlayer):
               let giantSlayerLevel = getPowerUpLevel(game.player, puGiantSlayer)
               let percentDamage = case giantSlayerLevel
-                of 1: 0.01  # 1% of max HP
-                of 2: 0.02  # 2% of max HP
-                else: 0.03  # 3% of max HP
+                of 1: 0.01  # 1% of current HP
+                of 2: 0.0175  # 1.75% of current HP
+                else: 0.025  # 2.5% of current HP
               
-              giantSlayerDamage = game.enemies[j].maxHp * percentDamage
+              giantSlayerDamage = game.enemies[j].hp * percentDamage
               
               # Apply elite modifiers to Giant Slayer damage too
               if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:

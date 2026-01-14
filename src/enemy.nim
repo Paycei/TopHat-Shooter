@@ -31,6 +31,7 @@ proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
   # Apply reduction with natural diminishing returns
   # Formula: speed / (1 + factor) can never reduce to 0
   return baseSpeed / (1.0 + reductionFactor)
+
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
   # Get enemy configuration
   let config = getEnemyConfig(enemyType)
@@ -333,14 +334,14 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           2,              # direction: 2 = cross (both horizontal and vertical)
           120.0,          # length: REDUCED from 200 to 120 (shorter lasers)
           20.0,           # thickness: width of laser beam
-          2,              # damage
+          1,              # damage
           dt,             # duration: just this frame, will be recreated next frame
           enemy.rotation, # rotation: pass the enemy's current rotation
           enemy.enemyType # enemyType: track which enemy type created this laser
         ))
         
         # Rotate during dash (FASTER rotation in OPPOSITE direction)
-        enemy.rotation -= dt * -12.5  # 12.5 radians per second (negative = clockwise)
+        enemy.rotation -= dt * -12.5  # -12.5 radians per second (negative = clockwise)
         
         # Dash movement with rotation
         if enemy.attackExecuteTimer > 0:
@@ -551,7 +552,6 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
     
     of etSniper:
       # Sniper enemy - charges a powerful one-shot attack with warning
-      # ✅ FULLY UNIFIED: Uses config for trigger range, charge time, cooldown, bullet properties
       let config = getEnemyConfig(enemy.enemyType)
       let specialData = parseSpecialData(config.specialData)
       let triggerRange = getSpecialFloat(specialData, "trigger_range", 300.0)
@@ -572,11 +572,11 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         if canMove:
           enemy.pos = nextPos
         
-        # When close enough, start charging (✅ uses config value)
+        # When close enough, start charging
         if distToPlayer < triggerRange:
           enemy.attackPhase = 1
           enemy.attackWarningTimer = 0
-          enemy.attackExecuteTimer = chargeTime  # ✅ Store charge time from config
+          enemy.attackExecuteTimer = chargeTime
       
       of 1:  # Charging phase - stands still, glows brighter
         enemy.attackWarningTimer += dt
@@ -585,11 +585,11 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         let intensity = uint8(150 + chargeAmount * 105)
         enemy.color = Color(r: intensity, g: 50, b: intensity, a: 255)
         
-        # When charge completes, fire using centralized system (✅ uses config for all bullet properties)
+        # When charge completes, fire using centralized system
         if enemy.attackWarningTimer >= enemy.attackExecuteTimer:
           executeRangedAttack(enemy, playerPos, game)
           enemy.attackPhase = 2
-          enemy.attackExecuteTimer = cooldownTime  # ✅ Use config cooldown
+          enemy.attackExecuteTimer = cooldownTime
           enemy.color = Color(r: 200, g: 50, b: 200, a: 255)  # Reset color
       
       of 2:  # Cooldown phase - recover before hunting again
@@ -601,7 +601,6 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
     
     of etMage:
       # Magical enemy: homing bullets + meteorite summoning
-      # ✅ FULLY UNIFIED: Uses config for all attack values and meteorite parameters
       let config = getEnemyConfig(enemy.enemyType)
       
       # Check screen entry
@@ -611,7 +610,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       enemy.shootTimer += dt  # For homing bullets
       enemy.spawnTimer += dt  # For meteorites
       
-      # Shoot homing magic bullets using centralized system (✅ uses config for all properties)
+      # Shoot homing magic bullets using centralized system
       executeRangedAttack(enemy, playerPos, game)
       
       # Summon meteorites periodically using config values
@@ -622,7 +621,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         let damage = getSpecialInt(specialData, "damage", 3)
         let warningTime = getSpecialFloat(specialData, "warning_time", 1.5)
         
-        # ✅ Meteorite count from config
+        # Meteorite count from config
         let meteorCount = baseCount + (if randomExtra > 0: rand(randomExtra) else: 0)
         for i in 0..<meteorCount:
           # Target position near player (random offset)
@@ -635,7 +634,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           let spawnX = targetX
           let spawnY = -50.0
           
-          # ✅ Create meteorite with config damage and warning time
+          # Create meteorite with config damage and warning time
           let meteorite = newMeteorite(
             targetX = targetX,
             targetY = targetY,

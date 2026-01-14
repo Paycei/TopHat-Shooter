@@ -115,7 +115,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       description: "Precision ranged enemy with powerful, fast projectiles",
       
       baseHP: 2.2,
-      baseRadius: 12.0,
+      baseRadius: 11.0,
       contactDamage: 1,
       baseColor: Color(r: 0, g: 150, b: 100, a: 255),  # Teal
       
@@ -137,7 +137,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 400.0,   # Very fast
         bulletCount: 1,       # Single powerful shot
         spreadAngle: 0.0,     # No spread - precise
-        damage: 2.0,          # High damage
+        damage: 2.0,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
@@ -164,7 +164,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       description: "Fast enemy with erratic zigzag movement and dash attacks",
       
       baseHP: 1.4,
-      baseRadius: 7.0,
+      baseRadius: 10.5,
       contactDamage: 2,
       baseColor: Pink,
       
@@ -255,10 +255,10 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       hasRangedAttack: true,
       attack: EnemyAttackConfig(
-        fireRate: 1.5,        # Fires every 1.5 seconds
-        bulletSpeed: 230.0,   # Fast projectiles
+        fireRate: 1.75,        # Fires every 1.75 seconds
+        bulletSpeed: 220.0,   # Fast projectiles
         bulletCount: 3,       # 3-shot burst
-        spreadAngle: 0.2,     # Small spread
+        spreadAngle: 0.33,     # Small spread
         damage: 2.0,          # Higher ranged damage
         usesBurst: true,
         burstCount: 3,

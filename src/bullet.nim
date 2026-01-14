@@ -56,7 +56,7 @@ proc updateBullet*(bullet: Bullet, dt: float32): bool =
   return bullet.lifetime > 0
 
 proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false) =
-  var color = if bullet.fromPlayer: Yellow else: Pink
+  var color = if bullet.fromPlayer: Color(r: 0, g: 200, b: 200, a: 255) else: Pink
   
   # Echo bullets are semi-transparent and fade out
   if bullet.isEcho:
