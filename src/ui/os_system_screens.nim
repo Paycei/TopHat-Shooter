@@ -10,7 +10,7 @@ const
   BUTTON_HEIGHT = 48
   STAT_LINE_HEIGHT = 32
 
-proc drawModernButton(x, y, width, height: int32, text: string, 
+proc drawModernButton(x, y, width, height: int32, text: string,
                      hotkey: string = "", isPrimary: bool = false,
                      time: float32 = 0.0) =
   ## Draw a modern styled button for system screens

@@ -932,7 +932,7 @@ proc cleanupGame*(game: Game) =
   if not game.player.isNil:
     game.player.rotatingOrbs = @[]
 
-proc newGame*(screenWidth, screenHeight: int32): Game =
+proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0): Game =
   let defaultMode = gmWaveBased  # Default to wave-based mode
   let modeDef = getGameModeDefinition(defaultMode)
   
@@ -996,6 +996,10 @@ proc newGame*(screenWidth, screenHeight: int32): Game =
   result.player.hp = modeDef.playerStartHP
   result.player.maxHp = modeDef.playerStartHP
   result.player.coins = modeDef.playerStartCoins
+  
+  # Apply player skin from settings
+  result.player.skinType = playerSkin
+  result.player.bulletSkinType = bulletSkin
   
   # Discord client is assigned from global instance in main.nim
   # Don't create a new client here to avoid threading issues
@@ -1367,7 +1371,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           isArcaneBullet = hasArcane,
           isBonusFromMultiShot = (i > 0),  # First bullet (i=0) is normal, rest are bonus
           wasCrit = wasCrit,
-          isSpecialRound = isSpecialRound
+          isSpecialRound = isSpecialRound,
+          bulletSkin = game.player.bulletSkinType
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -1399,7 +1404,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         isArcaneBullet = hasArcane,
         isBonusFromDoubleShot = false,  # First bullet is normal
         wasCrit = wasCrit,
-        isSpecialRound = isSpecialRound
+        isSpecialRound = isSpecialRound,
+        bulletSkin = game.player.bulletSkinType
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -1437,7 +1443,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           isArcaneBullet = hasArcane,
           isBonusFromMultiShot = (i > 0),  # First bullet (i=0) is normal, rest are bonus
           wasCrit = wasCrit,
-          isSpecialRound = isSpecialRound
+          isSpecialRound = isSpecialRound,
+          bulletSkin = game.player.bulletSkinType
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -1462,7 +1469,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         windPushForce = windEffect,
         isArcaneBullet = hasArcane,
         wasCrit = wasCrit,
-        isSpecialRound = isSpecialRound
+        isSpecialRound = isSpecialRound,
+        bulletSkin = game.player.bulletSkinType
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -1595,7 +1603,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         isArcaneBullet = hasArcane,
         isBonusFromDoubleShot = true,
         isBonusFromMultiShot = (i > 0),
-        wasCrit = wasCrit
+        wasCrit = wasCrit,
+        bulletSkin = game.player.bulletSkinType
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -1619,7 +1628,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       windPushForce = windEffect,
       isArcaneBullet = hasArcane,
       isBonusFromDoubleShot = true,
-      wasCrit = wasCrit
+      wasCrit = wasCrit,
+      bulletSkin = game.player.bulletSkinType
     )
     bullet.radius = bulletRadius
     game.bullets.add(bullet)
@@ -4156,7 +4166,8 @@ proc updateGame*(game: var Game, dt: float32) =
           slowAmount = 0.0,  # Add elemental effects if player has them
           poisonDuration = 0.0,
           fireDuration = 0.0,
-          windPushForce = 0.0
+          windPushForce = 0.0,
+          bulletSkin = game.player.bulletSkinType
         ))
       
       # Visual feedback
@@ -6336,7 +6347,8 @@ proc updateGame*(game: var Game, dt: float32) =
             slowAmount = 0.0,
             poisonDuration = 0.0,
             fireDuration = 0.0,
-            windPushForce = 0.0
+            windPushForce = 0.0,
+            bulletSkin = game.player.bulletSkinType
           ))
           
           # Visual feedback
@@ -6435,7 +6447,7 @@ proc drawGame*(game: Game) =
   let hasOvercharge = hasPowerUp(game.player, puOvercharge)
   let hasBloodBullets = hasPowerUp(game.player, puBloodBullets)
   for bullet in game.bullets:
-    drawBullet(bullet, hasOvercharge, hasBloodBullets)
+    drawBullet(bullet, hasOvercharge, hasBloodBullets, game.time)
   
   # Draw enemies
   for enemy in game.enemies:

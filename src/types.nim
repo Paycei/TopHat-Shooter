@@ -214,6 +214,8 @@ type
     parryDuration*: float32  # How long the parry state lasts
     radialBurstTimer*: float32  # Timer for periodic radial burst
     pulseArmorCooldown*: float32  # Cooldown after triggering shockwave
+    skinType*: int  # Current equipped skin (stored as int for save compatibility)
+    bulletSkinType*: int  # Current equipped bullet skin (stored as int for save compatibility)
 
   EffectInstance* = object
     elementType*: ElementType
@@ -339,6 +341,7 @@ type
     isBonusFromDoubleShot*: bool  # True if this is a bonus bullet from Double Shot
     wasCrit*: bool  # True if this bullet rolled a critical hit
     isSpecialRound*: bool  # True if this is a special round (every Nth bullet)
+    bulletSkin*: int  # Bullet skin type (stored as int for save compatibility)
 
   Coin* = ref object
     pos*: Vector2f

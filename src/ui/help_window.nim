@@ -25,6 +25,7 @@ proc getHelpCommands*(): seq[HelpCommand] =
     ("enemies", t(tkHelpCmdEnemies)),
     ("bosses", t(tkHelpCmdBosses)),
     ("shop", t(tkHelpCmdShop)),
+    ("customize", "Customize player and bullet skins"),
     ("clear", t(tkHelpClearCommand)),
     ("", t(tkHelpCommandSeparator)),
     (t(tkHelpLaunchTopics), t(tkHelpCmdLaunchIcons))
@@ -337,6 +338,10 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     of "settings", "settings.exe":
       help.addOutput(t(tkHelpOpeningSettings), Color(r: 200, g: 100, b: 255, a: 255))
       help.pendingIconExecution = 3
+    
+    of "shop.exe", "customization", "customize", "skins":
+      help.addOutput("Opening Customization Shop...", Color(r: 255, g: 150, b: 50, a: 255))
+      help.pendingIconExecution = 4
     
     of "sandbox", "sandbox.exe":
       help.addOutput(t(tkHelpLaunchingSandbox), Color(r: 255, g: 165, b: 0, a: 255))

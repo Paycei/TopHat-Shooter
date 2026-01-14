@@ -122,7 +122,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
     (game.screenWidth - DEBUG_PANEL_WIDTH)
   else:
     debugPanelPos.x.int32
-  
+   
   # If minimized, only draw header bar
   if debugPanelMinimized:
     # Draw minimized panel (just header)

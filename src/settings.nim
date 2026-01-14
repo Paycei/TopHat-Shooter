@@ -24,7 +24,9 @@ proc initSettings*(): Settings =
     showDebugStats: false,
     showHints: true,
     showEnemyLabels: true,
-    language: "english"  # Default language is English
+    language: "english",  # Default language is English
+    playerSkin: 0,  # Default to first skin (skDefault)
+    bulletSkin: 0   # Default to first bullet skin (bskDefault)
   )
   globalSettings = result
   

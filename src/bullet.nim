@@ -1,4 +1,4 @@
-import raylib, types, math
+import raylib, types, math, bullet_skins
 
 const BASE_PLAYER_BULLET_RADIUS* = 4.5
 
@@ -10,7 +10,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 isBossBullet: bool = false, isArcaneBullet: bool = false,
                 sourceEnemyId: int = -1,
                 isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
-                wasCrit: bool = false, isSpecialRound: bool = false): Bullet =
+                wasCrit: bool = false, isSpecialRound: bool = false,
+                bulletSkin: int = 0): Bullet =
   # Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -43,7 +44,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     isBonusFromMultiShot: isBonusFromMultiShot,  # Bonus bullet from Multi-Shot
     isBonusFromDoubleShot: isBonusFromDoubleShot,  # Bonus bullet from Double Shot
     wasCrit: wasCrit,  # Whether this bullet was a critical hit
-    isSpecialRound: isSpecialRound  # Whether this is a special round
+    isSpecialRound: isSpecialRound,  # Whether this is a special round
+    bulletSkin: bulletSkin  # Bullet skin type
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
@@ -55,27 +57,48 @@ proc updateBullet*(bullet: Bullet, dt: float32): bool =
   bullet.lifetime -= dt
   return bullet.lifetime > 0
 
-proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false) =
-  var color = if bullet.fromPlayer: Color(r: 0, g: 200, b: 200, a: 255) else: Pink
+proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false, gameTime: float32 = 0.0) =
+  # Get base color from bullet skin for player bullets
+  var color: Color
+  var glowColor: Color
+  var trailColor: Color
   
-  # Echo bullets are semi-transparent and fade out
-  if bullet.isEcho:
+  if bullet.fromPlayer and not bullet.isEcho:
+    # Use bullet skin colors for player bullets
+    let skinType = BulletSkinType(bullet.bulletSkin)
+    let (primary, glow, trail) = getBulletSkinColors(skinType, gameTime)
+    color = primary
+    glowColor = glow
+    trailColor = trail
+    
+    # Override color for special bullet types (these take priority over skin)
+    if bullet.isSpecialRound: 
+      color = Color(r: 255, g: 215, b: 0, a: 255)  # Gold for special rounds
+    elif hasBloodBullets: 
+      color = Color(r: 200, g: 50, b: 50, a: 255)  # Dark red for blood bullets
+    elif bullet.isArcaneBullet: 
+      color = Color(r: 200, g: 100, b: 255, a: 255)  # Purple for arcane
+  elif bullet.isEcho:
+    # Echo bullets are semi-transparent and fade out
     let fadeAlpha = uint8((bullet.lifetime / 0.5) * 150.0)  # Fade based on remaining lifetime
     color = Color(r: 200, g: 200, b: 255, a: fadeAlpha)  # Ghost blue-white
+    glowColor = Color(r: 200, g: 200, b: 255, a: fadeAlpha div 2)
+    trailColor = Color(r: 180, g: 180, b: 255, a: fadeAlpha)
+  else:
+    # Enemy bullets - use pink
+    color = Pink
+    glowColor = Color(r: 255, g: 100, b: 150, a: 100)
+    trailColor = Pink
   
-  # Special bullet types have special colors
-  if bullet.fromPlayer and not bullet.isEcho:
-    if bullet.isSpecialRound: color = Color(r: 255, g: 215, b: 0, a: 255)  # Gold for special rounds
-    elif hasBloodBullets: color = Color(r: 200, g: 50, b: 50, a: 255)  # Dark red for blood bullets
-    elif bullet.isArcaneBullet: color = Color(r: 200, g: 100, b: 255, a: 255)  # Purple for arcane
-    elif bullet.isHoming: color = Magenta
-    elif bullet.isPiercing: color = SkyBlue
-    elif bullet.isExplosive: color = Orange
-    elif bullet.windPushForce > 0: color = Color(r: 200, g: 230, b: 255, a: 255)  # Light cyan for wind
-    elif bullet.slowAmount > 0: color = Color(r: 150, g: 200, b: 255, a: 255)
-    elif bullet.poisonDuration > 0: color = Green
-    elif bullet.fireDuration > 0: color = Color(r: 255, g: 80, b: 20, a: 255)  # Bright orange-red for fire
-    elif bullet.bounceCount >= 0: color = Color(r: 255, g: 200, b: 0, a: 255)
+  # Draw bullet trail for player bullets (showcases skin colors)
+  if bullet.fromPlayer and not bullet.isEcho and bullet.vel.length() > 0:
+    for i in 0..3:
+      let trailOffset = (i.float32 + 1) * 5.0
+      let trailPos = bullet.pos - bullet.vel.normalize() * trailOffset
+      let trailRadius = bullet.radius * (1.0 - i.float32 * 0.15)
+      let trailAlpha = uint8((1.0 - i.float32 * 0.25) * float32(trailColor.a))
+      drawCircle(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
+                Color(r: trailColor.r, g: trailColor.g, b: trailColor.b, a: trailAlpha))
   
   # Draw pentagon shape for pentagon bullets
   if bullet.isPentagon:
@@ -136,22 +159,36 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     else:
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
                      Color(r: 255, g: 100, b: 150, a: 100))
-  elif bullet.isExplosive:
+  elif bullet.fromPlayer and not bullet.isEcho:
+    # Player bullet skin glow effects
+    # Draw multiple glow rings
+    for i in 0..1:
+      let glowRadius = bullet.radius + 2.0 + i.float32 * 2.0
+      let glowAlpha = uint8(float32(glowColor.a) * (1.0 - i.float32 * 0.4))
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius,
+                     Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowAlpha))
+    
+    # Add highlight to bullet
+    drawCircle(Vector2(x: bullet.pos.x - 1.5, y: bullet.pos.y - 1.5), bullet.radius * 0.3,
+              Color(r: 255, g: 255, b: 255, a: 120))
+    
+  # Legacy glow effects for power-up modified bullets
+  if bullet.isExplosive:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
                    Color(r: 255, g: 150, b: 0, a: 150))
-  elif bullet.windPushForce > 0:
+  if bullet.windPushForce > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 180, g: 220, b: 255, a: 150))
-  elif bullet.slowAmount > 0:
+  if bullet.slowAmount > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 100, g: 150, b: 255, a: 150))
-  elif bullet.poisonDuration > 0:
+  if bullet.poisonDuration > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 50, g: 255, b: 50, a: 150))
-  elif bullet.fireDuration > 0:
+  if bullet.fireDuration > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 255, g: 100, b: 30, a: 180))
-  elif bullet.isArcaneBullet:
+  if bullet.isArcaneBullet:
     # Arcane bullet glow - purple arcane aura
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 200, g: 100, b: 255, a: 200))
@@ -258,7 +295,13 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     original.isPentagon,
     original.isEcho,
     original.isBossBullet,
-    original.isArcaneBullet  # Preserve arcane bullet property for split shots
+    original.isArcaneBullet,  # Preserve arcane bullet property for split shots
+    -1,  # sourceEnemyId
+    false,  # isBonusFromMultiShot
+    false,  # isBonusFromDoubleShot
+    original.wasCrit,  # Preserve crit status
+    original.isSpecialRound,  # Preserve special round status
+    original.bulletSkin  # Preserve bullet skin
   )
   
   # Copy additional state that needs to be preserved

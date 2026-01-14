@@ -5,13 +5,14 @@ import raylib, ../types, ../localization, math, strutils, strformat, times
 
 type
   DesktopIconType* = enum
-    diPlay          # Launch game (Play.exe)
-    diSurvival      # Survival mode (Survival.exe)
-    diStatistics    # Statistics viewer (Stats.exe)
-    diSettings      # Settings panel (Settings.exe)
-    diHelp          # Help/Documentation (Help.txt)
-    diQuit          # Shutdown (Shutdown.exe)
-    diSandbox       # Sandbox mode (Sandbox.exe)
+    diPlay          # Launch game (Play.exe) - 0
+    diSurvival      # Survival mode (Survival.exe) - 1
+    diStatistics    # Statistics viewer (Stats.exe) - 2
+    diSettings      # Settings panel (Settings.exe) - 3
+    diShop          # Customization Shop (Shop.exe) - 4
+    diHelp          # Help/Documentation (Help.txt) - 5
+    diQuit          # Shutdown (Shutdown.exe) - 6
+    diSandbox       # Sandbox mode (Sandbox.exe) - 7
   
   DesktopIcon* = object
     iconType*: DesktopIconType
@@ -56,6 +57,7 @@ proc getIconName(iconType: DesktopIconType): string =
   of diHelp: t(tkMenuHelp) & ".txt"
   of diQuit: t(tkMenuQuit) & ".exe"
   of diSandbox: t(tkMenuSandbox) & ".exe"
+  of diShop: "Shop.exe"
 
 proc newOSDesktop*(): OSDesktop =
   result = OSDesktop(
@@ -80,7 +82,10 @@ proc newOSDesktop*(): OSDesktop =
                   iconColor: Color(r: 255, g: 100, b: 100, a: 255)),
       DesktopIcon(iconType: diSandbox, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y, 
                   selected: false, name: getIconName(diSandbox),
-                  iconColor: Color(r: 255, g: 165, b: 0, a: 255))
+                  iconColor: Color(r: 255, g: 165, b: 0, a: 255)),
+      DesktopIcon(iconType: diShop, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING, 
+                  selected: false, name: getIconName(diShop),
+                  iconColor: Color(r: 255, g: 150, b: 50, a: 255))
     ],
     selectedIcon: 0,
     time: 0,
@@ -200,6 +205,39 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
       let y1 = centerY.float32 + sin(angle) * gearRadius
       drawCircle(Vector2(x: x1, y: y1), 4, icon.iconColor)
     drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 10, icon.iconColor)
+  
+  of diShop:
+    # Shop icon - shopping bag with color swatches
+    # Draw shopping bag body
+    let bagWidth = 24
+    let bagHeight = 28
+    let bagTop = centerY - 14
+    let bagBottom = centerY + 14
+    
+    # Bag body (trapezoid shape - wider at bottom)
+    drawRectangle((centerX - bagWidth div 2).int32, bagTop.int32, bagWidth.int32, bagHeight.int32, icon.iconColor)
+    
+    # Bag handles
+    let handleWidth = 14
+    let handleTop = bagTop - 6
+    drawLine(Vector2(x: (centerX - handleWidth div 2).float32, y: handleTop.float32),
+            Vector2(x: (centerX - handleWidth div 2).float32, y: bagTop.float32), 3, icon.iconColor)
+    drawLine(Vector2(x: (centerX + handleWidth div 2).float32, y: handleTop.float32),
+            Vector2(x: (centerX + handleWidth div 2).float32, y: bagTop.float32), 3, icon.iconColor)
+    drawLine(Vector2(x: (centerX - handleWidth div 2).float32, y: handleTop.float32),
+            Vector2(x: (centerX + handleWidth div 2).float32, y: handleTop.float32), 3, icon.iconColor)
+    
+    # Color swatches on bag (showing customization options)
+    let swatchSize = 5.float32
+    let swatchY = (centerY + 2).float32
+    let colors = [
+      Color(r: 255, g: 100, b: 180, a: 255),  # Pink (player skin)
+      Color(r: 0, g: 255, b: 100, a: 255),    # Green (player skin)
+      Color(r: 0, g: 200, b: 255, a: 255)     # Cyan (bullet skin)
+    ]
+    for i in 0..<3:
+      let swatchX = (centerX - 8 + i * 8).float32
+      drawCircle(Vector2(x: swatchX, y: swatchY), swatchSize, colors[i])
   
   of diHelp:
     # Question mark in document
@@ -398,7 +436,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
           Color(r: 150, g: 150, b: 170, a: 180))
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
-  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Help, 5=Quit, 6=Sandbox
+  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox
   ## Returns -1 if no action
   ## Note: Window occlusion should be handled by the calling code
   
@@ -424,7 +462,7 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
   
   # Mouse click detection - select icon on click
   if isMouseButtonPressed(Left) and hoveredIcon >= 0:
-    return hoveredIcon
+    return desktop.icons[hoveredIcon].iconType.int  # Return iconType, not array index
   
   # Keyboard navigation (WASD or arrow keys)
   if isKeyPressed(Down) or isKeyPressed(S):
@@ -437,7 +475,7 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
   
   # Selection with Enter or E (keyboard only)
   if isKeyPressed(Enter) or isKeyPressed(E):
-    return desktop.selectedIcon
+    return desktop.icons[desktop.selectedIcon].iconType.int  # Return iconType, not array index
   
   return -1
 

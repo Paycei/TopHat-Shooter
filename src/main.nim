@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/settings_window, ui/help_window, ui/stats_window, ui/os_task_manager, localization
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/settings_window, ui/help_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, ui/shop_window
 
 const
   screenWidth = 1024
@@ -13,6 +13,7 @@ var globalDiscordClient: DiscordClient = nil
 var osSettingsWindow: SettingsWindow = nil
 var osHelpWindow: HelpWindow = nil
 var osStatsWindow: StatsWindow = nil
+var osShopWindow: ShopWindow = nil
 
 var
   renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
@@ -153,6 +154,10 @@ proc main() =
   
   discard initSoundSystem()
   
+  # Initialize skin systems
+  initializeSkins()
+  initializeBulletSkins()
+  
   let cheatMenu = initCheatMenu()
   
   # Apply remaining settings
@@ -180,7 +185,7 @@ proc main() =
     # Discord initialization failed - continue without Rich Presence
     globalDiscordClient = nil
   
-  var currentGame = newGame(screenWidth, screenHeight)
+  var currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
   currentGame.state = gsSplash  # Start with splash screen
   # Assign global Discord client to game
   currentGame.discordClient = globalDiscordClient
@@ -286,21 +291,21 @@ proc main() =
       if not osDesktop.loadingActive and pendingGameMode >= 0:
         case pendingGameMode
         of 0:  # Wave-Based Mode
-          currentGame = newGame(screenWidth, screenHeight)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmWaveBased)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 1:  # Time Survival Mode
-          currentGame = newGame(screenWidth, screenHeight)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmTimeSurvival)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 6:  # Sandbox Mode
-          currentGame = newGame(screenWidth, screenHeight)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmSandbox)
           initializeRunTracking(currentGame)
@@ -372,14 +377,19 @@ proc main() =
             osSettingsWindow = newSettingsWindow(screenWidth, screenHeight, settings)
           osSettingsWindow.window.visible = true
           osSettingsWindow.window.focused = true
-        of 4:  # Help.txt - Open Help Window
+        of 4:  # Shop.exe - Open Customization Shop
+          if osShopWindow.isNil:
+            osShopWindow = newShopWindow(screenWidth, screenHeight, settings.playerSkin.SkinType, settings.bulletSkin.BulletSkinType)
+          osShopWindow.window.visible = true
+          osShopWindow.window.focused = true
+        of 5:  # Help.txt - Open Help Window
           if osHelpWindow.isNil:
             osHelpWindow = newHelpWindow(screenWidth, screenHeight)
           osHelpWindow.window.visible = true
           osHelpWindow.window.focused = true
-        of 5:  # Shutdown.exe - Quit
+        of 6:  # Shutdown.exe - Quit
           break
-        of 6:  # Sandbox.exe - Sandbox Mode
+        of 7:  # Sandbox.exe - Sandbox Mode
           startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
           pendingGameMode = 6
         else: discard
@@ -407,6 +417,18 @@ proc main() =
       
       if not osStatsWindow.isNil and osStatsWindow.window.visible:
         discard updateStatsWindow(osStatsWindow, dt, screenWidth, screenHeight)
+      
+      if not osShopWindow.isNil and osShopWindow.window.visible:
+        let shopClosed = updateShopWindow(osShopWindow, dt)
+        if shopClosed:
+          # Save selected skins to settings if they changed
+          if osShopWindow.playerSkinChanged:
+            settings.playerSkin = osShopWindow.selectedPlayerSkin.int
+          if osShopWindow.bulletSkinChanged:
+            settings.bulletSkin = osShopWindow.selectedBulletSkin.int
+          if osShopWindow.playerSkinChanged or osShopWindow.bulletSkinChanged:
+            discard saveSettings(settings)
+          osShopWindow.window.visible = false
       
       if not osHelpWindow.isNil and osHelpWindow.window.visible:
         let iconToExecute = updateHelpWindow(osHelpWindow, dt, screenWidth, screenHeight)
@@ -437,6 +459,11 @@ proc main() =
               osSettingsWindow = newSettingsWindow(screenWidth, screenHeight, settings)
             osSettingsWindow.window.visible = true
             osSettingsWindow.window.focused = true
+          of 4:  # Shop.exe - Open Customization Shop
+            if osShopWindow.isNil:
+              osShopWindow = newShopWindow(screenWidth, screenHeight, settings.playerSkin.SkinType, settings.bulletSkin.BulletSkinType)
+            osShopWindow.window.visible = true
+            osShopWindow.window.focused = true
           of 5:  # Shutdown.exe - Quit
             break
           of 6:  # Sandbox.exe - Sandbox Mode
@@ -453,6 +480,9 @@ proc main() =
       
       if not osSettingsWindow.isNil and osSettingsWindow.window.visible:
         drawSettingsWindow(osSettingsWindow)
+      
+      if not osShopWindow.isNil and osShopWindow.window.visible:
+        drawShopWindow(osShopWindow)
       
       if not osHelpWindow.isNil and osHelpWindow.window.visible:
         drawHelpWindow(osHelpWindow)
@@ -479,21 +509,21 @@ proc main() =
       if not osDesktop.loadingActive and pendingGameMode >= 0:
         case pendingGameMode
         of 0:  # Wave-Based Mode
-          currentGame = newGame(screenWidth, screenHeight)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmWaveBased)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 1:  # Time Survival Mode
-          currentGame = newGame(screenWidth, screenHeight)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmTimeSurvival)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 6:  # Sandbox Mode
-          currentGame = newGame(screenWidth, screenHeight)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmSandbox)
           initializeRunTracking(currentGame)
@@ -840,7 +870,7 @@ proc main() =
         playSound(stMenuSelect)
       elif isKeyPressed(Q):  # Quit to main menu
         cleanupGame(currentGame)
-        currentGame = newGame(screenWidth, screenHeight)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         playSound(stMenuSelect)
@@ -882,7 +912,7 @@ proc main() =
         playSound(stMenuSelect)
       elif menuResult.exitClicked:
         cleanupGame(currentGame)
-        currentGame = newGame(screenWidth, screenHeight)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         playSound(stMenuSelect)
@@ -1362,7 +1392,7 @@ proc main() =
          (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 0):
         # Store the current game mode before restarting
         let previousMode = currentGame.mode
-        currentGame = newGame(screenWidth, screenHeight)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
         initializeRunTracking(currentGame)  # Start tracking
@@ -1379,7 +1409,7 @@ proc main() =
       elif (isKeyPressed(Escape) or isKeyPressed(Q)) or 
            (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 2):
         cleanupGame(currentGame)  # Clean up resources before creating new game
-        currentGame = newGame(screenWidth, screenHeight)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         playSound(stMenuSelect)

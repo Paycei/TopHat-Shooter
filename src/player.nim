@@ -1,4 +1,4 @@
-import raylib, types, wall, math, random, powerup, localization
+import raylib, types, wall, math, random, powerup, localization, skins
 
 proc newPlayer*(x, y: float32): Player =
   result = Player(
@@ -57,7 +57,9 @@ proc newPlayer*(x, y: float32): Player =
     parryCooldown: 0,
     parryDuration: 0,
     radialBurstTimer: 0.0,
-    pulseArmorCooldown: 0.0
+    pulseArmorCooldown: 0.0,
+    skinType: 0,  # Default skin (skDefault)
+    bulletSkinType: 0  # Default bullet skin (bskDefault)
   )
 
 proc hasAnyOrbPowerUp*(player: Player): bool =
@@ -262,9 +264,12 @@ proc drawPlayer*(player: Player) =
   let pulse = sin(time * 2.0) * 0.5 + 0.5  # Pulsing animation
   let rotation = time * 0.5  # Slow rotation for hex frame
   
-  # Determine base color based on state
-  var baseColor = Color(r: 0, g: 200, b: 200, a: 255)  # Cyan (system primary)
-  var coreColor = Color(r: 255, g: 255, b: 255, a: 255)  # White core
+  # Get colors from skin system
+  let skinType = player.skinType.SkinType
+  let (skinPrimary, skinSecondary, skinCore) = getSkinColors(skinType, time)
+  var baseColor = skinPrimary
+  var secondaryColor = skinSecondary
+  var coreColor = skinCore
   var glowIntensity = 0.4 + pulse * 0.2  # Subtle pulse
   
   # Phase Shift invulnerability visual effect
