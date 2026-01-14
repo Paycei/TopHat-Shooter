@@ -1,4 +1,4 @@
-## Icon Drawing System - Modern OS Theme with Enhanced Detail
+## Icon Drawing System - Modern OS Theme with detail
 ## All icons drawn programmatically using shapes with depth and polish
 
 import raylib, ../types, math
@@ -295,23 +295,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
           drawRectangle(xPos, yPos, 1, 5, Color(r: min(brickColor.r + 40, 255), g: min(brickColor.g + 40, 255), b: min(brickColor.b + 40, 255), a: 255))
     # Frame
     drawRectangleLines(Rectangle(x: (cx - 12).float32, y: (cy - 10).float32, width: 24, height: 20), 2, color)
-  of puBulletSize:
-    # Large expanding bullet with rings
-    # Outer rings showing growth
-    for i in countdown(3, 1):
-      let ringRad = rad * (0.5 + i.float32 * 0.2)
-      drawCircleLines(Vector2(x: cx.float32, y: cy.float32), ringRad, 
-                     Color(r: color.r, g: color.g, b: color.b, a: uint8(80 - i * 20)))
-    # Main bullet
-    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), rad * 0.7, Color(r: 0, g: 0, b: 0, a: 60))
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.7, color)
-    # Highlight
-    drawCircle(Vector2(x: (cx - 3).float32, y: (cy - 3).float32), rad * 0.3, 
-              Color(r: min(color.r + 120, 255), g: min(color.g + 120, 255), b: min(color.b + 120, 255), a: 255))
-    # Inner core
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.4, 
-              Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 200))
-    
+
   of puRegeneration:
     # Medical cross with pulse
     # Pulse rings

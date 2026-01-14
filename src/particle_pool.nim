@@ -101,7 +101,7 @@ proc updateParticlePool*(pool: ParticlePool, dt: float32) =
     particle.pos.x += particle.vel.x * dt
     particle.pos.y += particle.vel.y * dt
     
-    # Frame-independent slowdown: pow(0.95, 60*dt)
+    # Slowdown: pow(0.95, 60*dt)
     let slowdownFactor = pow(0.95, 60.0 * dt)
     particle.vel.x *= slowdownFactor
     particle.vel.y *= slowdownFactor
@@ -138,14 +138,14 @@ proc spawnExplosionPooled*(pool: ParticlePool, x, y: float32, color: Color, coun
 
 proc spawnTimedParticlesPooled*(pool: ParticlePool, x, y: float32, rate: float32,
                                 color: Color, count: int, dt: float32) =
-  ## Frame-independent particle spawning using pool
+  ## Particle spawning using pool
   if rand(1.0) < (rate * dt):
     spawnExplosionPooled(pool, x, y, color, count)
 
 proc spawnTimedParticlesAroundPooled*(pool: ParticlePool, centerX, centerY: float32,
                                       maxRadius: float32, rate: float32, color: Color,
                                       count: int, dt: float32, offsetY: float32 = 0.0) =
-  ## Frame-independent particle spawning with random positioning using pool
+  ## Particle spawning with random positioning using pool
   if rand(1.0) < (rate * dt):
     let particleAngle = rand(1.0) * PI * 2.0
     let particleDist = rand(maxRadius)

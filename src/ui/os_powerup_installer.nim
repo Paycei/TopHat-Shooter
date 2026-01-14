@@ -258,7 +258,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   drawText(rarityText, badgeX + 15, yOffset + 8, 14,
           Color(r: 0, g: 0, b: 0, a: 180))
   drawText(rarityText, badgeX + 14, yOffset + 7, 14, rarityColor)
-  yOffset += 48  # Increased spacing to push tier section lower
+  yOffset += 48
   
   # Legendary power-ups only have 1 tier, others have 3
   let maxTiers = if powerUp.rarity == prLegendary: 1 else: 3
@@ -371,7 +371,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   yOffset += descBoxHeight + 8  # Reduced spacing for better utilization
   
   # Bottom info - positioned right after description with minimal gap
-  let bottomY = yOffset  # Dynamic positioning instead of fixed
+  let bottomY = yOffset
   drawText("[P]", x + 10, bottomY, 14, Color(r: 100, g: 110, b: 120, a: 255))
   drawText(".exe", x + 30, bottomY + 2, 12, Color(r: 120, g: 130, b: 140, a: 255))
   

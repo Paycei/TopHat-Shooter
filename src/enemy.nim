@@ -83,6 +83,9 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   if not result.isBoss:
     result.defenseMultiplier = 1.0
   
+  # Initialize debuff resistance (default: 0.0 = no resistance, bosses set to 0.5 = 50% reduction)
+  result.debuffResistance = 0.0
+  
   # Increment enemy ID counter for next enemy
   game.nextEnemyId += 1
 
@@ -219,7 +222,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           let weaveIntensity = sin(currentTime * 10.0 + enemy.pos.y * 0.05) * 0.5
           let circleDir = (zigzagDir * (0.5 + weaveIntensity * 0.2) + tangent * (0.5 - weaveIntensity * 0.2)).normalize()
           enemy.vel = circleDir * effectiveSpeed * 0.95
-        # Frame-independent velocity dampening
+        # Velocity dampening
         enemy.vel = enemy.vel * pow(0.98, 60.0 * dt)
       var canMove = true
       let nextPos = enemy.pos + enemy.vel * dt
@@ -315,7 +318,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         enemy.attackWarningTimer -= dt
         if enemy.attackWarningTimer <= 0:
           enemy.attackPhase = 2
-          enemy.attackExecuteTimer = 0.5  # Dash duration (increased from 0.3)
+          enemy.attackExecuteTimer = 0.5  # Dash duration
           # Store dash direction toward player
           let dashDir = (playerPos - enemy.pos).normalize()
           enemy.vel = dashDir * effectiveSpeed * 4.0  # Fast dash (4x normal speed)
@@ -355,7 +358,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           if canMove:
             enemy.pos = nextPos
           
-          # Gradually slow down during dash (frame-independent)
+          # Gradually slow down during dash
           enemy.vel = enemy.vel * pow(0.96, 60.0 * dt)
         else:
           # Dash finished, reset to patrol
@@ -1100,7 +1103,7 @@ proc drawEnemy*(enemy: Enemy) =
                   Color(r: 255'u8, g: 100'u8, b: 255'u8, a: glowIntensity))
     
     of etStar:
-      # IMPROVED: Subtle pulsing glow animation
+      # Subtle pulsing glow animation
       let pulseIntensity = sin(getTime() * 3.0) * 0.3 + 0.5  # Smooth pulse between 0.5-0.8
       let glowAlpha = uint8(pulseIntensity * 80)  # Max 64 alpha (was much higher)
       
@@ -1154,9 +1157,9 @@ proc drawEnemy*(enemy: Enemy) =
                   Color(r: 255, g: 255, b: 0, a: glowAlpha.uint8))
     
     of etCross:
-      # Draw improved cross shape with rotation support
+      # Draw cross shape with rotation support
       let armLength = enemy.radius * 0.8  # Slightly longer arms
-      let armThickness = 8.0  # Increased from 5.0 for better visibility
+      let armThickness = 8.0
       
       # Apply rotation (during dash)
       let rotAngle = enemy.rotation
@@ -1181,7 +1184,7 @@ proc drawEnemy*(enemy: Enemy) =
       
       # Draw inner bright cross (also rotated) - slightly thicker
       let innerLength = armLength * 0.65
-      let innerThickness = 3.5  # Increased from 2.0
+      let innerThickness = 3.5
       let ihx1 = enemy.pos.x + cos(rotAngle) * (-innerLength)
       let ihy1 = enemy.pos.y + sin(rotAngle) * (-innerLength)
       let ihx2 = enemy.pos.x + cos(rotAngle) * innerLength
@@ -1433,7 +1436,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
             Color(r: 255, g: 255, b: 0, a: alpha))
   
   of "boss_laser":
-    # IMPROVED: Boss laser warning with accurate beam visualization
+    # Boss laser warning with accurate beam visualization
     # Shows exactly where each laser beam will appear
     # Different drawing based on pattern type
     let isRadialPattern = warning.laserPattern in ["prismatic_cage", "laser_snipe"]
@@ -1635,7 +1638,7 @@ proc drawLaser*(laser: Laser) =
   
   let baseAlpha = uint8(adjustedFade * 200 + 55)  # 55-255 alpha
   
-  # Enhanced laser colors with bright core
+  # Laser colors with bright core
   let outerGlow = Color(r: 255, g: 100, b: 0, a: (baseAlpha div 3).uint8)
   let midGlow = Color(r: 255, g: 150, b: 30, a: (baseAlpha div 2).uint8)
   let coreColor = Color(r: 255, g: 200, b: 100, a: baseAlpha)
@@ -1812,7 +1815,7 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
   of 2: x = rand(screenWidth.int).float32; y = screenHeight.float32 + 30
   else: x = -30; y = rand(screenHeight.int).float32
   
-  # PROGRESSIVE DIFFICULTY SYSTEM with new enemy types
+  # PROGRESSIVE DIFFICULTY SYSTEM
   let roll = rand(100)
   var enemyType: EnemyType
   
@@ -1820,7 +1823,7 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
     # Phase 1: Only circles
     enemyType = etCircle
   elif difficulty < 5.0:
-    # Phase 2: Circles + Pentagon (easier ranged enemy)
+    # Phase 2: Circles + Pentagon
     if roll < 80: enemyType = etCircle
     else: enemyType = etPentagon
   elif difficulty < 8.0:
@@ -1983,6 +1986,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       attackExecuteTimer: 0,
       attackPhase: 0,
       defenseMultiplier: firstPhaseDefense,  # Apply defenseMultiplier from first phase
+      debuffResistance: 0.5,  # Bosses have 50% stun/slow resistance
       # Boss dash state initialization
       isDashing: false,
       dashVelocity: newVector2f(0, 0),
@@ -2075,7 +2079,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.hp *= (0.85 * eliteScaling)
     
     of etTank:
-      # BALANCED: 3.2x HP with reduced damage reduction (INCREASED from 2.5x)
+      # BALANCED: 3.2x HP with reduced damage reduction
       # Multiple effects further reduce HP scaling
       enemy.maxHp *= (3.2 * eliteScaling * effectMultiplier)
       enemy.hp *= (3.2 * eliteScaling * effectMultiplier)
@@ -2098,17 +2102,17 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
     of etExplosive:
       # Explodes on death
       # Multiple effects reduce HP scaling but use reduced speed scaling
-      enemy.maxHp *= (2.1 * eliteScaling * effectMultiplier)  # Increased from 1.7
+      enemy.maxHp *= (2.1 * eliteScaling * effectMultiplier)
       enemy.hp *= (2.1 * eliteScaling * effectMultiplier)
       enemy.contactDamage += 2 + (waveNumber div 7)
       enemy.rangedDamage += 2 + (waveNumber div 7)
-      enemy.speed *= (1.0 * eliteSpeedScaling * effectMultiplier)  # Uses speed scaling
+      enemy.speed *= (1.0 * eliteSpeedScaling * effectMultiplier)
     
     of etRegenerative:
       # Regenerates 5% HP per second
       enemy.regenTimer = 0.0
       # Multiple effects reduce HP scaling
-      enemy.maxHp *= (2.0 * eliteScaling * effectMultiplier)  # Increased from 1.6
+      enemy.maxHp *= (2.0 * eliteScaling * effectMultiplier)
       enemy.hp *= (2.0 * eliteScaling * effectMultiplier)
       enemy.contactDamage += 1 + (waveNumber div 5)
       enemy.rangedDamage += 1 + (waveNumber div 5)
@@ -2116,7 +2120,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
     of etShielded:
       # Has a shield that absorbs damage
       # Multiple effects reduce HP and shield scaling
-      enemy.maxHp *= (1.2 * eliteScaling * effectMultiplier)  # Increased from 1.2
+      enemy.maxHp *= (1.2 * eliteScaling * effectMultiplier)
       enemy.hp *= (1.2 * eliteScaling * effectMultiplier)
       let shieldAmount = enemy.maxHp * 0.75  # Shield = 75% of max HP
       enemy.shieldHp = shieldAmount

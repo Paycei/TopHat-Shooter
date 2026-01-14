@@ -1,12 +1,11 @@
-﻿## OS-Style System Screens - Enhanced Edition
+﻿## OS-Style System Screens
 ## Game Over as Modern System Crash, Victory as System Secured
-## REDESIGNED with improved visuals, animations, and polish
 
 import raylib, ../types, math, ../localization
 
 const
   SCREEN_WIDTH = 900
-  SCREEN_HEIGHT = 600  # Increased from 550 to 600 for more space
+  SCREEN_HEIGHT = 600
   BUTTON_WIDTH = 220
   BUTTON_HEIGHT = 48
   STAT_LINE_HEIGHT = 32

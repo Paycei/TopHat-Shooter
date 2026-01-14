@@ -584,8 +584,10 @@ type
     tkPowerupPulseArmor = "powerup_pulse_armor"
     tkPowerupHeavyRounds = "powerup_heavy_rounds"
     tkPowerupFortified = "powerup_fortified"
+    tkPowerupSpecialRounds = "powerup_special_rounds"
+    tkPowerupGiantSlayer = "powerup_giant_slayer"
     
-    # Powerup Descriptions (Level 1)
+    # Powerup Descriptions
     tkPowerupDoubleShotDesc = "powerup_double_shot_desc"
     tkPowerupRotatingShieldDesc1 = "powerup_rotating_shield_desc1"
     tkPowerupRotatingShieldDesc2 = "powerup_rotating_shield_desc2"
@@ -725,6 +727,12 @@ type
     tkPowerupFortifiedDesc1 = "powerup_fortified_desc1"
     tkPowerupFortifiedDesc2 = "powerup_fortified_desc2"
     tkPowerupFortifiedDesc3 = "powerup_fortified_desc3"
+    tkPowerupSpecialRoundsDesc1 = "powerup_special_rounds_desc1"
+    tkPowerupSpecialRoundsDesc2 = "powerup_special_rounds_desc2"
+    tkPowerupSpecialRoundsDesc3 = "powerup_special_rounds_desc3"
+    tkPowerupGiantSlayerDesc1 = "powerup_giant_slayer_desc1"
+    tkPowerupGiantSlayerDesc2 = "powerup_giant_slayer_desc2"
+    tkPowerupGiantSlayerDesc3 = "powerup_giant_slayer_desc3"
     
     # Player Feedback
     tkPlayerDodge = "player_dodge"
@@ -962,9 +970,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_pulse_armor": "Pulse Armor",
     "powerup_heavy_rounds": "Heavy Rounds",
     "powerup_fortified": "Fortified",
+    "powerup_special_rounds": "Special Rounds",
+    "powerup_giant_slayer": "Giant Slayer",
     
     # Powerup Descriptions
-    "powerup_double_shot_desc": "Fire additional burst after 0.08s (-10% dmg per bullet, -25% fire rate)",
+    "powerup_double_shot_desc": "Fire additional burst after 0.08s (-15% dmg per bullet, -25% fire rate)",
     "powerup_rotating_shield_desc1": "3 shields (30% coverage, 3 HP, 5.5s respawn)",
     "powerup_rotating_shield_desc2": "3 shields (35% coverage, 4 HP, 4.5s respawn)",
     "powerup_rotating_shield_desc3": "3 shields (40% coverage, 5 HP, 3.75s respawn)",
@@ -1034,15 +1044,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_wind_bullets_desc1": "Bullets knock back enemies (weak push)",
     "powerup_wind_bullets_desc2": "Bullets knock back enemies (medium push)",
     "powerup_wind_bullets_desc3": "Bullets knock back enemies (strong push)",
-    "powerup_fire_aura_desc1": "Burn enemies 1.5 dmg/s in 120 radius (2s, +20% scaling)",
-    "powerup_fire_aura_desc2": "Burn enemies 3 dmg/s in 160 radius (3s, +20% scaling)",
-    "powerup_fire_aura_desc3": "Burn enemies 6 dmg/s in 200 radius (4s, +20% scaling)",
-    "powerup_lightning_aura_desc1": "Zap 0.8 dmg/s in 120 radius (chains 1x, +20% scaling)",
-    "powerup_lightning_aura_desc2": "Zap 1.6 dmg/s in 160 radius (chains 2x, +20% scaling)",
-    "powerup_lightning_aura_desc3": "Zap 3.2 dmg/s in 200 radius (chains 3x, +20% scaling)",
-    "powerup_poison_aura_desc1": "Poison 0.6 dmg/s in 120 radius (6s duration, +20% scaling)",
-    "powerup_poison_aura_desc2": "Poison 1.2 dmg/s in 160 radius (8s duration, +20% scaling)",
-    "powerup_poison_aura_desc3": "Poison 2.4 dmg/s in 200 radius (10s duration, +20% scaling)",
+    "powerup_fire_aura_desc1": "Burn enemies, 1.0 dmg/s +20% dmg in 120 radius (2s)",
+    "powerup_fire_aura_desc2": "Burn enemies, 2.0 dmg/s +20% dmg in 160 radius (3s)",
+    "powerup_fire_aura_desc3": "Burn enemies, 3.0 dmg/s +20% dmg in 200 radius (4s)",
+    "powerup_lightning_aura_desc1": "Zap 1.0 dmg/s +20% dmg  in 120 radius (chains 1x)",
+    "powerup_lightning_aura_desc2": "Zap 2.0 dmg/s +20% dmg  in 160 radius (chains 2x)",
+    "powerup_lightning_aura_desc3": "Zap 3.0 dmg/s +20% dmg  in 200 radius (chains 3x)",
+    "powerup_poison_aura_desc1": "Poison 0.5 dmg/s +20% dmg in 120 radius (6s duration)",
+    "powerup_poison_aura_desc2": "Poison 1.0 dmg/s +20% dmg in 160 radius (8s duration)",
+    "powerup_poison_aura_desc3": "Poison 2.0 dmg/s +20% dmg in 200 radius (10s duration)",
     "powerup_wind_aura_desc1": "Push enemies away in 120 radius (weak)",
     "powerup_wind_aura_desc2": "Push enemies away in 160 radius (medium)",
     "powerup_wind_aura_desc3": "Push enemies away in 200 radius (strong)",
@@ -1052,30 +1062,30 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_overcharge_desc": "+10% dmg per 100 units traveled (max 150%, reaches at 1000 units)",
     "powerup_echo_shots_desc": "Bullets leave ghost trail (60% dmg)",
     "powerup_rotating_orbs_desc": "All 6 elemental orbs (6 dmg/hit)",
-    "powerup_poison_orb_desc1": "2 poison orbs (0.3 dmg/s, +10% scaling)",
-    "powerup_poison_orb_desc2": "4 poison orbs (0.3 dmg/s, +10% scaling)",
-    "powerup_poison_orb_desc3": "6 poison orbs (0.3 dmg/s, +10% scaling)",
-    "powerup_fire_orb_desc1": "2 fire orbs (0.4 dmg/s, +10% scaling)",
-    "powerup_fire_orb_desc2": "4 fire orbs (0.4 dmg/s, +10% scaling)",
-    "powerup_fire_orb_desc3": "6 fire orbs (0.4 dmg/s, +10% scaling)",
-    "powerup_lightning_orb_desc1": "2 lightning orbs (1 dmg/hit, +10% scaling)",
-    "powerup_lightning_orb_desc2": "4 lightning orbs (2 dmg/hit, +10% scaling)",
-    "powerup_lightning_orb_desc3": "6 lightning orbs (3 dmg/hit, +10% scaling)",
-    "powerup_wind_orb_desc1": "2 wind orbs (1 dmg/hit, push, +10% scaling)",
-    "powerup_wind_orb_desc2": "4 wind orbs (2 dmg/hit, push, +10% scaling)",
-    "powerup_wind_orb_desc3": "6 wind orbs (3 dmg/hit, push, +10% scaling)",
-    "powerup_frost_orb_desc1": "2 frost orbs (1 dmg/hit, slow, +10% scaling)",
-    "powerup_frost_orb_desc2": "4 frost orbs (2 dmg/hit, slow, +10% scaling)",
-    "powerup_frost_orb_desc3": "6 frost orbs (3 dmg/hit, slow, +10% scaling)",
-    "powerup_arcane_orb_desc1": "2 arcane orbs (1 dmg/hit, arcane, +10% scaling)",
-    "powerup_arcane_orb_desc2": "4 arcane orbs (2 dmg/hit, arcane, +10% scaling)",
-    "powerup_arcane_orb_desc3": "6 arcane orbs (3 dmg/hit, arcane, +10% scaling)",
+    "powerup_poison_orb_desc1": "2 poison orbs (2.5 dmg/hit +10% dmg)",
+    "powerup_poison_orb_desc2": "4 poison orbs (4.0 dmg/hit +10% dmg)",
+    "powerup_poison_orb_desc3": "6 poison orbs (6.0 dmg/hit +10% dmg)",
+    "powerup_fire_orb_desc1": "2 fire orbs (2.5 dmg/hit +10% dmg)",
+    "powerup_fire_orb_desc2": "4 fire orbs (4.0 dmg/hit +10% dmg)",
+    "powerup_fire_orb_desc3": "6 fire orbs (6.0 dmg/hit +10% dmg)",
+    "powerup_lightning_orb_desc1": "2 lightning orbs (2.5 dmg/hit, +10% dmg)",
+    "powerup_lightning_orb_desc2": "4 lightning orbs (4.0 dmg/hit, +10% dmg)",
+    "powerup_lightning_orb_desc3": "6 lightning orbs (6.0 dmg/hit, +10% dmg)",
+    "powerup_wind_orb_desc1": "2 wind orbs that push enemies away (2.5 dmg/hit +10% dmg)",
+    "powerup_wind_orb_desc2": "4 wind orbs that push enemies away (4.0 dmg/hit +10% dmg)",
+    "powerup_wind_orb_desc3": "6 wind orbs that push enemies away (6.0 dmg/hit +10% dmg)",
+    "powerup_frost_orb_desc1": "2 frost orbs that slow enemies (2.5 dmg/hit +10% dmg)",
+    "powerup_frost_orb_desc2": "4 frost orbs that slow enemies (4.0 dmg/hit +10% dmg)",
+    "powerup_frost_orb_desc3": "6 frost orbs that slow enemies (6.0 dmg/hit +10% dmg)",
+    "powerup_arcane_orb_desc1": "2 arcane orbs (2.5 dmg/hit +10% scaling)",
+    "powerup_arcane_orb_desc2": "4 arcane orbs (4.0 dmg/hit +10% scaling)",
+    "powerup_arcane_orb_desc3": "6 arcane orbs (6.0 dmg/hit +10% scaling)",
     "powerup_arcane_bullets_desc1": "Bullets enhanced with arcane power (+50% bullet damage, arcane)",
     "powerup_arcane_bullets_desc2": "Bullets enhanced with arcane power (+85% bullet damage, arcane)",
     "powerup_arcane_bullets_desc3": "Bullets enhanced with arcane power (+120% bullet damage, arcane)",
-    "powerup_arcane_aura_desc1": "Arcane aura 2 dmg/s in 120 radius, arcane (+20% scaling)",
-    "powerup_arcane_aura_desc2": "Arcane aura 4 dmg/s in 160 radius, arcane (+20% scaling)",
-    "powerup_arcane_aura_desc3": "Arcane aura 8 dmg/s in 200 radius, arcane (+20% scaling)",
+    "powerup_arcane_aura_desc1": "Arcane aura 1 dmg/s +20% dmg in 120 radius, arcane",
+    "powerup_arcane_aura_desc2": "Arcane aura 3 dmg/s +20% dmg in 160 radius, arcane",
+    "powerup_arcane_aura_desc3": "Arcane aura 5 dmg/s +20% dmg in 200 radius, arcane",
     "powerup_fire_mastery_desc": "Fire effects: +150% dmg, +100% duration, +35% slow",
     "powerup_poison_mastery_desc": "Poison effects: +150% dmg, +100% duration, +30% slow",
     "powerup_frost_mastery_desc": "Frost effects: +150% dmg, +100% duration, +20% slow",
@@ -1083,26 +1093,32 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_lightning_mastery_desc": "Lightning effects: +150% dmg, +25% slow, +1 chain, +50% range",
     "powerup_wind_mastery_desc": "Wind effects: +150% dmg, +40% slow, stronger push",
     "powerup_parry_desc": "Active: Invincible for 0.5s, bounce enemy bullets (5s cooldown)",
-    "powerup_blood_orb_desc1": "2 blood orbs (1 dmg/hit, lifesteal, +10% scaling)",
-    "powerup_blood_orb_desc2": "4 blood orbs (2 dmg/hit, lifesteal, +10% scaling)",
-    "powerup_blood_orb_desc3": "6 blood orbs (3 dmg/hit, lifesteal, +10% scaling)",
-    "powerup_blood_aura_desc1": "Blood aura 1.5 dmg/s in 120 radius, heal 2.5% dealt (+20% scaling)",
-    "powerup_blood_aura_desc2": "Blood aura 3 dmg/s in 160 radius, heal 5% dealt (+20% scaling)",
-    "powerup_blood_aura_desc3": "Blood aura 6 dmg/s in 200 radius, heal 10% dealt (+20% scaling)",
-    "powerup_blood_mastery_desc": "Blood effects: +150% dmg, +100% duration, +50% lifesteal",
-    "powerup_radial_burst_desc1": "Fire 8 bullets in a circle every 4s (scales with damage)",
-    "powerup_radial_burst_desc2": "Fire 10 bullets in a circle every 3s (scales with damage)",
-    "powerup_radial_burst_desc3": "Fire 14 bullets in a circle every 2s (scales with damage)",
-    "powerup_wall_turrets_desc": "Walls shoot enemies (1 dmg, 2s cooldown)",
+    "powerup_blood_orb_desc1": "2 blood orbs (2.5 dmg/hit +10% dmg, 2.5% lifesteal)",
+    "powerup_blood_orb_desc2": "4 blood orbs (4.0 dmg/hit +10% dmg, 2.5% lifesteal)",
+    "powerup_blood_orb_desc3": "6 blood orbs (6.0 dmg/hit +10% dmg, 2.5% lifesteal)",
+    "powerup_blood_aura_desc1": "Blood aura 0.5 dmg/s +20% dmg in 120 radius, heal 2.5% dealt",
+    "powerup_blood_aura_desc2": "Blood aura 2.0 dmg/s +20% dmg in 160 radius, heal 5% dealt",
+    "powerup_blood_aura_desc3": "Blood aura 3.0 dmg/s +20% dmg in 200 radius, heal 10% dealt",
+    "powerup_blood_mastery_desc": "Blood effects: +150% dmg, +100% lifesteal",
+    "powerup_radial_burst_desc1": "Fire 8 bullets in a circle every 3.5s (scales with damage)",
+    "powerup_radial_burst_desc2": "Fire 10 bullets in a circle every 3.0s (scales with damage)",
+    "powerup_radial_burst_desc3": "Fire 14 bullets in a circle every 2.0s (scales with damage)",
+    "powerup_wall_turrets_desc": "Walls shoot enemies (1 + 15% dmg, 1.5s cooldown)",
     "powerup_pulse_armor_desc1": "Taking damage pushes nearby enemies back (scales with max HP)",
     "powerup_pulse_armor_desc2": "Shockwave pushes further and deals 2 damage (scales with max HP)",
     "powerup_pulse_armor_desc3": "Shockwave pushes even further and deals 4 damage (scales with max HP)",
     "powerup_heavy_rounds_desc1": "Bullets 15% larger with slight knockback",
     "powerup_heavy_rounds_desc2": "Bullets 25% larger with increased knockback",
     "powerup_heavy_rounds_desc3": "Bullets 35% larger with strong knockback",
-    "powerup_fortified_desc1": "Reduce damage taken by 10%",
-    "powerup_fortified_desc2": "Reduce damage taken by 15%",
-    "powerup_fortified_desc3": "Reduce damage taken by 20%",
+    "powerup_fortified_desc1": "Reduce damage taken by 15% and gain 4 max HP",
+    "powerup_fortified_desc2": "Reduce damage taken by 25% and gain 8 (+4) max HP",
+    "powerup_fortified_desc3": "Reduce damage taken by 35% and gain 12 (+4) max HP",
+    "powerup_special_rounds_desc1": "Every 5th bullet deals +50% bonus damage",
+    "powerup_special_rounds_desc2": "Every 4th bullet deals bonus damage",
+    "powerup_special_rounds_desc3": "Every 3rd bullet deals bonus damage",
+    "powerup_giant_slayer_desc1": "Deal 1% of enemy max HP as bonus damage (works on bosses)",
+    "powerup_giant_slayer_desc2": "Deal 2% of enemy max HP as bonus damage (works on bosses)",
+    "powerup_giant_slayer_desc3": "Deal 3% of enemy max HP as bonus damage (works on bosses)",
     
     # Player Feedback
     "player_dodge": "DODGE!",
@@ -1736,6 +1752,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_pulse_armor": "Armadura de Pulso",
     "powerup_heavy_rounds": "Balas Pesadas",
     "powerup_fortified": "Fortificado",
+    "powerup_special_rounds": "Balas Especiales",
+    "powerup_giant_slayer": "Matador de Gigantes",
     
     # Powerup Descriptions
     "powerup_double_shot_desc": "Disparar ráfaga adicional después de 0.08s (-10% daño por bala, -25% cadencia)",
@@ -1874,9 +1892,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_heavy_rounds_desc1": "Balas 15% más grandes con ligero retroceso",
     "powerup_heavy_rounds_desc2": "Balas 25% más grandes con retroceso aumentado",
     "powerup_heavy_rounds_desc3": "Balas 35% más grandes con fuerte retroceso",
-    "powerup_fortified_desc1": "Reduce daño recibido en 10%",
-    "powerup_fortified_desc2": "Reduce daño recibido en 15%",
-    "powerup_fortified_desc3": "Reduce daño recibido en 20%",
+    "powerup_fortified_desc1": "Reduce daño recibido en 20% y gana +8 HP máximo",
+    "powerup_fortified_desc2": "Reduce daño recibido en 30% y gana +16 HP máximo",
+    "powerup_fortified_desc3": "Reduce daño recibido en 40% y gana +24 HP máximo",
+    "powerup_special_rounds_desc1": "Cada 5ta bala causa daño extra y aturde brevemente",
+    "powerup_special_rounds_desc2": "Cada 4ta bala causa daño extra y aturde brevemente",
+    "powerup_special_rounds_desc3": "Cada 3ra bala causa daño extra y aturde brevemente",
+    "powerup_giant_slayer_desc1": "Causa 1% de HP máximo del enemigo como daño extra (funciona con jefes)",
+    "powerup_giant_slayer_desc2": "Causa 2% de HP máximo del enemigo como daño extra (funciona con jefes)",
+    "powerup_giant_slayer_desc3": "Causa 3% de HP máximo del enemigo como daño extra (funciona con jefes)",
     
     # Stats Window
     "stats_window_title": "Monitor del Sistema - Análisis de Jugador",

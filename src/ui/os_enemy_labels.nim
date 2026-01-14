@@ -1,6 +1,5 @@
-﻿## OS-Style Enemy Labels - Enhanced Edition  
+﻿## OS-Style Enemy Labels
 ## Draw enemies with modern process/threat labels
-## REDESIGNED with improved readability, animations, and visual effects
 
 import raylib, ../types, math
 

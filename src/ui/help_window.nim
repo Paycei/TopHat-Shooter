@@ -340,7 +340,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     
     of "sandbox", "sandbox.exe":
       help.addOutput(t(tkHelpLaunchingSandbox), Color(r: 255, g: 165, b: 0, a: 255))
-      help.pendingIconExecution = 6  # New index for sandbox
+      help.pendingIconExecution = 6
     
     of "quit", "shutdown", "shutdown.exe", "exit":
       help.addOutput(t(tkHelpShuttingDown), Color(r: 255, g: 100, b: 100, a: 255))

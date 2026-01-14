@@ -17,7 +17,6 @@ proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
 
 proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3, PowerUp] =
   # Generate 3 random power-up options with COMPLETELY SEPARATE pools
-  # IMPORTANT: Only ONE orb type and ONE aura type maximum per roll
   var availablePowerUps: seq[PowerUp] = @[]
   
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
@@ -31,15 +30,15 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   ]
 
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
-  let normalOnlyTypes: array[0..37, PowerUpType] = [
+  let normalOnlyTypes: array[0..38, PowerUpType] = [
     puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura,
-    puBloodBullets, puBloodOrb, puBulletRicochet, puBulletSize, puBulletSplit,
+    puBloodBullets, puBloodOrb, puBulletRicochet, puBulletSplit,
     puChainLightning, puCriticalHit, puDodgeChance, puExplosiveBullets,
     puFireAura, puFireBullets, puFireOrb, puFortified, puFrostOrb, puFrostShots,
     puHeavyRounds, puLifeSteal, puLightningAura, puLightningOrb, puPiercingShots,
     puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
     puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
-    puWindBullets, puWindOrb
+    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer
   ]
   
   # Define orb, aura, bullet, and mastery groups for exclusivity
@@ -163,7 +162,6 @@ proc createRotatingOrbs*(player: Player, level: int) =
   ## Orb radius scales with player size to maintain distance
   
   # Dynamic orbit radius: scales with player size + fixed offset
-  # BUFFED: Increased from * 3.5 + 25 to * 4.5 + 35
   # player.radius * 4.5 ensures orbs scale MORE with player
   let orbRadius = player.radius * 4.5 + 35
   
@@ -245,10 +243,10 @@ proc getElementColor*(elementType: ElementType): Color =
   of etNone: White
 
 proc getElementDamage*(level: int): float32 =
-  ## Get base damage per hit based on power-up level (BUFFED RANGE: 2-6)
+  ## Get base damage per hit based on power-up level
   ## Compensated with reduced damage multiplier in game logic
   case level
-  of 1: 2.0
+  of 1: 2.5
   of 2: 4.0
   else: 6.0
 
@@ -350,15 +348,26 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Cooldown timer initialized to 0 (ready to use)
     player.pulseArmorCooldown = 0.0
   of puHeavyRounds:
-    # Heavy rounds increase bullet size (like puBulletSize but with knockback)
     let sizeBonus = case powerUp.level
-      of 1: 1.15   # +15% size
-      of 2: 1.25   # +25% size
-      else: 1.35   # +35% size
+      of 1: 1.5   # +50% size
+      of 2: 2.0   # +100% size
+      else: 2.5   # +150% size
     player.radius *= sizeBonus
   of puFortified:
-    # Fortified reduces damage taken, applied in player damage logic
-    # No immediate stat changes needed
+    # Fortified reduces damage taken + increases max HP
+    let hpBonus = case powerUp.level
+      of 1: 4.0   # +4 HP
+      of 2: 7.0  # +7 HP
+      else: 10.0  # +10 HP
+    player.maxHp += hpBonus
+    player.hp += hpBonus
+  of puSpecialRounds:
+    # Special rounds - every Nth bullet has special effect
+    # No stat changes, just tracked via bulletCounter
+    discard
+  of puGiantSlayer:
+    # Giant Slayer - bonus damage vs high HP enemies
+    # No stat changes, applied when bullet hits
     discard
   else:
     discard
@@ -413,13 +422,13 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       of puHeavyRounds:
         # When upgrading Heavy Rounds, increase size further
         let sizeBonus = case powerUp.level
-          of 2: 1.087  # 1.25 / 1.15
-          of 3: 1.08   # 1.35 / 1.25
+          of 2: 1.333  # 2.0 / 1.5
+          of 3: 1.25   # 2.5 / 2.0
           else: 1.0
         player.radius *= sizeBonus
       else:
         discard
-      
+
       found = true
       break
   
@@ -428,7 +437,6 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.powerUps.add(powerUp)
 
 proc drawPowerUpSelection*(game: Game) =
-  # Use the new OS-style power-up installer interface
   drawOSPowerUpInstaller(game)
 
 # SLOT MACHINE ROLL ANIMATION SYSTEM
@@ -441,7 +449,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
   
   let normalTypes = [puDoubleShot, puRotatingShield,
                      puPiercingShots, puMultiShot, puExplosiveBullets, puLifeSteal,
-                     puAutoShoot, puBulletSize, puRegeneration, puDodgeChance,
+                     puAutoShoot, puRegeneration, puDodgeChance,
                      puCriticalHit, puBloodBullets, puBulletRicochet, puSlowField,
                      puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
                      puFrostShots, puPoisonShot, puFireBullets,

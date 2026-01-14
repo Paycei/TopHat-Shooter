@@ -17,8 +17,6 @@ type
     burstDelay*: float32         # Delay between burst shots
     homingStrength*: float32     # 0.0 = no homing, 1.0 = full homing
     isPentagonBullet*: bool      # Special pentagon-shaped bullet
-    
-    # NEW FIELDS for full unification
     bulletCountMin*: int         # Minimum bullets (for randomization)
     bulletCountMax*: int         # Maximum bullets (for randomization)
     randomizeBulletCount*: bool  # Whether to randomize bullet count
@@ -145,8 +143,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: true,  # Special large pentagon bullet
-        
-        # NEW FIELDS
         bulletCountMin: 0,
         bulletCountMax: 0,
         randomizeBulletCount: false,
@@ -240,13 +236,13 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: "Cube Shooter",
       description: "Ranged enemy that maintains distance and fires 3-shot bursts",
       
-      baseHP: 3.0,  # INCREASED from 2.0
+      baseHP: 3.0,
       baseRadius: 10.0,
       contactDamage: 1,
       baseColor: Purple,
       
       movement: EnemyMovementConfig(
-        baseSpeed: 55.0,  # DECREASED from 60.0 (larger = slower)
+        baseSpeed: 55.0,
         dashSpeed: 0.0,
         dashCooldown: 0.0,
         dashDuration: 0.0,
@@ -269,8 +265,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         burstDelay: 0.05,
         homingStrength: 0.0,
         isPentagonBullet: false,
-        
-        # NEW FIELDS
         bulletCountMin: 0,
         bulletCountMax: 0,
         randomizeBulletCount: false,
@@ -320,8 +314,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
-        
-        # NEW FIELDS - Randomization
         bulletCountMin: 2,
         bulletCountMax: 4,
         randomizeBulletCount: true,
@@ -411,8 +403,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
-        
-        # NEW FIELDS
         bulletCountMin: 0,
         bulletCountMax: 0,
         randomizeBulletCount: false,
@@ -466,8 +456,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
-        
-        # NEW FIELDS
         bulletCountMin: 0,
         bulletCountMax: 0,
         randomizeBulletCount: false,
@@ -517,8 +505,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
-        
-        # NEW FIELDS
         bulletCountMin: 0,
         bulletCountMax: 0,
         randomizeBulletCount: false,
@@ -572,8 +558,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
-        
-        # NEW FIELDS
         bulletCountMin: 0,
         bulletCountMax: 0,
         randomizeBulletCount: false,
@@ -627,8 +611,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
-        
-        # NEW FIELDS
         bulletCountMin: 0,
         bulletCountMax: 0,
         randomizeBulletCount: false,
@@ -682,8 +664,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         burstDelay: 0.0,
         homingStrength: 1.0,  # Full homing
         isPentagonBullet: false,
-        
-        # NEW FIELDS
         bulletCountMin: 0,
         bulletCountMax: 0,
         randomizeBulletCount: false,

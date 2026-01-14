@@ -82,17 +82,17 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 0.75,  # BUFFED from 0.9
-              projectileSpeed: 160.0,  # NERFED from 170.0
-              projectileCount: 9,  # BUFFED from 8
+              cooldown: 0.75,
+              projectileSpeed: 160.0,
+              projectileCount: 9,
               spreadAngle: 45.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 1.75,  # BUFFED from 2.25
-              projectileSpeed: 190.0,  # NERFED from 200.0
+              cooldown: 1.75,
+              projectileSpeed: 190.0,
               projectileCount: 3,
               spreadAngle: 20.0,
               durationOrRadius: 0.0
@@ -112,26 +112,26 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 1.0,  # NERFED from 1.0
-              projectileSpeed: 170.0,  # NERFED from 185.0
-              projectileCount: 10,  # NERFED from 12
+              cooldown: 1.0,
+              projectileSpeed: 170.0,
+              projectileCount: 10,
               spreadAngle: 30.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 3.0,  # NERFED from 2.5
-              projectileSpeed: 112.5,  # NERFED from 125.
-              projectileCount: 10,  # NERFED from 12
+              cooldown: 3.0,
+              projectileSpeed: 112.5,
+              projectileCount: 10,
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 2.75,  # BUFFED from 3.5
-              projectileSpeed: 200.0,  # BUFFED from 185.0
+              cooldown: 2.75,
+              projectileSpeed: 200.0,
               projectileCount: 4,
               spreadAngle: 25.0,
               durationOrRadius: 0.0
@@ -146,7 +146,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       name: "The Summoner King",
       bossID: 2,
       baseHP: 175.0,
-      baseSpeed: 70.0,  # BUFFED from 60.0
+      baseSpeed: 70.0,
       baseDamage: 1,
       baseRadius: 50.0,
       color: Color(r: 50, g: 150, b: 50, a: 255),
@@ -156,7 +156,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Legion's Call",
           hpThreshold: 1.0,
-          speedMultiplier: 0.9,  # BUFFED from 0.8
+          speedMultiplier: 0.9,
           damageMultiplier: 1.0,
           defenseMultiplier: 0.9,
           color: Color(r: 50, g: 150, b: 50, a: 255),
@@ -166,9 +166,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 4.5,  # BUFFED from 5.0
+              cooldown: 4.5,
               projectileSpeed: 0.0,
-              projectileCount: 4,  # BUFFED from 3 (more minions)
+              projectileCount: 4,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
               specialData: "minion_circle"
@@ -187,8 +187,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Swarm Commander",
           hpThreshold: 0.6,
-          speedMultiplier: 1.0,  # NERFED from 1.1
-          damageMultiplier: 1.2,  # NERFED from 1.35
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.2,
           defenseMultiplier: 0.8,
           color: Color(r: 30, g: 200, b: 30, a: 255),
           visualEffect: "glow",
@@ -197,9 +197,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 4.0,  # NERFED from 3.5
+              cooldown: 3.75,
               projectileSpeed: 0.0,
-              projectileCount: 3,  # NERFED from 4 (fewer minions)
+              projectileCount: 3,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
               specialData: "minion_triangle"
@@ -207,18 +207,18 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBurst,
               damage: 1.0,
-              cooldown: 2.5,  # NERFED from 2.0
-              projectileSpeed: 150.0,  # NERFED from 170.0
-              projectileCount: 5,  # NERFED from 6
+              cooldown: 2.5,
+              projectileSpeed: 150.0,
+              projectileCount: 5,
               spreadAngle: 60.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 5.0,  # NERFED from 4.0
-              projectileSpeed: 140.0,  # NERFED from 150.0
-              projectileCount: 10,  # NERFED from 12
+              cooldown: 4.5,
+              projectileSpeed: 140.0,
+              projectileCount: 10,
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             )

@@ -1,4 +1,4 @@
-﻿## OS-Themed Statistics Window - ENHANCED EDITION
+﻿## OS-Themed Statistics Window
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
 import raylib, os_window, ../statistics, ../run_statistics, ../types, math, ../powerup_data, strutils, std/tables, ../localization, algorithm

@@ -35,6 +35,7 @@ proc newPlayer*(x, y: float32): Player =
     autoShootEnabled: true,  # Auto-shoot starts enabled
     auraRadius: 50.0,  # Invisible coin collection aura
     doubleShotDelay: 0,
+    bulletCounter: 0,  # Track bullets fired for special rounds power-up
     # Initialize legendary power-up cooldowns
     timeWarpCooldown: 0,
     timeWarpActive: false,
@@ -359,7 +360,6 @@ proc drawPlayer*(player: Player) =
   # Draw rotating orbs (if player has any orb power-ups)
   # Check if player has any orb power-ups before rendering
   if hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
-    # BUFFED: Increased base size from 6.0 to 9.0 to 13.0 and scale from 0.45 to 0.6 to 0.85
     # Scale orb size with player size (larger orbs for better visibility and impact)
     let orbSizeScale = 13.0 + (player.radius - player.baseRadius) * 0.85
     
@@ -372,7 +372,7 @@ proc drawPlayer*(player: Player) =
       # Get element color
       let color = getElementColor(orb.elementType)
       
-      # IMPROVED: Multi-layered orb with glow effects and trails
+      # Multi-layered orb with glow effects and trails
       # Outer glow aura - Reduced glow size from 12/9 to 8/6 for less overwhelming effect
       drawCircle(Vector2(x: orbX, y: orbY), 8 + (orbSizeScale - 6.0) * 1.2, 
                 Color(r: color.r, g: color.g, b: color.b, a: 30))
@@ -474,9 +474,9 @@ proc takeDamage*(player: Player, damage: float32): bool =
   for powerUp in player.powerUps:
     if powerUp.powerType == puFortified:
       let reduction = case powerUp.level
-        of 1: 0.10  # 10% reduction
-        of 2: 0.15  # 15% reduction
-        else: 0.20  # 20% reduction
+        of 1: 0.15  # 15% reduction
+        of 2: 0.25  # 25% reduction
+        else: 0.35  # 35% reduction
       finalDamage *= (1.0 - reduction)
       break
   

@@ -10,8 +10,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 isBossBullet: bool = false, isArcaneBullet: bool = false,
                 sourceEnemyId: int = -1,
                 isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
-                wasCrit: bool = false): Bullet =
-  # BUFFED: Faster projectiles across the board
+                wasCrit: bool = false, isSpecialRound: bool = false): Bullet =
+  # Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
   result = Bullet(
@@ -42,7 +42,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     isArcaneBullet: isArcaneBullet,  # Arcane bullet from arcane bullets power-up
     isBonusFromMultiShot: isBonusFromMultiShot,  # Bonus bullet from Multi-Shot
     isBonusFromDoubleShot: isBonusFromDoubleShot,  # Bonus bullet from Double Shot
-    wasCrit: wasCrit  # Whether this bullet was a critical hit
+    wasCrit: wasCrit,  # Whether this bullet was a critical hit
+    isSpecialRound: isSpecialRound  # Whether this is a special round
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
@@ -64,7 +65,8 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
   
   # Special bullet types have special colors
   if bullet.fromPlayer and not bullet.isEcho:
-    if hasBloodBullets: color = Color(r: 200, g: 50, b: 50, a: 255)  # Dark red for blood bullets
+    if bullet.isSpecialRound: color = Color(r: 255, g: 215, b: 0, a: 255)  # Gold for special rounds
+    elif hasBloodBullets: color = Color(r: 200, g: 50, b: 50, a: 255)  # Dark red for blood bullets
     elif bullet.isArcaneBullet: color = Color(r: 200, g: 100, b: 255, a: 255)  # Purple for arcane
     elif bullet.isHoming: color = Magenta
     elif bullet.isPiercing: color = SkyBlue
@@ -155,6 +157,16 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
                    Color(r: 200, g: 100, b: 255, a: 200))
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
                    Color(r: 150, g: 50, b: 200, a: 100))
+  
+  # Special Round visual effect - golden glow with sparkles
+  if bullet.isSpecialRound and bullet.fromPlayer:
+    # Main golden glow
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+                   Color(r: 255, g: 215, b: 0, a: 255))
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
+                   Color(r: 255, g: 200, b: 50, a: 180))
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6,
+                   Color(r: 255, g: 180, b: 100, a: 120))
   
   # Overcharge visual effect - ONLY if player has the power-up
   if hasOvercharge and bullet.fromPlayer and bullet.travelDistance > 0:

@@ -11,13 +11,13 @@ type
     editingVolume*: bool
     editingMusicVolume*: bool
     fullscreen*: bool
-    showFPS*: bool  # New setting to show FPS counter
-    mouseSupport*: bool  # Enable mouse support in menus (always works in-game and settings)
-    showCursorInMenus*: bool  # Show cursor in menus when mouseSupport is disabled
-    showDebugStats*: bool  # Show fire rate and damage in debug panel
-    showHints*: bool  # Show on-screen hints (E: Wall, ESC: Pause, etc)
-    showEnemyLabels*: bool  # Show enemy name labels above enemies
-    language*: string  # Language setting (e.g., "english", "spanish")
+    showFPS*: bool
+    mouseSupport*: bool
+    showCursorInMenus*: bool
+    showDebugStats*: bool
+    showHints*: bool
+    showEnemyLabels*: bool
+    language*: string
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -446,7 +446,6 @@ proc parsePowerUpType(s: string): PowerUpType =
   of "puLuckyCoins": puLuckyCoins
   of "puWallMaster": puWallMaster
   of "puAutoShoot": puAutoShoot
-  of "puBulletSize": puBulletSize
   of "puRegeneration": puRegeneration
   of "puDodgeChance": puDodgeChance
   of "puCriticalHit": puCriticalHit

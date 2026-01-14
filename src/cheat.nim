@@ -270,7 +270,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game)
 proc drawPowerUpsTab(x, y, width, height: int32, game: var Game)
 proc drawStatsTab(x, y, width, height: int32, game: var Game)
 proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu)
-proc drawEnemiesTab(x, y, width, height: int32, game: var Game)  # New tab
+proc drawEnemiesTab(x, y, width, height: int32, game: var Game)
 
 proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: int32) =
   if not menu.active or not CHEATS_ENABLED:
@@ -699,21 +699,25 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   currentY += 25
   
   # Define all power-up types
-  let allPowerUpTypes: array[0..62, PowerUpType] = [
+  let allPowerUpTypes: array[0..63, PowerUpType] = [
     puArcaneAura, puArcaneBullets, puArcaneMastery, puArcaneOrb, puAutoShoot,
     puBerserker, puBloodAura, puBloodBullets, puBloodMastery, puBloodOrb,
-    puBulletRicochet, puBulletSize, puBulletSpeed, puBulletSplit,
+    puBulletRicochet, puBulletSpeed, puBulletSplit,
     puChainLightning, puCriticalHit, puDodgeChance, puDoubleShot,
-    puEchoShots, puExplosiveBullets, puFireAura, puFireBullets, puFireMastery,
-    puFireOrb, puFortified, puFrostMastery, puFrostOrb, puFrostShots,
-    puGravityWell, puHeavyRounds, puLifeSteal, puLightningAura, puLightningMastery,
-    puLightningOrb, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
-    puOvercharge, puParry, puPhaseShift, puPiercingShots, puPoisonAura,
-    puPoisonMastery, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst,
-    puRage, puRapidFire, puRegeneration, puRotatingOrbs, puRotatingShield,
-    puSlowField, puSpeedBoost, puThorns, puTimeWarp, puWallMaster, puWallTurrets,
+    puEchoShots, puExplosiveBullets,
+    puFireAura, puFireBullets, puFireMastery, puFireOrb, puFortified,
+    puFrostMastery, puFrostOrb, puFrostShots,
+    puGiantSlayer, puGravityWell, puHeavyRounds, puLifeSteal,
+    puLightningAura, puLightningMastery, puLightningOrb, puLuckyCoins,
+    puMagicalBullets, puMaxHealth, puMultiShot,
+    puOvercharge, puParry, puPhaseShift, puPiercingShots,
+    puPoisonAura, puPoisonMastery, puPoisonOrb, puPoisonShot,
+    puPulseArmor, puRadialBurst, puRage, puRapidFire, puRegeneration,
+    puRotatingOrbs, puRotatingShield, puSlowField,
+    puSpecialRounds, puSpeedBoost,
+    puThorns, puTimeWarp, puWallMaster, puWallTurrets,
     puWindAura, puWindBullets, puWindMastery, puWindOrb
-  ]
+  ];
   
   # Scrollable area setup for available list
   let availableAreaHeight = y + contentHeight - currentY - 10

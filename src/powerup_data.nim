@@ -20,7 +20,6 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puLuckyCoins: t(tkPowerupLuckyCoins)
   of puWallMaster: t(tkPowerupWallMaster)
   of puAutoShoot: t(tkPowerupAutoShoot)
-  of puBulletSize: t(tkPowerupBulletSize)
   of puRegeneration: t(tkPowerupRegeneration)
   of puDodgeChance: t(tkPowerupDodgeChance)
   of puCriticalHit: t(tkPowerupCriticalHit)
@@ -69,6 +68,8 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puPulseArmor: t(tkPowerupPulseArmor)
   of puHeavyRounds: t(tkPowerupHeavyRounds)
   of puFortified: t(tkPowerupFortified)
+  of puSpecialRounds: t(tkPowerupSpecialRounds)
+  of puGiantSlayer: t(tkPowerupGiantSlayer)
 
 proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   case powerType
@@ -122,11 +123,6 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
   of puAutoShoot:
     # Single level only - LEGENDARY
     t(tkPowerupAutoShootDesc)
-  of puBulletSize:
-    case level
-    of 1: t(tkPowerupBulletSizeDesc1)
-    of 2: t(tkPowerupBulletSizeDesc2)
-    else: t(tkPowerupBulletSizeDesc3)
   of puRegeneration:
     case level
     of 1: t(tkPowerupRegenerationDesc1)
@@ -337,3 +333,13 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int): string =
     of 1: t(tkPowerupFortifiedDesc1)
     of 2: t(tkPowerupFortifiedDesc2)
     else: t(tkPowerupFortifiedDesc3)
+  of puSpecialRounds:
+    case level
+    of 1: t(tkPowerupSpecialRoundsDesc1)
+    of 2: t(tkPowerupSpecialRoundsDesc2)
+    else: t(tkPowerupSpecialRoundsDesc3)
+  of puGiantSlayer:
+    case level
+    of 1: t(tkPowerupGiantSlayerDesc1)
+    of 2: t(tkPowerupGiantSlayerDesc2)
+    else: t(tkPowerupGiantSlayerDesc3)

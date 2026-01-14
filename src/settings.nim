@@ -1,6 +1,5 @@
 ## Settings Backend Module
 ## Handles settings initialization, state management, and application
-## UI is in ui/settings_window.nim
 
 from save_system import Settings, saveSettings, loadSettings
 import raylib, sound, localization, strutils

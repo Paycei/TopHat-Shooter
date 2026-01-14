@@ -1,6 +1,5 @@
 ﻿import raylib, std/tables, discord_presence, particle_types
 
-# Re-export particle types for convenience
 export Particle, ParticlePool, Vector2f
 export newVector2f, `+`, `-`, `*`, length, normalize, distance
 
@@ -60,7 +59,6 @@ type
     puLuckyCoins,      # Doubles coins collected
     puWallMaster,      # Place stronger walls and increment turret damage
     puAutoShoot,       # Auto-target nearest enemy
-    puBulletSize,      # Larger projectiles
     puRegeneration,    # Slowly restore HP
     puDodgeChance,     # Chance to evade damage
     puCriticalHit,     # Random critical damage
@@ -97,18 +95,20 @@ type
     puFireMastery,     # LEGENDARY: Enhance all fire effects (damage, duration, slow)
     puPoisonMastery,   # LEGENDARY: Enhance all poison effects (damage, duration, slow)
     puFrostMastery,    # LEGENDARY: Enhance all frost effects (damage, duration, slow)
-    puArcaneMastery,   # LEGENDARY: Enhance all arcane effects (damage, duration)
+    puArcaneMastery,   # LEGENDARY: Enhance all arcane effects (damage, priecing)
     puLightningMastery,# LEGENDARY: Enhance all lightning effects (damage, duration, slow)
     puWindMastery,     # LEGENDARY: Enhance all wind effects (damage, duration, slow)
-    puParry,           # LEGENDARY: Active ability - invincible + bounce bullets (0.5s, 5s cd)
+    puParry,           # LEGENDARY: Active ability - invincible + bounce bullets
     puBloodOrb,        # Blood elemental orb
     puBloodAura,       # Blood damage aura with lifesteal
     puBloodMastery,    # LEGENDARY: Enhance all blood effects (damage, lifesteal)
     puRadialBurst,     # Shoots a circle of bullets periodically
     puWallTurrets,     # LEGENDARY: Walls become turrets that shoot enemies
     puPulseArmor,      # When you take damage, emit shockwave that pushes enemies back
-    puHeavyRounds,     # Larger bullets with knockback (similar to Bullet Size)
-    puFortified        # Reduce damage taken
+    puHeavyRounds,     # Larger bullets with knockback
+    puFortified,       # Reduce damage taken
+    puSpecialRounds,   # Every Nth bullet has special on-hit effect
+    puGiantSlayer      # Deal % of enemy HP as bonus damage
 
   PowerUpRarity* = enum
     prCommon,
@@ -125,7 +125,6 @@ type
     lifetime*: float32
     maxLifetime*: float32
     sourceEnemyId*: int  # ID of enemy that created this warning (for tracking movement)
-    # Boss laser warning fields
     laserAngles*: seq[float32]  # Angles for each laser beam
     laserLength*: float32        # Length of laser beams
     laserCount*: int             # Number of laser beams
@@ -134,7 +133,6 @@ type
     lasersCreated*: bool         # Flag to track if lasers were already created
     laserPattern*: string        # Pattern type: "cross_laser", "rotating_grid", "prismatic_cage"
     enemyType*: EnemyType        # Type of enemy creating this attack
-    # Satellite laser warning fields
     targetPos*: Vector2f         # Target coordinates for satellite laser
     fromSatellite*: bool         # Flag for satellite laser warnings
 
@@ -177,7 +175,6 @@ type
     magnetTimer*: float32
     powerUps*: seq[PowerUp]
     shieldAngle*: float32
-    # Rotating shield health tracking (individual shields)
     shieldHealths*: seq[float32]  # Health of each shield segment
     shieldMaxHealth*: float32     # Maximum health per shield
     shieldRegenTimers*: seq[float32]  # Regen timer for each shield
@@ -190,6 +187,7 @@ type
     autoShootEnabled*: bool
     auraRadius*: float32  # Invisible coin collection aura
     doubleShotDelay*: float32  # Timer for double-shot rapid succession
+    bulletCounter*: int  # Counter for special rounds powerup
 
     timeWarpCooldown*: float32
     timeWarpActive*: bool
@@ -199,10 +197,8 @@ type
     phaseShiftCooldown*: float32
     phaseShiftInvulnTimer*: float32
     lastPhaseShiftPos*: Vector2f
-    # Rotating orbs power-up
     rotatingOrbs*: seq[RotatingOrb]
     orbRotationAngle*: float32  # Base rotation angle for all orbs
-    # Elemental Mastery power-ups (LEGENDARY - enhance elemental effects)
     hasFireMastery*: bool
     hasPoisonMastery*: bool
     hasFrostMastery*: bool
@@ -210,17 +206,13 @@ type
     hasLightningMastery*: bool
     hasWindMastery*: bool
     hasBloodMastery*: bool
-    # Poison tracking (for venomous elite enemies)
     poisonTimer*: float32
     poisonDamage*: float32
     poisonAccumulator*: float32  # Accumulates fractional poison damage until it reaches 1.0
-    # Parry power-up (LEGENDARY - active ability)
     parryActive*: bool  # True when actively parrying
     parryCooldown*: float32  # Cooldown timer between parries
     parryDuration*: float32  # How long the parry state lasts
-    # Radial Burst power-up (Normal)
     radialBurstTimer*: float32  # Timer for periodic radial burst
-    # Pulse Armor power-up (Normal)
     pulseArmorCooldown*: float32  # Cooldown after triggering shockwave
 
   EffectInstance* = object
@@ -243,7 +235,6 @@ type
     hp*: int
     shootTimer*: float32
     owner*: int  # Enemy ID
-    # Laser targeting system
     laserActive*: bool
     laserTarget*: Vector2f  # Current player coordinates to target
     laserChargeTime*: float32  # Time to charge before firing
@@ -289,9 +280,7 @@ type
     fakeWarningTimer*: float32
     clonePositions*: seq[Vector2f]
     cloneTimer*: float32
-    # Field for ranged enemy screen restriction
     hasEnteredScreen*: bool  # Tracks if ranged enemy is fully inside screen
-    # Elite enemy fields
     isElite*: bool  # Whether this is an elite enemy
     eliteType*: EliteType  # Type of elite modifier (primary type for backward compatibility)
     eliteTypes*: seq[EliteType]  # Multiple elite types for high-wave elites (wave 25+)
@@ -300,27 +289,22 @@ type
     maxShieldHp*: float32  # Maximum shield HP
     regenTimer*: float32  # For regenerative elites
     spawnedByBoss*: bool  # True if spawned by boss summon attack (no coin drops)
-    # Cross enemy rotation during dash
     rotation*: float32  # Current rotation angle in radians
-    # Custom boss fields (for boss_definitions system)
     bossDefinitionID*: int  # Which boss definition this uses (1-12)
     currentPhaseIndex*: int  # Current phase index (0, 1, 2, etc.)
     attackTimers*: seq[float32]  # Individual cooldown timer for each attack in current phase
     defenseMultiplier*: float32  # Damage reduction multiplier (1.0 = no reduction, 0.5 = 50% damage taken)
-    # Boss dash state (for bapDash attack)
+    debuffResistance*: float32  # Stun/slow resistance multiplier (0.0 = no resistance, 0.5 = 50% reduction, 1.0 = immune)
     isDashing*: bool  # Whether boss is currently executing a dash
     dashVelocity*: Vector2f  # Velocity during dash
     dashDuration*: float32  # Remaining dash duration
     dashMaxDuration*: float32  # Total dash duration for this attack
-    # Boss orbital satellites (for Boss 7)
     satellites*: seq[OrbitalSatellite]  # Persistent satellites that can be destroyed
     invulnerabilityTimer*: float32  # Brief invulnerability during phase transitions
-    # Damage accumulation for continuous damage sources (auras, DOT)
     auraDamageAccumulator*: float32  # Accumulates aura damage over time
     lastAuraDamageNumberTime*: float32  # Last time a damage number was shown for auras
     auraDamageHadCrit*: bool  # Track if any crit occurred during accumulation period
     lastAuraDamageType*: DamageType  # Track the damage type of accumulated aura damage
-    # Contact damage accumulation (for player passing through enemies)
     contactDamageAccumulator*: float32  # Accumulates contact damage over time
     lastContactDamageNumberTime*: float32  # Last time a damage number was shown for contact
 
@@ -351,10 +335,10 @@ type
     echoTrailTimer*: float32  # Timer for spawning echo clones
     isBossBullet*: bool  # True if this bullet was fired by a boss (for glow effect)
     isArcaneBullet*: bool  # True if this bullet is from arcane bullet power-up
-    # Bonus bullet tracking for statistics
     isBonusFromMultiShot*: bool  # True if this is a bonus bullet from Multi-Shot
     isBonusFromDoubleShot*: bool  # True if this is a bonus bullet from Double Shot
     wasCrit*: bool  # True if this bullet rolled a critical hit
+    isSpecialRound*: bool  # True if this is a special round (every Nth bullet)
 
   Coin* = ref object
     pos*: Vector2f
@@ -425,7 +409,6 @@ type
     baseCost*: int
     bought*: int
 
-  # OS-Style Visual System Types
   DataPacket* = object
     x*, y*: float32
     speed*: float32
@@ -464,7 +447,6 @@ type
     tmtPerformance,  # Stats and metrics
     tmtSettings      # Game settings access
 
-  # Boss wave management - centralizes boss coin logic
   BossWaveManager* = object
     active*: bool        # True when a boss is currently spawned
     coinActive*: bool    # True when boss coin needs to be collected
@@ -498,7 +480,6 @@ type
     waveClearedTimer*: float32  # Timer for wave cleared transition
     powerUpChoices*: array[3, PowerUp]
     selectedPowerUp*: int
-    # Power-up roll animation fields
     rollAnimationActive*: bool
     rollAnimationTimer*: float32
     rollSpeed*: array[3, float32]  # Individual roll speeds for each slot
@@ -510,42 +491,31 @@ type
     bossSpawnTimer*: float32
     cameFromPowerUpSelect*: bool
     gameOverSoundPlayed*: bool
-    # Wave-based mode fields
     currentWave*: int
     wavesUntilBoss*: int
     waveEnemiesRemaining*: int
     waveEnemiesTotal*: int
     waveInProgress*: bool
     waveStartTime*: float32  # Track when current wave started for statistics
-    # Cheat tracking
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
-    # Mouse tracking for menu navigation
     lastMousePos*: Vector2f  # Track mouse position to detect movement
     mouseMovedRecently*: bool  # True if mouse has moved since last keyboard input
     keyboardUsedRecently*: bool  # True if keyboard was just used (disables mouse temporarily)
-    # State tracking for settings return
     previousState*: GameState  # Track where we came from to return correctly
-    # Enemy ID counter for unique tracking
     nextEnemyId*: int  # Counter for assigning unique IDs to enemies
-    # Run statistics tracking
     showRunStatsGraphs*: bool  # Toggle for showing graphs in run stats screen
-    # Statistics menu tab selection
     statsMenuTab*: int  # 0 = Lifetime stats, 1 = Last Run stats
-    # Sandbox mode fields
     sandboxSidebarOpen*: bool  # Is the sandbox control sidebar visible
     sandboxTypingBuffer*: string  # Buffer for detecting "ttt" input
     sandboxSelectedTab*: int  # Current tab in sandbox UI (0=Enemies, 1=Bosses, 2=Controls)
     sandboxScrollOffset*: int32  # Scroll position in sidebar
     sandboxGodMode*: bool  # Player invulnerability
     sandboxFreezeEnemies*: bool  # Freeze all enemy movement
-    # Discord Rich Presence
     discordClient*: DiscordClient  # Discord Rich Presence client
-    # OS-Style Visual System
     osBackground*: OSBackgroundState  # Animated background system
     osHUD*: OSHUDState  # OS-style HUD and notifications
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
     selectedGameOverButton*: int  # Selected button on game over screen (0=Restart, 1=Stats, 2=Exit)
-    # Screen shake system
     screenShakeIntensity*: float32  # Current shake intensity
     screenShakeDecay*: float32  # How fast shake decays
 

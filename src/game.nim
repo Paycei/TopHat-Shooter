@@ -769,9 +769,9 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
   ## Uses pre-calculated combat stats for critical hit calculations
   case effect.effectType
   of befFrost:
-    # Frost: Permanent slow
+    # Frost: Permanent slow (reduced by debuffResistance for bosses)
     enemy.slowTimer = effect.duration
-    enemy.slowAmount = bullet.slowAmount
+    enemy.slowAmount = bullet.slowAmount * (1.0 - enemy.debuffResistance)
   
   of befPoison:
     # Poison: DoT effect
@@ -784,10 +784,10 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     
     applyEffect(enemy, etPoison, poisonDmg, poisonDur, "shot")
     
-    # Apply slow only with mastery
+    # Apply slow only with mastery (reduced by debuffResistance for bosses)
     if effect.hasMastery:
       enemy.slowTimer = max(enemy.slowTimer, poisonDur)
-      enemy.slowAmount = max(enemy.slowAmount, 0.30)  # 30% slow
+      enemy.slowAmount = max(enemy.slowAmount, 0.30 * (1.0 - enemy.debuffResistance))  # 30% slow
   
   of befFire:
     # Fire: DoT effect
@@ -800,10 +800,10 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     
     applyEffect(enemy, etFire, fireDmg, fireDur, "shot")
     
-    # Apply slow only with mastery
+    # Apply slow only with mastery (reduced by debuffResistance for bosses)
     if effect.hasMastery:
       enemy.slowTimer = max(enemy.slowTimer, fireDur)
-      enemy.slowAmount = max(enemy.slowAmount, 0.35)  # 35% slow
+      enemy.slowAmount = max(enemy.slowAmount, 0.35 * (1.0 - enemy.debuffResistance))  # 35% slow
   
   of befWind:
     # Wind: Knockback
@@ -817,11 +817,12 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     enemy.pos.x += pushDir.x * actualWindForce * dt * bossResistance
     enemy.pos.y += pushDir.y * actualWindForce * dt * bossResistance
     
-    # Apply slow only with mastery
+    # Apply slow only with mastery (reduced by debuffResistance for bosses)
     if effect.hasMastery:
       enemy.slowTimer = 0.2
-      if enemy.slowAmount < 0.40:
-        enemy.slowAmount = 0.40  # 40% slow
+      let slowValue = 0.40 * (1.0 - enemy.debuffResistance)
+      if enemy.slowAmount < slowValue:
+        enemy.slowAmount = slowValue  # 40% slow
     
     # Visual wind effect particles
     for k in 0..3:
@@ -849,9 +850,9 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       if effect.hasMastery:
         chainRange *= 1.5  # +50% range
       
-      # Stun primary target
+      # Stun primary target (reduced by debuffResistance for bosses)
       enemy.slowTimer = max(enemy.slowTimer, 0.05)
-      enemy.slowAmount = 1.0  # 100% slow = stun
+      enemy.slowAmount = 1.0 * (1.0 - enemy.debuffResistance)  # 100% slow = stun
       enemy.chainLightningCooldown = 0.3
       
       # Find nearby enemies to chain to
@@ -871,7 +872,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
             
             game.enemies[k].chainLightningCooldown = 0.3
             game.enemies[k].slowTimer = max(game.enemies[k].slowTimer, 0.05)
-            game.enemies[k].slowAmount = 1.0
+            game.enemies[k].slowAmount = 1.0 * (1.0 - game.enemies[k].debuffResistance)
             chained += 1
             
             # Lightning visual effect
@@ -1213,6 +1214,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
   let stats = calculateCombatStats(game.player)
   
   if game.time - game.player.lastShot >= stats.fireRate:
+    # Increment bullet counter for special rounds power-up
+    game.player.bulletCounter += 1
+    
     # Check for power-ups that modify shooting
     let hasHoming: bool = hasPowerUp(game.player, puMagicalBullets)
     let hasPiercing: bool = hasPowerUp(game.player, puPiercingShots)
@@ -1233,28 +1237,19 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Track base damage before power-up multipliers for attribution
     let damageBeforePowerUps = stats.baseDamage  # Pure base damage (no Rage)
     
-    # BUFFED: Double-shot bullets deal 10% less damage per bullet (was 20%)
+    # Double-shot bullets deal 10% less damage per bullet
     if hasDoubleShot:
-      damage *= 0.9  # 10% less damage per bullet
+      damage *= 0.85  # 15% less damage per bullet
         
     var bulletRadius = BASE_PLAYER_BULLET_RADIUS
     
-    # Apply bullet size power-up
-    if hasPowerUp(game.player, puBulletSize):
-      let sizeLevel = getPowerUpLevel(game.player, puBulletSize)
-      let sizeMultiplier = case sizeLevel
-        of 1: 1.5
-        of 2: 2.0
-        else: 2.5
-      bulletRadius *= sizeMultiplier
-    
-    # Apply heavy rounds power-up (stacks with bullet size)
+    # Apply heavy rounds power-up
     if hasPowerUp(game.player, puHeavyRounds):
       let heavyLevel = getPowerUpLevel(game.player, puHeavyRounds)
       let heavyMultiplier = case heavyLevel
-        of 1: 1.15
-        of 2: 1.25
-        else: 1.35
+        of 1: 1.5   # +50% size
+        of 2: 2.0   # +100% size
+        else: 2.5   # +150% size
       bulletRadius *= heavyMultiplier
     
     # Track Arcane Bullets contribution
@@ -1270,6 +1265,20 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Apply critical hit chance using pre-calculated stats and capture if it was a crit
     let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, damage)
     damage = damageWithCrit
+    
+    # Check for Special Rounds power-up
+    var isSpecialRound = false
+    if hasPowerUp(game.player, puSpecialRounds):
+      let specialLevel = getPowerUpLevel(game.player, puSpecialRounds)
+      let roundInterval = case specialLevel
+        of 1: 5  # Every 5th bullet
+        of 2: 4  # Every 4th bullet
+        else: 3  # Every 3rd bullet
+      
+      if game.player.bulletCounter mod roundInterval == 0:
+        isSpecialRound = true
+        # Special rounds deal bonus damage
+        damage *= 1.5  # +50% bonus damage
     
     # Apply Arcane Mastery bonus to Arcane bullets (damage + piercing)
     var arcanePiercing = hasPiercing  # Start with base piercing status
@@ -1357,7 +1366,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           windPushForce = windEffect,
           isArcaneBullet = hasArcane,
           isBonusFromMultiShot = (i > 0),  # First bullet (i=0) is normal, rest are bonus
-          wasCrit = wasCrit
+          wasCrit = wasCrit,
+          isSpecialRound = isSpecialRound
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -1388,7 +1398,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         windPushForce = windEffect,
         isArcaneBullet = hasArcane,
         isBonusFromDoubleShot = false,  # First bullet is normal
-        wasCrit = wasCrit
+        wasCrit = wasCrit,
+        isSpecialRound = isSpecialRound
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -1425,7 +1436,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           windPushForce = windEffect,
           isArcaneBullet = hasArcane,
           isBonusFromMultiShot = (i > 0),  # First bullet (i=0) is normal, rest are bonus
-          wasCrit = wasCrit
+          wasCrit = wasCrit,
+          isSpecialRound = isSpecialRound
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -1449,7 +1461,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         fireDuration = fireEffect,
         windPushForce = windEffect,
         isArcaneBullet = hasArcane,
-        wasCrit = wasCrit
+        wasCrit = wasCrit,
+        isSpecialRound = isSpecialRound
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
@@ -1462,7 +1475,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     
     # Determine particle color based on bullet type - MATCHES BULLET COLOR
     var particleColor = Yellow  # Default
-    if hasArcane: particleColor = Color(r: 200, g: 100, b: 255, a: 255)
+    if isSpecialRound: particleColor = Color(r: 255, g: 215, b: 0, a: 255)  # Gold for special rounds
+    elif hasArcane: particleColor = Color(r: 200, g: 100, b: 255, a: 255)
     elif hasHoming: particleColor = Magenta
     elif hasPiercing: particleColor = SkyBlue
     elif hasExplosive: particleColor = Orange
@@ -1491,7 +1505,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let hasArcane = hasPowerUp(game.player, puArcaneBullets)
   
   var speed = game.player.bulletSpeed * 1.2
-  var damage = burstStats.damage * 0.85  # BUFFED: Second bullet reduced by 15% (was 25%)
+  var damage = burstStats.damage * 0.85  # Second bullet reduced by 15%
   var bulletRadius = BASE_PLAYER_BULLET_RADIUS
   
   # Apply Arcane Mastery piercing bonus
@@ -1512,8 +1526,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(burstStats, damage)
   damage = damageWithCrit
   
-  if hasPowerUp(game.player, puBulletSize):
-    let sizeLevel = getPowerUpLevel(game.player, puBulletSize)
+  if hasPowerUp(game.player, puHeavyRounds):
+    let sizeLevel = getPowerUpLevel(game.player, puHeavyRounds)
     let sizeMultiplier = case sizeLevel
       of 1: 1.5
       of 2: 2.0
@@ -1579,13 +1593,13 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         fireDuration = fireEffect,
         windPushForce = windEffect,
         isArcaneBullet = hasArcane,
-        isBonusFromDoubleShot = true,  # Second burst is always bonus from Double Shot
-        isBonusFromMultiShot = (i > 0),  # Side bullets also bonus from Multi-Shot
+        isBonusFromDoubleShot = true,
+        isBonusFromMultiShot = (i > 0),
         wasCrit = wasCrit
       )
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
-      trackBulletFired(game)  # Track shot for statistics
+      trackBulletFired(game)
   else:
     let bullet = newBullet(
       x = game.player.pos.x,
@@ -1604,12 +1618,12 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       fireDuration = fireEffect,
       windPushForce = windEffect,
       isArcaneBullet = hasArcane,
-      isBonusFromDoubleShot = true,  # Second burst is bonus from Double Shot
+      isBonusFromDoubleShot = true,
       wasCrit = wasCrit
     )
     bullet.radius = bulletRadius
     game.bullets.add(bullet)
-    trackBulletFired(game)  # Track shot for statistics
+    trackBulletFired(game)
   
   playSound(stShoot, 0.25)
 
@@ -1654,7 +1668,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Keep distance from player
     if playerDist < 250.0:
       let retreatDir = toPlayer * -1.0
-      enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.5 * dt
+      enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.75 * dt
     else:
       # Drift toward center if far from player
       let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
@@ -1703,7 +1717,6 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     enemy.pos = enemy.pos + toPlayer * enemy.speed * 0.3 * dt
   
   of "electric_buildup":
-    # ENHANCED: Twitchy, charging movement (Chain Reactor phase 1)
     # Moves slowly with sudden micro-movements like electricity
     let chargeJitter = sin(game.time * 30.0 + cos(game.time * 40.0)) * 20.0 * dt
     let baseMove = toPlayer * enemy.speed * 0.6 * dt
@@ -1723,7 +1736,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
                      Color(r: 255, g: 255, b: 150, a: 255), 1)
   
   of "electric_surge":
-    # ENHANCED: Rapid zigzag movement like lightning bolt
+    # Rapid zigzag movement like lightning bolt
     let surgePhase = (game.time * 15.0).int mod 4
     let surgeAngle = case surgePhase
       of 0: arctan2(toPlayer.y, toPlayer.x) + 0.5
@@ -1739,7 +1752,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
                    Color(r: 220, g: 230, b: 255, a: 200), 2)
   
   of "critical_discharge":
-    # ENHANCED: Ultra-chaotic movement with mini-teleports
+    # Ultra-chaotic movement with mini-teleports
     if rand(100) < 8:  # 8% chance per frame to micro-teleport
       let zapAngle = rand(1.0) * PI * 2.0
       let zapDist = 30.0 + rand(50.0)
@@ -1914,7 +1927,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     enemy.pos = newVector2f(entropyX, entropyY)
   
   of "total_chaos":
-    # ENHANCED: Maximum chaos - truly unpredictable
+    # Maximum chaos - truly unpredictable
     # Random micro-teleport chance EVERY FRAME
     if rand(100) < 8:  # 8% chance per frame = ~5 teleports per second
       let chaosAngle = rand(1.0) * PI * 2.0
@@ -2053,7 +2066,6 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
   
   of bapWave:
-    # ENHANCED WAVE SYSTEM with specialData support
     # SpecialData modes:
     # - "rainbow_wave": Colorful cascading pattern (Boss 9)
     # - "temporal_wave": Time-distorted slow bullets (Boss 10)
@@ -2118,7 +2130,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       ))
   
   of bapCircle:
-    # ENHANCED CIRCLE SYSTEM - Perfect ring of bullets with thematic variants
+    # Perfect ring of bullets with thematic variants
     # SpecialData modes:
     # - "time_ring": Temporal distortion ring with pulsing cyan bullets (Boss 10)
     # - Default: Standard perfect circle
@@ -2162,19 +2174,9 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         spawnExplosionPooled(game.particlePool, trailX, trailY, particleColor, 2)
   
   of bapLaser:
-    # IMPROVED: Boss laser with proper warning system
+    # Boss laser with proper warning system
     # Laser patterns customized via specialData
     # EXISTING: "cross_laser", "rotating_grid", "prismatic_cage", "laser_snipe"
-    # BOSS 9 (Prism Architect) NEW PATTERNS:
-    # - "splitting_laser": Triangle pattern with light refraction (Phase 1)
-    # - "hexagonal_prism": Perfect hexagonal 6-way split (Phase 2)
-    # - "prismatic_storm": Massive array of splitting light beams (Phase 3)
-    # BOSS 10 (Timekeeper) TEMPORAL PATTERN:
-    # - "temporal_beam": Time-distorted lasers with delayed activation and cyan glow
-    # BOSS 11 (Chaos Weaver) CHAOS PATTERNS:
-    # - "chaos_beam": Unpredictable chaotic laser pattern
-    # BOSS 12 (Omega Entity) ULTIMATE PATTERN:
-    # - "omega_beam": Ultimate laser combining all previous mechanics
     
     let patternType = attack.specialData
     let laserCount = case patternType
@@ -2361,7 +2363,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     ))
     
   of bapBarrage:
-    # ENHANCED BARRAGE SYSTEM - Massive bullet spray with multiple themes
+    # Massive bullet spray with multiple themes
     # SpecialData modes:
     # - "voltage_burst": Electric explosion with yellow bullets (Boss 6)
     # - "blood_burst": Berserker rage explosion with red bullets (Boss 8)
@@ -2605,7 +2607,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
   
   of bapPulse:
-    # ENHANCED PULSE SYSTEM - Expanding ring with multiple thematic variants
+    # Expanding ring with multiple thematic variants
     # SpecialData modes:
     # - "electric_discharge": Electric shockwave with crackling particles (Boss 6)
     # - "ground_slam": Berserker impact with rocks/debris (Boss 8 Phase 2)
@@ -2899,10 +2901,10 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             else: etCube
         
         # Create minion with determined type
-        # Use a fixed base difficulty (1.0) so minions don't become stronger over time
+        # Use a fixed base difficulty so minions don't become stronger over time
         let minion = newEnemy(
           spawnX, spawnY, 
-          1.0,  # Fixed difficulty - does NOT scale with time
+          2.5,  # Fixed difficulty - does NOT scale with time
           thisType,
           game
         )
@@ -2910,8 +2912,8 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         minion.spawnedByBoss = true
         
         # NERF: Make boss-summoned minions smaller and slower
-        minion.radius = minion.radius * 0.65  # 35% smaller
-        minion.collisionRadius = minion.collisionRadius * 0.65  # Keep collision consistent
+        minion.radius = minion.radius * 1.0  # 35% smaller
+        minion.collisionRadius = minion.collisionRadius * 1.0  # Keep collision consistent
         minion.speed = minion.speed * 0.70  # 30% slower
         
         game.enemies.add(minion)
@@ -2920,7 +2922,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
   
   of bapMeteor:
-    # ENHANCED METEOR SYSTEM - Falling projectiles from above
+    # Falling projectiles from above
     # SpecialData modes:
     # - "warn_impact": Show visual warnings before meteors hit
     # - "massive_impact": Larger impact radius
@@ -2977,7 +2979,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
                         Color(r: 200, g: 150, b: 255, a: 255), 2)
   
   of bapOrbit:
-    # ENHANCED ORBITAL SATELLITE SYSTEM
+    # ORBITAL SATELLITE SYSTEM
     # Creates persistent satellites that orbit, shoot, and can be destroyed
     # SpecialData modes:
     # - "electric_charges": Electric Boss 6 - yellow sparking satellites
@@ -3031,7 +3033,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             laserChargeTime: 0.0
           ))
       
-      # Enhanced visual effects based on mode
+      # Visual effects based on mode
       let (explosionSize, explosionColor) = case orbitMode
         of "electric_charges":
           (35, Color(r: 255, g: 255, b: 150, a: 255))  # Bright yellow sparks
@@ -3057,7 +3059,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             spawnExplosionPooled(game.particlePool, ringX, ringY, satelliteColor, 3)
   
   of bapChain:
-    # ENHANCED CHAIN LIGHTNING SYSTEM
+    # CHAIN LIGHTNING SYSTEM
     # Implements proper chain mechanics with visual lightning arcs
     # SpecialData modes:
     # - "chain_basic": Simple 3-chain lightning (Phase 1)
@@ -3173,16 +3175,6 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # "afterimage_burst" = creates multiple images with burst effect
     # "triple_clone" = teleports to 3 locations simultaneously
     # "dimensional_rift" = creates rift visual effect
-    # BOSS 10 (Timekeeper) TEMPORAL PATTERNS:
-    # - "time_echo": 2 temporal afterimages that shoot delayed bullets
-    # - "echo_burst": 4 rapidly spawning temporal clones
-    # - "temporal_collapse": 6 reality-breaking teleports creating time rifts
-    # BOSS 11 (Chaos Weaver) CHAOS PATTERNS:
-    # - "chaos_blink": Random teleport with chaotic afterimages
-    # - "reality_shift": Distorts reality with multiple chaotic shifts
-    # - "dimensional_chaos": Maximum chaos - tears through dimensions
-    # BOSS 12 (Omega Entity) ULTIMATE PATTERNS:
-    # - "omega_blink": Ultimate teleport combining all previous mechanics
     
     let teleportMode = attack.specialData
     let teleportCount = case teleportMode
@@ -3197,7 +3189,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       else: 1
     
     # Create visual effect for each teleport
-    # Enhanced visuals for Timekeeper temporal modes and Chaos Weaver chaos modes
+    # Visuals for Timekeeper temporal modes and Chaos Weaver chaos modes
     let (initialExplosionSize, temporalTrails, chaosEffect) = case teleportMode
       of "time_echo":
         (18, true, false)  # Moderate explosion with temporal trails
@@ -3245,7 +3237,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         of "omega_blink": 5
         else: 2
       
-      # ENHANCED CHAOS DISTORTION: Create unstable spiral patterns
+      # CHAOS DISTORTION: Create unstable spiral patterns
       for spiral in 0..<(rand(3) + 2):  # 2-4 random spirals
         let spiralAngle = rand(PI * 2.0)
         for step in 0..12:
@@ -3530,7 +3522,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
             ))
   
   of bapDash:
-    # BERSERKER DASH SYSTEM - Enhanced with multi-charge mechanics
+    # BERSERKER DASH SYSTEM with multi-charge mechanics
     # SpecialData modes:
     # - "charge_attack": Basic charge with screen shake
     # - "double_charge": Charges twice in rapid succession
@@ -3567,7 +3559,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # Store remaining charges (will re-trigger after current dash finishes)
     # This is handled in boss update logic by checking dashChargesRemaining
     
-    # ENHANCED SCREEN SHAKE based on mode
+    # SCREEN SHAKE based on mode
     game.screenShakeIntensity = shakeIntensity
     game.screenShakeDecay = 40.0
     
@@ -3593,7 +3585,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         spawnExplosionPooled(game.particlePool, ringX, ringY,
                       Color(r: 255, g: 50, b: 0, a: 255), 5)
     
-    # Initial visual explosion with enhanced colors
+    # Initial visual explosion with colors
     let (explosionSize, explosionColor) = case dashMode
       of "rage_charge": (40, Color(r: 255, g: 0, b: 0, a: 255))
       of "double_charge": (30, Color(r: 255, g: 100, b: 0, a: 255))
@@ -3602,10 +3594,10 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
   
   of bapSnipe:
-    # ENHANCED PRECISION SNIPE SYSTEM - Boss 7 Orbital Commander
+    # PRECISION SNIPE SYSTEM - Boss 7 Orbital Commander
     # SpecialData modes:
     # - "orbital_snipe": Aimed shot from satellite position (shows laser pointer warning)
-    # - "precision_strike": Enhanced double snipe with warning indicators
+    # - "precision_strike": Double snipe with warning indicators
     # - "satellite_barrage": Multiple rapid snipes from different angles
     # - Default: Standard snipe
     
@@ -3879,7 +3871,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     var lifestealPercent = 0.05  # Base 5%
     
     if game.player.hasBloodMastery:
-      lifestealPercent *= 2.5  # 12.5% with mastery
+      lifestealPercent *= 2.0  # 10.0% with mastery
     
     let healAmount = baseDamage * lifestealPercent
     game.player.hp = min(game.player.hp + healAmount, game.player.maxHp)
@@ -3914,7 +3906,7 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
     return
   
   # Calculate base damage
-  let damageScaling = game.player.damage * 0.1
+  let damageScaling = game.player.damage * 0.2
   let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
     0.1 + damageScaling  # Legendary version
   else:
@@ -3936,7 +3928,6 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
       maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puBloodOrb)))
     (maxDamage * 0.5) + damageScaling
   
-  # BUFFED: Increased orb collision radius from 6.0 to 9.0 to match new visual size
   let orbRadius = 9.0
   let orbDetectionRange = 0.0
   
@@ -4135,7 +4126,7 @@ proc updateGame*(game: var Game, dt: float32) =
     if game.player.radialBurstTimer <= 0:
       let level = getPowerUpLevel(game.player, puRadialBurst)
       let (bulletCount, cooldown) = case level
-        of 1: (8, 4.0)
+        of 1: (8, 3.5)
         of 2: (10, 3.0)
         else: (14, 2.0)
       
@@ -4201,7 +4192,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if game.player.hp <= 0:
         game.state = gsGameOver
     
-    # Poison visual effect (frame-independent)
+    # Poison visual effect
     # Spawn ~20 particles/sec
     spawnTimedParticlesPooled(game.particlePool, game.player.pos.x, game.player.pos.y, 20.0, Green, 2, dt)
   
@@ -4235,9 +4226,9 @@ proc updateGame*(game: var Game, dt: float32) =
     let level = getPowerUpLevel(game.player, puFireAura)
     let damageScaling = game.player.damage * 0.2
     let fireDamagePerSec = case level
-      of 1: 0.5 + damageScaling
-      of 2: 1.0 + damageScaling
-      else: 1.5 + damageScaling
+      of 1: 1.0 + damageScaling
+      of 2: 2.0 + damageScaling
+      else: 3.0 + damageScaling
     let fireDuration = case level
       of 1: 2.0
       of 2: 3.0
@@ -4255,7 +4246,7 @@ proc updateGame*(game: var Game, dt: float32) =
           actualFireDamage *= 2.5  # +150% damage
           actualFireDuration *= 2.0  # +100% duration
         
-        # Apply fire effect using new system
+        # Apply fire effect
         applyEffect(enemy, etFire, actualFireDamage, actualFireDuration, "aura")
         
         # Apply slow ONLY if player has Fire Mastery
@@ -4264,8 +4255,7 @@ proc updateGame*(game: var Game, dt: float32) =
           if enemy.slowAmount < 0.35:
             enemy.slowAmount = 0.35  # 35% slow
         
-        # Visual fire particles (frame-independent)
-        # 8% @ 60fps = 4.8 particles/sec -> use dt scaling
+        # Visual fire particles
         spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                                  enemy.radius + 5.0, 4.8, Red, 2, dt, -3.0)
   
@@ -4274,9 +4264,9 @@ proc updateGame*(game: var Game, dt: float32) =
     let level = getPowerUpLevel(game.player, puLightningAura)
     let damageScaling = game.player.damage * 0.2
     var lightningDamagePerSec = case level
-      of 1: 0.3 + damageScaling
-      of 2: 0.6 + damageScaling
-      else: 1.0 + damageScaling
+      of 1: 1.0 + damageScaling
+      of 2: 2.0 + damageScaling
+      else: 3.0 + damageScaling
     var maxChains = case level
       of 1: 1
       of 2: 2
@@ -4312,7 +4302,7 @@ proc updateGame*(game: var Game, dt: float32) =
         # Track lightning aura damage for statistics
         trackPowerUpDamage(game, puLightningAura, actualDamage)
         
-        # Use new accumulation system for reliable damage numbers
+        # Use accumulation system for reliable damage numbers
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dtLightning, wasCrit)
         
         # Apply slow ONLY if player has Lightning Mastery
@@ -4321,8 +4311,7 @@ proc updateGame*(game: var Game, dt: float32) =
           if enemy.slowAmount < 0.25:
             enemy.slowAmount = 0.25  # 25% slow
         
-        # Visual lightning spark (frame-independent)
-        # 10% @ 60fps = 6 particles/sec
+        # Visual lightning spark
         spawnTimedParticlesPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 6.0,
                            Color(r: 150, g: 200, b: 255, a: 255), 3, dt)
         
@@ -4357,8 +4346,7 @@ proc updateGame*(game: var Game, dt: float32) =
             if nearestEnemy.slowAmount < 0.05:
               nearestEnemy.slowAmount = 0.05
             
-            # Visual chain lightning particle (frame-independent)
-            # 20% @ 60fps = 12 particles/sec
+            # Visual chain lightning particle
             let midX = (currentEnemy.pos.x + nearestEnemy.pos.x) / 2.0
             let midY = (currentEnemy.pos.y + nearestEnemy.pos.y) / 2.0
             spawnTimedParticlesPooled(game.particlePool, midX, midY, 12.0,
@@ -4373,9 +4361,9 @@ proc updateGame*(game: var Game, dt: float32) =
     let level = getPowerUpLevel(game.player, puArcaneAura)
     let damageScaling = game.player.damage * 0.2
     var arcaneDamagePerSec = case level
-      of 1: 0.5 + damageScaling
-      of 2: 1.0 + damageScaling
-      else: 1.5 + damageScaling
+      of 1: 1.0 + damageScaling
+      of 2: 3.0 + damageScaling
+      else: 5.0 + damageScaling
     let arcaneRadius = getAuraRadius(level)
     
     # Apply Arcane Mastery bonuses if owned
@@ -4394,11 +4382,10 @@ proc updateGame*(game: var Game, dt: float32) =
         # Track arcane aura damage for statistics
         trackPowerUpDamage(game, puArcaneAura, actualDamage)
         
-        # Use new accumulation system for reliable damage numbers
+        # Use accumulation system for reliable damage numbers
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dtArcane, wasCrit)
         
-        # Visual arcane particles (purple sparkles) (frame-independent)
-        # 12% @ 60fps = 7.2 particles/sec
+        # Visual arcane particles (purple sparkles)
         spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                                  enemy.radius + 3.0, 7.2, 
                                  Color(r: 200, g: 100, b: 255, a: 255), 2, dt)
@@ -4408,9 +4395,9 @@ proc updateGame*(game: var Game, dt: float32) =
     let level = getPowerUpLevel(game.player, puPoisonAura)
     let damageScaling = game.player.damage * 0.2
     let poisonDamagePerSec = case level
-      of 1: 0.2 + damageScaling
-      of 2: 0.4 + damageScaling
-      else: 0.6 + damageScaling
+      of 1: 0.5 + damageScaling
+      of 2: 1.0 + damageScaling
+      else: 2.0 + damageScaling
     let poisonDuration = case level
       of 1: 6.0
       of 2: 8.0
@@ -4440,8 +4427,7 @@ proc updateGame*(game: var Game, dt: float32) =
           if enemy.slowAmount < 0.30:
             enemy.slowAmount = 0.30  # 30% slow
         
-        # Visual poison particles (frame-independent)
-        # 6% @ 60fps = 3.6 particles/sec
+        # Visual poison particles
         spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                                  enemy.radius + 5.0, 3.6, 
                                  Color(r: 100, g: 255, a: 200), 2, dt, -3.0)
@@ -4482,8 +4468,7 @@ proc updateGame*(game: var Game, dt: float32) =
           if enemy.slowAmount < 0.40:
             enemy.slowAmount = 0.40  # 40% slow
         
-        # Visual wind particles (outward from player toward enemies) (frame-independent)
-        # 8% @ 60fps = 4.8 particles/sec
+        # Visual wind particles (outward from player toward enemies)
         spawnTimedParticlesAroundPooled(game.particlePool, game.player.pos.x, game.player.pos.y, 
                                  windRadius * 0.8, 4.8, 
                                  Color(r: 200, g: 230, b: 255, a: 150), 2, dt)
@@ -4494,11 +4479,11 @@ proc updateGame*(game: var Game, dt: float32) =
     let damageScaling = game.player.damage * 0.2
     var bloodDamagePerSec = case level
       of 1: 0.5 + damageScaling
-      of 2: 1.0 + damageScaling
-      else: 1.5 + damageScaling
+      of 2: 2.0 + damageScaling
+      else: 3.0 + damageScaling
     let lifestealPercent = case level
       of 1: 0.025  # 2.5% lifesteal
-      of 2: 0.05  # 5% lifesteal
+      of 2: 0.05   # 5% lifesteal
       else: 0.075  # 7.5% lifesteal
     let bloodRadius = case level
       of 1: 120.0
@@ -4506,10 +4491,10 @@ proc updateGame*(game: var Game, dt: float32) =
       else: 200.0
     
     # Apply Blood Mastery bonuses if owned
-    var actualLifestealPercent = lifestealPercent
+    var actualLifestealPercent: float64 = lifestealPercent
     if game.player.hasBloodMastery:
       bloodDamagePerSec *= 2.5  # +150% damage
-      actualLifestealPercent *= 2.5  # +150% lifesteal
+      actualLifestealPercent *= 2.0  # +100% lifesteal
     
     # Static variable to track last healing number display time
     var lastBloodHealTime {.global.} = 0.0
@@ -4534,11 +4519,10 @@ proc updateGame*(game: var Game, dt: float32) =
         # Accumulate healing based on damage dealt
         totalHealing += actualDamage * actualLifestealPercent
         
-        # Use new accumulation system for reliable damage numbers (use dtFire for red blood damage)
+        # Use accumulation system for reliable damage numbers (use dtFire for red blood damage)
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dtFire, wasCrit)
         
-        # Visual blood particles (frame-independent)
-        # 8% @ 60fps = 4.8 particles/sec
+        # Visual blood particles
         spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
                                  enemy.radius + 5.0, 4.8, 
                                  Color(r: 255, g: 50, b: 50, a: 255), 2, dt, -3.0)
@@ -4574,8 +4558,7 @@ proc updateGame*(game: var Game, dt: float32) =
         enemy.pos.x += toPlayer.x * pullForce * dt
         enemy.pos.y += toPlayer.y * pullForce * dt
         
-        # Spawn visual particles for gravity effect (more for ranged enemies) (frame-independent)
-        # 25% @ 60fps = 15 particles/sec for ranged, 15% = 9 particles/sec for melee
+        # Spawn visual particles for gravity effect (more for ranged enemies)
         let particleRate = if isRanged: 15.0 else: 9.0
         let particleColor = if isRanged: Color(r: 138, g: 43, b: 226, a: 220) else: Color(r: 75, g: 0, b: 130, a: 200)
         spawnTimedParticlesAroundPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
@@ -4706,7 +4689,6 @@ proc updateGame*(game: var Game, dt: float32) =
                        elif game.currentWave <= 25: (if rand(100) < 20: 2 elif rand(100) < 60: 3 else: 4)
                        else: (if rand(100) < 15: 2 elif rand(100) < 45: 3 elif rand(100) < 75: 4 else: 5)
       
-      # SLOWER SPAWN RATE - increased from 0.6-0.8 to 0.8-1.2
       let baseSpawnRate = if game.currentWave <= 3: 1.0
                           elif game.currentWave <= 7: 1.1
                           elif game.currentWave <= 12: 1.15
@@ -5468,7 +5450,6 @@ proc updateGame*(game: var Game, dt: float32) =
       while i >= 0:
         # Update orbit position using individual satellite rotation speed
         enemy.satellites[i].angle += dt * enemy.satellites[i].rotationSpeed
-        # OPTIMIZATION: Reuse existing Vector2f instead of creating new one
         enemy.satellites[i].pos.x = enemy.pos.x + cos(enemy.satellites[i].angle) * enemy.satellites[i].radius
         enemy.satellites[i].pos.y = enemy.pos.y + sin(enemy.satellites[i].angle) * enemy.satellites[i].radius
         
@@ -5647,11 +5628,10 @@ proc updateGame*(game: var Game, dt: float32) =
           bullet.sourceEnemyPos = enemy.pos
           break
     
-    # Echo Shots - spawn ghost trail bullets (LEGENDARY - BUFFED)
+    # Echo Shots - spawn ghost trail bullets (LEGENDARY)
     if bullet.fromPlayer and not bullet.isEcho and hasPowerUp(game.player, puEchoShots):
       bullet.echoTrailTimer += bulletDt
       
-      # BUFFED: Faster spawn rate and higher damage
       let spawnInterval = 0.05  # Was 0.08 - now spawns 60% faster
       let echoDamageMultiplier = 0.60  # Was 0.40 - now deals 60% damage
       
@@ -5659,7 +5639,6 @@ proc updateGame*(game: var Game, dt: float32) =
         bullet.echoTrailTimer = 0.0
         
         # Create echo bullet with full synergy support
-        # BUFFED: Longer lifetime and better speed retention
         createEchoBullet(game, bullet, echoDamageMultiplier, 0.7, 0.5)
 
     # Check rotating shield collision
@@ -5763,13 +5742,12 @@ proc updateGame*(game: var Game, dt: float32) =
             # Apply elite modifiers to damage
             var actualDamage = finalDamage
             
-            # BOSS DEFENSE: Apply defenseMultiplier first (CRITICAL FIX)
             # Higher defenseMultiplier = MORE defense (takes LESS damage)
             # 0.5 = half defense (takes 2x damage), 1.0 = normal, 2.0 = double defense (takes 0.5x damage)
             if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
               actualDamage /= game.enemies[j].defenseMultiplier
             
-            # Tank elite: 60% damage reduction (buffed from 50%)
+            # Tank elite: 60% damage reduction
             # Handles multiple elite types (wave 25+)
             if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
               actualDamage *= 0.4  # 60% reduction means 40% damage taken
@@ -5790,8 +5768,37 @@ proc updateGame*(game: var Game, dt: float32) =
             
             game.enemies[j].hp -= actualDamage
             
-            # Track bullet hit for statistics
-            trackBulletHit(game, bullet, game.enemies[j], actualDamage + shieldDamage)
+            # Giant Slayer: Deal % of enemy max HP as bonus damage
+            var giantSlayerDamage = 0.0
+            if hasPowerUp(game.player, puGiantSlayer):
+              let giantSlayerLevel = getPowerUpLevel(game.player, puGiantSlayer)
+              let percentDamage = case giantSlayerLevel
+                of 1: 0.01  # 1% of max HP
+                of 2: 0.02  # 2% of max HP
+                else: 0.03  # 3% of max HP
+              
+              giantSlayerDamage = game.enemies[j].maxHp * percentDamage
+              
+              # Apply elite modifiers to Giant Slayer damage too
+              if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
+                giantSlayerDamage /= game.enemies[j].defenseMultiplier
+              
+              # Tank elite: 60% damage reduction
+              if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
+                giantSlayerDamage *= 0.4
+              
+              # Shielded elite: Giant Slayer damage goes through shield to HP
+              game.enemies[j].hp -= giantSlayerDamage
+              
+              # Track Giant Slayer damage contribution
+              trackPowerUpDamage(game, puGiantSlayer, giantSlayerDamage)
+              
+              # Show Giant Slayer damage number in distinct color (purple/arcane)
+              if giantSlayerDamage > 0:
+                showDamage(game, game.enemies[j].pos, giantSlayerDamage, true, false, dtArcane)
+            
+            # Track bullet hit for statistics (now includes Giant Slayer damage)
+            trackBulletHit(game, bullet, game.enemies[j], actualDamage + shieldDamage + giantSlayerDamage)
             
             # Track power-up damage contributions (only ACTUAL extra damage they caused)
             
@@ -5823,6 +5830,14 @@ proc updateGame*(game: var Game, dt: float32) =
             if bullet.isBonusFromDoubleShot:
               trackPowerUpDamage(game, puDoubleShot, actualDamage)
             
+            # Track Special Rounds contribution (bonus damage from every Nth bullet)
+            if bullet.isSpecialRound:
+              # Special rounds deal 1.5x damage, so the bonus is 0.5x of final damage
+              # Calculate: baseDamage * 1.5 = actualDamage, so baseDamage = actualDamage / 1.5
+              # Bonus = actualDamage - baseDamage = actualDamage - (actualDamage / 1.5) = actualDamage * (1 - 1/1.5) = actualDamage * 0.333
+              let specialRoundsBonusDamage = actualDamage * 0.333
+              trackPowerUpDamage(game, puSpecialRounds, specialRoundsBonusDamage)
+            
             # Create damage number for shield damage (blue colored for shields)
             if shieldDamage > 0:
               showDamage(game, game.enemies[j].pos, shieldDamage, true, isCrit, dtLaser)
@@ -5849,6 +5864,19 @@ proc updateGame*(game: var Game, dt: float32) =
             game.enemies[j].pos.x += pushDir.x * knockbackForce * 0.016 * bossResistance
             game.enemies[j].pos.y += pushDir.y * knockbackForce * 0.016 * bossResistance
           
+          # Special Rounds stun effect
+          if bullet.isSpecialRound:
+            # Apply brief stun (80% slow for 0.5 seconds)
+            let stunDuration = 0.5
+            let baseStunAmount = 0.8  # 80% slow
+            let stunAmount = baseStunAmount * (1.0 - game.enemies[j].debuffResistance)
+            game.enemies[j].slowTimer = stunDuration
+            game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, stunAmount)
+            
+            # Visual feedback - extra particles in gold color
+            spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                          Color(r: 255, g: 215, b: 0, a: 255), 15)
+          
           # UNIFIED BULLET EFFECT SYSTEM
           applyBulletEffects(game, bullet, game.enemies[j], dt)
           
@@ -5857,7 +5885,6 @@ proc updateGame*(game: var Game, dt: float32) =
             let splitLevel = getPowerUpLevel(game.player, puBulletSplit)
             let splitCount = splitLevel + 1  # 2, 3, or 4 bullets
             
-            # Use the new synergy system to create split bullets
             createSplitBullets(game, bullet, splitCount, 0.5, 0.7)
           
           # Impact particles
@@ -5885,7 +5912,7 @@ proc updateGame*(game: var Game, dt: float32) =
                 if actualDamage > 0:
                   showDamage(game, game.enemies[k].pos, actualDamage, true, isCrit, dtExplosion)
             
-            # Enhanced visual explosion with shockwave
+            # Visual explosion with shockwave
             spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Orange, 35)
             spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Yellow, 20)
             spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
@@ -6155,18 +6182,18 @@ proc updateGame*(game: var Game, dt: float32) =
       # Pull coin toward player with magnet animation
       moveCoinToPlayer(game.coins[i], game.player.pos, dt)
       
-      # Add subtle particle trail for magnet effect (frame-independent)
+      # Add subtle particle trail for magnet effect
       spawnTimedParticlesPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, 18.0,
                          Color(r: 255, g: 215, b: 0, a: 150), 1, dt)
     
-    # Enhanced magnet effect from consumable
+    # Magnet effect from consumable
     if game.player.magnetTimer > 0:
       moveCoinToPlayer(game.coins[i], game.player.pos, dt)
     
     # Collect coin on contact
     if checkPlayerCollision(game.coins[i], game.player):
       let isBossCoin = game.coins[i].isBossCoin
-      # Apply Lucky Coins (Greed) multiplier - doubles coins collected
+      # Apply Greed multiplier
       let coinValue = if hasPowerUp(game.player, puLuckyCoins):
         game.coins[i].value * 2
       else:
@@ -6183,9 +6210,8 @@ proc updateGame*(game: var Game, dt: float32) =
       
       # If this was a boss coin, end the boss wave and advance
       if isBossCoin and game.bossWaveManager.isBossCoinActive():
-        game.bossWaveManager.bossCoinCollected()  # Mark boss coin as collected
+        game.bossWaveManager.bossCoinCollected()
         if shouldUseWaves(game.mode):
-          # Use centralized boss wave completion logic
           game.completeBossWave()
       
       game.coins.delete(i)
@@ -6200,12 +6226,12 @@ proc updateGame*(game: var Game, dt: float32) =
       game.consumables.delete(i)
       continue
     
-    # Check if consumable is in player's collection aura (auto-collect like coins)
+    # Check if consumable is in player's collection aura (auto-collect)
     if isInPlayerAura(game.consumables[i], game.player):
       # Pull consumable toward player with magnet animation
       moveConsumableToPlayer(game.consumables[i], game.player.pos, dt)
       
-      # Add subtle particle trail for magnet effect (frame-independent)
+      # Add subtle particle trail for magnet effect
       spawnTimedParticlesPooled(game.particlePool, game.consumables[i].pos.x, game.consumables[i].pos.y,
                          18.0, Purple, 1, dt)
     
@@ -6291,8 +6317,8 @@ proc updateGame*(game: var Game, dt: float32) =
               of 2: 2.0  # +100% damage
               else: 3.0  # +200% damage
           
-          # Add damage scaling from player damage (10% scaling like orbs)
-          let damageScaling = game.player.damage * 0.1
+          # Add damage scaling from player damage (15% scaling)
+          let damageScaling = game.player.damage * 0.15
           turretDamage += damageScaling
           
           game.bullets.add(newBullet(
@@ -6317,12 +6343,11 @@ proc updateGame*(game: var Game, dt: float32) =
           spawnExplosionPooled(game.particlePool, game.walls[i].pos.x, game.walls[i].pos.y,
                         Color(r: 255, g: 200, b: 100, a: 255), 8)
           
-          game.walls[i].shootTimer = 2.0  # 2 second cooldown
+          game.walls[i].shootTimer = 1.5  # 1.5 second cooldown
     
     i += 1
   
   # Update particles
-  # Update pooled particles (new system - more performant, no allocations)
   updateParticlePool(game.particlePool, dt)
   
   # Update damage numbers
@@ -6365,7 +6390,6 @@ proc drawGame*(game: Game) =
   drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight)
   
   # Draw particles first (background layer)
-  # Draw pooled particles (new system - more performant)
   drawParticlePool(game.particlePool)
   
   # Draw attack warnings (before everything else so they're visible)
@@ -6444,15 +6468,7 @@ proc drawGame*(game: Game) =
           Color(r: 255, g: 150, b: 80, a: 255)   # Damaged - orange
         
         drawCircle(Vector2(x: sat.pos.x, y: sat.pos.y), 12.0, satColor)
-        # OPTIMIZATION: Skip outline circle to save draw calls
-        # drawCircleLines(sat.pos.x.int32, sat.pos.y.int32, 12.0,
-        #                Color(r: 200, g: 220, b: 255, a: 255))
-        
-        # OPTIMIZATION: Skip HP bar rendering - satellites are small and HP bars clutter screen
-        # Players can tell health from color change (blue = healthy, orange = damaged)
-        
-        # Draw laser target marker when laser is active
-        # OPTIMIZATION: Only draw during charge phase (< 1.5s), skip during firing to reduce clutter
+
         if sat.laserActive and sat.laserChargeTime < 1.5:
           # SIMPLIFIED crosshair - just two lines and one circle (5 draw calls reduced to 3)
           let targetSize = 15.0

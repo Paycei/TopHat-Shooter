@@ -1,6 +1,5 @@
-﻿## OS-Style Shop System - Enhanced Edition
+﻿## OS-Style Shop System
 ## Shop screen redesigned as a modern OS storefront interface
-## Matches the new OS theme from power-up installer and game over screens
 
 import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing
 
@@ -187,10 +186,10 @@ proc drawShop*(game: Game) =
   let coinWidth = measureText(coinText, 20)
   drawText(coinText, windowX + SHOP_WIDTH - coinWidth - 20, windowY + 12, 20, Gold)
   
-  # Sidebar for owned upgrades - adjusted for new bottom panel height
+  # Sidebar for owned upgrades
   let sidebarX = windowX + 10
   let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
-  let sidebarHeight: int32 = SHOP_HEIGHT - TITLE_BAR_HEIGHT - 85  # Account for reduced bottom panel (65 + margins)
+  let sidebarHeight: int32 = SHOP_HEIGHT - TITLE_BAR_HEIGHT - 85  # Account for reduced bottom panel
   
   drawRectangle(sidebarX, sidebarY, SIDEBAR_WIDTH, sidebarHeight,
                Color(r: 30, g: 38, b: 52, a: 255))
