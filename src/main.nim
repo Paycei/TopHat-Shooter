@@ -423,17 +423,8 @@ proc main() =
       if not osShopWindow.isNil and osShopWindow.window.visible:
         let shopClosed = updateShopWindow(osShopWindow, dt)
         if shopClosed:
-          # Save selected skins to settings if they changed
-          if osShopWindow.playerSkinChanged:
-            settings.playerSkin = osShopWindow.selectedPlayerSkin.int
-          if osShopWindow.bulletSkinChanged:
-            settings.bulletSkin = osShopWindow.selectedBulletSkin.int
-          if osShopWindow.shapeChanged:
-            settings.playerShape = osShopWindow.selectedShape.int
-          if osShopWindow.particleChanged:
-            settings.particleEffect = osShopWindow.selectedParticle.int
-          if osShopWindow.playerSkinChanged or osShopWindow.bulletSkinChanged or osShopWindow.shapeChanged or osShopWindow.particleChanged:
-            discard saveSettings(settings)
+          # Skins are now saved immediately upon selection in shop_window.nim
+          # Just close the window
           osShopWindow.window.visible = false
       
       if not osHelpWindow.isNil and osHelpWindow.window.visible:

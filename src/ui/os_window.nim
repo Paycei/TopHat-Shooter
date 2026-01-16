@@ -197,6 +197,10 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int): boo
   if not window.visible:
     return false
   
+  # Check ESC key to close window when focused
+  if window.focused and isKeyPressed(KeyboardKey.Escape):
+    return true
+  
   let mousePos = getMousePosition()
   
   # Handle dragging

@@ -1,7 +1,7 @@
 ## Shop Window
 ## OS-themed window for player and bullet customization with tabs
 
-import raylib, os_window, ../skins, ../bullet_skins, ../shapes, ../particle_skins, ../types, math, strformat, strutils
+import raylib, os_window, ../skins, ../bullet_skins, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system
 
 type
   ShopTab* = enum
@@ -66,6 +66,25 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     particleChanged: false,
     maxScrollOffset: 0.0
   )
+
+proc saveSkinSelectionImmediately*(shop: ShopWindow) =
+  ## Save skin selection to settings file immediately
+  if shop.playerSkinChanged:
+    globalSettings.playerSkin = shop.selectedPlayerSkin.int
+  if shop.bulletSkinChanged:
+    globalSettings.bulletSkin = shop.selectedBulletSkin.int
+  if shop.shapeChanged:
+    globalSettings.playerShape = shop.selectedShape.int
+  if shop.particleChanged:
+    globalSettings.particleEffect = shop.selectedParticle.int
+  
+  if shop.playerSkinChanged or shop.bulletSkinChanged or shop.shapeChanged or shop.particleChanged:
+    discard saveSettings(globalSettings)
+    # Reset change flags after saving
+    shop.playerSkinChanged = false
+    shop.bulletSkinChanged = false
+    shop.shapeChanged = false
+    shop.particleChanged = false
 
 proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, time: float32, isSelected: bool, isHovered: bool) =
   ## Draw a preview of a player skin with shop icon style
@@ -573,6 +592,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
             if isMouseButtonPressed(MouseButton.Left):
               shop.selectedPlayerSkin = skinType
               shop.playerSkinChanged = true
+              saveSkinSelectionImmediately(shop)
       
       skinIndex += 1
   elif shop.currentTab == stBulletSkins:
@@ -595,6 +615,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
             if isMouseButtonPressed(MouseButton.Left):
               shop.selectedBulletSkin = skinType
               shop.bulletSkinChanged = true
+              saveSkinSelectionImmediately(shop)
       
       skinIndex += 1
   elif shop.currentTab == stShapes:
@@ -617,6 +638,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
             if isMouseButtonPressed(MouseButton.Left):
               shop.selectedShape = shapeType
               shop.shapeChanged = true
+              saveSkinSelectionImmediately(shop)
       
       shapeIndex += 1
   elif shop.currentTab == stParticles:
@@ -639,6 +661,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
             if isMouseButtonPressed(MouseButton.Left):
               shop.selectedParticle = particleType
               shop.particleChanged = true
+              saveSkinSelectionImmediately(shop)
       
       particleIndex += 1
   
