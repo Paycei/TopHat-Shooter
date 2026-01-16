@@ -932,7 +932,7 @@ proc cleanupGame*(game: Game) =
   if not game.player.isNil:
     game.player.rotatingOrbs = @[]
 
-proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0): Game =
+proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0): Game =
   let defaultMode = gmWaveBased  # Default to wave-based mode
   let modeDef = getGameModeDefinition(defaultMode)
   
@@ -1000,6 +1000,7 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
   # Apply player skin from settings
   result.player.skinType = playerSkin
   result.player.bulletSkinType = bulletSkin
+  result.player.shapeType = playerShape
   
   # Discord client is assigned from global instance in main.nim
   # Don't create a new client here to avoid threading issues

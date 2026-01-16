@@ -216,6 +216,7 @@ type
     pulseArmorCooldown*: float32  # Cooldown after triggering shockwave
     skinType*: int  # Current equipped skin (stored as int for save compatibility)
     bulletSkinType*: int  # Current equipped bullet skin (stored as int for save compatibility)
+    shapeType*: int  # Current equipped shape (stored as int for save compatibility)
 
   EffectInstance* = object
     elementType*: ElementType

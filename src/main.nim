@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/settings_window, ui/help_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, ui/shop_window
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/settings_window, ui/help_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, ui/shop_window
 
 const
   screenWidth = 1024
@@ -157,6 +157,7 @@ proc main() =
   # Initialize skin systems
   initializeSkins()
   initializeBulletSkins()
+  initializeShapes()
   
   let cheatMenu = initCheatMenu()
   
@@ -185,7 +186,7 @@ proc main() =
     # Discord initialization failed - continue without Rich Presence
     globalDiscordClient = nil
   
-  var currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
+  var currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape)
   currentGame.state = gsSplash  # Start with splash screen
   # Assign global Discord client to game
   currentGame.discordClient = globalDiscordClient
@@ -291,21 +292,21 @@ proc main() =
       if not osDesktop.loadingActive and pendingGameMode >= 0:
         case pendingGameMode
         of 0:  # Wave-Based Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmWaveBased)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 1:  # Time Survival Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmTimeSurvival)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 6:  # Sandbox Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmSandbox)
           initializeRunTracking(currentGame)
@@ -379,7 +380,7 @@ proc main() =
           osSettingsWindow.window.focused = true
         of 4:  # Shop.exe - Open Customization Shop
           if osShopWindow.isNil:
-            osShopWindow = newShopWindow(screenWidth, screenHeight, settings.playerSkin.SkinType, settings.bulletSkin.BulletSkinType)
+            osShopWindow = newShopWindow(screenWidth, screenHeight, settings.playerSkin.SkinType, settings.bulletSkin.BulletSkinType, settings.playerShape.ShapeType)
           osShopWindow.window.visible = true
           osShopWindow.window.focused = true
         of 5:  # Help.txt - Open Help Window
@@ -426,7 +427,9 @@ proc main() =
             settings.playerSkin = osShopWindow.selectedPlayerSkin.int
           if osShopWindow.bulletSkinChanged:
             settings.bulletSkin = osShopWindow.selectedBulletSkin.int
-          if osShopWindow.playerSkinChanged or osShopWindow.bulletSkinChanged:
+          if osShopWindow.shapeChanged:
+            settings.playerShape = osShopWindow.selectedShape.int
+          if osShopWindow.playerSkinChanged or osShopWindow.bulletSkinChanged or osShopWindow.shapeChanged:
             discard saveSettings(settings)
           osShopWindow.window.visible = false
       
@@ -461,7 +464,7 @@ proc main() =
             osSettingsWindow.window.focused = true
           of 4:  # Shop.exe - Open Customization Shop
             if osShopWindow.isNil:
-              osShopWindow = newShopWindow(screenWidth, screenHeight, settings.playerSkin.SkinType, settings.bulletSkin.BulletSkinType)
+              osShopWindow = newShopWindow(screenWidth, screenHeight, settings.playerSkin.SkinType, settings.bulletSkin.BulletSkinType, settings.playerShape.ShapeType)
             osShopWindow.window.visible = true
             osShopWindow.window.focused = true
           of 5:  # Shutdown.exe - Quit
@@ -509,21 +512,21 @@ proc main() =
       if not osDesktop.loadingActive and pendingGameMode >= 0:
         case pendingGameMode
         of 0:  # Wave-Based Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmWaveBased)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 1:  # Time Survival Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmTimeSurvival)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 6:  # Sandbox Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmSandbox)
           initializeRunTracking(currentGame)

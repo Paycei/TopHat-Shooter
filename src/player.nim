@@ -1,4 +1,4 @@
-import raylib, types, wall, math, random, powerup, localization, skins
+import raylib, types, wall, math, random, powerup, localization, skins, shapes
 
 proc newPlayer*(x, y: float32): Player =
   result = Player(
@@ -59,7 +59,8 @@ proc newPlayer*(x, y: float32): Player =
     radialBurstTimer: 0.0,
     pulseArmorCooldown: 0.0,
     skinType: 0,  # Default skin (skDefault)
-    bulletSkinType: 0  # Default bullet skin (bskDefault)
+    bulletSkinType: 0,  # Default bullet skin (bskDefault)
+    shapeType: 0  # Default shape (shCircle)
   )
 
 proc hasAnyOrbPowerUp*(player: Player): bool =
@@ -305,54 +306,10 @@ proc drawPlayer*(player: Player) =
     baseColor = Color(r: 0, g: 255, b: 200, a: 255)  # Green-cyan tint
     glowIntensity += 0.2
   
-  # 1. OUTER ENERGY FIELD (background glow)
-  let outerGlowRadius = player.radius + 12
-  for i in 0..2:
-    let layerRadius = outerGlowRadius + i.float32 * 4.0
-    let layerAlpha = uint8((1.0 - i.float32 / 3.0) * glowIntensity * 50)
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), layerRadius,
-              Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
-  
-  # 2. CIRCUIT TRACES (inner glow layer)
-  let numTraces = 6
-  for i in 0..<numTraces:
-    let angle = rotation + i.float32 * PI / 3.0
-    let innerR = player.radius * 0.3
-    let outerR = player.radius * 0.9
-    let x1 = player.pos.x + cos(angle) * innerR
-    let y1 = player.pos.y + sin(angle) * innerR
-    let x2 = player.pos.x + cos(angle) * outerR
-    let y2 = player.pos.y + sin(angle) * outerR
-    let traceAlpha = uint8(80 + pulse * 60)
-    drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1.5,
-            Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255), 
-                  b: min(baseColor.b + 50, 255), a: traceAlpha))
-  
-  # 3. ROTATING HEXAGONAL FRAME
-  let hexRadius = player.radius * 0.85
-  let hexPoints = 6
-  for i in 0..<hexPoints:
-    let angle = rotation + i.float32 * PI / 3.0 - PI / 2.0
-    let nextAngle = rotation + (i + 1).float32 * PI / 3.0 - PI / 2.0
-    let x1 = player.pos.x + cos(angle) * hexRadius
-    let y1 = player.pos.y + sin(angle) * hexRadius
-    let x2 = player.pos.x + cos(nextAngle) * hexRadius
-    let y2 = player.pos.y + sin(nextAngle) * hexRadius
-    drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.5, baseColor)
-    # Corner nodes
-    drawCircle(Vector2(x: x1, y: y1), 2.5, baseColor)
-  
-  # 4. MAIN BODY CIRCLE
-  drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius * 0.6,
-            Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
-  
-  # 5. BRIGHT WHITE CORE
-  drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius * 0.35, coreColor)
-  # Core highlight
-  let highlightX = player.pos.x - player.radius * 0.15
-  let highlightY = player.pos.y - player.radius * 0.15
-  drawCircle(Vector2(x: highlightX, y: highlightY), player.radius * 0.15,
-            Color(r: 255, g: 255, b: 255, a: 180))
+  # Draw player using selected shape
+  let shapeType = player.shapeType.ShapeType
+  drawPlayerShape(player.pos, player.radius, shapeType, baseColor, secondaryColor, coreColor,
+                  time, rotation, pulse, glowIntensity)
   
   # 6. DATA PARTICLES (orbiting effect)
   if player.vel.length() > 10 or pulse > 0.7:

@@ -1,33 +1,36 @@
 ## Shop Window
 ## OS-themed window for player and bullet customization with tabs
 
-import raylib, os_window, ../skins, ../bullet_skins, ../types, math, strformat
+import raylib, os_window, ../skins, ../bullet_skins, ../shapes, ../types, math, strformat, strutils
 
 type
   ShopTab* = enum
     stPlayerSkins    # Player skins tab
     stBulletSkins    # Bullet skins tab
+    stShapes         # Player shapes tab
   
   ShopWindow* = ref object
     window*: OSWindow
     currentTab*: ShopTab
     selectedPlayerSkin*: SkinType
     selectedBulletSkin*: BulletSkinType
+    selectedShape*: ShapeType
     hoveredSkin*: int  # -1 for none
     scrollOffset*: float32
     animationTime*: float32
     playerSkinChanged*: bool
     bulletSkinChanged*: bool
+    shapeChanged*: bool
     maxScrollOffset*: float32
 
 const
-  SKINS_PER_ROW = 4
-  SKIN_BOX_WIDTH = 140
-  SKIN_BOX_HEIGHT = 120
+  SKINS_PER_ROW = 3  # Reduced from 4 to 3 to prevent right-side clipping
+  SKIN_BOX_WIDTH = 170  # Increased to give more space
+  SKIN_BOX_HEIGHT = 140  # Increased to accommodate 2-line descriptions
   SKIN_BOX_PADDING = 15
   TAB_HEIGHT = 40
 
-proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType): ShopWindow =
+proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType): ShopWindow =
   let windowWidth = 620
   let windowHeight = 450
   let windowX = (screenWidth - windowWidth) div 2
@@ -49,11 +52,13 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     currentTab: stPlayerSkins,
     selectedPlayerSkin: currentPlayerSkin,
     selectedBulletSkin: currentBulletSkin,
+    selectedShape: currentShape,
     hoveredSkin: -1,
     scrollOffset: 0.0,
     animationTime: 0,
     playerSkinChanged: false,
     bulletSkinChanged: false,
+    shapeChanged: false,
     maxScrollOffset: 0.0
   )
 
@@ -111,14 +116,50 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, time: float32, isSele
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
   drawText(skinData.name, nameX.int32, (y + 80).int32, 16, White)
   
-  # Skin description
-  let descWidth = measureText(skinData.description, 11)
-  let descX = x + (SKIN_BOX_WIDTH - descWidth) div 2
-  drawText(skinData.description, descX.int32, (y + 100).int32, 11, Gray)
+  # Skin description (2 lines max, wrapped)
+  let desc = skinData.description
+  let maxDescWidth = SKIN_BOX_WIDTH - 10
+  var line1 = ""
+  var line2 = ""
   
-  # Selected indicator
+  # Simple word wrapping
+  var words = desc.split(' ')
+  var currentLine = ""
+  for i, word in words:
+    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
+    if measureText(testLine, 10) <= maxDescWidth:
+      currentLine = testLine
+    else:
+      if line1.len == 0:
+        # First line is full, save it and start second line
+        line1 = currentLine
+        currentLine = word
+      else:
+        # Second line would overflow, stop here
+        line2 = currentLine
+        break
+  
+  # Handle remaining content
+  if line1.len == 0:
+    line1 = currentLine
+  elif line2.len == 0 and currentLine.len > 0:
+    line2 = currentLine
+  
+  let desc1Width = measureText(line1, 10)
+  let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
+  drawText(line1, desc1X.int32, (y + 100).int32, 10, Gray)
+  
+  if line2.len > 0:
+    let desc2Width = measureText(line2, 10)
+    let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
+    drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
+  
+  # Selected indicator (moved up to avoid clipping)
   if isSelected:
-    drawText("[EQUIPPED]", (x + 35).int32, (y + 115).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+    let equipText = "[EQUIPPED]"
+    let equipWidth = measureText(equipText, 11)
+    let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
+    drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
 
 proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool) =
   ## Draw a preview of a bullet skin
@@ -179,14 +220,142 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
   drawText(skinData.name, nameX.int32, (y + 80).int32, 16, White)
   
-  # Skin description
-  let descWidth = measureText(skinData.description, 11)
-  let descX = x + (SKIN_BOX_WIDTH - descWidth) div 2
-  drawText(skinData.description, descX.int32, (y + 100).int32, 11, Gray)
+  # Skin description (2 lines max, wrapped)
+  let desc = skinData.description
+  let maxDescWidth = SKIN_BOX_WIDTH - 10
+  var line1 = ""
+  var line2 = ""
   
-  # Selected indicator
+  # Simple word wrapping
+  var words = desc.split(' ')
+  var currentLine = ""
+  for i, word in words:
+    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
+    if measureText(testLine, 10) <= maxDescWidth:
+      currentLine = testLine
+    else:
+      if line1.len == 0:
+        # First line is full, save it and start second line
+        line1 = currentLine
+        currentLine = word
+      else:
+        # Second line would overflow, stop here
+        line2 = currentLine
+        break
+  
+  # Handle remaining content
+  if line1.len == 0:
+    line1 = currentLine
+  elif line2.len == 0 and currentLine.len > 0:
+    line2 = currentLine
+  
+  let desc1Width = measureText(line1, 10)
+  let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
+  drawText(line1, desc1X.int32, (y + 100).int32, 10, Gray)
+  
+  if line2.len > 0:
+    let desc2Width = measureText(line2, 10)
+    let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
+    drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
+  
+  # Selected indicator (moved up to avoid clipping)
   if isSelected:
-    drawText("[EQUIPPED]", (x + 35).int32, (y + 115).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+    let equipText = "[EQUIPPED]"
+    let equipWidth = measureText(equipText, 11)
+    let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
+    drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+
+proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool) =
+  ## Draw a preview of a player shape
+  # Background box
+  let bgColor = if isSelected:
+    Color(r: 0, g: 60, b: 80, a: 255)
+  elif isHovered:
+    Color(r: 60, g: 60, b: 70, a: 255)
+  else:
+    Color(r: 40, g: 40, b: 50, a: 255)
+  
+  drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, bgColor)
+  
+  # Border
+  let borderColor = if isSelected:
+    Color(r: 255, g: 150, b: 50, a: 255)  # Orange border when selected
+  elif isHovered:
+    Color(r: 120, g: 120, b: 140, a: 255)
+  else:
+    Color(r: 80, g: 80, b: 100, a: 255)
+  
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+                                width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
+                    2, borderColor)
+  
+  # Draw mini player shape
+  let centerX = (x + SKIN_BOX_WIDTH div 2).float32
+  let centerY = (y + 50).float32
+  let shapeRadius = 15.0
+  # Only rotate for circle shape
+  let rotation = if shapeType == shCircle: time * 0.5 else: 0.0
+  let pulse = sin(time * 2.0) * 0.5 + 0.5
+  
+  let baseColor = Color(r: 0, g: 200, b: 200, a: 255)
+  let secondaryColor = Color(r: 0, g: 150, b: 200, a: 255)
+  let coreColor = Color(r: 255, g: 255, b: 255, a: 255)
+  let glowIntensity = 0.4 + pulse * 0.2
+  
+  # Draw shape using the same rendering as in-game
+  drawPlayerShape(newVector2f(centerX, centerY), shapeRadius, shapeType,
+                 baseColor, secondaryColor, coreColor, time, rotation, pulse, glowIntensity)
+  
+  # Shape name
+  let shapeData = getShapeData(shapeType)
+  let nameWidth = measureText(shapeData.name, 16)
+  let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
+  drawText(shapeData.name, nameX.int32, (y + 80).int32, 16, White)
+  
+  # Shape description (2 lines max, wrapped)
+  let desc = shapeData.description
+  let maxDescWidth = SKIN_BOX_WIDTH - 10
+  var line1 = ""
+  var line2 = ""
+  
+  # Simple word wrapping
+  var words = desc.split(' ')
+  var currentLine = ""
+  for i, word in words:
+    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
+    if measureText(testLine, 10) <= maxDescWidth:
+      currentLine = testLine
+    else:
+      if line1.len == 0:
+        # First line is full, save it and start second line
+        line1 = currentLine
+        currentLine = word
+      else:
+        # Second line would overflow, stop here
+        line2 = currentLine
+        break
+  
+  # Handle remaining content
+  if line1.len == 0:
+    line1 = currentLine
+  elif line2.len == 0 and currentLine.len > 0:
+    line2 = currentLine
+  
+  let desc1Width = measureText(line1, 10)
+  let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
+  drawText(line1, desc1X.int32, (y + 100).int32, 10, Gray)
+  
+  if line2.len > 0:
+    let desc2Width = measureText(line2, 10)
+    let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
+    drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
+  
+  # Selected indicator (moved up to avoid clipping)
+  if isSelected:
+    let equipText = "[EQUIPPED]"
+    let equipWidth = measureText(equipText, 11)
+    let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
+    drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
 
 proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
   ## Update shop window. Returns true if window should close
@@ -221,15 +390,18 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
   
   # Check tab clicks
   let tabY = contentY
-  let tabWidth = contentWidth div 2
+  let tabWidth = contentWidth div 3  # Changed from div 2 to div 3 for 3 tabs
   
   if not shop.window.dragging and mouseY >= tabY and mouseY < tabY + TAB_HEIGHT:
     if isMouseButtonPressed(MouseButton.Left):
       if mouseX >= contentX and mouseX < contentX + tabWidth:
         shop.currentTab = stPlayerSkins
         shop.scrollOffset = 0.0
-      elif mouseX >= contentX + tabWidth and mouseX < contentX + contentWidth:
+      elif mouseX >= contentX + tabWidth and mouseX < contentX + tabWidth * 2:
         shop.currentTab = stBulletSkins
+        shop.scrollOffset = 0.0
+      elif mouseX >= contentX + tabWidth * 2 and mouseX < contentX + contentWidth:
+        shop.currentTab = stShapes
         shop.scrollOffset = 0.0
   
   # Calculate grid area
@@ -243,10 +415,14 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
     let skins = getUnlockedSkins().len
     let rows = (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
     (rows, skins)
-  else:
+  elif shop.currentTab == stBulletSkins:
     let skins = getUnlockedBulletSkins().len
     let rows = (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
     (rows, skins)
+  else:  # stShapes
+    let shapes = getUnlockedShapes().len
+    let rows = (shapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
+    (rows, shapes)
   
   let totalContentHeight = totalRows * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) + 10
   
@@ -290,7 +466,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
               shop.playerSkinChanged = true
       
       skinIndex += 1
-  else:
+  elif shop.currentTab == stBulletSkins:
     let unlockedBulletSkins = getUnlockedBulletSkins()
     var skinIndex = 0
     
@@ -312,6 +488,28 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
               shop.bulletSkinChanged = true
       
       skinIndex += 1
+  else:  # stShapes
+    let unlockedShapes = getUnlockedShapes()
+    var shapeIndex = 0
+    
+    for shapeType in unlockedShapes:
+      let col = shapeIndex mod SKINS_PER_ROW
+      let row = shapeIndex div SKINS_PER_ROW
+      
+      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
+      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
+      
+      if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
+        if inGridArea and not shop.window.dragging:
+          if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
+             mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
+            shop.hoveredSkin = shapeIndex
+            
+            if isMouseButtonPressed(MouseButton.Left):
+              shop.selectedShape = shapeType
+              shop.shapeChanged = true
+      
+      shapeIndex += 1
   
   return false
 
@@ -339,7 +537,7 @@ proc drawShopWindow*(shop: ShopWindow) =
                 Color(r: 25, g: 25, b: 35, a: 255))
   
   # Draw tabs
-  let tabWidth = contentWidth div 2
+  let tabWidth = contentWidth div 3  # Changed from div 2 to div 3
   let tabY = contentY
   
   # Player Skins tab
@@ -360,10 +558,24 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawText("BULLET SKINS", (contentX + tabWidth + tabWidth div 2 - 60).int32, (tabY + 12).int32, 16,
           if tab2Active: White else: Gray)
   
+  # Shapes tab
+  let tab3Active = shop.currentTab == stShapes
+  let tab3Color = if tab3Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
+  drawRectangle((contentX + tabWidth * 2).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab3Color)
+  if tab3Active:
+    drawRectangle((contentX + tabWidth * 2).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
+  drawText("SHAPES", (contentX + tabWidth * 2 + tabWidth div 2 - 35).int32, (tabY + 12).int32, 16,
+          if tab3Active: White else: Gray)
+  
   # Draw header
   let headerHeight = 50
   let headerY = contentY + TAB_HEIGHT
-  let tabTitle = if shop.currentTab == stPlayerSkins: "CUSTOMIZE YOUR APPEARANCE" else: "CUSTOMIZE YOUR BULLETS"
+  let tabTitle = if shop.currentTab == stPlayerSkins: 
+    "CUSTOMIZE YOUR APPEARANCE"
+  elif shop.currentTab == stBulletSkins:
+    "CUSTOMIZE YOUR BULLETS"
+  else:
+    "CHOOSE YOUR SHAPE"
   drawText(tabTitle, (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
   
   # Calculate grid area
@@ -376,10 +588,14 @@ proc drawShopWindow*(shop: ShopWindow) =
     let skins = getUnlockedSkins().len
     let rows = (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
     (skins, rows)
-  else:
+  elif shop.currentTab == stBulletSkins:
     let skins = getUnlockedBulletSkins().len
     let rows = (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
     (skins, rows)
+  else:  # stShapes
+    let shapes = getUnlockedShapes().len
+    let rows = (shapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
+    (shapes, rows)
   
   let totalContentHeight = totalRows * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) + 10
   
@@ -411,7 +627,7 @@ proc drawShopWindow*(shop: ShopWindow) =
         endScissorMode()
       
       skinIndex += 1
-  else:
+  elif shop.currentTab == stBulletSkins:
     let unlockedBulletSkins = getUnlockedBulletSkins()
     var skinIndex = 0
     
@@ -431,6 +647,26 @@ proc drawShopWindow*(shop: ShopWindow) =
         endScissorMode()
       
       skinIndex += 1
+  else:  # stShapes
+    let unlockedShapes = getUnlockedShapes()
+    var shapeIndex = 0
+    
+    for shapeType in unlockedShapes:
+      let col = shapeIndex mod SKINS_PER_ROW
+      let row = shapeIndex div SKINS_PER_ROW
+      
+      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
+      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
+      
+      if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
+        let isSelected = shapeType == shop.selectedShape
+        let isHovered = shapeIndex == shop.hoveredSkin
+        
+        beginScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
+        drawShapePreview(boxX, boxY, shapeType, shop.animationTime, isSelected, isHovered)
+        endScissorMode()
+      
+      shapeIndex += 1
   
   # Draw scrollbar if needed
   if shop.maxScrollOffset > 0:
@@ -456,7 +692,11 @@ proc drawShopWindow*(shop: ShopWindow) =
     let selectedData = getSkinData(shop.selectedPlayerSkin)
     drawText(&"Currently Equipped: {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
-  else:
+  elif shop.currentTab == stBulletSkins:
     let selectedData = getBulletSkinData(shop.selectedBulletSkin)
+    drawText(&"Currently Equipped: {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
+    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+  else:  # stShapes
+    let selectedData = getShapeData(shop.selectedShape)
     drawText(&"Currently Equipped: {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)

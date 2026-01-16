@@ -20,6 +20,7 @@ type
     language*: string
     playerSkin*: int  # Current player skin (stored as int)
     bulletSkin*: int  # Current bullet skin (stored as int)
+    playerShape*: int  # Current player shape (stored as int)
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -65,7 +66,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "showEnemyLabels": settings.showEnemyLabels,
     "language": settings.language,
     "playerSkin": settings.playerSkin,
-    "bulletSkin": settings.bulletSkin
+    "bulletSkin": settings.bulletSkin,
+    "playerShape": settings.playerShape
   }
 
 # Load Settings from JSON
@@ -108,6 +110,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("bulletSkin"):
     settings.bulletSkin = jsonNode["bulletSkin"].getInt()
+
+  if jsonNode.hasKey("playerShape"):
+    settings.playerShape = jsonNode["playerShape"].getInt()
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =
