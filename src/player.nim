@@ -60,7 +60,8 @@ proc newPlayer*(x, y: float32): Player =
     pulseArmorCooldown: 0.0,
     skinType: 0,  # Default skin (skDefault)
     bulletSkinType: 0,  # Default bullet skin (bskDefault)
-    shapeType: 0  # Default shape (shCircle)
+    shapeType: 0,  # Default shape (shHexagon)
+    particleSkinType: 0  # Default particle effect (pskDefault)
   )
 
 proc hasAnyOrbPowerUp*(player: Player): bool =

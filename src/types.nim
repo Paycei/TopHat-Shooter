@@ -217,6 +217,7 @@ type
     skinType*: int  # Current equipped skin (stored as int for save compatibility)
     bulletSkinType*: int  # Current equipped bullet skin (stored as int for save compatibility)
     shapeType*: int  # Current equipped shape (stored as int for save compatibility)
+    particleSkinType*: int  # Current equipped particle effect (stored as int for save compatibility)
 
   EffectInstance* = object
     elementType*: ElementType

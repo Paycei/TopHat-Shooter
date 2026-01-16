@@ -5,9 +5,10 @@ import raylib, types, math
 
 type
   ShapeType* = enum
-    shCircle,      # Default circular shape
+    shHexagon,     # Default hexagonal shape
     shTriangle,    # Triangle shape
-    shSquare       # Square shape
+    shSquare,      # Square shape
+    shCircle       # Simple circle shape
 
   ShapeData* = object
     name*: string
@@ -19,9 +20,9 @@ var shapeDatabase*: array[ShapeType, ShapeData]
 
 proc initializeShapes*() =
   ## Initialize all available shapes with their data
-  shapeDatabase[shCircle] = ShapeData(
-    name: "Circle",
-    description: "Classic round shape",
+  shapeDatabase[shHexagon] = ShapeData(
+    name: "Hexagon",
+    description: "Classic hexagonal shape",
     isUnlocked: true
   )
 
@@ -34,6 +35,12 @@ proc initializeShapes*() =
   shapeDatabase[shSquare] = ShapeData(
     name: "Square",
     description: "Solid square shape",
+    isUnlocked: true
+  )
+
+  shapeDatabase[shCircle] = ShapeData(
+    name: "Circle",
+    description: "Pure circular form",
     isUnlocked: true
   )
 
@@ -55,7 +62,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
   ## All shapes use the same hitbox (circular) but different visuals
   
   case shapeType:
-  of shCircle:
+  of shHexagon:
     # Circle uses rotation for the hexagonal frame
     # Original circular rendering (same as before)
     # 1. OUTER ENERGY FIELD (background glow)
@@ -234,3 +241,56 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     let highlightY = pos.y - radius * 0.15
     drawCircle(Vector2(x: highlightX, y: highlightY), radius * 0.15,
               Color(r: 255, g: 255, b: 255, a: 180))
+  
+  of shCircle:
+    # Pure circle shape - clean and simple (uses rotation for pulsing effect)
+    # 1. OUTER ENERGY FIELD (circular glow)
+    let outerGlowRadius = radius + 10 + pulse * 3.0  # Pulsing glow
+    for i in 0..3:
+      let layerRadius = outerGlowRadius + i.float32 * 3.5
+      let layerAlpha = uint8((1.0 - i.float32 / 4.0) * glowIntensity * 60)
+      drawCircle(Vector2(x: pos.x, y: pos.y), layerRadius,
+                Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
+    
+    # 2. ROTATING ENERGY RINGS (orbital layers)
+    let numRings = 3
+    for ring in 0..<numRings:
+      let ringAngleOffset = rotation + ring.float32 * (2.0 * PI / numRings.float32)
+      let ringRadius = radius * (0.6 + ring.float32 * 0.15)
+      let numDots = 8
+      for i in 0..<numDots:
+        let angle = ringAngleOffset + i.float32 * (2.0 * PI / numDots.float32)
+        let dotX = pos.x + cos(angle) * ringRadius
+        let dotY = pos.y + sin(angle) * ringRadius
+        let dotAlpha = uint8(100 + pulse * 80)
+        let dotSize = 1.5 + pulse * 0.5
+        drawCircle(Vector2(x: dotX, y: dotY), dotSize,
+                  Color(r: min(baseColor.r + 30, 255), g: min(baseColor.g + 30, 255), 
+                        b: min(baseColor.b + 30, 255), a: dotAlpha))
+    
+    # 3. MAIN OUTER RING
+    let mainRingRadius = radius * 0.9
+    drawCircle(Vector2(x: pos.x, y: pos.y), mainRingRadius, baseColor)
+    drawCircle(Vector2(x: pos.x, y: pos.y), mainRingRadius - 2.5,
+              Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 255))
+    
+    # 4. INNER BODY CIRCLE (darker fill)
+    let bodyRadius = radius * 0.7
+    drawCircle(Vector2(x: pos.x, y: pos.y), bodyRadius,
+              Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 220))
+    
+    # 5. SECONDARY COLOR RING (mid layer)
+    let secondaryRing = radius * 0.55
+    for i in 0..1:
+      let ringR = secondaryRing - i.float32 * 2.0
+      drawCircle(Vector2(x: pos.x, y: pos.y), ringR, secondaryColor)
+    
+    # 6. BRIGHT CORE with rotating highlight
+    drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.4, coreColor)
+    # Rotating core highlight
+    let highlightAngle = rotation * 2.0
+    let highlightDist = radius * 0.1
+    let highlightX2 = pos.x + cos(highlightAngle) * highlightDist
+    let highlightY2 = pos.y + sin(highlightAngle) * highlightDist
+    drawCircle(Vector2(x: highlightX2, y: highlightY2), radius * 0.2,
+              Color(r: 255, g: 255, b: 255, a: uint8(160 + pulse * 50)))

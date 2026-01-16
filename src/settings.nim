@@ -27,7 +27,8 @@ proc initSettings*(): Settings =
     language: "english",  # Default language is English
     playerSkin: 0,  # Default to first skin (skDefault)
     bulletSkin: 0,  # Default to first bullet skin (bskDefault)
-    playerShape: 0  # Default to first shape (shCircle)
+    playerShape: 0,  # Default to first shape (shHexagon)
+    particleEffect: 0  # Default to first particle effect (pskDefault)
   )
   globalSettings = result
   

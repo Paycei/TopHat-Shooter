@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config
+import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -932,7 +932,7 @@ proc cleanupGame*(game: Game) =
   if not game.player.isNil:
     game.player.rotatingOrbs = @[]
 
-proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0): Game =
+proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0, particleSkin: int = 0): Game =
   let defaultMode = gmWaveBased  # Default to wave-based mode
   let modeDef = getGameModeDefinition(defaultMode)
   
@@ -1001,6 +1001,7 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
   result.player.skinType = playerSkin
   result.player.bulletSkinType = bulletSkin
   result.player.shapeType = playerShape
+  result.player.particleSkinType = particleSkin
   
   # Discord client is assigned from global instance in main.nim
   # Don't create a new client here to avoid threading issues
@@ -1482,21 +1483,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Play shoot sound
     playSound(stShoot, 0.3)
     
-    # Determine particle color based on bullet type - MATCHES BULLET COLOR
-    var particleColor = Yellow  # Default
-    if isSpecialRound: particleColor = Color(r: 255, g: 215, b: 0, a: 255)  # Gold for special rounds
-    elif hasArcane: particleColor = Color(r: 200, g: 100, b: 255, a: 255)
-    elif hasHoming: particleColor = Magenta
-    elif hasPiercing: particleColor = SkyBlue
-    elif hasExplosive: particleColor = Orange
-    elif fireEffect > 0: particleColor = Color(r: 255, g: 80, b: 20, a: 255)
-    elif windEffect > 0: particleColor = Color(r: 200, g: 230, b: 255, a: 255)
-    elif slowEffect > 0: particleColor = Color(r: 150, g: 200, b: 255, a: 255)
-    elif poisonEffect > 0: particleColor = Green
-    elif hasRicochet: particleColor = Color(r: 255, g: 200, b: 0, a: 255)
-    
-    # Add muzzle flash particles with matching color
-    spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, particleColor, 5)
+    # Use the new particle skin system
+    let skinType = ParticleSkinType(game.player.particleSkinType)
+    spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, skinType, game.time)
 
 # Helper to fire delayed double-shot bursts
 proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
@@ -1610,6 +1599,10 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       bullet.radius = bulletRadius
       game.bullets.add(bullet)
       trackBulletFired(game)
+      
+      # Spawn shooting particles (only once, not per bullet in multi-shot)
+      if i == 0:
+        spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, ParticleSkinType(game.player.particleSkinType), game.time)
   else:
     let bullet = newBullet(
       x = game.player.pos.x,
@@ -1635,6 +1628,9 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
     bullet.radius = bulletRadius
     game.bullets.add(bullet)
     trackBulletFired(game)
+    
+    # Spawn shooting particles
+    spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, ParticleSkinType(game.player.particleSkinType), game.time)
   
   playSound(stShoot, 0.25)
 

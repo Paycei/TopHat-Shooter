@@ -21,6 +21,7 @@ type
     playerSkin*: int  # Current player skin (stored as int)
     bulletSkin*: int  # Current bullet skin (stored as int)
     playerShape*: int  # Current player shape (stored as int)
+    particleEffect*: int  # Current particle effect (stored as int)
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -67,7 +68,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "language": settings.language,
     "playerSkin": settings.playerSkin,
     "bulletSkin": settings.bulletSkin,
-    "playerShape": settings.playerShape
+    "playerShape": settings.playerShape,
+    "particleEffect": settings.particleEffect
   }
 
 # Load Settings from JSON
@@ -113,6 +115,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("playerShape"):
     settings.playerShape = jsonNode["playerShape"].getInt()
+
+  if jsonNode.hasKey("particleEffect"):
+    settings.particleEffect = jsonNode["particleEffect"].getInt()
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =

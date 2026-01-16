@@ -49,6 +49,7 @@ proc newSplashScreen*(): SplashScreen =
       "[ OK ] Power-Up Manager",
       "[ OK ] Statistics Tracker",
       "[ OK ] Discord Integration",
+      "[ OK ] Customization System",
       "",
       "TopHat-ShooterOS [v5.1 Edition]",
       "Ready to play.",
