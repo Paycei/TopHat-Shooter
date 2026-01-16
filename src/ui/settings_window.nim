@@ -384,7 +384,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(">", (langButtonX + langButtonWidth - 25).int32, yPos.int32, 18, LightGray)
 
 proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32, 
-                          screenWidth, screenHeight: int): tuple[shouldClose: bool, fullscreenToggle: bool] =
+                          screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool] =
   ## Returns (shouldClose, fullscreenToggleRequested)
   updateOSWindow(settingsWin.window, dt)
   
@@ -392,7 +392,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     return (false, false)
   
   # Check if window should close
-  let shouldClose = handleOSWindowInput(settingsWin.window, screenWidth, screenHeight)
+  let shouldClose = handleOSWindowInput(settingsWin.window, screenWidth, screenHeight, allWindows)
   if shouldClose:
     settingsWin.window.visible = false
     return (true, false)
@@ -401,8 +401,11 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   let contentX = settingsWin.window.x + WINDOW_PADDING
   let contentY = settingsWin.window.y + TITLE_BAR_HEIGHT + 60
   
-  # Tab switching with mouse (only when not minimized)
-  if not settingsWin.window.minimized and isMouseButtonPressed(Left):
+  # Only handle content interactions if this window is topmost at mouse position
+  let isTopmost = isWindowTopmostAtPoint(settingsWin.window, mousePos.x, mousePos.y, allWindows)
+  
+  # Tab switching with mouse (only if THIS window handled the click)
+  if not settingsWin.window.minimized and settingsWin.window.handledClickThisFrame and isTopmost:
     let tabY = settingsWin.window.y + TITLE_BAR_HEIGHT + 10
     let tabHeight = 35
     let tabWidth = 140
@@ -426,8 +429,8 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   var settingsChanged = false
   
   # Handle Graphics tab interactions
-  if settingsWin.currentTab == stGraphics:
-    if isMouseButtonPressed(Left):
+  if settingsWin.currentTab == stGraphics and isTopmost:
+    if settingsWin.window.handledClickThisFrame:
       let fsCheckX = contentX + 320
       let fsCheckY = contentY + 50
       
@@ -502,7 +505,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsWin.editingFPS = false
   
   # Handle Audio tab interactions
-  if settingsWin.currentTab == stAudio:
+  if settingsWin.currentTab == stAudio and isTopmost:
     let volumeSliderX = contentX + 250
     let volumeSliderY = contentY + 45
     let sliderWidth = 300
@@ -515,7 +518,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                         mousePos.y <= (volumeSliderY + sliderHeight).float32
     
     # Start dragging on click
-    if isMouseButtonPressed(Left) and volumeHovered:
+    if settingsWin.window.handledClickThisFrame and volumeHovered:
       settingsWin.draggingVolume = true
     
     # Continue dragging or handle click
@@ -537,7 +540,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                        mousePos.y <= (musicSliderY + sliderHeight).float32
     
     # Start dragging on click
-    if isMouseButtonPressed(Left) and musicHovered:
+    if settingsWin.window.handledClickThisFrame and musicHovered:
       settingsWin.draggingMusic = true
     
     # Continue dragging or handle click
@@ -552,8 +555,8 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       settingsChanged = true  # Only save when slider is released
   
   # Handle Controls tab interactions
-  if settingsWin.currentTab == stControls:
-    if isMouseButtonPressed(Left):
+  if settingsWin.currentTab == stControls and isTopmost:
+    if settingsWin.window.handledClickThisFrame:
       # Mouse support checkbox (25x25 hit area)
       let mouseCheckX = contentX + 320
       let mouseCheckY = contentY + 55
@@ -572,8 +575,8 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
           settingsChanged = true
   
   # Handle Gameplay tab interactions
-  if settingsWin.currentTab == stGameplay:
-    if isMouseButtonPressed(Left):
+  if settingsWin.currentTab == stGameplay and isTopmost:
+    if settingsWin.window.handledClickThisFrame:
       # Show hints checkbox (25x25 hit area)
       let hintsCheckX = contentX + 320
       let hintsCheckY = contentY + 50

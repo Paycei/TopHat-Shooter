@@ -5030,9 +5030,9 @@ proc updateGame*(game: var Game, dt: float32) =
         let level = getPowerUpLevel(game.player, puLifeSteal)
         game.player.killsSinceLastHeal += 1
         let healsPerKills = case level
-          of 1: 30
-          of 2: 25
-          else: 15
+          of 1: 20
+          of 2: 15
+          else: 10
         
         if game.player.killsSinceLastHeal >= healsPerKills:
           heal(game.player, 1)

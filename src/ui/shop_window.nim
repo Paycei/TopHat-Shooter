@@ -478,7 +478,7 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
     let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
     drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
 
-proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
+proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWindow]): bool =
   ## Update shop window. Returns true if window should close
   if shop.isNil or shop.window.isNil:
     return true
@@ -490,7 +490,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
   
   updateOSWindow(shop.window, dt)
   
-  let shouldClose = handleOSWindowInput(shop.window, 1024, 768)
+  let shouldClose = handleOSWindowInput(shop.window, 1024, 768, allWindows)
   if shouldClose:
     shop.window.visible = false
     return true
@@ -508,13 +508,14 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
   let mousePos = getMousePosition()
   let mouseX = mousePos.x.int
   let mouseY = mousePos.y.int
+  let isTopmost = isWindowTopmostAtPoint(shop.window, mousePos.x, mousePos.y, allWindows)
   
   # Check tab clicks
   let tabY = contentY
   let tabWidth = contentWidth div 4  # Changed to div 4 for 4 tabs
   
-  if not shop.window.dragging and mouseY >= tabY and mouseY < tabY + TAB_HEIGHT:
-    if isMouseButtonPressed(MouseButton.Left):
+  if not shop.window.dragging and mouseY >= tabY and mouseY < tabY + TAB_HEIGHT and isTopmost:
+    if shop.window.handledClickThisFrame:
       if mouseX >= contentX and mouseX < contentX + tabWidth:
         shop.currentTab = stPlayerSkins
         shop.scrollOffset = 0.0
@@ -562,7 +563,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
                    mouseY >= gridY and mouseY < gridY + gridHeight
   
   # Handle scrolling
-  if inGridArea and not shop.window.dragging:
+  if inGridArea and not shop.window.dragging and isTopmost:
     let wheelMove = getMouseWheelMove()
     if wheelMove != 0:
       shop.scrollOffset -= wheelMove * 30.0
@@ -584,12 +585,12 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
       let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
       
       if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
-        if inGridArea and not shop.window.dragging:
+        if inGridArea and not shop.window.dragging and isTopmost:
           if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
              mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
             shop.hoveredSkin = skinIndex
             
-            if isMouseButtonPressed(MouseButton.Left):
+            if shop.window.handledClickThisFrame:
               shop.selectedPlayerSkin = skinType
               shop.playerSkinChanged = true
               saveSkinSelectionImmediately(shop)
@@ -607,12 +608,12 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
       let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
       
       if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
-        if inGridArea and not shop.window.dragging:
+        if inGridArea and not shop.window.dragging and isTopmost:
           if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
              mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
             shop.hoveredSkin = skinIndex
             
-            if isMouseButtonPressed(MouseButton.Left):
+            if shop.window.handledClickThisFrame:
               shop.selectedBulletSkin = skinType
               shop.bulletSkinChanged = true
               saveSkinSelectionImmediately(shop)
@@ -630,12 +631,12 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
       let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
       
       if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
-        if inGridArea and not shop.window.dragging:
+        if inGridArea and not shop.window.dragging and isTopmost:
           if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
              mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
             shop.hoveredSkin = shapeIndex
             
-            if isMouseButtonPressed(MouseButton.Left):
+            if shop.window.handledClickThisFrame:
               shop.selectedShape = shapeType
               shop.shapeChanged = true
               saveSkinSelectionImmediately(shop)
@@ -653,12 +654,12 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32): bool =
       let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
       
       if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
-        if inGridArea and not shop.window.dragging:
+        if inGridArea and not shop.window.dragging and isTopmost:
           if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
              mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
             shop.hoveredSkin = particleIndex
             
-            if isMouseButtonPressed(MouseButton.Left):
+            if shop.window.handledClickThisFrame:
               shop.selectedParticle = particleType
               shop.particleChanged = true
               saveSkinSelectionImmediately(shop)

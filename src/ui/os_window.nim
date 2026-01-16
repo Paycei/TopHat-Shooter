@@ -29,6 +29,8 @@ type
     dragging*: bool
     dragOffsetX*, dragOffsetY*: int
     time*: float32
+    zOrder*: int  # Z-order for window stacking (higher = on top)
+    handledClickThisFrame*: bool  # TRUE if this window handled a click this frame
     
     # Resizing
     resizable*: bool  # Whether this window can be resized
@@ -66,7 +68,9 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     dragging: false,
     resizable: resizable,
     resizing: false,
+    handledClickThisFrame: false,
     time: 0,
+    zOrder: 0,
     animation: waNone,
     animationTimer: 0.0,
     animationDuration: 0.3,
@@ -105,6 +109,31 @@ proc startRestoreAnimation*(window: OSWindow) =
   window.minimized = false
   window.animation = waNone
 
+proc bringWindowToFront*(window: OSWindow, allWindows: openArray[OSWindow]) =
+  ## Bring this window to the front of all other windows
+  ## Updates z-order so this window is drawn on top
+  if window.isNil or not window.visible:
+    return
+  
+  # Find the highest z-order among all windows
+  var maxZOrder = 0
+  for w in allWindows:
+    if not w.isNil and w.visible and w.zOrder > maxZOrder:
+      maxZOrder = w.zOrder
+  
+  # Always bring this window to front by setting it higher than the max
+  # This ensures even newly opened windows (with zOrder=0) come to front
+  if window.zOrder <= maxZOrder:
+    window.zOrder = maxZOrder + 1
+  
+  # Set focus
+  window.focused = true
+  
+  # Unfocus all other windows
+  for w in allWindows:
+    if not w.isNil and w != window:
+      w.focused = false
+
 proc updateOSWindow*(window: OSWindow, dt: float32) =
   window.time += dt
 
@@ -132,6 +161,40 @@ proc isPointInWindow*(window: OSWindow, mouseX, mouseY: float32): bool =
            mouseX <= (window.x + window.width).float32 and
            mouseY >= window.y.float32 and 
            mouseY <= (window.y + window.height).float32
+
+proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindows: openArray[OSWindow]): bool =
+  ## Check if this window is the topmost window at the given point
+  if not window.visible:
+    return false
+  
+  # Check if point is in this window's clickable area
+  # For minimized windows, only the title bar counts
+  # For normal windows, the entire window counts
+  let pointInThisWindow = if window.minimized:
+    isPointInTitleBar(window, mouseX, mouseY)
+  else:
+    isPointInWindow(window, mouseX, mouseY)
+  
+  if not pointInThisWindow:
+    return false
+  
+  # Check if any other window is on top at this point
+  # IMPORTANT: Minimized windows' title bars should also block!
+  for otherWindow in allWindows:
+    if otherWindow != window and not otherWindow.isNil and otherWindow.visible:
+      if otherWindow.zOrder > window.zOrder:
+        # Check if the other window covers this point
+        # For minimized windows, only the title bar counts
+        # For normal windows, the entire window counts
+        let otherWindowCoversPoint = if otherWindow.minimized:
+          isPointInTitleBar(otherWindow, mouseX, mouseY)
+        else:
+          isPointInWindow(otherWindow, mouseX, mouseY)
+        
+        if otherWindowCoversPoint:
+          return false
+  
+  return true
 
 proc isPointInCloseButton*(window: OSWindow, mouseX, mouseY: float32): bool =
   if not window.visible or window.minimized:
@@ -192,7 +255,7 @@ proc getResizeEdge*(window: OSWindow, mouseX, mouseY: float32): int =
   else:
     return 0  # No edge
 
-proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int): bool =
+proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
   ## Returns true if window should close
   if not window.visible:
     return false
@@ -208,8 +271,6 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int): boo
     if isMouseButtonDown(Left):
       window.x = int(mousePos.x) - window.dragOffsetX
       window.y = int(mousePos.y) - window.dragOffsetY
-      
-      # Keep window in bounds
       window.x = max(0, min(window.x, screenWidth - window.width))
       window.y = max(0, min(window.y, screenHeight - 100))
     else:
@@ -221,16 +282,12 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int): boo
     if isMouseButtonDown(Left):
       case window.resizeEdge
       of 1:  # Right edge
-        let newWidth = int(mousePos.x) - window.x
-        window.width = max(MIN_WINDOW_WIDTH, newWidth)
+        window.width = max(MIN_WINDOW_WIDTH, int(mousePos.x) - window.x)
       of 2:  # Bottom edge
-        let newHeight = int(mousePos.y) - window.y
-        window.height = max(MIN_WINDOW_HEIGHT, newHeight)
+        window.height = max(MIN_WINDOW_HEIGHT, int(mousePos.y) - window.y)
       of 3:  # Corner
-        let newWidth = int(mousePos.x) - window.x
-        let newHeight = int(mousePos.y) - window.y
-        window.width = max(MIN_WINDOW_WIDTH, newWidth)
-        window.height = max(MIN_WINDOW_HEIGHT, newHeight)
+        window.width = max(MIN_WINDOW_WIDTH, int(mousePos.x) - window.x)
+        window.height = max(MIN_WINDOW_HEIGHT, int(mousePos.y) - window.y)
       else:
         discard
     else:
@@ -238,34 +295,69 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int): boo
       window.resizeEdge = 0
     return false
   
-  # Check for new interactions
+  # NEW CLICK HANDLING: Simple and clear
   if isMouseButtonPressed(Left):
-    # Check close button
+    # Step 1: Is the click on THIS window's interactive area?
+    let clickOnThisWindowArea = if window.minimized:
+      isPointInTitleBar(window, mousePos.x, mousePos.y)
+    else:
+      isPointInWindow(window, mousePos.x, mousePos.y)
+    
+    if not clickOnThisWindowArea:
+      return false  # Click is not on this window at all
+    
+    # Step 2: Find which window should handle this click (highest z-order at this point)
+    var windowThatShouldHandle: OSWindow = nil
+    var highestZ = -1
+    
+    for w in allWindows:
+      if w.isNil or not w.visible:
+        continue
+      
+      # Check if this window covers the click point
+      let windowCoversClick = if w.minimized:
+        isPointInTitleBar(w, mousePos.x, mousePos.y)
+      else:
+        isPointInWindow(w, mousePos.x, mousePos.y)
+      
+      if windowCoversClick and w.zOrder > highestZ:
+        highestZ = w.zOrder
+        windowThatShouldHandle = w
+    
+    # Step 3: Only handle if WE are the topmost window at this click
+    if windowThatShouldHandle != window:
+      return false  # Another window should handle this
+    
+    # WE handled this click - bring window to front immediately
+    window.handledClickThisFrame = true
+    
+    # Bring to front if not already focused
+    if not window.focused:
+      bringWindowToFront(window, allWindows)
+    
+    # Handle close button
     if isPointInCloseButton(window, mousePos.x, mousePos.y):
       return true
     
-    # Check minimize button
+    # Handle minimize/restore button
     if isPointInMinimizeButton(window, mousePos.x, mousePos.y):
-      # Only toggle minimize if not currently resizing or dragging
-      if not window.resizing and not window.dragging:
-        if window.minimized:
-          startRestoreAnimation(window)
-        else:
-          startMinimizeAnimation(window)
-        # Reset any drag or resize state when minimizing/unminimizing
-        window.dragging = false
-        window.resizing = false
-        window.resizeEdge = 0
+      if window.minimized:
+        startRestoreAnimation(window)
+      else:
+        startMinimizeAnimation(window)
+      window.dragging = false
+      window.resizing = false
+      window.resizeEdge = 0
       return false
     
-    # Check resize edges
+    # Handle resize edges
     let edge = getResizeEdge(window, mousePos.x, mousePos.y)
     if edge > 0:
       window.resizing = true
       window.resizeEdge = edge
       return false
     
-    # Check title bar for dragging
+    # Handle title bar dragging
     if isPointInTitleBar(window, mousePos.x, mousePos.y):
       window.dragging = true
       window.dragOffsetX = int(mousePos.x) - window.x

@@ -5,7 +5,7 @@ export newVector2f, `+`, `-`, `*`, length, normalize, distance
 
 type
   GameState* = enum
-    gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsHelp, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings, gsStatistics, gsRunStats
+    gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsSettings, gsStatistics, gsRunStats
 
   GameMode* = enum
     gmWaveBased,

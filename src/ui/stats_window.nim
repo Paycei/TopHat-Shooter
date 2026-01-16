@@ -62,14 +62,14 @@ proc newStatsWindow*(screenWidth, screenHeight: int, stats: Statistics): StatsWi
     animTime: 0
   )
 
-proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenHeight: int): bool =
+proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
   updateOSWindow(statsWin.window, dt)
   statsWin.animTime += dt
   
   if not statsWin.window.visible:
     return false
   
-  let shouldClose = handleOSWindowInput(statsWin.window, screenWidth, screenHeight)
+  let shouldClose = handleOSWindowInput(statsWin.window, screenWidth, screenHeight, allWindows)
   if shouldClose:
     statsWin.window.visible = false
     return true
@@ -79,20 +79,24 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
     if isKeyPressed(Two): statsWin.currentTab = stLastRun
     if isKeyPressed(Three): statsWin.currentTab = stPowerUps
   
-  if not statsWin.window.minimized and isMouseButtonPressed(Left):
+  # Only process content clicks if THIS window handled the click in handleOSWindowInput
+  if not statsWin.window.minimized and statsWin.window.handledClickThisFrame:
     let mousePos = getMousePosition()
-    let tabY = statsWin.window.y + TITLE_BAR_HEIGHT + 10
-    let tabHeight = 35
-    let tabWidth = 140
-    let contentX = statsWin.window.x + WINDOW_PADDING
-    var tabX = contentX
+    let isTopmost = isWindowTopmostAtPoint(statsWin.window, mousePos.x, mousePos.y, allWindows)
     
-    for tab in [stLifetime, stLastRun, stPowerUps]:
-      if mousePos.x >= tabX.float32 and mousePos.x <= (tabX + tabWidth).float32 and
-         mousePos.y >= tabY.float32 and mousePos.y <= (tabY + tabHeight).float32:
-        statsWin.currentTab = tab
-        break
-      tabX += tabWidth + 10
+    if isTopmost:
+      let tabY = statsWin.window.y + TITLE_BAR_HEIGHT + 10
+      let tabHeight = 35
+      let tabWidth = 140
+      let contentX = statsWin.window.x + WINDOW_PADDING
+      var tabX = contentX
+      
+      for tab in [stLifetime, stLastRun, stPowerUps]:
+        if mousePos.x >= tabX.float32 and mousePos.x <= (tabX + tabWidth).float32 and
+           mousePos.y >= tabY.float32 and mousePos.y <= (tabY + tabHeight).float32:
+          statsWin.currentTab = tab
+          break
+        tabX += tabWidth + 10
   
   return false
 

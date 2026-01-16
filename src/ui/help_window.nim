@@ -346,11 +346,11 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     
     of "sandbox", "sandbox.exe":
       help.addOutput(t(tkHelpLaunchingSandbox), Color(r: 255, g: 165, b: 0, a: 255))
-      help.pendingIconExecution = 6
+      help.pendingIconExecution = 7  # diSandbox = 7
     
     of "quit", "shutdown", "shutdown.exe", "exit":
       help.addOutput(t(tkHelpShuttingDown), Color(r: 255, g: 100, b: 100, a: 255))
-      help.pendingIconExecution = 5
+      help.pendingIconExecution = 6  # diQuit = 6
     
     else:
       help.addOutput(t(tkHelpUnknownCommand) & ": " & command, Red)
@@ -364,7 +364,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     help.addOutput("", White)
 
 
-proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int): int =
+proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): int =
   ## Returns icon to execute: -1 = none, 0-6 = desktop icon index (6 = sandbox)
   ## Window closing is handled by setting help.window.visible = false
   updateOSWindow(help.window, dt)
@@ -381,7 +381,7 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
     return iconToExecute
   
   # Check if window should close
-  let shouldClose = handleOSWindowInput(help.window, screenWidth, screenHeight)
+  let shouldClose = handleOSWindowInput(help.window, screenWidth, screenHeight, allWindows)
   if shouldClose:
     help.window.visible = false
     return -1

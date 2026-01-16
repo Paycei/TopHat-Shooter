@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/settings_window, ui/help_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/shop_window
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/settings_window, ui/help_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager
 
 const
   screenWidth = 1024
@@ -9,11 +9,12 @@ const
 # Global Discord client that persists across game sessions
 var globalDiscordClient: DiscordClient = nil
 
-# Global OS windows
+# Global window manager
+var globalWindowManager: WindowManager = nil
+
+# Legacy standalone windows (for gsSettings and gsStatistics states)
 var osSettingsWindow: SettingsWindow = nil
-var osHelpWindow: HelpWindow = nil
 var osStatsWindow: StatsWindow = nil
-var osShopWindow: ShopWindow = nil
 
 var
   renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
@@ -37,6 +38,15 @@ proc updateRenderScale() =
   let scaledHeight = screenHeight.float32 * renderScale
   renderOffsetX = (windowWidth.float32 - scaledWidth) / 2.0
   renderOffsetY = (windowHeight.float32 - scaledHeight) / 2.0
+
+proc getAllVisibleWindows(): seq[OSWindow] =
+  ## Legacy helper for standalone window states (gsSettings, gsStatistics)
+  ## Returns a sequence containing only the currently active standalone window
+  result = @[]
+  if not osSettingsWindow.isNil and osSettingsWindow.window.visible:
+    result.add(osSettingsWindow.window)
+  if not osStatsWindow.isNil and osStatsWindow.window.visible:
+    result.add(osStatsWindow.window)
 
 proc getVirtualMousePosition(): Vector2 =
   ## Convert screen mouse position to virtual game coordinates
@@ -195,9 +205,8 @@ proc main() =
   var splashScreen = newSplashScreen()
   var osDesktop = newOSDesktop()
   
-  osSettingsWindow = nil
-  osHelpWindow = nil
-  osStatsWindow = nil
+  # Initialize window manager with all windows
+  globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats)
   
   # Track pending game mode launch during loading animation
   var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox
@@ -316,39 +325,26 @@ proc main() =
         else: discard
         pendingGameMode = -1  # Reset pending mode
       
-      # Check if any windows are blocking desktop interaction
-      # Only handle desktop input if no windows are open and covering the desktop
+      # Handle window and desktop input
       let mousePos = getMousePosition()
       
       # Play click sound for any left-click on the desktop (anywhere)
       if isMouseButtonPressed(Left):
         playSound(stMenuNav, 0.6)
       
-      var windowBlocking = false
-      
-      if not osSettingsWindow.isNil and osSettingsWindow.window.visible and not osSettingsWindow.window.minimized:
-        if checkCollisionPointRec(mousePos, Rectangle(x: osSettingsWindow.window.x.float32,
-                                                       y: osSettingsWindow.window.y.float32,
-                                                       width: osSettingsWindow.window.width.float32,
-                                                       height: osSettingsWindow.window.height.float32)):
-          windowBlocking = true
-      
-      if not windowBlocking and not osHelpWindow.isNil and osHelpWindow.window.visible and not osHelpWindow.window.minimized:
-        if checkCollisionPointRec(mousePos, Rectangle(x: osHelpWindow.window.x.float32,
-                                                       y: osHelpWindow.window.y.float32,
-                                                       width: osHelpWindow.window.width.float32,
-                                                       height: osHelpWindow.window.height.float32)):
-          windowBlocking = true
-      
-      if not windowBlocking and not osStatsWindow.isNil and osStatsWindow.window.visible and not osStatsWindow.window.minimized:
-        if checkCollisionPointRec(mousePos, Rectangle(x: osStatsWindow.window.x.float32,
-                                                       y: osStatsWindow.window.y.float32,
-                                                       width: osStatsWindow.window.width.float32,
-                                                       height: osStatsWindow.window.height.float32)):
-          windowBlocking = true
+      # Handle window clicks and check if desktop is blocked
+      let windowConsumedClick = globalWindowManager.handleWindowClick(mousePos)
+      let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
       
       # Handle OS desktop input and get action (only if no windows are blocking)
-      let action = if not windowBlocking: handleDesktopInput(osDesktop, currentGame) else: -1
+      let action = if not mouseOverWindow: handleDesktopInput(osDesktop, currentGame) else: -1
+      
+      # Update all windows
+      let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight)
+      
+      # Handle fullscreen toggle from settings
+      if updateResult.fullscreenToggle:
+        fullscreenToggleRequested = true
       
       # Process desktop actions
       if action >= 0:
@@ -366,35 +362,51 @@ proc main() =
           let freshRunStats = loadLastRunStats()
           if not freshRunStats.isNil:
             loadLastCompletedRun(freshRunStats)
-          
-          if osStatsWindow.isNil:
-            osStatsWindow = newStatsWindow(screenWidth, screenHeight, stats)
-          else:
-            # Update stats reference if window already exists
-            osStatsWindow.stats = stats
-          osStatsWindow.window.visible = true
-          osStatsWindow.window.focused = true
+          globalWindowManager.stats.stats = stats  # Update stats reference
+          globalWindowManager.openWindow(widStats)
         of 3:  # Settings.exe - Open Settings Window
-          if osSettingsWindow.isNil:
-            osSettingsWindow = newSettingsWindow(screenWidth, screenHeight, settings)
-          osSettingsWindow.window.visible = true
-          osSettingsWindow.window.focused = true
+          globalWindowManager.openWindow(widSettings)
         of 4:  # Shop.exe - Open Customization Shop
-          if osShopWindow.isNil:
-            osShopWindow = newShopWindow(screenWidth, screenHeight, settings.playerSkin.SkinType, settings.bulletSkin.BulletSkinType, settings.playerShape.ShapeType, settings.particleEffect.ParticleSkinType)
-          osShopWindow.window.visible = true
-          osShopWindow.window.focused = true
+          globalWindowManager.openWindow(widShop)
         of 5:  # Help.txt - Open Help Window
-          if osHelpWindow.isNil:
-            osHelpWindow = newHelpWindow(screenWidth, screenHeight)
-          osHelpWindow.window.visible = true
-          osHelpWindow.window.focused = true
+          globalWindowManager.openWindow(widHelp)
         of 6:  # Shutdown.exe - Quit
           break
         of 7:  # Sandbox.exe - Sandbox Mode
           startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
           pendingGameMode = 6
         else: discard
+      
+      # Handle icon execution from help window commands
+      if updateResult.iconToExecute >= 0:
+        globalWindowManager.help.window.visible = false
+        playSound(stMenuSelect)
+        case updateResult.iconToExecute
+          of 0:  # Play.exe - Wave-Based Mode
+            startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
+            pendingGameMode = 0
+          of 1:  # Survival.exe - Time Survival Mode
+            startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
+            pendingGameMode = 1
+          of 2:  # Stats.exe - Open Statistics Window
+            discard loadStatistics(stats)
+            let freshRunStats = loadLastRunStats()
+            if not freshRunStats.isNil:
+              loadLastCompletedRun(freshRunStats)
+            globalWindowManager.stats.stats = stats
+            globalWindowManager.openWindow(widStats)
+          of 3:  # Settings.exe - Open Settings Window
+            globalWindowManager.openWindow(widSettings)
+          of 4:  # Shop.exe
+            globalWindowManager.openWindow(widShop)
+          of 5:  # Help.txt
+            globalWindowManager.openWindow(widHelp)
+          of 6:  # Shutdown.exe - Quit
+            break
+          of 7:  # Sandbox.exe
+            startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
+            pendingGameMode = 6
+          else: discard
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
@@ -411,78 +423,11 @@ proc main() =
           currentGame.discordClient = nil
           globalDiscordClient = nil
       
-      # Update OS windows if they exist and are visible
-      if not osSettingsWindow.isNil and osSettingsWindow.window.visible:
-        let result = updateSettingsWindow(osSettingsWindow, dt, screenWidth, screenHeight)
-        if result.fullscreenToggle:
-          fullscreenToggleRequested = true
-      
-      if not osStatsWindow.isNil and osStatsWindow.window.visible:
-        discard updateStatsWindow(osStatsWindow, dt, screenWidth, screenHeight)
-      
-      if not osShopWindow.isNil and osShopWindow.window.visible:
-        let shopClosed = updateShopWindow(osShopWindow, dt)
-        if shopClosed:
-          # Skins are now saved immediately upon selection in shop_window.nim
-          # Just close the window
-          osShopWindow.window.visible = false
-      
-      if not osHelpWindow.isNil and osHelpWindow.window.visible:
-        let iconToExecute = updateHelpWindow(osHelpWindow, dt, screenWidth, screenHeight)
-        # Handle icon execution from help window commands
-        if iconToExecute >= 0:
-          osHelpWindow.window.visible = false
-          playSound(stMenuSelect)
-          case iconToExecute
-          of 0:  # Play.exe - Wave-Based Mode
-            startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
-            pendingGameMode = 0
-          of 1:  # Survival.exe - Time Survival Mode
-            startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
-            pendingGameMode = 1
-          of 2:  # Stats.exe - Open Statistics Window
-            discard loadStatistics(stats)
-            let freshRunStats = loadLastRunStats()
-            if not freshRunStats.isNil:
-              loadLastCompletedRun(freshRunStats)
-            if osStatsWindow.isNil:
-              osStatsWindow = newStatsWindow(screenWidth, screenHeight, stats)
-            else:
-              osStatsWindow.stats = stats
-            osStatsWindow.window.visible = true
-            osStatsWindow.window.focused = true
-          of 3:  # Settings.exe - Open Settings Window
-            if osSettingsWindow.isNil:
-              osSettingsWindow = newSettingsWindow(screenWidth, screenHeight, settings)
-            osSettingsWindow.window.visible = true
-            osSettingsWindow.window.focused = true
-          of 4:  # Shop.exe - Open Customization Shop
-            if osShopWindow.isNil:
-              osShopWindow = newShopWindow(screenWidth, screenHeight, settings.playerSkin.SkinType, settings.bulletSkin.BulletSkinType, settings.playerShape.ShapeType, settings.particleEffect.ParticleSkinType)
-            osShopWindow.window.visible = true
-            osShopWindow.window.focused = true
-          of 5:  # Shutdown.exe - Quit
-            break
-          of 6:  # Sandbox.exe - Sandbox Mode
-            startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
-            pendingGameMode = 6
-          else: discard
-      
       beginGameDrawing()
       drawOSDesktop(osDesktop, screenWidth, screenHeight)
       
-      # Draw OS windows on top if visible
-      if not osStatsWindow.isNil and osStatsWindow.window.visible:
-        drawStatsWindow(osStatsWindow, currentGame)
-      
-      if not osSettingsWindow.isNil and osSettingsWindow.window.visible:
-        drawSettingsWindow(osSettingsWindow)
-      
-      if not osShopWindow.isNil and osShopWindow.window.visible:
-        drawShopWindow(osShopWindow)
-      
-      if not osHelpWindow.isNil and osHelpWindow.window.visible:
-        drawHelpWindow(osHelpWindow)
+      # Draw all windows using window manager
+      globalWindowManager.drawAllWindows(currentGame)
       
       # Draw loading overlay on top of everything if active
       drawLoadingOverlay(osDesktop, screenWidth, screenHeight)
@@ -491,89 +436,7 @@ proc main() =
       drawCustomCursor(currentGame.time)
       
       endGameDrawing()
-    
-    of gsHelp:
-      # Keep menu music playing during help screen
-      playMusic(mtMenu)
-      
-      # Update time for animations
-      currentGame.time += dt
-      
-      # Update OS desktop for loading animation
-      updateOSDesktop(osDesktop, dt)
-      
-      # Check if loading animation just finished and launch pending game mode
-      if not osDesktop.loadingActive and pendingGameMode >= 0:
-        case pendingGameMode
-        of 0:  # Wave-Based Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
-          currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, gmWaveBased)
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
-          statsSavedThisGame = false
-        of 1:  # Time Survival Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
-          currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, gmTimeSurvival)
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
-          statsSavedThisGame = false
-        of 6:  # Sandbox Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
-          currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, gmSandbox)
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
-          statsSavedThisGame = false
-        else: discard
-        pendingGameMode = -1  # Reset pending mode
-      
-      # Open OS help window if not already open
-      if osHelpWindow.isNil:
-        osHelpWindow = newHelpWindow(screenWidth, screenHeight)
-      if not osHelpWindow.window.visible:
-        osHelpWindow.window.visible = true
-        osHelpWindow.window.focused = true
-      
-      # Play click sound for any left-click
-      if isMouseButtonPressed(Left):
-        playSound(stMenuNav, 0.6)
-      
-      # Update help window
-      let iconToExecute = updateHelpWindow(osHelpWindow, dt, screenWidth, screenHeight)
-      
-      # Handle icon execution
-      if iconToExecute >= 0:
-        osHelpWindow.window.visible = false
-        case iconToExecute
-        of 0:  # Play
-          startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
-          pendingGameMode = 0
-        of 1:  # Survival
-          startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
-          pendingGameMode = 1
-        of 2:  # Stats
-          currentGame.state = gsStatistics
-        of 3:  # Settings
-          currentGame.state = gsSettings
-        of 5:  # Quit
-          break
-        else:
-          discard
-      
-      if isKeyPressed(Escape) or not osHelpWindow.window.visible:
-        osHelpWindow.window.visible = false
-        currentGame.state = gsMenu
-      
-      beginGameDrawing()
-      drawOSDesktop(osDesktop, screenWidth, screenHeight)
-      drawHelpWindow(osHelpWindow)
-      # Draw loading overlay on top of everything if active
-      drawLoadingOverlay(osDesktop, screenWidth, screenHeight)
-      drawCustomCursor(currentGame.time)
-      endGameDrawing()
-    
+
     of gsSettings:
       # Keep menu music playing during settings
       playMusic(mtMenu)
@@ -587,9 +450,10 @@ proc main() =
       if not osSettingsWindow.window.visible:
         osSettingsWindow.window.visible = true
         osSettingsWindow.window.focused = true
+        bringWindowToFront(osSettingsWindow.window, getAllVisibleWindows())
       
       # Update settings window
-      let result = updateSettingsWindow(osSettingsWindow, dt, screenWidth, screenHeight)
+      let result = updateSettingsWindow(osSettingsWindow, dt, screenWidth, screenHeight, getAllVisibleWindows())
       
       if isKeyPressed(Escape) or result.shouldClose or not osSettingsWindow.window.visible:
         osSettingsWindow.window.visible = false
@@ -637,9 +501,10 @@ proc main() =
       if not osStatsWindow.window.visible:
         osStatsWindow.window.visible = true
         osStatsWindow.window.focused = true
+        bringWindowToFront(osStatsWindow.window, getAllVisibleWindows())
       
       # Update stats window
-      let shouldClose = updateStatsWindow(osStatsWindow, dt, screenWidth, screenHeight)
+      let shouldClose = updateStatsWindow(osStatsWindow, dt, screenWidth, screenHeight, getAllVisibleWindows())
       
       if isKeyPressed(Escape) or shouldClose or not osStatsWindow.window.visible:
         osStatsWindow.window.visible = false
