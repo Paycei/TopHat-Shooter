@@ -42,7 +42,8 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 100, g: 255, b: 150, a: 255),  # Green
-    owtHelp
+    owtHelp,
+    resizable = false
   )
   
   result = HelpWindow(

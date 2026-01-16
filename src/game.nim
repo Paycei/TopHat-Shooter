@@ -4210,7 +4210,7 @@ proc updateGame*(game: var Game, dt: float32) =
   # Regeneration power-up is now handled per wave completion, not per time interval
   # See wave completion code for regeneration logic
   
-  # Slow Field power-up effect - NERFED for balance
+  # Slow Field power-up effect
   if hasPowerUp(game.player, puSlowField):
     let level = getPowerUpLevel(game.player, puSlowField)
     let slowPercent = case level
@@ -5347,10 +5347,9 @@ proc updateGame*(game: var Game, dt: float32) =
           
           # Venomous elite effect - applies poison to player
           # Handles multiple elite types (wave 25+)
-          # NERFED: Reduced poison damage from 1.0 DPS to 0.5 DPS (1.5 total over 3s instead of 3.0)
           if enemy.isElite and etVenomous in enemy.eliteTypes:
             game.player.poisonTimer = 3.0  # 3 seconds of poison
-            game.player.poisonDamage = 0.5  # 0.5 DPS = 1.5 total damage (NERFED from 1.0)
+            game.player.poisonDamage = 0.5  # 0.5 DPS = 1.5 total damage
             game.player.poisonAccumulator = 0.0  # Reset accumulator for new poison application
             spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 10)
           
@@ -5582,9 +5581,9 @@ proc updateGame*(game: var Game, dt: float32) =
     # Homing bullet logic
     if bullet.isHoming:
       if bullet.fromPlayer and game.enemies.len > 0:
-        # Player homing bullets track enemies (LEGENDARY - Single Level) - NERFED
+        # Player homing bullets track enemies (LEGENDARY - Single Level)
         # HEAVY NERF: Much shorter tracking range and weaker turn rate
-        let trackingRange = 120.0  # NERFED from 160.0 - very short range now
+        let trackingRange = 120.0
         
         # Find nearest enemy that HASN'T been hit by this bullet yet
         var nearestEnemy: Enemy = nil
@@ -5601,7 +5600,7 @@ proc updateGame*(game: var Game, dt: float32) =
         
         if nearestEnemy != nil:
           # HEAVY NERF: Much weaker tracking - bullets barely curve
-          let turnRate = 0.02  # NERFED from 0.05 - very weak tracking now
+          let turnRate = 0.02  # NERFED from 0.05
           
           let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
           let currentDir = bullet.vel.normalize()
@@ -5660,7 +5659,7 @@ proc updateGame*(game: var Game, dt: float32) =
       var hitShield = false
       var hitShieldIndex = -1
 
-      # Level-based coverage: NERFED - much smaller coverage
+      # Level-based coverage
       let arcCoverage = case level
         of 1: 0.30  # 30% coverage
         of 2: 0.35  # 35% coverage

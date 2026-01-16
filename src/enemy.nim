@@ -1071,8 +1071,8 @@ proc drawEnemy*(enemy: Enemy) =
       drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius, Black)
     
     of etCube:
-      # FIXED HITBOX - use radius directly, not 1.4x multiplier
-      let size = enemy.radius  # Changed from enemy.radius * 1.4
+      # Use radius directly, not 1.4x multiplier
+      let size = enemy.radius
       drawRectangle((enemy.pos.x - size).int32, (enemy.pos.y - size).int32, 
                     (size * 2).int32, (size * 2).int32, enemy.color)
       drawRectangleLines((enemy.pos.x - size).int32, (enemy.pos.y - size).int32, 

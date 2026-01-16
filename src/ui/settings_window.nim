@@ -36,7 +36,8 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings): Set
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 200, g: 100, b: 255, a: 255),  # Purple
-    owtSettings
+    owtSettings,
+    resizable = false
   )
   
   result = SettingsWindow(

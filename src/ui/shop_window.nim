@@ -38,7 +38,8 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 150, b: 50, a: 255),  # Orange accent for shop
-    owtSettings
+    owtSettings,
+    resizable = false
   )
   
   osWin.visible = true

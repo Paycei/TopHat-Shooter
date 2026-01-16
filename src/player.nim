@@ -159,7 +159,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # Scale aura with player radius - MUCH LARGER collection area
   player.auraRadius = player.radius * 3.5  # 3.5x player size for generous collection
   
-  # Update shield angle for rotating shield power-up - NERFED rotation speed
+  # Update shield angle for rotating shield power-up
   player.shieldAngle += dt * 1.0  # Reduced from 2.0 to 1.0 (50% slower)
   
   # Update shield health and regeneration
@@ -197,7 +197,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
         player.shieldRegenTimers[i] = 0.0
   
   # Update rotating orbs angle
-  player.orbRotationAngle += dt * 2.0  # Rotate orbs around player
+  player.orbRotationAngle += dt * 2.5  # Rotate orbs around player
   
   # Clean up orbs if no orb power-ups are active
   if not hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
@@ -376,7 +376,7 @@ proc drawPlayer*(player: Player) =
       drawCircle(Vector2(x: trailX, y: trailY), player.radius * trailScale,
                 Color(r: 0, g: 255, b: 200, a: trailAlpha))
   
-  # Rotating shield visual (if player has it) - NERFED with gaps
+  # Rotating shield visual
   for powerUp in player.powerUps:
     if powerUp.powerType == puRotatingShield:
       let level = powerUp.level
@@ -386,7 +386,7 @@ proc drawPlayer*(player: Player) =
       let shieldRadius = player.radius * 2.5 + 15  # Reduced from +15 to +10
       let shieldThickness = 3.0
       
-      # Level-based coverage matches collision: NERFED values
+      # Level-based coverage matches collision
       let arcCoverage = case level
         of 1: 0.30  # 30% coverage (was 50%)
         of 2: 0.35  # 35% coverage (was 70%)

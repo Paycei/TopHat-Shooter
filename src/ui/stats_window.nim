@@ -51,7 +51,8 @@ proc newStatsWindow*(screenWidth, screenHeight: int, stats: Statistics): StatsWi
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 200, b: 50, a: 255),
-    owtStatistics
+    owtStatistics,
+    resizable = false
   )
   
   result = StatsWindow(

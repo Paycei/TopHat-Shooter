@@ -31,6 +31,7 @@ type
     time*: float32
     
     # Resizing
+    resizable*: bool  # Whether this window can be resized
     resizing*: bool
     resizeEdge*: int  # 0=none, 1=right, 2=bottom, 3=corner
     
@@ -50,7 +51,7 @@ const
   MIN_WINDOW_HEIGHT* = 300
 
 proc newOSWindow*(title: string, x, y, width, height: int, 
-                 iconColor: Color, windowType: OSWindowType): OSWindow =
+                 iconColor: Color, windowType: OSWindowType, resizable: bool = true): OSWindow =
   result = OSWindow(
     x: x,
     y: y,
@@ -63,6 +64,7 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     minimized: false,
     focused: true,
     dragging: false,
+    resizable: resizable,
     resizing: false,
     time: 0,
     animation: waNone,
@@ -171,7 +173,7 @@ proc isPointInMinimizeButton*(window: OSWindow, mouseX, mouseY: float32): bool =
 proc getResizeEdge*(window: OSWindow, mouseX, mouseY: float32): int =
   ## Returns which edge is being hovered for resizing
   ## 0=none, 1=right, 2=bottom, 3=corner
-  if not window.visible or window.minimized:
+  if not window.visible or window.minimized or not window.resizable:
     return 0
   
   let edgeThreshold = 8
@@ -401,7 +403,7 @@ proc drawResizeIndicator*(window: OSWindow) =
   let mousePos = getMousePosition()
   let edge = getResizeEdge(window, mousePos.x, mousePos.y)
   
-  if edge > 0 or window.resizing:
+  if window.resizable and (edge > 0 or window.resizing):
     # Draw resize grip in bottom-right corner
     let gripX = window.x + window.width - 12
     let gripY = window.y + window.height - 12

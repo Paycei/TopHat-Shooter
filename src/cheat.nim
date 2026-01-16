@@ -212,11 +212,11 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   
   # Reset player stats to TRUE base values (matching newPlayer) and reapply all remaining power-ups
   # This ensures stat modifications from the removed power-up are undone
-  game.player.baseSpeed = 175.0  # Changed from 200.0 to match newPlayer
-  game.player.fireRate = 0.425   # Changed from 0.15 to match newPlayer
-  game.player.damage = 1.0       # Base damage before shop purchases
-  game.player.bulletSpeed = 300.0  # Changed from 600.0 to match newPlayer
-  game.player.maxHp = 7.0        # Base max HP before shop purchases
+  game.player.baseSpeed = 175.0
+  game.player.fireRate = 0.425
+  game.player.damage = 1.0
+  game.player.bulletSpeed = 300.0
+  game.player.maxHp = 7.0
   game.player.hp = min(game.player.hp, game.player.maxHp)
   
   # Reapply shop purchases for damage, health, speed, fire rate, and bullet speed
@@ -316,10 +316,10 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
   
   # Tab buttons with mouse support
   let tabY = panelY + 60
-  let tabWidth = panelWidth div 5  # Changed from div 4 to div 5
+  let tabWidth = panelWidth div 5
   
   let tabs = ["1. Waves", "2. Power", "3. Stats", "4. Perma", "5. Enemies"]
-  for i in 0'i32..4'i32:  # Changed from 3 to 4
+  for i in 0'i32..4'i32:
     let tabX = panelX + (i * tabWidth)
     let tabRect = Rectangle(x: tabX.float32, y: tabY.float32, width: tabWidth.float32, height: 30.float32)
     let tabHovered = checkCollisionPointRec(getMousePosition(), tabRect)
@@ -339,7 +339,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     drawRectangle(tabX, tabY, tabWidth, 30, bgColor)
     drawRectangleLines(tabX, tabY, tabWidth, 30, tabColor)
     let tabText = tabs[i]
-    let textWidth = measureText(tabText, 12)  # Changed from 14 to 12 for smaller font
+    let textWidth = measureText(tabText, 12)
     drawText(tabText, tabX + (tabWidth - textWidth) div 2, tabY + 9, 12, tabColor)
     
     # Handle tab click
