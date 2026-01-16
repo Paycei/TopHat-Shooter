@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/settings_window, ui/help_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager
 
 const
   screenWidth = 1024
@@ -11,10 +11,6 @@ var globalDiscordClient: DiscordClient = nil
 
 # Global window manager
 var globalWindowManager: WindowManager = nil
-
-# Legacy standalone windows (for gsSettings and gsStatistics states)
-var osSettingsWindow: SettingsWindow = nil
-var osStatsWindow: StatsWindow = nil
 
 var
   renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
@@ -38,15 +34,6 @@ proc updateRenderScale() =
   let scaledHeight = screenHeight.float32 * renderScale
   renderOffsetX = (windowWidth.float32 - scaledWidth) / 2.0
   renderOffsetY = (windowHeight.float32 - scaledHeight) / 2.0
-
-proc getAllVisibleWindows(): seq[OSWindow] =
-  ## Legacy helper for standalone window states (gsSettings, gsStatistics)
-  ## Returns a sequence containing only the currently active standalone window
-  result = @[]
-  if not osSettingsWindow.isNil and osSettingsWindow.window.visible:
-    result.add(osSettingsWindow.window)
-  if not osStatsWindow.isNil and osStatsWindow.window.visible:
-    result.add(osStatsWindow.window)
 
 proc getVirtualMousePosition(): Vector2 =
   ## Convert screen mouse position to virtual game coordinates
@@ -333,7 +320,7 @@ proc main() =
         playSound(stMenuNav, 0.6)
       
       # Handle window clicks and check if desktop is blocked
-      let windowConsumedClick = globalWindowManager.handleWindowClick(mousePos)
+      discard globalWindowManager.handleWindowClick(mousePos)
       let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
       
       # Handle OS desktop input and get action (only if no windows are blocking)
@@ -435,85 +422,6 @@ proc main() =
       # Draw custom cursor on menu
       drawCustomCursor(currentGame.time)
       
-      endGameDrawing()
-
-    of gsSettings:
-      # Keep menu music playing during settings
-      playMusic(mtMenu)
-      
-      # Update time first
-      currentGame.time += dt
-      
-      # Open OS settings window if not already open
-      if osSettingsWindow.isNil:
-        osSettingsWindow = newSettingsWindow(screenWidth, screenHeight, settings)
-      if not osSettingsWindow.window.visible:
-        osSettingsWindow.window.visible = true
-        osSettingsWindow.window.focused = true
-        bringWindowToFront(osSettingsWindow.window, getAllVisibleWindows())
-      
-      # Update settings window
-      let result = updateSettingsWindow(osSettingsWindow, dt, screenWidth, screenHeight, getAllVisibleWindows())
-      
-      if isKeyPressed(Escape) or result.shouldClose or not osSettingsWindow.window.visible:
-        osSettingsWindow.window.visible = false
-        currentGame.state = currentGame.previousState  # Return to where we came from
-        setGameVolume(settings.volume)  # Apply volume changes
-        setMusicVolume(settings.musicVolume)  # Apply music volume changes
-        playSound(stMenuSelect)
-      
-      if result.fullscreenToggle:
-        fullscreenToggleRequested = true
-      
-      # Always draw the frame first
-      beginGameDrawing()
-      # Draw appropriate background based on where we came from
-      if currentGame.previousState == gsMenu:
-        drawOSDesktop(osDesktop, screenWidth, screenHeight)
-      else:
-        # From game pause - show game in background with overlay
-        drawGame(currentGame)
-        drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 150))
-      
-      drawSettingsWindow(osSettingsWindow)
-      drawCustomCursor(currentGame.time)
-      endGameDrawing()
-    
-    of gsStatistics:
-      # Keep menu music playing during statistics screen
-      playMusic(mtMenu)
-      
-      # Update time for animations
-      currentGame.time += dt
-      
-      # Open OS stats window if not already open
-      # Reload stats from disk before opening
-      discard loadStatistics(stats)
-      let freshRunStats = loadLastRunStats()
-      if not freshRunStats.isNil:
-        loadLastCompletedRun(freshRunStats)
-      
-      if osStatsWindow.isNil:
-        osStatsWindow = newStatsWindow(screenWidth, screenHeight, stats)
-      else:
-        # Update stats reference if window already exists
-        osStatsWindow.stats = stats
-      if not osStatsWindow.window.visible:
-        osStatsWindow.window.visible = true
-        osStatsWindow.window.focused = true
-        bringWindowToFront(osStatsWindow.window, getAllVisibleWindows())
-      
-      # Update stats window
-      let shouldClose = updateStatsWindow(osStatsWindow, dt, screenWidth, screenHeight, getAllVisibleWindows())
-      
-      if isKeyPressed(Escape) or shouldClose or not osStatsWindow.window.visible:
-        osStatsWindow.window.visible = false
-        currentGame.state = gsMenu
-      
-      beginGameDrawing()
-      drawOSDesktop(osDesktop, screenWidth, screenHeight)
-      drawStatsWindow(osStatsWindow, currentGame)
-      drawCustomCursor(currentGame.time)
       endGameDrawing()
 
     of gsPlaying:
@@ -727,8 +635,7 @@ proc main() =
         currentGame.state = gsPlaying
         playSound(stMenuSelect)
       elif isKeyPressed(Tab):  # Open Settings
-        currentGame.previousState = gsPaused
-        currentGame.state = gsSettings
+        globalWindowManager.openWindow(widSettings)
         playSound(stMenuSelect)
       elif isKeyPressed(Q):  # Quit to main menu
         cleanupGame(currentGame)
@@ -769,8 +676,7 @@ proc main() =
         currentGame.state = gsPlaying
         playSound(stMenuSelect)
       elif menuResult.settingsClicked:
-        currentGame.previousState = gsPaused
-        currentGame.state = gsSettings
+        globalWindowManager.openWindow(widSettings)
         playSound(stMenuSelect)
       elif menuResult.exitClicked:
         cleanupGame(currentGame)
