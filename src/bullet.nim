@@ -11,7 +11,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 sourceEnemyId: int = -1,
                 isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
                 wasCrit: bool = false, isSpecialRound: bool = false,
-                bulletSkin: int = 0): Bullet =
+                bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1): Bullet =
   # Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -39,6 +39,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     travelDistance: 0.0,  # Track distance for Overcharge
     isEcho: isEcho,  # Whether this is an echo trail bullet
     echoTrailTimer: 0.0,  # Timer for spawning echo trails
+    bulletId: bulletId,  # Unique ID for this bullet
+    parentBulletId: parentBulletId,  # ID of parent bullet (for echo tracking)
     isBossBullet: isBossBullet,  # Mark boss bullets for glow effect
     isArcaneBullet: isArcaneBullet,  # Arcane bullet from arcane bullets power-up
     isBonusFromMultiShot: isBonusFromMultiShot,  # Bonus bullet from Multi-Shot
@@ -56,6 +58,11 @@ proc updateBullet*(bullet: Bullet, dt: float32): bool =
   bullet.pos = bullet.pos + movement
   bullet.lifetime -= dt
   return bullet.lifetime > 0
+
+proc assignBulletId*(game: Game, bullet: Bullet) =
+  ## Assign a unique ID to a bullet for parent-child tracking
+  game.bulletIdCounter += 1
+  bullet.bulletId = game.bulletIdCounter
 
 proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false, gameTime: float32 = 0.0) =
   # Get base color from bullet skin for player bullets
@@ -386,6 +393,7 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
                       lifetime: float32 = 0.35) =
   ## Create an echo trail bullet that inherits ALL properties
   ## SYNERGY SYSTEM: Echo bullets can split, ricochet, explode, etc.
+  ## FIX: Echo bullets track their parent so they can be removed when parent hits
   let echoBullet = cloneBullet(
     sourceBullet,
     sourceBullet.pos,
@@ -396,6 +404,11 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
     false  # Can split (for echo + split synergy)
   )
   
+  # Assign unique bullet ID and track parent
+  game.bulletIdCounter += 1
+  echoBullet.bulletId = game.bulletIdCounter
+  echoBullet.parentBulletId = sourceBullet.bulletId
+  
   # Make it an echo bullet with limited lifetime
   echoBullet.isEcho = true
   echoBullet.lifetime = lifetime
@@ -403,5 +416,8 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
   # Reset bounce count for echoes (they get fresh ricochets)
   if echoBullet.bounceCount >= 0:
     echoBullet.bounceCount = 0
+  
+  # Clear hitEnemies list so echo bullets can hit enemies independently
+  echoBullet.hitEnemies.setLen(0)
   
   game.bullets.add(echoBullet)

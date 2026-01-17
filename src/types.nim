@@ -337,6 +337,8 @@ type
     travelDistance*: float32  # Track distance for Overcharge
     isEcho*: bool  # True if this is an echo clone bullet
     echoTrailTimer*: float32  # Timer for spawning echo clones
+    parentBulletId*: int  # ID of parent bullet (for echo bullets to track their source)
+    bulletId*: int  # Unique ID for this bullet (for parent-child tracking)
     isBossBullet*: bool  # True if this bullet was fired by a boss (for glow effect)
     isArcaneBullet*: bool  # True if this bullet is from arcane bullet power-up
     isBonusFromMultiShot*: bool  # True if this is a bonus bullet from Multi-Shot
@@ -462,6 +464,7 @@ type
     player*: Player
     enemies*: seq[Enemy]
     bullets*: seq[Bullet]
+    bulletIdCounter*: int  # Counter for generating unique bullet IDs
     coins*: seq[Coin]
     consumables*: seq[Consumable]
     walls*: seq[Wall]

@@ -162,6 +162,75 @@ proc spawnShockwavePooled*(pool: ParticlePool, x, y: float32, radius: float32) =
     let py = y + sin(angle) * radius
     discard pool.acquireParticle(px, py, Color(r: 255, g: 200, b: 100, a: 255), 50)
 
+proc spawnExplosiveRingPooled*(pool: ParticlePool, x, y: float32, radius: float32, 
+                               ringCount: int, color: Color) =
+  ## Spawn concentric rings of particles for explosive bullets (like satellite trails)
+  ## Creates multiple expanding rings similar to how satellites show orbit trails
+  for ring in 1..ringCount:
+    let ringRadius = radius * (ring.float32 / ringCount.float32)
+    let particlesInRing = max(8, (ringRadius * 0.4).int)  # More particles in larger rings
+    
+    for i in 0..<particlesInRing:
+      let angle = i.float32 / particlesInRing.float32 * PI * 2.0
+      let px = x + cos(angle) * ringRadius
+      let py = y + sin(angle) * ringRadius
+      
+      # Vary particle size based on ring (outer rings have smaller particles)
+      let speedVariation = 30.0 + rand(40).float32
+      discard pool.acquireParticle(px, py, color, speedVariation)
+
+proc spawnSpiralExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float32,
+                                  armCount: int, color: Color) =
+  ## Spawn particles in a spiral pattern radiating outward
+  ## Creates a rotating vortex effect similar to the gravity well visualization
+  let particlesPerArm = max(5, (radius * 0.15).int)
+  
+  for arm in 0..<armCount:
+    let baseAngle = (arm.float32 / armCount.float32) * PI * 2.0
+    
+    for i in 0..<particlesPerArm:
+      let progress = i.float32 / particlesPerArm.float32
+      let spiralAngle = baseAngle + progress * PI * 0.5  # Add spiral twist
+      let spiralRadius = radius * progress
+      
+      let px = x + cos(spiralAngle) * spiralRadius
+      let py = y + sin(spiralAngle) * spiralRadius
+      
+      # Speed increases with distance from center
+      let speed = 60.0 + progress * 80.0 + rand(30).float32
+      discard pool.acquireParticle(px, py, color, speed)
+
+proc spawnNovaExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float32,
+                                primaryColor, secondaryColor: Color) =
+  ## Spawn a multi-layered nova explosion with inner and outer waves
+  ## Combines multiple particle patterns for a spectacular effect
+  
+  # Inner bright core
+  for i in 0..<15:
+    let angle = rand(1.0) * PI * 2.0
+    let dist = rand(radius * 0.3)
+    let px = x + cos(angle) * dist
+    let py = y + sin(angle) * dist
+    discard pool.acquireParticle(px, py, secondaryColor, 100 + rand(100).float32)
+  
+  # Middle expanding wave
+  let middleParticles = (radius * 0.6).int
+  for i in 0..<middleParticles:
+    let angle = i.float32 / middleParticles.float32 * PI * 2.0
+    let px = x + cos(angle) * radius * 0.6
+    let py = y + sin(angle) * radius * 0.6
+    discard pool.acquireParticle(px, py, primaryColor, 120 + rand(80).float32)
+  
+  # Outer shockwave ring
+  let outerParticles = (radius * 0.8).int
+  for i in 0..<outerParticles:
+    let angle = i.float32 / outerParticles.float32 * PI * 2.0
+    let px = x + cos(angle) * radius
+    let py = y + sin(angle) * radius
+    # Mix primary and secondary colors for variety
+    let color = if i mod 3 == 0: secondaryColor else: primaryColor
+    discard pool.acquireParticle(px, py, color, 80 + rand(60).float32)
+
 proc clearPool*(pool: ParticlePool) =
   ## Clear all active particles from the pool
   pool.activeCount = 0

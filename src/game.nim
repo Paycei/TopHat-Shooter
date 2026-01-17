@@ -942,6 +942,7 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     player: newPlayer(screenWidth.float32 / 2, screenHeight.float32 / 2),
     enemies: @[],
     bullets: @[],
+    bulletIdCounter: 0,  # Start at 0, increment with each bullet that needs tracking
     coins: @[],
     consumables: @[],
     walls: @[],
@@ -1410,6 +1411,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bulletSkin = game.player.bulletSkinType
       )
       bullet.radius = bulletRadius
+      assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
       
@@ -1475,6 +1477,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bulletSkin = game.player.bulletSkinType
       )
       bullet.radius = bulletRadius
+      assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
     
@@ -1597,6 +1600,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         bulletSkin = game.player.bulletSkinType
       )
       bullet.radius = bulletRadius
+      assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)
       
@@ -1626,6 +1630,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       bulletSkin = game.player.bulletSkinType
     )
     bullet.radius = bulletRadius
+    assignBulletId(game, bullet)
     game.bullets.add(bullet)
     trackBulletFired(game)
     
@@ -5627,6 +5632,21 @@ proc updateGame*(game: var Game, dt: float32) =
       game.bullets.delete(i)
       continue
     
+    # ENHANCED: Explosive bullets leave a particle trail (satellite-like effect)
+    if bullet.fromPlayer and bullet.isExplosive:
+      let level = getPowerUpLevel(game.player, puExplosiveBullets)
+      # Spawn particles at a rate based on explosion level
+      let particleSpawnRate = case level
+        of 1: 10.0  # Basic trail
+        of 2: 15.0  # Enhanced trail
+        of 3: 20.0  # Maximum trail (satellite-like density)
+        else: 8.0
+      
+      # Spawn trailing particles periodically
+      spawnTimedParticlesPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                particleSpawnRate, Color(r: 255, g: 150, b: 50, a: 200),
+                                3 + level, dt)
+    
     # Update sourceEnemyPos to track the enemy's current position
     # This ensures parried bullets go to where the enemy last was, not where it shot from
     if not bullet.fromPlayer and bullet.sourceEnemyId >= 0:
@@ -5637,6 +5657,10 @@ proc updateGame*(game: var Game, dt: float32) =
     
     # Echo Shots - spawn ghost trail bullets (LEGENDARY)
     if bullet.fromPlayer and not bullet.isEcho and hasPowerUp(game.player, puEchoShots):
+      # Ensure parent bullet has an ID for tracking
+      if bullet.bulletId == 0:
+        assignBulletId(game, bullet)
+      
       bullet.echoTrailTimer += bulletDt
       
       let spawnInterval = 0.05  # Was 0.08 - now spawns 60% faster
@@ -5646,7 +5670,7 @@ proc updateGame*(game: var Game, dt: float32) =
         bullet.echoTrailTimer = 0.0
         
         # Create echo bullet with full synergy support
-        createEchoBullet(game, bullet, echoDamageMultiplier, 0.7, 0.5)
+        createEchoBullet(game, bullet, echoDamageMultiplier, 0.7, 0.7)
 
     # Check rotating shield collision
     if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):
@@ -5855,6 +5879,18 @@ proc updateGame*(game: var Game, dt: float32) =
               showDamage(game, game.enemies[j].pos, actualDamage, true, isCrit, bulletDmgType)
           hitEnemy = true
           
+          # FIX: Remove all echo trail bullets when main bullet hits an enemy
+          # This prevents the entire trail from stacking damage on one target
+          if not bullet.isEcho and bullet.bulletId > 0:
+            # Remove all echo children of this bullet
+            var k = 0
+            while k < game.bullets.len:
+              if game.bullets[k].isEcho and game.bullets[k].parentBulletId == bullet.bulletId:
+                game.bullets.delete(k)
+                # Don't increment k since we removed an element
+              else:
+                k += 1
+          
           # Heavy Rounds knockback effect
           if hasPowerUp(game.player, puHeavyRounds):
             let heavyLevel = getPowerUpLevel(game.player, puHeavyRounds)
@@ -5919,10 +5955,35 @@ proc updateGame*(game: var Game, dt: float32) =
                 if actualDamage > 0:
                   showDamage(game, game.enemies[k].pos, actualDamage, true, isCrit, dtExplosion)
             
-            # Visual explosion with shockwave
-            spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Orange, 35)
-            spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Yellow, 20)
-            spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
+            # ENHANCED Visual explosion with multiple particle effects
+            # Level-based visual scaling similar to satellites
+            case level
+            of 1:
+              # Basic explosion - single nova burst
+              spawnNovaExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, 
+                                       explosionRadius, Orange, Yellow)
+              spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
+            of 2:
+              # Enhanced explosion - nova + ring pattern
+              spawnNovaExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                       explosionRadius, Orange, Yellow)
+              spawnExplosiveRingPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                       explosionRadius, 3, Color(r: 255, g: 180, b: 0, a: 255))
+              spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
+            of 3:
+              # Maximum explosion - nova + rings + spiral (satellite-like complexity)
+              spawnNovaExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                       explosionRadius, Orange, Yellow)
+              spawnExplosiveRingPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                       explosionRadius, 4, Color(r: 255, g: 180, b: 0, a: 255))
+              spawnSpiralExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                         explosionRadius, 6, Color(r: 255, g: 100, b: 0, a: 255))
+              spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
+            else:
+              # Fallback to basic
+              spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Orange, 35)
+              spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Yellow, 20)
+              spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
           
           # Piercing bullets can hit multiple enemies
           if bullet.isPiercing:
