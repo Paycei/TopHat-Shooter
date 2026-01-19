@@ -614,37 +614,57 @@ proc main() =
       if globalSettings.mouseSupport:
         currentGame.mouseMovedRecently = true
       
-      # Pause menu navigation - Tab switching (Left/Right or A/D)
-      if isKeyPressed(Left) or isKeyPressed(A):
-        currentGame.pauseMenuTab = case currentGame.pauseMenuTab
-          of tmtProcesses: tmtPerformance
-          of tmtPerformance: tmtProcesses
-          else: tmtProcesses
-        playSound(stMenuNav)
-        markKeyboardUsed(currentGame)
-      elif isKeyPressed(Right) or isKeyPressed(D):
-        currentGame.pauseMenuTab = case currentGame.pauseMenuTab
-          of tmtProcesses: tmtPerformance
-          of tmtPerformance: tmtProcesses
-          else: tmtProcesses
-        playSound(stMenuNav)
-        markKeyboardUsed(currentGame)
+      # Handle window clicks first (before pause menu interactions)
+      let mousePos = getMousePosition()
+      discard globalWindowManager.handleWindowClick(mousePos)
+      let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
       
-      # Actions
-      if isKeyPressed(Space):  # Resume
-        currentGame.state = gsPlaying
-        playSound(stMenuSelect)
-      elif isKeyPressed(Tab):  # Open Settings
-        globalWindowManager.openWindow(widSettings)
-        playSound(stMenuSelect)
-      elif isKeyPressed(Q):  # Quit to main menu
-        cleanupGame(currentGame)
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
-        currentGame.discordClient = globalDiscordClient
-        currentGame.state = gsMenu
-        playSound(stMenuSelect)
-      elif isKeyPressed(Escape):  # ESC also resumes
-        currentGame.state = gsPlaying
+      # Update all windows
+      let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight)
+      
+      # Handle fullscreen toggle from settings
+      if updateResult.fullscreenToggle:
+        fullscreenToggleRequested = true
+      
+      # Only handle pause menu controls if no window is blocking interaction
+      if not mouseOverWindow:
+        # Pause menu navigation - Tab switching (Left/Right or A/D)
+        if isKeyPressed(Left) or isKeyPressed(A):
+          currentGame.pauseMenuTab = case currentGame.pauseMenuTab
+            of tmtProcesses: tmtPerformance
+            of tmtPerformance: tmtProcesses
+            else: tmtProcesses
+          playSound(stMenuNav)
+          markKeyboardUsed(currentGame)
+        elif isKeyPressed(Right) or isKeyPressed(D):
+          currentGame.pauseMenuTab = case currentGame.pauseMenuTab
+            of tmtProcesses: tmtPerformance
+            of tmtPerformance: tmtProcesses
+            else: tmtProcesses
+          playSound(stMenuNav)
+          markKeyboardUsed(currentGame)
+        
+        # Actions
+        if isKeyPressed(Space):  # Resume
+          currentGame.state = gsPlaying
+          playSound(stMenuSelect)
+        elif isKeyPressed(Tab):  # Open Settings
+          globalWindowManager.openWindow(widSettings)
+          playSound(stMenuSelect)
+        elif isKeyPressed(Q):  # Quit to main menu
+          cleanupGame(currentGame)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+          currentGame.discordClient = globalDiscordClient
+          currentGame.state = gsMenu
+          playSound(stMenuSelect)
+        elif isKeyPressed(Escape):  # ESC also resumes (but only if no windows are open)
+          # Check if any windows are open
+          let hasOpenWindows = globalWindowManager.settings.window.visible or
+                               globalWindowManager.help.window.visible or
+                               globalWindowManager.stats.window.visible or
+                               globalWindowManager.shop.window.visible
+          if not hasOpenWindows:
+            currentGame.state = gsPlaying
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
@@ -666,24 +686,29 @@ proc main() =
       # Draw OS-style Task Manager pause menu and handle mouse interactions
       let menuResult = drawOSTaskManager(currentGame, currentGame.pauseMenuTab)
       
-      # Handle tab changes from mouse
-      if menuResult.newTab != currentGame.pauseMenuTab:
-        currentGame.pauseMenuTab = menuResult.newTab
-        playSound(stMenuNav)
+      # Handle tab changes from mouse (only if no windows are blocking)
+      if not mouseOverWindow:
+        if menuResult.newTab != currentGame.pauseMenuTab:
+          currentGame.pauseMenuTab = menuResult.newTab
+          playSound(stMenuNav)
       
-      # Handle button clicks
-      if menuResult.resumeClicked:
-        currentGame.state = gsPlaying
-        playSound(stMenuSelect)
-      elif menuResult.settingsClicked:
-        globalWindowManager.openWindow(widSettings)
-        playSound(stMenuSelect)
-      elif menuResult.exitClicked:
-        cleanupGame(currentGame)
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
-        currentGame.discordClient = globalDiscordClient
-        currentGame.state = gsMenu
-        playSound(stMenuSelect)
+      # Handle button clicks (only if no windows are blocking)
+      if not mouseOverWindow:
+        if menuResult.resumeClicked:
+          currentGame.state = gsPlaying
+          playSound(stMenuSelect)
+        elif menuResult.settingsClicked:
+          globalWindowManager.openWindow(widSettings)
+          playSound(stMenuSelect)
+        elif menuResult.exitClicked:
+          cleanupGame(currentGame)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+          currentGame.discordClient = globalDiscordClient
+          currentGame.state = gsMenu
+          playSound(stMenuSelect)
+      
+      # Draw all windows on top of pause menu
+      globalWindowManager.drawAllWindows(currentGame)
       
       # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
       if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
