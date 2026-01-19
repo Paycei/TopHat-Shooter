@@ -132,7 +132,7 @@ proc main() =
   else:
     setConfigFlags(flags(WindowResizable))
   
-  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v5.1 Edition")
+  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v5.2 Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor

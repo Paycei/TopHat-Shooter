@@ -1157,7 +1157,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_memory": "Memory: 2.4 / 16 GB",
     "os_network": "Network: Connected",
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[v5.1 Edition]",
+    "os_edition": "[v5.2 Edition]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "NET",
     
@@ -2338,7 +2338,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_memory": "Memoria: 2.4 / 16 GB",
     "os_network": "Red: Conectada",
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[Edición v5.1]",
+    "os_edition": "[Edición v5.2]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "RED",
     
