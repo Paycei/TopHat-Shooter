@@ -86,7 +86,7 @@ proc saveSkinSelectionImmediately*(shop: ShopWindow) =
     shop.shapeChanged = false
     shop.particleChanged = false
 
-proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, time: float32, isSelected: bool, isHovered: bool) =
+proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool) =
   ## Draw a preview of a player skin with shop icon style
   let (primaryColor, secondaryColor, coreColor) = getSkinColors(skinType, time)
   
@@ -112,27 +112,24 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, time: float32, isSele
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
                     2, borderColor)
   
-  # Draw mini player with color palette (like shop icon)
+  # Draw mini player with selected shape (like shop icon)
   let centerX = (x + SKIN_BOX_WIDTH div 2).float32
   let centerY = (y + 50).float32
   let playerRadius = 15.0
   
-  # Main player circle
-  drawCircle(Vector2(x: centerX, y: centerY), playerRadius, primaryColor)
-  drawCircle(Vector2(x: centerX, y: centerY), playerRadius * 0.6, coreColor)
-  
-  # Color palette swatches around player
-  let swatchSize = 5.float32
-  let swatchDist = 22.float32
-  let colors = [primaryColor, secondaryColor, coreColor, 
-                Color(r: (primaryColor.r + secondaryColor.r) div 2,
-                      g: (primaryColor.g + secondaryColor.g) div 2,
-                      b: (primaryColor.b + secondaryColor.b) div 2, a: 255)]
-  for i in 0..<4:
-    let angle = (i.float32 * PI / 2.0) + time * 1.5
-    let swatchX = centerX + cos(angle) * swatchDist
-    let swatchY = centerY + sin(angle) * swatchDist
-    drawCircle(Vector2(x: swatchX, y: swatchY), swatchSize, colors[i])
+  # Draw player using the shape system
+  drawPlayerShape(
+    Vector2f(x: centerX, y: centerY),
+    playerRadius,
+    shapeType,
+    primaryColor,
+    secondaryColor,
+    coreColor,
+    time,
+    time * 0.5,  # rotation
+    0.5,         # pulse
+    1.0          # glow intensity
+  )
   
   # Skin name
   let skinData = getSkinData(skinType)
@@ -793,7 +790,7 @@ proc drawShopWindow*(shop: ShopWindow) =
         let isHovered = skinIndex == shop.hoveredSkin
         
         beginScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawPlayerSkinPreview(boxX, boxY, skinType, shop.animationTime, isSelected, isHovered)
+        drawPlayerSkinPreview(boxX, boxY, skinType, shop.selectedShape, shop.animationTime, isSelected, isHovered)
         endScissorMode()
       
       skinIndex += 1
