@@ -1,4 +1,4 @@
-import raylib, particle_types, types, random, math, strutils, particle_pool
+import raylib, particle_types, types, random, math, strutils, particle_pool, ui/ui_constants
 
 export Particle, ParticlePool, newParticlePool, updateParticlePool, drawParticlePool
 export spawnExplosionPooled, spawnTimedParticlesPooled, spawnTimedParticlesAroundPooled
@@ -103,13 +103,16 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
     
     fontSize = 20
   
+  # Multiply damage by BALANCE_MULTIPLIER for display
+  let displayDamage = dmgNum.damage * BALANCE_MULTIPLIER
+  
   let damageText =
-    if dmgNum.damage >= 10.0:
-      $dmgNum.damage.int
-    elif dmgNum.damage >= 1.0:
-      formatFloat(dmgNum.damage, ffDecimal, 1)
+    if displayDamage >= 10.0:
+      $round(displayDamage).int
+    elif displayDamage >= 1.0:
+      formatFloat(displayDamage, ffDecimal, 1)
     else:
-      formatFloat(dmgNum.damage, ffDecimal, 2)
+      formatFloat(displayDamage, ffDecimal, 2)
   
   let displayText = if dmgNum.isCritical: damageText & "!" else: damageText
   let textWidth = measureText($displayText, fontSize)

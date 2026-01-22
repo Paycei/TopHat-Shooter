@@ -1,7 +1,7 @@
 ﻿## OS-Themed Statistics Window
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
-import raylib, os_window, ../statistics, ../run_statistics, ../types, math, ../powerup_data, strutils, std/tables, ../localization, algorithm
+import raylib, os_window, ../statistics, ../run_statistics, ../types, math, ../powerup_data, strutils, std/tables, ../localization, algorithm, ui_constants
 
 type
   StatsTab* = enum
@@ -390,9 +390,9 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsShotsHit), $runStats.combat.shotsHit, Color(r: 80, g: 255, b: 80, a: 255))
       lineY += 20
-      drawStatLine(col1X + 10, lineY, t(tkStatsDealedAbbrev), formatLargeNumber(runStats.combat.totalDamageDealt), Orange)
+      drawStatLine(col1X + 10, lineY, t(tkStatsDealedAbbrev), formatLargeNumber(runStats.combat.totalDamageDealt * BALANCE_MULTIPLIER), Orange)
       lineY += 20
-      drawStatLine(col1X + 10, lineY, t(tkStatsTakenAbbrev), formatLargeNumber(runStats.combat.totalDamageTaken), Red)
+      drawStatLine(col1X + 10, lineY, t(tkStatsTakenAbbrev), formatLargeNumber(runStats.combat.totalDamageTaken * BALANCE_MULTIPLIER), Red)
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsEliteKills), $runStats.combat.eliteKills, Orange)
       lineY += 20
@@ -580,7 +580,8 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           
           drawText($rank & ".", (col2X + 15).int32, lineY.int32, 13, medalColor)
           drawText(getPowerUpName(ptype), (col2X + 50).int32, lineY.int32, 13, White)
-          drawText(formatLargeNumber(damage), (col2X + 180).int32, lineY.int32, 13, Color(r: 0, g: 180, b: 255, a: 255))
+          # Multiply damage by BALANCE_MULTIPLIER for display
+          drawText(formatLargeNumber(damage * BALANCE_MULTIPLIER), (col2X + 180).int32, lineY.int32, 13, Color(r: 0, g: 180, b: 255, a: 255))
           drawText(formatPercent(percent), (col2X + col1Width - 50).int32, lineY.int32, 13,
                   getQualityColor(percent, 10.0))
           
@@ -696,9 +697,9 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
   lineY += 18
   drawStatLine(col1X + 8, lineY, "Shots Hit", $stats.combat.shotsHit, Color(r: 80, g: 255, b: 80, a: 255))
   lineY += 18
-  drawStatLine(col1X + 8, lineY, "Damage Dealt", formatLargeNumber(stats.combat.totalDamageDealt), Orange)
+  drawStatLine(col1X + 8, lineY, "Damage Dealt", formatLargeNumber(stats.combat.totalDamageDealt * BALANCE_MULTIPLIER), Orange)
   lineY += 18
-  drawStatLine(col1X + 8, lineY, "Damage Taken", formatLargeNumber(stats.combat.totalDamageTaken), Red)
+  drawStatLine(col1X + 8, lineY, "Damage Taken", formatLargeNumber(stats.combat.totalDamageTaken * BALANCE_MULTIPLIER), Red)
   lineY += 18
   drawStatLine(col1X + 8, lineY, "Elite Kills", $stats.combat.eliteKills, Orange)
   lineY += 18

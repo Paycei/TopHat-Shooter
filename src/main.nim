@@ -1247,7 +1247,7 @@ proc main() =
         if checkCollisionPointRec(mousePos, restartRect):
           # Restart game - preserve game mode
           let previousMode = currentGame.mode
-          currentGame = newGame(screenWidth, screenHeight)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, previousMode)  # Preserve the game mode
           initializeRunTracking(currentGame)
@@ -1262,7 +1262,7 @@ proc main() =
         elif checkCollisionPointRec(mousePos, exitRect):
           # Return to menu
           cleanupGame(currentGame)
-          currentGame = newGame(screenWidth, screenHeight)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
           currentGame.discordClient = globalDiscordClient
           currentGame.state = gsMenu
           playSound(stMenuSelect)
@@ -1292,7 +1292,7 @@ proc main() =
       
       # Quick restart
       if isKeyPressed(R):
-        currentGame = newGame(screenWidth, screenHeight)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
         currentGame.discordClient = globalDiscordClient
         currentGame.mode = gmWaveBased
         initializeRunTracking(currentGame)
@@ -1302,7 +1302,7 @@ proc main() =
       # Return to menu
       if isKeyPressed(Q):
         cleanupGame(currentGame)  # Clean up resources before creating new game
-        currentGame = newGame(screenWidth, screenHeight)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         statsSavedThisGame = false

@@ -165,7 +165,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 1.4,
       baseRadius: 10.5,
-      contactDamage: 2,
+      contactDamage: 1,
       baseColor: Pink,
       
       movement: EnemyMovementConfig(
@@ -201,7 +201,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 9999.0,  # Hit-count based, not HP based
       baseRadius: 14.0,
-      contactDamage: 2,
+      contactDamage: 1,
       baseColor: Color(r: 255, g: 215, b: 0, a: 255),  # Gold
       
       movement: EnemyMovementConfig(
@@ -478,7 +478,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 4.0,
       baseRadius: 13.0,
-      contactDamage: 2,
+      contactDamage: 1,
       baseColor: Color(r: 200, g: 0, b: 200, a: 255),  # Magenta
       
       movement: EnemyMovementConfig(
@@ -531,7 +531,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 4.0,
       baseRadius: 11.0,
-      contactDamage: 2,
+      contactDamage: 1,
       baseColor: Color(r: 100, g: 100, b: 255, a: 180),  # Semi-transparent blue
       
       movement: EnemyMovementConfig(

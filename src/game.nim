@@ -994,8 +994,6 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
   )
   
   # Apply gamemode-specific starting values
-  result.player.hp = modeDef.playerStartHP
-  result.player.maxHp = modeDef.playerStartHP
   result.player.coins = modeDef.playerStartCoins
   
   # Apply player skin from settings
@@ -1016,8 +1014,6 @@ proc setGameMode*(game: Game, mode: GameMode) =
   let modeDef = getGameModeDefinition(mode)
   
   # Apply mode-specific starting values
-  game.player.hp = modeDef.playerStartHP
-  game.player.maxHp = modeDef.playerStartHP
   game.player.coins = modeDef.playerStartCoins
   
   # Reset wave-specific state if not using waves
@@ -5343,8 +5339,8 @@ proc updateGame*(game: var Game, dt: float32) =
           enemy.lastContactDamageTime = game.time
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Red, 10)
       else:
-        # Regular enemies take continuous damage from player contact (10 HP/sec)
-        if game.time - enemy.lastContactDamageTime >= 0.1:  # Check every 0.1 seconds
+        # Regular enemies deal contact damage with cooldown (once every 0.5 seconds)
+        if game.time - enemy.lastContactDamageTime >= 0.5:  # Contact damage cooldown
           var enemyContactDamage = enemy.contactDamage.float32  # Damage enemy deals to player
           
           # Venomous elite effect - applies poison to player

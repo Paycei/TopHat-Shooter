@@ -117,7 +117,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
   of shTriangle:
     # Triangle shape with same hitbox radius (no rotation)
     # 1. OUTER ENERGY FIELD (triangle glow)
-    let triRadius = radius * 1.3  # Larger radius for triangle points
+    let triRadius = radius * 1.1  # Reduced from 1.3 to make visually smaller
     for layer in 0..2:
       let layerRadius = triRadius + layer.float32 * 5.0
       let layerAlpha = uint8((1.0 - layer.float32 / 3.0) * glowIntensity * 50)
@@ -158,12 +158,12 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       drawCircle(Vector2(x: x1, y: y1), 3.5, baseColor)
     
     # 4. INNER TRIANGLE (filled)
-    let v1x = pos.x + cos(-PI / 2.0) * (radius * 0.7)
-    let v1y = pos.y + sin(-PI / 2.0) * (radius * 0.7)
-    let v2x = pos.x + cos(2.0 * PI / 3.0 - PI / 2.0) * (radius * 0.7)
-    let v2y = pos.y + sin(2.0 * PI / 3.0 - PI / 2.0) * (radius * 0.7)
-    let v3x = pos.x + cos(4.0 * PI / 3.0 - PI / 2.0) * (radius * 0.7)
-    let v3y = pos.y + sin(4.0 * PI / 3.0 - PI / 2.0) * (radius * 0.7)
+    let v1x = pos.x + cos(-PI / 2.0) * (radius * 0.6)
+    let v1y = pos.y + sin(-PI / 2.0) * (radius * 0.6)
+    let v2x = pos.x + cos(2.0 * PI / 3.0 - PI / 2.0) * (radius * 0.6)
+    let v2y = pos.y + sin(2.0 * PI / 3.0 - PI / 2.0) * (radius * 0.6)
+    let v3x = pos.x + cos(4.0 * PI / 3.0 - PI / 2.0) * (radius * 0.6)
+    let v3y = pos.y + sin(4.0 * PI / 3.0 - PI / 2.0) * (radius * 0.6)
     drawTriangle(Vector2(x: v1x, y: v1y), Vector2(x: v2x, y: v2y), Vector2(x: v3x, y: v3y),
                 Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
     
@@ -177,7 +177,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
   of shSquare:
     # Square shape with same hitbox radius (no rotation)
     # 1. OUTER ENERGY FIELD (square glow)
-    let squareSize = radius * 1.8  # Size for square
+    let squareSize = radius * 1.3  # Reduced from 1.5 to make even smaller
     for layer in 0..2:
       let layerSize = squareSize + layer.float32 * 6.0
       let layerAlpha = uint8((1.0 - layer.float32 / 3.0) * glowIntensity * 50)
@@ -216,7 +216,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       drawCircle(Vector2(x: x1, y: y1), 3.5, baseColor)
     
     # 4. INNER SQUARE (filled)
-    let innerSize = radius * 1.0
+    let innerSize = radius * 0.75
     let halfSize = innerSize / sqrt(2.0)
     let cx1 = pos.x + cos(PI / 4.0) * halfSize
     let cy1 = pos.y + sin(PI / 4.0) * halfSize

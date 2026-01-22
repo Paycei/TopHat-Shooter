@@ -1,7 +1,7 @@
 ﻿## Combined OS-Style HUD Panel
 ## Merges status and info panels into one compact, non-intrusive display
 
-import raylib, ../types, ../localization, math, ../powerup_data
+import raylib, ../types, ../localization, math, ../powerup_data, ui_constants
 
 const
   COMBINED_PANEL_WIDTH = 200
@@ -167,8 +167,8 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   drawText("HP", finalPanelX + COMBINED_PANEL_PADDING + 1, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 120))
   drawText("HP", finalPanelX + COMBINED_PANEL_PADDING, yOffset, 9, Color(r: 220, g: 240, b: 255, a: 255))
   
-  # HP value on right
-  let hpText = $game.player.hp.int & "/" & $game.player.maxHp.int
+  # HP value on right (multiplied by BALANCE_MULTIPLIER)
+  let hpText = $round(game.player.hp * BALANCE_MULTIPLIER.float32).int & "/" & $round(game.player.maxHp * BALANCE_MULTIPLIER.float32).int
   let hpTextWidth = measureText(hpText, 9)
   drawText(hpText, finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - hpTextWidth + 1, yOffset + 1, 9, 
           Color(r: 0, g: 0, b: 0, a: 120))

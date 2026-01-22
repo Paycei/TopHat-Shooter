@@ -16,7 +16,6 @@ type
     allowsCheats*: bool        # Cheats menu available
     spawnRate*: float32       # Base enemy spawn rate multiplier
     difficultyScale*: float32 # How fast difficulty increases
-    playerStartHP*: float32   # Starting HP for player
     playerStartCoins*: int    # Starting coins for player
 
 proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
@@ -35,7 +34,6 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       allowsCheats: true,
       spawnRate: 1.0,
       difficultyScale: 1.0,
-      playerStartHP: 5.0,
       playerStartCoins: 0
     )
   
@@ -52,7 +50,6 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       allowsCheats: false,
       spawnRate: 1.0,
       difficultyScale: 1.0,
-      playerStartHP: 5.0,
       playerStartCoins: 0
     )
   
@@ -69,7 +66,6 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       allowsCheats: true,
       spawnRate: 0.0,  # Manual spawning only
       difficultyScale: 0.0,  # No automatic difficulty scaling
-      playerStartHP: 5.0,
       playerStartCoins: 0
     )
 
@@ -120,10 +116,6 @@ proc getSpawnRate*(mode: GameMode): float32 =
 proc getDifficultyScale*(mode: GameMode): float32 =
   ## Get the difficulty scaling factor for this mode
   getGameModeDefinition(mode).difficultyScale
-
-proc getStartingHP*(mode: GameMode): float32 =
-  ## Get the starting HP for player in this mode
-  getGameModeDefinition(mode).playerStartHP
 
 proc getStartingCoins*(mode: GameMode): int =
   ## Get the starting coins for player in this mode

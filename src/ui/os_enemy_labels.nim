@@ -1,7 +1,7 @@
 ﻿## OS-Style Enemy Labels
 ## Draw enemies with modern process/threat labels
 
-import raylib, ../types, math
+import raylib, ../types, math, ui_constants
 
 proc getEnemyProcessName*(enemy: Enemy): string =
   ## Generate a process name for an enemy based on type
@@ -224,9 +224,9 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
                                   width: barWidth.float32, height: barHeight.float32),
                       1, Color(r: 70, g: 85, b: 100, a: uint8(alpha.float32 * 0.8)))
     
-    # HP text for bosses and elites - smaller text
+    # HP text for bosses and elites - smaller text (multiplied by BALANCE_MULTIPLIER)
     if enemy.isBoss or enemy.isElite:
-      let hpText = $(enemy.hp.int) & "/" & $(enemy.maxHp.int)
+      let hpText = $(enemy.hp.int * BALANCE_MULTIPLIER) & "/" & $(enemy.maxHp.int * BALANCE_MULTIPLIER)
       let hpTextSize: int32 = 7  # Smaller font (was 8)
       let hpTextWidth = measureText(hpText, hpTextSize)
       let hpTextX = barX + (float32(barWidth) - hpTextWidth.float32) / 2

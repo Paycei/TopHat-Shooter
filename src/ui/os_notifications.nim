@@ -1,7 +1,7 @@
 ## OS-Style Notification System
 ## Provides toast notifications, system alerts, and command feedback
 
-import raylib, ../types, math, ../localization
+import raylib, ../types, math, ../localization, ui_constants
 
 type
   OSToastType* = enum
@@ -170,10 +170,12 @@ proc notifyPowerUpCollected*(manager: var OSToastManager, name: string) =
   manager.addToast(t(tkNotifInstalled) & \" \" & name & \".exe\", ottSuccess)
 
 proc notifyDamageTaken*(manager: var OSToastManager, damage: int) =
-  manager.addToast(t(tkNotifIntegrityCompromised) & "-" & $damage & " HP", ottError, 2.0)
+  # Multiply by BALANCE_MULTIPLIER for display
+  manager.addToast(t(tkNotifIntegrityCompromised) & "-" & $(damage * BALANCE_MULTIPLIER) & " HP", ottError, 2.0)
 
 proc notifyHealthRestored*(manager: var OSToastManager, amount: int) =
-  manager.addToast(t(tkNotifIntegrityRestored) & "+" & $amount & " HP", ottSuccess, 2.0)
+  # Multiply by BALANCE_MULTIPLIER for display
+  manager.addToast(t(tkNotifIntegrityRestored) & "+" & $(amount * BALANCE_MULTIPLIER) & " HP", ottSuccess, 2.0)
 
 proc notifyCoinCollected*(manager: var OSToastManager, amount: int) =
   manager.addToast(t(tkNotifResourceAcquired) & "+" & $amount & " credits", ottInfo, 2.0)

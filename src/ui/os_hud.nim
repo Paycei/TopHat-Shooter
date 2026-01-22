@@ -1,6 +1,6 @@
 ## OS-Style HUD System
 
-import raylib, ../types, math, ../localization
+import raylib, ../types, math, ../localization, ui_constants
 
 const
   PANEL_PADDING = 10
@@ -91,8 +91,8 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
     
     drawRectangle(x + PANEL_PADDING + 3, yOffset, fillWidth, barHeight, barColor)
     
-    # HP text with enhanced shadow
-    let hpText = $player.hp.int & " / " & $player.maxHp.int
+    # HP text with enhanced shadow (multiplied by BALANCE_MULTIPLIER)
+    let hpText = $round(player.hp * BALANCE_MULTIPLIER.float32).int & " / " & $round(player.maxHp * BALANCE_MULTIPLIER.float32).int
     let hpTextWidth = measureText(hpText, 14)
     let hpTextX = x + PANEL_PADDING + 3 + (barWidth div 2) - (hpTextWidth div 2)
     drawText(hpText, hpTextX + 1, yOffset + 6, 14, 

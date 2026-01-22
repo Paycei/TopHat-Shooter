@@ -1,7 +1,7 @@
 ## OS-Style Task Manager (Pause Menu)
 ## Pause menu styled as system task manager with mouse support
 
-import raylib, ../types, ../powerup_data
+import raylib, ../types, ../powerup_data, math
 
 const
   TASK_MANAGER_WIDTH = 700
@@ -112,7 +112,7 @@ proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
                (if game.time.int mod 60 < 10: "0" else: "") & $(game.time.int mod 60)),
     ("Threats Eliminated", $game.player.kills),
     ("Resources Collected", $game.player.coins),
-    ("System Integrity", $(game.player.hp.int) & "/" & $(game.player.maxHp.int)),
+    ("System Integrity", $round(game.player.hp).int & "/" & $round(game.player.maxHp).int),
     ("Active Processes", $game.player.powerUps.len),
     ("Defensive Barriers", $game.player.walls)
   ]
