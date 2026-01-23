@@ -460,8 +460,8 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
                DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 6, DEBUG_LINE_HEIGHT * 3 + 2,
                Color(r: 15, g: 20, b: 28, a: 70))
   
-  # Damage (multiplied by BALANCE_MULTIPLIER)
-  let damageText = formatFloat(stats.damage * BALANCE_MULTIPLIER, ffDecimal, 2)
+  # Damage (multiplied by 100, showing decimals with precision)
+  let damageText = formatHealthDisplay(stats.damage)
   drawText(t(tkDebugPanelDamage) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
           Color(r: 0, g: 0, b: 0, a: 130))
   drawText(t(tkDebugPanelDamage) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,

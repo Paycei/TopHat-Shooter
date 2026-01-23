@@ -580,7 +580,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           
           drawText($rank & ".", (col2X + 15).int32, lineY.int32, 13, medalColor)
           drawText(getPowerUpName(ptype), (col2X + 50).int32, lineY.int32, 13, White)
-          # Multiply damage by BALANCE_MULTIPLIER for display
+          # Multiply damage by BALANCE_MULTIPLIER for display (keep as large number)
           drawText(formatLargeNumber(damage * BALANCE_MULTIPLIER), (col2X + 180).int32, lineY.int32, 13, Color(r: 0, g: 180, b: 255, a: 255))
           drawText(formatPercent(percent), (col2X + col1Width - 50).int32, lineY.int32, 13,
                   getQualityColor(percent, 10.0))

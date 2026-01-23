@@ -390,6 +390,7 @@ proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
   ## Helper to apply damage to enemy with elite modifiers
   ## Combines applyEliteModifiers and HP reduction in one call
   ## Returns the actual damage dealt after modifiers
+  ## Note: Enemies can die (hp = 0) but can't have fractional HP below 0.01 while alive
   
   # Check boss invulnerability (during phase transitions)
   if enemy.isBoss and enemy.invulnerabilityTimer > 0:
@@ -885,8 +886,8 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
   of befBlood:
     # Blood: Lifesteal
     var healPercent = case effect.level
-      of 1: 0.015  # 1.5%
-      of 2: 0.02  # 2%
+      of 1: 0.0175  # 1.75%
+      of 2: 0.0225  # 2.25%
       else: 0.03  # 3%
     
     if effect.hasMastery:
@@ -5421,6 +5422,7 @@ proc updateGame*(game: var Game, dt: float32) =
           contactDamageToEnemy *= maxHpScale
           
           enemy.hp -= contactDamageToEnemy
+          
           enemy.lastContactDamageTime = game.time
           
           # Accumulate damage for damage number display (shows every 0.5s)

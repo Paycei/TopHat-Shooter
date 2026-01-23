@@ -12,7 +12,7 @@ proc newPlayer*(x, y: float32): Player =
     baseSpeed: 175,
     damage: 1,
     fireRate: 0.425,
-    bulletSpeed: 300,
+    bulletSpeed: 325,
     lastShot: 0,
     coins: 0,
     kills: 0,
@@ -40,7 +40,7 @@ proc newPlayer*(x, y: float32): Player =
     timeWarpActive: false,
     timeWarpDuration: 0,
     timeWarpUsesThisWave: 0,
-    timeWarpMaxUsesPerWave: 1,  # Default to level 1
+    timeWarpMaxUsesPerWave: 2,
     phaseShiftCooldown: 0,
     phaseShiftInvulnTimer: 0,
     lastPhaseShiftPos: newVector2f(x, y),

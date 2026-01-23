@@ -1,7 +1,7 @@
 ## OS-Style Notification System
 ## Provides toast notifications, system alerts, and command feedback
 
-import raylib, ../types, math, ../localization, ui_constants
+import raylib, ../types, ../localization, ui_constants
 
 type
   OSToastType* = enum
@@ -167,15 +167,15 @@ proc notifyBossDefeated*(manager: var OSToastManager) =
   manager.addToast(t(tkNotifBossTerminated), ottAchievement, 4.0)
 
 proc notifyPowerUpCollected*(manager: var OSToastManager, name: string) =
-  manager.addToast(t(tkNotifInstalled) & \" \" & name & \".exe\", ottSuccess)
+  manager.addToast(t(tkNotifInstalled) & " " & name & ".exe", ottSuccess)
 
 proc notifyDamageTaken*(manager: var OSToastManager, damage: int) =
-  # Multiply by BALANCE_MULTIPLIER for display
-  manager.addToast(t(tkNotifIntegrityCompromised) & "-" & $(damage * BALANCE_MULTIPLIER) & " HP", ottError, 2.0)
+  # Multiply damage by 100 for display as float
+  manager.addToast(t(tkNotifIntegrityCompromised) & "-" & formatHealthDisplay(damage.float32) & " HP", ottError, 2.0)
 
 proc notifyHealthRestored*(manager: var OSToastManager, amount: int) =
-  # Multiply by BALANCE_MULTIPLIER for display
-  manager.addToast(t(tkNotifIntegrityRestored) & "+" & $(amount * BALANCE_MULTIPLIER) & " HP", ottSuccess, 2.0)
+  # Multiply amount by 100 for display as float
+  manager.addToast(t(tkNotifIntegrityRestored) & "+" & formatHealthDisplay(amount.float32) & " HP", ottSuccess, 2.0)
 
 proc notifyCoinCollected*(manager: var OSToastManager, amount: int) =
   manager.addToast(t(tkNotifResourceAcquired) & "+" & $amount & " credits", ottInfo, 2.0)

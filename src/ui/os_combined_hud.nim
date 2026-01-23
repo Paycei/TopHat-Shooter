@@ -167,8 +167,8 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   drawText("HP", finalPanelX + COMBINED_PANEL_PADDING + 1, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 120))
   drawText("HP", finalPanelX + COMBINED_PANEL_PADDING, yOffset, 9, Color(r: 220, g: 240, b: 255, a: 255))
   
-  # HP value on right (multiplied by BALANCE_MULTIPLIER)
-  let hpText = $round(game.player.hp * BALANCE_MULTIPLIER.float32).int & "/" & $round(game.player.maxHp * BALANCE_MULTIPLIER.float32).int
+  # HP value on right (multiplied by 100, showing decimals)
+  let hpText = formatHealthDisplay(game.player.hp) & "/" & formatHealthDisplay(game.player.maxHp)
   let hpTextWidth = measureText(hpText, 9)
   drawText(hpText, finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - hpTextWidth + 1, yOffset + 1, 9, 
           Color(r: 0, g: 0, b: 0, a: 120))

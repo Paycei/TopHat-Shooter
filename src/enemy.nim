@@ -39,6 +39,9 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   # Calculate scaled stats
   let stats = getScaledEnemyStats(config, difficulty)
   
+  # Enforce minimum HP of 0.01
+  let finalHp = max(stats.hp, 0.01)
+  
   # Create base enemy with config values
   result = Enemy(
     id: game.nextEnemyId,
@@ -46,8 +49,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
     vel: newVector2f(0, 0),
     radius: stats.radius,
     collisionRadius: stats.radius * 0.4,  # 40% of visual size for enemy collision
-    hp: stats.hp,
-    maxHp: stats.hp,
+    hp: finalHp,
+    maxHp: finalHp,
     speed: stats.speed,
     contactDamage: config.contactDamage,
     rangedDamage: if config.hasRangedAttack: config.attack.damage.int else: 0,
@@ -141,6 +144,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           wall.takeDamage(1.0)
           trackWallDamaged(game)
           enemy.hp -= 1.0
+          # Enforce minimum health of 0.01
+          if enemy.hp < 0.01:
+            enemy.hp = 0.01
           enemy.lastWallDamageTime = currentTime
         break
     if canMove:
@@ -160,6 +166,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           if currentTime - enemy.lastWallDamageTime >= 1.0:
             wall.takeDamage(1.0)
             enemy.hp -= 1.0
+            # Enforce minimum health of 0.01
+            if enemy.hp < 0.01:
+              enemy.hp = 0.01
             enemy.lastWallDamageTime = currentTime
           break
       if canMove:
@@ -236,6 +245,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             wall.takeDamage(1.0)
             trackWallDamaged(game)
             enemy.hp -= 1.0
+            # Enforce minimum health of 0.01
+            if enemy.hp < 0.01:
+              enemy.hp = 0.01
             enemy.lastWallDamageTime = currentTime
           break
       if canMove:
@@ -267,6 +279,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             wall.takeDamage(1.0)
             trackWallDamaged(game)
             enemy.hp -= 1.0
+            # Enforce minimum health of 0.01
+            if enemy.hp < 0.01:
+              enemy.hp = 0.01
             enemy.lastWallDamageTime = currentTime
           break
       if canMove:
@@ -663,6 +678,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             wall.takeDamage(1.0)
             trackWallDamaged(game)
             enemy.hp -= 1.0
+            # Enforce minimum health of 0.01
+            if enemy.hp < 0.01:
+              enemy.hp = 0.01
             enemy.lastWallDamageTime = currentTime
           break
       
@@ -709,7 +727,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   if enemy.enemyType == etStar and enemy.hitCount >= enemy.requiredHits:
     return false
   
-  return enemy.hp > 0
+  # Enemies with exactly 0.01 HP are still alive (minimum health)
+  # They die when hit again (hp becomes <= 0)
+  return enemy.hp >= 0.01
 
 proc drawCustomBoss*(enemy: Enemy) =
   ## Draw unique visual representation for each of the 12 custom bosses
