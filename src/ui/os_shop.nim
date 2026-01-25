@@ -181,11 +181,6 @@ proc drawShop*(game: Game) =
                     1, Color(r: 180, g: 30, b: 30, a: 255))
   drawText("X", closeX + 8, closeButtonY + 5, 18, White)
   
-  # Coin display in title bar
-  let coinText = $game.player.coins & " " & t(tkShopCredits)
-  let coinWidth = measureText(coinText, 20)
-  drawText(coinText, windowX + SHOP_WIDTH - coinWidth - 20, windowY + 12, 20, Gold)
-  
   # Sidebar for owned upgrades
   let sidebarX = windowX + 10
   let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
@@ -285,7 +280,7 @@ proc drawShop*(game: Game) =
   let instructY = ctrlY + 18
   drawText("UP/DOWN/W/S " & t(tkShopNavigate), windowX + 20, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
-  drawText("ENTER/CLICK " & t(tkShopBuy), windowX + 160, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText("ENTER/CLICK " & t(tkShopBuy), windowX + 180, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
   drawText("ESC " & t(tkShopContinue), windowX + 300, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
@@ -298,6 +293,54 @@ proc drawShop*(game: Game) =
   let buyButtonHeight: int32 = 38
   let buyButtonX: int32 = (windowX + SHOP_WIDTH - buyButtonWidth - 20).int32
   let buyButtonY: int32 = bottomY + 12
+  
+  # Calculate position for centered credits counter
+  # Position it between the "ESC Continue" text (around x=300) and the buy button
+  let escTextEndX = windowX + 380  # Moved left from 420 to 380
+  let creditsBoxWidth: int32 = 180
+  let creditsBoxHeight: int32 = 38
+  # Center between ESC text and buy button
+  let availableSpace = buyButtonX - escTextEndX
+  let creditsBoxX: int32 = escTextEndX + (availableSpace - creditsBoxWidth) div 2
+  let creditsBoxY: int32 = buyButtonY
+  
+  # Credits box background with shadow
+  drawRectangle(creditsBoxX + 2, creditsBoxY + 2, creditsBoxWidth, creditsBoxHeight,
+               Color(r: 0, g: 0, b: 0, a: 100))
+  
+  # Credits box background
+  drawRectangle(creditsBoxX, creditsBoxY, creditsBoxWidth, creditsBoxHeight,
+               Color(r: 40, g: 50, b: 30, a: 255))
+  
+  # Top highlight
+  drawRectangle(creditsBoxX, creditsBoxY, creditsBoxWidth, 2,
+               Color(r: 255, g: 220, b: 0, a: 60))
+  
+  # Border
+  drawRectangleLines(Rectangle(x: creditsBoxX.float32, y: creditsBoxY.float32,
+                                width: creditsBoxWidth.float32, height: creditsBoxHeight.float32),
+                    2, Color(r: 255, g: 215, b: 0, a: 200))
+  
+  # Coin icon (simple $ symbol in circle)
+  let coinIconX = creditsBoxX + 15
+  let coinIconY = creditsBoxY + creditsBoxHeight div 2
+  drawCircle(Vector2(x: coinIconX.float32, y: coinIconY.float32), 12,
+            Color(r: 255, g: 215, b: 0, a: 255))
+  drawCircle(Vector2(x: coinIconX.float32, y: coinIconY.float32), 10,
+            Color(r: 200, g: 170, b: 0, a: 255))
+  drawText("$", coinIconX - 5, coinIconY - 8, 16,
+          Color(r: 50, g: 40, b: 0, a: 255))
+  
+  # Credits amount text
+  let creditsText = $game.player.coins & " " & t(tkShopCredits)
+  drawText(creditsText, creditsBoxX + 40, creditsBoxY + 7, 18,
+          Color(r: 0, g: 0, b: 0, a: 120))
+  drawText(creditsText, creditsBoxX + 38, creditsBoxY + 5, 18,
+          Color(r: 255, g: 240, b: 100, a: 255))
+  
+  # Small label below
+  drawText("Available Balance", creditsBoxX + 40, creditsBoxY + 24, 9,
+          Color(r: 180, g: 180, b: 150, a: 255))
   
   # Button shadow
   if canBuy:

@@ -137,7 +137,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 400.0,   # Very fast
         bulletCount: 1,       # Single powerful shot
         spreadAngle: 0.0,     # No spread - precise
-        damage: 2.0,
+        damage: 1.5,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,

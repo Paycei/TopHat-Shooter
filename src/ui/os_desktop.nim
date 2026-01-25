@@ -212,7 +212,6 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     let bagWidth = 24
     let bagHeight = 28
     let bagTop = centerY - 14
-    let bagBottom = centerY + 14
     
     # Bag body (trapezoid shape - wider at bottom)
     drawRectangle((centerX - bagWidth div 2).int32, bagTop.int32, bagWidth.int32, bagHeight.int32, icon.iconColor)

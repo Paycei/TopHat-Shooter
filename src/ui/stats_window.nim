@@ -379,8 +379,8 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       let col3X = col2X + col1Width + 12
       var y = tabContentY + 12
       
-      # Combat Stats Panel
-      drawStatPanel(col1X, y, col1Width, 240, t(tkStatsCombat))
+      # Combat Stats Panel (increased height for combo stats)
+      drawStatPanel(col1X, y, col1Width, 300, t(tkStatsCombat))
       var lineY = y + 36
       
       drawStatLine(col1X + 10, lineY, t(tkStatsAccuracy), formatPercent(runStats.combat.accuracyPercent),
@@ -399,6 +399,17 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       drawStatLine(col1X + 10, lineY, t(tkStatsBossKills), $runStats.combat.bossKills, Red)
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsCriticalHits), $runStats.combat.criticalHits, Color(r: 0, g: 180, b: 255, a: 255))
+      lineY += 20
+      # Combo stats
+      drawStatLine(col1X + 10, lineY, "Max Combo", $runStats.combat.maxCombo, Color(r: 255, g: 200, b: 0, a: 255))
+      lineY += 20
+      let avgCombo = if runStats.combat.totalCombos > 0:
+        (runStats.combat.comboSum.float32 / runStats.combat.totalCombos.float32)
+      else:
+        0.0
+      drawStatLine(col1X + 10, lineY, "Avg Combo", formatFloat(avgCombo, ffDecimal, 1), Color(r: 255, g: 220, b: 100, a: 255))
+      lineY += 20
+      drawStatLine(col1X + 10, lineY, "Perfect Waves", $runStats.combat.perfectWaves, Color(r: 100, g: 255, b: 255, a: 255))
       
       # Movement Stats Panel
       drawStatPanel(col2X, y, col1Width, 240, t(tkStatsMovementSurvival))
@@ -426,15 +437,16 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       lineY += 20
       drawStatLine(col3X + 10, lineY, t(tkStatsKillsPerMin), formatLargeNumber(runStats.performance.killsPerMinute))
       lineY += 20
-      drawStatLine(col3X + 10, lineY, t(tkGameBestStreak), $runStats.performance.longestKillStreak, Gold)
-      lineY += 20
+      # Kill streak display removed
+      # drawStatLine(col3X + 10, lineY, t(tkGameBestStreak), $runStats.performance.longestKillStreak, Gold)
+      # lineY += 20
       if runStats.performance.waveTimes.len > 0:
         drawStatLine(col3X + 10, lineY, t(tkStatsAvgWave), formatDuration(runStats.performance.averageWaveTime))
         lineY += 20
         drawStatLine(col3X + 10, lineY, t(tkStatsFastestWave), formatDuration(runStats.performance.fastestWave), Color(r: 80, g: 255, b: 80, a: 255))
       
-      # Second row - Resources, Play Style, DPS Graph
-      y += 252
+      # Second row - Resources, Play Style, DPS Graph (adjusted for taller combat panel)
+      y += 312  # Increased from 252 to account for taller combat panel
       
       # Resources Panel
       drawStatPanel(col1X, y, col1Width, 200, t(tkStatsResources))
@@ -731,8 +743,9 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
   lineY += 18
   drawStatLine(col3X + 8, lineY, "Kills/Min", formatLargeNumber(stats.performance.killsPerMinute))
   lineY += 18
-  drawStatLine(col3X + 8, lineY, "Best Streak", $stats.performance.longestKillStreak, Gold)
-  lineY += 18
+  # Kill streak display removed
+  # drawStatLine(col3X + 8, lineY, "Best Streak", $stats.performance.longestKillStreak, Gold)
+  # lineY += 18
   if stats.performance.waveTimes.len > 0:
     drawStatLine(col3X + 8, lineY, "Avg Wave", formatDuration(stats.performance.averageWaveTime))
     lineY += 18

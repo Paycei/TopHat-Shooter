@@ -5,11 +5,11 @@ import raylib, ../types, strutils, ../powerup, ../localization, ui_constants
 
 const
   DEBUG_PANEL_WIDTH = 200
-  DEBUG_PANEL_PADDING = 6
+  DEBUG_PANEL_PADDING = 3  # Reduced from 4
   DEBUG_PANEL_BORDER = 1
-  DEBUG_SECTION_SPACING = 6
-  DEBUG_TITLE_HEIGHT = 18
-  DEBUG_LINE_HEIGHT = 14
+  DEBUG_SECTION_SPACING = 2  # Reduced from 4
+  DEBUG_TITLE_HEIGHT = 14  # Reduced from 16
+  DEBUG_LINE_HEIGHT = 11  # Reduced from 12
   HEADER_BG_COLOR: Color = Color(r: 0, g: 100, b: 120, a: 60)
   ACCENT_COLOR: Color = Color(r: 0, g: 220, b: 255, a: 255)
 
@@ -156,11 +156,11 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
     
     return  # Don't draw rest of panel
   
-  # Calculate panel height based on content - Removed base height calculation
-  var contentHeight: int32 = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 4  # Header
+  # Calculate panel height based on content - COMPACT version
+  var contentHeight: int32 = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 2  # Header (reduced spacing)
   
   # FPS/Entity row
-  contentHeight += 26
+  contentHeight += 22  # Reduced from 26
   
   # Add height for active timers
   var activeTimers = 0
@@ -173,14 +173,14 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   if game.player.parryActive: activeTimers += 1
   
   if activeTimers > 0:
-    contentHeight += int32(18 + (activeTimers * DEBUG_LINE_HEIGHT) + DEBUG_SECTION_SPACING)
+    contentHeight += int32(12 + (activeTimers * DEBUG_LINE_HEIGHT) + DEBUG_SECTION_SPACING)  # Reduced header from 14
   
   # AutoShoot status if player has the power-up
   if hasPowerUp(game.player, puAutoShoot):
-    contentHeight += int32(18 + DEBUG_LINE_HEIGHT + 8 + DEBUG_SECTION_SPACING)
+    contentHeight += int32(12 + DEBUG_LINE_HEIGHT + 4 + DEBUG_SECTION_SPACING)  # Reduced spacing
   
   # Always show combat stats
-  contentHeight += int32(18 + (DEBUG_LINE_HEIGHT * 3) + 8 + DEBUG_SECTION_SPACING)
+  contentHeight += int32(12 + (DEBUG_LINE_HEIGHT * 3) + 4 + DEBUG_SECTION_SPACING)  # Reduced spacing
   
   # Add height for rage/berserker bonuses if applicable
   let hpPercent = game.player.hp / game.player.maxHp
@@ -188,7 +188,18 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
     var bonusCount = 0
     if hasPowerUp(game.player, puRage): bonusCount += 1
     if hasPowerUp(game.player, puBerserker): bonusCount += 1
-    contentHeight += int32(18 + (bonusCount * DEBUG_LINE_HEIGHT) + 8)
+    contentHeight += int32(12 + (bonusCount * DEBUG_LINE_HEIGHT) + 4)  # Reduced spacing
+  
+  var dopamineLines = 0
+  # Streak mechanic removed
+  if dopamineLines > 0:
+    contentHeight += int32(12 + (DEBUG_LINE_HEIGHT * dopamineLines) + 3)  # Reduced spacing
+  
+  # Real-time stats section - make it compact (only show 2 most important stats)
+  contentHeight += int32(11 + (DEBUG_LINE_HEIGHT * 2) + 4)  # Reduced spacing throughout
+  
+  # Add bottom padding so text doesn't sit on border
+  contentHeight += 3  # Extra pixels at bottom
   
   # Main panel background with gradient effect (matching other panels)
   drawRectangle(finalPanelX, yOffset, DEBUG_PANEL_WIDTH, contentHeight,
@@ -565,6 +576,52 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
       drawText(bonusText, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 67,
               yOffset, 10, Color(r: 255, g: 200, b: 150, a: 255))
       yOffset += DEBUG_LINE_HEIGHT
+  
+  # ============ REAL-TIME STATS SECTION ============
+  # Section separator line
+  drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
+          Vector2(x: (finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),
+          1, Color(r: 100, g: 200, b: 255, a: 100))
+  yOffset += 3
+  
+  drawText("Run Stats:", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 9,
+          Color(r: 0, g: 0, b: 0, a: 130))
+  drawText("Run Stats:", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
+          Color(r: 200, g: 220, b: 240, a: 255))
+  yOffset += 11
+  
+  # Background box for real-time stats (compact - only 2 stats)
+  drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 3, yOffset - 1,
+               DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 6, 
+               int32((DEBUG_LINE_HEIGHT * 2) + 2),
+               Color(r: 15, g: 20, b: 25, a: 80))
+  
+  let rtStats = game.dopamine.realTimeStats
+  
+  # DPS (most important combat stat)
+  drawText("[⚔] DPS:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 9,
+          Color(r: 0, g: 0, b: 0, a: 130))
+  drawText("[⚔] DPS:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 9,
+          Color(r: 180, g: 200, b: 220, a: 255))
+  
+  let dpsText = $(int(rtStats.dps))
+  drawText(dpsText, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 50,
+          yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 150))
+  drawText(dpsText, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 51,
+          yOffset, 9, Color(r: 255, g: 100, b: 100, a: 255))
+  yOffset += DEBUG_LINE_HEIGHT
+  
+  # Coins per minute (economy stat)
+  drawText("[¢] C/min:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 9,
+          Color(r: 0, g: 0, b: 0, a: 130))
+  drawText("[¢] C/min:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 9,
+          Color(r: 180, g: 200, b: 220, a: 255))
+  
+  let cpmText = $(int(rtStats.coinsPerMinute))
+  drawText(cpmText, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 50,
+          yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 150))
+  drawText(cpmText, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 51,
+          yOffset, 9, Color(r: 255, g: 215, b: 0, a: 255))
 
 proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
   ## Draw legendary power-ups status panel in OS style (bottom-left)

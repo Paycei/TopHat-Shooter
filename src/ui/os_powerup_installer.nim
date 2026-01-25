@@ -550,6 +550,46 @@ proc drawOSPowerUpInstaller*(game: Game) =
   drawRectangle(windowX, bottomY - 15, INSTALLER_WIDTH, 2,
                Color(r: 0, g: 140, b: 200, a: 255))
   
+  # COIN COUNTER - Bottom Left
+  let coinBoxX = windowX + 50
+  let coinBoxY = bottomY + 15
+  let coinBoxWidth: int32 = 200
+  let coinBoxHeight: int32 = 50
+  
+  # Coin counter background
+  drawRectangle(coinBoxX, coinBoxY, coinBoxWidth, coinBoxHeight,
+               Color(r: 40, g: 50, b: 30, a: 255))
+  
+  # Top highlight
+  drawRectangle(coinBoxX, coinBoxY, coinBoxWidth, 2,
+               Color(r: 255, g: 220, b: 0, a: 60))
+  
+  # Border
+  drawRectangleLines(Rectangle(x: coinBoxX.float32, y: coinBoxY.float32,
+                                width: coinBoxWidth.float32, height: coinBoxHeight.float32),
+                    2, Color(r: 255, g: 215, b: 0, a: 200))
+  
+  # Coin icon (simple circle with $ symbol)
+  let coinIconX = coinBoxX + 15
+  let coinIconY = coinBoxY + 25
+  drawCircle(Vector2(x: coinIconX.float32, y: coinIconY.float32), 12,
+            Color(r: 255, g: 215, b: 0, a: 255))
+  drawCircle(Vector2(x: coinIconX.float32, y: coinIconY.float32), 10,
+            Color(r: 200, g: 170, b: 0, a: 255))
+  drawText("$", coinIconX - 5, coinIconY - 8, 16,
+          Color(r: 50, g: 40, b: 0, a: 255))
+  
+  # Coin amount text
+  let coinText = $game.player.coins & " credits"
+  drawText(coinText, coinBoxX + 40, coinBoxY + 10, 18,
+          Color(r: 0, g: 0, b: 0, a: 120))
+  drawText(coinText, coinBoxX + 38, coinBoxY + 8, 18,
+          Color(r: 255, g: 240, b: 100, a: 255))
+  
+  # Small label below
+  drawText("Available Balance", coinBoxX + 40, coinBoxY + 30, 10,
+          Color(r: 180, g: 180, b: 150, a: 255))
+  
   let buttonY = bottomY + 15
   let buttonHeight = 42
   

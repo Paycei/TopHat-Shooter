@@ -232,7 +232,11 @@ proc combatStatsToJson(stats: CombatStats): JsonNode =
     "homingBullets": stats.homingBullets,
     "piercingBullets": stats.piercingBullets,
     "explosiveBullets": stats.explosiveBullets,
-    "splitBullets": stats.splitBullets
+    "splitBullets": stats.splitBullets,
+    "maxCombo": stats.maxCombo,
+    "totalCombos": stats.totalCombos,
+    "perfectWaves": stats.perfectWaves,
+    "comboSum": stats.comboSum
   }
 
 # Convert MovementStats to JSON
@@ -588,6 +592,12 @@ proc jsonToCombatStats(j: JsonNode): CombatStats =
   result.piercingBullets = j["piercingBullets"].getInt()
   result.explosiveBullets = j["explosiveBullets"].getInt()
   result.splitBullets = j["splitBullets"].getInt()
+  
+  # Load combo stats (with defaults for backwards compatibility)
+  result.maxCombo = j.getOrDefault("maxCombo").getInt(0)
+  result.totalCombos = j.getOrDefault("totalCombos").getInt(0)
+  result.perfectWaves = j.getOrDefault("perfectWaves").getInt(0)
+  result.comboSum = j.getOrDefault("comboSum").getInt(0)
 
 # Convert JSON to MovementStats
 proc jsonToMovementStats(j: JsonNode): MovementStats =

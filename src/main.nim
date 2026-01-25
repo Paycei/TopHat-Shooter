@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager, boss_definitions
 
 const
   screenWidth = 1024
@@ -929,8 +929,8 @@ proc main() =
           let isBossWave = currentGame.wavesUntilBoss <= 0
           
           if isBossWave:
-            # Trigger boss warning
-            currentGame.bossSpawnTimer = 1.5
+            # Trigger boss warning with LONGER duration
+            currentGame.bossSpawnTimer = 3.0  # Increased from 1.5 to 3.0 seconds
             # ALWAYS offer power-up before boss (critical moment)
             currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
           else:
@@ -949,8 +949,11 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
       
-      # Draw "WAVE CLEARED!" text (static, no pulsing)
-      let waveText = "WAVE CLEARED!"
+      # Draw appropriate cleared text based on whether it was a boss wave
+      let waveText = if isBossWave(currentGame.currentWave):
+        "BOSS " & $getCustomBossNumber(currentGame.currentWave) & " CLEARED!"
+      else:
+        "WAVE CLEARED!"
       let waveTextSize = 48.int32
       let waveTextWidth = measureText(waveText, waveTextSize)
       

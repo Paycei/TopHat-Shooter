@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins
+import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -38,6 +38,13 @@ proc completeBossWave*(game: Game) =
   
   if game.wavesUntilBoss <= 0:
     game.wavesUntilBoss = 4  # Next boss in 5 waves
+  
+  # Calculate final wave stats for celebration
+  calculateAccuracy(game.dopamine.waveStats)
+  
+  # Trigger wave celebration AFTER boss is defeated (every boss wave = every 5th wave)
+  # Use currentWave - 1 because currentWave was just incremented above
+  startCelebration(game.dopamine.waveCelebration, game.currentWave - 1, game.dopamine.waveStats)
   
   game.powerUpChoices = generatePowerUpChoices(game.player, true)
   game.selectedPowerUp = 0
@@ -398,6 +405,10 @@ proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
   
   result = applyEliteModifiers(enemy, baseDamage)
   enemy.hp -= result
+  
+  # Track damage for real-time DPS stats
+  # Note: This is called from damageEnemy which is in game context
+  # We'll add the actual call in the bullet collision section
 
 # CENTRALIZED COMBAT STATS SYSTEM
 # Single source of truth for all combat-related stat calculations
@@ -991,8 +1002,11 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     osBackground: newOSBackground(),
     osHUD: newOSHUD(),
     pauseMenuTab: tmtProcesses,  # Default to Processes tab in task manager
-    selectedGameOverButton: 0  # Default to Restart button
+    selectedGameOverButton: 0,  # Default to Restart button
+    dopamine: newDopamineState()
   )
+  
+  initEnhancedDopamine(result.dopamine)
   
   # Apply gamemode-specific starting values
   result.player.coins = modeDef.playerStartCoins
@@ -1043,6 +1057,9 @@ proc startWave*(game: Game) =
   game.waveEnemiesTotal = waveEnemyCount
   game.waveEnemiesRemaining = waveEnemyCount
   game.spawnTimer = 0
+  
+  # Mark wave start for combo tracking
+  startWaveCombo(game.dopamine.comboSystem)
   
   # PLAYER SCALING: Multiply current stats by 1.25% per wave (preserves shop purchases and power-ups)
   # This applies scaling multiplicatively to whatever stats the player has built up
@@ -1220,6 +1237,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
   if game.time - game.player.lastShot >= stats.fireRate:
     # Increment bullet counter for special rounds power-up
     game.player.bulletCounter += 1
+    
+    recordShot(game.dopamine.waveStats, false)  # Will be updated to true if hit
     
     # Check for power-ups that modify shooting
     let hasHoming: bool = hasPowerUp(game.player, puMagicalBullets)
@@ -2427,8 +2446,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
                         Color(r: 200 + rand(55).uint8, g: 0, b: 0, a: 255), 5)
       
       # Screen shake for rage
-      game.screenShakeIntensity = 25.0
-      game.screenShakeDecay = 35.0
+      addShake(game.dopamine.screenShake, siLarge)
     
     elif isOrbitalAttack:
       # Create star field effect - bullets rain from space
@@ -2478,8 +2496,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
           spawnExplosionPooled(game.particlePool, lightX, lightY, tint, 6)
       
       # Intense screen shake for brilliance
-      game.screenShakeIntensity = 30.0
-      game.screenShakeDecay = 40.0
+      addShake(game.dopamine.screenShake, siLarge)
     
     elif isTimeShatter:
       # TIME SHATTER - Reality-breaking temporal fracture explosion
@@ -2518,8 +2535,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
                         Color(r: 150, g: 255, b: 255, a: 255), 2)
       
       # MASSIVE screen shake for reality-shattering effect
-      game.screenShakeIntensity = 50.0
-      game.screenShakeDecay = 45.0
+      addShake(game.dopamine.screenShake, siMassive)
     
     elif barrageMode == "omega_barrage":
       # OMEGA BARRAGE - Ultimate final boss attack combining all elements
@@ -2561,8 +2577,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
                         Color(r: 150, g: 255, b: 255, a: 255), 3)
       
       # ABSOLUTELY MASSIVE screen shake - this is the ultimate attack
-      game.screenShakeIntensity = 60.0
-      game.screenShakeDecay = 50.0
+      addShake(game.dopamine.screenShake, siMassive)
     
     for i in 0..<bulletCount:
       let angle = if isChaosAttack:
@@ -2656,8 +2671,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
         (24, phase.color, 20.0, 35)  # Standard pulse
     
     # TRIGGER SCREEN SHAKE (varies by mode)
-    game.screenShakeIntensity = shakeIntensity
-    game.screenShakeDecay = 35.0
+    addShake(game.dopamine.screenShake, siLarge)
     
     # Create expanding pulse ring
     for i in 0..<bulletCount:
@@ -3418,8 +3432,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
                             Color(r: 150, g: 255, b: 255, a: 255), 3)
           
           # ULTIMATE SCREEN SHAKE for omega blink
-          game.screenShakeIntensity = 65.0
-          game.screenShakeDecay = 55.0
+          addShake(game.dopamine.screenShake, siMassive)
       
       # Each teleport position shoots bullets
       if attack.projectileCount > 0:
@@ -3569,8 +3582,7 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     # This is handled in boss update logic by checking dashChargesRemaining
     
     # SCREEN SHAKE based on mode
-    game.screenShakeIntensity = shakeIntensity
-    game.screenShakeDecay = 40.0
+    addShake(game.dopamine.screenShake, siLarge)
     
     # Create MORE impressive trail effects for rage charges
     let trailCount = if dashMode == "rage_charge": 8 elif dashMode == "double_charge": 6 else: 4
@@ -3972,11 +3984,34 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
 
 # MAIN GAME UPDATE LOOP
 proc updateGame*(game: var Game, dt: float32) =
-  # Update screen shake
-  if game.screenShakeIntensity > 0:
-    game.screenShakeIntensity -= game.screenShakeDecay * dt
-    if game.screenShakeIntensity < 0:
-      game.screenShakeIntensity = 0
+  updateDopamine(game.dopamine, dt)
+  
+  let celebrationActive = updateCelebration(game.dopamine.waveCelebration, dt)
+  let introActive = updateIntroduction(game.dopamine.bossIntro, dt)
+  updateAchievements(game.dopamine.achievements, dt)
+  
+  # If wave celebration is active, pause the game completely and return early
+  if celebrationActive:
+    return
+  
+  # If boss introduction is active, only allow player movement and particles
+  if introActive:
+    updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
+    
+    # Update particles so visual feedback continues
+    updateParticlePool(game.particlePool, dt)
+    
+    # Update game time
+    game.time += dt
+    game.frameCount += 1
+    
+    return
+  
+  # Update real-time stats power level
+  calculatePowerLevel(game.dopamine.realTimeStats, game.player)
+  
+  # OLD screen shake system - now handled by dopamine screenShake
+  # (all screen shake calls are now using the dopamine system)
   
   # Time Warp effect - apply slow to delta time for enemies/bullets
   var effectiveDt = dt
@@ -4719,20 +4754,20 @@ proc updateGame*(game: var Game, dt: float32) =
         # Regeneration power-up - heal variable HP per wave based on level
         if hasPowerUp(game.player, puRegeneration):
           let level = getPowerUpLevel(game.player, puRegeneration)
-          var healAmount = 0
+          var healAmount = 0.0
           
           case level
           of 1:
-            # Level 1: 1-2 health (base)
-            healAmount = 1 + rand(1)  # rand(1) gives 0 or 1
+            # Level 1: 1.5-2.5 health (base)
+            healAmount = 1.5 + rand(1.0)  # 1.5 to 2.5
           of 2:
-            # Level 2: 2-4 health (+1 to +2 bonus)
-            healAmount = 2 + rand(2)  # 2, 3, or 4
+            # Level 2: 2.5-4.5 health
+            healAmount = 2.5 + rand(2.0)  # 2.5 to 4.5
           else:
-            # Level 3: 3-6 health (+2 to +4 bonus)
-            healAmount = 3 + rand(3)  # 3, 4, 5, or 6
+            # Level 3: 3.5-6.5 health
+            healAmount = 3.5 + rand(3.0)  # 3.5 to 6.5
           
-          heal(game.player, healAmount.float32)
+          heal(game.player, healAmount)
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
         
         # Play wave complete sound
@@ -4747,6 +4782,18 @@ proc updateGame*(game: var Game, dt: float32) =
 
         # ADJUSTED: Power-ups less frequent (every 2 waves instead of every wave)
         let shouldOfferPowerUp = (game.currentWave mod 2) == 0
+        
+        # Calculate final wave stats
+        calculateAccuracy(game.dopamine.waveStats)
+        
+        # Check for perfect wave combo bonus
+        let perfectWaveBonus = checkPerfectWaveCombo(game.dopamine.comboSystem, game.waveEnemiesTotal)
+        if perfectWaveBonus > 0:
+          game.player.coins += perfectWaveBonus
+          playSound(stCoinPickup)  # Play coin sound for bonus
+          trackPerfectWave()  # Track for statistics
+        
+        # Wave celebration removed from here - now only happens after boss defeat
         
         # Transition to wave cleared state for 0.3s to let players collect coins
         game.waveClearedTimer = 0.3
@@ -4776,6 +4823,13 @@ proc updateGame*(game: var Game, dt: float32) =
       
       # Entrance particles
       let boss = game.enemies[^1]
+      
+      # Trigger boss introduction - use correct boss number, not wave number
+      let bossNumber = getCustomBossNumber(bossBlockWave)
+      let bossName = getBossDefinition(bossNumber).name
+      let bossTitle = getBossDefinition(bossNumber).description
+      startIntroduction(game.dopamine.bossIntro, bossName, bossTitle, boss.maxHp)
+      
       # Spawn entrance particles for custom boss
       for i in 0..<60:
         let angle = i.float32 * 0.1
@@ -5024,6 +5078,43 @@ proc updateGame*(game: var Game, dt: float32) =
       
       game.player.kills += 1
       
+      if game.player.kills == 1:
+        discard unlockAchievement(game.dopamine.achievements, "first_blood")
+      if game.player.kills == 100:
+        discard unlockAchievement(game.dopamine.achievements, "centurion")
+      
+      recordKill(game.dopamine.realTimeStats)
+      
+      if enemy.isBoss:
+        # Boss kill - MASSIVE effects
+        addShake(game.dopamine.screenShake, siMassive)
+        activateSlowMo(game.dopamine.slowMotion, smtBossKill)
+        # Record kill with high damage for stats
+        recordKill(game.dopamine.waveStats, enemy.maxHp)
+      else:
+        # Regular enemy kill - standard effects
+        addShake(game.dopamine.screenShake, siMedium)
+        activateSlowMo(game.dopamine.slowMotion, smtKill)
+        # Record kill with damage dealt
+        recordKill(game.dopamine.waveStats, 0)  # Don't track individual enemy damage for non-bosses
+      
+      # Kill streak system removed - only using combo system now
+      
+      # Track combo and award bonus coins (but not for boss minions)
+      if not enemy.spawnedByBoss:
+        let comboBonus = addComboKill(game.dopamine.comboSystem, game.dopamine.currentTime)
+        if comboBonus > 0:
+          game.player.coins += comboBonus
+          recordCombo(game.dopamine.waveStats, game.dopamine.comboSystem.killCount)
+        
+        # Track combo statistics for run stats
+        trackCombo(game, game.dopamine.comboSystem.killCount)
+      
+      # Check for milestones
+      if checkMilestone(game.dopamine.milestones, mtKills, game.player.kills, game.dopamine.currentTime):
+        addNotification(game.osHUD, "MILESTONE: " & game.dopamine.milestones.recentMilestone.name, 
+                        ntInfo)
+      
       # Track enemy kill for statistics
       trackEnemyKilled(game, enemy)
       
@@ -5047,6 +5138,11 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Mark that a boss coin is now active and must be collected
         game.bossWaveManager.bossDefeated()
+        
+        # Count total bosses defeated from game state
+        var totalBossesDefeated = game.bossCount
+        if totalBossesDefeated >= 10:
+          discard unlockAchievement(game.dopamine.achievements, "boss_slayer")
         
         # Mode-specific boss defeat handling - NO longer advance wave here
         # Wave will advance when boss coin is collected
@@ -5103,8 +5199,7 @@ proc updateGame*(game: var Game, dt: float32) =
           enemy.invulnerabilityTimer = 2.0
           
           # 2. Screen shake for impact
-          game.screenShakeIntensity = 40.0
-          game.screenShakeDecay = 20.0
+          addShake(game.dopamine.screenShake, siLarge)
           
           # 3. Massive particle explosion (expanding rings)
           for ring in 1..5:
@@ -5829,6 +5924,9 @@ proc updateGame*(game: var Game, dt: float32) =
             # Track bullet hit for statistics (now includes Giant Slayer damage)
             trackBulletHit(game, bullet, game.enemies[j], actualDamage + shieldDamage + giantSlayerDamage)
             
+            # Track damage for real-time DPS display
+            recordDamage(game.dopamine.realTimeStats, actualDamage + shieldDamage + giantSlayerDamage, game.time)
+            
             # Track power-up damage contributions (only ACTUAL extra damage they caused)
             
             # Track Overcharge damage contribution (only extra damage from distance)
@@ -6269,6 +6367,11 @@ proc updateGame*(game: var Game, dt: float32) =
       # Track coin pickup for statistics
       trackCoinPickup(game, coinValue)
       
+      recordCoin(game.dopamine.realTimeStats, game.dopamine.currentTime)
+      recordCoin(game.dopamine.waveStats)
+      if game.player.coins >= 1000:
+        discard unlockAchievement(game.dopamine.achievements, "wealthy")
+      
       playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
       # Boss coins have red particles, regular coins have gold
       let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold
@@ -6435,9 +6538,11 @@ proc drawGame*(game: Game) =
   var shakeOffsetX: float32 = 0
   var shakeOffsetY: float32 = 0
   
-  if game.screenShakeIntensity > 0:
-    shakeOffsetX = (rand(1.0) - 0.5) * game.screenShakeIntensity
-    shakeOffsetY = (rand(1.0) - 0.5) * game.screenShakeIntensity
+  let shakeOffset = getShakeOffset(game.dopamine.screenShake)
+  shakeOffsetX = shakeOffset.x
+  shakeOffsetY = shakeOffset.y
+  
+  if shakeOffsetX != 0 or shakeOffsetY != 0:
     
     # Apply shake using Camera2D for clean implementation
     var camera = Camera2D(
@@ -6608,19 +6713,16 @@ proc drawGame*(game: Game) =
   # Draw action log (notifications)
   drawActionLog(game.osHUD, game.screenWidth, game.screenHeight)
 
+  # Kill streak system removed - now only combo system is used
+  drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.time)
+  drawMilestone(game.dopamine.milestones, game.screenWidth, game.screenHeight)
+  drawMicroRewards(game.dopamine.microRewards)
+  drawCloseCall(game.dopamine.closeCall, game.screenWidth, game.screenHeight)
   
-  # Simple boss warning text
-  if game.bossSpawnTimer > 0:
-    let warningAlpha = ((game.bossSpawnTimer * 6.0).int mod 2)
-    let warningColor = if warningAlpha == 0:
-      Color(r: 255, g: 50, b: 50, a: 255)
-    else:
-      Color(r: 255, g: 100, b: 100, a: 200)
-    
-    let warningText = "BOSS INCOMING"
-    let textWidth = measureText(warningText, 40)
-    drawText(warningText, (game.screenWidth div 2 - textWidth div 2).int32,
-             (game.screenHeight div 2 - 60).int32, 40, warningColor)
+  drawWaveCelebration(game.dopamine.waveCelebration, game.screenWidth, game.screenHeight)
+  drawBossIntroduction(game.dopamine.bossIntro, game.screenWidth, game.screenHeight)
+  drawAchievementPopup(game.dopamine.achievements, game.screenWidth, game.screenHeight)
+  # Real-time stats now integrated into debug panel
   
   # Mode-specific UI removed - now handled by OS-Style Left Info Panel
   # (Wave info, enemies count, etc. are all in the left panel)
@@ -6673,7 +6775,7 @@ proc drawGame*(game: Game) =
            game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
   
   # End 2D camera mode if screen shake was applied
-  if game.screenShakeIntensity > 0:
+  if shakeOffsetX != 0 or shakeOffsetY != 0:
     endMode2D()
 
 proc drawGameOver*(game: Game) =

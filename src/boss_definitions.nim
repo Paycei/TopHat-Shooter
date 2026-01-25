@@ -92,7 +92,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapTargeted,
               damage: 1.0,
               cooldown: 1.75,
-              projectileSpeed: 190.0,
+              projectileSpeed: 187.5,
               projectileCount: 3,
               spreadAngle: 20.0,
               durationOrRadius: 0.0
@@ -131,7 +131,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapTargeted,
               damage: 1.0,
               cooldown: 2.75,
-              projectileSpeed: 200.0,
+              projectileSpeed: 195.0,
               projectileCount: 4,
               spreadAngle: 25.0,
               durationOrRadius: 0.0
@@ -216,7 +216,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 4.5,
+              cooldown: 4.0,
               projectileSpeed: 140.0,
               projectileCount: 10,
               spreadAngle: 360.0,

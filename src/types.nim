@@ -458,6 +458,151 @@ type
     active*: bool        # True when a boss is currently spawned
     coinActive*: bool    # True when boss coin needs to be collected
 
+  ScreenShake* = object
+    offset*: Vector2f
+    intensity*: float32
+    duration*: float32
+    maxDuration*: float32
+    decayRate*: float32
+    tintColor*: Color
+
+  # STREAK SYSTEM - REMOVED (types kept for compatibility)
+  StreakLevel* = enum
+    slNone, slSpree, slRampage, slUnstoppable, slGodlike
+
+  KillStreak* = object
+    kills*: int
+    timer*: float32
+    level*: StreakLevel
+    lastLevelUpTime*: float32
+    displayTimer*: float32
+
+  ComboSystem* = object
+    killCount*: int
+    lastKillTime*: float32
+    comboWindow*: float32
+    displayTimer*: float32
+    bonusCoins*: int
+    # Perfect wave combo tracking
+    waveStartCombo*: int          # Combo count at wave start
+    perfectWaveStreak*: int       # Number of consecutive perfect waves
+    lastPerfectWaveBonus*: int    # Last bonus earned for display
+
+  MilestoneType* = enum
+    mtWave, mtKills, mtCoins, mtPerfectWave, mtCloseCall, mtClutch
+
+  Milestone* = object
+    milestoneType*: MilestoneType
+    threshold*: int
+    reached*: bool
+    displayTimer*: float32
+    name*: string
+    description*: string
+    bonus*: string
+
+  MilestoneManager* = object
+    milestones*: seq[Milestone]
+    recentMilestone*: Milestone
+    showRecent*: bool
+
+  MicroReward* = object
+    message*: string
+    coins*: int
+    displayTimer*: float32
+    pos*: Vector2f
+
+  MicroRewardTracker* = object
+    lastKills*: int
+    lastDamageDealt*: float32
+    rewards*: seq[MicroReward]
+
+  SlowMotionType* = enum
+    smtNone, smtKill, smtBossKill, smtPowerUp, smtWaveComplete
+
+  SlowMotion* = object
+    active*: bool
+    timeScale*: float32
+    duration*: float32
+    maxDuration*: float32
+    slowType*: SlowMotionType
+
+  WaveStats* = object
+    waveNumber*: int
+    kills*: int
+    accuracy*: float32
+    topDamage*: float32
+    survivalTime*: float32
+    coinsEarned*: int
+    damageTaken*: float32
+    shotsFired*: int
+    shotsHit*: int
+    isPerfect*: bool
+    maxCombo*: int
+
+  CloseCall* = object
+    detected*: bool
+    displayTimer*: float32
+    count*: int
+
+  WaveCelebration* = object
+    active*: bool
+    animationTimer*: float32
+    maxAnimationTime*: float32
+    waveNumber*: int
+    stats*: WaveStats
+    showStats*: bool
+    statsRevealTimer*: float32
+
+  BossIntroduction* = object
+    active*: bool
+    timer*: float32
+    maxTime*: float32
+    bossName*: string
+    bossTitle*: string
+    bossHp*: float32
+    phase*: int
+
+  Achievement* = object
+    id*: string
+    name*: string
+    description*: string
+    icon*: string
+    unlocked*: bool
+    justUnlocked*: bool
+    displayTimer*: float32
+
+  AchievementManager* = object
+    achievements*: seq[Achievement]
+    recentAchievement*: Achievement
+    showRecent*: bool
+
+  RealTimeStats* = object
+    dps*: float32
+    damageDealt*: float32
+    lastDamageTime*: float32
+    kills*: int
+    coinsPerMinute*: float32
+    totalCoins*: int
+    lastCoinTime*: float32
+    powerLevel*: int
+    damageHistory*: seq[(float32, float32)]  # (timestamp, damage) for rolling window
+
+  DopamineState* = object
+    screenShake*: ScreenShake
+    # killStreak removed - streak system disabled
+    comboSystem*: ComboSystem
+    milestones*: MilestoneManager
+    microRewards*: MicroRewardTracker
+    slowMotion*: SlowMotion
+    waveStats*: WaveStats
+    closeCall*: CloseCall
+    currentTime*: float32
+    # Enhanced features
+    waveCelebration*: WaveCelebration
+    bossIntro*: BossIntroduction
+    achievements*: AchievementManager
+    realTimeStats*: RealTimeStats
+
   Game* = ref object
     state*: GameState
     mode*: GameMode
@@ -524,8 +669,7 @@ type
     osHUD*: OSHUDState  # OS-style HUD and notifications
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
     selectedGameOverButton*: int  # Selected button on game over screen (0=Restart, 1=Stats, 2=Exit)
-    screenShakeIntensity*: float32  # Current shake intensity
-    screenShakeDecay*: float32  # How fast shake decays
+    dopamine*: DopamineState  # Dopamine enhancement systems
 
 proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
   AttackWarning(

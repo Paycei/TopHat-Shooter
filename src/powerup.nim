@@ -1,4 +1,4 @@
-import raylib, types, random, math, tables, ui/os_powerup_installer, powerup_data
+import raylib, types, random, math, tables, ui/os_powerup_installer, powerup_data, d_visuals
 
 # Forward declarations for reroll system
 proc attemptRerollPowerUps*(game: Game): bool
@@ -257,9 +257,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Single level only - +40% fire rate
     player.fireRate *= 0.714  # 1 / 1.4
   of puMaxHealth:
-    # Single level only - +14 HP
-    player.maxHp += 14.0
-    player.hp += 14.0
+    # Single level only - +14.5 HP
+    player.maxHp += 14.5
+    player.hp += 14.5
   of puSpeedBoost:
     # Single level only - +40% speed
     player.speed *= 1.4
@@ -438,6 +438,11 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
 
 proc drawPowerUpSelection*(game: Game) =
   drawOSPowerUpInstaller(game)
+  
+  # Draw combo notification in BOTTOM RIGHT corner during power-up screen
+  # Position it slightly higher to avoid being cut off at screen edge
+  drawComboAtPosition(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, 
+                      game.time, game.screenWidth - 250, game.screenHeight - 180)
 
 # SLOT MACHINE ROLL ANIMATION SYSTEM
 proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeType: PowerUpType): PowerUp =

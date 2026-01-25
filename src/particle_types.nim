@@ -4,7 +4,6 @@ import raylib, math
 ## This file contains only type definitions for particles to avoid circular dependencies.
 ## Separated from particle.nim and particle_pool.nim to allow types.nim to import it.
 
-# Vector2f type definition (also used elsewhere, but defined here to avoid circular imports)
 type
   Vector2f* = object
     x*, y*: float32

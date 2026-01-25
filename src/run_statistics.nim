@@ -1,4 +1,4 @@
-import types, std/tables, times, math, strutils
+﻿import types, std/tables, times, math, strutils, boss_definitions
 
 # Forward declarations for functions defined later in file
 proc calculateDerivedMetrics*()
@@ -30,6 +30,9 @@ type
     killsByType*: Table[EnemyType, int]
     criticalHits*, piercingShots*, explosiveKills*, ricochets*, chainLightningProcs*: int
     homingBullets*, piercingBullets*, explosiveBullets*, splitBullets*: int
+    # Combo and perfect wave stats
+    maxCombo*, totalCombos*, perfectWaves*: int
+    comboSum*: int  # For calculating average combo
   
   # MOVEMENT & SURVIVABILITY
   MovementStats* = object
@@ -219,9 +222,10 @@ proc recordKill*(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: fl
   if isBoss:
     currentRunStats.combat.bossKills += 1
   
-  currentRunStats.performance.currentKillStreak += 1
-  if currentRunStats.performance.currentKillStreak > currentRunStats.performance.longestKillStreak:
-    currentRunStats.performance.longestKillStreak = currentRunStats.performance.currentKillStreak
+  # Kill streak tracking removed
+  # currentRunStats.performance.currentKillStreak += 1
+  # if currentRunStats.performance.currentKillStreak > currentRunStats.performance.longestKillStreak:
+  #   currentRunStats.performance.longestKillStreak = currentRunStats.performance.currentKillStreak
   
   currentRunStats.events.add(GameEvent(
     timestamp: gameTime,
@@ -244,7 +248,8 @@ proc recordDamageTaken*(damage: float32, enemyType: EnemyType, gameTime: float32
   if currentRunStats.movement.currentNoDamageStreak > currentRunStats.movement.longestNoDamageStreak:
     currentRunStats.movement.longestNoDamageStreak = currentRunStats.movement.currentNoDamageStreak
   currentRunStats.movement.currentNoDamageStreak = 0.0
-  currentRunStats.performance.currentKillStreak = 0
+  # Kill streak tracking removed
+  # currentRunStats.performance.currentKillStreak = 0
   
   currentRunStats.events.add(GameEvent(
     timestamp: gameTime,
@@ -418,11 +423,18 @@ proc recordWaveComplete*(waveNumber: int, waveTime: float32, gameTime: float32) 
   if currentRunStats.isNil: return
   
   currentRunStats.performance.waveTimes.add(waveTime)
+  
+  # Create appropriate description based on whether it's a boss wave
+  let waveDescription = if isBossWave(waveNumber):
+    "Boss " & $getCustomBossNumber(waveNumber) & " cleared (" & waveTime.formatFloat(ffDecimal, 1) & "s)"
+  else:
+    "Wave " & $waveNumber & " (" & waveTime.formatFloat(ffDecimal, 1) & "s)"
+  
   currentRunStats.events.add(GameEvent(
     timestamp: gameTime,
     eventType: geWaveComplete,
     value: waveNumber.float32,
-    details: "Wave " & $waveNumber & " (" & waveTime.formatFloat(ffDecimal, 1) & "s)",
+    details: waveDescription,
     position: newVector2f(0, 0)
   ))
 
@@ -605,6 +617,27 @@ proc trackPlayerDamage*(game: Game, damage: float32, enemyType: EnemyType) =
   
   if game.player.hp < 10 and game.player.hp > 0:
     recordNearDeath(game.time, game.player.pos)
+
+# Combo and Perfect Wave Integration
+proc trackCombo*(game: Game, comboCount: int) =
+  ## Track combo statistics
+  if currentRunStats.isNil:
+    return
+  
+  # Track max combo
+  if comboCount > currentRunStats.combat.maxCombo:
+    currentRunStats.combat.maxCombo = comboCount
+  
+  # Add to sum for average calculation (when combo ends)
+  if comboCount >= 2:  # Only count actual combos (2+)
+    currentRunStats.combat.totalCombos += 1
+    currentRunStats.combat.comboSum += comboCount
+
+proc trackPerfectWave*() =
+  ## Track when a perfect wave is achieved
+  if currentRunStats.isNil:
+    return
+  currentRunStats.combat.perfectWaves += 1
 
 # Movement Integration
 proc trackMovementFrame*(game: Game, dt: float32) =
