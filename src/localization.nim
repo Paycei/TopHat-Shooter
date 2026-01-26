@@ -295,7 +295,6 @@ type
     tkHelpLuckyCoins = "help_lucky_coins"
     tkHelpWallMaster = "help_wall_master"
     tkHelpAutoShoot = "help_auto_shoot"
-    tkHelpBulletSize = "help_bullet_size"
     tkHelpRegeneration = "help_regeneration"
     tkHelpDodgeChance = "help_dodge_chance"
     tkHelpCriticalHit = "help_critical_hit"
@@ -535,7 +534,6 @@ type
     tkPowerupLuckyCoins = "powerup_lucky_coins"
     tkPowerupWallMaster = "powerup_wall_master"
     tkPowerupAutoShoot = "powerup_auto_shoot"
-    tkPowerupBulletSize = "powerup_bullet_size"
     tkPowerupRegeneration = "powerup_regeneration"
     tkPowerupDodgeChance = "powerup_dodge_chance"
     tkPowerupCriticalHit = "powerup_critical_hit"
@@ -610,9 +608,6 @@ type
     tkPowerupLuckyCoinsDesc = "powerup_lucky_coins_desc"
     tkPowerupWallMasterDesc = "powerup_wall_master_desc"
     tkPowerupAutoShootDesc = "powerup_auto_shoot_desc"
-    tkPowerupBulletSizeDesc1 = "powerup_bullet_size_desc1"
-    tkPowerupBulletSizeDesc2 = "powerup_bullet_size_desc2"
-    tkPowerupBulletSizeDesc3 = "powerup_bullet_size_desc3"
     tkPowerupRegenerationDesc1 = "powerup_regeneration_desc1"
     tkPowerupRegenerationDesc2 = "powerup_regeneration_desc2"
     tkPowerupRegenerationDesc3 = "powerup_regeneration_desc3"
@@ -922,7 +917,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_lucky_coins": "Greed",
     "powerup_wall_master": "Fortify",
     "powerup_auto_shoot": "Auto-Target",
-    "powerup_bullet_size": "Giant Bullets",
     "powerup_regeneration": "Regeneration",
     "powerup_dodge_chance": "Evasion",
     "powerup_critical_hit": "Critical Strike",
@@ -987,9 +981,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_explosive_bullets_desc1": "Bullets explode (small radius, scales with damage)",
     "powerup_explosive_bullets_desc2": "Bullets explode (medium radius, scales with damage)",
     "powerup_explosive_bullets_desc3": "Bullets explode (large radius, scales with damage)",
-    "powerup_life_steal_desc1": "Heal 100 HP per 20 kills",
-    "powerup_life_steal_desc2": "Heal 100 HP per 15 kills",
-    "powerup_life_steal_desc3": "Heal 100 HP per 10 kills",
+    "powerup_life_steal_desc1": "Heal 50 HP per 12 kills",
+    "powerup_life_steal_desc2": "Heal 50 HP per 9 kills",
+    "powerup_life_steal_desc3": "Heal 50 HP per 6 kills",
     "powerup_rapid_fire_desc": "+40% fire rate",
     "powerup_max_health_desc": "+1450 max HP",
     "powerup_speed_boost_desc": "+40% movement speed",
@@ -997,9 +991,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_lucky_coins_desc": "Doubles all coins collected",
     "powerup_wall_master_desc": "Walls have +250% HP turrets have +100% damage",
     "powerup_auto_shoot_desc": "Auto-fire at nearest enemy (90% fire rate, 450 range)",
-    "powerup_bullet_size_desc1": "+50% bullet size",
-    "powerup_bullet_size_desc2": "+100% bullet size",
-    "powerup_bullet_size_desc3": "+150% bullet size",
     "powerup_regeneration_desc1": "Regen 150-250 HP per wave",
     "powerup_regeneration_desc2": "Regen 250-450 HP per wave",
     "powerup_regeneration_desc3": "Regen 350-650 HP per wave",
@@ -1401,7 +1392,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_lucky_coins": "Lucky Coins - Doubles coins collected",
     "help_wall_master": "Wall Master - Place stronger walls",
     "help_auto_shoot": "Auto Shoot - Auto-target nearest enemy",
-    "help_bullet_size": "Bullet Size - Larger projectiles",
     "help_regeneration": "Regeneration - Slowly restore HP",
     "help_dodge_chance": "Dodge Chance - Chance to evade damage",
     "help_critical_hit": "Critical Hit - Random critical damage",
@@ -1705,7 +1695,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_lucky_coins": "Codicia",
     "powerup_wall_master": "Fortificar",
     "powerup_auto_shoot": "Apuntado Auto",
-    "powerup_bullet_size": "Balas Gigantes",
     "powerup_regeneration": "Regeneración",
     "powerup_dodge_chance": "Evasión",
     "powerup_critical_hit": "Golpe Crítico",
@@ -1780,9 +1769,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_lucky_coins_desc": "Duplica todas las monedas recogidas",
     "powerup_wall_master_desc": "Muros tienen +250% HP torretas +100% daño",
     "powerup_auto_shoot_desc": "Disparo auto al enemigo más cercano (90% cadencia, rango 450)",
-    "powerup_bullet_size_desc1": "+50% tamaño de bala",
-    "powerup_bullet_size_desc2": "+100% tamaño de bala",
-    "powerup_bullet_size_desc3": "+150% tamaño de bala",
     "powerup_regeneration_desc1": "Regen 150-250 HP por oleada",
     "powerup_regeneration_desc2": "Regen 250-450 HP por oleada",
     "powerup_regeneration_desc3": "Regen 350-650 HP por oleada",
@@ -2126,7 +2112,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_lucky_coins": "Monedas Afortunadas - Duplica monedas recolectadas",
     "help_wall_master": "Maestro de Muros - Coloca muros más fuertes",
     "help_auto_shoot": "Disparo Automático - Apunta automáticamente al enemigo más cercano",
-    "help_bullet_size": "Tamaño de Bala - Proyectiles más grandes",
     "help_regeneration": "Regeneración - Restaura lentamente HP",
     "help_dodge_chance": "Oportunidad de Esquivar - Oportunidad de evadir daño",
     "help_critical_hit": "Golpe Crítico - Daño crítico aleatorio",

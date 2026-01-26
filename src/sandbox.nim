@@ -1,6 +1,6 @@
 # SANDBOX MODE - Testing and Development Tools
 
-import raylib, types, enemy, powerup, boss_definitions, std/strutils, random, localization
+import raylib, types, enemy, powerup, boss_definitions, std/strutils, random, localization, consumable
 
 const
   SIDEBAR_WIDTH = 300
@@ -65,6 +65,49 @@ proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
       drawRectangleLines(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 80, b: 80, a: 255))
       drawText($bossId & ". " & bossDef.name, contentX + 5, currentY + 5, 16, Red)
       drawText(bossDef.description, contentX + 5, currentY + 20, 12, Color(r: 200, g: 150, b: 150, a: 255))
+    currentY += BUTTON_HEIGHT + BUTTON_SPACING
+
+proc drawConsumablesTab(game: Game, sidebarX, startY, screenHeight: int32) =
+  var currentY: int32 = startY + 10 - game.sandboxScrollOffset
+  let contentX: int32 = sidebarX + SIDEBAR_PADDING
+  let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
+  
+  drawText("Spawn Consumables", contentX, currentY, 18, White)
+  currentY += 25
+  
+  # List all consumable types with spawn buttons
+  let consumableTypes = [
+    ("Health", ctHealth, "Restore 3 HP"),
+    ("Coin", ctCoin, "Collect 5 coins"),
+    ("Speed", ctSpeed, "Speed boost (30s)"),
+    ("Fire Rate", ctFireRate, "Fire rate boost (30s)"),
+    ("Shield Boost", ctShieldBoost, "Absorb hits (30s)"),
+    ("Magnet", ctMagnet, "Auto-collect items (30s)"),
+    ("Damage Boost", ctDamageBoost, "Damage boost (30s)"),
+    ("Invincibility", ctInvincibility, "Invulnerable (30s)"),
+    ("Double Coin", ctDoubleCoin, "2x coin value (30s)"),
+    ("Lifesteal", ctLifesteal, "Heal on kill (30s)")
+  ]
+  
+  for (name, consumableType, desc) in consumableTypes:
+    if currentY > startY - 50 and currentY < screenHeight - 50:  # Only draw visible items
+      # Get the consumable color
+      let color = case consumableType
+        of ctHealth: Color(r: 50, g: 255, b: 50, a: 255)
+        of ctCoin: Color(r: 255, g: 215, b: 0, a: 255)
+        of ctSpeed: Color(r: 0, g: 255, b: 255, a: 255)
+        of ctFireRate: Color(r: 255, g: 165, b: 0, a: 255)
+        of ctShieldBoost: Color(r: 0, g: 255, b: 255, a: 255)
+        of ctMagnet: Color(r: 147, g: 51, b: 234, a: 255)
+        of ctDamageBoost: Color(r: 255, g: 69, b: 0, a: 255)
+        of ctInvincibility: Color(r: 255, g: 0, b: 255, a: 255)
+        of ctDoubleCoin: Color(r: 255, g: 223, b: 0, a: 255)
+        of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)
+      
+      drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, color)
+      drawRectangleLines(contentX, currentY, buttonWidth, BUTTON_HEIGHT, White)
+      drawText(name, contentX + 5, currentY + 5, 16, Black)
+      drawText(desc, contentX + 5, currentY + 20, 12, Color(r: 50, g: 50, b: 50, a: 255))
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
 proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
@@ -154,8 +197,8 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   drawText(t(tkSandboxTitle), sidebarX + 10, 10, 20, Yellow)
   
   # Draw tabs
-  let tabs = [t(tkSandboxTabEnemies), t(tkSandboxTabBosses), t(tkSandboxTabControls)]
-  let tabWidth: int32 = (SIDEBAR_WIDTH - SIDEBAR_PADDING * 4) div 3
+  let tabs = [t(tkSandboxTabEnemies), t(tkSandboxTabBosses), "Cons.", t(tkSandboxTabControls)]
+  let tabWidth: int32 = (SIDEBAR_WIDTH - SIDEBAR_PADDING * 5) div 4
   var currentY: int32 = 45
   
   for i, tabName in tabs:
@@ -176,7 +219,9 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
     drawEnemiesTab(game, sidebarX, currentY, screenHeight)
   of 1:  # Bosses tab
     drawBossesTab(game, sidebarX, currentY, screenHeight)
-  of 2:  # Controls tab
+  of 2:  # Consumables tab
+    drawConsumablesTab(game, sidebarX, currentY, screenHeight)
+  of 3:  # Controls tab
     drawControlsTab(game, sidebarX, currentY, screenHeight)
   else:
     discard
@@ -239,6 +284,28 @@ proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, 
       # Spawn the selected boss
       let boss = spawnBoss(screenWidth, screenHeight, game.difficulty, game.bossCount, bossId * 5)
       game.enemies.add(boss)
+      return
+    currentY += BUTTON_HEIGHT + BUTTON_SPACING
+
+proc handleConsumablesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
+  let startY = 45 + TAB_HEIGHT + 5
+  var currentY = startY + 35 - game.sandboxScrollOffset  # After "Spawn Consumables:" text
+  let contentX = sidebarX + SIDEBAR_PADDING
+  let buttonWidth = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
+  
+  let consumableTypes = [ctHealth, ctCoin, ctSpeed, ctFireRate, ctShieldBoost, 
+                         ctMagnet, ctDamageBoost, ctInvincibility, ctDoubleCoin, ctLifesteal]
+  
+  for consumableType in consumableTypes:
+    if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
+       mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
+      # Spawn consumable near player
+      let offsetX = rand(-100.0..100.0)
+      let offsetY = rand(-100.0..100.0)
+      let spawnX = game.player.pos.x + offsetX
+      let spawnY = game.player.pos.y + offsetY
+      
+      game.consumables.add(newSpecificConsumable(spawnX, spawnY, consumableType))
       return
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
@@ -356,9 +423,9 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
       return
     
     # Check tabs
-    let tabWidth = (SIDEBAR_WIDTH - SIDEBAR_PADDING * 4) div 3
+    let tabWidth = (SIDEBAR_WIDTH - SIDEBAR_PADDING * 5) div 4
     let tabY = 45
-    for i in 0..2:
+    for i in 0..3:
       let tabX = sidebarX + SIDEBAR_PADDING + i * (tabWidth + SIDEBAR_PADDING)
       if mousePos.x >= tabX.float32 and mousePos.x <= (tabX + tabWidth).float32 and
          mousePos.y >= tabY.float32 and mousePos.y <= (tabY + TAB_HEIGHT - 5).float32:
@@ -372,7 +439,9 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
       handleEnemiesTabClick(game, mousePos, sidebarX, screenWidth, screenHeight)
     of 1:  # Bosses tab
       handleBossesTabClick(game, mousePos, sidebarX, screenWidth, screenHeight)
-    of 2:  # Controls tab
+    of 2:  # Consumables tab
+      handleConsumablesTabClick(game, mousePos, sidebarX, screenWidth, screenHeight)
+    of 3:  # Controls tab
       handleControlsTabClick(game, mousePos, sidebarX, screenWidth, screenHeight)
     else:
       discard

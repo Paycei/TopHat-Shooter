@@ -166,7 +166,6 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpLuckyCoins), White)
       help.addOutput("  " & t(tkHelpWallMaster), White)
       help.addOutput("  " & t(tkHelpAutoShoot), White)
-      help.addOutput("  " & t(tkHelpBulletSize), White)
       help.addOutput("  " & t(tkHelpRegeneration), White)
       help.addOutput("  " & t(tkHelpDodgeChance), White)
       help.addOutput("  " & t(tkHelpCriticalHit), White)

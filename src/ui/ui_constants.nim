@@ -1,7 +1,10 @@
 ## UI Constants
 ## Centralized constants for UI display settings
 
-import math
+import math, raylib
+
+# COLORS
+const Cyan* = Color(r: 0, g: 255, b: 255, a: 255)
 
 # BALANCE DISPLAY MULTIPLIER
 # This multiplier is applied to ALL health and damage values shown in the UI

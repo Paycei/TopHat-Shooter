@@ -435,10 +435,16 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game) =
   let centerX = x + (width - buttonWidth) div 2
   
   let consumables = [
-    ("Speed Boost", "Speed", Color(r: 255, g: 255, b: 100, a: 255)),
-    ("Invincibility", "Invincibility", Color(r: 255, g: 100, b: 255, a: 255)),
-    ("Fire Rate", "Fire Rate", Color(r: 255, g: 100, b: 100, a: 255)),
-    ("Magnet", "Magnet", Color(r: 255, g: 200, b: 0, a: 255))
+    ("Speed Boost", "Speed", Color(r: 0, g: 255, b: 255, a: 255)),
+    ("Invincibility", "Invincibility", Color(r: 255, g: 0, b: 255, a: 255)),
+    ("Fire Rate", "Fire Rate", Color(r: 255, g: 165, b: 0, a: 255)),
+    ("Magnet", "Magnet", Color(r: 147, g: 51, b: 234, a: 255)),
+    ("Health", "Health", Color(r: 50, g: 255, b: 50, a: 255)),
+    ("Coin", "Coin", Color(r: 255, g: 215, b: 0, a: 255)),
+    ("Shield Boost", "Shield", Color(r: 0, g: 255, b: 255, a: 255)),
+    ("Damage Boost", "Damage", Color(r: 255, g: 69, b: 0, a: 255)),
+    ("Double Coin", "DoubleCoin", Color(r: 255, g: 223, b: 0, a: 255)),
+    ("Lifesteal", "Lifesteal", Color(r: 139, g: 0, b: 0, a: 255))
   ]
   
   for consumableData in consumables:
@@ -473,6 +479,18 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game) =
         game.player.fireRateBoostTimer = 30.0
       of "Magnet":
         game.player.magnetTimer = 30.0
+      of "Health":
+        game.player.hp = min(game.player.hp + 3.0, game.player.maxHp)
+      of "Coin":
+        game.player.coins += 5
+      of "Shield":
+        game.player.shieldBoostTimer = 30.0
+      of "Damage":
+        game.player.damageBoostTimer = 30.0
+      of "DoubleCoin":
+        game.player.doubleCoinTimer = 30.0
+      of "Lifesteal":
+        game.player.lifestealTimer = 30.0
       else:
         discard
       playSound(stPowerUp)

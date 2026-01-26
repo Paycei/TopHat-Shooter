@@ -1,4 +1,4 @@
-import raylib, types, wall, math, random, powerup, localization, skins, shapes
+import raylib, types, wall, math, random, powerup, localization, skins, shapes, ui/ui_constants
 
 proc newPlayer*(x, y: float32): Player =
   result = Player(
@@ -21,6 +21,11 @@ proc newPlayer*(x, y: float32): Player =
     invincibilityTimer: 0,
     fireRateBoostTimer: 0,
     magnetTimer: 0,
+    shieldBoostTimer: 0,     # New: shield boost duration
+    doubleCoinTimer: 0,      # New: double coin duration
+    damageBoostTimer: 0,     # New: damage boost duration
+    lifestealTimer: 0,       # New: lifesteal duration
+    shieldHits: 0,           # New: remaining shield absorptions
     powerUps: @[],
     shieldAngle: 0,
     shieldHealths: @[],      # Will be populated when power-up is acquired
@@ -85,6 +90,18 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.fireRateBoostTimer -= dt
   if player.magnetTimer > 0:
     player.magnetTimer -= dt
+  
+  # New consumable timers
+  if player.shieldBoostTimer > 0:
+    player.shieldBoostTimer -= dt
+    if player.shieldBoostTimer <= 0:
+      player.shieldHits = 0  # Clear shield when timer expires
+  if player.doubleCoinTimer > 0:
+    player.doubleCoinTimer -= dt
+  if player.damageBoostTimer > 0:
+    player.damageBoostTimer -= dt
+  if player.lifestealTimer > 0:
+    player.lifestealTimer -= dt
   
   # NOTE: double-shot delay timer is updated in game.nim where firing logic lives
   
@@ -256,6 +273,18 @@ proc drawPlayer*(player: Player) =
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, poisonRadius,
                      Color(r: 100, g: 255, b: 100, a: 70))
   
+  # Shield boost visual - cyan protective barrier
+  if player.shieldHits > 0:
+    let shieldPulse = 1.0 + 0.1 * sin(getTime() * 8.0)
+    let shieldAlpha = 80 + (sin(getTime() * 4.0) * 40).int
+    let shieldRadius = player.radius * 1.4 * shieldPulse
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), shieldRadius,
+              Color(r: Cyan.r, g: Cyan.g, b: Cyan.b, a: shieldAlpha.uint8))
+    drawCircleLines(player.pos.x.int32, player.pos.y.int32, shieldRadius, Cyan)
+    # Draw shield hit counter
+    let hitsText = $player.shieldHits
+    drawText(hitsText, (player.pos.x - 4).int32, (player.pos.y + player.radius + 12).int32, 12, Cyan)
+  
   # Dodge flash effect
   if player.lastDamageTaken == 0 and player.hp > 0:
     drawText(t(tkPlayerDodge), (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
@@ -281,8 +310,8 @@ proc drawPlayer*(player: Player) =
     glowIntensity = 0.8 + pulse * 0.2
     # Extra glow layers
     drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8, 
-              Color(r: 0, g: 255, b: 255, a: phaseAlpha.uint8))
-    drawText(t(tkPlayerPhase), (player.pos.x - 30).int32, (player.pos.y - 40).int32, 14, SkyBlue)
+              Color(r: Cyan.r, g: Cyan.g, b: Cyan.b, a: phaseAlpha.uint8))
+    drawText(t(tkPlayerPhase), (player.pos.x - 30).int32, (player.pos.y - 40).int32, 14, Cyan)
   # Parry active visual effect - white/silver shield
   elif player.parryActive:
     let parryAlpha = (sin(player.parryDuration * 20.0) * 50 + 150).int
@@ -486,6 +515,12 @@ proc drawPlayer*(player: Player) =
 
 proc takeDamage*(player: Player, damage: float32): bool =
   ## Returns true if player died (HP reached 0 or below), false otherwise
+  # Shield boost absorbs hits first
+  if player.shieldHits > 0:
+    player.shieldHits -= 1
+    # Visual/audio feedback happens in game.nim
+    return false
+  
   # Invincibility from consumables
   if player.invincibilityTimer > 0:
     return false

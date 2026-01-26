@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements
+import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
@@ -431,6 +431,10 @@ proc calculateCombatStats*(player: Player): CombatStats =
   result.hasCrit = false
   
   # === DAMAGE CALCULATIONS ===
+  
+  # Damage boost consumable
+  if player.damageBoostTimer > 0:
+    result.damage *= 1.5  # +50% damage
   
   # Rage power-up - damage increases when HP is low
   for powerUp in player.powerUps:
@@ -5067,9 +5071,8 @@ proc updateGame*(game: var Game, dt: float32) =
         let healthPos = clampLootPosition(healthX, healthY, game.screenWidth, game.screenHeight)
         game.consumables.add(newSpecificConsumable(healthPos.x, healthPos.y, ctHealth))
       else:
-        # Regular enemies have random drop chance
-        let dropChance = if enemy.enemyType == etStar: 40 else: 15
-        if rand(99) < dropChance:
+        # Regular enemies have 15% chance to drop a consumable
+        if rand(99) < 15:
           # Clamp consumable position to be in bounds (for enemies killed out-of-bounds)
           let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
           # In wave mode, consumables don't scale with difficulty to keep drop quality consistent
@@ -5077,6 +5080,12 @@ proc updateGame*(game: var Game, dt: float32) =
           game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
       
       game.player.kills += 1
+      
+      # Lifesteal consumable - heal 1 HP per kill
+      if game.player.lifestealTimer > 0:
+        heal(game.player, 1)
+        # Show heal damage number
+        showDamage(game, game.player.pos, 1.0, true, false, dtHeal)
       
       if game.player.kills == 1:
         discard unlockAchievement(game.dopamine.achievements, "first_blood")
@@ -5123,12 +5132,12 @@ proc updateGame*(game: var Game, dt: float32) =
         let level = getPowerUpLevel(game.player, puLifeSteal)
         game.player.killsSinceLastHeal += 1
         let healsPerKills = case level
-          of 1: 20
-          of 2: 15
-          else: 10
+          of 1: 12
+          of 2: 9
+          else: 6
         
         if game.player.killsSinceLastHeal >= healsPerKills:
-          heal(game.player, 1)
+          heal(game.player, 0.5)  # Heal 0.5 HP
           game.player.killsSinceLastHeal = 0
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
       
@@ -6357,11 +6366,12 @@ proc updateGame*(game: var Game, dt: float32) =
     # Collect coin on contact
     if checkPlayerCollision(game.coins[i], game.player):
       let isBossCoin = game.coins[i].isBossCoin
-      # Apply Greed multiplier
-      let coinValue = if hasPowerUp(game.player, puLuckyCoins):
-        game.coins[i].value * 2
-      else:
-        game.coins[i].value
+      # Apply Greed multiplier and Double Coin multiplier (they stack)
+      var coinValue = game.coins[i].value
+      if hasPowerUp(game.player, puLuckyCoins):
+        coinValue *= 2
+      if game.player.doubleCoinTimer > 0:
+        coinValue *= 2
       game.player.coins += coinValue
       
       # Track coin pickup for statistics
@@ -6416,7 +6426,9 @@ proc updateGame*(game: var Game, dt: float32) =
         # Create heal damage number (green, floating up)
         showDamage(game, game.player.pos, 1.0, true, false, dtHeal)
       of ctCoin:
-        game.player.coins += 5
+        # Double coin multiplier applies here
+        let coinValue = if game.player.doubleCoinTimer > 0: 10 else: 5
+        game.player.coins += coinValue
       of ctSpeed:
         activateSpeedBoost(game.player)
       of ctInvincibility:
@@ -6434,14 +6446,27 @@ proc updateGame*(game: var Game, dt: float32) =
           # Clamp coin position to be in bounds (in case player is near edge)
           let clampedPos = clampLootPosition(coinX, coinY, game.screenWidth, game.screenHeight)
           game.coins.add(newCoin(clampedPos.x, clampedPos.y, 1))
+      of ctShieldBoost:
+        game.player.shieldBoostTimer = 10.0
+        game.player.shieldHits = 2  # Absorbs 2 hits
+      of ctDoubleCoin:
+        game.player.doubleCoinTimer = 10.0  # 10 seconds of double coins
+      of ctDamageBoost:
+        game.player.damageBoostTimer = 10.0
+      of ctLifesteal:
+        game.player.lifestealTimer = 15.0
       
       let particleColor = case game.consumables[i].consumableType
         of ctHealth: Green
         of ctCoin: Gold
-        of ctSpeed: SkyBlue
+        of ctSpeed: Cyan
         of ctInvincibility: Magenta
         of ctFireRate: Orange
         of ctMagnet: Purple
+        of ctShieldBoost: Cyan
+        of ctDoubleCoin: Color(r: 255, g: 223, b: 0, a: 255)
+        of ctDamageBoost: Color(r: 255, g: 69, b: 0, a: 255)
+        of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)
       
       spawnExplosionPooled(game.particlePool, game.consumables[i].pos.x, game.consumables[i].pos.y, 
                     particleColor, 10)

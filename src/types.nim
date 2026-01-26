@@ -42,7 +42,11 @@ type
     ctSpeed,
     ctInvincibility,
     ctFireRate,
-    ctMagnet
+    ctMagnet,
+    ctShieldBoost,      # Temporary shield (absorbs hits)
+    ctDoubleCoin,       # 2x coin value for duration
+    ctDamageBoost,      # Increased damage
+    ctLifesteal         # Heal on kill
 
   PowerUpType* = enum
     puDoubleShot,      # Shoots 2 bullets at once
@@ -173,6 +177,11 @@ type
     invincibilityTimer*: float32
     fireRateBoostTimer*: float32
     magnetTimer*: float32
+    shieldBoostTimer*: float32     # New: shield boost duration
+    doubleCoinTimer*: float32      # New: double coin duration
+    damageBoostTimer*: float32     # New: damage boost duration
+    lifestealTimer*: float32       # New: lifesteal duration
+    shieldHits*: int               # New: remaining shield absorptions
     powerUps*: seq[PowerUp]
     shieldAngle*: float32
     shieldHealths*: seq[float32]  # Health of each shield segment
