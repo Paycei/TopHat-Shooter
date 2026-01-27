@@ -1641,6 +1641,67 @@ proc drawAttackWarning*(warning: AttackWarning) =
       Color(r: 255, g: 255, b: 255, a: alpha)
     )
   
+  of "teleport_warning":
+    # Teleport warning - shows where boss will appear
+    let warningMode = warning.laserPattern  # Contains the teleport mode
+    
+    # Base pulsing circle for all teleport warnings
+    drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse * 2,
+                   Color(r: 150, g: 100, b: 255, a: alpha))
+    drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 60.0 + pulse,
+                   Color(r: 150, g: 100, b: 255, a: (alpha div 2).uint8))
+    
+    # Mode-specific visual effects
+    case warningMode
+    of "afterimage_burst":
+      # Ghost shimmer effect
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 30.0 + pulse * 1.5,
+                     Color(r: 100, g: 200, b: 255, a: (alpha div 2).uint8))
+      # Ghost glyph
+      drawText("*", (warning.pos.x - 5).int32, (warning.pos.y - 8).int32, 20,
+              Color(r: 150, g: 100, b: 255, a: alpha))
+    of "triple_clone", "dimensional_chaos", "omega_blink":
+      # Multiple expanding rings for clone/chaos modes
+      for i in 1..3:
+        let ringRadius = 35.0 + pulse + (i.float32 * 15.0)
+        let ringAlpha = uint8((alpha.float32 * (1.0 - i.float32 * 0.25)).uint8.clamp(0, 255))
+        drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, ringRadius, 
+                       Color(r: 200, g: 100, b: 255, a: ringAlpha))
+    of "dimensional_rift":
+      # Purple/cyan rifts
+      for i in 0..7:
+        let angle = i.float32 * (PI * 2.0 / 8.0) + getTime() * 2.0
+        let riftX = warning.pos.x + cos(angle) * (30.0 + pulse)
+        let riftY = warning.pos.y + sin(angle) * (30.0 + pulse)
+        let riftColor = if i mod 2 == 0:
+          Color(r: 200, g: 100, b: 255, a: alpha)
+        else:
+          Color(r: 100, g: 200, b: 255, a: alpha)
+        drawCircle(Vector2(x: riftX, y: riftY), 5.0, riftColor)
+    of "chaos_blink", "reality_shift":
+      # Chaotic swirl pattern
+      for i in 0..11:
+        let angle = i.float32 * (PI * 2.0 / 12.0) + getTime() * 3.0
+        let swrlX = warning.pos.x + cos(angle) * (35.0 + pulse)
+        let swrlY = warning.pos.y + sin(angle) * (35.0 + pulse)
+        let chaosAlpha = uint8((alpha.float32 * (0.5 + sin(getTime() * 10.0 + i.float32) * 0.5)).uint8.clamp(0, 255))
+        drawCircle(Vector2(x: swrlX, y: swrlY), 4.0 + pulse * 0.2,
+                  Color(r: uint8(150 + rand(100)), g: uint8(100 + rand(100)), 
+                        b: uint8(150 + rand(100)), a: chaosAlpha))
+    else:
+      # Default warning pattern
+      for i in 0..3:
+        let angle = i.float32 * (PI / 2.0) + getTime()
+        let sparkX = warning.pos.x + cos(angle) * (25.0 + pulse)
+        let sparkY = warning.pos.y + sin(angle) * (25.0 + pulse)
+        drawCircle(Vector2(x: sparkX, y: sparkY), 3.0,
+                  Color(r: 150, g: 100, b: 255, a: alpha))
+    
+    # Center danger indicator
+    let centerPulse = sin(getTime() * 15.0) * 0.3 + 0.7
+    drawCircle(Vector2(x: warning.pos.x, y: warning.pos.y), 8.0 + pulse * centerPulse,
+              Color(r: 255, g: 100, b: 200, a: uint8(alpha.float32 * centerPulse)))
+  
   else:
     discard
 

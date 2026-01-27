@@ -61,8 +61,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Spiral Guardian",
       bossID: 1,
-      baseHP: 125.0,  # NERFED from 150.0
-      baseSpeed: 50.0,  # NERFED from 65.0
+      baseHP: 125.0,
+      baseSpeed: 50.0,
       baseDamage: 1,
       baseRadius: 45.0,
       color: Color(r: 100, g: 50, b: 200, a: 255),
@@ -146,7 +146,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       name: "The Summoner King",
       bossID: 2,
       baseHP: 175.0,
-      baseSpeed: 70.0,
+      baseSpeed: 65.0,
       baseDamage: 1,
       baseRadius: 50.0,
       color: Color(r: 50, g: 150, b: 50, a: 255),
@@ -231,8 +231,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Meteor Striker",
       bossID: 3,
-      baseHP: 250.0,  # NERFED from 280.0
-      baseSpeed: 65.0,  # NERFED from 75.0
+      baseHP: 275.0,
+      baseSpeed: 65.0,
       baseDamage: 2,
       baseRadius: 48.0,
       color: Color(r: 255, g: 100, b: 0, a: 255),
@@ -306,7 +306,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.25,
           speedMultiplier: 1.2,  # NERFED from 2.0
           damageMultiplier: 1.5,  # NERFED from 2.0
-          defenseMultiplier: 0.9,
+          defenseMultiplier: 1.1,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
           specialBehavior: "enraged",
@@ -511,8 +511,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Void Dancer",
       bossID: 5,
-      baseHP: 320.0,  # NERFED from 380.0
-      baseSpeed: 60.0,  # NERFED from 70.0
+      baseHP: 350.0,  # NERFED from 380.0
+      baseSpeed: 65.0,  # NERFED from 70.0
       baseDamage: 2,
       baseRadius: 46.0,
       color: Color(r: 80, g: 0, b: 120, a: 255),
@@ -532,7 +532,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 1.5,  # NERFED from 2.0
-              cooldown: 3.5,  # NERFED from 3.0
+              cooldown: 3.0,
               projectileSpeed: 0.0,
               projectileCount: 0,
               spreadAngle: 0.0,
@@ -553,7 +553,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 1.5,  # NERFED from 2.0
               cooldown: 2.8,  # NERFED from 2.3
               projectileSpeed: 220.0,  # NERFED from 240.0
-              projectileCount: 1,  # NERFED from 2
+              projectileCount: 3,
               spreadAngle: 10.0,  # NERFED from 12.0
               durationOrRadius: 0.0
             )

@@ -1700,7 +1700,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Keep distance from player
     if playerDist < 250.0:
       let retreatDir = toPlayer * -1.0
-      enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.75 * dt
+      enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.85 * dt
     else:
       # Drift toward center if far from player
       let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
@@ -1882,7 +1882,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       # Maintain defensive distance
       if playerDist < 220.0:
         let retreatDir = toPlayer * -1.0
-        enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.7 * dt
+        enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.8 * dt
       else:
         # Slow drift toward center
         let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
@@ -2068,7 +2068,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   else:
     discard
 
-proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
+proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
   ## Executes a single boss attack based on its pattern type
   let toPlayer = (game.player.pos - enemy.pos).normalize()
   
@@ -2415,10 +2415,13 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
     let isChromaticAttack = barrageMode == "chromatic_burst"
     let isLightAttack = barrageMode == "light_burst"
     let isTimeShatter = barrageMode == "time_shatter"
+    let isOmegaBarrage = barrageMode == "omega_barrage"
     
     # Randomize count ±30% for chaos
     let bulletCount = if isChaosAttack:
       (attack.projectileCount.float32 * (0.7 + rand(0.6))).int
+    elif isOmegaBarrage:
+      attack.projectileCount * 2  # Double bullets for ultimate attack
     else:
       attack.projectileCount
     
@@ -3209,343 +3212,92 @@ proc executeCustomBossAttack(game: Game, enemy: Enemy, attack: BossAttack, phase
       of "time_echo": 2
       of "echo_burst": 4
       of "temporal_collapse": 6
+      of "afterimage_burst": 3 + rand(2)  # 3-4 ghost images with rapid bursts
       of "chaos_blink": rand(2) + 1  # 1-2 random teleports with unstable reality tears
       of "reality_shift": rand(2) + 2  # 2-3 reality shifts with dimensional bridges
+      of "dimensional_rift": 2  # 2 major dimensional rifts
       of "dimensional_chaos": rand(3) + 3  # 3-5 chaotic dimension portals with vortexes
       of "omega_blink": rand(2) + 4  # 4-5 ultimate teleports combining all effects
       else: 1
     
-    # Create visual effect for each teleport
-    # Visuals for Timekeeper temporal modes and Chaos Weaver chaos modes
-    let (initialExplosionSize, temporalTrails, chaosEffect) = case teleportMode
-      of "time_echo":
-        (18, true, false)  # Moderate explosion with temporal trails
-      of "echo_burst":
-        (22, true, false)  # Larger explosion, rapid temporal echoes
-      of "temporal_collapse":
-        (30, true, false)  # Massive reality-breaking explosion
-      of "chaos_blink":
-        (20, false, true)  # Random chaos explosion
-      of "reality_shift":
-        (25, false, true)  # Reality-distorting chaos
-      of "dimensional_chaos":
-        (32, false, true)  # Massive dimensional tear
-      of "omega_blink":
-        (35, true, true)  # Ultimate - both temporal and chaos
-      else:
-        (15, false, false)  # Standard explosion
-    
-    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, initialExplosionSize)
-    
-    # Create temporal distortion rings for Timekeeper modes
-    if temporalTrails:
-      let ringCount = case teleportMode
-        of "time_echo": 2
-        of "echo_burst": 3
-        of "temporal_collapse": 4
-        else: 2
-      
-      for ring in 0..<ringCount:
-        let ringRadius = 25.0 + ring.float32 * 20.0
-        for i in 0..<12:
-          let angle = i.float32 * PI * 2.0 / 12.0
-          let ringX = enemy.pos.x + cos(angle) * ringRadius
-          let ringY = enemy.pos.y + sin(angle) * ringRadius
-          # Cyan/turquoise temporal particles
-          spawnExplosionPooled(game.particlePool, ringX, ringY,
-                        Color(r: 100, g: 220, b: 220, a: 255), 3)
-    
-    # Create chaotic distortion for Chaos Weaver modes
-    if chaosEffect:
-      let chaosRingCount = case teleportMode
-        of "chaos_blink": 2
-        of "reality_shift": 3
-        of "dimensional_chaos": 4
-        of "omega_blink": 5
-        else: 2
-      
-      # CHAOS DISTORTION: Create unstable spiral patterns
-      for spiral in 0..<(rand(3) + 2):  # 2-4 random spirals
-        let spiralAngle = rand(PI * 2.0)
-        for step in 0..12:
-          let radius = step.float32 * 15.0
-          let angle = spiralAngle + (step.float32 * 0.4)
-          let chaosX = enemy.pos.x + cos(angle) * radius
-          let chaosY = enemy.pos.y + sin(angle) * radius
-          # Flickering random bright colors for maximum chaos
-          let chaosColor = Color(
-            r: (100 + rand(155)).uint8,
-            g: (100 + rand(155)).uint8,
-            b: (100 + rand(155)).uint8,
-            a: 255
-          )
-          spawnExplosionPooled(game.particlePool, chaosX, chaosY, chaosColor, rand(3) + 2)
-      
-      # Add chaotic distortion rings
-      for ring in 0..<chaosRingCount:
-        # Randomize ring radius for chaos
-        let ringRadius = 20.0 + ring.float32 * (15.0 + rand(20.0))
-        let particleCount = rand(8) + 8  # 8-15 particles per ring
-        for i in 0..<particleCount:
-          # Randomize angles for chaotic placement
-          let angle = i.float32 * PI * 2.0 / particleCount.float32 + rand(0.5)
-          let jitter = rand(15.0) - 7.5  # Position jitter for instability
-          let chaosX = enemy.pos.x + cos(angle) * (ringRadius + jitter)
-          let chaosY = enemy.pos.y + sin(angle) * (ringRadius + jitter)
-          # Random bright colors for chaos
-          let chaosColor = Color(
-            r: rand(200).uint8 + 55,
-            g: rand(200).uint8 + 55,
-            b: rand(200).uint8 + 55,
-            a: 255
-          )
-          spawnExplosionPooled(game.particlePool, chaosX, chaosY, chaosColor, rand(3) + 3)
-    
-    # Perform teleports and create shooting echoes
-    var teleportPositions: seq[Vector2f] = @[]
+    # TELEPORT WARNING SYSTEM - Show player where boss will appear BEFORE bullets spawn
+    # Pre-calculate all teleport positions and create warning indicators
+    var teleportWarningPositions: seq[Vector2f] = @[]
     for t in 0..<teleportCount:
       let newX = game.screenWidth.float32 * (0.2 + rand(0.6))
       let newY = game.screenHeight.float32 * (0.2 + rand(0.6))
-      teleportPositions.add(newVector2f(newX, newY))
-      
-      # Teleport boss to first position (update actual position)
-      if t == 0:
-        enemy.pos = newVector2f(newX, newY)
-      
-      # Visual effect at new position with enhanced effects
-      let arrivalExplosionSize = case teleportMode
-        of "time_echo": 18
-        of "echo_burst": 20
-        of "temporal_collapse": 25
-        of "chaos_blink": 22
-        of "reality_shift": 26
-        of "dimensional_chaos": 30
-        of "omega_blink": 35
-        else: 15
-      
-      spawnExplosionPooled(game.particlePool, newX, newY, phase.color, arrivalExplosionSize)
-      
-      # Add temporal rift effect for Timekeeper modes
-      if teleportMode in ["time_echo", "echo_burst", "temporal_collapse", "omega_blink"]:
-        # Create temporal rift particles
-        for i in 0..<8:
-          let riftAngle = i.float32 * PI * 2.0 / 8.0
-          let riftRadius = 35.0
-          let riftX = newX + cos(riftAngle) * riftRadius
-          let riftY = newY + sin(riftAngle) * riftRadius
-          spawnExplosionPooled(game.particlePool, riftX, riftY,
-                        Color(r: 150, g: 255, b: 255, a: 255), 4)
-      
-      # Add chaos rift effect for Chaos Weaver modes
-      if teleportMode in ["chaos_blink", "reality_shift", "dimensional_chaos", "omega_blink"]:
-        # Create chaotic distortion rifts with random colors
-        let riftCount = case teleportMode
-          of "chaos_blink": 6
-          of "reality_shift": 10
-          of "dimensional_chaos": 14
-          of "omega_blink": 16
-          else: 6
-        
-        for i in 0..<riftCount:
-          let riftAngle = i.float32 * PI * 2.0 / riftCount.float32 + rand(0.3)
-          let riftRadius = 30.0 + rand(20.0)
-          let riftX = newX + cos(riftAngle) * riftRadius
-          let riftY = newY + sin(riftAngle) * riftRadius
-          # Random vibrant colors for chaos rifts
-          let chaosRiftColor = Color(
-            r: rand(200).uint8 + 55,
-            g: rand(200).uint8 + 55,
-            b: rand(200).uint8 + 55,
-            a: 255
-          )
-          spawnExplosionPooled(game.particlePool, riftX, riftY, chaosRiftColor, rand(3) + 4)
-        
-        # REALITY SHIFT: Create reality fracture lines between previous and current position
-        if teleportMode == "reality_shift" and t > 0:
-          let prevPos = teleportPositions[t - 1]
-          # Draw crackling energy line between positions
-          let segments = 10
-          for step in 0..segments:
-            let progressT = step.float32 / segments.float32
-            let lineX = prevPos.x + (newX - prevPos.x) * progressT
-            let lineY = prevPos.y + (newY - prevPos.y) * progressT
-            # Alternating dimensional colors for reality bridge
-            let bridgeColor = if step mod 2 == 0:
-              Color(r: 255, g: 50, b: 200, a: 255)  # Magenta
-            else:
-              Color(r: 100, g: 255, b: 200, a: 255)  # Cyan
-            spawnExplosionPooled(game.particlePool, lineX, lineY, bridgeColor, 3)
-        
-        # DIMENSIONAL CHAOS: Create massive vortex portal at each position
-        if teleportMode == "dimensional_chaos":
-          # Swirling vortex rings
-          for vortexRing in 0..5:
-            let ringRadius = 20.0 + vortexRing.float32 * 18.0
-            let rotation = vortexRing.float32 * 0.6  # Spiral rotation effect
-            let particlesInRing = 12 + vortexRing * 2
-            for i in 0..<particlesInRing:
-              let angle = i.float32 * PI * 2.0 / particlesInRing.float32 + rotation
-              let spiralOffset = sin(angle * 3.0) * 10.0  # Spiral distortion
-              let vortexX = newX + cos(angle) * (ringRadius + spiralOffset)
-              let vortexY = newY + sin(angle) * (ringRadius + spiralOffset)
-              # Swirling dimensional colors (purple->cyan gradient)
-              let vortexColor = Color(
-                r: ((vortexRing * 40 + 55).clamp(0, 255)).uint8,
-                g: ((255 - vortexRing * 30).clamp(100, 255)).uint8,
-                b: ((vortexRing * 35 + 100).clamp(0, 255)).uint8,
-                a: 255
-              )
-              spawnExplosionPooled(game.particlePool, vortexX, vortexY, vortexColor, 5)
-        
-        # OMEGA BLINK: Massive combined effects from ALL previous bosses
-        if teleportMode == "omega_blink":
-          # Rainbow prismatic bursts (like Boss 9 - Prism Architect)
-          for burst in 0..7:
-            let burstAngle = burst.float32 * PI * 2.0 / 8.0
-            for step in 0..10:
-              let burstDist = step.float32 * 22.0
-              let burstX = newX + cos(burstAngle) * burstDist
-              let burstY = newY + sin(burstAngle) * burstDist
-              # Rainbow spectrum
-              let rainbowColor = case burst mod 7:
-                of 0: Color(r: 255, g: 0, b: 0, a: 255)
-                of 1: Color(r: 255, g: 127, b: 0, a: 255)
-                of 2: Color(r: 255, g: 255, b: 0, a: 255)
-                of 3: Color(r: 0, g: 255, b: 0, a: 255)
-                of 4: Color(r: 0, g: 255, b: 255, a: 255)
-                of 5: Color(r: 0, b: 255, a: 255)
-                else: Color(r: 255, g: 0, b: 255, a: 255)
-              spawnExplosionPooled(game.particlePool, burstX, burstY, rainbowColor, 4)
-          
-          # Electric arcs (like Boss 6 - Chain Reactor)
-          for i in 0..<12:
-            let arcAngle = i.float32 * PI * 2.0 / 12.0
-            let arcX = newX + cos(arcAngle) * 50.0
-            let arcY = newY + sin(arcAngle) * 50.0
-            spawnExplosionPooled(game.particlePool, arcX, arcY,
-                          Color(r: 255, g: 255, b: 150, a: 255), 5)
-          
-          # Temporal cracks (like Boss 10 - Timekeeper)
-          for crack in 0..8:
-            let crackAngle = crack.float32 * PI * 2.0 / 9.0
-            for step in 1..12:
-              let crackDist = step.float32 * 18.0
-              let crackX = newX + cos(crackAngle) * crackDist
-              let crackY = newY + sin(crackAngle) * crackDist
-              spawnExplosionPooled(game.particlePool, crackX, crackY,
-                            Color(r: 150, g: 255, b: 255, a: 255), 3)
-          
-          # ULTIMATE SCREEN SHAKE for omega blink
-          addShake(game.dopamine.screenShake, siMassive)
-      
-      # Each teleport position shoots bullets
-      if attack.projectileCount > 0:
-        # Configure bullet behavior based on mode
-        let (bulletSpeed, bulletDamageMultiplier) = case teleportMode
-          of "time_echo":
-            (160.0, 0.65)  # Slower temporal echoes, reduced damage
-          of "echo_burst":
-            (200.0, 0.6)  # Many rapid echoes, lower damage
-          of "temporal_collapse":
-            (180.0, 0.7)  # Moderate speed reality-breaking shots
-          of "chaos_blink":
-            (170.0 + rand(60.0), 0.7)  # Random speed chaos
-          of "reality_shift":
-            (160.0 + rand(80.0), 0.65)  # Highly variable speed
-          of "dimensional_chaos":
-            (150.0 + rand(100.0), 0.75)  # Maximum speed variation
-          of "omega_blink":
-            (220.0, 0.8)  # Fast ultimate shots
-          else:
-            (200.0, 0.7)  # Default
-        
-        for i in 0..<attack.projectileCount:
-          # Randomize angle for chaos modes
-          let angle = if teleportMode in ["chaos_blink", "reality_shift", "dimensional_chaos"]:
-            i.float32 * PI * 2.0 / attack.projectileCount.float32 + rand(0.4)
-          else:
-            i.float32 * PI * 2.0 / attack.projectileCount.float32
-          let dir = newVector2f(cos(angle), sin(angle))
-          
-          # Shoot from this specific teleport location
-          game.bullets.add(newBullet(
-            x = newX, y = newY,  # From each echo position
-            direction = dir,
-            speed = bulletSpeed,
-            damage = attack.damage * phase.damageMultiplier * bulletDamageMultiplier,
-            fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
-          ))
-        
-        # OMEGA BLINK: Additional dual-ring bullet pattern for ultimate attack
-        if teleportMode == "omega_blink":
-          let bulletRings = 2  # Two rings per teleport
-          for ring in 0..<bulletRings:
-            let bulletsInRing = 8 + ring * 2  # Inner ring: 8, Outer ring: 10
-            for i in 0..<bulletsInRing:
-              let angle = i.float32 * PI * 2.0 / bulletsInRing.float32 + 
-                          (ring.float32 * 0.2)  # Ring offset for spiral effect
-              let dir = newVector2f(cos(angle), sin(angle))
-              let speed = 200.0 + ring.float32 * 30.0  # Outer ring faster
-              
-              game.bullets.add(newBullet(
-                x = newX, y = newY,
-                direction = dir,
-                speed = speed,
-                damage = attack.damage * phase.damageMultiplier * 0.8,
-                fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
-              ))
+      teleportWarningPositions.add(newVector2f(newX, newY))
     
-    # REALITY SHIFT: Create reality bridge bullets between teleport positions
-    if teleportMode == "reality_shift" and teleportPositions.len > 1:
-      for i in 0..<teleportPositions.len:
-        for j in 0..<teleportPositions.len:
-          if i != j and rand(100) < 60:  # 60% chance to connect positions
-            # Fire bullet from position i toward position j (reality bridge)
-            let dir = (teleportPositions[j] - teleportPositions[i]).normalize()
-            game.bullets.add(newBullet(
-              x = teleportPositions[i].x,
-              y = teleportPositions[i].y,
-              direction = dir,
-              speed = 180.0 + rand(60.0),
-              damage = attack.damage * phase.damageMultiplier * 0.65,
-              fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
-            ))
+    # Create pre-warning indicators at each teleport location
+    let warningDuration = case teleportMode
+      of "afterimage_burst": 0.6
+      of "triple_clone": 0.7
+      of "time_echo": 0.5
+      of "echo_burst": 0.5
+      of "temporal_collapse": 0.6
+      of "chaos_blink": 0.5
+      of "reality_shift": 0.7
+      of "dimensional_rift": 0.8
+      of "dimensional_chaos": 0.7
+      of "omega_blink": 1.0
+      else: 0.5
     
-    # DIMENSIONAL CHAOS: Create portal-jumping bullets and extra spray from portals
-    if teleportMode == "dimensional_chaos" and teleportPositions.len > 1:
-      for sourceIdx in 0..<teleportPositions.len:
-        let sourcePos = teleportPositions[sourceIdx]
-        
-        # Random bullet spray from each portal
-        let sprayBullets = rand(5) + 6  # 6-10 bullets per portal
-        for i in 0..<sprayBullets:
-          let angle = rand(PI * 2.0)  # Completely random angles
-          let dir = newVector2f(cos(angle), sin(angle))
-          let speed = 140.0 + rand(120.0)  # Huge speed variation (140-260)
-          
-          game.bullets.add(newBullet(
-            x = sourcePos.x, y = sourcePos.y,
-            direction = dir,
-            speed = speed,
-            damage = attack.damage * phase.damageMultiplier * 0.75,
-            fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
-          ))
-        
-        # Portal-jumping bullets that travel between portals
-        if rand(100) < 50:  # 50% chance per portal
-          let targetIdx = (sourceIdx + 1 + rand(teleportPositions.len - 1)) mod teleportPositions.len
-          let targetPos = teleportPositions[targetIdx]
-          let jumpDir = (targetPos - sourcePos).normalize()
-          
-          # Create portal bridge bullets (travel from one portal to another)
-          for i in 0..2:
-            game.bullets.add(newBullet(
-              x = sourcePos.x, y = sourcePos.y,
-              direction = jumpDir,
-              speed = 200.0 + rand(60.0),
-              damage = attack.damage * phase.damageMultiplier * 0.8,
-              fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
-            ))
+    # Create visual warnings for each teleport position
+    # Calculate bullet spawn parameters BEFORE creating warnings
+    let (bulletSpeed, bulletDamageMultiplier) = case teleportMode
+      of "time_echo":
+        (160.0, 0.65)  # Slower temporal echoes, reduced damage
+      of "echo_burst":
+        (200.0, 0.6)  # Many rapid echoes, lower damage
+      of "temporal_collapse":
+        (180.0, 0.7)  # Moderate speed reality-breaking shots
+      of "afterimage_burst":
+        (190.0 + rand(40.0), 0.65)  # Variable speed ghost shots
+      of "chaos_blink":
+        (170.0 + rand(60.0), 0.7)  # Random speed chaos
+      of "reality_shift":
+        (160.0 + rand(80.0), 0.65)  # Highly variable speed
+      of "dimensional_rift":
+        (180.0 + rand(50.0), 0.72)  # Dimensional rift shots with variance
+      of "dimensional_chaos":
+        (150.0 + rand(100.0), 0.75)  # Maximum speed variation
+      of "omega_blink":
+        (220.0, 0.8)  # Fast ultimate shots
+      else:
+        (200.0, 0.7)  # Default
+    
+    for idx in 0..<teleportWarningPositions.len:
+      let warningPos = teleportWarningPositions[idx]
+      # Create warning with bullet spawn data stored
+      let warning = AttackWarning(
+        pos: warningPos,
+        attackType: "teleport_warning",
+        lifetime: warningDuration,
+        maxLifetime: warningDuration,
+        sourceEnemyId: enemy.id,
+        laserAngles: @[],
+        laserLength: 0.0,
+        laserCount: 0,
+        laserDamage: 0,
+        laserDuration: 0.0,
+        lasersCreated: false,
+        laserPattern: teleportMode,  # Store mode for visual rendering
+        enemyType: etCircle,
+        targetPos: warningPos,
+        fromSatellite: false,
+        # Store bullet spawn data for delayed creation
+        bulletCount: attack.projectileCount,
+        bulletSpeed: bulletSpeed,
+        bulletDamage: attack.damage * phase.damageMultiplier * bulletDamageMultiplier,
+        bulletSpreadAngle: 360.0,  # Full circle
+        bulletsCreated: false,
+        # Mark first position as where boss should teleport
+        isBossTeleportTarget: (idx == 0)
+      )
+      game.attackWarnings.add(warning)
+    
+    # NOTE: Boss teleport and all visual effects now happen when warnings expire
+    # This gives players the warning duration (0.5-1.0 seconds) to see where boss will appear
   
   of bapDash:
     # BERSERKER DASH SYSTEM with multi-charge mechanics
@@ -4054,7 +3806,8 @@ proc updateGame*(game: var Game, dt: float32) =
     game.attackWarnings[i].lifetime -= dt
     
     # Update warning position to follow the boss that created it
-    if game.attackWarnings[i].sourceEnemyId >= 0:
+    # EXCEPT for teleport warnings which should stay at their destination position
+    if game.attackWarnings[i].sourceEnemyId >= 0 and game.attackWarnings[i].attackType != "teleport_warning":
       # Find the boss enemy
       for enemy in game.enemies:
         if enemy.id == game.attackWarnings[i].sourceEnemyId:
@@ -4102,6 +3855,61 @@ proc updateGame*(game: var Game, dt: float32) =
       
       # Mark lasers as created
       game.attackWarnings[i].lasersCreated = true
+    
+    # TELEPORT WARNING SYSTEM: Spawn bullets when warning expires
+    if game.attackWarnings[i].attackType == "teleport_warning" and 
+       not game.attackWarnings[i].bulletsCreated and
+       game.attackWarnings[i].lifetime <= 0.1:
+      
+      let warningPos = game.attackWarnings[i].pos
+      let teleportMode = game.attackWarnings[i].laserPattern  # Mode stored in laserPattern field
+      
+      # Teleport boss to this position if this is the marked teleport target
+      if game.attackWarnings[i].isBossTeleportTarget:
+        for enemy in game.enemies:
+          if enemy.id == game.attackWarnings[i].sourceEnemyId:
+            # Teleport boss to this warning position
+            enemy.pos = warningPos
+            
+            # Create dramatic teleport arrival effect
+            let arrivalExplosionSize = case teleportMode
+              of "time_echo": 18
+              of "echo_burst": 20
+              of "temporal_collapse": 25
+              of "afterimage_burst": 16
+              of "chaos_blink": 22
+              of "reality_shift": 26
+              of "dimensional_rift": 24
+              of "dimensional_chaos": 30
+              of "omega_blink": 35
+              else: 15
+            
+            spawnExplosionPooled(game.particlePool, warningPos.x, warningPos.y, 
+                          Color(r: 150, g: 100, b: 255, a: 255), arrivalExplosionSize)
+            break
+      
+      # Spawn bullets at warning position
+      if game.attackWarnings[i].bulletCount > 0:
+        for bulletIdx in 0..<game.attackWarnings[i].bulletCount:
+          # Randomize angle for chaos modes
+          let angle = if teleportMode in ["chaos_blink", "reality_shift", "dimensional_rift", "dimensional_chaos"]:
+            bulletIdx.float32 * PI * 2.0 / game.attackWarnings[i].bulletCount.float32 + rand(0.4)
+          else:
+            bulletIdx.float32 * PI * 2.0 / game.attackWarnings[i].bulletCount.float32
+          let dir = newVector2f(cos(angle), sin(angle))
+          
+          # Spawn bullet from this teleport location
+          game.bullets.add(newBullet(
+            x = warningPos.x, y = warningPos.y,
+            direction = dir,
+            speed = game.attackWarnings[i].bulletSpeed,
+            damage = game.attackWarnings[i].bulletDamage,
+            fromPlayer = false, isBossBullet = true, 
+            sourceEnemyId = game.attackWarnings[i].sourceEnemyId
+          ))
+      
+      # Mark bullets as created
+      game.attackWarnings[i].bulletsCreated = true
     
     if game.attackWarnings[i].lifetime <= 0:
       game.attackWarnings.delete(i)

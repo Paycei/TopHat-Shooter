@@ -125,7 +125,7 @@ type
 
   AttackWarning* = ref object
     pos*: Vector2f
-    attackType*: string  # "cross", "burst", "fake", "boss_laser", "satellite_laser"
+    attackType*: string  # "cross", "burst", "fake", "boss_laser", "satellite_laser", "teleport_warning"
     lifetime*: float32
     maxLifetime*: float32
     sourceEnemyId*: int  # ID of enemy that created this warning (for tracking movement)
@@ -139,6 +139,13 @@ type
     enemyType*: EnemyType        # Type of enemy creating this attack
     targetPos*: Vector2f         # Target coordinates for satellite laser
     fromSatellite*: bool         # Flag for satellite laser warnings
+    # Teleport bullet data (for delayed bullet spawning)
+    bulletCount*: int            # Number of bullets to spawn
+    bulletSpeed*: float32        # Speed of bullets
+    bulletDamage*: float32       # Damage of bullets
+    bulletSpreadAngle*: float32  # Spread angle for bullets
+    bulletsCreated*: bool        # Flag to track if bullets were spawned
+    isBossTeleportTarget*: bool  # True if boss should teleport to this position
 
   ElementType* = enum
     etPoison,      # Green - poison damage over time
@@ -694,7 +701,13 @@ proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sou
     laserDuration: 0.0,
     lasersCreated: false,
     targetPos: newVector2f(0, 0),
-    fromSatellite: false
+    fromSatellite: false,
+    bulletCount: 0,
+    bulletSpeed: 0.0,
+    bulletDamage: 0.0,
+    bulletSpreadAngle: 0.0,
+    bulletsCreated: false,
+    isBossTeleportTarget: false
   )
 
 proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32], 
@@ -715,7 +728,13 @@ proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32]
     laserDuration: laserDuration,
     lasersCreated: false,
     laserPattern: pattern,
-    enemyType: enemyType
+    enemyType: enemyType,
+    bulletCount: 0,
+    bulletSpeed: 0.0,
+    bulletDamage: 0.0,
+    bulletSpreadAngle: 0.0,
+    bulletsCreated: false,
+    isBossTeleportTarget: false
   )
 
 proc newSatelliteLaserWarning*(satelliteX, satelliteY, targetX, targetY: float32, 
@@ -736,7 +755,13 @@ proc newSatelliteLaserWarning*(satelliteX, satelliteY, targetX, targetY: float32
     laserDuration: 0.0,
     lasersCreated: false,
     laserPattern: "",
-    enemyType: etCircle
+    enemyType: etCircle,
+    bulletCount: 0,
+    bulletSpeed: 0.0,
+    bulletDamage: 0.0,
+    bulletSpreadAngle: 0.0,
+    bulletsCreated: false,
+    isBossTeleportTarget: false
   )
 
 proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0, enemyType: EnemyType = etCircle): Laser =
