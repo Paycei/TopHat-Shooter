@@ -68,6 +68,22 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       difficultyScale: 0.0,  # No automatic difficulty scaling
       playerStartCoins: 0
     )
+  
+  of gmPvP:
+    result = GameModeDefinition(
+      mode: gmPvP,
+      name: "1v1 PVP",
+      description: "Battle against another player in real-time 1v1 combat. First to 5 kills wins!",
+      usesWaves: false,
+      usesBosses: false,
+      hasTimeLimit: true,
+      usesPowerUps: false,
+      usesShop: false,
+      allowsCheats: false,
+      spawnRate: 0.0,
+      difficultyScale: 0.0,
+      playerStartCoins: 100
+    )
 
 proc getAllGameModes*(): seq[GameModeDefinition] =
   ## Returns all available game modes
@@ -124,6 +140,10 @@ proc getStartingCoins*(mode: GameMode): int =
 proc isSandboxMode*(mode: GameMode): bool =
   ## Quick check if this is sandbox mode
   mode == gmSandbox
+
+proc isPvPMode*(mode: GameMode): bool =
+  ## Quick check if this is PvP mode
+  mode == gmPvP
 
 proc isWaveMode*(mode: GameMode): bool =
   ## Quick check if this is wave-based mode

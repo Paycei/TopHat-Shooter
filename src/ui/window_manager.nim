@@ -1,7 +1,7 @@
 ## OS Window Manager
 ## Centralized window handling with state management
 
-import raylib, os_window, settings_window, help_window, stats_window, shop_window
+import raylib, os_window, settings_window, help_window, stats_window, shop_window, pvp_window
 import ../types, ../settings, ../statistics, ../skins, ../bullet_skins, ../shapes, ../particle_skins
 import algorithm, sequtils
 
@@ -11,12 +11,14 @@ type
     widHelp
     widStats
     widShop
+    widPvP
   
   WindowManager* = ref object
     settings*: SettingsWindow
     help*: HelpWindow
     stats*: StatsWindow
     shop*: ShopWindow
+    pvp*: PvPWindow
     nextZOrder: int
 
 proc newWindowManager*(screenWidth, screenHeight: int, 
@@ -32,6 +34,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
                        BulletSkinType(gameSettings.bulletSkin), 
                        ShapeType(gameSettings.playerShape), 
                        ParticleSkinType(gameSettings.particleEffect)),
+    pvp: newPvPWindow(screenWidth, screenHeight),
     nextZOrder: 1
   )
   
@@ -40,6 +43,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.help.window.visible = false
   result.stats.window.visible = false
   result.shop.window.visible = false
+  result.pvp.window.visible = false
 
 proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
   ## Get all windows in a single sequence
@@ -47,7 +51,8 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
     wm.settings.window,
     wm.help.window,
     wm.stats.window,
-    wm.shop.window
+    wm.shop.window,
+    wm.pvp.window
   ]
 
 proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
@@ -69,6 +74,7 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widHelp: window = wm.help.window
   of widStats: window = wm.stats.window
   of widShop: window = wm.shop.window
+  of widPvP: window = wm.pvp.window
   
   window.visible = true
   window.minimized = false
@@ -88,6 +94,7 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widHelp: wm.help.window.visible = false
   of widStats: wm.stats.window.visible = false
   of widShop: wm.shop.window.visible = false
+  of widPvP: wm.pvp.window.visible = false
 
 proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
@@ -153,6 +160,7 @@ type
     fullscreenToggle*: bool
     shopClosed*: bool
     iconToExecute*: int
+    pvpGameReady*: bool  # True when PvP connection is established
 
 proc updateAllWindows*(wm: WindowManager, dt: float32, 
                        screenWidth, screenHeight: int): WindowUpdateResult =
@@ -160,6 +168,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
   result.fullscreenToggle = false
   result.shopClosed = false
   result.iconToExecute = -1
+  result.pvpGameReady = false
   
   let visibleWindows = wm.getVisibleWindows()
   
@@ -184,6 +193,19 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
     
     elif window == wm.help.window:
       result.iconToExecute = updateHelpWindow(wm.help, dt, screenWidth, screenHeight, visibleWindows)
+    
+    elif window == wm.pvp.window:
+      updatePvPWindow(wm.pvp, dt)
+      handlePvPWindowInput(wm.pvp)
+      
+      # Handle window chrome (close, minimize, drag) - THIS WAS MISSING!
+      let shouldClose = handleOSWindowInput(wm.pvp.window, screenWidth, screenHeight, visibleWindows)
+      if shouldClose:
+        wm.pvp.window.visible = false
+        resetPvPWindow(wm.pvp)
+      
+      if wm.pvp.readyToStart:
+        result.pvpGameReady = true
 
 proc drawAllWindows*(wm: WindowManager, game: Game) =
   ## Draw all visible windows in z-order
@@ -200,5 +222,17 @@ proc drawAllWindows*(wm: WindowManager, game: Game) =
       drawStatsWindow(wm.stats, game)
     elif window == wm.shop.window:
       drawShopWindow(wm.shop)
+    elif window == wm.help.window:
+      drawHelpWindow(wm.help)
+    elif window == wm.pvp.window:
+      # Draw window frame
+      drawWindowChrome(window)
+      # Draw PvP content inside (only if not minimized)
+      if not window.minimized:
+        let contentX = window.x + WINDOW_BORDER
+        let contentY = window.y + TITLE_BAR_HEIGHT + WINDOW_BORDER
+        let contentWidth = window.width - WINDOW_BORDER * 2
+        let contentHeight = window.height - TITLE_BAR_HEIGHT - WINDOW_BORDER * 2
+        drawPvPWindowContent(wm.pvp, contentX, contentY, contentWidth, contentHeight)
     elif window == wm.help.window:
       drawHelpWindow(wm.help)

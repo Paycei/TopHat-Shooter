@@ -13,6 +13,7 @@ type
     diHelp          # Help/Documentation (Help.txt) - 5
     diQuit          # Shutdown (Shutdown.exe) - 6
     diSandbox       # Sandbox mode (Sandbox.exe) - 7
+    diPvP           # PvP mode (PvP.exe) - 8
   
   DesktopIcon* = object
     iconType*: DesktopIconType
@@ -58,6 +59,7 @@ proc getIconName(iconType: DesktopIconType): string =
   of diQuit: t(tkMenuQuit) & ".exe"
   of diSandbox: t(tkMenuSandbox) & ".exe"
   of diShop: "Shop.exe"
+  of diPvP: "PvP.exe"
 
 proc newOSDesktop*(): OSDesktop =
   result = OSDesktop(
@@ -85,7 +87,10 @@ proc newOSDesktop*(): OSDesktop =
                   iconColor: Color(r: 255, g: 165, b: 0, a: 255)),
       DesktopIcon(iconType: diShop, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING, 
                   selected: false, name: getIconName(diShop),
-                  iconColor: Color(r: 255, g: 150, b: 50, a: 255))
+                  iconColor: Color(r: 255, g: 150, b: 50, a: 255)),
+      DesktopIcon(iconType: diPvP, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2, 
+                  selected: false, name: getIconName(diPvP),
+                  iconColor: Color(r: 255, g: 50, b: 150, a: 255))
     ],
     selectedIcon: 0,
     time: 0,
@@ -292,6 +297,35 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     drawCircle(Vector2(x: (centerX - 4).float32, y: (flaskBottom - 5).float32), 2, White)
     drawCircle(Vector2(x: (centerX + 3).float32, y: (flaskBottom - 8).float32), 1.5, White)
   
+  of diPvP:
+    # PvP icon - two crossed swords
+    let swordColor = icon.iconColor
+    let swordLength = 20.float32
+    let swordWidth = 3.float32
+    
+    # Left sword (diagonal)
+    let angle1 = -PI / 4.0  # -45 degrees
+    let x1Start = centerX.float32 + cos(angle1 + PI) * swordLength
+    let y1Start = centerY.float32 + sin(angle1 + PI) * swordLength
+    let x1End = centerX.float32 + cos(angle1) * swordLength
+    let y1End = centerY.float32 + sin(angle1) * swordLength
+    drawLine(Vector2(x: x1Start, y: y1Start), Vector2(x: x1End, y: y1End), 
+            swordWidth, swordColor)
+    
+    # Right sword (diagonal opposite)
+    let angle2 = PI / 4.0  # 45 degrees
+    let x2Start = centerX.float32 + cos(angle2 + PI) * swordLength
+    let y2Start = centerY.float32 + sin(angle2 + PI) * swordLength
+    let x2End = centerX.float32 + cos(angle2) * swordLength
+    let y2End = centerY.float32 + sin(angle2) * swordLength
+    drawLine(Vector2(x: x2Start, y: y2Start), Vector2(x: x2End, y: y2End), 
+            swordWidth, swordColor)
+    
+    # Central clash effect
+    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 6, 
+              Color(r: 255, g: 255, b: 255, a: 200))
+    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 4, swordColor)
+  
   # Icon label with shadow
   let labelY = icon.y + ICON_SIZE + 8
   drawText(icon.name, (icon.x + 2).int32, (labelY + 2).int32, 14, Black)
@@ -431,7 +465,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Bottom desktop info (version and edition)
   drawText("TopHat-ShooterOS", 10, (screenHeight - 75).int32, 14,
           Color(r: 100, g: 100, b: 120, a: 200))
-  drawText("[v5.2 Edition]", 10, (screenHeight - 58).int32, 12,
+  drawText("[v5.3 Edition]", 10, (screenHeight - 58).int32, 12,
           Color(r: 150, g: 150, b: 170, a: 180))
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =

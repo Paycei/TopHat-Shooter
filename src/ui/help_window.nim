@@ -56,7 +56,7 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
     pendingIconExecution: -1
   )
   
-  result.outputLines.add(("TopHat-ShooterOS Help System v5.2", Color(r: 0, g: 255, b: 255, a: 255)))
+  result.outputLines.add(("TopHat-ShooterOS Help System v5.3", Color(r: 0, g: 255, b: 255, a: 255)))
   result.outputLines.add(("Type 'help' for commands or a topic name to learn more.", White))
   result.outputLines.add(("", White))
 
@@ -95,7 +95,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     
     of "clear":
       help.outputLines = @[
-        ("TopHat-ShooterOS Help System v5.2", Color(r: 0, g: 255, b: 255, a: 255)),
+        ("TopHat-ShooterOS Help System v5.3", Color(r: 0, g: 255, b: 255, a: 255)),
         ("Type 'help' for commands.", White),
         ("", White)
       ]

@@ -666,6 +666,7 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
     of gmWaveBased: "WAVE MODE"
     of gmTimeSurvival: "TIME SURVIVAL"
     of gmSandbox: "SANDBOX"
+    of gmPvP: "PVP MODE"
   
   drawText(modeText, (contentX + 10).int32, (contentY + 8).int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
   drawText("Wave " & $stats.waveReached, (contentX + 10).int32, (contentY + 24).int32, 24, Color(r: 255, g: 200, b: 50, a: 255))

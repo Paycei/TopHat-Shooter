@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager, boss_definitions
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager, boss_definitions, network, network_types, pvp_game, ui/pvp_window
 
 const
   screenWidth = 1024
@@ -17,6 +17,7 @@ var
   renderScale: float32 = 1.0
   renderOffsetX: float32 = 0.0
   renderOffsetY: float32 = 0.0
+  currentPvPGame: PvPGameState = nil
 
 proc updateRenderScale() =
   ## Calculate letterbox scaling for current window size
@@ -132,7 +133,7 @@ proc main() =
   else:
     setConfigFlags(flags(WindowResizable))
   
-  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v5.2 Edition")
+  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v5.3 Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor
@@ -333,6 +334,40 @@ proc main() =
       if updateResult.fullscreenToggle:
         fullscreenToggleRequested = true
       
+      # Handle PvP game ready
+      if updateResult.pvpGameReady:
+        currentPvPGame = newPvPGameState(screenWidth, screenHeight, globalWindowManager.pvp.isHost)
+        currentPvPGame.networkManager = globalWindowManager.pvp.networkManager
+        startCountdown(currentPvPGame)
+        currentGame.state = gsPvPPlaying
+        globalWindowManager.pvp.window.visible = false
+      
+      # Handle PvP window clicks
+      if globalWindowManager.pvp.window.visible and not globalWindowManager.pvp.window.minimized:
+        let contentX = globalWindowManager.pvp.window.x + 2  # WINDOW_BORDER
+        let contentY = globalWindowManager.pvp.window.y + 30 + 2  # TITLE_BAR_HEIGHT + WINDOW_BORDER
+        let contentWidth = globalWindowManager.pvp.window.width - 4
+        let contentHeight = globalWindowManager.pvp.window.height - 32
+        
+        let pvpAction = handlePvPWindowClick(globalWindowManager.pvp, contentX, contentY, contentWidth, contentHeight)
+        case pvpAction
+        of 1:  # Host
+          startHosting(globalWindowManager.pvp)
+        of 2:  # Join
+          globalWindowManager.pvp.state = plsJoining
+        of 3:  # Back/Cancel
+          resetPvPWindow(globalWindowManager.pvp)
+        of 4:  # Connect
+          if globalWindowManager.pvp.inputIP.len > 0:
+            var port = pvp_window.DEFAULT_PORT
+            try:
+              port = parseInt(globalWindowManager.pvp.inputPort)
+            except ValueError:
+              port = pvp_window.DEFAULT_PORT
+            connectToGame(globalWindowManager.pvp, globalWindowManager.pvp.inputIP, port)
+        else:
+          discard
+      
       # Process desktop actions
       if action >= 0:
         playSound(stMenuSelect)
@@ -362,6 +397,10 @@ proc main() =
         of 7:  # Sandbox.exe - Sandbox Mode
           startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
           pendingGameMode = 6
+        of 8:  # PvP.exe - Open PvP Window
+          openWindow(globalWindowManager, widPvP)
+          resetPvPWindow(globalWindowManager.pvp)
+          playSound(stMenuSelect)
         else: discard
       
       # Handle icon execution from help window commands
@@ -393,6 +432,10 @@ proc main() =
           of 7:  # Sandbox.exe
             startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
             pendingGameMode = 6
+          of 8:  # PvP.exe - Open PvP Window
+            openWindow(globalWindowManager, widPvP)
+            resetPvPWindow(globalWindowManager.pvp)
+            playSound(stMenuSelect)
           else: discard
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
@@ -559,9 +602,13 @@ proc main() =
         if anyActivated:
           playSound(stPowerUp)
       
-      # Pause
+      # Pause (don't actually pause in PvP mode to avoid desync)
       if isKeyPressed(Escape):
-        currentGame.state = gsPaused
+        if not isPvPMode(currentGame.mode):
+          currentGame.state = gsPaused
+        else:
+          # In PvP, show pause menu visually but keep game running
+          currentGame.state = gsPaused
       
       # Update game (only if cheat menu is not active)
       if not cheatMenu.active:
@@ -607,7 +654,18 @@ proc main() =
       # Keep current music playing but muted or paused
       # Music continues in background during pause
       
-      # Don't update game time when paused - prevents difficulty from increasing
+      # Determine if we came from PvP mode by checking if currentPvPGame exists and is active
+      let isPvP = not currentPvPGame.isNil and not currentPvPGame.gameOver
+      
+      # In PvP mode, continue updating the game to prevent desync
+      # Otherwise, don't update game time when paused - prevents difficulty from increasing
+      if isPvP:
+        # Continue PvP game updates even during "pause"
+        updatePvP(currentPvPGame, dt)
+      elif isPvPMode(currentGame.mode):
+        # Continue game updates even during "pause" in PvP
+        updateGame(currentGame, dt)
+      
       # Update mouse tracking so the pause menu responds to mouse input immediately
       updateMouseTracking(currentGame)
       # If mouse support is enabled, allow mouse interaction right away (no need to move first)
@@ -646,12 +704,21 @@ proc main() =
         
         # Actions
         if isKeyPressed(Space):  # Resume
-          currentGame.state = gsPlaying
+          # Return to appropriate state based on context
+          if isPvP:
+            currentGame.state = gsPvPPlaying
+          else:
+            currentGame.state = gsPlaying
           playSound(stMenuSelect)
         elif isKeyPressed(Tab):  # Open Settings
           globalWindowManager.openWindow(widSettings)
           playSound(stMenuSelect)
         elif isKeyPressed(Q):  # Quit to main menu
+          # Clean up PvP if active
+          if isPvP and currentPvPGame.networkManager != nil:
+            cleanup(currentPvPGame.networkManager)
+            currentPvPGame = nil
+          
           cleanupGame(currentGame)
           currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
           currentGame.discordClient = globalDiscordClient
@@ -664,7 +731,11 @@ proc main() =
                                globalWindowManager.stats.window.visible or
                                globalWindowManager.shop.window.visible
           if not hasOpenWindows:
-            currentGame.state = gsPlaying
+            # Return to appropriate state based on context
+            if isPvP:
+              currentGame.state = gsPvPPlaying
+            else:
+              currentGame.state = gsPlaying
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
@@ -681,7 +752,12 @@ proc main() =
           globalDiscordClient = nil
       
       beginGameDrawing()
-      drawGame(currentGame)
+      
+      # Draw appropriate game based on context
+      if isPvP:
+        drawPvP(currentPvPGame)
+      else:
+        drawGame(currentGame)
       
       # Draw OS-style Task Manager pause menu and handle mouse interactions
       let menuResult = drawOSTaskManager(currentGame, currentGame.pauseMenuTab)
@@ -695,12 +771,21 @@ proc main() =
       # Handle button clicks (only if no windows are blocking)
       if not mouseOverWindow:
         if menuResult.resumeClicked:
-          currentGame.state = gsPlaying
+          # Return to appropriate state based on context
+          if isPvP:
+            currentGame.state = gsPvPPlaying
+          else:
+            currentGame.state = gsPlaying
           playSound(stMenuSelect)
         elif menuResult.settingsClicked:
           globalWindowManager.openWindow(widSettings)
           playSound(stMenuSelect)
         elif menuResult.exitClicked:
+          # Clean up PvP if active
+          if isPvP and currentPvPGame.networkManager != nil:
+            cleanup(currentPvPGame.networkManager)
+            currentPvPGame = nil
+          
           cleanupGame(currentGame)
           currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
           currentGame.discordClient = globalDiscordClient
@@ -1323,6 +1408,37 @@ proc main() =
         drawText(t(tkSystemPressESCToReturn), 
                 screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
       
+      endGameDrawing()
+    
+    of gsPvPPlaying:
+      # Play appropriate music
+      if currentPvPGame.isCountingDown:
+        playMusic(mtWave)
+      else:
+        playMusic(mtBoss)  # Intense music for PvP
+      
+      # Check for pause (visual only - game continues running)
+      if isKeyPressed(Escape) and not currentPvPGame.gameOver:
+        currentGame.state = gsPaused
+      
+      # Update PvP game
+      updatePvP(currentPvPGame, dt)
+      
+      # Check for exit when game is over
+      if currentPvPGame.gameOver and isKeyPressed(Escape):
+        # Clean up network
+        if currentPvPGame.networkManager != nil:
+          cleanup(currentPvPGame.networkManager)
+        
+        # Return to menu
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, 
+                             settings.bulletSkin, settings.playerShape, settings.particleEffect)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+      
+      beginGameDrawing()
+      drawPvP(currentPvPGame)
+      drawCustomCursor(currentPvPGame.gameTime)
       endGameDrawing()
   
   # Cleanup global Discord Rich Presence client

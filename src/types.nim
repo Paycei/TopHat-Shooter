@@ -5,12 +5,13 @@ export newVector2f, `+`, `-`, `*`, length, normalize, distance
 
 type
   GameState* = enum
-    gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats
+    gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying
 
   GameMode* = enum
     gmWaveBased,
     gmTimeSurvival,
-    gmSandbox
+    gmSandbox,
+    gmPvP
 
   EnemyType* = enum
     etCircle,      # Normal chasers
