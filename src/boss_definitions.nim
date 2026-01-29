@@ -304,8 +304,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Apocalypse",
           hpThreshold: 0.25,
-          speedMultiplier: 1.2,  # NERFED from 2.0
-          damageMultiplier: 1.5,  # NERFED from 2.0
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.5,
           defenseMultiplier: 1.1,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",

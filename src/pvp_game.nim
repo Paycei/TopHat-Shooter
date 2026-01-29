@@ -1,7 +1,7 @@
 ## PvP Game Mode Logic
 ## Handles 1v1 player vs player combat
 
-import raylib, types, player, bullet, wall, particle, particle_pool, sound, network_types, network, math, random, times
+import raylib, types, player, bullet, wall, particle, particle_pool, sound, network_types, network, math, random, times, settings
 
 const
   PVP_PLAYER_START_HP = 5.0  # Lower HP for faster PvP matches
@@ -74,12 +74,24 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameSt
   result.players[0].maxHp = PVP_PLAYER_START_HP
   result.players[0].coins = PVP_PLAYER_START_COINS
   result.players[0].walls = PVP_PLAYER_START_WALLS
+  # Apply cosmetics from settings for local player
+  if isHost:
+    result.players[0].skinType = globalSettings.playerSkin
+    result.players[0].bulletSkinType = globalSettings.bulletSkin
+    result.players[0].shapeType = globalSettings.playerShape
+    result.players[0].particleSkinType = globalSettings.particleEffect
   
   result.players[1] = newPlayer(screenWidth.float32 * 0.75, screenHeight.float32 * 0.5)
   result.players[1].hp = PVP_PLAYER_START_HP
   result.players[1].maxHp = PVP_PLAYER_START_HP
   result.players[1].coins = PVP_PLAYER_START_COINS
   result.players[1].walls = PVP_PLAYER_START_WALLS
+  # Apply cosmetics from settings for local player
+  if not isHost:
+    result.players[1].skinType = globalSettings.playerSkin
+    result.players[1].bulletSkinType = globalSettings.bulletSkin
+    result.players[1].shapeType = globalSettings.playerShape
+    result.players[1].particleSkinType = globalSettings.particleEffect
   
   result.bullets = @[]
   result.walls = @[]
@@ -186,7 +198,8 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
         fromPlayerIndex: playerIndex,
         isPiercing: newBullet.isPiercing,
         isExplosive: newBullet.isExplosive,
-        isHoming: newBullet.isHoming
+        isHoming: newBullet.isHoming,
+        bulletSkin: newBullet.bulletSkin
       )
       
       var packet = Packet(kind: ptBulletSpawn)
@@ -406,7 +419,8 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         fromPlayerIndex: if bullet.fromPlayer: pvp.localPlayerIndex else: pvp.remotePlayerIndex,
         isPiercing: bullet.isPiercing,
         isExplosive: bullet.isExplosive,
-        isHoming: bullet.isHoming
+        isHoming: bullet.isHoming,
+        bulletSkin: bullet.bulletSkin
       ))
     
     var wallStates: seq[WallStateNet] = @[]
@@ -433,7 +447,11 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
           walls: pvp.players[0].walls,
           damage: pvp.players[0].damage,
           speed: pvp.players[0].speed,
-          invincibilityTimer: pvp.players[0].invincibilityTimer
+          invincibilityTimer: pvp.players[0].invincibilityTimer,
+          skinType: pvp.players[0].skinType,
+          bulletSkinType: pvp.players[0].bulletSkinType,
+          shapeType: pvp.players[0].shapeType,
+          particleSkinType: pvp.players[0].particleSkinType
         ),
         PlayerStateNet(
           pos: pvp.players[1].pos,
@@ -445,7 +463,11 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
           walls: pvp.players[1].walls,
           damage: pvp.players[1].damage,
           speed: pvp.players[1].speed,
-          invincibilityTimer: pvp.players[1].invincibilityTimer
+          invincibilityTimer: pvp.players[1].invincibilityTimer,
+          skinType: pvp.players[1].skinType,
+          bulletSkinType: pvp.players[1].bulletSkinType,
+          shapeType: pvp.players[1].shapeType,
+          particleSkinType: pvp.players[1].particleSkinType
         )
       ],
       bullets: bulletStates,
@@ -481,6 +503,10 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   pvp.players[0].coins = serverState.players[0].coins
   pvp.players[0].kills = serverState.players[0].kills
   pvp.players[0].walls = serverState.players[0].walls
+  pvp.players[0].skinType = serverState.players[0].skinType
+  pvp.players[0].bulletSkinType = serverState.players[0].bulletSkinType
+  pvp.players[0].shapeType = serverState.players[0].shapeType
+  pvp.players[0].particleSkinType = serverState.players[0].particleSkinType
   
   pvp.players[1].pos = serverState.players[1].pos
   pvp.players[1].vel = serverState.players[1].vel
@@ -489,6 +515,10 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   pvp.players[1].coins = serverState.players[1].coins
   pvp.players[1].kills = serverState.players[1].kills
   pvp.players[1].walls = serverState.players[1].walls
+  pvp.players[1].skinType = serverState.players[1].skinType
+  pvp.players[1].bulletSkinType = serverState.players[1].bulletSkinType
+  pvp.players[1].shapeType = serverState.players[1].shapeType
+  pvp.players[1].particleSkinType = serverState.players[1].particleSkinType
   
   # Update bullets from server
   pvp.bullets = @[]
@@ -503,7 +533,8 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       isHoming: bulletState.isHoming,
       isPiercing: bulletState.isPiercing,
       isExplosive: bulletState.isExplosive,
-      bulletId: bulletState.id
+      bulletId: bulletState.id,
+      bulletSkin: bulletState.bulletSkin
     )
     pvp.bullets.add(bullet)
   
@@ -522,12 +553,26 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
 
 proc handleNetworkEvents*(pvp: PvPGameState) =
   ## Process all network events
-  let events = pvp.networkManager.pollEvents()
+  # Create callback to provide host's cosmetics when accepting connections
+  proc getHostCosmetics(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int] =
+    return (
+      skinType: pvp.players[0].skinType,
+      bulletSkinType: pvp.players[0].bulletSkinType,
+      shapeType: pvp.players[0].shapeType,
+      particleSkinType: pvp.players[0].particleSkinType
+    )
+  
+  let events = pvp.networkManager.pollEvents(getHostCosmetics)
   
   for event in events:
     case event.kind
     of neConnect:
       echo "[PVP] Connected to opponent"
+      # Apply remote player's cosmetics
+      pvp.players[pvp.remotePlayerIndex].skinType = event.remoteSkinType
+      pvp.players[pvp.remotePlayerIndex].bulletSkinType = event.remoteBulletSkinType
+      pvp.players[pvp.remotePlayerIndex].shapeType = event.remoteShapeType
+      pvp.players[pvp.remotePlayerIndex].particleSkinType = event.remoteParticleSkinType
     
     of neReceive:
       case event.packet.packetType
@@ -558,7 +603,8 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
           isHoming: bulletState.isHoming,
           isPiercing: bulletState.isPiercing,
           isExplosive: bulletState.isExplosive,
-          bulletId: bulletState.id
+          bulletId: bulletState.id,
+          bulletSkin: bulletState.bulletSkin
         )
         pvp.bullets.add(bullet)
       
@@ -711,11 +757,11 @@ proc drawPvP*(pvp: PvPGameState) =
     drawCircle(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, wallColor)
     drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius, Brown)
   
-  # Draw bullets
+  # Draw bullets with skin support
   for bullet in pvp.bullets:
-    drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, Yellow)
+    drawBullet(bullet, false, false, pvp.gameTime)
   
-  # Draw players
+  # Draw players with cosmetics
   for i in 0..1:
     let player = pvp.players[i]
     if player.hp <= 0:
@@ -730,22 +776,8 @@ proc drawPvP*(pvp: PvPGameState) =
                 else: Color(r: 255, g: 100, b: 100, a: 255))
       continue
     
-    # Player color based on index
-    let playerColor = if i == pvp.localPlayerIndex:
-      Color(r: 100, g: 200, b: 255, a: 255)  # Blue for local
-    else:
-      Color(r: 255, g: 100, b: 100, a: 255)  # Red for remote
-    
-    # Apply invincibility flashing
-    let flashAlpha = if player.invincibilityTimer > 0:
-      if (player.invincibilityTimer * 10).int mod 2 == 0: 255'u8 else: 100'u8
-    else:
-      255'u8
-    
-    let finalColor = Color(r: playerColor.r, g: playerColor.g, b: playerColor.b, a: flashAlpha)
-    
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius, finalColor)
-    drawCircleLines(player.pos.x.int32, player.pos.y.int32, player.radius, White)
+    # Draw player using their cosmetics
+    drawPlayer(player)
     
     # Health bar
     let barWidth = 50.0

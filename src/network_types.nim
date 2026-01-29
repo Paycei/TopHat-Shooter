@@ -54,6 +54,11 @@ type
     damage*: float32
     speed*: float32
     invincibilityTimer*: float32
+    # Cosmetics
+    skinType*: int
+    bulletSkinType*: int
+    shapeType*: int
+    particleSkinType*: int
     
   BulletStateNet* = object
     id*: int
@@ -65,6 +70,7 @@ type
     isPiercing*: bool
     isExplosive*: bool
     isHoming*: bool
+    bulletSkin*: int  # Bullet skin type
     
   WallStateNet* = object
     pos*: Vector2f
@@ -88,9 +94,19 @@ type
     of ptConnectionRequest:
       version*: string
       playerName*: string
+      # Cosmetics from connecting player
+      requestSkinType*: int
+      requestBulletSkinType*: int
+      requestShapeType*: int
+      requestParticleSkinType*: int
     of ptConnectionAccept, ptConnectionDenied:
       connectionReason*: string
       assignedPlayerIndex*: int
+      # Host's cosmetics sent back to client
+      hostSkinType*: int
+      hostBulletSkinType*: int
+      hostShapeType*: int
+      hostParticleSkinType*: int
     of ptGameStart:
       countdownTime*: float32
     of ptPlayerInput:
@@ -170,7 +186,11 @@ proc serializePlayerState*(p: PlayerStateNet): JsonNode =
     "walls": p.walls,
     "damage": p.damage,
     "speed": p.speed,
-    "invincibilityTimer": p.invincibilityTimer
+    "invincibilityTimer": p.invincibilityTimer,
+    "skinType": p.skinType,
+    "bulletSkinType": p.bulletSkinType,
+    "shapeType": p.shapeType,
+    "particleSkinType": p.particleSkinType
   }
 
 proc deserializePlayerState*(j: JsonNode): PlayerStateNet =
@@ -184,6 +204,10 @@ proc deserializePlayerState*(j: JsonNode): PlayerStateNet =
   result.damage = j["damage"].getFloat()
   result.speed = j["speed"].getFloat()
   result.invincibilityTimer = j["invincibilityTimer"].getFloat()
+  result.skinType = j["skinType"].getInt()
+  result.bulletSkinType = j["bulletSkinType"].getInt()
+  result.shapeType = j["shapeType"].getInt()
+  result.particleSkinType = j["particleSkinType"].getInt()
 
 proc serializeBulletState*(b: BulletStateNet): JsonNode =
   %* {
@@ -195,7 +219,8 @@ proc serializeBulletState*(b: BulletStateNet): JsonNode =
     "fromPlayerIndex": b.fromPlayerIndex,
     "isPiercing": b.isPiercing,
     "isExplosive": b.isExplosive,
-    "isHoming": b.isHoming
+    "isHoming": b.isHoming,
+    "bulletSkin": b.bulletSkin
   }
 
 proc deserializeBulletState*(j: JsonNode): BulletStateNet =
@@ -208,6 +233,7 @@ proc deserializeBulletState*(j: JsonNode): BulletStateNet =
   result.isPiercing = j["isPiercing"].getBool()
   result.isExplosive = j["isExplosive"].getBool()
   result.isHoming = j["isHoming"].getBool()
+  result.bulletSkin = j["bulletSkin"].getInt()
 
 proc serializeWallState*(w: WallStateNet): JsonNode =
   %* {
@@ -270,9 +296,17 @@ proc packetToJson*(packet: Packet): JsonNode =
   of ptConnectionRequest:
     result["version"] = %packet.version
     result["playerName"] = %packet.playerName
+    result["requestSkinType"] = %packet.requestSkinType
+    result["requestBulletSkinType"] = %packet.requestBulletSkinType
+    result["requestShapeType"] = %packet.requestShapeType
+    result["requestParticleSkinType"] = %packet.requestParticleSkinType
   of ptConnectionAccept, ptConnectionDenied:
     result["reason"] = %packet.connectionReason
     result["assignedPlayerIndex"] = %packet.assignedPlayerIndex
+    result["hostSkinType"] = %packet.hostSkinType
+    result["hostBulletSkinType"] = %packet.hostBulletSkinType
+    result["hostShapeType"] = %packet.hostShapeType
+    result["hostParticleSkinType"] = %packet.hostParticleSkinType
   of ptGameStart:
     result["countdownTime"] = %packet.countdownTime
   of ptPlayerInput:
@@ -321,10 +355,18 @@ proc deserializePacket*(data: string): Packet =
     result = Packet(kind: ptConnectionRequest)
     result.version = j["version"].getStr()
     result.playerName = j["playerName"].getStr()
+    result.requestSkinType = j["requestSkinType"].getInt()
+    result.requestBulletSkinType = j["requestBulletSkinType"].getInt()
+    result.requestShapeType = j["requestShapeType"].getInt()
+    result.requestParticleSkinType = j["requestParticleSkinType"].getInt()
   of ptConnectionAccept, ptConnectionDenied:
     result = Packet(kind: packetType)
     result.connectionReason = j["reason"].getStr()
     result.assignedPlayerIndex = j["assignedPlayerIndex"].getInt()
+    result.hostSkinType = j["hostSkinType"].getInt()
+    result.hostBulletSkinType = j["hostBulletSkinType"].getInt()
+    result.hostShapeType = j["hostShapeType"].getInt()
+    result.hostParticleSkinType = j["hostParticleSkinType"].getInt()
   of ptGameStart:
     result = Packet(kind: ptGameStart)
     result.countdownTime = j["countdownTime"].getFloat()

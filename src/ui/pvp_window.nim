@@ -19,6 +19,11 @@ type
     editingIP*: bool
     editingPort*: bool
     readyToStart*: bool  # Flag when connection is established and ready to start game
+    # Store remote player's cosmetics when connection is established
+    remoteSkinType*: int
+    remoteBulletSkinType*: int
+    remoteShapeType*: int
+    remoteParticleSkinType*: int
   
   PvPLobbyState* = enum
     plsMainMenu      # Choose host or join
@@ -53,7 +58,11 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
     cursorBlink: 0,
     editingIP: true,
     editingPort: false,
-    readyToStart: false
+    readyToStart: false,
+    remoteSkinType: 0,
+    remoteBulletSkinType: 0,
+    remoteShapeType: 0,
+    remoteParticleSkinType: 0
   )
 
 proc getLocalIP*(): string =
@@ -73,7 +82,9 @@ proc startHosting*(pvpWin: PvPWindow) =
     pvpWin.state = plsError
     pvpWin.errorMessage = "Failed to start host: " & getCurrentExceptionMsg()
 
-proc connectToGame*(pvpWin: PvPWindow, ip: string, port: int) =
+proc connectToGame*(pvpWin: PvPWindow, ip: string, port: int,
+                   skinType: int = 0, bulletSkinType: int = 0,
+                   shapeType: int = 0, particleSkinType: int = 0) =
   pvpWin.isHost = false
   pvpWin.state = plsConnecting
   pvpWin.connectionTimeout = CONNECTION_TIMEOUT
@@ -81,22 +92,27 @@ proc connectToGame*(pvpWin: PvPWindow, ip: string, port: int) =
   
   try:
     pvpWin.networkManager.initClient()
-    pvpWin.networkManager.connectToHost(ip, port)
+    pvpWin.networkManager.connectToHost(ip, port, skinType, bulletSkinType, shapeType, particleSkinType)
     echo "[LOBBY] Connecting to ", ip, ":", port
   except:
     pvpWin.state = plsError
     pvpWin.errorMessage = "Failed to connect: " & getCurrentExceptionMsg()
 
-proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32) =
+proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int] = nil) =
   pvpWin.cursorBlink += dt
   
   case pvpWin.state
   of plsHosting:
-    let events = pvpWin.networkManager.pollEvents()
+    let events = pvpWin.networkManager.pollEvents(getCosmetics)
     for event in events:
       if event.kind == neConnect:
         pvpWin.state = plsConnected
         pvpWin.readyToStart = true
+        # Store remote player's cosmetics from the connection event
+        pvpWin.remoteSkinType = event.remoteSkinType
+        pvpWin.remoteBulletSkinType = event.remoteBulletSkinType
+        pvpWin.remoteShapeType = event.remoteShapeType
+        pvpWin.remoteParticleSkinType = event.remoteParticleSkinType
   
   of plsConnecting:
     pvpWin.connectionTimeout -= dt
@@ -105,11 +121,16 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32) =
       pvpWin.errorMessage = "Connection timeout"
       return
     
-    let events = pvpWin.networkManager.pollEvents()
+    let events = pvpWin.networkManager.pollEvents(getCosmetics)
     for event in events:
       if event.kind == neConnect:
         pvpWin.state = plsConnected
         pvpWin.readyToStart = true
+        # Store remote player's cosmetics from the connection event
+        pvpWin.remoteSkinType = event.remoteSkinType
+        pvpWin.remoteBulletSkinType = event.remoteBulletSkinType
+        pvpWin.remoteShapeType = event.remoteShapeType
+        pvpWin.remoteParticleSkinType = event.remoteParticleSkinType
       elif event.kind == neDisconnect:
         pvpWin.state = plsError
         pvpWin.errorMessage = "Connection refused"
@@ -125,6 +146,10 @@ proc resetPvPWindow*(pvpWin: PvPWindow) =
   pvpWin.isHost = false
   pvpWin.errorMessage = ""
   pvpWin.readyToStart = false
+  pvpWin.remoteSkinType = 0
+  pvpWin.remoteBulletSkinType = 0
+  pvpWin.remoteShapeType = 0
+  pvpWin.remoteParticleSkinType = 0
 
 proc handlePvPWindowInput*(pvpWin: PvPWindow) =
   if not pvpWin.window.visible or pvpWin.window.minimized:

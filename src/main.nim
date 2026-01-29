@@ -338,6 +338,14 @@ proc main() =
       if updateResult.pvpGameReady:
         currentPvPGame = newPvPGameState(screenWidth, screenHeight, globalWindowManager.pvp.isHost)
         currentPvPGame.networkManager = globalWindowManager.pvp.networkManager
+        
+        # Apply remote player's cosmetics that were stored during connection
+        let remoteIdx = if globalWindowManager.pvp.isHost: 1 else: 0
+        currentPvPGame.players[remoteIdx].skinType = globalWindowManager.pvp.remoteSkinType
+        currentPvPGame.players[remoteIdx].bulletSkinType = globalWindowManager.pvp.remoteBulletSkinType
+        currentPvPGame.players[remoteIdx].shapeType = globalWindowManager.pvp.remoteShapeType
+        currentPvPGame.players[remoteIdx].particleSkinType = globalWindowManager.pvp.remoteParticleSkinType
+        
         startCountdown(currentPvPGame)
         currentGame.state = gsPvPPlaying
         globalWindowManager.pvp.window.visible = false
@@ -364,7 +372,9 @@ proc main() =
               port = parseInt(globalWindowManager.pvp.inputPort)
             except ValueError:
               port = pvp_window.DEFAULT_PORT
-            connectToGame(globalWindowManager.pvp, globalWindowManager.pvp.inputIP, port)
+            connectToGame(globalWindowManager.pvp, globalWindowManager.pvp.inputIP, port,
+                         settings.playerSkin, settings.bulletSkin, 
+                         settings.playerShape, settings.particleEffect)
         else:
           discard
       

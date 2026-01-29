@@ -22,6 +22,11 @@ type
     case kind*: NetworkEventKind
     of neConnect:
       remoteAddress*: string
+      # Remote player's cosmetics (only for host receiving connection)
+      remoteSkinType*: int
+      remoteBulletSkinType*: int
+      remoteShapeType*: int
+      remoteParticleSkinType*: int
     of neReceive:
       packet*: Packet
     of neDisconnect:
@@ -70,18 +75,24 @@ proc initClient*(nm: NetworkManager) =
   nm.socket.getFd().setBlocking(false)  # Set non-blocking mode
   echo "[NETWORK] Client initialized"
 
-proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT) =
-  ## Connect to a host as client
+proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
+                   skinType: int = 0, bulletSkinType: int = 0, 
+                   shapeType: int = 0, particleSkinType: int = 0) =
+  ## Connect to a host as client, sending cosmetics
   nm.remoteAddr = host
   nm.remotePort = Port(port)
   
-  # Send connection request
+  # Send connection request with cosmetics
   var packet = Packet(kind: ptConnectionRequest)
   packet.packetType = ptConnectionRequest
   packet.tick = 0
   packet.timestamp = epochTime()
   packet.version = NETWORK_VERSION
   packet.playerName = "Player"
+  packet.requestSkinType = skinType
+  packet.requestBulletSkinType = bulletSkinType
+  packet.requestShapeType = shapeType
+  packet.requestParticleSkinType = particleSkinType
   
   let data = serializePacket(packet)
   try:
@@ -114,7 +125,10 @@ proc sendPacket*(nm: NetworkManager, packet: Packet) =
     except:
       echo "[NETWORK] Failed to send packet: ", getCurrentExceptionMsg()
 
-proc pollEvents*(nm: NetworkManager): seq[NetworkEvent] =
+type
+  CosmeticsCallback* = proc(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int]
+
+proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = nil): seq[NetworkEvent] =
   ## Poll for network events (non-blocking)
   result = nm.pendingEvents
   nm.pendingEvents = @[]
@@ -141,23 +155,48 @@ proc pollEvents*(nm: NetworkManager): seq[NetworkEvent] =
               nm.remotePort = port
               nm.isConnected = true
               
-              # Send acceptance
+              # Get host's cosmetics if callback provided
+              var hostCosmetics = (skinType: 0, bulletSkinType: 0, shapeType: 0, particleSkinType: 0)
+              if getCosmeticsCallback != nil:
+                hostCosmetics = getCosmeticsCallback()
+              
+              # Send acceptance with host's cosmetics
               var acceptPacket = Packet(kind: ptConnectionAccept)
               acceptPacket.packetType = ptConnectionAccept
               acceptPacket.tick = 0
               acceptPacket.timestamp = epochTime()
               acceptPacket.connectionReason = "Connection accepted"
               acceptPacket.assignedPlayerIndex = 1  # Host is 0, client is 1
+              acceptPacket.hostSkinType = hostCosmetics.skinType
+              acceptPacket.hostBulletSkinType = hostCosmetics.bulletSkinType
+              acceptPacket.hostShapeType = hostCosmetics.shapeType
+              acceptPacket.hostParticleSkinType = hostCosmetics.particleSkinType
               nm.sendPacket(acceptPacket)
               
-              result.add(NetworkEvent(kind: neConnect, remoteAddress: address))
+              # Store client cosmetics in the network event so game can apply them
+              result.add(NetworkEvent(
+                kind: neConnect, 
+                remoteAddress: address,
+                remoteSkinType: packet.requestSkinType,
+                remoteBulletSkinType: packet.requestBulletSkinType,
+                remoteShapeType: packet.requestShapeType,
+                remoteParticleSkinType: packet.requestParticleSkinType
+              ))
               echo "[NETWORK] Client connected from ", address, ":", port.int
           
           # Handle connection acceptance for client
           elif nm.role == nrClient and not nm.isConnected:
             if packet.packetType == ptConnectionAccept:
               nm.isConnected = true
-              result.add(NetworkEvent(kind: neConnect, remoteAddress: address))
+              # Client receives host's cosmetics in the acceptance packet
+              result.add(NetworkEvent(
+                kind: neConnect, 
+                remoteAddress: address,
+                remoteSkinType: packet.hostSkinType,
+                remoteBulletSkinType: packet.hostBulletSkinType,
+                remoteShapeType: packet.hostShapeType,
+                remoteParticleSkinType: packet.hostParticleSkinType
+              ))
               echo "[NETWORK] Connected to host"
           
           # Handle regular packets

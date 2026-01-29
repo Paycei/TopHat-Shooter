@@ -195,7 +195,16 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       result.iconToExecute = updateHelpWindow(wm.help, dt, screenWidth, screenHeight, visibleWindows)
     
     elif window == wm.pvp.window:
-      updatePvPWindow(wm.pvp, dt)
+      # Create callback to provide cosmetics when accepting connections  
+      proc getCosmetics(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int] =
+        return (
+          skinType: globalSettings.playerSkin,
+          bulletSkinType: globalSettings.bulletSkin,
+          shapeType: globalSettings.playerShape,
+          particleSkinType: globalSettings.particleEffect
+        )
+      
+      updatePvPWindow(wm.pvp, dt, getCosmetics)
       handlePvPWindowInput(wm.pvp)
       
       # Handle window chrome (close, minimize, drag) - THIS WAS MISSING!

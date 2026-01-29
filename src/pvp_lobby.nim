@@ -66,15 +66,17 @@ proc startHosting*(lobby: PvPLobby) =
     lobby.state = plsError
     lobby.errorMessage = "Failed to start host: " & getCurrentExceptionMsg()
 
-proc connectToGame*(lobby: PvPLobby, ip: string, port: int) =
-  ## Connect to a hosted game
+proc connectToGame*(lobby: PvPLobby, ip: string, port: int,
+                   skinType: int = 0, bulletSkinType: int = 0,
+                   shapeType: int = 0, particleSkinType: int = 0) =
+  ## Connect to a hosted game with cosmetics
   lobby.isHost = false
   lobby.state = plsConnecting
   lobby.connectionTimeout = CONNECTION_TIMEOUT
   
   try:
     lobby.networkManager.initClient()
-    lobby.networkManager.connectToHost(ip, port)
+    lobby.networkManager.connectToHost(ip, port, skinType, bulletSkinType, shapeType, particleSkinType)
     echo "[LOBBY] Connecting to ", ip, ":", port
   except:
     lobby.state = plsError
