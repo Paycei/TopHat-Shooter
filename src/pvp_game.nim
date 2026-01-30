@@ -11,7 +11,8 @@ const
   PVP_KILL_LIMIT = 5  # First to 5 kills wins
   PVP_TIME_LIMIT = 300.0  # 5 minutes
   SNAPSHOT_RATE = 0.033  # 30 Hz (every 33ms)
-  INPUT_SEND_RATE = 0.016  # 60 Hz (every 16ms)
+  INPUT_SEND_RATE = 0.033  # 30 Hz - match snapshot rate to reduce reconciliation conflicts
+  RECONCILE_THRESHOLD = 20.0  # Only reconcile if >20 pixels off (increased from 5)
 
 type
   PvPGameState* = ref object
@@ -33,13 +34,14 @@ type
     pendingInputs*: seq[tuple[tick: int, input: PlayerInput]]  # For reconciliation
     screenWidth*: int32
     screenHeight*: int32
-    bulletIdCounter*: int
+    bulletIdCounter*: int  # Local bullet ID counter
     countdownTimer*: float32
     isCountingDown*: bool
     damageNumbers*: seq[DamageNumber]
     lastPingTime*: float32
     respawnTimers*: array[2, float32]  # Respawn timers for each player
     lastHostInput*: PlayerInput  # Store host's last input for server processing
+    lastClientInput*: PlayerInput  # Store client's last input for server processing
 
 proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameState =
   result = PvPGameState(
@@ -65,7 +67,10 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameSt
     respawnTimers: [0.0, 0.0],
     lastHostInput: PlayerInput(tick: 0, moveDir: newVector2f(0, 0), shooting: false, 
                                mousePos: newVector2f(0, 0), placingWall: false, 
-                               wallPos: newVector2f(0, 0), timestamp: 0)
+                               wallPos: newVector2f(0, 0), timestamp: 0),
+    lastClientInput: PlayerInput(tick: 0, moveDir: newVector2f(0, 0), shooting: false, 
+                                 mousePos: newVector2f(0, 0), placingWall: false, 
+                                 wallPos: newVector2f(0, 0), timestamp: 0)
   )
   
   # Initialize players at opposite corners
@@ -160,13 +165,15 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
     player.pos.x = clamp(player.pos.x, player.radius, pvp.screenWidth.float32 - player.radius)
     player.pos.y = clamp(player.pos.y, player.radius, pvp.screenHeight.float32 - player.radius)
   
-  # Shooting
+  # Shooting - ALWAYS CREATE BULLET LOCALLY for immediate feedback
   if input.shooting and (pvp.gameTime - player.lastShot) >= player.fireRate:
     player.lastShot = pvp.gameTime
     
-    # Create bullet
+    # Create bullet with player-specific ID range to prevent collisions
+    # Player 0 (host): IDs 0-999999, Player 1 (client): IDs 1000000-1999999
     let direction = (input.mousePos - player.pos).normalize()
     let bulletVel = direction * player.bulletSpeed
+    let bulletId = playerIndex * 1000000 + pvp.bulletIdCounter
     
     let newBullet = Bullet(
       pos: player.pos + direction * (player.radius + 5),
@@ -178,7 +185,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
       isHoming: false,
       isPiercing: false,
       isExplosive: false,
-      bulletId: pvp.bulletIdCounter,
+      bulletId: bulletId,
       bulletSkin: player.bulletSkinType
     )
     
@@ -393,9 +400,13 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
     if player.invincibilityTimer > 0:
       player.invincibilityTimer -= dt
   
-  # Apply host's own input (stored from last capture)
-  if pvp.lastHostInput.tick > 0:
-    applyPlayerInput(pvp, pvp.localPlayerIndex, pvp.lastHostInput, dt)
+  # NOTE: Host's input is NOT applied here - it's already applied via prediction in main update
+  # This ensures fairness: both host and client use the same predict->reconcile flow
+  # Server simulation just processes the remote client's input
+  
+  # Apply client's input (stored from network)
+  if pvp.lastClientInput.tick >= 0:
+    applyPlayerInput(pvp, pvp.remotePlayerIndex, pvp.lastClientInput, dt)
   
   # Update bullets
   updateBullets(pvp, dt)
@@ -481,44 +492,127 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
     packet.state = gameState
     
     pvp.networkManager.sendPacket(packet)
+    
+    # Host should also reconcile their own state for fairness
+    # This ensures host experiences same prediction+reconciliation as client
+    # Apply server state to host (inline reconciliation for simplicity)
+    let localIdx = pvp.localPlayerIndex
+    let remoteIdx = pvp.remotePlayerIndex
+    
+    # Reconcile remote player fully
+    pvp.players[remoteIdx].pos = gameState.players[remoteIdx].pos
+    pvp.players[remoteIdx].vel = gameState.players[remoteIdx].vel
+    pvp.players[remoteIdx].hp = gameState.players[remoteIdx].hp
+    pvp.players[remoteIdx].maxHp = gameState.players[remoteIdx].maxHp
+    pvp.players[remoteIdx].coins = gameState.players[remoteIdx].coins
+    pvp.players[remoteIdx].kills = gameState.players[remoteIdx].kills
+    pvp.players[remoteIdx].walls = gameState.players[remoteIdx].walls
+    pvp.players[remoteIdx].invincibilityTimer = gameState.players[remoteIdx].invincibilityTimer
+    
+    # Reconcile host's own player with smooth interpolation
+    let serverPos = gameState.players[localIdx].pos
+    let clientPos = pvp.players[localIdx].pos
+    let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) + 
+                       (serverPos.y - clientPos.y) * (serverPos.y - clientPos.y))
+    
+    if posDiff > 100.0:
+      pvp.players[localIdx].pos = serverPos
+    elif posDiff > 2.0:
+      let interpSpeed = min(0.3, posDiff * 0.01)
+      pvp.players[localIdx].pos.x = pvp.players[localIdx].pos.x * (1.0 - interpSpeed) + serverPos.x * interpSpeed
+      pvp.players[localIdx].pos.y = pvp.players[localIdx].pos.y * (1.0 - interpSpeed) + serverPos.y * interpSpeed
+    else:
+      pvp.players[localIdx].pos = serverPos
+    
+    # Always update other host data from server
+    pvp.players[localIdx].vel = gameState.players[localIdx].vel
+    pvp.players[localIdx].hp = gameState.players[localIdx].hp
+    pvp.players[localIdx].maxHp = gameState.players[localIdx].maxHp
+    pvp.players[localIdx].coins = gameState.players[localIdx].coins
+    pvp.players[localIdx].kills = gameState.players[localIdx].kills
+    pvp.players[localIdx].walls = gameState.players[localIdx].walls
+    pvp.players[localIdx].invincibilityTimer = gameState.players[localIdx].invincibilityTimer
 
 proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
   ## Client-side update (prediction + reconciliation)
+  ## Input is now applied immediately in main updatePvP for responsive feel
+  ## This function handles additional client-only updates
   pvp.gameTime += dt
   
-  # Apply client-side prediction for local player
-  let localPlayer = pvp.players[pvp.localPlayerIndex]
-  updatePlayer(localPlayer, dt, pvp.screenWidth, pvp.screenHeight, pvp.walls)
+  # Update bullets locally for smooth interpolation between server snapshots
+  # Server will reconcile with authoritative state
+  var i = 0
+  while i < pvp.bullets.len:
+    let bullet = pvp.bullets[i]
+    bullet.pos = bullet.pos + bullet.vel * dt
+    bullet.lifetime += dt
+    
+    # Remove if out of bounds or lifetime exceeded (will be reconciled by server)
+    if bullet.pos.x < 0 or bullet.pos.x > pvp.screenWidth.float32 or
+       bullet.pos.y < 0 or bullet.pos.y > pvp.screenHeight.float32 or
+       bullet.lifetime > 5.0:
+      pvp.bullets.delete(i)
+      continue
+    
+    i += 1
   
   # Update particles locally
   updateParticlePool(pvp.particlePool, dt)
 
 proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   ## Reconcile client state with authoritative server state
-  # Update both players from server
-  pvp.players[0].pos = serverState.players[0].pos
-  pvp.players[0].vel = serverState.players[0].vel
-  pvp.players[0].hp = serverState.players[0].hp
-  pvp.players[0].maxHp = serverState.players[0].maxHp
-  pvp.players[0].coins = serverState.players[0].coins
-  pvp.players[0].kills = serverState.players[0].kills
-  pvp.players[0].walls = serverState.players[0].walls
-  pvp.players[0].skinType = serverState.players[0].skinType
-  pvp.players[0].bulletSkinType = serverState.players[0].bulletSkinType
-  pvp.players[0].shapeType = serverState.players[0].shapeType
-  pvp.players[0].particleSkinType = serverState.players[0].particleSkinType
+  ## Server is ALWAYS authoritative - client just renders smoothly
   
-  pvp.players[1].pos = serverState.players[1].pos
-  pvp.players[1].vel = serverState.players[1].vel
-  pvp.players[1].hp = serverState.players[1].hp
-  pvp.players[1].maxHp = serverState.players[1].maxHp
-  pvp.players[1].coins = serverState.players[1].coins
-  pvp.players[1].kills = serverState.players[1].kills
-  pvp.players[1].walls = serverState.players[1].walls
-  pvp.players[1].skinType = serverState.players[1].skinType
-  pvp.players[1].bulletSkinType = serverState.players[1].bulletSkinType
-  pvp.players[1].shapeType = serverState.players[1].shapeType
-  pvp.players[1].particleSkinType = serverState.players[1].particleSkinType
+  # Sync client's server tick
+  pvp.serverTick = serverState.tick
+  
+  let remoteIdx = pvp.remotePlayerIndex
+  let localIdx = pvp.localPlayerIndex
+  
+  # Remote player - full update from server
+  pvp.players[remoteIdx].pos = serverState.players[remoteIdx].pos
+  pvp.players[remoteIdx].vel = serverState.players[remoteIdx].vel
+  pvp.players[remoteIdx].hp = serverState.players[remoteIdx].hp
+  pvp.players[remoteIdx].maxHp = serverState.players[remoteIdx].maxHp
+  pvp.players[remoteIdx].coins = serverState.players[remoteIdx].coins
+  pvp.players[remoteIdx].kills = serverState.players[remoteIdx].kills
+  pvp.players[remoteIdx].walls = serverState.players[remoteIdx].walls
+  pvp.players[remoteIdx].invincibilityTimer = serverState.players[remoteIdx].invincibilityTimer
+  pvp.players[remoteIdx].skinType = serverState.players[remoteIdx].skinType
+  pvp.players[remoteIdx].bulletSkinType = serverState.players[remoteIdx].bulletSkinType
+  pvp.players[remoteIdx].shapeType = serverState.players[remoteIdx].shapeType
+  pvp.players[remoteIdx].particleSkinType = serverState.players[remoteIdx].particleSkinType
+  
+  # Local player - SERVER IS AUTHORITATIVE
+  # Smoothly interpolate to server position instead of snapping
+  let serverPos = serverState.players[localIdx].pos
+  let clientPos = pvp.players[localIdx].pos
+  
+  # Calculate interpolation speed based on distance
+  let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) + 
+                     (serverPos.y - clientPos.y) * (serverPos.y - clientPos.y))
+  
+  if posDiff > 100.0:
+    # Very large desync - snap immediately
+    pvp.players[localIdx].pos = serverPos
+  elif posDiff > 2.0:
+    # Smooth interpolation toward server position
+    # Speed increases with distance for faster convergence
+    let interpSpeed = min(0.3, posDiff * 0.01)
+    pvp.players[localIdx].pos.x = pvp.players[localIdx].pos.x * (1.0 - interpSpeed) + serverPos.x * interpSpeed
+    pvp.players[localIdx].pos.y = pvp.players[localIdx].pos.y * (1.0 - interpSpeed) + serverPos.y * interpSpeed
+  else:
+    # Very close - accept server position
+    pvp.players[localIdx].pos = serverPos
+  
+  # Always update all other data from server
+  pvp.players[localIdx].vel = serverState.players[localIdx].vel
+  pvp.players[localIdx].hp = serverState.players[localIdx].hp
+  pvp.players[localIdx].maxHp = serverState.players[localIdx].maxHp
+  pvp.players[localIdx].coins = serverState.players[localIdx].coins
+  pvp.players[localIdx].kills = serverState.players[localIdx].kills
+  pvp.players[localIdx].walls = serverState.players[localIdx].walls
+  pvp.players[localIdx].invincibilityTimer = serverState.players[localIdx].invincibilityTimer
   
   # Update bullets from server
   pvp.bullets = @[]
@@ -581,9 +675,10 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         pvp.isCountingDown = true
       
       of ptPlayerInput:
-        # Server receives client input
+        # Server receives client input - store it, don't apply immediately
         if pvp.networkManager.isHost():
-          applyPlayerInput(pvp, pvp.remotePlayerIndex, event.packet.input, 1.0/60.0)
+          # Store the latest client input to apply in next server update
+          pvp.lastClientInput = event.packet.input
       
       of ptGameState:
         # Client receives server state
@@ -591,22 +686,32 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
           reconcileState(pvp, event.packet.state)
       
       of ptBulletSpawn:
-        # Spawn bullet from packet
+        # Spawn bullet from packet - check for duplicates first (client-side prediction)
         let bulletState = event.packet.bullet
-        let bullet = Bullet(
-          pos: bulletState.pos,
-          vel: bulletState.vel,
-          radius: bulletState.radius,
-          damage: bulletState.damage,
-          fromPlayer: true,
-          lifetime: 0,
-          isHoming: bulletState.isHoming,
-          isPiercing: bulletState.isPiercing,
-          isExplosive: bulletState.isExplosive,
-          bulletId: bulletState.id,
-          bulletSkin: bulletState.bulletSkin
-        )
-        pvp.bullets.add(bullet)
+        
+        # Check if bullet already exists (client may have predicted it)
+        var bulletExists = false
+        for existingBullet in pvp.bullets:
+          if existingBullet.bulletId == bulletState.id:
+            bulletExists = true
+            break
+        
+        # Only add if it doesn't exist (prevents duplicates from client prediction)
+        if not bulletExists:
+          let bullet = Bullet(
+            pos: bulletState.pos,
+            vel: bulletState.vel,
+            radius: bulletState.radius,
+            damage: bulletState.damage,
+            fromPlayer: true,
+            lifetime: 0,
+            isHoming: bulletState.isHoming,
+            isPiercing: bulletState.isPiercing,
+            isExplosive: bulletState.isExplosive,
+            bulletId: bulletState.id,
+            bulletSkin: bulletState.bulletSkin
+          )
+          pvp.bullets.add(bullet)
       
       of ptBulletDestroy:
         # Remove bullet
@@ -673,7 +778,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
 
 proc updatePvP*(pvp: PvPGameState, dt: float32) =
   ## Main PvP update function
-  # Handle network events
+  # Handle network events FIRST
   handleNetworkEvents(pvp)
   
   # Update countdown
@@ -686,18 +791,21 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
   if not pvp.gameStarted or pvp.gameOver:
     return
   
-  # Capture and send local input
+  # Capture input every frame
+  let input = capturePlayerInput(pvp)
+  
+  # CLIENT-SIDE PREDICTION: Apply input immediately for responsive feel (BOTH host and client)
+  # This ensures FAIR gameplay - host doesn't get instant advantage
+  # Server will reconcile with authoritative state for both players
+  applyPlayerInput(pvp, pvp.localPlayerIndex, input, dt)
+  
+  # Send input to server at regular rate
   if pvp.gameTime - pvp.lastInputSendTime >= INPUT_SEND_RATE:
     pvp.lastInputSendTime = pvp.gameTime
-    
-    let input = capturePlayerInput(pvp)
     
     # Store host input for server processing
     if pvp.networkManager.isHost():
       pvp.lastHostInput = input
-    
-    # Apply input locally (prediction)
-    applyPlayerInput(pvp, pvp.localPlayerIndex, input, dt)
     
     # Send to server if client
     if pvp.networkManager.isClient():
@@ -707,9 +815,6 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
       packet.timestamp = epochTime()
       packet.input = input
       pvp.networkManager.sendPacket(packet)
-    
-    # Store for reconciliation
-    pvp.pendingInputs.add((pvp.serverTick, input))
   
   # Update based on role
   if pvp.networkManager.isHost():

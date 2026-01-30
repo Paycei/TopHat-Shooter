@@ -725,7 +725,7 @@ proc main() =
           playSound(stMenuSelect)
         elif isKeyPressed(Q):  # Quit to main menu
           # Clean up PvP if active
-          if isPvP and currentPvPGame.networkManager != nil:
+          if isPvP and not currentPvPGame.isNil and currentPvPGame.networkManager != nil:
             cleanup(currentPvPGame.networkManager)
             currentPvPGame = nil
           
@@ -764,7 +764,7 @@ proc main() =
       beginGameDrawing()
       
       # Draw appropriate game based on context
-      if isPvP:
+      if isPvP and not currentPvPGame.isNil:
         drawPvP(currentPvPGame)
       else:
         drawGame(currentGame)
@@ -792,7 +792,7 @@ proc main() =
           playSound(stMenuSelect)
         elif menuResult.exitClicked:
           # Clean up PvP if active
-          if isPvP and currentPvPGame.networkManager != nil:
+          if isPvP and not currentPvPGame.isNil and currentPvPGame.networkManager != nil:
             cleanup(currentPvPGame.networkManager)
             currentPvPGame = nil
           
@@ -1421,6 +1421,11 @@ proc main() =
       endGameDrawing()
     
     of gsPvPPlaying:
+      # Safety check - if currentPvPGame is nil, return to menu
+      if currentPvPGame.isNil:
+        currentGame.state = gsMenu
+        continue
+      
       # Play appropriate music
       if currentPvPGame.isCountingDown:
         playMusic(mtWave)
