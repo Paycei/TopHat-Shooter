@@ -7,8 +7,6 @@ const
   DEFAULT_PORT* = 7777
   MAX_PACKET_SIZE = 8192
   NETWORK_VERSION* = "1.0.0"
-  CONNECTION_TIMEOUT = 10.0  # Seconds
-  RECEIVE_TIMEOUT_MS = 1     # 1ms timeout for non-blocking behavior
 
 type
   NetworkEventKind* = enum
@@ -224,7 +222,7 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
           echo "[NETWORK] Failed to parse packet"
         except:
           echo "[NETWORK] Error processing packet: ", getCurrentExceptionMsg()
-    except OSError as e:
+    except OSError:
       # Expected for non-blocking socket when no data is available
       # EWOULDBLOCK or EAGAIN on Windows/Unix
       discard

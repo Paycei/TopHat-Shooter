@@ -1,7 +1,7 @@
 ## PvP Game Mode Logic
 ## Handles 1v1 player vs player combat
 
-import raylib, types, player, bullet, wall, particle, particle_pool, sound, network_types, network, math, random, times, settings
+import raylib, types, player, bullet, wall, particle, particle_pool, sound, network_types, network, math, times, settings
 
 const
   PVP_PLAYER_START_HP = 5.0  # Lower HP for faster PvP matches
@@ -12,7 +12,6 @@ const
   PVP_TIME_LIMIT = 300.0  # 5 minutes
   SNAPSHOT_RATE = 0.033  # 30 Hz (every 33ms)
   INPUT_SEND_RATE = 0.033  # 30 Hz - match snapshot rate to reduce reconciliation conflicts
-  RECONCILE_THRESHOLD = 20.0  # Only reconcile if >20 pixels off (increased from 5)
 
 type
   PvPGameState* = ref object
@@ -116,8 +115,6 @@ proc startCountdown*(pvp: PvPGameState) =
     pvp.networkManager.sendPacket(packet)
 
 proc capturePlayerInput*(pvp: PvPGameState): PlayerInput =
-  ## Capture local player input
-  let localPlayer = pvp.players[pvp.localPlayerIndex]
   
   var moveDir = newVector2f(0, 0)
   if isKeyDown(W): moveDir.y -= 1
@@ -944,6 +941,45 @@ proc drawPvP*(pvp: PvPGameState) =
             pvp.screenWidth div 2 - textWidth div 2,
             pvp.screenHeight div 2 - 40,
             80, Yellow)
+    
+    # Draw arrow pointing to local player with "YOU" label
+    let localPlayer = pvp.players[pvp.localPlayerIndex]
+    let arrowColor = Color(r: 100, g: 255, b: 100, a: 255)  # Bright green
+    
+    # Animated bouncing arrow
+    let bounceOffset = sin(pvp.gameTime * 5) * 10
+    let arrowY = localPlayer.pos.y - localPlayer.radius - 50 + bounceOffset
+    
+    # Draw "YOU" text above arrow
+    let youText = "YOU"
+    let youWidth = measureText(youText, 30)
+    drawText(youText, 
+            localPlayer.pos.x.int32 - youWidth div 2,
+            (arrowY - 40).int32,
+            30, arrowColor)
+    
+    # Draw downward pointing arrow (triangle)
+    let arrowSize = 20.0
+    let arrowTipX = localPlayer.pos.x
+    let arrowTipY = arrowY + arrowSize
+    let arrowLeftX = localPlayer.pos.x - arrowSize * 0.6
+    let arrowRightX = localPlayer.pos.x + arrowSize * 0.6
+    let arrowTopY = arrowY
+    
+    drawTriangle(
+      Vector2(x: arrowTipX, y: arrowTipY),      # Bottom tip
+      Vector2(x: arrowLeftX, y: arrowTopY),     # Top left
+      Vector2(x: arrowRightX, y: arrowTopY),    # Top right
+      arrowColor
+    )
+    
+    # Draw arrow outline for better visibility
+    drawTriangleLines(
+      Vector2(x: arrowTipX, y: arrowTipY),
+      Vector2(x: arrowLeftX, y: arrowTopY),
+      Vector2(x: arrowRightX, y: arrowTopY),
+      White
+    )
   
   # Game over overlay
   if pvp.gameOver:

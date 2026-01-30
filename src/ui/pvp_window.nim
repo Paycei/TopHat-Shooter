@@ -1,7 +1,7 @@
 ## PvP Lobby Window
 ## Network lobby interface as an OS-style window
 
-import raylib, os_window, ../network, ../network_types, strutils
+import raylib, os_window, ../network, strutils
 
 type
   PvPWindow* = ref object
