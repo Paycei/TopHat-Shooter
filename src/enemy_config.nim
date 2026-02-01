@@ -476,7 +476,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: "Trickster",
       description: "Deceptive enemy that shows fake warnings and teleports",
       
-      baseHP: 4.0,
+      baseHP: 5.0,
       baseRadius: 13.0,
       contactDamage: 1,
       baseColor: Color(r: 200, g: 0, b: 200, a: 255),  # Magenta
@@ -529,7 +529,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: "Phantom",
       description: "Teleporting enemy that creates fake clones to confuse",
       
-      baseHP: 4.0,
+      baseHP: 5.0,
       baseRadius: 11.0,
       contactDamage: 1,
       baseColor: Color(r: 100, g: 100, b: 255, a: 180),  # Semi-transparent blue
@@ -582,7 +582,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: "Sniper",
       description: "Deadly enemy that charges a powerful one-shot kill attack",
       
-      baseHP: 6.0,
+      baseHP: 7.5,
       baseRadius: 10.0,
       contactDamage: 3,
       baseColor: Color(r: 200, g: 50, b: 200, a: 255),  # Bright magenta
@@ -594,9 +594,9 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashDuration: 0.0,
         teleportCooldown: 0.0,
         teleportRange: 0.0,
-        maintainsDistance: false,
-        optimalDistance: 0.0,
-        retreatDistance: 0.0
+        maintainsDistance: true,      # FIXED: Enable distance maintenance
+        optimalDistance: 350.0,       # FIXED: Keep far away for sniping
+        retreatDistance: 280.0        # FIXED: Retreat if player gets too close
       ),
       
       hasRangedAttack: true,
@@ -623,7 +623,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialCooldown: 2.0,   # Cooldown after firing
       specialData: "charge_time:3.0|trigger_range:300|cooldown:2.0|color_shift",
       
-      requiresScreenEntry: false,
+      requiresScreenEntry: true,  # FIXED: Must enter screen before attacking
       trailEffect: false,
       glowEffect: true,       # Charging rings
       usesHitCount: false

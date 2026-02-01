@@ -1,7 +1,7 @@
 ## PvP Game Mode Logic
 ## Handles 1v1 player vs player combat
 
-import raylib, types, player, bullet, wall, particle, particle_pool, sound, network_types, network, math, times, settings
+import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings
 
 const
   PVP_PLAYER_START_HP = 5.0  # Lower HP for faster PvP matches
@@ -27,6 +27,7 @@ type
     gameStarted*: bool
     gameOver*: bool
     winnerIndex*: int
+    gameOverReason*: string  # NEW: Track why game ended
     inputBuffer*: seq[PlayerInput]
     lastSnapshotTime*: float32
     lastInputSendTime*: float32
@@ -44,7 +45,7 @@ type
 
 proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameState =
   result = PvPGameState(
-    networkManager: newNetworkManager(),
+    networkManager: nil,  # Will be assigned from the window's network manager
     localPlayerIndex: if isHost: 0 else: 1,
     remotePlayerIndex: if isHost: 1 else: 0,
     serverTick: 0,
@@ -52,6 +53,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameSt
     gameStarted: false,
     gameOver: false,
     winnerIndex: -1,
+    gameOverReason: "",  # NEW: Initialize empty
     inputBuffer: @[],
     lastSnapshotTime: 0,
     lastInputSendTime: 0,
@@ -104,6 +106,9 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameSt
 proc startCountdown*(pvp: PvPGameState) =
   pvp.isCountingDown = true
   pvp.countdownTimer = 3.0
+  
+  # Reset the receive timer to prevent false timeout from lobby waiting time
+  pvp.networkManager.resetReceiveTimer()
   
   if pvp.networkManager.isHost():
     # Send game start packet
@@ -319,6 +324,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
             if pvp.players[otherPlayerIdx].kills >= PVP_KILL_LIMIT:
               pvp.gameOver = true
               pvp.winnerIndex = otherPlayerIdx
+              pvp.gameOverReason = "Kill limit reached"
               
               var gameOverPacket = Packet(kind: ptGameOver)
               gameOverPacket.packetType = ptGameOver
@@ -670,6 +676,8 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
       of ptGameStart:
         pvp.countdownTimer = event.packet.countdownTime
         pvp.isCountingDown = true
+        # Client also needs to disable timeout during countdown
+        pvp.networkManager.resetReceiveTimer()
       
       of ptPlayerInput:
         # Server receives client input - store it, don't apply immediately
@@ -761,6 +769,9 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
       of ptGameOver:
         pvp.gameOver = true
         pvp.winnerIndex = event.packet.winnerIndex
+        pvp.gameOverReason = event.packet.reason
+        pvp.isCountingDown = false  # Stop countdown if it's running
+        pvp.gameStarted = true  # Mark game as started so it can end properly
       
       else:
         discard
@@ -768,7 +779,34 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
     of neDisconnect:
       echo "[PVP] Opponent disconnected: ", event.reason
       pvp.gameOver = true
-      pvp.winnerIndex = pvp.localPlayerIndex  # Win by default
+      pvp.isCountingDown = false  # Stop countdown if it's running
+      pvp.gameStarted = true  # Mark game as started so it can end properly
+      
+      # Distinguish between graceful disconnect and timeout
+      if event.reason == "Connection timeout":
+        # Timeout - server is authoritative
+        if pvp.networkManager.isHost():
+          # Host wins on timeout (opponent probably crashed/network issue)
+          pvp.winnerIndex = pvp.localPlayerIndex
+          pvp.gameOverReason = "Opponent disconnected"
+          
+          # Send game over packet to notify (in case of partial connection)
+          var gameOverPacket = Packet(kind: ptGameOver)
+          gameOverPacket.packetType = ptGameOver
+          gameOverPacket.tick = pvp.serverTick
+          gameOverPacket.timestamp = epochTime()
+          gameOverPacket.winnerIndex = pvp.localPlayerIndex
+          gameOverPacket.reason = "Opponent disconnected"
+          pvp.networkManager.sendPacket(gameOverPacket)
+        else:
+          # Client lost connection (timeout) - they lose
+          pvp.winnerIndex = pvp.remotePlayerIndex  # Host wins
+          pvp.gameOverReason = "Connection lost"
+      else:
+        # Graceful disconnect (opponent sent ptDisconnect packet)
+        # Whoever RECEIVES the disconnect packet WINS (opponent intentionally left)
+        pvp.winnerIndex = pvp.localPlayerIndex
+        pvp.gameOverReason = "Opponent forfeited"
     
     else:
       discard
@@ -780,12 +818,22 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
   
   # Update countdown
   if pvp.isCountingDown:
+    pvp.gameTime += dt  # Update time FIRST
     pvp.countdownTimer -= dt
     if pvp.countdownTimer <= 0:
       pvp.isCountingDown = false
       pvp.gameStarted = true
+      # Re-enable timeout check now that countdown is over
+      pvp.networkManager.enableTimeoutCheck()
+    
+    # During countdown, send periodic pings to keep connection alive
+    if pvp.gameTime - pvp.lastPingTime >= 1.0:
+      pvp.lastPingTime = pvp.gameTime
+      pvp.networkManager.sendPing(pvp.serverTick)
+    
+    return  # Don't process game logic during countdown
   
-  if not pvp.gameStarted or pvp.gameOver:
+  if pvp.gameOver:
     return
   
   # Capture input every frame
@@ -929,8 +977,8 @@ proc drawPvP*(pvp: PvPGameState) =
     let latencyText = "Ping: " & $pvp.networkManager.getLatency().int & "ms"
     drawText(latencyText, 10, 10, 20, Yellow)
   
-  # Countdown overlay
-  if pvp.isCountingDown:
+  # Countdown overlay (don't show if game is over)
+  if pvp.isCountingDown and not pvp.gameOver:
     let countdownValue = max(pvp.countdownTimer, 0.0).int + 1
     let countdownText = if countdownValue > 0: $countdownValue else: "FIGHT!"
     let textWidth = measureText(countdownText, 80)
@@ -983,22 +1031,49 @@ proc drawPvP*(pvp: PvPGameState) =
   
   # Game over overlay
   if pvp.gameOver:
-    let winnerText = if pvp.winnerIndex == pvp.localPlayerIndex:
-      "YOU WIN!"
-    elif pvp.winnerIndex == -1:
-      "DRAW!"
-    else:
-      "YOU LOSE!"
+    # Determine main message based on game over reason
+    let winnerText = case pvp.gameOverReason
+      of "Opponent disconnected":
+        "OPPONENT DISCONNECTED - YOU WIN!"
+      of "Connection lost":
+        "CONNECTION LOST - YOU LOSE!"
+      of "Opponent forfeited":
+        "OPPONENT FORFEITED - YOU WIN!"
+      else:
+        if pvp.winnerIndex == pvp.localPlayerIndex:
+          "YOU WIN!"
+        elif pvp.winnerIndex == -1:
+          "DRAW!"
+        else:
+          "YOU LOSE!"
     
-    let textWidth = measureText(winnerText, 60)
+    let textSize: int32 = if pvp.gameOverReason in ["Opponent disconnected", "Connection lost", "Opponent forfeited"]: 40 else: 60
+    let textWidth = measureText(winnerText, textSize)
+    
+    # Determine color based on win/loss
+    let textColor = if pvp.winnerIndex == pvp.localPlayerIndex:
+      Green
+    elif pvp.winnerIndex == -1:
+      Yellow
+    else:
+      Red
     
     drawRectangle(0, 0, pvp.screenWidth, pvp.screenHeight,
                  Color(r: 0, g: 0, b: 0, a: 200))
     drawText(winnerText,
             pvp.screenWidth div 2 - textWidth div 2,
-            pvp.screenHeight div 2 - 30,
-            60,
-            if pvp.winnerIndex == pvp.localPlayerIndex: Green else: Red)
+            pvp.screenHeight div 2 - 60,
+            textSize,
+            textColor)
+    
+    # Show final score
+    let scoreText = "Final Score - You: " & $pvp.players[pvp.localPlayerIndex].kills & 
+                    " | Opponent: " & $pvp.players[pvp.remotePlayerIndex].kills
+    let scoreWidth = measureText(scoreText, 24)
+    drawText(scoreText,
+            pvp.screenWidth div 2 - scoreWidth div 2,
+            pvp.screenHeight div 2 + 10,
+            24, White)
     
     let returnText = "Press ESC to return to menu"
     let returnWidth = measureText(returnText, 20)

@@ -1,7 +1,7 @@
 ## Network Types and Packet Definitions for PvP Mode
 ## Defines all network packet structures and serialization
 
-import raylib, types, std/json, strutils
+import raylib, ../types, std/json, strutils
 
 type
   PacketType* = enum
@@ -23,7 +23,6 @@ type
     ptDisconnect          # Either → Other: Player disconnecting
     ptPing                # Both: Latency measurement
     ptPong                # Both: Latency response
-    ptChatMessage         # Optional: Chat between players
     
   NetworkRole* = enum
     nrNone, nrHost, nrClient
@@ -141,8 +140,6 @@ type
     of ptPing, ptPong:
       pingId*: int
       sendTime*: float32
-    of ptChatMessage:
-      message*: string
     else:
       discard
 
@@ -335,8 +332,6 @@ proc packetToJson*(packet: Packet): JsonNode =
   of ptPing, ptPong:
     result["pingId"] = %packet.pingId
     result["sendTime"] = %packet.sendTime
-  of ptChatMessage:
-    result["message"] = %packet.message
   else:
     discard
 
@@ -415,9 +410,6 @@ proc deserializePacket*(data: string): Packet =
     result = Packet(kind: packetType)
     result.pingId = j["pingId"].getInt()
     result.sendTime = j["sendTime"].getFloat()
-  of ptChatMessage:
-    result = Packet(kind: ptChatMessage)
-    result.message = j["message"].getStr()
   
   # Set common fields
   result.packetType = packetType

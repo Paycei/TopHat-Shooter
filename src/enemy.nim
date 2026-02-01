@@ -296,8 +296,17 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       if enemy.hexTeleportTimer <= 0:
         let angle = rand(1.0) * PI * 2.0
         let teleportDist = 150.0 + rand(100.0)
-        enemy.pos.x = playerPos.x + cos(angle) * teleportDist
-        enemy.pos.y = playerPos.y + sin(angle) * teleportDist
+        var newX = playerPos.x + cos(angle) * teleportDist
+        var newY = playerPos.y + sin(angle) * teleportDist
+        
+        # Clamp teleport position within screen boundaries
+        # Use a margin of enemy.radius to keep the enemy fully visible
+        let margin = enemy.radius + 10.0  # Extra margin for safety
+        newX = clamp(newX, margin, game.screenWidth.float32 - margin)
+        newY = clamp(newY, margin, game.screenHeight.float32 - margin)
+        
+        enemy.pos.x = newX
+        enemy.pos.y = newY
         enemy.hexTeleportTimer = 2.5 + rand(1.0)
       else:
         # Chase player when not teleporting
@@ -497,8 +506,14 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         # Teleport to different position
         let angle = rand(1.0) * PI * 2.0
         let dist = 120.0 + rand(80.0)
-        let newX = playerPos.x + cos(angle) * dist
-        let newY = playerPos.y + sin(angle) * dist
+        var newX = playerPos.x + cos(angle) * dist
+        var newY = playerPos.y + sin(angle) * dist
+        
+        # Clamp teleport position within screen boundaries
+        let margin = enemy.radius + 10.0
+        newX = clamp(newX, margin, game.screenWidth.float32 - margin)
+        newY = clamp(newY, margin, game.screenHeight.float32 - margin)
+        
         enemy.pos = newVector2f(newX, newY)
         
         # Shoot 6-way burst from NEW position (uses config)
@@ -534,10 +549,15 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         # Teleport to random position near player
         let teleAngle = rand(1.0) * PI * 2.0
         let teleDist = 140.0 + rand(90.0)
-        enemy.pos = newVector2f(
-          playerPos.x + cos(teleAngle) * teleDist,
-          playerPos.y + sin(teleAngle) * teleDist
-        )
+        var newX = playerPos.x + cos(teleAngle) * teleDist
+        var newY = playerPos.y + sin(teleAngle) * teleDist
+        
+        # Clamp teleport position within screen boundaries
+        let margin = enemy.radius + 10.0
+        newX = clamp(newX, margin, game.screenWidth.float32 - margin)
+        newY = clamp(newY, margin, game.screenHeight.float32 - margin)
+        
+        enemy.pos = newVector2f(newX, newY)
         
         enemy.cloneTimer = config.movement.teleportCooldown + rand(1.5)
       
@@ -2115,12 +2135,29 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   else:
     @[etSwift, etTank, etVenomous, etExplosive, etRegenerative, etShielded]
   
+  # TANK RESTRICTION: If Tank is selected, remove Regenerative from available types
+  # This prevents the overpowered Tank + Regenerative combo
+  
   for i in 0..<numEffects:
     if availableTypes.len == 0:
       break
     let idx = rand(availableTypes.len - 1)
-    enemy.eliteTypes.add(availableTypes[idx])
+    let selectedType = availableTypes[idx]
+    enemy.eliteTypes.add(selectedType)
     availableTypes.delete(idx)
+    
+    # If Tank was selected, remove Regenerative to prevent overpowered combo
+    if selectedType == etTank:
+      for j in countdown(availableTypes.len - 1, 0):
+        if availableTypes[j] == etRegenerative:
+          availableTypes.delete(j)
+          break
+    # If Regenerative was selected, remove Tank to prevent overpowered combo
+    elif selectedType == etRegenerative:
+      for j in countdown(availableTypes.len - 1, 0):
+        if availableTypes[j] == etTank:
+          availableTypes.delete(j)
+          break
   
   # For backward compatibility, set primary eliteType to first in list
   enemy.eliteType = if enemy.eliteTypes.len > 0: enemy.eliteTypes[0] else: etNone
@@ -2159,10 +2196,10 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.hp *= (0.85 * eliteScaling)
     
     of etTank:
-      # BALANCED: 3.2x HP with reduced damage reduction
+      # BALANCED: 2.5x HP with reduced damage reduction
       # Multiple effects further reduce HP scaling
-      enemy.maxHp *= (3.2 * eliteScaling * effectMultiplier)
-      enemy.hp *= (3.2 * eliteScaling * effectMultiplier)
+      enemy.maxHp *= (2.5 * eliteScaling * effectMultiplier)
+      enemy.hp *= (2.5 * eliteScaling * effectMultiplier)
       enemy.speed *= 0.75  # Slower
       # Tank elites are larger
       enemy.radius *= 1.3

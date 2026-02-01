@@ -1,7 +1,7 @@
 import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants
 
 # Configurable boss wave enemy spawn reduction
-const BOSS_WAVE_SPAWN_MULTIPLIER = 0.5  # 50% of normal spawn
+const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
 
 # Centralized boss wave and coin management
 proc startBossWave*(manager: var BossWaveManager) =
@@ -377,10 +377,10 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   if enemy.isBoss and enemy.defenseMultiplier > 0:
     result *= enemy.defenseMultiplier
   
-  # Tank elite: 50% damage reduction
+  # Tank elite: 40% damage reduction (nerfed from 50%)
   # If multiple elites include Tank, apply reduction
   if enemy.isElite and etTank in enemy.eliteTypes:
-    result *= 0.5  # 50% reduction
+    result *= 0.6  # 40% reduction means 60% damage taken
   
   # Shielded elite: shield absorbs damage first
   if enemy.isElite and etShielded in enemy.eliteTypes and enemy.shieldHp > 0:
@@ -404,7 +404,12 @@ proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
     return 0.0  # No damage dealt during invulnerability
   
   result = applyEliteModifiers(enemy, baseDamage)
-  enemy.hp -= result
+  
+  # Stars use hit counter for ALL damage sources
+  if enemy.enemyType == etStar:
+    enemy.hitCount += 1
+  else:
+    enemy.hp -= result
   
   # Track damage for real-time DPS stats
   # Note: This is called from damageEnemy which is in game context
@@ -786,8 +791,11 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
   case effect.effectType
   of befFrost:
     # Frost: Permanent slow (reduced by debuffResistance for bosses)
-    enemy.slowTimer = effect.duration
-    enemy.slowAmount = bullet.slowAmount * (1.0 - enemy.debuffResistance)
+    # Only apply if stronger than current slow or current slow expired
+    let newSlowAmount = bullet.slowAmount * (1.0 - enemy.debuffResistance)
+    if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
+      enemy.slowTimer = effect.duration
+      enemy.slowAmount = newSlowAmount
   
   of befPoison:
     # Poison: DoT effect
@@ -802,8 +810,11 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     
     # Apply slow only with mastery (reduced by debuffResistance for bosses)
     if effect.hasMastery:
-      enemy.slowTimer = max(enemy.slowTimer, poisonDur)
-      enemy.slowAmount = max(enemy.slowAmount, 0.30 * (1.0 - enemy.debuffResistance))  # 30% slow
+      # Only apply if stronger than current slow or current slow expired
+      let newSlowAmount = 0.30 * (1.0 - enemy.debuffResistance)
+      if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
+        enemy.slowTimer = poisonDur
+        enemy.slowAmount = newSlowAmount  # 30% slow
   
   of befFire:
     # Fire: DoT effect
@@ -818,8 +829,11 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     
     # Apply slow only with mastery (reduced by debuffResistance for bosses)
     if effect.hasMastery:
-      enemy.slowTimer = max(enemy.slowTimer, fireDur)
-      enemy.slowAmount = max(enemy.slowAmount, 0.35 * (1.0 - enemy.debuffResistance))  # 35% slow
+      # Only apply if stronger than current slow or current slow expired
+      let newSlowAmount = 0.35 * (1.0 - enemy.debuffResistance)
+      if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
+        enemy.slowTimer = fireDur
+        enemy.slowAmount = newSlowAmount  # 35% slow
   
   of befWind:
     # Wind: Knockback
@@ -830,8 +844,13 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     if effect.hasMastery:
       actualWindForce *= 2.5  # +150% stronger
     
+    # Apply push
     enemy.pos.x += pushDir.x * actualWindForce * dt * bossResistance
     enemy.pos.y += pushDir.y * actualWindForce * dt * bossResistance
+    
+    # Clamp to screen boundaries - enemies can't be pushed through borders
+    enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
+    enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
     
     # Apply slow only with mastery (reduced by debuffResistance for bosses)
     if effect.hasMastery:
@@ -867,8 +886,11 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
         chainRange *= 1.5  # +50% range
       
       # Stun primary target (reduced by debuffResistance for bosses)
-      enemy.slowTimer = max(enemy.slowTimer, 0.05)
-      enemy.slowAmount = 1.0 * (1.0 - enemy.debuffResistance)  # 100% slow = stun
+      # Only apply if stronger than current slow or current slow expired
+      let newSlowAmount = 0.99 * (1.0 - enemy.debuffResistance)  # 99% slow = stun (cap to prevent permanent freeze)
+      if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
+        enemy.slowTimer = 0.05
+        enemy.slowAmount = newSlowAmount
       enemy.chainLightningCooldown = 0.3
       
       # Find nearby enemies to chain to
@@ -887,8 +909,11 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
                         chainDmgWithCrit > chainDmgBase, dtLightning)
             
             game.enemies[k].chainLightningCooldown = 0.3
-            game.enemies[k].slowTimer = max(game.enemies[k].slowTimer, 0.05)
-            game.enemies[k].slowAmount = 1.0 * (1.0 - game.enemies[k].debuffResistance)
+            # Only apply stun if stronger than current slow or current slow expired
+            let chainSlowAmount = 0.99 * (1.0 - game.enemies[k].debuffResistance)
+            if chainSlowAmount > game.enemies[k].slowAmount or game.enemies[k].slowTimer <= 0:
+              game.enemies[k].slowTimer = 0.05
+              game.enemies[k].slowAmount = chainSlowAmount
             chained += 1
             
             # Lightning visual effect
@@ -906,7 +931,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       else: 0.03  # 3%
     
     if effect.hasMastery:
-      healPercent *= 2.5  # +150% lifesteal
+      healPercent *= 2.0  # +100% lifesteal
     
     let healAmount = effect.baseDamage * healPercent
     heal(game.player, healAmount)
@@ -1118,18 +1143,18 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 25:
         # Waves 21-25: Introduce STAR
-        if roll < 30: enemyType = etStar
-        elif roll < 48: enemyType = etCircle
-        elif roll < 63: enemyType = etCube
-        elif roll < 78: enemyType = etPentagon
+        if roll < 20: enemyType = etStar
+        elif roll < 35: enemyType = etCircle
+        elif roll < 53: enemyType = etCube
+        elif roll < 70: enemyType = etPentagon
         else: enemyType = etTriangle
       
       elif wave <= 30:
         # Waves 26-30: Introduce CROSS
         if roll < 25: enemyType = etCross
         elif roll < 42: enemyType = etCircle
-        elif roll < 56: enemyType = etCube
-        elif roll < 68: enemyType = etStar
+        elif roll < 55: enemyType = etCube
+        elif roll < 65: enemyType = etStar
         elif roll < 80: enemyType = etPentagon
         else: enemyType = etTriangle
       
@@ -1138,7 +1163,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         if roll < 22: enemyType = etDiamond
         elif roll < 38: enemyType = etCircle
         elif roll < 51: enemyType = etCube
-        elif roll < 63: enemyType = etStar
+        elif roll < 61: enemyType = etStar
         elif roll < 74: enemyType = etCross
         elif roll < 84: enemyType = etPentagon
         else: enemyType = etTriangle
@@ -1148,7 +1173,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         if roll < 20: enemyType = etOctagon
         elif roll < 34: enemyType = etCircle
         elif roll < 46: enemyType = etCube
-        elif roll < 58: enemyType = etStar
+        elif roll < 56: enemyType = etStar
         elif roll < 68: enemyType = etCross
         elif roll < 77: enemyType = etDiamond
         elif roll < 86: enemyType = etPentagon
@@ -1158,8 +1183,8 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         # Waves 41-45: Introduce HEXAGON
         if roll < 18: enemyType = etHexagon
         elif roll < 25: enemyType = etCube # Don't spawn circles after wave 40
-        elif roll < 40: enemyType = etStar
-        elif roll < 60: enemyType = etCross
+        elif roll < 35: enemyType = etStar
+        elif roll < 55: enemyType = etCross
         elif roll < 73: enemyType = etDiamond
         elif roll < 81: enemyType = etOctagon
         elif roll < 89: enemyType = etPentagon
@@ -1167,8 +1192,8 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       
       elif wave <= 50:
         # Waves 46-50: Introduce TRICKSTER
-        if roll < 16: enemyType = etTrickster
-        elif roll < 29: enemyType = etCube # Don't spawn circles after wave 40
+        if roll < 20: enemyType = etTrickster
+        elif roll < 33: enemyType = etCube # Don't spawn circles after wave 40
         elif roll < 39: enemyType = etStar
         elif roll < 48: enemyType = etCross
         elif roll < 56: enemyType = etDiamond
@@ -1177,8 +1202,8 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         elif roll < 85: enemyType = etPentagon
         else: enemyType = etTriangle
       
-      elif wave <= 50:
-        # Waves 46-50: Introduce TRICKSTER
+      elif wave <= 55:
+        # Waves 51-55: Introduce TRICKSTER
         if roll < 15: enemyType = etPhantom
         elif roll < 26: enemyType = etCube # Don't spawn circles after wave 40
         elif roll < 35: enemyType = etStar
@@ -1788,7 +1813,15 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     if rand(100) < 8:  # 8% chance per frame to micro-teleport
       let zapAngle = rand(1.0) * PI * 2.0
       let zapDist = 30.0 + rand(50.0)
-      enemy.pos = enemy.pos + newVector2f(cos(zapAngle) * zapDist, sin(zapAngle) * zapDist)
+      var newX = enemy.pos.x + cos(zapAngle) * zapDist
+      var newY = enemy.pos.y + sin(zapAngle) * zapDist
+      
+      # Clamp within screen boundaries
+      let margin = enemy.radius + 10.0
+      newX = clamp(newX, margin, game.screenWidth.float32 - margin)
+      newY = clamp(newY, margin, game.screenHeight.float32 - margin)
+      
+      enemy.pos = newVector2f(newX, newY)
       spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                      Color(r: 255, g: 255, b: 255, a: 255), 15)
     else:
@@ -1814,7 +1847,16 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     let outerRadius = 200.0
     let avgX = (cos(swarmAngle1) * innerRadius + cos(swarmAngle2) * outerRadius) / 2.0
     let avgY = (sin(swarmAngle1) * innerRadius + sin(swarmAngle2) * outerRadius) / 2.0
-    enemy.pos = newVector2f(centerX + avgX, centerY + avgY)
+    
+    var newX = centerX + avgX
+    var newY = centerY + avgY
+    
+    # Clamp within screen boundaries
+    let margin = enemy.radius + 10.0
+    newX = clamp(newX, margin, game.screenWidth.float32 - margin)
+    newY = clamp(newY, margin, game.screenHeight.float32 - margin)
+    
+    enemy.pos = newVector2f(newX, newY)
   
   of "electric_storm":
     # Fast erratic movement
@@ -1918,8 +1960,14 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Rapid sweeping movement across the arena (Prism Architect phase 3)
     let sweepAngle = game.time * 2.5
     let sweepRadius = 180.0
-    let sweepX = centerX + cos(sweepAngle) * sweepRadius
-    let sweepY = centerY + sin(sweepAngle) * sweepRadius
+    var sweepX = centerX + cos(sweepAngle) * sweepRadius
+    var sweepY = centerY + sin(sweepAngle) * sweepRadius
+    
+    # Clamp within screen boundaries
+    let margin = enemy.radius + 10.0
+    sweepX = clamp(sweepX, margin, game.screenWidth.float32 - margin)
+    sweepY = clamp(sweepY, margin, game.screenHeight.float32 - margin)
+    
     enemy.pos = newVector2f(sweepX, sweepY)  # Direct teleportation for smooth sweep
   
   of "slow_time":
@@ -1954,8 +2002,14 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Erratic spiraling with sudden direction changes (Chaos Weaver phase 2)
     let entropySpiral = game.time * 3.0 + sin(game.time * 5.0)
     let entropyRadius = 160.0 + sin(game.time * 2.0) * 40.0
-    let entropyX = game.player.pos.x + cos(entropySpiral) * entropyRadius
-    let entropyY = game.player.pos.y + sin(entropySpiral) * entropyRadius
+    var entropyX = game.player.pos.x + cos(entropySpiral) * entropyRadius
+    var entropyY = game.player.pos.y + sin(entropySpiral) * entropyRadius
+    
+    # Clamp within screen boundaries
+    let margin = enemy.radius + 10.0
+    entropyX = clamp(entropyX, margin, game.screenWidth.float32 - margin)
+    entropyY = clamp(entropyY, margin, game.screenHeight.float32 - margin)
+    
     enemy.pos = newVector2f(entropyX, entropyY)
   
   of "total_chaos":
@@ -2028,10 +2082,15 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     of 2:
       # Rapid teleport near player
       let finalAngle = rand(1.0) * PI * 2.0
-      enemy.pos = newVector2f(
-        game.player.pos.x + cos(finalAngle) * 140.0,
-        game.player.pos.y + sin(finalAngle) * 140.0
-      )
+      var newX = game.player.pos.x + cos(finalAngle) * 140.0
+      var newY = game.player.pos.y + sin(finalAngle) * 140.0
+      
+      # Clamp within screen boundaries
+      let margin = enemy.radius + 10.0
+      newX = clamp(newX, margin, game.screenWidth.float32 - margin)
+      newY = clamp(newY, margin, game.screenHeight.float32 - margin)
+      
+      enemy.pos = newVector2f(newX, newY)
     of 3, 4:
       # Circle strafe at high speed
       let finalOrbitAngle = game.time * 5.0
@@ -3055,7 +3114,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
             angle: angle,
             radius: layerRadius,
             rotationSpeed: layerRotationSpeed,
-            hp: 15,  # Tougher satellites
+            hp: 8,  # REDUCED from 15 to 8 (easier to destroy)
             shootTimer: 0.5 + rand(1.0) + (layer.float32 * 0.3),  # Later layers shoot slightly later
             owner: enemy.id,
             laserActive: false,
@@ -3612,6 +3671,10 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     
     enemy.pos.x += pushDir.x * pushForce * dt * bossResistance
     enemy.pos.y += pushDir.y * pushForce * dt * bossResistance
+    
+    # Clamp to screen boundaries - enemies can't be pushed through borders
+    enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
+    enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
     
     # Apply slow only with Wind Mastery
     if game.player.hasWindMastery:
@@ -4319,6 +4382,10 @@ proc updateGame*(game: var Game, dt: float32) =
         enemy.pos.x += pushDir.x * pushForce * dt
         enemy.pos.y += pushDir.y * pushForce * dt
         
+        # Clamp to screen boundaries - enemies can't be pushed through borders
+        enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
+        enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
+        
         # Apply slow ONLY if player has Wind Mastery
         if game.player.hasWindMastery:
           enemy.slowTimer = 0.2
@@ -4788,13 +4855,13 @@ proc updateGame*(game: var Game, dt: float32) =
             of etStar: 5
             of etHexagon: 3
             of etCross: 3
-            of etDiamond: 3
-            of etOctagon: 2
+            of etDiamond: 4
+            of etOctagon: 3
             of etPentagon: 1       # Early game enemy, low coins
             of etTrickster: 6
-            of etPhantom: 6
-            of etSniper: 5
-            of etMage: 4           # Mage enemy coin value
+            of etPhantom: 7
+            of etSniper: 10
+            of etMage: 10
           baseValue + waveBonus
         
         # Elite enemies drop 1.5x coins (less common but tougher)
@@ -5221,9 +5288,17 @@ proc updateGame*(game: var Game, dt: float32) =
                   shockEnemy.pos.x += pushDir.x * shockwaveForce * 0.016 * bossResistance
                   shockEnemy.pos.y += pushDir.y * shockwaveForce * 0.016 * bossResistance
                   
+                  # Clamp to screen boundaries - enemies can't be pushed through borders
+                  shockEnemy.pos.x = clamp(shockEnemy.pos.x, shockEnemy.radius, game.screenWidth.float32 - shockEnemy.radius)
+                  shockEnemy.pos.y = clamp(shockEnemy.pos.y, shockEnemy.radius, game.screenHeight.float32 - shockEnemy.radius)
+                  
                   # Damage (only for level 2 and 3)
                   if shockwaveDamage > 0:
-                    shockEnemy.hp -= shockwaveDamage
+                    # Stars use hit counter for all damage sources
+                    if shockEnemy.enemyType == etStar:
+                      shockEnemy.hitCount += 1
+                    else:
+                      shockEnemy.hp -= shockwaveDamage
                     showDamage(game, shockEnemy.pos, shockwaveDamage, true, false, dtDefault)
               
               # Visual feedback - shockwave ring
@@ -5298,9 +5373,17 @@ proc updateGame*(game: var Game, dt: float32) =
                   shockEnemy.pos.x += pushDir.x * shockwaveForce * 0.016 * bossResistance
                   shockEnemy.pos.y += pushDir.y * shockwaveForce * 0.016 * bossResistance
                   
+                  # Clamp to screen boundaries - enemies can't be pushed through borders
+                  shockEnemy.pos.x = clamp(shockEnemy.pos.x, shockEnemy.radius, game.screenWidth.float32 - shockEnemy.radius)
+                  shockEnemy.pos.y = clamp(shockEnemy.pos.y, shockEnemy.radius, game.screenHeight.float32 - shockEnemy.radius)
+                  
                   # Damage (only for level 2 and 3)
                   if shockwaveDamage > 0:
-                    shockEnemy.hp -= shockwaveDamage
+                    # Stars use hit counter for all damage sources
+                    if shockEnemy.enemyType == etStar:
+                      shockEnemy.hitCount += 1
+                    else:
+                      shockEnemy.hp -= shockwaveDamage
                     showDamage(game, shockEnemy.pos, shockwaveDamage, true, false, dtDefault)
               
               # Visual feedback - shockwave ring
@@ -5333,7 +5416,11 @@ proc updateGame*(game: var Game, dt: float32) =
           let maxHpScale = calculateMaxHealthContactDamageScale(game.player)
           contactDamageToEnemy *= maxHpScale
           
-          enemy.hp -= contactDamageToEnemy
+          # Stars use hit counter for all damage sources
+          if enemy.enemyType == etStar:
+            enemy.hitCount += 1
+          else:
+            enemy.hp -= contactDamageToEnemy
           
           enemy.lastContactDamageTime = game.time
           
@@ -5465,8 +5552,8 @@ proc updateGame*(game: var Game, dt: float32) =
               # Quick AABB check before distance calculation
               let dx = abs(bullet.pos.x - enemy.satellites[i].pos.x)
               let dy = abs(bullet.pos.y - enemy.satellites[i].pos.y)
-              if dx < 20.0 and dy < 20.0:  # Cheap square check first
-                if dx * dx + dy * dy < 225.0:  # 15.0 * 15.0 = 225.0 (avoid sqrt)
+              if dx < 25.0 and dy < 25.0:  # INCREASED from 20.0 to 25.0 (easier to hit)
+                if dx * dx + dy * dy < 484.0:  # INCREASED from 225.0 to 484.0 (22.0 * 22.0 = 484, larger hitbox)
                   enemy.satellites[i].hp -= 1
                   spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y, 
                                 Color(r: 255, g: 150, b: 0, a: 255), 6)  # Smaller (6 instead of 8)
@@ -5688,10 +5775,10 @@ proc updateGame*(game: var Game, dt: float32) =
             if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
               actualDamage /= game.enemies[j].defenseMultiplier
             
-            # Tank elite: 60% damage reduction
+            # Tank elite: 40% damage reduction (nerfed from 60%)
             # Handles multiple elite types (wave 25+)
             if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
-              actualDamage *= 0.4  # 60% reduction means 40% damage taken
+              actualDamage *= 0.6  # 40% reduction means 60% damage taken
             
             # Shielded elite: shield absorbs damage first
             var shieldDamage = 0.0  # Track damage absorbed by shield
@@ -5724,9 +5811,9 @@ proc updateGame*(game: var Game, dt: float32) =
               if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
                 giantSlayerDamage /= game.enemies[j].defenseMultiplier
               
-              # Tank elite: 60% damage reduction
+              # Tank elite: 40% damage reduction (nerfed from 60%)
               if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
-                giantSlayerDamage *= 0.4
+                giantSlayerDamage *= 0.6  # 40% reduction means 60% damage taken
               
               # Shielded elite: Giant Slayer damage goes through shield to HP
               game.enemies[j].hp -= giantSlayerDamage
@@ -5819,6 +5906,10 @@ proc updateGame*(game: var Game, dt: float32) =
             # Apply knockback to enemy
             game.enemies[j].pos.x += pushDir.x * knockbackForce * 0.016 * bossResistance
             game.enemies[j].pos.y += pushDir.y * knockbackForce * 0.016 * bossResistance
+            
+            # Clamp to screen boundaries - enemies can't be pushed through borders
+            game.enemies[j].pos.x = clamp(game.enemies[j].pos.x, game.enemies[j].radius, game.screenWidth.float32 - game.enemies[j].radius)
+            game.enemies[j].pos.y = clamp(game.enemies[j].pos.y, game.enemies[j].radius, game.screenHeight.float32 - game.enemies[j].radius)
           
           # Special Rounds stun effect
           if bullet.isSpecialRound:
@@ -6037,9 +6128,17 @@ proc updateGame*(game: var Game, dt: float32) =
                   shockEnemy.pos.x += pushDir.x * shockwaveForce * 0.016 * bossResistance
                   shockEnemy.pos.y += pushDir.y * shockwaveForce * 0.016 * bossResistance
                   
+                  # Clamp to screen boundaries - enemies can't be pushed through borders
+                  shockEnemy.pos.x = clamp(shockEnemy.pos.x, shockEnemy.radius, game.screenWidth.float32 - shockEnemy.radius)
+                  shockEnemy.pos.y = clamp(shockEnemy.pos.y, shockEnemy.radius, game.screenHeight.float32 - shockEnemy.radius)
+                  
                   # Damage (only for level 2 and 3)
                   if shockwaveDamage > 0:
-                    shockEnemy.hp -= shockwaveDamage
+                    # Stars use hit counter for all damage sources
+                    if shockEnemy.enemyType == etStar:
+                      shockEnemy.hitCount += 1
+                    else:
+                      shockEnemy.hp -= shockwaveDamage
                     showDamage(game, shockEnemy.pos, shockwaveDamage, true, false, dtDefault)
               
               # Visual feedback - shockwave ring
@@ -6472,7 +6571,7 @@ proc drawGame*(game: Game) =
         else:
           Color(r: 255, g: 150, b: 80, a: 255)   # Damaged - orange
         
-        drawCircle(Vector2(x: sat.pos.x, y: sat.pos.y), 12.0, satColor)
+        drawCircle(Vector2(x: sat.pos.x, y: sat.pos.y), 18.0, satColor)  # INCREASED from 12.0 to 18.0 (larger, easier to see and hit)
 
         if sat.laserActive and sat.laserChargeTime < 1.5:
           # SIMPLIFIED crosshair - just two lines and one circle (5 draw calls reduced to 3)

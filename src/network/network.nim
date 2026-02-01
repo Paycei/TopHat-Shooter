@@ -7,6 +7,7 @@ const
   DEFAULT_PORT* = 7777
   MAX_PACKET_SIZE = 8192
   NETWORK_VERSION* = "1.0.0"
+  DISCONNECT_TIMEOUT* = 2.5  # Seconds without receiving any packet before considering disconnected
 
 type
   NetworkEventKind* = enum
@@ -38,22 +39,27 @@ type
     remoteAddr*: string
     remotePort*: Port
     isConnected*: bool
-    lastPingTime*: float32
-    lastPongTime*: float32
+    lastPingTime*: float
+    lastPongTime*: float
+    lastReceiveTime*: float64  # Track last time we received ANY packet (MUST be float64 for precision)
     latency*: float32
     pendingEvents*: seq[NetworkEvent]
+    timeoutDisabled*: bool  # Disable timeout check temporarily
     
 proc newNetworkManager*(): NetworkManager =
+  let currentTime = epochTime()
   result = NetworkManager(
     role: nrNone,
     socket: nil,
     remoteAddr: "",
     remotePort: Port(0),
     isConnected: false,
-    lastPingTime: 0,
-    lastPongTime: 0,
+    lastPingTime: currentTime,
+    lastPongTime: currentTime,
+    lastReceiveTime: currentTime,  # Initialize to current time to prevent false timeout
     latency: 0,
-    pendingEvents: @[]
+    pendingEvents: @[],
+    timeoutDisabled: false  # NEW: Initialize timeout check as enabled
   )
 
 proc initHost*(nm: NetworkManager, port: int = DEFAULT_PORT) =
@@ -131,6 +137,16 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
   result = nm.pendingEvents
   nm.pendingEvents = @[]
   
+  # Check for timeout-based disconnection (unless disabled)
+  if nm.isConnected and not nm.timeoutDisabled:
+    let currentTime = epochTime()
+    let timeSinceLastReceive = currentTime - nm.lastReceiveTime
+    
+    if timeSinceLastReceive > DISCONNECT_TIMEOUT:
+      nm.isConnected = false
+      result.add(NetworkEvent(kind: neDisconnect, reason: "Connection timeout"))
+      return result  # Don't process more events after disconnect
+  
   # Try to receive packets (non-blocking with timeout)
   if nm.socket != nil:
     try:
@@ -142,6 +158,9 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
       let bytesRead = nm.socket.recvFrom(data, MAX_PACKET_SIZE, address, port)
       
       if bytesRead > 0:
+        # Update last receive time whenever we get ANY packet
+        nm.lastReceiveTime = epochTime()
+        
         try:
           let packet = deserializePacket(data)
           
@@ -152,6 +171,8 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
               nm.remoteAddr = address
               nm.remotePort = port
               nm.isConnected = true
+              nm.lastReceiveTime = epochTime()  # Reset timer on connection
+              nm.timeoutDisabled = false  # Ensure timeout is enabled after connection
               
               # Get host's cosmetics if callback provided
               var hostCosmetics = (skinType: 0, bulletSkinType: 0, shapeType: 0, particleSkinType: 0)
@@ -186,6 +207,8 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
           elif nm.role == nrClient and not nm.isConnected:
             if packet.packetType == ptConnectionAccept:
               nm.isConnected = true
+              nm.lastReceiveTime = epochTime()  # Reset timer on connection
+              nm.timeoutDisabled = false  # Ensure timeout is enabled after connection
               # Client receives host's cosmetics in the acceptance packet
               result.add(NetworkEvent(
                 kind: neConnect, 
@@ -195,7 +218,6 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
                 remoteShapeType: packet.hostShapeType,
                 remoteParticleSkinType: packet.hostParticleSkinType
               ))
-              echo "[NETWORK] Connected to host"
           
           # Handle regular packets
           if nm.isConnected:
@@ -271,3 +293,16 @@ proc isHost*(nm: NetworkManager): bool =
 
 proc isClient*(nm: NetworkManager): bool =
   nm.role == nrClient
+
+proc resetReceiveTimer*(nm: NetworkManager) =
+  ## Reset the lastReceiveTime to prevent false timeout detection
+  ## Call this when starting a game to reset the timer
+  ## Also temporarily disables timeout check for countdown period
+  nm.lastReceiveTime = epochTime()
+  nm.timeoutDisabled = true  # Disable timeout during countdown
+
+proc enableTimeoutCheck*(nm: NetworkManager) =
+  ## Re-enable timeout checking after countdown completes
+  ## Reset the timer to prevent false timeout from countdown period
+  nm.lastReceiveTime = epochTime()
+  nm.timeoutDisabled = false

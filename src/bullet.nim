@@ -98,8 +98,10 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     trailColor = Pink
   
   # Draw bullet trail for player bullets (showcases skin colors)
+  # Reduce trail for explosive bullets to improve performance
   if bullet.fromPlayer and not bullet.isEcho and bullet.vel.length() > 0:
-    for i in 0..3:
+    let maxTrailSegments = if bullet.isExplosive: 2 else: 3  # Fewer trail segments for explosive
+    for i in 0..maxTrailSegments:
       let trailOffset = (i.float32 + 1) * 5.0
       let trailPos = bullet.pos - bullet.vel.normalize() * trailOffset
       let trailRadius = bullet.radius * (1.0 - i.float32 * 0.15)

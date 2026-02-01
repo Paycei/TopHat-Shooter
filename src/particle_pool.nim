@@ -205,24 +205,24 @@ proc spawnNovaExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float3
   ## Spawn a multi-layered nova explosion with inner and outer waves
   ## Combines multiple particle patterns for a spectacular effect
   
-  # Inner bright core
-  for i in 0..<15:
+  # Inner bright core - reduced from 15 to 8
+  for i in 0..<8:
     let angle = rand(1.0) * PI * 2.0
     let dist = rand(radius * 0.3)
     let px = x + cos(angle) * dist
     let py = y + sin(angle) * dist
     discard pool.acquireParticle(px, py, secondaryColor, 100 + rand(100).float32)
   
-  # Middle expanding wave
-  let middleParticles = (radius * 0.6).int
+  # Middle expanding wave - reduced multiplier from 0.6 to 0.4
+  let middleParticles = (radius * 0.4).int
   for i in 0..<middleParticles:
     let angle = i.float32 / middleParticles.float32 * PI * 2.0
     let px = x + cos(angle) * radius * 0.6
     let py = y + sin(angle) * radius * 0.6
     discard pool.acquireParticle(px, py, primaryColor, 120 + rand(80).float32)
   
-  # Outer shockwave ring
-  let outerParticles = (radius * 0.8).int
+  # Outer shockwave ring - reduced multiplier from 0.8 to 0.5
+  let outerParticles = (radius * 0.5).int
   for i in 0..<outerParticles:
     let angle = i.float32 / outerParticles.float32 * PI * 2.0
     let px = x + cos(angle) * radius

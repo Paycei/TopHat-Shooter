@@ -1,7 +1,7 @@
 ## PvP Lobby and Connection UI
 ## Handles hosting and joining PvP games
 
-import raylib, network, network_types, asyncdispatch, strutils
+import raylib, network/network, network/network_types, asyncdispatch, strutils
 
 type
   PvPLobbyState* = enum

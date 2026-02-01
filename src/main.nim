@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager, boss_definitions, network, pvp_game, ui/pvp_window
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window
 
 const
   screenWidth = 1024
@@ -726,6 +726,9 @@ proc main() =
         elif isKeyPressed(Q):  # Quit to main menu
           # Clean up PvP if active
           if isPvP and not currentPvPGame.isNil and currentPvPGame.networkManager != nil:
+            # Send graceful disconnect before cleanup
+            if currentPvPGame.networkManager.isConnected:
+              disconnect(currentPvPGame.networkManager, "Player quit to menu")
             cleanup(currentPvPGame.networkManager)
             currentPvPGame = nil
           
@@ -1441,15 +1444,23 @@ proc main() =
       
       # Check for exit when game is over
       if currentPvPGame.gameOver and isKeyPressed(Escape):
+        # Send disconnect packet to notify opponent (graceful disconnect)
+        if currentPvPGame.networkManager != nil and currentPvPGame.networkManager.isConnected:
+          disconnect(currentPvPGame.networkManager, "Player left to menu")
+        
         # Clean up network
         if currentPvPGame.networkManager != nil:
           cleanup(currentPvPGame.networkManager)
+        
+        # Clear PvP game state
+        currentPvPGame = nil
         
         # Return to menu
         currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, 
                              settings.bulletSkin, settings.playerShape, settings.particleEffect)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
+        continue  # Skip drawing, go to next frame
       
       beginGameDrawing()
       drawPvP(currentPvPGame)

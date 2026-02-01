@@ -339,7 +339,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Laser Architect",
       bossID: 4,
-      baseHP: 350.0,  # NERFED from 390.0
+      baseHP: 375.0,  # NERFED from 390.0
       baseSpeed: 70.0,  # NERFED from 77.5
       baseDamage: 2,
       baseRadius: 52.0,
@@ -511,7 +511,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Void Dancer",
       bossID: 5,
-      baseHP: 350.0,  # NERFED from 380.0
+      baseHP: 450.0,  # NERFED from 380.0
       baseSpeed: 65.0,  # NERFED from 70.0
       baseDamage: 2,
       baseRadius: 46.0,
@@ -534,7 +534,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 1.5,  # NERFED from 2.0
               cooldown: 3.0,
               projectileSpeed: 0.0,
-              projectileCount: 0,
+              projectileCount: 5,  # FIXED: Was 0, now spawns 5 bullets after teleport
               spreadAngle: 0.0,
               durationOrRadius: 200.0,
               specialData: "afterimage_burst"
@@ -682,7 +682,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Chain Reactor",
       bossID: 6,
-      baseHP: 450.0,
+      baseHP: 550.0,
       baseSpeed: 70.0,
       baseDamage: 2,
       baseRadius: 55.0,
@@ -841,7 +841,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Orbital Commander",
       bossID: 7,
-      baseHP: 600.0,
+      baseHP: 650.0,
       baseSpeed: 60.0,
       baseDamage: 2,
       baseRadius: 58.0,
@@ -1000,8 +1000,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Berserker Juggernaut",
       bossID: 8,
-      baseHP: 700.0,
-      baseSpeed: 35.0,
+      baseHP: 750.0,
+      baseSpeed: 40.0,
       baseDamage: 3,
       baseRadius: 60.0,
       color: Color(r: 200, g: 0, b: 0, a: 255),
@@ -1155,7 +1155,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Prism Architect",
       bossID: 9,
-      baseHP: 850.0,
+      baseHP: 875.0,
       baseSpeed: 65.0,
       baseDamage: 3,
       baseRadius: 56.0,
@@ -1312,7 +1312,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Timekeeper",
       bossID: 10,
-      baseHP: 1050.0,
+      baseHP: 1075.0,
       baseSpeed: 55.0,
       baseDamage: 4,
       baseRadius: 62.0,
@@ -1480,7 +1480,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: "The Chaos Weaver",
       bossID: 11,
-      baseHP: 1250.0,  # NERFED from 1800.0
+      baseHP: 1275.0,  # NERFED from 1800.0
       baseSpeed: 70.0,  # NERFED from 90.0
       baseDamage: 4,  # NERFED from 5
       baseRadius: 58.0,
