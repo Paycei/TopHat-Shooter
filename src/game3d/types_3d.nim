@@ -47,6 +47,7 @@ type
     angle*: float32
     distance*: float32
     health*: float32
+    maxHealth*: float32  # Added for healthbar display
     active*: bool
     
   Boss3D* = object
@@ -57,3 +58,12 @@ type
     attackTimer*: float32
     satellites*: seq[BossSatellite]
     moveTimer*: float32
+    
+  DamageNumber3D* = object
+    pos*: Vector3f
+    vel*: Vector3f
+    damage*: float32
+    lifetime*: float32
+    maxLifetime*: float32
+    fromPlayer*: bool
+    isCritical*: bool

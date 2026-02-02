@@ -27,6 +27,7 @@ proc getBoss3D*(bossId: int): Boss3D =
         angle: angle,
         distance: 50.0,
         health: 150.0,
+        maxHealth: 150.0,  # Set maxHealth for healthbar
         active: true
       ))
   
@@ -57,6 +58,7 @@ proc updateBoss*(boss: var Boss3D, player: Player3D, projectiles: var seq[Projec
         angle: angle,
         distance: 75.0,
         health: 100.0,
+        maxHealth: 100.0,  # Set maxHealth for healthbar
         active: true
       ))
   
@@ -156,20 +158,66 @@ proc drawBoss*(boss: Boss3D) =
       # Satellite glow
       drawSphere(Vector3(x: sat.pos.x, y: sat.pos.y, z: sat.pos.z), 6.0, fade(Purple, 0.2))
 
-proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): bool =
+proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
+  ## Draw 3D healthbars above satellites
+  for sat in boss.satellites:
+    if sat.active:
+      # Position healthbar above satellite
+      let barPos = Vector3(x: sat.pos.x, y: sat.pos.y + 10.0, z: sat.pos.z)
+      
+      # Convert 3D position to screen position
+      let screenPos = getWorldToScreen(barPos, 
+        Camera(
+          position: Vector3(x: camera.position.x, y: camera.position.y, z: camera.position.z),
+          target: Vector3(x: camera.target.x, y: camera.target.y, z: camera.target.z),
+          up: Vector3(x: 0, y: 1, z: 0),
+          fovy: camera.fovy,
+          projection: CameraProjection.Perspective
+        )
+      )
+      
+      # Only draw if on screen
+      if screenPos.x >= 0 and screenPos.x <= getScreenWidth().float32 and
+         screenPos.y >= 0 and screenPos.y <= getScreenHeight().float32:
+        
+        let barWidth = 60.0
+        let barHeight = 8.0
+        let healthPercent = sat.health / sat.maxHealth
+        
+        # Background (red)
+        drawRectangle(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2), 
+                     int32(barWidth), int32(barHeight), Color(r: 100, g: 0, b: 0, a: 200))
+        
+        # Foreground (purple)
+        drawRectangle(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2), 
+                     int32(barWidth * healthPercent), int32(barHeight), Color(r: 150, g: 100, b: 255, a: 255))
+        
+        # Border
+        drawRectangleLines(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2), 
+                          int32(barWidth), int32(barHeight), White)
+
+proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3f] =
   # Check satellite hits
   for sat in boss.satellites.mitems:
     if sat.active and distance(sat.pos, projectile.pos) < 6.0:
+      let damageDealt = min(projectile.damage, sat.health)
       sat.health -= projectile.damage
       if sat.health <= 0:
         sat.active = false
         # Destroying a satellite damages the boss core
         boss.health -= 125.0  # Each satellite represents 125 HP (1000 / 8 satellites)
-      return true
+      return (true, damageDealt, true, sat.pos)
   
-  # Check core hit (only in phase 2)
-  if boss.phase >= 2 and distance(boss.pos, projectile.pos) < 22.0:
+  # Count active satellites
+  var activeSatellites = 0
+  for sat in boss.satellites:
+    if sat.active:
+      activeSatellites += 1
+  
+  # Check core hit (in phase 2 OR when all satellites are destroyed)
+  if (boss.phase >= 2 or activeSatellites == 0) and distance(boss.pos, projectile.pos) < 22.0:
+    let damageDealt = min(projectile.damage, boss.health)
     boss.health -= projectile.damage
-    return true
+    return (true, damageDealt, false, boss.pos)
   
-  false
+  (false, 0.0, false, vec3(0, 0, 0))
