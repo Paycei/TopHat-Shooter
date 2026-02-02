@@ -4735,7 +4735,7 @@ proc updateGame*(game: var Game, dt: float32) =
       let bossNumber = getCustomBossNumber(bossBlockWave)
       
       # Check if this is Boss #7 (3D boss)
-      if bossNumber == 7:
+      if bossNumber == 13: # Disabled for now (7)
         # Start transition to 3D mode
         game.transitioning = true
         game.fadeAlpha = 0.0
