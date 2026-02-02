@@ -174,6 +174,12 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   # Open Power-Up Selection button
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 70, b: 180, a: 255))
   drawText(t(tkSandboxRollPowerUps), contentX + 5, currentY + 10, 16, White)
+  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
+  
+  # Enter Boss #7 3D Mode button
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 100, b: 255, a: 255))
+  drawText("Enter Boss #7 3D", contentX + 5, currentY + 5, 16, White)
+  drawText("Test 3D Arena", contentX + 5, currentY + 20, 12, Color(r: 200, g: 200, b: 200, a: 255))
 
 proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   if not game.sandboxSidebarOpen:
@@ -391,6 +397,16 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
     initPowerUpRollAnimation(game)
     initializeRerollCost(game)
     game.state = gsPowerUpSelect
+    return
+  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
+  
+  # Enter Boss #7 3D Mode button
+  if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
+     mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
+    # Start transition to 3D mode
+    game.transitioning = true
+    game.fadeAlpha = 0.0
+    return
 
 proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
   if not game.sandboxSidebarOpen:

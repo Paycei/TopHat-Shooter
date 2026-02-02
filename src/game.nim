@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants
+import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d  # Import 3D game module
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -3826,6 +3826,47 @@ proc updateGame*(game: var Game, dt: float32) =
     
     return
   
+  # Handle 3D boss state
+  if game.state == gs3DBoss:
+    if game.game3D != nil:
+      var game3D = cast[ptr Game3D](game.game3D)
+      updateGame3D(game3D[], dt)
+      
+      if not game3D[].active:
+        # 3D boss fight ended - return to 2D
+        if game3D[].won:
+          # Boss defeated - transfer health back
+          game.player.hp = game3D[].player.health
+          # Clean up and complete boss wave
+          game.bossWaveManager.bossDefeated()
+          game.bossWaveManager.coinActive = false  # Skip coin for 3D boss
+          completeBossWave(game)
+          game.state = gsPowerUpSelect
+          enableCursor()
+        else:
+          # Player died in 3D
+          game.state = gsGameOver
+          enableCursor()
+        # Clean up 3D game
+        dealloc(game.game3D)
+        game.game3D = nil
+    return
+  
+  # Handle transition to 3D mode
+  if game.transitioning:
+    game.fadeAlpha += dt * 2.0
+    if game.fadeAlpha >= 1.0:
+      game.fadeAlpha = 1.0
+      game.transitioning = false
+      
+      # Initialize and switch to 3D mode
+      var game3D = create(Game3D)
+      game3D[] = initGame3D(7, game.player)
+      game.game3D = cast[pointer](game3D)
+      game.state = gs3DBoss
+      disableCursor()  # For mouse look
+    return
+  
   # Update real-time stats power level
   calculatePowerLevel(game.dopamine.realTimeStats, game.player)
   
@@ -4691,31 +4732,41 @@ proc updateGame*(game: var Game, dt: float32) =
       # This allows debug spawns when wavesUntilBoss is forced to 0 (boss appears
       # for the current boss block: waves 1-5 => boss 1, 6-10 => boss 2, etc.)
       let bossBlockWave = ((game.currentWave - 1) div 5 + 1) * 5
-      game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight,
-                bossDifficulty, game.bossCount, bossBlockWave))
-      game.bossWaveManager.startBossWave()  # Mark boss wave as active
-      game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
-      # Don't reset wavesUntilBoss here - it will be reset when boss coin is collected
-      
-      # Play boss spawn sound
-      playSound(stBossSpawn)
-      
-      # Entrance particles
-      let boss = game.enemies[^1]
-      
-      # Trigger boss introduction - use correct boss number, not wave number
       let bossNumber = getCustomBossNumber(bossBlockWave)
-      let bossName = getBossDefinition(bossNumber).name
-      let bossTitle = getBossDefinition(bossNumber).description
-      startIntroduction(game.dopamine.bossIntro, bossName, bossTitle, boss.maxHp)
       
-      # Spawn entrance particles for custom boss
-      for i in 0..<60:
-        let angle = i.float32 * 0.1
-        let dist = i.float32 * 3
-        let x = boss.pos.x + cos(angle) * dist
-        let y = boss.pos.y + sin(angle) * dist
-        spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
+      # Check if this is Boss #7 (3D boss)
+      if bossNumber == 7:
+        # Start transition to 3D mode
+        game.transitioning = true
+        game.fadeAlpha = 0.0
+        game.bossWaveManager.startBossWave()  # Mark boss wave as active
+        playSound(stBossSpawn)
+      else:
+        # Normal 2D boss
+        game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight,
+                  bossDifficulty, game.bossCount, bossBlockWave))
+        game.bossWaveManager.startBossWave()  # Mark boss wave as active
+        game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
+        # Don't reset wavesUntilBoss here - it will be reset when boss coin is collected
+        
+        # Play boss spawn sound
+        playSound(stBossSpawn)
+        
+        # Entrance particles
+        let boss = game.enemies[^1]
+        
+        # Trigger boss introduction - use correct boss number, not wave number
+        let bossName = getBossDefinition(bossNumber).name
+        let bossTitle = getBossDefinition(bossNumber).description
+        startIntroduction(game.dopamine.bossIntro, bossName, bossTitle, boss.maxHp)
+        
+        # Spawn entrance particles for custom boss
+        for i in 0..<60:
+          let angle = i.float32 * 0.1
+          let dist = i.float32 * 3
+          let x = boss.pos.x + cos(angle) * dist
+          let y = boss.pos.y + sin(angle) * dist
+          spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
     
     elif isTimeSurvivalMode(game.mode):
       # TIME SURVIVAL MODE: Original time-based spawning

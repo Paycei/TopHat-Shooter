@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d  # Import 3D game
 
 const
   screenWidth = 1024
@@ -646,6 +646,8 @@ proc main() =
           updateGame(currentGame, dt)
       
       beginGameDrawing()
+      
+      # Normal 2D rendering
       drawGame(currentGame)
       
       # Draw sandbox UI if in sandbox mode
@@ -657,6 +659,16 @@ proc main() =
       
       # Draw custom cursor during gameplay
       drawCustomCursor(currentGame.time)
+      
+      # Handle transition fade
+      if currentGame.transitioning:
+        drawRectangle(0, 0, screenWidth, screenHeight, 
+                     fade(Black, currentGame.fadeAlpha))
+        if currentGame.fadeAlpha > 0.5:
+          let text = "ENTERING 3D ARENA"
+          let textWidth = measureText(text, 30)
+          drawText(text, screenWidth div 2 - textWidth div 2, 
+                  screenHeight div 2, 30, White)
       
       endGameDrawing()
     
@@ -1422,6 +1434,29 @@ proc main() =
                 screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
       
       endGameDrawing()
+    
+    of gs3DBoss:
+      # 3D Boss fight
+      playMusic(mtBoss)
+      
+      # Update 3D game
+      if not cheatMenu.active:
+        updateGame(currentGame, dt)
+      
+      # Render 3D game directly (no 2D render target)
+      if currentGame.game3D != nil:
+        beginDrawing()
+        clearBackground(Black)
+        var game3D = cast[ptr Game3D](currentGame.game3D)
+        renderGame3D(game3D[])
+        
+        # Draw cheat menu overlay if active
+        drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
+        
+        endDrawing()
+      else:
+        # Safety: if game3D is nil, return to playing
+        currentGame.state = gsPlaying
     
     of gsPvPPlaying:
       # Safety check - if currentPvPGame is nil, return to menu

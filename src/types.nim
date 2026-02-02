@@ -5,7 +5,7 @@ export newVector2f, `+`, `-`, `*`, length, normalize, distance
 
 type
   GameState* = enum
-    gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying
+    gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss
 
   GameMode* = enum
     gmWaveBased,
@@ -687,6 +687,9 @@ type
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
     selectedGameOverButton*: int  # Selected button on game over screen (0=Restart, 1=Stats, 2=Exit)
     dopamine*: DopamineState  # Dopamine enhancement systems
+    game3D*: pointer  # Pointer to Game3D to avoid circular dependency
+    transitioning*: bool  # Fade transition active
+    fadeAlpha*: float32  # Fade opacity (0.0 to 1.0)
 
 proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
   AttackWarning(
