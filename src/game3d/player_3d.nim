@@ -9,7 +9,6 @@ type
   Weapon3D* = object
     ammo*: int
     maxAmmo*: int
-    reloadTime*: float32
     fireRate*: float32
     fireTimer*: float32
     damage*: float32
@@ -32,10 +31,9 @@ type
 
 proc newWeapon3D*(): Weapon3D =
   Weapon3D(
-    ammo: 150,        # Increased from 30 for longer fights
-    maxAmmo: 150,     # Increased from 30 for longer fights
-    reloadTime: 2.0,
-    fireRate: 0.15,
+    ammo: 500,        # Increased from 150 for longer fights
+    maxAmmo: 500,     # Increased from 150 for longer fights
+    fireRate: 0.125,
     fireTimer: 0.0,
     damage: 15.0
   )

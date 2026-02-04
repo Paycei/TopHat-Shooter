@@ -153,8 +153,8 @@ proc updateGame3D*(game: var Game3D, dt: float32) =
   # Update platforms
   updatePlatforms(game.arena.platforms, dt)
   
-  # Update boss
-  updateBoss(game.boss, game.player, game.projectiles, dt)
+  # Update boss (with arena for environment changes)
+  updateBoss(game.boss, game.player, game.projectiles, game.arena, dt)
   
   # Update projectiles
   for proj in game.projectiles.mitems:
@@ -214,6 +214,9 @@ proc renderGame3D*(game: Game3D) =
   for platform in game.arena.platforms:
     drawPlatform(platform)
   
+  # Draw gravity wells
+  drawGravityWells(game.boss)
+  
   drawBoss(game.boss)
   
   for proj in game.projectiles:
@@ -229,21 +232,44 @@ proc renderGame3D*(game: Game3D) =
   drawDamageNumbers(game.damageNumbers, game.camera)
   
   # 2D HUD
-  drawRectangle(10, 10, 300, 120, fade(Black, 0.7))
+  drawRectangle(10, 10, 320, 150, fade(Black, 0.7))
   drawText("HP: " & $int(game.player.health), 20, 20, 20, Red)
   drawText("Ammo: " & $game.player.weapon.ammo & "/" & $game.player.weapon.maxAmmo, 20, 45, 20, Yellow)
-  drawText("Boss: " & $int(game.boss.health), 20, 70, 20, Purple)
   
-  # Phase indicator and satellite count
-  let phaseText = "Phase: " & $game.boss.phase
-  drawText(phaseText, 20, 95, 20, Orange)
+  # Boss health bar
+  let bossHpPercent = game.boss.health / game.boss.maxHealth
+  drawText("Boss HP:", 20, 70, 18, White)
+  drawRectangle(20, 92, 280, 20, Color(r: 50, g: 0, b: 0, a: 200))
+  drawRectangle(20, 92, int32(280.0 * bossHpPercent), 20, Color(r: 255, g: 50, b: 50, a: 255))
+  drawRectangleLines(20, 92, 280, 20, White)
   
-  # Count active satellites
-  var activeSats = 0
-  for sat in game.boss.satellites:
-    if sat.active:
-      activeSats += 1
-  drawText("Satellites: " & $activeSats, 20, 115, 16, Color(r: 150, g: 100, b: 255, a: 255))
+  # Phase indicator with color
+  let phaseColor = case game.boss.phase
+    of 1: Gray
+    of 2: Color(r: 150, g: 50, b: 200, a: 255)
+    of 3: Color(r: 255, g: 0, b: 0, a: 255)
+    else: White
+  
+  let phaseText = "PHASE " & $game.boss.phase & "/3"
+  drawText(phaseText, 20, 120, 20, phaseColor)
+  
+  # Satellite count (Phase 1 only)
+  if game.boss.phase == 1:
+    var activeSats = 0
+    for sat in game.boss.satellites:
+      if sat.active:
+        activeSats += 1
+    
+    if activeSats > 0:
+      drawText("Satellites: " & $activeSats & " (DESTROY ALL!)", 20, 145, 16, Color(r: 255, g: 200, b: 50, a: 255))
+  
+  # Phase transition warning
+  if game.boss.phaseTransitionTimer > 0:
+    let warningText = "PHASE TRANSITION!"
+    let textWidth = measureText(warningText, 40)
+    let flashAlpha = (sin(game.boss.phaseTransitionTimer * 10.0) * 0.5 + 0.5) * 255.0
+    drawText(warningText, (getScreenWidth() - textWidth) div 2, 100, 40, 
+             fade(Color(r: 255, g: 255, b: 0, a: 255), flashAlpha / 255.0))
   
   # Crosshair
   let centerX = getScreenWidth() div 2

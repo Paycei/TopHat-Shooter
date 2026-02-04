@@ -147,7 +147,15 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
       result.platforms.add(Platform3D(
         pos: vec3(cos(angle) * 200, 0, sin(angle) * 200),
         size: vec3(50, 2, 50),
-        color: Color(r: 100, g: 100, b: 150, a: 255)
+        color: Color(r: 100, g: 100, b: 150, a: 255),
+        moving: false,
+        movePath: @[],
+        pathIndex: 0,
+        moveSpeed: 0.0,
+        jumpPad: false,
+        jumpForce: 0.0,
+        rotationSpeed: 0.3,  # Will spin in phase 3+
+        currentRotation: 0.0
       ))
     
     # Mid platforms
@@ -156,7 +164,15 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
       result.platforms.add(Platform3D(
         pos: vec3(cos(angle) * 150, 30, sin(angle) * 150),
         size: vec3(30, 2, 30),
-        color: Color(r: 120, g: 120, b: 180, a: 255)
+        color: Color(r: 120, g: 120, b: 180, a: 255),
+        moving: false,
+        movePath: @[],
+        pathIndex: 0,
+        moveSpeed: 0.0,
+        jumpPad: false,
+        jumpForce: 0.0,
+        rotationSpeed: 0.5,  # Will spin in phase 3+
+        currentRotation: 0.0
       ))
     
     # High orbital platforms (moving)
@@ -167,7 +183,13 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
         size: vec3(25, 2, 25),
         color: Color(r: 150, g: 100, b: 255, a: 255),
         moving: true,
-        moveSpeed: 0.3
+        movePath: @[],
+        pathIndex: 0,
+        moveSpeed: 0.3,
+        jumpPad: false,
+        jumpForce: 0.0,
+        rotationSpeed: 0.0,
+        currentRotation: 0.0
       ))
     
     # Central jump pad
@@ -175,10 +197,16 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
       pos: vec3(0, 5, 0),
       size: vec3(40, 1, 40),
       color: Color(r: 0, g: 255, b: 0, a: 255),
+      moving: false,
+      movePath: @[],
+      pathIndex: 0,
+      moveSpeed: 0.0,
       jumpPad: true,
-      jumpForce: 800.0
+      jumpForce: 800.0,
+      rotationSpeed: 0.0,
+      currentRotation: 0.0
     ))
-    
+  
   else:  # Default arena
     result.skyColor = Color(r: 20, g: 30, b: 40, a: 255)
     result.floorColor = Color(r: 40, g: 40, b: 40, a: 255)
@@ -193,8 +221,18 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
       result.platforms.add(Platform3D(
         pos: vec3(cos(angle) * dist, height, sin(angle) * dist),
         size: vec3(30, 2, 30),
-        color: Color(r: 80, g: 80, b: 80, a: 255)
+        color: Color(r: 80, g: 80, b: 80, a: 255),
+        moving: false,
+        movePath: @[],
+        pathIndex: 0,
+        moveSpeed: 0.0,
+        jumpPad: false,
+        jumpForce: 0.0,
+        rotationSpeed: 0.0,
+        currentRotation: 0.0
       ))
+  
+  result.environmentIntensity = 0.0
 
 proc updatePlatforms*(platforms: var seq[Platform3D], dt: float32) =
   for platform in platforms.mitems:
@@ -207,6 +245,12 @@ proc updatePlatforms*(platforms: var seq[Platform3D], dt: float32) =
       
       platform.pos.x = cos(newAngle) * radius
       platform.pos.z = sin(newAngle) * radius
+    
+    # Update rotation
+    if platform.rotationSpeed != 0.0:
+      platform.currentRotation += platform.rotationSpeed * dt
+      if platform.currentRotation > 2.0 * PI:
+        platform.currentRotation -= 2.0 * PI
 
 # ===== RENDERING =====
 
