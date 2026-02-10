@@ -234,10 +234,10 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
 
 # INPUT HANDLING
 proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
-  let startY = 45 + TAB_HEIGHT + 5
-  var currentY = startY + 35 - game.sandboxScrollOffset  # After "Spawn Enemies:" text
+  let startY: int32 = 45 + TAB_HEIGHT + 5
+  var currentY: int32 = startY + 10 + 25 - game.sandboxScrollOffset
   let contentX = sidebarX + SIDEBAR_PADDING
-  let buttonWidth = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
+  let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
   
   let enemyTypes = [etCircle, etCube, etTriangle, etStar, etHexagon, etCross, 
                     etDiamond, etOctagon, etPentagon, etTrickster, etPhantom, etSniper, etMage]
@@ -245,7 +245,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
   for enemyType in enemyTypes:
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
-      # Spawn enemy from side of screen (same as wave mode)
+      # Spawn enemy from side of screen
       let side = rand(3)
       var spawnX, spawnY: float32
       case side
@@ -263,7 +263,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
   currentY += 10
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
-    # Spawn 10 random enemies from sides of screen (same as wave mode)
+    # Spawn 10 random enemies
     for i in 0..<10:
       let side = rand(3)
       var spawnX, spawnY: float32
@@ -278,10 +278,10 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
       game.enemies.add(enemy)
 
 proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
-  let startY = 45 + TAB_HEIGHT + 5
-  var currentY = startY + 35 - game.sandboxScrollOffset
-  let contentX = sidebarX + SIDEBAR_PADDING
-  let buttonWidth = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
+  let startY: int32 = 45 + TAB_HEIGHT + 5
+  var currentY: int32 = startY + 10 + 25 - game.sandboxScrollOffset
+  let contentX: int32 = sidebarX + SIDEBAR_PADDING
+  let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
   
   # Check each boss button
   for bossId in 1..12:
@@ -294,10 +294,10 @@ proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, 
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
 proc handleConsumablesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
-  let startY = 45 + TAB_HEIGHT + 5
-  var currentY = startY + 35 - game.sandboxScrollOffset  # After "Spawn Consumables:" text
-  let contentX = sidebarX + SIDEBAR_PADDING
-  let buttonWidth = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
+  let startY: int32 = 45 + TAB_HEIGHT + 5
+  var currentY: int32 = startY + 10 + 25 - game.sandboxScrollOffset
+  let contentX: int32 = sidebarX + SIDEBAR_PADDING
+  let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
   
   let consumableTypes = [ctHealth, ctCoin, ctSpeed, ctFireRate, ctShieldBoost, 
                          ctMagnet, ctDamageBoost, ctInvincibility, ctDoubleCoin, ctLifesteal]
@@ -316,10 +316,10 @@ proc handleConsumablesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWi
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
 proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
-  let startY = 45 + TAB_HEIGHT + 5
-  var currentY = startY + 10
-  let contentX = sidebarX + SIDEBAR_PADDING
-  let buttonWidth = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
+  let startY: int32 = 45 + TAB_HEIGHT + 5
+  var currentY: int32 = startY + 10
+  let contentX: int32 = sidebarX + SIDEBAR_PADDING
+  let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
   
   # God Mode toggle
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
@@ -340,7 +340,10 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     game.enemies.setLen(0)
     return
-  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10 + 25
+  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
+  
+  # Skip "Wave X" text (matches drawing code)
+  currentY += 25
   
   # Wave - button
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth div 2 - 3).float32 and
@@ -354,7 +357,10 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     game.currentWave += 1
     return
-  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10 + 25
+  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
+  
+  # Skip "Difficulty X" text (matches drawing code)
+  currentY += 25
   
   # Difficulty - button
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth div 2 - 3).float32 and
@@ -367,7 +373,12 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     game.difficulty += 1.0
     return
-  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10 + 20 + 20 + 20 + 25
+  currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
+  
+  # Skip player stat text labels (matches drawing code)
+  currentY += 20  # HP text
+  currentY += 20  # Coins text
+  currentY += 25  # Enemies text (last one is 25, not 20!)  # Spacing after stats
   
   # Heal button
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
@@ -376,12 +387,14 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
     return
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
   
+  # Add coins button
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     game.player.coins += 1000
     return
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
   
+  # Open shop button
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     game.state = gsShop
@@ -430,6 +443,10 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
   if isMouseButtonPressed(Left):
     let mousePos = getMousePosition()
     let sidebarX = screenWidth - SIDEBAR_WIDTH
+    
+    # Only process clicks within the sidebar area
+    if mousePos.x < sidebarX.float32:
+      return
     
     # Check close button
     let closeX = sidebarX + SIDEBAR_WIDTH - 35
