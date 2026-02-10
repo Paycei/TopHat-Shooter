@@ -4,11 +4,15 @@
 import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings
 
 const
-  PVP_PLAYER_START_HP = 4.0  # Lower HP for faster PvP matches
+  PVP_PLAYER_START_HP = 3.0  # Reduced HP for faster kills
+  PVP_PLAYER_START_SPEED = 200.0
+  PVP_PLAYER_START_DAMAGE = 1.0
+  PVP_PLAYER_START_FIRE_RATE = 0.4
+  PVP_PLAYER_START_BULLET_SPEED = 400.0
   PVP_PLAYER_START_COINS = 100
   PVP_PLAYER_START_WALLS = 3
   PVP_RESPAWN_TIME = 3.0
-  PVP_KILL_LIMIT = 3  # First to 5 kills wins
+  PVP_KILL_LIMIT = 5  # First to 5 kills wins
   PVP_TIME_LIMIT = 180.0  # 3 minutes
   SNAPSHOT_RATE = 0.033  # 30 Hz (every 33ms)
   INPUT_SEND_RATE = 0.033  # 30 Hz - match snapshot rate to reduce reconciliation conflicts
@@ -80,6 +84,10 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameSt
   result.players[0].maxHp = PVP_PLAYER_START_HP
   result.players[0].coins = PVP_PLAYER_START_COINS
   result.players[0].walls = PVP_PLAYER_START_WALLS
+  # PvP-specific stat boosts
+  result.players[0].damage = PVP_PLAYER_START_DAMAGE
+  result.players[0].bulletSpeed = PVP_PLAYER_START_BULLET_SPEED
+  result.players[0].fireRate = PVP_PLAYER_START_FIRE_RATE
   # Apply cosmetics from settings for local player
   if isHost:
     result.players[0].skinType = globalSettings.playerSkin
@@ -92,6 +100,10 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameSt
   result.players[1].maxHp = PVP_PLAYER_START_HP
   result.players[1].coins = PVP_PLAYER_START_COINS
   result.players[1].walls = PVP_PLAYER_START_WALLS
+  # PvP-specific stat boosts
+  result.players[1].damage = PVP_PLAYER_START_DAMAGE
+  result.players[1].bulletSpeed = PVP_PLAYER_START_BULLET_SPEED
+  result.players[1].fireRate = PVP_PLAYER_START_FIRE_RATE
   # Apply cosmetics from settings for local player
   if not isHost:
     result.players[1].skinType = globalSettings.playerSkin
@@ -180,7 +192,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
     let newBullet = Bullet(
       pos: player.pos + direction * (player.radius + 5),
       vel: bulletVel,
-      radius: 5,
+      radius: 7.5,  # Larger bullets for easier hits
       damage: player.damage,
       fromPlayer: true,
       lifetime: 0,
@@ -188,7 +200,8 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
       isPiercing: false,
       isExplosive: false,
       bulletId: bulletId,
-      bulletSkin: player.bulletSkinType
+      bulletSkin: player.bulletSkinType,
+      ownerPlayerIndex: playerIndex  # CRITICAL: Track which player shot this bullet
     )
     
     pvp.bulletIdCounter += 1
@@ -289,6 +302,10 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
       let player = pvp.players[playerIdx]
       if player.hp <= 0 or player.invincibilityTimer > 0:
         continue
+      
+      # CRITICAL FIX: Prevent bullets from hitting their own shooter
+      if bullet.ownerPlayerIndex == playerIdx:
+        continue  # Skip collision check for the player who shot this bullet
       
       if distance(bullet.pos, player.pos) < (bullet.radius + player.radius):
         # Hit player
@@ -631,7 +648,8 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       isPiercing: bulletState.isPiercing,
       isExplosive: bulletState.isExplosive,
       bulletId: bulletState.id,
-      bulletSkin: bulletState.bulletSkin
+      bulletSkin: bulletState.bulletSkin,
+      ownerPlayerIndex: bulletState.fromPlayerIndex  # CRITICAL: Preserve owner from server
     )
     pvp.bullets.add(bullet)
   
@@ -714,7 +732,8 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
             isPiercing: bulletState.isPiercing,
             isExplosive: bulletState.isExplosive,
             bulletId: bulletState.id,
-            bulletSkin: bulletState.bulletSkin
+            bulletSkin: bulletState.bulletSkin,
+            ownerPlayerIndex: bulletState.fromPlayerIndex  # CRITICAL: Preserve owner
           )
           pvp.bullets.add(bullet)
       
@@ -974,7 +993,9 @@ proc drawPvP*(pvp: PvPGameState) =
   
   # Latency
   if pvp.networkManager.isClient():
-    let latencyText = "Ping: " & $pvp.networkManager.getLatency().int & "ms"
+    # Clamp latency to prevent int overflow (float32 -> int conversion can overflow)
+    let pingValue = min(pvp.networkManager.getLatency(), 9999.0).int
+    let latencyText = "Ping: " & $pingValue & "ms"
     drawText(latencyText, 10, 10, 20, Yellow)
   
   # Countdown overlay (don't show if game is over)

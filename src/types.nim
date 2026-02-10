@@ -363,6 +363,7 @@ type
     wasCrit*: bool  # True if this bullet rolled a critical hit
     isSpecialRound*: bool  # True if this is a special round (every Nth bullet)
     bulletSkin*: int  # Bullet skin type (stored as int for save compatibility)
+    ownerPlayerIndex*: int  # For PvP: which player (0 or 1) shot this bullet (-1 for non-PvP)
 
   Coin* = ref object
     pos*: Vector2f

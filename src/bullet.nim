@@ -11,7 +11,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 sourceEnemyId: int = -1,
                 isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
                 wasCrit: bool = false, isSpecialRound: bool = false,
-                bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1): Bullet =
+                bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1,
+                ownerPlayerIndex: int = -1): Bullet =
   # Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -47,7 +48,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     isBonusFromDoubleShot: isBonusFromDoubleShot,  # Bonus bullet from Double Shot
     wasCrit: wasCrit,  # Whether this bullet was a critical hit
     isSpecialRound: isSpecialRound,  # Whether this is a special round
-    bulletSkin: bulletSkin  # Bullet skin type
+    bulletSkin: bulletSkin,  # Bullet skin type
+    ownerPlayerIndex: ownerPlayerIndex  # For PvP: which player (0 or 1) shot this (-1 for non-PvP)
   )
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
@@ -310,7 +312,10 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     false,  # isBonusFromDoubleShot
     original.wasCrit,  # Preserve crit status
     original.isSpecialRound,  # Preserve special round status
-    original.bulletSkin  # Preserve bullet skin
+    original.bulletSkin,  # Preserve bullet skin
+    0,  # bulletId (will be assigned later)
+    -1,  # parentBulletId
+    original.ownerPlayerIndex  # CRITICAL: Preserve owner for PvP
   )
   
   # Copy additional state that needs to be preserved

@@ -6,8 +6,9 @@ import net, nativesockets, network_types, times, strutils, json
 const
   DEFAULT_PORT* = 7777
   MAX_PACKET_SIZE = 8192
-  NETWORK_VERSION* = "1.0.0"
+  NETWORK_VERSION* = "1.0.1"
   DISCONNECT_TIMEOUT* = 2.5  # Seconds without receiving any packet before considering disconnected
+  MAX_PACKETS_PER_POLL = 100  # Maximum packets to process per poll (prevent infinite loop)
 
 type
   NetworkEventKind* = enum
@@ -106,23 +107,8 @@ proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
     echo "[NETWORK] Failed to send connection request: ", getCurrentExceptionMsg()
 
 proc sendPacket*(nm: NetworkManager, packet: Packet) =
-  ## Send a packet to the remote peer
-  if not nm.isConnected and nm.role == nrClient:
-    # For client, always send to stored remote address
-    let data = serializePacket(packet)
-    try:
-      nm.socket.sendTo(nm.remoteAddr, nm.remotePort, data)
-    except:
-      echo "[NETWORK] Failed to send packet: ", getCurrentExceptionMsg()
-  elif nm.isConnected and nm.role == nrHost:
-    # For host, send to connected client
-    let data = serializePacket(packet)
-    try:
-      nm.socket.sendTo(nm.remoteAddr, nm.remotePort, data)
-    except:
-      echo "[NETWORK] Failed to send packet: ", getCurrentExceptionMsg()
-  elif nm.isConnected and nm.role == nrClient:
-    # For connected client, send to host
+  ## Send a packet to the remote peer (optimized - only serializes once)
+  if (nm.isConnected or nm.role == nrClient) and nm.remoteAddr != "":
     let data = serializePacket(packet)
     try:
       nm.socket.sendTo(nm.remoteAddr, nm.remotePort, data)
@@ -133,7 +119,7 @@ type
   CosmeticsCallback* = proc(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int]
 
 proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = nil): seq[NetworkEvent] =
-  ## Poll for network events (non-blocking)
+  ## Poll for network events (non-blocking) - PROCESSES ALL AVAILABLE PACKETS
   result = nm.pendingEvents
   nm.pendingEvents = @[]
   
@@ -147,17 +133,24 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
       result.add(NetworkEvent(kind: neDisconnect, reason: "Connection timeout"))
       return result  # Don't process more events after disconnect
   
-  # Try to receive packets (non-blocking with timeout)
+  # CRITICAL FIX: Process ALL available packets in one frame to prevent queue buildup
   if nm.socket != nil:
-    try:
-      var data = ""
-      var address = ""
-      var port: Port
-      
-      # Try to receive data (non-blocking - will throw if no data available)
-      let bytesRead = nm.socket.recvFrom(data, MAX_PACKET_SIZE, address, port)
-      
-      if bytesRead > 0:
+    var packetsProcessed = 0
+    
+    while packetsProcessed < MAX_PACKETS_PER_POLL:
+      try:
+        var data = ""
+        var address = ""
+        var port: Port
+        
+        # Try to receive data (non-blocking - will throw if no data available)
+        let bytesRead = nm.socket.recvFrom(data, MAX_PACKET_SIZE, address, port)
+        
+        if bytesRead <= 0:
+          break  # No more packets available
+        
+        packetsProcessed += 1
+        
         # Update last receive time whenever we get ANY packet
         nm.lastReceiveTime = epochTime()
         
@@ -225,9 +218,13 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
             of ptDisconnect:
               nm.isConnected = false
               result.add(NetworkEvent(kind: neDisconnect, reason: packet.disconnectReason))
+              return result  # Exit immediately on disconnect
             of ptPong:
               nm.lastPongTime = epochTime()
-              nm.latency = (nm.lastPongTime - packet.sendTime).float32 * 1000.0  # ms
+              # Calculate latency with bounds checking to prevent overflow and negative values
+              let rawLatency = (nm.lastPongTime - packet.sendTime.float) * 1000.0  # ms
+              # Clamp to reasonable range: 0-9999ms (negative = clock skew, >9999 = connection issues)
+              nm.latency = max(0.0, min(rawLatency, 9999.0)).float32
             of ptPing:
               # Respond with pong
               var pongPacket = Packet(kind: ptPong)
@@ -244,15 +241,20 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
           echo "[NETWORK] Failed to parse packet"
         except:
           echo "[NETWORK] Error processing packet: ", getCurrentExceptionMsg()
-    except OSError:
-      # Expected for non-blocking socket when no data is available
-      # EWOULDBLOCK or EAGAIN on Windows/Unix
-      discard
-    except:
-      # Other unexpected errors
-      let msg = getCurrentExceptionMsg()
-      if msg != "" and not msg.contains("would block"):
-        echo "[NETWORK] Unexpected error in pollEvents: ", msg
+          
+      except OSError:
+        # Expected for non-blocking socket when no data is available
+        break  # Exit loop, no more packets
+      except:
+        # Other unexpected errors
+        let msg = getCurrentExceptionMsg()
+        if msg != "" and not msg.contains("would block"):
+          echo "[NETWORK] Unexpected error in pollEvents: ", msg
+        break  # Exit on error
+    
+    # Debug info if we hit the packet limit
+    if packetsProcessed >= MAX_PACKETS_PER_POLL:
+      echo "[NETWORK] Warning: Hit packet processing limit (", MAX_PACKETS_PER_POLL, " packets/frame)"
 
 proc sendPing*(nm: NetworkManager, pingId: int) =
   ## Send a ping to measure latency
