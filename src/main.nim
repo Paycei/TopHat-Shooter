@@ -1324,12 +1324,12 @@ proc main() =
       
       # Mouse hover detection for button highlighting
       let mousePos = getMousePosition()
-      const SCREEN_HEIGHT = 600  # Updated to match new height
+      const SCREEN_HEIGHT = 600
       const BUTTON_WIDTH = 220
       const BUTTON_HEIGHT = 48
       
       let windowY = (screenHeight - SCREEN_HEIGHT) div 2
-      let buttonY = windowY + SCREEN_HEIGHT - 100  # Updated to match new position
+      let buttonY = windowY + SCREEN_HEIGHT - 100
       let buttonSpacing = 40
       let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
       let buttonsX = (screenWidth - totalButtonWidth) div 2

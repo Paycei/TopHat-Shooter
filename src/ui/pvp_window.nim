@@ -1,7 +1,7 @@
 ## PvP Lobby Window
 ## Network lobby interface as an OS-style window
 
-import raylib, os_window, ../network/network, strutils
+import raylib, os_window, ../network/network, strutils, osproc
 
 type
   PvPWindow* = ref object
@@ -66,6 +66,52 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
   )
 
 proc getLocalIP*(): string =
+  ## Get local IP address by detecting network interface
+  when defined(windows):
+    # Windows: Use ipconfig and parse for IPv4 address
+    try:
+      let (output, exitCode) = execCmdEx("ipconfig")
+      if exitCode == 0:
+        # Parse for first non-loopback IPv4 address
+        for line in output.splitLines():
+          if "IPv4" in line and ":" in line:
+            let parts = line.split(":")
+            if parts.len > 1:
+              let ip = parts[1].strip()
+              # Skip loopback and validate IPv4 format
+              if ip != "127.0.0.1" and ip.len > 0:
+                let ipParts = ip.split(".")
+                if ipParts.len == 4:
+                  return ip
+    except:
+      discard
+  elif defined(linux):
+    # Linux: Try hostname -I first
+    try:
+      let (output, exitCode) = execCmdEx("hostname -I")
+      if exitCode == 0:
+        let ips = output.strip().split(" ")
+        if ips.len > 0 and ips[0] != "127.0.0.1":
+          return ips[0]
+    except:
+      discard
+  elif defined(macosx):
+    # macOS: Use ifconfig
+    try:
+      let (output, exitCode) = execCmdEx("ifconfig")
+      if exitCode == 0:
+        for line in output.splitLines():
+          if "inet " in line and "127.0.0.1" notin line:
+            let parts = line.strip().split(" ")
+            for i, part in parts:
+              if part == "inet" and i + 1 < parts.len:
+                let ip = parts[i + 1]
+                if not ip.startsWith("169.254."):  # Skip link-local
+                  return ip
+    except:
+      discard
+  
+  # Fallback to localhost
   result = "127.0.0.1"
 
 proc startHosting*(pvpWin: PvPWindow) =

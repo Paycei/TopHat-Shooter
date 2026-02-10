@@ -114,8 +114,8 @@ proc addComboKill*(combo: var ComboSystem, currentTime: float32): int =
   
   combo.lastKillTime = currentTime
   # Store the window time that applies to THIS kill for accurate timer display
-  # Use currentWindow (calculated before incrementing) instead of recalculating
-  combo.comboWindow = currentWindow
+  # Recalculate window based on NEW combo count to fix timer display after resets
+  combo.comboWindow = getComboWindow(combo)
   combo.displayTimer = 5.0  # Increased from 2.5 to 5.0 seconds
   
   # Calculate bonus coins

@@ -6,7 +6,6 @@ proc newConsumable*(x, y: float32, difficulty: float32): Consumable =
   let roll = rand(100)
   var cType: ConsumableType
 
-  # Updated distribution with new consumables
   if roll < 30:        # Health - common (30%)
     cType = ctHealth
   elif roll < 50:      # Coin - common (20%)
@@ -21,11 +20,11 @@ proc newConsumable*(x, y: float32, difficulty: float32): Consumable =
     cType = ctMagnet
   elif roll < 93:      # Damage Boost - rare (5%)
     cType = ctDamageBoost
-  elif roll < 97:      # Invincibility - very rare (4%)
+  elif roll < 97:      # Invincibility - epic (4%)
     cType = ctInvincibility
-  elif roll < 99:      # Double Coin - very rare (2%)
+  elif roll < 99:      # Double Coin - epic (2%)
     cType = ctDoubleCoin
-  else:                # Lifesteal - ultra rare (1%)
+  else:                # Lifesteal - legendary (1%)
     cType = ctLifesteal
 
   result = Consumable(

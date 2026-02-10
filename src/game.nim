@@ -3149,7 +3149,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
   
   of bapChain:
     # CHAIN LIGHTNING SYSTEM
-    # Implements proper chain mechanics with visual lightning arcs
+    # Chain mechanics with visual lightning arcs
     # SpecialData modes:
     # - "chain_basic": Simple 3-chain lightning (Phase 1)
     # - "chain_storm": Multi-target chain web (Phase 2)

@@ -4,12 +4,12 @@
 import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings
 
 const
-  PVP_PLAYER_START_HP = 5.0  # Lower HP for faster PvP matches
+  PVP_PLAYER_START_HP = 4.0  # Lower HP for faster PvP matches
   PVP_PLAYER_START_COINS = 100
   PVP_PLAYER_START_WALLS = 3
   PVP_RESPAWN_TIME = 3.0
-  PVP_KILL_LIMIT = 5  # First to 5 kills wins
-  PVP_TIME_LIMIT = 300.0  # 5 minutes
+  PVP_KILL_LIMIT = 3  # First to 5 kills wins
+  PVP_TIME_LIMIT = 180.0  # 3 minutes
   SNAPSHOT_RATE = 0.033  # 30 Hz (every 33ms)
   INPUT_SEND_RATE = 0.033  # 30 Hz - match snapshot rate to reduce reconciliation conflicts
 
@@ -53,7 +53,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameSt
     gameStarted: false,
     gameOver: false,
     winnerIndex: -1,
-    gameOverReason: "",  # NEW: Initialize empty
+    gameOverReason: "",
     inputBuffer: @[],
     lastSnapshotTime: 0,
     lastInputSendTime: 0,
