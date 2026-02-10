@@ -295,9 +295,7 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
       window.resizeEdge = 0
     return false
   
-  # NEW CLICK HANDLING: Simple and clear
   if isMouseButtonPressed(Left):
-    # Step 1: Is the click on THIS window's interactive area?
     let clickOnThisWindowArea = if window.minimized:
       isPointInTitleBar(window, mousePos.x, mousePos.y)
     else:

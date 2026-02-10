@@ -21,11 +21,11 @@ proc newPlayer*(x, y: float32): Player =
     invincibilityTimer: 0,
     fireRateBoostTimer: 0,
     magnetTimer: 0,
-    shieldBoostTimer: 0,     # New: shield boost duration
-    doubleCoinTimer: 0,      # New: double coin duration
-    damageBoostTimer: 0,     # New: damage boost duration
-    lifestealTimer: 0,       # New: lifesteal duration
-    shieldHits: 0,           # New: remaining shield absorptions
+    shieldBoostTimer: 0,     # Shield boost duration
+    doubleCoinTimer: 0,      # Double coin duration
+    damageBoostTimer: 0,     # Damage boost duration
+    lifestealTimer: 0,       # Lifesteal duration
+    shieldHits: 0,           # Remaining shield absorptions
     powerUps: @[],
     shieldAngle: 0,
     shieldHealths: @[],      # Will be populated when power-up is acquired
@@ -90,11 +90,9 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.fireRateBoostTimer -= dt
   if player.magnetTimer > 0:
     player.magnetTimer -= dt
-  
-  # New consumable timers
   if player.shieldBoostTimer > 0:
     player.shieldBoostTimer -= dt
-    if player.shieldBoostTimer <= 0:
+  if player.shieldBoostTimer <= 0:
       player.shieldHits = 0  # Clear shield when timer expires
   if player.doubleCoinTimer > 0:
     player.doubleCoinTimer -= dt

@@ -534,7 +534,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 1.5,  # NERFED from 2.0
               cooldown: 3.0,
               projectileSpeed: 0.0,
-              projectileCount: 5,  # FIXED: Was 0, now spawns 5 bullets after teleport
+              projectileCount: 5,
               spreadAngle: 0.0,
               durationOrRadius: 200.0,
               specialData: "afterimage_burst"

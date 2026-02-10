@@ -559,7 +559,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     if settingsWin.window.handledClickThisFrame:
       # Mouse support checkbox (25x25 hit area)
       let mouseCheckX = contentX + 320
-      let mouseCheckY = contentY + 55
+      let mouseCheckY = contentY + 50
       if mousePos.x >= mouseCheckX.float32 and mousePos.x <= (mouseCheckX + 25).float32 and
          mousePos.y >= mouseCheckY.float32 and mousePos.y <= (mouseCheckY + 25).float32:
         settingsWin.settings.mouseSupport = not settingsWin.settings.mouseSupport
@@ -568,7 +568,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       # Show cursor checkbox (25x25 hit area, only if mouse disabled)
       if not settingsWin.settings.mouseSupport:
         let cursorCheckX = contentX + 320
-        let cursorCheckY = contentY + 95
+        let cursorCheckY = contentY + 90
         if mousePos.x >= cursorCheckX.float32 and mousePos.x <= (cursorCheckX + 25).float32 and
            mousePos.y >= cursorCheckY.float32 and mousePos.y <= (cursorCheckY + 25).float32:
           settingsWin.settings.showCursorInMenus = not settingsWin.settings.showCursorInMenus
@@ -595,7 +595,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       
       # Language selector button
       let langButtonX = contentX + 320
-      let langButtonY = contentY + 175
+      let langButtonY = contentY + 165
       let langButtonWidth = 200
       let langButtonHeight = 35
       if mousePos.x >= langButtonX.float32 and mousePos.x <= (langButtonX + langButtonWidth).float32 and

@@ -27,7 +27,7 @@ type
     gameStarted*: bool
     gameOver*: bool
     winnerIndex*: int
-    gameOverReason*: string  # NEW: Track why game ended
+    gameOverReason*: string  # Track why game ended
     inputBuffer*: seq[PlayerInput]
     lastSnapshotTime*: float32
     lastInputSendTime*: float32

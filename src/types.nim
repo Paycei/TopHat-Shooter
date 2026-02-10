@@ -185,11 +185,11 @@ type
     invincibilityTimer*: float32
     fireRateBoostTimer*: float32
     magnetTimer*: float32
-    shieldBoostTimer*: float32     # New: shield boost duration
-    doubleCoinTimer*: float32      # New: double coin duration
-    damageBoostTimer*: float32     # New: damage boost duration
-    lifestealTimer*: float32       # New: lifesteal duration
-    shieldHits*: int               # New: remaining shield absorptions
+    shieldBoostTimer*: float32     # Shield boost duration
+    doubleCoinTimer*: float32      # Double coin duration
+    damageBoostTimer*: float32     # Damage boost duration
+    lifestealTimer*: float32       # Lifesteal duration
+    shieldHits*: int               # Remaining shield absorptions
     powerUps*: seq[PowerUp]
     shieldAngle*: float32
     shieldHealths*: seq[float32]  # Health of each shield segment

@@ -59,7 +59,7 @@ proc newNetworkManager*(): NetworkManager =
     lastReceiveTime: currentTime,  # Initialize to current time to prevent false timeout
     latency: 0,
     pendingEvents: @[],
-    timeoutDisabled: false  # NEW: Initialize timeout check as enabled
+    timeoutDisabled: false  # Initialize timeout check as enabled
   )
 
 proc initHost*(nm: NetworkManager, port: int = DEFAULT_PORT) =

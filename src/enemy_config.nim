@@ -594,9 +594,9 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashDuration: 0.0,
         teleportCooldown: 0.0,
         teleportRange: 0.0,
-        maintainsDistance: true,      # FIXED: Enable distance maintenance
-        optimalDistance: 350.0,       # FIXED: Keep far away for sniping
-        retreatDistance: 280.0        # FIXED: Retreat if player gets too close
+        maintainsDistance: true,
+        optimalDistance: 350.0,
+        retreatDistance: 280.0
       ),
       
       hasRangedAttack: true,
@@ -623,7 +623,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialCooldown: 2.0,   # Cooldown after firing
       specialData: "charge_time:3.0|trigger_range:300|cooldown:2.0|color_shift",
       
-      requiresScreenEntry: true,  # FIXED: Must enter screen before attacking
+      requiresScreenEntry: true,
       trailEffect: false,
       glowEffect: true,       # Charging rings
       usesHitCount: false

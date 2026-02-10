@@ -485,7 +485,7 @@ proc calculateCombatStats*(player: Player): CombatStats =
       of 1: 20  # 20% chance
       of 2: 35  # 35% chance
       else: 50  # 50% chance
-    result.critMultiplier = 2.0  # Fixed 2x multiplier
+    result.critMultiplier = 2.0
 
 proc applyCriticalHitFromStats*(stats: CombatStats, baseDamage: float32): float32 =
   ## Applies critical hit using pre-calculated stats
@@ -1391,7 +1391,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     if hasDoubleShot and hasMultiShot:
       # When both active: Fire multishot pattern (3 directions), then schedule second burst
       let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
-      let spreadAngle = 0.3  # Fixed spread for 3-shot pattern
+      let spreadAngle = 0.3
       
       # Fire first burst (3 bullets = 1 normal + 2 bonus from Multi-Shot)
       for i in 0..<multiCount:
@@ -1465,7 +1465,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     elif hasMultiShot:
       # Shoot in 3 directions (legendary, no nerfs)
       let bulletCount = 3  # Always 3 bullets
-      let spreadAngle = 0.3  # Fixed spread
+      let spreadAngle = 0.3
       
       for i in 0..<bulletCount:
         let angle = (i.float32 - (bulletCount - 1).float32 / 2.0) * spreadAngle
@@ -1614,7 +1614,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   
   if hasMultiShot:
     let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
-    let spreadAngle = 0.3  # Fixed spread
+    let spreadAngle = 0.3
     
     for i in 0..<multiCount:
       let angle = (i.float32 - (multiCount - 1).float32 / 2.0) * spreadAngle
