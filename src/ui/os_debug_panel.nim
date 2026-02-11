@@ -26,7 +26,6 @@ var legendaryPanelDragging* = false
 var legendaryPanelDragOffset* = Vector2(x: 0, y: 0)
 
 ## Calculate basic combat stats for display
-## This is a simplified version - the full calculation is in game.nim
 proc getDisplayStats(player: Player): tuple[damage: float32, fireRate: float32, speed: float32] =
   result.damage = player.damage
   result.fireRate = player.fireRate  

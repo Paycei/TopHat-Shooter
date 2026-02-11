@@ -7,8 +7,8 @@ const
   PVP_PLAYER_START_HP = 3.0  # Reduced HP for faster kills
   PVP_PLAYER_START_SPEED = 200.0
   PVP_PLAYER_START_DAMAGE = 1.0
-  PVP_PLAYER_START_FIRE_RATE = 0.4
-  PVP_PLAYER_START_BULLET_SPEED = 400.0
+  PVP_PLAYER_START_FIRE_RATE = 0.375
+  PVP_PLAYER_START_BULLET_SPEED = 415.0
   PVP_PLAYER_START_COINS = 100
   PVP_PLAYER_START_WALLS = 3
   PVP_RESPAWN_TIME = 3.0
@@ -88,6 +88,8 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameSt
   result.players[0].damage = PVP_PLAYER_START_DAMAGE
   result.players[0].bulletSpeed = PVP_PLAYER_START_BULLET_SPEED
   result.players[0].fireRate = PVP_PLAYER_START_FIRE_RATE
+  result.players[0].speed = PVP_PLAYER_START_SPEED
+
   # Apply cosmetics from settings for local player
   if isHost:
     result.players[0].skinType = globalSettings.playerSkin
@@ -104,6 +106,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool): PvPGameSt
   result.players[1].damage = PVP_PLAYER_START_DAMAGE
   result.players[1].bulletSpeed = PVP_PLAYER_START_BULLET_SPEED
   result.players[1].fireRate = PVP_PLAYER_START_FIRE_RATE
+  result.players[1].speed = PVP_PLAYER_START_SPEED
   # Apply cosmetics from settings for local player
   if not isHost:
     result.players[1].skinType = globalSettings.playerSkin
@@ -529,20 +532,22 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
     pvp.players[remoteIdx].walls = gameState.players[remoteIdx].walls
     pvp.players[remoteIdx].invincibilityTimer = gameState.players[remoteIdx].invincibilityTimer
     
-    # Reconcile host's own player with smooth interpolation
+    # Reconcile host's own player - TRUST CLIENT PREDICTION
+    # Even the host should trust their local prediction to maintain consistency
     let serverPos = gameState.players[localIdx].pos
     let clientPos = pvp.players[localIdx].pos
     let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) + 
                        (serverPos.y - clientPos.y) * (serverPos.y - clientPos.y))
     
-    if posDiff > 100.0:
+    if posDiff > 150.0:
+      # LARGE desync - snap immediately
       pvp.players[localIdx].pos = serverPos
-    elif posDiff > 2.0:
-      let interpSpeed = min(0.3, posDiff * 0.01)
+    elif posDiff > 50.0:
+      # MEDIUM desync - gentle interpolation
+      let interpSpeed = 0.15
       pvp.players[localIdx].pos.x = pvp.players[localIdx].pos.x * (1.0 - interpSpeed) + serverPos.x * interpSpeed
       pvp.players[localIdx].pos.y = pvp.players[localIdx].pos.y * (1.0 - interpSpeed) + serverPos.y * interpSpeed
-    else:
-      pvp.players[localIdx].pos = serverPos
+    # else: SMALL desync - trust prediction
     
     # Always update other host data from server
     pvp.players[localIdx].vel = gameState.players[localIdx].vel
@@ -603,27 +608,27 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   pvp.players[remoteIdx].shapeType = serverState.players[remoteIdx].shapeType
   pvp.players[remoteIdx].particleSkinType = serverState.players[remoteIdx].particleSkinType
   
-  # Local player - SERVER IS AUTHORITATIVE
-  # Smoothly interpolate to server position instead of snapping
+  # Local player - TRUST CLIENT PREDICTION, only reconcile on large desyncs
+  # The server state is always behind due to network latency, so we avoid
+  # reconciling small differences to prevent stuttering/rubber-banding
   let serverPos = serverState.players[localIdx].pos
   let clientPos = pvp.players[localIdx].pos
   
-  # Calculate interpolation speed based on distance
+  # Calculate position difference
   let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) + 
                      (serverPos.y - clientPos.y) * (serverPos.y - clientPos.y))
   
-  if posDiff > 100.0:
-    # Very large desync - snap immediately
+  if posDiff > 150.0:
+    # LARGE desync (>150 pixels) - snap immediately to fix severe issues
     pvp.players[localIdx].pos = serverPos
-  elif posDiff > 2.0:
-    # Smooth interpolation toward server position
-    # Speed increases with distance for faster convergence
-    let interpSpeed = min(0.3, posDiff * 0.01)
+  elif posDiff > 50.0:
+    # MEDIUM desync (50-150 pixels) - gentle interpolation
+    # This handles gradual drift without stuttering
+    let interpSpeed = 0.15  # Slow, gentle correction
     pvp.players[localIdx].pos.x = pvp.players[localIdx].pos.x * (1.0 - interpSpeed) + serverPos.x * interpSpeed
     pvp.players[localIdx].pos.y = pvp.players[localIdx].pos.y * (1.0 - interpSpeed) + serverPos.y * interpSpeed
-  else:
-    # Very close - accept server position
-    pvp.players[localIdx].pos = serverPos
+  # else: SMALL desync (<50 pixels) - trust client prediction completely
+  # This prevents stuttering from normal network latency
   
   # Always update all other data from server
   pvp.players[localIdx].vel = serverState.players[localIdx].vel
@@ -857,9 +862,7 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
   
   # Capture input every frame
   let input = capturePlayerInput(pvp)
-  
-  # CLIENT-SIDE PREDICTION: Apply input immediately for responsive feel (BOTH host and client)
-  # This ensures FAIR gameplay - host doesn't get instant advantage
+
   # Server will reconcile with authoritative state for both players
   applyPlayerInput(pvp, pvp.localPlayerIndex, input, dt)
   

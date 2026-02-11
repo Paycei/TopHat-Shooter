@@ -75,7 +75,7 @@ proc countCachedAssets(): tuple[sounds: int, music: int, total: int] =
       inc result.music
   result.total = result.sounds + result.music
 
-# CORE AUDIO UTILITIES - Optimized
+# CORE AUDIO UTILITIES
 
 proc applyADSR(progress: float32, attack, decay, sustain, release: float32): float32 {.inline.} =
   if progress < attack:

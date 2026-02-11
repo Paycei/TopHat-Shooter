@@ -3869,10 +3869,7 @@ proc updateGame*(game: var Game, dt: float32) =
   
   # Update real-time stats power level
   calculatePowerLevel(game.dopamine.realTimeStats, game.player)
-  
-  # OLD screen shake system - now handled by dopamine screenShake
-  # (all screen shake calls are now using the dopamine system)
-  
+    
   # Time Warp effect - apply slow to delta time for enemies/bullets
   var effectiveDt = dt
   if game.player.timeWarpActive:
@@ -5503,7 +5500,6 @@ proc updateGame*(game: var Game, dt: float32) =
     game.bullets = @[]
   
   # Update boss satellites (persistent orbiting satellites)
-  # OPTIMIZED: Batch processing and reduced allocations
   for enemy in game.enemies:
     if enemy.isBoss and enemy.satellites.len > 0:
       var i = enemy.satellites.len - 1
@@ -6602,7 +6598,7 @@ proc drawGame*(game: Game) =
     # Draw warning indicators for elite/boss enemies
     drawEnemyWarningIndicator(enemy)
     
-    # Draw boss satellites - OPTIMIZED RENDERING
+    # Draw boss satellites
     if enemy.isBoss and enemy.satellites.len > 0:
       # OPTIMIZATION: Draw orbit trails first in single batch
       # Only draw trails for every other satellite to reduce draw calls
@@ -6622,7 +6618,7 @@ proc drawGame*(game: Game) =
         drawCircle(Vector2(x: sat.pos.x, y: sat.pos.y), 18.0, satColor)  # INCREASED from 12.0 to 18.0 (larger, easier to see and hit)
 
         if sat.laserActive and sat.laserChargeTime < 1.5:
-          # SIMPLIFIED crosshair - just two lines and one circle (5 draw calls reduced to 3)
+          # crosshair
           let targetSize = 15.0
           let pulseAlpha = uint8(150 + sin(game.time * 8.0) * 105)  # Pulsing effect
           let targetColor = Color(r: 255, g: 50, b: 50, a: pulseAlpha)

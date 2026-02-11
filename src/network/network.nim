@@ -1,7 +1,6 @@
 ## Core Networking Layer for PvP Mode
-## Handles UDP socket communication using blocking sockets with timeouts
 
-import net, nativesockets, network_types, times, strutils, json
+import net, nativesockets, network_types, flatty_network, times, strutils
 
 const
   DEFAULT_PORT* = 7777
@@ -99,7 +98,7 @@ proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
   packet.requestShapeType = shapeType
   packet.requestParticleSkinType = particleSkinType
   
-  let data = serializePacket(packet)
+  let data = serializePacketFast(packet)  # Using flatty for speed!
   try:
     nm.socket.sendTo(host, Port(port), data)
     echo "[NETWORK] Connection request sent to ", host, ":", port
@@ -107,9 +106,9 @@ proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
     echo "[NETWORK] Failed to send connection request: ", getCurrentExceptionMsg()
 
 proc sendPacket*(nm: NetworkManager, packet: Packet) =
-  ## Send a packet to the remote peer (optimized - only serializes once)
+  ## Send a packet to the remote peer using high-performance flatty serialization
   if (nm.isConnected or nm.role == nrClient) and nm.remoteAddr != "":
-    let data = serializePacket(packet)
+    let data = serializePacketFast(packet)  # Using flatty for speed!
     try:
       nm.socket.sendTo(nm.remoteAddr, nm.remotePort, data)
     except:
@@ -155,7 +154,7 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
         nm.lastReceiveTime = epochTime()
         
         try:
-          let packet = deserializePacket(data)
+          let packet = deserializePacketFast(data)  # Using flatty for speed!
           
           # Handle connection for host
           if nm.role == nrHost and not nm.isConnected:
@@ -236,9 +235,6 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
               nm.sendPacket(pongPacket)
             else:
               result.add(NetworkEvent(kind: neReceive, packet: packet))
-          
-        except JsonParsingError:
-          echo "[NETWORK] Failed to parse packet"
         except:
           echo "[NETWORK] Error processing packet: ", getCurrentExceptionMsg()
           

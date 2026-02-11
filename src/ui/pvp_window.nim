@@ -40,18 +40,17 @@ const
   CONNECTION_TIMEOUT = 10.0
 
 proc getLocalIP*(): string =
-  ## Get local IP address - OPTIMIZED to be fast and non-blocking
-  ## Uses socket API instead of system commands (100x faster!)
+  ## Get local IP address
+  ## Uses socket API instead of system commands
   result = "127.0.0.1"  # Safe fallback
   
   try:
-    # This is instant compared to running ipconfig/ifconfig
     let sock = newSocket(Domain.AF_INET, SockType.SOCK_DGRAM, Protocol.IPPROTO_UDP)
     try:
       # Connect to Google DNS (8.8.8.8) to determine which local interface would be used
       # UDP connect doesn't actually send data - just determines routing
       sock.connect("8.8.8.8", Port(80))
-      let (localIP, localPort) = sock.getLocalAddr()
+      let (localIP, _) = sock.getLocalAddr()
       if localIP != "" and localIP != "0.0.0.0":
         result = localIP
     except:

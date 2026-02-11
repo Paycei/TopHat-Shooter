@@ -235,7 +235,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
       drawText(hpText, hpTextX.int32, barY.int32, hpTextSize.int32, White)
 
 proc drawEnemyWarningIndicator*(enemy: Enemy) =
-  ## Draw simplified warning indicator for dangerous enemies (no exclamation mark)
+  ## Draw warning indicator for dangerous enemies
   if not (enemy.isElite or enemy.isBoss):
     return
   
@@ -255,7 +255,7 @@ proc drawEnemyWarningIndicator*(enemy: Enemy) =
   else:
     Color(r: 200, g: 170, b: 60, a: alpha)  # Duller gold for elites
   
-  # Warning icon (simplified, no glow layers)
+  # Warning icon
   let iconX = enemy.pos.x
   let iconY = warningY
   let iconSize = if enemy.isBoss: 14 else: 10
