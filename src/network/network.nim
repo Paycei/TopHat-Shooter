@@ -44,6 +44,7 @@ type
     bulletSkinType*: int
     shapeType*: int
     particleSkinType*: int
+    nickname*: string
     
   NetworkManager* = ref object
     role*: NetworkRole
@@ -61,6 +62,7 @@ type
     latency*: float32
     pendingEvents*: seq[NetworkEvent]
     timeoutDisabled*: bool  # Disable timeout check temporarily
+    hostNickname*: string  # Host's nickname for inclusion in player lists
     
 proc newNetworkManager*(): NetworkManager =
   let currentTime = epochTime()
@@ -77,7 +79,8 @@ proc newNetworkManager*(): NetworkManager =
     lastReceiveTime: currentTime,  # Initialize to current time to prevent false timeout
     latency: 0,
     pendingEvents: @[],
-    timeoutDisabled: false  # Initialize timeout check as enabled
+    timeoutDisabled: false,  # Initialize timeout check as enabled
+    hostNickname: "Player"  # Default host nickname
   )
 
 proc initHost*(nm: NetworkManager, port: int = DEFAULT_PORT, maxPlayers: int = 2) =
@@ -101,8 +104,9 @@ proc initClient*(nm: NetworkManager) =
 
 proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
                    skinType: int = 0, bulletSkinType: int = 0, 
-                   shapeType: int = 0, particleSkinType: int = 0) =
-  ## Connect to a host as client, sending cosmetics
+                   shapeType: int = 0, particleSkinType: int = 0,
+                   nickname: string = "Player") =
+  ## Connect to a host as client, sending cosmetics and nickname
   nm.remoteAddr = host
   nm.remotePort = Port(port)
   
@@ -112,7 +116,7 @@ proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
   packet.tick = 0
   packet.timestamp = epochTime()
   packet.version = NETWORK_VERSION
-  packet.playerName = "Player"
+  packet.playerName = nickname
   packet.requestSkinType = skinType
   packet.requestBulletSkinType = bulletSkinType
   packet.requestShapeType = shapeType
@@ -259,18 +263,20 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
                 skinType: packet.requestSkinType,
                 bulletSkinType: packet.requestBulletSkinType,
                 shapeType: packet.requestShapeType,
-                particleSkinType: packet.requestParticleSkinType
+                particleSkinType: packet.requestParticleSkinType,
+                nickname: packet.playerName
               )
               nm.clients.add(newClient)
               nm.isConnected = true
               
-              # Build list of all connected players' cosmetics
+              # Build list of all connected players' cosmetics and nicknames
               var connectedPlayers: seq[tuple[
                 index: int,
                 skinType: int,
                 bulletSkinType: int,
                 shapeType: int,
-                particleSkinType: int
+                particleSkinType: int,
+                nickname: string
               ]] = @[]
               
               # Add host (player 0)
@@ -282,7 +288,8 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
                 skinType: hostCosmetics.skinType,
                 bulletSkinType: hostCosmetics.bulletSkinType,
                 shapeType: hostCosmetics.shapeType,
-                particleSkinType: hostCosmetics.particleSkinType
+                particleSkinType: hostCosmetics.particleSkinType,
+                nickname: nm.hostNickname
               ))
               
               # Add all other clients
@@ -292,7 +299,8 @@ proc pollEvents*(nm: NetworkManager, getCosmeticsCallback: CosmeticsCallback = n
                   skinType: client.skinType,
                   bulletSkinType: client.bulletSkinType,
                   shapeType: client.shapeType,
-                  particleSkinType: client.particleSkinType
+                  particleSkinType: client.particleSkinType,
+                  nickname: client.nickname
                 ))
               
               # Send acceptance to the new client
@@ -425,7 +433,7 @@ proc sendPing*(nm: NetworkManager, pingId: int) =
   nm.sendPacket(packet)
 
 proc sendGameStart*(nm: NetworkManager, countdownTime: float32 = 3.0,
-                    connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int]] = @[]) =
+                    connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]] = @[]) =
   ## Send game start signal to all connected players (host only)
   if nm.role != nrHost:
     return

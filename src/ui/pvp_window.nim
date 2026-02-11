@@ -1,7 +1,7 @@
 ## PvP Lobby Window
 ## Network lobby interface as an OS-style window
 
-import raylib, os_window, ../network/network, ../network/network_types, strutils, net
+import raylib, os_window, ../network/network, ../network/network_types, strutils, net, math
 
 type
   PvPWindow* = ref object
@@ -13,6 +13,8 @@ type
     hostPort*: int
     inputIP*: string
     inputPort*: string
+    inputNickname*: string  # Player's chosen nickname
+    editingNickname*: bool  # Whether the nickname field is active
     errorMessage*: string
     connectionTimeout*: float32
     cursorBlink*: float32
@@ -28,10 +30,18 @@ type
     showIPs*: bool  # Whether to show uncensored IPs (checkbox)
     maxPlayers*: int  # Maximum number of players (2-16)
     # Store all connected players' info (populated from connection accept packet)
-    connectedPlayers*: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int]]
+    connectedPlayers*: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]]
     assignedPlayerIndex*: int  # Client's player index assigned by host (-1 if host)
     keepAliveTimer*: float32  # Timer for sending keep-alive pings
-  
+    connectedNicknames*: seq[string]  # Nicknames of all connected players (indexed by player index)
+    # Text selection support
+    selectionStart*: int  # Selection start position (-1 if no selection)
+    selectionEnd*: int    # Selection end position
+    mouseDownPos*: Vector2  # Mouse position when clicked in text field
+    isDragging*: bool     # Whether currently dragging to select
+    lastBackspaceTime*: float32  # For backspace repeat timing
+    cursorPos*: int       # Current cursor position in text
+
   PvPLobbyState* = enum
     plsMainMenu           # Choose host or join
     plsHostingConfig      # Configure hosting settings
@@ -113,7 +123,16 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
     maxPlayers: 2,  # Default to 2 players (1v1)
     connectedPlayers: @[],
     assignedPlayerIndex: -1,
-    keepAliveTimer: 0.0
+    keepAliveTimer: 0.0,
+    inputNickname: "Player",
+    editingNickname: false,
+    connectedNicknames: @[],
+    selectionStart: -1,
+    selectionEnd: -1,
+    mouseDownPos: Vector2(x: 0, y: 0),
+    isDragging: false,
+    lastBackspaceTime: 0.0,
+    cursorPos: 0
   )
 
 proc startHosting*(pvpWin: PvPWindow) =
@@ -133,7 +152,8 @@ proc startHosting*(pvpWin: PvPWindow) =
 
 proc connectToGame*(pvpWin: PvPWindow, ip: string, port: int,
                    skinType: int = 0, bulletSkinType: int = 0,
-                   shapeType: int = 0, particleSkinType: int = 0) =
+                   shapeType: int = 0, particleSkinType: int = 0,
+                   nickname: string = "Player") =
   pvpWin.isHost = false
   pvpWin.state = plsConnecting
   pvpWin.connectionTimeout = CONNECTION_TIMEOUT
@@ -142,8 +162,8 @@ proc connectToGame*(pvpWin: PvPWindow, ip: string, port: int,
 
   try:
     pvpWin.networkManager.initClient()
-    pvpWin.networkManager.connectToHost(ip, port, skinType, bulletSkinType, shapeType, particleSkinType)
-    echo "[LOBBY] Connecting to ", ip, ":", port
+    pvpWin.networkManager.connectToHost(ip, port, skinType, bulletSkinType, shapeType, particleSkinType, nickname)
+    echo "[LOBBY] Connecting to ", ip, ":", port, " as \"", nickname, "\""
   except:
     pvpWin.state = plsError
     pvpWin.errorMessage = "Failed to connect: " & getCurrentExceptionMsg()
@@ -239,38 +259,362 @@ proc resetPvPWindow*(pvpWin: PvPWindow) =
   pvpWin.remoteShapeType = 0
   pvpWin.remoteParticleSkinType = 0
   pvpWin.connectedPlayers = @[]
+  pvpWin.connectedNicknames = @[]
   pvpWin.assignedPlayerIndex = -1
   pvpWin.keepAliveTimer = 0.0
   pvpWin.showIPs = false  # Reset to censored
+  pvpWin.editingNickname = false
+
+proc deleteSelection(text: var string, selStart, selEnd: int): int =
+  ## Delete selected text and return new cursor position
+  if selStart < 0 or selEnd < 0 or selStart == selEnd:
+    return -1
+  
+  let startPos = min(selStart, selEnd)
+  let endPos = max(selStart, selEnd)
+  
+  if startPos >= text.len or endPos > text.len:
+    return -1
+  
+  # Delete the selection
+  text = text[0..<startPos] & text[endPos..^1]
+  return startPos
+
+proc drawTextSelection(text: string, fieldX, fieldY, fontSize: int, selStart, selEnd: int) =
+  ## Draw text selection highlight
+  if selStart < 0 or selEnd < 0 or selStart == selEnd:
+    return
+  
+  let startPos = min(selStart, selEnd)
+  let endPos = max(selStart, selEnd)
+  
+  if startPos >= text.len or endPos > text.len or startPos < 0:
+    return
+  
+  # Calculate selection bounds
+  let beforeText = if startPos == 0: "" else: text[0..<startPos]
+  let selectedText = text[startPos..<endPos]
+  
+  let beforeWidth = measureText(beforeText, fontSize.int32)
+  let selectedWidth = measureText(selectedText, fontSize.int32)
+  
+  let selX = fieldX + 10 + beforeWidth
+  let selY = fieldY + 6
+  let selHeight = fontSize + 4
+  
+  # Draw selection background
+  drawRectangle(selX.int32, selY.int32, selectedWidth.int32, selHeight.int32,
+               Color(r: 100, g: 150, b: 255, a: 128))
+
+proc getTextCursorPos(text: string, fieldX: int, fieldY: int, fontSize: int, fieldHeight: int, mouseX, mouseY: float32): int =
+  ## Get cursor position from mouse coordinates
+  ## Returns -1 if mouse is outside the field
+  
+  # Check if mouse is within field bounds (with small margin)
+  if mouseY < (fieldY - 2).float32 or mouseY > (fieldY + fieldHeight + 2).float32:
+    return -1
+  
+  if mouseX < (fieldX + 5).float32:
+    return 0  # Before first character
+  
+  # Find character closest to mouse position
+  var closestPos = 0
+  var closestDist = 9999.0
+  
+  for i in 0..text.len:
+    let substr = if i == 0: "" else: text[0..<i]
+    let width = measureText(substr, fontSize.int32)
+    let charX = fieldX + 10 + width
+    let dist = abs(mouseX - charX.float32)
+    
+    if dist < closestDist:
+      closestDist = dist
+      closestPos = i
+  
+  return closestPos
 
 proc handlePvPWindowInput*(pvpWin: PvPWindow) =
   if not pvpWin.window.visible or pvpWin.window.minimized:
     return
-  
-  if pvpWin.state != plsJoining:
+
+  if pvpWin.state != plsJoining and pvpWin.state != plsHostingConfig:
     return
-  
-  let key = getCharPressed()
-  
-  if key > 0:
-    let ch = char(key)
-    
-    if pvpWin.editingIP:
-      if ch in {'0'..'9', '.'}:
-        pvpWin.inputIP &= ch
+
+  # Calculate content area position
+  let contentX = pvpWin.window.x + 10  # Window border
+  let contentY = pvpWin.window.y + 30  # Title bar
+
+  # Get current active field text reference with correct coordinates
+  var activeText: ptr string = nil
+  var fieldX, fieldY, fontSize, fieldHeight: int
+
+  if pvpWin.editingNickname:
+    activeText = addr pvpWin.inputNickname
+    fieldX = contentX + 50
+    fieldY = contentY + 96 + 8  # Text Y position
+    fontSize = 20
+    fieldHeight = 28  # Remaining height for text area
+  elif pvpWin.editingIP:
+    activeText = addr pvpWin.inputIP
+    fieldX = contentX + 50
+    fieldY = contentY + 172 + 10  # Text Y position
+    fontSize = 20
+    fieldHeight = 30  # Remaining height for text area
+  elif pvpWin.editingPort:
+    activeText = addr pvpWin.inputPort
+    fieldX = contentX + 50
+    fieldY = contentY + 250 + 10  # Text Y position
+    fontSize = 20
+    fieldHeight = 30  # Remaining height for text area
+
+  # Handle mouse selection and cursor positioning
+  if activeText != nil:
+    let mousePos = getMousePosition()
+
+    # Start selection/cursor positioning on mouse down
+    if isMouseButtonPressed(Left):
+      let cursorPos = getTextCursorPos(activeText[], fieldX, fieldY, fontSize, fieldHeight, mousePos.x, mousePos.y)
+      if cursorPos >= 0:  # Only start if mouse is within field
+        pvpWin.mouseDownPos = mousePos
+        pvpWin.isDragging = true
+        pvpWin.selectionStart = cursorPos
+        pvpWin.selectionEnd = cursorPos
+
+    # Update selection while dragging
+    if pvpWin.isDragging and isMouseButtonDown(Left):
+      let cursorPos = getTextCursorPos(activeText[], fieldX, fieldY, fontSize, fieldHeight, mousePos.x, mousePos.y)
+      if cursorPos >= 0:  # Only update if mouse is within field
+        # Check if mouse has moved enough to start selecting (prevents accidental selection on click)
+        let dragDist = sqrt((mousePos.x - pvpWin.mouseDownPos.x) * (mousePos.x - pvpWin.mouseDownPos.x) +
+                           (mousePos.y - pvpWin.mouseDownPos.y) * (mousePos.y - pvpWin.mouseDownPos.y))
+        if dragDist > 3.0:  # 3 pixel threshold
+          pvpWin.selectionEnd = cursorPos
+
+    # End selection on mouse up
+    if isMouseButtonReleased(Left):
+      pvpWin.isDragging = false
+      # If no actual drag occurred (click without drag), clear selection and set cursor position
+      if pvpWin.selectionStart == pvpWin.selectionEnd:
+        pvpWin.cursorPos = pvpWin.selectionStart
+        pvpWin.selectionStart = -1
+        pvpWin.selectionEnd = -1
+      else:
+        # If text was selected, cursor should be at the end of selection
+        pvpWin.cursorPos = max(pvpWin.selectionStart, pvpWin.selectionEnd)
+
+  # Handle clipboard operations
+  let ctrlPressed = isKeyDown(LeftControl) or isKeyDown(RightControl)
+  let cmdPressed = isKeyDown(LeftSuper) or isKeyDown(RightSuper)
+
+  # Copy (Ctrl+C)
+  if (ctrlPressed or cmdPressed) and isKeyPressed(C):
+    if pvpWin.selectionStart >= 0 and pvpWin.selectionEnd >= 0 and pvpWin.selectionStart != pvpWin.selectionEnd:
+      if activeText != nil:
+        let startPos = min(pvpWin.selectionStart, pvpWin.selectionEnd)
+        let endPos = max(pvpWin.selectionStart, pvpWin.selectionEnd)
+        let selectedText = activeText[][startPos..<endPos]
+        setClipboardText(selectedText)
+
+  # Cut (Ctrl+X)
+  if (ctrlPressed or cmdPressed) and isKeyPressed(X):
+    if pvpWin.selectionStart >= 0 and pvpWin.selectionEnd >= 0 and pvpWin.selectionStart != pvpWin.selectionEnd:
+      if activeText != nil:
+        let startPos = min(pvpWin.selectionStart, pvpWin.selectionEnd)
+        let endPos = max(pvpWin.selectionStart, pvpWin.selectionEnd)
+        let selectedText = activeText[][startPos..<endPos]
+        setClipboardText(selectedText)
+        discard deleteSelection(activeText[], pvpWin.selectionStart, pvpWin.selectionEnd)
+        pvpWin.selectionStart = -1
+        pvpWin.selectionEnd = -1
+
+  # Paste (Ctrl+V)
+  if (ctrlPressed or cmdPressed) and isKeyPressed(V):
+    try:
+      let clipboardText = getClipboardText()
+      if not clipboardText.isNil:
+        let text = $clipboardText
+
+        # Delete selection if any
+        if pvpWin.selectionStart >= 0 and pvpWin.selectionEnd >= 0 and pvpWin.selectionStart != pvpWin.selectionEnd:
+          if activeText != nil:
+            let newCursor = deleteSelection(activeText[], pvpWin.selectionStart, pvpWin.selectionEnd)
+            if newCursor >= 0:
+              pvpWin.cursorPos = newCursor
+            pvpWin.selectionStart = -1
+            pvpWin.selectionEnd = -1
+
+        # Filter and paste text at cursor position
+        if pvpWin.editingNickname:
+          var pasteText = ""
+          for ch in text:
+            if pvpWin.inputNickname.len + pasteText.len < 16 and ch.ord >= 32 and ch != '\n' and ch != '\r' and ch != '\t':
+              pasteText &= ch
+          if pasteText.len > 0:
+            pvpWin.cursorPos = clamp(pvpWin.cursorPos, 0, pvpWin.inputNickname.len)
+            pvpWin.inputNickname = pvpWin.inputNickname[0..<pvpWin.cursorPos] & pasteText & pvpWin.inputNickname[pvpWin.cursorPos..^1]
+            pvpWin.cursorPos += pasteText.len
+        elif pvpWin.editingIP:
+          var pasteText = ""
+          for ch in text:
+            if ch in {'0'..'9', '.'}:
+              pasteText &= ch
+          if pasteText.len > 0:
+            pvpWin.cursorPos = clamp(pvpWin.cursorPos, 0, pvpWin.inputIP.len)
+            pvpWin.inputIP = pvpWin.inputIP[0..<pvpWin.cursorPos] & pasteText & pvpWin.inputIP[pvpWin.cursorPos..^1]
+            pvpWin.cursorPos += pasteText.len
+        elif pvpWin.editingPort:
+          var pasteText = ""
+          for ch in text:
+            if ch in {'0'..'9'}:
+              pasteText &= ch
+          if pasteText.len > 0:
+            pvpWin.cursorPos = clamp(pvpWin.cursorPos, 0, pvpWin.inputPort.len)
+            pvpWin.inputPort = pvpWin.inputPort[0..<pvpWin.cursorPos] & pasteText & pvpWin.inputPort[pvpWin.cursorPos..^1]
+            pvpWin.cursorPos += pasteText.len
+    except:
+      discard
+
+  # Select all (Ctrl+A)
+  if (ctrlPressed or cmdPressed) and isKeyPressed(A):
+    if activeText != nil:
+      pvpWin.selectionStart = 0
+      pvpWin.selectionEnd = activeText[].len
+
+  # Handle character input
+  var key = getCharPressed()
+  while key > 0:
+    # Delete selection before inserting new character
+    if activeText != nil and pvpWin.selectionStart >= 0 and pvpWin.selectionEnd >= 0 and pvpWin.selectionStart != pvpWin.selectionEnd:
+      let newCursor = deleteSelection(activeText[], pvpWin.selectionStart, pvpWin.selectionEnd)
+      if newCursor >= 0:
+        pvpWin.cursorPos = newCursor
+      pvpWin.selectionStart = -1
+      pvpWin.selectionEnd = -1
+
+    if pvpWin.editingNickname:
+      if pvpWin.inputNickname.len < 16 and key >= 32:
+        try:
+          # Insert at cursor position
+          var charToInsert = ""
+          if key < 128:
+            charToInsert = $char(key)
+          else:
+            if key < 0x800:
+              charToInsert &= char(0xC0 or (key shr 6))
+              charToInsert &= char(0x80 or (key and 0x3F))
+            elif key < 0x10000:
+              charToInsert &= char(0xE0 or (key shr 12))
+              charToInsert &= char(0x80 or ((key shr 6) and 0x3F))
+              charToInsert &= char(0x80 or (key and 0x3F))
+            else:
+              charToInsert &= char(0xF0 or (key shr 18))
+              charToInsert &= char(0x80 or ((key shr 12) and 0x3F))
+              charToInsert &= char(0x80 or ((key shr 6) and 0x3F))
+              charToInsert &= char(0x80 or (key and 0x3F))
+
+          # Clamp cursor to valid range
+          pvpWin.cursorPos = clamp(pvpWin.cursorPos, 0, pvpWin.inputNickname.len)
+          # Insert character at cursor position
+          pvpWin.inputNickname = pvpWin.inputNickname[0..<pvpWin.cursorPos] & charToInsert & pvpWin.inputNickname[pvpWin.cursorPos..^1]
+          pvpWin.cursorPos += charToInsert.len
+        except:
+          if key < 256:
+            pvpWin.cursorPos = clamp(pvpWin.cursorPos, 0, pvpWin.inputNickname.len)
+            pvpWin.inputNickname = pvpWin.inputNickname[0..<pvpWin.cursorPos] & char(key) & pvpWin.inputNickname[pvpWin.cursorPos..^1]
+            pvpWin.cursorPos += 1
+    elif pvpWin.editingIP:
+      if key >= 32 and key < 128:
+        let ch = char(key)
+        if ch in {'0'..'9', '.'}:
+          pvpWin.cursorPos = clamp(pvpWin.cursorPos, 0, pvpWin.inputIP.len)
+          pvpWin.inputIP = pvpWin.inputIP[0..<pvpWin.cursorPos] & ch & pvpWin.inputIP[pvpWin.cursorPos..^1]
+          pvpWin.cursorPos += 1
     elif pvpWin.editingPort:
-      if ch in {'0'..'9'}:
-        pvpWin.inputPort &= ch
-  
-  if isKeyPressed(Backspace):
-    if pvpWin.editingIP and pvpWin.inputIP.len > 0:
-      pvpWin.inputIP = pvpWin.inputIP[0..^2]
-    elif pvpWin.editingPort and pvpWin.inputPort.len > 0:
-      pvpWin.inputPort = pvpWin.inputPort[0..^2]
-  
+      if key >= 32 and key < 128:
+        let ch = char(key)
+        if ch in {'0'..'9'}:
+          pvpWin.cursorPos = clamp(pvpWin.cursorPos, 0, pvpWin.inputPort.len)
+          pvpWin.inputPort = pvpWin.inputPort[0..<pvpWin.cursorPos] & ch & pvpWin.inputPort[pvpWin.cursorPos..^1]
+          pvpWin.cursorPos += 1
+
+    key = getCharPressed()
+
+  # Handle backspace with improved timing (faster repeat)
+  let backspacePressed = isKeyPressed(Backspace)
+  let backspaceDown = isKeyDown(Backspace)
+
+  # Initial press or repeat after delay
+  var shouldDelete = false
+  if backspacePressed:
+    # First press - delete immediately
+    shouldDelete = true
+    pvpWin.lastBackspaceTime = 0.0  # Reset timer
+  elif backspaceDown:
+    # Key held down - use repeat delay
+    pvpWin.lastBackspaceTime += getFrameTime()
+
+    # Initial delay of 0.35 seconds, then repeat every 0.04 seconds (faster)
+    if pvpWin.lastBackspaceTime >= 0.35:
+      shouldDelete = true
+      pvpWin.lastBackspaceTime = 0.31  # Keep 0.04s interval (0.35 - 0.04 = 0.31)
+  else:
+    # Key released - reset timer
+    pvpWin.lastBackspaceTime = 0.0
+
+  if shouldDelete:
+    # Delete selection or character before cursor
+    if pvpWin.selectionStart >= 0 and pvpWin.selectionEnd >= 0 and pvpWin.selectionStart != pvpWin.selectionEnd:
+      if activeText != nil:
+        let newCursor = deleteSelection(activeText[], pvpWin.selectionStart, pvpWin.selectionEnd)
+        if newCursor >= 0:
+          pvpWin.cursorPos = newCursor
+        pvpWin.selectionStart = -1
+        pvpWin.selectionEnd = -1
+    else:
+      # Delete character before cursor
+      if pvpWin.editingNickname and pvpWin.inputNickname.len > 0 and pvpWin.cursorPos > 0:
+        # Handle UTF-8 multi-byte characters
+        var deletePos = pvpWin.cursorPos - 1
+        while deletePos > 0 and (pvpWin.inputNickname[deletePos].ord and 0xC0) == 0x80:
+          deletePos -= 1
+        pvpWin.inputNickname = pvpWin.inputNickname[0..<deletePos] & pvpWin.inputNickname[pvpWin.cursorPos..^1]
+        pvpWin.cursorPos = deletePos
+      elif pvpWin.editingIP and pvpWin.inputIP.len > 0 and pvpWin.cursorPos > 0:
+        pvpWin.inputIP = pvpWin.inputIP[0..<(pvpWin.cursorPos - 1)] & pvpWin.inputIP[pvpWin.cursorPos..^1]
+        pvpWin.cursorPos -= 1
+      elif pvpWin.editingPort and pvpWin.inputPort.len > 0 and pvpWin.cursorPos > 0:
+        pvpWin.inputPort = pvpWin.inputPort[0..<(pvpWin.cursorPos - 1)] & pvpWin.inputPort[pvpWin.cursorPos..^1]
+        pvpWin.cursorPos -= 1
+
+  # Clear selection on Escape
+  if isKeyPressed(Escape):
+    pvpWin.selectionStart = -1
+    pvpWin.selectionEnd = -1
+
+  # Tab navigation
   if isKeyPressed(Tab):
-    pvpWin.editingIP = not pvpWin.editingIP
-    pvpWin.editingPort = not pvpWin.editingPort
+    pvpWin.selectionStart = -1
+    pvpWin.selectionEnd = -1
+
+    if pvpWin.state == plsJoining:
+      if pvpWin.editingNickname:
+        pvpWin.editingNickname = false
+        pvpWin.editingIP = true
+        pvpWin.editingPort = false
+        pvpWin.cursorPos = pvpWin.inputIP.len  # Set cursor to end of IP field
+      elif pvpWin.editingIP:
+        pvpWin.editingIP = false
+        pvpWin.editingPort = true
+        pvpWin.editingNickname = false
+        pvpWin.cursorPos = pvpWin.inputPort.len  # Set cursor to end of port field
+      else:
+        pvpWin.editingPort = false
+        pvpWin.editingNickname = true
+        pvpWin.cursorPos = pvpWin.inputNickname.len  # Set cursor to end of nickname field
+    elif pvpWin.state == plsHostingConfig:
+      pvpWin.editingNickname = not pvpWin.editingNickname
+      if pvpWin.editingNickname:
+        pvpWin.cursorPos = pvpWin.inputNickname.len  # Set cursor to end when activating
 
 proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, contentHeight: int) =
   case pvpWin.state
@@ -318,14 +662,46 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     let titleWidth = measureText(titleText, 30)
     drawText(titleText, (contentX + (contentWidth - titleWidth) div 2).int32, (contentY + 30).int32, 30, Yellow)
 
+    # Nickname field
+    let nickLabelText = "Nickname:"
+    drawText(nickLabelText, (contentX + 50).int32, (contentY + 72).int32, 20, White)
+    let nickFieldX = contentX + 50
+    let nickFieldY = contentY + 96
+    let nickFieldWidth = contentWidth - 100
+    let nickFieldHeight = 36
+    drawRectangle(nickFieldX.int32, nickFieldY.int32, nickFieldWidth.int32, nickFieldHeight.int32,
+                 if pvpWin.editingNickname: Color(r: 60, g: 60, b: 80, a: 255)
+                 else: Color(r: 40, g: 40, b: 50, a: 255))
+    drawRectangleLines(
+      Rectangle(x: nickFieldX.float32, y: nickFieldY.float32,
+               width: nickFieldWidth.float32, height: nickFieldHeight.float32),
+      2, if pvpWin.editingNickname: Yellow else: Gray)
+    # Draw selection highlight if active
+    if pvpWin.editingNickname:
+      drawTextSelection(pvpWin.inputNickname, nickFieldX, nickFieldY, 20, pvpWin.selectionStart, pvpWin.selectionEnd)
+    drawText(pvpWin.inputNickname, (nickFieldX + 10).int32, (nickFieldY + 8).int32, 20, White)
+    if pvpWin.editingNickname and (pvpWin.cursorBlink.int mod 2) == 0:
+      # Draw cursor at cursor position, not at end of text
+      let textBeforeCursor = if pvpWin.cursorPos > 0 and pvpWin.cursorPos <= pvpWin.inputNickname.len:
+        pvpWin.inputNickname[0..<pvpWin.cursorPos]
+      else:
+        ""
+      let cursorX = nickFieldX + 10 + measureText(textBeforeCursor, 20)
+      drawLine(Vector2(x: cursorX.float32, y: (nickFieldY + 6).float32),
+              Vector2(x: cursorX.float32, y: (nickFieldY + 28).float32), 2, White)
+    let nickHintText = "Click to edit  |  Tab to toggle"
+    let nickHintWidth = measureText(nickHintText, 13)
+    drawText(nickHintText, (contentX + (contentWidth - nickHintWidth) div 2).int32,
+            (nickFieldY + nickFieldHeight + 4).int32, 13, Color(r: 140, g: 140, b: 140, a: 255))
+
     # Max Players selector
     let maxPlayersLabelText = "Max Players:"
     let maxPlayersLabelWidth = measureText(maxPlayersLabelText, 22)
     drawText(maxPlayersLabelText, (contentX + (contentWidth - maxPlayersLabelWidth) div 2).int32,
-            (contentY + 80).int32, 22, White)
+            (contentY + 152).int32, 22, White)
 
     # Player count controls
-    let playerCountY = contentY + 110
+    let playerCountY = contentY + 182
     let buttonSize = 40
     let spacing = 120
     let centerX = contentX + contentWidth div 2
@@ -379,15 +755,15 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     let localIPDisplay = if pvpWin.showIPs: pvpWin.cachedLocalIP else: censorIP(pvpWin.cachedLocalIP)
     let ipText = "Local IP: " & localIPDisplay
     let ipWidth = measureText(ipText, 22)
-    drawText(ipText, (contentX + (contentWidth - ipWidth) div 2).int32, (contentY + 180).int32, 22, White)
+    drawText(ipText, (contentX + (contentWidth - ipWidth) div 2).int32, (contentY + 240).int32, 22, White)
 
     let portText = "Port: " & $DEFAULT_PORT
     let portWidth = measureText(portText, 22)
-    drawText(portText, (contentX + (contentWidth - portWidth) div 2).int32, (contentY + 210).int32, 22, White)
+    drawText(portText, (contentX + (contentWidth - portWidth) div 2).int32, (contentY + 268).int32, 22, White)
 
     # Show IPs checkbox
     let checkboxX = contentX + (contentWidth - 200) div 2
-    let checkboxY = contentY + 250
+    let checkboxY = contentY + 300
     let checkboxSize = 20
     let checkboxHovered = mousePos.x >= checkboxX.float32 and
                          mousePos.x <= (checkboxX + checkboxSize + 150).float32 and
@@ -525,34 +901,72 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     let titleText = "JOIN GAME"
     let titleWidth = measureText(titleText, 30)
     drawText(titleText, (contentX + (contentWidth - titleWidth) div 2).int32, (contentY + 30).int32, 30, Yellow)
-    
+
+    # Nickname field
+    let joinNickLabelText = "Nickname:"
+    drawText(joinNickLabelText, (contentX + 50).int32, (contentY + 72).int32, 20, White)
+    let joinNickFieldX = contentX + 50
+    let joinNickFieldY = contentY + 96
+    let joinNickFieldWidth = contentWidth - 100
+    let joinNickFieldHeight = 36
+    drawRectangle(joinNickFieldX.int32, joinNickFieldY.int32, joinNickFieldWidth.int32, joinNickFieldHeight.int32,
+                 if pvpWin.editingNickname: Color(r: 60, g: 60, b: 80, a: 255)
+                 else: Color(r: 40, g: 40, b: 50, a: 255))
+    drawRectangleLines(
+      Rectangle(x: joinNickFieldX.float32, y: joinNickFieldY.float32,
+               width: joinNickFieldWidth.float32, height: joinNickFieldHeight.float32),
+      2, if pvpWin.editingNickname: Yellow else: Gray)
+    # Draw selection highlight if active
+    if pvpWin.editingNickname:
+      drawTextSelection(pvpWin.inputNickname, joinNickFieldX, joinNickFieldY, 20, pvpWin.selectionStart, pvpWin.selectionEnd)
+    drawText(pvpWin.inputNickname, (joinNickFieldX + 10).int32, (joinNickFieldY + 8).int32, 20, White)
+    if pvpWin.editingNickname and (pvpWin.cursorBlink.int mod 2) == 0:
+      let textBeforeCursor = if pvpWin.cursorPos > 0 and pvpWin.cursorPos <= pvpWin.inputNickname.len:
+        pvpWin.inputNickname[0..<pvpWin.cursorPos]
+      else:
+        ""
+      let nickCursorX = joinNickFieldX + 10 + measureText(textBeforeCursor, 20)
+      drawLine(Vector2(x: nickCursorX.float32, y: (joinNickFieldY + 6).float32),
+              Vector2(x: nickCursorX.float32, y: (joinNickFieldY + 28).float32), 2, White)
+    let joinNickHint = "Click to edit  |  Tab to cycle"
+    let joinNickHintW = measureText(joinNickHint, 13)
+    drawText(joinNickHint, (contentX + (contentWidth - joinNickHintW) div 2).int32,
+            (joinNickFieldY + joinNickFieldHeight + 4).int32, 13, Color(r: 140, g: 140, b: 140, a: 255))
+
     let ipLabelText = "Host IP:"
-    drawText(ipLabelText, (contentX + 50).int32, (contentY + 100).int32, 22, White)
-    
+    drawText(ipLabelText, (contentX + 50).int32, (contentY + 148).int32, 22, White)
+
     let ipFieldX = contentX + 50
-    let ipFieldY = contentY + 130
+    let ipFieldY = contentY + 172
     let ipFieldWidth = contentWidth - 100
     let ipFieldHeight = 40
-    
+
     drawRectangle(ipFieldX.int32, ipFieldY.int32, ipFieldWidth.int32, ipFieldHeight.int32,
                  if pvpWin.editingIP: Color(r: 60, g: 60, b: 80, a: 255)
                  else: Color(r: 40, g: 40, b: 50, a: 255))
     drawRectangleLines(
-      Rectangle(x: ipFieldX.float32, y: ipFieldY.float32, 
+      Rectangle(x: ipFieldX.float32, y: ipFieldY.float32,
                width: ipFieldWidth.float32, height: ipFieldHeight.float32),
       2, if pvpWin.editingIP: Yellow else: Gray)
-    
+
+    # Draw selection highlight if active
+    if pvpWin.editingIP:
+      drawTextSelection(pvpWin.inputIP, ipFieldX, ipFieldY, 20, pvpWin.selectionStart, pvpWin.selectionEnd)
     drawText(pvpWin.inputIP, (ipFieldX + 10).int32, (ipFieldY + 10).int32, 20, White)
-    
+
     if pvpWin.editingIP and (pvpWin.cursorBlink.int mod 2) == 0:
-      let cursorX = ipFieldX + 10 + measureText(pvpWin.inputIP, 20)
+      let textBeforeCursor = if pvpWin.cursorPos > 0 and pvpWin.cursorPos <= pvpWin.inputIP.len:
+        pvpWin.inputIP[0..<pvpWin.cursorPos]
+      else:
+        ""
+      let cursorX = ipFieldX + 10 + measureText(textBeforeCursor, 20)
       drawLine(Vector2(x: cursorX.float32, y: (ipFieldY + 10).float32),
               Vector2(x: cursorX.float32, y: (ipFieldY + 30).float32), 2, White)
-    
+
     let portLabelText = "Port:"
-    drawText(portLabelText, (contentX + 50).int32, (contentY + 190).int32, 22, White)
-    
-    let portFieldY = contentY + 220
+    drawText(portLabelText, (contentX + 50).int32, (contentY + 224).int32, 22, White)
+
+    let portFieldY = contentY + 250
     drawRectangle(ipFieldX.int32, portFieldY.int32, ipFieldWidth.int32, ipFieldHeight.int32,
                  if pvpWin.editingPort: Color(r: 60, g: 60, b: 80, a: 255)
                  else: Color(r: 40, g: 40, b: 50, a: 255))
@@ -560,37 +974,44 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       Rectangle(x: ipFieldX.float32, y: portFieldY.float32,
                width: ipFieldWidth.float32, height: ipFieldHeight.float32),
       2, if pvpWin.editingPort: Yellow else: Gray)
-    
+
+    # Draw selection highlight if active
+    if pvpWin.editingPort:
+      drawTextSelection(pvpWin.inputPort, ipFieldX, portFieldY, 20, pvpWin.selectionStart, pvpWin.selectionEnd)
     drawText(pvpWin.inputPort, (ipFieldX + 10).int32, (portFieldY + 10).int32, 20, White)
-    
+
     if pvpWin.editingPort and (pvpWin.cursorBlink.int mod 2) == 0:
-      let cursorX = ipFieldX + 10 + measureText(pvpWin.inputPort, 20)
+      let textBeforeCursor = if pvpWin.cursorPos > 0 and pvpWin.cursorPos <= pvpWin.inputPort.len:
+        pvpWin.inputPort[0..<pvpWin.cursorPos]
+      else:
+        ""
+      let cursorX = ipFieldX + 10 + measureText(textBeforeCursor, 20)
       drawLine(Vector2(x: cursorX.float32, y: (portFieldY + 10).float32),
               Vector2(x: cursorX.float32, y: (portFieldY + 30).float32), 2, White)
-    
+
     let connectButtonX = contentX + (contentWidth - 200) div 2
-    let connectButtonY = contentY + 310
+    let connectButtonY = contentY + 308
     let mousePos = getMousePosition()
     let connectHovered = mousePos.x >= connectButtonX.float32 and
                         mousePos.x <= (connectButtonX + 200).float32 and
                         mousePos.y >= connectButtonY.float32 and
                         mousePos.y <= (connectButtonY + 50).float32
-    
-    drawRectangle(connectButtonX.int32, connectButtonY.int32, 200, 50, 
+
+    drawRectangle(connectButtonX.int32, connectButtonY.int32, 200, 50,
                  if connectHovered: Color(r: 100, g: 255, b: 150, a: 255)
                  else: Color(r: 70, g: 200, b: 100, a: 255))
     let connectText = "CONNECT"
     let connectTextWidth = measureText(connectText, 25)
-    drawText(connectText, (connectButtonX + (200 - connectTextWidth) div 2).int32, 
+    drawText(connectText, (connectButtonX + (200 - connectTextWidth) div 2).int32,
             (connectButtonY + 12).int32, 25, White)
-    
+
     # Back button
-    let backButtonY = connectButtonY + 70
+    let backButtonY = connectButtonY + 62
     let backHovered = mousePos.x >= connectButtonX.float32 and
                      mousePos.x <= (connectButtonX + 200).float32 and
                      mousePos.y >= backButtonY.float32 and
                      mousePos.y <= (backButtonY + 50).float32
-    
+
     drawRectangle(connectButtonX.int32, backButtonY.int32, 200, 50,
                  if backHovered: Color(r: 200, g: 100, b: 100, a: 255)
                  else: Color(r: 150, g: 70, b: 70, a: 255))
@@ -634,15 +1055,17 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       # List connected players
       let listY = contentY + 110
       drawText("Connected Players:", (contentX + 30).int32, listY.int32, 20, White)
-      
-      # Host (you)
-      drawText("• Player 1 (You - Host)", (contentX + 50).int32, (listY + 35).int32, 18, Yellow)
-      
-      # Connected clients
+
+      # Host (you) — show own nickname
+      let hostNick = if pvpWin.inputNickname.len > 0: pvpWin.inputNickname else: "Host"
+      drawText("• " & hostNick & " (You - Host)", (contentX + 50).int32, (listY + 35).int32, 18, Yellow)
+
+      # Connected clients with their nicknames
       var yOffset = 35
       for i, client in pvpWin.networkManager.clients:
         yOffset += 25
-        let playerText = "• Player " & $(client.playerIndex + 1)
+        let nick = if client.nickname.len > 0: client.nickname else: "Player " & $(client.playerIndex + 1)
+        let playerText = "• " & nick & "  (P" & $(client.playerIndex + 1) & ")"
         drawText(playerText, (contentX + 50).int32, (listY + yOffset).int32, 18, Green)
       
       # START GAME button (only if at least 2 players)
@@ -682,16 +1105,30 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       drawText(cancelText, (startButtonX + (250 - cancelTextWidth) div 2).int32,
               (cancelButtonY + 12).int32, 25, White)
     else:
-      # Client - just show waiting message
+      # Client - show connected players and wait for host
       let titleText = "CONNECTED!"
-      let titleWidth = measureText(titleText, 40)
-      drawText(titleText, (contentX + (contentWidth - titleWidth) div 2).int32, 
-              (contentY + contentHeight div 2 - 50).int32, 40, Green)
-      
-      let statusText = "Waiting for host to start the game..."
-      let statusWidth = measureText(statusText, 22)
-      drawText(statusText, (contentX + (contentWidth - statusWidth) div 2).int32,
-              (contentY + contentHeight div 2 + 20).int32, 22, White)
+      let titleWidth = measureText(titleText, 35)
+      drawText(titleText, (contentX + (contentWidth - titleWidth) div 2).int32,
+              (contentY + 20).int32, 35, Green)
+
+      # Show player roster if we have it
+      if pvpWin.connectedPlayers.len > 0:
+        drawText("Players in lobby:", (contentX + 30).int32, (contentY + 75).int32, 20, White)
+        var pYOffset = 0
+        for cp in pvpWin.connectedPlayers:
+          let nick = if cp.nickname.len > 0: cp.nickname else: "Player " & $(cp.index + 1)
+          let isMe = cp.index == pvpWin.assignedPlayerIndex
+          let label = "• " & nick & (if isMe: "  (You)" else: "  (P" & $(cp.index + 1) & ")")
+          drawText(label, (contentX + 50).int32, (contentY + 105 + pYOffset).int32, 18,
+                  if isMe: Yellow else: Green)
+          pYOffset += 25
+
+      let statusText = "Waiting for host to start..."
+      let statusWidth = measureText(statusText, 20)
+      drawText(statusText,
+              (contentX + (contentWidth - statusWidth) div 2).int32,
+              (contentY + contentHeight - 80).int32, 20,
+              Color(r: 200, g: 200, b: 200, a: 255))
   
   of plsError:
     let titleText = "CONNECTION ERROR"
@@ -746,8 +1183,30 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       return 2  # Join
 
   of plsHostingConfig:
-    # Check for player count buttons
-    let playerCountY = contentY + 110
+    # Nickname field click
+    let hostNickFieldX = contentX + 50
+    let hostNickFieldY = contentY + 96
+    let hostNickFieldW = contentWidth - 100
+    if mousePos.x >= hostNickFieldX.float32 and
+       mousePos.x <= (hostNickFieldX + hostNickFieldW).float32 and
+       mousePos.y >= hostNickFieldY.float32 and
+       mousePos.y <= (hostNickFieldY + 36).float32:
+      pvpWin.editingNickname = true
+      # Set cursor position based on click location (text is drawn at fieldY + 8, remaining height = 28)
+      let cursorPos = getTextCursorPos(pvpWin.inputNickname, hostNickFieldX, hostNickFieldY + 8, 20, 28, mousePos.x, mousePos.y)
+      if cursorPos >= 0:
+        pvpWin.cursorPos = cursorPos
+        pvpWin.mouseDownPos = mousePos
+        pvpWin.isDragging = true
+        pvpWin.selectionStart = cursorPos
+        pvpWin.selectionEnd = cursorPos
+      return 0
+    else:
+      # Click outside nickname field deactivates it
+      pvpWin.editingNickname = false
+
+    # Check for player count buttons (y positions match draw: contentY + 182)
+    let playerCountY = contentY + 182
     let buttonSize = 40
     let spacing = 120
     let centerX = contentX + contentWidth div 2
@@ -772,9 +1231,9 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
         pvpWin.maxPlayers += 1
       return 0
 
-    # Check for checkbox click
+    # Check for checkbox click (y matches draw: contentY + 300)
     let checkboxX = contentX + (contentWidth - 200) div 2
-    let checkboxY = contentY + 250
+    let checkboxY = contentY + 300
     let checkboxSize = 20
     if mousePos.x >= checkboxX.float32 and
        mousePos.x <= (checkboxX + checkboxSize + 150).float32 and
@@ -829,27 +1288,65 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
 
   of plsJoining:
     let ipFieldX = contentX + 50
-    let ipFieldY = contentY + 130
     let ipFieldWidth = contentWidth - 100
     let ipFieldHeight = 40
 
+    # Nickname field (contentY + 96, height 36)
+    let joinNickFieldY = contentY + 96
+    if mousePos.x >= ipFieldX.float32 and
+       mousePos.x <= (ipFieldX + ipFieldWidth).float32 and
+       mousePos.y >= joinNickFieldY.float32 and
+       mousePos.y <= (joinNickFieldY + 36).float32:
+      pvpWin.editingNickname = true
+      pvpWin.editingIP = false
+      pvpWin.editingPort = false
+      # Set cursor position based on click location (text is drawn at fieldY + 8, remaining height = 28)
+      let cursorPos = getTextCursorPos(pvpWin.inputNickname, ipFieldX, joinNickFieldY + 8, 20, 28, mousePos.x, mousePos.y)
+      if cursorPos >= 0:
+        pvpWin.cursorPos = cursorPos
+        pvpWin.mouseDownPos = mousePos
+        pvpWin.isDragging = true
+        pvpWin.selectionStart = cursorPos
+        pvpWin.selectionEnd = cursorPos
+
+    # IP field (contentY + 172)
+    let ipFieldY = contentY + 172
     if mousePos.x >= ipFieldX.float32 and
        mousePos.x <= (ipFieldX + ipFieldWidth).float32 and
        mousePos.y >= ipFieldY.float32 and
        mousePos.y <= (ipFieldY + ipFieldHeight).float32:
       pvpWin.editingIP = true
       pvpWin.editingPort = false
+      pvpWin.editingNickname = false
+      # Set cursor position based on click location (text is drawn at fieldY + 10, remaining height = 30)
+      let cursorPos = getTextCursorPos(pvpWin.inputIP, ipFieldX, ipFieldY + 10, 20, 30, mousePos.x, mousePos.y)
+      if cursorPos >= 0:
+        pvpWin.cursorPos = cursorPos
+        pvpWin.mouseDownPos = mousePos
+        pvpWin.isDragging = true
+        pvpWin.selectionStart = cursorPos
+        pvpWin.selectionEnd = cursorPos
 
-    let portFieldY = contentY + 220
+    # Port field (contentY + 250)
+    let portFieldY = contentY + 250
     if mousePos.x >= ipFieldX.float32 and
        mousePos.x <= (ipFieldX + ipFieldWidth).float32 and
        mousePos.y >= portFieldY.float32 and
        mousePos.y <= (portFieldY + ipFieldHeight).float32:
       pvpWin.editingIP = false
       pvpWin.editingPort = true
+      pvpWin.editingNickname = false
+      # Set cursor position based on click location (text is drawn at fieldY + 10, remaining height = 30)
+      let cursorPos = getTextCursorPos(pvpWin.inputPort, ipFieldX, portFieldY + 10, 20, 30, mousePos.x, mousePos.y)
+      if cursorPos >= 0:
+        pvpWin.cursorPos = cursorPos
+        pvpWin.mouseDownPos = mousePos
+        pvpWin.isDragging = true
+        pvpWin.selectionStart = cursorPos
+        pvpWin.selectionEnd = cursorPos
 
     let connectButtonX = contentX + (contentWidth - 200) div 2
-    let connectButtonY = contentY + 310
+    let connectButtonY = contentY + 308
     if mousePos.x >= connectButtonX.float32 and
        mousePos.x <= (connectButtonX + 200).float32 and
        mousePos.y >= connectButtonY.float32 and
@@ -857,7 +1354,7 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       return 4  # Connect
 
     # Check for back button
-    let backButtonY = connectButtonY + 70
+    let backButtonY = connectButtonY + 62
     if mousePos.x >= connectButtonX.float32 and
        mousePos.x <= (connectButtonX + 200).float32 and
        mousePos.y >= backButtonY.float32 and

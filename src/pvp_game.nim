@@ -45,6 +45,7 @@ type
     lastPingTime*: float32
     respawnTimers*: seq[float32]  # Respawn timers for each player
     lastInputs*: seq[PlayerInput]  # Store last input for each player (server processing)
+    playerNicknames*: seq[string]  # Display nicknames, indexed by player index
 
 proc getSpawnPosition(playerIndex, totalPlayers: int, screenWidth, screenHeight: float32): Vector2f =
   ## Calculate spawn position for a player based on their index
@@ -66,7 +67,7 @@ proc getSpawnPosition(playerIndex, totalPlayers: int, screenWidth, screenHeight:
       centerY + sin(angle) * radius
     )
 
-proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int]]): PvPGameState =
+proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]]): PvPGameState =
   let emptyInput = PlayerInput(
     tick: 0,
     playerIndex: 0,
@@ -101,9 +102,10 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     damageNumbers: @[],
     lastPingTime: 0,
     respawnTimers: @[],
-    lastInputs: @[]
+    lastInputs: @[],
+    playerNicknames: @[]
   )
-  
+
   # Initialize player slots
   for i in 0..<maxPlayers:
     let spawnPos = getSpawnPosition(i, maxPlayers, screenWidth.float32, screenHeight.float32)
@@ -117,27 +119,32 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     player.fireRate = PVP_PLAYER_START_FIRE_RATE
     player.speed = PVP_PLAYER_START_SPEED
     
-    # Set cosmetics for connected players
+    # Set cosmetics and nickname for connected players
     var cosmeticsSet = false
+    var playerNick = "P" & $(i + 1)  # fallback
     for connectedPlayer in connectedPlayers:
       if connectedPlayer.index == i:
         player.skinType = connectedPlayer.skinType
         player.bulletSkinType = connectedPlayer.bulletSkinType
         player.shapeType = connectedPlayer.shapeType
         player.particleSkinType = connectedPlayer.particleSkinType
+        if connectedPlayer.nickname.len > 0:
+          playerNick = connectedPlayer.nickname
         cosmeticsSet = true
         break
-    
+
     # If no cosmetics were set and this is the local player (host), use global settings
     if not cosmeticsSet and isHost and i == 0:
       player.skinType = globalSettings.playerSkin
       player.bulletSkinType = globalSettings.bulletSkin
       player.shapeType = globalSettings.playerShape
       player.particleSkinType = globalSettings.particleEffect
-    
+      playerNick = globalSettings.pvpNickname
+
     result.players.add(player)
     result.respawnTimers.add(0.0)
     result.lastInputs.add(emptyInput)
+    result.playerNicknames.add(playerNick)
   
   result.bullets = @[]
   result.walls = @[]
@@ -507,6 +514,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
     # Build player states dynamically
     var playerStates: seq[PlayerStateNet] = @[]
     for i in 0..<pvp.players.len:
+      let snap_nick = if i < pvp.playerNicknames.len: pvp.playerNicknames[i] else: "P" & $(i + 1)
       playerStates.add(PlayerStateNet(
         playerIndex: i,
         isActive: pvp.players[i].hp > 0,  # Mark if player is alive
@@ -523,7 +531,8 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         skinType: pvp.players[i].skinType,
         bulletSkinType: pvp.players[i].bulletSkinType,
         shapeType: pvp.players[i].shapeType,
-        particleSkinType: pvp.players[i].particleSkinType
+        particleSkinType: pvp.players[i].particleSkinType,
+        nickname: snap_nick
       ))
     
     let gameState = NetworkGameState(
@@ -637,6 +646,12 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       pvp.players[i].bulletSkinType = serverState.players[i].bulletSkinType
       pvp.players[i].shapeType = serverState.players[i].shapeType
       pvp.players[i].particleSkinType = serverState.players[i].particleSkinType
+      # Sync nickname if server provides it and we don't have it yet
+      if serverState.players[i].nickname.len > 0:
+        while pvp.playerNicknames.len <= i:
+          pvp.playerNicknames.add("P" & $(pvp.playerNicknames.len + 1))
+        if pvp.playerNicknames[i].len == 0 or pvp.playerNicknames[i] == "P" & $(i + 1):
+          pvp.playerNicknames[i] = serverState.players[i].nickname
   
   # Local player - TRUST CLIENT PREDICTION, only reconcile on large desyncs
   # The server state is always behind due to network latency, so we avoid
@@ -997,7 +1012,20 @@ proc drawPvP*(pvp: PvPGameState) =
 
     # Draw player using their cosmetics
     drawPlayer(player)
-    
+
+    # Draw nickname above player
+    if i < pvp.playerNicknames.len and pvp.playerNicknames[i].len > 0:
+      let nick = pvp.playerNicknames[i]
+      let nickSize: int32 = 14
+      let nickW = measureText(nick, nickSize)
+      let nickX = player.pos.x.int32 - nickW div 2
+      let nickY = (player.pos.y - player.radius - 26).int32
+      let nickColor = if i == pvp.localPlayerIndex:
+        Color(r: 100, g: 255, b: 100, a: 220)
+      else:
+        Color(r: 255, g: 200, b: 100, a: 220)
+      drawText(nick, nickX, nickY, nickSize, nickColor)
+
     # Health bar
     let barWidth = 50.0
     let barHeight = 5.0
@@ -1030,12 +1058,17 @@ proc drawPvP*(pvp: PvPGameState) =
     drawText(damageText, dn.pos.x.int32 - 10, dn.pos.y.int32, 20, textColor)
   
   # Draw HUD
-  # Score - show all connected players
+  # Score - show all connected players with nicknames
   var scoreText = ""
   for i in 0..<pvp.players.len:
     if scoreText.len > 0:
       scoreText &= " | "
-    scoreText &= "P" & $(i + 1) & ": " & $pvp.players[i].kills
+    # Use nickname if available, otherwise fall back to P# format
+    let displayName = if i < pvp.playerNicknames.len and pvp.playerNicknames[i].len > 0:
+      pvp.playerNicknames[i]
+    else:
+      "P" & $(i + 1)
+    scoreText &= displayName & ": " & $pvp.players[i].kills
 
   # Center the text based on its length (rough approximation)
   let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 4))
@@ -1144,7 +1177,7 @@ proc drawPvP*(pvp: PvPGameState) =
             textSize,
             textColor)
     
-    # Show final scores for all players
+    # Show final scores for all players with nicknames
     var scoreText = "Final Scores - "
     for i in 0..<pvp.players.len:
       if i > 0:
@@ -1152,7 +1185,12 @@ proc drawPvP*(pvp: PvPGameState) =
       if i == pvp.localPlayerIndex:
         scoreText &= "You: " & $pvp.players[i].kills
       else:
-        scoreText &= "P" & $i & ": " & $pvp.players[i].kills
+        # Use nickname if available, otherwise fall back to P# format
+        let displayName = if i < pvp.playerNicknames.len and pvp.playerNicknames[i].len > 0:
+          pvp.playerNicknames[i]
+        else:
+          "P" & $i
+        scoreText &= displayName & ": " & $pvp.players[i].kills
     
     let scoreWidth = measureText(scoreText, 24)
     drawText(scoreText,

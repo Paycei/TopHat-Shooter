@@ -62,6 +62,7 @@ type
     bulletSkinType*: int
     shapeType*: int
     particleSkinType*: int
+    nickname*: string
     
   BulletStateNet* = object
     id*: int
@@ -113,7 +114,8 @@ type
         skinType: int,
         bulletSkinType: int,
         shapeType: int,
-        particleSkinType: int
+        particleSkinType: int,
+        nickname: string
       ]]
     of ptGameStart:
       countdownTime*: float32
@@ -123,7 +125,8 @@ type
         skinType: int,
         bulletSkinType: int,
         shapeType: int,
-        particleSkinType: int
+        particleSkinType: int,
+        nickname: string
       ]]
     of ptPlayerInput:
       input*: PlayerInput
