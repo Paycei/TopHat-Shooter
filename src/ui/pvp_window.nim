@@ -1,7 +1,7 @@
 ## PvP Lobby Window
 ## Network lobby interface as an OS-style window
 
-import raylib, os_window, ../network/network, strutils, osproc
+import raylib, os_window, ../network/network, strutils, net
 
 type
   PvPWindow* = ref object
@@ -10,7 +10,6 @@ type
     state*: PvPLobbyState
     isHost*: bool
     hostIP*: string
-    publicIP*: string  # Public IP address
     hostPort*: int
     inputIP*: string
     inputPort*: string
@@ -26,7 +25,6 @@ type
     remoteShapeType*: int
     remoteParticleSkinType*: int
     cachedLocalIP*: string  # Pre-computed local IP to avoid blocking
-    ipDetectionDone*: bool  # Track if IP detection is complete
     showIPs*: bool  # Whether to show uncensored IPs (checkbox)
   
   PvPLobbyState* = enum
@@ -42,168 +40,32 @@ const
   CONNECTION_TIMEOUT = 10.0
 
 proc getLocalIP*(): string =
-  ## Get local IP address - finds the IP on the default gateway/active connection
-  ## This is more reliable than just taking the first adapter
-  result = "127.0.0.1"  # Default fallback
-  
-  when defined(windows):
-    # Windows: Use ipconfig and find the adapter with Default Gateway
-    try:
-      let (output, exitCode) = execCmdEx("ipconfig")
-      if exitCode == 0:
-        var currentAdapter = ""
-        var currentIP = ""
-        var hasGateway = false
-        
-        for line in output.splitLines():
-          # New adapter section
-          if line.len > 0 and line[0] != ' ' and "adapter" in line.toLowerAscii():
-            # Save previous adapter if it had a gateway
-            if hasGateway and currentIP != "" and currentIP != "127.0.0.1":
-              return currentIP
-            currentAdapter = line
-            currentIP = ""
-            hasGateway = false
-          
-          # IPv4 address
-          if "IPv4" in line and ":" in line:
-            let parts = line.split(":")
-            if parts.len > 1:
-              let ip = parts[1].strip()
-              if ip != "127.0.0.1" and ip.len > 0 and not ip.startsWith("169.254."):
-                let ipParts = ip.split(".")
-                if ipParts.len == 4:
-                  currentIP = ip
-          
-          # Default Gateway indicates active connection
-          if "Default Gateway" in line or "Puerta de enlace" in line:
-            let parts = line.split(":")
-            if parts.len > 1:
-              let gateway = parts[1].strip()
-              if gateway.len > 0 and gateway != "0.0.0.0":
-                hasGateway = true
-        
-        # Check last adapter
-        if hasGateway and currentIP != "" and currentIP != "127.0.0.1":
-          return currentIP
-        
-        # Fallback: return first valid non-loopback IP
-        for line in output.splitLines():
-          if "IPv4" in line and ":" in line:
-            let parts = line.split(":")
-            if parts.len > 1:
-              let ip = parts[1].strip()
-              if ip != "127.0.0.1" and ip.len > 0 and not ip.startsWith("169.254."):
-                let ipParts = ip.split(".")
-                if ipParts.len == 4:
-                  return ip
-    except:
-      discard
-  elif defined(linux):
-    # Linux: Get IP from default route interface
-    try:
-      # Get default interface
-      let (routeOutput, routeCode) = execCmdEx("ip route | grep default")
-      if routeCode == 0 and routeOutput.len > 0:
-        let parts = routeOutput.split(" ")
-        for i, part in parts:
-          if part == "dev" and i + 1 < parts.len:
-            let iface = parts[i + 1]
-            # Get IP from that interface
-            let (ipOutput, ipCode) = execCmdEx("ip addr show " & iface)
-            if ipCode == 0:
-              for line in ipOutput.splitLines():
-                if "inet " in line and "127.0.0.1" notin line:
-                  let ipParts = line.strip().split(" ")
-                  if ipParts.len > 1:
-                    let ipWithMask = ipParts[1]
-                    let ip = ipWithMask.split("/")[0]
-                    if not ip.startsWith("169.254."):
-                      return ip
-      
-      # Fallback to hostname -I
-      let (output, exitCode) = execCmdEx("hostname -I")
-      if exitCode == 0:
-        let ips = output.strip().split(" ")
-        if ips.len > 0 and ips[0] != "127.0.0.1":
-          return ips[0]
-    except:
-      discard
-  elif defined(macosx):
-    # macOS: Get IP from default route interface
-    try:
-      let (routeOutput, routeCode) = execCmdEx("route -n get default")
-      if routeCode == 0:
-        var iface = ""
-        for line in routeOutput.splitLines():
-          if "interface:" in line:
-            let parts = line.split(":")
-            if parts.len > 1:
-              iface = parts[1].strip()
-              break
-        
-        if iface != "":
-          let (ifOutput, ifCode) = execCmdEx("ifconfig " & iface)
-          if ifCode == 0:
-            for line in ifOutput.splitLines():
-              if "inet " in line and "127.0.0.1" notin line:
-                let parts = line.strip().split(" ")
-                for i, part in parts:
-                  if part == "inet" and i + 1 < parts.len:
-                    let ip = parts[i + 1]
-                    if not ip.startsWith("169.254."):
-                      return ip
-      
-      # Fallback to any valid IP
-      let (output, exitCode) = execCmdEx("ifconfig")
-      if exitCode == 0:
-        for line in output.splitLines():
-          if "inet " in line and "127.0.0.1" notin line:
-            let parts = line.strip().split(" ")
-            for i, part in parts:
-              if part == "inet" and i + 1 < parts.len:
-                let ip = parts[i + 1]
-                if not ip.startsWith("169.254."):
-                  return ip
-    except:
-      discard
-
-proc getPublicIP*(): string =
-  ## Get public IP address from external service
-  ## Non-blocking - returns "Detecting..." if not available yet
-  result = "Detecting..."
+  ## Get local IP address - OPTIMIZED to be fast and non-blocking
+  ## Uses socket API instead of system commands (100x faster!)
+  result = "127.0.0.1"  # Safe fallback
   
   try:
-    # Use curl or wget to get public IP
-    when defined(windows):
-      let (output, exitCode) = execCmdEx("curl -s -m 2 https://api.ipify.org")
-      if exitCode == 0 and output.len > 0 and output.len < 20:
-        # Validate IP format
-        let parts = output.strip().split(".")
-        if parts.len == 4:
-          return output.strip()
-    else:
-      # Linux/macOS - try curl first, then wget
-      let (curlOutput, curlCode) = execCmdEx("curl -s -m 2 https://api.ipify.org")
-      if curlCode == 0 and curlOutput.len > 0 and curlOutput.len < 20:
-        let parts = curlOutput.strip().split(".")
-        if parts.len == 4:
-          return curlOutput.strip()
-      
-      # Fallback to wget
-      let (wgetOutput, wgetCode) = execCmdEx("wget -qO- -T 2 https://api.ipify.org")
-      if wgetCode == 0 and wgetOutput.len > 0 and wgetOutput.len < 20:
-        let parts = wgetOutput.strip().split(".")
-        if parts.len == 4:
-          return wgetOutput.strip()
+    # This is instant compared to running ipconfig/ifconfig
+    let sock = newSocket(Domain.AF_INET, SockType.SOCK_DGRAM, Protocol.IPPROTO_UDP)
+    try:
+      # Connect to Google DNS (8.8.8.8) to determine which local interface would be used
+      # UDP connect doesn't actually send data - just determines routing
+      sock.connect("8.8.8.8", Port(80))
+      let (localIP, localPort) = sock.getLocalAddr()
+      if localIP != "" and localIP != "0.0.0.0":
+        result = localIP
+    except:
+      discard
+    sock.close()
   except:
     discard
   
-  result = "Unavailable"
+  # If all fails, return localhost (players can manually enter IP)
+  return result
 
 proc censorIP*(ip: string): string =
-  ## Censor IP address for privacy: 192.168.1.100 -> ***.***.***.***
-  if ip == "Detecting..." or ip == "Unavailable" or ip == "127.0.0.1":
+  ## Censor IP address for privacy: ***.***.***.***
+  if ip == "127.0.0.1":
     return ip
   
   let parts = ip.split(".")
@@ -218,8 +80,7 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
   
-  # ONLY pre-compute local IP (fast, no network call)
-  # Public IP will be detected in background on first frame
+  # Pre-compute local IP using fast socket method
   let localIP = getLocalIP()
   
   result = PvPWindow(
@@ -229,7 +90,6 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
     state: plsMainMenu,
     isHost: false,
     hostIP: "",
-    publicIP: "Detecting...",  # Don't block - detect later
     hostPort: DEFAULT_PORT,
     inputIP: "127.0.0.1",
     inputPort: $DEFAULT_PORT,
@@ -244,14 +104,13 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
     remoteShapeType: 0,
     remoteParticleSkinType: 0,
     cachedLocalIP: localIP,
-    ipDetectionDone: false,  # Mark as not done yet
     showIPs: false  # IPs censored by default
   )
 
 proc startHosting*(pvpWin: PvPWindow) =
   pvpWin.isHost = true
   pvpWin.state = plsHosting
-  pvpWin.hostIP = pvpWin.cachedLocalIP  # Use pre-computed IP - no blocking!
+  pvpWin.hostIP = pvpWin.cachedLocalIP  # Use pre-computed IP
   pvpWin.hostPort = DEFAULT_PORT
   pvpWin.readyToStart = false
   
@@ -283,11 +142,6 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
   
   case pvpWin.state
   of plsHosting:
-    # Lazy load public IP only when hosting (runs once after hosting starts)
-    if not pvpWin.ipDetectionDone:
-      pvpWin.publicIP = getPublicIP()
-      pvpWin.ipDetectionDone = true
-    
     let events = pvpWin.networkManager.pollEvents(getCosmetics)
     for event in events:
       if event.kind == neConnect:
@@ -414,18 +268,12 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     # Display local IP
     let localIPDisplay = if pvpWin.showIPs: pvpWin.hostIP else: censorIP(pvpWin.hostIP)
     let ipText = "Local IP: " & localIPDisplay
-    let ipWidth = measureText(ipText, 20)
-    drawText(ipText, (contentX + (contentWidth - ipWidth) div 2).int32, (contentY + 110).int32, 20, White)
-    
-    # Display public IP
-    let publicIPDisplay = if pvpWin.showIPs: pvpWin.publicIP else: censorIP(pvpWin.publicIP)
-    let publicText = "Public IP: " & publicIPDisplay
-    let publicWidth = measureText(publicText, 20)
-    drawText(publicText, (contentX + (contentWidth - publicWidth) div 2).int32, (contentY + 140).int32, 20, White)
+    let ipWidth = measureText(ipText, 22)
+    drawText(ipText, (contentX + (contentWidth - ipWidth) div 2).int32, (contentY + 120).int32, 22, White)
     
     let portText = "Port: " & $pvpWin.hostPort
-    let portWidth = measureText(portText, 20)
-    drawText(portText, (contentX + (contentWidth - portWidth) div 2).int32, (contentY + 170).int32, 20, White)
+    let portWidth = measureText(portText, 22)
+    drawText(portText, (contentX + (contentWidth - portWidth) div 2).int32, (contentY + 160).int32, 22, White)
     
     # Show IPs checkbox
     let checkboxX = contentX + (contentWidth - 200) div 2
@@ -453,7 +301,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
               Vector2(x: (checkboxX + 16).float32, y: (checkboxY + 6).float32), 2, Green)
     
     # Checkbox label
-    drawText("Show IPs", (checkboxX + checkboxSize + 10).int32, checkboxY.int32, 18, White)
+    drawText("Show IP", (checkboxX + checkboxSize + 10).int32, checkboxY.int32, 18, White)
     
     let instructionText = "Share this info with your opponent"
     let instructionWidth = measureText(instructionText, 16)

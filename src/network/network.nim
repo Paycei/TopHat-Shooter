@@ -6,7 +6,7 @@ import net, nativesockets, network_types, times, strutils, json
 const
   DEFAULT_PORT* = 7777
   MAX_PACKET_SIZE = 8192
-  NETWORK_VERSION* = "1.0.1"
+  NETWORK_VERSION* = "1.0.2"
   DISCONNECT_TIMEOUT* = 2.5  # Seconds without receiving any packet before considering disconnected
   MAX_PACKETS_PER_POLL = 100  # Maximum packets to process per poll (prevent infinite loop)
 
