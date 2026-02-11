@@ -1,7 +1,7 @@
 ## PvP Lobby Window
 ## Network lobby interface as an OS-style window
 
-import raylib, os_window, ../network/network, strutils, net
+import raylib, os_window, ../network/network, ../network/network_types, strutils, net
 
 type
   PvPWindow* = ref object
@@ -26,14 +26,20 @@ type
     remoteParticleSkinType*: int
     cachedLocalIP*: string  # Pre-computed local IP to avoid blocking
     showIPs*: bool  # Whether to show uncensored IPs (checkbox)
+    maxPlayers*: int  # Maximum number of players (2-16)
+    # Store all connected players' info (populated from connection accept packet)
+    connectedPlayers*: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int]]
+    assignedPlayerIndex*: int  # Client's player index assigned by host (-1 if host)
+    keepAliveTimer*: float32  # Timer for sending keep-alive pings
   
   PvPLobbyState* = enum
-    plsMainMenu      # Choose host or join
-    plsHosting       # Waiting for opponent
-    plsJoining       # Entering IP and connecting
-    plsConnecting    # Attempting connection
-    plsConnected     # Connected, waiting for game start
-    plsError         # Connection error
+    plsMainMenu           # Choose host or join
+    plsHostingConfig      # Configure hosting settings
+    plsHostingActive      # Waiting for opponent (actively hosting)
+    plsJoining            # Entering IP and connecting
+    plsConnecting         # Attempting connection
+    plsConnected          # Connected, waiting for game start
+    plsError              # Connection error
 
 const
   DEFAULT_PORT* = 7777
@@ -103,19 +109,24 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
     remoteShapeType: 0,
     remoteParticleSkinType: 0,
     cachedLocalIP: localIP,
-    showIPs: false  # IPs censored by default
+    showIPs: false,  # IPs censored by default
+    maxPlayers: 2,  # Default to 2 players (1v1)
+    connectedPlayers: @[],
+    assignedPlayerIndex: -1,
+    keepAliveTimer: 0.0
   )
 
 proc startHosting*(pvpWin: PvPWindow) =
   pvpWin.isHost = true
-  pvpWin.state = plsHosting
+  pvpWin.state = plsHostingActive
   pvpWin.hostIP = pvpWin.cachedLocalIP  # Use pre-computed IP
   pvpWin.hostPort = DEFAULT_PORT
   pvpWin.readyToStart = false
-  
+  pvpWin.keepAliveTimer = 0.0  # Reset keep-alive timer
+
   try:
-    pvpWin.networkManager.initHost(pvpWin.hostPort)
-    echo "[LOBBY] Hosting on ", pvpWin.hostIP, ":", pvpWin.hostPort
+    pvpWin.networkManager.initHost(pvpWin.hostPort, pvpWin.maxPlayers)
+    echo "[LOBBY] Hosting on ", pvpWin.hostIP, ":", pvpWin.hostPort, " for ", pvpWin.maxPlayers, " players"
   except:
     pvpWin.state = plsError
     pvpWin.errorMessage = "Failed to start host: " & getCurrentExceptionMsg()
@@ -127,7 +138,8 @@ proc connectToGame*(pvpWin: PvPWindow, ip: string, port: int,
   pvpWin.state = plsConnecting
   pvpWin.connectionTimeout = CONNECTION_TIMEOUT
   pvpWin.readyToStart = false
-  
+  pvpWin.keepAliveTimer = 0.0  # Reset keep-alive timer
+
   try:
     pvpWin.networkManager.initClient()
     pvpWin.networkManager.connectToHost(ip, port, skinType, bulletSkinType, shapeType, particleSkinType)
@@ -138,41 +150,79 @@ proc connectToGame*(pvpWin: PvPWindow, ip: string, port: int,
 
 proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int] = nil) =
   pvpWin.cursorBlink += dt
-  
+
+  # Keep-alive ping mechanism - send ping every 1 second when connected
+  if pvpWin.state == plsConnected or pvpWin.state == plsHostingActive:
+    pvpWin.keepAliveTimer += dt
+    if pvpWin.keepAliveTimer >= 1.0:
+      pvpWin.keepAliveTimer = 0.0
+      # Send a ping to keep the connection alive
+      pvpWin.networkManager.sendPing(0)
+
   case pvpWin.state
-  of plsHosting:
+  of plsHostingActive:
     let events = pvpWin.networkManager.pollEvents(getCosmetics)
     for event in events:
       if event.kind == neConnect:
+        # Host accepting first player connection - move to connected state to show lobby
         pvpWin.state = plsConnected
-        pvpWin.readyToStart = true
         # Store remote player's cosmetics from the connection event
         pvpWin.remoteSkinType = event.remoteSkinType
         pvpWin.remoteBulletSkinType = event.remoteBulletSkinType
         pvpWin.remoteShapeType = event.remoteShapeType
         pvpWin.remoteParticleSkinType = event.remoteParticleSkinType
-  
+
   of plsConnecting:
     pvpWin.connectionTimeout -= dt
     if pvpWin.connectionTimeout <= 0:
       pvpWin.state = plsError
       pvpWin.errorMessage = "Connection timeout"
       return
-    
+
     let events = pvpWin.networkManager.pollEvents(getCosmetics)
     for event in events:
       if event.kind == neConnect:
         pvpWin.state = plsConnected
-        pvpWin.readyToStart = true
+        # Don't set readyToStart yet - wait for host's START GAME signal
         # Store remote player's cosmetics from the connection event
         pvpWin.remoteSkinType = event.remoteSkinType
         pvpWin.remoteBulletSkinType = event.remoteBulletSkinType
         pvpWin.remoteShapeType = event.remoteShapeType
         pvpWin.remoteParticleSkinType = event.remoteParticleSkinType
+      elif event.kind == neReceive:
+        # Extract connection accept packet data (player index, connected players list)
+        if event.packet.packetType == ptConnectionAccept:
+          pvpWin.connectedPlayers = event.packet.connectedPlayers
+          pvpWin.assignedPlayerIndex = event.packet.assignedPlayerIndex
+          echo "[PVP Window] Client assigned player index: ", pvpWin.assignedPlayerIndex
       elif event.kind == neDisconnect:
         pvpWin.state = plsError
-        pvpWin.errorMessage = "Connection refused"
-  
+        pvpWin.errorMessage = event.reason
+
+  of plsConnected:
+    # Host continues accepting more players until max is reached
+    # Client waits here for host to click START GAME
+    let events = pvpWin.networkManager.pollEvents(getCosmetics)
+    for event in events:
+      if event.kind == neConnect:
+        # Host accepting another player
+        echo "[PVP Window] Another player connected"
+        # Store remote player's cosmetics from the connection event
+        pvpWin.remoteSkinType = event.remoteSkinType
+        pvpWin.remoteBulletSkinType = event.remoteBulletSkinType
+        pvpWin.remoteShapeType = event.remoteShapeType
+        pvpWin.remoteParticleSkinType = event.remoteParticleSkinType
+      elif event.kind == neReceive:
+        # Check for game start signal from host (client only)
+        if event.packet.packetType == ptGameStart:
+          # Extract the final player list from the game start packet
+          pvpWin.connectedPlayers = event.packet.gameConnectedPlayers
+          echo "[PVP Window] Game start signal received from host with ", pvpWin.connectedPlayers.len, " players"
+          pvpWin.readyToStart = true
+      elif event.kind == neDisconnect:
+        pvpWin.state = plsError
+        pvpWin.errorMessage = "Host disconnected"
+
   else:
     discard
 
@@ -188,6 +238,9 @@ proc resetPvPWindow*(pvpWin: PvPWindow) =
   pvpWin.remoteBulletSkinType = 0
   pvpWin.remoteShapeType = 0
   pvpWin.remoteParticleSkinType = 0
+  pvpWin.connectedPlayers = @[]
+  pvpWin.assignedPlayerIndex = -1
+  pvpWin.keepAliveTimer = 0.0
   pvpWin.showIPs = false  # Reset to censored
 
 proc handlePvPWindowInput*(pvpWin: PvPWindow) =
@@ -222,16 +275,17 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
 proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, contentHeight: int) =
   case pvpWin.state
   of plsMainMenu:
-    let titleText = "1v1 PVP MODE"
+    let titleText = "PVP MODE"
     let titleWidth = measureText(titleText, 40)
-    drawText(titleText, int32(contentX + (contentWidth - titleWidth) div 2), int32(contentY + 30), int32(40), Yellow)
+    drawText(titleText, int32(contentX + (contentWidth - titleWidth) div 2), int32(contentY + 80), int32(40), Yellow)
     
     let buttonWidth = 300
     let buttonHeight = 50
     let buttonX = contentX + (contentWidth - buttonWidth) div 2
-    let hostButtonY = contentY + 120
+    let hostButtonY = contentY + 180
     
     let mousePos = getMousePosition()
+    
     let hostHovered = mousePos.x >= buttonX.float32 and 
                       mousePos.x <= (buttonX + buttonWidth).float32 and
                       mousePos.y >= hostButtonY.float32 and
@@ -259,21 +313,160 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     let joinTextWidth = measureText(joinText, 30)
     drawText(joinText, (buttonX + (buttonWidth - joinTextWidth) div 2).int32, (joinButtonY + 10).int32, 30, White)
   
-  of plsHosting:
-    let titleText = "WAITING FOR OPPONENT..."
+  of plsHostingConfig:
+    let titleText = "CONFIGURE HOSTING"
     let titleWidth = measureText(titleText, 30)
-    drawText(titleText, (contentX + (contentWidth - titleWidth) div 2).int32, (contentY + 50).int32, 30, Yellow)
-    
+    drawText(titleText, (contentX + (contentWidth - titleWidth) div 2).int32, (contentY + 30).int32, 30, Yellow)
+
+    # Max Players selector
+    let maxPlayersLabelText = "Max Players:"
+    let maxPlayersLabelWidth = measureText(maxPlayersLabelText, 22)
+    drawText(maxPlayersLabelText, (contentX + (contentWidth - maxPlayersLabelWidth) div 2).int32,
+            (contentY + 80).int32, 22, White)
+
+    # Player count controls
+    let playerCountY = contentY + 110
+    let buttonSize = 40
+    let spacing = 120
+    let centerX = contentX + contentWidth div 2
+
+    let mousePos = getMousePosition()
+
+    # Minus button
+    let minusButtonX = centerX - spacing
+    let minusHovered = mousePos.x >= (minusButtonX - buttonSize div 2).float32 and
+                      mousePos.x <= (minusButtonX + buttonSize div 2).float32 and
+                      mousePos.y >= playerCountY.float32 and
+                      mousePos.y <= (playerCountY + buttonSize).float32
+
+    drawRectangle((minusButtonX - buttonSize div 2).int32, playerCountY.int32,
+                 buttonSize.int32, buttonSize.int32,
+                 if minusHovered and pvpWin.maxPlayers > 2: Color(r: 150, g: 100, b: 100, a: 255)
+                 elif pvpWin.maxPlayers <= 2: Color(r: 80, g: 80, b: 80, a: 255)
+                 else: Color(r: 120, g: 70, b: 70, a: 255))
+
+    let minusText = "-"
+    let minusTextWidth = measureText(minusText, 30)
+    drawText(minusText, (minusButtonX - minusTextWidth div 2).int32,
+            (playerCountY + 5).int32, 30,
+            if pvpWin.maxPlayers <= 2: Gray else: White)
+
+    # Player count display
+    let countText = $pvpWin.maxPlayers
+    let countWidth = measureText(countText, 40)
+    drawText(countText, (centerX - countWidth div 2).int32, (playerCountY).int32, 40, Yellow)
+
+    # Plus button
+    let plusButtonX = centerX + spacing
+    let plusHovered = mousePos.x >= (plusButtonX - buttonSize div 2).float32 and
+                     mousePos.x <= (plusButtonX + buttonSize div 2).float32 and
+                     mousePos.y >= playerCountY.float32 and
+                     mousePos.y <= (playerCountY + buttonSize).float32
+
+    drawRectangle((plusButtonX - buttonSize div 2).int32, playerCountY.int32,
+                 buttonSize.int32, buttonSize.int32,
+                 if plusHovered and pvpWin.maxPlayers < 16: Color(r: 100, g: 150, b: 100, a: 255)
+                 elif pvpWin.maxPlayers >= 16: Color(r: 80, g: 80, b: 80, a: 255)
+                 else: Color(r: 70, g: 120, b: 70, a: 255))
+
+    let plusText = "+"
+    let plusTextWidth = measureText(plusText, 30)
+    drawText(plusText, (plusButtonX - plusTextWidth div 2).int32,
+            (playerCountY + 5).int32, 30,
+            if pvpWin.maxPlayers >= 16: Gray else: White)
+
+    # Display local IP
+    let localIPDisplay = if pvpWin.showIPs: pvpWin.cachedLocalIP else: censorIP(pvpWin.cachedLocalIP)
+    let ipText = "Local IP: " & localIPDisplay
+    let ipWidth = measureText(ipText, 22)
+    drawText(ipText, (contentX + (contentWidth - ipWidth) div 2).int32, (contentY + 180).int32, 22, White)
+
+    let portText = "Port: " & $DEFAULT_PORT
+    let portWidth = measureText(portText, 22)
+    drawText(portText, (contentX + (contentWidth - portWidth) div 2).int32, (contentY + 210).int32, 22, White)
+
+    # Show IPs checkbox
+    let checkboxX = contentX + (contentWidth - 200) div 2
+    let checkboxY = contentY + 250
+    let checkboxSize = 20
+    let checkboxHovered = mousePos.x >= checkboxX.float32 and
+                         mousePos.x <= (checkboxX + checkboxSize + 150).float32 and
+                         mousePos.y >= checkboxY.float32 and
+                         mousePos.y <= (checkboxY + checkboxSize).float32
+
+    # Draw checkbox
+    drawRectangle(checkboxX.int32, checkboxY.int32, checkboxSize.int32, checkboxSize.int32,
+                 Color(r: 40, g: 40, b: 50, a: 255))
+    drawRectangleLines(
+      Rectangle(x: checkboxX.float32, y: checkboxY.float32,
+               width: checkboxSize.float32, height: checkboxSize.float32),
+      2, if checkboxHovered: Yellow else: Gray)
+
+    # Draw checkmark if checked
+    if pvpWin.showIPs:
+      drawLine(Vector2(x: (checkboxX + 4).float32, y: (checkboxY + 10).float32),
+              Vector2(x: (checkboxX + 8).float32, y: (checkboxY + 14).float32), 2, Green)
+      drawLine(Vector2(x: (checkboxX + 8).float32, y: (checkboxY + 14).float32),
+              Vector2(x: (checkboxX + 16).float32, y: (checkboxY + 6).float32), 2, Green)
+
+    # Checkbox label
+    drawText("Show IP", (checkboxX + checkboxSize + 10).int32, checkboxY.int32, 18, White)
+
+    # START HOSTING button
+    let startButtonX = contentX + (contentWidth - 250) div 2
+    let startButtonY = contentY + contentHeight - 120
+    let startHovered = mousePos.x >= startButtonX.float32 and
+                      mousePos.x <= (startButtonX + 250).float32 and
+                      mousePos.y >= startButtonY.float32 and
+                      mousePos.y <= (startButtonY + 60).float32
+
+    drawRectangle(startButtonX.int32, startButtonY.int32, 250, 60,
+                 if startHovered: Color(r: 100, g: 200, b: 100, a: 255)
+                 else: Color(r: 70, g: 150, b: 70, a: 255))
+
+    let startText = "START HOSTING"
+    let startTextWidth = measureText(startText, 26)
+    drawText(startText, (startButtonX + (250 - startTextWidth) div 2).int32,
+            (startButtonY + 17).int32, 26, White)
+
+    # CANCEL button
+    let cancelButtonY = startButtonY + 70
+    let cancelHovered = mousePos.x >= startButtonX.float32 and
+                       mousePos.x <= (startButtonX + 250).float32 and
+                       mousePos.y >= cancelButtonY.float32 and
+                       mousePos.y <= (cancelButtonY + 50).float32
+
+    drawRectangle(startButtonX.int32, cancelButtonY.int32, 250, 50,
+                 if cancelHovered: Color(r: 200, g: 100, b: 100, a: 255)
+                 else: Color(r: 150, g: 70, b: 70, a: 255))
+    let cancelText = "CANCEL"
+    let cancelTextWidth = measureText(cancelText, 25)
+    drawText(cancelText, (startButtonX + (250 - cancelTextWidth) div 2).int32,
+            (cancelButtonY + 12).int32, 25, White)
+
+  of plsHostingActive:
+    let titleText = "HOSTING GAME"
+    let titleWidth = measureText(titleText, 30)
+    drawText(titleText, (contentX + (contentWidth - titleWidth) div 2).int32, (contentY + 30).int32, 30, Yellow)
+
     # Display local IP
     let localIPDisplay = if pvpWin.showIPs: pvpWin.hostIP else: censorIP(pvpWin.hostIP)
     let ipText = "Local IP: " & localIPDisplay
     let ipWidth = measureText(ipText, 22)
-    drawText(ipText, (contentX + (contentWidth - ipWidth) div 2).int32, (contentY + 120).int32, 22, White)
-    
+    drawText(ipText, (contentX + (contentWidth - ipWidth) div 2).int32, (contentY + 100).int32, 22, White)
+
     let portText = "Port: " & $pvpWin.hostPort
     let portWidth = measureText(portText, 22)
-    drawText(portText, (contentX + (contentWidth - portWidth) div 2).int32, (contentY + 160).int32, 22, White)
-    
+    drawText(portText, (contentX + (contentWidth - portWidth) div 2).int32, (contentY + 130).int32, 22, White)
+
+    # Display max players and current count
+    let connectedCount = pvpWin.networkManager.getConnectedPlayerCount()
+    let maxPlayersText = "Players: " & $connectedCount & " / " & $pvpWin.maxPlayers
+    let maxPlayersWidth = measureText(maxPlayersText, 22)
+    drawText(maxPlayersText, (contentX + (contentWidth - maxPlayersWidth) div 2).int32,
+            (contentY + 160).int32, 22,
+            if connectedCount >= pvpWin.maxPlayers: Green else: Color(r: 200, g: 200, b: 200, a: 255))
+
     # Show IPs checkbox
     let checkboxX = contentX + (contentWidth - 200) div 2
     let checkboxY = contentY + 210
@@ -283,35 +476,35 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                          mousePos.x <= (checkboxX + checkboxSize + 150).float32 and
                          mousePos.y >= checkboxY.float32 and
                          mousePos.y <= (checkboxY + checkboxSize).float32
-    
+
     # Draw checkbox
     drawRectangle(checkboxX.int32, checkboxY.int32, checkboxSize.int32, checkboxSize.int32,
                  Color(r: 40, g: 40, b: 50, a: 255))
     drawRectangleLines(
-      Rectangle(x: checkboxX.float32, y: checkboxY.float32, 
+      Rectangle(x: checkboxX.float32, y: checkboxY.float32,
                width: checkboxSize.float32, height: checkboxSize.float32),
       2, if checkboxHovered: Yellow else: Gray)
-    
+
     # Draw checkmark if checked
     if pvpWin.showIPs:
       drawLine(Vector2(x: (checkboxX + 4).float32, y: (checkboxY + 10).float32),
               Vector2(x: (checkboxX + 8).float32, y: (checkboxY + 14).float32), 2, Green)
       drawLine(Vector2(x: (checkboxX + 8).float32, y: (checkboxY + 14).float32),
               Vector2(x: (checkboxX + 16).float32, y: (checkboxY + 6).float32), 2, Green)
-    
+
     # Checkbox label
     drawText("Show IP", (checkboxX + checkboxSize + 10).int32, checkboxY.int32, 18, White)
-    
+
     let instructionText = "Share this info with your opponent"
     let instructionWidth = measureText(instructionText, 16)
-    drawText(instructionText, (contentX + (contentWidth - instructionWidth) div 2).int32, (contentY + 250).int32, 16, 
+    drawText(instructionText, (contentX + (contentWidth - instructionWidth) div 2).int32, (contentY + 250).int32, 16,
              Color(r: 200, g: 200, b: 200, a: 255))
-    
+
     let dots = ".".repeat(((pvpWin.cursorBlink * 2).int mod 4))
     let dotsText = "Waiting" & dots
     let dotsWidth = measureText(dotsText, 22)
     drawText(dotsText, (contentX + (contentWidth - dotsWidth) div 2).int32, (contentY + 290).int32, 22, Green)
-    
+
     # Cancel button
     let cancelButtonX = contentX + (contentWidth - 200) div 2
     let cancelButtonY = contentY + contentHeight - 100
@@ -319,7 +512,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                        mousePos.x <= (cancelButtonX + 200).float32 and
                        mousePos.y >= cancelButtonY.float32 and
                        mousePos.y <= (cancelButtonY + 50).float32
-    
+
     drawRectangle(cancelButtonX.int32, cancelButtonY.int32, 200, 50,
                  if cancelHovered: Color(r: 200, g: 100, b: 100, a: 255)
                  else: Color(r: 150, g: 70, b: 70, a: 255))
@@ -424,15 +617,81 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
             (contentY + contentHeight div 2 + 40).int32, 18, Gray)
   
   of plsConnected:
-    let titleText = "CONNECTED!"
-    let titleWidth = measureText(titleText, 40)
-    drawText(titleText, (contentX + (contentWidth - titleWidth) div 2).int32, 
-            (contentY + contentHeight div 2 - 50).int32, 40, Green)
-    
-    let statusText = if pvpWin.isHost: "Waiting for game start..." else: "Ready to play!"
-    let statusWidth = measureText(statusText, 22)
-    drawText(statusText, (contentX + (contentWidth - statusWidth) div 2).int32,
-            (contentY + contentHeight div 2 + 20).int32, 22, White)
+    if pvpWin.isHost:
+      # Host lobby - show connected players and START GAME button
+      let titleText = "GAME LOBBY"
+      let titleWidth = measureText(titleText, 35)
+      drawText(titleText, (contentX + (contentWidth - titleWidth) div 2).int32, 
+              (contentY + 20).int32, 35, Green)
+      
+      # Show player count
+      let playerCount = pvpWin.networkManager.getConnectedPlayerCount()
+      let playerCountText = "Players: " & $playerCount & " / " & $pvpWin.maxPlayers
+      let playerCountWidth = measureText(playerCountText, 22)
+      drawText(playerCountText, (contentX + (contentWidth - playerCountWidth) div 2).int32,
+              (contentY + 70).int32, 22, if playerCount >= 2: Green else: Yellow)
+      
+      # List connected players
+      let listY = contentY + 110
+      drawText("Connected Players:", (contentX + 30).int32, listY.int32, 20, White)
+      
+      # Host (you)
+      drawText("• Player 1 (You - Host)", (contentX + 50).int32, (listY + 35).int32, 18, Yellow)
+      
+      # Connected clients
+      var yOffset = 35
+      for i, client in pvpWin.networkManager.clients:
+        yOffset += 25
+        let playerText = "• Player " & $(client.playerIndex + 1)
+        drawText(playerText, (contentX + 50).int32, (listY + yOffset).int32, 18, Green)
+      
+      # START GAME button (only if at least 2 players)
+      let startButtonX = contentX + (contentWidth - 250) div 2
+      let startButtonY = contentY + contentHeight - 120
+      let canStart = playerCount >= 2
+      
+      let mousePos = getMousePosition()
+      let startHovered = mousePos.x >= startButtonX.float32 and
+                        mousePos.x <= (startButtonX + 250).float32 and
+                        mousePos.y >= startButtonY.float32 and
+                        mousePos.y <= (startButtonY + 60).float32
+      
+      drawRectangle(startButtonX.int32, startButtonY.int32, 250, 60,
+                   if not canStart: Color(r: 80, g: 80, b: 80, a: 255)
+                   elif startHovered: Color(r: 100, g: 255, b: 100, a: 255)
+                   else: Color(r: 70, g: 200, b: 70, a: 255))
+      
+      let startText = if canStart: "START GAME" else: "NEED 2+ PLAYERS"
+      let startTextWidth = measureText(startText, 26)
+      drawText(startText, (startButtonX + (250 - startTextWidth) div 2).int32,
+              (startButtonY + 17).int32, 26, if canStart: White else: Gray)
+      
+      # CANCEL button
+      let cancelButtonY = startButtonY + 70
+      let cancelHovered = mousePos.x >= startButtonX.float32 and
+                         mousePos.x <= (startButtonX + 250).float32 and
+                         mousePos.y >= cancelButtonY.float32 and
+                         mousePos.y <= (cancelButtonY + 50).float32
+      
+      drawRectangle(startButtonX.int32, cancelButtonY.int32, 250, 50,
+                   if cancelHovered: Color(r: 200, g: 100, b: 100, a: 255)
+                   else: Color(r: 150, g: 70, b: 70, a: 255))
+      
+      let cancelText = "CANCEL"
+      let cancelTextWidth = measureText(cancelText, 25)
+      drawText(cancelText, (startButtonX + (250 - cancelTextWidth) div 2).int32,
+              (cancelButtonY + 12).int32, 25, White)
+    else:
+      # Client - just show waiting message
+      let titleText = "CONNECTED!"
+      let titleWidth = measureText(titleText, 40)
+      drawText(titleText, (contentX + (contentWidth - titleWidth) div 2).int32, 
+              (contentY + contentHeight div 2 - 50).int32, 40, Green)
+      
+      let statusText = "Waiting for host to start the game..."
+      let statusWidth = measureText(statusText, 22)
+      drawText(statusText, (contentX + (contentWidth - statusWidth) div 2).int32,
+              (contentY + contentHeight div 2 + 20).int32, 22, White)
   
   of plsError:
     let titleText = "CONNECTION ERROR"
@@ -460,42 +719,94 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
             (backButtonY + 12).int32, 25, White)
 
 proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, contentHeight: int): int =
-  ## Returns: 0 = no action, 1 = host, 2 = join, 3 = back/cancel, 4 = connect
+  ## Returns: 0 = no action, 1 = host config, 2 = join, 3 = back/cancel, 4 = connect, 5 = start game, 6 = start hosting
   if not isMouseButtonPressed(Left):
     return 0
-  
+
   let mousePos = getMousePosition()
-  
+
   case pvpWin.state
   of plsMainMenu:
     let buttonWidth = 300
     let buttonHeight = 50
     let buttonX = contentX + (contentWidth - buttonWidth) div 2
-    let hostButtonY = contentY + 120
-    
+    let hostButtonY = contentY + 180
+
     if mousePos.x >= buttonX.float32 and
        mousePos.x <= (buttonX + buttonWidth).float32 and
        mousePos.y >= hostButtonY.float32 and
        mousePos.y <= (hostButtonY + buttonHeight).float32:
-      return 1  # Host
-    
+      return 1  # Go to host config
+
     let joinButtonY = hostButtonY + 80
     if mousePos.x >= buttonX.float32 and
        mousePos.x <= (buttonX + buttonWidth).float32 and
        mousePos.y >= joinButtonY.float32 and
        mousePos.y <= (joinButtonY + buttonHeight).float32:
       return 2  # Join
-  
-  of plsHosting:
+
+  of plsHostingConfig:
+    # Check for player count buttons
+    let playerCountY = contentY + 110
+    let buttonSize = 40
+    let spacing = 120
+    let centerX = contentX + contentWidth div 2
+
+    # Minus button
+    let minusButtonX = centerX - spacing
+    if mousePos.x >= (minusButtonX - buttonSize div 2).float32 and
+       mousePos.x <= (minusButtonX + buttonSize div 2).float32 and
+       mousePos.y >= playerCountY.float32 and
+       mousePos.y <= (playerCountY + buttonSize).float32:
+      if pvpWin.maxPlayers > 2:
+        pvpWin.maxPlayers -= 1
+      return 0
+
+    # Plus button
+    let plusButtonX = centerX + spacing
+    if mousePos.x >= (plusButtonX - buttonSize div 2).float32 and
+       mousePos.x <= (plusButtonX + buttonSize div 2).float32 and
+       mousePos.y >= playerCountY.float32 and
+       mousePos.y <= (playerCountY + buttonSize).float32:
+      if pvpWin.maxPlayers < 16:
+        pvpWin.maxPlayers += 1
+      return 0
+
+    # Check for checkbox click
+    let checkboxX = contentX + (contentWidth - 200) div 2
+    let checkboxY = contentY + 250
+    let checkboxSize = 20
+    if mousePos.x >= checkboxX.float32 and
+       mousePos.x <= (checkboxX + checkboxSize + 150).float32 and
+       mousePos.y >= checkboxY.float32 and
+       mousePos.y <= (checkboxY + checkboxSize).float32:
+      pvpWin.showIPs = not pvpWin.showIPs  # Toggle checkbox
+      return 0
+
+    # Check for START HOSTING button
+    let startButtonX = contentX + (contentWidth - 250) div 2
+    let startButtonY = contentY + contentHeight - 120
+    if mousePos.x >= startButtonX.float32 and
+       mousePos.x <= (startButtonX + 250).float32 and
+       mousePos.y >= startButtonY.float32 and
+       mousePos.y <= (startButtonY + 60).float32:
+      return 6  # Start hosting
+
     # Check for cancel button
-    let cancelButtonX = contentX + (contentWidth - 200) div 2
-    let cancelButtonY = contentY + contentHeight - 100
-    if mousePos.x >= cancelButtonX.float32 and
-       mousePos.x <= (cancelButtonX + 200).float32 and
+    let cancelButtonY = startButtonY + 70
+    if mousePos.x >= startButtonX.float32 and
+       mousePos.x <= (startButtonX + 250).float32 and
        mousePos.y >= cancelButtonY.float32 and
        mousePos.y <= (cancelButtonY + 50).float32:
       return 3  # Cancel
-    
+
+  of plsHostingActive:
+    # Check for player count buttons (no longer adjustable once hosting)
+    let playerCountY = contentY + 110
+    let buttonSize = 40
+    let spacing = 120
+    let centerX = contentX + contentWidth div 2
+
     # Check for checkbox click
     let checkboxX = contentX + (contentWidth - 200) div 2
     let checkboxY = contentY + 210
@@ -505,20 +816,30 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
        mousePos.y >= checkboxY.float32 and
        mousePos.y <= (checkboxY + checkboxSize).float32:
       pvpWin.showIPs = not pvpWin.showIPs  # Toggle checkbox
-  
+      return 0
+
+    # Check for cancel button
+    let cancelButtonX = contentX + (contentWidth - 200) div 2
+    let cancelButtonY = contentY + contentHeight - 100
+    if mousePos.x >= cancelButtonX.float32 and
+       mousePos.x <= (cancelButtonX + 200).float32 and
+       mousePos.y >= cancelButtonY.float32 and
+       mousePos.y <= (cancelButtonY + 50).float32:
+      return 3  # Cancel
+
   of plsJoining:
     let ipFieldX = contentX + 50
     let ipFieldY = contentY + 130
     let ipFieldWidth = contentWidth - 100
     let ipFieldHeight = 40
-    
+
     if mousePos.x >= ipFieldX.float32 and
        mousePos.x <= (ipFieldX + ipFieldWidth).float32 and
        mousePos.y >= ipFieldY.float32 and
        mousePos.y <= (ipFieldY + ipFieldHeight).float32:
       pvpWin.editingIP = true
       pvpWin.editingPort = false
-    
+
     let portFieldY = contentY + 220
     if mousePos.x >= ipFieldX.float32 and
        mousePos.x <= (ipFieldX + ipFieldWidth).float32 and
@@ -526,7 +847,7 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
        mousePos.y <= (portFieldY + ipFieldHeight).float32:
       pvpWin.editingIP = false
       pvpWin.editingPort = true
-    
+
     let connectButtonX = contentX + (contentWidth - 200) div 2
     let connectButtonY = contentY + 310
     if mousePos.x >= connectButtonX.float32 and
@@ -534,7 +855,7 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
        mousePos.y >= connectButtonY.float32 and
        mousePos.y <= (connectButtonY + 50).float32:
       return 4  # Connect
-    
+
     # Check for back button
     let backButtonY = connectButtonY + 70
     if mousePos.x >= connectButtonX.float32 and
@@ -542,6 +863,29 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
        mousePos.y >= backButtonY.float32 and
        mousePos.y <= (backButtonY + 50).float32:
       return 3  # Back
+  
+  of plsConnected:
+    if pvpWin.isHost:
+      # Check for START GAME button
+      let startButtonX = contentX + (contentWidth - 250) div 2
+      let startButtonY = contentY + contentHeight - 120
+      let playerCount = pvpWin.networkManager.getConnectedPlayerCount()
+      
+      if playerCount >= 2 and
+         mousePos.x >= startButtonX.float32 and
+         mousePos.x <= (startButtonX + 250).float32 and
+         mousePos.y >= startButtonY.float32 and
+         mousePos.y <= (startButtonY + 60).float32:
+        pvpWin.readyToStart = true
+        return 5  # Start game
+      
+      # Check for CANCEL button
+      let cancelButtonY = startButtonY + 70
+      if mousePos.x >= startButtonX.float32 and
+         mousePos.x <= (startButtonX + 250).float32 and
+         mousePos.y >= cancelButtonY.float32 and
+         mousePos.y <= (cancelButtonY + 50).float32:
+        return 3  # Cancel
   
   of plsError:
     # Check for back button

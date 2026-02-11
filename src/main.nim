@@ -336,15 +336,58 @@ proc main() =
       
       # Handle PvP game ready
       if updateResult.pvpGameReady:
-        currentPvPGame = newPvPGameState(screenWidth, screenHeight, globalWindowManager.pvp.isHost)
-        currentPvPGame.networkManager = globalWindowManager.pvp.networkManager
+        echo "[MAIN] PvP game starting..."
         
-        # Apply remote player's cosmetics that were stored during connection
-        let remoteIdx = if globalWindowManager.pvp.isHost: 1 else: 0
-        currentPvPGame.players[remoteIdx].skinType = globalWindowManager.pvp.remoteSkinType
-        currentPvPGame.players[remoteIdx].bulletSkinType = globalWindowManager.pvp.remoteBulletSkinType
-        currentPvPGame.players[remoteIdx].shapeType = globalWindowManager.pvp.remoteShapeType
-        currentPvPGame.players[remoteIdx].particleSkinType = globalWindowManager.pvp.remoteParticleSkinType
+        # Build connected players list
+        var connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int]] = @[]
+        var localPlayerIndex = 0
+        
+        if globalWindowManager.pvp.isHost:
+          # Host is always player 0
+          localPlayerIndex = 0
+          echo "[MAIN] Starting as HOST (player 0)"
+          
+          # Add host (player 0) with their cosmetics
+          connectedPlayers.add((
+            index: 0,
+            skinType: globalSettings.playerSkin,
+            bulletSkinType: globalSettings.bulletSkin,
+            shapeType: globalSettings.playerShape,
+            particleSkinType: globalSettings.particleEffect
+          ))
+          
+          # Add all connected clients
+          for client in globalWindowManager.pvp.networkManager.clients:
+            echo "[MAIN] Adding connected client: player ", client.playerIndex
+            connectedPlayers.add((
+              index: client.playerIndex,
+              skinType: client.skinType,
+              bulletSkinType: client.bulletSkinType,
+              shapeType: client.shapeType,
+              particleSkinType: client.particleSkinType
+            ))
+        else:
+          # Client - use the assigned player index from connection accept
+          localPlayerIndex = globalWindowManager.pvp.assignedPlayerIndex
+          echo "[MAIN] Starting as CLIENT (player ", localPlayerIndex, ")"
+          
+          # Client - use the connected players list from the connection accept packet
+          connectedPlayers = globalWindowManager.pvp.connectedPlayers
+          echo "[MAIN] Received ", connectedPlayers.len, " players in connected list"
+        
+        echo "[MAIN] Total players: ", connectedPlayers.len, ", Local index: ", localPlayerIndex
+
+        currentPvPGame = newPvPGameState(
+          screenWidth,
+          screenHeight,
+          globalWindowManager.pvp.isHost,
+          connectedPlayers.len,  # Use actual number of connected players, not configured maxPlayers
+          connectedPlayers
+        )
+        currentPvPGame.networkManager = globalWindowManager.pvp.networkManager
+        currentPvPGame.localPlayerIndex = localPlayerIndex
+        
+        echo "[MAIN] PvP game state created successfully"
         
         startCountdown(currentPvPGame)
         currentGame.state = gsPvPPlaying
@@ -359,8 +402,8 @@ proc main() =
         
         let pvpAction = handlePvPWindowClick(globalWindowManager.pvp, contentX, contentY, contentWidth, contentHeight)
         case pvpAction
-        of 1:  # Host
-          startHosting(globalWindowManager.pvp)
+        of 1:  # Host - Go to config screen
+          globalWindowManager.pvp.state = plsHostingConfig
         of 2:  # Join
           globalWindowManager.pvp.state = plsJoining
         of 3:  # Back/Cancel
@@ -373,8 +416,37 @@ proc main() =
             except ValueError:
               port = pvp_window.DEFAULT_PORT
             connectToGame(globalWindowManager.pvp, globalWindowManager.pvp.inputIP, port,
-                         settings.playerSkin, settings.bulletSkin, 
+                         settings.playerSkin, settings.bulletSkin,
                          settings.playerShape, settings.particleEffect)
+        of 5:  # Start Game (host only)
+          # Build the final connected players list for the host
+          var gameConnectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int]] = @[]
+
+          # Add host (player 0)
+          gameConnectedPlayers.add((
+            index: 0,
+            skinType: globalSettings.playerSkin,
+            bulletSkinType: globalSettings.bulletSkin,
+            shapeType: globalSettings.playerShape,
+            particleSkinType: globalSettings.particleEffect
+          ))
+
+          # Add all connected clients
+          for client in globalWindowManager.pvp.networkManager.clients:
+            gameConnectedPlayers.add((
+              index: client.playerIndex,
+              skinType: client.skinType,
+              bulletSkinType: client.bulletSkinType,
+              shapeType: client.shapeType,
+              particleSkinType: client.particleSkinType
+            ))
+
+          # Send game start with the final player list
+          globalWindowManager.pvp.networkManager.sendGameStart(3.0, gameConnectedPlayers)
+          globalWindowManager.pvp.readyToStart = true
+          echo "[MAIN] Host sent game start signal with ", gameConnectedPlayers.len, " players"
+        of 6:  # Start Hosting
+          startHosting(globalWindowManager.pvp)
         else:
           discard
       

@@ -36,6 +36,7 @@ type
     
   PlayerInput* = object
     tick*: int
+    playerIndex*: int  # Which player this input is from
     moveDir*: Vector2f
     shooting*: bool
     mousePos*: Vector2f
@@ -44,6 +45,8 @@ type
     timestamp*: float32
     
   PlayerStateNet* = object
+    playerIndex*: int  # Player index in the game
+    isActive*: bool  # Whether this player slot is filled
     pos*: Vector2f
     vel*: Vector2f
     hp*: float32
@@ -66,7 +69,7 @@ type
     vel*: Vector2f
     radius*: float32
     damage*: float32
-    fromPlayerIndex*: int  # 0 or 1
+    fromPlayerIndex*: int  # 0-15
     isPiercing*: bool
     isExplosive*: bool
     isHoming*: bool
@@ -77,12 +80,13 @@ type
     radius*: float32
     hp*: float32
     maxHp*: float32
-    ownerIndex*: int  # 0 or 1
+    ownerIndex*: int  # 0-15
     
   NetworkGameState* = object
     tick*: int
     timestamp*: float32
-    players*: array[2, PlayerStateNet]
+    maxPlayers*: int  # Total player slots (2-16)
+    players*: seq[PlayerStateNet]  # Dynamic player list
     bullets*: seq[BulletStateNet]
     walls*: seq[WallStateNet]
     
@@ -102,13 +106,25 @@ type
     of ptConnectionAccept, ptConnectionDenied:
       connectionReason*: string
       assignedPlayerIndex*: int
-      # Host's cosmetics sent back to client
-      hostSkinType*: int
-      hostBulletSkinType*: int
-      hostShapeType*: int
-      hostParticleSkinType*: int
+      maxPlayersInRoom*: int  # Total max players for this room
+      # All currently connected players' cosmetics
+      connectedPlayers*: seq[tuple[
+        index: int,
+        skinType: int,
+        bulletSkinType: int,
+        shapeType: int,
+        particleSkinType: int
+      ]]
     of ptGameStart:
       countdownTime*: float32
+      # Include final list of all connected players so clients have the complete roster
+      gameConnectedPlayers*: seq[tuple[
+        index: int,
+        skinType: int,
+        bulletSkinType: int,
+        shapeType: int,
+        particleSkinType: int
+      ]]
     of ptPlayerInput:
       input*: PlayerInput
     of ptGameState:
