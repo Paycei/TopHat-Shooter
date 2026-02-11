@@ -48,6 +48,7 @@ proc newPlayer*(x, y: float32): Player =
     timeWarpMaxUsesPerWave: 2,
     phaseShiftCooldown: 0,
     phaseShiftInvulnTimer: 0,
+    teamId: ptNone,  # Default to no team
     lastPhaseShiftPos: newVector2f(x, y),
     rotatingOrbs: @[],
     orbRotationAngle: 0,

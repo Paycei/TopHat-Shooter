@@ -57,6 +57,7 @@ type
     damage*: float32
     speed*: float32
     invincibilityTimer*: float32
+    teamId*: int  # Team assignment (0=None, 1=Red, 2=Blue, 3=Green, 4=Yellow)
     # Cosmetics
     skinType*: int
     bulletSkinType*: int
@@ -119,6 +120,8 @@ type
       ]]
     of ptGameStart:
       countdownTime*: float32
+      teamsEnabled*: bool  # Whether team mode is active
+      teamAssignments*: seq[int]  # Team assignment per player (0-4, where 0=None)
       # Include final list of all connected players so clients have the complete roster
       gameConnectedPlayers*: seq[tuple[
         index: int,

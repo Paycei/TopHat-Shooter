@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d  # Import 3D game
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d
 
 const
   screenWidth = 1024
@@ -383,11 +383,13 @@ proc main() =
         echo "[MAIN] Total players: ", connectedPlayers.len, ", Local index: ", localPlayerIndex
 
         currentPvPGame = newPvPGameState(
-          screenWidth,
-          screenHeight,
+          screenWidth.int32,
+          screenHeight.int32,
           globalWindowManager.pvp.isHost,
           connectedPlayers.len,  # Use actual number of connected players, not configured maxPlayers
-          connectedPlayers
+          connectedPlayers,
+          globalWindowManager.pvp.teamsEnabled,
+          globalWindowManager.pvp.playerTeamAssignments
         )
         currentPvPGame.networkManager = globalWindowManager.pvp.networkManager
         currentPvPGame.localPlayerIndex = localPlayerIndex

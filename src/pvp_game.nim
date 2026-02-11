@@ -1,7 +1,7 @@
 ## PvP Game Mode Logic
-## Handles 1v1 player vs player combat
+## Handles multiplayer player vs player combat with optional team support
 
-import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings
+import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils
 
 const
   PVP_PLAYER_START_HP = 3.0  # Reduced HP for faster kills
@@ -12,12 +12,16 @@ const
   PVP_PLAYER_START_COINS = 100
   PVP_PLAYER_START_WALLS = 3
   PVP_RESPAWN_TIME = 3.0
-  PVP_KILL_LIMIT = 5  # First to 5 kills wins
+  PVP_KILL_LIMIT = 5  # First to 5 kills wins (individual or team)
   PVP_TIME_LIMIT = 180.0  # 3 minutes
   SNAPSHOT_RATE = 0.033  # 30 Hz (every 33ms)
   INPUT_SEND_RATE = 0.033  # 30 Hz - match snapshot rate to reduce reconciliation conflicts
 
 type
+  TeamScore* = object
+    kills*: int
+    deaths*: int
+  
   PvPGameState* = ref object
     networkManager*: NetworkManager
     localPlayerIndex*: int  # 0-15
@@ -31,6 +35,7 @@ type
     gameStarted*: bool
     gameOver*: bool
     winnerIndex*: int
+    winnerTeam*: PvPTeam  # Winning team for team-based mode
     gameOverReason*: string  # Track why game ended
     inputBuffer*: seq[PlayerInput]
     lastSnapshotTime*: float32
@@ -46,9 +51,105 @@ type
     respawnTimers*: seq[float32]  # Respawn timers for each player
     lastInputs*: seq[PlayerInput]  # Store last input for each player (server processing)
     playerNicknames*: seq[string]  # Display nicknames, indexed by player index
+    teamsEnabled*: bool  # Whether team-based gameplay is enabled
+    playerTeamAssignments*: seq[int]  # Team assignment per player (0-3)
+    teamScores*: array[PvPTeam, TeamScore]  # Track scores per team
+
+proc getTeamColor*(team: PvPTeam): Color =
+  ## Get the display color for a team
+  case team
+  of ptRed:
+    return Color(r: 255, g: 60, b: 60, a: 255)
+  of ptBlue:
+    return Color(r: 60, g: 120, b: 255, a: 255)
+  of ptGreen:
+    return Color(r: 60, g: 255, b: 120, a: 255)
+  of ptYellow:
+    return Color(r: 255, g: 220, b: 60, a: 255)
+  of ptNone:
+    return White
+
+proc assignPlayerToTeam*(playerIndex: int, maxPlayers: int, teamsEnabled: bool): PvPTeam =
+  ## Assign a player to a team based on their index
+  if not teamsEnabled:
+    return ptNone
+  
+  # For 2-4 players: 2 teams (Red vs Blue)
+  # For 5-8 players: 2 teams (Red vs Blue) with more per team
+  # For 9-12 players: 3 teams (Red vs Blue vs Green)
+  # For 13-16 players: 4 teams (Red vs Blue vs Green vs Yellow)
+  
+  if maxPlayers <= 8:
+    # 2 teams
+    if playerIndex mod 2 == 0:
+      return ptRed
+    else:
+      return ptBlue
+  elif maxPlayers <= 12:
+    # 3 teams
+    case playerIndex mod 3
+    of 0: return ptRed
+    of 1: return ptBlue
+    else: return ptGreen
+  else:
+    # 4 teams
+    case playerIndex mod 4
+    of 0: return ptRed
+    of 1: return ptBlue
+    of 2: return ptGreen
+    else: return ptYellow
+
+proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, screenWidth, screenHeight: float32): Vector2f =
+  ## Calculate spawn position for a player based on their team
+  ## Teams spawn grouped together in different quadrants
+  
+  let centerX = screenWidth * 0.5
+  let centerY = screenHeight * 0.5
+  let spawnRadius = min(screenWidth, screenHeight) * 0.35
+  
+  case team
+  of ptNone:
+    # Free-for-all: distribute evenly around circle
+    let angle = (playerIndex.float / totalPlayers.float) * 2.0 * PI
+    return newVector2f(
+      centerX + cos(angle) * spawnRadius,
+      centerY + sin(angle) * spawnRadius
+    )
+  
+  of ptRed:
+    # Left side
+    let teamOffset = (playerIndex div 2).float * 80.0  # Vertical spacing between teammates
+    return newVector2f(
+      screenWidth * 0.15,
+      centerY + teamOffset - 80.0
+    )
+  
+  of ptBlue:
+    # Right side
+    let teamOffset = (playerIndex div 2).float * 80.0
+    return newVector2f(
+      screenWidth * 0.85,
+      centerY + teamOffset - 80.0
+    )
+  
+  of ptGreen:
+    # Top side
+    let teamOffset = (playerIndex div 3).float * 80.0
+    return newVector2f(
+      centerX + teamOffset - 80.0,
+      screenHeight * 0.15
+    )
+  
+  of ptYellow:
+    # Bottom side
+    let teamOffset = (playerIndex div 4).float * 80.0
+    return newVector2f(
+      centerX + teamOffset - 80.0,
+      screenHeight * 0.85
+    )
 
 proc getSpawnPosition(playerIndex, totalPlayers: int, screenWidth, screenHeight: float32): Vector2f =
-  ## Calculate spawn position for a player based on their index
+  ## Calculate spawn position for a player based on their index (free-for-all)
   ## Distributes players evenly around the screen
   if totalPlayers == 2:
     # Classic 1v1 positioning
@@ -67,7 +168,7 @@ proc getSpawnPosition(playerIndex, totalPlayers: int, screenWidth, screenHeight:
       centerY + sin(angle) * radius
     )
 
-proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]]): PvPGameState =
+proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]], teamsEnabled: bool = false, playerTeamAssignments: seq[int] = @[]): PvPGameState =
   let emptyInput = PlayerInput(
     tick: 0,
     playerIndex: 0,
@@ -89,6 +190,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     gameStarted: false,
     gameOver: false,
     winnerIndex: -1,
+    winnerTeam: ptNone,
     gameOverReason: "",
     inputBuffer: @[],
     lastSnapshotTime: 0,
@@ -103,12 +205,29 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     lastPingTime: 0,
     respawnTimers: @[],
     lastInputs: @[],
-    playerNicknames: @[]
+    playerNicknames: @[],
+    teamsEnabled: teamsEnabled,
+    playerTeamAssignments: playerTeamAssignments
   )
+
+  # Initialize team scores
+  for team in PvPTeam:
+    result.teamScores[team] = TeamScore(kills: 0, deaths: 0)
 
   # Initialize player slots
   for i in 0..<maxPlayers:
-    let spawnPos = getSpawnPosition(i, maxPlayers, screenWidth.float32, screenHeight.float32)
+    # Use manual team assignments if provided, otherwise use automatic assignment
+    let team = if teamsEnabled and playerTeamAssignments.len > i:
+      PvPTeam(playerTeamAssignments[i])
+    else:
+      assignPlayerToTeam(i, maxPlayers, teamsEnabled)
+    
+    # Get spawn position based on team mode
+    let spawnPos = if teamsEnabled:
+      getTeamSpawnPosition(i, team, maxPlayers, screenWidth.float32, screenHeight.float32)
+    else:
+      getSpawnPosition(i, maxPlayers, screenWidth.float32, screenHeight.float32)
+    
     let player = newPlayer(spawnPos.x, spawnPos.y)
     player.hp = PVP_PLAYER_START_HP
     player.maxHp = PVP_PLAYER_START_HP
@@ -118,6 +237,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     player.bulletSpeed = PVP_PLAYER_START_BULLET_SPEED
     player.fireRate = PVP_PLAYER_START_FIRE_RATE
     player.speed = PVP_PLAYER_START_SPEED
+    player.teamId = team
     
     # Set cosmetics and nickname for connected players
     var cosmeticsSet = false
@@ -158,12 +278,20 @@ proc startCountdown*(pvp: PvPGameState) =
   pvp.networkManager.resetReceiveTimer()
   
   if pvp.networkManager.isHost():
-    # Send game start packet
+    # Build team assignments array to send to clients
+    var teamAssignments: seq[int] = @[]
+    for i in 0..<pvp.maxPlayers:
+      teamAssignments.add(pvp.players[i].teamId.ord)
+    
+    # Send game start packet with team information
     var packet = Packet(kind: ptGameStart)
     packet.packetType = ptGameStart
     packet.tick = pvp.serverTick
     packet.timestamp = epochTime()
     packet.countdownTime = pvp.countdownTimer
+    packet.teamsEnabled = pvp.teamsEnabled
+    packet.teamAssignments = teamAssignments
+    packet.gameConnectedPlayers = @[]  # Empty for now
     pvp.networkManager.sendPacket(packet)
 
 proc capturePlayerInput*(pvp: PvPGameState): PlayerInput =
@@ -186,6 +314,18 @@ proc capturePlayerInput*(pvp: PvPGameState): PlayerInput =
     wallPos: newVector2f(getMousePosition().x, getMousePosition().y),
     timestamp: epochTime()
   )
+
+proc areTeammates*(pvp: PvPGameState, playerIdx1, playerIdx2: int): bool =
+  ## Check if two players are on the same team
+  if not pvp.teamsEnabled:
+    return false
+  if playerIdx1 < 0 or playerIdx1 >= pvp.players.len:
+    return false
+  if playerIdx2 < 0 or playerIdx2 >= pvp.players.len:
+    return false
+  if pvp.players[playerIdx1].teamId == ptNone:
+    return false
+  return pvp.players[playerIdx1].teamId == pvp.players[playerIdx2].teamId
 
 proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, dt: float32) =
   ## Apply input to a player (used by both client and server)
@@ -338,7 +478,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
       pvp.bullets.delete(i)
       continue
     
-    # Check player collisions
+    # Check player collisions with FRIENDLY FIRE PREVENTION
     for playerIdx in 0..<pvp.players.len:
       let player = pvp.players[playerIdx]
       if player.hp <= 0 or player.invincibilityTimer > 0:
@@ -347,6 +487,10 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
       # CRITICAL FIX: Prevent bullets from hitting their own shooter
       if bullet.ownerPlayerIndex == playerIdx:
         continue  # Skip collision check for the player who shot this bullet
+      
+      # PREVENT FRIENDLY FIRE IN TEAM MODE
+      if pvp.teamsEnabled and areTeammates(pvp, bullet.ownerPlayerIndex, playerIdx):
+        continue  # Skip collision check for teammates
       
       if distance(bullet.pos, player.pos) < (bullet.radius + player.radius):
         # Hit player
@@ -368,6 +512,15 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
             # Award kill to the bullet owner
             if bullet.ownerPlayerIndex >= 0 and bullet.ownerPlayerIndex < pvp.players.len:
               pvp.players[bullet.ownerPlayerIndex].kills += 1
+              
+              # Update team scores
+              if pvp.teamsEnabled:
+                let killerTeam = pvp.players[bullet.ownerPlayerIndex].teamId
+                let victimTeam = player.teamId
+                if killerTeam != ptNone:
+                  pvp.teamScores[killerTeam].kills += 1
+                if victimTeam != ptNone:
+                  pvp.teamScores[victimTeam].deaths += 1
             
             # Start respawn timer
             pvp.respawnTimers[playerIdx] = PVP_RESPAWN_TIME
@@ -379,26 +532,50 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
             deathPacket.deadPlayerIndex = playerIdx
             pvp.networkManager.sendPacket(deathPacket)
             
-            # Check win condition - find player with most kills
-            var maxKills = 0
-            var winningPlayerIdx = -1
-            for checkIdx in 0..<pvp.players.len:
-              if pvp.players[checkIdx].kills > maxKills:
-                maxKills = pvp.players[checkIdx].kills
-                winningPlayerIdx = checkIdx
-            
-            if maxKills >= PVP_KILL_LIMIT:
-              pvp.gameOver = true
-              pvp.winnerIndex = winningPlayerIdx
-              pvp.gameOverReason = "Kill limit reached"
+            # Check win condition
+            if pvp.teamsEnabled:
+              # Team mode: check if any team reached kill limit
+              var winningTeam = ptNone
+              var maxTeamKills = 0
+              for team in [ptRed, ptBlue, ptGreen, ptYellow]:
+                if pvp.teamScores[team].kills > maxTeamKills:
+                  maxTeamKills = pvp.teamScores[team].kills
+                  winningTeam = team
               
-              var gameOverPacket = Packet(kind: ptGameOver)
-              gameOverPacket.packetType = ptGameOver
-              gameOverPacket.tick = pvp.serverTick
-              gameOverPacket.timestamp = epochTime()
-              gameOverPacket.winnerIndex = winningPlayerIdx
-              gameOverPacket.reason = "Kill limit reached"
-              pvp.networkManager.sendPacket(gameOverPacket)
+              if maxTeamKills >= PVP_KILL_LIMIT:
+                pvp.gameOver = true
+                pvp.winnerTeam = winningTeam
+                pvp.winnerIndex = -1  # No individual winner in team mode
+                pvp.gameOverReason = "Kill limit reached"
+                
+                var gameOverPacket = Packet(kind: ptGameOver)
+                gameOverPacket.packetType = ptGameOver
+                gameOverPacket.tick = pvp.serverTick
+                gameOverPacket.timestamp = epochTime()
+                gameOverPacket.winnerIndex = -1  # Will use team info
+                gameOverPacket.reason = "Team " & $winningTeam & " wins!"
+                pvp.networkManager.sendPacket(gameOverPacket)
+            else:
+              # Free-for-all mode: check individual kills
+              var maxKills = 0
+              var winningPlayerIdx = -1
+              for checkIdx in 0..<pvp.players.len:
+                if pvp.players[checkIdx].kills > maxKills:
+                  maxKills = pvp.players[checkIdx].kills
+                  winningPlayerIdx = checkIdx
+              
+              if maxKills >= PVP_KILL_LIMIT:
+                pvp.gameOver = true
+                pvp.winnerIndex = winningPlayerIdx
+                pvp.gameOverReason = "Kill limit reached"
+                
+                var gameOverPacket = Packet(kind: ptGameOver)
+                gameOverPacket.packetType = ptGameOver
+                gameOverPacket.tick = pvp.serverTick
+                gameOverPacket.timestamp = epochTime()
+                gameOverPacket.winnerIndex = winningPlayerIdx
+                gameOverPacket.reason = "Kill limit reached"
+                pvp.networkManager.sendPacket(gameOverPacket)
         
         spawnExplosionPooled(pvp.particlePool, bullet.pos.x, bullet.pos.y, Red, 10)
         playSound(stPlayerHit)
@@ -436,6 +613,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
       continue
     
     i += 1
+
 proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
   ## Server-side update (host only)
   pvp.serverTick += 1
@@ -446,9 +624,12 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
     if pvp.players[i].hp <= 0 and pvp.respawnTimers[i] > 0:
       pvp.respawnTimers[i] -= dt
       if pvp.respawnTimers[i] <= 0:
-        # Respawn player at their spawn position
+        # Respawn player at their spawn position (team-aware)
         pvp.players[i].hp = PVP_PLAYER_START_HP
-        pvp.players[i].pos = getSpawnPosition(i, pvp.players.len, pvp.screenWidth.float32, pvp.screenHeight.float32)
+        pvp.players[i].pos = if pvp.teamsEnabled:
+          getTeamSpawnPosition(i, pvp.players[i].teamId, pvp.players.len, pvp.screenWidth.float32, pvp.screenHeight.float32)
+        else:
+          getSpawnPosition(i, pvp.players.len, pvp.screenWidth.float32, pvp.screenHeight.float32)
         pvp.players[i].invincibilityTimer = 2.0  # 2 seconds of invincibility after respawn
         
         # Send respawn packet
@@ -528,6 +709,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         damage: pvp.players[i].damage,
         speed: pvp.players[i].speed,
         invincibilityTimer: pvp.players[i].invincibilityTimer,
+        teamId: pvp.players[i].teamId.ord,  # Send as int
         skinType: pvp.players[i].skinType,
         bulletSkinType: pvp.players[i].bulletSkinType,
         shapeType: pvp.players[i].shapeType,
@@ -646,6 +828,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       pvp.players[i].bulletSkinType = serverState.players[i].bulletSkinType
       pvp.players[i].shapeType = serverState.players[i].shapeType
       pvp.players[i].particleSkinType = serverState.players[i].particleSkinType
+      pvp.players[i].teamId = PvPTeam(serverState.players[i].teamId)  # Sync team
       # Sync nickname if server provides it and we don't have it yet
       if serverState.players[i].nickname.len > 0:
         while pvp.playerNicknames.len <= i:
@@ -683,6 +866,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   pvp.players[localIdx].kills = serverState.players[localIdx].kills
   pvp.players[localIdx].walls = serverState.players[localIdx].walls
   pvp.players[localIdx].invincibilityTimer = serverState.players[localIdx].invincibilityTimer
+  pvp.players[localIdx].teamId = PvPTeam(serverState.players[localIdx].teamId)
   
   # Update bullets from server
   pvp.bullets = @[]
@@ -715,6 +899,16 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       shootTimer: 0
     )
     pvp.walls.add(wall)
+  
+  # Recalculate team scores from player data
+  if pvp.teamsEnabled:
+    for team in PvPTeam:
+      pvp.teamScores[team] = TeamScore(kills: 0, deaths: 0)
+    
+    for i in 0..<pvp.players.len:
+      let team = pvp.players[i].teamId
+      if team != ptNone:
+        pvp.teamScores[team].kills += pvp.players[i].kills
 
 proc handleNetworkEvents*(pvp: PvPGameState) =
   ## Process all network events
@@ -748,6 +942,22 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         pvp.isCountingDown = true
         # Client also needs to disable timeout during countdown
         pvp.networkManager.resetReceiveTimer()
+        
+        # Apply team settings from host
+        pvp.teamsEnabled = event.packet.teamsEnabled
+        
+        # Apply team assignments from host to all players
+        if pvp.teamsEnabled and event.packet.teamAssignments.len > 0:
+          echo "[PVP CLIENT] Receiving team assignments from host"
+          for i in 0..<min(pvp.players.len, event.packet.teamAssignments.len):
+            let teamId = PvPTeam(event.packet.teamAssignments[i])
+            pvp.players[i].teamId = teamId
+            
+            # Update spawn position based on team
+            pvp.players[i].pos = getTeamSpawnPosition(i, teamId, pvp.maxPlayers, 
+                                                      pvp.screenWidth.float32, pvp.screenHeight.float32)
+          
+          echo "[PVP CLIENT] Applied team assignments - Teams enabled: ", pvp.teamsEnabled
       
       of ptPlayerInput:
         # Server receives client input - store it, don't apply immediately
@@ -845,6 +1055,18 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         pvp.gameOverReason = event.packet.reason
         pvp.isCountingDown = false  # Stop countdown if it's running
         pvp.gameStarted = true  # Mark game as started so it can end properly
+        
+        # Extract team info from reason if team mode
+        if pvp.teamsEnabled and "Team" in event.packet.reason:
+          # Parse team from reason string
+          if "Red" in event.packet.reason:
+            pvp.winnerTeam = ptRed
+          elif "Blue" in event.packet.reason:
+            pvp.winnerTeam = ptBlue
+          elif "Green" in event.packet.reason:
+            pvp.winnerTeam = ptGreen
+          elif "Yellow" in event.packet.reason:
+            pvp.winnerTeam = ptYellow
       
       else:
         discard
@@ -993,7 +1215,7 @@ proc drawPvP*(pvp: PvPGameState) =
   for bullet in pvp.bullets:
     drawBullet(bullet, false, false, pvp.gameTime)
   
-  # Draw players with cosmetics
+  # Draw players with cosmetics and TEAM COLORS
   for i in 0..<pvp.maxPlayers:
     if i >= pvp.players.len:
       break
@@ -1012,18 +1234,28 @@ proc drawPvP*(pvp: PvPGameState) =
 
     # Draw player using their cosmetics
     drawPlayer(player)
+    
+    # Draw team indicator ring if teams enabled
+    if pvp.teamsEnabled and player.teamId != ptNone:
+      let teamColor = getTeamColor(player.teamId)
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, player.radius + 5, teamColor)
 
-    # Draw nickname above player
+    # Draw nickname above player with team color
     if i < pvp.playerNicknames.len and pvp.playerNicknames[i].len > 0:
       let nick = pvp.playerNicknames[i]
       let nickSize: int32 = 14
       let nickW = measureText(nick, nickSize)
       let nickX = player.pos.x.int32 - nickW div 2
       let nickY = (player.pos.y - player.radius - 26).int32
-      let nickColor = if i == pvp.localPlayerIndex:
+      
+      # Use team color for nickname if teams enabled
+      let nickColor = if pvp.teamsEnabled and player.teamId != ptNone:
+        getTeamColor(player.teamId)
+      elif i == pvp.localPlayerIndex:
         Color(r: 100, g: 255, b: 100, a: 220)
       else:
         Color(r: 255, g: 200, b: 100, a: 220)
+      
       drawText(nick, nickX, nickY, nickSize, nickColor)
 
     # Health bar
@@ -1057,22 +1289,41 @@ proc drawPvP*(pvp: PvPGameState) =
     let damageText = $dn.damage.int
     drawText(damageText, dn.pos.x.int32 - 10, dn.pos.y.int32, 20, textColor)
   
-  # Draw HUD
-  # Score - show all connected players with nicknames
-  var scoreText = ""
-  for i in 0..<pvp.players.len:
-    if scoreText.len > 0:
-      scoreText &= " | "
-    # Use nickname if available, otherwise fall back to P# format
-    let displayName = if i < pvp.playerNicknames.len and pvp.playerNicknames[i].len > 0:
-      pvp.playerNicknames[i]
-    else:
-      "P" & $(i + 1)
-    scoreText &= displayName & ": " & $pvp.players[i].kills
+  # Draw HUD - TEAM MODE or FREE-FOR-ALL
+  if pvp.teamsEnabled:
+    # Team mode: Show team scores
+    # First, determine which teams have players assigned
+    var activeTeams: seq[PvPTeam] = @[]
+    for i in 0..<pvp.players.len:
+      let team = pvp.players[i].teamId
+      if team != ptNone and team notin activeTeams:
+        activeTeams.add(team)
+    
+    # Build scoreboard showing all active teams
+    var scoreText = ""
+    for team in activeTeams:
+      if scoreText.len > 0:
+        scoreText &= "  |  "
+      scoreText &= $team & ": " & $pvp.teamScores[team].kills
+    
+    let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 3))
+    drawText(scoreText, scoreX.int32, 10, 20, White)
+  else:
+    # Free-for-all: Show individual scores
+    var scoreText = ""
+    for i in 0..<pvp.players.len:
+      if scoreText.len > 0:
+        scoreText &= " | "
+      # Use nickname if available, otherwise fall back to P# format
+      let displayName = if i < pvp.playerNicknames.len and pvp.playerNicknames[i].len > 0:
+        pvp.playerNicknames[i]
+      else:
+        "P" & $(i + 1)
+      scoreText &= displayName & ": " & $pvp.players[i].kills
 
-  # Center the text based on its length (rough approximation)
-  let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 4))
-  drawText(scoreText, scoreX.int32, 10, 20, White)
+    # Center the text based on its length (rough approximation)
+    let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 4))
+    drawText(scoreText, scoreX.int32, 10, 20, White)
   
   # Time
   let timeRemaining = PVP_TIME_LIMIT - pvp.gameTime
@@ -1103,7 +1354,12 @@ proc drawPvP*(pvp: PvPGameState) =
     
     # Draw arrow pointing to local player with "YOU" label
     let localPlayer = pvp.players[pvp.localPlayerIndex]
-    let arrowColor = Color(r: 100, g: 255, b: 100, a: 255)  # Bright green
+    
+    # Use team color if teams enabled, otherwise bright green
+    let arrowColor = if pvp.teamsEnabled and localPlayer.teamId != ptNone:
+      getTeamColor(localPlayer.teamId)
+    else:
+      Color(r: 100, g: 255, b: 100, a: 255)  # Bright green
     
     # Animated bouncing arrow
     let bounceOffset = sin(pvp.gameTime * 5) * 10
@@ -1142,32 +1398,49 @@ proc drawPvP*(pvp: PvPGameState) =
   
   # Game over overlay
   if pvp.gameOver:
-    # Determine main message based on game over reason
-    let winnerText = case pvp.gameOverReason
-      of "Opponent disconnected":
-        "OPPONENT DISCONNECTED - YOU WIN!"
-      of "Connection lost":
-        "CONNECTION LOST - YOU LOSE!"
-      of "Opponent forfeited":
-        "OPPONENT FORFEITED - YOU WIN!"
-      else:
-        if pvp.winnerIndex == pvp.localPlayerIndex:
-          "YOU WIN!"
-        elif pvp.winnerIndex == -1:
-          "DRAW!"
-        else:
-          "YOU LOSE!"
+    var winnerText = ""
     
-    let textSize: int32 = if pvp.gameOverReason in ["Opponent disconnected", "Connection lost", "Opponent forfeited"]: 40 else: 60
+    if pvp.teamsEnabled and pvp.winnerTeam != ptNone:
+      # Team victory
+      let localTeam = pvp.players[pvp.localPlayerIndex].teamId
+      if localTeam == pvp.winnerTeam:
+        winnerText = "YOUR TEAM WINS!"
+      else:
+        winnerText = $pvp.winnerTeam & " TEAM WINS!"
+    else:
+      # Individual victory or disconnect
+      winnerText = case pvp.gameOverReason
+        of "Opponent disconnected":
+          "OPPONENT DISCONNECTED - YOU WIN!"
+        of "Connection lost":
+          "CONNECTION LOST - YOU LOSE!"
+        of "Opponent forfeited":
+          "OPPONENT FORFEITED - YOU WIN!"
+        else:
+          if pvp.winnerIndex == pvp.localPlayerIndex:
+            "YOU WIN!"
+          elif pvp.winnerIndex == -1:
+            "DRAW!"
+          else:
+            "YOU LOSE!"
+    
+    let textSize: int32 = if pvp.teamsEnabled: 50 else: 
+      (if pvp.gameOverReason in ["Opponent disconnected", "Connection lost", "Opponent forfeited"]: 40 else: 60)
     let textWidth = measureText(winnerText, textSize)
     
     # Determine color based on win/loss
-    let textColor = if pvp.winnerIndex == pvp.localPlayerIndex:
-      Green
-    elif pvp.winnerIndex == -1:
-      Yellow
+    let textColor = if pvp.teamsEnabled and pvp.winnerTeam != ptNone:
+      if pvp.players[pvp.localPlayerIndex].teamId == pvp.winnerTeam:
+        Green
+      else:
+        Red
     else:
-      Red
+      if pvp.winnerIndex == pvp.localPlayerIndex:
+        Green
+      elif pvp.winnerIndex == -1:
+        Yellow
+      else:
+        Red
     
     drawRectangle(0, 0, pvp.screenWidth, pvp.screenHeight,
                  Color(r: 0, g: 0, b: 0, a: 200))
@@ -1177,20 +1450,27 @@ proc drawPvP*(pvp: PvPGameState) =
             textSize,
             textColor)
     
-    # Show final scores for all players with nicknames
+    # Show final scores
     var scoreText = "Final Scores - "
-    for i in 0..<pvp.players.len:
-      if i > 0:
-        scoreText &= " | "
-      if i == pvp.localPlayerIndex:
-        scoreText &= "You: " & $pvp.players[i].kills
-      else:
-        # Use nickname if available, otherwise fall back to P# format
-        let displayName = if i < pvp.playerNicknames.len and pvp.playerNicknames[i].len > 0:
-          pvp.playerNicknames[i]
+    if pvp.teamsEnabled:
+      for team in [ptRed, ptBlue, ptGreen, ptYellow]:
+        if pvp.teamScores[team].kills > 0 or pvp.teamScores[team].deaths > 0:
+          if scoreText.len > 15:  # More than just "Final Scores - "
+            scoreText &= " | "
+          scoreText &= $team & ": " & $pvp.teamScores[team].kills
+    else:
+      for i in 0..<pvp.players.len:
+        if i > 0:
+          scoreText &= " | "
+        if i == pvp.localPlayerIndex:
+          scoreText &= "You: " & $pvp.players[i].kills
         else:
-          "P" & $i
-        scoreText &= displayName & ": " & $pvp.players[i].kills
+          # Use nickname if available, otherwise fall back to P# format
+          let displayName = if i < pvp.playerNicknames.len and pvp.playerNicknames[i].len > 0:
+            pvp.playerNicknames[i]
+          else:
+            "P" & $i
+          scoreText &= displayName & ": " & $pvp.players[i].kills
     
     let scoreWidth = measureText(scoreText, 24)
     drawText(scoreText,

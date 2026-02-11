@@ -13,6 +13,13 @@ type
     gmSandbox,
     gmPvP
 
+  PvPTeam* = enum
+    ptNone,      # No team (free-for-all)
+    ptRed,       # Red team
+    ptBlue,      # Blue team
+    ptGreen,     # Green team (for 3+ teams)
+    ptYellow     # Yellow team (for 4 teams)
+
   EnemyType* = enum
     etCircle,      # Normal chasers
     etCube,        # Stationary/slow shooters
@@ -231,6 +238,7 @@ type
     parryDuration*: float32  # How long the parry state lasts
     radialBurstTimer*: float32  # Timer for periodic radial burst
     pulseArmorCooldown*: float32  # Cooldown after triggering shockwave
+    teamId*: PvPTeam  # Team assignment for PvP mode (ptNone for free-for-all)
     skinType*: int  # Current equipped skin (stored as int for save compatibility)
     bulletSkinType*: int  # Current equipped bullet skin (stored as int for save compatibility)
     shapeType*: int  # Current equipped shape (stored as int for save compatibility)
