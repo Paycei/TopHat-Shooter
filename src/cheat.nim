@@ -640,7 +640,6 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   let contentHeight = height
   let dividerY = y + (contentHeight div 2)  # Split screen in half
   
-  # ========== TOP HALF: Currently Owned Power-Ups (Scrollable) ==========
   var currentY = y + 10
   
   drawText("Currently Owned (" & $game.player.powerUps.len & ") - Scroll with Mouse Wheel", x + 20, currentY, 14, Yellow)
@@ -710,7 +709,6 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
            Vector2(x: (x + width - 10).float32, y: dividerY.float32), 
            2, Color(r: 100, g: 100, b: 120, a: 255))
   
-  # ========== BOTTOM HALF: All Available Power-Ups (Scrollable) ==========
   currentY = dividerY + 15
   
   drawText("All Available Power-Ups - Scroll with Mouse Wheel", x + 20, currentY, 14, Yellow)

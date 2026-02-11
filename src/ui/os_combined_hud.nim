@@ -139,7 +139,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   
   yOffset += COMBINED_PANEL_PADDING
   
-  # ============ STATUS HEADER ============
+  # STATUS HEADER
   # Header bar background - colorful cyan (clickable to minimize)
   drawRectangle(finalPanelX + 2, yOffset, COMBINED_PANEL_WIDTH - 2, COMBINED_TITLE_HEIGHT,
                HEADER_BG_COLOR)
@@ -158,7 +158,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   
   yOffset += COMBINED_TITLE_HEIGHT + 2
   
-  # ============ HP BAR (Compact) ============
+  # HP BAR
   let hpPercent = game.player.hp / game.player.maxHp
   let barWidth: int32 = COMBINED_PANEL_WIDTH - (COMBINED_PANEL_PADDING * 2)
   let barHeight: int32 = 10
@@ -195,7 +195,6 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   
   yOffset += barHeight + 4
   
-  # ============ COMPACT STATS ROW ============
   # Background box for stats - semi-transparent with cyan tint
   drawRectangle(finalPanelX + COMBINED_PANEL_PADDING + 2, yOffset - 1,
                COMBINED_PANEL_WIDTH - (COMBINED_PANEL_PADDING * 2) - 4, 12,
@@ -221,7 +220,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   
   yOffset += 14
   
-  # ============ WAVE INFO (if applicable) ============
+  # WAVE INFO (if applicable)
   if (game.mode == gmWaveBased):
     # Separator line
     drawLine(Vector2(x: (finalPanelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
@@ -327,7 +326,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
               Color(r: 255, g: 215, b: 0, a: pulseAlpha))
       yOffset += 12
   
-  # ============ ACTIVE POWER-UPS (Compact List) ============
+  # ACTIVE POWER-UPS LIST
   if game.player.powerUps.len > 0:
     # Separator line
     drawLine(Vector2(x: (finalPanelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),

@@ -268,7 +268,6 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
           Color(r: 140, g: 160, b: 180, a: 255))
   yOffset += 18
   
-  # Enhanced progress bar with segments
   let barWidth = width - 24
   
   # Bar shadow

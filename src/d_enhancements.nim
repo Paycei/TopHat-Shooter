@@ -73,10 +73,7 @@ proc getEnhancedDamageInfo*(damage: float32, maxHp: float32, isCrit: bool,
     White
   )
 
-# ==========================================
-# 2. WAVE CELEBRATION SYSTEM
-# ==========================================
-
+# WAVE CELEBRATION SYSTEM
 proc newWaveCelebration*(): WaveCelebration =
   result = WaveCelebration(
     active: false,
@@ -184,10 +181,7 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
     if celebration.stats.maxCombo > 1:
       drawStat("Max Combo", $(celebration.stats.maxCombo) & "x", lineY, statsAlpha)
 
-# ==========================================
-# 3. BOSS INTRODUCTION SYSTEM
-# ==========================================
-
+# BOSS INTRODUCTION SYSTEM
 proc newBossIntroduction*(): BossIntroduction =
   result = BossIntroduction(
     active: false,
@@ -264,9 +258,7 @@ proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: i
     drawText(titleText, titleX, centerY + 20, 20.int32,
       Color(r: 180, g: 180, b: 180, a: nameAlpha))
 
-# ==========================================
-# 4. ACHIEVEMENT POPUP SYSTEM
-# ==========================================
+# ACHIEVEMENT POPUP SYSTEM
 
 proc newAchievementManager*(): AchievementManager =
   result = AchievementManager(
@@ -379,10 +371,7 @@ proc drawAchievementPopup*(manager: AchievementManager, screenWidth, screenHeigh
   drawText(achievement.description, currentX + 10, y + 65, 14.int32,
     Color(r: 180, g: 180, b: 180, a: 255))
 
-# ==========================================
-# 5. REAL-TIME STATS HUD
-# ==========================================
-
+# REAL-TIME STATS HUD
 proc newRealTimeStats*(): RealTimeStats =
   result = RealTimeStats(
     dps: 0,

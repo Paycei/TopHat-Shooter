@@ -4,10 +4,7 @@
 
 import raylib, types, random, math, tables, strutils, enemy_config, bullet, wall, run_statistics
 
-# =============================================================================
 # SPECIAL DATA PARSING
-# =============================================================================
-
 proc parseSpecialData*(data: string): Table[string, string] =
   ## Parse special behavior data string into key-value table
   ## Format: "key1:value1|key2:value2|key3:value3"
@@ -39,9 +36,7 @@ proc getSpecialInt*(data: Table[string, string], key: string, default: int): int
       return default
   return default
 
-# =============================================================================
 # ATTACK EXECUTION
-# =============================================================================
 
 proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2f, game: var Game) =
   ## Centralized ranged attack execution using enemy config
@@ -128,9 +123,7 @@ proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2f, game: var Game)
   # Reset shoot timer
   enemy.shootTimer = 0
 
-# =============================================================================
 # MOVEMENT HELPERS
-# =============================================================================
 
 proc maintainOptimalDistance*(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32, config: EnemyConfig): Vector2f =
   ## Movement behavior for ranged enemies that maintain distance
@@ -203,9 +196,7 @@ proc checkScreenBoundaryCollision*(enemy: Enemy, nextPos: Vector2f, game: Game, 
   
   return dotProduct < 0  # Block if moving away from center
 
-# =============================================================================
 # COLLISION HELPERS  
-# =============================================================================
 
 proc checkWallCollision*(enemy: var Enemy, nextPos: Vector2f, walls: seq[Wall], currentTime: float32, game: var Game): bool =
   ## Check wall collision and apply damage
@@ -223,9 +214,7 @@ proc checkWallCollision*(enemy: var Enemy, nextPos: Vector2f, walls: seq[Wall], 
   
   return false
 
-# =============================================================================
 # SIMPLE MOVEMENT PATTERNS
-# =============================================================================
 
 proc chasePlayer*(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32): Vector2f =
   ## Simple chase movement toward player

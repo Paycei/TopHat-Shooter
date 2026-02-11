@@ -5680,14 +5680,13 @@ proc updateGame*(game: var Game, dt: float32) =
       game.bullets.delete(i)
       continue
     
-    # ENHANCED: Explosive bullets leave a particle trail (satellite-like effect)
     if bullet.fromPlayer and bullet.isExplosive:
       let level = getPowerUpLevel(game.player, puExplosiveBullets)
       # Spawn particles at a rate based on explosion level
       let particleSpawnRate = case level
-        of 1: 10.0  # Basic trail
-        of 2: 15.0  # Enhanced trail
-        of 3: 20.0  # Maximum trail (satellite-like density)
+        of 1: 5.0  # Basic trail
+        of 2: 10.0  # Enhanced trail
+        of 3: 15.0  # Maximum trail (satellite-like density)
         else: 8.0
       
       # Spawn trailing particles periodically
@@ -6010,7 +6009,6 @@ proc updateGame*(game: var Game, dt: float32) =
                 if actualDamage > 0:
                   showDamage(game, game.enemies[k].pos, actualDamage, true, isCrit, dtExplosion)
             
-            # ENHANCED Visual explosion with multiple particle effects
             # Level-based visual scaling similar to satellites
             case level
             of 1:
@@ -6019,7 +6017,6 @@ proc updateGame*(game: var Game, dt: float32) =
                                        explosionRadius, Orange, Yellow)
               spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
             of 2:
-              # Enhanced explosion - nova + ring pattern
               spawnNovaExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
                                        explosionRadius, Orange, Yellow)
               spawnExplosiveRingPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
@@ -6700,7 +6697,6 @@ proc drawGame*(game: Game) =
   drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.time)
   drawMilestone(game.dopamine.milestones, game.screenWidth, game.screenHeight)
   drawMicroRewards(game.dopamine.microRewards)
-  drawCloseCall(game.dopamine.closeCall, game.screenWidth, game.screenHeight)
   
   drawWaveCelebration(game.dopamine.waveCelebration, game.screenWidth, game.screenHeight)
   drawBossIntroduction(game.dopamine.bossIntro, game.screenWidth, game.screenHeight)

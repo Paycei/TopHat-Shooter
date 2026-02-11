@@ -807,14 +807,12 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.3, color)
 
 proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
-  ## Draw shop upgrade icons with enhanced detail
   let cx = x + size div 2
   let cy = y + size div 2
   let rad = size.float32 / 2.5
   
   case itemIndex
   of 0: # Damage + (Sword)
-    # Enhanced sword from above
     drawRectangle(cx - 1, cy - 9, 5, 14, Color(r: 0, g: 0, b: 0, a: 60))
     drawRectangle(cx - 2, cy - 11, 4, 14, color)
     drawLine(cx, cy - 11, cx, cy + 3, Color(r: min(color.r + 120, 255), g: min(color.g + 120, 255), b: min(color.b + 120, 255), a: 255))

@@ -27,8 +27,6 @@ type
     weapon*: Weapon3D
     grounded*: bool
 
-# ===== WEAPON =====
-
 proc newWeapon3D*(): Weapon3D =
   Weapon3D(
     ammo: 500,        # Increased from 150 for longer fights
@@ -63,8 +61,6 @@ proc fireWeapon*(player: var Player3D, camera: FPSCamera, projectiles: var seq[P
 
 proc reload*(player: var Player3D) =
   player.weapon.ammo = player.weapon.maxAmmo
-
-# ===== PLAYER =====
 
 proc newPlayer3D*(startPos: Vector3f, health2D: float32): Player3D =
   Player3D(

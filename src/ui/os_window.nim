@@ -1,6 +1,5 @@
 ## OS Window Framework
 ## Base system for all OS-style windows (Settings, Stats, Help)
-## Enhanced with panel-like animations and effects
 
 import raylib, math
 

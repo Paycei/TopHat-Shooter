@@ -216,7 +216,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   
   yOffset += DEBUG_PANEL_PADDING
   
-  # ============ SYSTEM DIAGNOSTICS HEADER ============
+  # SYSTEM DIAGNOSTICS HEADER
   # Header bar background - colorful cyan (clickable to minimize)
   drawRectangle(finalPanelX, yOffset, DEBUG_PANEL_WIDTH - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
   
@@ -272,7 +272,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   
   yOffset += 18
   
-  # ============ ACTIVE EFFECTS SECTION ============
+  # ACTIVE EFFECTS
   if activeTimers > 0:
     # Section separator line - cyan
     drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 2).float32, y: yOffset.float32),
@@ -412,7 +412,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
     
     yOffset += DEBUG_SECTION_SPACING
   
-  # ============ AUTOSHOOT STATUS SECTION ============
+  #  AUTOSHOOT STATUS
   if hasPowerUp(game.player, puAutoShoot):
     # Section separator line
     drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
@@ -451,7 +451,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
             yOffset, 10, autoColor)
     yOffset += DEBUG_LINE_HEIGHT + 8
   
-  # ============ COMBAT STATS SECTION ============
+  # COMBAT STATS
   # Section separator line
   drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
           Vector2(x: (finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),
@@ -511,7 +511,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
           yOffset, 11, Color(r: 100, g: 200, b: 255, a: 255))
   yOffset += DEBUG_LINE_HEIGHT + 6
   
-  # ============ LOW HP BONUSES SECTION ============
+  # LOW HP BONUSES
   if hpPercent < 0.7 and (hasPowerUp(game.player, puRage) or hasPowerUp(game.player, puBerserker)):
     # Section separator line
     drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
@@ -577,7 +577,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
               yOffset, 10, Color(r: 255, g: 200, b: 150, a: 255))
       yOffset += DEBUG_LINE_HEIGHT
   
-  # ============ REAL-TIME STATS SECTION ============
+  # REAL-TIME STATS
   # Section separator line
   drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
           Vector2(x: (finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),

@@ -71,14 +71,7 @@ proc updateShake*(shake: var ScreenShake, dt: float32) =
 proc getShakeOffset*(shake: ScreenShake): Vector2f =
   return shake.offset
 
-# ==========================================
-# 2. KILL STREAK SYSTEM - REMOVED
-# ==========================================
-# Streak system has been removed from the game
-
-# ==========================================
-# 3. COMBO SYSTEM
-# ==========================================
+# COMBO SYSTEM
 
 proc newComboSystem*(): ComboSystem =
   result = ComboSystem(
@@ -179,10 +172,7 @@ proc checkPerfectWaveCombo*(combo: var ComboSystem, waveEnemyCount: int): int =
     combo.lastPerfectWaveBonus = 0
     return 0
 
-# ==========================================
-# 4. MILESTONE SYSTEM
-# ==========================================
-
+# MILESTONE SYSTEM
 proc newMilestoneManager*(): MilestoneManager =
   result = MilestoneManager(
     milestones: @[],
@@ -256,10 +246,7 @@ proc updateMilestones*(manager: var MilestoneManager, dt: float32) =
       if manager.milestones[i].displayTimer <= 0:
         manager.showRecent = false
 
-# ==========================================
-# 5. MICRO-REWARD TRACKER
-# ==========================================
-
+# MICRO-REWARD TRACKER
 proc newMicroRewardTracker*(): MicroRewardTracker =
   result = MicroRewardTracker(
     lastKills: 0,
@@ -298,9 +285,7 @@ proc updateRewards*(tracker: var MicroRewardTracker, dt: float32) =
     else:
       inc i
 
-# ==========================================
-# 6. SLOW-MOTION SYSTEM
-# ==========================================
+# SLOW-MOTION SYSTEM
 
 proc newSlowMotion*(): SlowMotion =
   result = SlowMotion(
@@ -349,9 +334,7 @@ proc getTimeScale*(slowMo: SlowMotion): float32 =
     return slowMo.timeScale
   return 1.0
 
-# ==========================================
-# 7. WAVE STATS TRACKER
-# ==========================================
+# WAVE STATS TRACKER
 
 proc newWaveStats*(waveNumber: int): WaveStats =
   result = WaveStats(
@@ -398,43 +381,14 @@ proc calculateAccuracy*(stats: var WaveStats) =
   else:
     stats.accuracy = 0
 
-# ==========================================
-# 8. CLOSE CALL DETECTOR
-# ==========================================
-
-proc newCloseCall*(): CloseCall =
-  result = CloseCall(detected: false, displayTimer: 0, count: 0)
-
-proc checkCloseCall*(closeCall: var CloseCall, playerPos: Vector2f, 
-                     bulletPos: Vector2f, bulletRadius: float32): bool =
-  ## Check if a bullet passed close to the player (within 5px)
-  let dist = distance(playerPos, bulletPos)
-  let closeDistance = 5.0 + bulletRadius
-  
-  if dist <= closeDistance:
-    closeCall.detected = true
-    closeCall.displayTimer = 1.0
-    closeCall.count += 1
-    return true
-  
-  return false
-
-proc updateCloseCall*(closeCall: var CloseCall, dt: float32) =
-  if closeCall.displayTimer > 0:
-    closeCall.displayTimer -= dt
-    if closeCall.displayTimer <= 0:
-      closeCall.detected = false
-
 proc newDopamineState*(): DopamineState =
   result = DopamineState(
     screenShake: newScreenShake(),
-    # killStreak removed - streak system disabled
     comboSystem: newComboSystem(),
     milestones: newMilestoneManager(),
     microRewards: newMicroRewardTracker(),
     slowMotion: newSlowMotion(),
     waveStats: newWaveStats(1),
-    closeCall: newCloseCall(),
     currentTime: 0
   )
 
@@ -444,7 +398,6 @@ proc updateDopamine*(dopamine: var DopamineState, dt: float32) =
   updateCombo(dopamine.comboSystem, dt, dopamine.currentTime)
   updateMilestones(dopamine.milestones, dt)
   updateRewards(dopamine.microRewards, dt)
-  updateCloseCall(dopamine.closeCall, dt)
   updateStats(dopamine.waveStats, dt)
 
 proc resetWaveStats*(dopamine: var DopamineState, waveNumber: int) =
@@ -466,7 +419,6 @@ proc getClutchBonus*(stats: WaveStats, playerHp: float32, maxHp: float32): int =
 import d_enhancements
 
 proc initEnhancedDopamine*(dopamine: var DopamineState) =
-  ## Initialize enhanced dopamine features
   dopamine.waveCelebration = newWaveCelebration()
   dopamine.bossIntro = newBossIntroduction()
   dopamine.achievements = newAchievementManager()

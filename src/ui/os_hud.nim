@@ -91,7 +91,6 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
     
     drawRectangle(x + PANEL_PADDING + 3, yOffset, fillWidth, barHeight, barColor)
     
-    # HP text with enhanced shadow (multiplied by 100, showing decimals)
     let hpText = formatHealthDisplay(player.hp) & " / " & formatHealthDisplay(player.maxHp)
     let hpTextWidth = measureText(hpText, 14)
     let hpTextX = x + PANEL_PADDING + 3 + (barWidth div 2) - (hpTextWidth div 2)

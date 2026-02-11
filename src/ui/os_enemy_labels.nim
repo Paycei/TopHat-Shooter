@@ -42,7 +42,6 @@ proc getEnemyProcessName*(enemy: Enemy): string =
   result = prefix & baseNames & "_" & $idSuffix & ext
 
 proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = true) =
-  ## Draw enhanced OS-style label above enemy with modern styling
   if not enabled or enemy.entranceTimer > 0:
     return  # Don't show label if disabled or during entrance
   
@@ -183,7 +182,6 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
     # Regular enemies: just draw the process name
     drawText(processName, textX, iconY, fontSize, textColor)
   
-  # Enhanced health bar (if enabled) - only for non-Star enemies
   if showHealthBar and (enemy.isElite or enemy.isBoss or enemy.maxHp > 30) and enemy.enemyType != etStar:
     let barY = labelY + 14  # Closer to label (was 18)
     let barWidth = totalWidth - 6
@@ -285,7 +283,6 @@ proc drawEnemyWarningIndicator*(enemy: Enemy) =
   )
 
 proc drawThreatCounter*(screenWidth, screenHeight: int32, threatCount: int) =
-  ## Draw enhanced system threat counter in corner
   let counterWidth = 240
   let counterHeight = 40
   let counterX = 12

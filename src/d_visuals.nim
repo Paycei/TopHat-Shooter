@@ -107,7 +107,7 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
       Color(r: 255, g: 220, b: 80, a: perfectAlpha))  # Softer yellow
     notificationY += 24  # Reduced spacing
   
-  # ======== TIMER BAR ========
+  # TIMER BAR
   let timeSinceLastKill = currentTime - combo.lastKillTime
   # Use the stored combo window from when the last kill happened for accurate display
   let currentWindow = combo.comboWindow
@@ -136,9 +136,7 @@ proc drawCombo*(combo: ComboSystem, screenWidth, screenHeight: int32, currentTim
   let baseY = screenHeight div 2
   drawComboAtPosition(combo, screenWidth, screenHeight, currentTime, baseX, baseY)
 
-# ==========================================
-# 3. MILESTONE POPUP (MINIMAL)
-# ==========================================
+# MILESTONE POPUP
 
 proc drawMilestone*(manager: MilestoneManager, screenWidth, screenHeight: int32) =
   if not manager.showRecent:
@@ -178,10 +176,7 @@ proc drawMilestone*(manager: MilestoneManager, screenWidth, screenHeight: int32)
   drawText(milestone.description, x + 10, y + 43, 10.int32, 
     Color(r: 200, g: 200, b: 200, a: fadeAlpha))
 
-# ==========================================
-# 4. MICRO-REWARD DISPLAY (MINIMAL)
-# ==========================================
-
+# MICRO-REWARD DISPLAY
 proc drawMicroRewards*(tracker: MicroRewardTracker) =
   # Micro-rewards are now very subtle - just small text floating up
   for reward in tracker.rewards:
@@ -202,18 +197,7 @@ proc drawMicroRewards*(tracker: MicroRewardTracker) =
       drawText(coinText, x - 10, y - 20, 14.int32,
         Color(r: 255, g: 215, b: 0, a: alpha))
 
-# ==========================================
-# 5. CLOSE CALL INDICATOR (DISABLED)
-# ==========================================
-
-proc drawCloseCall*(closeCall: CloseCall, screenWidth, screenHeight: int32) =
-  # Close call indicator disabled - too distracting
-  discard
-
-# ==========================================
-# 6. WAVE STATS SUMMARY
-# ==========================================
-
+# WAVE STATS SUMMARY
 proc drawWaveStats*(stats: WaveStats, screenWidth, screenHeight: int32) =
   let x = screenWidth - 250
   let y = 50.int32

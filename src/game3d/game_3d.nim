@@ -9,18 +9,14 @@ type
   Game3D* = object
     active*: bool
     won*: bool
-    
     arena*: Arena3D
     camera*: FPSCamera
     player*: Player3D
     boss*: Boss3D
     projectiles*: seq[Projectile3D]
     damageNumbers*: seq[DamageNumber3D]
-    
     timeElapsed*: float32
     paused*: bool
-
-# ===== INIT =====
 
 proc initGame3D*(bossId: int, player2D: Player): Game3D =
   let arena = generateArena("space", 500.0)
@@ -37,7 +33,7 @@ proc initGame3D*(bossId: int, player2D: Player): Game3D =
   result.timeElapsed = 0.0
   result.paused = false
 
-# ===== DAMAGE NUMBERS =====
+# === DAMAGE NUMBERS ===
 
 proc spawnDamageNumber3D(damageNumbers: var seq[DamageNumber3D], pos: Vector3f, damage: float32) =
   ## Create a new damage number at the given position
@@ -114,7 +110,7 @@ proc drawDamageNumbers(damageNumbers: seq[DamageNumber3D], camera: FPSCamera) =
       drawText(damageText, int32(screenPos.x) - 1, int32(screenPos.y) - 1, fontSize, Black)
       drawText(damageText, int32(screenPos.x), int32(screenPos.y), fontSize, color)
 
-# ===== UPDATE =====
+# === UPDATE ===
 
 proc updateGame3D*(game: var Game3D, dt: float32) =
   # Handle pause toggle
@@ -195,7 +191,7 @@ proc updateGame3D*(game: var Game3D, dt: float32) =
     game.active = false
     game.won = true
 
-# ===== RENDER =====
+# === RENDER ===
 
 proc renderGame3D*(game: Game3D) =
   # 3D rendering

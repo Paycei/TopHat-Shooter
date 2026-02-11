@@ -281,7 +281,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
           (yPos + 3).int32, 14, LightGray)
   yPos += 40
   
-  # Show Cursor in Menus (only when mouse disabled)
+  # Show Cursor in Menus
   if not settingsWin.settings.mouseSupport:
     drawText(t(tkSettingsShowCursor), (contentX + 40).int32, yPos.int32, 18, 
             Color(r: 180, g: 180, b: 180, a: 255))
@@ -565,7 +565,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsWin.settings.mouseSupport = not settingsWin.settings.mouseSupport
         settingsChanged = true
       
-      # Show cursor checkbox (25x25 hit area, only if mouse disabled)
+      # Show cursor checkbox
       if not settingsWin.settings.mouseSupport:
         let cursorCheckX = contentX + 320
         let cursorCheckY = contentY + 90

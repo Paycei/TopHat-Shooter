@@ -607,15 +607,12 @@ type
 
   DopamineState* = object
     screenShake*: ScreenShake
-    # killStreak removed - streak system disabled
     comboSystem*: ComboSystem
     milestones*: MilestoneManager
     microRewards*: MicroRewardTracker
     slowMotion*: SlowMotion
     waveStats*: WaveStats
-    closeCall*: CloseCall
     currentTime*: float32
-    # Enhanced features
     waveCelebration*: WaveCelebration
     bossIntro*: BossIntroduction
     achievements*: AchievementManager

@@ -372,7 +372,6 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     if hasLastRun:
       let runStats = getLastRunStats()
       
-      # ENHANCED LAYOUT WITH GRAPHS AND ANALYTICS
       let col1Width = (contentW - 36) div 3
       let col1X = contentX + 12
       let col2X = col1X + col1Width + 12

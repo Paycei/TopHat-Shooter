@@ -1009,7 +1009,7 @@ proc main() =
         if checkAuraCollision(currentGame.coins[i], currentGame.player, currentGame.player.auraRadius):
           moveCoinToPlayer(currentGame.coins[i], currentGame.player.pos, dt)
         
-        # Enhanced magnet effect from consumable
+        # Magnet effect from consumable
         if currentGame.player.magnetTimer > 0:
           moveCoinToPlayer(currentGame.coins[i], currentGame.player.pos, dt)
         

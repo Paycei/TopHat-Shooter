@@ -69,10 +69,7 @@ type
     usesHitCount*: bool
     baseRequiredHits*: int
 
-# =============================================================================
 # ENEMY CONFIGURATION DEFINITIONS
-# =============================================================================
-
 proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   ## Returns the complete configuration for a given enemy type
   case enemyType
@@ -682,9 +679,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       usesHitCount: false
     )
 
-# =============================================================================
 # HELPER FUNCTIONS
-# =============================================================================
 
 proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: float32, radius: float32, speed: float32, requiredHits: int] =
   ## Calculate scaled stats based on difficulty (wave number)

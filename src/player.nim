@@ -288,7 +288,7 @@ proc drawPlayer*(player: Player) =
     drawText(t(tkPlayerDodge), (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
     player.lastDamageTaken = -1  # Clear flag
   
-  # === MODERN OS-STYLE PLAYER RENDERING ===
+  # PLAYER RENDERING 
   let time = getTime()
   let pulse = sin(time * 2.0) * 0.5 + 0.5  # Pulsing animation
   let rotation = time * 0.5  # Slow rotation for hex frame
