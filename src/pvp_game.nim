@@ -269,7 +269,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
   if input.placingWall and player.walls > 0:
     # Check if valid placement (not too close to players)
     var validPlacement = true
-    for i in 0..1:
+    for i in 0..<pvp.players.len:
       if distance(input.wallPos, pvp.players[i].pos) < 50:
         validPlacement = false
         break
@@ -332,7 +332,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
       continue
     
     # Check player collisions
-    for playerIdx in 0..1:
+    for playerIdx in 0..<pvp.players.len:
       let player = pvp.players[playerIdx]
       if player.hp <= 0 or player.invincibilityTimer > 0:
         continue
@@ -358,8 +358,9 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
           
           # Check for death
           if player.hp <= 0:
-            let otherPlayerIdx = 1 - playerIdx
-            pvp.players[otherPlayerIdx].kills += 1
+            # Award kill to the bullet owner
+            if bullet.ownerPlayerIndex >= 0 and bullet.ownerPlayerIndex < pvp.players.len:
+              pvp.players[bullet.ownerPlayerIndex].kills += 1
             
             # Start respawn timer
             pvp.respawnTimers[playerIdx] = PVP_RESPAWN_TIME
@@ -371,17 +372,24 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
             deathPacket.deadPlayerIndex = playerIdx
             pvp.networkManager.sendPacket(deathPacket)
             
-            # Check win condition
-            if pvp.players[otherPlayerIdx].kills >= PVP_KILL_LIMIT:
+            # Check win condition - find player with most kills
+            var maxKills = 0
+            var winningPlayerIdx = -1
+            for checkIdx in 0..<pvp.players.len:
+              if pvp.players[checkIdx].kills > maxKills:
+                maxKills = pvp.players[checkIdx].kills
+                winningPlayerIdx = checkIdx
+            
+            if maxKills >= PVP_KILL_LIMIT:
               pvp.gameOver = true
-              pvp.winnerIndex = otherPlayerIdx
+              pvp.winnerIndex = winningPlayerIdx
               pvp.gameOverReason = "Kill limit reached"
               
               var gameOverPacket = Packet(kind: ptGameOver)
               gameOverPacket.packetType = ptGameOver
               gameOverPacket.tick = pvp.serverTick
               gameOverPacket.timestamp = epochTime()
-              gameOverPacket.winnerIndex = otherPlayerIdx
+              gameOverPacket.winnerIndex = winningPlayerIdx
               gameOverPacket.reason = "Kill limit reached"
               pvp.networkManager.sendPacket(gameOverPacket)
         
@@ -427,16 +435,13 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
   pvp.gameTime += dt
   
   # Update respawn timers
-  for i in 0..1:
+  for i in 0..<pvp.players.len:
     if pvp.players[i].hp <= 0 and pvp.respawnTimers[i] > 0:
       pvp.respawnTimers[i] -= dt
       if pvp.respawnTimers[i] <= 0:
-        # Respawn player
+        # Respawn player at their spawn position
         pvp.players[i].hp = PVP_PLAYER_START_HP
-        if i == 0:
-          pvp.players[i].pos = newVector2f(pvp.screenWidth.float32 * 0.25, pvp.screenHeight.float32 * 0.5)
-        else:
-          pvp.players[i].pos = newVector2f(pvp.screenWidth.float32 * 0.75, pvp.screenHeight.float32 * 0.5)
+        pvp.players[i].pos = getSpawnPosition(i, pvp.players.len, pvp.screenWidth.float32, pvp.screenHeight.float32)
         pvp.players[i].invincibilityTimer = 2.0  # 2 seconds of invincibility after respawn
         
         # Send respawn packet
