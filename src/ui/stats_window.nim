@@ -297,7 +297,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
   
   case statsWin.currentTab
   of stLifetime:
-    # Existing lifetime stats implementation
+    # Existing lifetime stats
     var y = tabContentY + 20
     
     drawText(t(tkStatsPerformanceMonitor), (contentX + 20).int32, y.int32, 

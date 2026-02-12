@@ -194,7 +194,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   of tmtPerformance:
     drawPerformanceTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, contentHeight.int32, game.time)
   else:
-    discard  # No settings tab anymore
+    discard
   
   # Bottom buttons
   let buttonY = windowY + TASK_MANAGER_HEIGHT - 80

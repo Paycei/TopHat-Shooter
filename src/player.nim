@@ -100,10 +100,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.damageBoostTimer > 0:
     player.damageBoostTimer -= dt
   if player.lifestealTimer > 0:
-    player.lifestealTimer -= dt
-  
-  # NOTE: double-shot delay timer is updated in game.nim where firing logic lives
-  
+    player.lifestealTimer -= dt  
   # Update legendary power-up cooldowns
   if player.timeWarpCooldown > 0:
     player.timeWarpCooldown -= dt

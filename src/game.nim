@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d  # Import 3D game module
+import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival  # Import 3D game module
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -401,7 +401,7 @@ proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
   
   # Check boss invulnerability (during phase transitions)
   if enemy.isBoss and enemy.invulnerabilityTimer > 0:
-    return 0.0  # No damage dealt during invulnerability
+    return 0.0
   
   result = applyEliteModifiers(enemy, baseDamage)
   
@@ -411,10 +411,6 @@ proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
   else:
     enemy.hp -= result
   
-  # Track damage for real-time DPS stats
-  # Note: This is called from damageEnemy which is in game context
-  # We'll add the actual call in the bullet collision section
-
 # CENTRALIZED COMBAT STATS SYSTEM
 # Single source of truth for all combat-related stat calculations
 type CombatStats* = object
@@ -1687,7 +1683,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
 proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefinition, dt: float32) =
   ## Updates boss movement based on phase specialBehavior
   if phase.specialBehavior == "":
-    return  # No special behavior
+    return
   
   let playerDist = distance(enemy.pos, game.player.pos)
   let toPlayer = (game.player.pos - enemy.pos).normalize()
@@ -3354,10 +3350,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         isBossTeleportTarget: (idx == 0)
       )
       game.attackWarnings.add(warning)
-    
-    # NOTE: Boss teleport and all visual effects now happen when warnings expire
-    # This gives players the warning duration (0.5-1.0 seconds) to see where boss will appear
-  
+
   of bapDash:
     # BERSERKER DASH SYSTEM with multi-charge mechanics
     # SpecialData modes:
@@ -4766,48 +4759,8 @@ proc updateGame*(game: var Game, dt: float32) =
           spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
     
     elif isTimeSurvivalMode(game.mode):
-      # TIME SURVIVAL MODE: Original time-based spawning
-      let baseSpawnRate =
-        if game.difficulty < 1.5:
-          3.0
-        elif game.difficulty < 3.0:
-          2.3 / (1.0 + (game.difficulty - 1.5) * 0.3)
-        elif game.difficulty < 6.0:
-          1.8 / (1.0 + (game.difficulty - 3.0) * 0.25)
-        elif game.difficulty < 9.0:
-          1.4 / (1.0 + (game.difficulty - 6.0) * 0.15)
-        elif game.difficulty < 13.0:
-          1.2 / (1.0 + (game.difficulty - 9.0) * 0.1)
-        else:
-          max(0.9, 1.0 / (1.0 + (game.difficulty - 13.0) * 0.05))
-      
-      let waveSpawnRate = baseSpawnRate * 0.7
-      let waveProgress = (game.time mod 15.0) / 15.0
-      let isWaveActive = waveProgress > 0.6
-      
-      var currentSpawnRate = if isWaveActive: waveSpawnRate else: baseSpawnRate
-      if game.bossWaveManager.isBossActive():
-        currentSpawnRate = currentSpawnRate * 2.0
-      
-      if game.spawnTimer > currentSpawnRate:
-        let enemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty, game)
-        makeElite(enemy, (game.difficulty * 3).int)  # Use difficulty as wave equivalent
-        game.enemies.add(enemy)
-        game.spawnTimer = 0
-        
-        if isWaveActive and rand(100) < 60 and not game.bossWaveManager.isBossActive():
-          let waveEnemy = spawnEnemy(game.screenWidth, game.screenHeight, game.difficulty, game)
-          makeElite(waveEnemy, (game.difficulty * 3).int)
-          game.enemies.add(waveEnemy)
-        
-        let boss = game.enemies[^1]
-        # Spawn entrance particles for custom boss
-        for i in 0..<60:
-          let angle = i.float32 * 0.1
-          let dist = i.float32 * 3
-          let x = boss.pos.x + cos(angle) * dist
-          let y = boss.pos.y + sin(angle) * dist
-          spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
+      # TIME SURVIVAL MODE: delegate to survival.nim
+      spawnSurvivalEnemies(game)
 
   # Update enemies
 
@@ -6520,7 +6473,7 @@ proc drawGame*(game: Game) =
   
   if shakeOffsetX != 0 or shakeOffsetY != 0:
     
-    # Apply shake using Camera2D for clean implementation
+    # Apply shake using Camera2D
     var camera = Camera2D(
       offset: Vector2(x: game.screenWidth.float32 / 2.0 + shakeOffsetX, 
                      y: game.screenHeight.float32 / 2.0 + shakeOffsetY),
@@ -6732,9 +6685,7 @@ proc drawGame*(game: Game) =
   
   # Time survival mode - show wave indicator (only for time survival)
   if isTimeSurvivalMode(game.mode):
-    let waveProgress = (game.time mod 15.0) / 15.0
-    if waveProgress > 0.6 and not game.bossWaveManager.isBossActive():
-      drawText(t(tkGameWaveAnnouncementMain), game.screenWidth div 2 - 80, 10, 25, Red)
+    drawSurvivalHUD(game, game.screenWidth, game.screenHeight)
   
   # Combined HUD panel already shows all info, no need for separate panels
   

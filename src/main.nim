@@ -1365,8 +1365,6 @@ proc main() =
                 # Exponential backoff: wait 0.1s, 0.2s, 0.4s
                 let backoffTime = 0.1 * pow(2.0, float(retries - 1))
                 echo "Retrying in ", backoffTime, " seconds..."
-                # Note: In a real implementation, use proper async/threading
-                # For now, we'll just try immediately
           
           if saveSuccess:
             statsSavedThisGame = true

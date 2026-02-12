@@ -314,9 +314,6 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       of 2: 2.0   # +100% damage
       else: 2.5   # +150% damage
     player.damage *= damageBonus
-  of puArcaneAura:
-    # Arcane aura is tracked via powerUps (damage effect applied in game.nim)
-    discard
   of puFireMastery:
     # Enhance fire effects
     player.hasFireMastery = true
@@ -340,9 +337,6 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.hasBloodMastery = true
   of puBloodOrb:
     createElementalOrbs(player, etBlood, powerUp.level)
-  of puBloodAura:
-    # Blood aura is tracked via powerUps (lifesteal effect applied in game.nim)
-    discard
   of puPulseArmor:
     # Pulse armor is passive - shockwave emitted when player takes damage
     # Cooldown timer initialized to 0 (ready to use)
@@ -361,14 +355,6 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       else: 10.0  # +10 HP
     player.maxHp += hpBonus
     player.hp += hpBonus
-  of puSpecialRounds:
-    # Special rounds - every Nth bullet has special effect
-    # No stat changes, just tracked via bulletCounter
-    discard
-  of puGiantSlayer:
-    # Giant Slayer - bonus damage vs high HP enemies
-    # No stat changes, applied when bullet hits
-    discard
   else:
     discard
   
