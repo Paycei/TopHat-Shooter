@@ -389,7 +389,8 @@ proc main() =
           connectedPlayers.len,  # Use actual number of connected players, not configured maxPlayers
           connectedPlayers,
           globalWindowManager.pvp.teamsEnabled,
-          globalWindowManager.pvp.playerTeamAssignments
+          globalWindowManager.pvp.playerTeamAssignments,
+          globalWindowManager.pvp.interpolationEnabled
         )
         currentPvPGame.networkManager = globalWindowManager.pvp.networkManager
         currentPvPGame.localPlayerIndex = localPlayerIndex

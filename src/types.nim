@@ -18,7 +18,9 @@ type
     ptRed,       # Red team
     ptBlue,      # Blue team
     ptGreen,     # Green team (for 3+ teams)
-    ptYellow     # Yellow team (for 4 teams)
+    ptYellow,    # Yellow team (for 4 teams)
+    ptOrange,    # Orange team (for 5 teams)
+    ptPurple     # Purple team (for 6 teams)
 
   EnemyType* = enum
     etCircle,      # Normal chasers

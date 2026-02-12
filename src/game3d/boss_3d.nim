@@ -1,5 +1,4 @@
-## 3D Boss Module - FIXED 3-PHASE BOSS FIGHT
-## The Orbital Commander - A balanced, memorable battle
+## 3D Boss Module - The Orbital Commander
 
 import raylib, math, random
 import types_3d, engine_3d, player_3d

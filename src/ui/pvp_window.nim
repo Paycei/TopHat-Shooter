@@ -45,6 +45,8 @@ type
     teamsEnabled*: bool   # Whether teams game mode is enabled
     numTeams*: int        # Number of teams (2, 3, or 4)
     playerTeamAssignments*: seq[int]  # Team assignment per player index (0=Red, 1=Blue, 2=Green, 3=Yellow)
+    # Interpolation settings
+    interpolationEnabled*: bool  # Whether client-side interpolation is enabled
 
   PvPLobbyState* = enum
     plsMainMenu           # Choose host or join
@@ -102,12 +104,27 @@ proc getTeamForPlayer*(playerIndex: int, numTeams: int): PvPTeam =
     of 0: return ptRed
     of 1: return ptBlue
     else: return ptGreen
-  else:  # 4 teams
+  elif numTeams == 4:
     case playerIndex mod 4
     of 0: return ptRed
     of 1: return ptBlue
     of 2: return ptGreen
     else: return ptYellow
+  elif numTeams == 5:
+    case playerIndex mod 5
+    of 0: return ptRed
+    of 1: return ptBlue
+    of 2: return ptGreen
+    of 3: return ptYellow
+    else: return ptOrange
+  else:  # 6 teams
+    case playerIndex mod 6
+    of 0: return ptRed
+    of 1: return ptBlue
+    of 2: return ptGreen
+    of 3: return ptYellow
+    of 4: return ptOrange
+    else: return ptPurple
 
 proc getTeamColor*(team: PvPTeam): Color =
   ## Get the display color for a team
@@ -120,6 +137,10 @@ proc getTeamColor*(team: PvPTeam): Color =
     return Color(r: 60, g: 255, b: 120, a: 255)
   of ptYellow:
     return Color(r: 255, g: 220, b: 60, a: 255)
+  of ptOrange:
+    return Color(r: 255, g: 165, b: 0, a: 255)
+  of ptPurple:
+    return Color(r: 200, g: 100, b: 255, a: 255)
   of ptNone:
     return White
 
@@ -130,6 +151,8 @@ proc getTeamName*(team: PvPTeam): string =
   of ptBlue: return "Blue"
   of ptGreen: return "Green"
   of ptYellow: return "Yellow"
+  of ptOrange: return "Orange"
+  of ptPurple: return "Purple"
   of ptNone: return "None"
 
 proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
@@ -178,7 +201,8 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
     cursorPos: 0,
     teamsEnabled: false,
     numTeams: 2,
-    playerTeamAssignments: @[]
+    playerTeamAssignments: @[],
+    interpolationEnabled: true  # Interpolation enabled by default
   )
 
 proc startHosting*(pvpWin: PvPWindow) =
@@ -193,7 +217,7 @@ proc startHosting*(pvpWin: PvPWindow) =
   if pvpWin.teamsEnabled:
     pvpWin.playerTeamAssignments = @[]
     # Pre-allocate space for team assignments for all potential players
-    # Team assignments are stored as 1-4 (ptRed to ptYellow), skipping 0 (ptNone)
+    # Team assignments are stored as 1-6 (ptRed to ptPurple), skipping 0 (ptNone)
     for i in 0..<pvpWin.maxPlayers:
       pvpWin.playerTeamAssignments.add((i mod pvpWin.numTeams) + 1)  # +1 to skip ptNone (0)
 
@@ -857,17 +881,37 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
               Vector2(x: (checkboxX + 16).float32, y: (checkboxY + 6).float32), 2, Green)
     drawText("Show IPs in lobby", (checkboxX + checkboxSize + 10).int32, checkboxY.int32, 18, White)
 
+    # Enable Interpolation checkbox
+    let interpCheckboxX = contentX + 50
+    let interpCheckboxY = contentY + 265
+    let interpCheckboxSize = 20
+    let interpCheckboxHovered = mousePos.x >= interpCheckboxX.float32 and
+                                mousePos.x <= (interpCheckboxX + interpCheckboxSize + 250).float32 and
+                                mousePos.y >= interpCheckboxY.float32 and
+                                mousePos.y <= (interpCheckboxY + interpCheckboxSize).float32
+    drawRectangle(interpCheckboxX.int32, interpCheckboxY.int32, interpCheckboxSize.int32, interpCheckboxSize.int32,
+                 Color(r: 40, g: 40, b: 50, a: 255))
+    drawRectangleLines(Rectangle(x: interpCheckboxX.float32, y: interpCheckboxY.float32,
+               width: interpCheckboxSize.float32, height: interpCheckboxSize.float32), 2,
+               if interpCheckboxHovered: Yellow else: Gray)
+    if pvpWin.interpolationEnabled:
+      drawLine(Vector2(x: (interpCheckboxX + 4).float32, y: (interpCheckboxY + 10).float32),
+              Vector2(x: (interpCheckboxX + 8).float32, y: (interpCheckboxY + 14).float32), 2, Green)
+      drawLine(Vector2(x: (interpCheckboxX + 8).float32, y: (interpCheckboxY + 14).float32),
+              Vector2(x: (interpCheckboxX + 16).float32, y: (interpCheckboxY + 6).float32), 2, Green)
+    drawText("Enable Interpolation", (interpCheckboxX + interpCheckboxSize + 10).int32, interpCheckboxY.int32, 18, White)
+
     # Divider
-    drawLine(Vector2(x: (contentX + 20).float32, y: (contentY + 267).float32),
-            Vector2(x: (contentX + contentWidth - 20).float32, y: (contentY + 267).float32),
+    drawLine(Vector2(x: (contentX + 20).float32, y: (contentY + 295).float32),
+            Vector2(x: (contentX + contentWidth - 20).float32, y: (contentY + 295).float32),
             1, Color(r: 80, g: 80, b: 80, a: 255))
 
     # Teams section header
-    drawText("Teams Mode", (contentX + 50).int32, (contentY + 277).int32, 20, White)
+    drawText("Teams Mode", (contentX + 50).int32, (contentY + 305).int32, 20, White)
 
     # Enable Teams checkbox
     let teamCheckboxX = contentX + 50
-    let teamCheckboxY = contentY + 303
+    let teamCheckboxY = contentY + 331
     let teamCheckboxSize = 20
     let teamCheckboxHovered = mousePos.x >= teamCheckboxX.float32 and
                               mousePos.x <= (teamCheckboxX + teamCheckboxSize + 220).float32 and
@@ -887,14 +931,14 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
 
     # Number of teams selector (only show if teams enabled)
     if pvpWin.teamsEnabled:
-      drawText("Number of Teams:", (contentX + 50).int32, (contentY + 337).int32, 18, White)
+      drawText("Number of Teams:", (contentX + 50).int32, (contentY + 365).int32, 18, White)
 
-      let teamButtonY = contentY + 335
+      let teamButtonY = contentY + 363
       let teamButtonWidth = 44
       let teamButtonSpacing = 58
       let teamStartX = contentX + 220
 
-      for teamCount in 2..4:
+      for teamCount in 2..6:
         let btnX = teamStartX + (teamCount - 2) * teamButtonSpacing
         let isSelected = pvpWin.numTeams == teamCount
         let isBtnHovered = mousePos.x >= btnX.float32 and
@@ -1416,9 +1460,20 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       pvpWin.showIPs = not pvpWin.showIPs
       return 0
 
-    # Teams enable checkbox (Y=303)
+    # Enable Interpolation checkbox (Y=265)
+    let interpCheckboxX = contentX + 50
+    let interpCheckboxY = contentY + 265
+    let interpCheckboxSize = 20
+    if mousePos.x >= interpCheckboxX.float32 and
+       mousePos.x <= (interpCheckboxX + interpCheckboxSize + 250).float32 and
+       mousePos.y >= interpCheckboxY.float32 and
+       mousePos.y <= (interpCheckboxY + interpCheckboxSize).float32:
+      pvpWin.interpolationEnabled = not pvpWin.interpolationEnabled
+      return 0
+
+    # Teams enable checkbox (Y=331)
     let teamCheckboxX = contentX + 50
-    let teamCheckboxY = contentY + 303
+    let teamCheckboxY = contentY + 331
     let teamCheckboxSize = 20
     if mousePos.x >= teamCheckboxX.float32 and
        mousePos.x <= (teamCheckboxX + teamCheckboxSize + 220).float32 and
@@ -1427,13 +1482,13 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       pvpWin.teamsEnabled = not pvpWin.teamsEnabled
       return 0
 
-    # Team count buttons (only if teams enabled, Y=335)
+    # Team count buttons (only if teams enabled, Y=363)
     if pvpWin.teamsEnabled:
-      let teamButtonY = contentY + 335
+      let teamButtonY = contentY + 363
       let teamButtonWidth = 44
       let teamButtonSpacing = 58
       let teamStartX = contentX + 220
-      for teamCount in 2..4:
+      for teamCount in 2..6:
         let btnX = teamStartX + (teamCount - 2) * teamButtonSpacing
         if mousePos.x >= btnX.float32 and
            mousePos.x <= (btnX + teamButtonWidth).float32 and

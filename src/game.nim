@@ -3362,7 +3362,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     let dashDir = toPlayer
     var dashSpeed = attack.projectileSpeed
     
-    # CRITICAL MECHANIC: Cap dash speed to player speed for fairness
+    # Cap dash speed to player speed for fairness
     # Bosses can charge at you, but never faster than you can move away
     if dashSpeed > game.player.speed:
       dashSpeed = game.player.speed
@@ -5878,7 +5878,7 @@ proc updateGame*(game: var Game, dt: float32) =
               showDamage(game, game.enemies[j].pos, actualDamage, true, isCrit, bulletDmgType)
           hitEnemy = true
           
-          # FIX: Remove all echo trail bullets when main bullet hits an enemy
+          # Remove all echo trail bullets when main bullet hits an enemy
           # This prevents the entire trail from stacking damage on one target
           if not bullet.isEcho and bullet.bulletId > 0:
             # Remove all echo children of this bullet
@@ -6457,7 +6457,6 @@ proc updateGame*(game: var Game, dt: float32) =
       continue
     i += 1
   
-  # CRITICAL SAFETY CHECK: Ensure player death is always detected
   # This catches edge cases where HP reaches 0 but game didn't transition to game over
   if game.player.hp <= 0 and game.state == gsPlaying:
     game.state = gsGameOver

@@ -1,6 +1,6 @@
 import raylib, types, math, bullet_skins
 
-const BASE_PLAYER_BULLET_RADIUS* = 4.5
+const BASE_PLAYER_BULLET_RADIUS* = 5.0
 
 proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true, 
                 isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false,
@@ -315,7 +315,7 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     original.bulletSkin,  # Preserve bullet skin
     0,  # bulletId (will be assigned later)
     -1,  # parentBulletId
-    original.ownerPlayerIndex  # CRITICAL: Preserve owner for PvP
+    original.ownerPlayerIndex  # Preserve owner for PvP
   )
   
   # Copy additional state that needs to be preserved
@@ -400,7 +400,7 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
                       lifetime: float32 = 0.35) =
   ## Create an echo trail bullet that inherits ALL properties
   ## SYNERGY SYSTEM: Echo bullets can split, ricochet, explode, etc.
-  ## FIX: Echo bullets track their parent so they can be removed when parent hits
+  ## Echo bullets track their parent so they can be removed when parent hits
   let echoBullet = cloneBullet(
     sourceBullet,
     sourceBullet.pos,

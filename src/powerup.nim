@@ -493,7 +493,7 @@ proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
   let sharedSpeed = 1000.0  # Adjust this value to control roll speed
   
   for i in 0..2:
-    # CRITICAL: The final position should show the LAST card in the list
+    # The final position should show the LAST card in the list
     let finalIndex = game.rollPowerUpList[i].len - 1
     let finalPosition = finalIndex.float32 * cardHeight
     
@@ -530,7 +530,7 @@ proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
         # Calculate speed during brake (derivative of ease-out)
         game.rollSpeed[i] = (brakeDistance / brakeDuration) * 2.0 * (1.0 - brakeProgress)
     else:
-      # CRITICAL: Slot is stopped - FORCE exact final position every frame
+      # Slot is stopped - FORCE exact final position every frame
       game.rollPosition[i] = finalPosition
       game.rollSpeed[i] = 0.0
   
@@ -553,7 +553,7 @@ proc initPowerUpRollAnimation*(game: Game) =
   echo "Slot 1 final: ", getPowerUpName(game.powerUpChoices[1].powerType)
   echo "Slot 2 final: ", getPowerUpName(game.powerUpChoices[2].powerType)
   
-  # CRITICAL: Each slot i must use game.powerUpChoices[i], NOT game.powerUpChoices[0]
+  # Each slot i must use game.powerUpChoices[i], NOT game.powerUpChoices[0]
   for i in 0..2:
     game.rollPosition[i] = 0
     game.rollSpeed[i] = 0
@@ -575,7 +575,7 @@ proc initPowerUpRollAnimation*(game: Game) =
         # Other items: random (but NEVER the same as the final power-up)
         game.rollPowerUpList[i].add(generateRandomPowerUpExcluding(game.player, isLegendary, game.powerUpChoices[i].powerType))
     
-    # CRITICAL: Last item MUST be THIS SLOT'S final power-up (slot i)
+    # Last item MUST be THIS SLOT'S final power-up (slot i)
     game.rollPowerUpList[i].add(game.powerUpChoices[i])
     
     # DEBUG: Verify the last item
