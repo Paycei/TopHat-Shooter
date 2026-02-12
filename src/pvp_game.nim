@@ -22,6 +22,16 @@ type
     kills*: int
     deaths*: int
   
+  # Interpolation state for remote players
+  PlayerInterpState = object
+    prevPos*: Vector2f
+    targetPos*: Vector2f
+    prevVel*: Vector2f
+    targetVel*: Vector2f
+    prevTime*: float32
+    targetTime*: float32
+    hasData*: bool
+  
   PvPGameState* = ref object
     networkManager*: NetworkManager
     localPlayerIndex*: int  # 0-15
@@ -55,6 +65,9 @@ type
     teamsEnabled*: bool  # Whether team-based gameplay is enabled
     playerTeamAssignments*: seq[int]  # Team assignment per player (0-3)
     teamScores*: array[PvPTeam, TeamScore]  # Track scores per team
+    # Client-side interpolation for remote players
+    playerInterpStates*: seq[PlayerInterpState]  # Interpolation state per player
+    interpDelay*: float32  # Render delay for interpolation (in seconds)
 
 proc getTeamColor*(team: PvPTeam): Color =
   ## Get the display color for a team
@@ -209,7 +222,10 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     lastInputs: @[],
     playerNicknames: @[],
     teamsEnabled: teamsEnabled,
-    playerTeamAssignments: playerTeamAssignments
+    playerTeamAssignments: playerTeamAssignments,
+    # Initialize interpolation
+    playerInterpStates: @[],
+    interpDelay: 0.1  # 100ms interpolation delay (3 snapshots at 30Hz)
   )
 
   # Initialize team scores
@@ -268,6 +284,17 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     result.playerConnected.add(true)
     result.lastInputs.add(emptyInput)
     result.playerNicknames.add(playerNick)
+    
+    # Initialize interpolation state for this player
+    result.playerInterpStates.add(PlayerInterpState(
+      prevPos: player.pos,
+      targetPos: player.pos,
+      prevVel: newVector2f(0, 0),
+      targetVel: newVector2f(0, 0),
+      prevTime: 0,
+      targetTime: 0,
+      hasData: false
+    ))
   
   result.bullets = @[]
   result.walls = @[]
@@ -611,7 +638,10 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
   ## Server-side update (host only)
   pvp.serverTick += 1
   pvp.gameTime += dt
-  
+
+  # NOTE: Host does NOT use interpolation for display - host is the server with authoritative state
+  # Only clients interpolate remote players to smooth network latency
+
   # Update respawn timers
   for i in 0..<pvp.players.len:
     # Disconnected players never respawn
@@ -712,7 +742,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
     
     let gameState = NetworkGameState(
       tick: pvp.serverTick,
-      timestamp: epochTime(),
+      timestamp: pvp.gameTime,
       maxPlayers: pvp.maxPlayers,
       players: playerStates,
       bullets: bulletStates,
@@ -728,10 +758,29 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
     # Apply server state to host (inline reconciliation for simplicity)
     let localIdx = pvp.localPlayerIndex
     
-    # Reconcile all other players fully (not local player)
+    # Update interpolation states for all remote players (clients)
     for i in 0..<pvp.players.len:
-      if i != localIdx and i < gameState.players.len:
-        pvp.players[i].pos = gameState.players[i].pos
+      if i != localIdx and i < gameState.players.len and i < pvp.playerInterpStates.len:
+        let interpState = addr pvp.playerInterpStates[i]
+        
+        # Move current target to previous
+        if interpState.hasData:
+          interpState.prevPos = interpState.targetPos
+          interpState.prevVel = interpState.targetVel
+          interpState.prevTime = interpState.targetTime
+        else:
+          # First snapshot - initialize with current position
+          interpState.prevPos = gameState.players[i].pos
+          interpState.prevVel = gameState.players[i].vel
+          interpState.prevTime = gameState.timestamp
+        
+        # Set new target from game state
+        interpState.targetPos = gameState.players[i].pos
+        interpState.targetVel = gameState.players[i].vel
+        interpState.targetTime = gameState.timestamp
+        interpState.hasData = true
+        
+        # Update non-positional data immediately
         pvp.players[i].vel = gameState.players[i].vel
         pvp.players[i].hp = gameState.players[i].hp
         pvp.players[i].maxHp = gameState.players[i].maxHp
@@ -772,6 +821,45 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
   ## Input is now applied immediately in main updatePvP for responsive feel
   ## This function handles additional client-only updates
   pvp.gameTime += dt
+
+  # Update interpolation for remote players
+  let renderTime = pvp.gameTime - pvp.interpDelay
+
+  for i in 0..<pvp.players.len:
+    if i == pvp.localPlayerIndex:
+      continue  # Skip local player (uses prediction)
+
+    if i >= pvp.playerInterpStates.len:
+      continue
+
+    let interpState = addr pvp.playerInterpStates[i]
+
+    if not interpState.hasData:
+      continue  # No interpolation data yet
+
+    # Calculate interpolation factor between prev and target
+    let timeDiff = interpState.targetTime - interpState.prevTime
+    if timeDiff <= 0:
+      # Invalid time diff, just use target
+      pvp.players[i].pos = interpState.targetPos
+      continue
+
+    let t = (renderTime - interpState.prevTime) / timeDiff
+
+    if t < 0:
+      # Render time is before prev, use prev
+      pvp.players[i].pos = interpState.prevPos
+    elif t > 1.0:
+      # Render time is after target, extrapolate using velocity but clamp to prevent overshooting
+      let timeAfterTarget = renderTime - interpState.targetTime
+      # Clamp extrapolation to one snapshot interval to prevent overshooting
+      let clampedTime = min(timeAfterTarget, SNAPSHOT_RATE)
+      pvp.players[i].pos.x = interpState.targetPos.x + interpState.targetVel.x * clampedTime
+      pvp.players[i].pos.y = interpState.targetPos.y + interpState.targetVel.y * clampedTime
+    else:
+      # Interpolate between prev and target
+      pvp.players[i].pos.x = interpState.prevPos.x + (interpState.targetPos.x - interpState.prevPos.x) * t
+      pvp.players[i].pos.y = interpState.prevPos.y + (interpState.targetPos.y - interpState.prevPos.y) * t
   
   # Update bullets locally for smooth interpolation between server snapshots
   # Server will reconcile with authoritative state
@@ -802,10 +890,31 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   
   let localIdx = pvp.localPlayerIndex
   
-  # Update all remote players - full update from server
+  # Update all remote players - use interpolation instead of direct snap
   for i in 0..<pvp.players.len:
     if i != localIdx:
-      pvp.players[i].pos = serverState.players[i].pos
+      # Update interpolation state for this remote player
+      if i < pvp.playerInterpStates.len:
+        let interpState = addr pvp.playerInterpStates[i]
+        
+        # Move current target to previous
+        if interpState.hasData:
+          interpState.prevPos = interpState.targetPos
+          interpState.prevVel = interpState.targetVel
+          interpState.prevTime = interpState.targetTime
+        else:
+          # First snapshot - initialize with current position
+          interpState.prevPos = serverState.players[i].pos
+          interpState.prevVel = serverState.players[i].vel
+          interpState.prevTime = serverState.timestamp
+        
+        # Set new target from server
+        interpState.targetPos = serverState.players[i].pos
+        interpState.targetVel = serverState.players[i].vel
+        interpState.targetTime = serverState.timestamp
+        interpState.hasData = true
+      
+      # Update non-positional data immediately (no interpolation needed)
       pvp.players[i].vel = serverState.players[i].vel
       pvp.players[i].hp = serverState.players[i].hp
       pvp.players[i].maxHp = serverState.players[i].maxHp
