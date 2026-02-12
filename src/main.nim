@@ -1568,6 +1568,20 @@ proc main() =
       if isKeyPressed(Escape) and not currentPvPGame.gameOver:
         currentGame.state = gsPaused
       
+      # Update Discord Rich Presence (throttled internally to prevent lag)
+      if not currentGame.discordClient.isNil:
+        try:
+          runCallbacks(currentGame.discordClient)
+          updateDiscordForPvP(currentGame.discordClient, currentPvPGame)
+        except Exception as e:
+          echo "Discord error during PvP: ", e.msg
+          try:
+            disconnect(currentGame.discordClient)
+          except:
+            discard
+          currentGame.discordClient = nil
+          globalDiscordClient = nil
+      
       # Update PvP game
       updatePvP(currentPvPGame, dt)
       

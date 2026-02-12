@@ -12,7 +12,7 @@ const
   PVP_PLAYER_START_COINS = 100
   PVP_PLAYER_START_WALLS = 3
   PVP_RESPAWN_TIME = 3.0
-  PVP_KILL_LIMIT = 5  # First to 5 kills wins (individual or team)
+  PVP_KILL_LIMIT* = 5  # First to 5 kills wins (individual or team)
   PVP_TIME_LIMIT = 180.0  # 3 minutes
   SNAPSHOT_RATE = 0.033  # 30 Hz (every 33ms)
   INPUT_SEND_RATE = 0.033  # 30 Hz - match snapshot rate to reduce reconciliation conflicts
