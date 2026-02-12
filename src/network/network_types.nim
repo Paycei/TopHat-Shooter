@@ -1,8 +1,8 @@
 ## Network Types and Packet Definitions for PvP Mode
-## Defines all network packet structures
-## Serialization handled by flatty_network.nim
+## Defines all network packet structures and a newPacket helper.
+## Serialization is handled directly in network.nim via flatty.
 
-import raylib, ../types
+import raylib, ../types, times
 
 type
   PacketType* = enum
@@ -16,37 +16,29 @@ type
     ptBulletDestroy       # Server -> Client: Bullet destroyed
     ptPlayerDamage        # Server -> Client: Player took damage
     ptPlayerDeath         # Server -> Client: Player died
-    ptPowerUpSpawn        # Server -> Client: Power-up spawned
-    ptPowerUpCollect      # Server -> Client: Power-up collected
     ptWallPlace           # Server -> Client: Wall placed
     ptWallDestroy         # Server -> Client: Wall destroyed
     ptGameOver            # Server -> Both: Game ended
     ptDisconnect          # Either -> Other: Player disconnecting
     ptPing                # Both: Latency measurement
     ptPong                # Both: Latency response
-    
+
   NetworkRole* = enum
     nrNone, nrHost, nrClient
-    
-  ConnectionState* = enum
-    csDisconnected
-    csConnecting
-    csConnected
-    csInGame
-    
+
   PlayerInput* = object
     tick*: int
-    playerIndex*: int  # Which player this input is from
+    playerIndex*: int
     moveDir*: Vector2f
     shooting*: bool
     mousePos*: Vector2f
     placingWall*: bool
     wallPos*: Vector2f
     timestamp*: float32
-    
+
   PlayerStateNet* = object
-    playerIndex*: int  # Player index in the game
-    isActive*: bool  # Whether this player slot is filled
+    playerIndex*: int
+    isActive*: bool
     pos*: Vector2f
     vel*: Vector2f
     hp*: float32
@@ -57,50 +49,56 @@ type
     damage*: float32
     speed*: float32
     invincibilityTimer*: float32
-    teamId*: int  # Team assignment (0=None, 1=Red, 2=Blue, 3=Green, 4=Yellow)
-    # Cosmetics
+    teamId*: int
     skinType*: int
     bulletSkinType*: int
     shapeType*: int
     particleSkinType*: int
     nickname*: string
-    
+
   BulletStateNet* = object
     id*: int
     pos*: Vector2f
     vel*: Vector2f
     radius*: float32
     damage*: float32
-    fromPlayerIndex*: int  # 0-15
+    fromPlayerIndex*: int
     isPiercing*: bool
     isExplosive*: bool
     isHoming*: bool
-    bulletSkin*: int  # Bullet skin type
-    
+    bulletSkin*: int
+
   WallStateNet* = object
     pos*: Vector2f
     radius*: float32
     hp*: float32
     maxHp*: float32
-    ownerIndex*: int  # 0-15
-    
+    ownerIndex*: int
+
   NetworkGameState* = object
     tick*: int
     timestamp*: float32
-    maxPlayers*: int  # Total player slots (2-16)
-    players*: seq[PlayerStateNet]  # Dynamic player list
+    maxPlayers*: int
+    players*: seq[PlayerStateNet]
     bullets*: seq[BulletStateNet]
     walls*: seq[WallStateNet]
-    
+
+  ConnectedPlayerInfo* = tuple[
+    index: int,
+    skinType: int,
+    bulletSkinType: int,
+    shapeType: int,
+    particleSkinType: int,
+    nickname: string
+  ]
+
   Packet* = object
-    packetType*: PacketType
     tick*: int
     timestamp*: float32
     case kind*: PacketType
     of ptConnectionRequest:
       version*: string
       playerName*: string
-      # Cosmetics from connecting player
       requestSkinType*: int
       requestBulletSkinType*: int
       requestShapeType*: int
@@ -108,29 +106,13 @@ type
     of ptConnectionAccept, ptConnectionDenied:
       connectionReason*: string
       assignedPlayerIndex*: int
-      maxPlayersInRoom*: int  # Total max players for this room
-      # All currently connected players' cosmetics
-      connectedPlayers*: seq[tuple[
-        index: int,
-        skinType: int,
-        bulletSkinType: int,
-        shapeType: int,
-        particleSkinType: int,
-        nickname: string
-      ]]
+      maxPlayersInRoom*: int
+      connectedPlayers*: seq[ConnectedPlayerInfo]
     of ptGameStart:
       countdownTime*: float32
-      teamsEnabled*: bool  # Whether team mode is active
-      teamAssignments*: seq[int]  # Team assignment per player (0-4, where 0=None)
-      # Include final list of all connected players so clients have the complete roster
-      gameConnectedPlayers*: seq[tuple[
-        index: int,
-        skinType: int,
-        bulletSkinType: int,
-        shapeType: int,
-        particleSkinType: int,
-        nickname: string
-      ]]
+      teamsEnabled*: bool
+      teamAssignments*: seq[int]
+      gameConnectedPlayers*: seq[ConnectedPlayerInfo]
     of ptPlayerInput:
       input*: PlayerInput
     of ptGameState:
@@ -145,18 +127,12 @@ type
       newHp*: float32
     of ptPlayerDeath:
       deadPlayerIndex*: int
-    of ptPowerUpSpawn:
-      powerUpPos*: Vector2f
-      spawnedPowerUpType*: int
-    of ptPowerUpCollect:
-      collectingPlayerIndex*: int
-      collectedPowerUpType*: int
     of ptWallPlace:
       wall*: WallStateNet
     of ptWallDestroy:
       wallIndex*: int
     of ptGameOver:
-      winnerIndex*: int  # -1 for draw
+      winnerIndex*: int
       reason*: string
     of ptDisconnect:
       disconnectReason*: string
@@ -165,3 +141,7 @@ type
       sendTime*: float32
     else:
       discard
+
+proc newPacket*(kind: PacketType, tick: int = 0): Packet {.inline.} =
+  ## Create a Packet with the given kind, tick, and current timestamp.
+  Packet(kind: kind, tick: tick, timestamp: epochTime().float32)

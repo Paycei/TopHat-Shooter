@@ -560,7 +560,7 @@ proc preGenerateAllAssets*(verbose: bool = true) =
   
   if cached.total == totalAssets:
     if verbose:
-      echo "All ", totalAssets, " assets already cached - ready to play!"
+      echo "All ", totalAssets, " assets already cached"
     return
   
   if verbose:

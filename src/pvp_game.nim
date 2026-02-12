@@ -284,14 +284,11 @@ proc startCountdown*(pvp: PvPGameState) =
       teamAssignments.add(pvp.players[i].teamId.ord)
     
     # Send game start packet with team information
-    var packet = Packet(kind: ptGameStart)
-    packet.packetType = ptGameStart
-    packet.tick = pvp.serverTick
-    packet.timestamp = epochTime()
+    var packet = newPacket(ptGameStart, pvp.serverTick)
     packet.countdownTime = pvp.countdownTimer
     packet.teamsEnabled = pvp.teamsEnabled
     packet.teamAssignments = teamAssignments
-    packet.gameConnectedPlayers = @[]  # Empty for now
+    packet.gameConnectedPlayers = @[]
     pvp.networkManager.sendPacket(packet)
 
 proc capturePlayerInput*(pvp: PvPGameState): PlayerInput =
@@ -405,10 +402,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
         bulletSkin: newBullet.bulletSkin
       )
       
-      var packet = Packet(kind: ptBulletSpawn)
-      packet.packetType = ptBulletSpawn
-      packet.tick = pvp.serverTick
-      packet.timestamp = epochTime()
+      var packet = newPacket(ptBulletSpawn, pvp.serverTick)
       packet.bullet = bulletState
       pvp.networkManager.sendPacket(packet)
   
@@ -447,10 +441,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
           ownerIndex: playerIndex
         )
         
-        var packet = Packet(kind: ptWallPlace)
-        packet.packetType = ptWallPlace
-        packet.tick = pvp.serverTick
-        packet.timestamp = epochTime()
+        var packet = newPacket(ptWallPlace, pvp.serverTick)
         packet.wall = wallState
         pvp.networkManager.sendPacket(packet)
 
@@ -468,10 +459,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
        bullet.lifetime > 5.0:
       
       if pvp.networkManager.isHost():
-        var packet = Packet(kind: ptBulletDestroy)
-        packet.packetType = ptBulletDestroy
-        packet.tick = pvp.serverTick
-        packet.timestamp = epochTime()
+        var packet = newPacket(ptBulletDestroy, pvp.serverTick)
         packet.bulletId = bullet.bulletId
         pvp.networkManager.sendPacket(packet)
       
@@ -498,10 +486,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
           player.hp -= bullet.damage
           
           # Send damage packet
-          var packet = Packet(kind: ptPlayerDamage)
-          packet.packetType = ptPlayerDamage
-          packet.tick = pvp.serverTick
-          packet.timestamp = epochTime()
+          var packet = newPacket(ptPlayerDamage, pvp.serverTick)
           packet.damagedPlayerIndex = playerIdx
           packet.damageAmount = bullet.damage
           packet.newHp = player.hp
@@ -525,10 +510,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
             # Start respawn timer
             pvp.respawnTimers[playerIdx] = PVP_RESPAWN_TIME
             
-            var deathPacket = Packet(kind: ptPlayerDeath)
-            deathPacket.packetType = ptPlayerDeath
-            deathPacket.tick = pvp.serverTick
-            deathPacket.timestamp = epochTime()
+            var deathPacket = newPacket(ptPlayerDeath, pvp.serverTick)
             deathPacket.deadPlayerIndex = playerIdx
             pvp.networkManager.sendPacket(deathPacket)
             
@@ -548,11 +530,8 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
                 pvp.winnerIndex = -1  # No individual winner in team mode
                 pvp.gameOverReason = "Kill limit reached"
                 
-                var gameOverPacket = Packet(kind: ptGameOver)
-                gameOverPacket.packetType = ptGameOver
-                gameOverPacket.tick = pvp.serverTick
-                gameOverPacket.timestamp = epochTime()
-                gameOverPacket.winnerIndex = -1  # Will use team info
+                var gameOverPacket = newPacket(ptGameOver, pvp.serverTick)
+                gameOverPacket.winnerIndex = -1
                 gameOverPacket.reason = "Team " & $winningTeam & " wins!"
                 pvp.networkManager.sendPacket(gameOverPacket)
             else:
@@ -569,10 +548,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
                 pvp.winnerIndex = winningPlayerIdx
                 pvp.gameOverReason = "Kill limit reached"
                 
-                var gameOverPacket = Packet(kind: ptGameOver)
-                gameOverPacket.packetType = ptGameOver
-                gameOverPacket.tick = pvp.serverTick
-                gameOverPacket.timestamp = epochTime()
+                var gameOverPacket = newPacket(ptGameOver, pvp.serverTick)
                 gameOverPacket.winnerIndex = winningPlayerIdx
                 gameOverPacket.reason = "Kill limit reached"
                 pvp.networkManager.sendPacket(gameOverPacket)
@@ -594,10 +570,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
           wall.hp -= bullet.damage
           
           if wall.hp <= 0:
-            var packet = Packet(kind: ptWallDestroy)
-            packet.packetType = ptWallDestroy
-            packet.tick = pvp.serverTick
-            packet.timestamp = epochTime()
+            var packet = newPacket(ptWallDestroy, pvp.serverTick)
             packet.wallIndex = wallIdx
             pvp.networkManager.sendPacket(packet)
             pvp.walls.delete(wallIdx)
@@ -633,10 +606,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         pvp.players[i].invincibilityTimer = 2.0  # 2 seconds of invincibility after respawn
         
         # Send respawn packet
-        var respawnPacket = Packet(kind: ptPlayerDamage)  # Reuse damage packet to update HP
-        respawnPacket.packetType = ptPlayerDamage
-        respawnPacket.tick = pvp.serverTick
-        respawnPacket.timestamp = epochTime()
+        var respawnPacket = newPacket(ptPlayerDamage, pvp.serverTick)
         respawnPacket.damagedPlayerIndex = i
         respawnPacket.damageAmount = 0
         respawnPacket.newHp = PVP_PLAYER_START_HP
@@ -726,12 +696,8 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
       walls: wallStates
     )
     
-    var packet = Packet(kind: ptGameState)
-    packet.packetType = ptGameState
-    packet.tick = pvp.serverTick
-    packet.timestamp = epochTime()
+    var packet = newPacket(ptGameState, pvp.serverTick)
     packet.state = gameState
-    
     pvp.networkManager.sendPacket(packet)
     
     # Host should also reconcile their own state for fairness
@@ -936,7 +902,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         pvp.players[playerIdx].particleSkinType = event.remoteParticleSkinType
     
     of neReceive:
-      case event.packet.packetType
+      case event.packet.kind
       of ptGameStart:
         pvp.countdownTimer = event.packet.countdownTime
         pvp.isCountingDown = true
@@ -1090,10 +1056,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
           pvp.gameOverReason = "Player " & $event.disconnectPlayerIndex & " disconnected"
           
           # Send game over packet to notify remaining clients
-          var gameOverPacket = Packet(kind: ptGameOver)
-          gameOverPacket.packetType = ptGameOver
-          gameOverPacket.tick = pvp.serverTick
-          gameOverPacket.timestamp = epochTime()
+          var gameOverPacket = newPacket(ptGameOver, pvp.serverTick)
           gameOverPacket.winnerIndex = pvp.localPlayerIndex
           gameOverPacket.reason = "Player disconnected"
           pvp.networkManager.sendPacket(gameOverPacket)
@@ -1158,10 +1121,7 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
     
     # Send to server if client
     if pvp.networkManager.isClient():
-      var packet = Packet(kind: ptPlayerInput)
-      packet.packetType = ptPlayerInput
-      packet.tick = pvp.serverTick
-      packet.timestamp = epochTime()
+      var packet = newPacket(ptPlayerInput, pvp.serverTick)
       packet.input = input
       pvp.networkManager.sendPacket(packet)
   

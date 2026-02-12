@@ -265,7 +265,7 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
         pvpWin.remoteParticleSkinType = event.remoteParticleSkinType
       elif event.kind == neReceive:
         # Extract connection accept packet data (player index, connected players list)
-        if event.packet.packetType == ptConnectionAccept:
+        if event.packet.kind == ptConnectionAccept:
           pvpWin.connectedPlayers = event.packet.connectedPlayers
           pvpWin.assignedPlayerIndex = event.packet.assignedPlayerIndex
           echo "[PVP Window] Client assigned player index: ", pvpWin.assignedPlayerIndex
@@ -288,7 +288,7 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
         pvpWin.remoteParticleSkinType = event.remoteParticleSkinType
       elif event.kind == neReceive:
         # Check for game start signal from host (client only)
-        if event.packet.packetType == ptGameStart:
+        if event.packet.kind == ptGameStart:
           # Extract the final player list from the game start packet
           pvpWin.connectedPlayers = event.packet.gameConnectedPlayers
           echo "[PVP Window] Game start signal received from host with ", pvpWin.connectedPlayers.len, " players"
