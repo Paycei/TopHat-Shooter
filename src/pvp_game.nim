@@ -49,6 +49,7 @@ type
     damageNumbers*: seq[DamageNumber]
     lastPingTime*: float32
     respawnTimers*: seq[float32]  # Respawn timers for each player
+    playerConnected*: seq[bool]   # Whether each player slot is still connected
     lastInputs*: seq[PlayerInput]  # Store last input for each player (server processing)
     playerNicknames*: seq[string]  # Display nicknames, indexed by player index
     teamsEnabled*: bool  # Whether team-based gameplay is enabled
@@ -204,6 +205,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     damageNumbers: @[],
     lastPingTime: 0,
     respawnTimers: @[],
+    playerConnected: @[],
     lastInputs: @[],
     playerNicknames: @[],
     teamsEnabled: teamsEnabled,
@@ -263,6 +265,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
 
     result.players.add(player)
     result.respawnTimers.add(0.0)
+    result.playerConnected.add(true)
     result.lastInputs.add(emptyInput)
     result.playerNicknames.add(playerNick)
   
@@ -283,12 +286,24 @@ proc startCountdown*(pvp: PvPGameState) =
     for i in 0..<pvp.maxPlayers:
       teamAssignments.add(pvp.players[i].teamId.ord)
     
+    # Build connected players list to send to clients
+    var gameConnectedPlayers: seq[ConnectedPlayerInfo] = @[]
+    for i in 0..<pvp.maxPlayers:
+      gameConnectedPlayers.add((
+        index: i,
+        skinType: pvp.players[i].skinType,
+        bulletSkinType: pvp.players[i].bulletSkinType,
+        shapeType: pvp.players[i].shapeType,
+        particleSkinType: pvp.players[i].particleSkinType,
+        nickname: pvp.playerNicknames[i]
+      ))
+    
     # Send game start packet with team information
     var packet = newPacket(ptGameStart, pvp.serverTick)
     packet.countdownTime = pvp.countdownTimer
     packet.teamsEnabled = pvp.teamsEnabled
     packet.teamAssignments = teamAssignments
-    packet.gameConnectedPlayers = @[]
+    packet.gameConnectedPlayers = gameConnectedPlayers
     pvp.networkManager.sendPacket(packet)
 
 proc capturePlayerInput*(pvp: PvPGameState): PlayerInput =
@@ -594,6 +609,8 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
   
   # Update respawn timers
   for i in 0..<pvp.players.len:
+    # Disconnected players never respawn
+    if i < pvp.playerConnected.len and not pvp.playerConnected[i]: continue
     if pvp.players[i].hp <= 0 and pvp.respawnTimers[i] > 0:
       pvp.respawnTimers[i] -= dt
       if pvp.respawnTimers[i] <= 0:
@@ -623,6 +640,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
   
   # Apply all clients' inputs (stored from network)
   for i in 0..<pvp.players.len:
+    if i < pvp.playerConnected.len and not pvp.playerConnected[i]: continue
     if i != pvp.localPlayerIndex and pvp.lastInputs[i].tick >= 0:
       applyPlayerInput(pvp, i, pvp.lastInputs[i], dt)
   
@@ -876,6 +894,97 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       if team != ptNone:
         pvp.teamScores[team].kills += pvp.players[i].kills
 
+proc connectedPlayerCount*(pvp: PvPGameState): int =
+  ## Count how many players are still connected (not disconnected)
+  for i in 0..<pvp.players.len:
+    if i < pvp.playerConnected.len and pvp.playerConnected[i]:
+      result += 1
+
+proc connectedTeams*(pvp: PvPGameState): seq[PvPTeam] =
+  ## Return list of teams that still have at least one connected player
+  for i in 0..<pvp.players.len:
+    if i < pvp.playerConnected.len and pvp.playerConnected[i]:
+      let team = pvp.players[i].teamId
+      if team != ptNone and team notin result:
+        result.add(team)
+
+proc disconnectPlayer*(pvp: PvPGameState, playerIndex: int) =
+  ## Remove a player from active play without ending the game.
+  ## Returns true if the game should now end (only one side remains).
+  if playerIndex < 0 or playerIndex >= pvp.players.len: return
+  pvp.playerConnected[playerIndex] = false
+  pvp.players[playerIndex].hp = 0
+  pvp.respawnTimers[playerIndex] = 0  # Stop any pending respawn
+  echo "[PVP] Player ", playerIndex, " removed from active play"
+
+proc checkLastSideStanding*(pvp: PvPGameState): bool =
+  ## Returns true if the game should end because only one side remains.
+  if pvp.teamsEnabled:
+    return pvp.connectedTeams().len <= 1
+  else:
+    return pvp.connectedPlayerCount() <= 1
+
+proc handleDisconnect*(pvp: PvPGameState, disconnectedIndex: int, reason: string) =
+  ## Handle a player disconnecting - either end the game (2-player) or
+  ## remove them and continue (3+ player).
+  let wasTimeout = reason == "Connection timeout"
+
+  pvp.disconnectPlayer(disconnectedIndex)
+
+  # In a 2-player game there's no one left to play against — end immediately.
+  if pvp.maxPlayers <= 2:
+    pvp.gameOver = true
+    pvp.isCountingDown = false
+    pvp.gameStarted = true
+    if wasTimeout:
+      if pvp.networkManager.isHost():
+        pvp.winnerIndex = pvp.localPlayerIndex
+        pvp.gameOverReason = "Player " & $disconnectedIndex & " disconnected"
+        var pkt = newPacket(ptGameOver, pvp.serverTick)
+        pkt.winnerIndex = pvp.localPlayerIndex
+        pkt.reason = "Player disconnected"
+        pvp.networkManager.sendPacket(pkt)
+      else:
+        pvp.winnerIndex = 0
+        pvp.gameOverReason = "Connection lost"
+    else:
+      pvp.winnerIndex = pvp.localPlayerIndex
+      pvp.gameOverReason = "Player forfeited"
+    return
+
+  # 3+ player game: check if a winner has emerged now that someone left.
+  if pvp.checkLastSideStanding():
+    pvp.gameOver = true
+    pvp.isCountingDown = false
+    pvp.gameStarted = true
+
+    if pvp.teamsEnabled:
+      let remaining = pvp.connectedTeams()
+      pvp.winnerTeam = if remaining.len == 1: remaining[0] else: ptNone
+      pvp.winnerIndex = -1
+      pvp.gameOverReason = if remaining.len == 1: $pvp.winnerTeam & " team wins!" else: "Draw"
+    else:
+      # Find the last connected player
+      var lastPlayer = -1
+      for i in 0..<pvp.players.len:
+        if i < pvp.playerConnected.len and pvp.playerConnected[i]:
+          lastPlayer = i
+          break
+      pvp.winnerIndex = lastPlayer
+      pvp.gameOverReason = "Last player standing"
+
+    if pvp.networkManager.isHost():
+      var pkt = newPacket(ptGameOver, pvp.serverTick)
+      pkt.winnerIndex = pvp.winnerIndex
+      pkt.reason = pvp.gameOverReason
+      pvp.networkManager.sendPacket(pkt)
+  else:
+    # Game continues — log who dropped out
+    let nick = if disconnectedIndex < pvp.playerNicknames.len:
+      pvp.playerNicknames[disconnectedIndex] else: "Player " & $disconnectedIndex
+    echo "[PVP] ", nick, " dropped out — game continues with ",
+         pvp.connectedPlayerCount(), " players remaining"
+
 proc handleNetworkEvents*(pvp: PvPGameState) =
   ## Process all network events
   # Create callback to provide host's cosmetics when accepting connections
@@ -1039,37 +1148,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
     
     of neDisconnect:
       echo "[PVP] Player ", event.disconnectPlayerIndex, " disconnected: ", event.reason
-      
-      # In multiplayer, handle player disconnection
-      # For now, if ANY player disconnects, end the game
-      # TODO: In future, could support continuing with remaining players
-      pvp.gameOver = true
-      pvp.isCountingDown = false  # Stop countdown if it's running
-      pvp.gameStarted = true  # Mark game as started so it can end properly
-      
-      # Distinguish between graceful disconnect and timeout
-      if event.reason == "Connection timeout":
-        # Timeout - server is authoritative
-        if pvp.networkManager.isHost():
-          # Host wins on timeout (disconnected player loses)
-          pvp.winnerIndex = pvp.localPlayerIndex
-          pvp.gameOverReason = "Player " & $event.disconnectPlayerIndex & " disconnected"
-          
-          # Send game over packet to notify remaining clients
-          var gameOverPacket = newPacket(ptGameOver, pvp.serverTick)
-          gameOverPacket.winnerIndex = pvp.localPlayerIndex
-          gameOverPacket.reason = "Player disconnected"
-          pvp.networkManager.sendPacket(gameOverPacket)
-        else:
-          # Client lost connection (timeout) - they lose
-          # Find a player who is still connected to be the winner
-          pvp.winnerIndex = 0  # Default to host
-          pvp.gameOverReason = "Connection lost"
-      else:
-        # Graceful disconnect (player sent ptDisconnect packet)
-        # Whoever RECEIVES the disconnect packet continues/wins
-        pvp.winnerIndex = pvp.localPlayerIndex
-        pvp.gameOverReason = "Player forfeited"
+      handleDisconnect(pvp, event.disconnectPlayerIndex, event.reason)
     
     else:
       discard
@@ -1181,8 +1260,15 @@ proc drawPvP*(pvp: PvPGameState) =
       break
     let player = pvp.players[i]
     if player.hp <= 0:
-      # Show respawn timer if player is dead
-      if i < pvp.respawnTimers.len and pvp.respawnTimers[i] > 0:
+      let isDisconnected = i < pvp.playerConnected.len and not pvp.playerConnected[i]
+      if isDisconnected:
+        # Show disconnected label for this player's position only to local player
+        if i == pvp.localPlayerIndex:
+          let msg = "You disconnected"
+          let w = measureText(msg, 20)
+          drawText(msg, pvp.screenWidth div 2 - w div 2,
+                  pvp.screenHeight - 100, 20, Color(r: 255, g: 80, b: 80, a: 255))
+      elif i < pvp.respawnTimers.len and pvp.respawnTimers[i] > 0:
         let respawnText = "Respawning in " & $(pvp.respawnTimers[i].int + 1) & "..."
         let textWidth = measureText(respawnText, 20)
         let screenCenterX = pvp.screenWidth div 2
@@ -1274,12 +1360,13 @@ proc drawPvP*(pvp: PvPGameState) =
     for i in 0..<pvp.players.len:
       if scoreText.len > 0:
         scoreText &= " | "
-      # Use nickname if available, otherwise fall back to P# format
       let displayName = if i < pvp.playerNicknames.len and pvp.playerNicknames[i].len > 0:
         pvp.playerNicknames[i]
       else:
         "P" & $(i + 1)
-      scoreText &= displayName & ": " & $pvp.players[i].kills
+      let disconnected = i < pvp.playerConnected.len and not pvp.playerConnected[i]
+      scoreText &= displayName & ": " & $pvp.players[i].kills &
+                   (if disconnected: " (left)" else: "")
 
     # Center the text based on its length (rough approximation)
     let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 4))
@@ -1406,18 +1493,36 @@ proc drawPvP*(pvp: PvPGameState) =
                  Color(r: 0, g: 0, b: 0, a: 200))
     drawText(winnerText,
             pvp.screenWidth div 2 - textWidth div 2,
-            pvp.screenHeight div 2 - 60,
+            pvp.screenHeight div 2 - 100,
             textSize,
             textColor)
+    
+    # Show game over reason (if meaningful)
+    if pvp.gameOverReason.len > 0 and pvp.gameOverReason notin ["", "Kill limit reached"]:
+      let reasonSize: int32 = 20
+      let reasonWidth = measureText(pvp.gameOverReason, reasonSize)
+      drawText(pvp.gameOverReason,
+              pvp.screenWidth div 2 - reasonWidth div 2,
+              pvp.screenHeight div 2 - 60,
+              reasonSize,
+              Color(r: 200, g: 200, b: 200, a: 255))
     
     # Show final scores
     var scoreText = "Final Scores - "
     if pvp.teamsEnabled:
-      for team in [ptRed, ptBlue, ptGreen, ptYellow]:
-        if pvp.teamScores[team].kills > 0 or pvp.teamScores[team].deaths > 0:
-          if scoreText.len > 15:  # More than just "Final Scores - "
-            scoreText &= " | "
-          scoreText &= $team & ": " & $pvp.teamScores[team].kills
+      # Determine which teams have players assigned
+      var activeTeams: seq[PvPTeam] = @[]
+      for i in 0..<pvp.players.len:
+        let team = pvp.players[i].teamId
+        if team != ptNone and team notin activeTeams:
+          activeTeams.add(team)
+      
+      # Show ALL active teams (even with 0 score)
+      for team in activeTeams:
+        if scoreText.len > 15:  # More than just "Final Scores - "
+          scoreText &= " | "
+        let teamColor = getTeamColor(team)
+        scoreText &= $team & ": " & $pvp.teamScores[team].kills
     else:
       for i in 0..<pvp.players.len:
         if i > 0:

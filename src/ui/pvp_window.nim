@@ -291,7 +291,10 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
         if event.packet.kind == ptGameStart:
           # Extract the final player list from the game start packet
           pvpWin.connectedPlayers = event.packet.gameConnectedPlayers
-          echo "[PVP Window] Game start signal received from host with ", pvpWin.connectedPlayers.len, " players"
+          # Extract team settings from host
+          pvpWin.teamsEnabled = event.packet.teamsEnabled
+          pvpWin.playerTeamAssignments = event.packet.teamAssignments
+          echo "[PVP Window] Game start signal received from host with ", pvpWin.connectedPlayers.len, " players, teams: ", pvpWin.teamsEnabled
           pvpWin.readyToStart = true
       elif event.kind == neDisconnect:
         pvpWin.state = plsError

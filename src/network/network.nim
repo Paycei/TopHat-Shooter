@@ -5,7 +5,7 @@ import net, nativesockets, network_types, flatty, times, strutils
 const
   DEFAULT_PORT* = 7777
   MAX_PACKET_SIZE = 8192
-  NETWORK_VERSION* = "1.0.2"
+  NETWORK_VERSION* = "1.1.0"
   DISCONNECT_TIMEOUT* = 2.5
   MAX_PACKETS_PER_POLL = 100
 
