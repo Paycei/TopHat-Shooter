@@ -183,9 +183,40 @@ proc pollEvents*(nm: NetworkManager,
           result.add(NetworkEvent(kind: neDisconnect,
             disconnectPlayerIndex: client.playerIndex, reason: "Connection timeout"))
           echo "[NETWORK] Player ", client.playerIndex, " timed out"
+    
+    # Remove disconnected clients
     for i in countdown(disconnected.high, 0):
       nm.clients.delete(disconnected[i])
     nm.isConnected = nm.clients.len > 0
+    
+    # Send updated player list if anyone disconnected
+    if disconnected.len > 0 and nm.clients.len > 0:
+      var roster: seq[ConnectedPlayerInfo] = @[]
+      var hostCosmetics = (skinType: 0, bulletSkinType: 0, shapeType: 0, particleSkinType: 0)
+      if getCosmeticsCallback != nil:
+        hostCosmetics = getCosmeticsCallback()
+      roster.add((index: 0,
+        skinType: hostCosmetics.skinType,
+        bulletSkinType: hostCosmetics.bulletSkinType,
+        shapeType: hostCosmetics.shapeType,
+        particleSkinType: hostCosmetics.particleSkinType,
+        nickname: nm.hostNickname))
+      for client in nm.clients:
+        roster.add((index: client.playerIndex,
+          skinType: client.skinType,
+          bulletSkinType: client.bulletSkinType,
+          shapeType: client.shapeType,
+          particleSkinType: client.particleSkinType,
+          nickname: client.nickname))
+      
+      var updatePacket = newPacket(ptPlayerListUpdate)
+      updatePacket.updatedPlayers = roster
+      let updateData = serialize(updatePacket)
+      for client in nm.clients:
+        try:
+          nm.socket.sendTo(client.address, client.port, updateData)
+        except:
+          echo "[NETWORK] Failed to send player list update after timeout"
 
   elif nm.role == nrClient and nm.isConnected and not nm.timeoutDisabled:
     if epochTime() - nm.lastReceiveTime > DISCONNECT_TIMEOUT:
@@ -277,6 +308,18 @@ proc pollEvents*(nm: NetworkManager,
       accept.connectedPlayers = roster
       nm.socket.sendTo(address, port, serialize(accept))
 
+      # Notify all OTHER existing clients about the updated player list
+      if nm.clients.len > 1:  # Only if there are other clients besides the new one
+        var updatePacket = newPacket(ptPlayerListUpdate)
+        updatePacket.updatedPlayers = roster
+        let updateData = serialize(updatePacket)
+        for client in nm.clients:
+          if client.playerIndex != assignedIndex:  # Don't send to the newly connected player
+            try:
+              nm.socket.sendTo(client.address, client.port, updateData)
+            except:
+              echo "[NETWORK] Failed to send player list update to ", client.address, ":", client.port.int
+
       result.add(NetworkEvent(kind: neConnect,
         connectPlayerIndex: assignedIndex,
         remoteAddress: address,
@@ -321,12 +364,42 @@ proc pollEvents*(nm: NetworkManager,
       if nm.role == nrHost:
         for i, client in nm.clients:
           if client.address == address and client.port == port:
+            let disconnectedIndex = client.playerIndex
             result.add(NetworkEvent(kind: neDisconnect,
-              disconnectPlayerIndex: client.playerIndex,
+              disconnectPlayerIndex: disconnectedIndex,
               reason: packet.disconnectReason))
-            echo "[NETWORK] Player ", client.playerIndex, " disconnected: ", packet.disconnectReason
+            echo "[NETWORK] Player ", disconnectedIndex, " disconnected: ", packet.disconnectReason
             nm.clients.delete(i)
             nm.isConnected = nm.clients.len > 0
+            
+            # Send updated player list to all remaining clients
+            if nm.clients.len > 0:
+              var roster: seq[ConnectedPlayerInfo] = @[]
+              var hostCosmetics = (skinType: 0, bulletSkinType: 0, shapeType: 0, particleSkinType: 0)
+              if getCosmeticsCallback != nil:
+                hostCosmetics = getCosmeticsCallback()
+              roster.add((index: 0,
+                skinType: hostCosmetics.skinType,
+                bulletSkinType: hostCosmetics.bulletSkinType,
+                shapeType: hostCosmetics.shapeType,
+                particleSkinType: hostCosmetics.particleSkinType,
+                nickname: nm.hostNickname))
+              for remainingClient in nm.clients:
+                roster.add((index: remainingClient.playerIndex,
+                  skinType: remainingClient.skinType,
+                  bulletSkinType: remainingClient.bulletSkinType,
+                  shapeType: remainingClient.shapeType,
+                  particleSkinType: remainingClient.particleSkinType,
+                  nickname: remainingClient.nickname))
+              
+              var updatePacket = newPacket(ptPlayerListUpdate)
+              updatePacket.updatedPlayers = roster
+              let updateData = serialize(updatePacket)
+              for remainingClient in nm.clients:
+                try:
+                  nm.socket.sendTo(remainingClient.address, remainingClient.port, updateData)
+                except:
+                  echo "[NETWORK] Failed to send player list update after disconnect"
             break
       else:
         nm.isConnected = false

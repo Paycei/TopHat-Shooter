@@ -372,38 +372,40 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
     player.pos.x = clamp(player.pos.x, player.radius, pvp.screenWidth.float32 - player.radius)
     player.pos.y = clamp(player.pos.y, player.radius, pvp.screenHeight.float32 - player.radius)
   
-  # Shooting - ALWAYS CREATE BULLET LOCALLY for immediate feedback
+  # Shooting - Only create bullets on the server (host)
+  # Clients will receive bullets via ptBulletSpawn packets
   if input.shooting and (pvp.gameTime - player.lastShot) >= player.fireRate:
     player.lastShot = pvp.gameTime
     
-    # Create bullet with player-specific ID range to prevent collisions
-    # Player 0 (host): IDs 0-999999, Player 1 (client): IDs 1000000-1999999
-    let direction = (input.mousePos - player.pos).normalize()
-    let bulletVel = direction * player.bulletSpeed
-    let bulletId = playerIndex * 1000000 + pvp.bulletIdCounter
-    
-    let newBullet = Bullet(
-      pos: player.pos + direction * (player.radius + 5),
-      vel: bulletVel,
-      radius: 7.5,  # Larger bullets for easier hits
-      damage: player.damage,
-      fromPlayer: true,
-      lifetime: 0,
-      isHoming: false,
-      isPiercing: false,
-      isExplosive: false,
-      bulletId: bulletId,
-      bulletSkin: player.bulletSkinType,
-      ownerPlayerIndex: playerIndex  # CRITICAL: Track which player shot this bullet
-    )
-    
-    pvp.bulletIdCounter += 1
-    pvp.bullets.add(newBullet)
-    
-    playSound(stShoot)
-    
-    # If host, broadcast bullet spawn
+    # Only the host (server) creates and broadcasts bullets
     if pvp.networkManager.isHost():
+      # Create bullet with player-specific ID range to prevent collisions
+      # Player 0 (host): IDs 0-999999, Player 1 (client): IDs 1000000-1999999
+      let direction = (input.mousePos - player.pos).normalize()
+      let bulletVel = direction * player.bulletSpeed
+      let bulletId = playerIndex * 1000000 + pvp.bulletIdCounter
+      
+      let newBullet = Bullet(
+        pos: player.pos + direction * (player.radius + 5),
+        vel: bulletVel,
+        radius: 7.5,  # Larger bullets for easier hits
+        damage: player.damage,
+        fromPlayer: true,
+        lifetime: 0,
+        isHoming: false,
+        isPiercing: false,
+        isExplosive: false,
+        bulletId: bulletId,
+        bulletSkin: player.bulletSkinType,
+        ownerPlayerIndex: playerIndex  # CRITICAL: Track which player shot this bullet
+      )
+      
+      pvp.bulletIdCounter += 1
+      pvp.bullets.add(newBullet)
+      
+      playSound(stShoot)
+      
+      # Broadcast bullet spawn to all clients
       let bulletState = BulletStateNet(
         id: newBullet.bulletId,
         pos: newBullet.pos,
@@ -420,6 +422,9 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
       var packet = newPacket(ptBulletSpawn, pvp.serverTick)
       packet.bullet = bulletState
       pvp.networkManager.sendPacket(packet)
+    else:
+      # Client: just play sound for local feedback
+      playSound(stShoot)
   
   # Wall placement
   if input.placingWall and player.walls > 0:
@@ -852,7 +857,36 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   pvp.players[localIdx].invincibilityTimer = serverState.players[localIdx].invincibilityTimer
   pvp.players[localIdx].teamId = PvPTeam(serverState.players[localIdx].teamId)
   
-  # Update bullets from server
+  # Update bullets from server, preserving locally-predicted bullets.
+  #
+  # The server snapshot is always a few frames behind the client due to network
+  # latency.  If we blindly replace pvp.bullets with the snapshot contents, any
+  # bullet the local player fired in the last RTT/2 ms gets destroyed for one
+  # frame and then reappears — producing the visible "laggy start" stutter.
+  #
+  # Strategy:
+  #   1. Collect the set of bullet IDs that the server knows about.
+  #   2. Keep any locally-owned predicted bullet that the server hasn't yet
+  #      acknowledged (its ID is absent from the snapshot).
+  #   3. Add/update everything the server knows about.
+  #
+  # "Locally-owned" means ownerPlayerIndex == localIdx, which is the only
+  # player whose bullets the client predicts.  Remote bullets are always
+  # authoritative from the server.
+
+  # Step 1 – build the set of server-known IDs
+  var serverBulletIds: seq[int] = @[]
+  for bulletState in serverState.bullets:
+    serverBulletIds.add(bulletState.id)
+
+  # Step 2 – keep predicted bullets not yet in the snapshot
+  var predictedBullets: seq[Bullet] = @[]
+  for existingBullet in pvp.bullets:
+    if existingBullet.ownerPlayerIndex == localIdx and
+       existingBullet.bulletId notin serverBulletIds:
+      predictedBullets.add(existingBullet)
+
+  # Step 3 – rebuild from server state, then append surviving predictions
   pvp.bullets = @[]
   for bulletState in serverState.bullets:
     let bullet = Bullet(
@@ -870,6 +904,9 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       ownerPlayerIndex: bulletState.fromPlayerIndex  # CRITICAL: Preserve owner from server
     )
     pvp.bullets.add(bullet)
+
+  for predictedBullet in predictedBullets:
+    pvp.bullets.add(predictedBullet)
   
   # Update walls from server
   pvp.walls = @[]

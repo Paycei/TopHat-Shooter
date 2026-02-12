@@ -9,6 +9,7 @@ type
     ptConnectionRequest    # Client -> Server: Request to join
     ptConnectionAccept     # Server -> Client: Connection accepted
     ptConnectionDenied     # Server -> Client: Connection denied (full/version mismatch)
+    ptPlayerListUpdate     # Server -> Client: Updated list of connected players
     ptGameStart           # Server -> Both: Game starting countdown
     ptPlayerInput         # Client -> Server: Player input data
     ptGameState           # Server -> Client: Full game state snapshot
@@ -108,6 +109,8 @@ type
       assignedPlayerIndex*: int
       maxPlayersInRoom*: int
       connectedPlayers*: seq[ConnectedPlayerInfo]
+    of ptPlayerListUpdate:
+      updatedPlayers*: seq[ConnectedPlayerInfo]
     of ptGameStart:
       countdownTime*: float32
       teamsEnabled*: bool

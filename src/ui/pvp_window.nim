@@ -245,6 +245,17 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
         pvpWin.remoteBulletSkinType = event.remoteBulletSkinType
         pvpWin.remoteShapeType = event.remoteShapeType
         pvpWin.remoteParticleSkinType = event.remoteParticleSkinType
+        # Build the initial player list for the host
+        let (localSkin, localBullet, localShape, localParticle) = getCosmetics()
+        pvpWin.connectedPlayers = @[
+          (index: 0, skinType: localSkin, bulletSkinType: localBullet, 
+           shapeType: localShape, particleSkinType: localParticle, 
+           nickname: pvpWin.inputNickname),
+          (index: event.connectPlayerIndex, skinType: event.remoteSkinType,
+           bulletSkinType: event.remoteBulletSkinType, shapeType: event.remoteShapeType,
+           particleSkinType: event.remoteParticleSkinType, nickname: "Player " & $event.connectPlayerIndex)
+        ]
+        echo "[PVP Window] Host initialized player list with ", pvpWin.connectedPlayers.len, " players"
 
   of plsConnecting:
     pvpWin.connectionTimeout -= dt
@@ -286,9 +297,24 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
         pvpWin.remoteBulletSkinType = event.remoteBulletSkinType
         pvpWin.remoteShapeType = event.remoteShapeType
         pvpWin.remoteParticleSkinType = event.remoteParticleSkinType
+        # Add new player to the host's local player list
+        if pvpWin.isHost:
+          pvpWin.connectedPlayers.add((
+            index: event.connectPlayerIndex, 
+            skinType: event.remoteSkinType,
+            bulletSkinType: event.remoteBulletSkinType, 
+            shapeType: event.remoteShapeType,
+            particleSkinType: event.remoteParticleSkinType, 
+            nickname: "Player " & $event.connectPlayerIndex
+          ))
+          echo "[PVP Window] Host added player to local list: ", pvpWin.connectedPlayers.len, " players total"
       elif event.kind == neReceive:
+        # Update player list when new players join
+        if event.packet.kind == ptPlayerListUpdate:
+          pvpWin.connectedPlayers = event.packet.updatedPlayers
+          echo "[PVP Window] Player list updated: ", pvpWin.connectedPlayers.len, " players"
         # Check for game start signal from host (client only)
-        if event.packet.kind == ptGameStart:
+        elif event.packet.kind == ptGameStart:
           # Extract the final player list from the game start packet
           pvpWin.connectedPlayers = event.packet.gameConnectedPlayers
           # Extract team settings from host
@@ -297,8 +323,24 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
           echo "[PVP Window] Game start signal received from host with ", pvpWin.connectedPlayers.len, " players, teams: ", pvpWin.teamsEnabled
           pvpWin.readyToStart = true
       elif event.kind == neDisconnect:
-        pvpWin.state = plsError
-        pvpWin.errorMessage = "Host disconnected"
+        # Check if it's the host disconnecting (player index 0)
+        if event.disconnectPlayerIndex == 0:
+          # Host disconnected - this is fatal for clients
+          pvpWin.state = plsError
+          pvpWin.errorMessage = "Host disconnected"
+          echo "[PVP Window] Host disconnected, returning to error state"
+        else:
+          # Another player disconnected
+          echo "[PVP Window] Player ", event.disconnectPlayerIndex, " disconnected from lobby"
+          # For the host: update the local player list by removing the disconnected player
+          if pvpWin.isHost:
+            var newList: seq[ConnectedPlayerInfo] = @[]
+            for cp in pvpWin.connectedPlayers:
+              if cp.index != event.disconnectPlayerIndex:
+                newList.add(cp)
+            pvpWin.connectedPlayers = newList
+            echo "[PVP Window] Host updated local player list: ", pvpWin.connectedPlayers.len, " players remaining"
+          # For clients: wait for the host to send ptPlayerListUpdate
 
   else:
     discard
