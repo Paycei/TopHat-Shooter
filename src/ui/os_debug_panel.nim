@@ -143,9 +143,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
     # Header with minimize indicator
     drawRectangle(finalPanelX, yOffset, DEBUG_PANEL_WIDTH - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
     
-    drawText("DIAGNOSTICS", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
+    drawText(t("debug_panel_diagnostics"), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
             Color(r: 0, g: 0, b: 0, a: 140))
-    drawText("DIAGNOSTICS", finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
+    drawText(t("debug_panel_diagnostics"), finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
     
     # Draw maximize icon (square)
     let iconX = finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 12
@@ -583,9 +583,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
           1, Color(r: 100, g: 200, b: 255, a: 100))
   yOffset += 3
   
-  drawText("Run Stats:", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 9,
+  drawText(t("debug_panel_run_stats") & ":", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 9,
           Color(r: 0, g: 0, b: 0, a: 130))
-  drawText("Run Stats:", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
+  drawText(t("debug_panel_run_stats") & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
           Color(r: 200, g: 220, b: 240, a: 255))
   yOffset += 11
   
@@ -884,4 +884,4 @@ proc drawMinimalDebugInfo*(game: Game, x, y: int32) =
   else:
     Color(r: 180, g: 120, b: 120, a: 200)
   
-  drawText("FPS: " & $fps, x, y, 16, fpsColor)
+  drawText(t("debug_panel_fps") & ": " & $fps, x, y, 16, fpsColor)

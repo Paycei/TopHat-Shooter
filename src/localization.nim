@@ -109,6 +109,16 @@ type
     tkStatsCaution = "stats_caution"
     tkStatsDPSOverTime = "stats_dps_over_time"
     tkStatsNoGraphData = "stats_no_graph_data"
+    tkStatsMaxCombo = "stats_max_combo"
+    tkStatsAvgCombo = "stats_avg_combo"
+    tkStatsPerfectWaves = "stats_perfect_waves"
+    tkStatsWaveMode = "stats_wave_mode"
+    tkStatsTimeSurvivalMode = "stats_time_survival_mode"
+    tkStatsSandboxMode = "stats_sandbox_mode"
+    tkStatsPvPMode = "stats_pvp_mode"
+    tkStatsCombatLabel = "stats_combat_label"
+    tkStatsShotsFiredLabel = "stats_shots_fired_label"
+    tkStatsShotsHitLabel = "stats_shots_hit_label"
     tkStatsNoPreviousRun = "stats_no_previous_run"
     tkStatsCompleteGameStats = "stats_complete_game_stats"
     tkStatsPowerUpBreakdown = "stats_power_up_breakdown"
@@ -178,6 +188,110 @@ type
     tkDebugPanelEffectPhase = "debug_panel_effect_phase"
     tkDebugPanelEffectParry = "debug_panel_effect_parry"
     tkDebugPanelActive = "debug_panel_active"
+    tkDebugPanelRunStats = "debug_panel_run_stats"
+    tkDebugPanelWaveLabel = "debug_panel_wave_label"
+    tkDebugPanelTimeLabel = "debug_panel_time_label"
+    tkShopTabPlayer = "shop_tab_player"
+    tkShopTabBullet = "shop_tab_bullet"
+    tkShopTabShapes = "shop_tab_shapes"
+    tkShopTabParticles = "shop_tab_particles"
+    tkShopScrollHint = "shop_scroll_hint"
+    tkShopClickEquip = "shop_click_equip"
+    tkShopWindowTitle = "shop_window_title"
+    tkShopEquipped = "shop_equipped"
+    tkShopCurrentlyEquipped = "shop_currently_equipped"
+    tkShopCustomizeAppearance = "shop_customize_appearance"
+    tkShopCustomizeBullets = "shop_customize_bullets"
+    tkShopChooseShape = "shop_choose_shape"
+    tkShopCustomizeEffects = "shop_customize_effects"
+    
+    # Player Skins
+    tkSkinDefault = "skin_default"
+    tkSkinDefaultDesc = "skin_default_desc"
+    tkSkinNeonPink = "skin_neon_pink"
+    tkSkinNeonPinkDesc = "skin_neon_pink_desc"
+    tkSkinEmerald = "skin_emerald"
+    tkSkinEmeraldDesc = "skin_emerald_desc"
+    tkSkinSunset = "skin_sunset"
+    tkSkinSunsetDesc = "skin_sunset_desc"
+    tkSkinAmethyst = "skin_amethyst"
+    tkSkinAmethystDesc = "skin_amethyst_desc"
+    tkSkinGold = "skin_gold"
+    tkSkinGoldDesc = "skin_gold_desc"
+    tkSkinIce = "skin_ice"
+    tkSkinIceDesc = "skin_ice_desc"
+    tkSkinShadow = "skin_shadow"
+    tkSkinShadowDesc = "skin_shadow_desc"
+    tkSkinRainbow = "skin_rainbow"
+    tkSkinRainbowDesc = "skin_rainbow_desc"
+    tkSkinMatrix = "skin_matrix"
+    tkSkinMatrixDesc = "skin_matrix_desc"
+    tkSkinVoid = "skin_void"
+    tkSkinVoidDesc = "skin_void_desc"
+    tkSkinPlasma = "skin_plasma"
+    tkSkinPlasmaDesc = "skin_plasma_desc"
+    
+    # Bullet Skins
+    tkBulletDefault = "bullet_default"
+    tkBulletDefaultDesc = "bullet_default_desc"
+    tkBulletNeonPink = "bullet_neon_pink"
+    tkBulletNeonPinkDesc = "bullet_neon_pink_desc"
+    tkBulletEmerald = "bullet_emerald"
+    tkBulletEmeraldDesc = "bullet_emerald_desc"
+    tkBulletSunset = "bullet_sunset"
+    tkBulletSunsetDesc = "bullet_sunset_desc"
+    tkBulletAmethyst = "bullet_amethyst"
+    tkBulletAmethystDesc = "bullet_amethyst_desc"
+    tkBulletGold = "bullet_gold"
+    tkBulletGoldDesc = "bullet_gold_desc"
+    tkBulletIce = "bullet_ice"
+    tkBulletIceDesc = "bullet_ice_desc"
+    tkBulletShadow = "bullet_shadow"
+    tkBulletShadowDesc = "bullet_shadow_desc"
+    tkBulletRainbow = "bullet_rainbow"
+    tkBulletRainbowDesc = "bullet_rainbow_desc"
+    tkBulletMatrix = "bullet_matrix"
+    tkBulletMatrixDesc = "bullet_matrix_desc"
+    tkBulletVoid = "bullet_void"
+    tkBulletVoidDesc = "bullet_void_desc"
+    tkBulletPlasma = "bullet_plasma"
+    tkBulletPlasmaDesc = "bullet_plasma_desc"
+    
+    # Shapes
+    tkShapeHexagon = "shape_hexagon"
+    tkShapeHexagonDesc = "shape_hexagon_desc"
+    tkShapeTriangle = "shape_triangle"
+    tkShapeTriangleDesc = "shape_triangle_desc"
+    tkShapeSquare = "shape_square"
+    tkShapeSquareDesc = "shape_square_desc"
+    tkShapeCircle = "shape_circle"
+    tkShapeCircleDesc = "shape_circle_desc"
+    
+    # Particle Skins
+    tkParticleDefault = "particle_default"
+    tkParticleDefaultDesc = "particle_default_desc"
+    tkParticleFire = "particle_fire"
+    tkParticleFireDesc = "particle_fire_desc"
+    tkParticleIce = "particle_ice"
+    tkParticleIceDesc = "particle_ice_desc"
+    tkParticleToxic = "particle_toxic"
+    tkParticleToxicDesc = "particle_toxic_desc"
+    tkParticlePlasma = "particle_plasma"
+    tkParticlePlasmaDesc = "particle_plasma_desc"
+    tkParticleGold = "particle_gold"
+    tkParticleGoldDesc = "particle_gold_desc"
+    tkParticleShadow = "particle_shadow"
+    tkParticleShadowDesc = "particle_shadow_desc"
+    tkParticleRainbow = "particle_rainbow"
+    tkParticleRainbowDesc = "particle_rainbow_desc"
+    tkParticleStars = "particle_stars"
+    tkParticleStarsDesc = "particle_stars_desc"
+    tkParticleHearts = "particle_hearts"
+    tkParticleHeartsDesc = "particle_hearts_desc"
+    tkParticleLightning = "particle_lightning"
+    tkParticleLightningDesc = "particle_lightning_desc"
+    tkParticleVoid = "particle_void"
+    tkParticleVoidDesc = "particle_void_desc"
     
     # Legendary Panel
     tkLegendaryPanelTitle = "legendary_panel_title"
@@ -781,12 +895,102 @@ type
     # Enemy Labels
     tkEnemyActiveThreats = "enemy_active_threats"
     
+    # PvP Lobby
+    tkPvPTitle = "pvp_title"
+    tkPvPHostGame = "pvp_host_game"
+    tkPvPJoinGame = "pvp_join_game"
+    tkPvPConfigureHosting = "pvp_configure_hosting"
+    tkPvPNickname = "pvp_nickname"
+    tkPvPClickEditTab = "pvp_click_edit_tab"
+    tkPvPMaxPlayers = "pvp_max_players"
+    tkPvPShowIPs = "pvp_show_ips"
+    tkPvPEnableInterpolation = "pvp_enable_interpolation"
+    tkPvPTeamsMode = "pvp_teams_mode"
+    tkPvPEnableTeams = "pvp_enable_teams"
+    tkPvPNumTeams = "pvp_num_teams"
+    tkPvPStartHosting = "pvp_start_hosting"
+    tkPvPHostingGame = "pvp_hosting_game"
+    tkPvPLocalIP = "pvp_local_ip"
+    tkPvPPort = "pvp_port"
+    tkPvPPlayersCount = "pvp_players_count"
+    tkPvPClickAssignTeam = "pvp_click_assign_team"
+    tkPvPYouHost = "pvp_you_host"
+    tkPvPConnectedPlayers = "pvp_connected_players"
+    tkPvPTeamsEnabled = "pvp_teams_enabled"
+    tkPvPShowIP = "pvp_show_ip"
+    tkPvPJoinGameTitle = "pvp_join_game_title"
+    tkPvPHostIP = "pvp_host_ip"
+    tkPvPClickCycleTabs = "pvp_click_cycle_tabs"
+    tkPvPConnect = "pvp_connect"
+    tkPvPConnecting = "pvp_connecting"
+    tkPvPPleaseWait = "pvp_please_wait"
+    tkPvPTimeoutIn = "pvp_timeout_in"
+    tkPvPGameLobby = "pvp_game_lobby"
+    tkPvPConnectedLabel = "pvp_connected_label"
+    tkPvPClickBadgeTeam = "pvp_click_badge_team"
+    tkPvPYou = "pvp_you"
+    tkPvPStartGame = "pvp_start_game"
+    tkPvPNeed2Players = "pvp_need_2_players"
+    tkPvPConnected = "pvp_connected"
+    tkPvPWaitingForHost = "pvp_waiting_for_host"
+    tkPvPPlayersInLobby = "pvp_players_in_lobby"
+    tkPvPConnectionError = "pvp_connection_error"
+    tkPvPBack = "pvp_back"
+    tkPvPPlayerNum = "pvp_player_num"
+    tkPvPFailedStartHost = "pvp_failed_start_host"
+    tkPvPFailedConnect = "pvp_failed_connect"
+    tkPvPConnectionTimeout = "pvp_connection_timeout"
+    tkPvPHostDisconnected = "pvp_host_disconnected"
+    
+    # Play Styles
+    tkStatsPlayStyleAggressive = "stats_play_style_aggressive"
+    tkStatsPlayStyleDefensive = "stats_play_style_defensive"
+    tkStatsPlayStyleMobile = "stats_play_style_mobile"
+    tkStatsPlayStyleTank = "stats_play_style_tank"
+    
+    tkStatsNoPowerUpsSelected = "stats_no_powerups_selected"
+    tkStatsNoGraphDataShort = "stats_no_graph_data_short"
+    tkStatsControlsFooter = "stats_controls_footer"
+    
+    # Lifetime Stats Labels
+    tkStatsMovementLabel = "stats_movement_label"
+    tkStatsDistanceLabel = "stats_distance_label"
+    tkStatsPhaseShiftsLabel = "stats_phase_shifts_label"
+    tkStatsTimeWarpsLabel = "stats_time_warps_label"
+    tkStatsNearDeathsLabel = "stats_near_deaths_label"
+    tkStatsBestStreakLabel = "stats_best_streak_label"
+    tkStatsTimeLowHPLabel = "stats_time_low_hp_label"
+    tkStatsPerformanceLabel = "stats_performance_label"
+    tkStatsPeakDPSLabel = "stats_peak_dps_label"
+    tkStatsAvgDPSLabel = "stats_avg_dps_label"
+    tkStatsKillsMinLabel = "stats_kills_min_label"
+    tkStatsAvgWaveLabel = "stats_avg_wave_label"
+    tkStatsFastWaveLabel = "stats_fast_wave_label"
+    tkStatsResourcesLabel = "stats_resources_label"
+    tkStatsCoinsEarnedLabel = "stats_coins_earned_label"
+    tkStatsCoinsSpentLabel = "stats_coins_spent_label"
+    tkStatsCoinsSavedLabel = "stats_coins_saved_label"
+    tkStatsWallsPlacedLabel = "stats_walls_placed_label"
+    tkStatsConsumablesLabel = "stats_consumables_label"
+    tkStatsPlayStyleLabel = "stats_play_style_label"
+    tkStatsAggressionLabel = "stats_aggression_label"
+    tkStatsCautionLabel = "stats_caution_label"
+    tkStatsDPSOverTimeLabel = "stats_dps_over_time_label"
+    
     # General
     tkYes = "general_yes"
     tkNo = "general_no"
     tkBack = "general_back"
     tkConfirm = "general_confirm"
     tkCancel = "general_cancel"
+    
+    # OS UI (newly added for hardcoded string replacement)
+    tkOSRootPrompt = "os_root_prompt"
+    tkOSLoading = "os_loading"
+    tkOSShopNavigate = "os_shop_navigate"
+    tkOSShopSelect = "os_shop_select"
+    tkOSShopExit = "os_shop_exit"
+    tkShopAvailableBalance = "shop_available_balance"
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -1132,12 +1336,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_no_power_ups_selected": "No power-ups selected",
     
     # OS Task Manager / System Monitoring
-    "os_running_processes": "RUNNING PROCESSES:",
+    "os_running_processes": "RUNNING PROCESSES",
     "os_no_active_processes": "No active processes",
     "os_process_name": "Process Name",
     "os_version": "Version",
     "os_status": "Status",
-    "os_system_performance": "SYSTEM PERFORMANCE:",
+    "os_system_performance": "SYSTEM PERFORMANCE",
     "os_system_manager": "System Manager",
     "os_system_paused": "System paused - press SPACE to continue",
     "os_press_space_continue": "Press SPACE to continue",
@@ -1160,6 +1364,32 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_kills_label": "KILLS",
     "stats_accuracy_label": "ACCURACY",
     "stats_avg_dps": "AVG DPS",
+    "stats_max_combo": "Max Combo",
+    "stats_avg_combo": "Avg Combo",
+    "stats_perfect_waves": "Perfect Waves",
+    "stats_play_style_aggressive": "Aggressive",
+    "stats_play_style_defensive": "Defensive",
+    "stats_play_style_mobile": "Mobile",
+    "stats_play_style_tank": "Tank",
+    "stats_play_style_balanced": "Balanced",
+    "stats_no_power_ups_selected": "No power-ups selected",
+    "stats_no_graph_data_short": "No graph data",
+    "stats_controls_footer": "[ENTER] Continue  |  [ESC] Close",
+    "stats_wave_mode": "Wave Mode",
+    "stats_time_survival_mode": "Time Survival",
+    "stats_sandbox_mode": "Sandbox",
+    "stats_pvp_mode": "PvP",
+    "stats_bar_wave_max": "[WAVE] Max Reached",
+    "stats_bar_kill_best": "[KILL] Best Performance",
+    "stats_bar_boss_eliminated": "[BOSS] Eliminated",
+    "stats_bar_time_survival": "[TIME] Longest Survival",
+    "stats_combat_label": "COMBAT",
+    "stats_movement_label": "MOVEMENT & SURVIVAL",
+    "stats_performance_label": "PERFORMANCE",
+    "stats_resources_label": "RESOURCES",
+    "stats_play_style_label": "PLAY STYLE",
+    "stats_dps_over_time_label": "DPS OVER TIME",
+    "stats_host_default": "Host",
     
     # Enemy Labels
     "enemy_active_threats": "ACTIVE THREATS:",
@@ -1170,6 +1400,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "general_back": "Back",
     "general_confirm": "Confirm",
     "general_cancel": "Cancel",
+    
+    # OS UI (newly added)
+    "os_root_prompt": "root@tophat-shooteros:~$",
+    "os_loading": "Loading...",
+    "os_shop_navigate": "UP/DOWN/W/S ",
+    "os_shop_select": "ENTER/CLICK ",
+    "os_shop_exit": "ESC ",
+    "shop_available_balance": "Available Balance",
+    "os_system_paused": "System paused",
+    "os_press_space_continue": "press SPACE to continue",
     
     # Stats Window
     "stats_window_title": "System Monitor - Player Analytics",
@@ -1215,6 +1455,21 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_caution": "Caution",
     "stats_dps_over_time": "DPS OVER TIME",
     "stats_no_graph_data": "No graph data",
+    "stats_max_combo": "Max Combo",
+    "stats_avg_combo": "Avg Combo",
+    "stats_perfect_waves": "Perfect Waves",
+    "stats_wave_mode": "WAVE MODE",
+    "stats_time_survival_mode": "TIME SURVIVAL",
+    "stats_sandbox_mode": "SANDBOX",
+    "stats_pvp_mode": "PVP MODE",
+    "stats_combat_label": "COMBAT",
+    "stats_accuracy_label": "Accuracy",
+    "stats_shots_fired_label": "Shots Fired",
+    "stats_shots_hit_label": "Shots Hit",
+    "stats_play_style_aggressive": "Aggressive",
+    "stats_play_style_defensive": "Defensive",
+    "stats_play_style_mobile": "Mobile",
+    "stats_play_style_tank": "Tank",
     "stats_no_previous_run": "No previous run statistics available",
     "stats_complete_game_stats": "Complete a game to see detailed run statistics",
     "stats_power_up_breakdown": "POWER-UP BREAKDOWN",
@@ -1276,6 +1531,136 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_low_hp_bonuses": "Low HP Bonuses",
     "debug_panel_rage": "Rage",
     "debug_panel_berserker": "Berserk",
+    
+    # Debug Panel
+    "debug_panel_diagnostics": "DIAGNOSTICS",
+    "debug_panel_fps": "FPS",
+    "debug_panel_entities": "Ent",
+    "debug_panel_active_effects": "Active Effects",
+    "debug_panel_combat_stats": "Combat Stats",
+    "debug_panel_damage": "Damage",
+    "debug_panel_fire_rate": "Fire Rate",
+    "debug_panel_speed": "Speed",
+    "debug_panel_auto_shoot": "AutoShoot",
+    "debug_panel_auto_shoot_active": "ACTIVE",
+    "debug_panel_auto_shoot_idle": "IDLE",
+    "debug_panel_low_hp_bonuses": "Low HP Bonuses",
+    "debug_panel_rage": "Rage",
+    "debug_panel_berserker": "Berserk",
+    "debug_panel_effect_speed": "Speed",
+    "debug_panel_effect_invuln": "Invuln",
+    "debug_panel_effect_fire": "Fire",
+    "debug_panel_effect_magnet": "Magnet",
+    "debug_panel_effect_time_warp": "Time Warp",
+    "debug_panel_effect_phase": "Phase",
+    "debug_panel_effect_parry": "Parry",
+    "debug_panel_active": "ACTIVE",
+    "debug_panel_run_stats": "Run Stats:",
+    "debug_panel_wave_label": "Wave",
+    "debug_panel_time_label": "Time",
+    
+    # Shop tabs
+    "shop_tab_player": "PLAYER",
+    "shop_tab_bullet": "BULLET",
+    "shop_tab_shapes": "SHAPES",
+    "shop_tab_particles": "PARTICLES",
+    "shop_scroll_hint": "Scroll with mouse wheel to see all skins",
+    "shop_click_equip": "Click to equip",
+    "shop_window_title": "Customization Shop",
+    "shop_equipped": "[EQUIPPED]",
+    "shop_currently_equipped": "Currently Equipped:",
+    "shop_customize_appearance": "CUSTOMIZE YOUR APPEARANCE",
+    "shop_customize_bullets": "CUSTOMIZE YOUR BULLETS",
+    "shop_choose_shape": "CHOOSE YOUR SHAPE",
+    "shop_customize_effects": "CUSTOMIZE SHOOTING EFFECTS",
+    
+    # Player Skins
+    "skin_default": "System Default",
+    "skin_default_desc": "Classic cyan OS interface",
+    "skin_neon_pink": "Neon Pink",
+    "skin_neon_pink_desc": "Hot magenta cyberpunk style",
+    "skin_emerald": "Emerald Tech",
+    "skin_emerald_desc": "Advanced green technology",
+    "skin_sunset": "Sunset Blaze",
+    "skin_sunset_desc": "Fiery orange and red",
+    "skin_amethyst": "Amethyst",
+    "skin_amethyst_desc": "Royal purple energy",
+    "skin_gold": "Golden Aura",
+    "skin_gold_desc": "Luxurious golden shine",
+    "skin_ice": "Ice Crystal",
+    "skin_ice_desc": "Frozen crystalline beauty",
+    "skin_shadow": "Shadow Ops",
+    "skin_shadow_desc": "Stealth dark mode",
+    "skin_rainbow": "Rainbow Wave",
+    "skin_rainbow_desc": "Animated rainbow spectrum",
+    "skin_matrix": "Matrix Code",
+    "skin_matrix_desc": "Green cascading data",
+    "skin_void": "Void Walker",
+    "skin_void_desc": "Dark purple void energy",
+    "skin_plasma": "Plasma Core",
+    "skin_plasma_desc": "Electric blue-purple plasma",
+    
+    # Bullet Skins
+    "bullet_default": "System Default",
+    "bullet_default_desc": "Classic cyan projectile",
+    "bullet_neon_pink": "Neon Pink",
+    "bullet_neon_pink_desc": "Hot magenta projectiles",
+    "bullet_emerald": "Emerald Tech",
+    "bullet_emerald_desc": "Advanced green energy",
+    "bullet_sunset": "Sunset Blaze",
+    "bullet_sunset_desc": "Fiery orange projectiles",
+    "bullet_amethyst": "Amethyst",
+    "bullet_amethyst_desc": "Royal purple energy",
+    "bullet_gold": "Golden Aura",
+    "bullet_gold_desc": "Luxurious golden shots",
+    "bullet_ice": "Ice Crystal",
+    "bullet_ice_desc": "Frozen crystalline shots",
+    "bullet_shadow": "Shadow Ops",
+    "bullet_shadow_desc": "Stealth dark projectiles",
+    "bullet_rainbow": "Rainbow Wave",
+    "bullet_rainbow_desc": "Animated rainbow spectrum",
+    "bullet_matrix": "Matrix Code",
+    "bullet_matrix_desc": "Green cascading data",
+    "bullet_void": "Void Walker",
+    "bullet_void_desc": "Dark purple void energy",
+    "bullet_plasma": "Plasma Core",
+    "bullet_plasma_desc": "Electric blue-purple plasma",
+    
+    # Shapes
+    "shape_hexagon": "Hexagon",
+    "shape_hexagon_desc": "Classic hexagonal shape",
+    "shape_triangle": "Triangle",
+    "shape_triangle_desc": "Sharp triangular form",
+    "shape_square": "Square",
+    "shape_square_desc": "Solid square shape",
+    "shape_circle": "Circle",
+    "shape_circle_desc": "Pure circular form",
+    
+    # Particle Skins
+    "particle_default": "System Default",
+    "particle_default_desc": "Standard cyan energy",
+    "particle_fire": "Flame Burst",
+    "particle_fire_desc": "Burning fire particles",
+    "particle_ice": "Frost Shards",
+    "particle_ice_desc": "Icy crystalline fragments",
+    "particle_toxic": "Toxic Cloud",
+    "particle_toxic_desc": "Poisonous green gas",
+    "particle_plasma": "Plasma Burst",
+    "particle_plasma_desc": "Electric purple energy",
+    "particle_gold": "Golden Sparkle",
+    "particle_gold_desc": "Shimmering gold dust",
+    "particle_shadow": "Dark Smoke",
+    "particle_shadow_desc": "Mysterious shadow trails",
+    "particle_rainbow": "Rainbow Burst",
+    "particle_rainbow_desc": "Colorful confetti spray",
+    "particle_stars": "Star Trail",
+    "particle_stars_desc": "Twinkling star particles",
+    "particle_hearts": "Love Burst",
+    "particle_hearts_desc": "Cute heart particles",
+    "particle_lightning": "Lightning Spark",
+    "particle_lightning_desc": "Electric yellow bolts",
+    "particle_void": "Void Energy",
+    "particle_void_desc": "Dark dimensional rifts",
     
     # Legendary Panel
     "legendary_panel_title": "LEGENDARY",
@@ -1565,40 +1950,124 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "power_up_installer_close": "X",
     "power_up_select_upgrade": "v SELECT UPGRADE TO INSTALL:",
     "power_up_rolling": "[!] ROLLING...",
-    "power_up_reroll_options": "[R] Reroll Options"
+    "power_up_reroll_options": "[R] Reroll Options",
+    
+    # PvP Lobby
+    "pvp_title": "PVP MODE",
+    "pvp_host_game": "HOST GAME",
+    "pvp_join_game": "JOIN GAME",
+    "pvp_configure_hosting": "CONFIGURE HOSTING",
+    "pvp_nickname": "Nickname:",
+    "pvp_click_edit_tab": "Click to edit  |  Tab to toggle",
+    "pvp_max_players": "Max Players:",
+    "pvp_show_ips": "Show IPs in lobby",
+    "pvp_enable_interpolation": "Enable Interpolation",
+    "pvp_teams_mode": "Teams Mode",
+    "pvp_enable_teams": "Enable Teams Game Mode",
+    "pvp_num_teams": "Number of Teams:",
+    "pvp_start_hosting": "START HOSTING",
+    "pvp_hosting_game": "HOSTING GAME",
+    "pvp_local_ip": "Local IP:",
+    "pvp_port": "Port:",
+    "pvp_players_count": "Players:",
+    "pvp_click_assign_team": "Click player to assign team:",
+    "pvp_you_host": " (You - Host)",
+    "pvp_connected_players": "Connected Players:",
+    "pvp_teams_enabled": "Teams mode enabled",
+    "pvp_show_ip": "Show IP",
+    "pvp_join_game_title": "JOIN GAME",
+    "pvp_host_ip": "Host IP:",
+    "pvp_click_cycle_tabs": "Click to edit  |  Tab to cycle",
+    "pvp_connect": "CONNECT",
+    "pvp_connecting": "CONNECTING...",
+    "pvp_please_wait": "Please wait",
+    "pvp_timeout_in": "Timeout in",
+    "pvp_game_lobby": "GAME LOBBY",
+    "pvp_connected_label": "Connected Players:",
+    "pvp_click_badge_team": "(click badge to change team)",
+    "pvp_you": " (You)",
+    "pvp_start_game": "START GAME",
+    "pvp_need_2_players": "NEED 2+ PLAYERS",
+    "pvp_connected": "CONNECTED!",
+    "pvp_waiting_for_host": "Waiting for host to start...",
+    "pvp_players_in_lobby": "Players in lobby:",
+    "pvp_connection_error": "CONNECTION ERROR",
+    "pvp_back": "BACK",
+    "pvp_player_num": "Player ",
+    "pvp_failed_start_host": "Failed to start host: ",
+    "pvp_failed_connect": "Failed to connect: ",
+    "pvp_connection_timeout": "Connection timeout",
+    "pvp_host_disconnected": "Host disconnected",
+    "stats_play_style_aggressive": "Aggressive",
+    "stats_play_style_defensive": "Defensive",
+    "stats_play_style_mobile": "Mobile",
+    "stats_play_style_tank": "Tank",
+    "stats_no_powerups_selected": "No power-ups selected",
+    "stats_dps_over_time_label": "DPS OVER TIME",
+    "stats_no_graph_data_short": "No graph data",
+    "stats_controls_footer": "[TAB/ESC] Return  [R] Restart  [Q] Menu",
+    
+    # Lifetime Stats Labels
+    "stats_movement_label": "MOVEMENT",
+    "stats_distance_label": "Distance",
+    "stats_phase_shifts_label": "Phase Shifts",
+    "stats_time_warps_label": "Time Warps",
+    "stats_near_deaths_label": "Near Deaths",
+    "stats_best_streak_label": "Best Streak",
+    "stats_time_low_hp_label": "Time Low HP",
+    "stats_performance_label": "PERFORMANCE",
+    "stats_peak_dps_label": "Peak DPS",
+    "stats_avg_dps_label": "Avg DPS",
+    "stats_kills_min_label": "Kills/Min",
+    "stats_avg_wave_label": "Avg Wave",
+    "stats_fast_wave_label": "Fast Wave",
+    "stats_resources_label": "RESOURCES",
+    "stats_coins_earned_label": "Coins Earned",
+    "stats_coins_spent_label": "Coins Spent",
+    "stats_coins_saved_label": "Coins Saved",
+    "stats_walls_placed_label": "Walls Placed",
+    "stats_consumables_label": "Consumables",
+    "stats_play_style_label": "PLAY STYLE",
+    "stats_aggression_label": "Aggression",
+    "stats_caution_label": "Caution",
+    "stats_dps_over_time_label": "DPS OVER TIME",
+    "stats_play_style_aggressive": "Aggressive",
+    "stats_play_style_defensive": "Defensive",
+    "stats_play_style_mobile": "Mobile",
+    "stats_play_style_tank": "Tank"
   }.toTable,
   
   Spanish: {
     # Main Menu
     "menu_play": "jugar",
-    "menu_survival": "supervivencia",
-    "menu_stats": "estadísticas",
+    "menu_survival": "survival",
+    "menu_stats": "stats",
     "menu_help": "ayuda",
-    "menu_settings": "ajustes",
+    "menu_settings": "config",
     "menu_quit": "salir",
     "menu_sandbox": "sandbox",
     
     # Settings
-    "settings_title": "AJUSTES",
-    "settings_fps_limit": "Límite de FPS:",
-    "settings_click_edit": "Haz clic para editar, Enter para confirmar",
-    "settings_sound_effects": "Efectos de Sonido:",
+    "settings_title": "CONFIG",
+    "settings_fps_limit": "Límite FPS:",
+    "settings_click_edit": "Clic: editar, Enter: confirmar",
+    "settings_sound_effects": "Efectos:",
     "settings_music": "Música:",
-    "settings_fullscreen": "Pantalla Completa:",
-    "settings_fullscreen_toggle": "(Presiona F11 para cambiar)",
+    "settings_fullscreen": "Pantalla:",
+    "settings_fullscreen_toggle": "(F11 para cambiar)",
     "settings_show_fps": "Mostrar FPS:",
-    "settings_mouse_support": "Soporte de Ratón:",
-    "settings_mouse_support_desc": "(nueva navegación de menú)",
-    "settings_show_cursor": "Mostrar Cursor:",
+    "settings_mouse_support": "Ratón:",
+    "settings_mouse_support_desc": "(navegación de menú)",
+    "settings_show_cursor": "Cursor:",
     "settings_show_cursor_desc": "(solo visual)",
-    "settings_debug_panel": "Panel de Depuración:",
-    "settings_debug_panel_desc": "(estadísticas arriba-derecha)",
-    "settings_show_hints": "Mostrar Consejos:",
+    "settings_debug_panel": "Debug:",
+    "settings_debug_panel_desc": "(stats arriba-derecha)",
+    "settings_show_hints": "Consejos:",
     "settings_show_hints_desc": "(E: Muro, ESC: Pausa)",
-    "settings_show_enemy_labels": "Mostrar Etiquetas de Enemigos:",
-    "settings_show_enemy_labels_desc": "(etiquetas sobre enemigos)",
+    "settings_show_enemy_labels": "Etiquetas:",
+    "settings_show_enemy_labels_desc": "(nombres sobre enemigos)",
     "settings_language": "Idioma:",
-    "settings_back_to_menu": "Presiona ESC para volver al menú",
+    "settings_back_to_menu": "ESC para volver",
     
     # Settings window tabs and sections
     "settings_tab_graphics": "Gráficos",
@@ -1607,26 +2076,26 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_gameplay": "Juego",
     
     "settings_section_display": "PANTALLA",
-    "settings_section_volume_control": "CONTROL DE VOLUMEN",
-    "settings_section_input_method": "MÉTODO DE ENTRADA",
+    "settings_section_volume_control": "VOLUMEN",
+    "settings_section_input_method": "ENTRADA",
     "settings_section_assistance": "ASISTENCIA",
-    "settings_section_localization": "LOCALIZACIÓN",
-    "settings_section_keyboard_shortcuts": "ATAJOS DE TECLADO",
+    "settings_section_localization": "IDIOMA",
+    "settings_section_keyboard_shortcuts": "ATAJOS",
     
     "settings_keyboard_wasd": "WASD / Flechas",
     "settings_keyboard_movement": "Movimiento",
     "settings_keyboard_mouse_space": "Ratón / Espacio",
     "settings_keyboard_shoot": "Disparar",
     "settings_keyboard_f": "F",
-    "settings_keyboard_toggle_auto_shoot": "Alternar Disparo Automático",
+    "settings_keyboard_toggle_auto_shoot": "Auto-Disparo",
     "settings_keyboard_e": "E",
-    "settings_keyboard_place_wall": "Colocar Muro",
+    "settings_keyboard_place_wall": "Muro",
     "settings_keyboard_q": "Q",
-    "settings_keyboard_legendary_abilities": "Habilidades Legendarias",
+    "settings_keyboard_legendary_abilities": "Habs. Legend.",
     "settings_keyboard_esc": "ESC",
     "settings_keyboard_pause_menu": "Pausa / Menú",
     "settings_keyboard_f11": "F11",
-    "settings_keyboard_toggle_fullscreen": "Alternar Pantalla Completa",
+    "settings_keyboard_toggle_fullscreen": "P. Completa",
     "settings_keyboard_tab": "Tab",
     
     # Game UI
@@ -1655,17 +2124,17 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_upgrade": "Mejorar",
     "shop_cost": "Costo:",
     "shop_owned": "Poseído",
-    "shop_credit_store": "TIENDA DE CRÉDITOS - MEJORAS DISPONIBLES",
-    "shop_upgrades_available": "MEJORAS DISPONIBLES",
-    "shop_active_upgrades": "MEJORAS ACTIVAS",
-    "shop_available_purchases": "COMPRAS DISPONIBLES:",
+    "shop_credit_store": "TIENDA - MEJORAS",
+    "shop_upgrades_available": "MEJORAS",
+    "shop_active_upgrades": "ACTIVAS",
+    "shop_available_purchases": "DISPONIBLES:",
     "shop_controls": "CONTROLES:",
     "shop_navigate": "Navegar",
     "shop_continue": "Continuar",
-    "shop_buy_selected": "COMPRAR SELECCIONADO",
-    "shop_insufficient_credits": "CRÉDITOS INSUFICIENTES",
-    "shop_no_permanent": "Aún no hay mejoras permanentes.",
-    "shop_defeat_waves": "¡Derrota oleadas para desbloquear!",
+    "shop_buy_selected": "COMPRAR",
+    "shop_insufficient_credits": "SIN FONDOS",
+    "shop_no_permanent": "Sin mejoras aún.",
+    "shop_defeat_waves": "¡Derrota oleadas!",
     "shop_credits": "CR",
     "shop_damage_plus": "Daño +",
     "shop_damage_plus_desc": "Aumentar daño de balas",
@@ -1934,6 +2403,21 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_caution": "Precaución",
     "stats_dps_over_time": "DPS A TRAVÉS DEL TIEMPO",
     "stats_no_graph_data": "Sin datos de gráfico",
+    "stats_max_combo": "Combo Máximo",
+    "stats_avg_combo": "Combo Promedio",
+    "stats_perfect_waves": "Oleadas Perfectas",
+    "stats_wave_mode": "MODO OLEADAS",
+    "stats_time_survival_mode": "SUPERVIVENCIA",
+    "stats_sandbox_mode": "SANDBOX",
+    "stats_pvp_mode": "MODO PVP",
+    "stats_combat_label": "COMBATE",
+    "stats_accuracy_label": "Precisión",
+    "stats_shots_fired_label": "Disparos Realizados",
+    "stats_shots_hit_label": "Disparos Impactados",
+    "stats_play_style_aggressive": "Agresivo",
+    "stats_play_style_defensive": "Defensivo",
+    "stats_play_style_mobile": "Móvil",
+    "stats_play_style_tank": "Tanque",
     "stats_no_previous_run": "No hay estadísticas de ejecución anterior disponibles",
     "stats_complete_game_stats": "¡Completa un juego para ver estadísticas detalladas!",
     "stats_power_up_breakdown": "DESGLOSE DE MEJORAS",
@@ -1996,6 +2480,136 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_low_hp_bonuses": "Bonificaciones Bajo HP",
     "debug_panel_rage": "Furia",
     "debug_panel_berserker": "Berserker",
+    
+    # Debug Panel
+    "debug_panel_diagnostics": "DIAGNÓSTICOS",
+    "debug_panel_fps": "FPS",
+    "debug_panel_entities": "Ent",
+    "debug_panel_active_effects": "Efectos Activos",
+    "debug_panel_combat_stats": "Estadísticas de Combate",
+    "debug_panel_damage": "Daño",
+    "debug_panel_fire_rate": "Cadencia",
+    "debug_panel_speed": "Velocidad",
+    "debug_panel_auto_shoot": "Disparo Auto",
+    "debug_panel_auto_shoot_active": "ACTIVO",
+    "debug_panel_auto_shoot_idle": "INACTIVO",
+    "debug_panel_low_hp_bonuses": "Bonificaciones Bajo HP",
+    "debug_panel_rage": "Furia",
+    "debug_panel_berserker": "Berserker",
+    "debug_panel_effect_speed": "Velocidad",
+    "debug_panel_effect_invuln": "Invuln",
+    "debug_panel_effect_fire": "Fuego",
+    "debug_panel_effect_magnet": "Imán",
+    "debug_panel_effect_time_warp": "Deformación Temporal",
+    "debug_panel_effect_phase": "Fase",
+    "debug_panel_effect_parry": "Parada",
+    "debug_panel_active": "ACTIVO",
+    "debug_panel_run_stats": "Estadísticas de Ejecución:",
+    "debug_panel_wave_label": "Oleada",
+    "debug_panel_time_label": "Tiempo",
+    
+    # Shop tabs
+    "shop_tab_player": "JUGADOR",
+    "shop_tab_bullet": "BALA",
+    "shop_tab_shapes": "FORMAS",
+    "shop_tab_particles": "PARTÍCULAS",
+    "shop_scroll_hint": "Rueda del ratón para ver más",
+    "shop_click_equip": "Clic para equipar",
+    "shop_window_title": "Tienda Personaliz.",
+    "shop_equipped": "[EQUIPADO]",
+    "shop_currently_equipped": "Equipado:",
+    "shop_customize_appearance": "PERSONALIZA TU APARIENCIA",
+    "shop_customize_bullets": "PERSONALIZA TUS BALAS",
+    "shop_choose_shape": "ELIGE TU FORMA",
+    "shop_customize_effects": "PERSONALIZA EFECTOS",
+    
+    # Player Skins
+    "skin_default": "Sistema",
+    "skin_default_desc": "Interfaz OS clásica",
+    "skin_neon_pink": "Rosa Neón",
+    "skin_neon_pink_desc": "Estilo cyberpunk",
+    "skin_emerald": "Esmeralda",
+    "skin_emerald_desc": "Tecnología verde",
+    "skin_sunset": "Atardecer",
+    "skin_sunset_desc": "Naranja y rojo ardiente",
+    "skin_amethyst": "Amatista",
+    "skin_amethyst_desc": "Energía púrpura",
+    "skin_gold": "Dorado",
+    "skin_gold_desc": "Brillo dorado",
+    "skin_ice": "Cristal",
+    "skin_ice_desc": "Belleza cristalina",
+    "skin_shadow": "Sombra",
+    "skin_shadow_desc": "Modo oscuro sigiloso",
+    "skin_rainbow": "Arcoíris",
+    "skin_rainbow_desc": "Espectro animado",
+    "skin_matrix": "Matrix",
+    "skin_matrix_desc": "Datos verdes",
+    "skin_void": "Vacío",
+    "skin_void_desc": "Energía del vacío",
+    "skin_plasma": "Plasma",
+    "skin_plasma_desc": "Plasma eléctrico",
+    
+    # Bullet Skins
+    "bullet_default": "Sistema",
+    "bullet_default_desc": "Proyectil clásico",
+    "bullet_neon_pink": "Rosa Neón",
+    "bullet_neon_pink_desc": "Proyectiles magenta",
+    "bullet_emerald": "Esmeralda",
+    "bullet_emerald_desc": "Energía verde",
+    "bullet_sunset": "Atardecer",
+    "bullet_sunset_desc": "Proyectiles naranja",
+    "bullet_amethyst": "Amatista",
+    "bullet_amethyst_desc": "Energía púrpura",
+    "bullet_gold": "Dorado",
+    "bullet_gold_desc": "Disparos dorados",
+    "bullet_ice": "Cristal",
+    "bullet_ice_desc": "Disparos cristalinos",
+    "bullet_shadow": "Sombra",
+    "bullet_shadow_desc": "Proyectiles oscuros",
+    "bullet_rainbow": "Arcoíris",
+    "bullet_rainbow_desc": "Espectro animado",
+    "bullet_matrix": "Matrix",
+    "bullet_matrix_desc": "Datos verdes",
+    "bullet_void": "Vacío",
+    "bullet_void_desc": "Energía del vacío",
+    "bullet_plasma": "Plasma",
+    "bullet_plasma_desc": "Plasma eléctrico",
+    
+    # Shapes
+    "shape_hexagon": "Hexágono",
+    "shape_hexagon_desc": "Forma hexagonal clásica",
+    "shape_triangle": "Triángulo",
+    "shape_triangle_desc": "Forma triangular afilada",
+    "shape_square": "Cuadrado",
+    "shape_square_desc": "Forma cuadrada sólida",
+    "shape_circle": "Círculo",
+    "shape_circle_desc": "Forma circular pura",
+    
+    # Particle Skins
+    "particle_default": "Sistema",
+    "particle_default_desc": "Energía estándar",
+    "particle_fire": "Llamas",
+    "particle_fire_desc": "Partículas de fuego",
+    "particle_ice": "Escarcha",
+    "particle_ice_desc": "Fragmentos helados",
+    "particle_toxic": "Tóxico",
+    "particle_toxic_desc": "Gas venenoso verde",
+    "particle_plasma": "Plasma",
+    "particle_plasma_desc": "Energía púrpura",
+    "particle_gold": "Dorado",
+    "particle_gold_desc": "Polvo dorado",
+    "particle_shadow": "Humo",
+    "particle_shadow_desc": "Rastros oscuros",
+    "particle_rainbow": "Arcoíris",
+    "particle_rainbow_desc": "Confeti colorido",
+    "particle_stars": "Estrellas",
+    "particle_stars_desc": "Partículas brillantes",
+    "particle_hearts": "Corazones",
+    "particle_hearts_desc": "Partículas lindas",
+    "particle_lightning": "Relámpago",
+    "particle_lightning_desc": "Rayos eléctricos",
+    "particle_void": "Vacío",
+    "particle_void_desc": "Grietas dimensionales",
     
     # Legendary Panel
     "legendary_panel_title": "LEGENDARIO",
@@ -2307,13 +2921,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_no_power_ups_selected": "Sin mejoras seleccionadas",
     
     # OS Task Manager / System Monitoring
-    "os_running_processes": "PROCESOS EN EJECUCIÓN:",
-    "os_no_active_processes": "Sin procesos activos",
-    "os_process_name": "Nombre del Proceso",
+    "os_running_processes": "PROCESOS ACTIVOS",
+    "os_no_active_processes": "Sin procesos",
+    "os_process_name": "Proceso",
     "os_version": "Versión",
     "os_status": "Estado",
-    "os_system_performance": "DESEMPEÑO DEL SISTEMA:",
-    "os_system_manager": "Administrador del Sistema",
+    "os_system_performance": "RENDIMIENTO",
+    "os_system_manager": "Admin. Sistema",
     "os_system_paused": "Sistema pausado - presiona ESPACIO para continuar",
     "os_press_space_continue": "Presiona ESPACIO para continuar",
     
@@ -2335,6 +2949,32 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_kills_label": "ASESINATOS",
     "stats_accuracy_label": "PRECISIÓN",
     "stats_avg_dps": "DPS PROM",
+    "stats_max_combo": "Combo Máx",
+    "stats_avg_combo": "Combo Prom",
+    "stats_perfect_waves": "Oleadas Perfectas",
+    "stats_play_style_aggressive": "Agresivo",
+    "stats_play_style_defensive": "Defensivo",
+    "stats_play_style_mobile": "Móvil",
+    "stats_play_style_tank": "Tanque",
+    "stats_play_style_balanced": "Equilibrado",
+    "stats_no_power_ups_selected": "Sin mejoras seleccionadas",
+    "stats_no_graph_data_short": "Sin datos de gráfico",
+    "stats_controls_footer": "[ENTER] Continuar  |  [ESC] Cerrar",
+    "stats_wave_mode": "Modo Oleada",
+    "stats_time_survival_mode": "Supervivencia Temporal",
+    "stats_sandbox_mode": "Sandbox",
+    "stats_pvp_mode": "PvP",
+    "stats_bar_wave_max": "[OLEADA] Máximo Alcanzado",
+    "stats_bar_kill_best": "[MUERTES] Mejor Rendimiento",
+    "stats_bar_boss_eliminated": "[JEFE] Eliminado",
+    "stats_bar_time_survival": "[TIEMPO] Supervivencia Más Larga",
+    "stats_combat_label": "COMBATE",
+    "stats_movement_label": "MOVIMIENTO Y SUPERVIVENCIA",
+    "stats_performance_label": "RENDIMIENTO",
+    "stats_resources_label": "RECURSOS",
+    "stats_play_style_label": "ESTILO DE JUEGO",
+    "stats_dps_over_time_label": "DPS A TRAVÉS DEL TIEMPO",
+    "stats_host_default": "Anfitrión",
     
     # Enemy Labels
     "enemy_active_threats": "AMENAZAS ACTIVAS:",
@@ -2344,7 +2984,96 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "general_no": "No",
     "general_back": "Volver",
     "general_confirm": "Confirmar",
-    "general_cancel": "Cancelar"
+    "general_cancel": "Cancelar",
+    
+    # OS UI (recién agregado)
+    "os_root_prompt": "root@tophat-shooteros:~$",
+    "os_loading": "Cargando...",
+    "os_shop_navigate": "ARRIBA/ABAJO/W/S ",
+    "os_shop_select": "ENTER/CLIC ",
+    "os_shop_exit": "ESC ",
+    "shop_available_balance": "Saldo Disponible",
+    "os_system_paused": "Sistema pausado",
+    "os_press_space_continue": "presiona ESPACIO para continuar",
+    
+    # PvP Lobby
+    "pvp_title": "MODO PVP",
+    "pvp_host_game": "HOSTEAR",
+    "pvp_join_game": "UNIRSE",
+    "pvp_configure_hosting": "CONFIG",
+    "pvp_nickname": "Apodo:",
+    "pvp_click_edit_tab": "Clic: editar | Tab: cambiar",
+    "pvp_max_players": "Máx. Jugadores:",
+    "pvp_show_ips": "Mostrar IPs",
+    "pvp_enable_interpolation": "Interpolación",
+    "pvp_teams_mode": "Modo Equipos",
+    "pvp_enable_teams": "Modo Equipos",
+    "pvp_num_teams": "Num. Equipos:",
+    "pvp_start_hosting": "INICIAR",
+    "pvp_hosting_game": "HOSTEANDO",
+    "pvp_local_ip": "IP Local:",
+    "pvp_port": "Puerto:",
+    "pvp_players_count": "Jugadores:",
+    "pvp_click_assign_team": "Clic: asignar equipo",
+    "pvp_you_host": " (Tú - Host)",
+    "pvp_connected_players": "Jugadores:",
+    "pvp_teams_enabled": "Equipos: ON",
+    "pvp_show_ip": "Mostrar IP",
+    "pvp_join_game_title": "UNIRSE",
+    "pvp_host_ip": "IP del Host:",
+    "pvp_click_cycle_tabs": "Clic: editar | Tab: cambiar",
+    "pvp_connect": "CONECTAR",
+    "pvp_connecting": "CONECTANDO...",
+    "pvp_please_wait": "Espera",
+    "pvp_timeout_in": "Timeout:",
+    "pvp_game_lobby": "LOBBY",
+    "pvp_connected_label": "Conectados:",
+    "pvp_click_badge_team": "(clic: cambiar equipo)",
+    "pvp_you": " (Tú)",
+    "pvp_start_game": "COMENZAR",
+    "pvp_need_2_players": "MIN. 2 JUGADORES",
+    "pvp_connected": "CONECTADO",
+    "pvp_waiting_for_host": "Esperando host...",
+    "pvp_players_in_lobby": "En lobby:",
+    "pvp_connection_error": "ERROR",
+    "pvp_back": "VOLVER",
+    "pvp_player_num": "Jugador ",
+    "pvp_failed_start_host": "Error host: ",
+    "pvp_failed_connect": "Error: ",
+    "pvp_connection_timeout": "Timeout",
+    "pvp_host_disconnected": "Host caído",
+    "stats_play_style_aggressive": "Agresivo",
+    "stats_play_style_defensive": "Defensivo",
+    "stats_play_style_mobile": "Móvil",
+    "stats_play_style_tank": "Tanque",
+    
+    # Lifetime Stats Labels
+    "stats_movement_label": "MOVIMIENTO",
+    "stats_distance_label": "Distancia",
+    "stats_phase_shifts_label": "Cambios de Fase",
+    "stats_time_warps_label": "Saltos Temporales",
+    "stats_near_deaths_label": "Casi Muertes",
+    "stats_best_streak_label": "Mejor Racha",
+    "stats_time_low_hp_label": "Tiempo HP Bajo",
+    "stats_performance_label": "RENDIMIENTO",
+    "stats_peak_dps_label": "DPS Máximo",
+    "stats_avg_dps_label": "DPS Promedio",
+    "stats_kills_min_label": "Muertes/Min",
+    "stats_avg_wave_label": "Oleada Promedio",
+    "stats_fast_wave_label": "Oleada Rápida",
+    "stats_resources_label": "RECURSOS",
+    "stats_coins_earned_label": "Monedas Ganadas",
+    "stats_coins_spent_label": "Monedas Gastadas",
+    "stats_coins_saved_label": "Monedas Ahorradas",
+    "stats_walls_placed_label": "Muros Colocados",
+    "stats_consumables_label": "Consumibles",
+    "stats_play_style_label": "ESTILO DE JUEGO",
+    "stats_aggression_label": "Agresión",
+    "stats_caution_label": "Precaución",
+    "stats_no_powerups_selected": "Sin mejoras seleccionadas",
+    "stats_dps_over_time_label": "DPS A TRAVÉS DEL TIEMPO",
+    "stats_no_graph_data_short": "Sin datos de gráfico",
+    "stats_controls_footer": "[TAB/ESC] Volver  [R] Reiniciar  [Q] Menú"
   }.toTable
 }.toTable
 

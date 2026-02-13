@@ -110,7 +110,7 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
   # Terminal header bar
   drawRectangle(termX.int32, termY.int32, termW.int32, 30, 
                Color(r: 0, g: 40, b: 40, a: 255))
-  drawText("root@tophat-shooteros:~$", (termX + 10).int32, (termY + 5).int32, 20, 
+  drawText(t("os_root_prompt"), (termX + 10).int32, (termY + 5).int32, 20, 
           Color(r: 0, g: 255, b: 255, a: 255))
   
   # Draw boot messages (terminal style)

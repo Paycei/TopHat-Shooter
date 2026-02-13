@@ -1,7 +1,7 @@
 ﻿## OS-Style Enemy Labels
 ## Draw enemies with modern process/threat labels
 
-import raylib, ../types, math, ui_constants
+import raylib, ../types, math, ui_constants, ../localization
 
 proc getEnemyProcessName*(enemy: Enemy): string =
   ## Generate a process name for an enemy based on type
@@ -340,7 +340,7 @@ proc drawThreatCounter*(screenWidth, screenHeight: int32, threatCount: int) =
                 a: 255))
   
   # Threat count label
-  drawText("ACTIVE THREATS:", int32(iconX + 35), int32(counterY + 8), 12,
+  drawText(t("enemy_active_threats") & ":", int32(iconX + 35), int32(counterY + 8), 12,
           Color(r: 180, g: 190, b: 200, a: 255))
   
   # Threat number with emphasis

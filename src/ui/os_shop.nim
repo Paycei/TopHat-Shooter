@@ -278,11 +278,11 @@ proc drawShop*(game: Game) =
           Color(r: 0, g: 180, b: 255, a: 255))
   
   let instructY = ctrlY + 18
-  drawText("UP/DOWN/W/S " & t(tkShopNavigate), windowX + 20, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText(t("os_shop_navigate") & t(tkShopNavigate), windowX + 20, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
-  drawText("ENTER/CLICK " & t(tkShopBuy), windowX + 180, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText(t("os_shop_select") & t(tkShopBuy), windowX + 180, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
-  drawText("ESC " & t(tkShopContinue), windowX + 300, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText(t("os_shop_exit") & t(tkShopContinue), windowX + 300, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
   # Purchase button for selected item (large, prominent)
   let selectedItem = game.shopItems[game.selectedShopItem]
@@ -339,7 +339,7 @@ proc drawShop*(game: Game) =
           Color(r: 255, g: 240, b: 100, a: 255))
   
   # Small label below
-  drawText("Available Balance", creditsBoxX + 40, creditsBoxY + 24, 9,
+  drawText(t("shop_available_balance"), creditsBoxX + 40, creditsBoxY + 24, 9,
           Color(r: 180, g: 180, b: 150, a: 255))
   
   # Button shadow

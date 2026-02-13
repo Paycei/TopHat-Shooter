@@ -358,7 +358,7 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
                logoSize.int32, logoSize.int32,
                Color(r: 0, g: 200, b: 255, a: 255))
   
-  drawText("TopHat", (startBtnX + 35).int32, (startBtnY + 7).int32, 18, White)
+  drawText(t("os_tophat_button"), (startBtnX + 35).int32, (startBtnY + 7).int32, 18, White)
   
   # System tray - clock with dynamic time
   let currentTime = now()
@@ -439,7 +439,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Panel title bar
   drawRectangle(panelX.int32, panelY.int32, panelW.int32, 20,
                Color(r: 0, g: 40, b: 60, a: 220))
-  drawText("System Monitor", (panelX + 8).int32, (panelY + 3).int32, 14,
+  drawText(t(tkOSSystemMonitor), (panelX + 8).int32, (panelY + 3).int32, 14,
           Color(r: 0, g: 200, b: 200, a: 255))
   
   # System stats (simulated)
@@ -449,23 +449,23 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   let seconds = uptime mod 60
   
   var infoY = panelY + 28
-  drawText("CPU: Idle", (panelX + 8).int32, infoY.int32, 12,
+  drawText(t(tkOSCPUIdle), (panelX + 8).int32, infoY.int32, 12,
           Color(r: 100, g: 255, b: 100, a: 255))
   infoY += 18
-  drawText("Memory: 2.4 / 16 GB", (panelX + 8).int32, infoY.int32, 12,
+  drawText(t(tkOSMemory), (panelX + 8).int32, infoY.int32, 12,
           Color(r: 100, g: 200, b: 255, a: 255))
   infoY += 18
   drawText(&"Uptime: {hours:02d}:{minutes:02d}:{seconds:02d}", 
           (panelX + 8).int32, infoY.int32, 12,
           Color(r: 200, g: 200, b: 100, a: 255))
   infoY += 18
-  drawText("Network: Connected", (panelX + 8).int32, infoY.int32, 12,
+  drawText(t(tkOSNetwork), (panelX + 8).int32, infoY.int32, 12,
           Color(r: 100, g: 255, b: 150, a: 255))
   
   # Bottom desktop info (version and edition)
-  drawText("TopHat-ShooterOS", 10, (screenHeight - 75).int32, 14,
+  drawText(t(tkOSTopHatOS), 10, (screenHeight - 75).int32, 14,
           Color(r: 100, g: 100, b: 120, a: 200))
-  drawText("[v5.3 Edition]", 10, (screenHeight - 58).int32, 12,
+  drawText(t(tkOSEdition), 10, (screenHeight - 58).int32, 12,
           Color(r: 150, g: 150, b: 170, a: 180))
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
@@ -543,7 +543,7 @@ proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Title bar
   drawRectangle(panelX.int32, panelY.int32, panelWidth.int32, 30,
                Color(r: 0, g: 50, b: 80, a: 255))
-  drawText("Loading...", (panelX + 10).int32, (panelY + 7).int32, 16,
+  drawText(t("os_loading") & "...", (panelX + 10).int32, (panelY + 7).int32, 16,
           Color(r: 0, g: 200, b: 255, a: 255))
   
   # Loading text

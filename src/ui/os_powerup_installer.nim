@@ -586,7 +586,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
           Color(r: 255, g: 240, b: 100, a: 255))
   
   # Small label below
-  drawText("Available Balance", coinBoxX + 40, coinBoxY + 30, 10,
+  drawText(t("shop_available_balance"), coinBoxX + 40, coinBoxY + 30, 10,
           Color(r: 180, g: 180, b: 150, a: 255))
   
   let buttonY = bottomY + 15

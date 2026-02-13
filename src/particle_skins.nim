@@ -1,7 +1,7 @@
 ## Particle Effects System for Player Shooting
 ## Defines customizable particle effects that appear when the player shoots
 
-import raylib, types, math, particle_pool, random
+import raylib, types, math, particle_pool, random, localization
 
 type
   ParticleSkinType* = enum
@@ -35,8 +35,8 @@ var particleSkinDatabase*: array[ParticleSkinType, ParticleSkinData]
 proc initializeParticleSkins*() =
   ## Initialize all available particle skins with their data
   particleSkinDatabase[pskDefault] = ParticleSkinData(
-    name: "System Default",
-    description: "Standard cyan energy",
+    name: t("particle_default"),
+    description: t("particle_default_desc"),
     primaryColor: Color(r: 0, g: 200, b: 200, a: 255),
     secondaryColor: Color(r: 0, g: 150, b: 200, a: 255),
     particleCount: 8,
@@ -47,8 +47,8 @@ proc initializeParticleSkins*() =
   )
 
   particleSkinDatabase[pskFire] = ParticleSkinData(
-    name: "Flame Burst",
-    description: "Burning fire particles",
+    name: t("particle_fire"),
+    description: t("particle_fire_desc"),
     primaryColor: Color(r: 255, g: 100, b: 0, a: 255),
     secondaryColor: Color(r: 255, g: 200, b: 0, a: 255),
     particleCount: 12,
@@ -59,8 +59,8 @@ proc initializeParticleSkins*() =
   )
 
   particleSkinDatabase[pskIce] = ParticleSkinData(
-    name: "Frost Shards",
-    description: "Icy crystalline fragments",
+    name: t("particle_ice"),
+    description: t("particle_ice_desc"),
     primaryColor: Color(r: 150, g: 220, b: 255, a: 255),
     secondaryColor: Color(r: 200, g: 240, b: 255, a: 255),
     particleCount: 10,
@@ -70,8 +70,8 @@ proc initializeParticleSkins*() =
     isUnlocked: true
   )
   particleSkinDatabase[pskToxic] = ParticleSkinData(
-    name: "Toxic Cloud",
-    description: "Poisonous green gas",
+    name: t("particle_toxic"),
+    description: t("particle_toxic_desc"),
     primaryColor: Color(r: 100, g: 255, b: 50, a: 255),
     secondaryColor: Color(r: 150, g: 200, b: 0, a: 255),
     particleCount: 15,
@@ -82,8 +82,8 @@ proc initializeParticleSkins*() =
   )
 
   particleSkinDatabase[pskPlasma] = ParticleSkinData(
-    name: "Plasma Burst",
-    description: "Electric purple energy",
+    name: t("particle_plasma"),
+    description: t("particle_plasma_desc"),
     primaryColor: Color(r: 150, g: 50, b: 255, a: 255),
     secondaryColor: Color(r: 100, g: 150, b: 255, a: 255),
     particleCount: 10,
@@ -94,8 +94,8 @@ proc initializeParticleSkins*() =
   )
 
   particleSkinDatabase[pskGold] = ParticleSkinData(
-    name: "Golden Sparkle",
-    description: "Shimmering gold dust",
+    name: t("particle_gold"),
+    description: t("particle_gold_desc"),
     primaryColor: Color(r: 255, g: 215, b: 0, a: 255),
     secondaryColor: Color(r: 255, g: 250, b: 150, a: 255),
     particleCount: 14,
@@ -106,8 +106,8 @@ proc initializeParticleSkins*() =
   )
 
   particleSkinDatabase[pskShadow] = ParticleSkinData(
-    name: "Dark Smoke",
-    description: "Mysterious shadow trails",
+    name: t("particle_shadow"),
+    description: t("particle_shadow_desc"),
     primaryColor: Color(r: 60, g: 40, b: 80, a: 255),
     secondaryColor: Color(r: 40, g: 20, b: 60, a: 255),
     particleCount: 12,
@@ -117,8 +117,8 @@ proc initializeParticleSkins*() =
     isUnlocked: true
   )
   particleSkinDatabase[pskRainbow] = ParticleSkinData(
-    name: "Rainbow Burst",
-    description: "Colorful confetti spray",
+    name: t("particle_rainbow"),
+    description: t("particle_rainbow_desc"),
     primaryColor: Color(r: 255, g: 0, b: 255, a: 255),
     secondaryColor: Color(r: 0, g: 255, b: 255, a: 255),
     particleCount: 16,
@@ -129,8 +129,8 @@ proc initializeParticleSkins*() =
   )
 
   particleSkinDatabase[pskStars] = ParticleSkinData(
-    name: "Star Trail",
-    description: "Twinkling star particles",
+    name: t("particle_stars"),
+    description: t("particle_stars_desc"),
     primaryColor: Color(r: 255, g: 255, b: 100, a: 255),
     secondaryColor: Color(r: 255, g: 255, b: 255, a: 255),
     particleCount: 8,
@@ -141,8 +141,8 @@ proc initializeParticleSkins*() =
   )
 
   particleSkinDatabase[pskHearts] = ParticleSkinData(
-    name: "Love Burst",
-    description: "Cute heart particles",
+    name: t("particle_hearts"),
+    description: t("particle_hearts_desc"),
     primaryColor: Color(r: 255, g: 100, b: 150, a: 255),
     secondaryColor: Color(r: 255, g: 150, b: 200, a: 255),
     particleCount: 6,
@@ -153,8 +153,8 @@ proc initializeParticleSkins*() =
   )
 
   particleSkinDatabase[pskLightning] = ParticleSkinData(
-    name: "Lightning Spark",
-    description: "Electric yellow bolts",
+    name: t("particle_lightning"),
+    description: t("particle_lightning_desc"),
     primaryColor: Color(r: 255, g: 255, b: 0, a: 255),
     secondaryColor: Color(r: 255, g: 255, b: 200, a: 255),
     particleCount: 10,
@@ -164,8 +164,8 @@ proc initializeParticleSkins*() =
     isUnlocked: true
   )
   particleSkinDatabase[pskVoid] = ParticleSkinData(
-    name: "Void Energy",
-    description: "Dark dimensional rifts",
+    name: t("particle_void"),
+    description: t("particle_void_desc"),
     primaryColor: Color(r: 20, g: 0, b: 40, a: 255),
     secondaryColor: Color(r: 80, g: 40, b: 120, a: 255),
     particleCount: 12,

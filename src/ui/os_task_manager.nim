@@ -1,7 +1,7 @@
 ## OS-Style Task Manager (Pause Menu)
 ## Pause menu styled as system task manager with mouse support
 
-import raylib, ../types, ../powerup_data, math
+import raylib, ../types, ../powerup_data, math, ../localization
 
 const
   TASK_MANAGER_WIDTH = 700
@@ -50,17 +50,17 @@ proc drawProcessesTab(game: Game, x, y, width, height: int32) =
   ## Draw the Processes tab showing active power-ups
   var yOffset = y + 10
   
-  drawText("RUNNING PROCESSES:", x + 10, yOffset, 16,
+  drawText(t("os_running_processes") & ":", x + 10, yOffset, 16,
           Color(r: 0, g: 200, b: 255, a: 255))
   yOffset += 30
   
   if game.player.powerUps.len == 0:
-    drawText("No active processes", x + 20, yOffset, 14, Gray)
+    drawText(t("os_no_active_processes"), x + 20, yOffset, 14, Gray)
   else:
     # Header
-    drawText("Process Name", x + 20, yOffset, 12, LightGray)
-    drawText("Version", x + 300, yOffset, 12, LightGray)
-    drawText("Status", x + 400, yOffset, 12, LightGray)
+    drawText(t("os_process_name"), x + 20, yOffset, 12, LightGray)
+    drawText(t("os_version"), x + 300, yOffset, 12, LightGray)
+    drawText(t("os_status"), x + 400, yOffset, 12, LightGray)
     yOffset += 20
     
     # Separator line
@@ -101,7 +101,7 @@ proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
   ## Draw the Performance tab showing game statistics
   var yOffset = y + 10
   
-  drawText("SYSTEM PERFORMANCE:", x + 10, yOffset, 16,
+  drawText(t("os_system_performance") & ":", x + 10, yOffset, 16,
           Color(r: 0, g: 200, b: 255, a: 255))
   yOffset += 30
   
@@ -161,7 +161,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   drawRectangle(windowX, windowY, TASK_MANAGER_WIDTH, TITLE_BAR_HEIGHT,
                Color(r: 35, g: 45, b: 60, a: 255))
   
-  drawText("System Manager", windowX + 15, windowY + 8, 18,
+  drawText(t("os_system_manager"), windowX + 15, windowY + 8, 18,
           Color(r: 0, g: 200, b: 255, a: 255))
   
   # Tabs (only Processes and Performance)
@@ -265,5 +265,5 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
           buttonY + 12, 14, White)
   
   # Status message
-  drawText("System paused - press SPACE to continue",
+  drawText(t("os_system_paused") & " - " & t("os_press_space_continue"),
           windowX + 20, windowY + TASK_MANAGER_HEIGHT - 30, 12, LightGray)

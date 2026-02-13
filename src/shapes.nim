@@ -1,7 +1,7 @@
 ## Player Shapes System
 ## Defines available player shapes and rendering functions
 
-import raylib, types, math
+import raylib, types, math, localization
 
 type
   ShapeType* = enum
@@ -21,26 +21,26 @@ var shapeDatabase*: array[ShapeType, ShapeData]
 proc initializeShapes*() =
   ## Initialize all available shapes with their data
   shapeDatabase[shHexagon] = ShapeData(
-    name: "Hexagon",
-    description: "Classic hexagonal shape",
+    name: t("shape_hexagon"),
+    description: t("shape_hexagon_desc"),
     isUnlocked: true
   )
 
   shapeDatabase[shTriangle] = ShapeData(
-    name: "Triangle",
-    description: "Sharp triangular form",
+    name: t("shape_triangle"),
+    description: t("shape_triangle_desc"),
     isUnlocked: true
   )
 
   shapeDatabase[shSquare] = ShapeData(
-    name: "Square",
-    description: "Solid square shape",
+    name: t("shape_square"),
+    description: t("shape_square_desc"),
     isUnlocked: true
   )
 
   shapeDatabase[shCircle] = ShapeData(
-    name: "Circle",
-    description: "Pure circular form",
+    name: t("shape_circle"),
+    description: t("shape_circle_desc"),
     isUnlocked: true
   )
 

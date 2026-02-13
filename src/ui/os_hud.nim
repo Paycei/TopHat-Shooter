@@ -214,7 +214,7 @@ proc drawPerformanceMetrics*(game: Game, x, y: int32) =
   let threatColor = if threatCount > 20: Color(r: 255, g: 0, b: 0, a: 255)  # Red
                    elif threatCount > 10: Color(r: 255, g: 165, b: 0, a: 255)  # Orange
                    else: Color(r: 0, g: 255, b: 0, a: 255)  # Green
-  drawText("THREATS: " & $threatCount, x + PANEL_PADDING, yOffset, 14, threatColor)
+  drawText(t("hud_threats") & ": " & $threatCount, x + PANEL_PADDING, yOffset, 14, threatColor)
 
 proc drawActionLog*(hud: OSHUDState, screenWidth, screenHeight: int32) =
   if hud.notifications.len == 0:

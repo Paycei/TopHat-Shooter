@@ -1,7 +1,7 @@
 ## Shop Window
 ## OS-themed window for player and bullet customization with tabs
 
-import raylib, os_window, ../skins, ../bullet_skins, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system
+import raylib, os_window, ../skins, ../bullet_skins, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization
 
 type
   ShopTab* = enum
@@ -40,7 +40,7 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
   let windowY = (screenHeight - windowHeight) div 2
   
   let osWin = newOSWindow(
-    "Customization Shop",
+    t("shop_window_title"),
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 150, b: 50, a: 255),  # Orange accent for shop
@@ -177,7 +177,7 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
   
   # Selected indicator (moved up to avoid clipping)
   if isSelected:
-    let equipText = "[EQUIPPED]"
+    let equipText = t("shop_equipped")
     let equipWidth = measureText(equipText, 11)
     let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
     drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
@@ -281,7 +281,7 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
   
   # Selected indicator (moved up to avoid clipping)
   if isSelected:
-    let equipText = "[EQUIPPED]"
+    let equipText = t("shop_equipped")
     let equipWidth = measureText(equipText, 11)
     let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
     drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
@@ -373,7 +373,7 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
   
   # Selected indicator (moved up to avoid clipping)
   if isSelected:
-    let equipText = "[EQUIPPED]"
+    let equipText = t("shop_equipped")
     let equipWidth = measureText(equipText, 11)
     let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
     drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
@@ -470,7 +470,7 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
   
   # Selected indicator (moved up to avoid clipping)
   if isSelected:
-    let equipText = "[EQUIPPED]"
+    let equipText = t("shop_equipped")
     let equipWidth = measureText(equipText, 11)
     let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
     drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
@@ -698,7 +698,7 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawRectangle(contentX.int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab1Color)
   if tab1Active:
     drawRectangle(contentX.int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText("PLAYER", (contentX + tabWidth div 2 - 32).int32, (tabY + 12).int32, 14, 
+  drawText(t("shop_tab_player"), (contentX + tabWidth div 2 - 32).int32, (tabY + 12).int32, 14, 
           if tab1Active: White else: Gray)
   
   # Bullet Skins tab
@@ -707,7 +707,7 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawRectangle((contentX + tabWidth).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab2Color)
   if tab2Active:
     drawRectangle((contentX + tabWidth).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText("BULLET", (contentX + tabWidth + tabWidth div 2 - 30).int32, (tabY + 12).int32, 14,
+  drawText(t("shop_tab_bullet"), (contentX + tabWidth + tabWidth div 2 - 30).int32, (tabY + 12).int32, 14,
           if tab2Active: White else: Gray)
   
   # Shapes tab
@@ -716,7 +716,7 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawRectangle((contentX + tabWidth * 2).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab3Color)
   if tab3Active:
     drawRectangle((contentX + tabWidth * 2).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText("SHAPES", (contentX + tabWidth * 2 + tabWidth div 2 - 32).int32, (tabY + 12).int32, 14,
+  drawText(t("shop_tab_shapes"), (contentX + tabWidth * 2 + tabWidth div 2 - 32).int32, (tabY + 12).int32, 14,
           if tab3Active: White else: Gray)
   
   # Particles tab
@@ -725,20 +725,20 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawRectangle((contentX + tabWidth * 3).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab4Color)
   if tab4Active:
     drawRectangle((contentX + tabWidth * 3).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText("PARTICLES", (contentX + tabWidth * 3 + tabWidth div 2 - 40).int32, (tabY + 12).int32, 14,
+  drawText(t("shop_tab_particles"), (contentX + tabWidth * 3 + tabWidth div 2 - 40).int32, (tabY + 12).int32, 14,
           if tab4Active: White else: Gray)
   
   # Draw header
   let headerHeight = 50
   let headerY = contentY + TAB_HEIGHT
   let tabTitle = if shop.currentTab == stPlayerSkins: 
-    "CUSTOMIZE YOUR APPEARANCE"
+    t("shop_customize_appearance")
   elif shop.currentTab == stBulletSkins:
-    "CUSTOMIZE YOUR BULLETS"
+    t("shop_customize_bullets")
   elif shop.currentTab == stShapes:
-    "CHOOSE YOUR SHAPE"
+    t("shop_choose_shape")
   else:
-    "CUSTOMIZE SHOOTING EFFECTS"
+    t("shop_customize_effects")
   drawText(tabTitle, (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
   
   # Calculate grid area
@@ -768,10 +768,10 @@ proc drawShopWindow*(shop: ShopWindow) =
   
   # Show scroll hint when content overflows
   if totalContentHeight.float32 > gridHeight.float32:
-    drawText("Scroll with mouse wheel to see all skins", (contentX + 10).int32, (headerY + 30).int32, 12, 
+    drawText(t("shop_scroll_hint"), (contentX + 10).int32, (headerY + 30).int32, 12, 
             Color(r: 255, g: 200, b: 100, a: 255))
   else:
-    drawText("Click to equip", (contentX + 10).int32, (headerY + 30).int32, 13, Gray)
+    drawText(t("shop_click_equip"), (contentX + 10).int32, (headerY + 30).int32, 13, Gray)
   
   # Draw grid based on current tab
   if shop.currentTab == stPlayerSkins:
@@ -877,17 +877,17 @@ proc drawShopWindow*(shop: ShopWindow) =
   # Show selected info
   if shop.currentTab == stPlayerSkins:
     let selectedData = getSkinData(shop.selectedPlayerSkin)
-    drawText(&"Currently Equipped: {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
   elif shop.currentTab == stBulletSkins:
     let selectedData = getBulletSkinData(shop.selectedBulletSkin)
-    drawText(&"Currently Equipped: {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
   elif shop.currentTab == stShapes:
     let selectedData = getShapeData(shop.selectedShape)
-    drawText(&"Currently Equipped: {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
   else:  # stParticles
     let selectedData = getParticleSkinData(shop.selectedParticle)
-    drawText(&"Currently Equipped: {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)

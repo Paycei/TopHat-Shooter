@@ -1,7 +1,7 @@
 ## Bullet Skins System
 ## Defines available bullet skins and rendering functions
 
-import raylib, types, math
+import raylib, types, math, localization
 
 type
   BulletSkinType* = enum
@@ -33,8 +33,8 @@ var bulletSkinDatabase*: array[BulletSkinType, BulletSkinData]
 proc initializeBulletSkins*() =
   ## Initialize all available bullet skins with their data
   bulletSkinDatabase[bskDefault] = BulletSkinData(
-    name: "System Default",
-    description: "Classic cyan projectile",
+    name: t("bullet_default"),
+    description: t("bullet_default_desc"),
     primaryColor: Color(r: 0, g: 200, b: 200, a: 255),
     glowColor: Color(r: 0, g: 255, b: 255, a: 100),
     trailColor: Color(r: 0, g: 150, b: 150, a: 150),
@@ -43,8 +43,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskNeonPink] = BulletSkinData(
-    name: "Neon Pink",
-    description: "Hot magenta projectiles",
+    name: t("bullet_neon_pink"),
+    description: t("bullet_neon_pink_desc"),
     primaryColor: Color(r: 255, g: 0, b: 180, a: 255),
     glowColor: Color(r: 255, g: 100, b: 200, a: 100),
     trailColor: Color(r: 200, g: 0, b: 150, a: 150),
@@ -53,8 +53,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskEmerald] = BulletSkinData(
-    name: "Emerald Tech",
-    description: "Advanced green energy",
+    name: t("bullet_emerald"),
+    description: t("bullet_emerald_desc"),
     primaryColor: Color(r: 0, g: 255, b: 100, a: 255),
     glowColor: Color(r: 100, g: 255, b: 150, a: 100),
     trailColor: Color(r: 0, g: 200, b: 80, a: 150),
@@ -63,8 +63,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskSunset] = BulletSkinData(
-    name: "Sunset Blaze",
-    description: "Fiery orange projectiles",
+    name: t("bullet_sunset"),
+    description: t("bullet_sunset_desc"),
     primaryColor: Color(r: 255, g: 100, b: 0, a: 255),
     glowColor: Color(r: 255, g: 150, b: 50, a: 100),
     trailColor: Color(r: 255, g: 50, b: 0, a: 150),
@@ -73,8 +73,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskAmethyst] = BulletSkinData(
-    name: "Amethyst",
-    description: "Royal purple energy",
+    name: t("bullet_amethyst"),
+    description: t("bullet_amethyst_desc"),
     primaryColor: Color(r: 150, g: 0, b: 255, a: 255),
     glowColor: Color(r: 200, g: 100, b: 255, a: 100),
     trailColor: Color(r: 120, g: 0, b: 200, a: 150),
@@ -83,8 +83,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskGold] = BulletSkinData(
-    name: "Golden Aura",
-    description: "Luxurious golden shots",
+    name: t("bullet_gold"),
+    description: t("bullet_gold_desc"),
     primaryColor: Color(r: 255, g: 215, b: 0, a: 255),
     glowColor: Color(r: 255, g: 235, b: 100, a: 100),
     trailColor: Color(r: 255, g: 180, b: 0, a: 150),
@@ -93,8 +93,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskIce] = BulletSkinData(
-    name: "Ice Crystal",
-    description: "Frozen crystalline shots",
+    name: t("bullet_ice"),
+    description: t("bullet_ice_desc"),
     primaryColor: Color(r: 150, g: 220, b: 255, a: 255),
     glowColor: Color(r: 200, g: 240, b: 255, a: 100),
     trailColor: Color(r: 100, g: 180, b: 255, a: 150),
@@ -103,8 +103,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskShadow] = BulletSkinData(
-    name: "Shadow Ops",
-    description: "Stealth dark projectiles",
+    name: t("bullet_shadow"),
+    description: t("bullet_shadow_desc"),
     primaryColor: Color(r: 60, g: 60, b: 80, a: 255),
     glowColor: Color(r: 100, g: 100, b: 120, a: 100),
     trailColor: Color(r: 40, g: 40, b: 60, a: 150),
@@ -113,8 +113,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskRainbow] = BulletSkinData(
-    name: "Rainbow Wave",
-    description: "Animated rainbow spectrum",
+    name: t("bullet_rainbow"),
+    description: t("bullet_rainbow_desc"),
     primaryColor: Color(r: 255, g: 0, b: 0, a: 255),
     glowColor: Color(r: 255, g: 255, b: 255, a: 100),
     trailColor: Color(r: 200, g: 0, b: 200, a: 150),
@@ -123,8 +123,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskMatrix] = BulletSkinData(
-    name: "Matrix Code",
-    description: "Green cascading data",
+    name: t("bullet_matrix"),
+    description: t("bullet_matrix_desc"),
     primaryColor: Color(r: 0, g: 255, b: 0, a: 255),
     glowColor: Color(r: 100, g: 255, b: 100, a: 100),
     trailColor: Color(r: 0, g: 180, b: 0, a: 150),
@@ -133,8 +133,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskVoid] = BulletSkinData(
-    name: "Void Walker",
-    description: "Dark purple void energy",
+    name: t("bullet_void"),
+    description: t("bullet_void_desc"),
     primaryColor: Color(r: 80, g: 0, b: 120, a: 255),
     glowColor: Color(r: 150, g: 50, b: 200, a: 100),
     trailColor: Color(r: 50, g: 0, b: 80, a: 150),
@@ -143,8 +143,8 @@ proc initializeBulletSkins*() =
   )
 
   bulletSkinDatabase[bskPlasma] = BulletSkinData(
-    name: "Plasma Core",
-    description: "Electric blue-purple plasma",
+    name: t("bullet_plasma"),
+    description: t("bullet_plasma_desc"),
     primaryColor: Color(r: 100, g: 100, b: 255, a: 255),
     glowColor: Color(r: 150, g: 150, b: 255, a: 100),
     trailColor: Color(r: 150, g: 50, b: 255, a: 150),

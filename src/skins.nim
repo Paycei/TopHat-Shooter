@@ -1,7 +1,7 @@
 ## Player Skins System
 ## Defines available player skins and rendering functions
 
-import raylib, types, math
+import raylib, types, math, localization
 
 type
   SkinType* = enum
@@ -33,8 +33,8 @@ var skinDatabase*: array[SkinType, SkinData]
 proc initializeSkins*() =
   ## Initialize all available skins with their data
   skinDatabase[skDefault] = SkinData(
-    name: "System Default",
-    description: "Classic cyan OS interface",
+    name: t("skin_default"),
+    description: t("skin_default_desc"),
     primaryColor: Color(r: 0, g: 200, b: 200, a: 255),
     secondaryColor: Color(r: 0, g: 150, b: 200, a: 255),
     coreColor: Color(r: 255, g: 255, b: 255, a: 255),
@@ -43,8 +43,8 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skNeonPink] = SkinData(
-    name: "Neon Pink",
-    description: "Hot magenta cyberpunk style",
+    name: t("skin_neon_pink"),
+    description: t("skin_neon_pink_desc"),
     primaryColor: Color(r: 255, g: 0, b: 180, a: 255),
     secondaryColor: Color(r: 200, g: 0, b: 150, a: 255),
     coreColor: Color(r: 255, g: 150, b: 230, a: 255),
@@ -53,8 +53,8 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skEmerald] = SkinData(
-    name: "Emerald Tech",
-    description: "Advanced green technology",
+    name: t("skin_emerald"),
+    description: t("skin_emerald_desc"),
     primaryColor: Color(r: 0, g: 255, b: 100, a: 255),
     secondaryColor: Color(r: 0, g: 200, b: 80, a: 255),
     coreColor: Color(r: 200, g: 255, b: 200, a: 255),
@@ -63,8 +63,8 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skSunset] = SkinData(
-    name: "Sunset Blaze",
-    description: "Fiery orange and red",
+    name: t("skin_sunset"),
+    description: t("skin_sunset_desc"),
     primaryColor: Color(r: 255, g: 100, b: 0, a: 255),
     secondaryColor: Color(r: 255, g: 50, b: 0, a: 255),
     coreColor: Color(r: 255, g: 200, b: 100, a: 255),
@@ -73,8 +73,8 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skAmethyst] = SkinData(
-    name: "Amethyst",
-    description: "Royal purple energy",
+    name: t("skin_amethyst"),
+    description: t("skin_amethyst_desc"),
     primaryColor: Color(r: 150, g: 0, b: 255, a: 255),
     secondaryColor: Color(r: 120, g: 0, b: 200, a: 255),
     coreColor: Color(r: 220, g: 180, b: 255, a: 255),
@@ -83,8 +83,8 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skGold] = SkinData(
-    name: "Golden Aura",
-    description: "Luxurious golden shine",
+    name: t("skin_gold"),
+    description: t("skin_gold_desc"),
     primaryColor: Color(r: 255, g: 215, b: 0, a: 255),
     secondaryColor: Color(r: 255, g: 180, b: 0, a: 255),
     coreColor: Color(r: 255, g: 255, b: 200, a: 255),
@@ -93,8 +93,8 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skIce] = SkinData(
-    name: "Ice Crystal",
-    description: "Frozen crystalline beauty",
+    name: t("skin_ice"),
+    description: t("skin_ice_desc"),
     primaryColor: Color(r: 150, g: 220, b: 255, a: 255),
     secondaryColor: Color(r: 100, g: 180, b: 255, a: 255),
     coreColor: Color(r: 240, g: 250, b: 255, a: 255),
@@ -103,8 +103,8 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skShadow] = SkinData(
-    name: "Shadow Ops",
-    description: "Stealth dark mode",
+    name: t("skin_shadow"),
+    description: t("skin_shadow_desc"),
     primaryColor: Color(r: 60, g: 60, b: 80, a: 255),
     secondaryColor: Color(r: 40, g: 40, b: 60, a: 255),
     coreColor: Color(r: 180, g: 180, b: 200, a: 255),
@@ -113,9 +113,9 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skRainbow] = SkinData(
-    name: "Rainbow Wave",
-    description: "Animated rainbow spectrum",
-    primaryColor: Color(r: 255, g: 0, b: 0, a: 255),  # Base color, will animate
+    name: t("skin_rainbow"),
+    description: t("skin_rainbow_desc"),
+    primaryColor: Color(r: 255, g: 0, b: 0, a: 255),
     secondaryColor: Color(r: 200, g: 0, b: 200, a: 255),
     coreColor: Color(r: 255, g: 255, b: 255, a: 255),
     isAnimated: true,
@@ -123,8 +123,8 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skMatrix] = SkinData(
-    name: "Matrix Code",
-    description: "Green cascading data",
+    name: t("skin_matrix"),
+    description: t("skin_matrix_desc"),
     primaryColor: Color(r: 0, g: 255, b: 0, a: 255),
     secondaryColor: Color(r: 0, g: 180, b: 0, a: 255),
     coreColor: Color(r: 180, g: 255, b: 180, a: 255),
@@ -133,8 +133,8 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skVoid] = SkinData(
-    name: "Void Walker",
-    description: "Dark purple void energy",
+    name: t("skin_void"),
+    description: t("skin_void_desc"),
     primaryColor: Color(r: 80, g: 0, b: 120, a: 255),
     secondaryColor: Color(r: 50, g: 0, b: 80, a: 255),
     coreColor: Color(r: 150, g: 100, b: 200, a: 255),
@@ -143,8 +143,8 @@ proc initializeSkins*() =
   )
 
   skinDatabase[skPlasma] = SkinData(
-    name: "Plasma Core",
-    description: "Electric blue-purple plasma",
+    name: t("skin_plasma"),
+    description: t("skin_plasma_desc"),
     primaryColor: Color(r: 100, g: 100, b: 255, a: 255),
     secondaryColor: Color(r: 150, g: 50, b: 255, a: 255),
     coreColor: Color(r: 200, g: 200, b: 255, a: 255),
