@@ -8,7 +8,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 poisonDuration: float32 = 0, fireDuration: float32 = 0, windPushForce: float32 = 0,
                 isPentagon: bool = false, isEcho: bool = false, 
                 isBossBullet: bool = false, isArcaneBullet: bool = false,
-                sourceEnemyId: int = -1,
+                sourceEnemyId: int = -1, sourceEnemyType: EnemyType = etCircle,
                 isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
                 wasCrit: bool = false, isSpecialRound: bool = false,
                 bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1,
@@ -37,6 +37,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     hitEnemies: @[],  # Initialize empty sequence
     sourceEnemyId: sourceEnemyId,  # Track which enemy shot this bullet
     sourceEnemyPos: newVector2f(x, y),  # Store the position where bullet was shot from
+    sourceEnemyType: sourceEnemyType,  # Track enemy type for visual effects
     travelDistance: 0.0,  # Track distance for Overcharge
     isEcho: isEcho,  # Whether this is an echo trail bullet
     echoTrailTimer: 0.0,  # Timer for spawning echo trails
@@ -94,10 +95,17 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     glowColor = Color(r: 200, g: 200, b: 255, a: fadeAlpha div 2)
     trailColor = Color(r: 180, g: 180, b: 255, a: fadeAlpha)
   else:
-    # Enemy bullets - use pink
-    color = Pink
-    glowColor = Color(r: 255, g: 100, b: 150, a: 100)
-    trailColor = Pink
+    # Enemy bullets - pink by default, special colors for specific enemy types
+    if bullet.sourceEnemyType == etSniper:
+      # Sniper bullets are bright red with glow
+      color = Color(r: 255, g: 50, b: 50, a: 255)  # Bright red
+      glowColor = Color(r: 255, g: 0, b: 0, a: 150)  # Red glow
+      trailColor = Color(r: 220, g: 50, b: 50, a: 255)  # Red trail
+    else:
+      # Regular enemy bullets (including pentagon) are pink
+      color = Pink
+      glowColor = Color(r: 255, g: 100, b: 150, a: 100)
+      trailColor = Pink
   
   # Draw bullet trail for player bullets (showcases skin colors)
   # Reduce trail for explosive bullets to improve performance
@@ -147,8 +155,17 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
   
   # Add glow effect
   if not bullet.fromPlayer:
+    # Sniper bullets get strong red glow
+    if bullet.sourceEnemyType == etSniper:
+      # Multiple red glow rings for sniper bullets
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
+                     Color(r: 255, g: 80, b: 80, a: 180))
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4, 
+                     Color(r: 255, g: 50, b: 50, a: 120))
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6, 
+                     Color(r: 255, g: 20, b: 20, a: 60))
     # Boss bullets get a special strong glow effect
-    if bullet.isBossBullet:
+    elif bullet.isBossBullet:
       # Multiple glow rings for boss bullets
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4, 
                      Color(r: 255, g: 50, b: 150, a: 200))
@@ -156,18 +173,8 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
                      Color(r: 255, g: 100, b: 150, a: 120))
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 10, 
                      Color(r: 255, g: 150, b: 180, a: 60))
-    elif bullet.isPentagon:
-      # Pentagon glow
-      for i in 0..<5:
-        let angle = i.float32 * PI * 2.0 / 5.0 - PI / 2.0
-        let nextAngle = (i + 1).float32 * PI * 2.0 / 5.0 - PI / 2.0
-        let x1 = bullet.pos.x + cos(angle) * (bullet.radius + 3)
-        let y1 = bullet.pos.y + sin(angle) * (bullet.radius + 3)
-        let x2 = bullet.pos.x + cos(nextAngle) * (bullet.radius + 3)
-        let y2 = bullet.pos.y + sin(nextAngle) * (bullet.radius + 3)
-        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2,
-                Color(r: 0, g: 200, b: 150, a: 100))
     else:
+      # Regular enemy bullets - standard pink glow
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
                      Color(r: 255, g: 100, b: 150, a: 100))
   elif bullet.fromPlayer and not bullet.isEcho:
@@ -308,6 +315,7 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     original.isBossBullet,
     original.isArcaneBullet,  # Preserve arcane bullet property for split shots
     -1,  # sourceEnemyId
+    original.sourceEnemyType,  # Preserve enemy type for visual effects
     false,  # isBonusFromMultiShot
     false,  # isBonusFromDoubleShot
     original.wasCrit,  # Preserve crit status

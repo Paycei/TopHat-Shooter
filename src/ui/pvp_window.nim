@@ -128,13 +128,13 @@ proc getTeamColor*(team: PvPTeam): Color =
 
 proc getTeamName*(team: PvPTeam): string =
   case team
-  of ptRed:    return "Red"
-  of ptBlue:   return "Blue"
-  of ptGreen:  return "Green"
-  of ptYellow: return "Yellow"
-  of ptOrange: return "Orange"
-  of ptPurple: return "Purple"
-  of ptNone:   return "None"
+  of ptRed:    return t(tkPvPTeamRed)
+  of ptBlue:   return t(tkPvPTeamBlue)
+  of ptGreen:  return t(tkPvPTeamGreen)
+  of ptYellow: return t(tkPvPTeamYellow)
+  of ptOrange: return t(tkPvPTeamOrange)
+  of ptPurple: return t(tkPvPTeamPurple)
+  of ptNone:   return t(tkPvPTeamNone)
 
 proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
   let windowWidth = 600
@@ -143,7 +143,7 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
   let windowY = (screenHeight - windowHeight) div 2
   let localIP = getLocalIP()
   result = PvPWindow(
-    window: newOSWindow("PvP Network", windowX, windowY, windowWidth, windowHeight,
+    window: newOSWindow(t(tkPvPTitle), windowX, windowY, windowWidth, windowHeight,
                        Color(r: 100, g: 200, b: 100, a: 255), owtHelp, resizable = false),
     networkManager: newNetworkManager(),
     state: plsMainMenu,

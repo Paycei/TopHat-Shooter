@@ -581,7 +581,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       baseHP: 7.5,
       baseRadius: 10.0,
       contactDamage: 3,
-      baseColor: Color(r: 200, g: 50, b: 200, a: 255),  # Bright magenta
+      baseColor: Color(r: 220, g: 0, b: 0, a: 255),  # Glowing red
       
       movement: EnemyMovementConfig(
         baseSpeed: 40.0,      # Very slow
@@ -591,14 +591,14 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         teleportCooldown: 0.0,
         teleportRange: 0.0,
         maintainsDistance: true,
-        optimalDistance: 350.0,
-        retreatDistance: 280.0
+        optimalDistance: 500.0,  # Much further away (was 300)
+        retreatDistance: 400.0   # Retreat if player gets close (was 225)
       ),
       
       hasRangedAttack: true,
       attack: EnemyAttackConfig(
         fireRate: 0.0,        # Controlled by charge mechanic
-        bulletSpeed: 400.0,   # Very fast
+        bulletSpeed: 450.0,   # Slightly faster for long range (was 400)
         bulletCount: 1,
         spreadAngle: 0.0,
         damage: 9999.0,       # One-shot kill
@@ -617,7 +617,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       hasSpecialBehavior: true,
       specialBehaviorType: "charge_shot",
       specialCooldown: 2.0,   # Cooldown after firing
-      specialData: "charge_time:3.0|trigger_range:300|cooldown:2.0|color_shift",
+      specialData: "charge_time:3.0|trigger_range:500|cooldown:2.0|color_shift",  # Trigger range increased to 500 (was 300)
       
       requiresScreenEntry: true,
       trailEffect: false,

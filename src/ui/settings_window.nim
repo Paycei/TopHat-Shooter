@@ -32,7 +32,7 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings): Set
   let windowY = (screenHeight - windowHeight) div 2
   
   let osWin = newOSWindow(
-    "Settings - System Control Panel",
+    t(tkSettingsTitle),
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 200, g: 100, b: 255, a: 255),  # Purple

@@ -942,6 +942,15 @@ type
     tkPvPConnectionTimeout = "pvp_connection_timeout"
     tkPvPHostDisconnected = "pvp_host_disconnected"
     
+    # PvP Teams
+    tkPvPTeamRed = "pvp_team_red"
+    tkPvPTeamBlue = "pvp_team_blue"
+    tkPvPTeamGreen = "pvp_team_green"
+    tkPvPTeamYellow = "pvp_team_yellow"
+    tkPvPTeamOrange = "pvp_team_orange"
+    tkPvPTeamPurple = "pvp_team_purple"
+    tkPvPTeamNone = "pvp_team_none"
+    
     # Play Styles
     tkStatsPlayStyleAggressive = "stats_play_style_aggressive"
     tkStatsPlayStyleDefensive = "stats_play_style_defensive"
@@ -2063,6 +2072,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_failed_connect": "Failed to connect: ",
     "pvp_connection_timeout": "Connection timeout",
     "pvp_host_disconnected": "Host disconnected",
+    
+    # PvP Teams
+    "pvp_team_red": "Red",
+    "pvp_team_blue": "Blue",
+    "pvp_team_green": "Green",
+    "pvp_team_yellow": "Yellow",
+    "pvp_team_orange": "Orange",
+    "pvp_team_purple": "Purple",
+    "pvp_team_none": "None",
+    
     "stats_play_style_aggressive": "Aggressive",
     "stats_play_style_defensive": "Defensive",
     "stats_play_style_mobile": "Mobile",
@@ -3103,7 +3122,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_resources_label": "RECURSOS",
     "stats_play_style_label": "ESTILO DE JUEGO",
     "stats_dps_over_time_label": "DPS A TRAVÉS DEL TIEMPO",
-    "stats_host_default": "Anfitrión",
+    "stats_host_default": "Host",
     
     # Enemy Labels
     "enemy_active_threats": "AMENAZAS ACTIVAS:",
@@ -3171,6 +3190,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_failed_connect": "Error: ",
     "pvp_connection_timeout": "Timeout",
     "pvp_host_disconnected": "Host caído",
+    
+    # PvP Teams
+    "pvp_team_red": "Rojo",
+    "pvp_team_blue": "Azul",
+    "pvp_team_green": "Verde",
+    "pvp_team_yellow": "Amarillo",
+    "pvp_team_orange": "Naranja",
+    "pvp_team_purple": "Púrpura",
+    "pvp_team_none": "Ninguno",
+    
     "stats_play_style_aggressive": "Agresivo",
     "stats_play_style_defensive": "Defensivo",
     "stats_play_style_mobile": "Móvil",

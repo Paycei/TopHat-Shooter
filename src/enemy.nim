@@ -593,6 +593,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       let chargeTime = getSpecialFloat(specialData, "charge_time", 3.0)
       let cooldownTime = getSpecialFloat(specialData, "cooldown", 2.0)
       
+      # Mark as entered screen once fully on-screen (required for executeRangedAttack)
+      checkScreenEntry(enemy, game)
+      
       let distToPlayer = distance(enemy.pos, playerPos)
       
       case enemy.attackPhase
@@ -618,14 +621,14 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         # Visual charging: change color intensity
         let chargeAmount = enemy.attackWarningTimer / enemy.attackExecuteTimer
         let intensity = uint8(150 + chargeAmount * 105)
-        enemy.color = Color(r: intensity, g: 50, b: intensity, a: 255)
+        enemy.color = Color(r: intensity, g: 0, b: 0, a: 255)
         
         # When charge completes, fire using centralized system
         if enemy.attackWarningTimer >= enemy.attackExecuteTimer:
           executeRangedAttack(enemy, playerPos, game)
           enemy.attackPhase = 2
           enemy.attackExecuteTimer = cooldownTime
-          enemy.color = Color(r: 200, g: 50, b: 200, a: 255)  # Reset color
+          enemy.color = Color(r: 220, g: 0, b: 0, a: 255)  # Reset color
       
       of 2:  # Cooldown phase - recover before hunting again
         enemy.attackExecuteTimer -= dt
@@ -1343,6 +1346,19 @@ proc drawEnemy*(enemy: Enemy) =
     
     of etSniper:
       # Draw sniper with charging visualization
+      
+      # Persistent glowing aura (always visible, not just when charging)
+      let baseGlowPulse = sin(getTime() * 3.0) * 0.3 + 0.7  # Pulse between 0.7-1.0
+      let baseGlowRadius = enemy.radius + 8 + baseGlowPulse * 4
+      
+      # Multiple glow layers for strong glowing effect
+      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), baseGlowRadius,
+                Color(r: 255, g: 50, b: 50, a: uint8(60 * baseGlowPulse)))
+      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), baseGlowRadius - 4,
+                Color(r: 255, g: 80, b: 80, a: uint8(90 * baseGlowPulse)))
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 12,
+                     Color(r: 255, g: 100, b: 100, a: uint8(120 * baseGlowPulse)))
+      
       # Main body - circular with crosshair
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
       
@@ -1358,7 +1374,7 @@ proc drawEnemy*(enemy: Enemy) =
       # Center dot
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), 3.0, Red)
       
-      # Charging effect - expanding rings when charging
+      # Charging effect - expanding rings when charging (ADDITIONAL glow on top of base glow)
       if enemy.attackPhase == 1:
         let chargePercent = enemy.attackWarningTimer / enemy.attackExecuteTimer
         let ringAlpha = uint8((sin(getTime() * 10.0) * 0.5 + 0.5) * 200)

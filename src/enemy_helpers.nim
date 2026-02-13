@@ -110,7 +110,8 @@ proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2f, game: var Game)
       isPentagon = attack.isPentagonBullet,
       isEcho = false,
       isBossBullet = false,
-      sourceEnemyId = enemy.id
+      sourceEnemyId = enemy.id,
+      sourceEnemyType = enemy.enemyType
     )
     
     # Set custom bullet size if specified

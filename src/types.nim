@@ -17,7 +17,7 @@ type
     ptNone,      # No team (free-for-all)
     ptRed,       # Red team
     ptBlue,      # Blue team
-    ptGreen,     # Green team (for 3+ teams)
+    ptGreen,     # Green team (for 3 teams)
     ptYellow,    # Yellow team (for 4 teams)
     ptOrange,    # Orange team (for 5 teams)
     ptPurple     # Purple team (for 6 teams)
@@ -138,8 +138,8 @@ type
     attackType*: string  # "cross", "burst", "fake", "boss_laser", "satellite_laser", "teleport_warning"
     lifetime*: float32
     maxLifetime*: float32
-    sourceEnemyId*: int  # ID of enemy that created this warning (for tracking movement)
-    laserAngles*: seq[float32]  # Angles for each laser beam
+    sourceEnemyId*: int          # ID of enemy that created this warning (for tracking movement)
+    laserAngles*: seq[float32]   # Angles for each laser beam
     laserLength*: float32        # Length of laser beams
     laserCount*: int             # Number of laser beams
     laserDamage*: int            # Damage of lasers when fired
@@ -241,10 +241,10 @@ type
     radialBurstTimer*: float32  # Timer for periodic radial burst
     pulseArmorCooldown*: float32  # Cooldown after triggering shockwave
     teamId*: PvPTeam  # Team assignment for PvP mode (ptNone for free-for-all)
-    skinType*: int  # Current equipped skin (stored as int for save compatibility)
-    bulletSkinType*: int  # Current equipped bullet skin (stored as int for save compatibility)
-    shapeType*: int  # Current equipped shape (stored as int for save compatibility)
-    particleSkinType*: int  # Current equipped particle effect (stored as int for save compatibility)
+    skinType*: int  # Current equipped skinHost
+    bulletSkinType*: int  # Current equipped bullet skinHost
+    shapeType*: int  # Current equipped shapeHost
+    particleSkinType*: int  # Current equipped particle effect
 
   EffectInstance* = object
     elementType*: ElementType
@@ -313,19 +313,19 @@ type
     cloneTimer*: float32
     hasEnteredScreen*: bool  # Tracks if ranged enemy is fully inside screen
     isElite*: bool  # Whether this is an elite enemy
-    eliteType*: EliteType  # Type of elite modifier (primary type for backward compatibility)
-    eliteTypes*: seq[EliteType]  # Multiple elite types for high-wave elites (wave 25+)
+    eliteType*: EliteType  # Type of elite modifier
+    eliteTypes*: seq[EliteType]  # Multiple elite types for high-wave elites
     eliteAuraPhase*: float32  # For animating the elite aura
     shieldHp*: float32  # For shielded elites
     maxShieldHp*: float32  # Maximum shield HP
     regenTimer*: float32  # For regenerative elites
-    spawnedByBoss*: bool  # True if spawned by boss summon attack (no coin drops)
+    spawnedByBoss*: bool  # True if spawned by boss summon attack
     rotation*: float32  # Current rotation angle in radians
-    bossDefinitionID*: int  # Which boss definition this uses (1-12)
-    currentPhaseIndex*: int  # Current phase index (0, 1, 2, etc.)
+    bossDefinitionID*: int  # Which boss definition this uses
+    currentPhaseIndex*: int  # Current phase index
     attackTimers*: seq[float32]  # Individual cooldown timer for each attack in current phase
-    defenseMultiplier*: float32  # Damage reduction multiplier (1.0 = no reduction, 0.5 = 50% damage taken)
-    debuffResistance*: float32  # Stun/slow resistance multiplier (0.0 = no resistance, 0.5 = 50% reduction, 1.0 = immune)
+    defenseMultiplier*: float32  # Damage reduction multiplier
+    debuffResistance*: float32  # Stun/slow resistance multiplier
     isDashing*: bool  # Whether boss is currently executing a dash
     dashVelocity*: Vector2f  # Velocity during dash
     dashDuration*: float32  # Remaining dash duration
@@ -358,22 +358,23 @@ type
     windPushForce*: float32  # Force to push enemies backwards
     isPentagon*: bool  # Special pentagon-shaped bullets
     hitEnemies*: seq[int]  # Track enemy indices already hit by this bullet
-    sourceEnemyId*: int  # ID of the enemy that shot this bullet (for parry)
-    sourceEnemyPos*: Vector2f  # Position where the bullet was shot from (for parry fallback)
+    sourceEnemyId*: int  # ID of the enemy that shot this bullet
+    sourceEnemyPos*: Vector2f  # Position where the bullet was shot from
+    sourceEnemyType*: EnemyType  # Type of enemy that shot this bullet
 
-    travelDistance*: float32  # Track distance for Overcharge
+    travelDistance*: float32  # Track distance
     isEcho*: bool  # True if this is an echo clone bullet
     echoTrailTimer*: float32  # Timer for spawning echo clones
-    parentBulletId*: int  # ID of parent bullet (for echo bullets to track their source)
-    bulletId*: int  # Unique ID for this bullet (for parent-child tracking)
-    isBossBullet*: bool  # True if this bullet was fired by a boss (for glow effect)
+    parentBulletId*: int  # ID of parent bullet
+    bulletId*: int  # Unique ID for this bullet
+    isBossBullet*: bool  # True if this bullet was fired by a boss
     isArcaneBullet*: bool  # True if this bullet is from arcane bullet power-up
     isBonusFromMultiShot*: bool  # True if this is a bonus bullet from Multi-Shot
     isBonusFromDoubleShot*: bool  # True if this is a bonus bullet from Double Shot
     wasCrit*: bool  # True if this bullet rolled a critical hit
     isSpecialRound*: bool  # True if this is a special round (every Nth bullet)
-    bulletSkin*: int  # Bullet skin type (stored as int for save compatibility)
-    ownerPlayerIndex*: int  # For PvP: which player (0 or 1) shot this bullet (-1 for non-PvP)
+    bulletSkin*: int  # Bullet skin typeHost
+    ownerPlayerIndex*: int  # For PvP: which player shot this bullet (-1 for non-PvP)
 
   Coin* = ref object
     pos*: Vector2f
