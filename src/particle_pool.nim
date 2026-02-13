@@ -1,8 +1,7 @@
-import raylib, particle_types, random, math
-
 ## PARTICLE POOLING SYSTEM FOR PERFORMANCE
 ## Instead of constantly creating and destroying particles, we reuse them from a pool.
-## This eliminates memory allocations during gameplay, improving performance.
+
+import raylib, particle_types, random, math
 
 const
   DEFAULT_POOL_SIZE* = 2000       # Initial pool capacity

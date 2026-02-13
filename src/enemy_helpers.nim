@@ -1,6 +1,5 @@
 ## Enemy Helper Functions
 ## Centralized attack execution, movement, and special behaviors
-## Part of enemy system unification to eliminate hardcoded values
 
 import raylib, types, random, math, tables, strutils, enemy_config, bullet, wall, run_statistics
 

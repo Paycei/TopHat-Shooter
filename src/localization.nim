@@ -991,6 +991,71 @@ type
     tkOSShopSelect = "os_shop_select"
     tkOSShopExit = "os_shop_exit"
     tkShopAvailableBalance = "shop_available_balance"
+    
+    # Gamemode Names and Descriptions
+    tkGameModeWaveBased = "gamemode_wave_based_name"
+    tkGameModeWaveBasedDesc = "gamemode_wave_based_desc"
+    tkGameModeTimeSurvival = "gamemode_time_survival_name"
+    tkGameModeTimeSurvivalDesc = "gamemode_time_survival_desc"
+    tkGameModeSandbox = "gamemode_sandbox_name"
+    tkGameModeSandboxDesc = "gamemode_sandbox_desc"
+    tkGameModePvP = "gamemode_pvp_name"
+    tkGameModePvPDesc = "gamemode_pvp_desc"
+    
+    # Enemy Names and Descriptions
+    tkEnemyCircleName = "enemy_circle_name"
+    tkEnemyCircleDesc = "enemy_circle_desc"
+    tkEnemyPentagonName = "enemy_pentagon_name"
+    tkEnemyPentagonDesc = "enemy_pentagon_desc"
+    tkEnemyTriangleName = "enemy_triangle_name"
+    tkEnemyTriangleDesc = "enemy_triangle_desc"
+    tkEnemyStarName = "enemy_star_name"
+    tkEnemyStarDesc = "enemy_star_desc"
+    tkEnemyCubeName = "enemy_cube_name"
+    tkEnemyCubeDesc = "enemy_cube_desc"
+    tkEnemyHexagonName = "enemy_hexagon_name"
+    tkEnemyHexagonDesc = "enemy_hexagon_desc"
+    tkEnemyCrossName = "enemy_cross_name"
+    tkEnemyCrossDesc = "enemy_cross_desc"
+    tkEnemyDiamondName = "enemy_diamond_name"
+    tkEnemyDiamondDesc = "enemy_diamond_desc"
+    tkEnemyOctagonName = "enemy_octagon_name"
+    tkEnemyOctagonDesc = "enemy_octagon_desc"
+    tkEnemyTricksterName = "enemy_trickster_name"
+    tkEnemyTricksterDesc = "enemy_trickster_desc"
+    tkEnemyPhantomName = "enemy_phantom_name"
+    tkEnemyPhantomDesc = "enemy_phantom_desc"
+    tkEnemySniperName = "enemy_sniper_name"
+    tkEnemySniperDesc = "enemy_sniper_desc"
+    tkEnemyMageName = "enemy_mage_name"
+    tkEnemyMageDesc = "enemy_mage_desc"
+    
+    # Boss Names and Descriptions
+    tkBoss1Name = "boss_1_name"
+    tkBoss1Desc = "boss_1_desc"
+    tkBoss2Name = "boss_2_name"
+    tkBoss2Desc = "boss_2_desc"
+    tkBoss3Name = "boss_3_name"
+    tkBoss3Desc = "boss_3_desc"
+    tkBoss4Name = "boss_4_name"
+    tkBoss4Desc = "boss_4_desc"
+    tkBoss5Name = "boss_5_name"
+    tkBoss5Desc = "boss_5_desc"
+    tkBoss6Name = "boss_6_name"
+    tkBoss6Desc = "boss_6_desc"
+    tkBoss7Name = "boss_7_name"
+    tkBoss7Desc = "boss_7_desc"
+    tkBoss8Name = "boss_8_name"
+    tkBoss8Desc = "boss_8_desc"
+    tkBoss9Name = "boss_9_name"
+    tkBoss9Desc = "boss_9_desc"
+    tkBoss10Name = "boss_10_name"
+    tkBoss10Desc = "boss_10_desc"
+    tkBoss11Name = "boss_11_name"
+    tkBoss11Desc = "boss_11_desc"
+    tkBoss12Name = "boss_12_name"
+    tkBoss12Desc = "boss_12_desc"
+    
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -2034,7 +2099,71 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_play_style_aggressive": "Aggressive",
     "stats_play_style_defensive": "Defensive",
     "stats_play_style_mobile": "Mobile",
-    "stats_play_style_tank": "Tank"
+    "stats_play_style_tank": "Tank",
+    
+    # Gamemode Names and Descriptions
+    "gamemode_wave_based_name": "Wave-Based",
+    "gamemode_wave_based_desc": "Fight through waves of enemies. Defeat bosses every 5 waves for legendary upgrades.",
+    "gamemode_time_survival_name": "Time Survival",
+    "gamemode_time_survival_desc": "Survive as long as possible. Difficulty increases over time.",
+    "gamemode_sandbox_name": "Sandbox",
+    "gamemode_sandbox_desc": "Test and experiment with enemies, bosses, and game mechanics.",
+    "gamemode_pvp_name": "PVP",
+    "gamemode_pvp_desc": "Battle against another players in real-time combat. First to 5 kills wins!",
+    
+    # Enemy Names and Descriptions
+    "enemy_circle_name": "Circle Chaser",
+    "enemy_circle_desc": "Basic melee enemy that chases the player",
+    "enemy_pentagon_name": "Pentagon Sniper",
+    "enemy_pentagon_desc": "Precision ranged enemy with powerful, fast projectiles",
+    "enemy_triangle_name": "Triangle Dasher",
+    "enemy_triangle_desc": "Fast enemy with erratic zigzag movement and dash attacks",
+    "enemy_star_name": "Star Tank",
+    "enemy_star_desc": "Durable tank enemy that requires multiple hits to defeat",
+    "enemy_cube_name": "Cube Shooter",
+    "enemy_cube_desc": "Ranged enemy that maintains distance and fires 3-shot bursts",
+    "enemy_hexagon_name": "Hexagon Warper",
+    "enemy_hexagon_desc": "Teleporting enemy that shoots chaotic bullet patterns",
+    "enemy_cross_name": "Cross Striker",
+    "enemy_cross_desc": "Shows warning before executing spinning laser dash attack",
+    "enemy_diamond_name": "Diamond Dasher",
+    "enemy_diamond_desc": "Fast enemy that shoots projectiles during dash attacks",
+    "enemy_octagon_name": "Octagon Sprayer",
+    "enemy_octagon_desc": "Ranged enemy with high fire rate but low accuracy",
+    "enemy_trickster_name": "Trickster",
+    "enemy_trickster_desc": "Deceptive enemy that shows fake warnings and teleports",
+    "enemy_phantom_name": "Phantom",
+    "enemy_phantom_desc": "Teleporting enemy that creates fake clones to confuse",
+    "enemy_sniper_name": "Sniper",
+    "enemy_sniper_desc": "Deadly enemy that charges a powerful one-shot kill attack",
+    "enemy_mage_name": "Mage",
+    "enemy_mage_desc": "Magical enemy that summons meteorites and fires homing projectiles",
+    
+    # Boss Names and Descriptions
+    "boss_1_name": "The Spiral Guardian",
+    "boss_1_desc": "A mystical entity that weaves spiraling bullet patterns",
+    "boss_2_name": "The Summoner King",
+    "boss_2_desc": "Commands an army of minions to overwhelm foes",
+    "boss_3_name": "The Meteor Striker",
+    "boss_3_desc": "Rains destruction from above with devastating meteor strikes",
+    "boss_4_name": "The Laser Architect",
+    "boss_4_desc": "Constructs deadly laser grids and geometric death traps",
+    "boss_5_name": "The Void Dancer",
+    "boss_5_desc": "Blinks through reality, leaving trails of dark energy",
+    "boss_6_name": "The Chain Reactor",
+    "boss_6_desc": "A being of pure electricity that chains devastating arcs between targets",
+    "boss_7_name": "The Orbital Commander",
+    "boss_7_desc": "Commands orbital satellites that strike with astronomical precision",
+    "boss_8_name": "The Berserker Juggernaut",
+    "boss_8_desc": "An unstoppable force of pure rage that grows stronger as it bleeds",
+    "boss_9_name": "The Prism Architect",
+    "boss_9_desc": "Manipulates light itself into geometric prisons of splitting lasers",
+    "boss_10_name": "The Timekeeper",
+    "boss_10_desc": "Bends the flow of time itself, creating paradoxes and temporal rifts",
+    "boss_11_name": "The Chaos Weaver",
+    "boss_11_desc": "Weaves patterns of pure chaos, unpredictable and devastating",
+    "boss_12_name": "The Omega Entity",
+    "boss_12_desc": "The ultimate challenge - combines all previous boss mechanics"
   }.toTable,
   
   Spanish: {
@@ -3073,7 +3202,71 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_no_powerups_selected": "Sin mejoras seleccionadas",
     "stats_dps_over_time_label": "DPS A TRAVÉS DEL TIEMPO",
     "stats_no_graph_data_short": "Sin datos de gráfico",
-    "stats_controls_footer": "[TAB/ESC] Volver  [R] Reiniciar  [Q] Menú"
+    "stats_controls_footer": "[TAB/ESC] Volver  [R] Reiniciar  [Q] Menú",
+    
+    # Gamemode Names and Descriptions
+    "gamemode_wave_based_name": "Por Oleadas",
+    "gamemode_wave_based_desc": "Lucha contra oleadas de enemigos. Derrota a los jefes cada 5 oleadas para obtener mejoras legendarias.",
+    "gamemode_time_survival_name": "Supervivencia por Tiempo",
+    "gamemode_time_survival_desc": "Sobrevive el mayor tiempo posible. La dificultad aumenta con el tiempo.",
+    "gamemode_sandbox_name": "Sandbox",
+    "gamemode_sandbox_desc": "Prueba y experimenta con enemigos, jefes y mecánicas del juego.",
+    "gamemode_pvp_name": "PVP",
+    "gamemode_pvp_desc": "¡Batalla en tiempo real. Primero en 5 bajas gana!",
+    
+    # Enemy Names and Descriptions
+    "enemy_circle_name": "Perseguidor",
+    "enemy_circle_desc": "Enemigo cuerpo a cuerpo básico",
+    "enemy_pentagon_name": "Francotirador",
+    "enemy_pentagon_desc": "Disparo único preciso y veloz",
+    "enemy_triangle_name": "Zigzagueador",
+    "enemy_triangle_desc": "Rápido con movimiento errático y embates",
+    "enemy_star_name": "Tanque Estrella",
+    "enemy_star_desc": "Resistente, requiere varios impactos",
+    "enemy_cube_name": "Tirador",
+    "enemy_cube_desc": "Mantiene distancia y dispara ráfagas de 3",
+    "enemy_hexagon_name": "Teletransportador",
+    "enemy_hexagon_desc": "Se teleporta y dispara patrones caóticos",
+    "enemy_cross_name": "Embistidor",
+    "enemy_cross_desc": "Avisa antes del ataque de láser giratorio",
+    "enemy_diamond_name": "Diamante",
+    "enemy_diamond_desc": "Dispara proyectiles mientras embiste",
+    "enemy_octagon_name": "Dispersador",
+    "enemy_octagon_desc": "Alto ritmo de fuego, baja precisión",
+    "enemy_trickster_name": "Embaucador",
+    "enemy_trickster_desc": "Muestra avisos falsos y se teleporta",
+    "enemy_phantom_name": "Fantasma",
+    "enemy_phantom_desc": "Se teleporta y crea clones falsos",
+    "enemy_sniper_name": "Sniper",
+    "enemy_sniper_desc": "Carga un disparo letal de un golpe",
+    "enemy_mage_name": "Mago",
+    "enemy_mage_desc": "Invoca meteoritos y dispara proyectiles teledirigidos",
+    
+    # Boss Names and Descriptions
+    "boss_1_name": "El Guardián Espiral",
+    "boss_1_desc": "Entidad mística que teje patrones de espiral",
+    "boss_2_name": "El Rey Invocador",
+    "boss_2_desc": "Abruma con ejércitos de secuaces",
+    "boss_3_name": "El Azote Meteórico",
+    "boss_3_desc": "Lluvia de destrucción desde las alturas",
+    "boss_4_name": "El Arquitecto Láser",
+    "boss_4_desc": "Construye trampas letales de rejillas láser",
+    "boss_5_name": "El Danzante del Vacío",
+    "boss_5_desc": "Parpadea entre dimensiones dejando energía oscura",
+    "boss_6_name": "El Reactor en Cadena",
+    "boss_6_desc": "Ser de pura electricidad que encadena arcos devastadores",
+    "boss_7_name": "El Comandante Orbital",
+    "boss_7_desc": "Controla satélites que atacan con precisión astronómica",
+    "boss_8_name": "El Berserker Imparable",
+    "boss_8_desc": "Fuerza de ira pura que se fortalece al sangrar",
+    "boss_9_name": "El Arquitecto Prisma",
+    "boss_9_desc": "Manipula la luz en prisiones geométricas de láseres",
+    "boss_10_name": "El Cronómetra",
+    "boss_10_desc": "Dobla el tiempo creando paradojas y grietas temporales",
+    "boss_11_name": "El Tejedor del Caos",
+    "boss_11_desc": "Teje patrones de caos puro, imprevisible y devastador",
+    "boss_12_name": "La Entidad Omega",
+    "boss_12_desc": "El desafío final: combina todos los mecánicos anteriores"
   }.toTable
 }.toTable
 

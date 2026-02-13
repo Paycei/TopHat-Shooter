@@ -2,6 +2,7 @@
 ## Centralizes gamemode configuration and behavior
 
 import types
+import localization
 
 type
   GameModeDefinition* = object
@@ -24,8 +25,8 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
   of gmWaveBased:
     result = GameModeDefinition(
       mode: gmWaveBased,
-      name: "Wave-Based",
-      description: "Fight through waves of enemies. Defeat bosses every 5 waves for legendary upgrades.",
+      name: t(tkGameModeWaveBased),
+      description: t(tkGameModeWaveBasedDesc),
       usesWaves: true,
       usesBosses: true,
       hasTimeLimit: false,
@@ -40,8 +41,8 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
   of gmTimeSurvival:
     result = GameModeDefinition(
       mode: gmTimeSurvival,
-      name: "Time Survival",
-      description: "Survive as long as possible. Difficulty increases over time.",
+      name: t(tkGameModeTimeSurvival),
+      description: t(tkGameModeTimeSurvivalDesc),
       usesWaves: false,
       usesBosses: true,
       hasTimeLimit: false,
@@ -56,8 +57,8 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
   of gmSandbox:
     result = GameModeDefinition(
       mode: gmSandbox,
-      name: "Sandbox",
-      description: "Test and experiment with enemies, bosses, and game mechanics.",
+      name: t(tkGameModeSandbox),
+      description: t(tkGameModeSandboxDesc),
       usesWaves: false,
       usesBosses: true,
       hasTimeLimit: false,
@@ -72,8 +73,8 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
   of gmPvP:
     result = GameModeDefinition(
       mode: gmPvP,
-      name: "1v1 PVP",
-      description: "Battle against another player in real-time 1v1 combat. First to 5 kills wins!",
+      name: t(tkGameModePvP),
+      description: t(tkGameModePvPDesc),
       usesWaves: false,
       usesBosses: false,
       hasTimeLimit: true,

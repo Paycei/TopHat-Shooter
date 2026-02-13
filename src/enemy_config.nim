@@ -1,8 +1,7 @@
 ## Enemy Configuration System
 ## Centralizes all enemy properties, behavior parameters, and attack patterns
-## Similar to boss_definitions.nim but for regular enemies
 
-import raylib, types, math, random
+import raylib, types, math, random, localization
 
 type
   EnemyAttackConfig* = object
@@ -77,8 +76,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etCircle:  # Normal chaser - melee only
     result = EnemyConfig(
       enemyType: etCircle,
-      name: "Circle Chaser",
-      description: "Basic melee enemy that chases the player",
+      name: t(tkEnemyCircleName),
+      description: t(tkEnemyCircleDesc),
       
       baseHP: 1.0,
       baseRadius: 8.0,  # Reduced for proper size
@@ -108,8 +107,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etPentagon:  # Single fast bullet, low fire rate
     result = EnemyConfig(
       enemyType: etPentagon,
-      name: "Pentagon Sniper",
-      description: "Precision ranged enemy with powerful, fast projectiles",
+      name: t(tkEnemyPentagonName),
+      description: t(tkEnemyPentagonDesc),
       
       baseHP: 2.2,
       baseRadius: 11.0,
@@ -157,8 +156,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etTriangle:  # Dash + erratic movement
     result = EnemyConfig(
       enemyType: etTriangle,
-      name: "Triangle Dasher",
-      description: "Fast enemy with erratic zigzag movement and dash attacks",
+      name: t(tkEnemyTriangleName),
+      description: t(tkEnemyTriangleDesc),
       
       baseHP: 1.4,
       baseRadius: 10.5,
@@ -193,8 +192,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etStar:  # Tank that dashes when close
     result = EnemyConfig(
       enemyType: etStar,
-      name: "Star Tank",
-      description: "Durable tank enemy that requires multiple hits to defeat",
+      name: t(tkEnemyStarName),
+      description: t(tkEnemyStarDesc),
       
       baseHP: 9999.0,  # Hit-count based, not HP based
       baseRadius: 14.0,
@@ -230,8 +229,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etCube:  # Ranged shooter
     result = EnemyConfig(
       enemyType: etCube,
-      name: "Cube Shooter",
-      description: "Ranged enemy that maintains distance and fires 3-shot bursts",
+      name: t(tkEnemyCubeName),
+      description: t(tkEnemyCubeDesc),
       
       baseHP: 3.0,
       baseRadius: 10.0,
@@ -279,8 +278,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etHexagon:  # Teleporting chaos
     result = EnemyConfig(
       enemyType: etHexagon,
-      name: "Hexagon Warper",
-      description: "Teleporting enemy that shoots chaotic bullet patterns",
+      name: t(tkEnemyHexagonName),
+      description: t(tkEnemyHexagonDesc),
       
       baseHP: 5.0,
       baseRadius: 10.0,
@@ -332,8 +331,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etCross:  # Shows cross warning before attack
     result = EnemyConfig(
       enemyType: etCross,
-      name: "Cross Striker",
-      description: "Shows warning before executing spinning laser dash attack",
+      name: t(tkEnemyCrossName),
+      description: t(tkEnemyCrossDesc),
       
       baseHP: 10.0,
       baseRadius: 13.0,
@@ -368,8 +367,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etDiamond:  # Shoots while dashing
     result = EnemyConfig(
       enemyType: etDiamond,
-      name: "Diamond Dasher",
-      description: "Fast enemy that shoots projectiles during dash attacks",
+      name: t(tkEnemyDiamondName),
+      description: t(tkEnemyDiamondDesc),
       
       baseHP: 4.0,
       baseRadius: 9.0,
@@ -421,8 +420,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etOctagon:  # Many slow inaccurate projectiles
     result = EnemyConfig(
       enemyType: etOctagon,
-      name: "Octagon Sprayer",
-      description: "Ranged enemy with high fire rate but low accuracy",
+      name: t(tkEnemyOctagonName),
+      description: t(tkEnemyOctagonDesc),
       
       baseHP: 3.5,
       baseRadius: 12.0,
@@ -470,8 +469,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etTrickster:  # False warning, real attack elsewhere
     result = EnemyConfig(
       enemyType: etTrickster,
-      name: "Trickster",
-      description: "Deceptive enemy that shows fake warnings and teleports",
+      name: t(tkEnemyTricksterName),
+      description: t(tkEnemyTricksterDesc),
       
       baseHP: 5.0,
       baseRadius: 13.0,
@@ -523,8 +522,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etPhantom:  # Unpredictable teleporter with fake clones
     result = EnemyConfig(
       enemyType: etPhantom,
-      name: "Phantom",
-      description: "Teleporting enemy that creates fake clones to confuse",
+      name: t(tkEnemyPhantomName),
+      description: t(tkEnemyPhantomDesc),
       
       baseHP: 5.0,
       baseRadius: 11.0,
@@ -576,8 +575,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etSniper:  # Rare one-shot enemy with epic charging attack
     result = EnemyConfig(
       enemyType: etSniper,
-      name: "Sniper",
-      description: "Deadly enemy that charges a powerful one-shot kill attack",
+      name: t(tkEnemySniperName),
+      description: t(tkEnemySniperDesc),
       
       baseHP: 7.5,
       baseRadius: 10.0,
@@ -629,8 +628,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   of etMage:  # Summons meteorites and shoots homing magic bullets
     result = EnemyConfig(
       enemyType: etMage,
-      name: "Mage",
-      description: "Magical enemy that summons meteorites and fires homing projectiles",
+      name: t(tkEnemyMageName),
+      description: t(tkEnemyMageDesc),
       
       baseHP: 7.5,
       baseRadius: 12.0,

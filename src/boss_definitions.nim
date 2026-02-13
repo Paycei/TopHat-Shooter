@@ -1,7 +1,7 @@
 ## Boss Definitions System - Complete 60 Wave Boss List
 ## Allows complete customization of boss behavior, properties, attacks, and phases
 
-import math, random, raylib
+import math, random, raylib, localization
 
 type
   BossAttackPattern* = enum
@@ -59,14 +59,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   case bossNumber
   of 1:  # Wave 5 - THE SPIRAL GUARDIAN
     result = BossDefinition(
-      name: "The Spiral Guardian",
+      name: t(tkBoss1Name),
       bossID: 1,
       baseHP: 125.0,
       baseSpeed: 50.0,
       baseDamage: 1,
       baseRadius: 45.0,
       color: Color(r: 100, g: 50, b: 200, a: 255),
-      description: "A mystical entity that weaves spiraling bullet patterns",
+      description: t(tkBoss1Desc),
       specialAbilities: @["spiral_master", "phase_shift"],
       phases: @[
         BossPhaseDefinition(
@@ -143,14 +143,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   
   of 2:  # Wave 10 - THE SUMMONER KING
     result = BossDefinition(
-      name: "The Summoner King",
+      name: t(tkBoss2Name),
       bossID: 2,
       baseHP: 175.0,
       baseSpeed: 65.0,
       baseDamage: 1,
       baseRadius: 50.0,
       color: Color(r: 50, g: 150, b: 50, a: 255),
-      description: "Commands an army of minions to overwhelm foes",
+      description: t(tkBoss2Desc),
       specialAbilities: @["summon_master", "minion_empowerment"],
       phases: @[
         BossPhaseDefinition(
@@ -229,14 +229,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   
   of 3:  # Wave 15 - THE METEOR STRIKER
     result = BossDefinition(
-      name: "The Meteor Striker",
+      name: t(tkBoss3Name),
       bossID: 3,
       baseHP: 275.0,
       baseSpeed: 65.0,
       baseDamage: 2,
       baseRadius: 48.0,
       color: Color(r: 255, g: 100, b: 0, a: 255),
-      description: "Rains destruction from above with devastating meteor strikes",
+      description: t(tkBoss3Desc),
       specialAbilities: @["meteor_shower", "impact_zone"],
       phases: @[
         BossPhaseDefinition(
@@ -337,14 +337,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   
   of 4:  # Wave 20 - THE LASER ARCHITECT
     result = BossDefinition(
-      name: "The Laser Architect",
+      name: t(tkBoss4Name),
       bossID: 4,
       baseHP: 375.0,  # NERFED from 390.0
       baseSpeed: 70.0,  # NERFED from 77.5
       baseDamage: 2,
       baseRadius: 52.0,
       color: Color(r: 0, g: 200, b: 255, a: 255),
-      description: "Constructs deadly laser grids and geometric death traps",
+      description: t(tkBoss4Desc),
       specialAbilities: @["laser_geometry", "grid_lock"],
       phases: @[
         BossPhaseDefinition(
@@ -509,14 +509,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   
   of 5:  # Wave 25 - THE VOID DANCER
     result = BossDefinition(
-      name: "The Void Dancer",
+      name: t(tkBoss5Name),
       bossID: 5,
       baseHP: 450.0,  # NERFED from 380.0
       baseSpeed: 65.0,  # NERFED from 70.0
       baseDamage: 2,
       baseRadius: 46.0,
       color: Color(r: 80, g: 0, b: 120, a: 255),
-      description: "Blinks through reality, leaving trails of dark energy",
+      description: t(tkBoss5Desc),
       specialAbilities: @["void_blink", "shadow_clone", "dimensional_tear"],
       phases: @[
         BossPhaseDefinition(
@@ -680,14 +680,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   
   of 6:  # Wave 30 - THE CHAIN REACTOR
     result = BossDefinition(
-      name: "The Chain Reactor",
+      name: t(tkBoss6Name),
       bossID: 6,
       baseHP: 550.0,
       baseSpeed: 70.0,
       baseDamage: 2,
       baseRadius: 55.0,
       color: Color(r: 255, g: 255, b: 0, a: 255),  # Bright electric yellow
-      description: "A being of pure electricity that chains devastating arcs between targets",
+      description: t(tkBoss6Desc),
       specialAbilities: @["chain_lightning", "electric_field", "voltage_spike"],
       phases: @[
         BossPhaseDefinition(
@@ -839,14 +839,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   
   of 7:  # Wave 35 - THE ORBITAL COMMANDER
     result = BossDefinition(
-      name: "The Orbital Commander",
+      name: t(tkBoss7Name),
       bossID: 7,
       baseHP: 650.0,
       baseSpeed: 60.0,
       baseDamage: 2,
       baseRadius: 58.0,
       color: Color(r: 150, g: 100, b: 255, a: 255),
-      description: "Commands orbital satellites that strike with astronomical precision",
+      description: t(tkBoss7Desc),
       specialAbilities: @["satellite_control", "orbital_strike", "gravity_lock"],
       phases: @[
         BossPhaseDefinition(
@@ -998,14 +998,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   
   of 8:  # Wave 40 - THE BERSERKER JUGGERNAUT
     result = BossDefinition(
-      name: "The Berserker Juggernaut",
+      name: t(tkBoss8Name),
       bossID: 8,
       baseHP: 750.0,
       baseSpeed: 40.0,
       baseDamage: 3,
       baseRadius: 60.0,
       color: Color(r: 200, g: 0, b: 0, a: 255),
-      description: "An unstoppable force of pure rage that grows stronger as it bleeds",
+      description: t(tkBoss8Desc),
       specialAbilities: @["rage_buildup", "crushing_charge", "blood_fury"],
       phases: @[
         BossPhaseDefinition(
@@ -1153,14 +1153,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     )  
   of 9:  # Wave 45 - THE PRISM ARCHITECT
     result = BossDefinition(
-      name: "The Prism Architect",
+      name: t(tkBoss9Name),
       bossID: 9,
       baseHP: 875.0,
       baseSpeed: 65.0,
       baseDamage: 3,
       baseRadius: 56.0,
       color: Color(r: 255, g: 200, b: 255, a: 255),
-      description: "Manipulates light itself into geometric prisons of splitting lasers",
+      description: t(tkBoss9Desc),
       specialAbilities: @["prism_refraction", "light_split", "rainbow_cascade"],
       phases: @[
         BossPhaseDefinition(
@@ -1310,14 +1310,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   
   of 10:  # Wave 50 - THE TIMEKEEPER
     result = BossDefinition(
-      name: "The Timekeeper",
+      name: t(tkBoss10Name),
       bossID: 10,
       baseHP: 1075.0,
       baseSpeed: 55.0,
       baseDamage: 4,
       baseRadius: 62.0,
       color: Color(r: 0, g: 180, b: 180, a: 255),
-      description: "Bends the flow of time itself, creating paradoxes and temporal rifts",
+      description: t(tkBoss10Desc),
       specialAbilities: @["temporal_echo", "time_rewind", "chrono_break"],
       phases: @[
         BossPhaseDefinition(
@@ -1478,14 +1478,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   
   of 11:  # Wave 55 - THE CHAOS WEAVER
     result = BossDefinition(
-      name: "The Chaos Weaver",
+      name: t(tkBoss11Name),
       bossID: 11,
       baseHP: 1275.0,  # NERFED from 1800.0
       baseSpeed: 70.0,  # NERFED from 90.0
       baseDamage: 4,  # NERFED from 5
       baseRadius: 58.0,
       color: Color(r: 180, g: 0, b: 180, a: 255),
-      description: "Weaves patterns of pure chaos, unpredictable and devastating",
+      description: t(tkBoss11Desc),
       specialAbilities: @["chaos_field", "random_teleport", "entropy_burst"],
       phases: @[
         BossPhaseDefinition(
@@ -1627,14 +1627,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   
   of 12:  # Wave 60 - THE OMEGA ENTITY
     result = BossDefinition(
-      name: "The Omega Entity",
+      name: t(tkBoss12Name),
       bossID: 12,
       baseHP: 1600.0,  # NERFED from 2500.0
       baseSpeed: 65.0,  # NERFED from 85.0
       baseDamage: 5,  # NERFED from 6
       baseRadius: 70.0,
       color: Color(r: 255, g: 50, b: 50, a: 255),
-      description: "The ultimate challenge - combines all previous boss mechanics",
+      description: t(tkBoss12Desc),
       specialAbilities: @["omni_attack", "adaptive_defense", "final_form"],
       phases: @[
         BossPhaseDefinition(
