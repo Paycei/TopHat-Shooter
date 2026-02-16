@@ -9,6 +9,9 @@ type
   MusicTrack* = enum
     mtMenu, mtWave, mtPowerUp, mtBoss
 
+  # Progress callback: proc(progress: float32, message: string)
+  AssetGenerationCallback* = proc(progress: float32, message: string) {.closure.}
+
   SoundSystem* = ref object
     enabled*: bool
     masterVolume*: float32
@@ -1570,13 +1573,15 @@ proc loadOrGenerateMusic(track: MusicTrack): Music =
   of mtBoss: result = createBossMusic(cacheFile)
 
 # PRE-GENERATION SYSTEM
-proc preGenerateAllAssets*(verbose: bool = true) =
+proc preGenerateAllAssets*(verbose: bool = true, callback: AssetGenerationCallback = nil) =
   let cached = countCachedAssets()
   let totalAssets = SoundType.high.ord + 1 + MusicTrack.high.ord + 1
   
   if cached.total == totalAssets:
     if verbose:
       echo "All ", totalAssets, " assets already cached"
+    if not callback.isNil:
+      callback(1.0, "All assets loaded from cache")
     return
   
   if verbose:
@@ -1595,6 +1600,11 @@ proc preGenerateAllAssets*(verbose: bool = true) =
         inc assetsGenerated
         let progress = (assetsGenerated.float32 / assetsToGenerate.float32 * 100.0).int
         echo "[", progress, "%] Generating sound: ", soundType, "..."
+      
+      if not callback.isNil:
+        let prog = assetsGenerated.float32 / assetsToGenerate.float32
+        callback(prog, "Generating sound: " & $soundType)
+      
       discard loadOrGenerateSound(soundType)
   
   for track in MusicTrack:
@@ -1603,6 +1613,11 @@ proc preGenerateAllAssets*(verbose: bool = true) =
         inc assetsGenerated
         let progress = (assetsGenerated.float32 / assetsToGenerate.float32 * 100.0).int
         echo "[", progress, "%] Generating music: ", track, "..."
+      
+      if not callback.isNil:
+        let prog = assetsGenerated.float32 / assetsToGenerate.float32
+        callback(prog, "Generating music: " & $track)
+      
       discard loadOrGenerateMusic(track)
   
   if verbose:
@@ -1611,6 +1626,9 @@ proc preGenerateAllAssets*(verbose: bool = true) =
     echo "  Total assets: ", totalAssets
     echo "  Cache location: ", getCacheDir()
     echo "=========================================="
+  
+  if not callback.isNil:
+    callback(1.0, "Asset generation complete!")
 
 proc generateAllSounds(sys: SoundSystem) =
   if sys.soundsGenerated:
@@ -1627,7 +1645,7 @@ proc generateAllSounds(sys: SoundSystem) =
     sys.soundsGenerated = false
 
 # SYSTEM INITIALIZATION AND MANAGEMENT
-proc initSoundSystem*(): SoundSystem =
+proc initSoundSystem*(callback: AssetGenerationCallback = nil): SoundSystem =
   echo "Initializing sound system..."
   try:
     initAudioDevice()
@@ -1645,7 +1663,7 @@ proc initSoundSystem*(): SoundSystem =
     )
     
     globalSoundSystem = result
-    preGenerateAllAssets(verbose = true)
+    preGenerateAllAssets(verbose = true, callback = callback)
     generateAllSounds(result)
     
     echo "Sound system initialized!"
