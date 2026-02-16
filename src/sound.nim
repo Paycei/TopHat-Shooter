@@ -1,4 +1,4 @@
-import raylib, math, random, os, streams
+import raylib, math, random, os, streams, localization
 
 type
   SoundType* = enum
@@ -143,40 +143,467 @@ proc createSimpleSound(filename: string, duration: float32,
   result = loadSound(filename)
 
 proc createLaserShoot(filename: string): Sound =
-  createSimpleSound(filename, 0.12,
-    proc(t, p: float32): float32 = 1200.0 * exp(-p * 4.0) + 400.0,
-    proc(p: float32): float32 = applyADSR(p, 0.05, 0.15, 0.3, 0.3))
-
-proc createImpactHit(filename: string): Sound =
+  # High-tech laser with complex modulation
   let sampleRate: uint32 = 44100
-  let duration = 0.15
+  let duration = 0.18
   let frameCount = int(sampleRate.float32 * duration)
   var samples = newSeq[int16](frameCount)
   
   for i in 0..<frameCount:
     let t = i.float32 / sampleRate.float32
     let progress = t / duration
-    let envelope = exp(-progress * 15.0)
-    let noise = rand(-1.0..1.0) * 0.4
-    let thump = sin(2.0 * PI * 80.0 * t * exp(-progress * 8.0)) * 0.6
-    samples[i] = int16((noise + thump) * envelope * 32767.0)
+    
+    # Main carrier - exponential pitch sweep
+    let carrierFreq = 2200.0 * exp(-progress * 6.0) + 250.0
+    
+    # FM synthesis for laser character
+    let modulator = sin(2.0 * PI * 8.0 * carrierFreq * t) * 0.3
+    let carrier = sin(2.0 * PI * carrierFreq * t + modulator)
+    
+    # Harmonics for brightness
+    let harmonic2 = sin(2.0 * PI * carrierFreq * 2.0 * t) * 0.25
+    let harmonic3 = sin(2.0 * PI * carrierFreq * 3.0 * t) * 0.12
+    
+    # Sub layer for depth
+    let sub = sin(2.0 * PI * carrierFreq * 0.5 * t) * 0.2
+    
+    # Noise layer for texture
+    let noise = rand(-1.0..1.0) * 0.08 * exp(-progress * 20.0)
+    
+    # Sharp attack, fast decay
+    let envelope = applyADSR(progress, 0.01, 0.08, 0.25, 0.61)
+    
+    let value = (carrier * 0.4 + harmonic2 + harmonic3 + sub + noise) * envelope
+    samples[i] = int16(clamp(value * 32767.0 * 0.42, -32767.0, 32767.0))
+  
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
+
+proc createImpactHit(filename: string): Sound =
+  # Heavy, satisfying impact with multiple layers
+  let sampleRate: uint32 = 44100
+  let duration = 0.22
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+    
+    # Layer 1: Deep thump - felt impact
+    let thumpFreq = 80.0 * exp(-progress * 18.0)
+    let thump = sin(2.0 * PI * thumpFreq * t) * 0.55
+    
+    # Layer 2: Body - mid frequency punch
+    let bodyFreq = 280.0 * exp(-progress * 12.0)
+    let body = sin(2.0 * PI * bodyFreq * t) * 0.35
+    
+    # Layer 3: Crunch - upper mid definition
+    let crunchFreq = 600.0 * exp(-progress * 10.0)
+    let crunch = sin(2.0 * PI * crunchFreq * t) * 0.25
+    
+    # Layer 4: Initial click - attack transient
+    let click = if progress < 0.03:
+      sin(2.0 * PI * 2500.0 * t) * (1.0 - progress / 0.03) * 0.5
+    else:
+      0.0
+    
+    # Layer 5: Noise burst - texture
+    let noiseBurst = if progress < 0.08:
+      rand(-1.0..1.0) * (1.0 - progress / 0.08) * 0.35
+    else:
+      0.0
+    
+    # Layer 6: Sustained noise - tail
+    let noiseTail = rand(-1.0..1.0) * 0.12 * exp(-progress * 25.0)
+    
+    # Layer 7: Metallic ring - adds character
+    let ring = sin(2.0 * PI * 1800.0 * t) * 0.15 * exp(-progress * 15.0)
+    
+    # Fast decay envelope
+    let envelope = exp(-progress * 16.0)
+    
+    let value = (thump + body + crunch + click + noiseBurst + noiseTail + ring) * envelope
+    samples[i] = int16(clamp(value * 32767.0 * 0.75, -32767.0, 32767.0))
   
   writeWavFile(filename, samples, sampleRate)
   result = loadSound(filename)
 
 proc createEnemyDeath(filename: string): Sound =
-  createSimpleSound(filename, 0.4,
-    proc(t, p: float32): float32 = 800.0 * exp(-p * 3.5) + 50.0,
-    proc(p: float32): float32 = exp(-p * 3.0),
-    0.45)
+  # Dramatic, satisfying enemy destruction
+  let sampleRate: uint32 = 44100
+  let duration = 0.65
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+    
+    # Main sweep - dramatic downward pitch
+    let mainFreq = 1100.0 * exp(-progress * 5.0) + 35.0
+    let mainTone = sin(2.0 * PI * mainFreq * t) * 0.45
+    
+    # Sub octave - adds weight
+    let subOctave = sin(2.0 * PI * mainFreq * 0.5 * t) * 0.35
+    
+    # Perfect fifth - harmonic richness
+    let fifth = sin(2.0 * PI * mainFreq * 1.5 * t) * 0.22
+    
+    # Upper harmonic - brightness
+    let upper = sin(2.0 * PI * mainFreq * 2.0 * t) * 0.15
+    
+    # Initial impact burst
+    let impactNoise = if progress < 0.12:
+      rand(-1.0..1.0) * (1.0 - progress / 0.12) * 0.4
+    else:
+      0.0
+    
+    # Crackling decay
+    let crackle = if progress >= 0.12 and progress < 0.45:
+      rand(-1.0..1.0) * ((0.45 - progress) / 0.33) * 0.2
+    else:
+      0.0
+    
+    # Rumble layer
+    let rumble = sin(2.0 * PI * 40.0 * t) * 0.25
+    
+    # Dissonant warble for destruction feel
+    let warble = sin(2.0 * PI * (mainFreq * 1.15) * t) * 0.12
+    
+    # Multi-stage envelope
+    let attackEnv = if progress < 0.05: progress / 0.05 else: 1.0
+    let mainEnv = exp(-progress * 3.0)
+    
+    let value = (mainTone + subOctave + fifth + upper + impactNoise + 
+                 crackle + rumble * mainEnv + warble) * attackEnv * mainEnv
+    
+    samples[i] = int16(clamp(value * 32767.0 * 0.7, -32767.0, 32767.0))
+  
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
 
 proc createPlayerHit(filename: string): Sound =
-  createSimpleSound(filename, 0.2,
-    proc(t, p: float32): float32 = 180.0,
-    proc(p: float32): float32 = exp(-p * 5.0) * (sin(2.0 * PI * 15.0 * p * 0.2) * 0.5 + 0.5),
-    0.5)
+  # Intense, attention-grabbing damage sound
+  let sampleRate: uint32 = 44100
+  let duration = 0.35
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+    
+    # Deep pain tone - low frequency
+    let painFreq = 145.0 + sin(progress * PI) * 25.0
+    let pain = sin(2.0 * PI * painFreq * t) * 0.42
+    
+    # Vibrating/shaking effect - distress signal
+    let shakeRate = 22.0 + progress * 8.0
+    let shake = sin(2.0 * PI * shakeRate * t) * 0.35
+    
+    # Impact layer - sharp attack
+    let impactFreq = 550.0 * exp(-progress * 20.0)
+    let impact = sin(2.0 * PI * impactFreq * t) * 0.35
+    
+    # High frequency alarm - alerts player
+    let alarmFreq = 1200.0 + sin(progress * PI * 3.0) * 200.0
+    let alarm = if progress < 0.2:
+      sin(2.0 * PI * alarmFreq * t) * (1.0 - progress / 0.2) * 0.3
+    else:
+      0.0
+    
+    # Harsh noise burst - damage texture
+    let noiseBurst = if progress < 0.15:
+      rand(-1.0..1.0) * (1.0 - progress / 0.15) * 0.4
+    else:
+      0.0
+    
+    # Sustained noise - aftermath
+    let sustainedNoise = rand(-1.0..1.0) * 0.15 * exp(-progress * 10.0)
+    
+    # Distortion effect - damage intensity
+    let distortionAmount = 1.2 + progress * 0.3
+    
+    # Multi-stage envelope
+    let mainEnvelope = exp(-progress * 7.0)
+    let shakeEnvelope = exp(-progress * 4.0)
+    
+    let rawValue = (
+      pain * (1.0 + shake * shakeEnvelope * 0.4) * mainEnvelope +
+      impact * mainEnvelope +
+      alarm +
+      noiseBurst +
+      sustainedNoise
+    )
+    
+    # Apply soft clipping distortion
+    let distorted = tanh(rawValue * distortionAmount) / distortionAmount
+    
+    samples[i] = int16(clamp(distorted * 32767.0 * 0.65, -32767.0, 32767.0))
+  
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
 
 proc createCoinPickup(filename: string): Sound =
+  # Pleasant, rewarding coin collection sound
+  let sampleRate: uint32 = 44100
+  let duration = 0.32
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  
+  # Cheerful ascending major arpeggio
+  let notes = @[
+    (freq: 523.25'f32, start: 0.0, length: 0.10),      # C5
+    (freq: 659.25'f32, start: 0.08, length: 0.10),     # E5
+    (freq: 783.99'f32, start: 0.16, length: 0.16)      # G5 - held slightly longer
+  ]
+  
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    var value = 0.0
+    
+    for note in notes:
+      if t >= note.start and t < note.start + note.length:
+        let noteTime = t - note.start
+        let noteProgress = noteTime / note.length
+        
+        # Bright bell-like timbre
+        let fundamental = sin(2.0 * PI * note.freq * t) * 0.48
+        let harmonic2 = sin(2.0 * PI * note.freq * 2.0 * t) * 0.20
+        let harmonic3 = sin(2.0 * PI * note.freq * 3.0 * t) * 0.12
+        let harmonic4 = sin(2.0 * PI * note.freq * 4.0 * t) * 0.08
+        
+        # Shimmer effect
+        let shimmer = sin(2.0 * PI * note.freq * 5.0 * t) * 0.06
+        
+        # Slight pitch bend for character
+        let bendAmount = 1.0 + (noteProgress * 0.015)
+        
+        # Quick attack, sustain, gentle release
+        let attack = if noteProgress < 0.06: noteProgress / 0.06 else: 1.0
+        let release = if noteProgress > 0.65: 
+          (1.0 - (noteProgress - 0.65) / 0.35) * 0.6 + 0.4
+        else: 
+          1.0
+        
+        let envelope = attack * release
+        
+        let noteTone = (fundamental + harmonic2 + harmonic3 + harmonic4 + shimmer) * bendAmount
+        value += noteTone * envelope
+    
+    # Add sparkle for "magical" coin feel
+    let globalProgress = t / duration
+    let sparkle = if globalProgress > 0.15 and globalProgress < 0.5:
+      sin(2.0 * PI * 2800.0 * t) * ((0.5 - abs(globalProgress - 0.32)) * 5.0) * 0.08
+    else:
+      0.0
+    
+    samples[i] = int16(clamp((value + sparkle) * 32767.0 * 0.48, -32767.0, 32767.0))
+  
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
+
+proc createPowerUp(filename: string): Sound =
+  # Exciting, rewarding power-up with rising energy
+  let sampleRate: uint32 = 44100
+  let duration = 0.75
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+    
+    # Rising base pitch with acceleration
+    let pitchCurve = progress + progress * progress * 0.5
+    let basePitch = 350.0 + pitchCurve * 450.0
+    
+    # Rich vibrato for shimmer
+    let vibrato = 1.0 + sin(2.0 * PI * 7.0 * t) * 0.02
+    
+    # Main tone layers
+    let fundamental = sin(2.0 * PI * basePitch * vibrato * t) * 0.38
+    let third = sin(2.0 * PI * basePitch * 1.25992 * vibrato * t) * 0.28  # Major third
+    let fifth = sin(2.0 * PI * basePitch * 1.4983 * vibrato * t) * 0.26   # Perfect fifth
+    let octave = sin(2.0 * PI * basePitch * 2.0 * vibrato * t) * 0.18     # Octave
+    
+    # Sparkle layer - high frequency magic
+    let sparkleFreq = 1600.0 + progress * 800.0
+    let sparkleVibrato = 1.0 + sin(2.0 * PI * 11.0 * t) * 0.025
+    let sparkle = if progress > 0.25:
+      sin(2.0 * PI * sparkleFreq * sparkleVibrato * t) * ((progress - 0.25) / 0.75) * 0.2
+    else:
+      0.0
+    
+    # Texture noise - magical shimmer
+    let textureNoise = rand(-1.0..1.0) * 0.04 * progress
+    
+    # Arpeggio accent notes
+    let accentPhase = (progress * 4.0) mod 1.0
+    let accent = if accentPhase < 0.15:
+      sin(2.0 * PI * basePitch * 3.0 * t) * (1.0 - accentPhase / 0.15) * 0.15
+    else:
+      0.0
+    
+    # Build-up envelope
+    let attack = min(1.0, progress * 3.0)
+    let sustain = 0.85 + progress * 0.15
+    let release = if progress > 0.85: (1.0 - (progress - 0.85) / 0.15) else: 1.0
+    let envelope = attack * sustain * release
+    
+    let value = (fundamental + third + fifth + octave + sparkle + 
+                 textureNoise + accent) * envelope
+    
+    samples[i] = int16(clamp(value * 32767.0 * 0.5, -32767.0, 32767.0))
+  
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
+
+proc createBossSpawn(filename: string): Sound =
+  # Epic, ominous boss entrance with dramatic build
+  let sampleRate: uint32 = 44100
+  let duration = 2.0
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+    
+    # Deep rumble foundation - builds in intensity
+    let rumbleFreq = 28.0 + progress * 65.0
+    let rumble = sin(2.0 * PI * rumbleFreq * t) * 0.45
+    
+    # Sub-bass earthquake layer
+    let earthquake = sin(2.0 * PI * 18.0 * t) * 0.35 * min(1.0, progress * 1.5)
+    
+    # Mid-range threat tone
+    let threatFreq = 75.0 + progress * 140.0
+    let threat = sin(2.0 * PI * threatFreq * t) * 0.32
+    
+    # Dissonant tension layer
+    let tensionFreq = 160.0 + progress * 110.0
+    let tension = sin(2.0 * PI * (tensionFreq * 1.06) * t) * 0.22  # Slightly detuned
+    
+    # High frequency ominous whistle
+    let whistleFreq = 800.0 + progress * 400.0
+    let whistle = if progress > 0.3:
+      sin(2.0 * PI * whistleFreq * t) * ((progress - 0.3) / 0.7) * 0.18
+    else:
+      0.0
+    
+    # Noise layers for atmosphere
+    let deepNoise = rand(-1.0..1.0) * 0.08 * min(1.0, progress * 2.0)
+    
+    let midNoise = if progress > 0.4:
+      rand(-1.0..1.0) * 0.12 * ((progress - 0.4) / 0.6)
+    else:
+      0.0
+    
+    # Metallic impacts for drama
+    let impactPhase = (progress * 3.0) mod 0.33
+    let impact = if impactPhase < 0.05:
+      sin(2.0 * PI * 450.0 * t) * (1.0 - impactPhase / 0.05) * 0.3
+    else:
+      0.0
+    
+    # Reverberant tail simulation
+    let reverbDecay = exp(-max(0.0, progress - 1.2) * 3.0)
+    
+    # Build-up envelope - slow dramatic crescendo
+    let buildCurve = progress * progress  # Quadratic build
+    let mainBuild = min(1.0, buildCurve * 1.8)
+    let peakHold = if progress > 0.7: 1.0 else: mainBuild
+    let finalDecay = if progress > 0.85: 
+      1.0 - ((progress - 0.85) / 0.15) * 0.3
+    else: 
+      1.0
+    
+    let envelope = peakHold * finalDecay * reverbDecay
+    
+    let value = (rumble + earthquake + threat + tension + whistle + 
+                 deepNoise + midNoise + impact) * envelope
+    
+    samples[i] = int16(clamp(value * 32767.0 * 0.7, -32767.0, 32767.0))
+  
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
+
+proc createExplosion(filename: string): Sound =
+  # Epic layered explosion with multiple stages
+  let sampleRate: uint32 = 44100
+  let duration = 1.0
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+    
+    # STAGE 1: Initial impact - very short sharp attack
+    let initialClick = if progress < 0.02:
+      sin(2.0 * PI * 3000.0 * t) * (1.0 - progress / 0.02) * 0.5
+    else:
+      0.0
+    
+    # STAGE 2: Main boom - deep bass explosion
+    let boomFreq = 60.0 * exp(-progress * 15.0)
+    let boom = sin(2.0 * PI * boomFreq * t) * 0.6
+    
+    # STAGE 3: Body/punch - mid frequency impact
+    let punchFreq = 220.0 * exp(-progress * 12.0)
+    let punch = sin(2.0 * PI * punchFreq * t) * 0.4
+    
+    # STAGE 4: Crackle - high frequency debris
+    let crackle = if progress < 0.15:
+      sin(2.0 * PI * (800.0 + rand(-200.0..200.0)) * t) * (1.0 - progress / 0.15) * 0.25
+    else:
+      0.0
+    
+    # STAGE 5: Rumble - sustained low sub-bass
+    let rumble = sin(2.0 * PI * 25.0 * t) * 0.3
+    
+    # STAGE 6: Noise layers - different densities over time
+    let earlyNoise = if progress < 0.08:
+      rand(-1.0..1.0) * (1.0 - progress / 0.08) * 0.5
+    else:
+      0.0
+    
+    let midNoise = if progress >= 0.08 and progress < 0.35:
+      rand(-1.0..1.0) * 0.3
+    else:
+      0.0
+    
+    let lateNoise = if progress >= 0.35:
+      rand(-1.0..1.0) * 0.15
+    else:
+      0.0
+    
+    # STAGE 7: Resonance - adds metallic ring
+    let resonance = sin(2.0 * PI * 450.0 * t) * 0.15 * exp(-progress * 3.0)
+    
+    # Multi-stage envelope
+    let mainEnvelope = exp(-progress * 4.5)
+    let sustainEnvelope = exp(-max(0.0, progress - 0.3) * 2.0)
+    
+    let value = (
+      initialClick +
+      boom * mainEnvelope +
+      punch * mainEnvelope +
+      crackle +
+      rumble * sustainEnvelope +
+      (earlyNoise + midNoise + lateNoise) * mainEnvelope +
+      resonance
+    )
+    
+    samples[i] = int16(clamp(value * 32767.0 * 0.65, -32767.0, 32767.0))
+  
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
+
+proc createWallPlace(filename: string): Sound =
+  # Solid, satisfying placement sound
   let sampleRate: uint32 = 44100
   let duration = 0.2
   let frameCount = int(sampleRate.float32 * duration)
@@ -185,119 +612,243 @@ proc createCoinPickup(filename: string): Sound =
   for i in 0..<frameCount:
     let t = i.float32 / sampleRate.float32
     let progress = t / duration
-    var freq = 523.25'f32
-    if progress > 0.33: freq = 659.25'f32
-    if progress > 0.66: freq = 783.99'f32
-    let envelope = applyADSR(progress, 0.1, 0.2, 0.4, 0.3)
-    samples[i] = int16(sin(2.0 * PI * freq * t) * envelope * 0.35 * 32767.0)
+    
+    # Low thud with quick pitch drop
+    let thudFreq = 140.0 * exp(-progress * 12.0)
+    let thud = sin(2.0 * PI * thudFreq * t) * 0.5
+    
+    # Click for definition
+    let click = if progress < 0.04:
+      sin(2.0 * PI * 800.0 * t) * (1.0 - progress / 0.04) * 0.3
+    else:
+      0.0
+    
+    # Short noise burst
+    let noise = if progress < 0.06:
+      rand(-1.0..1.0) * (1.0 - progress / 0.06) * 0.15
+    else:
+      0.0
+    
+    let envelope = exp(-progress * 15.0)
+    let value = (thud + click + noise) * envelope
+    samples[i] = int16(value * 32767.0 * 0.5)
   
   writeWavFile(filename, samples, sampleRate)
   result = loadSound(filename)
-
-proc createPowerUp(filename: string): Sound =
-  let sampleRate: uint32 = 44100
-  let duration = 0.5
-  let frameCount = int(sampleRate.float32 * duration)
-  var samples = newSeq[int16](frameCount)
-  
-  for i in 0..<frameCount:
-    let t = i.float32 / sampleRate.float32
-    let progress = t / duration
-    let pitchRise = 1.0 + progress * 0.1
-    let vibrato = 1.0 + sin(2.0 * PI * 6.0 * t) * 0.01
-    let envelope = applyADSR(progress, 0.1, 0.2, 0.6, 0.1)
-    let value = (sin(2.0 * PI * 523.25 * pitchRise * vibrato * t) * 0.4 + 
-                 sin(2.0 * PI * 659.25 * pitchRise * vibrato * t) * 0.3 + 
-                 sin(2.0 * PI * 783.99 * pitchRise * vibrato * t) * 0.3) * envelope
-    samples[i] = int16(value * 0.4 * 32767.0)
-  
-  writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
-
-proc createBossSpawn(filename: string): Sound =
-  createSimpleSound(filename, 1.2,
-    proc(t, p: float32): float32 = 40.0 + p * 120.0,
-    proc(p: float32): float32 = min(1.0, p * 2.0) * exp(-max(0.0, p - 0.5) * 2.0),
-    0.5)
-
-proc createExplosion(filename: string): Sound =
-  let sampleRate: uint32 = 44100
-  let duration = 0.5
-  let frameCount = int(sampleRate.float32 * duration)
-  var samples = newSeq[int16](frameCount)
-  
-  for i in 0..<frameCount:
-    let t = i.float32 / sampleRate.float32
-    let progress = t / duration
-    let envelope = exp(-progress * 6.0)
-    let boom = sin(2.0 * PI * 70.0 * exp(-progress * 8.0) * t) * 0.6
-    let punch = sin(2.0 * PI * 200.0 * exp(-progress * 10.0) * t) * 0.3
-    let noise = rand(-1.0..1.0) * (if progress < 0.1: 0.3 else: 0.1) * exp(-progress * 15.0)
-    samples[i] = int16((boom + punch + noise) * envelope * 0.6 * 32767.0)
-  
-  writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
-
-proc createWallPlace(filename: string): Sound =
-  createSimpleSound(filename, 0.25,
-    proc(t, p: float32): float32 = 120.0 * exp(-p * 8.0),
-    proc(p: float32): float32 = exp(-p * 10.0),
-    0.45)
 
 proc createTeleport(filename: string): Sound =
-  createSimpleSound(filename, 0.4,
-    proc(t, p: float32): float32 = 
-      let sweepPhase = if p < 0.5: p * 2.0 else: 1.0 - (p - 0.5) * 2.0
-      1500.0 + sin(sweepPhase * PI) * 1000.0,
-    proc(p: float32): float32 = sin(p * PI),
-    0.35)
-
-proc createMenuNav(filename: string): Sound =
-  createSimpleSound(filename, 0.06,
-    proc(t, p: float32): float32 = 800.0,
-    proc(p: float32): float32 = exp(-p * 30.0),
-    0.3)
-
-proc createMenuSelect(filename: string): Sound =
+  # Advanced sci-fi teleportation effect
   let sampleRate: uint32 = 44100
-  let duration = 0.25
+  let duration = 0.6
   let frameCount = int(sampleRate.float32 * duration)
   var samples = newSeq[int16](frameCount)
   
   for i in 0..<frameCount:
     let t = i.float32 / sampleRate.float32
     let progress = t / duration
-    let freq = if progress < 0.4: 600.0 else: 450.0
-    let envelope = applyADSR(progress, 0.1, 0.2, 0.5, 0.2)
-    samples[i] = int16(sin(2.0 * PI * freq * t) * envelope * 0.35 * 32767.0)
+    
+    # Symmetric up-down sweep for teleport "departure and arrival"
+    let sweepPhase = if progress < 0.5:
+      progress * 2.0
+    else:
+      2.0 - progress * 2.0
+    
+    # Main carrier frequency with dramatic sweep range
+    let carrier = 900.0 + sin(sweepPhase * PI) * 1500.0
+    
+    # Complex modulation for warbling sci-fi character
+    let mod1 = 1.0 + sin(2.0 * PI * 14.0 * t) * 0.35
+    let mod2 = 1.0 + sin(2.0 * PI * 23.0 * t) * 0.2
+    
+    # Multi-layer synthesis
+    let layer1 = sin(2.0 * PI * carrier * mod1 * t) * 0.38
+    let layer2 = sin(2.0 * PI * carrier * 0.5 * mod2 * t) * 0.28  # Octave down
+    let layer3 = sin(2.0 * PI * carrier * 1.5 * mod1 * t) * 0.18  # Fifth up
+    let layer4 = sin(2.0 * PI * carrier * 2.0 * mod2 * t) * 0.12  # Octave up
+    
+    # Phaser/flanger effect - sweeping resonance
+    let phaserFreq = carrier * (1.0 + sin(sweepPhase * PI * 2.0) * 0.08)
+    let phaser = sin(2.0 * PI * phaserFreq * t) * 0.15
+    
+    # Energy burst noise at transition point
+    let transitionNoise = if abs(progress - 0.5) < 0.08:
+      rand(-1.0..1.0) * (1.0 - abs(progress - 0.5) / 0.08) * 0.25
+    else:
+      0.0
+    
+    # Ambient texture noise
+    let textureNoise = rand(-1.0..1.0) * 0.06 * sin(sweepPhase * PI)
+    
+    # Sparkle hits at entry/exit
+    let sparkle = if progress < 0.1 or progress > 0.9:
+      let sparkleProgress = if progress < 0.1: progress / 0.1 else: (1.0 - progress) / 0.1
+      sin(2.0 * PI * 2400.0 * t) * (1.0 - sparkleProgress) * 0.2
+    else:
+      0.0
+    
+    # Symmetric envelope - fade in, peak at middle, fade out
+    let envelope = sin(progress * PI)
+    
+    let value = (layer1 + layer2 + layer3 + layer4 + phaser + 
+                 transitionNoise + textureNoise + sparkle) * envelope
+    
+    samples[i] = int16(clamp(value * 32767.0 * 0.48, -32767.0, 32767.0))
+  
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
+
+proc createMenuNav(filename: string): Sound =
+  # Clean, quick menu navigation beep
+  let sampleRate: uint32 = 44100
+  let duration = 0.05
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+    
+    # Simple sine with harmonic for clarity
+    let fundamental = sin(2.0 * PI * 900.0 * t) * 0.6
+    let harmonic = sin(2.0 * PI * 1800.0 * t) * 0.2
+    
+    # Very fast envelope for responsiveness
+    let envelope = exp(-progress * 40.0)
+    
+    let value = (fundamental + harmonic) * envelope
+    samples[i] = int16(value * 32767.0 * 0.35)
+  
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
+
+proc createMenuSelect(filename: string): Sound =
+  # Confirming selection sound - two-tone
+  let sampleRate: uint32 = 44100
+  let duration = 0.2
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+    
+    # Two note confirmation: low to high
+    let freq = if progress < 0.5: 500.0 else: 700.0
+    
+    # Clean tone with slight harmonic
+    let fundamental = sin(2.0 * PI * freq * t) * 0.5
+    let harmonic = sin(2.0 * PI * freq * 2.0 * t) * 0.15
+    
+    # Smooth envelope with quick transitions
+    let attack = if progress < 0.08: progress / 0.08 else: 1.0
+    let release = if progress > 0.75: (1.0 - (progress - 0.75) / 0.25) else: 1.0
+    let envelope = attack * release
+    
+    let value = (fundamental + harmonic) * envelope
+    samples[i] = int16(value * 32767.0 * 0.4)
   
   writeWavFile(filename, samples, sampleRate)
   result = loadSound(filename)
 
 proc createWaveComplete(filename: string): Sound =
+  # Triumphant, celebratory fanfare with rich harmonies
   let sampleRate: uint32 = 44100
-  let duration = 0.8
+  let duration = 1.2
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  
+  # Victory arpeggio - ascending major chord
+  let notes = @[
+    (freq: 523.25'f32, start: 0.0, length: 0.25),       # C5
+    (freq: 659.25'f32, start: 0.22, length: 0.25),      # E5
+    (freq: 783.99'f32, start: 0.44, length: 0.25),      # G5
+    (freq: 1046.50'f32, start: 0.66, length: 0.54)      # C6 - finale held longer
+  ]
+  
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    var value = 0.0
+    
+    for note in notes:
+      if t >= note.start and t < note.start + note.length:
+        let noteTime = t - note.start
+        let noteProgress = noteTime / note.length
+        
+        # Rich trumpet-like tone with harmonics
+        let fundamental = sin(2.0 * PI * note.freq * t) * 0.42
+        let harmonic2 = sin(2.0 * PI * note.freq * 2.0 * t) * 0.18
+        let harmonic3 = sin(2.0 * PI * note.freq * 3.0 * t) * 0.12
+        let harmonic4 = sin(2.0 * PI * note.freq * 4.0 * t) * 0.08
+        
+        # Slight vibrato for life
+        let vibrato = 1.0 + sin(2.0 * PI * 5.5 * t) * 0.008
+        
+        # Bell-like brightness
+        let brightness = sin(2.0 * PI * note.freq * 5.0 * t) * 0.06
+        
+        # Quick attack, sustain with slight decay, gentle release
+        let attack = if noteProgress < 0.08: noteProgress / 0.08 else: 1.0
+        let sustain = 0.9 + noteProgress * 0.1
+        let release = if noteProgress > 0.75: 
+          (1.0 - (noteProgress - 0.75) / 0.25) * 0.7 + 0.3
+        else: 
+          1.0
+        
+        let envelope = attack * sustain * release
+        
+        let noteTone = (fundamental + harmonic2 + harmonic3 + harmonic4 + brightness) * vibrato
+        value += noteTone * envelope
+    
+    # Add sparkle/shimmer for celebration
+    let globalProgress = t / duration
+    let sparkle = if globalProgress > 0.3:
+      sin(2.0 * PI * 2200.0 * t) * ((globalProgress - 0.3) / 0.7) * 0.12
+    else:
+      0.0
+    
+    # Subtle noise for texture
+    let texture = rand(-1.0..1.0) * 0.02 * globalProgress
+    
+    samples[i] = int16(clamp((value + sparkle + texture) * 32767.0 * 0.52, -32767.0, 32767.0))
+  
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
+
+proc createShield(filename: string): Sound =
+  # Energy shield activation with pulsing
+  let sampleRate: uint32 = 44100
+  let duration = 0.4
   let frameCount = int(sampleRate.float32 * duration)
   var samples = newSeq[int16](frameCount)
   
   for i in 0..<frameCount:
     let t = i.float32 / sampleRate.float32
     let progress = t / duration
-    var freq = 523.25'f32
-    if progress > 0.25: freq = 659.25'f32
-    if progress > 0.5: freq = 783.99'f32
-    if progress > 0.75: freq = 1046.50'f32
-    let envelope = applyADSR(progress, 0.1, 0.15, 0.7, 0.05)
-    samples[i] = int16(sin(2.0 * PI * freq * t) * envelope * 0.4 * 32767.0)
+    
+    # Base shield frequency with slight rise
+    let baseFreq = 260.0 + progress * 40.0
+    
+    # Energy pulse modulation
+    let pulse = 1.0 + sin(2.0 * PI * 8.0 * t) * 0.4
+    
+    # Multiple harmonic layers for richness
+    let layer1 = sin(2.0 * PI * baseFreq * pulse * t) * 0.35
+    let layer2 = sin(2.0 * PI * baseFreq * 1.5 * pulse * t) * 0.25
+    let layer3 = sin(2.0 * PI * baseFreq * 2.0 * pulse * t) * 0.15
+    
+    # High frequency shimmer for energy effect
+    let shimmer = sin(2.0 * PI * 1800.0 * t) * 0.1 * (1.0 - progress)
+    
+    # Filtered noise for texture
+    let noise = rand(-1.0..1.0) * 0.05 * exp(-progress * 8.0)
+    
+    let envelope = applyADSR(progress, 0.08, 0.15, 0.6, 0.17)
+    
+    let value = (layer1 + layer2 + layer3 + shimmer + noise) * envelope
+    samples[i] = int16(value * 32767.0 * 0.45)
   
   writeWavFile(filename, samples, sampleRate)
   result = loadSound(filename)
-
-proc createShield(filename: string): Sound =
-  createSimpleSound(filename, 0.35,
-    proc(t, p: float32): float32 = 280.0 + sin(2.0 * PI * 7.0 * t) * 20.0,
-    proc(p: float32): float32 = applyADSR(p, 0.15, 0.2, 0.5, 0.15),
-    0.4)
 
 proc createGameOverSound(filename: string): Sound =
   let sampleRate: uint32 = 44100
@@ -1581,7 +2132,7 @@ proc preGenerateAllAssets*(verbose: bool = true, callback: AssetGenerationCallba
     if verbose:
       echo "All ", totalAssets, " assets already cached"
     if not callback.isNil:
-      callback(1.0, "All assets loaded from cache")
+      callback(1.0, t(tkLoadingCached))
     return
   
   if verbose:
@@ -1603,7 +2154,7 @@ proc preGenerateAllAssets*(verbose: bool = true, callback: AssetGenerationCallba
       
       if not callback.isNil:
         let prog = assetsGenerated.float32 / assetsToGenerate.float32
-        callback(prog, "Generating sound: " & $soundType)
+        callback(prog, t(tkLoadingGeneratingSound) & ": " & $soundType)
       
       discard loadOrGenerateSound(soundType)
   
@@ -1616,7 +2167,7 @@ proc preGenerateAllAssets*(verbose: bool = true, callback: AssetGenerationCallba
       
       if not callback.isNil:
         let prog = assetsGenerated.float32 / assetsToGenerate.float32
-        callback(prog, "Generating music: " & $track)
+        callback(prog, t(tkLoadingGeneratingMusic) & ": " & $track)
       
       discard loadOrGenerateMusic(track)
   
@@ -1628,7 +2179,7 @@ proc preGenerateAllAssets*(verbose: bool = true, callback: AssetGenerationCallba
     echo "=========================================="
   
   if not callback.isNil:
-    callback(1.0, "Asset generation complete!")
+    callback(1.0, t(tkLoadingComplete))
 
 proc generateAllSounds(sys: SoundSystem) =
   if sys.soundsGenerated:

@@ -854,6 +854,16 @@ type
     tkSystemNoStatistics = "system_no_statistics"
     tkSystemPressESCToReturn = "system_press_esc_to_return"
     
+    # Loading Screen
+    tkLoadingTitle = "loading_title"
+    tkLoadingSubtitle = "loading_subtitle"
+    tkLoadingInitializing = "loading_initializing"
+    tkLoadingGeneratingSound = "loading_generating_sound"
+    tkLoadingGeneratingMusic = "loading_generating_music"
+    tkLoadingComplete = "loading_complete"
+    tkLoadingHint = "loading_hint"
+    tkLoadingCached = "loading_cached"
+    
     # Cheat Menu Buttons
     tkCheatCloseInstruction = "cheat_close_instruction"
     tkCheatPressESCOrClick = "cheat_press_esc_or_click"
@@ -1400,6 +1410,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "system_press_any_key": "Press almost any key to continue...",
     "system_no_statistics": "No statistics available",
     "system_press_esc_to_return": "Press ESC to return",
+    
+    # Loading Screen
+    "loading_title": "TopHat-ShooterOS",
+    "loading_subtitle": "v5.3 Edition",
+    "loading_initializing": "Initializing...",
+    "loading_generating_sound": "Generating sound",
+    "loading_generating_music": "Generating music",
+    "loading_complete": "Asset generation complete!",
+    "loading_hint": "Generating procedural audio assets",
+    "loading_cached": "All assets loaded from cache",
     
     # Cheat Menu Buttons
     "cheat_close_instruction": "Press ESC or click X to close",
@@ -3059,6 +3079,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "system_press_any_key": "Presiona cualquier tecla para continuar...",
     "system_no_statistics": "No hay estadísticas disponibles",
     "system_press_esc_to_return": "Presiona ESC para volver",
+    
+    # Loading Screen
+    "loading_title": "TopHat-ShooterOS",
+    "loading_subtitle": "Edición v5.3",
+    "loading_initializing": "Inicializando...",
+    "loading_generating_sound": "Generando sonido",
+    "loading_generating_music": "Generando música",
+    "loading_complete": "¡Generación de assets completa!",
+    "loading_hint": "Generando assets de audio procedurales",
+    "loading_cached": "Todos los assets cargados desde caché",
     
     # Cheat Menu Buttons
     "cheat_close_instruction": "Presiona ESC o haz clic en X para cerrar",

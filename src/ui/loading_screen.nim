@@ -1,4 +1,4 @@
-import raylib, math, strutils
+import raylib, math, ../localization
 
 type
   LoadingScreen* = ref object
@@ -10,7 +10,7 @@ type
 proc newLoadingScreen*(): LoadingScreen =
   result = LoadingScreen(
     progress: 0.0,
-    message: "Initializing...",
+    message: t(tkLoadingInitializing),
     startTime: 0.0,
     animTime: 0.0
   )
@@ -30,14 +30,14 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
   let centerY = screenHeight div 2
   
   # Title
-  let titleText = "TopHat-ShooterOS"
+  let titleText = t(tkLoadingTitle)
   let titleSize: int32 = 48
   let titleWidth = measureText(titleText, titleSize)
   drawText(titleText, centerX - titleWidth div 2, centerY - 150, titleSize, 
            Color(r: 180, g: 220, b: 255, a: 255))
   
   # Subtitle
-  let subtitleText = "v5.3 Edition"
+  let subtitleText = t(tkLoadingSubtitle)
   let subtitleSize: int32 = 24
   let subtitleWidth = measureText(subtitleText, subtitleSize)
   drawText(subtitleText, centerX - subtitleWidth div 2, centerY - 100, subtitleSize,
@@ -96,7 +96,7 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
   
   # Bottom hint text - animated
   let alpha = uint8((sin(screen.animTime * 2.0) * 0.3 + 0.7) * 255.0)
-  let hintText = "Generating procedural audio assets"
+  let hintText = t(tkLoadingHint)
   let hintSize: int32 = 14
   let hintWidth = measureText(hintText, hintSize)
   drawText(hintText, centerX - hintWidth div 2, screenHeight - 80, hintSize,
