@@ -28,9 +28,13 @@ var globalSoundSystem*: SoundSystem
 
 # CACHE MANAGEMENT
 proc getCacheDir(): string =
-  result = getTempDir() / "tophat_sound_cache"
+  result = getTempDir() / "shooteros_music_cache"
   if not dirExists(result):
     createDir(result)
+  # Delete old cache folder if it exists
+  let oldCacheDir = getTempDir() / "tophat_sound_cache"
+  if dirExists(oldCacheDir):
+    removeDir(oldCacheDir)
 
 proc getSoundCacheFile(soundType: SoundType): string =
   let cacheDir = getCacheDir()

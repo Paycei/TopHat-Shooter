@@ -214,7 +214,6 @@ type
     auraRadius*: float32  # Invisible coin collection aura
     doubleShotDelay*: float32  # Timer for double-shot rapid succession
     bulletCounter*: int  # Counter for special rounds powerup
-
     timeWarpCooldown*: float32
     timeWarpActive*: bool
     timeWarpDuration*: float32
@@ -361,10 +360,10 @@ type
     sourceEnemyId*: int  # ID of the enemy that shot this bullet
     sourceEnemyPos*: Vector2f  # Position where the bullet was shot from
     sourceEnemyType*: EnemyType  # Type of enemy that shot this bullet
-
     travelDistance*: float32  # Track distance
     isEcho*: bool  # True if this is an echo clone bullet
     echoTrailTimer*: float32  # Timer for spawning echo clones
+    particleTrailTimer*: float32  # Accumulator for explosive bullet trail particles
     parentBulletId*: int  # ID of parent bullet
     bulletId*: int  # Unique ID for this bullet
     isBossBullet*: bool  # True if this bullet was fired by a boss

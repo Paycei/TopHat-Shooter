@@ -133,6 +133,35 @@ proc spawnExplosionPooled*(pool: ParticlePool, x, y: float32, color: Color, coun
   for i in 0..<count:
     discard pool.acquireParticle(x, y, color, 80 + rand(120).float32)
 
+proc spawnTrailParticlePooled*(pool: ParticlePool, x, y: float32, color: Color, count: int) =
+  ## Spawn short-lived trail particles (optimized for bullet trails)
+  for i in 0..<count:
+    let angle = rand(1.0) * PI * 2.0
+    let speed = 40 + rand(40).float32  # Slower, tighter spread than explosions
+    if pool.activeCount < pool.maxCapacity:
+      let p = pool.particles[pool.activeCount]
+      p.pos.x = x
+      p.pos.y = y
+      p.vel.x = cos(angle) * speed
+      p.vel.y = sin(angle) * speed
+      p.color = color
+      p.lifetime = 0.15 + rand(0.15)  # Short lifetime: 0.15–0.30s (vs 0.6–1.2s normally)
+      p.maxLifetime = p.lifetime
+      p.size = 2 + rand(3).float32     # Slightly smaller
+      pool.activeCount += 1
+    else:
+      # Reuse oldest expired slot
+      for j in 0..<pool.activeCount:
+        if pool.particles[j].lifetime <= 0:
+          let p = pool.particles[j]
+          p.pos.x = x; p.pos.y = y
+          p.vel.x = cos(angle) * speed; p.vel.y = sin(angle) * speed
+          p.color = color
+          p.lifetime = 0.15 + rand(0.15)
+          p.maxLifetime = p.lifetime
+          p.size = 2 + rand(3).float32
+          break
+
 proc spawnTimedParticlesPooled*(pool: ParticlePool, x, y: float32, rate: float32,
                                 color: Color, count: int, dt: float32) =
   ## Particle spawning using pool

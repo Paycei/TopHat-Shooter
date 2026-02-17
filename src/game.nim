@@ -5635,19 +5635,22 @@ proc updateGame*(game: var Game, dt: float32) =
       game.bullets.delete(i)
       continue
     
-    if bullet.fromPlayer and bullet.isExplosive:
+    if bullet.fromPlayer and bullet.isExplosive and not bullet.isEcho:
       let level = getPowerUpLevel(game.player, puExplosiveBullets)
-      # Spawn particles at a rate based on explosion level
-      let particleSpawnRate = case level
-        of 1: 5.0  # Basic trail
-        of 2: 10.0  # Enhanced trail
-        of 3: 15.0  # Maximum trail (satellite-like density)
-        else: 8.0
-      
-      # Spawn trailing particles periodically
-      spawnTimedParticlesPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                                particleSpawnRate, Color(r: 255, g: 150, b: 50, a: 200),
-                                3 + level, dt)
+      # Accumulator-based spawning: no rand() call per frame, deterministic interval
+      let spawnInterval = case level
+        of 1: 0.20   # 5 spawns/sec
+        of 2: 0.13   # ~7.5 spawns/sec
+        else: 0.10   # 10 spawns/sec
+      let particleCount = case level
+        of 1: 2
+        of 2: 2
+        else: 3
+      bullet.particleTrailTimer += bulletDt
+      if bullet.particleTrailTimer >= spawnInterval:
+        bullet.particleTrailTimer -= spawnInterval
+        spawnTrailParticlePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                 Color(r: 255, g: 150, b: 50, a: 200), particleCount)
     
     # Update sourceEnemyPos to track the enemy's current position
     # This ensures parried bullets go to where the enemy last was, not where it shot from

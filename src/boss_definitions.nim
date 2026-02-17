@@ -1,4 +1,4 @@
-## Boss Definitions System - Complete 60 Wave Boss List
+## Boss Definitions System
 ## Allows complete customization of boss behavior, properties, attacks, and phases
 
 import math, random, raylib, localization
