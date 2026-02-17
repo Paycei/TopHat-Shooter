@@ -600,16 +600,32 @@ proc flushAccumulatedContactDamage*(game: Game, enemy: Enemy) =
     # Reset accumulator
     enemy.contactDamageAccumulator = 0
 
-proc calculateMaxHealthContactDamageScale*(player: Player): float32 =
-  ## Calculate damage scaling for player->enemy contact damage based on player's max health
-  ## Higher max health = slightly more contact damage (low scaling)
-  ## This provides gradual power progression as player increases max HP
-
-  # Base max health is 7.0, low scaling: +1% damage per point of max HP above base
-  let baseMaxHp = 7.0
-  let hpAboveBase = max(player.maxHp - baseMaxHp, 0.0)
-  let healthBonus = hpAboveBase * 0.01  # 1% per HP point
-  return 1.0 + healthBonus
+proc calculateContactDamageToEnemy*(player: Player, enemy: Enemy): tuple[damage: float32, wasCrit: bool] =
+  ## Player ramming into an enemy deals damage based on:
+  ##   - player.damage  (scales with all damage power-ups)
+  ##   - player speed   (moving fast = hits harder, standing still = weak tap)
+  ##   - max HP         (small bonus for tankier builds)
+  ##   - critical hits  (respects the Critical Hit power-up)
+  
+  # Base: 50% of the player's current damage stat so it's always meaningful
+  # but never outright replaces shooting as the main damage source
+  var base = player.damage * 0.5
+  
+  # Speed multiplier: 0.5x at zero movement, 1.5x at full speed (175)
+  let speedRatio = player.vel.length() / player.baseSpeed
+  let speedMult = 0.5 + speedRatio * 1.0   # range: 0.5 – 1.5
+  base *= speedMult
+  
+  # Max-HP bonus: +2% per HP above the base 9, capped at +50%
+  let hpBonus = min((player.maxHp - 9.0) * 0.02, 0.5)
+  base *= (1.0 + hpBonus)
+  
+  # Boss defense multiplier already handled by damageEnemy(), skip here
+  
+  # Critical hit — uses the same CombatStats path as bullets
+  let stats = calculateCombatStats(player)
+  let (finalDamage, wasCrit) = applyCriticalHitWithFlag(stats, base)
+  return (finalDamage, wasCrit)
 
 # THORNS REFLECTION HELPER
 
@@ -5448,26 +5464,28 @@ proc updateGame*(game: var Game, dt: float32) =
           
           playSound(stPlayerHit, 0.5)
           
-          # Deal 1 HP base damage to enemy, scaled by player's max health
-          var contactDamageToEnemy = 1.0
-          
-          # MAX HEALTH SCALING: Player deals slightly more damage with higher max HP (low scaling)
-          let maxHpScale = calculateMaxHealthContactDamageScale(game.player)
-          contactDamageToEnemy *= maxHpScale
+          # Deal contact damage to enemy based on player damage stat, speed, and crits
+          let (contactDamageToEnemy, contactWasCrit) = calculateContactDamageToEnemy(game.player, enemy)
           
           # Stars use hit counter for all damage sources
           if enemy.enemyType == etStar:
             enemy.hitCount += 1
           else:
-            enemy.hp -= contactDamageToEnemy
+            let actualContactDmg = damageEnemy(enemy, contactDamageToEnemy)
+            discard actualContactDmg
           
           enemy.lastContactDamageTime = game.time
           
           # Accumulate damage for damage number display (shows every 0.5s)
-          accumulateAndShowContactDamage(game, enemy, contactDamageToEnemy)
+          # Crits shown immediately and in the right color
+          if contactWasCrit:
+            showDamage(game, enemy.pos, contactDamageToEnemy, true, true, dtCritical)
+          else:
+            accumulateAndShowContactDamage(game, enemy, contactDamageToEnemy)
           
-          # Visual feedback for enemy taking contact damage (small explosion)
-          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.color, 3)
+          # Visual feedback — more particles for crits
+          let contactParticleCount = if contactWasCrit: 8 else: 3
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.color, contactParticleCount)
           
           # Remove enemy if HP reaches 0
           if enemy.hp <= 0:

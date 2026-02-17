@@ -70,7 +70,6 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
   of 4:  # Cross / X
     let hw = r * 0.35  # half-width of each arm
     let rot = spin * 0.4
-    let cos_r = cos(rot); let sin_r = sin(rot)
     # Draw two thick perpendicular lines as a cross using quads
     for arm in 0..1:
       let a = rot + arm.float32 * PI / 2.0
