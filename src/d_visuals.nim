@@ -1,4 +1,4 @@
-import raylib, types, d_systems, math
+import raylib, types, d_systems, math, localization
 
 proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
                           currentTime: float32, posX, posY: int32) =
@@ -44,10 +44,10 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
   
   # "COMBO!" text below with emphasis
   let comboLabelSize = int32(12.0 * scale)
-  let comboText = if combo.killCount >= 20: "INSANE!"
-                  elif combo.killCount >= 15: "CRAZY!"
-                  elif combo.killCount >= 10: "SICK!"
-                  else: "COMBO!"
+  let comboText = if combo.killCount >= 20: t(tkComboInsane)
+                  elif combo.killCount >= 15: t(tkComboCrazy)
+                  elif combo.killCount >= 10: t(tkComboSick)
+                  else: t(tkComboLabel)
   
   let labelWidth = measureText(comboText, comboLabelSize)
   let labelX = baseX.int32 + (finalFontSize div 2) - (labelWidth div 2)
@@ -64,7 +64,7 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
   
   # Bonus coins notification (if earned)
   if combo.bonusCoins > 0 and combo.displayTimer > 1.5:
-    let bonusText = "+" & $combo.bonusCoins & " coins!"
+    let bonusText = "+" & $combo.bonusCoins & " " & t(tkComboCoins)
     let bonusWidth = measureText(bonusText, 16)
     let bonusX = baseX.int32 + (finalFontSize div 2) - (bonusWidth div 2)
     
@@ -78,9 +78,9 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
   # Perfect wave combo notification (if earned) - TONED DOWN VERSION
   if combo.lastPerfectWaveBonus > 0 and combo.displayTimer > 0.5:
     let perfectText = if combo.perfectWaveStreak > 1:
-      "PERFECT x" & $combo.perfectWaveStreak & "! +" & $combo.lastPerfectWaveBonus & " coins!"
+      t(tkComboPerfectStreak) & $combo.perfectWaveStreak & "! +" & $combo.lastPerfectWaveBonus & " " & t(tkComboCoins)
     else:
-      "PERFECT WAVE! +" & $combo.lastPerfectWaveBonus & " coins!"
+      t(tkComboPerfectWave) & " +" & $combo.lastPerfectWaveBonus & " " & t(tkComboCoins)
     
     # Less flashy - smaller size, no pulsing
     let perfectFontSize: int32 = 18  # Reduced from 24
@@ -164,7 +164,7 @@ proc drawMilestone*(manager: MilestoneManager, screenWidth, screenHeight: int32)
     Color(r: 255, g: 215, b: 0, a: fadeAlpha))
   
   # Achievement text (small)
-  drawText("Achievement:", x + 10, y + 8, 12.int32,
+  drawText(t(tkMilestoneAchievement), x + 10, y + 8, 12.int32,
     Color(r: 255, g: 215, b: 0, a: fadeAlpha))
   
   # Milestone name (compact)
@@ -201,12 +201,12 @@ proc drawWaveStats*(stats: WaveStats, screenWidth, screenHeight: int32) =
   let x = screenWidth - 250
   let y = 50.int32
   
-  drawText("WAVE " & $stats.waveNumber, x, y, 20.int32, White)
-  drawText("Kills: " & $stats.kills, x, y + 25, 16.int32,
+  drawText(t(tkWaveStatsTitle) & " " & $stats.waveNumber, x, y, 20.int32, White)
+  drawText(t(tkWaveStatsKillsLabel) & " " & $stats.kills, x, y + 25, 16.int32,
     Color(r: 200, g: 200, b: 200, a: 255))
-  drawText("Time: " & $(int(stats.survivalTime)) & "s", x, y + 45, 16.int32,
+  drawText(t(tkWaveStatsTimeLabel) & " " & $(int(stats.survivalTime)) & "s", x, y + 45, 16.int32,
     Color(r: 200, g: 200, b: 200, a: 255))
   
   if stats.isPerfect:
-    drawText("FLAWLESS!", x, y + 65, 18.int32,
+    drawText(t(tkWaveStatsFlawless), x, y + 65, 18.int32,
       Color(r: 255, g: 215, b: 0, a: 255))

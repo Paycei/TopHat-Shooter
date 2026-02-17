@@ -1,4 +1,4 @@
-import raylib, types, boss_definitions
+import raylib, types, boss_definitions, localization
 
 type
   DamageDisplayType* = enum
@@ -123,9 +123,9 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
   # Main text with slide-in animation
   let slideProgress = min(1.0, celebration.animationTimer * 3.0)
   let waveText = if isBossWave(celebration.waveNumber):
-    "BOSS " & $getCustomBossNumber(celebration.waveNumber) & " DEFEATED"
+    t(tkBossDefeatedText) & " " & $getCustomBossNumber(celebration.waveNumber) & " DEFEATED"
   else:
-    "WAVE " & $celebration.waveNumber & " CLEARED"
+    t(tkWaveClearedText) & " " & $celebration.waveNumber & " CLEARED"
   let textWidth = measureText(waveText, 48.int32)
   let textX = int32((screenWidth.float32 - textWidth.float32) * slideProgress)
   let textY = screenHeight div 2 - 100
@@ -169,17 +169,17 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
       drawText(valueText, int32(boxX + boxWidth - valueWidth - 20), y, 18.int32,
         Color(r: 255, g: 255, b: 255, a: alpha))
     
-    drawStat("Kills", $celebration.stats.kills, lineY, statsAlpha)
+    drawStat(t(tkWaveCelebKills), $celebration.stats.kills, lineY, statsAlpha)
     lineY += lineHeight
-    drawStat("Accuracy", $(int(celebration.stats.accuracy)) & "%", lineY, statsAlpha)
+    drawStat(t(tkWaveCelebAccuracy), $(int(celebration.stats.accuracy)) & "%", lineY, statsAlpha)
     lineY += lineHeight
-    drawStat("Time", $(int(celebration.stats.survivalTime)) & "s", lineY, statsAlpha)
+    drawStat(t(tkWaveCelebTime), $(int(celebration.stats.survivalTime)) & "s", lineY, statsAlpha)
     lineY += lineHeight
-    drawStat("Coins Earned", $celebration.stats.coinsEarned, lineY, statsAlpha)
+    drawStat(t(tkWaveCelebCoins), $celebration.stats.coinsEarned, lineY, statsAlpha)
     lineY += lineHeight
     
     if celebration.stats.maxCombo > 1:
-      drawStat("Max Combo", $(celebration.stats.maxCombo) & "x", lineY, statsAlpha)
+      drawStat(t(tkWaveCelebMaxCombo), $(celebration.stats.maxCombo) & "x", lineY, statsAlpha)
 
 # BOSS INTRODUCTION SYSTEM
 proc newBossIntroduction*(): BossIntroduction =
@@ -359,7 +359,7 @@ proc drawAchievementPopup*(manager: AchievementManager, screenWidth, screenHeigh
     Color(r: 255, g: 215, b: 0, a: 255))
   
   # Header
-  let headerText = "ACHIEVEMENT UNLOCKED!"
+  let headerText = t(tkAchievementUnlocked)
   drawText(headerText, currentX + 10, y + 10, 16.int32,
     Color(r: 255, g: 215, b: 0, a: 255))
   
@@ -443,7 +443,7 @@ proc drawRealTimeStats*(stats: RealTimeStats, screenWidth, screenHeight: int32) 
     Color(r: 100, g: 100, b: 100, a: 200))
   
   # Power Level with glow if high
-  let powerText = "Power: " & $stats.powerLevel
+  let powerText = t(tkRealStatsPower) & ": " & $stats.powerLevel
   let powerColor = if stats.powerLevel > 500:
     Color(r: 255, g: 215, b: 0, a: 255)
   else:
@@ -453,18 +453,18 @@ proc drawRealTimeStats*(stats: RealTimeStats, screenWidth, screenHeight: int32) 
   currentY += lineHeight
   
   # DPS
-  let dpsText = "DPS: " & $(int(stats.dps))
+  let dpsText = t(tkRealStatsDPS) & ": " & $(int(stats.dps))
   drawText(dpsText, panelX, currentY, 18.int32,
     Color(r: 255, g: 100, b: 100, a: 255))
   currentY += lineHeight
   
   # Kills
-  let killsText = "Kills: " & $stats.kills
+  let killsText = t(tkRealStatsKills) & ": " & $stats.kills
   drawText(killsText, panelX, currentY, 18.int32,
     Color(r: 200, g: 200, b: 200, a: 255))
   currentY += lineHeight
   
   # Coins per minute
-  let cpmText = "C/min: " & $(int(stats.coinsPerMinute))
+  let cpmText = t(tkRealStatsCPM) & ": " & $(int(stats.coinsPerMinute))
   drawText(cpmText, panelX, currentY, 18.int32,
     Color(r: 255, g: 215, b: 0, a: 255))

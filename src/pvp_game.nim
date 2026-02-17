@@ -1,7 +1,7 @@
 ## PvP Game Mode Logic
 ## Handles multiplayer player vs player combat with optional team support
 
-import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils
+import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils, localization
 
 const
   PVP_PLAYER_START_HP = 3.0  # Reduced HP for faster kills
@@ -75,19 +75,19 @@ proc getTeamName*(team: PvPTeam): string =
   ## Get the display name for a team
   case team
   of ptRed:
-    return "Red"
+    return t(tkPvPTeamRed)
   of ptBlue:
-    return "Blue"
+    return t(tkPvPTeamBlue)
   of ptGreen:
-    return "Green"
+    return t(tkPvPTeamGreen)
   of ptYellow:
-    return "Yellow"
+    return t(tkPvPTeamYellow)
   of ptOrange:
-    return "Orange"
+    return t(tkPvPTeamOrange)
   of ptPurple:
-    return "Purple"
+    return t(tkPvPTeamPurple)
   of ptNone:
-    return "None"
+    return t(tkPvPTeamNone)
 
 proc getTeamColor*(team: PvPTeam): Color =
   ## Get the display color for a team

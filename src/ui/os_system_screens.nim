@@ -193,7 +193,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   # Exit button (2) - Highlight if selected
   let exitX = statsX + BUTTON_WIDTH + buttonSpacing
   drawModernButton(int32(exitX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  "EXIT", "[ESC] [Q]", selectedButton == 2, game.time)
+                  t(tkGameOverExit), "[ESC] [Q]", selectedButton == 2, game.time)
   
   # Footer warning text
   let footerY = windowY + SCREEN_HEIGHT - 35

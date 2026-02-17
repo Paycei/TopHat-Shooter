@@ -4,6 +4,7 @@
 import raylib, sequtils, random, math
 import types_3d, engine_3d, player_3d, boss_3d
 import ../types  # Import 2D types for Player integration
+import ../localization
 
 type
   Game3D* = object
@@ -229,12 +230,12 @@ proc renderGame3D*(game: Game3D) =
   
   # 2D HUD
   drawRectangle(10, 10, 320, 150, fade(Black, 0.7))
-  drawText("HP: " & $int(game.player.health), 20, 20, 20, Red)
-  drawText("Ammo: " & $game.player.weapon.ammo & "/" & $game.player.weapon.maxAmmo, 20, 45, 20, Yellow)
+  drawText(t(tkGame3DHp) & ": " & $int(game.player.health), 20, 20, 20, Red)
+  drawText(t(tkGame3DAmmo) & ": " & $game.player.weapon.ammo & "/" & $game.player.weapon.maxAmmo, 20, 45, 20, Yellow)
   
   # Boss health bar
   let bossHpPercent = game.boss.health / game.boss.maxHealth
-  drawText("Boss HP:", 20, 70, 18, White)
+  drawText(t(tkGame3DBossHp) & ":", 20, 70, 18, White)
   drawRectangle(20, 92, 280, 20, Color(r: 50, g: 0, b: 0, a: 200))
   drawRectangle(20, 92, int32(280.0 * bossHpPercent), 20, Color(r: 255, g: 50, b: 50, a: 255))
   drawRectangleLines(20, 92, 280, 20, White)
@@ -246,7 +247,7 @@ proc renderGame3D*(game: Game3D) =
     of 3: Color(r: 255, g: 0, b: 0, a: 255)
     else: White
   
-  let phaseText = "PHASE " & $game.boss.phase & "/3"
+  let phaseText = t(tkGame3DPhase) & " " & $game.boss.phase & "/3"
   drawText(phaseText, 20, 120, 20, phaseColor)
   
   # Satellite count (Phase 1 only)
@@ -257,11 +258,11 @@ proc renderGame3D*(game: Game3D) =
         activeSats += 1
     
     if activeSats > 0:
-      drawText("Satellites: " & $activeSats & " (DESTROY ALL!)", 20, 145, 16, Color(r: 255, g: 200, b: 50, a: 255))
+      drawText(t(tkGame3DSatellites) & ": " & $activeSats & " (" & t(tkGame3DDestroyAll) & ")", 20, 145, 16, Color(r: 255, g: 200, b: 50, a: 255))
   
   # Phase transition warning
   if game.boss.phaseTransitionTimer > 0:
-    let warningText = "PHASE TRANSITION!"
+    let warningText = t(tkGame3DPhaseTransition)
     let textWidth = measureText(warningText, 40)
     let flashAlpha = (sin(game.boss.phaseTransitionTimer * 10.0) * 0.5 + 0.5) * 255.0
     drawText(warningText, (getScreenWidth() - textWidth) div 2, 100, 40,
@@ -276,8 +277,8 @@ proc renderGame3D*(game: Game3D) =
   
   # Pause message
   if game.paused:
-    let pauseText = "PAUSED"
-    let resumeText = "Press ESC to resume"
+    let pauseText = t(tkGame3DPaused)
+    let resumeText = t(tkGame3DPressEscResume)
     let textWidth1 = measureText(pauseText, 40)
     let textWidth2 = measureText(resumeText, 20)
     

@@ -1,4 +1,4 @@
-import raylib, types, math, random
+import raylib, types, math, random, localization
 
 type
   ShakeIntensity* = enum
@@ -177,46 +177,46 @@ proc newMilestoneManager*(): MilestoneManager =
   # Initialize wave milestones
   result.milestones.add(Milestone(
     milestoneType: mtWave, threshold: 5, reached: false,
-    name: "FIRST BOSS DEFEATED", description: "Survived your first boss encounter",
+    name: t(tkMilestoneFirstBossName), description: t(tkMilestoneFirstBossDesc),
     bonus: "+Achievement"
   ))
   result.milestones.add(Milestone(
     milestoneType: mtWave, threshold: 10, reached: false,
-    name: "VETERAN SURVIVOR", description: "Reached wave 10",
+    name: t(tkMilestoneVeteranName), description: t(tkMilestoneVeteranDesc),
     bonus: "+Achievement"
   ))
   result.milestones.add(Milestone(
     milestoneType: mtWave, threshold: 25, reached: false,
-    name: "ELITE PLAYER", description: "Reached wave 25",
+    name: t(tkMilestoneEliteName), description: t(tkMilestoneEliteDesc),
     bonus: "+5% permanent stats"
   ))
   
   # Initialize kill milestones
   result.milestones.add(Milestone(
     milestoneType: mtKills, threshold: 100, reached: false,
-    name: "CENTURION", description: "Eliminated 100 enemies",
+    name: t(tkMilestoneCenturionName), description: t(tkMilestoneCenturionDesc),
     bonus: "+Badge"
   ))
   result.milestones.add(Milestone(
     milestoneType: mtKills, threshold: 500, reached: false,
-    name: "EXECUTIONER", description: "Eliminated 500 enemies",
+    name: t(tkMilestoneExecutionerName), description: t(tkMilestoneExecutionerDesc),
     bonus: "+Badge"
   ))
   result.milestones.add(Milestone(
     milestoneType: mtKills, threshold: 1000, reached: false,
-    name: "DEATH INCARNATE", description: "Eliminated 1000 enemies",
+    name: t(tkMilestoneDeathName), description: t(tkMilestoneDeathDesc),
     bonus: "+Permanent red glow"
   ))
   
   # Initialize coin milestones
   result.milestones.add(Milestone(
     milestoneType: mtCoins, threshold: 1000, reached: false,
-    name: "WEALTHY", description: "Collected 1000 lifetime coins",
+    name: t(tkMilestoneWealthyName), description: t(tkMilestoneWealthyDesc),
     bonus: "+Badge"
   ))
   result.milestones.add(Milestone(
     milestoneType: mtCoins, threshold: 5000, reached: false,
-    name: "TYCOON", description: "Collected 5000 lifetime coins",
+    name: t(tkMilestoneTycoonName), description: t(tkMilestoneTycoonDesc),
     bonus: "+Badge"
   ))
 
@@ -257,7 +257,7 @@ proc checkRewards*(tracker: var MicroRewardTracker, kills: int,
   # Every 10 kills
   if kills > 0 and kills mod 10 == 0 and kills != tracker.lastKills:
     newRewards.add(MicroReward(
-      message: "MASSACRE BONUS!",
+      message: t(tkMassacreBonus),
       coins: 5,
       displayTimer: 2.0,
       pos: playerPos

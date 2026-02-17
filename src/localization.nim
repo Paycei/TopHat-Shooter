@@ -1019,7 +1019,71 @@ type
     tkConfirm = "general_confirm"
     tkCancel = "general_cancel"
     
-    # OS UI (newly added for hardcoded string replacement)
+    # Wave Celebration (d_enhancements)
+    tkWaveClearedText = "wave_cleared_text"
+    tkBossDefeatedText = "boss_defeated_text"
+    tkWaveCelebKills = "wave_celeb_kills"
+    tkWaveCelebAccuracy = "wave_celeb_accuracy"
+    tkWaveCelebTime = "wave_celeb_time"
+    tkWaveCelebCoins = "wave_celeb_coins"
+    tkWaveCelebMaxCombo = "wave_celeb_max_combo"
+    
+    # Achievement popup (d_enhancements)
+    tkAchievementUnlocked = "achievement_unlocked"
+    
+    # Real-time stats overlay (d_enhancements)
+    tkRealStatsPower = "real_stats_power"
+    tkRealStatsDPS = "real_stats_dps"
+    tkRealStatsKills = "real_stats_kills"
+    tkRealStatsCPM = "real_stats_cpm"
+    
+    # Combo display (d_visuals)
+    tkComboInsane = "combo_insane"
+    tkComboCrazy = "combo_crazy"
+    tkComboSick = "combo_sick"
+    tkComboLabel = "combo_label"
+    tkComboPerfectWave = "combo_perfect_wave"
+    tkComboPerfectStreak = "combo_perfect_streak"
+    tkComboCoins = "combo_coins"
+    
+    # Milestone / micro-reward popups (d_systems)
+    tkMilestoneAchievement = "milestone_achievement"
+    tkMassacreBonus = "massacre_bonus"
+    tkWaveStatsFlawless = "wave_stats_flawless"
+    tkWaveStatsTitle = "wave_stats_title"
+    tkWaveStatsKillsLabel = "wave_stats_kills_label"
+    tkWaveStatsTimeLabel = "wave_stats_time_label"
+    
+    # Milestone names & descriptions (d_systems)
+    tkMilestoneFirstBossName = "milestone_first_boss_name"
+    tkMilestoneFirstBossDesc = "milestone_first_boss_desc"
+    tkMilestoneVeteranName = "milestone_veteran_name"
+    tkMilestoneVeteranDesc = "milestone_veteran_desc"
+    tkMilestoneEliteName = "milestone_elite_name"
+    tkMilestoneEliteDesc = "milestone_elite_desc"
+    tkMilestoneCenturionName = "milestone_centurion_name"
+    tkMilestoneCenturionDesc = "milestone_centurion_desc"
+    tkMilestoneExecutionerName = "milestone_executioner_name"
+    tkMilestoneExecutionerDesc = "milestone_executioner_desc"
+    tkMilestoneDeathName = "milestone_death_name"
+    tkMilestoneDeathDesc = "milestone_death_desc"
+    tkMilestoneWealthyName = "milestone_wealthy_name"
+    tkMilestoneWealthyDesc = "milestone_wealthy_desc"
+    tkMilestoneTycoonName = "milestone_tycoon_name"
+    tkMilestoneTycoonDesc = "milestone_tycoon_desc"
+    
+    # 3D Boss Game HUD (game3d/game_3d.nim)
+    tkGame3DHp = "game3d_hp"
+    tkGame3DAmmo = "game3d_ammo"
+    tkGame3DBossHp = "game3d_boss_hp"
+    tkGame3DPhase = "game3d_phase"
+    tkGame3DSatellites = "game3d_satellites"
+    tkGame3DDestroyAll = "game3d_destroy_all"
+    tkGame3DPhaseTransition = "game3d_phase_transition"
+    tkGame3DPaused = "game3d_paused"
+    tkGame3DPressEscResume = "game3d_press_esc_resume"
+    
+    # OS UI
     tkOSRootPrompt = "os_root_prompt"
     tkOSLoading = "os_loading"
     tkOSShopNavigate = "os_shop_navigate"
@@ -1511,7 +1575,71 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "general_confirm": "Confirm",
     "general_cancel": "Cancel",
     
-    # OS UI (newly added)
+    # Wave Celebration
+    "wave_cleared_text": "WAVE",
+    "boss_defeated_text": "BOSS",
+    "wave_celeb_kills": "Kills",
+    "wave_celeb_accuracy": "Accuracy",
+    "wave_celeb_time": "Time",
+    "wave_celeb_coins": "Coins Earned",
+    "wave_celeb_max_combo": "Max Combo",
+    
+    # Achievement popup
+    "achievement_unlocked": "ACHIEVEMENT UNLOCKED!",
+    
+    # Real-time stats overlay
+    "real_stats_power": "Power",
+    "real_stats_dps": "DPS",
+    "real_stats_kills": "Kills",
+    "real_stats_cpm": "C/min",
+    
+    # Combo display
+    "combo_insane": "INSANE!",
+    "combo_crazy": "CRAZY!",
+    "combo_sick": "SICK!",
+    "combo_label": "COMBO!",
+    "combo_perfect_wave": "PERFECT WAVE!",
+    "combo_perfect_streak": "PERFECT x",
+    "combo_coins": "coins!",
+    
+    # Milestone / micro-reward popups
+    "milestone_achievement": "Achievement:",
+    "massacre_bonus": "MASSACRE BONUS!",
+    "wave_stats_flawless": "FLAWLESS!",
+    "wave_stats_title": "WAVE",
+    "wave_stats_kills_label": "Kills:",
+    "wave_stats_time_label": "Time:",
+    
+    # Milestone names & descriptions
+    "milestone_first_boss_name": "FIRST BOSS DEFEATED",
+    "milestone_first_boss_desc": "Survived your first boss encounter",
+    "milestone_veteran_name": "VETERAN SURVIVOR",
+    "milestone_veteran_desc": "Reached wave 10",
+    "milestone_elite_name": "ELITE PLAYER",
+    "milestone_elite_desc": "Reached wave 25",
+    "milestone_centurion_name": "CENTURION",
+    "milestone_centurion_desc": "Eliminated 100 enemies",
+    "milestone_executioner_name": "EXECUTIONER",
+    "milestone_executioner_desc": "Eliminated 500 enemies",
+    "milestone_death_name": "DEATH INCARNATE",
+    "milestone_death_desc": "Eliminated 1000 enemies",
+    "milestone_wealthy_name": "WEALTHY",
+    "milestone_wealthy_desc": "Collected 1000 lifetime coins",
+    "milestone_tycoon_name": "TYCOON",
+    "milestone_tycoon_desc": "Collected 5000 lifetime coins",
+    
+    # 3D Boss Game HUD
+    "game3d_hp": "HP",
+    "game3d_ammo": "Ammo",
+    "game3d_boss_hp": "Boss HP",
+    "game3d_phase": "PHASE",
+    "game3d_satellites": "Satellites",
+    "game3d_destroy_all": "DESTROY ALL!",
+    "game3d_phase_transition": "PHASE TRANSITION!",
+    "game3d_paused": "PAUSED",
+    "game3d_press_esc_resume": "Press ESC to resume",
+    
+    # OS UI
     "os_root_prompt": "root@tophat-shooteros:~$",
     "os_loading": "Loading...",
     "os_shop_navigate": "UP/DOWN/W/S ",
@@ -3208,7 +3336,71 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "general_confirm": "Confirmar",
     "general_cancel": "Cancelar",
     
-    # OS UI (recién agregado)
+    # Wave Celebration
+    "wave_cleared_text": "OLEADA",
+    "boss_defeated_text": "JEFE",
+    "wave_celeb_kills": "Muertes",
+    "wave_celeb_accuracy": "Precisión",
+    "wave_celeb_time": "Tiempo",
+    "wave_celeb_coins": "Monedas Ganadas",
+    "wave_celeb_max_combo": "Combo Máximo",
+    
+    # Achievement popup
+    "achievement_unlocked": "¡LOGRO DESBLOQUEADO!",
+    
+    # Real-time stats overlay
+    "real_stats_power": "Poder",
+    "real_stats_dps": "DPS",
+    "real_stats_kills": "Muertes",
+    "real_stats_cpm": "M/min",
+    
+    # Combo display
+    "combo_insane": "¡LOCURA!",
+    "combo_crazy": "¡BRUTAL!",
+    "combo_sick": "¡ÉPICO!",
+    "combo_label": "¡COMBO!",
+    "combo_perfect_wave": "¡OLEADA PERFECTA!",
+    "combo_perfect_streak": "PERFECTA x",
+    "combo_coins": "monedas!",
+    
+    # Milestone / micro-reward popups
+    "milestone_achievement": "Logro:",
+    "massacre_bonus": "¡BONO MASACRE!",
+    "wave_stats_flawless": "¡IMPECABLE!",
+    "wave_stats_title": "OLEADA",
+    "wave_stats_kills_label": "Muertes:",
+    "wave_stats_time_label": "Tiempo:",
+    
+    # Milestone names & descriptions
+    "milestone_first_boss_name": "PRIMER JEFE DERROTADO",
+    "milestone_first_boss_desc": "Sobreviviste tu primer enfrentamiento con un jefe",
+    "milestone_veteran_name": "SUPERVIVIENTE VETERANO",
+    "milestone_veteran_desc": "Alcanzaste la oleada 10",
+    "milestone_elite_name": "JUGADOR ÉLITE",
+    "milestone_elite_desc": "Alcanzaste la oleada 25",
+    "milestone_centurion_name": "CENTURIÓN",
+    "milestone_centurion_desc": "Eliminaste 100 enemigos",
+    "milestone_executioner_name": "VERDUGO",
+    "milestone_executioner_desc": "Eliminaste 500 enemigos",
+    "milestone_death_name": "LA MUERTE ENCARNADA",
+    "milestone_death_desc": "Eliminaste 1000 enemigos",
+    "milestone_wealthy_name": "ACAUDALADO",
+    "milestone_wealthy_desc": "Recolectaste 1000 monedas en total",
+    "milestone_tycoon_name": "MAGNATE",
+    "milestone_tycoon_desc": "Recolectaste 5000 monedas en total",
+    
+    # 3D Boss Game HUD
+    "game3d_hp": "HP",
+    "game3d_ammo": "Balas",
+    "game3d_boss_hp": "HP Jefe",
+    "game3d_phase": "FASE",
+    "game3d_satellites": "Satélites",
+    "game3d_destroy_all": "¡DESTRUYE TODOS!",
+    "game3d_phase_transition": "¡CAMBIO DE FASE!",
+    "game3d_paused": "PAUSA",
+    "game3d_press_esc_resume": "Presiona ESC para continuar",
+    
+    # OS UI
     "os_root_prompt": "root@tophat-shooteros:~$",
     "os_loading": "Cargando...",
     "os_shop_navigate": "ARRIBA/ABAJO/W/S ",
