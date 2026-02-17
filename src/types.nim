@@ -367,6 +367,7 @@ type
     parentBulletId*: int  # ID of parent bullet
     bulletId*: int  # Unique ID for this bullet
     isBossBullet*: bool  # True if this bullet was fired by a boss
+    bossBulletShape*: int  # Boss bullet shape: 0=circle,1=diamond,2=triangle,3=star,4=cross,5=square
     isArcaneBullet*: bool  # True if this bullet is from arcane bullet power-up
     isBonusFromMultiShot*: bool  # True if this is a bonus bullet from Multi-Shot
     isBonusFromDoubleShot*: bool  # True if this is a bonus bullet from Double Shot

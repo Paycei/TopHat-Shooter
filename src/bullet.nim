@@ -1,5 +1,106 @@
 import raylib, types, math, bullet_skins
 
+proc bossBulletShapeFor*(bossId: int): int =
+  ## Maps boss definition ID to a bullet shape index.
+  ## 0=circle, 1=diamond, 2=triangle, 3=star, 4=cross, 5=square
+  case bossId
+  of 1:  return 1  # Spiral Guardian  → diamond  (sharp, spinning feel)
+  of 2:  return 3  # Summoner King    → star     (summoner magic)
+  of 3:  return 2  # Meteor Striker   → triangle (jagged, falling rocks)
+  of 4:  return 4  # Laser Architect  → cross    (laser crosshairs)
+  of 5:  return 1  # Void Dancer      → diamond  (elegant, void crystal)
+  of 6:  return 5  # Chain Reactor    → square   (mechanical, boxy)
+  of 7:  return 4  # Orbital Commander→ cross    (orbital targeting)
+  of 8:  return 2  # Berserker        → triangle (aggressive, wedge)
+  of 9:  return 3  # Prism Architect  → star     (prismatic shards)
+  of 10: return 5  # Timekeeper       → square   (clockwork gears)
+  of 11: return 3  # Chaos Weaver     → star     (chaotic burst)
+  of 12: return 4  # Omega Entity     → cross    (final form, ominous)
+  else:  return 0  # fallback: circle
+
+proc drawNgon(cx, cy, r: float32, n: int, rotation: float32, color: Color) =
+  ## Draw a filled regular n-gon.
+  for i in 0..<n:
+    let a0 = rotation + i.float32 * PI * 2.0 / n.float32
+    let a1 = rotation + (i + 1).float32 * PI * 2.0 / n.float32
+    drawTriangle(
+      Vector2(x: cx, y: cy),
+      Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
+      Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
+      color)
+
+proc drawNgonLines(cx, cy, r: float32, n: int, rotation: float32, color: Color, thick: float32 = 1.5) =
+  for i in 0..<n:
+    let a0 = rotation + i.float32 * PI * 2.0 / n.float32
+    let a1 = rotation + (i + 1).float32 * PI * 2.0 / n.float32
+    drawLine(
+      Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
+      Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
+      thick, color)
+
+proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32) =
+  ## Draw a boss bullet using its assigned shape, with rotation and glow.
+  let cx = bullet.pos.x
+  let cy = bullet.pos.y
+  let r  = bullet.radius
+  # Rotate based on game time for a lively spinning effect
+  let spin = gameTime * 3.0
+
+  case bullet.bossBulletShape
+  of 1:  # Diamond (rotated square = 4-gon at 45°)
+    let rot = PI / 4.0 + spin
+    drawNgon(cx, cy, r, 4, rot, baseColor)
+    drawNgonLines(cx, cy, r + 2, 4, rot, glowColor, 1.5)
+    drawNgonLines(cx, cy, r + 4, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.0)
+
+  of 2:  # Triangle
+    let rot = -PI / 2.0 + spin * 0.7
+    drawNgon(cx, cy, r, 3, rot, baseColor)
+    drawNgonLines(cx, cy, r + 2, 3, rot, glowColor, 1.5)
+    drawNgonLines(cx, cy, r + 4, 3, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.0)
+
+  of 3:  # Star (two overlapping triangles)
+    let rot1 = -PI / 2.0 + spin * 0.5
+    let rot2 = PI / 2.0 + spin * 0.5
+    drawNgon(cx, cy, r, 3, rot1, baseColor)
+    drawNgon(cx, cy, r * 0.85, 3, rot2, baseColor)
+    drawNgonLines(cx, cy, r + 2, 3, rot1, glowColor, 1.5)
+    drawNgonLines(cx, cy, r + 2, 3, rot2, glowColor, 1.0)
+
+  of 4:  # Cross / X
+    let hw = r * 0.35  # half-width of each arm
+    let rot = spin * 0.4
+    let cos_r = cos(rot); let sin_r = sin(rot)
+    # Draw two thick perpendicular lines as a cross using quads
+    for arm in 0..1:
+      let a = rot + arm.float32 * PI / 2.0
+      let ca = cos(a); let sa = sin(a)
+      let px = Vector2(x: cx + ca * r, y: cy + sa * r)
+      let nx = Vector2(x: cx - ca * r, y: cy - sa * r)
+      let perp = Vector2(x: -sa * hw, y: ca * hw)
+      drawTriangle(
+        Vector2(x: px.x + perp.x, y: px.y + perp.y),
+        Vector2(x: px.x - perp.x, y: px.y - perp.y),
+        Vector2(x: nx.x + perp.x, y: nx.y + perp.y),
+        baseColor)
+      drawTriangle(
+        Vector2(x: nx.x + perp.x, y: nx.y + perp.y),
+        Vector2(x: px.x - perp.x, y: px.y - perp.y),
+        Vector2(x: nx.x - perp.x, y: nx.y - perp.y),
+        baseColor)
+    drawCircleLines(cx.int32, cy.int32, r + 3, glowColor)
+    drawCircleLines(cx.int32, cy.int32, r + 5, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2))
+
+  of 5:  # Square (axis-aligned, slow rotation)
+    let rot = spin * 0.25
+    drawNgon(cx, cy, r, 4, rot, baseColor)
+    drawNgonLines(cx, cy, r + 2, 4, rot, glowColor, 1.5)
+    drawNgonLines(cx, cy, r + 4, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.0)
+
+  else:  # Circle fallback
+    drawCircle(Vector2(x: cx, y: cy), r, baseColor)
+    drawCircleLines(cx.int32, cy.int32, r + 2, glowColor)
+
 const BASE_PLAYER_BULLET_RADIUS* = 5.0
 
 proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true, 
@@ -12,7 +113,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
                 wasCrit: bool = false, isSpecialRound: bool = false,
                 bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1,
-                ownerPlayerIndex: int = -1): Bullet =
+                ownerPlayerIndex: int = -1, bossBulletShape: int = 0,
+                bulletRadius: float32 = 0.0): Bullet =
   # Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -44,6 +146,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     bulletId: bulletId,  # Unique ID for this bullet
     parentBulletId: parentBulletId,  # ID of parent bullet (for echo tracking)
     isBossBullet: isBossBullet,  # Mark boss bullets for glow effect
+    bossBulletShape: bossBulletShape,  # Shape index for boss bullets
     isArcaneBullet: isArcaneBullet,  # Arcane bullet from arcane bullets power-up
     isBonusFromMultiShot: isBonusFromMultiShot,  # Bonus bullet from Multi-Shot
     isBonusFromDoubleShot: isBonusFromDoubleShot,  # Bonus bullet from Double Shot
@@ -52,6 +155,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     bulletSkin: bulletSkin,  # Bullet skin type
     ownerPlayerIndex: ownerPlayerIndex  # For PvP: which player (0 or 1) shot this (-1 for non-PvP)
   )
+  if bulletRadius > 0.0:
+    result.radius = bulletRadius
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
   # Track distance traveled for Overcharge power-up
@@ -133,6 +238,9 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3, color)
     # Fill center
     drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius * 0.5, color)
+  elif bullet.isBossBullet and bullet.bossBulletShape > 0:
+    # Boss bullets with a unique shape — shape + glow already handled together
+    drawBossBulletShape(bullet, color, glowColor, gameTime)
   else:
     # Normal circle bullet
     drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
@@ -166,13 +274,15 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
                      Color(r: 255, g: 20, b: 20, a: 60))
     # Boss bullets get a special strong glow effect
     elif bullet.isBossBullet:
-      # Multiple glow rings for boss bullets
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4, 
-                     Color(r: 255, g: 50, b: 150, a: 200))
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 7, 
-                     Color(r: 255, g: 100, b: 150, a: 120))
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 10, 
-                     Color(r: 255, g: 150, b: 180, a: 60))
+      if bullet.bossBulletShape == 0:
+        # Circle fallback — draw old-style glow rings
+        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4, 
+                       Color(r: 255, g: 50, b: 150, a: 200))
+        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 7, 
+                       Color(r: 255, g: 100, b: 150, a: 120))
+        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 10, 
+                       Color(r: 255, g: 150, b: 180, a: 60))
+      # shaped boss bullets already drew their glow inside drawBossBulletShape
     else:
       # Regular enemy bullets - standard pink glow
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
@@ -323,7 +433,8 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     original.bulletSkin,  # Preserve bullet skin
     0,  # bulletId (will be assigned later)
     -1,  # parentBulletId
-    original.ownerPlayerIndex  # Preserve owner for PvP
+    original.ownerPlayerIndex,  # Preserve owner for PvP
+    original.bossBulletShape   # Preserve boss bullet shape
   )
   
   # Copy additional state that needs to be preserved

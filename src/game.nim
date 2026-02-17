@@ -2144,7 +2144,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
       ))
   
   of bapBurst:
@@ -2157,7 +2159,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
       ))
   
   of bapWave:
@@ -2187,7 +2191,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = bulletSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
       ))
       
       # Special visual effects per wave type
@@ -2221,7 +2227,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
       ))
   
   of bapCircle:
@@ -2258,7 +2266,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = bulletSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
       ))
       
       # Add temporal particle trail for time_ring
@@ -2672,7 +2682,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = speed, damage = damage,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
       ))
     
     # MODE-SPECIFIC EXPLOSIONS
@@ -2750,7 +2762,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
       ))
     
     # MODE-SPECIFIC VISUAL ENHANCEMENTS
@@ -3052,7 +3066,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       game.bullets.add(newBullet(
         x = targetX, y = startY, direction = newVector2f(0, 1),
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
       ))
       
       # Special visual effects for satellite strikes
@@ -3216,7 +3232,8 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
           damage = currentDamage,
           fromPlayer = false, 
           isBossBullet = true, 
-          sourceEnemyId = enemy.id
+          sourceEnemyId = enemy.id,
+          bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID)
         ))
         
         # Chain impact explosion
@@ -3252,7 +3269,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
             direction = branchDir,
             speed = 200.0,
             damage = attack.damage * phase.damageMultiplier * 0.5,
-            fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+            fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
           ))
     
     # Central explosion - varies by mode
@@ -3410,7 +3429,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         direction = dashDir,
         speed = dashSpeed * 0.4,  # Trail effect
         damage = attack.damage * phase.damageMultiplier * 0.6,  # Trail damage
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
       ))
     
     # Rage charges get FIRE RING on activation
@@ -3473,7 +3494,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
       ))
       
       # Visual muzzle flash per shot
@@ -4001,13 +4024,20 @@ proc updateGame*(game: var Game, dt: float32) =
           let dir = newVector2f(cos(angle), sin(angle))
           
           # Spawn bullet from this teleport location
+          let warnSourceId = game.attackWarnings[i].sourceEnemyId
+          var warnBossShape = 0
+          for be in game.enemies:
+            if be.id == warnSourceId:
+              warnBossShape = bossBulletShapeFor(be.bossDefinitionID)
+              break
           game.bullets.add(newBullet(
             x = warningPos.x, y = warningPos.y,
             direction = dir,
             speed = game.attackWarnings[i].bulletSpeed,
             damage = game.attackWarnings[i].bulletDamage,
             fromPlayer = false, isBossBullet = true, 
-            sourceEnemyId = game.attackWarnings[i].sourceEnemyId
+            sourceEnemyId = warnSourceId,
+            bossBulletShape = warnBossShape
           ))
       
       # Mark bullets as created

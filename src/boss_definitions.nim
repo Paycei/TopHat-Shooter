@@ -30,6 +30,7 @@ type
     projectileCount*: int
     spreadAngle*: float32
     durationOrRadius*: float32
+    bulletRadius*: float32     # Bullet size override (0 = use default 6)
     specialData*: string  # JSON-like data for special mechanics
 
   BossPhaseDefinition* = object
@@ -140,7 +141,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
-  
+
   of 2:  # Wave 10 - THE SUMMONER KING
     result = BossDefinition(
       name: t(tkBoss2Name),
@@ -177,10 +178,11 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapWave,
               damage: 1.0,
               cooldown: 2.75,
-              projectileSpeed: 150.0,
+              projectileSpeed: 160.0,
               projectileCount: 5,
               spreadAngle: 50.0,
-              durationOrRadius: 0.0
+              durationOrRadius: 0.0,
+              bulletRadius: 10.0
             )
           ]
         ),
@@ -208,25 +210,27 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapBurst,
               damage: 1.0,
               cooldown: 2.5,
-              projectileSpeed: 150.0,
+              projectileSpeed: 175.0,
               projectileCount: 5,
               spreadAngle: 60.0,
-              durationOrRadius: 0.0
+              durationOrRadius: 0.0,
+              bulletRadius: 9.0
             ),
             BossAttack(
               attackType: bapCircle,
               damage: 1.0,
               cooldown: 4.0,
-              projectileSpeed: 140.0,
+              projectileSpeed: 165.0,
               projectileCount: 10,
               spreadAngle: 360.0,
-              durationOrRadius: 0.0
+              durationOrRadius: 0.0,
+              bulletRadius: 12.5
             )
           ]
         )
       ]
     )
-  
+
   of 3:  # Wave 15 - THE METEOR STRIKER
     result = BossDefinition(
       name: t(tkBoss3Name),
@@ -334,7 +338,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
-  
+
   of 4:  # Wave 20 - THE LASER ARCHITECT
     result = BossDefinition(
       name: t(tkBoss4Name),
@@ -506,7 +510,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
-  
+
   of 5:  # Wave 25 - THE VOID DANCER
     result = BossDefinition(
       name: t(tkBoss5Name),
@@ -677,7 +681,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
-  
+
   of 6:  # Wave 30 - THE CHAIN REACTOR
     result = BossDefinition(
       name: t(tkBoss6Name),
@@ -714,7 +718,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapOrbit,
               damage: 0.8,
               cooldown: 0.8,  # Constant orbiting charges
-              projectileSpeed: 85.0,
+              projectileSpeed: 75.0,
               projectileCount: 3,  # 3 electric charges
               spreadAngle: 120.0,  # Evenly spaced
               durationOrRadius: 140.0,  # Orbit radius
@@ -755,7 +759,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapOrbit,
               damage: 1.2,
               cooldown: 0.5,
-              projectileSpeed: 110.0,
+              projectileSpeed: 90.0,
               projectileCount: 5,  # More charges
               spreadAngle: 72.0,
               durationOrRadius: 160.0,
@@ -806,7 +810,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapOrbit,
               damage: 1.5,
               cooldown: 0.4,  # Constant barrage
-              projectileSpeed: 130.0,
+              projectileSpeed: 100.0,
               projectileCount: 6,
               spreadAngle: 60.0,
               durationOrRadius: 180.0,
@@ -836,7 +840,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
-  
+
   of 7:  # Wave 35 - THE ORBITAL COMMANDER
     result = BossDefinition(
       name: t(tkBoss7Name),
@@ -904,7 +908,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapOrbit,
               damage: 1.5,
               cooldown: 0.8,
-              projectileSpeed: 95.0,
+              projectileSpeed: 90.0,
               projectileCount: 5,
               spreadAngle: 72.0,
               durationOrRadius: 200.0,
@@ -955,7 +959,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapOrbit,
               damage: 2.0,
               cooldown: 0.6,
-              projectileSpeed: 115.0,
+              projectileSpeed: 100.0,
               projectileCount: 8,
               spreadAngle: 45.0,
               durationOrRadius: 220.0,
@@ -995,7 +999,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
-  
+
   of 8:  # Wave 40 - THE BERSERKER JUGGERNAUT
     result = BossDefinition(
       name: t(tkBoss8Name),
@@ -1150,7 +1154,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         )
       ]
-    )  
+    )
   of 9:  # Wave 45 - THE PRISM ARCHITECT
     result = BossDefinition(
       name: t(tkBoss9Name),
@@ -1307,7 +1311,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
-  
+
   of 10:  # Wave 50 - THE TIMEKEEPER
     result = BossDefinition(
       name: t(tkBoss10Name),
@@ -1475,7 +1479,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
-  
+
   of 11:  # Wave 55 - THE CHAOS WEAVER
     result = BossDefinition(
       name: t(tkBoss11Name),
@@ -1624,7 +1628,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
-  
+
   of 12:  # Wave 60 - THE OMEGA ENTITY
     result = BossDefinition(
       name: t(tkBoss12Name),
@@ -1658,9 +1662,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapOrbit,
-              damage: 2.5,  # NERFED from 3.0
-              cooldown: 1.5,  # NERFED from 1.0
-              projectileSpeed: 100.0,  # NERFED from 120.0
+              damage: 2.5,
+              cooldown: 1.5,
+              projectileSpeed: 100.0,
               projectileCount: 5,  # NERFED from 6
               spreadAngle: 60.0,
               durationOrRadius: 220.0  # NERFED from 250.0
@@ -1817,7 +1821,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
-  
+
   else:  # Wave 65+ - RANDOM BOSSES
     # After wave 60, generate random powerful bosses
     let randomBossType = rand(11) + 1
@@ -1834,11 +1838,11 @@ proc getCustomBossNumber*(waveNumber: int): int =
   ## After wave 60, continues with boss 12 (The Final Sentinel)
   if waveNumber <= 0 or waveNumber mod 5 != 0:
     return 0
-  
+
   let bossNumber = waveNumber div 5
   if bossNumber > 12:
     return 12  # Boss 12 (The Final Sentinel) continues indefinitely with scaled stats
-  
+
   return bossNumber
 
 proc getBossForWave*(waveNumber: int): BossDefinition =
@@ -1847,14 +1851,14 @@ proc getBossForWave*(waveNumber: int): BossDefinition =
   if not isBossWave(waveNumber):
     # Not a boss wave, return empty definition
     return BossDefinition()
-  
+
   let bossNumber = getCustomBossNumber(waveNumber)
   return getBossDefinition(bossNumber)
 
 proc getCurrentPhase*(boss: BossDefinition, currentHpPercent: float32): BossPhaseDefinition =
   ## Returns the current phase based on boss HP percentage
   result = boss.phases[0]  # Default to first phase
-  
+
   for phase in boss.phases:
     if currentHpPercent <= phase.hpThreshold:
       result = phase
@@ -1932,5 +1936,3 @@ proc getBossGlowIntensity*(visualEffect: string, gameTime: float32): float32 =
 proc shouldSpawnParticles*(visualEffect: string): bool =
   ## Determines if boss should spawn visual particles
   visualEffect in ["glow", "aura", "pulse"]
-
-# Export all types and procedures
