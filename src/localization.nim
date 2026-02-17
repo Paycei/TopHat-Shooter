@@ -193,6 +193,7 @@ type
     tkDebugPanelTimeLabel = "debug_panel_time_label"
     tkShopTabPlayer = "shop_tab_player"
     tkShopTabBullet = "shop_tab_bullet"
+    tkShopTabBulletShapes = "shop_tab_bshapes"
     tkShopTabShapes = "shop_tab_shapes"
     tkShopTabParticles = "shop_tab_particles"
     tkShopScrollHint = "shop_scroll_hint"
@@ -266,7 +267,22 @@ type
     tkShapeSquareDesc = "shape_square_desc"
     tkShapeCircle = "shape_circle"
     tkShapeCircleDesc = "shape_circle_desc"
-    
+
+    # Bullet Shapes
+    tkBulletShapeCircle = "bshape_circle"
+    tkBulletShapeCircleDesc = "bshape_circle_desc"
+    tkBulletShapeTriangle = "bshape_triangle"
+    tkBulletShapeTriangleDesc = "bshape_triangle_desc"
+    tkBulletShapeDiamond = "bshape_diamond"
+    tkBulletShapeDiamondDesc = "bshape_diamond_desc"
+    tkBulletShapeSquare = "bshape_square"
+    tkBulletShapeSquareDesc = "bshape_square_desc"
+    tkBulletShapeStar = "bshape_star"
+    tkBulletShapeStarDesc = "bshape_star_desc"
+    tkBulletShapeArrow = "bshape_arrow"
+    tkBulletShapeArrowDesc = "bshape_arrow_desc"
+    tkShopCustomizeBulletShapes = "shop_customize_bshapes"
+
     # Particle Skins
     tkParticleDefault = "particle_default"
     tkParticleDefaultDesc = "particle_default_desc"
@@ -1656,6 +1672,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Shop tabs
     "shop_tab_player": "PLAYER",
     "shop_tab_bullet": "BULLET",
+    "shop_tab_bshapes": "B.SHAPE",
     "shop_tab_shapes": "SHAPES",
     "shop_tab_particles": "PARTICLES",
     "shop_scroll_hint": "Scroll with mouse wheel to see all skins",
@@ -1729,8 +1746,21 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shape_square_desc": "Solid square shape",
     "shape_circle": "Circle",
     "shape_circle_desc": "Pure circular form",
-    
-    # Particle Skins
+
+    # Bullet Shapes
+    "bshape_circle": "Classic",
+    "bshape_circle_desc": "Standard circle bullet",
+    "bshape_triangle": "Shard",
+    "bshape_triangle_desc": "Pointed triangular shot",
+    "bshape_diamond": "Crystal",
+    "bshape_diamond_desc": "Sharp diamond projectile",
+    "bshape_square": "Block",
+    "bshape_square_desc": "Solid square bullet",
+    "bshape_star": "Star",
+    "bshape_star_desc": "Six-pointed star burst",
+    "bshape_arrow": "Arrow",
+    "bshape_arrow_desc": "Arrowhead tracks direction",
+    "shop_customize_bshapes": "CUSTOMIZE BULLET SHAPE",
     "particle_default": "System Default",
     "particle_default_desc": "Standard cyan energy",
     "particle_fire": "Flame Burst",
@@ -2679,6 +2709,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Shop tabs
     "shop_tab_player": "JUGADOR",
     "shop_tab_bullet": "BALA",
+    "shop_tab_bshapes": "F.BALA",
     "shop_tab_shapes": "FORMAS",
     "shop_tab_particles": "PARTÍCULAS",
     "shop_scroll_hint": "Rueda del ratón para ver más",
@@ -2752,8 +2783,21 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shape_square_desc": "Forma cuadrada sólida",
     "shape_circle": "Círculo",
     "shape_circle_desc": "Forma circular pura",
-    
-    # Particle Skins
+
+    # Bullet Shapes
+    "bshape_circle": "Clásico",
+    "bshape_circle_desc": "Bala circular estándar",
+    "bshape_triangle": "Fragmento",
+    "bshape_triangle_desc": "Disparo triangular",
+    "bshape_diamond": "Cristal",
+    "bshape_diamond_desc": "Proyectil diamante",
+    "bshape_square": "Bloque",
+    "bshape_square_desc": "Bala cuadrada sólida",
+    "bshape_star": "Estrella",
+    "bshape_star_desc": "Ráfaga de seis puntas",
+    "bshape_arrow": "Flecha",
+    "bshape_arrow_desc": "Punta de flecha direccional",
+    "shop_customize_bshapes": "FORMA DE LAS BALAS",
     "particle_default": "Sistema",
     "particle_default_desc": "Energía estándar",
     "particle_fire": "Llamas",

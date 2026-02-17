@@ -26,7 +26,7 @@ proc isBossCoinActive*(manager: BossWaveManager): bool = manager.coinActive
 proc completeBossWave*(game: Game) =
   ## Centralized boss wave completion - handles cleanup, advancement, power-up
   for enemy in game.enemies:
-    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                   Color(r: 255, g: 50, b: 50, a: 255), 15)
   
   game.enemies = @[]
@@ -157,7 +157,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
   let pulse = (sin(time * config.pulseSpeed) * 0.2 + 0.8).float32
   
   # Draw core glow (common to all auras)
-  drawCircle(Vector2(x: pos.x, y: pos.y), 
+  drawCircle(Vector2(x: pos.x, y: pos.y),
              config.radius * 0.3 * pulse, config.coreColor)
   
   # Draw style-specific visuals
@@ -171,7 +171,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
       let alpha = uint8((60 - ring * 8).float32 * flicker)
       let redShift = uint8(255 - progress * 50)
       let greenShift = uint8(100 + progress * 50)
-      drawCircleLines(pos.x.int32, pos.y.int32, ringRadius, 
+      drawCircleLines(pos.x.int32, pos.y.int32, ringRadius,
                      Color(r: redShift, g: greenShift, b: 0, a: alpha))
     
     # Rotating flame wisps
@@ -180,7 +180,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
       let dist = config.radius * 0.7 + sin(time * 3.0 + i.float32) * 15.0
       let x = pos.x + cos(angle) * dist
       let y = pos.y + sin(angle) * dist - abs(sin(time * 4.0 + i.float32)) * 8.0
-      drawCircle(Vector2(x: x, y: y), 4 + sin(time * 5.0 + i.float32) * 2, 
+      drawCircle(Vector2(x: x, y: y), 4 + sin(time * 5.0 + i.float32) * 2,
                 Color(r: 255, g: 150, b: 50, a: 180))
       drawCircle(Vector2(x: x, y: y - 2), 2, Color(r: 255, g: 255, b: 100, a: 220))
   
@@ -192,7 +192,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
     for arc in 1..4:
       let arcRadius = config.radius * (arc.float32 / 4.0) * pulse
       let alpha = uint8((50 - arc * 8).float32 * (0.7 + crackle * 0.3))
-      drawCircleLines(pos.x.int32, pos.y.int32, arcRadius, 
+      drawCircleLines(pos.x.int32, pos.y.int32, arcRadius,
                      Color(r: 150, g: 200, b: 255, a: alpha))
     
     # Lightning bolts shooting outward
@@ -214,7 +214,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
           let t = seg.float32 / segments.float32
           let nextX = x1 + (x2 - x1) * t + (if seg mod 2 == 0: -5.0 else: 5.0)
           let nextY = y1 + (y2 - y1) * t + (if seg mod 2 == 0: 5.0 else: -5.0)
-          drawLine(Vector2(x: prevX, y: prevY), Vector2(x: nextX, y: nextY), 2, 
+          drawLine(Vector2(x: prevX, y: prevY), Vector2(x: nextX, y: nextY), 2,
                   Color(r: 200, g: 220, b: 255, a: 200))
           prevX = nextX
           prevY = nextY
@@ -227,7 +227,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
     for ring in 1..4:
       let ringRadius = config.radius * (ring.float32 / 4.0) * pulse
       let alpha = uint8((50 - ring * 10))
-      drawCircleLines(pos.x.int32, pos.y.int32, ringRadius, 
+      drawCircleLines(pos.x.int32, pos.y.int32, ringRadius,
                      Color(r: 100, g: 255, b: 100, a: alpha))
     
     # Floating toxic bubbles rising
@@ -273,7 +273,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
           let y2 = pos.y + sin(angle + angleOffset) * endDist
           
           let alpha = uint8((50 - ring * 8 - seg * 5).float32)
-          drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, 
+          drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2,
                   Color(r: 200, g: 230, b: 255, a: alpha))
     
     # Floating air particles
@@ -294,7 +294,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
       let ringRadius = config.radius * progress * pulse
       let alpha = uint8((55 - ring * 8).float32 * pulse)
       let colorShift = uint8(200 - progress * 50)
-      drawCircleLines(pos.x.int32, pos.y.int32, ringRadius, 
+      drawCircleLines(pos.x.int32, pos.y.int32, ringRadius,
                      Color(r: colorShift, g: 100, b: 255, a: alpha))
     
     # Orbiting arcane runes
@@ -327,7 +327,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
       let ringRadius = config.radius * progress * pulse * (1.0 + heartbeat * 0.1)
       let alpha = uint8((60 - ring * 10).float32 * (0.8 + heartbeat * 0.2))
       let colorIntensity = uint8(255 - progress * 100)
-      drawCircleLines(pos.x.int32, pos.y.int32, ringRadius, 
+      drawCircleLines(pos.x.int32, pos.y.int32, ringRadius,
                      Color(r: colorIntensity, g: 50, b: 50, a: alpha))
     
     # Floating blood droplets
@@ -515,7 +515,7 @@ proc applyCriticalHitWithFlag*(stats: CombatStats, baseDamage: float32): tuple[d
 
 # DAMAGE NUMBERS HELPER
 
-proc showDamage*(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool, 
+proc showDamage*(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool,
                 isCritical: bool = false, damageType: DamageType = dtDefault) =
   ## Centralized helper to create and display damage numbers
   game.damageNumbers.add(newDamageNumber(pos.x, pos.y, damage, fromPlayer, isCritical, damageType))
@@ -548,7 +548,7 @@ proc accumulateAndShowAuraDamage(game: Game, enemy: Enemy, actualDamage: float32
     # Time to show accumulated damage (raw damage, not per-second)
     if enemy.auraDamageAccumulator > 0:
       # Show the raw accumulated damage with crit status
-      game.showDamage(enemy.pos, enemy.auraDamageAccumulator, fromPlayer = true, 
+      game.showDamage(enemy.pos, enemy.auraDamageAccumulator, fromPlayer = true,
                       isCritical = enemy.auraDamageHadCrit, damageType = damageType)
     
     # Reset accumulator, timer, and crit tracker
@@ -584,7 +584,7 @@ proc accumulateAndShowContactDamage(game: Game, enemy: Enemy, actualDamage: floa
   if timeSinceLastNumber >= DAMAGE_NUMBER_INTERVAL:
     # Time to show accumulated damage
     if enemy.contactDamageAccumulator > 0:
-      game.showDamage(enemy.pos, enemy.contactDamageAccumulator, fromPlayer = true, 
+      game.showDamage(enemy.pos, enemy.contactDamageAccumulator, fromPlayer = true,
                       isCritical = false, damageType = dtDefault)
     
     # Reset accumulator and timer
@@ -629,7 +629,7 @@ proc calculateContactDamageToEnemy*(player: Player, enemy: Enemy): tuple[damage:
 
 # THORNS REFLECTION HELPER
 
-proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: float32, 
+proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: float32,
                             targetEnemy: Enemy, reflectType: string): float32 =
   ## Centralized thorns reflection calculation
   ## reflectType: "contact" for enemy contact, "bullet" for enemy bullets, "boss" for boss contact
@@ -671,7 +671,7 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
                   isCritical = reflectDamageWithCrit > reflectDamageBase, damageType = dtDefault)
   
   # Visual feedback
-  spawnExplosionPooled(game.particlePool, targetEnemy.pos.x, targetEnemy.pos.y, Red, 
+  spawnExplosionPooled(game.particlePool, targetEnemy.pos.x, targetEnemy.pos.y, Red,
                 if reflectType == "boss": 8 elif reflectType == "contact": 6 else: 5)
   
   return actualDamage
@@ -804,7 +804,7 @@ proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
       level: getPowerUpLevel(game.player, puBloodBullets)
     ))
 
-proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy, 
+proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
                        bullet: Bullet, dt: float32, stats: CombatStats) =
   ## Apply a single bullet effect to an enemy
   ## Uses pre-calculated combat stats for critical hit calculations
@@ -885,7 +885,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       let particleDist = rand(enemy.radius + 10.0)
       let particleX = enemy.pos.x + cos(particleAngle) * particleDist
       let particleY = enemy.pos.y + sin(particleAngle) * particleDist
-      spawnExplosionPooled(game.particlePool, particleX, particleY, 
+      spawnExplosionPooled(game.particlePool, particleX, particleY,
                     Color(r: 200, g: 230, b: 255, a: 180), 2)
   
   of befChainLightning:
@@ -925,7 +925,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
             
             # Create damage number
             if actualDamage > 0:
-              showDamage(game, game.enemies[k].pos, actualDamage, true, 
+              showDamage(game, game.enemies[k].pos, actualDamage, true,
                         chainDmgWithCrit > chainDmgBase, dtLightning)
             
             game.enemies[k].chainLightningCooldown = 0.3
@@ -993,7 +993,7 @@ proc cleanupGame*(game: Game) =
   if not game.player.isNil:
     game.player.rotatingOrbs = @[]
 
-proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0, particleSkin: int = 0): Game =
+proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0, particleSkin: int = 0, bulletShape: int = 0): Game =
   let defaultMode = gmWaveBased  # Default to wave-based mode
   let modeDef = getGameModeDefinition(defaultMode)
   
@@ -1064,6 +1064,7 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
   result.player.skinType = playerSkin
   result.player.bulletSkinType = bulletSkin
   result.player.shapeType = playerShape
+  result.player.bulletShapeType = bulletShape
   result.player.particleSkinType = particleSkin
   
   # Discord client is assigned from global instance in main.nim
@@ -1266,7 +1267,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       game.waveEnemiesRemaining -= 1
 
 proc checkWaveComplete*(game: Game): bool =
-  # Wave is complete when all enemies are defeated, none remain to spawn, 
+  # Wave is complete when all enemies are defeated, none remain to spawn,
   # AND boss coin has been collected (if there was one)
   return game.waveEnemiesRemaining == 0 and game.enemies.len == 0 and not game.bossWaveManager.isBossCoinActive()
 
@@ -1440,7 +1441,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           isBonusFromMultiShot = (i > 0),  # First bullet (i=0) is normal, rest are bonus
           wasCrit = wasCrit,
           isSpecialRound = isSpecialRound,
-          bulletSkin = game.player.bulletSkinType
+          bulletSkin = game.player.bulletSkinType,
+          bulletShape = game.player.bulletShapeType
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -1473,7 +1475,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         isBonusFromDoubleShot = false,  # First bullet is normal
         wasCrit = wasCrit,
         isSpecialRound = isSpecialRound,
-        bulletSkin = game.player.bulletSkinType
+        bulletSkin = game.player.bulletSkinType,
+        bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
       assignBulletId(game, bullet)
@@ -1513,7 +1516,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           isBonusFromMultiShot = (i > 0),  # First bullet (i=0) is normal, rest are bonus
           wasCrit = wasCrit,
           isSpecialRound = isSpecialRound,
-          bulletSkin = game.player.bulletSkinType
+          bulletSkin = game.player.bulletSkinType,
+          bulletShape = game.player.bulletShapeType
         )
         bullet.radius = bulletRadius
         game.bullets.add(bullet)
@@ -1539,7 +1543,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         isArcaneBullet = hasArcane,
         wasCrit = wasCrit,
         isSpecialRound = isSpecialRound,
-        bulletSkin = game.player.bulletSkinType
+        bulletSkin = game.player.bulletSkinType,
+        bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
       assignBulletId(game, bullet)
@@ -1662,7 +1667,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         isBonusFromDoubleShot = true,
         isBonusFromMultiShot = (i > 0),
         wasCrit = wasCrit,
-        bulletSkin = game.player.bulletSkinType
+        bulletSkin = game.player.bulletSkinType,
+        bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
       assignBulletId(game, bullet)
@@ -1692,7 +1698,8 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       isArcaneBullet = hasArcane,
       isBonusFromDoubleShot = true,
       wasCrit = wasCrit,
-      bulletSkin = game.player.bulletSkinType
+      bulletSkin = game.player.bulletSkinType,
+      bulletShape = game.player.bulletShapeType
     )
     bullet.radius = bulletRadius
     assignBulletId(game, bullet)
@@ -1817,7 +1824,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     let surgePhase = (game.time * 15.0).int mod 4
     let surgeAngle = case surgePhase
       of 0: arctan2(toPlayer.y, toPlayer.x) + 0.5
-      of 1: arctan2(toPlayer.y, toPlayer.x) - 0.5  
+      of 1: arctan2(toPlayer.y, toPlayer.x) - 0.5
       of 2: arctan2(toPlayer.y, toPlayer.x) + 0.3
       else: arctan2(toPlayer.y, toPlayer.x) - 0.3
     
@@ -2049,7 +2056,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       
       # Chaotic teleport effect
       spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                     Color(r: uint8(255 - rand(100)), g: uint8(rand(255)), 
+                     Color(r: uint8(255 - rand(100)), g: uint8(rand(255)),
                            b: uint8(255 - rand(100)), a: 255), 25)
     else:
       # Erratic movement with random speed bursts
@@ -2342,7 +2349,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         
         of "prismatic_cage":
           # Calculate angle biased toward player with radial spread
-          let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, 
+          let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y,
                                        game.player.pos.x - enemy.pos.x)
           
           # Create proper radial pattern with player bias
@@ -2472,7 +2479,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       800.0
     
     game.attackWarnings.add(newBossLaserWarning(
-      enemy.pos.x, enemy.pos.y, 
+      enemy.pos.x, enemy.pos.y,
       BOSS_LASER_WARNING_TIME,
       warningAngles,
       laserLength,  # Adjusted based on pattern type
@@ -3026,7 +3033,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         # Create minion with determined type
         # Use a fixed base difficulty so minions don't become stronger over time
         let minion = newEnemy(
-          spawnX, spawnY, 
+          spawnX, spawnY,
           2.5,  # Fixed difficulty - does NOT scale with time
           thisType,
           game
@@ -3220,7 +3227,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         let chainY = enemy.pos.y + dir.y * distance
         
         # Check if chain is still on screen
-        if chainX < 0 or chainX > game.screenWidth.float32 or 
+        if chainX < 0 or chainX > game.screenWidth.float32 or
            chainY < 0 or chainY > game.screenHeight.float32:
           break
         
@@ -3246,8 +3253,8 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
           direction = dir,
           speed = 180.0 + rand(40.0),  # Slightly randomized speed
           damage = currentDamage,
-          fromPlayer = false, 
-          isBossBullet = true, 
+          fromPlayer = false,
+          isBossBullet = true,
           sourceEnemyId = enemy.id,
           bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID)
         ))
@@ -3270,7 +3277,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         let branchX = enemy.pos.x + branchDir.x * branchDist
         let branchY = enemy.pos.y + branchDir.y * branchDist
         
-        if branchX > 0 and branchX < game.screenWidth.float32 and 
+        if branchX > 0 and branchX < game.screenWidth.float32 and
            branchY > 0 and branchY < game.screenHeight.float32:
           # Visual branch
           for step in 0..6:
@@ -3493,7 +3500,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       # Create one warning indicator per projectile to show attack incoming
       for i in 0..<attack.projectileCount:
         game.attackWarnings.add(newAttackWarning(
-          enemy.pos.x, enemy.pos.y, 
+          enemy.pos.x, enemy.pos.y,
           "laser_pointer",  # Special warning type for snipes
           warningTime
         ))
@@ -3530,7 +3537,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
 
 # ORBITAL WEAPONS SYSTEM
 
-proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy, 
+proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
                     baseDamage: float32, orbPos: Vector2f, currentTime: float32,
                     enemyIdx: int): bool =
   ## Apply damage from orb to enemy and handle hit cooldown
@@ -3577,7 +3584,7 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   
   return true
 
-proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy, 
+proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
                      baseDamage: float32, orbPos: Vector2f, dt: float32) =
   ## Apply element-specific effects from orb to enemy
   
@@ -3604,7 +3611,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
         enemy.slowAmount = 0.30  # 30% slow
     
     # Green particles
-    spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y, 
+    spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
                    Color(r: 100, g: 255, b: 100, a: 255), 5)
   
   of etFire:
@@ -3757,11 +3764,11 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     game.player.hp = min(game.player.hp + healAmount, game.player.maxHp)
     
     if healAmount > 0.01:
-      game.showDamage(game.player.pos, healAmount, fromPlayer = true, 
+      game.showDamage(game.player.pos, healAmount, fromPlayer = true,
                       isCritical = false, damageType = dtHeal)
       
       # Green healing particles at player
-      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, 
+      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                      Color(r: 100, g: 255, b: 100, a: 255), 3)
     
     # Red blood particles at hit location
@@ -3775,11 +3782,11 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
   ## Update all rotating orbs and handle collisions with enemies
   
   # Check if player has any orb power-ups
-  if not (hasPowerUp(game.player, puRotatingOrbs) or 
-          hasPowerUp(game.player, puPoisonOrb) or 
-          hasPowerUp(game.player, puFireOrb) or 
-          hasPowerUp(game.player, puLightningOrb) or 
-          hasPowerUp(game.player, puWindOrb) or 
+  if not (hasPowerUp(game.player, puRotatingOrbs) or
+          hasPowerUp(game.player, puPoisonOrb) or
+          hasPowerUp(game.player, puFireOrb) or
+          hasPowerUp(game.player, puLightningOrb) or
+          hasPowerUp(game.player, puWindOrb) or
           hasPowerUp(game.player, puFrostOrb) or
           hasPowerUp(game.player, puArcaneOrb) or
           hasPowerUp(game.player, puBloodOrb)):
@@ -3957,7 +3964,7 @@ proc updateGame*(game: var Game, dt: float32) =
           break
     
     # BOSS LASER SYSTEM: Create lasers when warning expires (at 0.1s remaining for smooth transition)
-    if game.attackWarnings[i].attackType == "boss_laser" and 
+    if game.attackWarnings[i].attackType == "boss_laser" and
        not game.attackWarnings[i].lasersCreated and
        game.attackWarnings[i].lifetime <= 0.1:
       
@@ -3998,7 +4005,7 @@ proc updateGame*(game: var Game, dt: float32) =
       game.attackWarnings[i].lasersCreated = true
     
     # TELEPORT WARNING SYSTEM: Spawn bullets when warning expires
-    if game.attackWarnings[i].attackType == "teleport_warning" and 
+    if game.attackWarnings[i].attackType == "teleport_warning" and
        not game.attackWarnings[i].bulletsCreated and
        game.attackWarnings[i].lifetime <= 0.1:
       
@@ -4025,7 +4032,7 @@ proc updateGame*(game: var Game, dt: float32) =
               of "omega_blink": 35
               else: 15
             
-            spawnExplosionPooled(game.particlePool, warningPos.x, warningPos.y, 
+            spawnExplosionPooled(game.particlePool, warningPos.x, warningPos.y,
                           Color(r: 150, g: 100, b: 255, a: 255), arrivalExplosionSize)
             break
       
@@ -4051,7 +4058,7 @@ proc updateGame*(game: var Game, dt: float32) =
             direction = dir,
             speed = game.attackWarnings[i].bulletSpeed,
             damage = game.attackWarnings[i].bulletDamage,
-            fromPlayer = false, isBossBullet = true, 
+            fromPlayer = false, isBossBullet = true,
             sourceEnemyId = warnSourceId,
             bossBulletShape = warnBossShape
           ))
@@ -4161,7 +4168,8 @@ proc updateGame*(game: var Game, dt: float32) =
           poisonDuration = 0.0,
           fireDuration = 0.0,
           windPushForce = 0.0,
-          bulletSkin = game.player.bulletSkinType
+          bulletSkin = game.player.bulletSkinType,
+          bulletShape = game.player.bulletShapeType
         ))
       
       # Visual feedback
@@ -4261,7 +4269,7 @@ proc updateGame*(game: var Game, dt: float32) =
             enemy.slowAmount = 0.35  # 35% slow
         
         # Visual fire particles
-        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
+        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                                  enemy.radius + 5.0, 4.8, Red, 2, dt, -3.0)
   
   # Lightning Aura power-up effect - low damage with chain lightning
@@ -4391,8 +4399,8 @@ proc updateGame*(game: var Game, dt: float32) =
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dtArcane, wasCrit)
         
         # Visual arcane particles (purple sparkles)
-        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
-                                 enemy.radius + 3.0, 7.2, 
+        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                                 enemy.radius + 3.0, 7.2,
                                  Color(r: 200, g: 100, b: 255, a: 255), 2, dt)
   
   # Poison Aura power-up effect - low damage, longer duration
@@ -4433,8 +4441,8 @@ proc updateGame*(game: var Game, dt: float32) =
             enemy.slowAmount = 0.30  # 30% slow
         
         # Visual poison particles
-        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
-                                 enemy.radius + 5.0, 3.6, 
+        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                                 enemy.radius + 5.0, 3.6,
                                  Color(r: 100, g: 255, a: 200), 2, dt, -3.0)
   
   # Wind Aura power-up effect - pushes enemies away from player (slow aura but different mechanic)
@@ -4478,8 +4486,8 @@ proc updateGame*(game: var Game, dt: float32) =
             enemy.slowAmount = 0.40  # 40% slow
         
         # Visual wind particles (outward from player toward enemies)
-        spawnTimedParticlesAroundPooled(game.particlePool, game.player.pos.x, game.player.pos.y, 
-                                 windRadius * 0.8, 4.8, 
+        spawnTimedParticlesAroundPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                                 windRadius * 0.8, 4.8,
                                  Color(r: 200, g: 230, b: 255, a: 150), 2, dt)
   
   # Blood Aura power-up effect - damage with lifesteal
@@ -4532,8 +4540,8 @@ proc updateGame*(game: var Game, dt: float32) =
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dtFire, wasCrit)
         
         # Visual blood particles
-        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
-                                 enemy.radius + 5.0, 4.8, 
+        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                                 enemy.radius + 5.0, 4.8,
                                  Color(r: 255, g: 50, b: 50, a: 255), 2, dt, -3.0)
     
     # Apply accumulated healing to player
@@ -4611,7 +4619,7 @@ proc updateGame*(game: var Game, dt: float32) =
           if baseDamage > 0:
             let actualDamage = damageEnemy(enemy, damage)
             # Show damage number
-            game.showDamage(enemy.pos, actualDamage, fromPlayer = true, 
+            game.showDamage(enemy.pos, actualDamage, fromPlayer = true,
                           isCritical = false, damageType = dtDefault)
       
       # Visual feedback - expanding shockwave ring
@@ -4951,7 +4959,7 @@ proc updateGame*(game: var Game, dt: float32) =
                           isCritical = false, damageType = dtExplosion)
         
         # Create explosion visual
-        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
+        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                       Color(r: 255, g: 128, b: 0, a: 255), 40)
         spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, eliteExplosionRadius)
       
@@ -4977,9 +4985,9 @@ proc updateGame*(game: var Game, dt: float32) =
                           isCritical = false, damageType = dtExplosion)
         
         # Create MASSIVE explosion visual with multiple layers
-        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
+        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                       Color(r: 255, g: 150, b: 0, a: 255), 60)  # More particles
-        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
+        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                       Color(r: 255, g: 220, b: 100, a: 255), 40)  # Bright inner core
         # Add multiple shockwave rings for clarity
         spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius)
@@ -4988,7 +4996,7 @@ proc updateGame*(game: var Game, dt: float32) =
       
       # Death particles
       let particleColor = enemy.color
-      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, particleColor, 
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, particleColor,
                     if enemy.isBoss: 50 else: 15)
       
       # Drop consumable
@@ -5051,7 +5059,7 @@ proc updateGame*(game: var Game, dt: float32) =
       
       # Check for milestones
       if checkMilestone(game.dopamine.milestones, mtKills, game.player.kills, game.dopamine.currentTime):
-        addNotification(game.osHUD, "MILESTONE: " & game.dopamine.milestones.recentMilestone.name, 
+        addNotification(game.osHUD, "MILESTONE: " & game.dopamine.milestones.recentMilestone.name,
                         ntInfo)
       
       # Track enemy kill for statistics
@@ -5150,7 +5158,7 @@ proc updateGame*(game: var Game, dt: float32) =
               spawnExplosionPooled(game.particlePool, px, py, phase.color, 8)
           
           # 4. Extra burst at center
-          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                         Color(r: 255, g: 255, b: 255, a: 255), 40)
           
           # REGENERATE SATELLITES - Clear existing satellites so new phase can spawn correct number
@@ -5363,7 +5371,7 @@ proc updateGame*(game: var Game, dt: float32) =
                   x: game.player.pos.x + cos(angle) * shockwaveRadius,
                   y: game.player.pos.y + sin(angle) * shockwaveRadius
                 )
-                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y, 
+                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y,
                               Color(r: 150, g: 200, b: 255, a: 200), 5)
               
               game.player.pulseArmorCooldown = game.time
@@ -5448,7 +5456,7 @@ proc updateGame*(game: var Game, dt: float32) =
                   x: game.player.pos.x + cos(angle) * shockwaveRadius,
                   y: game.player.pos.y + sin(angle) * shockwaveRadius
                 )
-                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y, 
+                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y,
                               Color(r: 150, g: 200, b: 255, a: 200), 5)
               
               game.player.pulseArmorCooldown = game.time
@@ -5547,7 +5555,7 @@ proc updateGame*(game: var Game, dt: float32) =
             
             # Calculate maximum laser length to reach screen edge
             # OPTIMIZATION: Cache this value per enemy instead of recalculating
-            let maxScreenDist = sqrt(game.screenWidth.float32 * game.screenWidth.float32 + 
+            let maxScreenDist = sqrt(game.screenWidth.float32 * game.screenWidth.float32 +
                                      game.screenHeight.float32 * game.screenHeight.float32)
             
             # WARNING PHASE (first 1.5 seconds)
@@ -5555,7 +5563,7 @@ proc updateGame*(game: var Game, dt: float32) =
               # Update existing warning position to follow satellite, or create new one
               var warningFound = false
               for warning in game.attackWarnings:
-                if warning.attackType == "satellite_laser" and 
+                if warning.attackType == "satellite_laser" and
                    warning.sourceEnemyId == enemy.id and
                    warning.fromSatellite:
                   # Update warning position to follow satellite
@@ -5580,7 +5588,7 @@ proc updateGame*(game: var Game, dt: float32) =
               # Lasers last 2 frames so this maintains continuous beam appearance
               if game.frameCount mod 2 == 0:
                 game.lasers.add(newLaser(
-                  enemy.satellites[i].pos.x, 
+                  enemy.satellites[i].pos.x,
                   enemy.satellites[i].pos.y,
                   3,                    # direction: 3 = single rotated beam
                   maxScreenDist,        # length: extend all the way across screen
@@ -5611,11 +5619,11 @@ proc updateGame*(game: var Game, dt: float32) =
               if dx < 25.0 and dy < 25.0:  # INCREASED from 20.0 to 25.0 (easier to hit)
                 if dx * dx + dy * dy < 484.0:  # INCREASED from 225.0 to 484.0 (22.0 * 22.0 = 484, larger hitbox)
                   enemy.satellites[i].hp -= 1
-                  spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y, 
+                  spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y,
                                 Color(r: 255, g: 150, b: 0, a: 255), 6)  # Smaller (6 instead of 8)
                   if enemy.satellites[i].hp <= 0:
                     # Satellite destroyed!
-                    spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y, 
+                    spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y,
                                   Red, 20)  # Smaller (20 instead of 25)
                     playSound(stEnemyDeath, 0.4)
                     enemy.satellites.delete(i)
@@ -5993,7 +6001,7 @@ proc updateGame*(game: var Game, dt: float32) =
             createSplitBullets(game, bullet, splitCount, 0.5, 0.7)
           
           # Impact particles
-          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, 
+          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
                         game.enemies[j].color, 5)
           
           # Explosive bullets create area damage
@@ -6021,7 +6029,7 @@ proc updateGame*(game: var Game, dt: float32) =
             case level
             of 1:
               # Basic explosion - single nova burst
-              spawnNovaExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, 
+              spawnNovaExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
                                        explosionRadius, Orange, Yellow)
               spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
             of 2:
@@ -6131,7 +6139,7 @@ proc updateGame*(game: var Game, dt: float32) =
           bullet.fromPlayer = true  # Mark as player bullet so it can damage enemies
           
           # Visual effect for parry bounce
-          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, 
+          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
                         Color(r: 255, g: 255, b: 200, a: 255), 12)
           
           # Bullet continues bouncing, don't delete it
@@ -6204,7 +6212,7 @@ proc updateGame*(game: var Game, dt: float32) =
                   x: game.player.pos.x + cos(angle) * shockwaveRadius,
                   y: game.player.pos.y + sin(angle) * shockwaveRadius
                 )
-                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y, 
+                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y,
                               Color(r: 150, g: 200, b: 255, a: 200), 5)
               
               game.player.pulseArmorCooldown = game.time
@@ -6431,7 +6439,7 @@ proc updateGame*(game: var Game, dt: float32) =
         of ctDamageBoost: Color(r: 255, g: 69, b: 0, a: 255)
         of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)
       
-      spawnExplosionPooled(game.particlePool, game.consumables[i].pos.x, game.consumables[i].pos.y, 
+      spawnExplosionPooled(game.particlePool, game.consumables[i].pos.x, game.consumables[i].pos.y,
                     particleColor, 10)
       game.consumables.delete(i)
       continue
@@ -6494,7 +6502,8 @@ proc updateGame*(game: var Game, dt: float32) =
             poisonDuration = 0.0,
             fireDuration = 0.0,
             windPushForce = 0.0,
-            bulletSkin = game.player.bulletSkinType
+            bulletSkin = game.player.bulletSkinType,
+            bulletShape = game.player.bulletShapeType
           ))
           
           # Visual feedback
@@ -6533,9 +6542,9 @@ proc drawGame*(game: Game) =
     
     # Apply shake using Camera2D
     var camera = Camera2D(
-      offset: Vector2(x: game.screenWidth.float32 / 2.0 + shakeOffsetX, 
+      offset: Vector2(x: game.screenWidth.float32 / 2.0 + shakeOffsetX,
                      y: game.screenHeight.float32 / 2.0 + shakeOffsetY),
-      target: Vector2(x: game.screenWidth.float32 / 2.0, 
+      target: Vector2(x: game.screenWidth.float32 / 2.0,
                      y: game.screenHeight.float32 / 2.0),
       rotation: 0,
       zoom: 1.0
@@ -6544,7 +6553,7 @@ proc drawGame*(game: Game) =
   
   # Update and draw OS-style background
   let dt = getFrameTime()
-  updateOSBackground(game.osBackground, dt, game.player.hp, game.player.maxHp, 
+  updateOSBackground(game.osBackground, dt, game.player.hp, game.player.maxHp,
                      game.bossWaveManager.isBossActive())
   drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight)
   
@@ -6564,18 +6573,18 @@ proc drawGame*(game: Game) =
     if meteorite.warningTimer > 0:
       # Draw warning indicator at target position (flashing)
       let warningAlpha = if (meteorite.warningTimer * 6.0).int mod 2 == 0: uint8(200) else: uint8(100)
-      drawCircleLines(meteorite.targetPos.x.int32, meteorite.targetPos.y.int32, meteorite.radius, 
+      drawCircleLines(meteorite.targetPos.x.int32, meteorite.targetPos.y.int32, meteorite.radius,
                      Color(r: 255, g: 100, b: 0, a: warningAlpha))
-      drawCircleLines(meteorite.targetPos.x.int32, meteorite.targetPos.y.int32, meteorite.radius + 5, 
+      drawCircleLines(meteorite.targetPos.x.int32, meteorite.targetPos.y.int32, meteorite.radius + 5,
                      Color(r: 255, g: 50, b: 0, a: warningAlpha div 2))
     else:
       # Draw falling meteorite
-      drawCircle(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), meteorite.radius, 
+      drawCircle(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), meteorite.radius,
                 Color(r: 255, g: 100, b: 0, a: 255))
       # Add fiery glow effect
-      drawCircleLines(meteorite.pos.x.int32, meteorite.pos.y.int32, meteorite.radius + 3, 
+      drawCircleLines(meteorite.pos.x.int32, meteorite.pos.y.int32, meteorite.radius + 3,
                      Color(r: 255, g: 150, b: 0, a: 200))
-      drawCircleLines(meteorite.pos.x.int32, meteorite.pos.y.int32, meteorite.radius + 6, 
+      drawCircleLines(meteorite.pos.x.int32, meteorite.pos.y.int32, meteorite.radius + 6,
                      Color(r: 255, g: 200, b: 50, a: 100))
   
   # Draw walls
@@ -6672,7 +6681,7 @@ proc drawGame*(game: Game) =
         drawCircle(Vector2(x: x, y: y), 3, Color(r: 75, g: 0, b: 130, a: alpha))
     
     # Draw outer radius circle (very faint)
-    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius, 
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius,
                    Color(r: 138, g: 43, b: 226, a: 40))
   
   # UNIFIED AURA RENDERING
@@ -6755,7 +6764,7 @@ proc drawGame*(game: Game) =
   drawLegendaryPowerUpsPanel(game, game.screenWidth.int32, game.screenHeight.int32)
 
   # Instructions only for non-legendary keys
-  drawText(t(tkGameInstructionsWall), 
+  drawText(t(tkGameInstructionsWall),
            game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
   
   # End 2D camera mode if screen shake was applied

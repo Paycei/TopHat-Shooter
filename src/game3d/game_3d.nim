@@ -264,7 +264,7 @@ proc renderGame3D*(game: Game3D) =
     let warningText = "PHASE TRANSITION!"
     let textWidth = measureText(warningText, 40)
     let flashAlpha = (sin(game.boss.phaseTransitionTimer * 10.0) * 0.5 + 0.5) * 255.0
-    drawText(warningText, (getScreenWidth() - textWidth) div 2, 100, 40, 
+    drawText(warningText, (getScreenWidth() - textWidth) div 2, 100, 40,
              fade(Color(r: 255, g: 255, b: 0, a: 255), flashAlpha / 255.0))
   
   # Crosshair

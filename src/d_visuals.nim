@@ -1,6 +1,6 @@
 import raylib, types, d_systems, math
 
-proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32, 
+proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
                           currentTime: float32, posX, posY: int32) =
   ## Draw combo display at a custom position (used for power-up select screen)
   if not shouldShowCombo(combo):
@@ -164,15 +164,15 @@ proc drawMilestone*(manager: MilestoneManager, screenWidth, screenHeight: int32)
     Color(r: 255, g: 215, b: 0, a: fadeAlpha))
   
   # Achievement text (small)
-  drawText("Achievement:", x + 10, y + 8, 12.int32, 
+  drawText("Achievement:", x + 10, y + 8, 12.int32,
     Color(r: 255, g: 215, b: 0, a: fadeAlpha))
   
   # Milestone name (compact)
-  drawText(milestone.name, x + 10, y + 25, 14.int32, 
+  drawText(milestone.name, x + 10, y + 25, 14.int32,
     Color(r: 255, g: 255, b: 255, a: fadeAlpha))
   
   # Description (very small)
-  drawText(milestone.description, x + 10, y + 43, 10.int32, 
+  drawText(milestone.description, x + 10, y + 43, 10.int32,
     Color(r: 200, g: 200, b: 200, a: fadeAlpha))
 
 # MICRO-REWARD DISPLAY
@@ -202,7 +202,7 @@ proc drawWaveStats*(stats: WaveStats, screenWidth, screenHeight: int32) =
   let y = 50.int32
   
   drawText("WAVE " & $stats.waveNumber, x, y, 20.int32, White)
-  drawText("Kills: " & $stats.kills, x, y + 25, 16.int32, 
+  drawText("Kills: " & $stats.kills, x, y + 25, 16.int32,
     Color(r: 200, g: 200, b: 200, a: 255))
   drawText("Time: " & $(int(stats.survivalTime)) & "s", x, y + 45, 16.int32,
     Color(r: 200, g: 200, b: 200, a: 255))

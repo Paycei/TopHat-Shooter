@@ -8,7 +8,7 @@ type
     ddtCombo,       # Combo hit - Stacking numbers
     ddtElemental    # Elemental - Color-coded with trails
 
-proc getEnhancedDamageInfo*(damage: float32, maxHp: float32, isCrit: bool, 
+proc getEnhancedDamageInfo*(damage: float32, maxHp: float32, isCrit: bool,
                             isCombo: bool, elementType: ElementType): tuple[
   displayType: DamageDisplayType,
   text: string,
@@ -393,7 +393,7 @@ proc recordDamage*(stats: var RealTimeStats, damage: float32, currentTime: float
   stats.damageHistory.add((currentTime, damage))
   
   # Remove damage events older than 5 seconds (rolling window)
-  while stats.damageHistory.len > 0 and 
+  while stats.damageHistory.len > 0 and
         currentTime - stats.damageHistory[0][0] > 5.0:
     stats.damageHistory.delete(0)
   

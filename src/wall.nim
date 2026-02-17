@@ -42,13 +42,13 @@ proc drawWall*(wall: Wall, player: Player) =
     # Gun barrel (small rectangle pointing up/forward)
     let barrelWidth = wall.radius * 0.2
     let barrelHeight = wall.radius * 0.5
-    drawRectangle((wall.pos.x - barrelWidth / 2).int32, 
+    drawRectangle((wall.pos.x - barrelWidth / 2).int32,
                   (wall.pos.y - wall.radius * 0.9).int32,
                   barrelWidth.int32, barrelHeight.int32,
                   Color(r: 60, g: 60, b: 70, a: alpha))
     
     # Metallic highlights/shine
-    drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius, 
+    drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius,
                    Color(r: 180, g: 180, b: 200, a: alpha))
     drawCircleLines(wall.pos.x.int32, (wall.pos.y - wall.radius * 0.3).int32, wall.radius * 0.6,
                    Color(r: 160, g: 160, b: 180, a: alpha))
@@ -62,9 +62,9 @@ proc drawWall*(wall: Wall, player: Player) =
   let barWidth = wall.radius * 2
   let barHeight = 4.0
   let hpPercent = wall.hp / wall.maxHp
-  drawRectangle((wall.pos.x - wall.radius).int32, (wall.pos.y - wall.radius - 10).int32, 
+  drawRectangle((wall.pos.x - wall.radius).int32, (wall.pos.y - wall.radius - 10).int32,
                 barWidth.int32, barHeight.int32, Red)
-  drawRectangle((wall.pos.x - wall.radius).int32, (wall.pos.y - wall.radius - 10).int32, 
+  drawRectangle((wall.pos.x - wall.radius).int32, (wall.pos.y - wall.radius - 10).int32,
                 (barWidth * hpPercent).int32, barHeight.int32, Green)
 
 proc takeDamage*(wall: Wall, damage: float32) =

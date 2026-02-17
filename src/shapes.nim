@@ -55,7 +55,7 @@ proc getUnlockedShapes*(): seq[ShapeType] =
     if shapeDatabase[shapeType].isUnlocked:
       result.add(shapeType)
 
-proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType, 
+proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
                      baseColor, secondaryColor, coreColor: Color,
                      time, rotation, pulse, glowIntensity: float32) =
   ## Draw the player shape based on selected type
@@ -85,7 +85,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let y2 = pos.y + sin(angle) * outerR
       let traceAlpha = uint8(80 + pulse * 60)
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1.5,
-              Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255), 
+              Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255),
                     b: min(baseColor.b + 50, 255), a: traceAlpha))
     
     # 3. ROTATING HEXAGONAL FRAME
@@ -141,7 +141,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let y2 = pos.y + sin(angle2) * innerR
       let traceAlpha = uint8(80 + pulse * 60)
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
-              Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255), 
+              Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255),
                     b: min(baseColor.b + 50, 255), a: traceAlpha))
     
     # 3. MAIN TRIANGLE OUTLINE
@@ -200,7 +200,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let y2 = pos.y + sin(angle2) * innerR
       let traceAlpha = uint8(80 + pulse * 60)
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
-              Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255), 
+              Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255),
                     b: min(baseColor.b + 50, 255), a: traceAlpha))
     
     # 3. MAIN SQUARE OUTLINE
@@ -265,7 +265,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
         let dotAlpha = uint8(100 + pulse * 80)
         let dotSize = 1.5 + pulse * 0.5
         drawCircle(Vector2(x: dotX, y: dotY), dotSize,
-                  Color(r: min(baseColor.r + 30, 255), g: min(baseColor.g + 30, 255), 
+                  Color(r: min(baseColor.r + 30, 255), g: min(baseColor.g + 30, 255),
                         b: min(baseColor.b + 30, 255), a: dotAlpha))
     
     # 3. MAIN OUTER RING

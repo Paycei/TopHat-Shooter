@@ -59,7 +59,7 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
   drawText(t(tkHUDSystemStatus), x + 8, y + 4, 13, ACCENT_COLOR)
   
   # Border with glow effect
-  drawRectangleLines(x, y, panelWidth, panelHeight, 
+  drawRectangleLines(x, y, panelWidth, panelHeight,
                     Color(r: 0, g: 200, b: 255, a: 140))
   
   if not hud.minimized:
@@ -82,11 +82,11 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
     
     # Bar fill with gradient
     let fillWidth = (barWidth.float32 * hpPercent).int32
-    let barColor = if hpPercent > 0.6: 
+    let barColor = if hpPercent > 0.6:
       Color(r: 0, g: 255, b: 100, a: 200)
-    elif hpPercent > 0.3: 
+    elif hpPercent > 0.3:
       Color(r: 255, g: 220, b: 0, a: 200)
-    else: 
+    else:
       Color(r: 255, g: 80, b: 80, a: 200)
     
     drawRectangle(x + PANEL_PADDING + 3, yOffset, fillWidth, barHeight, barColor)
@@ -94,9 +94,9 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
     let hpText = formatHealthDisplay(player.hp) & " / " & formatHealthDisplay(player.maxHp)
     let hpTextWidth = measureText(hpText, 14)
     let hpTextX = x + PANEL_PADDING + 3 + (barWidth div 2) - (hpTextWidth div 2)
-    drawText(hpText, hpTextX + 1, yOffset + 6, 14, 
+    drawText(hpText, hpTextX + 1, yOffset + 6, 14,
             Color(r: 0, g: 0, b: 0, a: 180))
-    drawText(hpText, hpTextX, yOffset + 5, 14, 
+    drawText(hpText, hpTextX, yOffset + 5, 14,
             Color(r: 255, g: 255, b: 255, a: 255))
     
     # Bar border with glow
@@ -204,7 +204,7 @@ proc drawPerformanceMetrics*(game: Game, x, y: int32) =
   # Uptime
   let minutes = (game.time / 60.0).int
   let seconds = (game.time mod 60.0).int
-  let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" & 
+  let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" &
                  (if seconds < 10: "0" else: "") & $seconds
   drawText(t(tkHUDUptime) & " " & timeText, x + PANEL_PADDING, yOffset, 14, Color(r: 255, g: 255, b: 255, a: 255))
   yOffset += 18

@@ -126,26 +126,6 @@ proc writeWavFile(filename: string, samples: seq[int16], sampleRate: uint32) =
     if not stream.isNil:
       stream.close()
 
-# SOUND GENERATION (keeping original sound effects)
-proc createSimpleSound(filename: string, duration: float32, 
-                      freqFunc: proc(t, progress: float32): float32,
-                      envelope: proc(progress: float32): float32,
-                      amplitude: float32 = 0.4): Sound =
-  let sampleRate: uint32 = 44100
-  let frameCount = int(sampleRate.float32 * duration)
-  var samples = newSeq[int16](frameCount)
-  
-  for i in 0..<frameCount:
-    let t = i.float32 / sampleRate.float32
-    let progress = t / duration
-    let freq = freqFunc(t, progress)
-    let env = envelope(progress)
-    let value = sin(2.0 * PI * freq * t) * env * amplitude
-    samples[i] = int16(value * 32767.0)
-  
-  writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
-
 proc createLaserShoot(filename: string): Sound =
   # High-tech laser with complex modulation
   let sampleRate: uint32 = 44100
@@ -279,7 +259,7 @@ proc createEnemyDeath(filename: string): Sound =
     let attackEnv = if progress < 0.05: progress / 0.05 else: 1.0
     let mainEnv = exp(-progress * 3.0)
     
-    let value = (mainTone + subOctave + fifth + upper + impactNoise + 
+    let value = (mainTone + subOctave + fifth + upper + impactNoise +
                  crackle + rumble * mainEnv + warble) * attackEnv * mainEnv
     
     samples[i] = int16(clamp(value * 32767.0 * 0.7, -32767.0, 32767.0))
@@ -386,9 +366,9 @@ proc createCoinPickup(filename: string): Sound =
         
         # Quick attack, sustain, gentle release
         let attack = if noteProgress < 0.06: noteProgress / 0.06 else: 1.0
-        let release = if noteProgress > 0.65: 
+        let release = if noteProgress > 0.65:
           (1.0 - (noteProgress - 0.65) / 0.35) * 0.6 + 0.4
-        else: 
+        else:
           1.0
         
         let envelope = attack * release
@@ -456,7 +436,7 @@ proc createPowerUp(filename: string): Sound =
     let release = if progress > 0.85: (1.0 - (progress - 0.85) / 0.15) else: 1.0
     let envelope = attack * sustain * release
     
-    let value = (fundamental + third + fifth + octave + sparkle + 
+    let value = (fundamental + third + fifth + octave + sparkle +
                  textureNoise + accent) * envelope
     
     samples[i] = int16(clamp(value * 32767.0 * 0.5, -32767.0, 32767.0))
@@ -519,14 +499,14 @@ proc createBossSpawn(filename: string): Sound =
     let buildCurve = progress * progress  # Quadratic build
     let mainBuild = min(1.0, buildCurve * 1.8)
     let peakHold = if progress > 0.7: 1.0 else: mainBuild
-    let finalDecay = if progress > 0.85: 
+    let finalDecay = if progress > 0.85:
       1.0 - ((progress - 0.85) / 0.15) * 0.3
-    else: 
+    else:
       1.0
     
     let envelope = peakHold * finalDecay * reverbDecay
     
-    let value = (rumble + earthquake + threat + tension + whistle + 
+    let value = (rumble + earthquake + threat + tension + whistle +
                  deepNoise + midNoise + impact) * envelope
     
     samples[i] = int16(clamp(value * 32767.0 * 0.7, -32767.0, 32767.0))
@@ -693,7 +673,7 @@ proc createTeleport(filename: string): Sound =
     # Symmetric envelope - fade in, peak at middle, fade out
     let envelope = sin(progress * PI)
     
-    let value = (layer1 + layer2 + layer3 + layer4 + phaser + 
+    let value = (layer1 + layer2 + layer3 + layer4 + phaser +
                  transitionNoise + textureNoise + sparkle) * envelope
     
     samples[i] = int16(clamp(value * 32767.0 * 0.48, -32767.0, 32767.0))
@@ -793,9 +773,9 @@ proc createWaveComplete(filename: string): Sound =
         # Quick attack, sustain with slight decay, gentle release
         let attack = if noteProgress < 0.08: noteProgress / 0.08 else: 1.0
         let sustain = 0.9 + noteProgress * 0.1
-        let release = if noteProgress > 0.75: 
+        let release = if noteProgress > 0.75:
           (1.0 - (noteProgress - 0.75) / 0.25) * 0.7 + 0.3
-        else: 
+        else:
           1.0
         
         let envelope = attack * sustain * release
@@ -905,21 +885,6 @@ proc loadOrGenerateSound(soundType: SoundType): Sound =
   of stShield: result = createShield(cacheFile)
   of stGameOver: result = createGameOverSound(cacheFile)
 
-# ============================================================================
-# MUSIC GENERATION - COMPLETE REWRITE
-# ============================================================================
-# 
-# Design principles:
-# - Clear, simple melodies that are easy to follow
-# - Intentional pauses and rests - not constant sound
-# - 1-3 simultaneous instruments maximum
-# - Longer note durations over rapid sequences
-# - Recognizable motifs that develop meaningfully
-# - Long-form structure with distinct sections
-# - Dynamic contrast and natural flow
-# - Calm, readable, cohesive music
-# ============================================================================
-
 type
   Note = object
     freq: float32    # Frequency in Hz (0.0 = rest)
@@ -939,7 +904,7 @@ type
     chords: seq[Note]  # New chord layer
 
 # MUSICAL CONSTANTS
-const 
+const
   SAMPLE_RATE = 44100'u32
   MUSIC_DURATION = 48.0  # Long-form: 48 seconds
 
@@ -1022,7 +987,7 @@ proc applyNoteEnvelope(progress: float32, noteDuration: float32): float32 =
   else:
     return 1.0
 
-proc renderNotes(notes: seq[Note], samples: var seq[float32], 
+proc renderNotes(notes: seq[Note], samples: var seq[float32],
                 instrument: Instrument, volume: float32) =
   ## Render a sequence of notes into the sample buffer
   for note in notes:
@@ -1068,7 +1033,7 @@ proc renderChords(chords: seq[Note], samples: var seq[float32], volume: float32)
       
       samples[i] += (wave1 + wave2 + wave3) * envelope * volume
 
-proc applySectionDynamics(samples: var seq[float32], section: Section, 
+proc applySectionDynamics(samples: var seq[float32], section: Section,
                          globalVolume: float32) =
   ## Apply very gentle volume transitions between sections
   let startSample = int(section.startTime * SAMPLE_RATE.float32)
@@ -1092,9 +1057,7 @@ proc applySectionDynamics(samples: var seq[float32], section: Section,
     
     samples[i] *= dynamicMultiplier
 
-# ============================================================================
-# MENU MUSIC - Calm and welcoming
-# ============================================================================
+# MENU MUSIC
 
 proc createMenuMusicSections(): seq[Section] =
   result = @[]
@@ -1266,9 +1229,7 @@ proc createMenuMusic(filename: string): Music =
   writeWavFile(filename, samples16, SAMPLE_RATE)
   result = loadMusicStream(filename)
 
-# ============================================================================
-# WAVE MUSIC - Highly frenetic with rapid-fire notes and driving rhythm
-# ============================================================================
+# WAVE MUSIC
 
 proc createWaveMusicSections(): seq[Section] =
   result = @[]
@@ -1577,9 +1538,7 @@ proc createWaveMusic(filename: string): Music =
   writeWavFile(filename, samples16, SAMPLE_RATE)
   result = loadMusicStream(filename)
 
-# ============================================================================
-# POWER-UP MUSIC - Uplifting and bright
-# ============================================================================
+# POWER-UP MUSIC
 
 proc createPowerUpMusicSections(): seq[Section] =
   result = @[]
@@ -1755,9 +1714,7 @@ proc createPowerUpMusic(filename: string): Music =
   writeWavFile(filename, samples16, SAMPLE_RATE)
   result = loadMusicStream(filename)
 
-# ============================================================================
-# BOSS MUSIC - Extremely frenetic and relentless
-# ============================================================================
+# BOSS MUSIC
 
 proc createBossMusicSections(): seq[Section] =
   result = @[]
@@ -2111,9 +2068,7 @@ proc createBossMusic(filename: string): Music =
   writeWavFile(filename, samples16, SAMPLE_RATE)
   result = loadMusicStream(filename)
 
-# ============================================================================
 # MUSIC LOADING AND SYSTEM MANAGEMENT
-# ============================================================================
 
 proc loadOrGenerateMusic(track: MusicTrack): Music =
   let cacheFile = getMusicCacheFile(track)
@@ -2142,7 +2097,7 @@ proc preGenerateAllAssets*(verbose: bool = true, callback: AssetGenerationCallba
   if verbose:
     echo "=========================================="
     echo "Pre-generating game assets..."
-    echo "Cached: ", cached.sounds, "/", SoundType.high.ord + 1, " sounds, ", 
+    echo "Cached: ", cached.sounds, "/", SoundType.high.ord + 1, " sounds, ",
          cached.music, "/", MusicTrack.high.ord + 1, " music tracks"
     echo "=========================================="
   
@@ -2299,7 +2254,7 @@ proc setMusicVolume*(volume: float32) =
     globalSoundSystem.musicVolume = clamp(volume, 0.0, 1.0)
     if globalSoundSystem.trackPlaying:
       try:
-        setMusicVolume(globalSoundSystem.cachedMusic[globalSoundSystem.currentTrack], 
+        setMusicVolume(globalSoundSystem.cachedMusic[globalSoundSystem.currentTrack],
                       globalSoundSystem.musicVolume)
       except:
         discard

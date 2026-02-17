@@ -64,31 +64,31 @@ proc getIconName(iconType: DesktopIconType): string =
 proc newOSDesktop*(): OSDesktop =
   result = OSDesktop(
     icons: @[
-      DesktopIcon(iconType: diPlay, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y, 
+      DesktopIcon(iconType: diPlay, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y,
                   selected: true, name: getIconName(diPlay),
                   iconColor: Color(r: 100, g: 200, b: 255, a: 255)),
-      DesktopIcon(iconType: diSurvival, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING, 
+      DesktopIcon(iconType: diSurvival, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING,
                   selected: false, name: getIconName(diSurvival),
                   iconColor: Color(r: 255, g: 150, b: 100, a: 255)),
-      DesktopIcon(iconType: diStatistics, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2, 
+      DesktopIcon(iconType: diStatistics, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2,
                   selected: false, name: getIconName(diStatistics),
                   iconColor: Color(r: 255, g: 200, b: 50, a: 255)),
-      DesktopIcon(iconType: diSettings, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3, 
+      DesktopIcon(iconType: diSettings, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3,
                   selected: false, name: getIconName(diSettings),
                   iconColor: Color(r: 200, g: 100, b: 255, a: 255)),
-      DesktopIcon(iconType: diHelp, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 4, 
+      DesktopIcon(iconType: diHelp, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 4,
                   selected: false, name: getIconName(diHelp),
                   iconColor: Color(r: 100, g: 255, b: 150, a: 255)),
-      DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 5, 
+      DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 5,
                   selected: false, name: getIconName(diQuit),
                   iconColor: Color(r: 255, g: 100, b: 100, a: 255)),
-      DesktopIcon(iconType: diSandbox, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y, 
+      DesktopIcon(iconType: diSandbox, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y,
                   selected: false, name: getIconName(diSandbox),
                   iconColor: Color(r: 255, g: 165, b: 0, a: 255)),
-      DesktopIcon(iconType: diShop, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING, 
+      DesktopIcon(iconType: diShop, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING,
                   selected: false, name: getIconName(diShop),
                   iconColor: Color(r: 255, g: 150, b: 50, a: 255)),
-      DesktopIcon(iconType: diPvP, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2, 
+      DesktopIcon(iconType: diPvP, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2,
                   selected: false, name: getIconName(diPvP),
                   iconColor: Color(r: 255, g: 50, b: 150, a: 255))
     ],
@@ -125,12 +125,12 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
   
   # OS-style icon window with depth
   # Shadow/depth layer
-  drawRectangle((icon.x + offsetX + 3).int32, (icon.y + offsetY + 3).int32, 
+  drawRectangle((icon.x + offsetX + 3).int32, (icon.y + offsetY + 3).int32,
                iconSize, iconSize,
                Color(r: 0, g: 0, b: 0, a: 100))
   
   # Icon background (window-like with gradient effect)
-  let bgGradTop = if selected: 
+  let bgGradTop = if selected:
     Color(r: 45, g: 45, b: 60, a: 240)
   else:
     Color(r: 30, g: 30, b: 40, a: 220)
@@ -144,14 +144,14 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
                          bgGradTop, bgGradBottom)
   
   # Icon border with glow if selected
-  let borderColor = if selected: 
+  let borderColor = if selected:
     Color(r: 0, g: 200, b: 255, a: 255)
   else:
     Color(r: 80, g: 80, b: 100, a: 255)
   
-  drawRectangleLines(Rectangle(x: (icon.x + offsetX).float32, 
+  drawRectangleLines(Rectangle(x: (icon.x + offsetX).float32,
                                 y: (icon.y + offsetY).float32,
-                                width: iconSize.float32, 
+                                width: iconSize.float32,
                                 height: iconSize.float32), 2, borderColor)
   
   # Add corner decorations (OS-style window corners)
@@ -268,10 +268,10 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     
     # Draw flask outline (wider at bottom, narrower at top)
     # Bottom rectangle
-    drawRectangle((centerX - baseWidth div 2).int32, (flaskBottom - 16).int32, 
+    drawRectangle((centerX - baseWidth div 2).int32, (flaskBottom - 16).int32,
                  baseWidth.int32, 16.int32, flaskColor)
     # Neck
-    drawRectangle((centerX - topWidth div 2).int32, (flaskTop).int32, 
+    drawRectangle((centerX - topWidth div 2).int32, (flaskTop).int32,
                  topWidth.int32, 8.int32, flaskColor)
     
     # Flask sides (trapezoid effect)
@@ -309,7 +309,7 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     let y1Start = centerY.float32 + sin(angle1 + PI) * swordLength
     let x1End = centerX.float32 + cos(angle1) * swordLength
     let y1End = centerY.float32 + sin(angle1) * swordLength
-    drawLine(Vector2(x: x1Start, y: y1Start), Vector2(x: x1End, y: y1End), 
+    drawLine(Vector2(x: x1Start, y: y1Start), Vector2(x: x1End, y: y1End),
             swordWidth, swordColor)
     
     # Right sword (diagonal opposite)
@@ -318,11 +318,11 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     let y2Start = centerY.float32 + sin(angle2 + PI) * swordLength
     let x2End = centerX.float32 + cos(angle2) * swordLength
     let y2End = centerY.float32 + sin(angle2) * swordLength
-    drawLine(Vector2(x: x2Start, y: y2Start), Vector2(x: x2End, y: y2End), 
+    drawLine(Vector2(x: x2Start, y: y2Start), Vector2(x: x2End, y: y2End),
             swordWidth, swordColor)
     
     # Central clash effect
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 6, 
+    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 6,
               Color(r: 255, g: 255, b: 255, a: 200))
     drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 4, swordColor)
   
@@ -333,11 +333,11 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
 
 proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   # Taskbar background
-  drawRectangle(0, (screenHeight - TASKBAR_HEIGHT).int32, 
+  drawRectangle(0, (screenHeight - TASKBAR_HEIGHT).int32,
                screenWidth.int32, TASKBAR_HEIGHT.int32,
                Color(r: 20, g: 20, b: 30, a: 240))
   drawRectangleLines(Rectangle(x: 0, y: (screenHeight - TASKBAR_HEIGHT).float32,
-                                width: screenWidth.float32, height: TASKBAR_HEIGHT.float32), 
+                                width: screenWidth.float32, height: TASKBAR_HEIGHT.float32),
                     1, Color(r: 0, g: 200, b: 200, a: 255))
   
   # Start button
@@ -354,7 +354,7 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   
   # Logo in start button
   let logoSize = 16
-  drawRectangle((startBtnX + 10).int32, (startBtnY + 8).int32, 
+  drawRectangle((startBtnX + 10).int32, (startBtnY + 8).int32,
                logoSize.int32, logoSize.int32,
                Color(r: 0, g: 200, b: 255, a: 255))
   
@@ -367,17 +367,17 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   
   let clockX = screenWidth - 80
   let clockY = startBtnY + 2
-  drawText(timeStr, clockX.int32, clockY.int32, 16, 
+  drawText(timeStr, clockX.int32, clockY.int32, 16,
           Color(r: 0, g: 255, b: 255, a: 255))
-  drawText(dateStr, (clockX - 10).int32, (clockY + 16).int32, 12, 
+  drawText(dateStr, (clockX - 10).int32, (clockY + 16).int32, 12,
           Color(r: 100, g: 200, b: 200, a: 255))
   
   # System indicators with icons
   let indicatorX = screenWidth - 170
   # Network indicator (always connected in game)
-  drawRectangle(indicatorX.int32, (clockY + 6).int32, 12, 8, 
+  drawRectangle(indicatorX.int32, (clockY + 6).int32, 12, 8,
                Color(r: 50, g: 255, b: 50, a: 255))
-  drawText("NET", (indicatorX + 16).int32, (clockY + 3).int32, 12, 
+  drawText("NET", (indicatorX + 16).int32, (clockY + 3).int32, 12,
           Color(r: 150, g: 150, b: 150, a: 255))
 
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
@@ -389,11 +389,11 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Grid overlay for OS feel (subtle)
   let gridSpacing = 40
   for x in countup(0, screenWidth, gridSpacing):
-    drawLine(Vector2(x: x.float32, y: 0), 
+    drawLine(Vector2(x: x.float32, y: 0),
             Vector2(x: x.float32, y: screenHeight.float32), 1,
             Color(r: 30, g: 35, b: 50, a: 60))
   for y in countup(0, screenHeight, gridSpacing):
-    drawLine(Vector2(x: 0, y: y.float32), 
+    drawLine(Vector2(x: 0, y: y.float32),
             Vector2(x: screenWidth.float32, y: y.float32), 1,
             Color(r: 30, g: 35, b: 50, a: 60))
   
@@ -455,7 +455,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   drawText(t(tkOSMemory), (panelX + 8).int32, infoY.int32, 12,
           Color(r: 100, g: 200, b: 255, a: 255))
   infoY += 18
-  drawText(&"Uptime: {hours:02d}:{minutes:02d}:{seconds:02d}", 
+  drawText(&"Uptime: {hours:02d}:{minutes:02d}:{seconds:02d}",
           (panelX + 8).int32, infoY.int32, 12,
           Color(r: 200, g: 200, b: 100, a: 255))
   infoY += 18

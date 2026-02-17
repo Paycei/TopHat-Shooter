@@ -85,7 +85,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     
     # Panel border
     drawRectangleLines(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
-                                  width: COMBINED_PANEL_WIDTH.float32, 
+                                  width: COMBINED_PANEL_WIDTH.float32,
                                   height: (COMBINED_PANEL_PADDING + COMBINED_TITLE_HEIGHT).float32),
                       1, Color(r: 0, g: 220, b: 255, a: 80))
     
@@ -170,7 +170,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   # HP value on right (multiplied by 100, showing decimals)
   let hpText = formatHealthDisplay(game.player.hp) & "/" & formatHealthDisplay(game.player.maxHp)
   let hpTextWidth = measureText(hpText, 9)
-  drawText(hpText, finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - hpTextWidth + 1, yOffset + 1, 9, 
+  drawText(hpText, finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - hpTextWidth + 1, yOffset + 1, 9,
           Color(r: 0, g: 0, b: 0, a: 120))
   drawText(hpText, finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - hpTextWidth, yOffset, 9,
           Color(r: 255, g: 255, b: 255, a: 255))
@@ -204,8 +204,8 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   drawText("[#]", finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 100))
   drawText("[#]", finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset, 9, Color(r: 0, g: 220, b: 255, a: 255))
   let chargeText = $game.player.walls
-  drawText(chargeText, finalPanelX + COMBINED_PANEL_PADDING + 17, yOffset, 10, 
-          if game.player.walls > 0: Color(r: 255, g: 255, b: 255, a: 255) 
+  drawText(chargeText, finalPanelX + COMBINED_PANEL_PADDING + 17, yOffset, 10,
+          if game.player.walls > 0: Color(r: 255, g: 255, b: 255, a: 255)
           else: Color(r: 120, g: 120, b: 120, a: 200))
   
   # Coins - bright gold

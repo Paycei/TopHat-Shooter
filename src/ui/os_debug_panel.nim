@@ -28,7 +28,7 @@ var legendaryPanelDragOffset* = Vector2(x: 0, y: 0)
 ## Calculate basic combat stats for display
 proc getDisplayStats(player: Player): tuple[damage: float32, fireRate: float32, speed: float32] =
   result.damage = player.damage
-  result.fireRate = player.fireRate  
+  result.fireRate = player.fireRate
   result.speed = player.speed
   
   # Apply simple modifiers for display
@@ -530,7 +530,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
     if hasPowerUp(game.player, puBerserker): bonusCount += 1
     
     drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 3, yOffset - 1,
-                 DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 6, 
+                 DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 6,
                  int32((DEBUG_LINE_HEIGHT * bonusCount) + 2),
                  Color(r: 25, g: 15, b: 15, a: 80))
     
@@ -591,7 +591,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   
   # Background box for real-time stats (compact - only 2 stats)
   drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 3, yOffset - 1,
-               DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 6, 
+               DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 6,
                int32((DEBUG_LINE_HEIGHT * 2) + 2),
                Color(r: 15, g: 20, b: 25, a: 80))
   
@@ -696,11 +696,11 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
   # Calculate content height
   var contentHeight: int32 = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT
   
-  if hasPowerUp(game.player, puTimeWarp): 
+  if hasPowerUp(game.player, puTimeWarp):
     contentHeight += DEBUG_LINE_HEIGHT + 2
-  if hasPowerUp(game.player, puPhaseShift): 
+  if hasPowerUp(game.player, puPhaseShift):
     contentHeight += DEBUG_LINE_HEIGHT + 2
-  if hasPowerUp(game.player, puParry): 
+  if hasPowerUp(game.player, puParry):
     contentHeight += DEBUG_LINE_HEIGHT + 2
   
   contentHeight += DEBUG_SECTION_SPACING

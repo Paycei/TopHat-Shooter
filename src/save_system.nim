@@ -20,7 +20,8 @@ type
     language*: string
     playerSkin*: int  # Current player skin (stored as int)
     bulletSkin*: int  # Current bullet skin (stored as int)
-    playerShape*: int  # Current player shape (stored as int)
+    playerShape*: int   # Current player shape (stored as int)
+    bulletShape*: int   # Current bullet shape (stored as int)
     particleEffect*: int  # Current particle effect (stored as int)
     pvpNickname*: string  # Player nickname shown in PvP lobbies
 
@@ -70,6 +71,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "playerSkin": settings.playerSkin,
     "bulletSkin": settings.bulletSkin,
     "playerShape": settings.playerShape,
+    "bulletShape": settings.bulletShape,
     "particleEffect": settings.particleEffect,
     "pvpNickname": settings.pvpNickname
   }
@@ -117,6 +119,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("playerShape"):
     settings.playerShape = jsonNode["playerShape"].getInt()
+
+  if jsonNode.hasKey("bulletShape"):
+    settings.bulletShape = jsonNode["bulletShape"].getInt()
 
   if jsonNode.hasKey("particleEffect"):
     settings.particleEffect = jsonNode["particleEffect"].getInt()

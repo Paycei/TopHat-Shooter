@@ -407,7 +407,7 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
   # Handle scrolling with mouse wheel
   let wheel = getMouseWheelMove()
   if wheel != 0:
-    help.scrollOffset = clamp(help.scrollOffset - int(wheel * 3), 0, 
+    help.scrollOffset = clamp(help.scrollOffset - int(wheel * 3), 0,
                               max(0, help.outputLines.len - 15))
   
   return -1  # No icon to execute
@@ -467,10 +467,10 @@ proc drawHelpWindow*(help: HelpWindow) =
     let scrollBarX = contentX + contentW - 10
     let scrollBarY = contentY + 10
     let scrollBarH = contentH - 50
-    let scrollThumbH = max(20, int(float32(scrollBarH) * 
+    let scrollThumbH = max(20, int(float32(scrollBarH) *
                         float32(visibleLines) / float32(help.outputLines.len)))
     let scrollThumbY = clamp(
-      scrollBarY + int(float32(scrollBarH - scrollThumbH) * 
+      scrollBarY + int(float32(scrollBarH - scrollThumbH) *
                         float32(help.scrollOffset) / float32(max(1, help.outputLines.len - visibleLines))),
       scrollBarY,
       scrollBarY + scrollBarH - scrollThumbH)

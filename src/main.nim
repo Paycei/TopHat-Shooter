@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen
 
 const
   screenWidth = 1024
@@ -110,13 +110,13 @@ proc drawCustomCursor*(time: float32) =
     drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
   
   # Crosshair lines
-  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
+  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y),
           Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
+  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y),
           Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8),
           Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3),
           Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
   
   # Center dot
@@ -152,7 +152,6 @@ proc main() =
   
   # Create loading screen
   var loadingScreen = newLoadingScreen()
-  var loadingComplete = false
   
   # Initialize sound system with loading screen callback
   proc updateLoadingProgress(progress: float32, message: string) =
@@ -171,6 +170,7 @@ proc main() =
   # Initialize skin systems
   initializeSkins()
   initializeBulletSkins()
+  initializeBulletShapes()
   initializeShapes()
   initializeParticleSkins()
   
@@ -201,7 +201,7 @@ proc main() =
     # Discord initialization failed - continue without Rich Presence
     globalDiscordClient = nil
   
-  var currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+  var currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
   currentGame.state = gsSplash  # Start with splash screen
   # Assign global Discord client to game
   currentGame.discordClient = globalDiscordClient
@@ -309,21 +309,21 @@ proc main() =
       if not osDesktop.loadingActive and pendingGameMode >= 0:
         case pendingGameMode
         of 0:  # Wave-Based Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmWaveBased)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 1:  # Time Survival Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmTimeSurvival)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 6:  # Sandbox Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmSandbox)
           initializeRunTracking(currentGame)
@@ -625,7 +625,7 @@ proc main() =
           let mousePos = getMousePosition()
           let wallPos = newVector2f(mousePos.x, mousePos.y)
 
-          if isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls, 
+          if isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
                                   currentGame.enemies, 25):
             currentGame.walls.add(newWall(mousePos.x, mousePos.y, currentGame.player))
             currentGame.player.walls -= 1
@@ -636,7 +636,7 @@ proc main() =
       if isKeyPressed(F) and hasPowerUp(currentGame.player, puAutoShoot):
         currentGame.player.autoShootEnabled = not currentGame.player.autoShootEnabled
         let feedbackColor = if currentGame.player.autoShootEnabled: Green else: Red
-        spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y, 
+        spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                       feedbackColor, 20)
       
       # Activate ALL legendary power-ups with Q key (simultaneous activation)
@@ -654,7 +654,7 @@ proc main() =
             currentGame.player.timeWarpDuration = duration
             currentGame.player.timeWarpCooldown = cooldown
             currentGame.player.timeWarpUsesThisWave += 1  # Increment uses
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y, 
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                           Color(r: 138, g: 43, b: 226, a: 255), 30)
             anyActivated = true
         
@@ -687,21 +687,21 @@ proc main() =
             currentGame.player.pos.y += dashDir.y * dashDistance
             
             # Keep player in bounds
-            currentGame.player.pos.x = max(currentGame.player.radius, 
-                                           min(currentGame.player.pos.x, 
+            currentGame.player.pos.x = max(currentGame.player.radius,
+                                           min(currentGame.player.pos.x,
                                                currentGame.screenWidth.float32 - currentGame.player.radius))
-            currentGame.player.pos.y = max(currentGame.player.radius, 
-                                           min(currentGame.player.pos.y, 
+            currentGame.player.pos.y = max(currentGame.player.radius,
+                                           min(currentGame.player.pos.y,
                                                currentGame.screenHeight.float32 - currentGame.player.radius))
             
             # Visual effects at start and end position
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.lastPhaseShiftPos.x, 
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.lastPhaseShiftPos.x,
                           currentGame.player.lastPhaseShiftPos.y, SkyBlue, 25)
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, 
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x,
                           currentGame.player.pos.y, SkyBlue, 25)
           else:
             # Dash in place - just visual effect
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, 
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x,
                           currentGame.player.pos.y, SkyBlue, 30)
           
           anyActivated = true
@@ -715,7 +715,7 @@ proc main() =
           currentGame.player.parryDuration = duration
           currentGame.player.parryCooldown = cooldown
           
-          spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y, 
+          spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                         Color(r: 255, g: 255, b: 255, a: 255), 35)
           anyActivated = true
         
@@ -773,12 +773,12 @@ proc main() =
       
       # Handle transition fade
       if currentGame.transitioning:
-        drawRectangle(0, 0, screenWidth, screenHeight, 
+        drawRectangle(0, 0, screenWidth, screenHeight,
                      fade(Black, currentGame.fadeAlpha))
         if currentGame.fadeAlpha > 0.5:
           let text = "ENTERING 3D ARENA"
           let textWidth = measureText(text, 30)
-          drawText(text, screenWidth div 2 - textWidth div 2, 
+          drawText(text, screenWidth div 2 - textWidth div 2,
                   screenHeight div 2, 30, White)
       
       endGameDrawing()
@@ -856,7 +856,7 @@ proc main() =
             currentPvPGame = nil
           
           cleanupGame(currentGame)
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           currentGame.state = gsMenu
           playSound(stMenuSelect)
@@ -923,7 +923,7 @@ proc main() =
             currentPvPGame = nil
           
           cleanupGame(currentGame)
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           currentGame.state = gsMenu
           playSound(stMenuSelect)
@@ -1053,7 +1053,7 @@ proc main() =
       let alpha = uint8(200.0 * (countdownValue + 0.1))
       
       # Dark overlay that fades out
-      drawRectangle(0, 0, screenWidth, screenHeight, 
+      drawRectangle(0, 0, screenWidth, screenHeight,
                    Color(r: 0, g: 0, b: 0, a: alpha))
       
       # Countdown text with scale pulse
@@ -1360,7 +1360,7 @@ proc main() =
           else:
             currentGame.bossCount
           
-          updateStats(stats, 
+          updateStats(stats,
                      shouldUseWaves(currentGame.mode),
                      currentGame.currentWave,
                      currentGame.time,
@@ -1404,11 +1404,11 @@ proc main() =
       
       # Execute action based on selected button or direct key press
       # SPACE and R both trigger restart (button 0)
-      if (isKeyPressed(Space) or isKeyPressed(R)) or 
+      if (isKeyPressed(Space) or isKeyPressed(R)) or
          (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 0):
         # Store the current game mode before restarting
         let previousMode = currentGame.mode
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
         initializeRunTracking(currentGame)  # Start tracking
@@ -1416,16 +1416,16 @@ proc main() =
         playSound(stMenuSelect)
         statsSavedThisGame = false  # Reset for new game
       # TAB or V to view stats (button 1)
-      elif (isKeyPressed(Tab) or isKeyPressed(V)) or 
+      elif (isKeyPressed(Tab) or isKeyPressed(V)) or
            (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 1):
         if hasValidRunStats():
           currentGame.state = gsRunStats
           playSound(stMenuSelect)
       # ESC or Q to exit (button 2)
-      elif (isKeyPressed(Escape) or isKeyPressed(Q)) or 
+      elif (isKeyPressed(Escape) or isKeyPressed(Q)) or
            (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 2):
         cleanupGame(currentGame)  # Clean up resources before creating new game
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         playSound(stMenuSelect)
@@ -1470,7 +1470,7 @@ proc main() =
         if checkCollisionPointRec(mousePos, restartRect):
           # Restart game - preserve game mode
           let previousMode = currentGame.mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, previousMode)  # Preserve the game mode
           initializeRunTracking(currentGame)
@@ -1485,7 +1485,7 @@ proc main() =
         elif checkCollisionPointRec(mousePos, exitRect):
           # Return to menu
           cleanupGame(currentGame)
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           currentGame.state = gsMenu
           playSound(stMenuSelect)
@@ -1515,7 +1515,7 @@ proc main() =
       
       # Quick restart
       if isKeyPressed(R):
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         currentGame.mode = gmWaveBased
         initializeRunTracking(currentGame)
@@ -1525,21 +1525,21 @@ proc main() =
       # Return to menu
       if isKeyPressed(Q):
         cleanupGame(currentGame)  # Clean up resources before creating new game
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         statsSavedThisGame = false
       
       beginGameDrawing()
       if hasValidRunStats():
-        drawGameOverStatsScreen(currentRunStats, screenWidth, screenHeight, 
+        drawGameOverStatsScreen(currentRunStats, screenWidth, screenHeight,
                                currentGame.time, currentGame.showRunStatsGraphs)
       else:
         # Fallback if no stats available
         clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
-        drawText(t(tkSystemNoStatistics), 
+        drawText(t(tkSystemNoStatistics),
                 screenWidth div 2 - 150, screenHeight div 2, 24, Red)
-        drawText(t(tkSystemPressESCToReturn), 
+        drawText(t(tkSystemPressESCToReturn),
                 screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
       
       endGameDrawing()
@@ -1614,8 +1614,8 @@ proc main() =
         currentPvPGame = nil
         
         # Return to menu
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, 
-                             settings.bulletSkin, settings.playerShape, settings.particleEffect)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin,
+                             settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         continue  # Skip drawing, go to next frame

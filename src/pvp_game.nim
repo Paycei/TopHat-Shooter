@@ -874,7 +874,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
     if localIdx >= 0 and localIdx < gameState.players.len:
       let serverPos = gameState.players[localIdx].pos
       let clientPos = pvp.players[localIdx].pos
-      let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) + 
+      let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) +
                          (serverPos.y - clientPos.y) * (serverPos.y - clientPos.y))
       
       if posDiff > 150.0:
@@ -1043,7 +1043,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   let clientPos = pvp.players[localIdx].pos
   
   # Calculate position difference
-  let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) + 
+  let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) +
                      (serverPos.y - clientPos.y) * (serverPos.y - clientPos.y))
   
   if posDiff > 150.0:
@@ -1289,7 +1289,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
             pvp.players[i].teamId = teamId
             
             # Update spawn position based on team
-            pvp.players[i].pos = getTeamSpawnPosition(i, teamId, pvp.maxPlayers, 
+            pvp.players[i].pos = getTeamSpawnPosition(i, teamId, pvp.maxPlayers,
                                                       pvp.screenWidth.float32, pvp.screenHeight.float32)
           
           echo "[PVP CLIENT] Applied team assignments - Teams enabled: ", pvp.teamsEnabled
@@ -1368,7 +1368,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
       of ptPlayerDeath:
         let playerIdx = event.packet.deadPlayerIndex
         pvp.players[playerIdx].hp = 0
-        spawnExplosionPooled(pvp.particlePool, pvp.players[playerIdx].pos.x, 
+        spawnExplosionPooled(pvp.particlePool, pvp.players[playerIdx].pos.x,
                             pvp.players[playerIdx].pos.y, Red, 30)
       
       of ptWallPlace:
@@ -1659,9 +1659,9 @@ proc drawPvP*(pvp: PvPGameState) =
     let countdownText = if countdownValue > 0: $countdownValue else: "FIGHT!"
     let textWidth = measureText(countdownText, 80)
     
-    drawRectangle(0, 0, pvp.screenWidth, pvp.screenHeight, 
+    drawRectangle(0, 0, pvp.screenWidth, pvp.screenHeight,
                  Color(r: 0, g: 0, b: 0, a: 150))
-    drawText(countdownText, 
+    drawText(countdownText,
             pvp.screenWidth div 2 - textWidth div 2,
             pvp.screenHeight div 2 - 40,
             80, Yellow)
@@ -1682,7 +1682,7 @@ proc drawPvP*(pvp: PvPGameState) =
     # Draw "YOU" text above arrow
     let youText = "YOU"
     let youWidth = measureText(youText, 30)
-    drawText(youText, 
+    drawText(youText,
             localPlayer.pos.x.int32 - youWidth div 2,
             (arrowY - 40).int32,
             30, arrowColor)
@@ -1738,7 +1738,7 @@ proc drawPvP*(pvp: PvPGameState) =
           else:
             "YOU LOSE!"
     
-    let textSize: int32 = if pvp.teamsEnabled: 50 else: 
+    let textSize: int32 = if pvp.teamsEnabled: 50 else:
       (if pvp.gameOverReason in ["Opponent disconnected", "Connection lost", "Opponent forfeited"]: 40 else: 60)
     let textWidth = measureText(winnerText, textSize)
     

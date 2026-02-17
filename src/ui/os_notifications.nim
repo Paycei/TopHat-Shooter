@@ -6,7 +6,7 @@ import raylib, ../types, ../localization, ui_constants
 type
   OSToastType* = enum
     ottInfo,        # Blue - informational messages
-    ottSuccess,     # Green - positive events  
+    ottSuccess,     # Green - positive events
     ottWarning,     # Yellow - warnings
     ottError,       # Red - errors
     ottCritical,    # Dark red - critical system issues

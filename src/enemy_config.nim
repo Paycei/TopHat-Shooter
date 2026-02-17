@@ -390,7 +390,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       hasRangedAttack: true,
       attack: EnemyAttackConfig(
         fireRate: 1.0,        # Shoots during movement
-        bulletSpeed: 140.0,   # Slow projectiles  
+        bulletSpeed: 140.0,   # Slow projectiles
         bulletCount: 3,       # 3 bullets during dash
         spreadAngle: 0.3,     # Small spread (-1, 0, +1)
         damage: 1.0,

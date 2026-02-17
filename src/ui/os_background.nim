@@ -72,7 +72,7 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32) 
   # Alert overlay (red tint when in danger)
   if bg.alertLevel > 0:
     let redAlpha = uint8(bg.alertLevel * 40)
-    drawRectangle(0, 0, screenWidth, screenHeight, 
+    drawRectangle(0, 0, screenWidth, screenHeight,
                  Color(r: 255, g: 0, b: 0, a: redAlpha))
   
   # Draw grid
@@ -108,14 +108,14 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32) 
   
   # Draw data packets
   for packet in bg.dataPackets:
-    drawCircle(Vector2(x: packet.x, y: packet.y), 3, 
+    drawCircle(Vector2(x: packet.x, y: packet.y), 3,
               Color(r: 0, g: 200, b: 255, a: packet.alpha))
     
     # Trail effect
     for i in 1..3:
       let trailX = packet.x - (i * 5).float32
       let trailAlpha = packet.alpha div (i * 2).uint8
-      drawCircle(Vector2(x: trailX, y: packet.y), 2, 
+      drawCircle(Vector2(x: trailX, y: packet.y), 2,
                 Color(r: 0, g: 200, b: 255, a: trailAlpha))
   
   # Critical status border pulse
@@ -125,7 +125,7 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32) 
     let borderThickness: int32 = 5
     
     # Top
-    drawRectangle(0, 0, screenWidth, borderThickness, 
+    drawRectangle(0, 0, screenWidth, borderThickness,
                  Color(r: 255, g: 0, b: 0, a: borderAlpha))
     # Bottom
     drawRectangle(0, screenHeight - borderThickness, screenWidth, borderThickness,

@@ -38,13 +38,13 @@ proc drawCoin*(coin: Coin) =
   let size = coin.radius * pulse
   
   # Boss coins have special red colors
-  let mainColor = if coin.isBossCoin: 
+  let mainColor = if coin.isBossCoin:
     Color(r: 255, g: 50, b: 50, a: 255)  # Bright red
-  else: 
+  else:
     Gold
-  let outlineColor = if coin.isBossCoin: 
+  let outlineColor = if coin.isBossCoin:
     Color(r: 200, g: 0, b: 0, a: 255)  # Dark red
-  else: 
+  else:
     Orange
   
   drawCircle(Vector2(x: coin.pos.x, y: coin.pos.y), size, mainColor)
@@ -53,7 +53,7 @@ proc drawCoin*(coin: Coin) =
   # Boss coins have extra visual ring
   if coin.isBossCoin:
     let outerPulse = 1.0 + 0.4 * sin(coin.lifetime * 6.0)
-    drawCircleLines(coin.pos.x.int32, coin.pos.y.int32, size * outerPulse * 1.2, 
+    drawCircleLines(coin.pos.x.int32, coin.pos.y.int32, size * outerPulse * 1.2,
                    Color(r: 255, g: 150, b: 150, a: 180))  # Light red ring
   
   # Draw value if > 1 (scale text size with coin size)

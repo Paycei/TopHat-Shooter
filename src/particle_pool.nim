@@ -188,7 +188,7 @@ proc spawnShockwavePooled*(pool: ParticlePool, x, y: float32, radius: float32) =
     let py = y + sin(angle) * radius
     discard pool.acquireParticle(px, py, Color(r: 255, g: 200, b: 100, a: 255), 50)
 
-proc spawnExplosiveRingPooled*(pool: ParticlePool, x, y: float32, radius: float32, 
+proc spawnExplosiveRingPooled*(pool: ParticlePool, x, y: float32, radius: float32,
                                ringCount: int, color: Color) =
   ## Spawn concentric rings of particles for explosive bullets (like satellite trails)
   ## Creates multiple expanding rings similar to how satellites show orbit trails

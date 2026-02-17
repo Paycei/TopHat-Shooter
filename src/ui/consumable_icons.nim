@@ -137,19 +137,19 @@ proc drawShieldIcon(cx, cy: int32, size: float32) =
   )
   
   # Shield border (outline)
-  drawLine(Vector2(x: cx.float32, y: (cy - 7).float32), 
+  drawLine(Vector2(x: cx.float32, y: (cy - 7).float32),
            Vector2(x: (cx - 6).float32, y: cy.float32), 2.0, cyan)
-  drawLine(Vector2(x: cx.float32, y: (cy - 7).float32), 
+  drawLine(Vector2(x: cx.float32, y: (cy - 7).float32),
            Vector2(x: (cx + 6).float32, y: cy.float32), 2.0, cyan)
-  drawLine(Vector2(x: (cx - 6).float32, y: cy.float32), 
+  drawLine(Vector2(x: (cx - 6).float32, y: cy.float32),
            Vector2(x: cx.float32, y: (cy + 7).float32), 2.0, cyan)
-  drawLine(Vector2(x: (cx + 6).float32, y: cy.float32), 
+  drawLine(Vector2(x: (cx + 6).float32, y: cy.float32),
            Vector2(x: cx.float32, y: (cy + 7).float32), 2.0, cyan)
   
   # Center cross for detail
-  drawLine(Vector2(x: cx.float32, y: (cy - 3).float32), 
+  drawLine(Vector2(x: cx.float32, y: (cy - 3).float32),
            Vector2(x: cx.float32, y: (cy + 3).float32), 2.0, cyan)
-  drawLine(Vector2(x: (cx - 3).float32, y: cy.float32), 
+  drawLine(Vector2(x: (cx - 3).float32, y: cy.float32),
            Vector2(x: (cx + 3).float32, y: cy.float32), 2.0, cyan)
 
 proc drawDoubleCoinIcon(cx, cy: int32, size: float32) =
@@ -159,7 +159,7 @@ proc drawDoubleCoinIcon(cx, cy: int32, size: float32) =
   
   # Back coin (offset)
   drawCircle(Vector2(x: (cx + 2).float32, y: (cy + 2).float32), 5, darkGold)
-  drawCircleLines(Vector2(x: (cx + 2).float32, y: (cy + 2).float32), 5, 
+  drawCircleLines(Vector2(x: (cx + 2).float32, y: (cy + 2).float32), 5,
                   Color(r: 150, g: 120, b: 0, a: 255))
   
   # Front coin

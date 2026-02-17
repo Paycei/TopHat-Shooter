@@ -100,9 +100,9 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platf
   # Normalize and apply speed
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()
-    let speed = if isKeyDown(KeyboardKey.LeftShift): 
-                  player.speed * player.sprintMultiplier 
-                else: 
+    let speed = if isKeyDown(KeyboardKey.LeftShift):
+                  player.speed * player.sprintMultiplier
+                else:
                   player.speed
     player.vel.x = moveDir.x * speed
     player.vel.z = moveDir.z * speed

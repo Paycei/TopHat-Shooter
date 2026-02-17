@@ -20,7 +20,7 @@ proc newScreenShake*(): ScreenShake =
     tintColor: Color(r: 0, g: 0, b: 0, a: 0)
   )
 
-proc addShake*(shake: var ScreenShake, intensity: ShakeIntensity, 
+proc addShake*(shake: var ScreenShake, intensity: ShakeIntensity,
                tint: Color = Color(r: 0, g: 0, b: 0, a: 0)) =
   ## Add screen shake with specified intensity and optional color tint (SUBTLE)
   case intensity
@@ -220,12 +220,12 @@ proc newMilestoneManager*(): MilestoneManager =
     bonus: "+Badge"
   ))
 
-proc checkMilestone*(manager: var MilestoneManager, milestoneType: MilestoneType, 
+proc checkMilestone*(manager: var MilestoneManager, milestoneType: MilestoneType,
                      value: int, currentTime: float32): bool =
   ## Check if a milestone was reached, returns true if new milestone hit
   for i in 0..<manager.milestones.len:
-    if manager.milestones[i].milestoneType == milestoneType and 
-       not manager.milestones[i].reached and 
+    if manager.milestones[i].milestoneType == milestoneType and
+       not manager.milestones[i].reached and
        value >= manager.milestones[i].threshold:
       manager.milestones[i].reached = true
       manager.milestones[i].displayTimer = 5.0
@@ -249,7 +249,7 @@ proc newMicroRewardTracker*(): MicroRewardTracker =
     rewards: @[]
   )
 
-proc checkRewards*(tracker: var MicroRewardTracker, kills: int, 
+proc checkRewards*(tracker: var MicroRewardTracker, kills: int,
                    damageDealt: float32, playerPos: Vector2f): seq[MicroReward] =
   ## Check for micro-rewards and return new ones
   var newRewards: seq[MicroReward] = @[]
@@ -409,8 +409,8 @@ proc getClutchBonus*(stats: WaveStats, playerHp: float32, maxHp: float32): int =
   if stats.kills > 0 and playerHp < maxHp * 0.1:
     return 20
   return 0
-  
-# Add initialization for enhanced features  
+
+# Add initialization for enhanced features
 import d_enhancements
 
 proc initEnhancedDopamine*(dopamine: var DopamineState) =

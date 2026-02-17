@@ -28,6 +28,7 @@ proc initSettings*(): Settings =
     playerSkin: 0,  # Default to first skin (skDefault)
     bulletSkin: 0,  # Default to first bullet skin (bskDefault)
     playerShape: 0,  # Default to first shape (shHexagon)
+    bulletShape: 0,  # Default to first bullet shape (bshCircle)
     particleEffect: 0,  # Default to first particle effect (pskDefault)
     pvpNickname: "Player"  # Default nickname for PvP
   )

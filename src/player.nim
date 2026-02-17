@@ -65,9 +65,10 @@ proc newPlayer*(x, y: float32): Player =
     radialBurstTimer: 0.0,
     pulseArmorCooldown: 0.0,
     skinType: 0,  # Default skin (skDefault)
-    bulletSkinType: 0,  # Default bullet skin (bskDefault)
-    shapeType: 0,  # Default shape (shHexagon)
-    particleSkinType: 0  # Default particle effect (pskDefault)
+    bulletSkinType: 0,
+    bulletShapeType: 0,
+    shapeType: 0,
+    particleSkinType: 0
   )
 
 proc hasAnyOrbPowerUp*(player: Player): bool =
@@ -100,7 +101,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.damageBoostTimer > 0:
     player.damageBoostTimer -= dt
   if player.lifestealTimer > 0:
-    player.lifestealTimer -= dt  
+    player.lifestealTimer -= dt
   # Update legendary power-up cooldowns
   if player.timeWarpCooldown > 0:
     player.timeWarpCooldown -= dt
@@ -286,7 +287,7 @@ proc drawPlayer*(player: Player) =
     drawText(t(tkPlayerDodge), (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
     player.lastDamageTaken = -1  # Clear flag
   
-  # PLAYER RENDERING 
+  # PLAYER RENDERING
   let time = getTime()
   let pulse = sin(time * 2.0) * 0.5 + 0.5  # Pulsing animation
   let rotation = time * 0.5  # Slow rotation for hex frame
@@ -305,7 +306,7 @@ proc drawPlayer*(player: Player) =
     baseColor = Color(r: 0, g: 255, b: 255, a: 255)  # Bright cyan
     glowIntensity = 0.8 + pulse * 0.2
     # Extra glow layers
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8, 
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8,
               Color(r: Cyan.r, g: Cyan.g, b: Cyan.b, a: phaseAlpha.uint8))
     drawText(t(tkPlayerPhase), (player.pos.x - 30).int32, (player.pos.y - 40).int32, 14, Cyan)
   # Parry active visual effect - white/silver shield
@@ -314,7 +315,7 @@ proc drawPlayer*(player: Player) =
     baseColor = Color(r: 255, g: 255, b: 255, a: 255)  # White
     coreColor = Color(r: 220, g: 220, b: 255, a: 255)  # Light blue
     glowIntensity = 1.0
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8, 
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8,
               Color(r: 255, g: 255, b: 255, a: parryAlpha.uint8))
     drawText(t(tkPlayerParry), (player.pos.x - 25).int32, (player.pos.y - 40).int32, 16, White)
   # Invincibility visual effect
@@ -440,9 +441,9 @@ proc drawPlayer*(player: Player) =
       
       # Multi-layered orb with glow effects and trails
       # Outer glow aura - Reduced glow size from 12/9 to 8/6 for less overwhelming effect
-      drawCircle(Vector2(x: orbX, y: orbY), 8 + (orbSizeScale - 6.0) * 1.2, 
+      drawCircle(Vector2(x: orbX, y: orbY), 8 + (orbSizeScale - 6.0) * 1.2,
                 Color(r: color.r, g: color.g, b: color.b, a: 30))
-      drawCircle(Vector2(x: orbX, y: orbY), 6 + (orbSizeScale - 6.0) * 1.0, 
+      drawCircle(Vector2(x: orbX, y: orbY), 6 + (orbSizeScale - 6.0) * 1.0,
                 Color(r: color.r, g: color.g, b: color.b, a: 60))
       
       # Main orb body - scaled
@@ -450,7 +451,7 @@ proc drawPlayer*(player: Player) =
       
       # Pulsing energy ring - scaled
       let pulseSize = (7 + orbSizeScale - 6.0) + sin(angle * 3.0) * 1.5
-      drawCircleLines(orbX.int32, orbY.int32, pulseSize, 
+      drawCircleLines(orbX.int32, orbY.int32, pulseSize,
                      Color(r: color.r, g: color.g, b: color.b, a: 180))
       
       # Bright core with highlight - Made highlight much more subtle
@@ -555,7 +556,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
   player.hp -= finalDamage
   
   # Clamp HP to 0 minimum
-  if player.hp < 0: 
+  if player.hp < 0:
     player.hp = 0
   
   player.lastDamageTaken = damage

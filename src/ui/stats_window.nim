@@ -102,7 +102,7 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
 
 # VISUAL HELPER PROCEDURES
 
-proc drawSystemBar*(x, y, width, height: int, value: float32, label: string, 
+proc drawSystemBar*(x, y, width, height: int, value: float32, label: string,
                    maxValue: float32, color: Color, animTime: float32) =
   let ratio = min(1.0, value / maxValue)
   
@@ -128,7 +128,7 @@ proc drawSystemBar*(x, y, width, height: int, value: float32, label: string,
   
   let valueText = $int(value) & " / " & $int(maxValue)
   let textWidth = measureText(valueText, 14)
-  drawText(valueText, (x + width - textWidth - 5).int32, 
+  drawText(valueText, (x + width - textWidth - 5).int32,
           (y + (height - 14) div 2).int32, 14, color)
   
   let percentText = $int(ratio * 100) & "%"
@@ -136,7 +136,7 @@ proc drawSystemBar*(x, y, width, height: int, value: float32, label: string,
   drawText(percentText, (x + width div 2 - percentWidth div 2).int32,
           (y + height + 3).int32, 12, LightGray)
 
-proc drawMetricCard*(x, y, width, height: int, title: string, value: string, 
+proc drawMetricCard*(x, y, width, height: int, title: string, value: string,
                     icon: char, color: Color) =
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                Color(r: 25, g: 25, b: 35, a: 255))
@@ -254,9 +254,9 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       of stPowerUps: t(tkStatsTabPowerUps)
     
     let isActive = statsWin.currentTab == tab
-    let isHovered = mousePos.x >= tabX.float32 and 
+    let isHovered = mousePos.x >= tabX.float32 and
                    mousePos.x <= (tabX + tabWidth).float32 and
-                   mousePos.y >= tabY.float32 and 
+                   mousePos.y >= tabY.float32 and
                    mousePos.y <= (tabY + tabHeight).float32
     
     let bgColor = if isActive:
@@ -300,7 +300,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     # Existing lifetime stats
     var y = tabContentY + 20
     
-    drawText(t(tkStatsPerformanceMonitor), (contentX + 20).int32, y.int32, 
+    drawText(t(tkStatsPerformanceMonitor), (contentX + 20).int32, y.int32,
             20, Color(r: 0, g: 200, b: 255, a: 255))
     y += 35
     
@@ -330,7 +330,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     let barHeight = 24
     
     drawSystemBar(contentX + 30, y, barWidth, barHeight,
-                 statsWin.stats.waveMode.highestWaveReached.float32, 
+                 statsWin.stats.waveMode.highestWaveReached.float32,
                  t("stats_bar_wave_max"), 50.0,
                  Color(r: 100, g: 220, b: 255, a: 255), statsWin.animTime)
     y += barHeight + 18
@@ -515,9 +515,9 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         drawText(t(tkGameNoGraphData), (col3X + col1Width div 2 - 50).int32, (y + 100).int32, 14, Gray)
     else:
       let y = tabContentY + tabContentH div 2 - 30
-      drawText(t(tkGameNoPreviousRun), 
+      drawText(t(tkGameNoPreviousRun),
               (contentX + contentW div 2 - 180).int32, y.int32, 18, LightGray)
-      drawText(t(tkGameCompleteGameStats), 
+      drawText(t(tkGameCompleteGameStats),
               (contentX + contentW div 2 - 200).int32, (y + 25).int32, 16, Gray)
   
   of stPowerUps:
@@ -529,7 +529,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       drawText(t(tkStatsPowerUpBreakdown), (contentX + 20).int32, y.int32, 24, Color(r: 255, g: 200, b: 50, a: 255))
       y += 30
       
-      let summaryText = $runStats.powerUps.totalPowerUps & " " & t(tkStatsTotal) & " | " & 
+      let summaryText = $runStats.powerUps.totalPowerUps & " " & t(tkStatsTotal) & " | " &
                        $runStats.powerUps.legendaryPowerUps & " " & t(tkStatsLegendaryCount) & " | " &
                        $runStats.powerUps.commonPowerUps & " " & t(tkStatsCommonCount)
       drawText(summaryText, (contentX + 20).int32, y.int32, 16, LightGray)
@@ -572,7 +572,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       
       # Sort by damage (descending) using efficient built-in sort
       if contributions.len > 1:
-        contributions.sort(proc (a, b: (PowerUpType, float32)): int = 
+        contributions.sort(proc (a, b: (PowerUpType, float32)): int =
           cmp(b[1], a[1])  # Descending order: b[1] compared to a[1]
         )
       
@@ -610,7 +610,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         drawText(t(tkStatsNoDamageData), (col2X + 10).int32, lineY.int32, 14, Gray)
     else:
       let y = tabContentY + tabContentH div 2 - 20
-      drawText(t(tkGameNoPowerUpData), 
+      drawText(t(tkGameNoPowerUpData),
               (contentX + contentW div 2 - 150).int32, y.int32, 18, LightGray)
   
   drawResizeIndicator(statsWin.window)

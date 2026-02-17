@@ -282,7 +282,7 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
 
 # === MAIN BOSS UPDATE ===
 
-proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Projectile3D], 
+proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Projectile3D],
                  arena: var Arena3D, dt: float32) =
   
   boss.moveTimer += dt
@@ -397,7 +397,7 @@ proc drawBoss*(boss: Boss3D) =
   # Phase transition flash
   if boss.phaseTransitionTimer > 0:
     let flashIntensity = sin(boss.phaseTransitionTimer * 10.0) * 0.5 + 0.5
-    drawSphere(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z), 
+    drawSphere(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z),
               25.0, fade(White, flashIntensity * 0.8))
   
   # Core color and size based on phase
@@ -444,11 +444,11 @@ proc drawGravityWells*(boss: Boss3D) =
       let alpha = progress * 0.4
       
       # Core
-      drawSphere(Vector3(x: well.pos.x, y: well.pos.y, z: well.pos.z), 
+      drawSphere(Vector3(x: well.pos.x, y: well.pos.y, z: well.pos.z),
                 8.0, fade(Color(r: 150, g: 0, b: 150, a: 255), alpha))
       
       # Radius indicator
-      drawSphereWires(Vector3(x: well.pos.x, y: well.pos.y, z: well.pos.z), 
+      drawSphereWires(Vector3(x: well.pos.x, y: well.pos.y, z: well.pos.z),
                      well.radius, 8, 8, fade(Color(r: 200, g: 0, b: 200, a: 255), alpha * 0.5))
 
 proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
@@ -456,7 +456,7 @@ proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
     if sat.active:
       let barPos = Vector3(x: sat.pos.x, y: sat.pos.y + 10.0, z: sat.pos.z)
       
-      let screenPos = getWorldToScreen(barPos, 
+      let screenPos = getWorldToScreen(barPos,
         Camera(
           position: Vector3(x: camera.position.x, y: camera.position.y, z: camera.position.z),
           target: Vector3(x: camera.target.x, y: camera.target.y, z: camera.target.z),
@@ -474,15 +474,15 @@ proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
         let healthPercent = sat.health / sat.maxHealth
         
         # Background
-        drawRectangle(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2), 
+        drawRectangle(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
                      int32(barWidth), int32(barHeight), Color(r: 100, g: 0, b: 0, a: 200))
         
         # Foreground
-        drawRectangle(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2), 
+        drawRectangle(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
                      int32(barWidth * healthPercent), int32(barHeight), Color(r: 150, g: 100, b: 255, a: 255))
         
         # Border
-        drawRectangleLines(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2), 
+        drawRectangleLines(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
                           int32(barWidth), int32(barHeight), White)
 
 # === DAMAGE HANDLING ===

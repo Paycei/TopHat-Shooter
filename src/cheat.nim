@@ -301,7 +301,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
   let closeRect = Rectangle(x: closeX.float32, y: closeY.float32, width: closeButtonSize.float32, height: closeButtonSize.float32)
   let closeHovered = checkCollisionPointRec(getMousePosition(), closeRect)
   
-  drawRectangle(closeX, closeY, closeButtonSize, closeButtonSize, 
+  drawRectangle(closeX, closeY, closeButtonSize, closeButtonSize,
                 if closeHovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255))
   drawRectangleLines(closeX, closeY, closeButtonSize, closeButtonSize, Red)
   drawText("X", closeX + 9, closeY + 7, 16, White)
@@ -331,7 +331,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     else:
       tabColor = if tabHovered: Color(r: 180, g: 180, b: 180, a: 255) else: Gray
     
-    let bgColor = if isActiveTab: 
+    let bgColor = if isActiveTab:
       Color(r: 40, g: 40, b: 50, a: 255)
     else:
       if tabHovered: Color(r: 35, g: 35, b: 45, a: 255) else: Color(r: 20, g: 20, b: 30, a: 255)
@@ -389,7 +389,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   # Skip current wave button
   let skipRect = Rectangle(x: centerX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
   let skipHovered = checkCollisionPointRec(getMousePosition(), skipRect)
-  drawRectangle(centerX, currentY, buttonWidth, buttonHeight, 
+  drawRectangle(centerX, currentY, buttonWidth, buttonHeight,
                 if skipHovered: Color(r: 80, g: 80, b: 0, a: 255) else: Color(r: 60, g: 60, b: 0, a: 255))
   drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, Yellow)
   drawText("Skip Current Wave", centerX + 30, currentY + 12, 16, White)
@@ -683,7 +683,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
       let removeX = x + width - 80
       let removeWidth: int32 = 60
       let removeHeight: int32 = 24
-      let removeRect = Rectangle(x: removeX.float32, y: itemY.float32 + 2, 
+      let removeRect = Rectangle(x: removeX.float32, y: itemY.float32 + 2,
                                   width: removeWidth.float32, height: removeHeight.float32)
       let removeHovered = checkCollisionPointRec(getMousePosition(), removeRect)
       
@@ -701,12 +701,12 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     # Scroll indicator for owned list
     if ownedMaxScroll > 0:
       let scrollInfoY = dividerY - 18
-      drawText("Showing " & $(ownedStartIdx + 1) & "-" & $ownedEndIdx & " of " & $game.player.powerUps.len, 
+      drawText("Showing " & $(ownedStartIdx + 1) & "-" & $ownedEndIdx & " of " & $game.player.powerUps.len,
               x + 20, scrollInfoY, 10, Gray)
 
   # Draw divider line
-  drawLine(Vector2(x: (x + 10).float32, y: dividerY.float32), 
-           Vector2(x: (x + width - 10).float32, y: dividerY.float32), 
+  drawLine(Vector2(x: (x + 10).float32, y: dividerY.float32),
+           Vector2(x: (x + width - 10).float32, y: dividerY.float32),
            2, Color(r: 100, g: 100, b: 120, a: 255))
   
   currentY = dividerY + 15
@@ -794,7 +794,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
         btnColor = if hovered: Color(r: 80, g: 80, b: 80, a: 255) else: Color(r: 50, g: 50, b: 50, a: 255)
       
       drawRectangle(btnX, itemY, buttonWidth, itemHeight - 5, btnColor)
-      drawRectangleLines(btnX, itemY, buttonWidth, itemHeight - 5, 
+      drawRectangleLines(btnX, itemY, buttonWidth, itemHeight - 5,
                         if level == currentLevel: Yellow else: Gray)
       
       let btnText = "Lv" & $level
@@ -807,7 +807,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   # Draw scroll indicator for available list
   if maxScroll > 0:
     let scrollY = y + contentHeight - 15
-    drawText("Showing " & $(startIdx + 1) & "-" & $endIdx & " of " & $allPowerUpTypes.len, 
+    drawText("Showing " & $(startIdx + 1) & "-" & $endIdx & " of " & $allPowerUpTypes.len,
             x + 20, scrollY, 10, Gray)
 
 proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
@@ -829,13 +829,13 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
     let itemY = currentY + i.int32 * itemHeight
     
     # Background box for each enemy
-    let boxColor = if enemy.isBoss: 
+    let boxColor = if enemy.isBoss:
       Color(r: 60, g: 10, b: 10, a: 255)
     else:
       Color(r: 40, g: 40, b: 50, a: 255)
     
     drawRectangle(x + 20, itemY, width - 40, itemHeight - 5, boxColor)
-    drawRectangleLines(x + 20, itemY, width - 40, itemHeight - 5, 
+    drawRectangleLines(x + 20, itemY, width - 40, itemHeight - 5,
                       if enemy.isBoss: Red else: Gray)
     
     # Draw enemy icon/shape (miniature version)
@@ -847,7 +847,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
     of etCircle:
       drawCircle(Vector2(x: iconX.float32, y: iconY.float32), iconSize, enemy.color)
     of etCube:
-      drawRectangle((iconX - iconSize.int32), (iconY - iconSize.int32), 
+      drawRectangle((iconX - iconSize.int32), (iconY - iconSize.int32),
                    (iconSize * 2).int32, (iconSize * 2).int32, enemy.color)
     of etTriangle:
       let v1 = Vector2(x: iconX.float32, y: (iconY.float32 - iconSize))
@@ -905,7 +905,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
       of etSniper: "SNIPER"
       of etMage: "Mage"
     
-    let nameColor = if enemy.isBoss: Red 
+    let nameColor = if enemy.isBoss: Red
                     elif enemy.enemyType == etSniper: Magenta
                     else: White
     drawText(enemyName, nameX, itemY + 5, 12, nameColor)
@@ -918,10 +918,10 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
     let hpPercent = enemy.hp / enemy.maxHp
     
     # Background
-    drawRectangle(hpBarX, hpBarY, hpBarWidth.int32, hpBarHeight.int32, 
+    drawRectangle(hpBarX, hpBarY, hpBarWidth.int32, hpBarHeight.int32,
                  Color(r: 50, g: 50, b: 50, a: 255))
     # HP fill
-    drawRectangle(hpBarX, hpBarY, (hpBarWidth * hpPercent).int32, hpBarHeight.int32, 
+    drawRectangle(hpBarX, hpBarY, (hpBarWidth * hpPercent).int32, hpBarHeight.int32,
                  if hpPercent > 0.5: Green elif hpPercent > 0.2: Orange else: Red)
     # Border
     drawRectangleLines(hpBarX, hpBarY, hpBarWidth.int32, hpBarHeight.int32, White)
@@ -932,5 +932,5 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
   # Show count if more enemies than can display
   if game.enemies.len > maxVisible:
     let remainingY = y + height - 20
-    drawText("+ " & $(game.enemies.len - maxVisible) & " more enemies...", 
+    drawText("+ " & $(game.enemies.len - maxVisible) & " more enemies...",
             x + 20, remainingY, 12, Yellow)

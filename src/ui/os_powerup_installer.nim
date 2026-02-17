@@ -13,8 +13,8 @@ const
   CARD_SPACING = 35
   PROGRESS_BAR_HEIGHT = 22
 
-proc drawModernButton(x, y, width, height: int32, text: string, 
-                     enabled: bool = true, highlight: bool = false, 
+proc drawModernButton(x, y, width, height: int32, text: string,
+                     enabled: bool = true, highlight: bool = false,
                      time: float32 = 0.0) =
   let bgColor = if not enabled:
     Color(r: 35, g: 40, b: 50, a: 255)
@@ -46,15 +46,15 @@ proc drawModernButton(x, y, width, height: int32, text: string,
                                 width: width.float32, height: height.float32),
                     borderWidth, borderColor)
   
-  let textColor = if not enabled: 
+  let textColor = if not enabled:
     Color(r: 100, g: 100, b: 110, a: 255)
-  else: 
+  else:
     White
   
   let textWidth = measureText(text, 15)
   drawText(text, x + (width - textWidth) div 2, y + (height - 15) div 2, 15, textColor)
 
-proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp, 
+proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
                     selected: bool, time: float32, blurAmount: float32 = 1.0) =
   ## Draw power-up card with motion blur during roll
   
@@ -220,7 +220,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
     # Multiple glow layers
     for i in 1..4:
       let glowSize: int32 = int32(i * 3)
-      drawRectangle(badgeX.int32 - glowSize, yOffset - glowSize, 
+      drawRectangle(badgeX.int32 - glowSize, yOffset - glowSize,
                    rarityWidth + 28 + glowSize * 2, badgeHeight + glowSize * 2,
                    Color(r: 255, g: 215, b: 0, a: uint8((60.0 - i.float * 12.0) * glowPulse * blurAmount)))
     # Sparkle particles around badge
@@ -264,7 +264,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   let maxTiers = if powerUp.rarity == prLegendary: 1 else: 3
   
   # Compact tier label
-  drawText(t(tkPowerUpUpgradeTier), x + 12, yOffset, 12,  
+  drawText(t(tkPowerUpUpgradeTier), x + 12, yOffset, 12,
           Color(r: 140, g: 160, b: 180, a: 255))
   yOffset += 18
   
@@ -393,7 +393,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   for i in 0..20:
     let radius = i * 60
     let alpha = uint8(i * 2)
-    drawRing(Vector2(x: centerX.float32, y: centerY.float32), 
+    drawRing(Vector2(x: centerX.float32, y: centerY.float32),
             radius.float32, (radius + 60).float32, 0, 360, 32,
             Color(r: 0, g: 0, b: 0, a: alpha))
   
@@ -451,7 +451,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   let buttonSize = 28
   let closeButtonY = windowY + int32((TITLE_BAR_HEIGHT - buttonSize) div 2)
   let closeX = windowX + INSTALLER_WIDTH - int32(buttonSize) - 10
-  drawRectangle(closeX, closeButtonY, int32(buttonSize), int32(buttonSize), 
+  drawRectangle(closeX, closeButtonY, int32(buttonSize), int32(buttonSize),
                Color(r: 220, g: 50, b: 50, a: 255))
   drawRectangleLines(Rectangle(x: closeX.float32, y: closeButtonY.float32,
                                 width: buttonSize.float32, height: buttonSize.float32),
@@ -460,7 +460,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   
   # Instruction
   var yPos = windowY + TITLE_BAR_HEIGHT + 25
-  drawText(t(tkPowerUpSelectUpgrade), windowX + 25, yPos, 17, 
+  drawText(t(tkPowerUpSelectUpgrade), windowX + 25, yPos, 17,
           Color(r: 200, g: 220, b: 240, a: 255))
   yPos += 50
   
@@ -529,7 +529,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
     drawText(rollingText, rollingX, rollingY, 32,
             Color(r: 255, g: 220, b: 0, a: uint8(255 * pulse)))
     
-    beginScissorMode(windowX + 10, windowY + TITLE_BAR_HEIGHT + 10, 
+    beginScissorMode(windowX + 10, windowY + TITLE_BAR_HEIGHT + 10,
                      INSTALLER_WIDTH - 20, INSTALLER_HEIGHT - TITLE_BAR_HEIGHT - 140)
     
     for i in 0..10:
@@ -601,7 +601,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   
   let rerollCostText = $game.rerollCost & " credits"
   let costWidth = measureText(rerollCostText, 12)
-  drawText(rerollCostText, int32(rerollX + (rerollWidth - costWidth) div 2), 
+  drawText(rerollCostText, int32(rerollX + (rerollWidth - costWidth) div 2),
           int32(buttonY + buttonHeight + 8), int32(12),
           if canAffordReroll: Color(r: 255, g: 215, b: 0, a: 255)
           else: Color(r: 120, g: 120, b: 130, a: 255))

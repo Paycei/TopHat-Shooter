@@ -72,16 +72,16 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
   
   # Label shadow for depth
   if enemy.isBoss or enemy.isElite:
-    drawRectangle((labelX + 2).int32, (labelY + 2).int32, 
+    drawRectangle((labelX + 2).int32, (labelY + 2).int32,
                  int32(totalWidth), int32(labelHeight),
                  Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.6)))
   
   # Label background with transparency
-  let bgAlpha = if enemy.isBoss: 
+  let bgAlpha = if enemy.isBoss:
     uint8(min(uint8(240), alpha))
-  elif enemy.isElite: 
+  elif enemy.isElite:
     uint8(min(uint8(220), alpha))
-  else: 
+  else:
     uint8(min(uint8(190), alpha))
   
   let bgColor = if enemy.isBoss:
@@ -209,7 +209,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
     drawRectangle(barX.int32, barY.int32, fillWidth.int32, barHeight.int32, barColor)
     
     # Shine effect on health bar (toned down for elites)
-    let shineAlpha = if enemy.isElite: 
+    let shineAlpha = if enemy.isElite:
       uint8(alpha.float32 * 0.2)  # Much less shiny
     else:
       uint8(alpha.float32 * 0.3)
@@ -333,7 +333,7 @@ proc drawThreatCounter*(screenWidth, screenHeight: int32, threatCount: int) =
   let iconY = counterY + 10
   let iconPulse = if threatCount > 15: sin(getTime() * 8.0) * 0.3 + 0.7 else: 1.0
   
-  drawText("[!]", int32(iconX), int32(iconY), int32(20), 
+  drawText("[!]", int32(iconX), int32(iconY), int32(20),
           Color(r: uint8(accentColor.r.float32 * iconPulse),
                 g: uint8(accentColor.g.float32 * iconPulse),
                 b: uint8(accentColor.b.float32 * iconPulse),

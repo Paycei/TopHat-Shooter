@@ -2,7 +2,7 @@
 ## Centralized window handling with state management
 
 import raylib, os_window, settings_window, help_window, stats_window, shop_window, pvp_window
-import ../types, ../settings, ../statistics, ../skins, ../bullet_skins, ../shapes, ../particle_skins
+import ../types, ../settings, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins
 import algorithm, sequtils
 
 type
@@ -21,19 +21,20 @@ type
     pvp*: PvPWindow
     nextZOrder: int
 
-proc newWindowManager*(screenWidth, screenHeight: int, 
-                       gameSettings: Settings, 
+proc newWindowManager*(screenWidth, screenHeight: int,
+                       gameSettings: Settings,
                        gameStats: Statistics): WindowManager =
   ## Create a new window manager with all windows pre-initialized
   result = WindowManager(
     settings: newSettingsWindow(screenWidth, screenHeight, gameSettings),
     help: newHelpWindow(screenWidth, screenHeight),
     stats: newStatsWindow(screenWidth, screenHeight, gameStats),
-    shop: newShopWindow(screenWidth, screenHeight, 
-                       SkinType(gameSettings.playerSkin), 
-                       BulletSkinType(gameSettings.bulletSkin), 
-                       ShapeType(gameSettings.playerShape), 
-                       ParticleSkinType(gameSettings.particleEffect)),
+    shop: newShopWindow(screenWidth, screenHeight,
+                       SkinType(gameSettings.playerSkin),
+                       BulletSkinType(gameSettings.bulletSkin),
+                       ShapeType(gameSettings.playerShape),
+                       ParticleSkinType(gameSettings.particleEffect),
+                       BulletShapeType(gameSettings.bulletShape)),
     pvp: newPvPWindow(screenWidth, screenHeight),
     nextZOrder: 1
   )
@@ -162,7 +163,7 @@ type
     iconToExecute*: int
     pvpGameReady*: bool  # True when PvP connection is established
 
-proc updateAllWindows*(wm: WindowManager, dt: float32, 
+proc updateAllWindows*(wm: WindowManager, dt: float32,
                        screenWidth, screenHeight: int): WindowUpdateResult =
   ## Update all visible windows and handle their inputs
   result.fullscreenToggle = false
@@ -195,7 +196,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       result.iconToExecute = updateHelpWindow(wm.help, dt, screenWidth, screenHeight, visibleWindows)
     
     elif window == wm.pvp.window:
-      # Create callback to provide cosmetics when accepting connections  
+      # Create callback to provide cosmetics when accepting connections
       proc getCosmetics(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int] =
         return (
           skinType: globalSettings.playerSkin,

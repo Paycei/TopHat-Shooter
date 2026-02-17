@@ -23,7 +23,7 @@ proc getCurrentCost*(item: ShopItem): int =
   # More aggressive exponential cost scaling: baseCost * 1.5^bought
   (item.baseCost.float32 * pow(1.45, item.bought.float32)).int
 
-proc drawModernShopButton(x, y, width, height: int32, text: string, 
+proc drawModernShopButton(x, y, width, height: int32, text: string,
                          cost: int, canAfford: bool, isSelected: bool,
                          time: float32, itemIndex: int = 0, bought: int = 0, description: string = "") =
   ## Draw a modern styled shop item button
@@ -63,17 +63,17 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
                     borderWidth, borderColor)
   
   # Icon - drawn programmatically
-  let iconColor = if canAfford: 
+  let iconColor = if canAfford:
     Color(r: 100, g: 200, b: 255, a: 255)
-  else: 
+  else:
     Color(r: 80, g: 90, b: 100, a: 255)
   
   drawShopIcon(x + 8, y + int32(height div 2) - 14, 28, itemIndex, iconColor)
   
   # Text color
-  let textColor = if not canAfford: 
+  let textColor = if not canAfford:
     Color(r: 100, g: 100, b: 110, a: 255)
-  else: 
+  else:
     White
   
   let textX = x + 50
@@ -89,9 +89,9 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
   
   # Cost display and owned count on same line to save space
   let costText = $cost & " " & t(tkShopCredits)
-  let costColor = if canAfford: 
+  let costColor = if canAfford:
     Color(r: 255, g: 215, b: 0, a: 255)
-  else: 
+  else:
     Color(r: 120, g: 120, b: 130, a: 255)
   
   drawText(costText, textX, y + 42, 11, costColor)
@@ -122,7 +122,7 @@ proc drawShop*(game: Game) =
   for i in 0..20:
     let radius = i * 60
     let alpha = uint8(i * 2)
-    drawRing(Vector2(x: centerX.float32, y: centerY.float32), 
+    drawRing(Vector2(x: centerX.float32, y: centerY.float32),
             radius.float32, (radius + 60).float32, 0, 360, 32,
             Color(r: 0, g: 0, b: 0, a: alpha))
   
@@ -174,7 +174,7 @@ proc drawShop*(game: Game) =
   let buttonSize = 28
   let closeButtonY = windowY + int32((TITLE_BAR_HEIGHT - buttonSize) div 2)
   let closeX = windowX + SHOP_WIDTH - int32(buttonSize) - 10
-  drawRectangle(closeX, closeButtonY, int32(buttonSize), int32(buttonSize), 
+  drawRectangle(closeX, closeButtonY, int32(buttonSize), int32(buttonSize),
                Color(r: 220, g: 50, b: 50, a: 255))
   drawRectangleLines(Rectangle(x: closeX.float32, y: closeButtonY.float32,
                                 width: buttonSize.float32, height: buttonSize.float32),
@@ -215,7 +215,7 @@ proc drawShop*(game: Game) =
       
       let name = getPowerUpName(powerUp.powerType)
       let levelText = "Lv." & $powerUp.level
-      let rarityColor = if powerUp.rarity == prLegendary: Gold 
+      let rarityColor = if powerUp.rarity == prLegendary: Gold
                        else: Color(r: 200, g: 220, b: 255, a: 255)
       
       # Upgrade name with level
@@ -393,13 +393,13 @@ proc drawShop*(game: Game) =
       drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
     
     # Crosshair lines
-    drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y), 
+    drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y),
             Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
-    drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y), 
+    drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y),
             Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
-    drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8), 
+    drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8),
             Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
-    drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3), 
+    drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3),
             Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
     
     # Center dot

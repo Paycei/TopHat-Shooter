@@ -71,7 +71,7 @@ proc drawConsumable*(consumable: Consumable) =
   drawCircleLines(consumable.pos.x.int32, consumable.pos.y.int32, size, Black)
 
   # Use new detailed icon system
-  drawConsumableIcon(consumable.pos.x, consumable.pos.y, 
+  drawConsumableIcon(consumable.pos.x, consumable.pos.y,
                     consumable.radius, consumable.consumableType, pulse)
 
 proc checkPlayerCollision*(consumable: Consumable, player: Player): bool =

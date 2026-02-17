@@ -196,7 +196,7 @@ proc checkScreenBoundaryCollision*(enemy: Enemy, nextPos: Vector2f, game: Game, 
   
   return dotProduct < 0  # Block if moving away from center
 
-# COLLISION HELPERS  
+# COLLISION HELPERS
 
 proc checkWallCollision*(enemy: var Enemy, nextPos: Vector2f, walls: seq[Wall], currentTime: float32, game: var Game): bool =
   ## Check wall collision and apply damage

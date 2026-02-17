@@ -1,4 +1,4 @@
-# SANDBOX MODE - Testing and Development Tools
+﻿# SANDBOX MODE - Testing and Development Tools
 
 import raylib, types, enemy, powerup, boss_definitions, std/strutils, random, localization, consumable
 
@@ -209,9 +209,9 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   
   for i, tabName in tabs:
     let tabX = sidebarX + SIDEBAR_PADDING + i * (tabWidth + SIDEBAR_PADDING)
-    let tabColor = if i == game.sandboxSelectedTab: 
-      Color(r: 70, g: 130, b: 180, a: 255) 
-    else: 
+    let tabColor = if i == game.sandboxSelectedTab:
+      Color(r: 70, g: 130, b: 180, a: 255)
+    else:
       Color(r: 60, g: 60, b: 60, a: 255)
     drawRectangle(int32(tabX), int32(currentY), int32(tabWidth), int32(TAB_HEIGHT - 5), tabColor)
     let textWidth = measureText(tabName, 16)
@@ -239,7 +239,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
   let contentX = sidebarX + SIDEBAR_PADDING
   let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
   
-  let enemyTypes = [etCircle, etCube, etTriangle, etStar, etHexagon, etCross, 
+  let enemyTypes = [etCircle, etCube, etTriangle, etStar, etHexagon, etCross,
                     etDiamond, etOctagon, etPentagon, etTrickster, etPhantom, etSniper, etMage]
   
   for enemyType in enemyTypes:
@@ -299,7 +299,7 @@ proc handleConsumablesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWi
   let contentX: int32 = sidebarX + SIDEBAR_PADDING
   let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
   
-  let consumableTypes = [ctHealth, ctCoin, ctSpeed, ctFireRate, ctShieldBoost, 
+  let consumableTypes = [ctHealth, ctCoin, ctSpeed, ctFireRate, ctShieldBoost,
                          ctMagnet, ctDamageBoost, ctInvincibility, ctDoubleCoin, ctLifesteal]
   
   for consumableType in consumableTypes:

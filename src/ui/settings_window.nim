@@ -97,7 +97,7 @@ proc drawCheckbox*(x, y, size: int, checked: bool, hovered: bool) =
             Vector2(x: (x + size - 3).float32, y: (y + 3).float32),
             3, Green)
 
-proc drawSlider*(x, y, width, height: int, value: float32, hovered: bool, 
+proc drawSlider*(x, y, width, height: int, value: float32, hovered: bool,
                 showTicks: bool = false, tickValues: seq[int] = @[]) =
   # Background
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
@@ -158,9 +158,9 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(t(tkSettingsFullscreen), (contentX + 40).int32, yPos.int32, 18, White)
   let fsCheckX = contentX + 320
   let mousePos = getMousePosition()
-  let fsHovered = mousePos.x >= fsCheckX.float32 and 
+  let fsHovered = mousePos.x >= fsCheckX.float32 and
                   mousePos.x <= (fsCheckX + 25).float32 and
-                  mousePos.y >= yPos.float32 and 
+                  mousePos.y >= yPos.float32 and
                   mousePos.y <= (yPos + 25).float32
   drawCheckbox(fsCheckX, yPos, 25, settingsWin.settings.fullscreen, fsHovered)
   drawText(t(tkSettingsFullscreenToggle), (fsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
@@ -191,16 +191,16 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     $settingsWin.settings.fpsLimit
   
   let textWidth = measureText(displayText, 20)
-  drawText(displayText, (boxX + (boxWidth - textWidth) div 2).int32, 
+  drawText(displayText, (boxX + (boxWidth - textWidth) div 2).int32,
           (boxY + 5).int32, 20, White)
   yPos += 40
   
   # Show FPS Counter
   drawText(t(tkSettingsShowFps), (contentX + 40).int32, yPos.int32, 18, White)
   let fpsCheckX = contentX + 320
-  let fpsCheckHovered = mousePos.x >= fpsCheckX.float32 and 
+  let fpsCheckHovered = mousePos.x >= fpsCheckX.float32 and
                         mousePos.x <= (fpsCheckX + 25).float32 and
-                        mousePos.y >= yPos.float32 and 
+                        mousePos.y >= yPos.float32 and
                         mousePos.y <= (yPos + 25).float32
   drawCheckbox(fpsCheckX, yPos, 25, settingsWin.settings.showFPS, fpsCheckHovered)
   yPos += 35
@@ -208,9 +208,9 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Debug Panel
   drawText(t(tkSettingsDebugPanel), (contentX + 40).int32, yPos.int32, 18, White)
   let debugCheckX = contentX + 320
-  let debugHovered = mousePos.x >= debugCheckX.float32 and 
+  let debugHovered = mousePos.x >= debugCheckX.float32 and
                      mousePos.x <= (debugCheckX + 25).float32 and
-                     mousePos.y >= yPos.float32 and 
+                     mousePos.y >= yPos.float32 and
                      mousePos.y <= (yPos + 25).float32
   drawCheckbox(debugCheckX, yPos, 25, settingsWin.settings.showDebugStats, debugHovered)
 
@@ -231,9 +231,9 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
   let sliderWidth = 300
   let sliderHeight = 20
   
-  let volumeHovered = mousePos.x >= volumeSliderX.float32 and 
+  let volumeHovered = mousePos.x >= volumeSliderX.float32 and
                       mousePos.x <= (volumeSliderX + sliderWidth).float32 and
-                      mousePos.y >= volumeSliderY.float32 and 
+                      mousePos.y >= volumeSliderY.float32 and
                       mousePos.y <= (volumeSliderY + sliderHeight).float32
   
   drawSlider(volumeSliderX, volumeSliderY, sliderWidth, sliderHeight,
@@ -248,9 +248,9 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
   let musicSliderX = contentX + 250
   let musicSliderY = yPos + 5
   
-  let musicHovered = mousePos.x >= musicSliderX.float32 and 
+  let musicHovered = mousePos.x >= musicSliderX.float32 and
                      mousePos.x <= (musicSliderX + sliderWidth).float32 and
-                     mousePos.y >= musicSliderY.float32 and 
+                     mousePos.y >= musicSliderY.float32 and
                      mousePos.y <= (musicSliderY + sliderHeight).float32
   
   drawSlider(musicSliderX, musicSliderY, sliderWidth, sliderHeight,
@@ -272,23 +272,23 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Mouse Support
   drawText(t(tkSettingsMouseSupport), (contentX + 40).int32, yPos.int32, 18, White)
   let mouseCheckX = contentX + 320
-  let mouseHovered = mousePos.x >= mouseCheckX.float32 and 
+  let mouseHovered = mousePos.x >= mouseCheckX.float32 and
                      mousePos.x <= (mouseCheckX + 25).float32 and
-                     mousePos.y >= yPos.float32 and 
+                     mousePos.y >= yPos.float32 and
                      mousePos.y <= (yPos + 25).float32
   drawCheckbox(mouseCheckX, yPos, 25, settingsWin.settings.mouseSupport, mouseHovered)
-  drawText(t(tkSettingsMouseSupportDesc), (mouseCheckX + 35).int32, 
+  drawText(t(tkSettingsMouseSupportDesc), (mouseCheckX + 35).int32,
           (yPos + 3).int32, 14, LightGray)
   yPos += 40
   
   # Show Cursor in Menus
   if not settingsWin.settings.mouseSupport:
-    drawText(t(tkSettingsShowCursor), (contentX + 40).int32, yPos.int32, 18, 
+    drawText(t(tkSettingsShowCursor), (contentX + 40).int32, yPos.int32, 18,
             Color(r: 180, g: 180, b: 180, a: 255))
     let cursorCheckX = contentX + 320
-    let cursorHovered = mousePos.x >= cursorCheckX.float32 and 
+    let cursorHovered = mousePos.x >= cursorCheckX.float32 and
                        mousePos.x <= (cursorCheckX + 25).float32 and
-                       mousePos.y >= yPos.float32 and 
+                       mousePos.y >= yPos.float32 and
                        mousePos.y <= (yPos + 25).float32
     drawCheckbox(cursorCheckX, yPos, 25, settingsWin.settings.showCursorInMenus, cursorHovered)
     drawText(t(tkSettingsShowCursorDesc), (cursorCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
@@ -329,9 +329,9 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Show Hints
   drawText(t(tkSettingsShowHints), (contentX + 40).int32, yPos.int32, 18, White)
   let hintsCheckX = contentX + 320
-  let hintsHovered = mousePos.x >= hintsCheckX.float32 and 
+  let hintsHovered = mousePos.x >= hintsCheckX.float32 and
                      mousePos.x <= (hintsCheckX + 25).float32 and
-                     mousePos.y >= yPos.float32 and 
+                     mousePos.y >= yPos.float32 and
                      mousePos.y <= (yPos + 25).float32
   drawCheckbox(hintsCheckX, yPos, 25, settingsWin.settings.showHints, hintsHovered)
   drawText(t(tkSettingsShowHintsDesc), (hintsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
@@ -340,9 +340,9 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Show Enemy Labels
   drawText(t(tkSettingsShowEnemyLabels), (contentX + 40).int32, yPos.int32, 18, White)
   let labelsCheckX = contentX + 320
-  let labelsHovered = mousePos.x >= labelsCheckX.float32 and 
+  let labelsHovered = mousePos.x >= labelsCheckX.float32 and
                       mousePos.x <= (labelsCheckX + 25).float32 and
-                      mousePos.y >= yPos.float32 and 
+                      mousePos.y >= yPos.float32 and
                       mousePos.y <= (yPos + 25).float32
   drawCheckbox(labelsCheckX, yPos, 25, settingsWin.settings.showEnemyLabels, labelsHovered)
   drawText(t(tkSettingsShowEnemyLabelsDesc), (labelsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
@@ -360,9 +360,9 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   let langButtonWidth = 200
   let langButtonHeight = 35
   
-  let langHovered = mousePos.x >= langButtonX.float32 and 
+  let langHovered = mousePos.x >= langButtonX.float32 and
                    mousePos.x <= (langButtonX + langButtonWidth).float32 and
-                   mousePos.y >= langButtonY.float32 and 
+                   mousePos.y >= langButtonY.float32 and
                    mousePos.y <= (langButtonY + langButtonHeight).float32
   
   let langBgColor = if langHovered:
@@ -383,7 +383,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(langDisplayText, (langButtonX + (langButtonWidth - langTextWidth) div 2).int32, yPos.int32, 18, White)
   drawText(">", (langButtonX + langButtonWidth - 25).int32, yPos.int32, 18, LightGray)
 
-proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32, 
+proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                           screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool] =
   ## Returns (shouldClose, fullscreenToggleRequested)
   updateOSWindow(settingsWin.window, dt)
@@ -512,9 +512,9 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     let sliderHeight = 20
     
     # Volume slider - check if mouse is over it first
-    let volumeHovered = mousePos.x >= volumeSliderX.float32 and 
+    let volumeHovered = mousePos.x >= volumeSliderX.float32 and
                         mousePos.x <= (volumeSliderX + sliderWidth).float32 and
-                        mousePos.y >= volumeSliderY.float32 and 
+                        mousePos.y >= volumeSliderY.float32 and
                         mousePos.y <= (volumeSliderY + sliderHeight).float32
     
     # Start dragging on click
@@ -534,9 +534,9 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     
     # Music slider
     let musicSliderY = contentY + 90
-    let musicHovered = mousePos.x >= volumeSliderX.float32 and 
+    let musicHovered = mousePos.x >= volumeSliderX.float32 and
                        mousePos.x <= (volumeSliderX + sliderWidth).float32 and
-                       mousePos.y >= musicSliderY.float32 and 
+                       mousePos.y >= musicSliderY.float32 and
                        mousePos.y <= (musicSliderY + sliderHeight).float32
     
     # Start dragging on click
@@ -644,9 +644,9 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
       of stGameplay: t(tkSettingsTabGameplay)
     
     let isActive = settingsWin.currentTab == tab
-    let isHovered = mousePos.x >= tabX.float32 and 
+    let isHovered = mousePos.x >= tabX.float32 and
                    mousePos.x <= (tabX + tabWidth).float32 and
-                   mousePos.y >= tabY.float32 and 
+                   mousePos.y >= tabY.float32 and
                    mousePos.y <= (tabY + tabHeight).float32
     
     drawTab(tabName, tabX, tabY, tabWidth, tabHeight, isActive, isHovered)

@@ -444,7 +444,7 @@ proc updateDPS*(damage: float32) =
   let currentTime = currentRunStats.runDuration
   currentRunStats.performance.currentDPSWindow.add((currentTime, damage))
   
-  while currentRunStats.performance.currentDPSWindow.len > 0 and 
+  while currentRunStats.performance.currentDPSWindow.len > 0 and
         currentTime - currentRunStats.performance.currentDPSWindow[0][0] > 5.0:
     currentRunStats.performance.currentDPSWindow.delete(0)
   
@@ -457,7 +457,7 @@ proc updateDPS*(damage: float32) =
   
   currentRunStats.performance.peakDPS = max(currentRunStats.performance.peakDPS, currentDPS)
   
-  if currentRunStats.performance.dpsHistory.len == 0 or 
+  if currentRunStats.performance.dpsHistory.len == 0 or
      currentTime - currentRunStats.performance.dpsHistory[^1][0] >= 1.0:
     currentRunStats.performance.dpsHistory.add((currentTime, currentDPS.float32))
 
@@ -500,40 +500,40 @@ proc calculateDerivedMetrics*() =
   
   let totalShots = currentRunStats.combat.shotsFired
   if totalShots > 0:
-    currentRunStats.combat.accuracyPercent = 
+    currentRunStats.combat.accuracyPercent =
       (currentRunStats.combat.shotsHit.float32 / totalShots.float32) * 100.0
   
   if currentRunStats.runDuration > 0:
-    currentRunStats.performance.averageDPS = 
+    currentRunStats.performance.averageDPS =
       currentRunStats.combat.totalDamageDealt / currentRunStats.runDuration
-    currentRunStats.performance.killsPerMinute = 
+    currentRunStats.performance.killsPerMinute =
       (currentRunStats.combat.totalKills.float32 / currentRunStats.runDuration) * 60.0
   
   if currentRunStats.performance.waveTimes.len > 0:
-    currentRunStats.performance.averageWaveTime = 
+    currentRunStats.performance.averageWaveTime =
       currentRunStats.performance.waveTimes.sum() / currentRunStats.performance.waveTimes.len.float32
     currentRunStats.performance.fastestWave = currentRunStats.performance.waveTimes.min()
     currentRunStats.performance.slowestWave = currentRunStats.performance.waveTimes.max()
   
   if currentRunStats.combat.shotsFired > 0:
-    currentRunStats.performance.damagePerShot = 
+    currentRunStats.performance.damagePerShot =
       currentRunStats.combat.totalDamageDealt / currentRunStats.combat.shotsFired.float32
-    currentRunStats.performance.shotEfficiency = 
+    currentRunStats.performance.shotEfficiency =
       currentRunStats.combat.totalDamageDealt / currentRunStats.combat.shotsFired.float32
   
   if currentRunStats.combat.totalKills > 0:
-    currentRunStats.resources.coinEfficiency = 
+    currentRunStats.resources.coinEfficiency =
       currentRunStats.resources.coinsEarned.float32 / currentRunStats.combat.totalKills.float32
   
-  currentRunStats.resources.coinsAtEnd = 
+  currentRunStats.resources.coinsAtEnd =
     currentRunStats.resources.coinsEarned - currentRunStats.resources.coinsSpent
   
   if currentRunStats.runDuration > 0:
-    currentRunStats.movement.averageSpeed = 
+    currentRunStats.movement.averageSpeed =
       currentRunStats.movement.totalDistanceTraveled / currentRunStats.runDuration
   
   if currentRunStats.movement.hitsTakenCount > 0:
-    currentRunStats.movement.averageTimeBetweenHits = 
+    currentRunStats.movement.averageTimeBetweenHits =
       currentRunStats.runDuration / currentRunStats.movement.hitsTakenCount.float32
   
   var maxDamage = 0.0

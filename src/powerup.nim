@@ -427,13 +427,13 @@ proc drawPowerUpSelection*(game: Game) =
   
   # Draw combo notification in BOTTOM RIGHT corner during power-up screen
   # Position it slightly higher to avoid being cut off at screen edge
-  drawComboAtPosition(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, 
+  drawComboAtPosition(game.dopamine.comboSystem, game.screenWidth, game.screenHeight,
                       game.time, game.screenWidth - 250, game.screenHeight - 180)
 
 # SLOT MACHINE ROLL ANIMATION SYSTEM
 proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeType: PowerUpType): PowerUp =
   ## Generate a random power-up for the roll animation display, excluding a specific type
-  let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost, 
+  let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost,
                         puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
                         puGravityWell, puPhaseShift, puOvercharge, puEchoShots,
                         puMagicalBullets]

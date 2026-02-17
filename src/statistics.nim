@@ -152,8 +152,8 @@ proc formatTime*(seconds: float32): string =
     result = $secs & "s"
 
 # STATISTICS UPDATE
-proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int, 
-                  timeSurvived: float32, kills: int, coins: int, 
+proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int,
+                  timeSurvived: float32, kills: int, coins: int,
                   bossesKilled: int) =
   stats.lastPlayDate = $now()
   if stats.firstPlayDate == "":
@@ -181,16 +181,16 @@ proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int,
       modeStats.highestWaveReached = waveReached
       modeStats.bestScore = waveReached
     
-    modeStats.averageWaveReached = 
-      (modeStats.averageWaveReached * float32(modeStats.gamesPlayed - 1) + float32(waveReached)) / 
+    modeStats.averageWaveReached =
+      (modeStats.averageWaveReached * float32(modeStats.gamesPlayed - 1) + float32(waveReached)) /
       float32(modeStats.gamesPlayed)
   else:
     if timeSurvived > modeStats.longestSurvivalTime:
       modeStats.longestSurvivalTime = timeSurvived
       modeStats.bestScore = int(timeSurvived)
     
-    modeStats.averageSurvivalTime = 
-      (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) / 
+    modeStats.averageSurvivalTime =
+      (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) /
       float32(modeStats.gamesPlayed)
 
 # SAVE/LOAD

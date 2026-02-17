@@ -91,7 +91,7 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
   let scanlineCount = screenHeight div 4
   for i in 0..<scanlineCount:
     let y = ((i.float32 * 4 + splash.scanlineOffset) mod screenHeight.float32).int32
-    drawRectangle(0, y, screenWidth.int32, 2, 
+    drawRectangle(0, y, screenWidth.int32, 2,
                  Color(r: 0, g: 20, b: 30, a: 20))
   
   # Terminal window
@@ -101,16 +101,16 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
   let termH = screenHeight - 100
   
   # Terminal border with glow
-  drawRectangle(termX.int32, termY.int32, termW.int32, termH.int32, 
+  drawRectangle(termX.int32, termY.int32, termW.int32, termH.int32,
                Color(r: 0, g: 0, b: 0, a: 200))
-  drawRectangleLines(Rectangle(x: termX.float32, y: termY.float32, 
+  drawRectangleLines(Rectangle(x: termX.float32, y: termY.float32,
                                 width: termW.float32, height: termH.float32), 2,
                     Color(r: 0, g: 200, b: 200, a: 255))
   
   # Terminal header bar
-  drawRectangle(termX.int32, termY.int32, termW.int32, 30, 
+  drawRectangle(termX.int32, termY.int32, termW.int32, 30,
                Color(r: 0, g: 40, b: 40, a: 255))
-  drawText(t("os_root_prompt"), (termX + 10).int32, (termY + 5).int32, 20, 
+  drawText(t("os_root_prompt"), (termX + 10).int32, (termY + 5).int32, 20,
           Color(r: 0, g: 255, b: 255, a: 255))
   
   # Draw boot messages (terminal style)
@@ -140,7 +140,7 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
   if splash.currentMessage < splash.bootMessages.len:
     let cursorBlink = (splash.timer * 2.0).int mod 2
     if cursorBlink == 0:
-      drawRectangle((termX + 15).int32, yPos.int32, 10, 16, 
+      drawRectangle((termX + 15).int32, yPos.int32, 10, 16,
                    Color(r: 0, g: 255, b: 255, a: 255))
   
   # Progress bar at bottom
@@ -150,7 +150,7 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
   let barH = 20
   
   # Progress bar background
-  drawRectangle(barX.int32, barY.int32, barW.int32, barH.int32, 
+  drawRectangle(barX.int32, barY.int32, barW.int32, barH.int32,
                Color(r: 20, g: 20, b: 30, a: 255))
   
   # Progress bar fill with gradient
@@ -165,15 +165,15 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
   # Progress percentage
   let progressText = $((splash.progress * 100).int) & "%"
   let textW = measureText(progressText, 16)
-  drawText(progressText, 
-          (barX + barW div 2 - textW div 2).int32, 
+  drawText(progressText,
+          (barX + barW div 2 - textW div 2).int32,
           (barY + 2).int32, 16, White)
   
   # Glitch effect occasionally
   if splash.glitchTimer > 0.5 and (splash.timer * 10).int mod 7 == 0:
     let glitchY = ((splash.timer * 100).int mod (screenHeight - 100) + 50).int32
     let glitchH = 30.int32
-    drawRectangle(0, glitchY, screenWidth.int32, glitchH, 
+    drawRectangle(0, glitchY, screenWidth.int32, glitchH,
                  Color(r: 0, g: 255, b: 255, a: 30))
     splash.glitchTimer = 0
   
@@ -181,7 +181,7 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
   if splash.timer > 3.0:
     let pulse = (sin(splash.timer * 4.0) * 0.5 + 0.5)
     let alpha = uint8(150 + pulse * 105)
-    drawText(t(tkSystemPressAnyKey), 
-            (screenWidth div 2 - 180).int32, 
-            (screenHeight - 30).int32, 20, 
+    drawText(t(tkSystemPressAnyKey),
+            (screenWidth div 2 - 180).int32,
+            (screenHeight - 30).int32, 20,
             Color(r: 255, g: 255, b: 100, a: alpha))

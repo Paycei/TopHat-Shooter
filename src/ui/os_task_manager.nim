@@ -108,7 +108,7 @@ proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
   # Current session stats
   let stats = [
     ("Wave", $game.currentWave),
-    ("Uptime", $(game.time.int div 60) & ":" & 
+    ("Uptime", $(game.time.int div 60) & ":" &
                (if game.time.int mod 60 < 10: "0" else: "") & $(game.time.int mod 60)),
     ("Threats Eliminated", $game.player.kills),
     ("Resources Collected", $game.player.coins),
@@ -225,7 +225,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   drawRectangle(buttonsStartX, buttonY, 180, BUTTON_HEIGHT, resumeBgColor)
   drawRectangleLines(Rectangle(x: buttonsStartX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
-                    if resumeHovered: 3 else: 2, 
+                    if resumeHovered: 3 else: 2,
                     if resumeHovered: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 255, b: 0, a: 255))
   let resumeText = "[SPACE] RESUME"
   let resumeWidth = measureText(resumeText, 14)

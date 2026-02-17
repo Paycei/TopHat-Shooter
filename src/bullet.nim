@@ -1,4 +1,4 @@
-import raylib, types, math, bullet_skins
+import raylib, types, math, bullet_skins, bullet_shapes
 
 proc bossBulletShapeFor*(bossId: int): int =
   ## Maps boss definition ID to a bullet shape index.
@@ -102,18 +102,18 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
 
 const BASE_PLAYER_BULLET_RADIUS* = 5.0
 
-proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true, 
+proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true,
                 isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false,
-                hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0, 
+                hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0,
                 poisonDuration: float32 = 0, fireDuration: float32 = 0, windPushForce: float32 = 0,
-                isPentagon: bool = false, isEcho: bool = false, 
+                isPentagon: bool = false, isEcho: bool = false,
                 isBossBullet: bool = false, isArcaneBullet: bool = false,
                 sourceEnemyId: int = -1, sourceEnemyType: EnemyType = etCircle,
                 isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
                 wasCrit: bool = false, isSpecialRound: bool = false,
                 bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1,
                 ownerPlayerIndex: int = -1, bossBulletShape: int = 0,
-                bulletRadius: float32 = 0.0): Bullet =
+                bulletRadius: float32 = 0.0, bulletShape: int = 0): Bullet =
   # Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
   
@@ -152,6 +152,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     wasCrit: wasCrit,  # Whether this bullet was a critical hit
     isSpecialRound: isSpecialRound,  # Whether this is a special round
     bulletSkin: bulletSkin,  # Bullet skin type
+    bulletShape: bulletShape,  # Cosmetic bullet shape
     ownerPlayerIndex: ownerPlayerIndex  # For PvP: which player (0 or 1) shot this (-1 for non-PvP)
   )
   if bulletRadius > 0.0:
@@ -186,11 +187,11 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     trailColor = trail
     
     # Override color for special bullet types (these take priority over skin)
-    if bullet.isSpecialRound: 
+    if bullet.isSpecialRound:
       color = Color(r: 255, g: 215, b: 0, a: 255)  # Gold for special rounds
-    elif hasBloodBullets: 
+    elif hasBloodBullets:
       color = Color(r: 200, g: 50, b: 50, a: 255)  # Dark red for blood bullets
-    elif bullet.isArcaneBullet: 
+    elif bullet.isArcaneBullet:
       color = Color(r: 200, g: 100, b: 255, a: 255)  # Purple for arcane
   elif bullet.isEcho:
     # Echo bullets are semi-transparent and fade out
@@ -240,6 +241,12 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
   elif bullet.isBossBullet and bullet.bossBulletShape > 0:
     # Boss bullets with a unique shape — shape + glow already handled together
     drawBossBulletShape(bullet, color, glowColor, gameTime)
+  elif bullet.fromPlayer and not bullet.isEcho and bullet.bulletShape > 0:
+    # Player cosmetic bullet shape
+    let travelAngle = arctan2(bullet.vel.y, bullet.vel.x)
+    drawPlayerBulletShape(bullet.pos, bullet.radius,
+                          BulletShapeType(bullet.bulletShape), travelAngle,
+                          color, glowColor)
   else:
     # Normal circle bullet
     drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
@@ -254,7 +261,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let dripY = bullet.pos.y - bullet.vel.normalize().y * dripOffset + i.float32 * 2.0  # Slight fall effect
       let dripSize = bullet.radius * (0.5 - i.float32 * 0.1)  # Smaller drips behind
       let dripAlpha = uint8(180 - i * 50)  # Fade drips
-      drawCircle(Vector2(x: dripX, y: dripY), dripSize, 
+      drawCircle(Vector2(x: dripX, y: dripY), dripSize,
                 Color(r: 150, g: 30, b: 30, a: dripAlpha))
       # Add a darker blood dot below each drip for extra drippiness
       drawCircle(Vector2(x: dripX, y: dripY + dripSize * 0.5), dripSize * 0.4,
@@ -265,26 +272,26 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     # Sniper bullets get strong red glow
     if bullet.sourceEnemyType == etSniper:
       # Multiple red glow rings for sniper bullets
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                      Color(r: 255, g: 80, b: 80, a: 180))
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4, 
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
                      Color(r: 255, g: 50, b: 50, a: 120))
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6, 
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6,
                      Color(r: 255, g: 20, b: 20, a: 60))
     # Boss bullets get a special strong glow effect
     elif bullet.isBossBullet:
       if bullet.bossBulletShape == 0:
         # Circle fallback — draw old-style glow rings
-        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4, 
+        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
                        Color(r: 255, g: 50, b: 150, a: 200))
-        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 7, 
+        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 7,
                        Color(r: 255, g: 100, b: 150, a: 120))
-        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 10, 
+        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 10,
                        Color(r: 255, g: 150, b: 180, a: 60))
       # shaped boss bullets already drew their glow inside drawBossBulletShape
     else:
       # Regular enemy bullets - standard pink glow
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                      Color(r: 255, g: 100, b: 150, a: 100))
   elif bullet.fromPlayer and not bullet.isEcho:
     # Player bullet skin glow effects
@@ -301,7 +308,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     
   # Legacy glow effects for power-up modified bullets
   if bullet.isExplosive:
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2, 
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    Color(r: 255, g: 150, b: 0, a: 150))
   if bullet.windPushForce > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
@@ -374,7 +381,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       if chargeLevel > 0.5:
         let outerGlow = glowColor
         let outerRadius = glowRadius + 3
-        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, outerRadius, 
+        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, outerRadius,
                        Color(r: outerGlow.r, g: outerGlow.g, b: outerGlow.b, a: outerGlow.a div 2))
 
 proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool =
@@ -400,7 +407,7 @@ proc checkShieldCollision*(bullet: Bullet, shieldPos: Vector2f): bool =
 
 ## Utility functions for bullet synergies and cloning
 
-proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f, 
+proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
                   damageMultiplier: float32 = 1.0, speedMultiplier: float32 = 1.0,
                   radiusMultiplier: float32 = 1.0, preventSplit: bool = false): Bullet =
   ## Clone a bullet preserving ALL its properties for perfect synergy
@@ -433,7 +440,9 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     0,  # bulletId (will be assigned later)
     -1,  # parentBulletId
     original.ownerPlayerIndex,  # Preserve owner for PvP
-    original.bossBulletShape   # Preserve boss bullet shape
+    original.bossBulletShape,  # Preserve boss bullet shape
+    0.0,  # bulletRadius (use stored radius below)
+    original.bulletShape   # Preserve cosmetic bullet shape
   )
   
   # Copy additional state that needs to be preserved
@@ -447,7 +456,7 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
   for enemyIdx in original.hitEnemies:
     result.hitEnemies.add(enemyIdx)
 
-proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int, 
+proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
                         damageMultiplier: float32 = 0.5, speedMultiplier: float32 = 0.7) =
   ## Create split bullets that inherit ALL properties from source bullet
   ## SYNERGY SYSTEM: Split bullets maintain explosive, homing, piercing, poison, etc.
@@ -513,7 +522,7 @@ proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f
   
   game.bullets.add(ricochetBullet)
 
-proc createEchoBullet*(game: Game, sourceBullet: Bullet, 
+proc createEchoBullet*(game: Game, sourceBullet: Bullet,
                       damageMultiplier: float32 = 0.4, speedMultiplier: float32 = 0.5,
                       lifetime: float32 = 0.35) =
   ## Create an echo trail bullet that inherits ALL properties

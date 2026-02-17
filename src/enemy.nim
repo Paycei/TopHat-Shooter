@@ -126,7 +126,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Third phase
       enemy.color = Color(r: 255, g: 150, b: 0, a: 255)  # Orange
     elif hpPercent <= 0.5:
-      # Second phase  
+      # Second phase
       enemy.color = Color(r: 255, g: 50, b: 50, a: 255)  # Red
     elif hpPercent <= 0.7:
       # Getting damaged
@@ -763,7 +763,7 @@ proc drawCustomBoss*(enemy: Enemy) =
   of 1:  # Boss 1: The Spiral Guardian (Purple mystical entity)
     # Outer mystical ring
     let ringPulse = sin(time * 3.0) * 5.0
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 8 + ringPulse, 
+    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 8 + ringPulse,
                Color(r: 80, g: 40, b: 160, a: 80))
     
     # Main body - purple orb
@@ -786,7 +786,7 @@ proc drawCustomBoss*(enemy: Enemy) =
       let petalDist = enemy.radius * 0.8
       let px = enemy.pos.x + cos(angle) * petalDist
       let py = enemy.pos.y + sin(angle) * petalDist
-      drawCircle(Vector2(x: px, y: py), enemy.radius * 0.3, 
+      drawCircle(Vector2(x: px, y: py), enemy.radius * 0.3,
                 Color(r: 100, g: 200, b: 100, a: 180))
     
     # Central body
@@ -800,7 +800,7 @@ proc drawCustomBoss*(enemy: Enemy) =
       let y1 = enemy.pos.y + sin(angle) * enemy.radius * 0.4
       let x2 = enemy.pos.x + cos(angle) * enemy.radius * 0.6
       let y2 = enemy.pos.y + sin(angle) * enemy.radius * 0.6
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3, 
+      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3,
               Color(r: 255, g: 215, b: 0, a: 255))
   
   of 3:  # Boss 3: The Meteor Striker (Orange/red fire theme)
@@ -835,7 +835,7 @@ proc drawCustomBoss*(enemy: Enemy) =
     for i in -2..2:
       let xOffset = i.float32 * gridSize
       drawLine(Vector2(x: enemy.pos.x + xOffset, y: enemy.pos.y - enemy.radius),
-              Vector2(x: enemy.pos.x + xOffset, y: enemy.pos.y + enemy.radius), 
+              Vector2(x: enemy.pos.x + xOffset, y: enemy.pos.y + enemy.radius),
               1, Color(r: 0, g: 150, b: 200, a: 100))
       drawLine(Vector2(x: enemy.pos.x - enemy.radius, y: enemy.pos.y + xOffset),
               Vector2(x: enemy.pos.x + enemy.radius, y: enemy.pos.y + xOffset),
@@ -875,7 +875,7 @@ proc drawCustomBoss*(enemy: Enemy) =
     
     # Main dark orb
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius, 
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius,
                    Color(r: 160, g: 40, b: 220, a: 255))
     
     # Void core
@@ -890,7 +890,7 @@ proc drawCustomBoss*(enemy: Enemy) =
       let sparkDist = enemy.radius + 10 + sin(time * 10.0 + i.float32) * 5
       let sparkX = enemy.pos.x + cos(angle) * sparkDist
       let sparkY = enemy.pos.y + sin(angle) * sparkDist
-      drawCircle(Vector2(x: sparkX, y: sparkY), 3, 
+      drawCircle(Vector2(x: sparkX, y: sparkY), 3,
                 Color(r: 255, g: 255, b: 100, a: 200))
       # Lightning bolt to spark
       drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y),
@@ -930,12 +930,12 @@ proc drawCustomBoss*(enemy: Enemy) =
       let dist = enemy.radius * (1.0 + i.float32 * 0.4)
       let satX = enemy.pos.x + cos(angle) * dist
       let satY = enemy.pos.y + sin(angle) * dist
-      drawCircle(Vector2(x: satX, y: satY), 4, 
+      drawCircle(Vector2(x: satX, y: satY), 4,
                 Color(r: 200, g: 150, b: 255, a: 255))
     
     # Central command hub
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.6, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius * 0.6, 
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius * 0.6,
                    Color(r: 200, g: 150, b: 255, a: 255))
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
                Color(r: 150, g: 100, b: 255, a: 255))
@@ -1015,7 +1015,7 @@ proc drawCustomBoss*(enemy: Enemy) =
     
     # Clock face
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.9, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius * 0.9, 
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius * 0.9,
                    Color(r: 0, g: 220, b: 220, a: 255))
     
     # Clock hands
@@ -1103,9 +1103,9 @@ proc drawEnemy*(enemy: Enemy) =
     let barWidth = enemy.radius * 2.5
     let barHeight = 8.0
     let hpPercent = enemy.hp / enemy.maxHp
-    drawRectangle((enemy.pos.x - enemy.radius * 1.25).int32, (enemy.pos.y - enemy.radius - 16).int32, 
+    drawRectangle((enemy.pos.x - enemy.radius * 1.25).int32, (enemy.pos.y - enemy.radius - 16).int32,
                   barWidth.int32, barHeight.int32, Red)
-    drawRectangle((enemy.pos.x - enemy.radius * 1.25).int32, (enemy.pos.y - enemy.radius - 16).int32, 
+    drawRectangle((enemy.pos.x - enemy.radius * 1.25).int32, (enemy.pos.y - enemy.radius - 16).int32,
                   (barWidth * hpPercent).int32, barHeight.int32, Green)
   else:
     case enemy.enemyType
@@ -1116,9 +1116,9 @@ proc drawEnemy*(enemy: Enemy) =
     of etCube:
       # Use radius directly, not 1.4x multiplier
       let size = enemy.radius
-      drawRectangle((enemy.pos.x - size).int32, (enemy.pos.y - size).int32, 
+      drawRectangle((enemy.pos.x - size).int32, (enemy.pos.y - size).int32,
                     (size * 2).int32, (size * 2).int32, enemy.color)
-      drawRectangleLines((enemy.pos.x - size).int32, (enemy.pos.y - size).int32, 
+      drawRectangleLines((enemy.pos.x - size).int32, (enemy.pos.y - size).int32,
                          (size * 2).int32, (size * 2).int32, Black)
     
     of etTriangle:
@@ -1141,7 +1141,7 @@ proc drawEnemy*(enemy: Enemy) =
       if enemy.dashTimer < 0.5 and enemy.dashTimer > 0:
         let chargePercent = 1.0 - (enemy.dashTimer / 0.5)
         let glowIntensity = uint8(chargePercent * 200)
-        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 5, 
+        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 5,
                   Color(r: 255'u8, g: 100'u8, b: 255'u8, a: glowIntensity))
     
     of etStar:
@@ -1159,7 +1159,7 @@ proc drawEnemy*(enemy: Enemy) =
       if enemy.dashCooldown < 0.5:
         let chargePercent = 1.0 - (enemy.dashCooldown / 0.5)
         let chargeGlow = uint8(chargePercent * 150)
-        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 8, 
+        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 8,
                   Color(r: 255'u8, g: 200'u8, b: 0'u8, a: chargeGlow))
       
       # Draw star shape
@@ -1195,7 +1195,7 @@ proc drawEnemy*(enemy: Enemy) =
         drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
       if enemy.hexTeleportTimer < 0.5:
         let glowAlpha = ((enemy.hexTeleportTimer * 4.0).int mod 2) * 150
-        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 5, 
+        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 5,
                   Color(r: 255, g: 255, b: 0, a: glowAlpha.uint8))
     
     of etCross:
@@ -1409,12 +1409,12 @@ proc drawEnemy*(enemy: Enemy) =
       # Magical aura (outer glow)
       let auraRadius = enemy.radius + 8
       let auraPulse = (sin(getTime() * 4.0) * 0.3 + 0.7)
-      drawCircle(Vector2(x: enemy.pos.x, y: centerY), auraRadius, 
+      drawCircle(Vector2(x: enemy.pos.x, y: centerY), auraRadius,
                 Color(r: 138, g: 43, b: 226, a: uint8(60 * auraPulse)))
       
       # Main body (purple circle)
       drawCircle(Vector2(x: enemy.pos.x, y: centerY), enemy.radius, enemy.color)
-      drawCircleLines(enemy.pos.x.int32, centerY.int32, enemy.radius, 
+      drawCircleLines(enemy.pos.x.int32, centerY.int32, enemy.radius,
                      Color(r: 186, g: 85, b: 211, a: 255))
       
       # Magic staff/wand (small line extending from body)
@@ -1426,7 +1426,7 @@ proc drawEnemy*(enemy: Enemy) =
               Vector2(x: staffEndX, y: staffEndY), 3,
               Color(r: 200, g: 150, b: 255, a: 255))
       # Staff orb
-      drawCircle(Vector2(x: staffEndX, y: staffEndY), 4, 
+      drawCircle(Vector2(x: staffEndX, y: staffEndY), 4,
                 Color(r: 255, g: 200, b: 255, a: 255))
       
       # Orbiting magic runes (3 runes)
@@ -1435,10 +1435,10 @@ proc drawEnemy*(enemy: Enemy) =
         let runeDist = enemy.radius + 12
         let runeX = enemy.pos.x + cos(runeAngle) * runeDist
         let runeY = centerY + sin(runeAngle) * runeDist
-        drawCircle(Vector2(x: runeX, y: runeY), 3, 
+        drawCircle(Vector2(x: runeX, y: runeY), 3,
                   Color(r: 255, g: 150, b: 255, a: 200))
         # Rune glow
-        drawCircleLines(runeX.int32, runeY.int32, 4, 
+        drawCircleLines(runeX.int32, runeY.int32, 4,
                        Color(r: 200, g: 100, b: 255, a: 150))
       
       # Magic particles floating upward
@@ -1447,7 +1447,7 @@ proc drawEnemy*(enemy: Enemy) =
         let particleY = centerY - (particleTime mod 20.0) * 2.0
         let particleX = enemy.pos.x + sin(particleTime) * 8.0
         let particleAlpha = uint8(255 - ((particleTime mod 20.0) / 20.0) * 255)
-        drawCircle(Vector2(x: particleX, y: particleY), 2, 
+        drawCircle(Vector2(x: particleX, y: particleY), 2,
                   Color(r: 200, g: 100, b: 255, a: particleAlpha))
       
       # Casting indicator when shooting
@@ -1701,7 +1701,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       for i in 1..3:
         let ringRadius = 35.0 + pulse + (i.float32 * 15.0)
         let ringAlpha = uint8((alpha.float32 * (1.0 - i.float32 * 0.25)).uint8.clamp(0, 255))
-        drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, ringRadius, 
+        drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, ringRadius,
                        Color(r: 200, g: 100, b: 255, a: ringAlpha))
     of "dimensional_rift":
       # Purple/cyan rifts
@@ -1722,7 +1722,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
         let swrlY = warning.pos.y + sin(angle) * (35.0 + pulse)
         let chaosAlpha = uint8((alpha.float32 * (0.5 + sin(getTime() * 10.0 + i.float32) * 0.5)).uint8.clamp(0, 255))
         drawCircle(Vector2(x: swrlX, y: swrlY), 4.0 + pulse * 0.2,
-                  Color(r: uint8(150 + rand(100)), g: uint8(100 + rand(100)), 
+                  Color(r: uint8(150 + rand(100)), g: uint8(100 + rand(100)),
                         b: uint8(150 + rand(100)), a: chaosAlpha))
     else:
       # Default warning pattern
@@ -2059,13 +2059,13 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
         initialAttackTimers.add(attack.cooldown)  # Start with cooldown so attacks don't fire immediately
     
     # Apply first phase multipliers to initial stats
-    let firstPhaseSpeed = if bossDef.phases.len > 0: 
-      scaledSpeed * bossDef.phases[0].speedMultiplier 
-    else: 
+    let firstPhaseSpeed = if bossDef.phases.len > 0:
+      scaledSpeed * bossDef.phases[0].speedMultiplier
+    else:
       scaledSpeed
-    let firstPhaseDefense = if bossDef.phases.len > 0: 
-      bossDef.phases[0].defenseMultiplier 
-    else: 
+    let firstPhaseDefense = if bossDef.phases.len > 0:
+      bossDef.phases[0].defenseMultiplier
+    else:
       1.0
     
     result = Enemy(

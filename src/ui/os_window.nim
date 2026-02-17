@@ -51,7 +51,7 @@ const
   MIN_WINDOW_WIDTH* = 400
   MIN_WINDOW_HEIGHT* = 300
 
-proc newOSWindow*(title: string, x, y, width, height: int, 
+proc newOSWindow*(title: string, x, y, width, height: int,
                  iconColor: Color, windowType: OSWindowType, resizable: bool = true): OSWindow =
   result = OSWindow(
     x: x,
@@ -142,23 +142,23 @@ proc isPointInTitleBar*(window: OSWindow, mouseX, mouseY: float32): bool =
   
   # If minimized, check against full-width title bar
   if window.minimized:
-    result = mouseX >= window.x.float32 and 
+    result = mouseX >= window.x.float32 and
              mouseX <= (window.x + window.savedWidth).float32 and
-             mouseY >= window.y.float32 and 
+             mouseY >= window.y.float32 and
              mouseY <= (window.y + TITLE_BAR_HEIGHT).float32
   else:
-    result = mouseX >= window.x.float32 and 
+    result = mouseX >= window.x.float32 and
              mouseX <= (window.x + window.width).float32 and
-             mouseY >= window.y.float32 and 
+             mouseY >= window.y.float32 and
              mouseY <= (window.y + TITLE_BAR_HEIGHT).float32
 
 proc isPointInWindow*(window: OSWindow, mouseX, mouseY: float32): bool =
   if not window.visible or window.minimized:
     return false
   
-  result = mouseX >= window.x.float32 and 
+  result = mouseX >= window.x.float32 and
            mouseX <= (window.x + window.width).float32 and
-           mouseY >= window.y.float32 and 
+           mouseY >= window.y.float32 and
            mouseY <= (window.y + window.height).float32
 
 proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindows: openArray[OSWindow]): bool =
@@ -203,9 +203,9 @@ proc isPointInCloseButton*(window: OSWindow, mouseX, mouseY: float32): bool =
   let buttonY = window.y + 5
   let buttonSize = 20
   
-  result = mouseX >= buttonX.float32 and 
+  result = mouseX >= buttonX.float32 and
            mouseX <= (buttonX + buttonSize).float32 and
-           mouseY >= buttonY.float32 and 
+           mouseY >= buttonY.float32 and
            mouseY <= (buttonY + buttonSize).float32
 
 proc isPointInMinimizeButton*(window: OSWindow, mouseX, mouseY: float32): bool =
@@ -218,18 +218,18 @@ proc isPointInMinimizeButton*(window: OSWindow, mouseX, mouseY: float32): bool =
     let buttonY = window.y + 5
     let buttonSize = 20
     
-    result = mouseX >= buttonX.float32 and 
+    result = mouseX >= buttonX.float32 and
              mouseX <= (buttonX + buttonSize).float32 and
-             mouseY >= buttonY.float32 and 
+             mouseY >= buttonY.float32 and
              mouseY <= (buttonY + buttonSize).float32
   else:
     let buttonX = window.x + window.width - 50
     let buttonY = window.y + 5
     let buttonSize = 20
     
-    result = mouseX >= buttonX.float32 and 
+    result = mouseX >= buttonX.float32 and
              mouseX <= (buttonX + buttonSize).float32 and
-             mouseY >= buttonY.float32 and 
+             mouseY >= buttonY.float32 and
              mouseY <= (buttonY + buttonSize).float32
 
 proc getResizeEdge*(window: OSWindow, mouseX, mouseY: float32): int =
@@ -372,7 +372,7 @@ proc drawWindowChrome*(window: OSWindow) =
     let miniHeight = TITLE_BAR_HEIGHT
     
     # Draw minimized window as full-width title bar
-    drawRectangle(window.x.int32, window.y.int32, 
+    drawRectangle(window.x.int32, window.y.int32,
                  window.savedWidth.int32, miniHeight.int32,
                  Color(r: 40, g: 40, b: 50, a: 240))
     
@@ -401,9 +401,9 @@ proc drawWindowChrome*(window: OSWindow) =
     let restoreX = window.x + window.savedWidth - 25
     
     let mousePos = getMousePosition()
-    let hoverRestore = mousePos.x >= restoreX.float32 and 
+    let hoverRestore = mousePos.x >= restoreX.float32 and
                        mousePos.x <= (restoreX + buttonSize).float32 and
-                       mousePos.y >= buttonY.float32 and 
+                       mousePos.y >= buttonY.float32 and
                        mousePos.y <= (buttonY + buttonSize).float32
     
     drawRectangle(restoreX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
@@ -418,7 +418,7 @@ proc drawWindowChrome*(window: OSWindow) =
   
   # Draw full window (not minimized)
   # Enhanced shadow
-  drawRectangle((window.x + 3).int32, (window.y + 3).int32, 
+  drawRectangle((window.x + 3).int32, (window.y + 3).int32,
                window.width.int32, window.height.int32,
                Color(r: 0, g: 0, b: 0, a: 100))
   
@@ -429,14 +429,14 @@ proc drawWindowChrome*(window: OSWindow) =
     for i in 1..glowSize:
       let glowAlpha = uint8((30.0 / i.float32) * glowPulse)
       drawRectangleLines(Rectangle(
-        x: (window.x - i).float32, 
+        x: (window.x - i).float32,
         y: (window.y - i).float32,
-        width: (window.width + i * 2).float32, 
+        width: (window.width + i * 2).float32,
         height: (window.height + i * 2).float32
       ), 1, Color(r: 0, g: 200, b: 255, a: glowAlpha))
   
   # Main window background
-  drawRectangle(window.x.int32, window.y.int32, 
+  drawRectangle(window.x.int32, window.y.int32,
                window.width.int32, window.height.int32,
                Color(r: 20, g: 20, b: 30, a: 240))
   
@@ -451,7 +451,7 @@ proc drawWindowChrome*(window: OSWindow) =
                     WINDOW_BORDER, borderColor)
   
   # Title bar
-  drawRectangle(window.x.int32, window.y.int32, 
+  drawRectangle(window.x.int32, window.y.int32,
                window.width.int32, TITLE_BAR_HEIGHT.int32,
                Color(r: 40, g: 40, b: 50, a: 255))
   

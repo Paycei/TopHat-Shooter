@@ -33,7 +33,7 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
   let titleText = t(tkLoadingTitle)
   let titleSize: int32 = 48
   let titleWidth = measureText(titleText, titleSize)
-  drawText(titleText, centerX - titleWidth div 2, centerY - 150, titleSize, 
+  drawText(titleText, centerX - titleWidth div 2, centerY - 150, titleSize,
            Color(r: 180, g: 220, b: 255, a: 255))
   
   # Subtitle
@@ -50,11 +50,11 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
   let barY: int32 = centerY + 20
   
   # Outer border
-  drawRectangleLines(barX - 2'i32, barY - 2'i32, barWidth + 4'i32, barHeight + 4'i32, 
+  drawRectangleLines(barX - 2'i32, barY - 2'i32, barWidth + 4'i32, barHeight + 4'i32,
                      Color(r: 100, g: 150, b: 200, a: 255))
   
   # Background
-  drawRectangle(barX, barY, barWidth, barHeight, 
+  drawRectangle(barX, barY, barWidth, barHeight,
                 Color(r: 30, g: 30, b: 45, a: 255))
   
   # Progress fill with gradient effect
@@ -66,7 +66,7 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
     let g = uint8(160.0 * pulse)
     let b = uint8(240.0 * pulse)
     
-    drawRectangle(barX, barY, fillWidth, barHeight, 
+    drawRectangle(barX, barY, fillWidth, barHeight,
                   Color(r: r, g: g, b: b, a: 255))
     
     # Add highlight on top
@@ -90,7 +90,6 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
   var dotStr = ""
   for i in 0..<dots:
     dotStr.add(".")
-  let dotsWidth = measureText(dotStr, msgSize)
   drawText(dotStr, centerX + msgWidth div 2 + 5, barY + 50, msgSize,
            Color(r: 200, g: 200, b: 220, a: 255))
   

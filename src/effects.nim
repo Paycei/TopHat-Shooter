@@ -3,7 +3,7 @@ import types, tables
 # Sistema de gestión de efectos con fallback
 # Previene stacking de efectos iguales pero permite fallback a efecto de menor poder
 
-proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32, 
+proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
                   duration: float32, source: string) =
   ## Aplica un efecto al enemigo. Si ya existe uno del mismo tipo:
   ## - Si el nuevo es más fuerte (mayor dps), lo reemplaza y guarda el anterior como fallback
@@ -11,8 +11,8 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
   ## - Si es igual o más débil pero el actual está activo, ignora
   
   # Revisar si no existe el efecto O si el efecto actual ya está completamente terminado
-  if not enemy.activeEffects.hasKey(effectType) or 
-     (not enemy.activeEffects[effectType].primary.isActive and 
+  if not enemy.activeEffects.hasKey(effectType) or
+     (not enemy.activeEffects[effectType].primary.isActive and
       enemy.activeEffects[effectType].primary.remainingDuration <= 0 and
       enemy.activeEffects[effectType].fallback.remainingDuration <= 0):
     # Nuevo efecto, crear o reinicializar completamente

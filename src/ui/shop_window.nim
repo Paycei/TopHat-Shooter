@@ -1,12 +1,13 @@
 ## Shop Window
 ## OS-themed window for player and bullet customization with tabs
 
-import raylib, os_window, ../skins, ../bullet_skins, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization
+import raylib, os_window, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization
 
 type
   ShopTab* = enum
     stPlayerSkins    # Player skins tab
-    stBulletSkins    # Bullet skins tab
+    stBulletSkins    # Bullet color skins tab
+    stBulletShapes   # Bullet shapes tab
     stShapes         # Player shapes tab
     stParticles      # Particle effects tab
   
@@ -16,6 +17,7 @@ type
     selectedPlayerSkin*: SkinType
     selectedBulletSkin*: BulletSkinType
     selectedShape*: ShapeType
+    selectedBulletShape*: BulletShapeType
     selectedParticle*: ParticleSkinType
     hoveredSkin*: int  # -1 for none
     scrollOffset*: float32
@@ -23,6 +25,7 @@ type
     playerSkinChanged*: bool
     bulletSkinChanged*: bool
     shapeChanged*: bool
+    bulletShapeChanged*: bool
     particleChanged*: bool
     maxScrollOffset*: float32
 
@@ -33,7 +36,7 @@ const
   SKIN_BOX_PADDING = 15
   TAB_HEIGHT = 40
 
-proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType): ShopWindow =
+proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle): ShopWindow =
   let windowWidth = 620
   let windowHeight = 450
   let windowX = (screenWidth - windowWidth) div 2
@@ -56,6 +59,7 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     selectedPlayerSkin: currentPlayerSkin,
     selectedBulletSkin: currentBulletSkin,
     selectedShape: currentShape,
+    selectedBulletShape: currentBulletShape,
     selectedParticle: currentParticle,
     hoveredSkin: -1,
     scrollOffset: 0.0,
@@ -63,6 +67,7 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     playerSkinChanged: false,
     bulletSkinChanged: false,
     shapeChanged: false,
+    bulletShapeChanged: false,
     particleChanged: false,
     maxScrollOffset: 0.0
   )
@@ -75,15 +80,18 @@ proc saveSkinSelectionImmediately*(shop: ShopWindow) =
     globalSettings.bulletSkin = shop.selectedBulletSkin.int
   if shop.shapeChanged:
     globalSettings.playerShape = shop.selectedShape.int
+  if shop.bulletShapeChanged:
+    globalSettings.bulletShape = shop.selectedBulletShape.int
   if shop.particleChanged:
     globalSettings.particleEffect = shop.selectedParticle.int
   
-  if shop.playerSkinChanged or shop.bulletSkinChanged or shop.shapeChanged or shop.particleChanged:
+  if shop.playerSkinChanged or shop.bulletSkinChanged or shop.shapeChanged or shop.bulletShapeChanged or shop.particleChanged:
     discard saveSettings(globalSettings)
     # Reset change flags after saving
     shop.playerSkinChanged = false
     shop.bulletSkinChanged = false
     shop.shapeChanged = false
+    shop.bulletShapeChanged = false
     shop.particleChanged = false
 
 proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool) =
@@ -285,6 +293,74 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
     let equipWidth = measureText(equipText, 11)
     let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
     drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+
+proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool) =
+  ## Draw a preview of a player bullet shape
+  let bgColor = if isSelected: Color(r: 0, g: 60, b: 80, a: 255)
+                elif isHovered: Color(r: 60, g: 60, b: 70, a: 255)
+                else: Color(r: 40, g: 40, b: 50, a: 255)
+  drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, bgColor)
+
+  let borderColor = if isSelected: Color(r: 255, g: 150, b: 50, a: 255)
+                    elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
+                    else: Color(r: 80, g: 80, b: 100, a: 255)
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+                                width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
+                    2, borderColor)
+
+  # Animated bullet preview: show the shape flying across the card
+  let cx = (x + SKIN_BOX_WIDTH div 2).float32
+  let cy = (y + 48).float32
+  let r = 7.0
+  let previewColor = Color(r: 0, g: 200, b: 200, a: 255)
+  let glowColor   = Color(r: 0, g: 255, b: 255, a: 80)
+  let travelAngle = 0.0  # flying right; arrow uses this for orientation
+  drawPlayerBulletShape(Vector2f(x: cx, y: cy), r, shapeType, travelAngle, previewColor, glowColor)
+
+  # Trail dots to give motion feel
+  for i in 1..3:
+    let tx = cx - i.float32 * 9.0
+    let ta = uint8(180 - i * 50)
+    drawCircle(Vector2(x: tx, y: cy), r * (1.0 - i.float32 * 0.2),
+               Color(r: 0, g: 180, b: 180, a: ta))
+
+  # Name
+  let shapeData = getBulletShapeData(shapeType)
+  let nameWidth = measureText(shapeData.name, 16)
+  drawText(shapeData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32, (y + 80).int32, 16, White)
+
+  # Description (wrapped, 2 lines max)
+  let desc = shapeData.description
+  let maxDescWidth = SKIN_BOX_WIDTH - 10
+  var line1 = ""
+  var line2 = ""
+  var words = desc.split(' ')
+  var currentLine = ""
+  for word in words:
+    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
+    if measureText(testLine, 10) <= maxDescWidth:
+      currentLine = testLine
+    else:
+      if line1.len == 0:
+        line1 = currentLine
+        currentLine = word
+      else:
+        line2 = currentLine
+        break
+  if line1.len == 0: line1 = currentLine
+  elif line2.len == 0 and currentLine.len > 0: line2 = currentLine
+
+  let d1w = measureText(line1, 10)
+  drawText(line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32, (y + 100).int32, 10, Gray)
+  if line2.len > 0:
+    let d2w = measureText(line2, 10)
+    drawText(line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32, (y + 112).int32, 10, Gray)
+
+  if isSelected:
+    let equipText = t("shop_equipped")
+    let equipWidth = measureText(equipText, 11)
+    drawText(equipText, (x + (SKIN_BOX_WIDTH - equipWidth) div 2).int32,
+             (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
 
 proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool) =
   ## Draw a preview of a player shape
@@ -509,7 +585,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
   
   # Check tab clicks
   let tabY = contentY
-  let tabWidth = contentWidth div 4  # Changed to div 4 for 4 tabs
+  let tabWidth = contentWidth div 5  # 5 tabs
   
   if not shop.window.dragging and mouseY >= tabY and mouseY < tabY + TAB_HEIGHT and isTopmost:
     if shop.window.handledClickThisFrame:
@@ -522,7 +598,10 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
       elif mouseX >= contentX + tabWidth * 2 and mouseX < contentX + tabWidth * 3:
         shop.currentTab = stShapes
         shop.scrollOffset = 0.0
-      elif mouseX >= contentX + tabWidth * 3 and mouseX < contentX + contentWidth:
+      elif mouseX >= contentX + tabWidth * 3 and mouseX < contentX + tabWidth * 4:
+        shop.currentTab = stBulletShapes
+        shop.scrollOffset = 0.0
+      elif mouseX >= contentX + tabWidth * 4 and mouseX < contentX + contentWidth:
         shop.currentTab = stParticles
         shop.scrollOffset = 0.0
   
@@ -545,6 +624,10 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
     let shapes = getUnlockedShapes().len
     let rows = (shapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
     (rows, shapes)
+  elif shop.currentTab == stBulletShapes:
+    let bshapes = getUnlockedBulletShapes().len
+    let rows = (bshapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
+    (rows, bshapes)
   else:  # stParticles
     let particles = getUnlockedParticleSkins().len
     let rows = (particles + SKINS_PER_ROW - 1) div SKINS_PER_ROW
@@ -639,6 +722,24 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
               saveSkinSelectionImmediately(shop)
       
       shapeIndex += 1
+  elif shop.currentTab == stBulletShapes:
+    let unlockedBulletShapes = getUnlockedBulletShapes()
+    var bshapeIndex = 0
+    for bshapeType in unlockedBulletShapes:
+      let col = bshapeIndex mod SKINS_PER_ROW
+      let row = bshapeIndex div SKINS_PER_ROW
+      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
+      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
+      if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
+        if inGridArea and not shop.window.dragging and isTopmost:
+          if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
+             mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
+            shop.hoveredSkin = bshapeIndex
+            if shop.window.handledClickThisFrame:
+              shop.selectedBulletShape = bshapeType
+              shop.bulletShapeChanged = true
+              saveSkinSelectionImmediately(shop)
+      bshapeIndex += 1
   elif shop.currentTab == stParticles:
     let unlockedParticles = getUnlockedParticleSkins()
     var particleIndex = 0
@@ -689,7 +790,7 @@ proc drawShopWindow*(shop: ShopWindow) =
                 Color(r: 25, g: 25, b: 35, a: 255))
   
   # Draw tabs
-  let tabWidth = contentWidth div 4  # Changed to div 4 for 4 tabs
+  let tabWidth = contentWidth div 5  # 5 tabs
   let tabY = contentY
   
   # Player Skins tab
@@ -698,7 +799,7 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawRectangle(contentX.int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab1Color)
   if tab1Active:
     drawRectangle(contentX.int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText(t("shop_tab_player"), (contentX + tabWidth div 2 - 32).int32, (tabY + 12).int32, 14, 
+  drawText(t("shop_tab_player"), (contentX + tabWidth div 2 - 32).int32, (tabY + 12).int32, 14,
           if tab1Active: White else: Gray)
   
   # Bullet Skins tab
@@ -719,24 +820,35 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawText(t("shop_tab_shapes"), (contentX + tabWidth * 2 + tabWidth div 2 - 32).int32, (tabY + 12).int32, 14,
           if tab3Active: White else: Gray)
   
-  # Particles tab
-  let tab4Active = shop.currentTab == stParticles
+  # Bullet Shapes tab
+  let tab4Active = shop.currentTab == stBulletShapes
   let tab4Color = if tab4Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
   drawRectangle((contentX + tabWidth * 3).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab4Color)
   if tab4Active:
     drawRectangle((contentX + tabWidth * 3).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText(t("shop_tab_particles"), (contentX + tabWidth * 3 + tabWidth div 2 - 40).int32, (tabY + 12).int32, 14,
+  drawText(t("shop_tab_bshapes"), (contentX + tabWidth * 3 + tabWidth div 2 - 34).int32, (tabY + 12).int32, 14,
           if tab4Active: White else: Gray)
+
+  # Particles tab
+  let tab5Active = shop.currentTab == stParticles
+  let tab5Color = if tab5Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
+  drawRectangle((contentX + tabWidth * 4).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab5Color)
+  if tab5Active:
+    drawRectangle((contentX + tabWidth * 4).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
+  drawText(t("shop_tab_particles"), (contentX + tabWidth * 4 + tabWidth div 2 - 40).int32, (tabY + 12).int32, 14,
+          if tab5Active: White else: Gray)
   
   # Draw header
   let headerHeight = 50
   let headerY = contentY + TAB_HEIGHT
-  let tabTitle = if shop.currentTab == stPlayerSkins: 
+  let tabTitle = if shop.currentTab == stPlayerSkins:
     t("shop_customize_appearance")
   elif shop.currentTab == stBulletSkins:
     t("shop_customize_bullets")
   elif shop.currentTab == stShapes:
     t("shop_choose_shape")
+  elif shop.currentTab == stBulletShapes:
+    t("shop_customize_bshapes")
   else:
     t("shop_customize_effects")
   drawText(tabTitle, (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
@@ -759,6 +871,10 @@ proc drawShopWindow*(shop: ShopWindow) =
     let shapes = getUnlockedShapes().len
     let rows = (shapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
     (shapes, rows)
+  elif shop.currentTab == stBulletShapes:
+    let bshapes = getUnlockedBulletShapes().len
+    let rows = (bshapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
+    (bshapes, rows)
   else:  # stParticles
     let particles = getUnlockedParticleSkins().len
     let rows = (particles + SKINS_PER_ROW - 1) div SKINS_PER_ROW
@@ -768,7 +884,7 @@ proc drawShopWindow*(shop: ShopWindow) =
   
   # Show scroll hint when content overflows
   if totalContentHeight.float32 > gridHeight.float32:
-    drawText(t("shop_scroll_hint"), (contentX + 10).int32, (headerY + 30).int32, 12, 
+    drawText(t("shop_scroll_hint"), (contentX + 10).int32, (headerY + 30).int32, 12,
             Color(r: 255, g: 200, b: 100, a: 255))
   else:
     drawText(t("shop_click_equip"), (contentX + 10).int32, (headerY + 30).int32, 13, Gray)
@@ -834,6 +950,21 @@ proc drawShopWindow*(shop: ShopWindow) =
         endScissorMode()
       
       shapeIndex += 1
+  elif shop.currentTab == stBulletShapes:
+    let unlockedBulletShapes = getUnlockedBulletShapes()
+    var bshapeIndex = 0
+    for bshapeType in unlockedBulletShapes:
+      let col = bshapeIndex mod SKINS_PER_ROW
+      let row = bshapeIndex div SKINS_PER_ROW
+      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
+      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
+      if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
+        let isSelected = bshapeType == shop.selectedBulletShape
+        let isHovered = bshapeIndex == shop.hoveredSkin
+        beginScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
+        drawBulletShapePreview(boxX, boxY, bshapeType, shop.animationTime, isSelected, isHovered)
+        endScissorMode()
+      bshapeIndex += 1
   else:  # stParticles
     let unlockedParticles = getUnlockedParticleSkins()
     var particleIndex = 0
@@ -885,6 +1016,10 @@ proc drawShopWindow*(shop: ShopWindow) =
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
   elif shop.currentTab == stShapes:
     let selectedData = getShapeData(shop.selectedShape)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
+    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+  elif shop.currentTab == stBulletShapes:
+    let selectedData = getBulletShapeData(shop.selectedBulletShape)
     drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
   else:  # stParticles

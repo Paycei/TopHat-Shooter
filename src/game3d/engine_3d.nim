@@ -90,7 +90,7 @@ proc getForward*(cam: FPSCamera): Vector3f =
   result.z = sin(yawRad) * cos(pitchRad)
 
 proc getRight*(cam: FPSCamera): Vector3f =
-  # Convert to radians  
+  # Convert to radians
   let yawRad = degToRad(cam.yaw)
   
   # Right vector is perpendicular to forward on XZ plane
@@ -121,7 +121,7 @@ proc checkCollision*(pos: Vector3f, radius: float32, platforms: seq[Platform3D])
     let dz = abs(pos.z - platform.pos.z)
     let dy = pos.y - platform.pos.y
     
-    if dx < platform.size.x + radius and dz < platform.size.z + radius and 
+    if dx < platform.size.x + radius and dz < platform.size.z + radius and
        dy > 0 and dy < platform.size.y + 1.0:
       return (true, platform)
   (false, Platform3D())
@@ -259,13 +259,13 @@ proc drawArena*(arena: Arena3D) =
   clearBackground(arena.skyColor)
   
   # Draw floor
-  drawCube(Vector3(x: 0, y: -10, z: 0), 
-          arena.radius * 4, 1.0, arena.radius * 4, 
+  drawCube(Vector3(x: 0, y: -10, z: 0),
+          arena.radius * 4, 1.0, arena.radius * 4,
           arena.floorColor)
   
   # Draw walls
-  drawCylinderWires(Vector3(x: 0, y: 50, z: 0), 
-                   arena.radius, arena.radius, 100.0, 32, 
+  drawCylinderWires(Vector3(x: 0, y: 50, z: 0),
+                   arena.radius, arena.radius, 100.0, 32,
                    arena.wallColor)
 
 proc drawPlatform*(platform: Platform3D) =
@@ -291,7 +291,7 @@ proc drawProjectile*(proj: Projectile3D) =
   drawSphere(Vector3(x: proj.pos.x, y: proj.pos.y, z: proj.pos.z), 1.5, color)
   
   # Trail effect
-  drawSphere(Vector3(x: proj.pos.x - proj.vel.x * 0.05, 
-                    y: proj.pos.y - proj.vel.y * 0.05, 
-                    z: proj.pos.z - proj.vel.z * 0.05), 
+  drawSphere(Vector3(x: proj.pos.x - proj.vel.x * 0.05,
+                    y: proj.pos.y - proj.vel.y * 0.05,
+                    z: proj.pos.z - proj.vel.z * 0.05),
             1.0, fade(color, 0.5))

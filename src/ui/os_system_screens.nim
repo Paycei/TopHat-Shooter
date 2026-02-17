@@ -93,7 +93,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   
   # Window border
   drawRectangleLines(Rectangle(x: (windowX - 10).float32, y: (windowY - 10).float32,
-                                width: (SCREEN_WIDTH + 20).float32, 
+                                width: (SCREEN_WIDTH + 20).float32,
                                 height: (SCREEN_HEIGHT + 20).float32),
                     3, Color(r: 60, g: 120, b: 200, a: 255))
   
@@ -105,7 +105,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   let pulse = sin(game.time * 2.0) * 0.2 + 0.8
   
   drawText(":(", faceX, yOffset, int32(faceSize),
-          Color(r: uint8(180 * pulse), g: uint8(200 * pulse), 
+          Color(r: uint8(180 * pulse), g: uint8(200 * pulse),
                 b: uint8(220 * pulse), a: 255))
   
   # Error icon box
@@ -142,7 +142,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
                     1, Color(r: 60, g: 100, b: 160, a: 255))
   
   drawText("[!]", windowX + 40, yOffset + 8, 18, Color(r: 255, g: 200, b: 100, a: 255))
-  drawText(t(tkGameOverErrorCode), 
+  drawText(t(tkGameOverErrorCode),
           windowX + 70, yOffset + 10, 14,
           Color(r: 255, g: 255, b: 255, a: 255))
   yOffset += 55
@@ -155,7 +155,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   # Format time
   let minutes = (game.time / 60.0).int
   let seconds = (game.time mod 60.0).int
-  let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" & 
+  let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" &
                  (if seconds < 10: "0" else: "") & $seconds
   
   # Draw statistics with icons
@@ -230,7 +230,7 @@ proc drawSystemSecured*(game: Game) =
   # Success window background with glow
   let glowPulse = sin(game.time * 2.5) * 0.15 + 0.85
   drawRectangle(windowX - 15, windowY - 15, SCREEN_WIDTH + 30, SCREEN_HEIGHT + 30,
-               Color(r: uint8(0 * glowPulse), g: uint8(255 * glowPulse), 
+               Color(r: uint8(0 * glowPulse), g: uint8(255 * glowPulse),
                      b: uint8(100 * glowPulse), a: 40))
   
   drawRectangle(windowX - 10, windowY - 10, SCREEN_WIDTH + 20, SCREEN_HEIGHT + 20,
@@ -238,7 +238,7 @@ proc drawSystemSecured*(game: Game) =
   
   # Window border with glow
   drawRectangleLines(Rectangle(x: (windowX - 10).float32, y: (windowY - 10).float32,
-                                width: (SCREEN_WIDTH + 20).float32, 
+                                width: (SCREEN_WIDTH + 20).float32,
                                 height: (SCREEN_HEIGHT + 20).float32),
                     3, Color(r: 0, g: 255, b: 120, a: 255))
   
@@ -252,9 +252,9 @@ proc drawSystemSecured*(game: Game) =
   # Glow effect
   for i in 1..3:
     let offset = i * 10
-    drawText("[OK]", int32(checkX - offset div 2), int32(yOffset - offset div 2), 
-            int32(checkSize + offset), 
-            Color(r: 0, g: uint8(255 * checkPulse), b: uint8(120 * checkPulse), 
+    drawText("[OK]", int32(checkX - offset div 2), int32(yOffset - offset div 2),
+            int32(checkSize + offset),
+            Color(r: 0, g: uint8(255 * checkPulse), b: uint8(120 * checkPulse),
                   a: uint8(30 / i.float32)))
   
   drawText("[OK]", checkX, yOffset, checkSize.int32,
@@ -292,7 +292,7 @@ proc drawSystemSecured*(game: Game) =
                     1, Color(r: 0, g: 180, b: 100, a: 255))
   
   drawText("[OK]", windowX + 40, yOffset + 6, 20, Color(r: 100, g: 255, b: 150, a: 255))
-  drawText(t(tkGameOverSecurityLevelMax), 
+  drawText(t(tkGameOverSecurityLevelMax),
           windowX + 70, yOffset + 10, 14,
           Color(r: 200, g: 255, b: 220, a: 255))
   yOffset += 55
@@ -305,7 +305,7 @@ proc drawSystemSecured*(game: Game) =
   # Format time
   let minutes = (game.time / 60.0).int
   let seconds = (game.time mod 60.0).int
-  let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" & 
+  let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" &
                  (if seconds < 10: "0" else: "") & $seconds
   
   # Draw statistics with icons and tree structure

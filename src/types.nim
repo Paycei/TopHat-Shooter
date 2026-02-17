@@ -241,8 +241,9 @@ type
     pulseArmorCooldown*: float32  # Cooldown after triggering shockwave
     teamId*: PvPTeam  # Team assignment for PvP mode (ptNone for free-for-all)
     skinType*: int  # Current equipped skinHost
-    bulletSkinType*: int  # Current equipped bullet skinHost
-    shapeType*: int  # Current equipped shapeHost
+    bulletSkinType*: int  # Current equipped bullet skin
+    bulletShapeType*: int  # Current equipped bullet shape (BulletShapeType ord)
+    shapeType*: int  # Current equipped player shape
     particleSkinType*: int  # Current equipped particle effect
 
   EffectInstance* = object
@@ -368,6 +369,7 @@ type
     bulletId*: int  # Unique ID for this bullet
     isBossBullet*: bool  # True if this bullet was fired by a boss
     bossBulletShape*: int  # Boss bullet shape: 0=circle,1=diamond,2=triangle,3=star,4=cross,5=square
+    bulletShape*: int  # Player cosmetic bullet shape (BulletShapeType ord)
     isArcaneBullet*: bool  # True if this bullet is from arcane bullet power-up
     isBonusFromMultiShot*: bool  # True if this is a bonus bullet from Multi-Shot
     isBonusFromDoubleShot*: bool  # True if this is a bonus bullet from Double Shot
@@ -724,9 +726,9 @@ proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sou
     isBossTeleportTarget: false
   )
 
-proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32], 
-                         length: float32, damage: int, laserDuration: float32, 
-                         pattern: string = "", enemyType: EnemyType = etCircle, 
+proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32],
+                         length: float32, damage: int, laserDuration: float32,
+                         pattern: string = "", enemyType: EnemyType = etCircle,
                          sourceEnemyId: int = -1): AttackWarning =
   ## Creates a warning specifically for boss laser attacks with multiple beams
   AttackWarning(
@@ -751,7 +753,7 @@ proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32]
     isBossTeleportTarget: false
   )
 
-proc newSatelliteLaserWarning*(satelliteX, satelliteY, targetX, targetY: float32, 
+proc newSatelliteLaserWarning*(satelliteX, satelliteY, targetX, targetY: float32,
                                duration: float32, sourceEnemyId: int = -1): AttackWarning =
   ## Creates a warning for satellite laser attacks that extend through a target point
   AttackWarning(
