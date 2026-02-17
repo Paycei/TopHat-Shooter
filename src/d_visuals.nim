@@ -109,10 +109,9 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
   
   # TIMER BAR
   let timeSinceLastKill = currentTime - combo.lastKillTime
-  # Use the stored combo window from when the last kill happened for accurate display
-  let currentWindow = combo.comboWindow
+  let currentWindow = max(0.01, combo.comboWindow)  # Prevent division by zero
   let timeRemaining = max(0.0, currentWindow - timeSinceLastKill)
-  let timePercent = timeRemaining / currentWindow
+  let timePercent = clamp(timeRemaining / currentWindow, 0.0, 1.0)
   
   let barY = notificationY + 4
   let barWidth = 100.int32

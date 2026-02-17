@@ -134,6 +134,7 @@ proc updateCombo*(combo: var ComboSystem, dt: float32, currentTime: float32) =
     combo.killCount = 0
     combo.bonusCoins = 0
     combo.perfectWaveStreak = 0  # Reset perfect wave streak when combo breaks
+    combo.comboWindow = 4.0  # Reset to base window when combo breaks
   
   if combo.displayTimer > 0:
     combo.displayTimer -= dt

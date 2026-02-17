@@ -39,6 +39,12 @@ proc completeBossWave*(game: Game) =
   if game.wavesUntilBoss <= 0:
     game.wavesUntilBoss = 4  # Next boss in 5 waves
   
+  # Reset combo after boss wave
+  game.dopamine.comboSystem.killCount = 0
+  game.dopamine.comboSystem.bonusCoins = 0
+  game.dopamine.comboSystem.comboWindow = 4.0
+  game.dopamine.comboSystem.displayTimer = 0
+  
   # Calculate final wave stats for celebration
   calculateAccuracy(game.dopamine.waveStats)
   
@@ -6642,7 +6648,7 @@ proc drawGame*(game: Game) =
   drawActionLog(game.osHUD, game.screenWidth, game.screenHeight)
 
   # Kill streak system removed - now only combo system is used
-  drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.time)
+  drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.dopamine.currentTime)
   drawMilestone(game.dopamine.milestones, game.screenWidth, game.screenHeight)
   drawMicroRewards(game.dopamine.microRewards)
   
