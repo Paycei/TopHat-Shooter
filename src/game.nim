@@ -44,6 +44,8 @@ proc completeBossWave*(game: Game) =
   game.dopamine.comboSystem.bonusCoins = 0
   game.dopamine.comboSystem.comboWindow = 4.0
   game.dopamine.comboSystem.displayTimer = 0
+  game.dopamine.comboSystem.waveKillCount = 0
+  game.dopamine.comboSystem.waveComboBreaks = 0
   
   # Calculate final wave stats for celebration
   calculateAccuracy(game.dopamine.waveStats)

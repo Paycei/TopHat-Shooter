@@ -77,10 +77,11 @@ proc newComboSystem*(): ComboSystem =
   result = ComboSystem(
     killCount: 0,
     lastKillTime: 0,
-    comboWindow: 4.0,  # Extended from 2.0 to 4.0 seconds for easier combos
+    comboWindow: 4.0,
     displayTimer: 0,
     bonusCoins: 0,
-    waveStartCombo: 0,
+    waveKillCount: 0,
+    waveComboBreaks: 0,
     perfectWaveStreak: 0,
     lastPerfectWaveBonus: 0
   )
@@ -97,7 +98,6 @@ proc getComboWindow*(combo: ComboSystem): float32 =
 
 proc addComboKill*(combo: var ComboSystem, currentTime: float32): int =
   ## Add a kill to combo, returns bonus coins earned
-  # Get current dynamic window based on combo count BEFORE adding the kill
   let currentWindow = getComboWindow(combo)
   
   if currentTime - combo.lastKillTime <= currentWindow:
@@ -106,10 +106,9 @@ proc addComboKill*(combo: var ComboSystem, currentTime: float32): int =
     combo.killCount = 1
   
   combo.lastKillTime = currentTime
-  # Store the window time that applies to THIS kill for accurate timer display
-  # Recalculate window based on NEW combo count to fix timer display after resets
   combo.comboWindow = getComboWindow(combo)
-  combo.displayTimer = 5.0  # Increased from 2.5 to 5.0 seconds
+  combo.displayTimer = 5.0
+  combo.waveKillCount += 1  # Always track wave kills independently
   
   # Calculate bonus coins
   combo.bonusCoins = 0
@@ -130,11 +129,12 @@ proc updateCombo*(combo: var ComboSystem, dt: float32, currentTime: float32) =
   let coyoteTime = 0.1  # Extra buffer time not shown on timer (like coyote jump)
   
   # Reset combo only after window + coyote time expires
-  if currentTime - combo.lastKillTime > currentWindow + coyoteTime:
+  if combo.killCount > 0 and currentTime - combo.lastKillTime > currentWindow + coyoteTime:
     combo.killCount = 0
     combo.bonusCoins = 0
-    combo.perfectWaveStreak = 0  # Reset perfect wave streak when combo breaks
     combo.comboWindow = 4.0  # Reset to base window when combo breaks
+    if combo.waveKillCount > 0:
+      combo.waveComboBreaks += 1  # Only counts if wave has started
   
   if combo.displayTimer > 0:
     combo.displayTimer -= dt
@@ -148,27 +148,21 @@ proc shouldShowCombo*(combo: ComboSystem): bool =
   return combo.displayTimer > 0 and combo.killCount >= 2
 
 proc startWaveCombo*(combo: var ComboSystem) =
-  ## Mark the start of a new wave - record current combo count
-  combo.waveStartCombo = combo.killCount
+  ## Reset per-wave tracking at the start of each wave
+  combo.waveKillCount = 0
+  combo.waveComboBreaks = 0
   combo.lastPerfectWaveBonus = 0
 
 proc checkPerfectWaveCombo*(combo: var ComboSystem, waveEnemyCount: int): int =
-  ## Check if the wave was cleared in a single combo
-  ## Returns bonus coins earned (0 if not perfect)
-  ## Must have killed all enemies and maintained combo from wave start
-  if combo.killCount > combo.waveStartCombo and 
-     combo.killCount >= combo.waveStartCombo + waveEnemyCount:
-    # Perfect wave combo achieved!
+  ## Check if the wave was cleared without ever breaking the combo.
+  ## waveEnemyCount must match exactly the kills tracked this wave.
+  if combo.waveComboBreaks == 0 and combo.waveKillCount >= waveEnemyCount and waveEnemyCount > 0:
     combo.perfectWaveStreak += 1
-    
-    # Calculate bonus: 10 coins base + 5 per streak level
     let bonus = 10 + (combo.perfectWaveStreak - 1) * 5
     combo.lastPerfectWaveBonus = bonus
-    combo.displayTimer = max(combo.displayTimer, 3.0)  # Show for at least 3 seconds
-    
+    combo.displayTimer = max(combo.displayTimer, 3.0)
     return bonus
   else:
-    # Wave not cleared in single combo - reset streak
     combo.perfectWaveStreak = 0
     combo.lastPerfectWaveBonus = 0
     return 0

@@ -511,8 +511,9 @@ type
     comboWindow*: float32
     displayTimer*: float32
     bonusCoins*: int
-    # Perfect wave combo tracking
-    waveStartCombo*: int          # Combo count at wave start
+    # Perfect wave tracking (independent of combo)
+    waveKillCount*: int           # Kills made this wave (excluding boss minions)
+    waveComboBreaks*: int         # Number of times combo broke this wave
     perfectWaveStreak*: int       # Number of consecutive perfect waves
     lastPerfectWaveBonus*: int    # Last bonus earned for display
 
