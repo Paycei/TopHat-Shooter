@@ -279,8 +279,8 @@ type
     tkBulletShapeSquareDesc = "bshape_square_desc"
     tkBulletShapeStar = "bshape_star"
     tkBulletShapeStarDesc = "bshape_star_desc"
-    tkBulletShapeArrow = "bshape_arrow"
-    tkBulletShapeArrowDesc = "bshape_arrow_desc"
+    tkBulletShapePentagon = "bshape_pentagon"
+    tkBulletShapePentagonDesc = "bshape_pentagon_desc"
     tkShopCustomizeBulletShapes = "shop_customize_bshapes"
 
     # Particle Skins
@@ -1886,8 +1886,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "bshape_square_desc": "Solid square bullet",
     "bshape_star": "Star",
     "bshape_star_desc": "Six-pointed star burst",
-    "bshape_arrow": "Arrow",
-    "bshape_arrow_desc": "Arrowhead tracks direction",
+    "bshape_pentagon": "Pentagon",
+    "bshape_pentagon_desc": "Five-sided projectile",
     "shop_customize_bshapes": "CUSTOMIZE BULLET SHAPE",
     "particle_default": "System Default",
     "particle_default_desc": "Standard cyan energy",
@@ -2923,8 +2923,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "bshape_square_desc": "Bala cuadrada sólida",
     "bshape_star": "Estrella",
     "bshape_star_desc": "Ráfaga de seis puntas",
-    "bshape_arrow": "Flecha",
-    "bshape_arrow_desc": "Punta de flecha direccional",
+    "bshape_pentagon": "Pentágono",
+    "bshape_pentagon_desc": "Proyectil de cinco lados",
     "shop_customize_bshapes": "FORMA DE LAS BALAS",
     "particle_default": "Sistema",
     "particle_default_desc": "Energía estándar",

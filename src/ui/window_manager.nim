@@ -97,6 +97,14 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widShop: wm.shop.window.visible = false
   of widPvP: wm.pvp.window.visible = false
 
+proc closeAllWindows*(wm: WindowManager) =
+  ## Close all open desktop windows (e.g. when starting a game)
+  wm.settings.window.visible = false
+  wm.help.window.visible = false
+  wm.stats.window.visible = false
+  wm.shop.window.visible = false
+  wm.pvp.window.visible = false
+
 proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
   if not isMouseButtonPressed(Left):

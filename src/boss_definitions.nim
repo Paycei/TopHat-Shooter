@@ -596,7 +596,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapCircle,
               damage: 1.5,  # NERFED from 2.0
               cooldown: 4.0,  # NERFED from 3.5
-              projectileSpeed: 145.0,  # NERFED from 160.0
+              projectileSpeed: 160.0,
               projectileCount: 10,  # NERFED from 12
               spreadAngle: 360.0,
               durationOrRadius: 0.0
@@ -605,7 +605,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapSpiral,
               damage: 1.5,  # NERFED from 2.0
               cooldown: 3.2,  # NERFED from 2.8
-              projectileSpeed: 145.0,  # NERFED from 160.0
+              projectileSpeed: 160.0,
               projectileCount: 7,  # NERFED from 9
               spreadAngle: 30.0,
               durationOrRadius: 0.0
@@ -636,7 +636,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapBarrage,
               damage: 1.5,  # NERFED from 2.0
               cooldown: 3.5,  # NERFED from 3.0
-              projectileSpeed: 160.0,  # NERFED from 180.0
+              projectileSpeed: 170.0,  # NERFED from 180.0
               projectileCount: 16,  # NERFED from 20
               spreadAngle: 240.0,  # NERFED from 270.0
               durationOrRadius: 0.0

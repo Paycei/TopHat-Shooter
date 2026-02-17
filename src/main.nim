@@ -307,6 +307,8 @@ proc main() =
       
       # Check if loading animation just finished and launch pending game mode
       if not osDesktop.loadingActive and pendingGameMode >= 0:
+        # Close all desktop windows before launching the game
+        globalWindowManager.closeAllWindows()
         case pendingGameMode
         of 0:  # Wave-Based Mode
           currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
@@ -415,7 +417,7 @@ proc main() =
         
         startCountdown(currentPvPGame)
         currentGame.state = gsPvPPlaying
-        globalWindowManager.pvp.window.visible = false
+        globalWindowManager.closeAllWindows()
       
       # Handle PvP window clicks
       if globalWindowManager.pvp.window.visible and not globalWindowManager.pvp.window.minimized:

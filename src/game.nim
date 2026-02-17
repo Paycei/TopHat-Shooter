@@ -3327,10 +3327,20 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     
     # TELEPORT WARNING SYSTEM - Show player where boss will appear BEFORE bullets spawn
     # Pre-calculate all teleport positions and create warning indicators
+    const BOSS_TELEPORT_MIN_DIST = 200.0  # Minimum distance boss can teleport near player
     var teleportWarningPositions: seq[Vector2f] = @[]
     for t in 0..<teleportCount:
-      let newX = game.screenWidth.float32 * (0.2 + rand(0.6))
-      let newY = game.screenHeight.float32 * (0.2 + rand(0.6))
+      var newX, newY: float32
+      var attempts = 0
+      while true:
+        newX = game.screenWidth.float32 * (0.2 + rand(0.6))
+        newY = game.screenHeight.float32 * (0.2 + rand(0.6))
+        let dx = newX - game.player.pos.x
+        let dy = newY - game.player.pos.y
+        let distSq = dx * dx + dy * dy
+        inc attempts
+        if distSq >= BOSS_TELEPORT_MIN_DIST * BOSS_TELEPORT_MIN_DIST or attempts >= 10:
+          break  # Accept position if far enough or after max retries
       teleportWarningPositions.add(newVector2f(newX, newY))
     
     # Create pre-warning indicators at each teleport location
