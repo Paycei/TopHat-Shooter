@@ -147,88 +147,115 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
         break
 
 # ROTATING ORBS SYSTEM
-proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType): RotatingOrb =
-  ## Create a new rotating orb with specified angle, radius, and element
+proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType, orbLevel: int = 1): RotatingOrb =
   result = RotatingOrb(
     angle: angle,
     radius: radius,
     elementType: elementType,
+    orbLevel: orbLevel,
     hitEnemies: @[],
     lastHitTime: initTable[int, float32]()
   )
 
+const ORB_ORBIT_RADIUS_BASE = 42.0
+const ORB_ORBIT_RING_GAP    = 34.0
+
+proc getOrbRingRadius*(player: Player, level: int): float32 =
+  ## Level 1 → ring 1, level 2 → ring 2, level 3 → ring 3, level 4 (legendary) → ring 4.
+  ## All orbs of the same level share exactly one ring; different levels never touch.
+  result = player.radius * 4.5 + ORB_ORBIT_RADIUS_BASE +
+           float32(level - 1) * ORB_ORBIT_RING_GAP
+
+proc redistributeAllOrbs*(player: Player) =
+  ## For each level tier: collect orbs, interleave by element type
+  ## (1,2,3,1,2,3...), then assign evenly-spaced angles on that ring.
+  for lv in 1..4:
+    # Collect indices of every orb at this level, grouped by element
+    var groups: seq[seq[int]]   # groups[g] = list of rotatingOrbs indices for one element
+    var elementOrder: seq[ElementType]
+
+    for i, orb in player.rotatingOrbs:
+      if orb.orbLevel != lv: continue
+      # Find or create group for this element
+      var found = false
+      for g in 0..<elementOrder.len:
+        if elementOrder[g] == orb.elementType:
+          groups[g].add(i)
+          found = true
+          break
+      if not found:
+        elementOrder.add(orb.elementType)
+        groups.add(@[i])
+
+    let totalOrbs = block:
+      var s = 0
+      for g in groups: s += g.len
+      s
+    if totalOrbs == 0: continue
+
+    let r = getOrbRingRadius(player, lv)
+
+    # Round-robin through groups to build interleaved order
+    var interleaved: seq[int]
+    var gPos: seq[int] = newSeq[int](groups.len)  # cursor per group
+    var remaining = totalOrbs
+    while remaining > 0:
+      for g in 0..<groups.len:
+        if gPos[g] < groups[g].len:
+          interleaved.add(groups[g][gPos[g]])
+          gPos[g] += 1
+          remaining -= 1
+
+    # Assign radius and evenly-spaced angles in interleaved order
+    for j, idx in interleaved:
+      player.rotatingOrbs[idx].radius = r
+      player.rotatingOrbs[idx].angle  = float32(j) * PI * 2.0 / float32(totalOrbs)
+
 proc createRotatingOrbs*(player: Player, level: int) =
-  ## All 6 elements, each element forms a triangle around the player
-  ## Orb radius scales with player size to maintain distance
-  
-  # Dynamic orbit radius: scales with player size + fixed offset
-  # player.radius * 4.5 ensures orbs scale MORE with player
-  let orbRadius = player.radius * 4.5 + 35
-  
-  # Clear existing orbs
-  player.rotatingOrbs = @[]
-  
-  # Define the 6 element types and their base angles
+  ## Legendary: adds 1 orb of each of the 6 base elements on ring 4 (outermost).
+  ## Clears existing level-4 orbs first so reapply never duplicates them.
+  var i = 0
+  while i < player.rotatingOrbs.len:
+    if player.rotatingOrbs[i].orbLevel == 4:
+      player.rotatingOrbs.delete(i)
+    else:
+      i += 1
   let elements = [etPoison, etFire, etLightning, etWind, etFrost, etArcane]
-  
-  # Each element gets a base angle (hexagon pattern: 60° apart)
-  let baseAngles = [
-    0.0,                # Poison: 0°
-    PI / 3.0,           # Fire: 60°
-    PI * 2.0 / 3.0,     # Lightning: 120°
-    PI,                 # Wind: 180°
-    PI * 4.0 / 3.0,     # Frost: 240°
-    PI * 5.0 / 3.0      # Arcane: 300°
-  ]
-  
-  # For legendary, create all 6 triangles with 3 orbs each
-  for elementIdx in 0..<6:
-    let baseAngle = baseAngles[elementIdx]
-    let element = elements[elementIdx]
-    
-    # Create triangle with 3 orbs
-    # Triangle spacing: 120° apart (forming equilateral triangle)
-    for orbIdx in 0..2:
-      let orbAngle = baseAngle + (orbIdx.float32 * PI * 2.0 / 3.0)
-      player.rotatingOrbs.add(newRotatingOrb(orbAngle, orbRadius, element))
+  for element in elements:
+    for _ in 0..1:  # 2 orbs per element = 12 total
+      player.rotatingOrbs.add(RotatingOrb(
+        angle: 0.0, radius: 0.0,
+        elementType: element, orbLevel: 4,
+        hitEnemies: @[], lastHitTime: initTable[int, float32]()
+      ))
+  redistributeAllOrbs(player)
 
 proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) =
-  ## Create orbs of a specific element based on level
-  ## Level 1: 2 orbs, Level 2: 4 orbs, Level 3: 6 orbs
-  ## Orb radius scales with player size to maintain distance
-  
-  # Dynamic orbit radius: scales with player size + fixed offset
-  let orbRadius = player.radius * 4.5 + 35
-  
-  # Find existing orbs of this element and remove them
+  ## Replace all orbs of this element, tagged with the new level.
+  ## Level 1 → 2 orbs on ring 1, level 2 → 4 orbs on ring 2, level 3 → 6 orbs on ring 3.
+  ## All other elements' orbs are untouched; redistributeAllOrbs re-spaces every ring.
+
+  # Remove existing orbs of this element (any level)
   var i = 0
   while i < player.rotatingOrbs.len:
     if player.rotatingOrbs[i].elementType == elementType:
       player.rotatingOrbs.delete(i)
     else:
       i += 1
-  
-  # Define fixed base angle for each element (offset para que no se solapen)
-  let baseAngleForElement = case elementType
-    of etPoison: 0.0                           # Poison at 0°
-    of etFire: PI / 3.0                        # Fire at 60°
-    of etLightning: PI * 2.0 / 3.0             # Lightning at 120°
-    of etWind: PI                              # Wind at 180°
-    of etFrost: PI * 4.0 / 3.0                 # Frost at 240°
-    of etArcane: PI * 5.0 / 3.0                 # Arcane at 300°
-    of etBlood: PI / 6.0                       # Blood at 30°
-    of etNone: 0.0
-  
-  # Create orbs distributed in circle based on level
+
   let orbCount = case level
-    of 1: 2
-    of 2: 4
-    else: 6
-  
-  # Distribute orbs evenly around the circle
-  for orbIdx in 0..<orbCount:
-    let orbAngle = baseAngleForElement + (orbIdx.float32 * PI * 2.0 / orbCount.float32)
-    player.rotatingOrbs.add(newRotatingOrb(orbAngle, orbRadius, elementType))
+    of 1: 4
+    of 2: 8
+    else: 12
+
+  for _ in 0..<orbCount:
+    player.rotatingOrbs.add(RotatingOrb(
+      angle: 0.0, radius: 0.0,
+      elementType: elementType, orbLevel: level,
+      hitEnemies: @[], lastHitTime: initTable[int, float32]()
+    ))
+
+  redistributeAllOrbs(player)
 
 proc getElementColor*(elementType: ElementType): Color =
   ## Get the visual color for each element type

@@ -245,6 +245,9 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
     game.player.fireRate -= effectiveReduction
     if game.player.fireRate < 0.07: game.player.fireRate = 0.07
   
+  # Clear all rotating orbs — they will be recreated by the reapply loop below
+  game.player.rotatingOrbs = @[]
+
   # Reapply all remaining power-ups
   for powerUp in game.player.powerUps:
     applyPowerUp(game.player, powerUp)
@@ -702,6 +705,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
       
       if removeHovered and isMouseButtonPressed(Left):
         removePermanentPowerUpCheat(game, powerUp.powerType)
+        break  # list just shrank, stop iterating this frame
     
     # Scroll indicator for owned list
     if ownedMaxScroll > 0:

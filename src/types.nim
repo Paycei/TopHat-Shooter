@@ -187,6 +187,7 @@ type
     angle*: float32                    # Current angle around player
     radius*: float32                   # Distance from player
     elementType*: ElementType          # Which element this orb has
+    orbLevel*: int                     # 1-3 = elemental level, 4 = legendary tier
     hitEnemies*: seq[int]              # Track which enemies were hit (by index)
     lastHitTime*: Table[int, float32]  # Track when each enemy was last hit
 

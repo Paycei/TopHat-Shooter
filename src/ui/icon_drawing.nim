@@ -781,30 +781,91 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let rayX = cx.float32 + cos(angle - PI / 2) * 5
       let rayY = cy.float32 - 13 + sin(angle - PI / 2) * 5
       drawLine(cx, cy - 13, int32(rayX), int32(rayY), Color(r: 255, g: 200, b: 100, a: 200))
-    
-  else:
-    # Default: Enhanced gear icon for unspecified types
-    # Gear body shadow
-    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), rad * 0.6, Color(r: 0, g: 0, b: 0, a: 60))
-    # Gear center
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.6, color)
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.6,
-                   Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
-    # Gear teeth
-    for i in 0..11:
-      let angle = i.float32 * PI / 6
-      let x1 = cx.float32 + cos(angle) * (rad * 0.6)
-      let y1 = cy.float32 + sin(angle) * (rad * 0.6)
-      let x2 = cx.float32 + cos(angle) * rad
-      let y2 = cy.float32 + sin(angle) * rad
-      # Tooth
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3, color)
-      # Tooth highlight
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1,
-              Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 255))
-    # Inner hole
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.3, Color(r: 30, g: 35, b: 45, a: 255))
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.3, color)
+
+  of puHeavyRounds:
+    # Cannonball with weight rings
+    drawCircle(Vector2(x: (cx + 2).float32, y: (cy + 3).float32), 11, Color(r: 0, g: 0, b: 0, a: 70))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 11, color)
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 9, Color(r: max(color.r - 35, 0), g: max(color.g - 35, 0), b: max(color.b - 35, 0), a: 255))
+    drawCircle(Vector2(x: (cx - 4).float32, y: (cy - 4).float32), 3, Color(r: min(color.r + 110, 255), g: min(color.g + 110, 255), b: min(color.b + 110, 255), a: 200))
+    drawCircle(Vector2(x: (cx - 2).float32, y: (cy - 2).float32), 1, Color(r: 255, g: 255, b: 255, a: 180))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 14, Color(r: color.r, g: color.g, b: color.b, a: 100))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 17, Color(r: color.r, g: color.g, b: color.b, a: 50))
+
+  of puPulseArmor:
+    # Chest armor with outward pulse wave
+    drawRectangle(cx - 12, cy - 9, 5, 8, Color(r: max(color.r - 25, 0), g: max(color.g - 25, 0), b: max(color.b - 25, 0), a: 255))
+    drawRectangle(cx + 7, cy - 9, 5, 8, Color(r: max(color.r - 25, 0), g: max(color.g - 25, 0), b: max(color.b - 25, 0), a: 255))
+    drawRectangle(cx - 6, cy - 6, 12, 14, Color(r: 0, g: 0, b: 0, a: 65))
+    drawRectangle(cx - 7, cy - 8, 14, 14, color)
+    drawRectangle(cx - 7, cy - 8, 14, 3, Color(r: min(color.r + 70, 255), g: min(color.g + 70, 255), b: min(color.b + 70, 255), a: 255))
+    drawLine(cx, cy - 5, cx - 4, cy + 2, Color(r: max(color.r - 30, 0), g: max(color.g - 30, 0), b: max(color.b - 30, 0), a: 255))
+    drawLine(cx, cy - 5, cx + 4, cy + 2, Color(r: max(color.r - 30, 0), g: max(color.g - 30, 0), b: max(color.b - 30, 0), a: 255))
+    drawCircle(Vector2(x: cx.float32, y: (cy - 1).float32), 3, Color(r: min(color.r + 160, 255), g: min(color.g + 160, 255), b: min(color.b + 160, 255), a: 255))
+    drawCircleLines(Vector2(x: cx.float32, y: (cy - 1).float32), 8, Color(r: color.r, g: color.g, b: color.b, a: 190))
+    drawCircleLines(Vector2(x: cx.float32, y: (cy - 1).float32), 13, Color(r: color.r, g: color.g, b: color.b, a: 120))
+    drawCircleLines(Vector2(x: cx.float32, y: (cy - 1).float32), 18, Color(r: color.r, g: color.g, b: color.b, a: 55))
+
+  of puFortified:
+    # Castle battlement tower
+    drawRectangle(cx - 6, cy - 4, 13, 17, Color(r: 0, g: 0, b: 0, a: 70))
+    drawRectangle(cx - 7, cy - 6, 14, 16, color)
+    drawRectangle(cx - 7, cy - 6, 14, 3, Color(r: min(color.r + 55, 255), g: min(color.g + 55, 255), b: min(color.b + 55, 255), a: 255))
+    drawRectangle(cx - 7, cy - 6, 2, 16, Color(r: min(color.r + 35, 255), g: min(color.g + 35, 255), b: min(color.b + 35, 255), a: 180))
+    for i in 0..2:
+      let bx: int32 = cx - 7 + int32(i * 5)
+      drawRectangle(bx, cy - 12, 4, 7, color)
+      drawRectangle(bx, cy - 12, 4, 2, Color(r: min(color.r + 55, 255), g: min(color.g + 55, 255), b: min(color.b + 55, 255), a: 255))
+    drawRectangle(cx - 3, cy + 2, 6, 8, Color(r: 18, g: 22, b: 32, a: 255))
+    drawRectangle(cx - 6, cy - 1, 3, 5, Color(r: 18, g: 22, b: 32, a: 255))
+    drawRectangle(cx + 3, cy - 1, 3, 5, Color(r: 18, g: 22, b: 32, a: 255))
+
+  of puSpecialRounds:
+    # Bullet with a star insignia on the shell
+    drawRectangle(cx - 5, cy - 8, 11, 15, Color(r: 0, g: 0, b: 0, a: 70))
+    drawRectangle(cx - 6, cy - 10, 12, 14, color)
+    drawRectangle(cx - 6, cy - 10, 12, 3, Color(r: min(color.r + 75, 255), g: min(color.g + 75, 255), b: min(color.b + 75, 255), a: 255))
+    drawRectangle(cx - 5, cy - 10, 3, 14, Color(r: min(color.r + 40, 255), g: min(color.g + 40, 255), b: min(color.b + 40, 255), a: 180))
+    drawTriangle(Vector2(x: cx.float32, y: (cy - 16).float32),
+                Vector2(x: (cx - 6).float32, y: (cy - 10).float32),
+                Vector2(x: (cx + 6).float32, y: (cy - 10).float32), color)
+    drawLine(cx - 4, cy - 13, cx - 4, cy - 11, Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 200))
+    let sCX = cx.float32
+    let sCY = float32(cy + 1)
+    for i in 0..4:
+      let a1 = i.float32 * 2 * PI / 5.0 - PI / 2
+      let a2 = (i.float32 + 0.5) * 2 * PI / 5.0 - PI / 2
+      let x1 = sCX + cos(a1) * 4
+      let y1 = sCY + sin(a1) * 4
+      let x2 = sCX + cos(a2) * 2
+      let y2 = sCY + sin(a2) * 2
+      drawTriangle(Vector2(x: sCX, y: sCY), Vector2(x: x1, y: y1), Vector2(x: x2, y: y2),
+                  Color(r: min(color.r + 110, 255), g: min(color.g + 110, 255), b: min(color.b + 110, 255), a: 255))
+    drawRectangle(cx - 6, cy + 3, 12, 3, Color(r: min(color.r + 40, 255), g: min(color.g + 40, 255), b: min(color.b + 40, 255), a: 200))
+
+  of puGiantSlayer:
+    # Small hero figure targeting a large reticle
+    let figX: int32 = cx - 9
+    let figHeadY: int32 = cy + 2
+    drawCircle(Vector2(x: figX.float32, y: figHeadY.float32), 3, color)
+    drawRectangle(figX - 2, figHeadY + 3, 5, 7, color)
+    drawRectangle(figX - 2, figHeadY + 3, 5, 2, Color(r: min(color.r + 60, 255), g: min(color.g + 60, 255), b: min(color.b + 60, 255), a: 255))
+    let tCX = float32(cx + 7)
+    let tCY = float32(cy - 5)
+    drawCircleLines(Vector2(x: tCX, y: tCY), 9.5, Color(r: color.r, g: color.g, b: color.b, a: 210))
+    drawCircleLines(Vector2(x: tCX, y: tCY), 6.5, Color(r: color.r, g: color.g, b: color.b, a: 150))
+    drawLine(int32(tCX - 13), int32(tCY), int32(tCX - 7), int32(tCY), color)
+    drawLine(int32(tCX + 7), int32(tCY), int32(tCX + 13), int32(tCY), color)
+    drawLine(int32(tCX), int32(tCY - 13), int32(tCX), int32(tCY - 7), color)
+    drawLine(int32(tCX), int32(tCY + 7), int32(tCX), int32(tCY + 13), color)
+    drawCircle(Vector2(x: tCX, y: tCY), 2,
+              Color(r: min(color.r + 160, 255), g: min(color.g + 160, 255), b: min(color.b + 160, 255), a: 255))
+    for i in 0..4:
+      let t = float32(i) / 5.0
+      let dotX = float32(figX) + t * (tCX - float32(figX))
+      let dotY = float32(figHeadY) + t * (tCY - float32(figHeadY))
+      drawCircle(Vector2(x: dotX, y: dotY), 1.2,
+                Color(r: color.r, g: color.g, b: color.b, a: uint8(180 - i * 30)))
 
 proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
   let cx = x + size div 2
