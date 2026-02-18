@@ -226,7 +226,7 @@ proc drawShop*(game: Game) =
       upgradeY += 18
       
       # Description
-      let desc = getPowerUpDescription(powerUp.powerType, powerUp.level)
+      let desc = getPowerUpDescription(powerUp.powerType, powerUp.level, game.player.damage)
       drawText(desc, upgradeX + 8, upgradeY, 10, Color(r: 150, g: 160, b: 170, a: 255))
       upgradeY += 20
   

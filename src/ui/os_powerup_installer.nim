@@ -55,7 +55,7 @@ proc drawModernButton(x, y, width, height: int32, text: string,
   drawText(text, x + (width - textWidth) div 2, y + (height - 15) div 2, 15, textColor)
 
 proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
-                    selected: bool, time: float32, blurAmount: float32 = 1.0) =
+                    selected: bool, time: float32, playerDamage: float32, blurAmount: float32 = 1.0) =
   ## Draw power-up card with motion blur during roll
   
   # Card shadow (reduced during motion)
@@ -340,7 +340,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
                     2, Color(r: 60, g: 80, b: 100, a: 255))
   
   # Description text (larger, more prominent)
-  let desc = getPowerUpDescription(powerUp.powerType, powerUp.level)
+  let desc = getPowerUpDescription(powerUp.powerType, powerUp.level, playerDamage)
   
   var descLines: seq[string] = @[]
   var currentLine = ""
@@ -501,6 +501,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
                          game.rollPowerUpList[i][cardIndex],
                          i == game.selectedPowerUp,
                          game.time,
+                         game.player.damage,
                          blur)
       
       # DISABLE CLIPPING
@@ -511,6 +512,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
                      game.powerUpChoices[i],
                      i == game.selectedPowerUp,
                      game.time,
+                     game.player.damage,
                      1.0)
   
   # "ROLLING..." overlay

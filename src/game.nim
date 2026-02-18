@@ -3803,9 +3803,9 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
     return
   
   # Calculate base damage
-  let damageScaling = game.player.damage * 0.2
+  let damageScaling = game.player.damage * 0.35
   let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
-    0.1 + damageScaling  # Legendary version
+    1.5 + damageScaling  # Legendary version
   else:
     # For individual orbs, use level-based damage
     var maxDamage = 0.0
@@ -3823,15 +3823,16 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
       maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puArcaneOrb)))
     if hasPowerUp(game.player, puBloodOrb):
       maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puBloodOrb)))
-    (maxDamage * 0.5) + damageScaling
+    maxDamage + damageScaling
   
   let orbRadius = 9.0
   let orbDetectionRange = 0.0
   
   # Update each orb
   for orb in game.player.rotatingOrbs:
-    # Calculate orb position
-    let angle = game.player.orbRotationAngle + orb.angle
+    # Calculate orb position (rings 2 and 4 orbit backwards)
+    let orbRotDir = if orb.orbLevel == 2 or orb.orbLevel == 4: -1.0'f32 else: 1.0'f32
+    let angle = orbRotDir * game.player.orbRotationAngle + orb.angle
     let orbX = game.player.pos.x + cos(angle) * orb.radius
     let orbY = game.player.pos.y + sin(angle) * orb.radius
     let orbPos = newVector2f(orbX, orbY)
@@ -5198,7 +5199,14 @@ proc updateGame*(game: var Game, dt: float32) =
       # Update boss behavior based on specialBehavior
       if enemy.currentPhaseIndex < bossDef.phases.len:
         let phase = bossDef.phases[enemy.currentPhaseIndex]
+        # Slow boss 50% when close to the player so they aren't instantly overwhelmed
+        const bossSlowRadius = 20.0
+        let distToPlayer = distance(enemy.pos, game.player.pos)
+        let savedSpeed = enemy.speed
+        if distToPlayer < bossSlowRadius and not enemy.isDashing:
+          enemy.speed *= 0.5
         updateCustomBossBehavior(game, enemy, phase, dt)
+        enemy.speed = savedSpeed  # Always restore the real speed
       
       # Handle boss dash movement (overrides normal movement)
       if enemy.isDashing:

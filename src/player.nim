@@ -394,7 +394,7 @@ proc drawPlayer*(player: Player) =
         let angle1 = baseAngle + gapSize
         let angle2 = angle1 + activeArcLength
 
-        # --- DESTROYED: ghost recharge arc ---
+        # DESTROYED: ghost recharge arc
         if i < player.shieldHealths.len and player.shieldHealths[i] <= 0:
           let regenProgress = if i < player.shieldRegenTimers.len:
             clamp(player.shieldRegenTimers[i] / player.shieldRegenDelay, 0.0, 1.0)
@@ -416,7 +416,7 @@ proc drawPlayer*(player: Player) =
                     Color(r: 0, g: 200, b: 255, a: ghostAlpha))
           continue
 
-        # --- Color based on health ---
+        # Color based on health
         var arcR: uint8 = 0
         var arcG: uint8 = 255
         var arcB: uint8 = 255
@@ -511,16 +511,19 @@ proc drawPlayer*(player: Player) =
 
     for orb in player.rotatingOrbs:
       # Calculate orb position
-      let angle = player.orbRotationAngle + orb.angle
+      # Rings 2 and 4 orbit backwards for a dynamic counter-rotating effect
+      let orbRotDir = if orb.orbLevel == 2 or orb.orbLevel == 4: -1.0'f32 else: 1.0'f32
+      let angle = orbRotDir * player.orbRotationAngle + orb.angle
       let orbX = player.pos.x + cos(angle) * orb.radius
       let orbY = player.pos.y + sin(angle) * orb.radius
 
       # Get element color
       let color = getElementColor(orb.elementType)
 
-      # --- Comet tail: ghost orbs behind along the orbit ---
+      # Comet tail: ghost orbs behind along the orbit
+      # Tail direction follows the actual orbit direction
       for t in 1..6:
-        let tailAngle = angle - t.float32 * 0.21
+        let tailAngle = angle - orbRotDir * t.float32 * 0.21
         let tailAlpha = uint8(max(0, 52 - t * 9))
         let tailX = player.pos.x + cos(tailAngle) * orb.radius
         let tailY = player.pos.y + sin(tailAngle) * orb.radius
@@ -529,28 +532,28 @@ proc drawPlayer*(player: Player) =
           drawCircle(Vector2(x: tailX, y: tailY), tailSize,
                     Color(r: color.r, g: color.g, b: color.b, a: tailAlpha))
 
-      # --- Outer pulsing glow halo ---
+      # Outer pulsing glow halo
       drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale * 1.9 * tPulse,
                 Color(r: color.r, g: color.g, b: color.b, a: 20))
       drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale * 1.4,
                 Color(r: color.r, g: color.g, b: color.b, a: 55))
 
-      # --- Main orb body ---
+      # Main orb body
       drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale, color)
 
-      # --- Outward energy ring (time-based pulse) ---
+      # Outward energy ring (time-based pulse)
       let ringPulse = orbSizeScale * 1.2 + sin(time * 5.0 + orb.angle) * 2.5
       drawCircleLines(orbX.int32, orbY.int32, ringPulse,
                      Color(r: color.r, g: color.g, b: color.b, a: uint8(155.0 * tPulseB)))
 
-      # --- Bright core + specular highlight ---
+      # Bright core + specular highlight
       drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale * 0.44,
                 Color(r: 255, g: 255, b: 255, a: 155))
       drawCircle(Vector2(x: orbX - orbSizeScale * 0.17, y: orbY - orbSizeScale * 0.17),
                 orbSizeScale * 0.17,
                 Color(r: 255, g: 255, b: 255, a: 200))
 
-      # --- Element-specific visual effects (time-based) ---
+      # Element-specific visual effects (time-based)
       case orb.elementType:
       of etFire:
         # Animated flame sparks orbiting with upward float

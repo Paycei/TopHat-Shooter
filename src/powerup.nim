@@ -273,9 +273,9 @@ proc getElementDamage*(level: int): float32 =
   ## Get base damage per hit based on power-up level
   ## Compensated with reduced damage multiplier in game logic
   case level
-  of 1: 2.5
-  of 2: 4.0
-  else: 6.0
+  of 1: 4.5
+  of 2: 7.5
+  else: 11.0
 
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   # Apply immediate stat bonuses for new powerup types
