@@ -139,7 +139,7 @@ proc getTeamName*(team: PvPTeam): string =
 
 proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
   let windowWidth = 600
-  let windowHeight = 750
+  let windowHeight = 750 # Perfect height top to bottom
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
   let localIP = getLocalIP()
@@ -677,7 +677,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
              (contentX + (contentWidth - titleW) div 2).int32,
              (contentY + 10).int32, 42, Color(r: 0, g: 220, b: 255, a: 255))
 
-    let sub = "[ LOCAL NETWORK MULTIPLAYER ]"
+    let sub = t(tkPvPLocalNetMultiplayer)
     let subW = measureText(sub, 14)
     drawText(sub, (contentX + (contentWidth - subW) div 2).int32,
              (contentY + 68).int32, 14, Color(r: 120, g: 130, b: 140, a: 255))
@@ -700,7 +700,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     drawText("[ J ]", (btnX + 10).int32, (joinY + (btnH - 16) div 2).int32, 16,
              Color(r: 100, g: 130, b: 160, a: 200))
 
-    let info = "Share your Local IP with friends on the same network"
+    let info = t(tkPvPShareIPInfo)
     let infoW = measureText(info, 13)
     drawText(info, (contentX + (contentWidth - infoW) div 2).int32,
              (contentY + contentHeight - 30).int32, 13,
@@ -724,57 +724,53 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     drawInputField(nfX, nfY, nfW, nfH, 10, 8, 20, pvpWin.editingNickname,
                    pvpWin.inputNickname, nickBefore, pvpWin.cursorBlink,
                    pvpWin.selectionStart, pvpWin.selectionEnd)
-    let nickHint = t("pvp_click_edit_tab")
-    let nickHintW = measureText(nickHint, 12)
-    drawText(nickHint, (contentX + (contentWidth - nickHintW) div 2).int32,
-             (nfY + nfH + 4).int32, 12, Color(r: 120, g: 130, b: 140, a: 200))
 
     drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 136)
 
     drawText(t("pvp_max_players"), (contentX + 20).int32, (contentY + 146).int32, 18, White)
 
     let pcY = contentY + 172
-    let spacing = 110
+    let spacing = 80
     let centerX = contentX + contentWidth div 2
 
     let minusX = centerX - spacing
-    let minusHov = mousePos.x >= (minusX - 20).float32 and mousePos.x <= (minusX + 20).float32 and
-                   mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 36).float32
+    let minusHov = mousePos.x >= (minusX - 13).float32 and mousePos.x <= (minusX + 13).float32 and
+                   mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 26).float32
     let canMinus = pvpWin.maxPlayers > 2
     let minusBg = if canMinus and minusHov: Color(r: 80, g: 80, b: 100, a: 255)
                   elif canMinus: Color(r: 50, g: 50, b: 65, a: 255)
                   else: Color(r: 35, g: 35, b: 45, a: 255)
-    drawRectangle((minusX - 18).int32, pcY.int32, 36, 36, minusBg)
-    drawRectangleLines(Rectangle(x: (minusX - 18).float32, y: pcY.float32, width: 36, height: 36),
+    drawRectangle((minusX - 13).int32, pcY.int32, 26, 26, minusBg)
+    drawRectangleLines(Rectangle(x: (minusX - 13).float32, y: pcY.float32, width: 26, height: 26),
                        1, if canMinus: Color(r: 80, g: 80, b: 100, a: 255) else: Color(r: 50, g: 50, b: 60, a: 255))
-    let mW = measureText("-", 26)
-    drawText("-", (minusX - mW div 2).int32, (pcY + 5).int32, 26,
+    let mW = measureText("-", 22)
+    drawText("-", (minusX - mW div 2).int32, (pcY + 3).int32, 22,
              if canMinus: White else: Color(r: 80, g: 80, b: 80, a: 255))
 
     let cntStr = $pvpWin.maxPlayers
-    let cntW = measureText(cntStr, 36)
-    drawText(cntStr, (centerX - cntW div 2).int32, (pcY + 1).int32, 36, Color(r: 0, g: 200, b: 255, a: 255))
+    let cntW = measureText(cntStr, 24)
+    drawText(cntStr, (centerX - cntW div 2).int32, (pcY + 1).int32, 24, Color(r: 0, g: 200, b: 255, a: 255))
 
     let plusX = centerX + spacing
-    let plusHov = mousePos.x >= (plusX - 20).float32 and mousePos.x <= (plusX + 20).float32 and
-                  mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 36).float32
+    let plusHov = mousePos.x >= (plusX - 13).float32 and mousePos.x <= (plusX + 13).float32 and
+                  mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 26).float32
     let canPlus = pvpWin.maxPlayers < 16
     let plusBg = if canPlus and plusHov: Color(r: 80, g: 80, b: 100, a: 255)
                  elif canPlus: Color(r: 50, g: 50, b: 65, a: 255)
                  else: Color(r: 35, g: 35, b: 45, a: 255)
-    drawRectangle((plusX - 18).int32, pcY.int32, 36, 36, plusBg)
-    drawRectangleLines(Rectangle(x: (plusX - 18).float32, y: pcY.float32, width: 36, height: 36),
+    drawRectangle((plusX - 13).int32, pcY.int32, 26, 26, plusBg)
+    drawRectangleLines(Rectangle(x: (plusX - 13).float32, y: pcY.float32, width: 26, height: 26),
                        1, if canPlus: Color(r: 80, g: 80, b: 100, a: 255) else: Color(r: 50, g: 50, b: 60, a: 255))
-    let pW = measureText("+", 26)
-    drawText("+", (plusX - pW div 2).int32, (pcY + 5).int32, 26,
+    let pW = measureText("+", 22)
+    drawText("+", (plusX - pW div 2).int32, (pcY + 3).int32, 22,
              if canPlus: White else: Color(r: 80, g: 80, b: 80, a: 255))
 
-    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 222)
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 212)
 
     # Checkboxes
     let cbSize = 20
     let cbX = contentX + 20
-    var cbY = contentY + 232
+    var cbY = contentY + 222
 
     let showIPHov = mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 200).float32 and
                     mousePos.y >= cbY.float32 and mousePos.y <= (cbY + cbSize).float32
@@ -785,18 +781,18 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                     mousePos.y >= cbY.float32 and mousePos.y <= (cbY + cbSize).float32
     drawCheckbox(cbX, cbY, cbSize, pvpWin.interpolationEnabled, interpHov, t("pvp_enable_interpolation"))
 
-    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 292)
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 282)
 
     # Teams
-    drawText(t("pvp_teams_mode"), (contentX + 20).int32, (contentY + 300).int32, 18, White)
-    cbY = contentY + 325
+    drawText(t("pvp_teams_mode"), (contentX + 20).int32, (contentY + 290).int32, 18, White)
+    cbY = contentY + 315
     let teamEnHov = mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 230).float32 and
                     mousePos.y >= cbY.float32 and mousePos.y <= (cbY + cbSize).float32
     drawCheckbox(cbX, cbY, cbSize, pvpWin.teamsEnabled, teamEnHov, t("pvp_enable_teams"))
 
     if pvpWin.teamsEnabled:
-      drawText(t("pvp_num_teams"), (contentX + 20).int32, (contentY + 354).int32, 16, LightGray)
-      let tbY = contentY + 352
+      drawText(t("pvp_num_teams"), (contentX + 20).int32, (contentY + 344).int32, 16, LightGray)
+      let tbY = contentY + 342
       let tbW = 42
       let tbSp = 56
       let tbStartX = contentX + 210
@@ -816,15 +812,15 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
         drawText(tStr, (tbX + (tbW - tW) div 2).int32, (tbY + 6).int32, 18,
                  if isSel: Gold else: White)
 
-    # ── GAME STATS SECTION ────────────────────────────────────────────────────
-    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 398)
-    drawText("GAME STATS", (contentX + 20).int32, (contentY + 404).int32, 16,
+    # GAME STATS SECTION
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 388)
+    drawText(t(tkPvPGameStats), (contentX + 20).int32, (contentY + 394).int32, 16,
              Color(r: 0, g: 200, b: 255, a: 255))
 
     # Helper: draw a compact stat cell with label, minus, value, plus
-    # Layout: 3 columns, 3 rows
+    # Layout: 3 columns, 4 rows
     let colW = (contentWidth - 20) div 3
-    let baseStatY = contentY + 422
+    let baseStatY = contentY + 412
 
     template drawStatCell(cx, cy: int, lbl: string, valStr: string,
                           canDec, canInc: bool) =
@@ -861,44 +857,66 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
 
     # Row 0: HP | Kill Limit | Respawn Time
     let row0Y = baseStatY
-    let row1Y = baseStatY + 46
+    let row1Y = baseStatY + 42
     drawStatCell(contentX + 10,                row0Y,
-      "HP",         $pvpWin.pvpConfig.startHp.int,
+      t(tkPvPStatHp),      $pvpWin.pvpConfig.startHp.int,
       pvpWin.pvpConfig.startHp > 1.0, pvpWin.pvpConfig.startHp < 20.0)
     drawStatCell(contentX + 10 + colW,        row0Y,
-      "KILL LIMIT",  $pvpWin.pvpConfig.killLimit,
+      t(tkPvPStatKillLimit), $pvpWin.pvpConfig.killLimit,
       pvpWin.pvpConfig.killLimit > 1, pvpWin.pvpConfig.killLimit < 30)
     drawStatCell(contentX + 10 + colW * 2,    row0Y,
-      "RESPAWN (s)",
-      if pvpWin.pvpConfig.respawnTime == 0.0: "OFF"
+      t(tkPvPStatRespawn),
+      if pvpWin.pvpConfig.respawnTime == 0.0: t(tkPvPValueOff)
       else: pvpWin.pvpConfig.respawnTime.formatFloat(ffDecimal, 1),
       pvpWin.pvpConfig.respawnTime > 0.0, pvpWin.pvpConfig.respawnTime < 15.0)
 
     # Row 1: Speed | Damage | Fire Rate
     drawStatCell(contentX + 10,                row1Y,
-      "SPEED",       $pvpWin.pvpConfig.startSpeed.int,
+      t(tkPvPStatSpeed),   $pvpWin.pvpConfig.startSpeed.int,
       pvpWin.pvpConfig.startSpeed > 75.0, pvpWin.pvpConfig.startSpeed < 400.0)
     drawStatCell(contentX + 10 + colW,        row1Y,
-      "DAMAGE",      pvpWin.pvpConfig.startDamage.formatFloat(ffDecimal, 1),
+      t(tkPvPStatDamage),  pvpWin.pvpConfig.startDamage.formatFloat(ffDecimal, 1),
       pvpWin.pvpConfig.startDamage > 0.5, pvpWin.pvpConfig.startDamage < 10.0)
     drawStatCell(contentX + 10 + colW * 2,    row1Y,
-      "FIRE RATE (s)",
+      t(tkPvPStatFireRate),
       pvpWin.pvpConfig.fireRate.formatFloat(ffDecimal, 2),
       pvpWin.pvpConfig.fireRate > 0.10, pvpWin.pvpConfig.fireRate < 1.50)
 
     # Row 2: Bullet Speed | Bullet Radius | Start Walls
-    let row2Y = baseStatY + 92
+    let row2Y = baseStatY + 84
     drawStatCell(contentX + 10,                row2Y,
-      "BULLET SPEED",  $pvpWin.pvpConfig.bulletSpeed.int,
+      t(tkPvPStatBulletSpeed), $pvpWin.pvpConfig.bulletSpeed.int,
       pvpWin.pvpConfig.bulletSpeed > 100.0, pvpWin.pvpConfig.bulletSpeed < 800.0)
     drawStatCell(contentX + 10 + colW,        row2Y,
-      "BULLET RADIUS",  pvpWin.pvpConfig.bulletRadius.formatFloat(ffDecimal, 1),
+      t(tkPvPStatBulletRadius), pvpWin.pvpConfig.bulletRadius.formatFloat(ffDecimal, 1),
       pvpWin.pvpConfig.bulletRadius > 3.0, pvpWin.pvpConfig.bulletRadius < 25.0)
     drawStatCell(contentX + 10 + colW * 2,    row2Y,
-      "START WALLS",   $pvpWin.pvpConfig.startWalls,
+      t(tkPvPStatStartWalls),   $pvpWin.pvpConfig.startWalls,
       pvpWin.pvpConfig.startWalls > 0, pvpWin.pvpConfig.startWalls < 10)
 
-    # ── END GAME STATS ─────────────────────────────────────────────────────────
+    # Row 3: Time Limit (col 0) | Net Quality (col 1)
+    let row3Y = baseStatY + 126
+    let timeLimitStr = if pvpWin.pvpConfig.timeLimit <= 0: t(tkPvPValueOff)
+                       else:
+                         let m = (pvpWin.pvpConfig.timeLimit / 60).int
+                         let s = (pvpWin.pvpConfig.timeLimit.int mod 60)
+                         if s == 0: $m & "m" else: $m & "m " & $s & "s"
+    drawStatCell(contentX + 10,         row3Y,
+      t(tkPvPStatTimeLimit), timeLimitStr,
+      pvpWin.pvpConfig.timeLimit > 0.0, true)
+
+    let canPrevNet = pvpWin.pvpConfig.snapshotRate < 0.067  # not already at Low
+    let canNextNet = pvpWin.pvpConfig.snapshotRate > 0.017  # not already at Ultra
+    let netQualityStr =
+      if pvpWin.pvpConfig.snapshotRate <= 1.0 / 128.0 + 0.001: t(tkPvPNetQualityUltra)
+      elif pvpWin.pvpConfig.snapshotRate <= 1.0 / 64.0 + 0.001: t(tkPvPNetQualityHigh)
+      elif pvpWin.pvpConfig.snapshotRate <= 1.0 / 32.0 + 0.001: t(tkPvPNetQualityMedium)
+      else: t(tkPvPNetQualityLow)
+    drawStatCell(contentX + 10 + colW,  row3Y,
+      t(tkPvPStatNetQuality), netQualityStr,
+      canPrevNet, canNextNet)
+
+    # END GAME STATS
 
     # Buttons
     let startBX = contentX + (contentWidth - 250) div 2
@@ -1247,36 +1265,36 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       pvpWin.editingNickname = false
 
     let pcY = contentY + 172
-    let spacing = 110
+    let spacing = 80
     let centerX = contentX + contentWidth div 2
     let minusX = centerX - spacing
-    if mousePos.x >= (minusX - 20).float32 and mousePos.x <= (minusX + 20).float32 and
-       mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 40).float32:
+    if mousePos.x >= (minusX - 13).float32 and mousePos.x <= (minusX + 13).float32 and
+       mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 28).float32:
       if pvpWin.maxPlayers > 2: pvpWin.maxPlayers -= 1
       return 0
     let plusX = centerX + spacing
-    if mousePos.x >= (plusX - 20).float32 and mousePos.x <= (plusX + 20).float32 and
-       mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 40).float32:
+    if mousePos.x >= (plusX - 13).float32 and mousePos.x <= (plusX + 13).float32 and
+       mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 28).float32:
       if pvpWin.maxPlayers < 16: pvpWin.maxPlayers += 1
       return 0
 
     let cbX = contentX + 20
     let cbSize = 20
     if mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 200).float32 and
-       mousePos.y >= (contentY + 232).float32 and mousePos.y <= (contentY + 252).float32:
+       mousePos.y >= (contentY + 222).float32 and mousePos.y <= (contentY + 242).float32:
       pvpWin.showIPs = not pvpWin.showIPs
       return 0
     if mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 250).float32 and
-       mousePos.y >= (contentY + 260).float32 and mousePos.y <= (contentY + 280).float32:
+       mousePos.y >= (contentY + 250).float32 and mousePos.y <= (contentY + 270).float32:
       pvpWin.interpolationEnabled = not pvpWin.interpolationEnabled
       return 0
     if mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 230).float32 and
-       mousePos.y >= (contentY + 325).float32 and mousePos.y <= (contentY + 345).float32:
+       mousePos.y >= (contentY + 315).float32 and mousePos.y <= (contentY + 335).float32:
       pvpWin.teamsEnabled = not pvpWin.teamsEnabled
       return 0
 
     if pvpWin.teamsEnabled:
-      let tbY = contentY + 352
+      let tbY = contentY + 342
       let tbW = 42
       let tbSp = 56
       let tbStartX = contentX + 210
@@ -1287,10 +1305,10 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
           pvpWin.numTeams = tc
           return 0
 
-    # ── GAME STATS click handling ──────────────────────────────────────────────
+    # GAME STATS click handling
     let colWc = (contentWidth - 20) div 3
-    let row0Yc = contentY + 422
-    let row1Yc = row0Yc + 46
+    let row0Yc = contentY + 412
+    let row1Yc = row0Yc + 42
     let mx = mousePos.x
     let my = mousePos.y
 
@@ -1323,11 +1341,51 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     statClick(contentX + 10 + colWc,     row1Yc, pvpWin.pvpConfig.startDamage, 0.5,  0.5,   10.0)
     statClick(contentX + 10 + colWc * 2, row1Yc, pvpWin.pvpConfig.fireRate,    0.05, 0.10,  1.50)
     # Row 2: Bullet Speed | Bullet Radius | Start Walls
-    let row2Yc = row1Yc + 46
+    let row2Yc = row1Yc + 42
     statClick(contentX + 10,             row2Yc, pvpWin.pvpConfig.bulletSpeed,  25.0, 100.0, 800.0)
     statClick(contentX + 10 + colWc,     row2Yc, pvpWin.pvpConfig.bulletRadius,  0.5,   3.0,  25.0)
     statClickInt(contentX + 10 + colWc * 2, row2Yc, pvpWin.pvpConfig.startWalls, 1, 0, 10)
-    # ── END GAME STATS click handling ──────────────────────────────────────────
+
+    # Row 3: Time Limit (col 0) & Net Quality (col 1) — same row
+    let row3Yc = row2Yc + 42
+    let ctrlY3 = row3Yc + 15
+    if mx >= (contentX + 10).float32 and mx <= (contentX + 32).float32 and
+       my >= ctrlY3.float32 and my <= (ctrlY3 + 22).float32:
+      # Decrease: step down by 30s, 0 = unlimited
+      if pvpWin.pvpConfig.timeLimit > 0:
+        pvpWin.pvpConfig.timeLimit = max(0.0, pvpWin.pvpConfig.timeLimit - 30.0)
+    let plusX3 = contentX + 10 + colWc - 24
+    if mx >= plusX3.float32 and mx <= (plusX3 + 22).float32 and
+       my >= ctrlY3.float32 and my <= (ctrlY3 + 22).float32:
+      if pvpWin.pvpConfig.timeLimit <= 0:
+        pvpWin.pvpConfig.timeLimit = 30.0
+      else:
+        pvpWin.pvpConfig.timeLimit = min(3600.0, pvpWin.pvpConfig.timeLimit + 30.0)
+
+    # Net Quality — cols 1+2, same row as Time Limit
+    let netPresets = [(1.0'f32 / 20.0'f32,  1.0'f32 / 20.0'f32),   # Low    20 ticks/s
+                      (1.0'f32 / 32.0'f32,  1.0'f32 / 32.0'f32),   # Medium 32 ticks/s
+                      (1.0'f32 / 64.0'f32,  1.0'f32 / 64.0'f32),   # High   64 ticks/s
+                      (1.0'f32 / 128.0'f32, 1.0'f32 / 128.0'f32)]  # Ultra 128 ticks/s
+    var curPreset = 2  # default: High
+    for idx, p in netPresets:
+      if abs(pvpWin.pvpConfig.snapshotRate - p[0]) < 0.005:
+        curPreset = idx
+        break
+    let netCol1Xc = contentX + 10 + colWc
+    if mx >= netCol1Xc.float32 and mx <= (netCol1Xc + 22).float32 and
+       my >= ctrlY3.float32 and my <= (ctrlY3 + 22).float32:
+      let next = max(0, curPreset - 1)
+      pvpWin.pvpConfig.snapshotRate = netPresets[next][0]
+      pvpWin.pvpConfig.inputRate    = netPresets[next][1]
+    let plusX4 = contentX + 10 + colWc * 2 - 24   # end of col 1
+    if mx >= plusX4.float32 and mx <= (plusX4 + 22).float32 and
+       my >= ctrlY3.float32 and my <= (ctrlY3 + 22).float32:
+      let next = min(netPresets.len - 1, curPreset + 1)
+      pvpWin.pvpConfig.snapshotRate = netPresets[next][0]
+      pvpWin.pvpConfig.inputRate    = netPresets[next][1]
+
+    # END GAME STATS click handling
 
     let startBX = contentX + (contentWidth - 250) div 2
     let startBY = contentY + contentHeight - 118

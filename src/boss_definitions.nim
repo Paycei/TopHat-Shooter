@@ -1419,12 +1419,12 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Time Collapse",
           hpThreshold: 0.4,
-          speedMultiplier: 1.5,  # Ultra-fast blinking
+          speedMultiplier: 1.5,  # Fast blinking
           damageMultiplier: 1.7,
           defenseMultiplier: 0.85,
           color: Color(r: 150, g: 255, b: 255, a: 255),  # Bright cyan/white
           visualEffect: "glow",
-          specialBehavior: "time_collapse",  # Ultra-fast blinking movement
+          specialBehavior: "time_collapse",  # Fast blinking movement
           attacks: @[
             BossAttack(
               attackType: bapTeleport,

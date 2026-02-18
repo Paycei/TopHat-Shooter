@@ -1,11 +1,11 @@
 ## Core Networking Layer for PvP Mode
 
-import net, nativesockets, network_types, flatty, times, strutils
+import net, nativesockets, network_types, flatty, times, strutils, ../types, math
 
 const
   DEFAULT_PORT* = 7777
   MAX_PACKET_SIZE = 8192
-  NETWORK_VERSION* = "1.1.1"
+  NETWORK_VERSION* = "2.0.0"
   DISCONNECT_TIMEOUT* = 2.5
   MAX_PACKETS_PER_POLL = 100
 
@@ -132,15 +132,19 @@ proc sendPacket*(nm: NetworkManager, packet: Packet) =
 proc sendPing*(nm: NetworkManager, pingId: int) =
   var packet = newPacket(ptPing)
   packet.pingId = pingId
-  packet.sendTime = epochTime().float32
+  # Store elapsed time since a fixed reference rather than raw Unix epoch,
+  # so float32 precision is sufficient (small number instead of ~1.7e9).
+  packet.sendTime = (epochTime() / 1000.0).float32
   nm.sendPacket(packet)
 
 proc sendGameStart*(nm: NetworkManager, countdownTime: float32 = 3.0,
-                    connectedPlayers: seq[ConnectedPlayerInfo] = @[]) =
+                    connectedPlayers: seq[ConnectedPlayerInfo] = @[],
+                    pvpConfig: PvPConfig = defaultPvPConfig()) =
   if nm.role != nrHost: return
   var packet = newPacket(ptGameStart)
   packet.countdownTime = countdownTime
   packet.gameConnectedPlayers = connectedPlayers
+  packet.pvpConfig = pvpConfig
   nm.sendPacket(packet)
   echo "[NETWORK] Game start sent with ", connectedPlayers.len, " players"
 
@@ -407,8 +411,11 @@ proc pollEvents*(nm: NetworkManager,
           disconnectPlayerIndex: 0, reason: packet.disconnectReason))
         return result
     of ptPong:
-      let raw = (epochTime() - packet.sendTime.float) * 1000.0
-      nm.latency = max(0.0, min(raw, 9999.0)).float32
+      let now = (epochTime() mod 1000.0).float32
+      var elapsed = now - packet.sendTime
+      # Handle the rare wrap-around (e.g. sendTime=999.99, now=0.01)
+      if elapsed < 0: elapsed += 1000.0
+      nm.latency = max(0.0, min(elapsed * 1000.0, 9999.0)).float32
     of ptPing:
       var pong = newPacket(ptPong, packet.tick)
       pong.pingId = packet.pingId

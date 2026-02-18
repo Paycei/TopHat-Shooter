@@ -4,9 +4,8 @@
 import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils, sequtils, localization
 
 const
-  PVP_TIME_LIMIT = 180.0  # 3 minutes
-  SNAPSHOT_RATE = 0.033  # 30 Hz (every 33ms)
-  INPUT_SEND_RATE = 0.033  # 30 Hz - match snapshot rate to reduce reconciliation conflicts
+  PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
+  WALL_PLACEMENT_RANGE* = 220.0  # Max distance from player at which a wall can be placed
 
 type
   TeamScore* = object
@@ -63,6 +62,7 @@ type
     recentlyDestroyedBullets*: seq[int]  # Recently destroyed bullet IDs (to prevent snapshot resurrection)
     localPosCorrection*: Vector2f  # Accumulated position error, blended per-frame toward zero
     config*: PvPConfig                  # Host-configurable game settings
+    wallPlacementMode*: bool            # Whether the local player is in wall-placement mode (toggled by E)
 
 proc getTeamName*(team: PvPTeam): string =
   ## Get the display name for a team
@@ -418,15 +418,30 @@ proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
   
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()
-  
+
+  let mousePos = getMousePosition()
+
+  # Toggle wall-placement mode with E; right-click cancels it
+  if isKeyPressed(E) and pvp.players[pvp.localPlayerIndex].walls > 0:
+    pvp.wallPlacementMode = not pvp.wallPlacementMode
+  if isMouseButtonPressed(Right) and pvp.wallPlacementMode:
+    pvp.wallPlacementMode = false
+  # Auto-exit mode when player runs out of walls
+  if pvp.players[pvp.localPlayerIndex].walls <= 0:
+    pvp.wallPlacementMode = false
+
+  # In wall-placement mode: left-click places a wall instead of shooting
+  let placingWall = pvp.wallPlacementMode and isMouseButtonPressed(Left)
+  let shooting    = (not pvp.wallPlacementMode) and isMouseButtonDown(Left)
+
   result = PlayerInput(
     tick: pvp.serverTick,
     playerIndex: pvp.localPlayerIndex,
     moveDir: moveDir,
-    shooting: isMouseButtonDown(Left),
-    mousePos: newVector2f(getMousePosition().x, getMousePosition().y),
-    placingWall: isKeyPressed(E),
-    wallPos: newVector2f(getMousePosition().x, getMousePosition().y),
+    shooting: shooting,
+    mousePos: newVector2f(mousePos.x, mousePos.y),
+    placingWall: placingWall,
+    wallPos: newVector2f(mousePos.x, mousePos.y),
     timestamp: epochTime(),
     dt: dt
   )
@@ -557,31 +572,33 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
   
   # Wall placement
   if input.placingWall and player.walls > 0:
-    # Check if valid placement (not too close to players)
-    var validPlacement = true
-    for i in 0..<pvp.players.len:
-      if distance(input.wallPos, pvp.players[i].pos) < 50:
-        validPlacement = false
-        break
-    
-    if validPlacement:
+    let placingPlayerPos = pvp.players[playerIndex].pos
+    # Must be within placement range of the placing player
+    let inRange = distance(input.wallPos, placingPlayerPos) <= WALL_PLACEMENT_RANGE
+    # Reuse waves-mode validation: not too close to placing player, no overlap with existing walls
+    # Pass empty enemy seq — PvP has no enemies
+    let validPos = isValidWallPlacement(input.wallPos, placingPlayerPos, pvp.walls, @[], 25)
+
+    if inRange and validPos:
       let newWall = Wall(
         pos: input.wallPos,
         radius: 25,
-        hp: 30,
-        maxHp: 30,
+        hp: 10,
+        maxHp: 10,
         duration: 999,
         shootTimer: 0
       )
       
-      pvp.walls.add(newWall)
-      player.walls -= 1
-      
-      spawnExplosionPooled(pvp.particlePool, input.wallPos.x, input.wallPos.y, Brown, 15)
-      playSound(stPowerUp)
-      
-      # If host, broadcast wall placement
+      # Only the host (authority) mutates the wall list and broadcasts.
+      # Clients receive the wall via ptWallPlace to avoid ghost walls from
+      # rejected placements.
       if pvp.networkManager.isHost():
+        pvp.walls.add(newWall)
+        player.walls -= 1
+        
+        spawnExplosionPooled(pvp.particlePool, input.wallPos.x, input.wallPos.y, Brown, 15)
+        playSound(stPowerUp)
+
         let wallState = WallStateNet(
           pos: newWall.pos,
           radius: newWall.radius,
@@ -593,6 +610,10 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
         var packet = newPacket(ptWallPlace, pvp.serverTick)
         packet.wall = wallState
         pvp.networkManager.sendPacket(packet)
+      else:
+        # Client: play sound optimistically; the wall itself appears when
+        # ptWallPlace arrives from the host (typically within one RTT).
+        playSound(stPowerUp)
 
 proc updateBullets*(pvp: PvPGameState, dt: float32) =
   ## Update bullets (server-side authoritative)
@@ -791,15 +812,62 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
     if i < pvp.playerConnected.len and not pvp.playerConnected[i]: continue
     if i != pvp.localPlayerIndex and pvp.lastInputs[i].tick >= 0:
       applyPlayerInput(pvp, i, pvp.lastInputs[i], dt)
-  
+
+  # Check time limit (0 = unlimited)
+  if pvp.config.timeLimit > 0 and pvp.gameTime >= pvp.config.timeLimit and not pvp.gameOver:
+    pvp.gameOver = true
+    if pvp.teamsEnabled:
+      var winningTeam = ptNone
+      var maxTeamKills = -1
+      for team in [ptRed, ptBlue, ptGreen, ptYellow, ptOrange, ptPurple]:
+        if pvp.teamScores[team].kills > maxTeamKills:
+          maxTeamKills = pvp.teamScores[team].kills
+          winningTeam = team
+      pvp.winnerTeam = winningTeam
+      pvp.winnerIndex = -1
+      pvp.gameOverReason = "Time limit reached"
+      var pkt = newPacket(ptGameOver, pvp.serverTick)
+      pkt.winnerIndex = -1
+      pkt.reason = "Team " & getTeamName(winningTeam) & " wins! (Time)"
+      pvp.networkManager.sendPacket(pkt)
+    else:
+      var winIdx = -1
+      var maxKills = -1
+      for i in 0..<pvp.players.len:
+        if pvp.players[i].kills > maxKills:
+          maxKills = pvp.players[i].kills
+          winIdx = i
+      pvp.winnerIndex = winIdx
+      pvp.gameOverReason = "Time limit reached"
+      var pkt = newPacket(ptGameOver, pvp.serverTick)
+      pkt.winnerIndex = winIdx
+      pkt.reason = "Time limit reached"
+      pvp.networkManager.sendPacket(pkt)
+
   # Update bullets
   updateBullets(pvp, dt)
+
+  # Decay PvP walls over time (server-authoritative)
+  # Walls lose 1 HP/sec passively; destroyed walls are broadcast immediately.
+  const PVP_WALL_DECAY_RATE = 0.3  # HP per second
+  var wallIdx = 0
+  while wallIdx < pvp.walls.len:
+    let wall = pvp.walls[wallIdx]
+    wall.hp -= PVP_WALL_DECAY_RATE * dt
+    if wall.hp <= 0:
+      spawnExplosionPooled(pvp.particlePool, wall.pos.x, wall.pos.y, Brown, 10)
+      var pkt = newPacket(ptWallDestroy, pvp.serverTick)
+      pkt.wallIndex = wallIdx
+      pvp.networkManager.sendPacket(pkt)
+      pvp.walls.delete(wallIdx)
+    else:
+      wallIdx += 1
   
   # Update particles
   updateParticlePool(pvp.particlePool, dt)
   
-  # Send game state snapshot at fixed rate
-  if pvp.gameTime - pvp.lastSnapshotTime >= SNAPSHOT_RATE:
+  # Send game state snapshot at fixed rate (configured per-match)
+  if pvp.gameTime - pvp.lastSnapshotTime >= pvp.config.snapshotRate:
     pvp.lastSnapshotTime = pvp.gameTime
     
     # Build state snapshot
@@ -952,6 +1020,13 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
   ## This function handles additional client-only updates
   pvp.gameTime += dt
 
+  # Mirror server-side wall decay locally so the health bar drains smoothly
+  # every frame rather than jumping at each snapshot interval.
+  # The snapshot will correct any drift; ptWallDestroy handles actual removal.
+  const PVP_WALL_DECAY_RATE = 0.3
+  for wall in pvp.walls:
+    wall.hp = max(0.01, wall.hp - PVP_WALL_DECAY_RATE * dt)
+
   # Smoothly bleed out any accumulated position correction from reconcileState.
   # Running this every frame (rather than once per snapshot) prevents the
   # 33ms-interval jitter that the old per-snapshot lerp caused at high speeds.
@@ -997,7 +1072,7 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
         # Render time is past the latest snapshot: dead-reckon with velocity.
         # Cap at 1.5× snapshot interval — enough to cover one late packet without
         # letting bad extrapolation run wild when the connection is poor.
-        let extraDt = min((t - 1.0) * timeDiff, SNAPSHOT_RATE * 1.5)
+        let extraDt = min((t - 1.0) * timeDiff, pvp.config.snapshotRate * 1.5)
         pvp.players[i].pos.x = interpState.targetPos.x + interpState.targetVel.x * extraDt
         pvp.players[i].pos.y = interpState.targetPos.y + interpState.targetVel.y * extraDt
         # Clamp to arena
@@ -1057,8 +1132,9 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   ## Reconcile client state with authoritative server state
   ## Server is ALWAYS authoritative - client just renders smoothly
   
-  # Sync client's server tick
+  # Sync client's server tick and game time from the authoritative server snapshot
   pvp.serverTick = serverState.tick
+  pvp.gameTime = serverState.timestamp
   
   let localIdx = pvp.localPlayerIndex
   
@@ -1220,7 +1296,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   # Clear recently destroyed bullets after reconciling (they're old now)
   pvp.recentlyDestroyedBullets = @[]
   
-  # Update walls from server
+  # Update walls from server (authoritative full-replace)
   pvp.walls = @[]
   for wallState in serverState.walls:
     let wall = Wall(
@@ -1299,8 +1375,9 @@ proc handleDisconnect*(pvp: PvPGameState, disconnectedIndex: int, reason: string
         pkt.reason = "Player disconnected"
         pvp.networkManager.sendPacket(pkt)
       else:
-        pvp.winnerIndex = 0
-        pvp.gameOverReason = "Connection lost"
+        # Host disconnected — the remaining client wins
+        pvp.winnerIndex = pvp.localPlayerIndex
+        pvp.gameOverReason = "Opponent disconnected"
     else:
       pvp.winnerIndex = pvp.localPlayerIndex
       pvp.gameOverReason = "Player forfeited"
@@ -1371,7 +1448,10 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         pvp.isCountingDown = true
         # Client also needs to disable timeout during countdown
         pvp.networkManager.resetReceiveTimer()
-        
+
+        # Apply authoritative game config from host (contains timeLimit, killLimit, etc.)
+        pvp.config = event.packet.pvpConfig
+
         # Apply team settings from host
         pvp.teamsEnabled = event.packet.teamsEnabled
         
@@ -1550,9 +1630,16 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
 
   # Server will reconcile with authoritative state for both players
   applyPlayerInput(pvp, pvp.localPlayerIndex, input, dt)
-  
-  # Send input to server at regular rate
-  if pvp.gameTime - pvp.lastInputSendTime >= INPUT_SEND_RATE:
+
+  # Wall placement: send immediately (not throttled) so the one-shot press
+  # is never lost between input-rate windows
+  if input.placingWall and pvp.networkManager.isClient():
+    var wallPacket = newPacket(ptPlayerInput, pvp.serverTick)
+    wallPacket.input = input
+    pvp.networkManager.sendPacket(wallPacket)
+
+  # Send input to server at configured rate
+  if pvp.gameTime - pvp.lastInputSendTime >= pvp.config.inputRate:
     pvp.lastInputSendTime = pvp.gameTime
     
     # Store local player's input for server processing
@@ -1616,6 +1703,38 @@ proc drawPvP*(pvp: PvPGameState) =
     )
     drawCircle(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, wallColor)
     drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius, Brown)
+    # Wall health bar — drawn above the wall
+    let wallHealthPercent = wall.hp / wall.maxHp
+    let wallBarWidth = (wall.radius * 2).int32
+    let wallBarHeight: int32 = 4
+    let wallBarX = (wall.pos.x - wall.radius).int32
+    let wallBarY = (wall.pos.y - wall.radius - 7).int32
+    drawRectangle(wallBarX, wallBarY, wallBarWidth, wallBarHeight,
+                  Color(r: 40, g: 40, b: 40, a: 200))
+    drawRectangle(wallBarX, wallBarY,
+                  (wallBarWidth.float32 * wallHealthPercent).int32, wallBarHeight,
+                  if wallHealthPercent > 0.5: Color(r: 80, g: 200, b: 80, a: 230)
+                  else: Color(r: 220, g: 80, b: 80, a: 230))
+
+  # Wall placement preview: only shown when in wallPlacementMode
+  let localPlayer = pvp.players[pvp.localPlayerIndex]
+  if localPlayer.hp > 0 and pvp.wallPlacementMode and not pvp.isCountingDown and not pvp.gameOver:
+    # Faint ring showing max placement range
+    drawCircleLines(localPlayer.pos.x.int32, localPlayer.pos.y.int32,
+                    WALL_PLACEMENT_RANGE, Color(r: 180, g: 180, b: 255, a: 60))
+    # Ghost wall at cursor — green if placeable, red if not
+    let mousePos = getMousePosition()
+    let cursorPos = newVector2f(mousePos.x, mousePos.y)
+    let inRange = distance(cursorPos, localPlayer.pos) <= WALL_PLACEMENT_RANGE
+    let validPos = isValidWallPlacement(cursorPos, localPlayer.pos, pvp.walls, @[], 25)
+    let ghostColor = if inRange and validPos:
+      Color(r: 80, g: 200, b: 80, a: 100)
+    else:
+      Color(r: 200, g: 60, b: 60, a: 100)
+    drawCircle(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostColor)
+    drawCircleLines(cursorPos.x.int32, cursorPos.y.int32, 25,
+                    if inRange and validPos: Color(r: 80, g: 255, b: 80, a: 200)
+                    else: Color(r: 255, g: 60, b: 60, a: 200))
   
   # Draw bullets with skin support
   for bullet in pvp.bullets:
@@ -1739,12 +1858,21 @@ proc drawPvP*(pvp: PvPGameState) =
     let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 4))
     drawText(scoreText, scoreX.int32, 10, 20, White)
   
-  # Time
-  let timeRemaining = PVP_TIME_LIMIT - pvp.gameTime
-  let minutes = (timeRemaining / 60).int
-  let seconds = (timeRemaining.int mod 60)
-  let timeText = $minutes & ":" & (if seconds < 10: "0" else: "") & $seconds
-  drawText(timeText, pvp.screenWidth div 2 - 30, 35, 20, White)
+  # Time — use only ASCII so raylib's default bitmap font can render it
+  let timeText = if pvp.config.timeLimit <= 0:
+    "INF"
+  else:
+    let timeRemaining = max(0.0, pvp.config.timeLimit - pvp.gameTime)
+    let minutes = (timeRemaining / 60).int
+    let seconds = (timeRemaining.int mod 60)
+    $minutes & ":" & (if seconds < 10: "0" else: "") & $seconds
+  let timeTextW = measureText(timeText, 20)
+  let timeX = pvp.screenWidth div 2 - timeTextW div 2
+  let timeY = 35
+  # Background pill for readability on any background
+  drawRectangle((timeX - 6).int32, (timeY - 3).int32, (timeTextW + 12).int32, 26,
+                Color(r: 0, g: 0, b: 0, a: 140))
+  drawText(timeText, timeX.int32, timeY.int32, 20, White)
   
   # Latency
   if pvp.networkManager.isClient():
@@ -1752,6 +1880,25 @@ proc drawPvP*(pvp: PvPGameState) =
     let pingValue = min(pvp.networkManager.getLatency(), 9999.0).int
     let latencyText = "Ping: " & $pingValue & "ms"
     drawText(latencyText, 10, 10, 20, Yellow)
+
+  # Wall count for local player (bottom-left) — highlights when in placement mode
+  let localIdx = pvp.localPlayerIndex
+  if localIdx < pvp.players.len:
+    let wallCount = pvp.players[localIdx].walls
+    let modeActive = pvp.wallPlacementMode and wallCount > 0
+    let wallLabel = if modeActive: "Walls: " & $wallCount & "  [PLACE MODE]"
+                    else: "Walls: " & $wallCount
+    let wallLabelW = measureText(wallLabel, 20)
+    let pillColor = if modeActive: Color(r: 0, g: 60, b: 20, a: 200)
+                    else: Color(r: 0, g: 0, b: 0, a: 140)
+    drawRectangle(8, pvp.screenHeight - 38, wallLabelW + 14, 28, pillColor)
+    if modeActive:
+      drawRectangleLines(Rectangle(x: 8, y: (pvp.screenHeight - 38).float32,
+                                   width: (wallLabelW + 14).float32, height: 28), 1,
+                         Color(r: 80, g: 255, b: 80, a: 200))
+    drawText(wallLabel, 15, pvp.screenHeight - 32, 20,
+             if wallCount > 0: Color(r: 100, g: 220, b: 100, a: 255)
+             else: Color(r: 180, g: 180, b: 180, a: 160))
   
   # Countdown overlay (don't show if game is over)
   if pvp.isCountingDown and not pvp.gameOver:

@@ -927,7 +927,6 @@ type
     tkPvPJoinGame = "pvp_join_game"
     tkPvPConfigureHosting = "pvp_configure_hosting"
     tkPvPNickname = "pvp_nickname"
-    tkPvPClickEditTab = "pvp_click_edit_tab"
     tkPvPMaxPlayers = "pvp_max_players"
     tkPvPShowIPs = "pvp_show_ips"
     tkPvPEnableInterpolation = "pvp_enable_interpolation"
@@ -967,6 +966,27 @@ type
     tkPvPFailedConnect = "pvp_failed_connect"
     tkPvPConnectionTimeout = "pvp_connection_timeout"
     tkPvPHostDisconnected = "pvp_host_disconnected"
+    
+    # PvP Config - Game Stats section
+    tkPvPGameStats = "pvp_game_stats"
+    tkPvPStatHp = "pvp_stat_hp"
+    tkPvPStatKillLimit = "pvp_stat_kill_limit"
+    tkPvPStatRespawn = "pvp_stat_respawn"
+    tkPvPStatSpeed = "pvp_stat_speed"
+    tkPvPStatDamage = "pvp_stat_damage"
+    tkPvPStatFireRate = "pvp_stat_fire_rate"
+    tkPvPStatBulletSpeed = "pvp_stat_bullet_speed"
+    tkPvPStatBulletRadius = "pvp_stat_bullet_radius"
+    tkPvPStatStartWalls = "pvp_stat_start_walls"
+    tkPvPStatTimeLimit = "pvp_stat_time_limit"
+    tkPvPStatNetQuality = "pvp_stat_net_quality"
+    tkPvPNetQualityUltra = "pvp_net_quality_ultra"
+    tkPvPNetQualityHigh = "pvp_net_quality_high"
+    tkPvPNetQualityMedium = "pvp_net_quality_medium"
+    tkPvPNetQualityLow = "pvp_net_quality_low"
+    tkPvPValueOff = "pvp_value_off"
+    tkPvPLocalNetMultiplayer = "pvp_local_net_multiplayer"
+    tkPvPShareIPInfo = "pvp_share_ip_info"
     
     # PvP Teams
     tkPvPTeamRed = "pvp_team_red"
@@ -2210,7 +2230,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_join_game": "JOIN GAME",
     "pvp_configure_hosting": "CONFIGURE HOSTING",
     "pvp_nickname": "Nickname:",
-    "pvp_click_edit_tab": "Click to edit  |  Tab to toggle",
     "pvp_max_players": "Max Players:",
     "pvp_show_ips": "Show IPs in lobby",
     "pvp_enable_interpolation": "Enable Interpolation",
@@ -2250,6 +2269,27 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_failed_connect": "Failed to connect: ",
     "pvp_connection_timeout": "Connection timeout",
     "pvp_host_disconnected": "Host disconnected",
+    
+    # PvP Config - Game Stats section
+    "pvp_game_stats": "GAME STATS",
+    "pvp_stat_hp": "HP",
+    "pvp_stat_kill_limit": "KILL LIMIT",
+    "pvp_stat_respawn": "RESPAWN (s)",
+    "pvp_stat_speed": "SPEED",
+    "pvp_stat_damage": "DAMAGE",
+    "pvp_stat_fire_rate": "FIRE RATE (s)",
+    "pvp_stat_bullet_speed": "BULLET SPEED",
+    "pvp_stat_bullet_radius": "BULLET RADIUS",
+    "pvp_stat_start_walls": "START WALLS",
+    "pvp_stat_time_limit": "TIME LIMIT",
+    "pvp_stat_net_quality": "NET QUALITY",
+    "pvp_net_quality_ultra": "Ultra (128 ticks)",
+    "pvp_net_quality_high": "High (64 ticks)",
+    "pvp_net_quality_medium": "Medium (32 ticks)",
+    "pvp_net_quality_low": "Low (20 ticks)",
+    "pvp_value_off": "OFF",
+    "pvp_local_net_multiplayer": "[ LOCAL NETWORK MULTIPLAYER ]",
+    "pvp_share_ip_info": "Share your Local IP with friends on the same network",
     
     # PvP Teams
     "pvp_team_red": "Red",
@@ -3416,7 +3456,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_join_game": "UNIRSE",
     "pvp_configure_hosting": "CONFIG",
     "pvp_nickname": "Apodo:",
-    "pvp_click_edit_tab": "Clic: editar | Tab: cambiar",
     "pvp_max_players": "Máx. Jugadores:",
     "pvp_show_ips": "Mostrar IPs",
     "pvp_enable_interpolation": "Interpolación",
@@ -3456,6 +3495,27 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_failed_connect": "Error: ",
     "pvp_connection_timeout": "Timeout",
     "pvp_host_disconnected": "Host caído",
+    
+    # PvP Config - Game Stats section
+    "pvp_game_stats": "STATS DE PARTIDA",
+    "pvp_stat_hp": "HP",
+    "pvp_stat_kill_limit": "LÍM. BAJAS",
+    "pvp_stat_respawn": "RESPAWN (s)",
+    "pvp_stat_speed": "VEL.",
+    "pvp_stat_damage": "DAÑO",
+    "pvp_stat_fire_rate": "CADENCIA (s)",
+    "pvp_stat_bullet_speed": "VEL. BALA",
+    "pvp_stat_bullet_radius": "TAM. BALA",
+    "pvp_stat_start_walls": "MUROS INI.",
+    "pvp_stat_time_limit": "LÍM. TIEMPO",
+    "pvp_stat_net_quality": "CALIDAD RED",
+    "pvp_net_quality_ultra": "Ultra (128 ticks)",
+    "pvp_net_quality_high": "Alta (64 ticks)",
+    "pvp_net_quality_medium": "Media (32 ticks)",
+    "pvp_net_quality_low": "Baja (20 ticks)",
+    "pvp_value_off": "OFF",
+    "pvp_local_net_multiplayer": "[ RED LOCAL MULTIJUGADOR ]",
+    "pvp_share_ip_info": "Comparte tu IP local con amigos en la misma red",
     
     # PvP Teams
     "pvp_team_red": "Rojo",

@@ -477,8 +477,8 @@ proc main() =
               nickname: client.nickname
             ))
 
-          # Send game start with the final player list
-          globalWindowManager.pvp.networkManager.sendGameStart(3.0, gameConnectedPlayers)
+          # Send game start with the final player list and full config so clients get the right settings
+          globalWindowManager.pvp.networkManager.sendGameStart(3.0, gameConnectedPlayers, globalWindowManager.pvp.pvpConfig)
           globalWindowManager.pvp.readyToStart = true
           echo "[MAIN] Host sent game start signal with ", gameConnectedPlayers.len, " players"
         of 6:  # Start Hosting

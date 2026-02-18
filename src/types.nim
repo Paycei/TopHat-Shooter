@@ -34,6 +34,9 @@ type
     startWalls*: int        ## Walls at match start (default 3)
     killLimit*: int         ## Kills needed to win (default 5)
     respawnTime*: float32   ## Seconds before respawn (default 3.0)
+    timeLimit*: float32     ## Match time limit in seconds; 0 = unlimited (default 180)
+    snapshotRate*: float32  ## Seconds between server→client state snapshots (default 0.033 = 30 Hz)
+    inputRate*: float32     ## Seconds between client→server input packets (default 0.016 = 60 Hz)
 
   EnemyType* = enum
     etCircle,      # Normal chasers
@@ -831,5 +834,8 @@ proc defaultPvPConfig*(): PvPConfig =
     startCoins: 100,
     startWalls: 3,
     killLimit: 5,
-    respawnTime: 3.0
+    respawnTime: 3.0,
+    timeLimit: 180.0,
+    snapshotRate: 1.0 / 32.0,   # 32 ticks (Medium)
+    inputRate: 1.0 / 32.0       # match snapshot tick rate
   )
