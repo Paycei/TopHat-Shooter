@@ -157,7 +157,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
   of bshStar:
     # Six-pointed star = two overlapping equilateral triangles (same as boss star shape).
     # One triangle tip faces the travel direction, the other is 60° offset.
-    let cx = pos.x; let cy = pos.y; let r = radius * 1.2
+    let cx = pos.x; let cy = pos.y; let r = radius * 1.1
     let rot1 = travelAngle                 # first triangle tip points forward
     let rot2 = travelAngle + PI / 3.0     # second triangle 60° offset
     # Draw both triangles using fan-from-center (avoids winding issues)

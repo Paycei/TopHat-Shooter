@@ -266,10 +266,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 1.7,  # NERFED from 1.5
-              projectileSpeed: 230.0,  # NERFED from 250.0
-              projectileCount: 1,
-              spreadAngle: 0.0,
+              cooldown: 1.75,  # NERFED from 1.5
+              projectileSpeed: 200.0,  # NERFED from 250.0
+              projectileCount: 3,
+              spreadAngle: 45.0,
               durationOrRadius: 0.0
             )
           ]

@@ -755,80 +755,129 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   return enemy.hp >= 0.01
 
 proc drawCustomBoss*(enemy: Enemy) =
-  ## Draw unique visual representation for each of the 12 custom bosses
-  let time = getTime()
-  let pulse = sin(time * 2.0) * 0.5 + 0.5  # Pulse animation 0-1
-  
+  ## Redesigned boss visuals
+  let time    = getTime()
+  let pulse   = sin(time * 2.5) * 0.5 + 0.5    # fast pulse  0..1
+  let blink   = sin(time * 4.0) * 0.5 + 0.5    # very fast   0..1
+  let breathe = sin(time * 1.0) * 0.5 + 0.5    # slow breath 0..1
+  let hpPct   = clamp(enemy.hp / enemy.maxHp, 0.0, 1.0)
+  let cx = enemy.pos.x
+  let cy = enemy.pos.y
+  let r  = enemy.radius
+
+  proc poly(sides: int, radius, baseAngle, thick: float32, col: Color) =
+    for i in 0 ..< sides:
+      let a0 = baseAngle + i.float32       * (PI * 2.0 / sides.float32)
+      let a1 = baseAngle + (i+1).float32   * (PI * 2.0 / sides.float32)
+      drawLine(Vector2(x: cx + cos(a0)*radius, y: cy + sin(a0)*radius),
+               Vector2(x: cx + cos(a1)*radius, y: cy + sin(a1)*radius),
+               thick, col)
+
+  proc spoke(count: int, inner, outer, baseAngle, thick: float32, col: Color) =
+    for i in 0 ..< count:
+      let a = baseAngle + i.float32 * (PI * 2.0 / count.float32)
+      drawLine(Vector2(x: cx + cos(a)*inner, y: cy + sin(a)*inner),
+               Vector2(x: cx + cos(a)*outer, y: cy + sin(a)*outer), thick, col)
+
+  proc glow(radius: float32, col: Color) =
+    drawCircle(Vector2(x: cx, y: cy), radius, col)
+
   case enemy.bossDefinitionID
-  of 1:  # Boss 1: The Spiral Guardian (Purple mystical entity)
-    # Outer mystical ring
-    let ringPulse = sin(time * 3.0) * 5.0
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 8 + ringPulse,
-               Color(r: 80, g: 40, b: 160, a: 80))
-    
-    # Main body - purple orb
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius, Black)
-    
-    # Spiral pattern inside
-    for i in 0..11:
-      let angle = i.float32 * PI / 6.0 + time * 2.0
-      let radius = enemy.radius * 0.6 * (1.0 - (i.float32 / 12.0))
-      let x = enemy.pos.x + cos(angle) * radius
-      let y = enemy.pos.y + sin(angle) * radius
-      let size = 3.0 + pulse * 2.0
-      drawCircle(Vector2(x: x, y: y), size, Color(r: 200, g: 150, b: 255, a: 200))
-  
-  of 2:  # Boss 2: The Summoner King (Green nature theme)
-    # Leaf-like petal pattern
-    for i in 0..7:
-      let angle = i.float32 * PI / 4.0 + time * 0.5
-      let petalDist = enemy.radius * 0.8
-      let px = enemy.pos.x + cos(angle) * petalDist
-      let py = enemy.pos.y + sin(angle) * petalDist
-      drawCircle(Vector2(x: px, y: py), enemy.radius * 0.3,
-                Color(r: 100, g: 200, b: 100, a: 180))
-    
-    # Central body
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.7, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius * 0.7, Black)
-    
-    # Crown symbol
-    for i in 0..4:
-      let angle = i.float32 * PI * 2.0 / 5.0 - PI / 2.0
-      let x1 = enemy.pos.x + cos(angle) * enemy.radius * 0.4
-      let y1 = enemy.pos.y + sin(angle) * enemy.radius * 0.4
-      let x2 = enemy.pos.x + cos(angle) * enemy.radius * 0.6
-      let y2 = enemy.pos.y + sin(angle) * enemy.radius * 0.6
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3,
-              Color(r: 255, g: 215, b: 0, a: 255))
-  
-  of 3:  # Boss 3: The Meteor Striker (Orange/red fire theme)
-    # Fiery outer glow
-    let fireGlow = sin(time * 5.0) * 10.0
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 10 + fireGlow,
-               Color(r: 255, g: 100, b: 0, a: 100))
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 5 + fireGlow * 0.5,
-               Color(r: 255, g: 150, b: 0, a: 150))
-    
-    # Jagged meteor shape
-    let points = 12
-    for i in 0..<points:
-      let angle = i.float32 * PI * 2.0 / points.float32
-      let nextAngle = (i + 1).float32 * PI * 2.0 / points.float32
-      let variation = if i mod 2 == 0: 1.0 else: 0.7  # Jagged edges
-      let r1 = enemy.radius * variation
-      let r2 = enemy.radius * (if (i + 1) mod 2 == 0: 1.0 else: 0.7)
-      let x1 = enemy.pos.x + cos(angle) * r1
-      let y1 = enemy.pos.y + sin(angle) * r1
-      let x2 = enemy.pos.x + cos(nextAngle) * r2
-      let y2 = enemy.pos.y + sin(nextAngle) * r2
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3, enemy.color)
-    
-    # Hot core
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.4,
-               Color(r: 255, g: 255, b: 100, a: 255))
-  
+
+  of 1:  # THE SPIRAL GUARDIAN
+    glow(r + 22 + breathe*6, Color(r: 80, g: 20, b: 160, a: 35))
+    glow(r + 14 + pulse*4,   Color(r: 120, g: 40, b: 220, a: 55))
+    poly(18, r + 10, time * 0.8,   2, Color(r: 140, g: 60, b: 255, a: 140))
+    poly(12, r + 4,  -time * 1.2,  2, Color(r: 180, g: 100, b: 255, a: 100))
+    poly(6,  r - 6,  time * 2.0,   3, Color(r: 220, g: 140, b: 255, a: 180))
+    for i in 0 ..< 8:
+      let armAngle = time * 1.5 + i.float32 * PI / 4.0
+      for step in 0 ..< 6:
+        let t  = step.float32 / 5.0
+        let t2 = (step+1).float32 / 5.0
+        let dist1 = r * 0.15 + t  * r * 0.7
+        let dist2 = r * 0.15 + t2 * r * 0.7
+        let a1 = armAngle + t  * 0.6
+        let a2 = armAngle + t2 * 0.6
+        let alpha = uint8((1.0 - t) * 200)
+        drawLine(Vector2(x: cx+cos(a1)*dist1, y: cy+sin(a1)*dist1),
+                 Vector2(x: cx+cos(a2)*dist2, y: cy+sin(a2)*dist2),
+                 2, Color(r: 200, g: 130, b: 255, a: alpha))
+    glow(r * 0.72, enemy.color)
+    poly(9, r * 0.72, time*0.4, 3, Color(r: 180, g: 100, b: 255, a: 255))
+    let eyeH = r * (0.35 + breathe*0.08)
+    let eyeW = r * 0.14
+    drawLine(Vector2(x: cx, y: cy-eyeH), Vector2(x: cx+eyeW, y: cy), 2, White)
+    drawLine(Vector2(x: cx+eyeW, y: cy), Vector2(x: cx, y: cy+eyeH), 2, White)
+    drawLine(Vector2(x: cx, y: cy+eyeH), Vector2(x: cx-eyeW, y: cy), 2, White)
+    drawLine(Vector2(x: cx-eyeW, y: cy), Vector2(x: cx, y: cy-eyeH), 2, White)
+    glow(r * 0.18 + pulse*3, Color(r: 255, g: 220, b: 255, a: 255))
+    glow(r * 0.08, Color(r: 255, g: 255, b: 255, a: 255))
+
+  of 2:  # THE SUMMONER KING
+    glow(r + 20 + breathe*5, Color(r: 20, g: 100, b: 20, a: 40))
+    glow(r + 12 + pulse*3,   Color(r: 40, g: 180, b: 40, a: 60))
+    for i in 0 ..< 8:
+      let a = time * 0.6 + i.float32 * PI / 4.0
+      drawCircle(Vector2(x: cx + cos(a)*(r+6), y: cy + sin(a)*(r+6)), 5,
+                 Color(r: 100, g: 255, b: 80, a: 180))
+    for i in 0 ..< 6:
+      let a = -time * 0.9 + i.float32 * PI / 3.0
+      drawCircle(Vector2(x: cx + cos(a)*(r-8), y: cy + sin(a)*(r-8)), 3,
+                 Color(r: 60, g: 200, b: 255, a: 150))
+    poly(12, r * 0.88, 0.0, 3, Color(r: 60, g: 200, b: 60, a: 220))
+    for i in 0 ..< 5:
+      let baseA   = -PI*0.5 - 0.45 + i.float32 * 0.22
+      let spikeLen = r * (if i == 2: 0.70 else: 0.50)
+      let bx = cx + cos(baseA) * r * 0.88
+      let by = cy + sin(baseA) * r * 0.88
+      let tx = cx + cos(baseA) * (r * 0.88 + spikeLen)
+      let ty = cy + sin(baseA) * (r * 0.88 + spikeLen)
+      drawLine(Vector2(x: bx, y: by), Vector2(x: tx, y: ty), 4,
+               Color(r: 255, g: 215, b: 0, a: 230))
+      drawCircle(Vector2(x: tx, y: ty), 5, Color(r: 255, g: 240, b: 80, a: 255))
+    glow(r * 0.75, enemy.color)
+    poly(3, r*0.45, time*0.7,  3, Color(r: 255, g: 215, b: 0, a: 200))
+    poly(3, r*0.30, -time*1.1, 2, Color(r: 180, g: 255, b: 100, a: 180))
+    glow(r * 0.16 + breathe*3, Color(r: 200, g: 255, b: 100, a: 255))
+    glow(r * 0.07, Color(r: 255, g: 255, b: 200, a: 255))
+
+  of 3:  # THE METEOR STRIKER
+    let fireRage = 1.0 + (1.0 - hpPct) * 0.8
+    glow(r + 28*fireRage + pulse*8, Color(r: 255, g: 60,  b: 0, a: uint8(50*fireRage)))
+    glow(r + 16*fireRage + blink*4, Color(r: 255, g: 120, b: 0, a: uint8(80*fireRage)))
+    for i in 0 ..< 12:
+      let a     = i.float32 * PI / 6.0 + time * 0.3
+      let inner = r * 0.88
+      let outer = r * (1.0 + (if i mod 2 == 0: 0.55 else: 0.30)*fireRage) +
+                  sin(time*4.0 + i.float32) * 4.0
+      drawLine(Vector2(x: cx+cos(a)*inner, y: cy+sin(a)*inner),
+               Vector2(x: cx+cos(a)*outer, y: cy+sin(a)*outer),
+               (if i mod 2 == 0: 5.0 else: 3.0),
+               Color(r: 255, g: uint8(80+i*10), b: 0, a: 220))
+    for i in 0 ..< 14:
+      let a0 = i.float32     * (PI*2.0/14.0)
+      let a1 = (i+1).float32 * (PI*2.0/14.0)
+      let r0 = r * (if i mod 2 == 0: 1.0 else: 0.78)
+      let r1 = r * (if (i+1) mod 2 == 0: 1.0 else: 0.78)
+      drawLine(Vector2(x: cx+cos(a0)*r0, y: cy+sin(a0)*r0),
+               Vector2(x: cx+cos(a1)*r1, y: cy+sin(a1)*r1), 4, enemy.color)
+    glow(r * 0.76, Color(r: 140, g: 60, b: 20, a: 255))
+    let crackAlpha = uint8(80 + (1.0 - hpPct) * 175)
+    for i in 0 ..< 6:
+      let crackA = i.float32 * PI / 3.0 + 0.3
+      let tip    = r * (0.55 + i.float32*0.04)
+      let mid    = r * 0.38
+      drawLine(Vector2(x: cx, y: cy),
+               Vector2(x: cx+cos(crackA)*tip, y: cy+sin(crackA)*tip),
+               2, Color(r: 255, g: 150, b: 0, a: crackAlpha))
+      let brA = crackA + 0.35
+      drawLine(Vector2(x: cx+cos(crackA)*mid, y: cy+sin(crackA)*mid),
+               Vector2(x: cx+cos(brA)*tip*0.7, y: cy+sin(brA)*tip*0.7),
+               1, Color(r: 255, g: 200, b: 0, a: crackAlpha))
+    glow(r*0.22 + pulse*5, Color(r: 255, g: 240, b: 80, a: 255))
+    glow(r*0.10, Color(r: 255, g: 255, b: 255, a: 255))
+
   of 4:  # Boss 4: The Laser Architect (Cyan geometric)
     # Geometric grid lines
     let gridSize = enemy.radius * 0.3
@@ -855,125 +904,138 @@ proc drawCustomBoss*(enemy: Enemy) =
     # Central projection point
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.2,
                Color(r: 100, g: 255, b: 255, a: 255))
-  
-  of 5:  # Boss 5: The Void Dancer (Dark purple with void effects)
-    # Void distortion rings
-    for i in 1..3:
-      let ringRadius = enemy.radius * (0.4 + i.float32 * 0.3)
-      let ringAlpha = uint8(100 - i * 20)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius,
-                     Color(r: 80, g: 0, b: 120, a: ringAlpha))
-    
-    # Shadow trail effect
-    let trailCount = 5
-    for i in 1..trailCount:
-      let trailAlpha = uint8(150 - i * 25)
-      let trailX = enemy.pos.x - enemy.vel.x * i.float32 * 0.02
-      let trailY = enemy.pos.y - enemy.vel.y * i.float32 * 0.02
-      drawCircle(Vector2(x: trailX, y: trailY), enemy.radius * 0.8,
-                Color(r: 120, g: 0, b: 180, a: trailAlpha))
-    
-    # Main dark orb
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius,
-                   Color(r: 160, g: 40, b: 220, a: 255))
-    
-    # Void core
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
-               Color(r: 0, g: 0, b: 0, a: 200))
-  
-  of 6:  # Boss 6: The Chain Reactor (Electric yellow/white)
-    # Electric sparks around boss
-    let sparkCount = 8
-    for i in 0..<sparkCount:
-      let angle = i.float32 * PI * 2.0 / sparkCount.float32 + time * 5.0
-      let sparkDist = enemy.radius + 10 + sin(time * 10.0 + i.float32) * 5
-      let sparkX = enemy.pos.x + cos(angle) * sparkDist
-      let sparkY = enemy.pos.y + sin(angle) * sparkDist
-      drawCircle(Vector2(x: sparkX, y: sparkY), 3,
-                Color(r: 255, g: 255, b: 100, a: 200))
-      # Lightning bolt to spark
-      drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y),
-              Vector2(x: sparkX, y: sparkY), 2,
-              Color(r: 255, g: 255, b: 200, a: 150))
-    
-    # Electric core with pulsing
-    let electricPulse = enemy.radius + sin(time * 8.0) * 5
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), electricPulse,
-               Color(r: 255, g: 255, b: 0, a: 180))
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.6, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius * 0.6, White)
-    
-    # Bright electric center
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
-               Color(r: 255, g: 255, b: 255, a: 255))
-  
-  of 7:  # Boss 7: The Orbital Commander (Purple/blue space theme)
-    # Orbital rings
-    for i in 1..3:
-      let ringRadius = enemy.radius * (0.5 + i.float32 * 0.4)
-      let ringRotation = time * (i.float32 * 0.5)
-      # Draw orbital ring as dashed circle
-      for j in 0..23:
-        let angle = j.float32 * PI / 12.0 + ringRotation
-        let nextAngle = (j.float32 + 0.5).float32 * PI / 12.0 + ringRotation
-        let x1 = enemy.pos.x + cos(angle) * ringRadius
-        let y1 = enemy.pos.y + sin(angle) * ringRadius
-        let x2 = enemy.pos.x + cos(nextAngle) * ringRadius
-        let y2 = enemy.pos.y + sin(nextAngle) * ringRadius
-        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2,
-                Color(r: 150, g: 100, b: 255, a: 180))
-    
-    # Satellite markers on rings
-    for i in 0..2:
-      let angle = time * (1.0 + i.float32) + i.float32 * PI / 1.5
-      let dist = enemy.radius * (1.0 + i.float32 * 0.4)
-      let satX = enemy.pos.x + cos(angle) * dist
-      let satY = enemy.pos.y + sin(angle) * dist
-      drawCircle(Vector2(x: satX, y: satY), 4,
-                Color(r: 200, g: 150, b: 255, a: 255))
-    
-    # Central command hub
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.6, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius * 0.6,
-                   Color(r: 200, g: 150, b: 255, a: 255))
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
-               Color(r: 150, g: 100, b: 255, a: 255))
-  
-  of 8:  # Boss 8: The Berserker Juggernaut (Red rage theme)
-    # Rage aura - intensity based on HP
-    let hpPercent = enemy.hp / enemy.maxHp
-    let rageIntensity = 1.0 - hpPercent  # More rage at low HP
-    let auraSize = enemy.radius + 15 + rageIntensity * 10
-    let auraAlpha = uint8(80 + rageIntensity * 100)
-    
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), auraSize,
-               Color(r: 255, g: 0, b: 0, a: auraAlpha))
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), auraSize * 0.7,
-               Color(r: 255, g: 50, b: 0, a: auraAlpha))
-    
-    # Muscular/bulky shape - overlapping circles
-    let bulkOffset = enemy.radius * 0.4
-    drawCircle(Vector2(x: enemy.pos.x - bulkOffset, y: enemy.pos.y), enemy.radius * 0.7,
-               enemy.color)
-    drawCircle(Vector2(x: enemy.pos.x + bulkOffset, y: enemy.pos.y), enemy.radius * 0.7,
-               enemy.color)
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.8, enemy.color)
-    
-    # Angry core
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.4,
-               Color(r: 150, g: 0, b: 0, a: 255))
-    
-    # Rage veins
-    for i in 0..5:
-      let angle = i.float32 * PI / 3.0 + time * 2.0
-      let x1 = enemy.pos.x + cos(angle) * (enemy.radius * 0.4)
-      let y1 = enemy.pos.y + sin(angle) * (enemy.radius * 0.4)
-      let x2 = enemy.pos.x + cos(angle) * (enemy.radius * 0.7)
-      let y2 = enemy.pos.y + sin(angle) * (enemy.radius * 0.7)
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2,
-              Color(r: 180, g: 0, b: 0, a: 255))
-  
+
+  of 5:  # THE VOID DANCER
+    glow(r + 30 + breathe*8, Color(r: 10, g: 0, b: 20, a: 120))
+    glow(r + 18, Color(r: 40, g: 0, b: 60, a: 90))
+    for i in 1 ..< 5:
+      let ringR = r * (0.35 + i.float32*0.22)
+      drawCircleLines(cx.int32, cy.int32, ringR,
+                      Color(r: uint8(60+i*20), g: 0, b: uint8(90+i*25), a: uint8(100-i*15)))
+    for i in 0 ..< 8:
+      let a    = time * (if i mod 2 == 0: 1.3 else: -0.9) + i.float32 * PI / 4.0
+      let dist = r + 14 + sin(time*3.0 + i.float32)*5
+      let sx = cx + cos(a)*dist
+      let sy = cy + sin(a)*dist
+      let sA = a
+      let sLen = 10.0 + pulse*4
+      drawLine(Vector2(x: sx+cos(sA)*sLen, y: sy+sin(sA)*sLen),
+               Vector2(x: sx+cos(sA+0.4)*5, y: sy+sin(sA+0.4)*5), 2,
+               Color(r: 180, g: 40, b: 255, a: 200))
+      drawLine(Vector2(x: sx+cos(sA)*sLen, y: sy+sin(sA)*sLen),
+               Vector2(x: sx+cos(sA-0.4)*5, y: sy+sin(sA-0.4)*5), 2,
+               Color(r: 180, g: 40, b: 255, a: 200))
+    for i in 1 ..< 5:
+      let tx = cx - enemy.vel.x * i.float32 * 0.025
+      let ty = cy - enemy.vel.y * i.float32 * 0.025
+      drawCircle(Vector2(x: tx, y: ty), r*0.70,
+                 Color(r: 80, g: 0, b: 120, a: uint8(100-i*20)))
+    glow(r*0.78, enemy.color)
+    poly(5, r*0.48, -time*1.5, 2, Color(r: 200, g: 80, b: 255, a: 200))
+    spoke(5, 0.0, r*0.48, -time*1.5, 1, Color(r: 160, g: 40, b: 220, a: 150))
+    glow(r*0.22, Color(r: 0, g: 0, b: 0, a: 255))
+    drawCircleLines(cx.int32, cy.int32, r*0.22,
+                    Color(r: 220, g: 80, b: 255, a: uint8(200*blink)))
+    glow(r*0.08, Color(r: 255, g: 180, b: 255, a: 255))
+
+  of 6:  # THE CHAIN REACTOR
+    glow(r + 24 + blink*8,  Color(r: 255, g: 255, b: 80,  a: uint8(60*blink)))
+    glow(r + 14 + pulse*5,  Color(r: 255, g: 220, b: 0,   a: 80))
+    for i in 0 ..< 6:
+      let a      = i.float32 * PI / 3.0 + time*0.2
+      let inner  = r * 0.20
+      let outer  = r * 1.08
+      let midA   = r * 0.55
+      let aLeft  = a - 0.18
+      let aRight = a + 0.18
+      drawLine(Vector2(x: cx+cos(a)*inner,    y: cy+sin(a)*inner),
+               Vector2(x: cx+cos(aLeft)*midA,  y: cy+sin(aLeft)*midA),
+               3, Color(r: 255, g: 255, b: 120, a: 220))
+      drawLine(Vector2(x: cx+cos(aLeft)*midA,  y: cy+sin(aLeft)*midA),
+               Vector2(x: cx+cos(aRight)*midA, y: cy+sin(aRight)*midA),
+               3, Color(r: 255, g: 255, b: 120, a: 220))
+      drawLine(Vector2(x: cx+cos(aRight)*midA, y: cy+sin(aRight)*midA),
+               Vector2(x: cx+cos(a)*outer,     y: cy+sin(a)*outer),
+               3, Color(r: 255, g: 240, b: 50, a: 255))
+    poly(24, r + 8, time*2.0, 2, Color(r: 255, g: 255, b: 100, a: 140))
+    glow(r*0.68, enemy.color)
+    drawCircleLines(cx.int32, cy.int32, r*0.40,
+                    Color(r: 255, g: 255, b: 200, a: 180))
+    poly(16, r*0.40, time*3.0, 2, Color(r: 255, g: 255, b: 255, a: 120))
+    for i in 0 ..< 10:
+      let a        = time*8.0 + i.float32 * 0.628
+      let startR   = r*0.42
+      let endR     = r*0.70 + sin(time*6.0+i.float32)*12
+      let sparkAlpha = uint8((sin(time*12.0 + i.float32*0.9)*0.5 + 0.5)*200)
+      drawLine(Vector2(x: cx+cos(a)*startR, y: cy+sin(a)*startR),
+               Vector2(x: cx+cos(a)*endR,   y: cy+sin(a)*endR),
+               1, Color(r: 255, g: 255, b: 255, a: sparkAlpha))
+    glow(r*0.20 + blink*5, Color(r: 255, g: 255, b: 255, a: 255))
+    glow(r*0.09, Color(r: 200, g: 255, b: 255, a: 255))
+
+  of 7:  # THE ORBITAL COMMANDER
+    glow(r + 22 + breathe*6, Color(r: 20, g: 10, b: 60, a: 50))
+    poly(60, r + 24,  time*0.15,  2, Color(r: 150, g: 120, b: 255, a: 100))
+    poly(60, r + 16, -time*0.25,  2, Color(r: 120, g: 90,  b: 220, a: 120))
+    poly(60, r + 8,   time*0.40,  2, Color(r: 180, g: 140, b: 255, a: 140))
+    for i in 0 ..< 3:
+      let satR   = r + 26 + i.float32 * 14
+      let satSpd = 1.5 - i.float32*0.4
+      let satA   = time * satSpd + i.float32 * (PI*2.0/3.0)
+      let sx = cx + cos(satA)*satR
+      let sy = cy + sin(satA)*satR
+      let satCol = Color(r: uint8(180+i*25), g: uint8(140+i*20), b: 255, a: 255)
+      drawCircle(Vector2(x: sx, y: sy), 6, satCol)
+      drawCircleLines(sx.int32, sy.int32, 8, Color(r: 255, g: 255, b: 255, a: 120))
+      let panA = satA + PI/2.0
+      drawLine(Vector2(x: sx+cos(panA)*8, y: sy+sin(panA)*8),
+               Vector2(x: sx-cos(panA)*8, y: sy-sin(panA)*8), 3, satCol)
+    poly(8, r*0.95, PI/8.0, 4, Color(r: 160, g: 120, b: 255, a: 220))
+    poly(8, r*0.78, PI/8.0 + time*0.2, 2, Color(r: 200, g: 160, b: 255, a: 180))
+    glow(r*0.70, enemy.color)
+    spoke(8, 0.0, r*0.58, time*0.3, 1, Color(r: 200, g: 170, b: 255, a: 100))
+    drawCircleLines(cx.int32, cy.int32, r*0.35,
+                    Color(r: 200, g: 170, b: 255, a: 150))
+    glow(r*0.18 + pulse*8, Color(r: 255, g: 240, b: 255, a: uint8(200*pulse)))
+    glow(r*0.10, Color(r: 255, g: 255, b: 255, a: 255))
+
+  of 8:  # THE BERSERKER JUGGERNAUT
+    let rage  = 1.0 - hpPct
+    let rageF = 1.0 + rage * 1.2
+    glow(r + 20*rageF + pulse*8*rageF, Color(r: 255, g: 0, b: 0, a: uint8(80*rage+20)))
+    glow(r + 10*rageF, Color(r: 200, g: 0, b: 0, a: uint8(60*rage+10)))
+    for i in 0 ..< 10:
+      let a        = i.float32 * PI / 5.0 + time * 0.15
+      let spikeLen = r * (0.35 + (if i mod 2 == 0: 0.55 else: 0.30)*rageF)
+      let inner    = r * 0.82
+      let bx = cx + cos(a)*inner
+      let by = cy + sin(a)*inner
+      let tx = cx + cos(a)*(inner+spikeLen)
+      let ty = cy + sin(a)*(inner+spikeLen)
+      let spikeAlpha = uint8(160 + rage*95)
+      drawLine(Vector2(x: bx, y: by), Vector2(x: tx, y: ty), 5,
+               Color(r: 200, g: 0, b: 0, a: spikeAlpha))
+      drawLine(Vector2(x: bx, y: by),
+               Vector2(x: cx+cos(a+0.20)*inner, y: cy+sin(a+0.20)*inner),
+               3, Color(r: 160, g: 0, b: 0, a: spikeAlpha))
+      drawLine(Vector2(x: bx, y: by),
+               Vector2(x: cx+cos(a-0.20)*inner, y: cy+sin(a-0.20)*inner),
+               3, Color(r: 160, g: 0, b: 0, a: spikeAlpha))
+    glow(r*0.82, enemy.color)
+    let scarAlpha = uint8(60 + rage*195)
+    for i in 0 ..< 7:
+      let scarA = i.float32 * PI / 3.5 + 0.25
+      let tip   = r*(0.50 + i.float32*0.03)
+      drawLine(Vector2(x: cx, y: cy),
+               Vector2(x: cx+cos(scarA)*tip, y: cy+sin(scarA)*tip),
+               2, Color(r: 255, g: uint8(rage*180), b: 0, a: scarAlpha))
+    poly(10, r*0.55, -time*0.8, 2,
+         Color(r: uint8(150+rage*105), g: 0, b: 0, a: uint8(120+rage*135)))
+    let coreR = uint8(200 + rage*55)
+    let coreG = uint8(rage*80)
+    glow(r*0.22 + pulse*4*rageF, Color(r: coreR, g: coreG, b: 0, a: 255))
+    glow(r*0.09, Color(r: 255, g: 255, b: 255, a: 255))
+
   of 9:  # Boss 9: The Prism Architect (Rainbow/prismatic)
     # Rainbow refraction rings
     let colors = [
@@ -1003,37 +1065,46 @@ proc drawCustomBoss*(enemy: Enemy) =
     # Bright light center
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
                Color(r: 255, g: 255, b: 255, a: 255))
-  
-  of 10:  # Boss 10: The Timekeeper (Cyan time theme)
-    # Time distortion waves
-    for i in 1..4:
-      let waveRadius = enemy.radius * (0.3 + i.float32 * 0.3)
-      let waveTime = time * 2.0 - i.float32 * 0.5
-      let waveAlpha = uint8(abs(sin(waveTime)) * 150)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, waveRadius,
-                     Color(r: 0, g: 180, b: 180, a: waveAlpha))
-    
-    # Clock face
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.9, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius * 0.9,
-                   Color(r: 0, g: 220, b: 220, a: 255))
-    
-    # Clock hands
-    let minuteAngle = time * 0.5
-    let hourAngle = time * 0.1
-    drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y),
-            Vector2(x: enemy.pos.x + cos(minuteAngle) * enemy.radius * 0.7,
-                    y: enemy.pos.y + sin(minuteAngle) * enemy.radius * 0.7),
-            3, Color(r: 100, g: 255, b: 255, a: 255))
-    drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y),
-            Vector2(x: enemy.pos.x + cos(hourAngle) * enemy.radius * 0.5,
-                    y: enemy.pos.y + sin(hourAngle) * enemy.radius * 0.5),
-            4, Color(r: 150, g: 255, b: 255, a: 255))
-    
-    # Time core
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.15,
-               Color(r: 0, g: 255, b: 255, a: 255))
-  
+
+  of 10:  # THE TIMEKEEPER
+    for i in 0 ..< 5:
+      let rippleR = r*(0.30 + i.float32*0.22) + sin(time*2.0 - i.float32*0.6)*4
+      let rippleA = uint8(max(0.0, sin(time*2.0 - i.float32*0.6)*100 + 60))
+      drawCircleLines(cx.int32, cy.int32, rippleR,
+                      Color(r: 0, g: 200, b: 200, a: rippleA))
+    for i in 0 ..< 12:
+      let a          = i.float32 * PI / 6.0
+      let toothOuter = r * (if i mod 3 == 0: 1.10 else: 1.02)
+      let toothInner = r * 0.92
+      drawLine(Vector2(x: cx+cos(a)*toothInner, y: cy+sin(a)*toothInner),
+               Vector2(x: cx+cos(a)*toothOuter, y: cy+sin(a)*toothOuter),
+               (if i mod 3 == 0: 4.0 else: 2.0),
+               Color(r: 0, g: 220, b: 220, a: 220))
+    glow(r*0.88, enemy.color)
+    drawCircleLines(cx.int32, cy.int32, r*0.88,
+                    Color(r: 0, g: 240, b: 240, a: 220))
+    for i in 0 ..< 12:
+      let a     = i.float32 * PI / 6.0 - PI/2.0
+      let inner = r * (if i mod 3 == 0: 0.60 else: 0.72)
+      drawLine(Vector2(x: cx+cos(a)*inner,    y: cy+sin(a)*inner),
+               Vector2(x: cx+cos(a)*(r*0.84), y: cy+sin(a)*(r*0.84)),
+               (if i mod 3 == 0: 3.0 else: 1.5),
+               Color(r: 0, g: 255, b: 255, a: 200))
+    let minuteA = time * 1.0 - PI/2.0
+    drawLine(Vector2(x: cx, y: cy),
+             Vector2(x: cx+cos(minuteA)*r*0.70, y: cy+sin(minuteA)*r*0.70),
+             2, Color(r: 200, g: 255, b: 255, a: 255))
+    let hourA = time * 0.083 - PI/2.0
+    drawLine(Vector2(x: cx, y: cy),
+             Vector2(x: cx+cos(hourA)*r*0.48, y: cy+sin(hourA)*r*0.48),
+             4, Color(r: 100, g: 255, b: 255, a: 255))
+    let sweepA = time * 6.28 - PI/2.0
+    drawLine(Vector2(x: cx, y: cy),
+             Vector2(x: cx+cos(sweepA)*r*0.78, y: cy+sin(sweepA)*r*0.78),
+             1, Color(r: 255, g: 80, b: 80, a: 220))
+    glow(r*0.08 + pulse*2, Color(r: 0, g: 255, b: 255, a: 255))
+    glow(r*0.04, Color(r: 255, g: 255, b: 255, a: 255))
+
   of 11:  # Boss 11: The Chaos Weaver (Purple chaos theme)
     # Chaotic energy bolts
     let chaosCount = 12
@@ -1057,7 +1128,7 @@ proc drawCustomBoss*(enemy: Enemy) =
     # Chaotic center
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
                Color(r: 255, g: 0, b: 255, a: 255))
-  
+
   of 12:  # Boss 12: The Omega Entity (Color-shifting ultimate)
     # Phase-based color shifting
     let phaseHue = (enemy.currentPhaseIndex.float32 / 4.0) + time * 0.1
@@ -1087,16 +1158,18 @@ proc drawCustomBoss*(enemy: Enemy) =
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius * 0.4, White)
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.2,
                Color(r: 255, g: 255, b: 255, a: 255))
-  
+
   else:
-    # Fallback for any undefined boss - simple circle
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius, Black)
-    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3, White)
+    glow(r + 12 + pulse*5, Color(r: 255, g: 255, b: 255, a: 40))
+    glow(r, enemy.color)
+    poly(8, r, time, 2, White)
+    glow(r*0.25, Color(r: 255, g: 255, b: 255, a: 255))
+
 
 proc drawEnemy*(enemy: Enemy) =
+  ## Draws an enemy based on its type. Bosses are forwarded to drawCustomBoss.
   if enemy.isBoss:
-    # Boss drawing - unique visuals for each of the 12 custom bosses
+    # Boss drawing
     drawCustomBoss(enemy)
     
     # HP bar (common to all bosses)
