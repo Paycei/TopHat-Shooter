@@ -22,6 +22,19 @@ type
     ptOrange,    # Orange team (for 5 teams)
     ptPurple     # Purple team (for 6 teams)
 
+  PvPConfig* = object
+    ## Host-configurable PvP game settings sent to all clients at game start
+    startHp*: float32       ## Starting HP per player (default 3)
+    startSpeed*: float32    ## Base movement speed (default 200)
+    startDamage*: float32   ## Bullet damage per hit (default 1.0)
+    fireRate*: float32      ## Seconds between shots – lower is faster (default 0.375)
+    bulletSpeed*: float32   ## Bullet travel speed (default 425)
+    bulletRadius*: float32  ## Bullet hitbox/visual radius (default 7.5)
+    startCoins*: int        ## Coins at match start (default 100)
+    startWalls*: int        ## Walls at match start (default 3)
+    killLimit*: int         ## Kills needed to win (default 5)
+    respawnTime*: float32   ## Seconds before respawn (default 3.0)
+
   EnemyType* = enum
     etCircle,      # Normal chasers
     etCube,        # Stationary/slow shooters
@@ -804,4 +817,19 @@ proc newMeteorite*(targetX, targetY: float32, spawnX, spawnY: float32, damage: i
     damage: damage,
     warningTimer: warningTime,
     maxWarningTime: warningTime
+  )
+
+proc defaultPvPConfig*(): PvPConfig =
+  ## Returns the default/balanced PvP configuration
+  PvPConfig(
+    startHp: 3.0,
+    startSpeed: 200.0,
+    startDamage: 1.0,
+    fireRate: 0.375,
+    bulletSpeed: 425.0,
+    bulletRadius: 7.5,
+    startCoins: 100,
+    startWalls: 3,
+    killLimit: 5,
+    respawnTime: 3.0
   )

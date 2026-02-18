@@ -267,7 +267,7 @@ proc applyStatCheat*(game: var Game, stat: string, value: float32) =
   playSound(stMenuSelect)
 
 proc drawWavesTab(x, y, width, height: int32, game: var Game)
-proc drawPowerUpsTab(x, y, width, height: int32, game: var Game)
+proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu)
 proc drawStatsTab(x, y, width, height: int32, game: var Game)
 proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu)
 proc drawEnemiesTab(x, y, width, height: int32, game: var Game)
@@ -357,7 +357,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
   of cmtWaves:
     drawWavesTab(panelX, contentY, panelWidth, contentHeight, game)
   of cmtPowerUps:
-    drawPowerUpsTab(panelX, contentY, panelWidth, contentHeight, game)
+    drawPowerUpsTab(panelX, contentY, panelWidth, contentHeight, game, menu)
   of cmtStats:
     drawStatsTab(panelX, contentY, panelWidth, contentHeight, game)
   of cmtPermanentPowerUps:
@@ -423,79 +423,84 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   if bossHovered and isMouseButtonPressed(Left):
     applyWaveCheat(game, "boss")
 
-proc drawPowerUpsTab(x, y, width, height: int32, game: var Game) =
+proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu) =
   var currentY = y + 10
-  
+
   drawText("Click to activate consumable (30 seconds)", x + 20, currentY, 14, Gray)
   currentY += 30
-  
+
   # Consumable buttons (Speed, Invincibility, Fire Rate, Magnet, Health, Coin)
   let buttonWidth: int32 = 250
   let buttonHeight: int32 = 35
+  let itemStride = buttonHeight + 8
   let centerX = x + (width - buttonWidth) div 2
-  
+
   let consumables = [
-    ("Speed Boost", "Speed", Color(r: 0, g: 255, b: 255, a: 255)),
-    ("Invincibility", "Invincibility", Color(r: 255, g: 0, b: 255, a: 255)),
-    ("Fire Rate", "Fire Rate", Color(r: 255, g: 165, b: 0, a: 255)),
-    ("Magnet", "Magnet", Color(r: 147, g: 51, b: 234, a: 255)),
-    ("Health", "Health", Color(r: 50, g: 255, b: 50, a: 255)),
-    ("Coin", "Coin", Color(r: 255, g: 215, b: 0, a: 255)),
-    ("Shield Boost", "Shield", Color(r: 0, g: 255, b: 255, a: 255)),
-    ("Damage Boost", "Damage", Color(r: 255, g: 69, b: 0, a: 255)),
-    ("Double Coin", "DoubleCoin", Color(r: 255, g: 223, b: 0, a: 255)),
-    ("Lifesteal", "Lifesteal", Color(r: 139, g: 0, b: 0, a: 255))
+    ("Speed Boost",   "Speed",      Color(r: 0,   g: 255, b: 255, a: 255)),
+    ("Invincibility", "Invincibility", Color(r: 255, g: 0,   b: 255, a: 255)),
+    ("Fire Rate",     "Fire Rate",  Color(r: 255, g: 165, b: 0,   a: 255)),
+    ("Magnet",        "Magnet",     Color(r: 147, g: 51,  b: 234, a: 255)),
+    ("Health",        "Health",     Color(r: 50,  g: 255, b: 50,  a: 255)),
+    ("Coin",          "Coin",       Color(r: 255, g: 215, b: 0,   a: 255)),
+    ("Shield Boost",  "Shield",     Color(r: 0,   g: 255, b: 255, a: 255)),
+    ("Damage Boost",  "Damage",     Color(r: 255, g: 69,  b: 0,   a: 255)),
+    ("Double Coin",   "DoubleCoin", Color(r: 255, g: 223, b: 0,   a: 255)),
+    ("Lifesteal",     "Lifesteal",  Color(r: 139, g: 0,   b: 0,   a: 255))
   ]
-  
-  for consumableData in consumables:
-    let (name, typeStr, color) = consumableData
-    let rect = Rectangle(x: centerX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
+
+  # Scrolling
+  let availableHeight = height - (currentY - y)
+  let maxVisible = max(1, availableHeight div itemStride)
+  let maxScroll = max(0, consumables.len - maxVisible)
+
+  let mousePos = getMousePosition()
+  if mousePos.y >= currentY.float32 and mousePos.y < (y + height).float32:
+    let wheelMove = getMouseWheelMove()
+    if wheelMove < 0: menu.scrollOffset = min(maxScroll, menu.scrollOffset + 1)
+    elif wheelMove > 0: menu.scrollOffset = max(0, menu.scrollOffset - 1)
+  if menu.scrollOffset > maxScroll: menu.scrollOffset = maxScroll
+
+  let startIdx = menu.scrollOffset
+  let endIdx   = min(startIdx + maxVisible, consumables.len)
+
+  for i in startIdx..<endIdx:
+    let (name, typeStr, color) = consumables[i]
+    let itemY = currentY + (i - startIdx).int32 * itemStride
+    let rect = Rectangle(x: centerX.float32, y: itemY.float32,
+                         width: buttonWidth.float32, height: buttonHeight.float32)
     let hovered = checkCollisionPointRec(getMousePosition(), rect)
-    
+
     var drawColor = color
     if hovered:
-      drawColor = Color(
-        r: min(uint8(255), color.r + 30),
-        g: min(uint8(255), color.g + 30),
-        b: min(uint8(255), color.b + 30),
-        a: 255
-      )
+      drawColor = Color(r: min(uint8(255), color.r + 30),
+                        g: min(uint8(255), color.g + 30),
+                        b: min(uint8(255), color.b + 30),
+                        a: 255)
 
-    
-    drawRectangle(centerX, currentY, buttonWidth, buttonHeight, drawColor)
-    drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, White)
-    
+    drawRectangle(centerX, itemY, buttonWidth, buttonHeight, drawColor)
+    drawRectangleLines(centerX, itemY, buttonWidth, buttonHeight, White)
+
     let textWidth = measureText(name, 14)
-    drawText(name, centerX + (buttonWidth - textWidth) div 2, currentY + 10, 14, Black)
-    
+    drawText(name, centerX + (buttonWidth - textWidth) div 2, itemY + 10, 14, Black)
+
     if hovered and isMouseButtonPressed(Left):
-      # Apply consumable based on type
       case typeStr
-      of "Speed":
-        game.player.speedBoostTimer = 30.0
-      of "Invincibility":
-        game.player.invincibilityTimer = 30.0
-      of "Fire Rate":
-        game.player.fireRateBoostTimer = 30.0
-      of "Magnet":
-        game.player.magnetTimer = 30.0
-      of "Health":
-        game.player.hp = min(game.player.hp + 3.0, game.player.maxHp)
-      of "Coin":
-        game.player.coins += 5
-      of "Shield":
-        game.player.shieldBoostTimer = 30.0
-      of "Damage":
-        game.player.damageBoostTimer = 30.0
-      of "DoubleCoin":
-        game.player.doubleCoinTimer = 30.0
-      of "Lifesteal":
-        game.player.lifestealTimer = 30.0
-      else:
-        discard
+      of "Speed":       game.player.speedBoostTimer    = 30.0
+      of "Invincibility": game.player.invincibilityTimer = 30.0
+      of "Fire Rate":   game.player.fireRateBoostTimer = 30.0
+      of "Magnet":      game.player.magnetTimer         = 30.0
+      of "Health":      game.player.hp = min(game.player.hp + 3.0, game.player.maxHp)
+      of "Coin":        game.player.coins += 5
+      of "Shield":      game.player.shieldBoostTimer    = 30.0
+      of "Damage":      game.player.damageBoostTimer    = 30.0
+      of "DoubleCoin":  game.player.doubleCoinTimer     = 30.0
+      of "Lifesteal":   game.player.lifestealTimer      = 30.0
+      else: discard
       playSound(stPowerUp)
-    
-    currentY += buttonHeight + 8
+
+  if maxScroll > 0:
+    drawText("Showing " & $(startIdx + 1) & "-" & $endIdx & " of " & $consumables.len,
+             x + 20, y + height - 15, 10, Gray)
 
 proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10

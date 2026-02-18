@@ -108,14 +108,14 @@ proc updateDiscordForPvP*(client: DiscordClient, pvpGame: PvPGameState) =
       let team = localPlayer.teamId
       let teamKills = pvpGame.teamScores[team].kills
       detailsText = &"Playing {modeText}"
-      stateText = &"Team {team}: {teamKills}/{PVP_KILL_LIMIT} | {kills} Kills"
+      stateText = &"Team {team}: {teamKills}/{pvpGame.config.killLimit} | {kills} Kills"
     else:
       # Free-for-all mode - show personal kills and time
       let minutes = (pvpGame.gameTime / 60.0).int
       let seconds = (pvpGame.gameTime.float32.mod(60.0'f32)).int
       let secondsStr = if seconds < 10: "0" & $seconds else: $seconds
       detailsText = &"Playing {modeText}"
-      stateText = &"{kills}/{PVP_KILL_LIMIT} Kills | {minutes}:{secondsStr}"
+      stateText = &"{kills}/{pvpGame.config.killLimit} Kills | {minutes}:{secondsStr}"
   
   let presence = createPresence(
     state = stateText,

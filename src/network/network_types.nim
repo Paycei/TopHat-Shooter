@@ -49,6 +49,8 @@ type
     walls*: int
     damage*: float32
     speed*: float32
+    fireRate*: float32
+    bulletSpeed*: float32
     invincibilityTimer*: float32
     teamId*: int
     skinType*: int
@@ -116,6 +118,7 @@ type
       teamsEnabled*: bool
       teamAssignments*: seq[int]
       gameConnectedPlayers*: seq[ConnectedPlayerInfo]
+      pvpConfig*: PvPConfig    ## Host game-settings broadcast to all clients
     of ptPlayerInput:
       input*: PlayerInput
     of ptGameState:

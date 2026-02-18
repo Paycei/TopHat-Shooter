@@ -70,6 +70,7 @@ type
     interpDelay*: float32  # Render delay for interpolation (in seconds)
     interpolationEnabled*: bool  # Whether interpolation is enabled
     recentlyDestroyedBullets*: seq[int]  # Recently destroyed bullet IDs (to prevent snapshot resurrection)
+    config*: PvPConfig                  # Host-configurable game settings
 
 proc getTeamName*(team: PvPTeam): string =
   ## Get the display name for a team
@@ -260,7 +261,7 @@ proc getSpawnPosition(playerIndex, totalPlayers: int, screenWidth, screenHeight:
       centerY + sin(angle) * radius
     )
 
-proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]], teamsEnabled: bool = false, playerTeamAssignments: seq[int] = @[], interpolationEnabled: bool = true): PvPGameState =
+proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]], teamsEnabled: bool = false, playerTeamAssignments: seq[int] = @[], interpolationEnabled: bool = true, config: PvPConfig = defaultPvPConfig()): PvPGameState =
   let emptyInput = PlayerInput(
     tick: 0,
     playerIndex: 0,
@@ -305,7 +306,8 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     playerInterpStates: @[],
     interpDelay: 0.067,  # 67ms interpolation delay (~2 snapshots at 30Hz) - reduced for less latency
     interpolationEnabled: interpolationEnabled,
-    recentlyDestroyedBullets: @[]  # Track bullets destroyed to prevent snapshot resurrection
+    recentlyDestroyedBullets: @[],  # Track bullets destroyed to prevent snapshot resurrection
+    config: config
   )
 
   # Initialize team scores
@@ -327,14 +329,14 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
       getSpawnPosition(i, maxPlayers, screenWidth.float32, screenHeight.float32)
     
     let player = newPlayer(spawnPos.x, spawnPos.y)
-    player.hp = PVP_PLAYER_START_HP
-    player.maxHp = PVP_PLAYER_START_HP
-    player.coins = PVP_PLAYER_START_COINS
-    player.walls = PVP_PLAYER_START_WALLS
-    player.damage = PVP_PLAYER_START_DAMAGE
-    player.bulletSpeed = PVP_PLAYER_START_BULLET_SPEED
-    player.fireRate = PVP_PLAYER_START_FIRE_RATE
-    player.speed = PVP_PLAYER_START_SPEED
+    player.hp = config.startHp
+    player.maxHp = config.startHp
+    player.coins = config.startCoins
+    player.walls = config.startWalls
+    player.damage = config.startDamage
+    player.bulletSpeed = config.bulletSpeed
+    player.fireRate = config.fireRate
+    player.speed = config.startSpeed
     player.teamId = team
     
     # Set cosmetics and nickname for connected players
@@ -405,12 +407,13 @@ proc startCountdown*(pvp: PvPGameState) =
         nickname: pvp.playerNicknames[i]
       ))
     
-    # Send game start packet with team information
+    # Send game start packet with team information and game config
     var packet = newPacket(ptGameStart, pvp.serverTick)
     packet.countdownTime = pvp.countdownTimer
     packet.teamsEnabled = pvp.teamsEnabled
     packet.teamAssignments = teamAssignments
     packet.gameConnectedPlayers = gameConnectedPlayers
+    packet.pvpConfig = pvp.config
     pvp.networkManager.sendPacket(packet)
 
 proc capturePlayerInput*(pvp: PvPGameState): PlayerInput =
@@ -495,7 +498,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
       let newBullet = Bullet(
         pos: player.pos + direction * (player.radius + 5),
         vel: bulletVel,
-        radius: 7.5,  # Larger bullets for easier hits
+        radius: pvp.config.bulletRadius,
         damage: player.damage,
         fromPlayer: true,
         lifetime: 0,
@@ -635,7 +638,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
                   pvp.teamScores[victimTeam].deaths += 1
             
             # Start respawn timer
-            pvp.respawnTimers[playerIdx] = PVP_RESPAWN_TIME
+            pvp.respawnTimers[playerIdx] = pvp.config.respawnTime
             
             var deathPacket = newPacket(ptPlayerDeath, pvp.serverTick)
             deathPacket.deadPlayerIndex = playerIdx
@@ -651,7 +654,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
                   maxTeamKills = pvp.teamScores[team].kills
                   winningTeam = team
               
-              if maxTeamKills >= PVP_KILL_LIMIT:
+              if maxTeamKills >= pvp.config.killLimit:
                 pvp.gameOver = true
                 pvp.winnerTeam = winningTeam
                 pvp.winnerIndex = -1  # No individual winner in team mode
@@ -670,7 +673,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
                   maxKills = pvp.players[checkIdx].kills
                   winningPlayerIdx = checkIdx
               
-              if maxKills >= PVP_KILL_LIMIT:
+              if maxKills >= pvp.config.killLimit:
                 pvp.gameOver = true
                 pvp.winnerIndex = winningPlayerIdx
                 pvp.gameOverReason = "Kill limit reached"
@@ -730,7 +733,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
       pvp.respawnTimers[i] -= dt
       if pvp.respawnTimers[i] <= 0:
         # Respawn player at their spawn position (team-aware)
-        pvp.players[i].hp = PVP_PLAYER_START_HP
+        pvp.players[i].hp = pvp.config.startHp
         pvp.players[i].pos = if pvp.teamsEnabled:
           getTeamSpawnPosition(i, pvp.players[i].teamId, pvp.players.len, pvp.screenWidth.float32, pvp.screenHeight.float32)
         else:
@@ -741,7 +744,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         var respawnPacket = newPacket(ptPlayerDamage, pvp.serverTick)
         respawnPacket.damagedPlayerIndex = i
         respawnPacket.damageAmount = 0
-        respawnPacket.newHp = PVP_PLAYER_START_HP
+        respawnPacket.newHp = pvp.config.startHp
         pvp.networkManager.sendPacket(respawnPacket)
   
   # Update timers
@@ -811,6 +814,8 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         walls: pvp.players[i].walls,
         damage: pvp.players[i].damage,
         speed: pvp.players[i].speed,
+        fireRate: pvp.players[i].fireRate,
+        bulletSpeed: pvp.players[i].bulletSpeed,
         invincibilityTimer: pvp.players[i].invincibilityTimer,
         teamId: pvp.players[i].teamId.ord,  # Send as int
         skinType: pvp.players[i].skinType,
@@ -867,6 +872,10 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         pvp.players[i].coins = gameState.players[i].coins
         pvp.players[i].kills = gameState.players[i].kills
         pvp.players[i].walls = gameState.players[i].walls
+        pvp.players[i].damage = gameState.players[i].damage
+        pvp.players[i].speed = gameState.players[i].speed
+        pvp.players[i].fireRate = gameState.players[i].fireRate
+        pvp.players[i].bulletSpeed = gameState.players[i].bulletSpeed
         pvp.players[i].invincibilityTimer = gameState.players[i].invincibilityTimer
     
     # Reconcile host's own player - TRUST CLIENT PREDICTION
@@ -894,6 +903,10 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
       pvp.players[localIdx].coins = gameState.players[localIdx].coins
       pvp.players[localIdx].kills = gameState.players[localIdx].kills
       pvp.players[localIdx].walls = gameState.players[localIdx].walls
+      pvp.players[localIdx].damage = gameState.players[localIdx].damage
+      pvp.players[localIdx].speed = gameState.players[localIdx].speed
+      pvp.players[localIdx].fireRate = gameState.players[localIdx].fireRate
+      pvp.players[localIdx].bulletSpeed = gameState.players[localIdx].bulletSpeed
       pvp.players[localIdx].invincibilityTimer = gameState.players[localIdx].invincibilityTimer
 
 proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
@@ -1023,6 +1036,10 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       pvp.players[i].coins = serverState.players[i].coins
       pvp.players[i].kills = serverState.players[i].kills
       pvp.players[i].walls = serverState.players[i].walls
+      pvp.players[i].damage = serverState.players[i].damage
+      pvp.players[i].speed = serverState.players[i].speed
+      pvp.players[i].fireRate = serverState.players[i].fireRate
+      pvp.players[i].bulletSpeed = serverState.players[i].bulletSpeed
       pvp.players[i].invincibilityTimer = serverState.players[i].invincibilityTimer
       pvp.players[i].skinType = serverState.players[i].skinType
       pvp.players[i].bulletSkinType = serverState.players[i].bulletSkinType
@@ -1065,6 +1082,10 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   pvp.players[localIdx].coins = serverState.players[localIdx].coins
   pvp.players[localIdx].kills = serverState.players[localIdx].kills
   pvp.players[localIdx].walls = serverState.players[localIdx].walls
+  pvp.players[localIdx].damage = serverState.players[localIdx].damage
+  pvp.players[localIdx].speed = serverState.players[localIdx].speed
+  pvp.players[localIdx].fireRate = serverState.players[localIdx].fireRate
+  pvp.players[localIdx].bulletSpeed = serverState.players[localIdx].bulletSpeed
   pvp.players[localIdx].invincibilityTimer = serverState.players[localIdx].invincibilityTimer
   pvp.players[localIdx].teamId = PvPTeam(serverState.players[localIdx].teamId)
   

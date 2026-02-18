@@ -408,7 +408,8 @@ proc main() =
           connectedPlayers,
           globalWindowManager.pvp.teamsEnabled,
           globalWindowManager.pvp.playerTeamAssignments,
-          globalWindowManager.pvp.interpolationEnabled
+          globalWindowManager.pvp.interpolationEnabled,
+          globalWindowManager.pvp.pvpConfig
         )
         currentPvPGame.networkManager = globalWindowManager.pvp.networkManager
         currentPvPGame.localPlayerIndex = localPlayerIndex

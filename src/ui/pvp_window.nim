@@ -47,6 +47,7 @@ type
     playerTeamAssignments*: seq[int]  # Team assignment per player index (0=Red, 1=Blue, 2=Green, 3=Yellow)
     # Interpolation settings
     interpolationEnabled*: bool  # Whether client-side interpolation is enabled
+    pvpConfig*: PvPConfig        # Host-configurable game balance settings
 
   PvPLobbyState* = enum
     plsMainMenu           # Choose host or join
@@ -138,7 +139,7 @@ proc getTeamName*(team: PvPTeam): string =
 
 proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
   let windowWidth = 600
-  let windowHeight = 600
+  let windowHeight = 750
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
   let localIP = getLocalIP()
@@ -180,7 +181,8 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
     teamsEnabled: false,
     numTeams: 2,
     playerTeamAssignments: @[],
-    interpolationEnabled: true
+    interpolationEnabled: true,
+    pvpConfig: defaultPvPConfig()
   )
 
 proc startHosting*(pvpWin: PvPWindow) =
@@ -289,6 +291,7 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
           pvpWin.connectedPlayers = event.packet.gameConnectedPlayers
           pvpWin.teamsEnabled = event.packet.teamsEnabled
           pvpWin.playerTeamAssignments = event.packet.teamAssignments
+          pvpWin.pvpConfig = event.packet.pvpConfig
           pvpWin.readyToStart = true
       elif event.kind == neDisconnect:
         if event.disconnectPlayerIndex == 0:
@@ -813,6 +816,90 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
         drawText(tStr, (tbX + (tbW - tW) div 2).int32, (tbY + 6).int32, 18,
                  if isSel: Gold else: White)
 
+    # ── GAME STATS SECTION ────────────────────────────────────────────────────
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 398)
+    drawText("GAME STATS", (contentX + 20).int32, (contentY + 404).int32, 16,
+             Color(r: 0, g: 200, b: 255, a: 255))
+
+    # Helper: draw a compact stat cell with label, minus, value, plus
+    # Layout: 3 columns, 3 rows
+    let colW = (contentWidth - 20) div 3
+    let baseStatY = contentY + 422
+
+    template drawStatCell(cx, cy: int, lbl: string, valStr: string,
+                          canDec, canInc: bool) =
+      drawText(lbl, (cx + 2).int32, cy.int32, 13,
+               Color(r: 170, g: 170, b: 190, a: 255))
+      let controlY = cy + 15
+      # Minus button
+      let mBg = if canDec: Color(r: 50, g: 50, b: 65, a: 255)
+                else: Color(r: 35, g: 35, b: 45, a: 255)
+      drawRectangle((cx).int32, controlY.int32, 22, 22, mBg)
+      drawRectangleLines(Rectangle(x: cx.float32, y: controlY.float32,
+        width: 22, height: 22), 1,
+        if canDec: Color(r: 80, g: 80, b: 110, a: 255)
+        else: Color(r: 50, g: 50, b: 60, a: 255))
+      let mW = measureText("-", 20)
+      drawText("-", (cx + (22 - mW) div 2).int32, (controlY + 1).int32, 20,
+               if canDec: White else: Color(r: 70, g: 70, b: 70, a: 255))
+      # Value
+      let vw = measureText(valStr, 16)
+      drawText(valStr, (cx + 26 + (colW - 56 - vw) div 2).int32,
+               (controlY + 3).int32, 16, Color(r: 0, g: 220, b: 255, a: 255))
+      # Plus button
+      let pBg = if canInc: Color(r: 50, g: 50, b: 65, a: 255)
+                else: Color(r: 35, g: 35, b: 45, a: 255)
+      drawRectangle((cx + colW - 24).int32, controlY.int32, 22, 22, pBg)
+      drawRectangleLines(Rectangle(x: (cx + colW - 24).float32,
+        y: controlY.float32, width: 22, height: 22), 1,
+        if canInc: Color(r: 80, g: 80, b: 110, a: 255)
+        else: Color(r: 50, g: 50, b: 60, a: 255))
+      let pW = measureText("+", 20)
+      drawText("+", (cx + colW - 24 + (22 - pW) div 2).int32,
+               (controlY + 1).int32, 20,
+               if canInc: White else: Color(r: 70, g: 70, b: 70, a: 255))
+
+    # Row 0: HP | Kill Limit | Respawn Time
+    let row0Y = baseStatY
+    let row1Y = baseStatY + 46
+    drawStatCell(contentX + 10,                row0Y,
+      "HP",         $pvpWin.pvpConfig.startHp.int,
+      pvpWin.pvpConfig.startHp > 1.0, pvpWin.pvpConfig.startHp < 20.0)
+    drawStatCell(contentX + 10 + colW,        row0Y,
+      "KILL LIMIT",  $pvpWin.pvpConfig.killLimit,
+      pvpWin.pvpConfig.killLimit > 1, pvpWin.pvpConfig.killLimit < 30)
+    drawStatCell(contentX + 10 + colW * 2,    row0Y,
+      "RESPAWN (s)",
+      if pvpWin.pvpConfig.respawnTime == 0.0: "OFF"
+      else: pvpWin.pvpConfig.respawnTime.formatFloat(ffDecimal, 1),
+      pvpWin.pvpConfig.respawnTime > 0.0, pvpWin.pvpConfig.respawnTime < 15.0)
+
+    # Row 1: Speed | Damage | Fire Rate
+    drawStatCell(contentX + 10,                row1Y,
+      "SPEED",       $pvpWin.pvpConfig.startSpeed.int,
+      pvpWin.pvpConfig.startSpeed > 75.0, pvpWin.pvpConfig.startSpeed < 400.0)
+    drawStatCell(contentX + 10 + colW,        row1Y,
+      "DAMAGE",      pvpWin.pvpConfig.startDamage.formatFloat(ffDecimal, 1),
+      pvpWin.pvpConfig.startDamage > 0.5, pvpWin.pvpConfig.startDamage < 10.0)
+    drawStatCell(contentX + 10 + colW * 2,    row1Y,
+      "FIRE RATE (s)",
+      pvpWin.pvpConfig.fireRate.formatFloat(ffDecimal, 2),
+      pvpWin.pvpConfig.fireRate > 0.10, pvpWin.pvpConfig.fireRate < 1.50)
+
+    # Row 2: Bullet Speed | Bullet Radius | Start Walls
+    let row2Y = baseStatY + 92
+    drawStatCell(contentX + 10,                row2Y,
+      "BULLET SPEED",  $pvpWin.pvpConfig.bulletSpeed.int,
+      pvpWin.pvpConfig.bulletSpeed > 100.0, pvpWin.pvpConfig.bulletSpeed < 800.0)
+    drawStatCell(contentX + 10 + colW,        row2Y,
+      "BULLET RADIUS",  pvpWin.pvpConfig.bulletRadius.formatFloat(ffDecimal, 1),
+      pvpWin.pvpConfig.bulletRadius > 3.0, pvpWin.pvpConfig.bulletRadius < 25.0)
+    drawStatCell(contentX + 10 + colW * 2,    row2Y,
+      "START WALLS",   $pvpWin.pvpConfig.startWalls,
+      pvpWin.pvpConfig.startWalls > 0, pvpWin.pvpConfig.startWalls < 10)
+
+    # ── END GAME STATS ─────────────────────────────────────────────────────────
+
     # Buttons
     let startBX = contentX + (contentWidth - 250) div 2
     let startBY = contentY + contentHeight - 118
@@ -1199,6 +1286,48 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
            mousePos.y >= tbY.float32 and mousePos.y <= (tbY + 32).float32:
           pvpWin.numTeams = tc
           return 0
+
+    # ── GAME STATS click handling ──────────────────────────────────────────────
+    let colWc = (contentWidth - 20) div 3
+    let row0Yc = contentY + 422
+    let row1Yc = row0Yc + 46
+    let mx = mousePos.x
+    let my = mousePos.y
+
+    template statClick(cx, cy: int, val: var float32, step, minVal, maxVal: float32) =
+      let ctrlY = cy + 15
+      if mx >= cx.float32 and mx <= (cx + 22).float32 and
+         my >= ctrlY.float32 and my <= (ctrlY + 22).float32:
+        val = max(minVal, val - step)
+      let plusXt = cx + colWc - 24
+      if mx >= plusXt.float32 and mx <= (plusXt + 22).float32 and
+         my >= ctrlY.float32 and my <= (ctrlY + 22).float32:
+        val = min(maxVal, val + step)
+
+    template statClickInt(cx, cy: int, val: var int, step, minVal, maxVal: int) =
+      let ctrlYi = cy + 15
+      if mx >= cx.float32 and mx <= (cx + 22).float32 and
+         my >= ctrlYi.float32 and my <= (ctrlYi + 22).float32:
+        val = max(minVal, val - step)
+      let plusXi = cx + colWc - 24
+      if mx >= plusXi.float32 and mx <= (plusXi + 22).float32 and
+         my >= ctrlYi.float32 and my <= (ctrlYi + 22).float32:
+        val = min(maxVal, val + step)
+
+    # Row 0: HP | Kill Limit | Respawn
+    statClick(contentX + 10,             row0Yc, pvpWin.pvpConfig.startHp,     1.0, 1.0, 20.0)
+    statClickInt(contentX + 10 + colWc,  row0Yc, pvpWin.pvpConfig.killLimit,   1,   1,   30)
+    statClick(contentX + 10 + colWc * 2, row0Yc, pvpWin.pvpConfig.respawnTime, 0.5, 0.0, 15.0)
+    # Row 1: Speed | Damage | Fire Rate
+    statClick(contentX + 10,             row1Yc, pvpWin.pvpConfig.startSpeed,  25.0, 75.0,  400.0)
+    statClick(contentX + 10 + colWc,     row1Yc, pvpWin.pvpConfig.startDamage, 0.5,  0.5,   10.0)
+    statClick(contentX + 10 + colWc * 2, row1Yc, pvpWin.pvpConfig.fireRate,    0.05, 0.10,  1.50)
+    # Row 2: Bullet Speed | Bullet Radius | Start Walls
+    let row2Yc = row1Yc + 46
+    statClick(contentX + 10,             row2Yc, pvpWin.pvpConfig.bulletSpeed,  25.0, 100.0, 800.0)
+    statClick(contentX + 10 + colWc,     row2Yc, pvpWin.pvpConfig.bulletRadius,  0.5,   3.0,  25.0)
+    statClickInt(contentX + 10 + colWc * 2, row2Yc, pvpWin.pvpConfig.startWalls, 1, 0, 10)
+    # ── END GAME STATS click handling ──────────────────────────────────────────
 
     let startBX = contentX + (contentWidth - 250) div 2
     let startBY = contentY + contentHeight - 118
