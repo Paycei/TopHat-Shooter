@@ -1183,16 +1183,63 @@ proc drawEnemy*(enemy: Enemy) =
   else:
     case enemy.enemyType
     of etCircle:
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius, Black)
+      let t = getTime()
+      let pulse = sin(t * 2.5) * 0.5 + 0.5
+      let cx = enemy.pos.x
+      let cy = enemy.pos.y
+      let r  = enemy.radius
+      # Soft outer glow
+      drawCircle(Vector2(x: cx, y: cy), r + 7 + pulse * 3,
+                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: uint8(30 + pulse * 25)))
+      # Main body
+      drawCircle(Vector2(x: cx, y: cy), r, enemy.color)
+      # Dark-tinted rim (same hue, much darker — no white)
+      drawCircleLines(cx.int32, cy.int32, r,
+                     Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
+      # Inner concentric ring for depth
+      drawCircleLines(cx.int32, cy.int32, r * 0.55,
+                     Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 120))
+      # Bright core dot — keep white, it's a tiny accent not an outline
+      drawCircle(Vector2(x: cx, y: cy), r * 0.20,
+                Color(r: 255, g: 255, b: 255, a: 200))
     
     of etCube:
-      # Use radius directly, not 1.4x multiplier
-      let size = enemy.radius
-      drawRectangle((enemy.pos.x - size).int32, (enemy.pos.y - size).int32,
-                    (size * 2).int32, (size * 2).int32, enemy.color)
-      drawRectangleLines((enemy.pos.x - size).int32, (enemy.pos.y - size).int32,
-                         (size * 2).int32, (size * 2).int32, Black)
+      let s  = enemy.radius
+      let cx = enemy.pos.x
+      let cy = enemy.pos.y
+      # Soft glow halo
+      drawCircle(Vector2(x: cx, y: cy), s + 9,
+                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
+      # Main filled square
+      drawRectangle((cx - s).int32, (cy - s).int32,
+                    (s * 2).int32, (s * 2).int32, enemy.color)
+      # Crisp dark border (hue-matched, not white)
+      drawRectangleLines((cx - s).int32, (cy - s).int32,
+                         (s * 2).int32, (s * 2).int32,
+                         Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
+      # Inner X cross — "gun turret" visual cue for ranged attacker
+      drawLine(Vector2(x: cx - s * 0.55, y: cy - s * 0.55),
+               Vector2(x: cx + s * 0.55, y: cy + s * 0.55), 2,
+               Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 160))
+      drawLine(Vector2(x: cx + s * 0.55, y: cy - s * 0.55),
+               Vector2(x: cx - s * 0.55, y: cy + s * 0.55), 2,
+               Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 160))
+      # Inner square (rotated 45°) drawn as diamond for extra detail
+      let d = s * 0.42
+      drawLine(Vector2(x: cx, y: cy - d), Vector2(x: cx + d, y: cy), 2,
+               Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 130))
+      drawLine(Vector2(x: cx + d, y: cy), Vector2(x: cx, y: cy + d), 2,
+               Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 130))
+      drawLine(Vector2(x: cx, y: cy + d), Vector2(x: cx - d, y: cy), 2,
+               Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 130))
+      drawLine(Vector2(x: cx - d, y: cy), Vector2(x: cx, y: cy - d), 2,
+               Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 130))
+      # Corner accent circles — bright white, tiny, feels like rivets
+      let cs = s * 0.14
+      for ox, oy in [(-(s-cs), -(s-cs)), ((s-cs), -(s-cs)),
+                     ((s-cs),  (s-cs)),  (-(s-cs),  (s-cs))].items:
+        drawCircle(Vector2(x: cx + ox, y: cy + oy), cs,
+                  Color(r: 255, g: 255, b: 255, a: 180))
     
     of etTriangle:
       if enemy.dashTimer > 1.5:
@@ -1210,7 +1257,19 @@ proc drawEnemy*(enemy: Enemy) =
       let v2 = Vector2(x: enemy.pos.x - enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
       let v3 = Vector2(x: enemy.pos.x + enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
       drawTriangle(v1, v2, v3, enemy.color)
-      drawTriangleLines(v1, v2, v3, Black)
+      # Dark hue-matched outline instead of white
+      drawTriangleLines(v1, v2, v3,
+                       Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
+      # Inner triangle for depth — slightly lighter than the dark outline
+      let is2 = 0.48
+      let iv1 = Vector2(x: enemy.pos.x, y: enemy.pos.y - enemy.radius * is2)
+      let iv2 = Vector2(x: enemy.pos.x - enemy.radius * 0.87 * is2, y: enemy.pos.y + enemy.radius * 0.5 * is2)
+      let iv3 = Vector2(x: enemy.pos.x + enemy.radius * 0.87 * is2, y: enemy.pos.y + enemy.radius * 0.5 * is2)
+      drawTriangleLines(iv1, iv2, iv3,
+                       Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 130))
+      # Center core dot — tiny white accent, not an outline
+      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y + enemy.radius * 0.12),
+                enemy.radius * 0.14, Color(r: 255, g: 255, b: 255, a: 200))
       if enemy.dashTimer < 0.5 and enemy.dashTimer > 0:
         let chargePercent = 1.0 - (enemy.dashTimer / 0.5)
         let glowIntensity = uint8(chargePercent * 200)
@@ -1218,58 +1277,99 @@ proc drawEnemy*(enemy: Enemy) =
                   Color(r: 255'u8, g: 100'u8, b: 255'u8, a: glowIntensity))
     
     of etStar:
-      # Subtle pulsing glow animation
-      let pulseIntensity = sin(getTime() * 3.0) * 0.3 + 0.5  # Smooth pulse between 0.5-0.8
-      let glowAlpha = uint8(pulseIntensity * 80)  # Max 64 alpha (was much higher)
-      
-      # Multiple glow layers for softer effect
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 12,
-                Color(r: 255'u8, g: 215'u8, b: 0'u8, a: glowAlpha))
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 6,
-                Color(r: 255'u8, g: 215'u8, b: 0'u8, a: uint8(glowAlpha.float32 * 1.5)))
-      
+      let t  = getTime()
+      let cx = enemy.pos.x
+      let cy = enemy.pos.y
+      let r  = enemy.radius
+      let pulseIntensity = sin(t * 3.0) * 0.3 + 0.5
+
+      # Outer glow layers
+      drawCircle(Vector2(x: cx, y: cy), r + 14,
+                Color(r: 255'u8, g: 215'u8, b: 0'u8, a: uint8(pulseIntensity * 50)))
+      drawCircle(Vector2(x: cx, y: cy), r + 7,
+                Color(r: 255'u8, g: 215'u8, b: 0'u8, a: uint8(pulseIntensity * 80)))
+
       # Dash charge indicator (overrides normal glow when charging)
       if enemy.dashCooldown < 0.5:
         let chargePercent = 1.0 - (enemy.dashCooldown / 0.5)
-        let chargeGlow = uint8(chargePercent * 150)
-        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 8,
+        let chargeGlow = uint8(chargePercent * 160)
+        drawCircle(Vector2(x: cx, y: cy), r + 9,
                   Color(r: 255'u8, g: 200'u8, b: 0'u8, a: chargeGlow))
-      
-      # Draw star shape
+
+      # Draw filled star using triangle fan (10 segments alternating outer/inner)
       let points = 5
-      for i in 0..<points*2:
-        let angle = i.float32 * PI / points.float32
-        let r = if i mod 2 == 0: enemy.radius else: enemy.radius * 0.5
-        let x = enemy.pos.x + cos(angle) * r
-        let y = enemy.pos.y + sin(angle) * r
-        if i == 0:
-          continue
-        let prevAngle = (i-1).float32 * PI / points.float32
-        let prevR = if (i-1) mod 2 == 0: enemy.radius else: enemy.radius * 0.5
-        let prevX = enemy.pos.x + cos(prevAngle) * prevR
-        let prevY = enemy.pos.y + sin(prevAngle) * prevR
-        drawLine(Vector2(x: prevX, y: prevY), Vector2(x: x, y: y), 2, enemy.color)
-      
-      # Hit counter
+      let innerR = r * 0.42
+      for i in 0..<points * 2:
+        let a0 = i.float32       * PI / points.float32 - PI / 2.0
+        let a1 = (i + 1).float32 * PI / points.float32 - PI / 2.0
+        let r0 = if i mod 2 == 0: r else: innerR
+        let r1 = if (i + 1) mod 2 == 0: r else: innerR
+        let p0 = Vector2(x: cx + cos(a0) * r0, y: cy + sin(a0) * r0)
+        let p1 = Vector2(x: cx + cos(a1) * r1, y: cy + sin(a1) * r1)
+        drawTriangle(p0, p1, Vector2(x: cx, y: cy), enemy.color)
+
+      # Star outline — dark golden, not white
+      for i in 0..<points * 2:
+        let a0 = i.float32       * PI / points.float32 - PI / 2.0
+        let a1 = (i + 1).float32 * PI / points.float32 - PI / 2.0
+        let r0 = if i mod 2 == 0: r else: innerR
+        let r1 = if (i + 1) mod 2 == 0: r else: innerR
+        drawLine(Vector2(x: cx + cos(a0) * r0, y: cy + sin(a0) * r0),
+                 Vector2(x: cx + cos(a1) * r1, y: cy + sin(a1) * r1),
+                 2, Color(r: 255, g: 200, b: 0, a: 220))
+
+      # Bright center core
+      drawCircle(Vector2(x: cx, y: cy), r * 0.20,
+                Color(r: 255, g: 255, b: 255, a: 230))
+
+      # Hit counter — white text on small dark pill
       let remaining = enemy.requiredHits - enemy.hitCount
       let text = $remaining
       let textWidth = measureText(text, 14)
-      drawText(text, (enemy.pos.x - textWidth / 2).int32, (enemy.pos.y - 7).int32, 14, Black)
+      drawCircle(Vector2(x: cx, y: cy), r * 0.28,
+                Color(r: 0, g: 0, b: 0, a: 160))
+      drawText(text, (cx - textWidth / 2).int32, (cy - 7).int32, 14,
+               Color(r: 255, g: 255, b: 255, a: 240))
     
     of etHexagon:
-      let points = 6
-      for i in 0..<points:
-        let angle = i.float32 * PI / 3.0
-        let nextAngle = (i + 1).float32 * PI / 3.0
-        let x1 = enemy.pos.x + cos(angle) * enemy.radius
-        let y1 = enemy.pos.y + sin(angle) * enemy.radius
-        let x2 = enemy.pos.x + cos(nextAngle) * enemy.radius
-        let y2 = enemy.pos.y + sin(nextAngle) * enemy.radius
-        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
+      let t   = getTime()
+      let cx  = enemy.pos.x
+      let cy  = enemy.pos.y
+      let r   = enemy.radius
+      let rot = t * 0.35  # slow rotation
+      # Soft outer glow
+      drawCircle(Vector2(x: cx, y: cy), r + 8,
+                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
+      # Outer hexagon (slowly rotating)
+      for i in 0..<6:
+        let a0 = i.float32       * PI / 3.0 + rot
+        let a1 = (i + 1).float32 * PI / 3.0 + rot
+        drawLine(Vector2(x: cx + cos(a0) * r,       y: cy + sin(a0) * r),
+                 Vector2(x: cx + cos(a1) * r,       y: cy + sin(a1) * r),
+                 3, enemy.color)
+      # Inner hexagon (counter-rotating, 60° offset)
+      let ir = r * 0.52
+      for i in 0..<6:
+        let a0 = i.float32       * PI / 3.0 - rot + PI / 6.0
+        let a1 = (i + 1).float32 * PI / 3.0 - rot + PI / 6.0
+        drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
+                 Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
+                 2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 180))
+      # 6 spokes: outer vertex → inner vertex
+      for i in 0..<6:
+        let ao = i.float32 * PI / 3.0 + rot
+        let ai = i.float32 * PI / 3.0 - rot + PI / 6.0
+        drawLine(Vector2(x: cx + cos(ao) * r,  y: cy + sin(ao) * r),
+                 Vector2(x: cx + cos(ai) * ir, y: cy + sin(ai) * ir),
+                 1, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 90))
+      # Bright center core — tinted, not raw white
+      drawCircle(Vector2(x: cx, y: cy), r * 0.18,
+                Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 230))
+      # Teleport blink warning
       if enemy.hexTeleportTimer < 0.5:
-        let glowAlpha = ((enemy.hexTeleportTimer * 4.0).int mod 2) * 150
-        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 5,
-                  Color(r: 255, g: 255, b: 0, a: glowAlpha.uint8))
+        let blinkAlpha = uint8(((sin(getTime() * 30.0) * 0.5 + 0.5)) * 180)
+        drawCircleLines(cx.int32, cy.int32, r + 5,
+                       Color(r: 255, g: 255, b: 0, a: blinkAlpha))
     
     of etCross:
       # Draw cross shape with rotation support
@@ -1346,76 +1446,159 @@ proc drawEnemy*(enemy: Enemy) =
                   Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: trailAlpha))
     
     of etDiamond:
-      # Draw diamond shape
-      let v1 = Vector2(x: enemy.pos.x, y: enemy.pos.y - enemy.radius)
-      let v2 = Vector2(x: enemy.pos.x + enemy.radius, y: enemy.pos.y)
-      let v3 = Vector2(x: enemy.pos.x, y: enemy.pos.y + enemy.radius)
-      let v4 = Vector2(x: enemy.pos.x - enemy.radius, y: enemy.pos.y)
-      drawLine(v1, v2, 3, enemy.color)
-      drawLine(v2, v3, 3, enemy.color)
-      drawLine(v3, v4, 3, enemy.color)
-      drawLine(v4, v1, 3, enemy.color)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3, enemy.color)
-      # Dash indicator
+      let cx = enemy.pos.x
+      let cy = enemy.pos.y
+      let r  = enemy.radius
+      # Soft glow halo
+      drawCircle(Vector2(x: cx, y: cy), r + 8,
+                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 30))
+      # Filled diamond (two triangles)
+      drawTriangle(Vector2(x: cx,     y: cy - r),
+                   Vector2(x: cx + r, y: cy),
+                   Vector2(x: cx - r, y: cy), enemy.color)
+      drawTriangle(Vector2(x: cx + r, y: cy),
+                   Vector2(x: cx,     y: cy + r),
+                   Vector2(x: cx - r, y: cy), enemy.color)
+      # Dark hue-matched outline (not white)
+      let dv1 = Vector2(x: cx,     y: cy - r)
+      let dv2 = Vector2(x: cx + r, y: cy)
+      let dv3 = Vector2(x: cx,     y: cy + r)
+      let dv4 = Vector2(x: cx - r, y: cy)
+      drawLine(dv1, dv2, 2, Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
+      drawLine(dv2, dv3, 2, Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
+      drawLine(dv3, dv4, 2, Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
+      drawLine(dv4, dv1, 2, Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
+      # Inner diamond for depth — mid-tone hue
+      let ir = r * 0.45
+      let iv1 = Vector2(x: cx,      y: cy - ir)
+      let iv2 = Vector2(x: cx + ir, y: cy)
+      let iv3 = Vector2(x: cx,      y: cy + ir)
+      let iv4 = Vector2(x: cx - ir, y: cy)
+      drawLine(iv1, iv2, 1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 150))
+      drawLine(iv2, iv3, 1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 150))
+      drawLine(iv3, iv4, 1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 150))
+      drawLine(iv4, iv1, 1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 150))
+      # Tinted center core
+      drawCircle(Vector2(x: cx, y: cy), r * 0.18,
+                Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 220))
+      # Dash charge indicator
       if enemy.dashCooldown < 0.5:
-        let glowAlpha = ((enemy.dashCooldown * 6.0).int mod 2) * 150 + 50
-        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 6,
-                  Color(r: 0, g: 255, b: 255, a: glowAlpha.uint8))
+        let chargePercent = 1.0 - (enemy.dashCooldown / 0.5)
+        let glowIntensity = uint8(chargePercent * 180)
+        drawCircleLines(cx.int32, cy.int32, r + 7,
+                       Color(r: 0, g: 255, b: 255, a: glowIntensity))
     
     of etOctagon:
-      # Draw octagon
-      let points = 8
-      for i in 0..<points:
-        let angle = i.float32 * PI / 4.0
-        let nextAngle = (i + 1).float32 * PI / 4.0
-        let x1 = enemy.pos.x + cos(angle) * enemy.radius
-        let y1 = enemy.pos.y + sin(angle) * enemy.radius
-        let x2 = enemy.pos.x + cos(nextAngle) * enemy.radius
-        let y2 = enemy.pos.y + sin(nextAngle) * enemy.radius
-        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.4, enemy.color)
-      # Constant firing glow
-      let fireGlow = uint8((sin(getTime() * 10.0) * 0.3 + 0.7) * 100)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 4,
+      let t  = getTime()
+      let cx = enemy.pos.x
+      let cy = enemy.pos.y
+      let r  = enemy.radius
+      # Soft glow
+      drawCircle(Vector2(x: cx, y: cy), r + 7,
+                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
+      # Outer octagon
+      for i in 0..<8:
+        let a0 = i.float32       * PI / 4.0
+        let a1 = (i + 1).float32 * PI / 4.0
+        drawLine(Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
+                 Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
+                 3, enemy.color)
+      # Inner octagon (45° offset, counter-rotating slightly)
+      let ir  = r * 0.52
+      let rot = t * 0.4
+      for i in 0..<8:
+        let a0 = i.float32       * PI / 4.0 + PI / 8.0 + rot
+        let a1 = (i + 1).float32 * PI / 4.0 + PI / 8.0 + rot
+        drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
+                 Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
+                 2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 180))
+      # 8 radial spokes: center → outer vertex — dark-tinted, not white
+      for i in 0..<8:
+        let a = i.float32 * PI / 4.0
+        drawLine(Vector2(x: cx, y: cy),
+                 Vector2(x: cx + cos(a) * r * 0.48, y: cy + sin(a) * r * 0.48),
+                 1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 100))
+      # Tinted center core
+      drawCircle(Vector2(x: cx, y: cy), r * 0.20,
+                Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 220))
+      # Rapid-fire pulsing ring
+      let fireGlow = uint8((sin(t * 10.0) * 0.35 + 0.65) * 110)
+      drawCircleLines(cx.int32, cy.int32, r + 4,
                      Color(r: 255, g: 255, b: 0, a: fireGlow))
     
     of etPentagon:
-      # Draw pentagon
-      let points = 5
-      for i in 0..<points:
-        let angle = i.float32 * PI * 2.0 / 5.0 - PI / 2.0
-        let nextAngle = (i + 1).float32 * PI * 2.0 / 5.0 - PI / 2.0
-        let x1 = enemy.pos.x + cos(angle) * enemy.radius
-        let y1 = enemy.pos.y + sin(angle) * enemy.radius
-        let x2 = enemy.pos.x + cos(nextAngle) * enemy.radius
-        let y2 = enemy.pos.y + sin(nextAngle) * enemy.radius
-        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3, enemy.color)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.35, enemy.color)
+      let t  = getTime()
+      let cx = enemy.pos.x
+      let cy = enemy.pos.y
+      let r  = enemy.radius
+      # Soft outer glow
+      drawCircle(Vector2(x: cx, y: cy), r + 8,
+                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
+      # Outer pentagon
+      for i in 0..<5:
+        let a0 = i.float32       * PI * 2.0 / 5.0 - PI / 2.0
+        let a1 = (i + 1).float32 * PI * 2.0 / 5.0 - PI / 2.0
+        drawLine(Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
+                 Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
+                 3, enemy.color)
+      # Inner pentagon (rotated 36°, slower)
+      let ir  = r * 0.50
+      let rot = t * 0.3
+      for i in 0..<5:
+        let a0 = i.float32       * PI * 2.0 / 5.0 + rot
+        let a1 = (i + 1).float32 * PI * 2.0 / 5.0 + rot
+        drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
+                 Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
+                 2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 180))
+      # 5 spokes from center to outer vertices — dark-tinted
+      for i in 0..<5:
+        let a = i.float32 * PI * 2.0 / 5.0 - PI / 2.0
+        drawLine(Vector2(x: cx, y: cy),
+                 Vector2(x: cx + cos(a) * r * 0.50, y: cy + sin(a) * r * 0.50),
+                 1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 100))
+      # Tinted center core
+      drawCircle(Vector2(x: cx, y: cy), r * 0.18,
+                Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 220))
       # Charge-up glow when about to fire
       if enemy.shootTimer > 2.0:
         let chargePercent = (enemy.shootTimer - 2.0) / 0.5
         let glowIntensity = uint8(chargePercent * 200)
-        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 7,
+        drawCircle(Vector2(x: cx, y: cy), r + 7,
                   Color(r: 0, g: 255, b: 150, a: glowIntensity))
     
     of etTrickster:
-      # Draw trickster with deceptive appearance
+      let t  = getTime()
+      let cx = enemy.pos.x
+      let cy = enemy.pos.y
+      let r  = enemy.radius
+      let rot = t  # rotates each frame
+      # Outer jagged ring
       let segments = 6
       for i in 0..<segments:
-        let angle = i.float32 * PI * 2.0 / segments.float32 + getTime()
-        let nextAngle = (i + 1).float32 * PI * 2.0 / segments.float32 + getTime()
-        let r = if i mod 2 == 0: enemy.radius * 0.8 else: enemy.radius
-        let nextR = if (i + 1) mod 2 == 0: enemy.radius * 0.8 else: enemy.radius
-        let x1 = enemy.pos.x + cos(angle) * r
-        let y1 = enemy.pos.y + sin(angle) * r
-        let x2 = enemy.pos.x + cos(nextAngle) * nextR
-        let y2 = enemy.pos.y + sin(nextAngle) * nextR
-        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3, enemy.color)
-      # Mysterious pulse
-      let mysterPulse = sin(getTime() * 4.0) * 10 + 15
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + mysterPulse,
-                     Color(r: 255, g: 0, b: 255, a: 100))
+        let a0 = i.float32       * PI * 2.0 / segments.float32 + rot
+        let a1 = (i + 1).float32 * PI * 2.0 / segments.float32 + rot
+        let r0 = if i mod 2 == 0: r else: r * 0.78
+        let r1 = if (i + 1) mod 2 == 0: r else: r * 0.78
+        drawLine(Vector2(x: cx + cos(a0) * r0, y: cy + sin(a0) * r0),
+                 Vector2(x: cx + cos(a1) * r1, y: cy + sin(a1) * r1),
+                 2, enemy.color)
+      # Inner counter-rotating smooth hexagon
+      for i in 0..<6:
+        let a0 = i.float32       * PI / 3.0 - rot * 0.6
+        let a1 = (i + 1).float32 * PI / 3.0 - rot * 0.6
+        let ir = r * 0.48
+        drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
+                 Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
+                 2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 160))
+      # Filled center
+      drawCircle(Vector2(x: cx, y: cy), r * 0.32, enemy.color)
+      # Tinted core — not white
+      drawCircle(Vector2(x: cx, y: cy), r * 0.16,
+                Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 220))
+      # Mysterious outer pulse ring
+      let mysterPulse = sin(t * 4.0) * 10 + 15
+      drawCircleLines(cx.int32, cy.int32, r + mysterPulse,
+                     Color(r: 255, g: 0, b: 255, a: 80))
     
     of etSniper:
       # Draw sniper with charging visualization
@@ -1461,73 +1644,176 @@ proc drawEnemy*(enemy: Enemy) =
                        Color(r: 255, g: 150, b: 255, a: 100))
     
     of etPhantom:
-      # Draw phantom with transparency
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
-      # Fade effect
-      let fadeRing = sin(getTime() * 3.0) * 8 + 12
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + fadeRing,
-                     Color(r: 150, g: 150, b: 255, a: 120))
-      # Draw fake clones
+      let t  = getTime()
+      let cx = enemy.pos.x
+      let cy = enemy.pos.y
+      let r  = enemy.radius
+      # Pulsing translucent fill (ghost body — not fully solid)
+      let bodyAlpha = uint8(140 + sin(t * 2.0) * 30)
+      drawCircle(Vector2(x: cx, y: cy), r,
+                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: bodyAlpha))
+      # Outer wispy ring — fades in and out
+      let wispAlpha = uint8((sin(t * 1.5) * 0.4 + 0.6) * 90)
+      drawCircleLines(cx.int32, cy.int32, r + 6,
+                     Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: wispAlpha))
+      # Inner concentric rings (ghostly depth)
+      drawCircleLines(cx.int32, cy.int32, r * 0.65,
+                     Color(r: 180, g: 180, b: 255, a: uint8(60 + sin(t * 3.0) * 30)))
+      drawCircleLines(cx.int32, cy.int32, r * 0.35,
+                     Color(r: 200, g: 200, b: 255, a: uint8(80 + sin(t * 4.5) * 30)))
+      # Dim center dot (almost invisible — ghost-like)
+      drawCircle(Vector2(x: cx, y: cy), r * 0.14,
+                Color(r: 240, g: 240, b: 255, a: 180))
+      # Trailing fade ring
+      let fadeRing = sin(t * 3.0) * 8 + 12
+      drawCircleLines(cx.int32, cy.int32, r + fadeRing,
+                     Color(r: 150, g: 150, b: 255, a: 60))
+      # Draw fake clones (kept from original)
       for clonePos in enemy.clonePositions:
-        let cloneAlpha = uint8((sin(getTime() * 5.0) * 0.5 + 0.5) * 120)
-        drawCircle(Vector2(x: clonePos.x, y: clonePos.y), enemy.radius * 0.7,
+        let cloneAlpha = uint8((sin(t * 5.0) * 0.5 + 0.5) * 100)
+        drawCircle(Vector2(x: clonePos.x, y: clonePos.y), r * 0.7,
                   Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: cloneAlpha))
+        drawCircleLines(clonePos.x.int32, clonePos.y.int32, r * 0.7,
+                       Color(r: 200, g: 200, b: 255, a: uint8(cloneAlpha.float32 * 0.6)))
     
     of etMage:
-      # Draw mage with magical floating effect
-      # Floating animation (vertical bob)
-      let floatOffset = sin(getTime() * 2.0) * 4.0
-      let centerY = enemy.pos.y + floatOffset
-      
-      # Magical aura (outer glow)
-      let auraRadius = enemy.radius + 8
-      let auraPulse = (sin(getTime() * 4.0) * 0.3 + 0.7)
-      drawCircle(Vector2(x: enemy.pos.x, y: centerY), auraRadius,
-                Color(r: 138, g: 43, b: 226, a: uint8(60 * auraPulse)))
-      
-      # Main body (purple circle)
-      drawCircle(Vector2(x: enemy.pos.x, y: centerY), enemy.radius, enemy.color)
-      drawCircleLines(enemy.pos.x.int32, centerY.int32, enemy.radius,
-                     Color(r: 186, g: 85, b: 211, a: 255))
-      
-      # Magic staff/wand (small line extending from body)
-      let staffAngle = getTime() * 1.5
-      let staffLength = enemy.radius * 0.8
-      let staffEndX = enemy.pos.x + cos(staffAngle) * staffLength
-      let staffEndY = centerY + sin(staffAngle) * staffLength
-      drawLine(Vector2(x: enemy.pos.x, y: centerY),
-              Vector2(x: staffEndX, y: staffEndY), 3,
-              Color(r: 200, g: 150, b: 255, a: 255))
-      # Staff orb
-      drawCircle(Vector2(x: staffEndX, y: staffEndY), 4,
-                Color(r: 255, g: 200, b: 255, a: 255))
-      
-      # Orbiting magic runes (3 runes)
+      let t  = getTime()
+      let cx = enemy.pos.x
+      # Gentle vertical bob
+      let cy = enemy.pos.y + sin(t * 2.2) * 3.5
+      let r  = enemy.radius
+
+      # Colours
+      let bodyCol   = enemy.color                                          # base purple
+      let robeCol   = Color(r: bodyCol.r div 2, g: bodyCol.g div 2, b: bodyCol.b div 2, a: 255)
+      let glowCol   = Color(r: uint8(min(255, bodyCol.r.int + 60)), g: uint8(min(255, bodyCol.g.int + 80)), b: 255, a: 180)
+      let accentCol = Color(r: 220, g: 170, b: 255, a: 255)  # lavender highlight
+      let orbCol    = Color(r: 160, g: 255, b: 220, a: 255)  # teal orb
+
+      # Outer magical aura
+      let auraPulse = sin(t * 3.0) * 0.4 + 0.6
+      drawCircle(Vector2(x: cx, y: cy), r + 16 + auraPulse * 5,
+                Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: uint8(22 * auraPulse)))
+      drawCircle(Vector2(x: cx, y: cy), r + 9 + auraPulse * 3,
+                Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: uint8(38 * auraPulse)))
+
+      # Robe body (filled circle, slightly larger at bottom)
+      # Bottom robe hem — slightly wider oval hint via two offset circles
+      drawCircle(Vector2(x: cx, y: cy + r * 0.15), r * 0.88, robeCol)
+      # Main body
+      drawCircle(Vector2(x: cx, y: cy), r, bodyCol)
+      # Robe hem dark edge (no white — dark tinted border)
+      drawCircleLines(cx.int32, cy.int32, r,
+                     Color(r: robeCol.r, g: robeCol.g, b: robeCol.b, a: 200))
+
+      # Pointy wizard hat
+      # Hat brim: a flattened circle behind the tip
+      let brimY = cy - r * 0.62
+      let brimW = r * 0.78
+      let brimH = r * 0.18
+      # Draw brim as a thin filled ellipse using two triangles
+      for i in 0..<8:
+        let a0 = i.float32       * PI / 4.0
+        let a1 = (i + 1).float32 * PI / 4.0
+        drawTriangle(
+          Vector2(x: cx,                                y: brimY),
+          Vector2(x: cx + cos(a0) * brimW, y: brimY + sin(a0) * brimH),
+          Vector2(x: cx + cos(a1) * brimW, y: brimY + sin(a1) * brimH),
+          robeCol)
+      # Hat cone: triangle pointing upward
+      let hatTipX = cx + sin(t * 0.5) * r * 0.08   # slight sway
+      let hatTipY = cy - r * 1.52
+      let hatBL   = Vector2(x: cx - brimW * 0.72, y: brimY + brimH * 0.3)
+      let hatBR   = Vector2(x: cx + brimW * 0.72, y: brimY + brimH * 0.3)
+      let hatTip  = Vector2(x: hatTipX, y: hatTipY)
+      drawTriangle(hatTip, hatBL, hatBR, bodyCol)
+      # Hat dark border
+      drawLine(hatTip, hatBL, 2, robeCol)
+      drawLine(hatTip, hatBR, 2, robeCol)
+      # Hat brim dark border
+      for i in 0..<8:
+        let a0 = i.float32       * PI / 4.0
+        let a1 = (i + 1).float32 * PI / 4.0
+        drawLine(
+          Vector2(x: cx + cos(a0) * brimW, y: brimY + sin(a0) * brimH),
+          Vector2(x: cx + cos(a1) * brimW, y: brimY + sin(a1) * brimH),
+          2, robeCol)
+      # Hat star badge — tiny 4-pointed star on the cone
+      let badgeX = cx + (hatTipX - cx) * 0.45
+      let badgeY = hatTipY + (brimY - hatTipY) * 0.42
+      let bs = r * 0.11
+      for i in 0..<4:
+        let a = i.float32 * PI / 2.0 + t * 0.8
+        drawLine(Vector2(x: badgeX - cos(a) * bs, y: badgeY - sin(a) * bs),
+                 Vector2(x: badgeX + cos(a) * bs, y: badgeY + sin(a) * bs),
+                 2, Color(r: 255, g: 240, b: 80, a: 230))
+
+      # Staff (orbiting, held to the side)
+      let staffAngle  = -PI * 0.30 + sin(t * 1.1) * 0.12   # mostly up-right, gentle sway
+      let staffLen    = r * 1.55
+      let staffRootX  = cx + cos(staffAngle + PI) * r * 0.35
+      let staffRootY  = cy + sin(staffAngle + PI) * r * 0.35
+      let staffTipX   = staffRootX + cos(staffAngle) * staffLen
+      let staffTipY   = staffRootY + sin(staffAngle) * staffLen
+      # Shaft — two-tone: dark base with bright highlight offset
+      drawLine(Vector2(x: staffRootX, y: staffRootY),
+               Vector2(x: staffTipX,  y: staffTipY), 4, robeCol)
+      drawLine(Vector2(x: staffRootX - 1, y: staffRootY - 1),
+               Vector2(x: staffTipX  - 1, y: staffTipY  - 1), 2, accentCol)
+      # Orb at tip — teal glowing sphere
+      let orbPulse = sin(t * 4.5) * 0.35 + 0.65
+      drawCircle(Vector2(x: staffTipX, y: staffTipY), r * 0.19 + orbPulse * 2,
+                Color(r: orbCol.r, g: orbCol.g, b: orbCol.b, a: uint8(60 * orbPulse)))
+      drawCircle(Vector2(x: staffTipX, y: staffTipY), r * 0.16, orbCol)
+      drawCircle(Vector2(x: staffTipX - r * 0.04, y: staffTipY - r * 0.04),
+                r * 0.06, Color(r: 255, g: 255, b: 255, a: 200))  # specular
+
+      #  3 Orbiting arcane runes
       for i in 0..2:
-        let runeAngle = getTime() * 2.0 + (i.float32 * PI * 2.0 / 3.0)
-        let runeDist = enemy.radius + 12
-        let runeX = enemy.pos.x + cos(runeAngle) * runeDist
-        let runeY = centerY + sin(runeAngle) * runeDist
-        drawCircle(Vector2(x: runeX, y: runeY), 3,
-                  Color(r: 255, g: 150, b: 255, a: 200))
-        # Rune glow
-        drawCircleLines(runeX.int32, runeY.int32, 4,
-                       Color(r: 200, g: 100, b: 255, a: 150))
-      
-      # Magic particles floating upward
-      for i in 0..4:
-        let particleTime = getTime() * 1.5 + i.float32
-        let particleY = centerY - (particleTime mod 20.0) * 2.0
-        let particleX = enemy.pos.x + sin(particleTime) * 8.0
-        let particleAlpha = uint8(255 - ((particleTime mod 20.0) / 20.0) * 255)
-        drawCircle(Vector2(x: particleX, y: particleY), 2,
-                  Color(r: 200, g: 100, b: 255, a: particleAlpha))
-      
-      # Casting indicator when shooting
-      if enemy.shootTimer > 2.0:  # About to shoot
-        let chargeGlow = (sin((enemy.shootTimer - 2.0) * 10.0) * 0.5 + 0.5)
-        drawCircleLines(enemy.pos.x.int32, centerY.int32, enemy.radius + 6,
-                       Color(r: 255, g: 100, b: 255, a: uint8(150 * chargeGlow)))
+        let runeAngle = t * 1.8 + i.float32 * (PI * 2.0 / 3.0)
+        let runeDist  = r + 14
+        let rx = cx + cos(runeAngle) * runeDist
+        let ry = cy + sin(runeAngle) * runeDist
+        # Rune glyph: small 3-line asterisk
+        let rs = r * 0.10
+        for j in 0..<3:
+          let ra = runeAngle + j.float32 * PI / 3.0
+          drawLine(Vector2(x: rx - cos(ra) * rs, y: ry - sin(ra) * rs),
+                   Vector2(x: rx + cos(ra) * rs, y: ry + sin(ra) * rs),
+                   2, accentCol)
+        # Glow dot behind rune
+        drawCircle(Vector2(x: rx, y: ry), r * 0.08,
+                  Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: 120))
+
+      # Rising magic sparks
+      for i in 0..3:
+        let pt   = t * 1.2 + i.float32 * 1.57
+        let age  = pt mod 2.4         # 0..2.4 s lifespan
+        let frac = age / 2.4
+        let spX  = cx + sin(pt * 2.3 + i.float32) * r * 0.55
+        let spY  = cy - r * 0.3 - frac * r * 1.2
+        let spA  = uint8((1.0 - frac) * 180)
+        drawCircle(Vector2(x: spX, y: spY), r * 0.06 * (1.0 - frac * 0.5),
+                  Color(r: orbCol.r, g: orbCol.g, b: orbCol.b, a: spA))
+
+      # Eyes (two small bright dots on the body)
+      let eyeY   = cy - r * 0.15
+      let eyeOff = r * 0.22
+      drawCircle(Vector2(x: cx - eyeOff, y: eyeY), r * 0.09,
+                Color(r: 255, g: 240, b: 80, a: 240))
+      drawCircle(Vector2(x: cx + eyeOff, y: eyeY), r * 0.09,
+                Color(r: 255, g: 240, b: 80, a: 240))
+      # Pupil dots
+      drawCircle(Vector2(x: cx - eyeOff, y: eyeY), r * 0.04,
+                Color(r: 60, g: 20, b: 80, a: 255))
+      drawCircle(Vector2(x: cx + eyeOff, y: eyeY), r * 0.04,
+                Color(r: 60, g: 20, b: 80, a: 255))
+
+      # Casting charge indicator
+      if enemy.shootTimer > 2.0:
+        let chargeGlow = sin((enemy.shootTimer - 2.0) * 10.0) * 0.5 + 0.5
+        drawCircleLines(cx.int32, cy.int32, r + 7,
+                       Color(r: orbCol.r, g: orbCol.g, b: orbCol.b, a: uint8(160 * chargeGlow)))
 
 proc drawAttackWarning*(warning: AttackWarning) =
   let alpha = uint8((warning.lifetime / warning.maxLifetime) * 200)

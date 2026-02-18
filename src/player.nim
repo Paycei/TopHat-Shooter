@@ -165,14 +165,10 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   
   # Scale radius with max HP using square root for diminishing returns
   # Formula: baseRadius + sqrt(maxHp - 7) * scaleFactor
-  # REDUCED: scaleFactor from 2.0 to 1.0 for less dramatic size scaling
-  # At 7 HP (starting): 14 + sqrt(0) * 1 = 14 (same as base)
-  # At 11 HP: 14 + sqrt(4) * 1 = 14 + 2.0 = 16.0 (was 18.0)
-  # At 21 HP: 14 + sqrt(14) * 1 = 14 + 3.74 = 17.74 (was 21.48)
-  let hpAboveBase = max(0.0, player.maxHp - 7.0)
-  player.radius = player.baseRadius + sqrt(hpAboveBase) * 1.0
+  let hpAboveBase = max(0.0, player.maxHp - 7.5)
+  player.radius = player.baseRadius + sqrt(hpAboveBase) * 0.4
   
-  # Scale aura with player radius - MUCH LARGER collection area
+  # Scale aura with player radius - collection area
   player.auraRadius = player.radius * 3.5  # 3.5x player size for generous collection
   
   # Update shield angle for rotating shield power-up
