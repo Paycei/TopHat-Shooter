@@ -36,6 +36,7 @@ type
     placingWall*: bool
     wallPos*: Vector2f
     timestamp*: float32
+    dt*: float32   ## Frame delta-time when this input was captured; needed for accurate replay
 
   PlayerStateNet* = object
     playerIndex*: int

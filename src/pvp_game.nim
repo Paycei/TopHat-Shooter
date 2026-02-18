@@ -1,18 +1,9 @@
 ## PvP Game Mode Logic
 ## Handles multiplayer player vs player combat with optional team support
 
-import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils, localization
+import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils, sequtils, localization
 
 const
-  PVP_PLAYER_START_HP = 3.0  # Reduced HP for faster kills
-  PVP_PLAYER_START_SPEED = 200.0
-  PVP_PLAYER_START_DAMAGE = 1.0
-  PVP_PLAYER_START_FIRE_RATE = 0.375
-  PVP_PLAYER_START_BULLET_SPEED = 425.0
-  PVP_PLAYER_START_COINS = 100
-  PVP_PLAYER_START_WALLS = 3
-  PVP_RESPAWN_TIME = 3.0
-  PVP_KILL_LIMIT* = 5  # First to 5 kills wins (individual or team)
   PVP_TIME_LIMIT = 180.0  # 3 minutes
   SNAPSHOT_RATE = 0.033  # 30 Hz (every 33ms)
   INPUT_SEND_RATE = 0.033  # 30 Hz - match snapshot rate to reduce reconciliation conflicts
@@ -50,7 +41,7 @@ type
     inputBuffer*: seq[PlayerInput]
     lastSnapshotTime*: float32
     lastInputSendTime*: float32
-    pendingInputs*: seq[tuple[tick: int, input: PlayerInput]]  # For reconciliation
+    pendingInputs*: seq[tuple[capturedAt: float32, input: PlayerInput]]  # Unacknowledged inputs for client-side replay
     screenWidth*: int32
     screenHeight*: int32
     bulletIdCounter*: int  # Local bullet ID counter
@@ -70,6 +61,7 @@ type
     interpDelay*: float32  # Render delay for interpolation (in seconds)
     interpolationEnabled*: bool  # Whether interpolation is enabled
     recentlyDestroyedBullets*: seq[int]  # Recently destroyed bullet IDs (to prevent snapshot resurrection)
+    localPosCorrection*: Vector2f  # Accumulated position error, blended per-frame toward zero
     config*: PvPConfig                  # Host-configurable game settings
 
 proc getTeamName*(team: PvPTeam): string =
@@ -304,9 +296,10 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     playerTeamAssignments: playerTeamAssignments,
     # Initialize interpolation
     playerInterpStates: @[],
-    interpDelay: 0.067,  # 67ms interpolation delay (~2 snapshots at 30Hz) - reduced for less latency
+    interpDelay: 0.033,  # 33ms interpolation delay (1 snapshot at 30Hz) — halved from 67ms to match the latency the host sees for the client
     interpolationEnabled: interpolationEnabled,
     recentlyDestroyedBullets: @[],  # Track bullets destroyed to prevent snapshot resurrection
+    localPosCorrection: newVector2f(0, 0),
     config: config
   )
 
@@ -416,7 +409,7 @@ proc startCountdown*(pvp: PvPGameState) =
     packet.pvpConfig = pvp.config
     pvp.networkManager.sendPacket(packet)
 
-proc capturePlayerInput*(pvp: PvPGameState): PlayerInput =
+proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
   var moveDir = newVector2f(0, 0)
   if isKeyDown(W): moveDir.y -= 1
   if isKeyDown(S): moveDir.y += 1
@@ -434,7 +427,8 @@ proc capturePlayerInput*(pvp: PvPGameState): PlayerInput =
     mousePos: newVector2f(getMousePosition().x, getMousePosition().y),
     placingWall: isKeyPressed(E),
     wallPos: newVector2f(getMousePosition().x, getMousePosition().y),
-    timestamp: epochTime()
+    timestamp: epochTime(),
+    dt: dt
   )
 
 proc areTeammates*(pvp: PvPGameState, playerIdx1, playerIdx2: int): bool =
@@ -448,6 +442,27 @@ proc areTeammates*(pvp: PvPGameState, playerIdx1, playerIdx2: int): bool =
   if pvp.players[playerIdx1].teamId == ptNone:
     return false
   return pvp.players[playerIdx1].teamId == pvp.players[playerIdx2].teamId
+
+proc replayMovementInput(pvp: PvPGameState, playerIndex: int, input: PlayerInput) =
+  ## Replay only the movement component of a past input during reconciliation.
+  ## Side-effects (shooting, wall placement) are deliberately skipped to avoid duplicates.
+  if playerIndex < 0 or playerIndex >= pvp.players.len: return
+  let player = pvp.players[playerIndex]
+  if player.hp <= 0: return
+  if input.moveDir.length() > 0:
+    let vel = input.moveDir * player.speed
+    let nextPos = player.pos + vel * input.dt
+    var canMove = true
+    for wall in pvp.walls:
+      if checkPlayerWallCollision(nextPos, player.radius, wall):
+        canMove = false
+        break
+    if canMove:
+      player.pos = nextPos
+    player.pos.x = clamp(player.pos.x, player.radius, pvp.screenWidth.float32 - player.radius)
+    player.pos.y = clamp(player.pos.y, player.radius, pvp.screenHeight.float32 - player.radius)
+  else:
+    player.vel = newVector2f(0, 0)
 
 proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, dt: float32) =
   ## Apply input to a player (used by both client and server)
@@ -481,6 +496,10 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
     # Clamp to screen
     player.pos.x = clamp(player.pos.x, player.radius, pvp.screenWidth.float32 - player.radius)
     player.pos.y = clamp(player.pos.y, player.radius, pvp.screenHeight.float32 - player.radius)
+  else:
+    # Player is not pressing any movement key — zero velocity so snapshots and
+    # extrapolation don't carry a stale direction forward after stopping.
+    player.vel = newVector2f(0, 0)
   
   # Shooting - Only create bullets on the server (host)
   # Clients will receive bullets via ptBulletSpawn packets
@@ -725,6 +744,17 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
   # NOTE: Host does NOT use interpolation for display - host is the server with authoritative state
   # Only clients interpolate remote players to smooth network latency
 
+  # Blend out any accumulated host-side correction every frame (same mechanism as client)
+  let localIdx = pvp.localPlayerIndex
+  if abs(pvp.localPosCorrection.x) > 0.01 or abs(pvp.localPosCorrection.y) > 0.01:
+    let corrRate = min(dt * 15.0, 1.0)
+    pvp.players[localIdx].pos.x += pvp.localPosCorrection.x * corrRate
+    pvp.players[localIdx].pos.y += pvp.localPosCorrection.y * corrRate
+    pvp.localPosCorrection.x *= (1.0 - corrRate)
+    pvp.localPosCorrection.y *= (1.0 - corrRate)
+    if abs(pvp.localPosCorrection.x) < 0.01: pvp.localPosCorrection.x = 0
+    if abs(pvp.localPosCorrection.y) < 0.01: pvp.localPosCorrection.y = 0
+
   # Update respawn timers
   for i in 0..<pvp.players.len:
     # Disconnected players never respawn
@@ -879,22 +909,29 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         pvp.players[i].invincibilityTimer = gameState.players[i].invincibilityTimer
     
     # Reconcile host's own player - TRUST CLIENT PREDICTION
-    # Even the host should trust their local prediction to maintain consistency
+    # Even the host should trust their local prediction to maintain consistency.
+    # Thresholds scale with player speed so fast-moving players don't trigger
+    # constant correction from normal prediction drift.
     if localIdx >= 0 and localIdx < gameState.players.len:
       let serverPos = gameState.players[localIdx].pos
       let clientPos = pvp.players[localIdx].pos
       let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) +
                          (serverPos.y - clientPos.y) * (serverPos.y - clientPos.y))
-      
-      if posDiff > 150.0:
+
+      # Scale thresholds proportionally to speed (baseline 200 px/s)
+      let speedFactor = max(1.0, pvp.players[localIdx].speed / 200.0)
+      let snapThreshold = 150.0 * speedFactor
+      let corrThreshold = 50.0 * speedFactor
+
+      if posDiff > snapThreshold:
         # LARGE desync - snap immediately
         pvp.players[localIdx].pos = serverPos
-      elif posDiff > 50.0:
-        # MEDIUM desync - gentle interpolation
-        let interpSpeed = 0.15
-        pvp.players[localIdx].pos.x = pvp.players[localIdx].pos.x * (1.0 - interpSpeed) + serverPos.x * interpSpeed
-        pvp.players[localIdx].pos.y = pvp.players[localIdx].pos.y * (1.0 - interpSpeed) + serverPos.y * interpSpeed
-      # else: SMALL desync - trust prediction
+        pvp.localPosCorrection = newVector2f(0, 0)
+      elif posDiff > corrThreshold:
+        # MEDIUM desync – accumulate for per-frame blending (replaces old one-shot lerp)
+        pvp.localPosCorrection.x = serverPos.x - pvp.players[localIdx].pos.x
+        pvp.localPosCorrection.y = serverPos.y - pvp.players[localIdx].pos.y
+      # else: SMALL desync - trust prediction completely
       
       # Always update other host data from server
       pvp.players[localIdx].vel = gameState.players[localIdx].vel
@@ -914,6 +951,19 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
   ## Input is now applied immediately in main updatePvP for responsive feel
   ## This function handles additional client-only updates
   pvp.gameTime += dt
+
+  # Smoothly bleed out any accumulated position correction from reconcileState.
+  # Running this every frame (rather than once per snapshot) prevents the
+  # 33ms-interval jitter that the old per-snapshot lerp caused at high speeds.
+  let localIdx = pvp.localPlayerIndex
+  if abs(pvp.localPosCorrection.x) > 0.01 or abs(pvp.localPosCorrection.y) > 0.01:
+    let corrRate = min(dt * 15.0, 1.0)  # ~15 corrections/sec blend rate
+    pvp.players[localIdx].pos.x += pvp.localPosCorrection.x * corrRate
+    pvp.players[localIdx].pos.y += pvp.localPosCorrection.y * corrRate
+    pvp.localPosCorrection.x *= (1.0 - corrRate)
+    pvp.localPosCorrection.y *= (1.0 - corrRate)
+    if abs(pvp.localPosCorrection.x) < 0.01: pvp.localPosCorrection.x = 0
+    if abs(pvp.localPosCorrection.y) < 0.01: pvp.localPosCorrection.y = 0
 
   # Update interpolation for remote players (only if enabled)
   if pvp.interpolationEnabled:
@@ -944,8 +994,15 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
         # Render time is before prev, use prev
         pvp.players[i].pos = interpState.prevPos
       elif t > 1.0:
-        # Render time is after target, use target (no extrapolation to avoid jitter)
-        pvp.players[i].pos = interpState.targetPos
+        # Render time is past the latest snapshot: dead-reckon with velocity.
+        # Cap at 1.5× snapshot interval — enough to cover one late packet without
+        # letting bad extrapolation run wild when the connection is poor.
+        let extraDt = min((t - 1.0) * timeDiff, SNAPSHOT_RATE * 1.5)
+        pvp.players[i].pos.x = interpState.targetPos.x + interpState.targetVel.x * extraDt
+        pvp.players[i].pos.y = interpState.targetPos.y + interpState.targetVel.y * extraDt
+        # Clamp to arena
+        pvp.players[i].pos.x = clamp(pvp.players[i].pos.x, pvp.players[i].radius, pvp.screenWidth.float32 - pvp.players[i].radius)
+        pvp.players[i].pos.y = clamp(pvp.players[i].pos.y, pvp.players[i].radius, pvp.screenHeight.float32 - pvp.players[i].radius)
       else:
         # Interpolate between prev and target
         pvp.players[i].pos.x = interpState.prevPos.x + (interpState.targetPos.x - interpState.prevPos.x) * t
@@ -1053,27 +1110,43 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
         if pvp.playerNicknames[i].len == 0 or pvp.playerNicknames[i] == "P" & $(i + 1):
           pvp.playerNicknames[i] = serverState.players[i].nickname
   
-  # Local player - TRUST CLIENT PREDICTION, only reconcile on large desyncs
-  # The server state is always behind due to network latency, so we avoid
-  # reconciling small differences to prevent stuttering/rubber-banding
+  # Local player - TRUST CLIENT PREDICTION, only reconcile on large desyncs.
+  # After applying the server's authoritative position we re-apply any inputs
+  # the server hasn't seen yet (client-side prediction replay), so the player
+  # stays responsive and doesn't rubber-band at high speeds.
   let serverPos = serverState.players[localIdx].pos
   let clientPos = pvp.players[localIdx].pos
   
-  # Calculate position difference
   let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) +
                      (serverPos.y - clientPos.y) * (serverPos.y - clientPos.y))
-  
-  if posDiff > 150.0:
-    # LARGE desync (>150 pixels) - snap immediately to fix severe issues
+
+  # Scale thresholds proportionally to speed (baseline 200 px/s)
+  let speedFactor = max(1.0, pvp.players[localIdx].speed / 200.0)
+  let snapThreshold = 150.0 * speedFactor
+  let corrThreshold = 50.0 * speedFactor
+
+  if posDiff > snapThreshold:
+    # LARGE desync - snap immediately to fix severe issues, clear pending correction
     pvp.players[localIdx].pos = serverPos
-  elif posDiff > 50.0:
-    # MEDIUM desync (50-150 pixels) - gentle interpolation
-    # This handles gradual drift without stuttering
-    let interpSpeed = 0.15  # Slow, gentle correction
-    pvp.players[localIdx].pos.x = pvp.players[localIdx].pos.x * (1.0 - interpSpeed) + serverPos.x * interpSpeed
-    pvp.players[localIdx].pos.y = pvp.players[localIdx].pos.y * (1.0 - interpSpeed) + serverPos.y * interpSpeed
-  # else: SMALL desync (<50 pixels) - trust client prediction completely
-  # This prevents stuttering from normal network latency
+    pvp.localPosCorrection = newVector2f(0, 0)
+  elif posDiff > corrThreshold:
+    # MEDIUM desync – accumulate the full error into localPosCorrection so that
+    # updatePvPClient can bleed it out smoothly every frame instead of jumping.
+    # This replaces the old one-shot per-snapshot lerp that caused jitter.
+    pvp.localPosCorrection.x = serverPos.x - pvp.players[localIdx].pos.x
+    pvp.localPosCorrection.y = serverPos.y - pvp.players[localIdx].pos.y
+  # else: SMALL desync - trust client prediction completely
+
+  # Replay unacknowledged inputs (movement only) so the client stays ahead of
+  # the acknowledged server position rather than snapping backward.
+  # Keep inputs captured AFTER the server snapshot was taken.
+  var replayCount = 0
+  for pending in pvp.pendingInputs:
+    if pending.capturedAt > serverState.timestamp:
+      replayMovementInput(pvp, localIdx, pending.input)
+      inc replayCount
+  # Discard inputs the server has already processed
+  pvp.pendingInputs = pvp.pendingInputs.filterIt(it.capturedAt > serverState.timestamp)
   
   # Always update all other data from server
   pvp.players[localIdx].vel = serverState.players[localIdx].vel
@@ -1473,7 +1546,7 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
     return
   
   # Capture input every frame
-  let input = capturePlayerInput(pvp)
+  let input = capturePlayerInput(pvp, dt)
 
   # Server will reconcile with authoritative state for both players
   applyPlayerInput(pvp, pvp.localPlayerIndex, input, dt)
@@ -1486,11 +1559,17 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
     if pvp.localPlayerIndex >= 0 and pvp.localPlayerIndex < pvp.lastInputs.len:
       pvp.lastInputs[pvp.localPlayerIndex] = input
     
-    # Send to server if client
+    # Send to server if client; also record for replay after reconciliation
     if pvp.networkManager.isClient():
       var packet = newPacket(ptPlayerInput, pvp.serverTick)
       packet.input = input
       pvp.networkManager.sendPacket(packet)
+      # Store the sent input so reconcileState can re-apply unacknowledged movement
+      pvp.pendingInputs.add((capturedAt: pvp.gameTime, input: input))
+      # Cap buffer to ~2 seconds of inputs at 30 Hz to prevent unbounded growth
+      const MAX_PENDING_INPUTS = 60
+      if pvp.pendingInputs.len > MAX_PENDING_INPUTS:
+        pvp.pendingInputs = pvp.pendingInputs[pvp.pendingInputs.len - MAX_PENDING_INPUTS .. ^1]
   
   # Update based on role
   if pvp.networkManager.isHost():
