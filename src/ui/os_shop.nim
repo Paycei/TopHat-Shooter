@@ -436,8 +436,8 @@ proc buyShopItem*(game: Game, index: int) =
     game.player.fireRate -= effectiveReduction
     if game.player.fireRate < 0.07: game.player.fireRate = 0.07  # Hard cap
   of 2: # Move Speed
-    game.player.speed += 12
-    game.player.baseSpeed += 12
+    game.player.speed += 11
+    game.player.baseSpeed += 11
   of 3: # Max Health - Scales with purchases: 3, 4, 5, 6, 7 HP (capped at +7)
     let healthGain = min(2 + game.shopItems[3].bought, 7)
     game.player.maxHp += healthGain.float32

@@ -296,7 +296,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     playerTeamAssignments: playerTeamAssignments,
     # Initialize interpolation
     playerInterpStates: @[],
-    interpDelay: 0.033,  # 33ms interpolation delay (1 snapshot at 30Hz) — halved from 67ms to match the latency the host sees for the client
+    interpDelay: 0.033,  # 33ms interpolation delay
     interpolationEnabled: interpolationEnabled,
     recentlyDestroyedBullets: @[],  # Track bullets destroyed to prevent snapshot resurrection
     localPosCorrection: newVector2f(0, 0),

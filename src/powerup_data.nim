@@ -103,7 +103,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     of 2: t(tkPowerupPiercingShotsDesc2)
     else: t(tkPowerupPiercingShotsDesc3)
   of puMultiShot:
-    # Single level only - 3 directions, no nerfs
+    # Single level only - LEGENDARY
     t(tkPowerupMultiShotDesc)
   of puExplosiveBullets:
     case level
@@ -198,14 +198,14 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     else: t(tkPowerupFrostShotsDesc3)
   of puPoisonShot:
     case level
-    of 1: t(tkPowerupPoisonShotDesc1).replace("{0}", dmgPs(1.0, 0.1, playerDamage))
-    of 2: t(tkPowerupPoisonShotDesc2).replace("{0}", dmgPs(1.5, 0.1, playerDamage))
-    else: t(tkPowerupPoisonShotDesc3).replace("{0}", dmgPs(2.0, 0.1, playerDamage))
+    of 1: t(tkPowerupPoisonShotDesc1).replace("{0}", dmgPs(1.0, 0.2, playerDamage))
+    of 2: t(tkPowerupPoisonShotDesc2).replace("{0}", dmgPs(1.5, 0.2, playerDamage))
+    else: t(tkPowerupPoisonShotDesc3).replace("{0}", dmgPs(2.0, 0.2, playerDamage))
   of puFireBullets:
     case level
-    of 1: t(tkPowerupFireBulletsDesc1).replace("{0}", dmgPs(0.5, 0.1, playerDamage))
-    of 2: t(tkPowerupFireBulletsDesc2).replace("{0}", dmgPs(1.0, 0.1, playerDamage))
-    else: t(tkPowerupFireBulletsDesc3).replace("{0}", dmgPs(1.5, 0.1, playerDamage))
+    of 1: t(tkPowerupFireBulletsDesc1).replace("{0}", dmgPs(0.5, 0.2, playerDamage))
+    of 2: t(tkPowerupFireBulletsDesc2).replace("{0}", dmgPs(1.0, 0.2, playerDamage))
+    else: t(tkPowerupFireBulletsDesc3).replace("{0}", dmgPs(1.5, 0.2, playerDamage))
   of puWindBullets:
     case level
     of 1: t(tkPowerupWindBulletsDesc1)
@@ -213,19 +213,19 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     else: t(tkPowerupWindBulletsDesc3)
   of puFireAura:
     case level
-    of 1: t(tkPowerupFireAuraDesc1).replace("{0}", dmgPs(1.0, 0.2, playerDamage))
-    of 2: t(tkPowerupFireAuraDesc2).replace("{0}", dmgPs(2.0, 0.2, playerDamage))
-    else: t(tkPowerupFireAuraDesc3).replace("{0}", dmgPs(3.0, 0.2, playerDamage))
+    of 1: t(tkPowerupFireAuraDesc1).replace("{0}", dmgPs(1.0, 0.3, playerDamage))
+    of 2: t(tkPowerupFireAuraDesc2).replace("{0}", dmgPs(2.5, 0.3, playerDamage))
+    else: t(tkPowerupFireAuraDesc3).replace("{0}", dmgPs(5.0, 0.3, playerDamage))
   of puLightningAura:
     case level
-    of 1: t(tkPowerupLightningAuraDesc1).replace("{0}", dmgPs(1.0, 0.2, playerDamage))
-    of 2: t(tkPowerupLightningAuraDesc2).replace("{0}", dmgPs(2.0, 0.2, playerDamage))
-    else: t(tkPowerupLightningAuraDesc3).replace("{0}", dmgPs(3.0, 0.2, playerDamage))
+    of 1: t(tkPowerupLightningAuraDesc1).replace("{0}", dmgPs(1.0, 0.3, playerDamage))
+    of 2: t(tkPowerupLightningAuraDesc2).replace("{0}", dmgPs(2.5, 0.3, playerDamage))
+    else: t(tkPowerupLightningAuraDesc3).replace("{0}", dmgPs(5.0, 0.3, playerDamage))
   of puPoisonAura:
     case level
-    of 1: t(tkPowerupPoisonAuraDesc1).replace("{0}", dmgPs(0.5, 0.2, playerDamage))
-    of 2: t(tkPowerupPoisonAuraDesc2).replace("{0}", dmgPs(1.0, 0.2, playerDamage))
-    else: t(tkPowerupPoisonAuraDesc3).replace("{0}", dmgPs(2.0, 0.2, playerDamage))
+    of 1: t(tkPowerupPoisonAuraDesc1).replace("{0}", dmgPs(1.0, 0.3, playerDamage))
+    of 2: t(tkPowerupPoisonAuraDesc2).replace("{0}", dmgPs(2.5, 0.3, playerDamage))
+    else: t(tkPowerupPoisonAuraDesc3).replace("{0}", dmgPs(5.0, 0.3, playerDamage))
   of puWindAura:
     case level
     of 1: t(tkPowerupWindAuraDesc1)
@@ -247,7 +247,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     # Single level only - LEGENDARY echo trail
     t(tkPowerupEchoShotsDesc)
   of puRotatingOrbs:
-    t(tkPowerupRotatingOrbsDesc).replace("{0}", dmg(1.5, 0.35, playerDamage))
+    t(tkPowerupRotatingOrbsDesc).replace("{0}", dmg(1.5, 0.3, playerDamage))
   of puPoisonOrb:
     case level
     of 1: t(tkPowerupPoisonOrbDesc1).replace("{0}", dmg(4.5, 0.35, playerDamage))
@@ -285,9 +285,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     else: t(tkPowerupArcaneBulletsDesc3)
   of puArcaneAura:
     case level
-    of 1: t(tkPowerupArcaneAuraDesc1).replace("{0}", dmgPs(1.0, 0.2, playerDamage))
-    of 2: t(tkPowerupArcaneAuraDesc2).replace("{0}", dmgPs(3.0, 0.2, playerDamage))
-    else: t(tkPowerupArcaneAuraDesc3).replace("{0}", dmgPs(5.0, 0.2, playerDamage))
+    of 1: t(tkPowerupArcaneAuraDesc1).replace("{0}", dmgPs(3.5, 0.3, playerDamage))
+    of 2: t(tkPowerupArcaneAuraDesc2).replace("{0}", dmgPs(7.5, 0.3, playerDamage))
+    else: t(tkPowerupArcaneAuraDesc3).replace("{0}", dmgPs(10.0, 0.3, playerDamage))
   of puFireMastery:
     # Single level only - LEGENDARY mastery
     t(tkPowerupFireMasteryDesc)
@@ -316,9 +316,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     else: t(tkPowerupBloodOrbDesc3).replace("{0}", dmg(11.0, 0.35, playerDamage))
   of puBloodAura:
     case level
-    of 1: t(tkPowerupBloodAuraDesc1).replace("{0}", dmgPs(0.5, 0.2, playerDamage))
-    of 2: t(tkPowerupBloodAuraDesc2).replace("{0}", dmgPs(2.0, 0.2, playerDamage))
-    else: t(tkPowerupBloodAuraDesc3).replace("{0}", dmgPs(3.0, 0.2, playerDamage))
+    of 1: t(tkPowerupBloodAuraDesc1).replace("{0}", dmgPs(1.0, 0.3, playerDamage))
+    of 2: t(tkPowerupBloodAuraDesc2).replace("{0}", dmgPs(2.5, 0.3, playerDamage))
+    else: t(tkPowerupBloodAuraDesc3).replace("{0}", dmgPs(5.0, 0.3, playerDamage))
   of puBloodMastery:
     # Single level only - LEGENDARY mastery
     t(tkPowerupBloodMasteryDesc)
@@ -328,7 +328,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     of 2: t(tkPowerupRadialBurstDesc2)
     else: t(tkPowerupRadialBurstDesc3)
   of puWallTurrets:
-    let s = round(playerDamage * 0.15 * 100).int
+    let s = round(playerDamage * 0.3 * 100).int
     t(tkPowerupWallTurretsDesc).replace("{0}", $s)
   of puPulseArmor:
     case level

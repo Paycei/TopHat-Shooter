@@ -223,9 +223,9 @@ proc drawPlayer*(player: Player) =
     # Slow field visual
     if powerUp.powerType == puSlowField:
       let slowRadius = case powerUp.level
-        of 1: 120.0
-        of 2: 160.0
-        else: 200.0
+        of 1: 150.0
+        of 2: 200.0
+        else: 250.0
       let slowPulse = (sin(time * 1.5) * 0.06 + 0.94).float32
       let alpha = 12 + (sin(time * 2.0) * 6).int
       # Fill
@@ -253,9 +253,9 @@ proc drawPlayer*(player: Player) =
     # Fire aura visual
     if powerUp.powerType == puFireAura:
       let fireRadius = case powerUp.level
-        of 1: 120.0
-        of 2: 160.0
-        else: 200.0
+        of 1: 150.0
+        of 2: 200.0
+        else: 250.0
       let alpha = 40 + (sin(player.shieldAngle * 4) * 20).int
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), fireRadius,
                 Color(r: 255, g: 50, b: 0, a: alpha.uint8))
@@ -265,9 +265,9 @@ proc drawPlayer*(player: Player) =
     # Lightning aura visual
     if powerUp.powerType == puLightningAura:
       let lightningRadius = case powerUp.level
-        of 1: 120.0
-        of 2: 160.0
-        else: 200.0
+        of 1: 150.0
+        of 2: 200.0
+        else: 250.0
       let alpha = 25 + (sin(player.shieldAngle * 5) * 15).int
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), lightningRadius,
                 Color(r: 100, g: 150, b: 255, a: alpha.uint8))
@@ -277,9 +277,9 @@ proc drawPlayer*(player: Player) =
     # Poison aura visual
     if powerUp.powerType == puPoisonAura:
       let poisonRadius = case powerUp.level
-        of 1: 120.0
-        of 2: 160.0
-        else: 200.0
+        of 1: 150.0
+        of 2: 200.0
+        else: 250.0
       let alpha = 35 + (sin(player.shieldAngle * 3) * 20).int
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), poisonRadius,
                 Color(r: 100, g: 200, b: 100, a: alpha.uint8))

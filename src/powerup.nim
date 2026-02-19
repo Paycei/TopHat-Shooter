@@ -43,8 +43,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   
   # Define orb, aura, bullet, and mastery groups for exclusivity
   let orbTypes: array[0..7, PowerUpType] = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb, puRotatingOrbs]
-  let auraTypes: array[0..5, PowerUpType] = [puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
-  let bulletTypes: array[0..4, PowerUpType] = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets]
+  let auraTypes: array[0..6, PowerUpType] = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
+  let bulletTypes: array[0..6, PowerUpType] = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets, puBloodBullets, puChainLightning]
   let masteryTypes: array[0..6, PowerUpType] = [puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, puLightningMastery, puWindMastery, puBloodMastery]
   
   if isLegendary:

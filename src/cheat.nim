@@ -215,8 +215,8 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   game.player.baseSpeed = 175.0
   game.player.fireRate = 0.425
   game.player.damage = 1.0
-  game.player.bulletSpeed = 300.0
-  game.player.maxHp = 7.0
+  game.player.bulletSpeed = 325.0
+  game.player.maxHp = 9.0
   game.player.hp = min(game.player.hp, game.player.maxHp)
   
   # Reapply shop purchases for damage, health, speed, fire rate, and bullet speed
@@ -225,11 +225,11 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
     game.player.damage += 0.25 * pow(1.0375, (i + 1).float32)
   
   for i in 0..<game.shopItems[2].bought:  # Move speed purchases
-    game.player.speed += 12
-    game.player.baseSpeed += 12
+    game.player.speed += 11
+    game.player.baseSpeed += 11
   
   for i in 0..<game.shopItems[3].bought:  # Max health purchases
-    let healthGain = min(3 + i, 7)  # 3 base + 1 per purchase, max 7
+    let healthGain = min(2 + i, 7)  # 3 base + 1 per purchase, max 7
     game.player.maxHp += healthGain.float32
   game.player.hp = min(game.player.hp, game.player.maxHp)
   

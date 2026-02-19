@@ -82,9 +82,9 @@ type
 # Aura configurations for each power-up type
 proc getAuraConfig(auraType: PowerUpType, level: int): AuraConfig =
   let radius = case level
-    of 1: 120.0
-    of 2: 160.0
-    else: 200.0
+    of 1: 150.0
+    of 2: 200.0
+    else: 250.0
   
   case auraType
   of puFireAura:
@@ -439,7 +439,7 @@ proc calculateCombatStats*(player: Player): CombatStats =
   result.critMultiplier = 2.0
   result.hasCrit = false
   
-  # === DAMAGE CALCULATIONS ===
+  # DAMAGE CALCULATIONS
   
   # Damage boost consumable
   if player.damageBoostTimer > 0:
@@ -681,9 +681,9 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
 proc getAuraRadius*(level: int): float32 =
   ## Standard aura radius based on level (used by most aura effects)
   case level
-  of 1: 120.0
-  of 2: 160.0
-  else: 200.0
+  of 1: 150.0
+  of 2: 200.0
+  else: 250.0
 
 proc getExplosionRadius*(level: int): float32 =
   ## Standard explosion radius for explosive bullets
@@ -743,11 +743,10 @@ proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
   # Poison effect
   if bullet.poisonDuration > 0 and hasPowerUp(game.player, puPoisonShot):
     let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
-    let poisonBaseScaling = game.player.damage * 0.1
     let poisonDmg = case poisonLevel
-      of 1: 1.0 + poisonBaseScaling
-      of 2: 1.5 + poisonBaseScaling
-      else: 2.0 + poisonBaseScaling
+      of 1: 1.0
+      of 2: 1.5
+      else: 2.0
     
     result.add(BulletEffect(
       effectType: befPoison,
@@ -760,11 +759,10 @@ proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
   # Fire effect
   if bullet.fireDuration > 0 and hasPowerUp(game.player, puFireBullets):
     let fireLevel = getPowerUpLevel(game.player, puFireBullets)
-    let fireBaseScaling = game.player.damage * 0.1
     let fireDmg = case fireLevel
-      of 1: 0.5 + fireBaseScaling
-      of 2: 1.0 + fireBaseScaling
-      else: 1.5 + fireBaseScaling
+      of 1: 1.0
+      of 2: 1.5
+      else: 2.0
     
     result.add(BulletEffect(
       effectType: befFire,
@@ -3603,7 +3601,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
   case orb.elementType
   of etPoison:
     # Poison: DoT effect
-    let poisonDamageScaling = game.player.damage * 0.1
+    let poisonDamageScaling = game.player.damage * 0.2
     var poisonDmg = 0.3 + poisonDamageScaling
     var poisonDur = 4.0
     
@@ -3625,7 +3623,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
   
   of etFire:
     # Fire: DoT effect
-    let fireDamageScaling = game.player.damage * 0.1
+    let fireDamageScaling = game.player.damage * 0.2
     var fireDmg = 0.4 + fireDamageScaling
     var fireDur = 2.0
     
@@ -3802,7 +3800,7 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
     return
   
   # Calculate base damage
-  let damageScaling = game.player.damage * 0.35
+  let damageScaling = game.player.damage * 0.3
   let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
     1.5 + damageScaling  # Legendary version
   else:
@@ -4247,15 +4245,15 @@ proc updateGame*(game: var Game, dt: float32) =
   # Fire Aura power-up effect - applies burning damage over time
   if hasPowerUp(game.player, puFireAura):
     let level = getPowerUpLevel(game.player, puFireAura)
-    let damageScaling = game.player.damage * 0.2
+    let damageScaling = game.player.damage * 0.3
     let fireDamagePerSec = case level
       of 1: 1.0 + damageScaling
-      of 2: 2.0 + damageScaling
-      else: 3.0 + damageScaling
+      of 2: 2.5 + damageScaling
+      else: 5.0 + damageScaling
     let fireDuration = case level
       of 1: 2.0
-      of 2: 3.0
-      else: 4.0
+      of 2: 2.5
+      else: 5.0
     let fireRadius = getAuraRadius(level)
     
     for enemy in game.enemies:
@@ -4285,15 +4283,15 @@ proc updateGame*(game: var Game, dt: float32) =
   # Lightning Aura power-up effect - low damage with chain lightning
   if hasPowerUp(game.player, puLightningAura):
     let level = getPowerUpLevel(game.player, puLightningAura)
-    let damageScaling = game.player.damage * 0.2
+    let damageScaling = game.player.damage * 0.3
     var lightningDamagePerSec = case level
       of 1: 1.0 + damageScaling
-      of 2: 2.0 + damageScaling
-      else: 3.0 + damageScaling
+      of 2: 2.5 + damageScaling
+      else: 5.0 + damageScaling
     var maxChains = case level
       of 1: 1
       of 2: 2
-      else: 3
+      else: 4
     let lightningRadius = getAuraRadius(level)
     let chainRange = 80.0  # Distance lightning can chain between enemies
     
@@ -4382,11 +4380,11 @@ proc updateGame*(game: var Game, dt: float32) =
   # Arcane Aura power-up effect - pure arcane damage
   if hasPowerUp(game.player, puArcaneAura):
     let level = getPowerUpLevel(game.player, puArcaneAura)
-    let damageScaling = game.player.damage * 0.2
+    let damageScaling = game.player.damage * 0.3
     var arcaneDamagePerSec = case level
-      of 1: 1.0 + damageScaling
-      of 2: 3.0 + damageScaling
-      else: 5.0 + damageScaling
+      of 1: 3.5 + damageScaling
+      of 2: 7.5 + damageScaling
+      else: 10.0 + damageScaling
     let arcaneRadius = getAuraRadius(level)
     
     # Apply Arcane Mastery bonuses if owned
@@ -4416,19 +4414,16 @@ proc updateGame*(game: var Game, dt: float32) =
   # Poison Aura power-up effect - low damage, longer duration
   if hasPowerUp(game.player, puPoisonAura):
     let level = getPowerUpLevel(game.player, puPoisonAura)
-    let damageScaling = game.player.damage * 0.2
+    let damageScaling = game.player.damage * 0.3
     let poisonDamagePerSec = case level
-      of 1: 0.5 + damageScaling
-      of 2: 1.0 + damageScaling
-      else: 2.0 + damageScaling
+      of 1: 1.0 + damageScaling
+      of 2: 2.5 + damageScaling
+      else: 5.0 + damageScaling
     let poisonDuration = case level
       of 1: 6.0
       of 2: 8.0
       else: 10.0
-    let poisonRadius = case level
-      of 1: 120.0
-      of 2: 160.0
-      else: 200.0
+    let poisonRadius = getAuraRadius(level)
     
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
@@ -4462,10 +4457,7 @@ proc updateGame*(game: var Game, dt: float32) =
       of 1: 50.0   # Weak push
       of 2: 80.0   # Medium push
       else: 120.0  # Strong push
-    let windRadius = case level
-      of 1: 120.0
-      of 2: 160.0
-      else: 200.0
+    let windRadius = getAuraRadius(level)
     
     # Apply Wind Mastery bonuses if owned
     if game.player.hasWindMastery:
@@ -4503,11 +4495,11 @@ proc updateGame*(game: var Game, dt: float32) =
   # Blood Aura power-up effect - damage with lifesteal
   if hasPowerUp(game.player, puBloodAura):
     let level = getPowerUpLevel(game.player, puBloodAura)
-    let damageScaling = game.player.damage * 0.2
+    let damageScaling = game.player.damage * 0.3
     var bloodDamagePerSec = case level
-      of 1: 0.5 + damageScaling
-      of 2: 2.0 + damageScaling
-      else: 3.0 + damageScaling
+      of 1: 1.0 + damageScaling
+      of 2: 2.5 + damageScaling
+      else: 5.0 + damageScaling
     let lifestealPercent = case level
       of 1: 0.025  # 2.5% lifesteal
       of 2: 0.05   # 5% lifesteal
@@ -6498,8 +6490,8 @@ proc updateGame*(game: var Game, dt: float32) =
               of 2: 2.0  # +100% damage
               else: 3.0  # +200% damage
           
-          # Add damage scaling from player damage (15% scaling)
-          let damageScaling = game.player.damage * 0.15
+          # Add damage scaling from player damage
+          let damageScaling = game.player.damage * 0.3
           turretDamage += damageScaling
           
           game.bullets.add(newBullet(
@@ -6702,7 +6694,7 @@ proc drawGame*(game: Game) =
   
   # UNIFIED AURA RENDERING
   # Draw all active aura effects using the unified aura system
-  const AURA_TYPES = [puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
+  const AURA_TYPES = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
   for auraType in AURA_TYPES:
     if hasPowerUp(game.player, auraType):
       let level = getPowerUpLevel(game.player, auraType)
