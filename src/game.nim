@@ -1759,16 +1759,16 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       enemy.pos = enemy.pos + toPlayer * enemy.speed * dt * 0.5
   
   of "clone_assault":
-    # Erratic movement toward player with sudden direction changes
-    if game.time.int mod 2 == 0:  # Change direction every 2 seconds
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
-    else:
-      let perpDir = newVector2f(-toPlayer.y, toPlayer.x)
-      enemy.pos = enemy.pos + perpDir * enemy.speed * dt
+    # Erratic movement toward player with smooth direction blending (sin-based, no frame dependency)
+    let cloneBlend = sin(game.time * PI) * 0.5 + 0.5  # 0..1, completes one cycle per 2s
+    let perpDir = newVector2f(-toPlayer.y, toPlayer.x)
+    let blendedDir = (toPlayer * cloneBlend + perpDir * (1.0 - cloneBlend)).normalize()
+    enemy.pos = enemy.pos + blendedDir * enemy.speed * dt
   
   of "reality_break":
-    # Chaotic unpredictable movement
-    let randomAngle = rand(1.0) * PI * 2.0
+    # Chaotic unpredictable movement — time-based multi-frequency angle, no per-frame rand
+    let randomAngle = game.time * 1.3 + sin(game.time * 2.7 + enemy.pos.x * 0.01) * PI +
+                      cos(game.time * 1.9 + enemy.pos.y * 0.01) * PI
     let randomDir = newVector2f(cos(randomAngle), sin(randomAngle))
     enemy.pos = enemy.pos + randomDir * enemy.speed * dt
   
@@ -1799,32 +1799,29 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     
     enemy.pos = enemy.pos + baseMove + newVector2f(jitterX, jitterY)
     
-    # Constant electric particles
-    if (game.time * 20.0).int mod 3 == 0:
+    # Constant electric particles — timer-gated to ~6 spawns/sec regardless of fps
+    if (game.time mod 0.15) < dt:
       let sparkX = enemy.pos.x + (rand(1.0) - 0.5) * enemy.radius * 2
       let sparkY = enemy.pos.y + (rand(1.0) - 0.5) * enemy.radius * 2
       spawnExplosionPooled(game.particlePool, sparkX, sparkY,
                      Color(r: 255, g: 255, b: 150, a: 255), 1)
   
   of "electric_surge":
-    # Rapid zigzag movement like lightning bolt
-    let surgePhase = (game.time * 15.0).int mod 4
-    let surgeAngle = case surgePhase
-      of 0: arctan2(toPlayer.y, toPlayer.x) + 0.5
-      of 1: arctan2(toPlayer.y, toPlayer.x) - 0.5
-      of 2: arctan2(toPlayer.y, toPlayer.x) + 0.3
-      else: arctan2(toPlayer.y, toPlayer.x) - 0.3
-    
+    # Rapid zigzag movement like lightning bolt — smooth continuous direction, not discrete phase buckets
+    let surgeAngle = arctan2(toPlayer.y, toPlayer.x) + sin(game.time * 15.0) * 0.5
     let surgeDir = newVector2f(cos(surgeAngle), sin(surgeAngle))
     enemy.pos = enemy.pos + surgeDir * enemy.speed * 1.0 * dt
     
-    # Dense electric particles
-    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                   Color(r: 220, g: 230, b: 255, a: 200), 2)
+    # Electric particles — gated to ~10 spawns/sec, not every frame
+    if (game.time mod 0.1) < dt:
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                     Color(r: 220, g: 230, b: 255, a: 200), 2)
   
   of "critical_discharge":
-    # Ultra-chaotic movement with mini-teleports
-    if rand(100) < 8:  # 8% chance per frame to micro-teleport
+    # Ultra-chaotic movement with occasional micro-teleports
+    # Use time-based trigger (~once every 2s) instead of per-frame rand, so rate is fps-independent
+    let zapInterval = 2.0 + sin(game.time * 0.8) * 0.5  # 1.5–2.5s varying interval
+    if (game.time mod zapInterval) < dt:
       let zapAngle = rand(1.0) * PI * 2.0
       let zapDist = 30.0 + rand(50.0)
       var newX = enemy.pos.x + cos(zapAngle) * zapDist
@@ -1855,22 +1852,20 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   of "satellite_swarm":
     # Complex multi-layer orbit (Orbital Commander phase 2)
+    # Velocity-based movement toward the orbit target — no direct position assignment
     let swarmAngle1 = game.time * 1.2
     let swarmAngle2 = game.time * 0.6
     let innerRadius = 150.0 + sin(game.time * 2.0) * 30.0
     let outerRadius = 200.0
     let avgX = (cos(swarmAngle1) * innerRadius + cos(swarmAngle2) * outerRadius) / 2.0
     let avgY = (sin(swarmAngle1) * innerRadius + sin(swarmAngle2) * outerRadius) / 2.0
-    
-    var newX = centerX + avgX
-    var newY = centerY + avgY
-    
-    # Clamp within screen boundaries
+    var targetX = centerX + avgX
+    var targetY = centerY + avgY
     let margin = enemy.radius + 10.0
-    newX = clamp(newX, margin, game.screenWidth.float32 - margin)
-    newY = clamp(newY, margin, game.screenHeight.float32 - margin)
-    
-    enemy.pos = newVector2f(newX, newY)
+    targetX = clamp(targetX, margin, game.screenWidth.float32 - margin)
+    targetY = clamp(targetY, margin, game.screenHeight.float32 - margin)
+    let toSwarm = (newVector2f(targetX, targetY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toSwarm * enemy.speed * 1.1 * dt
   
   of "electric_storm":
     # Fast erratic movement
@@ -1883,8 +1878,9 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.15 * dt
   
   of "deploy_satellites":
-    # Stationary in center
-    enemy.pos = newVector2f(centerX, centerY)
+    # Drift slowly toward screen center — velocity-based, not instant snap
+    let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toCenter * enemy.speed * 0.4 * dt
   
   of "multi_orbital":
     # Slow rotation around player
@@ -1909,12 +1905,12 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.05 * dt
   
   of "enraged_assault":
-    # Rapid aggressive movement with occasional direction change
-    if game.time.int mod 3 == 0:
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.15 * dt
-    else:
-      let sideDir = newVector2f(-toPlayer.y, toPlayer.x)
-      enemy.pos = enemy.pos + sideDir * enemy.speed * dt
+    # Rapid aggressive movement with smooth direction blending (sin-based, no frame dependency)
+    # blend = 1 → full chase, blend = 0 → full strafe; cycles on a 3s period
+    let enrageBlend = sin(game.time * (PI * 2.0 / 3.0)) * 0.5 + 0.5
+    let sideDir = newVector2f(-toPlayer.y, toPlayer.x)
+    let enrageDir = (toPlayer * enrageBlend + sideDir * (1.0 - enrageBlend)).normalize()
+    enemy.pos = enemy.pos + enrageDir * enemy.speed * 1.15 * dt
   
   of "unstoppable":
     # Extremely fast movement toward player
@@ -1931,8 +1927,10 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   of "summon_frenzy":
     # Defensive positioning with occasional aggressive bursts (Summoner King phase 2)
-    if game.time.int mod 5 == 0:
-      # Aggressive burst every 5 seconds
+    # sin-based blend: aggressive near peak, defensive near trough — 5s period, fps-independent
+    let frenzyBlend = sin(game.time * (PI * 2.0 / 5.0)) * 0.5 + 0.5  # 0..1 over 5s
+    if frenzyBlend > 0.85:
+      # Aggressive burst near the peak of each 5s cycle
       enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.2 * dt
     else:
       # Maintain defensive distance
@@ -1940,7 +1938,6 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
         let retreatDir = toPlayer * -1.0
         enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.8 * dt
       else:
-        # Slow drift toward center
         let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
         enemy.pos = enemy.pos + toCenter * enemy.speed * 0.4 * dt
   
@@ -1982,7 +1979,9 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     sweepX = clamp(sweepX, margin, game.screenWidth.float32 - margin)
     sweepY = clamp(sweepY, margin, game.screenHeight.float32 - margin)
     
-    enemy.pos = newVector2f(sweepX, sweepY)  # Direct teleportation for smooth sweep
+    # Smooth movement toward sweep target instead of instant position assignment
+    let toSweep = (newVector2f(sweepX, sweepY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toSweep * enemy.speed * 1.3 * dt
   
   of "slow_time":
     # Very slow methodical movement (Timekeeper phase 1)
@@ -1990,30 +1989,32 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   of "time_distortion":
     # Stuttering movement with temporal echoes (Timekeeper phase 2)
-    if (game.time * 4.0).int mod 2 == 0:
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.5 * dt
-    # else: freeze in place (temporal pause)
+    # Smooth stutter: move fast during "on" half, freeze during "off" half of each 0.25s cycle
+    let distortBlend = sin(game.time * PI * 4.0) * 0.5 + 0.5  # 0..1 at 4Hz, fully continuous
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.5 * distortBlend * dt
   
   of "time_collapse":
     # Ultra-fast blinking movement (Timekeeper phase 3)
-    let blinkFrequency = game.time * 6.0
-    if (blinkFrequency).int mod 3 == 0:
-      # Rapid blink toward player
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 2.0 * dt
-    else:
-      # Strafe around player
-      let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
-      enemy.pos = enemy.pos + strafeDir * enemy.speed * 1.2 * dt
+    # Smooth blend between charge-at-player and strafe on a 0.5s cycle
+    let collapseBlend = sin(game.time * PI * 2.0) * 0.5 + 0.5  # 0..1 at 1Hz (0.5s per half)
+    let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
+    # High blend → charge fast, low blend → strafe
+    let chaseContrib = toPlayer * 2.0 * collapseBlend
+    let strafeContrib = strafeDir * 1.2 * (1.0 - collapseBlend)
+    let collapseDir = (chaseContrib + strafeContrib).normalize()
+    enemy.pos = enemy.pos + collapseDir * enemy.speed * dt
   
   of "chaotic_movement":
     # Unpredictable random movement (Chaos Weaver phase 1)
-    let chaosAngle = rand(1.0) * PI * 2.0
+    # Multi-frequency time-based angle — looks chaotic but smooth, no per-frame rand
     let chaosFactor = sin(game.time * 7.0 + enemy.pos.x * 0.03) * 0.8
+    let chaosAngle = game.time * 2.1 + sin(game.time * 5.3) * PI * 0.7
     let chaosDir = newVector2f(cos(chaosAngle + chaosFactor), sin(chaosAngle + chaosFactor))
     enemy.pos = enemy.pos + chaosDir * enemy.speed * 0.9 * dt
   
   of "entropy_field":
     # Erratic spiraling with sudden direction changes (Chaos Weaver phase 2)
+    # Move toward a spiraling target instead of instant position set
     let entropySpiral = game.time * 3.0 + sin(game.time * 5.0)
     let entropyRadius = 160.0 + sin(game.time * 2.0) * 40.0
     var entropyX = game.player.pos.x + cos(entropySpiral) * entropyRadius
@@ -2024,12 +2025,15 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     entropyX = clamp(entropyX, margin, game.screenWidth.float32 - margin)
     entropyY = clamp(entropyY, margin, game.screenHeight.float32 - margin)
     
-    enemy.pos = newVector2f(entropyX, entropyY)
+    # Smooth movement toward orbit target instead of instant position assignment
+    let toEntropy = (newVector2f(entropyX, entropyY) - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toEntropy * enemy.speed * 1.1 * dt
   
   of "total_chaos":
     # Maximum chaos - truly unpredictable
-    # Random micro-teleport chance EVERY FRAME
-    if rand(100) < 8:  # 8% chance per frame = ~5 teleports per second
+    # Time-based trigger (~once every 1.5s) instead of per-frame rand — fps-independent
+    let chaosInterval = 1.5 + sin(game.time * 1.1) * 0.6  # 0.9–2.1s varying interval
+    if (game.time mod chaosInterval) < dt:
       let chaosAngle = rand(1.0) * PI * 2.0
       let chaosDist = 80.0 + rand(180.0)
       let newX = game.player.pos.x + cos(chaosAngle) * chaosDist
@@ -2065,12 +2069,12 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     enemy.pos = enemy.pos + toBalance * enemy.speed * dt
   
   of "aggressive_mixed":
-    # Alternating between chase and strafe (Omega Entity phase 2)
-    if (game.time * 2.0).int mod 3 == 0:
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.2 * dt
-    else:
-      let mixedStrafe = newVector2f(-toPlayer.y, toPlayer.x)
-      enemy.pos = enemy.pos + mixedStrafe * enemy.speed * 0.9 * dt
+    # Alternating between chase and strafe (Omega Entity phase 2) — sin-based blend, no frame dependency
+    # Completes one full chase→strafe cycle every 1.5s
+    let mixedBlend = sin(game.time * (PI * 2.0 / 1.5)) * 0.5 + 0.5  # 0..1
+    let mixedStrafe = newVector2f(-toPlayer.y, toPlayer.x)
+    let mixedDir = (toPlayer * (mixedBlend * 1.2) + mixedStrafe * ((1.0 - mixedBlend) * 0.9)).normalize()
+    enemy.pos = enemy.pos + mixedDir * enemy.speed * dt
   
   of "adaptive_combat":
     # Smart positioning based on player distance (Omega Entity phase 3)
@@ -2094,23 +2098,28 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       # Aggressive chase
       enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.8 * dt
     of 2:
-      # Rapid teleport near player
-      let finalAngle = rand(1.0) * PI * 2.0
-      var newX = game.player.pos.x + cos(finalAngle) * 140.0
-      var newY = game.player.pos.y + sin(finalAngle) * 140.0
-      
-      # Clamp within screen boundaries
-      let margin = enemy.radius + 10.0
-      newX = clamp(newX, margin, game.screenWidth.float32 - margin)
-      newY = clamp(newY, margin, game.screenHeight.float32 - margin)
-      
-      enemy.pos = newVector2f(newX, newY)
+      # Dash toward a position near player — time-gated teleport ~once per 0.8s, fps-independent
+      let finalTeleportInterval = 0.8 + sin(game.time * 1.7) * 0.2  # 0.6–1.0s
+      if (game.time mod finalTeleportInterval) < dt:
+        let finalAngle = rand(1.0) * PI * 2.0
+        var newX = game.player.pos.x + cos(finalAngle) * 140.0
+        var newY = game.player.pos.y + sin(finalAngle) * 140.0
+        let margin = enemy.radius + 10.0
+        newX = clamp(newX, margin, game.screenWidth.float32 - margin)
+        newY = clamp(newY, margin, game.screenHeight.float32 - margin)
+        enemy.pos = newVector2f(newX, newY)
+      else:
+        enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.5 * dt
     of 3, 4:
-      # Circle strafe at high speed
-      let finalOrbitAngle = game.time * 5.0
+      # Circle strafe at high speed (smooth velocity-based, not instant position set)
+      let finalOrbitAngle = game.time * 2.5  # slowed from 5.0 to avoid jitter
       let finalOrbitRadius = 180.0
-      enemy.pos.x = game.player.pos.x + cos(finalOrbitAngle) * finalOrbitRadius
-      enemy.pos.y = game.player.pos.y + sin(finalOrbitAngle) * finalOrbitRadius
+      let orbitTarget = newVector2f(
+        game.player.pos.x + cos(finalOrbitAngle) * finalOrbitRadius,
+        game.player.pos.y + sin(finalOrbitAngle) * finalOrbitRadius
+      )
+      let toOrbit = (orbitTarget - enemy.pos).normalize()
+      enemy.pos = enemy.pos + toOrbit * enemy.speed * 1.2 * dt
     else:
       # Erratic chaos movement
       let chaosAngle = game.time * 8.0 + sin(game.time * 3.0)
@@ -3065,9 +3074,9 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       let offsetX = (rand(1.0) - 0.5) * impactRadius * 2.0
       let targetX = game.player.pos.x + offsetX
       
-      # Show warning circle if specified
+      # Show warning circle at the impact zone (near player's current position)
       if showWarning:
-        game.attackWarnings.add(newAttackWarning(targetX, game.screenHeight.float32 + 50.0, "meteor", warningTime))
+        game.attackWarnings.add(newAttackWarning(targetX, game.player.pos.y, "meteor", warningTime))
       
       # Spawn meteor from above
       let startY = -50.0
@@ -3314,7 +3323,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     
     # TELEPORT WARNING SYSTEM - Show player where boss will appear BEFORE bullets spawn
     # Pre-calculate all teleport positions and create warning indicators
-    const BOSS_TELEPORT_MIN_DIST = 200.0  # Minimum distance boss can teleport near player
+    const BOSS_TELEPORT_MIN_DIST = 150.0  # Minimum distance boss can teleport near player
     var teleportWarningPositions: seq[Vector2f] = @[]
     for t in 0..<teleportCount:
       var newX, newY: float32
@@ -3492,15 +3501,18 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       else:
         (false, 0.0, phase.color)  # No warning for default
     
-    # Show warning indicators before firing (if enabled)
+    # Show warning indicators at the TARGET position (near player), not at the enemy
     if showWarning:
-      # Create one warning indicator per projectile to show attack incoming
       for i in 0..<attack.projectileCount:
-        game.attackWarnings.add(newAttackWarning(
-          enemy.pos.x, enemy.pos.y,
-          "laser_pointer",  # Special warning type for snipes
-          warningTime
-        ))
+        let spread = if attack.projectileCount > 1:
+          (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
+        else: 0.0
+        let aimAngle = arctan2(toPlayer.y, toPlayer.x) + spread
+        # Project from enemy toward player to approximate impact point (capped at screen edge)
+        let maxDist = min(distance(enemy.pos, game.player.pos) + 80.0, 600.0)
+        let warnX = enemy.pos.x + cos(aimAngle) * maxDist
+        let warnY = enemy.pos.y + sin(aimAngle) * maxDist
+        game.attackWarnings.add(newAttackWarning(warnX, warnY, "laser_pointer", warningTime))
     
     # Fire the actual snipe shots
     for i in 0..<attack.projectileCount:
@@ -5202,9 +5214,8 @@ proc updateGame*(game: var Game, dt: float32) =
           # Apply dash velocity
           enemy.pos = enemy.pos + enemy.dashVelocity * dt
           
-          # Create dash trail particles
-          let progress = 1.0 - (enemy.dashDuration / enemy.dashMaxDuration)
-          if progress.int mod 2 == 0:  # Every other frame
+          # Create dash trail particles ~15 times/sec regardless of fps
+          if (enemy.dashDuration mod (1.0 / 15.0)) < dt:
             let trailColor = if enemy.currentPhaseIndex < bossDef.phases.len:
               bossDef.phases[enemy.currentPhaseIndex].color
             else:
