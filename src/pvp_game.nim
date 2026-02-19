@@ -2035,7 +2035,6 @@ proc drawPvP*(pvp: PvPGameState) =
       for team in activeTeams:
         if scoreText.len > 15:  # More than just "Final Scores - "
           scoreText &= " | "
-        let teamColor = getTeamColor(team)
         scoreText &= $team & ": " & $pvp.teamScores[team].kills
     else:
       for i in 0..<pvp.players.len:

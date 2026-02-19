@@ -1307,9 +1307,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     var speed = game.player.bulletSpeed * 1.2
     var damage = stats.damage  # Already includes Rage bonus
     
-    # Track base damage before power-up multipliers for attribution
-    let damageBeforePowerUps = stats.baseDamage  # Pure base damage (no Rage)
-    
     # Double-shot bullets deal 10% less damage per bullet
     if hasDoubleShot:
       damage *= 0.85  # 15% less damage per bullet

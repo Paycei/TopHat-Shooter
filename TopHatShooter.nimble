@@ -10,7 +10,7 @@ bin           = @["main"]
 # Dependencies
 
 requires "nim >= 2.2.6"
-requires "naylib >= 25.51.1"
+requires "naylib >= 26.08.0"
 requires "flatty >= 0.3.4"
 
 task run, "Run the game for development":
