@@ -41,6 +41,8 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
       color = Color(r: 255, g: 80, b: 0, a: alpha.uint8)
     of dtPoison:
       color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
+    of dtFrost:
+      color = Color(r: 150, g: 220, b: 255, a: alpha.uint8)
     of dtLaser:
       color = Color(r: 150, g: 150, b: 255, a: alpha.uint8)
     of dtLightning:
@@ -60,6 +62,8 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
       color = Color(r: 255, g: 80, b: 0, a: alpha.uint8)
     of dtPoison:
       color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
+    of dtFrost:
+      color = Color(r: 150, g: 220, b: 255, a: alpha.uint8)
     of dtLaser:
       color = Color(r: 150, g: 150, b: 255, a: alpha.uint8)
     of dtLightning:
@@ -87,6 +91,8 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
       color = Color(r: 255, g: 80, b: 0, a: alpha.uint8)
     of dtPoison:
       color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
+    of dtFrost:
+      color = Color(r: 150, g: 220, b: 255, a: alpha.uint8)
     of dtLaser:
       color = Color(r: 200, g: 50, b: 255, a: alpha.uint8)
     of dtLightning:

@@ -42,7 +42,9 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   ]
   
   # Define orb, aura, bullet, and mastery groups for exclusivity
-  let orbTypes: array[0..7, PowerUpType] = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb, puRotatingOrbs]
+  # Note: puRotatingOrbs is intentionally excluded here — it is legendary-only and
+  # never appears in the normal-wave pool, so including it would be unreachable.
+  let orbTypes: array[0..6, PowerUpType] = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb]
   let auraTypes: array[0..6, PowerUpType] = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
   let bulletTypes: array[0..6, PowerUpType] = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets, puBloodBullets, puChainLightning]
   let masteryTypes: array[0..6, PowerUpType] = [puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, puLightningMastery, puWindMastery, puBloodMastery]
@@ -373,7 +375,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       of 1: 1.5   # +50% size
       of 2: 2.0   # +100% size
       else: 2.5   # +150% size
-    player.radius *= sizeBonus
+    player.baseRadius *= sizeBonus
   of puFortified:
     # Fortified reduces damage taken + increases max HP
     let hpBonus = case powerUp.level
@@ -409,9 +411,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
         
         # Update regen delay
         player.shieldRegenDelay = case powerUp.level
-          of 1: 5.5
-          of 2: 4.5
-          else: 3.75
+          of 1: 4.0
+          of 2: 3.0
+          else: 2.0
       of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puBloodOrb:
         # Recreate orbs with new level (more orbs of this element)
         let elementType = case powerUp.powerType
@@ -433,12 +435,12 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           else: 1.0
         player.bulletDamageMult *= damageBonus
       of puHeavyRounds:
-        # When upgrading Heavy Rounds, increase size further
+        # When upgrading Heavy Rounds, increase base size further
         let sizeBonus = case powerUp.level
           of 2: 1.333  # 2.0 / 1.5
           of 3: 1.25   # 2.5 / 2.0
           else: 1.0
-        player.radius *= sizeBonus
+        player.baseRadius *= sizeBonus
       else:
         discard
 
@@ -459,20 +461,26 @@ proc drawPowerUpSelection*(game: Game) =
 
 # SLOT MACHINE ROLL ANIMATION SYSTEM
 proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeType: PowerUpType): PowerUp =
-  ## Generate a random power-up for the roll animation display, excluding a specific type
-  let legendaryTypes = [puRapidFire, puMaxHealth, puSpeedBoost,
-                        puBulletSpeed, puLuckyCoins, puWallMaster, puTimeWarp,
-                        puGravityWell, puPhaseShift, puOvercharge, puEchoShots,
-                        puMagicalBullets]
-  
-  let normalTypes = [puDoubleShot, puRotatingShield,
-                     puPiercingShots, puMultiShot, puExplosiveBullets, puLifeSteal,
-                     puAutoShoot, puRegeneration, puDodgeChance,
-                     puCriticalHit, puBloodBullets, puBulletRicochet, puSlowField,
-                     puRage, puBerserker, puThorns, puBulletSplit, puChainLightning,
-                     puFrostShots, puPoisonShot, puFireBullets,
-                     puFireAura, puLightningAura, puPoisonAura, puArcaneBullets, puArcaneAura,
-                     puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb]
+  ## Generate a random power-up for the roll animation display, excluding a specific type.
+  ## These lists must stay in sync with legendaryOnlyTypes / normalOnlyTypes in generatePowerUpChoices.
+  let legendaryTypes = [
+    puArcaneMastery, puAutoShoot, puBloodMastery, puBulletSpeed,
+    puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
+    puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
+    puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
+    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery
+  ]
+
+  let normalTypes = [
+    puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura,
+    puBloodBullets, puBloodOrb, puBulletRicochet, puBulletSplit,
+    puChainLightning, puCriticalHit, puDodgeChance, puExplosiveBullets,
+    puFireAura, puFireBullets, puFireOrb, puFortified, puFrostOrb, puFrostShots,
+    puHeavyRounds, puLifeSteal, puLightningAura, puLightningOrb, puPiercingShots,
+    puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
+    puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
+    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer
+  ]
   
   var availableTypes: seq[PowerUpType]
   if isLegendary:
@@ -488,16 +496,16 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     # Fallback if all types excluded (shouldn't happen)
     if isLegendary:
       let t = legendaryTypes[rand(legendaryTypes.high)]
-      return PowerUp(powerType: t, level: rand(1..3), rarity: prLegendary)
+      return PowerUp(powerType: t, level: 1, rarity: prLegendary)  # Legendaries are always level 1
     else:
       let t = normalTypes[rand(normalTypes.high)]
-      return PowerUp(powerType: t, level: rand(1..3), rarity: prCommon)
+      return PowerUp(powerType: t, level: 1, rarity: prCommon)  # Display level 1 for roll filler
   
   let t = availableTypes[rand(availableTypes.high)]
   if isLegendary:
-    result = PowerUp(powerType: t, level: rand(1..3), rarity: prLegendary)
+    result = PowerUp(powerType: t, level: 1, rarity: prLegendary)  # Legendaries are always level 1
   else:
-    result = PowerUp(powerType: t, level: rand(1..3), rarity: prCommon)
+    result = PowerUp(powerType: t, level: 1, rarity: prCommon)  # Display level 1 for roll filler
 
 proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
   ## Update the slot machine roll animation with velocity-based scrolling

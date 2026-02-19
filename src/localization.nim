@@ -1,5 +1,5 @@
 ## Language and localization system for TopHat-ShooterOS
-import std/tables, std/strutils
+import std/tables
 
 type
   Language* = enum

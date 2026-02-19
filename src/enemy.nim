@@ -68,7 +68,11 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
     burstTimer: 0,
     lastWallDamageTime: 0,
     attackWarningTimer: 0,
-    attackExecuteTimer: if config.specialBehaviorType == "charge_shot": 3.0 else: 0,
+    attackExecuteTimer: if config.specialBehaviorType == "charge_shot":
+      block:
+        let sd = parseSpecialData(config.specialData)
+        getSpecialFloat(sd, "charge_time", 3.0)
+      else: 0,
     attackPhase: 0,
     hasEnteredScreen: not config.requiresScreenEntry,  # Inverted logic
     activeEffects: initTable[ElementType, ActiveEffect](),
@@ -165,6 +169,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           canMove = false
           if currentTime - enemy.lastWallDamageTime >= 1.0:
             wall.takeDamage(1.0)
+            trackWallDamaged(game)
             enemy.hp -= 1.0
             # Enforce minimum health of 0.01
             if enemy.hp < 0.01:
@@ -364,8 +369,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.enemyType # enemyType: track which enemy type created this laser
         ))
         
-        # Rotate during dash (FASTER rotation in OPPOSITE direction)
-        enemy.rotation -= dt * -12.5  # -12.5 radians per second (negative = clockwise)
+        # Rotate during dash (clockwise at 12.5 radians per second)
+        enemy.rotation += dt * 12.5
         
         # Dash movement with rotation
         if enemy.attackExecuteTimer > 0:
@@ -392,11 +397,6 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.attackExecuteTimer = 0
           enemy.vel = newVector2f(0, 0)
           enemy.rotation = 0.0  # Reset rotation
-          
-          # Reset to patrol phase after firing
-          enemy.attackPhase = 0
-          enemy.attackWarningTimer = 0
-          enemy.attackExecuteTimer = 0
       else:
         discard
     

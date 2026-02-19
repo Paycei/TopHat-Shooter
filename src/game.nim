@@ -379,6 +379,9 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   ## Applies elite damage modifiers (tank reduction, shield absorption) and boss defense multiplier
   ## Returns the actual damage to apply to enemy HP
   ## Handles multiple elite types for wave 25+ elites
+  ##
+  ## Note: `enemy` is a ref object, so field mutations below (e.g. enemy.shieldHp -= ...)
+  ## are intentional and persist on the heap even though the parameter is a `let` binding.
   result = baseDamage
   
   # Boss defense multiplier: reduces all incoming damage
@@ -702,7 +705,7 @@ proc getBulletDamageType*(bullet: Bullet): DamageType =
   elif bullet.poisonDuration > 0:
     return dtPoison
   elif bullet.slowAmount > 0:
-    return dtFire  # Frost uses fire color (cold blue doesn't exist in current palette)
+    return dtFrost  # Frost/slow bullets use the dedicated frost color (light blue)
   elif bullet.windPushForce > 0:
     return dtDefault  # Wind uses default white
   else:
@@ -1222,7 +1225,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etTriangle
       
       elif wave <= 55:
-        # Waves 51-55: Introduce TRICKSTER
+        # Waves 51-55: Introduce PHANTOM
         if roll < 15: enemyType = etPhantom
         elif roll < 26: enemyType = etCube # Don't spawn circles after wave 40
         elif roll < 35: enemyType = etStar

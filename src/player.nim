@@ -35,7 +35,7 @@ proc newPlayer*(x, y: float32): Player =
     shieldRegenDelay: 4.0,   # Shields regenerate after 4 seconds (reduced by upgrades)
     killsSinceLastHeal: 0,
     regenTimer: 0,
-    lastDamageTaken: 0,
+    lastDamageTaken: -1,  # -1 = no event yet; 0 = dodge signal (set by takeDamage on dodge)
     rageStacks: 0,
     critCharge: 0,
     autoShootEnabled: true,  # Auto-shoot starts enabled
@@ -166,6 +166,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   
   # Scale radius with max HP using square root for diminishing returns
   # Formula: baseRadius + sqrt(maxHp - 7) * scaleFactor
+  # Note: baseRadius is also scaled by puHeavyRounds, so HP scaling preserves that multiplier.
   let hpAboveBase = max(0.0, player.maxHp - 7.5)
   player.radius = player.baseRadius + sqrt(hpAboveBase) * 0.4
   
@@ -298,7 +299,8 @@ proc drawPlayer*(player: Player) =
     let hitsText = $player.shieldHits
     drawText(hitsText, (player.pos.x - 4).int32, (player.pos.y + player.radius + 12).int32, 12, Cyan)
   
-  # Dodge flash effect
+  # Dodge flash effect — takeDamage sets lastDamageTaken = 0 as a one-frame signal.
+  # We initialise lastDamageTaken to -1 so this branch never fires spuriously at game start.
   if player.lastDamageTaken == 0 and player.hp > 0:
     drawText(t(tkPlayerDodge), (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
     player.lastDamageTaken = -1  # Clear flag

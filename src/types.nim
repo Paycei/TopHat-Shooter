@@ -35,8 +35,8 @@ type
     killLimit*: int         ## Kills needed to win (default 5)
     respawnTime*: float32   ## Seconds before respawn (default 3.0)
     timeLimit*: float32     ## Match time limit in seconds; 0 = unlimited (default 180)
-    snapshotRate*: float32  ## Seconds between server→client state snapshots (default 0.033 = 30 Hz)
-    inputRate*: float32     ## Seconds between client→server input packets (default 0.016 = 60 Hz)
+    snapshotRate*: float32  ## Seconds between server→client state snapshots
+    inputRate*: float32     ## Seconds between client→server input packets
 
   EnemyType* = enum
     etCircle,      # Normal chasers
@@ -236,7 +236,7 @@ type
     timeWarpActive*: bool
     timeWarpDuration*: float32
     timeWarpUsesThisWave*: int  # Track uses per wave
-    timeWarpMaxUsesPerWave*: int  # Depends on level (1, 2, or 3)
+    timeWarpMaxUsesPerWave*: int  # Fixed at 2 uses per wave (single-level legendary)
     phaseShiftCooldown*: float32
     phaseShiftInvulnTimer*: float32
     lastPhaseShiftPos*: Vector2f
@@ -421,7 +421,8 @@ type
     dtDefault,      # White - regular contact damage
     dtFire,         # Red/Orange - fire damage
     dtPoison,       # Green - poison damage
-    dtLaser,        # Purple - laser damage
+    dtFrost,        # Light blue - frost/slow damage
+    dtLaser,        # Blue/indigo - laser damage
     dtLightning,    # Yellow - lightning damage
     dtArcane,       # Purple - arcane damage
     dtExplosion,    # Orange - explosion damage
@@ -515,7 +516,6 @@ type
     decayRate*: float32
     tintColor*: Color
 
-  # STREAK SYSTEM - REMOVED (types kept for compatibility)
   StreakLevel* = enum
     slNone, slSpree, slRampage, slUnstoppable, slGodlike
 
