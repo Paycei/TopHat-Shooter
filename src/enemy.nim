@@ -1459,25 +1459,25 @@ proc drawEnemy*(enemy: Enemy) =
       drawTriangle(Vector2(x: cx + r, y: cy),
                    Vector2(x: cx,     y: cy + r),
                    Vector2(x: cx - r, y: cy), enemy.color)
-      # Dark hue-matched outline (not white)
+      # Bright cyan outline — hardcoded because div 3 on cyan (r:0) produces near-black
       let dv1 = Vector2(x: cx,     y: cy - r)
       let dv2 = Vector2(x: cx + r, y: cy)
       let dv3 = Vector2(x: cx,     y: cy + r)
       let dv4 = Vector2(x: cx - r, y: cy)
-      drawLine(dv1, dv2, 2, Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
-      drawLine(dv2, dv3, 2, Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
-      drawLine(dv3, dv4, 2, Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
-      drawLine(dv4, dv1, 2, Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
-      # Inner diamond for depth — mid-tone hue
+      drawLine(dv1, dv2, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
+      drawLine(dv2, dv3, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
+      drawLine(dv3, dv4, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
+      drawLine(dv4, dv1, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
+      # Inner diamond for depth — slightly dimmer cyan
       let ir = r * 0.45
       let iv1 = Vector2(x: cx,      y: cy - ir)
       let iv2 = Vector2(x: cx + ir, y: cy)
       let iv3 = Vector2(x: cx,      y: cy + ir)
       let iv4 = Vector2(x: cx - ir, y: cy)
-      drawLine(iv1, iv2, 1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 150))
-      drawLine(iv2, iv3, 1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 150))
-      drawLine(iv3, iv4, 1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 150))
-      drawLine(iv4, iv1, 1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 150))
+      drawLine(iv1, iv2, 1, Color(r: 0'u8, g: 160'u8, b: 200'u8, a: 180))
+      drawLine(iv2, iv3, 1, Color(r: 0'u8, g: 160'u8, b: 200'u8, a: 180))
+      drawLine(iv3, iv4, 1, Color(r: 0'u8, g: 160'u8, b: 200'u8, a: 180))
+      drawLine(iv4, iv1, 1, Color(r: 0'u8, g: 160'u8, b: 200'u8, a: 180))
       # Tinted center core
       drawCircle(Vector2(x: cx, y: cy), r * 0.18,
                 Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 220))

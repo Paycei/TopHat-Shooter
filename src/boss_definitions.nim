@@ -278,7 +278,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Cataclysm",
           hpThreshold: 0.5,
           speedMultiplier: 1.0,  # NERFED from 1.1
-          damageMultiplier: 1.4,  # NERFED from 1.5
+          damageMultiplier: 1.2,  # NERFED from 1.5
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 50, b: 0, a: 255),
           visualEffect: "aura",
@@ -309,7 +309,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Apocalypse",
           hpThreshold: 0.25,
           speedMultiplier: 1.1,
-          damageMultiplier: 1.5,
+          damageMultiplier: 1.3,
           defenseMultiplier: 1.1,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
@@ -363,7 +363,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapLaser,
-              damage: 2.0,
+              damage: 3.0,
               cooldown: 4.5,  # NERFED from 3.5
               projectileSpeed: 0.0,
               projectileCount: 3,
@@ -373,7 +373,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 1.0,
+              damage: 2.5,
               cooldown: 2.75,  # NERFED from 2.25
               projectileSpeed: 160.0,  # NERFED from 180.0
               projectileCount: 5,  # NERFED from 6
@@ -382,7 +382,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 1.0,
+              damage: 2.5,
               cooldown: 3.5,  # NERFED from 3.0
               projectileSpeed: 220.0,  # NERFED from 250.0
               projectileCount: 4,  # NERFED from 5
@@ -403,7 +403,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapLaser,
-              damage: 2.0,
+              damage: 4.0,
               cooldown: 3.5,  # NERFED from 2.2
               projectileSpeed: 0.0,
               projectileCount: 3,  # NERFED from 4 (fewer lasers)
@@ -413,7 +413,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 1.0,
+              damage: 2.5,
               cooldown: 1.5,  # NERFED from 0.8
               projectileSpeed: 260.0,  # NERFED from 300.0
               projectileCount: 3,  # NERFED from 4
@@ -422,7 +422,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 1.0,
+              damage: 2.5,
               cooldown: 4.5,  # NERFED from 3.5
               projectileSpeed: 145.0,  # NERFED from 160.0
               projectileCount: 12,  # NERFED from 16
@@ -431,7 +431,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBurst,  # NERFED: Less aggressive burst
-              damage: 1.0,
+              damage: 2.5,
               cooldown: 3.0,  # NERFED from 2.5
               projectileSpeed: 190.0,  # NERFED from 220.0
               projectileCount: 6,  # NERFED from 8
@@ -452,7 +452,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapLaser,
-              damage: 2.0,  # NERFED from 2.5
+              damage: 5.0,
               cooldown: 4.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
               projectileCount: 4,  # NERFED from 6 (fewer lasers)
@@ -462,7 +462,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapLaser,
-              damage: 2.5,
+              damage: 5.0,
               cooldown: 1.0,  # Rapid fire laser spam
               projectileSpeed: 0.0,
               projectileCount: 1,
@@ -472,7 +472,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 1.0,
+              damage: 2.5,
               cooldown: 4.5,  # NERFED from 3.5
               projectileSpeed: 140.0,  # NERFED from 155.0
               projectileCount: 16,  # NERFED from 20
@@ -481,7 +481,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 1.0,  # NERFED from 2.0
+              damage: 2.5,
               cooldown: 6.0,  # NERFED from 4.5
               projectileSpeed: 190.0,  # NERFED from 210.0
               projectileCount: 16,  # NERFED from 20
@@ -490,7 +490,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 1.0,  # NERFED from 1.5
+              damage: 2.5,  # NERFED from 1.5
               cooldown: 6.5,  # NERFED from 5.0
               projectileSpeed: 160.0,  # NERFED from 175.0
               projectileCount: 0,
@@ -499,7 +499,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 1.0,  # NERFED from 1.5
+              damage: 2.5,  # NERFED from 1.5
               cooldown: 2.0,  # EXTREMELY NERFED from 1.2
               projectileSpeed: 250.0,  # NERFED from 280.0
               projectileCount: 2,  # NERFED from 3
@@ -535,7 +535,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapTeleport,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 5.0,
               cooldown: 3.0,
               projectileSpeed: 0.0,
               projectileCount: 5,
@@ -545,7 +545,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBurst,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 5.0,  # NERFED from 2.0
               cooldown: 2.5,  # NERFED from 2.0
               projectileSpeed: 180.0,  # NERFED from 200.0
               projectileCount: 5,  # NERFED from 7
@@ -554,7 +554,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 5.0,  # NERFED from 2.0
               cooldown: 2.8,  # NERFED from 2.3
               projectileSpeed: 220.0,  # NERFED from 240.0
               projectileCount: 3,
@@ -566,8 +566,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Shadow Realm",
           hpThreshold: 0.6,
-          speedMultiplier: 1.05,  # NERFED from 1.15
-          damageMultiplier: 1.15,  # NERFED from 1.3
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.1,  # NERFED from 1.3
           defenseMultiplier: 0.9,
           color: Color(r: 120, g: 0, b: 180, a: 255),
           visualEffect: "aura",
@@ -575,7 +575,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapTeleport,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 7.5,  # NERFED from 2.0
               cooldown: 3.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
               projectileCount: 1,  # NERFED from 2
@@ -585,7 +585,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 5.0,  # NERFED from 2.0
               cooldown: 2.2,  # NERFED from 1.8
               projectileSpeed: 160.0,  # NERFED from 180.0
               projectileCount: 5,  # NERFED from 6
@@ -594,7 +594,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 5.0,  # NERFED from 2.0
               cooldown: 4.0,  # NERFED from 3.5
               projectileSpeed: 160.0,
               projectileCount: 10,  # NERFED from 12
@@ -603,7 +603,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapSpiral,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 5.0,  # NERFED from 2.0
               cooldown: 3.2,  # NERFED from 2.8
               projectileSpeed: 160.0,
               projectileCount: 7,  # NERFED from 9
@@ -616,7 +616,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Void Ascension",
           hpThreshold: 0.35,
           speedMultiplier: 1.1,  # NERFED from 1.2
-          damageMultiplier: 1.3,  # NERFED from 1.5
+          damageMultiplier: 1.2,  # NERFED from 1.5
           defenseMultiplier: 0.8,
           color: Color(r: 160, g: 40, b: 220, a: 255),
           visualEffect: "glow",
@@ -624,7 +624,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapTeleport,
-              damage: 2.5,  # NERFED from 3.0
+              damage: 10.0,
               cooldown: 2.5,  # NERFED from 2.0
               projectileSpeed: 0.0,
               projectileCount: 2,  # NERFED from 3
@@ -634,7 +634,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 5.0,  # NERFED from 2.0
               cooldown: 3.5,  # NERFED from 3.0
               projectileSpeed: 170.0,  # NERFED from 180.0
               projectileCount: 16,  # NERFED from 20
@@ -643,7 +643,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 5.0,  # NERFED from 2.0
               cooldown: 5.0,  # NERFED from 4.5
               projectileSpeed: 200.0,  # NERFED from 220.0
               projectileCount: 0,
@@ -652,7 +652,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapDash,
-              damage: 2.5,  # NERFED from 3.0
+              damage: 5.0,  # NERFED from 3.0
               cooldown: 5.5,  # NERFED from 5.0
               projectileSpeed: 450.0,  # NERFED from 500.0
               projectileCount: 0,
@@ -661,7 +661,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 5.0,  # NERFED from 2.0
               cooldown: 2.0,  # NERFED from 1.5
               projectileSpeed: 190.0,  # NERFED from 210.0
               projectileCount: 6,  # NERFED from 8
@@ -670,7 +670,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 5.0,  # NERFED from 2.0
               cooldown: 1.5,  # NERFED from 1.2
               projectileSpeed: 240.0,  # NERFED from 260.0
               projectileCount: 2,  # NERFED from 3
@@ -706,7 +706,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapChain,
-              damage: 1.5,
+              damage: 4.5,
               cooldown: 3.5,
               projectileSpeed: 0.0,
               projectileCount: 3,  # 3 chain lightning bolts
@@ -716,7 +716,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapOrbit,
-              damage: 0.8,
+              damage: 4.0,
               cooldown: 0.8,  # Constant orbiting charges
               projectileSpeed: 75.0,
               projectileCount: 3,  # 3 electric charges
@@ -726,7 +726,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 1.0,
+              damage: 5.0,
               cooldown: 2.0,
               projectileSpeed: 220.0,
               projectileCount: 1,  # Single zap
@@ -747,7 +747,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapChain,
-              damage: 2.0,
+              damage: 4.5,
               cooldown: 2.5,
               projectileSpeed: 0.0,
               projectileCount: 5,  # More chains
@@ -757,7 +757,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapOrbit,
-              damage: 1.2,
+              damage: 5.0,
               cooldown: 0.5,
               projectileSpeed: 90.0,
               projectileCount: 5,  # More charges
@@ -767,7 +767,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 1.5,
+              damage: 5.0,
               cooldown: 4.5,
               projectileSpeed: 210.0,
               projectileCount: 0,
@@ -777,7 +777,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 1.0,
+              damage: 5.0,
               cooldown: 3.0,
               projectileSpeed: 160.0,
               projectileCount: 16,  # Ring of lightning
@@ -790,7 +790,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Overload",
           hpThreshold: 0.3,
           speedMultiplier: 1.2,
-          damageMultiplier: 1.4,
+          damageMultiplier: 1.3,
           defenseMultiplier: 0.85,
           color: Color(r: 255, g: 255, b: 255, a: 255),
           visualEffect: "glow",
@@ -798,7 +798,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapChain,
-              damage: 2.5,
+              damage: 6.5,
               cooldown: 2.0,
               projectileSpeed: 0.0,
               projectileCount: 8,  # Massive
@@ -808,7 +808,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapOrbit,
-              damage: 1.5,
+              damage: 5.0,
               cooldown: 0.4,  # Constant barrage
               projectileSpeed: 100.0,
               projectileCount: 6,
@@ -818,7 +818,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 1.2,
+              damage: 5.5,
               cooldown: 3.0,
               projectileSpeed: 230.0,
               projectileCount: 32,  # Electric explosion
@@ -828,7 +828,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 2.0,
+              damage: 6.0,
               cooldown: 5.0,
               projectileSpeed: 240.0,
               projectileCount: 0,
@@ -865,7 +865,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapOrbit,
-              damage: 1.2,
+              damage: 7.5,
               cooldown: 1.0,
               projectileSpeed: 75.0,  # Orbital speed
               projectileCount: 3,  # 3 satellites
@@ -875,7 +875,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapSnipe,
-              damage: 2.5,
+              damage: 7.5,
               cooldown: 4.0,
               projectileSpeed: 300.0,
               projectileCount: 1,
@@ -885,7 +885,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 1.0,
+              damage: 5.0,
               cooldown: 2.5,
               projectileSpeed: 200.0,
               projectileCount: 3,
@@ -906,7 +906,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapOrbit,
-              damage: 1.5,
+              damage: 5.0,
               cooldown: 0.8,
               projectileSpeed: 90.0,
               projectileCount: 5,
@@ -916,7 +916,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapSnipe,
-              damage: 3.0,
+              damage: 7.5,
               cooldown: 3.0,
               projectileSpeed: 350.0,
               projectileCount: 2,  # Double snipe
@@ -926,7 +926,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 1.5,
+              damage: 7.5,
               cooldown: 4.5,
               projectileSpeed: 140.0,
               projectileCount: 16,
@@ -935,7 +935,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 1.5,
+              damage: 7.5,
               cooldown: 6.0,
               projectileSpeed: 150.0,
               projectileCount: 0,
@@ -949,7 +949,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Orbital Supremacy",
           hpThreshold: 0.35,
           speedMultiplier: 1.15,
-          damageMultiplier: 1.5,
+          damageMultiplier: 1.3,
           defenseMultiplier: 1.0,
           color: Color(r: 200, g: 150, b: 255, a: 255),
           visualEffect: "glow",
@@ -957,7 +957,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapOrbit,
-              damage: 2.0,
+              damage: 10.0,
               cooldown: 0.6,
               projectileSpeed: 100.0,
               projectileCount: 8,
@@ -967,7 +967,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapSnipe,
-              damage: 4.0,
+              damage: 10.0,
               cooldown: 2.5,
               projectileSpeed: 400.0,
               projectileCount: 3,  # Triple precision strike
@@ -977,7 +977,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 1.5,
+              damage: 10.0,
               cooldown: 3.5,
               projectileSpeed: 240.0,
               projectileCount: 24,
@@ -987,7 +987,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapMeteor,
-              damage: 2.5,
+              damage: 10.0,
               cooldown: 5.0,
               projectileSpeed: 280.0,
               projectileCount: 5,  # Satellite drops
@@ -1024,7 +1024,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapDash,
-              damage: 2.5,
+              damage: 7.5,
               cooldown: 4.5,
               projectileSpeed: 450.0,  # Fast charge
               projectileCount: 0,
@@ -1034,7 +1034,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 1.5,
+              damage: 7.5,
               cooldown: 3.0,
               projectileSpeed: 170.0,
               projectileCount: 4,
@@ -1043,7 +1043,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 1.5,
+              damage: 7.5,
               cooldown: 2.0,
               projectileSpeed: 200.0,
               projectileCount: 1,
@@ -1064,7 +1064,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapDash,
-              damage: 3.5,
+              damage: 10.0,
               cooldown: 3.0,  # Frequent charges
               projectileSpeed: 520.0,  # Very fast
               projectileCount: 0,
@@ -1074,7 +1074,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 2.5,
+              damage: 10.0,
               cooldown: 4.0,
               projectileSpeed: 190.0,
               projectileCount: 0,
@@ -1084,7 +1084,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 1.5,
+              damage: 10.0,
               cooldown: 2.5,
               projectileSpeed: 160.0,
               projectileCount: 12,  # Rage burst
@@ -1093,7 +1093,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 2.0,
+              damage: 10.0,
               cooldown: 2.0,
               projectileSpeed: 180.0,
               projectileCount: 5,
@@ -1106,7 +1106,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Unstoppable",
           hpThreshold: 0.3,
           speedMultiplier: 1.0,  # NERFED from 1.2
-          damageMultiplier: 1.8,
+          damageMultiplier: 1.5,
           defenseMultiplier: 0.8,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
@@ -1114,7 +1114,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapDash,
-              damage: 4.5,
+              damage: 10.0,
               cooldown: 2.0,  # Constant charging
               projectileSpeed: 600.0,
               projectileCount: 0,
@@ -1124,7 +1124,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 3.0,
+              damage: 10.0,
               cooldown: 3.0,
               projectileSpeed: 220.0,
               projectileCount: 0,
@@ -1134,7 +1134,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 1.5,
+              damage: 10.0,
               cooldown: 3.5,
               projectileSpeed: 210.0,
               projectileCount: 28,  # Rage explosion
@@ -1144,7 +1144,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 2.0,
+              damage: 10.0,
               cooldown: 2.0,
               projectileSpeed: 170.0,
               projectileCount: 16,
@@ -1155,6 +1155,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         )
       ]
     )
+
   of 9:  # Wave 45 - THE PRISM ARCHITECT
     result = BossDefinition(
       name: t(tkBoss9Name),
@@ -1179,7 +1180,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapLaser,
-              damage: 2.5,
+              damage: 10.0,
               cooldown: 3.5,
               projectileSpeed: 0.0,
               projectileCount: 3,  # Triangle pattern
@@ -1189,7 +1190,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 1.5,
+              damage: 10.0,
               cooldown: 2.5,
               projectileSpeed: 160.0,
               projectileCount: 5,  # Rainbow wave
@@ -1199,7 +1200,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 1.5,
+              damage: 10.0,
               cooldown: 2.0,
               projectileSpeed: 200.0,
               projectileCount: 3,
@@ -1212,7 +1213,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Spectrum Array",
           hpThreshold: 0.6,
           speedMultiplier: 1.1,
-          damageMultiplier: 1.25,
+          damageMultiplier: 1.2,
           defenseMultiplier: 1.15,
           color: Color(r: 200, g: 150, b: 255, a: 255),
           visualEffect: "aura",
@@ -1220,7 +1221,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapLaser,
-              damage: 3.0,
+              damage: 12.5,
               cooldown: 3.0,
               projectileSpeed: 0.0,
               projectileCount: 6,  # Hexagonal pattern
@@ -1230,7 +1231,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 1.5,
+              damage: 12.5,
               cooldown: 3.5,
               projectileSpeed: 180.0,
               projectileCount: 20,  # Rainbow burst
@@ -1240,7 +1241,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 1.5,
+              damage: 12.5,
               cooldown: 4.0,
               projectileSpeed: 145.0,
               projectileCount: 16,  # Light ring
@@ -1249,7 +1250,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 2.0,
+              damage: 15.0,
               cooldown: 2.5,
               projectileSpeed: 170.0,
               projectileCount: 7,  # Rainbow wave
@@ -1262,7 +1263,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Pure Brilliance",
           hpThreshold: 0.33,
           speedMultiplier: 1.15,
-          damageMultiplier: 1.5,
+          damageMultiplier: 1.3,
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 255, b: 255, a: 255),
           visualEffect: "glow",
@@ -1270,7 +1271,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapLaser,
-              damage: 4.5,
+              damage: 15.0,
               cooldown: 2.0,
               projectileSpeed: 0.0,
               projectileCount: 7,  # Massive prism array
@@ -1280,7 +1281,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 2.5,
+              damage: 12.5,
               cooldown: 3.5,
               projectileSpeed: 270.0,
               projectileCount: 0,
@@ -1290,7 +1291,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 2.0,
+              damage: 12.5,
               cooldown: 2.5,
               projectileSpeed: 240.0,
               projectileCount: 40,  # Rainbow explosion
@@ -1300,7 +1301,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 2.0,
+              damage: 12.5,
               cooldown: 3.0,
               projectileSpeed: 160.0,
               projectileCount: 20,  # Dense light ring
@@ -1336,7 +1337,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapTeleport,
-              damage: 2.5,
+              damage: 12.5,
               cooldown: 4.0,
               projectileSpeed: 0.0,
               projectileCount: 2,  # Creates 2 temporal echoes
@@ -1346,7 +1347,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 1.5,
+              damage: 12.5,
               cooldown: 2.5,
               projectileSpeed: 140.0,  # Slow time wave
               projectileCount: 7,
@@ -1356,7 +1357,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 2.0,
+              damage: 12.5,
               cooldown: 3.0,
               projectileSpeed: 160.0,
               projectileCount: 1,
@@ -1369,7 +1370,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Time Fracture",
           hpThreshold: 0.6,
           speedMultiplier: 1.1,
-          damageMultiplier: 1.3,
+          damageMultiplier: 1.2,
           defenseMultiplier: 1.2,
           color: Color(r: 100, g: 220, b: 220, a: 255),  # Brighter cyan
           visualEffect: "aura",
@@ -1377,7 +1378,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapTeleport,
-              damage: 3.5,
+              damage: 15.0,
               cooldown: 3.0,
               projectileSpeed: 0.0,
               projectileCount: 4,  # Multiple time clones
@@ -1387,7 +1388,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 2.5,
+              damage: 15.0,
               cooldown: 2.5,
               projectileSpeed: 170.0,
               projectileCount: 24,  # Time ring
@@ -1397,7 +1398,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 2.5,
+              damage: 15.0,
               cooldown: 5.0,
               projectileSpeed: 190.0,
               projectileCount: 0,
@@ -1407,7 +1408,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapSpiral,
-              damage: 2.0,
+              damage: 15.0,
               cooldown: 3.5,
               projectileSpeed: 150.0,
               projectileCount: 12,  # Time spiral
@@ -1420,7 +1421,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Time Collapse",
           hpThreshold: 0.4,
           speedMultiplier: 1.5,  # Fast blinking
-          damageMultiplier: 1.7,
+          damageMultiplier: 1.4,
           defenseMultiplier: 0.85,
           color: Color(r: 150, g: 255, b: 255, a: 255),  # Bright cyan/white
           visualEffect: "glow",
@@ -1428,7 +1429,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapTeleport,
-              damage: 4.5,
+              damage: 17.5,
               cooldown: 2.0,  # Rapid teleports
               projectileSpeed: 0.0,
               projectileCount: 6,  # Many temporal clones
@@ -1438,7 +1439,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 3.0,
+              damage: 15.0,
               cooldown: 2.5,
               projectileSpeed: 260.0,
               projectileCount: 48,  # Time explosion
@@ -1448,7 +1449,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapLaser,
-              damage: 4.0,
+              damage: 17.5,
               cooldown: 4.0,
               projectileSpeed: 0.0,
               projectileCount: 4,  # Time beams
@@ -1458,7 +1459,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 3.5,
+              damage: 15.0,
               cooldown: 4.5,
               projectileSpeed: 220.0,
               projectileCount: 0,
@@ -1468,7 +1469,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 2.5,
+              damage: 15.0,
               cooldown: 2.0,
               projectileSpeed: 180.0,
               projectileCount: 32,  # Dense time ring
@@ -1484,7 +1485,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss11Name),
       bossID: 11,
-      baseHP: 1275.0,  # NERFED from 1800.0
+      baseHP: 1300.0,  # NERFED from 1800.0
       baseSpeed: 70.0,  # NERFED from 90.0
       baseDamage: 4,  # NERFED from 5
       baseRadius: 58.0,
@@ -1504,7 +1505,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapBarrage,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 17.5,  # NERFED from 2.0
               cooldown: 2.0,  # NERFED from 1.5
               projectileSpeed: 170.0,  # NERFED from 200.0
               projectileCount: 12,  # NERFED from 15
@@ -1514,7 +1515,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTeleport,
-              damage: 2.5,  # NERFED from 3.0
+              damage: 20.0,  # NERFED from 3.0
               cooldown: 3.5,  # NERFED from 3.0
               projectileSpeed: 0.0,
               projectileCount: 0,
@@ -1524,7 +1525,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 1.5,  # NERFED from 2.0
+              damage: 17.5,  # NERFED from 2.0
               cooldown: 2.5,  # NERFED from 2.0
               projectileSpeed: 190.0,  # NERFED from 220.0
               projectileCount: 5,  # NERFED from 6
@@ -1545,7 +1546,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapBarrage,
-              damage: 2.5,  # NERFED from 3.0
+              damage: 20.0,  # NERFED from 3.0
               cooldown: 1.5,  # NERFED from 1.0
               projectileSpeed: 210.0,  # NERFED from 250.0
               projectileCount: 18,  # NERFED from 24
@@ -1555,7 +1556,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTeleport,
-              damage: 3.0,  # NERFED from 4.0
+              damage: 20.0,  # NERFED from 4.0
               cooldown: 2.5,  # NERFED from 2.0
               projectileSpeed: 0.0,
               projectileCount: 2,  # NERFED from 3
@@ -1565,7 +1566,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 2.5,  # NERFED from 3.0
+              damage: 20.0,  # NERFED from 3.0
               cooldown: 3.0,  # NERFED from 2.5
               projectileSpeed: 150.0,  # NERFED from 170.0
               projectileCount: 22,  # NERFED from 28
@@ -1574,7 +1575,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapLaser,
-              damage: 3.5,  # NERFED from 4.0
+              damage: 22.5,  # NERFED from 4.0
               cooldown: 4.5,  # NERFED from 4.0
               projectileSpeed: 0.0,
               projectileCount: 4,  # NERFED from 5
@@ -1596,7 +1597,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapBarrage,
-              damage: 3.0,  # NERFED from 4.0
+              damage: 20.0,  # NERFED from 4.0
               cooldown: 1.2,  # NERFED from 0.8
               projectileSpeed: 250.0,  # NERFED from 300.0
               projectileCount: 30,  # NERFED from 40
@@ -1606,7 +1607,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTeleport,
-              damage: 4.0,  # NERFED from 5.0
+              damage: 25.0,  # NERFED from 5.0
               cooldown: 2.0,  # NERFED from 1.5
               projectileSpeed: 0.0,
               projectileCount: 3,  # NERFED from 5
@@ -1616,7 +1617,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 3.0,  # NERFED from 4.0
+              damage: 20.0,  # NERFED from 4.0
               cooldown: 3.5,  # NERFED from 3.0
               projectileSpeed: 240.0,  # NERFED from 280.0
               projectileCount: 0,
@@ -1633,7 +1634,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss12Name),
       bossID: 12,
-      baseHP: 1600.0,  # NERFED from 2500.0
+      baseHP: 2000.0,  # NERFED from 2500.0
       baseSpeed: 65.0,  # NERFED from 85.0
       baseDamage: 5,  # NERFED from 6
       baseRadius: 70.0,
@@ -1646,14 +1647,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.9,  # NERFED from 1.0
           damageMultiplier: 0.9,  # NERFED from 1.0
-          defenseMultiplier: 1.4,  # NERFED from 1.5
+          defenseMultiplier: 1.3,  # NERFED from 1.5
           color: Color(r: 255, g: 50, b: 50, a: 255),
           visualEffect: "shield",
           specialBehavior: "balanced_assault",
           attacks: @[
             BossAttack(
               attackType: bapSpiral,
-              damage: 2.5,  # NERFED from 3.0
+              damage: 25.0,  # NERFED from 3.0
               cooldown: 3.0,  # NERFED from 2.5
               projectileSpeed: 160.0,  # NERFED from 180.0
               projectileCount: 10,  # NERFED from 12
@@ -1662,7 +1663,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapOrbit,
-              damage: 2.5,
+              damage: 20.0,
               cooldown: 1.5,
               projectileSpeed: 100.0,
               projectileCount: 5,  # NERFED from 6
@@ -1671,7 +1672,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapLaser,
-              damage: 3.5,  # NERFED from 4.0
+              damage: 30.0,  # NERFED from 4.0
               cooldown: 4.5,  # NERFED from 4.0
               projectileSpeed: 0.0,
               projectileCount: 3,  # NERFED from 4
@@ -1692,7 +1693,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapMeteor,
-              damage: 3.5,  # NERFED from 4.0
+              damage: 27.5,  # NERFED from 4.0
               cooldown: 3.5,  # NERFED from 3.0
               projectileSpeed: 320.0,  # NERFED from 350.0
               projectileCount: 5,  # NERFED from 6
@@ -1701,7 +1702,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapChain,
-              damage: 3.5,  # NERFED from 4.0
+              damage: 25.0,  # NERFED from 4.0
               cooldown: 4.0,  # NERFED from 3.5
               projectileSpeed: 0.0,
               projectileCount: 5,  # NERFED from 6
@@ -1710,7 +1711,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 2.5,  # NERFED from 3.0
+              damage: 27.5,  # NERFED from 3.0
               cooldown: 2.5,  # NERFED from 2.0
               projectileSpeed: 220.0,  # NERFED from 250.0
               projectileCount: 24,  # NERFED from 32
@@ -1731,7 +1732,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapTeleport,
-              damage: 4.0,  # NERFED from 5.0
+              damage: 27.5,  # NERFED from 5.0
               cooldown: 3.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
               projectileCount: 3,  # NERFED from 4
@@ -1740,7 +1741,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapDash,
-              damage: 4.0,  # NERFED from 5.0
+              damage: 27.5,  # NERFED from 5.0
               cooldown: 3.5,  # NERFED from 3.0
               projectileSpeed: 550.0,  # NERFED from 650.0
               projectileCount: 0,
@@ -1749,7 +1750,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 3.5,  # NERFED from 4.0
+              damage: 27.5,  # NERFED from 4.0
               cooldown: 4.5,  # NERFED from 4.0
               projectileSpeed: 240.0,  # NERFED from 280.0
               projectileCount: 0,
@@ -1758,7 +1759,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 2.5,  # NERFED from 3.0
+              damage: 27.5,  # NERFED from 3.0
               cooldown: 2.5,  # NERFED from 2.0
               projectileSpeed: 170.0,  # NERFED from 200.0
               projectileCount: 26,  # NERFED from 32
@@ -1769,10 +1770,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         ),
         BossPhaseDefinition(
           name: "Omega Phase",
-          hpThreshold: 0.25,
-          speedMultiplier: 1.2,  # NERFED from 2.0
-          damageMultiplier: 1.5,  # NERFED from 2.5
-          defenseMultiplier: 0.85,  # NERFED from 1.0
+          hpThreshold: 0.2,
+          speedMultiplier: 1.2,
+          damageMultiplier: 1.5,
+          defenseMultiplier: 5.0,
           color: Color(r: 255, g: 0, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "final_form",
@@ -1789,7 +1790,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapLaser,
-              damage: 5.0,  # NERFED from 6.0
+              damage: 35.0,  # NERFED from 6.0
               cooldown: 3.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
               projectileCount: 4,  # NERFED from 5
@@ -1799,7 +1800,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTeleport,
-              damage: 5.0,  # NERFED from 6.0
+              damage: 30.0,  # NERFED from 6.0
               cooldown: 2.5,  # NERFED from 1.8
               projectileSpeed: 0.0,
               projectileCount: 4,  # NERFED from 6
@@ -1809,7 +1810,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 4.0,  # NERFED from 5.0
+              damage: 30.0,  # NERFED from 5.0
               cooldown: 3.5,  # NERFED from 3.0
               projectileSpeed: 260.0,  # NERFED from 300.0
               projectileCount: 0,
@@ -1835,19 +1836,19 @@ proc isBossWave*(waveNumber: int): bool =
 
 proc getCustomBossNumber*(waveNumber: int): int =
   ## Returns the custom boss number (1-12) for the given wave
-  ## After wave 60, continues with boss 12 (The Final Sentinel)
+  ## After wave 60, continues with boss 12
   if waveNumber <= 0 or waveNumber mod 5 != 0:
     return 0
 
   let bossNumber = waveNumber div 5
   if bossNumber > 12:
-    return 12  # Boss 12 (The Final Sentinel) continues indefinitely with scaled stats
+    return 12  # Boss 12 continues indefinitely with scaled stats
 
   return bossNumber
 
 proc getBossForWave*(waveNumber: int): BossDefinition =
   ## Gets the appropriate boss definition for a wave number
-  ## After wave 60, uses boss 12 (The Final Sentinel) with stats scaled per wave
+  ## After wave 60, uses boss 12 with stats scaled per wave
   if not isBossWave(waveNumber):
     # Not a boss wave, return empty definition
     return BossDefinition()

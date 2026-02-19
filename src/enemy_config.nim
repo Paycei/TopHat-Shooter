@@ -110,7 +110,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: t(tkEnemyPentagonName),
       description: t(tkEnemyPentagonDesc),
       
-      baseHP: 2.2,
+      baseHP: 2.5,
       baseRadius: 11.0,
       contactDamage: 1,
       baseColor: Color(r: 0, g: 150, b: 100, a: 255),  # Teal
@@ -159,7 +159,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: t(tkEnemyTriangleName),
       description: t(tkEnemyTriangleDesc),
       
-      baseHP: 1.4,
+      baseHP: 3.0,
       baseRadius: 10.5,
       contactDamage: 1,
       baseColor: Pink,
@@ -255,7 +255,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 220.0,   # Fast projectiles
         bulletCount: 3,       # 3-shot burst
         spreadAngle: 0.33,     # Small spread
-        damage: 2.0,          # Higher ranged damage
+        damage: 2.5,          # Higher ranged damage
         usesBurst: true,
         burstCount: 3,
         burstDelay: 0.05,
@@ -281,7 +281,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: t(tkEnemyHexagonName),
       description: t(tkEnemyHexagonDesc),
       
-      baseHP: 5.0,
+      baseHP: 7.5,
       baseRadius: 10.0,
       contactDamage: 1,
       baseColor: Color(r: 128, g: 0, b: 255, a: 255),  # Purple
@@ -304,7 +304,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 220.0,
         bulletCount: 3,       # Average (2-4 random)
         spreadAngle: 6.28,    # Full circle (random directions)
-        damage: 1.0,
+        damage: 5.0,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
@@ -370,7 +370,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: t(tkEnemyDiamondName),
       description: t(tkEnemyDiamondDesc),
       
-      baseHP: 4.0,
+      baseHP: 7.5,
       baseRadius: 9.0,
       contactDamage: 1,
       baseColor: Color(r: 0, g: 200, b: 255, a: 255),  # Cyan
@@ -393,7 +393,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 140.0,   # Slow projectiles
         bulletCount: 3,       # 3 bullets during dash
         spreadAngle: 0.3,     # Small spread (-1, 0, +1)
-        damage: 1.0,
+        damage: 5.0,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
@@ -423,7 +423,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: t(tkEnemyOctagonName),
       description: t(tkEnemyOctagonDesc),
       
-      baseHP: 3.5,
+      baseHP: 10.0,
       baseRadius: 12.0,
       contactDamage: 1,
       baseColor: Color(r: 150, g: 150, b: 0, a: 255),  # Yellow-brown
@@ -446,7 +446,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 120.0,   # Slow projectiles
         bulletCount: 1,       # Single shot
         spreadAngle: 0.8,     # High inaccuracy (random ±0.4 radians)
-        damage: 1.0,
+        damage: 5.0,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
@@ -472,7 +472,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: t(tkEnemyTricksterName),
       description: t(tkEnemyTricksterDesc),
       
-      baseHP: 5.0,
+      baseHP: 15.0,
       baseRadius: 13.0,
       contactDamage: 1,
       baseColor: Color(r: 200, g: 0, b: 200, a: 255),  # Magenta
@@ -495,7 +495,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 250.0,
         bulletCount: 6,       # 6-way circular burst after teleport
         spreadAngle: 1.047,   # 60 degrees between shots (PI/3)
-        damage: 1.0,
+        damage: 7.5,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
@@ -525,7 +525,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: t(tkEnemyPhantomName),
       description: t(tkEnemyPhantomDesc),
       
-      baseHP: 5.0,
+      baseHP: 15.0,
       baseRadius: 11.0,
       contactDamage: 1,
       baseColor: Color(r: 100, g: 100, b: 255, a: 180),  # Semi-transparent blue
@@ -548,7 +548,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 260.0,
         bulletCount: 1,       # Single shot
         spreadAngle: 0.0,
-        damage: 1.0,
+        damage: 7.5,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
@@ -578,7 +578,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: t(tkEnemySniperName),
       description: t(tkEnemySniperDesc),
       
-      baseHP: 7.5,
+      baseHP: 15.0,
       baseRadius: 10.0,
       contactDamage: 3,
       baseColor: Color(r: 220, g: 0, b: 0, a: 255),  # Glowing red
@@ -601,7 +601,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 450.0,   # Slightly faster for long range (was 400)
         bulletCount: 1,
         spreadAngle: 0.0,
-        damage: 9999.0,       # One-shot kill
+        damage: 9999.9,       # One-shot kill
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
@@ -631,7 +631,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       name: t(tkEnemyMageName),
       description: t(tkEnemyMageDesc),
       
-      baseHP: 7.5,
+      baseHP: 20.0,
       baseRadius: 12.0,
       contactDamage: 1,
       baseColor: Color(r: 138, g: 43, b: 226, a: 255),  # Purple/violet
@@ -654,7 +654,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 220.0,
         bulletCount: 1,
         spreadAngle: 0.0,
-        damage: 2.0,
+        damage: 10.0,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
