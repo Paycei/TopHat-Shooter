@@ -11,6 +11,7 @@ proc newPlayer*(x, y: float32): Player =
     speed: 175,
     baseSpeed: 175,
     damage: 1,
+    bulletDamageMult: 1.0,  # Multiplier for bullet-only damage bonuses (e.g. Arcane Bullets)
     fireRate: 0.425,
     bulletSpeed: 325,
     lastShot: 0,

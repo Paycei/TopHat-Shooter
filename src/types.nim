@@ -201,6 +201,7 @@ type
     speed*: float32
     baseSpeed*: float32
     damage*: float32
+    bulletDamageMult*: float32  # Multiplier applied only to bullet damage (e.g. Arcane Bullets)
     fireRate*: float32
     bulletSpeed*: float32
     lastShot*: float32

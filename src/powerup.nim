@@ -335,12 +335,12 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puArcaneOrb:
     createElementalOrbs(player, etArcane, powerUp.level)
   of puArcaneBullets:
-    # Arcane bullets just increase damage
+    # Arcane bullets increase bullet damage only (not base player damage)
     let damageBonus = case powerUp.level
-      of 1: 1.5   # +50% damage
-      of 2: 2.0   # +100% damage
-      else: 2.5   # +150% damage
-    player.damage *= damageBonus
+      of 1: 1.5   # +50% bullet damage
+      of 2: 2.0   # +100% bullet damage
+      else: 2.5   # +150% bullet damage
+    player.bulletDamageMult *= damageBonus
   of puFireMastery:
     # Enhance fire effects
     player.hasFireMastery = true
@@ -431,7 +431,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           of 2: 1.333  # 2.0 / 1.5
           of 3: 1.25   # 2.5 / 2.0
           else: 1.0
-        player.damage *= damageBonus
+        player.bulletDamageMult *= damageBonus
       of puHeavyRounds:
         # When upgrading Heavy Rounds, increase size further
         let sizeBonus = case powerUp.level

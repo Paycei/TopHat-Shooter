@@ -433,7 +433,7 @@ proc calculateCombatStats*(player: Player): CombatStats =
   ## Calculates all combat stats in one place
   ## Single source of truth for damage, fire rate, crit chance calculations
   result.baseDamage = player.damage
-  result.damage = player.damage
+  result.damage = player.damage * player.bulletDamageMult  # Include bullet-specific multipliers
   result.fireRate = player.fireRate
   result.critChance = 0
   result.critMultiplier = 2.0
@@ -1324,16 +1324,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         of 2: 2.0   # +100% size
         else: 2.5   # +150% size
       bulletRadius *= heavyMultiplier
-    
-    # Track Arcane Bullets contribution
-    var arcaneBulletsBonus = 0.0
-    if hasArcane:
-      let arcaneLevel = getPowerUpLevel(game.player, puArcaneBullets)
-      let arcaneMultiplier = case arcaneLevel
-        of 1: 0.5   # +50%
-        of 2: 0.85   # +85%
-        else: 1.20   # +120%
-      arcaneBulletsBonus = damageBeforePowerUps * arcaneMultiplier
     
     # Apply critical hit chance using pre-calculated stats and capture if it was a crit
     let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, damage)
