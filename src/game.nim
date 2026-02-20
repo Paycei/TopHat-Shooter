@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, strutils, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival  # Import 3D game module
+import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival  # Import 3D game module
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -3132,63 +3132,78 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
   
   of bapMeteor:
-    # Falling projectiles from above
+    # Falling projectiles from above — screen-wide barrage with a guaranteed dodge gap
     # SpecialData modes:
-    # - "warn_impact": Show visual warnings before meteors hit
-    # - "massive_impact": Larger impact radius
-    # - "apocalypse_mode": Massive meteors with longer warnings
-    # - "satellite_strike": Orbital bombardment from satellites
-    
+    # - "warn_impact":    Show warnings before meteors arrive
+    # - "massive_impact": Larger meteorites, more coverage
+    # - "apocalypse_mode": Maximum meteorites, longer warnings
+    # - "satellite_strike": Purple space theme
+
     let meteorMode = attack.specialData
-    let showWarning = meteorMode.contains("warn") or meteorMode == "satellite_strike"
-    
-    # Configure meteor behavior based on mode
-    let (impactRadius, warningTime, meteorColor, particleCount) = case meteorMode
+
+    # Resolve bullet radius: 0 means "use default 6" (see BossAttack type comment).
+    # A zero radius would make spacing = 0, causing an infinite loop in the layout loop below.
+    let rawMeteorRadius = if attack.bulletRadius > 0: attack.bulletRadius else: 6.0'f32
+
+    # Configure per-mode parameters
+    let (warningTime, meteorColor, bRadius) = case meteorMode
       of "massive_impact":
-        (attack.durationOrRadius * 1.5, 0.5, Color(r: 255, g: 100, b: 0, a: 255), 6)
+        (0.65'f32, Color(r: 255, g: 100, b: 0, a: 255),
+         rawMeteorRadius * 1.4)
       of "apocalypse_mode":
-        (attack.durationOrRadius * 2.0, 0.8, Color(r: 255, g: 50, b: 0, a: 255), 8)
+        (0.85'f32, Color(r: 255, g: 50, b: 0, a: 255),
+         rawMeteorRadius * 1.6)
       of "satellite_strike":
-        (attack.durationOrRadius, 0.7, Color(r: 180, g: 120, b: 255, a: 255), 10)  # Purple space theme
-      else:
-        (attack.durationOrRadius, 0.5, Color(r: 255, g: 150, b: 50, a: 255), 4)
-    
-    for i in 0..<attack.projectileCount:
-      # Calculate target position
-      let offsetX = (rand(1.0) - 0.5) * impactRadius * 2.0
-      let targetX = game.player.pos.x + offsetX
-      
-      # Show warning circle at the impact zone (near player's current position)
-      if showWarning:
-        game.attackWarnings.add(newAttackWarning(targetX, game.player.pos.y, "meteor", warningTime))
-      
-      # Spawn meteor from above
-      let startY = -50.0
-      
-      # Spawn the actual meteor bullet from top of screen
-      game.bullets.add(newBullet(
-        x = targetX, y = startY, direction = newVector2f(0, 1),
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-      
-      # Special visual effects for satellite strikes
-      if meteorMode == "satellite_strike":
-        # Create orbital beam effect from above
-        for step in 0..5:
-          let beamY = startY - (step.float32 * 30.0)
-          spawnExplosionPooled(game.particlePool, targetX, beamY,
-                        Color(r: 150, g: 100, b: 255, a: 255), 3)
-        
-        # Star field particles at impact point
-        for j in 0..<particleCount:
-          let particleAngle = j.float32 * (PI * 2.0) / particleCount.float32
-          let particleX = targetX + cos(particleAngle) * 25.0
-          let particleY = game.screenHeight.float32
-          spawnExplosionPooled(game.particlePool, particleX, particleY,
-                        Color(r: 200, g: 150, b: 255, a: 255), 2)
+        (0.75'f32, Color(r: 180, g: 120, b: 255, a: 255),
+         rawMeteorRadius)
+      else:  # "warn_impact" and everything else
+        (0.55'f32, Color(r: 255, g: 150, b: 50, a: 255),
+         rawMeteorRadius)
+
+    # -- Layout: distribute meteors across 50% of the screen width ---------------
+    let sw        = game.screenWidth.float32
+    let margin    = 15.0'f32                       # keep away from edges
+    let spacing   = bRadius * 5.0'f32              # center-to-center distance (2.5x→5.0x = 50% fewer meteors)
+
+    # Barrage zone: half the screen width, randomly offset so it isn't always on one side
+    let zoneWidth = sw * 0.5'f32
+    let zoneStart = margin + rand(max(0.0'f32, sw - 2.0'f32 * margin - zoneWidth))
+    let zoneEnd   = zoneStart + zoneWidth
+
+    # Guaranteed safe gap: player must physically fit through it
+    let gapHalf   = game.player.radius + bRadius + 28.0'f32  # 28 px clearance each side
+    let gapMin    = zoneStart + gapHalf
+    let gapMax    = zoneEnd   - gapHalf
+    let gapCenter = gapMin + rand(max(0.0'f32, gapMax - gapMin))
+
+    # Collect all meteor X positions inside the zone that fall outside the gap
+    var meteorXs: seq[float32] = @[]
+    var mx = zoneStart + bRadius
+    while mx <= zoneEnd - bRadius:
+      if abs(mx - gapCenter) >= gapHalf:
+        meteorXs.add(mx)
+      mx += spacing
+
+    # For each position, place a timed warning; bullet spawns when warning expires
+    let impactY = clamp(game.player.pos.y + 80.0'f32,
+                        game.screenHeight.float32 * 0.5'f32,
+                        game.screenHeight.float32 * 0.85'f32)
+
+    for targetX in meteorXs:
+      var w = AttackWarning(
+        pos:          newVector2f(targetX, impactY),
+        targetPos:    newVector2f(targetX, -50.0),   # bullet spawn point
+        attackType:   "meteor",
+        lifetime:     warningTime,
+        maxLifetime:  warningTime,
+        sourceEnemyId: enemy.id,
+        bulletSpeed:  attack.projectileSpeed,
+        bulletDamage: attack.damage * phase.damageMultiplier,
+        bulletRadius: bRadius,
+        overrideColor: meteorColor,
+        bulletsCreated: false
+      )
+      game.attackWarnings.add(w)
   
   of bapOrbit:
     # ORBITAL SATELLITE SYSTEM
@@ -4042,8 +4057,10 @@ proc updateGame*(game: var Game, dt: float32) =
     game.attackWarnings[i].lifetime -= dt
     
     # Update warning position to follow the boss that created it
-    # EXCEPT for teleport warnings which should stay at their destination position
-    if game.attackWarnings[i].sourceEnemyId >= 0 and game.attackWarnings[i].attackType != "teleport_warning":
+    # EXCEPT for teleport/meteor warnings which must stay at their fixed destination position
+    if game.attackWarnings[i].sourceEnemyId >= 0 and
+       game.attackWarnings[i].attackType != "teleport_warning" and
+       game.attackWarnings[i].attackType != "meteor":
       # Find the boss enemy
       for enemy in game.enemies:
         if enemy.id == game.attackWarnings[i].sourceEnemyId:
@@ -4153,7 +4170,35 @@ proc updateGame*(game: var Game, dt: float32) =
       
       # Mark bullets as created
       game.attackWarnings[i].bulletsCreated = true
-    
+
+    # METEOR SYSTEM: Spawn bullet when warning expires
+    if game.attackWarnings[i].attackType == "meteor" and
+       not game.attackWarnings[i].bulletsCreated and
+       game.attackWarnings[i].lifetime <= 0.05:
+      let w = game.attackWarnings[i]
+      var bossShape = 0
+      for be in game.enemies:
+        if be.id == w.sourceEnemyId:
+          bossShape = bossBulletShapeFor(be.bossDefinitionID)
+          break
+      game.bullets.add(newBullet(
+        x = w.targetPos.x, y = w.targetPos.y,
+        direction = newVector2f(0, 1),
+        speed = w.bulletSpeed,
+        damage = w.bulletDamage,
+        fromPlayer = false, isBossBullet = true,
+        sourceEnemyId = w.sourceEnemyId,
+        bossBulletShape = bossShape,
+        bulletRadius = w.bulletRadius,
+        colorOverride = w.overrideColor
+      ))
+      # Satellite strike entry flash
+      if w.overrideColor.r < 200 and w.overrideColor.b > 200:  # purple = satellite
+        for step in 0..4:
+          spawnExplosionPooled(game.particlePool, w.targetPos.x, -50.0 - step.float32 * 25.0,
+                              Color(r: 150, g: 100, b: 255, a: 255), 3)
+      game.attackWarnings[i].bulletsCreated = true
+
     if game.attackWarnings[i].lifetime <= 0:
       game.attackWarnings.delete(i)
       continue

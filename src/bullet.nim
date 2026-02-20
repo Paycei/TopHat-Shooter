@@ -114,6 +114,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 isFromWallTurret: bool = false, isFromRadialBurst: bool = false,
                 isFromBulletSplit: bool = false, isRicochet: bool = false,
                 isParried: bool = false,
+                colorOverride: Color = Color(r: 0, g: 0, b: 0, a: 0),
                 bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1,
                 ownerPlayerIndex: int = -1, bossBulletShape: int = 0,
                 bulletRadius: float32 = 0.0, bulletShape: int = 0): Bullet =
@@ -159,6 +160,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     isFromBulletSplit: isFromBulletSplit,  # Created by Bullet Split
     isRicochet: isRicochet,  # Has already ricocheted
     isParried: isParried,  # Enemy bullet bounced back by Parry
+    colorOverride: colorOverride,  # Custom bullet color (alpha=0 = use default)
     bulletSkin: bulletSkin,  # Bullet skin type
     bulletShape: bulletShape,  # Cosmetic bullet shape
     ownerPlayerIndex: ownerPlayerIndex  # For PvP: which player (0 or 1) shot this (-1 for non-PvP)
@@ -209,7 +211,13 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     trailColor = Color(r: 180, g: 180, b: 255, a: fadeAlpha)
   else:
     # Enemy bullets - pink by default, special colors for specific enemy types
-    if bullet.sourceEnemyType == etSniper:
+    if bullet.colorOverride.a > 0:
+      # Custom color override (e.g. meteor bullets)
+      color = bullet.colorOverride
+      glowColor = Color(r: bullet.colorOverride.r, g: bullet.colorOverride.g,
+                        b: bullet.colorOverride.b, a: 120)
+      trailColor = bullet.colorOverride
+    elif bullet.sourceEnemyType == etSniper:
       # Sniper bullets are bright red with glow
       color = Color(r: 255, g: 50, b: 50, a: 255)  # Bright red
       glowColor = Color(r: 255, g: 0, b: 0, a: 150)  # Red glow
@@ -449,6 +457,7 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     original.isFromBulletSplit,  # Preserve split origin
     original.isRicochet,  # Preserve ricochet flag
     original.isParried,  # Preserve parry flag
+    original.colorOverride,  # Preserve custom color
     original.bulletSkin,  # Preserve bullet skin
     0,  # bulletId (will be assigned later)
     -1,  # parentBulletId

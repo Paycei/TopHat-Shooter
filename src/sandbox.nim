@@ -479,7 +479,6 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
     else:
       discard
 
-# SANDBOX MODE UPDATES
 proc updateSandboxMode*(game: Game, dt: float32) =
   # Apply god mode
   if game.sandboxGodMode:

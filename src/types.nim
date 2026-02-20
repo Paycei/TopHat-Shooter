@@ -174,6 +174,8 @@ type
     bulletSpreadAngle*: float32  # Spread angle for bullets
     bulletsCreated*: bool        # Flag to track if bullets were spawned
     isBossTeleportTarget*: bool  # True if boss should teleport to this position
+    bulletRadius*: float32       # Bullet radius for delayed-spawn attacks (e.g. meteors)
+    overrideColor*: Color        # Optional color tint for this warning (alpha=0 = use default)
 
   ElementType* = enum
     etPoison,      # Green - poison damage over time
@@ -405,6 +407,7 @@ type
     isFromBulletSplit*: bool  # True if this bullet was created by Bullet Split
     isRicochet*: bool  # True if this bullet has already ricocheted at least once
     isParried*: bool  # True if this was an enemy bullet bounced back by Parry
+    colorOverride*: Color  # Custom bullet color (alpha=0 means use default coloring)
     bulletSkin*: int  # Bullet skin typeHost
     ownerPlayerIndex*: int  # For PvP: which player shot this bullet (-1 for non-PvP)
 
