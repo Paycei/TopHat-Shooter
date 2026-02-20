@@ -4,18 +4,18 @@ proc bossBulletShapeFor*(bossId: int): int =
   ## Maps boss definition ID to a bullet shape index.
   ## 0=circle, 1=diamond, 2=triangle, 3=star, 4=cross, 5=square
   case bossId
-  of 1:  return 1  # Spiral Guardian  → diamond  (sharp, spinning feel)
-  of 2:  return 3  # Summoner King    → star     (summoner magic)
-  of 3:  return 2  # Meteor Striker   → triangle (jagged, falling rocks)
-  of 4:  return 4  # Laser Architect  → cross    (laser crosshairs)
-  of 5:  return 1  # Void Dancer      → diamond  (elegant, void crystal)
-  of 6:  return 5  # Chain Reactor    → square   (mechanical, boxy)
-  of 7:  return 4  # Orbital Commander→ cross    (orbital targeting)
-  of 8:  return 2  # Berserker        → triangle (aggressive, wedge)
-  of 9:  return 3  # Prism Architect  → star     (prismatic shards)
-  of 10: return 5  # Timekeeper       → square   (clockwork gears)
-  of 11: return 3  # Chaos Weaver     → star     (chaotic burst)
-  of 12: return 4  # Omega Entity     → cross    (final form, ominous)
+  of 1:  return 1  # Spiral Guardian  -> diamond  (sharp, spinning feel)
+  of 2:  return 3  # Summoner King    -> star     (summoner magic)
+  of 3:  return 2  # Meteor Striker   -> triangle (jagged, falling rocks)
+  of 4:  return 4  # Laser Architect  -> cross    (laser crosshairs)
+  of 5:  return 1  # Void Dancer      -> diamond  (elegant, void crystal)
+  of 6:  return 5  # Chain Reactor    -> square   (mechanical, boxy)
+  of 7:  return 4  # Orbital Commander-> cross    (orbital targeting)
+  of 8:  return 2  # Berserker        -> triangle (aggressive, wedge)
+  of 9:  return 3  # Prism Architect  -> star     (prismatic shards)
+  of 10: return 5  # Timekeeper       -> square   (clockwork gears)
+  of 11: return 3  # Chaos Weaver     -> star     (chaotic burst)
+  of 12: return 4  # Omega Entity     -> cross    (final form, ominous)
   else:  return 0  # fallback: circle
 
 proc drawNgon(cx, cy, r: float32, n: int, rotation: float32, color: Color) =

@@ -388,7 +388,7 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   if enemy.isBoss and enemy.defenseMultiplier > 0:
     result *= enemy.defenseMultiplier
   
-  # Tank elite: 40% damage reduction
+  # Tank elite: 50% damage reduction
   # If multiple elites include Tank, apply reduction
   if enemy.isElite and etTank in enemy.eliteTypes:
     result *= 0.5  # 50% damage taken
@@ -1913,7 +1913,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   of "enraged_assault":
     # Rapid aggressive movement with smooth direction blending (sin-based, no frame dependency)
-    # blend = 1 → full chase, blend = 0 → full strafe; cycles on a 3s period
+    # blend = 1 -> full chase, blend = 0 -> full strafe; cycles on a 3s period
     let enrageBlend = sin(game.time * (PI * 2.0 / 3.0)) * 0.5 + 0.5
     let sideDir = newVector2f(-toPlayer.y, toPlayer.x)
     let enrageDir = (toPlayer * enrageBlend + sideDir * (1.0 - enrageBlend)).normalize()
@@ -2005,7 +2005,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Smooth blend between charge-at-player and strafe on a 0.5s cycle
     let collapseBlend = sin(game.time * PI * 2.0) * 0.5 + 0.5  # 0..1 at 1Hz (0.5s per half)
     let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
-    # High blend → charge fast, low blend → strafe
+    # High blend -> charge fast, low blend -> strafe
     let chaseContrib = toPlayer * 2.0 * collapseBlend
     let strafeContrib = strafeDir * 1.2 * (1.0 - collapseBlend)
     let collapseDir = (chaseContrib + strafeContrib).normalize()
@@ -2077,7 +2077,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   of "aggressive_mixed":
     # Alternating between chase and strafe (Omega Entity phase 2) — sin-based blend, no frame dependency
-    # Completes one full chase→strafe cycle every 1.5s
+    # Completes one full chase->strafe cycle every 1.5s
     let mixedBlend = sin(game.time * (PI * 2.0 / 1.5)) * 0.5 + 0.5  # 0..1
     let mixedStrafe = newVector2f(-toPlayer.y, toPlayer.x)
     let mixedDir = (toPlayer * (mixedBlend * 1.2) + mixedStrafe * ((1.0 - mixedBlend) * 0.9)).normalize()
@@ -5858,7 +5858,7 @@ proc updateGame*(game: var Game, dt: float32) =
             if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
               actualDamage /= game.enemies[j].defenseMultiplier
             
-            # Tank elite: 40% damage reduction
+            # Tank elite: 50% damage reduction
             # Handles multiple elite types
             if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
               actualDamage *= 0.5  # 50% damage taken
@@ -5900,7 +5900,7 @@ proc updateGame*(game: var Game, dt: float32) =
               if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
                 giantSlayerDamage /= game.enemies[j].defenseMultiplier
               
-              # Tank elite: 40% damage reduction
+              # Tank elite: 50% damage reduction
               if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
                 giantSlayerDamage *= 0.5  # 50% damage taken
               

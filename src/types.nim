@@ -28,6 +28,8 @@ type
     startSpeed*: float32    ## Base movement speed (default 200)
     startDamage*: float32   ## Bullet damage per hit (default 1.0)
     fireRate*: float32      ## Seconds between shots – lower is faster (default 0.375)
+    ## NOTE: PvP fire rate (0.375) is intentionally faster than singleplayer (0.425).
+    ## The shorter TTK in PvP rewards mechanical skill and keeps matches snappy;
     bulletSpeed*: float32   ## Bullet travel speed (default 425)
     bulletRadius*: float32  ## Bullet hitbox/visual radius (default 7.5)
     startCoins*: int        ## Coins at match start (default 100)
@@ -35,8 +37,8 @@ type
     killLimit*: int         ## Kills needed to win (default 5)
     respawnTime*: float32   ## Seconds before respawn (default 3.0)
     timeLimit*: float32     ## Match time limit in seconds; 0 = unlimited (default 180)
-    snapshotRate*: float32  ## Seconds between server→client state snapshots
-    inputRate*: float32     ## Seconds between client→server input packets
+    snapshotRate*: float32  ## Seconds between server->client state snapshots
+    inputRate*: float32     ## Seconds between client->server input packets
 
   EnemyType* = enum
     etCircle,      # Normal chasers
@@ -113,7 +115,7 @@ type
     puPhaseShift,      # Teleport dash through enemies
     puOvercharge,      # Bullets gain power over distance
     puEchoShots,       # Bullets leave damaging trails
-    puRotatingOrbs,    # Rotating elemental orbs around player (LEGENDARY - all elements)
+    puRotatingOrbs,    # Rotating elemental orbs around player (LEGENDARY - all 7 elements)
     puPoisonOrb,       # Poison elemental orb
     puFireOrb,         # Fire elemental orb
     puLightningOrb,    # Lightning elemental orb
@@ -227,6 +229,9 @@ type
     killsSinceLastHeal*: int
     regenTimer*: float32
     lastDamageTaken*: float32
+    # ^ Actual damage amount when > 0.  For special one-frame signals use
+    # lastDamageEvent (below) which avoids fragile exact float comparisons.
+    lastDamageEvent*: DamageEvent  # One-frame categorical signal set by takeDamage, consumed by drawPlayer
     rageStacks*: int
     critCharge*: float32
     autoShootEnabled*: bool
@@ -431,6 +436,14 @@ type
     dtExplosion,    # Orange - explosion damage
     dtCritical,     # Yellow - critical hits (from player)
     dtHeal          # Green - healing (positive numbers)
+
+  DamageEvent* = enum
+    ## Categorical one-frame signals written by takeDamage and read by drawPlayer.
+    ## Replaces the magic float sentinels previously encoded in lastDamageTaken
+    ## (-1 = no event, 0 = dodged, -2 = Celestial Veil blocked).
+    deNone,         # No pending event (idle / already consumed)
+    deDodged,       # Player successfully dodged the hit
+    deCelestialVeil # Celestial Veil absorbed the hit
 
   DamageNumber* = ref object
     pos*: Vector2f          # Current position

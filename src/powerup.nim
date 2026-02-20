@@ -1,4 +1,4 @@
-import raylib, types, random, math, tables, ui/os_powerup_installer, powerup_data, d_visuals
+import raylib, types, random, math, tables, ui/os_powerup_installer, d_visuals
 
 # Forward declarations for reroll system
 proc attemptRerollPowerUps*(game: Game): bool
@@ -163,7 +163,7 @@ const ORB_ORBIT_RADIUS_BASE = 42.0
 const ORB_ORBIT_RING_GAP    = 34.0
 
 proc getOrbRingRadius*(player: Player, level: int): float32 =
-  ## Level 1 → ring 1, level 2 → ring 2, level 3 → ring 3, level 4 (legendary) → ring 4.
+  ## Level 1 -> ring 1, level 2 -> ring 2, level 3 -> ring 3, level 4 (legendary) -> ring 4.
   ## All orbs of the same level share exactly one ring; different levels never touch.
   result = player.radius * 4.5 + ORB_ORBIT_RADIUS_BASE +
            float32(level - 1) * ORB_ORBIT_RING_GAP
@@ -222,7 +222,7 @@ proc createRotatingOrbs*(player: Player, level: int) =
       player.rotatingOrbs.delete(i)
     else:
       i += 1
-  let elements = [etPoison, etFire, etLightning, etWind, etFrost, etArcane]
+  let elements = [etPoison, etFire, etLightning, etWind, etFrost, etArcane, etBlood]
   for element in elements:
     for _ in 0..1:  # 2 orbs per element = 12 total
       player.rotatingOrbs.add(RotatingOrb(
@@ -234,7 +234,7 @@ proc createRotatingOrbs*(player: Player, level: int) =
 
 proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) =
   ## Replace all orbs of this element, tagged with the new level.
-  ## Level 1 → 2 orbs on ring 1, level 2 → 4 orbs on ring 2, level 3 → 6 orbs on ring 3.
+  ## Level 1 -> 4 orbs on ring 1, level 2 -> 8 orbs on ring 2, level 3 -> 12 orbs on ring 3.
   ## All other elements' orbs are untouched; redistributeAllOrbs re-spaces every ring.
 
   # Remove existing orbs of this element (any level)
@@ -585,12 +585,6 @@ proc initPowerUpRollAnimation*(game: Game) =
   
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
   
-  # DEBUG: Print what power-ups we're setting up
-  echo "=== INIT ROLL ANIMATION ==="
-  echo "Slot 0 final: ", getPowerUpName(game.powerUpChoices[0].powerType)
-  echo "Slot 1 final: ", getPowerUpName(game.powerUpChoices[1].powerType)
-  echo "Slot 2 final: ", getPowerUpName(game.powerUpChoices[2].powerType)
-  
   # Each slot i must use game.powerUpChoices[i], NOT game.powerUpChoices[0]
   for i in 0..2:
     game.rollPosition[i] = 0
@@ -615,11 +609,6 @@ proc initPowerUpRollAnimation*(game: Game) =
     
     # Last item MUST be THIS SLOT'S final power-up (slot i)
     game.rollPowerUpList[i].add(game.powerUpChoices[i])
-    
-    # DEBUG: Verify the last item
-    let lastIdx = game.rollPowerUpList[i].len - 1
-    echo "Slot ", i, " list length: ", game.rollPowerUpList[i].len
-    echo "Slot ", i, " last item (idx ", lastIdx, "): ", getPowerUpName(game.rollPowerUpList[i][lastIdx].powerType)
 
 proc attemptRerollPowerUps*(game: Game): bool =
   ## Try to reroll the power-up options

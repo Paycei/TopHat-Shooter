@@ -35,7 +35,8 @@ proc newPlayer*(x, y: float32): Player =
     shieldRegenDelay: 4.0,   # Shields regenerate after 4 seconds (reduced by upgrades)
     killsSinceLastHeal: 0,
     regenTimer: 0,
-    lastDamageTaken: -1,  # -1 = no event yet; 0 = dodge signal (set by takeDamage on dodge)
+    lastDamageTaken: -1,  # Unused sentinel kept for compatibility; see lastDamageEvent
+    lastDamageEvent: deNone,
     rageStacks: 0,
     critCharge: 0,
     autoShootEnabled: true,  # Auto-shoot starts enabled
@@ -95,7 +96,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.magnetTimer -= dt
   if player.shieldBoostTimer > 0:
     player.shieldBoostTimer -= dt
-  if player.shieldBoostTimer <= 0:
+  elif player.shieldBoostTimer <= 0:
       player.shieldHits = 0  # Clear shield when timer expires
   if player.doubleCoinTimer > 0:
     player.doubleCoinTimer -= dt
@@ -322,17 +323,16 @@ proc drawPlayer*(player: Player) =
       drawCircle(Vector2(x: gx, y: gy), 2.5,
                  Color(r: 255, g: 255, b: 255, a: uint8(160 + (veilPulse * 80).int)))
 
-  # Dodge flash effect — takeDamage sets lastDamageTaken = 0 as a one-frame signal.
-  # We initialise lastDamageTaken to -1 so this branch never fires spuriously at game start.
-  if player.lastDamageTaken == 0 and player.hp > 0:
+  # Dodge flash effect — takeDamage sets lastDamageEvent = deDodged as a one-frame signal.
+  if player.lastDamageEvent == deDodged and player.hp > 0:
     drawText(t(tkPlayerDodge), (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
-    player.lastDamageTaken = -1  # Clear flag
+    player.lastDamageEvent = deNone  # Consume flag
 
-  # Celestial Veil absorbed-hit flash — takeDamage sets lastDamageTaken = -2 as a one-frame signal.
-  if player.lastDamageTaken == -2.0 and player.hp > 0:
+  # Celestial Veil absorbed-hit flash — takeDamage sets lastDamageEvent = deCelestialVeil.
+  if player.lastDamageEvent == deCelestialVeil and player.hp > 0:
     drawText(t(tkPlayerVeil), (player.pos.x - 20).int32, (player.pos.y - 35).int32, 14,
              Color(r: 200, g: 200, b: 255, a: 255))
-    player.lastDamageTaken = -1  # Clear flag
+    player.lastDamageEvent = deNone  # Consume flag
   
   # PLAYER RENDERING
   let pulse = sin(time * 2.0) * 0.5 + 0.5  # Pulsing animation
@@ -684,7 +684,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
   # Celestial Veil - absorb 1 hit per wave
   if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
     player.celestialVeilActive = false
-    player.lastDamageTaken = -2.0  # Signal "veil blocked" (distinct from dodge = 0)
+    player.lastDamageEvent = deCelestialVeil  # Signal "veil blocked"
     return false
 
   # Dodge chance power-up
@@ -696,7 +696,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
         else: 30
       if rand(99) < dodgeChance:
         # Dodged! Visual feedback
-        player.lastDamageTaken = 0
+        player.lastDamageEvent = deDodged
         return false
   
   # Apply Fortified damage reduction

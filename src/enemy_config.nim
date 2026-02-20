@@ -313,7 +313,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletCountMin: 2,
         bulletCountMax: 4,
         randomizeBulletCount: true,
-        inaccuracyAmount: 0.5,  # Chaotic aim
+        inaccuracyAmount: 0.0,  # spreadAngle:6.28 already randomises over full circle; extra inaccuracy is redundant
         bulletRadius: 0.0
       ),
       
@@ -682,7 +682,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
 
 proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: float32, radius: float32, speed: float32, requiredHits: int] =
   ## Calculate scaled stats based on difficulty (wave number)
-  let strengthMultiplier = pow(1.185, difficulty)  # 0.5% more HP per wave
+  let strengthMultiplier = pow(1.185, difficulty)  # ~18.5% more HP per difficulty unit
   
   let hp = config.baseHP * strengthMultiplier
   let radius = config.baseRadius + difficulty * 1.5 + rand(5).float32

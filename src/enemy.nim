@@ -220,8 +220,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Calculate dash speed multiplier from config (dashSpeed / baseSpeed)
       let dashMultiplier = config.movement.dashSpeed / config.movement.baseSpeed
       
-      # dashTimer  = cooldown between dashes (counting down to 0 → start dash)
-      # dashCooldown = active dash duration (counting down while actually dashing)
+      # dashTimer    = inter-dash cooldown (counts down to 0, then dash fires)
+      # dashCooldown = active dash duration (counts down while actually dashing)
       if enemy.dashCooldown > 0:
         # DASHING PHASE: maintain velocity for the full dash duration
         enemy.dashCooldown -= dt
@@ -297,10 +297,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           if currentTime - enemy.lastWallDamageTime >= 1.0:
             wall.takeDamage(1.0)
             trackWallDamaged(game)
-            enemy.hp -= 1.0
-            # Enforce minimum health of 0.01
-            if enemy.hp < 0.01:
-              enemy.hp = 0.01
+            # Stars use a hit-count system, not HP — wall collisions must not
+            # bypass that mechanic by draining the placeholder baseHP.
             enemy.lastWallDamageTime = currentTime
           break
       if canMove:
@@ -427,6 +425,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       let dashMultiplier = config.movement.dashSpeed / config.movement.baseSpeed
       
       # Dash and shoot behavior
+      # dashCooldown = inter-dash cooldown (counts down to 0, then dash fires)
+      # dashTimer    = active dash duration (counts down while actually dashing)
       enemy.dashCooldown -= dt
       enemy.shootTimer += dt
       
@@ -579,7 +579,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Three-phase state machine:
       #   phase 0: idle — cloneTimer counts down, then pre-calculate & warn
       #   phase 1: warning shown — attackWarningTimer counts down, then teleport
-      #   phase 2: turret mode — clones fire sequentially until cloneTimer expires → phase 0
+      #   phase 2: turret mode — clones fire sequentially until cloneTimer expires -> phase 0
       let phantomWarnDuration = 0.9
       let cloneShotInterval   = 0.45  # seconds between each sequential clone shot
       
@@ -675,7 +675,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Sniper enemy - charges a powerful one-shot attack with warning
       let config = getEnemyConfig(enemy.enemyType)
       let specialData = parseSpecialData(config.specialData)
-      let triggerRange = getSpecialFloat(specialData, "trigger_range", 300.0)
+      let triggerRange = getSpecialFloat(specialData, "trigger_range", 500.0)  # Default matches config (was 300, increased to 500)
       let chargeTime = getSpecialFloat(specialData, "charge_time", 3.0)
       let cooldownTime = getSpecialFloat(specialData, "cooldown", 2.0)
       
@@ -819,7 +819,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   
   # Update all active effects for this enemy
   let effectDamage = updateEffects(enemy, dt)
-  if effectDamage > 0:
+  # Stars use a hit-count system; HP damage from DoT effects would let them
+  # die via the wrong mechanic, so we skip direct HP reduction for them.
+  if effectDamage > 0 and enemy.enemyType != etStar:
     enemy.hp -= effectDamage
   
   # Update chain lightning cooldown
@@ -1458,7 +1460,7 @@ proc drawEnemy*(enemy: Enemy) =
         drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
                  Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
                  2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 180))
-      # 6 spokes: outer vertex → inner vertex
+      # 6 spokes: outer vertex -> inner vertex
       for i in 0..<6:
         let ao = i.float32 * PI / 3.0 + rot
         let ai = i.float32 * PI / 3.0 - rot + PI / 6.0
@@ -1625,7 +1627,7 @@ proc drawEnemy*(enemy: Enemy) =
         drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
                  Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
                  2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 180))
-      # 8 radial spokes: center → outer vertex — dark-tinted, not white
+      # 8 radial spokes: center -> outer vertex — dark-tinted, not white
       for i in 0..<8:
         let a = i.float32 * PI / 4.0
         drawLine(Vector2(x: cx, y: cy),
@@ -1979,7 +1981,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
   of "hex_teleport":
     # Purple contracting hexagon — shows EXACTLY where the hex will appear
     let cx = warning.pos.x; let cy = warning.pos.y
-    # Outer hex shrinks inward as timer counts down (progress = 0→1 as lifetime→0)
+    # Outer hex shrinks inward as timer counts down (progress = 0->1 as lifetime->0)
     let progress = 1.0 - (warning.lifetime / warning.maxLifetime)
     let outerR = 55.0 - progress * 20.0 + pulse * 0.5
     let innerR = outerR * 0.55
