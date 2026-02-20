@@ -220,28 +220,39 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Calculate dash speed multiplier from config (dashSpeed / baseSpeed)
       let dashMultiplier = config.movement.dashSpeed / config.movement.baseSpeed
       
-      enemy.dashTimer -= dt
-      if enemy.dashTimer <= 0:
-        let dir = (playerPos - enemy.pos).normalize()
-        enemy.vel = dir * effectiveSpeed * dashMultiplier
-        enemy.dashTimer = config.movement.dashCooldown + rand(1.0)
+      # dashTimer  = cooldown between dashes (counting down to 0 → start dash)
+      # dashCooldown = active dash duration (counting down while actually dashing)
+      if enemy.dashCooldown > 0:
+        # DASHING PHASE: maintain velocity for the full dash duration
+        enemy.dashCooldown -= dt
       else:
-        let dir = (playerPos - enemy.pos).normalize()
-        let distToPlayer = distance(enemy.pos, playerPos)
-        let zigzagAngle = sin(currentTime * 7.0 + enemy.pos.x * 0.05) * 0.5
-        let zigzagDir = newVector2f(
-          dir.x * cos(zigzagAngle) - dir.y * sin(zigzagAngle),
-          dir.x * sin(zigzagAngle) + dir.y * cos(zigzagAngle)
-        )
-        if distToPlayer > 120:
-          enemy.vel = zigzagDir * effectiveSpeed * 0.9
+        enemy.dashTimer -= dt
+        if enemy.dashTimer <= 0:
+          # Fire the dash — lock direction toward player right now
+          let dir = (playerPos - enemy.pos).normalize()
+          enemy.vel = dir * effectiveSpeed * dashMultiplier
+          enemy.dashCooldown = config.movement.dashDuration  # Active dash duration
+          enemy.dashTimer = config.movement.dashCooldown + rand(1.0)  # Next cooldown
+          # Show a brief directional warning so the player has a chance to react
+          game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "triangle_dash", 0.18))
         else:
-          let tangent = newVector2f(-dir.y, dir.x)
-          let weaveIntensity = sin(currentTime * 10.0 + enemy.pos.y * 0.05) * 0.5
-          let circleDir = (zigzagDir * (0.5 + weaveIntensity * 0.2) + tangent * (0.5 - weaveIntensity * 0.2)).normalize()
-          enemy.vel = circleDir * effectiveSpeed * 0.95
-        # Velocity dampening
-        enemy.vel = enemy.vel * pow(0.98, 60.0 * dt)
+          # WIND-UP MOVEMENT: zigzag toward player
+          let dir = (playerPos - enemy.pos).normalize()
+          let distToPlayer = distance(enemy.pos, playerPos)
+          let zigzagAngle = sin(currentTime * 7.0 + enemy.pos.x * 0.05) * 0.5
+          let zigzagDir = newVector2f(
+            dir.x * cos(zigzagAngle) - dir.y * sin(zigzagAngle),
+            dir.x * sin(zigzagAngle) + dir.y * cos(zigzagAngle)
+          )
+          if distToPlayer > 120:
+            enemy.vel = zigzagDir * effectiveSpeed * 0.9
+          else:
+            let tangent = newVector2f(-dir.y, dir.x)
+            let weaveIntensity = sin(currentTime * 10.0 + enemy.pos.y * 0.05) * 0.5
+            let circleDir = (zigzagDir * (0.5 + weaveIntensity * 0.2) + tangent * (0.5 - weaveIntensity * 0.2)).normalize()
+            enemy.vel = circleDir * effectiveSpeed * 0.95
+          # Velocity dampening
+          enemy.vel = enemy.vel * pow(0.98, 60.0 * dt)
       var canMove = true
       let nextPos = enemy.pos + enemy.vel * dt
       for wall in walls:
@@ -300,24 +311,31 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       enemy.hexTeleportTimer -= dt
       enemy.shootTimer += dt
       
-      # Teleport behavior
+      # Teleport behavior with pre-teleport warning
+      let hexWarningTime = 0.8  # Show warning this many seconds before teleporting
       if enemy.hexTeleportTimer <= 0:
+        # Execute the teleport to the pre-calculated destination
+        enemy.pos.x = enemy.targetPos.x
+        enemy.pos.y = enemy.targetPos.y
+        enemy.hexTeleportTimer = 2.5 + rand(1.0)
+        enemy.attackPhase = 0  # Reset: next cycle will show a fresh warning
+      elif enemy.hexTeleportTimer <= hexWarningTime and enemy.attackPhase == 0:
+        # Pre-calculate destination and show a warning there before teleporting
         let angle = rand(1.0) * PI * 2.0
         let teleportDist = 150.0 + rand(100.0)
-        var newX = playerPos.x + cos(angle) * teleportDist
-        var newY = playerPos.y + sin(angle) * teleportDist
-        
-        # Clamp teleport position within screen boundaries
-        # Use a margin of enemy.radius to keep the enemy fully visible
-        let margin = enemy.radius + 10.0  # Extra margin for safety
-        newX = clamp(newX, margin, game.screenWidth.float32 - margin)
-        newY = clamp(newY, margin, game.screenHeight.float32 - margin)
-        
-        enemy.pos.x = newX
-        enemy.pos.y = newY
-        enemy.hexTeleportTimer = 2.5 + rand(1.0)
+        let margin = enemy.radius + 10.0
+        let newX = clamp(playerPos.x + cos(angle) * teleportDist, margin, game.screenWidth.float32 - margin)
+        let newY = clamp(playerPos.y + sin(angle) * teleportDist, margin, game.screenHeight.float32 - margin)
+        enemy.targetPos = newVector2f(newX, newY)
+        # Warn the player at the destination
+        game.attackWarnings.add(newAttackWarning(newX, newY, "hex_teleport", hexWarningTime))
+        enemy.attackPhase = 1  # Warning shown; don't add it again this cycle
+        let nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed)
+        let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
+        if not hitWall:
+          enemy.pos = nextPos
       else:
-        # Chase player when not teleporting
+        # Chase player while waiting to teleport
         let nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed)
         let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
         if not hitWall:
@@ -412,21 +430,25 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       enemy.dashCooldown -= dt
       enemy.shootTimer += dt
       
-      if enemy.dashCooldown <= 0:
-        # Start dash
+      if enemy.dashTimer > 0:
+        # Currently dashing - maintain dash velocity for the full dash duration
+        enemy.dashTimer -= dt
+      elif enemy.dashCooldown <= 0:
+        # Start a new dash toward player
         let dir = (playerPos - enemy.pos).normalize()
         enemy.vel = dir * effectiveSpeed * dashMultiplier
+        enemy.dashTimer = config.movement.dashDuration  # Tracks remaining dash time
         enemy.dashCooldown = config.movement.dashCooldown + rand(1.0)
         
-        # Shoot 3-spread during dash start (uses config)
+        # Shoot 3-spread at the start of each dash (uses config)
         executeRangedAttack(enemy, playerPos, game)
       else:
-        # Normal movement
+        # Normal movement between dashes
         let dir = (playerPos - enemy.pos).normalize()
         enemy.vel = dir * effectiveSpeed * 0.7
       
-      # Periodic shooting during movement (random direction)
-      if enemy.shootTimer > config.attack.fireRate:
+      # Periodic random shooting only when not dashing
+      if enemy.dashTimer <= 0 and enemy.shootTimer > config.attack.fireRate:
         let angle = rand(1.0) * PI * 2.0
         let tempDir = newVector2f(cos(angle), sin(angle))
         let tempPlayerPos = enemy.pos + tempDir * 100.0  # Fake target
@@ -499,32 +521,52 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       executeRangedAttack(enemy, playerPos, game)
     
     of etTrickster:
-      # Fake warning + teleport behavior
-      enemy.fakeWarningTimer -= dt
+      # Fake warning + teleport behavior — two phase:
+      #   attackPhase 0: idle, counting down fakeWarningTimer
+      #   attackPhase 1: warning is showing, counting down attackWarningTimer until TP
+      let trickWarningDuration = 1.0
       
-      if enemy.fakeWarningTimer <= 0:
-        # Show fake warning at current position
-        game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "fake", 1.0))
-        
-        # Teleport to different position
-        let angle = rand(1.0) * PI * 2.0
-        let dist = 120.0 + rand(80.0)
-        var newX = playerPos.x + cos(angle) * dist
-        var newY = playerPos.y + sin(angle) * dist
-        
-        # Clamp teleport position within screen boundaries
-        let margin = enemy.radius + 10.0
-        newX = clamp(newX, margin, game.screenWidth.float32 - margin)
-        newY = clamp(newY, margin, game.screenHeight.float32 - margin)
-        
-        enemy.pos = newVector2f(newX, newY)
-        
-        # Shoot 6-way burst from NEW position (uses config)
-        executeRangedAttack(enemy, playerPos, game)
-        
-        enemy.fakeWarningTimer = 3.0 + rand(2.0)
+      if enemy.attackPhase == 0:
+        enemy.fakeWarningTimer -= dt
+        if enemy.fakeWarningTimer <= 0:
+          let margin = enemy.radius + 10.0
+          
+          # Choose a FAKE position near the player for the visible warning
+          let fakeAngle = rand(1.0) * PI * 2.0
+          let fakeDist = 100.0 + rand(80.0)
+          let fakeX = clamp(playerPos.x + cos(fakeAngle) * fakeDist, margin, game.screenWidth.float32 - margin)
+          let fakeY = clamp(playerPos.y + sin(fakeAngle) * fakeDist, margin, game.screenHeight.float32 - margin)
+          
+          # Show fake warning - player expects the attack here
+          game.attackWarnings.add(newAttackWarning(fakeX, fakeY, "trickster_decoy", trickWarningDuration))
+          
+          # Pre-calculate REAL destination (~90° away from the fake) and store it
+          let realAngle = fakeAngle + PI * (0.5 + rand(1.0))
+          let realDist = 120.0 + rand(80.0)
+          enemy.targetPos = newVector2f(
+            clamp(playerPos.x + cos(realAngle) * realDist, margin, game.screenWidth.float32 - margin),
+            clamp(playerPos.y + sin(realAngle) * realDist, margin, game.screenHeight.float32 - margin)
+          )
+          
+          # Subtle hint at the REAL destination — small and easy to miss
+          game.attackWarnings.add(newAttackWarning(enemy.targetPos.x, enemy.targetPos.y, "trickster_real", trickWarningDuration))
+          
+          # Start waiting for the warning to expire before actually teleporting
+          enemy.attackWarningTimer = trickWarningDuration
+          enemy.attackPhase = 1
       
-      # Normal movement
+      elif enemy.attackPhase == 1:
+        # Warning is showing — wait for it to expire, then teleport and shoot
+        enemy.attackWarningTimer -= dt
+        if enemy.attackWarningTimer <= 0:
+          enemy.pos = enemy.targetPos
+          # Shoot 6-way burst from the real position
+          executeRangedAttack(enemy, playerPos, game)
+          # Reset cycle
+          enemy.fakeWarningTimer = 3.0 + rand(2.0)
+          enemy.attackPhase = 0
+      
+      # Normal movement during both phases
       let nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed * 0.6)
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
       if not hitWall:
@@ -534,49 +576,90 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Get config for this enemy type
       let config = getEnemyConfig(enemy.enemyType)
       
-      # Unpredictable teleporter with fake clones
-      enemy.cloneTimer -= dt
-      enemy.shootTimer += dt
+      # Three-phase state machine:
+      #   phase 0: idle — cloneTimer counts down, then pre-calculate & warn
+      #   phase 1: warning shown — attackWarningTimer counts down, then teleport
+      #   phase 2: turret mode — clones fire sequentially until cloneTimer expires → phase 0
+      let phantomWarnDuration = 0.9
+      let cloneShotInterval   = 0.45  # seconds between each sequential clone shot
       
-      if enemy.cloneTimer <= 0:
-        # Create 3 fake clone positions
-        enemy.clonePositions = @[]
-        for i in 0..<3:
-          let angle = i.float32 * PI * 2.0 / 3.0
-          let dist = 100.0 + rand(50.0)
-          enemy.clonePositions.add(newVector2f(
-            enemy.pos.x + cos(angle) * dist,
-            enemy.pos.y + sin(angle) * dist
-          ))
+      if enemy.attackPhase == 0:
+        enemy.cloneTimer -= dt
         
-        # Teleport to random position near player
-        let teleAngle = rand(1.0) * PI * 2.0
-        let teleDist = 140.0 + rand(90.0)
-        var newX = playerPos.x + cos(teleAngle) * teleDist
-        var newY = playerPos.y + sin(teleAngle) * teleDist
-        
-        # Clamp teleport position within screen boundaries
-        let margin = enemy.radius + 10.0
-        newX = clamp(newX, margin, game.screenWidth.float32 - margin)
-        newY = clamp(newY, margin, game.screenHeight.float32 - margin)
-        
-        enemy.pos = newVector2f(newX, newY)
-        
-        enemy.cloneTimer = config.movement.teleportCooldown + rand(1.5)
+        if enemy.cloneTimer <= 0:
+          let margin = enemy.radius + 10.0
+          
+          # Pre-calculate real teleport destination
+          let teleAngle = rand(1.0) * PI * 2.0
+          let teleDist  = 140.0 + rand(90.0)
+          enemy.targetPos = newVector2f(
+            clamp(playerPos.x + cos(teleAngle) * teleDist, margin, game.screenWidth.float32 - margin),
+            clamp(playerPos.y + sin(teleAngle) * teleDist, margin, game.screenHeight.float32 - margin)
+          )
+          
+          # Pre-calculate 3 clone turret positions (evenly spread, randomised offset)
+          let cloneBaseAngle = rand(1.0) * PI * 2.0
+          enemy.clonePositions = @[]
+          for i in 0..<3:
+            let angle = cloneBaseAngle + i.float32 * PI * 2.0 / 3.0
+            let dist  = 100.0 + rand(50.0)
+            enemy.clonePositions.add(newVector2f(
+              clamp(playerPos.x + cos(angle) * dist, margin, game.screenWidth.float32 - margin),
+              clamp(playerPos.y + sin(angle) * dist, margin, game.screenHeight.float32 - margin)
+            ))
+          
+          # Warn at the real teleport destination — portal marker
+          game.attackWarnings.add(newAttackWarning(
+            enemy.targetPos.x, enemy.targetPos.y, "phantom_arrive", phantomWarnDuration))
+          
+          # Warn at every clone turret position — ghostly crosshair
+          for clonePos in enemy.clonePositions:
+            game.attackWarnings.add(newAttackWarning(
+              clonePos.x, clonePos.y, "phantom_clone", phantomWarnDuration))
+          
+          enemy.attackWarningTimer = phantomWarnDuration
+          enemy.attackPhase = 1
       
-      # Shoot from random clone or real position (uses config fire rate)
-      if enemy.shootTimer > config.attack.fireRate:
-        var shootPos = enemy.pos
-        if enemy.clonePositions.len > 0 and rand(100) < 60:
-          shootPos = enemy.clonePositions[rand(enemy.clonePositions.len - 1)]
-        
-        # Temporarily change position to shoot from clone, then restore
-        let originalPos = enemy.pos
-        enemy.pos = shootPos
-        executeRangedAttack(enemy, playerPos, game)
-        enemy.pos = originalPos
+      elif enemy.attackPhase == 1:
+        # Warnings visible — wait, then teleport and enter turret mode
+        enemy.attackWarningTimer -= dt
+        if enemy.attackWarningTimer <= 0:
+          enemy.pos = enemy.targetPos
+          
+          # Shoot once from the real landed position on arrival
+          enemy.shootTimer = config.attack.fireRate + 1.0
+          executeRangedAttack(enemy, playerPos, game)
+          enemy.shootTimer = 0
+          
+          # Enter turret mode: hitCount = current clone index, burstTimer = shot delay
+          enemy.hitCount  = 0
+          enemy.burstTimer = 0.0  # fire clone 0 immediately on first tick
+          enemy.cloneTimer = config.movement.teleportCooldown + rand(1.5)
+          enemy.attackPhase = 2
       
-      # Erratic wobbling movement
+      elif enemy.attackPhase == 2:
+        # Sequential turret fire from clone positions
+        enemy.burstTimer -= dt
+        enemy.cloneTimer -= dt
+        
+        if enemy.burstTimer <= 0 and enemy.clonePositions.len > 0:
+          let idx = enemy.hitCount mod enemy.clonePositions.len
+          let clonePos    = enemy.clonePositions[idx]
+          let originalPos = enemy.pos
+          enemy.pos        = clonePos
+          enemy.shootTimer = config.attack.fireRate + 1.0
+          executeRangedAttack(enemy, playerPos, game)
+          enemy.pos        = originalPos
+          enemy.shootTimer = 0
+          
+          enemy.hitCount  += 1
+          enemy.burstTimer = cloneShotInterval
+        
+        # When turret phase expires, go back to idle for next teleport cycle
+        if enemy.cloneTimer <= 0:
+          enemy.attackPhase = 0
+      
+      # Erratic wobbling movement during all phases
       let dir = (playerPos - enemy.pos).normalize()
       let wobble = sin(currentTime * 5.0) * 0.7
       let wobbleDir = newVector2f(
@@ -1245,17 +1328,39 @@ proc drawEnemy*(enemy: Enemy) =
                   Color(r: 255, g: 255, b: 255, a: 180))
     
     of etTriangle:
-      if enemy.dashTimer > 1.5:
-        for i in 1..5:
-          let trailAlpha = uint8(180 - i * 30)
-          let trailScale = 1.0 - (i.float32 * 0.15)
-          let trailX = enemy.pos.x - enemy.vel.x * i.float32 * 0.02
-          let trailY = enemy.pos.y - enemy.vel.y * i.float32 * 0.02
+      # During active dash: show a bright motion trail behind the triangle
+      if enemy.dashCooldown > 0:
+        for i in 1..8:
+          let trailAlpha = uint8(220 - i * 25)
+          let trailScale = 1.0 - (i.float32 * 0.09)
+          let trailX = enemy.pos.x - enemy.vel.x * i.float32 * 0.012
+          let trailY = enemy.pos.y - enemy.vel.y * i.float32 * 0.012
           let r = enemy.radius * trailScale
           let tv1 = Vector2(x: trailX, y: trailY - r)
           let tv2 = Vector2(x: trailX - r * 0.87, y: trailY + r * 0.5)
           let tv3 = Vector2(x: trailX + r * 0.87, y: trailY + r * 0.5)
-          drawTriangle(tv1, tv2, tv3, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: trailAlpha))
+          drawTriangle(tv1, tv2, tv3, Color(r: 255'u8, g: 160'u8, b: 255'u8, a: trailAlpha))
+        # Speed lines along velocity direction
+        let velLenSq = enemy.vel.x * enemy.vel.x + enemy.vel.y * enemy.vel.y
+        if velLenSq > 0.01:
+          let velLen = sqrt(velLenSq)
+          let dashDir = newVector2f(-enemy.vel.x / velLen, -enemy.vel.y / velLen)
+          let perpDir = newVector2f(-dashDir.y, dashDir.x)
+          for i in 0..4:
+            let perp = sin(i.float32 * 1.2566) * enemy.radius * 0.6
+            let lineX = enemy.pos.x + perpDir.x * perp
+            let lineY = enemy.pos.y + perpDir.y * perp
+            let lineLen = enemy.radius * (1.5 + i.float32 * 0.3)
+            drawLine(Vector2(x: lineX, y: lineY),
+                     Vector2(x: lineX + dashDir.x * lineLen, y: lineY + dashDir.y * lineLen),
+                     2, Color(r: 255'u8, g: 100'u8, b: 255'u8, a: 160'u8))
+      elif enemy.dashTimer < 1.0:
+        # Wind-up glow: grows brighter as the next dash approaches
+        let chargePercent = 1.0 - (enemy.dashTimer / 1.0)
+        let glowAlpha = uint8(chargePercent * 210)
+        let glowRadius = enemy.radius + 4.0 + chargePercent * 8.0
+        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), glowRadius,
+                  Color(r: 255'u8, g: 80'u8, b: 255'u8, a: glowAlpha))
       let v1 = Vector2(x: enemy.pos.x, y: enemy.pos.y - enemy.radius)
       let v2 = Vector2(x: enemy.pos.x - enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
       let v3 = Vector2(x: enemy.pos.x + enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
@@ -1273,11 +1378,6 @@ proc drawEnemy*(enemy: Enemy) =
       # Center core dot — tiny white accent, not an outline
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y + enemy.radius * 0.12),
                 enemy.radius * 0.14, Color(r: 255, g: 255, b: 255, a: 200))
-      if enemy.dashTimer < 0.5 and enemy.dashTimer > 0:
-        let chargePercent = 1.0 - (enemy.dashTimer / 0.5)
-        let glowIntensity = uint8(chargePercent * 200)
-        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius + 5,
-                  Color(r: 255'u8, g: 100'u8, b: 255'u8, a: glowIntensity))
     
     of etStar:
       let t  = getTime()
@@ -1850,17 +1950,137 @@ proc drawAttackWarning*(warning: AttackWarning) =
             Vector2(x: warning.pos.x, y: warning.pos.y + armLength), 2,
             Color(r: 255, g: 150, b: 0, a: alpha))
   of "burst":
-    # Draw circular burst warning
+    # Draw circular burst warning (generic / unused fallback — kept for safety)
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 50.0 + pulse,
                    Color(r: 255, g: 100, b: 0, a: alpha))
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 70.0 + pulse,
                    Color(r: 255, g: 100, b: 0, a: (alpha div 2).uint8))
   of "fake":
-    # Draw deceptive warning (looks dangerous but isn't)
+    # Generic fallback fake — kept for safety
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse,
                    Color(r: 255, g: 255, b: 0, a: alpha))
     drawText("!", (warning.pos.x - 8).int32, (warning.pos.y - 12).int32, 24,
             Color(r: 255, g: 255, b: 0, a: alpha))
+
+  # Triangle
+  of "triangle_dash":
+    # Magenta starburst flash — very short duration, directional cue at launch point
+    let cx = warning.pos.x; let cy = warning.pos.y
+    let r = 18.0 + pulse * 0.8
+    for i in 0..<8:
+      let a = i.float32 * PI / 4.0
+      drawLine(Vector2(x: cx, y: cy),
+               Vector2(x: cx + cos(a) * r, y: cy + sin(a) * r),
+               3, Color(r: 255'u8, g: 80'u8, b: 255'u8, a: alpha))
+    drawCircle(Vector2(x: cx, y: cy), 6.0,
+               Color(r: 255'u8, g: 180'u8, b: 255'u8, a: alpha))
+
+  # Hexagon
+  of "hex_teleport":
+    # Purple contracting hexagon — shows EXACTLY where the hex will appear
+    let cx = warning.pos.x; let cy = warning.pos.y
+    # Outer hex shrinks inward as timer counts down (progress = 0→1 as lifetime→0)
+    let progress = 1.0 - (warning.lifetime / warning.maxLifetime)
+    let outerR = 55.0 - progress * 20.0 + pulse * 0.5
+    let innerR = outerR * 0.55
+    for i in 0..<6:
+      let a0 = i.float32 * PI / 3.0
+      let a1 = (i + 1).float32 * PI / 3.0
+      drawLine(Vector2(x: cx + cos(a0) * outerR, y: cy + sin(a0) * outerR),
+               Vector2(x: cx + cos(a1) * outerR, y: cy + sin(a1) * outerR),
+               4, Color(r: 180'u8, g: 0'u8, b: 255'u8, a: alpha))
+      drawLine(Vector2(x: cx + cos(a0) * innerR, y: cy + sin(a0) * innerR),
+               Vector2(x: cx + cos(a1) * innerR, y: cy + sin(a1) * innerR),
+               2, Color(r: 220'u8, g: 80'u8, b: 255'u8, a: (alpha div 2).uint8))
+    # Spokes
+    for i in 0..<6:
+      let a = i.float32 * PI / 3.0 + PI / 6.0
+      drawLine(Vector2(x: cx + cos(a) * innerR, y: cy + sin(a) * innerR),
+               Vector2(x: cx + cos(a) * outerR,  y: cy + sin(a) * outerR),
+               1, Color(r: 200'u8, g: 50'u8, b: 255'u8, a: (alpha div 2).uint8))
+    # Center dot
+    drawCircle(Vector2(x: cx, y: cy), 5.0 + pulse * 0.3,
+               Color(r: 255'u8, g: 150'u8, b: 255'u8, a: alpha))
+
+  # Trickster
+  of "trickster_decoy":
+    # Bright orange diamond + "?" — looks threatening but it's a lie
+    let cx = warning.pos.x; let cy = warning.pos.y
+    let sz = 30.0 + pulse * 0.6
+    # Outer glow circle
+    drawCircleLines(cx.int32, cy.int32, sz + 8,
+                   Color(r: 255'u8, g: 140'u8, b: 0'u8, a: (alpha div 2).uint8))
+    # Diamond outline
+    drawLine(Vector2(x: cx,      y: cy - sz), Vector2(x: cx + sz, y: cy),
+             3, Color(r: 255'u8, g: 140'u8, b: 0'u8, a: alpha))
+    drawLine(Vector2(x: cx + sz, y: cy),      Vector2(x: cx,      y: cy + sz),
+             3, Color(r: 255'u8, g: 140'u8, b: 0'u8, a: alpha))
+    drawLine(Vector2(x: cx,      y: cy + sz), Vector2(x: cx - sz, y: cy),
+             3, Color(r: 255'u8, g: 140'u8, b: 0'u8, a: alpha))
+    drawLine(Vector2(x: cx - sz, y: cy),      Vector2(x: cx,      y: cy - sz),
+             3, Color(r: 255'u8, g: 140'u8, b: 0'u8, a: alpha))
+    # "?" text — hints it might be a trick
+    let qw = measureText("?", 22)
+    drawText("?", (cx - qw / 2).int32, (cy - 11).int32, 22,
+             Color(r: 255'u8, g: 200'u8, b: 0'u8, a: alpha))
+
+  # Trickster real destination
+  of "trickster_real":
+    # Tiny, dim magenta dot — easy to miss unless you're looking for it
+    let cx = warning.pos.x; let cy = warning.pos.y
+    let subtleAlpha = uint8(alpha.float32 * 0.35)  # Much dimmer than decoy
+    let r = 8.0 + pulse * 0.2
+    drawCircleLines(cx.int32, cy.int32, r,
+                   Color(r: 220'u8, g: 0'u8, b: 180'u8, a: subtleAlpha))
+    drawCircle(Vector2(x: cx, y: cy), 3.0,
+               Color(r: 255'u8, g: 80'u8, b: 220'u8, a: subtleAlpha))
+
+  # Phantom arrive
+  of "phantom_arrive":
+    # Indigo/blue concentric portal rings — unambiguously "something is appearing here"
+    let cx = warning.pos.x; let cy = warning.pos.y
+    let progress = 1.0 - (warning.lifetime / warning.maxLifetime)
+    # Rings converge inward as the phantom approaches
+    for ring in 0..2:
+      let baseR = 55.0 - ring.float32 * 14.0
+      let r = baseR - progress * 18.0 + pulse * 0.4
+      let ringAlpha = uint8(alpha.float32 * (1.0 - ring.float32 * 0.28))
+      drawCircleLines(cx.int32, cy.int32, r,
+                     Color(r: 60'u8, g: 80'u8, b: 255'u8, a: ringAlpha))
+    # Rotating 4-petal cross inside the rings
+    let crossLen = 18.0 + pulse * 0.3
+    let rot = getTime() * 3.0
+    for i in 0..<4:
+      let a = rot + i.float32 * PI / 2.0
+      drawLine(Vector2(x: cx, y: cy),
+               Vector2(x: cx + cos(a) * crossLen, y: cy + sin(a) * crossLen),
+               2, Color(r: 130'u8, g: 160'u8, b: 255'u8, a: alpha))
+    # Center core
+    drawCircle(Vector2(x: cx, y: cy), 5.0,
+               Color(r: 200'u8, g: 220'u8, b: 255'u8, a: alpha))
+
+  # Phantom clone / shoot origin
+  of "phantom_clone":
+    # Ghostly white/teal crosshair — marks each bullet spawn point
+    let cx = warning.pos.x; let cy = warning.pos.y
+    let sz = 22.0 + pulse * 0.4
+    let gap = 6.0  # Gap at center
+    # Four arms of the crosshair
+    for i in 0..<4:
+      let a = i.float32 * PI / 2.0
+      drawLine(Vector2(x: cx + cos(a) * gap,  y: cy + sin(a) * gap),
+               Vector2(x: cx + cos(a) * sz,   y: cy + sin(a) * sz),
+               2, Color(r: 180'u8, g: 255'u8, b: 240'u8, a: alpha))
+    # Diagonal accent lines (×) at half opacity
+    for i in 0..<4:
+      let a = i.float32 * PI / 2.0 + PI / 4.0
+      let diagLen = sz * 0.6
+      drawLine(Vector2(x: cx + cos(a) * gap,     y: cy + sin(a) * gap),
+               Vector2(x: cx + cos(a) * diagLen, y: cy + sin(a) * diagLen),
+               1, Color(r: 180'u8, g: 255'u8, b: 240'u8, a: (alpha div 2).uint8))
+    # Outer ring
+    drawCircleLines(cx.int32, cy.int32, sz,
+                   Color(r: 120'u8, g: 220'u8, b: 210'u8, a: (alpha div 2).uint8))
   
   of "boss_laser":
     # Boss laser warning with accurate beam visualization

@@ -34,7 +34,7 @@ proc initGame3D*(bossId: int, player2D: Player): Game3D =
   result.timeElapsed = 0.0
   result.paused = false
 
-# === DAMAGE NUMBERS ===
+# DAMAGE NUMBERS
 
 proc spawnDamageNumber3D(damageNumbers: var seq[DamageNumber3D], pos: Vector3f, damage: float32) =
   ## Create a new damage number at the given position
@@ -110,8 +110,6 @@ proc drawDamageNumbers(damageNumbers: seq[DamageNumber3D], camera: FPSCamera) =
       # Draw with shadow for better visibility
       drawText(damageText, int32(screenPos.x) - 1, int32(screenPos.y) - 1, fontSize, Black)
       drawText(damageText, int32(screenPos.x), int32(screenPos.y), fontSize, color)
-
-# === UPDATE ===
 
 proc updateGame3D*(game: var Game3D, dt: float32) =
   # Handle pause toggle
@@ -191,8 +189,6 @@ proc updateGame3D*(game: var Game3D, dt: float32) =
   elif game.boss.health <= 0:
     game.active = false
     game.won = true
-
-# === RENDER ===
 
 proc renderGame3D*(game: Game3D) =
   # 3D rendering

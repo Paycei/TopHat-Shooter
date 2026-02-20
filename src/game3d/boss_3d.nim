@@ -69,7 +69,7 @@ proc getBoss3D*(bossId: int): Boss3D =
       berserkModeActive: false
     )
 
-# === PHASE TRANSITION LOGIC ===
+# PHASE TRANSITION LOGIC
 
 proc initiatePhaseTransition(boss: var Boss3D, newPhase: int, arena: var Arena3D) =
   ## Handle phase transitions with environment changes
@@ -101,8 +101,6 @@ proc initiatePhaseTransition(boss: var Boss3D, newPhase: int, arena: var Arena3D
   
   else:
     discard
-
-# === ATTACK PATTERNS ===
 
 proc executePhase1Attacks(boss: var Boss3D, player: Player3D, projectiles: var seq[Projectile3D]) =
   ## PHASE 1: Satellites attack - Core is COMPLETELY INVULNERABLE
@@ -280,8 +278,6 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
     
     boss.attackPattern += 1
 
-# === MAIN BOSS UPDATE ===
-
 proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Projectile3D],
                  arena: var Arena3D, dt: float32) =
   
@@ -391,7 +387,7 @@ proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Pr
       let homingForce = toTarget.normalize() * proj.homingStrength
       proj.vel = (proj.vel + homingForce * dt).normalize() * proj.vel.length()
 
-# === RENDERING ===
+# RENDERING
 
 proc drawBoss*(boss: Boss3D) =
   # Phase transition flash
@@ -484,8 +480,6 @@ proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
         # Border
         drawRectangleLines(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
                           int32(barWidth), int32(barHeight), White)
-
-# === DAMAGE HANDLING ===
 
 proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3f] =
   # Phase transition invulnerability

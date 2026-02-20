@@ -465,8 +465,6 @@ proc calculateCombatStats*(player: Player): CombatStats =
       let damageBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
       result.damage *= damageBonus
   
-  # === FIRE RATE CALCULATIONS ===
-  
   # Fire rate boost consumable
   if player.fireRateBoostTimer > 0:
     result.fireRate *= 0.6
@@ -488,7 +486,7 @@ proc calculateCombatStats*(player: Player): CombatStats =
       let fireRateBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
       result.fireRate *= (1.0 / fireRateBonus)  # Lower fire rate value = faster shooting
   
-  # === CRITICAL HIT CALCULATIONS ===
+  # CRITICAL HIT CALCULATIONS
   
   if hasPowerUp(player, puCriticalHit):
     result.hasCrit = true

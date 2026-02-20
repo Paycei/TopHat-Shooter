@@ -7,8 +7,6 @@ import types_3d
 export Vector3f, FPSCamera, Platform3D, Projectile3D, Arena3D
 export BossSatellite, Boss3D
 
-# === VECTOR MATH ===
-
 proc vec3*(x, y, z: float32): Vector3f =
   Vector3f(x: x, y: y, z: z)
 
@@ -44,8 +42,6 @@ proc cross*(a, b: Vector3f): Vector3f =
     a.z * b.x - a.x * b.z,
     a.x * b.y - a.y * b.x
   )
-
-# === CAMERA ===
 
 proc initCamera3D*(pos: Vector3f): FPSCamera =
   FPSCamera(
@@ -101,8 +97,6 @@ proc getRight*(cam: FPSCamera): Vector3f =
 proc addShake*(cam: var FPSCamera, intensity: float32) =
   cam.shakeTime = intensity
 
-# === PHYSICS ===
-
 const GRAVITY* = -20.0
 
 proc checkGroundCollision*(pos: Vector3f, platforms: seq[Platform3D]): bool =
@@ -128,8 +122,6 @@ proc checkCollision*(pos: Vector3f, radius: float32, platforms: seq[Platform3D])
 
 proc sphereVsSphere*(pos1: Vector3f, r1: float32, pos2: Vector3f, r2: float32): bool =
   distance(pos1, pos2) < r1 + r2
-
-# === ARENA GENERATION ===
 
 proc generateArena*(theme: string, radius: float32): Arena3D =
   result.radius = radius
@@ -252,7 +244,7 @@ proc updatePlatforms*(platforms: var seq[Platform3D], dt: float32) =
       if platform.currentRotation > 2.0 * PI:
         platform.currentRotation -= 2.0 * PI
 
-# === RENDERING ===
+# RENDERING
 
 proc drawArena*(arena: Arena3D) =
   # Draw sky

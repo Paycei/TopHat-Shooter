@@ -393,7 +393,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 140.0,   # Slow projectiles
         bulletCount: 3,       # 3 bullets during dash
         spreadAngle: 0.3,     # Small spread (-1, 0, +1)
-        damage: 5.0,
+        damage: 4.5,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
@@ -548,7 +548,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 260.0,
         bulletCount: 1,       # Single shot
         spreadAngle: 0.0,
-        damage: 7.5,
+        damage: 5.0,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
