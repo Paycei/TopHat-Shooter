@@ -87,6 +87,9 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   # Initialize boss-spawned flag (default: false, set to true by boss summon)
   result.spawnedByBoss = false
   
+  # Initialize diamond shield (1-hit absorb, like Celestial Veil)
+  result.diamondShieldActive = (enemyType == etDiamond)
+  
   # Initialize defense multiplier (default: 1.0 = no reduction, bosses override this)
   if not result.isBoss:
     result.defenseMultiplier = 1.0
@@ -1487,6 +1490,16 @@ proc drawEnemy*(enemy: Enemy) =
         let glowIntensity = uint8(chargePercent * 180)
         drawCircleLines(cx.int32, cy.int32, r + 7,
                        Color(r: 0, g: 255, b: 255, a: glowIntensity))
+      # Diamond 1-hit shield visual (Celestial Veil style)
+      if enemy.diamondShieldActive:
+        let veilPulse  = 0.5 + 0.5 * sin(getTime() * 3.5)
+        let veilRadius = r * 1.7 + veilPulse * 3.0
+        let veilAlpha  = uint8(35 + (veilPulse * 30).int)
+        let veilLineA  = uint8(140 + (veilPulse * 70).int)
+        drawCircle(Vector2(x: cx, y: cy), veilRadius,
+                   Color(r: 160, g: 230, b: 255, a: veilAlpha))
+        drawCircleLines(cx.int32, cy.int32, veilRadius,
+                        Color(r: 180, g: 245, b: 255, a: veilLineA))
     
     of etOctagon:
       let t  = getTime()
@@ -2538,8 +2551,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   enemy.eliteType = if enemy.eliteTypes.len > 0: enemy.eliteTypes[0] else: etNone
   
   # Multiplier for multiple effects (diminishing returns)
-  # 1 effect = 100%, 2 effects = 75% effectiveness to prevent stacking exponentially
-  let effectMultiplier = if enemy.eliteTypes.len >= 2: 0.75 else: 1.0
+  # 1 effect = 100%, 2 effects = 80% effectiveness to prevent stacking exponentially
+  let effectMultiplier = if enemy.eliteTypes.len >= 2: 0.8 else: 1.0
   
   # BASE ELITE BONUS: All elites get a base stat increase
   # This represents them being fundamentally stronger than normal enemies
@@ -2553,8 +2566,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   for eType in enemy.eliteTypes:
     case eType
     of etSwift:
-      # 33% faster movement (reduced from 40%) + reduced speed scaling
-      enemy.speed *= (1.33 * eliteSpeedScaling * effectMultiplier)
+      # 40% faster movement + reduced speed scaling
+      enemy.speed *= (1.4 * eliteSpeedScaling * effectMultiplier)
       # Cap speed increase
       let maxSpeed = 1000.0
       if enemy.speed > maxSpeed:
@@ -2571,10 +2584,10 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.hp *= (0.85 * eliteScaling)
     
     of etTank:
-      # BALANCED: 2.5x HP with reduced damage reduction
+      # BALANCED: 2.0x HP with reduced damage reduction
       # Multiple effects further reduce HP scaling
-      enemy.maxHp *= (2.5 * eliteScaling * effectMultiplier)
-      enemy.hp *= (2.5 * eliteScaling * effectMultiplier)
+      enemy.maxHp *= (2.0 * eliteScaling * effectMultiplier)
+      enemy.hp *= (2.0 * eliteScaling * effectMultiplier)
       enemy.speed *= 0.75  # Slower
       # Tank elites are larger
       enemy.radius *= 1.3
@@ -2612,9 +2625,9 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
     of etShielded:
       # Has a shield that absorbs damage
       # Multiple effects reduce HP and shield scaling
-      enemy.maxHp *= (1.2 * eliteScaling * effectMultiplier)
-      enemy.hp *= (1.2 * eliteScaling * effectMultiplier)
-      let shieldAmount = enemy.maxHp * 0.75  # Shield = 75% of max HP
+      enemy.maxHp *= (1.3 * eliteScaling * effectMultiplier)
+      enemy.hp *= (1.3 * eliteScaling * effectMultiplier)
+      let shieldAmount = enemy.maxHp * 0.8  # Shield = 80% of max HP
       enemy.shieldHp = shieldAmount
       enemy.maxShieldHp = shieldAmount
       enemy.contactDamage += 2 + (waveNumber div 5)

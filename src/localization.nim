@@ -858,11 +858,14 @@ type
     tkPowerupGiantSlayerDesc1 = "powerup_giant_slayer_desc1"
     tkPowerupGiantSlayerDesc2 = "powerup_giant_slayer_desc2"
     tkPowerupGiantSlayerDesc3 = "powerup_giant_slayer_desc3"
+    tkPowerupCelestialVeil = "powerup_celestial_veil"
+    tkPowerupCelestialVeilDesc = "powerup_celestial_veil_desc"
     
     # Player Feedback
     tkPlayerDodge = "player_dodge"
     tkPlayerParry = "player_parry"
     tkPlayerPhase = "player_phase"
+    tkPlayerVeil = "player_veil"
     
     # System Messages
     tkSystemDefensiveProcesses = "system_defensive_processes"
@@ -1355,6 +1358,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_fortified": "Fortified",
     "powerup_special_rounds": "Special Rounds",
     "powerup_giant_slayer": "Giant Slayer",
+    "powerup_celestial_veil": "Celestial Veil",
     
     # Powerup Descriptions
     "powerup_double_shot_desc": "Fire additional burst after 0.08s (-15% dmg per bullet, -25% fire rate)",
@@ -1499,11 +1503,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_giant_slayer_desc1": "Deal 1% of enemy current HP as bonus damage",
     "powerup_giant_slayer_desc2": "Deal 1.75% of enemy current HP as bonus damage",
     "powerup_giant_slayer_desc3": "Deal 2.5% of enemy current HP as bonus damage",
+    "powerup_celestial_veil_desc": "Absorb 1 hit per wave — resets at the start of each wave",
     
     # Player Feedback
     "player_dodge": "DODGE!",
     "player_parry": "PARRY!",
     "player_phase": "PHASE SHIFT!",
+    "player_veil": "VEIL!",
     
     # System Messages
     "system_defensive_processes": "All defensive processes have been terminated.",
@@ -2580,6 +2586,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_fortified": "Fortificado",
     "powerup_special_rounds": "Balas Especiales",
     "powerup_giant_slayer": "Matador de Gigantes",
+    "powerup_celestial_veil": "Velo Celestial",
     
     # Powerup Descriptions
     "powerup_double_shot_desc": "Disparar ráfaga adicional después de 0.08s (-15% daño por bala, -25% cadencia)",
@@ -2724,6 +2731,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_giant_slayer_desc1": "Causa 1% de HP actual del enemigo como daño extra",
     "powerup_giant_slayer_desc2": "Causa 1.75% de HP actual del enemigo como daño extra",
     "powerup_giant_slayer_desc3": "Causa 2.5% de HP actual del enemigo como daño extra",
+    "powerup_celestial_veil_desc": "Absorbe 1 golpe por oleada — se reinicia al comienzo de cada oleada",
     
     # Stats Window
     "stats_window_title": "Monitor del Sistema - Análisis de Jugador",
@@ -3285,6 +3293,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "player_dodge": "¡ESQUIVA!",
     "player_parry": "¡PARRY!",
     "player_phase": "¡CAMBIO DE FASE!",
+    "player_veil": "¡VELO!",
     
     # System Messages
     "system_defensive_processes": "Todos los procesos defensivos han sido terminados.",

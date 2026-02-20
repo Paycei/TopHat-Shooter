@@ -21,9 +21,9 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
   # ALL legendary powerups are SINGLE LEVEL ONLY
-  let legendaryOnlyTypes: array[0..24, PowerUpType] = [
+  let legendaryOnlyTypes: array[0..25, PowerUpType] = [
     puArcaneMastery, puAutoShoot, puBloodMastery, puBulletSpeed,
-    puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
+    puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
     puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery
@@ -384,6 +384,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       else: 10.0  # +10 HP
     player.maxHp += hpBonus
     player.hp += hpBonus
+  of puCelestialVeil:
+    # Celestial Veil - absorbs 1 hit per wave
+    player.celestialVeilActive = true
   else:
     discard
   
@@ -465,7 +468,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
   ## These lists must stay in sync with legendaryOnlyTypes / normalOnlyTypes in generatePowerUpChoices.
   let legendaryTypes = [
     puArcaneMastery, puAutoShoot, puBloodMastery, puBulletSpeed,
-    puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
+    puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
     puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery

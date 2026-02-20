@@ -299,10 +299,39 @@ proc drawPlayer*(player: Player) =
     let hitsText = $player.shieldHits
     drawText(hitsText, (player.pos.x - 4).int32, (player.pos.y + player.radius + 12).int32, 12, Cyan)
   
+  # Celestial Veil — soft translucent ring around the player while the charge is ready.
+  if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
+    let veilPulse   = 0.5 + 0.5 * sin(time * 3.0)
+    let veilRadius  = player.radius * 1.65 + veilPulse * 3.0
+    let veilAlpha   = uint8(40 + (veilPulse * 30).int)
+    let veilLineA   = uint8(140 + (veilPulse * 60).int)
+    let veilColor   = Color(r: 200, g: 200, b: 255, a: veilAlpha)
+    let veilLine    = Color(r: 220, g: 220, b: 255, a: veilLineA)
+    # Soft filled halo
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), veilRadius, veilColor)
+    # Sharp outer ring
+    drawCircleLines(player.pos.x.int32, player.pos.y.int32, veilRadius, veilLine)
+    # Thin inner accent ring
+    drawCircleLines(player.pos.x.int32, player.pos.y.int32, veilRadius - 3.0,
+                    Color(r: 200, g: 200, b: 255, a: uint8(80 + (veilPulse * 40).int)))
+    # Rotating star-glints around the ring (4 glints, 90° apart)
+    for i in 0..3:
+      let glintAngle = time * 1.5 + float32(i) * PI * 0.5
+      let gx = player.pos.x + cos(glintAngle) * veilRadius
+      let gy = player.pos.y + sin(glintAngle) * veilRadius
+      drawCircle(Vector2(x: gx, y: gy), 2.5,
+                 Color(r: 255, g: 255, b: 255, a: uint8(160 + (veilPulse * 80).int)))
+
   # Dodge flash effect — takeDamage sets lastDamageTaken = 0 as a one-frame signal.
   # We initialise lastDamageTaken to -1 so this branch never fires spuriously at game start.
   if player.lastDamageTaken == 0 and player.hp > 0:
     drawText(t(tkPlayerDodge), (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
+    player.lastDamageTaken = -1  # Clear flag
+
+  # Celestial Veil absorbed-hit flash — takeDamage sets lastDamageTaken = -2 as a one-frame signal.
+  if player.lastDamageTaken == -2.0 and player.hp > 0:
+    drawText(t(tkPlayerVeil), (player.pos.x - 20).int32, (player.pos.y - 35).int32, 14,
+             Color(r: 200, g: 200, b: 255, a: 255))
     player.lastDamageTaken = -1  # Clear flag
   
   # PLAYER RENDERING
@@ -652,6 +681,12 @@ proc takeDamage*(player: Player, damage: float32): bool =
   if player.phaseShiftInvulnTimer > 0:
     return false
   
+  # Celestial Veil - absorb 1 hit per wave
+  if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
+    player.celestialVeilActive = false
+    player.lastDamageTaken = -2.0  # Signal "veil blocked" (distinct from dodge = 0)
+    return false
+
   # Dodge chance power-up
   for powerUp in player.powerUps:
     if powerUp.powerType == puDodgeChance:

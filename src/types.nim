@@ -55,8 +55,8 @@ type
 
   EliteType* = enum
     etNone,        # Not elite
-    etSwift,       # 50% faster movement and attack speed
-    etTank,        # 3x HP, 50% damage reduction
+    etSwift,       # 40% faster movement and attack speed
+    etTank,        # 2x HP, 50% damage reduction
     etVenomous,    # Poisons player on contact
     etExplosive,   # Explodes on death, damaging player
     etRegenerative,# Slowly regenerates HP over time
@@ -138,7 +138,8 @@ type
     puHeavyRounds,     # Larger bullets with knockback
     puFortified,       # Reduce damage taken
     puSpecialRounds,   # Every Nth bullet has special on-hit effect
-    puGiantSlayer      # Deal % of enemy HP as bonus damage
+    puGiantSlayer,     # Deal % of enemy HP as bonus damage
+    puCelestialVeil    # LEGENDARY: Absorb 1 hit per wave
 
   PowerUpRarity* = enum
     prCommon,
@@ -263,6 +264,7 @@ type
     bulletShapeType*: int  # Current equipped bullet shape (BulletShapeType ord)
     shapeType*: int  # Current equipped player shape
     particleSkinType*: int  # Current equipped particle effect
+    celestialVeilActive*: bool  # True if Celestial Veil can still absorb a hit this wave
 
   EffectInstance* = object
     elementType*: ElementType
@@ -336,6 +338,7 @@ type
     eliteAuraPhase*: float32  # For animating the elite aura
     shieldHp*: float32  # For shielded elites
     maxShieldHp*: float32  # Maximum shield HP
+    diamondShieldActive*: bool  # 1-hit shield for diamond enemies (like Celestial Veil)
     regenTimer*: float32  # For regenerative elites
     spawnedByBoss*: bool  # True if spawned by boss summon attack
     rotation*: float32  # Current rotation angle in radians

@@ -866,6 +866,25 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let dotY = float32(figHeadY) + t * (tCY - float32(figHeadY))
       drawCircle(Vector2(x: dotX, y: dotY), 1.2,
                 Color(r: color.r, g: color.g, b: color.b, a: uint8(180 - i * 30)))
+  of puCelestialVeil:
+    # Glowing veil: outer ring + translucent inner dome + star glint
+    let glowColor = Color(r: min(color.r + 40, 255), g: min(color.g + 40, 255), b: 255, a: 180)
+    let innerColor = Color(r: color.r, g: color.g, b: min(color.b + 80, 255), a: 80)
+    # Soft shadow
+    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), rad, Color(r: 0, g: 0, b: 0, a: 60))
+    # Inner translucent fill
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad, innerColor)
+    # Outer ring
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad, glowColor)
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad - 2, Color(r: 220, g: 220, b: 255, a: 120))
+    # Star glint at top
+    let sx = cx.float32
+    let sy = (cy.float32 - rad * 0.5)
+    let gs = rad * 0.25
+    drawLine(Vector2(x: sx - gs, y: sy), Vector2(x: sx + gs, y: sy), 2, Color(r: 255, g: 255, b: 255, a: 220))
+    drawLine(Vector2(x: sx, y: sy - gs), Vector2(x: sx, y: sy + gs), 2, Color(r: 255, g: 255, b: 255, a: 220))
+    drawLine(Vector2(x: sx - gs * 0.6, y: sy - gs * 0.6), Vector2(x: sx + gs * 0.6, y: sy + gs * 0.6), 1, Color(r: 255, g: 255, b: 255, a: 140))
+    drawLine(Vector2(x: sx + gs * 0.6, y: sy - gs * 0.6), Vector2(x: sx - gs * 0.6, y: sy + gs * 0.6), 1, Color(r: 255, g: 255, b: 255, a: 140))
 
 proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
   let cx = x + size div 2

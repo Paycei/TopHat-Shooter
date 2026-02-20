@@ -388,10 +388,10 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   if enemy.isBoss and enemy.defenseMultiplier > 0:
     result *= enemy.defenseMultiplier
   
-  # Tank elite: 40% damage reduction (nerfed from 50%)
+  # Tank elite: 40% damage reduction
   # If multiple elites include Tank, apply reduction
   if enemy.isElite and etTank in enemy.eliteTypes:
-    result *= 0.6  # 40% reduction means 60% damage taken
+    result *= 0.5  # 50% damage taken
   
   # Shielded elite: shield absorbs damage first
   if enemy.isElite and etShielded in enemy.eliteTypes and enemy.shieldHp > 0:
@@ -403,6 +403,11 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
       # Shield breaks, remaining damage goes to HP
       result -= enemy.shieldHp
       enemy.shieldHp = 0
+  
+  # Diamond enemy: 1-hit shield absorbs the first hit entirely (like Celestial Veil)
+  if enemy.enemyType == etDiamond and enemy.diamondShieldActive:
+    enemy.diamondShieldActive = false
+    result = 0
 
 proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
   ## Helper to apply damage to enemy with elite modifiers
@@ -1130,6 +1135,9 @@ proc startWave*(game: Game) =
   game.player.timeWarpUsesThisWave = 0
   game.player.timeWarpCooldown = 0
   game.player.phaseShiftCooldown = 0
+  # Reset Celestial Veil charge for new wave
+  if hasPowerUp(game.player, puCelestialVeil):
+    game.player.celestialVeilActive = true
 
 proc spawnWaveEnemies*(game: Game, count: int) =
   # Spawn multiple enemies at once
@@ -5852,10 +5860,10 @@ proc updateGame*(game: var Game, dt: float32) =
             if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
               actualDamage /= game.enemies[j].defenseMultiplier
             
-            # Tank elite: 40% damage reduction (nerfed from 60%)
-            # Handles multiple elite types (wave 25+)
+            # Tank elite: 40% damage reduction
+            # Handles multiple elite types
             if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
-              actualDamage *= 0.6  # 40% reduction means 60% damage taken
+              actualDamage *= 0.5  # 50% damage taken
             
             # Shielded elite: shield absorbs damage first
             var shieldDamage = 0.0  # Track damage absorbed by shield
@@ -5870,6 +5878,12 @@ proc updateGame*(game: var Game, dt: float32) =
                 shieldDamage = game.enemies[j].shieldHp
                 actualDamage -= game.enemies[j].shieldHp
                 game.enemies[j].shieldHp = 0
+            
+            # Diamond enemy: 1-hit shield absorbs the first bullet entirely (like Celestial Veil)
+            if game.enemies[j].enemyType == etDiamond and game.enemies[j].diamondShieldActive:
+              game.enemies[j].diamondShieldActive = false
+              shieldDamage += actualDamage
+              actualDamage = 0
             
             game.enemies[j].hp -= actualDamage
             
@@ -5888,9 +5902,9 @@ proc updateGame*(game: var Game, dt: float32) =
               if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
                 giantSlayerDamage /= game.enemies[j].defenseMultiplier
               
-              # Tank elite: 40% damage reduction (nerfed from 60%)
+              # Tank elite: 40% damage reduction
               if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
-                giantSlayerDamage *= 0.6  # 40% reduction means 60% damage taken
+                giantSlayerDamage *= 0.5  # 50% damage taken
               
               # Shielded elite: Giant Slayer damage goes through shield to HP
               game.enemies[j].hp -= giantSlayerDamage

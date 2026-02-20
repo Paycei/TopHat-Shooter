@@ -1773,14 +1773,14 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.2,
           speedMultiplier: 1.2,
           damageMultiplier: 1.5,
-          defenseMultiplier: 5.0,
+          defenseMultiplier: 3.0,
           color: Color(r: 255, g: 0, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "final_form",
           attacks: @[
             BossAttack(
               attackType: bapBarrage,
-              damage: 4.0,  # NERFED from 5.0
+              damage: 30.0,  # NERFED from 5.0
               cooldown: 1.2,  # NERFED from 0.8
               projectileSpeed: 270.0,  # NERFED from 320.0
               projectileCount: 45,  # NERFED from 60

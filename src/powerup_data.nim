@@ -71,6 +71,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puFortified: t(tkPowerupFortified)
   of puSpecialRounds: t(tkPowerupSpecialRounds)
   of puGiantSlayer: t(tkPowerupGiantSlayer)
+  of puCelestialVeil: t(tkPowerupCelestialVeil)
 
 proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: float32 = 1.0): string =
   # Helper: format "base + scaled (pct%)" — values are multiplied x100 for display
@@ -355,3 +356,6 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     of 1: t(tkPowerupGiantSlayerDesc1)
     of 2: t(tkPowerupGiantSlayerDesc2)
     else: t(tkPowerupGiantSlayerDesc3)
+  of puCelestialVeil:
+    # Single level only - LEGENDARY defensive shield
+    t(tkPowerupCelestialVeilDesc)
