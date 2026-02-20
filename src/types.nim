@@ -698,8 +698,9 @@ type
     selectedPowerUp*: int
     rollAnimationActive*: bool
     rollAnimationTimer*: float32
-    rollSpeed*: array[3, float32]  # Individual roll speeds for each slot
-    rollPosition*: array[3, float32]  # Current scroll position for each slot
+    rollSpeed*: array[3, float32]       # Current scroll speed px/s (used by renderer for motion blur)
+    rollPosition*: array[3, float32]    # Current scroll offset in px (0 = first card at top)
+    rollBrakeStartPos*: array[3, float32] # Position recorded at the moment braking began (-1 = not braking yet)
     rollPowerUpList*: array[3, seq[PowerUp]]  # List of power-ups scrolling in each slot
     canSelectPowerUp*: bool  # Whether player can select (false during animation)
     rerollCost*: int  # Cost of next reroll (increases after each use)

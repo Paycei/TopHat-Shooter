@@ -474,37 +474,37 @@ proc drawOSPowerUpInstaller*(game: Game) =
     
     if game.rollAnimationActive:
       # ROLLING MODE - show scrolling list using game's animation data
-      let position = game.rollPosition[i]
-      let speed = game.rollSpeed[i]
-      let cardHeight = CARD_HEIGHT.float32
-      
-      # Calculate which cards are visible based on scroll position
-      let firstVisibleIndex = (position / cardHeight).int
-      let offsetY = -(position mod cardHeight)
-      
-      # Motion blur based on speed
-      let blur = if speed > 500.0: 0.3
-                 elif speed > 200.0: 0.6
-                 else: 1.0
-      
-      # ENABLE CLIPPING - constrain animation to card boundaries
+      let position  = game.rollPosition[i]
+      let speed     = game.rollSpeed[i]
+      let cardH     = CARD_HEIGHT.float32
+
+      # Which card sits at the top of the viewport and how far it is offset
+      let firstVisibleIndex = int(position / cardH)
+      let offsetY           = -(position - float32(firstVisibleIndex) * cardH)
+
+      # Motion blur strength: full blur at high speed, clear when stopped
+      let blur = clamp(1.0'f32 - (speed - 200.0'f32) / 800.0'f32, 0.3'f32, 1.0'f32)
+
+      # Clip all drawing to this slot's card rectangle so cards don't bleed
+      # into neighbouring slots or outside the window.
       beginScissorMode(cardX, cardY, int32(CARD_WIDTH), int32(CARD_HEIGHT))
-      
-      # Draw multiple cards for smooth scrolling (3 visible at once)
-      for j in -1..1:
-        let cardIndex = firstVisibleIndex + j
+
+      # We need to draw the card above (j = -1) in case offsetY is non-zero,
+      # the card in view (j = 0), and the card below (j = 1) so there is
+      # never a blank strip at the bottom of the viewport.
+      for j in 0..2:
+        let cardIndex = firstVisibleIndex + j - 1  # j=0 → one above, j=1 → current, j=2 → one below
         if cardIndex >= 0 and cardIndex < game.rollPowerUpList[i].len:
-          let cardDrawY = int32(cardY.float32 + offsetY + j.float32 * cardHeight)
-          
-          # Draw card (clipping handles visibility)
+          # j=0 is drawn at offsetY - cardH (above viewport),
+          # j=1 at offsetY (in viewport),  j=2 at offsetY + cardH (below)
+          let cardDrawY = int32(float32(cardY) + offsetY + float32(j - 1) * cardH)
           drawProcessCard(cardX, cardDrawY, int32(CARD_WIDTH), int32(CARD_HEIGHT),
                          game.rollPowerUpList[i][cardIndex],
-                         i == game.selectedPowerUp,
+                         false,           # no selection highlight while rolling
                          game.time,
                          game.player.damage,
                          blur)
-      
-      # DISABLE CLIPPING
+
       endScissorMode()
     else:
       # Show final selection

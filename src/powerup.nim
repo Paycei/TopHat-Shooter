@@ -511,103 +511,109 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     result = PowerUp(powerType: t, level: 1, rarity: prCommon)  # Display level 1 for roll filler
 
 proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
-  ## Update the slot machine roll animation with velocity-based scrolling
+  ## Update the slot machine roll animation.
+  ##
+  ## Three phases per slot:
+  ##   1. Constant speed  – scrolls at sharedSpeed px/s until brakeDuration before stopTime.
+  ##   2. Cubic ease-out  – the moment braking starts, we record the exact position and
+  ##      remaining distance, then drive position purely from a cubic curve over time so
+  ##      the slot always lands exactly on finalPosition with zero speed.  No clamping hacks.
+  ##   3. Locked          – after stopTime the slot is pinned to finalPosition.
+  ##
+  ## game.rollSpeed[i]         – current speed in px/s (read by renderer for motion blur)
+  ## game.rollPosition[i]      – accumulated scroll offset in px
+  ## game.rollBrakeStartPos[i] – position snapshotted when braking began (-1 = not yet)
   if not game.rollAnimationActive:
     return
-  
+
   game.rollAnimationTimer += deltaTime
-  
+
+  const cardHeight    = 380.0'f32   # Must match CARD_HEIGHT in os_powerup_installer.nim
+  const sharedSpeed   = 1000.0'f32  # px/s during the constant phase
+  const brakeDuration = 1.1'f32     # seconds for the ease-out deceleration
+
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
-  let cardHeight = 380.0  # Must match CARD_HEIGHT in os_powerup_installer.nim
-  
-  # Stop times for each slot
-  let stopTimes = [
-    if isLegendary: 2.0 else: 1.5,  # Slot 1: back to original time
-    if isLegendary: 3.0 else: 2.5,
-    if isLegendary: 4.5 else: 3.5
+
+  let stopTimes: array[3, float32] = [
+    if isLegendary: 2.0'f32 else: 1.5'f32,
+    if isLegendary: 3.0'f32 else: 2.5'f32,
+    if isLegendary: 4.5'f32 else: 3.5'f32
   ]
-  
-  # Define shared constant speed for all slots (pixels per second)
-  let sharedSpeed = 1000.0  # Adjust this value to control roll speed
-  
+
   for i in 0..2:
-    # The final position should show the LAST card in the list
-    let finalIndex = game.rollPowerUpList[i].len - 1
-    let finalPosition = finalIndex.float32 * cardHeight
-    
-    let slotShouldBeStopped = game.rollAnimationTimer >= stopTimes[i]
-    
-    if not slotShouldBeStopped:
-      # Calculate how much time this slot has been rolling
-      let rollingTime = game.rollAnimationTimer
-      
-      # Define braking phase duration (time to decelerate to stop)
-      let brakeDuration = 0.6  # 0.6 seconds to brake
-      let timeUntilStop = stopTimes[i] - rollingTime
-      
-      if timeUntilStop > brakeDuration:
-        # CONSTANT SPEED PHASE - all slots move at same speed
-        game.rollPosition[i] += sharedSpeed * deltaTime
-        game.rollSpeed[i] = sharedSpeed
-        
-        # Clamp to not overshoot into brake zone
-        let maxPosBeforeBrake = finalPosition - (sharedSpeed * brakeDuration * 0.5)  # 0.5 accounts for deceleration average
-        if game.rollPosition[i] > maxPosBeforeBrake:
-          game.rollPosition[i] = maxPosBeforeBrake
-      else:
-        # BRAKING PHASE - ease-out to smooth stop
-        let brakeProgress = 1.0 - (timeUntilStop / brakeDuration)  # 0 to 1
-        let easedBrake = 1.0 - (1.0 - brakeProgress) * (1.0 - brakeProgress)  # ease-out quad
-        
-        # Calculate where brake started
-        let posAtBrakeStart = finalPosition - (sharedSpeed * brakeDuration * 0.5)
-        let brakeDistance = finalPosition - posAtBrakeStart
-        
-        game.rollPosition[i] = posAtBrakeStart + brakeDistance * easedBrake
-        
-        # Calculate speed during brake (derivative of ease-out)
-        game.rollSpeed[i] = (brakeDistance / brakeDuration) * 2.0 * (1.0 - brakeProgress)
-    else:
-      # Slot is stopped - FORCE exact final position every frame
+    let finalIndex    = game.rollPowerUpList[i].len - 1
+    let finalPosition = float32(finalIndex) * cardHeight
+
+    if game.rollAnimationTimer >= stopTimes[i]:
+      # Phase 3 – locked
       game.rollPosition[i] = finalPosition
-      game.rollSpeed[i] = 0.0
-  
-  # Complete when all stopped
-  if game.rollAnimationTimer >= stopTimes[2] + 0.3:
+      game.rollSpeed[i]    = 0.0
+
+    else:
+      let timeUntilStop = stopTimes[i] - game.rollAnimationTimer
+
+      if timeUntilStop > brakeDuration:
+        # Phase 1 – constant speed
+        game.rollPosition[i] += sharedSpeed * deltaTime
+        game.rollSpeed[i]     = sharedSpeed
+
+      else:
+        # Phase 2 – cubic ease-out over the exact remaining distance
+        # Snapshot the brake-entry position on the first frame of braking
+        if game.rollBrakeStartPos[i] < 0.0'f32:
+          game.rollBrakeStartPos[i] = game.rollPosition[i]
+
+        let brakeStart    = game.rollBrakeStartPos[i]
+        let totalDist     = finalPosition - brakeStart          # px to cover during brake
+        # t goes 0→1 over brakeDuration; using 1-t for ease-out (fast→slow)
+        let t             = 1.0'f32 - (timeUntilStop / brakeDuration)  # 0 at brake start, 1 at stop
+        # Cubic ease-out: position = brakeStart + totalDist * (1 - (1-t)^3)
+        # This gives speed = totalDist/brakeDuration * 3*(1-t)^2 → 0 at t=1
+        let ease          = 1.0'f32 - (1.0'f32 - t) * (1.0'f32 - t) * (1.0'f32 - t)
+        game.rollPosition[i] = brakeStart + totalDist * ease
+        # Derivative of the cubic: speed = totalDist / brakeDuration * 3 * (1-t)^2
+        let oneMinusT    = 1.0'f32 - t
+        game.rollSpeed[i] = (totalDist / brakeDuration) * 3.0'f32 * oneMinusT * oneMinusT
+
+  # Unlock selection a moment after the last slot settles
+  if game.rollAnimationTimer >= stopTimes[2] + 0.25'f32:
     game.rollAnimationActive = false
-    game.canSelectPowerUp = true
+    game.canSelectPowerUp    = true
 
 proc initPowerUpRollAnimation*(game: Game) =
-  ## Initialize roll animation - each slot gets its OWN final power-up
+  ## Initialize the slot machine roll animation.
+  ##
+  ## List-length guide (cardHeight=380, sharedSpeed=1000, brakeDuration=1.1):
+  ##   Constant-phase distance = sharedSpeed * (stopTime - brakeDuration)
+  ##   Brake-phase distance    = sharedSpeed * brakeDuration * 0.5  (avg speed)
+  ##   Total reachable px      ≈ sharedSpeed * (stopTime - 0.55)
+  ##   Max list length         = floor(total px / 380)
+  ##
+  ##   normal    stop times 1.5 / 2.5 / 3.5 s  → max listLen: 2 / 5 / 7
+  ##   legendary stop times 2.0 / 3.0 / 4.5 s  → max listLen: 3 / 6 / 10
   game.rollAnimationActive = true
-  game.rollAnimationTimer = 0
-  game.canSelectPowerUp = false
-  
+  game.rollAnimationTimer  = 0.0
+  game.canSelectPowerUp    = false
+
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
-  
-  # Each slot i must use game.powerUpChoices[i], NOT game.powerUpChoices[0]
+
+  let listLengths: array[3, int] =
+    if isLegendary: [3, 6, 10]
+    else:           [2, 5, 7]
+
   for i in 0..2:
-    game.rollPosition[i] = 0
-    game.rollSpeed[i] = 0
+    game.rollPosition[i]      = 0.0
+    game.rollSpeed[i]         = 0.0
+    game.rollBrakeStartPos[i] = -1.0  # -1 = brake not started yet
+
     game.rollPowerUpList[i] = @[]
-    
-    # Different lengths for each slot - slot 0 is shorter (slower roll)
-    let listLength = case i
-      of 0: 8   # Slot 1: fewer items = slower visible roll
-      of 1: 12  # Slot 2: medium
-      else: 15  # Slot 3: longest
-    
-    # Build list: show THIS SLOT'S final power-up every 3rd position
-    # IMPORTANT: Exclude the final power-up type from random generation
-    for j in 0..<listLength:
-      if j mod 3 == 2:
-        # Every 3rd item: the ACTUAL final power-up FOR THIS SLOT (slot i)
-        game.rollPowerUpList[i].add(game.powerUpChoices[i])
-      else:
-        # Other items: random (but NEVER the same as the final power-up)
-        game.rollPowerUpList[i].add(generateRandomPowerUpExcluding(game.player, isLegendary, game.powerUpChoices[i].powerType))
-    
-    # Last item MUST be THIS SLOT'S final power-up (slot i)
+    let listLength = listLengths[i]
+
+    for _ in 0..<listLength:
+      game.rollPowerUpList[i].add(
+        generateRandomPowerUpExcluding(game.player, isLegendary, game.powerUpChoices[i].powerType))
+
+    # Final entry is always this slot's actual result
     game.rollPowerUpList[i].add(game.powerUpChoices[i])
 
 proc attemptRerollPowerUps*(game: Game): bool =
