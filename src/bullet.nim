@@ -49,23 +49,34 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
   case bullet.bossBulletShape
   of 1:  # Diamond (rotated square = 4-gon at 45°)
     let rot = PI / 4.0 + spin
+    # Bright filled aura slightly larger than the shape
+    drawNgon(cx, cy, r + 4, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 3))
     drawNgon(cx, cy, r, 4, rot, baseColor)
-    drawNgonLines(cx, cy, r + 2, 4, rot, glowColor, 1.5)
-    drawNgonLines(cx, cy, r + 4, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.0)
+    drawNgonLines(cx, cy, r + 2, 4, rot, glowColor, 2.0)
+    drawNgonLines(cx, cy, r + 5, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.5)
+    drawNgonLines(cx, cy, r + 8, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 4), 1.0)
+    # Bright centre highlight
+    drawCircle(Vector2(x: cx, y: cy), r * 0.28, Color(r: 255, g: 255, b: 255, a: 200))
 
   of 2:  # Triangle
     let rot = -PI / 2.0 + spin * 0.7
+    drawNgon(cx, cy, r + 4, 3, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 3))
     drawNgon(cx, cy, r, 3, rot, baseColor)
-    drawNgonLines(cx, cy, r + 2, 3, rot, glowColor, 1.5)
-    drawNgonLines(cx, cy, r + 4, 3, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.0)
+    drawNgonLines(cx, cy, r + 2, 3, rot, glowColor, 2.0)
+    drawNgonLines(cx, cy, r + 5, 3, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.5)
+    drawNgonLines(cx, cy, r + 8, 3, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 4), 1.0)
+    drawCircle(Vector2(x: cx, y: cy), r * 0.28, Color(r: 255, g: 255, b: 255, a: 200))
 
   of 3:  # Star (two overlapping triangles)
     let rot1 = -PI / 2.0 + spin * 0.5
     let rot2 = PI / 2.0 + spin * 0.5
+    drawNgon(cx, cy, r + 4, 3, rot1, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 3))
     drawNgon(cx, cy, r, 3, rot1, baseColor)
     drawNgon(cx, cy, r * 0.85, 3, rot2, baseColor)
-    drawNgonLines(cx, cy, r + 2, 3, rot1, glowColor, 1.5)
-    drawNgonLines(cx, cy, r + 2, 3, rot2, glowColor, 1.0)
+    drawNgonLines(cx, cy, r + 2, 3, rot1, glowColor, 2.0)
+    drawNgonLines(cx, cy, r + 2, 3, rot2, glowColor, 1.5)
+    drawNgonLines(cx, cy, r + 6, 3, rot1, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 3), 1.0)
+    drawCircle(Vector2(x: cx, y: cy), r * 0.28, Color(r: 255, g: 255, b: 255, a: 200))
 
   of 4:  # Cross / X
     let hw = r * 0.35  # half-width of each arm
@@ -88,17 +99,23 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
         Vector2(x: nx.x - perp.x, y: nx.y - perp.y),
         baseColor)
     drawCircleLines(cx.int32, cy.int32, r + 3, glowColor)
-    drawCircleLines(cx.int32, cy.int32, r + 5, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2))
+    drawCircleLines(cx.int32, cy.int32, r + 6, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2))
+    drawCircleLines(cx.int32, cy.int32, r + 9, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 4))
+    drawCircle(Vector2(x: cx, y: cy), r * 0.28, Color(r: 255, g: 255, b: 255, a: 200))
 
   of 5:  # Square (axis-aligned, slow rotation)
     let rot = spin * 0.25
+    drawNgon(cx, cy, r + 4, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 3))
     drawNgon(cx, cy, r, 4, rot, baseColor)
-    drawNgonLines(cx, cy, r + 2, 4, rot, glowColor, 1.5)
-    drawNgonLines(cx, cy, r + 4, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.0)
+    drawNgonLines(cx, cy, r + 2, 4, rot, glowColor, 2.0)
+    drawNgonLines(cx, cy, r + 5, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.5)
+    drawNgonLines(cx, cy, r + 8, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 4), 1.0)
+    drawCircle(Vector2(x: cx, y: cy), r * 0.28, Color(r: 255, g: 255, b: 255, a: 200))
 
   else:  # Circle fallback
     drawCircle(Vector2(x: cx, y: cy), r, baseColor)
     drawCircleLines(cx.int32, cy.int32, r + 2, glowColor)
+    drawCircleLines(cx.int32, cy.int32, r + 5, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2))
 
 const BASE_PLAYER_BULLET_RADIUS* = 5.0
 

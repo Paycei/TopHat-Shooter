@@ -80,7 +80,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       description: t(tkEnemyCircleDesc),
       
       baseHP: 1.0,
-      baseRadius: 8.0,  # Reduced for proper size
+      baseRadius: 8.0,
       contactDamage: 1,
       baseColor: Red,
       

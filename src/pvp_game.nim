@@ -421,7 +421,7 @@ proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
 
   let mousePos = getMousePosition()
 
-  # Toggle wall-placement mode with E; right-click cancels it
+  # Toggle wall-placement mode with E, right-click cancels it
   if isKeyPressed(E) and pvp.players[pvp.localPlayerIndex].walls > 0:
     pvp.wallPlacementMode = not pvp.wallPlacementMode
   if isMouseButtonPressed(Right) and pvp.wallPlacementMode:
@@ -611,7 +611,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
         packet.wall = wallState
         pvp.networkManager.sendPacket(packet)
       else:
-        # Client: play sound optimistically; the wall itself appears when
+        # Client: play sound optimistically, the wall itself appears when
         # ptWallPlace arrives from the host (typically within one RTT).
         playSound(stPowerUp)
 
@@ -848,7 +848,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
   updateBullets(pvp, dt)
 
   # Decay PvP walls over time (server-authoritative)
-  # Walls lose 1 HP/sec passively; destroyed walls are broadcast immediately.
+  # Walls lose 1 HP/sec passively, destroyed walls are broadcast immediately.
   const PVP_WALL_DECAY_RATE = 0.3  # HP per second
   var wallIdx = 0
   while wallIdx < pvp.walls.len:
@@ -1022,7 +1022,7 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
 
   # Mirror server-side wall decay locally so the health bar drains smoothly
   # every frame rather than jumping at each snapshot interval.
-  # The snapshot will correct any drift; ptWallDestroy handles actual removal.
+  # The snapshot will correct any drift, ptWallDestroy handles actual removal.
   const PVP_WALL_DECAY_RATE = 0.3
   for wall in pvp.walls:
     wall.hp = max(0.01, wall.hp - PVP_WALL_DECAY_RATE * dt)
@@ -1646,7 +1646,7 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
     if pvp.localPlayerIndex >= 0 and pvp.localPlayerIndex < pvp.lastInputs.len:
       pvp.lastInputs[pvp.localPlayerIndex] = input
     
-    # Send to server if client; also record for replay after reconciliation
+    # Send to server if client, also record for replay after reconciliation
     if pvp.networkManager.isClient():
       var packet = newPacket(ptPlayerInput, pvp.serverTick)
       packet.input = input

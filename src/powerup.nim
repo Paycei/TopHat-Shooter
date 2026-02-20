@@ -164,7 +164,7 @@ const ORB_ORBIT_RING_GAP    = 34.0
 
 proc getOrbRingRadius*(player: Player, level: int): float32 =
   ## Level 1 -> ring 1, level 2 -> ring 2, level 3 -> ring 3, level 4 (legendary) -> ring 4.
-  ## All orbs of the same level share exactly one ring; different levels never touch.
+  ## All orbs of the same level share exactly one ring, different levels never touch.
   result = player.radius * 4.5 + ORB_ORBIT_RADIUS_BASE +
            float32(level - 1) * ORB_ORBIT_RING_GAP
 
@@ -235,7 +235,7 @@ proc createRotatingOrbs*(player: Player, level: int) =
 proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) =
   ## Replace all orbs of this element, tagged with the new level.
   ## Level 1 -> 4 orbs on ring 1, level 2 -> 8 orbs on ring 2, level 3 -> 12 orbs on ring 3.
-  ## All other elements' orbs are untouched; redistributeAllOrbs re-spaces every ring.
+  ## All other elements' orbs are untouched, redistributeAllOrbs re-spaces every ring.
 
   # Remove existing orbs of this element (any level)
   var i = 0
@@ -565,10 +565,10 @@ proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
 
         let brakeStart    = game.rollBrakeStartPos[i]
         let totalDist     = finalPosition - brakeStart          # px to cover during brake
-        # t goes 0→1 over brakeDuration; using 1-t for ease-out (fast→slow)
+        # t goes 0 -> 1 over brakeDuration, using 1-t for ease-out (fast -> slow)
         let t             = 1.0'f32 - (timeUntilStop / brakeDuration)  # 0 at brake start, 1 at stop
         # Cubic ease-out: position = brakeStart + totalDist * (1 - (1-t)^3)
-        # This gives speed = totalDist/brakeDuration * 3*(1-t)^2 → 0 at t=1
+        # This gives speed = totalDist/brakeDuration * 3*(1-t)^2 -> 0 at t=1
         let ease          = 1.0'f32 - (1.0'f32 - t) * (1.0'f32 - t) * (1.0'f32 - t)
         game.rollPosition[i] = brakeStart + totalDist * ease
         # Derivative of the cubic: speed = totalDist / brakeDuration * 3 * (1-t)^2
@@ -589,8 +589,8 @@ proc initPowerUpRollAnimation*(game: Game) =
   ##   Total reachable px      ≈ sharedSpeed * (stopTime - 0.55)
   ##   Max list length         = floor(total px / 380)
   ##
-  ##   normal    stop times 1.5 / 2.5 / 3.5 s  → max listLen: 2 / 5 / 7
-  ##   legendary stop times 2.0 / 3.0 / 4.5 s  → max listLen: 3 / 6 / 10
+  ##   normal    stop times 1.5 / 2.5 / 3.5 s  -> max listLen: 2 / 5 / 7
+  ##   legendary stop times 2.0 / 3.0 / 4.5 s  -> max listLen: 3 / 6 / 10
   game.rollAnimationActive = true
   game.rollAnimationTimer  = 0.0
   game.canSelectPowerUp    = false

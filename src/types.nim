@@ -29,7 +29,7 @@ type
     startDamage*: float32   ## Bullet damage per hit (default 1.0)
     fireRate*: float32      ## Seconds between shots – lower is faster (default 0.375)
     ## NOTE: PvP fire rate (0.375) is intentionally faster than singleplayer (0.425).
-    ## The shorter TTK in PvP rewards mechanical skill and keeps matches snappy;
+    ## The shorter TTK in PvP rewards mechanical skill and keeps matches snappy.
     bulletSpeed*: float32   ## Bullet travel speed (default 425)
     bulletRadius*: float32  ## Bullet hitbox/visual radius (default 7.5)
     startCoins*: int        ## Coins at match start (default 100)
@@ -350,6 +350,7 @@ type
     bossDefinitionID*: int  # Which boss definition this uses
     currentPhaseIndex*: int  # Current phase index
     attackTimers*: seq[float32]  # Individual cooldown timer for each attack in current phase
+    attackWarningFired*: seq[bool]  # True once the pre-fire warning has been shown for this cycle
     defenseMultiplier*: float32  # Damage reduction multiplier
     debuffResistance*: float32  # Stun/slow resistance multiplier
     isDashing*: bool  # Whether boss is currently executing a dash

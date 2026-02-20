@@ -4,7 +4,7 @@ import raylib, types, enemy, random, math, particle_pool, localization
 
 proc spawnSurvivalEnemies*(game: Game) =
   ## Time-based enemy spawning for Survival mode.
-  ## Spawn rate scales with difficulty; every 15 s a brief "wave burst" fires
+  ## Spawn rate scales with difficulty, every 15 s a brief "wave burst" fires
   ## extra enemies (60 % chance of a double-spawn while waveProgress > 0.6).
   ## Boss waves double the spawn rate to maintain pressure.
 

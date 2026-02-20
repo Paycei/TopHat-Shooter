@@ -1990,7 +1990,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   of "enraged_assault":
     # Rapid aggressive movement with smooth direction blending (sin-based, no frame dependency)
-    # blend = 1 -> full chase, blend = 0 -> full strafe; cycles on a 3s period
+    # blend = 1 -> full chase, blend = 0 -> full strafe, cycles on a 3s period
     let enrageBlend = sin(game.time * (PI * 2.0 / 3.0)) * 0.5 + 0.5
     let sideDir = newVector2f(-toPlayer.y, toPlayer.x)
     let enrageDir = (toPlayer * enrageBlend + sideDir * (1.0 - enrageBlend)).normalize()
@@ -2233,6 +2233,59 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   else:
     discard
+
+proc addBossAttackWarning(game: var Game, enemy: Enemy, attack: BossAttack) =
+  ## Emits a short visual pre-fire warning for a boss attack.
+  ## Called ~0.4 s before the attack actually fires.
+  ## No-ops for types that already manage their own deferred-warning objects.
+  const WARNING_DURATION = 0.4'f32
+
+  # These types build their own AttackWarning objects with deferred execution
+  if attack.attackType in [bapLaser, bapTeleport, bapMeteor]:
+    return
+
+  let warningType = case attack.attackType
+    of bapDash:    "boss_dash"
+    of bapBurst:   "boss_burst"
+    of bapCircle:  "boss_circle"
+    of bapSpiral:  "boss_spiral"
+    of bapBarrage: "boss_barrage"
+    of bapPulse:   "boss_pulse"
+    of bapChain:   "boss_chain"
+    of bapWave:    "boss_wave"
+    of bapSummon:  "boss_summon"
+    of bapSnipe:   "laser_pointer"
+    else:          return  # bapTargeted, bapOrbit — no pre-warning
+
+  # For dash attacks, targetPos is the actual landing spot (origin + dir × dashDist)
+  # so the arrow in the warning covers the true path the boss will travel.
+  # All other attacks just lock onto the player's current position.
+  let warningTargetPos =
+    if attack.attackType == bapDash:
+      let toPlayer = game.player.pos - enemy.pos
+      let d = sqrt(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y)
+      let dir = if d > 0.01: newVector2f(toPlayer.x / d, toPlayer.y / d)
+                else: newVector2f(1.0'f32, 0.0'f32)
+      let dashDist = case attack.specialData
+        of "charge_attack": 350.0'f32
+        of "double_charge": 300.0'f32
+        of "rage_charge":   280.0'f32
+        else:               350.0'f32
+      newVector2f(enemy.pos.x + dir.x * dashDist, enemy.pos.y + dir.y * dashDist)
+    else:
+      game.player.pos
+
+  game.attackWarnings.add(AttackWarning(
+    pos:                  enemy.pos,
+    attackType:           warningType,
+    lifetime:             WARNING_DURATION,
+    maxLifetime:          WARNING_DURATION,
+    sourceEnemyId:        enemy.id,
+    laserAngles:          @[],
+    targetPos:            warningTargetPos,
+    bulletsCreated:       false,
+    isBossTeleportTarget: false
+  ))
 
 proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
   ## Executes a single boss attack based on its pattern type
@@ -3160,10 +3213,10 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         (0.55'f32, Color(r: 255, g: 150, b: 50, a: 255),
          rawMeteorRadius)
 
-    # -- Layout: distribute meteors across 50% of the screen width ---------------
+    # Layout: distribute meteors across 50% of the screen width
     let sw        = game.screenWidth.float32
     let margin    = 15.0'f32                       # keep away from edges
-    let spacing   = bRadius * 5.0'f32              # center-to-center distance (2.5x→5.0x = 50% fewer meteors)
+    let spacing   = bRadius * 5.0'f32              # center-to-center distance (2.5x->5.0x = 50% fewer meteors)
 
     # Barrage zone: half the screen width, randomly offset so it isn't always on one side
     let zoneWidth = sw * 0.5'f32
@@ -3184,7 +3237,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         meteorXs.add(mx)
       mx += spacing
 
-    # For each position, place a timed warning; bullet spawns when warning expires
+    # For each position, place a timed warning, bullet spawns when warning expires
     let impactY = clamp(game.player.pos.y + 80.0'f32,
                         game.screenHeight.float32 * 0.5'f32,
                         game.screenHeight.float32 * 0.85'f32)
@@ -4056,15 +4109,14 @@ proc updateGame*(game: var Game, dt: float32) =
   while i < game.attackWarnings.len:
     game.attackWarnings[i].lifetime -= dt
     
-    # Update warning position to follow the boss that created it
-    # EXCEPT for teleport/meteor warnings which must stay at their fixed destination position
+    # Only laser-beam warnings need to follow their source enemy as it moves
+    # during the wind-up (so the drawn lines stay anchored to the boss).
+    # All other warnings are stamped at a fixed world position and must not move.
+    let warnType = game.attackWarnings[i].attackType
     if game.attackWarnings[i].sourceEnemyId >= 0 and
-       game.attackWarnings[i].attackType != "teleport_warning" and
-       game.attackWarnings[i].attackType != "meteor":
-      # Find the boss enemy
+       (warnType == "boss_laser" or warnType == "satellite_laser"):
       for enemy in game.enemies:
         if enemy.id == game.attackWarnings[i].sourceEnemyId:
-          # Update warning position to boss's current position
           game.attackWarnings[i].pos = enemy.pos
           break
     
@@ -5270,10 +5322,15 @@ proc updateGame*(game: var Game, dt: float32) =
             # Clear satellite list - new phase will regenerate with correct count
             enemy.satellites = @[]
           
-          # Reinitialize attack timers for new phase
+          # Reinitialize attack timers for new phase.
+          # Use WARNING_LEAD_TIME so the pre-fire warning fires immediately and
+          # the attack follows 0.4 s later — fast phase-start without skipping warnings.
+          const PHASE_TRANSITION_LEAD = 0.4'f32
           enemy.attackTimers = @[]
+          enemy.attackWarningFired = @[]
           for attack in phase.attacks:
-            enemy.attackTimers.add(0.0)  # Reset timers to 0 so new phase attacks immediately
+            enemy.attackTimers.add(PHASE_TRANSITION_LEAD)
+            enemy.attackWarningFired.add(false)
           # Update boss color and apply phase modifiers
           enemy.color = phase.color
           # Apply phase speedMultiplier to wave-scaled base speed
@@ -5322,15 +5379,24 @@ proc updateGame*(game: var Game, dt: float32) =
       for i in 0..<enemy.attackTimers.len:
         enemy.attackTimers[i] -= dt
       
-      # Execute attacks when timers expire
+      # Execute attacks when timers expire, emit pre-fire warning ~0.4 s before each shot
       if enemy.currentPhaseIndex < bossDef.phases.len:
         let phase = bossDef.phases[enemy.currentPhaseIndex]
+        const WARNING_LEAD_TIME = 0.4'f32
         for i, attack in phase.attacks:
-          if i < enemy.attackTimers.len and enemy.attackTimers[i] <= 0:
-            # Execute this attack based on its pattern
-            executeCustomBossAttack(game, enemy, attack, phase, bossDef)
-            # Reset timer
-            enemy.attackTimers[i] = attack.cooldown
+          if i < enemy.attackTimers.len:
+            # Show pre-fire warning once per cycle — fires as soon as the timer
+            # enters the warning window, regardless of cooldown length.
+            # This works even when cooldown <= WARNING_LEAD_TIME.
+            if enemy.attackTimers[i] <= WARNING_LEAD_TIME and
+               not enemy.attackWarningFired[i]:
+              addBossAttackWarning(game, enemy, attack)
+              enemy.attackWarningFired[i] = true
+            # Fire attack when timer reaches zero; reset for next cycle
+            if enemy.attackTimers[i] <= 0:
+              executeCustomBossAttack(game, enemy, attack, phase, bossDef)
+              enemy.attackTimers[i] = attack.cooldown
+              enemy.attackWarningFired[i] = false
 
     # Regular enemy shooting (config-driven system)
     if enemy.enemyType in [etCube, etHexagon, etOctagon, etPentagon, etPhantom, etDiamond, etMage]:

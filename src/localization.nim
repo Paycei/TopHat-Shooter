@@ -876,7 +876,6 @@ type
     
     # Cheat Menu Buttons
     tkCheatCloseInstruction = "cheat_close_instruction"
-    tkCheatPressESCOrClick = "cheat_press_esc_or_click"
     tkCheatShowingItems = "cheat_showing_items"
     tkCheatScrollUp = "cheat_scroll_up"
     tkCheatScrollDown = "cheat_scroll_down"
@@ -1516,7 +1515,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     
     # Cheat Menu Buttons
     "cheat_close_instruction": "Press ESC or click X to close",
-    "cheat_press_esc_or_click": "Press ESC or click X to close",
     "cheat_showing_items": "Showing",
     "cheat_scroll_up": "UP to scroll up",
     "cheat_scroll_down": "DOWN to scroll down",
@@ -3278,7 +3276,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     
     # Cheat Menu Buttons
     "cheat_close_instruction": "Presiona ESC o haz clic en X para cerrar",
-    "cheat_press_esc_or_click": "Presiona ESC o haz clic en X para cerrar",
     "cheat_showing_items": "Mostrando",
     "cheat_scroll_up": "ARRIBA para desplazarse hacia arriba",
     "cheat_scroll_down": "ABAJO para desplazarse hacia abajo",

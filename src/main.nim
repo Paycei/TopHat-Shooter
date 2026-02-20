@@ -154,9 +154,16 @@ proc main() =
   var loadingScreen = newLoadingScreen()
   
   # Initialize sound system with loading screen callback
+  var loadingScreenShown = false  # Only draw once we've seen partial progress
   proc updateLoadingProgress(progress: float32, message: string) =
     loadingScreen.setProgress(progress, message)
     
+    # If the very first callback is already at 1.0, everything was cached —
+    # skip drawing entirely so the loading screen never flickers on screen.
+    if progress >= 1.0 and not loadingScreenShown:
+      return
+    loadingScreenShown = true
+
     # Draw loading screen
     let dt = getFrameTime()
     loadingScreen.update(dt)

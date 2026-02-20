@@ -17,7 +17,7 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
   let scale = min(1.0 + (combo.killCount.float32 * 0.03), 1.5)
   let fontSize = int32(24.0 * scale)
   
-  # Pulsing effect - REDUCED
+  # Pulsing effect
   let pulse = (sin(combo.displayTimer * 8.0) + 1.0) * 0.5
   let pulseScale = 1.0 + (pulse * 0.05)
   let finalFontSize = int32(fontSize.float32 * pulseScale)
@@ -83,14 +83,14 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
       t(tkComboPerfectWave) & " +" & $combo.lastPerfectWaveBonus & " " & t(tkComboCoins)
     
     # Less flashy - smaller size, no pulsing
-    let perfectFontSize: int32 = 18  # Reduced from 24
+    let perfectFontSize: int32 = 18
     let perfectWidth = measureText(perfectText, perfectFontSize)
     let perfectX = baseX.int32 + (finalFontSize div 2) - (perfectWidth div 2)
     
     let perfectAlpha = uint8(min(combo.displayTimer * 200.0, 255.0))
     
     # Simpler background - no glowing border
-    let boxPadding: int32 = 8  # Reduced from 12
+    let boxPadding: int32 = 8
     let boxWidth = perfectWidth + boxPadding * 2
     let boxHeight = perfectFontSize + boxPadding
     let boxX = perfectX - boxPadding
@@ -105,7 +105,7 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
       Color(r: 0, g: 0, b: 0, a: uint8(perfectAlpha.float32 * 0.7)))
     drawText(perfectText, perfectX, notificationY, perfectFontSize,
       Color(r: 255, g: 220, b: 80, a: perfectAlpha))  # Softer yellow
-    notificationY += 24  # Reduced spacing
+    notificationY += 24
   
   # TIMER BAR
   let timeSinceLastKill = currentTime - combo.lastKillTime

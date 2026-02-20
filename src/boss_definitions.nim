@@ -146,7 +146,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss2Name),
       bossID: 2,
-      baseHP: 175.0,
+      baseHP: 180.0,
       baseSpeed: 65.0,
       baseDamage: 1,
       baseRadius: 50.0,
@@ -159,7 +159,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.9,
           damageMultiplier: 1.0,
-          defenseMultiplier: 0.9,
+          defenseMultiplier: 1.0,
           color: Color(r: 50, g: 150, b: 50, a: 255),
           visualEffect: "shield",
           specialBehavior: "defensive",
@@ -191,7 +191,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.6,
           speedMultiplier: 1.0,
           damageMultiplier: 1.2,
-          defenseMultiplier: 0.8,
+          defenseMultiplier: 0.9,
           color: Color(r: 30, g: 200, b: 30, a: 255),
           visualEffect: "glow",
           specialBehavior: "summon_frenzy",
@@ -1330,7 +1330,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.7,
           damageMultiplier: 0.9,
-          defenseMultiplier: 1.4,
+          defenseMultiplier: 1.3,
           color: Color(r: 0, g: 180, b: 180, a: 255),
           visualEffect: "pulse",
           specialBehavior: "slow_time",  # Slow methodical movement
@@ -1391,7 +1391,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 15.0,
               cooldown: 2.5,
               projectileSpeed: 170.0,
-              projectileCount: 24,  # Time ring
+              projectileCount: 16,  # Time ring
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               specialData: "time_ring"
@@ -1420,9 +1420,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Time Collapse",
           hpThreshold: 0.4,
-          speedMultiplier: 1.5,  # Fast blinking
+          speedMultiplier: 1.4,  # Fast blinking
           damageMultiplier: 1.4,
-          defenseMultiplier: 0.85,
+          defenseMultiplier: 0.9,
           color: Color(r: 150, g: 255, b: 255, a: 255),  # Bright cyan/white
           visualEffect: "glow",
           specialBehavior: "time_collapse",  # Fast blinking movement
@@ -1472,7 +1472,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 15.0,
               cooldown: 2.0,
               projectileSpeed: 180.0,
-              projectileCount: 32,  # Dense time ring
+              projectileCount: 24,  # Dense time ring
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             )
@@ -1783,7 +1783,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 30.0,  # NERFED from 5.0
               cooldown: 1.2,  # NERFED from 0.8
               projectileSpeed: 270.0,  # NERFED from 320.0
-              projectileCount: 45,  # NERFED from 60
+              projectileCount: 30,  # NERFED from 60
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               specialData: "omega_barrage"
