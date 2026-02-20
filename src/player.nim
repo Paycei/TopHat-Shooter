@@ -39,7 +39,6 @@ proc newPlayer*(x, y: float32): Player =
     lastDamageEvent: deNone,
     rageStacks: 0,
     critCharge: 0,
-    autoShootEnabled: true,  # Auto-shoot starts enabled
     auraRadius: 50.0,  # Invisible coin collection aura
     doubleShotDelay: 0,
     bulletCounter: 0,  # Track bullets fired for special rounds power-up

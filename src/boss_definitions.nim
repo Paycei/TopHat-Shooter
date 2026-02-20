@@ -235,7 +235,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss3Name),
       bossID: 3,
-      baseHP: 275.0,
+      baseHP: 300.0,
       baseSpeed: 65.0,
       baseDamage: 2,
       baseRadius: 48.0,
@@ -1485,9 +1485,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss11Name),
       bossID: 11,
-      baseHP: 1300.0,  # NERFED from 1800.0
-      baseSpeed: 70.0,  # NERFED from 90.0
-      baseDamage: 4,  # NERFED from 5
+      baseHP: 1400.0,
+      baseSpeed: 70.0,
+      baseDamage: 4,
       baseRadius: 58.0,
       color: Color(r: 180, g: 0, b: 180, a: 255),
       description: t(tkBoss11Desc),

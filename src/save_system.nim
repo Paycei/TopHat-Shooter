@@ -479,7 +479,6 @@ proc parsePowerUpType(s: string): PowerUpType =
   of "puBulletSpeed": puBulletSpeed
   of "puLuckyCoins": puLuckyCoins
   of "puWallMaster": puWallMaster
-  of "puAutoShoot": puAutoShoot
   of "puRegeneration": puRegeneration
   of "puDodgeChance": puDodgeChance
   of "puCriticalHit": puCriticalHit

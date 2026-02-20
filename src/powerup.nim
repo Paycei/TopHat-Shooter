@@ -21,8 +21,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
   # ALL legendary powerups are SINGLE LEVEL ONLY
-  let legendaryOnlyTypes: array[0..25, PowerUpType] = [
-    puArcaneMastery, puAutoShoot, puBloodMastery, puBulletSpeed,
+  let legendaryOnlyTypes: array[0..24, PowerUpType] = [
+    puArcaneMastery, puBloodMastery, puBulletSpeed,
     puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
@@ -467,7 +467,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
   ## Generate a random power-up for the roll animation display, excluding a specific type.
   ## These lists must stay in sync with legendaryOnlyTypes / normalOnlyTypes in generatePowerUpChoices.
   let legendaryTypes = [
-    puArcaneMastery, puAutoShoot, puBloodMastery, puBulletSpeed,
+    puArcaneMastery, puBloodMastery, puBulletSpeed,
     puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,

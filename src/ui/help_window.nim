@@ -123,8 +123,6 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpESC), White)
       help.addOutput("  " & t(tkHelpF11), White)
       help.addOutput("", White)
-      help.addOutput(t(tkHelpAutoShootReq), Color(r: 150, g: 150, b: 150, a: 255))
-      help.addOutput("", White)
     
     of "gameplay":
       help.addOutput("", White)
@@ -165,7 +163,6 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpBulletSpeed), White)
       help.addOutput("  " & t(tkHelpLuckyCoins), White)
       help.addOutput("  " & t(tkHelpWallMaster), White)
-      help.addOutput("  " & t(tkHelpAutoShoot), White)
       help.addOutput("  " & t(tkHelpRegeneration), White)
       help.addOutput("  " & t(tkHelpDodgeChance), White)
       help.addOutput("  " & t(tkHelpCriticalHit), White)

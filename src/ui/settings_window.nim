@@ -304,7 +304,6 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   let shortcuts = [
     (t(tkSettingsKeyboardWASD), t(tkSettingsKeyboardMovement)),
     (t(tkSettingsKeyboardMouseSpace), t(tkSettingsKeyboardShoot)),
-    (t(tkSettingsKeyboardF), t(tkSettingsKeyboardToggleAutoShoot)),
     (t(tkSettingsKeyboardE), t(tkSettingsKeyboardPlaceWall)),
     (t(tkSettingsKeyboardQ), t(tkSettingsKeyboardLegendaryAbilities)),
     (t(tkSettingsKeyboardESC), t(tkSettingsKeyboardPauseMenu)),

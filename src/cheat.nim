@@ -724,8 +724,8 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   currentY += 25
   
   # Define all power-up types
-  let allPowerUpTypes: array[0..64, PowerUpType] = [
-    puArcaneAura, puArcaneBullets, puArcaneMastery, puArcaneOrb, puAutoShoot,
+  let allPowerUpTypes: array[0..63, PowerUpType] = [
+    puArcaneAura, puArcaneBullets, puArcaneMastery, puArcaneOrb,
     puBerserker, puBloodAura, puBloodBullets, puBloodMastery, puBloodOrb,
     puBulletRicochet, puBulletSpeed, puBulletSplit,
     puChainLightning, puCelestialVeil, puCriticalHit, puDodgeChance, puDoubleShot,

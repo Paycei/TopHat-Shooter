@@ -635,13 +635,6 @@ proc main() =
             spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)
             trackWallPlacement(currentGame, wallPos)
 
-      # Toggle auto-shoot with F key
-      if isKeyPressed(F) and hasPowerUp(currentGame.player, puAutoShoot):
-        currentGame.player.autoShootEnabled = not currentGame.player.autoShootEnabled
-        let feedbackColor = if currentGame.player.autoShootEnabled: Green else: Red
-        spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
-                      feedbackColor, 20)
-      
       # Activate ALL legendary power-ups with Q key (simultaneous activation)
       if isKeyPressed(Q):
         var anyActivated = false

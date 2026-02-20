@@ -174,10 +174,6 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   if activeTimers > 0:
     contentHeight += int32(12 + (activeTimers * DEBUG_LINE_HEIGHT) + DEBUG_SECTION_SPACING)  # Reduced header from 14
   
-  # AutoShoot status if player has the power-up
-  if hasPowerUp(game.player, puAutoShoot):
-    contentHeight += int32(12 + DEBUG_LINE_HEIGHT + 4 + DEBUG_SECTION_SPACING)  # Reduced spacing
-  
   # Always show combat stats
   contentHeight += int32(12 + (DEBUG_LINE_HEIGHT * 3) + 4 + DEBUG_SECTION_SPACING)  # Reduced spacing
   
@@ -410,45 +406,6 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
       yOffset += DEBUG_LINE_HEIGHT
     
     yOffset += DEBUG_SECTION_SPACING
-  
-  #  AUTOSHOOT STATUS
-  if hasPowerUp(game.player, puAutoShoot):
-    # Section separator line
-    drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
-            Vector2(x: (finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),
-            1, Color(r: 0, g: 200, b: 255, a: 100))
-    yOffset += 4
-    
-    drawText(t(tkDebugPanelAutoShoot) & ":", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 130))
-    drawText(t(tkDebugPanelAutoShoot) & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
-            Color(r: 200, g: 220, b: 240, a: 255))
-    yOffset += 14
-    
-    let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
-    let autoStatus = if game.player.autoShootEnabled and game.enemies.len > 0:
-      t(tkDebugPanelAutoShootActive)
-    else:
-      t(tkDebugPanelAutoShootIdle)
-    let autoColor = if game.player.autoShootEnabled and game.enemies.len > 0:
-      Color(r: 100, g: 255, b: 150, a: 255)  # Green when active
-    else:
-      Color(r: 150, g: 150, b: 150, a: 200)  # Gray when idle
-    
-    drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
-                 DEBUG_PANEL_WIDTH - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
-                 Color(r: 0, g: 30, b: 40, a: 50))
-    
-    drawText("[A] L" & $autoLevel, finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 140))
-    drawText("[A] L" & $autoLevel, finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
-            Color(r: 100, g: 255, b: 100, a: 255))
-    
-    drawText(autoStatus, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 48,
-            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(autoStatus, finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 49,
-            yOffset, 10, autoColor)
-    yOffset += DEBUG_LINE_HEIGHT + 8
   
   # COMBAT STATS
   # Section separator line

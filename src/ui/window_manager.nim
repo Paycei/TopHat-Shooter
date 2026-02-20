@@ -216,7 +216,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       updatePvPWindow(wm.pvp, dt, getCosmetics)
       handlePvPWindowInput(wm.pvp)
       
-      # Handle window chrome (close, minimize, drag) - THIS WAS MISSING!
+      # Handle window chrome (close, minimize, drag)
       let shouldClose = handleOSWindowInput(wm.pvp.window, screenWidth, screenHeight, visibleWindows)
       if shouldClose:
         wm.pvp.window.visible = false

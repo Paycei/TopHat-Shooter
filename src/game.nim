@@ -4730,37 +4730,6 @@ proc updateGame*(game: var Game, dt: float32) =
     if shootDir.length() > 0:
       shootBullet(game, shootDir)
   
-  # Auto-shoot (now a toggleable power-up!) - Toggle handled in main.nim with F key
-  if hasPowerUp(game.player, puAutoShoot) and game.player.autoShootEnabled and game.enemies.len > 0:
-    let autoLevel = getPowerUpLevel(game.player, puAutoShoot)
-    
-    # LEGENDARY Auto-Shoot: Full fire rate at level 1
-    let autoFireMult = case autoLevel
-      of 1: 0.9   # 90% of normal fire rate
-      of 2: 0.9
-      else: 0.9
-    
-    let autoRange = case autoLevel
-      of 1: 450.0
-      of 2: 450.0
-      else: 450.0
-    
-    let stats = calculateCombatStats(game.player)
-    let autoFireRate = stats.fireRate / autoFireMult
-    if game.time - game.player.lastShot >= autoFireRate:
-      var nearestEnemy: Enemy = nil
-      var nearestDist = autoRange
-      
-      for enemy in game.enemies:
-        let dist = distance(game.player.pos, enemy.pos)
-        if dist < nearestDist:
-          nearestDist = dist
-          nearestEnemy = enemy
-      
-      if nearestEnemy != nil:
-        let dir = nearestEnemy.pos - game.player.pos
-        shootBullet(game, dir)
-  
   # MODE-SPECIFIC ENEMY SPAWNING
   if not isSandboxMode(game.mode):
     if shouldUseWaves(game.mode):
@@ -6216,7 +6185,7 @@ proc updateGame*(game: var Game, dt: float32) =
                 foundTarget = true
                 break
           
-          # If source enemy is dead/missing, use the position where bullet was shot from
+          # If source enemy is dead, use the position where bullet was shot from
           if not foundTarget:
             targetPos = bullet.sourceEnemyPos
             foundTarget = true

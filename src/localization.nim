@@ -55,8 +55,6 @@ type
     tkSettingsKeyboardMovement = "settings_keyboard_movement"
     tkSettingsKeyboardMouseSpace = "settings_keyboard_mouse_space"
     tkSettingsKeyboardShoot = "settings_keyboard_shoot"
-    tkSettingsKeyboardF = "settings_keyboard_f"
-    tkSettingsKeyboardToggleAutoShoot = "settings_keyboard_toggle_auto_shoot"
     tkSettingsKeyboardE = "settings_keyboard_e"
     tkSettingsKeyboardPlaceWall = "settings_keyboard_place_wall"
     tkSettingsKeyboardQ = "settings_keyboard_q"
@@ -174,9 +172,6 @@ type
     tkDebugPanelDamage = "debug_panel_damage"
     tkDebugPanelFireRate = "debug_panel_fire_rate"
     tkDebugPanelSpeed = "debug_panel_speed"
-    tkDebugPanelAutoShoot = "debug_panel_auto_shoot"
-    tkDebugPanelAutoShootActive = "debug_panel_auto_shoot_active"
-    tkDebugPanelAutoShootIdle = "debug_panel_auto_shoot_idle"
     tkDebugPanelLowHPBonuses = "debug_panel_low_hp_bonuses"
     tkDebugPanelRage = "debug_panel_rage"
     tkDebugPanelBerserker = "debug_panel_berserker"
@@ -374,7 +369,6 @@ type
     tkHelpE = "help_e"
     tkHelpESC = "help_esc"
     tkHelpF11 = "help_f11"
-    tkHelpAutoShootReq = "help_auto_shoot_req"
     
     # Help System - Gameplay section
     tkHelpWaveMode = "help_wave_mode"
@@ -424,7 +418,6 @@ type
     tkHelpBulletSpeed = "help_bullet_speed"
     tkHelpLuckyCoins = "help_lucky_coins"
     tkHelpWallMaster = "help_wall_master"
-    tkHelpAutoShoot = "help_auto_shoot"
     tkHelpRegeneration = "help_regeneration"
     tkHelpDodgeChance = "help_dodge_chance"
     tkHelpCriticalHit = "help_critical_hit"
@@ -663,7 +656,6 @@ type
     tkPowerupBulletSpeed = "powerup_bullet_speed"
     tkPowerupLuckyCoins = "powerup_lucky_coins"
     tkPowerupWallMaster = "powerup_wall_master"
-    tkPowerupAutoShoot = "powerup_auto_shoot"
     tkPowerupRegeneration = "powerup_regeneration"
     tkPowerupDodgeChance = "powerup_dodge_chance"
     tkPowerupCriticalHit = "powerup_critical_hit"
@@ -737,7 +729,6 @@ type
     tkPowerupBulletSpeedDesc = "powerup_bullet_speed_desc"
     tkPowerupLuckyCoinsDesc = "powerup_lucky_coins_desc"
     tkPowerupWallMasterDesc = "powerup_wall_master_desc"
-    tkPowerupAutoShootDesc = "powerup_auto_shoot_desc"
     tkPowerupRegenerationDesc1 = "powerup_regeneration_desc1"
     tkPowerupRegenerationDesc2 = "powerup_regeneration_desc2"
     tkPowerupRegenerationDesc3 = "powerup_regeneration_desc3"
@@ -1231,7 +1222,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_keyboard_mouse_space": "Mouse / Space",
     "settings_keyboard_shoot": "Shoot",
     "settings_keyboard_f": "F",
-    "settings_keyboard_toggle_auto_shoot": "Toggle Auto-Shoot",
     "settings_keyboard_e": "E",
     "settings_keyboard_place_wall": "Place Wall",
     "settings_keyboard_q": "Q",
@@ -1307,7 +1297,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_bullet_speed": "Velocity",
     "powerup_lucky_coins": "Greed",
     "powerup_wall_master": "Fortify",
-    "powerup_auto_shoot": "Auto-Target",
     "powerup_regeneration": "Regeneration",
     "powerup_dodge_chance": "Evasion",
     "powerup_critical_hit": "Critical Strike",
@@ -1382,7 +1371,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_bullet_speed_desc": "+40% bullet speed",
     "powerup_lucky_coins_desc": "Doubles all coins collected",
     "powerup_wall_master_desc": "Walls have +250% HP turrets have +100% damage",
-    "powerup_auto_shoot_desc": "Auto-fire at nearest enemy (90% fire rate, 450 range)",
     "powerup_regeneration_desc1": "Regen 150-250 HP per wave",
     "powerup_regeneration_desc2": "Regen 250-450 HP per wave",
     "powerup_regeneration_desc3": "Regen 350-650 HP per wave",
@@ -1789,9 +1777,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_damage": "Damage",
     "debug_panel_fire_rate": "Fire Rate",
     "debug_panel_speed": "Speed",
-    "debug_panel_auto_shoot": "AutoShoot",
-    "debug_panel_auto_shoot_active": "ACTIVE",
-    "debug_panel_auto_shoot_idle": "IDLE",
     "debug_panel_low_hp_bonuses": "Low HP Bonuses",
     "debug_panel_rage": "Rage",
     "debug_panel_berserker": "Berserk",
@@ -1805,9 +1790,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_damage": "Damage",
     "debug_panel_fire_rate": "Fire Rate",
     "debug_panel_speed": "Speed",
-    "debug_panel_auto_shoot": "AutoShoot",
-    "debug_panel_auto_shoot_active": "ACTIVE",
-    "debug_panel_auto_shoot_idle": "IDLE",
     "debug_panel_low_hp_bonuses": "Low HP Bonuses",
     "debug_panel_rage": "Rage",
     "debug_panel_berserker": "Berserk",
@@ -1999,12 +1981,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_arrow_keys": "Arrow Keys ......... Alternative movement",
     "help_left_mouse": "Left Mouse ......... Shoot",
     "help_space": "Space .............. Shoot (alternative)",
-    "help_f": "F .................. Toggle Auto-Shoot*",
     "help_q": "Q .................. Activate Legendary Powers",
     "help_e": "E .................. Place Wall",
     "help_esc": "ESC ................ Pause / Return to menu",
     "help_f11": "F11 ................ Toggle Fullscreen",
-    "help_auto_shoot_req": "* Requires Auto-Shoot power-up",
     
     # Help System - Gameplay section
     "help_wave_mode": "WAVE-BASED MODE",
@@ -2054,7 +2034,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_bullet_speed": "Bullet Speed - Faster bullets",
     "help_lucky_coins": "Lucky Coins - Doubles coins collected",
     "help_wall_master": "Wall Master - Place stronger walls",
-    "help_auto_shoot": "Auto Shoot - Auto-target nearest enemy",
     "help_regeneration": "Regeneration - Slowly restore HP",
     "help_dodge_chance": "Dodge Chance - Chance to evade damage",
     "help_critical_hit": "Critical Hit - Random critical damage",
@@ -2458,8 +2437,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_keyboard_movement": "Movimiento",
     "settings_keyboard_mouse_space": "Ratón / Espacio",
     "settings_keyboard_shoot": "Disparar",
-    "settings_keyboard_f": "F",
-    "settings_keyboard_toggle_auto_shoot": "Auto-Disparo",
     "settings_keyboard_e": "E",
     "settings_keyboard_place_wall": "Muro",
     "settings_keyboard_q": "Q",
@@ -2535,7 +2512,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_bullet_speed": "Velocidad",
     "powerup_lucky_coins": "Codicia",
     "powerup_wall_master": "Fortificar",
-    "powerup_auto_shoot": "Apuntado Auto",
     "powerup_regeneration": "Regeneración",
     "powerup_dodge_chance": "Evasión",
     "powerup_critical_hit": "Golpe Crítico",
@@ -2610,7 +2586,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_bullet_speed_desc": "+40% velocidad de balas",
     "powerup_lucky_coins_desc": "Duplica todas las monedas recogidas",
     "powerup_wall_master_desc": "Muros tienen +250% HP torretas +100% daño",
-    "powerup_auto_shoot_desc": "Disparo auto al enemigo más cercano (90% cadencia, rango 450)",
     "powerup_regeneration_desc1": "Regen 150-250 HP por oleada",
     "powerup_regeneration_desc2": "Regen 250-450 HP por oleada",
     "powerup_regeneration_desc3": "Regen 350-650 HP por oleada",
@@ -2848,9 +2823,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_damage": "Daño",
     "debug_panel_fire_rate": "Cadencia",
     "debug_panel_speed": "Velocidad",
-    "debug_panel_auto_shoot": "Disparo Auto",
-    "debug_panel_auto_shoot_active": "ACTIVO",
-    "debug_panel_auto_shoot_idle": "INACTIVO",
     "debug_panel_low_hp_bonuses": "Bonificaciones Bajo HP",
     "debug_panel_rage": "Furia",
     "debug_panel_berserker": "Berserker",
@@ -2864,9 +2836,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_damage": "Daño",
     "debug_panel_fire_rate": "Cadencia",
     "debug_panel_speed": "Velocidad",
-    "debug_panel_auto_shoot": "Disparo Auto",
-    "debug_panel_auto_shoot_active": "ACTIVO",
-    "debug_panel_auto_shoot_idle": "INACTIVO",
     "debug_panel_low_hp_bonuses": "Bonificaciones Bajo HP",
     "debug_panel_rage": "Furia",
     "debug_panel_berserker": "Berserker",
@@ -3058,12 +3027,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_arrow_keys": "Flechas ............ Movimiento alternativo",
     "help_left_mouse": "Ratón Izq ......... Disparar",
     "help_space": "Espacio ............ Disparar (alternativo)",
-    "help_f": "F .................. Alternar Disparo Automático*",
     "help_q": "Q .................. Activar Poderes Legendarios",
     "help_e": "E .................. Colocar Muro",
     "help_esc": "ESC ................ Pausa / Volver al menú",
     "help_f11": "F11 ................ Alternar Pantalla Completa",
-    "help_auto_shoot_req": "* Requiere la mejora Disparo Automático",
     
     # Help System - Gameplay section
     "help_wave_mode": "MODO OLEADAS",
@@ -3113,7 +3080,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_bullet_speed": "Velocidad de Balas - Balas más rápidas",
     "help_lucky_coins": "Monedas Afortunadas - Duplica monedas recolectadas",
     "help_wall_master": "Maestro de Muros - Coloca muros más fuertes",
-    "help_auto_shoot": "Disparo Automático - Apunta automáticamente al enemigo más cercano",
     "help_regeneration": "Regeneración - Restaura lentamente HP",
     "help_dodge_chance": "Oportunidad de Esquivar - Oportunidad de evadir daño",
     "help_critical_hit": "Golpe Crítico - Daño crítico aleatorio",

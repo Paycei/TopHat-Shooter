@@ -35,7 +35,6 @@
 | E               | Colocar muro                   |
 | Q               | Usar power-up activo(s)        |
 | ESC             | Pausa                          |
-| F               | Auto-Shoot                     |
 
 ---
 

@@ -90,7 +90,6 @@ type
     puBulletSpeed,     # Faster bullets
     puLuckyCoins,      # Doubles coins collected
     puWallMaster,      # Place stronger walls and increment turret damage
-    puAutoShoot,       # Auto-target nearest enemy
     puRegeneration,    # Slowly restore HP
     puDodgeChance,     # Chance to evade damage
     puCriticalHit,     # Random critical damage
@@ -234,7 +233,6 @@ type
     lastDamageEvent*: DamageEvent  # One-frame categorical signal set by takeDamage, consumed by drawPlayer
     rageStacks*: int
     critCharge*: float32
-    autoShootEnabled*: bool
     auraRadius*: float32  # Invisible coin collection aura
     doubleShotDelay*: float32  # Timer for double-shot rapid succession
     bulletCounter*: int  # Counter for special rounds powerup

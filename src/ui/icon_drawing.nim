@@ -69,7 +69,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Center crystal
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 4, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
     
-  of puPiercingShots, puAutoShoot:
+  of puPiercingShots:
     # Tactical targeting arrow
     # Arrow body with gradient
     drawRectangle(cx - 12, cy - 3, 18, 6, color)
