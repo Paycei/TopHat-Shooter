@@ -111,6 +111,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 sourceEnemyId: int = -1, sourceEnemyType: EnemyType = etCircle,
                 isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
                 wasCrit: bool = false, isSpecialRound: bool = false,
+                isFromWallTurret: bool = false, isFromRadialBurst: bool = false,
                 bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1,
                 ownerPlayerIndex: int = -1, bossBulletShape: int = 0,
                 bulletRadius: float32 = 0.0, bulletShape: int = 0): Bullet =
@@ -151,6 +152,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     isBonusFromDoubleShot: isBonusFromDoubleShot,  # Bonus bullet from Double Shot
     wasCrit: wasCrit,  # Whether this bullet was a critical hit
     isSpecialRound: isSpecialRound,  # Whether this is a special round
+    isFromWallTurret: isFromWallTurret,  # Fired by a Wall Turret
+    isFromRadialBurst: isFromRadialBurst,  # Fired by Radial Burst
     bulletSkin: bulletSkin,  # Bullet skin type
     bulletShape: bulletShape,  # Cosmetic bullet shape
     ownerPlayerIndex: ownerPlayerIndex  # For PvP: which player (0 or 1) shot this (-1 for non-PvP)
@@ -436,6 +439,8 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     false,  # isBonusFromDoubleShot
     original.wasCrit,  # Preserve crit status
     original.isSpecialRound,  # Preserve special round status
+    original.isFromWallTurret,  # Preserve wall turret origin
+    original.isFromRadialBurst,  # Preserve radial burst origin
     original.bulletSkin,  # Preserve bullet skin
     0,  # bulletId (will be assigned later)
     -1,  # parentBulletId

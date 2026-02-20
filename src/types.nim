@@ -401,6 +401,8 @@ type
     isBonusFromDoubleShot*: bool  # True if this is a bonus bullet from Double Shot
     wasCrit*: bool  # True if this bullet rolled a critical hit
     isSpecialRound*: bool  # True if this is a special round (every Nth bullet)
+    isFromWallTurret*: bool  # True if this bullet was fired by a Wall Turret
+    isFromRadialBurst*: bool  # True if this bullet was fired by Radial Burst
     bulletSkin*: int  # Bullet skin typeHost
     ownerPlayerIndex*: int  # For PvP: which player shot this bullet (-1 for non-PvP)
 
@@ -454,6 +456,14 @@ type
     fromPlayer*: bool       # True if player dealt damage, false if enemy dealt damage
     isCritical*: bool       # True for critical hits (larger, different color)
     damageType*: DamageType # Type of damage for color coding
+
+  LightningBolt* = ref object
+    ## A short-lived jagged lightning arc drawn between two world positions.
+    startPos*: Vector2f
+    endPos*: Vector2f
+    lifetime*: float32       # Remaining display time
+    maxLifetime*: float32
+    segments*: seq[Vector2f] # Pre-computed jagged waypoints (including start & end)
 
   Laser* = ref object
     pos*: Vector2f          # Center position
@@ -737,6 +747,7 @@ type
     game3D*: pointer  # Pointer to Game3D to avoid circular dependency
     transitioning*: bool  # Fade transition active
     fadeAlpha*: float32  # Fade opacity (0.0 to 1.0)
+    lightningBolts*: seq[LightningBolt]  # Active lightning arc visuals
 
 proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
   AttackWarning(

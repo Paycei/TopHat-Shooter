@@ -5,7 +5,7 @@ import raylib, types, player, bullet, wall, particle, particle_pool, sound, netw
 
 const
   PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
-  WALL_PLACEMENT_RANGE* = 220.0  # Max distance from player at which a wall can be placed
+  WALL_PLACEMENT_RANGE* = 250.0  # Max distance from player at which a wall can be placed
 
 type
   TeamScore* = object

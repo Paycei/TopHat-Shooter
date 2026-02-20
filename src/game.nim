@@ -684,6 +684,75 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
 
 # COMMON HELPER FUNCTIONS FOR POWER-UP CALCULATIONS
 
+# LIGHTNING BOLT VISUALS
+const LIGHTNING_BOLT_DURATION* = 0.18'f32  # seconds the arc stays visible
+const LIGHTNING_SEGMENTS      = 8          # number of jagged waypoints
+
+proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2f) =
+  ## Spawn a short-lived jagged lightning arc between two world positions.
+  ## Uses the deterministic particle-pool RNG via `rand`, so no extra state needed.
+  let dx = toPos.x - fromPos.x
+  let dy = toPos.y - fromPos.y
+  let len = sqrt(dx * dx + dy * dy)
+  if len < 1.0: return
+
+  # Perpendicular unit vector for jag offsets
+  let px = -dy / len
+  let py =  dx / len
+
+  # Jag amplitude: ~15% of total length, decreasing toward endpoints
+  let ampBase = len * 0.15'f32
+
+  var segs: seq[Vector2f] = @[fromPos]
+  for i in 1..<LIGHTNING_SEGMENTS:
+    let t = float32(i) / float32(LIGHTNING_SEGMENTS)
+    # Linear interpolation base point
+    let bx = fromPos.x + dx * t
+    let by = fromPos.y + dy * t
+    # Random jag perpendicular – envelope tapers at both ends
+    let env   = 1.0'f32 - abs(t * 2.0'f32 - 1.0'f32)
+    let jag   = (rand(1.0) * 2.0 - 1.0).float32 * ampBase * env
+    segs.add(newVector2f(bx + px * jag, by + py * jag))
+  segs.add(toPos)
+
+  game.lightningBolts.add(LightningBolt(
+    startPos:    fromPos,
+    endPos:      toPos,
+    lifetime:    LIGHTNING_BOLT_DURATION,
+    maxLifetime: LIGHTNING_BOLT_DURATION,
+    segments:    segs
+  ))
+
+proc updateLightningBolts*(game: var Game, dt: float32) =
+  var i = 0
+  while i < game.lightningBolts.len:
+    game.lightningBolts[i].lifetime -= dt
+    if game.lightningBolts[i].lifetime <= 0:
+      game.lightningBolts.delete(i)
+    else:
+      inc i
+
+proc drawLightningBolts*(game: Game) =
+  for bolt in game.lightningBolts:
+    let alpha = uint8(clamp(bolt.lifetime / bolt.maxLifetime * 255.0, 0.0, 255.0))
+    # Bright core (white-yellow)
+    let coreColor  = Color(r: 255, g: 255, b: 200, a: alpha)
+    # Wider glow (pale blue)
+    let glowColor  = Color(r: 140, g: 200, b: 255, a: uint8(alpha.int * 60 div 255))
+
+    for i in 0..<bolt.segments.len - 1:
+      let a = bolt.segments[i]
+      let b = bolt.segments[i + 1]
+      let ax = a.x.int32;  let ay = a.y.int32
+      let bx = b.x.int32;  let by = b.y.int32
+      # Glow pass (drawn first, wider conceptually – draw offset copies)
+      drawLine(ax - 1, ay,     bx - 1, by,     glowColor)
+      drawLine(ax + 1, ay,     bx + 1, by,     glowColor)
+      drawLine(ax,     ay - 1, bx,     by - 1, glowColor)
+      drawLine(ax,     ay + 1, bx,     by + 1, glowColor)
+      # Core pass
+      drawLine(ax, ay, bx, by, coreColor)
+
 proc getAuraRadius*(level: int): float32 =
   ## Standard aura radius based on level (used by most aura effects)
   case level
@@ -940,12 +1009,8 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
               game.enemies[k].slowAmount = chainSlowAmount
             chained += 1
             
-            # Lightning visual effect
-            for step in 0..10:
-              let t = step.float32 / 10.0
-              let x = enemy.pos.x + (game.enemies[k].pos.x - enemy.pos.x) * t
-              let y = enemy.pos.y + (game.enemies[k].pos.y - enemy.pos.y) * t
-              spawnExplosionPooled(game.particlePool, x, y, Color(r: 255, g: 255, b: 100, a: 255), 2)
+            # Lightning arc visual connecting the two enemies
+            spawnLightningBolt(game, enemy.pos, game.enemies[k].pos)
   
   of befBlood:
     # Blood: Lifesteal
@@ -3234,21 +3299,8 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
            chainY < 0 or chainY > game.screenHeight.float32:
           break
         
-        # VISUAL: Create jagged lightning bolt between chain points
-        let segments = 8
-        for step in 0..segments:
-          let t = step.float32 / segments.float32
-          let baseX = lastX + (chainX - lastX) * t
-          let baseY = lastY + (chainY - lastY) * t
-          
-          # Jagged zigzag perpendicular to direction
-          let zigzag = if step mod 2 == 0: 15.0 else: -15.0
-          let perpX = -(chainY - lastY) / distance * zigzag
-          let perpY = (chainX - lastX) / distance * zigzag
-          
-          # Bright electric particles
-          spawnExplosionPooled(game.particlePool, baseX + perpX, baseY + perpY,
-                        Color(r: 255, g: 255, b: 200, a: 255), 2)
+        # VISUAL: Persistent jagged lightning arc between chain points
+        spawnLightningBolt(game, newVector2f(lastX, lastY), newVector2f(chainX, chainY))
         
         # Create bullet at chain point
         game.bullets.add(newBullet(
@@ -3282,13 +3334,8 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         
         if branchX > 0 and branchX < game.screenWidth.float32 and
            branchY > 0 and branchY < game.screenHeight.float32:
-          # Visual branch
-          for step in 0..6:
-            let t = step.float32 / 6.0
-            let bX = enemy.pos.x + (branchX - enemy.pos.x) * t
-            let bY = enemy.pos.y + (branchY - enemy.pos.y) * t
-            spawnExplosionPooled(game.particlePool, bX, bY,
-                          Color(r: 200, g: 230, b: 255, a: 255), 1)
+          # VISUAL: Persistent lightning arc for branch
+          spawnLightningBolt(game, enemy.pos, newVector2f(branchX, branchY))
           
           game.bullets.add(newBullet(
             x = branchX, y = branchY,
@@ -3676,6 +3723,12 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
       let chainDamageWithCrit = applyCriticalHitFromStats(stats, baseDamage * 0.7)
       let chainDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
       
+      # Track lightning orb chain damage (attribute to the same orb type as the parent hit)
+      if hasPowerUp(game.player, puRotatingOrbs):
+        trackPowerUpDamage(game, puRotatingOrbs, chainDamage)
+      else:
+        trackPowerUpDamage(game, puLightningOrb, chainDamage)
+      
       game.showDamage(nearestEnemy.pos, chainDamage, fromPlayer = true,
                       isCritical = chainDamageWithCrit > baseDamage * 0.7, damageType = dtLightning)
       
@@ -3685,8 +3738,8 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
         if nearestEnemy.slowAmount < 0.25:
           nearestEnemy.slowAmount = 0.25  # 25% slow
       
-      spawnExplosionPooled(game.particlePool, nearestEnemy.pos.x, nearestEnemy.pos.y,
-                     Color(r: 200, g: 220, b: 255, a: 255), 3)
+      # Lightning arc from hit enemy to chained enemy
+      spawnLightningBolt(game, enemy.pos, nearestEnemy.pos)
       
       # Second chain with Lightning Mastery
       if game.player.hasLightningMastery:
@@ -3704,6 +3757,12 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
           let secondChainDamageWithCrit = applyCriticalHitFromStats(stats, baseDamage * 0.7)
           let secondChainDamage = damageEnemy(secondNearestEnemy, secondChainDamageWithCrit)
           
+          # Track second chain damage
+          if hasPowerUp(game.player, puRotatingOrbs):
+            trackPowerUpDamage(game, puRotatingOrbs, secondChainDamage)
+          else:
+            trackPowerUpDamage(game, puLightningOrb, secondChainDamage)
+          
           game.showDamage(secondNearestEnemy.pos, secondChainDamage, fromPlayer = true,
                           isCritical = secondChainDamageWithCrit > baseDamage * 0.7, damageType = dtLightning)
           
@@ -3711,8 +3770,8 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
           if secondNearestEnemy.slowAmount < 0.25:
             secondNearestEnemy.slowAmount = 0.25
           
-          spawnExplosionPooled(game.particlePool, secondNearestEnemy.pos.x, secondNearestEnemy.pos.y,
-                         Color(r: 200, g: 220, b: 255, a: 255), 3)
+          # Lightning arc from first chain to second chain
+          spawnLightningBolt(game, nearestEnemy.pos, secondNearestEnemy.pos)
     
     # Apply slow to primary target if has Lightning Mastery
     if game.player.hasLightningMastery:
@@ -4186,7 +4245,8 @@ proc updateGame*(game: var Game, dt: float32) =
           fireDuration = 0.0,
           windPushForce = 0.0,
           bulletSkin = game.player.bulletSkinType,
-          bulletShape = game.player.bulletShapeType
+          bulletShape = game.player.bulletShapeType,
+          isFromRadialBurst = true
         ))
       
       # Visual feedback
@@ -4376,12 +4436,9 @@ proc updateGame*(game: var Game, dt: float32) =
             if nearestEnemy.slowAmount < 0.05:
               nearestEnemy.slowAmount = 0.05
             
-            # Visual chain lightning particle
-            let midX = (currentEnemy.pos.x + nearestEnemy.pos.x) / 2.0
-            let midY = (currentEnemy.pos.y + nearestEnemy.pos.y) / 2.0
-            spawnTimedParticlesPooled(game.particlePool, midX, midY, 12.0,
-                               Color(r: 200, g: 220, b: 255, a: 200), 2, dt)
-            
+            # Lightning arc visual
+            spawnLightningBolt(game, currentEnemy.pos, nearestEnemy.pos)
+
             currentEnemy = nearestEnemy
           else:
             break  # No more enemies to chain to
@@ -4629,6 +4686,8 @@ proc updateGame*(game: var Game, dt: float32) =
           # Apply damage for level 2 and 3
           if baseDamage > 0:
             let actualDamage = damageEnemy(enemy, damage)
+            # Track pulse armor damage for statistics
+            trackPowerUpDamage(game, puPulseArmor, actualDamage)
             # Show damage number
             game.showDamage(enemy.pos, actualDamage, fromPlayer = true,
                           isCritical = false, damageType = dtDefault)
@@ -4647,6 +4706,9 @@ proc updateGame*(game: var Game, dt: float32) =
 
   # Rotating Orbs power-up - elemental orbs that orbit the player and damage enemies
   updateOrbitalWeapons(game, dt)
+
+  # Decay active lightning bolt visuals
+  updateLightningBolts(game, dt)
   
 
   # Check shooting
@@ -5958,6 +6020,14 @@ proc updateGame*(game: var Game, dt: float32) =
               let specialRoundsBonusDamage = actualDamage * 0.333
               trackPowerUpDamage(game, puSpecialRounds, specialRoundsBonusDamage)
             
+            # Track Wall Turrets contribution (all damage from turret-fired bullets)
+            if bullet.isFromWallTurret:
+              trackPowerUpDamage(game, puWallTurrets, actualDamage)
+            
+            # Track Radial Burst contribution (all damage from Radial Burst bullets)
+            if bullet.isFromRadialBurst:
+              trackPowerUpDamage(game, puRadialBurst, actualDamage)
+            
             # Create damage number for shield damage (blue colored for shields)
             if shieldDamage > 0:
               showDamage(game, game.enemies[j].pos, shieldDamage, true, isCrit, dtLaser)
@@ -6526,7 +6596,8 @@ proc updateGame*(game: var Game, dt: float32) =
             fireDuration = 0.0,
             windPushForce = 0.0,
             bulletSkin = game.player.bulletSkinType,
-            bulletShape = game.player.bulletShapeType
+            bulletShape = game.player.bulletShapeType,
+            isFromWallTurret = true
           ))
           
           # Visual feedback
@@ -6582,7 +6653,10 @@ proc drawGame*(game: Game) =
   
   # Draw particles first (background layer)
   drawParticlePool(game.particlePool)
-  
+
+  # Draw lightning bolt arcs (chain lightning visuals, short-lived)
+  drawLightningBolts(game)
+
   # Draw attack warnings (before everything else so they're visible)
   for warning in game.attackWarnings:
     drawAttackWarning(warning)

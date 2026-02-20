@@ -268,10 +268,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   drawText(sizeText, x + width - sizeWidth - 10, yOff + 2, 11, Color(r: 110, g: 120, b: 130, a: 255))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Rolling hype effects
-# ─────────────────────────────────────────────────────────────────────────────
-
+# Rolling effects
 
 proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: bool,
                         powerUpName: string) =
@@ -285,7 +282,7 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
   let ac = if isLegendary: Color(r: 255, g: 215, b: 0, a: 255)
            else:           Color(r: 60, g: 210, b: 255, a: 255)
 
-  # ── 1. Expanding outline ring ─────────────────────────────────────────────
+  # 1. Expanding outline ring
   let ringProgress = clamp(tSinceLock * 2.5'f32, 0.0'f32, 1.0'f32)
   let ringA = uint8(255.0 * (1.0 - ringProgress) * (1.0 - ringProgress))
   if ringA > 0:
@@ -298,7 +295,7 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
       max(1.0, 4.0 * (1.0 - ringProgress)),
       Color(r: ac.r, g: ac.g, b: ac.b, a: ringA))
 
-  # ── 3. Particle burst (16 particles radiating outward) ───────────────────
+  # 3. Particle burst (16 particles radiating outward)
   let pFade = 1.0'f32 - clamp(tSinceLock * 1.8'f32, 0.0'f32, 1.0'f32)
   if pFade > 0.0:
     let cx = cardX.float32 + CARD_WIDTH.float32 * 0.5
@@ -312,7 +309,7 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
       let pA = uint8(240.0 * pFade * pFade)
       drawCircle(Vector2(x: px, y: py), pSize, Color(r: ac.r, g: ac.g, b: ac.b, a: pA))
 
-  # ── 4. Rising name text (floats upward and fades) ─────────────────────────
+  # 4. Rising name text (floats upward and fades)
   let textFade = 1.0'f32 - clamp(tSinceLock * 1.4'f32, 0.0'f32, 1.0'f32)
   if textFade > 0.0:
     let rise = tSinceLock * 60.0
@@ -351,10 +348,10 @@ proc drawOSPowerUpInstaller*(game: Game) =
     else: 0.0'f32
   let speedFrac = clamp(maxSpeed / 1000.0'f32, 0.0'f32, 1.0'f32)
 
-  # ── Background overlay ────────────────────────────────────────────────────
+  # Background overlay
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 180))
 
-  # ── Window ────────────────────────────────────────────────────────────────
+  # Window
   let winX = (screenWidth  - INSTALLER_WIDTH)  div 2
   let winY = (screenHeight - INSTALLER_HEIGHT) div 2
 
@@ -371,7 +368,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   for i in 0..<(INSTALLER_HEIGHT div 40):
     drawRectangle(winX, winY + int32(i * 40), INSTALLER_WIDTH, 1, Color(r: 30, g: 36, b: 48, a: 255))
 
-  # ── Border – pulses chromatically while rolling ───────────────────────────
+  # Border – pulses chromatically while rolling
   if speedFrac > 0.02:
     let h = game.time * 4.0
     let r8 = uint8(127 + int(128.0 * sin(h)))
@@ -394,7 +391,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
                                 width: float32(INSTALLER_WIDTH - 4), height: float32(INSTALLER_HEIGHT - 4)),
                     1.0, Color(r: 60, g: 75, b: 95, a: 255))
 
-  # ── Title bar ─────────────────────────────────────────────────────────────
+  # Title bar
   drawRectangle(winX, winY, INSTALLER_WIDTH, TITLE_BAR_HEIGHT, Color(r: 40, g: 52, b: 70, a: 255))
   drawRectangle(winX, winY, INSTALLER_WIDTH, 2, Color(r: 80, g: 100, b: 130, a: 255))
   drawRectangle(winX, winY + TITLE_BAR_HEIGHT - 1, INSTALLER_WIDTH, 1, Color(r: 0, g: 140, b: 200, a: 255))
@@ -413,7 +410,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
                     1.0, Color(r: 180, g: 30, b: 30, a: 255))
   drawText("X", closeX + 8, closeY + 5, 18, White)
 
-  # ── Instruction header ────────────────────────────────────────────────────
+  # Instruction header
   var yPos = winY + TITLE_BAR_HEIGHT + 20
   let headerText =
     if game.rollAnimationActive: t(tkPowerUpRolling)
@@ -432,11 +429,11 @@ proc drawOSPowerUpInstaller*(game: Game) =
   yPos += 40
 
 
-  # ── Card area ─────────────────────────────────────────────────────────────
+  # Card area
   let totalCardW = CARD_WIDTH * 3 + CARD_SPACING * 2
   let startX = winX + (INSTALLER_WIDTH - totalCardW) div 2
 
-  # ── ROLLING MODE ──────────────────────────────────────────────────────────
+  # ROLLING MODE
   if game.rollAnimationActive:
     for i in 0..2:
       let cardX = int32(startX + i * (CARD_WIDTH + CARD_SPACING))
@@ -480,7 +477,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
           drawRectangle(cardX, cardY + streakOffset, 3, CARD_HEIGHT div 5, sc)
           drawRectangle(cardX + CARD_WIDTH - 3, cardY + streakOffset, 3, CARD_HEIGHT div 5, sc)
 
-  # ── SETTLED MODE ──────────────────────────────────────────────────────────
+  # SETTLED MODE
   else:
     # Spotlight glow behind selected card
     let selX = startX + game.selectedPowerUp * (CARD_WIDTH + CARD_SPACING)
@@ -501,14 +498,14 @@ proc drawOSPowerUpInstaller*(game: Game) =
                      i == game.selectedPowerUp,
                      game.time, game.player.damage, 1.0)
 
-  # ── Lock-in burst effects (drawn outside any scissor mode) ────────────────
+  # Lock-in burst effects (drawn outside any scissor mode)
   for i in 0..2:
     let cardX = int32(startX + i * (CARD_WIDTH + CARD_SPACING))
     let name  = getPowerUpName(game.powerUpChoices[i].powerType)
     drawSlotLockEffect(cardX, yPos.int32, tSinceLock[i], isLegendary, name)
 
 
-  # ── Bottom panel ──────────────────────────────────────────────────────────
+  # Bottom panel
   let bottomY = winY + INSTALLER_HEIGHT - 120
   drawRectangle(winX, bottomY - 15, INSTALLER_WIDTH, 120, Color(r: 30, g: 38, b: 52, a: 255))
   drawRectangle(winX, bottomY - 15, INSTALLER_WIDTH, 2, Color(r: 0, g: 140, b: 200, a: 255))
