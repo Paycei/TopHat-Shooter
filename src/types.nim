@@ -398,9 +398,13 @@ type
     isBonusFromMultiShot*: bool  # True if this is a bonus bullet from Multi-Shot
     isBonusFromDoubleShot*: bool  # True if this is a bonus bullet from Double Shot
     wasCrit*: bool  # True if this bullet rolled a critical hit
+    baseDamagePreCrit*: float32  # Damage before crit multiplier (for puCriticalHit tracking)
     isSpecialRound*: bool  # True if this is a special round (every Nth bullet)
     isFromWallTurret*: bool  # True if this bullet was fired by a Wall Turret
     isFromRadialBurst*: bool  # True if this bullet was fired by Radial Burst
+    isFromBulletSplit*: bool  # True if this bullet was created by Bullet Split
+    isRicochet*: bool  # True if this bullet has already ricocheted at least once
+    isParried*: bool  # True if this was an enemy bullet bounced back by Parry
     bulletSkin*: int  # Bullet skin typeHost
     ownerPlayerIndex*: int  # For PvP: which player shot this bullet (-1 for non-PvP)
 

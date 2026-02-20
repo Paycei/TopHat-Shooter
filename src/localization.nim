@@ -1221,7 +1221,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_keyboard_movement": "Movement",
     "settings_keyboard_mouse_space": "Mouse / Space",
     "settings_keyboard_shoot": "Shoot",
-    "settings_keyboard_f": "F",
     "settings_keyboard_e": "E",
     "settings_keyboard_place_wall": "Place Wall",
     "settings_keyboard_q": "Q",

@@ -276,7 +276,6 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
   ## tSinceLock: seconds since this slot stopped (must be >= 0 and < ~1.2 to be visible)
   const dur = 1.1'f32
   if tSinceLock < 0.0'f32 or tSinceLock > dur: return
-  let t = tSinceLock / dur   # 0 = just locked, 1 = fully gone
 
   # Accent colour
   let ac = if isLegendary: Color(r: 255, g: 215, b: 0, a: 255)
@@ -440,7 +439,6 @@ proc drawOSPowerUpInstaller*(game: Game) =
       let cardY = yPos
 
       let position = game.rollPosition[i]
-      let speed    = game.rollSpeed[i]
       let cardH    = CARD_HEIGHT.float32
 
       # Index of the card whose top edge is at or just above the viewport top

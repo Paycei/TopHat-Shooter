@@ -112,6 +112,8 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
                 wasCrit: bool = false, isSpecialRound: bool = false,
                 isFromWallTurret: bool = false, isFromRadialBurst: bool = false,
+                isFromBulletSplit: bool = false, isRicochet: bool = false,
+                isParried: bool = false,
                 bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1,
                 ownerPlayerIndex: int = -1, bossBulletShape: int = 0,
                 bulletRadius: float32 = 0.0, bulletShape: int = 0): Bullet =
@@ -154,6 +156,9 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     isSpecialRound: isSpecialRound,  # Whether this is a special round
     isFromWallTurret: isFromWallTurret,  # Fired by a Wall Turret
     isFromRadialBurst: isFromRadialBurst,  # Fired by Radial Burst
+    isFromBulletSplit: isFromBulletSplit,  # Created by Bullet Split
+    isRicochet: isRicochet,  # Has already ricocheted
+    isParried: isParried,  # Enemy bullet bounced back by Parry
     bulletSkin: bulletSkin,  # Bullet skin type
     bulletShape: bulletShape,  # Cosmetic bullet shape
     ownerPlayerIndex: ownerPlayerIndex  # For PvP: which player (0 or 1) shot this (-1 for non-PvP)
@@ -441,6 +446,9 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     original.isSpecialRound,  # Preserve special round status
     original.isFromWallTurret,  # Preserve wall turret origin
     original.isFromRadialBurst,  # Preserve radial burst origin
+    original.isFromBulletSplit,  # Preserve split origin
+    original.isRicochet,  # Preserve ricochet flag
+    original.isParried,  # Preserve parry flag
     original.bulletSkin,  # Preserve bullet skin
     0,  # bulletId (will be assigned later)
     -1,  # parentBulletId
@@ -502,6 +510,7 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
       0.9,  # Slightly smaller radius
       true  # Prevent infinite splitting
     )
+    splitBullet.isFromBulletSplit = true  # Mark for statistics tracking
     
     game.bullets.add(splitBullet)
 
@@ -524,6 +533,7 @@ proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f
   
   # Increment bounce count for the new bullet
   ricochetBullet.bounceCount += 1
+  ricochetBullet.isRicochet = true  # Mark for statistics tracking
   
   game.bullets.add(ricochetBullet)
 

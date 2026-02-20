@@ -996,6 +996,10 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
             let chainDmgWithCrit = applyCriticalHitFromStats(stats, chainDmgBase)
             let actualDamage = damageEnemy(game.enemies[k], chainDmgWithCrit)
             
+            # Track chain lightning damage for statistics
+            if actualDamage > 0:
+              trackPowerUpDamage(game, puChainLightning, actualDamage)
+            
             # Create damage number
             if actualDamage > 0:
               showDamage(game, game.enemies[k].pos, actualDamage, true,
@@ -1395,6 +1399,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       bulletRadius *= heavyMultiplier
     
     # Apply critical hit chance using pre-calculated stats and capture if it was a crit
+    let baseDamagePreCrit = damage  # Store pre-crit value for puCriticalHit tracking
     let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, damage)
     damage = damageWithCrit
     
@@ -1504,6 +1509,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           bulletShape = game.player.bulletShapeType
         )
         bullet.radius = bulletRadius
+        bullet.baseDamagePreCrit = baseDamagePreCrit
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
       
@@ -1538,6 +1544,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
+      bullet.baseDamagePreCrit = baseDamagePreCrit
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
@@ -1579,6 +1586,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           bulletShape = game.player.bulletShapeType
         )
         bullet.radius = bulletRadius
+        bullet.baseDamagePreCrit = baseDamagePreCrit
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
     else:
@@ -1606,6 +1614,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
+      bullet.baseDamagePreCrit = baseDamagePreCrit
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
@@ -1653,6 +1662,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
     damage *= damageMultiplier
   
   # Roll for critical hit
+  let burstBaseDamagePreCrit = damage  # Store pre-crit value for puCriticalHit tracking
   let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(burstStats, damage)
   damage = damageWithCrit
   
@@ -1730,6 +1740,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
+      bullet.baseDamagePreCrit = burstBaseDamagePreCrit
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)
@@ -1761,6 +1772,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       bulletShape = game.player.bulletShapeType
     )
     bullet.radius = bulletRadius
+    bullet.baseDamagePreCrit = burstBaseDamagePreCrit
     assignBulletId(game, bullet)
     game.bullets.add(bullet)
     trackBulletFired(game)
@@ -2819,31 +2831,31 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     let pulseMode = attack.specialData
     
     # Configure pulse behavior and visuals based on mode
-    let (bulletCount, particleColor, shakeIntensity, explosionSize) = case pulseMode
+    let (bulletCount, particleColor, explosionSize) = case pulseMode
       of "electric_discharge":
-        (32, Color(r: 255, g: 255, b: 150, a: 255), 25.0, 35)  # Dense electric pulse
+        (32, Color(r: 255, g: 255, b: 150, a: 255), 35)  # Dense electric pulse
       of "ground_slam":
-        (28, Color(r: 150, g: 75, b: 30, a: 255), 35.0, 40)  # Fewer but stronger, brown/rock color
+        (28, Color(r: 150, g: 75, b: 30, a: 255), 40)  # Fewer but stronger, brown/rock color
       of "earthquake":
-        (36, Color(r: 100, g: 50, b: 20, a: 255), 50.0, 60)  # MASSIVE slam, huge shake
+        (36, Color(r: 100, g: 50, b: 20, a: 255), 60)  # MASSIVE slam, huge shake
       of "overload_pulse":
-        (40, Color(r: 255, g: 255, b: 255, a: 255), 40.0, 50)  # Maximum density, white overload
+        (40, Color(r: 255, g: 255, b: 255, a: 255), 50)  # Maximum density, white overload
       of "gravity_pulse":
-        (30, Color(r: 150, g: 100, b: 255, a: 255), 30.0, 45)  # Space purple
+        (30, Color(r: 150, g: 100, b: 255, a: 255), 45)  # Space purple
       of "blinding_pulse":
-        (38, Color(r: 255, g: 255, b: 255, a: 255), 35.0, 55)  # Brilliant white light explosion
+        (38, Color(r: 255, g: 255, b: 255, a: 255), 55)  # Brilliant white light explosion
       of "chrono_pulse":
-        (28, Color(r: 100, g: 220, b: 220, a: 255), 30.0, 42)  # Temporal shockwave, cyan
+        (28, Color(r: 100, g: 220, b: 220, a: 255), 42)  # Temporal shockwave, cyan
       of "chrono_break":
-        (36, Color(r: 150, g: 255, b: 255, a: 255), 45.0, 58)  # Massive time shattering pulse
+        (36, Color(r: 150, g: 255, b: 255, a: 255), 58)  # Massive time shattering pulse
       of "entropy_wave":
-        (rand(20) + 20, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 40.0, 50)  # Chaotic random pulse
+        (rand(20) + 20, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 50)  # Chaotic random pulse
       of "omega_pulse":
-        (42, Color(r: 255, g: 100, b: 255, a: 255), 55.0, 65)  # ULTIMATE pulse - huge and powerful
+        (42, Color(r: 255, g: 100, b: 255, a: 255), 65)  # ULTIMATE pulse - huge and powerful
       else:
-        (24, phase.color, 20.0, 35)  # Standard pulse
+        (24, phase.color, 35)  # Standard pulse
     
-    # TRIGGER SCREEN SHAKE (varies by mode)
+    # TRIGGER SCREEN SHAKE
     addShake(game.dopamine.screenShake, siLarge)
     
     # Create expanding pulse ring
@@ -3478,15 +3490,15 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       dashSpeed = game.player.speed
     
     # Configure dash based on mode
-    let (dashDist, shakeIntensity, trailColor) = case dashMode
+    let (dashDist, trailColor) = case dashMode
       of "charge_attack":
-        (350.0, 25.0, Color(r: 255, g: 50, b: 0, a: 255))  # Single charge, red trail
+        (350.0, Color(r: 255, g: 50, b: 0, a: 255))  # Single charge, red trail
       of "double_charge":
-        (300.0, 30.0, Color(r: 255, g: 100, b: 0, a: 255))  # Double charge, bright red
+        (300.0, Color(r: 255, g: 100, b: 0, a: 255))  # Double charge, bright red
       of "rage_charge":
-        (280.0, 35.0, Color(r: 255, g: 0, b: 0, a: 255))  # TRIPLE charge, pure red
+        (280.0, Color(r: 255, g: 0, b: 0, a: 255))  # TRIPLE charge, pure red
       else:
-        (350.0, 20.0, phase.color)  # Default
+        (350.0, phase.color)  # Default
     
     let dashTime = dashDist / dashSpeed  # Calculate duration based on speed
     
@@ -5997,6 +6009,32 @@ proc updateGame*(game: var Game, dt: float32) =
             if bullet.isFromRadialBurst:
               trackPowerUpDamage(game, puRadialBurst, actualDamage)
             
+            # Track Critical Hit contribution (bonus damage from crits)
+            if bullet.wasCrit and hasPowerUp(game.player, puCriticalHit):
+              # Crit multiplier is 2x, so bonus is exactly half the post-crit damage
+              let critBonusDamage = actualDamage * 0.5
+              trackPowerUpDamage(game, puCriticalHit, critBonusDamage)
+            
+            # Track Piercing Shots contribution (2nd+ hits are entirely powered by the power-up)
+            if bullet.piercedEnemies > 0 and hasPowerUp(game.player, puPiercingShots):
+              trackPowerUpDamage(game, puPiercingShots, actualDamage)
+            
+            # Track Echo Shots contribution (all echo bullet damage)
+            if bullet.isEcho:
+              trackPowerUpDamage(game, puEchoShots, actualDamage)
+            
+            # Track Bullet Split contribution (all split bullet damage)
+            if bullet.isFromBulletSplit:
+              trackPowerUpDamage(game, puBulletSplit, actualDamage)
+            
+            # Track Bullet Ricochet contribution (all ricochet bullet damage)
+            if bullet.isRicochet:
+              trackPowerUpDamage(game, puBulletRicochet, actualDamage)
+            
+            # Track Parry contribution (all parried bullet damage)
+            if bullet.isParried:
+              trackPowerUpDamage(game, puParry, actualDamage)
+            
             # Create damage number for shield damage (blue colored for shields)
             if shieldDamage > 0:
               showDamage(game, game.enemies[j].pos, shieldDamage, true, isCrit, dtLaser)
@@ -6150,6 +6188,7 @@ proc updateGame*(game: var Game, dt: float32) =
                 let ricochetDir = (ricochetTarget.pos - bullet.pos).normalize()
                 bullet.vel = ricochetDir * bullet.vel.length()
                 bullet.bounceCount += 1
+                bullet.isRicochet = true  # Mark for statistics tracking
                 
                 # Reduce damage by 25% per ricochet
                 bullet.damage = bullet.damage * 0.75
@@ -6199,6 +6238,7 @@ proc updateGame*(game: var Game, dt: float32) =
           
           bullet.vel = bounceDir * bullet.vel.length()
           bullet.fromPlayer = true  # Mark as player bullet so it can damage enemies
+          bullet.isParried = true  # Mark for statistics tracking
           
           # Visual effect for parry bounce
           spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
