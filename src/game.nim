@@ -5903,7 +5903,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if bullet.echoTrailTimer >= spawnInterval:
         bullet.echoTrailTimer = 0.0
         
-        # Create echo bullet with full synergy support
+        # Create echo bullet
         createEchoBullet(game, bullet, echoDamageMultiplier, 0.7, 0.7)
 
     # Check rotating shield collision

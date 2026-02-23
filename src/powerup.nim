@@ -42,8 +42,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   ]
   
   # Define orb, aura, bullet, and mastery groups for exclusivity
-  # Note: puRotatingOrbs is intentionally excluded here — it is legendary-only and
-  # never appears in the normal-wave pool, so including it would be unreachable.
+  # Note: puRotatingOrbs is intentionally excluded here
   let orbTypes: array[0..6, PowerUpType] = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb]
   let auraTypes: array[0..6, PowerUpType] = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
   let bulletTypes: array[0..6, PowerUpType] = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets, puBloodBullets, puChainLightning]
@@ -339,9 +338,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puArcaneBullets:
     # Arcane bullets increase bullet damage only (not base player damage)
     let damageBonus = case powerUp.level
-      of 1: 1.5   # +50% bullet damage
-      of 2: 2.0   # +100% bullet damage
-      else: 2.5   # +150% bullet damage
+      of 1: 1.4   # +40% bullet damage
+      of 2: 1.8   # +80% bullet damage
+      else: 2.2   # +120% bullet damage
     player.bulletDamageMult *= damageBonus
   of puFireMastery:
     # Enhance fire effects
@@ -433,8 +432,8 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
         createElementalOrbs(player, etArcane, powerUp.level)
       of puArcaneBullets:
         let damageBonus = case powerUp.level
-          of 2: 1.333  # 2.0 / 1.5
-          of 3: 1.25   # 2.5 / 2.0
+          of 2: 1.2857  # 1.8 / 1.4
+          of 3: 1.2222  # 2.2 / 1.8
           else: 1.0
         player.bulletDamageMult *= damageBonus
       of puHeavyRounds:
