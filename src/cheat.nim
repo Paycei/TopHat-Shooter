@@ -724,23 +724,24 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   currentY += 25
   
   # Define all power-up types
-  let allPowerUpTypes: array[0..63, PowerUpType] = [
+  let allPowerUpTypes: array[0..68, PowerUpType] = [
     puArcaneAura, puArcaneBullets, puArcaneMastery, puArcaneOrb,
-    puBerserker, puBloodAura, puBloodBullets, puBloodMastery, puBloodOrb,
+    puBerserker, puBloodAura, puBloodBullets, puBloodMastery, puBloodOrb, puBloodPact,
     puBulletRicochet, puBulletSpeed, puBulletSplit,
-    puChainLightning, puCelestialVeil, puCriticalHit, puDodgeChance, puDoubleShot,
-    puEchoShots, puExplosiveBullets,
+    puCelestialVeil, puChainLightning, puConduit, puCriticalHit,
+    puDodgeChance, puDoubleShot, puEchoShots, puExplosiveBullets,
     puFireAura, puFireBullets, puFireMastery, puFireOrb, puFortified,
     puFrostMastery, puFrostOrb, puFrostShots,
     puGiantSlayer, puGravityWell, puHeavyRounds, puLifeSteal,
     puLightningAura, puLightningMastery, puLightningOrb, puLuckyCoins,
     puMagicalBullets, puMaxHealth, puMultiShot,
-    puOvercharge, puParry, puPhaseShift, puPiercingShots,
+    puNova, puOvercharge, puParry, puPhaseShift, puPiercingShots,
     puPoisonAura, puPoisonMastery, puPoisonOrb, puPoisonShot,
-    puPulseArmor, puRadialBurst, puRage, puRapidFire, puRegeneration,
+    puPulseArmor, puRadialBurst, puRage, puRapidFire, puRegeneration, puResonance,
     puRotatingOrbs, puRotatingShield, puSlowField,
     puSpecialRounds, puSpeedBoost,
-    puThorns, puTimeWarp, puWallMaster, puWallTurrets,
+    puThorns, puTimeWarp,
+    puVolatile, puWallMaster, puWallTurrets,
     puWindAura, puWindBullets, puWindMastery, puWindOrb
   ];
   

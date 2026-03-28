@@ -9,6 +9,12 @@ proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
       return true
   return false
 
+# Active legendary ability types shown in the legendary panel (all have cooldowns)
+const legendaryPanelTypes* = [
+  puTimeWarp, puPhaseShift, puParry,
+  puBloodPact, puConduit, puAftershock, puNova
+]
+
 proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
   for p in player.powerUps:
     if p.powerType == powerType:
@@ -21,16 +27,17 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
   
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
   # ALL legendary powerups are SINGLE LEVEL ONLY
-  let legendaryOnlyTypes: array[0..24, PowerUpType] = [
+  let legendaryOnlyTypes: array[0..29, PowerUpType] = [
     puArcaneMastery, puBloodMastery, puBulletSpeed,
     puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
-    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery
+    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery,
+    puVolatile, puBloodPact, puConduit, puAftershock, puNova
   ]
 
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
-  let normalOnlyTypes: array[0..38, PowerUpType] = [
+  let normalOnlyTypes: array[0..39, PowerUpType] = [
     puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura,
     puBloodBullets, puBloodOrb, puBulletRicochet, puBulletSplit,
     puChainLightning, puCriticalHit, puDodgeChance, puExplosiveBullets,
@@ -38,7 +45,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     puHeavyRounds, puLifeSteal, puLightningAura, puLightningOrb, puPiercingShots,
     puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
     puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
-    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer
+    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance
   ]
   
   # Define orb, aura, bullet, and mastery groups for exclusivity
@@ -386,6 +393,15 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puCelestialVeil:
     # Celestial Veil - absorbs 1 hit per wave
     player.celestialVeilActive = true
+  of puVolatile:
+    # Volatile (Legendary passive) - flag set; logic handled in game.nim bullet-hit and death
+    player.hasVolatile = true
+  of puResonance:
+    # Resonance (Normal passive, 3 levels) - set level
+    player.resonanceLevel = powerUp.level
+  of puBloodPact, puConduit, puAftershock, puNova:
+    # Active Legendary abilities - cooldowns start at 0 (immediately ready)
+    discard
   else:
     discard
   
@@ -443,6 +459,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           of 3: 1.25   # 2.5 / 2.0
           else: 1.0
         player.baseRadius *= sizeBonus
+      of puResonance:
+        # Update resonance level on upgrade
+        player.resonanceLevel = powerUp.level
       else:
         discard
 
@@ -470,7 +489,8 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
-    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery
+    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery,
+    puVolatile, puBloodPact, puConduit, puAftershock, puNova
   ]
 
   let normalTypes = [
@@ -481,7 +501,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     puHeavyRounds, puLifeSteal, puLightningAura, puLightningOrb, puPiercingShots,
     puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
     puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
-    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer
+    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance
   ]
   
   var availableTypes: seq[PowerUpType]

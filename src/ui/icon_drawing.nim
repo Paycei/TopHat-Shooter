@@ -886,6 +886,85 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawLine(Vector2(x: sx - gs * 0.6, y: sy - gs * 0.6), Vector2(x: sx + gs * 0.6, y: sy + gs * 0.6), 1, Color(r: 255, g: 255, b: 255, a: 140))
     drawLine(Vector2(x: sx + gs * 0.6, y: sy - gs * 0.6), Vector2(x: sx - gs * 0.6, y: sy + gs * 0.6), 1, Color(r: 255, g: 255, b: 255, a: 140))
 
+  of puVolatile:
+    # Explosion burst: concentric rings + radiating sparks
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.55, Color(r: 255, g: 80, b: 20, a: 200))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.35, Color(r: 255, g: 200, b: 60, a: 240))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.75, Color(r: color.r, g: color.g, b: color.b, a: 180))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad, Color(r: color.r, g: color.g, b: color.b, a: 90))
+    for i in 0..5:
+      let angle = i.float32 * PI / 3.0
+      let x1 = cx.float32 + cos(angle) * rad * 0.75
+      let y1 = cy.float32 + sin(angle) * rad * 0.75
+      let x2 = cx.float32 + cos(angle) * rad * 1.05
+      let y2 = cy.float32 + sin(angle) * rad * 1.05
+      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, Color(r: 255, g: 180, b: 0, a: 200))
+
+  of puResonance:
+    # Concentric waves emanating outward
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.28, color)
+    for i in 1..3:
+      let r = rad * float32(i) * 0.33
+      let alpha = uint8(200 - i * 50)
+      drawCircleLines(Vector2(x: cx.float32, y: cy.float32), r, Color(r: color.r, g: color.g, b: color.b, a: alpha))
+    # Small dots on outermost ring
+    for i in 0..5:
+      let angle = i.float32 * PI / 3.0
+      let dx = cx.float32 + cos(angle) * rad
+      let dy = cy.float32 + sin(angle) * rad
+      drawCircle(Vector2(x: dx, y: dy), 2, Color(r: color.r, g: color.g, b: color.b, a: 160))
+
+  of puBloodPact:
+    # Heart shape with crack/sacrifice line
+    let hc = Color(r: 220, g: 30, b: 30, a: 240)
+    drawCircle(Vector2(x: (cx - 5).float32, y: (cy - 3).float32), 6, hc)
+    drawCircle(Vector2(x: (cx + 5).float32, y: (cy - 3).float32), 6, hc)
+    drawTriangle(Vector2(x: (cx - 11).float32, y: (cy - 3).float32),
+                 Vector2(x: (cx + 11).float32, y: (cy - 3).float32),
+                 Vector2(x: cx.float32, y: (cy + 11).float32), hc)
+    # Crack line
+    drawLine(Vector2(x: cx.float32, y: (cy - 9).float32), Vector2(x: (cx - 2).float32, y: (cy + 2).float32), 2, Color(r: 255, g: 255, b: 255, a: 200))
+    drawLine(Vector2(x: (cx - 2).float32, y: (cy + 2).float32), Vector2(x: (cx + 1).float32, y: (cy + 10).float32), 2, Color(r: 255, g: 255, b: 255, a: 200))
+
+  of puConduit:
+    # Flask with elemental dots inside
+    let fColor = color
+    drawRectangle(cx - 4, cy - 12, 8, 4, fColor)
+    drawRectangle(cx - 3, cy - 12, 6, 2, Color(r: min(fColor.r + 60, 255), g: min(fColor.g + 60, 255), b: min(fColor.b + 60, 255), a: 255))
+    drawCircle(Vector2(x: cx.float32, y: (cy + 3).float32), 9, Color(r: 0, g: 0, b: 0, a: 60))
+    drawCircle(Vector2(x: cx.float32, y: (cy + 2).float32), 9, fColor)
+    drawCircle(Vector2(x: cx.float32, y: (cy + 2).float32), 6, Color(r: min(fColor.r + 40, 255), g: min(fColor.g + 100, 255), b: 255, a: 180))
+    drawCircle(Vector2(x: (cx - 2).float32, y: (cy + 2).float32), 2, Color(r: 255, g: 80, b: 20, a: 240))
+    drawCircle(Vector2(x: (cx + 3).float32, y: (cy + 5).float32), 2, Color(r: 100, g: 220, b: 80, a: 240))
+    drawCircle(Vector2(x: (cx - 1).float32, y: (cy + 6).float32), 1.5, Color(r: 80, g: 80, b: 255, a: 240))
+
+  of puAftershock:
+    # Spiral / trailing arc backward
+    for i in 0..7:
+      let t = float32(i) / 8.0
+      let angle = t * PI * 1.5 + PI
+      let r = rad * 0.3 + rad * 0.7 * t
+      let px = cx.float32 + cos(angle) * r
+      let py = cy.float32 + sin(angle) * r
+      let a = uint8(220 - i * 25)
+      drawCircle(Vector2(x: px, y: py), 2.5 - t * 1.0, Color(r: color.r, g: color.g, b: color.b, a: a))
+    # Arrow tip at center
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 4, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 230))
+
+  of puNova:
+    # Frozen bullets arranged in a ring, then released
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad, Color(r: 180, g: 220, b: 255, a: 200))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.6, Color(r: 150, g: 200, b: 255, a: 120))
+    for i in 0..5:
+      let angle = i.float32 * PI / 3.0
+      let bx = cx.float32 + cos(angle) * rad * 0.85
+      let by = cy.float32 + sin(angle) * rad * 0.85
+      drawCircle(Vector2(x: bx, y: by), 3.5, Color(r: 200, g: 235, b: 255, a: 230))
+      drawCircle(Vector2(x: bx, y: by), 1.5, Color(r: 255, g: 255, b: 255, a: 255))
+    # Central pause symbol
+    drawRectangle(cx - 4, cy - 6, 3, 12, Color(r: 180, g: 220, b: 255, a: 220))
+    drawRectangle(cx + 1, cy - 6, 3, 12, Color(r: 180, g: 220, b: 255, a: 220))
+
 proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
   let cx = x + size div 2
   let cy = y + size div 2

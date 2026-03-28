@@ -584,15 +584,13 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
   ## Movable and minimizable like other OS panels
   let panelWidth: int32 = 220
   
-  # Check if player has any legendary power-ups
+  # Check if player has any power-ups shown in the legendary panel
   var hasAnyLegendary = false
-  if hasPowerUp(game.player, puTimeWarp):
-    hasAnyLegendary = true
-  if hasPowerUp(game.player, puPhaseShift):
-    hasAnyLegendary = true
-  if hasPowerUp(game.player, puParry):
-    hasAnyLegendary = true
-  
+  for pt in legendaryPanelTypes:
+    if hasPowerUp(game.player, pt):
+      hasAnyLegendary = true
+      break
+
   if not hasAnyLegendary:
     return
   
@@ -650,16 +648,11 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
     else:
       legendaryPanelDragging = false
   
-  # Calculate content height
+  # Calculate content height based on which panel power-ups the player has
   var contentHeight: int32 = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT
-  
-  if hasPowerUp(game.player, puTimeWarp):
-    contentHeight += DEBUG_LINE_HEIGHT + 2
-  if hasPowerUp(game.player, puPhaseShift):
-    contentHeight += DEBUG_LINE_HEIGHT + 2
-  if hasPowerUp(game.player, puParry):
-    contentHeight += DEBUG_LINE_HEIGHT + 2
-  
+  for pt in legendaryPanelTypes:
+    if hasPowerUp(game.player, pt):
+      contentHeight += DEBUG_LINE_HEIGHT + 2
   contentHeight += DEBUG_SECTION_SPACING
   
   # If minimized, only draw header bar
@@ -830,6 +823,73 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
             yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
     drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
             yOffset, 10, parryColor)
+    yOffset += DEBUG_LINE_HEIGHT + 2
+
+  # Blood Pact (active)
+  if hasPowerUp(game.player, puBloodPact):
+    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
+                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
+                 Color(r: 25, g: 8, b: 8, a: 50))
+    let bpColor = if game.player.bloodPactCooldown > 0:
+      Color(r: 100, g: 100, b: 100, a: 200)
+    else:
+      Color(r: 220, g: 60, b: 60, a: 255)
+    drawText(t(tkLegendaryBloodPact), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+            Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkLegendaryBloodPact), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10, bpColor)
+    let bpStatus = if game.player.bloodPactCooldown > 0:
+      $(game.player.bloodPactCooldown.int + 1) & "s"
+    else:
+      t(tkLegendaryReady)
+    drawText(bpStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 70,
+            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(bpStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
+            yOffset, 10, bpColor)
+    yOffset += DEBUG_LINE_HEIGHT + 2
+
+  # Conduit (active)
+  if hasPowerUp(game.player, puConduit):
+    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
+                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
+                 Color(r: 12, g: 20, b: 30, a: 50))
+    let condColor = if game.player.conduitCooldown > 0:
+      Color(r: 100, g: 100, b: 100, a: 200)
+    else:
+      Color(r: 80, g: 160, b: 255, a: 255)
+    drawText(t(tkLegendaryConduit), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+            Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkLegendaryConduit), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10, condColor)
+    let condStatus = if game.player.conduitCooldown > 0:
+      $(game.player.conduitCooldown.int + 1) & "s"
+    else:
+      t(tkLegendaryReady)
+    drawText(condStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 70,
+            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(condStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
+            yOffset, 10, condColor)
+    yOffset += DEBUG_LINE_HEIGHT + 2
+
+  # Nova (active)
+  if hasPowerUp(game.player, puNova):
+    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
+                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
+                 Color(r: 12, g: 18, b: 30, a: 50))
+    let novaColor = if game.player.novaActive:
+      Color(r: 180, g: 220, b: 255, a: 255)
+    elif game.player.novaCooldown > 0:
+      Color(r: 100, g: 100, b: 100, a: 200)
+    else:
+      Color(r: 140, g: 200, b: 255, a: 255)
+    drawText(t(tkLegendaryNova), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
+            Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkLegendaryNova), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10, novaColor)
+    let novaStatus = if game.player.novaActive: t(tkLegendaryFrozen)
+                     elif game.player.novaCooldown > 0: $(game.player.novaCooldown.int + 1) & "s"
+                     else: t(tkLegendaryReady)
+    drawText(novaStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 70,
+            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(novaStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
+            yOffset, 10, novaColor)
 
 proc drawMinimalDebugInfo*(game: Game, x, y: int32) =
   ## Draw minimal debug info (just FPS and entity count)

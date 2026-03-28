@@ -69,7 +69,17 @@ proc newPlayer*(x, y: float32): Player =
     bulletSkinType: 0,
     bulletShapeType: 0,
     shapeType: 0,
-    particleSkinType: 0
+    particleSkinType: 0,
+    hasVolatile: false,
+    resonanceLevel: 0,
+    bloodPactCooldown: 0.0,
+    conduitCooldown: 0.0,
+    aftershockCooldown: 0.0,
+    aftershockPosHistory: @[],
+    aftershockSampleTimer: 0.0,
+    novaCooldown: 0.0,
+    novaActive: false,
+    novaFreezeTimer: 0.0,
   )
 
 proc hasAnyOrbPowerUp*(player: Player): bool =
@@ -123,6 +133,35 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.parryCooldown > 0:
     player.parryCooldown -= dt
   
+  # Update new legendary active ability cooldowns
+  if player.bloodPactCooldown > 0:
+    player.bloodPactCooldown -= dt
+  if player.conduitCooldown > 0:
+    player.conduitCooldown -= dt
+  if player.aftershockCooldown > 0:
+    player.aftershockCooldown -= dt
+  if player.novaCooldown > 0:
+    player.novaCooldown -= dt
+
+  # Nova freeze timer - count down and release bullets when expired
+  # (Actual bullet release is handled in game.nim updateGame loop)
+  if player.novaActive and player.novaFreezeTimer > 0:
+    player.novaFreezeTimer -= dt
+    if player.novaFreezeTimer <= 0:
+      player.novaFreezeTimer = 0
+      player.novaActive = false
+      # Note: bullet release (vel *= 1.5, isFrozenByNova = false) done in game.nim
+
+  # Aftershock position history sampling (every 0.05s = 40 samples for 2s of history)
+  if player.aftershockCooldown >= 0:  # always sample (even when cooldown is 0)
+    player.aftershockSampleTimer += dt
+    if player.aftershockSampleTimer >= 0.05:
+      player.aftershockSampleTimer -= 0.05
+      player.aftershockPosHistory.add(player.pos)
+      # Keep only the last 40 samples (2 seconds at 0.05s intervals)
+      while player.aftershockPosHistory.len > 40:
+        player.aftershockPosHistory.delete(0)
+
   # Update Pulse Armor cooldown
   if player.pulseArmorCooldown > 0:
     player.pulseArmorCooldown -= dt

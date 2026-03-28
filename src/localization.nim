@@ -312,6 +312,13 @@ type
     tkLegendaryActive = "legendary_active"
     tkLegendaryReady = "legendary_ready"
     tkLegendaryDashing = "legendary_dashing"
+    tkLegendaryVolatile = "legendary_volatile"
+    tkLegendaryResonance = "legendary_resonance"
+    tkLegendaryBloodPact = "legendary_blood_pact"
+    tkLegendaryConduit = "legendary_conduit"
+    tkLegendaryNova = "legendary_nova"
+    tkLegendaryPassive = "legendary_passive"
+    tkLegendaryFrozen = "legendary_frozen"
     
     tkNotifWaveCleared = "notif_wave_cleared"
     tkNotifBossDetected = "notif_boss_detected"
@@ -851,12 +858,32 @@ type
     tkPowerupGiantSlayerDesc3 = "powerup_giant_slayer_desc3"
     tkPowerupCelestialVeil = "powerup_celestial_veil"
     tkPowerupCelestialVeilDesc = "powerup_celestial_veil_desc"
+    tkPowerupVolatile = "powerup_volatile"
+    tkPowerupVolatileDesc = "powerup_volatile_desc"
+    tkPowerupResonance = "powerup_resonance"
+    tkPowerupResonanceDesc1 = "powerup_resonance_desc1"
+    tkPowerupResonanceDesc2 = "powerup_resonance_desc2"
+    tkPowerupResonanceDesc3 = "powerup_resonance_desc3"
+    tkPowerupBloodPact = "powerup_blood_pact"
+    tkPowerupBloodPactDesc = "powerup_blood_pact_desc"
+    tkPowerupConduit = "powerup_conduit"
+    tkPowerupConduitDesc = "powerup_conduit_desc"
+    tkPowerupAftershock = "powerup_aftershock"
+    tkPowerupAftershockDesc = "powerup_aftershock_desc"
+    tkPowerupNova = "powerup_nova"
+    tkPowerupNovaDesc = "powerup_nova_desc"
     
     # Player Feedback
     tkPlayerDodge = "player_dodge"
     tkPlayerParry = "player_parry"
     tkPlayerPhase = "player_phase"
     tkPlayerVeil = "player_veil"
+    tkPlayerBloodPact = "player_blood_pact"
+    tkPlayerConduit = "player_conduit"
+    tkPlayerAftershock = "player_aftershock"
+    tkPlayerNova = "player_nova"
+    tkPlayerNovaCooldown = "player_nova_cooldown"
+    tkPlayerAbilityOnCooldown = "player_ability_on_cooldown"
     
     # System Messages
     tkSystemDefensiveProcesses = "system_defensive_processes"
@@ -1490,12 +1517,32 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_giant_slayer_desc2": "Deal 1.75% of enemy current HP as bonus damage",
     "powerup_giant_slayer_desc3": "Deal 2.5% of enemy current HP as bonus damage",
     "powerup_celestial_veil_desc": "Absorb 1 hit per wave — resets at the start of each wave",
+    "powerup_volatile": "Volatile",
+    "powerup_volatile_desc": "Enemies afflicted by 2+ elemental effects take +50% bullet damage and release a pulse on death that spreads their active elements to nearby foes",
+    "powerup_resonance": "Resonance",
+    "powerup_resonance_desc1": "Bullets hitting enemies with active DoTs deal bonus damage equal to 20% of their combined elemental DPS",
+    "powerup_resonance_desc2": "Bullets hitting enemies with active DoTs deal bonus damage equal to 30% of their combined elemental DPS",
+    "powerup_resonance_desc3": "Bullets hitting enemies with active DoTs deal bonus damage equal to 40% of their combined elemental DPS",
+    "powerup_blood_pact": "Blood Pact",
+    "powerup_blood_pact_desc": "Sacrifice 30% of your current HP — that damage is split equally among all on-screen enemies. 15s cooldown",
+    "powerup_conduit": "Conduit",
+    "powerup_conduit_desc": "Detonate all active elemental effects on all enemies for 3× their remaining tick damage, then clear them. Only activates if DoTs are present. 15s cooldown",
+    "powerup_aftershock": "Aftershock",
+    "powerup_aftershock_desc": "Emit a shockwave that traces backward along your last 2 seconds of movement, dealing damage and knocking back enemies caught in its path. 14s cooldown",
+    "powerup_nova": "Nova",
+    "powerup_nova_desc": "Freeze all your bullets in place for 2 seconds — new bullets also freeze on spawn. All frozen bullets then release simultaneously at 1.5× speed. 16s cooldown",
     
     # Player Feedback
     "player_dodge": "DODGE!",
     "player_parry": "PARRY!",
     "player_phase": "PHASE SHIFT!",
     "player_veil": "VEIL!",
+    "player_blood_pact": "BLOOD PACT!",
+    "player_conduit": "CONDUIT!",
+    "player_aftershock": "AFTERSHOCK!",
+    "player_nova": "NOVA!",
+    "player_nova_cooldown": "BULLETS RELEASED!",
+    "player_ability_on_cooldown": "NOT READY",
     
     # System Messages
     "system_defensive_processes": "All defensive processes have been terminated.",
@@ -1927,7 +1974,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "legendary_active": "ACTIVE",
     "legendary_ready": "Ready",
     "legendary_dashing": "DASHING",
-    
+    "legendary_volatile": "Volatile",
+    "legendary_resonance": "Resonance",
+    "legendary_blood_pact": "Blood Pact",
+    "legendary_conduit": "Conduit",
+    "legendary_nova": "Nova",
+    "legendary_passive": "PASSIVE",
+    "legendary_frozen": "FROZEN",
+
     "notif_boss_detected": "BOSS PROCESS DETECTED",
     "notif_boss_terminated": "Boss process terminated",
     "notif_installed": "Installed:",
@@ -2704,6 +2758,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_giant_slayer_desc2": "Causa 1.75% de HP actual del enemigo como daño extra",
     "powerup_giant_slayer_desc3": "Causa 2.5% de HP actual del enemigo como daño extra",
     "powerup_celestial_veil_desc": "Absorbe 1 golpe por oleada — se reinicia al comienzo de cada oleada",
+    "powerup_volatile": "Volátil",
+    "powerup_volatile_desc": "Los enemigos con 2+ efectos elementales activos reciben +50% de daño de bala y al morir liberan un pulso que propaga sus elementos a enemigos cercanos",
+    "powerup_resonance": "Resonancia",
+    "powerup_resonance_desc1": "Las balas que golpean enemigos con DoTs activos causan daño extra igual al 20% de su DPS elemental combinado",
+    "powerup_resonance_desc2": "Las balas que golpean enemigos con DoTs activos causan daño extra igual al 30% de su DPS elemental combinado",
+    "powerup_resonance_desc3": "Las balas que golpean enemigos con DoTs activos causan daño extra igual al 40% de su DPS elemental combinado",
+    "powerup_blood_pact": "Pacto de Sangre",
+    "powerup_blood_pact_desc": "Sacrifica el 30% de tu HP actual — ese daño se divide entre todos los enemigos en pantalla. Recarga 15s",
+    "powerup_conduit": "Conducto",
+    "powerup_conduit_desc": "Detona todos los efectos elementales activos en todos los enemigos por 3× su daño restante, luego los elimina. Solo se activa si hay DoTs activos. Recarga 15s",
+    "powerup_aftershock": "Réplica",
+    "powerup_aftershock_desc": "Emite una onda de choque que sigue tu camino de los últimos 2 segundos, dañando y empujando a los enemigos. Recarga 14s",
+    "powerup_nova": "Nova",
+    "powerup_nova_desc": "Congela todas tus balas por 2 segundos — las nuevas balas también se congelan al dispararse. Todas las balas congeladas se liberan simultáneamente a 1.5× velocidad. Recarga 16s",
     
     # Stats Window
     "stats_window_title": "Monitor del Sistema - Análisis de Jugador",
@@ -2973,7 +3041,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "legendary_active": "ACTIVO",
     "legendary_ready": "Listo",
     "legendary_dashing": "SALTANDO",
-    
+    "legendary_volatile": "Volátil",
+    "legendary_resonance": "Resonancia",
+    "legendary_blood_pact": "Pacto de Sangre",
+    "legendary_conduit": "Conducto",
+    "legendary_nova": "Nova",
+    "legendary_passive": "PASIVO",
+    "legendary_frozen": "CONGELADO",
+
     "notif_boss_detected": "PROCESO DE JEFE DETECTADO",
     "notif_boss_terminated": "Proceso de jefe terminado",
     "notif_installed": "Instalado:",
@@ -3257,6 +3332,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "player_parry": "¡PARRY!",
     "player_phase": "¡CAMBIO DE FASE!",
     "player_veil": "¡VELO!",
+    "player_blood_pact": "¡PACTO DE SANGRE!",
+    "player_conduit": "¡CONDUCTO!",
+    "player_aftershock": "¡RÉPLICA!",
+    "player_nova": "¡NOVA!",
+    "player_nova_cooldown": "¡BALAS LIBERADAS!",
+    "player_ability_on_cooldown": "NO DISPONIBLE",
     
     # System Messages
     "system_defensive_processes": "Todos los procesos defensivos han sido terminados.",

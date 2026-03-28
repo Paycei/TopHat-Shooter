@@ -71,6 +71,12 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puSpecialRounds: t(tkPowerupSpecialRounds)
   of puGiantSlayer: t(tkPowerupGiantSlayer)
   of puCelestialVeil: t(tkPowerupCelestialVeil)
+  of puVolatile: t(tkPowerupVolatile)
+  of puResonance: t(tkPowerupResonance)
+  of puBloodPact: t(tkPowerupBloodPact)
+  of puConduit: t(tkPowerupConduit)
+  of puAftershock: t(tkPowerupAftershock)
+  of puNova: t(tkPowerupNova)
 
 proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: float32 = 1.0): string =
   # Helper: format "base + scaled (pct%)" — values are multiplied x100 for display
@@ -355,3 +361,19 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
   of puCelestialVeil:
     # Single level only - LEGENDARY defensive shield
     t(tkPowerupCelestialVeilDesc)
+  of puVolatile:
+    # Single level only - LEGENDARY passive
+    t(tkPowerupVolatileDesc)
+  of puResonance:
+    case level
+    of 1: t(tkPowerupResonanceDesc1)
+    of 2: t(tkPowerupResonanceDesc2)
+    else: t(tkPowerupResonanceDesc3)
+  of puBloodPact:
+    t(tkPowerupBloodPactDesc)
+  of puConduit:
+    t(tkPowerupConduitDesc)
+  of puAftershock:
+    t(tkPowerupAftershockDesc)
+  of puNova:
+    t(tkPowerupNovaDesc)

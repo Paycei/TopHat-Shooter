@@ -140,7 +140,13 @@ type
     puFortified,       # Reduce damage taken
     puSpecialRounds,   # Every Nth bullet has special on-hit effect
     puGiantSlayer,     # Deal % of enemy HP as bonus damage
-    puCelestialVeil    # LEGENDARY: Absorb 1 hit per wave
+    puCelestialVeil,   # LEGENDARY: Absorb 1 hit per wave
+    puVolatile,        # LEGENDARY passive: enemies with 2+ DoTs take +50% dmg; death pulse spreads elements
+    puResonance,       # Normal passive: bullets hitting DoT enemies deal bonus elemental damage
+    puBloodPact,       # LEGENDARY active: sacrifice 30% HP to deal it as split damage to all enemies
+    puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
+    puAftershock,      # LEGENDARY active: shockwave traces backward along movement path
+    puNova             # LEGENDARY active: freeze all player bullets for 2s, then release at 1.5x speed
 
   PowerUpRarity* = enum
     prCommon,
@@ -270,6 +276,22 @@ type
     shapeType*: int  # Current equipped player shape
     particleSkinType*: int  # Current equipped particle effect
     celestialVeilActive*: bool  # True if Celestial Veil can still absorb a hit this wave
+    # Volatile (Legendary passive)
+    hasVolatile*: bool          # Enemies with 2+ DoTs take +50% dmg and spread on death
+    # Resonance (Normal passive)
+    resonanceLevel*: int        # 0 = none, 1/2/3 = 20/30/40% bonus elemental DPS
+    # Blood Pact (Legendary active)
+    bloodPactCooldown*: float32 # Countdown to next use (0 = ready)
+    # Conduit (Legendary active)
+    conduitCooldown*: float32   # Countdown to next use (0 = ready)
+    # Aftershock (Legendary active)
+    aftershockCooldown*: float32    # Countdown to next use (0 = ready)
+    aftershockPosHistory*: seq[Vector2f]  # Last 2s of positions (sampled every 0.05s)
+    aftershockSampleTimer*: float32       # Accumulator for position sampling
+    # Nova (Legendary active)
+    novaCooldown*: float32      # Countdown to next use (0 = ready)
+    novaActive*: bool           # True while bullets are frozen
+    novaFreezeTimer*: float32   # How long freeze remains
 
   EffectInstance* = object
     elementType*: ElementType
@@ -411,6 +433,7 @@ type
     colorOverride*: Color  # Custom bullet color (alpha=0 means use default coloring)
     bulletSkin*: int  # Bullet skin typeHost
     ownerPlayerIndex*: int  # For PvP: which player shot this bullet (-1 for non-PvP)
+    isFrozenByNova*: bool  # True while Nova ability has this bullet frozen in place
 
   Coin* = ref object
     pos*: Vector2f

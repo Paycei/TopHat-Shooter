@@ -1202,6 +1202,18 @@ proc startWave*(game: Game) =
   game.player.timeWarpUsesThisWave = 0
   game.player.timeWarpCooldown = 0
   game.player.phaseShiftCooldown = 0
+  game.player.bloodPactCooldown = 0
+  game.player.conduitCooldown = 0
+  game.player.aftershockCooldown = 0
+  game.player.novaCooldown = 0
+  # Release any frozen Nova bullets before resetting
+  if game.player.novaActive:
+    for bullet in game.bullets:
+      if bullet.isFrozenByNova and bullet.fromPlayer:
+        bullet.vel = bullet.vel * 1.5
+        bullet.isFrozenByNova = false
+    game.player.novaActive = false
+    game.player.novaFreezeTimer = 0
   # Reset Celestial Veil charge for new wave
   if hasPowerUp(game.player, puCelestialVeil):
     game.player.celestialVeilActive = true
@@ -1620,6 +1632,12 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       trackBulletFired(game)  # Track shot for statistics
     
     game.player.lastShot = game.time
+    
+    # Nova: freeze newly spawned player bullets if Nova is active
+    if game.player.novaActive:
+      for bullet in game.bullets:
+        if bullet.fromPlayer and not bullet.isFrozenByNova:
+          bullet.isFrozenByNova = true
     
     # Play shoot sound
     playSound(stShoot, 0.3)
@@ -4315,7 +4333,14 @@ proc updateGame*(game: var Game, dt: float32) =
   
   # Update player (with wall collision)
   updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
-  
+
+  # Nova freeze expiry: when novaActive becomes false (set by player.nim), release bullets
+  if not game.player.novaActive:
+    for bullet in game.bullets:
+      if bullet.isFrozenByNova and bullet.fromPlayer:
+        bullet.vel = bullet.vel * 1.5
+        bullet.isFrozenByNova = false
+
   # Radial Burst power-up - periodic circle of bullets
   if hasPowerUp(game.player, puRadialBurst):
     game.player.radialBurstTimer -= dt
@@ -5245,6 +5270,28 @@ proc updateGame*(game: var Game, dt: float32) =
         # Mode-specific boss defeat handling - NO longer advance wave here
         # Wave will advance when boss coin is collected
       
+      # Volatile: death pulse spreads active elements to nearby enemies
+      if game.player.hasVolatile:
+        var activeEffectCount = 0
+        for et, ae in enemy.activeEffects:
+          if ae.primary.isActive:
+            activeEffectCount += 1
+        if activeEffectCount >= 2:
+          const volatilePulseRadius = 120.0
+          for otherEnemy in game.enemies:
+            if otherEnemy.id != enemy.id:
+              let dist = distance(enemy.pos, otherEnemy.pos)
+              if dist <= volatilePulseRadius:
+                # Spread each active element at 60% DPS and 50% duration
+                for et, ae in enemy.activeEffects:
+                  if ae.primary.isActive:
+                    applyEffect(otherEnemy, ae.primary.elementType,
+                                ae.primary.damagePerSec * 0.6,
+                                ae.primary.remainingDuration * 0.5,
+                                "volatile_pulse")
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                        Color(r: 255, g: 150, b: 50, a: 255), 20)
+      
       game.enemies.delete(enemyIdx)
       continue
     
@@ -5857,6 +5904,12 @@ proc updateGame*(game: var Game, dt: float32) =
 
     # Use effectiveDt for enemy bullets (slowed by Time Warp), normal dt for player bullets
     let bulletDt = if bullet.fromPlayer: dt else: effectiveDt
+    
+    # Nova: frozen player bullets don't move or expire
+    if bullet.isFrozenByNova and bullet.fromPlayer:
+      i += 1
+      continue
+    
     if not updateBullet(bullet, bulletDt) or isOffScreen(bullet, game.screenWidth, game.screenHeight):
       # Track bullet despawn (missed shot) for player bullets only
       if bullet.fromPlayer:
@@ -6038,6 +6091,36 @@ proc updateGame*(game: var Game, dt: float32) =
               actualDamage = 0
             
             game.enemies[j].hp -= actualDamage
+            
+            # Volatile: enemies with 2+ active DoTs take +50% bullet damage
+            var volatileBonusDamage = 0.0
+            if game.player.hasVolatile and bullet.fromPlayer:
+              var activeEffectCount = 0
+              for et, ae in game.enemies[j].activeEffects:
+                if ae.primary.isActive:
+                  activeEffectCount += 1
+              if activeEffectCount >= 2:
+                volatileBonusDamage = actualDamage * 0.5
+                game.enemies[j].hp -= volatileBonusDamage
+                trackPowerUpDamage(game, puVolatile, volatileBonusDamage)
+                showDamage(game, game.enemies[j].pos, volatileBonusDamage, true, false, dtArcane)
+            
+            # Resonance: bullets hitting DoT enemies deal bonus damage equal to % of combined DPS
+            var resonanceBonusDamage = 0.0
+            if game.player.resonanceLevel > 0 and bullet.fromPlayer:
+              var totalDoTDps = 0.0
+              for et, ae in game.enemies[j].activeEffects:
+                if ae.primary.isActive:
+                  totalDoTDps += ae.primary.damagePerSec
+              if totalDoTDps > 0:
+                let resonancePct = case game.player.resonanceLevel
+                  of 1: 0.20
+                  of 2: 0.30
+                  else: 0.40
+                resonanceBonusDamage = totalDoTDps * resonancePct
+                game.enemies[j].hp -= resonanceBonusDamage
+                trackPowerUpDamage(game, puResonance, resonanceBonusDamage)
+                showDamage(game, game.enemies[j].pos, resonanceBonusDamage, true, false, dtPoison)
             
             # Giant Slayer: Deal % of enemy current HP as bonus damage
             var giantSlayerDamage = 0.0

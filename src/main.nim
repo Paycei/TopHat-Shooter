@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables
 
 const
   screenWidth = 1024
@@ -720,6 +720,108 @@ proc main() =
           
           spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                         Color(r: 255, g: 255, b: 255, a: 255), 35)
+          anyActivated = true
+        
+        # Blood Pact - sacrifice 30% HP, deal it as split damage to all enemies
+        if hasPowerUp(currentGame.player, puBloodPact) and currentGame.player.bloodPactCooldown <= 0:
+          if currentGame.player.hp > 1.0:
+            let sacrifice = currentGame.player.hp * 0.3
+            currentGame.player.hp = max(0.1, currentGame.player.hp - sacrifice)
+            
+            if currentGame.enemies.len > 0:
+              let damagePerEnemy = sacrifice / currentGame.enemies.len.float32
+              for enemy in currentGame.enemies:
+                let dealt = damagePerEnemy
+                enemy.hp -= dealt
+                trackPowerUpDamage(currentGame, puBloodPact, dealt)
+                showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
+            
+            currentGame.player.bloodPactCooldown = 15.0
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
+                          Color(r: 200, g: 50, b: 50, a: 255), 30)
+            anyActivated = true
+        
+        # Conduit - detonate all active DoTs for 3x remaining tick damage
+        if hasPowerUp(currentGame.player, puConduit) and currentGame.player.conduitCooldown <= 0:
+          var totalDetonated = 0.0
+          for enemy in currentGame.enemies:
+            var elementsToDetonate: seq[ElementType] = @[]
+            for et, ae in enemy.activeEffects.pairs:
+              if ae.primary.isActive and ae.primary.remainingDuration > 0:
+                elementsToDetonate.add(et)
+            for et in elementsToDetonate:
+              var ae = enemy.activeEffects[et]
+              let burstDmg = ae.primary.remainingDuration * ae.primary.damagePerSec * 3.0
+              let dealt = burstDmg
+              enemy.hp -= dealt
+              trackPowerUpDamage(currentGame, puConduit, dealt)
+              showDamage(currentGame, enemy.pos, dealt, true, false, dtFire)
+              totalDetonated += dealt
+              ae.primary.isActive = false
+              ae.primary.remainingDuration = 0
+              ae.primary.damagePerSec = 0
+              ae.fallback.remainingDuration = 0
+              enemy.activeEffects[et] = ae
+          if totalDetonated > 0:
+            currentGame.player.conduitCooldown = 15.0
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
+                          Color(r: 100, g: 200, b: 100, a: 255), 25)
+            anyActivated = true
+        
+        # Aftershock - shockwave traces backward along last 2s of movement path
+        if hasPowerUp(currentGame.player, puAftershock) and currentGame.player.aftershockCooldown <= 0:
+          let history = currentGame.player.aftershockPosHistory
+          if history.len >= 2:
+            const shockwaveWidth = 50.0
+            let baseDamage = currentGame.player.damage * 2.0
+            const knockbackForce = 200.0
+            var hitEnemyIds: seq[int] = @[]
+            
+            # Trace backward through path segments
+            var segIdx = history.high
+            while segIdx >= 1:
+              let segEnd = history[segIdx]
+              let segStart = history[segIdx - 1]
+              let segVec = segEnd - segStart
+              let segLen = segVec.length()
+              if segLen > 0.01:
+                let segNorm = segVec.normalize()
+                for enemy in currentGame.enemies:
+                  if enemy.id notin hitEnemyIds:
+                    let toEnemy = enemy.pos - segStart
+                    let t = clamp(toEnemy.x * segNorm.x + toEnemy.y * segNorm.y, 0.0, segLen)
+                    let closest = segStart + segNorm * t
+                    let dist = distance(closest, enemy.pos)
+                    if dist <= shockwaveWidth + enemy.radius:
+                      hitEnemyIds.add(enemy.id)
+                      let dealt = baseDamage
+                      enemy.hp -= dealt
+                      trackPowerUpDamage(currentGame, puAftershock, dealt)
+                      showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
+                      # Knockback away from path
+                      let awayFromPath = if dist > 0.1: (enemy.pos - closest).normalize()
+                                         else: segNorm * -1.0
+                      enemy.vel.x += awayFromPath.x * knockbackForce
+                      enemy.vel.y += awayFromPath.y * knockbackForce
+              segIdx -= 1
+            
+            currentGame.player.aftershockCooldown = 14.0
+            currentGame.player.aftershockPosHistory.setLen(0)
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
+                          Color(r: 100, g: 180, b: 255, a: 255), 20)
+            anyActivated = true
+        
+        # Nova - freeze all player bullets for 2 seconds, release at 1.5x speed
+        if hasPowerUp(currentGame.player, puNova) and currentGame.player.novaCooldown <= 0 and not currentGame.player.novaActive:
+          currentGame.player.novaActive = true
+          currentGame.player.novaFreezeTimer = 2.0
+          currentGame.player.novaCooldown = 16.0
+          # Freeze all currently-in-flight player bullets
+          for bullet in currentGame.bullets:
+            if bullet.fromPlayer:
+              bullet.isFrozenByNova = true
+          spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
+                        Color(r: 200, g: 200, b: 255, a: 255), 30)
           anyActivated = true
         
         # Play sound if any ability was activated
