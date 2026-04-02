@@ -22,6 +22,8 @@ proc initSettings*(): Settings =
     mouseSupport: true,
     showCursorInMenus: true,
     showDebugStats: false,
+    showArenaVignette: true,
+    showLowHealthVignette: true,
     showHints: true,
     showEnemyLabels: true,
     language: "english",  # Default language is English

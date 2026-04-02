@@ -6881,7 +6881,8 @@ proc drawGame*(game: Game) =
   let dt = getFrameTime()
   updateOSBackground(game.osBackground, dt, game.player.hp, game.player.maxHp,
                      game.bossWaveManager.isBossActive())
-  drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight)
+  let showArenaVignette = globalSettings == nil or globalSettings.showArenaVignette
+  drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight, showArenaVignette)
   
   # Draw particles first (background layer)
   drawParticlePool(game.particlePool)
@@ -7025,17 +7026,37 @@ proc drawGame*(game: Game) =
   # Draw player
   drawPlayer(game.player)
   
-  # Damage vignette: red edge-flash when player takes damage
-  # lastDamageTaken is set to the damage amount for 1 frame, then reset by the player module.
-  # We track a fading vignette timer in game.time so it lasts ~0.35s.
   if game.player.lastDamageTaken > 0:
     # Re-use osBackground.alertLevel as a proxy for recent-damage intensity.
     # We clamp it to [0,1]; the existing alert system already fades it naturally.
     game.osBackground.alertLevel = min(game.osBackground.alertLevel + 0.5, 1.0)
+    game.player.lastDamageTaken = 0
   
+  let showLowHealthVignette = globalSettings == nil or globalSettings.showLowHealthVignette
+  if showLowHealthVignette and game.osBackground.lowHealthVignetteLevel > 0:
+    let lowHpLevel = game.osBackground.lowHealthVignetteLevel
+    let beatWave = max(0.0, sin(game.time * (3.4 + lowHpLevel * 1.6)))
+    let beatScale = 1.0 + beatWave * (0.06 + lowHpLevel * 0.10)
+    let lowHpMaxAlpha = lowHpLevel * 62.0 * beatScale
+    let maxInset = 140.0 * (1.0 + beatWave * (0.03 + lowHpLevel * 0.04))
+    for band in 0..7:
+      let bandT = band.float32 / 7.0
+      let inset = int32(bandT * maxInset)
+      let bandAlpha = uint8(lowHpMaxAlpha * (1.0 - bandT) * 0.85)
+      if bandAlpha == 0:
+        continue
+
+      let bandRect = Rectangle(
+        x: inset.float32,
+        y: inset.float32,
+        width: max(0, game.screenWidth - inset * 2).float32,
+        height: max(0, game.screenHeight - inset * 2).float32
+      )
+      drawRectangleLines(bandRect, 3, Color(r: 255, g: 0, b: 0, a: bandAlpha))
+
   # Full-screen red vignette when alertLevel > 0
   if game.osBackground.alertLevel > 0:
-    let vigAlpha = uint8(game.osBackground.alertLevel * 80)
+    let vigAlpha = uint8(game.osBackground.alertLevel * 92)
     let vW: int32 = 160
     drawRectangleGradientH(0, 0, vW, game.screenHeight,
       Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))

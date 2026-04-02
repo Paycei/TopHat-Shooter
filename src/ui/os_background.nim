@@ -12,7 +12,8 @@ proc newOSBackground*(): OSBackgroundState =
     dataPackets: @[],
     circuitLines: @[],
     gridPulseTime: 0.0,
-    alertLevel: 0.0
+    alertLevel: 0.0,
+    lowHealthVignetteLevel: 0.0
   )
   
   # Initialize circuit lines
@@ -35,18 +36,27 @@ proc spawnWavePulse*(bg: var OSBackgroundState, cx, cy: float32, color: Color) =
 proc updateOSBackground*(bg: var OSBackgroundState, dt: float32, playerHP: float32, maxHP: float32, bossActive: bool) =
   bg.gridPulseTime += dt
   
-  # Update alert level based on player HP
-  let hpPercent = playerHP / maxHP
-  let targetAlert = if bossActive: 0.8
-                   elif hpPercent < 0.2: 0.6
-                   elif hpPercent < 0.5: 0.3
-                   else: 0.0
+  let safeMaxHp = max(maxHP, 0.01'f32)
+  let hpPercent = clamp(playerHP / safeMaxHp, 0.0, 1.0)
+  let targetAlert = if bossActive: 0.8 else: 0.0
+  let targetLowHealthVignette =
+    if hpPercent <= 0.10:
+      1.0
+    elif hpPercent < 0.40:
+      (0.40 - hpPercent) / 0.30
+    else:
+      0.0
   
   # Smooth transition to target alert level
   if bg.alertLevel < targetAlert:
     bg.alertLevel = min(bg.alertLevel + dt * 0.5, targetAlert)
   else:
     bg.alertLevel = max(bg.alertLevel - dt * 0.5, targetAlert)
+
+  if bg.lowHealthVignetteLevel < targetLowHealthVignette:
+    bg.lowHealthVignetteLevel = min(bg.lowHealthVignetteLevel + dt * 1.5, targetLowHealthVignette)
+  else:
+    bg.lowHealthVignetteLevel = max(bg.lowHealthVignetteLevel - dt * 1.5, targetLowHealthVignette)
   
   # Update wave pulse rings
   var ri = 0
@@ -81,7 +91,8 @@ proc updateOSBackground*(bg: var OSBackgroundState, dt: float32, playerHP: float
       alpha: uint8(30 + rand(30))
     ))
 
-proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
+proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
+                       showArenaVignette: bool = true) =
   # Base gradient background (dark blue-gray)
   let topColor = Color(r: 8, g: 12, b: 22, a: 255)
   let bottomColor = Color(r: 15, g: 20, b: 35, a: 255)
@@ -90,7 +101,7 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32) 
   
   # Alert overlay (red tint when in danger)
   if bg.alertLevel > 0:
-    let redAlpha = uint8(bg.alertLevel * 40)
+    let redAlpha = uint8(bg.alertLevel * 48)
     drawRectangle(0, 0, screenWidth, screenHeight,
                  Color(r: 255, g: 0, b: 0, a: redAlpha))
   
@@ -122,16 +133,17 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32) 
     gx += GRID_SIZE
   
   # Soft arena edge vignette (4 gradient rectangles)
-  let vigW: int32 = 120
-  let vigAlpha: uint8 = 120
-  drawRectangleGradientH(0, 0, vigW, screenHeight,
-    Color(r: 0, g: 5, b: 15, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
-  drawRectangleGradientH(screenWidth - vigW, 0, vigW, screenHeight,
-    Color(r: 0, g: 0, b: 0, a: 0), Color(r: 0, g: 5, b: 15, a: vigAlpha))
-  drawRectangleGradientV(0, 0, screenWidth, vigW,
-    Color(r: 0, g: 5, b: 15, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
-  drawRectangleGradientV(0, screenHeight - vigW, screenWidth, vigW,
-    Color(r: 0, g: 0, b: 0, a: 0), Color(r: 0, g: 5, b: 15, a: vigAlpha))
+  if showArenaVignette:
+    let vigW: int32 = 120
+    let vigAlpha: uint8 = 96
+    drawRectangleGradientH(0, 0, vigW, screenHeight,
+      Color(r: 0, g: 5, b: 15, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
+    drawRectangleGradientH(screenWidth - vigW, 0, vigW, screenHeight,
+      Color(r: 0, g: 0, b: 0, a: 0), Color(r: 0, g: 5, b: 15, a: vigAlpha))
+    drawRectangleGradientV(0, 0, screenWidth, vigW,
+      Color(r: 0, g: 5, b: 15, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
+    drawRectangleGradientV(0, screenHeight - vigW, screenWidth, vigW,
+      Color(r: 0, g: 0, b: 0, a: 0), Color(r: 0, g: 5, b: 15, a: vigAlpha))
   
   # Draw circuit lines (horizontal data streams)
   for line in bg.circuitLines:

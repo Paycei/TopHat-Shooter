@@ -542,6 +542,7 @@ type
     circuitLines*: seq[CircuitLine]
     gridPulseTime*: float32
     alertLevel*: float32  # 0.0 = normal, 1.0 = critical
+    lowHealthVignetteLevel*: float32  # 0.0 = hidden, 1.0 = strongest low-health warning
     wavePulseRings*: seq[WavePulseRing]  # Expanding rings on wave events
 
   NotificationType* = enum

@@ -213,6 +213,29 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                      mousePos.y >= yPos.float32 and
                      mousePos.y <= (yPos + 25).float32
   drawCheckbox(debugCheckX, yPos, 25, settingsWin.settings.showDebugStats, debugHovered)
+  drawText(t(tkSettingsDebugPanelDesc), (debugCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 35
+
+  # Arena vignette
+  drawText(t(tkSettingsArenaVignette), (contentX + 40).int32, yPos.int32, 18, White)
+  let arenaVignetteCheckX = contentX + 320
+  let arenaVignetteHovered = mousePos.x >= arenaVignetteCheckX.float32 and
+                             mousePos.x <= (arenaVignetteCheckX + 25).float32 and
+                             mousePos.y >= yPos.float32 and
+                             mousePos.y <= (yPos + 25).float32
+  drawCheckbox(arenaVignetteCheckX, yPos, 25, settingsWin.settings.showArenaVignette, arenaVignetteHovered)
+  drawText(t(tkSettingsArenaVignetteDesc), (arenaVignetteCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 35
+
+  # Low HP vignette
+  drawText(t(tkSettingsLowHealthVignette), (contentX + 40).int32, yPos.int32, 18, White)
+  let lowHpVignetteCheckX = contentX + 320
+  let lowHpVignetteHovered = mousePos.x >= lowHpVignetteCheckX.float32 and
+                             mousePos.x <= (lowHpVignetteCheckX + 25).float32 and
+                             mousePos.y >= yPos.float32 and
+                             mousePos.y <= (yPos + 25).float32
+  drawCheckbox(lowHpVignetteCheckX, yPos, 25, settingsWin.settings.showLowHealthVignette, lowHpVignetteHovered)
+  drawText(t(tkSettingsLowHealthVignetteDesc), (lowHpVignetteCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
 
 proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
@@ -479,6 +502,20 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       if mousePos.x >= debugCheckX.float32 and mousePos.x <= (debugCheckX + 25).float32 and
          mousePos.y >= debugCheckY.float32 and mousePos.y <= (debugCheckY + 25).float32:
         settingsWin.settings.showDebugStats = not settingsWin.settings.showDebugStats
+        settingsChanged = true
+
+      let arenaVignetteCheckX = contentX + 320
+      let arenaVignetteCheckY = contentY + 195
+      if mousePos.x >= arenaVignetteCheckX.float32 and mousePos.x <= (arenaVignetteCheckX + 25).float32 and
+         mousePos.y >= arenaVignetteCheckY.float32 and mousePos.y <= (arenaVignetteCheckY + 25).float32:
+        settingsWin.settings.showArenaVignette = not settingsWin.settings.showArenaVignette
+        settingsChanged = true
+
+      let lowHpVignetteCheckX = contentX + 320
+      let lowHpVignetteCheckY = contentY + 230
+      if mousePos.x >= lowHpVignetteCheckX.float32 and mousePos.x <= (lowHpVignetteCheckX + 25).float32 and
+         mousePos.y >= lowHpVignetteCheckY.float32 and mousePos.y <= (lowHpVignetteCheckY + 25).float32:
+        settingsWin.settings.showLowHealthVignette = not settingsWin.settings.showLowHealthVignette
         settingsChanged = true
     
     # Handle FPS text input

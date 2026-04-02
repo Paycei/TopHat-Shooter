@@ -31,6 +31,10 @@ type
     tkSettingsShowCursorDesc = "settings_show_cursor_desc"
     tkSettingsDebugPanel = "settings_debug_panel"
     tkSettingsDebugPanelDesc = "settings_debug_panel_desc"
+    tkSettingsArenaVignette = "settings_arena_vignette"
+    tkSettingsArenaVignetteDesc = "settings_arena_vignette_desc"
+    tkSettingsLowHealthVignette = "settings_low_health_vignette"
+    tkSettingsLowHealthVignetteDesc = "settings_low_health_vignette_desc"
     tkSettingsShowHints = "settings_show_hints"
     tkSettingsShowHintsDesc = "settings_show_hints_desc"
     tkSettingsShowEnemyLabels = "settings_show_enemy_labels"
@@ -1223,6 +1227,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_show_cursor_desc": "(visual only)",
     "settings_debug_panel": "Debug Panel:",
     "settings_debug_panel_desc": "(top-right stats)",
+    "settings_arena_vignette": "Arena Vignette:",
+    "settings_arena_vignette_desc": "(dark edge shading)",
+    "settings_low_health_vignette": "Low HP Vignette:",
+    "settings_low_health_vignette_desc": "(red warning when HP is low)",
     "settings_show_hints": "Show Hints:",
     "settings_show_hints_desc": "(E: Wall, ESC: Pause)",
     "settings_show_enemy_labels": "Show Enemy Labels:",
@@ -2464,6 +2472,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_show_cursor_desc": "(solo visual)",
     "settings_debug_panel": "Debug:",
     "settings_debug_panel_desc": "(stats arriba-derecha)",
+    "settings_arena_vignette": "Viñeta Arena:",
+    "settings_arena_vignette_desc": "(sombreado oscuro en bordes)",
+    "settings_low_health_vignette": "Viñeta HP Bajo:",
+    "settings_low_health_vignette_desc": "(aviso rojo con poca vida)",
     "settings_show_hints": "Consejos:",
     "settings_show_hints_desc": "(E: Muro, ESC: Pausa)",
     "settings_show_enemy_labels": "Etiquetas:",

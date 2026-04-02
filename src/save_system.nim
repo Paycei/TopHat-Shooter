@@ -15,6 +15,8 @@ type
     mouseSupport*: bool
     showCursorInMenus*: bool
     showDebugStats*: bool
+    showArenaVignette*: bool
+    showLowHealthVignette*: bool
     showHints*: bool
     showEnemyLabels*: bool
     language*: string
@@ -65,6 +67,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "mouseSupport": settings.mouseSupport,
     "showCursorInMenus": settings.showCursorInMenus,
     "showDebugStats": settings.showDebugStats,
+    "showArenaVignette": settings.showArenaVignette,
+    "showLowHealthVignette": settings.showLowHealthVignette,
     "showHints": settings.showHints,
     "showEnemyLabels": settings.showEnemyLabels,
     "language": settings.language,
@@ -101,6 +105,12 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("showDebugStats"):
     settings.showDebugStats = jsonNode["showDebugStats"].getBool()
+
+  if jsonNode.hasKey("showArenaVignette"):
+    settings.showArenaVignette = jsonNode["showArenaVignette"].getBool()
+
+  if jsonNode.hasKey("showLowHealthVignette"):
+    settings.showLowHealthVignette = jsonNode["showLowHealthVignette"].getBool()
 
   if jsonNode.hasKey("showHints"):
     settings.showHints = jsonNode["showHints"].getBool()
