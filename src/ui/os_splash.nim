@@ -1,7 +1,7 @@
 ## OS-Themed Splash Screen Module
 ## Displays a boot-like splash screen when the game starts
 
-import raylib, strutils, math, ../localization
+import raylib, strutils, math, ../localization, background_fx
 
 type
   BootPhase* = enum
@@ -84,8 +84,15 @@ proc updateSplashScreen*(splash: SplashScreen, dt: float32) =
     splash.complete = true
 
 proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
-  # Black background with subtle grid
-  clearBackground(Color(r: 5, g: 5, b: 8, a: 255))
+  drawSharedBackdrop(screenWidth.int32, screenHeight.int32, splash.timer * 0.65,
+                     Color(r: 4, g: 6, b: 12, a: 255),
+                     Color(r: 10, g: 14, b: 22, a: 255),
+                     Color(r: 18, g: 36, b: 44, a: 28),
+                     Color(r: 40, g: 120, b: 130, a: 54),
+                     Color(r: 0, g: 210, b: 210, a: 36),
+                     0.55, 0.5)
+  drawRectangle(0, 0, screenWidth.int32, screenHeight.int32,
+               Color(r: 0, g: 6, b: 10, a: 96))
   
   # Draw scanlines for CRT effect
   let scanlineCount = screenHeight div 4
@@ -99,6 +106,9 @@ proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
   let termY = 50
   let termW = screenWidth - 100
   let termH = screenHeight - 100
+  drawSoftGlow(screenWidth.float32 * 0.5, screenHeight.float32 * 0.45,
+               screenHeight.float32 * 0.42,
+               Color(r: 0, g: 220, b: 200, a: 24), 0.8)
   
   # Terminal border with glow
   drawRectangle(termX.int32, termY.int32, termW.int32, termH.int32,

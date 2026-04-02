@@ -6880,7 +6880,8 @@ proc drawGame*(game: Game) =
   # Update and draw OS-style background
   let dt = getFrameTime()
   updateOSBackground(game.osBackground, dt, game.player.hp, game.player.maxHp,
-                     game.bossWaveManager.isBossActive())
+                     game.bossWaveManager.isBossActive(),
+                     game.screenWidth, game.screenHeight)
   let showArenaVignette = globalSettings == nil or globalSettings.showArenaVignette
   drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight, showArenaVignette)
   

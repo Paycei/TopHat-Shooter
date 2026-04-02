@@ -1,4 +1,4 @@
-import raylib, math, ../localization
+import raylib, math, ../localization, background_fx
 
 type
   LoadingScreen* = ref object
@@ -24,10 +24,18 @@ proc setProgress*(screen: LoadingScreen, progress: float32, message: string = ""
     screen.message = message
 
 proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
-  clearBackground(Color(r: 15, g: 15, b: 25, a: 255))
+  drawSharedBackdrop(screenWidth, screenHeight, screen.animTime * 0.7,
+                     Color(r: 9, g: 12, b: 24, a: 255),
+                     Color(r: 18, g: 20, b: 34, a: 255),
+                     Color(r: 28, g: 36, b: 58, a: 40),
+                     Color(r: 74, g: 104, b: 160, a: 74),
+                     Color(r: 0, g: 170, b: 235, a: 56),
+                     0.8, 0.8)
   
   let centerX = screenWidth div 2
   let centerY = screenHeight div 2
+  drawSoftGlow(centerX.float32, centerY.float32 - 10.0, 220.0,
+               Color(r: 0, g: 170, b: 255, a: 28), 0.9)
   
   # Title
   let titleText = t(tkLoadingTitle)

@@ -1,7 +1,7 @@
 ## OS-Themed Desktop Environment Module
 ## Main menu as an operating system desktop
 
-import raylib, ../types, ../localization, math, strutils, strformat, times, ../render_context
+import raylib, ../types, ../localization, math, strutils, strformat, times, ../render_context, background_fx
 
 type
   DesktopIconType* = enum
@@ -381,40 +381,34 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
           Color(r: 150, g: 150, b: 150, a: 255))
 
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
-  # Desktop background - dark gradient with grid pattern
-  drawRectangleGradientV(0, 0, screenWidth.int32, screenHeight.int32,
-                        Color(r: 10, g: 15, b: 25, a: 255),
-                        Color(r: 20, g: 25, b: 40, a: 255))
-  
-  # Grid overlay for OS feel (subtle)
-  let gridSpacing = 40
-  for x in countup(0, screenWidth, gridSpacing):
-    drawLine(Vector2(x: x.float32, y: 0),
-            Vector2(x: x.float32, y: screenHeight.float32), 1,
-            Color(r: 30, g: 35, b: 50, a: 60))
-  for y in countup(0, screenHeight, gridSpacing):
-    drawLine(Vector2(x: 0, y: y.float32),
-            Vector2(x: screenWidth.float32, y: y.float32), 1,
-            Color(r: 30, g: 35, b: 50, a: 60))
+  drawSharedBackdrop(screenWidth.int32, screenHeight.int32, desktop.time * 0.75,
+                     Color(r: 8, g: 12, b: 24, a: 255),
+                     Color(r: 18, g: 24, b: 38, a: 255),
+                     Color(r: 32, g: 40, b: 62, a: 42),
+                     Color(r: 72, g: 108, b: 160, a: 78),
+                     Color(r: 0, g: 160, b: 220, a: 54),
+                     0.85, 0.9)
   
   # Animated circuit-like lines in background
   let lineCount = 10
   for i in 0..<lineCount:
-    let offset = i.float32 * 40.0
-    let progress = (desktop.time * 30.0 + offset) mod screenWidth.float32
-    let y = (80 + i * 60) mod screenHeight
+    let offset = i.float32 * 52.0
+    let rawProgress = desktop.time * (38.0 + i.float32 * 1.5) + offset
+    let progress = rawProgress - floor(rawProgress / screenWidth.float32).float32 * screenWidth.float32
+    let y = 88.0 + i.float32 * 56.0 + sin(desktop.time * 0.8 + i.float32 * 0.6) * 18.0
+    let lineColor = Color(r: 0, g: uint8(96 + i * 8), b: uint8(150 + (i mod 3) * 24), a: 38)
     
     # Horizontal line
-    drawLine(Vector2(x: 0, y: y.float32),
-            Vector2(x: progress, y: y.float32), 1,
-            Color(r: 0, g: 100, b: 150, a: 30))
+    drawLine(Vector2(x: 0, y: y),
+            Vector2(x: progress, y: y), 1, lineColor)
     
     # Vertical connection
-    if i mod 3 == 0 and progress > 100:
-      let vHeight = 40.0 + sin(desktop.time * 2.0 + offset) * 20.0
-      drawLine(Vector2(x: progress, y: y.float32),
-              Vector2(x: progress, y: y.float32 + vHeight), 1,
-              Color(r: 0, g: 150, b: 200, a: 40))
+    if i mod 2 == 0 and progress > 110.0:
+      let vHeight = 36.0 + sin(desktop.time * 2.2 + offset) * 16.0
+      drawLine(Vector2(x: progress, y: y),
+              Vector2(x: progress, y: y + vHeight), 1,
+              Color(r: 0, g: 175, b: 220, a: 50))
+      drawCircle(Vector2(x: progress, y: y), 2.5, Color(r: 90, g: 220, b: 255, a: 110))
   
   # Desktop icons
   for icon in desktop.icons:

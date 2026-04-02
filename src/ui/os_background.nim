@@ -1,9 +1,8 @@
 ## OS-Style Background System
 
-import raylib, math, random, ../types
+import raylib, math, random, ../types, background_fx
 
 const
-  GRID_SIZE = 40
   MAX_DATA_PACKETS = 50
   NUM_CIRCUIT_LINES = 8
 
@@ -27,13 +26,16 @@ proc newOSBackground*(): OSBackgroundState =
 proc spawnWavePulse*(bg: var OSBackgroundState, cx, cy: float32, color: Color) =
   ## Call this at wave start/end to emit an expanding pulse ring.
   bg.wavePulseRings.add(WavePulseRing(
+    centerX: cx,
+    centerY: cy,
     radius: 10.0,
     maxRadius: 900.0,
     alpha: 1.0,
     color: color
   ))
 
-proc updateOSBackground*(bg: var OSBackgroundState, dt: float32, playerHP: float32, maxHP: float32, bossActive: bool) =
+proc updateOSBackground*(bg: var OSBackgroundState, dt: float32, playerHP: float32, maxHP: float32,
+                         bossActive: bool, screenWidth, screenHeight: int32) =
   bg.gridPulseTime += dt
   
   let safeMaxHp = max(maxHP, 0.01'f32)
@@ -69,68 +71,50 @@ proc updateOSBackground*(bg: var OSBackgroundState, dt: float32, playerHP: float
       ri += 1
   
   # Update circuit lines
+  let circuitWrapHeight = screenHeight.float32 + 160.0
   for line in bg.circuitLines.mitems:
     line.y += line.speed * dt
-    if line.y > 800: line.y -= 800
+    if line.y > screenHeight.float32 + 80.0:
+      line.y -= circuitWrapHeight
   
   # Update data packets
+  let packetCullX = screenWidth.float32 + 80.0
   var i = 0
   while i < bg.dataPackets.len:
     bg.dataPackets[i].x += bg.dataPackets[i].speed * dt
-    if bg.dataPackets[i].x > 1280:
+    if bg.dataPackets[i].x > packetCullX:
       bg.dataPackets.delete(i)
     else:
       i += 1
   
   # Spawn new data packets
+  let spawnHeight = max(screenHeight.int - 1, 1)
   if bg.dataPackets.len < MAX_DATA_PACKETS and (rand(100) < 5):
     bg.dataPackets.add(DataPacket(
-      x: 0,
-      y: rand(720).float32,
-      speed: 50.0 + rand(100).float32,
-      alpha: uint8(30 + rand(30))
+      x: -40.0,
+      y: rand(spawnHeight).float32,
+      speed: 55.0 + rand(120).float32,
+      alpha: uint8(28 + rand(36))
     ))
 
 proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
                        showArenaVignette: bool = true) =
-  # Base gradient background (dark blue-gray)
-  let topColor = Color(r: 8, g: 12, b: 22, a: 255)
-  let bottomColor = Color(r: 15, g: 20, b: 35, a: 255)
-  
-  drawRectangleGradientV(0, 0, screenWidth, screenHeight, topColor, bottomColor)
+  let topColor = Color(r: 6, g: 10, b: 22, a: 255)
+  let bottomColor = Color(r: 16, g: 22, b: 36, a: 255)
+  let gridColor = Color(r: 26, g: 34, b: 58, a: 48)
+  let dotColor = Color(r: 72, g: 104, b: 165, a: 96)
+  let accentColor = Color(r: 0, g: 188, b: 228, a: 64)
+
+  drawSharedBackdrop(screenWidth, screenHeight, bg.gridPulseTime,
+                     topColor, bottomColor,
+                     gridColor, dotColor, accentColor,
+                     0.75, 0.8)
   
   # Alert overlay (red tint when in danger)
   if bg.alertLevel > 0:
     let redAlpha = uint8(bg.alertLevel * 48)
     drawRectangle(0, 0, screenWidth, screenHeight,
                  Color(r: 255, g: 0, b: 0, a: redAlpha))
-  
-  # Draw dot grid (slightly brighter dots at intersections)
-  let gridAlpha = uint8(45 + sin(bg.gridPulseTime * 0.8) * 15)
-  let dotAlpha  = uint8(90 + sin(bg.gridPulseTime * 0.8) * 30)
-  let gridColor = Color(r: 25, g: 32, b: 52, a: gridAlpha)
-  let dotColor  = Color(r: 40, g: 55, b: 90, a: dotAlpha)
-  
-  # Vertical grid lines
-  var x: int32 = 0
-  while x < screenWidth:
-    drawLine(x, 0, x, screenHeight, gridColor)
-    x += GRID_SIZE
-  
-  # Horizontal grid lines
-  var y: int32 = 0
-  while y < screenHeight:
-    drawLine(0, y, screenWidth, y, gridColor)
-    y += GRID_SIZE
-  
-  # Brighter dots at each grid intersection
-  var gx: int32 = 0
-  while gx < screenWidth:
-    var gy: int32 = 0
-    while gy < screenHeight:
-      drawCircle(Vector2(x: gx.float32, y: gy.float32), 1.5, dotColor)
-      gy += GRID_SIZE
-    gx += GRID_SIZE
   
   # Soft arena edge vignette (4 gradient rectangles)
   if showArenaVignette:
@@ -146,24 +130,33 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
       Color(r: 0, g: 0, b: 0, a: 0), Color(r: 0, g: 5, b: 15, a: vigAlpha))
   
   # Draw circuit lines (horizontal data streams)
-  for line in bg.circuitLines:
+  let circuitAnchors = [0.12'f32, 0.28'f32, 0.5'f32, 0.72'f32, 0.88'f32]
+  for index, line in bg.circuitLines:
     let pulse = sin(bg.gridPulseTime * 2 + line.pulseOffset) * 0.5 + 0.5
-    let lineAlpha = uint8(30 + pulse * 20)
-    let lineColor = Color(r: 0, g: 200, b: 200, a: lineAlpha)
+    let shimmer = sin(bg.gridPulseTime * 4 + index.float32 * 0.5) * 0.5 + 0.5
+    let lineAlpha = uint8(24 + pulse * 22)
+    let lineColor = Color(r: 0, g: uint8(150 + pulse * 40), b: uint8(188 + shimmer * 50), a: lineAlpha)
     
     drawLine(0, line.y.int32, screenWidth, line.y.int32, lineColor)
     
-    # Draw connecting vertical segments
-    if int(line.y) mod 200 < 50:
-      let segmentY = line.y - 20
-      drawLine(100, segmentY.int32, 100, (segmentY + 40).int32, lineColor)
-      drawLine(400, segmentY.int32, 400, (segmentY + 40).int32, lineColor)
-      drawLine(700, segmentY.int32, 700, (segmentY + 40).int32, lineColor)
+    # Draw connecting vertical segments and node pulses
+    if int(line.y) mod 180 < 64:
+      for anchor in circuitAnchors:
+        let x = screenWidth.float32 * anchor +
+                sin(bg.gridPulseTime * 1.4 + line.pulseOffset + anchor * PI) * 18.0
+        let segHeight = 24.0 + pulse * 18.0
+        let nodeColor = Color(r: 70, g: 220, b: 255, a: uint8(70 + shimmer * 55))
+        drawLine(x.int32, (line.y - segHeight).int32, x.int32, (line.y + segHeight).int32,
+                 withAlpha(lineColor, uint8(min(255, lineColor.a.int + 18))))
+        drawCircle(Vector2(x: x, y: line.y), 2.2 + pulse * 1.8, nodeColor)
   
   # Draw data packets
   for packet in bg.dataPackets:
-    drawCircle(Vector2(x: packet.x, y: packet.y), 3,
-              Color(r: 0, g: 200, b: 255, a: packet.alpha))
+    let packetColor = Color(r: 0, g: 200, b: 255, a: packet.alpha)
+    let streak = 12.0 + packet.speed * 0.04
+    drawLine((packet.x - streak).int32, packet.y.int32, packet.x.int32, packet.y.int32,
+             withAlpha(packetColor, packet.alpha div 2))
+    drawCircle(Vector2(x: packet.x, y: packet.y), 3.0, packetColor)
     
     # Trail effect
     for i in 1..3:
@@ -172,16 +165,16 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
       drawCircle(Vector2(x: trailX, y: packet.y), 2,
                 Color(r: 0, g: 200, b: 255, a: trailAlpha))
   
-  # Wave pulse rings (centered on screen)
-  let pcx = screenWidth div 2
-  let pcy = screenHeight div 2
+  # Wave pulse rings
   for ring in bg.wavePulseRings:
     let rAlpha = uint8(ring.alpha * 180)
-    drawCircleLines(pcx, pcy, ring.radius,
+    drawSoftGlow(ring.centerX, ring.centerY, ring.radius * 0.85,
+                 Color(r: ring.color.r, g: ring.color.g, b: ring.color.b, a: uint8(rAlpha.float32 * 0.25)), 0.55)
+    drawCircleLines(ring.centerX.int32, ring.centerY.int32, ring.radius,
       Color(r: ring.color.r, g: ring.color.g, b: ring.color.b, a: rAlpha))
     # Double-ring for thickness feel
     if ring.radius > 4:
-      drawCircleLines(pcx, pcy, ring.radius - 3,
+      drawCircleLines(ring.centerX.int32, ring.centerY.int32, ring.radius - 3,
         Color(r: ring.color.r, g: ring.color.g, b: ring.color.b, a: uint8(rAlpha.float32 * 0.5)))
 
   # Critical status border pulse

@@ -1,7 +1,7 @@
 ## PvP Game Mode Logic
 ## Handles multiplayer player vs player combat with optional team support
 
-import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils, sequtils, localization, render_context
+import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils, sequtils, localization, render_context, ui/background_fx
 
 const
   PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
@@ -1684,7 +1684,30 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
 
 proc drawPvP*(pvp: PvPGameState) =
   ## Draw PvP game state
-  clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
+  let accentColor =
+    if pvp.teamsEnabled and pvp.localPlayerIndex >= 0 and pvp.localPlayerIndex < pvp.playerTeamAssignments.len:
+      getTeamColor(PvPTeam(pvp.playerTeamAssignments[pvp.localPlayerIndex]))
+    else:
+      Color(r: 0, g: 200, b: 255, a: 255)
+  drawSharedBackdrop(pvp.screenWidth, pvp.screenHeight, pvp.gameTime * 0.8,
+                     Color(r: 8, g: 12, b: 24, a: 255),
+                     Color(r: 18, g: 22, b: 34, a: 255),
+                     Color(r: 28, g: 34, b: 58, a: 40),
+                     Color(r: 74, g: 100, b: 150, a: 80),
+                     withAlpha(accentColor, 54),
+                     0.7, 0.7)
+  let arenaCenterX = pvp.screenWidth.float32 * 0.5
+  let arenaCenterY = pvp.screenHeight.float32 * 0.5
+  let arenaPulse = sin(pvp.gameTime * 0.9) * 0.5 + 0.5
+  let arenaRadius = min(pvp.screenWidth, pvp.screenHeight).float32 * 0.34
+  drawSoftGlow(arenaCenterX, arenaCenterY, arenaRadius * 0.9,
+               withAlpha(accentColor, 20), 0.85)
+  drawCircleLines(arenaCenterX.int32, arenaCenterY.int32,
+                  arenaRadius + arenaPulse * 10.0,
+                  withAlpha(accentColor, 38))
+  drawCircleLines(arenaCenterX.int32, arenaCenterY.int32,
+                  arenaRadius * 0.56 + arenaPulse * 6.0,
+                  withAlpha(accentColor, 24))
   
   # Draw arena bounds
   drawRectangleLines(

@@ -532,6 +532,8 @@ type
     pulseOffset*: float32
 
   WavePulseRing* = object
+    centerX*: float32
+    centerY*: float32
     radius*: float32
     maxRadius*: float32
     alpha*: float32
