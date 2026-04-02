@@ -3242,6 +3242,19 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         )
         # Mark as boss-spawned so it doesn't drop coins (prevent farming)
         minion.spawnedByBoss = true
+        # Summoned enemies are already inside the arena, so they should engage immediately.
+        minion.hasEnteredScreen = true
+
+        case minion.enemyType
+        of etTriangle:
+          # Enter the triangle wind-up state right away instead of spawning "mid-dash".
+          minion.dashCooldown = 0.0
+          minion.dashTimer = 0.35 + rand(0.35)
+        of etDiamond:
+          minion.dashTimer = 0.0
+          minion.dashCooldown = 0.75 + rand(0.5)
+        else:
+          discard
         
         # NERF: Make boss-summoned minions smaller and slower
         minion.radius = minion.radius * 1.0  # 35% smaller

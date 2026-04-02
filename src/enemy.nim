@@ -96,6 +96,21 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   
   # Initialize debuff resistance (default: 0.0 = no resistance, bosses set to 0.5 = 50% reduction)
   result.debuffResistance = 0.0
+
+  # Prime movement state per enemy type.
+  # Some enemies reuse dashCooldown/dashTimer for different phases; spawning them
+  # in the wrong state leaves them "dashing" in place with zero velocity.
+  case enemyType
+  of etTriangle:
+    # Triangles should begin in their wind-up/hunt loop, not an active dash.
+    result.dashCooldown = 0.0
+    result.dashTimer = config.movement.dashCooldown + rand(1.0)
+  of etDiamond:
+    # Diamonds should start roaming toward the player and only dash after a cooldown.
+    result.dashTimer = 0.0
+    result.dashCooldown = config.movement.dashCooldown + rand(1.0)
+  else:
+    discard
   
   # Increment enemy ID counter for next enemy
   game.nextEnemyId += 1
