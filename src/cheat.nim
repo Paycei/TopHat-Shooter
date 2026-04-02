@@ -1,4 +1,4 @@
-import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data, localization
+import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data, localization, render_context
 
 # ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
@@ -302,7 +302,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
   let closeX = panelX + panelWidth - closeButtonSize - 10
   let closeY = panelY + 10
   let closeRect = Rectangle(x: closeX.float32, y: closeY.float32, width: closeButtonSize.float32, height: closeButtonSize.float32)
-  let closeHovered = checkCollisionPointRec(getMousePosition(), closeRect)
+  let closeHovered = checkCollisionPointRec(getVirtualMousePosition(), closeRect)
   
   drawRectangle(closeX, closeY, closeButtonSize, closeButtonSize,
                 if closeHovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255))
@@ -325,7 +325,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
   for i in 0'i32..4'i32:
     let tabX = panelX + (i * tabWidth)
     let tabRect = Rectangle(x: tabX.float32, y: tabY.float32, width: tabWidth.float32, height: 30.float32)
-    let tabHovered = checkCollisionPointRec(getMousePosition(), tabRect)
+    let tabHovered = checkCollisionPointRec(getVirtualMousePosition(), tabRect)
     let isActiveTab = CheatMenuTab(i) == menu.currentTab
     
     var tabColor: Color
@@ -369,7 +369,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     drawEnemiesTab(panelX, contentY, panelWidth, contentHeight, game)
   
   # Draw cursor on top of everything when menu is active
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   drawCircle(mousePos, 4, Color(r: 255, g: 255, b: 255, a: 200))
   drawCircleLines(mousePos.x.int32, mousePos.y.int32, 4, Black)
 
@@ -391,7 +391,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   
   # Skip current wave button
   let skipRect = Rectangle(x: centerX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
-  let skipHovered = checkCollisionPointRec(getMousePosition(), skipRect)
+  let skipHovered = checkCollisionPointRec(getVirtualMousePosition(), skipRect)
   drawRectangle(centerX, currentY, buttonWidth, buttonHeight,
                 if skipHovered: Color(r: 80, g: 80, b: 0, a: 255) else: Color(r: 60, g: 60, b: 0, a: 255))
   drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, Yellow)
@@ -404,7 +404,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   
   # Next wave button
   let nextRect = Rectangle(x: centerX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
-  let nextHovered = checkCollisionPointRec(getMousePosition(), nextRect)
+  let nextHovered = checkCollisionPointRec(getVirtualMousePosition(), nextRect)
   drawRectangle(centerX, currentY, buttonWidth, buttonHeight,
                 if nextHovered: Color(r: 0, g: 80, b: 80, a: 255) else: Color(r: 0, g: 60, b: 60, a: 255))
   drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, SkyBlue)
@@ -417,7 +417,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   
   # Boss wave button
   let bossRect = Rectangle(x: centerX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
-  let bossHovered = checkCollisionPointRec(getMousePosition(), bossRect)
+  let bossHovered = checkCollisionPointRec(getVirtualMousePosition(), bossRect)
   drawRectangle(centerX, currentY, buttonWidth, buttonHeight,
                 if bossHovered: Color(r: 80, g: 0, b: 0, a: 255) else: Color(r: 60, g: 0, b: 0, a: 255))
   drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, Red)
@@ -456,7 +456,7 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
   let maxVisible = max(1, availableHeight div itemStride)
   let maxScroll = max(0, consumables.len - maxVisible)
 
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   if mousePos.y >= currentY.float32 and mousePos.y < (y + height).float32:
     let wheelMove = getMouseWheelMove()
     if wheelMove < 0: menu.scrollOffset = min(maxScroll, menu.scrollOffset + 1)
@@ -471,7 +471,7 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
     let itemY = currentY + (i - startIdx).int32 * itemStride
     let rect = Rectangle(x: centerX.float32, y: itemY.float32,
                          width: buttonWidth.float32, height: buttonHeight.float32)
-    let hovered = checkCollisionPointRec(getMousePosition(), rect)
+    let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
 
     var drawColor = color
     if hovered:
@@ -533,7 +533,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   for btnData in healthButtons:
     let (label, value) = btnData
     let rect = Rectangle(x: btnX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
-    let hovered = checkCollisionPointRec(getMousePosition(), rect)
+    let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
     
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 0, g: 100, b: 0, a: 255) else: Color(r: 0, g: 70, b: 0, a: 255))
@@ -564,7 +564,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   for btnData in maxHealthButtons:
     let (label, value) = btnData
     let rect = Rectangle(x: btnX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
-    let hovered = checkCollisionPointRec(getMousePosition(), rect)
+    let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
     
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 100, g: 100, b: 0, a: 255) else: Color(r: 70, g: 70, b: 0, a: 255))
@@ -595,7 +595,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   for btnData in coinButtons:
     let (label, value) = btnData
     let rect = Rectangle(x: btnX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
-    let hovered = checkCollisionPointRec(getMousePosition(), rect)
+    let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
     
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 100, g: 80, b: 0, a: 255) else: Color(r: 70, g: 60, b: 0, a: 255))
@@ -625,7 +625,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   for btnData in speedButtons:
     let (label, value) = btnData
     let rect = Rectangle(x: btnX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
-    let hovered = checkCollisionPointRec(getMousePosition(), rect)
+    let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
     
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 0, g: 100, b: 150, a: 255) else: Color(r: 0, g: 70, b: 100, a: 255))
@@ -662,7 +662,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     drawText("  None", x + 30, currentY, 12, Gray)
   else:
     # Handle mouse wheel scrolling for owned list
-    let mousePos = getMousePosition()
+    let mousePos = getVirtualMousePosition()
     if mousePos.y >= currentY.float32 and mousePos.y < dividerY.float32:
       let wheelMove = getMouseWheelMove()
       if wheelMove < 0:
@@ -693,7 +693,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
       let removeHeight: int32 = 24
       let removeRect = Rectangle(x: removeX.float32, y: itemY.float32 + 2,
                                   width: removeWidth.float32, height: removeHeight.float32)
-      let removeHovered = checkCollisionPointRec(getMousePosition(), removeRect)
+      let removeHovered = checkCollisionPointRec(getVirtualMousePosition(), removeRect)
       
       drawRectangle(removeX, itemY + 2, removeWidth, removeHeight,
                     if removeHovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255))
@@ -753,7 +753,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   let buttonSpacing: int32 = 5
   
   # Handle mouse wheel scrolling for available list
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   if mousePos.y >= currentY.float32 and mousePos.y < (y + contentHeight).float32:
     let wheelMove = getMouseWheelMove()
     if wheelMove < 0:
@@ -792,7 +792,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     for level in 1..3:
       let btnX = buttonStartX + (level - 1).int32 * (buttonWidth + buttonSpacing)
       let rect = Rectangle(x: btnX.float32, y: itemY.float32, width: buttonWidth.float32, height: (itemHeight - 5).float32)
-      let hovered = checkCollisionPointRec(getMousePosition(), rect)
+      let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
       
       # Button color based on current level
       var btnColor: Color

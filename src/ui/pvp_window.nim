@@ -1,7 +1,7 @@
 ## PvP Lobby Window
 ## Network lobby interface as an OS-style window
 
-import raylib, os_window, ../network/network, ../network/network_types, strutils, net, math, ../types, ../localization
+import raylib, os_window, ../network/network, ../network/network_types, strutils, net, math, ../types, ../localization, ../render_context
 
 type
   PvPWindow* = ref object
@@ -460,7 +460,7 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
     fieldHeight = 30
 
   if activeText != nil:
-    let mousePos = getMousePosition()
+    let mousePos = getVirtualMousePosition()
     if isMouseButtonPressed(Left):
       let cursorPos = getTextCursorPos(activeText[], fieldX, fieldY, fontSize, fieldHeight, mousePos.x, mousePos.y)
       if cursorPos >= 0:
@@ -506,9 +506,8 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
 
   if (ctrlPressed or cmdPressed) and isKeyPressed(V):
     try:
-      let clipboardCStr: cstring = getClipboardText()
-      if not clipboardCStr.isNil:
-        let text = $clipboardCStr
+      let text = getClipboardText()
+      if text.len > 0:
         if pvpWin.selectionStart >= 0 and pvpWin.selectionEnd >= 0 and pvpWin.selectionStart != pvpWin.selectionEnd:
           if activeText != nil:
             let newCursor = deleteSelection(activeText[], pvpWin.selectionStart, pvpWin.selectionEnd)
@@ -663,7 +662,7 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
         pvpWin.cursorPos = pvpWin.inputNickname.len
 
 proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, contentHeight: int) =
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
 
   case pvpWin.state
   of plsMainMenu:
@@ -1231,7 +1230,7 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
   ## Returns: 0 = no action, 1 = host config, 2 = join, 3 = back/cancel, 4 = connect, 5 = start game, 6 = start hosting
   if not isMouseButtonPressed(Left):
     return 0
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   case pvpWin.state
   of plsMainMenu:
     let btnW = 300

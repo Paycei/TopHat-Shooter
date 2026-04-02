@@ -1,6 +1,6 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
-import raylib, types, enemy, powerup, boss_definitions, std/strutils, random, localization, consumable
+import raylib, types, enemy, powerup, boss_definitions, std/strutils, random, localization, consumable, render_context
 
 const
   SIDEBAR_WIDTH = 300
@@ -425,7 +425,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
   if not game.sandboxSidebarOpen:
     # Check toggle button click
     if isMouseButtonPressed(Left):
-      let mousePos = getMousePosition()
+      let mousePos = getVirtualMousePosition()
       let toggleX = screenWidth - 50
       let toggleY = screenHeight div 2 - 30
       if mousePos.x >= toggleX.float32 and mousePos.x <= (toggleX + 40).float32 and
@@ -441,7 +441,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
       game.sandboxScrollOffset = 0
   
   if isMouseButtonPressed(Left):
-    let mousePos = getMousePosition()
+    let mousePos = getVirtualMousePosition()
     let sidebarX = screenWidth - SIDEBAR_WIDTH
     
     # Only process clicks within the sidebar area

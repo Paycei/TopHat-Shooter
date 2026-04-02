@@ -1,7 +1,7 @@
 ﻿## OS-Style Shop System
 ## Shop screen redesigned as a modern OS storefront interface
 
-import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing
+import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing, ../render_context
 
 const
   SHOP_WIDTH = 950
@@ -242,7 +242,7 @@ proc drawShop*(game: Game) =
   
   # Mouse hover detection
   if globalSettings.mouseSupport and game.mouseMovedRecently and not game.keyboardUsedRecently:
-    let mousePos = getMousePosition()
+    let mousePos = getVirtualMousePosition()
     
     for i in 0..5:
       let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
@@ -382,7 +382,7 @@ proc drawShop*(game: Game) =
   
   # Draw custom cursor
   if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
-    let mousePos = getMousePosition()
+    let mousePos = getVirtualMousePosition()
     let cursorPulse = sin(game.time * 8.0) * 2 + 8
     
     # Outer rotating ring

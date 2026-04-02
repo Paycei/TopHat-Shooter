@@ -1,7 +1,7 @@
 ## OS Window Framework
 ## Base system for all OS-style windows (Settings, Stats, Help)
 
-import raylib, math
+import raylib, math, ../render_context
 
 type
   WindowAnimation* = enum
@@ -263,7 +263,7 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
   if window.focused and isKeyPressed(KeyboardKey.Escape):
     return true
   
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   
   # Handle dragging
   if window.dragging:
@@ -400,7 +400,7 @@ proc drawWindowChrome*(window: OSWindow) =
     let buttonY = window.y + 5
     let restoreX = window.x + window.savedWidth - 25
     
-    let mousePos = getMousePosition()
+    let mousePos = getVirtualMousePosition()
     let hoverRestore = mousePos.x >= restoreX.float32 and
                        mousePos.x <= (restoreX + buttonSize).float32 and
                        mousePos.y >= buttonY.float32 and
@@ -471,7 +471,7 @@ proc drawWindowChrome*(window: OSWindow) =
   
   # Close button
   let closeX = window.x + window.width - 25
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let hoverClose = isPointInCloseButton(window, mousePos.x, mousePos.y)
   
   drawRectangle(closeX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
@@ -493,7 +493,7 @@ proc drawResizeIndicator*(window: OSWindow) =
   if not window.visible or window.minimized:
     return
   
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let edge = getResizeEdge(window, mousePos.x, mousePos.y)
   
   if window.resizable and (edge > 0 or window.resizing):

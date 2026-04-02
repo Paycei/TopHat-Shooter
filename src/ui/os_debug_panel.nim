@@ -1,7 +1,7 @@
 ## OS-Style Debug Panel
 ## System diagnostics and performance metrics
 
-import raylib, ../types, strutils, ../powerup, ../localization, ui_constants
+import raylib, ../types, strutils, ../powerup, ../localization, ui_constants, ../render_context
 
 const
   DEBUG_PANEL_WIDTH = 200
@@ -71,7 +71,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   var finalPanelX = actualX.int32
   
   # Handle dragging
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let headerHeight = (DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT).float32
   let headerRect = Rectangle(
     x: finalPanelX.float32,
@@ -602,7 +602,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
     legendaryPanelPos.y.int32
   
   # Handle dragging
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let headerHeight = (DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT).float32
   let headerRect = Rectangle(
     x: actualX.float32,

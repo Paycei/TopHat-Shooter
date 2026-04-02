@@ -2423,7 +2423,6 @@ proc drawAttackWarning*(warning: AttackWarning) =
       let tearGap  = 3.0'f32  + progress * 6.0'f32   # gap widens as it tears
       let tearTilt = sin(t * 1.8'f32) * 0.25'f32      # subtle organic wobble
       let tearA    = tearTilt
-      let tearPerp = tearTilt + PI * 0.5'f32
       # Left half
       drawLine(Vector2(x: cx - cos(tearA) * tearGap,  y: cy - sin(tearA) * tearGap),
                Vector2(x: cx - cos(tearA) * tearLen,  y: cy - sin(tearA) * tearLen),

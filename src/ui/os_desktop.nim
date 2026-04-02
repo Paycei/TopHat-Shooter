@@ -1,7 +1,7 @@
 ## OS-Themed Desktop Environment Module
 ## Main menu as an operating system desktop
 
-import raylib, ../types, ../localization, math, strutils, strformat, times
+import raylib, ../types, ../localization, math, strutils, strformat, times, ../render_context
 
 type
   DesktopIconType* = enum
@@ -474,7 +474,7 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
   ## Note: Window occlusion should be handled by the calling code
   
   # Get mouse position
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   
   # Mouse hover detection - update selected icon based on hover
   var hoveredIcon = -1

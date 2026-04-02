@@ -1,7 +1,7 @@
 ﻿## Combined OS-Style HUD Panel
 ## Merges status and info panels into one compact, non-intrusive display
 
-import raylib, ../types, ../localization, math, ../powerup_data, ui_constants
+import raylib, ../types, ../localization, math, ../powerup_data, ui_constants, ../render_context
 
 const
   COMBINED_PANEL_WIDTH = 200
@@ -25,7 +25,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   let panelX = leftPanelPos.x.int32
   
   # Handle dragging
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let headerHeight = (COMBINED_PANEL_PADDING + COMBINED_TITLE_HEIGHT).float32
   let headerRect = Rectangle(
     x: panelX.float32,

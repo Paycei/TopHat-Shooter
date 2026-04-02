@@ -1,7 +1,7 @@
 ﻿## OS-Themed Settings Control Panel
 ## Tabbed settings interface matching the OS visual language
 
-import raylib, strutils, ../sound, ../save_system, os_window, ../settings, ../localization
+import raylib, strutils, ../sound, ../save_system, os_window, ../settings, ../localization, ../render_context
 
 type
   SettingsTab* = enum
@@ -157,7 +157,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Fullscreen toggle
   drawText(t(tkSettingsFullscreen), (contentX + 40).int32, yPos.int32, 18, White)
   let fsCheckX = contentX + 320
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let fsHovered = mousePos.x >= fsCheckX.float32 and
                   mousePos.x <= (fsCheckX + 25).float32 and
                   mousePos.y >= yPos.float32 and
@@ -222,7 +222,7 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
                    Color(r: 255, g: 200, b: 100, a: 255))
   yPos += 40
   
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   
   # Sound Effects Volume
   drawText(t(tkSettingsSoundEffects), (contentX + 40).int32, yPos.int32, 18, White)
@@ -267,7 +267,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                    Color(r: 200, g: 100, b: 255, a: 255))
   yPos += 35
   
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   
   # Mouse Support
   drawText(t(tkSettingsMouseSupport), (contentX + 40).int32, yPos.int32, 18, White)
@@ -323,7 +323,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                    Color(r: 100, g: 255, b: 100, a: 255))
   yPos += 35
   
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   
   # Show Hints
   drawText(t(tkSettingsShowHints), (contentX + 40).int32, yPos.int32, 18, White)
@@ -396,7 +396,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     settingsWin.window.visible = false
     return (true, false)
   
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let contentX = settingsWin.window.x + WINDOW_PADDING
   let contentY = settingsWin.window.y + TITLE_BAR_HEIGHT + 60
   
@@ -632,7 +632,7 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
   let tabY = contentY
   let tabHeight = 35
   let tabWidth = 140
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   
   var tabX = contentX
   for tab in [stGraphics, stAudio, stControls, stGameplay]:

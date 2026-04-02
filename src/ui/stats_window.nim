@@ -1,7 +1,7 @@
 ﻿## OS-Themed Statistics Window
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
-import raylib, os_window, ../statistics, ../run_statistics, ../types, math, ../powerup_data, strutils, std/tables, ../localization, algorithm, ui_constants
+import raylib, os_window, ../statistics, ../run_statistics, ../types, math, ../powerup_data, strutils, std/tables, ../localization, algorithm, ui_constants, ../render_context
 
 type
   StatsTab* = enum
@@ -81,7 +81,7 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
   
   # Only process content clicks if THIS window handled the click in handleOSWindowInput
   if not statsWin.window.minimized and statsWin.window.handledClickThisFrame:
-    let mousePos = getMousePosition()
+    let mousePos = getVirtualMousePosition()
     let isTopmost = isWindowTopmostAtPoint(statsWin.window, mousePos.x, mousePos.y, allWindows)
     
     if isTopmost:
@@ -244,7 +244,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
   let tabY = contentY
   let tabHeight = 35
   let tabWidth = 140
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   
   var tabX = contentX
   for tab in [stLifetime, stLastRun, stPowerUps]:

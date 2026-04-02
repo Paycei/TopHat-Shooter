@@ -1,7 +1,7 @@
 ## PvP Game Mode Logic
 ## Handles multiplayer player vs player combat with optional team support
 
-import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils, sequtils, localization
+import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils, sequtils, localization, render_context
 
 const
   PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
@@ -419,7 +419,7 @@ proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()
 
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
 
   # Toggle wall-placement mode with E, right-click cancels it
   if isKeyPressed(E) and pvp.players[pvp.localPlayerIndex].walls > 0:
@@ -1723,7 +1723,7 @@ proc drawPvP*(pvp: PvPGameState) =
     drawCircleLines(localPlayer.pos.x.int32, localPlayer.pos.y.int32,
                     WALL_PLACEMENT_RANGE, Color(r: 180, g: 180, b: 255, a: 60))
     # Ghost wall at cursor — green if placeable, red if not
-    let mousePos = getMousePosition()
+    let mousePos = getVirtualMousePosition()
     let cursorPos = newVector2f(mousePos.x, mousePos.y)
     let inRange = distance(cursorPos, localPlayer.pos) <= WALL_PLACEMENT_RANGE
     let validPos = isValidWallPlacement(cursorPos, localPlayer.pos, pvp.walls, @[], 25)

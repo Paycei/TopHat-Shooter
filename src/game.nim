@@ -1,7 +1,8 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival  # Import 3D game module
+import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival, render_context  # Import 3D game module
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
+const TIME_SURVIVAL_BOSS_INTERVAL = 60.0
 
 # Centralized boss wave and coin management
 proc startBossWave*(manager: var BossWaveManager) =
@@ -11,6 +12,10 @@ proc bossDefeated*(manager: var BossWaveManager) =
   manager.active = false; manager.coinActive = true
 
 proc bossCoinCollected*(manager: var BossWaveManager) =
+  manager.coinActive = false
+
+proc clearBossWave*(manager: var BossWaveManager) =
+  manager.active = false
   manager.coinActive = false
 
 proc canStartNewWave*(manager: BossWaveManager): bool =
@@ -63,6 +68,35 @@ proc completeBossWave*(game: Game) =
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
   game.state = gsPowerUpSelect
+
+proc spawnConfiguredBoss(game: Game, bossDifficulty: float32, bossBlockWave: int) =
+  let bossNumber = getCustomBossNumber(bossBlockWave)
+
+  # Check if this is Boss #7 (3D boss)
+  if bossNumber == 13: # Disabled for now (7)
+    game.transitioning = true
+    game.fadeAlpha = 0.0
+    game.bossWaveManager.startBossWave()
+    playSound(stBossSpawn)
+  else:
+    game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight,
+              bossDifficulty, game.bossCount, bossBlockWave))
+    game.bossWaveManager.startBossWave()
+    game.bossSpawnTimer = 1.5
+
+    playSound(stBossSpawn)
+
+    let boss = game.enemies[^1]
+    let bossName = getBossDefinition(bossNumber).name
+    let bossTitle = getBossDefinition(bossNumber).description
+    startIntroduction(game.dopamine.bossIntro, bossName, bossTitle, boss.maxHp)
+
+    for i in 0..<60:
+      let angle = i.float32 * 0.1
+      let dist = i.float32 * 3
+      let x = boss.pos.x + cos(angle) * dist
+      let y = boss.pos.y + sin(angle) * dist
+      spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
 
 # Unified aura configuration and rendering system
 
@@ -1158,12 +1192,15 @@ proc setGameMode*(game: Game, mode: GameMode) =
   
   # Apply mode-specific starting values
   game.player.coins = modeDef.playerStartCoins
+  game.bossTimer = if isTimeSurvivalMode(mode): TIME_SURVIVAL_BOSS_INTERVAL else: 0.0
+  game.bossWaveManager.clearBossWave()
   
   # Reset wave-specific state if not using waves
   if not modeDef.usesWaves:
     game.currentWave = 1
     game.waveInProgress = false
     game.waveEnemiesRemaining = 0
+    game.wavesUntilBoss = 4
 
 proc calculateWaveEnemyCount(waveNumber: int): int =
   # Scale enemy count based on wave number (SLOWER PROGRESSION)
@@ -4135,6 +4172,11 @@ proc updateGame*(game: var Game, dt: float32) =
     else:
       # In other modes, difficulty scales with time
       game.difficulty = (game.time / 10.0) * modeDef.difficultyScale
+
+  if isTimeSurvivalMode(game.mode) and game.state == gsPlaying and
+     not game.bossWaveManager.isBossActive() and
+     not game.bossWaveManager.isBossCoinActive():
+    game.bossTimer = max(0.0, game.bossTimer - dt)
   
   # Update attack warnings and create lasers from boss warnings when they expire
   var i = 0
@@ -4860,7 +4902,7 @@ proc updateGame*(game: var Game, dt: float32) =
   
 
   # Check shooting
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let shootDir = newVector2f(mousePos.x - game.player.pos.x, mousePos.y - game.player.pos.y)
   
   # Handle delayed double-shot bursts (rapid succession)
@@ -4974,43 +5016,14 @@ proc updateGame*(game: var Game, dt: float32) =
       # This allows debug spawns when wavesUntilBoss is forced to 0 (boss appears
       # for the current boss block: waves 1-5 => boss 1, 6-10 => boss 2, etc.)
       let bossBlockWave = ((game.currentWave - 1) div 5 + 1) * 5
-      let bossNumber = getCustomBossNumber(bossBlockWave)
-      
-      # Check if this is Boss #7 (3D boss)
-      if bossNumber == 13: # Disabled for now (7)
-        # Start transition to 3D mode
-        game.transitioning = true
-        game.fadeAlpha = 0.0
-        game.bossWaveManager.startBossWave()  # Mark boss wave as active
-        playSound(stBossSpawn)
-      else:
-        # Normal 2D boss
-        game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight,
-                  bossDifficulty, game.bossCount, bossBlockWave))
-        game.bossWaveManager.startBossWave()  # Mark boss wave as active
-        game.bossSpawnTimer = 1.5  # Short warning, doesn't pause gameplay
-        # Don't reset wavesUntilBoss here - it will be reset when boss coin is collected
-        
-        # Play boss spawn sound
-        playSound(stBossSpawn)
-        
-        # Entrance particles
-        let boss = game.enemies[^1]
-        
-        # Trigger boss introduction - use correct boss number, not wave number
-        let bossName = getBossDefinition(bossNumber).name
-        let bossTitle = getBossDefinition(bossNumber).description
-        startIntroduction(game.dopamine.bossIntro, bossName, bossTitle, boss.maxHp)
-        
-        # Spawn entrance particles for custom boss
-        for i in 0..<60:
-          let angle = i.float32 * 0.1
-          let dist = i.float32 * 3
-          let x = boss.pos.x + cos(angle) * dist
-          let y = boss.pos.y + sin(angle) * dist
-          spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
+      spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
     
     elif isTimeSurvivalMode(game.mode):
+      if game.bossTimer <= 0 and game.bossWaveManager.canSpawnBoss() and game.state == gsPlaying:
+        game.bossCount += 1
+        let bossBlockWave = max(5, game.bossCount * 5)
+        let bossDifficulty = max(game.difficulty, (bossBlockWave - 1).float32 / 3.0)
+        spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
       # TIME SURVIVAL MODE: delegate to survival.nim
       spawnSurvivalEnemies(game)
 
@@ -5123,8 +5136,9 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Clamp coin position to be in bounds (for enemies killed out-of-bounds)
         let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
-        # Boss coins are special and must be collected to end the wave
-        game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, enemy.isBoss))
+        # Boss coins are only required in wave mode.
+        let requiresBossCoin = enemy.isBoss and shouldUseWaves(game.mode)
+        game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, requiresBossCoin))
       
       # Elite Explosive death effect
       # Handles multiple elite types (wave 25+)
@@ -5271,9 +5285,11 @@ proc updateGame*(game: var Game, dt: float32) =
       # Check if boss was defeated
       if enemy.isBoss:
         bossDefeated = true
-        
-        # Mark that a boss coin is now active and must be collected
-        game.bossWaveManager.bossDefeated()
+        if shouldUseWaves(game.mode):
+          game.bossWaveManager.bossDefeated()
+        else:
+          game.bossWaveManager.clearBossWave()
+          game.bossTimer = TIME_SURVIVAL_BOSS_INTERVAL
         
         # Count total bosses defeated from game state
         var totalBossesDefeated = game.bossCount

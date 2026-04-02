@@ -1,7 +1,7 @@
 ## Shop Window
 ## OS-themed window for player and bullet customization with tabs
 
-import raylib, os_window, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization
+import raylib, os_window, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization, ../render_context
 
 type
   ShopTab* = enum
@@ -578,7 +578,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
   let contentHeight = shop.window.height - TITLE_BAR_HEIGHT - 20
   
   # Get mouse position
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let mouseX = mousePos.x.int
   let mouseY = mousePos.y.int
   let isTopmost = isWindowTopmostAtPoint(shop.window, mousePos.x, mousePos.y, allWindows)

@@ -1,7 +1,7 @@
 ## OS-Style Task Manager (Pause Menu)
 ## Pause menu styled as system task manager with mouse support
 
-import raylib, ../types, ../powerup_data, math, ../localization
+import raylib, ../types, ../powerup_data, math, ../localization, ../render_context
 
 const
   TASK_MANAGER_WIDTH = 700
@@ -133,7 +133,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   
   let screenWidth = game.screenWidth
   let screenHeight = game.screenHeight
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let mouseSupported = game.mouseMovedRecently
   
   # Dark overlay

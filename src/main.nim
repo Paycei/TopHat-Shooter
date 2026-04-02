@@ -1,4 +1,4 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables
+import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, os, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables, render_context
 
 const
   screenWidth = 1024
@@ -35,15 +35,8 @@ proc updateRenderScale() =
   let scaledHeight = screenHeight.float32 * renderScale
   renderOffsetX = (windowWidth.float32 - scaledWidth) / 2.0
   renderOffsetY = (windowHeight.float32 - scaledHeight) / 2.0
-
-proc getVirtualMousePosition(): Vector2 =
-  ## Convert screen mouse position to virtual game coordinates
-  let screenPos = getMousePosition()
-  result.x = (screenPos.x - renderOffsetX) / renderScale
-  result.y = (screenPos.y - renderOffsetY) / renderScale
-  # Clamp to game bounds
-  result.x = clamp(result.x, 0.0, screenWidth.float32)
-  result.y = clamp(result.y, 0.0, screenHeight.float32)
+  updateRenderInputTransform(renderScale, renderOffsetX, renderOffsetY,
+                             screenWidth.int32, screenHeight.int32)
 
 proc beginGameDrawing() =
   ## Begin drawing to the virtual render target
@@ -64,6 +57,25 @@ proc endGameDrawing() =
   drawTexture(renderTarget.texture, source, dest, Vector2(x: 0, y: 0), 0, White)
   
   endDrawing()
+
+proc applyWindowMode(fullscreen: bool) =
+  ## Apply borderless fullscreen or centered windowed mode at runtime.
+  if fullscreen:
+    setWindowState(flags(WindowUndecorated))
+    let monitor = getCurrentMonitor()
+    let monitorWidth = getMonitorWidth(monitor)
+    let monitorHeight = getMonitorHeight(monitor)
+    setWindowSize(monitorWidth, monitorHeight)
+    setWindowPosition(0, 0)
+  else:
+    clearWindowState(flags(WindowUndecorated))
+    setWindowSize(screenWidth, screenHeight)
+    let monitor = getCurrentMonitor()
+    let monitorWidth = getMonitorWidth(monitor)
+    let monitorHeight = getMonitorHeight(monitor)
+    setWindowPosition((monitorWidth - screenWidth) div 2,
+                     (monitorHeight - screenHeight) div 2)
+  updateRenderScale()
 
 proc isMenuClickValid*(game: Game, settings: Settings, mousePos: Vector2f, buttonX: int32, buttonY: int32, buttonWidth: int32, buttonHeight: int32): bool =
   ## Helper function to validate mouse clicks in menus
@@ -99,7 +111,7 @@ proc markKeyboardUsed*(game: Game) =
 
 proc drawCustomCursor*(time: float32) =
   ## Draw custom crosshair cursor (only when system cursor is hidden)
-  let mousePos = getMousePosition()
+  let mousePos = getVirtualMousePosition()
   let cursorPulse = sin(time * 8.0) * 2 + 8
   
   # Outer rotating ring
@@ -138,13 +150,8 @@ proc main() =
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor
   
-  # Apply fullscreen if needed (resize and position)
-  if settings.fullscreen:
-    let monitor = getCurrentMonitor()
-    let monitorWidth = getMonitorWidth(monitor)
-    let monitorHeight = getMonitorHeight(monitor)
-    setWindowSize(monitorWidth, monitorHeight)
-    setWindowPosition(0, 0)
+  # Apply initial window mode after the window exists.
+  applyWindowMode(settings.fullscreen)
   
   # Create render target for letterboxing
   renderTarget = loadRenderTexture(screenWidth, screenHeight)
@@ -229,24 +236,7 @@ proc main() =
     # Check if fullscreen toggle was requested
     if fullscreenToggleRequested:
       fullscreenToggleRequested = false
-      
-      if settings.fullscreen:
-        # Going to fullscreen - maximize to monitor size
-        let monitor = getCurrentMonitor()
-        let monitorWidth = getMonitorWidth(monitor)
-        let monitorHeight = getMonitorHeight(monitor)
-        setWindowSize(monitorWidth, monitorHeight)
-        setWindowPosition(0, 0)
-      else:
-        # Going to windowed - restore original window size
-        setWindowSize(screenWidth, screenHeight)
-        # Center the window on screen
-        let monitor = getCurrentMonitor()
-        let monitorWidth = getMonitorWidth(monitor)
-        let monitorHeight = getMonitorHeight(monitor)
-        setWindowPosition((monitorWidth - screenWidth) div 2, (monitorHeight - screenHeight) div 2)
-      
-      updateRenderScale()
+      applyWindowMode(settings.fullscreen)
       if not saveSettings(settings):
         echo "Warning: Failed to save settings to disk"
     
@@ -342,7 +332,7 @@ proc main() =
         pendingGameMode = -1  # Reset pending mode
       
       # Handle window and desktop input
-      let mousePos = getMousePosition()
+      let mousePos = getVirtualMousePosition()
       
       # Play click sound for any left-click on the desktop (anywhere)
       if isMouseButtonPressed(Left):
@@ -632,7 +622,7 @@ proc main() =
         
         # Place wall
         if isKeyPressed(E) and currentGame.player.walls > 0:
-          let mousePos = getMousePosition()
+          let mousePos = getVirtualMousePosition()
           let wallPos = newVector2f(mousePos.x, mousePos.y)
 
           if isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
@@ -911,7 +901,7 @@ proc main() =
         currentGame.mouseMovedRecently = true
       
       # Handle window clicks first (before pause menu interactions)
-      let mousePos = getMousePosition()
+      let mousePos = getVirtualMousePosition()
       discard globalWindowManager.handleWindowClick(mousePos)
       let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
       
@@ -1059,7 +1049,7 @@ proc main() =
       
       # Mouse click handling for shop items
       if isMouseButtonPressed(Left):
-        let mousePos = getMousePosition()
+        let mousePos = getVirtualMousePosition()
         
         # Shop dimensions from shop.nim
         const SHOP_WIDTH = 950
@@ -1325,8 +1315,8 @@ proc main() =
           # If reroll failed (not enough coins), do nothing (could add sound here)
         
         # Mouse hover detection for card selection (only if keyboard not recently used)
-        if isMouseButtonPressed(Left) or getMousePosition().x != 0:
-          let mousePos = getMousePosition()
+        if isMouseButtonPressed(Left) or currentGame.mouseMovedRecently:
+          let mousePos = getVirtualMousePosition()
           # Use actual UI dimensions from os_powerup_installer.nim
           const INSTALLER_WIDTH = 1000
           const INSTALLER_HEIGHT = 650
@@ -1365,7 +1355,7 @@ proc main() =
         
         # Mouse click to select
         if isMouseButtonPressed(Left):
-          let mousePos = getMousePosition()
+          let mousePos = getVirtualMousePosition()
           const INSTALLER_WIDTH = 1000
           const INSTALLER_HEIGHT = 650
           const TITLE_BAR_HEIGHT = 45
@@ -1486,7 +1476,9 @@ proc main() =
               if retries < MAX_RETRIES:
                 # Exponential backoff: wait 0.1s, 0.2s, 0.4s
                 let backoffTime = 0.1 * pow(2.0, float(retries - 1))
+                let backoffMs = int(backoffTime * 1000.0)
                 echo "Retrying in ", backoffTime, " seconds..."
+                sleep(backoffMs)
           
           if saveSuccess:
             statsSavedThisGame = true
@@ -1537,7 +1529,7 @@ proc main() =
         statsSavedThisGame = false  # Reset for new game
       
       # Mouse hover detection for button highlighting
-      let mousePos = getMousePosition()
+      let mousePos = getVirtualMousePosition()
       const SCREEN_HEIGHT = 600
       const BUTTON_WIDTH = 220
       const BUTTON_HEIGHT = 48
@@ -1620,9 +1612,10 @@ proc main() =
       
       # Quick restart
       if isKeyPressed(R):
+        let previousMode = currentGame.mode
         currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
-        currentGame.mode = gmWaveBased
+        setGameMode(currentGame, previousMode)
         initializeRunTracking(currentGame)
         currentGame.state = gsPlaying
         statsSavedThisGame = false
