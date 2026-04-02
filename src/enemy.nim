@@ -2188,7 +2188,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       drawLine(Vector2(x: cx + cos(a) * gap,  y: cy + sin(a) * gap),
                Vector2(x: cx + cos(a) * sz,   y: cy + sin(a) * sz),
                2, Color(r: 180'u8, g: 255'u8, b: 240'u8, a: alpha))
-    # Diagonal accent lines (×) at half opacity
+    # Diagonal accent lines (x) at half opacity
     for i in 0..<4:
       let a = i.float32 * PI / 2.0 + PI / 4.0
       let diagLen = sz * 0.6

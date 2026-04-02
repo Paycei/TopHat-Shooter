@@ -2289,7 +2289,7 @@ proc addBossAttackWarning(game: var Game, enemy: Enemy, attack: BossAttack) =
     of bapSnipe:   "laser_pointer"
     else:          return  # bapTargeted, bapOrbit — no pre-warning
 
-  # For dash attacks, targetPos is the actual landing spot (origin + dir × dashDist)
+  # For dash attacks, targetPos is the actual landing spot (origin + dir x dashDist)
   # so the arrow in the warning covers the true path the boss will travel.
   # All other attacks just lock onto the player's current position.
   let warningTargetPos =

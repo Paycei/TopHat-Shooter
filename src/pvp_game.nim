@@ -1070,7 +1070,7 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
         pvp.players[i].pos = interpState.prevPos
       elif t > 1.0:
         # Render time is past the latest snapshot: dead-reckon with velocity.
-        # Cap at 1.5× snapshot interval — enough to cover one late packet without
+        # Cap at 1.5x snapshot interval — enough to cover one late packet without
         # letting bad extrapolation run wild when the connection is poor.
         let extraDt = min((t - 1.0) * timeDiff, pvp.config.snapshotRate * 1.5)
         pvp.players[i].pos.x = interpState.targetPos.x + interpState.targetVel.x * extraDt
