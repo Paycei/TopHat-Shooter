@@ -109,6 +109,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
 
   of bshDiamond:
     # Four-pointed diamond – tip points in direction of travel
+    let t = getTime()
     let r = radius * 1.1
     let rot = travelAngle  # tip of diamond faces travel direction
     let tip    = Vector2(x: pos.x + cos(rot)             * r, y: pos.y + sin(rot)             * r)
@@ -124,6 +125,16 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
     drawLine(right, tail, 1.5, color)
     drawLine(tail, left, 1.5, color)
     drawLine(left, tip, 1.5, color)
+    # Spinning secondary outline ring
+    let spinRot = rot + t * 6.5
+    let sr = radius * 0.7
+    for si in 0..<4:
+      let sa0 = spinRot + si.float32 * PI / 2.0
+      let sa1 = spinRot + (si.float32 + 1.0) * PI / 2.0
+      drawLine(
+        Vector2(x: pos.x + cos(sa0) * sr, y: pos.y + sin(sa0) * sr),
+        Vector2(x: pos.x + cos(sa1) * sr, y: pos.y + sin(sa1) * sr),
+        1.0, Color(r: 255, g: 255, b: 255, a: 90))
     # Highlight
     drawLine(tip, right, 1, Color(r: 255, g: 255, b: 255, a: 80))
     drawCircle(Vector2(x: pos.x, y: pos.y), radius + 2,
@@ -194,5 +205,15 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
           1.5, color)
     # Bright core dot
     drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.28, color)
+    # Counter-spinning inner hex ring for visual energy
+    let starSpin = getTime() * -5.5
+    let spinHexR = r * 0.42
+    for si in 0..<6:
+      let sa0 = starSpin + si.float32 * (PI / 3.0)
+      let sa1 = starSpin + (si.float32 + 0.8) * (PI / 3.0)
+      drawLine(
+        Vector2(x: cx + cos(sa0) * spinHexR, y: cy + sin(sa0) * spinHexR),
+        Vector2(x: cx + cos(sa1) * spinHexR, y: cy + sin(sa1) * spinHexR),
+        1.0, Color(r: 255, g: 255, b: 255, a: 100))
     drawCircle(Vector2(x: pos.x, y: pos.y), radius + 4,
                Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 55))

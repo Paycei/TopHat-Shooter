@@ -35,6 +35,11 @@ proc completeBossWave*(game: Game) =
   game.waveInProgress = false
   game.currentWave += 1
   game.wavesUntilBoss -= 1
+  # Golden pulse on boss defeat
+  spawnWavePulse(game.osBackground,
+    game.screenWidth.float32 / 2.0,
+    game.screenHeight.float32 / 2.0,
+    Color(r: 255, g: 215, b: 0, a: 255))
   
   if game.wavesUntilBoss <= 0:
     game.wavesUntilBoss = 4  # Next boss in 5 waves
@@ -1171,6 +1176,15 @@ proc calculateWaveEnemyCount(waveNumber: int): int =
 proc startWave*(game: Game) =
   game.waveInProgress = true
   game.waveStartTime = game.time  # Track when this wave started
+  # Visual pulse ring — cyan for normal waves, orange for boss-lead waves
+  let wavePulseColor = if game.wavesUntilBoss == 1:
+    Color(r: 255, g: 160, b: 0, a: 255)
+  else:
+    Color(r: 0, g: 200, b: 255, a: 255)
+  spawnWavePulse(game.osBackground,
+    game.screenWidth.float32 / 2.0,
+    game.screenHeight.float32 / 2.0,
+    wavePulseColor)
   var waveEnemyCount = calculateWaveEnemyCount(game.currentWave)
   
   # Apply boss wave reduction if this is a boss wave
@@ -5170,10 +5184,9 @@ proc updateGame*(game: var Game, dt: float32) =
         spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius * 0.7)
         spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius * 0.4)
       
-      # Death particles
-      let particleColor = enemy.color
-      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, particleColor,
-                    if enemy.isBoss: 50 else: 15)
+      # Death particles — rich multi-layer burst
+      spawnEnemyDeathBurst(game.particlePool, enemy.pos.x, enemy.pos.y,
+                           enemy.color, enemy.radius, enemy.isBoss)
       
       # Drop consumable
       if enemy.isBoss:
@@ -6996,6 +7009,27 @@ proc drawGame*(game: Game) =
   # Draw player
   drawPlayer(game.player)
   
+  # Damage vignette: red edge-flash when player takes damage
+  # lastDamageTaken is set to the damage amount for 1 frame, then reset by the player module.
+  # We track a fading vignette timer in game.time so it lasts ~0.35s.
+  if game.player.lastDamageTaken > 0:
+    # Re-use osBackground.alertLevel as a proxy for recent-damage intensity.
+    # We clamp it to [0,1]; the existing alert system already fades it naturally.
+    game.osBackground.alertLevel = min(game.osBackground.alertLevel + 0.5, 1.0)
+  
+  # Full-screen red vignette when alertLevel > 0
+  if game.osBackground.alertLevel > 0:
+    let vigAlpha = uint8(game.osBackground.alertLevel * 80)
+    let vW: int32 = 160
+    drawRectangleGradientH(0, 0, vW, game.screenHeight,
+      Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
+    drawRectangleGradientH(game.screenWidth - vW, 0, vW, game.screenHeight,
+      Color(r: 0, g: 0, b: 0, a: 0), Color(r: 255, g: 0, b: 0, a: vigAlpha))
+    drawRectangleGradientV(0, 0, game.screenWidth, vW,
+      Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
+    drawRectangleGradientV(0, game.screenHeight - vW, game.screenWidth, vW,
+      Color(r: 0, g: 0, b: 0, a: 0), Color(r: 255, g: 0, b: 0, a: vigAlpha))
+  
   # Draw damage numbers (on top of everything except UI)
   for damageNum in game.damageNumbers:
     drawDamageNumber(damageNum)
@@ -7013,6 +7047,12 @@ proc drawGame*(game: Game) =
   drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.dopamine.currentTime)
   drawMilestone(game.dopamine.milestones, game.screenWidth, game.screenHeight)
   drawMicroRewards(game.dopamine.microRewards)
+
+  # Wave start banner (slides in from top for first 1.5s of each wave)
+  if game.waveInProgress:
+    let waveAge = game.time - game.waveStartTime
+    let isBossNext = game.wavesUntilBoss == 0
+    drawWaveStartBanner(game.currentWave, waveAge, game.screenWidth, game.screenHeight, isBossNext)
   
   drawWaveCelebration(game.dopamine.waveCelebration, game.screenWidth, game.screenHeight)
   drawBossIntroduction(game.dopamine.bossIntro, game.screenWidth, game.screenHeight)

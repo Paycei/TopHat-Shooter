@@ -555,9 +555,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   let rtStats = game.dopamine.realTimeStats
   
   # DPS (most important combat stat)
-  drawText("[⚔] DPS:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 9,
+  drawText("[X] DPS:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 9,
           Color(r: 0, g: 0, b: 0, a: 130))
-  drawText("[⚔] DPS:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 9,
+  drawText("[X] DPS:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 9,
           Color(r: 180, g: 200, b: 220, a: 255))
   
   let dpsText = $(int(rtStats.dps))
@@ -568,9 +568,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   yOffset += DEBUG_LINE_HEIGHT
   
   # Coins per minute (economy stat)
-  drawText("[¢] C/min:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 9,
+  drawText("[$] C/min:", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 9,
           Color(r: 0, g: 0, b: 0, a: 130))
-  drawText("[¢] C/min:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 9,
+  drawText("[$] C/min:", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 9,
           Color(r: 180, g: 200, b: 220, a: 255))
   
   let cpmText = $(int(rtStats.coinsPerMinute))

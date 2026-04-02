@@ -210,3 +210,55 @@ proc drawWaveStats*(stats: WaveStats, screenWidth, screenHeight: int32) =
   if stats.isPerfect:
     drawText(t(tkWaveStatsFlawless), x, y + 65, 18.int32,
       Color(r: 255, g: 215, b: 0, a: 255))
+
+# WAVE START BANNER
+# Driven by the game's time elapsed since the wave started (waveAge).
+# Call this every draw frame with waveAge = game.time - game.waveStartTime.
+# Shows for the first 1.5 s of each wave.
+proc drawWaveStartBanner*(waveNumber: int, waveAge: float32,
+                           screenWidth, screenHeight: int32,
+                           isBossWarning: bool = false) =
+  const SHOW_DURATION = 1.5
+  const SLIDE_TIME    = 0.22
+  if waveAge < 0 or waveAge > SHOW_DURATION:
+    return
+
+  # Slide in from top, linger, then slide out
+  let slideIn  = clamp(waveAge / SLIDE_TIME, 0.0, 1.0)
+  let slideOut = clamp((SHOW_DURATION - waveAge) / SLIDE_TIME, 0.0, 1.0)
+  let ease     = slideIn * slideOut  # 0→1→0
+
+  let bannerH: int32 = 44
+  let bannerY = int32((-bannerH.float32) + ease * (bannerH + 4).float32)
+  let alpha = uint8(ease * 255)
+
+  # Banner background strip
+  let bgColor = if isBossWarning:
+    Color(r: 160, g: 40, b: 0, a: uint8(ease * 200))
+  else:
+    Color(r: 10, g: 30, b: 50, a: uint8(ease * 200))
+  drawRectangle(0, bannerY, screenWidth, bannerH, bgColor)
+
+  # Accent lines top and bottom
+  let accentColor = if isBossWarning:
+    Color(r: 255, g: 100, b: 0, a: alpha)
+  else:
+    Color(r: 0, g: 200, b: 255, a: alpha)
+  drawRectangle(0, bannerY, screenWidth, 2, accentColor)
+  drawRectangle(0, bannerY + bannerH - 2, screenWidth, 2, accentColor)
+
+  # Wave text — centred
+  let waveLabel = if isBossWarning:
+    "BOSS INCOMING  —  WAVE " & $waveNumber
+  else:
+    "WAVE  " & $waveNumber
+  let fontSize: int32 = 22
+  let textW = measureText(waveLabel, fontSize)
+  let textX = (screenWidth - textW) div 2
+  let textY = bannerY + (bannerH - fontSize) div 2
+
+  # Shadow
+  drawText(waveLabel, textX + 1, textY + 1, fontSize,
+    Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.6)))
+  # Main
+  drawText(waveLabel, textX, textY, fontSize, accentColor)

@@ -1284,6 +1284,25 @@ proc drawEnemy*(enemy: Enemy) =
       # Soft outer glow
       drawCircle(Vector2(x: cx, y: cy), r + 7 + pulse * 3,
                 Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: uint8(30 + pulse * 25)))
+      # Quivering spike crown (8 short radiating lines driven by velocity + time)
+      let numSpikes = 8
+      let velLen = sqrt(enemy.vel.x * enemy.vel.x + enemy.vel.y * enemy.vel.y)
+      let velAngle = if velLen > 1.0: arctan2(enemy.vel.y, enemy.vel.x) else: 0.0
+      for si in 0..<numSpikes:
+        let baseAngle = si.float32 * PI / 4.0 + velAngle
+        let quiver = sin(t * 18.0 + si.float32 * 0.9) * 0.18  # quiver offset
+        let spikeAngle = baseAngle + quiver
+        let spikeInner = r * 1.02
+        # Spikes are longer in the direction of movement
+        let alignBonus = max(0.0, cos(spikeAngle - velAngle)) * (velLen / 80.0) * 4.0
+        let spikeOuter = r + 5.0 + alignBonus + pulse * 2.0
+        let spikeAlpha = uint8(160 + pulse * 60)
+        drawLine(
+          Vector2(x: cx + cos(spikeAngle) * spikeInner, y: cy + sin(spikeAngle) * spikeInner),
+          Vector2(x: cx + cos(spikeAngle) * spikeOuter, y: cy + sin(spikeAngle) * spikeOuter),
+          1.8, Color(r: min(enemy.color.r + 80, 255).uint8,
+                     g: min(enemy.color.g + 80, 255).uint8,
+                     b: min(enemy.color.b + 80, 255).uint8, a: spikeAlpha))
       # Main body
       drawCircle(Vector2(x: cx, y: cy), r, enemy.color)
       # Dark-tinted rim (same hue, much darker — no white)
@@ -1297,6 +1316,7 @@ proc drawEnemy*(enemy: Enemy) =
                 Color(r: 255, g: 255, b: 255, a: 200))
     
     of etCube:
+      let t  = getTime()
       let s  = enemy.radius
       let cx = enemy.pos.x
       let cy = enemy.pos.y
@@ -1333,6 +1353,18 @@ proc drawEnemy*(enemy: Enemy) =
                      ((s-cs),  (s-cs)),  (-(s-cs),  (s-cs))].items:
         drawCircle(Vector2(x: cx + ox, y: cy + oy), cs,
                   Color(r: 255, g: 255, b: 255, a: 180))
+      # Slow-spinning inner square outline (machine-gun turret feel)
+      let squareSpin = t * 0.55
+      let sqR = s * 0.55
+      for si in 0..<4:
+        let a0 = squareSpin + si.float32 * PI / 2.0 + PI / 4.0
+        let a1 = squareSpin + (si.float32 + 1.0) * PI / 2.0 + PI / 4.0
+        drawLine(
+          Vector2(x: cx + cos(a0) * sqR, y: cy + sin(a0) * sqR),
+          Vector2(x: cx + cos(a1) * sqR, y: cy + sin(a1) * sqR),
+          1.5, Color(r: min(enemy.color.r + 60, 255).uint8,
+                     g: min(enemy.color.g + 60, 255).uint8,
+                     b: min(enemy.color.b + 60, 255).uint8, a: 180))
     
     of etTriangle:
       # During active dash: show a bright motion trail behind the triangle
@@ -1432,6 +1464,26 @@ proc drawEnemy*(enemy: Enemy) =
       drawCircle(Vector2(x: cx, y: cy), r * 0.20,
                 Color(r: 255, g: 255, b: 255, a: 230))
 
+      # Vertex node indicators — one glowing dot per required hit, dims when hit consumed
+      for vi in 0..<enemy.requiredHits:
+        let vAngle = vi.float32 * (PI * 2.0 / enemy.requiredHits.float32) - PI / 2.0
+        let nodeR = r * 1.15
+        let isHit = vi < enemy.hitCount
+        let nodeAlpha = if isHit: 40'u8 else: 230'u8
+        let nodeColor = if isHit:
+          Color(r: 80, g: 80, b: 0, a: nodeAlpha)
+        else:
+          Color(r: 255, g: 240, b: 0, a: nodeAlpha)
+        let nodeGlowAlpha = if isHit: 0'u8 else: uint8(80 + pulseIntensity * 60)
+        # Glow halo
+        drawCircle(
+          Vector2(x: cx + cos(vAngle) * nodeR, y: cy + sin(vAngle) * nodeR),
+          5.5, Color(r: 255, g: 230, b: 0, a: nodeGlowAlpha))
+        # Solid dot
+        drawCircle(
+          Vector2(x: cx + cos(vAngle) * nodeR, y: cy + sin(vAngle) * nodeR),
+          3.0, nodeColor)
+
       # Hit counter — white text on small dark pill
       let remaining = enemy.requiredHits - enemy.hitCount
       let text = $remaining
@@ -1475,11 +1527,24 @@ proc drawEnemy*(enemy: Enemy) =
       # Bright center core — tinted, not raw white
       drawCircle(Vector2(x: cx, y: cy), r * 0.18,
                 Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 230))
-      # Teleport blink warning
+      # Teleport blink warning — scatter-dissolve effect
       if enemy.hexTeleportTimer < 0.5:
-        let blinkAlpha = uint8(((sin(getTime() * 30.0) * 0.5 + 0.5)) * 180)
+        let dissolveProgress = 1.0 - (enemy.hexTeleportTimer / 0.5)
+        let blinkAlpha = uint8((sin(t * 30.0) * 0.5 + 0.5) * 180)
+        # Outer warning ring
         drawCircleLines(cx.int32, cy.int32, r + 5,
-                       Color(r: 255, g: 255, b: 0, a: blinkAlpha))
+          Color(r: 255, g: 255, b: 0, a: blinkAlpha))
+        # Scattering fragments: 12 dots that drift outward as dissolve increases
+        for di in 0..<12:
+          let dAngle = di.float32 * PI / 6.0 + t * 4.0
+          let dDist = r * (0.5 + dissolveProgress * 1.8)
+          let dSize = max(0.5, 3.0 * (1.0 - dissolveProgress))
+          let dAlpha = uint8((1.0 - dissolveProgress) * 200)
+          drawCircle(
+            Vector2(x: cx + cos(dAngle) * dDist, y: cy + sin(dAngle) * dDist),
+            dSize, Color(r: min(enemy.color.r + 100, 255).uint8,
+                         g: min(enemy.color.g + 100, 255).uint8,
+                         b: 255, a: dAlpha))
     
     of etCross:
       # Draw cross shape with rotation support
@@ -2352,7 +2417,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       let t = getTime()
       let progress = 1.0'f32 - (warning.lifetime / warning.maxLifetime)  # 0→1 as warning expires
 
-      # ── Tear: a jagged fracture line across the rift centre ──────────────
+      # Tear: a jagged fracture line across the rift centre
       # Two counter-rotating halves pull apart as the rift opens
       let tearLen  = 38.0'f32 + progress * 22.0'f32
       let tearGap  = 3.0'f32  + progress * 6.0'f32   # gap widens as it tears
@@ -2374,7 +2439,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                Vector2(x: cx + cos(tearA) * tearLen,  y: cy + sin(tearA) * tearLen),
                2, Color(r: 220'u8, g: 255'u8, b: 255'u8, a: uint8(alpha.float32 * 0.6'f32)))
 
-      # ── Three concentric distortion rings that breathe ─────────────────────
+      # Three concentric distortion rings that breathe
       for ri in 0..<3:
         let baseR   = 22.0'f32 + ri.float32 * 18.0'f32
         let breathe = sin(t * (3.5'f32 - ri.float32 * 0.9'f32) + ri.float32 * 1.1'f32) * 4.0'f32
@@ -2391,7 +2456,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                        Color(r: ringCol.r, g: ringCol.g, b: ringCol.b,
                              a: uint8(rAlpha.float32 * 0.4'f32)))
 
-      # ── 12 orbiting shards on two counter-rotating layers ────────────────
+      # 12 orbiting shards on two counter-rotating layers
       for i in 0..<12:
         let layer    = i mod 2
         let spin     = if layer == 0: t * 2.2'f32 else: -(t * 1.5'f32)
@@ -2414,7 +2479,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
           drawLine(Vector2(x: cx, y: cy), Vector2(x: sx, y: sy),
                   1, Color(r: sCol.r, g: sCol.g, b: sCol.b, a: uint8(alpha.float32 * 0.25'f32)))
 
-      # ── Void core — deep black circle with a glowing rim ──────────────────
+      # Void core — deep black circle with a glowing rim
       let coreR = 9.0'f32 + progress * 5.0'f32 + sin(t * 8.0'f32) * 1.5'f32
       drawCircle(Vector2(x: cx, y: cy), coreR,
                 Color(r: 10'u8, g: 0'u8, b: 30'u8, a: uint8(alpha.float32 * 0.92'f32)))

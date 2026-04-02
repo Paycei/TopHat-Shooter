@@ -62,8 +62,37 @@ proc getConsumableColor(cType: ConsumableType): Color =
   of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)       # Dark red
 
 proc drawConsumable*(consumable: Consumable) =
-  let pulse = 1.0 + 0.15 * sin(consumable.lifetime * 6.0)
+  let t = getTime()
+  let pulse = 1.0 + 0.15 * sin(t * 6.0)
   let size = consumable.radius * pulse
+
+  # Per-type aura color
+  let auraColor = case consumable.consumableType
+    of ctHealth:       Color(r: 50,  g: 255, b: 80,  a: 50)
+    of ctCoin:         Color(r: 255, g: 215, b: 0,   a: 50)
+    of ctSpeed:        Color(r: 0,   g: 220, b: 255, a: 50)
+    of ctInvincibility:Color(r: 255, g: 0,   b: 255, a: 50)
+    of ctFireRate:     Color(r: 255, g: 140, b: 0,   a: 50)
+    of ctMagnet:       Color(r: 180, g: 80,  b: 255, a: 50)
+    of ctShieldBoost:  Color(r: 100, g: 200, b: 255, a: 50)
+    of ctDoubleCoin:   Color(r: 255, g: 230, b: 50,  a: 50)
+    of ctDamageBoost:  Color(r: 255, g: 60,  b: 0,   a: 50)
+    of ctLifesteal:    Color(r: 200, g: 0,   b: 0,   a: 50)
+
+  # Outer soft aura glow (two layers for depth)
+  let auraR1 = size + 7 + sin(t * 4.0) * 2.5
+  let auraR2 = size + 13 + sin(t * 3.0 + 1.0) * 3.0
+  drawCircle(Vector2(x: consumable.pos.x, y: consumable.pos.y), auraR2,
+    Color(r: auraColor.r, g: auraColor.g, b: auraColor.b, a: uint8(auraColor.a.float32 * 0.5)))
+  drawCircle(Vector2(x: consumable.pos.x, y: consumable.pos.y), auraR1, auraColor)
+
+  # 4 rotating sparkle dots around the aura ring
+  for i in 0..<4:
+    let sa = t * 2.2 + i.float32 * PI / 2.0
+    let sr = auraR1 + 2.0
+    drawCircle(
+      Vector2(x: consumable.pos.x + cos(sa) * sr, y: consumable.pos.y + sin(sa) * sr),
+      2.0, Color(r: auraColor.r, g: auraColor.g, b: auraColor.b, a: 200))
 
   # Draw background circle
   let color = getConsumableColor(consumable.consumableType)

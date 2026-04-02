@@ -261,6 +261,66 @@ proc clearPool*(pool: ParticlePool) =
   ## Clear all active particles from the pool
   pool.activeCount = 0
 
+proc spawnEnemyDeathBurst*(pool: ParticlePool, x, y: float32,
+                            enemyColor: Color, enemyRadius: float32,
+                            isBoss: bool = false) =
+  ## Rich multi-layer death burst: colored shrapnel + white sparks + shockwave ring.
+  let baseCount  = if isBoss: 40 else: 18
+  let sparkCount = if isBoss: 20 else: 8
+  let baseSpeed  = if isBoss: 220.0 else: 160.0
+
+  # Layer 1 — colored shrapnel (fast, bright)
+  for i in 0..<baseCount:
+    let angle = rand(1.0) * PI * 2.0
+    let speed = baseSpeed + rand(baseSpeed * 0.6)
+    if pool.activeCount < pool.maxCapacity:
+      let p = pool.particles[pool.activeCount]
+      p.pos.x = x + cos(angle) * rand(enemyRadius * 0.5)
+      p.pos.y = y + sin(angle) * rand(enemyRadius * 0.5)
+      p.vel.x = cos(angle) * speed
+      p.vel.y = sin(angle) * speed
+      p.color = enemyColor
+      p.lifetime = 0.35 + rand(0.35)
+      p.maxLifetime = p.lifetime
+      p.size = 3.5 + rand(4.0)
+      pool.activeCount += 1
+
+  # Layer 2 — white spark tips (faster, tiny)
+  for i in 0..<sparkCount:
+    let angle = rand(1.0) * PI * 2.0
+    let speed = baseSpeed * 1.4 + rand(80.0)
+    if pool.activeCount < pool.maxCapacity:
+      let p = pool.particles[pool.activeCount]
+      p.pos.x = x
+      p.pos.y = y
+      p.vel.x = cos(angle) * speed
+      p.vel.y = sin(angle) * speed
+      p.color = Color(r: 255, g: 255, b: 255, a: 255)
+      p.lifetime = 0.18 + rand(0.18)
+      p.maxLifetime = p.lifetime
+      p.size = 2.0 + rand(2.0)
+      pool.activeCount += 1
+
+  # Layer 3 — shockwave ring (particles placed on a circle, zero velocity)
+  let ringParticles = if isBoss: 24 else: 12
+  let ringR = enemyRadius * 1.2
+  for i in 0..<ringParticles:
+    let angle = i.float32 * PI * 2.0 / ringParticles.float32
+    let speed = baseSpeed * 0.35
+    if pool.activeCount < pool.maxCapacity:
+      let p = pool.particles[pool.activeCount]
+      p.pos.x = x + cos(angle) * ringR
+      p.pos.y = y + sin(angle) * ringR
+      p.vel.x = cos(angle) * speed
+      p.vel.y = sin(angle) * speed
+      p.color = Color(r: min(enemyColor.r + 80, 255).uint8,
+                      g: min(enemyColor.g + 80, 255).uint8,
+                      b: min(enemyColor.b + 80, 255).uint8, a: 220)
+      p.lifetime = 0.25 + rand(0.15)
+      p.maxLifetime = p.lifetime
+      p.size = 2.5 + rand(2.5)
+      pool.activeCount += 1
+
 proc getPoolStats*(pool: ParticlePool): tuple[active: int, capacity: int, usage: float] =
   ## Get statistics about pool usage
   result.active = pool.activeCount

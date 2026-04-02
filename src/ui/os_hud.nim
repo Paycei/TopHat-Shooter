@@ -91,6 +91,14 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
     
     drawRectangle(x + PANEL_PADDING + 3, yOffset, fillWidth, barHeight, barColor)
     
+    # Segment tick marks at each integer HP boundary
+    let maxHpInt = max(1, player.maxHp.int)
+    for seg in 1..<maxHpInt:
+      let tickX = x + PANEL_PADDING + 3 + int32(barWidth.float32 * (seg.float32 / player.maxHp))
+      let tickAlpha: uint8 = 100
+      drawLine(tickX, yOffset + 2, tickX, yOffset + barHeight - 2,
+               Color(r: 0, g: 0, b: 0, a: tickAlpha))
+    
     let hpText = formatHealthDisplay(player.hp) & " / " & formatHealthDisplay(player.maxHp)
     let hpTextWidth = measureText(hpText, 14)
     let hpTextX = x + PANEL_PADDING + 3 + (barWidth div 2) - (hpTextWidth div 2)

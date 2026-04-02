@@ -530,12 +530,19 @@ type
     y*: float32
     speed*: float32
     pulseOffset*: float32
-    
+
+  WavePulseRing* = object
+    radius*: float32
+    maxRadius*: float32
+    alpha*: float32
+    color*: Color
+
   OSBackgroundState* = object
     dataPackets*: seq[DataPacket]
     circuitLines*: seq[CircuitLine]
     gridPulseTime*: float32
     alertLevel*: float32  # 0.0 = normal, 1.0 = critical
+    wavePulseRings*: seq[WavePulseRing]  # Expanding rings on wave events
 
   NotificationType* = enum
     ntInfo,     # [INFO] messages

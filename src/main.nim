@@ -736,7 +736,7 @@ proc main() =
                 trackPowerUpDamage(currentGame, puBloodPact, dealt)
                 showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
             
-            currentGame.player.bloodPactCooldown = 15.0
+            currentGame.player.bloodPactCooldown = 5.0
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                           Color(r: 200, g: 50, b: 50, a: 255), 30)
             anyActivated = true

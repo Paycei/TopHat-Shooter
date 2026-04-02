@@ -1524,13 +1524,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_resonance_desc2": "Bullets hitting enemies with active DoTs deal bonus damage equal to 30% of their combined elemental DPS",
     "powerup_resonance_desc3": "Bullets hitting enemies with active DoTs deal bonus damage equal to 40% of their combined elemental DPS",
     "powerup_blood_pact": "Blood Pact",
-    "powerup_blood_pact_desc": "Sacrifice 30% of your current HP — that damage is split equally among all on-screen enemies. 15s cooldown",
+    "powerup_blood_pact_desc": "Sacrifice 30% of your current HP — that damage is split equally among all on-screen enemies. 5s cooldown",
     "powerup_conduit": "Conduit",
-    "powerup_conduit_desc": "Detonate all active elemental effects on all enemies for 3× their remaining tick damage, then clear them. Only activates if DoTs are present. 15s cooldown",
+    "powerup_conduit_desc": "Detonate all active elemental effects on all enemies for 3× their remaining tick damage, then clear them. Requires DoTs. 15s cooldown",
     "powerup_aftershock": "Aftershock",
     "powerup_aftershock_desc": "Emit a shockwave that traces backward along your last 2 seconds of movement, dealing damage and knocking back enemies caught in its path. 14s cooldown",
     "powerup_nova": "Nova",
-    "powerup_nova_desc": "Freeze all your bullets in place for 2 seconds — new bullets also freeze on spawn. All frozen bullets then release simultaneously at 1.5× speed. 16s cooldown",
+    "powerup_nova_desc": "Freeze all your bullets in place for 2 seconds. All frozen bullets then release simultaneously at 1.5× speed. 16s cooldown",
     
     # Player Feedback
     "player_dodge": "DODGE!",
