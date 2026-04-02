@@ -18,6 +18,20 @@ proc bossBulletShapeFor*(bossId: int): int =
   of 12: return 4  # Omega Entity     -> cross    (final form, ominous)
   else:  return 0  # fallback: circle
 
+proc clampColorChannel(value: int): uint8 =
+  uint8(clamp(value, 0, 255))
+
+proc withAlpha(color: Color, alpha: int): Color =
+  Color(r: color.r, g: color.g, b: color.b, a: clampColorChannel(alpha))
+
+proc shiftColor(color: Color, delta: int, alpha: int = -1): Color =
+  Color(
+    r: clampColorChannel(color.r.int + delta),
+    g: clampColorChannel(color.g.int + delta),
+    b: clampColorChannel(color.b.int + delta),
+    a: if alpha >= 0: clampColorChannel(alpha) else: color.a
+  )
+
 proc drawNgon(cx, cy, r: float32, n: int, rotation: float32, color: Color) =
   ## Draw a filled regular n-gon.
   for i in 0..<n:
@@ -38,6 +52,43 @@ proc drawNgonLines(cx, cy, r: float32, n: int, rotation: float32, color: Color, 
       Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
       thick, color)
 
+proc drawBossCross(cx, cy, armRadius, halfWidth, rotation: float32, color: Color) =
+  for arm in 0..1:
+    let a = rotation + arm.float32 * PI / 2.0
+    let ca = cos(a)
+    let sa = sin(a)
+    let px = Vector2(x: cx + ca * armRadius, y: cy + sa * armRadius)
+    let nx = Vector2(x: cx - ca * armRadius, y: cy - sa * armRadius)
+    let perp = Vector2(x: -sa * halfWidth, y: ca * halfWidth)
+    drawTriangle(
+      Vector2(x: px.x + perp.x, y: px.y + perp.y),
+      Vector2(x: px.x - perp.x, y: px.y - perp.y),
+      Vector2(x: nx.x + perp.x, y: nx.y + perp.y),
+      color)
+    drawTriangle(
+      Vector2(x: nx.x + perp.x, y: nx.y + perp.y),
+      Vector2(x: px.x - perp.x, y: px.y - perp.y),
+      Vector2(x: nx.x - perp.x, y: nx.y - perp.y),
+      color)
+
+proc drawBossBulletTrail(bullet: Bullet, trailColor: Color) =
+  if bullet.vel.length() <= 0:
+    return
+
+  let dir = bullet.vel.normalize()
+  let lineStart = bullet.pos - dir * (bullet.radius + 11.0)
+  drawLine(Vector2(x: lineStart.x, y: lineStart.y),
+           Vector2(x: bullet.pos.x, y: bullet.pos.y), 3,
+           withAlpha(trailColor, max(60, trailColor.a.int div 2)))
+
+  for i in 0..2:
+    let trailOffset = 8.0 + i.float32 * (bullet.radius + 2.0)
+    let trailPos = bullet.pos - dir * trailOffset
+    let trailRadius = max(1.6'f32, bullet.radius * (0.95 - i.float32 * 0.18))
+    let trailAlpha = max(38, trailColor.a.int - i * 58)
+    drawCircle(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
+               withAlpha(trailColor, trailAlpha))
+
 proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32) =
   ## Draw a boss bullet using its assigned shape, with rotation and glow.
   let cx = bullet.pos.x
@@ -45,42 +96,54 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
   let r  = bullet.radius
   # Rotate based on game time for a lively spinning effect
   let spin = gameTime * 3.0
+  let pulse = sin(gameTime * 9.0 + bullet.radius * 0.35) * 0.5 + 0.5
+  let silhouetteColor = Color(r: 12, g: 5, b: 20, a: 220)
+  let coreColor = shiftColor(baseColor, 80, 240)
+  let rimColor = shiftColor(glowColor, 60, 230)
+  let haloColor = withAlpha(glowColor, 100 + int(pulse * 40.0))
 
   case bullet.bossBulletShape
   of 1:  # Diamond (rotated square = 4-gon at 45°)
     let rot = PI / 4.0 + spin
-    # Bright filled aura slightly larger than the shape
-    drawNgon(cx, cy, r + 4, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 3))
+    drawNgon(cx, cy, r + 6.5, 4, rot, silhouetteColor)
+    drawNgon(cx, cy, r + 4.2 + pulse * 1.2, 4, rot, withAlpha(glowColor, 92))
     drawNgon(cx, cy, r, 4, rot, baseColor)
-    drawNgonLines(cx, cy, r + 2, 4, rot, glowColor, 2.0)
-    drawNgonLines(cx, cy, r + 5, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.5)
-    drawNgonLines(cx, cy, r + 8, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 4), 1.0)
-    # Bright centre highlight
-    drawCircle(Vector2(x: cx, y: cy), r * 0.28, Color(r: 255, g: 255, b: 255, a: 200))
+    drawNgon(cx, cy, r * 0.56, 4, rot, coreColor)
+    drawNgonLines(cx, cy, r + 1.8, 4, rot, rimColor, 2.4)
+    drawNgonLines(cx, cy, r + 4.8, 4, rot, haloColor, 1.7)
+    drawNgonLines(cx, cy, r + 7.8, 4, rot, withAlpha(glowColor, 70), 1.0)
+    drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
 
   of 2:  # Triangle
     let rot = -PI / 2.0 + spin * 0.7
-    drawNgon(cx, cy, r + 4, 3, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 3))
+    drawNgon(cx, cy, r + 6.0, 3, rot, silhouetteColor)
+    drawNgon(cx, cy, r + 4.0 + pulse * 1.1, 3, rot, withAlpha(glowColor, 92))
     drawNgon(cx, cy, r, 3, rot, baseColor)
-    drawNgonLines(cx, cy, r + 2, 3, rot, glowColor, 2.0)
-    drawNgonLines(cx, cy, r + 5, 3, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.5)
-    drawNgonLines(cx, cy, r + 8, 3, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 4), 1.0)
-    drawCircle(Vector2(x: cx, y: cy), r * 0.28, Color(r: 255, g: 255, b: 255, a: 200))
+    drawNgon(cx, cy, r * 0.55, 3, rot, coreColor)
+    drawNgonLines(cx, cy, r + 1.8, 3, rot, rimColor, 2.4)
+    drawNgonLines(cx, cy, r + 4.8, 3, rot, haloColor, 1.7)
+    drawNgonLines(cx, cy, r + 7.8, 3, rot, withAlpha(glowColor, 70), 1.0)
+    drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
 
   of 3:  # Star (two overlapping triangles)
     let rot1 = -PI / 2.0 + spin * 0.5
     let rot2 = PI / 2.0 + spin * 0.5
-    drawNgon(cx, cy, r + 4, 3, rot1, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 3))
+    drawNgon(cx, cy, r + 6.0, 3, rot1, silhouetteColor)
+    drawNgon(cx, cy, (r * 0.92) + 5.0, 3, rot2, silhouetteColor)
+    drawNgon(cx, cy, r + 4.0 + pulse * 1.0, 3, rot1, withAlpha(glowColor, 88))
     drawNgon(cx, cy, r, 3, rot1, baseColor)
-    drawNgon(cx, cy, r * 0.85, 3, rot2, baseColor)
-    drawNgonLines(cx, cy, r + 2, 3, rot1, glowColor, 2.0)
-    drawNgonLines(cx, cy, r + 2, 3, rot2, glowColor, 1.5)
-    drawNgonLines(cx, cy, r + 6, 3, rot1, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 3), 1.0)
-    drawCircle(Vector2(x: cx, y: cy), r * 0.28, Color(r: 255, g: 255, b: 255, a: 200))
+    drawNgon(cx, cy, r * 0.85, 3, rot2, coreColor)
+    drawNgonLines(cx, cy, r + 1.8, 3, rot1, rimColor, 2.3)
+    drawNgonLines(cx, cy, r + 1.6, 3, rot2, rimColor, 1.8)
+    drawNgonLines(cx, cy, r + 5.0, 3, rot1, haloColor, 1.5)
+    drawNgonLines(cx, cy, r + 5.0, 3, rot2, withAlpha(glowColor, 92), 1.2)
+    drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
 
   of 4:  # Cross / X
     let hw = r * 0.35  # half-width of each arm
     let rot = spin * 0.4
+    drawBossCross(cx, cy, r + 3.8, hw + 2.2, rot, silhouetteColor)
+    drawBossCross(cx, cy, r + 1.4, hw + 0.8, rot, withAlpha(glowColor, 90))
     # Draw two thick perpendicular lines as a cross using quads
     for arm in 0..1:
       let a = rot + arm.float32 * PI / 2.0
@@ -98,24 +161,32 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
         Vector2(x: px.x - perp.x, y: px.y - perp.y),
         Vector2(x: nx.x - perp.x, y: nx.y - perp.y),
         baseColor)
-    drawCircleLines(cx.int32, cy.int32, r + 3, glowColor)
-    drawCircleLines(cx.int32, cy.int32, r + 6, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2))
-    drawCircleLines(cx.int32, cy.int32, r + 9, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 4))
-    drawCircle(Vector2(x: cx, y: cy), r * 0.28, Color(r: 255, g: 255, b: 255, a: 200))
+    drawBossCross(cx, cy, r * 0.56, hw * 0.65, rot, coreColor)
+    drawCircleLines(cx.int32, cy.int32, r + 3.5, rimColor)
+    drawCircleLines(cx.int32, cy.int32, r + 6.5 + pulse, haloColor)
+    drawCircleLines(cx.int32, cy.int32, r + 9.5, withAlpha(glowColor, 68))
+    drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
 
   of 5:  # Square (axis-aligned, slow rotation)
     let rot = spin * 0.25
-    drawNgon(cx, cy, r + 4, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 3))
+    drawNgon(cx, cy, r + 6.2, 4, rot, silhouetteColor)
+    drawNgon(cx, cy, r + 4.1 + pulse * 1.1, 4, rot, withAlpha(glowColor, 90))
     drawNgon(cx, cy, r, 4, rot, baseColor)
-    drawNgonLines(cx, cy, r + 2, 4, rot, glowColor, 2.0)
-    drawNgonLines(cx, cy, r + 5, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2), 1.5)
-    drawNgonLines(cx, cy, r + 8, 4, rot, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 4), 1.0)
-    drawCircle(Vector2(x: cx, y: cy), r * 0.28, Color(r: 255, g: 255, b: 255, a: 200))
+    drawNgon(cx, cy, r * 0.55, 4, rot, coreColor)
+    drawNgonLines(cx, cy, r + 1.8, 4, rot, rimColor, 2.4)
+    drawNgonLines(cx, cy, r + 4.8, 4, rot, haloColor, 1.7)
+    drawNgonLines(cx, cy, r + 7.8, 4, rot, withAlpha(glowColor, 70), 1.0)
+    drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
 
   else:  # Circle fallback
+    drawCircle(Vector2(x: cx, y: cy), r + 6.0 + pulse, silhouetteColor)
+    drawCircle(Vector2(x: cx, y: cy), r + 3.5 + pulse * 0.6, withAlpha(glowColor, 88))
     drawCircle(Vector2(x: cx, y: cy), r, baseColor)
-    drawCircleLines(cx.int32, cy.int32, r + 2, glowColor)
-    drawCircleLines(cx.int32, cy.int32, r + 5, Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a div 2))
+    drawCircle(Vector2(x: cx, y: cy), r * 0.56, coreColor)
+    drawCircleLines(cx.int32, cy.int32, r + 2, rimColor)
+    drawCircleLines(cx.int32, cy.int32, r + 5 + pulse, haloColor)
+    drawCircleLines(cx.int32, cy.int32, r + 8, withAlpha(glowColor, 70))
+    drawCircle(Vector2(x: cx, y: cy), r * 0.22, Color(r: 255, g: 255, b: 255, a: 220))
 
 const BASE_PLAYER_BULLET_RADIUS* = 5.0
 
@@ -244,6 +315,21 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       color = Pink
       glowColor = Color(r: 255, g: 100, b: 150, a: 100)
       trailColor = Pink
+
+    if bullet.isBossBullet:
+      if bullet.colorOverride.a > 0:
+        glowColor = shiftColor(bullet.colorOverride, 55, 220)
+        trailColor = withAlpha(shiftColor(bullet.colorOverride, 20), 235)
+      else:
+        color = Color(r: 255, g: 72, b: 190, a: 255)
+        glowColor = Color(r: 255, g: 225, b: 245, a: 220)
+        trailColor = Color(r: 255, g: 130, b: 215, a: 240)
+
+  if bullet.isBossBullet:
+    let warningPulse = sin(gameTime * 10.0 + bullet.radius * 0.25) * 0.5 + 0.5
+    drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius + 6.5 + warningPulse * 1.4,
+               Color(r: 10, g: 4, b: 22, a: 110))
+    drawBossBulletTrail(bullet, trailColor)
   
   # Draw bullet trail for player bullets (showcases skin colors)
   # Reduce trail for explosive bullets to improve performance
