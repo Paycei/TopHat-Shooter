@@ -1695,7 +1695,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     
     # Use the new particle skin system
     let skinType = ParticleSkinType(game.player.particleSkinType)
-    spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, skinType, game.time)
+    spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, direction, skinType, game.time)
 
 # Helper to fire delayed double-shot bursts
 proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
@@ -1816,7 +1816,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       
       # Spawn shooting particles (only once, not per bullet in multi-shot)
       if i == 0:
-        spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, ParticleSkinType(game.player.particleSkinType), game.time)
+        spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, direction, ParticleSkinType(game.player.particleSkinType), game.time)
   else:
     let bullet = newBullet(
       x = game.player.pos.x,
@@ -1847,7 +1847,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
     trackBulletFired(game)
     
     # Spawn shooting particles
-    spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, ParticleSkinType(game.player.particleSkinType), game.time)
+    spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, direction, ParticleSkinType(game.player.particleSkinType), game.time)
   
   playSound(stShoot, 0.25)
 
@@ -6898,8 +6898,8 @@ proc drawGame*(game: Game) =
   let showArenaVignette = globalSettings == nil or globalSettings.showArenaVignette
   drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight, showArenaVignette)
   
-  # Draw particles first (background layer)
-  drawParticlePool(game.particlePool)
+  # Draw background particles first
+  drawParticlePoolLayer(game.particlePool, plBackground)
 
   # Draw lightning bolt arcs (chain lightning visuals, short-lived)
   drawLightningBolts(game)
@@ -7039,6 +7039,9 @@ proc drawGame*(game: Game) =
   
   # Draw player
   drawPlayer(game.player)
+
+  # Foreground particles, such as player muzzle bursts, render over the player.
+  drawParticlePoolLayer(game.particlePool, plForeground)
   
   if game.player.lastDamageTaken > 0:
     # Re-use osBackground.alertLevel as a proxy for recent-damage intensity.

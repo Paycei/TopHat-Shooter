@@ -1,6 +1,7 @@
 import raylib, particle_types, types, random, math, strutils, particle_pool, ui/ui_constants
 
 export Particle, ParticlePool, newParticlePool, updateParticlePool, drawParticlePool
+export ParticleLayer, drawParticlePoolLayer
 export spawnExplosionPooled, spawnTimedParticlesPooled, spawnTimedParticlesAroundPooled
 export spawnShockwavePooled, spawnExplosiveRingPooled, spawnSpiralExplosionPooled, spawnNovaExplosionPooled
 export spawnTrailParticlePooled, spawnEnemyDeathBurst
@@ -31,6 +32,8 @@ proc updateDamageNumber*(dmgNum: DamageNumber, dt: float32): bool =
 proc drawDamageNumber*(dmgNum: DamageNumber) =
   let progress = dmgNum.lifetime / dmgNum.maxLifetime
   let alpha = (1.0 - progress) * 255.0
+  let popScale = 1.0 + sin((1.0 - progress) * PI) *
+    (if dmgNum.isCritical: 0.26 else: 0.12)
   
   var color: Color
   var fontSize: int32
@@ -109,6 +112,8 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
       color = Color(r: 255, g: 150, b: 0, a: alpha.uint8)
     
     fontSize = 20
+
+  let scaledFontSize = int32(max(12.0, fontSize.float32 * popScale))
   
   # Multiply damage by BALANCE_MULTIPLIER for display
   let displayDamage = dmgNum.damage * BALANCE_MULTIPLIER
@@ -122,16 +127,27 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
       formatFloat(displayDamage, ffDecimal, 2)
   
   let displayText = if dmgNum.isCritical: damageText & "!" else: damageText
-  let textWidth = measureText($displayText, fontSize)
+  let textWidth = measureText($displayText, scaledFontSize)
   let x = (dmgNum.pos.x - textWidth.float32 / 2.0).int32
   let y = dmgNum.pos.y.int32
+
+  let glowColor = Color(
+    r: color.r,
+    g: color.g,
+    b: color.b,
+    a: uint8(alpha * (if dmgNum.isCritical: 0.28 else: 0.18))
+  )
+  for dx in [-2, 0, 2]:
+    for dy in [-2, 0, 2]:
+      if dx != 0 or dy != 0:
+        drawText($displayText, int32(x + dx), int32(y + dy), scaledFontSize, glowColor)
   
   # Outline (black)
   for dx in [-1, 0, 1]:
     for dy in [-1, 0, 1]:
       if dx != 0 or dy != 0:
-        drawText($displayText, int32(x + dx), int32(y + dy), fontSize,
+        drawText($displayText, int32(x + dx), int32(y + dy), scaledFontSize,
                 Color(r: 0, g: 0, b: 0, a: uint8(alpha * 0.8)))
   
   # Main text
-  drawText($displayText, x, y, fontSize, color)
+  drawText($displayText, x, y, scaledFontSize, color)

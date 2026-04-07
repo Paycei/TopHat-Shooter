@@ -8,6 +8,16 @@ type
   Vector2f* = object
     x*, y*: float32
 
+  ParticleStyle* = enum
+    psSoft,     ## Round glowing puff used for general energy/smoke
+    psSpark,    ## Thin streak used for impacts and electrical accents
+    psEmber,    ## Heavier glowing ember with a softer fade
+    psShard     ## Angular fragment used for debris/shrapnel
+
+  ParticleLayer* = enum
+    plBackground,
+    plForeground
+
 # Vector2f utility functions
 proc newVector2f*(x, y: float32): Vector2f =
   result.x = x
@@ -44,6 +54,15 @@ type
     lifetime*: float32
     maxLifetime*: float32
     size*: float32
+    startSize*: float32
+    endSize*: float32
+    drag*: float32
+    gravity*: float32
+    glow*: float32
+    style*: ParticleStyle
+    layer*: ParticleLayer
+    rotation*: float32
+    spin*: float32
 
   ParticlePool* = ref object
     particles*: seq[Particle]     # Pre-allocated particle objects

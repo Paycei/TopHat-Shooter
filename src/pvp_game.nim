@@ -1835,7 +1835,8 @@ proc drawPvP*(pvp: PvPGameState) =
     )
   
   # Draw particles
-  drawParticlePool(pvp.particlePool)
+  drawParticlePoolLayer(pvp.particlePool, plBackground)
+  drawParticlePoolLayer(pvp.particlePool, plForeground)
   
   # Draw damage numbers
   for dn in pvp.damageNumbers:

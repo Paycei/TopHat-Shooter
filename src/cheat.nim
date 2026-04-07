@@ -213,7 +213,7 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   # Reset player stats to TRUE base values (matching newPlayer) and reapply all remaining power-ups
   # This ensures stat modifications from the removed power-up are undone
   game.player.baseSpeed = 175.0
-  game.player.fireRate = 0.425
+  game.player.fireRate = 0.4275
   game.player.damage = 1.0
   game.player.bulletSpeed = 325.0
   game.player.maxHp = 9.0

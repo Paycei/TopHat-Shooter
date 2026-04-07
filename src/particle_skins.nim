@@ -280,36 +280,179 @@ proc getUnlockedParticleSkins*(): seq[ParticleSkinType] =
     if isParticleSkinUnlocked(skinType):
       result.add(skinType)
 
-proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, skinType: ParticleSkinType, time: float32) =
+proc shootingParticleStyle(skinType: ParticleSkinType, index: int): ParticleStyle =
+  case skinType
+  of pskFire, pskGold, pskLightning:
+    if index mod 3 == 0: psSoft else: psSpark
+  of pskIce, pskStars:
+    if index mod 2 == 0: psShard else: psSoft
+  of pskToxic, pskShadow, pskVoid, pskHearts:
+    if index mod 3 == 0: psSoft else: psEmber
+  else:
+    if index mod 4 == 0: psSpark else: psSoft
+
+proc shootingParticleLifetime(skinType: ParticleSkinType, style: ParticleStyle): float32 =
+  result =
+    case style
+    of psSpark: 0.10'f32 + rand(0.10).float32
+    of psShard: 0.16'f32 + rand(0.12).float32
+    of psEmber: 0.22'f32 + rand(0.18).float32
+    of psSoft: 0.16'f32 + rand(0.14).float32
+
+  case skinType
+  of pskHearts, pskStars, pskVoid:
+    result += 0.08'f32
+  of pskLightning:
+    result *= 0.85'f32
+  else:
+    discard
+
+proc shootingParticleGravity(skinType: ParticleSkinType, style: ParticleStyle): float32 =
+  case skinType
+  of pskFire, pskGold:
+    if style == psSpark: 0.0 else: 20.0'f32 + rand(35.0).float32
+  of pskToxic:
+    -25.0'f32 - rand(35.0).float32
+  of pskShadow, pskVoid:
+    -10.0'f32 - rand(20.0).float32
+  of pskHearts:
+    -30.0'f32 - rand(25.0).float32
+  of pskIce, pskStars:
+    8.0'f32 + rand(18.0).float32
+  else:
+    if style == psEmber: 10.0'f32 + rand(20.0).float32 else: 0.0'f32
+
+proc shootingParticleGlow(skinType: ParticleSkinType): float32 =
+  case skinType
+  of pskLightning, pskPlasma, pskVoid:
+    1.35'f32
+  of pskGold, pskStars, pskFire:
+    1.1'f32
+  else:
+    0.9'f32
+
+proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vector2f,
+                             skinType: ParticleSkinType, time: float32) =
   ## Spawn particles when player shoots, using the selected particle skin
   let skin = particleSkinDatabase[skinType]
   let (primaryColor, secondaryColor) = getParticleSkinColors(skinType, time)
-  
-  # Spawn particles in random directions
-  for i in 0..<skin.particleCount:
-    # Determine which color to use (mix of primary and secondary)
+  let shootDir =
+    if direction.length() > 0.01'f32: direction.normalize()
+    else: newVector2f(1.0, 0.0)
+  let sideDir = newVector2f(-shootDir.y, shootDir.x)
+  let boostedCount = skin.particleCount + max(3, skin.particleCount div 3)
+
+  discard pool.acquireParticleDetailed(
+    x, y,
+    shootDir.x * (12.0'f32 + rand(18.0).float32),
+    shootDir.y * (12.0'f32 + rand(18.0).float32),
+    secondaryColor,
+    lifetime = 0.10'f32 + rand(0.07).float32,
+    startSize = 6.0'f32 + rand(2.4).float32,
+    endSize = 0.35'f32,
+    drag = 6.0'f32,
+    glow = shootingParticleGlow(skinType) + 0.6'f32,
+    style = psSoft,
+    layer = plForeground
+  )
+
+  for i in 0..<boostedCount:
     let useSecondary = rand(1.0) < 0.4
     let color = if useSecondary: secondaryColor else: primaryColor
-    
-    # Add slight speed variation
-    let speedVariation = 0.8 + rand(0.4)
+    let speedVariation = 0.86'f32 + rand(0.6).float32
     let speed = skin.particleSpeed * speedVariation
-    
-    discard pool.acquireParticle(x, y, color, speed)
-  
-  # Special effects for certain particle types
+    let style = shootingParticleStyle(skinType, i)
+    let forwardBias = 0.70'f32 + rand(0.55).float32
+    let lateralBias = (-0.70'f32 + rand(1.4).float32)
+    let velocity = (shootDir * (speed * forwardBias) + sideDir * (speed * lateralBias * 0.45'f32))
+    let spawnDistance = rand(3.0).float32
+    let spawnX = x + shootDir.x * spawnDistance + sideDir.x * lateralBias * 1.5'f32
+    let spawnY = y + shootDir.y * spawnDistance + sideDir.y * lateralBias * 1.5'f32
+    let startSize =
+      case style
+      of psSpark: 1.8'f32 + rand(1.1).float32
+      of psShard: 2.3'f32 + rand(1.4).float32
+      of psEmber: 2.6'f32 + rand(1.6).float32
+      of psSoft: 3.0'f32 + rand(1.9).float32
+
+    discard pool.acquireParticleDetailed(
+      spawnX, spawnY,
+      velocity.x,
+      velocity.y,
+      color,
+      lifetime = shootingParticleLifetime(skinType, style),
+      startSize = startSize,
+      endSize = 0.2'f32,
+      drag = 4.0'f32 + rand(3.0).float32,
+      gravity = shootingParticleGravity(skinType, style),
+      glow = shootingParticleGlow(skinType) + 0.15'f32,
+      style = style,
+      layer = plForeground,
+      rotation = rand(360.0).float32,
+      spin = (-220.0 + rand(440.0)).float32
+    )
+
   case skinType
   of pskLightning:
-    # Extra fast sparks for lightning
     for i in 0..<3:
-      discard pool.acquireParticle(x, y, primaryColor, skin.particleSpeed * 1.5)
+      let angle = i.float32 * 0.18'f32 - 0.18'f32 + rand(0.1).float32
+      let boltDir = newVector2f(
+        shootDir.x * cos(angle) - shootDir.y * sin(angle),
+        shootDir.x * sin(angle) + shootDir.y * cos(angle)
+      )
+      let speed = skin.particleSpeed * (1.2'f32 + rand(0.35).float32)
+      discard pool.acquireParticleDetailed(
+        x, y, boltDir.x * speed, boltDir.y * speed, primaryColor,
+        lifetime = 0.08'f32 + rand(0.06).float32,
+        startSize = 2.2'f32 + rand(0.9).float32,
+        endSize = 0.1'f32,
+        drag = 3.0'f32,
+        glow = 1.8'f32,
+        style = psSpark,
+        layer = plForeground,
+        rotation = arctan2(boltDir.y, boltDir.x) * 180.0'f32 / PI.float32
+      )
   of pskHearts, pskStars:
-    # Slower, more deliberate particles
     for i in 0..<skin.particleCount div 2:
-      discard pool.acquireParticle(x, y, primaryColor, skin.particleSpeed * 0.6)
+      let angle = i.float32 * 0.18'f32 - 0.18'f32
+      let orbitDir = newVector2f(
+        shootDir.x * cos(angle) - shootDir.y * sin(angle),
+        shootDir.x * sin(angle) + shootDir.y * cos(angle)
+      )
+      let speed = skin.particleSpeed * (0.45'f32 + rand(0.18).float32)
+      discard pool.acquireParticleDetailed(
+        x, y, orbitDir.x * speed, orbitDir.y * speed, primaryColor,
+        lifetime = 0.24'f32 + rand(0.16).float32,
+        startSize = 2.8'f32 + rand(1.2).float32,
+        endSize = 0.2'f32,
+        drag = 5.0'f32,
+        gravity = if skinType == pskHearts: -28.0'f32 else: 10.0'f32,
+        glow = 1.1'f32,
+        style = if skinType == pskStars: psShard else: psSoft,
+        layer = plForeground,
+        rotation = rand(360.0).float32,
+        spin = (-160.0 + rand(320.0)).float32
+      )
   of pskVoid:
-    # Inward-pulling effect (spawn some slower particles)
     for i in 0..<4:
-      discard pool.acquireParticle(x, y, secondaryColor, skin.particleSpeed * 0.3)
+      let angle = i.float32 * 0.25'f32 - 0.375'f32
+      let swirlDir = newVector2f(
+        shootDir.x * cos(angle) - shootDir.y * sin(angle),
+        shootDir.x * sin(angle) + shootDir.y * cos(angle)
+      )
+      let speed = skin.particleSpeed * (0.22'f32 + rand(0.12).float32)
+      discard pool.acquireParticleDetailed(
+        x, y, swirlDir.x * speed, swirlDir.y * speed, secondaryColor,
+        lifetime = 0.26'f32 + rand(0.12).float32,
+        startSize = 3.2'f32 + rand(1.2).float32,
+        endSize = 0.2'f32,
+        drag = 7.0'f32,
+        gravity = -18.0'f32,
+        glow = 1.45'f32,
+        style = psEmber,
+        layer = plForeground,
+        rotation = rand(360.0).float32,
+        spin = (-200.0 + rand(400.0)).float32
+      )
   else:
-    discard  # No special effects for other types
+    discard
