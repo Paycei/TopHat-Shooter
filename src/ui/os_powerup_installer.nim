@@ -2,7 +2,7 @@
 ## Power-up selection screen as modern software installation interface
 # The roll animation system is handled in powerup.nim
 
-import raylib, ../types, math, strutils, icon_drawing, ../localization, ../powerup_data
+import raylib, ../types, math, strutils, icon_drawing, ../localization, ../powerup_data, ../render_context
 
 const
   INSTALLER_WIDTH = 1000
@@ -450,7 +450,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
       let cardAlpha = clamp(1.0'f32 - speedFrac * 0.75'f32, 0.25'f32, 1.0'f32)
 
       # Draw cards through the slot viewport
-      beginScissorMode(cardX, cardY, CARD_WIDTH, CARD_HEIGHT)
+      beginVirtualScissorMode(cardX, cardY, CARD_WIDTH, CARD_HEIGHT)
 
       # j=0: card above viewport (needed when offsetY is non-zero)
       # j=1: primary card in viewport

@@ -1,4 +1,4 @@
-import raylib, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival, render_context  # Import 3D game module
+import raylib, rlgl, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival, render_context  # Import 3D game module
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -6878,17 +6878,8 @@ proc drawGame*(game: Game) =
   shakeOffsetY = shakeOffset.y
   
   if shakeOffsetX != 0 or shakeOffsetY != 0:
-    
-    # Apply shake using Camera2D
-    var camera = Camera2D(
-      offset: Vector2(x: game.screenWidth.float32 / 2.0 + shakeOffsetX,
-                     y: game.screenHeight.float32 / 2.0 + shakeOffsetY),
-      target: Vector2(x: game.screenWidth.float32 / 2.0,
-                     y: game.screenHeight.float32 / 2.0),
-      rotation: 0,
-      zoom: 1.0
-    )
-    beginMode2D(camera)
+    pushMatrix()
+    translatef(shakeOffsetX, shakeOffsetY, 0.0'f32)
   
   # Update and draw OS-style background
   let dt = getFrameTime()
@@ -7163,7 +7154,7 @@ proc drawGame*(game: Game) =
   
   # End 2D camera mode if screen shake was applied
   if shakeOffsetX != 0 or shakeOffsetY != 0:
-    endMode2D()
+    popMatrix()
 
 proc drawGameOver*(game: Game) =
   # Use the new OS-style system crash screen

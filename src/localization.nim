@@ -24,6 +24,11 @@ type
     tkSettingsMusic = "settings_music"
     tkSettingsFullscreen = "settings_fullscreen"
     tkSettingsFullscreenToggle = "settings_fullscreen_toggle"
+    tkSettingsRenderResolution = "settings_render_resolution"
+    tkSettingsRenderResolutionDesc = "settings_render_resolution_desc"
+    tkSettingsRenderResolutionDisabled = "settings_render_resolution_disabled"
+    tkSettingsRenderResolutionEnabled = "settings_render_resolution_enabled"
+    tkSettingsRenderResolutionFullscreenOnly = "settings_render_resolution_fullscreen_only"
     tkSettingsShowFps = "settings_show_fps"
     tkSettingsMouseSupport = "settings_mouse_support"
     tkSettingsMouseSupportDesc = "settings_mouse_support_desc"
@@ -1226,6 +1231,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_music": "Music:",
     "settings_fullscreen": "Fullscreen:",
     "settings_fullscreen_toggle": "(Press F11 to toggle)",
+    "settings_render_resolution": "Improved resolution (SSAA):",
+    "settings_render_resolution_desc": "(improves fullscreen sharpness)",
+    "settings_render_resolution_disabled": "Disabled",
+    "settings_render_resolution_enabled": "Enabled",
+    "settings_render_resolution_fullscreen_only": "Fullscreen Only",
     "settings_show_fps": "Show FPS:",
     "settings_mouse_support": "Mouse Support:",
     "settings_mouse_support_desc": "(new menu navigation)",
@@ -2477,6 +2487,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_music": "Música:",
     "settings_fullscreen": "Pantalla:",
     "settings_fullscreen_toggle": "(F11 para cambiar)",
+    "settings_render_resolution": "Resolucion mejorada (SSAA):",
+    "settings_render_resolution_desc": "(mejora la nitidez en pantalla completa)",
+    "settings_render_resolution_disabled": "Desactivada",
+    "settings_render_resolution_enabled": "Activada",
+    "settings_render_resolution_fullscreen_only": "Solo pantalla completa",
     "settings_show_fps": "Mostrar FPS:",
     "settings_mouse_support": "Ratón:",
     "settings_mouse_support_desc": "(navegación de menú)",

@@ -1,4 +1,4 @@
-import raylib
+import raylib, math
 
 when defined(windows):
   type
@@ -25,6 +25,7 @@ var
   currentRenderOffsetY = 0.0'f32
   currentVirtualWidth = 1024.0'f32
   currentVirtualHeight = 768.0'f32
+  currentRenderSupersampleScale = 1.0'f32
   mouseClipActive = false
 
 proc updateRenderInputTransform*(scale, offsetX, offsetY: float32,
@@ -34,6 +35,20 @@ proc updateRenderInputTransform*(scale, offsetX, offsetY: float32,
   currentRenderOffsetY = offsetY
   currentVirtualWidth = virtualWidth.float32
   currentVirtualHeight = virtualHeight.float32
+
+proc setRenderSupersampleScale*(scale: float32) =
+  currentRenderSupersampleScale = max(scale, 1.0'f32)
+
+proc getRenderSupersampleScale*(): float32 =
+  currentRenderSupersampleScale
+
+proc beginVirtualScissorMode*(x, y, width, height: int32) =
+  let supersampleScale = getRenderSupersampleScale()
+  let scaledX = floor(x.float32 * supersampleScale).int32
+  let scaledY = floor(y.float32 * supersampleScale).int32
+  let scaledWidth = max(1'i32, ceil(width.float32 * supersampleScale).int32)
+  let scaledHeight = max(1'i32, ceil(height.float32 * supersampleScale).int32)
+  beginScissorMode(scaledX, scaledY, scaledWidth, scaledHeight)
 
 proc getVirtualMousePosition*(): Vector2 =
   let screenPos = getMousePosition()

@@ -8,6 +8,11 @@ type
     mbmAlwaysInGame = "always_in_game"
     mbmAlways = "always"
 
+  RenderResolutionMode* = enum
+    rrmDisabled = "disabled"
+    rrmEnabled = "enabled"
+    rrmFullscreenOnly = "fullscreen_only"
+
   Settings* = ref object
     fpsLimit*: int32
     volume*: float32
@@ -17,6 +22,7 @@ type
     editingVolume*: bool
     editingMusicVolume*: bool
     fullscreen*: bool
+    renderResolutionMode*: RenderResolutionMode
     showFPS*: bool
     mouseSupport*: bool
     mouseBondingMode*: MouseBondingMode
@@ -70,6 +76,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "volume": settings.volume,
     "musicVolume": settings.musicVolume,
     "fullscreen": settings.fullscreen,
+    "renderResolutionMode": $settings.renderResolutionMode,
     "showFPS": settings.showFPS,
     "mouseSupport": settings.mouseSupport,
     "mouseBondingMode": $settings.mouseBondingMode,
@@ -101,6 +108,12 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("fullscreen"):
     settings.fullscreen = jsonNode["fullscreen"].getBool()
+
+  if jsonNode.hasKey("renderResolutionMode"):
+    try:
+      settings.renderResolutionMode = parseEnum[RenderResolutionMode](jsonNode["renderResolutionMode"].getStr())
+    except ValueError:
+      settings.renderResolutionMode = rrmFullscreenOnly
 
   if jsonNode.hasKey("showFPS"):
     settings.showFPS = jsonNode["showFPS"].getBool()

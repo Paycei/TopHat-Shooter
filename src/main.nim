@@ -1,8 +1,10 @@
-import raylib, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, os, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables, render_context
+import raylib, rlgl, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, os, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables, render_context
 
 const
   screenWidth = 1024
   screenHeight = 768
+  maxRenderSupersampleFactor = 2
+  maxRenderSupersampleScale = maxRenderSupersampleFactor.float32
   targetFPS = 60
   MOUSE_MOVEMENT_THRESHOLD = 2.0  # Minimum pixel movement to count as "mouse moved"
 
@@ -14,10 +16,33 @@ var globalWindowManager: WindowManager = nil
 
 var
   renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
+  currentRenderTargetSupersampleScale: float32 = 0.0
   renderScale: float32 = 1.0
   renderOffsetX: float32 = 0.0
   renderOffsetY: float32 = 0.0
   currentPvPGame: PvPGameState = nil
+
+proc rebuildRenderTarget(supersampleScale: float32) =
+  let renderTargetWidth = int32(screenWidth.float32 * supersampleScale)
+  let renderTargetHeight = int32(screenHeight.float32 * supersampleScale)
+  renderTarget = loadRenderTexture(renderTargetWidth, renderTargetHeight)
+  setTextureFilter(renderTarget.texture, Bilinear)
+  currentRenderTargetSupersampleScale = supersampleScale
+
+proc getConfiguredRenderSupersampleScale(settings: Settings): float32 =
+  case settings.renderResolutionMode
+  of rrmDisabled:
+    1.0'f32
+  of rrmEnabled:
+    maxRenderSupersampleScale
+  of rrmFullscreenOnly:
+    if settings.fullscreen: maxRenderSupersampleScale else: 1.0'f32
+
+proc updateRenderSupersampleState(settings: Settings) =
+  let targetSupersampleScale = getConfiguredRenderSupersampleScale(settings)
+  if abs(targetSupersampleScale - currentRenderTargetSupersampleScale) > 0.001'f32:
+    rebuildRenderTarget(targetSupersampleScale)
+  setRenderSupersampleScale(targetSupersampleScale)
 
 proc updateRenderScale() =
   ## Calculate letterbox scaling for current window size
@@ -41,16 +66,23 @@ proc updateRenderScale() =
 proc beginGameDrawing() =
   ## Begin drawing to the virtual render target
   beginTextureMode(renderTarget)
+  clearBackground(Black)
+  let activeSupersampleScale = getRenderSupersampleScale()
+  pushMatrix()
+  scalef(activeSupersampleScale, activeSupersampleScale, 1.0'f32)
 
 proc endGameDrawing() =
   ## End drawing to render target and blit to screen with letterboxing
+  popMatrix()
   endTextureMode()
   
   beginDrawing()
   clearBackground(Black)  # Black bars for letterboxing
   
   # Draw the scaled render texture
-  let source = Rectangle(x: 0, y: 0, width: screenWidth.float32, height: -screenHeight.float32)
+  let source = Rectangle(x: 0, y: 0,
+                         width: renderTarget.texture.width.float32,
+                         height: -renderTarget.texture.height.float32)
   let dest = Rectangle(x: renderOffsetX, y: renderOffsetY,
                        width: screenWidth.float32 * renderScale,
                        height: screenHeight.float32 * renderScale)
@@ -191,7 +223,7 @@ proc main() =
   applyWindowMode(settings.fullscreen)
   
   # Create render target for letterboxing
-  renderTarget = loadRenderTexture(screenWidth, screenHeight)
+  updateRenderSupersampleState(settings)
   updateRenderScale()
   
   # Create loading screen
@@ -212,9 +244,9 @@ proc main() =
     let dt = getFrameTime()
     loadingScreen.update(dt)
     
-    beginDrawing()
+    beginGameDrawing()
     loadingScreen.draw(screenWidth, screenHeight)
-    endDrawing()
+    endGameDrawing()
   
   discard initSoundSystem(updateLoadingProgress)
   
@@ -276,6 +308,8 @@ proc main() =
       applyWindowMode(settings.fullscreen)
       if not saveSettings(settings):
         echo "Warning: Failed to save settings to disk"
+
+    updateRenderSupersampleState(settings)
     
     let dt = getFrameTime()
     

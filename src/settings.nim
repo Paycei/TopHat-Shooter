@@ -1,7 +1,7 @@
 ## Settings Backend Module
 ## Handles settings initialization, state management, and application
 
-from save_system import Settings, mbmWhileShooting, saveSettings, loadSettings
+from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, saveSettings, loadSettings
 import raylib, sound, localization, strutils
 export Settings
 
@@ -18,6 +18,7 @@ proc initSettings*(): Settings =
     editingVolume: false,
     editingMusicVolume: false,
     fullscreen: false,
+    renderResolutionMode: rrmFullscreenOnly,
     showFPS: false,
     mouseSupport: true,
     mouseBondingMode: mbmWhileShooting,

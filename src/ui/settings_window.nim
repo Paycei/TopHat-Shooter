@@ -160,6 +160,18 @@ proc nextMouseBondingMode(mode: MouseBondingMode): MouseBondingMode =
   of mbmAlwaysInGame: mbmAlways
   of mbmAlways: mbmOff
 
+proc getRenderResolutionModeLabel(mode: RenderResolutionMode): string =
+  case mode
+  of rrmDisabled: t(tkSettingsRenderResolutionDisabled)
+  of rrmEnabled: t(tkSettingsRenderResolutionEnabled)
+  of rrmFullscreenOnly: t(tkSettingsRenderResolutionFullscreenOnly)
+
+proc nextRenderResolutionMode(mode: RenderResolutionMode): RenderResolutionMode =
+  case mode
+  of rrmDisabled: rrmEnabled
+  of rrmEnabled: rrmFullscreenOnly
+  of rrmFullscreenOnly: rrmDisabled
+
 proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
   
@@ -178,7 +190,40 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                   mousePos.y <= (yPos + 25).float32
   drawCheckbox(fsCheckX, yPos, 25, settingsWin.settings.fullscreen, fsHovered)
   drawText(t(tkSettingsFullscreenToggle), (fsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 40
+
+  drawText(t(tkSettingsRenderResolution), (contentX + 40).int32, yPos.int32, 18, White)
+  let renderModeButtonX = contentX + 320
+  let renderModeButtonY = yPos - 5
+  let renderModeButtonWidth = 220
+  let renderModeButtonHeight = 35
+  let renderModeHovered = mousePos.x >= renderModeButtonX.float32 and
+                          mousePos.x <= (renderModeButtonX + renderModeButtonWidth).float32 and
+                          mousePos.y >= renderModeButtonY.float32 and
+                          mousePos.y <= (renderModeButtonY + renderModeButtonHeight).float32
+
+  let renderModeBgColor = if renderModeHovered:
+    Color(r: 80, g: 80, b: 100, a: 255)
+  else:
+    Color(r: 60, g: 60, b: 80, a: 255)
+
+  drawRectangle(renderModeButtonX.int32, renderModeButtonY.int32,
+                renderModeButtonWidth.int32, renderModeButtonHeight.int32, renderModeBgColor)
+  drawRectangleLines(Rectangle(x: renderModeButtonX.float32, y: renderModeButtonY.float32,
+                                width: renderModeButtonWidth.float32, height: renderModeButtonHeight.float32),
+                    1, if renderModeHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+
+  let renderModeText = getRenderResolutionModeLabel(settingsWin.settings.renderResolutionMode)
+  let renderModeTextWidth = measureText(renderModeText, 16)
+  drawText("<", renderModeButtonX.int32 + 10, yPos.int32, 18, LightGray)
+  drawText(renderModeText,
+          (renderModeButtonX + (renderModeButtonWidth - renderModeTextWidth) div 2).int32,
+          yPos.int32, 16, White)
+  drawText(">", (renderModeButtonX + renderModeButtonWidth - 25).int32, yPos.int32, 18, LightGray)
+
   yPos += 35
+  drawText(t(tkSettingsRenderResolutionDesc), renderModeButtonX.int32, yPos.int32, 14, LightGray)
+  yPos += 25
   
   # FPS Limit
   drawText(t(tkSettingsFpsLimit), (contentX + 40).int32, yPos.int32, 18, White)
@@ -510,10 +555,20 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsWin.settings.fullscreen = not settingsWin.settings.fullscreen
         fullscreenToggle = true
         settingsChanged = true
+
+      let renderModeButtonX = contentX + 320
+      let renderModeButtonY = contentY + 85
+      let renderModeButtonWidth = 220
+      let renderModeButtonHeight = 35
+      if mousePos.x >= renderModeButtonX.float32 and mousePos.x <= (renderModeButtonX + renderModeButtonWidth).float32 and
+         mousePos.y >= renderModeButtonY.float32 and mousePos.y <= (renderModeButtonY + renderModeButtonHeight).float32:
+        settingsWin.settings.renderResolutionMode = nextRenderResolutionMode(settingsWin.settings.renderResolutionMode)
+        playSound(stMenuSelect)
+        settingsChanged = true
       
       # FPS input box
       let boxX = contentX + 320
-      let boxY = contentY + 80
+      let boxY = contentY + 145
       let boxWidth = 120
       let boxHeight = 30
       let boxHit = mousePos.x >= boxX.float32 and mousePos.x <= (boxX + boxWidth).float32 and
@@ -538,7 +593,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       
       # Show FPS checkbox (25x25 hit area)
       let fpsCheckX = contentX + 320
-      let fpsCheckY = contentY + 125
+      let fpsCheckY = contentY + 190
       if mousePos.x >= fpsCheckX.float32 and mousePos.x <= (fpsCheckX + 25).float32 and
          mousePos.y >= fpsCheckY.float32 and mousePos.y <= (fpsCheckY + 25).float32:
         settingsWin.settings.showFPS = not settingsWin.settings.showFPS
@@ -546,21 +601,21 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       
       # Debug checkbox (25x25 hit area)
       let debugCheckX = contentX + 320
-      let debugCheckY = contentY + 160
+      let debugCheckY = contentY + 225
       if mousePos.x >= debugCheckX.float32 and mousePos.x <= (debugCheckX + 25).float32 and
          mousePos.y >= debugCheckY.float32 and mousePos.y <= (debugCheckY + 25).float32:
         settingsWin.settings.showDebugStats = not settingsWin.settings.showDebugStats
         settingsChanged = true
 
       let arenaVignetteCheckX = contentX + 320
-      let arenaVignetteCheckY = contentY + 195
+      let arenaVignetteCheckY = contentY + 260
       if mousePos.x >= arenaVignetteCheckX.float32 and mousePos.x <= (arenaVignetteCheckX + 25).float32 and
          mousePos.y >= arenaVignetteCheckY.float32 and mousePos.y <= (arenaVignetteCheckY + 25).float32:
         settingsWin.settings.showArenaVignette = not settingsWin.settings.showArenaVignette
         settingsChanged = true
 
       let lowHpVignetteCheckX = contentX + 320
-      let lowHpVignetteCheckY = contentY + 230
+      let lowHpVignetteCheckY = contentY + 295
       if mousePos.x >= lowHpVignetteCheckX.float32 and mousePos.x <= (lowHpVignetteCheckX + 25).float32 and
          mousePos.y >= lowHpVignetteCheckY.float32 and mousePos.y <= (lowHpVignetteCheckY + 25).float32:
         settingsWin.settings.showLowHealthVignette = not settingsWin.settings.showLowHealthVignette

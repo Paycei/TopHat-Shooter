@@ -905,7 +905,7 @@ proc drawShopWindow*(shop: ShopWindow) =
         let isSelected = skinType == shop.selectedPlayerSkin
         let isHovered = skinIndex == shop.hoveredSkin
         
-        beginScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
+        beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
         drawPlayerSkinPreview(boxX, boxY, skinType, shop.selectedShape, shop.animationTime, isSelected, isHovered)
         endScissorMode()
       
@@ -925,7 +925,7 @@ proc drawShopWindow*(shop: ShopWindow) =
         let isSelected = skinType == shop.selectedBulletSkin
         let isHovered = skinIndex == shop.hoveredSkin
         
-        beginScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
+        beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
         drawBulletSkinPreview(boxX, boxY, skinType, shop.animationTime, isSelected, isHovered)
         endScissorMode()
       
@@ -945,7 +945,7 @@ proc drawShopWindow*(shop: ShopWindow) =
         let isSelected = shapeType == shop.selectedShape
         let isHovered = shapeIndex == shop.hoveredSkin
         
-        beginScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
+        beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
         drawShapePreview(boxX, boxY, shapeType, shop.animationTime, isSelected, isHovered)
         endScissorMode()
       
@@ -961,7 +961,7 @@ proc drawShopWindow*(shop: ShopWindow) =
       if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
         let isSelected = bshapeType == shop.selectedBulletShape
         let isHovered = bshapeIndex == shop.hoveredSkin
-        beginScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
+        beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
         drawBulletShapePreview(boxX, boxY, bshapeType, shop.animationTime, isSelected, isHovered)
         endScissorMode()
       bshapeIndex += 1
@@ -980,7 +980,7 @@ proc drawShopWindow*(shop: ShopWindow) =
         let isSelected = particleType == shop.selectedParticle
         let isHovered = particleIndex == shop.hoveredSkin
         
-        beginScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
+        beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
         drawParticlePreview(boxX, boxY, particleType, shop.animationTime, isSelected, isHovered)
         endScissorMode()
       
