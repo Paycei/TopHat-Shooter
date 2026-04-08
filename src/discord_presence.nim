@@ -9,6 +9,10 @@ else:
   import posix
 
 type
+  DiscordButton* = object
+    label*: string
+    url*: string
+
   DiscordRichPresence* = object
     state*: string
     details*: string
@@ -21,6 +25,8 @@ type
     partyId*: string
     partySize*: int
     partyMax*: int
+    buttons*: seq[DiscordButton]
+    clearActivity*: bool
 
   DiscordClient* = ref object
     clientId: string
@@ -178,6 +184,80 @@ proc connectSync(client: DiscordClient): bool =
       discard
   return false
 
+proc putIfNotEmpty(node: JsonNode, key, value: string) =
+  if value.len > 0:
+    node[key] = %value
+
+proc buildAssetsNode(presence: DiscordRichPresence): JsonNode =
+  result = newJObject()
+  result.putIfNotEmpty("large_image", presence.largeImageKey)
+  result.putIfNotEmpty("large_text", presence.largeImageText)
+  result.putIfNotEmpty("small_image", presence.smallImageKey)
+  result.putIfNotEmpty("small_text", presence.smallImageText)
+
+proc buildTimestampsNode(presence: DiscordRichPresence): JsonNode =
+  result = newJObject()
+  if presence.startTimestamp > 0:
+    result["start"] = %presence.startTimestamp
+  if presence.endTimestamp > 0:
+    result["end"] = %presence.endTimestamp
+
+proc buildPartyNode(presence: DiscordRichPresence): JsonNode =
+  result = newJObject()
+  result.putIfNotEmpty("id", presence.partyId)
+  if presence.partySize > 0 or presence.partyMax > 0:
+    result["size"] = %* [presence.partySize, presence.partyMax]
+
+proc buildButtonsNode(buttons: openArray[DiscordButton]): JsonNode =
+  result = newJArray()
+  for button in buttons:
+    if button.label.len == 0 or button.url.len == 0:
+      continue
+
+    var buttonNode = newJObject()
+    buttonNode["label"] = %button.label
+    buttonNode["url"] = %button.url
+    result.add(buttonNode)
+
+proc buildSetActivityPayload(client: DiscordClient, presence: DiscordRichPresence): JsonNode =
+  result = newJObject()
+  result["cmd"] = %"SET_ACTIVITY"
+  result["nonce"] = %($client.nonce)
+
+  var argsNode = newJObject()
+  argsNode["pid"] = %getProcessId()
+
+  if presence.clearActivity:
+    argsNode["activity"] = newJNull()
+  else:
+    var activity = newJObject()
+    activity.putIfNotEmpty("state", presence.state)
+    activity.putIfNotEmpty("details", presence.details)
+
+    let assets = buildAssetsNode(presence)
+    if assets.len > 0:
+      activity["assets"] = assets
+
+    let timestamps = buildTimestampsNode(presence)
+    if timestamps.len > 0:
+      activity["timestamps"] = timestamps
+
+    let party = buildPartyNode(presence)
+    if party.len > 0:
+      activity["party"] = party
+
+    let buttons = buildButtonsNode(presence.buttons)
+    if buttons.len > 0:
+      activity["buttons"] = buttons
+
+    argsNode["activity"] = activity
+
+  result["args"] = argsNode
+
+proc sendPresenceNow(client: DiscordClient, presence: DiscordRichPresence) =
+  client.nonce += 1
+  client.writeFrame(OPCODES.FRAME, $buildSetActivityPayload(client, presence))
+
 proc discordWorkerThread(client: DiscordClient) {.thread.} =
   ## Background thread that handles Discord IPC communication
   ## This runs independently and never blocks the main game thread
@@ -209,31 +289,7 @@ proc discordWorkerThread(client: DiscordClient) {.thread.} =
         client.lastUpdateTime = currentTime
         
         try:
-          client.nonce += 1
-          var activity = %* {
-            "state": presence.state,
-            "details": presence.details,
-            "assets": {
-              "large_image": presence.largeImageKey,
-              "large_text": presence.largeImageText
-            }
-          }
-          
-          if presence.startTimestamp > 0:
-            activity["timestamps"] = %* {
-              "start": presence.startTimestamp
-            }
-          
-          let payload = %* {
-            "cmd": "SET_ACTIVITY",
-            "args": {
-              "pid": getProcessId(),
-              "activity": activity
-            },
-            "nonce": $client.nonce
-          }
-          
-          client.writeFrame(OPCODES.FRAME, $payload)
+          client.sendPresenceNow(presence)
         except:
           # Connection lost
           client.connected = false
@@ -263,6 +319,7 @@ proc disconnect*(client: DiscordClient) =
   # Close the connection
   if client.connected and not client.pipe.isNil:
     try:
+      client.sendPresenceNow(DiscordRichPresence(clearActivity: true))
       client.writeFrame(OPCODES.CLOSE, "{}")
       close(client.pipe)
     except:
@@ -294,7 +351,7 @@ proc clearPresence*(client: DiscordClient) =
     return
   
   # Queue a clear command
-  let emptyPresence = DiscordRichPresence()
+  let emptyPresence = DiscordRichPresence(clearActivity: true)
   acquire(client.updateLock)
   client.pendingPresence = emptyPresence
   client.hasUpdate = true
@@ -310,11 +367,18 @@ proc isConnected*(client: DiscordClient): bool =
     return false
   return client.connected
 
+proc createButton*(label, url: string): DiscordButton =
+  result.label = label
+  result.url = url
+
 # Helper to create presence easily
 proc createPresence*(state: string = "", details: string = "",
                     largeImage: string = "", largeText: string = "",
                     smallImage: string = "", smallText: string = "",
-                    startTime: int64 = 0): DiscordRichPresence =
+                    startTime: int64 = 0, endTime: int64 = 0,
+                    partyId: string = "", partySize: int = 0,
+                    partyMax: int = 0,
+                    buttons: seq[DiscordButton] = @[]): DiscordRichPresence =
   result.state = state
   result.details = details
   result.largeImageKey = largeImage
@@ -322,3 +386,8 @@ proc createPresence*(state: string = "", details: string = "",
   result.smallImageKey = smallImage
   result.smallImageText = smallText
   result.startTimestamp = startTime
+  result.endTimestamp = endTime
+  result.partyId = partyId
+  result.partySize = partySize
+  result.partyMax = partyMax
+  result.buttons = buttons
