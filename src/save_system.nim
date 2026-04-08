@@ -1,7 +1,13 @@
-import json, os, run_statistics, types, std/tables
+import json, os, run_statistics, types, std/tables, strutils
 
 # Settings type definition (moved from settings_types.nim)
 type
+  MouseBondingMode* = enum
+    mbmOff = "off"
+    mbmWhileShooting = "while_shooting"
+    mbmAlwaysInGame = "always_in_game"
+    mbmAlways = "always"
+
   Settings* = ref object
     fpsLimit*: int32
     volume*: float32
@@ -13,6 +19,7 @@ type
     fullscreen*: bool
     showFPS*: bool
     mouseSupport*: bool
+    mouseBondingMode*: MouseBondingMode
     showCursorInMenus*: bool
     showDebugStats*: bool
     showArenaVignette*: bool
@@ -65,6 +72,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "fullscreen": settings.fullscreen,
     "showFPS": settings.showFPS,
     "mouseSupport": settings.mouseSupport,
+    "mouseBondingMode": $settings.mouseBondingMode,
     "showCursorInMenus": settings.showCursorInMenus,
     "showDebugStats": settings.showDebugStats,
     "showArenaVignette": settings.showArenaVignette,
@@ -99,7 +107,16 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("mouseSupport"):
     settings.mouseSupport = jsonNode["mouseSupport"].getBool()
-
+  
+  if jsonNode.hasKey("mouseBondingMode"):
+    try:
+      settings.mouseBondingMode = parseEnum[MouseBondingMode](jsonNode["mouseBondingMode"].getStr())
+    except ValueError:
+      settings.mouseBondingMode = mbmOff
+  elif jsonNode.hasKey("mouseBonding"):
+    # Migrate the old checkbox to the legacy equivalent mode.
+    settings.mouseBondingMode = if jsonNode["mouseBonding"].getBool(): mbmWhileShooting else: mbmOff
+  
   if jsonNode.hasKey("showCursorInMenus"):
     settings.showCursorInMenus = jsonNode["showCursorInMenus"].getBool()
 

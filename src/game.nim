@@ -1203,7 +1203,7 @@ proc setGameMode*(game: Game, mode: GameMode) =
     game.wavesUntilBoss = 4
 
 proc calculateWaveEnemyCount(waveNumber: int): int =
-  # Scale enemy count based on wave number (SLOWER PROGRESSION)
+  # Scale enemy count based on wave number
   # Start with 8 enemies, add 2-3 per wave
   result = 8 + (waveNumber - 1) * 2
   # Cap at 100 enemies per wave
@@ -1214,7 +1214,7 @@ proc startWave*(game: Game) =
   game.waveInProgress = true
   game.waveStartTime = game.time  # Track when this wave started
   # Visual pulse ring — cyan for normal waves, orange for boss-lead waves
-  let wavePulseColor = if game.wavesUntilBoss == 1:
+  let wavePulseColor = if game.wavesUntilBoss == 0:
     Color(r: 255, g: 160, b: 0, a: 255)
   else:
     Color(r: 0, g: 200, b: 255, a: 255)

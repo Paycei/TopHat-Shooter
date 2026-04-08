@@ -146,6 +146,20 @@ proc drawSectionHeader*(x, y, width: int, title: string, iconChar: char, color: 
   drawText(title, (x + 35).int32, (y + 2).int32, 18,
           Color(r: 0, g: 220, b: 255, a: 255))
 
+proc getMouseBondingModeLabel(mode: MouseBondingMode): string =
+  case mode
+  of mbmOff: t(tkSettingsMouseBondingOff)
+  of mbmWhileShooting: t(tkSettingsMouseBondingWhileShooting)
+  of mbmAlwaysInGame: t(tkSettingsMouseBondingAlwaysInGame)
+  of mbmAlways: t(tkSettingsMouseBondingAlways)
+
+proc nextMouseBondingMode(mode: MouseBondingMode): MouseBondingMode =
+  case mode
+  of mbmOff: mbmWhileShooting
+  of mbmWhileShooting: mbmAlwaysInGame
+  of mbmAlwaysInGame: mbmAlways
+  of mbmAlways: mbmOff
+
 proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
   
@@ -303,6 +317,40 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(t(tkSettingsMouseSupportDesc), (mouseCheckX + 35).int32,
           (yPos + 3).int32, 14, LightGray)
   yPos += 40
+
+  # Mouse Bonding
+  drawText(t(tkSettingsMouseBonding), (contentX + 40).int32, yPos.int32, 18, White)
+  let bondingButtonX = contentX + 320
+  let bondingButtonY = yPos - 5
+  let bondingButtonWidth = 220
+  let bondingButtonHeight = 35
+  let bondingHovered = mousePos.x >= bondingButtonX.float32 and
+                       mousePos.x <= (bondingButtonX + bondingButtonWidth).float32 and
+                       mousePos.y >= bondingButtonY.float32 and
+                       mousePos.y <= (bondingButtonY + bondingButtonHeight).float32
+
+  let bondingBgColor = if bondingHovered:
+    Color(r: 80, g: 80, b: 100, a: 255)
+  else:
+    Color(r: 60, g: 60, b: 80, a: 255)
+
+  drawRectangle(bondingButtonX.int32, bondingButtonY.int32,
+                bondingButtonWidth.int32, bondingButtonHeight.int32, bondingBgColor)
+  drawRectangleLines(Rectangle(x: bondingButtonX.float32, y: bondingButtonY.float32,
+                                width: bondingButtonWidth.float32, height: bondingButtonHeight.float32),
+                    1, if bondingHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+
+  let bondingModeText = getMouseBondingModeLabel(settingsWin.settings.mouseBondingMode)
+  let bondingTextWidth = measureText(bondingModeText, 16)
+  drawText("<", bondingButtonX.int32 + 10, yPos.int32, 18, LightGray)
+  drawText(bondingModeText,
+          (bondingButtonX + (bondingButtonWidth - bondingTextWidth) div 2).int32,
+          yPos.int32, 16, White)
+  drawText(">", (bondingButtonX + bondingButtonWidth - 25).int32, yPos.int32, 18, LightGray)
+
+  yPos += 35
+  drawText(t(tkSettingsMouseBondingDesc), bondingButtonX.int32, yPos.int32, 14, LightGray)
+  yPos += 25
   
   # Show Cursor in Menus
   if not settingsWin.settings.mouseSupport:
@@ -600,11 +648,22 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
          mousePos.y >= mouseCheckY.float32 and mousePos.y <= (mouseCheckY + 25).float32:
         settingsWin.settings.mouseSupport = not settingsWin.settings.mouseSupport
         settingsChanged = true
+
+      # Mouse bonding mode selector
+      let bondingButtonX = contentX + 320
+      let bondingButtonY = contentY + 85
+      let bondingButtonWidth = 220
+      let bondingButtonHeight = 35
+      if mousePos.x >= bondingButtonX.float32 and mousePos.x <= (bondingButtonX + bondingButtonWidth).float32 and
+         mousePos.y >= bondingButtonY.float32 and mousePos.y <= (bondingButtonY + bondingButtonHeight).float32:
+        settingsWin.settings.mouseBondingMode = nextMouseBondingMode(settingsWin.settings.mouseBondingMode)
+        playSound(stMenuSelect)
+        settingsChanged = true
       
       # Show cursor checkbox
       if not settingsWin.settings.mouseSupport:
         let cursorCheckX = contentX + 320
-        let cursorCheckY = contentY + 90
+        let cursorCheckY = contentY + 150
         if mousePos.x >= cursorCheckX.float32 and mousePos.x <= (cursorCheckX + 25).float32 and
            mousePos.y >= cursorCheckY.float32 and mousePos.y <= (cursorCheckY + 25).float32:
           settingsWin.settings.showCursorInMenus = not settingsWin.settings.showCursorInMenus

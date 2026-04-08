@@ -247,7 +247,7 @@ proc drawEnemyWarningIndicator*(enemy: Enemy) =
     return
   
   # Subtle pulsing effect (toned down)
-  let pulse = sin(getTime() * 4.0) * 0.2 + 0.7  # Slower, less intense pulse
+  let pulse = sin(getTime() * 4.0) * 0.2 + 0.7  # Slower
   let alpha = uint8(100 + pulse * 80)  # Less bright
   
   let warningColor = if enemy.isBoss:

@@ -38,7 +38,7 @@ proc addShake*(shake: var ScreenShake, intensity: ShakeIntensity,
   of siMassive:
     shake.intensity = max(shake.intensity, float32(rand(2.5..4.0)))
     shake.duration = 0.2
-    shake.decayRate = 0.5  # Slower decay for dramatic effect
+    shake.decayRate = 0.5  # Slow decay for dramatic effect
   of siCritical:
     shake.intensity = max(shake.intensity, float32(rand(0.5..0.8)) * 1.5)
     shake.duration = 0.06

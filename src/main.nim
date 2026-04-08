@@ -134,6 +134,43 @@ proc drawCustomCursor*(time: float32) =
   # Center dot
   drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
 
+proc isBondingGameplayState(state: GameState): bool =
+  state in {gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown,
+            gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying}
+
+proc isBondingCombatState(state: GameState): bool =
+  state in {gsPlaying, gsPvPPlaying}
+
+proc isMenuOrGameState(state: GameState): bool =
+  state in {gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver,
+            gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying}
+
+proc updateInGameMouseBonding(settings: Settings, state: GameState) =
+  if settings == nil:
+    releaseMouseClip()
+    return
+
+  var shouldClipToWindow = false
+  let shouldBond = case settings.mouseBondingMode
+    of mbmOff:
+      false
+    of mbmWhileShooting:
+      isBondingCombatState(state) and (isMouseButtonDown(Left) or isKeyDown(Space))
+    of mbmAlwaysInGame:
+      shouldClipToWindow = isBondingGameplayState(state)
+      shouldClipToWindow
+    of mbmAlways:
+      shouldClipToWindow = isMenuOrGameState(state)
+      shouldClipToWindow
+
+  if shouldClipToWindow:
+    clipMouseToWindowClientArea()
+  else:
+    releaseMouseClip()
+
+  if shouldBond:
+    bondMouseToVirtualViewport()
+
 proc main() =
   randomize()
   
@@ -145,7 +182,7 @@ proc main() =
   else:
     setConfigFlags(flags(WindowResizable))
   
-  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v5.3 Edition")
+  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v5.4 Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor
@@ -257,6 +294,7 @@ proc main() =
     
     # ALWAYS hide system cursor - we always use custom cursor
     hideCursor()
+    updateInGameMouseBonding(settings, currentGame.state)
     
     case currentGame.state
     of gsSplash:

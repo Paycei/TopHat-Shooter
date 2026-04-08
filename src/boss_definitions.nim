@@ -1926,7 +1926,7 @@ proc getBossGlowIntensity*(visualEffect: string, gameTime: float32): float32 =
   of "glow":
     0.5 + sin(gameTime * 3.0) * 0.3  # Pulsing glow
   of "aura":
-    0.7 + sin(gameTime * 2.0) * 0.2  # Slower pulse
+    0.7 + sin(gameTime * 2.0) * 0.2  # Slow pulse
   of "shield":
     0.4 + sin(gameTime * 4.0) * 0.4  # Fast shield pulse
   of "pulse":

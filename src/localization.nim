@@ -27,6 +27,12 @@ type
     tkSettingsShowFps = "settings_show_fps"
     tkSettingsMouseSupport = "settings_mouse_support"
     tkSettingsMouseSupportDesc = "settings_mouse_support_desc"
+    tkSettingsMouseBonding = "settings_mouse_bonding"
+    tkSettingsMouseBondingDesc = "settings_mouse_bonding_desc"
+    tkSettingsMouseBondingOff = "settings_mouse_bonding_off"
+    tkSettingsMouseBondingWhileShooting = "settings_mouse_bonding_while_shooting"
+    tkSettingsMouseBondingAlwaysInGame = "settings_mouse_bonding_always_in_game"
+    tkSettingsMouseBondingAlways = "settings_mouse_bonding_always"
     tkSettingsShowCursor = "settings_show_cursor"
     tkSettingsShowCursorDesc = "settings_show_cursor_desc"
     tkSettingsDebugPanel = "settings_debug_panel"
@@ -1223,6 +1229,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_show_fps": "Show FPS:",
     "settings_mouse_support": "Mouse Support:",
     "settings_mouse_support_desc": "(new menu navigation)",
+    "settings_mouse_bonding": "Mouse Bonding:",
+    "settings_mouse_bonding_desc": "(cycle mode with a click)",
+    "settings_mouse_bonding_off": "Off",
+    "settings_mouse_bonding_while_shooting": "While Shooting",
+    "settings_mouse_bonding_always_in_game": "Always In-Game",
+    "settings_mouse_bonding_always": "Always",
     "settings_show_cursor": "Show Cursor:",
     "settings_show_cursor_desc": "(visual only)",
     "settings_debug_panel": "Debug Panel:",
@@ -1560,7 +1572,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
-    "loading_subtitle": "v5.3 Edition",
+    "loading_subtitle": "v5.4 Edition",
     "loading_initializing": "Initializing...",
     "loading_generating_sound": "Generating sound",
     "loading_generating_music": "Generating music",
@@ -1592,7 +1604,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_memory": "Memory: 2.4 / 16 GB",
     "os_network": "Network: Connected",
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[v5.3 Edition]",
+    "os_edition": "[v5.4 Edition]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "NET",
     
@@ -2468,6 +2480,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_show_fps": "Mostrar FPS:",
     "settings_mouse_support": "Ratón:",
     "settings_mouse_support_desc": "(navegación de menú)",
+    "settings_mouse_bonding": "Bloqueo del raton:",
+    "settings_mouse_bonding_desc": "(clic para cambiar el modo)",
+    "settings_mouse_bonding_off": "Apagado",
+    "settings_mouse_bonding_while_shooting": "Al disparar",
+    "settings_mouse_bonding_always_in_game": "Siempre en partida",
+    "settings_mouse_bonding_always": "Siempre",
     "settings_show_cursor": "Cursor:",
     "settings_show_cursor_desc": "(solo visual)",
     "settings_debug_panel": "Debug:",
@@ -3359,7 +3377,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
-    "loading_subtitle": "Edición v5.3",
+    "loading_subtitle": "Edición v5.4",
     "loading_initializing": "Inicializando...",
     "loading_generating_sound": "Generando sonido",
     "loading_generating_music": "Generando música",
@@ -3391,7 +3409,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_memory": "Memoria: 2.4 / 16 GB",
     "os_network": "Red: Conectada",
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[Edición v5.3]",
+    "os_edition": "[Edición v5.4]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "RED",
     

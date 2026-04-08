@@ -1741,7 +1741,7 @@ proc drawEnemy*(enemy: Enemy) =
         drawLine(Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
                  Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
                  3, enemy.color)
-      # Inner pentagon (rotated 36°, slower)
+      # Inner pentagon
       let ir  = r * 0.50
       let rot = t * 0.3
       for i in 0..<5:
@@ -3175,7 +3175,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Multiple effects further reduce HP scaling
       enemy.maxHp *= (2.0 * eliteScaling * effectMultiplier)
       enemy.hp *= (2.0 * eliteScaling * effectMultiplier)
-      enemy.speed *= 0.75  # Slower
+      enemy.speed *= 0.75  # Slow
       # Tank elites are larger
       enemy.radius *= 1.3
       enemy.collisionRadius *= 1.3
