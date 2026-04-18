@@ -53,7 +53,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
     maxHp: finalHp,
     speed: stats.speed,
     contactDamage: config.contactDamage,
-    rangedDamage: if config.hasRangedAttack: config.attack.damage.int else: 0,
+    rangedDamage: if config.hasRangedAttack: config.attack.damage else: 0,
     color: config.baseColor,
     enemyType: enemyType,
     isBoss: false,
@@ -3072,16 +3072,16 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
 
 proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   ## Converts a regular enemy into an elite with enhanced stats and special abilities
-  ## Elite chance increases with wave number: base 3% + 0.5% per wave (capped at 15%)
-  ## At wave 25+, elites can have multiple effects (2-3 types combined)
+  ## Elite chance increases with wave number, but the midgame ramp is kept gentler.
+  ## Dual-modifier elites are delayed so waves 20-35 do not suddenly feel boss-like.
   ## BALANCED: Multiple effects apply with diminishing returns to prevent exponential growth
   
   # Don't make bosses elite
   if enemy.isBoss:
     return
   
-  # Calculate elite chance based on wave (3% + 0.5% per wave, max 15%)
-  let eliteChance = min(3 + (waveNumber.float32 * 0.5).int, 15)
+  # Calculate elite chance based on wave (2% + 0.35% per wave, max 12%)
+  let eliteChance = min(2 + (waveNumber.float32 * 0.35).int, 12)
   if rand(99) >= eliteChance:
     return
   
@@ -3089,18 +3089,18 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   enemy.eliteAuraPhase = 0.0
   enemy.eliteTypes = @[]  # Initialize empty list for multiple types
   
-  # Elite scaling multiplier based on wave (7.5% per wave for HP/damage)
-  let eliteScaling = 1.0 + (waveNumber.float32 * 0.075)
-  # Reduced speed scaling for elites (2.5% per wave instead of 7.5%)
-  let eliteSpeedScaling = 1.0 + (waveNumber.float32 * 0.025)
+  # Elite scaling multiplier based on wave, reduced to avoid runaway EHP.
+  let eliteScaling = 1.0 + (waveNumber.float32 * 0.03)
+  # Speed scaling is lighter still so modifiers add texture, not unavoidable pressure.
+  let eliteSpeedScaling = 1.0 + (waveNumber.float32 * 0.015)
   
   # Determine number of elite effects based on wave
-  # BALANCED: Max 2 effects for wave 25+, not 3 (reduces exponential stacking)
-  let numEffects = if waveNumber >= 25:
-    # Waves 25+: 1-2 effects (50% for dual effect)
-    if rand(99) < 50: 2 else: 1
+  # BALANCED: Delay dual-effect elites until later so midgame remains readable.
+  let numEffects = if waveNumber >= 35:
+    # Waves 35+: 35% chance for a dual-effect elite
+    if rand(99) < 35: 2 else: 1
   else:
-    # Waves 1-24: Single effect
+    # Waves 1-34: Single effect
     1
   
   # Choose random elite types (ensure no duplicates)
@@ -3138,16 +3138,16 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   enemy.eliteType = if enemy.eliteTypes.len > 0: enemy.eliteTypes[0] else: etNone
   
   # Multiplier for multiple effects (diminishing returns)
-  # 1 effect = 100%, 2 effects = 80% effectiveness to prevent stacking exponentially
-  let effectMultiplier = if enemy.eliteTypes.len >= 2: 0.8 else: 1.0
+  # 1 effect = 100%, 2 effects = 70% effectiveness to prevent stacking exponentially
+  let effectMultiplier = if enemy.eliteTypes.len >= 2: 0.7 else: 1.0
   
   # BASE ELITE BONUS: All elites get a base stat increase
   # This represents them being fundamentally stronger than normal enemies
-  let baseEliteBonus = 1.3  # 30% base bonus to all stats
+  let baseEliteBonus = 1.15  # 15% base bonus to all stats
   enemy.maxHp *= baseEliteBonus
   enemy.hp *= baseEliteBonus
-  enemy.contactDamage = (enemy.contactDamage.float32 * baseEliteBonus).int
-  enemy.rangedDamage = (enemy.rangedDamage.float32 * baseEliteBonus).int
+  enemy.contactDamage = enemy.contactDamage.float32 * baseEliteBonus
+  enemy.rangedDamage = enemy.rangedDamage.float32 * baseEliteBonus
   
   # Apply elite modifications for ALL types in the list
   for eType in enemy.eliteTypes:
@@ -3159,66 +3159,65 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       let maxSpeed = 1000.0
       if enemy.speed > maxSpeed:
         enemy.speed = maxSpeed
-      enemy.shootTimer *= 0.6  # Faster shooting
+      enemy.shootTimer *= 0.7  # Faster shooting
       if enemy.dashCooldown > 0:
-        enemy.dashCooldown *= 0.65
+        enemy.dashCooldown *= 0.75
       # Swift elites are smaller
       enemy.radius *= 0.9
       enemy.collisionRadius *= 0.9
-      enemy.contactDamage += 1 + (waveNumber div 5)
-      enemy.rangedDamage += 1 + (waveNumber div 5)
-      enemy.maxHp *= (0.85 * eliteScaling)  # Reduced from 0.9
-      enemy.hp *= (0.85 * eliteScaling)
+      enemy.contactDamage += float32(1 + (waveNumber div 5))
+      enemy.rangedDamage += float32(1 + (waveNumber div 5))
+      enemy.maxHp *= (0.9 * eliteScaling)
+      enemy.hp *= (0.9 * eliteScaling)
     
     of etTank:
-      # BALANCED: 2.0x HP with reduced damage reduction
-      # Multiple effects further reduce HP scaling
-      enemy.maxHp *= (2.0 * eliteScaling * effectMultiplier)
-      enemy.hp *= (2.0 * eliteScaling * effectMultiplier)
-      enemy.speed *= 0.75  # Slow
+      # Tank elites are still durable, but no longer mini-bosses in wave 20-30.
+      enemy.maxHp *= (1.45 * eliteScaling * effectMultiplier)
+      enemy.hp *= (1.45 * eliteScaling * effectMultiplier)
+      enemy.speed *= 0.8  # Slow
       # Tank elites are larger
       enemy.radius *= 1.3
       enemy.collisionRadius *= 1.3
-      enemy.contactDamage += waveNumber div 5
-      enemy.rangedDamage += waveNumber div 5
+      enemy.contactDamage += float32(waveNumber div 5)
+      enemy.rangedDamage += float32(waveNumber div 5)
     
     of etVenomous:
       # Poisons player on contact
       # Balanced growth with reduced speed scaling
       enemy.speed *= (1.15 * eliteSpeedScaling * effectMultiplier)  # Uses speed scaling
-      enemy.contactDamage += 2 + (waveNumber div 7)
-      enemy.rangedDamage += 2 + (waveNumber div 7)
-      enemy.maxHp *= (1.5 * eliteScaling * effectMultiplier)  # Uses normal scaling
-      enemy.hp *= (1.5 * eliteScaling * effectMultiplier)
+      enemy.contactDamage += float32(2 + (waveNumber div 7))
+      enemy.rangedDamage += float32(2 + (waveNumber div 7))
+      enemy.maxHp *= (1.3 * eliteScaling * effectMultiplier)  # Uses normal scaling
+      enemy.hp *= (1.3 * eliteScaling * effectMultiplier)
     
     of etExplosive:
       # Explodes on death
       # Multiple effects reduce HP scaling but use reduced speed scaling
-      enemy.maxHp *= (2.1 * eliteScaling * effectMultiplier)
-      enemy.hp *= (2.1 * eliteScaling * effectMultiplier)
-      enemy.contactDamage += 2 + (waveNumber div 7)
-      enemy.rangedDamage += 2 + (waveNumber div 7)
+      enemy.maxHp *= (1.55 * eliteScaling * effectMultiplier)
+      enemy.hp *= (1.55 * eliteScaling * effectMultiplier)
+      enemy.contactDamage += float32(2 + (waveNumber div 7))
+      enemy.rangedDamage += float32(2 + (waveNumber div 7))
       enemy.speed *= (1.0 * eliteSpeedScaling * effectMultiplier)
     
     of etRegenerative:
       # Regenerates 5% HP per second
       enemy.regenTimer = 0.0
       # Multiple effects reduce HP scaling
-      enemy.maxHp *= (2.0 * eliteScaling * effectMultiplier)
-      enemy.hp *= (2.0 * eliteScaling * effectMultiplier)
-      enemy.contactDamage += 1 + (waveNumber div 5)
-      enemy.rangedDamage += 1 + (waveNumber div 5)
+      enemy.maxHp *= (1.45 * eliteScaling * effectMultiplier)
+      enemy.hp *= (1.45 * eliteScaling * effectMultiplier)
+      enemy.contactDamage += float32(1 + (waveNumber div 5))
+      enemy.rangedDamage += float32(1 + (waveNumber div 5))
     
     of etShielded:
       # Has a shield that absorbs damage
       # Multiple effects reduce HP and shield scaling
-      enemy.maxHp *= (1.3 * eliteScaling * effectMultiplier)
-      enemy.hp *= (1.3 * eliteScaling * effectMultiplier)
-      let shieldAmount = enemy.maxHp * 0.8  # Shield = 80% of max HP
+      enemy.maxHp *= (1.15 * eliteScaling * effectMultiplier)
+      enemy.hp *= (1.15 * eliteScaling * effectMultiplier)
+      let shieldAmount = enemy.maxHp * 0.45  # Shield = 45% of max HP
       enemy.shieldHp = shieldAmount
       enemy.maxShieldHp = shieldAmount
-      enemy.contactDamage += 2 + (waveNumber div 5)
-      enemy.rangedDamage += 2 + (waveNumber div 5)
+      enemy.contactDamage += float32(2 + (waveNumber div 5))
+      enemy.rangedDamage += float32(2 + (waveNumber div 5))
     
     else:
       discard

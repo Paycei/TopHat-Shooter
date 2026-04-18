@@ -43,7 +43,7 @@ type
     # Base stats
     baseHP*: float32
     baseRadius*: float32
-    contactDamage*: int
+    contactDamage*: float32
     baseColor*: Color
     
     # Movement configuration
@@ -81,7 +81,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 1.0,
       baseRadius: 8.0,
-      contactDamage: 1,
+      contactDamage: 2,
       baseColor: Red,
       
       movement: EnemyMovementConfig(
@@ -112,7 +112,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 2.5,
       baseRadius: 11.0,
-      contactDamage: 1,
+      contactDamage: 2,
       baseColor: Color(r: 0, g: 150, b: 100, a: 255),  # Teal
       
       movement: EnemyMovementConfig(
@@ -133,7 +133,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 400.0,   # Very fast
         bulletCount: 1,       # Single powerful shot
         spreadAngle: 0.0,
-        damage: 1.5,
+        damage: 2.0,
         usesBurst: false,
         burstCount: 0,
         burstDelay: 0.0,
@@ -161,7 +161,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 3.0,
       baseRadius: 10.5,
-      contactDamage: 1,
+      contactDamage: 2.5,
       baseColor: Pink,
       
       movement: EnemyMovementConfig(
@@ -197,7 +197,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 9999.0,  # Hit-count based, not HP based
       baseRadius: 14.0,
-      contactDamage: 1,
+      contactDamage: 2.5,
       baseColor: Color(r: 255, g: 215, b: 0, a: 255),  # Gold
       
       movement: EnemyMovementConfig(
@@ -234,7 +234,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 3.0,
       baseRadius: 10.0,
-      contactDamage: 1,
+      contactDamage: 3,
       baseColor: Purple,
       
       movement: EnemyMovementConfig(
@@ -255,7 +255,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletSpeed: 220.0,   # Fast projectiles
         bulletCount: 3,       # 3-shot burst
         spreadAngle: 0.33,     # Small spread
-        damage: 2.5,          # Higher ranged damage
+        damage: 3.5,          # Higher ranged damage
         usesBurst: true,
         burstCount: 3,
         burstDelay: 0.05,
@@ -283,7 +283,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 7.5,
       baseRadius: 10.0,
-      contactDamage: 1,
+      contactDamage: 3,
       baseColor: Color(r: 128, g: 0, b: 255, a: 255),  # Purple
       
       movement: EnemyMovementConfig(
@@ -372,7 +372,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 7.5,
       baseRadius: 9.0,
-      contactDamage: 1,
+      contactDamage: 4,
       baseColor: Color(r: 0, g: 200, b: 255, a: 255),  # Cyan
       
       movement: EnemyMovementConfig(
@@ -425,7 +425,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 10.0,
       baseRadius: 12.0,
-      contactDamage: 1,
+      contactDamage: 4,
       baseColor: Color(r: 150, g: 150, b: 0, a: 255),  # Yellow-brown
       
       movement: EnemyMovementConfig(
@@ -455,7 +455,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletCountMin: 0,
         bulletCountMax: 0,
         randomizeBulletCount: false,
-        inaccuracyAmount: 0.8,  # Very inaccurate
+        inaccuracyAmount: 0.45,  # Reduced inaccuracy - shots land more often
         bulletRadius: 0.0
       ),
       
@@ -474,7 +474,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 15.0,
       baseRadius: 13.0,
-      contactDamage: 1,
+      contactDamage: 4,
       baseColor: Color(r: 200, g: 0, b: 200, a: 255),  # Magenta
       
       movement: EnemyMovementConfig(
@@ -527,7 +527,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 15.0,
       baseRadius: 11.0,
-      contactDamage: 1,
+      contactDamage: 4,
       baseColor: Color(r: 100, g: 100, b: 255, a: 180),  # Semi-transparent blue
       
       movement: EnemyMovementConfig(
@@ -580,7 +580,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 15.0,
       baseRadius: 10.0,
-      contactDamage: 3,
+      contactDamage: 5,
       baseColor: Color(r: 220, g: 0, b: 0, a: 255),  # Glowing red
       
       movement: EnemyMovementConfig(
@@ -633,7 +633,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       
       baseHP: 20.0,
       baseRadius: 12.0,
-      contactDamage: 1,
+      contactDamage: 5,
       baseColor: Color(r: 138, g: 43, b: 226, a: 255),  # Purple/violet
       
       movement: EnemyMovementConfig(
@@ -682,7 +682,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
 
 proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: float32, radius: float32, speed: float32, requiredHits: int] =
   ## Calculate scaled stats based on difficulty (wave number)
-  let strengthMultiplier = pow(1.185, difficulty)  # ~18.5% more HP per difficulty unit
+  # Wave-mode midgame was spiking too hard, so regular HP now ramps more gently.
+  let strengthMultiplier = pow(1.15, difficulty)  # ~15% more HP per difficulty unit
   
   let hp = config.baseHP * strengthMultiplier
   let radius = config.baseRadius + difficulty * 1.5 + rand(5).float32
@@ -700,7 +701,7 @@ proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: f
   )
   
   let requiredHits = if config.usesHitCount:
-    config.baseRequiredHits + (difficulty * 1.8).int
+    config.baseRequiredHits + (difficulty * 1.5).int
   else:
     0
   

@@ -250,37 +250,37 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     # Single level only - LEGENDARY echo trail
     t(tkPowerupEchoShotsDesc)
   of puRotatingOrbs:
-    t(tkPowerupRotatingOrbsDesc).replace("{0}", dmg(1.5, 0.3, playerDamage))
+    t(tkPowerupRotatingOrbsDesc).replace("{0}", dmg(1.5, 0.175, playerDamage))
   of puPoisonOrb:
     case level
-    of 1: t(tkPowerupPoisonOrbDesc1).replace("{0}", dmg(4.5, 0.35, playerDamage))
-    of 2: t(tkPowerupPoisonOrbDesc2).replace("{0}", dmg(7.5, 0.35, playerDamage))
-    else: t(tkPowerupPoisonOrbDesc3).replace("{0}", dmg(11.0, 0.35, playerDamage))
+    of 1: t(tkPowerupPoisonOrbDesc1).replace("{0}", dmg(3.5, 0.175, playerDamage))
+    of 2: t(tkPowerupPoisonOrbDesc2).replace("{0}", dmg(5.5, 0.175, playerDamage))
+    else: t(tkPowerupPoisonOrbDesc3).replace("{0}", dmg(8.0, 0.175, playerDamage))
   of puFireOrb:
     case level
-    of 1: t(tkPowerupFireOrbDesc1).replace("{0}", dmg(4.5, 0.35, playerDamage))
-    of 2: t(tkPowerupFireOrbDesc2).replace("{0}", dmg(7.5, 0.35, playerDamage))
-    else: t(tkPowerupFireOrbDesc3).replace("{0}", dmg(11.0, 0.35, playerDamage))
+    of 1: t(tkPowerupFireOrbDesc1).replace("{0}", dmg(3.5, 0.175, playerDamage))
+    of 2: t(tkPowerupFireOrbDesc2).replace("{0}", dmg(5.5, 0.175, playerDamage))
+    else: t(tkPowerupFireOrbDesc3).replace("{0}", dmg(8.0, 0.175, playerDamage))
   of puLightningOrb:
     case level
-    of 1: t(tkPowerupLightningOrbDesc1).replace("{0}", dmg(4.5, 0.35, playerDamage))
-    of 2: t(tkPowerupLightningOrbDesc2).replace("{0}", dmg(7.5, 0.35, playerDamage))
-    else: t(tkPowerupLightningOrbDesc3).replace("{0}", dmg(11.0, 0.35, playerDamage))
+    of 1: t(tkPowerupLightningOrbDesc1).replace("{0}", dmg(3.5, 0.175, playerDamage))
+    of 2: t(tkPowerupLightningOrbDesc2).replace("{0}", dmg(5.5, 0.175, playerDamage))
+    else: t(tkPowerupLightningOrbDesc3).replace("{0}", dmg(8.0, 0.175, playerDamage))
   of puWindOrb:
     case level
-    of 1: t(tkPowerupWindOrbDesc1).replace("{0}", dmg(4.5, 0.35, playerDamage))
-    of 2: t(tkPowerupWindOrbDesc2).replace("{0}", dmg(7.5, 0.35, playerDamage))
-    else: t(tkPowerupWindOrbDesc3).replace("{0}", dmg(11.0, 0.35, playerDamage))
+    of 1: t(tkPowerupWindOrbDesc1).replace("{0}", dmg(3.5, 0.175, playerDamage))
+    of 2: t(tkPowerupWindOrbDesc2).replace("{0}", dmg(5.5, 0.175, playerDamage))
+    else: t(tkPowerupWindOrbDesc3).replace("{0}", dmg(8.0, 0.175, playerDamage))
   of puFrostOrb:
     case level
-    of 1: t(tkPowerupFrostOrbDesc1).replace("{0}", dmg(4.5, 0.35, playerDamage))
-    of 2: t(tkPowerupFrostOrbDesc2).replace("{0}", dmg(7.5, 0.35, playerDamage))
-    else: t(tkPowerupFrostOrbDesc3).replace("{0}", dmg(11.0, 0.35, playerDamage))
+    of 1: t(tkPowerupFrostOrbDesc1).replace("{0}", dmg(3.5, 0.175, playerDamage))
+    of 2: t(tkPowerupFrostOrbDesc2).replace("{0}", dmg(5.5, 0.175, playerDamage))
+    else: t(tkPowerupFrostOrbDesc3).replace("{0}", dmg(8.0, 0.175, playerDamage))
   of puArcaneOrb:
     case level
-    of 1: t(tkPowerupArcaneOrbDesc1).replace("{0}", dmg(4.5, 0.35, playerDamage))
-    of 2: t(tkPowerupArcaneOrbDesc2).replace("{0}", dmg(7.5, 0.35, playerDamage))
-    else: t(tkPowerupArcaneOrbDesc3).replace("{0}", dmg(11.0, 0.35, playerDamage))
+    of 1: t(tkPowerupArcaneOrbDesc1).replace("{0}", dmg(3.5, 0.175, playerDamage))
+    of 2: t(tkPowerupArcaneOrbDesc2).replace("{0}", dmg(5.5, 0.175, playerDamage))
+    else: t(tkPowerupArcaneOrbDesc3).replace("{0}", dmg(8.0, 0.175, playerDamage))
   of puArcaneBullets:
     case level
     of 1: t(tkPowerupArcaneBulletsDesc1)
@@ -314,9 +314,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     t(tkPowerupParryDesc)
   of puBloodOrb:
     case level
-    of 1: t(tkPowerupBloodOrbDesc1).replace("{0}", dmg(4.5, 0.35, playerDamage))
-    of 2: t(tkPowerupBloodOrbDesc2).replace("{0}", dmg(7.5, 0.35, playerDamage))
-    else: t(tkPowerupBloodOrbDesc3).replace("{0}", dmg(11.0, 0.35, playerDamage))
+    of 1: t(tkPowerupBloodOrbDesc1).replace("{0}", dmg(3.5, 0.175, playerDamage))
+    of 2: t(tkPowerupBloodOrbDesc2).replace("{0}", dmg(5.5, 0.175, playerDamage))
+    else: t(tkPowerupBloodOrbDesc3).replace("{0}", dmg(8.0, 0.175, playerDamage))
   of puBloodAura:
     case level
     of 1: t(tkPowerupBloodAuraDesc1).replace("{0}", dmgPs(1.0, 0.3, playerDamage))

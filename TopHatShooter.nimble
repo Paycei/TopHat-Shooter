@@ -9,7 +9,7 @@ bin           = @["main"]
 
 # Dependencies
 
-requires "nim >= 2.2.6"
+requires "nim >= 2.2.8"
 requires "naylib >= 26.08.0"
 requires "flatty >= 0.3.4"
 

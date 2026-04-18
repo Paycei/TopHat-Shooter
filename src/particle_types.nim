@@ -47,10 +47,11 @@ proc distance*(a, b: Vector2f): float32 =
 
 # Particle types
 type
-  Particle* = ref object
+  Particle* = object
     pos*: Vector2f
     vel*: Vector2f
     color*: Color
+    coreColor*: Color
     lifetime*: float32
     maxLifetime*: float32
     size*: float32
@@ -65,6 +66,7 @@ type
     spin*: float32
 
   ParticlePool* = ref object
-    particles*: seq[Particle]     # Pre-allocated particle objects
-    activeCount*: int              # Number of currently active particles
-    maxCapacity*: int              # Maximum pool size
+    particles*: seq[Particle]     # Packed particle data for cache-friendly updates
+    activeCount*: int             # Number of currently active particles
+    maxCapacity*: int             # Maximum pool size
+    spawnedThisFrame*: int        # Tracks current-frame particle churn for adaptive throttling

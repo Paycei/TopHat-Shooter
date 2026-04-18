@@ -340,7 +340,7 @@ proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vecto
     if direction.length() > 0.01'f32: direction.normalize()
     else: newVector2f(1.0, 0.0)
   let sideDir = newVector2f(-shootDir.y, shootDir.x)
-  let boostedCount = skin.particleCount + max(3, skin.particleCount div 3)
+  let boostedCount = scaledParticleBurstCount(pool, skin.particleCount + max(3, skin.particleCount div 3))
 
   discard pool.acquireParticleDetailed(
     x, y,
@@ -394,7 +394,8 @@ proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vecto
 
   case skinType
   of pskLightning:
-    for i in 0..<3:
+    let lightningCount = scaledParticleBurstCount(pool, 3)
+    for i in 0..<lightningCount:
       let angle = i.float32 * 0.18'f32 - 0.18'f32 + rand(0.1).float32
       let boltDir = newVector2f(
         shootDir.x * cos(angle) - shootDir.y * sin(angle),
@@ -413,7 +414,8 @@ proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vecto
         rotation = arctan2(boltDir.y, boltDir.x) * 180.0'f32 / PI.float32
       )
   of pskHearts, pskStars:
-    for i in 0..<skin.particleCount div 2:
+    let orbitCount = scaledParticleBurstCount(pool, skin.particleCount div 2)
+    for i in 0..<orbitCount:
       let angle = i.float32 * 0.18'f32 - 0.18'f32
       let orbitDir = newVector2f(
         shootDir.x * cos(angle) - shootDir.y * sin(angle),
@@ -434,7 +436,8 @@ proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vecto
         spin = (-160.0 + rand(320.0)).float32
       )
   of pskVoid:
-    for i in 0..<4:
+    let swirlCount = scaledParticleBurstCount(pool, 4)
+    for i in 0..<swirlCount:
       let angle = i.float32 * 0.25'f32 - 0.375'f32
       let swirlDir = newVector2f(
         shootDir.x * cos(angle) - shootDir.y * sin(angle),

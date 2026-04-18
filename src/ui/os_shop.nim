@@ -12,8 +12,8 @@ const
   SIDEBAR_WIDTH: int32 = 280
 
 proc initShopItems*(): array[6, ShopItem] =
-  result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: 8, bought: 0)
-  result[1] = ShopItem(name: t(tkShopFireRatePlus), description: t(tkShopFireRatePlusDesc), baseCost: 10, bought: 0)
+  result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: 9, bought: 0)
+  result[1] = ShopItem(name: t(tkShopFireRatePlus), description: t(tkShopFireRatePlusDesc), baseCost: 9, bought: 0)
   result[2] = ShopItem(name: t(tkShopMoveSpeedPlus), description: t(tkShopMoveSpeedPlusDesc), baseCost: 7, bought: 0)
   result[3] = ShopItem(name: t(tkShopMaxHealthPlus), description: t(tkShopMaxHealthPlusDesc), baseCost: 10, bought: 0)
   result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: 6, bought: 0)
@@ -425,25 +425,25 @@ proc buyShopItem*(game: Game, index: int) =
   trackShopPurchase(game, item.name, cost)
   
   case index
-  of 0: # Damage - Slightly reduced exponential scaling
-    game.player.damage += 0.25 * pow(1.0375, item.bought.float32)
-  of 1: # Fire Rate - Diminishing returns with reduced initial benefit
+  of 0: # Damage - still strong, but no longer the dominant first-buy every run
+    game.player.damage += 0.1 * pow(1.03, item.bought.float32)
+  of 1: # Fire Rate - brought closer to damage-shop efficiency
     let currentRate = game.player.fireRate
-    let scalingFactor = 0.025
-    let diminishingFactor = pow(currentRate / 0.415, 0.6)
+    let scalingFactor = 0.065
+    let diminishingFactor = pow(currentRate / 0.415, 0.45)
     let effectiveReduction = currentRate * scalingFactor * diminishingFactor
     
     game.player.fireRate -= effectiveReduction
-    if game.player.fireRate < 0.07: game.player.fireRate = 0.07  # Hard cap
+    if game.player.fireRate < 0.09: game.player.fireRate = 0.09  # Hard cap
   of 2: # Move Speed
-    game.player.speed += 11
-    game.player.baseSpeed += 11
+    game.player.speed += 9.0
+    game.player.baseSpeed += 9.0
   of 3: # Max Health - Scales with purchases: 3, 4, 5, 6, 7 HP (capped at +7)
     let healthGain = min(2 + game.shopItems[3].bought, 7)
     game.player.maxHp += healthGain.float32
     game.player.hp += healthGain.float32
   of 4: # Bullet Speed
-    game.player.bulletSpeed += 10
+    game.player.bulletSpeed += 8
   of 5: # Walls
     game.player.walls += 4
   else: discard

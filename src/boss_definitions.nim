@@ -191,7 +191,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.6,
           speedMultiplier: 1.0,
           damageMultiplier: 1.2,
-          defenseMultiplier: 0.9,
+          defenseMultiplier: 0.95,
           color: Color(r: 30, g: 200, b: 30, a: 255),
           visualEffect: "glow",
           specialBehavior: "summon_frenzy",
@@ -310,7 +310,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.25,
           speedMultiplier: 1.1,
           damageMultiplier: 1.3,
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.075,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
           specialBehavior: "enraged",
@@ -343,8 +343,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss4Name),
       bossID: 4,
-      baseHP: 375.0,  # NERFED from 390.0
-      baseSpeed: 70.0,  # NERFED from 77.5
+      baseHP: 450.0,
+      baseSpeed: 65.0,  # NERFED from 77.5
       baseDamage: 2,
       baseRadius: 52.0,
       color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -394,7 +394,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Construction",
           hpThreshold: 0.65,
-          speedMultiplier: 1.2,  # NERFED from 1.33
+          speedMultiplier: 1.175,  # NERFED from 1.33
           damageMultiplier: 1.2,  # NERFED from 1.33
           defenseMultiplier: 1.1,
           color: Color(r: 0, g: 255, b: 255, a: 255),
@@ -443,7 +443,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Masterpiece",
           hpThreshold: 0.3,
-          speedMultiplier: 1.2,  # NERFED from 1.3
+          speedMultiplier: 1.175,  # NERFED from 1.3
           damageMultiplier: 1.2,  # NERFED from 1.3
           defenseMultiplier: 1.0,
           color: Color(r: 100, g: 255, b: 255, a: 255),
@@ -515,7 +515,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss5Name),
       bossID: 5,
-      baseHP: 450.0,  # NERFED from 380.0
+      baseHP: 800.0,
       baseSpeed: 65.0,  # NERFED from 70.0
       baseDamage: 2,
       baseRadius: 46.0,
@@ -617,7 +617,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.35,
           speedMultiplier: 1.1,  # NERFED from 1.2
           damageMultiplier: 1.2,  # NERFED from 1.5
-          defenseMultiplier: 0.8,
+          defenseMultiplier: 0.85,
           color: Color(r: 160, g: 40, b: 220, a: 255),
           visualEffect: "glow",
           specialBehavior: "reality_break",
@@ -686,8 +686,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss6Name),
       bossID: 6,
-      baseHP: 550.0,
-      baseSpeed: 70.0,
+      baseHP: 1100.0,
+      baseSpeed: 60.0,
       baseDamage: 2,
       baseRadius: 55.0,
       color: Color(r: 255, g: 255, b: 0, a: 255),  # Bright electric yellow
@@ -845,8 +845,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss7Name),
       bossID: 7,
-      baseHP: 650.0,
-      baseSpeed: 60.0,
+      baseHP: 1400.0,
+      baseSpeed: 50.0,
       baseDamage: 2,
       baseRadius: 58.0,
       color: Color(r: 150, g: 100, b: 255, a: 255),
@@ -1004,7 +1004,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss8Name),
       bossID: 8,
-      baseHP: 750.0,
+      baseHP: 1600.0,
       baseSpeed: 40.0,
       baseDamage: 3,
       baseRadius: 60.0,
@@ -1107,7 +1107,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.3,
           speedMultiplier: 1.0,  # NERFED from 1.2
           damageMultiplier: 1.5,
-          defenseMultiplier: 0.8,
+          defenseMultiplier: 0.85,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
           specialBehavior: "berserk_rampage",  # Maximum aggression
@@ -1160,8 +1160,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss9Name),
       bossID: 9,
-      baseHP: 875.0,
-      baseSpeed: 65.0,
+      baseHP: 1900.0,
+      baseSpeed: 55.0,
       baseDamage: 3,
       baseRadius: 56.0,
       color: Color(r: 255, g: 200, b: 255, a: 255),
@@ -1317,7 +1317,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss10Name),
       bossID: 10,
-      baseHP: 1075.0,
+      baseHP: 2400.0,
       baseSpeed: 55.0,
       baseDamage: 4,
       baseRadius: 62.0,
@@ -1420,7 +1420,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Time Collapse",
           hpThreshold: 0.4,
-          speedMultiplier: 1.4,  # Fast blinking
+          speedMultiplier: 1.3,  # Fast blinking
           damageMultiplier: 1.4,
           defenseMultiplier: 0.9,
           color: Color(r: 150, g: 255, b: 255, a: 255),  # Bright cyan/white
@@ -1485,8 +1485,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss11Name),
       bossID: 11,
-      baseHP: 1400.0,
-      baseSpeed: 70.0,
+      baseHP: 3000.0,
+      baseSpeed: 60.0,
       baseDamage: 4,
       baseRadius: 58.0,
       color: Color(r: 180, g: 0, b: 180, a: 255),
@@ -1588,7 +1588,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Pure Chaos",
           hpThreshold: 0.35,
-          speedMultiplier: 1.2,  # NERFED from 2.0
+          speedMultiplier: 1.175,  # NERFED from 2.0
           damageMultiplier: 1.4,  # NERFED from 2.0
           defenseMultiplier: 0.85,  # NERFED from 0.9
           color: Color(r: 255, g: 100, b: 255, a: 255),
@@ -1634,8 +1634,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss12Name),
       bossID: 12,
-      baseHP: 2000.0,  # NERFED from 2500.0
-      baseSpeed: 65.0,  # NERFED from 85.0
+      baseHP: 3500.0,
+      baseSpeed: 60.0,  # NERFED from 85.0
       baseDamage: 5,  # NERFED from 6
       baseRadius: 70.0,
       color: Color(r: 255, g: 50, b: 50, a: 255),
@@ -1773,7 +1773,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.2,
           speedMultiplier: 1.2,
           damageMultiplier: 1.5,
-          defenseMultiplier: 3.0,
+          defenseMultiplier: 2.5,
           color: Color(r: 255, g: 0, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "final_form",
@@ -1899,23 +1899,26 @@ proc getAllBossNames*(): seq[string] =
 # Boss Stats Scaling
 
 proc getScaledBossHP*(baseBoss: BossDefinition, waveNumber: int): float32 =
-  ## Scales boss HP based on wave number
-  let waveScale = 1.0 + ((waveNumber.float32 - 5.0) * 0.20)  # 20% increase per wave after wave 5
+  ## Scales boss HP by boss tier, not raw wave count, to avoid extreme midgame cliffs.
+  let bossSteps = max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
+  let waveScale = 1.0 + bossSteps * 0.20  # 20% increase per boss tier
   baseBoss.baseHP * waveScale
 
 proc getScaledBossSpeed*(baseBoss: BossDefinition, waveNumber: int): float32 =
-  ## Scales boss speed based on wave number
-  let waveScale = 1.0 + ((waveNumber.float32 - 5.0) * 0.04)  # 4% increase per wave after wave 5
+  ## Scales boss speed more gently so later bosses stay threatening without becoming frantic.
+  let bossSteps = max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
+  let waveScale = 1.0 + bossSteps * 0.03
   baseBoss.baseSpeed * waveScale
 
-proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): int =
+proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): float32 =
   ## Scales boss damage based on wave number
-  let additionalDamage = (waveNumber - 5) div 10  # +1 damage every 10 waves
-  baseBoss.baseDamage + additionalDamage
+  let additionalDamage = (waveNumber - 5) div 15  # +1 damage every 15 waves
+  float32(baseBoss.baseDamage + additionalDamage)
 
 proc getScaledAttackDamage*(baseAttack: BossAttack, waveNumber: int): float32 =
-  ## Scales attack damage based on wave number
-  let waveScale = 1.0 + ((waveNumber.float32 - 5.0) * 0.10)  # 10% increase per wave after wave 5
+  ## Attack damage grows by boss tier to preserve patterns without massive midgame spikes.
+  let bossSteps = max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
+  let waveScale = 1.0 + bossSteps * 0.12
   baseAttack.damage * waveScale
 
 # Boss Visual Effects

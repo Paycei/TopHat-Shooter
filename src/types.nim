@@ -58,7 +58,7 @@ type
   EliteType* = enum
     etNone,        # Not elite
     etSwift,       # 40% faster movement and attack speed
-    etTank,        # 2x HP, 50% damage reduction
+    etTank,        # 2x HP, 45% damage reduction
     etVenomous,    # Poisons player on contact
     etExplosive,   # Explodes on death, damaging player
     etRegenerative,# Slowly regenerates HP over time
@@ -326,8 +326,8 @@ type
     hp*: float32
     maxHp*: float32
     speed*: float32
-    contactDamage*: int       # Damage dealt on contact/collision
-    rangedDamage*: int        # Damage dealt by bullets/projectiles
+    contactDamage*: float32       # Damage dealt on contact/collision
+    rangedDamage*: float32        # Damage dealt by bullets/projectiles
     color*: Color
     enemyType*: EnemyType
     isBoss*: bool

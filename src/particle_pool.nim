@@ -9,6 +9,77 @@ const
   DEFAULT_POOL_SIZE* = 2000
   POOL_GROWTH_SIZE* = 500
   MAX_POOL_SIZE = DEFAULT_POOL_SIZE * 4
+  PARTICLE_CULL_MARGIN = 24.0'f32
+  PARTICLE_DESPAWN_MARGIN = 140.0'f32
+  PARTICLE_SOFT_FRAME_SPAWN_LIMIT = 180.0'f32
+
+proc particlePressure(pool: ParticlePool): float32 =
+  let usagePressure =
+    if pool.maxCapacity > 0: pool.activeCount.float32 / pool.maxCapacity.float32
+    else: 0.0'f32
+  let spawnPressure = clamp(pool.spawnedThisFrame.float32 / PARTICLE_SOFT_FRAME_SPAWN_LIMIT, 0.0'f32, 1.0'f32)
+  max(usagePressure, spawnPressure)
+
+proc scaledParticleBurstCount*(pool: ParticlePool, requestedCount: int): int =
+  if requestedCount <= 0:
+    return 0
+
+  let pressure = particlePressure(pool)
+  let scale =
+    if pressure >= 0.96'f32: 0.25'f32
+    elif pressure >= 0.88'f32: 0.40'f32
+    elif pressure >= 0.78'f32: 0.55'f32
+    elif pressure >= 0.66'f32: 0.72'f32
+    elif pressure >= 0.54'f32: 0.85'f32
+    else: 1.0'f32
+
+  if scale >= 1.0'f32:
+    return requestedCount
+
+  let minimumCount = if requestedCount >= 6: 2 else: 1
+  max(minimumCount, int(ceil(requestedCount.float32 * scale)))
+
+proc particleRenderSettings(activeCount: int): tuple[drawStep: int, simplified: bool, drawHalos: bool] =
+  if activeCount >= 1200:
+    (3, true, false)
+  elif activeCount >= 700:
+    (2, true, false)
+  elif activeCount >= 250:
+    (1, true, false)
+  elif activeCount >= 120:
+    (1, false, false)
+  else:
+    (1, false, true)
+
+proc isParticleVisible(particle: ptr Particle, screenWidth, screenHeight: float32): bool =
+  let haloRadius =
+    if particle.glow > 0: particle.size * (1.5'f32 + particle.glow * 0.45'f32)
+    else: particle.size
+  let margin = haloRadius + PARTICLE_CULL_MARGIN
+  particle.pos.x >= -margin and particle.pos.x <= screenWidth + margin and
+    particle.pos.y >= -margin and particle.pos.y <= screenHeight + margin
+
+proc drawSimplifiedParticle(particle: ptr Particle, pos: Vector2, mainColor, coreColor: Color) =
+  case particle.style
+  of psSpark:
+    let velLen = particle.vel.length()
+    let dir =
+      if velLen > 0.01'f32: particle.vel.normalize()
+      else:
+        let angle = particle.rotation * PI.float32 / 180.0'f32
+        newVector2f(cos(angle), sin(angle))
+    let streakLength = max(1.5'f32, particle.size * (1.2'f32 + min(1.8'f32, velLen / 150.0'f32)))
+    drawLine(
+      (particle.pos.x - dir.x * streakLength * 0.4'f32).int32,
+      (particle.pos.y - dir.y * streakLength * 0.4'f32).int32,
+      (particle.pos.x + dir.x * streakLength * 0.6'f32).int32,
+      (particle.pos.y + dir.y * streakLength * 0.6'f32).int32,
+      mainColor
+    )
+  of psShard:
+    drawPoly(pos, 4, max(0.8'f32, particle.size * 0.8'f32), particle.rotation, mainColor)
+  of psEmber, psSoft:
+    drawCircle(pos, max(0.7'f32, particle.size * 0.75'f32), mainColor)
 
 proc clampByte(value: float32): uint8 =
   uint8(clamp(value, 0.0'f32, 255.0'f32).int)
@@ -30,6 +101,7 @@ proc newParticleTemplate(): Particle =
     pos: newVector2f(0, 0),
     vel: newVector2f(0, 0),
     color: Color(r: 0, g: 0, b: 0, a: 0),
+    coreColor: Color(r: 0, g: 0, b: 0, a: 0),
     lifetime: 0.0,
     maxLifetime: 0.0,
     size: 0.0,
@@ -49,13 +121,14 @@ proc newParticlePool*(initialCapacity: int = DEFAULT_POOL_SIZE): ParticlePool =
   result = ParticlePool(
     particles: newSeq[Particle](initialCapacity),
     activeCount: 0,
-    maxCapacity: initialCapacity
+    maxCapacity: initialCapacity,
+    spawnedThisFrame: 0
   )
 
   for i in 0..<initialCapacity:
     result.particles[i] = newParticleTemplate()
 
-proc configureParticle(particle: Particle, x, y, velX, velY: float32,
+proc configureParticle(particle: var Particle, x, y, velX, velY: float32,
                        color: Color, lifetime, startSize, endSize, drag,
                        gravity, glow: float32, style: ParticleStyle,
                        layer: ParticleLayer,
@@ -65,6 +138,7 @@ proc configureParticle(particle: Particle, x, y, velX, velY: float32,
   particle.vel.x = velX
   particle.vel.y = velY
   particle.color = color
+  particle.coreColor = brighten(color, 65.0)
   particle.lifetime = lifetime
   particle.maxLifetime = lifetime
   particle.size = startSize
@@ -105,7 +179,7 @@ proc reserveParticleSlot(pool: ParticlePool): int =
       oldestIndex = i
   result = oldestIndex
 
-proc resetParticle(particle: Particle, x, y: float32, color: Color, speed: float32) =
+proc resetParticle(particle: var Particle, x, y: float32, color: Color, speed: float32) =
   ## Reset a particle to new values (for reuse)
   let angle = rand(1.0) * PI * 2.0
   let velocity = newVector2f(cos(angle) * speed, sin(angle) * speed)
@@ -144,24 +218,38 @@ proc acquireParticleDetailed*(pool: ParticlePool, x, y, velX, velY: float32,
   configureParticle(pool.particles[idx], x, y, velX, velY, color,
                     lifetime, startSize, endSize, drag, gravity, glow,
                     style, layer, rotation, spin)
+  pool.spawnedThisFrame += 1
   true
 
 proc acquireParticle*(pool: ParticlePool, x, y: float32, color: Color, speed: float32): bool =
   ## Get a particle from the pool and initialize it
   let idx = reserveParticleSlot(pool)
   resetParticle(pool.particles[idx], x, y, color, speed)
+  pool.spawnedThisFrame += 1
   true
+
+proc isParticleWithinSimulationBounds(particle: ptr Particle, screenWidth, screenHeight: float32): bool =
+  let haloRadius =
+    if particle.glow > 0: particle.size * (1.5'f32 + particle.glow * 0.45'f32)
+    else: particle.size
+  let margin = haloRadius + PARTICLE_DESPAWN_MARGIN
+  particle.pos.x >= -margin and particle.pos.x <= screenWidth + margin and
+    particle.pos.y >= -margin and particle.pos.y <= screenHeight + margin
 
 proc updateParticlePool*(pool: ParticlePool, dt: float32) =
   ## Update all active particles and compact the pool
-  var writeIndex = 0
-  var i = 0
+  if pool.activeCount <= 0 or dt <= 0.0'f32:
+    pool.spawnedThisFrame = 0
+    return
 
-  while i < pool.activeCount:
-    let particle = pool.particles[i]
+  let screenWidth = getScreenWidth().float32
+  let screenHeight = getScreenHeight().float32
+  var writeIndex = 0
+  for i in 0..<pool.activeCount:
+    let particle = addr pool.particles[i]
 
     particle.vel.y += particle.gravity * dt
-    let dragFactor = exp(-particle.drag * dt)
+    let dragFactor = 1.0'f32 / (1.0'f32 + particle.drag * dt)
     particle.vel.x *= dragFactor
     particle.vel.y *= dragFactor
     particle.pos.x += particle.vel.x * dt
@@ -169,28 +257,40 @@ proc updateParticlePool*(pool: ParticlePool, dt: float32) =
     particle.rotation += particle.spin * dt
     particle.lifetime -= dt
 
-    if particle.lifetime > 0:
-      let lifeRatio =
-        if particle.maxLifetime > 0: clamp(particle.lifetime / particle.maxLifetime, 0.0'f32, 1.0'f32)
-        else: 0.0'f32
-      let sizeEase = lifeRatio * lifeRatio * (3.0'f32 - 2.0'f32 * lifeRatio)
-      particle.size = particle.endSize + (particle.startSize - particle.endSize) * sizeEase
+    if particle.lifetime <= 0.0'f32:
+      continue
 
-      if writeIndex != i:
-        let temp = pool.particles[writeIndex]
-        pool.particles[writeIndex] = pool.particles[i]
-        pool.particles[i] = temp
-      writeIndex += 1
+    let lifeRatio =
+      if particle.maxLifetime > 0: clamp(particle.lifetime / particle.maxLifetime, 0.0'f32, 1.0'f32)
+      else: 0.0'f32
+    let sizeEase = lifeRatio * lifeRatio * (3.0'f32 - 2.0'f32 * lifeRatio)
+    particle.size = particle.endSize + (particle.startSize - particle.endSize) * sizeEase
 
-    i += 1
+    if not isParticleWithinSimulationBounds(particle, screenWidth, screenHeight):
+      continue
+
+    if writeIndex != i:
+      pool.particles[writeIndex] = particle[]
+    writeIndex += 1
 
   pool.activeCount = writeIndex
+  pool.spawnedThisFrame = 0
 
 proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer) =
   ## Draw only particles assigned to the given layer
+  let renderSettings = particleRenderSettings(pool.activeCount)
+  let screenWidth = getScreenWidth().float32
+  let screenHeight = getScreenHeight().float32
+  var layerIndex = 0
+
   for i in 0..<pool.activeCount:
-    let particle = pool.particles[i]
+    let particle = addr pool.particles[i]
     if particle.layer != layer:
+      continue
+    if not isParticleVisible(particle, screenWidth, screenHeight):
+      continue
+    layerIndex += 1
+    if renderSettings.drawStep > 1 and ((layerIndex - 1) mod renderSettings.drawStep) != 0:
       continue
     let lifeRatio =
       if particle.maxLifetime > 0: clamp(particle.lifetime / particle.maxLifetime, 0.0'f32, 1.0'f32)
@@ -198,11 +298,15 @@ proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer) =
     let fade = sqrt(lifeRatio)
     let mainColor = alphaScaled(particle.color, fade)
     let haloColor = alphaScaled(particle.color, fade * 0.24'f32 * (0.8'f32 + particle.glow * 0.35'f32))
-    let coreColor = alphaScaled(brighten(particle.color, 65.0), fade * 0.9'f32)
+    let coreColor = alphaScaled(particle.coreColor, fade * 0.9'f32)
     let pos = Vector2(x: particle.pos.x, y: particle.pos.y)
 
-    if particle.glow > 0:
+    if renderSettings.drawHalos and particle.glow > 0:
       drawCircle(pos, particle.size * (1.5'f32 + particle.glow * 0.45'f32), haloColor)
+
+    if renderSettings.simplified:
+      drawSimplifiedParticle(particle, pos, mainColor, coreColor)
+      continue
 
     case particle.style
     of psSoft:
@@ -244,7 +348,8 @@ proc drawParticlePool*(pool: ParticlePool) =
 
 proc spawnExplosionPooled*(pool: ParticlePool, x, y: float32, color: Color, count: int = 20) =
   ## Spawn a richer mixed explosion burst using the pool
-  for _ in 0..<count:
+  let adjustedCount = scaledParticleBurstCount(pool, count)
+  for _ in 0..<adjustedCount:
     let angle = rand(1.0) * PI * 2.0
     let speed = 85.0'f32 + rand(145.0).float32
     let velX = cos(angle) * speed
@@ -285,7 +390,7 @@ proc spawnExplosionPooled*(pool: ParticlePool, x, y: float32, color: Color, coun
       spin = (-360.0 + rand(720.0)).float32
     )
 
-  let flashCount = max(2, count div 6)
+  let flashCount = max(1, adjustedCount div 8)
   let flashColor = brighten(color, 80.0)
   for _ in 0..<flashCount:
     let angle = rand(1.0) * PI * 2.0
@@ -302,7 +407,8 @@ proc spawnExplosionPooled*(pool: ParticlePool, x, y: float32, color: Color, coun
 
 proc spawnTrailParticlePooled*(pool: ParticlePool, x, y: float32, color: Color, count: int) =
   ## Spawn short-lived trail particles optimized for bullet trails
-  for i in 0..<count:
+  let adjustedCount = scaledParticleBurstCount(pool, count)
+  for i in 0..<adjustedCount:
     let angle = rand(1.0) * PI * 2.0
     let speed = 18.0'f32 + rand(34.0).float32
     let style = if i mod 3 == 0: psSoft else: psSpark
@@ -334,7 +440,7 @@ proc spawnTimedParticlesAroundPooled*(pool: ParticlePool, centerX, centerY: floa
 
 proc spawnShockwavePooled*(pool: ParticlePool, x, y: float32, radius: float32) =
   ## Spawn an outward ring of bright sparks
-  let particleCount = max(10, (radius * 0.55'f32).int)
+  let particleCount = scaledParticleBurstCount(pool, max(6, (radius * 0.18'f32).int))
   let shockColor = Color(r: 255, g: 220, b: 140, a: 255)
   for i in 0..<particleCount:
     let angle = i.float32 / particleCount.float32 * PI * 2.0
@@ -357,7 +463,7 @@ proc spawnExplosiveRingPooled*(pool: ParticlePool, x, y: float32, radius: float3
   ## Spawn concentric rings of particles for explosive bullets
   for ring in 1..ringCount:
     let ringRadius = radius * (ring.float32 / ringCount.float32)
-    let particlesInRing = max(8, (ringRadius * 0.45'f32).int)
+    let particlesInRing = scaledParticleBurstCount(pool, max(4, (ringRadius * 0.16'f32).int))
 
     for i in 0..<particlesInRing:
       let angle = i.float32 / particlesInRing.float32 * PI * 2.0
@@ -378,7 +484,7 @@ proc spawnExplosiveRingPooled*(pool: ParticlePool, x, y: float32, radius: float3
 proc spawnSpiralExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float32,
                                  armCount: int, color: Color) =
   ## Spawn particles in a spiral pattern radiating outward
-  let particlesPerArm = max(5, (radius * 0.16'f32).int)
+  let particlesPerArm = scaledParticleBurstCount(pool, max(3, (radius * 0.05'f32).int))
 
   for arm in 0..<armCount:
     let baseAngle = (arm.float32 / armCount.float32) * PI * 2.0
@@ -406,7 +512,8 @@ proc spawnSpiralExplosionPooled*(pool: ParticlePool, x, y: float32, radius: floa
 proc spawnNovaExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float32,
                                primaryColor, secondaryColor: Color) =
   ## Spawn a multi-layered nova explosion with core flash, shell, and shock ring
-  for _ in 0..<10:
+  let coreParticles = scaledParticleBurstCount(pool, 4)
+  for _ in 0..<coreParticles:
     let angle = rand(1.0) * PI * 2.0
     let dist = rand(radius * 0.24'f32)
     let px = x + cos(angle) * dist
@@ -424,7 +531,7 @@ proc spawnNovaExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float3
       style = psSoft
     )
 
-  let middleParticles = max(12, (radius * 0.45'f32).int)
+  let middleParticles = scaledParticleBurstCount(pool, max(8, (radius * 0.16'f32).int))
   for i in 0..<middleParticles:
     let angle = i.float32 / middleParticles.float32 * PI * 2.0
     let shellRadius = radius * (0.45'f32 + rand(0.18).float32)
@@ -444,7 +551,7 @@ proc spawnNovaExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float3
       spin = (-220.0 + rand(440.0)).float32
     )
 
-  let outerParticles = max(16, (radius * 0.55'f32).int)
+  let outerParticles = scaledParticleBurstCount(pool, max(10, (radius * 0.20'f32).int))
   for i in 0..<outerParticles:
     let angle = i.float32 / outerParticles.float32 * PI * 2.0
     let px = x + cos(angle) * radius
@@ -465,14 +572,15 @@ proc spawnNovaExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float3
 
 proc clearPool*(pool: ParticlePool) =
   pool.activeCount = 0
+  pool.spawnedThisFrame = 0
 
 proc spawnEnemyDeathBurst*(pool: ParticlePool, x, y: float32,
                            enemyColor: Color, enemyRadius: float32,
                            isBoss: bool = false) =
   ## Rich multi-layer death burst: colored shrapnel + white sparks + shockwave ring.
-  let baseCount = if isBoss: 42 else: 18
-  let sparkCount = if isBoss: 24 else: 8
-  let ringParticles = if isBoss: 28 else: 12
+  let baseCount = scaledParticleBurstCount(pool, if isBoss: 20 else: 10)
+  let sparkCount = scaledParticleBurstCount(pool, if isBoss: 10 else: 4)
+  let ringParticles = scaledParticleBurstCount(pool, if isBoss: 12 else: 6)
   let baseSpeed = if isBoss: 240.0'f32 else: 165.0'f32
   let brightEnemy = brighten(enemyColor, 70.0)
 

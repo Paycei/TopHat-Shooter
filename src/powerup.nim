@@ -281,9 +281,9 @@ proc getElementDamage*(level: int): float32 =
   ## Get base damage per hit based on power-up level
   ## Compensated with reduced damage multiplier in game logic
   case level
-  of 1: 4.5
-  of 2: 7.5
-  else: 11.0
+  of 1: 3.5
+  of 2: 5.5
+  else: 8.0
 
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   # Apply immediate stat bonuses for new powerup types
@@ -325,11 +325,11 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       player.shieldHealths.add(shieldHealth)
       player.shieldRegenTimers.add(0.0)
     
-    # Reduce regen delay with upgrades: level 1=4s, level 2=3s, level 3=2s
+    # Decrease regen delay with upgrades: level 1=7s, level 2=6s, level 3=4s
     player.shieldRegenDelay = case powerUp.level
-      of 1: 4.0
-      of 2: 3.0
-      else: 2.0
+      of 1: 6.0
+      of 2: 5.0
+      else: 3.0
   of puPoisonOrb:
     createElementalOrbs(player, etPoison, powerUp.level)
   of puFireOrb:
@@ -345,9 +345,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puArcaneBullets:
     # Arcane bullets increase bullet damage only (not base player damage)
     let damageBonus = case powerUp.level
-      of 1: 1.4   # +40% bullet damage
-      of 2: 1.8   # +80% bullet damage
-      else: 2.2   # +120% bullet damage
+      of 1: 1.2   # +20% bullet damage
+      of 2: 1.4   # +40% bullet damage
+      else: 1.6   # +60% bullet damage
     player.bulletDamageMult *= damageBonus
   of puFireMastery:
     # Enhance fire effects
@@ -429,9 +429,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
         
         # Update regen delay
         player.shieldRegenDelay = case powerUp.level
-          of 1: 4.0
-          of 2: 3.0
-          else: 2.0
+          of 1: 6.0
+          of 2: 5.0
+          else: 3.0
       of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puBloodOrb:
         # Recreate orbs with new level (more orbs of this element)
         let elementType = case powerUp.powerType
@@ -448,8 +448,8 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
         createElementalOrbs(player, etArcane, powerUp.level)
       of puArcaneBullets:
         let damageBonus = case powerUp.level
-          of 2: 1.2857  # 1.8 / 1.4
-          of 3: 1.2222  # 2.2 / 1.8
+          of 2: 1.1667  # 1.4 / 1.2
+          of 3: 1.1429  # 1.6 / 1.4
           else: 1.0
         player.bulletDamageMult *= damageBonus
       of puHeavyRounds:

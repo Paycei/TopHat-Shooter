@@ -427,10 +427,10 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   if enemy.isBoss and enemy.defenseMultiplier > 0:
     result *= enemy.defenseMultiplier
   
-  # Tank elite: 50% damage reduction
+  # Tank elite: still durable, but no longer late-midgame mini-bosses.
   # If multiple elites include Tank, apply reduction
   if enemy.isElite and etTank in enemy.eliteTypes:
-    result *= 0.5  # 50% damage taken
+    result *= 0.65  # 65% damage taken
   
   # Shielded elite: shield absorbs damage first
   if enemy.isElite and etShielded in enemy.eliteTypes and enemy.shieldHp > 0:
@@ -475,6 +475,13 @@ type CombatStats* = object
   critChance*: int          # Critical hit chance (0-100)
   critMultiplier*: float32  # Critical hit damage multiplier
   hasCrit*: bool            # Whether player has crit power-up
+
+proc getMultiShotDamageMultiplier(level: int): float32 =
+  ## Centralized per-bullet damage penalty for Multi-Shot.
+  ## Legendary Multi-Shot is still a large spike, just no longer a 3x base-DPS outlier.
+  case level
+  of 1: 0.7
+  else: 0.7
 
 proc calculateCombatStats*(player: Player): CombatStats =
   ## Calculates all combat stats in one place
@@ -1058,9 +1065,9 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
   of befBlood:
     # Blood: Lifesteal
     var healPercent = case effect.level
-      of 1: 0.0175  # 1.75%
-      of 2: 0.0225  # 2.25%
-      else: 0.03  # 3%
+      of 1: 0.015  # 1.5%
+      of 2: 0.02  # 2.0%
+      else: 0.0275  # 2.75%
     
     if effect.hasMastery:
       healPercent *= 2.0  # +100% lifesteal
@@ -1179,9 +1186,6 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
   result.player.bulletShapeType = bulletShape
   result.player.particleSkinType = particleSkin
   
-  # Discord client is assigned from global instance in main.nim
-  # Don't create a new client here to avoid threading issues
-  
   # Note: initializeRunTracking is called explicitly when starting a game
   # (not in sandbox mode) to ensure correct mode is tracked
 
@@ -1205,7 +1209,7 @@ proc setGameMode*(game: Game, mode: GameMode) =
 proc calculateWaveEnemyCount(waveNumber: int): int =
   # Scale enemy count based on wave number
   # Start with 8 enemies, add 2-3 per wave
-  result = 8 + (waveNumber - 1) * 2
+  result = int(8 + float(waveNumber - 1) * 1.5)
   # Cap at 100 enemies per wave
   if result > 100:
     result = 100
@@ -1235,9 +1239,9 @@ proc startWave*(game: Game) =
   # Mark wave start for combo tracking
   startWaveCombo(game.dopamine.comboSystem)
   
-  # PLAYER SCALING: Multiply current stats by 1.25% per wave (preserves shop purchases and power-ups)
+  # PLAYER SCALING: Multiply current stats by 1.2% per wave (preserves shop purchases and power-ups)
   # This applies scaling multiplicatively to whatever stats the player has built up
-  let waveScaling = 1.0125  # 1.25% increase per wave
+  let waveScaling: float32 = 1.012  # 1.2% increase per wave
   
   # Apply multiplicative scaling to current stats (preserves all upgrades)
   game.player.maxHp *= waveScaling
@@ -1302,41 +1306,41 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etTriangle
       
       elif wave <= 25:
-        # Waves 21-25: Introduce STAR
-        if roll < 20: enemyType = etStar
-        elif roll < 35: enemyType = etCircle
-        elif roll < 53: enemyType = etCube
-        elif roll < 70: enemyType = etPentagon
+        # Waves 21-25: Introduce STAR, but keep the first tanky roster step gentler
+        if roll < 12: enemyType = etStar
+        elif roll < 28: enemyType = etCircle
+        elif roll < 48: enemyType = etCube
+        elif roll < 68: enemyType = etPentagon
         else: enemyType = etTriangle
       
       elif wave <= 30:
-        # Waves 26-30: Introduce CROSS
-        if roll < 25: enemyType = etCross
-        elif roll < 42: enemyType = etCircle
-        elif roll < 55: enemyType = etCube
-        elif roll < 65: enemyType = etStar
-        elif roll < 80: enemyType = etPentagon
+        # Waves 26-30: Introduce CROSS with a shallower composition swing
+        if roll < 15: enemyType = etCross
+        elif roll < 30: enemyType = etCircle
+        elif roll < 45: enemyType = etCube
+        elif roll < 57: enemyType = etStar
+        elif roll < 75: enemyType = etPentagon
         else: enemyType = etTriangle
       
       elif wave <= 35:
-        # Waves 31-35: Introduce DIAMOND
-        if roll < 22: enemyType = etDiamond
-        elif roll < 38: enemyType = etCircle
-        elif roll < 51: enemyType = etCube
-        elif roll < 61: enemyType = etStar
-        elif roll < 74: enemyType = etCross
-        elif roll < 84: enemyType = etPentagon
+        # Waves 31-35: Introduce DIAMOND gradually instead of replacing the whole roster
+        if roll < 14: enemyType = etDiamond
+        elif roll < 26: enemyType = etCircle
+        elif roll < 41: enemyType = etCube
+        elif roll < 53: enemyType = etStar
+        elif roll < 67: enemyType = etCross
+        elif roll < 82: enemyType = etPentagon
         else: enemyType = etTriangle
       
       elif wave <= 40:
-        # Waves 36-40: Introduce OCTAGON
-        if roll < 20: enemyType = etOctagon
-        elif roll < 34: enemyType = etCircle
-        elif roll < 46: enemyType = etCube
-        elif roll < 56: enemyType = etStar
-        elif roll < 68: enemyType = etCross
+        # Waves 36-40: Keep pressure rising, but not with another abrupt roster cliff
+        if roll < 15: enemyType = etOctagon
+        elif roll < 27: enemyType = etCircle
+        elif roll < 41: enemyType = etCube
+        elif roll < 51: enemyType = etStar
+        elif roll < 65: enemyType = etCross
         elif roll < 77: enemyType = etDiamond
-        elif roll < 86: enemyType = etPentagon
+        elif roll < 87: enemyType = etPentagon
         else: enemyType = etTriangle
       
       elif wave <= 45:
@@ -1389,8 +1393,8 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         elif roll < 99: enemyType = etTriangle
         else: enemyType = etSniper
       
-      # Difficulty scaling
-      let baseDifficulty = (wave - 1).float32 / 3.0
+      # Wave enemies now use a softer difficulty slope so midgame HP does not outrun builds.
+      let baseDifficulty = (wave - 1).float32 / 4.0
       
       let side = rand(3)
       var x, y: float32
@@ -1446,9 +1450,14 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     var speed = game.player.bulletSpeed * 1.2
     var damage = stats.damage  # Already includes Rage bonus
     
-    # Double-shot bullets deal 10% less damage per bullet
+    # Double-shot bullets deal 15% less damage per bullet
     if hasDoubleShot:
       damage *= 0.85  # 15% less damage per bullet
+
+    # Multi-Shot remains premium, but no longer triples baseline DPS by itself.
+    if hasMultiShot:
+      let multiLevel = getPowerUpLevel(game.player, puMultiShot)
+      damage *= getMultiShotDamageMultiplier(multiLevel)
         
     var bulletRadius = BASE_PLAYER_BULLET_RADIUS
     
@@ -1482,11 +1491,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     
     # Apply Arcane Mastery bonus to Arcane bullets (damage + piercing)
     var arcanePiercing = hasPiercing  # Start with base piercing status
-    var arcaneMasteryBonus = 0.0
     if hasArcane and game.player.hasArcaneMastery:
-      let damageBeforeMastery = damage
-      damage *= 2.0  # +100% additional damage on top of Arcane Bullets bonus
-      arcaneMasteryBonus = damage - damageBeforeMastery  # The extra 150%
+      damage *= 1.6  # +60% additional damage on top of Arcane Bullets bonus
       arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
     
     # Calculate slow, poison, fire, and wind effects
@@ -1716,19 +1722,16 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   var damage = burstStats.damage * 0.85  # Second bullet reduced by 15%
   var bulletRadius = BASE_PLAYER_BULLET_RADIUS
   
-  # Apply Arcane Mastery piercing bonus
+  # Apply Arcane Mastery bonus consistently to delayed burst bullets too.
   var arcanePiercing = hasPiercing
   if hasArcane and game.player.hasArcaneMastery:
+    damage *= 1.6
     arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
   
   # NERF: Multi-shot bullets deal less damage per bullet (scales with level)
   if hasMultiShot:
     let multiLevel = getPowerUpLevel(game.player, puMultiShot)
-    let damageMultiplier = case multiLevel
-      of 1: 0.67   # -33% damage (2 bullets = 134% total)
-      of 2: 0.5    # -50% damage (3 bullets = 150% total)
-      else: 0.45   # -55% damage (4 bullets = 180% total)
-    damage *= damageMultiplier
+    damage *= getMultiShotDamageMultiplier(multiLevel)
   
   # Roll for critical hit
   let burstBaseDamagePreCrit = damage  # Store pre-crit value for puCriticalHit tracking
@@ -1850,6 +1853,93 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
     spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, direction, ParticleSkinType(game.player.particleSkinType), game.time)
   
   playSound(stShoot, 0.25)
+
+proc bossBehaviorRand(minValue, maxValue: float32): float32 =
+  if maxValue <= minValue:
+    return minValue
+  return minValue + rand(maxValue - minValue)
+
+proc resetBossBehaviorState(enemy: Enemy, specialBehavior: string) =
+  ## Reset boss-only timers when a phase starts so movement accents do not carry
+  ## burst windows or teleport cadences across unrelated behaviors.
+  enemy.burstTimer = 0.0
+
+  case specialBehavior
+  of "critical_discharge":
+    enemy.teleportTimer = bossBehaviorRand(3.8, 5.0)
+    enemy.shockwaveTimer = 0.0
+  of "time_collapse":
+    enemy.teleportTimer = 0.0
+    enemy.shockwaveTimer = bossBehaviorRand(2.8, 3.6)
+  of "total_chaos":
+    enemy.teleportTimer = bossBehaviorRand(4.0, 5.4)
+    enemy.shockwaveTimer = bossBehaviorRand(3.2, 4.2)
+  of "final_form":
+    enemy.teleportTimer = bossBehaviorRand(2.8, 3.6)
+    enemy.shockwaveTimer = 0.0
+  of "enraged":
+    enemy.teleportTimer = 0.0
+    enemy.shockwaveTimer = bossBehaviorRand(3.2, 4.0)
+  else:
+    enemy.teleportTimer = 0.0
+    enemy.shockwaveTimer = 0.0
+
+proc isBossBehaviorBurstActive(enemy: Enemy, dt: float32,
+                               activeDuration, cooldownMin, cooldownMax: float32): bool =
+  if enemy.burstTimer > 0:
+    enemy.burstTimer = max(0.0'f32, enemy.burstTimer - dt)
+    return true
+
+  enemy.shockwaveTimer = max(0.0'f32, enemy.shockwaveTimer - dt)
+  if enemy.shockwaveTimer <= 0:
+    enemy.burstTimer = max(0.0'f32, activeDuration - dt)
+    enemy.shockwaveTimer = bossBehaviorRand(cooldownMin, cooldownMax)
+    return true
+
+  return false
+
+proc performBossBehaviorTeleport(game: Game, enemy: Enemy, minRadius, maxRadius: float32,
+                                 effectColor: Color, effectSize: int,
+                                 minPlayerDistance: float32 = 125.0): bool =
+  let margin = enemy.radius + 16.0
+  let oldPos = enemy.pos
+  var targetPos = enemy.pos
+  var foundTarget = false
+
+  for _ in 0..<8:
+    let angle = rand(PI * 2.0)
+    let radius = bossBehaviorRand(minRadius, maxRadius)
+    let candidate = newVector2f(
+      clamp(game.player.pos.x + cos(angle) * radius, margin, game.screenWidth.float32 - margin),
+      clamp(game.player.pos.y + sin(angle) * radius, margin, game.screenHeight.float32 - margin)
+    )
+
+    if distance(candidate, game.player.pos) >= minPlayerDistance and
+       distance(candidate, enemy.pos) >= 80.0:
+      targetPos = candidate
+      foundTarget = true
+      break
+
+  if not foundTarget:
+    return false
+
+  spawnExplosionPooled(game.particlePool, oldPos.x, oldPos.y, effectColor, max(6, effectSize div 2))
+  enemy.pos = targetPos
+  spawnExplosionPooled(game.particlePool, targetPos.x, targetPos.y, effectColor, effectSize)
+  return true
+
+proc tryBossBehaviorTeleport(game: Game, enemy: Enemy, dt: float32,
+                             cooldownMin, cooldownMax, minRadius, maxRadius: float32,
+                             effectColor: Color, effectSize: int,
+                             minPlayerDistance: float32 = 125.0): bool =
+  enemy.teleportTimer = max(0.0'f32, enemy.teleportTimer - dt)
+  if enemy.teleportTimer > 0:
+    return false
+
+  enemy.teleportTimer = bossBehaviorRand(cooldownMin, cooldownMax)
+  return performBossBehaviorTeleport(
+    game, enemy, minRadius, maxRadius, effectColor, effectSize, minPlayerDistance
+  )
 
 proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefinition, dt: float32) =
   ## Updates boss movement based on phase specialBehavior
@@ -1974,9 +2064,10 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Ultra-chaotic movement with occasional micro-teleports
     # Use time-based trigger (~once every 2s) instead of per-frame rand, so rate is fps-independent
     let zapInterval = 2.0 + sin(game.time * 0.8) * 0.5  # 1.5–2.5s varying interval
-    if (game.time mod zapInterval) < dt:
+    discard zapInterval
+    if tryBossBehaviorTeleport(game, enemy, dt, 3.8, 5.0, 120.0, 190.0, phase.color, 12, 125.0):
       let zapAngle = rand(1.0) * PI * 2.0
-      let zapDist = 30.0 + rand(50.0)
+      let zapDist = 25.0 + rand(35.0)
       var newX = enemy.pos.x + cos(zapAngle) * zapDist
       var newY = enemy.pos.y + sin(zapAngle) * zapDist
       
@@ -1992,7 +2083,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       # Normal zigzag but very fast
       let dischargeAngle = game.time * 25.0 + sin(game.time * 50.0)
       let chaosDir = newVector2f(cos(dischargeAngle), sin(dischargeAngle))
-      enemy.pos = enemy.pos + chaosDir * enemy.speed * 1.25 * dt
+      enemy.pos = enemy.pos + chaosDir * enemy.speed * 0.95 * dt
   
   of "orbital_pattern":
     # Slow, calculated circular orbit (Orbital Commander phase 1)
@@ -2028,7 +2119,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   of "overcharged":
     # Very fast aggressive movement
-    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.15 * dt
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.1 * dt
   
   of "deploy_satellites":
     # Drift slowly toward screen center — velocity-based, not instant snap
@@ -2055,7 +2146,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   
   of "aggressive_chase":
     # Fast aggressive chase
-    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.05 * dt
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
   
   of "enraged_assault":
     # Rapid aggressive movement with smooth direction blending (sin-based, no frame dependency)
@@ -2063,11 +2154,11 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     let enrageBlend = sin(game.time * (PI * 2.0 / 3.0)) * 0.5 + 0.5
     let sideDir = newVector2f(-toPlayer.y, toPlayer.x)
     let enrageDir = (toPlayer * enrageBlend + sideDir * (1.0 - enrageBlend)).normalize()
-    enemy.pos = enemy.pos + enrageDir * enemy.speed * 1.15 * dt
+    enemy.pos = enemy.pos + enrageDir * enemy.speed * dt
   
   of "unstoppable":
     # Extremely fast movement toward player
-    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.25 * dt
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.175 * dt
   
   of "meteor_storm":
     # Rapid circling movement with erratic patterns (Meteor Striker phase 2)
@@ -2082,9 +2173,9 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Defensive positioning with occasional aggressive bursts (Summoner King phase 2)
     # sin-based blend: aggressive near peak, defensive near trough — 5s period, fps-independent
     let frenzyBlend = sin(game.time * (PI * 2.0 / 5.0)) * 0.5 + 0.5  # 0..1 over 5s
-    if frenzyBlend > 0.85:
+    if frenzyBlend > 0.92:
       # Aggressive burst near the peak of each 5s cycle
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.2 * dt
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
     else:
       # Maintain defensive distance
       if playerDist < 220.0:
@@ -2101,7 +2192,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       toPlayer.x * cos(berserkerAngle) - toPlayer.y * sin(berserkerAngle),
       toPlayer.x * sin(berserkerAngle) + toPlayer.y * cos(berserkerAngle)
     )
-    enemy.pos = enemy.pos + wildDir * enemy.speed * 1.35 * dt
+    enemy.pos = enemy.pos + wildDir * enemy.speed * 1.1 * dt
   
   of "prism_defense":
     # Stationary with slight orbital movement (Prism Architect phase 1)
@@ -2134,7 +2225,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     
     # Smooth movement toward sweep target instead of instant position assignment
     let toSweep = (newVector2f(sweepX, sweepY) - enemy.pos).normalize()
-    enemy.pos = enemy.pos + toSweep * enemy.speed * 1.3 * dt
+    enemy.pos = enemy.pos + toSweep * enemy.speed * 1.1 * dt
   
   of "slow_time":
     # Very slow methodical movement (Timekeeper phase 1)
@@ -2144,7 +2235,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Stuttering movement with temporal echoes (Timekeeper phase 2)
     # Smooth stutter: move fast during "on" half, freeze during "off" half of each 0.25s cycle
     let distortBlend = sin(game.time * PI * 4.0) * 0.5 + 0.5  # 0..1 at 4Hz, fully continuous
-    enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.5 * distortBlend * dt
+    enemy.pos = enemy.pos + toPlayer * enemy.speed * 0.95 * distortBlend * dt
   
   of "time_collapse":
     # Ultra-fast blinking movement (Timekeeper phase 3)
@@ -2152,8 +2243,9 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     let collapseBlend = sin(game.time * PI * 2.0) * 0.5 + 0.5  # 0..1 at 1Hz (0.5s per half)
     let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
     # High blend -> charge fast, low blend -> strafe
-    let chaseContrib = toPlayer * 2.0 * collapseBlend
-    let strafeContrib = strafeDir * 1.2 * (1.0 - collapseBlend)
+    let collapseBurst = isBossBehaviorBurstActive(enemy, dt, 0.4, 2.8, 3.6)
+    let chaseContrib = toPlayer * (if collapseBurst: 1.15 else: 0.8) * collapseBlend
+    let strafeContrib = strafeDir * (if collapseBurst: 0.75 else: 0.55) * (1.0 - collapseBlend)
     let collapseDir = (chaseContrib + strafeContrib).normalize()
     enemy.pos = enemy.pos + collapseDir * enemy.speed * dt
   
@@ -2180,13 +2272,14 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     
     # Smooth movement toward orbit target instead of instant position assignment
     let toEntropy = (newVector2f(entropyX, entropyY) - enemy.pos).normalize()
-    enemy.pos = enemy.pos + toEntropy * enemy.speed * 1.1 * dt
+    enemy.pos = enemy.pos + toEntropy * enemy.speed * 0.95 * dt
   
   of "total_chaos":
     # Maximum chaos - truly unpredictable
     # Time-based trigger (~once every 1.5s) instead of per-frame rand — fps-independent
     let chaosInterval = 1.5 + sin(game.time * 1.1) * 0.6  # 0.9–2.1s varying interval
-    if (game.time mod chaosInterval) < dt:
+    discard chaosInterval
+    if tryBossBehaviorTeleport(game, enemy, dt, 4.0, 5.4, 150.0, 260.0, phase.color, 20, 140.0):
       let chaosAngle = rand(1.0) * PI * 2.0
       let chaosDist = 80.0 + rand(180.0)
       let newX = game.player.pos.x + cos(chaosAngle) * chaosDist
@@ -2204,8 +2297,8 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
                            b: uint8(255 - rand(100)), a: 255), 25)
     else:
       # Erratic movement with random speed bursts
-      let speedMult = 0.8 + rand(0.8)  # 80% to 160% speed
-      let wildAngle = game.time * 12.0 + rand(2.0)
+      let speedMult = 0.82 + rand(0.12)  # 82% to 94% speed between burst moments
+      let wildAngle = game.time * 8.5 + sin(game.time * 4.0) * 1.2
       let wildDir = newVector2f(
         cos(wildAngle + sin(game.time * 8.0)),
         sin(wildAngle + cos(game.time * 11.0))
@@ -2226,7 +2319,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     # Completes one full chase->strafe cycle every 1.5s
     let mixedBlend = sin(game.time * (PI * 2.0 / 1.5)) * 0.5 + 0.5  # 0..1
     let mixedStrafe = newVector2f(-toPlayer.y, toPlayer.x)
-    let mixedDir = (toPlayer * (mixedBlend * 1.2) + mixedStrafe * ((1.0 - mixedBlend) * 0.9)).normalize()
+    let mixedDir = (toPlayer * mixedBlend + mixedStrafe * ((1.0 - mixedBlend) * 0.75)).normalize()
     enemy.pos = enemy.pos + mixedDir * enemy.speed * dt
   
   of "adaptive_combat":
@@ -2234,14 +2327,14 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     if playerDist < 150.0:
       # Retreat and reposition
       let adaptRetreat = toPlayer * -1.0
-      enemy.pos = enemy.pos + adaptRetreat * enemy.speed * 1.1 * dt
+      enemy.pos = enemy.pos + adaptRetreat * enemy.speed * 0.95 * dt
     elif playerDist > 280.0:
       # Close distance aggressively
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.3 * dt
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
     else:
       # Optimal range - circle strafe
       let adaptStrafe = newVector2f(-toPlayer.y, toPlayer.x)
-      enemy.pos = enemy.pos + adaptStrafe * enemy.speed * dt
+      enemy.pos = enemy.pos + adaptStrafe * enemy.speed * 0.9 * dt
   
   of "final_form":
     # Ultimate pattern - combines teleportation, aggression, and unpredictability (Omega Entity phase 4)
@@ -2249,10 +2342,10 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     case finalPhase
     of 0, 1:
       # Aggressive chase
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.8 * dt
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
     of 2:
-      # Dash toward a position near player — time-gated teleport ~once per 0.8s, fps-independent
-      let finalTeleportInterval = 0.8 + sin(game.time * 1.7) * 0.2  # 0.6–1.0s
+      # Dash toward a position near player — time-gated teleport ~once per 0.8s
+      let finalTeleportInterval = 2.9 + sin(game.time * 0.9) * 0.7
       if (game.time mod finalTeleportInterval) < dt:
         let finalAngle = rand(1.0) * PI * 2.0
         var newX = game.player.pos.x + cos(finalAngle) * 140.0
@@ -2262,7 +2355,7 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
         newY = clamp(newY, margin, game.screenHeight.float32 - margin)
         enemy.pos = newVector2f(newX, newY)
       else:
-        enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.5 * dt
+        enemy.pos = enemy.pos + toPlayer * enemy.speed * 0.95 * dt
     of 3, 4:
       # Circle strafe at high speed (smooth velocity-based, not instant position set)
       let finalOrbitAngle = game.time * 2.5  # slowed from 5.0 to avoid jitter
@@ -2272,42 +2365,42 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
         game.player.pos.y + sin(finalOrbitAngle) * finalOrbitRadius
       )
       let toOrbit = (orbitTarget - enemy.pos).normalize()
-      enemy.pos = enemy.pos + toOrbit * enemy.speed * 1.2 * dt
+      enemy.pos = enemy.pos + toOrbit * enemy.speed * dt
     else:
       # Erratic chaos movement
       let chaosAngle = game.time * 8.0 + sin(game.time * 3.0)
       let chaosDir = newVector2f(cos(chaosAngle), sin(chaosAngle))
-      enemy.pos = enemy.pos + chaosDir * enemy.speed * 1.5 * dt
+      enemy.pos = enemy.pos + chaosDir * enemy.speed * 0.95 * dt
   
   of "enraged":
     # Enraged behavior - Extremely aggressive meteor striker behavior (Apocalypse phase)
     # Ultra-fast aggressive pursuit with erratic movement patterns
-    let enragedSpeed = enemy.speed * 1.2  # 20% speed boost when enraged
+    let enragedSpeed = enemy.speed * 0.95  # Phase speed already carries the pressure
     let enragedAngle = game.time * 4.0 + sin(game.time * 6.0) * 0.8
     
     # Primary movement: Aggressive chase with weaving patterns
     let baseChase = toPlayer * enragedSpeed * dt
     let weaveOffset = newVector2f(
-      sin(enragedAngle) * 30.0 * dt,
-      cos(enragedAngle * 1.3) * 30.0 * dt
+      sin(enragedAngle) * 20.0 * dt,
+      cos(enragedAngle * 1.3) * 20.0 * dt
     )
     
     # Combine chase and weave for unpredictable aggressive movement
     enemy.pos = enemy.pos + baseChase + weaveOffset
     
     # Occasional burst movement for added aggression
-    if (game.time * 5.0).int mod 7 == 0:
+    if (game.time * 2.0).int mod 9 == 0 and (game.time mod 0.5) < dt:
       # Sudden burst toward player
-      enemy.pos = enemy.pos + toPlayer * enemy.speed * 0.8 * dt
+      enemy.pos = enemy.pos + toPlayer * enemy.speed * 0.35 * dt
   
   else:
     discard
 
 proc addBossAttackWarning(game: var Game, enemy: Enemy, attack: BossAttack) =
   ## Emits a short visual pre-fire warning for a boss attack.
-  ## Called ~0.4 s before the attack actually fires.
+  ## Called ~0.45 s before the attack actually fires.
   ## No-ops for types that already manage their own deferred-warning objects.
-  const WARNING_DURATION = 0.4'f32
+  const WARNING_DURATION = 0.45'f32
 
   # These types build their own AttackWarning objects with deferred execution
   if attack.attackType in [bapLaser, bapTeleport, bapMeteor]:
@@ -4030,9 +4123,9 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
     return
   
   # Calculate base damage
-  let damageScaling = game.player.damage * 0.3
+  let damageScaling = game.player.damage * 0.2
   let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
-    1.5 + damageScaling  # Legendary version
+    5.0 + damageScaling  # Legendary version
   else:
     # For individual orbs, use level-based damage
     var maxDamage = 0.0
@@ -4052,7 +4145,7 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
       maxDamage = max(maxDamage, getElementDamage(getPowerUpLevel(game.player, puBloodOrb)))
     maxDamage + damageScaling
   
-  let orbRadius = 9.0
+  let orbRadius = 7.5
   let orbDetectionRange = 0.0
   
   # Update each orb
@@ -4078,7 +4171,7 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
       
       enemyIdx += 1
     
-    # Clean up old hit times (>2 seconds ago) to prevent memory growth
+    # Clean up old hit times to prevent memory growth
     var toRemove: seq[int] = @[]
     for idx, hitTime in orb.lastHitTime:
       if game.time - hitTime > 2.0:
@@ -4948,7 +5041,7 @@ proc updateGame*(game: var Game, dt: float32) =
       let spawnCount = if game.currentWave <= 3: 1
                        elif game.currentWave <= 8: (if rand(100) < 50: 1 else: 2)
                        elif game.currentWave <= 15: (if rand(100) < 30: 1 elif rand(100) < 70: 2 else: 3)
-                       elif game.currentWave <= 25: (if rand(100) < 20: 2 elif rand(100) < 60: 3 else: 4)
+                       elif game.currentWave <= 25: (if rand(100) < 35: 1 elif rand(100) < 75: 2 else: 3)
                        else: (if rand(100) < 15: 2 elif rand(100) < 45: 3 elif rand(100) < 75: 4 else: 5)
       
       let baseSpawnRate = if game.currentWave <= 3: 1.0
@@ -5428,6 +5521,7 @@ proc updateGame*(game: var Game, dt: float32) =
           
           enemy.speed = calculatedSpeed
           enemy.defenseMultiplier = phase.defenseMultiplier  # Apply defense multiplier from phase
+          resetBossBehaviorState(enemy, phase.specialBehavior)
           break
         
       # Update boss behavior based on specialBehavior
@@ -5650,8 +5744,8 @@ proc updateGame*(game: var Game, dt: float32) =
           enemy.lastContactDamageTime = game.time
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Red, 10)
       else:
-        # Regular enemies deal contact damage with cooldown (once every 0.5 seconds)
-        if game.time - enemy.lastContactDamageTime >= 0.5:  # Contact damage cooldown
+        # Regular enemies deal contact damage with cooldown
+        if game.time - enemy.lastContactDamageTime >= 0.33:  # Contact damage cooldown
           var enemyContactDamage = enemy.contactDamage.float32  # Damage enemy deals to player
           
           # Venomous elite effect - applies poison to player
@@ -6372,16 +6466,16 @@ proc updateGame*(game: var Game, dt: float32) =
               spawnNovaExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
                                        explosionRadius, Orange, Yellow)
               spawnExplosiveRingPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                                       explosionRadius, 3, Color(r: 255, g: 180, b: 0, a: 255))
+                                       explosionRadius, 2, Color(r: 255, g: 180, b: 0, a: 255))
               spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
             of 3:
               # Maximum explosion - nova + rings + spiral (satellite-like complexity)
               spawnNovaExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
                                        explosionRadius, Orange, Yellow)
               spawnExplosiveRingPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                                       explosionRadius, 4, Color(r: 255, g: 180, b: 0, a: 255))
+                                       explosionRadius, 2, Color(r: 255, g: 180, b: 0, a: 255))
               spawnSpiralExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                                         explosionRadius, 6, Color(r: 255, g: 100, b: 0, a: 255))
+                                         explosionRadius, 3, Color(r: 255, g: 100, b: 0, a: 255))
               spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
             else:
               # Fallback to basic

@@ -8,8 +8,8 @@ proc newPlayer*(x, y: float32): Player =
     baseRadius: 14,
     hp: 9,
     maxHp: 9,
-    speed: 175,
-    baseSpeed: 175,
+    speed: 177.5,
+    baseSpeed: 177.5,
     damage: 1,
     bulletDamageMult: 1.0,  # Multiplier for bullet-only damage bonuses (e.g. Arcane Bullets)
     fireRate: 0.4275,
@@ -742,9 +742,9 @@ proc takeDamage*(player: Player, damage: float32): bool =
   for powerUp in player.powerUps:
     if powerUp.powerType == puFortified:
       let reduction = case powerUp.level
-        of 1: 0.15  # 15% reduction
-        of 2: 0.25  # 25% reduction
-        else: 0.35  # 35% reduction
+        of 1: 0.1  # 10% reduction
+        of 2: 0.2  # 20% reduction
+        else: 0.3  # 30% reduction
       finalDamage *= (1.0 - reduction)
       break
   
