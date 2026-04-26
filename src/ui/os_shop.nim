@@ -429,7 +429,7 @@ proc buyShopItem*(game: Game, index: int) =
     game.player.damage += 0.1 * pow(1.03, item.bought.float32)
   of 1: # Fire Rate - brought closer to damage-shop efficiency
     let currentRate = game.player.fireRate
-    let scalingFactor = 0.065
+    let scalingFactor = 0.045
     let diminishingFactor = pow(currentRate / 0.415, 0.45)
     let effectiveReduction = currentRate * scalingFactor * diminishingFactor
     

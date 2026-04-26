@@ -12,6 +12,7 @@ bin           = @["main"]
 requires "nim >= 2.2.8"
 requires "naylib >= 26.08.0"
 requires "flatty >= 0.3.4"
+requires "supersnappy >= 2.1.4"
 
 task run, "Run the game for development":
   exec "nim c -r --mm:orc -d:debug src/main.nim"

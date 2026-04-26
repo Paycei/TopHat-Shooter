@@ -1,21 +1,24 @@
 ## Core Networking Layer for PvP Mode
 
-import net, nativesockets, network_types, flatty, times, strutils, ../types, math
+import net, nativesockets, network_types, flatty, supersnappy, times, strutils, ../types, math
 
 const
   DEFAULT_PORT* = 7777
   MAX_PACKET_SIZE = 8192
-  NETWORK_VERSION* = "2.0.0"
+  NETWORK_VERSION* = "2.1.0"
   DISCONNECT_TIMEOUT* = 2.5
   MAX_PACKETS_PER_POLL = 100
+  PACKET_MAGIC = "THS1"
 
-# Serialization (flatty-backed)
+# Serialization (flatty payloads wrapped with supersnappy compression)
 
 proc serialize(packet: Packet): string {.inline.} =
-  packet.toFlatty()
+  PACKET_MAGIC & supersnappy.compress(packet.toFlatty())
 
 proc deserialize(data: string): Packet {.inline.} =
-  data.fromFlatty(Packet)
+  if data.len <= PACKET_MAGIC.len or not data.startsWith(PACKET_MAGIC):
+    raise newException(ValueError, "Unsupported packet encoding")
+  supersnappy.uncompress(data[PACKET_MAGIC.len .. data.high]).fromFlatty(Packet)
 
 type
   NetworkEventKind* = enum
@@ -262,6 +265,16 @@ proc pollEvents*(nm: NetworkManager,
         if client.address == address and client.port == port:
           alreadyConnected = true; break
       if alreadyConnected: continue
+
+      if packet.version != NETWORK_VERSION:
+        var deny = newPacket(ptConnectionDenied)
+        deny.connectionReason = "Version mismatch (host " & NETWORK_VERSION & ", client " & packet.version & ")"
+        deny.assignedPlayerIndex = -1
+        deny.maxPlayersInRoom = nm.maxPlayers
+        deny.connectedPlayers = @[]
+        nm.socket.sendTo(address, port, serialize(deny))
+        echo "[NETWORK] Connection denied (version mismatch): host=", NETWORK_VERSION, " client=", packet.version
+        continue
 
       if nm.clients.len >= nm.maxPlayers - 1:
         var deny = newPacket(ptConnectionDenied)

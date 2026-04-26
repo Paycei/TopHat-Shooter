@@ -1,6 +1,6 @@
 ## Network Types and Packet Definitions for PvP Mode
 ## Defines all network packet structures and a newPacket helper.
-## Serialization is handled directly in network.nim via flatty.
+## Serialization and supersnappy compression are handled in network.nim.
 
 import raylib, ../types, times
 
