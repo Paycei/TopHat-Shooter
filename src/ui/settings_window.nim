@@ -2,6 +2,7 @@
 ## Tabbed settings interface matching the OS visual language
 
 import raylib, strutils, ../sound, ../save_system, os_window, ../settings, ../localization, ../render_context
+import ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types
 
 type
   SettingsTab* = enum
@@ -9,11 +10,20 @@ type
     stAudio
     stControls
     stGameplay
+
+  SettingsResetAction* = enum
+    sraNone
+    sraAllData
+    sraAdvancements
+    sraRogueliteData
   
   SettingsWindow* = ref object
     window*: OSWindow
     currentTab*: SettingsTab
     settings*: Settings
+    stats*: Statistics
+    advancementProfile*: AdvancementProfile
+    rogueliteProfile*: RogueliteProfile
     
     # UI state
     hoveredControl*: int  # -1 for none
@@ -25,7 +35,16 @@ type
     draggingVolume*: bool
     draggingMusic*: bool
 
-proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings): SettingsWindow =
+    # Destructive reset confirmation state
+    pendingReset*: SettingsResetAction
+    resetConfirmTimer*: float32
+    resetStatus*: string
+    resetStatusTimer*: float32
+
+proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
+                        stats: Statistics = nil,
+                        advancementProfile: AdvancementProfile = nil,
+                        rogueliteProfile: RogueliteProfile = nil): SettingsWindow =
   let windowWidth = 700
   let windowHeight = 500
   let windowX = (screenWidth - windowWidth) div 2
@@ -44,12 +63,19 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings): Set
     window: osWin,
     currentTab: stGraphics,
     settings: settings,
+    stats: stats,
+    advancementProfile: advancementProfile,
+    rogueliteProfile: rogueliteProfile,
     hoveredControl: -1,
     editingFPS: false,
     editingVolume: false,
     editingMusicVolume: false,
     draggingVolume: false,
-    draggingMusic: false
+    draggingMusic: false,
+    pendingReset: sraNone,
+    resetConfirmTimer: 0.0,
+    resetStatus: "",
+    resetStatusTimer: 0.0
   )
 
 proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHovered: bool) =
@@ -145,6 +171,118 @@ proc drawSectionHeader*(x, y, width: int, title: string, iconChar: char, color: 
   # Title text
   drawText(title, (x + 35).int32, (y + 2).int32, 18,
           Color(r: 0, g: 220, b: 255, a: 255))
+
+proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rectangle =
+  const
+    ButtonWidth = 180
+    ButtonHeight = 34
+    ButtonGap = 16
+  let idx = case action
+    of sraAllData: 0
+    of sraAdvancements: 1
+    of sraRogueliteData: 2
+    else: 0
+  Rectangle(
+    x: (contentX + 40 + idx * (ButtonWidth + ButtonGap)).float32,
+    y: (contentY + 280).float32,
+    width: ButtonWidth.float32,
+    height: ButtonHeight.float32
+  )
+
+proc resetActionLabel(action: SettingsResetAction): string =
+  case action
+  of sraAllData: t(tkSettingsResetAllData)
+  of sraAdvancements: t(tkSettingsResetAdvancements)
+  of sraRogueliteData: t(tkSettingsResetRogueliteData)
+  else: ""
+
+proc drawSettingsButton(rect: Rectangle, label: string, hovered: bool, danger: bool,
+                        confirming: bool = false) =
+  let bg =
+    if confirming:
+      Color(r: 135, g: 64, b: 22, a: 255)
+    elif danger and hovered:
+      Color(r: 120, g: 38, b: 50, a: 255)
+    elif danger:
+      Color(r: 82, g: 34, b: 45, a: 255)
+    elif hovered:
+      Color(r: 80, g: 80, b: 100, a: 255)
+    else:
+      Color(r: 60, g: 60, b: 80, a: 255)
+  let border =
+    if confirming:
+      Gold
+    elif danger:
+      Color(r: 255, g: 95, b: 105, a: 255)
+    elif hovered:
+      Gold
+    else:
+      Color(r: 100, g: 100, b: 120, a: 255)
+
+  drawRectangle(rect.x.int32, rect.y.int32, rect.width.int32, rect.height.int32, bg)
+  drawRectangleLines(rect, 1, border)
+  let fontSize: int32 = 14
+  let textWidth = measureText(label, fontSize)
+  drawText(label,
+           rect.x.int32 + (rect.width.int32 - textWidth) div 2,
+           rect.y.int32 + (rect.height.int32 - fontSize) div 2,
+           fontSize, White)
+
+proc resetLifetimeProgress(settingsWin: SettingsWindow): bool =
+  result = true
+  if not settingsWin.stats.isNil:
+    resetStatistics(settingsWin.stats)
+    result = saveStatistics(settingsWin.stats) and result
+  clearLastCompletedRun()
+  result = deleteLastRunStats() and result
+
+proc resetRogueliteLastRunProgress(): bool =
+  let memoryRun = getLastRunStats()
+  let diskRun = if memoryRun.isNil: loadLastRunStats() else: memoryRun
+  if not diskRun.isNil and diskRun.gameMode == gmRoguelite:
+    clearLastCompletedRun()
+    return deleteLastRunStats()
+  true
+
+proc performResetAction(settingsWin: SettingsWindow, action: SettingsResetAction): bool =
+  result = true
+  case action
+  of sraAllData:
+    result = settingsWin.resetLifetimeProgress() and result
+    if not settingsWin.advancementProfile.isNil:
+      result = resetAdvancements(settingsWin.advancementProfile) and result
+    if not settingsWin.rogueliteProfile.isNil:
+      result = resetRogueliteProfile(settingsWin.rogueliteProfile) and result
+  of sraAdvancements:
+    if not settingsWin.advancementProfile.isNil:
+      result = resetAdvancements(settingsWin.advancementProfile) and result
+    else:
+      result = false
+  of sraRogueliteData:
+    if not settingsWin.rogueliteProfile.isNil:
+      result = resetRogueliteProfile(settingsWin.rogueliteProfile) and result
+      result = resetRogueliteLastRunProgress() and result
+      if not settingsWin.advancementProfile.isNil:
+        result = resetAdvancementCategory(settingsWin.advancementProfile, acRoguelite) and result
+    else:
+      result = false
+  of sraNone:
+    result = false
+
+proc requestResetAction(settingsWin: SettingsWindow, action: SettingsResetAction) =
+  if settingsWin.pendingReset == action and settingsWin.resetConfirmTimer > 0.0:
+    let ok = settingsWin.performResetAction(action)
+    settingsWin.pendingReset = sraNone
+    settingsWin.resetConfirmTimer = 0.0
+    settingsWin.resetStatus = if ok: t(tkSettingsResetComplete) else: t(tkSettingsResetFailed)
+    settingsWin.resetStatusTimer = 3.0
+    playSound(if ok: stMenuSelect else: stMenuNav)
+  else:
+    settingsWin.pendingReset = action
+    settingsWin.resetConfirmTimer = 4.0
+    settingsWin.resetStatus = ""
+    settingsWin.resetStatusTimer = 0.0
+    playSound(stMenuNav)
 
 proc getMouseBondingModeLabel(mode: MouseBondingMode): string =
   case mode
@@ -498,6 +636,24 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(langDisplayText, (langButtonX + (langButtonWidth - langTextWidth) div 2).int32, yPos.int32, 18, White)
   drawText(">", (langButtonX + langButtonWidth - 25).int32, yPos.int32, 18, LightGray)
 
+  yPos += 60
+  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionDataManagement), '!',
+                   Color(r: 255, g: 95, b: 105, a: 255))
+  yPos += 35
+
+  for action in [sraAllData, sraAdvancements, sraRogueliteData]:
+    let rect = resetButtonRect(action, contentX, contentY)
+    let hovered = checkCollisionPointRec(mousePos, rect)
+    let confirming = settingsWin.pendingReset == action and settingsWin.resetConfirmTimer > 0.0
+    let label = if confirming: t(tkSettingsConfirmReset) else: resetActionLabel(action)
+    drawSettingsButton(rect, label, hovered, true, confirming)
+
+  if settingsWin.resetStatusTimer > 0.0 and settingsWin.resetStatus.len > 0:
+    let statusWidth = measureText(settingsWin.resetStatus, 14)
+    drawText(settingsWin.resetStatus,
+             (contentX + (contentW - statusWidth) div 2).int32,
+             (contentY + 324).int32, 14, LightGray)
+
 proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                           screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool] =
   ## Returns (shouldClose, fullscreenToggleRequested)
@@ -505,6 +661,14 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   
   if not settingsWin.window.visible:
     return (false, false)
+
+  if settingsWin.resetConfirmTimer > 0.0:
+    settingsWin.resetConfirmTimer = max(0.0'f32, settingsWin.resetConfirmTimer - dt)
+    if settingsWin.resetConfirmTimer <= 0.0:
+      settingsWin.pendingReset = sraNone
+
+  if settingsWin.resetStatusTimer > 0.0:
+    settingsWin.resetStatusTimer = max(0.0'f32, settingsWin.resetStatusTimer - dt)
   
   # Check if window should close
   let shouldClose = handleOSWindowInput(settingsWin.window, screenWidth, screenHeight, allWindows)
@@ -757,6 +921,12 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         setLanguage(nextLang)
         playSound(stMenuSelect)
         settingsChanged = true
+
+      for action in [sraAllData, sraAdvancements, sraRogueliteData]:
+        let rect = resetButtonRect(action, contentX, contentY)
+        if checkCollisionPointRec(mousePos, rect):
+          settingsWin.requestResetAction(action)
+          break
   
   # Save settings if changed
   if settingsChanged:

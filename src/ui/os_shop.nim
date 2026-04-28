@@ -1,7 +1,7 @@
 ﻿## OS-Style Shop System
 ## Shop screen redesigned as a modern OS storefront interface
 
-import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing, ../render_context
+import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, ../stat_scaling, icon_drawing, ../render_context
 
 const
   SHOP_WIDTH = 950
@@ -443,7 +443,7 @@ proc buyShopItem*(game: Game, index: int) =
     game.player.maxHp += healthGain.float32
     game.player.hp += healthGain.float32
   of 4: # Bullet Speed
-    game.player.bulletSpeed += 8
+    game.player.bulletSpeed = addBulletSpeedDiminished(game.player.bulletSpeed, 8.0)
   of 5: # Walls
     game.player.walls += 4
   else: discard

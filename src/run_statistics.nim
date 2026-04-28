@@ -103,6 +103,13 @@ type
     finalHP*, finalMaxHP*: float32
     finalCoins*: int
     finalPowerUps*: seq[PowerUp]
+    rogueliteActReached*: int
+    rogueliteSectorsCleared*: int
+    rogueliteHeat*: int
+    rogueliteEndlessLoop*: int
+    rogueliteShardsEarned*: int
+    rogueliteStarterKit*: string
+    rogueliteRelics*: seq[string]
 
 # INITIALIZATION HELPERS
 proc initCombatStats*(): CombatStats =
@@ -155,7 +162,9 @@ proc initRunStatistics*(): RunStatistics =
     performance: initPerformanceStats(),
     comparison: initComparisonStats(),
     events: @[],
-    finalPowerUps: @[]
+    finalPowerUps: @[],
+    rogueliteStarterKit: "",
+    rogueliteRelics: @[]
   )
 
 # GLOBAL RUN STATS INSTANCE
@@ -579,14 +588,34 @@ proc hasLastRunStats*(): bool =
 proc getLastRunStats*(): RunStatistics =
   result = lastCompletedRun
 
+proc clearLastCompletedRun*() =
+  ## Clear the in-memory completed-run snapshot used by stats and advancements.
+  lastCompletedRun = nil
+
 # Game Lifecycle
 proc initializeRunTracking*(game: Game) =
   startNewRun(game.mode)
   game.showRunStatsGraphs = true
 
 proc finalizeRunTracking*(game: Game) =
-  let waveReached = if game.mode == gmWaveBased: game.currentWave else: int(game.time / 60)
+  let waveReached =
+    if game.mode == gmWaveBased:
+      game.currentWave
+    elif game.mode == gmRoguelite and game.rogueliteRun != nil:
+      game.rogueliteRun.totalSectorsCleared
+    else:
+      int(game.time / 60)
   let finalScore = game.player.kills
+  if game.mode == gmRoguelite and game.rogueliteRun != nil and not currentRunStats.isNil:
+    currentRunStats.rogueliteActReached = game.rogueliteRun.act
+    currentRunStats.rogueliteSectorsCleared = game.rogueliteRun.totalSectorsCleared
+    currentRunStats.rogueliteHeat = game.rogueliteRun.heat
+    currentRunStats.rogueliteEndlessLoop = game.rogueliteRun.endlessLoop
+    currentRunStats.rogueliteShardsEarned = game.rogueliteRun.shardsEarned
+    currentRunStats.rogueliteStarterKit = $game.rogueliteRun.starterKit
+    currentRunStats.rogueliteRelics = @[]
+    for relic in game.rogueliteRun.relics:
+      currentRunStats.rogueliteRelics.add(relic.name)
   endRun(game.player, waveReached, finalScore, game.cheatsUsed, true)
 
 proc hasValidRunStats*(): bool =

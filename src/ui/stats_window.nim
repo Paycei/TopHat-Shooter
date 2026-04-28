@@ -8,6 +8,7 @@ type
     stLifetime
     stLastRun
     stPowerUps
+    stRoguelite
   
   StatsWindow* = ref object
     window*: OSWindow
@@ -78,6 +79,7 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
     if isKeyPressed(One): statsWin.currentTab = stLifetime
     if isKeyPressed(Two): statsWin.currentTab = stLastRun
     if isKeyPressed(Three): statsWin.currentTab = stPowerUps
+    if isKeyPressed(Four): statsWin.currentTab = stRoguelite
   
   # Only process content clicks if THIS window handled the click in handleOSWindowInput
   if not statsWin.window.minimized and statsWin.window.handledClickThisFrame:
@@ -91,7 +93,7 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
       let contentX = statsWin.window.x + WINDOW_PADDING
       var tabX = contentX
       
-      for tab in [stLifetime, stLastRun, stPowerUps]:
+      for tab in [stLifetime, stLastRun, stPowerUps, stRoguelite]:
         if mousePos.x >= tabX.float32 and mousePos.x <= (tabX + tabWidth).float32 and
            mousePos.y >= tabY.float32 and mousePos.y <= (tabY + tabHeight).float32:
           statsWin.currentTab = tab
@@ -247,11 +249,12 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
   let mousePos = getVirtualMousePosition()
   
   var tabX = contentX
-  for tab in [stLifetime, stLastRun, stPowerUps]:
+  for tab in [stLifetime, stLastRun, stPowerUps, stRoguelite]:
     let tabName = case tab
       of stLifetime: t(tkStatsTabLifetime)
       of stLastRun: t(tkStatsTabLastRun)
       of stPowerUps: t(tkStatsTabPowerUps)
+      of stRoguelite: t("stats_tab_roguelite")
     
     let isActive = statsWin.currentTab == tab
     let isHovered = mousePos.x >= tabX.float32 and
@@ -367,6 +370,15 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                  statsWin.stats.timeMode.bossesDefeated.float32,
                  t("stats_bar_boss_eliminated"), 20.0,
                  Color(r: 255, g: 100, b: 100, a: 255), statsWin.animTime)
+
+    y += barHeight + 30
+    drawText(t("stats_roguelite_metrics"), (contentX + 20).int32, y.int32, 18,
+            Color(r: 0, g: 220, b: 180, a: 255))
+    y += 25
+    drawSystemBar(contentX + 30, y, barWidth, barHeight,
+                 statsWin.stats.rogueliteMode.highestWaveReached.float32,
+                 t("stats_roguelite_best_sectors"), 30.0,
+                 Color(r: 0, g: 220, b: 180, a: 255), statsWin.animTime)
   
   of stLastRun:
     if hasLastRun:
@@ -461,6 +473,9 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       drawStatLine(col1X + 10, lineY, t(tkStatsWallsPlaced), $runStats.resources.wallsPlaced)
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsConsumables), $runStats.resources.consumablesCollected, Color(r: 0, g: 180, b: 255, a: 255))
+      if runStats.gameMode == gmRoguelite:
+        lineY += 20
+        drawStatLine(col1X + 10, lineY, t("roguelite_data_shards"), $runStats.rogueliteShardsEarned, Gold)
       
       # Play Style Panel
       drawStatPanel(col2X, y, col1Width, 200, t(tkStatsPlayStyle))
@@ -612,6 +627,41 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       let y = tabContentY + tabContentH div 2 - 20
       drawText(t(tkGameNoPowerUpData),
               (contentX + contentW div 2 - 150).int32, y.int32, 18, LightGray)
+
+  of stRoguelite:
+    var y = tabContentY + 24
+    drawText(t("stats_roguelite_metrics"), (contentX + 28).int32, y.int32, 22,
+            Color(r: 0, g: 220, b: 180, a: 255))
+    y += 44
+    let cardWidth = (contentW - 80) div 3
+    drawMetricCard(contentX + 20, y, cardWidth, 70,
+                  t("stats_roguelite_runs"), $statsWin.stats.rogueliteMode.gamesPlayed,
+                  '#', Color(r: 0, g: 220, b: 180, a: 255))
+    drawMetricCard(contentX + 40 + cardWidth, y, cardWidth, 70,
+                  t("stats_roguelite_best_sectors"), $statsWin.stats.rogueliteMode.highestWaveReached,
+                  '>', Gold)
+    drawMetricCard(contentX + 60 + cardWidth * 2, y, cardWidth, 70,
+                  t(tkStatsBossKills), $statsWin.stats.rogueliteMode.bossesDefeated,
+                  '*', Red)
+    y += 100
+    drawStatPanel(contentX + 25, y, contentW - 50, 220, t("stats_roguelite_lifetime"))
+    var lineY = y + 42
+    drawStatLine(contentX + 45, lineY, t(tkStatsPeakKills), $statsWin.stats.rogueliteMode.bestKills, Red)
+    lineY += 24
+    drawStatLine(contentX + 45, lineY, t(tkStatsCoinsEarned), $statsWin.stats.rogueliteMode.totalCoins, Gold)
+    lineY += 24
+    drawStatLine(contentX + 45, lineY, t(tkStatsPlaytime), formatTime(statsWin.stats.rogueliteMode.totalTimePlayed))
+    lineY += 24
+    drawStatLine(contentX + 45, lineY, t(tkStatsAvgWave),
+                 formatFloat(statsWin.stats.rogueliteMode.averageWaveReached, ffDecimal, 1))
+    lineY += 24
+    if hasLastRun and getLastRunStats().gameMode == gmRoguelite:
+      let last = getLastRunStats()
+      drawStatLine(contentX + 45, lineY, t("roguelite_heat"), $last.rogueliteHeat)
+      lineY += 24
+      drawStatLine(contentX + 45, lineY, t("roguelite_endless"), $last.rogueliteEndlessLoop)
+      lineY += 24
+      drawStatLine(contentX + 45, lineY, t("roguelite_relics"), $last.rogueliteRelics.len, Color(r: 0, g: 220, b: 180, a: 255))
   
   drawResizeIndicator(statsWin.window)
 
@@ -673,9 +723,11 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
     of gmTimeSurvival: t("stats_time_survival_mode")
     of gmSandbox: t("stats_sandbox_mode")
     of gmPvP: t("stats_pvp_mode")
+    of gmRoguelite: t("stats_roguelite_mode")
   
   drawText(modeText, (contentX + 10).int32, (contentY + 8).int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
-  drawText(t("stats_wave_label") & " " & $stats.waveReached, (contentX + 10).int32, (contentY + 24).int32, 24, Color(r: 255, g: 200, b: 50, a: 255))
+  let scoreLabel = if stats.gameMode == gmRoguelite: t("roguelite_sector") else: t("stats_wave_label")
+  drawText(scoreLabel & " " & $stats.waveReached, (contentX + 10).int32, (contentY + 24).int32, 24, Color(r: 255, g: 200, b: 50, a: 255))
   
   # Key stats
   var mx = contentX + 180
@@ -775,6 +827,9 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
   drawStatLine(col1X + 8, lineY, t("stats_walls_placed_label"), $stats.resources.wallsPlaced)
   lineY += 18
   drawStatLine(col1X + 8, lineY, t("stats_consumables_label"), $stats.resources.consumablesCollected, Color(r: 0, g: 180, b: 255, a: 255))
+  if stats.gameMode == gmRoguelite:
+    lineY += 18
+    drawStatLine(col1X + 8, lineY, t("roguelite_data_shards"), $stats.rogueliteShardsEarned, Gold)
   
   # Play style
   drawStatPanel(col2X, y, colW, row2H, t("stats_play_style_label"))

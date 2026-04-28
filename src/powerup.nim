@@ -1,4 +1,4 @@
-import raylib, types, random, math, tables, ui/os_powerup_installer, d_visuals
+import raylib, types, random, math, tables, ui/os_powerup_installer, d_visuals, stat_scaling
 
 # Forward declarations for reroll system
 proc attemptRerollPowerUps*(game: Game): bool
@@ -21,7 +21,33 @@ proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
       return p.level
   return 0
 
-proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3, PowerUp] =
+proc getPowerUpFamily*(powerType: PowerUpType): RoguelitePowerFamily =
+  case powerType
+  of puRotatingShield, puFortified, puPulseArmor, puWallTurrets, puWallMaster,
+     puCelestialVeil, puThorns:
+    rpfShield
+  of puArcaneAura, puArcaneBullets, puArcaneOrb, puArcaneMastery, puOvercharge,
+     puEchoShots, puGravityWell:
+    rpfArcane
+  of puFireAura, puFireBullets, puFireOrb, puFireMastery:
+    rpfFire
+  of puFrostShots, puFrostOrb, puFrostMastery:
+    rpfFrost
+  of puPoisonAura, puPoisonShot, puPoisonOrb, puPoisonMastery:
+    rpfPoison
+  of puLightningAura, puLightningOrb, puLightningMastery, puChainLightning,
+     puConduit:
+    rpfLightning
+  of puWindAura, puWindBullets, puWindOrb, puWindMastery, puAftershock:
+    rpfWind
+  of puBloodAura, puBloodBullets, puBloodOrb, puBloodMastery, puBloodPact,
+     puLifeSteal:
+    rpfBlood
+  else:
+    rpfCore
+
+proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
+                             allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood}): array[3, PowerUp] =
   # Generate 3 random power-up options with COMPLETELY SEPARATE pools
   var availablePowerUps: seq[PowerUp] = @[]
   
@@ -59,13 +85,15 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
     for powerType in legendaryOnlyTypes:
       let currentLevel = getPowerUpLevel(player, powerType)
-      if currentLevel == 0:
+      if currentLevel == 0 and getPowerUpFamily(powerType) in allowedPowerFamilies:
         # All legendaries are single-level, only offer if not owned
         availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
   else:
     # NORMAL WAVE - offer ONLY normal power-ups (exclude legendary-exclusive types)
     for powerType in normalOnlyTypes:
       let currentLevel = getPowerUpLevel(player, powerType)
+      if getPowerUpFamily(powerType) notin allowedPowerFamilies:
+        continue
       if currentLevel == 0:
         availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prCommon))
       elif currentLevel < 3:
@@ -137,6 +165,10 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
         let isAura = randomPowerUp.powerType in auraTypes
         let isBullet = randomPowerUp.powerType in bulletTypes
         let isMastery = randomPowerUp.powerType in masteryTypes
+
+        if getPowerUpFamily(randomPowerUp.powerType) notin allowedPowerFamilies:
+          attempts += 1
+          continue
         
         # Check if this violates our grouping rules
         if (isOrb and hasOrb) or (isAura and hasAura) or (isBullet and hasBullet) or (isMastery and hasMastery):
@@ -153,6 +185,12 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false): array[3
         if isMastery:
           hasMastery = true
         break
+
+      if attempts >= 100:
+        result[i] = if isLegendary:
+          PowerUp(powerType: puDoubleShot, level: 1, rarity: prLegendary)
+        else:
+          PowerUp(powerType: puRegeneration, level: 1, rarity: prCommon)
 
 # ROTATING ORBS SYSTEM
 proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType, orbLevel: int = 1): RotatingOrb =
@@ -300,8 +338,8 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.speed *= 1.4
     player.baseSpeed *= 1.4
   of puBulletSpeed:
-    # Single level only - +40% speed
-    player.bulletSpeed *= 1.4
+    # Single level only - +40% speed, tapered if bullet speed is already high
+    player.bulletSpeed = multiplyBulletSpeedDiminished(player.bulletSpeed, 1.4)
   of puTimeWarp:
     # Single level only - 2 uses per wave
     player.timeWarpMaxUsesPerWave = 2
@@ -648,7 +686,12 @@ proc attemptRerollPowerUps*(game: Game): bool =
   
   # Generate new power-up choices (same legendary/normal status)
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
-  game.powerUpChoices = generatePowerUpChoices(game.player, isLegendary)
+  let allowedFamilies =
+    if game.mode == gmRoguelite and game.rogueliteProfile != nil:
+      game.rogueliteProfile.unlockedPowerFamilies
+    else:
+      {rpfCore..rpfBlood}
+  game.powerUpChoices = generatePowerUpChoices(game.player, isLegendary, allowedFamilies)
   
   # Reset selection to first option
   game.selectedPowerUp = 0
@@ -657,7 +700,21 @@ proc attemptRerollPowerUps*(game: Game): bool =
   initPowerUpRollAnimation(game)
   
   # Increase cost for next reroll (adds 25 coins)
-  game.rerollCost += 25
+  let rerollStep = if game.mode == gmRoguelite and game.rogueliteRun != nil:
+    var hasDiscount = false
+    var hasDraftCache = false
+    for relic in game.rogueliteRun.relics:
+      if relic.relicType == rrtDiscountProtocol:
+        hasDiscount = true
+      if relic.relicType == rrtDraftCache:
+        hasDraftCache = true
+    var step = if hasDiscount: 20 else: 25
+    if hasDraftCache:
+      step = max(10, step - 5)
+    step
+  else:
+    25
+  game.rerollCost += rerollStep
   
   return true
 
@@ -665,3 +722,12 @@ proc initializeRerollCost*(game: Game) =
   ## Initialize the reroll cost at the start of a power-up selection
   ## Base cost: 25 coins for first reroll, increases by 25 each time
   game.rerollCost = 25
+  if game.mode == gmRoguelite and game.rogueliteRun != nil:
+    var hasDraftCache = false
+    for relic in game.rogueliteRun.relics:
+      if relic.relicType == rrtDiscountProtocol:
+        game.rerollCost = 20
+      if relic.relicType == rrtDraftCache:
+        hasDraftCache = true
+    if hasDraftCache:
+      game.rerollCost = max(5, game.rerollCost - 10)

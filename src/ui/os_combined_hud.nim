@@ -1,7 +1,7 @@
 ﻿## Combined OS-Style HUD Panel
 ## Merges status and info panels into one compact, non-intrusive display
 
-import raylib, ../types, ../localization, math, ../powerup_data, ui_constants, ../render_context
+import raylib, ../types, ../localization, math, ../powerup_data, ../roguelite, ui_constants, ../render_context
 
 const
   COMBINED_PANEL_WIDTH = 200
@@ -17,6 +17,13 @@ var leftPanelMinimized* = false
 var leftPanelPos* = Vector2(x: 10, y: 2)  # Default position
 var leftPanelDragging* = false
 var leftPanelDragOffset* = Vector2(x: 0, y: 0)
+
+proc bestFitPanelFontSize(text: string, maxWidth, fontSize: int32, minSize: int32 = 6): int32 =
+  result = fontSize
+  if maxWidth <= 0:
+    return
+  while result > minSize and measureText(text, result) > maxWidth:
+    dec result
 
 proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   ## Draw unified HUD panel combining status and wave/powerup info
@@ -121,8 +128,13 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     else: 28
   else:
     0
+
+  let rogueliteInfoHeight = if game.mode == gmRoguelite and game.rogueliteRun != nil:
+    68
+  else:
+    0
   
-  let totalHeight = 82 + powerUpHeight + waveInfoHeight + (if powerUpHeight > 0: COMBINED_SECTION_SPACING else: 0)
+  let totalHeight = 82 + powerUpHeight + waveInfoHeight + rogueliteInfoHeight + (if powerUpHeight > 0: COMBINED_SECTION_SPACING else: 0)
   
   # Main panel background - more transparent and colorful
   drawRectangle(finalPanelX, yOffset, COMBINED_PANEL_WIDTH, totalHeight.int32,
@@ -325,6 +337,89 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
       drawText("[$] " & t(tkGameCollect), finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
               Color(r: 255, g: 215, b: 0, a: pulseAlpha))
       yOffset += 12
+
+  # ROGUELITE RUN INFO
+  if game.mode == gmRoguelite and game.rogueliteRun != nil:
+    let run = game.rogueliteRun
+    let accent = if run.activeSector.isElite:
+      Color(r: 255, g: 120, b: 80, a: 255)
+    else:
+      ACCENT_COLOR
+    let contentW: int32 = COMBINED_PANEL_WIDTH - (COMBINED_PANEL_PADDING * 2) - 6
+
+    drawLine(Vector2(x: (finalPanelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
+            Vector2(x: (finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
+            1, Color(r: 0, g: 200, b: 255, a: 100))
+    yOffset += 3
+
+    let combatTitle = t("roguelite_combat_title")
+    let combatTitleSize = bestFitPanelFontSize(combatTitle, contentW, 9)
+    drawText(combatTitle,
+            finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, combatTitleSize,
+            Color(r: 0, g: 0, b: 0, a: 100))
+    drawText(combatTitle,
+            finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset, combatTitleSize, accent)
+    yOffset += max(10'i32, combatTitleSize + 1)
+
+    let route = t("roguelite_act") & " " & $run.act & "  " &
+                t("roguelite_sector") & " " & $(run.sectorsThisAct + 1) & "/" & $RogueliteSectorsPerAct
+    let routeSize = bestFitPanelFontSize(route, contentW, 10)
+    drawText(route,
+            finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, routeSize,
+            Color(r: 0, g: 0, b: 0, a: 130))
+    drawText(route,
+            finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset, routeSize, White)
+    yOffset += max(12'i32, routeSize + 2)
+
+    let waveText = t("roguelite_sector_wave") & " " &
+                   $(min(run.sectorWavesCleared + 1, run.activeSector.waveCount)) & "/" &
+                   $run.activeSector.waveCount
+    let objective = if run.pendingActBoss:
+      t("roguelite_objective_boss")
+    elif run.pendingSectorSelect:
+      t("roguelite_objective_choose")
+    elif run.sectorWavesCleared == 1:
+      t("roguelite_objective_draft")
+    else:
+      t("roguelite_objective_clear")
+    let waveAreaW: int32 = 96
+    let objectiveAreaW: int32 = contentW - waveAreaW - 14
+    let waveSize = bestFitPanelFontSize(waveText, waveAreaW, 9)
+    let objectiveSize = bestFitPanelFontSize(objective, objectiveAreaW, 9)
+    let objectiveW = measureText(objective, objectiveSize)
+
+    drawRectangle(finalPanelX + COMBINED_PANEL_PADDING + 3, yOffset - 1,
+                  contentW, 12, Color(r: 15, g: 20, b: 28, a: 70))
+    drawText(waveText,
+            finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, waveSize,
+            Color(r: 0, g: 0, b: 0, a: 130))
+    drawText(waveText,
+            finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset, waveSize, LightGray)
+    drawText(objective,
+            finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - objectiveW - 5,
+            yOffset, objectiveSize, Color(r: 255, g: 210, b: 110, a: 255))
+    yOffset += max(13'i32, max(waveSize, objectiveSize) + 4)
+
+    let shardText = t("roguelite_heat") & " " & $run.heat & "  " &
+                    t("roguelite_shards") & " +" & $run.shardsEarned
+    let shardSize = bestFitPanelFontSize(shardText, contentW, 9)
+    drawText(shardText,
+            finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, shardSize,
+            Color(r: 0, g: 0, b: 0, a: 130))
+    drawText(shardText,
+            finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset, shardSize, Gold)
+    yOffset += max(11'i32, shardSize + 2)
+
+    let relicText = t("roguelite_relics") & " " & $run.relics.len & "  " &
+                    t("roguelite_endless") & " " & $run.endlessLoop
+    let relicSize = bestFitPanelFontSize(relicText, contentW, 9)
+    drawText(relicText,
+            finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, relicSize,
+            Color(r: 0, g: 0, b: 0, a: 130))
+    drawText(relicText,
+            finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset, relicSize,
+            Color(r: 150, g: 220, b: 255, a: 255))
+    yOffset += max(11'i32, relicSize + 2)
   
   # ACTIVE POWER-UPS LIST
   if game.player.powerUps.len > 0:

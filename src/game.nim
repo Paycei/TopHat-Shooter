@@ -1,8 +1,209 @@
-import raylib, rlgl, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival, render_context  # Import 3D game module
+import raylib, rlgl, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, particle_pool, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival, render_context, roguelite, stat_scaling  # Import 3D game module
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
 const TIME_SURVIVAL_BOSS_INTERVAL = 60.0
+const DEATH_SEQUENCE_SLOW_DURATION = 1.1'f32
+const DEATH_SEQUENCE_SPEEDUP_DURATION = 0.35'f32
+const DEATH_SEQUENCE_FADE_DURATION = 0.65'f32
+const DEATH_SEQUENCE_TOTAL_DURATION =
+  DEATH_SEQUENCE_SLOW_DURATION + DEATH_SEQUENCE_SPEEDUP_DURATION + DEATH_SEQUENCE_FADE_DURATION
+const DEATH_SEQUENCE_SLOW_SCALE = 0.16'f32
+const DEATH_SEQUENCE_FAST_SCALE = 1.35'f32
+
+proc getDeathSequenceTimeScale(timer: float32): float32 =
+  if timer < DEATH_SEQUENCE_SLOW_DURATION:
+    return DEATH_SEQUENCE_SLOW_SCALE
+
+  if timer < DEATH_SEQUENCE_SLOW_DURATION + DEATH_SEQUENCE_SPEEDUP_DURATION:
+    let t = clamp((timer - DEATH_SEQUENCE_SLOW_DURATION) / DEATH_SEQUENCE_SPEEDUP_DURATION, 0.0'f32, 1.0'f32)
+    let eased = 1.0'f32 - pow(1.0'f32 - t, 3.0'f32)
+    return DEATH_SEQUENCE_SLOW_SCALE + (DEATH_SEQUENCE_FAST_SCALE - DEATH_SEQUENCE_SLOW_SCALE) * eased
+
+  DEATH_SEQUENCE_FAST_SCALE
+
+proc updateLightningBolts*(game: var Game, dt: float32)
+
+proc spawnPlayerDeathExplosion(game: Game) =
+  let deathPos = game.player.pos
+  spawnExplosionPooled(game.particlePool, deathPos.x, deathPos.y,
+                      Color(r: 255, g: 45, b: 45, a: 255), 95)
+  spawnExplosionPooled(game.particlePool, deathPos.x, deathPos.y,
+                      Color(r: 255, g: 205, b: 90, a: 255), 52)
+  spawnExplosionPooled(game.particlePool, deathPos.x, deathPos.y,
+                      Color(r: 90, g: 15, b: 15, a: 225), 34)
+
+  for _ in 0..<68:
+    let angle = rand(1.0) * PI * 2.0
+    let speed = 150.0'f32 + rand(230.0).float32
+    let size = 3.8'f32 + rand(4.8).float32
+    let color =
+      if rand(1.0) < 0.30:
+        Color(r: 255, g: 255, b: 245, a: 255)
+      elif rand(1.0) < 0.62:
+        Color(r: 255, g: 235, b: 135, a: 255)
+      else:
+        Color(r: 255, g: 55, b: 45, a: 255)
+    discard game.particlePool.acquireParticleDetailed(
+      deathPos.x, deathPos.y,
+      cos(angle) * speed, sin(angle) * speed,
+      color,
+      lifetime = 0.36'f32 + rand(0.32).float32,
+      startSize = size,
+      endSize = 0.25'f32,
+      drag = 3.8'f32 + rand(3.0).float32,
+      gravity = (-25.0 + rand(55.0)).float32,
+      glow = 1.5'f32,
+      style = if rand(1.0) < 0.45: psShard else: psSpark,
+      layer = plForeground,
+      rotation = rand(360.0).float32,
+      spin = (-520.0 + rand(1040.0)).float32
+    )
+
+  for i in 0..<26:
+    let angle = i.float32 / 26.0'f32 * PI * 2.0'f32 + rand(0.10).float32
+    let speed = 310.0'f32 + rand(170.0).float32
+    discard game.particlePool.acquireParticleDetailed(
+      deathPos.x, deathPos.y,
+      cos(angle) * speed, sin(angle) * speed,
+      Color(r: 255, g: 242, b: 178, a: 255),
+      lifetime = 0.44'f32 + rand(0.18).float32,
+      startSize = 3.0'f32 + rand(2.5).float32,
+      endSize = 0.15'f32,
+      drag = 1.8'f32 + rand(1.4).float32,
+      glow = 2.0'f32,
+      style = psSpark,
+      layer = plForeground,
+      rotation = angle * 180.0'f32 / PI.float32,
+      spin = (-260.0 + rand(520.0)).float32
+    )
+
+  spawnShockwavePooled(game.particlePool, deathPos.x, deathPos.y, 70.0)
+  spawnShockwavePooled(game.particlePool, deathPos.x, deathPos.y, 125.0)
+  spawnShockwavePooled(game.particlePool, deathPos.x, deathPos.y, 190.0)
+  playSound(stExplosion, 0.9)
+
+proc beginPlayerDeathSequence*(game: Game) =
+  ## Starts the delayed singleplayer death playback before the game-over screen.
+  if game.state == gsDeathSequence or game.state == gsGameOver:
+    return
+
+  if isPvPMode(game.mode):
+    game.state = gsGameOver
+    return
+
+  game.state = gsDeathSequence
+  game.transitioning = false
+  game.fadeAlpha = 0.0
+  game.deathSequenceTimer = 0.0
+  game.deathSequenceFadeAlpha = 0.0
+  game.deathSequenceTimeScale = DEATH_SEQUENCE_SLOW_SCALE
+  game.selectedGameOverButton = 0
+  game.player.hp = 0
+  game.player.vel = newVector2f(0, 0)
+  game.player.timeWarpActive = false
+  game.player.timeWarpDuration = 0
+  spawnPlayerDeathExplosion(game)
+  addShake(game.dopamine.screenShake, siMassive)
+
+proc updateDeathSequencePlayback(game: var Game, dt: float32) =
+  game.deathSequenceTimer += dt
+  game.deathSequenceTimeScale = getDeathSequenceTimeScale(game.deathSequenceTimer)
+  let worldDt = dt * game.deathSequenceTimeScale
+
+  game.time += worldDt
+  game.frameCount += 1
+
+  updateDopamine(game.dopamine, worldDt)
+  updateAchievements(game.dopamine.achievements, worldDt)
+  updateLightningBolts(game, worldDt)
+
+  var i = 0
+  while i < game.attackWarnings.len:
+    game.attackWarnings[i].lifetime -= worldDt
+    if game.attackWarnings[i].lifetime <= 0:
+      game.attackWarnings.delete(i)
+    else:
+      inc i
+
+  i = 0
+  while i < game.lasers.len:
+    game.lasers[i].lifetime -= worldDt
+    if game.lasers[i].lifetime <= 0:
+      game.lasers.delete(i)
+    else:
+      inc i
+
+  i = 0
+  while i < game.bullets.len:
+    if game.bullets[i].isFrozenByNova and game.bullets[i].fromPlayer:
+      inc i
+      continue
+
+    if not updateBullet(game.bullets[i], worldDt) or isOffScreen(game.bullets[i], game.screenWidth, game.screenHeight):
+      game.bullets.delete(i)
+    else:
+      inc i
+
+  i = 0
+  while i < game.enemies.len:
+    var enemy = game.enemies[i]
+    discard updateEnemy(enemy, game.player.pos, worldDt, game.walls, game.time, game)
+    game.enemies[i] = enemy
+    inc i
+
+  i = 0
+  while i < game.meteorites.len:
+    if game.meteorites[i].warningTimer > 0:
+      game.meteorites[i].warningTimer -= worldDt
+    else:
+      game.meteorites[i].pos = game.meteorites[i].pos + game.meteorites[i].vel * worldDt
+      if game.meteorites[i].pos.x < -100 or game.meteorites[i].pos.x > game.screenWidth.float32 + 100 or
+         game.meteorites[i].pos.y < -100 or game.meteorites[i].pos.y > game.screenHeight.float32 + 100:
+        game.meteorites.delete(i)
+        continue
+    inc i
+
+  i = 0
+  while i < game.coins.len:
+    if not updateCoin(game.coins[i], worldDt, game.coins.len):
+      game.coins.delete(i)
+    else:
+      inc i
+
+  i = 0
+  while i < game.consumables.len:
+    if not updateConsumable(game.consumables[i], worldDt):
+      game.consumables.delete(i)
+    else:
+      inc i
+
+  i = 0
+  while i < game.walls.len:
+    if not updateWall(game.walls[i], worldDt):
+      game.walls.delete(i)
+    else:
+      inc i
+
+  updateParticlePool(game.particlePool, worldDt)
+
+  i = 0
+  while i < game.damageNumbers.len:
+    if not updateDamageNumber(game.damageNumbers[i], worldDt):
+      game.damageNumbers.delete(i)
+    else:
+      inc i
+
+  let fadeStart = DEATH_SEQUENCE_SLOW_DURATION + DEATH_SEQUENCE_SPEEDUP_DURATION
+  game.deathSequenceFadeAlpha =
+    if game.deathSequenceTimer <= fadeStart:
+      0.0
+    else:
+      clamp((game.deathSequenceTimer - fadeStart) / DEATH_SEQUENCE_FADE_DURATION, 0.0'f32, 1.0'f32)
+
+  if game.deathSequenceTimer >= DEATH_SEQUENCE_TOTAL_DURATION:
+    game.deathSequenceFadeAlpha = 1.0
+    game.state = gsGameOver
 
 # Centralized boss wave and coin management
 proc startBossWave*(manager: var BossWaveManager) =
@@ -1166,11 +1367,17 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     nextEnemyId: 0,  # Start at 0, increment with each enemy created
     # Statistics menu tab
     statsMenuTab: 0,  # 0 = Lifetime, 1 = Last Run
+    selectedRogueliteStarter: 0,
+    selectedRogueliteHeat: 0,
+    selectedRogueliteSector: 0,
     # OS-Style Visual System
     osBackground: newOSBackground(),
     osHUD: newOSHUD(),
     pauseMenuTab: tmtProcesses,  # Default to Processes tab in task manager
     selectedGameOverButton: 0,  # Default to Restart button
+    deathSequenceTimer: 0.0,
+    deathSequenceFadeAlpha: 0.0,
+    deathSequenceTimeScale: 1.0,
     dopamine: newDopamineState()
   )
   
@@ -1227,9 +1434,14 @@ proc startWave*(game: Game) =
     game.screenHeight.float32 / 2.0,
     wavePulseColor)
   var waveEnemyCount = calculateWaveEnemyCount(game.currentWave)
+  if game.mode == gmRoguelite and game.rogueliteRun != nil:
+    let run = game.rogueliteRun
+    let pressure = run.activeSector.enemyPressure
+    let fixedThreat = run.act * 2 + run.heat * 3 + run.endlessLoop * 8
+    waveEnemyCount = max(7, int(waveEnemyCount.float32 * pressure) + fixedThreat)
   
   # Apply boss wave reduction if this is a boss wave
-  if game.wavesUntilBoss == 0:
+  if game.wavesUntilBoss == 0 and game.mode != gmRoguelite:
     waveEnemyCount = (waveEnemyCount.float32 * BOSS_WAVE_SPAWN_MULTIPLIER).int
   
   game.waveEnemiesTotal = waveEnemyCount
@@ -1249,7 +1461,7 @@ proc startWave*(game: Game) =
   game.player.damage *= waveScaling
   game.player.speed *= waveScaling
   game.player.baseSpeed *= waveScaling
-  game.player.bulletSpeed *= waveScaling
+  game.player.bulletSpeed = multiplyBulletSpeedDiminished(game.player.bulletSpeed, waveScaling)
   # Fire rate gets faster (lower number = faster), so we divide instead of multiply
   game.player.fireRate /= waveScaling
   
@@ -1277,7 +1489,12 @@ proc spawnWaveEnemies*(game: Game, count: int) =
   # Spawn multiple enemies at once
   for _ in 0..<count:
     if game.waveEnemiesRemaining > 0:
-      let wave: int = game.currentWave
+      let wave: int = if game.mode == gmRoguelite and game.rogueliteRun != nil:
+        let run = game.rogueliteRun
+        game.currentWave + (run.act - 1) * 5 + run.sectorsThisAct * 2 +
+          run.heat * 4 + run.endlessLoop * 12
+      else:
+        game.currentWave
       let roll: int = rand(100)
       var enemyType: EnemyType
 
@@ -1394,7 +1611,12 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etSniper
       
       # Wave enemies now use a softer difficulty slope so midgame HP does not outrun builds.
-      let baseDifficulty = (wave - 1).float32 / 4.0
+      var baseDifficulty = (wave - 1).float32 / 4.0
+      if game.mode == gmRoguelite and game.rogueliteRun != nil:
+        let run = game.rogueliteRun
+        baseDifficulty = baseDifficulty * run.activeSector.enemyPressure +
+                         run.heat.float32 * 0.45 +
+                         run.endlessLoop.float32 * 1.0
       
       let side = rand(3)
       var x, y: float32
@@ -1405,7 +1627,22 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       else: x = -30; y = rand(game.screenHeight.int).float32
       
       let enemy = newEnemy(x, y, baseDifficulty, enemyType, game)
-      makeElite(enemy, wave)  # Chance to make enemy elite based on wave
+      let eliteWave = if game.mode == gmRoguelite and game.rogueliteRun != nil:
+        wave + game.rogueliteRun.activeSector.eliteChanceBonus
+      else:
+        wave
+      makeElite(enemy, eliteWave)  # Chance to make enemy elite based on wave
+      if game.mode == gmRoguelite and game.rogueliteRun != nil:
+        let run = game.rogueliteRun
+        var visualThreat = 1 + (run.act - 1) + (run.heat div 2) + run.endlessLoop +
+          int(max(0.0'f32, run.activeSector.enemyPressure - 1.0'f32) * 2.2'f32)
+        if run.activeSector.isElite:
+          visualThreat += 1
+        if enemy.isElite:
+          visualThreat += 1
+        if enemy.contactDamage >= game.player.maxHp * 0.45:
+          visualThreat = max(visualThreat, 4)
+        enemy.threatLevel = max(enemy.threatLevel, clamp(visualThreat, 1, 5))
       game.enemies.add(enemy)
       game.waveEnemiesRemaining -= 1
 
@@ -4181,6 +4418,10 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
 
 # MAIN GAME UPDATE LOOP
 proc updateGame*(game: var Game, dt: float32) =
+  if game.state == gsDeathSequence:
+    updateDeathSequencePlayback(game, dt)
+    return
+
   updateDopamine(game.dopamine, dt)
   
   let celebrationActive = updateCelebration(game.dopamine.waveCelebration, dt)
@@ -4223,7 +4464,7 @@ proc updateGame*(game: var Game, dt: float32) =
           enableCursor()
         else:
           # Player died in 3D
-          game.state = gsGameOver
+          beginPlayerDeathSequence(game)
           enableCursor()
         # Clean up 3D game
         dealloc(game.game3D)
@@ -4273,8 +4514,13 @@ proc updateGame*(game: var Game, dt: float32) =
   if not isSandboxMode(game.mode):
     let modeDef = getGameModeDefinition(game.mode)
     # In wave-based mode, difficulty scales with wave number, not time
-    if game.mode == gmWaveBased:
+    if game.mode == gmWaveBased or game.mode == gmRoguelite:
       game.difficulty = (game.currentWave.float32 / 5.0) * modeDef.difficultyScale
+      if game.mode == gmRoguelite and game.rogueliteRun != nil:
+        game.difficulty = game.difficulty * game.rogueliteRun.activeSector.enemyPressure +
+                          game.rogueliteRun.heat.float32 * 0.45 +
+                          game.rogueliteRun.act.float32 * 0.18 +
+                          game.rogueliteRun.endlessLoop.float32 * 0.9
     else:
       # In other modes, difficulty scales with time
       game.difficulty = (game.time / 10.0) * modeDef.difficultyScale
@@ -4476,7 +4722,7 @@ proc updateGame*(game: var Game, dt: float32) =
       
       if hit:
         if takeDamage(game.player, laser.damage.float32):
-          game.state = gsGameOver
+          beginPlayerDeathSequence(game)
         
         # Track damage taken for statistics
         trackPlayerDamage(game, laser.damage.float32, laser.enemyType)
@@ -4565,7 +4811,7 @@ proc updateGame*(game: var Game, dt: float32) =
       game.player.poisonAccumulator -= wholeDamage  # Keep remainder
       
       if takeDamage(game.player, wholeDamage):
-        game.state = gsGameOver
+        beginPlayerDeathSequence(game)
       
       # Track poison damage for statistics
       trackPlayerDamage(game, wholeDamage, etCircle)
@@ -4576,7 +4822,7 @@ proc updateGame*(game: var Game, dt: float32) =
       
       # Additional safety check: ensure game ends if HP reaches 0
       if game.player.hp <= 0:
-        game.state = gsGameOver
+        beginPlayerDeathSequence(game)
     
     # Poison visual effect
     # Spawn ~20 particles/sec
@@ -5031,23 +5277,35 @@ proc updateGame*(game: var Game, dt: float32) =
     if shouldUseWaves(game.mode):
     # WAVE-BASED MODE: Spawn enemies in defined waves
     # Don't start a new wave if we're waiting for boss coin collection
-      if not game.waveInProgress and game.bossWaveManager.canStartNewWave() and game.state == gsPlaying:
+      let waitingForRogueliteBoss = game.mode == gmRoguelite and
+        game.rogueliteRun != nil and game.rogueliteRun.pendingActBoss
+      if not waitingForRogueliteBoss and not game.waveInProgress and game.bossWaveManager.canStartNewWave() and game.state == gsPlaying:
         # Start a new wave
         startWave(game)
     
     if game.waveInProgress and game.bossSpawnTimer <= 0:
       # DYNAMIC MULTIPLE ENEMY SPAWNING - scales more with wave number
       # More enemies spawn at once as waves progress
-      let spawnCount = if game.currentWave <= 3: 1
+      var spawnCount = if game.currentWave <= 3: 1
                        elif game.currentWave <= 8: (if rand(100) < 50: 1 else: 2)
                        elif game.currentWave <= 15: (if rand(100) < 30: 1 elif rand(100) < 70: 2 else: 3)
                        elif game.currentWave <= 25: (if rand(100) < 35: 1 elif rand(100) < 75: 2 else: 3)
                        else: (if rand(100) < 15: 2 elif rand(100) < 45: 3 elif rand(100) < 75: 4 else: 5)
       
-      let baseSpawnRate = if game.currentWave <= 3: 1.0
+      var baseSpawnRate = if game.currentWave <= 3: 1.0
                           elif game.currentWave <= 7: 1.1
                           elif game.currentWave <= 12: 1.15
                           else: 1.2
+
+      if game.mode == gmRoguelite and game.rogueliteRun != nil:
+        let run = game.rogueliteRun
+        let pressure = run.activeSector.enemyPressure
+        spawnCount = max(spawnCount, int(ceil(spawnCount.float32 *
+          min(2.6'f32, 0.9'f32 + pressure * 0.28'f32 + run.heat.float32 * 0.08'f32 +
+          run.endlessLoop.float32 * 0.12'f32))))
+        baseSpawnRate = max(0.32'f32, baseSpawnRate / (
+          1.0'f32 + (pressure - 1.0'f32) * 0.45'f32 + run.heat.float32 * 0.09'f32 +
+          run.endlessLoop.float32 * 0.16'f32))
       
       if game.spawnTimer > baseSpawnRate and game.waveEnemiesRemaining > 0:
         spawnWaveEnemies(game, spawnCount)
@@ -5083,15 +5341,24 @@ proc updateGame*(game: var Game, dt: float32) =
         # Play wave complete sound
         playSound(stWaveComplete)
 
-        # DON'T advance wave here if we're waiting for boss coin
-        # The wave will advance when the boss coin is collected
-        if not game.bossWaveManager.isBossCoinActive():
-          # Advance wave counters so the next wave uses the next wave number
-          game.currentWave += 1
-          game.wavesUntilBoss -= 1
+        var shouldOfferPowerUp = false
+        if game.mode == gmRoguelite:
+          let outcome = finishRogueliteWave(game)
+          shouldOfferPowerUp = outcome == rwoDraft
+          if outcome == rwoSectorClear:
+            game.rogueliteRun.pendingSectorSelect = true
+          elif outcome == rwoActBoss:
+            game.rogueliteRun.pendingActBoss = true
+        else:
+          # DON'T advance wave here if we're waiting for boss coin
+          # The wave will advance when the boss coin is collected
+          if not game.bossWaveManager.isBossCoinActive():
+            # Advance wave counters so the next wave uses the next wave number
+            game.currentWave += 1
+            game.wavesUntilBoss -= 1
 
-        # ADJUSTED: Power-ups less frequent (every 2 waves instead of every wave)
-        let shouldOfferPowerUp = (game.currentWave mod 2) == 0
+          # ADJUSTED: Power-ups less frequent (every 2 waves instead of every wave)
+          shouldOfferPowerUp = (game.currentWave mod 2) == 0
         
         # Calculate final wave stats
         calculateAccuracy(game.dopamine.waveStats)
@@ -5117,11 +5384,21 @@ proc updateGame*(game: var Game, dt: float32) =
     if game.wavesUntilBoss == 0 and game.bossWaveManager.canSpawnBoss() and game.state == gsPlaying:
       game.bossCount += 1
       # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
-      let bossDifficulty = (game.currentWave - 1).float32 / 3.0
+      let bossDifficulty = if game.mode == gmRoguelite and game.rogueliteRun != nil:
+        ((game.currentWave - 1).float32 / 2.5) * game.rogueliteRun.activeSector.enemyPressure +
+          game.rogueliteRun.heat.float32 * 0.75 +
+          game.rogueliteRun.act.float32 * 0.4 +
+          game.rogueliteRun.endlessLoop.float32 * 1.5
+      else:
+        (game.currentWave - 1).float32 / 3.0
       # Use a boss wave that maps to the boss block (ceil to next multiple of 5)
       # This allows debug spawns when wavesUntilBoss is forced to 0 (boss appears
       # for the current boss block: waves 1-5 => boss 1, 6-10 => boss 2, etc.)
-      let bossBlockWave = ((game.currentWave - 1) div 5 + 1) * 5
+      let bossBlockWave = if game.mode == gmRoguelite and game.rogueliteRun != nil:
+        let tierOffset = if game.rogueliteProfile != nil: (game.rogueliteProfile.unlockedBossTier - 1) * 3 else: 0
+        max(5, (game.rogueliteRun.act + game.rogueliteRun.endlessLoop * RogueliteActsToWin + tierOffset) * 5)
+      else:
+        ((game.currentWave - 1) div 5 + 1) * 5
       spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
     
     elif isTimeSurvivalMode(game.mode):
@@ -5243,7 +5520,7 @@ proc updateGame*(game: var Game, dt: float32) =
         # Clamp coin position to be in bounds (for enemies killed out-of-bounds)
         let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
         # Boss coins are only required in wave mode.
-        let requiresBossCoin = enemy.isBoss and shouldUseWaves(game.mode)
+        let requiresBossCoin = enemy.isBoss and game.mode == gmWaveBased
         game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, requiresBossCoin))
       
       # Elite Explosive death effect
@@ -5259,7 +5536,7 @@ proc updateGame*(game: var Game, dt: float32) =
         let distToPlayer = distance(enemy.pos, game.player.pos)
         if distToPlayer < eliteExplosionRadius:
           if takeDamage(game.player, eliteExplosionDamage):
-            game.state = gsGameOver
+            beginPlayerDeathSequence(game)
           
           # Track explosion damage for statistics
           trackPlayerDamage(game, eliteExplosionDamage, enemy.enemyType)
@@ -5285,7 +5562,7 @@ proc updateGame*(game: var Game, dt: float32) =
         let distToPlayer = distance(enemy.pos, game.player.pos)
         if distToPlayer < explosionRadius:
           if takeDamage(game.player, explosionDamage):
-            game.state = gsGameOver
+            beginPlayerDeathSequence(game)
           
           # Track boss explosion damage for statistics
           trackPlayerDamage(game, explosionDamage, enemy.enemyType)
@@ -5391,7 +5668,9 @@ proc updateGame*(game: var Game, dt: float32) =
       # Check if boss was defeated
       if enemy.isBoss:
         bossDefeated = true
-        if shouldUseWaves(game.mode):
+        if game.mode == gmRoguelite:
+          game.bossWaveManager.clearBossWave()
+        elif shouldUseWaves(game.mode):
           game.bossWaveManager.bossDefeated()
         else:
           game.bossWaveManager.clearBossWave()
@@ -5731,7 +6010,7 @@ proc updateGame*(game: var Game, dt: float32) =
               game.player.pulseArmorCooldown = game.time
           
           if playerDied:
-            game.state = gsGameOver
+            beginPlayerDeathSequence(game)
           
           # Track boss contact damage for statistics
           trackPlayerDamage(game, bossContactDamage, enemy.enemyType)
@@ -5816,7 +6095,7 @@ proc updateGame*(game: var Game, dt: float32) =
               game.player.pulseArmorCooldown = game.time
           
           if playerDied:
-            game.state = gsGameOver
+            beginPlayerDeathSequence(game)
           
           # Track enemy contact damage for statistics
           trackPlayerDamage(game, enemyContactDamage, enemy.enemyType)
@@ -5858,6 +6137,17 @@ proc updateGame*(game: var Game, dt: float32) =
     
     enemyIdx += 1
   
+  if bossDefeated and game.mode == gmRoguelite:
+    completeRogueliteBoss(game)
+    game.powerUpChoices = generatePowerUpChoices(game.player, true, unlockedFamilySet(game.rogueliteProfile))
+    game.selectedPowerUp = 0
+    initPowerUpRollAnimation(game)
+    initializeRerollCost(game)
+    game.state = gsPowerUpSelect
+    # Clear all enemies and bullets for clean screen
+    game.enemies = @[]
+    game.bullets = @[]
+
   # If boss was defeated in TIME SURVIVAL mode, trigger power-up selection
   # In WAVE mode, power-ups are only given between waves, not on boss defeat
   if bossDefeated and not shouldUseWaves(game.mode):
@@ -6593,7 +6883,7 @@ proc updateGame*(game: var Game, dt: float32) =
             discard applyThornsReflection(game, game.player, bulletDamage, sourceEnemy, "bullet")
         
         if takeDamage(game.player, bulletDamage):
-          game.state = gsGameOver
+          beginPlayerDeathSequence(game)
         else:
           # Pulse Armor shockwave when taking damage from bullets
           if hasPowerUp(game.player, puPulseArmor):
@@ -6710,7 +7000,7 @@ proc updateGame*(game: var Game, dt: float32) =
       # Check collision with player while falling
       if distance(meteorite.pos, game.player.pos) < meteorite.radius + game.player.radius:
         if takeDamage(game.player, meteorite.damage.float32):
-          game.state = gsGameOver
+          beginPlayerDeathSequence(game)
         
         # Track meteorite damage
         trackPlayerDamage(game, meteorite.damage.float32, etMage)
@@ -6960,7 +7250,7 @@ proc updateGame*(game: var Game, dt: float32) =
   
   # This catches edge cases where HP reaches 0 but game didn't transition to game over
   if game.player.hp <= 0 and game.state == gsPlaying:
-    game.state = gsGameOver
+    beginPlayerDeathSequence(game)
 
 proc drawGame*(game: Game) =
   # Calculate screen shake offset
@@ -7091,8 +7381,10 @@ proc drawGame*(game: Game) =
           
           # OPTIMIZATION: Skip targeting line during warning phase - laser beam itself is enough visual feedback
   
+  let playerVisible = game.state != gsDeathSequence
+
   # Draw Gravity Well visual effect
-  if hasPowerUp(game.player, puGravityWell):
+  if playerVisible and hasPowerUp(game.player, puGravityWell):
     let level = getPowerUpLevel(game.player, puGravityWell)
     let pullRadius = if level == 1: 250.0 else: 350.0
     
@@ -7116,14 +7408,16 @@ proc drawGame*(game: Game) =
   # UNIFIED AURA RENDERING
   # Draw all active aura effects using the unified aura system
   const AURA_TYPES = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
-  for auraType in AURA_TYPES:
-    if hasPowerUp(game.player, auraType):
-      let level = getPowerUpLevel(game.player, auraType)
-      let config = getAuraConfig(auraType, level)
-      drawAuraEffect(game.player.pos, config, game.time)
+  if playerVisible:
+    for auraType in AURA_TYPES:
+      if hasPowerUp(game.player, auraType):
+        let level = getPowerUpLevel(game.player, auraType)
+        let config = getAuraConfig(auraType, level)
+        drawAuraEffect(game.player.pos, config, game.time)
   
   # Draw player
-  drawPlayer(game.player)
+  if playerVisible:
+    drawPlayer(game.player)
 
   # Foreground particles, such as player muzzle bursts, render over the player.
   drawParticlePoolLayer(game.particlePool, plForeground)
@@ -7249,6 +7543,47 @@ proc drawGame*(game: Game) =
   # End 2D camera mode if screen shake was applied
   if shakeOffsetX != 0 or shakeOffsetY != 0:
     popMatrix()
+
+proc drawDeathSequenceOverlay*(game: Game) =
+  let timer = game.deathSequenceTimer
+  let impactFlash = max(0.0'f32, 1.0'f32 - timer / 0.28'f32)
+  if impactFlash > 0:
+    drawRectangle(0, 0, game.screenWidth, game.screenHeight,
+                  Color(r: 255, g: 242, b: 205, a: uint8(impactFlash * 145.0'f32)))
+    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y),
+               46.0'f32 + (1.0'f32 - impactFlash) * 130.0'f32,
+               Color(r: 255, g: 190, b: 80, a: uint8(impactFlash * 155.0'f32)))
+
+  let ringProgress = clamp(timer / 0.72'f32, 0.0'f32, 1.0'f32)
+  let ringAlpha = uint8((1.0'f32 - ringProgress) * 185.0'f32)
+  if ringAlpha > 0:
+    for i in 0..2:
+      let ringRadius = game.player.radius + 34.0'f32 + ringProgress * (145.0'f32 + i.float32 * 78.0'f32)
+      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius,
+                      Color(r: 255, g: 215, b: 120, a: uint8(ringAlpha.int div (i + 1))))
+
+  let slowPulseAlpha = uint8(max(0.0'f32, (1.0'f32 - timer / DEATH_SEQUENCE_SLOW_DURATION)) * 110.0'f32)
+  if slowPulseAlpha > 0:
+    let ringRadius = game.player.radius + 28.0'f32 + timer * 68.0'f32
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius,
+                    Color(r: 255, g: 65, b: 65, a: slowPulseAlpha))
+    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), game.player.radius + 5.0'f32,
+               Color(r: 255, g: 35, b: 35, a: uint8(slowPulseAlpha div 3)))
+
+  let vignetteAlpha = uint8(min(120.0'f32, 55.0'f32 + game.deathSequenceFadeAlpha * 65.0'f32))
+  let edgeW: int32 = 190
+  drawRectangleGradientH(0, 0, edgeW, game.screenHeight,
+    Color(r: 125, g: 0, b: 0, a: vignetteAlpha), Color(r: 0, g: 0, b: 0, a: 0))
+  drawRectangleGradientH(game.screenWidth - edgeW, 0, edgeW, game.screenHeight,
+    Color(r: 0, g: 0, b: 0, a: 0), Color(r: 125, g: 0, b: 0, a: vignetteAlpha))
+  drawRectangleGradientV(0, 0, game.screenWidth, edgeW,
+    Color(r: 125, g: 0, b: 0, a: vignetteAlpha), Color(r: 0, g: 0, b: 0, a: 0))
+  drawRectangleGradientV(0, game.screenHeight - edgeW, game.screenWidth, edgeW,
+    Color(r: 0, g: 0, b: 0, a: 0), Color(r: 125, g: 0, b: 0, a: vignetteAlpha))
+
+  if game.deathSequenceFadeAlpha > 0:
+    drawRectangle(0, 0, game.screenWidth, game.screenHeight,
+                  Color(r: 0, g: 0, b: 0, a: uint8(game.deathSequenceFadeAlpha * 255.0'f32)))
 
 proc drawGameOver*(game: Game) =
   # Use the new OS-style system crash screen

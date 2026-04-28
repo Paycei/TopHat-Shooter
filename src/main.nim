@@ -1,4 +1,4 @@
-import raylib, rlgl, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, os, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables, render_context
+import raylib, rlgl, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, os, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables, render_context, roguelite, ui/os_roguelite, advancement
 
 const
   screenWidth = 1024
@@ -167,15 +167,17 @@ proc drawCustomCursor*(time: float32) =
   drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
 
 proc isBondingGameplayState(state: GameState): bool =
-  state in {gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown,
-            gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying}
+  state in {gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver, gsCountdown,
+            gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
+            gsRogueliteSetup, gsRogueliteSectorSelect, gsRogueliteUnlocks}
 
 proc isBondingCombatState(state: GameState): bool =
   state in {gsPlaying, gsPvPPlaying}
 
 proc isMenuOrGameState(state: GameState): bool =
-  state in {gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver,
-            gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying}
+  state in {gsSplash, gsMenu, gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver,
+            gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
+            gsRogueliteSetup, gsRogueliteSectorSelect, gsRogueliteUnlocks}
 
 proc updateInGameMouseBonding(settings: Settings, state: GameState) =
   if settings == nil:
@@ -264,11 +266,17 @@ proc main() =
   
   let stats = initStatistics()
   discard loadStatistics(stats)
+  var rogueliteProfile = loadRogueliteProfile()
   
   # Load last completed run statistics
   let loadedRunStats = loadLastRunStats()
   if not loadedRunStats.isNil:
     loadLastCompletedRun(loadedRunStats)
+
+  var advancementProfile = loadAdvancements()
+  discard syncAdvancements(advancementProfile, stats, loadedRunStats, rogueliteProfile)
+  if advancementProfile.dirty:
+    discard saveAdvancements(advancementProfile)
   
   var statsSavedThisGame = false  # Track if stats were saved for current game
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
@@ -293,13 +301,39 @@ proc main() =
   var osDesktop = newOSDesktop()
   
   # Initialize window manager with all windows
-  globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats)
+  globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats, advancementProfile, rogueliteProfile)
   # Pre-load saved nickname into pvp window and host network manager
   globalWindowManager.pvp.inputNickname = settings.pvpNickname
   globalWindowManager.pvp.networkManager.hostNickname = settings.pvpNickname
 
+  proc setActiveRogueliteProfile(profile: RogueliteProfile) =
+    rogueliteProfile = profile
+    if not globalWindowManager.isNil and not globalWindowManager.settings.isNil:
+      globalWindowManager.settings.rogueliteProfile = profile
+
+  proc clampedRogueliteHeatSelection(selectedHeat: int, profile: RogueliteProfile): int =
+    let maxHeat = if profile.isNil: 0 else: profile.highestHeat
+    clamp(selectedHeat, 0, maxHeat)
+
+  proc defaultRogueliteHeatSelection(profile: RogueliteProfile): int =
+    if profile.isNil: 0 else: clamp(profile.highestHeat, 0, RogueliteMaxHeat)
+
+  proc refreshAdvancementProfile() =
+    discard loadStatistics(stats)
+    let freshRunStats = loadLastRunStats()
+    if not freshRunStats.isNil:
+      loadLastCompletedRun(freshRunStats)
+    setActiveRogueliteProfile(loadRogueliteProfile())
+    discard syncAdvancements(advancementProfile, stats, getLastRunStats(), rogueliteProfile)
+    if advancementProfile.dirty:
+      discard saveAdvancements(advancementProfile)
+    if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
+      globalWindowManager.advancements.profile = advancementProfile
+
   # Track pending game mode launch during loading animation
-  var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox
+  var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox, 9 = Roguelite
+  var rogueliteUnlockCategory = 0
+  var rogueliteUnlockItem = 0
   
   while not windowShouldClose():
     # Check if fullscreen toggle was requested
@@ -399,6 +433,16 @@ proc main() =
           setGameMode(currentGame, gmSandbox)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
+          statsSavedThisGame = false
+        of 9:  # Roguelite Mode
+          setActiveRogueliteProfile(loadRogueliteProfile())
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame.discordClient = globalDiscordClient
+          currentGame.rogueliteProfile = rogueliteProfile
+          setGameMode(currentGame, gmRoguelite)
+          currentGame.selectedRogueliteStarter = 0
+          currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
+          currentGame.state = gsRogueliteSetup
           statsSavedThisGame = false
         else: discard
         pendingGameMode = -1  # Reset pending mode
@@ -594,6 +638,12 @@ proc main() =
           openWindow(globalWindowManager, widPvP)
           resetPvPWindow(globalWindowManager.pvp)
           playSound(stMenuSelect)
+        of 9:  # Roguelite.exe - Roguelite Mode
+          startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
+          pendingGameMode = 9
+        of 10: # Advncmnts.exe - Open Advancements Window
+          refreshAdvancementProfile()
+          globalWindowManager.openWindow(widAdvancements)
         else: discard
       
       # Handle icon execution from help window commands
@@ -629,6 +679,12 @@ proc main() =
             openWindow(globalWindowManager, widPvP)
             resetPvPWindow(globalWindowManager.pvp)
             playSound(stMenuSelect)
+          of 9:  # Roguelite.exe
+            startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
+            pendingGameMode = 9
+          of 10: # Advncmnts.exe
+            refreshAdvancementProfile()
+            globalWindowManager.openWindow(widAdvancements)
           else: discard
       
       # Update Discord Rich Presence (throttled internally to prevent lag)
@@ -949,6 +1005,14 @@ proc main() =
                   screenHeight div 2, 30, White)
       
       endGameDrawing()
+
+    of gsDeathSequence:
+      updateGame(currentGame, dt)
+
+      beginGameDrawing()
+      drawGame(currentGame)
+      drawDeathSequenceOverlay(currentGame)
+      endGameDrawing()
     
     of gsPaused:
       # Keep current music playing but muted or paused
@@ -1103,10 +1167,284 @@ proc main() =
         drawCustomCursor(currentGame.time)
       
       endGameDrawing()
+
+    of gsRogueliteSetup:
+      playMusic(mtMenu)
+      currentGame.time += dt
+      updateMouseTracking(currentGame)
+      refreshRogueliteUnlocks(rogueliteProfile)
+      currentGame.rogueliteProfile = rogueliteProfile
+
+      let starterKits = [rskOperator, rskBulwark, rskArcanist]
+
+      proc closeRogueliteSetupToMenu() =
+        cleanupGame(currentGame)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+        statsSavedThisGame = false
+
+      if isKeyPressed(Left) or isKeyPressed(A):
+        currentGame.selectedRogueliteStarter = (currentGame.selectedRogueliteStarter - 1 + starterKits.len) mod starterKits.len
+        markKeyboardUsed(currentGame)
+      if isKeyPressed(Right) or isKeyPressed(D):
+        currentGame.selectedRogueliteStarter = (currentGame.selectedRogueliteStarter + 1) mod starterKits.len
+        markKeyboardUsed(currentGame)
+      if isKeyPressed(Up) or isKeyPressed(W):
+        currentGame.selectedRogueliteHeat = min(rogueliteProfile.highestHeat, currentGame.selectedRogueliteHeat + 1)
+        markKeyboardUsed(currentGame)
+      if isKeyPressed(Down) or isKeyPressed(S):
+        currentGame.selectedRogueliteHeat = max(0, currentGame.selectedRogueliteHeat - 1)
+        markKeyboardUsed(currentGame)
+      if isKeyPressed(U):
+        currentGame.state = gsRogueliteUnlocks
+      if isKeyPressed(Escape) or isKeyPressed(Q):
+        closeRogueliteSetupToMenu()
+
+      proc startSelectedRoguelite() =
+        let selectedStarterIndex = clamp(currentGame.selectedRogueliteStarter, 0, starterKits.high)
+        let kit = starterKits[selectedStarterIndex]
+        if kit in rogueliteProfile.unlockedStarterKits:
+          beginRogueliteRun(currentGame, rogueliteProfile, kit, currentGame.selectedRogueliteHeat)
+          initializeRunTracking(currentGame)
+          currentGame.selectedRogueliteSector = 0
+          currentGame.state = gsRogueliteSectorSelect
+          playSound(stMenuSelect)
+        elif purchaseRogueliteUnlock(rogueliteProfile, rucStarterKits, selectedStarterIndex):
+          currentGame.rogueliteProfile = rogueliteProfile
+          playSound(stPowerUp)
+        else:
+          playSound(stMenuNav, 0.55)
+
+      if isKeyPressed(Enter) or isKeyPressed(E):
+        startSelectedRoguelite()
+
+      if isMouseButtonPressed(Left):
+        let mousePos = getVirtualMousePosition()
+        const PanelW = 920
+        const PanelH = 620
+        const CardW = 260
+        const CardH = 250
+        const CardGap = 28
+        let panelX = (screenWidth - PanelW) div 2
+        let panelY = (screenHeight - PanelH) div 2
+        let closeRect = rogueliteCloseButtonRect(screenWidth.int32, screenHeight.int32)
+        let startX = panelX + 45
+        let cardY = panelY + 122
+        let btnY = panelY + PanelH - 82
+        if checkCollisionPointRec(mousePos, closeRect):
+          closeRogueliteSetupToMenu()
+        else:
+          for i in 0..2:
+            let rect = Rectangle(x: (startX + i * (CardW + CardGap)).float32,
+                                 y: cardY.float32,
+                                 width: CardW.float32,
+                                 height: CardH.float32)
+            if checkCollisionPointRec(mousePos, rect):
+              currentGame.selectedRogueliteStarter = i
+        let unlockRect = Rectangle(x: (panelX + 60).float32, y: btnY.float32,
+                                   width: 180, height: 42)
+        let startRect = Rectangle(x: (panelX + 370).float32, y: btnY.float32,
+                                  width: 180, height: 42)
+        let backRect = Rectangle(x: (panelX + 680).float32, y: btnY.float32,
+                                 width: 180, height: 42)
+        if not checkCollisionPointRec(mousePos, closeRect) and checkCollisionPointRec(mousePos, unlockRect):
+          currentGame.state = gsRogueliteUnlocks
+        elif checkCollisionPointRec(mousePos, startRect):
+          startSelectedRoguelite()
+        elif checkCollisionPointRec(mousePos, backRect):
+          closeRogueliteSetupToMenu()
+
+      beginGameDrawing()
+      drawRogueliteSetup(currentGame)
+      drawCustomCursor(currentGame.time)
+      endGameDrawing()
+
+    of gsRogueliteUnlocks:
+      playMusic(mtMenu)
+      currentGame.time += dt
+      updateMouseTracking(currentGame)
+
+      let currentUnlockCategory = RogueliteUnlockCategory(clamp(rogueliteUnlockCategory, 0, 3))
+      let currentUnlockCount = unlockCount(currentUnlockCategory)
+
+      if isKeyPressed(Tab) or isKeyPressed(Right) or isKeyPressed(D):
+        rogueliteUnlockCategory = (rogueliteUnlockCategory + 1) mod 4
+        rogueliteUnlockItem = 0
+        markKeyboardUsed(currentGame)
+        playSound(stMenuNav)
+      if isKeyPressed(Left) or isKeyPressed(A):
+        rogueliteUnlockCategory = (rogueliteUnlockCategory - 1 + 4) mod 4
+        rogueliteUnlockItem = 0
+        markKeyboardUsed(currentGame)
+        playSound(stMenuNav)
+      if isKeyPressed(Down) or isKeyPressed(S):
+        rogueliteUnlockItem = (rogueliteUnlockItem + 1) mod max(1, currentUnlockCount)
+        markKeyboardUsed(currentGame)
+        playSound(stMenuNav)
+      if isKeyPressed(Up) or isKeyPressed(W):
+        rogueliteUnlockItem = (rogueliteUnlockItem - 1 + max(1, currentUnlockCount)) mod max(1, currentUnlockCount)
+        markKeyboardUsed(currentGame)
+        playSound(stMenuNav)
+      if isKeyPressed(Enter) or isKeyPressed(E):
+        if purchaseRogueliteUnlock(rogueliteProfile, currentUnlockCategory, rogueliteUnlockItem):
+          currentGame.rogueliteProfile = rogueliteProfile
+          playSound(stPowerUp)
+        else:
+          playSound(stMenuNav, 0.55)
+
+      if isMouseButtonPressed(Left):
+        let mousePos = getVirtualMousePosition()
+        const PanelW = 920
+        const PanelH = 620
+        const NavRowStartY = 44
+        const NavRowStep = 72
+        const NavRowHeight = 58
+        const ListHeaderHeight = 80
+        const ListRowStep = 33
+        const ListRowHeight = 28
+        let panelX = (screenWidth - PanelW) div 2
+        let panelY = (screenHeight - PanelH) div 2
+        let closeRect = rogueliteCloseButtonRect(screenWidth.int32, screenHeight.int32)
+        if checkCollisionPointRec(mousePos, closeRect):
+          currentGame.state = gsRogueliteSetup
+        else:
+          let contentY = panelY + 130
+          let navX = panelX + 30
+          let navW = 184
+          let listX = panelX + 232
+          let listW = 340
+          let detailsX = panelX + 594
+          let detailsW = 296
+          let sectionH = 378
+          var clickHandled = false
+          let navRect = Rectangle(x: navX.float32, y: contentY.float32,
+                                  width: navW.float32, height: sectionH.float32)
+          if checkCollisionPointRec(mousePos, navRect) and
+             mousePos.y >= (contentY + NavRowStartY).float32 and
+             mousePos.y < (contentY + NavRowStartY + NavRowStep * 4).float32:
+            let clickedIdx = clamp(int((mousePos.y - (contentY + NavRowStartY).float32) / NavRowStep.float32), 0, 3)
+            let rowRect = Rectangle(x: (navX + 12).float32, y: (contentY + NavRowStartY + clickedIdx * NavRowStep).float32,
+                                    width: (navW - 24).float32, height: NavRowHeight.float32)
+            if checkCollisionPointRec(mousePos, rowRect):
+              if rogueliteUnlockCategory != clickedIdx:
+                rogueliteUnlockCategory = clickedIdx
+                rogueliteUnlockItem = 0
+                playSound(stMenuNav)
+              clickHandled = true
+
+          if not clickHandled:
+            let clickedCategory = RogueliteUnlockCategory(clamp(rogueliteUnlockCategory, 0, 3))
+            let listStartY = contentY + ListHeaderHeight
+            let listEndY = listStartY + unlockCount(clickedCategory) * ListRowStep
+            let listRect = Rectangle(x: (listX + 12).float32, y: listStartY.float32,
+                                     width: (listW - 24).float32, height: max(0, listEndY - listStartY).float32)
+            if checkCollisionPointRec(mousePos, listRect) and mousePos.y < listEndY.float32:
+              let clickedIdx = clamp(int((mousePos.y - listStartY.float32) / ListRowStep.float32),
+                                     0, max(0, unlockCount(clickedCategory) - 1))
+              let rowRect = Rectangle(x: (listX + 12).float32, y: (listStartY + clickedIdx * ListRowStep).float32,
+                                      width: (listW - 24).float32, height: ListRowHeight.float32)
+              if checkCollisionPointRec(mousePos, rowRect) or
+                 mousePos.y < (rowRect.y + ListRowStep.float32):
+                if rogueliteUnlockItem != clickedIdx:
+                  rogueliteUnlockItem = clickedIdx
+                  playSound(stMenuNav)
+                clickHandled = true
+
+          let buyRect = Rectangle(x: (detailsX + 24).float32, y: (contentY + sectionH - 58).float32,
+                                  width: (detailsW - 48).float32, height: 40)
+          if not clickHandled and checkCollisionPointRec(mousePos, buyRect):
+            let cat = RogueliteUnlockCategory(clamp(rogueliteUnlockCategory, 0, 3))
+            if purchaseRogueliteUnlock(rogueliteProfile, cat, rogueliteUnlockItem):
+              currentGame.rogueliteProfile = rogueliteProfile
+              playSound(stPowerUp)
+            else:
+              playSound(stMenuNav, 0.55)
+
+      if isKeyPressed(Escape) or isKeyPressed(U) or isKeyPressed(Q):
+        currentGame.state = gsRogueliteSetup
+      beginGameDrawing()
+      drawRogueliteUnlocks(currentGame, rogueliteUnlockCategory, rogueliteUnlockItem)
+      drawCustomCursor(currentGame.time)
+      endGameDrawing()
+
+    of gsRogueliteSectorSelect:
+      playMusic(mtMenu)
+      currentGame.time += dt
+      updateMouseTracking(currentGame)
+
+      if isKeyPressed(Left) or isKeyPressed(A):
+        currentGame.selectedRogueliteSector = (currentGame.selectedRogueliteSector - 1 + 3) mod 3
+        markKeyboardUsed(currentGame)
+      if isKeyPressed(Right) or isKeyPressed(D):
+        currentGame.selectedRogueliteSector = (currentGame.selectedRogueliteSector + 1) mod 3
+        markKeyboardUsed(currentGame)
+
+      proc startSelectedSector() =
+        selectRogueliteSector(currentGame, currentGame.selectedRogueliteSector)
+        currentGame.state = gsCountdown
+        currentGame.countdownTimer = 0.5
+        playSound(stMenuSelect)
+
+      proc closeRogueliteSectorSelect() =
+        let preservedHeat = currentGame.selectedRogueliteHeat
+        if currentGame.rogueliteRun != nil and
+           (currentGame.rogueliteRun.totalSectorsCleared > 0 or
+            currentGame.rogueliteRun.shardsEarned > 0 or
+            currentGame.rogueliteRun.sectorWavesCleared > 0):
+          discard commitRogueliteRunProgress(currentGame, true)
+          setActiveRogueliteProfile(currentGame.rogueliteProfile)
+        cleanupGame(currentGame)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        setGameMode(currentGame, gmRoguelite)
+        currentGame.rogueliteProfile = rogueliteProfile
+        currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(preservedHeat, rogueliteProfile)
+        currentGame.state = gsRogueliteSetup
+        statsSavedThisGame = false
+
+      if isKeyPressed(Enter) or isKeyPressed(E):
+        startSelectedSector()
+      if isKeyPressed(Escape) or isKeyPressed(Q):
+        closeRogueliteSectorSelect()
+
+      if isMouseButtonPressed(Left):
+        let mousePos = getVirtualMousePosition()
+        const PanelW = 920
+        const PanelH = 620
+        const CardW = 260
+        const CardH = 250
+        const CardGap = 28
+        let panelX = (screenWidth - PanelW) div 2
+        let panelY = (screenHeight - PanelH) div 2
+        let startX = panelX + 45
+        let cardY = panelY + 185
+        let closeRect = rogueliteCloseButtonRect(screenWidth.int32, screenHeight.int32)
+        if checkCollisionPointRec(mousePos, closeRect):
+          closeRogueliteSectorSelect()
+        else:
+          for i in 0..2:
+            let rect = Rectangle(x: (startX + i * (CardW + CardGap)).float32,
+                                 y: cardY.float32,
+                                 width: CardW.float32,
+                                 height: CardH.float32)
+            if checkCollisionPointRec(mousePos, rect):
+              currentGame.selectedRogueliteSector = i
+              startSelectedSector()
+              break
+
+      beginGameDrawing()
+      drawRogueliteSectorSelect(currentGame)
+      drawCustomCursor(currentGame.time)
+      endGameDrawing()
     
     of gsShop:
       # Play power-up music in shop
-      playMusic(mtPowerUp)
+      if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and
+         currentGame.rogueliteRun.pendingSectorSelect:
+        playMusic(mtMenu)
+      else:
+        playMusic(mtPowerUp)
       
       # Update mouse tracking
       updateMouseTracking(currentGame)
@@ -1144,8 +1482,11 @@ proc main() =
         if checkCollisionPointRec(mousePos, closeButtonRect):
           # Close shop and continue to next wave
           currentGame.cameFromPowerUpSelect = false
-          currentGame.state = gsCountdown
-          currentGame.countdownTimer = 0.5
+          if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and currentGame.rogueliteRun.pendingSectorSelect:
+            currentGame.state = gsRogueliteSectorSelect
+          else:
+            currentGame.state = gsCountdown
+            currentGame.countdownTimer = 0.5
         else:
           let sidebarX = windowX + 10
           let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
@@ -1189,8 +1530,11 @@ proc main() =
       # Close shop - always continue to next wave (no going back to power-up selection)
       if isKeyPressed(Escape) or isKeyPressed(Q):
         currentGame.cameFromPowerUpSelect = false
-        currentGame.state = gsCountdown
-        currentGame.countdownTimer = 0.5
+        if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and currentGame.rogueliteRun.pendingSectorSelect:
+          currentGame.state = gsRogueliteSectorSelect
+        else:
+          currentGame.state = gsCountdown
+          currentGame.countdownTimer = 0.5
       
       beginGameDrawing()
       drawGame(currentGame)
@@ -1311,29 +1655,45 @@ proc main() =
       
       # Transition to power-up selection or next wave
       if currentGame.waveClearedTimer <= 0:
-        let shouldOfferPowerUp = currentGame.cameFromPowerUpSelect
-        
-        if shouldOfferPowerUp and not currentGame.bossWaveManager.isBossCoinActive():
-          # Determine if it's a boss wave power-up
-          let isBossWave = currentGame.wavesUntilBoss <= 0
-          
-          if isBossWave:
-            # Trigger boss warning with LONGER duration
-            currentGame.bossSpawnTimer = 3.0  # Increased from 1.5 to 3.0 seconds
-            # ALWAYS offer power-up before boss (critical moment)
-            currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
+        if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
+          if currentGame.rogueliteRun.pendingActBoss:
+            currentGame.state = gsPlaying
+          elif currentGame.rogueliteRun.pendingSectorSelect:
+            currentGame.state = gsShop
+          elif currentGame.cameFromPowerUpSelect:
+            currentGame.powerUpChoices = generatePowerUpChoices(
+              currentGame.player, false, unlockedFamilySet(currentGame.rogueliteProfile))
+            currentGame.selectedPowerUp = 0
+            initPowerUpRollAnimation(currentGame)
+            initializeRerollCost(currentGame)
+            currentGame.state = gsPowerUpSelect
           else:
-            # Regular wave power-up
-            currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
-          
-          currentGame.selectedPowerUp = 0
-          initPowerUpRollAnimation(currentGame)
-          initializeRerollCost(currentGame)
-          currentGame.state = gsPowerUpSelect
+            currentGame.state = gsPlaying
+            startWave(currentGame)
         else:
-          # No power-up, go straight to next wave
-          currentGame.state = gsPlaying
-          startWave(currentGame)
+          let shouldOfferPowerUp = currentGame.cameFromPowerUpSelect
+
+          if shouldOfferPowerUp and not currentGame.bossWaveManager.isBossCoinActive():
+            # Determine if it's a boss wave power-up
+            let isBossWave = currentGame.wavesUntilBoss <= 0
+
+            if isBossWave:
+              # Trigger boss warning with LONGER duration
+              currentGame.bossSpawnTimer = 3.0  # Increased from 1.5 to 3.0 seconds
+              # ALWAYS offer power-up before boss (critical moment)
+              currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
+            else:
+              # Regular wave power-up
+              currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
+
+            currentGame.selectedPowerUp = 0
+            initPowerUpRollAnimation(currentGame)
+            initializeRerollCost(currentGame)
+            currentGame.state = gsPowerUpSelect
+          else:
+            # No power-up, go straight to next wave
+            currentGame.state = gsPlaying
+            startWave(currentGame)
       
       beginGameDrawing()
       drawGame(currentGame)
@@ -1518,22 +1878,33 @@ proc main() =
           # Also save to disk
           if not currentRunStats.isNil:
             discard saveLastRunStats(currentRunStats)
+
+        if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
+          discard commitRogueliteRunProgress(currentGame, true)
+          setActiveRogueliteProfile(currentGame.rogueliteProfile)
         
         # Save statistics only once per game over
         if not statsSavedThisGame and not currentGame.cheatsUsed:
           # Calculate bosses defeated based on wave progress
-          let bossesKilled = if shouldUseWaves(currentGame.mode):
+          let bossesKilled = if currentGame.mode == gmRoguelite:
+            currentGame.bossCount
+          elif shouldUseWaves(currentGame.mode):
             (currentGame.currentWave - 1) div 5  # Boss every 5 waves
           else:
             currentGame.bossCount
           
-          updateStats(stats,
-                     shouldUseWaves(currentGame.mode),
-                     currentGame.currentWave,
-                     currentGame.time,
-                     currentGame.player.kills,
-                     currentGame.player.coins,
-                     bossesKilled)
+          let scoreReached =
+            if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
+              currentGame.rogueliteRun.totalSectorsCleared
+            else:
+              currentGame.currentWave
+          updateStatsForMode(stats,
+                             currentGame.mode,
+                             scoreReached,
+                             currentGame.time,
+                             currentGame.player.kills,
+                             currentGame.player.coins,
+                             bossesKilled)
           
           # Try to save with retry logic (3 attempts with exponential backoff)
           var saveSuccess = false
@@ -1554,6 +1925,13 @@ proc main() =
           
           if saveSuccess:
             statsSavedThisGame = true
+            let unlockedAdvancements = syncAdvancements(advancementProfile, stats, currentRunStats, rogueliteProfile)
+            if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
+              globalWindowManager.advancements.profile = advancementProfile
+            if advancementProfile.dirty:
+              discard saveAdvancements(advancementProfile)
+            if unlockedAdvancements.len > 0:
+              echo "[Advancements] Unlocked ", unlockedAdvancements.len, " advancement(s)"
           else:
             echo "ERROR: Failed to save statistics after ", MAX_RETRIES, " attempts"
             # This error will be visible in console but game continues
@@ -1577,11 +1955,22 @@ proc main() =
          (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 0):
         # Store the current game mode before restarting
         let previousMode = currentGame.mode
+        let preservedRogueliteHeat =
+          if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
+            currentGame.rogueliteRun.heat
+          else:
+            currentGame.selectedRogueliteHeat
         currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
-        initializeRunTracking(currentGame)  # Start tracking
-        currentGame.state = gsPlaying
+        if previousMode == gmRoguelite:
+          setActiveRogueliteProfile(loadRogueliteProfile())
+          currentGame.rogueliteProfile = rogueliteProfile
+          currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(preservedRogueliteHeat, rogueliteProfile)
+          currentGame.state = gsRogueliteSetup
+        else:
+          initializeRunTracking(currentGame)  # Start tracking
+          currentGame.state = gsPlaying
         playSound(stMenuSelect)
         statsSavedThisGame = false  # Reset for new game
       # TAB or V to view stats (button 1)
@@ -1639,11 +2028,22 @@ proc main() =
         if checkCollisionPointRec(mousePos, restartRect):
           # Restart game - preserve game mode
           let previousMode = currentGame.mode
+          let preservedRogueliteHeat =
+            if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
+              currentGame.rogueliteRun.heat
+            else:
+              currentGame.selectedRogueliteHeat
           currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, previousMode)  # Preserve the game mode
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
+          if previousMode == gmRoguelite:
+            setActiveRogueliteProfile(loadRogueliteProfile())
+            currentGame.rogueliteProfile = rogueliteProfile
+            currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(preservedRogueliteHeat, rogueliteProfile)
+            currentGame.state = gsRogueliteSetup
+          else:
+            initializeRunTracking(currentGame)
+            currentGame.state = gsPlaying
           playSound(stMenuSelect)
           statsSavedThisGame = false
         elif checkCollisionPointRec(mousePos, statsRect):
@@ -1685,11 +2085,22 @@ proc main() =
       # Quick restart
       if isKeyPressed(R):
         let previousMode = currentGame.mode
+        let preservedRogueliteHeat =
+          if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
+            currentGame.rogueliteRun.heat
+          else:
+            currentGame.selectedRogueliteHeat
         currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)
-        initializeRunTracking(currentGame)
-        currentGame.state = gsPlaying
+        if previousMode == gmRoguelite:
+          setActiveRogueliteProfile(loadRogueliteProfile())
+          currentGame.rogueliteProfile = rogueliteProfile
+          currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(preservedRogueliteHeat, rogueliteProfile)
+          currentGame.state = gsRogueliteSetup
+        else:
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
         statsSavedThisGame = false
       
       # Return to menu
@@ -1734,8 +2145,9 @@ proc main() =
         
         endDrawing()
       else:
-        # Safety: if game3D is nil, return to playing
-        currentGame.state = gsPlaying
+        # Safety: only recover if the 3D state is still active after update.
+        if currentGame.state == gs3DBoss:
+          currentGame.state = gsPlaying
     
     of gsPvPPlaying:
       # Safety check - if currentPvPGame is nil, return to menu

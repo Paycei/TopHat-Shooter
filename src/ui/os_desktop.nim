@@ -14,6 +14,8 @@ type
     diQuit          # Shutdown (Shutdown.exe) - 6
     diSandbox       # Sandbox mode (Sandbox.exe) - 7
     diPvP           # PvP mode (PvP.exe) - 8
+    diRoguelite     # Roguelite mode (Roguelite.exe) - 9
+    diAdvancements  # Persistent advancement viewer (Advncmnts.exe) - 10
   
   DesktopIcon* = object
     iconType*: DesktopIconType
@@ -47,6 +49,9 @@ const
   TASKBAR_HEIGHT = 40
   DESKTOP_GRID_START_X = 80
   DESKTOP_GRID_START_Y = 80
+  ICON_LABEL_WIDTH = 88
+  ICON_LABEL_FONT_SIZE = 14
+  ICON_LABEL_MIN_SIZE = 9
 
 proc getIconName(iconType: DesktopIconType): string =
   ## Get the localized name for a desktop icon
@@ -60,6 +65,26 @@ proc getIconName(iconType: DesktopIconType): string =
   of diSandbox: t(tkMenuSandbox) & ".exe"
   of diShop: "Shop.exe"
   of diPvP: "PvP.exe"
+  of diRoguelite: "Roguelite.exe"
+  of diAdvancements: "Advncmnts.exe"
+
+proc bestDesktopLabelFontSize(text: string, maxWidth, preferredSize: int32,
+                              minSize: int32 = ICON_LABEL_MIN_SIZE): int32 =
+  result = preferredSize
+  if maxWidth <= 0:
+    return
+  while result > minSize and measureText(text, result) > maxWidth:
+    dec result
+
+proc drawDesktopLabel(text: string, x, y: int32, selected: bool) =
+  let fontSize = bestDesktopLabelFontSize(text, ICON_LABEL_WIDTH, ICON_LABEL_FONT_SIZE)
+  let labelX = x - ((ICON_LABEL_WIDTH - ICON_SIZE) div 2)
+  let shadowColor = Color(r: 0, g: 0, b: 0, a: if selected: 235 else: 180)
+  let textColor = if selected: Color(r: 220, g: 248, b: 255, a: 255) else: White
+  let lineWidth = measureText(text, fontSize)
+  let drawX = labelX + max(0'i32, (ICON_LABEL_WIDTH - lineWidth) div 2)
+  drawText(text, drawX + 2, y + 2, fontSize, shadowColor)
+  drawText(text, drawX, y, fontSize, textColor)
 
 proc newOSDesktop*(): OSDesktop =
   result = OSDesktop(
@@ -67,21 +92,21 @@ proc newOSDesktop*(): OSDesktop =
       DesktopIcon(iconType: diPlay, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y,
                   selected: true, name: getIconName(diPlay),
                   iconColor: Color(r: 100, g: 200, b: 255, a: 255)),
-      DesktopIcon(iconType: diSurvival, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING,
+      DesktopIcon(iconType: diRoguelite, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING,
+                  selected: false, name: getIconName(diRoguelite),
+                  iconColor: Color(r: 0, g: 220, b: 180, a: 255)),
+      DesktopIcon(iconType: diSurvival, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2,
                   selected: false, name: getIconName(diSurvival),
                   iconColor: Color(r: 255, g: 150, b: 100, a: 255)),
-      DesktopIcon(iconType: diStatistics, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2,
+      DesktopIcon(iconType: diStatistics, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3,
                   selected: false, name: getIconName(diStatistics),
                   iconColor: Color(r: 255, g: 200, b: 50, a: 255)),
-      DesktopIcon(iconType: diSettings, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3,
+      DesktopIcon(iconType: diSettings, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 4,
                   selected: false, name: getIconName(diSettings),
                   iconColor: Color(r: 200, g: 100, b: 255, a: 255)),
-      DesktopIcon(iconType: diHelp, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 4,
+      DesktopIcon(iconType: diHelp, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 5,
                   selected: false, name: getIconName(diHelp),
                   iconColor: Color(r: 100, g: 255, b: 150, a: 255)),
-      DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y + ICON_SPACING * 5,
-                  selected: false, name: getIconName(diQuit),
-                  iconColor: Color(r: 255, g: 100, b: 100, a: 255)),
       DesktopIcon(iconType: diSandbox, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y,
                   selected: false, name: getIconName(diSandbox),
                   iconColor: Color(r: 255, g: 165, b: 0, a: 255)),
@@ -90,7 +115,13 @@ proc newOSDesktop*(): OSDesktop =
                   iconColor: Color(r: 255, g: 150, b: 50, a: 255)),
       DesktopIcon(iconType: diPvP, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2,
                   selected: false, name: getIconName(diPvP),
-                  iconColor: Color(r: 255, g: 50, b: 150, a: 255))
+                  iconColor: Color(r: 255, g: 50, b: 150, a: 255)),
+      DesktopIcon(iconType: diAdvancements, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3,
+                  selected: false, name: getIconName(diAdvancements),
+                  iconColor: Color(r: 90, g: 220, b: 255, a: 255)),
+      DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 4,
+                  selected: false, name: getIconName(diQuit),
+                  iconColor: Color(r: 255, g: 100, b: 100, a: 255))
     ],
     selectedIcon: 0,
     time: 0,
@@ -325,11 +356,42 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 6,
               Color(r: 255, g: 255, b: 255, a: 200))
     drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 4, swordColor)
+
+  of diRoguelite:
+    # Roguelite icon - branching sector nodes
+    let nodeColor = icon.iconColor
+    let top = Vector2(x: centerX.float32, y: (centerY - 18).float32)
+    let left = Vector2(x: (centerX - 18).float32, y: (centerY + 12).float32)
+    let mid = Vector2(x: centerX.float32, y: (centerY + 18).float32)
+    let right = Vector2(x: (centerX + 18).float32, y: (centerY + 12).float32)
+    drawLine(top, left, 3, Color(r: 120, g: 255, b: 220, a: 220))
+    drawLine(top, mid, 3, Color(r: 120, g: 255, b: 220, a: 220))
+    drawLine(top, right, 3, Color(r: 120, g: 255, b: 220, a: 220))
+    drawCircle(top, 7, nodeColor)
+    drawCircle(left, 6, Gold)
+    drawCircle(mid, 6, nodeColor)
+    drawCircle(right, 6, Color(r: 255, g: 110, b: 90, a: 255))
+
+  of diAdvancements:
+    # Advancements icon - progress ledger with tier nodes
+    let ledgerX = centerX - 16
+    let ledgerY = centerY - 18
+    drawRectangle(ledgerX.int32, ledgerY.int32, 32, 36, Color(r: 18, g: 28, b: 42, a: 255))
+    drawRectangleLines(Rectangle(x: ledgerX.float32, y: ledgerY.float32,
+                                 width: 32.0, height: 36.0), 2, icon.iconColor)
+    for i in 0..<3:
+      let rowY = ledgerY + 8 + i * 9
+      drawCircle(Vector2(x: (ledgerX + 7).float32, y: rowY.float32), 3,
+                 if i == 0: Gold elif i == 1: icon.iconColor else: Color(r: 90, g: 255, b: 150, a: 255))
+      drawRectangle((ledgerX + 13).int32, (rowY - 2).int32, (12 + i * 3).int32, 3,
+                    Color(r: 170, g: 210, b: 230, a: 220))
+    drawLine(Vector2(x: (ledgerX + 7).float32, y: (ledgerY + 8).float32),
+             Vector2(x: (ledgerX + 7).float32, y: (ledgerY + 26).float32),
+             1, Color(r: 120, g: 220, b: 255, a: 180))
   
   # Icon label with shadow
   let labelY = icon.y + ICON_SIZE + 8
-  drawText(icon.name, (icon.x + 2).int32, (labelY + 2).int32, 14, Black)
-  drawText(icon.name, icon.x.int32, labelY.int32, 14, White)
+  drawDesktopLabel(icon.name, icon.x.int32, labelY.int32, selected)
 
 proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   # Taskbar background
@@ -463,7 +525,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
           Color(r: 150, g: 150, b: 170, a: 180))
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
-  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox
+  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements
   ## Returns -1 if no action
   ## Note: Window occlusion should be handled by the calling code
   
@@ -479,7 +541,7 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
       x: icon.x.float32 - 10,  # Add some padding
       y: icon.y.float32 - 10,
       width: (ICON_SIZE + 20).float32,
-      height: (ICON_SIZE + 40).float32  # Extra height for label
+      height: (ICON_SIZE + 58).float32  # Extra height for multiline label
     )
     
     if checkCollisionPointRec(mousePos, iconBounds):

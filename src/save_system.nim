@@ -69,6 +69,20 @@ proc getStatsPath*(): string =
 proc getLastRunStatsPath*(): string =
   getAppDataPath() / "last_run.json"
 
+proc deleteLastRunStats*(): bool =
+  try:
+    let savePath = getLastRunStatsPath()
+    if fileExists(savePath):
+      removeFile(savePath)
+      echo "Last run statistics deleted from ", savePath
+    return true
+  except IOError as e:
+    echo "Error deleting last run stats: ", e.msg
+    return false
+  except Exception as e:
+    echo "Unexpected error deleting last run stats: ", e.msg
+    return false
+
 # Convert Settings to JSON
 proc settingsToJson*(settings: Settings): JsonNode =
   result = %* {
@@ -425,6 +439,9 @@ proc runStatisticsToJson*(runStats: RunStatistics): JsonNode =
   var finalPowerUpsArray = newJArray()
   for powerUp in runStats.finalPowerUps:
     finalPowerUpsArray.add(powerUpToJson(powerUp))
+  var rogueliteRelicsArray = newJArray()
+  for relicName in runStats.rogueliteRelics:
+    rogueliteRelicsArray.add(%relicName)
 
   result = %* {
     "gameMode": $runStats.gameMode,
@@ -445,7 +462,14 @@ proc runStatisticsToJson*(runStats: RunStatistics): JsonNode =
     "finalHP": runStats.finalHP,
     "finalMaxHP": runStats.finalMaxHP,
     "finalCoins": runStats.finalCoins,
-    "finalPowerUps": finalPowerUpsArray
+    "finalPowerUps": finalPowerUpsArray,
+    "rogueliteActReached": runStats.rogueliteActReached,
+    "rogueliteSectorsCleared": runStats.rogueliteSectorsCleared,
+    "rogueliteHeat": runStats.rogueliteHeat,
+    "rogueliteEndlessLoop": runStats.rogueliteEndlessLoop,
+    "rogueliteShardsEarned": runStats.rogueliteShardsEarned,
+    "rogueliteStarterKit": runStats.rogueliteStarterKit,
+    "rogueliteRelics": rogueliteRelicsArray
   }
 
 # Save last run statistics to file
@@ -569,6 +593,9 @@ proc parseGameMode(s: string): GameMode =
   case s
   of "gmWaveBased": gmWaveBased
   of "gmTimeSurvival": gmTimeSurvival
+  of "gmRoguelite": gmRoguelite
+  of "gmSandbox": gmSandbox
+  of "gmPvP": gmPvP
   else: gmWaveBased
 
 # Helper to parse GameEventType from string
@@ -810,7 +837,14 @@ proc jsonToRunStatistics(j: JsonNode): RunStatistics =
     finalHP: j["finalHP"].getFloat(),
     finalMaxHP: j["finalMaxHP"].getFloat(),
     finalCoins: j["finalCoins"].getInt(),
-    finalPowerUps: @[]
+    finalPowerUps: @[],
+    rogueliteActReached: j.getOrDefault("rogueliteActReached").getInt(0),
+    rogueliteSectorsCleared: j.getOrDefault("rogueliteSectorsCleared").getInt(0),
+    rogueliteHeat: j.getOrDefault("rogueliteHeat").getInt(0),
+    rogueliteEndlessLoop: j.getOrDefault("rogueliteEndlessLoop").getInt(0),
+    rogueliteShardsEarned: j.getOrDefault("rogueliteShardsEarned").getInt(0),
+    rogueliteStarterKit: j.getOrDefault("rogueliteStarterKit").getStr(""),
+    rogueliteRelics: @[]
   )
 
   # Parse events
@@ -820,6 +854,10 @@ proc jsonToRunStatistics(j: JsonNode): RunStatistics =
   # Parse final power-ups
   for powerUp in j["finalPowerUps"]:
     result.finalPowerUps.add(jsonToPowerUp(powerUp))
+
+  if j.hasKey("rogueliteRelics"):
+    for relicName in j["rogueliteRelics"]:
+      result.rogueliteRelics.add(relicName.getStr())
 
 # Load last run statistics from file
 proc loadLastRunStats*(): RunStatistics =

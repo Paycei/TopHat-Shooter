@@ -86,11 +86,28 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       playerStartCoins: 100
     )
 
+  of gmRoguelite:
+    result = GameModeDefinition(
+      mode: gmRoguelite,
+      name: t("gamemode_roguelite_name"),
+      description: t("gamemode_roguelite_desc"),
+      usesWaves: true,
+      usesBosses: true,
+      hasTimeLimit: false,
+      usesPowerUps: true,
+      usesShop: true,
+      allowsCheats: false,
+      spawnRate: 1.0,
+      difficultyScale: 1.0,
+      playerStartCoins: 0
+    )
+
 proc getAllGameModes*(): seq[GameModeDefinition] =
   ## Returns all available game modes
   result = @[
     getGameModeDefinition(gmWaveBased),
     getGameModeDefinition(gmTimeSurvival),
+    getGameModeDefinition(gmRoguelite),
     getGameModeDefinition(gmSandbox)
   ]
 
@@ -145,6 +162,10 @@ proc isSandboxMode*(mode: GameMode): bool =
 proc isPvPMode*(mode: GameMode): bool =
   ## Quick check if this is PvP mode
   mode == gmPvP
+
+proc isRogueliteMode*(mode: GameMode): bool =
+  ## Quick check if this is roguelite mode
+  mode == gmRoguelite
 
 proc isWaveMode*(mode: GameMode): bool =
   ## Quick check if this is wave-based mode

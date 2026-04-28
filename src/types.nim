@@ -5,13 +5,15 @@ export newVector2f, `+`, `-`, `*`, length, normalize, distance
 
 type
   GameState* = enum
-    gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss
+    gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
+    gsRogueliteSetup, gsRogueliteSectorSelect, gsRogueliteUnlocks, gsDeathSequence
 
   GameMode* = enum
     gmWaveBased,
     gmTimeSurvival,
     gmSandbox,
-    gmPvP
+    gmPvP,
+    gmRoguelite
 
   PvPTeam* = enum
     ptNone,      # No team (free-for-all)
@@ -156,6 +158,92 @@ type
     powerType*: PowerUpType
     level*: int  # 1, 2, or 3
     rarity*: PowerUpRarity  # Common or Legendary
+
+  RogueliteStarterKit* = enum
+    rskOperator,
+    rskBulwark,
+    rskArcanist
+
+  RoguelitePowerFamily* = enum
+    rpfCore,
+    rpfShield,
+    rpfArcane,
+    rpfFire,
+    rpfFrost,
+    rpfPoison,
+    rpfLightning,
+    rpfWind,
+    rpfBlood
+
+  RogueliteSectorModifier* = enum
+    rsmSafehouse,
+    rsmOverclocked,
+    rsmEliteCache,
+    rsmFirewall,
+    rsmVolatileMemory,
+    rsmBlackMarket
+
+  RogueliteRewardType* = enum
+    rrwCredits,
+    rrwRelic,
+    rrwPowerFamily,
+    rrwShardCache
+
+  RogueliteRelicType* = enum
+    rrtNone,
+    rrtDiscountProtocol,
+    rrtShardMagnet,
+    rrtEliteDividend,
+    rrtEmergencyPatch,
+    rrtDraftCache
+
+  RogueliteRelic* = object
+    relicType*: RogueliteRelicType
+    name*: string
+    description*: string
+
+  RogueliteSector* = object
+    name*: string
+    modifier*: RogueliteSectorModifier
+    rewardType*: RogueliteRewardType
+    waveCount*: int
+    enemyPressure*: float32
+    eliteChanceBonus*: int
+    shardMultiplier*: float32
+    isElite*: bool
+
+  RogueliteProfile* = ref object
+    version*: int
+    dataShards*: int
+    unlockedStarterKits*: set[RogueliteStarterKit]
+    unlockedPowerFamilies*: set[RoguelitePowerFamily]
+    unlockedRelics*: set[RogueliteRelicType]
+    unlockedBossTier*: int
+    highestHeat*: int
+    bestAct*: int
+    bestSector*: int
+    bestEndlessLoop*: int
+    totalRuns*: int
+    wins*: int
+
+  RogueliteRun* = ref object
+    seed*: int
+    starterKit*: RogueliteStarterKit
+    heat*: int
+    act*: int
+    sector*: int
+    sectorsThisAct*: int
+    sectorWavesCleared*: int
+    totalSectorsCleared*: int
+    activeSector*: RogueliteSector
+    nextSectorChoices*: array[3, RogueliteSector]
+    relics*: seq[RogueliteRelic]
+    shardsEarned*: int
+    endlessLoop*: int
+    pendingSectorSelect*: bool
+    pendingActBoss*: bool
+    completed*: bool
+    died*: bool
 
   AttackWarning* = ref object
     pos*: Vector2f
@@ -363,6 +451,7 @@ type
     eliteType*: EliteType  # Type of elite modifier
     eliteTypes*: seq[EliteType]  # Multiple elite types for high-wave elites
     eliteAuraPhase*: float32  # For animating the elite aura
+    threatLevel*: int  # Visual threat tier used by high-heat roguelite/enemy scaling
     shieldHp*: float32  # For shielded elites
     maxShieldHp*: float32  # Maximum shield HP
     diamondShieldActive*: bool  # 1-hit shield for diamond enemies (like Celestial Veil)
@@ -778,6 +867,11 @@ type
     sandboxGodMode*: bool  # Player invulnerability
     sandboxFreezeEnemies*: bool  # Freeze all enemy movement
     discordClient*: DiscordClient  # Discord Rich Presence client
+    rogueliteProfile*: RogueliteProfile
+    rogueliteRun*: RogueliteRun
+    selectedRogueliteStarter*: int
+    selectedRogueliteHeat*: int
+    selectedRogueliteSector*: int
     osBackground*: OSBackgroundState  # Animated background system
     osHUD*: OSHUDState  # OS-style HUD and notifications
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
@@ -786,6 +880,9 @@ type
     game3D*: pointer  # Pointer to Game3D to avoid circular dependency
     transitioning*: bool  # Fade transition active
     fadeAlpha*: float32  # Fade opacity (0.0 to 1.0)
+    deathSequenceTimer*: float32  # Real-time timer for post-death slow/fast/fade playback
+    deathSequenceFadeAlpha*: float32  # Fade opacity during death playback
+    deathSequenceTimeScale*: float32  # Current playback time scale during death sequence
     lightningBolts*: seq[LightningBolt]  # Active lightning arc visuals
 
 proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =

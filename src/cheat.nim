@@ -1,4 +1,4 @@
-import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data, localization, render_context
+import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data, localization, render_context, stat_scaling
 
 # ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
@@ -234,7 +234,7 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   game.player.hp = min(game.player.hp, game.player.maxHp)
   
   for i in 0..<game.shopItems[4].bought:  # Bullet speed purchases
-    game.player.bulletSpeed += 10
+    game.player.bulletSpeed = addBulletSpeedDiminished(game.player.bulletSpeed, 8.0)
   
   # Fire rate needs special handling due to diminishing returns
   for i in 0..<game.shopItems[1].bought:

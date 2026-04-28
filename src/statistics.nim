@@ -1,4 +1,4 @@
-import json, os, times, save_system
+import json, os, times, save_system, types
 
 type
   GameModeStats* = object
@@ -19,6 +19,7 @@ type
   Statistics* = ref object
     waveMode*: GameModeStats
     timeMode*: GameModeStats
+    rogueliteMode*: GameModeStats
     totalGamesPlayed*: int
     totalPlayTime*: float32  # Total time across all modes
     firstPlayDate*: string
@@ -60,12 +61,42 @@ proc initStatistics*(): Statistics =
       highestWaveReached: 0,
       longestSurvivalTime: 0.0
     ),
+    rogueliteMode: GameModeStats(
+      gamesPlayed: 0,
+      totalKills: 0,
+      totalCoins: 0,
+      totalTimePlayed: 0.0,
+      bestScore: 0,
+      bestKills: 0,
+      bestCoins: 0,
+      averageWaveReached: 0.0,
+      averageSurvivalTime: 0.0,
+      totalDeaths: 0,
+      bossesDefeated: 0,
+      highestWaveReached: 0,
+      longestSurvivalTime: 0.0
+    ),
     totalGamesPlayed: 0,
     totalPlayTime: 0.0,
     firstPlayDate: "",
     lastPlayDate: ""
   )
   globalStats = result
+
+proc resetStatistics*(stats: Statistics) =
+  ## Reset an existing statistics object in place so any UI references stay valid.
+  if stats.isNil:
+    return
+
+  let fresh = initStatistics()
+  stats.waveMode = fresh.waveMode
+  stats.timeMode = fresh.timeMode
+  stats.rogueliteMode = fresh.rogueliteMode
+  stats.totalGamesPlayed = fresh.totalGamesPlayed
+  stats.totalPlayTime = fresh.totalPlayTime
+  stats.firstPlayDate = fresh.firstPlayDate
+  stats.lastPlayDate = fresh.lastPlayDate
+  globalStats = stats
 
 # JSON SERIALIZATION
 proc gameModeStatsToJson(stats: GameModeStats): JsonNode =
@@ -117,6 +148,7 @@ proc statisticsToJson*(stats: Statistics): JsonNode =
   result = %* {
     "waveMode": gameModeStatsToJson(stats.waveMode),
     "timeMode": gameModeStatsToJson(stats.timeMode),
+    "rogueliteMode": gameModeStatsToJson(stats.rogueliteMode),
     "totalGamesPlayed": stats.totalGamesPlayed,
     "totalPlayTime": stats.totalPlayTime,
     "firstPlayDate": stats.firstPlayDate,
@@ -128,6 +160,8 @@ proc jsonToStatistics*(jsonNode: JsonNode, stats: Statistics) =
     jsonToGameModeStats(jsonNode["waveMode"], stats.waveMode)
   if jsonNode.hasKey("timeMode"):
     jsonToGameModeStats(jsonNode["timeMode"], stats.timeMode)
+  if jsonNode.hasKey("rogueliteMode"):
+    jsonToGameModeStats(jsonNode["rogueliteMode"], stats.rogueliteMode)
   if jsonNode.hasKey("totalGamesPlayed"):
     stats.totalGamesPlayed = jsonNode["totalGamesPlayed"].getInt()
   if jsonNode.hasKey("totalPlayTime"):
@@ -191,6 +225,52 @@ proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int,
     
     modeStats.averageSurvivalTime =
       (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) /
+      float32(modeStats.gamesPlayed)
+
+proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
+                         timeSurvived: float32, kills: int, coins: int,
+                         bossesKilled: int) =
+  stats.lastPlayDate = $now()
+  if stats.firstPlayDate == "":
+    stats.firstPlayDate = stats.lastPlayDate
+
+  stats.totalGamesPlayed += 1
+  stats.totalPlayTime += timeSurvived
+
+  var modeStats =
+    case mode
+    of gmWaveBased:
+      addr stats.waveMode
+    of gmRoguelite:
+      addr stats.rogueliteMode
+    else:
+      addr stats.timeMode
+
+  modeStats.gamesPlayed += 1
+  modeStats.totalKills += kills
+  modeStats.totalCoins += coins
+  modeStats.totalTimePlayed += timeSurvived
+  modeStats.totalDeaths += 1
+  modeStats.bossesDefeated += bossesKilled
+
+  if kills > modeStats.bestKills:
+    modeStats.bestKills = kills
+  if coins > modeStats.bestCoins:
+    modeStats.bestCoins = coins
+
+  if mode == gmTimeSurvival:
+    if timeSurvived > modeStats.longestSurvivalTime:
+      modeStats.longestSurvivalTime = timeSurvived
+      modeStats.bestScore = int(timeSurvived)
+    modeStats.averageSurvivalTime =
+      (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) /
+      float32(modeStats.gamesPlayed)
+  else:
+    if scoreReached > modeStats.highestWaveReached:
+      modeStats.highestWaveReached = scoreReached
+      modeStats.bestScore = scoreReached
+    modeStats.averageWaveReached =
+      (modeStats.averageWaveReached * float32(modeStats.gamesPlayed - 1) + float32(scoreReached)) /
       float32(modeStats.gamesPlayed)
 
 # SAVE/LOAD

@@ -1,8 +1,9 @@
 ## OS Window Manager
 ## Centralized window handling with state management
 
-import raylib, os_window, settings_window, help_window, stats_window, shop_window, pvp_window
+import raylib, os_window, settings_window, help_window, stats_window, shop_window, pvp_window, advancements_window
 import ../types, ../settings, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins
+import ../advancement
 import algorithm, sequtils
 
 type
@@ -12,6 +13,7 @@ type
     widStats
     widShop
     widPvP
+    widAdvancements
   
   WindowManager* = ref object
     settings*: SettingsWindow
@@ -19,14 +21,18 @@ type
     stats*: StatsWindow
     shop*: ShopWindow
     pvp*: PvPWindow
+    advancements*: AdvancementsWindow
     nextZOrder: int
 
 proc newWindowManager*(screenWidth, screenHeight: int,
                        gameSettings: Settings,
-                       gameStats: Statistics): WindowManager =
+                       gameStats: Statistics,
+                       advancementProfile: AdvancementProfile,
+                       rogueliteProfile: RogueliteProfile): WindowManager =
   ## Create a new window manager with all windows pre-initialized
   result = WindowManager(
-    settings: newSettingsWindow(screenWidth, screenHeight, gameSettings),
+    settings: newSettingsWindow(screenWidth, screenHeight, gameSettings,
+                                gameStats, advancementProfile, rogueliteProfile),
     help: newHelpWindow(screenWidth, screenHeight),
     stats: newStatsWindow(screenWidth, screenHeight, gameStats),
     shop: newShopWindow(screenWidth, screenHeight,
@@ -36,6 +42,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
                        ParticleSkinType(gameSettings.particleEffect),
                        BulletShapeType(gameSettings.bulletShape)),
     pvp: newPvPWindow(screenWidth, screenHeight),
+    advancements: newAdvancementsWindow(screenWidth, screenHeight, advancementProfile),
     nextZOrder: 1
   )
   
@@ -45,6 +52,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.stats.window.visible = false
   result.shop.window.visible = false
   result.pvp.window.visible = false
+  result.advancements.window.visible = false
 
 proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
   ## Get all windows in a single sequence
@@ -53,7 +61,8 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
     wm.help.window,
     wm.stats.window,
     wm.shop.window,
-    wm.pvp.window
+    wm.pvp.window,
+    wm.advancements.window
   ]
 
 proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
@@ -76,6 +85,7 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widStats: window = wm.stats.window
   of widShop: window = wm.shop.window
   of widPvP: window = wm.pvp.window
+  of widAdvancements: window = wm.advancements.window
   
   window.visible = true
   window.minimized = false
@@ -96,6 +106,7 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widStats: wm.stats.window.visible = false
   of widShop: wm.shop.window.visible = false
   of widPvP: wm.pvp.window.visible = false
+  of widAdvancements: wm.advancements.window.visible = false
 
 proc closeAllWindows*(wm: WindowManager) =
   ## Close all open desktop windows (e.g. when starting a game)
@@ -104,6 +115,7 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.stats.window.visible = false
   wm.shop.window.visible = false
   wm.pvp.window.visible = false
+  wm.advancements.window.visible = false
 
 proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
@@ -224,6 +236,9 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       
       if wm.pvp.readyToStart:
         result.pvpGameReady = true
+    
+    elif window == wm.advancements.window:
+      discard updateAdvancementsWindow(wm.advancements, dt, screenWidth, screenHeight, visibleWindows)
 
 proc drawAllWindows*(wm: WindowManager, game: Game) =
   ## Draw all visible windows in z-order
@@ -252,5 +267,7 @@ proc drawAllWindows*(wm: WindowManager, game: Game) =
         let contentWidth = window.width - WINDOW_BORDER * 2
         let contentHeight = window.height - TITLE_BAR_HEIGHT - WINDOW_BORDER * 2
         drawPvPWindowContent(wm.pvp, contentX, contentY, contentWidth, contentHeight)
+    elif window == wm.advancements.window:
+      drawAdvancementsWindow(wm.advancements)
     elif window == wm.help.window:
       drawHelpWindow(wm.help)

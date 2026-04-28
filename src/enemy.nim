@@ -86,6 +86,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   
   # Initialize boss-spawned flag (default: false, set to true by boss summon)
   result.spawnedByBoss = false
+  result.threatLevel = 0
   
   # Initialize diamond shield (1-hit absorb, like Celestial Veil)
   result.diamondShieldActive = (enemyType == etDiamond)
@@ -1273,6 +1274,54 @@ proc drawCustomBoss*(enemy: Enemy) =
     poly(8, r, time, 2, White)
     glow(r*0.25, Color(r: 255, g: 255, b: 255, a: 255))
 
+proc getThreatColor(level: int): Color =
+  case clamp(level, 0, 5)
+  of 0: Color(r: 0, g: 0, b: 0, a: 0)
+  of 1: Color(r: 80, g: 210, b: 255, a: 255)
+  of 2: Color(r: 185, g: 115, b: 255, a: 255)
+  of 3: Color(r: 255, g: 175, b: 60, a: 255)
+  of 4: Color(r: 255, g: 75, b: 45, a: 255)
+  else: Color(r: 255, g: 245, b: 165, a: 255)
+
+proc drawThreatAura(enemy: Enemy) =
+  let level = clamp(enemy.threatLevel, 0, 5)
+  if level <= 0:
+    return
+
+  let t = getTime().float32
+  let color = getThreatColor(level)
+  let pulse = sin(t * (3.2 + level.float32 * 0.35) + enemy.id.float32 * 0.17) * 0.5 + 0.5
+  let cx = enemy.pos.x
+  let cy = enemy.pos.y
+  let baseRadius = enemy.radius + 6.0 + level.float32 * 3.0 + pulse * (2.0 + level.float32)
+
+  drawCircle(Vector2(x: cx, y: cy), baseRadius + 7.0,
+             Color(r: color.r, g: color.g, b: color.b, a: uint8(18 + level * 8)))
+  for ring in 0..1:
+    let ringRadius = baseRadius + ring.float32 * (5.0 + level.float32)
+    let alpha = uint8(max(35, 150 - ring * 45 - level * 8))
+    drawCircleLines(cx.int32, cy.int32, ringRadius, Color(r: color.r, g: color.g, b: color.b, a: alpha))
+
+  let spokeCount = 6 + level * 2
+  for i in 0..<spokeCount:
+    let angle = t * (0.45 + level.float32 * 0.04) + i.float32 * TAU / spokeCount.float32
+    let inner = enemy.radius + 3.0 + level.float32
+    let outer = baseRadius + 4.0 + sin(t * 5.0 + i.float32) * 2.0
+    let alpha = uint8(85 + min(110, level * 24))
+    drawLine(
+      Vector2(x: cx + cos(angle) * inner, y: cy + sin(angle) * inner),
+      Vector2(x: cx + cos(angle) * outer, y: cy + sin(angle) * outer),
+      if level >= 4: 2.4 else: 1.4,
+      Color(r: color.r, g: color.g, b: color.b, a: alpha))
+
+  if level >= 3:
+    let pipCount = min(5, level)
+    let totalW = pipCount.float32 * 8.0
+    let pipY = cy - enemy.radius - 19.0 - level.float32 * 2.0
+    for i in 0..<pipCount:
+      let px = cx - totalW / 2.0 + i.float32 * 8.0
+      drawRectangle(px.int32, pipY.int32, 5, 5, Color(r: color.r, g: color.g, b: color.b, a: 230))
+      drawRectangleLines(px.int32, pipY.int32, 5, 5, Color(r: 255, g: 255, b: 255, a: 150))
 
 proc drawEnemy*(enemy: Enemy) =
   ## Draws an enemy based on its type. Bosses are forwarded to drawCustomBoss.
@@ -1289,6 +1338,7 @@ proc drawEnemy*(enemy: Enemy) =
     drawRectangle((enemy.pos.x - enemy.radius * 1.25).int32, (enemy.pos.y - enemy.radius - 16).int32,
                   (barWidth * hpPercent).int32, barHeight.int32, Green)
   else:
+    drawThreatAura(enemy)
     case enemy.enemyType
     of etCircle:
       let t = getTime()
@@ -3088,6 +3138,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   enemy.isElite = true
   enemy.eliteAuraPhase = 0.0
   enemy.eliteTypes = @[]  # Initialize empty list for multiple types
+  enemy.threatLevel = max(enemy.threatLevel, if waveNumber >= 35: 3 elif waveNumber >= 20: 2 else: 1)
   
   # Elite scaling multiplier based on wave, reduced to avoid runaway EHP.
   let eliteScaling = 1.0 + (waveNumber.float32 * 0.03)

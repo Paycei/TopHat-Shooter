@@ -26,6 +26,16 @@ type
 
 var globalSoundSystem*: SoundSystem
 
+# Musical constants are declared before cache helpers because cache validation
+# depends on the generated WAV length.
+const
+  SAMPLE_RATE = 44100'u32
+  MUSIC_DURATION = 48.0'f32  # Long-form: 48 seconds
+  MUSIC_CACHE_VERSION = "v3"
+
+proc expectedMusicCacheBytes(): int64 =
+  int64(44 + int(MUSIC_DURATION * SAMPLE_RATE.float32) * 2)
+
 # CACHE MANAGEMENT
 proc getCacheDir(): string =
   result = getTempDir() / "shooteros_music_cache"
@@ -59,17 +69,21 @@ proc getSoundCacheFile(soundType: SoundType): string =
 proc getMusicCacheFile(track: MusicTrack): string =
   let cacheDir = getCacheDir()
   let trackName = case track
-    of mtMenu: "menu"
-    of mtWave: "wave"
+    of mtMenu: "menu_music"
+    of mtWave: "wave_music"
     of mtPowerUp: "powerup_music"
     of mtBoss: "boss_music"
-  result = cacheDir / (trackName & ".wav")
+  result = cacheDir / (trackName & "_" & MUSIC_CACHE_VERSION & ".wav")
 
 proc isSoundCached(soundType: SoundType): bool =
   fileExists(getSoundCacheFile(soundType))
 
 proc isMusicCached(track: MusicTrack): bool =
-  fileExists(getMusicCacheFile(track))
+  let cacheFile = getMusicCacheFile(track)
+  try:
+    fileExists(cacheFile) and getFileSize(cacheFile) == expectedMusicCacheBytes()
+  except OSError:
+    false
 
 proc countCachedAssets(): tuple[sounds: int, music: int, total: int] =
   result.sounds = 0
@@ -892,7 +906,10 @@ type
     duration: float32  # Length in seconds
 
   Instrument = enum
-    inMelody, inBass, inPad, inChord
+    inMelody, inBass, inPad, inChord, inPluck
+
+  PercussionVoice = enum
+    pvKick, pvSnare, pvHat, pvSoftTick, pvCrash
 
   Section = object
     name: string
@@ -902,11 +919,6 @@ type
     bass: seq[Note]
     harmony: seq[Note]
     chords: seq[Note]  # New chord layer
-
-# MUSICAL CONSTANTS
-const
-  SAMPLE_RATE = 44100'u32
-  MUSIC_DURATION = 48.0  # Long-form: 48 seconds
 
 # Note frequencies (4th octave as base)
 const
@@ -968,6 +980,14 @@ proc generateSimpleWave(freq: float32, t: float32, waveform: Instrument): float3
     # Slight inharmonicity for piano character
     let detune = sin(2.0 * PI * freq * 1.002 * t) * 0.15
     return (fundamental * 0.6 + h2 + h3 + h4 + h5 + detune)
+  of inPluck:
+    # Bright synth pluck for arpeggios; rich enough to cut through, still soft.
+    let phase = 2.0 * PI * freq * t
+    let fundamental = sin(phase) * 0.68
+    let h2 = sin(phase * 2.0) * 0.20
+    let h3 = sin(phase * 3.0) * 0.09
+    let shimmer = sin(phase * 2.01) * 0.06
+    return fundamental + h2 + h3 + shimmer
 
 proc applyNoteEnvelope(progress: float32, noteDuration: float32): float32 =
   ## Apply gentle, smooth envelope - no harsh attacks or releases
@@ -987,22 +1007,34 @@ proc applyNoteEnvelope(progress: float32, noteDuration: float32): float32 =
   else:
     return 1.0
 
+proc renderNote(note: Note, samples: var seq[float32],
+                instrument: Instrument, volume: float32) =
+  ## Render one musical note into the sample buffer.
+  if note.freq <= 0.0 or note.duration <= 0.0:
+    return
+
+  let startSample = max(0, int(note.start * SAMPLE_RATE.float32))
+  let endSample = min(int((note.start + note.duration) * SAMPLE_RATE.float32),
+                      samples.len)
+
+  if startSample >= endSample:
+    return
+
+  for i in startSample..<endSample:
+    let t = i.float32 / SAMPLE_RATE.float32
+    let noteTime = t - note.start
+    let progress = noteTime / note.duration
+
+    let wave = generateSimpleWave(note.freq, t, instrument)
+    let envelope = applyNoteEnvelope(progress, note.duration)
+
+    samples[i] += wave * envelope * volume
+
 proc renderNotes(notes: seq[Note], samples: var seq[float32],
                 instrument: Instrument, volume: float32) =
   ## Render a sequence of notes into the sample buffer
   for note in notes:
-    let startSample = int(note.start * SAMPLE_RATE.float32)
-    let endSample = int((note.start + note.duration) * SAMPLE_RATE.float32)
-    
-    for i in startSample..<min(endSample, samples.len):
-      let t = i.float32 / SAMPLE_RATE.float32
-      let noteTime = t - note.start
-      let progress = noteTime / note.duration
-      
-      let wave = generateSimpleWave(note.freq, t, instrument)
-      let envelope = applyNoteEnvelope(progress, note.duration)
-      
-      samples[i] += wave * envelope * volume
+    renderNote(note, samples, instrument, volume)
 
 proc renderChords(chords: seq[Note], samples: var seq[float32], volume: float32) =
   ## Render piano chords - each note represents the root, chord contains root + third + fifth
@@ -1056,6 +1088,216 @@ proc applySectionDynamics(samples: var seq[float32], section: Section,
       dynamicMultiplier *= cos((1.0 - fadeProgress) * PI * 0.5)
     
     samples[i] *= dynamicMultiplier
+
+proc deterministicNoise(sampleIndex: int): float32 {.inline.} =
+  ## Stable pseudo-noise so generated percussion is repeatable between runs.
+  let x = sin((sampleIndex.float32 + 1.0) * 12.9898) * 43758.5453
+  (x - floor(x)) * 2.0 - 1.0
+
+proc renderPercussionHit(samples: var seq[float32], startTime: float32,
+                         volume: float32, voice: PercussionVoice) =
+  let duration = case voice
+    of pvKick: 0.22'f32
+    of pvSnare: 0.16'f32
+    of pvHat: 0.045'f32
+    of pvSoftTick: 0.06'f32
+    of pvCrash: 0.75'f32
+
+  let startSample = max(0, int(startTime * SAMPLE_RATE.float32))
+  let endSample = min(startSample + int(duration * SAMPLE_RATE.float32),
+                      samples.len)
+  if startSample >= endSample:
+    return
+
+  var lastNoise = 0.0'f32
+  for i in startSample..<endSample:
+    let hitSample = i - startSample
+    let t = hitSample.float32 / SAMPLE_RATE.float32
+    let progress = t / duration
+    let noise = deterministicNoise(i)
+    let highNoise = noise - lastNoise
+    lastNoise = noise
+
+    var value = 0.0'f32
+    case voice
+    of pvKick:
+      let pitch = 38.0 + 94.0 * exp(-progress * 7.5)
+      let body = sin(2.0 * PI * pitch * t) * exp(-progress * 5.3)
+      let click = if progress < 0.055:
+        highNoise * (1.0 - progress / 0.055) * 0.18
+      else:
+        0.0
+      value = body * 0.90 + click
+    of pvSnare:
+      let snap = highNoise * exp(-progress * 11.0) * 0.55
+      let body = (sin(2.0 * PI * 180.0 * t) * 0.32 +
+                  sin(2.0 * PI * 330.0 * t) * 0.18) * exp(-progress * 7.0)
+      value = snap + body
+    of pvHat:
+      value = highNoise * exp(-progress * 28.0) * 0.45
+    of pvSoftTick:
+      let tone = sin(2.0 * PI * 1450.0 * t) * 0.22
+      value = (tone + highNoise * 0.18) * exp(-progress * 22.0)
+    of pvCrash:
+      let shimmer = (sin(2.0 * PI * 4200.0 * t) * 0.14 +
+                     sin(2.0 * PI * 6100.0 * t) * 0.08)
+      value = (noise * 0.48 + highNoise * 0.20 + shimmer) * exp(-progress * 4.8)
+
+    samples[i] += value * volume
+
+proc renderTrackGroove(track: MusicTrack, samples: var seq[float32]) =
+  let bpm = case track
+    of mtMenu: 92.0'f32
+    of mtWave: 146.0'f32
+    of mtPowerUp: 108.0'f32
+    of mtBoss: 164.0'f32
+
+  let beat = 60.0'f32 / bpm
+  let barLength = beat * 4.0
+  var barStart = 0.0'f32
+
+  while barStart < MUSIC_DURATION:
+    case track
+    of mtMenu:
+      renderPercussionHit(samples, barStart, 0.018, pvKick)
+      renderPercussionHit(samples, barStart + beat * 2.0, 0.014, pvSoftTick)
+      renderPercussionHit(samples, barStart + beat * 3.0, 0.012, pvSoftTick)
+    of mtPowerUp:
+      renderPercussionHit(samples, barStart, 0.034, pvKick)
+      renderPercussionHit(samples, barStart + beat * 2.0, 0.026, pvSnare)
+      var tick = barStart
+      while tick < min(barStart + barLength, MUSIC_DURATION):
+        renderPercussionHit(samples, tick, 0.010, pvHat)
+        tick += beat * 0.5
+    of mtWave:
+      renderPercussionHit(samples, barStart, 0.056, pvKick)
+      renderPercussionHit(samples, barStart + beat * 1.5, 0.038, pvKick)
+      renderPercussionHit(samples, barStart + beat * 2.0, 0.043, pvSnare)
+      renderPercussionHit(samples, barStart + beat * 3.0, 0.034, pvSnare)
+      var hat = barStart
+      while hat < min(barStart + barLength, MUSIC_DURATION):
+        renderPercussionHit(samples, hat, 0.014, pvHat)
+        hat += beat * 0.5
+    of mtBoss:
+      renderPercussionHit(samples, barStart, 0.072, pvKick)
+      renderPercussionHit(samples, barStart + beat * 0.75, 0.044, pvKick)
+      renderPercussionHit(samples, barStart + beat * 1.0, 0.054, pvSnare)
+      renderPercussionHit(samples, barStart + beat * 2.0, 0.066, pvKick)
+      renderPercussionHit(samples, barStart + beat * 3.0, 0.060, pvSnare)
+      var hat = barStart
+      while hat < min(barStart + barLength, MUSIC_DURATION):
+        renderPercussionHit(samples, hat, 0.015, pvHat)
+        hat += beat * 0.25
+
+    barStart += barLength
+
+proc renderSectionCrashes(sections: seq[Section], samples: var seq[float32],
+                          volume: float32) =
+  for section in sections:
+    if section.startTime > 0.01:
+      renderPercussionHit(samples, section.startTime, volume, pvCrash)
+
+proc renderArpeggios(chords: seq[Note], samples: var seq[float32],
+                     step, volume, octaveMultiplier, swing: float32) =
+  const arpPattern = [
+    1.0'f32, 1.25992'f32, 1.49831'f32, 2.0'f32,
+    1.49831'f32, 1.25992'f32
+  ]
+
+  for chord in chords:
+    if chord.freq <= 0.0 or chord.duration <= 0.0:
+      continue
+
+    var cursor = chord.start
+    var noteIndex = 0
+    while cursor < chord.start + chord.duration:
+      let swungStart = cursor + (if noteIndex mod 2 == 1: step * swing else: 0.0)
+      let remaining = chord.start + chord.duration - swungStart
+      let noteDuration = min(step * 0.68, remaining)
+      if noteDuration > 0.035:
+        let freq = chord.freq * arpPattern[noteIndex mod arpPattern.len] *
+                   octaveMultiplier
+        renderNote(Note(freq: freq, start: swungStart, duration: noteDuration),
+                   samples, inPluck, volume)
+      cursor += step
+      inc noteIndex
+
+proc renderBassPulses(notes: seq[Note], samples: var seq[float32],
+                      step, volume: float32) =
+  for note in notes:
+    if note.freq <= 0.0 or note.duration <= 0.0:
+      continue
+
+    var cursor = note.start
+    var pulseIndex = 0
+    while cursor < note.start + note.duration:
+      let remaining = note.start + note.duration - cursor
+      let pulseDuration = min(step * 0.72, remaining)
+      if pulseDuration > 0.04:
+        let accent = if pulseIndex mod 4 == 0: 1.0'f32 else: 0.72'f32
+        renderNote(Note(freq: note.freq * 0.5, start: cursor,
+                        duration: pulseDuration),
+                   samples, inBass, volume * accent)
+      cursor += step
+      inc pulseIndex
+
+proc applySingleEcho(samples: var seq[float32], delaySeconds, mix: float32) =
+  let delaySamples = int(delaySeconds * SAMPLE_RATE.float32)
+  if delaySamples <= 0 or delaySamples >= samples.len:
+    return
+
+  for i in countdown(samples.len - 1, delaySamples):
+    samples[i] += samples[i - delaySamples] * mix
+
+proc renderTrackEnhancements(track: MusicTrack, sections: seq[Section],
+                             samples: var seq[float32]) =
+  ## Extra arrangement layers shared by all procedural tracks.
+  case track
+  of mtMenu:
+    for section in sections:
+      renderArpeggios(section.chords, samples, 0.50, 0.028, 1.0, 0.08)
+    renderTrackGroove(track, samples)
+    applySingleEcho(samples, 0.42, 0.055)
+  of mtPowerUp:
+    for section in sections:
+      renderArpeggios(section.chords, samples, 0.375, 0.039, 1.0, 0.10)
+    renderTrackGroove(track, samples)
+    renderSectionCrashes(sections, samples, 0.030)
+    applySingleEcho(samples, 0.28, 0.065)
+  of mtWave:
+    for section in sections:
+      renderArpeggios(section.chords, samples, 0.25, 0.044, 1.0, 0.06)
+      renderBassPulses(section.bass, samples, 0.25, 0.045)
+    renderTrackGroove(track, samples)
+    renderSectionCrashes(sections, samples, 0.042)
+    applySingleEcho(samples, 0.18, 0.050)
+  of mtBoss:
+    for section in sections:
+      renderArpeggios(section.chords, samples, 0.1875, 0.040, 0.75, 0.04)
+      renderBassPulses(section.bass, samples, 0.1875, 0.060)
+    renderTrackGroove(track, samples)
+    renderSectionCrashes(sections, samples, 0.058)
+    applySingleEcho(samples, 0.14, 0.045)
+
+proc finishMusic(samples: var seq[float32], filename: string,
+                 outputGain: float32): Music =
+  ## Light mastering: fade protection, warm saturation, and final limiting.
+  let fadeSamples = int(0.035 * SAMPLE_RATE.float32)
+  var samples16 = newSeq[int16](samples.len)
+
+  for i in 0..<samples.len:
+    var value = samples[i]
+
+    if i < fadeSamples:
+      value *= i.float32 / fadeSamples.float32
+    if samples.len - i < fadeSamples:
+      value *= (samples.len - i).float32 / fadeSamples.float32
+
+    let limited = tanh(value * 1.18) * outputGain
+    samples16[i] = int16(clamp(limited * 32767.0, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples16, SAMPLE_RATE)
+  result = loadMusicStream(filename)
 
 # MENU MUSIC
 
@@ -1214,20 +1456,9 @@ proc createMenuMusic(filename: string): Music =
     renderNotes(section.harmony, samples, inPad, 0.08)
     renderChords(section.chords, samples, 0.18)  # Piano chords
     applySectionDynamics(samples, section, 0.7)  # Reduce overall section volume
-  
-  # Convert to int16 with final gentle limiting
-  var samples16 = newSeq[int16](samples.len)
-  for i in 0..<samples.len:
-    # Apply soft compression to prevent any harshness
-    let compressed = if samples[i] > 0.0:
-      samples[i] * (1.0 - samples[i] * 0.3)
-    else:
-      samples[i] * (1.0 + samples[i] * 0.3)
-    
-    samples16[i] = int16(clamp(compressed * 32767.0 * 0.6, -32767.0, 32767.0))
-  
-  writeWavFile(filename, samples16, SAMPLE_RATE)
-  result = loadMusicStream(filename)
+
+  renderTrackEnhancements(mtMenu, sections, samples)
+  result = finishMusic(samples, filename, 0.58)
 
 # WAVE MUSIC
 
@@ -1523,20 +1754,9 @@ proc createWaveMusic(filename: string): Music =
     renderNotes(section.harmony, samples, inPad, 0.09)
     renderChords(section.chords, samples, 0.20)  # Driving piano chords
     applySectionDynamics(samples, section, 0.75)
-  
-  # Convert to int16 with final gentle limiting
-  var samples16 = newSeq[int16](samples.len)
-  for i in 0..<samples.len:
-    # Apply soft compression to prevent any harshness
-    let compressed = if samples[i] > 0.0:
-      samples[i] * (1.0 - samples[i] * 0.3)
-    else:
-      samples[i] * (1.0 + samples[i] * 0.3)
-    
-    samples16[i] = int16(clamp(compressed * 32767.0 * 0.6, -32767.0, 32767.0))
-  
-  writeWavFile(filename, samples16, SAMPLE_RATE)
-  result = loadMusicStream(filename)
+
+  renderTrackEnhancements(mtWave, sections, samples)
+  result = finishMusic(samples, filename, 0.54)
 
 # POWER-UP MUSIC
 
@@ -1699,20 +1919,9 @@ proc createPowerUpMusic(filename: string): Music =
     renderNotes(section.harmony, samples, inPad, 0.08)
     renderChords(section.chords, samples, 0.19)  # Bright piano chords
     applySectionDynamics(samples, section, 0.7)
-  
-  # Convert to int16 with final gentle limiting
-  var samples16 = newSeq[int16](samples.len)
-  for i in 0..<samples.len:
-    # Apply soft compression to prevent any harshness
-    let compressed = if samples[i] > 0.0:
-      samples[i] * (1.0 - samples[i] * 0.3)
-    else:
-      samples[i] * (1.0 + samples[i] * 0.3)
-    
-    samples16[i] = int16(clamp(compressed * 32767.0 * 0.6, -32767.0, 32767.0))
-  
-  writeWavFile(filename, samples16, SAMPLE_RATE)
-  result = loadMusicStream(filename)
+
+  renderTrackEnhancements(mtPowerUp, sections, samples)
+  result = finishMusic(samples, filename, 0.56)
 
 # BOSS MUSIC
 
@@ -2053,27 +2262,16 @@ proc createBossMusic(filename: string): Music =
     renderNotes(section.harmony, samples, inPad, 0.10)
     renderChords(section.chords, samples, 0.21)  # Aggressive piano chords
     applySectionDynamics(samples, section, 0.75)
-  
-  # Convert to int16 with final gentle limiting
-  var samples16 = newSeq[int16](samples.len)
-  for i in 0..<samples.len:
-    # Apply soft compression to prevent any harshness
-    let compressed = if samples[i] > 0.0:
-      samples[i] * (1.0 - samples[i] * 0.3)
-    else:
-      samples[i] * (1.0 + samples[i] * 0.3)
-    
-    samples16[i] = int16(clamp(compressed * 32767.0 * 0.6, -32767.0, 32767.0))
-  
-  writeWavFile(filename, samples16, SAMPLE_RATE)
-  result = loadMusicStream(filename)
+
+  renderTrackEnhancements(mtBoss, sections, samples)
+  result = finishMusic(samples, filename, 0.52)
 
 # MUSIC LOADING AND SYSTEM MANAGEMENT
 
 proc loadOrGenerateMusic(track: MusicTrack): Music =
   let cacheFile = getMusicCacheFile(track)
   
-  if fileExists(cacheFile):
+  if isMusicCached(track):
     return loadMusicStream(cacheFile)
   
   case track
