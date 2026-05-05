@@ -267,6 +267,8 @@ proc main() =
   let stats = initStatistics()
   discard loadStatistics(stats)
   var rogueliteProfile = loadRogueliteProfile()
+  if sanitizeEquippedCosmetics(settings, rogueliteProfile):
+    discard saveSettings(settings)
   
   # Load last completed run statistics
   let loadedRunStats = loadLastRunStats()
@@ -308,15 +310,24 @@ proc main() =
 
   proc setActiveRogueliteProfile(profile: RogueliteProfile) =
     rogueliteProfile = profile
+    if sanitizeEquippedCosmetics(settings, profile):
+      discard saveSettings(settings)
     if not globalWindowManager.isNil and not globalWindowManager.settings.isNil:
       globalWindowManager.settings.rogueliteProfile = profile
+    if not globalWindowManager.isNil and not globalWindowManager.shop.isNil:
+      globalWindowManager.shop.rogueliteProfile = profile
+      globalWindowManager.shop.selectedPlayerSkin = SkinType(settings.playerSkin)
+      globalWindowManager.shop.selectedBulletSkin = BulletSkinType(settings.bulletSkin)
+      globalWindowManager.shop.selectedShape = ShapeType(settings.playerShape)
+      globalWindowManager.shop.selectedParticle = ParticleSkinType(settings.particleEffect)
+      globalWindowManager.shop.selectedBulletShape = BulletShapeType(settings.bulletShape)
 
   proc clampedRogueliteHeatSelection(selectedHeat: int, profile: RogueliteProfile): int =
-    let maxHeat = if profile.isNil: 0 else: profile.highestHeat
-    clamp(selectedHeat, 0, maxHeat)
+    let maxHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
+    clamp(selectedHeat, RogueliteMinHeat, maxHeat)
 
   proc defaultRogueliteHeatSelection(profile: RogueliteProfile): int =
-    if profile.isNil: 0 else: clamp(profile.highestHeat, 0, RogueliteMaxHeat)
+    clampedRogueliteHeatSelection(RogueliteMinHeat, profile)
 
   proc refreshAdvancementProfile() =
     discard loadStatistics(stats)
@@ -1174,6 +1185,8 @@ proc main() =
       updateMouseTracking(currentGame)
       refreshRogueliteUnlocks(rogueliteProfile)
       currentGame.rogueliteProfile = rogueliteProfile
+      currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
+      currentGame.rogueliteHeatPulseTimer = max(0.0'f32, currentGame.rogueliteHeatPulseTimer - dt)
 
       let starterKits = [rskOperator, rskBulwark, rskArcanist]
 
@@ -1184,6 +1197,18 @@ proc main() =
         currentGame.state = gsMenu
         statsSavedThisGame = false
 
+      proc selectRogueliteHeat(newHeat: int) =
+        let previousHeat = currentGame.selectedRogueliteHeat
+        let nextHeat = clampedRogueliteHeatSelection(newHeat, rogueliteProfile)
+        if nextHeat == previousHeat:
+          playSound(stMenuNav, 0.45)
+          return
+
+        currentGame.selectedRogueliteHeat = nextHeat
+        currentGame.rogueliteHeatPulseTimer = 0.45
+        currentGame.rogueliteHeatPulseDirection = if nextHeat > previousHeat: 1 else: -1
+        playSound(stMenuNav, if nextHeat > previousHeat: 0.82 else: 0.65)
+
       if isKeyPressed(Left) or isKeyPressed(A):
         currentGame.selectedRogueliteStarter = (currentGame.selectedRogueliteStarter - 1 + starterKits.len) mod starterKits.len
         markKeyboardUsed(currentGame)
@@ -1191,10 +1216,10 @@ proc main() =
         currentGame.selectedRogueliteStarter = (currentGame.selectedRogueliteStarter + 1) mod starterKits.len
         markKeyboardUsed(currentGame)
       if isKeyPressed(Up) or isKeyPressed(W):
-        currentGame.selectedRogueliteHeat = min(rogueliteProfile.highestHeat, currentGame.selectedRogueliteHeat + 1)
+        selectRogueliteHeat(currentGame.selectedRogueliteHeat + 1)
         markKeyboardUsed(currentGame)
       if isKeyPressed(Down) or isKeyPressed(S):
-        currentGame.selectedRogueliteHeat = max(0, currentGame.selectedRogueliteHeat - 1)
+        selectRogueliteHeat(currentGame.selectedRogueliteHeat - 1)
         markKeyboardUsed(currentGame)
       if isKeyPressed(U):
         currentGame.state = gsRogueliteUnlocks
@@ -1232,8 +1257,10 @@ proc main() =
         let startX = panelX + 45
         let cardY = panelY + 122
         let btnY = panelY + PanelH - 82
+        var clickHandled = false
         if checkCollisionPointRec(mousePos, closeRect):
           closeRogueliteSetupToMenu()
+          clickHandled = true
         else:
           for i in 0..2:
             let rect = Rectangle(x: (startX + i * (CardW + CardGap)).float32,
@@ -1242,17 +1269,33 @@ proc main() =
                                  height: CardH.float32)
             if checkCollisionPointRec(mousePos, rect):
               currentGame.selectedRogueliteStarter = i
+              clickHandled = true
+          if not clickHandled:
+            let decRect = rogueliteHeatDecreaseRect(screenWidth.int32, screenHeight.int32)
+            let incRect = rogueliteHeatIncreaseRect(screenWidth.int32, screenHeight.int32)
+            if checkCollisionPointRec(mousePos, decRect):
+              selectRogueliteHeat(currentGame.selectedRogueliteHeat - 1)
+              clickHandled = true
+            elif checkCollisionPointRec(mousePos, incRect):
+              selectRogueliteHeat(currentGame.selectedRogueliteHeat + 1)
+              clickHandled = true
+            else:
+              for heatLevel in RogueliteMinHeat..RogueliteMaxHeat:
+                if checkCollisionPointRec(mousePos, rogueliteHeatPipRect(screenWidth.int32, screenHeight.int32, heatLevel)):
+                  selectRogueliteHeat(heatLevel)
+                  clickHandled = true
+                  break
         let unlockRect = Rectangle(x: (panelX + 60).float32, y: btnY.float32,
                                    width: 180, height: 42)
         let startRect = Rectangle(x: (panelX + 370).float32, y: btnY.float32,
                                   width: 180, height: 42)
         let backRect = Rectangle(x: (panelX + 680).float32, y: btnY.float32,
                                  width: 180, height: 42)
-        if not checkCollisionPointRec(mousePos, closeRect) and checkCollisionPointRec(mousePos, unlockRect):
+        if not clickHandled and checkCollisionPointRec(mousePos, unlockRect):
           currentGame.state = gsRogueliteUnlocks
-        elif checkCollisionPointRec(mousePos, startRect):
+        elif not clickHandled and checkCollisionPointRec(mousePos, startRect):
           startSelectedRoguelite()
-        elif checkCollisionPointRec(mousePos, backRect):
+        elif not clickHandled and checkCollisionPointRec(mousePos, backRect):
           closeRogueliteSetupToMenu()
 
       beginGameDrawing()
@@ -1391,6 +1434,8 @@ proc main() =
         if currentGame.rogueliteRun != nil and
            (currentGame.rogueliteRun.totalSectorsCleared > 0 or
             currentGame.rogueliteRun.shardsEarned > 0 or
+            currentGame.rogueliteRun.overheatCoresEarned > 0 or
+            currentGame.rogueliteRun.singularityCoresEarned > 0 or
             currentGame.rogueliteRun.sectorWavesCleared > 0):
           discard commitRogueliteRunProgress(currentGame, true)
           setActiveRogueliteProfile(currentGame.rogueliteProfile)
@@ -1656,17 +1701,17 @@ proc main() =
       # Transition to power-up selection or next wave
       if currentGame.waveClearedTimer <= 0:
         if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
-          if currentGame.rogueliteRun.pendingActBoss:
-            currentGame.state = gsPlaying
-          elif currentGame.rogueliteRun.pendingSectorSelect:
-            currentGame.state = gsShop
-          elif currentGame.cameFromPowerUpSelect:
+          if currentGame.cameFromPowerUpSelect:
             currentGame.powerUpChoices = generatePowerUpChoices(
               currentGame.player, false, unlockedFamilySet(currentGame.rogueliteProfile))
             currentGame.selectedPowerUp = 0
             initPowerUpRollAnimation(currentGame)
             initializeRerollCost(currentGame)
             currentGame.state = gsPowerUpSelect
+          elif currentGame.rogueliteRun.pendingActBoss:
+            currentGame.state = gsPlaying
+          elif currentGame.rogueliteRun.pendingSectorSelect:
+            currentGame.state = gsShop
           else:
             currentGame.state = gsPlaying
             startWave(currentGame)

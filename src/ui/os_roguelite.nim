@@ -1,5 +1,6 @@
 import raylib, math, strutils
 import ../types, ../roguelite, ../localization, ../render_context
+import icon_drawing
 
 const
   RoguelitePanelW* = 920
@@ -9,6 +10,17 @@ const
   RogueliteCardGap* = 28
   RogueliteTitleBarH* = 42
   RogueliteCloseButtonSize* = 28
+  RogueliteHeatPanelXOffset* = 45
+  RogueliteHeatPanelYOffset* = 386
+  RogueliteHeatPanelW* = 830
+  RogueliteHeatPanelH* = 122
+  RogueliteHeatPipStartX* = 18
+  RogueliteHeatPipY* = 48
+  RogueliteHeatPipW* = 76
+  RogueliteHeatPipH* = 28
+  RogueliteHeatPipGap* = 10
+  RogueliteHeatStepButtonW* = 42
+  RogueliteHeatStepButtonH* = 34
 
   PanelW = RoguelitePanelW
   PanelH = RoguelitePanelH
@@ -35,6 +47,40 @@ proc rogueliteCloseButtonRect*(screenWidth, screenHeight: int32): Rectangle =
     y: panel.y + ((TitleBarH - CloseButtonSize) div 2).float32,
     width: CloseButtonSize.float32,
     height: CloseButtonSize.float32)
+
+proc rogueliteHeatPanelRect*(screenWidth, screenHeight: int32): Rectangle =
+  let panel = roguelitePanelRect(screenWidth, screenHeight)
+  Rectangle(
+    x: panel.x + RogueliteHeatPanelXOffset.float32,
+    y: panel.y + RogueliteHeatPanelYOffset.float32,
+    width: RogueliteHeatPanelW.float32,
+    height: RogueliteHeatPanelH.float32)
+
+proc rogueliteHeatPipRect*(screenWidth, screenHeight: int32, heatLevel: int): Rectangle =
+  let panel = rogueliteHeatPanelRect(screenWidth, screenHeight)
+  let idx = clamp(heatLevel, RogueliteMinHeat, RogueliteMaxHeat) - RogueliteMinHeat
+  Rectangle(
+    x: panel.x + RogueliteHeatPipStartX.float32 +
+       idx.float32 * (RogueliteHeatPipW + RogueliteHeatPipGap).float32,
+    y: panel.y + RogueliteHeatPipY.float32,
+    width: RogueliteHeatPipW.float32,
+    height: RogueliteHeatPipH.float32)
+
+proc rogueliteHeatDecreaseRect*(screenWidth, screenHeight: int32): Rectangle =
+  let panel = rogueliteHeatPanelRect(screenWidth, screenHeight)
+  Rectangle(
+    x: panel.x + panel.width - 112,
+    y: panel.y + 44,
+    width: RogueliteHeatStepButtonW.float32,
+    height: RogueliteHeatStepButtonH.float32)
+
+proc rogueliteHeatIncreaseRect*(screenWidth, screenHeight: int32): Rectangle =
+  let panel = rogueliteHeatPanelRect(screenWidth, screenHeight)
+  Rectangle(
+    x: panel.x + panel.width - 60,
+    y: panel.y + 44,
+    width: RogueliteHeatStepButtonW.float32,
+    height: RogueliteHeatStepButtonH.float32)
 
 proc locStarterName(kit: RogueliteStarterKit): string =
   case kit
@@ -308,13 +354,18 @@ proc drawCloseButton(x, y: int32, color: Color, hovered: bool = false) =
   drawLine(x + 8, y + 8, x + CloseButtonSize - 8, y + CloseButtonSize - 8, lineColor)
   drawLine(x + CloseButtonSize - 8, y + 8, x + 8, y + CloseButtonSize - 8, lineColor)
 
-proc drawStatChip(x, y, w, h: int32, label, value: string, color: Color) =
+proc drawStatChip(x, y, w, h: int32, label, value: string, color: Color,
+                  icon: CurrencyIconType = ciNone) =
   drawRectangle(x + 2, y + 2, w, h, Color(r: 0, g: 0, b: 0, a: 70))
   drawRectangle(x, y, w, h, Color(r: 22, g: 29, b: 42, a: 235))
   drawRectangle(x, y, 4, h, softColor(color, 220))
   drawRectangleLines(rectAt(x, y, w, h), 1, softColor(color, 120))
-  drawTextFit(label, x + 13, y + 7, w - 24, 11, Color(r: 150, g: 166, b: 186, a: 255))
-  drawTextFit(value, x + 13, y + 23, w - 24, 18, color)
+  let textX = if icon == ciNone: x + 13 else: x + 42
+  let textW = w - (textX - x) - 11
+  if icon != ciNone:
+    drawCurrencyIcon(x + 23, y + h div 2, 26, icon)
+  drawTextFit(label, textX, y + 7, textW, 11, Color(r: 150, g: 166, b: 186, a: 255))
+  drawTextFit(value, textX, y + 23, textW, 18, color)
 
 proc drawPill(x, y, w, h: int32, label: string, color: Color, filled: bool = false) =
   drawRectangle(x, y, w, h,
@@ -323,43 +374,149 @@ proc drawPill(x, y, w, h: int32, label: string, color: Color, filled: bool = fal
   let fontSize = bestFitFontSize(label, w - 8, 12, 8)
   discard drawCenteredTextFit(label, x + 4, y + (h - fontSize) div 2, w - 8, 12, color, 8)
 
+proc unlockCostLabel(profile: RogueliteProfile, category: RogueliteUnlockCategory, index: int): string =
+  var parts: seq[string] = @[]
+  let shardCost = unlockCost(profile, category, index)
+  let overheatCost = unlockOverheatCoreCost(profile, category, index)
+  let singularityCost = unlockSingularityCoreCost(profile, category, index)
+  if shardCost > 0:
+    parts.add($shardCost & " " & t("roguelite_shards_short"))
+  if overheatCost > 0:
+    parts.add($overheatCost & " " & t("roguelite_overheat_short"))
+  if singularityCost > 0:
+    parts.add($singularityCost & " " & t("roguelite_singularity_short"))
+  if parts.len == 0:
+    t("roguelite_unlocked")
+  else:
+    parts.join(" + ")
+
+proc drawHeatStepButton(rect: Rectangle, label: string, enabled, hovered: bool, color: Color) =
+  let x = rect.x.int32
+  let y = rect.y.int32
+  let w = rect.width.int32
+  let h = rect.height.int32
+  let bg = if enabled and hovered: Color(r: 70, g: 44, b: 36, a: 255)
+           elif enabled: Color(r: 43, g: 37, b: 38, a: 255)
+           else: Color(r: 30, g: 34, b: 43, a: 235)
+  drawRectangle(x + 2, y + 2, w, h, Color(r: 0, g: 0, b: 0, a: if hovered: 110 else: 70))
+  drawRectangle(x, y, w, h, bg)
+  drawRectangleLines(rect, if enabled and hovered: 2 else: 1,
+                     if enabled: color else: Color(r: 82, g: 88, b: 102, a: 255))
+  discard drawCenteredTextFit(label, x + 4, y + 6, w - 8, 20,
+                              if enabled: color else: Color(r: 110, g: 118, b: 132, a: 255), 12)
+
 proc drawHeatPanel(game: Game, x, y, w, h: int32) =
   let profile = game.rogueliteProfile
-  let maxHeat = if profile.isNil: 0 else: profile.highestHeat
+  let maxHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
+  let selectedHeat = clamp(game.selectedRogueliteHeat, RogueliteMinHeat, maxHeat)
+  let heatRank = heatChallengeRank(selectedHeat)
+  let heatSpan = max(1, RogueliteMaxHeat - RogueliteMinHeat)
+  let heatIntensity = heatRank.float32 / heatSpan.float32
   let heatColor = Color(r: 255, g: 150, b: 80, a: 255)
+  let highHeatColor = Color(r: 255, g: 82, b: 66, a: 255)
+  let canHover = game.mouseMovedRecently and not game.keyboardUsedRecently
+  let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
+  let glowPulse = (sin(game.time * 6.0'f32) * 0.5'f32 + 0.5'f32)
+  let glowAlpha = uint8(18 + heatRank * 28 + int(glowPulse * 22.0'f32))
+
   drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 85))
   drawRectangle(x, y, w, h, Color(r: 20, g: 25, b: 37, a: 245))
+  drawRectangle(x + 5, y + 5, w - 10, h - 10, Color(r: 95, g: 39, b: 26, a: glowAlpha))
   drawRectangle(x, y, 5, h, softColor(heatColor, 230))
   drawRectangleLines(x, y, w, h, Color(r: 255, g: 130, b: 80, a: 220))
-  drawTextFit(t("roguelite_heat") & " " & $game.selectedRogueliteHeat,
-              x + 18, y + 12, 120, 18, heatColor)
+
+  if game.rogueliteHeatPulseTimer > 0:
+    let pulseT = clamp(game.rogueliteHeatPulseTimer / 0.45'f32, 0.0'f32, 1.0'f32)
+    let pulseAlpha = uint8(max(0, min(190, int(pulseT * 190.0'f32))))
+    let pulseColor = if game.rogueliteHeatPulseDirection >= 0: highHeatColor
+                     else: Color(r: 120, g: 210, b: 255, a: 255)
+    drawRectangleLines(Rectangle(x: (x - 2).float32, y: (y - 2).float32,
+                                 width: (w + 4).float32, height: (h + 4).float32),
+                       3, softColor(pulseColor, pulseAlpha))
+    drawTextFit(if game.rogueliteHeatPulseDirection >= 0: "+HEAT" else: "-HEAT",
+                x + w - 194, y + 14, 74, 15, softColor(pulseColor, pulseAlpha))
+
+  drawCurrencyIcon(x + 29, y + 22, 24, ciHeat)
+  drawTextFit(t("roguelite_heat") & " " & $selectedHeat,
+              x + 46, y + 12, 92, 20, heatColor)
   drawTextFit($maxHeat & " / " & $RogueliteMaxHeat,
               x + 144, y + 14, 84, 13, LightGray)
-  drawTextFit(t("roguelite_heat_effects") & ": +" & $(game.selectedRogueliteHeat * 18) & "% " &
-              t("roguelite_pressure") & ", +" & $(game.selectedRogueliteHeat * 5) & " " &
-              t("roguelite_elite"), x + 230, y + 14, w - 248, 13, LightGray)
+  let heatPressurePercent = int(round(heatRank.float32 *
+    RogueliteHeatPressurePerTier * 100.0'f32))
+  let heatShardPercent = int(round(heatRank.float32 *
+    RogueliteHeatShardMultiplierPerTier * 100.0'f32))
+  drawTextFit(t("roguelite_heat_effects") & ": +" & $heatPressurePercent & "% " &
+              t("roguelite_pressure") & ", +" &
+              $(heatRank * RogueliteHeatEliteBonusPerTier) & " " &
+              t("roguelite_elite") & ", +" & $heatShardPercent & "% " &
+              t("roguelite_shards"), x + 230, y + 13, w - 370, 13, LightGray)
 
-  let pipStart = x + 18
-  let pipY = y + 44
-  let pipGap: int32 = 10
-  let pipW: int32 = 38
+  let pipStart = x + RogueliteHeatPipStartX
+  let pipY = y + RogueliteHeatPipY
   for i in 0..<RogueliteMaxHeat:
-    let px = pipStart + i.int32 * (pipW + pipGap)
-    let unlocked = i < maxHeat
-    let selected = i < game.selectedRogueliteHeat
-    let pipColor = if selected: heatColor
+    let heatLevel = RogueliteMinHeat + i
+    let px = pipStart + i.int32 * (RogueliteHeatPipW + RogueliteHeatPipGap)
+    let pipRect = rectAt(px, pipY, RogueliteHeatPipW, RogueliteHeatPipH)
+    let unlocked = heatLevel <= maxHeat
+    let selected = heatLevel == selectedHeat
+    let active = heatLevel <= selectedHeat
+    let hovered = canHover and checkCollisionPointRec(mousePos, pipRect)
+    let pipColor = if selected: highHeatColor
+                   elif active: heatColor
                    elif unlocked: Color(r: 190, g: 110, b: 70, a: 255)
                    else: Color(r: 78, g: 86, b: 102, a: 255)
-    drawRectangle(px, pipY, pipW, 12,
-                  if selected: softColor(pipColor, 180) else: Color(r: 31, g: 37, b: 48, a: 255))
-    drawRectangleLines(px, pipY, pipW, 12, pipColor)
+    drawRectangle(px + 2, pipY + 2, RogueliteHeatPipW, RogueliteHeatPipH,
+                  Color(r: 0, g: 0, b: 0, a: if hovered: 110 else: 70))
+    drawRectangle(px, pipY, RogueliteHeatPipW, RogueliteHeatPipH,
+                  if selected: Color(r: 76, g: 40, b: 32, a: 255)
+                  elif hovered and unlocked: Color(r: 50, g: 43, b: 42, a: 255)
+                  elif active: Color(r: 44, g: 36, b: 38, a: 245)
+                  else: Color(r: 31, g: 37, b: 48, a: 245))
+    drawRectangleLines(pipRect, if selected or hovered: 2 else: 1, pipColor)
+    drawTextFit($heatLevel, px + 10, pipY + 5, 20, 17,
+                if unlocked: White else: Color(r: 125, g: 132, b: 145, a: 255))
+    drawTextFit(if heatLevel == RogueliteMinHeat: "BASE" else: "+" & $(heatLevel - RogueliteMinHeat),
+                px + 33, pipY + 8, RogueliteHeatPipW - 42, 11,
+                if unlocked: pipColor else: Color(r: 105, g: 112, b: 126, a: 255), 8)
+
+    if selected and game.rogueliteHeatPulseTimer > 0:
+      let pulseT = clamp(game.rogueliteHeatPulseTimer / 0.45'f32, 0.0'f32, 1.0'f32)
+      let ringAlpha = uint8(max(0, min(180, int(pulseT * 180.0'f32))))
+      drawCircleLines(px + RogueliteHeatPipW div 2, pipY + RogueliteHeatPipH div 2,
+                      22.0'f32 + (1.0'f32 - pulseT) * 13.0'f32,
+                      softColor(pipColor, ringAlpha))
+
+  let meterX = x + 300
+  let meterY = y + 54
+  let meterW = w - 438
+  drawTextFit(t("roguelite_pressure"), meterX, y + 39, 120, 11,
+              Color(r: 180, g: 190, b: 205, a: 255))
+  drawMeter(meterX, meterY, meterW, 12, heatIntensity, highHeatColor)
+
+  let emberCount = 4 + heatRank * 4
+  for ember in 0..<emberCount:
+    let phase = game.time * (1.4'f32 + ember.float32 * 0.11'f32) + ember.float32 * 1.73'f32
+    let ex = meterX + int32((sin(phase) * 0.5'f32 + 0.5'f32) * meterW.float32)
+    let ey = y + 42 + int32((cos(phase * 1.31'f32) * 0.5'f32 + 0.5'f32) * 44.0'f32)
+    let emberAlpha = uint8(70 + heatRank * 28)
+    drawCircle(Vector2(x: ex.float32, y: ey.float32), (1 + heatRank).float32,
+               Color(r: 255, g: 140, b: 75, a: emberAlpha))
+
+  let decRect = rogueliteHeatDecreaseRect(game.screenWidth, game.screenHeight)
+  let incRect = rogueliteHeatIncreaseRect(game.screenWidth, game.screenHeight)
+  drawHeatStepButton(decRect, "-", selectedHeat > RogueliteMinHeat,
+                     canHover and checkCollisionPointRec(mousePos, decRect), heatColor)
+  drawHeatStepButton(incRect, "+", selectedHeat < maxHeat,
+                     canHover and checkCollisionPointRec(mousePos, incRect), highHeatColor)
 
   let nextText = if maxHeat >= RogueliteMaxHeat:
     t("roguelite_heat_maxed")
   else:
-    t("roguelite_heat_buy_next") & " " & $(maxHeat + 1) & " (" & t("roguelite_cost") &
-      " " & $heatTierCost(maxHeat + 1) & ")"
-  drawTextFit(nextText, x + 18, y + h - 23, w - 36, 13, Gold)
+    t("roguelite_heat_buy_next") & " " & $(maxHeat + 1) & " (" &
+      unlockCostLabel(profile, rucChallengeTiers, 0) & ")"
+  drawTextFit(nextText, x + 18, y + h - 42, w - 36, 13, Gold)
+  drawTextFit(t("roguelite_heat_core_rule"), x + 18, y + h - 22, w - 36, 12,
+              Color(r: 180, g: 192, b: 210, a: 255), 8)
 
 proc drawProgressRail(run: RogueliteRun, x, y, w: int32) =
   let totalNodes = RogueliteSectorsPerAct + 1
@@ -399,7 +556,7 @@ proc locUnlockName(profile: RogueliteProfile, category: RogueliteUnlockCategory,
     locRelicName(relicByUnlockIndex(index))
   of rucChallengeTiers:
     if index == 0:
-      let nextHeat = if profile.isNil: 1 else: min(RogueliteMaxHeat, profile.highestHeat + 1)
+      let nextHeat = if profile.isNil: RogueliteMinHeat + 1 else: min(RogueliteMaxHeat, profile.highestHeat + 1)
       t("roguelite_unlock_heat") & " " & $nextHeat
     else:
       let nextTier = if profile.isNil: 2 else: min(RogueliteMaxBossTier, profile.unlockedBossTier + 1)
@@ -580,7 +737,7 @@ proc drawUnlockGlyph(profile: RogueliteProfile, category: RogueliteUnlockCategor
     drawCategoryGlyph(cx, cy, rucRelics, color, compact)
   of rucChallengeTiers:
     if index == 0:
-      let heat = if profile.isNil: 0 else: min(RogueliteMaxHeat, profile.highestHeat + 1)
+      let heat = if profile.isNil: RogueliteMinHeat + 1 else: min(RogueliteMaxHeat, profile.highestHeat + 1)
       let ring: int32 = if compact: 8 else: 10
       let labelW: int32 = if compact: 10 else: 12
       let fontSize: int32 = if compact: 8 else: 10
@@ -593,16 +750,13 @@ proc drawUnlockGlyph(profile: RogueliteProfile, category: RogueliteUnlockCategor
 proc drawRewardGlyph(cx, cy: int32, reward: RogueliteRewardType, color: Color) =
   case reward
   of rrwCredits:
-    drawCircleLines(cx, cy, 10, color)
-    drawLine(cx - 4, cy, cx + 4, cy, color)
+    drawCurrencyIcon(cx, cy, 24, ciCredits)
   of rrwRelic:
     drawCategoryGlyph(cx, cy, rucRelics, color)
   of rrwPowerFamily:
     drawCategoryGlyph(cx, cy, rucPowerFamilies, color)
   of rrwShardCache:
-    drawTriangleLines(Vector2(x: cx.float32, y: (cy - 11).float32),
-                      Vector2(x: (cx - 10).float32, y: (cy + 8).float32),
-                      Vector2(x: (cx + 10).float32, y: (cy + 8).float32), color)
+    drawCurrencyIcon(cx, cy, 24, ciDataShards)
 
 proc drawSmallButton(x, y, w, h: int32, label: string, active: bool, color: Color, hovered: bool = false) =
   let bg = if active: Color(r: 38, g: 76, b: 92, a: 255)
@@ -655,16 +809,19 @@ proc drawRogueliteSetup*(game: Game) =
 
   let profile = game.rogueliteProfile
   let shards = if profile.isNil: 0 else: profile.dataShards
-  let maxHeat = if profile.isNil: 0 else: profile.highestHeat
+  let overheatCores = if profile.isNil: 0 else: profile.overheatCores
+  let singularityCores = if profile.isNil: 0 else: profile.singularityCores
+  let maxHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
   let bossTier = if profile.isNil: 1 else: profile.unlockedBossTier
-  let familyCount = if profile.isNil: 2 else: card(profile.unlockedPowerFamilies)
-  drawStatChip(x + 26, y + 58, 205, 48, t("roguelite_data_shards"), $shards, Gold)
-  drawStatChip(x + 247, y + 58, 175, 48, t("roguelite_heat"), $maxHeat & " / " & $RogueliteMaxHeat,
-               Color(r: 255, g: 150, b: 80, a: 255))
-  drawStatChip(x + 438, y + 58, 175, 48, t("roguelite_boss_tier"), $bossTier,
+  drawStatChip(x + 26, y + 58, 164, 48, t("roguelite_data_shards"), $shards, Gold, ciDataShards)
+  drawStatChip(x + 202, y + 58, 164, 48, t("roguelite_overheat_cores"), $overheatCores,
+               Color(r: 255, g: 130, b: 80, a: 255), ciOverheatCore)
+  drawStatChip(x + 378, y + 58, 164, 48, t("roguelite_singularity_cores"), $singularityCores,
+               Color(r: 170, g: 110, b: 255, a: 255), ciSingularityCore)
+  drawStatChip(x + 554, y + 58, 150, 48, t("roguelite_heat"), $maxHeat & " / " & $RogueliteMaxHeat,
+               Color(r: 255, g: 150, b: 80, a: 255), ciHeat)
+  drawStatChip(x + 716, y + 58, 178, 48, t("roguelite_boss_tier"), $bossTier,
                Color(r: 255, g: 120, b: 95, a: 255))
-  drawStatChip(x + 629, y + 58, 265, 48, t("roguelite_families"), $familyCount & " / " & $unlockCount(rucPowerFamilies),
-               Color(r: 160, g: 120, b: 255, a: 255))
 
   let startX = x + 45
   let cardY = y + 122
@@ -675,7 +832,8 @@ proc drawRogueliteSetup*(game: Game) =
     drawKitCard(game, kit, (startX + idx * (CardW + CardGap)).int32, cardY.int32,
                 idx == game.selectedRogueliteStarter, unlocked, hovered)
 
-  drawHeatPanel(game, x + 45, y + 386, 830, 96)
+  drawHeatPanel(game, x + RogueliteHeatPanelXOffset, y + RogueliteHeatPanelYOffset,
+                RogueliteHeatPanelW, RogueliteHeatPanelH)
 
   let btnY = y + PanelH - 82
   let selectedStarterIndex = clamp(game.selectedRogueliteStarter, 0, 2)
@@ -745,7 +903,7 @@ proc drawRogueliteSectorSelect*(game: Game) =
                $(run.sectorsThisAct + 1) & " / " & $RogueliteSectorsPerAct,
                Color(r: 0, g: 220, b: 255, a: 255))
   drawStatChip(x + 464, y + 58, 180, 48, t("roguelite_heat"), $run.heat,
-               Color(r: 255, g: 150, b: 80, a: 255))
+               Color(r: 255, g: 150, b: 80, a: 255), ciHeat)
   drawStatChip(x + 662, y + 58, 230, 48, t("roguelite_endless"), $run.endlessLoop,
                Color(r: 255, g: 210, b: 110, a: 255))
 
@@ -780,19 +938,19 @@ proc drawRogueliteUnlocks*(game: Game, categoryIndex: int = 0, itemIndex: int = 
   let itemCount = unlockCount(category)
   let selectedItem = clamp(itemIndex, 0, max(0, itemCount - 1))
   let selectedName = locUnlockName(profile, category, selectedItem)
-  let selectedCost = unlockCost(profile, category, selectedItem)
   let selectedPurchased = isUnlockPurchased(profile, category, selectedItem)
   let selectedCanBuy = canPurchaseUnlock(profile, category, selectedItem)
   let categoryAccent = categoryColor(category)
 
-  drawStatChip(x + 26, y + 58, 205, 48, t("roguelite_data_shards"), $profile.dataShards, Gold)
-  drawStatChip(x + 247, y + 58, 175, 48, t("roguelite_heat"), $profile.highestHeat & " / " & $RogueliteMaxHeat,
-               Color(r: 255, g: 150, b: 80, a: 255))
-  drawStatChip(x + 438, y + 58, 175, 48, t("roguelite_boss_tier"), $profile.unlockedBossTier & " / " & $RogueliteMaxBossTier,
+  drawStatChip(x + 26, y + 58, 164, 48, t("roguelite_data_shards"), $profile.dataShards, Gold, ciDataShards)
+  drawStatChip(x + 202, y + 58, 164, 48, t("roguelite_overheat_cores"), $profile.overheatCores,
+               Color(r: 255, g: 130, b: 80, a: 255), ciOverheatCore)
+  drawStatChip(x + 378, y + 58, 164, 48, t("roguelite_singularity_cores"), $profile.singularityCores,
+               Color(r: 170, g: 110, b: 255, a: 255), ciSingularityCore)
+  drawStatChip(x + 554, y + 58, 150, 48, t("roguelite_heat"), $profile.highestHeat & " / " & $RogueliteMaxHeat,
+               Color(r: 255, g: 150, b: 80, a: 255), ciHeat)
+  drawStatChip(x + 716, y + 58, 178, 48, t("roguelite_boss_tier"), $profile.unlockedBossTier & " / " & $RogueliteMaxBossTier,
                Color(r: 255, g: 120, b: 95, a: 255))
-  drawStatChip(x + 629, y + 58, 265, 48, t("roguelite_best"),
-               t("roguelite_act") & " " & $profile.bestAct & " / " & t("roguelite_sectors") & " " & $profile.bestSector,
-               Color(r: 150, g: 220, b: 255, a: 255))
 
   let contentY = y + 130
   let navX = x + 30
@@ -851,11 +1009,11 @@ proc drawRogueliteUnlocks*(game: Game, categoryIndex: int = 0, itemIndex: int = 
                   else: Color(r: 22, g: 29, b: 42, a: 220))
     drawRectangleLines(listX + 12, rowY, listW - 24, 28, color)
     drawUnlockGlyph(profile, category, idx.int32, listX + 30, rowY + 14, color, true)
-    drawTextFit(locUnlockName(profile, category, idx), listX + 50, rowY + 8, 174, 12,
+    drawTextFit(locUnlockName(profile, category, idx), listX + 50, rowY + 8, 142, 12,
                 if purchased or active or hovered: White else: LightGray)
     let status = if purchased: t("roguelite_unlocked")
-                 else: t("roguelite_cost") & " " & $unlockCost(profile, category, idx)
-    discard drawTextFit(status, listX + listW - 126, rowY + 9, 100, 11, color, 8, taRight)
+                 else: unlockCostLabel(profile, category, idx)
+    discard drawTextFit(status, listX + listW - 156, rowY + 9, 130, 11, color, 8, taRight)
 
   drawRectangle(detailsX, contentY, detailsW, sectionH, Color(r: 20, g: 27, b: 40, a: 240))
   drawRectangleLines(detailsX, contentY, detailsW, sectionH, softColor(categoryAccent, 165))
@@ -871,7 +1029,7 @@ proc drawRogueliteUnlocks*(game: Game, categoryIndex: int = 0, itemIndex: int = 
                    else: Color(r: 255, g: 120, b: 100, a: 255)
   drawPill(detailsX + 18, contentY + 90, 128, 24, stateText, stateColor, selectedPurchased or selectedCanBuy)
   drawPill(detailsX + 156, contentY + 90, detailsW - 174, 24,
-           if selectedPurchased: t("roguelite_unlocked") else: t("roguelite_cost") & ": " & $selectedCost, Gold)
+           if selectedPurchased: t("roguelite_unlocked") else: unlockCostLabel(profile, category, selectedItem), Gold)
   discard drawWrappedText(locUnlockDescription(category, selectedItem), detailsX + 18, contentY + 134, detailsW - 36, 13,
                           Color(r: 190, g: 204, b: 220, a: 255), 6, 5)
 

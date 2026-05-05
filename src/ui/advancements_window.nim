@@ -220,8 +220,13 @@ proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
   let bodyY = contentY + HeaderHeight + Gap
   let bodyH = advWin.window.height - TITLE_BAR_HEIGHT - WINDOW_PADDING * 2 - HeaderHeight - Gap
   let listX = contentX + SidebarWidth + Gap
-  let listY = bodyY + 28
-  let listH = bodyH - 28
+  let listY = bodyY
+  # Mirror draw function: derive cardStartY via the same wrapped-description logic
+  let descLines = wrapTextLines(categoryDescription(advWin.currentCategory), (ListWidth - 18).int32, 12)
+  let descLineCount = min(descLines.len, 2)
+  let listDescEnd = (listY + 31) + descLineCount * (12 + 6)
+  let cardStartY = max(listY + 52, listDescEnd + 10)
+  let listH = bodyH - (cardStartY - listY)
   let maxVisible = max(1, listH div CardHeight)
   let defs = definitionsForCategory(advWin.currentCategory)
   advWin.scrollOffset = clamp(advWin.scrollOffset, 0, max(0, defs.len - maxVisible))
@@ -257,8 +262,8 @@ proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
         if selectedIndex < advWin.scrollOffset:
           advWin.scrollOffset = selectedIndex
 
-    let listRect = Rectangle(x: listX.float32, y: listY.float32,
-                             width: ListWidth.float32, height: listH.float32)
+    let listRect = Rectangle(x: (listX + 8).float32, y: cardStartY.float32,
+                             width: (ListWidth - 16).float32, height: listH.float32)
     if checkCollisionPointRec(mousePos, listRect):
       let wheel = getMouseWheelMove()
       if wheel != 0:
@@ -279,10 +284,10 @@ proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
         break
       catY += 44
 
-    var cardY = listY
+    var cardY = cardStartY
     for i in advWin.scrollOffset..<min(defs.len, advWin.scrollOffset + maxVisible):
-      let rect = Rectangle(x: listX.float32, y: cardY.float32,
-                           width: ListWidth.float32, height: (CardHeight - 8).float32)
+      let rect = Rectangle(x: (listX + 8).float32, y: cardY.float32,
+                           width: (ListWidth - 16).float32, height: (CardHeight - 8).float32)
       if checkCollisionPointRec(mousePos, rect):
         advWin.selectedId = defs[i].id
         break

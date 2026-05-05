@@ -1,4 +1,4 @@
-import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data, localization, render_context, stat_scaling
+import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data, localization, render_context
 
 # ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
@@ -238,12 +238,7 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   
   # Fire rate needs special handling due to diminishing returns
   for i in 0..<game.shopItems[1].bought:
-    let currentRate = game.player.fireRate
-    let scalingFactor = 0.025
-    let diminishingFactor = pow(currentRate / 0.415, 0.6)
-    let effectiveReduction = currentRate * scalingFactor * diminishingFactor
-    game.player.fireRate -= effectiveReduction
-    if game.player.fireRate < 0.07: game.player.fireRate = 0.07
+    game.player.fireRate = applyFireRateDiminished(game.player.fireRate, 0.045, 0.45, 0.09)
   
   # Clear all rotating orbs — they will be recreated by the reapply loop below
   game.player.rotatingOrbs = @[]

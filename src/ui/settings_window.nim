@@ -268,6 +268,9 @@ proc performResetAction(settingsWin: SettingsWindow, action: SettingsResetAction
       result = false
   of sraNone:
     result = false
+  if result and action in {sraAllData, sraRogueliteData} and not settingsWin.rogueliteProfile.isNil:
+    if sanitizeEquippedCosmetics(settingsWin.settings, settingsWin.rogueliteProfile):
+      discard saveSettings(settingsWin.settings)
 
 proc requestResetAction(settingsWin: SettingsWindow, action: SettingsResetAction) =
   if settingsWin.pendingReset == action and settingsWin.resetConfirmTimer > 0.0:

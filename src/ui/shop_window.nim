@@ -1,7 +1,7 @@
-## Shop Window
+﻿## Shop Window
 ## OS-themed window for player and bullet customization with tabs
 
-import raylib, os_window, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization, ../render_context
+import raylib, os_window, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization, ../render_context, ../roguelite
 
 type
   ShopTab* = enum
@@ -19,9 +19,12 @@ type
     selectedShape*: ShapeType
     selectedBulletShape*: BulletShapeType
     selectedParticle*: ParticleSkinType
+    rogueliteProfile*: RogueliteProfile
     hoveredSkin*: int  # -1 for none
     scrollOffset*: float32
     animationTime*: float32
+    statusMessage*: string
+    statusTimer*: float32
     playerSkinChanged*: bool
     bulletSkinChanged*: bool
     shapeChanged*: bool
@@ -36,7 +39,7 @@ const
   SKIN_BOX_PADDING = 15
   TAB_HEIGHT = 40
 
-proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle): ShopWindow =
+proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle, rogueliteProfile: RogueliteProfile = nil): ShopWindow =
   let windowWidth = 620
   let windowHeight = 450
   let windowX = (screenWidth - windowWidth) div 2
@@ -61,9 +64,12 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     selectedShape: currentShape,
     selectedBulletShape: currentBulletShape,
     selectedParticle: currentParticle,
+    rogueliteProfile: rogueliteProfile,
     hoveredSkin: -1,
     scrollOffset: 0.0,
     animationTime: 0,
+    statusMessage: "",
+    statusTimer: 0.0,
     playerSkinChanged: false,
     bulletSkinChanged: false,
     shapeChanged: false,
@@ -94,7 +100,102 @@ proc saveSkinSelectionImmediately*(shop: ShopWindow) =
     shop.bulletShapeChanged = false
     shop.particleChanged = false
 
-proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool) =
+proc cosmeticCostLabel(cost: CosmeticCost): string =
+  var parts: seq[string] = @[]
+  if cost.dataShards > 0:
+    parts.add($cost.dataShards & " " & t("roguelite_shards_short"))
+  if cost.overheatCores > 0:
+    parts.add($cost.overheatCores & " " & t("roguelite_overheat_short"))
+  if cost.singularityCores > 0:
+    parts.add($cost.singularityCores & " " & t("roguelite_singularity_short"))
+  if parts.len == 0: "FREE" else: parts.join(" + ")
+
+proc drawLockGlyph(x, y: int32, color: Color) =
+  drawCircleLines(x + 10, y + 8, 7, color)
+  drawRectangle(x + 2, y + 8, 16, 14, Color(r: 20, g: 24, b: 32, a: 235))
+  drawRectangleLines(x + 2, y + 8, 16, 14, color)
+  drawCircle(Vector2(x: (x + 10).float32, y: (y + 15).float32), 2, color)
+
+proc fitTextSize(text: string, maxWidth: int32, startSize: int32, minSize: int32 = 7): int32 =
+  result = startSize
+  while result > minSize and measureText(text, result) > maxWidth:
+    dec result
+
+proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, costText: string) =
+  if isUnlocked:
+    if isSelected:
+      let equipText = t("shop_equipped")
+      let equipWidth = measureText(equipText, 11)
+      let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
+      drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+    return
+
+  let statusColor = if canBuy:
+    Color(r: 255, g: 215, b: 80, a: 255)
+  else:
+    Color(r: 150, g: 150, b: 165, a: 255)
+  drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32,
+                Color(r: 0, g: 0, b: 0, a: 82))
+  drawLockGlyph((x + 10).int32, (y + 10).int32, statusColor)
+
+  let statusText = if canBuy:
+    t(tkShopBuy) & " " & costText
+  else:
+    t("roguelite_locked") & " " & costText
+  drawRectangle((x + 6).int32, (y + 116).int32, (SKIN_BOX_WIDTH - 12).int32, 20,
+                Color(r: 16, g: 20, b: 28, a: 230))
+  drawRectangleLines(Rectangle(x: (x + 6).float32, y: (y + 116).float32,
+                               width: (SKIN_BOX_WIDTH - 12).float32, height: 20.0),
+                     1, statusColor)
+  let fontSize = fitTextSize(statusText, (SKIN_BOX_WIDTH - 22).int32, 10, 6)
+  let statusWidth = measureText(statusText, fontSize)
+  drawText(statusText, (x + (SKIN_BOX_WIDTH - statusWidth) div 2).int32,
+           (y + 121).int32, fontSize, statusColor)
+
+proc equipCosmetic(shop: ShopWindow, kind: CosmeticKind, index: int) =
+  case kind
+  of ckPlayerSkin:
+    shop.selectedPlayerSkin = SkinType(index)
+    shop.playerSkinChanged = true
+  of ckBulletSkin:
+    shop.selectedBulletSkin = BulletSkinType(index)
+    shop.bulletSkinChanged = true
+  of ckPlayerShape:
+    shop.selectedShape = ShapeType(index)
+    shop.shapeChanged = true
+  of ckBulletShape:
+    shop.selectedBulletShape = BulletShapeType(index)
+    shop.bulletShapeChanged = true
+  of ckParticle:
+    shop.selectedParticle = ParticleSkinType(index)
+    shop.particleChanged = true
+  saveSkinSelectionImmediately(shop)
+
+proc handleCosmeticClick(shop: ShopWindow, kind: CosmeticKind, index: int) =
+  if not isValidCosmeticIndex(kind, index):
+    return
+  if cosmeticIsUnlocked(shop.rogueliteProfile, kind, index):
+    equipCosmetic(shop, kind, index)
+    shop.statusMessage = t("shop_equipped")
+    shop.statusTimer = 1.2
+  elif purchaseCosmetic(shop.rogueliteProfile, kind, index):
+    equipCosmetic(shop, kind, index)
+    shop.statusMessage = t("roguelite_unlocked")
+    shop.statusTimer = 1.6
+  else:
+    shop.statusMessage = t("roguelite_not_enough_shards")
+    shop.statusTimer = 1.6
+
+proc syncShopSelectionFromSettings(shop: ShopWindow) =
+  if shop.isNil or globalSettings.isNil:
+    return
+  shop.selectedPlayerSkin = SkinType(globalSettings.playerSkin)
+  shop.selectedBulletSkin = BulletSkinType(globalSettings.bulletSkin)
+  shop.selectedShape = ShapeType(globalSettings.playerShape)
+  shop.selectedBulletShape = BulletShapeType(globalSettings.bulletShape)
+  shop.selectedParticle = ParticleSkinType(globalSettings.particleEffect)
+
+proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, costText: string = "") =
   ## Draw a preview of a player skin with shop icon style
   let (primaryColor, secondaryColor, coreColor) = getSkinColors(skinType, time)
   
@@ -183,14 +284,9 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
     drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
   
-  # Selected indicator (moved up to avoid clipping)
-  if isSelected:
-    let equipText = t("shop_equipped")
-    let equipWidth = measureText(equipText, 11)
-    let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
-    drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, costText)
 
-proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool) =
+proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, costText: string = "") =
   ## Draw a preview of a bullet skin
   let (primaryColor, glowColor, trailColor) = getBulletSkinColors(skinType, time)
   
@@ -287,14 +383,9 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
     drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
   
-  # Selected indicator (moved up to avoid clipping)
-  if isSelected:
-    let equipText = t("shop_equipped")
-    let equipWidth = measureText(equipText, 11)
-    let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
-    drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, costText)
 
-proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool) =
+proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, costText: string = "") =
   ## Draw a preview of a player bullet shape
   let bgColor = if isSelected: Color(r: 0, g: 60, b: 80, a: 255)
                 elif isHovered: Color(r: 60, g: 60, b: 70, a: 255)
@@ -356,13 +447,9 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
     let d2w = measureText(line2, 10)
     drawText(line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32, (y + 112).int32, 10, Gray)
 
-  if isSelected:
-    let equipText = t("shop_equipped")
-    let equipWidth = measureText(equipText, 11)
-    drawText(equipText, (x + (SKIN_BOX_WIDTH - equipWidth) div 2).int32,
-             (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, costText)
 
-proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool) =
+proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, costText: string = "") =
   ## Draw a preview of a player shape
   # Background box
   let bgColor = if isSelected:
@@ -447,14 +534,9 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
     drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
   
-  # Selected indicator (moved up to avoid clipping)
-  if isSelected:
-    let equipText = t("shop_equipped")
-    let equipWidth = measureText(equipText, 11)
-    let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
-    drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, costText)
 
-proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool) =
+proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, costText: string = "") =
   ## Draw a preview of a particle effect
   let (primaryColor, secondaryColor) = getParticleSkinColors(particleType, time)
   
@@ -544,12 +626,7 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
     drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
   
-  # Selected indicator (moved up to avoid clipping)
-  if isSelected:
-    let equipText = t("shop_equipped")
-    let equipWidth = measureText(equipText, 11)
-    let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
-    drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, costText)
 
 proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWindow]): bool =
   ## Update shop window. Returns true if window should close
@@ -559,7 +636,14 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
   if not shop.window.visible:
     return true
   
+  if not globalSettings.isNil:
+    if sanitizeEquippedCosmetics(globalSettings, shop.rogueliteProfile):
+      discard saveSettings(globalSettings)
+    syncShopSelectionFromSettings(shop)
+
   shop.animationTime += dt
+  if shop.statusTimer > 0:
+    shop.statusTimer = max(0.0'f32, shop.statusTimer - dt)
   
   updateOSWindow(shop.window, dt)
   
@@ -612,26 +696,21 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
   let gridHeight = contentHeight - TAB_HEIGHT - headerHeight - infoPanelHeight
   
   # Get current skins list and calculate rows
-  let (totalRows, totalSkins) = if shop.currentTab == stPlayerSkins:
-    let skins = getUnlockedSkins().len
-    let rows = (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-    (rows, skins)
+  let totalRows = if shop.currentTab == stPlayerSkins:
+    let skins = cosmeticCount(ckPlayerSkin)
+    (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
   elif shop.currentTab == stBulletSkins:
-    let skins = getUnlockedBulletSkins().len
-    let rows = (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-    (rows, skins)
+    let skins = cosmeticCount(ckBulletSkin)
+    (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
   elif shop.currentTab == stShapes:
-    let shapes = getUnlockedShapes().len
-    let rows = (shapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-    (rows, shapes)
+    let shapes = cosmeticCount(ckPlayerShape)
+    (shapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
   elif shop.currentTab == stBulletShapes:
-    let bshapes = getUnlockedBulletShapes().len
-    let rows = (bshapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-    (rows, bshapes)
+    let bshapes = cosmeticCount(ckBulletShape)
+    (bshapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
   else:  # stParticles
-    let particles = getUnlockedParticleSkins().len
-    let rows = (particles + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-    (rows, particles)
+    let particles = cosmeticCount(ckParticle)
+    (particles + SKINS_PER_ROW - 1) div SKINS_PER_ROW
   
   let totalContentHeight = totalRows * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) + 10
   
@@ -654,10 +733,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
   
   # Handle skin selection based on current tab
   if shop.currentTab == stPlayerSkins:
-    let unlockedPlayerSkins = getUnlockedSkins()
-    var skinIndex = 0
-    
-    for skinType in unlockedPlayerSkins:
+    for skinIndex in 0..<cosmeticCount(ckPlayerSkin):
       let col = skinIndex mod SKINS_PER_ROW
       let row = skinIndex div SKINS_PER_ROW
       
@@ -671,16 +747,9 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
             shop.hoveredSkin = skinIndex
             
             if shop.window.handledClickThisFrame:
-              shop.selectedPlayerSkin = skinType
-              shop.playerSkinChanged = true
-              saveSkinSelectionImmediately(shop)
-      
-      skinIndex += 1
+              handleCosmeticClick(shop, ckPlayerSkin, skinIndex)
   elif shop.currentTab == stBulletSkins:
-    let unlockedBulletSkins = getUnlockedBulletSkins()
-    var skinIndex = 0
-    
-    for skinType in unlockedBulletSkins:
+    for skinIndex in 0..<cosmeticCount(ckBulletSkin):
       let col = skinIndex mod SKINS_PER_ROW
       let row = skinIndex div SKINS_PER_ROW
       
@@ -694,16 +763,9 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
             shop.hoveredSkin = skinIndex
             
             if shop.window.handledClickThisFrame:
-              shop.selectedBulletSkin = skinType
-              shop.bulletSkinChanged = true
-              saveSkinSelectionImmediately(shop)
-      
-      skinIndex += 1
+              handleCosmeticClick(shop, ckBulletSkin, skinIndex)
   elif shop.currentTab == stShapes:
-    let unlockedShapes = getUnlockedShapes()
-    var shapeIndex = 0
-    
-    for shapeType in unlockedShapes:
+    for shapeIndex in 0..<cosmeticCount(ckPlayerShape):
       let col = shapeIndex mod SKINS_PER_ROW
       let row = shapeIndex div SKINS_PER_ROW
       
@@ -717,15 +779,9 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
             shop.hoveredSkin = shapeIndex
             
             if shop.window.handledClickThisFrame:
-              shop.selectedShape = shapeType
-              shop.shapeChanged = true
-              saveSkinSelectionImmediately(shop)
-      
-      shapeIndex += 1
+              handleCosmeticClick(shop, ckPlayerShape, shapeIndex)
   elif shop.currentTab == stBulletShapes:
-    let unlockedBulletShapes = getUnlockedBulletShapes()
-    var bshapeIndex = 0
-    for bshapeType in unlockedBulletShapes:
+    for bshapeIndex in 0..<cosmeticCount(ckBulletShape):
       let col = bshapeIndex mod SKINS_PER_ROW
       let row = bshapeIndex div SKINS_PER_ROW
       let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
@@ -736,15 +792,9 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
              mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
             shop.hoveredSkin = bshapeIndex
             if shop.window.handledClickThisFrame:
-              shop.selectedBulletShape = bshapeType
-              shop.bulletShapeChanged = true
-              saveSkinSelectionImmediately(shop)
-      bshapeIndex += 1
+              handleCosmeticClick(shop, ckBulletShape, bshapeIndex)
   elif shop.currentTab == stParticles:
-    let unlockedParticles = getUnlockedParticleSkins()
-    var particleIndex = 0
-    
-    for particleType in unlockedParticles:
+    for particleIndex in 0..<cosmeticCount(ckParticle):
       let col = particleIndex mod SKINS_PER_ROW
       let row = particleIndex div SKINS_PER_ROW
       
@@ -758,11 +808,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
             shop.hoveredSkin = particleIndex
             
             if shop.window.handledClickThisFrame:
-              shop.selectedParticle = particleType
-              shop.particleChanged = true
-              saveSkinSelectionImmediately(shop)
-      
-      particleIndex += 1
+              handleCosmeticClick(shop, ckParticle, particleIndex)
   
   return false
 
@@ -852,6 +898,22 @@ proc drawShopWindow*(shop: ShopWindow) =
   else:
     t("shop_customize_effects")
   drawText(tabTitle, (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
+  if not shop.rogueliteProfile.isNil:
+    let balanceY = headerY + 15
+    let balanceX = contentX + contentWidth - 238
+    drawCurrencyIcon(balanceX.int32, balanceY.int32, 16, ciDataShards)
+    drawText($shop.rogueliteProfile.dataShards, (balanceX + 12).int32, (balanceY - 6).int32, 12, Gold)
+    drawCurrencyIcon((balanceX + 72).int32, balanceY.int32, 16, ciOverheatCore)
+    drawText($shop.rogueliteProfile.overheatCores, (balanceX + 84).int32, (balanceY - 6).int32, 12,
+             Color(r: 255, g: 130, b: 80, a: 255))
+    drawCurrencyIcon((balanceX + 136).int32, balanceY.int32, 16, ciSingularityCore)
+    drawText($shop.rogueliteProfile.singularityCores, (balanceX + 148).int32, (balanceY - 6).int32, 12,
+             Color(r: 170, g: 110, b: 255, a: 255))
+  elif shop.statusTimer <= 0:
+    drawText(t("roguelite_no_profile"), (contentX + contentWidth - 150).int32, (headerY + 12).int32, 12, Red)
+  if shop.statusTimer > 0 and shop.statusMessage.len > 0:
+    drawText(shop.statusMessage, (contentX + contentWidth - 180).int32, (headerY + 31).int32, 11,
+             Color(r: 255, g: 210, b: 110, a: 255))
   
   # Calculate grid area
   let gridY = headerY + headerHeight
@@ -859,26 +921,21 @@ proc drawShopWindow*(shop: ShopWindow) =
   let gridHeight = contentHeight - TAB_HEIGHT - headerHeight - infoPanelHeight
   
   # Get skins for current tab
-  let (totalSkins, totalRows) = if shop.currentTab == stPlayerSkins:
-    let skins = getUnlockedSkins().len
-    let rows = (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-    (skins, rows)
+  let totalRows = if shop.currentTab == stPlayerSkins:
+    let skins = cosmeticCount(ckPlayerSkin)
+    (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
   elif shop.currentTab == stBulletSkins:
-    let skins = getUnlockedBulletSkins().len
-    let rows = (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-    (skins, rows)
+    let skins = cosmeticCount(ckBulletSkin)
+    (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
   elif shop.currentTab == stShapes:
-    let shapes = getUnlockedShapes().len
-    let rows = (shapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-    (shapes, rows)
+    let shapes = cosmeticCount(ckPlayerShape)
+    (shapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
   elif shop.currentTab == stBulletShapes:
-    let bshapes = getUnlockedBulletShapes().len
-    let rows = (bshapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-    (bshapes, rows)
+    let bshapes = cosmeticCount(ckBulletShape)
+    (bshapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
   else:  # stParticles
-    let particles = getUnlockedParticleSkins().len
-    let rows = (particles + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-    (particles, rows)
+    let particles = cosmeticCount(ckParticle)
+    (particles + SKINS_PER_ROW - 1) div SKINS_PER_ROW
   
   let totalContentHeight = totalRows * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) + 10
   
@@ -891,10 +948,8 @@ proc drawShopWindow*(shop: ShopWindow) =
   
   # Draw grid based on current tab
   if shop.currentTab == stPlayerSkins:
-    let unlockedPlayerSkins = getUnlockedSkins()
-    var skinIndex = 0
-    
-    for skinType in unlockedPlayerSkins:
+    for skinIndex in 0..<cosmeticCount(ckPlayerSkin):
+      let skinType = SkinType(skinIndex)
       let col = skinIndex mod SKINS_PER_ROW
       let row = skinIndex div SKINS_PER_ROW
       
@@ -904,17 +959,17 @@ proc drawShopWindow*(shop: ShopWindow) =
       if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
         let isSelected = skinType == shop.selectedPlayerSkin
         let isHovered = skinIndex == shop.hoveredSkin
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckPlayerSkin, skinIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckPlayerSkin, skinIndex)
+        let costText = cosmeticCostLabel(cosmeticCost(ckPlayerSkin, skinIndex))
         
         beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawPlayerSkinPreview(boxX, boxY, skinType, shop.selectedShape, shop.animationTime, isSelected, isHovered)
+        drawPlayerSkinPreview(boxX, boxY, skinType, shop.selectedShape, shop.animationTime,
+                              isSelected, isHovered, isUnlocked, canBuy, costText)
         endScissorMode()
-      
-      skinIndex += 1
   elif shop.currentTab == stBulletSkins:
-    let unlockedBulletSkins = getUnlockedBulletSkins()
-    var skinIndex = 0
-    
-    for skinType in unlockedBulletSkins:
+    for skinIndex in 0..<cosmeticCount(ckBulletSkin):
+      let skinType = BulletSkinType(skinIndex)
       let col = skinIndex mod SKINS_PER_ROW
       let row = skinIndex div SKINS_PER_ROW
       
@@ -924,17 +979,17 @@ proc drawShopWindow*(shop: ShopWindow) =
       if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
         let isSelected = skinType == shop.selectedBulletSkin
         let isHovered = skinIndex == shop.hoveredSkin
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckBulletSkin, skinIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckBulletSkin, skinIndex)
+        let costText = cosmeticCostLabel(cosmeticCost(ckBulletSkin, skinIndex))
         
         beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawBulletSkinPreview(boxX, boxY, skinType, shop.animationTime, isSelected, isHovered)
+        drawBulletSkinPreview(boxX, boxY, skinType, shop.animationTime, isSelected, isHovered,
+                              isUnlocked, canBuy, costText)
         endScissorMode()
-      
-      skinIndex += 1
   elif shop.currentTab == stShapes:
-    let unlockedShapes = getUnlockedShapes()
-    var shapeIndex = 0
-    
-    for shapeType in unlockedShapes:
+    for shapeIndex in 0..<cosmeticCount(ckPlayerShape):
+      let shapeType = ShapeType(shapeIndex)
       let col = shapeIndex mod SKINS_PER_ROW
       let row = shapeIndex div SKINS_PER_ROW
       
@@ -944,16 +999,17 @@ proc drawShopWindow*(shop: ShopWindow) =
       if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
         let isSelected = shapeType == shop.selectedShape
         let isHovered = shapeIndex == shop.hoveredSkin
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckPlayerShape, shapeIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckPlayerShape, shapeIndex)
+        let costText = cosmeticCostLabel(cosmeticCost(ckPlayerShape, shapeIndex))
         
         beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawShapePreview(boxX, boxY, shapeType, shop.animationTime, isSelected, isHovered)
+        drawShapePreview(boxX, boxY, shapeType, shop.animationTime, isSelected, isHovered,
+                         isUnlocked, canBuy, costText)
         endScissorMode()
-      
-      shapeIndex += 1
   elif shop.currentTab == stBulletShapes:
-    let unlockedBulletShapes = getUnlockedBulletShapes()
-    var bshapeIndex = 0
-    for bshapeType in unlockedBulletShapes:
+    for bshapeIndex in 0..<cosmeticCount(ckBulletShape):
+      let bshapeType = BulletShapeType(bshapeIndex)
       let col = bshapeIndex mod SKINS_PER_ROW
       let row = bshapeIndex div SKINS_PER_ROW
       let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
@@ -961,15 +1017,16 @@ proc drawShopWindow*(shop: ShopWindow) =
       if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
         let isSelected = bshapeType == shop.selectedBulletShape
         let isHovered = bshapeIndex == shop.hoveredSkin
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckBulletShape, bshapeIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckBulletShape, bshapeIndex)
+        let costText = cosmeticCostLabel(cosmeticCost(ckBulletShape, bshapeIndex))
         beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawBulletShapePreview(boxX, boxY, bshapeType, shop.animationTime, isSelected, isHovered)
+        drawBulletShapePreview(boxX, boxY, bshapeType, shop.animationTime, isSelected, isHovered,
+                               isUnlocked, canBuy, costText)
         endScissorMode()
-      bshapeIndex += 1
   else:  # stParticles
-    let unlockedParticles = getUnlockedParticleSkins()
-    var particleIndex = 0
-    
-    for particleType in unlockedParticles:
+    for particleIndex in 0..<cosmeticCount(ckParticle):
+      let particleType = ParticleSkinType(particleIndex)
       let col = particleIndex mod SKINS_PER_ROW
       let row = particleIndex div SKINS_PER_ROW
       
@@ -979,12 +1036,14 @@ proc drawShopWindow*(shop: ShopWindow) =
       if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
         let isSelected = particleType == shop.selectedParticle
         let isHovered = particleIndex == shop.hoveredSkin
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckParticle, particleIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckParticle, particleIndex)
+        let costText = cosmeticCostLabel(cosmeticCost(ckParticle, particleIndex))
         
         beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawParticlePreview(boxX, boxY, particleType, shop.animationTime, isSelected, isHovered)
+        drawParticlePreview(boxX, boxY, particleType, shop.animationTime, isSelected, isHovered,
+                            isUnlocked, canBuy, costText)
         endScissorMode()
-      
-      particleIndex += 1
   
   # Draw scrollbar if needed
   if shop.maxScrollOffset > 0:

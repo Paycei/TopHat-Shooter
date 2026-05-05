@@ -178,7 +178,7 @@ proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindo
     return false
   
   # Check if any other window is on top at this point
-  # IMPORTANT: Minimized windows' title bars should also block!
+  # Minimized windows title bars should also block clicks to windows behind them
   for otherWindow in allWindows:
     if otherWindow != window and not otherWindow.isNil and otherWindow.visible:
       if otherWindow.zOrder > window.zOrder:

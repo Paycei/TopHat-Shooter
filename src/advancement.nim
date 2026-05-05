@@ -362,20 +362,20 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
     AdvancementDefinition(
       id: "roguelite_heat_check",
       name: "Heat Check",
-      description: "Buy Heat 1 from the roguelite unlock shop.",
+      description: "Unlock Heat 2 from the roguelite unlock shop.",
       category: acRoguelite,
       tier: atSilver,
-      target: 1.0'f32,
+      target: 2.0'f32,
       points: 40,
       reward: "Heat dial"
     ),
     AdvancementDefinition(
       id: "roguelite_heat_singularity",
       name: "Heat Singularity",
-      description: "Buy Heat 5 from the roguelite unlock shop.",
+      description: "Unlock Heat 3, the highest roguelite Heat.",
       category: acRoguelite,
       tier: atLegendary,
-      target: 5.0'f32,
+      target: 3.0'f32,
       points: 100,
       reward: "Singularity heat plate"
     ),

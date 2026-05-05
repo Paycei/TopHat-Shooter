@@ -1,6 +1,6 @@
 ## OS-Style HUD System
 
-import raylib, ../types, math, ../localization, ui_constants
+import raylib, ../types, math, ../localization, ui_constants, icon_drawing
 
 const
   PANEL_PADDING = 10
@@ -179,10 +179,11 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
     # Coin background indicator
     drawRectangle(x + PANEL_PADDING + 7, yOffset + 14, 100, 18,
                  Color(r: 50, g: 40, b: 0, a: 60))
+    drawCurrencyIcon(x + PANEL_PADDING + 18, yOffset + 23, 16, ciCredits)
     
-    drawText(coinText, x + PANEL_PADDING + 13, yOffset + 18, 13,
+    drawText(coinText, x + PANEL_PADDING + 30, yOffset + 18, 13,
             Color(r: 0, g: 0, b: 0, a: 150))
-    drawText(coinText, x + PANEL_PADDING + 12, yOffset + 17, 13,
+    drawText(coinText, x + PANEL_PADDING + 29, yOffset + 17, 13,
             Color(r: 255, g: 220, b: 0, a: 255))
 
 proc drawPerformanceMetrics*(game: Game, x, y: int32) =

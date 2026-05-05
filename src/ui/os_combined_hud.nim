@@ -1,7 +1,7 @@
 ﻿## Combined OS-Style HUD Panel
 ## Merges status and info panels into one compact, non-intrusive display
 
-import raylib, ../types, ../localization, math, ../powerup_data, ../roguelite, ui_constants, ../render_context
+import raylib, ../types, ../localization, math, ../powerup_data, ../roguelite, ui_constants, ../render_context, icon_drawing
 
 const
   COMBINED_PANEL_WIDTH = 200
@@ -221,9 +221,8 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
           else: Color(r: 120, g: 120, b: 120, a: 200))
   
   # Coins - bright gold
-  drawText("$", finalPanelX + COMBINED_PANEL_WIDTH div 2 - 16 + 1, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 100))
-  drawText("$", finalPanelX + COMBINED_PANEL_WIDTH div 2 - 16, yOffset, 9, Color(r: 255, g: 215, b: 0, a: 255))
-  drawText($game.player.coins, finalPanelX + COMBINED_PANEL_WIDTH div 2 - 5, yOffset, 10, Color(r: 255, g: 255, b: 255, a: 255))
+  drawCurrencyIcon(finalPanelX + COMBINED_PANEL_WIDTH div 2 - 11, yOffset + 6, 12, ciCredits)
+  drawText($game.player.coins, finalPanelX + COMBINED_PANEL_WIDTH div 2 - 1, yOffset, 10, Color(r: 255, g: 255, b: 255, a: 255))
   
   # Processes - purple
   drawText("[*]", finalPanelX + COMBINED_PANEL_WIDTH - 40 + 1, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 100))
@@ -400,14 +399,19 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
             yOffset, objectiveSize, Color(r: 255, g: 210, b: 110, a: 255))
     yOffset += max(13'i32, max(waveSize, objectiveSize) + 4)
 
-    let shardText = t("roguelite_heat") & " " & $run.heat & "  " &
+    var shardText = t("roguelite_heat") & " " & $run.heat & "  " &
                     t("roguelite_shards") & " +" & $run.shardsEarned
-    let shardSize = bestFitPanelFontSize(shardText, contentW, 9)
+    if run.overheatCoresEarned > 0:
+      shardText &= "  " & t("roguelite_overheat_short") & " +" & $run.overheatCoresEarned
+    if run.singularityCoresEarned > 0:
+      shardText &= "  " & t("roguelite_singularity_short") & " +" & $run.singularityCoresEarned
+    let shardSize = bestFitPanelFontSize(shardText, contentW - 15, 9)
+    drawCurrencyIcon(finalPanelX + COMBINED_PANEL_PADDING + 10, yOffset + 6, 12, ciHeat)
     drawText(shardText,
-            finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, shardSize,
+            finalPanelX + COMBINED_PANEL_PADDING + 22, yOffset + 1, shardSize,
             Color(r: 0, g: 0, b: 0, a: 130))
     drawText(shardText,
-            finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset, shardSize, Gold)
+            finalPanelX + COMBINED_PANEL_PADDING + 21, yOffset, shardSize, Gold)
     yOffset += max(11'i32, shardSize + 2)
 
     let relicText = t("roguelite_relics") & " " & $run.relics.len & "  " &

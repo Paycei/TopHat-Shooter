@@ -1,4 +1,4 @@
-import raylib, types, random, math, tables, ui/os_powerup_installer, d_visuals, stat_scaling
+import raylib, types, random, math, tables, ui/os_powerup_installer, d_visuals
 
 # Forward declarations for reroll system
 proc attemptRerollPowerUps*(game: Game): bool

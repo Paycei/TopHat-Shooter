@@ -520,9 +520,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
                     2.0, Color(r: 255, g: 215, b: 0, a: 200))
   let cIX = coinBoxX + 15
   let cIY = coinBoxY + 25
-  drawCircle(Vector2(x: cIX.float32, y: cIY.float32), 12, Color(r: 255, g: 215, b: 0, a: 255))
-  drawCircle(Vector2(x: cIX.float32, y: cIY.float32), 10, Color(r: 200, g: 170, b: 0, a: 255))
-  drawText("$", cIX - 5, cIY - 8, 16, Color(r: 50, g: 40, b: 0, a: 255))
+  drawCurrencyIcon(cIX, cIY, 26, ciCredits)
   let coinText = $game.player.coins & " credits"
   drawText(coinText, coinBoxX + 40, coinBoxY + 10, 18, Color(r: 0, g: 0, b: 0, a: 120))
   drawText(coinText, coinBoxX + 38, coinBoxY + 8, 18, Color(r: 255, g: 240, b: 100, a: 255))

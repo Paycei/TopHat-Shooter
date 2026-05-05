@@ -1,4 +1,4 @@
-﻿import raylib, std/tables, discord_presence, particle_types
+﻿import raylib, std/tables, discord_presence, particle_types, math
 
 export Particle, ParticlePool, Vector2f
 export newVector2f, `+`, `-`, `*`, length, normalize, distance
@@ -215,9 +215,16 @@ type
   RogueliteProfile* = ref object
     version*: int
     dataShards*: int
+    overheatCores*: int
+    singularityCores*: int
     unlockedStarterKits*: set[RogueliteStarterKit]
     unlockedPowerFamilies*: set[RoguelitePowerFamily]
     unlockedRelics*: set[RogueliteRelicType]
+    unlockedPlayerSkins*: seq[string]
+    unlockedBulletSkins*: seq[string]
+    unlockedPlayerShapes*: seq[string]
+    unlockedBulletShapes*: seq[string]
+    unlockedParticleSkins*: seq[string]
     unlockedBossTier*: int
     highestHeat*: int
     bestAct*: int
@@ -239,6 +246,8 @@ type
     nextSectorChoices*: array[3, RogueliteSector]
     relics*: seq[RogueliteRelic]
     shardsEarned*: int
+    overheatCoresEarned*: int
+    singularityCoresEarned*: int
     endlessLoop*: int
     pendingSectorSelect*: bool
     pendingActBoss*: bool
@@ -871,6 +880,8 @@ type
     rogueliteRun*: RogueliteRun
     selectedRogueliteStarter*: int
     selectedRogueliteHeat*: int
+    rogueliteHeatPulseTimer*: float32
+    rogueliteHeatPulseDirection*: int
     selectedRogueliteSector*: int
     osBackground*: OSBackgroundState  # Animated background system
     osHUD*: OSHUDState  # OS-style HUD and notifications
@@ -1005,3 +1016,66 @@ proc defaultPvPConfig*(): PvPConfig =
     snapshotRate: 1.0 / 32.0,   # 32 ticks (Medium)
     inputRate: 1.0 / 32.0       # match snapshot tick rate
   )
+
+# Bullet-speed diminishing returns
+
+const
+  BulletSpeedDiminishStart* = 325.0'f32
+  BulletSpeedDiminishScale* = 220.0'f32
+
+proc diminishedBulletSpeedGain*(currentSpeed, gain: float32): float32 =
+  ## Keeps early bullet-speed gains intact, then tapers later gains smoothly.
+  if gain <= 0.0:
+    return gain
+  let excess = max(0.0'f32, currentSpeed - BulletSpeedDiminishStart)
+  let factor = 1.0'f32 / (1.0'f32 + excess / BulletSpeedDiminishScale)
+  gain * factor
+
+proc addBulletSpeedDiminished*(currentSpeed, gain: float32): float32 =
+  currentSpeed + diminishedBulletSpeedGain(currentSpeed, gain)
+
+proc multiplyBulletSpeedDiminished*(currentSpeed, multiplier: float32): float32 =
+  if multiplier <= 1.0:
+    return currentSpeed * multiplier
+  currentSpeed + diminishedBulletSpeedGain(currentSpeed, currentSpeed * (multiplier - 1.0))
+
+proc applyFireRateDiminished*(currentRate, scalingFactor, exponent, hardCap: float32): float32 =
+  ## Applies one fire-rate upgrade step with tunable diminishing returns.
+  ## Lower fireRate = faster shooting, so the result is always clamped above hardCap.
+  ## scalingFactor: base reduction strength. exponent: DR curve steepness.
+  ## Reference fireRate for the DR pivot is 0.415 (the unupgraded base).
+  let diminishingFactor = pow(currentRate / 0.415'f32, exponent)
+  let effectiveReduction = currentRate * scalingFactor * diminishingFactor
+  max(hardCap, currentRate - effectiveReduction)
+
+proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
+  ## NATURAL SPEED REDUCTION: Pure mathematical scaling with NO hardcoded thresholds
+  ## Reduction emerges naturally from wave progression and enemy speed
+  ## Exponential scaling for fast enemies that grows stronger over time
+
+  # Reference speed: typical wave 1 enemy speed
+  const REFERENCE_SPEED = 100.0
+
+  # Calculate speed excess over reference (how much faster than normal)
+  let speedRatio = baseSpeed / REFERENCE_SPEED
+
+  # Wave pressure: natural logarithmic growth that increases smoothly with waves
+  # ln(1 + wave/10) creates unbounded growth without thresholds:
+  # Wave 1 -> 0.095, Wave 10 -> 0.693, Wave 20 -> 1.099, Wave 50 -> 1.705
+  let wavePressure = ln(1.0 + waveNumber.float32 / 10.0)
+
+  # Speed excess factor: exponential penalty for being faster than reference
+  # Uses sqrt to convert ratio to excess smoothly:
+  # 1.5x speed -> 1.22x factor, 2x -> 1.41x, 3x -> 1.73x, 4x -> 2.0x
+  # max(0, ...) ensures no penalty for slower enemies
+  let speedExcessFactor = max(0.0, sqrt(speedRatio) - 1.0)
+
+  # Combined reduction: (speed_excess)^1.8 * wave_pressure * 0.28
+  # Power of 1.8 creates strong exponential scaling for fast enemies
+  # Coefficient 0.28 provides balanced reduction that grows naturally
+  # Result: fast enemies in late waves get heavily reduced, but it's gradual
+  let reductionFactor = pow(speedExcessFactor, 1.8) * wavePressure * 0.28
+
+  # Apply reduction with natural diminishing returns
+  # Formula: speed / (1 + factor) can never reduce to 0
+  baseSpeed / (1.0 + reductionFactor)

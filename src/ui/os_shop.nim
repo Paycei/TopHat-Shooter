@@ -1,7 +1,7 @@
 ﻿## OS-Style Shop System
 ## Shop screen redesigned as a modern OS storefront interface
 
-import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, ../stat_scaling, icon_drawing, ../render_context
+import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing, ../render_context
 
 const
   SHOP_WIDTH = 950
@@ -94,12 +94,14 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
   else:
     Color(r: 120, g: 120, b: 130, a: 255)
   
-  drawText(costText, textX, y + 42, 11, costColor)
+  drawCurrencyIcon(textX + 7, y + 48, 14, ciCredits,
+                   if canAfford: 255'u8 else: 130'u8)
+  drawText(costText, textX + 18, y + 42, 11, costColor)
   
   # Purchase count on same line
   let countText = t(tkShopOwned) & ": " & $bought
-  let costWidth = measureText(costText, 11)
-  drawText(countText, textX + costWidth + 80, y + 42, 10,
+  let costWidth = measureText(costText, 11) + 18
+  drawText(countText, textX + costWidth + 64, y + 42, 10,
           Color(r: 150, g: 160, b: 170, a: 255))
 
 proc drawShop*(game: Game) =
@@ -321,15 +323,10 @@ proc drawShop*(game: Game) =
                                 width: creditsBoxWidth.float32, height: creditsBoxHeight.float32),
                     2, Color(r: 255, g: 215, b: 0, a: 200))
   
-  # Coin icon (simple $ symbol in circle)
+  # Coin icon
   let coinIconX = creditsBoxX + 15
   let coinIconY = creditsBoxY + creditsBoxHeight div 2
-  drawCircle(Vector2(x: coinIconX.float32, y: coinIconY.float32), 12,
-            Color(r: 255, g: 215, b: 0, a: 255))
-  drawCircle(Vector2(x: coinIconX.float32, y: coinIconY.float32), 10,
-            Color(r: 200, g: 170, b: 0, a: 255))
-  drawText("$", coinIconX - 5, coinIconY - 8, 16,
-          Color(r: 50, g: 40, b: 0, a: 255))
+  drawCurrencyIcon(coinIconX, coinIconY, 26, ciCredits)
   
   # Credits amount text
   let creditsText = $game.player.coins & " " & t(tkShopCredits)
@@ -428,13 +425,7 @@ proc buyShopItem*(game: Game, index: int) =
   of 0: # Damage - still strong, but no longer the dominant first-buy every run
     game.player.damage += 0.1 * pow(1.03, item.bought.float32)
   of 1: # Fire Rate - brought closer to damage-shop efficiency
-    let currentRate = game.player.fireRate
-    let scalingFactor = 0.045
-    let diminishingFactor = pow(currentRate / 0.415, 0.45)
-    let effectiveReduction = currentRate * scalingFactor * diminishingFactor
-    
-    game.player.fireRate -= effectiveReduction
-    if game.player.fireRate < 0.09: game.player.fireRate = 0.09  # Hard cap
+    game.player.fireRate = applyFireRateDiminished(game.player.fireRate, 0.045, 0.45, 0.09)
   of 2: # Move Speed
     game.player.speed += 9.0
     game.player.baseSpeed += 9.0

@@ -1,4 +1,4 @@
-import raylib, rlgl, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, particle_pool, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival, render_context, roguelite, stat_scaling  # Import 3D game module
+import raylib, rlgl, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, particle_pool, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival, render_context, roguelite
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -1368,7 +1368,9 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     # Statistics menu tab
     statsMenuTab: 0,  # 0 = Lifetime, 1 = Last Run
     selectedRogueliteStarter: 0,
-    selectedRogueliteHeat: 0,
+    selectedRogueliteHeat: RogueliteMinHeat,
+    rogueliteHeatPulseTimer: 0.0,
+    rogueliteHeatPulseDirection: 0,
     selectedRogueliteSector: 0,
     # OS-Style Visual System
     osBackground: newOSBackground(),
@@ -1437,7 +1439,8 @@ proc startWave*(game: Game) =
   if game.mode == gmRoguelite and game.rogueliteRun != nil:
     let run = game.rogueliteRun
     let pressure = run.activeSector.enemyPressure
-    let fixedThreat = run.act * 2 + run.heat * 3 + run.endlessLoop * 8
+    let heatRank = heatChallengeRank(run.heat)
+    let fixedThreat = run.act + heatRank * RogueliteHeatEnemyCountBonus + run.endlessLoop * 6
     waveEnemyCount = max(7, int(waveEnemyCount.float32 * pressure) + fixedThreat)
   
   # Apply boss wave reduction if this is a boss wave
@@ -1491,8 +1494,9 @@ proc spawnWaveEnemies*(game: Game, count: int) =
     if game.waveEnemiesRemaining > 0:
       let wave: int = if game.mode == gmRoguelite and game.rogueliteRun != nil:
         let run = game.rogueliteRun
+        let heatRank = heatChallengeRank(run.heat)
         game.currentWave + (run.act - 1) * 5 + run.sectorsThisAct * 2 +
-          run.heat * 4 + run.endlessLoop * 12
+          heatRank * RogueliteHeatRosterWaveOffset + run.endlessLoop * 10
       else:
         game.currentWave
       let roll: int = rand(100)
@@ -1614,8 +1618,9 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       var baseDifficulty = (wave - 1).float32 / 4.0
       if game.mode == gmRoguelite and game.rogueliteRun != nil:
         let run = game.rogueliteRun
+        let heatRank = heatChallengeRank(run.heat)
         baseDifficulty = baseDifficulty * run.activeSector.enemyPressure +
-                         run.heat.float32 * 0.45 +
+                         heatRank.float32 * RogueliteHeatDifficultyPerTier +
                          run.endlessLoop.float32 * 1.0
       
       let side = rand(3)
@@ -4517,8 +4522,9 @@ proc updateGame*(game: var Game, dt: float32) =
     if game.mode == gmWaveBased or game.mode == gmRoguelite:
       game.difficulty = (game.currentWave.float32 / 5.0) * modeDef.difficultyScale
       if game.mode == gmRoguelite and game.rogueliteRun != nil:
+        let heatRank = heatChallengeRank(game.rogueliteRun.heat)
         game.difficulty = game.difficulty * game.rogueliteRun.activeSector.enemyPressure +
-                          game.rogueliteRun.heat.float32 * 0.45 +
+                          heatRank.float32 * RogueliteHeatDifficultyPerTier +
                           game.rogueliteRun.act.float32 * 0.18 +
                           game.rogueliteRun.endlessLoop.float32 * 0.9
     else:
@@ -5300,12 +5306,15 @@ proc updateGame*(game: var Game, dt: float32) =
       if game.mode == gmRoguelite and game.rogueliteRun != nil:
         let run = game.rogueliteRun
         let pressure = run.activeSector.enemyPressure
+        let heatRank = heatChallengeRank(run.heat)
         spawnCount = max(spawnCount, int(ceil(spawnCount.float32 *
-          min(2.6'f32, 0.9'f32 + pressure * 0.28'f32 + run.heat.float32 * 0.08'f32 +
-          run.endlessLoop.float32 * 0.12'f32))))
+          min(2.0'f32, 0.82'f32 + pressure * 0.15'f32 +
+          heatRank.float32 * RogueliteHeatSpawnBurstPerTier +
+          run.endlessLoop.float32 * 0.10'f32))))
         baseSpawnRate = max(0.32'f32, baseSpawnRate / (
-          1.0'f32 + (pressure - 1.0'f32) * 0.45'f32 + run.heat.float32 * 0.09'f32 +
-          run.endlessLoop.float32 * 0.16'f32))
+          1.0'f32 + (pressure - 1.0'f32) * 0.32'f32 +
+          heatRank.float32 * RogueliteHeatSpawnRatePerTier +
+          run.endlessLoop.float32 * 0.14'f32))
       
       if game.spawnTimer > baseSpawnRate and game.waveEnemiesRemaining > 0:
         spawnWaveEnemies(game, spawnCount)
@@ -5378,15 +5387,19 @@ proc updateGame*(game: var Game, dt: float32) =
         
         # Store whether we should offer power-up after the timer
         # Store this in cameFromPowerUpSelect as a temporary flag
-        game.cameFromPowerUpSelect = shouldOfferPowerUp or (game.wavesUntilBoss <= 0)
+        game.cameFromPowerUpSelect = if game.mode == gmRoguelite:
+          shouldOfferPowerUp
+        else:
+          shouldOfferPowerUp or (game.wavesUntilBoss <= 0)
     
     # Boss wave spawning - don't spawn if there's a boss coin waiting to be collected
     if game.wavesUntilBoss == 0 and game.bossWaveManager.canSpawnBoss() and game.state == gsPlaying:
       game.bossCount += 1
       # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
       let bossDifficulty = if game.mode == gmRoguelite and game.rogueliteRun != nil:
+        let heatRank = heatChallengeRank(game.rogueliteRun.heat)
         ((game.currentWave - 1).float32 / 2.5) * game.rogueliteRun.activeSector.enemyPressure +
-          game.rogueliteRun.heat.float32 * 0.75 +
+          heatRank.float32 * RogueliteHeatBossDifficultyPerTier +
           game.rogueliteRun.act.float32 * 0.4 +
           game.rogueliteRun.endlessLoop.float32 * 1.5
       else:
