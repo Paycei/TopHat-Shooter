@@ -284,7 +284,11 @@ proc drawShop*(game: Game) =
   
   drawText(t("os_shop_select") & t(tkShopBuy), windowX + 180, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
-  drawText(t("os_shop_exit") & t(tkShopContinue), windowX + 300, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  let exitHintText = if game.mode == gmRoguelite:
+    t("os_shop_exit") & t("roguelite_back")
+  else:
+    t("os_shop_exit") & t(tkShopContinue)
+  drawText(exitHintText, windowX + 300, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
   
   # Purchase button for selected item (large, prominent)
   let selectedItem = game.shopItems[game.selectedShopItem]

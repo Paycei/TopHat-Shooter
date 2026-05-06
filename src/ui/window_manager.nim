@@ -1,7 +1,7 @@
 ## OS Window Manager
 ## Centralized window handling with state management
 
-import raylib, os_window, settings_window, help_window, stats_window, shop_window, pvp_window, advancements_window
+import raylib, os_window, settings_window, help_window, stats_window, shop_window, pvp_window, advancements_window, roguelite_window
 import ../types, ../settings, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins
 import ../advancement
 import algorithm, sequtils
@@ -14,6 +14,7 @@ type
     widShop
     widPvP
     widAdvancements
+    widRoguelite
   
   WindowManager* = ref object
     settings*: SettingsWindow
@@ -22,6 +23,7 @@ type
     shop*: ShopWindow
     pvp*: PvPWindow
     advancements*: AdvancementsWindow
+    roguelite*: RogueliteWindow
     nextZOrder: int
 
 proc newWindowManager*(screenWidth, screenHeight: int,
@@ -44,6 +46,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
                        rogueliteProfile),
     pvp: newPvPWindow(screenWidth, screenHeight),
     advancements: newAdvancementsWindow(screenWidth, screenHeight, advancementProfile),
+    roguelite: newRogueliteWindow(screenWidth, screenHeight, rogueliteProfile),
     nextZOrder: 1
   )
   
@@ -54,6 +57,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.shop.window.visible = false
   result.pvp.window.visible = false
   result.advancements.window.visible = false
+  result.roguelite.window.visible = false
 
 proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
   ## Get all windows in a single sequence
@@ -63,7 +67,8 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
     wm.stats.window,
     wm.shop.window,
     wm.pvp.window,
-    wm.advancements.window
+    wm.advancements.window,
+    wm.roguelite.window
   ]
 
 proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
@@ -87,6 +92,7 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widShop: window = wm.shop.window
   of widPvP: window = wm.pvp.window
   of widAdvancements: window = wm.advancements.window
+  of widRoguelite: window = wm.roguelite.window
   
   window.visible = true
   window.minimized = false
@@ -108,6 +114,7 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widShop: wm.shop.window.visible = false
   of widPvP: wm.pvp.window.visible = false
   of widAdvancements: wm.advancements.window.visible = false
+  of widRoguelite: wm.roguelite.window.visible = false
 
 proc closeAllWindows*(wm: WindowManager) =
   ## Close all open desktop windows (e.g. when starting a game)
@@ -117,6 +124,7 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.shop.window.visible = false
   wm.pvp.window.visible = false
   wm.advancements.window.visible = false
+  wm.roguelite.window.visible = false
 
 proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
@@ -181,14 +189,18 @@ type
   WindowUpdateResult* = object
     fullscreenToggle*: bool
     shopClosed*: bool
+    rogueliteClosed*: bool
+    rogueliteLaunchGame*: bool  ## True when user pressed Start in the roguelite window
     iconToExecute*: int
     pvpGameReady*: bool  # True when PvP connection is established
 
 proc updateAllWindows*(wm: WindowManager, dt: float32,
-                       screenWidth, screenHeight: int): WindowUpdateResult =
+                       screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult =
   ## Update all visible windows and handle their inputs
   result.fullscreenToggle = false
   result.shopClosed = false
+  result.rogueliteClosed = false
+  result.rogueliteLaunchGame = false
   result.iconToExecute = -1
   result.pvpGameReady = false
   
@@ -238,6 +250,13 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       if wm.pvp.readyToStart:
         result.pvpGameReady = true
     
+    elif window == wm.roguelite.window:
+      let rogueliteResult = updateRogueliteWindow(wm.roguelite, dt, visibleWindows, screenWidth, screenHeight, currentGame)
+      result.rogueliteClosed = rogueliteResult.shouldClose
+      result.rogueliteLaunchGame = rogueliteResult.launchGame
+      if rogueliteResult.shouldClose:
+        wm.roguelite.window.visible = false
+    
     elif window == wm.advancements.window:
       discard updateAdvancementsWindow(wm.advancements, dt, screenWidth, screenHeight, visibleWindows)
 
@@ -270,5 +289,7 @@ proc drawAllWindows*(wm: WindowManager, game: Game) =
         drawPvPWindowContent(wm.pvp, contentX, contentY, contentWidth, contentHeight)
     elif window == wm.advancements.window:
       drawAdvancementsWindow(wm.advancements)
+    elif window == wm.roguelite.window:
+      drawRogueliteWindow(wm.roguelite, game)
     elif window == wm.help.window:
       drawHelpWindow(wm.help)

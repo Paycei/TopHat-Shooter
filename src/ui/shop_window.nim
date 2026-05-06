@@ -22,6 +22,14 @@ type
     rogueliteProfile*: RogueliteProfile
     hoveredSkin*: int  # -1 for none
     scrollOffset*: float32
+    scrollVelocity*: float32
+    searchQuery*: string
+    searchFocused*: bool
+    searchVisible*: bool
+    focusIndex*: int    # Focused index within the filtered list (0..n-1)
+    previewOpen*: bool
+    previewKind*: CosmeticKind
+    previewIndex*: int
     animationTime*: float32
     statusMessage*: string
     statusTimer*: float32
@@ -33,15 +41,16 @@ type
     maxScrollOffset*: float32
 
 const
-  SKINS_PER_ROW = 3  # Reduced from 4 to 3 to prevent right-side clipping
   SKIN_BOX_WIDTH = 170  # Increased to give more space
   SKIN_BOX_HEIGHT = 140  # Increased to accommodate 2-line descriptions
   SKIN_BOX_PADDING = 15
   TAB_HEIGHT = 40
+  PREVIEW_BOX_WIDTH = 420
+  PREVIEW_BOX_HEIGHT = 360
 
 proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle, rogueliteProfile: RogueliteProfile = nil): ShopWindow =
-  let windowWidth = 620
-  let windowHeight = 450
+  let windowWidth = 820
+  let windowHeight = 560
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
   
@@ -67,6 +76,14 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     rogueliteProfile: rogueliteProfile,
     hoveredSkin: -1,
     scrollOffset: 0.0,
+    scrollVelocity: 0.0,
+    searchQuery: "",
+    searchFocused: false,
+    searchVisible: false,
+    focusIndex: 0,
+    previewOpen: false,
+    previewKind: ckPlayerSkin,
+    previewIndex: -1,
     animationTime: 0,
     statusMessage: "",
     statusTimer: 0.0,
@@ -121,7 +138,49 @@ proc fitTextSize(text: string, maxWidth: int32, startSize: int32, minSize: int32
   while result > minSize and measureText(text, result) > maxWidth:
     dec result
 
-proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, costText: string) =
+proc wrapTwoLines*(text: string, maxWidth: int32, fontSize: int32 = 10): tuple[line1: string, line2: string] =
+  var line1 = ""
+  var line2 = ""
+  var words = text.split(' ')
+  var currentLine = ""
+  for w in words:
+    let testLine = if currentLine.len > 0: currentLine & " " & w else: w
+    if measureText(testLine, fontSize) <= maxWidth:
+      currentLine = testLine
+    else:
+      if line1.len == 0:
+        line1 = currentLine
+        currentLine = w
+      else:
+        line2 = currentLine
+        break
+  if line1.len == 0:
+    line1 = currentLine
+  elif line2.len == 0 and currentLine.len > 0:
+    line2 = currentLine
+  return (line1: line1, line2: line2)
+
+proc visibleCosmeticIndices*(kind: CosmeticKind, query: string): seq[int] =
+  var q = query.toLowerAscii()
+  result = @[]
+  for i in 0..<cosmeticCount(kind):
+    var name = ""
+    case kind
+    of ckPlayerSkin:
+      name = getSkinData(SkinType(i)).name
+    of ckBulletSkin:
+      name = getBulletSkinData(BulletSkinType(i)).name
+    of ckPlayerShape:
+      name = getShapeData(ShapeType(i)).name
+    of ckBulletShape:
+      name = getBulletShapeData(BulletShapeType(i)).name
+    of ckParticle:
+      name = getParticleSkinData(ParticleSkinType(i)).name
+
+    if q.len == 0 or name.toLowerAscii().contains(q):
+      result.add(i)
+
+proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, cost: CosmeticCost, costText: string = "") =
   if isUnlocked:
     if isSelected:
       let equipText = t("shop_equipped")
@@ -138,19 +197,53 @@ proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, cos
                 Color(r: 0, g: 0, b: 0, a: 82))
   drawLockGlyph((x + 10).int32, (y + 10).int32, statusColor)
 
-  let statusText = if canBuy:
-    t(tkShopBuy) & " " & costText
-  else:
-    t("roguelite_locked") & " " & costText
-  drawRectangle((x + 6).int32, (y + 116).int32, (SKIN_BOX_WIDTH - 12).int32, 20,
-                Color(r: 16, g: 20, b: 28, a: 230))
-  drawRectangleLines(Rectangle(x: (x + 6).float32, y: (y + 116).float32,
-                               width: (SKIN_BOX_WIDTH - 12).float32, height: 20.0),
-                     1, statusColor)
-  let fontSize = fitTextSize(statusText, (SKIN_BOX_WIDTH - 22).int32, 10, 6)
+  # Draw status pill and currency icons to the right
+  let pillX = (x + 6).int32
+  let pillY = (y + 116).int32
+  let pillW = (SKIN_BOX_WIDTH - 12).int32
+  let pillH: int32 = 20
+  drawRectangle(pillX, pillY, pillW, pillH, Color(r: 16, g: 20, b: 28, a: 230))
+  drawRectangleLines(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: pillH.float32), 1.0'f32, statusColor)
+
+  let statusText = if canBuy: t(tkShopBuy) else: t("roguelite_locked")
+
+  var parts: seq[tuple[icon: CurrencyIconType, amount: int]] = @[]
+  if cost.singularityCores > 0:
+    parts.add((icon: ciSingularityCore, amount: cost.singularityCores))
+  if cost.overheatCores > 0:
+    parts.add((icon: ciOverheatCore, amount: cost.overheatCores))
+  if cost.dataShards > 0:
+    parts.add((icon: ciDataShards, amount: cost.dataShards))
+
+  if parts.len == 0:
+    let fontSize = fitTextSize(statusText, pillW - 8, 10, 6)
+    let statusWidth = measureText(statusText, fontSize)
+    drawText(statusText, (x + (SKIN_BOX_WIDTH - statusWidth) div 2).int32, (y + 121).int32, fontSize, statusColor)
+    return
+
+  # compute icon area width
+  let iconSize: int32 = 14
+  let paddingBetween: int32 = 6
+  let interPartGap: int32 = 8
+  var iconAreaWidth: int32 = 0
+  for p in parts:
+    let txtW = int32(measureText($p.amount, 11))
+    iconAreaWidth += iconSize + paddingBetween + txtW + interPartGap
+
+  let fontSize = fitTextSize(statusText, pillW - iconAreaWidth - 8, 10, 6)
   let statusWidth = measureText(statusText, fontSize)
-  drawText(statusText, (x + (SKIN_BOX_WIDTH - statusWidth) div 2).int32,
-           (y + 121).int32, fontSize, statusColor)
+  let statusX = x + (SKIN_BOX_WIDTH - statusWidth - iconAreaWidth) div 2
+  drawText(statusText, statusX.int32, (y + 121).int32, fontSize, statusColor)
+
+  var iconX = statusX.int32 + statusWidth + 8
+  let iconCY = pillY + pillH div 2
+  for p in parts:
+    let txt = $p.amount
+    drawCurrencyIcon(iconX + iconSize div 2, iconCY, iconSize, p.icon)
+    let txtX = iconX + iconSize + paddingBetween
+    drawText(txt, txtX, pillY + 3, 11, statusColor)
+    let txtW = int32(measureText(txt, 11))
+    iconX += iconSize + paddingBetween + txtW + interPartGap
 
 proc equipCosmetic(shop: ShopWindow, kind: CosmeticKind, index: int) =
   case kind
@@ -195,7 +288,7 @@ proc syncShopSelectionFromSettings(shop: ShopWindow) =
   shop.selectedBulletShape = BulletShapeType(globalSettings.bulletShape)
   shop.selectedParticle = ParticleSkinType(globalSettings.particleEffect)
 
-proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, costText: string = "") =
+proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
   ## Draw a preview of a player skin with shop icon style
   let (primaryColor, secondaryColor, coreColor) = getSkinColors(skinType, time)
   
@@ -217,14 +310,16 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
   else:
     Color(r: 80, g: 80, b: 100, a: 255)
   
+  let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
-                    2, borderColor)
+                    borderThickness, borderColor)
   
   # Draw mini player with selected shape (like shop icon)
   let centerX = (x + SKIN_BOX_WIDTH div 2).float32
   let centerY = (y + 50).float32
-  let playerRadius = 15.0
+  let hoverScale = if isHovered: 1.06'f32 else: 1.0'f32
+  let playerRadius = 15.0 * hoverScale
   
   # Draw player using the shape system
   drawPlayerShape(
@@ -242,51 +337,31 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
   
   # Skin name
   let skinData = getSkinData(skinType)
-  let nameWidth = measureText(skinData.name, 16)
+  let nameSize: int32 = if isHovered: 17 else: 16
+  let nameWidth = measureText(skinData.name, nameSize)
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
-  drawText(skinData.name, nameX.int32, (y + 80).int32, 16, White)
+  drawText(skinData.name, nameX.int32, (y + 80).int32, nameSize, White)
   
   # Skin description (2 lines max, wrapped)
   let desc = skinData.description
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  var line1 = ""
-  var line2 = ""
-  
-  # Simple word wrapping
-  var words = desc.split(' ')
-  var currentLine = ""
-  for i, word in words:
-    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
-    if measureText(testLine, 10) <= maxDescWidth:
-      currentLine = testLine
-    else:
-      if line1.len == 0:
-        # First line is full, save it and start second line
-        line1 = currentLine
-        currentLine = word
-      else:
-        # Second line would overflow, stop here
-        line2 = currentLine
-        break
-  
-  # Handle remaining content
-  if line1.len == 0:
-    line1 = currentLine
-  elif line2.len == 0 and currentLine.len > 0:
-    line2 = currentLine
-  
-  let desc1Width = measureText(line1, 10)
-  let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(line1, desc1X.int32, (y + 100).int32, 10, Gray)
-  
-  if line2.len > 0:
-    let desc2Width = measureText(line2, 10)
-    let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
-  
-  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, costText)
+  let wrapped = wrapTwoLines(desc, maxDescWidth.int32, 11)
+  let line1 = wrapped.line1
+  let line2 = wrapped.line2
 
-proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, costText: string = "") =
+  let descFont: int32 = 11
+  let desc1Width = measureText(line1, descFont)
+  let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
+  drawText(line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+
+  if line2.len > 0:
+    let desc2Width = measureText(line2, 11)
+    let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
+    drawText(line2, desc2X.int32, (y + 112).int32, 11, Gray)
+  
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
+
+proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
   ## Draw a preview of a bullet skin
   let (primaryColor, glowColor, trailColor) = getBulletSkinColors(skinType, time)
   
@@ -307,15 +382,16 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
     Color(r: 120, g: 120, b: 140, a: 255)
   else:
     Color(r: 80, g: 80, b: 100, a: 255)
-  
+  let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
-                    2, borderColor)
+                    borderThickness, borderColor)
   
   # Draw bullet trail effect
   let centerX = (x + SKIN_BOX_WIDTH div 2).float32
   let centerY = (y + 50).float32
-  let bulletRadius = 6.0
+  let hoverScale = if isHovered: 1.06'f32 else: 1.0'f32
+  let bulletRadius = 6.0 * hoverScale
   
   # Trail
   for i in 0..4:
@@ -341,51 +417,31 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
   
   # Skin name
   let skinData = getBulletSkinData(skinType)
-  let nameWidth = measureText(skinData.name, 16)
+  let nameSize: int32 = if isHovered: 17 else: 16
+  let nameWidth = measureText(skinData.name, nameSize)
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
-  drawText(skinData.name, nameX.int32, (y + 80).int32, 16, White)
+  drawText(skinData.name, nameX.int32, (y + 80).int32, nameSize, White)
   
   # Skin description (2 lines max, wrapped)
   let desc = skinData.description
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  var line1 = ""
-  var line2 = ""
-  
-  # Simple word wrapping
-  var words = desc.split(' ')
-  var currentLine = ""
-  for i, word in words:
-    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
-    if measureText(testLine, 10) <= maxDescWidth:
-      currentLine = testLine
-    else:
-      if line1.len == 0:
-        # First line is full, save it and start second line
-        line1 = currentLine
-        currentLine = word
-      else:
-        # Second line would overflow, stop here
-        line2 = currentLine
-        break
-  
-  # Handle remaining content
-  if line1.len == 0:
-    line1 = currentLine
-  elif line2.len == 0 and currentLine.len > 0:
-    line2 = currentLine
-  
-  let desc1Width = measureText(line1, 10)
-  let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(line1, desc1X.int32, (y + 100).int32, 10, Gray)
-  
-  if line2.len > 0:
-    let desc2Width = measureText(line2, 10)
-    let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
-  
-  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, costText)
+  let wrapped = wrapTwoLines(desc, maxDescWidth.int32, 11)
+  let line1 = wrapped.line1
+  let line2 = wrapped.line2
 
-proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, costText: string = "") =
+  let descFont: int32 = 11
+  let desc1Width = measureText(line1, descFont)
+  let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
+  drawText(line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+
+  if line2.len > 0:
+    let desc2Width = measureText(line2, 11)
+    let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
+    drawText(line2, desc2X.int32, (y + 112).int32, 11, Gray)
+  
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
+
+proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
   ## Draw a preview of a player bullet shape
   let bgColor = if isSelected: Color(r: 0, g: 60, b: 80, a: 255)
                 elif isHovered: Color(r: 60, g: 60, b: 70, a: 255)
@@ -395,18 +451,21 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
   let borderColor = if isSelected: Color(r: 255, g: 150, b: 50, a: 255)
                     elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
                     else: Color(r: 80, g: 80, b: 100, a: 255)
+  let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
-                    2, borderColor)
+                    borderThickness, borderColor)
 
   # Animated bullet preview: show the shape flying across the card
   let cx = (x + SKIN_BOX_WIDTH div 2).float32
   let cy = (y + 48).float32
   let r = 7.0
+  let hoverScale = if isHovered: 1.06'f32 else: 1.0'f32
+  let rScaled = r * hoverScale
   let previewColor = Color(r: 0, g: 200, b: 200, a: 255)
   let glowColor   = Color(r: 0, g: 255, b: 255, a: 80)
   let travelAngle = 0.0  # flying right; arrow uses this for orientation
-  drawPlayerBulletShape(Vector2f(x: cx, y: cy), r, shapeType, travelAngle, previewColor, glowColor)
+  drawPlayerBulletShape(Vector2f(x: cx, y: cy), rScaled, shapeType, travelAngle, previewColor, glowColor)
 
   # Trail dots to give motion feel
   for i in 1..3:
@@ -417,39 +476,26 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
 
   # Name
   let shapeData = getBulletShapeData(shapeType)
-  let nameWidth = measureText(shapeData.name, 16)
-  drawText(shapeData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32, (y + 80).int32, 16, White)
+  let nameSize: int32 = if isHovered: 17 else: 16
+  let nameWidth = measureText(shapeData.name, nameSize)
+  drawText(shapeData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32, (y + 80).int32, nameSize, White)
 
   # Description (wrapped, 2 lines max)
   let desc = shapeData.description
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  var line1 = ""
-  var line2 = ""
-  var words = desc.split(' ')
-  var currentLine = ""
-  for word in words:
-    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
-    if measureText(testLine, 10) <= maxDescWidth:
-      currentLine = testLine
-    else:
-      if line1.len == 0:
-        line1 = currentLine
-        currentLine = word
-      else:
-        line2 = currentLine
-        break
-  if line1.len == 0: line1 = currentLine
-  elif line2.len == 0 and currentLine.len > 0: line2 = currentLine
-
-  let d1w = measureText(line1, 10)
-  drawText(line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32, (y + 100).int32, 10, Gray)
+  let wrapped = wrapTwoLines(desc, maxDescWidth.int32, 11)
+  let line1 = wrapped.line1
+  let line2 = wrapped.line2
+  let descFont: int32 = 11
+  let d1w = measureText(line1, descFont)
+  drawText(line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32, (y + 100).int32, descFont, Gray)
   if line2.len > 0:
-    let d2w = measureText(line2, 10)
-    drawText(line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32, (y + 112).int32, 10, Gray)
+    let d2w = measureText(line2, 11)
+    drawText(line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32, (y + 112).int32, 11, Gray)
 
-  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, costText)
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, costText: string = "") =
+proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
   ## Draw a preview of a player shape
   # Background box
   let bgColor = if isSelected:
@@ -469,17 +515,20 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
   else:
     Color(r: 80, g: 80, b: 100, a: 255)
   
+  let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
-                    2, borderColor)
+                    borderThickness, borderColor)
   
   # Draw mini player shape
   let centerX = (x + SKIN_BOX_WIDTH div 2).float32
   let centerY = (y + 50).float32
   let shapeRadius = 15.0
   # Only rotate for hexagon shape
+  let hoverScale = if isHovered: 1.06'f32 else: 1.0'f32
   let rotation = if shapeType == shHexagon: time * 0.5 else: 0.0
   let pulse = sin(time * 2.0) * 0.5 + 0.5
+  let shapeRadiusScaled = shapeRadius * hoverScale
   
   let baseColor = Color(r: 0, g: 200, b: 200, a: 255)
   let secondaryColor = Color(r: 0, g: 150, b: 200, a: 255)
@@ -487,56 +536,36 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
   let glowIntensity = 0.4 + pulse * 0.2
   
   # Draw shape using the same rendering as in-game
-  drawPlayerShape(newVector2f(centerX, centerY), shapeRadius, shapeType,
+  drawPlayerShape(newVector2f(centerX, centerY), shapeRadiusScaled, shapeType,
                  baseColor, secondaryColor, coreColor, time, rotation, pulse, glowIntensity)
   
   # Shape name
   let shapeData = getShapeData(shapeType)
-  let nameWidth = measureText(shapeData.name, 16)
+  let nameSize: int32 = if isHovered: 17 else: 16
+  let nameWidth = measureText(shapeData.name, nameSize)
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
-  drawText(shapeData.name, nameX.int32, (y + 80).int32, 16, White)
+  drawText(shapeData.name, nameX.int32, (y + 80).int32, nameSize, White)
   
   # Shape description (2 lines max, wrapped)
   let desc = shapeData.description
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  var line1 = ""
-  var line2 = ""
-  
-  # Simple word wrapping
-  var words = desc.split(' ')
-  var currentLine = ""
-  for i, word in words:
-    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
-    if measureText(testLine, 10) <= maxDescWidth:
-      currentLine = testLine
-    else:
-      if line1.len == 0:
-        # First line is full, save it and start second line
-        line1 = currentLine
-        currentLine = word
-      else:
-        # Second line would overflow, stop here
-        line2 = currentLine
-        break
-  
-  # Handle remaining content
-  if line1.len == 0:
-    line1 = currentLine
-  elif line2.len == 0 and currentLine.len > 0:
-    line2 = currentLine
-  
-  let desc1Width = measureText(line1, 10)
-  let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(line1, desc1X.int32, (y + 100).int32, 10, Gray)
-  
-  if line2.len > 0:
-    let desc2Width = measureText(line2, 10)
-    let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
-  
-  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, costText)
+  let wrapped = wrapTwoLines(desc, maxDescWidth.int32, 11)
+  let line1 = wrapped.line1
+  let line2 = wrapped.line2
 
-proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, costText: string = "") =
+  let descFont: int32 = 11
+  let desc1Width = measureText(line1, descFont)
+  let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
+  drawText(line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+
+  if line2.len > 0:
+    let desc2Width = measureText(line2, 11)
+    let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
+    drawText(line2, desc2X.int32, (y + 112).int32, 11, Gray)
+  
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
+
+proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
   ## Draw a preview of a particle effect
   let (primaryColor, secondaryColor) = getParticleSkinColors(particleType, time)
   
@@ -557,10 +586,10 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
     Color(r: 120, g: 120, b: 140, a: 255)
   else:
     Color(r: 80, g: 80, b: 100, a: 255)
-  
+  let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
-                    2, borderColor)
+                    borderThickness, borderColor)
   
   # Draw particle effect preview
   let centerX = (x + SKIN_BOX_WIDTH div 2).float32
@@ -569,16 +598,17 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
   # Draw small bursts of particles radiating outward
   let particleData = getParticleSkinData(particleType)
   let particleCount = min(8, particleData.particleCount)
+  let hoverScale = if isHovered: 1.06'f32 else: 1.0'f32
   
   for i in 0..<particleCount:
     let angle = (i.float32 / particleCount.float32) * PI * 2.0 + time * 2.0
-    let distance = 20.0 + sin(time * 3.0 + i.float32) * 5.0
+    let distance = (20.0 + sin(time * 3.0 + i.float32) * 5.0) * hoverScale
     let px = centerX + cos(angle) * distance
     let py = centerY + sin(angle) * distance
     
     let useSecondary = (i mod 3) == 0
     let color = if useSecondary: secondaryColor else: primaryColor
-    let particleSize = 3.0 + sin(time * 4.0 + i.float32) * 1.5
+    let particleSize = (3.0 + sin(time * 4.0 + i.float32) * 1.5) * hoverScale
     
     drawCircle(Vector2(x: px, y: py), particleSize, color)
   
@@ -591,42 +621,20 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
   # Particle description (2 lines max, wrapped)
   let desc = particleDataInfo.description
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  var line1 = ""
-  var line2 = ""
-  
-  # Simple word wrapping
-  var words = desc.split(' ')
-  var currentLine = ""
-  for i, word in words:
-    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
-    if measureText(testLine, 10) <= maxDescWidth:
-      currentLine = testLine
-    else:
-      if line1.len == 0:
-        # First line is full, save it and start second line
-        line1 = currentLine
-        currentLine = word
-      else:
-        # Second line would overflow, stop here
-        line2 = currentLine
-        break
-  
-  # Handle remaining content
-  if line1.len == 0:
-    line1 = currentLine
-  elif line2.len == 0 and currentLine.len > 0:
-    line2 = currentLine
-  
-  let desc1Width = measureText(line1, 10)
+  let wrapped = wrapTwoLines(desc, maxDescWidth.int32, 11)
+  let line1 = wrapped.line1
+  let line2 = wrapped.line2
+
+  let desc1Width = measureText(line1, 11)
   let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(line1, desc1X.int32, (y + 100).int32, 10, Gray)
-  
+  drawText(line1, desc1X.int32, (y + 100).int32, 11, Gray)
+
   if line2.len > 0:
-    let desc2Width = measureText(line2, 10)
+    let desc2Width = measureText(line2, 11)
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(line2, desc2X.int32, (y + 112).int32, 10, Gray)
+    drawText(line2, desc2X.int32, (y + 112).int32, 11, Gray)
   
-  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, costText)
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
 proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWindow]): bool =
   ## Update shop window. Returns true if window should close
@@ -676,140 +684,173 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
       if mouseX >= contentX and mouseX < contentX + tabWidth:
         shop.currentTab = stPlayerSkins
         shop.scrollOffset = 0.0
+        shop.scrollVelocity = 0.0
       elif mouseX >= contentX + tabWidth and mouseX < contentX + tabWidth * 2:
         shop.currentTab = stBulletSkins
         shop.scrollOffset = 0.0
+        shop.scrollVelocity = 0.0
       elif mouseX >= contentX + tabWidth * 2 and mouseX < contentX + tabWidth * 3:
         shop.currentTab = stShapes
         shop.scrollOffset = 0.0
+        shop.scrollVelocity = 0.0
       elif mouseX >= contentX + tabWidth * 3 and mouseX < contentX + tabWidth * 4:
         shop.currentTab = stBulletShapes
         shop.scrollOffset = 0.0
+        shop.scrollVelocity = 0.0
       elif mouseX >= contentX + tabWidth * 4 and mouseX < contentX + contentWidth:
         shop.currentTab = stParticles
         shop.scrollOffset = 0.0
+        shop.scrollVelocity = 0.0
   
   # Calculate grid area
   let headerHeight = 50
-  let gridY = contentY + TAB_HEIGHT + headerHeight
+  let headerY = contentY + TAB_HEIGHT
+  let gridY = headerY + headerHeight
   let infoPanelHeight = 50
   let gridHeight = contentHeight - TAB_HEIGHT - headerHeight - infoPanelHeight
   
-  # Get current skins list and calculate rows
-  let totalRows = if shop.currentTab == stPlayerSkins:
-    let skins = cosmeticCount(ckPlayerSkin)
-    (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-  elif shop.currentTab == stBulletSkins:
-    let skins = cosmeticCount(ckBulletSkin)
-    (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-  elif shop.currentTab == stShapes:
-    let shapes = cosmeticCount(ckPlayerShape)
-    (shapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-  elif shop.currentTab == stBulletShapes:
-    let bshapes = cosmeticCount(ckBulletShape)
-    (bshapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-  else:  # stParticles
-    let particles = cosmeticCount(ckParticle)
-    (particles + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-  
+  # Build filtered list and layout
+  let curKind = if shop.currentTab == stPlayerSkins: ckPlayerSkin
+                elif shop.currentTab == stBulletSkins: ckBulletSkin
+                elif shop.currentTab == stShapes: ckPlayerShape
+                elif shop.currentTab == stBulletShapes: ckBulletShape
+                else: ckParticle
+
+  var visible = visibleCosmeticIndices(curKind, shop.searchQuery)
+  let items = visible.len
+
+  let cardTotalW = SKIN_BOX_WIDTH + SKIN_BOX_PADDING
+  let columns = max(1, contentWidth div cardTotalW)
+  let totalRows = if items == 0: 0 else: (items + columns - 1) div columns
   let totalContentHeight = totalRows * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) + 10
-  
-  # Both tabs can scroll freely now
   shop.maxScrollOffset = max(0.0, totalContentHeight.float32 - gridHeight.float32)
-  
-  # Check if mouse is in grid area
+  # Simple search box hit area in header (top-center)
+  let searchW = min(200, contentWidth - 120)
+  let searchX = contentX + (contentWidth - searchW) div 2
+  let searchY = headerY + 8
+  let searchH = 28
+
+  # Toggle search visibility with Ctrl+F (topmost only)
+  let ctrlPressed = isKeyDown(LeftControl) or isKeyDown(RightControl)
+  if isTopmost and ctrlPressed and isKeyPressed(F):
+    shop.searchVisible = not shop.searchVisible
+    if shop.searchVisible:
+      shop.searchFocused = true
+    else:
+      shop.searchFocused = false
+
+  # Click handling only when search is visible
+  if shop.searchVisible and isTopmost and shop.window.handledClickThisFrame:
+    if mouseX >= searchX and mouseX < searchX + searchW and mouseY >= searchY and mouseY < searchY + searchH:
+      shop.searchFocused = true
+    else:
+      # clicking outside search closes focus (unless clicking inside grid)
+      if not (mouseX >= contentX and mouseX < contentX + contentWidth and mouseY >= gridY and mouseY < gridY + gridHeight):
+        shop.searchFocused = false
+
+  # Handle text input when search is focused
+  if shop.searchFocused and isTopmost:
+    let key = getCharPressed()
+    if key > 0 and key < 256:
+      let ch = char(key)
+      if ch >= ' ' and ch <= '~' and shop.searchQuery.len < 60:
+        shop.searchQuery.add(ch)
+    if isKeyPressed(Backspace) and shop.searchQuery.len > 0:
+      shop.searchQuery.setLen(shop.searchQuery.len - 1)
+    if isKeyPressed(Enter):
+      shop.searchFocused = false
+
+  # Check if mouse is in grid area for wheel and hover
   let inGridArea = mouseX >= contentX and mouseX < contentX + contentWidth and
                    mouseY >= gridY and mouseY < gridY + gridHeight
-  
-  # Handle scrolling
+
+  # Handle wheel -> add to scroll velocity (inertial scrolling)
   if inGridArea and not shop.window.dragging and isTopmost:
     let wheelMove = getMouseWheelMove()
     if wheelMove != 0:
-      shop.scrollOffset -= wheelMove * 30.0
-      shop.scrollOffset = clamp(shop.scrollOffset, 0.0, shop.maxScrollOffset)
-  
-  # Reset hover state
+      shop.scrollVelocity += -wheelMove * 400.0'f32
+
+  # Apply velocity to offset, clamp and damp
+  if abs(shop.scrollVelocity) > 0.001'f32:
+    shop.scrollOffset += shop.scrollVelocity * dt
+    if shop.scrollOffset < 0.0'f32:
+      shop.scrollOffset = 0.0'f32
+      shop.scrollVelocity = 0.0'f32
+    elif shop.scrollOffset > shop.maxScrollOffset:
+      shop.scrollOffset = shop.maxScrollOffset
+      shop.scrollVelocity = 0.0'f32
+    else:
+      let damping = clamp(1.0'f32 - dt * 8.0'f32, 0.0'f32, 1.0'f32)
+      shop.scrollVelocity *= damping
+
+  let scrollInt = int(round(shop.scrollOffset))
+
+  # Keyboard navigation & focus (only when topmost and not typing)
+  if isTopmost and not shop.searchFocused and items > 0 and not shop.window.dragging:
+    if shop.focusIndex >= items: shop.focusIndex = items - 1
+    if shop.focusIndex < 0: shop.focusIndex = 0
+    if isKeyPressed(Left):
+      shop.focusIndex = max(0, shop.focusIndex - 1)
+    if isKeyPressed(Right):
+      shop.focusIndex = min(items - 1, shop.focusIndex + 1)
+    if isKeyPressed(Up):
+      shop.focusIndex = max(0, shop.focusIndex - columns)
+    if isKeyPressed(Down):
+      shop.focusIndex = min(items - 1, shop.focusIndex + columns)
+    if isKeyPressed(PageUp):
+      shop.scrollOffset = max(0.0'f32, shop.scrollOffset - gridHeight.float32)
+      shop.focusIndex = max(0, shop.focusIndex - columns * max(1, gridHeight div (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING)))
+    if isKeyPressed(PageDown):
+      shop.scrollOffset = min(shop.maxScrollOffset, shop.scrollOffset + gridHeight.float32)
+      shop.focusIndex = min(items - 1, shop.focusIndex + columns * max(1, gridHeight div (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING)))
+    if isKeyPressed(Enter):
+      let actual = visible[shop.focusIndex]
+      handleCosmeticClick(shop, curKind, actual)
+    if isKeyPressed(Space):
+      let actual = visible[shop.focusIndex]
+      shop.previewOpen = true
+      shop.previewKind = curKind
+      shop.previewIndex = actual
+
+  # Reset hover state; keyboard focus will set hoveredSkin below
   shop.hoveredSkin = -1
-  
-  # Handle skin selection based on current tab
-  if shop.currentTab == stPlayerSkins:
-    for skinIndex in 0..<cosmeticCount(ckPlayerSkin):
-      let col = skinIndex mod SKINS_PER_ROW
-      let row = skinIndex div SKINS_PER_ROW
-      
-      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
-      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
-      
-      if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
-        if inGridArea and not shop.window.dragging and isTopmost:
-          if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
-             mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
-            shop.hoveredSkin = skinIndex
-            
-            if shop.window.handledClickThisFrame:
-              handleCosmeticClick(shop, ckPlayerSkin, skinIndex)
-  elif shop.currentTab == stBulletSkins:
-    for skinIndex in 0..<cosmeticCount(ckBulletSkin):
-      let col = skinIndex mod SKINS_PER_ROW
-      let row = skinIndex div SKINS_PER_ROW
-      
-      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
-      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
-      
-      if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
-        if inGridArea and not shop.window.dragging and isTopmost:
-          if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
-             mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
-            shop.hoveredSkin = skinIndex
-            
-            if shop.window.handledClickThisFrame:
-              handleCosmeticClick(shop, ckBulletSkin, skinIndex)
-  elif shop.currentTab == stShapes:
-    for shapeIndex in 0..<cosmeticCount(ckPlayerShape):
-      let col = shapeIndex mod SKINS_PER_ROW
-      let row = shapeIndex div SKINS_PER_ROW
-      
-      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
-      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
-      
-      if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
-        if inGridArea and not shop.window.dragging and isTopmost:
-          if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
-             mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
-            shop.hoveredSkin = shapeIndex
-            
-            if shop.window.handledClickThisFrame:
-              handleCosmeticClick(shop, ckPlayerShape, shapeIndex)
-  elif shop.currentTab == stBulletShapes:
-    for bshapeIndex in 0..<cosmeticCount(ckBulletShape):
-      let col = bshapeIndex mod SKINS_PER_ROW
-      let row = bshapeIndex div SKINS_PER_ROW
-      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
-      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
-      if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
-        if inGridArea and not shop.window.dragging and isTopmost:
-          if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
-             mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
-            shop.hoveredSkin = bshapeIndex
-            if shop.window.handledClickThisFrame:
-              handleCosmeticClick(shop, ckBulletShape, bshapeIndex)
-  elif shop.currentTab == stParticles:
-    for particleIndex in 0..<cosmeticCount(ckParticle):
-      let col = particleIndex mod SKINS_PER_ROW
-      let row = particleIndex div SKINS_PER_ROW
-      
-      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
-      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
-      
-      if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
-        if inGridArea and not shop.window.dragging and isTopmost:
-          if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
-             mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
-            shop.hoveredSkin = particleIndex
-            
-            if shop.window.handledClickThisFrame:
-              handleCosmeticClick(shop, ckParticle, particleIndex)
-  
+
+  # Compute gridLeft
+  let gridLeft = contentX + (contentWidth - (columns * SKIN_BOX_WIDTH + (columns - 1) * SKIN_BOX_PADDING)) div 2
+
+  # If we have a focused index, reflect it as hovered (keyboard navigation)
+  if items > 0:
+    if shop.focusIndex < 0: shop.focusIndex = 0
+    if shop.focusIndex >= items: shop.focusIndex = items - 1
+    shop.hoveredSkin = visible[shop.focusIndex]
+
+  # Handle mouse hover/click over visible items
+  for vIndex in 0..<visible.len:
+    let itemIndex = visible[vIndex]
+    let col = vIndex mod columns
+    let row = vIndex div columns
+    let boxX = gridLeft + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
+    let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - scrollInt
+
+    if boxY + SKIN_BOX_HEIGHT > gridY and boxY < gridY + gridHeight:
+      if inGridArea and not shop.window.dragging and isTopmost:
+        if mouseX >= boxX and mouseX < boxX + SKIN_BOX_WIDTH and
+           mouseY >= boxY and mouseY < boxY + SKIN_BOX_HEIGHT:
+          shop.hoveredSkin = itemIndex
+          shop.focusIndex = vIndex
+          if shop.window.handledClickThisFrame:
+            handleCosmeticClick(shop, curKind, itemIndex)
+
+  # Close preview modal if open via click outside or Escape
+  if shop.previewOpen:
+    let modalX = contentX + (contentWidth - PREVIEW_BOX_WIDTH) div 2
+    let modalY = contentY + (contentHeight - PREVIEW_BOX_HEIGHT) div 2
+    if isTopmost and shop.window.handledClickThisFrame:
+      if not (mouseX >= modalX and mouseX < modalX + PREVIEW_BOX_WIDTH and mouseY >= modalY and mouseY < modalY + PREVIEW_BOX_HEIGHT):
+        shop.previewOpen = false
+    if isTopmost and isKeyPressed(Escape):
+      shop.previewOpen = false
+
   return false
 
 proc drawShopWindow*(shop: ShopWindow) =
@@ -845,8 +886,9 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawRectangle(contentX.int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab1Color)
   if tab1Active:
     drawRectangle(contentX.int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText(t("shop_tab_player"), (contentX + tabWidth div 2 - 32).int32, (tabY + 12).int32, 14,
-          if tab1Active: White else: Gray)
+  let tab1Label = t("shop_tab_player")
+  let tab1LabelX = contentX + (tabWidth - measureText(tab1Label, 14)) div 2
+  drawText(tab1Label, tab1LabelX.int32, (tabY + 12).int32, 14, if tab1Active: White else: Gray)
   
   # Bullet Skins tab
   let tab2Active = shop.currentTab == stBulletSkins
@@ -854,8 +896,10 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawRectangle((contentX + tabWidth).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab2Color)
   if tab2Active:
     drawRectangle((contentX + tabWidth).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText(t("shop_tab_bullet"), (contentX + tabWidth + tabWidth div 2 - 30).int32, (tabY + 12).int32, 14,
-          if tab2Active: White else: Gray)
+  let tab2Label = t("shop_tab_bullet")
+  let tab2Start = contentX + tabWidth
+  let tab2LabelX = tab2Start + (tabWidth - measureText(tab2Label, 14)) div 2
+  drawText(tab2Label, tab2LabelX.int32, (tabY + 12).int32, 14, if tab2Active: White else: Gray)
   
   # Shapes tab
   let tab3Active = shop.currentTab == stShapes
@@ -863,17 +907,20 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawRectangle((contentX + tabWidth * 2).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab3Color)
   if tab3Active:
     drawRectangle((contentX + tabWidth * 2).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText(t("shop_tab_shapes"), (contentX + tabWidth * 2 + tabWidth div 2 - 32).int32, (tabY + 12).int32, 14,
-          if tab3Active: White else: Gray)
-  
+  let tab3Label = t("shop_tab_shapes")
+  let tab3Start = contentX + tabWidth * 2
+  let tab3LabelX = tab3Start + (tabWidth - measureText(tab3Label, 14)) div 2
+  drawText(tab3Label, tab3LabelX.int32, (tabY + 12).int32, 14, if tab3Active: White else: Gray)
   # Bullet Shapes tab
   let tab4Active = shop.currentTab == stBulletShapes
   let tab4Color = if tab4Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
   drawRectangle((contentX + tabWidth * 3).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab4Color)
   if tab4Active:
     drawRectangle((contentX + tabWidth * 3).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText(t("shop_tab_bshapes"), (contentX + tabWidth * 3 + tabWidth div 2 - 34).int32, (tabY + 12).int32, 14,
-          if tab4Active: White else: Gray)
+  let tab4Label = t("shop_tab_bshapes")
+  let tab4Start = contentX + tabWidth * 3
+  let tab4LabelX = tab4Start + (tabWidth - measureText(tab4Label, 14)) div 2
+  drawText(tab4Label, tab4LabelX.int32, (tabY + 12).int32, 14, if tab4Active: White else: Gray)
 
   # Particles tab
   let tab5Active = shop.currentTab == stParticles
@@ -881,8 +928,10 @@ proc drawShopWindow*(shop: ShopWindow) =
   drawRectangle((contentX + tabWidth * 4).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab5Color)
   if tab5Active:
     drawRectangle((contentX + tabWidth * 4).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  drawText(t("shop_tab_particles"), (contentX + tabWidth * 4 + tabWidth div 2 - 40).int32, (tabY + 12).int32, 14,
-          if tab5Active: White else: Gray)
+  let tab5Label = t("shop_tab_particles")
+  let tab5Start = contentX + tabWidth * 4
+  let tab5LabelX = tab5Start + (tabWidth - measureText(tab5Label, 14)) div 2
+  drawText(tab5Label, tab5LabelX.int32, (tabY + 12).int32, 14, if tab5Active: White else: Gray)
   
   # Draw header
   let headerHeight = 50
@@ -920,23 +969,19 @@ proc drawShopWindow*(shop: ShopWindow) =
   let infoPanelHeight = 50
   let gridHeight = contentHeight - TAB_HEIGHT - headerHeight - infoPanelHeight
   
-  # Get skins for current tab
-  let totalRows = if shop.currentTab == stPlayerSkins:
-    let skins = cosmeticCount(ckPlayerSkin)
-    (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-  elif shop.currentTab == stBulletSkins:
-    let skins = cosmeticCount(ckBulletSkin)
-    (skins + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-  elif shop.currentTab == stShapes:
-    let shapes = cosmeticCount(ckPlayerShape)
-    (shapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-  elif shop.currentTab == stBulletShapes:
-    let bshapes = cosmeticCount(ckBulletShape)
-    (bshapes + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-  else:  # stParticles
-    let particles = cosmeticCount(ckParticle)
-    (particles + SKINS_PER_ROW - 1) div SKINS_PER_ROW
-  
+  # Get skins for current tab and compute responsive grid
+  let curKind = if shop.currentTab == stPlayerSkins: ckPlayerSkin
+                elif shop.currentTab == stBulletSkins: ckBulletSkin
+                elif shop.currentTab == stShapes: ckPlayerShape
+                elif shop.currentTab == stBulletShapes: ckBulletShape
+                else: ckParticle
+
+  var visible = visibleCosmeticIndices(curKind, shop.searchQuery)
+  let items = visible.len
+
+  let cardTotalW = SKIN_BOX_WIDTH + SKIN_BOX_PADDING
+  let columns = max(1, contentWidth div cardTotalW)
+  let totalRows = if items == 0: 0 else: (items + columns - 1) div columns
   let totalContentHeight = totalRows * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) + 10
   
   # Show scroll hint when content overflows
@@ -946,104 +991,81 @@ proc drawShopWindow*(shop: ShopWindow) =
   else:
     drawText(t("shop_click_equip"), (contentX + 10).int32, (headerY + 30).int32, 13, Gray)
   
-  # Draw grid based on current tab
-  if shop.currentTab == stPlayerSkins:
-    for skinIndex in 0..<cosmeticCount(ckPlayerSkin):
-      let skinType = SkinType(skinIndex)
-      let col = skinIndex mod SKINS_PER_ROW
-      let row = skinIndex div SKINS_PER_ROW
-      
-      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
-      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
-      
-      if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
+  # Compute left offset and integer scroll
+  let gridLeft = contentX + (contentWidth - (columns * SKIN_BOX_WIDTH + (columns - 1) * SKIN_BOX_PADDING)) div 2
+  let scrollInt = int(round(shop.scrollOffset))
+  shop.maxScrollOffset = max(0.0, totalContentHeight.float32 - gridHeight.float32)
+
+  # Draw search box in header (top-center) only when visible
+  let searchW = min(200, contentWidth - 120)
+  let searchX = contentX + (contentWidth - searchW) div 2
+  let searchY = headerY + 8
+  let searchH = 28
+  if shop.searchVisible:
+    let searchBg = if shop.searchFocused: Color(r: 45, g: 45, b: 55, a: 255) else: Color(r: 35, g: 35, b: 45, a: 255)
+    drawRectangle(searchX.int32, searchY.int32, searchW.int32, searchH.int32, searchBg)
+    drawRectangleLines(Rectangle(x: searchX.float32, y: searchY.float32, width: searchW.float32, height: searchH.float32),
+                       if shop.searchFocused: 2.0'f32 else: 1.0'f32, if shop.searchFocused: Color(r: 255, g: 150, b: 50, a: 255) else: Color(r: 60, g: 60, b: 70, a: 255))
+    let searchLabel = if shop.searchQuery.len == 0: "Search..." else: shop.searchQuery
+    drawText(searchLabel, (searchX + 8).int32, (searchY + 6).int32, 12, if shop.searchQuery.len == 0: Color(r: 120, g: 120, b: 130, a: 255) else: White)
+
+  # Draw grid inside a single scissor region
+  beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
+  for vIndex in 0..<visible.len:
+    let itemIndex = visible[vIndex]
+    let col = vIndex mod columns
+    let row = vIndex div columns
+    let boxX = gridLeft + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
+    let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - scrollInt
+
+    if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
+      let isHovered = itemIndex == shop.hoveredSkin
+      case shop.currentTab
+      of stPlayerSkins:
+        let skinType = SkinType(itemIndex)
         let isSelected = skinType == shop.selectedPlayerSkin
-        let isHovered = skinIndex == shop.hoveredSkin
-        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckPlayerSkin, skinIndex)
-        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckPlayerSkin, skinIndex)
-        let costText = cosmeticCostLabel(cosmeticCost(ckPlayerSkin, skinIndex))
-        
-        beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawPlayerSkinPreview(boxX, boxY, skinType, shop.selectedShape, shop.animationTime,
-                              isSelected, isHovered, isUnlocked, canBuy, costText)
-        endScissorMode()
-  elif shop.currentTab == stBulletSkins:
-    for skinIndex in 0..<cosmeticCount(ckBulletSkin):
-      let skinType = BulletSkinType(skinIndex)
-      let col = skinIndex mod SKINS_PER_ROW
-      let row = skinIndex div SKINS_PER_ROW
-      
-      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
-      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
-      
-      if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckPlayerSkin, itemIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckPlayerSkin, itemIndex)
+        let cost = cosmeticCost(ckPlayerSkin, itemIndex)
+        let costText = cosmeticCostLabel(cost)
+        drawPlayerSkinPreview(boxX, boxY, skinType, shop.selectedShape, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
+      of stBulletSkins:
+        let skinType = BulletSkinType(itemIndex)
         let isSelected = skinType == shop.selectedBulletSkin
-        let isHovered = skinIndex == shop.hoveredSkin
-        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckBulletSkin, skinIndex)
-        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckBulletSkin, skinIndex)
-        let costText = cosmeticCostLabel(cosmeticCost(ckBulletSkin, skinIndex))
-        
-        beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawBulletSkinPreview(boxX, boxY, skinType, shop.animationTime, isSelected, isHovered,
-                              isUnlocked, canBuy, costText)
-        endScissorMode()
-  elif shop.currentTab == stShapes:
-    for shapeIndex in 0..<cosmeticCount(ckPlayerShape):
-      let shapeType = ShapeType(shapeIndex)
-      let col = shapeIndex mod SKINS_PER_ROW
-      let row = shapeIndex div SKINS_PER_ROW
-      
-      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
-      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
-      
-      if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckBulletSkin, itemIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckBulletSkin, itemIndex)
+        let cost = cosmeticCost(ckBulletSkin, itemIndex)
+        let costText = cosmeticCostLabel(cost)
+        drawBulletSkinPreview(boxX, boxY, skinType, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
+      of stShapes:
+        let shapeType = ShapeType(itemIndex)
         let isSelected = shapeType == shop.selectedShape
-        let isHovered = shapeIndex == shop.hoveredSkin
-        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckPlayerShape, shapeIndex)
-        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckPlayerShape, shapeIndex)
-        let costText = cosmeticCostLabel(cosmeticCost(ckPlayerShape, shapeIndex))
-        
-        beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawShapePreview(boxX, boxY, shapeType, shop.animationTime, isSelected, isHovered,
-                         isUnlocked, canBuy, costText)
-        endScissorMode()
-  elif shop.currentTab == stBulletShapes:
-    for bshapeIndex in 0..<cosmeticCount(ckBulletShape):
-      let bshapeType = BulletShapeType(bshapeIndex)
-      let col = bshapeIndex mod SKINS_PER_ROW
-      let row = bshapeIndex div SKINS_PER_ROW
-      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
-      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
-      if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckPlayerShape, itemIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckPlayerShape, itemIndex)
+        let cost = cosmeticCost(ckPlayerShape, itemIndex)
+        let costText = cosmeticCostLabel(cost)
+        drawShapePreview(boxX, boxY, shapeType, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
+      of stBulletShapes:
+        let bshapeType = BulletShapeType(itemIndex)
         let isSelected = bshapeType == shop.selectedBulletShape
-        let isHovered = bshapeIndex == shop.hoveredSkin
-        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckBulletShape, bshapeIndex)
-        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckBulletShape, bshapeIndex)
-        let costText = cosmeticCostLabel(cosmeticCost(ckBulletShape, bshapeIndex))
-        beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawBulletShapePreview(boxX, boxY, bshapeType, shop.animationTime, isSelected, isHovered,
-                               isUnlocked, canBuy, costText)
-        endScissorMode()
-  else:  # stParticles
-    for particleIndex in 0..<cosmeticCount(ckParticle):
-      let particleType = ParticleSkinType(particleIndex)
-      let col = particleIndex mod SKINS_PER_ROW
-      let row = particleIndex div SKINS_PER_ROW
-      
-      let boxX = contentX + 5 + col * (SKIN_BOX_WIDTH + SKIN_BOX_PADDING)
-      let boxY = gridY + 5 + row * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) - shop.scrollOffset.int
-      
-      if boxY + SKIN_BOX_HEIGHT > gridY - 10 and boxY < gridY + gridHeight + 10:
-        let isSelected = particleType == shop.selectedParticle
-        let isHovered = particleIndex == shop.hoveredSkin
-        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckParticle, particleIndex)
-        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckParticle, particleIndex)
-        let costText = cosmeticCostLabel(cosmeticCost(ckParticle, particleIndex))
-        
-        beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
-        drawParticlePreview(boxX, boxY, particleType, shop.animationTime, isSelected, isHovered,
-                            isUnlocked, canBuy, costText)
-        endScissorMode()
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckBulletShape, itemIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckBulletShape, itemIndex)
+        let cost = cosmeticCost(ckBulletShape, itemIndex)
+        let costText = cosmeticCostLabel(cost)
+        drawBulletShapePreview(boxX, boxY, bshapeType, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
+      else:
+        let pType = ParticleSkinType(itemIndex)
+        let isSelected = pType == shop.selectedParticle
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckParticle, itemIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckParticle, itemIndex)
+        let cost = cosmeticCost(ckParticle, itemIndex)
+        let costText = cosmeticCostLabel(cost)
+        drawParticlePreview(boxX, boxY, pType, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
+
+    # Focus ring for keyboard navigation (drawn over card)
+    if vIndex == shop.focusIndex:
+      drawRectangleLines(Rectangle(x: boxX.float32, y: boxY.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32), 2.0'f32, Color(r: 255, g: 200, b: 100, a: 180))
+  endScissorMode()
   
   # Draw scrollbar if needed
   if shop.maxScrollOffset > 0:
@@ -1085,3 +1107,10 @@ proc drawShopWindow*(shop: ShopWindow) =
     let selectedData = getParticleSkinData(shop.selectedParticle)
     drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+  
+  # Bottom-right hint for opening the search bar
+  let hintText = "Press Ctrl+F to search"
+  let hintW = measureText(hintText, 11)
+  let hintX = contentX + contentWidth - int(hintW) - 10
+  let hintY = contentY + contentHeight - 16
+  drawText(hintText, hintX.int32, hintY.int32, 11, Color(r: 180, g: 180, b: 190, a: 200))

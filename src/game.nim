@@ -7549,9 +7549,10 @@ proc drawGame*(game: Game) =
   # Legendary Power-ups Panel (bottom-left corner) - Always show cooldowns for legendary abilities
   drawLegendaryPowerUpsPanel(game, game.screenWidth.int32, game.screenHeight.int32)
 
-  # Instructions only for non-legendary keys
-  drawText(t(tkGameInstructionsWall),
-           game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
+  # Instructions only for non-legendary keys — hidden when the shop overlay is active
+  if game.state != gsShop:
+    drawText(t(tkGameInstructionsWall),
+             game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
   
   # End 2D camera mode if screen shake was applied
   if shakeOffsetX != 0 or shakeOffsetY != 0:

@@ -216,7 +216,7 @@ proc main() =
   else:
     setConfigFlags(flags(WindowResizable))
   
-  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v5.4 Edition")
+  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v5.5 Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor
@@ -415,6 +415,7 @@ proc main() =
       
       # Update time for menu animations
       currentGame.time += dt
+      updateMouseTracking(currentGame)
       
       # Update OS desktop
       updateOSDesktop(osDesktop, dt)
@@ -445,14 +446,10 @@ proc main() =
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
-        of 9:  # Roguelite Mode
+        of 9:  # Roguelite Mode — launched via the roguelite window Start button
+          # (game state is already set up; just start the roguelite run)
           setActiveRogueliteProfile(loadRogueliteProfile())
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-          currentGame.discordClient = globalDiscordClient
           currentGame.rogueliteProfile = rogueliteProfile
-          setGameMode(currentGame, gmRoguelite)
-          currentGame.selectedRogueliteStarter = 0
-          currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
           currentGame.state = gsRogueliteSetup
           statsSavedThisGame = false
         else: discard
@@ -473,11 +470,16 @@ proc main() =
       let action = if not mouseOverWindow: handleDesktopInput(osDesktop, currentGame) else: -1
       
       # Update all windows
-      let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight)
+      let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight, currentGame)
       
       # Handle fullscreen toggle from settings
       if updateResult.fullscreenToggle:
         fullscreenToggleRequested = true
+      
+      # Handle roguelite window Start button — show loading screen then enter game
+      if updateResult.rogueliteLaunchGame:
+        startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
+        pendingGameMode = 9
       
       # Handle PvP game ready
       if updateResult.pvpGameReady:
@@ -650,8 +652,16 @@ proc main() =
           resetPvPWindow(globalWindowManager.pvp)
           playSound(stMenuSelect)
         of 9:  # Roguelite.exe - Roguelite Mode
-          startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
-          pendingGameMode = 9
+          setActiveRogueliteProfile(loadRogueliteProfile())
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame.discordClient = globalDiscordClient
+          currentGame.rogueliteProfile = rogueliteProfile
+          setGameMode(currentGame, gmRoguelite)
+          currentGame.state = gsMenu
+          currentGame.selectedRogueliteStarter = 0
+          currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
+          globalWindowManager.openWindow(widRoguelite)
+          statsSavedThisGame = false
         of 10: # Advncmnts.exe - Open Advancements Window
           refreshAdvancementProfile()
           globalWindowManager.openWindow(widAdvancements)
@@ -691,8 +701,16 @@ proc main() =
             resetPvPWindow(globalWindowManager.pvp)
             playSound(stMenuSelect)
           of 9:  # Roguelite.exe
-            startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
-            pendingGameMode = 9
+            setActiveRogueliteProfile(loadRogueliteProfile())
+            currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame.discordClient = globalDiscordClient
+            currentGame.rogueliteProfile = rogueliteProfile
+            setGameMode(currentGame, gmRoguelite)
+            currentGame.state = gsMenu
+            currentGame.selectedRogueliteStarter = 0
+            currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
+            globalWindowManager.openWindow(widRoguelite)
+            statsSavedThisGame = false
           of 10: # Advncmnts.exe
             refreshAdvancementProfile()
             globalWindowManager.openWindow(widAdvancements)
@@ -1053,7 +1071,7 @@ proc main() =
       let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
       
       # Update all windows
-      let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight)
+      let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight, currentGame)
       
       # Handle fullscreen toggle from settings
       if updateResult.fullscreenToggle:
@@ -1271,8 +1289,17 @@ proc main() =
               currentGame.selectedRogueliteStarter = i
               clickHandled = true
           if not clickHandled:
-            let decRect = rogueliteHeatDecreaseRect(screenWidth.int32, screenHeight.int32)
-            let incRect = rogueliteHeatIncreaseRect(screenWidth.int32, screenHeight.int32)
+            # Heat step buttons — computed relative to the panel position, matching drawHeatPanel
+            let heatPanelX = panelX + RogueliteHeatPanelXOffset
+            let heatPanelY = panelY + RogueliteHeatPanelYOffset
+            let decRect = Rectangle(x: (heatPanelX + RogueliteHeatPanelW - 112).float32,
+                                    y: (heatPanelY + 44).float32,
+                                    width: RogueliteHeatStepButtonW.float32,
+                                    height: RogueliteHeatStepButtonH.float32)
+            let incRect = Rectangle(x: (heatPanelX + RogueliteHeatPanelW - 60).float32,
+                                    y: (heatPanelY + 44).float32,
+                                    width: RogueliteHeatStepButtonW.float32,
+                                    height: RogueliteHeatStepButtonH.float32)
             if checkCollisionPointRec(mousePos, decRect):
               selectRogueliteHeat(currentGame.selectedRogueliteHeat - 1)
               clickHandled = true
@@ -1280,8 +1307,15 @@ proc main() =
               selectRogueliteHeat(currentGame.selectedRogueliteHeat + 1)
               clickHandled = true
             else:
-              for heatLevel in RogueliteMinHeat..RogueliteMaxHeat:
-                if checkCollisionPointRec(mousePos, rogueliteHeatPipRect(screenWidth.int32, screenHeight.int32, heatLevel)):
+              let pipStart = heatPanelX + RogueliteHeatPipStartX
+              let pipY = heatPanelY + RogueliteHeatPipY
+              for i in 0..<RogueliteMaxHeat:
+                let heatLevel = RogueliteMinHeat + i
+                let px = pipStart + i * (RogueliteHeatPipW + RogueliteHeatPipGap)
+                let pipRect = Rectangle(x: px.float32, y: pipY.float32,
+                                        width: RogueliteHeatPipW.float32,
+                                        height: RogueliteHeatPipH.float32)
+                if checkCollisionPointRec(mousePos, pipRect):
                   selectRogueliteHeat(heatLevel)
                   clickHandled = true
                   break
@@ -1350,7 +1384,8 @@ proc main() =
         let panelY = (screenHeight - PanelH) div 2
         let closeRect = rogueliteCloseButtonRect(screenWidth.int32, screenHeight.int32)
         if checkCollisionPointRec(mousePos, closeRect):
-          currentGame.state = gsRogueliteSetup
+          globalWindowManager.openWindow(widRoguelite)
+          currentGame.state = gsMenu
         else:
           let contentY = panelY + 130
           let navX = panelX + 30
@@ -1405,7 +1440,8 @@ proc main() =
               playSound(stMenuNav, 0.55)
 
       if isKeyPressed(Escape) or isKeyPressed(U) or isKeyPressed(Q):
-        currentGame.state = gsRogueliteSetup
+        globalWindowManager.openWindow(widRoguelite)
+        currentGame.state = gsMenu
       beginGameDrawing()
       drawRogueliteUnlocks(currentGame, rogueliteUnlockCategory, rogueliteUnlockItem)
       drawCustomCursor(currentGame.time)
@@ -1445,12 +1481,14 @@ proc main() =
         setGameMode(currentGame, gmRoguelite)
         currentGame.rogueliteProfile = rogueliteProfile
         currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(preservedHeat, rogueliteProfile)
-        currentGame.state = gsRogueliteSetup
+        # Open the roguelite setup as a desktop window
+        globalWindowManager.openWindow(widRoguelite)
+        currentGame.state = gsMenu
         statsSavedThisGame = false
 
       if isKeyPressed(Enter) or isKeyPressed(E):
         startSelectedSector()
-      if isKeyPressed(Escape) or isKeyPressed(Q):
+      if isKeyPressed(Q):
         closeRogueliteSectorSelect()
 
       if isMouseButtonPressed(Left):
@@ -2012,7 +2050,8 @@ proc main() =
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile
           currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(preservedRogueliteHeat, rogueliteProfile)
-          currentGame.state = gsRogueliteSetup
+          globalWindowManager.openWindow(widRoguelite)
+          currentGame.state = gsMenu
         else:
           initializeRunTracking(currentGame)  # Start tracking
           currentGame.state = gsPlaying
@@ -2085,7 +2124,8 @@ proc main() =
             setActiveRogueliteProfile(loadRogueliteProfile())
             currentGame.rogueliteProfile = rogueliteProfile
             currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(preservedRogueliteHeat, rogueliteProfile)
-            currentGame.state = gsRogueliteSetup
+            globalWindowManager.openWindow(widRoguelite)
+            currentGame.state = gsMenu
           else:
             initializeRunTracking(currentGame)
             currentGame.state = gsPlaying
@@ -2142,7 +2182,8 @@ proc main() =
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile
           currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(preservedRogueliteHeat, rogueliteProfile)
-          currentGame.state = gsRogueliteSetup
+          globalWindowManager.openWindow(widRoguelite)
+          currentGame.state = gsMenu
         else:
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
