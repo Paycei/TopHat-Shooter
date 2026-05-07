@@ -556,9 +556,10 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
   else:
     let buyLabel = t("roguelite_heat_buy_next") & " " & $(maxHeat + 1)
     discard drawTextFit(buyLabel, x + 18, y + h - 42, 220, 13, Gold)
-    # Draw the required currencies for the next heat to the right
+    # Draw the required currencies for the next heat to the right,
+    # keeping clear of the -/+ step buttons (dec button starts at x + w - 112)
     drawUnlockCostsRight(profile, rucChallengeTiers, 0,
-                         (x + w - 36).int32, (y + h - 44).int32, 16, 12, Gold)
+                         (x + w - 120).int32, (y + h - 44).int32, 16, 12, Gold)
   drawTextFit(t("roguelite_heat_core_rule"), x + 18, y + h - 22, w - 36, 12,
               Color(r: 180, g: 192, b: 210, a: 255), 8)
 

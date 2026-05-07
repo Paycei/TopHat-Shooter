@@ -6,7 +6,7 @@ export newVector2f, `+`, `-`, `*`, length, normalize, distance
 type
   GameState* = enum
     gsSplash, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
-    gsRogueliteSetup, gsRogueliteSectorSelect, gsRogueliteUnlocks, gsDeathSequence
+    gsRogueliteSectorSelect, gsDeathSequence
 
   GameMode* = enum
     gmWaveBased,

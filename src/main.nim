@@ -169,7 +169,7 @@ proc drawCustomCursor*(time: float32) =
 proc isBondingGameplayState(state: GameState): bool =
   state in {gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver, gsCountdown,
             gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
-            gsRogueliteSetup, gsRogueliteSectorSelect, gsRogueliteUnlocks}
+            gsRogueliteSectorSelect}
 
 proc isBondingCombatState(state: GameState): bool =
   state in {gsPlaying, gsPvPPlaying}
@@ -177,7 +177,7 @@ proc isBondingCombatState(state: GameState): bool =
 proc isMenuOrGameState(state: GameState): bool =
   state in {gsSplash, gsMenu, gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver,
             gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
-            gsRogueliteSetup, gsRogueliteSectorSelect, gsRogueliteUnlocks}
+            gsRogueliteSectorSelect}
 
 proc updateInGameMouseBonding(settings: Settings, state: GameState) =
   if settings == nil:
@@ -343,9 +343,7 @@ proc main() =
 
   # Track pending game mode launch during loading animation
   var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox, 9 = Roguelite
-  var rogueliteUnlockCategory = 0
-  var rogueliteUnlockItem = 0
-  
+
   while not windowShouldClose():
     # Check if fullscreen toggle was requested
     if fullscreenToggleRequested:
@@ -447,10 +445,17 @@ proc main() =
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 9:  # Roguelite Mode — launched via the roguelite window Start button
-          # (game state is already set up; just start the roguelite run)
+          # Setup was already done in the roguelite window; start the run directly.
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile
-          currentGame.state = gsRogueliteSetup
+          let starterKits9 = [rskOperator, rskBulwark, rskArcanist]
+          let selectedIdx9 = clamp(currentGame.selectedRogueliteStarter, 0, starterKits9.high)
+          let kit9 = starterKits9[selectedIdx9]
+          let heat9 = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
+          beginRogueliteRun(currentGame, rogueliteProfile, kit9, heat9)
+          initializeRunTracking(currentGame)
+          currentGame.selectedRogueliteSector = 0
+          currentGame.state = gsRogueliteSectorSelect
           statsSavedThisGame = false
         else: discard
         pendingGameMode = -1  # Reset pending mode
@@ -1195,256 +1200,6 @@ proc main() =
       if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
         drawCustomCursor(currentGame.time)
       
-      endGameDrawing()
-
-    of gsRogueliteSetup:
-      playMusic(mtMenu)
-      currentGame.time += dt
-      updateMouseTracking(currentGame)
-      refreshRogueliteUnlocks(rogueliteProfile)
-      currentGame.rogueliteProfile = rogueliteProfile
-      currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
-      currentGame.rogueliteHeatPulseTimer = max(0.0'f32, currentGame.rogueliteHeatPulseTimer - dt)
-
-      let starterKits = [rskOperator, rskBulwark, rskArcanist]
-
-      proc closeRogueliteSetupToMenu() =
-        cleanupGame(currentGame)
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-        currentGame.discordClient = globalDiscordClient
-        currentGame.state = gsMenu
-        statsSavedThisGame = false
-
-      proc selectRogueliteHeat(newHeat: int) =
-        let previousHeat = currentGame.selectedRogueliteHeat
-        let nextHeat = clampedRogueliteHeatSelection(newHeat, rogueliteProfile)
-        if nextHeat == previousHeat:
-          playSound(stMenuNav, 0.45)
-          return
-
-        currentGame.selectedRogueliteHeat = nextHeat
-        currentGame.rogueliteHeatPulseTimer = 0.45
-        currentGame.rogueliteHeatPulseDirection = if nextHeat > previousHeat: 1 else: -1
-        playSound(stMenuNav, if nextHeat > previousHeat: 0.82 else: 0.65)
-
-      if isKeyPressed(Left) or isKeyPressed(A):
-        currentGame.selectedRogueliteStarter = (currentGame.selectedRogueliteStarter - 1 + starterKits.len) mod starterKits.len
-        markKeyboardUsed(currentGame)
-      if isKeyPressed(Right) or isKeyPressed(D):
-        currentGame.selectedRogueliteStarter = (currentGame.selectedRogueliteStarter + 1) mod starterKits.len
-        markKeyboardUsed(currentGame)
-      if isKeyPressed(Up) or isKeyPressed(W):
-        selectRogueliteHeat(currentGame.selectedRogueliteHeat + 1)
-        markKeyboardUsed(currentGame)
-      if isKeyPressed(Down) or isKeyPressed(S):
-        selectRogueliteHeat(currentGame.selectedRogueliteHeat - 1)
-        markKeyboardUsed(currentGame)
-      if isKeyPressed(U):
-        currentGame.state = gsRogueliteUnlocks
-      if isKeyPressed(Escape) or isKeyPressed(Q):
-        closeRogueliteSetupToMenu()
-
-      proc startSelectedRoguelite() =
-        let selectedStarterIndex = clamp(currentGame.selectedRogueliteStarter, 0, starterKits.high)
-        let kit = starterKits[selectedStarterIndex]
-        if kit in rogueliteProfile.unlockedStarterKits:
-          beginRogueliteRun(currentGame, rogueliteProfile, kit, currentGame.selectedRogueliteHeat)
-          initializeRunTracking(currentGame)
-          currentGame.selectedRogueliteSector = 0
-          currentGame.state = gsRogueliteSectorSelect
-          playSound(stMenuSelect)
-        elif purchaseRogueliteUnlock(rogueliteProfile, rucStarterKits, selectedStarterIndex):
-          currentGame.rogueliteProfile = rogueliteProfile
-          playSound(stPowerUp)
-        else:
-          playSound(stMenuNav, 0.55)
-
-      if isKeyPressed(Enter) or isKeyPressed(E):
-        startSelectedRoguelite()
-
-      if isMouseButtonPressed(Left):
-        let mousePos = getVirtualMousePosition()
-        const PanelW = 920
-        const PanelH = 620
-        const CardW = 260
-        const CardH = 250
-        const CardGap = 28
-        let panelX = (screenWidth - PanelW) div 2
-        let panelY = (screenHeight - PanelH) div 2
-        let closeRect = rogueliteCloseButtonRect(screenWidth.int32, screenHeight.int32)
-        let startX = panelX + 45
-        let cardY = panelY + 122
-        let btnY = panelY + PanelH - 82
-        var clickHandled = false
-        if checkCollisionPointRec(mousePos, closeRect):
-          closeRogueliteSetupToMenu()
-          clickHandled = true
-        else:
-          for i in 0..2:
-            let rect = Rectangle(x: (startX + i * (CardW + CardGap)).float32,
-                                 y: cardY.float32,
-                                 width: CardW.float32,
-                                 height: CardH.float32)
-            if checkCollisionPointRec(mousePos, rect):
-              currentGame.selectedRogueliteStarter = i
-              clickHandled = true
-          if not clickHandled:
-            # Heat step buttons — computed relative to the panel position, matching drawHeatPanel
-            let heatPanelX = panelX + RogueliteHeatPanelXOffset
-            let heatPanelY = panelY + RogueliteHeatPanelYOffset
-            let decRect = Rectangle(x: (heatPanelX + RogueliteHeatPanelW - 112).float32,
-                                    y: (heatPanelY + 44).float32,
-                                    width: RogueliteHeatStepButtonW.float32,
-                                    height: RogueliteHeatStepButtonH.float32)
-            let incRect = Rectangle(x: (heatPanelX + RogueliteHeatPanelW - 60).float32,
-                                    y: (heatPanelY + 44).float32,
-                                    width: RogueliteHeatStepButtonW.float32,
-                                    height: RogueliteHeatStepButtonH.float32)
-            if checkCollisionPointRec(mousePos, decRect):
-              selectRogueliteHeat(currentGame.selectedRogueliteHeat - 1)
-              clickHandled = true
-            elif checkCollisionPointRec(mousePos, incRect):
-              selectRogueliteHeat(currentGame.selectedRogueliteHeat + 1)
-              clickHandled = true
-            else:
-              let pipStart = heatPanelX + RogueliteHeatPipStartX
-              let pipY = heatPanelY + RogueliteHeatPipY
-              for i in 0..<RogueliteMaxHeat:
-                let heatLevel = RogueliteMinHeat + i
-                let px = pipStart + i * (RogueliteHeatPipW + RogueliteHeatPipGap)
-                let pipRect = Rectangle(x: px.float32, y: pipY.float32,
-                                        width: RogueliteHeatPipW.float32,
-                                        height: RogueliteHeatPipH.float32)
-                if checkCollisionPointRec(mousePos, pipRect):
-                  selectRogueliteHeat(heatLevel)
-                  clickHandled = true
-                  break
-        let unlockRect = Rectangle(x: (panelX + 60).float32, y: btnY.float32,
-                                   width: 180, height: 42)
-        let startRect = Rectangle(x: (panelX + 370).float32, y: btnY.float32,
-                                  width: 180, height: 42)
-        let backRect = Rectangle(x: (panelX + 680).float32, y: btnY.float32,
-                                 width: 180, height: 42)
-        if not clickHandled and checkCollisionPointRec(mousePos, unlockRect):
-          currentGame.state = gsRogueliteUnlocks
-        elif not clickHandled and checkCollisionPointRec(mousePos, startRect):
-          startSelectedRoguelite()
-        elif not clickHandled and checkCollisionPointRec(mousePos, backRect):
-          closeRogueliteSetupToMenu()
-
-      beginGameDrawing()
-      drawRogueliteSetup(currentGame)
-      drawCustomCursor(currentGame.time)
-      endGameDrawing()
-
-    of gsRogueliteUnlocks:
-      playMusic(mtMenu)
-      currentGame.time += dt
-      updateMouseTracking(currentGame)
-
-      let currentUnlockCategory = RogueliteUnlockCategory(clamp(rogueliteUnlockCategory, 0, 3))
-      let currentUnlockCount = unlockCount(currentUnlockCategory)
-
-      if isKeyPressed(Tab) or isKeyPressed(Right) or isKeyPressed(D):
-        rogueliteUnlockCategory = (rogueliteUnlockCategory + 1) mod 4
-        rogueliteUnlockItem = 0
-        markKeyboardUsed(currentGame)
-        playSound(stMenuNav)
-      if isKeyPressed(Left) or isKeyPressed(A):
-        rogueliteUnlockCategory = (rogueliteUnlockCategory - 1 + 4) mod 4
-        rogueliteUnlockItem = 0
-        markKeyboardUsed(currentGame)
-        playSound(stMenuNav)
-      if isKeyPressed(Down) or isKeyPressed(S):
-        rogueliteUnlockItem = (rogueliteUnlockItem + 1) mod max(1, currentUnlockCount)
-        markKeyboardUsed(currentGame)
-        playSound(stMenuNav)
-      if isKeyPressed(Up) or isKeyPressed(W):
-        rogueliteUnlockItem = (rogueliteUnlockItem - 1 + max(1, currentUnlockCount)) mod max(1, currentUnlockCount)
-        markKeyboardUsed(currentGame)
-        playSound(stMenuNav)
-      if isKeyPressed(Enter) or isKeyPressed(E):
-        if purchaseRogueliteUnlock(rogueliteProfile, currentUnlockCategory, rogueliteUnlockItem):
-          currentGame.rogueliteProfile = rogueliteProfile
-          playSound(stPowerUp)
-        else:
-          playSound(stMenuNav, 0.55)
-
-      if isMouseButtonPressed(Left):
-        let mousePos = getVirtualMousePosition()
-        const PanelW = 920
-        const PanelH = 620
-        const NavRowStartY = 44
-        const NavRowStep = 72
-        const NavRowHeight = 58
-        const ListHeaderHeight = 80
-        const ListRowStep = 33
-        const ListRowHeight = 28
-        let panelX = (screenWidth - PanelW) div 2
-        let panelY = (screenHeight - PanelH) div 2
-        let closeRect = rogueliteCloseButtonRect(screenWidth.int32, screenHeight.int32)
-        if checkCollisionPointRec(mousePos, closeRect):
-          globalWindowManager.openWindow(widRoguelite)
-          currentGame.state = gsMenu
-        else:
-          let contentY = panelY + 130
-          let navX = panelX + 30
-          let navW = 184
-          let listX = panelX + 232
-          let listW = 340
-          let detailsX = panelX + 594
-          let detailsW = 296
-          let sectionH = 378
-          var clickHandled = false
-          let navRect = Rectangle(x: navX.float32, y: contentY.float32,
-                                  width: navW.float32, height: sectionH.float32)
-          if checkCollisionPointRec(mousePos, navRect) and
-             mousePos.y >= (contentY + NavRowStartY).float32 and
-             mousePos.y < (contentY + NavRowStartY + NavRowStep * 4).float32:
-            let clickedIdx = clamp(int((mousePos.y - (contentY + NavRowStartY).float32) / NavRowStep.float32), 0, 3)
-            let rowRect = Rectangle(x: (navX + 12).float32, y: (contentY + NavRowStartY + clickedIdx * NavRowStep).float32,
-                                    width: (navW - 24).float32, height: NavRowHeight.float32)
-            if checkCollisionPointRec(mousePos, rowRect):
-              if rogueliteUnlockCategory != clickedIdx:
-                rogueliteUnlockCategory = clickedIdx
-                rogueliteUnlockItem = 0
-                playSound(stMenuNav)
-              clickHandled = true
-
-          if not clickHandled:
-            let clickedCategory = RogueliteUnlockCategory(clamp(rogueliteUnlockCategory, 0, 3))
-            let listStartY = contentY + ListHeaderHeight
-            let listEndY = listStartY + unlockCount(clickedCategory) * ListRowStep
-            let listRect = Rectangle(x: (listX + 12).float32, y: listStartY.float32,
-                                     width: (listW - 24).float32, height: max(0, listEndY - listStartY).float32)
-            if checkCollisionPointRec(mousePos, listRect) and mousePos.y < listEndY.float32:
-              let clickedIdx = clamp(int((mousePos.y - listStartY.float32) / ListRowStep.float32),
-                                     0, max(0, unlockCount(clickedCategory) - 1))
-              let rowRect = Rectangle(x: (listX + 12).float32, y: (listStartY + clickedIdx * ListRowStep).float32,
-                                      width: (listW - 24).float32, height: ListRowHeight.float32)
-              if checkCollisionPointRec(mousePos, rowRect) or
-                 mousePos.y < (rowRect.y + ListRowStep.float32):
-                if rogueliteUnlockItem != clickedIdx:
-                  rogueliteUnlockItem = clickedIdx
-                  playSound(stMenuNav)
-                clickHandled = true
-
-          let buyRect = Rectangle(x: (detailsX + 24).float32, y: (contentY + sectionH - 58).float32,
-                                  width: (detailsW - 48).float32, height: 40)
-          if not clickHandled and checkCollisionPointRec(mousePos, buyRect):
-            let cat = RogueliteUnlockCategory(clamp(rogueliteUnlockCategory, 0, 3))
-            if purchaseRogueliteUnlock(rogueliteProfile, cat, rogueliteUnlockItem):
-              currentGame.rogueliteProfile = rogueliteProfile
-              playSound(stPowerUp)
-            else:
-              playSound(stMenuNav, 0.55)
-
-      if isKeyPressed(Escape) or isKeyPressed(U) or isKeyPressed(Q):
-        globalWindowManager.openWindow(widRoguelite)
-        currentGame.state = gsMenu
-      beginGameDrawing()
-      drawRogueliteUnlocks(currentGame, rogueliteUnlockCategory, rogueliteUnlockItem)
-      drawCustomCursor(currentGame.time)
       endGameDrawing()
 
     of gsRogueliteSectorSelect:

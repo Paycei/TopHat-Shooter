@@ -1,7 +1,7 @@
 ## Roguelite Window
 ## Wrap the existing roguelite panel inside an OS-style desktop window
 
-import raylib, os_window, ../roguelite, ../types, ../localization, ../render_context, ../run_statistics, os_roguelite, icon_drawing
+import raylib, os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing
 
 type
   RogueliteWindowResult* = object
@@ -36,6 +36,11 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
     return
 
   updateOSWindow(rw.window, dt)
+  # If the unlocks/shop sub-view is open, intercept ESC before handleOSWindowInput
+  # so it goes back to the setup view instead of closing the whole window.
+  if rw.showUnlocks and isKeyPressed(Escape):
+    rw.showUnlocks = false
+    return
   let shouldClose = handleOSWindowInput(rw.window, screenWidth, screenHeight, allWindows)
   if shouldClose:
     rw.window.visible = false
@@ -169,7 +174,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
     rw.showUnlocks = true
     rw.unlockCategory = 0
     rw.unlockItem = 0
-  if isKeyPressed(Escape) or isKeyPressed(Q):
+  if rw.window.focused and (isKeyPressed(Escape) or isKeyPressed(Q)):
     rw.window.visible = false
     game.state = gsMenu
     result.shouldClose = true
@@ -254,9 +259,12 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
                                   width: RogueliteHeatPipW.float32, height: RogueliteHeatPipH.float32)
           if checkCollisionPointRec(mousePos, pipRect):
             let prev = game.selectedRogueliteHeat
-            game.selectedRogueliteHeat = heatLevel
-            game.rogueliteHeatPulseTimer = 0.45
-            game.rogueliteHeatPulseDirection = if heatLevel > prev: 1 else: -1
+            let maxHeat3 = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
+            let clamped = clamp(heatLevel, RogueliteMinHeat, maxHeat3)
+            if clamped != prev:
+              game.selectedRogueliteHeat = clamped
+              game.rogueliteHeatPulseTimer = 0.45
+              game.rogueliteHeatPulseDirection = if clamped > prev: 1 else: -1
             clickHandled = true
             break
 
