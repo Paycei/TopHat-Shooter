@@ -1,7 +1,7 @@
 ## Roguelite Window
 ## Wrap the existing roguelite panel inside an OS-style desktop window
 
-import raylib, os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing
+import raylib, os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound
 
 type
   RogueliteWindowResult* = object
@@ -79,6 +79,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
       rw.unlockItem = (rw.unlockItem - 1 + max(1, currentCount)) mod max(1, currentCount)
     if isKeyPressed(Enter) or isKeyPressed(E):
       if purchaseRogueliteUnlock(profile, currentCat, rw.unlockItem):
+        playSound(stBuy)
         game.rogueliteProfile = profile
     if isKeyPressed(Escape) or isKeyPressed(U) or isKeyPressed(Q):
       rw.showUnlocks = false
@@ -136,6 +137,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
         if checkCollisionPointRec(mousePos, buyRect):
           let cat = RogueliteUnlockCategory(clamp(rw.unlockCategory, 0, 3))
           if purchaseRogueliteUnlock(profile, cat, rw.unlockItem):
+            playSound(stBuy)
             game.rogueliteProfile = profile
 
       # Back button (bottom control bar) – click anywhere outside nav/list/details goes back

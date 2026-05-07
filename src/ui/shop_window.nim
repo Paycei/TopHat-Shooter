@@ -1,7 +1,7 @@
 ﻿## Shop Window
 ## OS-themed window for player and bullet customization with tabs
 
-import raylib, os_window, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization, ../render_context, ../roguelite
+import raylib, os_window, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound
 
 type
   ShopTab* = enum
@@ -272,6 +272,7 @@ proc handleCosmeticClick(shop: ShopWindow, kind: CosmeticKind, index: int) =
     shop.statusMessage = t("shop_equipped")
     shop.statusTimer = 1.2
   elif purchaseCosmetic(shop.rogueliteProfile, kind, index):
+    playSound(stBuy)
     equipCosmetic(shop, kind, index)
     shop.statusMessage = t("roguelite_unlocked")
     shop.statusTimer = 1.6

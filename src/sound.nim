@@ -4,7 +4,7 @@ type
   SoundType* = enum
     stShoot, stEnemyHit, stEnemyDeath, stPlayerHit, stCoinPickup, stPowerUp,
     stBossSpawn, stExplosion, stWallPlace, stTeleport, stMenuNav, stMenuSelect,
-    stWaveComplete, stShield, stGameOver
+    stWaveComplete, stShield, stGameOver, stBuy
 
   MusicTrack* = enum
     mtMenu, mtWave, mtPowerUp, mtBoss
@@ -64,6 +64,7 @@ proc getSoundCacheFile(soundType: SoundType): string =
     of stWaveComplete: "wavecomplete"
     of stShield: "shield"
     of stGameOver: "gameover"
+    of stBuy: "buy"
   result = cacheDir / (soundName & ".wav")
 
 proc getMusicCacheFile(track: MusicTrack): string =
@@ -875,6 +876,57 @@ proc createGameOverSound(filename: string): Sound =
   writeWavFile(filename, samples, sampleRate)
   result = loadSound(filename)
 
+proc createBuySound(filename: string): Sound =
+  # Satisfying two-tone "cha-ching" purchase confirmation
+  let sampleRate: uint32 = 44100
+  let duration = 0.4
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  # Two-note ascending chime: lower note then upper note, with rich harmonics
+  let notes = [
+    (freq: 587.33'f32, start: 0.0'f32, length: 0.18'f32),   # D5 - first chime
+    (freq: 880.00'f32, start: 0.18'f32, length: 0.22'f32)   # A5 - confirming high note
+  ]
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    var value = 0.0
+
+    for note in notes:
+      if t >= note.start and t < note.start + note.length:
+        let noteTime = t - note.start
+        let noteProgress = noteTime / note.length
+
+        # Bell-like timbre: fundamental + bright harmonics
+        let fundamental = sin(2.0 * PI * note.freq * t) * 0.50
+        let h2 = sin(2.0 * PI * note.freq * 2.0 * t) * 0.20
+        let h3 = sin(2.0 * PI * note.freq * 3.0 * t) * 0.10
+        let h4 = sin(2.0 * PI * note.freq * 4.0 * t) * 0.05
+
+        # Gold shimmer layer
+        let shimmer = sin(2.0 * PI * note.freq * 5.5 * t) * 0.04
+
+        # Fast attack, smooth exponential decay (bell-like)
+        let attack = if noteProgress < 0.04: noteProgress / 0.04 else: 1.0
+        let decay = exp(-noteProgress * 9.0)
+        let envelope = attack * decay
+
+        value += (fundamental + h2 + h3 + h4 + shimmer) * envelope
+
+    # Tiny sparkle at the very end for a "coins landing" feel
+    let globalProgress = t / duration
+    let sparkle = if globalProgress > 0.55 and globalProgress < 0.85:
+      sin(2.0 * PI * 2200.0 * t) *
+        ((0.85 - globalProgress) / 0.30) * 0.06
+    else:
+      0.0
+
+    samples[i] = int16(clamp((value + sparkle) * 32767.0 * 0.52, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+  result = loadSound(filename)
+
 # SOUND LOADING WITH CACHE
 proc loadOrGenerateSound(soundType: SoundType): Sound =
   let cacheFile = getSoundCacheFile(soundType)
@@ -898,6 +950,7 @@ proc loadOrGenerateSound(soundType: SoundType): Sound =
   of stWaveComplete: result = createWaveComplete(cacheFile)
   of stShield: result = createShield(cacheFile)
   of stGameOver: result = createGameOverSound(cacheFile)
+  of stBuy: result = createBuySound(cacheFile)
 
 type
   Note = object
