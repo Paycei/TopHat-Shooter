@@ -701,22 +701,6 @@ type
     perfectWaveStreak*: int       # Number of consecutive perfect waves
     lastPerfectWaveBonus*: int    # Last bonus earned for display
 
-  MilestoneType* = enum
-    mtWave, mtKills, mtCoins, mtPerfectWave, mtCloseCall, mtClutch
-
-  Milestone* = object
-    milestoneType*: MilestoneType
-    threshold*: int
-    reached*: bool
-    displayTimer*: float32
-    name*: string
-    description*: string
-    bonus*: string
-
-  MilestoneManager* = object
-    milestones*: seq[Milestone]
-    recentMilestone*: Milestone
-    showRecent*: bool
 
   MicroReward* = object
     message*: string
@@ -803,7 +787,6 @@ type
   DopamineState* = object
     screenShake*: ScreenShake
     comboSystem*: ComboSystem
-    milestones*: MilestoneManager
     microRewards*: MicroRewardTracker
     slowMotion*: SlowMotion
     waveStats*: WaveStats

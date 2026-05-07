@@ -3,7 +3,7 @@
 
 import raylib, sequtils, random, math
 import types_3d, engine_3d, player_3d, boss_3d
-import ../types
+import ../types  # Import 2D types for Player integration
 import ../localization
 
 type

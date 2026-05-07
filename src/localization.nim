@@ -1108,31 +1108,12 @@ type
     tkComboPerfectStreak = "combo_perfect_streak"
     tkComboCoins = "combo_coins"
     
-    # Milestone / micro-reward popups (d_systems)
-    tkMilestoneAchievement = "milestone_achievement"
+    # Micro-reward popups & wave-stats
     tkMassacreBonus = "massacre_bonus"
     tkWaveStatsFlawless = "wave_stats_flawless"
     tkWaveStatsTitle = "wave_stats_title"
     tkWaveStatsKillsLabel = "wave_stats_kills_label"
     tkWaveStatsTimeLabel = "wave_stats_time_label"
-    
-    # Milestone names & descriptions (d_systems)
-    tkMilestoneFirstBossName = "milestone_first_boss_name"
-    tkMilestoneFirstBossDesc = "milestone_first_boss_desc"
-    tkMilestoneVeteranName = "milestone_veteran_name"
-    tkMilestoneVeteranDesc = "milestone_veteran_desc"
-    tkMilestoneEliteName = "milestone_elite_name"
-    tkMilestoneEliteDesc = "milestone_elite_desc"
-    tkMilestoneCenturionName = "milestone_centurion_name"
-    tkMilestoneCenturionDesc = "milestone_centurion_desc"
-    tkMilestoneExecutionerName = "milestone_executioner_name"
-    tkMilestoneExecutionerDesc = "milestone_executioner_desc"
-    tkMilestoneDeathName = "milestone_death_name"
-    tkMilestoneDeathDesc = "milestone_death_desc"
-    tkMilestoneWealthyName = "milestone_wealthy_name"
-    tkMilestoneWealthyDesc = "milestone_wealthy_desc"
-    tkMilestoneTycoonName = "milestone_tycoon_name"
-    tkMilestoneTycoonDesc = "milestone_tycoon_desc"
     
     # 3D Boss Game HUD (game3d/game_3d.nim)
     tkGame3DHp = "game3d_hp"
@@ -1704,31 +1685,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "combo_perfect_streak": "PERFECT x",
     "combo_coins": "coins!",
     
-    # Milestone / micro-reward popups
-    "milestone_achievement": "Achievement:",
+    # Micro-reward popups & wave-stats
     "massacre_bonus": "MASSACRE BONUS!",
     "wave_stats_flawless": "FLAWLESS!",
     "wave_stats_title": "WAVE",
     "wave_stats_kills_label": "Kills:",
     "wave_stats_time_label": "Time:",
-    
-    # Milestone names & descriptions
-    "milestone_first_boss_name": "FIRST BOSS DEFEATED",
-    "milestone_first_boss_desc": "Survived your first boss encounter",
-    "milestone_veteran_name": "VETERAN SURVIVOR",
-    "milestone_veteran_desc": "Reached wave 10",
-    "milestone_elite_name": "ELITE PLAYER",
-    "milestone_elite_desc": "Reached wave 25",
-    "milestone_centurion_name": "CENTURION",
-    "milestone_centurion_desc": "Eliminated 100 enemies",
-    "milestone_executioner_name": "EXECUTIONER",
-    "milestone_executioner_desc": "Eliminated 500 enemies",
-    "milestone_death_name": "DEATH INCARNATE",
-    "milestone_death_desc": "Eliminated 1000 enemies",
-    "milestone_wealthy_name": "WEALTHY",
-    "milestone_wealthy_desc": "Collected 1000 lifetime coins",
-    "milestone_tycoon_name": "TYCOON",
-    "milestone_tycoon_desc": "Collected 5000 lifetime coins",
     
     # 3D Boss Game HUD
     "game3d_hp": "HP",
@@ -3656,31 +3618,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "combo_perfect_streak": "PERFECTA x",
     "combo_coins": "monedas!",
     
-    # Milestone / micro-reward popups
-    "milestone_achievement": "Logro:",
+    # Micro-reward popups & wave-stats
     "massacre_bonus": "¡BONO MASACRE!",
     "wave_stats_flawless": "¡IMPECABLE!",
     "wave_stats_title": "OLEADA",
     "wave_stats_kills_label": "Muertes:",
     "wave_stats_time_label": "Tiempo:",
-    
-    # Milestone names & descriptions
-    "milestone_first_boss_name": "PRIMER JEFE DERROTADO",
-    "milestone_first_boss_desc": "Sobreviviste tu primer enfrentamiento con un jefe",
-    "milestone_veteran_name": "SUPERVIVIENTE VETERANO",
-    "milestone_veteran_desc": "Alcanzaste la oleada 10",
-    "milestone_elite_name": "JUGADOR ÉLITE",
-    "milestone_elite_desc": "Alcanzaste la oleada 25",
-    "milestone_centurion_name": "CENTURIÓN",
-    "milestone_centurion_desc": "Eliminaste 100 enemigos",
-    "milestone_executioner_name": "VERDUGO",
-    "milestone_executioner_desc": "Eliminaste 500 enemigos",
-    "milestone_death_name": "LA MUERTE ENCARNADA",
-    "milestone_death_desc": "Eliminaste 1000 enemigos",
-    "milestone_wealthy_name": "ACAUDALADO",
-    "milestone_wealthy_desc": "Recolectaste 1000 monedas en total",
-    "milestone_tycoon_name": "MAGNATE",
-    "milestone_tycoon_desc": "Recolectaste 5000 monedas en total",
     
     # 3D Boss Game HUD
     "game3d_hp": "HP",

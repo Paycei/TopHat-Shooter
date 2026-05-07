@@ -167,79 +167,6 @@ proc checkPerfectWaveCombo*(combo: var ComboSystem, waveEnemyCount: int): int =
     combo.lastPerfectWaveBonus = 0
     return 0
 
-# MILESTONE SYSTEM
-proc newMilestoneManager*(): MilestoneManager =
-  result = MilestoneManager(
-    milestones: @[],
-    showRecent: false
-  )
-  
-  # Initialize wave milestones
-  result.milestones.add(Milestone(
-    milestoneType: mtWave, threshold: 5, reached: false,
-    name: t(tkMilestoneFirstBossName), description: t(tkMilestoneFirstBossDesc),
-    bonus: "+Achievement"
-  ))
-  result.milestones.add(Milestone(
-    milestoneType: mtWave, threshold: 10, reached: false,
-    name: t(tkMilestoneVeteranName), description: t(tkMilestoneVeteranDesc),
-    bonus: "+Achievement"
-  ))
-  result.milestones.add(Milestone(
-    milestoneType: mtWave, threshold: 25, reached: false,
-    name: t(tkMilestoneEliteName), description: t(tkMilestoneEliteDesc),
-    bonus: "+5% permanent stats"
-  ))
-  
-  # Initialize kill milestones
-  result.milestones.add(Milestone(
-    milestoneType: mtKills, threshold: 100, reached: false,
-    name: t(tkMilestoneCenturionName), description: t(tkMilestoneCenturionDesc),
-    bonus: "+Badge"
-  ))
-  result.milestones.add(Milestone(
-    milestoneType: mtKills, threshold: 500, reached: false,
-    name: t(tkMilestoneExecutionerName), description: t(tkMilestoneExecutionerDesc),
-    bonus: "+Badge"
-  ))
-  result.milestones.add(Milestone(
-    milestoneType: mtKills, threshold: 1000, reached: false,
-    name: t(tkMilestoneDeathName), description: t(tkMilestoneDeathDesc),
-    bonus: "+Permanent red glow"
-  ))
-  
-  # Initialize coin milestones
-  result.milestones.add(Milestone(
-    milestoneType: mtCoins, threshold: 1000, reached: false,
-    name: t(tkMilestoneWealthyName), description: t(tkMilestoneWealthyDesc),
-    bonus: "+Badge"
-  ))
-  result.milestones.add(Milestone(
-    milestoneType: mtCoins, threshold: 5000, reached: false,
-    name: t(tkMilestoneTycoonName), description: t(tkMilestoneTycoonDesc),
-    bonus: "+Badge"
-  ))
-
-proc checkMilestone*(manager: var MilestoneManager, milestoneType: MilestoneType,
-                     value: int, currentTime: float32): bool =
-  ## Check if a milestone was reached, returns true if new milestone hit
-  for i in 0..<manager.milestones.len:
-    if manager.milestones[i].milestoneType == milestoneType and
-       not manager.milestones[i].reached and
-       value >= manager.milestones[i].threshold:
-      manager.milestones[i].reached = true
-      manager.milestones[i].displayTimer = 5.0
-      manager.recentMilestone = manager.milestones[i]
-      manager.showRecent = true
-      return true
-  return false
-
-proc updateMilestones*(manager: var MilestoneManager, dt: float32) =
-  for i in 0..<manager.milestones.len:
-    if manager.milestones[i].displayTimer > 0:
-      manager.milestones[i].displayTimer -= dt
-      if manager.milestones[i].displayTimer <= 0:
-        manager.showRecent = false
 
 # MICRO-REWARD TRACKER
 proc newMicroRewardTracker*(): MicroRewardTracker =
@@ -380,7 +307,6 @@ proc newDopamineState*(): DopamineState =
   result = DopamineState(
     screenShake: newScreenShake(),
     comboSystem: newComboSystem(),
-    milestones: newMilestoneManager(),
     microRewards: newMicroRewardTracker(),
     slowMotion: newSlowMotion(),
     waveStats: newWaveStats(1),
@@ -391,7 +317,6 @@ proc updateDopamine*(dopamine: var DopamineState, dt: float32) =
   dopamine.currentTime += dt
   updateShake(dopamine.screenShake, dt)
   updateCombo(dopamine.comboSystem, dt, dopamine.currentTime)
-  updateMilestones(dopamine.milestones, dt)
   updateRewards(dopamine.microRewards, dt)
   updateStats(dopamine.waveStats, dt)
 

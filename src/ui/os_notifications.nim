@@ -10,7 +10,7 @@ type
     ottWarning,     # Yellow - warnings
     ottError,       # Red - errors
     ottCritical,    # Dark red - critical system issues
-    ottAchievement, # Gold - achievements/milestones
+    ottAchievement, # Gold - achievements
     ottCommand      # Cyan - command execution feedback
     
   OSToast* = object

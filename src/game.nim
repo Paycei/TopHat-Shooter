@@ -5656,11 +5656,6 @@ proc updateGame*(game: var Game, dt: float32) =
         # Track combo statistics for run stats
         trackCombo(game, game.dopamine.comboSystem.killCount)
       
-      # Check for milestones
-      if checkMilestone(game.dopamine.milestones, mtKills, game.player.kills, game.dopamine.currentTime):
-        addNotification(game.osHUD, "MILESTONE: " & game.dopamine.milestones.recentMilestone.name,
-                        ntInfo)
-      
       # Track enemy kill for statistics
       trackEnemyKilled(game, enemy)
       
@@ -7491,7 +7486,6 @@ proc drawGame*(game: Game) =
 
   # Kill streak system removed - now only combo system is used
   drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.dopamine.currentTime)
-  drawMilestone(game.dopamine.milestones, game.screenWidth, game.screenHeight)
   drawMicroRewards(game.dopamine.microRewards)
 
   # Wave start banner (slides in from top for first 1.5s of each wave)

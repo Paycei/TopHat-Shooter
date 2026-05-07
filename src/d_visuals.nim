@@ -135,45 +135,6 @@ proc drawCombo*(combo: ComboSystem, screenWidth, screenHeight: int32, currentTim
   let baseY = screenHeight div 2
   drawComboAtPosition(combo, screenWidth, screenHeight, currentTime, baseX, baseY)
 
-# MILESTONE POPUP
-
-proc drawMilestone*(manager: MilestoneManager, screenWidth, screenHeight: int32) =
-  if not manager.showRecent:
-    return
-  
-  let milestone = manager.recentMilestone
-  if milestone.displayTimer <= 0:
-    return
-  
-  # Fade in/out
-  let fadeAlpha = if milestone.displayTimer > 4.0:
-    uint8((5.0 - milestone.displayTimer) * 255.0)
-  elif milestone.displayTimer < 1.0:
-    uint8(milestone.displayTimer * 255.0)
-  else:
-    255'u8
-  
-  # Small notification in top-right
-  let x = screenWidth - 280
-  let y = 160.int32
-  
-  # Compact background
-  drawRectangle(x, y, 270, 60,
-    Color(r: 20, g: 20, b: 40, a: uint8(fadeAlpha * 180 div 255)))
-  drawRectangleLines(x, y, 270, 60,
-    Color(r: 255, g: 215, b: 0, a: fadeAlpha))
-  
-  # Achievement text (small)
-  drawText(t(tkMilestoneAchievement), x + 10, y + 8, 12.int32,
-    Color(r: 255, g: 215, b: 0, a: fadeAlpha))
-  
-  # Milestone name (compact)
-  drawText(milestone.name, x + 10, y + 25, 14.int32,
-    Color(r: 255, g: 255, b: 255, a: fadeAlpha))
-  
-  # Description (very small)
-  drawText(milestone.description, x + 10, y + 43, 10.int32,
-    Color(r: 200, g: 200, b: 200, a: fadeAlpha))
 
 # MICRO-REWARD DISPLAY
 proc drawMicroRewards*(tracker: MicroRewardTracker) =
