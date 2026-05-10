@@ -1,7 +1,9 @@
 ## Roguelite Window
 ## Wrap the existing roguelite panel inside an OS-style desktop window
 
-import raylib, os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound
+import raylib, math, os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound
+
+const HeatPurchaseCelebrationDuration = 1.35'f32
 
 type
   RogueliteWindowResult* = object
@@ -13,6 +15,8 @@ type
     showUnlocks*: bool
     unlockCategory*: int
     unlockItem*: int
+    purchaseCelebrationTimer*: float32
+    purchaseCelebrationHeat*: int
 
 proc newRogueliteWindow*(screenWidth, screenHeight: int, profile: RogueliteProfile = nil): RogueliteWindow =
   let windowWidth = RoguelitePanelW + 20
@@ -22,7 +26,78 @@ proc newRogueliteWindow*(screenWidth, screenHeight: int, profile: RogueliteProfi
   let osWin = newOSWindow(t("roguelite_setup_title"), windowX, windowY, windowWidth, windowHeight,
                           Color(r: 0, g: 220, b: 255, a: 255), owtSettings, resizable = false)
   osWin.visible = false
-  result = RogueliteWindow(window: osWin, showUnlocks: false, unlockCategory: 0, unlockItem: 0)
+  result = RogueliteWindow(window: osWin, showUnlocks: false, unlockCategory: 0, unlockItem: 0,
+                           purchaseCelebrationTimer: 0.0, purchaseCelebrationHeat: RogueliteMinHeat)
+
+proc withAlpha(color: Color, alpha: uint8): Color =
+  Color(r: color.r, g: color.g, b: color.b, a: alpha)
+
+proc triggerUnlockPurchaseFeedback(rw: RogueliteWindow, game: Game, profile: RogueliteProfile,
+                                   category: RogueliteUnlockCategory, index: int) =
+  let isHeatPurchase = category == rucChallengeTiers and index == 0
+  playSound(stBuy, if isHeatPurchase: 1.0 else: 0.78)
+
+  if isHeatPurchase and not profile.isNil and not game.isNil:
+    playSound(stPowerUp, 0.55)
+    rw.purchaseCelebrationTimer = HeatPurchaseCelebrationDuration
+    rw.purchaseCelebrationHeat = profile.highestHeat
+    rw.showUnlocks = false
+    game.selectedRogueliteHeat = profile.highestHeat
+    game.rogueliteHeatPulseTimer = HeatPurchaseCelebrationDuration
+    game.rogueliteHeatPulseDirection = 1
+
+proc drawHeatPurchaseCelebration(rw: RogueliteWindow, panelX, panelY: int32) =
+  if rw.purchaseCelebrationTimer <= 0:
+    return
+
+  let heatPanelX = panelX + RogueliteHeatPanelXOffset
+  let heatPanelY = panelY + RogueliteHeatPanelYOffset
+  let heatPanelW: int32 = RogueliteHeatPanelW
+  let heatPanelH: int32 = RogueliteHeatPanelH
+  let remaining = clamp(rw.purchaseCelebrationTimer / HeatPurchaseCelebrationDuration, 0.0'f32, 1.0'f32)
+  let progress = 1.0'f32 - remaining
+  let peak = sin(progress * PI)
+  let accent = Color(r: 255, g: 112, b: 64, a: 255)
+  let gold = Color(r: 255, g: 222, b: 88, a: 255)
+  let alpha = uint8(clamp(remaining * 230.0'f32, 0.0'f32, 230.0'f32))
+
+  drawRectangle(heatPanelX - 8, heatPanelY - 8, heatPanelW + 16, heatPanelH + 16,
+                Color(r: 255, g: 82, b: 40, a: uint8(22.0'f32 * peak)))
+  for ring in 0..2:
+    let grow = int32(progress * (16.0'f32 + ring.float32 * 10.0'f32))
+    let ringAlpha = uint8(clamp(remaining * (170.0'f32 - ring.float32 * 34.0'f32), 0.0'f32, 170.0'f32))
+    drawRectangleLines(Rectangle(
+      x: (heatPanelX - 4 - grow).float32,
+      y: (heatPanelY - 4 - grow).float32,
+      width: (heatPanelW + 8 + grow * 2).float32,
+      height: (heatPanelH + 8 + grow * 2).float32),
+      2.0'f32, withAlpha((if ring == 0: gold else: accent), ringAlpha))
+
+  let heatIdx = clamp(rw.purchaseCelebrationHeat, RogueliteMinHeat, RogueliteMaxHeat) - RogueliteMinHeat
+  let pipCenterX = heatPanelX + RogueliteHeatPipStartX +
+                   heatIdx.int32 * (RogueliteHeatPipW + RogueliteHeatPipGap) +
+                   RogueliteHeatPipW div 2
+  let pipCenterY = heatPanelY + RogueliteHeatPipY + RogueliteHeatPipH div 2
+  for ring in 0..3:
+    let radius = 22.0'f32 + progress * (28.0'f32 + ring.float32 * 12.0'f32)
+    let ringAlpha = uint8(clamp(remaining * (210.0'f32 - ring.float32 * 38.0'f32), 0.0'f32, 210.0'f32))
+    drawCircleLines(pipCenterX, pipCenterY, radius, withAlpha((if ring mod 2 == 0: gold else: accent), ringAlpha))
+
+  let bannerW: int32 = 330
+  let bannerH: int32 = 54
+  let bannerX = heatPanelX + (heatPanelW - bannerW) div 2
+  let bannerY = heatPanelY - 24 - int32(10.0'f32 * peak)
+  drawRectangle(bannerX + 4, bannerY + 4, bannerW, bannerH, Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.45)))
+  drawRectangle(bannerX, bannerY, bannerW, bannerH, Color(r: 54, g: 28, b: 24, a: uint8(alpha.float32 * 0.88)))
+  drawRectangleLines(Rectangle(x: bannerX.float32, y: bannerY.float32,
+                               width: bannerW.float32, height: bannerH.float32),
+                     2.5'f32, withAlpha(gold, alpha))
+  drawCurrencyIcon(bannerX + 32, bannerY + bannerH div 2, 34, ciHeat, alpha)
+  let label = t("roguelite_heat") & " " & $rw.purchaseCelebrationHeat & " " & t("roguelite_unlocked")
+  var labelFont: int32 = 20
+  while labelFont > 12 and measureText(label, labelFont) > bannerW - 76:
+    dec labelFont
+  drawText(label, bannerX + 58, bannerY + (bannerH - labelFont) div 2, labelFont, withAlpha(gold, alpha))
 
 proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openArray[OSWindow],
                             screenWidth, screenHeight: int, game: Game): RogueliteWindowResult =
@@ -36,6 +111,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
     return
 
   updateOSWindow(rw.window, dt)
+  rw.purchaseCelebrationTimer = max(0.0'f32, rw.purchaseCelebrationTimer - dt)
   # If the unlocks/shop sub-view is open, intercept ESC before handleOSWindowInput
   # so it goes back to the setup view instead of closing the whole window.
   if rw.showUnlocks and isKeyPressed(Escape):
@@ -79,7 +155,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
       rw.unlockItem = (rw.unlockItem - 1 + max(1, currentCount)) mod max(1, currentCount)
     if isKeyPressed(Enter) or isKeyPressed(E):
       if purchaseRogueliteUnlock(profile, currentCat, rw.unlockItem):
-        playSound(stBuy)
+        triggerUnlockPurchaseFeedback(rw, game, profile, currentCat, rw.unlockItem)
         game.rogueliteProfile = profile
     if isKeyPressed(Escape) or isKeyPressed(U) or isKeyPressed(Q):
       rw.showUnlocks = false
@@ -137,7 +213,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
         if checkCollisionPointRec(mousePos, buyRect):
           let cat = RogueliteUnlockCategory(clamp(rw.unlockCategory, 0, 3))
           if purchaseRogueliteUnlock(profile, cat, rw.unlockItem):
-            playSound(stBuy)
+            triggerUnlockPurchaseFeedback(rw, game, profile, cat, rw.unlockItem)
             game.rogueliteProfile = profile
 
       # Back button (bottom control bar) – click anywhere outside nav/list/details goes back
@@ -189,6 +265,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
     if unlocked:
       return true
     elif not profile.isNil and purchaseRogueliteUnlock(profile, rucStarterKits, selectedStarterIndex):
+      triggerUnlockPurchaseFeedback(rw, game, profile, rucStarterKits, selectedStarterIndex)
       game.rogueliteProfile = profile
       return false
     else:
@@ -380,3 +457,5 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
                     canHover and checkCollisionPointRec(mousePos, Rectangle(x: (panelX + 680).float32, y: btnY.float32, width: 180, height: 42)))
     drawCenteredTextFit(t("roguelite_setup_controls"), panelX + 180, panelY + RoguelitePanelH - 30,
                         RoguelitePanelW - 360, 14, LightGray)
+
+  drawHeatPurchaseCelebration(rw, panelX, panelY)

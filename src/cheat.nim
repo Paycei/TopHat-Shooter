@@ -1,4 +1,4 @@
-import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data, localization, render_context
+import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data, localization, render_context, ui/os_shop
 
 # ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
@@ -209,24 +209,10 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   
   # Reapply shop purchases for damage, health, speed, fire rate, and bullet speed
   # This ensures shop-bought stats are preserved when removing power-ups
-  for i in 0..<game.shopItems[0].bought:  # Damage purchases
-    game.player.damage += 0.25 * pow(1.0375, (i + 1).float32)
-  
-  for i in 0..<game.shopItems[2].bought:  # Move speed purchases
-    game.player.speed += 11
-    game.player.baseSpeed += 11
-  
-  for i in 0..<game.shopItems[3].bought:  # Max health purchases
-    let healthGain = min(2 + i, 7)  # 3 base + 1 per purchase, max 7
-    game.player.maxHp += healthGain.float32
+  for shopIndex in 0..4:
+    for purchase in 0..<game.shopItems[shopIndex].bought:
+      applyShopPurchaseEffect(game, shopIndex, purchase + 1, healHealth = false)
   game.player.hp = min(game.player.hp, game.player.maxHp)
-  
-  for i in 0..<game.shopItems[4].bought:  # Bullet speed purchases
-    game.player.bulletSpeed = addBulletSpeedDiminished(game.player.bulletSpeed, 8.0)
-  
-  # Fire rate needs special handling due to diminishing returns
-  for i in 0..<game.shopItems[1].bought:
-    game.player.fireRate = applyFireRateDiminished(game.player.fireRate, 0.045, 0.45, 0.09)
   
   # Clear all rotating orbs — they will be recreated by the reapply loop below
   game.player.rotatingOrbs = @[]

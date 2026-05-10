@@ -1,4 +1,4 @@
-﻿## OS-Style Shop System
+## OS-Style Shop System
 ## Shop screen redesigned as a modern OS storefront interface
 
 import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing, ../render_context
@@ -10,24 +10,60 @@ const
   ITEM_HEIGHT = 60
   ITEM_SPACING = 6
   SIDEBAR_WIDTH: int32 = 280
+  SHOP_COST_MULTIPLIER = 1.8'f32
+  SHOP_DAMAGE_GAIN = 0.32'f32
+  SHOP_DAMAGE_SCALE = 1.06'f32
+  SHOP_FIRE_RATE_GAIN = 0.085'f32
+  SHOP_FIRE_RATE_EXPONENT = 0.42'f32
+  SHOP_FIRE_RATE_CAP = 0.09'f32
+  SHOP_MOVE_SPEED_GAIN = 15.0'f32
+  SHOP_HEALTH_GAIN_BASE = 6
+  SHOP_BULLET_SPEED_GAIN = 14.0'f32
+  SHOP_WALL_GAIN = 10
 
 proc initShopItems*(): array[6, ShopItem] =
-  result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: 9, bought: 0)
-  result[1] = ShopItem(name: t(tkShopFireRatePlus), description: t(tkShopFireRatePlusDesc), baseCost: 9, bought: 0)
-  result[2] = ShopItem(name: t(tkShopMoveSpeedPlus), description: t(tkShopMoveSpeedPlusDesc), baseCost: 7, bought: 0)
-  result[3] = ShopItem(name: t(tkShopMaxHealthPlus), description: t(tkShopMaxHealthPlusDesc), baseCost: 10, bought: 0)
-  result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: 6, bought: 0)
-  result[5] = ShopItem(name: t(tkShopWallX4), description: t(tkShopWallX4Desc), baseCost: 14, bought: 0)
+  result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: 13, bought: 0)
+  result[1] = ShopItem(name: t(tkShopFireRatePlus), description: t(tkShopFireRatePlusDesc), baseCost: 13, bought: 0)
+  result[2] = ShopItem(name: t(tkShopMoveSpeedPlus), description: t(tkShopMoveSpeedPlusDesc), baseCost: 10, bought: 0)
+  result[3] = ShopItem(name: t(tkShopMaxHealthPlus), description: t(tkShopMaxHealthPlusDesc), baseCost: 14, bought: 0)
+  result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: 9, bought: 0)
+  result[5] = ShopItem(name: t(tkShopWallX4), description: t(tkShopWallX4Desc), baseCost: 18, bought: 0)
 
 proc getCurrentCost*(item: ShopItem): int =
-  # More aggressive exponential cost scaling: baseCost * 1.5^bought
-  (item.baseCost.float32 * pow(1.45, item.bought.float32)).int
+  result = (item.baseCost.float32 * pow(SHOP_COST_MULTIPLIER.float32, item.bought.float32)).int
+
+proc shopDamageGain*(purchaseNumber: int): float32 =
+  SHOP_DAMAGE_GAIN * pow(SHOP_DAMAGE_SCALE, max(0, purchaseNumber - 1).float32)
+
+proc shopHealthGain*(purchaseNumber: int): int =
+  SHOP_HEALTH_GAIN_BASE + purchaseNumber
+
+proc applyShopPurchaseEffect*(game: Game, index: int, purchaseNumber: int, healHealth: bool = true) =
+  case index
+  of 0:
+    game.player.damage += shopDamageGain(purchaseNumber)
+  of 1:
+    game.player.fireRate = applyFireRateDiminished(game.player.fireRate, SHOP_FIRE_RATE_GAIN, SHOP_FIRE_RATE_EXPONENT, SHOP_FIRE_RATE_CAP)
+  of 2:
+    game.player.speed += SHOP_MOVE_SPEED_GAIN
+    game.player.baseSpeed += SHOP_MOVE_SPEED_GAIN
+  of 3:
+    let healthGain = shopHealthGain(purchaseNumber).float32
+    game.player.maxHp += healthGain
+    if healHealth:
+      game.player.hp += healthGain
+  of 4:
+    game.player.bulletSpeed = addBulletSpeedDiminished(game.player.bulletSpeed, SHOP_BULLET_SPEED_GAIN)
+  of 5:
+    game.player.walls += SHOP_WALL_GAIN
+  else:
+    discard
 
 proc drawModernShopButton(x, y, width, height: int32, text: string,
                          cost: int, canAfford: bool, isSelected: bool,
-                         time: float32, itemIndex: int = 0, bought: int = 0, description: string = "") =
+                         time: float32, itemIndex: int = 0,
+                         description: string = "") =
   ## Draw a modern styled shop item button
-  
   # Button shadow
   if canAfford:
     drawRectangle(x + 3, y + 3, width, height,
@@ -96,13 +132,8 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
   
   drawCurrencyIcon(textX + 7, y + 48, 14, ciCredits,
                    if canAfford: 255'u8 else: 130'u8)
-  drawText(costText, textX + 18, y + 42, 11, costColor)
-  
-  # Purchase count on same line
-  let countText = t(tkShopOwned) & ": " & $bought
-  let costWidth = measureText(costText, 11) + 18
-  drawText(countText, textX + costWidth + 64, y + 42, 10,
-          Color(r: 150, g: 160, b: 170, a: 255))
+  let costTextX = textX + 18
+  drawText(costText, costTextX, y + 42, 11, costColor)
 
 proc drawShop*(game: Game) =
   let screenWidth = game.screenWidth
@@ -265,7 +296,7 @@ proc drawShop*(game: Game) =
     # Draw item button
     drawModernShopButton(shopX, itemY.int32, shopWidth, ITEM_HEIGHT,
                         item.name, cost, canAfford, isSelected,
-                        game.time, i, item.bought)
+                        game.time, i, item.description)
   
   # Bottom panel with controls - reduced height
   let bottomY = windowY + SHOP_HEIGHT - 65
@@ -373,7 +404,10 @@ proc drawShop*(game: Game) =
                     2.5, buyBorderColor)
   
   # Button text
-  let buyText = if canBuy: "[$] " & t(tkShopBuySelected) else: "[!] " & t(tkShopInsufficientCredits)
+  let buyText = if canBuy:
+    "[$] " & t(tkShopBuySelected)
+  else:
+    "[!] " & t(tkShopInsufficientCredits)
   let buyTextWidth = measureText(buyText, 16)
   let buyTextX = buyButtonX + (buyButtonWidth - buyTextWidth) div 2
   
@@ -410,6 +444,7 @@ proc buyShopItem*(game: Game, index: int) =
   if index < 0 or index > 5: return
   
   let item = addr game.shopItems[index]
+
   let cost = getCurrentCost(item[])
   if game.player.coins < cost:
     # Play error sound (using menu nav sound at lower volume)
@@ -424,21 +459,4 @@ proc buyShopItem*(game: Game, index: int) =
   
   # Track shop purchase for statistics
   trackShopPurchase(game, item.name, cost)
-  
-  case index
-  of 0: # Damage - still strong, but no longer the dominant first-buy every run
-    game.player.damage += 0.1 * pow(1.03, item.bought.float32)
-  of 1: # Fire Rate - brought closer to damage-shop efficiency
-    game.player.fireRate = applyFireRateDiminished(game.player.fireRate, 0.045, 0.45, 0.09)
-  of 2: # Move Speed
-    game.player.speed += 9.0
-    game.player.baseSpeed += 9.0
-  of 3: # Max Health - Scales with purchases: 3, 4, 5, 6, 7 HP (capped at +7)
-    let healthGain = min(2 + game.shopItems[3].bought, 7)
-    game.player.maxHp += healthGain.float32
-    game.player.hp += healthGain.float32
-  of 4: # Bullet Speed
-    game.player.bulletSpeed = addBulletSpeedDiminished(game.player.bulletSpeed, 8.0)
-  of 5: # Walls
-    game.player.walls += 4
-  else: discard
+  applyShopPurchaseEffect(game, index, item.bought)

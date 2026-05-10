@@ -426,6 +426,142 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   drawText("NET", (indicatorX + 16).int32, (clockY + 3).int32, 12,
           Color(r: 150, g: 150, b: 150, a: 255))
 
+type
+  WallpaperCubePoint = object
+    x, y, z: float32
+
+  WallpaperCubeFace = object
+    corners: array[4, int]
+    depth: float32
+    color: Color
+
+proc rotateWallpaperCubePoint(point: WallpaperCubePoint,
+                              angleX, angleY, angleZ: float32): WallpaperCubePoint =
+  let sinX = sin(angleX)
+  let cosX = cos(angleX)
+  let sinY = sin(angleY)
+  let cosY = cos(angleY)
+  let sinZ = sin(angleZ)
+  let cosZ = cos(angleZ)
+
+  var x = point.x
+  var y = point.y * cosX - point.z * sinX
+  var z = point.y * sinX + point.z * cosX
+
+  let yRotX = x * cosY + z * sinY
+  z = -x * sinY + z * cosY
+  x = yRotX
+
+  let zRotX = x * cosZ - y * sinZ
+  y = x * sinZ + y * cosZ
+  x = zRotX
+
+  WallpaperCubePoint(x: x, y: y, z: z)
+
+proc projectWallpaperCubePoint(point: WallpaperCubePoint,
+                               centerX, centerY, scale: float32): Vector2 =
+  let cameraDistance = 4.2'f32
+  let depth = max(1.35'f32, cameraDistance - point.z)
+  let perspective = cameraDistance / depth
+  Vector2(
+    x: centerX + point.x * scale * perspective,
+    y: centerY + point.y * scale * perspective
+  )
+
+proc drawWallpaperCubeFace(points: array[8, Vector2], face: WallpaperCubeFace) =
+  let a = points[face.corners[0]]
+  let b = points[face.corners[1]]
+  let c = points[face.corners[2]]
+  let d = points[face.corners[3]]
+  drawTriangle(a, b, c, face.color)
+  drawTriangle(a, c, d, face.color)
+
+proc drawZeroGravityWallpaperCube(centerX, centerY, size, time: float32) =
+  const
+    CubeFaces: array[6, array[4, int]] = [
+      [0, 1, 2, 3],
+      [4, 7, 6, 5],
+      [0, 4, 5, 1],
+      [3, 2, 6, 7],
+      [1, 5, 6, 2],
+      [0, 3, 7, 4]
+    ]
+    CubeEdges: array[12, array[2, int]] = [
+      [0, 1], [1, 2], [2, 3], [3, 0],
+      [4, 5], [5, 6], [6, 7], [7, 4],
+      [0, 4], [1, 5], [2, 6], [3, 7]
+    ]
+
+  let drift = sin(time * 0.28'f32) * size * 0.035'f32
+  let cx = centerX + sin(time * 0.19'f32) * size * 0.025'f32
+  let cy = centerY + drift
+  let angleX = time * 0.18'f32
+  let angleY = time * 0.14'f32 + PI * 0.18'f32
+  let angleZ = time * 0.10'f32 + PI * 0.33'f32
+  let pulse = sin(time * 0.72'f32) * 0.5'f32 + 0.5'f32
+
+  var base: array[8, WallpaperCubePoint]
+  base[0] = WallpaperCubePoint(x: -1.0, y: -1.0, z: -1.0)
+  base[1] = WallpaperCubePoint(x:  1.0, y: -1.0, z: -1.0)
+  base[2] = WallpaperCubePoint(x:  1.0, y:  1.0, z: -1.0)
+  base[3] = WallpaperCubePoint(x: -1.0, y:  1.0, z: -1.0)
+  base[4] = WallpaperCubePoint(x: -1.0, y: -1.0, z:  1.0)
+  base[5] = WallpaperCubePoint(x:  1.0, y: -1.0, z:  1.0)
+  base[6] = WallpaperCubePoint(x:  1.0, y:  1.0, z:  1.0)
+  base[7] = WallpaperCubePoint(x: -1.0, y:  1.0, z:  1.0)
+
+  var rotated: array[8, WallpaperCubePoint]
+  var projected: array[8, Vector2]
+  for i in 0..<8:
+    rotated[i] = rotateWallpaperCubePoint(base[i], angleX, angleY, angleZ)
+    projected[i] = projectWallpaperCubePoint(rotated[i], cx, cy, size)
+
+  drawSoftGlow(cx, cy, size * 2.15'f32,
+               Color(r: 0, g: 210, b: 255, a: uint8(34.0'f32 + pulse * 16.0'f32)), 0.6)
+  drawCircle(Vector2(x: cx, y: cy), size * 1.36'f32,
+             Color(r: 0, g: 180, b: 225, a: 18))
+
+  for i in 0..<5:
+    let orbitAngle = time * (0.18'f32 + i.float32 * 0.018'f32) + i.float32 * PI * 0.42'f32
+    let orbitRadius = size * (1.42'f32 + i.float32 * 0.09'f32)
+    let moteX = cx + cos(orbitAngle) * orbitRadius
+    let moteY = cy + sin(orbitAngle * 0.78'f32) * orbitRadius * 0.28'f32
+    drawCircle(Vector2(x: moteX, y: moteY), 1.3'f32 + i.float32 * 0.12'f32,
+               Color(r: 170, g: 250, b: 255, a: uint8(58 + i * 12)))
+
+  var faces: array[6, WallpaperCubeFace]
+  for i in 0..<6:
+    var avgZ = 0.0'f32
+    for corner in CubeFaces[i]:
+      avgZ += rotated[corner].z
+    avgZ /= 4.0'f32
+
+    let light = clamp((avgZ + 1.65'f32) / 3.3'f32, 0.0'f32, 1.0'f32)
+    faces[i] = WallpaperCubeFace(
+      corners: CubeFaces[i],
+      depth: avgZ,
+      color: Color(
+        r: uint8(18.0'f32 + light * 42.0'f32),
+        g: uint8(116.0'f32 + light * 92.0'f32),
+        b: uint8(168.0'f32 + light * 70.0'f32),
+        a: uint8(84.0'f32 + light * 86.0'f32)
+      )
+    )
+
+  for pass in 0..<faces.len:
+    for i in 0..<(faces.len - 1):
+      if faces[i].depth > faces[i + 1].depth:
+        swap(faces[i], faces[i + 1])
+
+  for face in faces:
+    drawWallpaperCubeFace(projected, face)
+
+  let edgeColor = Color(r: 190, g: 250, b: 255, a: 220)
+  let innerEdgeColor = Color(r: 0, g: 215, b: 255, a: 100)
+  for edge in CubeEdges:
+    drawLine(projected[edge[0]], projected[edge[1]], 4, innerEdgeColor)
+    drawLine(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
+
 proc drawDesktopWallpaper(screenWidth, screenHeight: int, time: float32) =
   drawSharedBackdrop(screenWidth.int32, screenHeight.int32, time * 0.62,
                      Color(r: 5, g: 8, b: 18, a: 255),
@@ -458,6 +594,8 @@ proc drawDesktopWallpaper(screenWidth, screenHeight: int, time: float32) =
     let nodeY = centerY + sin(angle) * ringRadius
     drawCircle(Vector2(x: nodeX, y: nodeY), 3.0 + i.float32 * 0.35,
                Color(r: 165, g: 245, b: 255, a: uint8(120 + i * 18)))
+
+  drawZeroGravityWallpaperCube(centerX, centerY, min(w, h) * 0.042'f32, time)
 
   # Thin scan bands and routing traces.
   for i in 0..<14:

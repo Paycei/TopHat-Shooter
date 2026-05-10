@@ -194,6 +194,13 @@ proc updateDeathSequencePlayback(game: var Game, dt: float32) =
     else:
       inc i
 
+  i = 0
+  while i < game.currencyIndicators.len:
+    if not updateCurrencyIndicator(game.currencyIndicators[i], worldDt):
+      game.currencyIndicators.delete(i)
+    else:
+      inc i
+
   let fadeStart = DEATH_SEQUENCE_SLOW_DURATION + DEATH_SEQUENCE_SPEEDUP_DURATION
   game.deathSequenceFadeAlpha =
     if game.deathSequenceTimer <= fadeStart:
@@ -777,6 +784,13 @@ proc showDamage*(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool,
   ## Centralized helper to create and display damage numbers
   game.damageNumbers.add(newDamageNumber(pos.x, pos.y, damage, fromPlayer, isCritical, damageType))
 
+proc showCurrency*(game: Game, pos: Vector2f, amount: int,
+                   kind: CurrencyIndicatorKind = cikCredits) =
+  ## Centralized helper for floating currency pickup indicators.
+  if amount == 0:
+    return
+  game.currencyIndicators.add(newCurrencyIndicator(pos.x, pos.y, amount, kind))
+
 proc accumulateAndShowAuraDamage(game: Game, enemy: Enemy, actualDamage: float32,
                                   damageType: DamageType, wasCrit: bool = false) =
   ## Accumulates aura damage and displays damage numbers reliably
@@ -1312,6 +1326,7 @@ proc cleanupGame*(game: Game) =
   game.lasers = @[]
   game.meteorites = @[]
   game.damageNumbers = @[]
+  game.currencyIndicators = @[]
   
   # Clear player rotating orbs
   if not game.player.isNil:
@@ -1334,6 +1349,9 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     particlePool: newParticlePool(2000),
     attackWarnings: @[],
     lasers: @[],
+    meteorites: @[],
+    damageNumbers: @[],
+    currencyIndicators: @[],
     time: 0,
     spawnTimer: 0,
     bossTimer: 60.0,
@@ -7122,6 +7140,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if game.player.doubleCoinTimer > 0:
         coinValue *= 2
       game.player.coins += coinValue
+      showCurrency(game, game.coins[i].pos, coinValue, cikCredits)
       
       # Track coin pickup for statistics
       trackCoinPickup(game, coinValue)
@@ -7178,6 +7197,7 @@ proc updateGame*(game: var Game, dt: float32) =
         # Double coin multiplier applies here
         let coinValue = if game.player.doubleCoinTimer > 0: 10 else: 5
         game.player.coins += coinValue
+        showCurrency(game, game.consumables[i].pos, coinValue, cikCredits)
       of ctSpeed:
         activateSpeedBoost(game.player)
       of ctInvincibility:
@@ -7301,6 +7321,13 @@ proc updateGame*(game: var Game, dt: float32) =
   while i < game.damageNumbers.len:
     if not updateDamageNumber(game.damageNumbers[i], dt):
       game.damageNumbers.delete(i)
+      continue
+    i += 1
+
+  i = 0
+  while i < game.currencyIndicators.len:
+    if not updateCurrencyIndicator(game.currencyIndicators[i], dt):
+      game.currencyIndicators.delete(i)
       continue
     i += 1
   
@@ -7522,6 +7549,8 @@ proc drawGame*(game: Game) =
   # Draw damage numbers (on top of everything except UI)
   for damageNum in game.damageNumbers:
     drawDamageNumber(damageNum)
+  for currencyIndicator in game.currencyIndicators:
+    drawCurrencyIndicator(currencyIndicator)
   
   # Update OS-style HUD
   updateOSHUD(game.osHUD, dt)

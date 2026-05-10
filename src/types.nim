@@ -584,6 +584,20 @@ type
     isCritical*: bool       # True for critical hits (larger, different color)
     damageType*: DamageType # Type of damage for color coding
 
+  CurrencyIndicatorKind* = enum
+    cikCredits,
+    cikDataShards,
+    cikOverheatCores,
+    cikSingularityCores
+
+  CurrencyIndicator* = ref object
+    pos*: Vector2f
+    vel*: Vector2f
+    amount*: int
+    lifetime*: float32
+    maxLifetime*: float32
+    kind*: CurrencyIndicatorKind
+
   LightningBolt* = ref object
     ## A short-lived jagged lightning arc drawn between two world positions.
     startPos*: Vector2f
@@ -826,6 +840,7 @@ type
     lasers*: seq[Laser]
     meteorites*: seq[Meteorite]
     damageNumbers*: seq[DamageNumber]
+    currencyIndicators*: seq[CurrencyIndicator]
     time*: float32
     frameCount*: int  # Frame counter for satellite optimizations
     spawnTimer*: float32

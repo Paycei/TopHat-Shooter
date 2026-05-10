@@ -1,4 +1,4 @@
-import raylib, particle_types, types, random, math, strutils, particle_pool, ui/ui_constants
+import raylib, particle_types, types, random, math, strutils, particle_pool, ui/ui_constants, ui/icon_drawing
 
 export Particle, ParticlePool, newParticlePool, updateParticlePool, drawParticlePool
 export ParticleLayer, drawParticlePoolLayer
@@ -22,12 +22,33 @@ proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritic
     damageType: damageType
   )
 
+proc newCurrencyIndicator*(x, y: float32, amount: int,
+                           kind: CurrencyIndicatorKind = cikCredits): CurrencyIndicator =
+  let baseVelocityY = -76.0'f32
+  let horizontalSpread = (rand(1.0) - 0.5) * 72.0
+
+  result = CurrencyIndicator(
+    pos: newVector2f(x, y),
+    vel: newVector2f(horizontalSpread, baseVelocityY),
+    amount: amount,
+    lifetime: 0,
+    maxLifetime: 1.35,
+    kind: kind
+  )
+
 proc updateDamageNumber*(dmgNum: DamageNumber, dt: float32): bool =
   dmgNum.vel.y += 200.0 * dt
   dmgNum.pos = dmgNum.pos + dmgNum.vel * dt
   dmgNum.vel.x = dmgNum.vel.x * pow(0.95, 60.0 * dt)
   dmgNum.lifetime += dt
   return dmgNum.lifetime < dmgNum.maxLifetime
+
+proc updateCurrencyIndicator*(indicator: CurrencyIndicator, dt: float32): bool =
+  indicator.vel.y += 150.0 * dt
+  indicator.pos = indicator.pos + indicator.vel * dt
+  indicator.vel.x = indicator.vel.x * pow(0.92, 60.0 * dt)
+  indicator.lifetime += dt
+  return indicator.lifetime < indicator.maxLifetime
 
 proc drawDamageNumber*(dmgNum: DamageNumber) =
   let progress = dmgNum.lifetime / dmgNum.maxLifetime
@@ -151,3 +172,41 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
   
   # Main text
   drawText($displayText, x, y, scaledFontSize, color)
+
+proc drawCurrencyIndicator*(indicator: CurrencyIndicator) =
+  let progress = indicator.lifetime / indicator.maxLifetime
+  let alpha = (1.0 - progress) * 255.0
+  let popScale = 1.0 + sin((1.0 - progress) * PI) * 0.16
+  let color = case indicator.kind
+    of cikCredits: Color(r: 255, g: 224, b: 84, a: alpha.uint8)
+    of cikDataShards: Color(r: 95, g: 225, b: 255, a: alpha.uint8)
+    of cikOverheatCores: Color(r: 255, g: 130, b: 72, a: alpha.uint8)
+    of cikSingularityCores: Color(r: 190, g: 142, b: 255, a: alpha.uint8)
+  let iconType = case indicator.kind
+    of cikCredits: ciCredits
+    of cikDataShards: ciDataShards
+    of cikOverheatCores: ciOverheatCore
+    of cikSingularityCores: ciSingularityCore
+  let sign = if indicator.amount >= 0: "+" else: "-"
+  let displayText = sign & $abs(indicator.amount)
+  let scaledFontSize = int32(max(12.0, 18.0 * popScale))
+  let iconSize = int32(18.0 * popScale)
+  let textWidth = measureText(displayText, scaledFontSize)
+  let totalWidth = iconSize + 5 + textWidth
+  let x = (indicator.pos.x - totalWidth.float32 / 2.0).int32
+  let y = indicator.pos.y.int32
+
+  let glowColor = Color(r: color.r, g: color.g, b: color.b, a: uint8(alpha * 0.24))
+  for dx in [-2, 0, 2]:
+    for dy in [-2, 0, 2]:
+      if dx != 0 or dy != 0:
+        drawText(displayText, int32(x + iconSize + 5 + dx), int32(y + dy), scaledFontSize, glowColor)
+
+  for dx in [-1, 0, 1]:
+    for dy in [-1, 0, 1]:
+      if dx != 0 or dy != 0:
+        drawText(displayText, int32(x + iconSize + 5 + dx), int32(y + dy), scaledFontSize,
+                 Color(r: 0, g: 0, b: 0, a: uint8(alpha * 0.8)))
+
+  drawCurrencyIcon(x + iconSize div 2, y + scaledFontSize div 2, iconSize, iconType, alpha.uint8)
+  drawText(displayText, x + iconSize + 5, y, scaledFontSize, color)
