@@ -5,9 +5,111 @@ import raylib, math, random, ../types, background_fx
 const
   MAX_DATA_PACKETS = 50
   NUM_CIRCUIT_LINES = 8
+  BOSS_ARENA_RING_COUNT = 3
+  BOSS_ARENA_RING_HALF_WIDTH = 18.0'f32
+  BOSS_ARENA_DAMAGE = 0.35'f32
+  BOSS_ARENA_DAMAGE_INTERVAL = 0.85'f32
 
 proc alphaFrom(value: float32): uint8 =
   uint8(clamp(value, 0.0'f32, 255.0'f32))
+
+proc bossArenaModeForWave(currentWave: int): BossArenaRingMode =
+  if currentWave <= 0:
+    return barmNone
+
+  let bossTier = max(1, currentWave div 5)
+  case bossTier mod 3
+  of 1: barmBoon
+  of 2: barmHazard
+  else: barmRotating
+
+proc arenaBaseRadius(screenWidth, screenHeight: int32): float32 =
+  min(screenWidth.float32, screenHeight.float32) * 0.42
+
+proc arenaRingRadius(screenWidth, screenHeight: int32, band: int): float32 =
+  arenaBaseRadius(screenWidth, screenHeight) * (0.42 + band.float32 * 0.22)
+
+proc angleDistance(a, b: float32): float32 =
+  var diff = abs(a - b) mod (PI * 2.0)
+  if diff > PI:
+    diff = PI * 2.0 - diff
+  diff
+
+proc bandAtPosition(pos: Vector2f, playerRadius: float32, screenWidth, screenHeight: int32): int =
+  let center = newVector2f(screenWidth.float32 * 0.5, screenHeight.float32 * 0.5)
+  let d = distance(pos, center)
+  let halfWidth = BOSS_ARENA_RING_HALF_WIDTH + playerRadius * 0.35
+  result = -1
+
+  for band in 0..<BOSS_ARENA_RING_COUNT:
+    if abs(d - arenaRingRadius(screenWidth, screenHeight, band)) <= halfWidth:
+      return band
+
+proc rotatingBandActive(bg: OSBackgroundState, playerPos: Vector2f,
+                        screenWidth, screenHeight: int32, band: int): bool =
+  if band < 0:
+    return false
+
+  let centerX = screenWidth.float32 * 0.5
+  let centerY = screenHeight.float32 * 0.5
+  let playerAngle = arctan2(playerPos.y - centerY, playerPos.x - centerX)
+  let sweep = bg.bossArenaRotation + band.float32 * 0.72
+  angleDistance(playerAngle, sweep) < 0.42 or angleDistance(playerAngle, sweep + PI) < 0.42
+
+proc activeHazardBand(bg: OSBackgroundState): int =
+  (floor(bg.bossArenaPhase / 2.65).int mod BOSS_ARENA_RING_COUNT)
+
+proc getBossArenaCombatBonus*(bg: OSBackgroundState): tuple[damageMult: float32, fireRateMult: float32] =
+  let activeBonus = bg.bossArenaMode in [barmBoon, barmRotating]
+  if activeBonus and bg.bossArenaBonusIntensity > 0.01:
+    result.damageMult = 1.0 + 0.08 * bg.bossArenaBonusIntensity
+    result.fireRateMult = 1.0 - 0.06 * bg.bossArenaBonusIntensity
+  else:
+    result.damageMult = 1.0
+    result.fireRateMult = 1.0
+
+proc updateBossArenaField*(bg: var OSBackgroundState, dt: float32, playerPos: Vector2f,
+                           playerRadius: float32, screenWidth, screenHeight: int32,
+                           bossActive: bool, currentWave: int): tuple[damageTriggered: bool, damage: float32] =
+  result = (damageTriggered: false, damage: 0.0'f32)
+
+  bg.bossArenaPlayerX = playerPos.x
+  bg.bossArenaPlayerY = playerPos.y
+  bg.bossArenaDamageCooldown = max(0.0'f32, bg.bossArenaDamageCooldown - dt)
+
+  if not bossActive:
+    bg.bossArenaMode = barmNone
+    bg.bossArenaPlayerBand = -1
+    bg.bossArenaPlayerOnActive = false
+    bg.bossArenaBonusIntensity = max(0.0'f32, bg.bossArenaBonusIntensity - dt * 4.0)
+    return
+
+  bg.bossArenaMode = bossArenaModeForWave(currentWave)
+  bg.bossArenaPhase += dt
+  bg.bossArenaRotation += dt * (0.62 + (currentWave mod 7).float32 * 0.035)
+
+  let band = bandAtPosition(playerPos, playerRadius, screenWidth, screenHeight)
+  bg.bossArenaPlayerBand = band
+
+  case bg.bossArenaMode
+  of barmBoon:
+    bg.bossArenaPlayerOnActive = band in [1, 2]
+  of barmHazard:
+    bg.bossArenaPlayerOnActive = band == activeHazardBand(bg)
+    if bg.bossArenaPlayerOnActive and bg.bossArenaDamageCooldown <= 0:
+      bg.bossArenaDamageCooldown = BOSS_ARENA_DAMAGE_INTERVAL
+      result = (damageTriggered: true, damage: BOSS_ARENA_DAMAGE)
+  of barmRotating:
+    bg.bossArenaPlayerOnActive = rotatingBandActive(bg, playerPos, screenWidth, screenHeight, band)
+  of barmNone:
+    bg.bossArenaPlayerOnActive = false
+
+  let targetBonus =
+    if bg.bossArenaMode in [barmBoon, barmRotating] and bg.bossArenaPlayerOnActive: 1.0'f32 else: 0.0'f32
+  if bg.bossArenaBonusIntensity < targetBonus:
+    bg.bossArenaBonusIntensity = min(targetBonus, bg.bossArenaBonusIntensity + dt * 3.8)
+  else:
+    bg.bossArenaBonusIntensity = max(targetBonus, bg.bossArenaBonusIntensity - dt * 4.8)
 
 proc drawArenaEdgeVignette(screenWidth, screenHeight: int32, intensity: float32) =
   let vigW = max(96'i32, min(screenWidth, screenHeight) div 6)
@@ -83,13 +185,76 @@ proc drawCombatGrid(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
                Vector2(x: x - 12.0, y: y + 12.0), 2,
                Color(r: 255, g: 62, b: 55, a: hazardAlpha))
 
+proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
+  if bg.bossArenaMode == barmNone:
+    return
+
+  let center = Vector2(x: screenWidth.float32 * 0.5, y: screenHeight.float32 * 0.5)
+  let pulse = sin(bg.bossArenaPhase * 4.2) * 0.5 + 0.5
+  let hazardBand = activeHazardBand(bg)
+
+  for band in 0..<BOSS_ARENA_RING_COUNT:
+    let radius = arenaRingRadius(screenWidth, screenHeight, band)
+    var color = Color(r: 80, g: 210, b: 255, a: 55)
+    var thickness = 1
+
+    case bg.bossArenaMode
+    of barmBoon:
+      if band in [1, 2]:
+        color = Color(r: 90, g: 255, b: 190, a: alphaFrom(102.0 + pulse * 70.0))
+        thickness = if bg.bossArenaPlayerBand == band and bg.bossArenaPlayerOnActive: 4 else: 3
+      else:
+        color = Color(r: 70, g: 145, b: 190, a: 42)
+    of barmHazard:
+      if band == hazardBand:
+        color = Color(r: 255, g: 58, b: 48, a: alphaFrom(130.0 + pulse * 84.0))
+        thickness = if bg.bossArenaPlayerBand == band and bg.bossArenaPlayerOnActive: 5 else: 4
+      else:
+        color = Color(r: 145, g: 55, b: 62, a: 44)
+    of barmRotating:
+      color = Color(r: 82, g: 180, b: 255, a: 44)
+      let sweep = bg.bossArenaRotation + band.float32 * 0.72
+      for sector in 0..1:
+        let angle = sweep + sector.float32 * PI
+        let startDeg = (angle - 0.42) * 180.0 / PI
+        let endDeg = (angle + 0.42) * 180.0 / PI
+        let sectorColor =
+          if bg.bossArenaPlayerBand == band and bg.bossArenaPlayerOnActive:
+            Color(r: 150, g: 255, b: 230, a: alphaFrom(145.0 + pulse * 80.0))
+          else:
+            Color(r: 100, g: 220, b: 255, a: alphaFrom(95.0 + pulse * 42.0))
+        drawRing(center, radius - 4.0, radius + 4.0, startDeg, endDeg, 36, sectorColor)
+    of barmNone:
+      discard
+
+    for offset in 0..<thickness:
+      drawCircleLines(center.x.int32, center.y.int32, radius + offset.float32,
+                      withAlpha(color, uint8(max(18, color.a.int - offset * 26))))
+
+  if bg.bossArenaPlayerOnActive:
+    let markerColor =
+      case bg.bossArenaMode
+      of barmHazard: Color(r: 255, g: 70, b: 54, a: alphaFrom(70.0 + pulse * 50.0))
+      of barmBoon, barmRotating: Color(r: 95, g: 255, b: 205, a: alphaFrom(62.0 + bg.bossArenaBonusIntensity * 78.0))
+      of barmNone: Color(r: 0, g: 0, b: 0, a: 0)
+    drawSoftGlow(bg.bossArenaPlayerX, bg.bossArenaPlayerY, 42.0, markerColor, 0.42)
+
 proc newOSBackground*(): OSBackgroundState =
   result = OSBackgroundState(
     dataPackets: @[],
     circuitLines: @[],
     gridPulseTime: 0.0,
     alertLevel: 0.0,
-    lowHealthVignetteLevel: 0.0
+    lowHealthVignetteLevel: 0.0,
+    bossArenaMode: barmNone,
+    bossArenaPhase: 0.0,
+    bossArenaRotation: 0.0,
+    bossArenaDamageCooldown: 0.0,
+    bossArenaPlayerBand: -1,
+    bossArenaPlayerOnActive: false,
+    bossArenaBonusIntensity: 0.0,
+    bossArenaPlayerX: 0.0,
+    bossArenaPlayerY: 0.0
   )
   
   # Initialize circuit lines
@@ -187,6 +352,7 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
                      gridColor, dotColor, accentColor,
                      0.62, 0.62)
   drawCombatGrid(bg, screenWidth, screenHeight)
+  drawGameplayRingOverlay(bg, screenWidth, screenHeight)
   
   # Alert overlay (red tint when in danger)
   if bg.alertLevel > 0:

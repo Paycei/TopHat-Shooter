@@ -187,19 +187,7 @@ proc applyWaveCheat*(game: var Game, action: string) =
     discard
 
 proc applyPermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType, level: int) =
-  # Check if player already has this power-up
-  var found = false
-  for i in 0..<game.player.powerUps.len:
-    if game.player.powerUps[i].powerType == powerUpType:
-      game.player.powerUps[i].level = level
-      found = true
-      break
-  
-  if not found:
-    # Add new power-up
-    game.player.powerUps.add(PowerUp(powerType: powerUpType, level: level, rarity: prCommon))
-  
-  # Apply the power-up effect (using the existing applyPowerUp from powerup.nim)
+  # ApplyPowerUp owns both the stat change and the owned-power-up list update.
   applyPowerUp(game.player, PowerUp(powerType: powerUpType, level: level, rarity: prCommon))
   playSound(stPowerUp)
 

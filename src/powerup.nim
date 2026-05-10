@@ -323,7 +323,16 @@ proc getElementDamage*(level: int): float32 =
   of 2: 5.5
   else: 8.0
 
+proc getHeavyRoundsSizeMultiplier*(level: int): float32 =
+  case level
+  of 0: 1.0
+  of 1: 1.5
+  of 2: 2.0
+  else: 2.5
+
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
+  let previousHeavyRoundsLevel = getPowerUpLevel(player, puHeavyRounds)
+
   # Apply immediate stat bonuses for new powerup types
   case powerUp.powerType
   of puRapidFire:
@@ -415,10 +424,12 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Cooldown timer initialized to 0 (ready to use)
     player.pulseArmorCooldown = 0.0
   of puHeavyRounds:
-    let sizeBonus = case powerUp.level
-      of 1: 1.5   # +50% size
-      of 2: 2.0   # +100% size
-      else: 2.5   # +150% size
+    let sizeBonus =
+      if previousHeavyRoundsLevel > 0:
+        getHeavyRoundsSizeMultiplier(powerUp.level) /
+          getHeavyRoundsSizeMultiplier(previousHeavyRoundsLevel)
+      else:
+        getHeavyRoundsSizeMultiplier(powerUp.level)
     player.baseRadius *= sizeBonus
   of puFortified:
     # Fortified reduces damage taken + increases max HP
@@ -491,12 +502,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           else: 1.0
         player.bulletDamageMult *= damageBonus
       of puHeavyRounds:
-        # When upgrading Heavy Rounds, increase base size further
-        let sizeBonus = case powerUp.level
-          of 2: 1.333  # 2.0 / 1.5
-          of 3: 1.25   # 2.5 / 2.0
-          else: 1.0
-        player.baseRadius *= sizeBonus
+        discard
       of puResonance:
         # Update resonance level on upgrade
         player.resonanceLevel = powerUp.level

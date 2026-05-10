@@ -319,12 +319,11 @@ type
     pulseSpeed: float32
     visualStyle: AuraVisualStyle
 
+proc getAuraRadius*(level: int): float32
+
 # Aura configurations for each power-up type
 proc getAuraConfig(auraType: PowerUpType, level: int): AuraConfig =
-  let radius = case level
-    of 1: 150.0
-    of 2: 200.0
-    else: 250.0
+  let radius = getAuraRadius(level)
   
   case auraType
   of puFireAura:
@@ -744,6 +743,11 @@ proc calculateCombatStats*(player: Player): CombatStats =
       else: 50  # 50% chance
     result.critMultiplier = 2.0
 
+proc applyBossArenaCombatBonus(game: Game, stats: var CombatStats) =
+  let bonus = getBossArenaCombatBonus(game.osBackground)
+  stats.damage *= bonus.damageMult
+  stats.fireRate *= bonus.fireRateMult
+
 proc applyCriticalHitFromStats*(stats: CombatStats, baseDamage: float32): float32 =
   ## Applies critical hit using pre-calculated stats
   ## Returns damage with critical multiplier if crit occurs
@@ -1003,9 +1007,9 @@ proc drawLightningBolts*(game: Game) =
 proc getAuraRadius*(level: int): float32 =
   ## Standard aura radius based on level (used by most aura effects)
   case level
-  of 1: 150.0
-  of 2: 200.0
-  else: 250.0
+  of 1: 187.5
+  of 2: 250.0
+  else: 312.5
 
 proc getExplosionRadius*(level: int): float32 =
   ## Standard explosion radius for explosive bullets
@@ -1266,14 +1270,14 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
   of befBlood:
     # Blood: Lifesteal
     var healPercent = case effect.level
-      of 1: 0.015  # 1.5%
-      of 2: 0.02  # 2.0%
-      else: 0.0275  # 2.75%
+      of 1: 0.0075  # 0.75%
+      of 2: 0.01    # 1.0%
+      else: 0.01375 # 1.375%
     
     if effect.hasMastery:
       healPercent *= 2.0  # +100% lifesteal
     
-    let healAmount = effect.baseDamage * healPercent
+    let healAmount = 0.01 + effect.baseDamage * healPercent
     heal(game.player, healAmount)
     
     if healAmount > 0.01:
@@ -1667,7 +1671,8 @@ proc advanceWave*(game: Game) =
 
 proc shootBullet*(game: Game, direction: Vector2f) =
   # Calculate all combat stats once at the start
-  let stats = calculateCombatStats(game.player)
+  var stats = calculateCombatStats(game.player)
+  applyBossArenaCombatBonus(game, stats)
   
   if game.time - game.player.lastShot >= stats.fireRate:
     # Increment bullet counter for special rounds power-up
@@ -1706,11 +1711,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Apply heavy rounds power-up
     if hasPowerUp(game.player, puHeavyRounds):
       let heavyLevel = getPowerUpLevel(game.player, puHeavyRounds)
-      let heavyMultiplier = case heavyLevel
-        of 1: 1.5   # +50% size
-        of 2: 2.0   # +100% size
-        else: 2.5   # +150% size
-      bulletRadius *= heavyMultiplier
+      bulletRadius *= getHeavyRoundsSizeMultiplier(heavyLevel)
     
     # Apply critical hit chance using pre-calculated stats and capture if it was a crit
     let baseDamagePreCrit = damage  # Store pre-crit value for puCriticalHit tracking
@@ -1804,7 +1805,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           damage = damage,
           fromPlayer = true,
           isHoming = hasHoming,
-          isPiercing = hasPiercing,
+          isPiercing = arcanePiercing,
           isExplosive = hasExplosive,
           hasBounce = hasRicochet,
           canSplit = hasSplit,
@@ -1881,7 +1882,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           damage = damage,
           fromPlayer = true,
           isHoming = hasHoming,
-          isPiercing = hasPiercing,
+          isPiercing = arcanePiercing,
           isExplosive = hasExplosive,
           hasBounce = hasRicochet,
           canSplit = hasSplit,
@@ -1948,7 +1949,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
 # Helper to fire delayed double-shot bursts
 proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   # Calculate combat stats once for the burst
-  let burstStats = calculateCombatStats(game.player)
+  var burstStats = calculateCombatStats(game.player)
+  applyBossArenaCombatBonus(game, burstStats)
   
   let hasHoming = hasPowerUp(game.player, puMagicalBullets)
   let hasPiercing = hasPowerUp(game.player, puPiercingShots)
@@ -1982,11 +1984,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   
   if hasPowerUp(game.player, puHeavyRounds):
     let sizeLevel = getPowerUpLevel(game.player, puHeavyRounds)
-    let sizeMultiplier = case sizeLevel
-      of 1: 1.5
-      of 2: 2.0
-      else: 2.5
-    bulletRadius *= sizeMultiplier
+    bulletRadius *= getHeavyRoundsSizeMultiplier(sizeLevel)
   
   var slowEffect = 0.0
   var poisonEffect = 0.0
@@ -2071,7 +2069,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       damage = damage,
       fromPlayer = true,
       isHoming = hasHoming,
-      isPiercing = hasPiercing,
+      isPiercing = arcanePiercing,
       isExplosive = hasExplosive,
       hasBounce = hasRicochet,
       canSplit = hasSplit,
@@ -4421,6 +4419,44 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
     for idx in toRemove:
       orb.lastHitTime.del(idx)
 
+proc currentBossArenaWave(game: Game): int =
+  for enemy in game.enemies:
+    if enemy.isBoss:
+      return max(5, enemy.bossDefinitionID * 5)
+
+  if game.bossWaveManager.isBossActive():
+    return max(5, ((game.currentWave - 1) div 5 + 1) * 5)
+
+  game.currentWave
+
+proc updateBossArenaGameplay(game: var Game, dt: float32) =
+  let arenaEvent = updateBossArenaField(
+    game.osBackground,
+    dt,
+    game.player.pos,
+    game.player.radius,
+    game.screenWidth,
+    game.screenHeight,
+    game.bossWaveManager.isBossActive(),
+    currentBossArenaWave(game)
+  )
+
+  if arenaEvent.damageTriggered and game.state == gsPlaying:
+    let hpBefore = game.player.hp
+    let playerDied = takeDamage(game.player, arenaEvent.damage)
+    let actualDamage = max(0.0'f32, hpBefore - game.player.hp)
+
+    if actualDamage > 0.001:
+      trackPlayerDamage(game, actualDamage, etCircle)
+      game.showDamage(game.player.pos, actualDamage, fromPlayer = false,
+                      isCritical = false, damageType = dtArcane)
+      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                           Color(r: 255, g: 65, b: 55, a: 220), 8)
+      playSound(stPlayerHit, 0.38)
+
+    if playerDied:
+      beginPlayerDeathSequence(game)
+
 # MAIN GAME UPDATE LOOP
 proc updateGame*(game: var Game, dt: float32) =
   if game.state == gsDeathSequence:
@@ -4747,6 +4783,7 @@ proc updateGame*(game: var Game, dt: float32) =
   
   # Update player (with wall collision)
   updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
+  updateBossArenaGameplay(game, dt)
 
   # Nova freeze expiry: when novaActive becomes false (set by player.nim), release bullets
   if not game.player.novaActive:
@@ -4766,7 +4803,8 @@ proc updateGame*(game: var Game, dt: float32) =
         else: (14, 2.0)
       
       # Calculate combat stats for radial burst bullets
-      let stats = calculateCombatStats(game.player)
+      var stats = calculateCombatStats(game.player)
+      applyBossArenaCombatBonus(game, stats)
       
       # Fire circle of bullets
       for i in 0..<bulletCount:
@@ -5118,10 +5156,7 @@ proc updateGame*(game: var Game, dt: float32) =
       of 1: 0.025  # 2.5% lifesteal
       of 2: 0.05   # 5% lifesteal
       else: 0.075  # 7.5% lifesteal
-    let bloodRadius = case level
-      of 1: 120.0
-      of 2: 160.0
-      else: 200.0
+    let bloodRadius = getAuraRadius(level)
     
     # Apply Blood Mastery bonuses if owned
     var actualLifestealPercent: float64 = lifestealPercent
@@ -5435,29 +5470,43 @@ proc updateGame*(game: var Game, dt: float32) =
     
     # Update poison damage over time
     # Update all active effects for this enemy
+    var poisonTickDamage = 0.0'f32
+    var fireTickDamage = 0.0'f32
+    if hasActiveEffect(enemy, etPoison):
+      poisonTickDamage = enemy.activeEffects[etPoison].primary.damagePerSec * effectiveDt
+    if hasActiveEffect(enemy, etFire):
+      fireTickDamage = enemy.activeEffects[etFire].primary.damagePerSec * effectiveDt
+
     let effectDamage = updateEffects(enemy, effectiveDt)
     if effectDamage > 0:
       let actualDamage = damageEnemy(enemy, effectDamage)
+      let trackedTickDamage = poisonTickDamage + fireTickDamage
       
       # Track DoT damage for power-up statistics based on active effect sources
-      if hasActiveEffect(enemy, etPoison):
+      if poisonTickDamage > 0:
         # Check source to determine which power-up to attribute
         let poisonEffect = enemy.activeEffects[etPoison]
+        let poisonActualDamage =
+          if trackedTickDamage > 0: actualDamage * (poisonTickDamage / trackedTickDamage)
+          else: actualDamage
         if poisonEffect.primary.source == "aura":
-          trackPowerUpDamage(game, puPoisonAura, actualDamage)
+          trackPowerUpDamage(game, puPoisonAura, poisonActualDamage)
         elif poisonEffect.primary.source == "shot" or poisonEffect.primary.source == "bullet":
-          trackPowerUpDamage(game, puPoisonShot, actualDamage)
+          trackPowerUpDamage(game, puPoisonShot, poisonActualDamage)
         elif poisonEffect.primary.source == "orb":
-          trackPowerUpDamage(game, puPoisonOrb, actualDamage)
-      elif hasActiveEffect(enemy, etFire):
+          trackPowerUpDamage(game, puPoisonOrb, poisonActualDamage)
+      if fireTickDamage > 0:
         # Check source to determine which power-up to attribute
         let fireEffect = enemy.activeEffects[etFire]
+        let fireActualDamage =
+          if trackedTickDamage > 0: actualDamage * (fireTickDamage / trackedTickDamage)
+          else: actualDamage
         if fireEffect.primary.source == "aura":
-          trackPowerUpDamage(game, puFireAura, actualDamage)
+          trackPowerUpDamage(game, puFireAura, fireActualDamage)
         elif fireEffect.primary.source == "shot" or fireEffect.primary.source == "bullet":
-          trackPowerUpDamage(game, puFireBullets, actualDamage)
+          trackPowerUpDamage(game, puFireBullets, fireActualDamage)
         elif fireEffect.primary.source == "orb":
-          trackPowerUpDamage(game, puFireOrb, actualDamage)
+          trackPowerUpDamage(game, puFireOrb, fireActualDamage)
       
       # Use accumulation system for reliable DOT damage numbers
       # Determine damage type based on active effects
@@ -6623,10 +6672,8 @@ proc updateGame*(game: var Game, dt: float32) =
             
             # Track Special Rounds contribution (bonus damage from every Nth bullet)
             if bullet.isSpecialRound:
-              # Special rounds deal 1.5x damage, so the bonus is 0.5x of final damage
-              # Calculate: baseDamage * 1.5 = actualDamage, so baseDamage = actualDamage / 1.5
-              # Bonus = actualDamage - baseDamage = actualDamage - (actualDamage / 1.5) = actualDamage * (1 - 1/1.5) = actualDamage * 0.333
-              let specialRoundsBonusDamage = actualDamage * 0.333
+              # Special rounds deal +75%, so the bonus share is 0.75 / 1.75 of the final damage.
+              let specialRoundsBonusDamage = actualDamage * (0.75 / 1.75)
               trackPowerUpDamage(game, puSpecialRounds, specialRoundsBonusDamage)
             
             # Track Wall Turrets contribution (all damage from turret-fired bullets)
@@ -6781,19 +6828,9 @@ proc updateGame*(game: var Game, dt: float32) =
               spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Yellow, 20)
               spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, explosionRadius)
           
-          # Piercing bullets can hit multiple enemies
-          if bullet.isPiercing:
-            let level = getPowerUpLevel(game.player, puPiercingShots)
-            bullet.piercedEnemies += 1
-            bullet.damage *= 0.67  # Reduce damage by 33% per pierce
-            # Level 1 = pierce 1 (hit 2 total), Level 2 = pierce 2 (hit 3 total), etc.
-            if bullet.piercedEnemies > level:
-              hitEnemy = true  # Delete bullet after hitting level+1 enemies
-            else:
-              hitEnemy = false  # Don't delete bullet yet, continue piercing
-          
-          # Bullet ricochet off enemies - SYNERGY: Works with split and can trigger split on each hit
-          if bullet.bounceCount >= 0 and not bullet.isPiercing:
+          # Bullet ricochet off enemies - SYNERGY: Works with piercing, split, and can trigger split on each hit
+          var didRicochet = false
+          if bullet.bounceCount >= 0:
             let ricochetLevel = getPowerUpLevel(game.player, puBulletRicochet)
             let maxRicochets = ricochetLevel  # 1, 2, or 3 ricochets
             
@@ -6826,10 +6863,21 @@ proc updateGame*(game: var Game, dt: float32) =
                   bullet.hasSplit = false
                 
                 hitEnemy = false  # Don't delete bullet
+                didRicochet = true
                 spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Yellow, 8)
+          
+          # Piercing happens after available ricochets are spent or no ricochet target exists.
+          if not didRicochet:
+            if bullet.isPiercing:
+              let level = getPowerUpLevel(game.player, puPiercingShots)
+              bullet.piercedEnemies += 1
+              bullet.damage *= 0.67  # Reduce damage by 33% per pierce
+              # Level 1 = pierce 1 (hit 2 total), Level 2 = pierce 2 (hit 3 total), etc.
+              if bullet.piercedEnemies > level:
+                hitEnemy = true  # Delete bullet after hitting level+1 enemies
               else:
-                hitEnemy = true
-            else:
+                hitEnemy = false  # Don't delete bullet yet, continue piercing
+            elif bullet.bounceCount >= 0:
               hitEnemy = true
           
           if hitEnemy:

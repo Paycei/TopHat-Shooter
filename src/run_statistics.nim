@@ -626,8 +626,7 @@ proc trackBulletFired*(game: Game) =
   recordShotFired()
 
 proc trackBulletHit*(game: Game, bullet: Bullet, enemy: Enemy, damage: float32) =
-  let isCrit = damage > bullet.damage * 1.5
-  recordShotHit(damage, enemy.enemyType, isCrit)
+  recordShotHit(damage, enemy.enemyType, bullet.wasCrit)
   
   if bullet.isPiercing: recordSpecialMechanic("piercing")
   if bullet.isExplosive: recordSpecialMechanic("explosive")

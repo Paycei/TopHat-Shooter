@@ -637,6 +637,12 @@ type
     alpha*: float32
     color*: Color
 
+  BossArenaRingMode* = enum
+    barmNone,
+    barmBoon,
+    barmHazard,
+    barmRotating
+
   OSBackgroundState* = object
     dataPackets*: seq[DataPacket]
     circuitLines*: seq[CircuitLine]
@@ -644,6 +650,15 @@ type
     alertLevel*: float32  # 0.0 = normal, 1.0 = critical
     lowHealthVignetteLevel*: float32  # 0.0 = hidden, 1.0 = strongest low-health warning
     wavePulseRings*: seq[WavePulseRing]  # Expanding rings on wave events
+    bossArenaMode*: BossArenaRingMode
+    bossArenaPhase*: float32
+    bossArenaRotation*: float32
+    bossArenaDamageCooldown*: float32
+    bossArenaPlayerBand*: int
+    bossArenaPlayerOnActive*: bool
+    bossArenaBonusIntensity*: float32
+    bossArenaPlayerX*: float32
+    bossArenaPlayerY*: float32
 
   NotificationType* = enum
     ntInfo,     # [INFO] messages
