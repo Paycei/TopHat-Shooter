@@ -1,10 +1,8 @@
-nimcache/
 nimblecache/
 htmldocs/
+nimcache*
 *.exe
 nimble.develop
 nimble.paths
 nimbledeps
-
-# Discord configuration (contains sensitive App ID)
 src/discord_config.nim

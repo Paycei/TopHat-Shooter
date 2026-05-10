@@ -64,6 +64,9 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
 proc addOutput*(help: HelpWindow, text: string, color: Color = White) =
   help.outputLines.add((text, color))
 
+proc iconStatusText(actionKey, iconKey: TranslationKey): string =
+  t(actionKey).replace("$1", t(iconKey))
+
 proc executeCommand*(help: HelpWindow, cmd: string) =
   help.commandHistory.add(cmd)
   
@@ -322,35 +325,35 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     
     # Desktop icon execution commands
     of "play", "play.exe":
-      help.addOutput("Launching Play.exe...", Color(r: 100, g: 200, b: 255, a: 255))
+      help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconPlay), Color(r: 100, g: 200, b: 255, a: 255))
       help.pendingIconExecution = 0
     
     of "survival", "survival.exe":
-      help.addOutput("Launching Survival.exe...", Color(r: 255, g: 150, b: 100, a: 255))
+      help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconSurvival), Color(r: 255, g: 150, b: 100, a: 255))
       help.pendingIconExecution = 1
     
     of "stats", "stats.exe", "statistics":
-      help.addOutput("Opening Stats.exe...", Color(r: 255, g: 200, b: 50, a: 255))
+      help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconStats), Color(r: 255, g: 200, b: 50, a: 255))
       help.pendingIconExecution = 2
     
     of "settings", "settings.exe":
-      help.addOutput(t(tkHelpOpeningSettings), Color(r: 200, g: 100, b: 255, a: 255))
+      help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconSettings), Color(r: 200, g: 100, b: 255, a: 255))
       help.pendingIconExecution = 3
     
     of "shop.exe", "customization", "customize", "skins":
-      help.addOutput("Opening Customization Shop...", Color(r: 255, g: 150, b: 50, a: 255))
+      help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconShop), Color(r: 255, g: 150, b: 50, a: 255))
       help.pendingIconExecution = 4
 
     of "advancements", "advncmnts.exe", "advancement":
-      help.addOutput("Opening Advncmnts.exe...", Color(r: 90, g: 220, b: 255, a: 255))
+      help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconAdvancements), Color(r: 90, g: 220, b: 255, a: 255))
       help.pendingIconExecution = 10
     
     of "sandbox", "sandbox.exe":
-      help.addOutput(t(tkHelpLaunchingSandbox), Color(r: 255, g: 165, b: 0, a: 255))
+      help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconSandbox), Color(r: 255, g: 165, b: 0, a: 255))
       help.pendingIconExecution = 7  # diSandbox = 7
     
     of "quit", "shutdown", "shutdown.exe", "exit":
-      help.addOutput(t(tkHelpShuttingDown), Color(r: 255, g: 100, b: 100, a: 255))
+      help.addOutput(iconStatusText(tkHelpExecutingIcon, tkDesktopIconQuit), Color(r: 255, g: 100, b: 100, a: 255))
       help.pendingIconExecution = 6  # diQuit = 6
     
     else:

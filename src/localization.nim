@@ -15,6 +15,19 @@ type
     tkMenuSettings = "menu_settings"
     tkMenuQuit = "menu_quit"
     tkMenuSandbox = "menu_sandbox"
+
+    # Desktop icons
+    tkDesktopIconPlay = "desktop_icon_play"
+    tkDesktopIconSurvival = "desktop_icon_survival"
+    tkDesktopIconStats = "desktop_icon_stats"
+    tkDesktopIconSettings = "desktop_icon_settings"
+    tkDesktopIconHelp = "desktop_icon_help"
+    tkDesktopIconQuit = "desktop_icon_quit"
+    tkDesktopIconSandbox = "desktop_icon_sandbox"
+    tkDesktopIconShop = "desktop_icon_shop"
+    tkDesktopIconPvP = "desktop_icon_pvp"
+    tkDesktopIconRoguelite = "desktop_icon_roguelite"
+    tkDesktopIconAdvancements = "desktop_icon_advancements"
     
     # Settings
     tkSettingsTitle = "settings_title"
@@ -366,9 +379,9 @@ type
     tkHelpClearCommand = "help_clear_command"
     tkHelpCommandSeparator = "help_command_separator"
     tkHelpLaunchTopics = "help_launch_topics"
-    tkHelpOpeningSettings = "help_opening_settings"
-    tkHelpLaunchingSandbox = "help_launching_sandbox"
-    tkHelpShuttingDown = "help_shutting_down"
+    tkHelpLaunchingIcon = "help_launching_icon"
+    tkHelpOpeningIcon = "help_opening_icon"
+    tkHelpExecutingIcon = "help_executing_icon"
     tkHelpUnknownCommand = "help_unknown_command"
     tkHelpTypeHelp = "help_type_help"
     tkHelpErrorExecuting = "help_error_executing"
@@ -1210,6 +1223,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "menu_settings": "settings",
     "menu_quit": "exit",
     "menu_sandbox": "sandbox",
+
+    # Desktop icons
+    "desktop_icon_play": "WAVE0.exe",
+    "desktop_icon_survival": "LASTSIG.exe",
+    "desktop_icon_stats": "LOGS.dat",
+    "desktop_icon_settings": "CFGNODE.sys",
+    "desktop_icon_help": "MANUAL.exe",
+    "desktop_icon_quit": "POWEROFF.exe",
+    "desktop_icon_sandbox": "NULLLAB.exe",
+    "desktop_icon_shop": "CHROMA.db",
+    "desktop_icon_pvp": "DUELINK.exe",
+    "desktop_icon_roguelite": "ROOTMAP.db",
+    "desktop_icon_advancements": "ASCEND.db",
     
     # Settings
     "settings_title": "SETTINGS",
@@ -2011,9 +2037,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_clear_command": "Clear the screen",
     "help_command_separator": "--------------------------------------",
     "help_launch_topics": "play/survival/sandbox/stats/settings/quit",
-    "help_opening_settings": "Opening Settings.exe...",
-    "help_launching_sandbox": "Launching Sandbox.exe...",
-    "help_shutting_down": "Shutting down...",
+    "help_launching_icon": "Launching $1...",
+    "help_opening_icon": "Opening $1...",
+    "help_executing_icon": "Executing $1...",
     "help_unknown_command": "Unknown command:",
     "help_type_help": "Type 'help' for available commands",
     "help_error_executing": "Error executing command:",
@@ -2589,6 +2615,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "menu_settings": "config",
     "menu_quit": "salir",
     "menu_sandbox": "sandbox",
+
+    # Desktop icons
+    "desktop_icon_play": "WAVE0.exe",
+    "desktop_icon_survival": "LASTSIG.exe",
+    "desktop_icon_stats": "REGS.dat",
+    "desktop_icon_settings": "NODOCFG.sys",
+    "desktop_icon_help": "MANUAL.exe",
+    "desktop_icon_quit": "APAGAR.exe",
+    "desktop_icon_sandbox": "LABNULL.exe",
+    "desktop_icon_shop": "CROMAS.db",
+    "desktop_icon_pvp": "DUELOS.exe",
+    "desktop_icon_roguelite": "RUTAMAP.db",
+    "desktop_icon_advancements": "ASCEND.db",
     
     # Settings
     "settings_title": "CONFIG",
@@ -3235,9 +3274,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_clear_command": "Limpiar la pantalla",
     "help_command_separator": "--------------------------------------",
     "help_launch_topics": "jugar/supervivencia/sandbox/estadísticas/ajustes/salir",
-    "help_opening_settings": "Abriendo Settings.exe...",
-    "help_launching_sandbox": "Lanzando Sandbox.exe...",
-    "help_shutting_down": "Apagando...",
+    "help_launching_icon": "Lanzando $1...",
+    "help_opening_icon": "Abriendo $1...",
+    "help_executing_icon": "Ejecutando $1...",
     "help_unknown_command": "Comando desconocido:",
     "help_type_help": "Escriba 'help' para ver comandos disponibles",
     "help_error_executing": "Error ejecutando comando:",

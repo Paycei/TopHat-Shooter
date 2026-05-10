@@ -56,17 +56,17 @@ const
 proc getIconName(iconType: DesktopIconType): string =
   ## Get the localized name for a desktop icon
   case iconType
-  of diPlay: t(tkMenuPlay) & ".exe"
-  of diSurvival: t(tkMenuSurvival) & ".exe"
-  of diStatistics: t(tkMenuStats) & ".exe"
-  of diSettings: t(tkMenuSettings) & ".exe"
-  of diHelp: t(tkMenuHelp) & ".txt"
-  of diQuit: t(tkMenuQuit) & ".exe"
-  of diSandbox: t(tkMenuSandbox) & ".exe"
-  of diShop: "Shop.exe"
-  of diPvP: "PvP.exe"
-  of diRoguelite: "Roguelite.exe"
-  of diAdvancements: "Advncmnts.exe"
+  of diPlay: t(tkDesktopIconPlay)
+  of diSurvival: t(tkDesktopIconSurvival)
+  of diStatistics: t(tkDesktopIconStats)
+  of diSettings: t(tkDesktopIconSettings)
+  of diHelp: t(tkDesktopIconHelp)
+  of diQuit: t(tkDesktopIconQuit)
+  of diSandbox: t(tkDesktopIconSandbox)
+  of diShop: t(tkDesktopIconShop)
+  of diPvP: t(tkDesktopIconPvP)
+  of diRoguelite: t(tkDesktopIconRoguelite)
+  of diAdvancements: t(tkDesktopIconAdvancements)
 
 proc bestDesktopLabelFontSize(text: string, maxWidth, preferredSize: int32,
                               minSize: int32 = ICON_LABEL_MIN_SIZE): int32 =
@@ -148,218 +148,202 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32) =
     desktop.icons[i].name = getIconName(desktop.icons[i].iconType)
     desktop.icons[i].selected = (i == desktop.selectedIcon)
 
-proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
+proc brightened(color: Color, delta: int): Color =
+  Color(
+    r: uint8(clamp(color.r.int + delta, 0, 255)),
+    g: uint8(clamp(color.g.int + delta, 0, 255)),
+    b: uint8(clamp(color.b.int + delta, 0, 255)),
+    a: color.a
+  )
+
+proc darkened(color: Color, delta: int): Color =
+  brightened(color, -delta)
+
+proc drawHexBadge(cx, cy: int32, radius: float32, fill, edge: Color, rotation: float32 = PI / 6.0) =
+  var points: array[6, Vector2]
+  for i in 0..<6:
+    let angle = rotation + i.float32 * PI / 3.0
+    points[i] = Vector2(x: cx.float32 + cos(angle) * radius,
+                        y: cy.float32 + sin(angle) * radius)
+
+  for i in 1..<5:
+    drawTriangle(points[0], points[i], points[i + 1], fill)
+  for i in 0..<6:
+    let next = (i + 1) mod 6
+    drawLine(points[i], points[next], 2, edge)
+
+proc drawIconTile(icon: DesktopIcon, time: float32, selected: bool) =
   let pulse = if selected: sin(time * 4.0) * 0.15 + 1.0 else: 1.0
   let iconSize = (ICON_SIZE.float32 * pulse).int32
   let offsetX = if selected: (ICON_SIZE - iconSize) div 2 else: 0
   let offsetY = if selected: (ICON_SIZE - iconSize) div 2 else: 0
-  
-  # OS-style icon window with depth
-  # Shadow/depth layer
-  drawRectangle((icon.x + offsetX + 3).int32, (icon.y + offsetY + 3).int32,
-               iconSize, iconSize,
-               Color(r: 0, g: 0, b: 0, a: 100))
-  
-  # Icon background (window-like with gradient effect)
-  let bgGradTop = if selected:
-    Color(r: 45, g: 45, b: 60, a: 240)
-  else:
-    Color(r: 30, g: 30, b: 40, a: 220)
-  let bgGradBottom = if selected:
-    Color(r: 30, g: 30, b: 45, a: 240)
-  else:
-    Color(r: 20, g: 20, b: 30, a: 220)
-  
-  drawRectangleGradientV((icon.x + offsetX).int32, (icon.y + offsetY).int32,
-                         iconSize, iconSize,
-                         bgGradTop, bgGradBottom)
-  
-  # Icon border with glow if selected
-  let borderColor = if selected:
-    Color(r: 0, g: 200, b: 255, a: 255)
-  else:
-    Color(r: 80, g: 80, b: 100, a: 255)
-  
-  drawRectangleLines(Rectangle(x: (icon.x + offsetX).float32,
-                                y: (icon.y + offsetY).float32,
-                                width: iconSize.float32,
-                                height: iconSize.float32), 2, borderColor)
-  
-  # Add corner decorations (OS-style window corners)
+  let x = icon.x.int32 + offsetX
+  let y = icon.y.int32 + offsetY
+  let accent = icon.iconColor
+  let edge = if selected: brightened(accent, 35) else: Color(r: 86, g: 104, b: 130, a: 235)
+  let topFill = if selected: Color(r: 36, g: 50, b: 70, a: 248) else: Color(r: 24, g: 32, b: 48, a: 232)
+  let bottomFill = if selected: Color(r: 18, g: 24, b: 38, a: 250) else: Color(r: 12, g: 17, b: 28, a: 238)
+
   if selected:
-    let cornerSize = 8.int32
-    # Top-left corner
-    drawLine(Vector2(x: (icon.x + offsetX).float32, y: (icon.y + offsetY).float32),
-            Vector2(x: (icon.x + offsetX + cornerSize).float32, y: (icon.y + offsetY).float32),
-            2, Color(r: 100, g: 220, b: 255, a: 255))
-    drawLine(Vector2(x: (icon.x + offsetX).float32, y: (icon.y + offsetY).float32),
-            Vector2(x: (icon.x + offsetX).float32, y: (icon.y + offsetY + cornerSize).float32),
-            2, Color(r: 100, g: 220, b: 255, a: 255))
-    # Top-right corner
-    drawLine(Vector2(x: (icon.x + offsetX + iconSize).float32, y: (icon.y + offsetY).float32),
-            Vector2(x: (icon.x + offsetX + iconSize - cornerSize).float32, y: (icon.y + offsetY).float32),
-            2, Color(r: 100, g: 220, b: 255, a: 255))
-    drawLine(Vector2(x: (icon.x + offsetX + iconSize).float32, y: (icon.y + offsetY).float32),
-            Vector2(x: (icon.x + offsetX + iconSize).float32, y: (icon.y + offsetY + cornerSize).float32),
-            2, Color(r: 100, g: 220, b: 255, a: 255))
+    drawSoftGlow(icon.x.float32 + ICON_SIZE.float32 * 0.5, icon.y.float32 + ICON_SIZE.float32 * 0.5,
+                 45.0, Color(r: accent.r, g: accent.g, b: accent.b, a: 90), 0.85)
+
+  drawRectangle(x + 5, y + 7, iconSize, iconSize, Color(r: 0, g: 0, b: 0, a: 95))
+  drawRectangleGradientV(x, y, iconSize, iconSize, topFill, bottomFill)
+
+  # Chamfered, glassy corners keep the OS look without needing image assets.
+  let cut = max(7'i32, iconSize div 8)
+  let darkCorner = Color(r: 7, g: 10, b: 18, a: 230)
+  drawTriangle(Vector2(x: x.float32, y: y.float32),
+               Vector2(x: (x + cut).float32, y: y.float32),
+               Vector2(x: x.float32, y: (y + cut).float32), darkCorner)
+  drawTriangle(Vector2(x: (x + iconSize).float32, y: (y + iconSize).float32),
+               Vector2(x: (x + iconSize - cut).float32, y: (y + iconSize).float32),
+               Vector2(x: (x + iconSize).float32, y: (y + iconSize - cut).float32), darkCorner)
+
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+                                width: iconSize.float32, height: iconSize.float32), 2, edge)
+  drawLine(Vector2(x: (x + 7).float32, y: (y + 5).float32),
+           Vector2(x: (x + iconSize - 11).float32, y: (y + 5).float32),
+           2, Color(r: 205, g: 245, b: 255, a: if selected: 150 else: 72))
+  drawLine(Vector2(x: (x + 5).float32, y: (y + iconSize - 7).float32),
+           Vector2(x: (x + iconSize - 8).float32, y: (y + iconSize - 7).float32),
+           1, Color(r: accent.r, g: accent.g, b: accent.b, a: if selected: 175 else: 95))
+
+  let scanY = y + 12 + int32((sin(time * 2.4 + icon.iconType.int.float32) * 0.5 + 0.5) * (iconSize.float32 - 24.0))
+  drawRectangle(x + 8, scanY, iconSize - 16, 2,
+                Color(r: accent.r, g: accent.g, b: accent.b, a: if selected: 92 else: 38))
+
+proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
+  drawIconTile(icon, time, selected)
   
   # Icon graphic based on type
-  let centerX = icon.x + ICON_SIZE div 2
-  let centerY = icon.y + ICON_SIZE div 2
+  let centerX = (icon.x + ICON_SIZE div 2).int32
+  let centerY = (icon.y + ICON_SIZE div 2).int32
+  let accent = icon.iconColor
+  let bright = brightened(accent, 55)
+  let dim = darkened(accent, 45)
+  drawHexBadge(centerX, centerY, 22.0, Color(r: 8, g: 14, b: 24, a: 160),
+               Color(r: accent.r, g: accent.g, b: accent.b, a: 120),
+               PI / 6.0 + time * 0.08)
   
   case icon.iconType
   of diPlay:
-    # Play triangle
-    let size = 20.float32
+    # Launch prism
     drawTriangle(
-      Vector2(x: centerX.float32 - size, y: centerY.float32 - size),
-      Vector2(x: centerX.float32 - size, y: centerY.float32 + size),
-      Vector2(x: centerX.float32 + size, y: centerY.float32),
-      icon.iconColor
+      Vector2(x: (centerX - 9).float32, y: (centerY - 14).float32),
+      Vector2(x: (centerX - 9).float32, y: (centerY + 14).float32),
+      Vector2(x: (centerX + 16).float32, y: centerY.float32),
+      accent
+    )
+    drawTriangle(
+      Vector2(x: (centerX - 5).float32, y: (centerY - 7).float32),
+      Vector2(x: (centerX - 5).float32, y: (centerY + 7).float32),
+      Vector2(x: (centerX + 7).float32, y: centerY.float32),
+      bright
     )
   
   of diSurvival:
-    # Survival clock/timer
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 18, icon.iconColor)
+    # Survival shield timer
+    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 18, dim)
+    drawCircleLines(Vector2(x: centerX.float32, y: centerY.float32), 18, bright)
+    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 4, bright)
     drawLine(Vector2(x: centerX.float32, y: centerY.float32),
             Vector2(x: centerX.float32, y: centerY.float32 - 15), 3, White)
     drawLine(Vector2(x: centerX.float32, y: centerY.float32),
             Vector2(x: centerX.float32 + 10, y: centerY.float32), 3, White)
+    for i in 0..3:
+      let angle = i.float32 * PI / 2.0 + time * 0.6
+      drawCircle(Vector2(x: centerX.float32 + cos(angle) * 22.0,
+                         y: centerY.float32 + sin(angle) * 22.0), 2.2, accent)
   
   of diStatistics:
-    # Bar chart
-    drawRectangle((centerX - 15).int32, (centerY + 5).int32, 8, 15, icon.iconColor)
-    drawRectangle((centerX - 3).int32, centerY.int32, 8, 20, icon.iconColor)
-    drawRectangle((centerX + 9).int32, (centerY - 5).int32, 8, 25, icon.iconColor)
+    # Analytics bars with trend line
+    drawRectangle(centerX - 17, centerY + 5, 7, 15, dim)
+    drawRectangle(centerX - 5, centerY - 2, 7, 22, accent)
+    drawRectangle(centerX + 7, centerY - 10, 7, 30, bright)
+    drawLine(Vector2(x: (centerX - 18).float32, y: (centerY + 2).float32),
+             Vector2(x: (centerX - 3).float32, y: (centerY - 8).float32), 2, White)
+    drawLine(Vector2(x: (centerX - 3).float32, y: (centerY - 8).float32),
+             Vector2(x: (centerX + 18).float32, y: (centerY - 17).float32), 2, White)
   
   of diSettings:
-    # Gear
-    let gearRadius = 18.float32
-    for i in 0..<8:
-      let angle = (i.float32 * PI / 4.0) + time
-      let x1 = centerX.float32 + cos(angle) * gearRadius
-      let y1 = centerY.float32 + sin(angle) * gearRadius
-      drawCircle(Vector2(x: x1, y: y1), 4, icon.iconColor)
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 10, icon.iconColor)
+    # Tuning sliders
+    for i in 0..2:
+      let y = centerY - 13 + i * 13
+      drawLine(Vector2(x: (centerX - 18).float32, y: y.float32),
+               Vector2(x: (centerX + 18).float32, y: y.float32), 3, dim)
+      let knobX = centerX - 10 + ((i * 13) mod 27)
+      drawCircle(Vector2(x: knobX.float32, y: y.float32), 5, bright)
+      drawCircleLines(Vector2(x: knobX.float32, y: y.float32), 7, accent)
   
   of diShop:
-    # Shop icon - shopping bag with color swatches
-    # Draw shopping bag body
-    let bagWidth = 24
-    let bagHeight = 28
-    let bagTop = centerY - 14
-    
-    # Bag body (trapezoid shape - wider at bottom)
-    drawRectangle((centerX - bagWidth div 2).int32, bagTop.int32, bagWidth.int32, bagHeight.int32, icon.iconColor)
-    
-    # Bag handles
-    let handleWidth = 14
-    let handleTop = bagTop - 6
-    drawLine(Vector2(x: (centerX - handleWidth div 2).float32, y: handleTop.float32),
-            Vector2(x: (centerX - handleWidth div 2).float32, y: bagTop.float32), 3, icon.iconColor)
-    drawLine(Vector2(x: (centerX + handleWidth div 2).float32, y: handleTop.float32),
-            Vector2(x: (centerX + handleWidth div 2).float32, y: bagTop.float32), 3, icon.iconColor)
-    drawLine(Vector2(x: (centerX - handleWidth div 2).float32, y: handleTop.float32),
-            Vector2(x: (centerX + handleWidth div 2).float32, y: handleTop.float32), 3, icon.iconColor)
-    
-    # Color swatches on bag (showing customization options)
-    let swatchSize = 5.float32
-    let swatchY = (centerY + 2).float32
+    # Store crate with swatches
+    drawRectangle(centerX - 15, centerY - 9, 30, 24, accent)
+    drawRectangle(centerX - 12, centerY - 14, 24, 8, dim)
+    drawLine(Vector2(x: (centerX - 7).float32, y: (centerY - 14).float32),
+             Vector2(x: (centerX - 7).float32, y: (centerY - 22).float32), 3, bright)
+    drawLine(Vector2(x: (centerX + 7).float32, y: (centerY - 14).float32),
+             Vector2(x: (centerX + 7).float32, y: (centerY - 22).float32), 3, bright)
+    drawLine(Vector2(x: (centerX - 7).float32, y: (centerY - 22).float32),
+             Vector2(x: (centerX + 7).float32, y: (centerY - 22).float32), 3, bright)
     let colors = [
-      Color(r: 255, g: 100, b: 180, a: 255),  # Pink (player skin)
-      Color(r: 0, g: 255, b: 100, a: 255),    # Green (player skin)
-      Color(r: 0, g: 200, b: 255, a: 255)     # Cyan (bullet skin)
+      Color(r: 255, g: 100, b: 180, a: 255),
+      Color(r: 0, g: 255, b: 100, a: 255),
+      Color(r: 0, g: 200, b: 255, a: 255)
     ]
     for i in 0..<3:
-      let swatchX = (centerX - 8 + i * 8).float32
-      drawCircle(Vector2(x: swatchX, y: swatchY), swatchSize, colors[i])
+      drawCircle(Vector2(x: (centerX - 8 + i * 8).float32, y: (centerY + 5).float32), 4.5, colors[i])
   
   of diHelp:
-    # Question mark in document
-    drawRectangle((centerX - 12).int32, (centerY - 18).int32, 24, 32, icon.iconColor)
-    drawText("?", (centerX - 7).int32, (centerY - 12).int32, 28, White)
+    # Luminous document
+    drawRectangle(centerX - 13, centerY - 18, 26, 34, accent)
+    drawTriangle(Vector2(x: (centerX + 13).float32, y: (centerY - 18).float32),
+                 Vector2(x: (centerX + 13).float32, y: (centerY - 6).float32),
+                 Vector2(x: (centerX + 1).float32, y: (centerY - 18).float32), bright)
+    drawText("?", centerX - 7, centerY - 10, 26, White)
   
   of diQuit:
-    # Power symbol
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 18, icon.iconColor)
-    drawRectangle((centerX - 2).int32, (centerY - 18).int32, 4, 15, Black)
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 12, Black)
+    # Shutdown ring
+    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 19, dim)
+    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 12, Color(r: 8, g: 12, b: 20, a: 255))
+    drawCircleLines(Vector2(x: centerX.float32, y: centerY.float32), 18, bright)
+    drawRectangle(centerX - 2, centerY - 21, 4, 18, bright)
   
   of diSandbox:
-    # Sandbox/testing icon - laboratory flask/beaker
-    let flaskColor = icon.iconColor
+    # Lab flask
+    let flaskColor = accent
     let liquidColor = Color(r: 0, g: 200, b: 255, a: 200)
-    
-    # Flask body (trapezoid shape)
-    let baseWidth = 20
-    let topWidth = 12
-    let flaskHeight = 24
+    let baseWidth = 20'i32
+    let topWidth = 12'i32
+    let flaskHeight = 24'i32
     let flaskBottom = centerY + 12
     let flaskTop = flaskBottom - flaskHeight
-    
-    # Draw flask outline (wider at bottom, narrower at top)
-    # Bottom rectangle
-    drawRectangle((centerX - baseWidth div 2).int32, (flaskBottom - 16).int32,
-                 baseWidth.int32, 16.int32, flaskColor)
-    # Neck
-    drawRectangle((centerX - topWidth div 2).int32, (flaskTop).int32,
-                 topWidth.int32, 8.int32, flaskColor)
-    
-    # Flask sides (trapezoid effect)
+    drawRectangle(centerX - topWidth div 2, flaskTop, topWidth, 8, flaskColor)
     drawTriangle(
       Vector2(x: (centerX - topWidth div 2).float32, y: (flaskTop + 8).float32),
-      Vector2(x: (centerX - baseWidth div 2).float32, y: (flaskBottom - 16).float32),
-      Vector2(x: (centerX - topWidth div 2).float32, y: (flaskBottom - 16).float32),
+      Vector2(x: (centerX - baseWidth div 2).float32, y: flaskBottom.float32),
+      Vector2(x: (centerX + baseWidth div 2).float32, y: flaskBottom.float32),
       flaskColor
     )
-    drawTriangle(
-      Vector2(x: (centerX + topWidth div 2).float32, y: (flaskTop + 8).float32),
-      Vector2(x: (centerX + baseWidth div 2).float32, y: (flaskBottom - 16).float32),
-      Vector2(x: (centerX + topWidth div 2).float32, y: (flaskBottom - 16).float32),
-      flaskColor
-    )
-    
-    # Liquid inside (partial fill)
-    let liquidHeight = 10
-    drawRectangle((centerX - baseWidth div 2 + 2).int32, (flaskBottom - liquidHeight).int32,
-                 (baseWidth - 4).int32, liquidHeight.int32, liquidColor)
-    
-    # Bubbles in liquid
+    drawRectangle(centerX - baseWidth div 2 + 3, flaskBottom - 10, baseWidth - 6, 8, liquidColor)
     drawCircle(Vector2(x: (centerX - 4).float32, y: (flaskBottom - 5).float32), 2, White)
     drawCircle(Vector2(x: (centerX + 3).float32, y: (flaskBottom - 8).float32), 1.5, White)
   
   of diPvP:
-    # PvP icon - two crossed swords
-    let swordColor = icon.iconColor
-    let swordLength = 20.float32
-    let swordWidth = 3.float32
-    
-    # Left sword (diagonal)
-    let angle1 = -PI / 4.0  # -45 degrees
-    let x1Start = centerX.float32 + cos(angle1 + PI) * swordLength
-    let y1Start = centerY.float32 + sin(angle1 + PI) * swordLength
-    let x1End = centerX.float32 + cos(angle1) * swordLength
-    let y1End = centerY.float32 + sin(angle1) * swordLength
-    drawLine(Vector2(x: x1Start, y: y1Start), Vector2(x: x1End, y: y1End),
-            swordWidth, swordColor)
-    
-    # Right sword (diagonal opposite)
-    let angle2 = PI / 4.0  # 45 degrees
-    let x2Start = centerX.float32 + cos(angle2 + PI) * swordLength
-    let y2Start = centerY.float32 + sin(angle2 + PI) * swordLength
-    let x2End = centerX.float32 + cos(angle2) * swordLength
-    let y2End = centerY.float32 + sin(angle2) * swordLength
-    drawLine(Vector2(x: x2Start, y: y2Start), Vector2(x: x2End, y: y2End),
-            swordWidth, swordColor)
-    
-    # Central clash effect
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 6,
-              Color(r: 255, g: 255, b: 255, a: 200))
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 4, swordColor)
+    # Versus duel glyph
+    drawLine(Vector2(x: (centerX - 18).float32, y: (centerY + 15).float32),
+             Vector2(x: (centerX + 13).float32, y: (centerY - 16).float32), 4, accent)
+    drawLine(Vector2(x: (centerX + 18).float32, y: (centerY + 15).float32),
+             Vector2(x: (centerX - 13).float32, y: (centerY - 16).float32), 4, bright)
+    drawRectangle(centerX - 17, centerY + 10, 10, 4, dim)
+    drawRectangle(centerX + 7, centerY + 10, 10, 4, dim)
+    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 6, Color(r: 255, g: 255, b: 255, a: 205))
+    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 3, accent)
 
   of diRoguelite:
-    # Roguelite icon - branching sector nodes
-    let nodeColor = icon.iconColor
+    # Branching sector nodes
+    let nodeColor = accent
     let top = Vector2(x: centerX.float32, y: (centerY - 18).float32)
     let left = Vector2(x: (centerX - 18).float32, y: (centerY + 12).float32)
     let mid = Vector2(x: centerX.float32, y: (centerY + 18).float32)
@@ -373,16 +357,16 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     drawCircle(right, 6, Color(r: 255, g: 110, b: 90, a: 255))
 
   of diAdvancements:
-    # Advancements icon - progress ledger with tier nodes
+    # Progress ledger with tier nodes
     let ledgerX = centerX - 16
     let ledgerY = centerY - 18
     drawRectangle(ledgerX.int32, ledgerY.int32, 32, 36, Color(r: 18, g: 28, b: 42, a: 255))
     drawRectangleLines(Rectangle(x: ledgerX.float32, y: ledgerY.float32,
-                                 width: 32.0, height: 36.0), 2, icon.iconColor)
+                                 width: 32.0, height: 36.0), 2, accent)
     for i in 0..<3:
       let rowY = ledgerY + 8 + i * 9
       drawCircle(Vector2(x: (ledgerX + 7).float32, y: rowY.float32), 3,
-                 if i == 0: Gold elif i == 1: icon.iconColor else: Color(r: 90, g: 255, b: 150, a: 255))
+                 if i == 0: Gold elif i == 1: accent else: Color(r: 90, g: 255, b: 150, a: 255))
       drawRectangle((ledgerX + 13).int32, (rowY - 2).int32, (12 + i * 3).int32, 3,
                     Color(r: 170, g: 210, b: 230, a: 220))
     drawLine(Vector2(x: (ledgerX + 7).float32, y: (ledgerY + 8).float32),
@@ -442,35 +426,64 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   drawText("NET", (indicatorX + 16).int32, (clockY + 3).int32, 12,
           Color(r: 150, g: 150, b: 150, a: 255))
 
+proc drawDesktopWallpaper(screenWidth, screenHeight: int, time: float32) =
+  drawSharedBackdrop(screenWidth.int32, screenHeight.int32, time * 0.62,
+                     Color(r: 5, g: 8, b: 18, a: 255),
+                     Color(r: 18, g: 17, b: 34, a: 255),
+                     Color(r: 38, g: 54, b: 78, a: 34),
+                     Color(r: 95, g: 130, b: 174, a: 70),
+                     Color(r: 0, g: 184, b: 225, a: 48),
+                     0.9, 0.8)
+
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+  let centerX = w * 0.64
+  let centerY = h * 0.46
+
+  drawSoftGlow(centerX, centerY, min(w, h) * 0.42,
+               Color(r: 0, g: 170, b: 220, a: 70), 0.7)
+  drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
+               Color(r: 95, g: 130, b: 255, a: 56), 0.55)
+  drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
+               Color(r: 0, g: 220, b: 165, a: 46), 0.5)
+
+  # Orbital rings behind the desktop make the menu feel like a live command surface.
+  for i in 0..4:
+    let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
+    let alpha = uint8(26 + i * 9)
+    drawCircleLines(Vector2(x: centerX, y: centerY), ringRadius,
+                    Color(r: 80, g: 210, b: 255, a: alpha))
+    let angle = time * (0.22 + i.float32 * 0.04) + i.float32 * PI * 0.38
+    let nodeX = centerX + cos(angle) * ringRadius
+    let nodeY = centerY + sin(angle) * ringRadius
+    drawCircle(Vector2(x: nodeX, y: nodeY), 3.0 + i.float32 * 0.35,
+               Color(r: 165, g: 245, b: 255, a: uint8(120 + i * 18)))
+
+  # Thin scan bands and routing traces.
+  for i in 0..<14:
+    let y = ((i.float32 * 67.0 + time * (16.0 + i.float32 * 1.7)) mod (h + 90.0)) - 45.0
+    let sway = sin(time * 0.7 + i.float32) * 32.0
+    let alpha = uint8(18 + (i mod 4) * 8)
+    drawLine(Vector2(x: -40.0, y: y),
+             Vector2(x: w + 40.0, y: y + sway * 0.18),
+             1, Color(r: 0, g: 198, b: 238, a: alpha))
+    if i mod 3 == 0:
+      let x = (w * (0.22 + (i mod 5).float32 * 0.13) + sway) mod max(w, 1.0)
+      drawLine(Vector2(x: x, y: y - 28.0),
+               Vector2(x: x, y: y + 32.0),
+               1, Color(r: 85, g: 240, b: 255, a: uint8(alpha + 28)))
+      drawCircle(Vector2(x: x, y: y), 2.6, Color(r: 180, g: 250, b: 255, a: 130))
+
+  # Left-side launch column silhouette keeps icons readable over the animation.
+  drawRectangleGradientH(0, 0, min(310, screenWidth).int32, screenHeight.int32,
+                         Color(r: 2, g: 5, b: 12, a: 155),
+                         Color(r: 2, g: 5, b: 12, a: 0))
+  drawLine(Vector2(x: 250.0, y: 42.0),
+           Vector2(x: 250.0 + sin(time * 0.9) * 10.0, y: h - 74.0),
+           1, Color(r: 70, g: 230, b: 255, a: 64))
+
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
-  drawSharedBackdrop(screenWidth.int32, screenHeight.int32, desktop.time * 0.75,
-                     Color(r: 8, g: 12, b: 24, a: 255),
-                     Color(r: 18, g: 24, b: 38, a: 255),
-                     Color(r: 32, g: 40, b: 62, a: 42),
-                     Color(r: 72, g: 108, b: 160, a: 78),
-                     Color(r: 0, g: 160, b: 220, a: 54),
-                     0.85, 0.9)
-  
-  # Animated circuit-like lines in background
-  let lineCount = 10
-  for i in 0..<lineCount:
-    let offset = i.float32 * 52.0
-    let rawProgress = desktop.time * (38.0 + i.float32 * 1.5) + offset
-    let progress = rawProgress - floor(rawProgress / screenWidth.float32).float32 * screenWidth.float32
-    let y = 88.0 + i.float32 * 56.0 + sin(desktop.time * 0.8 + i.float32 * 0.6) * 18.0
-    let lineColor = Color(r: 0, g: uint8(96 + i * 8), b: uint8(150 + (i mod 3) * 24), a: 38)
-    
-    # Horizontal line
-    drawLine(Vector2(x: 0, y: y),
-            Vector2(x: progress, y: y), 1, lineColor)
-    
-    # Vertical connection
-    if i mod 2 == 0 and progress > 110.0:
-      let vHeight = 36.0 + sin(desktop.time * 2.2 + offset) * 16.0
-      drawLine(Vector2(x: progress, y: y),
-              Vector2(x: progress, y: y + vHeight), 1,
-              Color(r: 0, g: 175, b: 220, a: 50))
-      drawCircle(Vector2(x: progress, y: y), 2.5, Color(r: 90, g: 220, b: 255, a: 110))
+  drawDesktopWallpaper(screenWidth, screenHeight, desktop.time)
   
   # Desktop icons
   for icon in desktop.icons:
