@@ -6,6 +6,83 @@ const
   MAX_DATA_PACKETS = 50
   NUM_CIRCUIT_LINES = 8
 
+proc alphaFrom(value: float32): uint8 =
+  uint8(clamp(value, 0.0'f32, 255.0'f32))
+
+proc drawArenaEdgeVignette(screenWidth, screenHeight: int32, intensity: float32) =
+  let vigW = max(96'i32, min(screenWidth, screenHeight) div 6)
+  let vigAlpha = alphaFrom(84.0 + intensity * 74.0)
+  let edgeColor = Color(r: 0, g: 5, b: 15, a: vigAlpha)
+  drawRectangleGradientH(0, 0, vigW, screenHeight,
+    edgeColor, Color(r: 0, g: 0, b: 0, a: 0))
+  drawRectangleGradientH(screenWidth - vigW, 0, vigW, screenHeight,
+    Color(r: 0, g: 0, b: 0, a: 0), edgeColor)
+  drawRectangleGradientV(0, 0, screenWidth, vigW,
+    edgeColor, Color(r: 0, g: 0, b: 0, a: 0))
+  drawRectangleGradientV(0, screenHeight - vigW, screenWidth, vigW,
+    Color(r: 0, g: 0, b: 0, a: 0), edgeColor)
+
+proc drawCombatGrid(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+  let centerX = w * 0.5
+  let centerY = h * 0.5
+  let arenaRadius = min(w, h) * 0.42
+  let pulse = sin(bg.gridPulseTime * 1.35) * 0.5 + 0.5
+  let alertPulse = sin(bg.gridPulseTime * 4.8) * 0.5 + 0.5
+
+  drawSoftGlow(centerX, centerY, arenaRadius * 1.1,
+               Color(r: 0, g: 150, b: 210, a: alphaFrom(48.0 + pulse * 18.0)), 0.78)
+  drawSoftGlow(w * 0.18, h * 0.78, arenaRadius * 0.55,
+               Color(r: 95, g: 115, b: 255, a: 32), 0.55)
+  drawSoftGlow(w * 0.84, h * 0.22, arenaRadius * 0.50,
+               Color(r: 0, g: 235, b: 170, a: 28), 0.5)
+
+  for i in 0..4:
+    let r = arenaRadius * (0.34 + i.float32 * 0.16)
+    let ringAlpha = alphaFrom(24.0 + i.float32 * 8.0 + pulse * 16.0)
+    drawCircleLines(centerX.int32, centerY.int32, r,
+      Color(r: 72, g: 210, b: 255, a: ringAlpha))
+    let sweepAngle = bg.gridPulseTime * (0.42 + i.float32 * 0.05) + i.float32 * PI * 0.34
+    let sx = centerX + cos(sweepAngle) * r
+    let sy = centerY + sin(sweepAngle) * r
+    drawCircle(Vector2(x: sx, y: sy), 2.4 + i.float32 * 0.35,
+      Color(r: 180, g: 250, b: 255, a: alphaFrom(118.0 + pulse * 62.0)))
+
+  for i in 0..<12:
+    let angle = i.float32 * PI / 6.0
+    let inner = arenaRadius * 0.22
+    let outer = arenaRadius * 1.03
+    let alpha = alphaFrom(18.0 + (if i mod 3 == 0: 28.0 else: 0.0) + pulse * 8.0)
+    drawLine(Vector2(x: centerX + cos(angle) * inner, y: centerY + sin(angle) * inner),
+             Vector2(x: centerX + cos(angle) * outer, y: centerY + sin(angle) * outer),
+             1, Color(r: 64, g: 185, b: 230, a: alpha))
+
+  let laneColor = Color(r: 0, g: 220, b: 240, a: alphaFrom(28.0 + pulse * 18.0))
+  for i in 0..<7:
+    let t = (i.float32 - 3.0) / 3.0
+    let topX = centerX + t * arenaRadius * 0.45
+    let bottomX = centerX + t * arenaRadius * 1.25
+    drawLine(Vector2(x: topX, y: centerY - arenaRadius * 0.9),
+             Vector2(x: bottomX, y: centerY + arenaRadius * 1.05),
+             1, laneColor)
+    drawLine(Vector2(x: centerX - arenaRadius * 1.05, y: centerY + t * arenaRadius * 1.25),
+             Vector2(x: centerX + arenaRadius * 1.05, y: centerY + t * arenaRadius * 0.45),
+             1, withAlpha(laneColor, laneColor.a div 2))
+
+  if bg.alertLevel > 0.0:
+    let hazardAlpha = alphaFrom(bg.alertLevel * (36.0 + alertPulse * 40.0))
+    for i in 0..<6:
+      let angle = i.float32 * PI / 3.0 + bg.gridPulseTime * 0.22
+      let x = centerX + cos(angle) * arenaRadius * 0.78
+      let y = centerY + sin(angle) * arenaRadius * 0.78
+      drawLine(Vector2(x: x - 12.0, y: y - 12.0),
+               Vector2(x: x + 12.0, y: y + 12.0), 2,
+               Color(r: 255, g: 62, b: 55, a: hazardAlpha))
+      drawLine(Vector2(x: x + 12.0, y: y - 12.0),
+               Vector2(x: x - 12.0, y: y + 12.0), 2,
+               Color(r: 255, g: 62, b: 55, a: hazardAlpha))
+
 proc newOSBackground*(): OSBackgroundState =
   result = OSBackgroundState(
     dataPackets: @[],
@@ -99,45 +176,39 @@ proc updateOSBackground*(bg: var OSBackgroundState, dt: float32, playerHP: float
 
 proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
                        showArenaVignette: bool = true) =
-  let topColor = Color(r: 6, g: 10, b: 22, a: 255)
-  let bottomColor = Color(r: 16, g: 22, b: 36, a: 255)
-  let gridColor = Color(r: 26, g: 34, b: 58, a: 48)
-  let dotColor = Color(r: 72, g: 104, b: 165, a: 96)
-  let accentColor = Color(r: 0, g: 188, b: 228, a: 64)
+  let topColor = Color(r: 4, g: 7, b: 16, a: 255)
+  let bottomColor = Color(r: 14, g: 16, b: 30, a: 255)
+  let gridColor = Color(r: 30, g: 44, b: 68, a: 36)
+  let dotColor = Color(r: 92, g: 126, b: 175, a: 78)
+  let accentColor = Color(r: 0, g: 198, b: 236, a: 58)
 
-  drawSharedBackdrop(screenWidth, screenHeight, bg.gridPulseTime,
+  drawSharedBackdrop(screenWidth, screenHeight, bg.gridPulseTime * 0.82,
                      topColor, bottomColor,
                      gridColor, dotColor, accentColor,
-                     0.75, 0.8)
+                     0.62, 0.62)
+  drawCombatGrid(bg, screenWidth, screenHeight)
   
   # Alert overlay (red tint when in danger)
   if bg.alertLevel > 0:
-    let redAlpha = uint8(bg.alertLevel * 48)
+    let redAlpha = alphaFrom(bg.alertLevel * 38.0)
     drawRectangle(0, 0, screenWidth, screenHeight,
                  Color(r: 255, g: 0, b: 0, a: redAlpha))
   
   # Soft arena edge vignette (4 gradient rectangles)
   if showArenaVignette:
-    let vigW: int32 = 120
-    let vigAlpha: uint8 = 96
-    drawRectangleGradientH(0, 0, vigW, screenHeight,
-      Color(r: 0, g: 5, b: 15, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
-    drawRectangleGradientH(screenWidth - vigW, 0, vigW, screenHeight,
-      Color(r: 0, g: 0, b: 0, a: 0), Color(r: 0, g: 5, b: 15, a: vigAlpha))
-    drawRectangleGradientV(0, 0, screenWidth, vigW,
-      Color(r: 0, g: 5, b: 15, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
-    drawRectangleGradientV(0, screenHeight - vigW, screenWidth, vigW,
-      Color(r: 0, g: 0, b: 0, a: 0), Color(r: 0, g: 5, b: 15, a: vigAlpha))
+    drawArenaEdgeVignette(screenWidth, screenHeight, bg.lowHealthVignetteLevel)
   
   # Draw circuit lines (horizontal data streams)
   let circuitAnchors = [0.12'f32, 0.28'f32, 0.5'f32, 0.72'f32, 0.88'f32]
   for index, line in bg.circuitLines:
     let pulse = sin(bg.gridPulseTime * 2 + line.pulseOffset) * 0.5 + 0.5
     let shimmer = sin(bg.gridPulseTime * 4 + index.float32 * 0.5) * 0.5 + 0.5
-    let lineAlpha = uint8(24 + pulse * 22)
+    let lineAlpha = alphaFrom(18.0 + pulse * 28.0)
     let lineColor = Color(r: 0, g: uint8(150 + pulse * 40), b: uint8(188 + shimmer * 50), a: lineAlpha)
     
     drawLine(0, line.y.int32, screenWidth, line.y.int32, lineColor)
+    drawLine(0, (line.y + 3.0).int32, screenWidth, (line.y + 3.0).int32,
+             withAlpha(lineColor, lineAlpha div 3))
     
     # Draw connecting vertical segments and node pulses
     if int(line.y) mod 180 < 64:
@@ -153,9 +224,12 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
   # Draw data packets
   for packet in bg.dataPackets:
     let packetColor = Color(r: 0, g: 200, b: 255, a: packet.alpha)
-    let streak = 12.0 + packet.speed * 0.04
+    let streak = 16.0 + packet.speed * 0.055
     drawLine((packet.x - streak).int32, packet.y.int32, packet.x.int32, packet.y.int32,
              withAlpha(packetColor, packet.alpha div 2))
+    drawLine((packet.x - streak * 0.55).int32, (packet.y - 4.0).int32,
+             packet.x.int32, packet.y.int32,
+             withAlpha(packetColor, packet.alpha div 3))
     drawCircle(Vector2(x: packet.x, y: packet.y), 3.0, packetColor)
     
     # Trail effect
@@ -195,3 +269,9 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
     # Right
     drawRectangle(screenWidth - borderThickness, 0, borderThickness, screenHeight,
                  Color(r: 255, g: 0, b: 0, a: borderAlpha))
+
+  if bg.lowHealthVignetteLevel > 0.0:
+    let dangerPulse = sin(bg.gridPulseTime * 5.6) * 0.5 + 0.5
+    let lowAlpha = alphaFrom(bg.lowHealthVignetteLevel * (34.0 + dangerPulse * 30.0))
+    drawRectangle(0, 0, screenWidth, screenHeight,
+                  Color(r: 255, g: 28, b: 24, a: lowAlpha))

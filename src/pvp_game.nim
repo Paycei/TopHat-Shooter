@@ -1690,29 +1690,51 @@ proc drawPvP*(pvp: PvPGameState) =
     else:
       Color(r: 0, g: 200, b: 255, a: 255)
   drawSharedBackdrop(pvp.screenWidth, pvp.screenHeight, pvp.gameTime * 0.8,
-                     Color(r: 8, g: 12, b: 24, a: 255),
-                     Color(r: 18, g: 22, b: 34, a: 255),
-                     Color(r: 28, g: 34, b: 58, a: 40),
-                     Color(r: 74, g: 100, b: 150, a: 80),
-                     withAlpha(accentColor, 54),
-                     0.7, 0.7)
+                     Color(r: 5, g: 7, b: 16, a: 255),
+                     Color(r: 18, g: 15, b: 30, a: 255),
+                     Color(r: 34, g: 42, b: 68, a: 36),
+                     Color(r: 92, g: 116, b: 168, a: 76),
+                     withAlpha(accentColor, 58),
+                     0.62, 0.68)
   let arenaCenterX = pvp.screenWidth.float32 * 0.5
   let arenaCenterY = pvp.screenHeight.float32 * 0.5
   let arenaPulse = sin(pvp.gameTime * 0.9) * 0.5 + 0.5
-  let arenaRadius = min(pvp.screenWidth, pvp.screenHeight).float32 * 0.34
+  let arenaRadius = min(pvp.screenWidth, pvp.screenHeight).float32 * 0.38
   drawSoftGlow(arenaCenterX, arenaCenterY, arenaRadius * 0.9,
-               withAlpha(accentColor, 20), 0.85)
-  drawCircleLines(arenaCenterX.int32, arenaCenterY.int32,
-                  arenaRadius + arenaPulse * 10.0,
-                  withAlpha(accentColor, 38))
-  drawCircleLines(arenaCenterX.int32, arenaCenterY.int32,
-                  arenaRadius * 0.56 + arenaPulse * 6.0,
-                  withAlpha(accentColor, 24))
+               withAlpha(accentColor, 28), 0.88)
+  drawSoftGlow(pvp.screenWidth.float32 * 0.2, pvp.screenHeight.float32 * 0.22,
+               arenaRadius * 0.55, Color(r: 90, g: 105, b: 255, a: 26), 0.55)
+  drawSoftGlow(pvp.screenWidth.float32 * 0.82, pvp.screenHeight.float32 * 0.78,
+               arenaRadius * 0.58, Color(r: 0, g: 235, b: 175, a: 24), 0.5)
+
+  for i in 0..3:
+    let r = arenaRadius * (0.44 + i.float32 * 0.17)
+    let alpha = uint8(26 + i * 9 + int(arenaPulse * 16.0))
+    drawCircleLines(arenaCenterX.int32, arenaCenterY.int32, r,
+                    withAlpha(accentColor, alpha))
+    let angle = pvp.gameTime * (0.34 + i.float32 * 0.06) + i.float32 * PI * 0.48
+    drawCircle(Vector2(x: arenaCenterX + cos(angle) * r,
+                       y: arenaCenterY + sin(angle) * r),
+               2.8 + i.float32 * 0.35, Color(r: 230, g: 250, b: 255, a: 148))
+
+  for i in 0..<10:
+    let angle = i.float32 * PI / 5.0
+    let inner = arenaRadius * 0.25
+    let outer = arenaRadius * 1.05
+    drawLine(Vector2(x: arenaCenterX + cos(angle) * inner, y: arenaCenterY + sin(angle) * inner),
+             Vector2(x: arenaCenterX + cos(angle) * outer, y: arenaCenterY + sin(angle) * outer),
+             1, withAlpha(accentColor, if i mod 2 == 0: 48'u8 else: 26'u8))
+
+  for i in 0..<6:
+    let t = (i.float32 - 2.5) / 2.5
+    drawLine(Vector2(x: arenaCenterX - arenaRadius * 1.04, y: arenaCenterY + t * arenaRadius * 0.82),
+             Vector2(x: arenaCenterX + arenaRadius * 1.04, y: arenaCenterY + t * arenaRadius * 1.08),
+             1, withAlpha(accentColor, 24))
   
   # Draw arena bounds
   drawRectangleLines(
     Rectangle(x: 0, y: 0, width: pvp.screenWidth.float32, height: pvp.screenHeight.float32),
-    2, Color(r: 100, g: 100, b: 150, a: 255)
+    2, Color(r: 112, g: 136, b: 180, a: 235)
   )
   
   # Draw walls
