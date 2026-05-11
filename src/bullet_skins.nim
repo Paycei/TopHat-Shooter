@@ -155,10 +155,10 @@ proc initializeBulletSkins*() =
 proc getBulletSkinColors*(skinType: BulletSkinType, time: float32): tuple[primary, glow, trail: Color] =
   ## Get the colors for a bullet skin, applying animations if needed
   let skin = bulletSkinDatabase[skinType]
-  
+
   if not skin.isAnimated:
     return (skin.primaryColor, skin.glowColor, skin.trailColor)
-  
+
   # Apply time-based animations for animated skins
   case skinType
   of bskRainbow:

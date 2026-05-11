@@ -60,7 +60,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
                      time, rotation, pulse, glowIntensity: float32) =
   ## Draw the player shape based on selected type
   ## All shapes use the same hitbox (circular) but different visuals
-  
+
   case shapeType:
   of shHexagon:
     # Circle uses rotation for the hexagonal frame
@@ -72,7 +72,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let layerAlpha = uint8((1.0 - i.float32 / 3.0) * glowIntensity * 50)
       drawCircle(Vector2(x: pos.x, y: pos.y), layerRadius,
                 Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
-    
+
     # 2. ENERGY TENDRILS (outward radiating spikes from body edge)
     let numTendrils = 8
     for i in 0..<numTendrils:
@@ -99,7 +99,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1.5,
               Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255),
                     b: min(baseColor.b + 50, 255), a: traceAlpha))
-    
+
     # 3. ROTATING HEXAGONAL FRAME
     let hexRadius = radius * 0.85
     let hexPoints = 6
@@ -113,11 +113,11 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.5, baseColor)
       # Corner nodes
       drawCircle(Vector2(x: x1, y: y1), 2.5, baseColor)
-    
+
     # 4. MAIN BODY CIRCLE
     drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.6,
               Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
-    
+
     # 4b. INNER COUNTER-ROTATING TRIANGLE (unique hexagon sub-element)
     let triInner = radius * 0.45
     let triRot = -rotation * 2.3  # spins opposite & faster
@@ -129,7 +129,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
                1.5, Color(r: min(baseColor.r + 100, 255).uint8,
                           g: min(baseColor.g + 100, 255).uint8,
                           b: min(baseColor.b + 100, 255).uint8, a: uint8(120 + pulse * 80)))
-    
+
     # 5. BRIGHT WHITE CORE
     drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
     # Core highlight
@@ -137,7 +137,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     let highlightY = pos.y - radius * 0.15
     drawCircle(Vector2(x: highlightX, y: highlightY), radius * 0.15,
               Color(r: 255, g: 255, b: 255, a: 180))
-  
+
   of shTriangle:
     # Triangle shape with same hitbox radius (no rotation)
     # 1. OUTER ENERGY FIELD (triangle glow)
@@ -165,7 +165,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
         let vy = pos.y + sin(angle) * layerRadius
         drawCircle(Vector2(x: vx, y: vy), 8.0,
                   Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
-    
+
     # 2. ENERGY LINES between vertices
     let numInnerTraces = 3
     for i in 0..<numInnerTraces:
@@ -180,7 +180,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
               Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255),
                     b: min(baseColor.b + 50, 255), a: traceAlpha))
-    
+
     # 3. MAIN TRIANGLE OUTLINE
     let triPoints = 3
     for i in 0..<triPoints:
@@ -193,7 +193,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3.0, baseColor)
       # Corner nodes
       drawCircle(Vector2(x: x1, y: y1), 3.5, baseColor)
-    
+
     # 4. INNER TRIANGLE (filled)
     let v1x = pos.x + cos(-PI / 2.0) * (radius * 0.6)
     let v1y = pos.y + sin(-PI / 2.0) * (radius * 0.6)
@@ -203,7 +203,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     let v3y = pos.y + sin(4.0 * PI / 3.0 - PI / 2.0) * (radius * 0.6)
     drawTriangle(Vector2(x: v1x, y: v1y), Vector2(x: v2x, y: v2y), Vector2(x: v3x, y: v3y),
                 Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
-    
+
     # 5. CORE CIRCLE
     drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
     let highlightX = pos.x - radius * 0.15
@@ -215,7 +215,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     let orbitR = radius * 0.55
     drawCircle(Vector2(x: pos.x + cos(orbitAngle) * orbitR, y: pos.y + sin(orbitAngle) * orbitR),
                radius * 0.10, coreColor)
-  
+
   of shSquare:
     # Square shape with same hitbox radius (no rotation)
     # 1. OUTER ENERGY FIELD (square glow)
@@ -243,7 +243,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
         let vy = pos.y + sin(angle) * layerSize
         drawCircle(Vector2(x: vx, y: vy), 8.0,
                   Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
-    
+
     # 2. ENERGY LINES connecting corners
     for i in 0..3:
       let angle1 = i.float32 * PI / 2.0 + PI / 4.0
@@ -257,7 +257,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
               Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255),
                     b: min(baseColor.b + 50, 255), a: traceAlpha))
-    
+
     # 3. MAIN SQUARE OUTLINE
     for i in 0..3:
       let angle = i.float32 * PI / 2.0 + PI / 4.0
@@ -269,7 +269,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3.0, baseColor)
       # Corner nodes
       drawCircle(Vector2(x: x1, y: y1), 3.5, baseColor)
-    
+
     # 4. INNER SQUARE (filled)
     let innerSize = radius * 0.75
     let halfSize = innerSize / sqrt(2.0)
@@ -289,7 +289,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
                 Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
     drawTriangle(Vector2(x: cx4, y: cy4), Vector2(x: cx1, y: cy1), Vector2(x: pos.x, y: pos.y),
                 Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
-    
+
     # 5. CORE CIRCLE
     drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
     let highlightX = pos.x - radius * 0.15
@@ -306,7 +306,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
                2.0, Color(r: min(baseColor.r + 120, 255).uint8,
                           g: min(baseColor.g + 120, 255).uint8,
                           b: min(baseColor.b + 120, 255).uint8, a: uint8(140 + pulse * 80)))
-  
+
   of shCircle:
     # Pure circle shape - clean and simple (uses rotation for pulsing effect)
     # 1. OUTER ENERGY FIELD (circular glow)
@@ -316,7 +316,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let layerAlpha = uint8((1.0 - i.float32 / 4.0) * glowIntensity * 60)
       drawCircle(Vector2(x: pos.x, y: pos.y), layerRadius,
                 Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
-    
+
     # 2. ROTATING ENERGY RINGS (orbital layers)
     let numRings = 3
     for ring in 0..<numRings:
@@ -332,24 +332,24 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
         drawCircle(Vector2(x: dotX, y: dotY), dotSize,
                   Color(r: min(baseColor.r + 30, 255), g: min(baseColor.g + 30, 255),
                         b: min(baseColor.b + 30, 255), a: dotAlpha))
-    
+
     # 3. MAIN OUTER RING
     let mainRingRadius = radius * 0.9
     drawCircle(Vector2(x: pos.x, y: pos.y), mainRingRadius, baseColor)
     drawCircle(Vector2(x: pos.x, y: pos.y), mainRingRadius - 2.5,
               Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 255))
-    
+
     # 4. INNER BODY CIRCLE (darker fill)
     let bodyRadius = radius * 0.7
     drawCircle(Vector2(x: pos.x, y: pos.y), bodyRadius,
               Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 220))
-    
+
     # 5. SECONDARY COLOR RING (mid layer)
     let secondaryRing = radius * 0.55
     for i in 0..1:
       let ringR = secondaryRing - i.float32 * 2.0
       drawCircle(Vector2(x: pos.x, y: pos.y), ringR, secondaryColor)
-    
+
     # 6. BRIGHT CORE with rotating highlight
     drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.4, coreColor)
     # Rotating core highlight

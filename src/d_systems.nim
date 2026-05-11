@@ -45,7 +45,7 @@ proc addShake*(shake: var ScreenShake, intensity: ShakeIntensity,
   of siPowerUp:
     shake.intensity = max(shake.intensity, 1.5)
     shake.duration = 0.15
-  
+
   shake.maxDuration = shake.duration
   shake.tintColor = tint
 
@@ -53,13 +53,13 @@ proc updateShake*(shake: var ScreenShake, dt: float32) =
   ## Update screen shake, applying decay over time
   if shake.duration > 0:
     shake.duration -= dt
-    
+
     # Generate random offset based on intensity
     let angle = float32(rand(0.0..TAU))
     let currentIntensity = shake.intensity * (shake.duration / shake.maxDuration)
     shake.offset.x = cos(angle) * currentIntensity
     shake.offset.y = sin(angle) * currentIntensity
-    
+
     # Apply decay
     shake.intensity *= (1.0 - shake.decayRate * dt * 10.0)
   else:
@@ -91,7 +91,7 @@ proc getComboWindow*(combo: ComboSystem): float32 =
   ## Window gets shorter as combo increases to increase difficulty
   let baseWindow = 4.0  # Starting window
   let minWindow = 1.5   # Minimum window at high combos
-  
+
   # Gradually decrease window: lose 0.15 seconds per combo kill
   let windowReduction = combo.killCount.float32 * 0.15
   result = max(minWindow, baseWindow - windowReduction)
@@ -99,17 +99,17 @@ proc getComboWindow*(combo: ComboSystem): float32 =
 proc addComboKill*(combo: var ComboSystem, currentTime: float32): int =
   ## Add a kill to combo, returns bonus coins earned
   let currentWindow = getComboWindow(combo)
-  
+
   if currentTime - combo.lastKillTime <= currentWindow:
     combo.killCount += 1
   else:
     combo.killCount = 1
-  
+
   combo.lastKillTime = currentTime
   combo.comboWindow = getComboWindow(combo)
   combo.displayTimer = 5.0
   combo.waveKillCount += 1  # Always track wave kills independently
-  
+
   # Calculate bonus coins
   combo.bonusCoins = 0
   if combo.killCount == 2:
@@ -120,14 +120,14 @@ proc addComboKill*(combo: var ComboSystem, currentTime: float32): int =
     combo.bonusCoins = 10
   elif combo.killCount == 20:
     combo.bonusCoins = 25
-  
+
   return combo.bonusCoins
 
 proc updateCombo*(combo: var ComboSystem, dt: float32, currentTime: float32) =
   ## Update combo system with "coyote time" - players get 0.1s extra grace period
   let currentWindow = getComboWindow(combo)
   let coyoteTime = 0.1  # Extra buffer time not shown on timer (like coyote jump)
-  
+
   # Reset combo only after window + coyote time expires
   if combo.killCount > 0 and currentTime - combo.lastKillTime > currentWindow + coyoteTime:
     combo.killCount = 0
@@ -135,7 +135,7 @@ proc updateCombo*(combo: var ComboSystem, dt: float32, currentTime: float32) =
     combo.comboWindow = 4.0  # Reset to base window when combo breaks
     if combo.waveKillCount > 0:
       combo.waveComboBreaks += 1  # Only counts if wave has started
-  
+
   if combo.displayTimer > 0:
     combo.displayTimer -= dt
 
@@ -180,7 +180,7 @@ proc checkRewards*(tracker: var MicroRewardTracker, kills: int,
                    damageDealt: float32, playerPos: Vector2f): seq[MicroReward] =
   ## Check for micro-rewards and return new ones
   var newRewards: seq[MicroReward] = @[]
-  
+
   # Every 10 kills
   if kills > 0 and kills mod 10 == 0 and kills != tracker.lastKills:
     newRewards.add(MicroReward(
@@ -189,10 +189,10 @@ proc checkRewards*(tracker: var MicroRewardTracker, kills: int,
       displayTimer: 2.0,
       pos: playerPos
     ))
-  
+
   tracker.lastKills = kills
   tracker.lastDamageDealt = damageDealt
-  
+
   return newRewards
 
 proc addReward*(tracker: var MicroRewardTracker, reward: MicroReward) =
@@ -235,7 +235,7 @@ proc activateSlowMo*(slowMo: var SlowMotion, slowType: SlowMotionType) =
   of smtWaveComplete:
     slowMo.timeScale = 0.5
     slowMo.duration = 0.3
-  
+
   slowMo.maxDuration = slowMo.duration
   slowMo.active = true
   slowMo.slowType = slowType

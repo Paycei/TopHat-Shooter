@@ -3,13 +3,13 @@
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
   # Get enemy configuration
   let config = getEnemyConfig(enemyType)
-  
+
   # Calculate scaled stats
   let stats = getScaledEnemyStats(config, difficulty)
-  
+
   # Enforce minimum HP of 0.01
   let finalHp = max(stats.hp, 0.01)
-  
+
   # Create base enemy with config values
   result = Enemy(
     id: game.nextEnemyId,
@@ -51,18 +51,18 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
     clonePositions: @[],
     rotation: 0.0
   )
-  
+
   # Initialize boss-spawned flag (default: false, set to true by boss summon)
   result.spawnedByBoss = false
   result.threatLevel = 0
-  
+
   # Initialize diamond shield (1-hit absorb, like Celestial Veil)
   result.diamondShieldActive = (enemyType == etDiamond)
-  
+
   # Initialize defense multiplier (default: 1.0 = no reduction, bosses override this)
   if not result.isBoss:
     result.defenseMultiplier = 1.0
-  
+
   # Initialize debuff resistance (default: 0.0 = no resistance, bosses set to 0.5 = 50% reduction)
   result.debuffResistance = 0.0
 
@@ -80,7 +80,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
     result.dashCooldown = config.movement.dashCooldown + rand(1.0)
   else:
     discard
-  
+
   # Increment enemy ID counter for next enemy
   game.nextEnemyId += 1
 
@@ -89,7 +89,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   var effectiveSpeed = getEffectiveSpeed(enemy.speed, game.currentWave)
   if enemy.slowAmount > 0:
     effectiveSpeed = effectiveSpeed * (1.0 - enemy.slowAmount)
-  
+
   if enemy.isBoss:
     # Boss update logic
     if enemy.entranceTimer > 0:
@@ -103,10 +103,10 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         enemy.pos = enemy.targetPos
         enemy.shootTimer = 0.81
       return true
-    
+
     enemy.shootTimer += dt
     enemy.spawnTimer += dt
-    
+
     # CUSTOM BOSS COLOR UPDATE (HP-based phases)
     # Update custom boss color based on HP percentage and phase definitions
     let hpPercent = enemy.hp / enemy.maxHp
@@ -123,8 +123,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Getting damaged
       enemy.color = Color(r: 200, g: 100, b: 50, a: 255)  # Dark orange
     # else: keep original color (full HP)
-    
-    
+
+
     let dir = (playerPos - enemy.pos).normalize()
     var canMove = true
     let nextPos = enemy.pos + dir * effectiveSpeed * dt
@@ -143,7 +143,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
     if canMove:
       enemy.vel = dir * effectiveSpeed
       enemy.pos = enemy.pos + enemy.vel * dt
-  
+
   else:
     # Regular enemy updates
     case enemy.enemyType
@@ -166,17 +166,17 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       if canMove:
         enemy.vel = dir * effectiveSpeed
         enemy.pos = enemy.pos + enemy.vel * dt
-    
+
     of etCube:
       # Get config for this enemy type
       let config = getEnemyConfig(enemy.enemyType)
-      
+
       # Update timers
       enemy.shootTimer += dt
-      
+
       # Check screen entry
       checkScreenEntry(enemy, game)
-      
+
       # Determine next position
       var nextPos: Vector2f
       if not enemy.hasEnteredScreen:
@@ -185,25 +185,25 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       else:
         # Maintain optimal distance from player
         nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
-      
+
       # Check collisions
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
       let hitBoundary = checkScreenBoundaryCollision(enemy, nextPos, game, config)
-      
+
       # Apply movement if no collisions
       if not hitWall and not hitBoundary:
         enemy.pos = nextPos
-      
+
       # Execute ranged attack (uses config values)
       executeRangedAttack(enemy, playerPos, game)
-    
+
     of etTriangle:
       # Get config for this enemy type
       let config = getEnemyConfig(enemy.enemyType)
-      
+
       # Calculate dash speed multiplier from config (dashSpeed / baseSpeed)
       let dashMultiplier = config.movement.dashSpeed / config.movement.baseSpeed
-      
+
       # dashTimer    = inter-dash cooldown (counts down to 0, then dash fires)
       # dashCooldown = active dash duration (counts down while actually dashing)
       if enemy.dashCooldown > 0:
@@ -255,14 +255,14 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           break
       if canMove:
         enemy.pos = enemy.pos + enemy.vel * dt
-    
+
     of etStar:
       # Get config for this enemy type
       let config = getEnemyConfig(enemy.enemyType)
       let specialData = parseSpecialData(config.specialData)
       let dashRange = getSpecialFloat(specialData, "dash_range", 150.0)
       let dashMultiplier = config.movement.dashSpeed / config.movement.baseSpeed
-      
+
       # Star dashes when close to player
       enemy.dashCooldown -= dt
       let distToPlayer = distance(enemy.pos, playerPos)
@@ -287,12 +287,12 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           break
       if canMove:
         enemy.pos = nextPos
-    
+
     of etHexagon:
       # Update timers
       enemy.hexTeleportTimer -= dt
       enemy.shootTimer += dt
-      
+
       # Teleport behavior with pre-teleport warning
       let hexWarningTime = 0.8  # Show warning this many seconds before teleporting
       if enemy.hexTeleportTimer <= 0:
@@ -322,10 +322,10 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
         if not hitWall:
           enemy.pos = nextPos
-      
+
       # Chaotic shooting (uses config for fire rate, bullet count, speed)
       executeRangedAttack(enemy, playerPos, game)
-    
+
     of etCross:
       # Shows cross warning before attack, then dashes while rotating
       case enemy.attackPhase
@@ -339,14 +339,14 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             break
         if canMove:
           enemy.pos = nextPos
-        
+
         enemy.attackWarningTimer += dt
         if enemy.attackWarningTimer >= 3.0:
           enemy.attackPhase = 1
           enemy.attackWarningTimer = 1.2  # Warning duration
           # Add warning to game
           game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "cross", 1.2))
-      
+
       of 1:  # Warning phase - stop moving, prepare for dash
         enemy.attackWarningTimer -= dt
         if enemy.attackWarningTimer <= 0:
@@ -355,10 +355,10 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           # Store dash direction toward player
           let dashDir = (playerPos - enemy.pos).normalize()
           enemy.vel = dashDir * effectiveSpeed * 4.0  # Fast dash (4x normal speed)
-      
+
       of 2:  # Execute attack - DASH with rotation while firing laser
         enemy.attackExecuteTimer -= dt
-        
+
         # Fire laser CONTINUOUSLY during dash, following the enemy position AND rotation
         # Laser follows the enemy during the entire dash
         game.lasers.add(newLaser(
@@ -371,10 +371,10 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.rotation, # rotation: pass the enemy's current rotation
           enemy.enemyType # enemyType: track which enemy type created this laser
         ))
-        
+
         # Rotate during dash (clockwise at 12.5 radians per second)
         enemy.rotation += dt * 12.5
-        
+
         # Dash movement with rotation
         if enemy.attackExecuteTimer > 0:
           # Continue dashing
@@ -387,10 +387,10 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
               let wallDir = (enemy.pos - wall.pos).normalize()
               enemy.vel = wallDir * effectiveSpeed * 3.0
               break
-          
+
           if canMove:
             enemy.pos = nextPos
-          
+
           # Gradually slow down during dash
           enemy.vel = enemy.vel * pow(0.96, 60.0 * dt)
         else:
@@ -402,18 +402,18 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.rotation = 0.0  # Reset rotation
       else:
         discard
-    
+
     of etDiamond:
       # Get config for this enemy type
       let config = getEnemyConfig(enemy.enemyType)
       let dashMultiplier = config.movement.dashSpeed / config.movement.baseSpeed
-      
+
       # Dash and shoot behavior
       # dashCooldown = inter-dash cooldown (counts down to 0, then dash fires)
       # dashTimer    = active dash duration (counts down while actually dashing)
       enemy.dashCooldown -= dt
       enemy.shootTimer += dt
-      
+
       if enemy.dashTimer > 0:
         # Currently dashing - maintain dash velocity for the full dash duration
         enemy.dashTimer -= dt
@@ -423,40 +423,40 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         enemy.vel = dir * effectiveSpeed * dashMultiplier
         enemy.dashTimer = config.movement.dashDuration  # Tracks remaining dash time
         enemy.dashCooldown = config.movement.dashCooldown + rand(1.0)
-        
+
         # Brief directional dash warning so the player can react
         game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "triangle_dash", 0.18, enemy.id))
-        
+
         # Shoot 3-spread at the start of each dash (uses config)
         executeRangedAttack(enemy, playerPos, game)
       else:
         # Normal movement between dashes
         let dir = (playerPos - enemy.pos).normalize()
         enemy.vel = dir * effectiveSpeed * 0.7
-      
+
       # Periodic random shooting only when not dashing
       if enemy.dashTimer <= 0 and enemy.shootTimer > config.attack.fireRate:
         let angle = rand(1.0) * PI * 2.0
         let tempDir = newVector2f(cos(angle), sin(angle))
         let tempPlayerPos = enemy.pos + tempDir * 100.0  # Fake target
         executeRangedAttack(enemy, tempPlayerPos, game)
-      
+
       # Apply movement
       let nextPos = enemy.pos + enemy.vel * dt
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
       if not hitWall:
         enemy.pos = nextPos
-    
+
     of etOctagon:
       # Get config for this enemy type
       let config = getEnemyConfig(enemy.enemyType)
-      
+
       # Update timers
       enemy.shootTimer += dt
-      
+
       # Check screen entry
       checkScreenEntry(enemy, game)
-      
+
       # Determine next position
       var nextPos: Vector2f
       if not enemy.hasEnteredScreen:
@@ -465,28 +465,28 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       else:
         # Maintain optimal distance from player
         nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
-      
+
       # Check collisions
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
       let hitBoundary = checkScreenBoundaryCollision(enemy, nextPos, game, config)
-      
+
       # Apply movement if no collisions
       if not hitWall and not hitBoundary:
         enemy.pos = nextPos
-      
+
       # Rapid fire with inaccuracy (uses config values)
       executeRangedAttack(enemy, playerPos, game)
-    
+
     of etPentagon:
       # Get config for this enemy type
       let config = getEnemyConfig(enemy.enemyType)
-      
+
       # Update timers
       enemy.shootTimer += dt
-      
+
       # Check screen entry
       checkScreenEntry(enemy, game)
-      
+
       # Determine next position
       var nextPos: Vector2f
       if not enemy.hasEnteredScreen:
@@ -495,38 +495,38 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       else:
         # Maintain optimal distance from player
         nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
-      
+
       # Check collisions
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
       let hitBoundary = checkScreenBoundaryCollision(enemy, nextPos, game, config)
-      
+
       # Apply movement if no collisions
       if not hitWall and not hitBoundary:
         enemy.pos = nextPos
-      
+
       # Powerful pentagon sniper shot (uses config values)
       executeRangedAttack(enemy, playerPos, game)
-    
+
     of etTrickster:
       # Fake warning + teleport behavior — two phase:
       #   attackPhase 0: idle, counting down fakeWarningTimer
       #   attackPhase 1: warning is showing, counting down attackWarningTimer until TP
       let trickWarningDuration = 1.0
-      
+
       if enemy.attackPhase == 0:
         enemy.fakeWarningTimer -= dt
         if enemy.fakeWarningTimer <= 0:
           let margin = enemy.radius + 10.0
-          
+
           # Choose a FAKE position near the player for the visible warning
           let fakeAngle = rand(1.0) * PI * 2.0
           let fakeDist = 100.0 + rand(80.0)
           let fakeX = clamp(playerPos.x + cos(fakeAngle) * fakeDist, margin, game.screenWidth.float32 - margin)
           let fakeY = clamp(playerPos.y + sin(fakeAngle) * fakeDist, margin, game.screenHeight.float32 - margin)
-          
+
           # Show fake warning - player expects the attack here
           game.attackWarnings.add(newAttackWarning(fakeX, fakeY, "trickster_decoy", trickWarningDuration))
-          
+
           # Pre-calculate REAL destination (~90° away from the fake) and store it
           let realAngle = fakeAngle + PI * (0.5 + rand(1.0))
           let realDist = 120.0 + rand(80.0)
@@ -534,14 +534,14 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             clamp(playerPos.x + cos(realAngle) * realDist, margin, game.screenWidth.float32 - margin),
             clamp(playerPos.y + sin(realAngle) * realDist, margin, game.screenHeight.float32 - margin)
           )
-          
+
           # Subtle hint at the REAL destination — small and easy to miss
           game.attackWarnings.add(newAttackWarning(enemy.targetPos.x, enemy.targetPos.y, "trickster_real", trickWarningDuration))
-          
+
           # Start waiting for the warning to expire before actually teleporting
           enemy.attackWarningTimer = trickWarningDuration
           enemy.attackPhase = 1
-      
+
       elif enemy.attackPhase == 1:
         # Warning is showing — wait for it to expire, then teleport and shoot
         enemy.attackWarningTimer -= dt
@@ -552,30 +552,30 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           # Reset cycle
           enemy.fakeWarningTimer = 3.0 + rand(2.0)
           enemy.attackPhase = 0
-      
+
       # Normal movement during both phases
       let nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed * 0.6)
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
       if not hitWall:
         enemy.pos = nextPos
-    
+
     of etPhantom:
       # Get config for this enemy type
       let config = getEnemyConfig(enemy.enemyType)
-      
+
       # Three-phase state machine:
       #   phase 0: idle — cloneTimer counts down, then pre-calculate & warn
       #   phase 1: warning shown — attackWarningTimer counts down, then teleport
       #   phase 2: turret mode — clones fire sequentially until cloneTimer expires -> phase 0
       let phantomWarnDuration = 0.9
       let cloneShotInterval   = 0.45  # seconds between each sequential clone shot
-      
+
       if enemy.attackPhase == 0:
         enemy.cloneTimer -= dt
-        
+
         if enemy.cloneTimer <= 0:
           let margin = enemy.radius + 10.0
-          
+
           # Pre-calculate real teleport destination
           let teleAngle = rand(1.0) * PI * 2.0
           let teleDist  = 140.0 + rand(90.0)
@@ -583,7 +583,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             clamp(playerPos.x + cos(teleAngle) * teleDist, margin, game.screenWidth.float32 - margin),
             clamp(playerPos.y + sin(teleAngle) * teleDist, margin, game.screenHeight.float32 - margin)
           )
-          
+
           # Pre-calculate 3 clone turret positions (evenly spread, randomised offset)
           let cloneBaseAngle = rand(1.0) * PI * 2.0
           enemy.clonePositions = @[]
@@ -594,41 +594,41 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
               clamp(playerPos.x + cos(angle) * dist, margin, game.screenWidth.float32 - margin),
               clamp(playerPos.y + sin(angle) * dist, margin, game.screenHeight.float32 - margin)
             ))
-          
+
           # Warn at the real teleport destination — portal marker
           game.attackWarnings.add(newAttackWarning(
             enemy.targetPos.x, enemy.targetPos.y, "phantom_arrive", phantomWarnDuration))
-          
+
           # Warn at every clone turret position — ghostly crosshair
           for clonePos in enemy.clonePositions:
             game.attackWarnings.add(newAttackWarning(
               clonePos.x, clonePos.y, "phantom_clone", phantomWarnDuration))
-          
+
           enemy.attackWarningTimer = phantomWarnDuration
           enemy.attackPhase = 1
-      
+
       elif enemy.attackPhase == 1:
         # Warnings visible — wait, then teleport and enter turret mode
         enemy.attackWarningTimer -= dt
         if enemy.attackWarningTimer <= 0:
           enemy.pos = enemy.targetPos
-          
+
           # Shoot once from the real landed position on arrival
           enemy.shootTimer = config.attack.fireRate + 1.0
           executeRangedAttack(enemy, playerPos, game)
           enemy.shootTimer = 0
-          
+
           # Enter turret mode: hitCount = current clone index, burstTimer = shot delay
           enemy.hitCount  = 0
           enemy.burstTimer = 0.0  # fire clone 0 immediately on first tick
           enemy.cloneTimer = config.movement.teleportCooldown + rand(1.5)
           enemy.attackPhase = 2
-      
+
       elif enemy.attackPhase == 2:
         # Sequential turret fire from clone positions
         enemy.burstTimer -= dt
         enemy.cloneTimer -= dt
-        
+
         if enemy.burstTimer <= 0 and enemy.clonePositions.len > 0:
           let idx = enemy.hitCount mod enemy.clonePositions.len
           let clonePos    = enemy.clonePositions[idx]
@@ -638,14 +638,14 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           executeRangedAttack(enemy, playerPos, game)
           enemy.pos        = originalPos
           enemy.shootTimer = 0
-          
+
           enemy.hitCount  += 1
           enemy.burstTimer = cloneShotInterval
-        
+
         # When turret phase expires, go back to idle for next teleport cycle
         if enemy.cloneTimer <= 0:
           enemy.attackPhase = 0
-      
+
       # Erratic wobbling movement during all phases
       let dir = (playerPos - enemy.pos).normalize()
       let wobble = sin(currentTime * 5.0) * 0.7
@@ -657,7 +657,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
       if not hitWall:
         enemy.pos = nextPos
-    
+
     of etSniper:
       # Sniper enemy - charges a powerful one-shot attack with warning
       let config = getEnemyConfig(enemy.enemyType)
@@ -665,12 +665,12 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       let triggerRange = getSpecialFloat(specialData, "trigger_range", 500.0)  # Default matches config (was 300, increased to 500)
       let chargeTime = getSpecialFloat(specialData, "charge_time", 3.0)
       let cooldownTime = getSpecialFloat(specialData, "cooldown", 2.0)
-      
+
       # Mark as entered screen once fully on-screen (required for executeRangedAttack)
       checkScreenEntry(enemy, game)
-      
+
       let distToPlayer = distance(enemy.pos, playerPos)
-      
+
       case enemy.attackPhase
       of 0:  # Hunting phase - moves toward player
         let dir = (playerPos - enemy.pos).normalize()
@@ -682,7 +682,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             break
         if canMove:
           enemy.pos = nextPos
-        
+
         # When close enough, start charging
         if distToPlayer < triggerRange:
           enemy.attackPhase = 1
@@ -690,42 +690,42 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.attackExecuteTimer = chargeTime
           # Emit a reticle warning that lasts the full charge duration
           game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "sniper_charge", chargeTime, enemy.id))
-      
+
       of 1:  # Charging phase - stands still, glows brighter
         enemy.attackWarningTimer += dt
         # Visual charging: change color intensity
         let chargeAmount = enemy.attackWarningTimer / enemy.attackExecuteTimer
         let intensity = uint8(150 + chargeAmount * 105)
         enemy.color = Color(r: intensity, g: 0, b: 0, a: 255)
-        
+
         # When charge completes, fire using centralized system
         if enemy.attackWarningTimer >= enemy.attackExecuteTimer:
           executeRangedAttack(enemy, playerPos, game)
           enemy.attackPhase = 2
           enemy.attackExecuteTimer = cooldownTime
           enemy.color = Color(r: 220, g: 0, b: 0, a: 255)  # Reset color
-      
+
       of 2:  # Cooldown phase - recover before hunting again
         enemy.attackExecuteTimer -= dt
         if enemy.attackExecuteTimer <= 0:
           enemy.attackPhase = 0
       else:
         discard
-    
+
     of etMage:
       # Magical enemy: homing bullets + meteorite summoning
       let config = getEnemyConfig(enemy.enemyType)
-      
+
       # Check screen entry
       checkScreenEntry(enemy, game)
-      
+
       # Update timers
       enemy.shootTimer += dt  # For homing bullets
       enemy.spawnTimer += dt  # For meteorites
-      
+
       # Shoot homing magic bullets using centralized system
       executeRangedAttack(enemy, playerPos, game)
-      
+
       # Summon meteorites periodically using config values
       if enemy.spawnTimer > config.specialCooldown:
         let specialData = parseSpecialData(config.specialData)
@@ -733,7 +733,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         let randomExtra = getSpecialInt(specialData, "meteorite_count_random", 1)
         let damage = getSpecialInt(specialData, "damage", 3)
         let warningTime = getSpecialFloat(specialData, "warning_time", 1.5)
-        
+
         # Meteorite count from config
         let meteorCount = baseCount + (if randomExtra > 0: rand(randomExtra) else: 0)
         for i in 0..<meteorCount:
@@ -742,11 +742,11 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           let offsetY = (rand(200.0) - 100.0)
           let targetX = playerPos.x + offsetX
           let targetY = playerPos.y + offsetY
-          
+
           # Spawn position above screen
           let spawnX = targetX
           let spawnY = -50.0
-          
+
           # Create meteorite with config damage and warning time
           let meteorite = newMeteorite(
             targetX = targetX,
@@ -757,16 +757,16 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             warningTime = warningTime
           )
           game.meteorites.add(meteorite)
-        
+
         enemy.spawnTimer = 0
-      
+
       # Movement: use helper functions for consistent behavior
       var nextPos: Vector2f
       if not enemy.hasEnteredScreen:
         nextPos = forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game)
       else:
         nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
-      
+
       # Check wall collisions
       var canMove = true
       for wall in walls:
@@ -781,52 +781,52 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
               enemy.hp = 0.01
             enemy.lastWallDamageTime = currentTime
           break
-      
+
       # Screen boundary check - keep ranged enemies inside once entered
       # Allow movement toward screen when off-screen, prevent leaving when inside
       if enemy.hasEnteredScreen:
         let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
                          nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
-        
+
         if isOffScreen:
           # Calculate direction toward screen center
           let screenCenterX = game.screenWidth.float32 / 2.0
           let screenCenterY = game.screenHeight.float32 / 2.0
           let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
           let movementDir = (nextPos - enemy.pos).normalize()
-          
+
           # Calculate dot product to see if movement is toward center
           let dotProduct = towardCenter.x * movementDir.x + towardCenter.y * movementDir.y
-          
+
           # Only block movement if it's moving away from center (dot < 0)
           # Allow movement if it's toward center (dot >= 0)
           if dotProduct < 0:
             canMove = false
-      
+
       if canMove:
         enemy.pos = nextPos
-  
+
   # Update all active effects for this enemy
   let effectDamage = updateEffects(enemy, dt)
   # Stars use a hit-count system, HP damage from DoT effects would let them
   # die via the wrong mechanic, so we skip direct HP reduction for them.
   if effectDamage > 0 and enemy.enemyType != etStar:
     enemy.hp -= effectDamage
-  
+
   # Update chain lightning cooldown
   if enemy.chainLightningCooldown > 0:
     enemy.chainLightningCooldown -= dt
-  
+
   # Update slow timer (from Chain Lightning stun and other effects)
   if enemy.slowTimer > 0:
     enemy.slowTimer -= dt
     if enemy.slowTimer <= 0:
       enemy.slowAmount = 0
-  
+
   # Check if star is defeated by hit count
   if enemy.enemyType == etStar and enemy.hitCount >= enemy.requiredHits:
     return false
-  
+
   # Enemies with exactly 0.01 HP are still alive (minimum health)
   # They die when hit again (hp becomes <= 0)
   return enemy.hp >= 0.01
@@ -966,7 +966,7 @@ proc drawCustomBoss*(enemy: Enemy) =
       drawLine(Vector2(x: enemy.pos.x - enemy.radius, y: enemy.pos.y + xOffset),
               Vector2(x: enemy.pos.x + enemy.radius, y: enemy.pos.y + xOffset),
               1, Color(r: 0, g: 150, b: 200, a: 100))
-    
+
     # Main hexagonal body
     let hexPoints = 6
     for i in 0..<hexPoints:
@@ -977,7 +977,7 @@ proc drawCustomBoss*(enemy: Enemy) =
       let x2 = enemy.pos.x + cos(nextAngle) * enemy.radius
       let y2 = enemy.pos.y + sin(nextAngle) * enemy.radius
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 4, enemy.color)
-    
+
     # Central projection point
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.2,
                Color(r: 100, g: 255, b: 255, a: 255))
@@ -1123,11 +1123,11 @@ proc drawCustomBoss*(enemy: Enemy) =
       Color(r: 0, g: 0, b: 255, a: 100),    # Blue
       Color(r: 139, g: 0, b: 255, a: 100)   # Purple
     ]
-    
+
     for i in 0..<6:
       let ringRadius = enemy.radius + i.float32 * 4 + sin(time * 3.0 + i.float32) * 2
       drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius, colors[i])
-    
+
     # Prismatic core - hexagon
     let hexPoints = 6
     for i in 0..<hexPoints:
@@ -1138,7 +1138,7 @@ proc drawCustomBoss*(enemy: Enemy) =
       let x2 = enemy.pos.x + cos(nextAngle) * enemy.radius * 0.8
       let y2 = enemy.pos.y + sin(nextAngle) * enemy.radius * 0.8
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 4, enemy.color)
-    
+
     # Bright light center
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
                Color(r: 255, g: 255, b: 255, a: 255))
@@ -1195,13 +1195,13 @@ proc drawCustomBoss*(enemy: Enemy) =
               Color(r: 200, g: 0, b: 200, a: 150))
       drawCircle(Vector2(x: x, y: y), 3,
                 Color(r: 255, g: 100, b: 255, a: 200))
-    
+
     # Unstable core
     let coreSize = enemy.radius * (0.6 + sin(time * 7.0) * 0.2)
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), coreSize, enemy.color)
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, coreSize,
                    Color(r: 255, g: 40, b: 220, a: 255))
-    
+
     # Chaotic center
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
                Color(r: 255, g: 0, b: 255, a: 255))
@@ -1212,13 +1212,13 @@ proc drawCustomBoss*(enemy: Enemy) =
     let shiftR = uint8(abs(sin(phaseHue * PI * 2.0)) * 255)
     let shiftG = uint8(abs(sin((phaseHue + 0.33) * PI * 2.0)) * 255)
     let shiftB = uint8(abs(sin((phaseHue + 0.66) * PI * 2.0)) * 255)
-    
+
     # Multiple rotating layers
     for layer in 0..2:
       let layerRadius = enemy.radius * (0.4 + layer.float32 * 0.3)
       let layerRotation = time * (1.0 + layer.float32) * (if layer mod 2 == 0: 1.0 else: -1.0)
       let layerPoints = 8 + layer * 4
-      
+
       for i in 0..<layerPoints:
         let angle = i.float32 * PI * 2.0 / layerPoints.float32 + layerRotation
         let nextAngle = (i + 1).float32 * PI * 2.0 / layerPoints.float32 + layerRotation
@@ -1228,7 +1228,7 @@ proc drawCustomBoss*(enemy: Enemy) =
         let y2 = enemy.pos.y + sin(nextAngle) * layerRadius
         drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3,
                 Color(r: shiftR, g: shiftG, b: shiftB, a: 200))
-    
+
     # Supreme core with all colors
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.4,
                Color(r: shiftR, g: shiftG, b: shiftB, a: 255))
@@ -1296,7 +1296,7 @@ proc drawEnemy*(enemy: Enemy) =
   if enemy.isBoss:
     # Boss drawing
     drawCustomBoss(enemy)
-    
+
     # HP bar (common to all bosses)
     let barWidth = enemy.radius * 2.5
     let barHeight = 8.0
@@ -1347,7 +1347,7 @@ proc drawEnemy*(enemy: Enemy) =
       # Bright core dot — keep white, it's a tiny accent not an outline
       drawCircle(Vector2(x: cx, y: cy), r * 0.20,
                 Color(r: 255, g: 255, b: 255, a: 200))
-    
+
     of etCube:
       let t  = getTime()
       let s  = enemy.radius
@@ -1398,7 +1398,7 @@ proc drawEnemy*(enemy: Enemy) =
           1.5, Color(r: min(enemy.color.r + 60, 255).uint8,
                      g: min(enemy.color.g + 60, 255).uint8,
                      b: min(enemy.color.b + 60, 255).uint8, a: 180))
-    
+
     of etTriangle:
       # During active dash: show a bright motion trail behind the triangle
       if enemy.dashCooldown > 0:
@@ -1450,7 +1450,7 @@ proc drawEnemy*(enemy: Enemy) =
       # Center core dot — tiny white accent, not an outline
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y + enemy.radius * 0.12),
                 enemy.radius * 0.14, Color(r: 255, g: 255, b: 255, a: 200))
-    
+
     of etStar:
       let t  = getTime()
       let cx = enemy.pos.x
@@ -1525,7 +1525,7 @@ proc drawEnemy*(enemy: Enemy) =
                 Color(r: 0, g: 0, b: 0, a: 160))
       drawText(text, (cx - textWidth / 2).int32, (cy - 7).int32, 14,
                Color(r: 255, g: 255, b: 255, a: 240))
-    
+
     of etHexagon:
       let t   = getTime()
       let cx  = enemy.pos.x
@@ -1578,33 +1578,33 @@ proc drawEnemy*(enemy: Enemy) =
             dSize, Color(r: min(enemy.color.r + 100, 255).uint8,
                          g: min(enemy.color.g + 100, 255).uint8,
                          b: 255, a: dAlpha))
-    
+
     of etCross:
       # Draw cross shape with rotation support
       let armLength = enemy.radius * 0.8  # Slightly longer arms
       let armThickness = 8.0
-      
+
       # Apply rotation (during dash)
       let rotAngle = enemy.rotation
-      
+
       # Calculate rotated cross arms
       # Horizontal arm (rotated)
       let hx1 = enemy.pos.x + cos(rotAngle) * (-armLength)
       let hy1 = enemy.pos.y + sin(rotAngle) * (-armLength)
       let hx2 = enemy.pos.x + cos(rotAngle) * armLength
       let hy2 = enemy.pos.y + sin(rotAngle) * armLength
-      
+
       # Vertical arm (rotated 90 degrees from horizontal)
       let vAngle = rotAngle + PI / 2.0
       let vx1 = enemy.pos.x + cos(vAngle) * (-armLength)
       let vy1 = enemy.pos.y + sin(vAngle) * (-armLength)
       let vx2 = enemy.pos.x + cos(vAngle) * armLength
       let vy2 = enemy.pos.y + sin(vAngle) * armLength
-      
+
       # Draw rotated cross arms with thicker lines
       drawLine(Vector2(x: hx1, y: hy1), Vector2(x: hx2, y: hy2), armThickness, enemy.color)
       drawLine(Vector2(x: vx1, y: vy1), Vector2(x: vx2, y: vy2), armThickness, enemy.color)
-      
+
       # Draw inner bright cross (also rotated) - slightly thicker
       let innerLength = armLength * 0.65
       let innerThickness = 3.5
@@ -1616,17 +1616,17 @@ proc drawEnemy*(enemy: Enemy) =
       let ivy1 = enemy.pos.y + sin(vAngle) * (-innerLength)
       let ivx2 = enemy.pos.x + cos(vAngle) * innerLength
       let ivy2 = enemy.pos.y + sin(vAngle) * innerLength
-      
+
       drawLine(Vector2(x: ihx1, y: ihy1), Vector2(x: ihx2, y: ihy2), innerThickness,
               Color(r: 255, g: 150, b: 50, a: 255))
       drawLine(Vector2(x: ivx1, y: ivy1), Vector2(x: ivx2, y: ivy2), innerThickness,
               Color(r: 255, g: 150, b: 50, a: 255))
-      
+
       # Draw central core - slightly larger
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.5, enemy.color)
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
                 Color(r: 255, g: 150, b: 0, a: 255))
-      
+
       # Warning glow with pulsing effect
       if enemy.attackPhase == 1:
         let pulseIntensity = uint8((sin(getTime() * 15.0) * 0.5 + 0.5) * 200)
@@ -1634,7 +1634,7 @@ proc drawEnemy*(enemy: Enemy) =
                        Color(r: 255, g: 50, b: 0, a: pulseIntensity))
         drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 12,
                        Color(r: 255, g: 0, b: 0, a: (pulseIntensity div 2).uint8))
-      
+
       # Dash effect - motion blur trail during phase 2
       if enemy.attackPhase == 2:
         for i in 1..3:
@@ -1643,16 +1643,16 @@ proc drawEnemy*(enemy: Enemy) =
           let trailX = enemy.pos.x - enemy.vel.x * i.float32 * 0.03
           let trailY = enemy.pos.y - enemy.vel.y * i.float32 * 0.03
           let trailLength = armLength * trailScale
-          
+
           # Trail horizontal
           let thx1 = trailX + cos(rotAngle - i.float32 * 0.3) * (-trailLength)
           let thy1 = trailY + sin(rotAngle - i.float32 * 0.3) * (-trailLength)
           let thx2 = trailX + cos(rotAngle - i.float32 * 0.3) * trailLength
           let thy2 = trailY + sin(rotAngle - i.float32 * 0.3) * trailLength
-          
+
           drawLine(Vector2(x: thx1, y: thy1), Vector2(x: thx2, y: thy2), 2,
                   Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: trailAlpha))
-    
+
     of etDiamond:
       let cx = enemy.pos.x
       let cy = enemy.pos.y
@@ -1705,7 +1705,7 @@ proc drawEnemy*(enemy: Enemy) =
                    Color(r: 160, g: 230, b: 255, a: veilAlpha))
         drawCircleLines(cx.int32, cy.int32, veilRadius,
                         Color(r: 180, g: 245, b: 255, a: veilLineA))
-    
+
     of etOctagon:
       let t  = getTime()
       let cx = enemy.pos.x
@@ -1743,7 +1743,7 @@ proc drawEnemy*(enemy: Enemy) =
       let fireGlow = uint8((sin(t * 10.0) * 0.35 + 0.65) * 110)
       drawCircleLines(cx.int32, cy.int32, r + 4,
                      Color(r: 255, g: 255, b: 0, a: fireGlow))
-    
+
     of etPentagon:
       let t  = getTime()
       let cx = enemy.pos.x
@@ -1783,7 +1783,7 @@ proc drawEnemy*(enemy: Enemy) =
         let glowIntensity = uint8(chargePercent * 200)
         drawCircle(Vector2(x: cx, y: cy), r + 7,
                   Color(r: 0, g: 255, b: 150, a: glowIntensity))
-    
+
     of etTrickster:
       let t  = getTime()
       let cx = enemy.pos.x
@@ -1817,14 +1817,14 @@ proc drawEnemy*(enemy: Enemy) =
       let mysterPulse = sin(t * 4.0) * 10 + 15
       drawCircleLines(cx.int32, cy.int32, r + mysterPulse,
                      Color(r: 255, g: 0, b: 255, a: 80))
-    
+
     of etSniper:
       # Draw sniper with charging visualization
-      
+
       # Persistent glowing aura (always visible, not just when charging)
       let baseGlowPulse = sin(getTime() * 3.0) * 0.3 + 0.7  # Pulse between 0.7-1.0
       let baseGlowRadius = enemy.radius + 8 + baseGlowPulse * 4
-      
+
       # Multiple glow layers for strong glowing effect
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), baseGlowRadius,
                 Color(r: 255, g: 50, b: 50, a: uint8(60 * baseGlowPulse)))
@@ -1832,10 +1832,10 @@ proc drawEnemy*(enemy: Enemy) =
                 Color(r: 255, g: 80, b: 80, a: uint8(90 * baseGlowPulse)))
       drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 12,
                      Color(r: 255, g: 100, b: 100, a: uint8(120 * baseGlowPulse)))
-      
+
       # Main body - circular with crosshair
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
-      
+
       # Crosshair pattern
       let crossSize = enemy.radius * 0.6
       drawLine(Vector2(x: enemy.pos.x - crossSize, y: enemy.pos.y),
@@ -1844,10 +1844,10 @@ proc drawEnemy*(enemy: Enemy) =
       drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y - crossSize),
               Vector2(x: enemy.pos.x, y: enemy.pos.y + crossSize), 2,
               Color(r: 255, g: 255, b: 255, a: 200))
-      
+
       # Center dot
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), 3.0, Red)
-      
+
       # Charging effect - expanding rings when charging (ADDITIONAL glow on top of base glow)
       if enemy.attackPhase == 1:
         let chargePercent = enemy.attackWarningTimer / enemy.attackExecuteTimer
@@ -1855,12 +1855,12 @@ proc drawEnemy*(enemy: Enemy) =
         let ringRadius = enemy.radius + (chargePercent * 20.0)
         drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius,
                        Color(r: 200, g: 50, b: 200, a: ringAlpha))
-        
+
         # Inner pulsing ring
         let innerRing = enemy.radius + (chargePercent * 10.0)
         drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, innerRing,
                        Color(r: 255, g: 150, b: 255, a: 100))
-    
+
     of etPhantom:
       let t  = getTime()
       let cx = enemy.pos.x
@@ -1893,7 +1893,7 @@ proc drawEnemy*(enemy: Enemy) =
                   Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: cloneAlpha))
         drawCircleLines(clonePos.x.int32, clonePos.y.int32, r * 0.7,
                        Color(r: 200, g: 200, b: 255, a: uint8(cloneAlpha.float32 * 0.6)))
-    
+
     of etMage:
       let t  = getTime()
       let cx = enemy.pos.x
@@ -2036,7 +2036,7 @@ proc drawEnemy*(enemy: Enemy) =
 proc drawAttackWarning*(warning: AttackWarning) =
   let alpha = uint8((warning.lifetime / warning.maxLifetime) * 200)
   let pulse = sin(getTime() * 20.0) * 5 + 10
-  
+
   case warning.attackType
   of "cross":
     # Draw cross warning pattern - matches actual laser size
@@ -2231,13 +2231,13 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # Outer ring
     drawCircleLines(cx.int32, cy.int32, sz,
                    Color(r: 120'u8, g: 220'u8, b: 210'u8, a: (alpha div 2).uint8))
-  
+
   of "boss_laser":
     # Boss laser warning with accurate beam visualization
     # Shows exactly where each laser beam will appear
     # Different drawing based on pattern type
     let isRadialPattern = warning.laserPattern in ["prismatic_cage", "laser_snipe"]
-    
+
     for angle in warning.laserAngles:
       if isRadialPattern:
         # Radial pattern: Draw from boss center outward only
@@ -2245,7 +2245,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
         let startY = warning.pos.y + sin(angle) * 40.0
         let endX = warning.pos.x + cos(angle) * warning.laserLength
         let endY = warning.pos.y + sin(angle) * warning.laserLength
-        
+
         # Draw warning line (pulsing)
         let warningThickness = 8 + pulse * 0.3
         drawLine(
@@ -2254,7 +2254,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
           warningThickness,
           Color(r: 255, g: 50, b: 0, a: alpha)
         )
-        
+
         # Draw inner glow line
         drawLine(
           Vector2(x: startX, y: startY),
@@ -2262,7 +2262,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
           3,
           Color(r: 255, g: 200, b: 100, a: (alpha div 2).uint8)
         )
-        
+
         # Draw danger markers along the beam path
         for i in 0..4:
           let markerDist = 40.0 + (warning.laserLength - 40.0) * (i.float32 / 4.0) * 0.7
@@ -2280,7 +2280,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
         let startY = warning.pos.y + sin(angle) * (-warning.laserLength)
         let endX = warning.pos.x + cos(angle) * warning.laserLength
         let endY = warning.pos.y + sin(angle) * warning.laserLength
-        
+
         # Draw warning line (pulsing)
         let warningThickness = 8 + pulse * 0.3
         drawLine(
@@ -2289,7 +2289,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
           warningThickness,
           Color(r: 255, g: 50, b: 0, a: alpha)
         )
-        
+
         # Draw inner glow line
         drawLine(
           Vector2(x: startX, y: startY),
@@ -2297,7 +2297,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
           3,
           Color(r: 255, g: 200, b: 100, a: (alpha div 2).uint8)
         )
-        
+
         # Draw danger markers along the beam path (both sides)
         for i in -2..2:
           if i == 0: continue  # Skip center
@@ -2310,7 +2310,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
             markerSize,
             Color(r: 255, g: 0, b: 0, a: (alpha div 2).uint8)
           )
-    
+
     # Draw central danger indicator at boss position
     let centralPulse = sin(getTime() * 12.0) * 0.3 + 0.7
     drawCircleLines(
@@ -2323,7 +2323,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       70.0 + pulse * 1.5,
       Color(r: 255, g: 100, b: 0, a: uint8(alpha.float32 * centralPulse * 0.6))
     )
-    
+
     # Draw "DANGER" text
     let dangerText = "LASER INCOMING"
     let textSize = 16
@@ -2335,18 +2335,18 @@ proc drawAttackWarning*(warning: AttackWarning) =
       textSize.int32,
       Color(r: 255, g: 255, b: 255, a: alpha)
     )
-  
+
   of "satellite_laser":
     # Draw warning for satellite laser that extends through target point
     # Calculate direction from satellite through target to edge
     let toTarget = (warning.targetPos - warning.pos).normalize()
     let angle = arctan2(toTarget.y, toTarget.x)
-    
+
     # Calculate endpoint: extend far beyond target
     let maxDist = 2000.0  # Very long distance to ensure it reaches screen edge
     let endX = warning.pos.x + cos(angle) * maxDist
     let endY = warning.pos.y + sin(angle) * maxDist
-    
+
     # Draw warning line from satellite through target
     let warningThickness = 10 + pulse * 0.5
     drawLine(
@@ -2355,7 +2355,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       warningThickness,
       Color(r: 255, g: 100, b: 0, a: alpha)
     )
-    
+
     # Draw inner glow line
     drawLine(
       Vector2(x: warning.pos.x, y: warning.pos.y),
@@ -2363,7 +2363,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       3,
       Color(r: 255, g: 200, b: 50, a: (alpha div 2).uint8)
     )
-    
+
     # Draw pulsing danger markers along the beam path
     let markerCount = 8
     for i in 0..<markerCount:
@@ -2376,11 +2376,11 @@ proc drawAttackWarning*(warning: AttackWarning) =
         markerSize,
         Color(r: 255, g: 50, b: 0, a: (alpha div 2).uint8)
       )
-    
+
     # Draw target crosshair at the locked coordinates
     let targetSize = 20.0 + pulse * 0.8
     let targetAlpha = uint8((sin(getTime() * 12.0) * 0.3 + 0.7) * alpha.float32)
-    
+
     # Crosshair lines
     drawLine(
       Vector2(x: warning.targetPos.x - targetSize, y: warning.targetPos.y),
@@ -2394,7 +2394,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       4,
       Color(r: 255, g: 0, b: 0, a: targetAlpha)
     )
-    
+
     # Target circle
     drawCircleLines(
       warning.targetPos.x.int32, warning.targetPos.y.int32,
@@ -2406,7 +2406,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       targetSize * 1.5,
       Color(r: 255, g: 100, b: 0, a: (targetAlpha div 2).uint8)
     )
-    
+
     # Warning text at target
     let warningText = "TARGET"
     let textSize = 14
@@ -2418,17 +2418,17 @@ proc drawAttackWarning*(warning: AttackWarning) =
       textSize.int32,
       Color(r: 255, g: 255, b: 255, a: alpha)
     )
-  
+
   of "teleport_warning":
     # Teleport warning - shows where boss will appear
     let warningMode = warning.laserPattern  # Contains the teleport mode
-    
+
     # Base pulsing circle for all teleport warnings
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse * 2,
                    Color(r: 150, g: 100, b: 255, a: alpha))
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 60.0 + pulse,
                    Color(r: 150, g: 100, b: 255, a: (alpha div 2).uint8))
-    
+
     # Mode-specific visual effects
     case warningMode
     of "afterimage_burst":
@@ -2537,12 +2537,12 @@ proc drawAttackWarning*(warning: AttackWarning) =
         let sparkY = warning.pos.y + sin(angle) * (25.0 + pulse)
         drawCircle(Vector2(x: sparkX, y: sparkY), 3.0,
                   Color(r: 150, g: 100, b: 255, a: alpha))
-    
+
     # Center danger indicator
     let centerPulse = sin(getTime() * 15.0) * 0.3 + 0.7
     drawCircle(Vector2(x: warning.pos.x, y: warning.pos.y), 8.0 + pulse * centerPulse,
               Color(r: 255, g: 100, b: 200, a: uint8(alpha.float32 * centerPulse)))
-  
+
   of "sniper_charge":
     # Red targeting reticle that fills in over the charge duration
     let cx = warning.pos.x; let cy = warning.pos.y
@@ -2718,21 +2718,21 @@ proc drawAttackWarning*(warning: AttackWarning) =
 proc drawLaser*(laser: Laser) =
   # Calculate alpha based on lifetime with accelerated fade
   let fadePercent = laser.lifetime / laser.maxLifetime
-  
+
   # Accelerated fade in last 30% of lifetime for smoother disappearance
   let adjustedFade = if fadePercent < 0.3:
     # Quick fade in final 30% of lifetime: 0.3 -> 0.0 becomes 1.0 -> 0.0
     fadePercent / 0.3
   else:
     1.0
-  
+
   let baseAlpha = uint8(adjustedFade * 200 + 55)  # 55-255 alpha
-  
+
   # Laser colors with bright core
   let outerGlow = Color(r: 255, g: 100, b: 0, a: (baseAlpha div 3).uint8)
   let midGlow = Color(r: 255, g: 150, b: 30, a: (baseAlpha div 2).uint8)
   let coreColor = Color(r: 255, g: 200, b: 100, a: baseAlpha)
-  
+
   case laser.direction
   of 0:  # Horizontal laser
     # Outer glow
@@ -2759,7 +2759,7 @@ proc drawLaser*(laser: Laser) =
       (laser.thickness * 2).int32,
       coreColor
     )
-  
+
   of 1:  # Vertical laser
     # Outer glow
     drawRectangle(
@@ -2785,7 +2785,7 @@ proc drawLaser*(laser: Laser) =
       (laser.length * 2).int32,
       coreColor
     )
-  
+
   of 2:  # Cross laser (both horizontal and vertical) with rotation
     # Helper to calculate rotated endpoints
     proc getRotatedEnd(centerX, centerY, length, angle: float32): Vector2 =
@@ -2793,11 +2793,11 @@ proc drawLaser*(laser: Laser) =
         x: centerX + cos(angle) * length,
         y: centerY + sin(angle) * length
       )
-    
+
     # Draw horizontal beam (along rotation angle)
     let horizStart = getRotatedEnd(laser.pos.x, laser.pos.y, -laser.length, laser.rotation)
     let horizEnd = getRotatedEnd(laser.pos.x, laser.pos.y, laser.length, laser.rotation)
-    
+
     # Draw multiple parallel lines to simulate thickness with glow
     # Outer glow
     for offset in -6 .. 6:
@@ -2823,12 +2823,12 @@ proc drawLaser*(laser: Laser) =
       )
     # Core
     drawLine(horizStart, horizEnd, 3, coreColor)
-    
+
     # Draw vertical beam (perpendicular, 90 degrees offset)
     let vertAngle = laser.rotation + PI / 2.0
     let vertStart = getRotatedEnd(laser.pos.x, laser.pos.y, -laser.length, vertAngle)
     let vertEnd = getRotatedEnd(laser.pos.x, laser.pos.y, laser.length, vertAngle)
-    
+
     # Outer glow
     for offset in -6 .. 6:
       let perpAngle = vertAngle + PI / 2.0
@@ -2853,7 +2853,7 @@ proc drawLaser*(laser: Laser) =
       )
     # Core
     drawLine(vertStart, vertEnd, 3, coreColor)
-  
+
   of 3:  # Single rotated beam (for radial/prismatic patterns)
     # Helper to calculate rotated endpoints
     proc getRotatedEnd(centerX, centerY, length, angle: float32): Vector2 =
@@ -2861,11 +2861,11 @@ proc drawLaser*(laser: Laser) =
         x: centerX + cos(angle) * length,
         y: centerY + sin(angle) * length
       )
-    
+
     # Draw single beam along rotation angle - RADIAL (from center outward only)
     let beamStart = Vector2(x: laser.pos.x, y: laser.pos.y)  # Start at boss center
     let beamEnd = getRotatedEnd(laser.pos.x, laser.pos.y, laser.length, laser.rotation)  # Extend outward
-    
+
     # Draw multiple parallel lines to simulate thickness with glow
     # Outer glow
     for offset in -6 .. 6:
@@ -2891,24 +2891,24 @@ proc drawLaser*(laser: Laser) =
       )
     # Core
     drawLine(beamStart, beamEnd, 3, coreColor)
-  
+
   else:
     discard
 
 proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Game): Enemy =
   let side = rand(3)
   var x, y: float32
-  
+
   case side
   of 0: x = rand(screenWidth.int).float32; y = -30
   of 1: x = screenWidth.float32 + 30; y = rand(screenHeight.int).float32
   of 2: x = rand(screenWidth.int).float32; y = screenHeight.float32 + 30
   else: x = -30; y = rand(screenHeight.int).float32
-  
+
   # PROGRESSIVE DIFFICULTY SYSTEM
   let roll = rand(100)
   var enemyType: EnemyType
-  
+
   if difficulty < 2.0:
     # Phase 1: Only circles
     enemyType = etCircle
@@ -2978,7 +2978,7 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
     elif roll < 88: enemyType = etPhantom
     elif roll < 98: enemyType = etMage  # 10% chance - powerful magic user
     else: enemyType = etSniper  # Very rare 2% chance
-  
+
   newEnemy(x, y, difficulty, enemyType, game)
 
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
@@ -2993,7 +2993,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
   ##
   # Check if this should be a custom boss (every 5 waves)
   let useCustomBoss = isBossWave(waveNumber)
-  
+
   if useCustomBoss:
     # CUSTOM BOSS CREATION (Waves 1-60, every 5 waves)
     # Custom bosses use the advanced definition system from boss_definitions.nim
@@ -3002,7 +3002,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
     let centerX = screenWidth.float32 / 2
     let centerY = screenHeight.float32 / 2
     var targetX, targetY, startX, startY: float32
-    
+
     # Position based on boss ID (varied entrance positions)
     case (bossDef.bossID - 1) mod 4
     of 0:  # From top
@@ -3020,12 +3020,12 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
     else:
       targetX = centerX; targetY = centerY
       startX = centerX; startY = -100
-    
+
     # Create boss with custom stats
     let scaledHP = getScaledBossHP(bossDef, waveNumber)
     let scaledSpeed = getScaledBossSpeed(bossDef, waveNumber)
     let scaledDamage = getScaledBossDamage(bossDef, waveNumber)
-    
+
     # Initialize attack timers for first phase
     var initialAttackTimers: seq[float32] = @[]
     var initialAttackWarningFired: seq[bool] = @[]
@@ -3033,7 +3033,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       for attack in bossDef.phases[0].attacks:
         initialAttackTimers.add(attack.cooldown)  # Start with cooldown so attacks don't fire immediately
         initialAttackWarningFired.add(false)
-    
+
     # Apply first phase multipliers to initial stats
     let firstPhaseSpeed = if bossDef.phases.len > 0:
       scaledSpeed * bossDef.phases[0].speedMultiplier
@@ -3043,7 +3043,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       bossDef.phases[0].defenseMultiplier
     else:
       1.0
-    
+
     result = Enemy(
       pos: newVector2f(startX, startY),
       vel: newVector2f(0, 0),
@@ -3093,26 +3093,26 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   ## Elite chance increases with wave number, but the midgame ramp is kept gentler.
   ## Dual-modifier elites are delayed so waves 20-35 do not suddenly feel boss-like.
   ## BALANCED: Multiple effects apply with diminishing returns to prevent exponential growth
-  
+
   # Don't make bosses elite
   if enemy.isBoss:
     return
-  
+
   # Calculate elite chance based on wave (2% + 0.35% per wave, max 12%)
   let eliteChance = min(2 + (waveNumber.float32 * 0.35).int, 12)
   if rand(99) >= eliteChance:
     return
-  
+
   enemy.isElite = true
   enemy.eliteAuraPhase = 0.0
   enemy.eliteTypes = @[]  # Initialize empty list for multiple types
   enemy.threatLevel = max(enemy.threatLevel, if waveNumber >= 35: 3 elif waveNumber >= 20: 2 else: 1)
-  
+
   # Elite scaling multiplier based on wave, reduced to avoid runaway EHP.
   let eliteScaling = 1.0 + (waveNumber.float32 * 0.03)
   # Speed scaling is lighter still so modifiers add texture, not unavoidable pressure.
   let eliteSpeedScaling = 1.0 + (waveNumber.float32 * 0.015)
-  
+
   # Determine number of elite effects based on wave
   # BALANCED: Delay dual-effect elites until later so midgame remains readable.
   let numEffects = if waveNumber >= 35:
@@ -3121,17 +3121,17 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   else:
     # Waves 1-34: Single effect
     1
-  
+
   # Choose random elite types (ensure no duplicates)
   # STAR ENEMY RESTRICTION: Stars cannot get Tank, Shielded, or Regenerative (they're already tanky)
   var availableTypes = if enemy.enemyType == etStar:
     @[etSwift, etVenomous, etExplosive]  # Exclude Tank, Shielded, and Regenerative
   else:
     @[etSwift, etTank, etVenomous, etExplosive, etRegenerative, etShielded]
-  
+
   # TANK RESTRICTION: If Tank is selected, remove Regenerative from available types
   # This prevents the overpowered Tank + Regenerative combo
-  
+
   for i in 0..<numEffects:
     if availableTypes.len == 0:
       break
@@ -3139,7 +3139,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
     let selectedType = availableTypes[idx]
     enemy.eliteTypes.add(selectedType)
     availableTypes.delete(idx)
-    
+
     # If Tank was selected, remove Regenerative to prevent overpowered combo
     if selectedType == etTank:
       for j in countdown(availableTypes.len - 1, 0):
@@ -3152,14 +3152,14 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
         if availableTypes[j] == etTank:
           availableTypes.delete(j)
           break
-  
+
   # For backward compatibility, set primary eliteType to first in list
   enemy.eliteType = if enemy.eliteTypes.len > 0: enemy.eliteTypes[0] else: etNone
-  
+
   # Multiplier for multiple effects (diminishing returns)
   # 1 effect = 100%, 2 effects = 70% effectiveness to prevent stacking exponentially
   let effectMultiplier = if enemy.eliteTypes.len >= 2: 0.7 else: 1.0
-  
+
   # BASE ELITE BONUS: All elites get a base stat increase
   # This represents them being fundamentally stronger than normal enemies
   let baseEliteBonus = 1.15  # 15% base bonus to all stats
@@ -3167,7 +3167,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   enemy.hp *= baseEliteBonus
   enemy.contactDamage = enemy.contactDamage.float32 * baseEliteBonus
   enemy.rangedDamage = enemy.rangedDamage.float32 * baseEliteBonus
-  
+
   # Apply elite modifications for ALL types in the list
   for eType in enemy.eliteTypes:
     case eType
@@ -3188,7 +3188,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.rangedDamage += float32(1 + (waveNumber div 5))
       enemy.maxHp *= (0.9 * eliteScaling)
       enemy.hp *= (0.9 * eliteScaling)
-    
+
     of etTank:
       # Tank elites are still durable, but no longer mini-bosses in wave 20-30.
       enemy.maxHp *= (1.45 * eliteScaling * effectMultiplier)
@@ -3199,7 +3199,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.collisionRadius *= 1.3
       enemy.contactDamage += float32(waveNumber div 5)
       enemy.rangedDamage += float32(waveNumber div 5)
-    
+
     of etVenomous:
       # Poisons player on contact
       # Balanced growth with reduced speed scaling
@@ -3208,7 +3208,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.rangedDamage += float32(2 + (waveNumber div 7))
       enemy.maxHp *= (1.3 * eliteScaling * effectMultiplier)  # Uses normal scaling
       enemy.hp *= (1.3 * eliteScaling * effectMultiplier)
-    
+
     of etExplosive:
       # Explodes on death
       # Multiple effects reduce HP scaling but use reduced speed scaling
@@ -3217,7 +3217,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.contactDamage += float32(2 + (waveNumber div 7))
       enemy.rangedDamage += float32(2 + (waveNumber div 7))
       enemy.speed *= (1.0 * eliteSpeedScaling * effectMultiplier)
-    
+
     of etRegenerative:
       # Regenerates 5% HP per second
       enemy.regenTimer = 0.0
@@ -3226,7 +3226,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.hp *= (1.45 * eliteScaling * effectMultiplier)
       enemy.contactDamage += float32(1 + (waveNumber div 5))
       enemy.rangedDamage += float32(1 + (waveNumber div 5))
-    
+
     of etShielded:
       # Has a shield that absorbs damage
       # Multiple effects reduce HP and shield scaling
@@ -3237,10 +3237,10 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       enemy.maxShieldHp = shieldAmount
       enemy.contactDamage += float32(2 + (waveNumber div 5))
       enemy.rangedDamage += float32(2 + (waveNumber div 5))
-    
+
     else:
       discard
-  
+
   # All elites drop slightly more coins (1.5x multiplier applied in game.nim)
   # All elites are slightly larger for visibility (if not already modified by Swift or Tank)
   if etSwift notin enemy.eliteTypes and etTank notin enemy.eliteTypes:
@@ -3274,18 +3274,18 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
   ## For multi-elite enemies (wave 25+), draws layered auras with different colors
   if not enemy.isElite or enemy.eliteTypes.len == 0:
     return
-  
+
   # Pulsing aura effect
   enemy.eliteAuraPhase += 0.05
   let pulseIntensity = sin(enemy.eliteAuraPhase) * 0.3 + 0.7  # 0.4 to 1.0
-  
+
   # Draw auras for each elite type (layered effect for multiple types)
   for idx, eType in enemy.eliteTypes:
     let auraColor = getEliteAuraColor(eType)
     # Each aura is slightly offset for visibility
     let radiusOffset = idx.float32 * 4.0
     let auraRadius = enemy.radius + 8.0 + radiusOffset + (sin(gameTime * 3.0 + idx.float32) * 3.0)
-    
+
     # Draw outer glow rings (multiple for depth)
     for i in 0..2:
       let ringRadius = auraRadius + i.float32 * 4.0
@@ -3302,7 +3302,7 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
         ringRadius,
         ringColor
       )
-    
+
     # Draw inner filled circle for core glow
     let coreAlpha = uint8(60.0 * pulseIntensity)  # Less opaque for layering
     let coreColor = Color(
@@ -3316,7 +3316,7 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
       auraRadius - 4.0,
       coreColor
     )
-  
+
   # Draw health bar for Tank elites (above shield bar if present)
   if etTank in enemy.eliteTypes:
     let barWidth = enemy.radius * 2.0
@@ -3327,7 +3327,7 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
     else:
       enemy.pos.y - enemy.radius - 12.0  # Default position
     let barX = enemy.pos.x - barWidth / 2.0
-    
+
     # HP background (red)
     drawRectangle(
       barX.int32,
@@ -3336,14 +3336,14 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
       barHeight.int32,
       Color(r: 80, g: 20, b: 20, a: 200)
     )
-    
+
     # HP fill (green to yellow gradient based on health)
     let hpPercent = enemy.hp / enemy.maxHp
     let fillColor = if hpPercent > 0.5:
       Color(r: uint8(100 + (1.0 - hpPercent) * 155), g: 255, b: 0, a: 255)  # Green to yellow
     else:
       Color(r: 255, g: uint8(hpPercent * 510), b: 0, a: 255)  # Yellow to red
-    
+
     drawRectangle(
       barX.int32,
       barY.int32,
@@ -3351,7 +3351,7 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
       barHeight.int32,
       fillColor
     )
-    
+
     # HP border
     drawRectangleLines(
       barX.int32,
@@ -3360,14 +3360,14 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
       barHeight.int32,
       Color(r: 200, g: 100, b: 0, a: 255)
     )
-  
+
   # Draw shield bar for shielded elites
   if etShielded in enemy.eliteTypes and enemy.shieldHp > 0:
     let barWidth = enemy.radius * 2.0
     let barHeight = 4.0
     let barX = enemy.pos.x - barWidth / 2.0
     let barY = enemy.pos.y - enemy.radius - 12.0
-    
+
     # Shield background
     drawRectangle(
       barX.int32,
@@ -3376,7 +3376,7 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
       barHeight.int32,
       Color(r: 40, g: 40, b: 40, a: 200)
     )
-    
+
     # Shield fill
     let shieldPercent = enemy.shieldHp / enemy.maxShieldHp
     drawRectangle(
@@ -3386,7 +3386,7 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
       barHeight.int32,
       Color(r: 100, g: 200, b: 255, a: 255)
     )
-    
+
     # Shield border
     drawRectangleLines(
       barX.int32,
@@ -3401,7 +3401,7 @@ proc updateEliteEffects*(enemy: Enemy, dt: float32) =
   ## Handles multiple elite types (wave 25+)
   if not enemy.isElite:
     return
-  
+
   # Process each elite type effect
   for eType in enemy.eliteTypes:
     case eType
@@ -3412,6 +3412,6 @@ proc updateEliteEffects*(enemy: Enemy, dt: float32) =
         let regenAmount = enemy.maxHp * 0.01  # 1.0% per 0.2s = 5% per second
         enemy.hp = min(enemy.hp + regenAmount, enemy.maxHp)
         enemy.regenTimer = 0.0
-    
+
     else:
       discard

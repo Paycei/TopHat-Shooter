@@ -37,7 +37,7 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       difficultyScale: 1.0,
       playerStartCoins: 0
     )
-  
+
   of gmTimeSurvival:
     result = GameModeDefinition(
       mode: gmTimeSurvival,
@@ -53,7 +53,7 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       difficultyScale: 1.0,
       playerStartCoins: 0
     )
-  
+
   of gmSandbox:
     result = GameModeDefinition(
       mode: gmSandbox,
@@ -69,7 +69,7 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       difficultyScale: 0.0,  # No automatic difficulty scaling
       playerStartCoins: 0
     )
-  
+
   of gmPvP:
     result = GameModeDefinition(
       mode: gmPvP,

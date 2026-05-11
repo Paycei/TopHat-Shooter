@@ -10,7 +10,7 @@ export clearPool, getPoolStats
 proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritical: bool = false, damageType: DamageType = dtDefault): DamageNumber =
   let baseVelocityY = -80.0
   let horizontalSpread = (rand(1.0) - 0.5) * 100.0
-  
+
   result = DamageNumber(
     pos: newVector2f(x, y),
     vel: newVector2f(horizontalSpread, baseVelocityY),
@@ -55,10 +55,10 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
   let alpha = (1.0 - progress) * 255.0
   let popScale = 1.0 + sin((1.0 - progress) * PI) *
     (if dmgNum.isCritical: 0.26 else: 0.12)
-  
+
   var color: Color
   var fontSize: int32
-  
+
   if dmgNum.isCritical:
     case dmgNum.damageType
     of dtFire:
@@ -106,7 +106,7 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
         fontSize = int32(clamp(16.0 + (dmgNum.damage / 5.0) * 4.0, 16.0, 24.0))
     of dtDefault:
       color = Color(r: 255, g: 255, b: 255, a: alpha.uint8)
-    
+
     if dmgNum.damageType != dtHeal:
       fontSize = 18
   else:
@@ -131,14 +131,14 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
       color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
     of dtDefault:
       color = Color(r: 255, g: 150, b: 0, a: alpha.uint8)
-    
+
     fontSize = 20
 
   let scaledFontSize = int32(max(12.0, fontSize.float32 * popScale))
-  
+
   # Multiply damage by BALANCE_MULTIPLIER for display
   let displayDamage = dmgNum.damage * BALANCE_MULTIPLIER
-  
+
   let damageText =
     if displayDamage >= 10.0:
       $round(displayDamage).int
@@ -146,7 +146,7 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
       formatFloat(displayDamage, ffDecimal, 1)
     else:
       formatFloat(displayDamage, ffDecimal, 2)
-  
+
   let displayText = if dmgNum.isCritical: damageText & "!" else: damageText
   let textWidth = measureText($displayText, scaledFontSize)
   let x = (dmgNum.pos.x - textWidth.float32 / 2.0).int32
@@ -162,14 +162,14 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
     for dy in [-2, 0, 2]:
       if dx != 0 or dy != 0:
         drawText($displayText, int32(x + dx), int32(y + dy), scaledFontSize, glowColor)
-  
+
   # Outline (black)
   for dx in [-1, 0, 1]:
     for dy in [-1, 0, 1]:
       if dx != 0 or dy != 0:
         drawText($displayText, int32(x + dx), int32(y + dy), scaledFontSize,
                 Color(r: 0, g: 0, b: 0, a: uint8(alpha * 0.8)))
-  
+
   # Main text
   drawText($displayText, x, y, scaledFontSize, color)
 

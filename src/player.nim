@@ -131,7 +131,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.phaseShiftCooldown -= dt
   if player.phaseShiftInvulnTimer > 0:
     player.phaseShiftInvulnTimer -= dt
-  
+
   # Update Parry power-up timers
   if player.parryActive:
     player.parryDuration -= dt
@@ -139,7 +139,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       player.parryActive = false
   if player.parryCooldown > 0:
     player.parryCooldown -= dt
-  
+
   # Update new legendary active ability cooldowns
   if player.bloodPactCooldown > 0:
     player.bloodPactCooldown -= dt
@@ -172,56 +172,56 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # Update Pulse Armor cooldown
   if player.pulseArmorCooldown > 0:
     player.pulseArmorCooldown -= dt
-  
+
   # Calculate current speed with boost
   var currentSpeed = player.speed
   if player.speedBoostTimer > 0:
     currentSpeed *= 1.5
-  
+
   var moveDir = newVector2f(0, 0)
-  
+
   if isKeyDown(W): moveDir.y -= 1
   if isKeyDown(S): moveDir.y += 1
   if isKeyDown(A): moveDir.x -= 1
   if isKeyDown(D): moveDir.x += 1
-  
+
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()
     player.vel = moveDir * currentSpeed
   else:
     player.vel = newVector2f(0, 0)
-  
+
   # Calculate next position
   let nextPos = player.pos + player.vel * dt
-  
+
   # Check wall collisions - player is blocked by walls
   var canMove = true
   for w in walls:
     if checkPlayerWallCollision(nextPos, player.radius, w):
       canMove = false
       break
-  
+
   if canMove:
     player.pos = nextPos
-  
+
   # Clamp to screen
   if player.pos.x < player.radius: player.pos.x = player.radius
   if player.pos.x > screenWidth.float32 - player.radius: player.pos.x = screenWidth.float32 - player.radius
   if player.pos.y < player.radius: player.pos.y = player.radius
   if player.pos.y > screenHeight.float32 - player.radius: player.pos.y = screenHeight.float32 - player.radius
-  
+
   # Scale radius with max HP using square root for diminishing returns
   # Formula: baseRadius + sqrt(maxHp - 7) * scaleFactor
   # Note: baseRadius is also scaled by puHeavyRounds, so HP scaling preserves that multiplier.
   let hpAboveBase = max(0.0, player.maxHp - 7.5)
   player.radius = player.baseRadius + sqrt(hpAboveBase) * 0.4
-  
+
   # Scale aura with player radius - collection area
   player.auraRadius = player.radius * 3.5  # 3.5x player size for generous collection
-  
+
   # Update shield angle for rotating shield power-up
   player.shieldAngle += dt * 1.0  # Reduced from 2.0 to 1.0 (50% slower)
-  
+
   # Update shield health and regeneration
   if hasPowerUp(player, puRotatingShield):
     let shieldCount = 3  # Always 3 shields regardless of level
@@ -232,7 +232,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       for i in 0..<shieldCount:
         player.shieldHealths.add(player.shieldMaxHealth)
         player.shieldRegenTimers.add(0.0)
-    
+
     # Update regeneration timers and restore damaged/destroyed shields
     for i in 0..<player.shieldHealths.len:
       if player.shieldHealths[i] <= 0:
@@ -279,7 +279,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
 
   # Update rotating orbs angle
   player.orbRotationAngle += dt * 2.75  # Rotate orbs around player
-  
+
   # Clean up orbs if no orb power-ups are active
   if not hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
     player.rotatingOrbs = @[]
@@ -319,7 +319,7 @@ proc drawPlayer*(player: Player) =
         let dx = player.pos.x + cos(dashAngle) * dashRadius
         let dy = player.pos.y + sin(dashAngle) * dashRadius
         drawCircle(Vector2(x: dx, y: dy), 2.5, Color(r: 140, g: 185, b: 255, a: 65))
-    
+
     # Fire aura visual
     if powerUp.powerType == puFireAura:
       let fireRadius = case powerUp.level
@@ -333,7 +333,7 @@ proc drawPlayer*(player: Player) =
                      Color(r: 255, g: 80, b: 0, a: 65))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, fireRadius,
                      Color(r: 255, g: 100, b: 0, a: 210))
-    
+
     # Lightning aura visual
     if powerUp.powerType == puLightningAura:
       let lightningRadius = case powerUp.level
@@ -347,7 +347,7 @@ proc drawPlayer*(player: Player) =
                      Color(r: 100, g: 180, b: 255, a: 65))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, lightningRadius,
                      Color(r: 150, g: 210, b: 255, a: 210))
-    
+
     # Poison aura visual
     if powerUp.powerType == puPoisonAura:
       let poisonRadius = case powerUp.level
@@ -361,7 +361,7 @@ proc drawPlayer*(player: Player) =
                      Color(r: 80, g: 200, b: 80, a: 65))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, poisonRadius,
                      Color(r: 100, g: 230, b: 100, a: 210))
-  
+
   # Shield boost visual - cyan protective barrier
   if player.shieldHits > 0:
     let shieldPulse = 1.0 + 0.1 * sin(getTime() * 8.0)
@@ -385,7 +385,7 @@ proc drawPlayer*(player: Player) =
                Color(r: 170, g: 110, b: 255, a: fillAlpha))
     drawCircleLines(player.pos.x.int32, player.pos.y.int32, shieldRadius,
                     Color(r: 170, g: 110, b: 255, a: lineAlpha))
-  
+
   # Celestial Veil — soft translucent ring around the player while the charge is ready.
   if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
     let veilPulse   = 0.5 + 0.5 * sin(time * 3.0)
@@ -419,11 +419,11 @@ proc drawPlayer*(player: Player) =
     drawText(t(tkPlayerVeil), (player.pos.x - 20).int32, (player.pos.y - 35).int32, 14,
              Color(r: 200, g: 200, b: 255, a: 255))
     player.lastDamageEvent = deNone  # Consume flag
-  
+
   # PLAYER RENDERING
   let pulse = sin(time * 2.0) * 0.5 + 0.5  # Pulsing animation
   let rotation = time * 0.5  # Slow rotation for hex frame
-  
+
   # Get colors from skin system
   let skinType = player.skinType.SkinType
   let (skinPrimary, skinSecondary, skinCore) = getSkinColors(skinType, time)
@@ -431,7 +431,7 @@ proc drawPlayer*(player: Player) =
   var secondaryColor = skinSecondary
   var coreColor = skinCore
   var glowIntensity = 0.4 + pulse * 0.2  # Subtle pulse
-  
+
   # Phase Shift invulnerability visual effect
   if player.phaseShiftInvulnTimer > 0:
     let phaseAlpha = (sin(player.phaseShiftInvulnTimer * 20.0) * 50 + 150).int
@@ -459,17 +459,17 @@ proc drawPlayer*(player: Player) =
     else:
       baseColor = Color(r: 0, g: 200, b: 255, a: 255)  # Cyan
     glowIntensity = 0.9
-  
+
   # Speed boost color modification
   if player.speedBoostTimer > 0:
     baseColor = Color(r: 0, g: 255, b: 200, a: 255)  # Green-cyan tint
     glowIntensity += 0.2
-  
+
   # Draw player using selected shape
   let shapeType = player.shapeType.ShapeType
   drawPlayerShape(player.pos, player.radius, shapeType, baseColor, secondaryColor, coreColor,
                   time, rotation, pulse, glowIntensity)
-  
+
   # 6. DATA PARTICLES (orbiting effect)
   if player.vel.length() > 10 or pulse > 0.7:
     let numParticles = 8
@@ -481,7 +481,7 @@ proc drawPlayer*(player: Player) =
       let particleAlpha = uint8(100 + pulse * 80)
       drawCircle(Vector2(x: px, y: py), 1.8,
                 Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: particleAlpha))
-  
+
   # Speed boost indicator (motion trails)
   if player.speedBoostTimer > 0:
     for i in 1..3:
@@ -491,7 +491,7 @@ proc drawPlayer*(player: Player) =
       let trailY = player.pos.y - player.vel.y * i.float32 * 0.015
       drawCircle(Vector2(x: trailX, y: trailY), player.radius * trailScale,
                 Color(r: 0, g: 255, b: 200, a: trailAlpha))
-  
+
   # Rotating shield visual
   for powerUp in player.powerUps:
     if powerUp.powerType == puRotatingShield:
@@ -610,7 +610,7 @@ proc drawPlayer*(player: Player) =
                   Color(r: 255, g: 255, b: 255, a: 210))
         drawCircle(Vector2(x: ex2, y: ey2), nodePulse * 0.38,
                   Color(r: 255, g: 255, b: 255, a: 210))
-  
+
   # Draw rotating orbs (if player has any orb power-ups)
   # Check if player has any orb power-ups before rendering
   if hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
@@ -754,19 +754,19 @@ proc takeDamage*(player: Player, damage: float32): bool =
     player.shieldHits -= 1
     # Visual/audio feedback happens in game.nim
     return false
-  
+
   # Invincibility from consumables
   if player.invincibilityTimer > 0:
     return false
-  
+
   # Parry invulnerability - also bounces bullets
   if player.parryActive:
     return false
-  
+
   # Phase Shift invulnerability
   if player.phaseShiftInvulnTimer > 0:
     return false
-  
+
   # Celestial Veil - absorb 1 hit per wave
   if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
     player.celestialVeilActive = false
@@ -784,7 +784,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
         # Dodged! Visual feedback
         player.lastDamageEvent = deDodged
         return false
-  
+
   # Apply Fortified damage reduction
   var finalDamage = damage
   for powerUp in player.powerUps:
@@ -810,22 +810,22 @@ proc takeDamage*(player: Player, damage: float32): bool =
       return false
 
   player.hp -= finalDamage
-  
+
   # Clamp HP to 0 minimum
   if player.hp < 0:
     player.hp = 0
-  
+
   player.lastDamageTaken = damage
   # Reset singularity shield regen timer on any player damage
   player.singularityShieldRegenTimer = 0.0
-  
+
   # Pulse Armor - emit shockwave when taking damage (if not on cooldown)
   for powerUp in player.powerUps:
     if powerUp.powerType == puPulseArmor and player.pulseArmorCooldown <= 0:
       # Trigger shockwave - cooldown will be set in game.nim
       player.pulseArmorCooldown = -1.0  # -1 signals to trigger in game.nim
       break
-  
+
   # Return true if HP reached 0 or below (death condition)
   return player.hp <= 0
 

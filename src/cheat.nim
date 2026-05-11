@@ -38,7 +38,7 @@ proc initCheatMenu*(): CheatMenu =
 
 proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) =
   if not CHEATS_ENABLED: return
-  
+
   if not canUseCheats(game.mode): return
 
   # Reset sequence if too much time has passed
@@ -69,11 +69,11 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
           menu.active = not menu.active
           playSound(stMenuSelect)
           menu.keySequence.setLen(0)
-          
+
           # Mark that cheats were used if menu opened during gameplay
           if menu.active and game.state == gsPlaying:
             game.cheatsUsed = true
-          
+
           return
 
       # Reset if sequence gets too long
@@ -99,11 +99,11 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
           menu.active = not menu.active
           playSound(stMenuSelect)
           menu.keySequence.setLen(0)
-          
+
           # Mark that cheats were used if menu opened during gameplay
           if menu.active and game.state == gsPlaying:
             game.cheatsUsed = true
-          
+
           return
 
       # Reset if sequence gets too long
@@ -114,18 +114,18 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
 proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
   if not menu.active or not CHEATS_ENABLED:
     return
-  
+
   # Check if cheats are allowed in current gamemode
   if not canUseCheats(game.mode):
     menu.active = false
     return
-  
+
   # Close menu with Escape
   if isKeyPressed(KeyboardKey.Escape):
     menu.active = false
     playSound(stMenuNav)
     return
-  
+
   # Tab switching with keyboard
   if isKeyPressed(KeyboardKey.One) or isKeyPressed(KeyboardKey.Kp1):
     menu.currentTab = cmtWaves
@@ -152,14 +152,14 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
     menu.scrollOffset = 0
     menu.ownedScrollOffset = 0
     playSound(stMenuNav)
-  
+
   # Handle scrolling for permanent power-ups tab
   if menu.currentTab == cmtPermanentPowerUps:
     if isKeyPressed(KeyboardKey.Up):
       menu.scrollOffset = max(0, menu.scrollOffset - 1)
     elif isKeyPressed(KeyboardKey.Down):
       menu.scrollOffset += 1
-    
+
     # Mouse wheel scrolling
     let wheelMove = getMouseWheelMove()
     if wheelMove < 0:
@@ -197,7 +197,7 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
     if game.player.powerUps[i].powerType == powerUpType:
       game.player.powerUps.delete(i)
       break
-  
+
   # Reset player stats to TRUE base values (matching newPlayer) and reapply all remaining power-ups
   # This ensures stat modifications from the removed power-up are undone
   game.player.baseSpeed = 175.0
@@ -206,21 +206,21 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   game.player.bulletSpeed = 325.0
   game.player.maxHp = 9.0
   game.player.hp = min(game.player.hp, game.player.maxHp)
-  
+
   # Reapply shop purchases for damage, health, speed, fire rate, and bullet speed
   # This ensures shop-bought stats are preserved when removing power-ups
   for shopIndex in 0..4:
     for purchase in 0..<game.shopItems[shopIndex].bought:
       applyShopPurchaseEffect(game, shopIndex, purchase + 1, healHealth = false)
   game.player.hp = min(game.player.hp, game.player.maxHp)
-  
+
   # Clear all rotating orbs — they will be recreated by the reapply loop below
   game.player.rotatingOrbs = @[]
 
   # Reapply all remaining power-ups
   for powerUp in game.player.powerUps:
     applyPowerUp(game.player, powerUp)
-  
+
   playSound(stMenuSelect)
 
 proc applyStatCheat*(game: var Game, stat: string, value: float32) =
@@ -247,84 +247,84 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game)
 proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: int32) =
   if not menu.active or not CHEATS_ENABLED:
     return
-  
+
   # Semi-transparent overlay
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 180))
-  
+
   # Main panel
   let panelWidth: int32 = 600
   let panelHeight: int32 = 500
   let panelX = (screenWidth - panelWidth) div 2
   let panelY = (screenHeight - panelHeight) div 2
-  
+
   # Panel background
   drawRectangle(panelX, panelY, panelWidth, panelHeight, Color(r: 30, g: 30, b: 40, a: 255))
   drawRectangleLines(panelX, panelY, panelWidth, panelHeight, Yellow)
-  
+
   # Title
   let title = "CHEAT MENU (TESTER BUILD)"
   let titleWidth = measureText(title, 20)
   drawText(title, panelX + (panelWidth - titleWidth) div 2, panelY + 10, 20, Yellow)
-  
+
   # Close button (X)
   let closeButtonSize: int32 = 30
   let closeX = panelX + panelWidth - closeButtonSize - 10
   let closeY = panelY + 10
   let closeRect = Rectangle(x: closeX.float32, y: closeY.float32, width: closeButtonSize.float32, height: closeButtonSize.float32)
   let closeHovered = checkCollisionPointRec(getVirtualMousePosition(), closeRect)
-  
+
   drawRectangle(closeX, closeY, closeButtonSize, closeButtonSize,
                 if closeHovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255))
   drawRectangleLines(closeX, closeY, closeButtonSize, closeButtonSize, Red)
   drawText("X", closeX + 9, closeY + 7, 16, White)
-  
+
   if closeHovered and isMouseButtonPressed(Left):
     menu.active = false
     playSound(stMenuNav)
     return
-  
+
   # Close instruction
   drawText(t(tkCheatCloseInstruction), panelX + 10, panelY + 35, 12, Gray)
-  
+
   # Tab buttons with mouse support
   let tabY = panelY + 60
   let tabWidth = panelWidth div 5
-  
+
   let tabs = ["1. Waves", "2. Power", "3. Stats", "4. Perma", "5. Enemies"]
   for i in 0'i32..4'i32:
     let tabX = panelX + (i * tabWidth)
     let tabRect = Rectangle(x: tabX.float32, y: tabY.float32, width: tabWidth.float32, height: 30.float32)
     let tabHovered = checkCollisionPointRec(getVirtualMousePosition(), tabRect)
     let isActiveTab = CheatMenuTab(i) == menu.currentTab
-    
+
     var tabColor: Color
     if isActiveTab:
       tabColor = if tabHovered: Color(r: 255, g: 255, b: 0, a: 255) else: Yellow
     else:
       tabColor = if tabHovered: Color(r: 180, g: 180, b: 180, a: 255) else: Gray
-    
+
     let bgColor = if isActiveTab:
       Color(r: 40, g: 40, b: 50, a: 255)
     else:
       if tabHovered: Color(r: 35, g: 35, b: 45, a: 255) else: Color(r: 20, g: 20, b: 30, a: 255)
-    
+
     drawRectangle(tabX, tabY, tabWidth, 30, bgColor)
     drawRectangleLines(tabX, tabY, tabWidth, 30, tabColor)
     let tabText = tabs[i]
     let textWidth = measureText(tabText, 12)
     drawText(tabText, tabX + (tabWidth - textWidth) div 2, tabY + 9, 12, tabColor)
-    
+
     # Handle tab click
     if tabHovered and isMouseButtonPressed(Left):
       menu.currentTab = CheatMenuTab(i)
       menu.scrollOffset = 0
       menu.ownedScrollOffset = 0
       playSound(stMenuNav)
-  
+
   # Content area
   let contentY = tabY + 40
   let contentHeight = panelHeight - 110
-  
+
   case menu.currentTab
   of cmtWaves:
     drawWavesTab(panelX, contentY, panelWidth, contentHeight, game)
@@ -336,7 +336,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     drawPermanentPowerUpsTab(panelX, contentY, panelWidth, contentHeight, game, menu)
   of cmtEnemies:
     drawEnemiesTab(panelX, contentY, panelWidth, contentHeight, game)
-  
+
   # Draw cursor on top of everything when menu is active
   let mousePos = getVirtualMousePosition()
   drawCircle(mousePos, 4, Color(r: 255, g: 255, b: 255, a: 200))
@@ -344,7 +344,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
 
 proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10
-  
+
   # Current wave info
   drawText("Current Wave: " & $game.currentWave, x + 20, currentY, 16, White)
   currentY += 25
@@ -352,12 +352,12 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   currentY += 25
   drawText("Enemies alive: " & $game.enemies.len, x + 20, currentY, 16, White)
   currentY += 40
-  
+
   # Buttons
   let buttonWidth: int32 = 250
   let buttonHeight: int32 = 40
   let centerX = x + (width - buttonWidth) div 2
-  
+
   # Skip current wave button
   let skipRect = Rectangle(x: centerX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
   let skipHovered = checkCollisionPointRec(getVirtualMousePosition(), skipRect)
@@ -365,12 +365,12 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
                 if skipHovered: Color(r: 80, g: 80, b: 0, a: 255) else: Color(r: 60, g: 60, b: 0, a: 255))
   drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, Yellow)
   drawText("Skip Current Wave", centerX + 30, currentY + 12, 16, White)
-  
+
   if skipHovered and isMouseButtonPressed(Left):
     applyWaveCheat(game, "skip")
-  
+
   currentY += buttonHeight + 10
-  
+
   # Next wave button
   let nextRect = Rectangle(x: centerX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
   let nextHovered = checkCollisionPointRec(getVirtualMousePosition(), nextRect)
@@ -378,12 +378,12 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
                 if nextHovered: Color(r: 0, g: 80, b: 80, a: 255) else: Color(r: 0, g: 60, b: 60, a: 255))
   drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, SkyBlue)
   drawText("Advance to Next Wave", centerX + 20, currentY + 12, 16, White)
-  
+
   if nextHovered and isMouseButtonPressed(Left):
     applyWaveCheat(game, "next")
-  
+
   currentY += buttonHeight + 10
-  
+
   # Boss wave button
   let bossRect = Rectangle(x: centerX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
   let bossHovered = checkCollisionPointRec(getVirtualMousePosition(), bossRect)
@@ -391,7 +391,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
                 if bossHovered: Color(r: 80, g: 0, b: 0, a: 255) else: Color(r: 60, g: 0, b: 0, a: 255))
   drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, Red)
   drawText("Trigger Boss Wave", centerX + 40, currentY + 12, 16, White)
-  
+
   if bossHovered and isMouseButtonPressed(Left):
     applyWaveCheat(game, "boss")
 
@@ -476,21 +476,21 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
 
 proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10
-  
+
   drawText("Player Stats (Click buttons to modify)", x + 20, currentY, 14, Gray)
   currentY += 30
-  
+
   let labelX = x + 40
   let valueX = x + 200
   let buttonStartX = x + 300
   let buttonWidth: int32 = 60
   let buttonHeight: int32 = 30
   let spacing: int32 = 8
-  
+
   # Health
   drawText("Health:", labelX, currentY + 5, 16, White)
   drawText($game.player.hp & " / " & $game.player.maxHp, valueX, currentY + 5, 16, Green)
-  
+
   # Health buttons
   let healthButtons = [
     ("Full", game.player.maxHp),
@@ -503,130 +503,130 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
     let (label, value) = btnData
     let rect = Rectangle(x: btnX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
     let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
-    
+
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 0, g: 100, b: 0, a: 255) else: Color(r: 0, g: 70, b: 0, a: 255))
     drawRectangleLines(btnX, currentY, buttonWidth, buttonHeight, Green)
-    
+
     let textWidth = measureText(label, 12)
     drawText(label, btnX + (buttonWidth - textWidth) div 2, currentY + 9, 12, White)
-    
+
     if hovered and isMouseButtonPressed(Left):
       applyStatCheat(game, "health", value)
-    
+
     btnX += buttonWidth + spacing
-  
+
   currentY += buttonHeight + 20
-  
+
   # Max Health
   drawText("Max Health:", labelX, currentY + 5, 16, White)
   drawText($game.player.maxHp, valueX, currentY + 5, 16, Yellow)
-  
+
   let maxHealthButtons = [
     ("100", 100.0.float32),
     ("200", 200.0.float32),
     ("500", 500.0.float32)
   ]
 
-  
+
   btnX = buttonStartX
   for btnData in maxHealthButtons:
     let (label, value) = btnData
     let rect = Rectangle(x: btnX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
     let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
-    
+
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 100, g: 100, b: 0, a: 255) else: Color(r: 70, g: 70, b: 0, a: 255))
     drawRectangleLines(btnX, currentY, buttonWidth, buttonHeight, Yellow)
-    
+
     let textWidth = measureText(label, 12)
     drawText(label, btnX + (buttonWidth - textWidth) div 2, currentY + 9, 12, White)
-    
+
     if hovered and isMouseButtonPressed(Left):
       applyStatCheat(game, "maxhealth", value)
-    
+
     btnX += buttonWidth + spacing
-  
+
   currentY += buttonHeight + 20
-  
+
   # Coins
   drawText("Coins:", labelX, currentY + 5, 16, White)
   drawText($game.player.coins, valueX, currentY + 5, 16, Yellow)
-  
+
   let coinButtons = [
     ("100", 100.0.float32),
     ("500", 500.0.float32),
     ("1000", 1000.0.float32),
     ("9999", 9999.0.float32)
   ]
-  
+
   btnX = buttonStartX
   for btnData in coinButtons:
     let (label, value) = btnData
     let rect = Rectangle(x: btnX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
     let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
-    
+
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 100, g: 80, b: 0, a: 255) else: Color(r: 70, g: 60, b: 0, a: 255))
     drawRectangleLines(btnX, currentY, buttonWidth, buttonHeight, Gold)
-    
+
     let textWidth = measureText(label, 12)
     drawText(label, btnX + (buttonWidth - textWidth) div 2, currentY + 9, 12, White)
-    
+
     if hovered and isMouseButtonPressed(Left):
       applyStatCheat(game, "coins", value)
-    
+
     btnX += buttonWidth + spacing
-  
+
   currentY += buttonHeight + 20
-  
+
   # Speed
   drawText("Speed:", labelX, currentY + 5, 16, White)
   drawText($int(game.player.baseSpeed), valueX, currentY + 5, 16, SkyBlue)
-  
+
   let speedButtons = [
     ("Normal", 200.float32),
     ("Fast", 400.float32),
     ("Max", 600.float32)
   ]
-  
+
   btnX = buttonStartX
   for btnData in speedButtons:
     let (label, value) = btnData
     let rect = Rectangle(x: btnX.float32, y: currentY.float32, width: buttonWidth.float32, height: buttonHeight.float32)
     let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
-    
+
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 0, g: 100, b: 150, a: 255) else: Color(r: 0, g: 70, b: 100, a: 255))
     drawRectangleLines(btnX, currentY, buttonWidth, buttonHeight, SkyBlue)
-    
+
     let textWidth = measureText(label, 12)
     drawText(label, btnX + (buttonWidth - textWidth) div 2, currentY + 9, 12, White)
-    
+
     if hovered and isMouseButtonPressed(Left):
       applyStatCheat(game, "speed", value)
-    
+
     btnX += buttonWidth + spacing
-  
+
   currentY += buttonHeight + 30
-  
+
   # Instructions
   drawText("Tip: Modify stats to test different scenarios", x + 20, currentY, 12, Gray)
 
 proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu) =
   let contentHeight = height
   let dividerY = y + (contentHeight div 2)  # Split screen in half
-  
+
   var currentY = y + 10
-  
+
   drawText("Currently Owned (" & $game.player.powerUps.len & ") - Scroll with Mouse Wheel", x + 20, currentY, 14, Yellow)
   currentY += 25
-  
+
   # Owned power-ups scrollable area
   let ownedAreaHeight = dividerY - currentY - 10
   let ownedItemHeight: int32 = 30
   let ownedMaxVisible = max(1, ownedAreaHeight div ownedItemHeight)
-  
+
   if game.player.powerUps.len == 0:
     drawText("  None", x + 30, currentY, 12, Gray)
   else:
@@ -638,24 +638,24 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
         menu.ownedScrollOffset += 1
       elif wheelMove > 0:
         menu.ownedScrollOffset = max(0, menu.ownedScrollOffset - 1)
-    
+
     # Calculate scroll bounds for owned list
     let ownedMaxScroll = max(0, game.player.powerUps.len - ownedMaxVisible)
     if menu.ownedScrollOffset > ownedMaxScroll:
       menu.ownedScrollOffset = ownedMaxScroll
-    
+
     # Draw visible owned power-ups with remove buttons
     let ownedStartIdx = menu.ownedScrollOffset
     let ownedEndIdx = min(ownedStartIdx + ownedMaxVisible, game.player.powerUps.len)
-    
+
     for i in ownedStartIdx..<ownedEndIdx:
       let powerUp = game.player.powerUps[i]
       let name = getPowerUpName(powerUp.powerType)
       let itemY = currentY + (i - ownedStartIdx).int32 * ownedItemHeight
-      
+
       # Draw power-up name and level
       drawText("  " & name & " - Lv " & $powerUp.level, x + 30, itemY + 7, 12, Green)
-      
+
       # Remove button
       let removeX = x + width - 80
       let removeWidth: int32 = 60
@@ -663,19 +663,19 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
       let removeRect = Rectangle(x: removeX.float32, y: itemY.float32 + 2,
                                   width: removeWidth.float32, height: removeHeight.float32)
       let removeHovered = checkCollisionPointRec(getVirtualMousePosition(), removeRect)
-      
+
       drawRectangle(removeX, itemY + 2, removeWidth, removeHeight,
                     if removeHovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255))
       drawRectangleLines(removeX, itemY + 2, removeWidth, removeHeight, Red)
-      
+
       let removeText = "Remove"
       let removeTextWidth = measureText(removeText, 10)
       drawText(removeText, removeX + (removeWidth - removeTextWidth) div 2, itemY + 9, 10, White)
-      
+
       if removeHovered and isMouseButtonPressed(Left):
         removePermanentPowerUpCheat(game, powerUp.powerType)
         break  # list just shrank, stop iterating this frame
-    
+
     # Scroll indicator for owned list
     if ownedMaxScroll > 0:
       let scrollInfoY = dividerY - 18
@@ -686,12 +686,12 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   drawLine(Vector2(x: (x + 10).float32, y: dividerY.float32),
            Vector2(x: (x + width - 10).float32, y: dividerY.float32),
            2, Color(r: 100, g: 100, b: 120, a: 255))
-  
+
   currentY = dividerY + 15
-  
+
   drawText("All Available Power-Ups - Scroll with Mouse Wheel", x + 20, currentY, 14, Yellow)
   currentY += 25
-  
+
   # Define all power-up types
   let allPowerUpTypes: array[0..68, PowerUpType] = [
     puArcaneAura, puArcaneBullets, puArcaneMastery, puArcaneOrb,
@@ -713,14 +713,14 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puVolatile, puWallMaster, puWallTurrets,
     puWindAura, puWindBullets, puWindMastery, puWindOrb
   ];
-  
+
   # Scrollable area setup for available list
   let availableAreaHeight = y + contentHeight - currentY - 10
   let itemHeight: int32 = 30
   let maxVisibleItems = max(1, availableAreaHeight div itemHeight)
   let buttonWidth: int32 = 45
   let buttonSpacing: int32 = 5
-  
+
   # Handle mouse wheel scrolling for available list
   let mousePos = getVirtualMousePosition()
   if mousePos.y >= currentY.float32 and mousePos.y < (y + contentHeight).float32:
@@ -729,40 +729,40 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
       menu.scrollOffset += 1
     elif wheelMove > 0:
       menu.scrollOffset = max(0, menu.scrollOffset - 1)
-  
+
   # Calculate scroll bounds
   let maxScroll = max(0, allPowerUpTypes.len - maxVisibleItems)
   if menu.scrollOffset > maxScroll:
     menu.scrollOffset = maxScroll
-  
+
   # Draw visible items
   let startIdx = menu.scrollOffset
   let endIdx = min(startIdx + maxVisibleItems, allPowerUpTypes.len)
-  
+
   for i in startIdx..<endIdx:
     let powerType = allPowerUpTypes[i]
     let name = getPowerUpName(powerType)
     let itemY = currentY + (i - startIdx).int32 * itemHeight
-    
+
     # Check if player has this power-up
     var currentLevel = 0
     for p in game.player.powerUps:
       if p.powerType == powerType:
         currentLevel = p.level
         break
-    
+
     # Draw power-up name
     let nameColor = if currentLevel > 0: Green else: White
     drawText(name, x + 30, itemY + 7, 12, nameColor)
-    
+
     # Draw level buttons (Lv1, Lv2, Lv3)
     let buttonStartX = x + width - 160
-    
+
     for level in 1..3:
       let btnX = buttonStartX + (level - 1).int32 * (buttonWidth + buttonSpacing)
       let rect = Rectangle(x: btnX.float32, y: itemY.float32, width: buttonWidth.float32, height: (itemHeight - 5).float32)
       let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
-      
+
       # Button color based on current level
       var btnColor: Color
       if level == currentLevel:
@@ -771,18 +771,18 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
         btnColor = Color(r: 0, g: 70, b: 0, a: 150)
       else:
         btnColor = if hovered: Color(r: 80, g: 80, b: 80, a: 255) else: Color(r: 50, g: 50, b: 50, a: 255)
-      
+
       drawRectangle(btnX, itemY, buttonWidth, itemHeight - 5, btnColor)
       drawRectangleLines(btnX, itemY, buttonWidth, itemHeight - 5,
                         if level == currentLevel: Yellow else: Gray)
-      
+
       let btnText = "Lv" & $level
       let btnTextWidth = measureText(btnText, 10)
       drawText(btnText, btnX + (buttonWidth - btnTextWidth) div 2, itemY + 8, 10, White)
-      
+
       if hovered and isMouseButtonPressed(Left):
         applyPermanentPowerUpCheat(game, powerType, level)
-  
+
   # Draw scroll indicator for available list
   if maxScroll > 0:
     let scrollY = y + contentHeight - 15
@@ -791,37 +791,37 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
 
 proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10
-  
+
   drawText("Active Enemies (" & $game.enemies.len & " alive)", x + 20, currentY, 16, Yellow)
   currentY += 30
-  
+
   if game.enemies.len == 0:
     drawText("No enemies currently alive", x + 30, currentY, 14, Gray)
     return
-  
+
   # Draw enemy list with visual indicators
   let itemHeight: int32 = 45
   let maxVisible = (height - 60) div itemHeight
-  
+
   for i in 0..<min(game.enemies.len, maxVisible):
     let enemy = game.enemies[i]
     let itemY = currentY + i.int32 * itemHeight
-    
+
     # Background box for each enemy
     let boxColor = if enemy.isBoss:
       Color(r: 60, g: 10, b: 10, a: 255)
     else:
       Color(r: 40, g: 40, b: 50, a: 255)
-    
+
     drawRectangle(x + 20, itemY, width - 40, itemHeight - 5, boxColor)
     drawRectangleLines(x + 20, itemY, width - 40, itemHeight - 5,
                       if enemy.isBoss: Red else: Gray)
-    
+
     # Draw enemy icon/shape (miniature version)
     let iconX = x + 35
     let iconY = itemY + 20
     let iconSize = 15.0
-    
+
     case enemy.enemyType
     of etCircle:
       drawCircle(Vector2(x: iconX.float32, y: iconY.float32), iconSize, enemy.color)
@@ -863,7 +863,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
     else:
       # Default circle for other types
       drawCircle(Vector2(x: iconX.float32, y: iconY.float32), iconSize, enemy.color)
-    
+
     # Enemy name and type
     let nameX = x + 65
     let enemyName = if enemy.isBoss:
@@ -883,19 +883,19 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
       of etPhantom: "Phantom"
       of etSniper: "SNIPER"
       of etMage: "Mage"
-    
+
     let nameColor = if enemy.isBoss: Red
                     elif enemy.enemyType == etSniper: Magenta
                     else: White
     drawText(enemyName, nameX, itemY + 5, 12, nameColor)
-    
+
     # HP bar
     let hpBarX = nameX
     let hpBarY = itemY + 22
     let hpBarWidth = 180.0
     let hpBarHeight = 8.0
     let hpPercent = enemy.hp / enemy.maxHp
-    
+
     # Background
     drawRectangle(hpBarX, hpBarY, hpBarWidth.int32, hpBarHeight.int32,
                  Color(r: 50, g: 50, b: 50, a: 255))
@@ -904,10 +904,10 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
                  if hpPercent > 0.5: Green elif hpPercent > 0.2: Orange else: Red)
     # Border
     drawRectangleLines(hpBarX, hpBarY, hpBarWidth.int32, hpBarHeight.int32, White)
-    
+
     # HP text
     drawText($int(enemy.hp) & "/" & $int(enemy.maxHp), hpBarX + 190, hpBarY, 10, White)
-  
+
   # Show count if more enemies than can display
   if game.enemies.len > maxVisible:
     let remainingY = y + height - 20

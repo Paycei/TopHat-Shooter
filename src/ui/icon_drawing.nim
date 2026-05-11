@@ -91,7 +91,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   let cx = x + size div 2
   let cy = y + size div 2
   let rad = size.float32 / 2.5
-  
+
   case powerType
   of puDoubleShot:
     # Two bullets with depth
@@ -110,7 +110,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let offset = i * 3
       drawLine(int32(cx - 16 - offset), cy, int32(cx - 11 - offset), cy, Color(r: color.r, g: color.g, b: color.b, a: uint8(100 - i * 30)))
       drawLine(int32(cx + 11 + offset), cy, int32(cx + 16 + offset), cy, Color(r: color.r, g: color.g, b: color.b, a: uint8(100 - i * 30)))
-    
+
   of puRotatingShield:
     # Ornate shield with layered protection
     # Outer rim with shimmer
@@ -127,7 +127,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Center emblem
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 5, color)
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 7, color)
-    
+
   of puMagicalBullets:
     # Mystical star with aura
     let points = 5
@@ -151,7 +151,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, Color(r: min(color.r + 60, 255), g: min(color.g + 60, 255), b: min(color.b + 60, 255), a: color.a))
     # Center crystal
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 4, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
-    
+
   of puPiercingShots:
     # Tactical targeting arrow
     # Arrow body with gradient
@@ -194,7 +194,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Source point
     drawCircle(Vector2(x: (cx - 13).float32, y: cy.float32), 5, color)
     drawCircle(Vector2(x: (cx - 13).float32, y: cy.float32), 3, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
-    
+
   of puExplosiveBullets:
     # Detailed bomb with fuse
     # Shadow
@@ -225,7 +225,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircle(Vector2(x: (cx + 4).float32, y: (cy + 4).float32), 2, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 150))
     # Drip effect
     drawCircle(Vector2(x: cx.float32, y: (cy + int32(rad * 0.7) + 3).float32), 2, Color(r: color.r, g: color.g, b: color.b, a: 180))
-    
+
   of puRapidFire, puOvercharge:
     # Lightning bolt with energy
     # Glow effect
@@ -268,7 +268,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Pulse rings
     drawCircleLines(Vector2(x: cx.float32, y: (cy + 1).float32), rad + 4, Color(r: color.r, g: color.g, b: color.b, a: 60))
     drawCircleLines(Vector2(x: cx.float32, y: (cy + 1).float32), rad + 2, Color(r: color.r, g: color.g, b: color.b, a: 100))
-    
+
   of puSpeedBoost:
     # Athletic shoe with motion
     # Shoe sole shadow
@@ -305,7 +305,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircle(Vector2(x: cx.float32, y: (cy + 15).float32), 3, Color(r: 120, g: 90, b: 60, a: 255))
     # Shine effect
     drawLine(cx - 1, cy - 9, cx - 1, cy - 3, Color(r: 255, g: 255, b: 255, a: 180))
-    
+
   of puBulletSpeed:
     # Detailed rocket with flames
     # Shadow
@@ -355,7 +355,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
         drawText("$", cx - 4, yOff - 6, 12, Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 255))
       # Shine
       drawCircle(Vector2(x: (cx - 3).float32, y: (yOff - 3).float32), 2, Color(r: 255, g: 255, b: 200, a: 200))
-    
+
   of puWallMaster:
     # Brick wall with mortar
     let brickColor = color
@@ -417,7 +417,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let alpha = uint8(60 - i * 15)
       drawCircle(Vector2(x: (cx - 6 - i * 3).float32, y: cy.float32), 4,
                 Color(r: color.r, g: color.g, b: color.b, a: alpha))
-    
+
   of puBulletRicochet:
     # Bouncing trajectory with impact points
     # Path line
@@ -466,7 +466,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let tipX = cx.float32 + cos(angle) * (rad + 2)
       let tipY = cy.float32 + sin(angle) * (rad + 2)
       drawCircle(Vector2(x: tipX, y: tipY), 2, Color(r: 200, g: 230, b: 255, a: 255))
-    
+
   of puRage, puBerserker:
     # Angry face with veins and intensity
     # Face outline
@@ -517,7 +517,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Center highlight
     drawCircle(Vector2(x: (cx - 2).float32, y: (cy - 8).float32), 2,
               Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 255))
-    
+
   of puBulletSplit:
     # Trident/fork with energy
     # Central prong
@@ -602,7 +602,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let dropSize = 3 - i
       drawCircle(Vector2(x: cx.float32, y: dropY.float32), dropSize.float32,
                 Color(r: color.r, g: color.g, b: color.b, a: uint8(200 - i * 50)))
-    
+
   of puFireBullets, puFireAura, puFireOrb, puFireMastery:
     # Layered flame with heat shimmer
     # Bottom flame (darker/orange)
@@ -653,7 +653,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let particleY = cy + int32(sin(particleAngle) * 8)
       drawCircle(Vector2(x: particleX.float32, y: particleY.float32), 2,
                 Color(r: color.r, g: color.g, b: color.b, a: 200))
-    
+
   of puTimeWarp:
     # Ornate clock with roman numerals
     # Clock face shadow
@@ -699,7 +699,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let ringRad = rad * (0.3 + i.float32 * 0.25)
       drawCircleLines(Vector2(x: cx.float32, y: cy.float32), ringRad,
                      Color(r: color.r, g: color.g, b: color.b, a: uint8(150 - i * 30)))
-    
+
   of puPhaseShift:
     # Ghost/transparent figure phasing
     # Solid form (leaving)
@@ -747,7 +747,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let waveY = cy.float32 + sin(angle) * (rad + 6)
       drawCircle(Vector2(x: waveX, y: waveY), 2,
                 Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
-    
+
   of puRotatingOrbs, puArcaneBullets, puArcaneAura, puArcaneOrb, puArcaneMastery:
     # Mystical crystal/gem with facets
     # Gem shadow
@@ -809,7 +809,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let rayX = cx.float32 - 3 + cos(angle) * 5
       let rayY = cy.float32 - 3 + sin(angle) * 5
       drawLine(cx - 3, cy - 3, int32(rayX), int32(rayY), Color(r: 255, g: 255, b: 200, a: 200))
-    
+
   of puRadialBurst:
     # Circle of bullets radiating outward
     # Center shadow
@@ -834,7 +834,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.5, color)
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.7,
                    Color(r: color.r, g: color.g, b: color.b, a: 150))
-  
+
   of puWallTurrets:
     # Wall with turret on top
     # Wall shadow
@@ -1098,7 +1098,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
   let cx = x + size div 2
   let cy = y + size div 2
   let rad = size.float32 / 2.5
-  
+
   case itemIndex
   of 0: # Damage + (Sword)
     drawRectangle(cx - 1, cy - 9, 5, 14, Color(r: 0, g: 0, b: 0, a: 60))
@@ -1111,7 +1111,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
     drawRectangle(cx - 3, cy + 11, 6, 1, Color(r: 150, g: 120, b: 90, a: 255))
     drawCircle(Vector2(x: cx.float32, y: (cy + 15).float32), 3, Color(r: 120, g: 90, b: 60, a: 255))
     drawLine(cx - 1, cy - 9, cx - 1, cy - 3, Color(r: 255, g: 255, b: 255, a: 180))
-    
+
   of 1: # Fire Rate + (Lightning)
     for i in 1..3:
       let glowOffset = i * 2
@@ -1140,7 +1140,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
     for i in 0..2:
       let xOff = int32(-14 - i * 4)
       drawLine(int32(cx + xOff), int32(cy - 2 - i * 2), int32(cx + xOff + 6), int32(cy - 2 - i * 2), Color(r: color.r, g: color.g, b: color.b, a: uint8(120 - i * 30)))
-    
+
   of 3: # Max Health + (Heart)
     drawCircle(Vector2(x: (cx - 4).float32, y: (cy - 1).float32), 6, Color(r: 0, g: 0, b: 0, a: 60))
     drawCircle(Vector2(x: (cx + 6).float32, y: (cy - 1).float32), 6, Color(r: 0, g: 0, b: 0, a: 60))
@@ -1152,7 +1152,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
     drawCircle(Vector2(x: (cx - 7).float32, y: (cy - 6).float32), 3, Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 200))
     drawCircle(Vector2(x: (cx + 3).float32, y: (cy - 6).float32), 2, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 150))
     drawCircleLines(Vector2(x: cx.float32, y: (cy + 1).float32), rad + 4, Color(r: color.r, g: color.g, b: color.b, a: 60))
-    
+
   of 4: # Bullet Speed + (Rocket)
     drawTriangle(Vector2(x: (cx + 1).float32, y: (cy - 9).float32),
                 Vector2(x: (cx - 3).float32, y: (cy - 1).float32),
@@ -1188,7 +1188,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
           drawRectangle(xPos, yPos, 10, 1, Color(r: min(brickColor.r + 60, 255), g: min(brickColor.g + 60, 255), b: min(brickColor.b + 60, 255), a: 255))
           drawRectangle(xPos, yPos, 1, 5, Color(r: min(brickColor.r + 40, 255), g: min(brickColor.g + 40, 255), b: min(brickColor.b + 40, 255), a: 255))
     drawRectangleLines(Rectangle(x: (cx - 12).float32, y: (cy - 10).float32, width: 24, height: 20), 2, color)
-    
+
   else:
     # Default gear
     drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), rad * 0.6, Color(r: 0, g: 0, b: 0, a: 60))

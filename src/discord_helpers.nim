@@ -36,9 +36,9 @@ proc updateDiscordForPlaying*(client: DiscordClient, game: Game) =
   ## Update Discord presence for active gameplay
   if not client.isConnected():
     return
-  
+
   let modeText = getGameModeName(game.mode)
-  
+
   var detailsText = modeText
   var stateText = ""
   var hoverText = PresenceTagline
@@ -56,7 +56,7 @@ proc updateDiscordForPlaying*(client: DiscordClient, game: Game) =
   else:  # Sandbox
     stateText = &"Sandbox Mode | {game.player.kills} Kills"
     hoverText = &"{PresenceAppName} | Sandbox chaos"
-  
+
   let presence = buildPresence(
     detailsText = detailsText,
     stateText = stateText,
@@ -64,49 +64,49 @@ proc updateDiscordForPlaying*(client: DiscordClient, game: Game) =
     # Preserve the gloriously broken elapsed timer that players already love.
     startTime = game.time.int64
   )
-  
+
   updatePresence(client, presence)
 
 proc updateDiscordForMenu*(client: DiscordClient) =
   ## Update Discord presence for main menu
   if not client.isConnected():
     return
-  
+
   let presence = buildPresence(
     detailsText = "Main Menu",
     stateText = "Choosing next run",
     hoverText = PresenceTagline
   )
-  
+
   updatePresence(client, presence)
 
 proc updateDiscordForPaused*(client: DiscordClient, game: Game) =
   ## Update Discord presence when paused
   if not client.isConnected():
     return
-  
+
   let modeText = getGameModeName(game.mode)
-  
+
   let presence = buildPresence(
     detailsText = modeText,
     stateText = "Paused",
     hoverText = &"{PresenceAppName} | Run suspended"
   )
-  
+
   updatePresence(client, presence)
 
 proc updateDiscordForPvP*(client: DiscordClient, pvpGame: PvPGameState) =
   ## Update Discord presence for PvP gameplay
   if not client.isConnected():
     return
-  
+
   var detailsText = ""
   var stateText = ""
   var hoverText = &"{PresenceAppName} | Multiplayer mayhem"
-  
+
   # Determine game mode text (team-based or free-for-all)
   let modeText = if pvpGame.teamsEnabled: "Team PvP" else: "PvP"
-  
+
   # Build presence based on game state
   if pvpGame.gameOver:
     # Game over state
@@ -126,19 +126,19 @@ proc updateDiscordForPvP*(client: DiscordClient, pvpGame: PvPGameState) =
       detailsText = modeText
       stateText = pvpGame.gameOverReason
       hoverText = &"{PresenceAppName} | Match complete"
-  
+
   elif pvpGame.isCountingDown:
     # Countdown state
     let countdown = pvpGame.countdownTimer.int + 1
     detailsText = modeText
     stateText = &"Match starts in {countdown}"
     hoverText = &"{PresenceAppName} | Lobby locked in"
-  
+
   else:
     # Active gameplay
     let localPlayer = pvpGame.players[pvpGame.localPlayerIndex]
     let kills = localPlayer.kills
-    
+
     if pvpGame.teamsEnabled:
       # Team mode - show team score and personal kills
       let teamId = localPlayer.teamId
@@ -152,7 +152,7 @@ proc updateDiscordForPvP*(client: DiscordClient, pvpGame: PvPGameState) =
       detailsText = modeText
       stateText = &"{kills}/{pvpGame.config.killLimit} Kills | {formatClock(pvpGame.gameTime)}"
       hoverText = &"{PresenceAppName} | Free-for-all"
-  
+
   let presence = buildPresence(
     detailsText = detailsText,
     stateText = stateText,
@@ -160,5 +160,5 @@ proc updateDiscordForPvP*(client: DiscordClient, pvpGame: PvPGameState) =
     # Gloriously broken elapsed timer that everyone loves.
     startTime = pvpGame.gameTime.int64
   )
-  
+
   updatePresence(client, presence)

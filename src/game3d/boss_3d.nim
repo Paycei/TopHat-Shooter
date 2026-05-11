@@ -31,7 +31,7 @@ proc getBoss3D*(bossId: int): Boss3D =
       gravityWells: @[],
       berserkModeActive: false
     )
-    
+
     # Phase 1: Initialize 4 satellites - MUST destroy ALL to damage core
     for i in 0..<4:
       let angle = i.float32 * 2.0 * PI / 4.0
@@ -46,7 +46,7 @@ proc getBoss3D*(bossId: int): Boss3D =
         laserChargeTimer: 0.0,
         targetSatelliteIndex: -1
       ))
-  
+
   else:
     # Default boss
     result = Boss3D(
@@ -77,7 +77,7 @@ proc initiatePhaseTransition(boss: var Boss3D, newPhase: int, arena: var Arena3D
   boss.phaseTransitionTimer = 2.0
   boss.attackPattern = 0
   boss.patternTimer = 0.0
-  
+
   case newPhase
   of 2:  # PHASE 2: Core exposed, gravity mechanics
     # Change environment dramatically
@@ -88,7 +88,7 @@ proc initiatePhaseTransition(boss: var Boss3D, newPhase: int, arena: var Arena3D
     for platform in arena.platforms.mitems:
       if platform.rotationSpeed == 0.0:
         platform.rotationSpeed = 0.3
-  
+
   of 3:  # PHASE 3: Final stand
     boss.berserkModeActive = true
     # Environment becomes chaotic
@@ -98,7 +98,7 @@ proc initiatePhaseTransition(boss: var Boss3D, newPhase: int, arena: var Arena3D
     # Faster platform rotation
     for platform in arena.platforms.mitems:
       platform.rotationSpeed = 0.6
-  
+
   else:
     discard
 
@@ -108,7 +108,7 @@ proc executePhase1Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
   for i, sat in boss.satellites:
     if sat.active:
       activeSats.add(i)
-  
+
   if activeSats.len > 0:
     # 2 satellites shoot simultaneously
     let numShooters = min(2, activeSats.len)
@@ -116,7 +116,7 @@ proc executePhase1Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
       let satIdx = activeSats[rand(activeSats.len - 1)]
       let sat = boss.satellites[satIdx]
       let dir = (player.pos - sat.pos).normalize()
-      
+
       projectiles.add(Projectile3D(
         pos: sat.pos,
         vel: dir * 280.0,
@@ -128,18 +128,18 @@ proc executePhase1Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
         homingTarget: vec3(0, 0, 0),
         homingStrength: 0.0
       ))
-    
+
     boss.attackTimer = 1.2
 
 proc executePhase2Attacks(boss: var Boss3D, player: Player3D, projectiles: var seq[Projectile3D]) =
   ## PHASE 2: Core attacks + gravity wells + teleportation
-  
+
   if boss.attackPattern == 0:
     # Pattern A: 16-way spiral from core
     for i in 0..<16:
       let angle = i.float32 * 2.0 * PI / 16.0 + boss.moveTimer * 2.0
       let dir = vec3(cos(angle), 0, sin(angle)).normalize()
-      
+
       projectiles.add(Projectile3D(
         pos: boss.pos,
         vel: dir * 220.0,
@@ -151,10 +151,10 @@ proc executePhase2Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
         homingTarget: vec3(0, 0, 0),
         homingStrength: 0.0
       ))
-    
+
     boss.attackTimer = 2.5
     boss.attackPattern = 1
-  
+
   elif boss.attackPattern == 1:
     # Pattern B: Teleport behind player + radial burst
     # Teleport to behind player
@@ -163,15 +163,15 @@ proc executePhase2Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
     boss.pos.x = teleportPos.x
     boss.pos.z = teleportPos.z
     boss.pos.y = 100.0
-    
+
     # Set teleport timer to prevent movement override
     boss.teleportTimer = 0.5  # Stay in place for 0.5 seconds after teleport
-    
+
     # Fire radial burst from new position
     for i in 0..<12:
       let angle = i.float32 * 2.0 * PI / 12.0
       let dir = vec3(cos(angle), 0, sin(angle)).normalize()
-      
+
       projectiles.add(Projectile3D(
         pos: boss.pos,
         vel: dir * 250.0,
@@ -183,10 +183,10 @@ proc executePhase2Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
         homingTarget: vec3(0, 0, 0),
         homingStrength: 0.0
       ))
-    
+
     boss.attackTimer = 2.0
     boss.attackPattern = 2
-  
+
   else:
     # Pattern C: Gravity wells
     for i in 0..<2:
@@ -197,7 +197,7 @@ proc executePhase2Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
         80.0 + rand(40.0).float32,
         sin(angle) * distance
       )
-      
+
       boss.gravityWells.add(GravityWell(
         pos: wellPos,
         strength: 180.0,
@@ -205,13 +205,13 @@ proc executePhase2Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
         lifetime: 6.0,
         active: true
       ))
-    
+
     boss.attackTimer = 3.0
     boss.attackPattern = 0
 
 proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var seq[Projectile3D]) =
   ## PHASE 3: Berserk - Everything unleashed
-  
+
   # Continuous rapid-fire
   if int(boss.moveTimer * 12) mod 4 == 0:
     let dirToPlayer = (player.pos - boss.pos).normalize()
@@ -226,7 +226,7 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
       homingTarget: vec3(0, 0, 0),
       homingStrength: 0.0
     ))
-  
+
   # Periodic massive attacks
   if boss.attackTimer <= 0:
     if boss.attackPattern mod 2 == 0:
@@ -234,7 +234,7 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
       for i in 0..<8:
         let angle = i.float32 * 2.0 * PI / 8.0
         let offset = vec3(cos(angle) * 25.0, 0, sin(angle) * 25.0)
-        
+
         projectiles.add(Projectile3D(
           pos: boss.pos + offset,
           vel: vec3(0, 0, 0),
@@ -246,7 +246,7 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
           homingTarget: player.pos,
           homingStrength: 200.0
         ))
-      
+
       boss.attackTimer = 2.5
     else:
       # Gravity well + spiral combo
@@ -257,11 +257,11 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
         lifetime: 5.0,
         active: true
       ))
-      
+
       for i in 0..<12:
         let angle = i.float32 * 2.0 * PI / 12.0 + boss.moveTimer * 3.0
         let dir = vec3(cos(angle), 0, sin(angle)).normalize()
-        
+
         projectiles.add(Projectile3D(
           pos: boss.pos,
           vel: dir * 280.0,
@@ -273,24 +273,24 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
           homingTarget: vec3(0, 0, 0),
           homingStrength: 0.0
         ))
-      
+
       boss.attackTimer = 2.0
-    
+
     boss.attackPattern += 1
 
 proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Projectile3D],
                  arena: var Arena3D, dt: float32) =
-  
+
   boss.moveTimer += dt
-  
+
   # Phase transition invulnerability
   if boss.phaseTransitionTimer > 0:
     boss.phaseTransitionTimer -= dt
     return
-  
+
   # Check for phase transitions based on HP
   let healthPercent = boss.health / boss.maxHealth
-  
+
   if healthPercent <= PHASE3_THRESHOLD and boss.phase < 3:
     initiatePhaseTransition(boss, 3, arena)
   elif healthPercent <= PHASE2_THRESHOLD and boss.phase < 2:
@@ -300,10 +300,10 @@ proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Pr
       if sat.active:
         allSatellitesDestroyed = false
         break
-    
+
     if allSatellitesDestroyed:
       initiatePhaseTransition(boss, 2, arena)
-  
+
   # Update satellite orbits
   for sat in boss.satellites.mitems:
     if sat.active:
@@ -311,12 +311,12 @@ proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Pr
       sat.pos.x = boss.pos.x + cos(sat.angle) * sat.distance
       sat.pos.z = boss.pos.z + sin(sat.angle) * sat.distance
       sat.pos.y = boss.pos.y
-  
+
   # Boss movement based on phase
   # Update teleport timer
   if boss.teleportTimer > 0:
     boss.teleportTimer -= dt
-  
+
   # Only apply movement patterns if not in teleport cooldown
   if boss.teleportTimer <= 0:
     case boss.phase
@@ -327,7 +327,7 @@ proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Pr
       boss.pos.x = cos(moveAngle) * moveRadius
       boss.pos.z = sin(moveAngle) * moveRadius
       boss.pos.y = 100.0 + sin(boss.moveTimer * 0.5) * 10.0
-    
+
     of 2:
       # Faster, erratic
       let moveAngle = boss.moveTimer * 0.4
@@ -335,20 +335,20 @@ proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Pr
       boss.pos.x = cos(moveAngle) * moveRadius
       boss.pos.z = sin(moveAngle) * moveRadius
       boss.pos.y = 100.0 + sin(boss.moveTimer * 1.2) * 20.0
-    
+
     of 3:
       # Aggressive positioning
       let toPlayer = player.pos - boss.pos
       if toPlayer.length() > 100.0:
         boss.pos = boss.pos + toPlayer.normalize() * 150.0 * dt
       boss.pos.y = 100.0 + sin(boss.moveTimer * 0.8) * 15.0
-    
+
     else:
       discard
-  
+
   # Update timers
   boss.attackTimer -= dt
-  
+
   # Execute attacks
   if boss.attackTimer <= 0:
     case boss.phase
@@ -360,26 +360,26 @@ proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Pr
       executePhase3Attacks(boss, player, projectiles)
     else:
       discard
-  
+
   # Update gravity wells
   var i = 0
   while i < boss.gravityWells.len:
     boss.gravityWells[i].lifetime -= dt
-    
+
     if boss.gravityWells[i].lifetime <= 0:
       boss.gravityWells.delete(i)
     else:
       # Apply gravity to player
       let toPlayer = player.pos - boss.gravityWells[i].pos
       let dist = toPlayer.length()
-      
+
       if dist < boss.gravityWells[i].radius:
         let pullDir = (boss.gravityWells[i].pos - player.pos).normalize()
         let pullStrength = boss.gravityWells[i].strength * (1.0 - dist / boss.gravityWells[i].radius)
         player.vel = player.vel + pullDir * pullStrength * dt
-      
+
       i += 1
-  
+
   # Update homing projectiles
   for proj in projectiles.mitems:
     if proj.isHoming and proj.active and not proj.fromPlayer:
@@ -395,11 +395,11 @@ proc drawBoss*(boss: Boss3D) =
     let flashIntensity = sin(boss.phaseTransitionTimer * 10.0) * 0.5 + 0.5
     drawSphere(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z),
               25.0, fade(White, flashIntensity * 0.8))
-  
+
   # Core color and size based on phase
   var coreColor: Color
   var coreSize = 20.0
-  
+
   case boss.phase
   of 1:
     coreColor = Color(r: 120, g: 120, b: 120, a: 255)  # Gray - protected
@@ -411,25 +411,25 @@ proc drawBoss*(boss: Boss3D) =
     coreSize = 30.0 + sin(boss.moveTimer * 5.0) * 3.0  # Pulsing
   else:
     coreColor = Gray
-  
+
   # Draw core
   drawSphere(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z), coreSize, coreColor)
-  
+
   # Draw core glow
   let glowSize = coreSize + 2.0 + sin(boss.moveTimer * 2.0) * 1.0
   drawSphere(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z), glowSize, fade(coreColor, 0.3))
-  
+
   # Draw satellites
   for sat in boss.satellites:
     if sat.active:
       let satColor = if boss.phase >= 2: Color(r: 200, g: 50, b: 255, a: 255) else: Purple
       drawSphere(Vector3(x: sat.pos.x, y: sat.pos.y, z: sat.pos.z), 5.0, satColor)
-      
+
       # Orbit trail
       drawLine3D(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z),
                 Vector3(x: sat.pos.x, y: sat.pos.y, z: sat.pos.z),
                 fade(satColor, 0.3))
-      
+
       # Satellite glow
       drawSphere(Vector3(x: sat.pos.x, y: sat.pos.y, z: sat.pos.z), 6.0, fade(satColor, 0.2))
 
@@ -438,11 +438,11 @@ proc drawGravityWells*(boss: Boss3D) =
     if well.active:
       let progress = well.lifetime / 6.0
       let alpha = progress * 0.4
-      
+
       # Core
       drawSphere(Vector3(x: well.pos.x, y: well.pos.y, z: well.pos.z),
                 8.0, fade(Color(r: 150, g: 0, b: 150, a: 255), alpha))
-      
+
       # Radius indicator
       drawSphereWires(Vector3(x: well.pos.x, y: well.pos.y, z: well.pos.z),
                      well.radius, 8, 8, fade(Color(r: 200, g: 0, b: 200, a: 255), alpha * 0.5))
@@ -451,7 +451,7 @@ proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
   for sat in boss.satellites:
     if sat.active:
       let barPos = Vector3(x: sat.pos.x, y: sat.pos.y + 10.0, z: sat.pos.z)
-      
+
       let screenPos = getWorldToScreen(barPos,
         Camera(
           position: Vector3(x: camera.position.x, y: camera.position.y, z: camera.position.z),
@@ -461,22 +461,22 @@ proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
           projection: CameraProjection.Perspective
         )
       )
-      
+
       if screenPos.x >= 0 and screenPos.x <= getScreenWidth().float32 and
          screenPos.y >= 0 and screenPos.y <= getScreenHeight().float32:
-        
+
         let barWidth = 60.0
         let barHeight = 8.0
         let healthPercent = sat.health / sat.maxHealth
-        
+
         # Background
         drawRectangle(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
                      int32(barWidth), int32(barHeight), Color(r: 100, g: 0, b: 0, a: 200))
-        
+
         # Foreground
         drawRectangle(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
                      int32(barWidth * healthPercent), int32(barHeight), Color(r: 150, g: 100, b: 255, a: 255))
-        
+
         # Border
         drawRectangleLines(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
                           int32(barWidth), int32(barHeight), White)
@@ -485,7 +485,7 @@ proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: boo
   # Phase transition invulnerability
   if boss.phaseTransitionTimer > 0:
     return (false, 0.0, false, vec3(0, 0, 0))
-  
+
   # Check satellite hits
   for sat in boss.satellites.mitems:
     if sat.active and distance(sat.pos, projectile.pos) < 6.0:
@@ -494,7 +494,7 @@ proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: boo
       if sat.health <= 0:
         sat.active = false
       return (true, damageDealt, true, sat.pos)
-  
+
   # PHASE 1: Core is COMPLETELY INVULNERABLE while ANY satellites exist
   if boss.phase == 1:
     var anySatelliteActive = false
@@ -502,15 +502,15 @@ proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: boo
       if sat.active:
         anySatelliteActive = true
         break
-    
+
     if anySatelliteActive:
       # Core cannot be damaged - satellites must be destroyed first
       return (false, 0.0, false, vec3(0, 0, 0))
-  
+
   # PHASE 2+: Core is vulnerable
   if distance(boss.pos, projectile.pos) < 22.0:
     let damageDealt = min(projectile.damage, boss.health)
     boss.health -= projectile.damage
     return (true, damageDealt, false, boss.pos)
-  
+
   (false, 0.0, false, vec3(0, 0, 0))

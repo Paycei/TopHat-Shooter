@@ -15,7 +15,7 @@ type
     widPvP
     widAdvancements
     widRoguelite
-  
+
   WindowManager* = ref object
     settings*: SettingsWindow
     help*: HelpWindow
@@ -49,7 +49,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
     roguelite: newRogueliteWindow(screenWidth, screenHeight, rogueliteProfile),
     nextZOrder: 1
   )
-  
+
   # Initially hide all windows
   result.settings.window.visible = false
   result.help.window.visible = false
@@ -77,14 +77,14 @@ proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
   for window in wm.getAllWindows():
     if window.visible:
       result.add(window)
-  
+
   # Sort by z-order (highest first for click handling)
   result.sort(proc(a, b: OSWindow): int = cmp(b.zOrder, a.zOrder))
 
 proc openWindow*(wm: WindowManager, id: WindowID) =
   ## Open a specific window and bring it to front
   var window: OSWindow
-  
+
   case id
   of widSettings: window = wm.settings.window
   of widHelp: window = wm.help.window
@@ -95,13 +95,13 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widRoguelite:
     window = wm.roguelite.window
     wm.roguelite.showUnlocks = false  # Always open to setup view, not shop/unlocks
-  
+
   window.visible = true
   window.minimized = false
   window.focused = true
   window.zOrder = wm.nextZOrder
   inc wm.nextZOrder
-  
+
   # Unfocus all other windows
   for w in wm.getAllWindows():
     if w != window:
@@ -132,10 +132,10 @@ proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
   if not isMouseButtonPressed(Left):
     return false
-  
+
   # Get visible windows sorted by z-order (highest first)
   let visibleWindows = wm.getVisibleWindows()
-  
+
   # Find the topmost window at click position
   for window in visibleWindows:
     let clickArea = if window.minimized:
@@ -154,21 +154,21 @@ proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
         width: window.width.float32,
         height: window.height.float32
       )
-    
+
     if checkCollisionPointRec(mousePos, clickArea):
       # This window was clicked - bring to front if not already focused
       if not window.focused:
         window.focused = true
         window.zOrder = wm.nextZOrder
         inc wm.nextZOrder
-        
+
         # Unfocus other windows
         for w in wm.getAllWindows():
           if w != window:
             w.focused = false
-      
+
       return true  # Window consumed the click
-  
+
   return false  # No window at click position
 
 proc isMouseOverAnyWindow*(wm: WindowManager, mousePos: Vector2): bool =
@@ -181,10 +181,10 @@ proc isMouseOverAnyWindow*(wm: WindowManager, mousePos: Vector2): bool =
         width: window.width.float32,
         height: window.height.float32
       )
-      
+
       if checkCollisionPointRec(mousePos, windowRect):
         return true
-  
+
   return false
 
 type
@@ -205,31 +205,31 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
   result.rogueliteLaunchGame = false
   result.iconToExecute = -1
   result.pvpGameReady = false
-  
+
   let visibleWindows = wm.getVisibleWindows()
-  
+
   # Reset click flags for all windows at the start of each frame
   for window in wm.getAllWindows():
     window.handledClickThisFrame = false
-  
+
   # Update each visible window
   for window in visibleWindows:
     if window == wm.settings.window:
       let settingsResult = updateSettingsWindow(wm.settings, dt, screenWidth, screenHeight, visibleWindows)
       if settingsResult.fullscreenToggle:
         result.fullscreenToggle = true
-    
+
     elif window == wm.stats.window:
       discard updateStatsWindow(wm.stats, dt, screenWidth, screenHeight, visibleWindows)
-    
+
     elif window == wm.shop.window:
       result.shopClosed = updateShopWindow(wm.shop, dt, visibleWindows)
       if result.shopClosed:
         wm.shop.window.visible = false
-    
+
     elif window == wm.help.window:
       result.iconToExecute = updateHelpWindow(wm.help, dt, screenWidth, screenHeight, visibleWindows)
-    
+
     elif window == wm.pvp.window:
       # Create callback to provide cosmetics when accepting connections
       proc getCosmetics(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int] =
@@ -239,36 +239,36 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
           shapeType: globalSettings.playerShape,
           particleSkinType: globalSettings.particleEffect
         )
-      
+
       updatePvPWindow(wm.pvp, dt, getCosmetics)
       handlePvPWindowInput(wm.pvp)
-      
+
       # Handle window chrome (close, minimize, drag)
       let shouldClose = handleOSWindowInput(wm.pvp.window, screenWidth, screenHeight, visibleWindows)
       if shouldClose:
         wm.pvp.window.visible = false
         resetPvPWindow(wm.pvp)
-      
+
       if wm.pvp.readyToStart:
         result.pvpGameReady = true
-    
+
     elif window == wm.roguelite.window:
       let rogueliteResult = updateRogueliteWindow(wm.roguelite, dt, visibleWindows, screenWidth, screenHeight, currentGame)
       result.rogueliteClosed = rogueliteResult.shouldClose
       result.rogueliteLaunchGame = rogueliteResult.launchGame
       if rogueliteResult.shouldClose:
         wm.roguelite.window.visible = false
-    
+
     elif window == wm.advancements.window:
       discard updateAdvancementsWindow(wm.advancements, dt, screenWidth, screenHeight, visibleWindows)
 
 proc drawAllWindows*(wm: WindowManager, game: Game) =
   ## Draw all visible windows in z-order
   var visibleWindows = wm.getAllWindows().filterIt(it.visible)
-  
+
   # Sort by z-order (lowest first for drawing)
   visibleWindows.sort(proc(a, b: OSWindow): int = cmp(a.zOrder, b.zOrder))
-  
+
   # Draw each window
   for window in visibleWindows:
     if window == wm.settings.window:

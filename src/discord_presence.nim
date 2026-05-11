@@ -79,11 +79,11 @@ proc writeFrame(client: DiscordClient, opcode: int, data: string) =
   ## Write a frame to the Discord IPC pipe
   if not client.connected or client.pipe.isNil:
     return
-  
+
   try:
     let payload = data
     let length = uint32(payload.len)
-    
+
     # Write opcode (4 bytes)
     discard client.pipe.writeBuffer(addr opcode, sizeof(int32))
     # Write length (4 bytes)
@@ -98,21 +98,21 @@ proc readFrame(client: DiscordClient): tuple[opcode: int, data: string] =
   ## Read a frame from the Discord IPC pipe
   if not client.connected or client.pipe.isNil:
     return (0, "")
-  
+
   try:
     var opcode: int32
     var length: uint32
-    
+
     # Read opcode
     if client.pipe.readBuffer(addr opcode, sizeof(int32)) != sizeof(int32):
       client.connected = false
       return (0, "")
-    
+
     # Read length
     if client.pipe.readBuffer(addr length, sizeof(uint32)) != sizeof(uint32):
       client.connected = false
       return (0, "")
-    
+
     # Read data
     if length > 0:
       var data = newString(length)
@@ -130,7 +130,7 @@ proc connectSync(client: DiscordClient): bool =
   ## Synchronous connection - called from background thread only
   if client.connected:
     return true
-  
+
   when defined(windows):
     # Try to open the Discord IPC pipe on Windows
     for i in 0..2:
@@ -152,19 +152,19 @@ proc connectSync(client: DiscordClient): bool =
           break
         except IOError:
           continue
-  
+
   if not client.connected:
     return false
-  
+
   try:
     # Send handshake
     let handshake = %* {
       "v": 1,
       "client_id": client.clientId
     }
-    
+
     client.writeFrame(OPCODES.HANDSHAKE, $handshake)
-    
+
     # Read handshake response
     let response = client.readFrame()
     if response.opcode == OPCODES.FRAME:
@@ -174,7 +174,7 @@ proc connectSync(client: DiscordClient): bool =
         return true
   except:
     discard
-  
+
   # Handshake failed
   client.connected = false
   if not client.pipe.isNil:
@@ -261,33 +261,33 @@ proc sendPresenceNow(client: DiscordClient, presence: DiscordRichPresence) =
 proc discordWorkerThread(client: DiscordClient) {.thread.} =
   ## Background thread that handles Discord IPC communication
   ## This runs independently and never blocks the main game thread
-  
+
   # Try to connect
   discard client.connectSync()
-  
+
   # Main loop - check for updates every 100ms
   while not client.shouldStop:
     sleep(100)
-    
+
     # Check if there's a pending update
     var hasUpdate = false
     var presence: DiscordRichPresence
-    
+
     acquire(client.updateLock)
     if client.hasUpdate:
       presence = client.pendingPresence
       hasUpdate = true
       client.hasUpdate = false
     release(client.updateLock)
-    
+
     # Send update if we have one and are connected
     if hasUpdate and client.connected:
       let currentTime = epochTime()
-      
+
       # Throttle to once per second
       if currentTime - client.lastUpdateTime >= 1.0:
         client.lastUpdateTime = currentTime
-        
+
         try:
           client.sendPresenceNow(presence)
         except:
@@ -299,7 +299,7 @@ proc connect*(client: DiscordClient): bool =
   ## Returns immediately - connection happens in background
   if client.threadRunning:
     return true
-  
+
   client.threadRunning = true
   createThread(client.thread, discordWorkerThread, client)
   return true
@@ -308,14 +308,14 @@ proc disconnect*(client: DiscordClient) =
   ## Disconnect from Discord and stop background thread
   if client.isNil:
     return
-  
+
   if client.threadRunning:
     # Signal thread to stop
     client.shouldStop = true
     # Wait for thread to finish (with timeout protection)
     joinThread(client.thread)
     client.threadRunning = false
-  
+
   # Close the connection
   if client.connected and not client.pipe.isNil:
     try:
@@ -324,9 +324,9 @@ proc disconnect*(client: DiscordClient) =
       close(client.pipe)
     except:
       discard
-  
+
   client.connected = false
-  
+
   # Clean up lock
   try:
     deinitLock(client.updateLock)
@@ -338,7 +338,7 @@ proc updatePresence*(client: DiscordClient, presence: DiscordRichPresence) =
   ## Queues the update for the background thread to send
   if client.isNil:
     return
-  
+
   # Queue the update for the background thread
   acquire(client.updateLock)
   client.pendingPresence = presence
@@ -349,7 +349,7 @@ proc clearPresence*(client: DiscordClient) =
   ## Clear the Discord Rich Presence (non-blocking)
   if client.isNil or not client.threadRunning:
     return
-  
+
   # Queue a clear command
   let emptyPresence = DiscordRichPresence(clearActivity: true)
   acquire(client.updateLock)

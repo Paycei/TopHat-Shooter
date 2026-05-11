@@ -155,10 +155,10 @@ proc initializeSkins*() =
 proc getSkinColors*(skinType: SkinType, time: float32): tuple[primary, secondary, core: Color] =
   ## Get the colors for a skin, applying animations if needed
   let skin = skinDatabase[skinType]
-  
+
   if not skin.isAnimated:
     return (skin.primaryColor, skin.secondaryColor, skin.coreColor)
-  
+
   # Apply time-based animations for animated skins
   case skinType
   of skRainbow:

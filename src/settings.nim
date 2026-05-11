@@ -37,10 +37,10 @@ proc initSettings*(): Settings =
     pvpNickname: "Player"  # Default nickname for PvP
   )
   globalSettings = result
-  
+
   # Try to load saved settings
   discard loadSettings(result)
-  
+
   # Apply loaded language setting
   try:
     setLanguage(parseEnum[Language](result.language))

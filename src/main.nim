@@ -48,13 +48,13 @@ proc updateRenderScale() =
   ## Calculate letterbox scaling for current window size
   let windowWidth = getScreenWidth()
   let windowHeight = getScreenHeight()
-  
+
   let scaleX = windowWidth.float32 / screenWidth.float32
   let scaleY = windowHeight.float32 / screenHeight.float32
-  
+
   # Use smaller scale to maintain aspect ratio
   renderScale = min(scaleX, scaleY)
-  
+
   # Calculate centering offsets
   let scaledWidth = screenWidth.float32 * renderScale
   let scaledHeight = screenHeight.float32 * renderScale
@@ -75,10 +75,10 @@ proc endGameDrawing() =
   ## End drawing to render target and blit to screen with letterboxing
   popMatrix()
   endTextureMode()
-  
+
   beginDrawing()
   clearBackground(Black)  # Black bars for letterboxing
-  
+
   # Draw the scaled render texture
   let source = Rectangle(x: 0, y: 0,
                          width: renderTarget.texture.width.float32,
@@ -87,7 +87,7 @@ proc endGameDrawing() =
                        width: screenWidth.float32 * renderScale,
                        height: screenHeight.float32 * renderScale)
   drawTexture(renderTarget.texture, source, dest, Vector2(x: 0, y: 0), 0, White)
-  
+
   endDrawing()
 
 proc applyWindowMode(fullscreen: bool) =
@@ -145,14 +145,14 @@ proc drawCustomCursor*(time: float32) =
   ## Draw custom crosshair cursor (only when system cursor is hidden)
   let mousePos = getVirtualMousePosition()
   let cursorPulse = sin(time * 8.0) * 2 + 8
-  
+
   # Outer rotating ring
   for i in 0..<8:
     let angle = time * 4.0 + i.float32 * PI / 4.0
     let x = mousePos.x + cos(angle) * cursorPulse
     let y = mousePos.y + sin(angle) * cursorPulse
     drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
-  
+
   # Crosshair lines
   drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y),
           Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
@@ -162,7 +162,7 @@ proc drawCustomCursor*(time: float32) =
           Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
   drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3),
           Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
-  
+
   # Center dot
   drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
 
@@ -207,35 +207,35 @@ proc updateInGameMouseBonding(settings: Settings, state: GameState) =
 
 proc main() =
   randomize()
-  
+
   let settings = initSettings()
-  
+
   # Set up window with appropriate flags based on saved settings
   if settings.fullscreen:
     setConfigFlags(flags(WindowUndecorated, WindowResizable))
   else:
     setConfigFlags(flags(WindowResizable))
-  
+
   initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v5.5 Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor
-  
+
   # Apply initial window mode after the window exists.
   applyWindowMode(settings.fullscreen)
-  
+
   # Create render target for letterboxing
   updateRenderSupersampleState(settings)
   updateRenderScale()
-  
+
   # Create loading screen
   var loadingScreen = newLoadingScreen()
-  
+
   # Initialize sound system with loading screen callback
   var loadingScreenShown = false  # Only draw once we've seen partial progress
   proc updateLoadingProgress(progress: float32, message: string) =
     loadingScreen.setProgress(progress, message)
-    
+
     # If the very first callback is already at 1.0, everything was cached —
     # skip drawing entirely so the loading screen never flickers on screen.
     if progress >= 1.0 and not loadingScreenShown:
@@ -245,31 +245,31 @@ proc main() =
     # Draw loading screen
     let dt = getFrameTime()
     loadingScreen.update(dt)
-    
+
     beginGameDrawing()
     loadingScreen.draw(screenWidth, screenHeight)
     endGameDrawing()
-  
+
   discard initSoundSystem(updateLoadingProgress)
-  
+
   # Initialize skin systems
   initializeSkins()
   initializeBulletSkins()
   initializeBulletShapes()
   initializeShapes()
   initializeParticleSkins()
-  
+
   let cheatMenu = initCheatMenu()
-  
+
   # Apply remaining settings
   applySettings(settings)
-  
+
   let stats = initStatistics()
   discard loadStatistics(stats)
   var rogueliteProfile = loadRogueliteProfile()
   if sanitizeEquippedCosmetics(settings, rogueliteProfile):
     discard saveSettings(settings)
-  
+
   # Load last completed run statistics
   let loadedRunStats = loadLastRunStats()
   if not loadedRunStats.isNil:
@@ -279,11 +279,11 @@ proc main() =
   discard syncAdvancements(advancementProfile, stats, loadedRunStats, rogueliteProfile)
   if advancementProfile.dirty:
     discard saveAdvancements(advancementProfile)
-  
+
   var statsSavedThisGame = false  # Track if stats were saved for current game
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   var lastFullscreenToggleTime = 0.0  # Debouncing for F11 key
-  
+
   # Initialize global Discord client (persists across game sessions)
   # Wrapped in try-catch to handle Discord connection failures gracefully
   try:
@@ -293,15 +293,15 @@ proc main() =
   except:
     # Discord initialization failed - continue without Rich Presence
     globalDiscordClient = nil
-  
+
   var currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
   currentGame.state = gsSplash  # Start with splash screen
   # Assign global Discord client to game
   currentGame.discordClient = globalDiscordClient
-  
+
   var splashScreen = newSplashScreen()
   var osDesktop = newOSDesktop()
-  
+
   # Initialize window manager with all windows
   globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats, advancementProfile, rogueliteProfile)
   # Pre-load saved nickname into pvp window and host network manager
@@ -353,31 +353,31 @@ proc main() =
         echo "Warning: Failed to save settings to disk"
 
     updateRenderSupersampleState(settings)
-    
+
     let dt = getFrameTime()
-    
+
     # Update render scale every frame in case window was resized
     updateRenderScale()
-    
+
     # Update music stream (required for continuous playback)
     updateMusic()
-    
+
     # Handle fullscreen toggle with F11 (borderless window) with debouncing
     let currentTime = getTime()
     if isKeyPressed(F11) and (currentTime - lastFullscreenToggleTime) > 0.5:
       lastFullscreenToggleTime = currentTime
       settings.fullscreen = not settings.fullscreen
       fullscreenToggleRequested = true
-    
+
     # ALWAYS hide system cursor - we always use custom cursor
     hideCursor()
     updateInGameMouseBonding(settings, currentGame.state)
-    
+
     case currentGame.state
     of gsSplash:
       # Update splash screen
       updateSplashScreen(splashScreen, dt)
-      
+
       # Skip splash with any key or mouse button
       var anyKeyPressed = false
       if splashScreen.complete:
@@ -399,22 +399,22 @@ proc main() =
         # Also check mouse buttons
         if isMouseButtonPressed(Left) or isMouseButtonPressed(Right):
           anyKeyPressed = true
-        
+
         if anyKeyPressed:
           currentGame.state = gsMenu
-      
+
       beginGameDrawing()
       drawSplashScreen(splashScreen, screenWidth, screenHeight)
       endGameDrawing()
-    
+
     of gsMenu:
       # Play menu music
       playMusic(mtMenu)
-      
+
       # Update time for menu animations
       currentGame.time += dt
       updateMouseTracking(currentGame)
-      
+
       # Check if loading animation just finished and launch pending game mode
       if not osDesktop.loadingActive and pendingGameMode >= 0:
         # Close all desktop windows before launching the game
@@ -456,44 +456,44 @@ proc main() =
           statsSavedThisGame = false
         else: discard
         pendingGameMode = -1  # Reset pending mode
-      
+
       # Handle window and desktop input
       let mousePos = getVirtualMousePosition()
-      
+
       # Play click sound for any left-click on the desktop (anywhere)
       if isMouseButtonPressed(Left):
         playSound(stMenuNav, 0.6)
-      
+
       # Handle window clicks and check if desktop is blocked
       discard globalWindowManager.handleWindowClick(mousePos)
       let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
-      
+
       # Update OS desktop (after mouseOverWindow is known, so cube drag respects windows)
       updateOSDesktop(osDesktop, dt, mouseOverWindow, screenWidth, screenHeight)
-      
+
       # Handle OS desktop input and get action (only if no windows are blocking)
       let action = if not mouseOverWindow: handleDesktopInput(osDesktop, currentGame) else: -1
-      
+
       # Update all windows
       let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight, currentGame)
-      
+
       # Handle fullscreen toggle from settings
       if updateResult.fullscreenToggle:
         fullscreenToggleRequested = true
-      
+
       # Handle roguelite window Start button — show loading screen then enter game
       if updateResult.rogueliteLaunchGame:
         startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
         pendingGameMode = 9
-      
+
       # Handle PvP game ready
       if updateResult.pvpGameReady:
         echo "[MAIN] PvP game starting..."
-        
+
         # Build connected players list
         var connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]] = @[]
         var localPlayerIndex = 0
-        
+
         if globalWindowManager.pvp.isHost:
           # Host is always player 0
           localPlayerIndex = 0
@@ -528,7 +528,7 @@ proc main() =
           # Client - use the connected players list from the connection accept packet
           connectedPlayers = globalWindowManager.pvp.connectedPlayers
           echo "[MAIN] Received ", connectedPlayers.len, " players in connected list"
-        
+
         echo "[MAIN] Total players: ", connectedPlayers.len, ", Local index: ", localPlayerIndex
 
         currentPvPGame = newPvPGameState(
@@ -544,20 +544,20 @@ proc main() =
         )
         currentPvPGame.networkManager = globalWindowManager.pvp.networkManager
         currentPvPGame.localPlayerIndex = localPlayerIndex
-        
+
         echo "[MAIN] PvP game state created successfully"
-        
+
         startCountdown(currentPvPGame)
         currentGame.state = gsPvPPlaying
         globalWindowManager.closeAllWindows()
-      
+
       # Handle PvP window clicks
       if globalWindowManager.pvp.window.visible and not globalWindowManager.pvp.window.minimized:
         let contentX = globalWindowManager.pvp.window.x + 2  # WINDOW_BORDER
         let contentY = globalWindowManager.pvp.window.y + 30 + 2  # TITLE_BAR_HEIGHT + WINDOW_BORDER
         let contentWidth = globalWindowManager.pvp.window.width - 4
         let contentHeight = globalWindowManager.pvp.window.height - 32
-        
+
         let pvpAction = handlePvPWindowClick(globalWindowManager.pvp, contentX, contentY, contentWidth, contentHeight)
         case pvpAction
         of 1:  # Host - Go to config screen
@@ -622,7 +622,7 @@ proc main() =
           startHosting(globalWindowManager.pvp)
         else:
           discard
-      
+
       # Process desktop actions
       if action >= 0:
         playSound(stMenuSelect)
@@ -671,7 +671,7 @@ proc main() =
           refreshAdvancementProfile()
           globalWindowManager.openWindow(widAdvancements)
         else: discard
-      
+
       # Handle icon execution from help window commands
       if updateResult.iconToExecute >= 0:
         globalWindowManager.help.window.visible = false
@@ -720,7 +720,7 @@ proc main() =
             refreshAdvancementProfile()
             globalWindowManager.openWindow(widAdvancements)
           else: discard
-      
+
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
         try:
@@ -735,19 +735,19 @@ proc main() =
             discard
           currentGame.discordClient = nil
           globalDiscordClient = nil
-      
+
       beginGameDrawing()
       drawOSDesktop(osDesktop, screenWidth, screenHeight)
-      
+
       # Draw all windows using window manager
       globalWindowManager.drawAllWindows(currentGame)
-      
+
       # Draw loading overlay on top of everything if active
       drawLoadingOverlay(osDesktop, screenWidth, screenHeight)
-      
+
       # Draw custom cursor on menu
       drawCustomCursor(currentGame.time)
-      
+
       endGameDrawing()
 
     of gsPlaying:
@@ -756,7 +756,7 @@ proc main() =
         playMusic(mtBoss)
       else:
         playMusic(mtWave)
-      
+
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil and not cheatMenu.active:
         try:
@@ -770,18 +770,18 @@ proc main() =
             discard
           currentGame.discordClient = nil
           globalDiscordClient = nil
-      
+
       # Check for cheat menu activation
       checkCheatSequence(cheatMenu, currentGame, currentGame.time)
-      
+
       # Update cheat menu if active (pauses game)
       if cheatMenu.active:
         updateCheatMenu(cheatMenu, currentGame)
-      
+
       # Only process game input if cheat menu is not active
       if not cheatMenu.active:
         # Shop removed from gameplay - only accessible during power-up selection
-        
+
         # Place wall
         if isKeyPressed(E) and currentGame.player.walls > 0:
           let mousePos = getVirtualMousePosition()
@@ -797,14 +797,14 @@ proc main() =
       # Activate ALL legendary power-ups with Q key (simultaneous activation)
       if isKeyPressed(Q):
         var anyActivated = false
-        
+
         # Time Warp - slow down time
         if hasPowerUp(currentGame.player, puTimeWarp) and currentGame.player.timeWarpCooldown <= 0:
           # Check if uses available for this wave
           if currentGame.player.timeWarpUsesThisWave < currentGame.player.timeWarpMaxUsesPerWave:
             let duration = 3.5
             let cooldown = 10.0  # 10 second cooldown between uses
-            
+
             currentGame.player.timeWarpActive = true
             currentGame.player.timeWarpDuration = duration
             currentGame.player.timeWarpCooldown = cooldown
@@ -812,35 +812,35 @@ proc main() =
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                           Color(r: 138, g: 43, b: 226, a: 255), 30)
             anyActivated = true
-        
+
         # Phase Shift - teleport dash (SINGLE LEVEL - scales with speed)
         if hasPowerUp(currentGame.player, puPhaseShift) and currentGame.player.phaseShiftCooldown <= 0:
           # Distance scales with player movement speed (base 140, scales up with speed)
           let baseDistance = 140.0
           let speedRatio = currentGame.player.speed / currentGame.player.baseSpeed
           let dashDistance = baseDistance * speedRatio
-          
+
           let cooldown = 5.0  # 5 second cooldown
           let invulnDuration = 0.5  # 0.5 second invulnerability after dash
-          
+
           # Calculate dash direction - PRIORITIZE WASD movement direction
           var dashDir = newVector2f(0, 0)
           if isKeyDown(W): dashDir.y -= 1
           if isKeyDown(S): dashDir.y += 1
           if isKeyDown(A): dashDir.x -= 1
           if isKeyDown(D): dashDir.x += 1
-          
+
           # Always activate cooldown and invulnerability
           currentGame.player.phaseShiftCooldown = cooldown
           currentGame.player.phaseShiftInvulnTimer = invulnDuration
-          
+
           if dashDir.length() > 0:
             # Dash in movement direction
             dashDir = dashDir.normalize()
             currentGame.player.lastPhaseShiftPos = currentGame.player.pos
             currentGame.player.pos.x += dashDir.x * dashDistance
             currentGame.player.pos.y += dashDir.y * dashDistance
-            
+
             # Keep player in bounds
             currentGame.player.pos.x = max(currentGame.player.radius,
                                            min(currentGame.player.pos.x,
@@ -848,7 +848,7 @@ proc main() =
             currentGame.player.pos.y = max(currentGame.player.radius,
                                            min(currentGame.player.pos.y,
                                                currentGame.screenHeight.float32 - currentGame.player.radius))
-            
+
             # Visual effects at start and end position
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.lastPhaseShiftPos.x,
                           currentGame.player.lastPhaseShiftPos.y, SkyBlue, 25)
@@ -858,28 +858,28 @@ proc main() =
             # Dash in place - just visual effect
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x,
                           currentGame.player.pos.y, SkyBlue, 30)
-          
+
           anyActivated = true
-        
+
         # Parry - active defense ability (SINGLE LEVEL - invincible + bounce bullets)
         if hasPowerUp(currentGame.player, puParry) and currentGame.player.parryCooldown <= 0:
           let duration = 0.5  # 0.5 second parry window
           let cooldown = 5.0  # 5 second cooldown
-          
+
           currentGame.player.parryActive = true
           currentGame.player.parryDuration = duration
           currentGame.player.parryCooldown = cooldown
-          
+
           spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                         Color(r: 255, g: 255, b: 255, a: 255), 35)
           anyActivated = true
-        
+
         # Blood Pact - sacrifice 30% HP, deal it as split damage to all enemies
         if hasPowerUp(currentGame.player, puBloodPact) and currentGame.player.bloodPactCooldown <= 0:
           if currentGame.player.hp > 1.0:
             let sacrifice = currentGame.player.hp * 0.3
             currentGame.player.hp = max(0.1, currentGame.player.hp - sacrifice)
-            
+
             if currentGame.enemies.len > 0:
               let damagePerEnemy = sacrifice / currentGame.enemies.len.float32
               for enemy in currentGame.enemies:
@@ -887,12 +887,12 @@ proc main() =
                 enemy.hp -= dealt
                 trackPowerUpDamage(currentGame, puBloodPact, dealt)
                 showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
-            
+
             currentGame.player.bloodPactCooldown = 5.0
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                           Color(r: 200, g: 50, b: 50, a: 255), 30)
             anyActivated = true
-        
+
         # Conduit - detonate all active DoTs for 3x remaining tick damage
         if hasPowerUp(currentGame.player, puConduit) and currentGame.player.conduitCooldown <= 0:
           var totalDetonated = 0.0
@@ -919,7 +919,7 @@ proc main() =
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                           Color(r: 100, g: 200, b: 100, a: 255), 25)
             anyActivated = true
-        
+
         # Aftershock - shockwave traces backward along last 2s of movement path
         if hasPowerUp(currentGame.player, puAftershock) and currentGame.player.aftershockCooldown <= 0:
           let history = currentGame.player.aftershockPosHistory
@@ -928,7 +928,7 @@ proc main() =
             let baseDamage = currentGame.player.damage * 2.0
             const knockbackForce = 200.0
             var hitEnemyIds: seq[int] = @[]
-            
+
             # Trace backward through path segments
             var segIdx = history.high
             while segIdx >= 1:
@@ -956,13 +956,13 @@ proc main() =
                       enemy.vel.x += awayFromPath.x * knockbackForce
                       enemy.vel.y += awayFromPath.y * knockbackForce
               segIdx -= 1
-            
+
             currentGame.player.aftershockCooldown = 14.0
             currentGame.player.aftershockPosHistory.setLen(0)
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                           Color(r: 100, g: 180, b: 255, a: 255), 20)
             anyActivated = true
-        
+
         # Nova - freeze all player bullets for 2 seconds, release at 1.5x speed
         if hasPowerUp(currentGame.player, puNova) and currentGame.player.novaCooldown <= 0 and not currentGame.player.novaActive:
           currentGame.player.novaActive = true
@@ -975,11 +975,11 @@ proc main() =
           spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                         Color(r: 200, g: 200, b: 255, a: 255), 30)
           anyActivated = true
-        
+
         # Play sound if any ability was activated
         if anyActivated:
           playSound(stPowerUp)
-      
+
       # Pause (don't actually pause in PvP mode to avoid desync)
       if isKeyPressed(Escape):
         if not isPvPMode(currentGame.mode):
@@ -987,7 +987,7 @@ proc main() =
         else:
           # In PvP, show pause menu visually but keep game running
           currentGame.state = gsPaused
-      
+
       # Update game (only if cheat menu is not active)
       if not cheatMenu.active:
         if isSandboxMode(currentGame.mode):
@@ -1012,22 +1012,22 @@ proc main() =
               bullet.pos.y += bullet.vel.y * dt
         else:
           updateGame(currentGame, dt)
-      
+
       beginGameDrawing()
-      
+
       # Normal 2D rendering
       drawGame(currentGame)
-      
+
       # Draw sandbox UI if in sandbox mode
       if isSandboxMode(currentGame.mode):
         drawSandboxSidebar(currentGame, screenWidth, screenHeight)
-      
+
       # Draw cheat menu overlay if active
       drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
-      
+
       # Draw custom cursor during gameplay
       drawCustomCursor(currentGame.time)
-      
+
       # Handle transition fade
       if currentGame.transitioning:
         drawRectangle(0, 0, screenWidth, screenHeight,
@@ -1037,7 +1037,7 @@ proc main() =
           let textWidth = measureText(text, 30)
           drawText(text, screenWidth div 2 - textWidth div 2,
                   screenHeight div 2, 30, White)
-      
+
       endGameDrawing()
 
     of gsDeathSequence:
@@ -1047,14 +1047,14 @@ proc main() =
       drawGame(currentGame)
       drawDeathSequenceOverlay(currentGame)
       endGameDrawing()
-    
+
     of gsPaused:
       # Keep current music playing but muted or paused
       # Music continues in background during pause
-      
+
       # Determine if we came from PvP mode by checking if currentPvPGame exists and is active
       let isPvP = not currentPvPGame.isNil and not currentPvPGame.gameOver
-      
+
       # In PvP mode, continue updating the game to prevent desync
       # Otherwise, don't update game time when paused - prevents difficulty from increasing
       if isPvP:
@@ -1063,25 +1063,25 @@ proc main() =
       elif isPvPMode(currentGame.mode):
         # Continue game updates even during "pause" in PvP
         updateGame(currentGame, dt)
-      
+
       # Update mouse tracking so the pause menu responds to mouse input immediately
       updateMouseTracking(currentGame)
       # If mouse support is enabled, allow mouse interaction right away (no need to move first)
       if globalSettings.mouseSupport:
         currentGame.mouseMovedRecently = true
-      
+
       # Handle window clicks first (before pause menu interactions)
       let mousePos = getVirtualMousePosition()
       discard globalWindowManager.handleWindowClick(mousePos)
       let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
-      
+
       # Update all windows
       let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight, currentGame)
-      
+
       # Handle fullscreen toggle from settings
       if updateResult.fullscreenToggle:
         fullscreenToggleRequested = true
-      
+
       # Only handle pause menu controls if no window is blocking interaction
       if not mouseOverWindow:
         # Pause menu navigation - Tab switching (Left/Right or A/D)
@@ -1099,7 +1099,7 @@ proc main() =
             else: tmtProcesses
           playSound(stMenuNav)
           markKeyboardUsed(currentGame)
-        
+
         # Actions
         if isKeyPressed(Space):  # Resume
           # Return to appropriate state based on context
@@ -1119,7 +1119,7 @@ proc main() =
               disconnect(currentPvPGame.networkManager, "Player quit to menu")
             cleanup(currentPvPGame.networkManager)
             currentPvPGame = nil
-          
+
           cleanupGame(currentGame)
           currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
@@ -1137,7 +1137,7 @@ proc main() =
               currentGame.state = gsPvPPlaying
             else:
               currentGame.state = gsPlaying
-      
+
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
         try:
@@ -1151,24 +1151,24 @@ proc main() =
             discard
           currentGame.discordClient = nil
           globalDiscordClient = nil
-      
+
       beginGameDrawing()
-      
+
       # Draw appropriate game based on context
       if isPvP and not currentPvPGame.isNil:
         drawPvP(currentPvPGame)
       else:
         drawGame(currentGame)
-      
+
       # Draw OS-style Task Manager pause menu and handle mouse interactions
       let menuResult = drawOSTaskManager(currentGame, currentGame.pauseMenuTab)
-      
+
       # Handle tab changes from mouse (only if no windows are blocking)
       if not mouseOverWindow:
         if menuResult.newTab != currentGame.pauseMenuTab:
           currentGame.pauseMenuTab = menuResult.newTab
           playSound(stMenuNav)
-      
+
       # Handle button clicks (only if no windows are blocking)
       if not mouseOverWindow:
         if menuResult.resumeClicked:
@@ -1186,20 +1186,20 @@ proc main() =
           if isPvP and not currentPvPGame.isNil and currentPvPGame.networkManager != nil:
             cleanup(currentPvPGame.networkManager)
             currentPvPGame = nil
-          
+
           cleanupGame(currentGame)
           currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           currentGame.state = gsMenu
           playSound(stMenuSelect)
-      
+
       # Draw all windows on top of pause menu
       globalWindowManager.drawAllWindows(currentGame)
-      
+
       # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
       if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
         drawCustomCursor(currentGame.time)
-      
+
       endGameDrawing()
 
     of gsRogueliteSectorSelect:
@@ -1275,7 +1275,7 @@ proc main() =
       drawRogueliteSectorSelect(currentGame)
       drawCustomCursor(currentGame.time)
       endGameDrawing()
-    
+
     of gsShop:
       # Play power-up music in shop
       if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and
@@ -1283,10 +1283,10 @@ proc main() =
         playMusic(mtMenu)
       else:
         playMusic(mtPowerUp)
-      
+
       # Update mouse tracking
       updateMouseTracking(currentGame)
-      
+
       # Navigate shop with keyboard
       if isKeyPressed(Down) or isKeyPressed(S):
         currentGame.selectedShopItem = (currentGame.selectedShopItem + 1) mod 6
@@ -1294,11 +1294,11 @@ proc main() =
       if isKeyPressed(Up) or isKeyPressed(W):
         currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + 6) mod 6
         markKeyboardUsed(currentGame)
-      
+
       # Mouse click handling for shop items
       if isMouseButtonPressed(Left):
         let mousePos = getVirtualMousePosition()
-        
+
         # Shop dimensions from shop.nim
         const SHOP_WIDTH = 950
         const SHOP_HEIGHT = 600
@@ -1306,17 +1306,17 @@ proc main() =
         const SIDEBAR_WIDTH = 280
         const ITEM_HEIGHT = 60
         const ITEM_SPACING = 6
-        
+
         let windowX = (currentGame.screenWidth - SHOP_WIDTH) div 2
         let windowY = (currentGame.screenHeight - SHOP_HEIGHT) div 2
-        
+
         # Check close button click (X button in title bar)
         let closeButtonSize = 28
         let closeButtonX = windowX + SHOP_WIDTH - closeButtonSize - 10
         let closeButtonY = windowY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
         let closeButtonRect = Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
                                         width: closeButtonSize.float32, height: closeButtonSize.float32)
-        
+
         if checkCollisionPointRec(mousePos, closeButtonRect):
           # Close shop and continue to next wave
           currentGame.cameFromPowerUpSelect = false
@@ -1332,18 +1332,18 @@ proc main() =
           let shopY = sidebarY + 10
           let itemsStartY = shopY + 35
           let shopWidth = SHOP_WIDTH - SIDEBAR_WIDTH - 40
-          
+
           # Check shop item clicks
           var clickedItem = -1
           for i in 0..5:
             let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
             let itemRect = Rectangle(x: shopX.float32, y: itemY.float32,
                                     width: shopWidth.float32, height: ITEM_HEIGHT.float32)
-            
+
             if checkCollisionPointRec(mousePos, itemRect):
               clickedItem = i
               break
-          
+
           # Check big buy button click
           let buyButtonWidth = 220
           let buyButtonHeight = 38
@@ -1352,7 +1352,7 @@ proc main() =
           let buyButtonY = bottomY + 12
           let buyButtonRect = Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
                                         width: buyButtonWidth.float32, height: buyButtonHeight.float32)
-          
+
           if clickedItem >= 0:
             # Clicked on an item - select and buy it
             currentGame.selectedShopItem = clickedItem
@@ -1360,11 +1360,11 @@ proc main() =
           elif checkCollisionPointRec(mousePos, buyButtonRect):
             # Clicked the buy button - buy selected item
             buyShopItem(currentGame, currentGame.selectedShopItem)
-      
+
       # Buy item with keyboard
       if isKeyPressed(Enter) or isKeyPressed(E):
         buyShopItem(currentGame, currentGame.selectedShopItem)
-      
+
       # Close shop - always continue to next wave (no going back to power-up selection)
       if isKeyPressed(Escape) or isKeyPressed(Q):
         currentGame.cameFromPowerUpSelect = false
@@ -1373,44 +1373,44 @@ proc main() =
         else:
           currentGame.state = gsCountdown
           currentGame.countdownTimer = 0.5
-      
+
       beginGameDrawing()
       drawGame(currentGame)
       drawShop(currentGame)
-      
+
       # Draw custom cursor
       drawCustomCursor(currentGame.time)
-      
+
       endGameDrawing()
-    
+
     of gsCountdown:
       # Keep wave music during countdown
       playMusic(mtWave)
-      
+
       # Countdown timer
       currentGame.countdownTimer -= dt
-      
+
       if currentGame.countdownTimer <= 0:
         currentGame.state = gsPlaying
-      
+
       beginGameDrawing()
       drawGame(currentGame)
-      
+
       # Draw stylish countdown overlay
       let countdownValue = max(currentGame.countdownTimer, 0.0)
       let pulse = 1.0 + sin(currentGame.countdownTimer * 10) * 0.1
       let alpha = uint8(200.0 * (countdownValue + 0.1))
-      
+
       # Dark overlay that fades out
       drawRectangle(0, 0, screenWidth, screenHeight,
                    Color(r: 0, g: 0, b: 0, a: alpha))
-      
+
       # Countdown text with scale pulse
       let textSize = (120 * pulse).int32
       # Always show numeric countdown
       let countdownText = formatFloat(countdownValue, ffDecimal, 1)
       let textWidth = measureText(countdownText, textSize)
-      
+
       # Glow effect - draw multiple times with offset
       for i in 1..3:
         let glowAlpha = uint8(50.0 * (4 - i).float)
@@ -1421,19 +1421,19 @@ proc main() =
                 (screenHeight div 2 - glowSize div 2).int32,
                 glowSize.int32,
                 Color(r: 255, g: 200, b: 0, a: glowAlpha))
-      
+
       # Main text
       let textColor = if countdownValue > 0.5:
         Color(r: 255, g: 255, b: 100, a: 255)
       else:
         Color(r: 100, g: 255, b: 100, a: 255)
-      
+
       drawText(countdownText,
               screenWidth div 2 - textWidth div 2,
               screenHeight div 2 - textSize div 2,
               textSize,
               textColor)
-      
+
       # Subtitle
       let subtitle = "READY?"
       let subWidth = measureText(subtitle, 40)
@@ -1442,37 +1442,37 @@ proc main() =
               screenHeight div 2 + 80,
               40,
               Color(r: 255, g: 255, b: 100, a: alpha))
-      
+
       # Draw custom cursor
       drawCustomCursor(currentGame.time)
-      
+
       endGameDrawing()
-    
+
     of gsWaveCleared:
       # Keep wave music during wave cleared screen
       playMusic(mtWave)
-      
+
       # Update wave cleared timer
       currentGame.waveClearedTimer -= dt
-      
+
       # Continue coin collection during this phase
       updatePlayer(currentGame.player, dt, screenWidth, screenHeight, currentGame.walls)
-      
+
       # Update coins and handle collection
       var i = 0
       while i < currentGame.coins.len:
         if not updateCoin(currentGame.coins[i], dt, currentGame.coins.len):
           currentGame.coins.delete(i)
           continue
-        
+
         # Check if coin is in player's collection aura (auto-collect)
         if checkAuraCollision(currentGame.coins[i], currentGame.player, currentGame.player.auraRadius):
           moveCoinToPlayer(currentGame.coins[i], currentGame.player.pos, dt)
-        
+
         # Magnet effect from consumable
         if currentGame.player.magnetTimer > 0:
           moveCoinToPlayer(currentGame.coins[i], currentGame.player.pos, dt)
-        
+
         # Collect coin on contact
         if checkPlayerCollision(currentGame.coins[i], currentGame.player):
           # Apply Lucky Coins (Greed) multiplier and Double Coin multiplier (they stack)
@@ -1486,11 +1486,11 @@ proc main() =
           spawnExplosionPooled(currentGame.particlePool, currentGame.coins[i].pos.x, currentGame.coins[i].pos.y, Gold, 6)
           currentGame.coins.delete(i)
           continue
-        
+
         i += 1
-      
+
       # Update particles and remove dead ones
-      
+
       # Transition to power-up selection or next wave
       if currentGame.waveClearedTimer <= 0:
         if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
@@ -1532,10 +1532,10 @@ proc main() =
             # No power-up, go straight to next wave
             currentGame.state = gsPlaying
             startWave(currentGame)
-      
+
       beginGameDrawing()
       drawGame(currentGame)
-      
+
       # Draw appropriate cleared text based on whether it was a boss wave
       let waveText = if isBossWave(currentGame.currentWave):
         "BOSS " & $getCustomBossNumber(currentGame.currentWave) & " CLEARED!"
@@ -1543,31 +1543,31 @@ proc main() =
         "WAVE CLEARED!"
       let waveTextSize = 48.int32
       let waveTextWidth = measureText(waveText, waveTextSize)
-      
+
       # Simple centered text with subtle shadow
       let textX = (screenWidth div 2 - waveTextWidth div 2).int32
       let textY = 40.int32
-      
+
       # Shadow
       drawText(waveText, textX + 2.int32, textY + 2.int32, waveTextSize,
               Color(r: 0, g: 0, b: 0, a: 100))
-      
+
       # Main text
       drawText(waveText, textX, textY, waveTextSize,
               Color(r: 150, g: 255, b: 150, a: 255))
-      
+
       endGameDrawing()
-    
+
     of gsPowerUpSelect:
       # Play power-up selection music
       playMusic(mtPowerUp)
-      
+
       # Update roll animation
       updatePowerUpRollAnimation(currentGame, dt)
-      
+
       # Update mouse tracking
       updateMouseTracking(currentGame)
-      
+
       # Only allow input after animation completes
       if currentGame.canSelectPowerUp:
         # Navigate power-up choices with keyboard
@@ -1577,13 +1577,13 @@ proc main() =
         if isKeyPressed(Right) or isKeyPressed(D):
           currentGame.selectedPowerUp = (currentGame.selectedPowerUp + 1) mod 3
           markKeyboardUsed(currentGame)
-        
+
         # Reroll power-ups with R key
         if isKeyPressed(R):
           if attemptRerollPowerUps(currentGame):
             markKeyboardUsed(currentGame)
           # If reroll failed (not enough coins), do nothing (could add sound here)
-        
+
         # Mouse hover detection for card selection (only if keyboard not recently used)
         if isMouseButtonPressed(Left) or currentGame.mouseMovedRecently:
           let mousePos = getVirtualMousePosition()
@@ -1594,35 +1594,35 @@ proc main() =
           const CARD_WIDTH = 280
           const CARD_HEIGHT = 380
           const CARD_SPACING = 35
-          
+
           let windowX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
           let windowY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
           let yPos = windowY + TITLE_BAR_HEIGHT + 75
           let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
           let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
-          
+
           # Check which card mouse is over - only if keyboard wasn't just used
           if not currentGame.keyboardUsedRecently:
             for i in 0..2:
               let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
               let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
                                        width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
-              
+
               if checkCollisionPointRec(mousePos, cardRect):
                 currentGame.selectedPowerUp = i
                 break
-        
+
         # Select power-up with keyboard or mouse click on card
         if isKeyPressed(Enter) or isKeyPressed(E):
           let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
           applyPowerUp(currentGame.player, chosenPowerUp)
-          
+
           # Track power-up selection for statistics
           trackPowerUpSelection(currentGame, chosenPowerUp)
-          
+
           currentGame.cameFromPowerUpSelect = true
           currentGame.state = gsShop
-        
+
         # Mouse click to select
         if isMouseButtonPressed(Left):
           let mousePos = getVirtualMousePosition()
@@ -1632,20 +1632,20 @@ proc main() =
           const CARD_WIDTH = 280
           const CARD_HEIGHT = 380
           const CARD_SPACING = 35
-          
+
           let windowX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
           let windowY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
           let yPos = windowY + TITLE_BAR_HEIGHT + 75
           let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
           let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
-          
+
           # Check close button click (X button in title bar)
           let closeButtonSize = 28
           let closeButtonX = windowX + INSTALLER_WIDTH - closeButtonSize - 10
           let closeButtonY = windowY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
           let closeButtonRect = Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
                                           width: closeButtonSize.float32, height: closeButtonSize.float32)
-          
+
           if checkCollisionPointRec(mousePos, closeButtonRect):
             # Close installer and go to shop
             currentGame.cameFromPowerUpSelect = true
@@ -1656,7 +1656,7 @@ proc main() =
               let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
               let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
                                        width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
-              
+
               if checkCollisionPointRec(mousePos, cardRect):
                 currentGame.selectedPowerUp = i
                 let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
@@ -1665,37 +1665,37 @@ proc main() =
                 currentGame.cameFromPowerUpSelect = true
                 currentGame.state = gsShop
                 break
-            
+
             # Check reroll button click
             let rerollX = windowX + 50
             let rerollWidth = 220
             let bottomY = windowY + INSTALLER_HEIGHT - 120
             let buttonY = bottomY + 15
             let buttonHeight = 42
-            
+
             let rerollRect = Rectangle(x: rerollX.float32, y: buttonY.float32,
                                         width: rerollWidth.float32, height: buttonHeight.float32)
-            
+
             if checkCollisionPointRec(mousePos, rerollRect):
               discard attemptRerollPowerUps(currentGame)
-        
+
         # Skip power-up selection
         if isKeyPressed(Escape):
           currentGame.state = gsCountdown
           currentGame.countdownTimer = 0.5
-      
+
       beginGameDrawing()
       drawPowerUpSelection(currentGame)
       drawCustomCursor(currentGame.time)
       endGameDrawing()
-    
+
     of gsGameOver:
       # Stop music and play game over sound once
       if not currentGame.gameOverSoundPlayed:
         stopMusic()
         playSound(stGameOver, 1.0)
         currentGame.gameOverSoundPlayed = true
-        
+
         # Clear Discord Rich Presence
         if not currentGame.discordClient.isNil:
           try:
@@ -1708,7 +1708,7 @@ proc main() =
               discard
             currentGame.discordClient = nil
             globalDiscordClient = nil
-        
+
         # Finalize run tracking and save for menu viewing
         if hasValidRunStats():
           finalizeRunTracking(currentGame)
@@ -1720,7 +1720,7 @@ proc main() =
         if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
           discard commitRogueliteRunProgress(currentGame, true)
           setActiveRogueliteProfile(currentGame.rogueliteProfile)
-        
+
         # Save statistics only once per game over
         if not statsSavedThisGame and not currentGame.cheatsUsed:
           # Calculate bosses defeated based on wave progress
@@ -1730,7 +1730,7 @@ proc main() =
             (currentGame.currentWave - 1) div 5  # Boss every 5 waves
           else:
             currentGame.bossCount
-          
+
           let scoreReached =
             if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
               currentGame.rogueliteRun.totalSectorsCleared
@@ -1743,12 +1743,12 @@ proc main() =
                              currentGame.player.kills,
                              currentGame.player.coins,
                              bossesKilled)
-          
+
           # Try to save with retry logic (3 attempts with exponential backoff)
           var saveSuccess = false
           var retries = 0
           const MAX_RETRIES = 3
-          
+
           while not saveSuccess and retries < MAX_RETRIES:
             saveSuccess = saveStatistics(stats)
             if not saveSuccess:
@@ -1760,7 +1760,7 @@ proc main() =
                 let backoffMs = int(backoffTime * 1000.0)
                 echo "Retrying in ", backoffTime, " seconds..."
                 sleep(backoffMs)
-          
+
           if saveSuccess:
             statsSavedThisGame = true
             let unlockedAdvancements = syncAdvancements(advancementProfile, stats, currentRunStats, rogueliteProfile)
@@ -1773,10 +1773,10 @@ proc main() =
           else:
             echo "ERROR: Failed to save statistics after ", MAX_RETRIES, " attempts"
             # This error will be visible in console but game continues
-      
+
       # Update mouse tracking
       updateMouseTracking(currentGame)
-      
+
       # Keyboard navigation - A/D/LEFT/RIGHT to change button selection
       if isKeyPressed(Left) or isKeyPressed(A):
         currentGame.selectedGameOverButton = (currentGame.selectedGameOverButton - 1 + 3) mod 3
@@ -1786,7 +1786,7 @@ proc main() =
         currentGame.selectedGameOverButton = (currentGame.selectedGameOverButton + 1) mod 3
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
-      
+
       # Execute action based on selected button or direct key press
       # SPACE and R both trigger restart (button 0)
       if (isKeyPressed(Space) or isKeyPressed(R)) or
@@ -1827,33 +1827,33 @@ proc main() =
         currentGame.state = gsMenu
         playSound(stMenuSelect)
         statsSavedThisGame = false  # Reset for new game
-      
+
       # Mouse hover detection for button highlighting
       let mousePos = getVirtualMousePosition()
       const SCREEN_HEIGHT = 600
       const BUTTON_WIDTH = 220
       const BUTTON_HEIGHT = 48
-      
+
       let windowY = (screenHeight - SCREEN_HEIGHT) div 2
       let buttonY = windowY + SCREEN_HEIGHT - 100
       let buttonSpacing = 40
       let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
       let buttonsX = (screenWidth - totalButtonWidth) div 2
-      
+
       # Restart button (button 0)
       let restartRect = Rectangle(x: buttonsX.float32, y: buttonY.float32,
                                    width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
-      
+
       # View Stats button (button 1)
       let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
       let statsRect = Rectangle(x: statsX.float32, y: buttonY.float32,
                                 width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
-      
+
       # Exit button (button 2)
       let exitX = statsX + BUTTON_WIDTH + buttonSpacing
       let exitRect = Rectangle(x: exitX.float32, y: buttonY.float32,
                                width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
-      
+
       # Mouse hover - update selected button
       if checkCollisionPointRec(mousePos, restartRect):
         currentGame.selectedGameOverButton = 0
@@ -1861,7 +1861,7 @@ proc main() =
         currentGame.selectedGameOverButton = 1
       elif checkCollisionPointRec(mousePos, exitRect):
         currentGame.selectedGameOverButton = 2
-      
+
       # Mouse click handling
       if isMouseButtonPressed(Left):
         if checkCollisionPointRec(mousePos, restartRect):
@@ -1899,29 +1899,29 @@ proc main() =
           currentGame.state = gsMenu
           playSound(stMenuSelect)
           statsSavedThisGame = false
-      
+
       beginGameDrawing()
       drawGameOver(currentGame)
-      
+
       # Draw custom cursor on game over screen
       drawCustomCursor(currentGame.time)
-      
+
       endGameDrawing()
-    
+
     of gsRunStats:
       # Display detailed run statistics
-      
+
       # Update time for animations
       currentGame.time += dt
-      
+
       # Return to game over with Tab
       if isKeyPressed(Tab):
         currentGame.state = gsGameOver
-      
+
       # Return to game over screen with Escape
       if isKeyPressed(Escape):
         currentGame.state = gsGameOver
-      
+
       # Quick restart
       if isKeyPressed(R):
         let previousMode = currentGame.mode
@@ -1943,7 +1943,7 @@ proc main() =
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
         statsSavedThisGame = false
-      
+
       # Return to menu
       if isKeyPressed(Q):
         cleanupGame(currentGame)  # Clean up resources before creating new game
@@ -1951,7 +1951,7 @@ proc main() =
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         statsSavedThisGame = false
-      
+
       beginGameDrawing()
       if hasValidRunStats():
         drawGameOverStatsScreen(currentRunStats, screenWidth, screenHeight,
@@ -1963,49 +1963,49 @@ proc main() =
                 screenWidth div 2 - 150, screenHeight div 2, 24, Red)
         drawText(t(tkSystemPressESCToReturn),
                 screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
-      
+
       endGameDrawing()
-    
+
     of gs3DBoss:
       # 3D Boss fight
       playMusic(mtBoss)
-      
+
       # Update 3D game
       if not cheatMenu.active:
         updateGame(currentGame, dt)
-      
+
       # Render 3D game directly (no 2D render target)
       if currentGame.game3D != nil:
         beginDrawing()
         clearBackground(Black)
         var game3D = cast[ptr Game3D](currentGame.game3D)
         renderGame3D(game3D[])
-        
+
         # Draw cheat menu overlay if active
         drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
-        
+
         endDrawing()
       else:
         # Safety: only recover if the 3D state is still active after update.
         if currentGame.state == gs3DBoss:
           currentGame.state = gsPlaying
-    
+
     of gsPvPPlaying:
       # Safety check - if currentPvPGame is nil, return to menu
       if currentPvPGame.isNil:
         currentGame.state = gsMenu
         continue
-      
+
       # Play appropriate music
       if currentPvPGame.isCountingDown:
         playMusic(mtWave)
       else:
         playMusic(mtBoss)  # Intense music for PvP
-      
+
       # Check for pause (visual only - game continues running)
       if isKeyPressed(Escape) and not currentPvPGame.gameOver:
         currentGame.state = gsPaused
-      
+
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
         try:
@@ -2019,35 +2019,35 @@ proc main() =
             discard
           currentGame.discordClient = nil
           globalDiscordClient = nil
-      
+
       # Update PvP game
       updatePvP(currentPvPGame, dt)
-      
+
       # Check for exit when game is over
       if currentPvPGame.gameOver and isKeyPressed(Escape):
         # Send disconnect packet to notify opponent (graceful disconnect)
         if currentPvPGame.networkManager != nil and currentPvPGame.networkManager.isConnected:
           disconnect(currentPvPGame.networkManager, "Player left to menu")
-        
+
         # Clean up network
         if currentPvPGame.networkManager != nil:
           cleanup(currentPvPGame.networkManager)
-        
+
         # Clear PvP game state
         currentPvPGame = nil
-        
+
         # Return to menu
         currentGame = newGame(screenWidth, screenHeight, settings.playerSkin,
                              settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         continue  # Skip drawing, go to next frame
-      
+
       beginGameDrawing()
       drawPvP(currentPvPGame)
       drawCustomCursor(currentPvPGame.gameTime)
       endGameDrawing()
-  
+
   # Cleanup global Discord Rich Presence client
   if not globalDiscordClient.isNil:
     try:
@@ -2055,7 +2055,7 @@ proc main() =
     except:
       # Ignore Discord disconnect errors during shutdown
       discard
-  
+
   # Cleanup
   stopMusic()
   closeSoundSystem(globalSoundSystem)

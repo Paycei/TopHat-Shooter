@@ -178,10 +178,10 @@ proc initializeParticleSkins*() =
 proc getParticleSkinColors*(skinType: ParticleSkinType, time: float32): tuple[primary, secondary: Color] =
   ## Get the colors for particle skin, applying animations if needed
   let skin = particleSkinDatabase[skinType]
-  
+
   if not skin.isAnimated:
     return (skin.primaryColor, skin.secondaryColor)
-  
+
   # Apply time-based animations for animated skins
   case skinType
   of pskFire:

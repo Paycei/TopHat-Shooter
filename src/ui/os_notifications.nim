@@ -12,14 +12,14 @@ type
     ottCritical,    # Dark red - critical system issues
     ottAchievement, # Gold - achievements
     ottCommand      # Cyan - command execution feedback
-    
+
   OSToast* = object
     message*: string
     toastType*: OSToastType
     lifetime*: float32
     maxLifetime*: float32
     yOffset*: float32  # For stacking multiple toasts
-    
+
   OSToastManager* = object
     toasts*: seq[OSToast]
     nextYOffset*: float32
@@ -52,17 +52,17 @@ proc updateOSToasts*(manager: var OSToastManager, dt: float32) =
   ## Update all active toasts
   var i = 0
   var removedCount = 0
-  
+
   while i < manager.toasts.len:
     manager.toasts[i].lifetime += dt
-    
+
     # Remove expired toasts
     if manager.toasts[i].lifetime >= manager.toasts[i].maxLifetime:
       manager.toasts.delete(i)
       removedCount += 1
     else:
       i += 1
-  
+
   # Recalculate yOffsets after removals
   if removedCount > 0:
     manager.nextYOffset = 0
@@ -74,10 +74,10 @@ proc drawOSToasts*(manager: OSToastManager, screenWidth, screenHeight: int32) =
   ## Draw all active toast notifications (bottom-right corner)
   let baseX = screenWidth - TOAST_WIDTH - 20
   let baseY = screenHeight - 80  # Start from bottom
-  
+
   for i in countdown(manager.toasts.high, 0):
     let toast = manager.toasts[i]
-    
+
     # Calculate fade in/out
     let fadeInTime = 0.3
     let fadeOutTime = 0.5
@@ -87,9 +87,9 @@ proc drawOSToasts*(manager: OSToastManager, screenWidth, screenHeight: int32) =
       ((toast.maxLifetime - toast.lifetime) / fadeOutTime)
     else:
       1.0
-    
+
     let yPos = baseY - toast.yOffset.int32
-    
+
     # Get colors based on type
     let (bgColor, borderColor, iconText, textColor) = case toast.toastType
       of ottInfo:
@@ -127,22 +127,22 @@ proc drawOSToasts*(manager: OSToastManager, screenWidth, screenHeight: int32) =
          Color(r: 0, g: 255, b: 255, a: uint8(255 * alpha)),
          ">",
          Color(r: 100, g: 255, b: 255, a: uint8(255 * alpha)))
-    
+
     # Background
     drawRectangle(baseX, yPos, TOAST_WIDTH, TOAST_HEIGHT, bgColor)
-    
+
     # Border (2px thick)
     drawRectangleLines(Rectangle(x: baseX.float32, y: yPos.float32,
                                   width: TOAST_WIDTH.float32, height: TOAST_HEIGHT.float32),
                       2, borderColor)
-    
+
     # Icon/prefix
     drawText(iconText, baseX + 10, yPos + 15, 16, borderColor)
-    
+
     # Message
     let messageX = baseX + 100
     let messageWidth = TOAST_WIDTH - 110
-    
+
     # Truncate message if too long
     var displayMessage = toast.message
     let textWidth = measureText(displayMessage, 14)
@@ -150,7 +150,7 @@ proc drawOSToasts*(manager: OSToastManager, screenWidth, screenHeight: int32) =
       while measureText(displayMessage & "...", 14) > messageWidth and displayMessage.len > 0:
         displayMessage = displayMessage[0..^2]
       displayMessage &= "..."
-    
+
     drawText(displayMessage, messageX, yPos + 17, 14, textColor)
 
 # Helper procs for common game events

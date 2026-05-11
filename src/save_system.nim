@@ -48,9 +48,9 @@ proc getAppDataPath*(): string =
     result = getEnv("HOME") & "/Library/Application Support"
   else:  # Linux and other Unix-like systems
     result = getEnv("HOME") & "/.local/share"
-  
+
   result = result / ".tophat" / "shooter"
-  
+
   # Create directory if it doesn't exist
   if not dirExists(result):
     try:
@@ -134,7 +134,7 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("mouseSupport"):
     settings.mouseSupport = jsonNode["mouseSupport"].getBool()
-  
+
   if jsonNode.hasKey("mouseBondingMode"):
     try:
       settings.mouseBondingMode = parseEnum[MouseBondingMode](jsonNode["mouseBondingMode"].getStr())
@@ -143,7 +143,7 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
   elif jsonNode.hasKey("mouseBonding"):
     # Migrate the old checkbox to the legacy equivalent mode.
     settings.mouseBondingMode = if jsonNode["mouseBonding"].getBool(): mbmWhileShooting else: mbmOff
-  
+
   if jsonNode.hasKey("showCursorInMenus"):
     settings.showCursorInMenus = jsonNode["showCursorInMenus"].getBool()
 
@@ -668,7 +668,7 @@ proc jsonToCombatStats(j: JsonNode): CombatStats =
   result.piercingBullets = j["piercingBullets"].getInt()
   result.explosiveBullets = j["explosiveBullets"].getInt()
   result.splitBullets = j["splitBullets"].getInt()
-  
+
   # Load combo stats (with defaults for backwards compatibility)
   result.maxCombo = j.getOrDefault("maxCombo").getInt(0)
   result.totalCombos = j.getOrDefault("totalCombos").getInt(0)

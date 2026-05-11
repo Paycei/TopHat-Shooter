@@ -190,12 +190,12 @@ proc pollEvents*(nm: NetworkManager,
           result.add(NetworkEvent(kind: neDisconnect,
             disconnectPlayerIndex: client.playerIndex, reason: "Connection timeout"))
           echo "[NETWORK] Player ", client.playerIndex, " timed out"
-    
+
     # Remove disconnected clients
     for i in countdown(disconnected.high, 0):
       nm.clients.delete(disconnected[i])
     nm.isConnected = nm.clients.len > 0
-    
+
     # Send updated player list if anyone disconnected
     if disconnected.len > 0 and nm.clients.len > 0:
       var roster: seq[ConnectedPlayerInfo] = @[]
@@ -215,7 +215,7 @@ proc pollEvents*(nm: NetworkManager,
           shapeType: client.shapeType,
           particleSkinType: client.particleSkinType,
           nickname: client.nickname))
-      
+
       var updatePacket = newPacket(ptPlayerListUpdate)
       updatePacket.updatedPlayers = roster
       let updateData = serialize(updatePacket)
@@ -388,7 +388,7 @@ proc pollEvents*(nm: NetworkManager,
             echo "[NETWORK] Player ", disconnectedIndex, " disconnected: ", packet.disconnectReason
             nm.clients.delete(i)
             nm.isConnected = nm.clients.len > 0
-            
+
             # Send updated player list to all remaining clients
             if nm.clients.len > 0:
               var roster: seq[ConnectedPlayerInfo] = @[]
@@ -408,7 +408,7 @@ proc pollEvents*(nm: NetworkManager,
                   shapeType: remainingClient.shapeType,
                   particleSkinType: remainingClient.particleSkinType,
                   nickname: remainingClient.nickname))
-              
+
               var updatePacket = newPacket(ptPlayerListUpdate)
               updatePacket.updatedPlayers = roster
               let updateData = serialize(updatePacket)

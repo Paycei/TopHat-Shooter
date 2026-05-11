@@ -6,10 +6,10 @@ proc newCoin*(x, y: float32, value: int = 1, isBoss: bool = false): Coin =
   let baseRadius = 6.0
   let cappedValue = min(value, 10)
   let scaledRadius = baseRadius + (cappedValue - 1).float32 * 1.5  # Grows with value, capped at 10
-  
+
   # Boss coins are larger and more prominent
   let finalRadius = if isBoss: scaledRadius * 1.8 else: scaledRadius
-  
+
   result = Coin(
     pos: newVector2f(x, y),
     radius: finalRadius,
@@ -37,7 +37,7 @@ proc drawCoin*(coin: Coin) =
   let pulseAmount = if coin.isBossCoin: 0.3 else: 0.18
   let pulse = 1.0 + pulseAmount * sin(t * pulseSpeed)
   let size = coin.radius * pulse
-  
+
   # Boss coins have special red colors
   let mainColor = if coin.isBossCoin:
     Color(r: 255, g: 50, b: 50, a: 255)

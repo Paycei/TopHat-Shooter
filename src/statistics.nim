@@ -177,7 +177,7 @@ proc formatTime*(seconds: float32): string =
   let hours = totalSecs div 3600
   let minutes = (totalSecs mod 3600) div 60
   let secs = totalSecs mod 60
-  
+
   if hours > 0:
     result = $hours & "h " & $minutes & "m " & $secs & "s"
   elif minutes > 0:
@@ -192,29 +192,29 @@ proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int,
   stats.lastPlayDate = $now()
   if stats.firstPlayDate == "":
     stats.firstPlayDate = stats.lastPlayDate
-  
+
   stats.totalGamesPlayed += 1
   stats.totalPlayTime += timeSurvived
-  
+
   var modeStats = if isWaveMode: addr stats.waveMode else: addr stats.timeMode
-  
+
   modeStats.gamesPlayed += 1
   modeStats.totalKills += kills
   modeStats.totalCoins += coins
   modeStats.totalTimePlayed += timeSurvived
   modeStats.totalDeaths += 1
   modeStats.bossesDefeated += bossesKilled
-  
+
   if kills > modeStats.bestKills:
     modeStats.bestKills = kills
   if coins > modeStats.bestCoins:
     modeStats.bestCoins = coins
-  
+
   if isWaveMode:
     if waveReached > modeStats.highestWaveReached:
       modeStats.highestWaveReached = waveReached
       modeStats.bestScore = waveReached
-    
+
     modeStats.averageWaveReached =
       (modeStats.averageWaveReached * float32(modeStats.gamesPlayed - 1) + float32(waveReached)) /
       float32(modeStats.gamesPlayed)
@@ -222,7 +222,7 @@ proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int,
     if timeSurvived > modeStats.longestSurvivalTime:
       modeStats.longestSurvivalTime = timeSurvived
       modeStats.bestScore = int(timeSurvived)
-    
+
     modeStats.averageSurvivalTime =
       (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) /
       float32(modeStats.gamesPlayed)
@@ -295,7 +295,7 @@ proc loadStatistics*(stats: Statistics): bool =
     if not fileExists(savePath):
       echo "No statistics file found at ", savePath, ", using default stats"
       return false
-    
+
     let jsonString = readFile(savePath)
     let jsonData = parseJson(jsonString)
     jsonToStatistics(jsonData, stats)

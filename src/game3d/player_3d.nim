@@ -12,7 +12,7 @@ type
     fireRate*: float32
     fireTimer*: float32
     damage*: float32
-    
+
   Player3D* = object
     pos*: Vector3f
     vel*: Vector3f
@@ -44,10 +44,10 @@ proc fireWeapon*(player: var Player3D, camera: FPSCamera, projectiles: var seq[P
   if player.weapon.ammo > 0 and player.weapon.fireTimer <= 0:
     player.weapon.ammo -= 1
     player.weapon.fireTimer = player.weapon.fireRate
-    
+
     let forward = camera.getForward()
     let spawnPos = player.pos + vec3(0, 1.5, 0) + forward * 2.0
-    
+
     projectiles.add(Projectile3D(
       pos: spawnPos,
       vel: forward * 600.0,
@@ -83,11 +83,11 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platf
   var moveDir = vec3(0, 0, 0)
   let forward = camera.getForward()
   let right = camera.getRight()
-  
+
   # Flatten movement to XZ plane
   let flatForward = vec3(forward.x, 0, forward.z).normalize()
   let flatRight = vec3(right.x, 0, right.z).normalize()
-  
+
   if isKeyDown(KeyboardKey.W):
     moveDir = moveDir + flatForward
   if isKeyDown(KeyboardKey.S):
@@ -96,7 +96,7 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platf
     moveDir = moveDir + flatRight
   if isKeyDown(KeyboardKey.A):
     moveDir = moveDir - flatRight
-  
+
   # Normalize and apply speed
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()
@@ -109,21 +109,21 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platf
   else:
     player.vel.x = 0
     player.vel.z = 0
-  
+
   # Apply gravity
   player.vel.y += GRAVITY * dt
-  
+
   # Jumping
   if isKeyPressed(KeyboardKey.Space) and player.jumpsRemaining > 0:
     player.vel.y = player.jumpForce
     player.jumpsRemaining -= 1
-  
+
   # Update position
   let nextPos = player.pos + player.vel * dt
-  
+
   # Check platform collision
   let (collided, platform) = checkCollision(nextPos, 1.0, platforms)
-  
+
   if collided:
     # Landing on platform
     if player.vel.y < 0:
@@ -131,12 +131,12 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platf
       player.vel.y = 0
       player.jumpsRemaining = player.maxJumps
       player.grounded = true
-      
+
       # Check for jump pad
       if platform.jumpPad:
         player.vel.y = platform.jumpForce * 0.05  # Scale jump force
         player.jumpsRemaining = player.maxJumps
-      
+
       player.pos.x = nextPos.x
       player.pos.z = nextPos.z
     else:
@@ -144,7 +144,7 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platf
   else:
     player.pos = nextPos
     player.grounded = false
-  
+
   # Keep player in arena bounds
   let maxDist = 450.0
   let dist = sqrt(player.pos.x * player.pos.x + player.pos.z * player.pos.z)
@@ -152,7 +152,7 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platf
     let angle = arctan2(player.pos.z, player.pos.x)
     player.pos.x = cos(angle) * maxDist
     player.pos.z = sin(angle) * maxDist
-  
+
   # Death plane
   if player.pos.y < -50:
     player.health = 0

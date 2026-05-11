@@ -6,7 +6,7 @@ import raylib
 type
   Vector3f* = object
     x*, y*, z*: float32
-    
+
   FPSCamera* = object
     position*: Vector3f
     target*: Vector3f
@@ -15,7 +15,7 @@ type
     yaw*, pitch*: float32
     shake*: float32
     shakeTime*: float32
-    
+
   Platform3D* = object
     pos*: Vector3f
     size*: Vector3f
@@ -28,7 +28,7 @@ type
     jumpForce*: float32
     rotationSpeed*: float32  # For rotating platforms
     currentRotation*: float32
-    
+
   Projectile3D* = object
     pos*: Vector3f
     vel*: Vector3f
@@ -39,7 +39,7 @@ type
     isHoming*: bool  # For homing missiles
     homingTarget*: Vector3f
     homingStrength*: float32
-    
+
   Arena3D* = object
     radius*: float32
     platforms*: seq[Platform3D]
@@ -47,7 +47,7 @@ type
     floorColor*: Color
     wallColor*: Color
     environmentIntensity*: float32  # For phase transitions
-    
+
   GravityWell* = object
     pos*: Vector3f
     strength*: float32
@@ -65,12 +65,12 @@ type
     orbitSpeed*: float32  # Variable orbit speed per satellite
     laserChargeTimer*: float32  # For laser attacks
     targetSatelliteIndex*: int  # For inter-satellite lasers
-    
+
   BossClone* = object
     pos*: Vector3f
     lifetime*: float32
     alpha*: float32
-    
+
   Boss3D* = object
     pos*: Vector3f
     health*: float32
@@ -89,7 +89,7 @@ type
     teleportTimer*: float32
     gravityWells*: seq[GravityWell]
     berserkModeActive*: bool  # Phase 5 final stand
-    
+
   DamageNumber3D* = object
     pos*: Vector3f
     vel*: Vector3f

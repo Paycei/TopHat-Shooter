@@ -16,21 +16,21 @@ type
     diPvP           # PvP mode (PvP.exe) - 8
     diRoguelite     # Roguelite mode (Roguelite.exe) - 9
     diAdvancements  # Persistent advancement viewer (Advncmnts.exe) - 10
-  
+
   DesktopIcon* = object
     iconType*: DesktopIconType
     x*, y*: int
     selected*: bool
     name*: string
     iconColor*: Color
-    
+
   WindowState* = ref object
     opened*: bool
     x*, y*: int
     width*, height*: int
     title*: string
     minimized*: bool
-  
+
   OSDesktop* = ref object
     icons*: seq[DesktopIcon]
     selectedIcon*: int
@@ -275,7 +275,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     if desktop.loadingProgress >= 1.0:
       desktop.loadingActive = false
       desktop.loadingProgress = 0.0
-  
+
   # Update all icon names to reflect current language
   for i in 0..<desktop.icons.len:
     desktop.icons[i].name = getIconName(desktop.icons[i].iconType)
@@ -349,7 +349,7 @@ proc drawIconTile(icon: DesktopIcon, time: float32, selected: bool) =
 
 proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
   drawIconTile(icon, time, selected)
-  
+
   # Icon graphic based on type
   let centerX = (icon.x + ICON_SIZE div 2).int32
   let centerY = (icon.y + ICON_SIZE div 2).int32
@@ -359,7 +359,7 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
   drawHexBadge(centerX, centerY, 22.0, Color(r: 8, g: 14, b: 24, a: 160),
                Color(r: accent.r, g: accent.g, b: accent.b, a: 120),
                PI / 6.0 + time * 0.08)
-  
+
   case icon.iconType
   of diPlay:
     # Launch prism
@@ -375,7 +375,7 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
       Vector2(x: (centerX + 7).float32, y: centerY.float32),
       bright
     )
-  
+
   of diSurvival:
     # Survival shield timer
     drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 18, dim)
@@ -389,7 +389,7 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
       let angle = i.float32 * PI / 2.0 + time * 0.6
       drawCircle(Vector2(x: centerX.float32 + cos(angle) * 22.0,
                          y: centerY.float32 + sin(angle) * 22.0), 2.2, accent)
-  
+
   of diStatistics:
     # Analytics bars with trend line
     drawRectangle(centerX - 17, centerY + 5, 7, 15, dim)
@@ -399,7 +399,7 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
              Vector2(x: (centerX - 3).float32, y: (centerY - 8).float32), 2, White)
     drawLine(Vector2(x: (centerX - 3).float32, y: (centerY - 8).float32),
              Vector2(x: (centerX + 18).float32, y: (centerY - 17).float32), 2, White)
-  
+
   of diSettings:
     # Tuning sliders
     for i in 0..2:
@@ -409,7 +409,7 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
       let knobX = centerX - 10 + ((i * 13) mod 27)
       drawCircle(Vector2(x: knobX.float32, y: y.float32), 5, bright)
       drawCircleLines(Vector2(x: knobX.float32, y: y.float32), 7, accent)
-  
+
   of diShop:
     # Store crate with swatches
     drawRectangle(centerX - 15, centerY - 9, 30, 24, accent)
@@ -427,7 +427,7 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     ]
     for i in 0..<3:
       drawCircle(Vector2(x: (centerX - 8 + i * 8).float32, y: (centerY + 5).float32), 4.5, colors[i])
-  
+
   of diHelp:
     # Luminous document
     drawRectangle(centerX - 13, centerY - 18, 26, 34, accent)
@@ -435,14 +435,14 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
                  Vector2(x: (centerX + 13).float32, y: (centerY - 6).float32),
                  Vector2(x: (centerX + 1).float32, y: (centerY - 18).float32), bright)
     drawText("?", centerX - 7, centerY - 10, 26, White)
-  
+
   of diQuit:
     # Shutdown ring
     drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 19, dim)
     drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 12, Color(r: 8, g: 12, b: 20, a: 255))
     drawCircleLines(Vector2(x: centerX.float32, y: centerY.float32), 18, bright)
     drawRectangle(centerX - 2, centerY - 21, 4, 18, bright)
-  
+
   of diSandbox:
     # Lab flask
     let flaskColor = accent
@@ -462,7 +462,7 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     drawRectangle(centerX - baseWidth div 2 + 3, flaskBottom - 10, baseWidth - 6, 8, liquidColor)
     drawCircle(Vector2(x: (centerX - 4).float32, y: (flaskBottom - 5).float32), 2, White)
     drawCircle(Vector2(x: (centerX + 3).float32, y: (flaskBottom - 8).float32), 1.5, White)
-  
+
   of diPvP:
     # Versus duel glyph
     drawLine(Vector2(x: (centerX - 18).float32, y: (centerY + 15).float32),
@@ -505,7 +505,7 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     drawLine(Vector2(x: (ledgerX + 7).float32, y: (ledgerY + 8).float32),
              Vector2(x: (ledgerX + 7).float32, y: (ledgerY + 26).float32),
              1, Color(r: 120, g: 220, b: 255, a: 180))
-  
+
   # Icon label with shadow
   let labelY = icon.y + ICON_SIZE + 8
   drawDesktopLabel(icon.name, icon.x.int32, labelY.int32, selected)
@@ -518,39 +518,39 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   drawRectangleLines(Rectangle(x: 0, y: (screenHeight - TASKBAR_HEIGHT).float32,
                                 width: screenWidth.float32, height: TASKBAR_HEIGHT.float32),
                     1, Color(r: 0, g: 200, b: 200, a: 255))
-  
+
   # Start button
   let startBtnW = 120
   let startBtnH = 32
   let startBtnX = 8
   let startBtnY = screenHeight - TASKBAR_HEIGHT + 4
-  
+
   drawRectangle(startBtnX.int32, startBtnY.int32, startBtnW.int32, startBtnH.int32,
                Color(r: 0, g: 60, b: 80, a: 255))
   drawRectangleLines(Rectangle(x: startBtnX.float32, y: startBtnY.float32,
                                 width: startBtnW.float32, height: startBtnH.float32), 2,
                     Color(r: 0, g: 200, b: 255, a: 255))
-  
+
   # Logo in start button
   let logoSize = 16
   drawRectangle((startBtnX + 10).int32, (startBtnY + 8).int32,
                logoSize.int32, logoSize.int32,
                Color(r: 0, g: 200, b: 255, a: 255))
-  
+
   drawText(t("os_tophat_button"), (startBtnX + 35).int32, (startBtnY + 7).int32, 18, White)
-  
+
   # System tray - clock with dynamic time
   let currentTime = now()
   let timeStr = currentTime.format("HH:mm")
   let dateStr = currentTime.format("MM/dd")
-  
+
   let clockX = screenWidth - 80
   let clockY = startBtnY + 2
   drawText(timeStr, clockX.int32, clockY.int32, 16,
           Color(r: 0, g: 255, b: 255, a: 255))
   drawText(dateStr, (clockX - 10).int32, (clockY + 16).int32, 12,
           Color(r: 100, g: 200, b: 200, a: 255))
-  
+
   # System indicators with icons
   let indicatorX = screenWidth - 170
   # Network indicator (always connected in game)
@@ -755,39 +755,39 @@ proc drawDesktopWallpaper(screenWidth, screenHeight: int, time,
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   drawDesktopWallpaper(screenWidth, screenHeight, desktop.time,
                        desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ)
-  
+
   # Desktop icons
   for icon in desktop.icons:
     drawDesktopIcon(icon, desktop.time, icon.selected)
-  
+
   # Taskbar
   drawTaskbar(screenWidth, screenHeight, desktop.time)
-  
+
   # System info panel in top-right corner (like a widget)
   let panelX = screenWidth - 240
   let panelY = 10
   let panelW = 230
   let panelH = 100
-  
+
   # Panel background with transparency
   drawRectangle(panelX.int32, panelY.int32, panelW.int32, panelH.int32,
                Color(r: 15, g: 20, b: 30, a: 180))
   drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
                                 width: panelW.float32, height: panelH.float32), 1,
                     Color(r: 0, g: 180, b: 180, a: 200))
-  
+
   # Panel title bar
   drawRectangle(panelX.int32, panelY.int32, panelW.int32, 20,
                Color(r: 0, g: 40, b: 60, a: 220))
   drawText(t(tkOSSystemMonitor), (panelX + 8).int32, (panelY + 3).int32, 14,
           Color(r: 0, g: 200, b: 200, a: 255))
-  
+
   # System stats (simulated)
   let uptime = int(desktop.time)
   let hours = uptime div 3600
   let minutes = (uptime mod 3600) div 60
   let seconds = uptime mod 60
-  
+
   var infoY = panelY + 28
   drawText(t(tkOSCPUIdle), (panelX + 8).int32, infoY.int32, 12,
           Color(r: 100, g: 255, b: 100, a: 255))
@@ -801,7 +801,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   infoY += 18
   drawText(t(tkOSNetwork), (panelX + 8).int32, infoY.int32, 12,
           Color(r: 100, g: 255, b: 150, a: 255))
-  
+
   # Bottom desktop info (version and edition)
   drawText(t(tkOSTopHatOS), 10, (screenHeight - 75).int32, 14,
           Color(r: 100, g: 100, b: 120, a: 200))
@@ -894,56 +894,56 @@ proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   ## Draw the loading animation overlay if active
   if not desktop.loadingActive:
     return
-  
+
   # Semi-transparent dark overlay
   drawRectangle(0, 0, screenWidth.int32, screenHeight.int32,
                Color(r: 0, g: 0, b: 0, a: 180))
-  
+
   # Loading window/panel
   let panelWidth = 500
   let panelHeight = 200
   let panelX = (screenWidth - panelWidth) div 2
   let panelY = (screenHeight - panelHeight) div 2
-  
+
   # Panel background with OS-style border
   drawRectangle(panelX.int32, panelY.int32, panelWidth.int32, panelHeight.int32,
                Color(r: 25, g: 30, b: 45, a: 255))
   drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
                                 width: panelWidth.float32, height: panelHeight.float32), 2,
                     Color(r: 0, g: 180, b: 220, a: 255))
-  
+
   # Title bar
   drawRectangle(panelX.int32, panelY.int32, panelWidth.int32, 30,
                Color(r: 0, g: 50, b: 80, a: 255))
   drawText(t("os_loading") & "...", (panelX + 10).int32, (panelY + 7).int32, 16,
           Color(r: 0, g: 200, b: 255, a: 255))
-  
+
   # Loading text
   let textY = panelY + 60
   let textWidth = measureText(desktop.loadingText, 20)
   let textX = panelX + (panelWidth - textWidth) div 2
   drawText(desktop.loadingText, textX.int32, textY.int32, 20, White)
-  
+
   # Progress bar
   let barWidth = 400
   let barHeight = 30
   let barX = panelX + (panelWidth - barWidth) div 2
   let barY = panelY + 110
-  
+
   # Progress bar background
   drawRectangle(barX.int32, barY.int32, barWidth.int32, barHeight.int32,
                Color(r: 20, g: 25, b: 35, a: 255))
   drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
                                 width: barWidth.float32, height: barHeight.float32), 2,
                     Color(r: 60, g: 80, b: 100, a: 255))
-  
+
   # Progress fill with gradient effect
   let fillWidth = (barWidth.float32 * min(desktop.loadingProgress, 1.0)).int32
   if fillWidth > 0:
     drawRectangleGradientH(barX.int32, barY.int32, fillWidth, barHeight.int32,
                           Color(r: 0, g: 140, b: 200, a: 255),
                           Color(r: 0, g: 200, b: 255, a: 255))
-  
+
   # Progress percentage
   let percentage = int(min(desktop.loadingProgress, 1.0) * 100.0)
   let percentText = $percentage & "%"
@@ -952,13 +952,13 @@ proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   let percentY = barY + 6
   drawText(percentText, percentX.int32, percentY.int32, 18,
           Color(r: 255, g: 255, b: 255, a: 255))
-  
+
   # Animated loading dots
   let dotCount = 3
   let dotsY = panelY + 160
   let dotSpacing = 15
   let dotsStartX = (screenWidth - (dotCount * dotSpacing)) div 2
-  
+
   for i in 0..<dotCount:
     let dotX = dotsStartX + i * dotSpacing
     let dotPhase = desktop.time * 3.0 + i.float32 * 0.3

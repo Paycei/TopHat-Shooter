@@ -208,7 +208,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 bulletRadius: float32 = 0.0, bulletShape: int = 0): Bullet =
   # Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
-  
+
   result = Bullet(
     pos: newVector2f(x, y),
     vel: direction.normalize() * finalSpeed,
@@ -260,7 +260,7 @@ proc updateBullet*(bullet: Bullet, dt: float32): bool =
   # Track distance traveled for Overcharge power-up
   let movement = bullet.vel * dt
   bullet.travelDistance += movement.length()
-  
+
   bullet.pos = bullet.pos + movement
   bullet.lifetime -= dt
   return bullet.lifetime > 0
@@ -275,7 +275,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
   var color: Color
   var glowColor: Color
   var trailColor: Color
-  
+
   if bullet.fromPlayer and not bullet.isEcho:
     # Use bullet skin colors for player bullets
     let skinType = BulletSkinType(bullet.bulletSkin)
@@ -283,7 +283,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     color = primary
     glowColor = glow
     trailColor = trail
-    
+
     # Override color for special bullet types (these take priority over skin)
     if bullet.isSpecialRound:
       color = Color(r: 255, g: 215, b: 0, a: 255)  # Gold for special rounds
@@ -330,7 +330,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius + 6.5 + warningPulse * 1.4,
                Color(r: 10, g: 4, b: 22, a: 110))
     drawBossBulletTrail(bullet, trailColor)
-  
+
   # Draw bullet trail for player bullets (showcases skin colors)
   # Reduce trail for explosive bullets to improve performance
   if bullet.fromPlayer and not bullet.isEcho and bullet.vel.length() > 0:
@@ -342,7 +342,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let trailAlpha = uint8((1.0 - i.float32 * 0.25) * float32(trailColor.a))
       drawCircle(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
                 Color(r: trailColor.r, g: trailColor.g, b: trailColor.b, a: trailAlpha))
-  
+
   # Draw pentagon shape for pentagon bullets
   if bullet.isPentagon:
     # Draw pentagon shape
@@ -369,7 +369,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
   else:
     # Normal circle bullet
     drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
-  
+
   # Blood bullets: Add dripping blood effect
   if hasBloodBullets and bullet.fromPlayer and not bullet.isEcho:
     # Create 2-3 blood drips trailing behind the bullet
@@ -385,7 +385,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       # Add a darker blood dot below each drip for extra drippiness
       drawCircle(Vector2(x: dripX, y: dripY + dripSize * 0.5), dripSize * 0.4,
                 Color(r: 100, g: 20, b: 20, a: dripAlpha))
-  
+
   # Add glow effect
   if not bullet.fromPlayer:
     # Sniper bullets get strong red glow
@@ -420,11 +420,11 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let glowAlpha = uint8(float32(glowColor.a) * (1.0 - i.float32 * 0.4))
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius,
                      Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowAlpha))
-    
+
     # Add highlight to bullet
     drawCircle(Vector2(x: bullet.pos.x - 1.5, y: bullet.pos.y - 1.5), bullet.radius * 0.3,
               Color(r: 255, g: 255, b: 255, a: 120))
-    
+
   # Legacy glow effects for power-up modified bullets
   if bullet.isExplosive:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
@@ -447,7 +447,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
                    Color(r: 200, g: 100, b: 255, a: 200))
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
                    Color(r: 150, g: 50, b: 200, a: 100))
-  
+
   # Special Round visual effect - golden glow with sparkles
   if bullet.isSpecialRound and bullet.fromPlayer:
     # Main golden glow
@@ -457,12 +457,12 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
                    Color(r: 255, g: 200, b: 50, a: 180))
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6,
                    Color(r: 255, g: 180, b: 100, a: 120))
-  
+
   # Overcharge visual effect - ONLY if player has the power-up
   if hasOvercharge and bullet.fromPlayer and bullet.travelDistance > 0:
     # Calculate charge level based on distance (0.0 to 1.0)
     let chargeLevel = min(bullet.travelDistance / 2500.0, 1.0)  # Max at 2500 units
-    
+
     if chargeLevel > 0.1:  # Only show glow when bullet has traveled some distance
       # Color shift: Yellow (low) -> Orange (mid) -> Red (high)
       let glowColor = if chargeLevel < 0.33:
@@ -491,11 +491,11 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
           b: 0,
           a: uint8(100.0 + chargeLevel * 100.0)
         )
-      
+
       # Draw expanding glow rings
       let glowRadius = bullet.radius + 2 + chargeLevel * 4
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius, glowColor)
-      
+
       # Add a second, larger glow ring for high charge
       if chargeLevel > 0.5:
         let outerGlow = glowColor
@@ -569,14 +569,14 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     0.0,  # bulletRadius (use stored radius below)
     original.bulletShape   # Preserve cosmetic bullet shape
   )
-  
+
   # Copy additional state that needs to be preserved
   result.radius = original.radius * radiusMultiplier
   result.travelDistance = original.travelDistance  # Preserve Overcharge progress
   result.bounceCount = original.bounceCount  # Preserve ricochet state
   result.piercedEnemies = original.piercedEnemies  # Preserve pierce state
   result.hasSplit = preventSplit or original.hasSplit  # Preserve split state
-  
+
   # Copy hit enemies list for independent tracking
   for enemyIdx in original.hitEnemies:
     result.hitEnemies.add(enemyIdx)
@@ -585,10 +585,10 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
                         damageMultiplier: float32 = 0.5, speedMultiplier: float32 = 0.7) =
   ## Create split bullets that inherit ALL properties from source bullet
   ## SYNERGY SYSTEM: Split bullets maintain explosive, homing, piercing, poison, etc.
-  
+
   # Get the original bullet's direction angle
   let baseAngle = arctan2(sourceBullet.vel.y, sourceBullet.vel.x)
-  
+
   # Create spread based on number of splits
   # For 2 splits: -22.5° and +22.5° from original direction
   # For 3 splits: -30°, 0°, +30° from original direction
@@ -598,7 +598,7 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
     of 3: PI / 6.0  # 30 degrees
     of 4: PI / 4.8  # 37.5 degrees
     else: PI / 6.0
-  
+
   for split in 0..<splitCount:
     # Calculate angle offset from center
     let offsetAngle = if splitCount == 2:
@@ -608,11 +608,11 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
       # For 3+ bullets: distribute evenly with center bullet at original angle
       let halfCount = (splitCount - 1).float32 / 2.0
       (split.float32 - halfCount) * (spreadAngle * 2.0 / (splitCount - 1).float32)
-    
+
     let finalAngle = baseAngle + offsetAngle
     let dir = newVector2f(cos(finalAngle), sin(finalAngle))
     let vel = dir * sourceBullet.vel.length() * speedMultiplier
-    
+
     let splitBullet = cloneBullet(
       sourceBullet,
       sourceBullet.pos,
@@ -623,7 +623,7 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
       true  # Prevent infinite splitting
     )
     splitBullet.isFromBulletSplit = true  # Mark for statistics tracking
-    
+
     game.bullets.add(splitBullet)
 
 proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f,
@@ -632,7 +632,7 @@ proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f
   ## SYNERGY SYSTEM: Ricochet bullets can split, explode, poison, etc.
   let toTarget = (targetPos - sourceBullet.pos).normalize()
   let vel = toTarget * sourceBullet.vel.length()
-  
+
   let ricochetBullet = cloneBullet(
     sourceBullet,
     sourceBullet.pos,
@@ -642,11 +642,11 @@ proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f
     1.0,  # Same size
     false  # Can still split
   )
-  
+
   # Increment bounce count for the new bullet
   ricochetBullet.bounceCount += 1
   ricochetBullet.isRicochet = true  # Mark for statistics tracking
-  
+
   game.bullets.add(ricochetBullet)
 
 proc createEchoBullet*(game: Game, sourceBullet: Bullet,
@@ -664,21 +664,21 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
     0.8,  # Slightly smaller
     false  # Can split (for echo + split synergy)
   )
-  
+
   # Assign unique bullet ID and track parent
   game.bulletIdCounter += 1
   echoBullet.bulletId = game.bulletIdCounter
   echoBullet.parentBulletId = sourceBullet.bulletId
-  
+
   # Make it an echo bullet with limited lifetime
   echoBullet.isEcho = true
   echoBullet.lifetime = lifetime
-  
+
   # Reset bounce count for echoes (they get fresh ricochets)
   if echoBullet.bounceCount >= 0:
     echoBullet.bounceCount = 0
-  
+
   # Clear hitEnemies list so echo bullets can hit enemies independently
   echoBullet.hitEnemies.setLen(0)
-  
+
   game.bullets.add(echoBullet)

@@ -11,7 +11,7 @@ type
   TeamScore* = object
     kills*: int
     deaths*: int
-  
+
   # Interpolation state for remote players
   PlayerInterpState = object
     prevPos*: Vector2f
@@ -21,7 +21,7 @@ type
     prevTime*: float32
     targetTime*: float32
     hasData*: bool
-  
+
   PvPGameState* = ref object
     networkManager*: NetworkManager
     localPlayerIndex*: int  # 0-15
@@ -171,11 +171,11 @@ proc assignPlayerToTeamByCount*(playerIndex: int, teamCount: int): PvPTeam =
 proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, screenWidth, screenHeight: float32): Vector2f =
   ## Calculate spawn position for a player based on their team
   ## Teams spawn grouped together in different quadrants
-  
+
   let centerX = screenWidth * 0.5
   let centerY = screenHeight * 0.5
   let spawnRadius = min(screenWidth, screenHeight) * 0.35
-  
+
   case team
   of ptNone:
     # Free-for-all: distribute evenly around circle
@@ -184,7 +184,7 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
       centerX + cos(angle) * spawnRadius,
       centerY + sin(angle) * spawnRadius
     )
-  
+
   of ptRed:
     # Left side
     let teamOffset = (playerIndex div 2).float * 80.0  # Vertical spacing between teammates
@@ -192,7 +192,7 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
       screenWidth * 0.15,
       centerY + teamOffset - 80.0
     )
-  
+
   of ptBlue:
     # Right side
     let teamOffset = (playerIndex div 2).float * 80.0
@@ -200,7 +200,7 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
       screenWidth * 0.85,
       centerY + teamOffset - 80.0
     )
-  
+
   of ptGreen:
     # Top side
     let teamOffset = (playerIndex div 3).float * 80.0
@@ -208,7 +208,7 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
       centerX + teamOffset - 80.0,
       screenHeight * 0.15
     )
-  
+
   of ptYellow:
     # Bottom side
     let teamOffset = (playerIndex div 4).float * 80.0
@@ -264,7 +264,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     wallPos: newVector2f(0, 0),
     timestamp: 0
   )
-  
+
   result = PvPGameState(
     networkManager: nil,  # Will be assigned from the window's network manager
     localPlayerIndex: if isHost: 0 else: -1,  # Will be set properly for clients
@@ -314,13 +314,13 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
       PvPTeam(playerTeamAssignments[i])
     else:
       assignPlayerToTeam(i, maxPlayers, teamsEnabled)
-    
+
     # Get spawn position based on team mode
     let spawnPos = if teamsEnabled:
       getTeamSpawnPosition(i, team, maxPlayers, screenWidth.float32, screenHeight.float32)
     else:
       getSpawnPosition(i, maxPlayers, screenWidth.float32, screenHeight.float32)
-    
+
     let player = newPlayer(spawnPos.x, spawnPos.y)
     player.hp = config.startHp
     player.maxHp = config.startHp
@@ -331,7 +331,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     player.fireRate = config.fireRate
     player.speed = config.startSpeed
     player.teamId = team
-    
+
     # Set cosmetics and nickname for connected players
     var cosmeticsSet = false
     var playerNick = "P" & $(i + 1)  # fallback
@@ -359,7 +359,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     result.playerConnected.add(true)
     result.lastInputs.add(emptyInput)
     result.playerNicknames.add(playerNick)
-    
+
     # Initialize interpolation state for this player
     result.playerInterpStates.add(PlayerInterpState(
       prevPos: player.pos,
@@ -370,7 +370,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
       targetTime: 0,
       hasData: false
     ))
-  
+
   result.bullets = @[]
   result.walls = @[]
   result.particlePool = newParticlePool(2000)
@@ -378,16 +378,16 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
 proc startCountdown*(pvp: PvPGameState) =
   pvp.isCountingDown = true
   pvp.countdownTimer = 3.0
-  
+
   # Reset the receive timer to prevent false timeout from lobby waiting time
   pvp.networkManager.resetReceiveTimer()
-  
+
   if pvp.networkManager.isHost():
     # Build team assignments array to send to clients
     var teamAssignments: seq[int] = @[]
     for i in 0..<pvp.maxPlayers:
       teamAssignments.add(pvp.players[i].teamId.ord)
-    
+
     # Build connected players list to send to clients
     var gameConnectedPlayers: seq[ConnectedPlayerInfo] = @[]
     for i in 0..<pvp.maxPlayers:
@@ -399,7 +399,7 @@ proc startCountdown*(pvp: PvPGameState) =
         particleSkinType: pvp.players[i].particleSkinType,
         nickname: pvp.playerNicknames[i]
       ))
-    
+
     # Send game start packet with team information and game config
     var packet = newPacket(ptGameStart, pvp.serverTick)
     packet.countdownTime = pvp.countdownTimer
@@ -415,7 +415,7 @@ proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
   if isKeyDown(S): moveDir.y += 1
   if isKeyDown(A): moveDir.x -= 1
   if isKeyDown(D): moveDir.x += 1
-  
+
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()
 
@@ -481,33 +481,33 @@ proc replayMovementInput(pvp: PvPGameState, playerIndex: int, input: PlayerInput
 
 proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, dt: float32) =
   ## Apply input to a player (used by both client and server)
-  
+
   # Validate player index
   if playerIndex < 0 or playerIndex >= pvp.players.len:
     echo "[PVP ERROR] Invalid player index in applyPlayerInput: ", playerIndex
     return
-  
+
   let player = pvp.players[playerIndex]
-  
+
   # Don't process input if player is dead
   if player.hp <= 0:
     return
-  
+
   # Movement
   if input.moveDir.length() > 0:
     player.vel = input.moveDir * player.speed
     let nextPos = player.pos + player.vel * dt
-    
+
     # Check wall collisions
     var canMove = true
     for wall in pvp.walls:
       if checkPlayerWallCollision(nextPos, player.radius, wall):
         canMove = false
         break
-    
+
     if canMove:
       player.pos = nextPos
-    
+
     # Clamp to screen
     player.pos.x = clamp(player.pos.x, player.radius, pvp.screenWidth.float32 - player.radius)
     player.pos.y = clamp(player.pos.y, player.radius, pvp.screenHeight.float32 - player.radius)
@@ -515,12 +515,12 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
     # Player is not pressing any movement key — zero velocity so snapshots and
     # extrapolation don't carry a stale direction forward after stopping.
     player.vel = newVector2f(0, 0)
-  
+
   # Shooting - Only create bullets on the server (host)
   # Clients will receive bullets via ptBulletSpawn packets
   if input.shooting and (pvp.gameTime - player.lastShot) >= player.fireRate:
     player.lastShot = pvp.gameTime
-    
+
     # Only the host (server) creates and broadcasts bullets
     if pvp.networkManager.isHost():
       # Create bullet with player-specific ID range to prevent collisions
@@ -528,7 +528,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
       let direction = (input.mousePos - player.pos).normalize()
       let bulletVel = direction * player.bulletSpeed
       let bulletId = playerIndex * 1000000 + pvp.bulletIdCounter
-      
+
       let newBullet = Bullet(
         pos: player.pos + direction * (player.radius + 5),
         vel: bulletVel,
@@ -543,12 +543,12 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
         bulletSkin: player.bulletSkinType,
         ownerPlayerIndex: playerIndex
       )
-      
+
       pvp.bulletIdCounter += 1
       pvp.bullets.add(newBullet)
-      
+
       playSound(stShoot)
-      
+
       # Broadcast bullet spawn to all clients
       let bulletState = BulletStateNet(
         id: newBullet.bulletId,
@@ -562,14 +562,14 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
         isHoming: newBullet.isHoming,
         bulletSkin: newBullet.bulletSkin
       )
-      
+
       var packet = newPacket(ptBulletSpawn, pvp.serverTick)
       packet.bullet = bulletState
       pvp.networkManager.sendPacket(packet)
     else:
       # Client: just play sound for local feedback
       playSound(stShoot)
-  
+
   # Wall placement
   if input.placingWall and player.walls > 0:
     let placingPlayerPos = pvp.players[playerIndex].pos
@@ -588,14 +588,14 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
         duration: 999,
         shootTimer: 0
       )
-      
+
       # Only the host (authority) mutates the wall list and broadcasts.
       # Clients receive the wall via ptWallPlace to avoid ghost walls from
       # rejected placements.
       if pvp.networkManager.isHost():
         pvp.walls.add(newWall)
         player.walls -= 1
-        
+
         spawnExplosionPooled(pvp.particlePool, input.wallPos.x, input.wallPos.y, Brown, 15)
         playSound(stPowerUp)
 
@@ -606,7 +606,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
           maxHp: newWall.maxHp,
           ownerIndex: playerIndex
         )
-        
+
         var packet = newPacket(ptWallPlace, pvp.serverTick)
         packet.wall = wallState
         pvp.networkManager.sendPacket(packet)
@@ -622,52 +622,52 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
     let bullet = pvp.bullets[i]
     bullet.pos = bullet.pos + bullet.vel * dt
     bullet.lifetime += dt
-    
+
     # Remove if out of bounds or lifetime exceeded
     if bullet.pos.x < 0 or bullet.pos.x > pvp.screenWidth.float32 or
        bullet.pos.y < 0 or bullet.pos.y > pvp.screenHeight.float32 or
        bullet.lifetime > 5.0:
-      
+
       if pvp.networkManager.isHost():
         var packet = newPacket(ptBulletDestroy, pvp.serverTick)
         packet.bulletId = bullet.bulletId
         pvp.networkManager.sendPacket(packet)
-      
+
       pvp.bullets.delete(i)
       continue
-    
+
     # Check player collisions with FRIENDLY FIRE PREVENTION
     for playerIdx in 0..<pvp.players.len:
       let player = pvp.players[playerIdx]
       if player.hp <= 0 or player.invincibilityTimer > 0:
         continue
-      
+
       # Prevent bullets from hitting their own shooter
       if bullet.ownerPlayerIndex == playerIdx:
         continue  # Skip collision check for the player who shot this bullet
-      
+
       # PREVENT FRIENDLY FIRE IN TEAM MODE
       if pvp.teamsEnabled and areTeammates(pvp, bullet.ownerPlayerIndex, playerIdx):
         continue  # Skip collision check for teammates
-      
+
       if distance(bullet.pos, player.pos) < (bullet.radius + player.radius):
         # Hit player
         if pvp.networkManager.isHost():
           player.hp -= bullet.damage
-          
+
           # Send damage packet
           var packet = newPacket(ptPlayerDamage, pvp.serverTick)
           packet.damagedPlayerIndex = playerIdx
           packet.damageAmount = bullet.damage
           packet.newHp = player.hp
           pvp.networkManager.sendPacket(packet)
-          
+
           # Check for death
           if player.hp <= 0:
             # Award kill to the bullet owner
             if bullet.ownerPlayerIndex >= 0 and bullet.ownerPlayerIndex < pvp.players.len:
               pvp.players[bullet.ownerPlayerIndex].kills += 1
-              
+
               # Update team scores
               if pvp.teamsEnabled:
                 let killerTeam = pvp.players[bullet.ownerPlayerIndex].teamId
@@ -676,14 +676,14 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
                   pvp.teamScores[killerTeam].kills += 1
                 if victimTeam != ptNone:
                   pvp.teamScores[victimTeam].deaths += 1
-            
+
             # Start respawn timer
             pvp.respawnTimers[playerIdx] = pvp.config.respawnTime
-            
+
             var deathPacket = newPacket(ptPlayerDeath, pvp.serverTick)
             deathPacket.deadPlayerIndex = playerIdx
             pvp.networkManager.sendPacket(deathPacket)
-            
+
             # Check win condition
             if pvp.teamsEnabled:
               # Team mode: check if any team reached kill limit
@@ -693,13 +693,13 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
                 if pvp.teamScores[team].kills > maxTeamKills:
                   maxTeamKills = pvp.teamScores[team].kills
                   winningTeam = team
-              
+
               if maxTeamKills >= pvp.config.killLimit:
                 pvp.gameOver = true
                 pvp.winnerTeam = winningTeam
                 pvp.winnerIndex = -1  # No individual winner in team mode
                 pvp.gameOverReason = "Kill limit reached"
-                
+
                 var gameOverPacket = newPacket(ptGameOver, pvp.serverTick)
                 gameOverPacket.winnerIndex = -1
                 gameOverPacket.reason = "Team " & getTeamName(winningTeam) & " wins!"
@@ -712,24 +712,24 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
                 if pvp.players[checkIdx].kills > maxKills:
                   maxKills = pvp.players[checkIdx].kills
                   winningPlayerIdx = checkIdx
-              
+
               if maxKills >= pvp.config.killLimit:
                 pvp.gameOver = true
                 pvp.winnerIndex = winningPlayerIdx
                 pvp.gameOverReason = "Kill limit reached"
-                
+
                 var gameOverPacket = newPacket(ptGameOver, pvp.serverTick)
                 gameOverPacket.winnerIndex = winningPlayerIdx
                 gameOverPacket.reason = "Kill limit reached"
                 pvp.networkManager.sendPacket(gameOverPacket)
-        
+
         spawnExplosionPooled(pvp.particlePool, bullet.pos.x, bullet.pos.y, Red, 10)
         playSound(stPlayerHit)
-        
+
         pvp.bullets.delete(i)
         i -= 1
         break
-    
+
     # Check wall collisions
     var hitWall = false
     var wallIdx = 0
@@ -738,7 +738,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
       if distance(bullet.pos, wall.pos) < (bullet.radius + wall.radius):
         if pvp.networkManager.isHost():
           wall.hp -= bullet.damage
-          
+
           if wall.hp <= 0:
             var packet = newPacket(ptWallDestroy, pvp.serverTick)
             packet.wallIndex = wallIdx
@@ -746,15 +746,15 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
             pvp.walls.delete(wallIdx)
           else:
             wallIdx += 1
-        
+
         hitWall = true
         break
       wallIdx += 1
-    
+
     if hitWall:
       pvp.bullets.delete(i)
       continue
-    
+
     i += 1
 
 proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
@@ -790,23 +790,23 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         else:
           getSpawnPosition(i, pvp.players.len, pvp.screenWidth.float32, pvp.screenHeight.float32)
         pvp.players[i].invincibilityTimer = 2.0  # 2 seconds of invincibility after respawn
-        
+
         # Send respawn packet
         var respawnPacket = newPacket(ptPlayerDamage, pvp.serverTick)
         respawnPacket.damagedPlayerIndex = i
         respawnPacket.damageAmount = 0
         respawnPacket.newHp = pvp.config.startHp
         pvp.networkManager.sendPacket(respawnPacket)
-  
+
   # Update timers
   for player in pvp.players:
     if player.invincibilityTimer > 0:
       player.invincibilityTimer -= dt
-  
+
   # NOTE: Host's input is NOT applied here - it's already applied via prediction in main update
   # This ensures fairness: both host and client use the same predict->reconcile flow
   # Server simulation just processes all remote clients' inputs
-  
+
   # Apply all clients' inputs (stored from network)
   for i in 0..<pvp.players.len:
     if i < pvp.playerConnected.len and not pvp.playerConnected[i]: continue
@@ -862,14 +862,14 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
       pvp.walls.delete(wallIdx)
     else:
       wallIdx += 1
-  
+
   # Update particles
   updateParticlePool(pvp.particlePool, dt)
-  
+
   # Send game state snapshot at fixed rate (configured per-match)
   if pvp.gameTime - pvp.lastSnapshotTime >= pvp.config.snapshotRate:
     pvp.lastSnapshotTime = pvp.gameTime
-    
+
     # Build state snapshot
     var bulletStates: seq[BulletStateNet] = @[]
     for bullet in pvp.bullets:
@@ -885,7 +885,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         isHoming: bullet.isHoming,
         bulletSkin: bullet.bulletSkin
       ))
-    
+
     var wallStates: seq[WallStateNet] = @[]
     for wall in pvp.walls:
       wallStates.add(WallStateNet(
@@ -895,7 +895,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         maxHp: wall.maxHp,
         ownerIndex: 0  # Track owner if needed
       ))
-    
+
     # Build player states dynamically
     var playerStates: seq[PlayerStateNet] = @[]
     for i in 0..<pvp.players.len:
@@ -922,7 +922,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         particleSkinType: pvp.players[i].particleSkinType,
         nickname: snap_nick
       ))
-    
+
     let gameState = NetworkGameState(
       tick: pvp.serverTick,
       timestamp: pvp.gameTime,
@@ -931,21 +931,21 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
       bullets: bulletStates,
       walls: wallStates
     )
-    
+
     var packet = newPacket(ptGameState, pvp.serverTick)
     packet.state = gameState
     pvp.networkManager.sendPacket(packet)
-    
+
     # Host should also reconcile their own state for fairness
     # This ensures host experiences same prediction+reconciliation as client
     # Apply server state to host (inline reconciliation for simplicity)
     let localIdx = pvp.localPlayerIndex
-    
+
     # Update interpolation states for all remote players (clients)
     for i in 0..<pvp.players.len:
       if i != localIdx and i < gameState.players.len and i < pvp.playerInterpStates.len:
         let interpState = addr pvp.playerInterpStates[i]
-        
+
         # Move current target to previous
         if interpState.hasData:
           interpState.prevPos = interpState.targetPos
@@ -956,13 +956,13 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
           interpState.prevPos = gameState.players[i].pos
           interpState.prevVel = gameState.players[i].vel
           interpState.prevTime = gameState.timestamp
-        
+
         # Set new target from game state
         interpState.targetPos = gameState.players[i].pos
         interpState.targetVel = gameState.players[i].vel
         interpState.targetTime = gameState.timestamp
         interpState.hasData = true
-        
+
         # Update non-positional data immediately
         pvp.players[i].vel = gameState.players[i].vel
         pvp.players[i].hp = gameState.players[i].hp
@@ -975,7 +975,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         pvp.players[i].fireRate = gameState.players[i].fireRate
         pvp.players[i].bulletSpeed = gameState.players[i].bulletSpeed
         pvp.players[i].invincibilityTimer = gameState.players[i].invincibilityTimer
-    
+
     # Reconcile host's own player - TRUST CLIENT PREDICTION
     # Even the host should trust their local prediction to maintain consistency.
     # Thresholds scale with player speed so fast-moving players don't trigger
@@ -1000,7 +1000,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         pvp.localPosCorrection.x = serverPos.x - pvp.players[localIdx].pos.x
         pvp.localPosCorrection.y = serverPos.y - pvp.players[localIdx].pos.y
       # else: SMALL desync - trust prediction completely
-      
+
       # Always update other host data from server
       pvp.players[localIdx].vel = gameState.players[localIdx].vel
       pvp.players[localIdx].hp = gameState.players[localIdx].hp
@@ -1082,7 +1082,7 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
         # Interpolate between prev and target
         pvp.players[i].pos.x = interpState.prevPos.x + (interpState.targetPos.x - interpState.prevPos.x) * t
         pvp.players[i].pos.y = interpState.prevPos.y + (interpState.targetPos.y - interpState.prevPos.y) * t
-  
+
   # Update bullets locally for smooth interpolation between server snapshots
   # Server will reconcile with authoritative state
   var i = 0
@@ -1124,27 +1124,27 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
       continue
 
     i += 1
-  
+
   # Update particles locally
   updateParticlePool(pvp.particlePool, dt)
 
 proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   ## Reconcile client state with authoritative server state
   ## Server is ALWAYS authoritative - client just renders smoothly
-  
+
   # Sync client's server tick and game time from the authoritative server snapshot
   pvp.serverTick = serverState.tick
   pvp.gameTime = serverState.timestamp
-  
+
   let localIdx = pvp.localPlayerIndex
-  
+
   # Update all remote players - use interpolation instead of direct snap
   for i in 0..<pvp.players.len:
     if i != localIdx:
       # Update interpolation state for this remote player
       if i < pvp.playerInterpStates.len:
         let interpState = addr pvp.playerInterpStates[i]
-        
+
         # Move current target to previous
         if interpState.hasData:
           interpState.prevPos = interpState.targetPos
@@ -1155,13 +1155,13 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
           interpState.prevPos = serverState.players[i].pos
           interpState.prevVel = serverState.players[i].vel
           interpState.prevTime = serverState.timestamp
-        
+
         # Set new target from server
         interpState.targetPos = serverState.players[i].pos
         interpState.targetVel = serverState.players[i].vel
         interpState.targetTime = serverState.timestamp
         interpState.hasData = true
-      
+
       # Update non-positional data immediately (no interpolation needed)
       pvp.players[i].vel = serverState.players[i].vel
       pvp.players[i].hp = serverState.players[i].hp
@@ -1185,14 +1185,14 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
           pvp.playerNicknames.add("P" & $(pvp.playerNicknames.len + 1))
         if pvp.playerNicknames[i].len == 0 or pvp.playerNicknames[i] == "P" & $(i + 1):
           pvp.playerNicknames[i] = serverState.players[i].nickname
-  
+
   # Local player - TRUST CLIENT PREDICTION, only reconcile on large desyncs.
   # After applying the server's authoritative position we re-apply any inputs
   # the server hasn't seen yet (client-side prediction replay), so the player
   # stays responsive and doesn't rubber-band at high speeds.
   let serverPos = serverState.players[localIdx].pos
   let clientPos = pvp.players[localIdx].pos
-  
+
   let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) +
                      (serverPos.y - clientPos.y) * (serverPos.y - clientPos.y))
 
@@ -1223,7 +1223,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       inc replayCount
   # Discard inputs the server has already processed
   pvp.pendingInputs = pvp.pendingInputs.filterIt(it.capturedAt > serverState.timestamp)
-  
+
   # Always update all other data from server
   pvp.players[localIdx].vel = serverState.players[localIdx].vel
   pvp.players[localIdx].hp = serverState.players[localIdx].hp
@@ -1237,7 +1237,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   pvp.players[localIdx].bulletSpeed = serverState.players[localIdx].bulletSpeed
   pvp.players[localIdx].invincibilityTimer = serverState.players[localIdx].invincibilityTimer
   pvp.players[localIdx].teamId = PvPTeam(serverState.players[localIdx].teamId)
-  
+
   # Update bullets from server, preserving locally-predicted bullets.
   #
   # The server snapshot is always a few frames behind the client due to network
@@ -1295,7 +1295,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
 
   # Clear recently destroyed bullets after reconciling (they're old now)
   pvp.recentlyDestroyedBullets = @[]
-  
+
   # Update walls from server (authoritative full-replace)
   pvp.walls = @[]
   for wallState in serverState.walls:
@@ -1308,12 +1308,12 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       shootTimer: 0
     )
     pvp.walls.add(wall)
-  
+
   # Recalculate team scores from player data
   if pvp.teamsEnabled:
     for team in PvPTeam:
       pvp.teamScores[team] = TeamScore(kills: 0, deaths: 0)
-    
+
     for i in 0..<pvp.players.len:
       let team = pvp.players[i].teamId
       if team != ptNone:
@@ -1426,9 +1426,9 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
       shapeType: pvp.players[0].shapeType,
       particleSkinType: pvp.players[0].particleSkinType
     )
-  
+
   let events = pvp.networkManager.pollEvents(getHostCosmetics)
-  
+
   for event in events:
     case event.kind
     of neConnect:
@@ -1440,7 +1440,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         pvp.players[playerIdx].bulletSkinType = event.remoteBulletSkinType
         pvp.players[playerIdx].shapeType = event.remoteShapeType
         pvp.players[playerIdx].particleSkinType = event.remoteParticleSkinType
-    
+
     of neReceive:
       case event.packet.kind
       of ptGameStart:
@@ -1454,20 +1454,20 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
 
         # Apply team settings from host
         pvp.teamsEnabled = event.packet.teamsEnabled
-        
+
         # Apply team assignments from host to all players
         if pvp.teamsEnabled and event.packet.teamAssignments.len > 0:
           echo "[PVP CLIENT] Receiving team assignments from host"
           for i in 0..<min(pvp.players.len, event.packet.teamAssignments.len):
             let teamId = PvPTeam(event.packet.teamAssignments[i])
             pvp.players[i].teamId = teamId
-            
+
             # Update spawn position based on team
             pvp.players[i].pos = getTeamSpawnPosition(i, teamId, pvp.maxPlayers,
                                                       pvp.screenWidth.float32, pvp.screenHeight.float32)
-          
+
           echo "[PVP CLIENT] Applied team assignments - Teams enabled: ", pvp.teamsEnabled
-      
+
       of ptPlayerInput:
         # Server receives client input - store it, don't apply immediately
         if pvp.networkManager.isHost():
@@ -1475,23 +1475,23 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
           let playerIndex = event.packet.input.playerIndex
           if playerIndex >= 0 and playerIndex < pvp.lastInputs.len:
             pvp.lastInputs[playerIndex] = event.packet.input
-      
+
       of ptGameState:
         # Client receives server state
         if pvp.networkManager.isClient():
           reconcileState(pvp, event.packet.state)
-      
+
       of ptBulletSpawn:
         # Spawn bullet from packet - check for duplicates first (client-side prediction)
         let bulletState = event.packet.bullet
-        
+
         # Check if bullet already exists (client may have predicted it)
         var bulletExists = false
         for existingBullet in pvp.bullets:
           if existingBullet.bulletId == bulletState.id:
             bulletExists = true
             break
-        
+
         # Only add if it doesn't exist (prevents duplicates from client prediction)
         if not bulletExists:
           let bullet = Bullet(
@@ -1509,7 +1509,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
             ownerPlayerIndex: bulletState.fromPlayerIndex  # Preserve owner
           )
           pvp.bullets.add(bullet)
-      
+
       of ptBulletDestroy:
         # Remove bullet and track it as recently destroyed
         var i = 0
@@ -1521,11 +1521,11 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
             pvp.bullets.delete(i)
             break
           i += 1
-      
+
       of ptPlayerDamage:
         let playerIdx = event.packet.damagedPlayerIndex
         pvp.players[playerIdx].hp = event.packet.newHp
-        
+
         # Spawn damage number
         let damageNum = DamageNumber(
           pos: pvp.players[playerIdx].pos,
@@ -1538,13 +1538,13 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
           damageType: dtDefault
         )
         pvp.damageNumbers.add(damageNum)
-      
+
       of ptPlayerDeath:
         let playerIdx = event.packet.deadPlayerIndex
         pvp.players[playerIdx].hp = 0
         spawnExplosionPooled(pvp.particlePool, pvp.players[playerIdx].pos.x,
                             pvp.players[playerIdx].pos.y, Red, 30)
-      
+
       of ptWallPlace:
         let wallState = event.packet.wall
         let wall = Wall(
@@ -1556,11 +1556,11 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
           shootTimer: 0
         )
         pvp.walls.add(wall)
-      
+
       of ptWallDestroy:
         if event.packet.wallIndex < pvp.walls.len:
           pvp.walls.delete(event.packet.wallIndex)
-      
+
       of ptGameOver:
         pvp.gameOver = true
         pvp.winnerIndex = event.packet.winnerIndex
@@ -1583,28 +1583,28 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
             pvp.winnerTeam = ptOrange
           elif "Purple" in event.packet.reason:
             pvp.winnerTeam = ptPurple
-      
+
       else:
         discard
-    
+
     of neDisconnect:
       echo "[PVP] Player ", event.disconnectPlayerIndex, " disconnected: ", event.reason
       handleDisconnect(pvp, event.disconnectPlayerIndex, event.reason)
-    
+
     else:
       discard
 
 proc updatePvP*(pvp: PvPGameState, dt: float32) =
   ## Main PvP update function
-  
+
   # Validate local player index
   if pvp.localPlayerIndex < 0 or pvp.localPlayerIndex >= pvp.players.len:
     echo "[PVP ERROR] Invalid local player index: ", pvp.localPlayerIndex, " (max: ", pvp.players.len - 1, ")"
     return
-  
+
   # Handle network events FIRST
   handleNetworkEvents(pvp)
-  
+
   # Update countdown
   if pvp.isCountingDown:
     pvp.gameTime += dt  # Update time FIRST
@@ -1614,17 +1614,17 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
       pvp.gameStarted = true
       # Re-enable timeout check now that countdown is over
       pvp.networkManager.enableTimeoutCheck()
-    
+
     # During countdown, send periodic pings to keep connection alive
     if pvp.gameTime - pvp.lastPingTime >= 1.0:
       pvp.lastPingTime = pvp.gameTime
       pvp.networkManager.sendPing(pvp.serverTick)
-    
+
     return  # Don't process game logic during countdown
-  
+
   if pvp.gameOver:
     return
-  
+
   # Capture input every frame
   let input = capturePlayerInput(pvp, dt)
 
@@ -1641,11 +1641,11 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
   # Send input to server at configured rate
   if pvp.gameTime - pvp.lastInputSendTime >= pvp.config.inputRate:
     pvp.lastInputSendTime = pvp.gameTime
-    
+
     # Store local player's input for server processing
     if pvp.localPlayerIndex >= 0 and pvp.localPlayerIndex < pvp.lastInputs.len:
       pvp.lastInputs[pvp.localPlayerIndex] = input
-    
+
     # Send to server if client, also record for replay after reconciliation
     if pvp.networkManager.isClient():
       var packet = newPacket(ptPlayerInput, pvp.serverTick)
@@ -1657,13 +1657,13 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
       const MAX_PENDING_INPUTS = 60
       if pvp.pendingInputs.len > MAX_PENDING_INPUTS:
         pvp.pendingInputs = pvp.pendingInputs[pvp.pendingInputs.len - MAX_PENDING_INPUTS .. ^1]
-  
+
   # Update based on role
   if pvp.networkManager.isHost():
     updatePvPServer(pvp, dt)
   else:
     updatePvPClient(pvp, dt)
-  
+
   # Update damage numbers
   var i = 0
   while i < pvp.damageNumbers.len:
@@ -1671,12 +1671,12 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
     dn.lifetime += dt
     dn.pos = dn.pos + dn.vel * dt
     dn.vel.y += 100 * dt  # Gravity
-    
+
     if dn.lifetime >= dn.maxLifetime:
       pvp.damageNumbers.delete(i)
     else:
       i += 1
-  
+
   # Send periodic pings
   if pvp.gameTime - pvp.lastPingTime >= 1.0:
     pvp.lastPingTime = pvp.gameTime
@@ -1730,13 +1730,13 @@ proc drawPvP*(pvp: PvPGameState) =
     drawLine(Vector2(x: arenaCenterX - arenaRadius * 1.04, y: arenaCenterY + t * arenaRadius * 0.82),
              Vector2(x: arenaCenterX + arenaRadius * 1.04, y: arenaCenterY + t * arenaRadius * 1.08),
              1, withAlpha(accentColor, 24))
-  
+
   # Draw arena bounds
   drawRectangleLines(
     Rectangle(x: 0, y: 0, width: pvp.screenWidth.float32, height: pvp.screenHeight.float32),
     2, Color(r: 112, g: 136, b: 180, a: 235)
   )
-  
+
   # Draw walls
   for wall in pvp.walls:
     let healthPercent = wall.hp / wall.maxHp
@@ -1780,11 +1780,11 @@ proc drawPvP*(pvp: PvPGameState) =
     drawCircleLines(cursorPos.x.int32, cursorPos.y.int32, 25,
                     if inRange and validPos: Color(r: 80, g: 255, b: 80, a: 200)
                     else: Color(r: 255, g: 60, b: 60, a: 200))
-  
+
   # Draw bullets with skin support
   for bullet in pvp.bullets:
     drawBullet(bullet, false, false, pvp.gameTime)
-  
+
   # Draw players with cosmetics and TEAM COLORS
   for i in 0..<pvp.maxPlayers:
     if i >= pvp.players.len:
@@ -1811,7 +1811,7 @@ proc drawPvP*(pvp: PvPGameState) =
 
     # Draw player using their cosmetics
     drawPlayer(player)
-    
+
     # Draw team indicator ring if teams enabled
     if pvp.teamsEnabled and player.teamId != ptNone:
       let teamColor = getTeamColor(player.teamId)
@@ -1824,7 +1824,7 @@ proc drawPvP*(pvp: PvPGameState) =
       let nickW = measureText(nick, nickSize)
       let nickX = player.pos.x.int32 - nickW div 2
       let nickY = (player.pos.y - player.radius - 26).int32
-      
+
       # Use team color for nickname if teams enabled
       let nickColor = if pvp.teamsEnabled and player.teamId != ptNone:
         getTeamColor(player.teamId)
@@ -1832,14 +1832,14 @@ proc drawPvP*(pvp: PvPGameState) =
         Color(r: 100, g: 255, b: 100, a: 220)
       else:
         Color(r: 255, g: 200, b: 100, a: 220)
-      
+
       drawText(nick, nickX, nickY, nickSize, nickColor)
 
     # Health bar
     let barWidth = 50.0
     let barHeight = 5.0
     let healthPercent = player.hp / player.maxHp
-    
+
     drawRectangle(
       player.pos.x.int32 - (barWidth / 2).int32,
       (player.pos.y - player.radius - 15).int32,
@@ -1847,7 +1847,7 @@ proc drawPvP*(pvp: PvPGameState) =
       barHeight.int32,
       Color(r: 50, g: 50, b: 50, a: 255)
     )
-    
+
     drawRectangle(
       player.pos.x.int32 - (barWidth / 2).int32,
       (player.pos.y - player.radius - 15).int32,
@@ -1855,18 +1855,18 @@ proc drawPvP*(pvp: PvPGameState) =
       barHeight.int32,
       if healthPercent > 0.5: Green else: Red
     )
-  
+
   # Draw particles
   drawParticlePoolLayer(pvp.particlePool, plBackground)
   drawParticlePoolLayer(pvp.particlePool, plForeground)
-  
+
   # Draw damage numbers
   for dn in pvp.damageNumbers:
     let alpha = uint8((1.0 - dn.lifetime / dn.maxLifetime) * 255)
     let textColor = Color(r: 255, g: 255, b: 100, a: alpha)
     let damageText = $dn.damage.int
     drawText(damageText, dn.pos.x.int32 - 10, dn.pos.y.int32, 20, textColor)
-  
+
   # Draw HUD - TEAM MODE or FREE-FOR-ALL
   if pvp.teamsEnabled:
     # Team mode: Show team scores
@@ -1876,14 +1876,14 @@ proc drawPvP*(pvp: PvPGameState) =
       let team = pvp.players[i].teamId
       if team != ptNone and team notin activeTeams:
         activeTeams.add(team)
-    
+
     # Build scoreboard showing all active teams
     var scoreText = ""
     for team in activeTeams:
       if scoreText.len > 0:
         scoreText &= "  |  "
       scoreText &= $team & ": " & $pvp.teamScores[team].kills
-    
+
     let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 3))
     drawText(scoreText, scoreX.int32, 10, 20, White)
   else:
@@ -1903,7 +1903,7 @@ proc drawPvP*(pvp: PvPGameState) =
     # Center the text based on its length (rough approximation)
     let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 4))
     drawText(scoreText, scoreX.int32, 10, 20, White)
-  
+
   # Time — use only ASCII so raylib's default bitmap font can render it
   let timeText = if pvp.config.timeLimit <= 0:
     "INF"
@@ -1919,7 +1919,7 @@ proc drawPvP*(pvp: PvPGameState) =
   drawRectangle((timeX - 6).int32, (timeY - 3).int32, (timeTextW + 12).int32, 26,
                 Color(r: 0, g: 0, b: 0, a: 140))
   drawText(timeText, timeX.int32, timeY.int32, 20, White)
-  
+
   # Latency
   if pvp.networkManager.isClient():
     # Clamp latency to prevent int overflow (float32 -> int conversion can overflow)
@@ -1945,33 +1945,33 @@ proc drawPvP*(pvp: PvPGameState) =
     drawText(wallLabel, 15, pvp.screenHeight - 32, 20,
              if wallCount > 0: Color(r: 100, g: 220, b: 100, a: 255)
              else: Color(r: 180, g: 180, b: 180, a: 160))
-  
+
   # Countdown overlay (don't show if game is over)
   if pvp.isCountingDown and not pvp.gameOver:
     let countdownValue = max(pvp.countdownTimer, 0.0).int + 1
     let countdownText = if countdownValue > 0: $countdownValue else: "FIGHT!"
     let textWidth = measureText(countdownText, 80)
-    
+
     drawRectangle(0, 0, pvp.screenWidth, pvp.screenHeight,
                  Color(r: 0, g: 0, b: 0, a: 150))
     drawText(countdownText,
             pvp.screenWidth div 2 - textWidth div 2,
             pvp.screenHeight div 2 - 40,
             80, Yellow)
-    
+
     # Draw arrow pointing to local player with "YOU" label
     let localPlayer = pvp.players[pvp.localPlayerIndex]
-    
+
     # Use team color if teams enabled, otherwise bright green
     let arrowColor = if pvp.teamsEnabled and localPlayer.teamId != ptNone:
       getTeamColor(localPlayer.teamId)
     else:
       Color(r: 100, g: 255, b: 100, a: 255)  # Bright green
-    
+
     # Animated bouncing arrow
     let bounceOffset = sin(pvp.gameTime * 5) * 10
     let arrowY = localPlayer.pos.y - localPlayer.radius - 50 + bounceOffset
-    
+
     # Draw "YOU" text above arrow
     let youText = "YOU"
     let youWidth = measureText(youText, 30)
@@ -1979,7 +1979,7 @@ proc drawPvP*(pvp: PvPGameState) =
             localPlayer.pos.x.int32 - youWidth div 2,
             (arrowY - 40).int32,
             30, arrowColor)
-    
+
     # Draw downward pointing arrow (triangle)
     let arrowSize = 20.0
     let arrowTipX = localPlayer.pos.x
@@ -1987,14 +1987,14 @@ proc drawPvP*(pvp: PvPGameState) =
     let arrowLeftX = localPlayer.pos.x - arrowSize * 0.6
     let arrowRightX = localPlayer.pos.x + arrowSize * 0.6
     let arrowTopY = arrowY
-    
+
     drawTriangle(
       Vector2(x: arrowTipX, y: arrowTipY),      # Bottom tip
       Vector2(x: arrowLeftX, y: arrowTopY),     # Top left
       Vector2(x: arrowRightX, y: arrowTopY),    # Top right
       arrowColor
     )
-    
+
     # Draw arrow outline for better visibility
     drawTriangleLines(
       Vector2(x: arrowTipX, y: arrowTipY),
@@ -2002,11 +2002,11 @@ proc drawPvP*(pvp: PvPGameState) =
       Vector2(x: arrowRightX, y: arrowTopY),
       White
     )
-  
+
   # Game over overlay
   if pvp.gameOver:
     var winnerText = ""
-    
+
     if pvp.teamsEnabled and pvp.winnerTeam != ptNone:
       # Team victory
       let localTeam = pvp.players[pvp.localPlayerIndex].teamId
@@ -2030,11 +2030,11 @@ proc drawPvP*(pvp: PvPGameState) =
             "DRAW!"
           else:
             "YOU LOSE!"
-    
+
     let textSize: int32 = if pvp.teamsEnabled: 50 else:
       (if pvp.gameOverReason in ["Opponent disconnected", "Connection lost", "Opponent forfeited"]: 40 else: 60)
     let textWidth = measureText(winnerText, textSize)
-    
+
     # Determine color based on win/loss
     let textColor = if pvp.teamsEnabled and pvp.winnerTeam != ptNone:
       if pvp.players[pvp.localPlayerIndex].teamId == pvp.winnerTeam:
@@ -2048,7 +2048,7 @@ proc drawPvP*(pvp: PvPGameState) =
         Yellow
       else:
         Red
-    
+
     drawRectangle(0, 0, pvp.screenWidth, pvp.screenHeight,
                  Color(r: 0, g: 0, b: 0, a: 200))
     drawText(winnerText,
@@ -2056,7 +2056,7 @@ proc drawPvP*(pvp: PvPGameState) =
             pvp.screenHeight div 2 - 100,
             textSize,
             textColor)
-    
+
     # Show game over reason (if meaningful)
     if pvp.gameOverReason.len > 0 and pvp.gameOverReason notin ["", "Kill limit reached"]:
       let reasonSize: int32 = 20
@@ -2066,7 +2066,7 @@ proc drawPvP*(pvp: PvPGameState) =
               pvp.screenHeight div 2 - 40,
               reasonSize,
               Color(r: 200, g: 200, b: 200, a: 255))
-    
+
     # Show final scores
     var scoreText = "Final Scores - "
     if pvp.teamsEnabled:
@@ -2076,7 +2076,7 @@ proc drawPvP*(pvp: PvPGameState) =
         let team = pvp.players[i].teamId
         if team != ptNone and team notin activeTeams:
           activeTeams.add(team)
-      
+
       # Show ALL active teams (even with 0 score)
       for team in activeTeams:
         if scoreText.len > 15:  # More than just "Final Scores - "
@@ -2095,13 +2095,13 @@ proc drawPvP*(pvp: PvPGameState) =
           else:
             "P" & $i
           scoreText &= displayName & ": " & $pvp.players[i].kills
-    
+
     let scoreWidth = measureText(scoreText, 24)
     drawText(scoreText,
             pvp.screenWidth div 2 - scoreWidth div 2,
             pvp.screenHeight div 2 + 10,
             24, White)
-    
+
     let returnText = "Press ESC to return to menu"
     let returnWidth = measureText(returnText, 20)
     drawText(returnText,

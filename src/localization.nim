@@ -5,7 +5,7 @@ type
   Language* = enum
     English = "english"
     Spanish = "spanish"
-  
+
   TranslationKey* = enum
     # Main Menu
     tkMenuPlay = "menu_play"
@@ -28,7 +28,7 @@ type
     tkDesktopIconPvP = "desktop_icon_pvp"
     tkDesktopIconRoguelite = "desktop_icon_roguelite"
     tkDesktopIconAdvancements = "desktop_icon_advancements"
-    
+
     # Settings
     tkSettingsTitle = "settings_title"
     tkSettingsFpsLimit = "settings_fps_limit"
@@ -72,20 +72,20 @@ type
     tkSettingsConfirmReset = "settings_confirm_reset"
     tkSettingsResetComplete = "settings_reset_complete"
     tkSettingsResetFailed = "settings_reset_failed"
-    
+
     # Settings window tabs and sections
     tkSettingsTabGraphics = "settings_tab_graphics"
     tkSettingsTabAudio = "settings_tab_audio"
     tkSettingsTabControls = "settings_tab_controls"
     tkSettingsTabGameplay = "settings_tab_gameplay"
-    
+
     tkSettingsSectionDisplay = "settings_section_display"
     tkSettingsSectionVolumeControl = "settings_section_volume_control"
     tkSettingsSectionInputMethod = "settings_section_input_method"
     tkSettingsSectionAssistance = "settings_section_assistance"
     tkSettingsSectionLocalization = "settings_section_localization"
     tkSettingsSectionKeyboardShortcuts = "settings_section_keyboard_shortcuts"
-    
+
     tkSettingsKeyboardWASD = "settings_keyboard_wasd"
     tkSettingsKeyboardMovement = "settings_keyboard_movement"
     tkSettingsKeyboardMouseSpace = "settings_keyboard_mouse_space"
@@ -99,7 +99,7 @@ type
     tkSettingsKeyboardF11 = "settings_keyboard_f11"
     tkSettingsKeyboardToggleFullscreen = "settings_keyboard_toggle_fullscreen"
     tkSettingsKeyboardTab = "settings_keyboard_tab"
-    
+
     # Stats Window
     tkStatsWindowTitle = "stats_window_title"
     tkStatsTabLifetime = "stats_tab_lifetime"
@@ -163,7 +163,7 @@ type
     tkStatsDamage = "stats_damage"
     tkStatsNoDamageData = "stats_no_damage_data"
     tkStatsNoPowerUpData = "stats_no_power_up_data"
-    
+
     # Game Over Screen
     tkGameOverTitle = "game_over_title"
     tkGameOverSecure = "game_over_secure"
@@ -186,7 +186,7 @@ type
     tkGameOverSecurityLevelMax = "game_over_security_level_max"
     tkGameOverSystemFailedFooter = "game_over_system_failed_footer"
     tkGameOverSystemSecureFooter = "game_over_system_secure_footer"
-    
+
     # HUD/Notifications
     tkHUDSystemStatus = "hud_system_status"
     tkHUDIntegrity = "hud_integrity"
@@ -198,7 +198,7 @@ type
     tkHUDUptime = "hud_uptime"
     tkHUDThreats = "hud_threats"
     tkNotifWaveInitiated = "notif_wave_initiated"
-    
+
     # Debug Panel
     tkDebugPanelDiagnostics = "debug_panel_diagnostics"
     tkDebugPanelFPS = "debug_panel_fps"
@@ -236,7 +236,7 @@ type
     tkShopCustomizeBullets = "shop_customize_bullets"
     tkShopChooseShape = "shop_choose_shape"
     tkShopCustomizeEffects = "shop_customize_effects"
-    
+
     # Player Skins
     tkSkinDefault = "skin_default"
     tkSkinDefaultDesc = "skin_default_desc"
@@ -262,7 +262,7 @@ type
     tkSkinVoidDesc = "skin_void_desc"
     tkSkinPlasma = "skin_plasma"
     tkSkinPlasmaDesc = "skin_plasma_desc"
-    
+
     # Bullet Skins
     tkBulletDefault = "bullet_default"
     tkBulletDefaultDesc = "bullet_default_desc"
@@ -288,7 +288,7 @@ type
     tkBulletVoidDesc = "bullet_void_desc"
     tkBulletPlasma = "bullet_plasma"
     tkBulletPlasmaDesc = "bullet_plasma_desc"
-    
+
     # Shapes
     tkShapeHexagon = "shape_hexagon"
     tkShapeHexagonDesc = "shape_hexagon_desc"
@@ -339,7 +339,7 @@ type
     tkParticleLightningDesc = "particle_lightning_desc"
     tkParticleVoid = "particle_void"
     tkParticleVoidDesc = "particle_void_desc"
-    
+
     # Legendary Panel
     tkLegendaryPanelTitle = "legendary_panel_title"
     tkLegendaryChronos = "legendary_chronos"
@@ -355,7 +355,7 @@ type
     tkLegendaryNova = "legendary_nova"
     tkLegendaryPassive = "legendary_passive"
     tkLegendaryFrozen = "legendary_frozen"
-    
+
     tkNotifWaveCleared = "notif_wave_cleared"
     tkNotifBossDetected = "notif_boss_detected"
     tkNotifBossTerminated = "notif_boss_terminated"
@@ -367,7 +367,7 @@ type
     tkNotifCooldown = "notif_cooldown"
     tkNotifProcessTerminated = "notif_process_terminated"
     tkNotifProcessesTerminated = "notif_processes_terminated"
-    
+
     # Help System
     tkHelpWindowTitle = "help_window_title"
     tkHelpAvailableCommands = "help_available_commands"
@@ -386,7 +386,7 @@ type
     tkHelpUnknownCommand = "help_unknown_command"
     tkHelpTypeHelp = "help_type_help"
     tkHelpErrorExecuting = "help_error_executing"
-    
+
     # Help System - Command descriptions
     tkHelpCmdHelp = "help_cmd_help"
     tkHelpCmdControls = "help_cmd_controls"
@@ -396,7 +396,7 @@ type
     tkHelpCmdBosses = "help_cmd_bosses"
     tkHelpCmdShop = "help_cmd_shop"
     tkHelpCmdLaunchIcons = "help_cmd_launch_icons"
-    
+
     # Help System - Controls section
     tkHelpMovement = "help_movement"
     tkHelpCombat = "help_combat"
@@ -412,7 +412,7 @@ type
     tkHelpE = "help_e"
     tkHelpESC = "help_esc"
     tkHelpF11 = "help_f11"
-    
+
     # Help System - Gameplay section
     tkHelpWaveMode = "help_wave_mode"
     tkHelpWaveModeDesc = "help_wave_mode_desc"
@@ -420,13 +420,13 @@ type
     tkHelpSurvivalModeDesc = "help_survival_mode_desc"
     tkHelpSandboxMode = "help_sandbox_mode"
     tkHelpSandboxModeDesc = "help_sandbox_mode_desc"
-    
+
     # Help System - Power-ups section
     tkHelpCommonPowerups = "help_common_powerups"
     tkHelpElementalOrbs = "help_elemental_orbs"
     tkHelpElementalAuras = "help_elemental_auras"
     tkHelpLegendaryPowerups = "help_legendary_powerups"
-    
+
     # Help System - Enemy section
     tkHelpEnemyCircle = "help_enemy_circle"
     tkHelpEnemyCube = "help_enemy_cube"
@@ -434,19 +434,19 @@ type
     tkHelpEnemyStar = "help_enemy_star"
     tkHelpEnemyHexagon = "help_enemy_hexagon"
     tkHelpEnemyElite = "help_enemy_elite"
-    
+
     # Help System - Boss section
     tkHelpBossSpawning = "help_boss_spawning"
     tkHelpBossMechanics = "help_boss_mechanics"
     tkHelpBossAttacks = "help_boss_attacks"
     tkHelpBossRewards = "help_boss_rewards"
-    
+
     # Help System - Shop section
     tkHelpAvailableItems = "help_available_items"
     tkHelpCostScaling = "help_cost_scaling"
     tkHelpEarningCoins = "help_earning_coins"
     tkHelpShopAccess = "help_shop_access"
-    
+
     # Help System - Powerup names
     tkHelpDoubleShot = "help_double_shot"
     tkHelpRotatingShield = "help_rotating_shield"
@@ -503,7 +503,7 @@ type
     tkHelpLightningMastery = "help_lightning_mastery"
     tkHelpWindMastery = "help_wind_mastery"
     tkHelpBloodMastery = "help_blood_mastery"
-    
+
     # Help System - Shop items
     tkHelpShopDamagePlus = "help_shop_damage_plus"
     tkHelpShopDamagePlusDesc = "help_shop_damage_plus_desc"
@@ -517,7 +517,7 @@ type
     tkHelpShopBulletSpeedPlusDesc = "help_shop_bullet_speed_plus_desc"
     tkHelpShopWallX4 = "help_shop_wall_x4"
     tkHelpShopWallX4Desc = "help_shop_wall_x4_desc"
-    
+
     # Help System - Misc
     tkHelpWaveModeInfo = "help_wave_mode_info"
     tkHelpSurvivalModeInfo = "help_survival_mode_info"
@@ -535,7 +535,7 @@ type
     tkHelpBossDropLarge = "help_boss_drop_large"
     tkHelpOpensAfterPowerup = "help_opens_after_powerup"
     tkHelpAvailableBetweenWaves = "help_available_between_waves"
-    
+
     # Game Notifications and UI
     tkGameWaveAnnouncementMain = "game_wave_announcement_main"
     tkGameInstructionsWall = "game_instructions_wall"
@@ -550,7 +550,7 @@ type
     tkGameNoPowerUpData = "game_no_power_up_data"
     tkGameWaveLabel = "game_wave_label"
     tkGameBestStreak = "game_best_streak"
-    
+
     # Stats Window
     tkStatsTimeColumnLabel = "stats_time_column_label"
     tkStatsDamageColumnLabel = "stats_damage_column_label"
@@ -560,7 +560,7 @@ type
     tkStatsTotal = "stats_total"
     tkStatsLegendaryCount = "stats_legendary_count"
     tkStatsCommonCount = "stats_common_count"
-    
+
     # Sandbox Mode
     tkSandboxSpawnEnemies = "sandbox_spawn_enemies"
     tkSandboxSpawn10Random = "sandbox_spawn_10_random"
@@ -587,7 +587,7 @@ type
     tkSandboxDiffPlus = "sandbox_diff_plus"
     tkSandboxToggle = "sandbox_toggle"
     tkSandboxClose = "sandbox_close"
-    
+
     # Cheat Menu
     tkCheatMenuTitle = "cheat_menu_title"
     tkCheatMenuClose = "cheat_menu_close"
@@ -626,7 +626,7 @@ type
     tkCheatAllPowerUps = "cheat_all_power_ups"
     tkCheatActiveEnemies = "cheat_active_enemies"
     tkCheatNoEnemies = "cheat_no_enemies"
-    
+
     # Power-up Installer
     tkPowerUpInstallerTitle = "power_up_installer_title"
     tkPowerUpInstallerTitleGeneric = "power_up_installer_title_generic"
@@ -653,7 +653,7 @@ type
     tkGameLeft = "game_left"
     tkGameCharges = "game_charges"
     tkGameProcesses = "game_processes"
-    
+
     # Shop/Powerups
     tkShopTitle = "shop_title"
     tkShopBuy = "shop_buy"
@@ -685,7 +685,7 @@ type
     tkShopBulletSpeedPlusDesc = "shop_bullet_speed_plus_desc"
     tkShopWallX4 = "shop_wall_x4"
     tkShopWallX4Desc = "shop_wall_x4_desc"
-    
+
     # Powerup Names
     tkPowerupDoubleShot = "powerup_double_shot"
     tkPowerupRotatingShield = "powerup_rotating_shield"
@@ -750,7 +750,7 @@ type
     tkPowerupFortified = "powerup_fortified"
     tkPowerupSpecialRounds = "powerup_special_rounds"
     tkPowerupGiantSlayer = "powerup_giant_slayer"
-    
+
     # Powerup Descriptions
     tkPowerupDoubleShotDesc = "powerup_double_shot_desc"
     tkPowerupRotatingShieldDesc1 = "powerup_rotating_shield_desc1"
@@ -913,7 +913,7 @@ type
     tkPowerupHealPowerDesc1 = "powerup_heal_power_desc1"
     tkPowerupHealPowerDesc2 = "powerup_heal_power_desc2"
     tkPowerupHealPowerDesc3 = "powerup_heal_power_desc3"
-    
+
     # Player Feedback
     tkPlayerDodge = "player_dodge"
     tkPlayerParry = "player_parry"
@@ -925,13 +925,13 @@ type
     tkPlayerNova = "player_nova"
     tkPlayerNovaCooldown = "player_nova_cooldown"
     tkPlayerAbilityOnCooldown = "player_ability_on_cooldown"
-    
+
     # System Messages
     tkSystemDefensiveProcesses = "system_defensive_processes"
     tkSystemPressAnyKey = "system_press_any_key"
     tkSystemNoStatistics = "system_no_statistics"
     tkSystemPressESCToReturn = "system_press_esc_to_return"
-    
+
     # Loading Screen
     tkLoadingTitle = "loading_title"
     tkLoadingSubtitle = "loading_subtitle"
@@ -941,14 +941,14 @@ type
     tkLoadingComplete = "loading_complete"
     tkLoadingHint = "loading_hint"
     tkLoadingCached = "loading_cached"
-    
+
     # Cheat Menu Buttons
     tkCheatCloseInstruction = "cheat_close_instruction"
     tkCheatShowingItems = "cheat_showing_items"
     tkCheatScrollUp = "cheat_scroll_up"
     tkCheatScrollDown = "cheat_scroll_down"
     tkCheatNoPowerUpsSelected = "cheat_no_power_ups_selected"
-    
+
     # OS Task Manager / System Monitoring
     tkOSRunningProcesses = "os_running_processes"
     tkOSNoActiveProcesses = "os_no_active_processes"
@@ -959,7 +959,7 @@ type
     tkOSSystemManager = "os_system_manager"
     tkOSSystemPaused = "os_system_paused"
     tkOSPressSpaceContinue = "os_press_space_continue"
-    
+
     # OS Desktop / System Info
     tkOSSystemMonitor = "os_system_monitor"
     tkOSCPUIdle = "os_cpu_idle"
@@ -969,7 +969,7 @@ type
     tkOSEdition = "os_edition"
     tkOSTopHatButton = "os_tophat_button"
     tkOSNetIndicator = "os_net_indicator"
-    
+
     # Stats Labels
     tkStatsSystemAnalytics = "stats_system_analytics"
     tkStatsRunReport = "stats_run_report"
@@ -978,10 +978,10 @@ type
     tkStatsKillsLabel = "stats_kills_label"
     tkStatsAccuracyLabel = "stats_accuracy_label"
     tkStatsAvgDPS = "stats_avg_dps"
-    
+
     # Enemy Labels
     tkEnemyActiveThreats = "enemy_active_threats"
-    
+
     # PvP Lobby
     tkPvPTitle = "pvp_title"
     tkPvPHostGame = "pvp_host_game"
@@ -1027,7 +1027,7 @@ type
     tkPvPFailedConnect = "pvp_failed_connect"
     tkPvPConnectionTimeout = "pvp_connection_timeout"
     tkPvPHostDisconnected = "pvp_host_disconnected"
-    
+
     # PvP Config - Game Stats section
     tkPvPGameStats = "pvp_game_stats"
     tkPvPStatHp = "pvp_stat_hp"
@@ -1048,7 +1048,7 @@ type
     tkPvPValueOff = "pvp_value_off"
     tkPvPLocalNetMultiplayer = "pvp_local_net_multiplayer"
     tkPvPShareIPInfo = "pvp_share_ip_info"
-    
+
     # PvP Teams
     tkPvPTeamRed = "pvp_team_red"
     tkPvPTeamBlue = "pvp_team_blue"
@@ -1057,17 +1057,17 @@ type
     tkPvPTeamOrange = "pvp_team_orange"
     tkPvPTeamPurple = "pvp_team_purple"
     tkPvPTeamNone = "pvp_team_none"
-    
+
     # Play Styles
     tkStatsPlayStyleAggressive = "stats_play_style_aggressive"
     tkStatsPlayStyleDefensive = "stats_play_style_defensive"
     tkStatsPlayStyleMobile = "stats_play_style_mobile"
     tkStatsPlayStyleTank = "stats_play_style_tank"
-    
+
     tkStatsNoPowerUpsSelected = "stats_no_powerups_selected"
     tkStatsNoGraphDataShort = "stats_no_graph_data_short"
     tkStatsControlsFooter = "stats_controls_footer"
-    
+
     # Lifetime Stats Labels
     tkStatsMovementLabel = "stats_movement_label"
     tkStatsDistanceLabel = "stats_distance_label"
@@ -1093,14 +1093,14 @@ type
     tkStatsAggressionLabel = "stats_aggression_label"
     tkStatsCautionLabel = "stats_caution_label"
     tkStatsDPSOverTimeLabel = "stats_dps_over_time_label"
-    
+
     # General
     tkYes = "general_yes"
     tkNo = "general_no"
     tkBack = "general_back"
     tkConfirm = "general_confirm"
     tkCancel = "general_cancel"
-    
+
     # Wave Celebration (d_enhancements)
     tkWaveClearedText = "wave_cleared_text"
     tkBossDefeatedText = "boss_defeated_text"
@@ -1109,16 +1109,16 @@ type
     tkWaveCelebTime = "wave_celeb_time"
     tkWaveCelebCoins = "wave_celeb_coins"
     tkWaveCelebMaxCombo = "wave_celeb_max_combo"
-    
+
     # Achievement popup (d_enhancements)
     tkAchievementUnlocked = "achievement_unlocked"
-    
+
     # Real-time stats overlay (d_enhancements)
     tkRealStatsPower = "real_stats_power"
     tkRealStatsDPS = "real_stats_dps"
     tkRealStatsKills = "real_stats_kills"
     tkRealStatsCPM = "real_stats_cpm"
-    
+
     # Combo display (d_visuals)
     tkComboInsane = "combo_insane"
     tkComboCrazy = "combo_crazy"
@@ -1127,14 +1127,14 @@ type
     tkComboPerfectWave = "combo_perfect_wave"
     tkComboPerfectStreak = "combo_perfect_streak"
     tkComboCoins = "combo_coins"
-    
+
     # Micro-reward popups & wave-stats
     tkMassacreBonus = "massacre_bonus"
     tkWaveStatsFlawless = "wave_stats_flawless"
     tkWaveStatsTitle = "wave_stats_title"
     tkWaveStatsKillsLabel = "wave_stats_kills_label"
     tkWaveStatsTimeLabel = "wave_stats_time_label"
-    
+
     # 3D Boss Game HUD
     tkGame3DHp = "game3d_hp"
     tkGame3DAmmo = "game3d_ammo"
@@ -1145,7 +1145,7 @@ type
     tkGame3DPhaseTransition = "game3d_phase_transition"
     tkGame3DPaused = "game3d_paused"
     tkGame3DPressEscResume = "game3d_press_esc_resume"
-    
+
     # OS UI
     tkOSRootPrompt = "os_root_prompt"
     tkOSLoading = "os_loading"
@@ -1153,7 +1153,7 @@ type
     tkOSShopSelect = "os_shop_select"
     tkOSShopExit = "os_shop_exit"
     tkShopAvailableBalance = "shop_available_balance"
-    
+
     # Gamemode Names and Descriptions
     tkGameModeWaveBased = "gamemode_wave_based_name"
     tkGameModeWaveBasedDesc = "gamemode_wave_based_desc"
@@ -1163,7 +1163,7 @@ type
     tkGameModeSandboxDesc = "gamemode_sandbox_desc"
     tkGameModePvP = "gamemode_pvp_name"
     tkGameModePvPDesc = "gamemode_pvp_desc"
-    
+
     # Enemy Names and Descriptions
     tkEnemyCircleName = "enemy_circle_name"
     tkEnemyCircleDesc = "enemy_circle_desc"
@@ -1191,7 +1191,7 @@ type
     tkEnemySniperDesc = "enemy_sniper_desc"
     tkEnemyMageName = "enemy_mage_name"
     tkEnemyMageDesc = "enemy_mage_desc"
-    
+
     # Boss Names and Descriptions
     tkBoss1Name = "boss_1_name"
     tkBoss1Desc = "boss_1_desc"
@@ -1217,7 +1217,7 @@ type
     tkBoss11Desc = "boss_11_desc"
     tkBoss12Name = "boss_12_name"
     tkBoss12Desc = "boss_12_desc"
-    
+
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -1243,7 +1243,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_pvp": "DUELINK.exe",
     "desktop_icon_roguelite": "ROOTMAP (ALFA).db",
     "desktop_icon_advancements": "ASCEND.db",
-    
+
     # Settings
     "settings_title": "SETTINGS",
     "settings_fps_limit": "FPS Limit:",
@@ -1287,20 +1287,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_confirm_reset": "Confirm Reset",
     "settings_reset_complete": "Reset complete",
     "settings_reset_failed": "Reset failed",
-    
+
     # Settings window tabs and sections
     "settings_tab_graphics": "Graphics",
     "settings_tab_audio": "Audio",
     "settings_tab_controls": "Controls",
     "settings_tab_gameplay": "Gameplay",
-    
+
     "settings_section_display": "DISPLAY",
     "settings_section_volume_control": "VOLUME CONTROL",
     "settings_section_input_method": "INPUT METHOD",
     "settings_section_assistance": "ASSISTANCE",
     "settings_section_localization": "LOCALIZATION",
     "settings_section_keyboard_shortcuts": "KEYBOARD SHORTCUTS",
-    
+
     "settings_keyboard_wasd": "WASD / Arrows",
     "settings_keyboard_movement": "Movement",
     "settings_keyboard_mouse_space": "Mouse / Space",
@@ -1314,7 +1314,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_keyboard_f11": "F11",
     "settings_keyboard_toggle_fullscreen": "Toggle Fullscreen",
     "settings_keyboard_tab": "Tab",
-    
+
     # Game UI
     "game_pause": "PAUSED",
     "game_resume": "Resume",
@@ -1334,7 +1334,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_left": "left",
     "game_charges": "Charges",
     "game_processes": "Processes",
-    
+
     # Shop/Powerups
     "shop_title": "SHOP",
     "shop_buy": "Buy",
@@ -1366,7 +1366,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_bullet_speed_plus_desc": "Bullet velocity boost",
     "shop_wall_x4": "Wall (x10)",
     "shop_wall_x4_desc": "Buy 10 deployable walls",
-    
+
     # Powerup Names
     "powerup_double_shot": "Double Shot",
     "powerup_rotating_shield": "Rotating Shield",
@@ -1432,7 +1432,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_special_rounds": "Special Rounds",
     "powerup_giant_slayer": "Giant Slayer",
     "powerup_celestial_veil": "Celestial Veil",
-    
+
     # Powerup Descriptions
     "powerup_double_shot_desc": "Fire additional burst after 0.08s (-15% dmg per bullet, -25% fire rate)",
     "powerup_rotating_shield_desc1": "3 shields (30% coverage, 300 HP, 6s respawn)",
@@ -1470,9 +1470,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_bullet_ricochet_desc1": "Bullets ricochet once (75% damage per ricochet)",
     "powerup_bullet_ricochet_desc2": "Bullets ricochet twice (75% damage per ricochet)",
     "powerup_bullet_ricochet_desc3": "Bullets ricochet 3 times (75% damage per ricochet)",
-    "powerup_slow_field_desc1": "Slow enemies 30% in 188 radius",
-    "powerup_slow_field_desc2": "Slow enemies 45% in 250 radius",
-    "powerup_slow_field_desc3": "Slow enemies 55% in 313 radius",
+    "powerup_slow_field_desc1": "Slow enemies 30% in 188 radius (40 dmg/s)",
+    "powerup_slow_field_desc2": "Slow enemies 45% in 250 radius (40 dmg/s)",
+    "powerup_slow_field_desc3": "Slow enemies 55% in 313 radius (40 dmg/s)",
     "powerup_rage_desc1": "+5% dmg per 10% HP lost",
     "powerup_rage_desc2": "+8% dmg per 10% HP lost",
     "powerup_rage_desc3": "+12% dmg per 10% HP lost",
@@ -1509,9 +1509,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_poison_aura_desc1": "Poison {0} dmg/s in 188 radius (6s duration)",
     "powerup_poison_aura_desc2": "Poison {0} dmg/s in 250 radius (8s duration)",
     "powerup_poison_aura_desc3": "Poison {0} dmg/s in 313 radius (10s duration)",
-    "powerup_wind_aura_desc1": "Push enemies away in 188 radius (weak)",
-    "powerup_wind_aura_desc2": "Push enemies away in 250 radius (medium)",
-    "powerup_wind_aura_desc3": "Push enemies away in 313 radius (strong)",
+    "powerup_wind_aura_desc1": "Push enemies away in 188 radius (weak, 30 dmg/s)",
+    "powerup_wind_aura_desc2": "Push enemies away in 250 radius (medium, 30 dmg/s)",
+    "powerup_wind_aura_desc3": "Push enemies away in 313 radius (strong, 30 dmg/s)",
     "powerup_time_warp_desc": "Slow time 50% for 3.5s (2 uses/wave, 10s cd)",
     "powerup_gravity_well_desc": "Pull enemies in 300 radius",
     "powerup_phase_shift_desc": "Dash forward (5s cd, 0.5s invuln, scales with speed)",
@@ -1554,7 +1554,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_blood_orb_desc3": "12 blood orbs ({0} dmg/hit, 3% lifesteal)",
     "powerup_blood_aura_desc1": "Blood aura {0} dmg/s in 188 radius, heal 2.5% dealt",
     "powerup_blood_aura_desc2": "Blood aura {0} dmg/s in 250 radius, heal 5% dealt",
-    "powerup_blood_aura_desc3": "Blood aura {0} dmg/s in 313 radius, heal 10% dealt",
+    "powerup_blood_aura_desc3": "Blood aura {0} dmg/s in 313 radius, heal 7.5% dealt",
     "powerup_blood_mastery_desc": "Blood effects: +150% dmg, +100% lifesteal",
     "powerup_radial_burst_desc1": "Fire 8 bullets in a circle every 3.5s (uses player damage)",
     "powerup_radial_burst_desc2": "Fire 10 bullets in a circle every 3.0s (uses player damage)",
@@ -1594,7 +1594,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_heal_power_desc1": "All healing received is amplified by 15%. Affects regeneration, lifesteal, and consumables.",
     "powerup_heal_power_desc2": "All healing received is amplified by 20%. Affects regeneration, lifesteal, and consumables.",
     "powerup_heal_power_desc3": "All healing received is amplified by 25%. Affects regeneration, lifesteal, and consumables.",
-    
+
     # Player Feedback
     "player_dodge": "DODGE!",
     "player_parry": "PARRY!",
@@ -1606,13 +1606,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "player_nova": "NOVA!",
     "player_nova_cooldown": "BULLETS RELEASED!",
     "player_ability_on_cooldown": "NOT READY",
-    
+
     # System Messages
     "system_defensive_processes": "All defensive processes have been terminated.",
     "system_press_any_key": "Press almost any key to continue...",
     "system_no_statistics": "No statistics available",
     "system_press_esc_to_return": "Press ESC to return",
-    
+
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
     "loading_subtitle": "v5.5 Edition",
@@ -1622,14 +1622,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "loading_complete": "Asset generation complete!",
     "loading_hint": "Generating procedural audio assets",
     "loading_cached": "All assets loaded from cache",
-    
+
     # Cheat Menu Buttons
     "cheat_close_instruction": "Press ESC or click X to close",
     "cheat_showing_items": "Showing",
     "cheat_scroll_up": "UP to scroll up",
     "cheat_scroll_down": "DOWN to scroll down",
     "cheat_no_power_ups_selected": "No power-ups selected",
-    
+
     # OS Task Manager / System Monitoring
     "os_running_processes": "RUNNING PROCESSES",
     "os_no_active_processes": "No active processes",
@@ -1640,7 +1640,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_system_manager": "System Manager",
     "os_system_paused": "System paused - press SPACE to continue",
     "os_press_space_continue": "Press SPACE to continue",
-    
+
     # OS Desktop / System Info
     "os_system_monitor": "System Monitor",
     "os_cpu_idle": "CPU: Idle",
@@ -1650,7 +1650,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_edition": "[v5.5 Edition]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "NET",
-    
+
     # Stats Labels
     "stats_system_analytics": "System Analytics",
     "stats_run_report": "Run Report",
@@ -1685,17 +1685,17 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_play_style_label": "PLAY STYLE",
     "stats_dps_over_time_label": "DPS OVER TIME",
     "stats_host_default": "Host",
-    
+
     # Enemy Labels
     "enemy_active_threats": "ACTIVE THREATS:",
-    
+
     # General
     "general_yes": "Yes",
     "general_no": "No",
     "general_back": "Back",
     "general_confirm": "Confirm",
     "general_cancel": "Cancel",
-    
+
     # Wave Celebration
     "wave_cleared_text": "WAVE",
     "boss_defeated_text": "BOSS",
@@ -1704,16 +1704,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "wave_celeb_time": "Time",
     "wave_celeb_coins": "Coins Earned",
     "wave_celeb_max_combo": "Max Combo",
-    
+
     # Achievement popup
     "achievement_unlocked": "ACHIEVEMENT UNLOCKED!",
-    
+
     # Real-time stats overlay
     "real_stats_power": "Power",
     "real_stats_dps": "DPS",
     "real_stats_kills": "Kills",
     "real_stats_cpm": "C/min",
-    
+
     # Combo display
     "combo_insane": "INSANE!",
     "combo_crazy": "CRAZY!",
@@ -1722,14 +1722,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "combo_perfect_wave": "PERFECT WAVE!",
     "combo_perfect_streak": "PERFECT x",
     "combo_coins": "coins!",
-    
+
     # Micro-reward popups & wave-stats
     "massacre_bonus": "MASSACRE BONUS!",
     "wave_stats_flawless": "FLAWLESS!",
     "wave_stats_title": "WAVE",
     "wave_stats_kills_label": "Kills:",
     "wave_stats_time_label": "Time:",
-    
+
     # 3D Boss Game HUD
     "game3d_hp": "HP",
     "game3d_ammo": "Ammo",
@@ -1740,7 +1740,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game3d_phase_transition": "PHASE TRANSITION!",
     "game3d_paused": "PAUSED",
     "game3d_press_esc_resume": "Press ESC to resume",
-    
+
     # OS UI
     "os_root_prompt": "root@tophat-shooteros:~$",
     "os_loading": "Loading...",
@@ -1750,7 +1750,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_available_balance": "Available Balance",
     "os_system_paused": "System paused",
     "os_press_space_continue": "press SPACE to continue",
-    
+
     # Stats Window
     "stats_window_title": "System Monitor - Player Analytics",
     "stats_tab_lifetime": "Lifetime",
@@ -1821,7 +1821,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_damage": "DAMAGE",
     "stats_no_damage_data": "No damage data available",
     "stats_no_power_up_data": "No power-up data available",
-    
+
     # Game Over Screen
     "game_over_title": "ALL THREATS NEUTRALIZED",
     "game_over_secure": "SYSTEM STATUS: [*] SECURE",
@@ -1844,7 +1844,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_security_level_max": "SECURITY LEVEL: MAXIMUM | ALL PROCESSES STABLE",
     "game_over_system_failed_footer": "[!] System will remain in failed state until manual restart",
     "game_over_system_secure_footer": "[OK] All systems operational | Defensive grid at maximum efficiency",
-    
+
     # HUD/Notifications
     "hud_integrity": "INTEGRITY:",
     "hud_charges": "CHARGES",
@@ -1856,7 +1856,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_threats": "THREATS:",
     "notif_wave_initiated": "Wave initiated",
     "notif_wave_cleared": "Wave cleared",
-    
+
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNOSTICS",
     "debug_panel_fps": "FPS",
@@ -1869,7 +1869,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_low_hp_bonuses": "Low HP Bonuses",
     "debug_panel_rage": "Rage",
     "debug_panel_berserker": "Berserk",
-    
+
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNOSTICS",
     "debug_panel_fps": "FPS",
@@ -1893,7 +1893,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_run_stats": "Run Stats:",
     "debug_panel_wave_label": "Wave",
     "debug_panel_time_label": "Time",
-    
+
     # Shop tabs
     "shop_tab_player": "PLAYER",
     "shop_tab_bullet": "BULLET",
@@ -1909,7 +1909,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_customize_bullets": "CUSTOMIZE YOUR BULLETS",
     "shop_choose_shape": "CHOOSE YOUR SHAPE",
     "shop_customize_effects": "CUSTOMIZE SHOOTING EFFECTS",
-    
+
     # Player Skins
     "skin_default": "System Default",
     "skin_default_desc": "Classic cyan OS interface",
@@ -1935,7 +1935,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "skin_void_desc": "Dark purple void energy",
     "skin_plasma": "Plasma Core",
     "skin_plasma_desc": "Electric blue-purple plasma",
-    
+
     # Bullet Skins
     "bullet_default": "System Default",
     "bullet_default_desc": "Classic cyan projectile",
@@ -1961,7 +1961,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "bullet_void_desc": "Dark purple void energy",
     "bullet_plasma": "Plasma Core",
     "bullet_plasma_desc": "Electric blue-purple plasma",
-    
+
     # Shapes
     "shape_hexagon": "Hexagon",
     "shape_hexagon_desc": "Classic hexagonal shape",
@@ -2010,7 +2010,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "particle_lightning_desc": "Electric yellow bolts",
     "particle_void": "Void Energy",
     "particle_void_desc": "Dark dimensional rifts",
-    
+
     # Legendary Panel
     "legendary_panel_title": "LEGENDARY",
     "legendary_chronos": "Chronos",
@@ -2037,7 +2037,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "notif_cooldown": "cooldown:",
     "notif_process_terminated": "Process terminated:",
     "notif_processes_terminated": "Processes terminated:",
-    
+
     # Help System
     "help_window_title": "Help System - Terminal",
     "help_available_commands": "  AVAILABLE COMMANDS",
@@ -2056,7 +2056,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_unknown_command": "Unknown command:",
     "help_type_help": "Type 'help' for available commands",
     "help_error_executing": "Error executing command:",
-    
+
     # Help System - Command descriptions
     "help_cmd_help": "Show this command list",
     "help_cmd_controls": "View controls and keybindings",
@@ -2066,7 +2066,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_cmd_bosses": "Boss information",
     "help_cmd_shop": "Shop items and costs",
     "help_cmd_launch_icons": "Launch desktop icons by name",
-    
+
     # Help System - Controls section
     "help_movement": "MOVEMENT",
     "help_combat": "COMBAT",
@@ -2081,7 +2081,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_e": "E .................. Place Wall",
     "help_esc": "ESC ................ Pause / Return to menu",
     "help_f11": "F11 ................ Toggle Fullscreen",
-    
+
     # Help System - Gameplay section
     "help_wave_mode": "WAVE-BASED MODE",
     "help_wave_mode_desc": "- Clear waves of enemies\n  - Boss appears every 5th wave\n  - Choose power-up after each wave\n  - Shop opens after power-up selection",
@@ -2089,13 +2089,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_survival_mode_desc": "- Survive endless enemy hordes\n  - Enemies spawn continuously\n  - Boss appears every 60 seconds",
     "help_sandbox_mode": "SANDBOX MODE",
     "help_sandbox_mode_desc": "- Testing mode with spawner controls\n  - Experiment with different scenarios",
-    
+
     # Help System - Power-ups section
     "help_common_powerups": "COMMON POWER-UPS",
     "help_elemental_orbs": "ELEMENTAL ORBS",
     "help_elemental_auras": "ELEMENTAL AURAS",
     "help_legendary_powerups": "LEGENDARY POWER-UPS (Press Q)",
-    
+
     # Help System - Enemy section
     "help_enemy_circle": "CIRCLE (Chaser)",
     "help_enemy_cube": "CUBE (Turret)",
@@ -2103,19 +2103,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_enemy_star": "STAR (Tank)",
     "help_enemy_hexagon": "HEXAGON (Warper)",
     "help_enemy_elite": "ELITE VARIANTS",
-    
+
     # Help System - Boss section
     "help_boss_spawning": "BOSS SPAWNING",
     "help_boss_mechanics": "BOSS MECHANICS",
     "help_boss_attacks": "BOSS ATTACKS",
     "help_boss_rewards": "REWARDS",
-    
+
     # Help System - Shop section
     "help_available_items": "AVAILABLE ITEMS",
     "help_cost_scaling": "COST SCALING",
     "help_earning_coins": "EARNING COINS",
     "help_shop_access": "SHOP ACCESS",
-    
+
     # Help System - Powerup names
     "help_double_shot": "Double Shot - Fire 2 bullets per shot",
     "help_rotating_shield": "Rotating Shield - Orbiting protective shield",
@@ -2172,7 +2172,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_lightning_mastery": "Lightning Mastery - Enhance lightning effects",
     "help_wind_mastery": "Wind Mastery - Enhance all wind effects",
     "help_blood_mastery": "Blood Mastery - Enhance all blood effects",
-    
+
     # Help System - Shop items
     "help_shop_damage_plus": "Damage + (13 CR base)",
     "help_shop_damage_plus_desc": "Bullet damage boost",
@@ -2186,7 +2186,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_shop_bullet_speed_plus_desc": "Bullet velocity boost",
     "help_shop_wall_x4": "Wall x10 (18 CR base)",
     "help_shop_wall_x4_desc": "Buy 10 deployable walls",
-    
+
     # Help System - Misc
     "help_wave_mode_info": "Wave Mode: Every 5th wave (5, 10, 15...)",
     "help_survival_mode_info": "Survival Mode: Every 60 seconds",
@@ -2204,7 +2204,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_boss_drop_large": "- Bosses drop large amounts",
     "help_opens_after_powerup": "- Opens after power-up selection",
     "help_available_between_waves": "- Available between waves",
-    
+
     # Game Notifications and UI
     "game_wave_announcement_main": "*** WAVE ***",
     "game_instructions_wall": "E: Wall | ESC: Pause",
@@ -2219,7 +2219,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_no_power_up_data": "No power-up data available",
     "game_wave_label": "Wave ",
     "game_best_streak": "Best Streak",
-    
+
     # Stats Window
     "stats_time_column_label": "TIME",
     "stats_damage_column_label": "DAMAGE",
@@ -2229,7 +2229,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_total": "Total",
     "stats_legendary_count": "Legendary",
     "stats_common_count": "Common",
-    
+
     # Sandbox Mode
     "sandbox_spawn_enemies": "Spawn Enemies:",
     "sandbox_spawn_10_random": "Spawn 10 Random",
@@ -2256,7 +2256,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "sandbox_diff_plus": "Diff +",
     "sandbox_toggle": ">>",
     "sandbox_close": "X",
-    
+
     # Cheat Menu
     "cheat_menu_title": "CHEAT MENU (TESTER BUILD)",
     "cheat_menu_close": "Press ESC or click X to close",
@@ -2295,7 +2295,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_all_power_ups": "All Available Power-Ups (scroll with UP/DOWN):",
     "cheat_active_enemies": "Active Enemies",
     "cheat_no_enemies": "No enemies currently alive",
-    
+
     # Power-up Installer
     "power_up_installer_title": "LEGENDARY UPGRADE INSTALLER",
     "power_up_installer_title_generic": "PROCESS UPGRADE MANAGER",
@@ -2304,7 +2304,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "power_up_select_upgrade": "v SELECT UPGRADE TO INSTALL:",
     "power_up_rolling": "[!] ROLLING...",
     "power_up_reroll_options": "[R] Reroll Options",
-    
+
     # PvP Lobby
     "pvp_title": "PVP MODE",
     "pvp_host_game": "HOST GAME",
@@ -2350,7 +2350,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_failed_connect": "Failed to connect: ",
     "pvp_connection_timeout": "Connection timeout",
     "pvp_host_disconnected": "Host disconnected",
-    
+
     # PvP Config - Game Stats section
     "pvp_game_stats": "GAME STATS",
     "pvp_stat_hp": "HP",
@@ -2371,7 +2371,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_value_off": "OFF",
     "pvp_local_net_multiplayer": "[ LOCAL NETWORK MULTIPLAYER ]",
     "pvp_share_ip_info": "Share your Local IP with friends on the same network",
-    
+
     # PvP Teams
     "pvp_team_red": "Red",
     "pvp_team_blue": "Blue",
@@ -2380,7 +2380,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_team_orange": "Orange",
     "pvp_team_purple": "Purple",
     "pvp_team_none": "None",
-    
+
     "stats_play_style_aggressive": "Aggressive",
     "stats_play_style_defensive": "Defensive",
     "stats_play_style_mobile": "Mobile",
@@ -2389,7 +2389,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_dps_over_time_label": "DPS OVER TIME",
     "stats_no_graph_data_short": "No graph data",
     "stats_controls_footer": "[TAB/ESC] Return  [R] Restart  [Q] Menu",
-    
+
     # Lifetime Stats Labels
     "stats_movement_label": "MOVEMENT",
     "stats_distance_label": "Distance",
@@ -2419,7 +2419,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_play_style_defensive": "Defensive",
     "stats_play_style_mobile": "Mobile",
     "stats_play_style_tank": "Tank",
-    
+
     # Gamemode Names and Descriptions
     "gamemode_wave_based_name": "Wave-Based",
     "gamemode_wave_based_desc": "Fight through waves of enemies. Defeat bosses every 5 waves for legendary upgrades.",
@@ -2566,7 +2566,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_roguelite_runs": "Runs",
     "stats_roguelite_lifetime": "ROGUELITE LIFETIME",
     "stats_roguelite_mode": "Roguelite",
-    
+
     # Enemy Names and Descriptions
     "enemy_circle_name": "Circle Chaser",
     "enemy_circle_desc": "Basic melee enemy that chases the player",
@@ -2594,7 +2594,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "enemy_sniper_desc": "Deadly enemy that charges a powerful one-shot kill attack",
     "enemy_mage_name": "Mage",
     "enemy_mage_desc": "Magical enemy that summons meteorites and fires homing projectiles",
-    
+
     # Boss Names and Descriptions
     "boss_1_name": "The Spiral Guardian",
     "boss_1_desc": "A mystical entity that weaves spiraling bullet patterns",
@@ -2621,7 +2621,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_12_name": "The Omega Entity",
     "boss_12_desc": "The ultimate challenge - combines all previous boss mechanics"
   }.toTable,
-  
+
   Spanish: {
     # Main Menu
     "menu_play": "jugar",
@@ -2644,7 +2644,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_pvp": "DUELOS.exe",
     "desktop_icon_roguelite": "ROOTMAP (ALFA).db",
     "desktop_icon_advancements": "ASCEND.db",
-    
+
     # Settings
     "settings_title": "CONFIG",
     "settings_fps_limit": "Límite FPS:",
@@ -2688,20 +2688,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_confirm_reset": "Confirmar",
     "settings_reset_complete": "Reinicio completo",
     "settings_reset_failed": "Error al reiniciar",
-    
+
     # Settings window tabs and sections
     "settings_tab_graphics": "Gráficos",
     "settings_tab_audio": "Audio",
     "settings_tab_controls": "Controles",
     "settings_tab_gameplay": "Juego",
-    
+
     "settings_section_display": "PANTALLA",
     "settings_section_volume_control": "VOLUMEN",
     "settings_section_input_method": "ENTRADA",
     "settings_section_assistance": "ASISTENCIA",
     "settings_section_localization": "IDIOMA",
     "settings_section_keyboard_shortcuts": "ATAJOS",
-    
+
     "settings_keyboard_wasd": "WASD / Flechas",
     "settings_keyboard_movement": "Movimiento",
     "settings_keyboard_mouse_space": "Ratón / Espacio",
@@ -2715,7 +2715,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_keyboard_f11": "F11",
     "settings_keyboard_toggle_fullscreen": "P. Completa",
     "settings_keyboard_tab": "Tab",
-    
+
     # Game UI
     "game_pause": "PAUSA",
     "game_resume": "Continuar",
@@ -2735,7 +2735,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_left": "restantes",
     "game_charges": "Cargas",
     "game_processes": "Procesos",
-    
+
     # Shop/Powerups
     "shop_title": "TIENDA",
     "shop_buy": "Comprar",
@@ -2767,7 +2767,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_bullet_speed_plus_desc": "Mejora de balas",
     "shop_wall_x4": "Muro (x10)",
     "shop_wall_x4_desc": "Compra 10 muros desplegables",
-    
+
     # Powerup Names
     "powerup_double_shot": "Disparo Doble",
     "powerup_rotating_shield": "Escudo Giratorio",
@@ -2833,7 +2833,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_special_rounds": "Balas Especiales",
     "powerup_giant_slayer": "Matador de Gigantes",
     "powerup_celestial_veil": "Velo Celestial",
-    
+
     # Powerup Descriptions
     "powerup_double_shot_desc": "Disparar ráfaga adicional después de 0.08s (-15% daño por bala, -25% cadencia)",
     "powerup_rotating_shield_desc1": "3 escudos (30% cobertura, 300 HP, 6s reaparición)",
@@ -2871,9 +2871,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_bullet_ricochet_desc1": "Balas rebotan 1 vez (75% daño por rebote)",
     "powerup_bullet_ricochet_desc2": "Balas rebotan 2 veces (75% daño por rebote)",
     "powerup_bullet_ricochet_desc3": "Balas rebotan 3 veces (75% daño por rebote)",
-    "powerup_slow_field_desc1": "Ralentiza a los enemigos un 30% en radio 188",
-    "powerup_slow_field_desc2": "Ralentiza a los enemigos un 45% en radio 250",
-    "powerup_slow_field_desc3": "Ralentiza a los enemigos un 55% en radio 313",
+    "powerup_slow_field_desc1": "Ralentiza a los enemigos un 30% en radio 188 (40 daño/s)",
+    "powerup_slow_field_desc2": "Ralentiza a los enemigos un 45% en radio 250 (40 daño/s)",
+    "powerup_slow_field_desc3": "Ralentiza a los enemigos un 55% en radio 313 (40 daño/s)",
     "powerup_rage_desc1": "+5% daño por 10% HP perdido",
     "powerup_rage_desc2": "+8% daño por 10% HP perdido",
     "powerup_rage_desc3": "+12% daño por 10% HP perdido",
@@ -2910,9 +2910,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_poison_aura_desc1": "Veneno {0} daño/s en radio 188 (duración 6s)",
     "powerup_poison_aura_desc2": "Veneno {0} daño/s en radio 250 (duración 8s)",
     "powerup_poison_aura_desc3": "Veneno {0} daño/s en radio 313 (duración 10s)",
-    "powerup_wind_aura_desc1": "Empujar enemigos en radio 188 (débil)",
-    "powerup_wind_aura_desc2": "Empujar enemigos en radio 250 (medio)",
-    "powerup_wind_aura_desc3": "Empujar enemigos en radio 313 (fuerte)",
+    "powerup_wind_aura_desc1": "Empujar enemigos en radio 188 (débil, 30 daño/s)",
+    "powerup_wind_aura_desc2": "Empujar enemigos en radio 250 (medio, 30 daño/s)",
+    "powerup_wind_aura_desc3": "Empujar enemigos en radio 313 (fuerte, 30 daño/s)",
     "powerup_time_warp_desc": "Ralentiza el tiempo un 50% durante 3.5 s (2 usos/oleada, 10 s de recarga)",
     "powerup_gravity_well_desc": "Atrae enemigos en un radio de 300",
     "powerup_phase_shift_desc": "Dash hacia delante (5 s cd, 0.5 s invuln., escala con velocidad)",
@@ -2955,7 +2955,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_blood_orb_desc3": "12 orbes sangre ({0} daño/golpe, 3% robo vida)",
     "powerup_blood_aura_desc1": "Aura de sangre: {0} daño/s en radio 188 y cura un 2.5% del daño infligido",
     "powerup_blood_aura_desc2": "Aura de sangre: {0} daño/s en radio 250 y cura un 5% del daño infligido",
-    "powerup_blood_aura_desc3": "Aura de sangre: {0} daño/s en radio 313 y cura un 10% del daño infligido",
+    "powerup_blood_aura_desc3": "Aura de sangre: {0} daño/s en radio 313 y cura un 7.5% del daño infligido",
     "powerup_blood_mastery_desc": "Sangre: +150% daño y +100% robo de vida",
     "powerup_radial_burst_desc1": "Dispara 8 balas en círculo cada 3.5 s (usa tu daño)",
     "powerup_radial_burst_desc2": "Dispara 10 balas en círculo cada 3.0 s (usa tu daño)",
@@ -2995,7 +2995,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_heal_power_desc1": "Toda la curación recibida se amplifica un 15 %. Afecta a regeneración, roba-vida y consumibles.",
     "powerup_heal_power_desc2": "Toda la curación recibida se amplifica un 20 %. Afecta a regeneración, roba-vida y consumibles.",
     "powerup_heal_power_desc3": "Toda la curación recibida se amplifica un 25 %. Afecta a regeneración, roba-vida y consumibles.",
-    
+
     # Stats Window
     "stats_window_title": "Monitor del Sistema - Análisis de Jugador",
     "stats_tab_lifetime": "Permanente",
@@ -3066,7 +3066,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_damage": "DAÑO",
     "stats_no_damage_data": "Sin datos de daño disponibles",
     "stats_no_power_up_data": "Sin datos de mejora disponibles",
-    
+
     # Game Over Screen
     "game_over_title": "TODAS LAS AMENAZAS NEUTRALIZADAS",
     "game_over_secure": "ESTADO DEL SISTEMA: [*] SEGURO",
@@ -3089,7 +3089,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_security_level_max": "NIVEL DE SEGURIDAD: MÁXIMO | TODOS LOS PROCESOS ESTABLES",
     "game_over_system_failed_footer": "[!] El sistema permanecerá en estado fallido hasta reinicio manual",
     "game_over_system_secure_footer": "[OK] Todos los sistemas operacionales | Cuadrícula defensiva en máxima eficiencia",
-    
+
     # HUD/Notifications
     "hud_system_status": "ESTADO DEL SISTEMA",
     "hud_integrity": "INTEGRIDAD:",
@@ -3102,7 +3102,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_threats": "AMENAZAS:",
     "notif_wave_initiated": "Oleada iniciada",
     "notif_wave_cleared": "Oleada despejada",
-    
+
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNÓSTICOS",
     "debug_panel_fps": "FPS",
@@ -3115,7 +3115,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_low_hp_bonuses": "Bonificaciones Bajo HP",
     "debug_panel_rage": "Furia",
     "debug_panel_berserker": "Berserker",
-    
+
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNÓSTICOS",
     "debug_panel_fps": "FPS",
@@ -3139,7 +3139,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_run_stats": "Estadísticas de Ejecución:",
     "debug_panel_wave_label": "Oleada",
     "debug_panel_time_label": "Tiempo",
-    
+
     # Shop tabs
     "shop_tab_player": "JUGADOR",
     "shop_tab_bullet": "BALA",
@@ -3155,7 +3155,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_customize_bullets": "PERSONALIZA TUS BALAS",
     "shop_choose_shape": "ELIGE TU FORMA",
     "shop_customize_effects": "PERSONALIZA EFECTOS",
-    
+
     # Player Skins
     "skin_default": "Sistema base",
     "skin_default_desc": "Interfaz clásica del sistema",
@@ -3181,7 +3181,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "skin_void_desc": "Energía púrpura del vacío",
     "skin_plasma": "Plasma",
     "skin_plasma_desc": "Plasma azul violáceo",
-    
+
     # Bullet Skins
     "bullet_default": "Sistema base",
     "bullet_default_desc": "Proyectil clásico cian",
@@ -3207,7 +3207,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "bullet_void_desc": "Energía púrpura del vacío",
     "bullet_plasma": "Plasma",
     "bullet_plasma_desc": "Plasma azul violáceo",
-    
+
     # Shapes
     "shape_hexagon": "Hexágono",
     "shape_hexagon_desc": "Forma hexagonal clásica",
@@ -3256,7 +3256,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "particle_lightning_desc": "Chispas eléctricas amarillas",
     "particle_void": "Vacío",
     "particle_void_desc": "Grietas oscuras dimensionales",
-    
+
     # Legendary Panel
     "legendary_panel_title": "LEGENDARIO",
     "legendary_chronos": "Cronos",
@@ -3283,7 +3283,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "notif_cooldown": "enfriamiento:",
     "notif_process_terminated": "Proceso terminado:",
     "notif_processes_terminated": "Procesos terminados:",
-    
+
     # Help System
     "help_window_title": "Sistema de Ayuda - Terminal",
     "help_available_commands": "  COMANDOS DISPONIBLES",
@@ -3302,7 +3302,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_unknown_command": "Comando desconocido:",
     "help_type_help": "Escriba 'help' para ver comandos disponibles",
     "help_error_executing": "Error ejecutando comando:",
-    
+
     # Help System - Command descriptions
     "help_cmd_help": "Mostrar esta lista de comandos",
     "help_cmd_controls": "Ver controles y atajos de teclado",
@@ -3312,7 +3312,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_cmd_bosses": "Información de jefes",
     "help_cmd_shop": "Artículos de tienda y costos",
     "help_cmd_launch_icons": "Lanzar iconos de escritorio por nombre",
-    
+
     # Help System - Controls section
     "help_movement": "MOVIMIENTO",
     "help_combat": "COMBATE",
@@ -3327,7 +3327,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_e": "E .................. Colocar Muro",
     "help_esc": "ESC ................ Pausa / Volver al menú",
     "help_f11": "F11 ................ Alternar Pantalla Completa",
-    
+
     # Help System - Gameplay section
     "help_wave_mode": "MODO OLEADAS",
     "help_wave_mode_desc": "- Elimina oleadas de enemigos\n  - Jefe aparece cada 5ta oleada\n  - Elige mejora después de cada oleada\n  - Tienda abre después de seleccionar mejora",
@@ -3335,13 +3335,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_survival_mode_desc": "- Sobrevive hordas infinitas de enemigos\n  - Los enemigos aparecen continuamente\n  - Jefe aparece cada 60 segundos",
     "help_sandbox_mode": "MODO SANDBOX",
     "help_sandbox_mode_desc": "- Modo de prueba con controles de aparición\n  - Experimenta con diferentes escenarios",
-    
+
     # Help System - Power-ups section
     "help_common_powerups": "MEJORAS COMUNES",
     "help_elemental_orbs": "ORBES ELEMENTALES",
     "help_elemental_auras": "AURAS ELEMENTALES",
     "help_legendary_powerups": "MEJORAS LEGENDARIAS (Presiona Q)",
-    
+
     # Help System - Enemy section
     "help_enemy_circle": "CÍRCULO (Perseguidor)",
     "help_enemy_cube": "CUBO (Torreta)",
@@ -3349,19 +3349,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_enemy_star": "ESTRELLA (Tanque)",
     "help_enemy_hexagon": "HEXÁGONO (Teletransportador)",
     "help_enemy_elite": "VARIANTES ÉLITE",
-    
+
     # Help System - Boss section
     "help_boss_spawning": "APARICIÓN DE JEFES",
     "help_boss_mechanics": "MECÁNICAS DE JEFES",
     "help_boss_attacks": "ATAQUES DE JEFES",
     "help_boss_rewards": "RECOMPENSAS",
-    
+
     # Help System - Shop section
     "help_available_items": "ARTÍCULOS DISPONIBLES",
     "help_cost_scaling": "ESCALADO DE COSTOS",
     "help_earning_coins": "GANANDO MONEDAS",
     "help_shop_access": "ACCESO A TIENDA",
-    
+
     # Help System - Powerup names
     "help_double_shot": "Doble Disparo - Dispara 2 balas por tiro",
     "help_rotating_shield": "Escudo Giratorio - Escudo protector orbitante",
@@ -3418,7 +3418,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_lightning_mastery": "Dominio del Rayo - Mejora los efectos de rayo",
     "help_wind_mastery": "Dominio del Viento - Mejora todos los efectos de viento",
     "help_blood_mastery": "Dominio de la Sangre - Mejora todos los efectos de sangre",
-    
+
     # Help System - Shop items
     "help_shop_damage_plus": "Dano + (13 CR base)",
     "help_shop_damage_plus_desc": "Mejora de dano de balas",
@@ -3432,7 +3432,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_shop_bullet_speed_plus_desc": "Mejora de velocidad de balas",
     "help_shop_wall_x4": "Muro x10 (18 CR base)",
     "help_shop_wall_x4_desc": "Compra 10 muros desplegables",
-    
+
     # Help System - Misc
     "help_wave_mode_info": "Modo Oleadas: Cada 5ta oleada (5, 10, 15...)",
     "help_survival_mode_info": "Modo Supervivencia: Cada 60 segundos",
@@ -3450,7 +3450,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_boss_drop_large": "- Los jefes dejan caer grandes cantidades",
     "help_opens_after_powerup": "- Se abre después de seleccionar mejora",
     "help_available_between_waves": "- Disponible entre oleadas",
-    
+
     # Game Notifications and UI
     "game_wave_announcement_main": "*** OLEADA ***",
     "game_instructions_wall": "E: Muro | ESC: Pausa",
@@ -3465,7 +3465,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_no_power_up_data": "Sin datos de mejoras disponibles",
     "game_wave_label": "Oleada ",
     "game_best_streak": "Mejor Racha",
-    
+
     # Stats Window
     "stats_time_column_label": "TIEMPO",
     "stats_damage_column_label": "DAÑO",
@@ -3475,7 +3475,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_total": "Total",
     "stats_legendary_count": "Legendario",
     "stats_common_count": "Común",
-    
+
     # Sandbox Mode
     "sandbox_spawn_enemies": "Aparecer Enemigos:",
     "sandbox_spawn_10_random": "Aparecer 10 Aleatorios",
@@ -3502,7 +3502,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "sandbox_diff_plus": "Dif +",
     "sandbox_toggle": ">>",
     "sandbox_close": "X",
-    
+
     # Cheat Menu
     "cheat_menu_title": "MENÚ DE TRUCOS (COMPILACIÓN DE PRUEBA)",
     "cheat_menu_close": "Presiona ESC o haz clic en X para cerrar",
@@ -3541,7 +3541,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_all_power_ups": "Todas las Mejoras Disponibles (desplázate con ARRIBA/ABAJO):",
     "cheat_active_enemies": "Enemigos Activos",
     "cheat_no_enemies": "Sin enemigos actualmente vivos",
-    
+
     # Power-up Installer
     "power_up_installer_title": "INSTALADOR DE MEJORA LEGENDARIA",
     "power_up_installer_title_generic": "ADMINISTRADOR DE ACTUALIZACIÓN DE PROCESOS",
@@ -3550,7 +3550,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "power_up_select_upgrade": "v SELECCIONA MEJORA PARA INSTALAR:",
     "power_up_rolling": "[!] GIRANDO...",
     "power_up_reroll_options": "[R] Opción de Nuevo Intento",
-    
+
     # Player Feedback
     "player_dodge": "¡ESQUIVA!",
     "player_parry": "¡PARRY!",
@@ -3562,13 +3562,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "player_nova": "¡NOVA!",
     "player_nova_cooldown": "¡BALAS LIBERADAS!",
     "player_ability_on_cooldown": "NO DISPONIBLE",
-    
+
     # System Messages
     "system_defensive_processes": "Todos los procesos defensivos han sido terminados.",
     "system_press_any_key": "Presiona cualquier tecla para continuar...",
     "system_no_statistics": "No hay estadísticas disponibles",
     "system_press_esc_to_return": "Presiona ESC para volver",
-    
+
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
     "loading_subtitle": "Edición v5.5",
@@ -3578,14 +3578,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "loading_complete": "¡Generación de assets completa!",
     "loading_hint": "Generando assets de audio procedurales",
     "loading_cached": "Todos los assets cargados desde caché",
-    
+
     # Cheat Menu Buttons
     "cheat_close_instruction": "Presiona ESC o haz clic en X para cerrar",
     "cheat_showing_items": "Mostrando",
     "cheat_scroll_up": "ARRIBA para desplazarse hacia arriba",
     "cheat_scroll_down": "ABAJO para desplazarse hacia abajo",
     "cheat_no_power_ups_selected": "Sin mejoras seleccionadas",
-    
+
     # OS Task Manager / System Monitoring
     "os_running_processes": "PROCESOS ACTIVOS",
     "os_no_active_processes": "Sin procesos",
@@ -3596,7 +3596,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_system_manager": "Admin. Sistema",
     "os_system_paused": "Sistema pausado - presiona ESPACIO para continuar",
     "os_press_space_continue": "Presiona ESPACIO para continuar",
-    
+
     # OS Desktop / System Info
     "os_system_monitor": "Monitor del Sistema",
     "os_cpu_idle": "CPU: Inactiva",
@@ -3606,7 +3606,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_edition": "[Edición v5.5]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "RED",
-    
+
     # Stats Labels
     "stats_system_analytics": "Análisis del Sistema",
     "stats_run_report": "Informe de Ejecución",
@@ -3641,17 +3641,17 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_play_style_label": "ESTILO DE JUEGO",
     "stats_dps_over_time_label": "DPS A TRAVÉS DEL TIEMPO",
     "stats_host_default": "Host",
-    
+
     # Enemy Labels
     "enemy_active_threats": "AMENAZAS ACTIVAS:",
-    
+
     # General
     "general_yes": "Sí",
     "general_no": "No",
     "general_back": "Volver",
     "general_confirm": "Confirmar",
     "general_cancel": "Cancelar",
-    
+
     # Wave Celebration
     "wave_cleared_text": "OLEADA",
     "boss_defeated_text": "JEFE",
@@ -3660,16 +3660,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "wave_celeb_time": "Tiempo",
     "wave_celeb_coins": "Monedas Ganadas",
     "wave_celeb_max_combo": "Combo Máximo",
-    
+
     # Achievement popup
     "achievement_unlocked": "¡LOGRO DESBLOQUEADO!",
-    
+
     # Real-time stats overlay
     "real_stats_power": "Poder",
     "real_stats_dps": "DPS",
     "real_stats_kills": "Muertes",
     "real_stats_cpm": "M/min",
-    
+
     # Combo display
     "combo_insane": "¡LOCURA!",
     "combo_crazy": "¡BRUTAL!",
@@ -3678,14 +3678,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "combo_perfect_wave": "¡OLEADA PERFECTA!",
     "combo_perfect_streak": "PERFECTA x",
     "combo_coins": "monedas!",
-    
+
     # Micro-reward popups & wave-stats
     "massacre_bonus": "¡BONO MASACRE!",
     "wave_stats_flawless": "¡IMPECABLE!",
     "wave_stats_title": "OLEADA",
     "wave_stats_kills_label": "Muertes:",
     "wave_stats_time_label": "Tiempo:",
-    
+
     # 3D Boss Game HUD
     "game3d_hp": "HP",
     "game3d_ammo": "Balas",
@@ -3696,7 +3696,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game3d_phase_transition": "¡CAMBIO DE FASE!",
     "game3d_paused": "PAUSA",
     "game3d_press_esc_resume": "Presiona ESC para continuar",
-    
+
     # OS UI
     "os_root_prompt": "root@tophat-shooteros:~$",
     "os_loading": "Cargando...",
@@ -3706,7 +3706,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_available_balance": "Saldo Disponible",
     "os_system_paused": "Sistema pausado",
     "os_press_space_continue": "presiona ESPACIO para continuar",
-    
+
     # PvP Lobby
     "pvp_title": "MODO PVP",
     "pvp_host_game": "HOSTEAR",
@@ -3752,7 +3752,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_failed_connect": "Error: ",
     "pvp_connection_timeout": "Timeout",
     "pvp_host_disconnected": "Host caído",
-    
+
     # PvP Config - Game Stats section
     "pvp_game_stats": "STATS DE PARTIDA",
     "pvp_stat_hp": "HP",
@@ -3773,7 +3773,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_value_off": "OFF",
     "pvp_local_net_multiplayer": "[ RED LOCAL MULTIJUGADOR ]",
     "pvp_share_ip_info": "Comparte tu IP local con amigos en la misma red",
-    
+
     # PvP Teams
     "pvp_team_red": "Rojo",
     "pvp_team_blue": "Azul",
@@ -3782,12 +3782,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_team_orange": "Naranja",
     "pvp_team_purple": "Púrpura",
     "pvp_team_none": "Ninguno",
-    
+
     "stats_play_style_aggressive": "Agresivo",
     "stats_play_style_defensive": "Defensivo",
     "stats_play_style_mobile": "Móvil",
     "stats_play_style_tank": "Tanque",
-    
+
     # Lifetime Stats Labels
     "stats_movement_label": "MOVIMIENTO",
     "stats_distance_label": "Distancia",
@@ -3816,7 +3816,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_dps_over_time_label": "DPS A TRAVÉS DEL TIEMPO",
     "stats_no_graph_data_short": "Sin datos de gráfico",
     "stats_controls_footer": "[TAB/ESC] Volver  [R] Reiniciar  [Q] Menú",
-    
+
     # Gamemode Names and Descriptions
     "gamemode_wave_based_name": "Por Oleadas",
     "gamemode_wave_based_desc": "Lucha contra oleadas de enemigos. Derrota a los jefes cada 5 oleadas para obtener mejoras legendarias.",
@@ -3963,7 +3963,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_roguelite_runs": "Ejecuciones",
     "stats_roguelite_lifetime": "ROGUELITE TOTAL",
     "stats_roguelite_mode": "Roguelite",
-    
+
     # Enemy Names and Descriptions
     "enemy_circle_name": "Perseguidor",
     "enemy_circle_desc": "Enemigo cuerpo a cuerpo básico",
@@ -3991,7 +3991,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "enemy_sniper_desc": "Carga un disparo letal de un golpe",
     "enemy_mage_name": "Mago",
     "enemy_mage_desc": "Invoca meteoritos y dispara proyectiles teledirigidos",
-    
+
     # Boss Names and Descriptions
     "boss_1_name": "El Guardián Espiral",
     "boss_1_desc": "Entidad mística que teje patrones de espiral",

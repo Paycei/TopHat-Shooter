@@ -646,7 +646,7 @@ type
     x*, y*: float32
     speed*: float32
     alpha*: uint8
-    
+
   CircuitLine* = object
     y*: float32
     speed*: float32
@@ -688,18 +688,18 @@ type
     ntWarning,  # [WARN] messages
     ntError,    # [ERR] messages
     ntCritical  # [CRITICAL] messages
-    
+
   OSNotification* = object
     message*: string
     notifType*: NotificationType
     lifetime*: float32
     fadeTime*: float32
-    
+
   OSHUDState* = object
     notifications*: seq[OSNotification]
     panelPulse*: float32
     minimized*: bool
-  
+
   TaskManagerTab* = enum
     tmtProcesses,    # Active power-ups
     tmtPerformance,  # Stats and metrics

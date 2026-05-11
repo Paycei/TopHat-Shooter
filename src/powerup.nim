@@ -50,7 +50,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
                              allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood}): array[3, PowerUp] =
   # Generate 3 random power-up options with COMPLETELY SEPARATE pools
   var availablePowerUps: seq[PowerUp] = @[]
-  
+
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
   # ALL legendary powerups are SINGLE LEVEL ONLY
   let legendaryOnlyTypes: array[0..29, PowerUpType] = [
@@ -74,14 +74,14 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
     puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance,
     puHealPower
   ]
-  
+
   # Define orb, aura, bullet, and mastery groups for exclusivity
   # Note: puRotatingOrbs is intentionally excluded here
   let orbTypes: array[0..6, PowerUpType] = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb]
   let auraTypes: array[0..6, PowerUpType] = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
   let bulletTypes: array[0..6, PowerUpType] = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets, puBloodBullets, puChainLightning]
   let masteryTypes: array[0..6, PowerUpType] = [puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, puLightningMastery, puWindMastery, puBloodMastery]
-  
+
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
     for powerType in legendaryOnlyTypes:
@@ -99,42 +99,42 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
         availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prCommon))
       elif currentLevel < 3:
         availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prCommon))
-  
+
   # Shuffle available power-ups
   for i in countdown(availablePowerUps.high, 1):
     let j = rand(i)
     swap(availablePowerUps[i], availablePowerUps[j])
-  
+
   # Apply grouping logic - ensure at most 1 orb, 1 aura, 1 elemental bullet, and 1 mastery
   var selectedPowerUps: seq[PowerUp] = @[]
   var hasOrb = false
   var hasAura = false
   var hasBullet = false
   var hasMastery = false
-  
+
   for powerUp in availablePowerUps:
     if selectedPowerUps.len >= 3:
       break
-    
+
     # Exceptions
 
     let isOrb = powerUp.powerType in orbTypes
     let isAura = powerUp.powerType in auraTypes
     let isBullet = powerUp.powerType in bulletTypes
     let isMastery = powerUp.powerType in masteryTypes
-    
+
     if isOrb and hasOrb:
       continue
-    
+
     if isAura and hasAura:
       continue
-    
+
     if isBullet and hasBullet:
       continue
-    
+
     if isMastery and hasMastery:
       continue
-    
+
     # Add this power-up and mark categories
     selectedPowerUps.add(powerUp)
     if isOrb:
@@ -145,7 +145,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
       hasBullet = true
     if isMastery:
       hasMastery = true
-  
+
   # Fill result with selected power-ups (up to 3)
   for i in 0..2:
     if i < selectedPowerUps.len:
@@ -161,7 +161,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
         else:
           let randomType = normalOnlyTypes[rand(normalOnlyTypes.high)]
           PowerUp(powerType: randomType, level: 1, rarity: prCommon)
-        
+
         let isOrb = randomPowerUp.powerType in orbTypes
         let isAura = randomPowerUp.powerType in auraTypes
         let isBullet = randomPowerUp.powerType in bulletTypes
@@ -170,12 +170,12 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
         if getPowerUpFamily(randomPowerUp.powerType) notin allowedPowerFamilies:
           attempts += 1
           continue
-        
+
         # Check if this violates our grouping rules
         if (isOrb and hasOrb) or (isAura and hasAura) or (isBullet and hasBullet) or (isMastery and hasMastery):
           attempts += 1
           continue
-        
+
         result[i] = randomPowerUp
         if isOrb:
           hasOrb = true
@@ -364,18 +364,18 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     let shieldCount = 3
     player.shieldHealths = @[]
     player.shieldRegenTimers = @[]
-    
+
     # Health increases with level: 3 HP, 4 HP, 5 HP
     let shieldHealth = case powerUp.level
       of 1: 3.0
       of 2: 4.0
       else: 5.0
     player.shieldMaxHealth = shieldHealth
-    
+
     for i in 0..<shieldCount:
       player.shieldHealths.add(shieldHealth)
       player.shieldRegenTimers.add(0.0)
-    
+
     # Decrease regen delay with upgrades: level 1=7s, level 2=6s, level 3=4s
     player.shieldRegenDelay = case powerUp.level
       of 1: 6.0
@@ -464,7 +464,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     discard
   else:
     discard
-  
+
   # Check if player already has this power-up (should not happen for single-level legendaries)
   var found = false
   for i in 0..<player.powerUps.len:
@@ -472,7 +472,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       # For multi-level power-ups only (normal ones)
       player.powerUps[i].level = powerUp.level
       player.powerUps[i].rarity = powerUp.rarity
-      
+
       # Apply upgrade bonuses for normal power-ups that have levels
       case powerUp.powerType
       of puRotatingShield:
@@ -482,11 +482,11 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           of 2: 4.0
           else: 5.0
         player.shieldMaxHealth = shieldHealth
-        
+
         # Restore all shields to new max health
         for i in 0..<player.shieldHealths.len:
           player.shieldHealths[i] = shieldHealth
-        
+
         # Update regen delay
         player.shieldRegenDelay = case powerUp.level
           of 1: 6.0
@@ -529,14 +529,14 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
 
       found = true
       break
-  
+
   if not found:
     # Add new power-up
     player.powerUps.add(powerUp)
 
 proc drawPowerUpSelection*(game: Game) =
   drawOSPowerUpInstaller(game)
-  
+
   # Draw combo notification in BOTTOM RIGHT corner during power-up screen
   # Position it slightly higher to avoid being cut off at screen edge
   drawComboAtPosition(game.dopamine.comboSystem, game.screenWidth, game.screenHeight,
@@ -566,7 +566,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance,
     puHealPower
   ]
-  
+
   var availableTypes: seq[PowerUpType]
   if isLegendary:
     for t in legendaryTypes:
@@ -576,7 +576,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     for t in normalTypes:
       if t != excludeType:
         availableTypes.add(t)
-  
+
   if availableTypes.len == 0:
     # Fallback if all types excluded (shouldn't happen)
     if isLegendary:
@@ -585,7 +585,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     else:
       let t = normalTypes[rand(normalTypes.high)]
       return PowerUp(powerType: t, level: 1, rarity: prCommon)  # Display level 1 for roll filler
-  
+
   let t = availableTypes[rand(availableTypes.high)]
   if isLegendary:
     result = PowerUp(powerType: t, level: 1, rarity: prLegendary)  # Legendaries are always level 1
@@ -701,14 +701,14 @@ proc initPowerUpRollAnimation*(game: Game) =
 proc attemptRerollPowerUps*(game: Game): bool =
   ## Try to reroll the power-up options
   ## Returns true if successful, false if insufficient coins
-  
+
   # Check if player has enough coins
   if game.player.coins < game.rerollCost:
     return false
-  
+
   # Deduct coins
   game.player.coins -= game.rerollCost
-  
+
   # Generate new power-up choices (same legendary/normal status)
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
   let allowedFamilies =
@@ -717,13 +717,13 @@ proc attemptRerollPowerUps*(game: Game): bool =
     else:
       {rpfCore..rpfBlood}
   game.powerUpChoices = generatePowerUpChoices(game.player, isLegendary, allowedFamilies)
-  
+
   # Reset selection to first option
   game.selectedPowerUp = 0
-  
+
   # Initialize reroll animation (same as new power-up selection)
   initPowerUpRollAnimation(game)
-  
+
   # Increase cost for next reroll (adds 25 coins)
   let rerollStep = if game.mode == gmRoguelite and game.rogueliteRun != nil:
     var hasDiscount = false
@@ -740,7 +740,7 @@ proc attemptRerollPowerUps*(game: Game): bool =
   else:
     25
   game.rerollCost += rerollStep
-  
+
   return true
 
 proc initializeRerollCost*(game: Game) =

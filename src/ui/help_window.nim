@@ -5,7 +5,7 @@ import raylib, strutils, os_window, math, ../localization
 
 type
   HelpCommand* = tuple[cmd: string, desc: string]
-  
+
   HelpWindow* = ref object
     window*: OSWindow
     commandHistory*: seq[string]
@@ -37,7 +37,7 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
   let windowHeight = 500
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
-  
+
   let osWin = newOSWindow(
     t(tkHelpWindowTitle),
     windowX, windowY,
@@ -46,7 +46,7 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
     owtHelp,
     resizable = false
   )
-  
+
   result = HelpWindow(
     window: osWin,
     commandHistory: @[],
@@ -56,7 +56,7 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
     cursorBlink: 0,
     pendingIconExecution: -1
   )
-  
+
   result.outputLines.add(("TopHat-ShooterOS Help System v5.5", Color(r: 0, g: 255, b: 255, a: 255)))
   result.outputLines.add(("Type 'help' for commands or a topic name to learn more.", White))
   result.outputLines.add(("", White))
@@ -69,23 +69,23 @@ proc iconStatusText(actionKey, iconKey: TranslationKey): string =
 
 proc executeCommand*(help: HelpWindow, cmd: string) =
   help.commandHistory.add(cmd)
-  
+
   # Echo the command
   help.addOutput("$ " & cmd, Color(r: 0, g: 220, b: 220, a: 255))
-  
+
   # Safety check for empty or whitespace-only commands
   let trimmedCmd = cmd.strip()
   if trimmedCmd.len == 0:
     return
-  
+
   # Safe string splitting with error handling
   try:
     let parts = trimmedCmd.split(' ')
     if parts.len == 0 or parts[0] == "":
       return
-    
+
     let command = parts[0].toLowerAscii()
-    
+
     case command:
     of "help", "?":
       help.addOutput("", White)
@@ -96,14 +96,14 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       for helpCmd in getHelpCommands():
         help.addOutput("  " & helpCmd.cmd & " - " & helpCmd.desc, White)
       help.addOutput("", White)
-    
+
     of "clear":
       help.outputLines = @[
         ("TopHat-ShooterOS Help System v5.5", Color(r: 0, g: 255, b: 255, a: 255)),
         ("Type 'help' for commands.", White),
         ("", White)
       ]
-    
+
     of "controls":
       help.addOutput("", White)
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
@@ -127,7 +127,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpESC), White)
       help.addOutput("  " & t(tkHelpF11), White)
       help.addOutput("", White)
-    
+
     of "gameplay":
       help.addOutput("", White)
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
@@ -146,7 +146,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       for line in t(tkHelpSandboxModeDesc).split("\n"):
         help.addOutput("  " & line, White)
       help.addOutput("", White)
-    
+
     of "powerups":
       help.addOutput("", White)
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
@@ -216,7 +216,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpWindMastery), White)
       help.addOutput("  " & t(tkHelpBloodMastery), White)
       help.addOutput("", White)
-    
+
     of "enemies":
       help.addOutput("", White)
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
@@ -247,7 +247,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       for line in t(tkHelpEnemyEliteDesc).split("\n"):
         help.addOutput("  " & line, White)
       help.addOutput("", White)
-    
+
     of "bosses":
       help.addOutput("", White)
       help.addOutput("=======================================", Color(r: 255, g: 100, b: 100, a: 255))
@@ -283,7 +283,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  - Large coin drops", White)
       help.addOutput("  - Legendary power-up selection", White)
       help.addOutput("", White)
-    
+
     of "shop":
       help.addOutput("", White)
       help.addOutput("=======================================", Color(r: 255, g: 200, b: 50, a: 255))
@@ -321,25 +321,25 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpOpensAfterPowerup), White)
       help.addOutput("  " & t(tkHelpAvailableBetweenWaves), White)
       help.addOutput("", White)
-    
-    
+
+
     # Desktop icon execution commands
     of "play", "play.exe":
       help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconPlay), Color(r: 100, g: 200, b: 255, a: 255))
       help.pendingIconExecution = 0
-    
+
     of "survival", "survival.exe":
       help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconSurvival), Color(r: 255, g: 150, b: 100, a: 255))
       help.pendingIconExecution = 1
-    
+
     of "stats", "stats.exe", "statistics":
       help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconStats), Color(r: 255, g: 200, b: 50, a: 255))
       help.pendingIconExecution = 2
-    
+
     of "settings", "settings.exe":
       help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconSettings), Color(r: 200, g: 100, b: 255, a: 255))
       help.pendingIconExecution = 3
-    
+
     of "shop.exe", "customization", "customize", "skins":
       help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconShop), Color(r: 255, g: 150, b: 50, a: 255))
       help.pendingIconExecution = 4
@@ -347,20 +347,20 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     of "advancements", "advncmnts.exe", "advancement":
       help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconAdvancements), Color(r: 90, g: 220, b: 255, a: 255))
       help.pendingIconExecution = 10
-    
+
     of "sandbox", "sandbox.exe":
       help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconSandbox), Color(r: 255, g: 165, b: 0, a: 255))
       help.pendingIconExecution = 7  # diSandbox = 7
-    
+
     of "quit", "shutdown", "shutdown.exe", "exit":
       help.addOutput(iconStatusText(tkHelpExecutingIcon, tkDesktopIconQuit), Color(r: 255, g: 100, b: 100, a: 255))
       help.pendingIconExecution = 6  # diQuit = 6
-    
+
     else:
       help.addOutput(t(tkHelpUnknownCommand) & ": " & command, Red)
       help.addOutput(t(tkHelpTypeHelp), LightGray)
       help.addOutput("", White)
-  
+
   except Exception as e:
     # Catch any errors during command execution
     help.addOutput(t(tkHelpErrorExecuting) & ": " & e.msg, Red)
@@ -373,23 +373,23 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
   ## Window closing is handled by setting help.window.visible = false
   updateOSWindow(help.window, dt)
   help.cursorBlink += dt
-  
+
   if not help.window.visible:
     return -1
-  
+
   # Check for pending icon execution
   if help.pendingIconExecution >= 0:
     let iconToExecute = help.pendingIconExecution
     help.pendingIconExecution = -1
     help.window.visible = false  # Close help window after executing icon
     return iconToExecute
-  
+
   # Check if window should close
   let shouldClose = handleOSWindowInput(help.window, screenWidth, screenHeight, allWindows)
   if shouldClose:
     help.window.visible = false
     return -1
-  
+
   # Handle text input with safety checks
   let key = getCharPressed()
   if key > 0 and key < 256:  # Valid ASCII range
@@ -397,76 +397,76 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
     # Only accept printable ASCII characters and limit input length
     if ch >= ' ' and ch <= '~' and help.currentInput.len < 100:
       help.currentInput.add(ch)
-  
+
   # Handle backspace
   if isKeyPressed(Backspace) and help.currentInput.len > 0:
     help.currentInput.setLen(help.currentInput.len - 1)
-  
+
   # Handle enter - execute command
   if isKeyPressed(Enter):
     if help.currentInput.len > 0:
       executeCommand(help, help.currentInput)
       help.currentInput = ""
     help.scrollOffset = max(0, help.outputLines.len - 15)  # Scroll to bottom
-  
+
   # Handle scrolling with mouse wheel
   let wheel = getMouseWheelMove()
   if wheel != 0:
     help.scrollOffset = clamp(help.scrollOffset - int(wheel * 3), 0,
                               max(0, help.outputLines.len - 15))
-  
+
   return -1  # No icon to execute
 
 
 proc drawHelpWindow*(help: HelpWindow) =
   if not help.window.visible:
     return
-  
+
   # Draw window chrome
   drawWindowChrome(help.window)
-  
+
   if help.window.minimized:
     return
-  
+
   let contentX = help.window.x + WINDOW_PADDING
   let contentY = help.window.y + TITLE_BAR_HEIGHT + WINDOW_PADDING
   let contentW = help.window.width - WINDOW_PADDING * 2
   let contentH = help.window.height - TITLE_BAR_HEIGHT - WINDOW_PADDING * 2
-  
+
   # Terminal background
   drawRectangle(contentX.int32, contentY.int32, contentW.int32, contentH.int32,
                Color(r: 5, g: 5, b: 10, a: 255))
   drawRectangleLines(Rectangle(x: contentX.float32, y: contentY.float32,
                                 width: contentW.float32, height: contentH.float32),
                     1, Color(r: 0, g: 200, b: 200, a: 255))
-  
+
   # Draw output lines (with scrolling)
   var yPos = contentY + 10
   let lineHeight = 18
   let visibleLines = (contentH - 50) div lineHeight
   let startLine = help.scrollOffset
   let endLine = min(help.outputLines.len, startLine + visibleLines)
-  
+
   for i in startLine..<endLine:
     let line = help.outputLines[i]
     drawText(line.text, (contentX + 10).int32, yPos.int32, 14, line.color)
     yPos += lineHeight
-  
+
   # Draw command prompt at bottom
   let promptY = contentY + contentH - 30
   drawRectangle(contentX.int32, promptY.int32, contentW.int32, 30,
                Color(r: 10, g: 10, b: 15, a: 255))
-  
+
   let promptText = "$ " & help.currentInput
   drawText(promptText, (contentX + 10).int32, (promptY + 7).int32, 16,
           Color(r: 0, g: 220, b: 220, a: 255))
-  
+
   # Draw blinking cursor
   if (help.cursorBlink mod 1.0) < 0.5:
     let cursorX = contentX + 10 + measureText(promptText, 16)
     drawRectangle((cursorX + 2).int32, (promptY + 7).int32, 8, 16,
                  Color(r: 0, g: 255, b: 255, a: 255))
-  
+
   # Draw scroll indicator if needed
   if help.outputLines.len > visibleLines:
     let scrollBarX = contentX + contentW - 10
@@ -479,14 +479,14 @@ proc drawHelpWindow*(help: HelpWindow) =
                         float32(help.scrollOffset) / float32(max(1, help.outputLines.len - visibleLines))),
       scrollBarY,
       scrollBarY + scrollBarH - scrollThumbH)
-    
+
     # Scroll track
     drawRectangle(scrollBarX.int32, scrollBarY.int32, 6, scrollBarH.int32,
                  Color(r: 20, g: 20, b: 30, a: 255))
-    
+
     # Scroll thumb
     drawRectangle(scrollBarX.int32, scrollThumbY.int32, 6, scrollThumbH.int32,
                  Color(r: 0, g: 200, b: 200, a: 255))
-  
+
   # Draw resize indicator
   drawResizeIndicator(help.window)
