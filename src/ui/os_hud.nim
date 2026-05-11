@@ -75,12 +75,12 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
     let hpPercent = player.hp / player.maxHp
     let barWidth: int32 = panelWidth - (PANEL_PADDING * 2) - 6
     let barHeight: int32 = 24
-    
+
     # Bar background with depth
     drawRectangle(x + PANEL_PADDING + 3, yOffset, barWidth, barHeight,
                  Color(r: 10, g: 15, b: 20, a: 120))
-    
-    # Bar fill with gradient
+
+    # Bar fill
     let fillWidth = (barWidth.float32 * hpPercent).int32
     let barColor = if hpPercent > 0.6:
       Color(r: 0, g: 255, b: 100, a: 200)
@@ -88,8 +88,22 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
       Color(r: 255, g: 220, b: 0, a: 200)
     else:
       Color(r: 255, g: 80, b: 80, a: 200)
-    
+
     drawRectangle(x + PANEL_PADDING + 3, yOffset, fillWidth, barHeight, barColor)
+
+    # Singularity shield overlay — purple tint on the top portion of the HP bar
+    # that the shield currently protects (drawn on top of the HP fill).
+    if player.singularityShield > 0.0:
+      # Shield covers the topmost min(shield, hp) HP worth of the bar
+      let shieldCoveredHp  = min(player.singularityShield, player.hp)
+      let shieldBarWidth   = (barWidth.float32 * (shieldCoveredHp / player.maxHp)).int32
+      let shieldBarX       = x + PANEL_PADDING + 3 + fillWidth - shieldBarWidth
+      # Solid purple layer so it's always clearly visible
+      drawRectangle(shieldBarX, yOffset, shieldBarWidth, barHeight,
+                   Color(r: 155, g: 80, b: 255, a: 160))
+      # Bright top edge line for crispness
+      drawRectangle(shieldBarX, yOffset, shieldBarWidth, 2,
+                   Color(r: 210, g: 170, b: 255, a: 220))
     
     # Segment tick marks at each integer HP boundary
     let maxHpInt = max(1, player.maxHp.int)

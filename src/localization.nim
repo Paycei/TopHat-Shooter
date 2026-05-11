@@ -1226,7 +1226,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Desktop icons
     "desktop_icon_play": "WAVE0.exe",
-    "desktop_icon_survival": "LASTSIG.exe",
+    "desktop_icon_survival": "LASTSTAND.exe",
     "desktop_icon_stats": "LOGS.dat",
     "desktop_icon_settings": "CFGNODE.sys",
     "desktop_icon_help": "MANUAL.exe",
@@ -1234,7 +1234,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_sandbox": "NULLLAB.exe",
     "desktop_icon_shop": "CHROMA.db",
     "desktop_icon_pvp": "DUELINK.exe",
-    "desktop_icon_roguelite": "ROOTMAP.db",
+    "desktop_icon_roguelite": "ROOTMAP (ALFA).db",
     "desktop_icon_advancements": "ASCEND.db",
     
     # Settings
@@ -2618,7 +2618,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Desktop icons
     "desktop_icon_play": "WAVE0.exe",
-    "desktop_icon_survival": "LASTSIG.exe",
+    "desktop_icon_survival": "LASTSTAND.exe",
     "desktop_icon_stats": "REGS.dat",
     "desktop_icon_settings": "NODOCFG.sys",
     "desktop_icon_help": "MANUAL.exe",
@@ -2626,7 +2626,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_sandbox": "LABNULL.exe",
     "desktop_icon_shop": "CROMAS.db",
     "desktop_icon_pvp": "DUELOS.exe",
-    "desktop_icon_roguelite": "RUTAMAP.db",
+    "desktop_icon_roguelite": "ROOTMAP (ALFA).db",
     "desktop_icon_advancements": "ASCEND.db",
     
     # Settings

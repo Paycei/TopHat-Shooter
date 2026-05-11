@@ -333,6 +333,15 @@ proc getAuraConfig(auraType: PowerUpType, level: int): AuraConfig =
   let radius = getAuraRadius(level)
   
   case auraType
+  of puSlowField:
+    result = AuraConfig(
+      radius: radius,
+      coreColor: Color(r: 100, g: 150, b: 255, a: 20),
+      ringColor: Color(r: 120, g: 170, b: 255, a: 40),
+      borderColor: Color(r: 100, g: 160, b: 255, a: 200),
+      pulseSpeed: 1.5,
+      visualStyle: avsWind  # Closest style — swirling currents fit a slow field
+    )
   of puFireAura:
     result = AuraConfig(
       radius: radius,
@@ -609,8 +618,21 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
       drawCircle(Vector2(x: x + heartSize, y: y), heartSize, Color(r: 255, g: 100, b: 100, a: 180))
       drawCircle(Vector2(x: x, y: y + heartSize), heartSize * 1.2, Color(r: 255, g: 100, b: 100, a: 180))
   
-  # Draw outer border (common to all auras)
-  drawCircleLines(pos.x.int32, pos.y.int32, config.radius, config.borderColor)
+  # Draw outer border — 3 passes so the limit is always clearly readable
+  let br = config.borderColor.r
+  let bg = config.borderColor.g
+  let bb = config.borderColor.b
+  # Pass 1: wide soft glow halo outside the ring
+  drawCircleLines(pos.x.int32, pos.y.int32, config.radius + 4.0,
+                 Color(r: br, g: bg, b: bb, a: 55))
+  drawCircleLines(pos.x.int32, pos.y.int32, config.radius + 2.0,
+                 Color(r: br, g: bg, b: bb, a: 90))
+  # Pass 2: solid bright ring at exact radius
+  drawCircleLines(pos.x.int32, pos.y.int32, config.radius,
+                 Color(r: br, g: bg, b: bb, a: 220))
+  # Pass 3: inner accent ring
+  drawCircleLines(pos.x.int32, pos.y.int32, config.radius - 2.5,
+                 Color(r: br, g: bg, b: bb, a: 110))
 
 # CONFIGURABLE: Loot boundary margins (how far from edge loot can spawn)
 const LOOT_MARGIN = 50.0  # Distance from screen edge
@@ -7190,9 +7212,10 @@ proc updateGame*(game: var Game, dt: float32) =
       
       case game.consumables[i].consumableType
       of ctHealth:
-        heal(game.player, 1)
+        let healAmount = 0.75'f32 + 0.025'f32 * game.player.maxHp
+        heal(game.player, healAmount)
         # Create heal damage number (green, floating up)
-        showDamage(game, game.player.pos, 1.0, true, false, dtHeal)
+        showDamage(game, game.player.pos, healAmount, true, false, dtHeal)
       of ctCoin:
         # Double coin multiplier applies here
         let coinValue = if game.player.doubleCoinTimer > 0: 10 else: 5
@@ -7468,8 +7491,7 @@ proc drawGame*(game: Game) =
 
   # Draw Gravity Well visual effect
   if playerVisible and hasPowerUp(game.player, puGravityWell):
-    let level = getPowerUpLevel(game.player, puGravityWell)
-    let pullRadius = if level == 1: 250.0 else: 350.0
+    let pullRadius = 300.0  # Matches actual gameplay pull radius
     
     # Draw swirling vortex rings
     for ring in 1..4:
@@ -7484,9 +7506,15 @@ proc drawGame*(game: Game) =
         let y = game.player.pos.y + sin(angle) * ringRadius
         drawCircle(Vector2(x: x, y: y), 3, Color(r: 75, g: 0, b: 130, a: alpha))
     
-    # Draw outer radius circle (very faint)
+    # Draw outer boundary — 3-pass so the pull limit is always clearly visible
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 4.0,
+                   Color(r: 138, g: 43, b: 226, a: 55))
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 2.0,
+                   Color(r: 138, g: 43, b: 226, a: 90))
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius,
-                   Color(r: 138, g: 43, b: 226, a: 40))
+                   Color(r: 170, g: 80, b: 255, a: 220))
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius - 2.5,
+                   Color(r: 200, g: 140, b: 255, a: 110))
   
   # UNIFIED AURA RENDERING
   # Draw all active aura effects using the unified aura system

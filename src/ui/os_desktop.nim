@@ -679,44 +679,76 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
   ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements
   ## Returns -1 if no action
   ## Note: Window occlusion should be handled by the calling code
-  
+
+  # Column layout constants
+  const COL0_COUNT = 6   # indices 0-5
+  const COL1_COUNT = 5   # indices 6-10
+
   # Get mouse position
   let mousePos = getVirtualMousePosition()
-  
-  # Mouse hover detection - update selected icon based on hover
-  var hoveredIcon = -1
-  for i in 0..<desktop.icons.len:
-    let icon = desktop.icons[i]
-    # Check if mouse is over icon (including label area)
-    let iconBounds = Rectangle(
-      x: icon.x.float32 - 10,  # Add some padding
-      y: icon.y.float32 - 10,
-      width: (ICON_SIZE + 20).float32,
-      height: (ICON_SIZE + 58).float32  # Extra height for multiline label
-    )
-    
-    if checkCollisionPointRec(mousePos, iconBounds):
-      hoveredIcon = i
-      desktop.selectedIcon = i
-      break
-  
-  # Mouse click detection - select icon on click
-  if isMouseButtonPressed(Left) and hoveredIcon >= 0:
-    return desktop.icons[hoveredIcon].iconType.int  # Return iconType, not array index
-  
-  # Keyboard navigation (WASD or arrow keys)
+
+  # Mouse hover detection — only update keyboard selection when the mouse actually moved,
+  # so keyboard navigation is never silently overwritten by a stationary cursor.
+  if game.mouseMovedRecently:
+    var hoveredIcon = -1
+    for i in 0..<desktop.icons.len:
+      let icon = desktop.icons[i]
+      let iconBounds = Rectangle(
+        x: icon.x.float32 - 10,
+        y: icon.y.float32 - 10,
+        width: (ICON_SIZE + 20).float32,
+        height: (ICON_SIZE + 58).float32
+      )
+      if checkCollisionPointRec(mousePos, iconBounds):
+        hoveredIcon = i
+        desktop.selectedIcon = i
+        break
+
+    # Mouse click
+    if isMouseButtonPressed(Left) and hoveredIcon >= 0:
+      return desktop.icons[hoveredIcon].iconType.int
+
+  # Keyboard navigation — arrow keys AND WASD, with full 2D grid support.
+  # Moving any direction marks keyboard as in-use so the mouse won't jump the cursor.
+  let col = if desktop.selectedIcon < COL0_COUNT: 0 else: 1
+  let row = if col == 0: desktop.selectedIcon else: desktop.selectedIcon - COL0_COUNT
+
   if isKeyPressed(Down) or isKeyPressed(S):
-    desktop.selectedIcon = (desktop.selectedIcon + 1) mod desktop.icons.len
+    let colLen = if col == 0: COL0_COUNT else: COL1_COUNT
+    desktop.selectedIcon = if col == 0: (row + 1) mod colLen
+                           else: (row + 1) mod colLen + COL0_COUNT
+    game.keyboardUsedRecently = true
+    game.mouseMovedRecently = false
     return -1
-  
+
   if isKeyPressed(Up) or isKeyPressed(W):
-    desktop.selectedIcon = (desktop.selectedIcon - 1 + desktop.icons.len) mod desktop.icons.len
+    let colLen = if col == 0: COL0_COUNT else: COL1_COUNT
+    desktop.selectedIcon = if col == 0: (row - 1 + colLen) mod colLen
+                           else: (row - 1 + colLen) mod colLen + COL0_COUNT
+    game.keyboardUsedRecently = true
+    game.mouseMovedRecently = false
     return -1
-  
-  # Selection with Enter or E (keyboard only)
+
+  if isKeyPressed(Right) or isKeyPressed(D):
+    if col == 0:
+      # Switch to column 1, clamp row to column 1's length
+      desktop.selectedIcon = min(row, COL1_COUNT - 1) + COL0_COUNT
+      game.keyboardUsedRecently = true
+      game.mouseMovedRecently = false
+    return -1
+
+  if isKeyPressed(Left) or isKeyPressed(A):
+    if col == 1:
+      # Switch to column 0 at the same row
+      desktop.selectedIcon = row
+      game.keyboardUsedRecently = true
+      game.mouseMovedRecently = false
+    return -1
+
+  # Confirm selection with Enter or E
   if isKeyPressed(Enter) or isKeyPressed(E):
-    return desktop.icons[desktop.selectedIcon].iconType.int  # Return iconType, not array index
-  
+    return desktop.icons[desktop.selectedIcon].iconType.int
+
   return -1
 
 proc startLoadingAnimation*(desktop: OSDesktop, text: string) =

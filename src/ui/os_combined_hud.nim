@@ -199,6 +199,19 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
                 elif hpPercent > 0.3: Color(r: 255, g: 220, b: 0, a: 220)
                 else: Color(r: 255, g: 80, b: 80, a: 220)
   drawRectangle(finalPanelX + COMBINED_PANEL_PADDING, yOffset, fillWidth, barHeight, barColor)
+
+  # Singularity shield overlay — purple tint on the rightmost portion of the HP fill
+  # covering however many HP points the shield currently protects
+  if game.player.singularityShield > 0.0:
+    let shieldCoveredHp = min(game.player.singularityShield, game.player.hp)
+    let shieldBarWidth = (barWidth.float32 * (shieldCoveredHp / game.player.maxHp)).int32
+    if shieldBarWidth > 0:
+      let shieldBarX = finalPanelX + COMBINED_PANEL_PADDING + fillWidth - shieldBarWidth
+      drawRectangle(shieldBarX, yOffset, shieldBarWidth, barHeight,
+                   Color(r: 155, g: 80, b: 255, a: 170))
+      # Bright top-edge highlight for crispness
+      drawRectangle(shieldBarX, yOffset, shieldBarWidth, 2,
+                   Color(r: 210, g: 170, b: 255, a: 230))
   
   # Bar border - cyan accent
   drawRectangleLines(Rectangle(x: (finalPanelX + COMBINED_PANEL_PADDING).float32, y: yOffset.float32,

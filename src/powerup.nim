@@ -355,6 +355,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puRotatingOrbs:
     # Create all 6 elemental orbs at their predefined positions
     createRotatingOrbs(player, powerUp.level)
+  of puGravityWell:
+    # Grant initial singularity HP-based shield on pickup (full)
+    player.singularityShield = player.maxHp * player.singularityShieldMaxPct
   of puRotatingShield:
     # Initialize shield health arrays - always 3 shields
     let shieldCount = 3

@@ -33,6 +33,12 @@ proc newPlayer*(x, y: float32): Player =
     shieldMaxHealth: 3.0,    # Starting health per shield (increases with upgrades)
     shieldRegenTimers: @[],  # Will be populated when power-up is acquired
     shieldRegenDelay: 4.0,   # Shields regenerate after 4 seconds (reduced by upgrades)
+    # Singularity (Gravity Well) regenerating HP-based shield defaults
+    singularityShield: 0.0,
+    singularityShieldMaxPct: 0.10,    # 10% of max HP
+    singularityShieldRegenTimer: 0.0,
+    singularityShieldRegenDelay: 5.0, # Regen starts after 5 seconds without damage
+    singularityShieldRegenRatePct: 0.005, # Regenerate 5% of max shield (0.5% of max HP) per second
     killsSinceLastHeal: 0,
     regenTimer: 0,
     lastDamageTaken: -1,  # Unused sentinel kept for compatibility; see lastDamageEvent
@@ -248,7 +254,28 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       else:
         # Shield is at full health, reset timer
         player.shieldRegenTimers[i] = 0.0
-  
+
+  # Singularity (Gravity Well) - HP-based shield that regenerates after delay
+  # NOTE: runs independently of puRotatingShield
+  if hasPowerUp(player, puGravityWell):
+    let shieldMax = player.maxHp * player.singularityShieldMaxPct
+    # Clamp current shield to new max if max HP changed
+    if player.singularityShield > shieldMax:
+      player.singularityShield = shieldMax
+
+    if player.singularityShield < shieldMax:
+      player.singularityShieldRegenTimer += dt
+      if player.singularityShieldRegenTimer >= player.singularityShieldRegenDelay:
+        let regenAmount = player.maxHp * player.singularityShieldRegenRatePct * dt
+        player.singularityShield = min(player.singularityShield + regenAmount, shieldMax)
+    else:
+      # Fully charged - reset timer
+      player.singularityShieldRegenTimer = 0.0
+  else:
+    # Clear when not active
+    player.singularityShield = 0.0
+    player.singularityShieldRegenTimer = 0.0
+
   # Update rotating orbs angle
   player.orbRotationAngle += dt * 2.75  # Rotate orbs around player
   
@@ -279,9 +306,13 @@ proc drawPlayer*(player: Player) =
         if ringRadius > 2:
           drawCircleLines(player.pos.x.int32, player.pos.y.int32, ringRadius,
                          Color(r: 120, g: 170, b: 255, a: ringAlpha))
-      # Outer boundary - pulsing
-      drawCircleLines(player.pos.x.int32, player.pos.y.int32, slowRadius * slowPulse,
-                     Color(r: 100, g: 150, b: 255, a: 60))
+      # Outer boundary ring — clearly visible
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, slowRadius + 3.0,
+                     Color(r: 100, g: 150, b: 255, a: 70))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, slowRadius,
+                     Color(r: 120, g: 170, b: 255, a: 210))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, slowRadius - 2.5,
+                     Color(r: 140, g: 190, b: 255, a: 100))
       # Rotating dots at 68% radius — gives it a sense of rotation
       let dashRadius = slowRadius * 0.68
       for d in 0..7:
@@ -299,8 +330,12 @@ proc drawPlayer*(player: Player) =
       let alpha = 40 + (sin(player.shieldAngle * 4) * 20).int
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), fireRadius,
                 Color(r: 255, g: 50, b: 0, a: alpha.uint8))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, fireRadius + 3.0,
+                     Color(r: 255, g: 80, b: 0, a: 65))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, fireRadius,
-                     Color(r: 255, g: 100, b: 0, a: 100))
+                     Color(r: 255, g: 100, b: 0, a: 210))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, fireRadius - 2.5,
+                     Color(r: 255, g: 140, b: 40, a: 100))
     
     # Lightning aura visual
     if powerUp.powerType == puLightningAura:
@@ -311,8 +346,12 @@ proc drawPlayer*(player: Player) =
       let alpha = 25 + (sin(player.shieldAngle * 5) * 15).int
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), lightningRadius,
                 Color(r: 100, g: 150, b: 255, a: alpha.uint8))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, lightningRadius + 3.0,
+                     Color(r: 100, g: 180, b: 255, a: 65))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, lightningRadius,
-                     Color(r: 150, g: 200, b: 255, a: 80))
+                     Color(r: 150, g: 210, b: 255, a: 210))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, lightningRadius - 2.5,
+                     Color(r: 180, g: 230, b: 255, a: 100))
     
     # Poison aura visual
     if powerUp.powerType == puPoisonAura:
@@ -323,8 +362,12 @@ proc drawPlayer*(player: Player) =
       let alpha = 35 + (sin(player.shieldAngle * 3) * 20).int
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), poisonRadius,
                 Color(r: 100, g: 200, b: 100, a: alpha.uint8))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, poisonRadius + 3.0,
+                     Color(r: 80, g: 200, b: 80, a: 65))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, poisonRadius,
-                     Color(r: 100, g: 255, b: 100, a: 70))
+                     Color(r: 100, g: 230, b: 100, a: 210))
+      drawCircleLines(player.pos.x.int32, player.pos.y.int32, poisonRadius - 2.5,
+                     Color(r: 140, g: 255, b: 140, a: 100))
   
   # Shield boost visual - cyan protective barrier
   if player.shieldHits > 0:
@@ -337,6 +380,18 @@ proc drawPlayer*(player: Player) =
     # Draw shield hit counter
     let hitsText = $player.shieldHits
     drawText(hitsText, (player.pos.x - 4).int32, (player.pos.y + player.radius + 12).int32, 12, Cyan)
+
+  # Singularity (Gravity Well) shield visual - translucent purple halo
+  if hasPowerUp(player, puGravityWell) and player.singularityShield > 0.0:
+    let shieldMax = player.maxHp * player.singularityShieldMaxPct
+    let shieldFrac = if shieldMax > 0.0: clamp(player.singularityShield / shieldMax, 0.0, 1.0) else: 0.0
+    let shieldRadius = player.radius * 2.4
+    let fillAlpha = uint8(40 + (shieldFrac * 160).int)
+    let lineAlpha = uint8(90 + (shieldFrac * 140).int)
+    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), shieldRadius,
+               Color(r: 170, g: 110, b: 255, a: fillAlpha))
+    drawCircleLines(player.pos.x.int32, player.pos.y.int32, shieldRadius,
+                    Color(r: 170, g: 110, b: 255, a: lineAlpha))
   
   # Celestial Veil — soft translucent ring around the player while the charge is ready.
   if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
@@ -747,7 +802,20 @@ proc takeDamage*(player: Player, damage: float32): bool =
         else: 0.3  # 30% reduction
       finalDamage *= (1.0 - reduction)
       break
-  
+
+  # Singularity (Gravity Well) HP-based shield absorbs damage first
+  if hasPowerUp(player, puGravityWell) and player.singularityShield > 0.0:
+    let absorb = min(player.singularityShield, finalDamage)
+    if absorb > 0.0:
+      player.singularityShield -= absorb
+      finalDamage -= absorb
+      # Reset regen timer on damage
+      player.singularityShieldRegenTimer = 0.0
+      # Mark recent damage for UI/feedback
+      player.lastDamageTaken = damage
+    if finalDamage <= 0.0:
+      return false
+
   player.hp -= finalDamage
   
   # Clamp HP to 0 minimum
@@ -755,6 +823,8 @@ proc takeDamage*(player: Player, damage: float32): bool =
     player.hp = 0
   
   player.lastDamageTaken = damage
+  # Reset singularity shield regen timer on any player damage
+  player.singularityShieldRegenTimer = 0.0
   
   # Pulse Armor - emit shockwave when taking damage (if not on cooldown)
   for powerUp in player.powerUps:

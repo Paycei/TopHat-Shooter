@@ -330,6 +330,12 @@ type
     shieldMaxHealth*: float32     # Maximum health per shield
     shieldRegenTimers*: seq[float32]  # Regen timer for each shield
     shieldRegenDelay*: float32    # Time before shield starts regenerating
+    # Singularity (Gravity Well) regenerating HP-based shield
+    singularityShield*: float32            # Current shield amount (absolute)
+    singularityShieldMaxPct*: float32      # Fraction of max HP used as shield max (0.0-1.0)
+    singularityShieldRegenTimer*: float32  # Time since last singularity-shield damage
+    singularityShieldRegenDelay*: float32  # Delay before singularity shield starts regenerating
+    singularityShieldRegenRatePct*: float32# Fraction of max HP regained per second when regenerating
     killsSinceLastHeal*: int
     regenTimer*: float32
     lastDamageTaken*: float32
