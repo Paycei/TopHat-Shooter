@@ -1128,7 +1128,7 @@ type
     tkWaveStatsKillsLabel = "wave_stats_kills_label"
     tkWaveStatsTimeLabel = "wave_stats_time_label"
     
-    # 3D Boss Game HUD (game3d/game_3d.nim)
+    # 3D Boss Game HUD
     tkGame3DHp = "game3d_hp"
     tkGame3DAmmo = "game3d_ammo"
     tkGame3DBossHp = "game3d_boss_hp"

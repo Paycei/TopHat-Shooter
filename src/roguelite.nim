@@ -797,10 +797,7 @@ proc rerollDiscountForRelics*(run: RogueliteRun, baseCost: int): int =
   if run != nil and run.hasRelic(rrtDraftCache):
     result = max(5, result - 10)
 
-
-# ---------------------------------------------------------------------------
-# Cosmetic unlock economy (merged from cosmetic_unlocks.nim)
-# ---------------------------------------------------------------------------
+# Cosmetic unlock economy
 
 type
   CosmeticKind* = enum

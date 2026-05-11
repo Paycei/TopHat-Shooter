@@ -618,7 +618,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
       drawCircle(Vector2(x: x + heartSize, y: y), heartSize, Color(r: 255, g: 100, b: 100, a: 180))
       drawCircle(Vector2(x: x, y: y + heartSize), heartSize * 1.2, Color(r: 255, g: 100, b: 100, a: 180))
   
-  # Draw outer border — 3 passes so the limit is always clearly readable
+  # Draw outer border — 2 passes: soft outer glow, then solid ring at exact radius
   let br = config.borderColor.r
   let bg = config.borderColor.g
   let bb = config.borderColor.b
@@ -630,9 +630,6 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
   # Pass 2: solid bright ring at exact radius
   drawCircleLines(pos.x.int32, pos.y.int32, config.radius,
                  Color(r: br, g: bg, b: bb, a: 220))
-  # Pass 3: inner accent ring
-  drawCircleLines(pos.x.int32, pos.y.int32, config.radius - 2.5,
-                 Color(r: br, g: bg, b: bb, a: 110))
 
 # CONFIGURABLE: Loot boundary margins (how far from edge loot can spawn)
 const LOOT_MARGIN = 50.0  # Distance from screen edge
@@ -4825,7 +4822,7 @@ proc updateGame*(game: var Game, dt: float32) =
   updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
   updateBossArenaGameplay(game, dt)
 
-  # Nova freeze expiry: when novaActive becomes false (set by player.nim), release bullets
+  # Nova freeze expiry: when novaActive becomes false, release bullets
   if not game.player.novaActive:
     for bullet in game.bullets:
       if bullet.isFrozenByNova and bullet.fromPlayer:
@@ -7386,8 +7383,9 @@ proc drawGame*(game: Game) =
   drawLightningBolts(game)
 
   # Draw attack warnings (before everything else so they're visible)
-  for warning in game.attackWarnings:
-    drawAttackWarning(warning)
+  if globalSettings == nil or globalSettings.showHints:
+    for warning in game.attackWarnings:
+      drawAttackWarning(warning)
   
   # Draw lasers (after warnings, before walls for visual layering)
   for laser in game.lasers:
@@ -7441,7 +7439,8 @@ proc drawGame*(game: Game) =
     drawEnemyLabel(enemy, showHealthBar = true, enabled = globalSettings.showEnemyLabels)
     
     # Draw warning indicators for elite/boss enemies
-    drawEnemyWarningIndicator(enemy)
+    if globalSettings == nil or globalSettings.showHints:
+      drawEnemyWarningIndicator(enemy)
     
     # Draw boss satellites
     if enemy.isBoss and enemy.satellites.len > 0:
@@ -7590,14 +7589,16 @@ proc drawGame*(game: Game) =
   drawActionLog(game.osHUD, game.screenWidth, game.screenHeight)
 
   # Kill streak system removed - now only combo system is used
-  drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.dopamine.currentTime)
-  drawMicroRewards(game.dopamine.microRewards)
+  if globalSettings == nil or globalSettings.showHints:
+    drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.dopamine.currentTime)
+    drawMicroRewards(game.dopamine.microRewards)
 
   # Wave start banner (slides in from top for first 1.5s of each wave)
   if game.waveInProgress:
     let waveAge = game.time - game.waveStartTime
     let isBossNext = game.wavesUntilBoss == 0
-    drawWaveStartBanner(game.currentWave, waveAge, game.screenWidth, game.screenHeight, isBossNext)
+    if globalSettings == nil or globalSettings.showHints:
+      drawWaveStartBanner(game.currentWave, waveAge, game.screenWidth, game.screenHeight, isBossNext)
   
   drawWaveCelebration(game.dopamine.waveCelebration, game.screenWidth, game.screenHeight)
   drawBossIntroduction(game.dopamine.bossIntro, game.screenWidth, game.screenHeight)

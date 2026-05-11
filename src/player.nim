@@ -311,8 +311,6 @@ proc drawPlayer*(player: Player) =
                      Color(r: 100, g: 150, b: 255, a: 70))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, slowRadius,
                      Color(r: 120, g: 170, b: 255, a: 210))
-      drawCircleLines(player.pos.x.int32, player.pos.y.int32, slowRadius - 2.5,
-                     Color(r: 140, g: 190, b: 255, a: 100))
       # Rotating dots at 68% radius — gives it a sense of rotation
       let dashRadius = slowRadius * 0.68
       for d in 0..7:
@@ -334,8 +332,6 @@ proc drawPlayer*(player: Player) =
                      Color(r: 255, g: 80, b: 0, a: 65))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, fireRadius,
                      Color(r: 255, g: 100, b: 0, a: 210))
-      drawCircleLines(player.pos.x.int32, player.pos.y.int32, fireRadius - 2.5,
-                     Color(r: 255, g: 140, b: 40, a: 100))
     
     # Lightning aura visual
     if powerUp.powerType == puLightningAura:
@@ -350,8 +346,6 @@ proc drawPlayer*(player: Player) =
                      Color(r: 100, g: 180, b: 255, a: 65))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, lightningRadius,
                      Color(r: 150, g: 210, b: 255, a: 210))
-      drawCircleLines(player.pos.x.int32, player.pos.y.int32, lightningRadius - 2.5,
-                     Color(r: 180, g: 230, b: 255, a: 100))
     
     # Poison aura visual
     if powerUp.powerType == puPoisonAura:
@@ -366,8 +360,6 @@ proc drawPlayer*(player: Player) =
                      Color(r: 80, g: 200, b: 80, a: 65))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, poisonRadius,
                      Color(r: 100, g: 230, b: 100, a: 210))
-      drawCircleLines(player.pos.x.int32, player.pos.y.int32, poisonRadius - 2.5,
-                     Color(r: 140, g: 255, b: 140, a: 100))
   
   # Shield boost visual - cyan protective barrier
   if player.shieldHits > 0:
