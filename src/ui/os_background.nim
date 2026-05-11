@@ -142,9 +142,9 @@ proc drawCombatGrid(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
 
   for i in 0..4:
     let r = arenaRadius * (0.34 + i.float32 * 0.16)
-    let ringAlpha = alphaFrom(24.0 + i.float32 * 8.0 + pulse * 16.0)
+    let ringAlpha = alphaFrom(10.0 + i.float32 * 3.0 + pulse * 6.0)  # Dimmed: gameplay rings must dominate
     drawCircleLines(centerX.int32, centerY.int32, r,
-      Color(r: 72, g: 210, b: 255, a: ringAlpha))
+      Color(r: 40, g: 110, b: 155, a: ringAlpha))
     let sweepAngle = bg.gridPulseTime * (0.42 + i.float32 * 0.05) + i.float32 * PI * 0.34
     let sx = centerX + cos(sweepAngle) * r
     let sy = centerY + sin(sweepAngle) * r
@@ -185,59 +185,149 @@ proc drawCombatGrid(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
                Vector2(x: x - 12.0, y: y + 12.0), 2,
                Color(r: 255, g: 62, b: 55, a: hazardAlpha))
 
+proc drawZoneLabel(text: string, centerX, centerY, radius: float32, fillAlpha: uint8,
+                   labelColor: Color, fontSize: int32 = 11) =
+  ## Draws a small label just above the top of a ring zone.
+  let labelWidth = measureText(text, fontSize)
+  let lx = (centerX - labelWidth.float32 * 0.5).int32
+  let ly = (centerY - radius - BOSS_ARENA_RING_HALF_WIDTH - fontSize.float32 - 3.0).int32
+  # Shadow
+  drawText(text, lx + 1, ly + 1, fontSize, Color(r: 0, g: 0, b: 0, a: uint8(fillAlpha.float32 * 0.65)))
+  drawText(text, lx, ly, fontSize, withAlpha(labelColor, fillAlpha))
+
 proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
+  ## Draws the boss-arena interactive ring zones with fills, thick outlines, and labels
+  ## so players can immediately distinguish them from the decorative grid.
   if bg.bossArenaMode == barmNone:
     return
 
   let center = Vector2(x: screenWidth.float32 * 0.5, y: screenHeight.float32 * 0.5)
+  let cx = center.x
+  let cy = center.y
   let pulse = sin(bg.bossArenaPhase * 4.2) * 0.5 + 0.5
+  let fastPulse = sin(bg.bossArenaPhase * 9.0) * 0.5 + 0.5
   let hazardBand = activeHazardBand(bg)
 
   for band in 0..<BOSS_ARENA_RING_COUNT:
     let radius = arenaRingRadius(screenWidth, screenHeight, band)
-    var color = Color(r: 80, g: 210, b: 255, a: 55)
-    var thickness = 1
+    let innerR = radius - BOSS_ARENA_RING_HALF_WIDTH
+    let outerR = radius + BOSS_ARENA_RING_HALF_WIDTH
+    let isPlayerHere = bg.bossArenaPlayerBand == band and bg.bossArenaPlayerOnActive
 
     case bg.bossArenaMode
+
     of barmBoon:
       if band in [1, 2]:
-        color = Color(r: 90, g: 255, b: 190, a: alphaFrom(102.0 + pulse * 70.0))
-        thickness = if bg.bossArenaPlayerBand == band and bg.bossArenaPlayerOnActive: 4 else: 3
+        # --- Active boon zone: green fill + thick outline + label ---
+        let fillA = alphaFrom(if isPlayerHere: 58.0 + pulse * 30.0 else: 22.0 + pulse * 18.0)
+        drawRing(center, innerR, outerR, 0.0, 360.0, 80,
+          Color(r: 50, g: 240, b: 130, a: fillA))
+
+        # Pulsing inner highlight stripe
+        drawRing(center, radius - 3.0, radius + 3.0, 0.0, 360.0, 80,
+          Color(r: 100, g: 255, b: 185, a: alphaFrom(70.0 + pulse * 60.0)))
+
+        # Multi-pixel outline
+        let outA = alphaFrom(120.0 + pulse * 80.0)
+        let thickness = if isPlayerHere: 5 else: 3
+        for i in 0..<thickness:
+          drawCircleLines(cx.int32, cy.int32, (outerR + i.float32),
+            Color(r: 90, g: 255, b: 190, a: alphaFrom(outA.float32 - i.float32 * 28.0)))
+          drawCircleLines(cx.int32, cy.int32, (innerR - i.float32),
+            Color(r: 90, g: 255, b: 190, a: alphaFrom(outA.float32 - i.float32 * 28.0)))
+
+        drawZoneLabel("+ BONUS ZONE", cx, cy, outerR,
+          alphaFrom(160.0 + pulse * 65.0),
+          Color(r: 110, g: 255, b: 165, a: 255))
       else:
-        color = Color(r: 70, g: 145, b: 190, a: 42)
+        # Inactive band — subtle dim outline, tiny label
+        drawRing(center, innerR, outerR, 0.0, 360.0, 64,
+          Color(r: 40, g: 80, b: 100, a: 14))
+        drawCircleLines(cx.int32, cy.int32, radius,
+          Color(r: 70, g: 130, b: 170, a: 36))
+        drawZoneLabel("neutral", cx, cy, outerR, 55,
+          Color(r: 100, g: 140, b: 170, a: 255), 9)
+
     of barmHazard:
       if band == hazardBand:
-        color = Color(r: 255, g: 58, b: 48, a: alphaFrom(130.0 + pulse * 84.0))
-        thickness = if bg.bossArenaPlayerBand == band and bg.bossArenaPlayerOnActive: 5 else: 4
+        # --- Active hazard zone: red fill + thick pulsing outline + label ---
+        let fillA = alphaFrom(if isPlayerHere: 72.0 + fastPulse * 45.0 else: 30.0 + pulse * 25.0)
+        drawRing(center, innerR, outerR, 0.0, 360.0, 80,
+          Color(r: 255, g: 32, b: 22, a: fillA))
+
+        # Hot-stripe inner highlight
+        drawRing(center, radius - 3.0, radius + 3.0, 0.0, 360.0, 80,
+          Color(r: 255, g: 90, b: 55, a: alphaFrom(80.0 + fastPulse * 70.0)))
+
+        # Multi-pixel outline — flashes urgently
+        let outA = alphaFrom(145.0 + fastPulse * 90.0)
+        let thickness = if isPlayerHere: 6 else: 4
+        for i in 0..<thickness:
+          drawCircleLines(cx.int32, cy.int32, (outerR + i.float32),
+            Color(r: 255, g: 60, b: 48, a: alphaFrom(outA.float32 - i.float32 * 24.0)))
+          drawCircleLines(cx.int32, cy.int32, (innerR - i.float32),
+            Color(r: 255, g: 60, b: 48, a: alphaFrom(outA.float32 - i.float32 * 24.0)))
+
+        drawZoneLabel("! HAZARD !", cx, cy, outerR,
+          alphaFrom(180.0 + fastPulse * 60.0),
+          Color(r: 255, g: 80, b: 55, a: 255))
       else:
-        color = Color(r: 145, g: 55, b: 62, a: 44)
+        # Safe non-hazard band — dim reddish tint to hint at the mode
+        drawRing(center, innerR, outerR, 0.0, 360.0, 64,
+          Color(r: 80, g: 30, b: 30, a: 14))
+        drawCircleLines(cx.int32, cy.int32, radius,
+          Color(r: 110, g: 50, b: 55, a: 36))
+        drawZoneLabel("safe", cx, cy, outerR, 55,
+          Color(r: 160, g: 100, b: 100, a: 255), 9)
+
     of barmRotating:
-      color = Color(r: 82, g: 180, b: 255, a: 44)
+      # Dim base ring so sectors stand out against it
+      drawCircleLines(cx.int32, cy.int32, radius,
+        Color(r: 60, g: 140, b: 200, a: 35))
+
       let sweep = bg.bossArenaRotation + band.float32 * 0.72
       for sector in 0..1:
         let angle = sweep + sector.float32 * PI
         let startDeg = (angle - 0.42) * 180.0 / PI
-        let endDeg = (angle + 0.42) * 180.0 / PI
-        let sectorColor =
-          if bg.bossArenaPlayerBand == band and bg.bossArenaPlayerOnActive:
-            Color(r: 150, g: 255, b: 230, a: alphaFrom(145.0 + pulse * 80.0))
-          else:
-            Color(r: 100, g: 220, b: 255, a: alphaFrom(95.0 + pulse * 42.0))
-        drawRing(center, radius - 4.0, radius + 4.0, startDeg, endDeg, 36, sectorColor)
+        let endDeg   = (angle + 0.42) * 180.0 / PI
+
+        # Fill the active sector arc
+        let sectorFillA = alphaFrom(
+          if isPlayerHere: 62.0 + pulse * 38.0 else: 26.0 + pulse * 16.0)
+        drawRing(center, innerR, outerR, startDeg, endDeg, 24,
+          Color(r: 80, g: 210, b: 255, a: sectorFillA))
+
+        # Highlight stripe inside sector
+        let sectorOutA = alphaFrom(
+          if isPlayerHere: 160.0 + pulse * 80.0 else: 100.0 + pulse * 42.0)
+        drawRing(center, radius - 4.0, radius + 4.0, startDeg, endDeg, 24,
+          Color(r: 140, g: 235, b: 255, a: sectorOutA))
+
+      # Label above the ring — note it rotates conceptually so we always put it at top
+      drawZoneLabel("+ BONUS SECTORS", cx, cy, outerR,
+        alphaFrom(130.0 + pulse * 55.0),
+        Color(r: 120, g: 225, b: 255, a: 255))
+
     of barmNone:
       discard
 
-    for offset in 0..<thickness:
-      drawCircleLines(center.x.int32, center.y.int32, radius + offset.float32,
-                      withAlpha(color, uint8(max(18, color.a.int - offset * 26))))
-
+  # --- Player zone feedback glow ---
   if bg.bossArenaPlayerOnActive:
-    let markerColor =
+    let glowColor =
       case bg.bossArenaMode
-      of barmHazard: Color(r: 255, g: 70, b: 54, a: alphaFrom(70.0 + pulse * 50.0))
-      of barmBoon, barmRotating: Color(r: 95, g: 255, b: 205, a: alphaFrom(62.0 + bg.bossArenaBonusIntensity * 78.0))
-      of barmNone: Color(r: 0, g: 0, b: 0, a: 0)
-    drawSoftGlow(bg.bossArenaPlayerX, bg.bossArenaPlayerY, 42.0, markerColor, 0.42)
+      of barmHazard:
+        Color(r: 255, g: 65, b: 48,
+              a: alphaFrom(90.0 + fastPulse * 60.0))
+      of barmBoon, barmRotating:
+        Color(r: 80, g: 255, b: 190,
+              a: alphaFrom(80.0 + bg.bossArenaBonusIntensity * 90.0))
+      of barmNone:
+        Color(r: 0, g: 0, b: 0, a: 0)
+    # Inner tight glow around player
+    drawSoftGlow(bg.bossArenaPlayerX, bg.bossArenaPlayerY, 38.0, glowColor, 0.55)
+    # Wider ambient halo
+    drawSoftGlow(bg.bossArenaPlayerX, bg.bossArenaPlayerY, 72.0,
+      withAlpha(glowColor, uint8(glowColor.a.float32 * 0.4)), 0.30)
 
 proc newOSBackground*(): OSBackgroundState =
   result = OSBackgroundState(
