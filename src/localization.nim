@@ -1241,7 +1241,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_sandbox": "LAB.exe",
     "desktop_icon_shop": "CHROMA.db",
     "desktop_icon_pvp": "DUELINK.exe",
-    "desktop_icon_roguelite": "ROOTMAP (ALFA).db",
+    "desktop_icon_roguelite": "ROOTMAP (ALPHA).db",
     "desktop_icon_advancements": "ASCEND.db",
 
     # Settings
@@ -2560,6 +2560,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_reward_shards": "Shard Cache",
     "roguelite_no_run": "No active roguelite run.",
     "roguelite_no_profile": "No roguelite profile loaded.",
+    "roguelite_alpha_banner": "ALPHA - WORK IN PROGRESS",
     "stats_tab_roguelite": "Roguelite",
     "stats_roguelite_metrics": "ROGUELITE METRICS",
     "stats_roguelite_best_sectors": "Best Sectors",
@@ -3957,6 +3958,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_reward_shards": "Cache Frag.",
     "roguelite_no_run": "No hay ejecucion roguelite activa.",
     "roguelite_no_profile": "No hay perfil roguelite cargado.",
+    "roguelite_alpha_banner": "ALFA - EN DESARROLLO",
     "stats_tab_roguelite": "Roguelite",
     "stats_roguelite_metrics": "METRICAS ROGUELITE",
     "stats_roguelite_best_sectors": "Mejores Sectores",

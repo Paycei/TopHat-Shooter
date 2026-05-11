@@ -1025,6 +1025,10 @@ proc main() =
       # Draw cheat menu overlay if active
       drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
 
+      # Alpha banner for roguelite mode
+      if currentGame.mode == gmRoguelite:
+        drawAlphaBanner(currentGame)
+
       # Draw custom cursor during gameplay
       drawCustomCursor(currentGame.time)
 
@@ -1046,6 +1050,8 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
       drawDeathSequenceOverlay(currentGame)
+      if currentGame.mode == gmRoguelite:
+        drawAlphaBanner(currentGame)
       endGameDrawing()
 
     of gsPaused:
@@ -1195,6 +1201,10 @@ proc main() =
 
       # Draw all windows on top of pause menu
       globalWindowManager.drawAllWindows(currentGame)
+
+      # Alpha banner for roguelite mode
+      if currentGame.mode == gmRoguelite:
+        drawAlphaBanner(currentGame)
 
       # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
       if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
@@ -1377,6 +1387,8 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
       drawShop(currentGame)
+      if currentGame.mode == gmRoguelite:
+        drawAlphaBanner(currentGame)
 
       # Draw custom cursor
       drawCustomCursor(currentGame.time)
@@ -1442,6 +1454,9 @@ proc main() =
               screenHeight div 2 + 80,
               40,
               Color(r: 255, g: 255, b: 100, a: alpha))
+
+      if currentGame.mode == gmRoguelite:
+        drawAlphaBanner(currentGame)
 
       # Draw custom cursor
       drawCustomCursor(currentGame.time)
@@ -1555,6 +1570,9 @@ proc main() =
       # Main text
       drawText(waveText, textX, textY, waveTextSize,
               Color(r: 150, g: 255, b: 150, a: 255))
+
+      if currentGame.mode == gmRoguelite:
+        drawAlphaBanner(currentGame)
 
       endGameDrawing()
 
@@ -1686,6 +1704,8 @@ proc main() =
 
       beginGameDrawing()
       drawPowerUpSelection(currentGame)
+      if currentGame.mode == gmRoguelite:
+        drawAlphaBanner(currentGame)
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 
