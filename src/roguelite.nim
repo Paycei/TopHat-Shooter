@@ -512,7 +512,7 @@ proc rewardName*(reward: RogueliteRewardType): string =
   of rrwShardCache: "Shard Cache"
 
 proc makeSector(modifier: RogueliteSectorModifier, reward: RogueliteRewardType,
-                act, sectorIndex, heat, endlessLoop: int): RogueliteSector =
+                act, sectorIndex, heat, endlessLoop, waveSurgeTier: int): RogueliteSector =
   let heatRank = heatChallengeRank(heat)
   let actPressure = max(0, act - 1).float32 * 0.13
   let sectorPressure = max(0, sectorIndex - 1).float32 * 0.05
@@ -522,7 +522,7 @@ proc makeSector(modifier: RogueliteSectorModifier, reward: RogueliteRewardType,
     name: sectorModifierName(modifier) & " " & $act & "." & $sectorIndex,
     modifier: modifier,
     rewardType: reward,
-    waveCount: RogueliteBaseSectorWaves,
+    waveCount: RogueliteBaseSectorWaves + max(0, waveSurgeTier - 1),
     enemyPressure: 1.0 + actPressure + sectorPressure + endlessPressure + heatPressure,
     eliteChanceBonus: heatRank * RogueliteHeatEliteBonusPerTier + endlessLoop * 6 + act * 2,
     shardMultiplier: 1.0 + heatRank.float32 * RogueliteHeatShardMultiplierPerTier + endlessLoop.float32 * 0.25,
@@ -557,14 +557,15 @@ proc generateSectorChoices*(run: RogueliteRun) =
   if run.isNil: return
   let act = run.act + run.endlessLoop * RogueliteActsToWin
   let sectorIndex = run.sectorsThisAct + 1
-  run.nextSectorChoices[0] = makeSector(rsmSafehouse, rrwCredits, act, sectorIndex, run.heat, run.endlessLoop)
+  let wst = max(1, run.waveSurgeTier)
+  run.nextSectorChoices[0] = makeSector(rsmSafehouse, rrwCredits, act, sectorIndex, run.heat, run.endlessLoop, wst)
   run.nextSectorChoices[1] = makeSector(
     if rand(100) < 50: rsmOverclocked else: rsmBlackMarket,
     if rand(100) < 50: rrwShardCache else: rrwPowerFamily,
-    act, sectorIndex, run.heat, run.endlessLoop)
+    act, sectorIndex, run.heat, run.endlessLoop, wst)
   run.nextSectorChoices[2] = makeSector(
     if rand(100) < 65: rsmEliteCache else: rsmVolatileMemory,
-    rrwRelic, act, sectorIndex, run.heat, run.endlessLoop)
+    rrwRelic, act, sectorIndex, run.heat, run.endlessLoop, wst)
 
 proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
                          starterKit: RogueliteStarterKit, heat: int) =
@@ -572,6 +573,7 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
   let maxUnlockedHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
   let clampedHeat = clamp(heat, RogueliteMinHeat, maxUnlockedHeat)
   let heatRank = heatChallengeRank(clampedHeat)
+  let waveSurgeTier = if profile.isNil: 1 else: clamp(profile.unlockedBossTier, 1, RogueliteMaxBossTier)
   game.rogueliteProfile = profile
   game.rogueliteRun = RogueliteRun(
     seed: rand(1_000_000_000),
@@ -582,7 +584,7 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
     sectorsThisAct: 0,
     sectorWavesCleared: 0,
     totalSectorsCleared: 0,
-    activeSector: makeSector(rsmSafehouse, rrwCredits, 1, 1, clampedHeat, 0),
+    activeSector: makeSector(rsmSafehouse, rrwCredits, 1, 1, clampedHeat, 0, waveSurgeTier),
     relics: @[],
     shardsEarned: 0,
     overheatCoresEarned: 0,
@@ -591,7 +593,8 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
     pendingSectorSelect: true,
     pendingActBoss: false,
     completed: false,
-    died: false
+    died: false,
+    waveSurgeTier: waveSurgeTier
   )
   generateSectorChoices(game.rogueliteRun)
 

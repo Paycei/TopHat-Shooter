@@ -415,9 +415,6 @@ proc main() =
       currentGame.time += dt
       updateMouseTracking(currentGame)
       
-      # Update OS desktop
-      updateOSDesktop(osDesktop, dt)
-      
       # Check if loading animation just finished and launch pending game mode
       if not osDesktop.loadingActive and pendingGameMode >= 0:
         # Close all desktop windows before launching the game
@@ -470,6 +467,9 @@ proc main() =
       # Handle window clicks and check if desktop is blocked
       discard globalWindowManager.handleWindowClick(mousePos)
       let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
+      
+      # Update OS desktop (after mouseOverWindow is known, so cube drag respects windows)
+      updateOSDesktop(osDesktop, dt, mouseOverWindow, screenWidth, screenHeight)
       
       # Handle OS desktop input and get action (only if no windows are blocking)
       let action = if not mouseOverWindow: handleDesktopInput(osDesktop, currentGame) else: -1

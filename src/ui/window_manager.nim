@@ -92,7 +92,9 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widShop: window = wm.shop.window
   of widPvP: window = wm.pvp.window
   of widAdvancements: window = wm.advancements.window
-  of widRoguelite: window = wm.roguelite.window
+  of widRoguelite:
+    window = wm.roguelite.window
+    wm.roguelite.showUnlocks = false  # Always open to setup view, not shop/unlocks
   
   window.visible = true
   window.minimized = false

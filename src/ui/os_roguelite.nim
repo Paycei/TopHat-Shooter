@@ -605,7 +605,7 @@ proc locUnlockName(profile: RogueliteProfile, category: RogueliteUnlockCategory,
       t("roguelite_unlock_heat") & " " & $nextHeat
     else:
       let nextTier = if profile.isNil: 2 else: min(RogueliteMaxBossTier, profile.unlockedBossTier + 1)
-      t("roguelite_unlock_boss_tier") & " " & $nextTier
+      t("roguelite_unlock_wave_surge") & " " & $nextTier
 
 proc locUnlockDescription(category: RogueliteUnlockCategory, index: int): string =
   case category
@@ -632,7 +632,7 @@ proc locUnlockDescription(category: RogueliteUnlockCategory, index: int): string
     else: ""
   of rucChallengeTiers:
     if index == 0: t("roguelite_unlock_desc_heat")
-    else: t("roguelite_unlock_desc_boss_tier")
+    else: t("roguelite_unlock_desc_wave_surge")
 
 proc drawPanel*(x, y, w, h: int32, title: string, color: Color, closeHovered: bool = false,
                omitTitleBar: bool = false) =
@@ -793,7 +793,7 @@ proc drawUnlockGlyph(profile: RogueliteProfile, category: RogueliteUnlockCategor
       drawCircleLines(cx, cy, ring.float32, color)
       drawTextFit($heat, cx - textOffset, cy - textOffset, labelW, fontSize, color)
     else:
-      drawModifierGlyph(cx, cy, rsmEliteCache, color, compact)
+      drawModifierGlyph(cx, cy, rsmOverclocked, color, compact)  # Wave Surge
 
 proc drawRewardGlyph(cx, cy: int32, reward: RogueliteRewardType, color: Color) =
   case reward

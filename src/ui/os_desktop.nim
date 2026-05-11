@@ -42,6 +42,20 @@ type
     loadingActive*: bool
     loadingProgress*: float32
     loadingText*: string
+    # Cube interactive rotation state (quaternion: w, x, y, z)
+    cubeQW*: float32
+    cubeQX*: float32
+    cubeQY*: float32
+    cubeQZ*: float32
+    cubeAngVelX*: float32  # world-space angular velocity (view X axis = pitch)
+    cubeAngVelY*: float32  # world-space angular velocity (view Y axis = yaw)
+    cubeDragging*: bool
+    cubeDragLastX*: float32
+    cubeDragLastY*: float32
+    # Cached Euler angles (radians) derived from quaternion for wallpaper rendering
+    cubeRotX*: float32
+    cubeRotY*: float32
+    cubeRotZ*: float32
 
 const
   ICON_SIZE = 64
@@ -130,12 +144,131 @@ proc newOSDesktop*(): OSDesktop =
     showCursor: true,
     loadingActive: false,
     loadingProgress: 0.0,
-    loadingText: ""
+    loadingText: "",
+    # Start with identity quaternion; auto-rotation will spin it from here
+    cubeQW: 1.0,
+    cubeQX: 0.0,
+    cubeQY: 0.0,
+    cubeQZ: 0.0,
+    cubeAngVelX: 0.0,
+    cubeAngVelY: 0.0,
+    cubeDragging: false,
+    cubeDragLastX: 0.0,
+    cubeDragLastY: 0.0,
+    cubeRotX: 0.0,
+    cubeRotY: 0.0,
+    cubeRotZ: 0.0
   )
 
-proc updateOSDesktop*(desktop: OSDesktop, dt: float32) =
+proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = false,
+                      screenWidth: int = 1024, screenHeight: int = 768) =
   desktop.time += dt
-  
+
+  # ── Cube drag & inertia (quaternion, world-space axes) ───────────────────
+  const
+    CubeDragSensitivity = 0.008'f32
+    CubeDragRadius      = 70.0'f32
+    CubeLinearDrag      = 2.8'f32
+
+  # Helper: compose a small world-space rotation onto the cube quaternion.
+  # axis (ax,ay,az) must be unit length; angle in radians.
+  proc applyWorldRot(qw, qx, qy, qz: var float32, ax, ay, az, angle: float32) =
+    let half = angle * 0.5'f32
+    let s = sin(half)
+    let dw = cos(half)
+    let dx = ax * s
+    let dy = ay * s
+    let dz = az * s
+    # delta * current  (left-multiply = world space)
+    let nw = dw*qw - dx*qx - dy*qy - dz*qz
+    let nx = dw*qx + dx*qw + dy*qz - dz*qy
+    let ny = dw*qy - dx*qz + dy*qw + dz*qx
+    let nz = dw*qz + dx*qy - dy*qx + dz*qw
+    let len = sqrt(nw*nw + nx*nx + ny*ny + nz*nz)
+    qw = nw/len; qx = nx/len; qy = ny/len; qz = nz/len
+
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+  let cubeCX = w * 0.64
+  let cubeCY = h * 0.46
+  let cubeSize = min(w, h) * 0.042'f32
+
+  let mp   = getVirtualMousePosition()
+  let ddst = sqrt((mp.x-cubeCX)*(mp.x-cubeCX) + (mp.y-cubeCY)*(mp.y-cubeCY))
+  let overCube = ddst <= (CubeDragRadius + cubeSize * 2.0)
+
+  if isMouseButtonPressed(Left) and overCube and not mouseOverWindow:
+    desktop.cubeDragging  = true
+    desktop.cubeDragLastX = mp.x
+    desktop.cubeDragLastY = mp.y
+    desktop.cubeAngVelX   = 0.0
+    desktop.cubeAngVelY   = 0.0
+
+  if desktop.cubeDragging:
+    if isMouseButtonDown(Left):
+      let ddx = mp.x - desktop.cubeDragLastX
+      let ddy = mp.y - desktop.cubeDragLastY
+      # right drag  → rotate around world Y (up)
+      # down drag   → rotate around world X (right)
+      if abs(ddx) > 0.001'f32:
+        applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                      0, 1, 0, ddx * CubeDragSensitivity)
+      if abs(ddy) > 0.001'f32:
+        applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                      1, 0, 0, -ddy * CubeDragSensitivity)
+      desktop.cubeAngVelY   = ddx * CubeDragSensitivity / dt
+      desktop.cubeAngVelX   = -ddy * CubeDragSensitivity / dt
+      desktop.cubeDragLastX = mp.x
+      desktop.cubeDragLastY = mp.y
+    else:
+      desktop.cubeDragging = false
+
+  if not desktop.cubeDragging:
+    # Inertia: spin down from throw velocity
+    if abs(desktop.cubeAngVelY) > 0.0001'f32:
+      applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                    0, 1, 0, desktop.cubeAngVelY * dt)
+    if abs(desktop.cubeAngVelX) > 0.0001'f32:
+      applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                    1, 0, 0, desktop.cubeAngVelX * dt)
+    let decay = exp(-CubeLinearDrag * dt)
+    desktop.cubeAngVelX *= decay
+    desktop.cubeAngVelY *= decay
+    # Passive auto-rotation (world axes, original rates)
+    applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                  1, 0, 0, -0.171'f32 * dt)
+    applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                  0, 1, 0, 0.133'f32 * dt)
+    applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                  0, 0, 1, 0.095'f32 * dt)
+  # ─────────────────────────────────────────────────────────────────────────
+  # Convert cube quaternion to Euler angles (X, Y, Z) for wallpaper rendering
+  # Rotation order: rotate X, then Y, then Z (Rx -> Ry -> Rz)
+  let qw = desktop.cubeQW
+  let qx = desktop.cubeQX
+  let qy = desktop.cubeQY
+  let qz = desktop.cubeQZ
+
+  let r00 = 1.0'f32 - 2.0'f32*(qy*qy + qz*qz)
+  let r01 = 2.0'f32*(qx*qy - qz*qw)
+  let r02 = 2.0'f32*(qx*qz + qy*qw)
+  let r10 = 2.0'f32*(qx*qy + qz*qw)
+  let r11 = 1.0'f32 - 2.0'f32*(qx*qx + qz*qz)
+  let r12 = 2.0'f32*(qy*qz - qx*qw)
+  let r20 = 2.0'f32*(qx*qz - qy*qw)
+  let r21 = 2.0'f32*(qy*qz + qx*qw)
+  let r22 = 1.0'f32 - 2.0'f32*(qx*qx + qy*qy)
+
+  var sy = -r20
+  if sy > 1.0'f32:
+    sy = 1.0'f32
+  elif sy < -1.0'f32:
+    sy = -1.0'f32
+
+  desktop.cubeRotX = arctan2(r21, r22)
+  desktop.cubeRotY = arcsin(sy)
+  desktop.cubeRotZ = arctan2(r10, r00)
+
   # Update loading animation if active
   if desktop.loadingActive:
     desktop.loadingProgress += dt * 2.0  # Progress speed
@@ -476,7 +609,8 @@ proc drawWallpaperCubeFace(points: array[8, Vector2], face: WallpaperCubeFace) =
   drawTriangle(a, b, c, face.color)
   drawTriangle(a, c, d, face.color)
 
-proc drawZeroGravityWallpaperCube(centerX, centerY, size, time: float32) =
+proc drawZeroGravityWallpaperCube(centerX, centerY, size, time,
+                                   angleX, angleY, angleZ: float32) =
   const
     CubeFaces: array[6, array[4, int]] = [
       [0, 1, 2, 3],
@@ -492,12 +626,8 @@ proc drawZeroGravityWallpaperCube(centerX, centerY, size, time: float32) =
       [0, 4], [1, 5], [2, 6], [3, 7]
     ]
 
-  let drift = sin(time * 0.28'f32) * size * 0.035'f32
-  let cx = centerX + sin(time * 0.19'f32) * size * 0.025'f32
-  let cy = centerY + drift
-  let angleX = time * 0.18'f32
-  let angleY = time * 0.14'f32 + PI * 0.18'f32
-  let angleZ = time * 0.10'f32 + PI * 0.33'f32
+  let cx = centerX
+  let cy = centerY
   let pulse = sin(time * 0.72'f32) * 0.5'f32 + 0.5'f32
 
   var base: array[8, WallpaperCubePoint]
@@ -562,7 +692,8 @@ proc drawZeroGravityWallpaperCube(centerX, centerY, size, time: float32) =
     drawLine(projected[edge[0]], projected[edge[1]], 4, innerEdgeColor)
     drawLine(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
 
-proc drawDesktopWallpaper(screenWidth, screenHeight: int, time: float32) =
+proc drawDesktopWallpaper(screenWidth, screenHeight: int, time,
+                          cubeRotX, cubeRotY, cubeRotZ: float32) =
   drawSharedBackdrop(screenWidth.int32, screenHeight.int32, time * 0.62,
                      Color(r: 5, g: 8, b: 18, a: 255),
                      Color(r: 18, g: 17, b: 34, a: 255),
@@ -595,7 +726,8 @@ proc drawDesktopWallpaper(screenWidth, screenHeight: int, time: float32) =
     drawCircle(Vector2(x: nodeX, y: nodeY), 3.0 + i.float32 * 0.35,
                Color(r: 165, g: 245, b: 255, a: uint8(120 + i * 18)))
 
-  drawZeroGravityWallpaperCube(centerX, centerY, min(w, h) * 0.042'f32, time)
+  drawZeroGravityWallpaperCube(centerX, centerY, min(w, h) * 0.042'f32, time,
+                               cubeRotX, cubeRotY, cubeRotZ)
 
   # Thin scan bands and routing traces.
   for i in 0..<14:
@@ -621,7 +753,8 @@ proc drawDesktopWallpaper(screenWidth, screenHeight: int, time: float32) =
            1, Color(r: 70, g: 230, b: 255, a: 64))
 
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
-  drawDesktopWallpaper(screenWidth, screenHeight, desktop.time)
+  drawDesktopWallpaper(screenWidth, screenHeight, desktop.time,
+                       desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ)
   
   # Desktop icons
   for icon in desktop.icons:

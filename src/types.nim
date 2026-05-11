@@ -253,6 +253,7 @@ type
     pendingActBoss*: bool
     completed*: bool
     died*: bool
+    waveSurgeTier*: int  ## Unlocked Wave Surge level (1 = base, 2 = +1 wave/sector, 3 = +2 waves/sector)
 
   AttackWarning* = ref object
     pos*: Vector2f
