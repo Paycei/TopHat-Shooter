@@ -148,7 +148,8 @@ type
     puBloodPact,       # LEGENDARY active: sacrifice 30% HP to deal it as split damage to all enemies
     puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
     puAftershock,      # LEGENDARY active: shockwave traces backward along movement path
-    puNova             # LEGENDARY active: freeze all player bullets for 2s, then release at 1.5x speed
+    puNova,            # LEGENDARY active: freeze all player bullets for 2s, then release at 1.5x speed
+    puHealPower        # Normal passive: increase healing received from all sources by a percentage
 
   PowerUpRarity* = enum
     prCommon,
@@ -396,6 +397,7 @@ type
     novaCooldown*: float32      # Countdown to next use (0 = ready)
     novaActive*: bool           # True while bullets are frozen
     novaFreezeTimer*: float32   # How long freeze remains
+    healPowerMult*: float32     # Multiplier for all healing received (default 1.0; increased by puHealPower)
 
   EffectInstance* = object
     elementType*: ElementType

@@ -62,7 +62,7 @@ proc applyShopPurchaseEffect*(game: Game, index: int, purchaseNumber: int, healH
 proc drawModernShopButton(x, y, width, height: int32, text: string,
                          cost: int, canAfford: bool, isSelected: bool,
                          time: float32, itemIndex: int = 0,
-                         description: string = "") =
+                         description: string = "", boughtCount: int = 0) =
   ## Draw a modern styled shop item button
   # Button shadow
   if canAfford:
@@ -134,6 +134,20 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
                    if canAfford: 255'u8 else: 130'u8)
   let costTextX = textX + 18
   drawText(costText, costTextX, y + 42, 11, costColor)
+  
+  # Bought counter badge (top-right of button)
+  if boughtCount > 0:
+    let badgeText = t(tkShopBought) & ": " & $boughtCount
+    let badgeW = measureText(badgeText, 10) + 10
+    let badgeX = x + width - badgeW - 6
+    let badgeY = y + 5
+    let badgeBg = Color(r: 0, g: 80, b: 40, a: 220)
+    let badgeBorder = Color(r: 0, g: 200, b: 100, a: 255)
+    let badgeText2Color = Color(r: 120, g: 255, b: 160, a: 255)
+    drawRectangle(badgeX, badgeY, badgeW, 16.int32, badgeBg)
+    drawRectangleLines(Rectangle(x: badgeX.float32, y: badgeY.float32,
+                                  width: badgeW.float32, height: 16.0), 1.0, badgeBorder)
+    drawText(badgeText, badgeX + 5, badgeY + 3, 10, badgeText2Color)
 
 proc drawShop*(game: Game) =
   let screenWidth = game.screenWidth
@@ -296,7 +310,7 @@ proc drawShop*(game: Game) =
     # Draw item button
     drawModernShopButton(shopX, itemY.int32, shopWidth, ITEM_HEIGHT,
                         item.name, cost, canAfford, isSelected,
-                        game.time, i, item.description)
+                        game.time, i, item.description, item.bought)
   
   # Bottom panel with controls - reduced height
   let bottomY = windowY + SHOP_HEIGHT - 65

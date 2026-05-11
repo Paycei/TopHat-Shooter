@@ -5232,9 +5232,9 @@ proc updateGame*(game: var Game, dt: float32) =
                                  enemy.radius + 5.0, 4.8,
                                  Color(r: 255, g: 50, b: 50, a: 255), 2, dt, -3.0)
     
-    # Apply accumulated healing to player
+    # Apply accumulated healing to player (scaled by healPowerMult)
     if totalHealing > 0:
-      game.player.hp = min(game.player.hp + totalHealing, game.player.maxHp)
+      game.player.hp = min(game.player.hp + totalHealing * game.player.healPowerMult, game.player.maxHp)
       
       # Show healing number periodically using tracked time
       if game.time - lastBloodHealTime >= BLOOD_HEAL_DISPLAY_INTERVAL:

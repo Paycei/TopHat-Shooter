@@ -1048,6 +1048,52 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawRectangle(cx - 4, cy - 6, 3, 12, Color(r: 180, g: 220, b: 255, a: 220))
     drawRectangle(cx + 1, cy - 6, 3, 12, Color(r: 180, g: 220, b: 255, a: 220))
 
+  of puHealPower:
+    # Heart with upward surge arrow — amplified healing
+    # Outer soft glow ring
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad + 3, Color(r: 255, g: 80, b: 120, a: 35))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad + 1, Color(r: 255, g: 120, b: 150, a: 55))
+    # Heart — two lobes + a bottom point
+    let lobeR = rad * 0.38
+    let lobeOffX = rad * 0.30
+    let lobeOffY = rad * 0.12
+    let heartColor     = Color(r: min(color.r + 20, 255), g: min(color.g, 100), b: min(color.b, 110), a: color.a)
+    let heartHighlight = Color(r: 255, g: 200, b: 210, a: 200)
+    let heartShadow    = Color(r: 0, g: 0, b: 0, a: 60)
+    # Shadow offset
+    drawCircle(Vector2(x: (cx.float32 - lobeOffX + 1), y: (cy.float32 - lobeOffY + 2)), lobeR, heartShadow)
+    drawCircle(Vector2(x: (cx.float32 + lobeOffX + 1), y: (cy.float32 - lobeOffY + 2)), lobeR, heartShadow)
+    # Lobes
+    drawCircle(Vector2(x: (cx.float32 - lobeOffX), y: (cy.float32 - lobeOffY)), lobeR, heartColor)
+    drawCircle(Vector2(x: (cx.float32 + lobeOffX), y: (cy.float32 - lobeOffY)), lobeR, heartColor)
+    # Bottom triangle to close the heart shape
+    let tipY = cy.float32 + rad * 0.72
+    drawTriangle(
+      Vector2(x: cx.float32 - rad * 0.72, y: cy.float32 - lobeOffY * 0.3),
+      Vector2(x: cx.float32 + rad * 0.72, y: cy.float32 - lobeOffY * 0.3),
+      Vector2(x: cx.float32,              y: tipY),
+      heartColor)
+    # Specular highlight on left lobe
+    drawCircle(Vector2(x: (cx.float32 - lobeOffX - 2), y: (cy.float32 - lobeOffY - 3)), lobeR * 0.35, heartHighlight)
+    # Upward surge arrow in the heart centre
+    let arrowColor = Color(r: 255, g: 255, b: 255, a: 230)
+    let ax = cx
+    let ayBase = cy + 5
+    let ayTip  = cy - 7
+    # Arrow shaft
+    drawRectangle(ax - 1, ayTip, 3, ayBase - ayTip, arrowColor)
+    # Arrow head
+    drawTriangle(
+      Vector2(x: ax.float32,       y: (ayTip - 5).float32),
+      Vector2(x: (ax - 5).float32, y: ayTip.float32),
+      Vector2(x: (ax + 5).float32, y: ayTip.float32),
+      arrowColor)
+    # Small plus sparkles at top-right to hint at boosted healing
+    let spX = cx + int32(rad * 0.68)
+    let spY = cy - int32(rad * 0.62)
+    drawLine(spX - 3, spY,     spX + 3, spY,     Color(r: 255, g: 240, b: 80, a: 210))
+    drawLine(spX,     spY - 3, spX,     spY + 3, Color(r: 255, g: 240, b: 80, a: 210))
+
 proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
   let cx = x + size div 2
   let cy = y + size div 2

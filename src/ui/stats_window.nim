@@ -460,7 +460,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       y += 312  # Increased from 252 to account for taller combat panel
       
       # Resources Panel
-      drawStatPanel(col1X, y, col1Width, 200, t(tkStatsResources))
+      drawStatPanel(col1X, y, col1Width, 220, t(tkStatsResources))
       lineY = y + 36
       
       drawStatLine(col1X + 10, lineY, t(tkStatsCoinsEarned), $runStats.resources.coinsEarned, Gold)
@@ -473,6 +473,8 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       drawStatLine(col1X + 10, lineY, t(tkStatsWallsPlaced), $runStats.resources.wallsPlaced)
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsConsumables), $runStats.resources.consumablesCollected, Color(r: 0, g: 180, b: 255, a: 255))
+      lineY += 20
+      drawStatLine(col1X + 10, lineY, t(tkStatsShopPurchases), $runStats.resources.shopVisits, Color(r: 255, g: 150, b: 50, a: 255))
       if runStats.gameMode == gmRoguelite:
         lineY += 20
         drawStatLine(col1X + 10, lineY, t("roguelite_data_shards"), $runStats.rogueliteShardsEarned, Gold)
@@ -827,6 +829,8 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
   drawStatLine(col1X + 8, lineY, t("stats_walls_placed_label"), $stats.resources.wallsPlaced)
   lineY += 18
   drawStatLine(col1X + 8, lineY, t("stats_consumables_label"), $stats.resources.consumablesCollected, Color(r: 0, g: 180, b: 255, a: 255))
+  lineY += 18
+  drawStatLine(col1X + 8, lineY, t("stats_shop_purchases_label"), $stats.resources.shopVisits, Color(r: 255, g: 150, b: 50, a: 255))
   if stats.gameMode == gmRoguelite:
     lineY += 18
     drawStatLine(col1X + 8, lineY, t("roguelite_data_shards"), $stats.rogueliteShardsEarned, Gold)

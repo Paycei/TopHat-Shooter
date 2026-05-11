@@ -77,6 +77,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puConduit: t(tkPowerupConduit)
   of puAftershock: t(tkPowerupAftershock)
   of puNova: t(tkPowerupNova)
+  of puHealPower: t(tkPowerupHealPower)
 
 proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: float32 = 1.0): string =
   # Helper: format "base + scaled (pct%)" — values are multiplied x100 for display
@@ -377,3 +378,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     t(tkPowerupAftershockDesc)
   of puNova:
     t(tkPowerupNovaDesc)
+  of puHealPower:
+    case level
+    of 1: t(tkPowerupHealPowerDesc1)
+    of 2: t(tkPowerupHealPowerDesc2)
+    else: t(tkPowerupHealPowerDesc3)

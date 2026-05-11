@@ -63,7 +63,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
   ]
 
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
-  let normalOnlyTypes: array[0..39, PowerUpType] = [
+  let normalOnlyTypes: array[0..40, PowerUpType] = [
     puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura,
     puBloodBullets, puBloodOrb, puBulletRicochet, puBulletSplit,
     puChainLightning, puCriticalHit, puDodgeChance, puExplosiveBullets,
@@ -71,7 +71,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
     puHeavyRounds, puLifeSteal, puLightningAura, puLightningOrb, puPiercingShots,
     puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
     puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
-    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance
+    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance,
+    puHealPower
   ]
   
   # Define orb, aura, bullet, and mastery groups for exclusivity
@@ -451,6 +452,13 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puResonance:
     # Resonance (Normal passive, 3 levels) - set level
     player.resonanceLevel = powerUp.level
+  of puHealPower:
+    # Heal Power (Normal passive, 3 levels) - increase healing from all sources by 15/20/25%
+    let bonus = case powerUp.level
+      of 1: 0.15
+      of 2: 0.20
+      else: 0.25
+    player.healPowerMult = 1.0 + bonus
   of puBloodPact, puConduit, puAftershock, puNova:
     # Active Legendary abilities - cooldowns start at 0 (immediately ready)
     discard
@@ -509,6 +517,13 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       of puResonance:
         # Update resonance level on upgrade
         player.resonanceLevel = powerUp.level
+      of puHealPower:
+        # Update heal power multiplier on upgrade
+        let bonus = case powerUp.level
+          of 1: 0.15
+          of 2: 0.20
+          else: 0.25
+        player.healPowerMult = 1.0 + bonus
       else:
         discard
 
@@ -548,7 +563,8 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     puHeavyRounds, puLifeSteal, puLightningAura, puLightningOrb, puPiercingShots,
     puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
     puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
-    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance
+    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance,
+    puHealPower
   ]
   
   var availableTypes: seq[PowerUpType]

@@ -137,6 +137,7 @@ type
     tkStatsCoinsSaved = "stats_coins_saved"
     tkStatsWallsPlaced = "stats_walls_placed"
     tkStatsConsumables = "stats_consumables"
+    tkStatsShopPurchases = "stats_shop_purchases"
     tkStatsPlayStyle = "stats_play_style"
     tkStatsAggression = "stats_aggression"
     tkStatsCaution = "stats_caution"
@@ -671,6 +672,7 @@ type
     tkShopNoPermanent = "shop_no_permanent"
     tkShopDefeatWaves = "shop_defeat_waves"
     tkShopCredits = "shop_credits"
+    tkShopBought = "shop_bought"
     tkShopDamagePlus = "shop_damage_plus"
     tkShopDamagePlusDesc = "shop_damage_plus_desc"
     tkShopFireRatePlus = "shop_fire_rate_plus"
@@ -907,6 +909,10 @@ type
     tkPowerupAftershockDesc = "powerup_aftershock_desc"
     tkPowerupNova = "powerup_nova"
     tkPowerupNovaDesc = "powerup_nova_desc"
+    tkPowerupHealPower = "powerup_heal_power"
+    tkPowerupHealPowerDesc1 = "powerup_heal_power_desc1"
+    tkPowerupHealPowerDesc2 = "powerup_heal_power_desc2"
+    tkPowerupHealPowerDesc3 = "powerup_heal_power_desc3"
     
     # Player Feedback
     tkPlayerDodge = "player_dodge"
@@ -1082,6 +1088,7 @@ type
     tkStatsCoinsSavedLabel = "stats_coins_saved_label"
     tkStatsWallsPlacedLabel = "stats_walls_placed_label"
     tkStatsConsumablesLabel = "stats_consumables_label"
+    tkStatsShopPurchasesLabel = "stats_shop_purchases_label"
     tkStatsPlayStyleLabel = "stats_play_style_label"
     tkStatsAggressionLabel = "stats_aggression_label"
     tkStatsCautionLabel = "stats_caution_label"
@@ -1231,7 +1238,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_settings": "CFGNODE.sys",
     "desktop_icon_help": "MANUAL.exe",
     "desktop_icon_quit": "POWEROFF.exe",
-    "desktop_icon_sandbox": "NULLLAB.exe",
+    "desktop_icon_sandbox": "LAB.exe",
     "desktop_icon_shop": "CHROMA.db",
     "desktop_icon_pvp": "DUELINK.exe",
     "desktop_icon_roguelite": "ROOTMAP (ALFA).db",
@@ -1346,6 +1353,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_no_permanent": "No permanent upgrades yet.",
     "shop_defeat_waves": "Defeat waves to unlock!",
     "shop_credits": "CR",
+    "shop_bought": "Bought",
     "shop_damage_plus": "Damage +",
     "shop_damage_plus_desc": "Bullet damage boost",
     "shop_fire_rate_plus": "Fire Rate +",
@@ -1582,6 +1590,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_aftershock_desc": "Emit a shockwave along your last 2s of movement, damaging and knocking back enemies hit. 14s cooldown",
     "powerup_nova": "Nova",
     "powerup_nova_desc": "Freeze all bullets in place for 2 seconds, then release them together at 1.5x speed. 16s cooldown",
+    "powerup_heal_power": "Vital Surge",
+    "powerup_heal_power_desc1": "All healing received is amplified by 15%. Affects regeneration, lifesteal, and consumables.",
+    "powerup_heal_power_desc2": "All healing received is amplified by 20%. Affects regeneration, lifesteal, and consumables.",
+    "powerup_heal_power_desc3": "All healing received is amplified by 25%. Affects regeneration, lifesteal, and consumables.",
     
     # Player Feedback
     "player_dodge": "DODGE!",
@@ -1778,6 +1790,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_coins_saved": "Coins Saved",
     "stats_walls_placed": "Walls Placed",
     "stats_consumables": "Consumables",
+    "stats_shop_purchases": "Shop Purchases",
     "stats_play_style": "PLAY STYLE",
     "stats_aggression": "Aggression",
     "stats_caution": "Caution",
@@ -2397,6 +2410,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_coins_saved_label": "Coins Saved",
     "stats_walls_placed_label": "Walls Placed",
     "stats_consumables_label": "Consumables",
+    "stats_shop_purchases_label": "Shop Purchases",
     "stats_play_style_label": "PLAY STYLE",
     "stats_aggression_label": "Aggression",
     "stats_caution_label": "Caution",
@@ -2625,7 +2639,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_settings": "NODOCFG.sys",
     "desktop_icon_help": "MANUAL.exe",
     "desktop_icon_quit": "APAGAR.exe",
-    "desktop_icon_sandbox": "LABNULL.exe",
+    "desktop_icon_sandbox": "LAB.exe",
     "desktop_icon_shop": "CROMAS.db",
     "desktop_icon_pvp": "DUELOS.exe",
     "desktop_icon_roguelite": "ROOTMAP (ALFA).db",
@@ -2740,6 +2754,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_no_permanent": "Sin mejoras aún.",
     "shop_defeat_waves": "¡Derrota oleadas!",
     "shop_credits": "CR",
+    "shop_bought": "Comprado",
     "shop_damage_plus": "Daño +",
     "shop_damage_plus_desc": "Mejora de dano",
     "shop_fire_rate_plus": "Cadencia +",
@@ -2976,6 +2991,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_aftershock_desc": "Emite una onda con tus últimos 2 s de movimiento; daña y empuja. Recarga 14 s",
     "powerup_nova": "Nova",
     "powerup_nova_desc": "Congela tus balas 2 s y luego las libera juntas a 1.5x velocidad. Recarga 16 s",
+    "powerup_heal_power": "Oleada Vital",
+    "powerup_heal_power_desc1": "Toda la curación recibida se amplifica un 15 %. Afecta a regeneración, roba-vida y consumibles.",
+    "powerup_heal_power_desc2": "Toda la curación recibida se amplifica un 20 %. Afecta a regeneración, roba-vida y consumibles.",
+    "powerup_heal_power_desc3": "Toda la curación recibida se amplifica un 25 %. Afecta a regeneración, roba-vida y consumibles.",
     
     # Stats Window
     "stats_window_title": "Monitor del Sistema - Análisis de Jugador",
@@ -3016,6 +3035,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_coins_saved": "Monedas Ahorradas",
     "stats_walls_placed": "Muros Colocados",
     "stats_consumables": "Consumibles",
+    "stats_shop_purchases": "Compras en Tienda",
     "stats_play_style": "ESTILO DE JUEGO",
     "stats_aggression": "Agresión",
     "stats_caution": "Precaución",
@@ -3788,6 +3808,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_coins_saved_label": "Monedas Ahorradas",
     "stats_walls_placed_label": "Muros Colocados",
     "stats_consumables_label": "Consumibles",
+    "stats_shop_purchases_label": "Compras en Tienda",
     "stats_play_style_label": "ESTILO DE JUEGO",
     "stats_aggression_label": "Agresión",
     "stats_caution_label": "Precaución",

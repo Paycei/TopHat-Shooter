@@ -86,6 +86,7 @@ proc newPlayer*(x, y: float32): Player =
     novaCooldown: 0.0,
     novaActive: false,
     novaFreezeTimer: 0.0,
+    healPowerMult: 1.0,
   )
 
 proc hasAnyOrbPowerUp*(player: Player): bool =
@@ -829,7 +830,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
   return player.hp <= 0
 
 proc heal*(player: Player, amount: float32) =
-  player.hp += amount
+  player.hp += amount * player.healPowerMult
   if player.hp > player.maxHp: player.hp = player.maxHp
 
 proc activateSpeedBoost*(player: Player) =
