@@ -1,6 +1,7 @@
 import json, os, random, strutils, math
 import types, save_system, powerup
 import skins, bullet_skins, bullet_shapes, shapes, particle_skins
+import desktop_bg_skins, cube_skins
 
 const
   RogueliteProfileVersion* = 3
@@ -57,6 +58,8 @@ proc initRogueliteProfile*(): RogueliteProfile =
     unlockedPlayerShapes: @["shHexagon"],
     unlockedBulletShapes: @["bshCircle"],
     unlockedParticleSkins: @["pskDefault"],
+    unlockedDesktopBgs: @["dbgDefault"],
+    unlockedCubeSkins: @["cskDefault"],
     unlockedBossTier: 1,
     highestHeat: RogueliteMinHeat,
     bestAct: 1,
@@ -141,6 +144,8 @@ proc refreshRogueliteUnlocks*(profile: RogueliteProfile) =
   ensureString(profile.unlockedPlayerShapes, "shHexagon")
   ensureString(profile.unlockedBulletShapes, "bshCircle")
   ensureString(profile.unlockedParticleSkins, "pskDefault")
+  ensureString(profile.unlockedDesktopBgs, "dbgDefault")
+  ensureString(profile.unlockedCubeSkins, "cskDefault")
   profile.unlockedBossTier = clamp(profile.unlockedBossTier, 1, RogueliteMaxBossTier)
   profile.highestHeat = clamp(profile.highestHeat, RogueliteMinHeat, RogueliteMaxHeat)
   profile.dataShards = max(0, profile.dataShards)
@@ -394,6 +399,8 @@ proc rogueliteProfileToJson*(profile: RogueliteProfile): JsonNode =
     "unlockedPlayerShapes": stringSeqToJson(profile.unlockedPlayerShapes),
     "unlockedBulletShapes": stringSeqToJson(profile.unlockedBulletShapes),
     "unlockedParticleSkins": stringSeqToJson(profile.unlockedParticleSkins),
+    "unlockedDesktopBgs": stringSeqToJson(profile.unlockedDesktopBgs),
+    "unlockedCubeSkins": stringSeqToJson(profile.unlockedCubeSkins),
     "unlockedBossTier": profile.unlockedBossTier,
     "highestHeat": profile.highestHeat,
     "bestAct": profile.bestAct,
@@ -428,6 +435,10 @@ proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile =
     result.unlockedBulletShapes = parseStringSeq(j["unlockedBulletShapes"])
   if j.hasKey("unlockedParticleSkins"):
     result.unlockedParticleSkins = parseStringSeq(j["unlockedParticleSkins"])
+  if j.hasKey("unlockedDesktopBgs"):
+    result.unlockedDesktopBgs = parseStringSeq(j["unlockedDesktopBgs"])
+  if j.hasKey("unlockedCubeSkins"):
+    result.unlockedCubeSkins = parseStringSeq(j["unlockedCubeSkins"])
   result.unlockedBossTier = j.getOrDefault("unlockedBossTier").getInt(result.unlockedBossTier)
   result.highestHeat = j.getOrDefault("highestHeat").getInt(result.highestHeat)
   result.bestAct = j.getOrDefault("bestAct").getInt(result.bestAct)
@@ -477,6 +488,8 @@ proc resetRogueliteProfile*(profile: RogueliteProfile): bool =
   profile.unlockedPlayerShapes = fresh.unlockedPlayerShapes
   profile.unlockedBulletShapes = fresh.unlockedBulletShapes
   profile.unlockedParticleSkins = fresh.unlockedParticleSkins
+  profile.unlockedDesktopBgs = fresh.unlockedDesktopBgs
+  profile.unlockedCubeSkins = fresh.unlockedCubeSkins
   profile.unlockedBossTier = fresh.unlockedBossTier
   profile.highestHeat = fresh.highestHeat
   profile.bestAct = fresh.bestAct
@@ -808,7 +821,9 @@ type
     ckBulletSkin,
     ckPlayerShape,
     ckBulletShape,
-    ckParticle
+    ckParticle,
+    ckDesktopBg,
+    ckCubeSkin
 
   CosmeticCost* = object
     dataShards*: int
@@ -847,6 +862,8 @@ proc defaultCosmeticIndex*(kind: CosmeticKind): int =
   of ckPlayerShape: ord(shHexagon)
   of ckBulletShape: ord(bshCircle)
   of ckParticle: ord(pskDefault)
+  of ckDesktopBg: ord(dbgDefault)
+  of ckCubeSkin: ord(cskDefault)
 
 proc cosmeticCount*(kind: CosmeticKind): int =
   case kind
@@ -855,6 +872,8 @@ proc cosmeticCount*(kind: CosmeticKind): int =
   of ckPlayerShape: ord(high(ShapeType)) + 1
   of ckBulletShape: ord(high(BulletShapeType)) + 1
   of ckParticle: ord(high(ParticleSkinType)) + 1
+  of ckDesktopBg: ord(high(DesktopBgType)) + 1
+  of ckCubeSkin: ord(high(CubeSkinType)) + 1
 
 proc isValidCosmeticIndex*(kind: CosmeticKind, index: int): bool =
   index >= 0 and index < cosmeticCount(kind)
@@ -868,6 +887,8 @@ proc cosmeticId*(kind: CosmeticKind, index: int): string =
   of ckPlayerShape: $ShapeType(index)
   of ckBulletShape: $BulletShapeType(index)
   of ckParticle: $ParticleSkinType(index)
+  of ckDesktopBg: $DesktopBgType(index)
+  of ckCubeSkin: $CubeSkinType(index)
 
 proc ensureBaseCosmeticUnlocks*(profile: RogueliteProfile) =
   if profile.isNil:
@@ -877,6 +898,8 @@ proc ensureBaseCosmeticUnlocks*(profile: RogueliteProfile) =
   ensureId(profile.unlockedPlayerShapes, $shHexagon)
   ensureId(profile.unlockedBulletShapes, $bshCircle)
   ensureId(profile.unlockedParticleSkins, $pskDefault)
+  ensureId(profile.unlockedDesktopBgs, $dbgDefault)
+  ensureId(profile.unlockedCubeSkins, $cskDefault)
 
 proc cosmeticIsUnlocked*(profile: RogueliteProfile, kind: CosmeticKind,
                          index: int): bool =
@@ -894,6 +917,8 @@ proc cosmeticIsUnlocked*(profile: RogueliteProfile, kind: CosmeticKind,
   of ckPlayerShape: hasId(profile.unlockedPlayerShapes, id)
   of ckBulletShape: hasId(profile.unlockedBulletShapes, id)
   of ckParticle: hasId(profile.unlockedParticleSkins, id)
+  of ckDesktopBg: hasId(profile.unlockedDesktopBgs, id)
+  of ckCubeSkin: hasId(profile.unlockedCubeSkins, id)
 
 proc addCosmeticUnlock(profile: RogueliteProfile, kind: CosmeticKind, index: int) =
   if profile.isNil:
@@ -905,6 +930,8 @@ proc addCosmeticUnlock(profile: RogueliteProfile, kind: CosmeticKind, index: int
   of ckPlayerShape: ensureId(profile.unlockedPlayerShapes, id)
   of ckBulletShape: ensureId(profile.unlockedBulletShapes, id)
   of ckParticle: ensureId(profile.unlockedParticleSkins, id)
+  of ckDesktopBg: ensureId(profile.unlockedDesktopBgs, id)
+  of ckCubeSkin: ensureId(profile.unlockedCubeSkins, id)
 
 proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
   if not isValidCosmeticIndex(kind, index) or index == defaultCosmeticIndex(kind):
@@ -967,6 +994,24 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of pskLightning: makeCost(175, 4)
     of pskRainbow: makeCost(205, 5, 1)
     of pskVoid: makeCost(240, 7, 1)
+  of ckDesktopBg:
+    case DesktopBgType(index)
+    of dbgDefault: makeCost(0)
+    of dbgNeon:    makeCost(35)
+    of dbgMatrix:  makeCost(50)
+    of dbgVoid:    makeCost(70)
+    of dbgSunrise: makeCost(90, 1)
+    of dbgOcean:   makeCost(110, 1)
+    of dbgInferno: makeCost(150, 3, 1)
+  of ckCubeSkin:
+    case CubeSkinType(index)
+    of cskDefault: makeCost(0)
+    of cskNeon:    makeCost(28)
+    of cskIce:     makeCost(42)
+    of cskGold:    makeCost(65, 1)
+    of cskShadow:  makeCost(85, 1)
+    of cskPlasma:  makeCost(120, 2)
+    of cskMatrix:  makeCost(140, 2)
 
 proc canAffordCosmetic*(profile: RogueliteProfile, kind: CosmeticKind,
                         index: int): bool =
@@ -1028,4 +1073,14 @@ proc sanitizeEquippedCosmetics*(settings: Settings,
   if not isValidCosmeticIndex(ckParticle, settings.particleEffect) or
      not cosmeticIsUnlocked(profile, ckParticle, settings.particleEffect):
     settings.particleEffect = defaultCosmeticIndex(ckParticle)
+    result = true
+
+  if not isValidCosmeticIndex(ckDesktopBg, settings.desktopBg) or
+     not cosmeticIsUnlocked(profile, ckDesktopBg, settings.desktopBg):
+    settings.desktopBg = defaultCosmeticIndex(ckDesktopBg)
+    result = true
+
+  if not isValidCosmeticIndex(ckCubeSkin, settings.cubeSkin) or
+     not cosmeticIsUnlocked(profile, ckCubeSkin, settings.cubeSkin):
+    settings.cubeSkin = defaultCosmeticIndex(ckCubeSkin)
     result = true

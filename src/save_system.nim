@@ -38,6 +38,8 @@ type
     playerShape*: int   # Current player shape (stored as int)
     bulletShape*: int   # Current bullet shape (stored as int)
     particleEffect*: int  # Current particle effect (stored as int)
+    desktopBg*: int        # Current desktop background skin (stored as int)
+    cubeSkin*: int         # Current cube skin (stored as int)
     pvpNickname*: string  # Player nickname shown in PvP lobbies
 
 # Get AppData directory path
@@ -106,6 +108,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "playerShape": settings.playerShape,
     "bulletShape": settings.bulletShape,
     "particleEffect": settings.particleEffect,
+    "desktopBg": settings.desktopBg,
+    "cubeSkin": settings.cubeSkin,
     "pvpNickname": settings.pvpNickname
   }
 
@@ -179,6 +183,12 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("particleEffect"):
     settings.particleEffect = jsonNode["particleEffect"].getInt()
+
+  if jsonNode.hasKey("desktopBg"):
+    settings.desktopBg = jsonNode["desktopBg"].getInt()
+
+  if jsonNode.hasKey("cubeSkin"):
+    settings.cubeSkin = jsonNode["cubeSkin"].getInt()
 
   if jsonNode.hasKey("pvpNickname"):
     settings.pvpNickname = jsonNode["pvpNickname"].getStr()

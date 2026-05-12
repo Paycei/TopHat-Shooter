@@ -1,7 +1,7 @@
 ﻿## Shop Window
 ## OS-themed window for player and bullet customization with tabs
 
-import raylib, os_window, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound
+import raylib, rlgl, os_window, os_desktop, background_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound
 
 type
   ShopTab* = enum
@@ -10,6 +10,8 @@ type
     stBulletShapes   # Bullet shapes tab
     stShapes         # Player shapes tab
     stParticles      # Particle effects tab
+    stDesktopBg      # Desktop background skins tab
+    stCubeSkins      # Cube skins tab
 
   ShopWindow* = ref object
     window*: OSWindow
@@ -19,6 +21,8 @@ type
     selectedShape*: ShapeType
     selectedBulletShape*: BulletShapeType
     selectedParticle*: ParticleSkinType
+    selectedDesktopBg*: DesktopBgType
+    selectedCubeSkin*: CubeSkinType
     rogueliteProfile*: RogueliteProfile
     hoveredSkin*: int  # -1 for none
     scrollOffset*: float32
@@ -38,6 +42,8 @@ type
     shapeChanged*: bool
     bulletShapeChanged*: bool
     particleChanged*: bool
+    desktopBgChanged*: bool
+    cubeSkinChanged*: bool
     maxScrollOffset*: float32
 
 const
@@ -73,6 +79,8 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     selectedShape: currentShape,
     selectedBulletShape: currentBulletShape,
     selectedParticle: currentParticle,
+    selectedDesktopBg: DesktopBgType(0),
+    selectedCubeSkin: CubeSkinType(0),
     rogueliteProfile: rogueliteProfile,
     hoveredSkin: -1,
     scrollOffset: 0.0,
@@ -92,6 +100,8 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     shapeChanged: false,
     bulletShapeChanged: false,
     particleChanged: false,
+    desktopBgChanged: false,
+    cubeSkinChanged: false,
     maxScrollOffset: 0.0
   )
 
@@ -107,15 +117,22 @@ proc saveSkinSelectionImmediately*(shop: ShopWindow) =
     globalSettings.bulletShape = shop.selectedBulletShape.int
   if shop.particleChanged:
     globalSettings.particleEffect = shop.selectedParticle.int
+  if shop.desktopBgChanged:
+    globalSettings.desktopBg = shop.selectedDesktopBg.int
+  if shop.cubeSkinChanged:
+    globalSettings.cubeSkin = shop.selectedCubeSkin.int
 
-  if shop.playerSkinChanged or shop.bulletSkinChanged or shop.shapeChanged or shop.bulletShapeChanged or shop.particleChanged:
+  if shop.playerSkinChanged or shop.bulletSkinChanged or shop.shapeChanged or
+     shop.bulletShapeChanged or shop.particleChanged or
+     shop.desktopBgChanged or shop.cubeSkinChanged:
     discard saveSettings(globalSettings)
-    # Reset change flags after saving
     shop.playerSkinChanged = false
     shop.bulletSkinChanged = false
     shop.shapeChanged = false
     shop.bulletShapeChanged = false
     shop.particleChanged = false
+    shop.desktopBgChanged = false
+    shop.cubeSkinChanged = false
 
 proc cosmeticCostLabel(cost: CosmeticCost): string =
   var parts: seq[string] = @[]
@@ -176,6 +193,10 @@ proc visibleCosmeticIndices*(kind: CosmeticKind, query: string): seq[int] =
       name = getBulletShapeData(BulletShapeType(i)).name
     of ckParticle:
       name = getParticleSkinData(ParticleSkinType(i)).name
+    of ckDesktopBg:
+      name = getDesktopBgData(DesktopBgType(i)).name
+    of ckCubeSkin:
+      name = getCubeSkinData(CubeSkinType(i)).name
 
     if q.len == 0 or name.toLowerAscii().contains(q):
       result.add(i)
@@ -262,6 +283,12 @@ proc equipCosmetic(shop: ShopWindow, kind: CosmeticKind, index: int) =
   of ckParticle:
     shop.selectedParticle = ParticleSkinType(index)
     shop.particleChanged = true
+  of ckDesktopBg:
+    shop.selectedDesktopBg = DesktopBgType(index)
+    shop.desktopBgChanged = true
+  of ckCubeSkin:
+    shop.selectedCubeSkin = CubeSkinType(index)
+    shop.cubeSkinChanged = true
   saveSkinSelectionImmediately(shop)
 
 proc handleCosmeticClick(shop: ShopWindow, kind: CosmeticKind, index: int) =
@@ -288,6 +315,8 @@ proc syncShopSelectionFromSettings(shop: ShopWindow) =
   shop.selectedShape = ShapeType(globalSettings.playerShape)
   shop.selectedBulletShape = BulletShapeType(globalSettings.bulletShape)
   shop.selectedParticle = ParticleSkinType(globalSettings.particleEffect)
+  shop.selectedDesktopBg = DesktopBgType(globalSettings.desktopBg)
+  shop.selectedCubeSkin = CubeSkinType(globalSettings.cubeSkin)
 
 proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
   ## Draw a preview of a player skin with shop icon style
@@ -637,6 +666,235 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
+proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
+                            isSelected: bool, isHovered: bool,
+                            isUnlocked: bool = true, canBuy: bool = false,
+                            cost: CosmeticCost, costText: string = "") =
+  ## Draw a card preview for a desktop background skin
+  let bgData = getDesktopBgData(bgType)
+
+  let cardBg = if isSelected: Color(r: 0, g: 60, b: 80, a: 255)
+               elif isHovered: Color(r: 60, g: 60, b: 70, a: 255)
+               else: Color(r: 40, g: 40, b: 50, a: 255)
+  drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, cardBg)
+
+  # Mini background preview area (top portion of card)
+  let previewH = 64
+  drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32, bgData.bgColor)
+
+  # Draw simple animated lines/dots representing the BG style
+  let cx = (x + SKIN_BOX_WIDTH div 2).float32
+  let cy = (y + previewH div 2).float32
+
+  case bgType
+  of dbgDefault:
+    # Render the full hardcoded desktop wallpaper inside the preview area
+    # Use scissor to confine drawing to the preview rectangle, then translate
+    beginVirtualScissorMode(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
+    pushMatrix()
+    translatef(x.float32, y.float32, 0.0'f32)
+    # Draw the exact wallpaper using the same routine and time so visuals match
+    # Pass zeroed cube rotations (neutral) — wallpaper code scales to the provided dimensions
+    drawDesktopWallpaper(SKIN_BOX_WIDTH, previewH, time, 0.0'f32, 0.0'f32, 0.0'f32)
+    popMatrix()
+    endScissorMode()
+  of dbgMatrix:
+    # Cascading dots in columns
+    for col in 0..4:
+      let lx = (x + 14 + col * 30).float32
+      for row in 0..2:
+        let phase = time * 3.0 + col.float32 * 1.2 + row.float32 * 0.8
+        let alpha = uint8(clamp((sin(phase) * 0.5 + 0.5) * 255, 30, 255))
+        drawCircle(Vector2(x: lx, y: (y + 10 + row * 20).float32), 3.0,
+                   Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g,
+                         b: bgData.primaryColor.b, a: alpha))
+  of dbgVoid:
+    # Stars (static dots)
+    let starPositions = [(cx - 30, cy - 12), (cx + 20, cy - 18), (cx - 10, cy + 10),
+                         (cx + 38, cy + 8), (cx - 45, cy + 5)]
+    for (sx, sy) in starPositions:
+      let pulse = uint8(clamp(sin(time * 1.5 + sx) * 80 + 160, 80, 255))
+      drawCircle(Vector2(x: sx, y: sy), 2.0,
+                 Color(r: bgData.accentColor.r, g: bgData.accentColor.g,
+                       b: bgData.accentColor.b, a: pulse))
+  else:
+    # Generic: radiate accent rays from center
+    for i in 0..5:
+      let angle = (i.float32 / 6.0) * PI * 2.0 + time * 0.6
+      let r1 = 6.0
+      let r2 = 24.0
+      let x1 = cx + cos(angle) * r1
+      let y1 = cy + sin(angle) * r1
+      let x2 = cx + cos(angle) * r2
+      let y2 = cy + sin(angle) * r2
+      drawLine(x1.int32, y1.int32, x2.int32, y2.int32,
+               Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g,
+                     b: bgData.primaryColor.b, a: 180))
+    drawCircle(Vector2(x: cx, y: cy), 4.0, bgData.accentColor)
+
+  # Border
+  let borderColor = if isSelected: Color(r: 255, g: 150, b: 50, a: 255)
+                    elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
+                    else: Color(r: 80, g: 80, b: 100, a: 255)
+  let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
+  drawRectangleLines(
+    Rectangle(x: x.float32, y: y.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
+    borderThickness, borderColor)
+
+  # Name
+  let nameSize: int32 = if isHovered: 17 else: 16
+  let nameWidth = measureText(bgData.name, nameSize)
+  drawText(bgData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32,
+           (y + 70).int32, nameSize, White)
+
+  # Description (wrapped 2 lines)
+  let maxDescWidth = SKIN_BOX_WIDTH - 10
+  let wrapped = wrapTwoLines(bgData.description, maxDescWidth.int32, 11)
+  let d1w = measureText(wrapped.line1, 11)
+  drawText(wrapped.line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32,
+           (y + 90).int32, 11, Gray)
+  if wrapped.line2.len > 0:
+    let d2w = measureText(wrapped.line2, 11)
+    drawText(wrapped.line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32,
+             (y + 102).int32, 11, Gray)
+
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
+
+proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
+                           isSelected: bool, isHovered: bool,
+                           isUnlocked: bool = true, canBuy: bool = false,
+                           cost: CosmeticCost, costText: string = "") =
+  ## Draw a card preview for a cube skin using simple 2-D isometric-style cube
+  let skinData = getCubeSkinData(skinType)
+
+  let cardBg = if isSelected: Color(r: 0, g: 60, b: 80, a: 255)
+               elif isHovered: Color(r: 60, g: 60, b: 70, a: 255)
+               else: Color(r: 40, g: 40, b: 50, a: 255)
+  drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, cardBg)
+
+  let borderColor = if isSelected: Color(r: 255, g: 150, b: 50, a: 255)
+                    elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
+                    else: Color(r: 80, g: 80, b: 100, a: 255)
+  let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
+  drawRectangleLines(
+    Rectangle(x: x.float32, y: y.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
+    borderThickness, borderColor)
+
+  # For the default cube skin, render the exact wallpaper cube instead of
+  # the simplified isometric preview so the shop shows a 1:1 match.
+  if skinType == cskDefault:
+    let previewH = 64
+    beginVirtualScissorMode(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
+    let centerX = (x + SKIN_BOX_WIDTH div 2).float32
+    let centerY = (y + 46).float32
+    let cubeSize = 18.0'f32
+    drawZeroGravityWallpaperCube(centerX, centerY, cubeSize, time, 0.0'f32, 0.0'f32, 0.0'f32)
+    endScissorMode()
+  else:
+    # Draw a simple isometric cube using three parallelogram-ish rectangles
+    let hoverScale = if isHovered: 1.06'f32 else: 1.0'f32
+    let s = int(22.0 * hoverScale)   # half-size of cube face
+    let cx = x + SKIN_BOX_WIDTH div 2
+    let cy = y + 46
+
+    # Rotation bob for selected/hovered
+    let bob = if isSelected or isHovered: sin(time * 3.0) * 2.0 else: 0.0
+    let cyB = cy + int(bob)
+
+    # Top face (bright)
+    let topPts = [
+      Vector2(x: (cx).float32,         y: (cyB - s).float32),
+      Vector2(x: (cx + s).float32,     y: (cyB - s div 2).float32),
+      Vector2(x: (cx).float32,         y: (cyB).float32),
+      Vector2(x: (cx - s).float32,     y: (cyB - s div 2).float32)
+    ]
+    drawTriangle(topPts[0], topPts[1], topPts[2], skinData.faceColor)
+    drawTriangle(topPts[0], topPts[2], topPts[3], skinData.faceColor)
+
+    # Right face (darker)
+    let rightDark = Color(
+      r: uint8(skinData.faceColor.r.int * 6 div 10),
+      g: uint8(skinData.faceColor.g.int * 6 div 10),
+      b: uint8(skinData.faceColor.b.int * 6 div 10),
+      a: 255)
+    let rightPts = [
+      Vector2(x: (cx + s).float32,     y: (cyB - s div 2).float32),
+      Vector2(x: (cx + s).float32,     y: (cyB + s div 2).float32),
+      Vector2(x: (cx).float32,         y: (cyB + s).float32),
+      Vector2(x: (cx).float32,         y: (cyB).float32)
+    ]
+    drawTriangle(rightPts[0], rightPts[1], rightPts[3], rightDark)
+    drawTriangle(rightPts[1], rightPts[2], rightPts[3], rightDark)
+
+    # Left face (medium shade)
+    let leftMid = Color(
+      r: uint8(skinData.faceColor.r.int * 8 div 10),
+      g: uint8(skinData.faceColor.g.int * 8 div 10),
+      b: uint8(skinData.faceColor.b.int * 8 div 10),
+      a: 255)
+    let leftPts = [
+      Vector2(x: (cx - s).float32,     y: (cyB - s div 2).float32),
+      Vector2(x: (cx).float32,         y: (cyB).float32),
+      Vector2(x: (cx).float32,         y: (cyB + s).float32),
+      Vector2(x: (cx - s).float32,     y: (cyB + s div 2).float32)
+    ]
+    drawTriangle(leftPts[0], leftPts[1], leftPts[3], leftMid)
+    drawTriangle(leftPts[1], leftPts[2], leftPts[3], leftMid)
+
+    # Edge outlines using edgeColor — subtle thickness for realism
+    let baseThick = 1.0'f32
+    let hoverMul = if isHovered or isSelected: 1.25'f32 else: 1.0'f32
+    let topThick = baseThick * 1.2'f32 * hoverMul
+    let faceThick = baseThick * hoverMul
+
+    # Top face perimeter (slightly stronger to read silhouette)
+    drawLine(topPts[0], topPts[1], topThick, skinData.edgeColor)
+    drawLine(topPts[1], topPts[2], topThick, skinData.edgeColor)
+    drawLine(topPts[2], topPts[3], topThick, skinData.edgeColor)
+    drawLine(topPts[3], topPts[0], topThick, skinData.edgeColor)
+
+    # Right face perimeter (thin)
+    drawLine(rightPts[0], rightPts[1], faceThick, skinData.edgeColor)
+    drawLine(rightPts[1], rightPts[2], faceThick, skinData.edgeColor)
+    drawLine(rightPts[2], rightPts[3], faceThick, skinData.edgeColor)
+    drawLine(rightPts[3], rightPts[0], faceThick, skinData.edgeColor)
+
+    # Left face perimeter (thin)
+    drawLine(leftPts[0], leftPts[1], faceThick, skinData.edgeColor)
+    drawLine(leftPts[1], leftPts[2], faceThick, skinData.edgeColor)
+    drawLine(leftPts[2], leftPts[3], faceThick, skinData.edgeColor)
+    drawLine(leftPts[3], leftPts[0], faceThick, skinData.edgeColor)
+
+    # Subtle front vertical edges for depth
+    drawLine(topPts[2], Vector2(x: cx.float32, y: (cyB + s).float32), faceThick, skinData.edgeColor)
+    drawLine(rightPts[1], Vector2(x: cx.float32, y: (cyB + s).float32), faceThick, skinData.edgeColor)
+    drawLine(leftPts[3], Vector2(x: cx.float32, y: (cyB + s).float32), faceThick, skinData.edgeColor)
+
+    # Glow ring underneath
+    let glowAlpha = uint8(clamp(sin(time * 2.5) * 50 + 130, 60, 200))
+    drawEllipse(cx.int32, (cyB + s + 4).int32, s.float32 * 0.9, 4.0,
+                Color(r: skinData.glowColor.r, g: skinData.glowColor.g,
+                      b: skinData.glowColor.b, a: glowAlpha))
+
+  # Name
+  let nameSize: int32 = if isHovered: 17 else: 16
+  let nameWidth = measureText(skinData.name, nameSize)
+  drawText(skinData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32,
+           (y + 80).int32, nameSize, White)
+
+  # Description (wrapped 2 lines)
+  let maxDescWidth = SKIN_BOX_WIDTH - 10
+  let wrapped = wrapTwoLines(skinData.description, maxDescWidth.int32, 11)
+  let d1w = measureText(wrapped.line1, 11)
+  drawText(wrapped.line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32,
+           (y + 100).int32, 11, Gray)
+  if wrapped.line2.len > 0:
+    let d2w = measureText(wrapped.line2, 11)
+    drawText(wrapped.line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32,
+             (y + 112).int32, 11, Gray)
+
+  drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
+
 proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWindow]): bool =
   ## Update shop window. Returns true if window should close
   if shop.isNil or shop.window.isNil:
@@ -678,7 +936,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
 
   # Check tab clicks
   let tabY = contentY
-  let tabWidth = contentWidth div 5  # 5 tabs
+  let tabWidth = contentWidth div 7  # 7 tabs
 
   if not shop.window.dragging and mouseY >= tabY and mouseY < tabY + TAB_HEIGHT and isTopmost:
     if shop.window.handledClickThisFrame:
@@ -698,8 +956,16 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
         shop.currentTab = stBulletShapes
         shop.scrollOffset = 0.0
         shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth * 4 and mouseX < contentX + contentWidth:
+      elif mouseX >= contentX + tabWidth * 4 and mouseX < contentX + tabWidth * 5:
         shop.currentTab = stParticles
+        shop.scrollOffset = 0.0
+        shop.scrollVelocity = 0.0
+      elif mouseX >= contentX + tabWidth * 5 and mouseX < contentX + tabWidth * 6:
+        shop.currentTab = stDesktopBg
+        shop.scrollOffset = 0.0
+        shop.scrollVelocity = 0.0
+      elif mouseX >= contentX + tabWidth * 6 and mouseX < contentX + contentWidth:
+        shop.currentTab = stCubeSkins
         shop.scrollOffset = 0.0
         shop.scrollVelocity = 0.0
 
@@ -715,6 +981,8 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
                 elif shop.currentTab == stBulletSkins: ckBulletSkin
                 elif shop.currentTab == stShapes: ckPlayerShape
                 elif shop.currentTab == stBulletShapes: ckBulletShape
+                elif shop.currentTab == stDesktopBg: ckDesktopBg
+                elif shop.currentTab == stCubeSkins: ckCubeSkin
                 else: ckParticle
 
   var visible = visibleCosmeticIndices(curKind, shop.searchQuery)
@@ -878,7 +1146,7 @@ proc drawShopWindow*(shop: ShopWindow) =
                 Color(r: 25, g: 25, b: 35, a: 255))
 
   # Draw tabs
-  let tabWidth = contentWidth div 5  # 5 tabs
+  let tabWidth = contentWidth div 7  # 7 tabs
   let tabY = contentY
 
   # Player Skins tab
@@ -888,8 +1156,8 @@ proc drawShopWindow*(shop: ShopWindow) =
   if tab1Active:
     drawRectangle(contentX.int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
   let tab1Label = t("shop_tab_player")
-  let tab1LabelX = contentX + (tabWidth - measureText(tab1Label, 14)) div 2
-  drawText(tab1Label, tab1LabelX.int32, (tabY + 12).int32, 14, if tab1Active: White else: Gray)
+  let tab1LabelX = contentX + (tabWidth - measureText(tab1Label, 12)) div 2
+  drawText(tab1Label, tab1LabelX.int32, (tabY + 13).int32, 12, if tab1Active: White else: Gray)
 
   # Bullet Skins tab
   let tab2Active = shop.currentTab == stBulletSkins
@@ -898,9 +1166,8 @@ proc drawShopWindow*(shop: ShopWindow) =
   if tab2Active:
     drawRectangle((contentX + tabWidth).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
   let tab2Label = t("shop_tab_bullet")
-  let tab2Start = contentX + tabWidth
-  let tab2LabelX = tab2Start + (tabWidth - measureText(tab2Label, 14)) div 2
-  drawText(tab2Label, tab2LabelX.int32, (tabY + 12).int32, 14, if tab2Active: White else: Gray)
+  let tab2LabelX = contentX + tabWidth + (tabWidth - measureText(tab2Label, 12)) div 2
+  drawText(tab2Label, tab2LabelX.int32, (tabY + 13).int32, 12, if tab2Active: White else: Gray)
 
   # Shapes tab
   let tab3Active = shop.currentTab == stShapes
@@ -909,9 +1176,9 @@ proc drawShopWindow*(shop: ShopWindow) =
   if tab3Active:
     drawRectangle((contentX + tabWidth * 2).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
   let tab3Label = t("shop_tab_shapes")
-  let tab3Start = contentX + tabWidth * 2
-  let tab3LabelX = tab3Start + (tabWidth - measureText(tab3Label, 14)) div 2
-  drawText(tab3Label, tab3LabelX.int32, (tabY + 12).int32, 14, if tab3Active: White else: Gray)
+  let tab3LabelX = contentX + tabWidth * 2 + (tabWidth - measureText(tab3Label, 12)) div 2
+  drawText(tab3Label, tab3LabelX.int32, (tabY + 13).int32, 12, if tab3Active: White else: Gray)
+
   # Bullet Shapes tab
   let tab4Active = shop.currentTab == stBulletShapes
   let tab4Color = if tab4Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
@@ -919,9 +1186,8 @@ proc drawShopWindow*(shop: ShopWindow) =
   if tab4Active:
     drawRectangle((contentX + tabWidth * 3).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
   let tab4Label = t("shop_tab_bshapes")
-  let tab4Start = contentX + tabWidth * 3
-  let tab4LabelX = tab4Start + (tabWidth - measureText(tab4Label, 14)) div 2
-  drawText(tab4Label, tab4LabelX.int32, (tabY + 12).int32, 14, if tab4Active: White else: Gray)
+  let tab4LabelX = contentX + tabWidth * 3 + (tabWidth - measureText(tab4Label, 12)) div 2
+  drawText(tab4Label, tab4LabelX.int32, (tabY + 13).int32, 12, if tab4Active: White else: Gray)
 
   # Particles tab
   let tab5Active = shop.currentTab == stParticles
@@ -930,9 +1196,28 @@ proc drawShopWindow*(shop: ShopWindow) =
   if tab5Active:
     drawRectangle((contentX + tabWidth * 4).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
   let tab5Label = t("shop_tab_particles")
-  let tab5Start = contentX + tabWidth * 4
-  let tab5LabelX = tab5Start + (tabWidth - measureText(tab5Label, 14)) div 2
-  drawText(tab5Label, tab5LabelX.int32, (tabY + 12).int32, 14, if tab5Active: White else: Gray)
+  let tab5LabelX = contentX + tabWidth * 4 + (tabWidth - measureText(tab5Label, 12)) div 2
+  drawText(tab5Label, tab5LabelX.int32, (tabY + 13).int32, 12, if tab5Active: White else: Gray)
+
+  # Desktop BG tab
+  let tab6Active = shop.currentTab == stDesktopBg
+  let tab6Color = if tab6Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
+  drawRectangle((contentX + tabWidth * 5).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab6Color)
+  if tab6Active:
+    drawRectangle((contentX + tabWidth * 5).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
+  let tab6Label = t("shop_tab_desktop")
+  let tab6LabelX = contentX + tabWidth * 5 + (tabWidth - measureText(tab6Label, 12)) div 2
+  drawText(tab6Label, tab6LabelX.int32, (tabY + 13).int32, 12, if tab6Active: White else: Gray)
+
+  # Cube Skins tab
+  let tab7Active = shop.currentTab == stCubeSkins
+  let tab7Color = if tab7Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
+  drawRectangle((contentX + tabWidth * 6).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab7Color)
+  if tab7Active:
+    drawRectangle((contentX + tabWidth * 6).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
+  let tab7Label = t("shop_tab_cubeskins")
+  let tab7LabelX = contentX + tabWidth * 6 + (tabWidth - measureText(tab7Label, 12)) div 2
+  drawText(tab7Label, tab7LabelX.int32, (tabY + 13).int32, 12, if tab7Active: White else: Gray)
 
   # Draw header
   let headerHeight = 50
@@ -945,6 +1230,12 @@ proc drawShopWindow*(shop: ShopWindow) =
     t("shop_choose_shape")
   elif shop.currentTab == stBulletShapes:
     t("shop_customize_bshapes")
+  elif shop.currentTab == stParticles:
+    t("shop_customize_effects")
+  elif shop.currentTab == stDesktopBg:
+    t("shop_customize_desktop")
+  elif shop.currentTab == stCubeSkins:
+    t("shop_customize_cubeskins")
   else:
     t("shop_customize_effects")
   drawText(tabTitle, (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
@@ -975,6 +1266,8 @@ proc drawShopWindow*(shop: ShopWindow) =
                 elif shop.currentTab == stBulletSkins: ckBulletSkin
                 elif shop.currentTab == stShapes: ckPlayerShape
                 elif shop.currentTab == stBulletShapes: ckBulletShape
+                elif shop.currentTab == stDesktopBg: ckDesktopBg
+                elif shop.currentTab == stCubeSkins: ckCubeSkin
                 else: ckParticle
 
   var visible = visibleCosmeticIndices(curKind, shop.searchQuery)
@@ -1054,7 +1347,7 @@ proc drawShopWindow*(shop: ShopWindow) =
         let cost = cosmeticCost(ckBulletShape, itemIndex)
         let costText = cosmeticCostLabel(cost)
         drawBulletShapePreview(boxX, boxY, bshapeType, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
-      else:
+      of stParticles:
         let pType = ParticleSkinType(itemIndex)
         let isSelected = pType == shop.selectedParticle
         let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckParticle, itemIndex)
@@ -1062,6 +1355,22 @@ proc drawShopWindow*(shop: ShopWindow) =
         let cost = cosmeticCost(ckParticle, itemIndex)
         let costText = cosmeticCostLabel(cost)
         drawParticlePreview(boxX, boxY, pType, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
+      of stDesktopBg:
+        let bgType = DesktopBgType(itemIndex)
+        let isSelected = bgType == shop.selectedDesktopBg
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckDesktopBg, itemIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckDesktopBg, itemIndex)
+        let cost = cosmeticCost(ckDesktopBg, itemIndex)
+        let costText = cosmeticCostLabel(cost)
+        drawDesktopBgPreview(boxX, boxY, bgType, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
+      of stCubeSkins:
+        let cubeType = CubeSkinType(itemIndex)
+        let isSelected = cubeType == shop.selectedCubeSkin
+        let isUnlocked = cosmeticIsUnlocked(shop.rogueliteProfile, ckCubeSkin, itemIndex)
+        let canBuy = canAffordCosmetic(shop.rogueliteProfile, ckCubeSkin, itemIndex)
+        let cost = cosmeticCost(ckCubeSkin, itemIndex)
+        let costText = cosmeticCostLabel(cost)
+        drawCubeSkinPreview(boxX, boxY, cubeType, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
 
     # Focus ring for keyboard navigation (drawn over card)
     if vIndex == shop.focusIndex:
@@ -1104,8 +1413,16 @@ proc drawShopWindow*(shop: ShopWindow) =
     let selectedData = getBulletShapeData(shop.selectedBulletShape)
     drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
-  else:  # stParticles
+  elif shop.currentTab == stParticles:
     let selectedData = getParticleSkinData(shop.selectedParticle)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
+    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+  elif shop.currentTab == stDesktopBg:
+    let selectedData = getDesktopBgData(shop.selectedDesktopBg)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
+    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+  elif shop.currentTab == stCubeSkins:
+    let selectedData = getCubeSkinData(shop.selectedCubeSkin)
     drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
     drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
 

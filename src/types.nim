@@ -227,6 +227,8 @@ type
     unlockedPlayerShapes*: seq[string]
     unlockedBulletShapes*: seq[string]
     unlockedParticleSkins*: seq[string]
+    unlockedDesktopBgs*: seq[string]
+    unlockedCubeSkins*: seq[string]
     unlockedBossTier*: int
     highestHeat*: int
     bestAct*: int

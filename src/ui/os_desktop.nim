@@ -1,7 +1,7 @@
 ## OS-Themed Desktop Environment Module
 ## Main menu as an operating system desktop
 
-import raylib, ../types, ../localization, math, strutils, strformat, times, ../render_context, background_fx
+import raylib, ../types, ../localization, math, strutils, strformat, times, ../render_context, background_fx, ../desktop_bg_skins, ../settings, ../cube_skins
 
 type
   DesktopIconType* = enum
@@ -608,8 +608,9 @@ proc drawWallpaperCubeFace(points: array[8, Vector2], face: WallpaperCubeFace) =
   drawTriangle(a, b, c, face.color)
   drawTriangle(a, c, d, face.color)
 
-proc drawZeroGravityWallpaperCube(centerX, centerY, size, time,
-                                   angleX, angleY, angleZ: float32) =
+proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
+                                   angleX, angleY, angleZ: float32,
+                                   skin: CubeSkinType = cskDefault) =
   const
     CubeFaces: array[6, array[4, int]] = [
       [0, 1, 2, 3],
@@ -659,6 +660,11 @@ proc drawZeroGravityWallpaperCube(centerX, centerY, size, time,
                Color(r: 170, g: 250, b: 255, a: uint8(58 + i * 12)))
 
   var faces: array[6, WallpaperCubeFace]
+  var useCustomSkin = skin != cskDefault
+  var skinDataLocal: CubeSkinData
+  if useCustomSkin:
+    skinDataLocal = getCubeSkinData(skin)
+
   for i in 0..<6:
     var avgZ = 0.0'f32
     for corner in CubeFaces[i]:
@@ -666,16 +672,35 @@ proc drawZeroGravityWallpaperCube(centerX, centerY, size, time,
     avgZ /= 4.0'f32
 
     let light = clamp((avgZ + 1.65'f32) / 3.3'f32, 0.0'f32, 1.0'f32)
-    faces[i] = WallpaperCubeFace(
-      corners: CubeFaces[i],
-      depth: avgZ,
-      color: Color(
-        r: uint8(18.0'f32 + light * 42.0'f32),
-        g: uint8(116.0'f32 + light * 92.0'f32),
-        b: uint8(168.0'f32 + light * 70.0'f32),
-        a: uint8(84.0'f32 + light * 86.0'f32)
+    if not useCustomSkin:
+      faces[i] = WallpaperCubeFace(
+        corners: CubeFaces[i],
+        depth: avgZ,
+        color: Color(
+          r: uint8(18.0'f32 + light * 42.0'f32),
+          g: uint8(116.0'f32 + light * 92.0'f32),
+          b: uint8(168.0'f32 + light * 70.0'f32),
+          a: uint8(84.0'f32 + light * 86.0'f32)
+        )
       )
-    )
+    else:
+      let base = skinDataLocal.faceColor
+      let hi = skinDataLocal.edgeColor
+      let glow = skinDataLocal.glowColor
+      let rVal = base.r.float32 + light * (hi.r.float32 - base.r.float32) * 0.35'f32
+      let gVal = base.g.float32 + light * (hi.g.float32 - base.g.float32) * 0.35'f32
+      let bVal = base.b.float32 + light * (hi.b.float32 - base.b.float32) * 0.35'f32
+      let aVal = base.a.float32 * 0.5'f32 + light * (glow.a.float32 * 0.5'f32)
+      faces[i] = WallpaperCubeFace(
+        corners: CubeFaces[i],
+        depth: avgZ,
+        color: Color(
+          r: uint8(clamp(rVal, 0.0'f32, 255.0'f32)),
+          g: uint8(clamp(gVal, 0.0'f32, 255.0'f32)),
+          b: uint8(clamp(bVal, 0.0'f32, 255.0'f32)),
+          a: uint8(clamp(aVal, 0.0'f32, 255.0'f32))
+        )
+      )
 
   for pass in 0..<faces.len:
     for i in 0..<(faces.len - 1):
@@ -685,13 +710,16 @@ proc drawZeroGravityWallpaperCube(centerX, centerY, size, time,
   for face in faces:
     drawWallpaperCubeFace(projected, face)
 
-  let edgeColor = Color(r: 190, g: 250, b: 255, a: 220)
-  let innerEdgeColor = Color(r: 0, g: 215, b: 255, a: 100)
+  var edgeColor = Color(r: 190, g: 250, b: 255, a: 220)
+  var innerEdgeColor = Color(r: 0, g: 215, b: 255, a: 100)
+  if skin != cskDefault:
+    edgeColor = Color(r: skinDataLocal.edgeColor.r, g: skinDataLocal.edgeColor.g, b: skinDataLocal.edgeColor.b, a: 220)
+    innerEdgeColor = Color(r: skinDataLocal.glowColor.r, g: skinDataLocal.glowColor.g, b: skinDataLocal.glowColor.b, a: 100)
   for edge in CubeEdges:
     drawLine(projected[edge[0]], projected[edge[1]], 4, innerEdgeColor)
     drawLine(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
 
-proc drawDesktopWallpaper(screenWidth, screenHeight: int, time,
+proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
                           cubeRotX, cubeRotY, cubeRotZ: float32) =
   drawSharedBackdrop(screenWidth.int32, screenHeight.int32, time * 0.62,
                      Color(r: 5, g: 8, b: 18, a: 255),
@@ -725,8 +753,9 @@ proc drawDesktopWallpaper(screenWidth, screenHeight: int, time,
     drawCircle(Vector2(x: nodeX, y: nodeY), 3.0 + i.float32 * 0.35,
                Color(r: 165, g: 245, b: 255, a: uint8(120 + i * 18)))
 
+  let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
   drawZeroGravityWallpaperCube(centerX, centerY, min(w, h) * 0.042'f32, time,
-                               cubeRotX, cubeRotY, cubeRotZ)
+                               cubeRotX, cubeRotY, cubeRotZ, currentCubeSkin)
 
   # Thin scan bands and routing traces.
   for i in 0..<14:
@@ -752,8 +781,67 @@ proc drawDesktopWallpaper(screenWidth, screenHeight: int, time,
            1, Color(r: 70, g: 230, b: 255, a: 64))
 
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
-  drawDesktopWallpaper(screenWidth, screenHeight, desktop.time,
-                       desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ)
+  ## Draw the active desktop background. If the player has selected a desktop
+  ## background from settings/shop use that; otherwise fall back to the
+  ## original hardcoded wallpaper. This ensures the shop's `dbgDefault` is
+  ## a 1:1 copy of the hardcoded wallpaper when selected.
+  var selectedBg: DesktopBgType = dbgDefault
+  if not globalSettings.isNil:
+    selectedBg = DesktopBgType(globalSettings.desktopBg)
+
+  case selectedBg
+  of dbgDefault:
+    # Exact, hardcoded wallpaper (keeps cube rotations and all effects)
+    drawDesktopWallpaper(screenWidth, screenHeight, desktop.time,
+                         desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ)
+  else:
+    # Generic rendering for other skins using the skin colours so the
+    # shop preview and equipped background look consistent.
+    let bgData = getDesktopBgData(selectedBg)
+    let topColor = bgData.bgColor
+    let bottomColor = darkened(topColor, 12)
+    let gridColor = Color(r: uint8((bgData.primaryColor.r.int + bgData.accentColor.r.int) div 2),
+                          g: uint8((bgData.primaryColor.g.int + bgData.accentColor.g.int) div 2),
+                          b: uint8((bgData.primaryColor.b.int + bgData.accentColor.b.int) div 2),
+                          a: 34)
+    let nodeColor = bgData.accentColor
+    let accentColor = bgData.primaryColor
+
+    drawSharedBackdrop(screenWidth.int32, screenHeight.int32, desktop.time * 0.62,
+                       topColor, bottomColor, gridColor, nodeColor, accentColor,
+                       0.9, 0.8)
+
+    let w = screenWidth.float32
+    let h = screenHeight.float32
+    drawSoftGlow(w * 0.64, h * 0.46, min(w, h) * 0.42,
+                 Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: 70), 0.7)
+    drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
+                 Color(r: nodeColor.r, g: nodeColor.g, b: nodeColor.b, a: 56), 0.55)
+    drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
+                 Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g, b: bgData.primaryColor.b, a: 46), 0.5)
+
+    for i in 0..3:
+      let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
+      let alpha = uint8(26 + i * 9)
+      drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
+                      Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: alpha))
+
+    # Draw the wallpaper cube using the currently equipped cube skin so the
+    # menu background matches the cube preview/selection. Default skin uses
+    # the original hardcoded cube colors.
+    let centerX = w * 0.64
+    let centerY = h * 0.46
+    let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
+    drawZeroGravityWallpaperCube(centerX, centerY, min(w, h) * 0.042'f32, desktop.time,
+                                 desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ, currentCubeSkin)
+
+    # Left-side launch column silhouette (keeps icons readable)
+    drawRectangleGradientH(0, 0, min(310, screenWidth).int32, screenHeight.int32,
+                           Color(r: 2, g: 5, b: 12, a: 155),
+                           Color(r: 2, g: 5, b: 12, a: 0))
+    drawLine(Vector2(x: 250.0, y: 42.0),
+             Vector2(x: 250.0 + sin(desktop.time * 0.9) * 10.0, y: h - 74.0),
+             1, Color(r: 70, g: 230, b: 255, a: 64))
 
   # Desktop icons
   for icon in desktop.icons:

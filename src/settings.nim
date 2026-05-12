@@ -34,6 +34,8 @@ proc initSettings*(): Settings =
     playerShape: 0,  # Default to first shape (shHexagon)
     bulletShape: 0,  # Default to first bullet shape (bshCircle)
     particleEffect: 0,  # Default to first particle effect (pskDefault)
+    desktopBg: 0,        # Default to first desktop background (dbgDefault)
+    cubeSkin: 0,         # Default to first cube skin (cskDefault)
     pvpNickname: "Player"  # Default nickname for PvP
   )
   globalSettings = result
