@@ -335,9 +335,9 @@ proc getElementDamage*(level: int): float32 =
 proc getHeavyRoundsSizeMultiplier*(level: int): float32 =
   case level
   of 0: 1.0
-  of 1: 1.5
-  of 2: 2.0
-  else: 2.5
+  of 1: 1.1
+  of 2: 1.2
+  else: 1.25
 
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   let previousHeavyRoundsLevel = getPowerUpLevel(player, puHeavyRounds)

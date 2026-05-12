@@ -25,14 +25,22 @@ proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritic
 proc newCurrencyIndicator*(x, y: float32, amount: int,
                            kind: CurrencyIndicatorKind = cikCredits): CurrencyIndicator =
   let baseVelocityY = -76.0'f32
-  let horizontalSpread = (rand(1.0) - 0.5) * 72.0
+  # Data shards fire every wave — tighter spread so they don't wander off-screen
+  let spreadRange = if kind == cikDataShards: 40.0 else: 72.0
+  let horizontalSpread = (rand(1.0) - 0.5) * spreadRange
+  # Shards stay visible longer since they're the most important roguelite number
+  let maxLife = case kind
+    of cikDataShards:        1.60'f32
+    of cikOverheatCores:     1.45'f32
+    of cikSingularityCores:  1.45'f32
+    of cikCredits:           1.35'f32
 
   result = CurrencyIndicator(
     pos: newVector2f(x, y),
     vel: newVector2f(horizontalSpread, baseVelocityY),
     amount: amount,
     lifetime: 0,
-    maxLifetime: 1.35,
+    maxLifetime: maxLife,
     kind: kind
   )
 

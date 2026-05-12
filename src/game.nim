@@ -5370,12 +5370,25 @@ proc updateGame*(game: var Game, dt: float32) =
 
         var shouldOfferPowerUp = false
         if game.mode == gmRoguelite:
+          let prevShards   = game.rogueliteRun.shardsEarned
+          let prevOverheat = game.rogueliteRun.overheatCoresEarned
+          let prevSing     = game.rogueliteRun.singularityCoresEarned
           let outcome = finishRogueliteWave(game)
           shouldOfferPowerUp = outcome == rwoDraft
           if outcome == rwoSectorClear:
             game.rogueliteRun.pendingSectorSelect = true
           elif outcome == rwoActBoss:
             game.rogueliteRun.pendingActBoss = true
+          # Show floating indicators for any roguelite currency earned this wave
+          let shardDelta   = game.rogueliteRun.shardsEarned          - prevShards
+          let overheatDelta= game.rogueliteRun.overheatCoresEarned   - prevOverheat
+          let singDelta    = game.rogueliteRun.singularityCoresEarned - prevSing
+          if shardDelta > 0:
+            showCurrency(game, game.player.pos + newVector2f(0, -30), shardDelta, cikDataShards)
+          if overheatDelta > 0:
+            showCurrency(game, game.player.pos + newVector2f(22, -20), overheatDelta, cikOverheatCores)
+          if singDelta > 0:
+            showCurrency(game, game.player.pos + newVector2f(-22, -20), singDelta, cikSingularityCores)
         else:
           # DON'T advance wave here if we're waiting for boss coin
           # The wave will advance when the boss coin is collected
@@ -6178,7 +6191,19 @@ proc updateGame*(game: var Game, dt: float32) =
     enemyIdx += 1
 
   if bossDefeated and game.mode == gmRoguelite:
+    let prevShards   = game.rogueliteRun.shardsEarned
+    let prevOverheat = game.rogueliteRun.overheatCoresEarned
+    let prevSing     = game.rogueliteRun.singularityCoresEarned
     completeRogueliteBoss(game)
+    let shardDelta   = game.rogueliteRun.shardsEarned          - prevShards
+    let overheatDelta= game.rogueliteRun.overheatCoresEarned   - prevOverheat
+    let singDelta    = game.rogueliteRun.singularityCoresEarned - prevSing
+    if shardDelta > 0:
+      showCurrency(game, game.player.pos + newVector2f(0, -40), shardDelta, cikDataShards)
+    if overheatDelta > 0:
+      showCurrency(game, game.player.pos + newVector2f(28, -26), overheatDelta, cikOverheatCores)
+    if singDelta > 0:
+      showCurrency(game, game.player.pos + newVector2f(-28, -26), singDelta, cikSingularityCores)
     game.powerUpChoices = generatePowerUpChoices(game.player, true, unlockedFamilySet(game.rogueliteProfile))
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
