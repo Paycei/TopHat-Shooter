@@ -1,4 +1,4 @@
-import raylib, types, wall, math, random, powerup, localization, skins, shapes, ui/ui_constants
+import raylib, types, wall, math, random, powerup, localization, skins, shapes, ui/ui_constants, std/deques
 
 proc newPlayer*(x, y: float32): Player =
   result = Player(
@@ -81,7 +81,7 @@ proc newPlayer*(x, y: float32): Player =
     bloodPactCooldown: 0.0,
     conduitCooldown: 0.0,
     aftershockCooldown: 0.0,
-    aftershockPosHistory: @[],
+    aftershockPosHistory: initDeque[Vector2f](),
     aftershockSampleTimer: 0.0,
     novaCooldown: 0.0,
     novaActive: false,
@@ -90,15 +90,11 @@ proc newPlayer*(x, y: float32): Player =
   )
 
 proc hasAnyOrbPowerUp*(player: Player): bool =
-  ## Check if player has any orb power-up equipped
-  return hasPowerUp(player, puRotatingOrbs) or
-         hasPowerUp(player, puPoisonOrb) or
-         hasPowerUp(player, puFireOrb) or
-         hasPowerUp(player, puLightningOrb) or
-         hasPowerUp(player, puWindOrb) or
-         hasPowerUp(player, puFrostOrb) or
-         hasPowerUp(player, puArcaneOrb) or
-         hasPowerUp(player, puBloodOrb)
+  ## Check if player has any orb power-up equipped (rotating legendary + all elemental orbs)
+  if hasPowerUp(player, puRotatingOrbs): return true
+  for orbType in elementalOrbTypes:
+    if hasPowerUp(player, orbType): return true
+  return false
 
 proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
   # Update powerup timers
@@ -164,10 +160,10 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.aftershockSampleTimer += dt
     if player.aftershockSampleTimer >= 0.05:
       player.aftershockSampleTimer -= 0.05
-      player.aftershockPosHistory.add(player.pos)
+      player.aftershockPosHistory.addLast(player.pos)
       # Keep only the last 40 samples (2 seconds at 0.05s intervals)
-      while player.aftershockPosHistory.len > 40:
-        player.aftershockPosHistory.delete(0)
+      if player.aftershockPosHistory.len > 40:
+        player.aftershockPosHistory.popFirst()
 
   # Update Pulse Armor cooldown
   if player.pulseArmorCooldown > 0:

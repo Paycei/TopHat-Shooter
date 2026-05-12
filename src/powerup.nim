@@ -1,5 +1,13 @@
 import raylib, types, random, math, tables, ui/os_powerup_installer, d_visuals
 
+# Canonical list of all elemental orb power-up types.
+# Note: puRotatingOrbs (the legendary all-elements orb) is intentionally excluded —
+# that one is checked separately in contexts that need it (e.g. hasAnyOrbPowerUp).
+const elementalOrbTypes* = [
+  puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb,
+  puFrostOrb, puArcaneOrb, puBloodOrb
+]
+
 # Forward declarations for reroll system
 proc attemptRerollPowerUps*(game: Game): bool
 
@@ -76,8 +84,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
   ]
 
   # Define orb, aura, bullet, and mastery groups for exclusivity
-  # Note: puRotatingOrbs is intentionally excluded here
-  let orbTypes: array[0..6, PowerUpType] = [puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puArcaneOrb, puBloodOrb]
+  # Note: puRotatingOrbs is intentionally excluded here (see elementalOrbTypes)
+  let orbTypes = elementalOrbTypes
   let auraTypes: array[0..6, PowerUpType] = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
   let bulletTypes: array[0..6, PowerUpType] = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets, puBloodBullets, puChainLightning]
   let masteryTypes: array[0..6, PowerUpType] = [puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, puLightningMastery, puWindMastery, puBloodMastery]

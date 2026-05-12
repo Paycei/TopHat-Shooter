@@ -1,7 +1,8 @@
-﻿import raylib, std/tables, discord_presence, particle_types, math
+﻿import raylib, std/tables, std/deques, discord_presence, particle_types, math
 
 export Particle, ParticlePool, Vector2f
 export newVector2f, `+`, `-`, `*`, length, normalize, distance
+export Deque
 
 type
   GameState* = enum
@@ -391,7 +392,7 @@ type
     conduitCooldown*: float32   # Countdown to next use (0 = ready)
     # Aftershock (Legendary active)
     aftershockCooldown*: float32    # Countdown to next use (0 = ready)
-    aftershockPosHistory*: seq[Vector2f]  # Last 2s of positions (sampled every 0.05s)
+    aftershockPosHistory*: Deque[Vector2f]  # Last 2s of positions (sampled every 0.05s)
     aftershockSampleTimer*: float32       # Accumulator for position sampling
     # Nova (Legendary active)
     novaCooldown*: float32      # Countdown to next use (0 = ready)

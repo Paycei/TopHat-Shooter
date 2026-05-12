@@ -1,22 +1,24 @@
 import raylib, types, math, bullet_skins, bullet_shapes
 
+## Boss ID -> bullet shape index. 0=circle, 1=diamond, 2=triangle, 3=star, 4=cross, 5=square
+const bossBulletShapeTable = [
+  0,  # 0: unused
+  1,  # 1: Spiral Guardian    -> diamond
+  3,  # 2: Summoner King      -> star
+  2,  # 3: Meteor Striker     -> triangle
+  4,  # 4: Laser Architect    -> cross
+  1,  # 5: Void Dancer        -> diamond
+  5,  # 6: Chain Reactor      -> square
+  4,  # 7: Orbital Commander  -> cross
+  2,  # 8: Berserker          -> triangle
+  3,  # 9: Prism Architect    -> star
+  5,  # 10: Timekeeper        -> square
+  3,  # 11: Chaos Weaver      -> star
+  4,  # 12: Omega Entity      -> cross
+]
+
 proc bossBulletShapeFor*(bossId: int): int =
-  ## Maps boss definition ID to a bullet shape index.
-  ## 0=circle, 1=diamond, 2=triangle, 3=star, 4=cross, 5=square
-  case bossId
-  of 1:  return 1  # Spiral Guardian  -> diamond  (sharp, spinning feel)
-  of 2:  return 3  # Summoner King    -> star     (summoner magic)
-  of 3:  return 2  # Meteor Striker   -> triangle (jagged, falling rocks)
-  of 4:  return 4  # Laser Architect  -> cross    (laser crosshairs)
-  of 5:  return 1  # Void Dancer      -> diamond  (elegant, void crystal)
-  of 6:  return 5  # Chain Reactor    -> square   (mechanical, boxy)
-  of 7:  return 4  # Orbital Commander-> cross    (orbital targeting)
-  of 8:  return 2  # Berserker        -> triangle (aggressive, wedge)
-  of 9:  return 3  # Prism Architect  -> star     (prismatic shards)
-  of 10: return 5  # Timekeeper       -> square   (clockwork gears)
-  of 11: return 3  # Chaos Weaver     -> star     (chaotic burst)
-  of 12: return 4  # Omega Entity     -> cross    (final form, ominous)
-  else:  return 0  # fallback: circle
+  if bossId in 1..12: bossBulletShapeTable[bossId] else: 0
 
 proc clampColorChannel(value: int): uint8 =
   uint8(clamp(value, 0, 255))
@@ -101,31 +103,31 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
   let coreColor = shiftColor(baseColor, 80, 240)
   let rimColor = shiftColor(glowColor, 60, 230)
   let haloColor = withAlpha(glowColor, 100 + int(pulse * 40.0))
+  let highlight = Color(r: 255, g: 255, b: 255, a: 220)
+
+  # Shared draw helper for regular polygon bullet shapes (diamond, triangle, square).
+  # All use the same layered structure; only sides, rotation, and a few scale tweaks differ.
+  proc drawNgonBullet(sides: int, rot: float32, silhouetteR, glowPulse, coreScale: float32, glowAlpha: int) =
+    drawNgon(cx, cy, silhouetteR, sides, rot, silhouetteColor)
+    drawNgon(cx, cy, r + glowPulse, sides, rot, withAlpha(glowColor, glowAlpha))
+    drawNgon(cx, cy, r, sides, rot, baseColor)
+    drawNgon(cx, cy, r * coreScale, sides, rot, coreColor)
+    drawNgonLines(cx, cy, r + 1.8, sides, rot, rimColor, 2.4)
+    drawNgonLines(cx, cy, r + 4.8, sides, rot, haloColor, 1.7)
+    drawNgonLines(cx, cy, r + 7.8, sides, rot, withAlpha(glowColor, 70), 1.0)
+    drawCircle(Vector2(x: cx, y: cy), r * 0.24, highlight)
 
   case bullet.bossBulletShape
   of 1:  # Diamond (rotated square = 4-gon at 45°)
-    let rot = PI / 4.0 + spin
-    drawNgon(cx, cy, r + 6.5, 4, rot, silhouetteColor)
-    drawNgon(cx, cy, r + 4.2 + pulse * 1.2, 4, rot, withAlpha(glowColor, 92))
-    drawNgon(cx, cy, r, 4, rot, baseColor)
-    drawNgon(cx, cy, r * 0.56, 4, rot, coreColor)
-    drawNgonLines(cx, cy, r + 1.8, 4, rot, rimColor, 2.4)
-    drawNgonLines(cx, cy, r + 4.8, 4, rot, haloColor, 1.7)
-    drawNgonLines(cx, cy, r + 7.8, 4, rot, withAlpha(glowColor, 70), 1.0)
-    drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
+    drawNgonBullet(4, PI / 4.0 + spin, r + 6.5, 4.2 + pulse * 1.2, 0.56, 92)
 
   of 2:  # Triangle
-    let rot = -PI / 2.0 + spin * 0.7
-    drawNgon(cx, cy, r + 6.0, 3, rot, silhouetteColor)
-    drawNgon(cx, cy, r + 4.0 + pulse * 1.1, 3, rot, withAlpha(glowColor, 92))
-    drawNgon(cx, cy, r, 3, rot, baseColor)
-    drawNgon(cx, cy, r * 0.55, 3, rot, coreColor)
-    drawNgonLines(cx, cy, r + 1.8, 3, rot, rimColor, 2.4)
-    drawNgonLines(cx, cy, r + 4.8, 3, rot, haloColor, 1.7)
-    drawNgonLines(cx, cy, r + 7.8, 3, rot, withAlpha(glowColor, 70), 1.0)
-    drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
+    drawNgonBullet(3, -PI / 2.0 + spin * 0.7, r + 6.0, 4.0 + pulse * 1.1, 0.55, 92)
 
-  of 3:  # Star (two overlapping triangles)
+  of 5:  # Square (axis-aligned, slow rotation)
+    drawNgonBullet(4, spin * 0.25, r + 6.2, 4.1 + pulse * 1.1, 0.55, 90)
+
+  of 3:  # Star (two overlapping triangles — structurally distinct, kept explicit)
     let rot1 = -PI / 2.0 + spin * 0.5
     let rot2 = PI / 2.0 + spin * 0.5
     drawNgon(cx, cy, r + 6.0, 3, rot1, silhouetteColor)
@@ -165,17 +167,6 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
     drawCircleLines(cx.int32, cy.int32, r + 3.5, rimColor)
     drawCircleLines(cx.int32, cy.int32, r + 6.5 + pulse, haloColor)
     drawCircleLines(cx.int32, cy.int32, r + 9.5, withAlpha(glowColor, 68))
-    drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
-
-  of 5:  # Square (axis-aligned, slow rotation)
-    let rot = spin * 0.25
-    drawNgon(cx, cy, r + 6.2, 4, rot, silhouetteColor)
-    drawNgon(cx, cy, r + 4.1 + pulse * 1.1, 4, rot, withAlpha(glowColor, 90))
-    drawNgon(cx, cy, r, 4, rot, baseColor)
-    drawNgon(cx, cy, r * 0.55, 4, rot, coreColor)
-    drawNgonLines(cx, cy, r + 1.8, 4, rot, rimColor, 2.4)
-    drawNgonLines(cx, cy, r + 4.8, 4, rot, haloColor, 1.7)
-    drawNgonLines(cx, cy, r + 7.8, 4, rot, withAlpha(glowColor, 70), 1.0)
     drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
 
   else:  # Circle fallback

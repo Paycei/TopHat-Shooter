@@ -84,6 +84,15 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   # Increment enemy ID counter for next enemy
   game.nextEnemyId += 1
 
+proc bossPhaseColor(hpPercent: float32, originalColor: Color): Color =
+  ## Returns the boss tint color based on its current HP percentage.
+  ## Thresholds map to visual phases: full HP keeps the original spawn color.
+  if   hpPercent <= 0.25: Color(r: 255, g: 100, b: 255, a: 255)  # Magenta glow  (final phase)
+  elif hpPercent <= 0.35: Color(r: 255, g: 150, b: 0,   a: 255)  # Orange        (third phase)
+  elif hpPercent <= 0.50: Color(r: 255, g: 50,  b: 50,  a: 255)  # Red           (second phase)
+  elif hpPercent <= 0.70: Color(r: 200, g: 100, b: 50,  a: 255)  # Dark orange   (getting damaged)
+  else: originalColor                                              # Full HP — keep spawn color
+
 proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
   # Apply slow field effect
   var effectiveSpeed = getEffectiveSpeed(enemy.speed, game.currentWave)
@@ -108,21 +117,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
     enemy.spawnTimer += dt
 
     # CUSTOM BOSS COLOR UPDATE (HP-based phases)
-    # Update custom boss color based on HP percentage and phase definitions
-    let hpPercent = enemy.hp / enemy.maxHp
-    if hpPercent <= 0.25:
-      # Final phase - bright glow
-      enemy.color = Color(r: 255, g: 100, b: 255, a: 255)  # Magenta glow
-    elif hpPercent <= 0.35:
-      # Third phase
-      enemy.color = Color(r: 255, g: 150, b: 0, a: 255)  # Orange
-    elif hpPercent <= 0.5:
-      # Second phase
-      enemy.color = Color(r: 255, g: 50, b: 50, a: 255)  # Red
-    elif hpPercent <= 0.7:
-      # Getting damaged
-      enemy.color = Color(r: 200, g: 100, b: 50, a: 255)  # Dark orange
-    # else: keep original color (full HP)
+    enemy.color = bossPhaseColor(enemy.hp / enemy.maxHp, enemy.color)
 
 
     let dir = (playerPos - enemy.pos).normalize()

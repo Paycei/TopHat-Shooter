@@ -1,4 +1,4 @@
-import raylib, rlgl, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, os, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables, render_context, roguelite, ui/os_roguelite, advancement
+import raylib, rlgl, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, os, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables, render_context, roguelite, ui/os_roguelite, advancement, std/deques
 
 const
   screenWidth = 1024
@@ -930,7 +930,7 @@ proc main() =
             var hitEnemyIds: seq[int] = @[]
 
             # Trace backward through path segments
-            var segIdx = history.high
+            var segIdx = history.len - 1
             while segIdx >= 1:
               let segEnd = history[segIdx]
               let segStart = history[segIdx - 1]
@@ -958,7 +958,7 @@ proc main() =
               segIdx -= 1
 
             currentGame.player.aftershockCooldown = 14.0
-            currentGame.player.aftershockPosHistory.setLen(0)
+            currentGame.player.aftershockPosHistory.clear()
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                           Color(r: 100, g: 180, b: 255, a: 255), 20)
             anyActivated = true

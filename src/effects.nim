@@ -1,5 +1,10 @@
 import types, tables
 
+proc nullEffect(et: ElementType): EffectInstance =
+  ## Returns a zeroed-out inactive EffectInstance for the given element type.
+  EffectInstance(elementType: et, damagePerSec: 0.0, remainingDuration: 0.0,
+                 maxDuration: 0.0, isActive: false, source: "")
+
 # Sistema de gestión de efectos con fallback
 # Previene stacking de efectos iguales pero permite fallback a efecto de menor poder
 
@@ -25,14 +30,7 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
         isActive: true,
         source: source
       ),
-      fallback: EffectInstance(
-        elementType: effectType,
-        damagePerSec: 0.0,
-        remainingDuration: 0.0,
-        maxDuration: 0.0,
-        isActive: false,
-        source: ""
-      )
+      fallback: nullEffect(effectType)
     )
   else:
     # Ya existe un efecto de este tipo y tiene duración o está activo
@@ -54,14 +52,7 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
         )
       else:
         # El efecto anterior ya se acabó, no hay fallback
-        newActiveEffect.fallback = EffectInstance(
-          elementType: effectType,
-          damagePerSec: 0.0,
-          remainingDuration: 0.0,
-          maxDuration: 0.0,
-          isActive: false,
-          source: ""
-        )
+        newActiveEffect.fallback = nullEffect(effectType)
 
       # Aplicar el nuevo efecto como principal
       newActiveEffect.primary = EffectInstance(
@@ -107,14 +98,7 @@ proc updateEffects*(enemy: Enemy, dt: float32): float32 =
           activeEffect.primary.isActive = true
 
           # Limpiar fallback
-          activeEffect.fallback = EffectInstance(
-            elementType: elementType,
-            damagePerSec: 0.0,
-            remainingDuration: 0.0,
-            maxDuration: 0.0,
-            isActive: false,
-            source: ""
-          )
+          activeEffect.fallback = nullEffect(elementType)
 
     # Asegurar que el fallback también se actualiza en tiempo (aunque no aplique daño)
     if activeEffect.fallback.remainingDuration > 0:
