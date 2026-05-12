@@ -1,7 +1,7 @@
 ## OS-Style Shop System
 ## Shop screen redesigned as a modern OS storefront interface
 
-import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing, ../render_context
+import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing, ../render_context, strutils
 
 const
   SHOP_WIDTH = 950
@@ -34,6 +34,49 @@ proc shopFitText(text: string, maxWidth, fontSize: int32,
   while t.len > 0 and measureText(t & "...", fs) > maxWidth:
     t = t[0..^2]
   return (t & "...", fs)
+
+proc shopWrapText(text: string, maxWidth, fontSize: int32): seq[string] =
+  ## Word-wraps `text` into lines that each fit within `maxWidth` pixels at `fontSize`.
+  ## Words that are individually wider than `maxWidth` are hard-broken at the character level.
+  result = @[]
+  var words: seq[string] = @[]
+  for w in text.splitWhitespace():
+    words.add(w)
+  if words.len == 0:
+    return
+
+  var currentLine = ""
+  for word in words:
+    let candidate = if currentLine.len == 0: word else: currentLine & " " & word
+    if measureText(candidate, fontSize) <= maxWidth:
+      currentLine = candidate
+    else:
+      if currentLine.len > 0:
+        result.add(currentLine)
+      # If the bare word is still too wide, hard-break it character by character
+      if measureText(word, fontSize) > maxWidth:
+        var chunk = ""
+        for ch in word:
+          if measureText(chunk & $ch, fontSize) <= maxWidth:
+            chunk &= $ch
+          else:
+            if chunk.len > 0:
+              result.add(chunk)
+            chunk = $ch
+        currentLine = chunk
+      else:
+        currentLine = word
+  if currentLine.len > 0:
+    result.add(currentLine)
+
+proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
+                     color: Color, lineSpacing: int32 = 2): int32 =
+  ## Draws word-wrapped text, returning the total pixel height consumed.
+  let lines = shopWrapText(text, maxWidth, fontSize)
+  let lineHeight = fontSize + lineSpacing
+  for i, line in lines:
+    drawText(line, x, y + int32(i) * lineHeight, fontSize, color)
+  result = int32(lines.len) * lineHeight
 
 proc initShopItems*(): array[6, ShopItem] =
   result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: 13, bought: 0)
@@ -248,6 +291,11 @@ proc drawShop*(game: Game) =
   let sidebarX = windowX + 10
   let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
   let sidebarHeight: int32 = SHOP_HEIGHT - TITLE_BAR_HEIGHT - 85  # Account for reduced bottom panel
+  let HEADER_H: int32 = 35
+  let contentAreaY  = sidebarY + HEADER_H
+  let contentAreaH  = sidebarHeight - HEADER_H
+  let SCROLLBAR_W: int32 = 6
+  let contentInnerW: int32 = SIDEBAR_WIDTH - SCROLLBAR_W - 2  # leave room for scrollbar
 
   drawRectangle(sidebarX, sidebarY, SIDEBAR_WIDTH, sidebarHeight,
                Color(r: 30, g: 38, b: 52, a: 255))
@@ -255,15 +303,45 @@ proc drawShop*(game: Game) =
                                 width: SIDEBAR_WIDTH.float32, height: sidebarHeight.float32),
                     1, Color(r: 0, g: 140, b: 200, a: 255))
 
-  # Sidebar header
-  drawRectangle(sidebarX, sidebarY, SIDEBAR_WIDTH, 35,
+  # Sidebar header (drawn above scissor region so it is always visible)
+  drawRectangle(sidebarX, sidebarY, SIDEBAR_WIDTH, HEADER_H,
                Color(r: 40, g: 50, b: 65, a: 255))
   drawText("[L] " & t(tkShopActiveUpgrades), sidebarX + 10, sidebarY + 9, 16,
           Color(r: 150, g: 200, b: 255, a: 255))
 
-  # Display owned permanent upgrades
-  var upgradeY = sidebarY + 45
+  # measure total content height (dry run, no drawing)
   let upgradeX = sidebarX + 12
+  let sidebarDescMaxW: int32 = contentInnerW - 20 - 4  # indent + right pad
+  var totalContentH: int32 = 8   # top padding
+  if game.player.powerUps.len == 0:
+    totalContentH += 18 + 18
+  else:
+    for powerUp in game.player.powerUps:
+      totalContentH += 18  # name row
+      let desc = getPowerUpDescription(powerUp.powerType, powerUp.level, game.player.damage)
+      let wrappedLines = shopWrapText(desc, sidebarDescMaxW, 10)
+      totalContentH += int32(wrappedLines.len) * 12 + 4  # desc rows
+  totalContentH += 8  # bottom padding
+
+  # clamp scroll offset
+  let maxScroll = max(0'i32, totalContentH - contentAreaH)
+  game.shopSidebarScroll = clamp(game.shopSidebarScroll, 0'i32, maxScroll)
+
+  # mouse-wheel scroll when cursor is over the sidebar
+  if globalSettings.mouseSupport:
+    let mp = getVirtualMousePosition()
+    let sidebarRect = Rectangle(x: sidebarX.float32, y: contentAreaY.float32,
+                                 width: SIDEBAR_WIDTH.float32, height: contentAreaH.float32)
+    if checkCollisionPointRec(mp, sidebarRect):
+      let wheel = getMouseWheelMove()
+      if wheel != 0.0:
+        game.shopSidebarScroll = clamp(game.shopSidebarScroll - int32(wheel * 20.0),
+                                        0'i32, maxScroll)
+
+  # scissor clip the scrollable content
+  beginScissorMode(sidebarX, contentAreaY, SIDEBAR_WIDTH - SCROLLBAR_W - 1, contentAreaH)
+
+  var upgradeY: int32 = contentAreaY + 8 - game.shopSidebarScroll
 
   if game.player.powerUps.len == 0:
     drawText(t(tkShopNoPermanent), upgradeX, upgradeY, 13,
@@ -272,28 +350,51 @@ proc drawShop*(game: Game) =
     drawText(t(tkShopDefeatWaves), upgradeX, upgradeY, 12, LightGray)
   else:
     for powerUp in game.player.powerUps:
-      if upgradeY > sidebarY + sidebarHeight - 60:
-        drawText("...and more", upgradeX, upgradeY, 12, LightGray)
-        break
-
       let name = getPowerUpName(powerUp.powerType)
       let levelText = "Lv." & $powerUp.level
       let rarityColor = if powerUp.rarity == prLegendary: Gold
                        else: Color(r: 200, g: 220, b: 255, a: 255)
 
-      # Upgrade name with level
       drawText("> " & name, upgradeX, upgradeY, 14, rarityColor)
       let levelWidth = measureText(levelText, 11)
-      drawText(levelText, upgradeX + SIDEBAR_WIDTH - levelWidth - 24, upgradeY + 2, 11,
+      drawText(levelText, sidebarX + SIDEBAR_WIDTH - SCROLLBAR_W - levelWidth - 10, upgradeY + 2, 11,
               Color(r: 100, g: 200, b: 255, a: 255))
       upgradeY += 18
 
-      # Description — constrain to sidebar width so long strings don't overflow
       let desc = getPowerUpDescription(powerUp.powerType, powerUp.level, game.player.damage)
-      let sidebarDescMaxW = SIDEBAR_WIDTH - 20 - 12  # indent (20) + right padding (12)
-      let (fittedDesc, fittedDescSize) = shopFitText(desc, sidebarDescMaxW.int32, 10)
-      drawText(fittedDesc, upgradeX + 8, upgradeY, fittedDescSize, Color(r: 150, g: 160, b: 170, a: 255))
-      upgradeY += 20
+      let descHeight = drawWrappedText(desc, upgradeX + 8, upgradeY,
+                                       sidebarDescMaxW, 10,
+                                       Color(r: 150, g: 160, b: 170, a: 255))
+      upgradeY += descHeight + 4
+
+  endScissorMode()
+
+  # scrollbar
+  if maxScroll > 0:
+    let sbX = sidebarX + SIDEBAR_WIDTH - SCROLLBAR_W - 1
+    let sbTrackH = contentAreaH
+    drawRectangle(sbX, contentAreaY, SCROLLBAR_W, sbTrackH,
+                 Color(r: 20, g: 28, b: 40, a: 200))
+    let thumbRatio = contentAreaH.float32 / totalContentH.float32
+    let thumbH = max(20'i32, int32(sbTrackH.float32 * thumbRatio))
+    let thumbY = contentAreaY + int32(float32(sbTrackH - thumbH) *
+                   (game.shopSidebarScroll.float32 / maxScroll.float32))
+    drawRectangle(sbX + 1, thumbY, SCROLLBAR_W - 2, thumbH,
+                 Color(r: 0, g: 160, b: 220, a: 200))
+    # top/bottom fade hints when content overflows
+    if game.shopSidebarScroll > 0:
+      for i in 0'i32..7'i32:
+        drawRectangle(sidebarX, contentAreaY + i, SIDEBAR_WIDTH - SCROLLBAR_W - 1, 1,
+                     Color(r: 30, g: 38, b: 52, a: uint8(200 - i * 25)))
+    if game.shopSidebarScroll < maxScroll:
+      for i in 0'i32..7'i32:
+        let fy = contentAreaY + contentAreaH - 1 - i
+        drawRectangle(sidebarX, fy, SIDEBAR_WIDTH - SCROLLBAR_W - 1, 1,
+                     Color(r: 30, g: 38, b: 52, a: uint8(200 - i * 25)))
+
+  # Re-draw the header border line on top of any content that bled through
+  drawRectangle(sidebarX, sidebarY + HEADER_H - 1, SIDEBAR_WIDTH, 1,
+               Color(r: 0, g: 100, b: 160, a: 180))
 
   # Shop items area
   let shopX = sidebarX + SIDEBAR_WIDTH + 15

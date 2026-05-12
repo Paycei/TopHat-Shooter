@@ -138,7 +138,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
   let contentX = rw.window.x + 10
   let contentY = rw.window.y + TITLE_BAR_HEIGHT + 10
 
-  # ── UNLOCKS VIEW ──────────────────────────────────────────────────────────
+  # UNLOCKS VIEW
   if rw.showUnlocks:
     let currentCat = RogueliteUnlockCategory(clamp(rw.unlockCategory, 0, 3))
     let currentCount = unlockCount(currentCat)
@@ -225,7 +225,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
 
     return  # Don't process setup input while in unlocks view
 
-  # ── SETUP VIEW ────────────────────────────────────────────────────────────
+  # SETUP VIEW
   let starterKits = @[rskOperator, rskBulwark, rskArcanist]
 
   if isKeyPressed(Left) or isKeyPressed(A):
@@ -399,12 +399,12 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
   drawPanel(panelX, panelY, RoguelitePanelW, RoguelitePanelH, title, panelAccent, false, true)
 
   if rw.showUnlocks:
-    # ── Unlocks tab ──
+    # Unlocks tab
     drawUnlocksContent(game, panelX, panelY, rw.unlockCategory, rw.unlockItem)
     # Note: drawUnlocksContent already draws the full control bar (roguelite_unlock_shop_controls)
     # at the panel bottom — no additional hint drawn here to avoid overlap.
   else:
-    # ── Setup tab ──
+    # Setup tab
     let profile = game.rogueliteProfile
     let shards = if profile.isNil: 0 else: profile.dataShards
     let overheatCores = if profile.isNil: 0 else: profile.overheatCores

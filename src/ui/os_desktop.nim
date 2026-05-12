@@ -164,7 +164,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
                       screenWidth: int = 1024, screenHeight: int = 768) =
   desktop.time += dt
 
-  # ── Cube drag & inertia (quaternion, world-space axes) ───────────────────
+  # Cube drag & inertia (quaternion, world-space axes)
   const
     CubeDragSensitivity = 0.008'f32
     CubeDragRadius      = 70.0'f32
@@ -241,7 +241,6 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
                   0, 1, 0, 0.133'f32 * dt)
     applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
                   0, 0, 1, 0.095'f32 * dt)
-  # ─────────────────────────────────────────────────────────────────────────
   # Convert cube quaternion to Euler angles (X, Y, Z) for wallpaper rendering
   # Rotation order: rotate X, then Y, then Z (Rx -> Ry -> Rz)
   let qw = desktop.cubeQW

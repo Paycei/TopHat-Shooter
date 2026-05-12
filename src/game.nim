@@ -6838,8 +6838,8 @@ proc updateGame*(game: var Game, dt: float32) =
                 bullet.bounceCount += 1
                 bullet.isRicochet = true  # Mark for statistics tracking
 
-                # Reduce damage by 25% per ricochet
-                bullet.damage = bullet.damage * 0.75
+                # Reduce damage by 50% per ricochet
+                bullet.damage = bullet.damage * 0.50
 
                 # SYNERGY: Reset split flag so ricochet bullets can split again on next hit
                 if hasPowerUp(game.player, puBulletSplit):

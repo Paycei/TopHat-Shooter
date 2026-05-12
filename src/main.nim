@@ -1305,6 +1305,14 @@ proc main() =
         currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + 6) mod 6
         markKeyboardUsed(currentGame)
 
+      # Scroll the sidebar upgrade list with PageDown/PageUp or [/]
+      if isKeyPressed(PageDown) or isKeyPressed(RightBracket):
+        currentGame.shopSidebarScroll += 40
+        markKeyboardUsed(currentGame)
+      if isKeyPressed(PageUp) or isKeyPressed(LeftBracket):
+        currentGame.shopSidebarScroll = max(0'i32, currentGame.shopSidebarScroll - 40)
+        markKeyboardUsed(currentGame)
+
       # Mouse click handling for shop items
       if isMouseButtonPressed(Left):
         let mousePos = getVirtualMousePosition()
@@ -1520,6 +1528,7 @@ proc main() =
             currentGame.state = gsPlaying
           elif currentGame.rogueliteRun.pendingSectorSelect:
             currentGame.state = gsShop
+            currentGame.shopSidebarScroll = 0
           else:
             currentGame.state = gsPlaying
             startWave(currentGame)
@@ -1640,6 +1649,7 @@ proc main() =
 
           currentGame.cameFromPowerUpSelect = true
           currentGame.state = gsShop
+          currentGame.shopSidebarScroll = 0
 
         # Mouse click to select
         if isMouseButtonPressed(Left):
@@ -1668,6 +1678,7 @@ proc main() =
             # Close installer and go to shop
             currentGame.cameFromPowerUpSelect = true
             currentGame.state = gsShop
+            currentGame.shopSidebarScroll = 0
           else:
             # Check card clicks
             for i in 0..2:
@@ -1682,6 +1693,7 @@ proc main() =
                 trackPowerUpSelection(currentGame, chosenPowerUp)
                 currentGame.cameFromPowerUpSelect = true
                 currentGame.state = gsShop
+                currentGame.shopSidebarScroll = 0
                 break
 
             # Check reroll button click

@@ -399,6 +399,7 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     game.state = gsShop
     game.selectedShopItem = 0
+    game.shopSidebarScroll = 0
     return
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
 
