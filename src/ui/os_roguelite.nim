@@ -347,7 +347,6 @@ proc drawAlphaBanner*(game: Game) =
   ## Centered translucent ALPHA banner drawn at the top of the screen.
   ## Signals to players that the roguelite mode is work-in-progress.
   let bannerW: int32 = 260
-  let bannerH: int32 = 28
   let bannerX: int32 = (game.screenWidth - bannerW) div 2
   let bannerY: int32 = 8
   let pulse = (sin(game.time * 2.0'f32) * 0.5'f32 + 0.5'f32)

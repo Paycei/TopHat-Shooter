@@ -3,6 +3,7 @@
 
 import types
 import localization
+import raylib
 import strformat, math, strutils
 
 proc getPowerUpName*(powerType: PowerUpType): string =
@@ -383,3 +384,78 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     of 1: t(tkPowerupHealPowerDesc1)
     of 2: t(tkPowerupHealPowerDesc2)
     else: t(tkPowerupHealPowerDesc3)
+
+proc getPowerUpColor*(powerType: PowerUpType): Color =
+  ## Returns a representative color for each power-up, used in icon rendering and help lists.
+  case powerType
+  of puDoubleShot:         Color(r: 100, g: 180, b: 255, a: 255)  # light blue
+  of puRotatingShield:     Color(r: 0,   g: 200, b: 255, a: 255)  # cyan
+  of puMagicalBullets:     Color(r: 200, g: 100, b: 255, a: 255)  # purple
+  of puPiercingShots:      Color(r: 255, g: 220, b: 50,  a: 255)  # yellow
+  of puMultiShot:          Color(r: 80,  g: 220, b: 80,  a: 255)  # green
+  of puExplosiveBullets:   Color(r: 255, g: 120, b: 30,  a: 255)  # orange
+  of puLifeSteal:          Color(r: 220, g: 30,  b: 30,  a: 255)  # red
+  of puRapidFire:          Color(r: 255, g: 230, b: 50,  a: 255)  # yellow
+  of puMaxHealth:          Color(r: 255, g: 80,  b: 120, a: 255)  # pink-red
+  of puSpeedBoost:         Color(r: 80,  g: 200, b: 255, a: 255)  # sky blue
+  of puBulletSpeed:        Color(r: 200, g: 200, b: 255, a: 255)  # lavender
+  of puLuckyCoins:         Color(r: 255, g: 215, b: 0,   a: 255)  # gold
+  of puWallMaster:         Color(r: 180, g: 140, b: 100, a: 255)  # tan/brick
+  of puRegeneration:       Color(r: 60,  g: 220, b: 120, a: 255)  # green
+  of puDodgeChance:        Color(r: 160, g: 220, b: 255, a: 255)  # light blue
+  of puCriticalHit:        Color(r: 255, g: 200, b: 50,  a: 255)  # gold-yellow
+  of puBloodBullets:       Color(r: 220, g: 30,  b: 30,  a: 255)  # red
+  of puBulletRicochet:     Color(r: 140, g: 220, b: 200, a: 255)  # teal
+  of puSlowField:          Color(r: 100, g: 180, b: 255, a: 255)  # frost blue
+  of puRage:               Color(r: 255, g: 60,  b: 60,  a: 255)  # hot red
+  of puBerserker:          Color(r: 255, g: 100, b: 40,  a: 255)  # orange-red
+  of puThorns:             Color(r: 100, g: 200, b: 80,  a: 255)  # green
+  of puBulletSplit:        Color(r: 180, g: 140, b: 255, a: 255)  # violet
+  of puChainLightning:     Color(r: 255, g: 255, b: 80,  a: 255)  # lightning yellow
+  of puFrostShots:         Color(r: 140, g: 210, b: 255, a: 255)  # ice blue
+  of puPoisonShot:         Color(r: 80,  g: 230, b: 80,  a: 255)  # poison green
+  of puFireBullets:        Color(r: 255, g: 100, b: 20,  a: 255)  # fire orange
+  of puWindBullets:        Color(r: 180, g: 240, b: 240, a: 255)  # wind cyan
+  of puFireAura:           Color(r: 255, g: 100, b: 20,  a: 255)  # fire orange
+  of puLightningAura:      Color(r: 255, g: 255, b: 80,  a: 255)  # lightning yellow
+  of puPoisonAura:         Color(r: 80,  g: 230, b: 80,  a: 255)  # poison green
+  of puWindAura:           Color(r: 180, g: 240, b: 240, a: 255)  # wind cyan
+  of puTimeWarp:           Color(r: 180, g: 180, b: 255, a: 255)  # pale purple
+  of puGravityWell:        Color(r: 140, g: 80,  b: 255, a: 255)  # deep purple
+  of puPhaseShift:         Color(r: 160, g: 220, b: 255, a: 255)  # ghost blue
+  of puOvercharge:         Color(r: 255, g: 230, b: 50,  a: 255)  # electric yellow
+  of puEchoShots:          Color(r: 100, g: 200, b: 255, a: 255)  # echo blue
+  of puRotatingOrbs:       Color(r: 255, g: 215, b: 0,   a: 255)  # gold (legendary)
+  of puPoisonOrb:          Color(r: 80,  g: 230, b: 80,  a: 255)  # poison green
+  of puFireOrb:            Color(r: 255, g: 100, b: 20,  a: 255)  # fire orange
+  of puLightningOrb:       Color(r: 255, g: 255, b: 80,  a: 255)  # lightning yellow
+  of puWindOrb:            Color(r: 180, g: 240, b: 240, a: 255)  # wind cyan
+  of puFrostOrb:           Color(r: 140, g: 210, b: 255, a: 255)  # ice blue
+  of puArcaneOrb:          Color(r: 200, g: 100, b: 255, a: 255)  # arcane purple
+  of puArcaneBullets:      Color(r: 200, g: 100, b: 255, a: 255)  # arcane purple
+  of puArcaneAura:         Color(r: 200, g: 100, b: 255, a: 255)  # arcane purple
+  of puFireMastery:        Color(r: 255, g: 80,  b: 0,   a: 255)  # deep fire
+  of puPoisonMastery:      Color(r: 50,  g: 255, b: 50,  a: 255)  # vivid poison
+  of puFrostMastery:       Color(r: 100, g: 200, b: 255, a: 255)  # vivid frost
+  of puArcaneMastery:      Color(r: 180, g: 50,  b: 255, a: 255)  # vivid arcane
+  of puLightningMastery:   Color(r: 255, g: 255, b: 100, a: 255)  # vivid lightning
+  of puWindMastery:        Color(r: 160, g: 255, b: 255, a: 255)  # vivid wind
+  of puParry:              Color(r: 0,   g: 220, b: 255, a: 255)  # shield cyan
+  of puBloodOrb:           Color(r: 220, g: 30,  b: 30,  a: 255)  # blood red
+  of puBloodAura:          Color(r: 220, g: 30,  b: 30,  a: 255)  # blood red
+  of puBloodMastery:       Color(r: 255, g: 20,  b: 20,  a: 255)  # vivid blood
+  of puRadialBurst:        Color(r: 255, g: 180, b: 50,  a: 255)  # warm orange
+  of puWallTurrets:        Color(r: 200, g: 180, b: 100, a: 255)  # golden tan
+  of puPulseArmor:         Color(r: 80,  g: 160, b: 255, a: 255)  # armor blue
+  of puHeavyRounds:        Color(r: 160, g: 160, b: 160, a: 255)  # steel grey
+  of puFortified:          Color(r: 180, g: 160, b: 120, a: 255)  # stone
+  of puSpecialRounds:      Color(r: 255, g: 200, b: 80,  a: 255)  # gold-orange
+  of puGiantSlayer:        Color(r: 255, g: 80,  b: 80,  a: 255)  # red
+  of puCelestialVeil:      Color(r: 180, g: 200, b: 255, a: 255)  # celestial blue
+  of puVolatile:           Color(r: 255, g: 80,  b: 20,  a: 255)  # volatile orange
+  of puResonance:          Color(r: 140, g: 220, b: 255, a: 255)  # resonance blue
+  of puBloodPact:          Color(r: 220, g: 20,  b: 20,  a: 255)  # sacrifice red
+  of puConduit:            Color(r: 160, g: 120, b: 255, a: 255)  # conduit purple
+  of puAftershock:         Color(r: 255, g: 160, b: 60,  a: 255)  # shockwave amber
+  of puNova:               Color(r: 200, g: 230, b: 255, a: 255)  # nova white-blue
+  of puHealPower:          Color(r: 255, g: 120, b: 150, a: 255)  # healing pink

@@ -1161,6 +1161,26 @@ proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
       level: getPowerUpLevel(game.player, puBloodBullets)
     ))
 
+proc applyMasteryDoT(enemy: Enemy, elemType: ElementType,
+                     baseDmg, baseDur: float32,
+                     hasMastery: bool,
+                     masteryDmgMult, masteryDurMult: float32,
+                     masterySlowAmount: float32,
+                     source: string) =
+  ## Applies a DoT effect with optional mastery bonus and mastery-gated slow.
+  ## Slow threshold and multipliers are explicit parameters so each element
+  ## can still be tuned independently.
+  var dmg = baseDmg
+  var dur = baseDur
+  if hasMastery:
+    dmg *= masteryDmgMult
+    dur *= masteryDurMult
+  applyEffect(enemy, elemType, dmg, dur, source)
+  if hasMastery:
+    enemy.slowTimer = 0.2
+    if enemy.slowAmount < masterySlowAmount:
+      enemy.slowAmount = masterySlowAmount
+
 proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
                        bullet: Bullet, dt: float32, stats: CombatStats) =
   ## Apply a single bullet effect to an enemy
@@ -1175,42 +1195,30 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       enemy.slowAmount = newSlowAmount
 
   of befPoison:
-    # Poison: DoT effect
-    var poisonDmg = effect.baseDamage
-    var poisonDur = effect.duration
-
+    # applyMasteryDoT handles the DoT; slow is applied separately below
+    # because bullet hits need debuffResistance scaling and a stronger-wins guard.
+    applyMasteryDoT(enemy, etPoison, effect.baseDamage, effect.duration,
+                    effect.hasMastery,
+                    masteryDmgMult = 2.5, masteryDurMult = 2.0,
+                    masterySlowAmount = 0.0, source = "shot")
     if effect.hasMastery:
-      poisonDmg *= 2.5  # +150% damage
-      poisonDur *= 2.0  # +100% duration
-
-    applyEffect(enemy, etPoison, poisonDmg, poisonDur, "shot")
-
-    # Apply slow only with mastery (reduced by debuffResistance for bosses)
-    if effect.hasMastery:
-      # Only apply if stronger than current slow or current slow expired
       let newSlowAmount = 0.30 * (1.0 - enemy.debuffResistance)
+      let actualDur = effect.duration * 2.0  # already scaled by masteryDurMult
       if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
-        enemy.slowTimer = poisonDur
-        enemy.slowAmount = newSlowAmount  # 30% slow
+        enemy.slowTimer = actualDur
+        enemy.slowAmount = newSlowAmount
 
   of befFire:
-    # Fire: DoT effect
-    var fireDmg = effect.baseDamage
-    var fireDur = effect.duration
-
+    applyMasteryDoT(enemy, etFire, effect.baseDamage, effect.duration,
+                    effect.hasMastery,
+                    masteryDmgMult = 2.5, masteryDurMult = 2.0,
+                    masterySlowAmount = 0.0, source = "shot")
     if effect.hasMastery:
-      fireDmg *= 2.5  # +150% damage
-      fireDur *= 2.0  # +100% duration
-
-    applyEffect(enemy, etFire, fireDmg, fireDur, "shot")
-
-    # Apply slow only with mastery (reduced by debuffResistance for bosses)
-    if effect.hasMastery:
-      # Only apply if stronger than current slow or current slow expired
       let newSlowAmount = 0.35 * (1.0 - enemy.debuffResistance)
+      let actualDur = effect.duration * 2.0
       if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
-        enemy.slowTimer = fireDur
-        enemy.slowAmount = newSlowAmount  # 35% slow
+        enemy.slowTimer = actualDur
+        enemy.slowAmount = newSlowAmount
 
   of befWind:
     # Wind: Knockback
@@ -1706,6 +1714,60 @@ proc advanceWave*(game: Game) =
     game.wavesUntilBoss = 4  # Reset counter - boss every 5 waves
     # Boss wave will be triggered in update loop
 
+type BulletEffects = tuple[
+  slow: float32,
+  poison: float32,
+  fire: float32,
+  wind: float32
+]
+
+proc calcBulletEffects(player: Player): BulletEffects =
+  ## Computes the elemental/knockback values that every player bullet carries.
+  ## Single source of truth shared by shootBullet and fireDoubleShotBurst.
+  var slow, poison, fire, wind = 0.0'f32
+
+  if hasPowerUp(player, puFrostShots):
+    let lvl = getPowerUpLevel(player, puFrostShots)
+    slow = case lvl
+      of 1: 0.25
+      of 2: 0.4
+      else: 0.6
+    if player.hasFrostMastery:
+      slow += 0.2  # +20% slow (total up to 80%)
+
+  if hasPowerUp(player, puPoisonShot):
+    let lvl = getPowerUpLevel(player, puPoisonShot)
+    let scale = player.damage * 0.1
+    poison = case lvl
+      of 1: 1.0 + scale
+      of 2: 1.5 + scale
+      else: 2.0 + scale
+
+  if hasPowerUp(player, puFireBullets):
+    let lvl = getPowerUpLevel(player, puFireBullets)
+    let scale = player.damage * 0.1
+    fire = case lvl
+      of 1: 1.0 + scale
+      of 2: 1.5 + scale
+      else: 2.0 + scale
+
+  if hasPowerUp(player, puWindBullets):
+    let lvl = getPowerUpLevel(player, puWindBullets)
+    wind = case lvl
+      of 1: 100.0
+      of 2: 200.0
+      else: 350.0
+
+  if hasPowerUp(player, puHeavyRounds):
+    let lvl = getPowerUpLevel(player, puHeavyRounds)
+    let heavyKnockback = case lvl
+      of 1: 80.0
+      of 2: 150.0
+      else: 250.0
+    wind += heavyKnockback
+
+  (slow, poison, fire, wind)
+
 proc shootBullet*(game: Game, direction: Vector2f) =
   # Calculate all combat stats once at the start
   var stats = calculateCombatStats(game.player)
@@ -1725,9 +1787,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let hasMultiShot: bool = hasPowerUp(game.player, puMultiShot)
     let hasRicochet: bool = hasPowerUp(game.player, puBulletRicochet)
     let hasSplit: bool = hasPowerUp(game.player, puBulletSplit)
-    let hasFrost: bool = hasPowerUp(game.player, puFrostShots)
-    let hasPoison: bool = hasPowerUp(game.player, puPoisonShot)
-    let hasFire: bool = hasPowerUp(game.player, puFireBullets)
     let hasArcane: bool = hasPowerUp(game.player, puArcaneBullets)
 
     # Base bullet properties - use calculated stats
@@ -1776,51 +1835,11 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
 
     # Calculate slow, poison, fire, and wind effects
-    var slowEffect = 0.0
-    var poisonEffect = 0.0
-    var fireEffect = 0.0
-    var windEffect = 0.0
-
-    if hasFrost:
-      let frostLevel = getPowerUpLevel(game.player, puFrostShots)
-      slowEffect = case frostLevel
-        of 1: 0.25
-        of 2: 0.4
-        else: 0.6
-      # Apply Frost Mastery bonus if owned
-      if game.player.hasFrostMastery:
-        slowEffect += 0.2  # +20% slow (total up to 80%)
-    if hasPoison:
-      let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
-      let poisonBaseScaling = game.player.damage * 0.1
-      poisonEffect = case poisonLevel
-        of 1: 1.0 + poisonBaseScaling
-        of 2: 1.5 + poisonBaseScaling
-        else: 2.0 + poisonBaseScaling
-    if hasFire:
-      let fireLevel = getPowerUpLevel(game.player, puFireBullets)
-      let fireBaseScaling = game.player.damage * 0.1
-      fireEffect = case fireLevel
-        of 1: 0.5 + fireBaseScaling
-        of 2: 1.0 + fireBaseScaling
-        else: 1.5 + fireBaseScaling
-
-    # Wind bullets push effect
-    if hasPowerUp(game.player, puWindBullets):
-      let windLevel = getPowerUpLevel(game.player, puWindBullets)
-      windEffect = case windLevel
-        of 1: 100.0   # Weak push
-        of 2: 200.0   # Medium push
-        else: 350.0   # Strong push
-
-    # Heavy Rounds knockback effect (adds to windEffect if both exist)
-    if hasPowerUp(game.player, puHeavyRounds):
-      let heavyLevel = getPowerUpLevel(game.player, puHeavyRounds)
-      let heavyKnockback = case heavyLevel
-        of 1: 80.0    # Slight knockback
-        of 2: 150.0   # Increased knockback
-        else: 250.0   # Strong knockback
-      windEffect += heavyKnockback
+    let fx = calcBulletEffects(game.player)
+    let slowEffect = fx.slow
+    let poisonEffect = fx.poison
+    let fireEffect = fx.fire
+    let windEffect = fx.wind
 
     if hasDoubleShot and hasMultiShot:
       # When both active: Fire multishot pattern (3 directions), then schedule second burst
@@ -1994,9 +2013,6 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let hasExplosive = hasPowerUp(game.player, puExplosiveBullets)
   let hasRicochet = hasPowerUp(game.player, puBulletRicochet)
   let hasSplit = hasPowerUp(game.player, puBulletSplit)
-  let hasFrost = hasPowerUp(game.player, puFrostShots)
-  let hasPoison = hasPowerUp(game.player, puPoisonShot)
-  let hasFire = hasPowerUp(game.player, puFireBullets)
   let hasArcane = hasPowerUp(game.player, puArcaneBullets)
 
   var speed = game.player.bulletSpeed * 1.2
@@ -2023,37 +2039,11 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
     let sizeLevel = getPowerUpLevel(game.player, puHeavyRounds)
     bulletRadius *= getHeavyRoundsSizeMultiplier(sizeLevel)
 
-  var slowEffect = 0.0
-  var poisonEffect = 0.0
-  var fireEffect = 0.0
-  var windEffect = 0.0
-
-  if hasFrost:
-    let frostLevel = getPowerUpLevel(game.player, puFrostShots)
-    slowEffect = case frostLevel
-      of 1: 0.25
-      of 2: 0.4
-      else: 0.6
-  if hasPoison:
-    let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
-    let poisonBaseScaling = game.player.damage * 0.1
-    poisonEffect = case poisonLevel
-      of 1: 1.0 + poisonBaseScaling
-      of 2: 1.5 + poisonBaseScaling
-      else: 2.0 + poisonBaseScaling
-  if hasFire:
-    let fireLevel = getPowerUpLevel(game.player, puFireBullets)
-    let fireBaseScaling = game.player.damage * 0.1
-    fireEffect = case fireLevel
-      of 1: 0.5 + fireBaseScaling
-      of 2: 1.0 + fireBaseScaling
-      else: 1.5 + fireBaseScaling
-  if hasPowerUp(game.player, puWindBullets):
-    let windLevel = getPowerUpLevel(game.player, puWindBullets)
-    windEffect = case windLevel
-      of 1: 100.0   # Weak push
-      of 2: 200.0   # Medium push
-      else: 350.0   # Strong push
+  let fx = calcBulletEffects(game.player)
+  let slowEffect = fx.slow
+  let poisonEffect = fx.poison
+  let fireEffect = fx.fire
+  let windEffect = fx.wind
 
   if hasMultiShot:
     let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
@@ -4134,7 +4124,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
 
 proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
                     baseDamage: float32, orbPos: Vector2f, currentTime: float32,
-                    enemyIdx: int): bool =
+                    enemyIdx: int, stats: CombatStats): bool =
   ## Apply damage from orb to enemy and handle hit cooldown
   ## Returns true if damage was applied
 
@@ -4150,8 +4140,7 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   if orb.elementType == etArcane and game.player.hasArcaneMastery:
     actualBaseDamage *= 2.0  # +100% damage
 
-  # Use centralized stats for crit calculation
-  let stats = calculateCombatStats(game.player)
+  # Use passed-in stats for crit calculation (avoids recomputing per orb hit)
   let damageWithCrit = applyCriticalHitFromStats(stats, actualBaseDamage)
   let actualDamage = damageEnemy(enemy, damageWithCrit)
 
@@ -4180,52 +4169,28 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   return true
 
 proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
-                     baseDamage: float32, orbPos: Vector2f, dt: float32) =
+                     baseDamage: float32, orbPos: Vector2f, dt: float32,
+                     stats: CombatStats) =
   ## Apply element-specific effects from orb to enemy
-
-  # Calculate combat stats once for all effect calculations
-  let stats = calculateCombatStats(game.player)
 
   case orb.elementType
   of etPoison:
-    # Poison: DoT effect
-    let poisonDamageScaling = game.player.damage * 0.2
-    var poisonDmg = 0.3 + poisonDamageScaling
-    var poisonDur = 4.0
-
-    if game.player.hasPoisonMastery:
-      poisonDmg *= 2.5  # +150% damage
-      poisonDur *= 2.0  # +100% duration
-
-    applyEffect(enemy, etPoison, poisonDmg, poisonDur, "orb")
-
-    # Apply slow only with Poison Mastery
-    if game.player.hasPoisonMastery:
-      enemy.slowTimer = 0.2
-      if enemy.slowAmount < 0.30:
-        enemy.slowAmount = 0.30  # 30% slow
+    let poisonDmg = 0.3 + game.player.damage * 0.2
+    applyMasteryDoT(enemy, etPoison, poisonDmg, 4.0,
+                    game.player.hasPoisonMastery,
+                    masteryDmgMult = 2.5, masteryDurMult = 2.0,
+                    masterySlowAmount = 0.30, source = "orb")
 
     # Green particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
                    Color(r: 100, g: 255, b: 100, a: 255), 5)
 
   of etFire:
-    # Fire: DoT effect
-    let fireDamageScaling = game.player.damage * 0.2
-    var fireDmg = 0.4 + fireDamageScaling
-    var fireDur = 2.0
-
-    if game.player.hasFireMastery:
-      fireDmg *= 2.5  # +150% damage
-      fireDur *= 2.0  # +100% duration
-
-    applyEffect(enemy, etFire, fireDmg, fireDur, "orb")
-
-    # Apply slow only with Fire Mastery
-    if game.player.hasFireMastery:
-      enemy.slowTimer = 0.2
-      if enemy.slowAmount < 0.35:
-        enemy.slowAmount = 0.35  # 35% slow
+    let fireDmg = 0.4 + game.player.damage * 0.2
+    applyMasteryDoT(enemy, etFire, fireDmg, 2.0,
+                    game.player.hasFireMastery,
+                    masteryDmgMult = 2.5, masteryDurMult = 2.0,
+                    masterySlowAmount = 0.35, source = "orb")
 
     # Orange/red particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y, Orange, 5)
@@ -4389,15 +4354,11 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
   ## Update all rotating orbs and handle collisions with enemies
 
   # Check if player has any orb power-ups
-  if not (hasPowerUp(game.player, puRotatingOrbs) or
-          hasPowerUp(game.player, puPoisonOrb) or
-          hasPowerUp(game.player, puFireOrb) or
-          hasPowerUp(game.player, puLightningOrb) or
-          hasPowerUp(game.player, puWindOrb) or
-          hasPowerUp(game.player, puFrostOrb) or
-          hasPowerUp(game.player, puArcaneOrb) or
-          hasPowerUp(game.player, puBloodOrb)):
+  if not hasAnyOrbPowerUp(game.player):
     return
+
+  # Calculate combat stats once for all orb hits this frame
+  let orbStats = calculateCombatStats(game.player)
 
   # Calculate base damage
   let damageScaling = game.player.damage * 0.2
@@ -4442,9 +4403,9 @@ proc updateOrbitalWeapons(game: var Game, dt: float32) =
       # Check if orb is touching enemy
       if dist < orbRadius + enemy.radius + orbDetectionRange:
         # Apply damage
-        if applyOrbDamage(game, orb, enemy, baseDamage, orbPos, game.time, enemyIdx):
+        if applyOrbDamage(game, orb, enemy, baseDamage, orbPos, game.time, enemyIdx, orbStats):
           # Apply element-specific effects
-          applyOrbEffects(game, orb, enemy, baseDamage, orbPos, dt)
+          applyOrbEffects(game, orb, enemy, baseDamage, orbPos, dt, orbStats)
 
       enemyIdx += 1
 
@@ -4955,22 +4916,10 @@ proc updateGame*(game: var Game, dt: float32) =
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < fireRadius:
-        var actualFireDamage = fireDamagePerSec
-        var actualFireDuration = fireDuration
-
-        # Apply Fire Mastery bonuses if owned
-        if game.player.hasFireMastery:
-          actualFireDamage *= 2.5  # +150% damage
-          actualFireDuration *= 2.0  # +100% duration
-
-        # Apply fire effect
-        applyEffect(enemy, etFire, actualFireDamage, actualFireDuration, "aura")
-
-        # Apply slow ONLY if player has Fire Mastery
-        if game.player.hasFireMastery:
-          enemy.slowTimer = 0.2
-          if enemy.slowAmount < 0.35:
-            enemy.slowAmount = 0.35  # 35% slow
+        applyMasteryDoT(enemy, etFire, fireDamagePerSec, fireDuration,
+                        game.player.hasFireMastery,
+                        masteryDmgMult = 2.5, masteryDurMult = 2.0,
+                        masterySlowAmount = 0.35, source = "aura")
 
         # Visual fire particles
         spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
@@ -5121,22 +5070,10 @@ proc updateGame*(game: var Game, dt: float32) =
     for enemy in game.enemies:
       let dist = distance(game.player.pos, enemy.pos)
       if dist < poisonRadius:
-        var actualPoisonDamage = poisonDamagePerSec
-        var actualPoisonDuration = poisonDuration
-
-        # Apply Poison Mastery bonuses if owned
-        if game.player.hasPoisonMastery:
-          actualPoisonDamage *= 2.5  # +150% damage
-          actualPoisonDuration *= 2.0  # +100% duration
-
-        # Apply poison aura effect (separate from bullet poison)
-        applyEffect(enemy, etPoison, actualPoisonDamage, actualPoisonDuration, "aura")
-
-        # Apply slow ONLY if player has Poison Mastery
-        if game.player.hasPoisonMastery:
-          enemy.slowTimer = 0.2
-          if enemy.slowAmount < 0.30:
-            enemy.slowAmount = 0.30  # 30% slow
+        applyMasteryDoT(enemy, etPoison, poisonDamagePerSec, poisonDuration,
+                        game.player.hasPoisonMastery,
+                        masteryDmgMult = 2.5, masteryDurMult = 2.0,
+                        masterySlowAmount = 0.30, source = "aura")
 
         # Visual poison particles
         spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,

@@ -407,7 +407,6 @@ type
     tkHelpArrowKeys = "help_arrow_keys"
     tkHelpLeftMouse = "help_left_mouse"
     tkHelpSpace = "help_space"
-    tkHelpF = "help_f"
     tkHelpQ = "help_q"
     tkHelpE = "help_e"
     tkHelpESC = "help_esc"

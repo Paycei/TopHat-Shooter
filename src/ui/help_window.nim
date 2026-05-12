@@ -1,7 +1,12 @@
 ﻿## OS-Themed Help System
 ## Terminal-style documentation viewer
 
-import raylib, strutils, os_window, math, ../localization
+import raylib, strutils, os_window, math, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, icon_drawing
+
+const
+  HELP_LINE_HEIGHT* = 18
+  HELP_ICON_SIZE* = HELP_LINE_HEIGHT - 4
+  HELP_ICON_PADDING* = 6
 
 type
   HelpCommand* = tuple[cmd: string, desc: string]
@@ -10,7 +15,7 @@ type
     window*: OSWindow
     commandHistory*: seq[string]
     currentInput*: string
-    outputLines*: seq[tuple[text: string, color: Color]]
+    outputLines*: seq[tuple[text: string, color: Color, icon: int, indent: int]]
     scrollOffset*: int
     cursorBlink*: float32
     pendingIconExecution*: int  # -1 = none, 0-6 = icon to execute (6 = sandbox)
@@ -57,12 +62,45 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
     pendingIconExecution: -1
   )
 
-  result.outputLines.add(("TopHat-ShooterOS Help System v5.5", Color(r: 0, g: 255, b: 255, a: 255)))
-  result.outputLines.add(("Type 'help' for commands or a topic name to learn more.", White))
-  result.outputLines.add(("", White))
+  result.outputLines.add(("TopHat-ShooterOS Help System v5.5", Color(r: 0, g: 255, b: 255, a: 255), -1, 0))
+  result.outputLines.add(("Type 'help' for commands or a topic name to learn more.", White, -1, 0))
+  result.outputLines.add(("", White, -1, 0))
 
-proc addOutput*(help: HelpWindow, text: string, color: Color = White) =
-  help.outputLines.add((text, color))
+proc addOutput*(help: HelpWindow, text: string, color: Color = White, icon: int = -1, indent: int = 0) =
+  help.outputLines.add((text, color, icon, indent))
+
+proc wrapTextToWidth(text: string, maxWidth: int32, fontSize: int32): seq[string] =
+  var resLines: seq[string] = @[]
+  for paragraph in text.split("\n"):
+    if paragraph.len == 0:
+      resLines.add("")
+      continue
+    var words = paragraph.split(' ')
+    var cur = ""
+    for w in words:
+      var candidate = if cur.len == 0: w else: cur & " " & w
+      if measureText(candidate, fontSize) <= maxWidth:
+        cur = candidate
+      else:
+        if cur.len > 0:
+          resLines.add(cur)
+          cur = w
+        else:
+          # Break the long word into chunks that fit
+          var chunk = ""
+          for ch in w:
+            let test = chunk & ch
+            if measureText(test, fontSize) <= maxWidth:
+              chunk = test
+            else:
+              if chunk.len > 0:
+                resLines.add(chunk)
+              chunk = "" & ch
+          if chunk.len > 0:
+            cur = chunk
+    if cur.len > 0:
+      resLines.add(cur)
+  return resLines
 
 proc iconStatusText(actionKey, iconKey: TranslationKey): string =
   t(actionKey).replace("$1", t(iconKey))
@@ -99,9 +137,9 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
 
     of "clear":
       help.outputLines = @[
-        ("TopHat-ShooterOS Help System v5.5", Color(r: 0, g: 255, b: 255, a: 255)),
-        ("Type 'help' for commands.", White),
-        ("", White)
+        ("TopHat-ShooterOS Help System v5.5", Color(r: 0, g: 255, b: 255, a: 255), -1, 0),
+        ("Type 'help' for commands.", White, -1, 0),
+        ("", White, -1, 0)
       ]
 
     of "controls":
@@ -117,7 +155,6 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput(t(tkHelpCombat), Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("  " & t(tkHelpLeftMouse), White)
       help.addOutput("  " & t(tkHelpSpace), White)
-      help.addOutput("  " & t(tkHelpF), White)
       help.addOutput("", White)
       help.addOutput(t(tkHelpAbilities), Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("  " & t(tkHelpQ), White)
@@ -134,18 +171,11 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpGameplayTopic), Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("", White)
-      help.addOutput(t(tkHelpWaveMode), Color(r: 255, g: 200, b: 50, a: 255))
-      for line in t(tkHelpWaveModeDesc).split("\n"):
-        help.addOutput("  " & line, White)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpSurvivalMode), Color(r: 255, g: 200, b: 50, a: 255))
-      for line in t(tkHelpSurvivalModeDesc).split("\n"):
-        help.addOutput("  " & line, White)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpSandboxMode), Color(r: 255, g: 200, b: 50, a: 255))
-      for line in t(tkHelpSandboxModeDesc).split("\n"):
-        help.addOutput("  " & line, White)
-      help.addOutput("", White)
+      for gm in getAllGameModes():
+        help.addOutput(gm.name, Color(r: 255, g: 200, b: 50, a: 255))
+        for line in gm.description.split("\n"):
+          help.addOutput(line, White, -1, 0)
+        help.addOutput("", White)
 
     of "powerups":
       help.addOutput("", White)
@@ -153,69 +183,17 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpPowerUpsTopic), Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("", White)
-      help.addOutput(t(tkHelpCommonPowerups), Color(r: 255, g: 200, b: 50, a: 255))
-      help.addOutput("  " & t(tkHelpDoubleShot), White)
-      help.addOutput("  " & t(tkHelpRotatingShield), White)
-      help.addOutput("  " & t(tkHelpMagicalBullets), White)
-      help.addOutput("  " & t(tkHelpPiercingShots), White)
-      help.addOutput("  " & t(tkHelpMultiShot), White)
-      help.addOutput("  " & t(tkHelpExplosiveBullets), White)
-      help.addOutput("  " & t(tkHelpLifeSteal), White)
-      help.addOutput("  " & t(tkHelpRapidFire), White)
-      help.addOutput("  " & t(tkHelpMaxHealth), White)
-      help.addOutput("  " & t(tkHelpSpeedBoost), White)
-      help.addOutput("  " & t(tkHelpBulletSpeed), White)
-      help.addOutput("  " & t(tkHelpLuckyCoins), White)
-      help.addOutput("  " & t(tkHelpWallMaster), White)
-      help.addOutput("  " & t(tkHelpRegeneration), White)
-      help.addOutput("  " & t(tkHelpDodgeChance), White)
-      help.addOutput("  " & t(tkHelpCriticalHit), White)
-      help.addOutput("  " & t(tkHelpBloodBullets), White)
-      help.addOutput("  " & t(tkHelpBulletRicochet), White)
-      help.addOutput("  " & t(tkHelpSlowField), White)
-      help.addOutput("  " & t(tkHelpRage), White)
-      help.addOutput("  " & t(tkHelpBerserker), White)
-      help.addOutput("  " & t(tkHelpThorns), White)
-      help.addOutput("  " & t(tkHelpBulletSplit), White)
-      help.addOutput("  " & t(tkHelpChainLightning), White)
-      help.addOutput("  " & t(tkHelpFrostShots), White)
-      help.addOutput("  " & t(tkHelpPoisonShot), White)
-      help.addOutput("  " & t(tkHelpFireBullets), White)
-      help.addOutput("  " & t(tkHelpWindBullets), White)
-      help.addOutput("  " & t(tkHelpOvercharge), White)
-      help.addOutput("  " & t(tkHelpEchoShots), White)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpElementalOrbs), Color(r: 100, g: 200, b: 255, a: 255))
-      help.addOutput("  " & t(tkHelpPoisonOrb), White)
-      help.addOutput("  " & t(tkHelpFireOrb), White)
-      help.addOutput("  " & t(tkHelpLightningOrb), White)
-      help.addOutput("  " & t(tkHelpWindOrb), White)
-      help.addOutput("  " & t(tkHelpFrostOrb), White)
-      help.addOutput("  " & t(tkHelpArcaneOrb), White)
-      help.addOutput("  " & t(tkHelpBloodOrb), White)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpElementalAuras), Color(r: 200, g: 100, b: 255, a: 255))
-      help.addOutput("  " & t(tkHelpFireAura), White)
-      help.addOutput("  " & t(tkHelpLightningAura), White)
-      help.addOutput("  " & t(tkHelpPoisonAura), White)
-      help.addOutput("  " & t(tkHelpWindAura), White)
-      help.addOutput("  " & t(tkHelpArcaneAura), White)
-      help.addOutput("  " & t(tkHelpBloodAura), White)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpLegendaryPowerups), Gold)
-      help.addOutput("  " & t(tkHelpTimeWarp), White)
-      help.addOutput("  " & t(tkHelpGravityWell), White)
-      help.addOutput("  " & t(tkHelpPhaseShift), White)
-      help.addOutput("  " & t(tkHelpParry), White)
-      help.addOutput("  " & t(tkHelpRotatingOrbs), White)
-      help.addOutput("  " & t(tkHelpFireMastery), White)
-      help.addOutput("  " & t(tkHelpPoisonMastery), White)
-      help.addOutput("  " & t(tkHelpFrostMastery), White)
-      help.addOutput("  " & t(tkHelpArcaneMastery), White)
-      help.addOutput("  " & t(tkHelpLightningMastery), White)
-      help.addOutput("  " & t(tkHelpWindMastery), White)
-      help.addOutput("  " & t(tkHelpBloodMastery), White)
-      help.addOutput("", White)
+      # List all power-up names and short descriptions from authoritative source
+      for i in ord(low(PowerUpType)) .. ord(high(PowerUpType)):
+        let pu = PowerUpType(i)
+        # Add name with icon index (ordinal of PowerUpType) and the powerup's own color
+        let puColor = getPowerUpColor(pu)
+        help.addOutput(getPowerUpName(pu), puColor, i, 0)
+        # Use level 1 and default playerDamage for example descriptions; indent descriptions to align under name
+        let desc = getPowerUpDescription(pu, 1, 1.0)
+        for line in desc.split("\n"):
+          help.addOutput(line, LightGray, -1, (HELP_ICON_SIZE + HELP_ICON_PADDING))
+        help.addOutput("", White, -1, 0)
 
     of "enemies":
       help.addOutput("", White)
@@ -223,30 +201,13 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpEnemiesTopic), Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("", White)
-      help.addOutput(t(tkHelpEnemyCircle), Color(r: 255, g: 100, b: 100, a: 255))
-      for line in t(tkHelpEnemyChaser).split("\n"):
-        help.addOutput("  " & line, White)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpEnemyCube), Color(r: 100, g: 100, b: 255, a: 255))
-      for line in t(tkHelpEnemyTurret).split("\n"):
-        help.addOutput("  " & line, White)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpEnemyTriangle), Color(r: 255, g: 200, b: 50, a: 255))
-      for line in t(tkHelpEnemyDasher).split("\n"):
-        help.addOutput("  " & line, White)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpEnemyStar), Color(r: 150, g: 255, b: 150, a: 255))
-      for line in t(tkHelpEnemyTank).split("\n"):
-        help.addOutput("  " & line, White)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpEnemyHexagon), Color(r: 200, g: 100, b: 255, a: 255))
-      for line in t(tkHelpEnemyWarper).split("\n"):
-        help.addOutput("  " & line, White)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpEnemyElite), Color(r: 255, g: 165, b: 0, a: 255))
-      for line in t(tkHelpEnemyEliteDesc).split("\n"):
-        help.addOutput("  " & line, White)
-      help.addOutput("", White)
+      for i in ord(low(EnemyType)) .. ord(high(EnemyType)):
+        let et = EnemyType(i)
+        let cfg = getEnemyConfig(et)
+        help.addOutput("  " & cfg.name, cfg.baseColor)
+        for line in cfg.description.split("\n"):
+          help.addOutput("    " & line, White)
+        help.addOutput("", White)
 
     of "bosses":
       help.addOutput("", White)
@@ -254,6 +215,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpBossesTopic), Color(r: 255, g: 100, b: 100, a: 255))
       help.addOutput("=======================================", Color(r: 255, g: 100, b: 100, a: 255))
       help.addOutput("", White)
+      # General boss mechanics (keep high-level help text)
       help.addOutput(t(tkHelpBossSpawning), Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("  " & t(tkHelpBossEvery5th), White)
       help.addOutput("  " & t(tkHelpBossEvery60Sec), White)
@@ -265,24 +227,15 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  - Speed and damage increase with each phase", White)
       help.addOutput("", White)
       help.addOutput(t(tkHelpBossAttacks), Color(r: 255, g: 200, b: 50, a: 255))
-      help.addOutput("  - Spiral patterns", White)
-      help.addOutput("  - Burst fire", White)
-      help.addOutput("  - Wave patterns", White)
-      help.addOutput("  - Targeted shots", White)
-      help.addOutput("  - Circle formations", White)
-      help.addOutput("  - Laser beams", White)
-      help.addOutput("  - Orbiting projectiles", White)
-      help.addOutput("  - Meteor strikes", White)
-      help.addOutput("  - Chain lightning", White)
-      help.addOutput("  - Expanding pulses", White)
-      help.addOutput("  - Teleportation", White)
-      help.addOutput("  - Minion summoning", White)
-      help.addOutput("  - Dash attacks", White)
+      help.addOutput("  - Refer to individual boss entries below for specifics", White)
       help.addOutput("", White)
-      help.addOutput(t(tkHelpBossRewards), Color(r: 255, g: 200, b: 50, a: 255))
-      help.addOutput("  - Large coin drops", White)
-      help.addOutput("  - Legendary power-up selection", White)
-      help.addOutput("", White)
+      # List all bosses with short descriptions
+      for id in 1..12:
+        let bd = getBossDefinition(id)
+        help.addOutput("  " & bd.name, bd.color)
+        for line in bd.description.split("\n"):
+          help.addOutput("    " & line, White)
+        help.addOutput("", White)
 
     of "shop":
       help.addOutput("", White)
@@ -440,17 +393,43 @@ proc drawHelpWindow*(help: HelpWindow) =
                                 width: contentW.float32, height: contentH.float32),
                     1, Color(r: 0, g: 200, b: 200, a: 255))
 
-  # Draw output lines (with scrolling)
+  # Draw output lines (with scrolling, wrapping, and optional icons)
   var yPos = contentY + 10
-  let lineHeight = 18
+  let lineHeight = HELP_LINE_HEIGHT
   let visibleLines = (contentH - 50) div lineHeight
-  let startLine = help.scrollOffset
-  let endLine = min(help.outputLines.len, startLine + visibleLines)
+  let startEntry = clamp(help.scrollOffset, 0, max(0, help.outputLines.len - 1))
 
-  for i in startLine..<endLine:
+  let baseTextX = contentX + 10
+  var i = startEntry
+  var stopRendering = false
+  while i < help.outputLines.len and not stopRendering:
     let line = help.outputLines[i]
-    drawText(line.text, (contentX + 10).int32, yPos.int32, 14, line.color)
-    yPos += lineHeight
+    let iconPresent = line.icon >= 0
+    var availableW: int32 = (contentW - 20).int32 - line.indent.int32
+    if iconPresent:
+      availableW = availableW - int32(HELP_ICON_SIZE + HELP_ICON_PADDING)
+    if availableW < 20.int32:
+      availableW = 20.int32
+
+    let wrapped = wrapTextToWidth(line.text, availableW, int32(14))
+
+    # Draw icon (on first wrapped line) if present
+    if iconPresent and wrapped.len > 0:
+      let iconX = (baseTextX + line.indent).int32
+      drawPowerUpIcon(iconX, yPos.int32, int32(HELP_ICON_SIZE), PowerUpType(line.icon), line.color)
+    
+    var firstWrapped = true
+    for wline in wrapped:
+      let textX = baseTextX + line.indent + (if iconPresent and firstWrapped: HELP_ICON_SIZE + HELP_ICON_PADDING else: 0)
+      drawText(wline, textX.int32, yPos.int32, 14, line.color)
+      yPos += lineHeight
+      firstWrapped = false
+      if yPos + lineHeight > contentY + contentH - 50:
+        stopRendering = true
+        break
+    
+    if not stopRendering:
+      i = i + 1
 
   # Draw command prompt at bottom
   let promptY = contentY + contentH - 30
