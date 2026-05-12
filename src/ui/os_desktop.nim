@@ -57,6 +57,9 @@ type
     cubeRotY*: float32
     cubeRotZ*: float32
 
+var
+  activeDesktop*: OSDesktop = nil
+
 const
   ICON_SIZE = 64
   ICON_SPACING = 100

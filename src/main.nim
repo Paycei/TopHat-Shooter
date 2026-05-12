@@ -303,6 +303,8 @@ proc main() =
 
   var splashScreen = newSplashScreen()
   var osDesktop = newOSDesktop()
+  # Expose the running desktop instance so UI previews can match its state
+  activeDesktop = osDesktop
 
   # Initialize window manager with all windows
   globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats, advancementProfile, rogueliteProfile)

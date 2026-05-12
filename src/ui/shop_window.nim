@@ -678,59 +678,80 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
                else: Color(r: 40, g: 40, b: 50, a: 255)
   drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, cardBg)
 
-  # Mini background preview area (top portion of card)
+  # Mini background preview area (top portion of card) — rendered using the
+  # same backdrop helper and colours that the real desktop uses so the shop
+  # card is a faithful thumbnail of the actual background.
   let previewH = 64
-  drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32, bgData.bgColor)
+  beginVirtualScissorMode(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
 
-  # Draw simple animated lines/dots representing the BG style
-  let cx = (x + SKIN_BOX_WIDTH div 2).float32
-  let cy = (y + previewH div 2).float32
-
-  case bgType
-  of dbgDefault:
-    # Render the full hardcoded desktop wallpaper inside the preview area
-    # Use scissor to confine drawing to the preview rectangle, then translate
-    beginVirtualScissorMode(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
+  if bgType == dbgDefault:
+    # For the default skin draw the exact hardcoded wallpaper (including
+    # the equipped cube). Use the running desktop's time/rotation when
+    # available so the thumbnail matches the real desktop exactly.
     pushMatrix()
     translatef(x.float32, y.float32, 0.0'f32)
-    # Draw the exact wallpaper using the same routine and time so visuals match
-    # Pass zeroed cube rotations (neutral) — wallpaper code scales to the provided dimensions
-    drawDesktopWallpaper(SKIN_BOX_WIDTH, previewH, time, 0.0'f32, 0.0'f32, 0.0'f32)
+    if not activeDesktop.isNil:
+      drawDesktopWallpaper(SKIN_BOX_WIDTH, previewH, activeDesktop.time,
+                           activeDesktop.cubeRotX, activeDesktop.cubeRotY, activeDesktop.cubeRotZ)
+    else:
+      drawDesktopWallpaper(SKIN_BOX_WIDTH, previewH, time,
+                           0.0'f32, 0.0'f32, 0.0'f32)
     popMatrix()
-    endScissorMode()
-  of dbgMatrix:
-    # Cascading dots in columns
-    for col in 0..4:
-      let lx = (x + 14 + col * 30).float32
-      for row in 0..2:
-        let phase = time * 3.0 + col.float32 * 1.2 + row.float32 * 0.8
-        let alpha = uint8(clamp((sin(phase) * 0.5 + 0.5) * 255, 30, 255))
-        drawCircle(Vector2(x: lx, y: (y + 10 + row * 20).float32), 3.0,
-                   Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g,
-                         b: bgData.primaryColor.b, a: alpha))
-  of dbgVoid:
-    # Stars (static dots)
-    let starPositions = [(cx - 30, cy - 12), (cx + 20, cy - 18), (cx - 10, cy + 10),
-                         (cx + 38, cy + 8), (cx - 45, cy + 5)]
-    for (sx, sy) in starPositions:
-      let pulse = uint8(clamp(sin(time * 1.5 + sx) * 80 + 160, 80, 255))
-      drawCircle(Vector2(x: sx, y: sy), 2.0,
-                 Color(r: bgData.accentColor.r, g: bgData.accentColor.g,
-                       b: bgData.accentColor.b, a: pulse))
   else:
-    # Generic: radiate accent rays from center
-    for i in 0..5:
-      let angle = (i.float32 / 6.0) * PI * 2.0 + time * 0.6
-      let r1 = 6.0
-      let r2 = 24.0
-      let x1 = cx + cos(angle) * r1
-      let y1 = cy + sin(angle) * r1
-      let x2 = cx + cos(angle) * r2
-      let y2 = cy + sin(angle) * r2
-      drawLine(x1.int32, y1.int32, x2.int32, y2.int32,
-               Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g,
-                     b: bgData.primaryColor.b, a: 180))
-    drawCircle(Vector2(x: cx, y: cy), 4.0, bgData.accentColor)
+    # All other skins: fill with bgColor then overlay drawSharedBackdrop using
+    # the skin palette, and draw a miniature wallpaper cube so the preview
+    # matches the full desktop rendering for that theme.
+    drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32, bgData.bgColor)
+    let topColor    = bgData.bgColor
+    let bottomColor = Color(r: uint8(clamp(topColor.r.int - 12, 0, 255)),
+                            g: uint8(clamp(topColor.g.int - 12, 0, 255)),
+                            b: uint8(clamp(topColor.b.int - 12, 0, 255)), a: 255)
+    let gridColor   = Color(r: uint8((bgData.primaryColor.r.int + bgData.accentColor.r.int) div 2),
+                            g: uint8((bgData.primaryColor.g.int + bgData.accentColor.g.int) div 2),
+                            b: uint8((bgData.primaryColor.b.int + bgData.accentColor.b.int) div 2),
+                            a: 34)
+    pushMatrix()
+    # Translate so drawSharedBackdrop treats (x,y) as its origin
+    translatef(x.float32, y.float32, 0.0'f32)
+    drawSharedBackdrop(SKIN_BOX_WIDTH.int32, previewH.int32, time * 0.62,
+                       topColor, bottomColor,
+                       gridColor, bgData.accentColor, bgData.primaryColor,
+                       0.9, 0.8)
+
+    # Soft glows and orbital rings scaled to the preview size
+    let w = SKIN_BOX_WIDTH.float32
+    let h = previewH.float32
+    let nodeColor = bgData.accentColor
+    let accentColor = bgData.primaryColor
+    drawSoftGlow(w * 0.64, h * 0.46, min(w, h) * 0.42,
+                 Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: 70), 0.7)
+    drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
+                 Color(r: nodeColor.r, g: nodeColor.g, b: nodeColor.b, a: 56), 0.55)
+    drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
+                 Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g, b: bgData.primaryColor.b, a: 46), 0.5)
+
+    for i in 0..3:
+      let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
+      let alpha = uint8(26 + i * 9)
+      drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
+                      Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: alpha))
+
+    # Draw the wallpaper cube using the currently equipped cube skin so the
+    # preview matches the full desktop. Prefer the running desktop's time
+    # and rotation when available for a 1:1 match.
+    let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
+    if not activeDesktop.isNil:
+      drawZeroGravityWallpaperCube(w * 0.64, h * 0.46, min(w, h) * 0.042'f32,
+                                   activeDesktop.time,
+                                   activeDesktop.cubeRotX, activeDesktop.cubeRotY, activeDesktop.cubeRotZ,
+                                   currentCubeSkin)
+    else:
+      drawZeroGravityWallpaperCube(w * 0.64, h * 0.46, min(w, h) * 0.042'f32,
+                                   time, 0.0'f32, 0.0'f32, 0.0'f32, currentCubeSkin)
+
+    popMatrix()
+
+  endScissorMode()
 
   # Border
   let borderColor = if isSelected: Color(r: 255, g: 150, b: 50, a: 255)
@@ -780,101 +801,21 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
     Rectangle(x: x.float32, y: y.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
     borderThickness, borderColor)
 
-  # For the default cube skin, render the exact wallpaper cube instead of
-  # the simplified isometric preview so the shop shows a 1:1 match.
-  if skinType == cskDefault:
-    let previewH = 64
-    beginVirtualScissorMode(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
-    let centerX = (x + SKIN_BOX_WIDTH div 2).float32
-    let centerY = (y + 46).float32
-    let cubeSize = 18.0'f32
-    drawZeroGravityWallpaperCube(centerX, centerY, cubeSize, time, 0.0'f32, 0.0'f32, 0.0'f32)
-    endScissorMode()
-  else:
-    # Draw a simple isometric cube using three parallelogram-ish rectangles
-    let hoverScale = if isHovered: 1.06'f32 else: 1.0'f32
-    let s = int(22.0 * hoverScale)   # half-size of cube face
-    let cx = x + SKIN_BOX_WIDTH div 2
-    let cy = y + 46
-
-    # Rotation bob for selected/hovered
-    let bob = if isSelected or isHovered: sin(time * 3.0) * 2.0 else: 0.0
-    let cyB = cy + int(bob)
-
-    # Top face (bright)
-    let topPts = [
-      Vector2(x: (cx).float32,         y: (cyB - s).float32),
-      Vector2(x: (cx + s).float32,     y: (cyB - s div 2).float32),
-      Vector2(x: (cx).float32,         y: (cyB).float32),
-      Vector2(x: (cx - s).float32,     y: (cyB - s div 2).float32)
-    ]
-    drawTriangle(topPts[0], topPts[1], topPts[2], skinData.faceColor)
-    drawTriangle(topPts[0], topPts[2], topPts[3], skinData.faceColor)
-
-    # Right face (darker)
-    let rightDark = Color(
-      r: uint8(skinData.faceColor.r.int * 6 div 10),
-      g: uint8(skinData.faceColor.g.int * 6 div 10),
-      b: uint8(skinData.faceColor.b.int * 6 div 10),
-      a: 255)
-    let rightPts = [
-      Vector2(x: (cx + s).float32,     y: (cyB - s div 2).float32),
-      Vector2(x: (cx + s).float32,     y: (cyB + s div 2).float32),
-      Vector2(x: (cx).float32,         y: (cyB + s).float32),
-      Vector2(x: (cx).float32,         y: (cyB).float32)
-    ]
-    drawTriangle(rightPts[0], rightPts[1], rightPts[3], rightDark)
-    drawTriangle(rightPts[1], rightPts[2], rightPts[3], rightDark)
-
-    # Left face (medium shade)
-    let leftMid = Color(
-      r: uint8(skinData.faceColor.r.int * 8 div 10),
-      g: uint8(skinData.faceColor.g.int * 8 div 10),
-      b: uint8(skinData.faceColor.b.int * 8 div 10),
-      a: 255)
-    let leftPts = [
-      Vector2(x: (cx - s).float32,     y: (cyB - s div 2).float32),
-      Vector2(x: (cx).float32,         y: (cyB).float32),
-      Vector2(x: (cx).float32,         y: (cyB + s).float32),
-      Vector2(x: (cx - s).float32,     y: (cyB + s div 2).float32)
-    ]
-    drawTriangle(leftPts[0], leftPts[1], leftPts[3], leftMid)
-    drawTriangle(leftPts[1], leftPts[2], leftPts[3], leftMid)
-
-    # Edge outlines using edgeColor — subtle thickness for realism
-    let baseThick = 1.0'f32
-    let hoverMul = if isHovered or isSelected: 1.25'f32 else: 1.0'f32
-    let topThick = baseThick * 1.2'f32 * hoverMul
-    let faceThick = baseThick * hoverMul
-
-    # Top face perimeter (slightly stronger to read silhouette)
-    drawLine(topPts[0], topPts[1], topThick, skinData.edgeColor)
-    drawLine(topPts[1], topPts[2], topThick, skinData.edgeColor)
-    drawLine(topPts[2], topPts[3], topThick, skinData.edgeColor)
-    drawLine(topPts[3], topPts[0], topThick, skinData.edgeColor)
-
-    # Right face perimeter (thin)
-    drawLine(rightPts[0], rightPts[1], faceThick, skinData.edgeColor)
-    drawLine(rightPts[1], rightPts[2], faceThick, skinData.edgeColor)
-    drawLine(rightPts[2], rightPts[3], faceThick, skinData.edgeColor)
-    drawLine(rightPts[3], rightPts[0], faceThick, skinData.edgeColor)
-
-    # Left face perimeter (thin)
-    drawLine(leftPts[0], leftPts[1], faceThick, skinData.edgeColor)
-    drawLine(leftPts[1], leftPts[2], faceThick, skinData.edgeColor)
-    drawLine(leftPts[2], leftPts[3], faceThick, skinData.edgeColor)
-    drawLine(leftPts[3], leftPts[0], faceThick, skinData.edgeColor)
-
-    # Subtle front vertical edges for depth
-    drawLine(topPts[2], Vector2(x: cx.float32, y: (cyB + s).float32), faceThick, skinData.edgeColor)
-    drawLine(rightPts[1], Vector2(x: cx.float32, y: (cyB + s).float32), faceThick, skinData.edgeColor)
-    drawLine(leftPts[3], Vector2(x: cx.float32, y: (cyB + s).float32), faceThick, skinData.edgeColor)
-
-    # Glow ring underneath
-    let glowAlpha = uint8(clamp(sin(time * 2.5) * 50 + 130, 60, 200))
-    drawEllipse(cx.int32, (cyB + s + 4).int32, s.float32 * 0.9, 4.0,
-                Color(r: skinData.glowColor.r, g: skinData.glowColor.g,
-                      b: skinData.glowColor.b, a: glowAlpha))
+  # Render every cube skin using the same 3-D wallpaper cube so the shop
+  # preview always matches what the player sees on the desktop.
+  let previewH = 64
+  beginVirtualScissorMode(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
+  let centerX = (x + SKIN_BOX_WIDTH div 2).float32
+  # Move cube up slightly and reduce base size so it fits within the card area
+  let centerY = (y + 40).float32
+  let hoverScale = if isHovered: 1.03'f32 else: 1.0'f32
+  let cubeSize = 13.0'f32 * hoverScale
+  # Use slowly-drifting angles so the cube rotates in the shop card
+  let aX = time * 0.171'f32
+  let aY = time * 0.133'f32
+  let aZ = time * 0.095'f32
+  drawZeroGravityWallpaperCube(centerX, centerY, cubeSize, time, aX, aY, aZ, skinType)
+  endScissorMode()
 
   # Name
   let nameSize: int32 = if isHovered: 17 else: 16
