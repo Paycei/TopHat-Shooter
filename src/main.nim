@@ -1,4 +1,4 @@
-import raylib, rlgl, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, os, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables, render_context, roguelite, ui/os_roguelite, advancement, std/deques
+import raylib, rlgl, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, os, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/lore_cinematic, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, tables, render_context, roguelite, ui/os_roguelite, advancement, std/deques
 
 const
   screenWidth = 1024
@@ -302,6 +302,7 @@ proc main() =
   currentGame.discordClient = globalDiscordClient
 
   var splashScreen = newSplashScreen()
+  var loreCinematic = newLoreCinematic()
   var osDesktop = newOSDesktop()
   # Expose the running desktop instance so UI previews can match its state
   activeDesktop = osDesktop
@@ -405,10 +406,26 @@ proc main() =
           anyKeyPressed = true
 
         if anyKeyPressed:
-          currentGame.state = gsMenu
+          if not settings.hasSeenIntro:
+            currentGame.state = gsLoreIntro
+          else:
+            currentGame.state = gsMenu
 
       beginGameDrawing()
       drawSplashScreen(splashScreen, screenWidth, screenHeight)
+      endGameDrawing()
+
+    of gsLoreIntro:
+      # Update cinematic. The opening story is intentionally unskippable.
+      updateLoreCinematic(loreCinematic, dt)
+      if loreCinematic.complete:
+        settings.hasSeenIntro = true
+        discard saveSettings(settings)
+        loreCinematic = newLoreCinematic()  # reset for safety
+        currentGame.state = gsMenu
+
+      beginGameDrawing()
+      drawLoreCinematic(loreCinematic, screenWidth, screenHeight)
       endGameDrawing()
 
     of gsMenu:

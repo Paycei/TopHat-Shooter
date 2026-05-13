@@ -41,6 +41,7 @@ type
     desktopBg*: int        # Current desktop background skin (stored as int)
     cubeSkin*: int         # Current cube skin (stored as int)
     pvpNickname*: string  # Player nickname shown in PvP lobbies
+    hasSeenIntro*: bool   # True after the lore cinematic has been seen once
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -110,7 +111,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "particleEffect": settings.particleEffect,
     "desktopBg": settings.desktopBg,
     "cubeSkin": settings.cubeSkin,
-    "pvpNickname": settings.pvpNickname
+    "pvpNickname": settings.pvpNickname,
+    "hasSeenIntro": settings.hasSeenIntro
   }
 
 # Load Settings from JSON
@@ -192,6 +194,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("pvpNickname"):
     settings.pvpNickname = jsonNode["pvpNickname"].getStr()
+
+  if jsonNode.hasKey("hasSeenIntro"):
+    settings.hasSeenIntro = jsonNode["hasSeenIntro"].getBool()
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =
