@@ -103,14 +103,15 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
     # Boss update logic
     if enemy.entranceTimer > 0:
       enemy.entranceTimer -= dt
-      let progress = clamp(1.0 - (enemy.entranceTimer / 1.0), 0.0, 1.0)
-      # Linear interpolation (no smoothing)
+      # Ease-in quad: gentle start, arrives at full speed — no deceleration pause
+      let rawProgress = clamp(1.0 - (enemy.entranceTimer / 2.0), 0.0, 1.0)
+      let progress = rawProgress * rawProgress
       enemy.pos.x = enemy.startPos.x + (enemy.targetPos.x - enemy.startPos.x) * progress
       enemy.pos.y = enemy.startPos.y + (enemy.targetPos.y - enemy.startPos.y) * progress
-      # If arrival completed this frame, prime shooting so it happens immediately
       if enemy.entranceTimer <= 0:
         enemy.pos = enemy.targetPos
-        enemy.shootTimer = 0.81
+        # Reset to 0 so the boss waits a full cooldown before first shot
+        enemy.shootTimer = 0
       return true
 
     enemy.shootTimer += dt
@@ -2999,22 +3000,29 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
     var targetX, targetY, startX, startY: float32
 
     # Position based on boss ID (varied entrance positions)
+    # For orbital/circling bosses the targetPos is placed on the orbit
+    # radius edge so the entrance slide lands them right into the pattern.
+    let orbitLandRadius = 180.0  # matches circle_player orbit radius
     case (bossDef.bossID - 1) mod 4
     of 0:  # From top
-      targetX = centerX; targetY = centerY - 80
       startX = centerX; startY = -100
+      # Land at top of orbit circle
+      targetX = centerX; targetY = centerY - orbitLandRadius
     of 1:  # From bottom
-      targetX = centerX; targetY = centerY + 80
       startX = centerX; startY = screenHeight.float32 + 100
+      # Land at bottom of orbit circle
+      targetX = centerX; targetY = centerY + orbitLandRadius
     of 2:  # From left
-      targetX = centerX - 100; targetY = centerY
       startX = -100; startY = centerY
+      # Land at left of orbit circle
+      targetX = centerX - orbitLandRadius; targetY = centerY
     of 3:  # From right
-      targetX = centerX + 100; targetY = centerY
       startX = screenWidth.float32 + 100; startY = centerY
+      # Land at right of orbit circle
+      targetX = centerX + orbitLandRadius; targetY = centerY
     else:
-      targetX = centerX; targetY = centerY
       startX = centerX; startY = -100
+      targetX = centerX; targetY = centerY - orbitLandRadius
 
     # Create boss with custom stats
     let scaledHP = getScaledBossHP(bossDef, waveNumber)
@@ -3067,7 +3075,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       shockwaveTimer: 8.0,
       burstTimer: 0.5,
       lastWallDamageTime: 0,
-      entranceTimer: 1.0,
+      entranceTimer: 2.0,
       entranceWait: 0.0,
       targetPos: newVector2f(targetX, targetY),
       attackWarningTimer: 0,

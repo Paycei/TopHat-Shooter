@@ -2233,13 +2233,19 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     enemy.pos = enemy.pos + toTarget * enemy.speed * dt
 
   of "circle_player":
-    # Orbit around player specifically
+    # Orbit around player — smooth velocity-based, constant natural speed
     let orbitRadius = 180.0
-    let orbitSpeed = 80.0
-    let angle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
-    let newAngle = angle + (orbitSpeed * dt / orbitRadius)
-    enemy.pos.x = game.player.pos.x + cos(newAngle) * orbitRadius
-    enemy.pos.y = game.player.pos.y + sin(newAngle) * orbitRadius
+    let orbitAngularSpeed = 0.55  # radians per second
+    let currentAngle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
+    let nextAngle = currentAngle + orbitAngularSpeed * dt
+    let desiredX = game.player.pos.x + cos(nextAngle) * orbitRadius
+    let desiredY = game.player.pos.y + sin(nextAngle) * orbitRadius
+    let toDes = newVector2f(desiredX - enemy.pos.x, desiredY - enemy.pos.y)
+    let desDist = sqrt(toDes.x * toDes.x + toDes.y * toDes.y)
+    if desDist > 0.1:
+      let step = min(enemy.speed * 1.2 * dt, desDist)
+      enemy.pos.x += (toDes.x / desDist) * step
+      enemy.pos.y += (toDes.y / desDist) * step
 
   of "aggressive":
     # Chase player directly
@@ -2256,12 +2262,16 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
       enemy.pos = enemy.pos + toCenter * enemy.speed * 0.3 * dt
 
   of "geometric_movement":
-    # Square/geometric pattern movement
+    # Smooth lissajous/figure-eight movement — constant natural speed toward pattern target
     let patternPhase = game.time * 1.0
-    let sinePhase = sin(patternPhase) * 150.0
-    let cosinePhase = cos(patternPhase) * 150.0
-    enemy.pos.x = centerX + sinePhase
-    enemy.pos.y = centerY + cosinePhase
+    let targetX = centerX + sin(patternPhase) * 150.0
+    let targetY = centerY + cos(patternPhase) * 150.0
+    let toDes = newVector2f(targetX - enemy.pos.x, targetY - enemy.pos.y)
+    let desDist = sqrt(toDes.x * toDes.x + toDes.y * toDes.y)
+    if desDist > 0.1:
+      let step = min(enemy.speed * 1.1 * dt, desDist)
+      enemy.pos.x += (toDes.x / desDist) * step
+      enemy.pos.y += (toDes.y / desDist) * step
 
   of "teleport_pattern":
     # Occasionally teleport (handled via attacks, just face player here)
@@ -2394,22 +2404,34 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
     enemy.pos = enemy.pos + toCenter * enemy.speed * 0.4 * dt
 
   of "multi_orbital":
-    # Slow rotation around player
-    let orbitRadius = 150.0
-    let orbitSpeed = 50.0
-    let angle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
-    let newAngle = angle + (orbitSpeed * dt / orbitRadius)
-    enemy.pos.x = game.player.pos.x + cos(newAngle) * orbitRadius
-    enemy.pos.y = game.player.pos.y + sin(newAngle) * orbitRadius
+    # Slow rotation around player - smooth constant-speed drift into orbit
+    let moOrbitRadius = 150.0
+    let moAngularSpeed = 0.35  # radians per second (slow, deliberate)
+    let moCurrentAngle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
+    let moNextAngle = moCurrentAngle + moAngularSpeed * dt
+    let moDesiredX = game.player.pos.x + cos(moNextAngle) * moOrbitRadius
+    let moDesiredY = game.player.pos.y + sin(moNextAngle) * moOrbitRadius
+    let moDes = newVector2f(moDesiredX - enemy.pos.x, moDesiredY - enemy.pos.y)
+    let moDist = sqrt(moDes.x * moDes.x + moDes.y * moDes.y)
+    if moDist > 0.1:
+      let moStep = min(enemy.speed * 1.1 * dt, moDist)
+      enemy.pos.x += (moDes.x / moDist) * moStep
+      enemy.pos.y += (moDes.y / moDist) * moStep
 
   of "orbital_chaos":
-    # Fast erratic orbital movement
-    let orbitRadius = 200.0 + sin(game.time) * 50.0
-    let orbitSpeed = 150.0
-    let angle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
-    let newAngle = angle + (orbitSpeed * dt / orbitRadius)
-    enemy.pos.x = game.player.pos.x + cos(newAngle) * orbitRadius
-    enemy.pos.y = game.player.pos.y + sin(newAngle) * orbitRadius
+    # Erratic orbital movement - smooth constant-speed with varying radius/angle
+    let ocOrbitRadius = 200.0 + sin(game.time) * 50.0
+    let ocAngularSpeed = 1.1 + sin(game.time * 1.7) * 0.4  # varies 0.7-1.5 rad/s
+    let ocCurrentAngle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
+    let ocNextAngle = ocCurrentAngle + ocAngularSpeed * dt
+    let ocDesiredX = game.player.pos.x + cos(ocNextAngle) * ocOrbitRadius
+    let ocDesiredY = game.player.pos.y + sin(ocNextAngle) * ocOrbitRadius
+    let ocDes = newVector2f(ocDesiredX - enemy.pos.x, ocDesiredY - enemy.pos.y)
+    let ocDist = sqrt(ocDes.x * ocDes.x + ocDes.y * ocDes.y)
+    if ocDist > 0.1:
+      let ocStep = min(enemy.speed * 1.3 * dt, ocDist)
+      enemy.pos.x += (ocDes.x / ocDist) * ocStep
+      enemy.pos.y += (ocDes.y / ocDist) * ocStep
 
   of "aggressive_chase":
     # Fast aggressive chase
