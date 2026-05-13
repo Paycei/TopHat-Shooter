@@ -878,6 +878,8 @@ type
     rerollCost*: int  # Cost of next reroll (increases after each use)
     bossWaveManager*: BossWaveManager  # Centralized boss wave and coin management
     bossSpawnTimer*: float32
+    pendingBoss*: Enemy           # Temporarily holds a boss scheduled to spawn after warning
+    pendingBossTimer*: float32    # Time remaining until pending boss is actually spawned
     cameFromPowerUpSelect*: bool
     gameOverSoundPlayed*: bool
     currentWave*: int

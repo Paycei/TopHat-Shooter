@@ -23,7 +23,7 @@ proc initSettings*(): Settings =
     mouseSupport: true,
     mouseBondingMode: mbmWhileShooting,
     showCursorInMenus: true,
-    showDebugStats: false,
+    showDebugStats: true,
     showArenaVignette: true,
     showLowHealthVignette: true,
     showHints: true,

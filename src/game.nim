@@ -287,24 +287,13 @@ proc spawnConfiguredBoss(game: Game, bossDifficulty: float32, bossBlockWave: int
     game.bossWaveManager.startBossWave()
     playSound(stBossSpawn)
   else:
-    game.enemies.add(spawnBoss(game.screenWidth, game.screenHeight,
-              bossDifficulty, game.bossCount, bossBlockWave))
+    # Schedule a pending boss spawn with a short warning period
+    let pending = spawnBoss(game.screenWidth, game.screenHeight,
+              bossDifficulty, game.bossCount, bossBlockWave)
+    game.pendingBoss = pending
+    game.pendingBossTimer = 0.2  # Show warning for 0.2s before adding boss to world
+    # Mark boss wave active so UI shows boss-related hints during the warning
     game.bossWaveManager.startBossWave()
-    game.bossSpawnTimer = 1.5
-
-    playSound(stBossSpawn)
-
-    let boss = game.enemies[^1]
-    let bossName = getBossDefinition(bossNumber).name
-    let bossTitle = getBossDefinition(bossNumber).description
-    startIntroduction(game.dopamine.bossIntro, bossName, bossTitle, boss.maxHp)
-
-    for i in 0..<60:
-      let angle = i.float32 * 0.1
-      let dist = i.float32 * 3
-      let x = boss.pos.x + cos(angle) * dist
-      let y = boss.pos.y + sin(angle) * dist
-      spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
 
 # Unified aura configuration and rendering system
 
@@ -1395,6 +1384,8 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     rerollCost: 0,  # Initialize reroll cost (set properly when entering power-up selection)
     bossWaveManager: BossWaveManager(active: false, coinActive: false),
     bossSpawnTimer: 0,
+    pendingBoss: nil,
+    pendingBossTimer: 0.0,
     cameFromPowerUpSelect: false,
     gameOverSoundPlayed: false,
     # Wave-based mode fields
@@ -4560,6 +4551,28 @@ proc updateGame*(game: var Game, dt: float32) =
   if game.bossSpawnTimer > 0:
     game.bossSpawnTimer -= dt
 
+  # Handle pending boss spawn (scheduled after a short warning)
+  if game.pendingBossTimer > 0:
+    game.pendingBossTimer -= dt
+    if game.pendingBossTimer <= 0 and game.pendingBoss != nil:
+      # Add the pending boss to the world now
+      game.enemies.add(game.pendingBoss)
+      game.pendingBoss = nil
+      # Block normal spawns briefly while the boss arrival settles
+      game.bossSpawnTimer = 1.5
+      playSound(stBossSpawn)
+
+      let boss = game.enemies[^1]
+      let bossDef = getBossDefinition(boss.bossDefinitionID)
+      startIntroduction(game.dopamine.bossIntro, bossDef.name, bossDef.description, boss.maxHp)
+
+      for i in 0..<60:
+        let angle = i.float32 * 0.1
+        let dist = i.float32 * 3
+        let x = boss.pos.x + cos(angle) * dist
+        let y = boss.pos.y + sin(angle) * dist
+        spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
+
   # Always update game time (player time not affected)
   game.time += dt
 
@@ -7596,10 +7609,99 @@ proc drawGame*(game: Game) =
   drawWaveCelebration(game.dopamine.waveCelebration, game.screenWidth, game.screenHeight)
   drawBossIntroduction(game.dopamine.bossIntro, game.screenWidth, game.screenHeight)
   drawAchievementPopup(game.dopamine.achievements, game.screenWidth, game.screenHeight)
-  # Real-time stats now integrated into debug panel
 
-  # Mode-specific UI removed - now handled by OS-Style Left Info Panel
-  # (Wave info, enemies count, etc. are all in the left panel)
+  # Boss entrance warning: flashing "!" on the screen edge the boss is entering from
+  if game.bossWaveManager.isBossActive():
+    # Avoid drawing over the wave banner when it's visible
+    let bannerVisible = if game.waveInProgress: (game.time - game.waveStartTime) < 1.5 else: false
+
+    # Helper: draw a minimal warning — just an exclamation with a soft circular background
+    proc drawSimpleWarning(xCenter, yCenter: int32, timeFactor: float32) =
+      let pulse = (sin(game.time * 6.0) + 1.0) * 0.5
+      let alphaF = clamp(0.5 + pulse * 0.5, 0.0, 1.0) * timeFactor
+      let bgAlpha = uint8(clamp(alphaF * 200.0, 0.0, 255.0))
+      let ringAlpha = uint8(max(0, (bgAlpha.int div 3).int))
+      # Soft filled circle
+      drawCircle(Vector2(x: xCenter.float32, y: yCenter.float32), 36.0, Color(r: 255, g: 60, b: 60, a: bgAlpha))
+      # Subtle outer ring
+      drawCircleLines(xCenter, yCenter, 44.0, Color(r: 255, g: 60, b: 60, a: ringAlpha))
+      # Exclamation mark
+      let excFont: int32 = 44
+      let excW = measureText("!", excFont)
+      drawText("!", xCenter - excW div 2, yCenter - excFont div 2, excFont, Color(r: 255, g: 60, b: 60, a: 255))
+
+    # If a boss is scheduled but not yet added, show its warning using pending data
+    if game.pendingBoss != nil and game.pendingBossTimer > 0:
+      let enemy = game.pendingBoss
+      let sw = game.screenWidth.float32
+      let sh = game.screenHeight.float32
+      let fromTop    = enemy.startPos.y < 0
+      let fromBottom = enemy.startPos.y > sh
+      let fromLeft   = enemy.startPos.x < 0
+
+      let pillW: int32 = 62
+      let pillH: int32 = 62
+      let pad:   int32 = 10
+      var pillX, pillY: int32
+
+      if fromTop:
+        pillX = game.screenWidth div 2 - pillW div 2
+        if bannerVisible:
+          let bannerH: int32 = 44
+          pillY = bannerH + pad + 6
+        else:
+          pillY = pad
+      elif fromBottom:
+        pillX = game.screenWidth div 2 - pillW div 2
+        pillY = game.screenHeight - pillH - pad
+      elif fromLeft:
+        pillX = pad
+        pillY = game.screenHeight div 2 - pillH div 2
+      else:
+        pillX = game.screenWidth - pillW - pad
+        pillY = game.screenHeight div 2 - pillH div 2
+
+      let cx = pillX + pillW div 2
+      let cy = pillY + pillH div 2
+      let timeFactor = clamp(1.0 - (game.pendingBossTimer / 0.2), 0.0, 1.0)
+      drawSimpleWarning(cx, cy, timeFactor.float32)
+    else:
+      for enemy in game.enemies:
+        if enemy.isBoss and enemy.entranceTimer > 0:
+          let sw = game.screenWidth.float32
+          let sh = game.screenHeight.float32
+          let fromTop    = enemy.startPos.y < 0
+          let fromBottom = enemy.startPos.y > sh
+          let fromLeft   = enemy.startPos.x < 0
+
+          let pillW: int32 = 62
+          let pillH: int32 = 62
+          let pad:   int32 = 10
+          var pillX, pillY: int32
+
+          if fromTop:
+            pillX = game.screenWidth div 2 - pillW div 2
+            if bannerVisible:
+              let bannerH: int32 = 44
+              pillY = bannerH + pad + 6
+            else:
+              pillY = pad
+          elif fromBottom:
+            pillX = game.screenWidth div 2 - pillW div 2
+            pillY = game.screenHeight - pillH - pad
+          elif fromLeft:
+            pillX = pad
+            pillY = game.screenHeight div 2 - pillH div 2
+          else:
+            pillX = game.screenWidth - pillW - pad
+            pillY = game.screenHeight div 2 - pillH div 2
+
+          let cx = pillX + pillW div 2
+          let cy = pillY + pillH div 2
+          # Entrance progress (used to modulate intensity)
+          let entranceProg = clamp(1.0 - (enemy.entranceTimer / 2.0), 0.0, 1.0)
+          drawSimpleWarning(cx, cy, (0.6 + 0.4 * entranceProg).float32)
+          break
 
   # Boss health bar (top of screen)
   if game.bossWaveManager.isBossActive():
