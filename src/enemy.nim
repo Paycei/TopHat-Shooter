@@ -802,13 +802,6 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       if canMove:
         enemy.pos = nextPos
 
-  # Update all active effects for this enemy
-  let effectDamage = updateEffects(enemy, dt)
-  # Stars use a hit-count system, HP damage from DoT effects would let them
-  # die via the wrong mechanic, so we skip direct HP reduction for them.
-  if effectDamage > 0 and enemy.enemyType != etStar:
-    enemy.hp -= effectDamage
-
   # Update chain lightning cooldown
   if enemy.chainLightningCooldown > 0:
     enemy.chainLightningCooldown -= dt
