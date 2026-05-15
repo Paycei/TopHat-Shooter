@@ -61,17 +61,17 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
 
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
   # ALL legendary powerups are SINGLE LEVEL ONLY
-  let legendaryOnlyTypes: array[0..30, PowerUpType] = [
+  let legendaryOnlyTypes: array[0..29, PowerUpType] = [
     puArcaneMastery, puBloodMastery, puBulletSpeed,
     puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
-    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery,
+    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWindMastery,
     puVolatile, puBloodPact, puConduit, puAftershock, puNova, puBountiful
   ]
 
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
-  let normalOnlyTypes: array[0..40, PowerUpType] = [
+  let normalOnlyTypes: array[0..41, PowerUpType] = [
     puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura,
     puBloodBullets, puBloodOrb, puBulletRicochet, puBulletSplit,
     puChainLightning, puCriticalHit, puDodgeChance, puExplosiveBullets,
@@ -80,7 +80,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
     puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
     puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
     puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance,
-    puHealPower
+    puHealPower, puWallTurrets
   ]
 
   # Define orb, aura, bullet, and mastery groups for exclusivity
@@ -446,9 +446,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puFortified:
     # Fortified reduces damage taken + increases max HP
     let hpBonus = case powerUp.level
-      of 1: 4.0   # +4 HP
-      of 2: 7.0  # +7 HP
-      else: 10.0  # +10 HP
+      of 1: 3.5   # +350 HP
+      of 2: 7.0  # +700 HP
+      else: 10.5  # +1050 HP
     player.maxHp += hpBonus
     player.hp += hpBonus
   of puCelestialVeil:
@@ -563,7 +563,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
-    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery,
+    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWindMastery,
     puVolatile, puBloodPact, puConduit, puAftershock, puNova, puBountiful
   ]
 
@@ -576,7 +576,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
     puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
     puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance,
-    puHealPower
+    puHealPower, puWallTurrets
   ]
 
   var availableTypes: seq[PowerUpType]

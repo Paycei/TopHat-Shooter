@@ -876,7 +876,9 @@ type
     tkPowerupRadialBurstDesc1 = "powerup_radial_burst_desc1"
     tkPowerupRadialBurstDesc2 = "powerup_radial_burst_desc2"
     tkPowerupRadialBurstDesc3 = "powerup_radial_burst_desc3"
-    tkPowerupWallTurretsDesc = "powerup_wall_turrets_desc"
+    tkPowerupWallTurretsDesc1 = "powerup_wall_turrets_desc1"
+    tkPowerupWallTurretsDesc2 = "powerup_wall_turrets_desc2"
+    tkPowerupWallTurretsDesc3 = "powerup_wall_turrets_desc3"
     tkPowerupPulseArmorDesc1 = "powerup_pulse_armor_desc1"
     tkPowerupPulseArmorDesc2 = "powerup_pulse_armor_desc2"
     tkPowerupPulseArmorDesc3 = "powerup_pulse_armor_desc3"
@@ -1560,16 +1562,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_radial_burst_desc1": "Fire 8 bullets in a circle every 3.5s (uses player damage)",
     "powerup_radial_burst_desc2": "Fire 10 bullets in a circle every 3.0s (uses player damage)",
     "powerup_radial_burst_desc3": "Fire 14 bullets in a circle every 2.0s (uses player damage)",
-    "powerup_wall_turrets_desc": "Walls shoot enemies (100 + {0} (15%) dmg, 1.5s cooldown)",
+    "powerup_wall_turrets_desc1": "Walls shoot at enemies (100 + {0} (30%) dmg, 1.5s cooldown, 350px range)",
+    "powerup_wall_turrets_desc2": "Walls shoot faster (100 + {0} (30%) dmg, 1.0s cooldown, 425px range)",
+    "powerup_wall_turrets_desc3": "Walls fire twin shots (100 + {0} (30%) dmg x2, 1.0s cooldown, 500px range)",
     "powerup_pulse_armor_desc1": "Taking damage pushes nearby enemies back (no dmg, +1% maxHP scaling)",
     "powerup_pulse_armor_desc2": "Shockwave pushes further and deals 200 + 1% maxHP damage",
     "powerup_pulse_armor_desc3": "Shockwave pushes even further and deals 400 + 1% maxHP damage",
     "powerup_heavy_rounds_desc1": "Bullets 15% larger with slight knockback",
     "powerup_heavy_rounds_desc2": "Bullets 25% larger with increased knockback",
     "powerup_heavy_rounds_desc3": "Bullets 35% larger with strong knockback",
-    "powerup_fortified_desc1": "Reduce damage taken by 10% and gain 400 max HP",
-    "powerup_fortified_desc2": "Reduce damage taken by 20% and gain 800 (+400) max HP",
-    "powerup_fortified_desc3": "Reduce damage taken by 30% and gain 1200 (+400) max HP",
+    "powerup_fortified_desc1": "Reduce damage taken by 10% and gain 350 max HP",
+    "powerup_fortified_desc2": "Reduce damage taken by 20% and gain 700 (+350) max HP",
+    "powerup_fortified_desc3": "Reduce damage taken by 30% and gain 1050 (+350) max HP",
     "powerup_special_rounds_desc1": "Every 5th bullet deals +75% bonus damage",
     "powerup_special_rounds_desc2": "Every 4th bullet deals +75% bonus damage",
     "powerup_special_rounds_desc3": "Every 3rd bullet deals +75% bonus damage",
@@ -3000,16 +3004,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_radial_burst_desc1": "Dispara 8 balas en círculo cada 3.5 s (usa tu daño)",
     "powerup_radial_burst_desc2": "Dispara 10 balas en círculo cada 3.0 s (usa tu daño)",
     "powerup_radial_burst_desc3": "Dispara 14 balas en círculo cada 2.0 s (usa tu daño)",
-    "powerup_wall_turrets_desc": "Los muros disparan (100 + {0} [15%] daño, 1.5 s de recarga)",
+    "powerup_wall_turrets_desc1": "Los muros disparan (100 + {0} [30%] daño, 1.5 s recarga, 400px rango)",
+    "powerup_wall_turrets_desc2": "Los muros disparan más rápido (100 + {0} [30%] daño, 1.0 s recarga, 500px rango)",
+    "powerup_wall_turrets_desc3": "Los muros disparan doble (100 + {0} [30%] daño ×2, 1.0 s recarga, 600px rango)",
     "powerup_pulse_armor_desc1": "Al recibir daño, empuja enemigos cercanos (sin daño, +1% maxHP escalado)",
     "powerup_pulse_armor_desc2": "Onda empuja más lejos e inflige 200 + 1% maxHP daño",
     "powerup_pulse_armor_desc3": "Onda empuja aún más lejos e inflige 400 + 1% maxHP daño",
     "powerup_heavy_rounds_desc1": "Balas 15% más grandes con ligero retroceso",
     "powerup_heavy_rounds_desc2": "Balas 25% más grandes con retroceso aumentado",
     "powerup_heavy_rounds_desc3": "Balas 35% más grandes con fuerte retroceso",
-    "powerup_fortified_desc1": "Reduce el daño recibido un 15% y te da 400 HP máximos",
-    "powerup_fortified_desc2": "Reduce el daño recibido un 25% y te da 800 (+400) HP máximos",
-    "powerup_fortified_desc3": "Reduce el daño recibido un 35% y te da 1200 (+400) HP máximos",
+    "powerup_fortified_desc1": "Reduce el daño recibido un 15% y te da 350 HP máximos",
+    "powerup_fortified_desc2": "Reduce el daño recibido un 25% y te da 700 (+350) HP máximos",
+    "powerup_fortified_desc3": "Reduce el daño recibido un 35% y te da 1050 (+350) HP máximos",
     "powerup_special_rounds_desc1": "Cada 5.ª bala causa +75% de daño extra",
     "powerup_special_rounds_desc2": "Cada 4.ª bala causa +75% de daño extra",
     "powerup_special_rounds_desc3": "Cada 3.ª bala causa +75% de daño extra",

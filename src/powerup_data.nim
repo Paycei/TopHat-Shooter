@@ -334,8 +334,10 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     of 2: t(tkPowerupRadialBurstDesc2)
     else: t(tkPowerupRadialBurstDesc3)
   of puWallTurrets:
-    let s = round(playerDamage * 0.3 * 100).int
-    t(tkPowerupWallTurretsDesc).replace("{0}", $s)
+    case level
+    of 1: t(tkPowerupWallTurretsDesc1)
+    of 2: t(tkPowerupWallTurretsDesc2)
+    else: t(tkPowerupWallTurretsDesc3).replace("{0}", $(round(playerDamage * 0.3 * 100).int))
   of puPulseArmor:
     case level
     of 1: t(tkPowerupPulseArmorDesc1)

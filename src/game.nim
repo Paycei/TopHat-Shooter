@@ -7393,8 +7393,14 @@ proc updateGame*(game: var Game, dt: float32) =
       game.walls.delete(i)
       continue
 
-    # Wall Turrets power-up - walls shoot at enemies
+    # Wall Turrets power-up - walls shoot at enemies (3 levels)
     if hasPowerUp(game.player, puWallTurrets):
+      let turretLevel = getPowerUpLevel(game.player, puWallTurrets)
+      let turretCooldown = if turretLevel >= 2: 1.0 else: 1.5
+      let turretRange    = case turretLevel
+        of 1: 350.0
+        of 2: 425.0
+        else: 500.0
       game.walls[i].shootTimer -= dt
       if game.walls[i].shootTimer <= 0:
         # Find nearest enemy
@@ -7402,7 +7408,7 @@ proc updateGame*(game: var Game, dt: float32) =
         var nearestDist = 999999.0
         for enemy in game.enemies:
           let dist = distance(game.walls[i].pos, enemy.pos)
-          if dist < nearestDist and dist < 400.0:  # 400px range
+          if dist < nearestDist and dist < turretRange:
             nearestDist = dist
             nearestEnemy = enemy
 
@@ -7410,7 +7416,7 @@ proc updateGame*(game: var Game, dt: float32) =
         if nearestEnemy != nil:
           let direction = (nearestEnemy.pos - game.walls[i].pos).normalize()
 
-          # Calculate turret damage based on Fortify level and player damage scaling
+          # Calculate turret damage based on WallMaster level and player damage scaling
           var turretDamage = 1.0
           if hasPowerUp(game.player, puWallMaster):
             let fortifyLevel = getPowerUpLevel(game.player, puWallMaster)
@@ -7423,32 +7429,36 @@ proc updateGame*(game: var Game, dt: float32) =
           let damageScaling = game.player.damage * 0.3
           turretDamage += damageScaling
 
-          game.bullets.add(newBullet(
-            x = game.walls[i].pos.x,
-            y = game.walls[i].pos.y,
-            direction = direction,
-            speed = 350.0,
-            damage = turretDamage,
-            fromPlayer = true,  # Count as player damage for scoring
-            isHoming = false,
-            isPiercing = false,
-            isExplosive = false,
-            hasBounce = false,
-            canSplit = false,
-            slowAmount = 0.0,
-            poisonDuration = 0.0,
-            fireDuration = 0.0,
-            windPushForce = 0.0,
-            bulletSkin = game.player.bulletSkinType,
-            bulletShape = game.player.bulletShapeType,
-            isFromWallTurret = true
-          ))
+          # Determine how many shots to fire (level 3 = twin shot)
+          let shotCount = if turretLevel >= 3: 2 else: 1
+
+          for _ in 0..<shotCount:
+            game.bullets.add(newBullet(
+              x = game.walls[i].pos.x,
+              y = game.walls[i].pos.y,
+              direction = direction,
+              speed = 350.0,
+              damage = turretDamage,
+              fromPlayer = true,  # Count as player damage for scoring
+              isHoming = false,
+              isPiercing = false,
+              isExplosive = false,
+              hasBounce = false,
+              canSplit = false,
+              slowAmount = 0.0,
+              poisonDuration = 0.0,
+              fireDuration = 0.0,
+              windPushForce = 0.0,
+              bulletSkin = game.player.bulletSkinType,
+              bulletShape = game.player.bulletShapeType,
+              isFromWallTurret = true
+            ))
 
           # Visual feedback
           spawnExplosionPooled(game.particlePool, game.walls[i].pos.x, game.walls[i].pos.y,
                         Color(r: 255, g: 200, b: 100, a: 255), 8)
 
-          game.walls[i].shootTimer = 1.5  # 1.5 second cooldown
+          game.walls[i].shootTimer = turretCooldown
 
     i += 1
 
