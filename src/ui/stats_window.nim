@@ -318,9 +318,9 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                   t(tkStatsPlaytime), formatTime(statsWin.stats.totalPlayTime),
                   '@', Color(r: 100, g: 200, b: 255, a: 255))
 
-    let totalKills = statsWin.stats.waveMode.bestKills + statsWin.stats.timeMode.bestKills
+    let peakKills = max(statsWin.stats.waveMode.bestKills, max(statsWin.stats.timeMode.bestKills, statsWin.stats.rogueliteMode.bestKills))
     drawMetricCard(contentX + 60 + cardWidth * 2, y, cardWidth, cardHeight,
-                  t(tkStatsPeakKills), $totalKills,
+                  t(tkStatsPeakKills), $peakKills,
                   '*', Red)
 
     y += cardHeight + 25
@@ -411,6 +411,13 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsCriticalHits), $runStats.combat.criticalHits, Color(r: 0, g: 180, b: 255, a: 255))
       lineY += 20
+      drawStatLine(col1X + 10, lineY, "Chain Lightning Procs", $runStats.combat.chainLightningProcs, Color(r: 255, g: 255, b: 80, a: 255))
+      lineY += 20
+      if runStats.powerUps.totalHealingFromPowerUps > 0:
+        drawStatLine(col1X + 10, lineY, "PU Healing Total",
+                     formatLargeNumber(runStats.powerUps.totalHealingFromPowerUps * BALANCE_MULTIPLIER),
+                     Color(r: 80, g: 255, b: 160, a: 255))
+        lineY += 20
       # Combo stats
       drawStatLine(col1X + 10, lineY, t("stats_max_combo"), $runStats.combat.maxCombo, Color(r: 255, g: 200, b: 0, a: 255))
       lineY += 20
@@ -434,9 +441,13 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       lineY += 20
       drawStatLine(col2X + 10, lineY, t(tkStatsNearDeaths), $runStats.movement.nearDeathCount, Red)
       lineY += 20
-      drawStatLine(col2X + 10, lineY, t(tkStatsBestStreak), formatDuration(runStats.movement.longestNoDamageStreak), Color(r: 80, g: 255, b: 80, a: 255))
+      drawStatLine(col2X + 10, lineY, t("stats_no_hit_streak"), formatDuration(runStats.movement.longestNoDamageStreak), Color(r: 80, g: 255, b: 80, a: 255))
       lineY += 20
       drawStatLine(col2X + 10, lineY, t(tkStatsTimeAtLowHP), formatDuration(runStats.movement.timeAtLowHP), Orange)
+      lineY += 20
+      drawStatLine(col2X + 10, lineY, "Successful Parries", $runStats.movement.successfulParries, Gold)
+      lineY += 20
+      drawStatLine(col2X + 10, lineY, "Time Invincible", formatDuration(runStats.movement.timeInvincible), SkyBlue)
 
       # Performance Stats Panel
       drawStatPanel(col3X, y, col1Width, 240, t(tkStatsPerformance))
@@ -472,7 +483,13 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsWallsPlaced), $runStats.resources.wallsPlaced)
       lineY += 20
+      drawStatLine(col1X + 10, lineY, "Wall Dmg Blocked",
+                   formatLargeNumber(runStats.resources.wallDamageBlocked * BALANCE_MULTIPLIER),
+                   Color(r: 180, g: 140, b: 100, a: 255))
+      lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsConsumables), $runStats.resources.consumablesCollected, Color(r: 0, g: 180, b: 255, a: 255))
+      lineY += 20
+      drawStatLine(col1X + 10, lineY, "Health Consumables", $runStats.resources.healthConsumablesUsed, Color(r: 80, g: 255, b: 80, a: 255))
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsShopPurchases), $runStats.resources.shopVisits, Color(r: 255, g: 150, b: 50, a: 255))
       if runStats.gameMode == gmRoguelite:
@@ -599,7 +616,9 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         drawText(t(tkStatsDamageColumnLabel), (col2X + 180).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
         lineY += 20
 
-        let totalDamage = runStats.combat.totalDamageDealt
+        var sumContrib = 0.0'f32
+        for contrib in contributions:
+          sumContrib += contrib[1]
 
         for i, contrib in contributions:
           if lineY > y + 380: break
@@ -607,7 +626,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           let rank = i + 1
           let ptype = contrib[0]
           let damage = contrib[1]
-          let percent = if totalDamage > 0: (damage / totalDamage) * 100.0 else: 0.0
+          let percent = if sumContrib > 0: (damage / sumContrib) * 100.0 else: 0.0
 
           let medalColor = case rank
             of 1: Gold
@@ -625,6 +644,31 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           lineY += 18
       else:
         drawText(t(tkStatsNoDamageData), (col2X + 10).int32, lineY.int32, 14, Gray)
+
+      # Healing Sources sub-section
+      lineY += 28
+      drawText("Healing Sources", (col2X + 10).int32, lineY.int32, 14, Color(r: 80, g: 255, b: 160, a: 255))
+      lineY += 20
+
+      # Build combined list: power-up healing + health consumable healing
+      var healList: seq[(string, float32)] = @[]
+      for ptype, amount in runStats.powerUps.healingContribution:
+        if amount > 0:
+          healList.add((getPowerUpName(ptype), amount))
+      let consumableHealing = float32(runStats.resources.healthConsumablesUsed) *
+                              (0.75'f32 + 0.025'f32 * runStats.finalMaxHP)
+      if consumableHealing > 0:
+        healList.add(("Health Consumable", consumableHealing))
+      healList.sort(proc(a, b: (string, float32)): int = cmp(b[1], a[1]))
+
+      if healList.len > 0:
+        for hc in healList:
+          if lineY > tabContentY + tabContentH - 20: break
+          drawText(hc[0], (col2X + 10).int32, lineY.int32, 13, Color(r: 80, g: 255, b: 160, a: 255))
+          drawText(formatLargeNumber(hc[1] * BALANCE_MULTIPLIER), (col2X + 180).int32, lineY.int32, 13, Color(r: 80, g: 255, b: 160, a: 255))
+          lineY += 18
+      else:
+        drawText("No healing data", (col2X + 10).int32, lineY.int32, 13, Gray)
     else:
       let y = tabContentY + tabContentH div 2 - 20
       drawText(t(tkGameNoPowerUpData),
@@ -650,7 +694,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     var lineY = y + 42
     drawStatLine(contentX + 45, lineY, t(tkStatsPeakKills), $statsWin.stats.rogueliteMode.bestKills, Red)
     lineY += 24
-    drawStatLine(contentX + 45, lineY, t(tkStatsCoinsEarned), $statsWin.stats.rogueliteMode.totalCoins, Gold)
+    drawStatLine(contentX + 45, lineY, "Total Earned", $statsWin.stats.rogueliteMode.totalCoins, Gold)
     lineY += 24
     drawStatLine(contentX + 45, lineY, t(tkStatsPlaytime), formatTime(statsWin.stats.rogueliteMode.totalTimePlayed))
     lineY += 24
@@ -791,7 +835,7 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
   lineY += 18
   drawStatLine(col2X + 8, lineY, t("stats_near_deaths_label"), $stats.movement.nearDeathCount, Red)
   lineY += 18
-  drawStatLine(col2X + 8, lineY, t("stats_best_streak_label"), formatDuration(stats.movement.longestNoDamageStreak), Color(r: 80, g: 255, b: 80, a: 255))
+  drawStatLine(col2X + 8, lineY, t("stats_no_hit_streak"), formatDuration(stats.movement.longestNoDamageStreak), Color(r: 80, g: 255, b: 80, a: 255))
   lineY += 18
   drawStatLine(col2X + 8, lineY, t("stats_time_low_hp_label"), formatDuration(stats.movement.timeAtLowHP), Orange)
 
@@ -827,6 +871,10 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
               if stats.resources.coinsAtEnd > 50: Color(r: 80, g: 255, b: 80, a: 255) else: Gray)
   lineY += 18
   drawStatLine(col1X + 8, lineY, t("stats_walls_placed_label"), $stats.resources.wallsPlaced)
+  lineY += 18
+  drawStatLine(col1X + 8, lineY, "Wall Dmg Blocked",
+               formatLargeNumber(stats.resources.wallDamageBlocked * BALANCE_MULTIPLIER),
+               Color(r: 180, g: 140, b: 100, a: 255))
   lineY += 18
   drawStatLine(col1X + 8, lineY, t("stats_consumables_label"), $stats.resources.consumablesCollected, Color(r: 0, g: 180, b: 255, a: 255))
   lineY += 18

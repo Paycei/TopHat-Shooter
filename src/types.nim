@@ -56,7 +56,8 @@ type
     etTrickster,   # Shows false warning, attacks differently
     etPhantom,     # Unpredictable - teleports with fake clones
     etSniper,      # Rare - charges one-shot epic attack with warning
-    etMage         # Summons meteorites and shoots homing magic bullets
+    etMage,        # Summons meteorites and shoots homing magic bullets
+    etEnvironment  # Sentinel: damage from arena hazards, not an enemy
 
   EliteType* = enum
     etNone,        # Not elite
@@ -372,6 +373,8 @@ type
     poisonTimer*: float32
     poisonDamage*: float32
     poisonAccumulator*: float32  # Accumulates fractional poison damage until it reaches 1.0
+    poisonSourceType*: EnemyType  # Enemy type that applied the poison (for stats tracking)
+    lastDamageAvoided*: float32  # Set by takeDamage when a hit is blocked; read by game.nim to record damageAvoided
     parryActive*: bool  # True when actively parrying
     parryCooldown*: float32  # Cooldown timer between parries
     parryDuration*: float32  # How long the parry state lasts
@@ -544,6 +547,8 @@ type
     bulletSkin*: int  # Bullet skin typeHost
     ownerPlayerIndex*: int  # For PvP: which player shot this bullet (-1 for non-PvP)
     isFrozenByNova*: bool  # True while Nova ability has this bullet frozen in place
+    isFromNova*: bool      # True if this bullet was released by Nova (for damage tracking)
+    rageMultiplier*: float32  # Rage damage multiplier baked in at fire time (1.0 = no bonus)
 
   Coin* = ref object
     pos*: Vector2f

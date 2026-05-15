@@ -1280,6 +1280,8 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
             # Track chain lightning damage for statistics
             if actualDamage > 0:
               trackPowerUpDamage(game, puChainLightning, actualDamage)
+              if game.player.hasLightningMastery:
+                trackPowerUpDamage(game, puLightningMastery, actualDamage)
 
             # Create damage number
             if actualDamage > 0:
@@ -1309,6 +1311,8 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
 
     let healAmount = 0.01 + effect.baseDamage * healPercent
     heal(game.player, healAmount)
+    if healAmount > 0.01:
+      trackPowerUpHealing(game, puBloodBullets, healAmount * game.player.healPowerMult)
 
     if healAmount > 0.01:
       spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 3)
@@ -1522,6 +1526,7 @@ proc startWave*(game: Game) =
       if bullet.isFrozenByNova and bullet.fromPlayer:
         bullet.vel = bullet.vel * 1.5
         bullet.isFrozenByNova = false
+        bullet.isFromNova = true  # Mark for damage tracking
     game.player.novaActive = false
     game.player.novaFreezeTimer = 0
   # Reset Celestial Veil charge for new wave
@@ -1784,6 +1789,19 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     var speed = game.player.bulletSpeed * 1.2
     var damage = stats.damage  # Already includes Rage bonus
 
+    # Compute rage multiplier at fire time so hit-block can isolate the bonus
+    var rageMultiplier = 1.0'f32
+    for powerUp in game.player.powerUps:
+      if powerUp.powerType == puRage:
+        let hpPercent = game.player.hp / game.player.maxHp
+        let hpLost = 1.0 - hpPercent
+        let bonusPerTenPercent = case powerUp.level
+          of 1: 0.05
+          of 2: 0.08
+          else: 0.12
+        rageMultiplier = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
+        break
+
     # Double-shot bullets deal 15% less damage per bullet
     if hasDoubleShot:
       damage *= 0.85  # 15% less damage per bullet
@@ -1869,6 +1887,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         )
         bullet.radius = bulletRadius
         bullet.baseDamagePreCrit = baseDamagePreCrit
+        bullet.rageMultiplier = rageMultiplier
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
 
@@ -1904,6 +1923,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       )
       bullet.radius = bulletRadius
       bullet.baseDamagePreCrit = baseDamagePreCrit
+      bullet.rageMultiplier = rageMultiplier
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
@@ -1946,6 +1966,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         )
         bullet.radius = bulletRadius
         bullet.baseDamagePreCrit = baseDamagePreCrit
+        bullet.rageMultiplier = rageMultiplier
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
     else:
@@ -1974,6 +1995,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       )
       bullet.radius = bulletRadius
       bullet.baseDamagePreCrit = baseDamagePreCrit
+      bullet.rageMultiplier = rageMultiplier
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
@@ -4161,15 +4183,36 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   if hasPowerUp(game.player, puRotatingOrbs):
     trackPowerUpDamage(game, puRotatingOrbs, actualDamage)
   else:
-    # Track individual orb type
+    # Track individual orb type with mastery bonus
     case orb.elementType
-    of etPoison: trackPowerUpDamage(game, puPoisonOrb, actualDamage)
-    of etFire: trackPowerUpDamage(game, puFireOrb, actualDamage)
-    of etLightning: trackPowerUpDamage(game, puLightningOrb, actualDamage)
-    of etWind: trackPowerUpDamage(game, puWindOrb, actualDamage)
-    of etFrost: trackPowerUpDamage(game, puFrostOrb, actualDamage)
-    of etArcane: trackPowerUpDamage(game, puArcaneOrb, actualDamage)
-    of etBlood: trackPowerUpDamage(game, puBloodOrb, actualDamage)
+    of etPoison:
+      trackPowerUpDamage(game, puPoisonOrb, actualDamage)
+      if game.player.hasPoisonMastery:
+        trackPowerUpDamage(game, puPoisonMastery, actualDamage)
+    of etFire:
+      trackPowerUpDamage(game, puFireOrb, actualDamage)
+      if game.player.hasFireMastery:
+        trackPowerUpDamage(game, puFireMastery, actualDamage)
+    of etLightning:
+      trackPowerUpDamage(game, puLightningOrb, actualDamage)
+      if game.player.hasLightningMastery:
+        trackPowerUpDamage(game, puLightningMastery, actualDamage)
+    of etWind:
+      trackPowerUpDamage(game, puWindOrb, actualDamage)
+      if game.player.hasWindMastery:
+        trackPowerUpDamage(game, puWindMastery, actualDamage)
+    of etFrost:
+      trackPowerUpDamage(game, puFrostOrb, actualDamage)
+      if game.player.hasFrostMastery:
+        trackPowerUpDamage(game, puFrostMastery, actualDamage)
+    of etArcane:
+      trackPowerUpDamage(game, puArcaneOrb, actualDamage)
+      if game.player.hasArcaneMastery:
+        trackPowerUpDamage(game, puArcaneMastery, actualDamage)
+    of etBlood:
+      trackPowerUpDamage(game, puBloodOrb, actualDamage)
+      if game.player.hasBloodMastery:
+        trackPowerUpDamage(game, puBloodMastery, actualDamage)
     of etNone: discard
 
   # Create damage number
@@ -4233,11 +4276,8 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
       let chainDamageWithCrit = applyCriticalHitFromStats(stats, baseDamage * 0.7)
       let chainDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
 
-      # Track lightning orb chain damage (attribute to the same orb type as the parent hit)
-      if hasPowerUp(game.player, puRotatingOrbs):
-        trackPowerUpDamage(game, puRotatingOrbs, chainDamage)
-      else:
-        trackPowerUpDamage(game, puLightningOrb, chainDamage)
+      # Track lightning orb chain damage — belongs to puChainLightning regardless of trigger source
+      trackPowerUpDamage(game, puChainLightning, chainDamage)
 
       game.showDamage(nearestEnemy.pos, chainDamage, fromPlayer = true,
                       isCritical = chainDamageWithCrit > baseDamage * 0.7, damageType = dtLightning)
@@ -4267,11 +4307,8 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
           let secondChainDamageWithCrit = applyCriticalHitFromStats(stats, baseDamage * 0.7)
           let secondChainDamage = damageEnemy(secondNearestEnemy, secondChainDamageWithCrit)
 
-          # Track second chain damage
-          if hasPowerUp(game.player, puRotatingOrbs):
-            trackPowerUpDamage(game, puRotatingOrbs, secondChainDamage)
-          else:
-            trackPowerUpDamage(game, puLightningOrb, secondChainDamage)
+          # Track second chain damage — belongs to puChainLightning regardless of trigger source
+          trackPowerUpDamage(game, puChainLightning, secondChainDamage)
 
           game.showDamage(secondNearestEnemy.pos, secondChainDamage, fromPlayer = true,
                           isCritical = secondChainDamageWithCrit > baseDamage * 0.7, damageType = dtLightning)
@@ -4347,6 +4384,8 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
 
     let healAmount = baseDamage * lifestealPercent
     game.player.hp = min(game.player.hp + healAmount, game.player.maxHp)
+    if healAmount > 0.0:
+      trackPowerUpHealing(game, puBloodOrb, healAmount)
 
     if healAmount > 0.01:
       game.showDamage(game.player.pos, healAmount, fromPlayer = true,
@@ -4455,10 +4494,11 @@ proc updateBossArenaGameplay(game: var Game, dt: float32) =
   if arenaEvent.damageTriggered and game.state == gsPlaying:
     let hpBefore = game.player.hp
     let playerDied = takeDamage(game.player, arenaEvent.damage)
+    trackDamageAvoided(game)
     let actualDamage = max(0.0'f32, hpBefore - game.player.hp)
 
     if actualDamage > 0.001:
-      trackPlayerDamage(game, actualDamage, etCircle)
+      trackPlayerDamage(game, actualDamage, etEnvironment)
       game.showDamage(game.player.pos, actualDamage, fromPlayer = false,
                       isCritical = false, damageType = dtArcane)
       spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
@@ -4798,8 +4838,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if hit:
         if takeDamage(game.player, laser.damage.float32):
           beginPlayerDeathSequence(game)
-
-        # Track damage taken for statistics
+        trackDamageAvoided(game)
         trackPlayerDamage(game, laser.damage.float32, laser.enemyType)
 
         # Create damage number for laser damage
@@ -4824,6 +4863,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if bullet.isFrozenByNova and bullet.fromPlayer:
         bullet.vel = bullet.vel * 1.5
         bullet.isFrozenByNova = false
+        bullet.isFromNova = true  # Mark for damage tracking
 
   # Radial Burst power-up - periodic circle of bullets
   if hasPowerUp(game.player, puRadialBurst):
@@ -4889,9 +4929,10 @@ proc updateGame*(game: var Game, dt: float32) =
 
       if takeDamage(game.player, wholeDamage):
         beginPlayerDeathSequence(game)
+      trackDamageAvoided(game)
 
       # Track poison damage for statistics
-      trackPlayerDamage(game, wholeDamage, etCircle)
+      trackPlayerDamage(game, wholeDamage, game.player.poisonSourceType)
 
       # Create damage number for poison damage
       game.showDamage(game.player.pos, wholeDamage, fromPlayer = false,
@@ -5002,6 +5043,9 @@ proc updateGame*(game: var Game, dt: float32) =
 
         # Track lightning aura damage for statistics
         trackPowerUpDamage(game, puLightningAura, actualDamage)
+        # Track LightningMastery bonus (mastery doubles lightning damage; bonus = base)
+        if game.player.hasLightningMastery:
+          trackPowerUpDamage(game, puLightningMastery, actualDamage)
 
         # Use accumulation system for reliable damage numbers
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dtLightning, wasCrit)
@@ -5038,6 +5082,8 @@ proc updateGame*(game: var Game, dt: float32) =
 
             # Track chained lightning damage for statistics
             trackPowerUpDamage(game, puLightningAura, chainedDamage)
+            if game.player.hasLightningMastery:
+              trackPowerUpDamage(game, puLightningMastery, chainedDamage)
 
             # Use accumulation system for chained lightning to prevent spam
             accumulateAndShowAuraDamage(game, nearestEnemy, chainedDamage, dtLightning, chainWasCrit)
@@ -5079,6 +5125,9 @@ proc updateGame*(game: var Game, dt: float32) =
 
         # Track arcane aura damage for statistics
         trackPowerUpDamage(game, puArcaneAura, actualDamage)
+        # Track ArcaneMastery bonus
+        if game.player.hasArcaneMastery:
+          trackPowerUpDamage(game, puArcaneMastery, actualDamage)
 
         # Use accumulation system for reliable damage numbers
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dtArcane, wasCrit)
@@ -5179,7 +5228,7 @@ proc updateGame*(game: var Game, dt: float32) =
     # Apply Blood Mastery bonuses if owned
     var actualLifestealPercent: float64 = lifestealPercent
     if game.player.hasBloodMastery:
-      bloodDamagePerSec *= 2.5  # +150% damage
+      bloodDamagePerSec *= 2.0  # +100% damage
       actualLifestealPercent *= 2.0  # +100% lifesteal
 
     # Static variable to track last healing number display time
@@ -5201,6 +5250,9 @@ proc updateGame*(game: var Game, dt: float32) =
 
         # Track blood aura damage for statistics
         trackPowerUpDamage(game, puBloodAura, actualDamage)
+        # Track BloodMastery bonus
+        if game.player.hasBloodMastery:
+          trackPowerUpDamage(game, puBloodMastery, actualDamage)
 
         # Accumulate healing based on damage dealt
         totalHealing += actualDamage * actualLifestealPercent
@@ -5215,7 +5267,9 @@ proc updateGame*(game: var Game, dt: float32) =
 
     # Apply accumulated healing to player (scaled by healPowerMult)
     if totalHealing > 0:
-      game.player.hp = min(game.player.hp + totalHealing * game.player.healPowerMult, game.player.maxHp)
+      let actualHeal = totalHealing * game.player.healPowerMult
+      game.player.hp = min(game.player.hp + actualHeal, game.player.maxHp)
+      trackPowerUpHealing(game, puBloodAura, actualHeal)
 
       # Show healing number periodically using tracked time
       if game.time - lastBloodHealTime >= BLOOD_HEAL_DISPLAY_INTERVAL:
@@ -5398,9 +5452,8 @@ proc updateGame*(game: var Game, dt: float32) =
             healAmount = 3.5 + rand(3.0)  # 3.5 to 6.5
 
           heal(game.player, healAmount)
+          trackPowerUpHealing(game, puRegeneration, healAmount * game.player.healPowerMult)
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
-
-        # Play wave complete sound
         playSound(stWaveComplete)
 
         var shouldOfferPowerUp = false
@@ -5522,10 +5575,16 @@ proc updateGame*(game: var Game, dt: float32) =
           else: actualDamage
         if poisonEffect.primary.source == "aura":
           trackPowerUpDamage(game, puPoisonAura, poisonActualDamage)
+          if game.player.hasPoisonMastery:
+            trackPowerUpDamage(game, puPoisonMastery, poisonActualDamage)
         elif poisonEffect.primary.source == "shot" or poisonEffect.primary.source == "bullet":
           trackPowerUpDamage(game, puPoisonShot, poisonActualDamage)
+          if game.player.hasPoisonMastery:
+            trackPowerUpDamage(game, puPoisonMastery, poisonActualDamage)
         elif poisonEffect.primary.source == "orb":
           trackPowerUpDamage(game, puPoisonOrb, poisonActualDamage)
+          if game.player.hasPoisonMastery:
+            trackPowerUpDamage(game, puPoisonMastery, poisonActualDamage)
       if fireTickDamage > 0:
         # Check source to determine which power-up to attribute
         let fireEffect = enemy.activeEffects[etFire]
@@ -5534,10 +5593,16 @@ proc updateGame*(game: var Game, dt: float32) =
           else: actualDamage
         if fireEffect.primary.source == "aura":
           trackPowerUpDamage(game, puFireAura, fireActualDamage)
+          if game.player.hasFireMastery:
+            trackPowerUpDamage(game, puFireMastery, fireActualDamage)
         elif fireEffect.primary.source == "shot" or fireEffect.primary.source == "bullet":
           trackPowerUpDamage(game, puFireBullets, fireActualDamage)
+          if game.player.hasFireMastery:
+            trackPowerUpDamage(game, puFireMastery, fireActualDamage)
         elif fireEffect.primary.source == "orb":
           trackPowerUpDamage(game, puFireOrb, fireActualDamage)
+          if game.player.hasFireMastery:
+            trackPowerUpDamage(game, puFireMastery, fireActualDamage)
 
       # Use accumulation system for reliable DOT damage numbers
       # Determine damage type based on active effects
@@ -5604,6 +5669,7 @@ proc updateGame*(game: var Game, dt: float32) =
             of etPhantom: 7
             of etSniper: 10
             of etMage: 10
+            of etEnvironment: 0
           baseValue + waveBonus
 
         # Elite enemies drop 1.5x coins (less common but tougher)
@@ -5630,6 +5696,7 @@ proc updateGame*(game: var Game, dt: float32) =
         if distToPlayer < eliteExplosionRadius:
           if takeDamage(game.player, eliteExplosionDamage):
             beginPlayerDeathSequence(game)
+          trackDamageAvoided(game)
 
           # Track explosion damage for statistics
           trackPlayerDamage(game, eliteExplosionDamage, enemy.enemyType)
@@ -5656,6 +5723,7 @@ proc updateGame*(game: var Game, dt: float32) =
         if distToPlayer < explosionRadius:
           if takeDamage(game.player, explosionDamage):
             beginPlayerDeathSequence(game)
+          trackDamageAvoided(game)
 
           # Track boss explosion damage for statistics
           trackPlayerDamage(game, explosionDamage, enemy.enemyType)
@@ -5750,6 +5818,7 @@ proc updateGame*(game: var Game, dt: float32) =
 
         if game.player.killsSinceLastHeal >= healsPerKills:
           heal(game.player, 0.5)  # Heal 0.5 HP
+          trackPowerUpHealing(game, puLifeSteal, 0.5 * game.player.healPowerMult)
           game.player.killsSinceLastHeal = 0
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
 
@@ -6042,6 +6111,7 @@ proc updateGame*(game: var Game, dt: float32) =
           discard applyThornsReflection(game, game.player, bossContactDamage, enemy, "boss")
 
           let playerDied = takeDamage(game.player, bossContactDamage)
+          trackDamageAvoided(game)
 
           # Pulse Armor shockwave when taking damage
           if not playerDied and hasPowerUp(game.player, puPulseArmor):
@@ -6121,12 +6191,14 @@ proc updateGame*(game: var Game, dt: float32) =
             game.player.poisonTimer = 3.0  # 3 seconds of poison
             game.player.poisonDamage = 0.5  # 0.5 DPS = 1.5 total damage
             game.player.poisonAccumulator = 0.0  # Reset accumulator for new poison application
+            game.player.poisonSourceType = enemy.enemyType  # Track source for stats
             spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 10)
 
           # Thorns reflection damage - damages enemy but doesn't kill instantly
           discard applyThornsReflection(game, game.player, enemyContactDamage, enemy, "contact")
 
           let playerDied = takeDamage(game.player, enemyContactDamage)
+          trackDamageAvoided(game)
 
           # Pulse Armor shockwave when taking damage
           if not playerDied and hasPowerUp(game.player, puPulseArmor):
@@ -6689,21 +6761,10 @@ proc updateGame*(game: var Game, dt: float32) =
             if overchargeExtraDamage > 0:
               trackPowerUpDamage(game, puOvercharge, overchargeExtraDamage)
 
-            # Track Rage damage contribution (only extra damage from low HP)
-            for powerUp in game.player.powerUps:
-              if powerUp.powerType == puRage:
-                let hpPercent = game.player.hp / game.player.maxHp
-                let hpLost = 1.0 - hpPercent
-                let bonusPerTenPercent = case powerUp.level
-                  of 1: 0.05
-                  of 2: 0.08
-                  else: 0.12
-                let damageBonus = hpLost * 10.0 * bonusPerTenPercent
-                if damageBonus > 0:
-                  # Calculate actual rage damage: base damage * bonus percentage
-                  let rageDamageRatio = damageBonus / (1.0 + damageBonus)
-                  let rageDamage = actualDamage * rageDamageRatio
-                  trackPowerUpDamage(game, puRage, rageDamage)
+            # Track Rage damage contribution — use multiplier baked in at fire time
+            if bullet.rageMultiplier > 1.0:
+              let rageBonusDamage = actualDamage * (1.0 - 1.0 / bullet.rageMultiplier)
+              trackPowerUpDamage(game, puRage, rageBonusDamage)
 
             # Track Multi-Shot contribution (only from bonus bullets)
             if bullet.isBonusFromMultiShot:
@@ -6733,9 +6794,14 @@ proc updateGame*(game: var Game, dt: float32) =
               let critBonusDamage = actualDamage * 0.5
               trackPowerUpDamage(game, puCriticalHit, critBonusDamage)
 
-            # Track Piercing Shots contribution (2nd+ hits are entirely powered by the power-up)
-            if bullet.piercedEnemies > 0 and hasPowerUp(game.player, puPiercingShots):
-              trackPowerUpDamage(game, puPiercingShots, actualDamage)
+            # Track Arcane Bullets contribution (all arcane bullet damage)
+            if bullet.isArcaneBullet:
+              trackPowerUpDamage(game, puArcaneBullets, actualDamage)
+
+            # Piercing Shots: extra hits are enabled by this power-up, but the damage
+            # is already captured by the base bullet damage tracking above.
+            # Attributing full actualDamage per pierce hit would inflate it to #1 source.
+            # The power-up's value is visible in the higher total kill/damage numbers.
 
             # Track Echo Shots contribution (all echo bullet damage)
             if bullet.isEcho:
@@ -6752,6 +6818,10 @@ proc updateGame*(game: var Game, dt: float32) =
             # Track Parry contribution (all parried bullet damage)
             if bullet.isParried:
               trackPowerUpDamage(game, puParry, actualDamage)
+
+            # Track Nova contribution (all damage from nova-released bullets)
+            if bullet.isFromNova:
+              trackPowerUpDamage(game, puNova, actualDamage)
 
             # Create damage number for shield damage (blue colored for shields)
             if shieldDamage > 0:
@@ -7038,8 +7108,10 @@ proc updateGame*(game: var Game, dt: float32) =
 
               game.player.pulseArmorCooldown = game.time
 
+        trackDamageAvoided(game)
+
         # Track bullet damage for statistics
-        var sourceEnemyType = etCircle
+        var sourceEnemyType = etCircle  # default fallback
         if bullet.sourceEnemyId >= 0:
           for enemy in game.enemies:
             if enemy.id == bullet.sourceEnemyId:
@@ -7100,6 +7172,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if distance(meteorite.pos, game.player.pos) < meteorite.radius + game.player.radius:
         if takeDamage(game.player, meteorite.damage.float32):
           beginPlayerDeathSequence(game)
+        trackDamageAvoided(game)
 
         # Track meteorite damage
         trackPlayerDamage(game, meteorite.damage.float32, etMage)
@@ -7217,6 +7290,10 @@ proc updateGame*(game: var Game, dt: float32) =
       of ctHealth:
         let healAmount = 0.75'f32 + 0.025'f32 * game.player.maxHp
         heal(game.player, healAmount)
+        # Track the bonus healing contributed by puHealPower (the multiplied delta)
+        if hasPowerUp(game.player, puHealPower):
+          let bonusHealing = healAmount * (game.player.healPowerMult - 1.0)
+          trackPowerUpHealing(game, puHealPower, bonusHealing)
         # Create heal damage number (green, floating up)
         showDamage(game, game.player.pos, healAmount, true, false, dtHeal)
       of ctCoin:

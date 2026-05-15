@@ -186,46 +186,6 @@ proc formatTime*(seconds: float32): string =
     result = $secs & "s"
 
 # STATISTICS UPDATE
-proc updateStats*(stats: Statistics, isWaveMode: bool, waveReached: int,
-                  timeSurvived: float32, kills: int, coins: int,
-                  bossesKilled: int) =
-  stats.lastPlayDate = $now()
-  if stats.firstPlayDate == "":
-    stats.firstPlayDate = stats.lastPlayDate
-
-  stats.totalGamesPlayed += 1
-  stats.totalPlayTime += timeSurvived
-
-  var modeStats = if isWaveMode: addr stats.waveMode else: addr stats.timeMode
-
-  modeStats.gamesPlayed += 1
-  modeStats.totalKills += kills
-  modeStats.totalCoins += coins
-  modeStats.totalTimePlayed += timeSurvived
-  modeStats.totalDeaths += 1
-  modeStats.bossesDefeated += bossesKilled
-
-  if kills > modeStats.bestKills:
-    modeStats.bestKills = kills
-  if coins > modeStats.bestCoins:
-    modeStats.bestCoins = coins
-
-  if isWaveMode:
-    if waveReached > modeStats.highestWaveReached:
-      modeStats.highestWaveReached = waveReached
-      modeStats.bestScore = waveReached
-
-    modeStats.averageWaveReached =
-      (modeStats.averageWaveReached * float32(modeStats.gamesPlayed - 1) + float32(waveReached)) /
-      float32(modeStats.gamesPlayed)
-  else:
-    if timeSurvived > modeStats.longestSurvivalTime:
-      modeStats.longestSurvivalTime = timeSurvived
-      modeStats.bestScore = int(timeSurvived)
-
-    modeStats.averageSurvivalTime =
-      (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) /
-      float32(modeStats.gamesPlayed)
 
 proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
                          timeSurvived: float32, kills: int, coins: int,

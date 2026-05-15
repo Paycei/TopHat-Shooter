@@ -304,8 +304,8 @@ proc combatStatsToJson(stats: CombatStats): JsonNode =
     "eliteKills": stats.eliteKills,
     "bossKills": stats.bossKills,
     "criticalHits": stats.criticalHits,
-    "piercingShots": stats.piercingShots,
-    "explosiveKills": stats.explosiveKills,
+    "piercingHits": stats.piercingHits,
+    "explosiveHits": stats.explosiveHits,
     "ricochets": stats.ricochets,
     "chainLightningProcs": stats.chainLightningProcs,
     "homingBullets": stats.homingBullets,
@@ -388,6 +388,8 @@ proc powerUpStatsToJson(stats: PowerUpStats): JsonNode =
     "legendaryPowerUps": stats.legendaryPowerUps,
     "damageContribution": powerUpTypeFloatTableToJson(stats.damageContribution),
     "killContribution": powerUpTypeIntTableToJson(stats.killContribution),
+    "healingContribution": powerUpTypeFloatTableToJson(stats.healingContribution),
+    "totalHealingFromPowerUps": stats.totalHealingFromPowerUps,
     "mostEffectivePowerUp": $stats.mostEffectivePowerUp,
     "leastEffectivePowerUp": $stats.leastEffectivePowerUp,
     "synergyScore": stats.synergyScore,
@@ -540,6 +542,10 @@ proc parseConsumableType(s: string): ConsumableType =
   of "ctInvincibility": ctInvincibility
   of "ctFireRate": ctFireRate
   of "ctMagnet": ctMagnet
+  of "ctShieldBoost": ctShieldBoost
+  of "ctDoubleCoin": ctDoubleCoin
+  of "ctDamageBoost": ctDamageBoost
+  of "ctLifesteal": ctLifesteal
   else: ctHealth
 
 # Helper to parse PowerUpType from string
@@ -601,6 +607,21 @@ proc parsePowerUpType(s: string): PowerUpType =
   of "puBloodOrb": puBloodOrb
   of "puBloodAura": puBloodAura
   of "puBloodMastery": puBloodMastery
+  of "puRadialBurst": puRadialBurst
+  of "puWallTurrets": puWallTurrets
+  of "puPulseArmor": puPulseArmor
+  of "puHeavyRounds": puHeavyRounds
+  of "puFortified": puFortified
+  of "puCelestialVeil": puCelestialVeil
+  of "puVolatile": puVolatile
+  of "puResonance": puResonance
+  of "puSpecialRounds": puSpecialRounds
+  of "puGiantSlayer": puGiantSlayer
+  of "puBloodPact": puBloodPact
+  of "puConduit": puConduit
+  of "puAftershock": puAftershock
+  of "puNova": puNova
+  of "puHealPower": puHealPower
   else: puDoubleShot
 
 # Helper to parse GameMode from string
@@ -675,8 +696,8 @@ proc jsonToCombatStats(j: JsonNode): CombatStats =
   result.eliteKills = j["eliteKills"].getInt()
   result.bossKills = j["bossKills"].getInt()
   result.criticalHits = j["criticalHits"].getInt()
-  result.piercingShots = j["piercingShots"].getInt()
-  result.explosiveKills = j["explosiveKills"].getInt()
+  result.piercingHits = (if j.hasKey("piercingHits"): j["piercingHits"] elif j.hasKey("piercingShots"): j["piercingShots"] else: newJInt(0)).getInt()
+  result.explosiveHits = (if j.hasKey("explosiveHits"): j["explosiveHits"] elif j.hasKey("explosiveKills"): j["explosiveKills"] else: newJInt(0)).getInt()
   result.ricochets = j["ricochets"].getInt()
   result.chainLightningProcs = j["chainLightningProcs"].getInt()
   result.homingBullets = j["homingBullets"].getInt()
@@ -770,6 +791,13 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
   # Parse kill contribution table
   for key, val in j["killContribution"]:
     result.killContribution[parsePowerUpType(key)] = val.getInt()
+
+  # Parse healing contribution table
+  if j.hasKey("healingContribution"):
+    for key, val in j["healingContribution"]:
+      result.healingContribution[parsePowerUpType(key)] = val.getFloat().float32
+  if j.hasKey("totalHealingFromPowerUps"):
+    result.totalHealingFromPowerUps = j["totalHealingFromPowerUps"].getFloat().float32
 
   result.mostEffectivePowerUp = parsePowerUpType(j["mostEffectivePowerUp"].getStr())
   result.leastEffectivePowerUp = parsePowerUpType(j["leastEffectivePowerUp"].getStr())

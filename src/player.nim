@@ -745,27 +745,33 @@ proc drawPlayer*(player: Player) =
 
 proc takeDamage*(player: Player, damage: float32): bool =
   ## Returns true if player died (HP reached 0 or below), false otherwise
+  player.lastDamageAvoided = 0.0  # Reset each call
   # Shield boost absorbs hits first
   if player.shieldHits > 0:
     player.shieldHits -= 1
+    player.lastDamageAvoided = damage
     # Visual/audio feedback happens in game.nim
     return false
 
   # Invincibility from consumables
   if player.invincibilityTimer > 0:
+    player.lastDamageAvoided = damage
     return false
 
   # Parry invulnerability - also bounces bullets
   if player.parryActive:
+    player.lastDamageAvoided = damage
     return false
 
   # Phase Shift invulnerability
   if player.phaseShiftInvulnTimer > 0:
+    player.lastDamageAvoided = damage
     return false
 
   # Celestial Veil - absorb 1 hit per wave
   if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
     player.celestialVeilActive = false
+    player.lastDamageAvoided = damage
     player.lastDamageEvent = deCelestialVeil  # Signal "veil blocked"
     return false
 
@@ -778,6 +784,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
         else: 30
       if rand(99) < dodgeChance:
         # Dodged! Visual feedback
+        player.lastDamageAvoided = damage
         player.lastDamageEvent = deDodged
         return false
 

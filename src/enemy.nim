@@ -708,6 +708,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       else:
         discard
 
+    of etEnvironment:
+      discard  # Static non-combat entity — no movement logic
+
     of etMage:
       # Magical enemy: homing bullets + meteorite summoning
       let config = getEnemyConfig(enemy.enemyType)
@@ -2021,6 +2024,9 @@ proc drawEnemy*(enemy: Enemy) =
         let chargeGlow = sin((enemy.shootTimer - 2.0) * 10.0) * 0.5 + 0.5
         drawCircleLines(cx.int32, cy.int32, r + 7,
                        Color(r: orbCol.r, g: orbCol.g, b: orbCol.b, a: uint8(160 * chargeGlow)))
+
+    of etEnvironment:
+      discard  # Environmental objects have no draw logic here
 
 proc drawAttackWarning*(warning: AttackWarning) =
   let alpha = uint8((warning.lifetime / warning.maxLifetime) * 200)

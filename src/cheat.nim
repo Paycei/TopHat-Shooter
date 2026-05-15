@@ -693,7 +693,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   currentY += 25
 
   # Define all power-up types
-  let allPowerUpTypes: array[0..68, PowerUpType] = [
+  let allPowerUpTypes: array[0..69, PowerUpType] = [
     puArcaneAura, puArcaneBullets, puArcaneMastery, puArcaneOrb,
     puBerserker, puBloodAura, puBloodBullets, puBloodMastery, puBloodOrb, puBloodPact,
     puBulletRicochet, puBulletSpeed, puBulletSplit,
@@ -701,7 +701,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     puDodgeChance, puDoubleShot, puEchoShots, puExplosiveBullets,
     puFireAura, puFireBullets, puFireMastery, puFireOrb, puFortified,
     puFrostMastery, puFrostOrb, puFrostShots,
-    puGiantSlayer, puGravityWell, puHeavyRounds, puLifeSteal,
+    puGiantSlayer, puGravityWell, puHealPower, puHeavyRounds, puLifeSteal,
     puLightningAura, puLightningMastery, puLightningOrb, puLuckyCoins,
     puMagicalBullets, puMaxHealth, puMultiShot,
     puNova, puOvercharge, puParry, puPhaseShift, puPiercingShots,
@@ -883,6 +883,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
       of etPhantom: "Phantom"
       of etSniper: "SNIPER"
       of etMage: "Mage"
+      of etEnvironment: "Environment"
 
     let nameColor = if enemy.isBoss: Red
                     elif enemy.enemyType == etSniper: Magenta

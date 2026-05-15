@@ -678,6 +678,37 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       usesHitCount: false
     )
 
+  of etEnvironment:  # Non-combat entity — no movement, no attack
+    result = EnemyConfig(
+      enemyType: etEnvironment,
+      name: "Environment",
+      description: "Environmental object",
+
+      baseHP: 0.0,
+      baseRadius: 0.0,
+      contactDamage: 0,
+      baseColor: Gray,
+
+      movement: EnemyMovementConfig(
+        baseSpeed: 0.0,
+        dashSpeed: 0.0,
+        dashCooldown: 0.0,
+        dashDuration: 0.0,
+        teleportCooldown: 0.0,
+        teleportRange: 0.0,
+        maintainsDistance: false,
+        optimalDistance: 0.0,
+        retreatDistance: 0.0
+      ),
+
+      hasRangedAttack: false,
+      hasSpecialBehavior: false,
+      requiresScreenEntry: false,
+      trailEffect: false,
+      glowEffect: false,
+      usesHitCount: false
+    )
+
 # HELPER FUNCTIONS
 
 proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: float32, radius: float32, speed: float32, requiredHits: int] =

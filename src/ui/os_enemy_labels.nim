@@ -19,6 +19,7 @@ proc getEnemyProcessName*(enemy: Enemy): string =
     of etPhantom: "phantom"
     of etSniper: "railgun"
     of etMage: "summoner"
+    of etEnvironment: "environment"
 
   if enemy.isBoss:
     return "CRITICAL_THREAT_" & $enemy.bossDefinitionID & ".exe"

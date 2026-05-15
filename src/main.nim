@@ -830,6 +830,7 @@ proc main() =
             currentGame.player.timeWarpDuration = duration
             currentGame.player.timeWarpCooldown = cooldown
             currentGame.player.timeWarpUsesThisWave += 1  # Increment uses
+            trackTimeWarp(currentGame, duration)
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
                           Color(r: 138, g: 43, b: 226, a: 255), 30)
             anyActivated = true
@@ -870,13 +871,18 @@ proc main() =
                                            min(currentGame.player.pos.y,
                                                currentGame.screenHeight.float32 - currentGame.player.radius))
 
+            # Record actual distance traveled (post-clamp) for stats
+            let actualDashDist = distance(currentGame.player.lastPhaseShiftPos, currentGame.player.pos)
+            trackPhaseShift(currentGame, actualDashDist)
+
             # Visual effects at start and end position
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.lastPhaseShiftPos.x,
                           currentGame.player.lastPhaseShiftPos.y, SkyBlue, 25)
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x,
                           currentGame.player.pos.y, SkyBlue, 25)
           else:
-            # Dash in place - just visual effect
+            # Dash in place - just visual effect (zero distance, still counts as a use)
+            trackPhaseShift(currentGame, 0.0)
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x,
                           currentGame.player.pos.y, SkyBlue, 30)
 
@@ -1776,25 +1782,33 @@ proc main() =
 
         # Save statistics only once per game over
         if not statsSavedThisGame and not currentGame.cheatsUsed:
-          # Calculate bosses defeated based on wave progress
-          let bossesKilled = if currentGame.mode == gmRoguelite:
-            currentGame.bossCount
-          elif shouldUseWaves(currentGame.mode):
-            (currentGame.currentWave - 1) div 5  # Boss every 5 waves
+          # Calculate bosses defeated using accurately tracked value
+          let bossesKilled = if not currentRunStats.isNil:
+            currentRunStats.combat.bossKills
           else:
             currentGame.bossCount
 
+          # Calculate score reached
           let scoreReached =
             if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
               currentGame.rogueliteRun.totalSectorsCleared
+            elif currentGame.mode == gmTimeSurvival:
+              0  # time mode uses longestSurvivalTime for bestScore internally; wave count is meaningless
             else:
               currentGame.currentWave
+
+          # Use coinsEarned (total collected) not player.coins (end-of-run balance)
+          let coinsForStats = if not currentRunStats.isNil:
+            currentRunStats.resources.coinsEarned
+          else:
+            currentGame.player.coins
+
           updateStatsForMode(stats,
                              currentGame.mode,
                              scoreReached,
                              currentGame.time,
                              currentGame.player.kills,
-                             currentGame.player.coins,
+                             coinsForStats,
                              bossesKilled)
 
           # Try to save with retry logic (3 attempts with exponential backoff)
