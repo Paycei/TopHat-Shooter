@@ -922,14 +922,14 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
   let reflectPercent = case reflectType
     of "bullet":
       case thornsLevel
-      of 1: 0.5  # 50% reflection for bullets
-      of 2: 1.0  # 100% reflection
-      else: 2.0  # 200% reflection
+      of 1: 1.0  # 100% reflection
+      of 2: 2.0  # 200% reflection
+      else: 3.0  # 300% reflection
     of "boss", "contact":
       case thornsLevel
-      of 1: 0.5  # 50% reflection for contact
-      of 2: 1.0  # 100% reflection
-      else: 2.0  # 200% reflection
+      of 1: 1.0  # 100% reflection
+      of 2: 2.0  # 200% reflection
+      else: 3.0  # 300% reflection
     else: 0.0
 
   let reflectDamageBase = damageToReflect * reflectPercent

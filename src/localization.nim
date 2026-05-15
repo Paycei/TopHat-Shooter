@@ -502,6 +502,23 @@ type
     tkHelpLightningMastery = "help_lightning_mastery"
     tkHelpWindMastery = "help_wind_mastery"
     tkHelpBloodMastery = "help_blood_mastery"
+    tkHelpArcaneBullets = "help_arcane_bullets"
+    tkHelpRadialBurst = "help_radial_burst"
+    tkHelpWallTurrets = "help_wall_turrets"
+    tkHelpPulseArmor = "help_pulse_armor"
+    tkHelpHeavyRounds = "help_heavy_rounds"
+    tkHelpFortified = "help_fortified"
+    tkHelpSpecialRounds = "help_special_rounds"
+    tkHelpGiantSlayer = "help_giant_slayer"
+    tkHelpCelestialVeil = "help_celestial_veil"
+    tkHelpVolatile = "help_volatile"
+    tkHelpResonance = "help_resonance"
+    tkHelpBloodPact = "help_blood_pact"
+    tkHelpConduit = "help_conduit"
+    tkHelpAftershock = "help_aftershock"
+    tkHelpNova = "help_nova"
+    tkHelpHealPower = "help_heal_power"
+    tkHelpBountiful = "help_bountiful"
 
     # Help System - Shop items
     tkHelpShopDamagePlus = "help_shop_damage_plus"
@@ -1482,9 +1499,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_berserker_desc1": "+5% fire rate per 10% HP lost",
     "powerup_berserker_desc2": "+8% fire rate per 10% HP lost",
     "powerup_berserker_desc3": "+12% fire rate per 10% HP lost",
-    "powerup_thorns_desc1": "Reflect 50% damage to attacker",
-    "powerup_thorns_desc2": "Reflect 100% damage to attacker",
-    "powerup_thorns_desc3": "Reflect 200% damage to attacker",
+    "powerup_thorns_desc1": "Reflect 100% damage to attacker",
+    "powerup_thorns_desc2": "Reflect 200% damage to attacker",
+    "powerup_thorns_desc3": "Reflect 300% damage to attacker",
     "powerup_bullet_split_desc1": "Bullets split into 2 on hit",
     "powerup_bullet_split_desc2": "Bullets split into 3 on hit",
     "powerup_bullet_split_desc3": "Bullets split into 4 on hit",
@@ -1600,7 +1617,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_heal_power_desc2": "All healing received is amplified by 20%. Affects regeneration, lifesteal, and consumables.",
     "powerup_heal_power_desc3": "All healing received is amplified by 25%. Affects regeneration, lifesteal, and consumables.",
     "powerup_bountiful": "Cornucopia",
-    "powerup_bountiful_desc": "Enemies drop consumables double the time. Consumable effects are 50% stronger and last 50% longer. Every 15th triggers a jackpot.",
+    "powerup_bountiful_desc": "Enemies drop consumables double the time. Consumable effects are 50% stronger and last 50% longer. Every 15th kill triggers a jackpot.",
 
     # Player Feedback
     "player_dodge": "DODGE!",
@@ -2215,6 +2232,23 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_lightning_mastery": "Lightning Mastery - Enhance lightning effects",
     "help_wind_mastery": "Wind Mastery - Enhance all wind effects",
     "help_blood_mastery": "Blood Mastery - Enhance all blood effects",
+    "help_arcane_bullets": "Arcane Bullets - Arcane-enhanced bullet damage",
+    "help_radial_burst": "Radial Burst - Periodically fire a ring of bullets",
+    "help_wall_turrets": "Wall Sentinels - Walls shoot at nearby enemies",
+    "help_pulse_armor": "Pulse Armor - Taking damage emits a shockwave",
+    "help_heavy_rounds": "Heavy Rounds - Larger bullets with knockback",
+    "help_fortified": "Fortified - Reduce damage taken, gain max HP",
+    "help_special_rounds": "Special Rounds - Every 5th bullet deals bonus damage",
+    "help_giant_slayer": "Giant Slayer - Bonus damage vs high-HP enemies",
+    "help_celestial_veil": "Celestial Veil - Absorb one hit per wave",
+    "help_volatile": "Volatile - Enemies with 2+ DoTs take +50% dmg",
+    "help_resonance": "Resonance - Bullets on DoT targets deal elemental bonus",
+    "help_blood_pact": "Blood Pact - Sacrifice HP to damage all enemies",
+    "help_conduit": "Conduit - Detonate all DoTs for 3x burst damage",
+    "help_aftershock": "Aftershock - Shockwave traces your movement path",
+    "help_nova": "Nova - Freeze bullets then release at +50% speed",
+    "help_heal_power": "Heal Power - Increase all healing received",
+    "help_bountiful": "Cornucopia - More consumable drops, boosted effects",
 
     # Help System - Shop items
     "help_shop_damage_plus": "Damage + (13 CR base)",
@@ -3466,6 +3500,23 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_lightning_mastery": "Dominio del Rayo - Mejora los efectos de rayo",
     "help_wind_mastery": "Dominio del Viento - Mejora todos los efectos de viento",
     "help_blood_mastery": "Dominio de la Sangre - Mejora todos los efectos de sangre",
+    "help_arcane_bullets": "Balas Arcanas - Daño de bala con efecto arcano",
+    "help_radial_burst": "Ráfaga Radial - Dispara un círculo de balas periódicamente",
+    "help_wall_turrets": "Centinelas de Muro - Los muros disparan enemigos cercanos",
+    "help_pulse_armor": "Armadura de Pulso - Recibir daño emite una onda",
+    "help_heavy_rounds": "Balas Pesadas - Balas más grandes con retroceso",
+    "help_fortified": "Fortificado - Reduce daño recibido y sube HP máx",
+    "help_special_rounds": "Balas Especiales - La 5.ª bala causa daño extra",
+    "help_giant_slayer": "Cazagigantes - Daño extra vs enemigos con mucho HP",
+    "help_celestial_veil": "Velo Celestial - Absorbe un golpe por oleada",
+    "help_volatile": "Volátil - Enemigos con 2+ DoTs sufren +50% daño",
+    "help_resonance": "Resonancia - Balas en objetivos DoT causan bono elemental",
+    "help_blood_pact": "Pacto de Sangre - Sacrifica HP para dañar a todos los enemigos",
+    "help_conduit": "Conducto - Detona todos los DoTs por 3x daño",
+    "help_aftershock": "Réplica - Onda de choque sigue tu camino de movimiento",
+    "help_nova": "Nova - Congela balas y las libera al +50% velocidad",
+    "help_heal_power": "Poder de Curación - Aumenta toda la curación recibida",
+    "help_bountiful": "Cornucopia - Más consumibles y efectos mejorados",
 
     # Help System - Shop items
     "help_shop_damage_plus": "Dano + (13 CR base)",
