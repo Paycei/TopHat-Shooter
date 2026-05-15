@@ -1755,12 +1755,12 @@ proc main() =
         playSound(stGameOver, 1.0)
         currentGame.gameOverSoundPlayed = true
 
-        # Clear Discord Rich Presence
+        # Update Discord Rich Presence to show game over state
         if not currentGame.discordClient.isNil:
           try:
-            clearPresence(currentGame.discordClient)
+            updateDiscordForGameOver(currentGame.discordClient, currentGame)
           except Exception as e:
-            echo "Discord error clearing presence: ", e.msg
+            echo "Discord error on game over: ", e.msg
             try:
               disconnect(currentGame.discordClient)
             except:

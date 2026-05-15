@@ -53,9 +53,16 @@ proc updateDiscordForPlaying*(client: DiscordClient, game: Game) =
   elif isTimeSurvivalMode(game.mode):
     stateText = &"{formatClock(game.time)} | {game.player.kills} Kills"
     hoverText = &"{PresenceAppName} | Survival run"
-  else:  # Sandbox
+  elif isSandboxMode(game.mode):
     stateText = &"Sandbox Mode | {game.player.kills} Kills"
     hoverText = &"{PresenceAppName} | Sandbox chaos"
+  elif isRogueliteMode(game.mode):
+    let sector = if game.rogueliteRun != nil: game.rogueliteRun.totalSectorsCleared + 1 else: 1
+    stateText = &"Sector {sector} | {game.player.kills} Kills"
+    hoverText = &"{PresenceAppName} | Roguelite run"
+  else:
+    stateText = &"{game.player.kills} Kills"
+    hoverText = PresenceTagline
 
   let presence = buildPresence(
     detailsText = detailsText,
@@ -159,6 +166,26 @@ proc updateDiscordForPvP*(client: DiscordClient, pvpGame: PvPGameState) =
     hoverText = hoverText,
     # Gloriously broken elapsed timer that everyone loves.
     startTime = pvpGame.gameTime.int64
+  )
+
+  updatePresence(client, presence)
+
+proc updateDiscordForGameOver*(client: DiscordClient, game: Game) =
+  ## Update Discord presence for the game over screen
+  if not client.isConnected():
+    return
+
+  let modeText = getGameModeName(game.mode)
+
+  var stateText = &"Game Over | {game.player.kills} Kills"
+  if isRogueliteMode(game.mode) and game.rogueliteRun != nil:
+    let sectors = game.rogueliteRun.totalSectorsCleared
+    stateText = &"Game Over | {sectors} Sectors, {game.player.kills} Kills"
+
+  let presence = buildPresence(
+    detailsText = modeText,
+    stateText = stateText,
+    hoverText = &"{PresenceAppName} | Run ended"
   )
 
   updatePresence(client, presence)
