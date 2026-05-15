@@ -79,6 +79,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puAftershock: t(tkPowerupAftershock)
   of puNova: t(tkPowerupNova)
   of puHealPower: t(tkPowerupHealPower)
+  of puBountiful: t(tkPowerupBountiful)
 
 proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: float32 = 1.0): string =
   # Helper: format "base + scaled (pct%)" — values are multiplied x100 for display
@@ -384,6 +385,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     of 1: t(tkPowerupHealPowerDesc1)
     of 2: t(tkPowerupHealPowerDesc2)
     else: t(tkPowerupHealPowerDesc3)
+  of puBountiful:
+    # Single level only - LEGENDARY passive
+    t(tkPowerupBountifulDesc)
 
 proc getPowerUpColor*(powerType: PowerUpType): Color =
   ## Returns a representative color for each power-up, used in icon rendering and help lists.
@@ -459,3 +463,4 @@ proc getPowerUpColor*(powerType: PowerUpType): Color =
   of puAftershock:         Color(r: 255, g: 160, b: 60,  a: 255)  # shockwave amber
   of puNova:               Color(r: 200, g: 230, b: 255, a: 255)  # nova white-blue
   of puHealPower:          Color(r: 255, g: 120, b: 150, a: 255)  # healing pink
+  of puBountiful:          Color(r: 255, g: 200, b: 50,  a: 255)  # harvest gold

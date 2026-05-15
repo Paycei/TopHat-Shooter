@@ -5756,13 +5756,35 @@ proc updateGame*(game: var Game, dt: float32) =
         let healthPos = clampLootPosition(healthX, healthY, game.screenWidth, game.screenHeight)
         game.consumables.add(newSpecificConsumable(healthPos.x, healthPos.y, ctHealth))
       else:
-        # Regular enemies have 15% chance to drop a consumable
-        if rand(99) < 15:
-          # Clamp consumable position to be in bounds (for enemies killed out-of-bounds)
-          let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
-          # In wave mode, consumables don't scale with difficulty to keep drop quality consistent
-          let consumableDifficulty = if game.mode == gmWaveBased: 1.0 else: game.difficulty
-          game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
+        # Cornucopia (puBountiful): increased drop rate + kill-milestone drops
+        let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
+        let consumableDifficulty = if game.mode == gmWaveBased: 1.0 else: game.difficulty
+
+        if game.player.hasBountiful:
+          game.player.bountifulKillCounter += 1
+
+          # Every 15th kill: jackpot burst — 3 consumables scattered around the enemy
+          if game.player.bountifulKillCounter >= 15:
+            game.player.bountifulKillCounter = 0
+            for j in 0..<3:
+              let scatter = float32(j) * (PI * 2.0'f32 / 3.0'f32)
+              let bx = clampedPos.x + cos(scatter) * 28.0'f32
+              let by = clampedPos.y + sin(scatter) * 28.0'f32
+              let bp = clampLootPosition(bx, by, game.screenWidth, game.screenHeight)
+              game.consumables.add(newConsumable(bp.x, bp.y, consumableDifficulty))
+            # Also spawn bonus particles for the jackpot visual flair
+            spawnExplosionPooled(game.particlePool, clampedPos.x, clampedPos.y,
+                                 Color(r: 255, g: 200, b: 50, a: 255), 18)
+
+          # Base 30% drop chance for all other kills
+          elif rand(99) < 30:
+            game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
+
+        else:
+          # Regular enemies have 15% chance to drop a consumable
+          if rand(99) < 15:
+            # Clamp consumable position to be in bounds (for enemies killed out-of-bounds)
+            game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
 
       game.player.kills += 1
 
@@ -7288,7 +7310,9 @@ proc updateGame*(game: var Game, dt: float32) =
 
       case game.consumables[i].consumableType
       of ctHealth:
-        let healAmount = 0.75'f32 + 0.025'f32 * game.player.maxHp
+        # Cornucopia: +40% extra healing on health consumables
+        let baseHeal = 0.75'f32 + 0.025'f32 * game.player.maxHp
+        let healAmount = if game.player.hasBountiful: baseHeal * 1.4'f32 else: baseHeal
         heal(game.player, healAmount)
         # Track the bonus healing contributed by puHealPower (the multiplied delta)
         if hasPowerUp(game.player, puHealPower):
@@ -7297,16 +7321,23 @@ proc updateGame*(game: var Game, dt: float32) =
         # Create heal damage number (green, floating up)
         showDamage(game, game.player.pos, healAmount, true, false, dtHeal)
       of ctCoin:
-        # Double coin multiplier applies here
-        let coinValue = if game.player.doubleCoinTimer > 0: 10 else: 5
+        # Double coin multiplier applies here; Cornucopia gives 8 coins instead of 5
+        let baseCoin = if game.player.hasBountiful: 8 else: 5
+        let coinValue = if game.player.doubleCoinTimer > 0: baseCoin * 2 else: baseCoin
         game.player.coins += coinValue
         showCurrency(game, game.consumables[i].pos, coinValue, cikCredits)
       of ctSpeed:
         activateSpeedBoost(game.player)
+        if game.player.hasBountiful:
+          game.player.speedBoostTimer *= 1.5'f32
       of ctInvincibility:
         activateInvincibility(game.player)
+        if game.player.hasBountiful:
+          game.player.invincibilityTimer *= 1.5'f32
       of ctFireRate:
         activateFireRateBoost(game.player)
+        if game.player.hasBountiful:
+          game.player.fireRateBoostTimer *= 1.5'f32
       of ctMagnet:
         activateMagnet(game.player)
         # Spawn 3 coins in random positions around the player
@@ -7319,14 +7350,19 @@ proc updateGame*(game: var Game, dt: float32) =
           let clampedPos = clampLootPosition(coinX, coinY, game.screenWidth, game.screenHeight)
           game.coins.add(newCoin(clampedPos.x, clampedPos.y, 1))
       of ctShieldBoost:
-        game.player.shieldBoostTimer = 10.0
-        game.player.shieldHits = 2  # Absorbs 2 hits
+        # Cornucopia: 3 hits (up from 2), 15s duration (up from 10s)
+        if game.player.hasBountiful:
+          game.player.shieldBoostTimer = 15.0
+          game.player.shieldHits = 3
+        else:
+          game.player.shieldBoostTimer = 10.0
+          game.player.shieldHits = 2
       of ctDoubleCoin:
-        game.player.doubleCoinTimer = 10.0  # 10 seconds of double coins
+        game.player.doubleCoinTimer = if game.player.hasBountiful: 15.0 else: 10.0
       of ctDamageBoost:
-        game.player.damageBoostTimer = 10.0
+        game.player.damageBoostTimer = if game.player.hasBountiful: 15.0 else: 10.0
       of ctLifesteal:
-        game.player.lifestealTimer = 15.0
+        game.player.lifestealTimer = if game.player.hasBountiful: 22.0 else: 15.0
 
       let particleColor = case game.consumables[i].consumableType
         of ctHealth: Green

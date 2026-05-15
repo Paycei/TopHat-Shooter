@@ -1094,6 +1094,39 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawLine(spX - 3, spY,     spX + 3, spY,     Color(r: 255, g: 240, b: 80, a: 210))
     drawLine(spX,     spY - 3, spX,     spY + 3, Color(r: 255, g: 240, b: 80, a: 210))
 
+  of puBountiful:
+    # Cornucopia icon: a overflowing horn / basket with three gem-dots tumbling out
+    let gold   = Color(r: 255, g: 200, b: 50,  a: 255)
+    let bright = Color(r: 255, g: 235, b: 130, a: 255)
+    let shadow = Color(r: 0,   g: 0,   b: 0,   a: 60)
+    # Horn body — thick arc curving from top-left to bottom-right
+    drawCircleLines(Vector2(x: (cx - 2).float32, y: cy.float32), rad * 0.85, gold)
+    drawCircleLines(Vector2(x: (cx - 2).float32, y: cy.float32), rad * 0.75, Color(r: gold.r, g: gold.g, b: gold.b, a: 160))
+    # Opening of the horn (wide end, right side) — filled wedge hint
+    drawCircle(Vector2(x: (cx + int32(rad * 0.6)).float32, y: (cy - int32(rad * 0.2)).float32), rad * 0.28, Color(r: gold.r, g: gold.g, b: gold.b, a: 90))
+    # Three bouncing consumable dots spilling out (health=green, coin=gold, speed=cyan)
+    let dotColors = [
+      Color(r: 80,  g: 230, b: 80,  a: 255),   # health green
+      Color(r: 255, g: 215, b: 0,   a: 255),   # coin gold
+      Color(r: 0,   g: 200, b: 255, a: 255),   # speed cyan
+    ]
+    let dotOffsets: array[3, (float32, float32)] = [
+      ( rad * 0.62'f32,  -rad * 0.55'f32),
+      ( rad * 0.85'f32,  -rad * 0.20'f32),
+      ( rad * 0.70'f32,   rad * 0.18'f32),
+    ]
+    for k in 0..2:
+      let (dx, dy) = dotOffsets[k]
+      let dc = dotColors[k]
+      drawCircle(Vector2(x: cx.float32 + dx + 1, y: cy.float32 + dy + 1), 4, shadow)
+      drawCircle(Vector2(x: cx.float32 + dx,      y: cy.float32 + dy),     4, dc)
+      drawCircle(Vector2(x: cx.float32 + dx - 1,  y: cy.float32 + dy - 1), 1.5, bright)
+    # Sparkle at the horn tip (top-left)
+    let tx = cx - int32(rad * 0.72)
+    let ty = cy - int32(rad * 0.30)
+    drawLine(tx - 3, ty,     tx + 3, ty,     Color(r: 255, g: 240, b: 100, a: 200))
+    drawLine(tx,     ty - 3, tx,     ty + 3, Color(r: 255, g: 240, b: 100, a: 200))
+
 proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
   let cx = x + size div 2
   let cy = y + size div 2

@@ -61,13 +61,13 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
 
   # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
   # ALL legendary powerups are SINGLE LEVEL ONLY
-  let legendaryOnlyTypes: array[0..29, PowerUpType] = [
+  let legendaryOnlyTypes: array[0..30, PowerUpType] = [
     puArcaneMastery, puBloodMastery, puBulletSpeed,
     puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
     puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery,
-    puVolatile, puBloodPact, puConduit, puAftershock, puNova
+    puVolatile, puBloodPact, puConduit, puAftershock, puNova, puBountiful
   ]
 
   # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
@@ -470,6 +470,10 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puBloodPact, puConduit, puAftershock, puNova:
     # Active Legendary abilities - cooldowns start at 0 (immediately ready)
     discard
+  of puBountiful:
+    # Cornucopia: passive drop-rate booster. State stored on player.
+    player.hasBountiful = true
+    player.bountifulKillCounter = 0
   else:
     discard
 
@@ -560,7 +564,7 @@ proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeTy
     puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
     puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
     puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWallTurrets, puWindMastery,
-    puVolatile, puBloodPact, puConduit, puAftershock, puNova
+    puVolatile, puBloodPact, puConduit, puAftershock, puNova, puBountiful
   ]
 
   let normalTypes = [

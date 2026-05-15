@@ -151,7 +151,8 @@ type
     puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
     puAftershock,      # LEGENDARY active: shockwave traces backward along movement path
     puNova,            # LEGENDARY active: freeze all player bullets for 2s, then release at 1.5x speed
-    puHealPower        # Normal passive: increase healing received from all sources by a percentage
+    puHealPower,       # Normal passive: increase healing received from all sources by a percentage
+    puBountiful        # LEGENDARY passive: greatly increase consumable drop rates, boost consumable effects, guarantee drops on kill milestones
 
   PowerUpRarity* = enum
     prCommon,
@@ -404,6 +405,8 @@ type
     novaActive*: bool           # True while bullets are frozen
     novaFreezeTimer*: float32   # How long freeze remains
     healPowerMult*: float32     # Multiplier for all healing received (default 1.0; increased by puHealPower)
+    hasBountiful*: bool         # True when Cornucopia legendary is active
+    bountifulKillCounter*: int  # Counts kills for guaranteed-drop milestones (resets every 20)
 
   EffectInstance* = object
     elementType*: ElementType
