@@ -7756,7 +7756,6 @@ proc drawGame*(game: Game) =
     # If a boss is scheduled but not yet added, show its warning using pending data
     if game.pendingBoss != nil and game.pendingBossTimer > 0:
       let enemy = game.pendingBoss
-      let sw = game.screenWidth.float32
       let sh = game.screenHeight.float32
       let fromTop    = enemy.startPos.y < 0
       let fromBottom = enemy.startPos.y > sh
@@ -7791,7 +7790,6 @@ proc drawGame*(game: Game) =
     else:
       for enemy in game.enemies:
         if enemy.isBoss and enemy.entranceTimer > 0:
-          let sw = game.screenWidth.float32
           let sh = game.screenHeight.float32
           let fromTop    = enemy.startPos.y < 0
           let fromBottom = enemy.startPos.y > sh

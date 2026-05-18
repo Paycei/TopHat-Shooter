@@ -1,4 +1,4 @@
-﻿import raylib, types, random, math, wall, effects, tables, boss_definitions, run_statistics, enemy_config, enemy_helpers
+﻿import raylib, types, random, math, wall, tables, boss_definitions, run_statistics, enemy_config, enemy_helpers
 
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
   # Get enemy configuration

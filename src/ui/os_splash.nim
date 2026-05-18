@@ -27,7 +27,7 @@ proc newSplashScreen*(): SplashScreen =
     phase: bpBIOS,
     timer: 0,
     bootMessages: @[
-      "BIOS v5.5.0 - TopHat Systems",
+      "BIOS v5.5.1 - TopHat Systems",
       "CPU: ElementalCore i9-9900K @ 3.60GHz",
       "Memory: 16384 MB OK",
       "Detecting hardware...",

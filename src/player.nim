@@ -290,7 +290,6 @@ proc drawPlayer*(player: Player) =
         of 1: 150.0
         of 2: 200.0
         else: 250.0
-      let slowPulse = (sin(time * 1.5) * 0.06 + 0.94).float32
       let alpha = 12 + (sin(time * 2.0) * 6).int
       # Fill
       drawCircle(Vector2(x: player.pos.x, y: player.pos.y), slowRadius,

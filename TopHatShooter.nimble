@@ -1,6 +1,6 @@
 # Package
 
-version       = "5.5.0"
+version       = "5.5.1"
 author        = "Paycei"
 description   = "TopHat-ShooterOS"
 license       = "Apache 2.0"

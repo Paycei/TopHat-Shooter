@@ -15,6 +15,10 @@ type
     showUnlocks*: bool
     unlockCategory*: int
     unlockItem*: int
+    # Card-grid scroll state for the unlocks view
+    unlockScrollOffset*: float32
+    unlockScrollVelocity*: float32
+    unlockMaxScrollOffset*: float32
     purchaseCelebrationTimer*: float32
     purchaseCelebrationHeat*: int
 
@@ -27,6 +31,7 @@ proc newRogueliteWindow*(screenWidth, screenHeight: int, profile: RogueliteProfi
                           Color(r: 0, g: 220, b: 255, a: 255), owtSettings, resizable = false)
   osWin.visible = false
   result = RogueliteWindow(window: osWin, showUnlocks: false, unlockCategory: 0, unlockItem: 0,
+                           unlockScrollOffset: 0.0, unlockScrollVelocity: 0.0, unlockMaxScrollOffset: 0.0,
                            purchaseCelebrationTimer: 0.0, purchaseCelebrationHeat: RogueliteMinHeat)
 
 proc withAlpha(color: Color, alpha: uint8): Color =
@@ -143,84 +148,135 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
     let currentCat = RogueliteUnlockCategory(clamp(rw.unlockCategory, 0, 3))
     let currentCount = unlockCount(currentCat)
 
-    if isKeyPressed(Tab) or isKeyPressed(Right) or isKeyPressed(D):
+    # Compute grid geometry (must match drawUnlocksContent layout)
+    let panelX = contentX.int32
+    let panelY = contentY.int32
+    let cardTotalW = UnlockCardW + UnlockCardPad
+    let columns = max(1, RoguelitePanelW div cardTotalW)
+    let infoPanelH: int32 = 65
+    let ctrlBarFootH: int32 = 72
+    let gridY = panelY + 170
+    let gridH: int32 = RoguelitePanelH - 170 - infoPanelH - ctrlBarFootH
+    let totalRows = if currentCount == 0: 0 else: (currentCount + columns - 1) div columns
+    let totalContentH = totalRows * (UnlockCardH + UnlockCardPad) + 10
+    rw.unlockMaxScrollOffset = max(0.0'f32, totalContentH.float32 - gridH.float32)
+
+    # ── Keyboard navigation ──────────────────────────────────────────────
+    var keyboardMovedFocus = false
+    if isKeyPressed(Tab):
       rw.unlockCategory = (rw.unlockCategory + 1) mod 4
       rw.unlockItem = 0
-    if isKeyPressed(Left) or isKeyPressed(A):
-      rw.unlockCategory = (rw.unlockCategory - 1 + 4) mod 4
-      rw.unlockItem = 0
-    if isKeyPressed(Down) or isKeyPressed(S):
-      rw.unlockItem = (rw.unlockItem + 1) mod max(1, currentCount)
-    if isKeyPressed(Up) or isKeyPressed(W):
-      rw.unlockItem = (rw.unlockItem - 1 + max(1, currentCount)) mod max(1, currentCount)
+      rw.unlockScrollOffset = 0.0
+      rw.unlockScrollVelocity = 0.0
+      keyboardMovedFocus = true
+    if isKeyPressed(Left):
+      let prev = rw.unlockItem
+      rw.unlockItem = max(0, rw.unlockItem - 1)
+      keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
+    if isKeyPressed(Right):
+      let prev = rw.unlockItem
+      rw.unlockItem = min(currentCount - 1, rw.unlockItem + 1)
+      keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
+    if isKeyPressed(Up):
+      let prev = rw.unlockItem
+      rw.unlockItem = max(0, rw.unlockItem - columns)
+      keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
+    if isKeyPressed(Down):
+      let prev = rw.unlockItem
+      rw.unlockItem = min(currentCount - 1, rw.unlockItem + columns)
+      keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
     if isKeyPressed(Enter) or isKeyPressed(E):
       if purchaseRogueliteUnlock(profile, currentCat, rw.unlockItem):
         triggerUnlockPurchaseFeedback(rw, game, profile, currentCat, rw.unlockItem)
         game.rogueliteProfile = profile
-    if isKeyPressed(Escape) or isKeyPressed(U) or isKeyPressed(Q):
+    if isKeyPressed(Escape) or isKeyPressed(Q):
       rw.showUnlocks = false
+      return
 
+    # Auto-scroll focused card into view
+    if keyboardMovedFocus and currentCount > 0:
+      let selRow = rw.unlockItem div columns
+      let cardTop = float32(5 + selRow * (UnlockCardH + UnlockCardPad))
+      let cardBot = cardTop + UnlockCardH.float32
+      if cardTop < rw.unlockScrollOffset:
+        rw.unlockScrollOffset = cardTop
+        rw.unlockScrollVelocity = 0.0
+      elif cardBot > rw.unlockScrollOffset + gridH.float32:
+        rw.unlockScrollOffset = cardBot - gridH.float32
+        rw.unlockScrollVelocity = 0.0
+      rw.unlockScrollOffset = clamp(rw.unlockScrollOffset, 0.0'f32, rw.unlockMaxScrollOffset)
+
+    # ── Mouse wheel scroll ───────────────────────────────────────────────
+    let mousePos = getVirtualMousePosition()
+    let inGridArea = mousePos.x >= contentX.float32 and
+                     mousePos.x < (contentX + RoguelitePanelW).float32 and
+                     mousePos.y >= gridY.float32 and
+                     mousePos.y < (gridY + gridH).float32
+    if inGridArea and not rw.window.dragging:
+      let wheelMove = getMouseWheelMove()
+      if wheelMove != 0:
+        rw.unlockScrollVelocity += -wheelMove * 400.0'f32
+
+    # Apply inertial scroll
+    if abs(rw.unlockScrollVelocity) > 0.001'f32:
+      rw.unlockScrollOffset += rw.unlockScrollVelocity * dt
+      rw.unlockScrollOffset = clamp(rw.unlockScrollOffset, 0.0'f32, rw.unlockMaxScrollOffset)
+      if rw.unlockScrollOffset <= 0.0'f32 or rw.unlockScrollOffset >= rw.unlockMaxScrollOffset:
+        rw.unlockScrollVelocity = 0.0'f32
+      else:
+        rw.unlockScrollVelocity *= clamp(1.0'f32 - dt * 8.0'f32, 0.0'f32, 1.0'f32)
+
+    # ── Mouse clicks ─────────────────────────────────────────────────────
     if isMouseButtonPressed(Left):
-      let mousePos = getVirtualMousePosition()
-      let panelX = contentX.int32
-      let panelY = contentY.int32
-      let navX = panelX + 30
-      let navW: int32 = 184
-      let listX = panelX + 232
-      let listW: int32 = 340
-      let detailsX = panelX + 594
-      let detailsW: int32 = 296
-      let contentYi = panelY + 130
-      let sectionH: int32 = 378
-      const NavRowStartY = 44
-      const NavRowStep = 72
-      const NavRowHeight = 58
-      const ListHeaderHeight = 80
-      const ListRowStep = 33
-      const ListRowHeight = 28
-      var clickHandled = false
+      let scrollInt = int(round(rw.unlockScrollOffset))
+      let gridLeft = panelX + (RoguelitePanelW - (columns * UnlockCardW + (columns - 1) * UnlockCardPad)) div 2
 
-      # Category nav clicks
-      for idx in 0..3:
-        let rowY = contentYi + NavRowStartY + idx.int32 * NavRowStep
-        let rowRect = Rectangle(x: (navX + 12).float32, y: rowY.float32,
-                                width: (navW - 24).float32, height: NavRowHeight.float32)
-        if checkCollisionPointRec(mousePos, rowRect):
-          if rw.unlockCategory != idx:
-            rw.unlockCategory = idx
+      # Tab bar clicks  (panelY + 130 .. panelY + 170)
+      let tabAreaY = panelY + 130
+      if mousePos.y >= tabAreaY.float32 and mousePos.y < (tabAreaY + UnlockTabH).float32:
+        let tabW = RoguelitePanelW div 4
+        let tabIdx = int((mousePos.x - panelX.float32) / tabW.float32)
+        if tabIdx >= 0 and tabIdx < 4:
+          if rw.unlockCategory != tabIdx:
+            rw.unlockCategory = tabIdx
             rw.unlockItem = 0
-          clickHandled = true
-          break
-
-      # List item clicks
-      if not clickHandled:
+            rw.unlockScrollOffset = 0.0
+            rw.unlockScrollVelocity = 0.0
+      # Card grid clicks
+      elif mousePos.y >= gridY.float32 and mousePos.y < (gridY + gridH).float32:
         let cat = RogueliteUnlockCategory(clamp(rw.unlockCategory, 0, 3))
-        let listStartY = contentYi + ListHeaderHeight
         for idx in 0..<unlockCount(cat):
-          let rowY = listStartY + idx.int32 * ListRowStep
-          let rowRect = Rectangle(x: (listX + 12).float32, y: rowY.float32,
-                                  width: (listW - 24).float32, height: ListRowHeight.float32)
-          if checkCollisionPointRec(mousePos, rowRect):
+          let col = idx mod columns
+          let row = idx div columns
+          let cx = (gridLeft + col * cardTotalW).float32
+          let cy = float32(gridY + 5 + row * (UnlockCardH + UnlockCardPad) - scrollInt)
+          let cardRect = Rectangle(x: cx, y: cy,
+                                   width: UnlockCardW.float32, height: UnlockCardH.float32)
+          if checkCollisionPointRec(mousePos, cardRect):
             rw.unlockItem = idx
-            clickHandled = true
+            if purchaseRogueliteUnlock(profile, cat, idx):
+              triggerUnlockPurchaseFeedback(rw, game, profile, cat, idx)
+              game.rogueliteProfile = profile
             break
 
-      # Buy button
-      if not clickHandled:
-        let buyRect = Rectangle(x: (detailsX + detailsW - 220 - 24).float32,
-                                y: (contentYi + sectionH - 58).float32,
-                                width: 220, height: 38)
-        if checkCollisionPointRec(mousePos, buyRect):
-          let cat = RogueliteUnlockCategory(clamp(rw.unlockCategory, 0, 3))
-          if purchaseRogueliteUnlock(profile, cat, rw.unlockItem):
-            triggerUnlockPurchaseFeedback(rw, game, profile, cat, rw.unlockItem)
-            game.rogueliteProfile = profile
+      # Buy button in info panel
+      let infoPanelY = gridY + gridH
+      let btnW: int32 = 210
+      let btnH: int32 = 40
+      let btnX = (panelX + RoguelitePanelW - btnW - 16).float32
+      let btnY = (infoPanelY + (65 - btnH) div 2).float32
+      let buyRect = Rectangle(x: btnX, y: btnY, width: btnW.float32, height: btnH.float32)
+      if checkCollisionPointRec(mousePos, buyRect):
+        let cat = RogueliteUnlockCategory(clamp(rw.unlockCategory, 0, 3))
+        if purchaseRogueliteUnlock(profile, cat, rw.unlockItem):
+          triggerUnlockPurchaseFeedback(rw, game, profile, cat, rw.unlockItem)
+          game.rogueliteProfile = profile
 
-      # Back button (bottom control bar) – click anywhere outside nav/list/details goes back
-      let backBarRect = Rectangle(x: (panelX + 42).float32,
-                                  y: (panelY + RoguelitePanelH - 72).float32,
-                                  width: (RoguelitePanelW - 84).float32, height: 32)
-      if not clickHandled and checkCollisionPointRec(mousePos, backBarRect):
+      # Control bar / back button
+      let ctrlBarY = panelY + RoguelitePanelH - 72
+      let backRect = Rectangle(x: (panelX + 42).float32, y: ctrlBarY.float32,
+                               width: (RoguelitePanelW - 84).float32, height: 32)
+      if checkCollisionPointRec(mousePos, backRect):
         rw.showUnlocks = false
 
     return  # Don't process setup input while in unlocks view
@@ -252,6 +308,8 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
     rw.showUnlocks = true
     rw.unlockCategory = 0
     rw.unlockItem = 0
+    rw.unlockScrollOffset = 0.0
+    rw.unlockScrollVelocity = 0.0
   if rw.window.focused and (isKeyPressed(Escape) or isKeyPressed(Q)):
     rw.window.visible = false
     game.state = gsMenu
@@ -356,6 +414,8 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
       rw.showUnlocks = true
       rw.unlockCategory = 0
       rw.unlockItem = 0
+      rw.unlockScrollOffset = 0.0
+      rw.unlockScrollVelocity = 0.0
     elif not clickHandled and checkCollisionPointRec(mousePos, startRect):
       if tryLaunch():
         rw.window.visible = false
@@ -400,7 +460,7 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
 
   if rw.showUnlocks:
     # Unlocks tab
-    drawUnlocksContent(game, panelX, panelY, rw.unlockCategory, rw.unlockItem)
+    drawUnlocksContent(game, panelX, panelY, rw.unlockCategory, rw.unlockItem, rw.unlockScrollOffset)
     # Note: drawUnlocksContent already draws the full control bar (roguelite_unlock_shop_controls)
     # at the panel bottom — no additional hint drawn here to avoid overlap.
   else:

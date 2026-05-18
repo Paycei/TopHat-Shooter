@@ -2,6 +2,14 @@ import raylib, math, strutils
 import ../types, ../roguelite, ../localization, ../render_context
 import icon_drawing
 
+# Unlock card grid constants
+
+const
+  UnlockCardW* = 210
+  UnlockCardH* = 190
+  UnlockCardPad* = 18
+  UnlockTabH* = 40
+
 const
   RoguelitePanelW* = 920
   RoguelitePanelH* = 620
@@ -32,6 +40,43 @@ const
 
 proc softColor(base: Color, alpha: uint8): Color =
   Color(r: base.r, g: base.g, b: base.b, a: alpha)
+
+proc drawSoftFill(x, y, w, h: int32, topColor, bottomColor: Color) =
+  let bands: int32 = 8
+  let bandH = max(1'i32, h div bands)
+  for i in 0..<bands:
+    let t = if bands <= 1: 0.0'f32 else: i.float32 / (bands - 1).float32
+    let by = y + i * bandH
+    let bh = if i == bands - 1: h - bandH * i else: bandH
+    let color = Color(
+      r: uint8(topColor.r.float32 * (1.0'f32 - t) + bottomColor.r.float32 * t),
+      g: uint8(topColor.g.float32 * (1.0'f32 - t) + bottomColor.g.float32 * t),
+      b: uint8(topColor.b.float32 * (1.0'f32 - t) + bottomColor.b.float32 * t),
+      a: uint8(topColor.a.float32 * (1.0'f32 - t) + bottomColor.a.float32 * t))
+    drawRectangle(x, by, w, bh, color)
+
+proc drawCornerBrackets(x, y, w, h, length, thickness: int32, color: Color) =
+  drawRectangle(x, y, length, thickness, color)
+  drawRectangle(x, y, thickness, length, color)
+  drawRectangle(x + w - length, y, length, thickness, color)
+  drawRectangle(x + w - thickness, y, thickness, length, color)
+  drawRectangle(x, y + h - thickness, length, thickness, color)
+  drawRectangle(x, y + h - length, thickness, length, color)
+  drawRectangle(x + w - length, y + h - thickness, length, thickness, color)
+  drawRectangle(x + w - thickness, y + h - length, thickness, length, color)
+
+proc drawCircuitLines(x, y, w, h: int32, color: Color) =
+  let midY = y + h div 2
+  drawLine(x + 18, midY, x + 78, midY, color)
+  drawLine(x + 78, midY, x + 104, y + 18, color)
+  drawLine(x + w - 18, midY, x + w - 86, midY, color)
+  drawLine(x + w - 86, midY, x + w - 124, y + h - 18, color)
+  drawCircle(Vector2(x: (x + 78).float32, y: midY.float32), 3, color)
+  drawCircle(Vector2(x: (x + w - 86).float32, y: midY.float32), 3, color)
+
+proc drawScanlines(x, y, w, h: int32, color: Color) =
+  for yy in countup(y + 6, y + h - 4, 10):
+    drawLine(x + 1, yy.int32, x + w - 2, yy.int32, color)
 
 proc roguelitePanelRect*(screenWidth, screenHeight: int32): Rectangle =
   Rectangle(
@@ -371,16 +416,20 @@ proc drawCloseButton(x, y: int32, color: Color, hovered: bool = false) =
 
 proc drawStatChip*(x, y, w, h: int32, label, value: string, color: Color,
                   icon: CurrencyIconType = ciNone) =
-  drawRectangle(x + 2, y + 2, w, h, Color(r: 0, g: 0, b: 0, a: 70))
-  drawRectangle(x, y, w, h, Color(r: 22, g: 29, b: 42, a: 235))
-  drawRectangle(x, y, 4, h, softColor(color, 220))
-  drawRectangleLines(rectAt(x, y, w, h), 1, softColor(color, 120))
-  let textX = if icon == ciNone: x + 13 else: x + 42
-  let textW = w - (textX - x) - 11
+  drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 90))
+  drawSoftFill(x, y, w, h, Color(r: 26, g: 36, b: 54, a: 244),
+               Color(r: 12, g: 18, b: 30, a: 244))
+  drawRectangle(x, y, w, 2, softColor(color, 145))
+  drawRectangle(x, y, 5, h, softColor(color, 215))
+  drawRectangleLines(rectAt(x, y, w, h), 1, softColor(color, 135))
+  let textX = if icon == ciNone: x + 14 else: x + 46
+  let textW = w - (textX - x) - 12
   if icon != ciNone:
-    drawCurrencyIcon(x + 23, y + h div 2, 26, icon)
-  drawTextFit(label, textX, y + 7, textW, 11, Color(r: 150, g: 166, b: 186, a: 255))
-  drawTextFit(value, textX, y + 23, textW, 18, color)
+    drawCircle(Vector2(x: (x + 24).float32, y: (y + h div 2).float32), 17, softColor(color, 26))
+    drawCircleLines(x + 24, y + h div 2, 17.0'f32, softColor(color, 75))
+    drawCurrencyIcon(x + 24, y + h div 2, 24, icon)
+  drawTextFit(label, textX, y + 7, textW, 10, Color(r: 156, g: 172, b: 196, a: 255), 8)
+  drawTextFit(value, textX, y + 22, textW, 19, color, 10)
 
 proc drawPill(x, y, w, h: int32, label: string, color: Color, filled: bool = false) =
   drawRectangle(x, y, w, h,
@@ -388,22 +437,6 @@ proc drawPill(x, y, w, h: int32, label: string, color: Color, filled: bool = fal
   drawRectangleLines(rectAt(x, y, w, h), 1, softColor(color, 170))
   let fontSize = bestFitFontSize(label, w - 8, 12, 8)
   discard drawCenteredTextFit(label, x + 4, y + (h - fontSize) div 2, w - 8, 12, color, 8)
-
-proc unlockCostLabel(profile: RogueliteProfile, category: RogueliteUnlockCategory, index: int): string =
-  var parts: seq[string] = @[]
-  let shardCost = unlockCost(profile, category, index)
-  let overheatCost = unlockOverheatCoreCost(profile, category, index)
-  let singularityCost = unlockSingularityCoreCost(profile, category, index)
-  if shardCost > 0:
-    parts.add($shardCost & " " & t("roguelite_shards_short"))
-  if overheatCost > 0:
-    parts.add($overheatCost & " " & t("roguelite_overheat_short"))
-  if singularityCost > 0:
-    parts.add($singularityCost & " " & t("roguelite_singularity_short"))
-  if parts.len == 0:
-    t("roguelite_unlocked")
-  else:
-    parts.join(" + ")
 
 proc drawUnlockCostsRight*(profile: RogueliteProfile, category: RogueliteUnlockCategory, index: int,
                           rightX, topY, iconSize, fontSize: int32, color: Color) =
@@ -649,12 +682,25 @@ proc locUnlockDescription(category: RogueliteUnlockCategory, index: int): string
 
 proc drawPanel*(x, y, w, h: int32, title: string, color: Color, closeHovered: bool = false,
                omitTitleBar: bool = false) =
-  drawRectangle(x + 4, y + 4, w, h, Color(r: 0, g: 0, b: 0, a: 110))
-  drawRectangle(x, y, w, h, Color(r: 18, g: 24, b: 36, a: 245))
+  drawRectangle(x + 7, y + 7, w, h, Color(r: 0, g: 0, b: 0, a: 115))
+  drawSoftFill(x, y, w, h, Color(r: 17, g: 24, b: 38, a: 250),
+               Color(r: 8, g: 13, b: 24, a: 250))
+  drawRectangle(x + 10, y + 10, w - 20, h - 20, Color(r: 11, g: 18, b: 30, a: 52))
+  drawScanlines(x + 8, y + 8, w - 16, h - 16, Color(r: 255, g: 255, b: 255, a: 6))
+  drawCircuitLines(x + 14, y + 50, w - 28, h - 94, softColor(color, 24))
   if not omitTitleBar:
-    drawRectangle(x, y, w, TitleBarH, Color(r: 28, g: 44, b: 62, a: 255))
-    drawRectangle(x, y + TitleBarH - 2, w, 2, softColor(color, 130))
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32), 2, color)
+    drawSoftFill(x, y, w, TitleBarH, Color(r: 36, g: 54, b: 74, a: 255),
+                 Color(r: 18, g: 27, b: 42, a: 255))
+    drawRectangle(x, y + TitleBarH - 3, w, 3, softColor(color, 150))
+  else:
+    drawRectangle(x + 16, y + 13, w - 32, 34, Color(r: 16, g: 25, b: 40, a: 220))
+    drawRectangle(x + 16, y + 45, w - 32, 2, softColor(color, 150))
+    drawTextFit(title, x + 30, y + 21, w - 60, 18, color)
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32), 2, softColor(color, 230))
+  drawRectangleLines(Rectangle(x: (x + 5).float32, y: (y + 5).float32,
+                               width: (w - 10).float32, height: (h - 10).float32),
+                     1, softColor(color, 70))
+  drawCornerBrackets(x + 8, y + 8, w - 16, h - 16, 28, 2, softColor(color, 185))
   if not omitTitleBar:
     drawTextFit(title, x + 18, y + 12, w - CloseButtonSize - 56, 18, color)
     drawCloseButton(x + w - CloseButtonSize - 10, y + (TitleBarH - CloseButtonSize) div 2,
@@ -820,14 +866,20 @@ proc drawRewardGlyph(cx, cy: int32, reward: RogueliteRewardType, color: Color) =
     drawCurrencyIcon(cx, cy, 24, ciDataShards)
 
 proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, color: Color, hovered: bool = false) =
-  let bg = if active: Color(r: 38, g: 76, b: 92, a: 255)
-           elif hovered: Color(r: 48, g: 60, b: 76, a: 255)
-           else: Color(r: 38, g: 44, b: 56, a: 255)
+  let bgTop = if active: Color(r: 36, g: 86, b: 92, a: 255)
+              elif hovered: Color(r: 48, g: 61, b: 82, a: 255)
+              else: Color(r: 35, g: 43, b: 58, a: 255)
+  let bgBottom = if active: Color(r: 18, g: 45, b: 55, a: 255)
+                 elif hovered: Color(r: 29, g: 38, b: 54, a: 255)
+                 else: Color(r: 22, g: 28, b: 40, a: 255)
   if hovered:
-    drawRectangle(x + 2, y + 2, w, h, Color(r: 0, g: 0, b: 0, a: 95))
-  drawRectangle(x, y, w, h, bg)
+    drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 105))
+  drawSoftFill(x, y, w, h, bgTop, bgBottom)
+  drawRectangle(x, y, w, 2, softColor(color, if active or hovered: 155 else: 80))
   drawRectangleLines(rectAt(x, y, w, h), if active or hovered: 2 else: 1,
                     if active or hovered: color else: Color(r: 82, g: 92, b: 108, a: 255))
+  if active:
+    drawCornerBrackets(x + 4, y + 4, w - 8, h - 8, 10, 1, softColor(color, 150))
   let fontSize = bestFitFontSize(label, w - 14, 15, 9)
   discard drawCenteredTextFit(label, x + 7, y + (h - fontSize) div 2, w - 14, 15,
                               if active or hovered: color else: LightGray, 9)
@@ -837,13 +889,21 @@ proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected, u
               elif hovered: Color(r: 120, g: 220, b: 255, a: 255)
               elif unlocked: Color(r: 120, g: 150, b: 180, a: 255)
               else: Color(r: 80, g: 80, b: 92, a: 255)
-  if hovered:
-    drawRectangle(x + 4, y + 4, CardW, CardH, Color(r: 0, g: 0, b: 0, a: 115))
-  drawRectangle(x, y, CardW, CardH,
-                if hovered: Color(r: 30, g: 40, b: 58, a: 255) else: Color(r: 24, g: 30, b: 44, a: 255))
-  drawRectangle(x, y, CardW, 76, softColor(color, 28))
+  drawRectangle(x + 5, y + 5, CardW, CardH, Color(r: 0, g: 0, b: 0, a: if selected or hovered: 120 else: 78))
+  let bgTop = if selected: Color(r: 22, g: 52, b: 66, a: 255)
+              elif hovered: Color(r: 32, g: 43, b: 62, a: 255)
+              else: Color(r: 24, g: 31, b: 46, a: 255)
+  let bgBottom = if selected: Color(r: 11, g: 27, b: 40, a: 255)
+                 elif hovered: Color(r: 18, g: 26, b: 40, a: 255)
+                 else: Color(r: 14, g: 20, b: 32, a: 255)
+  drawSoftFill(x, y, CardW, CardH, bgTop, bgBottom)
+  drawScanlines(x + 6, y + 6, CardW - 12, CardH - 12, Color(r: 255, g: 255, b: 255, a: 5))
+  drawRectangle(x, y, CardW, 76, softColor(color, if selected: 42 elif hovered: 34 else: 24))
+  drawRectangle(x, y, CardW, 3, softColor(color, if selected: 220 else: 125))
   drawRectangleLines(rectAt(x, y, CardW, CardH), if selected: 3 elif hovered: 2 else: 1, color)
-  drawCircle(Vector2(x: (x + CardW - 44).float32, y: (y + 40).float32), 18, softColor(color, 36))
+  drawCornerBrackets(x + 7, y + 7, CardW - 14, CardH - 14, 18, 1, softColor(color, if selected: 155 else: 82))
+  drawCircle(Vector2(x: (x + CardW - 44).float32, y: (y + 40).float32), 24, softColor(color, 28))
+  drawCircleLines(x + CardW - 44, y + 40, 24.0'f32, softColor(color, 100))
   drawMiniGlyph(x + CardW - 44, y + 40, if kit == rskBulwark: rsmFirewall elif kit == rskArcanist: rsmVolatileMemory else: rsmSafehouse, color)
   drawTextFit(locStarterName(kit), x + 18, y + 18, CardW - 92, 24, if unlocked: White else: Gray)
   let status = if unlocked: t("roguelite_unlocked") else: t("roguelite_locked")
@@ -1003,164 +1063,289 @@ proc drawRogueliteSectorSelect*(game: Game) =
   drawCenteredTextFit(t("roguelite_sector_controls"), x + 60, y + PanelH - 35, PanelW - 120, 15, LightGray)
   drawAlphaBanner(game)
 
-proc drawRogueliteUnlocks*(game: Game, categoryIndex: int = 0, itemIndex: int = 0) =
-  let x = (game.screenWidth - PanelW) div 2
-  let y = (game.screenHeight - PanelH) div 2
-  let canHover = mouseHoverEnabled(game)
-  let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
-  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(game.screenWidth, game.screenHeight))
-  let accent = Color(r: 255, g: 215, b: 0, a: 255)
-  drawBackdrop(game, Color(r: 255, g: 215, b: 0, a: 255))
-  drawPanel(x, y, PanelW, PanelH, t("roguelite_unlocks_title"), accent, closeHovered)
-  if game.rogueliteProfile.isNil:
-    drawText(t("roguelite_no_profile"), x + 40, y + 90, 22, Red)
+
+# Unlock card grid helpers
+
+
+proc unlockLockGlyph(x, y: int32, color: Color) =
+  drawCircleLines(x + 10, y + 8, 7, color)
+  drawRectangle(x + 2, y + 8, 16, 14, Color(r: 20, g: 24, b: 32, a: 235))
+  drawRectangleLines(x + 2, y + 8, 16, 14, color)
+  drawCircle(Vector2(x: (x + 10).float32, y: (y + 15).float32), 2, color)
+
+proc unlockFitText(text: string, maxWidth: int32, startSize: int32, minSize: int32 = 7): int32 =
+  result = startSize
+  while result > minSize and measureText(text, result) > maxWidth:
+    dec result
+
+proc unlockWrapLines(text: string, maxWidth, fontSize, maxLines: int32): seq[string] =
+  var currentLine = ""
+  for w in text.splitWhitespace():
+    let candidate = if currentLine.len > 0: currentLine & " " & w else: w
+    if measureText(candidate, fontSize) <= maxWidth:
+      currentLine = candidate
+    else:
+      if currentLine.len > 0:
+        result.add(currentLine)
+      if result.len >= maxLines.int:
+        return
+      currentLine = w
+  if currentLine.len > 0 and result.len < maxLines.int:
+    result.add(currentLine)
+
+proc drawUnlockDescriptionLines(text: string, x, y, maxWidth, fontSize, maxLines, lineGap: int32,
+                                color: Color) =
+  let lines = unlockWrapLines(text, maxWidth, fontSize, maxLines)
+  for idx, line in lines:
+    drawText(line, x, y + idx.int32 * (fontSize + lineGap), fontSize, color)
+
+proc unlockBestDescriptionSize(text: string, maxWidth, maxHeight, preferredSize, maxLines, lineGap: int32,
+                               minSize: int32 = 8): int32 =
+  result = preferredSize
+  while result > minSize:
+    let lines = unlockWrapLines(text, maxWidth, result, maxLines + 1)
+    let lineCount = min(lines.len.int32, maxLines)
+    let textHeight = if lineCount <= 0: 0'i32 else: lineCount * result + (lineCount - 1) * lineGap
+    if lines.len <= maxLines.int and textHeight <= maxHeight:
+      break
+    dec result
+
+proc drawUnlockCostPill(x, y, w, h: int32, profile: RogueliteProfile,
+                        category: RogueliteUnlockCategory, index: int,
+                        statusText: string, statusColor: Color) =
+  let shardCost = unlockCost(profile, category, index)
+  let overheatCost = unlockOverheatCoreCost(profile, category, index)
+  let singularityCost = unlockSingularityCoreCost(profile, category, index)
+  var parts: seq[tuple[icon: CurrencyIconType, amount: int]] = @[]
+  if singularityCost > 0: parts.add((icon: ciSingularityCore, amount: singularityCost))
+  if overheatCost > 0:    parts.add((icon: ciOverheatCore, amount: overheatCost))
+  if shardCost > 0:       parts.add((icon: ciDataShards, amount: shardCost))
+
+  let iconSize: int32 = 15
+  let padBetween: int32 = 5
+  let partGap: int32 = 8
+  var costW: int32 = 0
+  for p in parts:
+    costW += iconSize + padBetween + int32(measureText($p.amount, 11)) + partGap
+
+  let textLimit = max(34'i32, w - costW - 18)
+  let fs = unlockFitText(statusText, textLimit, 11, 7)
+  let textW = int32(measureText(statusText, fs))
+  let totalW = if parts.len == 0: textW else: textW + 9 + costW
+  var cursorX = x + max(0'i32, (w - totalW) div 2)
+  drawText(statusText, cursorX, y + (h - fs) div 2, fs, statusColor)
+  cursorX += textW + 9
+
+  let iconCY = y + h div 2
+  for p in parts:
+    let txt = $p.amount
+    drawCurrencyIcon(cursorX + iconSize div 2, iconCY, iconSize, p.icon)
+    let txtX = cursorX + iconSize + padBetween
+    drawText(txt, txtX, y + (h - 11) div 2, 11, statusColor)
+    let txtW = int32(measureText(txt, 11))
+    cursorX += iconSize + padBetween + txtW + partGap
+
+proc drawUnlockCardStatus(x, y: int, isPurchased, canBuy: bool,
+                           profile: RogueliteProfile,
+                           category: RogueliteUnlockCategory, index: int) =
+  ## Draw the lock/status overlay and bottom pill on an unlock card.
+  const cW = UnlockCardW
+  const cH = UnlockCardH
+
+  # Purchased: badge is already drawn by drawUnlockCard; nothing extra needed here
+  if isPurchased:
     return
 
-  let profile = game.rogueliteProfile
-  let category = categoryByIndex(categoryIndex)
-  let itemCount = unlockCount(category)
-  let selectedItem = clamp(itemIndex, 0, max(0, itemCount - 1))
-  let selectedName = locUnlockName(profile, category, selectedItem)
-  let selectedPurchased = isUnlockPurchased(profile, category, selectedItem)
-  let selectedCanBuy = canPurchaseUnlock(profile, category, selectedItem)
-  let categoryAccent = categoryColor(category)
+  let statusColor = if canBuy: Color(r: 255, g: 215, b: 80, a: 255)
+                    else: Color(r: 140, g: 142, b: 158, a: 255)
 
-  drawStatChip(x + 26, y + 58, 164, 48, t("roguelite_data_shards"), $profile.dataShards, Gold, ciDataShards)
-  drawStatChip(x + 202, y + 58, 164, 48, t("roguelite_overheat_cores"), $profile.overheatCores,
-               Color(r: 255, g: 130, b: 80, a: 255), ciOverheatCore)
-  drawStatChip(x + 378, y + 58, 164, 48, t("roguelite_singularity_cores"), $profile.singularityCores,
-               Color(r: 170, g: 110, b: 255, a: 255), ciSingularityCore)
-  drawStatChip(x + 554, y + 58, 150, 48, t("roguelite_heat"), $profile.highestHeat & " / " & $RogueliteMaxHeat,
-               Color(r: 255, g: 150, b: 80, a: 255), ciHeat)
-  drawStatChip(x + 716, y + 58, 178, 48, t("roguelite_boss_tier"), $profile.unlockedBossTier & " / " & $RogueliteMaxBossTier,
-               Color(r: 255, g: 120, b: 95, a: 255))
+  # Dim overlay — two-pass for a subtle depth gradient (top lighter, bottom darker)
+  if canBuy:
+    drawRectangle(x.int32, (y + cH - 44).int32, cW, 44, Color(r: 0, g: 0, b: 0, a: 44))
+    drawRectangle(x.int32, y.int32, cW, 3, softColor(statusColor, 135))
+  else:
+    drawRectangle(x.int32, y.int32, cW, cH div 2, Color(r: 0, g: 0, b: 0, a: 66))
+    drawRectangle(x.int32, (y + cH div 2).int32, cW, cH div 2, Color(r: 0, g: 0, b: 0, a: 116))
+    unlockLockGlyph((x + 10).int32, (y + 10).int32, statusColor)
 
-  let contentY = y + 130
-  let navX = x + 30
-  let navW: int32 = 184
-  let listX = x + 232
-  let listW: int32 = 340
-  let detailsX = x + 594
-  let detailsW: int32 = 296
-  let sectionH: int32 = 378
+  # Status pill
+  let pillX = (x + 10).int32
+  let pillY = (y + cH - 34).int32
+  let pillW = (cW - 20).int32
+  let pillH: int32 = 24
+  # Pill fill
+  let pillFill = if canBuy: Color(r: 46, g: 35, b: 12, a: 238)
+                 else: Color(r: 16, g: 17, b: 24, a: 235)
+  drawSoftFill(pillX, pillY, pillW, pillH, pillFill,
+               if canBuy: Color(r: 23, g: 22, b: 18, a: 238)
+               else: Color(r: 11, g: 13, b: 20, a: 238))
+  drawLine(pillX + 2, pillY + 1, pillX + pillW - 3, pillY + 1, softColor(statusColor, 55))
+  drawRectangleLines(Rectangle(x: pillX.float32, y: pillY.float32,
+                               width: pillW.float32, height: pillH.float32),
+                     1.5'f32, softColor(statusColor, 180))
 
-  drawRectangle(navX, contentY, navW, sectionH, Color(r: 18, g: 25, b: 38, a: 220))
-  drawRectangleLines(navX, contentY, navW, sectionH, softColor(accent, 120))
-  drawTextFit(t("roguelite_unlock_categories"), navX + 14, contentY + 12, navW - 28, 14, accent)
+  drawUnlockCostPill(pillX, pillY, pillW, pillH, profile, category, index,
+                     if canBuy: t("roguelite_buy_unlock") else: t("roguelite_locked"),
+                     statusColor)
+
+proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategory,
+                     index: int, x, y: int32, isSelected, isHovered: bool,
+                     isPurchased, canBuy: bool, time: float32 = 0.0) =
+  ## Draw a single unlock item as a richly-styled shop card.
+  const cW = UnlockCardW
+  const cH = UnlockCardH
+
+  let catColor = categoryColor(category)
+  # Each power family gets its own distinct color; everything else uses the category accent
+  let itemColor = if category == rucPowerFamilies: familyColor(familyByUnlockIndex(index))
+                  else: catColor
+
+  # ── 1. Drop shadow ───────────────────────────────────────────────────────
+  drawRectangle(x + 5, y + 5, cW, cH, Color(r: 0, g: 0, b: 0, a: if isSelected: 105 else: 70))
+
+  # ── 2. Card base background ──────────────────────────────────────────────
+  let bgTop = if isSelected: Color(r: 21, g: 48, b: 64, a: 255)
+              elif isHovered: Color(r: 44, g: 47, b: 64, a: 255)
+              elif canBuy: Color(r: 38, g: 36, b: 28, a: 255)
+              else: Color(r: 26, g: 28, b: 40, a: 255)
+  let bgBottom = if isSelected: Color(r: 9, g: 26, b: 40, a: 255)
+                 elif isHovered: Color(r: 24, g: 28, b: 42, a: 255)
+                 elif canBuy: Color(r: 23, g: 24, b: 30, a: 255)
+                 else: Color(r: 17, g: 20, b: 31, a: 255)
+  drawSoftFill(x, y, cW, cH, bgTop, bgBottom)
+  drawScanlines(x + 5, y + 5, cW - 10, cH - 10, Color(r: 255, g: 255, b: 255, a: 5))
+
+  # ── 3. Header zone tint (top 62 px) ─────────────────────────────────────
+  let hdrAlpha: uint8 = if isPurchased: 48 elif canBuy: 42 elif isSelected: 36 elif isHovered: 26 else: 16
+  drawRectangle(x, y, cW, 72, softColor(itemColor, hdrAlpha))
+
+  # ── 4. Top accent stripe (3 px) ─────────────────────────────────────────
+  let stripeAlpha: uint8 = if isPurchased: 230 elif canBuy: 215 elif isSelected: 205 elif isHovered: 155 else: 95
+  drawRectangle(x, y, cW, 3, softColor(itemColor, stripeAlpha))
+  drawCornerBrackets(x + 6, y + 6, cW - 12, cH - 12, 13, 1,
+                     softColor(itemColor, if isSelected or canBuy: 120 else: 52))
+
+  # ── 5. Glyph halos ───────────────────────────────────────────────────────
+  let cx = x + cW div 2
+  let cy = y + 42
+  if isPurchased:
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 27, softColor(itemColor, 18))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 20, softColor(itemColor, 42))
+    drawCircleLines(cx, cy, 20.5'f32, softColor(itemColor, 105))
+  elif isSelected:
+    let p = sin(time * 4.5'f32) * 0.4'f32 + 0.6'f32
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 25, softColor(itemColor, uint8(20.0'f32 * p)))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 18, softColor(itemColor, 38))
+    drawCircleLines(cx, cy, 19.0'f32, softColor(itemColor, uint8(135.0'f32 * p)))
+  elif isHovered:
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 22, softColor(itemColor, 20))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 16, softColor(itemColor, 42))
+  else:
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 17, Color(r: 45, g: 48, b: 62, a: 170))
+
+  # Glyph itself
+  let glyphColor = if isPurchased: itemColor
+                   elif isSelected:
+                     let p = sin(time * 4.5'f32) * 0.15'f32 + 0.85'f32
+                     Color(r: uint8(min(255, int(itemColor.r.float32 * p) + 30)),
+                           g: uint8(min(255, int(itemColor.g.float32 * p) + 30)),
+                           b: uint8(min(255, int(itemColor.b.float32 * p) + 30)), a: 255)
+                   elif isHovered: Color(r: 218, g: 224, b: 236, a: 255)
+                   else: Color(r: 118, g: 126, b: 145, a: 255)
+  drawUnlockGlyph(profile, category, index.int32, cx, cy, glyphColor, false)
+
+  # ── 6. OWNED badge (top-right) ───────────────────────────────────────────
+  if isPurchased:
+    let bx = x + cW - 44
+    let by = y + 5
+    let bw: int32 = 40
+    let bh: int32 = 15
+    drawRectangle(bx, by, bw, bh, softColor(Color(r: 0, g: 195, b: 128, a: 255), 200))
+    # Tiny top highlight on badge
+    drawLine(bx + 2, by + 1, bx + bw - 3, by + 1, Color(r: 255, g: 255, b: 255, a: 38))
+    let ot = "OWNED"
+    let otW = measureText(ot, 8)
+    drawText(ot, bx + (bw - otW) div 2, by + 4, 8, Color(r: 215, g: 255, b: 240, a: 255))
+
+  # ── 7. Hairline divider below header ─────────────────────────────────────
+  let divAlpha: uint8 = if isPurchased: 72 elif isSelected or isHovered: 52 else: 28
+  drawLine(x + 10, y + 74, x + cW - 10, y + 74, softColor(itemColor, divAlpha))
+
+  # ── 8. Name ──────────────────────────────────────────────────────────────
+  let name = locUnlockName(profile, category, index)
+  let nameColor = if isPurchased: itemColor
+                  elif isSelected: White
+                  elif isHovered: Color(r: 238, g: 241, b: 248, a: 255)
+                  else: Color(r: 200, g: 206, b: 220, a: 255)
+  let nameFS = unlockFitText(name, (cW - 22).int32, 15, 10)
+  let nameW = measureText(name, nameFS)
+  drawText(name, x + (cW - nameW) div 2, y + 82, nameFS, nameColor)
+
+  # ── 9. Description (2 lines) ─────────────────────────────────────────────
+  let desc = locUnlockDescription(category, index)
+  let descColor = Color(r: 150, g: 160, b: 180, a: 255)
+  let descX = x + 14
+  let descY = y + 105
+  let descW: int32 = cW - 28
+  let descBottom = y + cH - 42
+  let descH = max(10'i32, descBottom - descY)
+  let descLineGap: int32 = 3
+  let descMaxLines: int32 = 4
+  let descFont = unlockBestDescriptionSize(desc, descW, descH, 11, descMaxLines, descLineGap, 7)
+  drawUnlockDescriptionLines(desc, descX, descY, descW, descFont, descMaxLines, descLineGap, descColor)
+
+  # ── 10. Status pill / lock overlay ───────────────────────────────────────
+  drawUnlockCardStatus(x.int, y.int, isPurchased, canBuy, profile, category, index)
+
+  # ── 11. Card border ───────────────────────────────────────────────────────
+  let bColor = if isSelected: itemColor
+               elif isHovered: Color(r: 122, g: 128, b: 148, a: 255)
+               elif isPurchased: softColor(itemColor, 52)
+               else: Color(r: 55, g: 58, b: 74, a: 255)
+  let bThick = if isSelected: 2.5'f32 elif isHovered: 2.0'f32 else: 1.5'f32
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: cW.float32, height: cH.float32),
+                     bThick, bColor)
+
+  # ── 12. Outer selection glow ─────────────────────────────────────────────
+  if isSelected:
+    let p = sin(time * 4.5'f32) * 0.5'f32 + 0.5'f32
+    drawRectangleLines(Rectangle(x: (x - 2).float32, y: (y - 2).float32,
+                                  width: (cW + 4).float32, height: (cH + 4).float32),
+                       1.5'f32, softColor(itemColor, uint8(58.0'f32 * p)))
+
+proc drawUnlockTabs*(panelX, panelY, panelW, tabH: int32, activeCategory: int) =
+  ## Draw 4 category tabs at the top of the unlock grid area.
+  let tabW = panelW div 4
+  drawRectangle(panelX + 16, panelY - 8, panelW - 32, tabH + 16, Color(r: 8, g: 13, b: 23, a: 170))
   for idx in 0..3:
     let cat = categoryByIndex(idx)
-    let rowY = contentY + 44 + idx.int32 * 72
-    let active = idx == categoryIndex
-    let hovered = canHover and isHovered(mousePos, navX + 12, rowY, navW - 24, 58)
-    let color = categoryColor(cat)
-    drawRectangle(navX + 12, rowY, navW - 24, 58,
-                  if active: softColor(color, 58)
-                  elif hovered: Color(r: 32, g: 40, b: 55, a: 240)
-                  else: Color(r: 23, g: 30, b: 43, a: 230))
-    drawRectangleLines(navX + 12, rowY, navW - 24, 58,
-                       if active or hovered: color else: Color(r: 82, g: 94, b: 112, a: 255))
-    drawCategoryGlyph(navX + 36, rowY + 29, cat, color)
-    drawTextFit(locCategoryName(cat), navX + 62, rowY + 12, navW - 86, 15,
-                if active or hovered: White else: LightGray)
-    var ownedCount = 0
-    for unlockIdx in 0..<unlockCount(cat):
-      if isUnlockPurchased(profile, cat, unlockIdx):
-        inc ownedCount
-    drawTextFit($ownedCount & " / " & $unlockCount(cat), navX + 62, rowY + 34, navW - 86, 11,
-                if active: color else: Color(r: 125, g: 140, b: 160, a: 255))
+    let active = idx == activeCategory
+    let tx = panelX + idx.int32 * tabW
+    let ty = panelY
+    let accent = categoryColor(cat)
+    let tabColorTop = if active: softColor(accent, 64)
+                      else: Color(r: 28, g: 32, b: 44, a: 255)
+    let tabColorBottom = if active: Color(r: 27, g: 31, b: 45, a: 255)
+                         else: Color(r: 18, g: 23, b: 34, a: 255)
+    drawSoftFill(tx + 2, ty, tabW - 4, tabH, tabColorTop, tabColorBottom)
+    drawRectangleLines(tx + 2, ty, tabW - 4, tabH,
+                       if active: softColor(accent, 180) else: Color(r: 54, g: 62, b: 78, a: 255))
+    drawCategoryGlyph(tx + 24, ty + tabH div 2, cat, if active: accent else: Color(r: 112, g: 124, b: 146, a: 255), true)
+    if active:
+      drawRectangle(tx + 2, ty + tabH - 4, tabW - 4, 4, accent)
+      drawCornerBrackets(tx + 7, ty + 5, tabW - 14, tabH - 10, 10, 1, softColor(accent, 145))
+    let catLabel = locCategoryName(cat)
+    let fs: int32 = 12
+    let labelW = measureText(catLabel, fs)
+    let labelX = tx + (tabW - labelW) div 2 + 8
+    drawText(catLabel, labelX, ty + (tabH - fs) div 2, fs,
+             if active: White else: Color(r: 148, g: 158, b: 178, a: 255))
 
-  drawRectangle(listX, contentY, listW, sectionH, Color(r: 18, g: 25, b: 38, a: 220))
-  drawRectangleLines(listX, contentY, listW, sectionH, softColor(categoryAccent, 130))
-  drawCategoryGlyph(listX + 26, contentY + 26, category, categoryAccent)
-  drawTextFit(locCategoryName(category), listX + 52, contentY + 14, listW - 66, 17, categoryAccent)
-  discard drawWrappedText(t("roguelite_unlock_shop_hint"), listX + 16, contentY + 41, listW - 32, 11,
-                          Color(r: 170, g: 182, b: 202, a: 255), 2, 3, 8)
-  for idx in 0..<itemCount:
-    let rowY = contentY + 80 + idx.int32 * 33
-    let purchased = isUnlockPurchased(profile, category, idx)
-    let canBuy = canPurchaseUnlock(profile, category, idx)
-    let active = idx == selectedItem
-    let hovered = canHover and isHovered(mousePos, listX + 12, rowY, listW - 24, 28)
-    let color = if active: Color(r: 0, g: 220, b: 255, a: 255)
-                elif hovered: Color(r: 120, g: 225, b: 255, a: 255)
-                elif purchased: Color(r: 0, g: 210, b: 140, a: 255)
-                elif canBuy: Gold
-                else: Color(r: 95, g: 112, b: 135, a: 255)
-    drawRectangle(listX + 12, rowY, listW - 24, 28,
-                  if active: Color(r: 25, g: 48, b: 62, a: 240)
-                  elif hovered: Color(r: 28, g: 40, b: 56, a: 235)
-                  else: Color(r: 22, g: 29, b: 42, a: 220))
-    drawRectangleLines(listX + 12, rowY, listW - 24, 28, color)
-    drawUnlockGlyph(profile, category, idx.int32, listX + 30, rowY + 14, color, true)
-    drawTextFit(locUnlockName(profile, category, idx), listX + 50, rowY + 8, 142, 12,
-                if purchased or active or hovered: White else: LightGray)
-    if purchased:
-      discard drawTextFit(t("roguelite_unlocked"), listX + listW - 156, rowY + 9, 130, 11, color, 8, taRight)
-    else:
-      # show currency icons and amounts right-aligned instead of plain text
-      drawUnlockCostsRight(profile, category, idx, (listX + listW - 24).int32, (rowY + 8).int32, 14, 11, color)
-
-  drawRectangle(detailsX, contentY, detailsW, sectionH, Color(r: 20, g: 27, b: 40, a: 240))
-  drawRectangleLines(detailsX, contentY, detailsW, sectionH, softColor(categoryAccent, 165))
-  drawCircle(Vector2(x: (detailsX + 40).float32, y: (contentY + 44).float32), 18, softColor(categoryAccent, 42))
-  drawUnlockGlyph(profile, category, selectedItem.int32, detailsX + 40, contentY + 44, categoryAccent)
-  drawTextFit(t("roguelite_unlock_details"), detailsX + 82, contentY + 18, detailsW - 100, 13, Gold)
-  drawTextFit(selectedName, detailsX + 82, contentY + 42, detailsW - 100, 21, White)
-  let stateText = if selectedPurchased: t("roguelite_unlocked")
-                  elif selectedCanBuy: t("roguelite_ready_to_buy")
-                  else: t("roguelite_not_enough_shards")
-  let stateColor = if selectedPurchased: Color(r: 0, g: 230, b: 150, a: 255)
-                   elif selectedCanBuy: Gold
-                   else: Color(r: 255, g: 120, b: 100, a: 255)
-  drawPill(detailsX + 18, contentY + 90, 128, 24, stateText, stateColor, selectedPurchased or selectedCanBuy)
-  drawPill(detailsX + 156, contentY + 90, detailsW - 174, 24,
-           if selectedPurchased: t("roguelite_unlocked") else: unlockCostLabel(profile, category, selectedItem), Gold)
-  discard drawWrappedText(locUnlockDescription(category, selectedItem), detailsX + 18, contentY + 134, detailsW - 36, 13,
-                          Color(r: 190, g: 204, b: 220, a: 255), 6, 5)
-
-  let buyY = contentY + sectionH - 58
-  let buyButtonWidth: int32 = 220
-  let buyButtonHeight: int32 = 38
-  let buyButtonX: int32 = detailsX + detailsW - buyButtonWidth - 24
-  let buyButtonY: int32 = buyY
-  # buy button area
-
-  # Buy button (modern shop style)
-  let canBuy = selectedCanBuy
-  if canBuy:
-    drawRectangle(buyButtonX + 2, buyButtonY + 2, buyButtonWidth, buyButtonHeight,
-                  Color(r: 0, g: 0, b: 0, a: 100))
-
-  let buyBgColor = if canBuy: Color(r: 0, g: 140, b: 255, a: 255) else: Color(r: 55, g: 60, b: 70, a: 255)
-  drawRectangle(buyButtonX, buyButtonY, buyButtonWidth, buyButtonHeight, buyBgColor)
-  if canBuy:
-    drawRectangle(buyButtonX, buyButtonY, buyButtonWidth, 2, Color(r: 255, g: 255, b: 255, a: 40))
-
-  let buyBorderColor = if canBuy:
-    let pulse = sin(game.time * 6.0) * 0.3 + 0.7
-    Color(r: 0, g: 200, b: 255, a: uint8(220 * pulse))
-  else:
-    Color(r: 100, g: 110, b: 120, a: 255)
-
-  drawRectangleLines(Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
-                                width: buyButtonWidth.float32, height: buyButtonHeight.float32),
-                    2.5, buyBorderColor)
-
-  let buyText = if selectedPurchased: t("roguelite_already_unlocked")
-                elif selectedCanBuy: t("roguelite_buy_unlock")
-                else: t("roguelite_need_more_shards")
-  let buyTextWidth: int32 = int32(measureText(buyText, 16))
-  let buyTextX: int32 = buyButtonX + (buyButtonWidth - buyTextWidth) div 2
-  drawText(buyText, buyTextX + 1, buyButtonY + 13, 16, Color(r: 0, g: 0, b: 0, a: 120))
-  drawText(buyText, buyTextX, buyButtonY + 12, 16, if canBuy: White else: Color(r: 150, g: 155, b: 160, a: 255))
-
-  drawRectangle(x + 42, y + PanelH - 72, PanelW - 84, 32, Color(r: 25, g: 32, b: 45, a: 230))
-  drawRectangleLines(x + 42, y + PanelH - 72, PanelW - 84, 32, softColor(accent, 130))
-  drawCenteredTextFit(t("roguelite_unlock_shop_controls"), x + 58, y + PanelH - 62, PanelW - 116, 13, LightGray)
-  drawAlphaBanner(game)
-
-proc drawUnlocksContent*(game: Game, panelX, panelY: int32, categoryIndex, itemIndex: int) =
+proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
+                         categoryIndex, itemIndex: int,
+                         scrollOffset: float32 = 0.0) =
   ## Draw the inner unlocks UI at the given panel origin (no backdrop or outer panel chrome).
+  ## Uses the same card-grid visual as the normal shop window.
   ## Used when the unlocks view is embedded inside the roguelite setup window.
   if game.rogueliteProfile.isNil:
     drawText(t("roguelite_no_profile"), panelX + 40, panelY + 90, 22, Red)
@@ -1170,15 +1355,14 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32, categoryIndex, itemI
   let category = categoryByIndex(categoryIndex)
   let itemCount = unlockCount(category)
   let selectedItem = clamp(itemIndex, 0, max(0, itemCount - 1))
-  let selectedName = locUnlockName(profile, category, selectedItem)
   let selectedPurchased = isUnlockPurchased(profile, category, selectedItem)
   let selectedCanBuy = canPurchaseUnlock(profile, category, selectedItem)
-  let categoryAccent = categoryColor(category)
+  let catColor = categoryColor(category)
   let accent = Color(r: 255, g: 215, b: 0, a: 255)
   let canHover = game.mouseMovedRecently and not game.keyboardUsedRecently
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
 
-  # Stat chips (same as the setup view)
+  # ── Stat chips (same layout as setup view) ──────────────────────────────
   drawStatChip(panelX + 26, panelY + 58, 164, 48, t("roguelite_data_shards"), $profile.dataShards, Gold, ciDataShards)
   drawStatChip(panelX + 202, panelY + 58, 164, 48, t("roguelite_overheat_cores"), $profile.overheatCores,
                Color(r: 255, g: 130, b: 80, a: 255), ciOverheatCore)
@@ -1189,118 +1373,160 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32, categoryIndex, itemI
   drawStatChip(panelX + 716, panelY + 58, 178, 48, t("roguelite_boss_tier"), $profile.unlockedBossTier & " / " & $RogueliteMaxBossTier,
                Color(r: 255, g: 120, b: 95, a: 255))
 
-  let contentY = panelY + 130
-  let navX = panelX + 30
-  let navW: int32 = 184
-  let listX = panelX + 232
-  let listW: int32 = 340
-  let detailsX = panelX + 594
-  let detailsW: int32 = 296
-  let sectionH: int32 = 378
+  # ── Tabs ─────────────────────────────────────────────────────────────────
+  let tabY = panelY + 130
+  drawUnlockTabs(panelX, tabY, PanelW, UnlockTabH, categoryIndex)
 
-  drawRectangle(navX, contentY, navW, sectionH, Color(r: 18, g: 25, b: 38, a: 220))
-  drawRectangleLines(navX, contentY, navW, sectionH, softColor(accent, 120))
-  drawTextFit(t("roguelite_unlock_categories"), navX + 14, contentY + 12, navW - 28, 14, accent)
-  for idx in 0..3:
-    let cat = categoryByIndex(idx)
-    let rowY = contentY + 44 + idx.int32 * 72
-    let active = idx == categoryIndex
-    let hovered = canHover and isHovered(mousePos, navX + 12, rowY, navW - 24, 58)
-    let color = categoryColor(cat)
-    drawRectangle(navX + 12, rowY, navW - 24, 58,
-                  if active: softColor(color, 58)
-                  elif hovered: Color(r: 32, g: 40, b: 55, a: 240)
-                  else: Color(r: 23, g: 30, b: 43, a: 230))
-    drawRectangleLines(navX + 12, rowY, navW - 24, 58,
-                       if active or hovered: color else: Color(r: 82, g: 94, b: 112, a: 255))
-    drawCategoryGlyph(navX + 36, rowY + 29, cat, color)
-    drawTextFit(locCategoryName(cat), navX + 62, rowY + 12, navW - 86, 15,
-                if active or hovered: White else: LightGray)
-    var ownedCount = 0
-    for unlockIdx in 0..<unlockCount(cat):
-      if isUnlockPurchased(profile, cat, unlockIdx):
-        inc ownedCount
-    drawTextFit($ownedCount & " / " & $unlockCount(cat), navX + 62, rowY + 34, navW - 86, 11,
-                if active: color else: Color(r: 125, g: 140, b: 160, a: 255))
+  # ── Card grid layout ─────────────────────────────────────────────────────
+  #   Grid sits directly below the tabs.
+  #   An info panel sits below the grid, and the control bar is at the very bottom.
+  let infoPanelH: int32 = 65
+  let ctrlBarFootH: int32 = 72
+  let gridY = tabY + UnlockTabH                          # panelY + 170
+  let gridH: int32 = PanelH - 170 - infoPanelH - ctrlBarFootH  # 313
 
-  drawRectangle(listX, contentY, listW, sectionH, Color(r: 18, g: 25, b: 38, a: 220))
-  drawRectangleLines(listX, contentY, listW, sectionH, softColor(categoryAccent, 130))
-  drawCategoryGlyph(listX + 26, contentY + 26, category, categoryAccent)
-  drawTextFit(locCategoryName(category), listX + 52, contentY + 14, listW - 66, 17, categoryAccent)
-  discard drawWrappedText(t("roguelite_unlock_shop_hint"), listX + 16, contentY + 41, listW - 32, 11,
-                          Color(r: 170, g: 182, b: 202, a: 255), 2, 3, 8)
+  let cardTotalW = UnlockCardW + UnlockCardPad
+  let columns = max(1, PanelW div cardTotalW)
+  let totalRows = if itemCount == 0: 0 else: (itemCount + columns - 1) div columns
+  let totalContentH = totalRows * (UnlockCardH + UnlockCardPad) + 10
+  let maxScroll = max(0.0'f32, totalContentH.float32 - gridH.float32)
+  let clampedScroll = clamp(scrollOffset, 0.0'f32, maxScroll)
+  let scrollInt = int(round(clampedScroll))
+  let gridLeft = panelX + (PanelW - (columns * UnlockCardW + (columns - 1) * UnlockCardPad)) div 2
+
+  drawSoftFill(panelX + 14, gridY - 8, PanelW - 28, gridH + infoPanelH + 16,
+               Color(r: 17, g: 23, b: 36, a: 238),
+               Color(r: 9, g: 13, b: 23, a: 238))
+  drawRectangleLines(panelX + 14, gridY - 8, PanelW - 28, gridH + infoPanelH + 16,
+                     softColor(catColor, 80))
+  drawLine(panelX + 24, gridY - 1, panelX + PanelW - 24, gridY - 1, softColor(catColor, 115))
+
+  # Scroll hint — shown inside the grid area, bottom-right, only when scrollable
+  if maxScroll > 0:
+    let hintText = t("roguelite_scroll_hint")
+    let hintW = measureText(hintText, 10)
+    drawText(hintText, panelX + PanelW - hintW - 20, gridY + gridH - 18, 10,
+             Color(r: 180, g: 180, b: 190, a: 140))
+
+  # Card grid (clipped to grid area)
+  beginVirtualScissorMode(panelX, gridY, PanelW, gridH)
   for idx in 0..<itemCount:
-    let rowY = contentY + 80 + idx.int32 * 33
-    let purchased = isUnlockPurchased(profile, category, idx)
-    let canBuy = canPurchaseUnlock(profile, category, idx)
-    let active = idx == selectedItem
-    let hovered = canHover and isHovered(mousePos, listX + 12, rowY, listW - 24, 28)
-    let color = if active: Color(r: 0, g: 220, b: 255, a: 255)
-                elif hovered: Color(r: 120, g: 225, b: 255, a: 255)
-                elif purchased: Color(r: 0, g: 210, b: 140, a: 255)
-                elif canBuy: Gold
-                else: Color(r: 95, g: 112, b: 135, a: 255)
-    drawRectangle(listX + 12, rowY, listW - 24, 28,
-                  if active: Color(r: 25, g: 48, b: 62, a: 240)
-                  elif hovered: Color(r: 28, g: 40, b: 56, a: 235)
-                  else: Color(r: 22, g: 29, b: 42, a: 220))
-    drawRectangleLines(listX + 12, rowY, listW - 24, 28, color)
-    drawUnlockGlyph(profile, category, idx.int32, listX + 30, rowY + 14, color, true)
-    drawTextFit(locUnlockName(profile, category, idx), listX + 50, rowY + 8, 142, 12,
-                if purchased or active or hovered: White else: LightGray)
-    if purchased:
-      discard drawTextFit(t("roguelite_unlocked"), listX + listW - 156, rowY + 9, 130, 11, color, 8, taRight)
-    else:
-      drawUnlockCostsRight(profile, category, idx, (listX + listW - 24).int32, (rowY + 8).int32, 14, 11, color)
+    let col = idx mod columns
+    let row = idx div columns
+    let cx = gridLeft + col * cardTotalW
+    let cy = gridY + 5 + row * (UnlockCardH + UnlockCardPad) - scrollInt
 
-  drawRectangle(detailsX, contentY, detailsW, sectionH, Color(r: 20, g: 27, b: 40, a: 240))
-  drawRectangleLines(detailsX, contentY, detailsW, sectionH, softColor(categoryAccent, 165))
-  drawCircle(Vector2(x: (detailsX + 40).float32, y: (contentY + 44).float32), 18, softColor(categoryAccent, 42))
-  drawUnlockGlyph(profile, category, selectedItem.int32, detailsX + 40, contentY + 44, categoryAccent)
-  drawTextFit(t("roguelite_unlock_details"), detailsX + 82, contentY + 18, detailsW - 100, 13, Gold)
-  drawTextFit(selectedName, detailsX + 82, contentY + 42, detailsW - 100, 21, White)
+    if cy + UnlockCardH > gridY - 10 and cy < gridY + gridH + 10:
+      let inGrid = cy + UnlockCardH > gridY and cy < gridY + gridH
+      let purchased = isUnlockPurchased(profile, category, idx)
+      let canBuy = canPurchaseUnlock(profile, category, idx)
+      let isSelected = idx == selectedItem
+      let isHov = inGrid and canHover and
+                  checkCollisionPointRec(mousePos,
+                    Rectangle(x: cx.float32, y: cy.float32,
+                              width: UnlockCardW.float32, height: UnlockCardH.float32))
+      drawUnlockCard(profile, category, idx, cx.int32, cy.int32, isSelected, isHov, purchased, canBuy, game.time)
+
+    # Keyboard focus ring (drawn even when card is partially visible)
+    if idx == selectedItem:
+      let cy2 = gridY + 5 + (idx div columns) * (UnlockCardH + UnlockCardPad) - scrollInt
+      let cx2 = gridLeft + (idx mod columns) * cardTotalW
+      drawRectangleLines(Rectangle(x: cx2.float32, y: cy2.float32,
+                                   width: UnlockCardW.float32, height: UnlockCardH.float32),
+                         2.0'f32, Color(r: 255, g: 200, b: 100, a: 180))
+  endScissorMode()
+
+  # Scrollbar
+  if maxScroll > 0:
+    let sbX = panelX + PanelW - 14
+    let sbW: int32 = 10
+    drawRectangle(sbX, gridY + 8, sbW, gridH - 16, Color(r: 20, g: 24, b: 34, a: 255))
+    let thumbH = max(30.0'f32, (gridH.float32 / totalContentH.float32) * gridH.float32)
+    let thumbY = (gridY + 8).float32 + (clampedScroll / maxScroll) * ((gridH - 16).float32 - thumbH)
+    drawRectangle(sbX, thumbY.int32, sbW, thumbH.int32, softColor(catColor, 200))
+
+  # ── Info panel (selected item) ───────────────────────────────────────────
+  let infoPanelY = gridY + gridH
+  drawSoftFill(panelX + 14, infoPanelY, PanelW - 28, infoPanelH,
+               Color(r: 31, g: 38, b: 54, a: 252),
+               Color(r: 17, g: 23, b: 36, a: 252))
+  drawLine(panelX + 14, infoPanelY, panelX + PanelW - 14, infoPanelY, softColor(catColor, 145))
+  drawCornerBrackets(panelX + 22, infoPanelY + 8, PanelW - 44, infoPanelH - 16, 16, 1, softColor(catColor, 95))
+
+  let selName = locUnlockName(profile, category, selectedItem)
+  let selDesc = locUnlockDescription(category, selectedItem)
+
+  # Glyph
+  let glyphCX = panelX + 42
+  let glyphCY = infoPanelY + infoPanelH div 2
+  drawCircle(Vector2(x: glyphCX.float32, y: glyphCY.float32), 23, softColor(catColor, 34))
+  drawCircleLines(glyphCX, glyphCY, 23.0'f32, softColor(catColor, 105))
+  drawUnlockGlyph(profile, category, selectedItem.int32, glyphCX, glyphCY, catColor, false)
+
+  # Name + description + status
+  let textX = panelX + 74
+  let textMaxW: int32 = int32(PanelW - 380)
+  drawTextFit(selName, textX, infoPanelY + 7, textMaxW, 15, White)
+  drawTextFit(selDesc, textX, infoPanelY + 27, textMaxW, 12, Color(r: 155, g: 166, b: 188, a: 255), 8)
   let stateText = if selectedPurchased: t("roguelite_unlocked")
                   elif selectedCanBuy: t("roguelite_ready_to_buy")
                   else: t("roguelite_not_enough_shards")
   let stateColor = if selectedPurchased: Color(r: 0, g: 230, b: 150, a: 255)
                    elif selectedCanBuy: Gold
                    else: Color(r: 255, g: 120, b: 100, a: 255)
-  drawPill(detailsX + 18, contentY + 90, 128, 24, stateText, stateColor, selectedPurchased or selectedCanBuy)
-  drawPill(detailsX + 156, contentY + 90, detailsW - 174, 24,
-           if selectedPurchased: t("roguelite_unlocked") else: unlockCostLabel(profile, category, selectedItem), Gold)
-  discard drawWrappedText(locUnlockDescription(category, selectedItem), detailsX + 18, contentY + 134, detailsW - 36, 13,
-                          Color(r: 190, g: 204, b: 220, a: 255), 6, 5)
+  drawTextFit(stateText, textX, infoPanelY + 47, textMaxW, 11, stateColor, 8)
 
-  let buyY = contentY + sectionH - 58
-  let buyButtonWidth: int32 = 220
-  let buyButtonHeight: int32 = 38
-  let buyButtonX: int32 = detailsX + detailsW - buyButtonWidth - 24
-  let buyButtonY: int32 = buyY
-  let canBuy = selectedCanBuy
-  if canBuy:
-    drawRectangle(buyButtonX + 2, buyButtonY + 2, buyButtonWidth, buyButtonHeight,
-                  Color(r: 0, g: 0, b: 0, a: 100))
-  let buyBgColor = if canBuy: Color(r: 0, g: 140, b: 255, a: 255) else: Color(r: 55, g: 60, b: 70, a: 255)
-  drawRectangle(buyButtonX, buyButtonY, buyButtonWidth, buyButtonHeight, buyBgColor)
-  if canBuy:
-    drawRectangle(buyButtonX, buyButtonY, buyButtonWidth, 2, Color(r: 255, g: 255, b: 255, a: 40))
-  let buyBorderColor = if canBuy:
-    let pulse = sin(game.time * 6.0) * 0.3 + 0.7
-    Color(r: 0, g: 200, b: 255, a: uint8(220 * pulse))
-  else:
-    Color(r: 100, g: 110, b: 120, a: 255)
-  drawRectangleLines(Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
-                                width: buyButtonWidth.float32, height: buyButtonHeight.float32),
-                    2.5, buyBorderColor)
+  # Buy button (right side of info panel)
+  let btnW: int32 = 210
+  let btnH: int32 = 40
+  let btnX = panelX + PanelW - btnW - 16
+  let btnY = infoPanelY + (infoPanelH - btnH) div 2
+  drawRectangle(btnX + 3, btnY + 3, btnW, btnH, Color(r: 0, g: 0, b: 0, a: if selectedCanBuy: 125 else: 70))
+  let buyBgTop = if selectedCanBuy: Color(r: 0, g: 158, b: 214, a: 255)
+                 else: Color(r: 58, g: 64, b: 78, a: 255)
+  let buyBgBottom = if selectedCanBuy: Color(r: 0, g: 86, b: 146, a: 255)
+                    else: Color(r: 35, g: 40, b: 52, a: 255)
+  drawSoftFill(btnX, btnY, btnW, btnH, buyBgTop, buyBgBottom)
+  if selectedCanBuy:
+    drawRectangle(btnX, btnY, btnW, 2, Color(r: 255, g: 255, b: 255, a: 40))
+  let buyBorderColor = if selectedCanBuy:
+    let pulse = sin(game.time * 6.0'f32) * 0.3'f32 + 0.7'f32
+    Color(r: 0, g: 200, b: 255, a: uint8(220.0'f32 * pulse))
+  else: Color(r: 100, g: 110, b: 120, a: 255)
+  drawRectangleLines(Rectangle(x: btnX.float32, y: btnY.float32,
+                                width: btnW.float32, height: btnH.float32), 2.5'f32, buyBorderColor)
+  if selectedCanBuy:
+    drawCornerBrackets(btnX + 5, btnY + 5, btnW - 10, btnH - 10, 10, 1, Color(r: 210, g: 255, b: 255, a: 135))
   let buyText = if selectedPurchased: t("roguelite_already_unlocked")
                 elif selectedCanBuy: t("roguelite_buy_unlock")
                 else: t("roguelite_need_more_shards")
-  let buyTextWidth: int32 = int32(measureText(buyText, 16))
-  let buyTextX: int32 = buyButtonX + (buyButtonWidth - buyTextWidth) div 2
-  drawText(buyText, buyTextX + 1, buyButtonY + 13, 16, Color(r: 0, g: 0, b: 0, a: 120))
-  drawText(buyText, buyTextX, buyButtonY + 12, 16, if canBuy: White else: Color(r: 150, g: 155, b: 160, a: 255))
+  let buyTextW = int32(measureText(buyText, 15))
+  let buyTextX = btnX + (btnW - buyTextW) div 2
+  drawText(buyText, buyTextX + 1, btnY + 13, 15, Color(r: 0, g: 0, b: 0, a: 120))
+  drawText(buyText, buyTextX, btnY + 12, 15,
+           if selectedCanBuy: White else: Color(r: 150, g: 155, b: 160, a: 255))
 
+  # Cost summary to left of buy button (when not purchased)
+  if not selectedPurchased:
+    let costColor = if selectedCanBuy: Gold else: Color(r: 120, g: 120, b: 135, a: 255)
+    drawUnlockCostsRight(profile, category, selectedItem, btnX - 16, infoPanelY + 24, 17, 12, costColor)
+
+  # ── Control bar ──────────────────────────────────────────────────────────
   let ctrlBarY = panelY + PanelH - 72
-  drawRectangle(panelX + 42, ctrlBarY, PanelW - 84, 32, Color(r: 25, g: 32, b: 45, a: 230))
+  drawSoftFill(panelX + 42, ctrlBarY, PanelW - 84, 32,
+               Color(r: 30, g: 38, b: 54, a: 235),
+               Color(r: 16, g: 22, b: 34, a: 235))
   drawRectangleLines(panelX + 42, ctrlBarY, PanelW - 84, 32, softColor(accent, 130))
-  drawCenteredTextFit(t("roguelite_unlock_shop_controls"), panelX + 58, ctrlBarY + 10, PanelW - 116, 13, LightGray)
+  drawCenteredTextFit(t("roguelite_unlock_shop_controls"), panelX + 58, ctrlBarY + 10,
+                      PanelW - 116, 13, LightGray)
+
+proc drawRogueliteUnlocks*(game: Game, categoryIndex: int = 0, itemIndex: int = 0) =
+  let x = (game.screenWidth - PanelW) div 2
+  let y = (game.screenHeight - PanelH) div 2
+  let canHover = mouseHoverEnabled(game)
+  let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
+  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(game.screenWidth, game.screenHeight))
+  let accent = Color(r: 255, g: 215, b: 0, a: 255)
+  drawBackdrop(game, Color(r: 255, g: 215, b: 0, a: 255))
+  drawPanel(x, y, PanelW, PanelH, t("roguelite_unlocks_title"), accent, closeHovered)
+  drawUnlocksContent(game, x.int32, y.int32, categoryIndex, itemIndex, 0.0)
