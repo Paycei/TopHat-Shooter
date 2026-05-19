@@ -252,11 +252,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
   let qz = desktop.cubeQZ
 
   let r00 = 1.0'f32 - 2.0'f32*(qy*qy + qz*qz)
-  let r01 = 2.0'f32*(qx*qy - qz*qw)
-  let r02 = 2.0'f32*(qx*qz + qy*qw)
   let r10 = 2.0'f32*(qx*qy + qz*qw)
-  let r11 = 1.0'f32 - 2.0'f32*(qx*qx + qz*qz)
-  let r12 = 2.0'f32*(qy*qz - qx*qw)
   let r20 = 2.0'f32*(qx*qz - qy*qw)
   let r21 = 2.0'f32*(qy*qz + qx*qw)
   let r22 = 1.0'f32 - 2.0'f32*(qx*qx + qy*qy)

@@ -18,4 +18,4 @@ task run, "Run the game for development":
   exec "nim c -r --mm:orc -d:debug src/main.nim"
 
 task release, "Build the game for release":
-  exec "nim c -d:danger --mm:orc --opt:speed --app:gui --passL:icono.res -o:TopHatShooterOS.exe src/main.nim"
+  exec "nim c --cc:vcc -d:danger --mm:orc --opt:speed --parallelBuild:0 --app:gui --panics:on --passC:"/O2 /GL" --passL:"icono.res" -o:TopHatShooterOS.exe src/main.nim"
