@@ -1200,10 +1200,10 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
   let itemColor = if category == rucPowerFamilies: familyColor(familyByUnlockIndex(index))
                   else: catColor
 
-  # ── 1. Drop shadow ───────────────────────────────────────────────────────
+  # Drop shadow
   drawRectangle(x + 5, y + 5, cW, cH, Color(r: 0, g: 0, b: 0, a: if isSelected: 105 else: 70))
 
-  # ── 2. Card base background ──────────────────────────────────────────────
+  # Card base background
   let bgTop = if isSelected: Color(r: 21, g: 48, b: 64, a: 255)
               elif isHovered: Color(r: 44, g: 47, b: 64, a: 255)
               elif canBuy: Color(r: 38, g: 36, b: 28, a: 255)
@@ -1215,17 +1215,17 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
   drawSoftFill(x, y, cW, cH, bgTop, bgBottom)
   drawScanlines(x + 5, y + 5, cW - 10, cH - 10, Color(r: 255, g: 255, b: 255, a: 5))
 
-  # ── 3. Header zone tint (top 62 px) ─────────────────────────────────────
+  # Header zone tint
   let hdrAlpha: uint8 = if isPurchased: 48 elif canBuy: 42 elif isSelected: 36 elif isHovered: 26 else: 16
   drawRectangle(x, y, cW, 72, softColor(itemColor, hdrAlpha))
 
-  # ── 4. Top accent stripe (3 px) ─────────────────────────────────────────
+  # Top accent stripe (3 px)
   let stripeAlpha: uint8 = if isPurchased: 230 elif canBuy: 215 elif isSelected: 205 elif isHovered: 155 else: 95
   drawRectangle(x, y, cW, 3, softColor(itemColor, stripeAlpha))
   drawCornerBrackets(x + 6, y + 6, cW - 12, cH - 12, 13, 1,
                      softColor(itemColor, if isSelected or canBuy: 120 else: 52))
 
-  # ── 5. Glyph halos ───────────────────────────────────────────────────────
+  # Glyph halos
   let cx = x + cW div 2
   let cy = y + 42
   if isPurchased:
@@ -1254,7 +1254,7 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
                    else: Color(r: 118, g: 126, b: 145, a: 255)
   drawUnlockGlyph(profile, category, index.int32, cx, cy, glyphColor, false)
 
-  # ── 6. OWNED badge (top-right) ───────────────────────────────────────────
+  # OWNED badge (top-right)
   if isPurchased:
     let bx = x + cW - 44
     let by = y + 5
@@ -1267,11 +1267,11 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
     let otW = measureText(ot, 8)
     drawText(ot, bx + (bw - otW) div 2, by + 4, 8, Color(r: 215, g: 255, b: 240, a: 255))
 
-  # ── 7. Hairline divider below header ─────────────────────────────────────
+  # Hairline divider below header
   let divAlpha: uint8 = if isPurchased: 72 elif isSelected or isHovered: 52 else: 28
   drawLine(x + 10, y + 74, x + cW - 10, y + 74, softColor(itemColor, divAlpha))
 
-  # ── 8. Name ──────────────────────────────────────────────────────────────
+  # Name
   let name = locUnlockName(profile, category, index)
   let nameColor = if isPurchased: itemColor
                   elif isSelected: White
@@ -1281,7 +1281,7 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
   let nameW = measureText(name, nameFS)
   drawText(name, x + (cW - nameW) div 2, y + 82, nameFS, nameColor)
 
-  # ── 9. Description (2 lines) ─────────────────────────────────────────────
+  # Description (2 lines)
   let desc = locUnlockDescription(category, index)
   let descColor = Color(r: 150, g: 160, b: 180, a: 255)
   let descX = x + 14
@@ -1294,10 +1294,10 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
   let descFont = unlockBestDescriptionSize(desc, descW, descH, 11, descMaxLines, descLineGap, 7)
   drawUnlockDescriptionLines(desc, descX, descY, descW, descFont, descMaxLines, descLineGap, descColor)
 
-  # ── 10. Status pill / lock overlay ───────────────────────────────────────
+  # Status pill / lock overlay
   drawUnlockCardStatus(x.int, y.int, isPurchased, canBuy, profile, category, index)
 
-  # ── 11. Card border ───────────────────────────────────────────────────────
+  # Card border
   let bColor = if isSelected: itemColor
                elif isHovered: Color(r: 122, g: 128, b: 148, a: 255)
                elif isPurchased: softColor(itemColor, 52)
@@ -1306,7 +1306,7 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: cW.float32, height: cH.float32),
                      bThick, bColor)
 
-  # ── 12. Outer selection glow ─────────────────────────────────────────────
+  # 12. Outer selection glow 
   if isSelected:
     let p = sin(time * 4.5'f32) * 0.5'f32 + 0.5'f32
     drawRectangleLines(Rectangle(x: (x - 2).float32, y: (y - 2).float32,
@@ -1362,7 +1362,7 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
   let canHover = game.mouseMovedRecently and not game.keyboardUsedRecently
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
 
-  # ── Stat chips (same layout as setup view) ──────────────────────────────
+  # Stat chips
   drawStatChip(panelX + 26, panelY + 58, 164, 48, t("roguelite_data_shards"), $profile.dataShards, Gold, ciDataShards)
   drawStatChip(panelX + 202, panelY + 58, 164, 48, t("roguelite_overheat_cores"), $profile.overheatCores,
                Color(r: 255, g: 130, b: 80, a: 255), ciOverheatCore)
@@ -1373,11 +1373,11 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
   drawStatChip(panelX + 716, panelY + 58, 178, 48, t("roguelite_boss_tier"), $profile.unlockedBossTier & " / " & $RogueliteMaxBossTier,
                Color(r: 255, g: 120, b: 95, a: 255))
 
-  # ── Tabs ─────────────────────────────────────────────────────────────────
+  # Tabs
   let tabY = panelY + 130
   drawUnlockTabs(panelX, tabY, PanelW, UnlockTabH, categoryIndex)
 
-  # ── Card grid layout ─────────────────────────────────────────────────────
+  # Card grid layout
   #   Grid sits directly below the tabs.
   #   An info panel sits below the grid, and the control bar is at the very bottom.
   let infoPanelH: int32 = 65
@@ -1445,7 +1445,7 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
     let thumbY = (gridY + 8).float32 + (clampedScroll / maxScroll) * ((gridH - 16).float32 - thumbH)
     drawRectangle(sbX, thumbY.int32, sbW, thumbH.int32, softColor(catColor, 200))
 
-  # ── Info panel (selected item) ───────────────────────────────────────────
+  # Info panel
   let infoPanelY = gridY + gridH
   drawSoftFill(panelX + 14, infoPanelY, PanelW - 28, infoPanelH,
                Color(r: 31, g: 38, b: 54, a: 252),
@@ -1511,7 +1511,7 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
     let costColor = if selectedCanBuy: Gold else: Color(r: 120, g: 120, b: 135, a: 255)
     drawUnlockCostsRight(profile, category, selectedItem, btnX - 16, infoPanelY + 24, 17, 12, costColor)
 
-  # ── Control bar ──────────────────────────────────────────────────────────
+  # Control bar
   let ctrlBarY = panelY + PanelH - 72
   drawSoftFill(panelX + 42, ctrlBarY, PanelW - 84, 32,
                Color(r: 30, g: 38, b: 54, a: 235),

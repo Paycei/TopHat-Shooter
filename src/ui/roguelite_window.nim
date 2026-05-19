@@ -119,7 +119,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
   rw.purchaseCelebrationTimer = max(0.0'f32, rw.purchaseCelebrationTimer - dt)
   # If the unlocks/shop sub-view is open, intercept ESC before handleOSWindowInput
   # so it goes back to the setup view instead of closing the whole window.
-  if rw.showUnlocks and isKeyPressed(Escape):
+  if rw.showUnlocks and rw.window.focused and isKeyPressed(Escape):
     rw.showUnlocks = false
     return
   let shouldClose = handleOSWindowInput(rw.window, screenWidth, screenHeight, allWindows)
@@ -161,37 +161,72 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
     let totalContentH = totalRows * (UnlockCardH + UnlockCardPad) + 10
     rw.unlockMaxScrollOffset = max(0.0'f32, totalContentH.float32 - gridH.float32)
 
-    # ── Keyboard navigation ──────────────────────────────────────────────
+    # Keyboard navigation
     var keyboardMovedFocus = false
-    if isKeyPressed(Tab):
-      rw.unlockCategory = (rw.unlockCategory + 1) mod 4
-      rw.unlockItem = 0
-      rw.unlockScrollOffset = 0.0
-      rw.unlockScrollVelocity = 0.0
-      keyboardMovedFocus = true
-    if isKeyPressed(Left):
-      let prev = rw.unlockItem
-      rw.unlockItem = max(0, rw.unlockItem - 1)
-      keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
-    if isKeyPressed(Right):
-      let prev = rw.unlockItem
-      rw.unlockItem = min(currentCount - 1, rw.unlockItem + 1)
-      keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
-    if isKeyPressed(Up):
-      let prev = rw.unlockItem
-      rw.unlockItem = max(0, rw.unlockItem - columns)
-      keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
-    if isKeyPressed(Down):
-      let prev = rw.unlockItem
-      rw.unlockItem = min(currentCount - 1, rw.unlockItem + columns)
-      keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
-    if isKeyPressed(Enter) or isKeyPressed(E):
-      if purchaseRogueliteUnlock(profile, currentCat, rw.unlockItem):
-        triggerUnlockPurchaseFeedback(rw, game, profile, currentCat, rw.unlockItem)
-        game.rogueliteProfile = profile
-    if isKeyPressed(Escape) or isKeyPressed(Q):
-      rw.showUnlocks = false
-      return
+    if rw.window.focused:
+      # Category switching: Tab/Shift+Tab cycle, A/D cycle, 1-4 jump directly
+      let shiftHeld = isKeyDown(LeftShift) or isKeyDown(RightShift)
+      if isKeyPressed(Tab):
+        if shiftHeld:
+          rw.unlockCategory = (rw.unlockCategory - 1 + 4) mod 4
+        else:
+          rw.unlockCategory = (rw.unlockCategory + 1) mod 4
+        rw.unlockItem = 0
+        rw.unlockScrollOffset = 0.0
+        rw.unlockScrollVelocity = 0.0
+        keyboardMovedFocus = true
+      if isKeyPressed(A):
+        rw.unlockCategory = (rw.unlockCategory - 1 + 4) mod 4
+        rw.unlockItem = 0
+        rw.unlockScrollOffset = 0.0
+        rw.unlockScrollVelocity = 0.0
+        keyboardMovedFocus = true
+      if isKeyPressed(D):
+        rw.unlockCategory = (rw.unlockCategory + 1) mod 4
+        rw.unlockItem = 0
+        rw.unlockScrollOffset = 0.0
+        rw.unlockScrollVelocity = 0.0
+        keyboardMovedFocus = true
+      if isKeyPressed(One):
+        rw.unlockCategory = 0; rw.unlockItem = 0
+        rw.unlockScrollOffset = 0.0; rw.unlockScrollVelocity = 0.0
+        keyboardMovedFocus = true
+      if isKeyPressed(Two):
+        rw.unlockCategory = 1; rw.unlockItem = 0
+        rw.unlockScrollOffset = 0.0; rw.unlockScrollVelocity = 0.0
+        keyboardMovedFocus = true
+      if isKeyPressed(Three):
+        rw.unlockCategory = 2; rw.unlockItem = 0
+        rw.unlockScrollOffset = 0.0; rw.unlockScrollVelocity = 0.0
+        keyboardMovedFocus = true
+      if isKeyPressed(Four):
+        rw.unlockCategory = 3; rw.unlockItem = 0
+        rw.unlockScrollOffset = 0.0; rw.unlockScrollVelocity = 0.0
+        keyboardMovedFocus = true
+      # Item navigation within the current category
+      if isKeyPressed(Left):
+        let prev = rw.unlockItem
+        rw.unlockItem = max(0, rw.unlockItem - 1)
+        keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
+      if isKeyPressed(Right):
+        let prev = rw.unlockItem
+        rw.unlockItem = min(currentCount - 1, rw.unlockItem + 1)
+        keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
+      if isKeyPressed(Up):
+        let prev = rw.unlockItem
+        rw.unlockItem = max(0, rw.unlockItem - columns)
+        keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
+      if isKeyPressed(Down):
+        let prev = rw.unlockItem
+        rw.unlockItem = min(currentCount - 1, rw.unlockItem + columns)
+        keyboardMovedFocus = keyboardMovedFocus or rw.unlockItem != prev
+      if isKeyPressed(Enter) or isKeyPressed(E):
+        if purchaseRogueliteUnlock(profile, currentCat, rw.unlockItem):
+          triggerUnlockPurchaseFeedback(rw, game, profile, currentCat, rw.unlockItem)
+          game.rogueliteProfile = profile
+      if isKeyPressed(Escape) or isKeyPressed(Q):
+        rw.showUnlocks = false
+        return
 
     # Auto-scroll focused card into view
     if keyboardMovedFocus and currentCount > 0:
@@ -206,7 +241,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
         rw.unlockScrollVelocity = 0.0
       rw.unlockScrollOffset = clamp(rw.unlockScrollOffset, 0.0'f32, rw.unlockMaxScrollOffset)
 
-    # ── Mouse wheel scroll ───────────────────────────────────────────────
+    # Mouse wheel scroll
     let mousePos = getVirtualMousePosition()
     let inGridArea = mousePos.x >= contentX.float32 and
                      mousePos.x < (contentX + RoguelitePanelW).float32 and
@@ -226,12 +261,12 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
       else:
         rw.unlockScrollVelocity *= clamp(1.0'f32 - dt * 8.0'f32, 0.0'f32, 1.0'f32)
 
-    # ── Mouse clicks ─────────────────────────────────────────────────────
+    # Mouse clicks
     if isMouseButtonPressed(Left):
       let scrollInt = int(round(rw.unlockScrollOffset))
       let gridLeft = panelX + (RoguelitePanelW - (columns * UnlockCardW + (columns - 1) * UnlockCardPad)) div 2
 
-      # Tab bar clicks  (panelY + 130 .. panelY + 170)
+      # Tab bar clicks
       let tabAreaY = panelY + 130
       if mousePos.y >= tabAreaY.float32 and mousePos.y < (tabAreaY + UnlockTabH).float32:
         let tabW = RoguelitePanelW div 4

@@ -2539,7 +2539,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_setup_controls": "Kit A/D  |  Heat W/S  |  Unlocks U  |  Start ENTER",
     "roguelite_sector_controls": "Sector A/D  |  Deploy ENTER",
     "roguelite_unlock_controls": "Back ESC/U",
-    "roguelite_unlock_shop_controls": "Group TAB/A-D  |  Item W/S  |  Buy ENTER  |  Back ESC",
+    "roguelite_unlock_shop_controls": "1-4/A-D: Group  |  Arrows: Item  |  ENTER: Buy  |  ESC: Back",
     "roguelite_scroll_hint": "Scroll to see more",
     "roguelite_unlock_shop_hint": "Spend shards and high-Heat cores here. Late unlocks need Heat 2+ economies.",
     "roguelite_unlock_categories": "GROUPS",
