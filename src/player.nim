@@ -1,5 +1,58 @@
 import raylib, types, wall, math, random, powerup, localization, skins, shapes, ui/ui_constants, std/deques
 
+const
+  PlayerAcceleration = 7.0'f32
+  PlayerBraking = 1.8'f32
+  PlayerInertiaReferenceRadius = 14.0'f32
+
+proc approachVelocity(current, target: Vector2f, acceleration, dt: float32): Vector2f =
+  ## Framerate-independent velocity easing for movement inertia.
+  let blend = 1.0'f32 - pow(0.001'f32, acceleration * dt)
+  current + (target - current) * clamp(blend, 0.0'f32, 1.0'f32)
+
+proc playerInertiaSizeScale(player: Player): float32 =
+  let safeRadius = max(player.radius, 1.0'f32)
+  clamp(sqrt(safeRadius / PlayerInertiaReferenceRadius), 0.75'f32, 1.85'f32)
+
+proc refreshPlayerSize(player: Player) =
+  ## Keep radius-derived gameplay values current before movement inertia reads them.
+  let hpAboveBase = max(0.0'f32, player.maxHp - 7.5'f32)
+  player.radius = player.baseRadius + sqrt(hpAboveBase) * 0.4'f32
+  player.auraRadius = player.radius * 3.5
+
+proc clampByte(value: int): uint8 =
+  uint8(max(0, min(255, value)))
+
+proc colorAlpha(color: Color, alpha: int): Color =
+  Color(r: color.r, g: color.g, b: color.b, a: clampByte(alpha))
+
+proc brighten(color: Color, amount: int, alpha: int = 255): Color =
+  Color(
+    r: clampByte(color.r.int + amount),
+    g: clampByte(color.g.int + amount),
+    b: clampByte(color.b.int + amount),
+    a: clampByte(alpha)
+  )
+
+proc darken(color: Color, amount: int, alpha: int = 255): Color =
+  Color(
+    r: clampByte(color.r.int - amount),
+    g: clampByte(color.g.int - amount),
+    b: clampByte(color.b.int - amount),
+    a: clampByte(alpha)
+  )
+
+proc orbCoreColor(elementType: ElementType, base: Color): Color =
+  case elementType
+  of etFire: Color(r: 255, g: 225, b: 90, a: 255)
+  of etLightning: Color(r: 245, g: 255, b: 255, a: 255)
+  of etPoison: Color(r: 215, g: 255, b: 160, a: 255)
+  of etWind: Color(r: 235, g: 255, b: 255, a: 255)
+  of etFrost: Color(r: 230, g: 250, b: 255, a: 255)
+  of etArcane: Color(r: 255, g: 210, b: 255, a: 255)
+  of etBlood: Color(r: 255, g: 150, b: 150, a: 255)
+  else: brighten(base, 45)
+
 proc newPlayer*(x, y: float32): Player =
   result = Player(
     pos: newVector2f(x, y),
@@ -169,6 +222,11 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.pulseArmorCooldown > 0:
     player.pulseArmorCooldown -= dt
 
+  let oldRadius = player.radius
+  refreshPlayerSize(player)
+  if player.rotatingOrbs.len > 0 and abs(player.radius - oldRadius) > 0.001'f32:
+    redistributeAllOrbs(player)
+
   # Calculate current speed with boost
   var currentSpeed = player.speed
   if player.speedBoostTimer > 0:
@@ -183,9 +241,11 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
 
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()
-    player.vel = moveDir * currentSpeed
-  else:
-    player.vel = newVector2f(0, 0)
+  let targetVel = moveDir * currentSpeed
+  let inertiaScale = playerInertiaSizeScale(player)
+  let braking = PlayerBraking / inertiaScale
+  let acceleration = (if moveDir.length() > 0: PlayerAcceleration else: PlayerBraking) / inertiaScale
+  player.vel = approachVelocity(player.vel, targetVel, acceleration, dt)
 
   # Calculate next position
   let nextPos = player.pos + player.vel * dt
@@ -199,21 +259,22 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
 
   if canMove:
     player.pos = nextPos
+  else:
+    player.vel = approachVelocity(player.vel, newVector2f(0, 0), braking, dt)
 
   # Clamp to screen
-  if player.pos.x < player.radius: player.pos.x = player.radius
-  if player.pos.x > screenWidth.float32 - player.radius: player.pos.x = screenWidth.float32 - player.radius
-  if player.pos.y < player.radius: player.pos.y = player.radius
-  if player.pos.y > screenHeight.float32 - player.radius: player.pos.y = screenHeight.float32 - player.radius
-
-  # Scale radius with max HP using square root for diminishing returns
-  # Formula: baseRadius + sqrt(maxHp - 7) * scaleFactor
-  # Note: baseRadius is also scaled by puHeavyRounds, so HP scaling preserves that multiplier.
-  let hpAboveBase = max(0.0, player.maxHp - 7.5)
-  player.radius = player.baseRadius + sqrt(hpAboveBase) * 0.4
-
-  # Scale aura with player radius - collection area
-  player.auraRadius = player.radius * 3.5  # 3.5x player size for generous collection
+  if player.pos.x < player.radius:
+    player.pos.x = player.radius
+    if player.vel.x < 0: player.vel.x = 0
+  if player.pos.x > screenWidth.float32 - player.radius:
+    player.pos.x = screenWidth.float32 - player.radius
+    if player.vel.x > 0: player.vel.x = 0
+  if player.pos.y < player.radius:
+    player.pos.y = player.radius
+    if player.vel.y < 0: player.vel.y = 0
+  if player.pos.y > screenHeight.float32 - player.radius:
+    player.pos.y = screenHeight.float32 - player.radius
+    if player.vel.y > 0: player.vel.y = 0
 
   # Update shield angle for rotating shield power-up
   player.shieldAngle += dt * 1.0  # Reduced from 2.0 to 1.0 (50% slower)
@@ -609,18 +670,22 @@ proc drawPlayer*(player: Player) =
   # Draw rotating orbs (if player has any orb power-ups)
   # Check if player has any orb power-ups before rendering
   if hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
-    let orbSizeScale = 15.5 + (player.radius - player.baseRadius) * 0.85
+    let playerOrbSizeBonus = max(0.0'f32, player.radius - player.baseRadius) * 0.85'f32
     let tPulse  = (sin(time * 4.0) * 0.12 + 0.88).float32
     let tPulseB = (sin(time * 6.0 + 1.0) * 0.18 + 0.82).float32
 
-    # Draw one faint ring per active level tier (deduplicate by radius)
+    # Draw one orbit lane per active level tier (deduplicate by radius).
     var drawnRadii: array[4, bool]
     for orb in player.rotatingOrbs:
       let lv = orb.orbLevel
       if lv >= 1 and lv <= 4 and not drawnRadii[lv - 1]:
         drawnRadii[lv - 1] = true
-        drawCircleLines(player.pos.x.int32, player.pos.y.int32, orb.radius,
-                       Color(r: 200, g: 200, b: 200, a: 10))
+        let lanePulse = sin(time * (1.8 + lv.float32 * 0.25) + lv.float32) * 1.8
+        let laneAlpha = 12 + lv * 4
+        drawCircleLines(player.pos.x.int32, player.pos.y.int32, orb.radius + lanePulse,
+                       Color(r: 190, g: 215, b: 255, a: clampByte(laneAlpha)))
+        drawCircleLines(player.pos.x.int32, player.pos.y.int32, orb.radius - 3.0,
+                       Color(r: 255, g: 255, b: 255, a: clampByte(5 + lv * 2)))
 
     for orb in player.rotatingOrbs:
       # Calculate orb position
@@ -630,41 +695,70 @@ proc drawPlayer*(player: Player) =
       let orbX = player.pos.x + cos(angle) * orb.radius
       let orbY = player.pos.y + sin(angle) * orb.radius
 
-      # Get element color
       let color = getElementColor(orb.elementType)
+      let hotColor = brighten(color, 45)
+      let shadowColor = darken(color, 70)
+      let coreColor = orbCoreColor(orb.elementType, color)
+      let levelScale = 1.0'f32 + min(3, max(0, orb.orbLevel - 1)).float32 * 0.08'f32
+      let orbSize = (13.5'f32 + playerOrbSizeBonus) * levelScale
 
-      # Comet tail: ghost orbs behind along the orbit
-      # Tail direction follows the actual orbit direction
-      for t in 1..6:
-        let tailAngle = angle - orbRotDir * t.float32 * 0.21
-        let tailAlpha = uint8(max(0, 52 - t * 9))
+      drawLine(Vector2(x: player.pos.x, y: player.pos.y),
+               Vector2(x: orbX, y: orbY), 1.0,
+               colorAlpha(color, 16 + min(12, orb.orbLevel * 3)))
+
+      # Wide luminous trail following the actual orbit direction.
+      const trailSegments = 12
+      for segment in 0..<trailSegments:
+        let fade = 1.0'f32 - segment.float32 / trailSegments.float32
+        let trailAngle0 = angle - orbRotDir * (segment.float32 * 0.105'f32 + 0.08'f32)
+        let trailAngle1 = angle - orbRotDir * ((segment.float32 + 1.0'f32) * 0.105'f32 + 0.08'f32)
+        let x0 = player.pos.x + cos(trailAngle0) * orb.radius
+        let y0 = player.pos.y + sin(trailAngle0) * orb.radius
+        let x1 = player.pos.x + cos(trailAngle1) * orb.radius
+        let y1 = player.pos.y + sin(trailAngle1) * orb.radius
+        let trailWidth = max(1.1'f32, orbSize * (0.18'f32 + fade * 0.22'f32))
+        let trailAlpha = int(118.0'f32 * fade * fade)
+        drawLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1), trailWidth,
+                 colorAlpha(color, trailAlpha))
+        drawLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1),
+                 max(1.0'f32, trailWidth * 0.32'f32), colorAlpha(hotColor, trailAlpha div 2))
+
+      # Comet tail ghost-orbs give the path a readable sense of speed.
+      for t in 1..8:
+        let tailAngle = angle - orbRotDir * t.float32 * 0.18
+        let tailAlpha = max(0, 82 - t * 9)
         let tailX = player.pos.x + cos(tailAngle) * orb.radius
         let tailY = player.pos.y + sin(tailAngle) * orb.radius
-        let tailSize = orbSizeScale * 0.62 * (1.0 - t.float32 * 0.11)
+        let tailSize = orbSize * 0.72 * (1.0'f32 - t.float32 * 0.085'f32)
         if tailSize > 1.5:
           drawCircle(Vector2(x: tailX, y: tailY), tailSize,
-                    Color(r: color.r, g: color.g, b: color.b, a: tailAlpha))
+                    colorAlpha(color, tailAlpha))
+          drawCircle(Vector2(x: tailX, y: tailY), tailSize * 0.38,
+                    colorAlpha(coreColor, tailAlpha div 2))
 
-      # Outer pulsing glow halo
-      drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale * 1.9 * tPulse,
-                Color(r: color.r, g: color.g, b: color.b, a: 20))
-      drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale * 1.4,
-                Color(r: color.r, g: color.g, b: color.b, a: 55))
+      # Layered glow, shadow rim, body, and bright glassy core.
+      drawCircle(Vector2(x: orbX, y: orbY), orbSize * 2.15 * tPulse,
+                colorAlpha(color, 18))
+      drawCircle(Vector2(x: orbX, y: orbY), orbSize * 1.55,
+                colorAlpha(color, 52))
+      drawCircle(Vector2(x: orbX, y: orbY), orbSize * 1.12,
+                colorAlpha(shadowColor, 210))
+      drawCircle(Vector2(x: orbX, y: orbY), orbSize * 0.92, color)
 
-      # Main orb body
-      drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale, color)
-
-      # Outward energy ring (time-based pulse)
-      let ringPulse = orbSizeScale * 1.2 + sin(time * 5.0 + orb.angle) * 2.5
+      let ringPulse = orbSize * 1.24 + sin(time * 5.0 + orb.angle) * 2.6
       drawCircleLines(orbX.int32, orbY.int32, ringPulse,
-                     Color(r: color.r, g: color.g, b: color.b, a: uint8(155.0 * tPulseB)))
+                     colorAlpha(hotColor, int(165.0'f32 * tPulseB)))
+      drawCircleLines(orbX.int32, orbY.int32, orbSize * 1.02,
+                     colorAlpha(brighten(color, 80), 210))
 
-      # Bright core + specular highlight
-      drawCircle(Vector2(x: orbX, y: orbY), orbSizeScale * 0.44,
-                Color(r: 255, g: 255, b: 255, a: 155))
-      drawCircle(Vector2(x: orbX - orbSizeScale * 0.17, y: orbY - orbSizeScale * 0.17),
-                orbSizeScale * 0.17,
-                Color(r: 255, g: 255, b: 255, a: 200))
+      drawCircle(Vector2(x: orbX, y: orbY), orbSize * 0.46,
+                colorAlpha(coreColor, 190))
+      drawCircle(Vector2(x: orbX - orbSize * 0.20, y: orbY - orbSize * 0.20),
+                orbSize * 0.18,
+                Color(r: 255, g: 255, b: 255, a: 220))
+      drawCircle(Vector2(x: orbX + orbSize * 0.18, y: orbY + orbSize * 0.16),
+                orbSize * 0.10,
+                colorAlpha(shadowColor, 125))
 
       # Element-specific visual effects (time-based)
       case orb.elementType:
@@ -672,7 +766,7 @@ proc drawPlayer*(player: Player) =
         # Animated flame sparks orbiting with upward float
         for i in 0..3:
           let flameAngle = time * 4.5 + i.float32 * PI * 0.5
-          let flameDist = orbSizeScale + 3 + sin(time * 7.0 + i.float32 * 1.3) * 2.5
+          let flameDist = orbSize + 3 + sin(time * 7.0 + i.float32 * 1.3) * 2.5
           let fx = orbX + cos(flameAngle) * flameDist
           let fy = orbY + sin(flameAngle) * flameDist - abs(sin(time * 8.0 + i.float32)) * 4.5
           drawCircle(Vector2(x: fx, y: fy), 2.5, Color(r: 255, g: 155, b: 25, a: 200))
@@ -682,10 +776,10 @@ proc drawPlayer*(player: Player) =
         if (time * 12.0).int mod 2 == 0:
           for i in 0..3:
             let sparkAngle = time * 3.5 + i.float32 * PI * 0.5
-            let sx = orbX + cos(sparkAngle) * (orbSizeScale + 7)
-            let sy = orbY + sin(sparkAngle) * (orbSizeScale + 7)
-            let mx = orbX + cos(sparkAngle + 0.35) * (orbSizeScale + 3.5)
-            let my = orbY + sin(sparkAngle + 0.35) * (orbSizeScale + 3.5)
+            let sx = orbX + cos(sparkAngle) * (orbSize + 7)
+            let sy = orbY + sin(sparkAngle) * (orbSize + 7)
+            let mx = orbX + cos(sparkAngle + 0.35) * (orbSize + 3.5)
+            let my = orbY + sin(sparkAngle + 0.35) * (orbSize + 3.5)
             drawLine(Vector2(x: orbX, y: orbY), Vector2(x: mx, y: my), 1,
                     Color(r: 220, g: 245, b: 255, a: 210))
             drawLine(Vector2(x: mx, y: my), Vector2(x: sx, y: sy), 1,
@@ -695,8 +789,8 @@ proc drawPlayer*(player: Player) =
         for i in 0..2:
           let bAngle = orb.angle * 2.0 + i.float32 * PI * 2.0 / 3.0
           let bRise = (time * 20.0 + i.float32 * 7.0) mod 13.0
-          let bx = orbX + cos(bAngle) * (orbSizeScale * 0.55)
-          let by = orbY + sin(bAngle) * (orbSizeScale * 0.55) - bRise
+          let bx = orbX + cos(bAngle) * (orbSize * 0.55)
+          let by = orbY + sin(bAngle) * (orbSize * 0.55) - bRise
           let bAlpha = uint8(max(0, 185 - bRise.int * 14))
           let bSize = max(0.5, 2.2 - bRise * 0.12)
           drawCircle(Vector2(x: bx, y: by), bSize, Color(r: 135, g: 255, b: 135, a: bAlpha))
@@ -705,7 +799,7 @@ proc drawPlayer*(player: Player) =
         for i in 0..3:
           let streamAngle = -time * 5.5 + i.float32 * PI * 0.5
           for s in 0..1:
-            let sd = orbSizeScale * 0.65 + s.float32 * 3.5
+            let sd = orbSize * 0.65 + s.float32 * 3.5
             let sx = orbX + cos(streamAngle + s.float32 * 0.28) * sd
             let sy = orbY + sin(streamAngle + s.float32 * 0.28) * sd
             drawCircle(Vector2(x: sx, y: sy), 1.5,
@@ -714,18 +808,18 @@ proc drawPlayer*(player: Player) =
         # Counter-rotating rune dots with bright centers
         for i in 0..2:
           let runeAngle = -time * 3.2 + i.float32 * PI * 2.0 / 3.0
-          let rx = orbX + cos(runeAngle) * (orbSizeScale + 5)
-          let ry = orbY + sin(runeAngle) * (orbSizeScale + 5)
+          let rx = orbX + cos(runeAngle) * (orbSize + 5)
+          let ry = orbY + sin(runeAngle) * (orbSize + 5)
           drawCircle(Vector2(x: rx, y: ry), 2.8, Color(r: 230, g: 155, b: 255, a: 220))
           drawCircle(Vector2(x: rx, y: ry), 1.1, Color(r: 255, g: 230, b: 255, a: 255))
       of etFrost:
         # 6-pointed ice crystal spikes slowly rotating
         for i in 0..5:
           let crystalAngle = i.float32 * PI / 3.0 + time * 0.4
-          let cx1 = orbX + cos(crystalAngle) * (orbSizeScale * 0.75)
-          let cy1 = orbY + sin(crystalAngle) * (orbSizeScale * 0.75)
-          let cx2 = orbX + cos(crystalAngle) * (orbSizeScale + 5.5)
-          let cy2 = orbY + sin(crystalAngle) * (orbSizeScale + 5.5)
+          let cx1 = orbX + cos(crystalAngle) * (orbSize * 0.75)
+          let cy1 = orbY + sin(crystalAngle) * (orbSize * 0.75)
+          let cx2 = orbX + cos(crystalAngle) * (orbSize + 5.5)
+          let cy2 = orbY + sin(crystalAngle) * (orbSize + 5.5)
           drawLine(Vector2(x: cx1, y: cy1), Vector2(x: cx2, y: cy2), 1.5,
                   Color(r: 175, g: 215, b: 255, a: 195))
           drawCircle(Vector2(x: cx2, y: cy2), 1.5, Color(r: 220, g: 240, b: 255, a: 230))
@@ -734,8 +828,8 @@ proc drawPlayer*(player: Player) =
         for i in 0..2:
           let dropAngle = orb.angle + i.float32 * PI * 2.0 / 3.0
           let dropFall = (time * 18.0 + i.float32 * 6.0) mod 14.0
-          let dx = orbX + cos(dropAngle) * (orbSizeScale * 0.55)
-          let dy = orbY + sin(dropAngle) * (orbSizeScale * 0.55) + dropFall
+          let dx = orbX + cos(dropAngle) * (orbSize * 0.55)
+          let dy = orbY + sin(dropAngle) * (orbSize * 0.55) + dropFall
           let dAlpha = uint8(max(0, 205 - dropFall.int * 15))
           let dSize = max(0.5, 2.5 - dropFall * 0.14)
           drawCircle(Vector2(x: dx, y: dy), dSize, Color(r: 220, g: 35, b: 35, a: dAlpha))

@@ -1261,7 +1261,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_sandbox": "LAB.exe",
     "desktop_icon_shop": "CHROMA.db",
     "desktop_icon_pvp": "DUELINK.exe",
-    "desktop_icon_roguelite": "ROOTMAP (ALPHA).db",
+    "desktop_icon_roguelite": "ROOTMAP_ALPHA.db",
     "desktop_icon_advancements": "ASCEND.db",
 
     # Settings
@@ -2721,7 +2721,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_sandbox": "LAB.exe",
     "desktop_icon_shop": "CROMAS.db",
     "desktop_icon_pvp": "DUELOS.exe",
-    "desktop_icon_roguelite": "ROOTMAP (ALFA).db",
+    "desktop_icon_roguelite": "ROOTMAP_ALPHA.db",
     "desktop_icon_advancements": "ASCEND.db",
 
     # Settings

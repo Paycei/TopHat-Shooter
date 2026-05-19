@@ -121,32 +121,14 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
     enemy.color = bossPhaseColor(enemy.hp / enemy.maxHp, enemy.color)
 
 
-    let dir = (playerPos - enemy.pos).normalize()
-    var canMove = true
-    let nextPos = enemy.pos + dir * effectiveSpeed * dt
-    for wall in walls:
-      if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
-        canMove = false
-        if currentTime - enemy.lastWallDamageTime >= 1.0:
-          wall.takeDamage(1.0)
-          trackWallDamaged(game)
-          enemy.hp -= 1.0
-          # Enforce minimum health of 0.01
-          if enemy.hp < 0.01:
-            enemy.hp = 0.01
-          enemy.lastWallDamageTime = currentTime
-        break
-    if canMove:
-      enemy.vel = dir * effectiveSpeed
-      enemy.pos = enemy.pos + enemy.vel * dt
-
-  else:
-    # Regular enemy updates
-    case enemy.enemyType
-    of etCircle:
+    # Custom bosses are moved by updateCustomBossBehavior in game.nim.
+    # Running this generic chase first makes them snap toward the player,
+    # especially after a committed dash exits with carried momentum.
+    if enemy.bossDefinitionID <= 0:
       let dir = (playerPos - enemy.pos).normalize()
       var canMove = true
-      let nextPos = enemy.pos + dir * effectiveSpeed * dt
+      let desiredVel = dir * effectiveSpeed
+      let nextPos = enemy.pos + applyEnemyInertia(enemy, desiredVel, dt) * dt
       for wall in walls:
         if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
           canMove = false
@@ -160,8 +142,34 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             enemy.lastWallDamageTime = currentTime
           break
       if canMove:
-        enemy.vel = dir * effectiveSpeed
         enemy.pos = enemy.pos + enemy.vel * dt
+      else:
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+
+  else:
+    # Regular enemy updates
+    case enemy.enemyType
+    of etCircle:
+      let dir = (playerPos - enemy.pos).normalize()
+      var canMove = true
+      let desiredVel = dir * effectiveSpeed
+      let nextPos = enemy.pos + applyEnemyInertia(enemy, desiredVel, dt) * dt
+      for wall in walls:
+        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+          canMove = false
+          if currentTime - enemy.lastWallDamageTime >= 1.0:
+            wall.takeDamage(1.0)
+            trackWallDamaged(game)
+            enemy.hp -= 1.0
+            # Enforce minimum health of 0.01
+            if enemy.hp < 0.01:
+              enemy.hp = 0.01
+            enemy.lastWallDamageTime = currentTime
+          break
+      if canMove:
+        enemy.pos = enemy.pos + enemy.vel * dt
+      else:
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
     of etCube:
       # Get config for this enemy type
@@ -181,6 +189,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       else:
         # Maintain optimal distance from player
         nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
+      nextPos = nextInertialEnemyPos(enemy, nextPos, dt)
 
       # Check collisions
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
@@ -189,6 +198,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Apply movement if no collisions
       if not hitWall and not hitBoundary:
         enemy.pos = nextPos
+      else:
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
       # Execute ranged attack (uses config values)
       executeRangedAttack(enemy, playerPos, game)
@@ -225,12 +236,12 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             dir.x * sin(zigzagAngle) + dir.y * cos(zigzagAngle)
           )
           if distToPlayer > 120:
-            enemy.vel = zigzagDir * effectiveSpeed * 0.9
+            discard applyEnemyInertia(enemy, zigzagDir * effectiveSpeed * 0.9, dt)
           else:
             let tangent = newVector2f(-dir.y, dir.x)
             let weaveIntensity = sin(currentTime * 10.0 + enemy.pos.y * 0.05) * 0.5
             let circleDir = (zigzagDir * (0.5 + weaveIntensity * 0.2) + tangent * (0.5 - weaveIntensity * 0.2)).normalize()
-            enemy.vel = circleDir * effectiveSpeed * 0.95
+            discard applyEnemyInertia(enemy, circleDir * effectiveSpeed * 0.95, dt)
           # Velocity dampening
           enemy.vel = enemy.vel * pow(0.98, 60.0 * dt)
       var canMove = true
@@ -268,7 +279,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         enemy.dashCooldown = config.movement.dashCooldown
       else:
         let dir = (playerPos - enemy.pos).normalize()
-        enemy.vel = dir * effectiveSpeed
+        discard applyEnemyInertia(enemy, dir * effectiveSpeed, dt)
       let nextPos = enemy.pos + enemy.vel * dt
       var canMove = true
       for wall in walls:
@@ -295,6 +306,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         # Execute the teleport to the pre-calculated destination
         enemy.pos.x = enemy.targetPos.x
         enemy.pos.y = enemy.targetPos.y
+        enemy.vel = newVector2f(0, 0)
         enemy.hexTeleportTimer = 2.5 + rand(1.0)
         enemy.attackPhase = 0  # Reset: next cycle will show a fresh warning
       elif enemy.hexTeleportTimer <= hexWarningTime and enemy.attackPhase == 0:
@@ -308,16 +320,22 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         # Warn the player at the destination
         game.attackWarnings.add(newAttackWarning(newX, newY, "hex_teleport", hexWarningTime))
         enemy.attackPhase = 1  # Warning shown; don't add it again this cycle
-        let nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed)
+        var nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed)
+        nextPos = nextInertialEnemyPos(enemy, nextPos, dt)
         let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
         if not hitWall:
           enemy.pos = nextPos
+        else:
+          discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
       else:
         # Chase player while waiting to teleport
-        let nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed)
+        var nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed)
+        nextPos = nextInertialEnemyPos(enemy, nextPos, dt)
         let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
         if not hitWall:
           enemy.pos = nextPos
+        else:
+          discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
       # Chaotic shooting (uses config for fire rate, bullet count, speed)
       executeRangedAttack(enemy, playerPos, game)
@@ -327,7 +345,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       case enemy.attackPhase
       of 0:  # Patrol - slow movement
         let dir = (playerPos - enemy.pos).normalize()
-        let nextPos = enemy.pos + dir * effectiveSpeed * dt
+        let nextPos = enemy.pos + applyEnemyInertia(enemy, dir * effectiveSpeed, dt) * dt
         var canMove = true
         for wall in walls:
           if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
@@ -335,6 +353,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             break
         if canMove:
           enemy.pos = nextPos
+        else:
+          discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
         enemy.attackWarningTimer += dt
         if enemy.attackWarningTimer >= 3.0:
@@ -345,6 +365,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
 
       of 1:  # Warning phase - stop moving, prepare for dash
         enemy.attackWarningTimer -= dt
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
         if enemy.attackWarningTimer <= 0:
           enemy.attackPhase = 2
           enemy.attackExecuteTimer = 0.5  # Dash duration
@@ -428,7 +449,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       else:
         # Normal movement between dashes
         let dir = (playerPos - enemy.pos).normalize()
-        enemy.vel = dir * effectiveSpeed * 0.7
+        discard applyEnemyInertia(enemy, dir * effectiveSpeed * 0.7, dt)
 
       # Periodic random shooting only when not dashing
       if enemy.dashTimer <= 0 and enemy.shootTimer > config.attack.fireRate:
@@ -461,6 +482,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       else:
         # Maintain optimal distance from player
         nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
+      nextPos = nextInertialEnemyPos(enemy, nextPos, dt)
 
       # Check collisions
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
@@ -469,6 +491,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Apply movement if no collisions
       if not hitWall and not hitBoundary:
         enemy.pos = nextPos
+      else:
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
       # Rapid fire with inaccuracy (uses config values)
       executeRangedAttack(enemy, playerPos, game)
@@ -491,6 +515,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       else:
         # Maintain optimal distance from player
         nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
+      nextPos = nextInertialEnemyPos(enemy, nextPos, dt)
 
       # Check collisions
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
@@ -499,6 +524,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Apply movement if no collisions
       if not hitWall and not hitBoundary:
         enemy.pos = nextPos
+      else:
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
       # Powerful pentagon sniper shot (uses config values)
       executeRangedAttack(enemy, playerPos, game)
@@ -543,6 +570,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         enemy.attackWarningTimer -= dt
         if enemy.attackWarningTimer <= 0:
           enemy.pos = enemy.targetPos
+          enemy.vel = newVector2f(0, 0)
           # Shoot 6-way burst from the real position
           executeRangedAttack(enemy, playerPos, game)
           # Reset cycle
@@ -550,10 +578,13 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.attackPhase = 0
 
       # Normal movement during both phases
-      let nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed * 0.6)
+      var nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed * 0.6)
+      nextPos = nextInertialEnemyPos(enemy, nextPos, dt)
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
       if not hitWall:
         enemy.pos = nextPos
+      else:
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
     of etPhantom:
       # Get config for this enemy type
@@ -608,6 +639,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         enemy.attackWarningTimer -= dt
         if enemy.attackWarningTimer <= 0:
           enemy.pos = enemy.targetPos
+          enemy.vel = newVector2f(0, 0)
 
           # Shoot once from the real landed position on arrival
           enemy.shootTimer = config.attack.fireRate + 1.0
@@ -649,10 +681,12 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         dir.x * cos(wobble) - dir.y * sin(wobble),
         dir.x * sin(wobble) + dir.y * cos(wobble)
       )
-      let nextPos = enemy.pos + wobbleDir * effectiveSpeed * 0.7 * dt
+      let nextPos = enemy.pos + applyEnemyInertia(enemy, wobbleDir * effectiveSpeed * 0.7, dt) * dt
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
       if not hitWall:
         enemy.pos = nextPos
+      else:
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
     of etSniper:
       # Sniper enemy - charges a powerful one-shot attack with warning
@@ -670,7 +704,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       case enemy.attackPhase
       of 0:  # Hunting phase - moves toward player
         let dir = (playerPos - enemy.pos).normalize()
-        let nextPos = enemy.pos + dir * effectiveSpeed * 0.8 * dt
+        let nextPos = enemy.pos + applyEnemyInertia(enemy, dir * effectiveSpeed * 0.8, dt) * dt
         var canMove = true
         for wall in walls:
           if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
@@ -678,6 +712,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             break
         if canMove:
           enemy.pos = nextPos
+        else:
+          discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
         # When close enough, start charging
         if distToPlayer < triggerRange:
@@ -689,6 +725,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
 
       of 1:  # Charging phase - stands still, glows brighter
         enemy.attackWarningTimer += dt
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
         # Visual charging: change color intensity
         let chargeAmount = enemy.attackWarningTimer / enemy.attackExecuteTimer
         let intensity = uint8(150 + chargeAmount * 105)
@@ -703,6 +740,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
 
       of 2:  # Cooldown phase - recover before hunting again
         enemy.attackExecuteTimer -= dt
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
         if enemy.attackExecuteTimer <= 0:
           enemy.attackPhase = 0
       else:
@@ -765,6 +803,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         nextPos = forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game)
       else:
         nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
+      nextPos = nextInertialEnemyPos(enemy, nextPos, dt)
 
       # Check wall collisions
       var canMove = true
@@ -804,6 +843,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
 
       if canMove:
         enemy.pos = nextPos
+      else:
+        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
   # Update chain lightning cooldown
   if enemy.chainLightningCooldown > 0:
@@ -3087,6 +3128,10 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       dashVelocity: newVector2f(0, 0),
       dashDuration: 0,
       dashMaxDuration: 0,
+      dashTargetPos: newVector2f(0, 0),
+      pendingDashLocked: false,
+      pendingDashStart: newVector2f(0, 0),
+      pendingDashTarget: newVector2f(0, 0),
       activeEffects: default(array[ElementType, ActiveEffect])
     )
 

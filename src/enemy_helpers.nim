@@ -3,6 +3,43 @@
 
 import raylib, types, random, math, tables, strutils, enemy_config, bullet, wall, run_statistics
 
+const
+  EnemyInertiaAcceleration* = 4.5'f32
+  EnemyInertiaBraking* = 1.4'f32
+  EnemyInertiaReferenceRadius* = 10.5'f32
+  BossInertiaReferenceRadius* = 50.0'f32
+
+proc approachVelocity*(current, target: Vector2f, acceleration, dt: float32): Vector2f =
+  ## Framerate-independent velocity easing shared by enemy movement patterns.
+  let blend = 1.0'f32 - pow(0.001'f32, acceleration * dt)
+  current + (target - current) * clamp(blend, 0.0'f32, 1.0'f32)
+
+proc enemyInertiaSizeScale*(enemy: Enemy): float32 =
+  let referenceRadius =
+    if enemy.isBoss: BossInertiaReferenceRadius
+    else: EnemyInertiaReferenceRadius
+  let safeRadius = max(enemy.radius, 1.0'f32)
+  clamp(sqrt(safeRadius / referenceRadius), 0.75'f32, 2.4'f32)
+
+proc applyEnemyInertia*(enemy: var Enemy, desiredVel: Vector2f, dt: float32,
+                        acceleration: float32 = EnemyInertiaAcceleration,
+                        braking: float32 = EnemyInertiaBraking): Vector2f =
+  let sizeScale = enemyInertiaSizeScale(enemy)
+  let smoothing =
+    if desiredVel.length() > 0.01'f32: acceleration / sizeScale
+    else: braking / sizeScale
+  enemy.vel = approachVelocity(enemy.vel, desiredVel, smoothing, dt)
+  enemy.vel
+
+proc desiredVelocityFromNext*(currentPos, desiredNextPos: Vector2f, dt: float32): Vector2f =
+  if dt <= 0:
+    return newVector2f(0, 0)
+  (desiredNextPos - currentPos) * (1.0'f32 / dt)
+
+proc nextInertialEnemyPos*(enemy: var Enemy, desiredNextPos: Vector2f, dt: float32): Vector2f =
+  let desiredVel = desiredVelocityFromNext(enemy.pos, desiredNextPos, dt)
+  enemy.pos + applyEnemyInertia(enemy, desiredVel, dt) * dt
+
 # SPECIAL DATA PARSING
 proc parseSpecialData*(data: string): Table[string, string] =
   ## Parse special behavior data string into key-value table

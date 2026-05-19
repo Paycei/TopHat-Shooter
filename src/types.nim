@@ -495,6 +495,10 @@ type
     dashVelocity*: Vector2f  # Velocity during dash
     dashDuration*: float32  # Remaining dash duration
     dashMaxDuration*: float32  # Total dash duration for this attack
+    dashTargetPos*: Vector2f  # Exact endpoint for the current committed dash
+    pendingDashLocked*: bool  # True while a dash warning has locked the next dash line
+    pendingDashStart*: Vector2f  # Exact start point shown by the dash warning
+    pendingDashTarget*: Vector2f  # Exact endpoint shown by the dash warning
     satellites*: seq[OrbitalSatellite]  # Persistent satellites that can be destroyed
     invulnerabilityTimer*: float32  # Brief invulnerability during phase transitions
     auraDamageAccumulator*: float32  # Accumulates aura damage over time

@@ -1,4 +1,4 @@
-import raylib, rlgl, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, particle_pool, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival, render_context, roguelite
+import raylib, rlgl, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, particle_pool, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, enemy_helpers, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival, render_context, roguelite
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -2143,6 +2143,7 @@ proc resetBossBehaviorState(enemy: Enemy, specialBehavior: string) =
   ## Reset boss-only timers when a phase starts so movement accents do not carry
   ## burst windows or teleport cadences across unrelated behaviors.
   enemy.burstTimer = 0.0
+  enemy.pendingDashLocked = false
 
   case specialBehavior
   of "critical_discharge":
@@ -2221,11 +2222,19 @@ proc tryBossBehaviorTeleport(game: Game, enemy: Enemy, dt: float32,
     game, enemy, minRadius, maxRadius, effectColor, effectSize, minPlayerDistance
   )
 
-proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefinition, dt: float32) =
+proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefinition, dt: float32) =
   ## Updates boss movement based on phase specialBehavior
   if phase.specialBehavior == "":
     return
+  if enemy.pendingDashLocked:
+    enemy.vel = newVector2f(0, 0)
+    enemy.pos = enemy.pendingDashStart
+    return
+  if enemy.isDashing:
+    enemy.vel = enemy.dashVelocity
+    return
 
+  let startPos = enemy.pos
   let playerDist = distance(enemy.pos, game.player.pos)
   let toPlayer = (game.player.pos - enemy.pos).normalize()
   let centerX = game.screenWidth.float32 / 2.0
@@ -2698,6 +2707,25 @@ proc updateCustomBossBehavior(game: Game, enemy: Enemy, phase: BossPhaseDefiniti
   else:
     discard
 
+  if dt > 0 and not enemy.isDashing:
+    let desiredPos = enemy.pos
+    let frameMove = desiredPos - startPos
+    let frameDistance = frameMove.length()
+    let teleportDistance = max(90.0'f32, enemy.speed * dt * 5.0'f32)
+
+    # Let deliberate long-range boss teleports snap, but give all regular
+    # phase movement real mass by smoothing the velocity that reaches it.
+    if frameDistance > 0.01'f32 and frameDistance <= teleportDistance:
+      let desiredVel = frameMove * (1.0'f32 / dt)
+      let isJuggernaut = enemy.bossDefinitionID == 8
+      let accel = if isJuggernaut: 2.8'f32 else: 1.7'f32
+      let brake = if isJuggernaut: 0.55'f32 else: 0.8'f32
+      enemy.pos = startPos
+      discard applyEnemyInertia(enemy, desiredVel, dt, accel, brake)
+      enemy.pos = enemy.pos + enemy.vel * dt
+    elif frameDistance > teleportDistance:
+      enemy.vel = newVector2f(0, 0)
+
 proc addBossAttackWarning(game: var Game, enemy: Enemy, attack: BossAttack) =
   ## Emits a short visual pre-fire warning for a boss attack.
   ## Called ~0.45 s before the attack actually fires.
@@ -2739,8 +2767,14 @@ proc addBossAttackWarning(game: var Game, enemy: Enemy, attack: BossAttack) =
     else:
       game.player.pos
 
+  if attack.attackType == bapDash:
+    enemy.pendingDashLocked = true
+    enemy.pendingDashStart = enemy.pos
+    enemy.pendingDashTarget = warningTargetPos
+    enemy.vel = newVector2f(0, 0)
+
   game.attackWarnings.add(AttackWarning(
-    pos:                  enemy.pos,
+    pos:                  if attack.attackType == bapDash: enemy.pendingDashStart else: enemy.pos,
     attackType:           warningType,
     lifetime:             WARNING_DURATION,
     maxLifetime:          WARNING_DURATION,
@@ -4026,7 +4060,25 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     # - "rage_charge": THREE charges in combo! Maximum aggression!
 
     let dashMode = attack.specialData
-    let dashDir = toPlayer
+    var dashStart = enemy.pos
+    var dashTarget: Vector2f
+    var dashDist: float32
+    if enemy.pendingDashLocked:
+      dashStart = enemy.pendingDashStart
+      dashTarget = enemy.pendingDashTarget
+      dashDist = distance(dashStart, dashTarget)
+    else:
+      dashDist = case dashMode
+        of "charge_attack": 350.0'f32
+        of "double_charge": 300.0'f32
+        of "rage_charge":   280.0'f32
+        else:               350.0'f32
+      dashTarget = dashStart + toPlayer * dashDist
+
+    let dashDir = if dashDist > 0.01'f32:
+      (dashTarget - dashStart).normalize()
+    else:
+      toPlayer
     var dashSpeed = attack.projectileSpeed
 
     # Cap dash speed to player speed for fairness
@@ -4034,24 +4086,29 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     if dashSpeed > game.player.speed:
       dashSpeed = game.player.speed
 
-    # Configure dash based on mode
-    let (dashDist, trailColor) = case dashMode
+    # Configure dash visuals based on mode. Distance is locked by the warning
+    # above so execution cannot retarget after the marker appears.
+    let trailColor = case dashMode
       of "charge_attack":
-        (350.0, Color(r: 255, g: 50, b: 0, a: 255))  # Single charge, red trail
+        Color(r: 255, g: 50, b: 0, a: 255)  # Single charge, red trail
       of "double_charge":
-        (300.0, Color(r: 255, g: 100, b: 0, a: 255))  # Double charge, bright red
+        Color(r: 255, g: 100, b: 0, a: 255)  # Double charge, bright red
       of "rage_charge":
-        (280.0, Color(r: 255, g: 0, b: 0, a: 255))  # TRIPLE charge, pure red
+        Color(r: 255, g: 0, b: 0, a: 255)  # TRIPLE charge, pure red
       else:
-        (350.0, phase.color)  # Default
+        phase.color  # Default
 
     let dashTime = dashDist / dashSpeed  # Calculate duration based on speed
 
     # Set up dash state with charge count
     enemy.isDashing = true
+    enemy.pos = dashStart
     enemy.dashVelocity = dashDir * dashSpeed
+    enemy.vel = enemy.dashVelocity
     enemy.dashDuration = dashTime
     enemy.dashMaxDuration = dashTime
+    enemy.dashTargetPos = dashTarget
+    enemy.pendingDashLocked = false
 
     # Store remaining charges (will re-trigger after current dash finishes)
     # This is handled in boss update logic by checking dashChargesRemaining
@@ -4064,8 +4121,8 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     for i in 0..<trailCount:
       let trailPos = i.float32 * (dashDist / trailCount.float32)
       game.bullets.add(newBullet(
-        x = enemy.pos.x + dashDir.x * trailPos,
-        y = enemy.pos.y + dashDir.y * trailPos,
+        x = dashStart.x + dashDir.x * trailPos,
+        y = dashStart.y + dashDir.y * trailPos,
         direction = dashDir,
         speed = dashSpeed * 0.4,  # Trail effect
         damage = attack.damage * phase.damageMultiplier * 0.6,  # Trail damage
@@ -5920,7 +5977,7 @@ proc updateGame*(game: var Game, dt: float32) =
   # Boss attack loop
   enemyIdx = 0
   while enemyIdx < game.enemies.len:
-    let enemy = game.enemies[enemyIdx]
+    var enemy = game.enemies[enemyIdx]
 
     # BOSS SPECIAL ATTACKS
     if enemy.isBoss:
@@ -6006,8 +6063,22 @@ proc updateGame*(game: var Game, dt: float32) =
       if enemy.isDashing:
         enemy.dashDuration -= dt
         if enemy.dashDuration > 0:
-          # Apply dash velocity
-          enemy.pos = enemy.pos + enemy.dashVelocity * dt
+          # Apply dash velocity strictly along the committed warning line.
+          # Projection keeps inertia/other systems from nudging the boss off-path.
+          let dashStart = enemy.pendingDashStart
+          let dashEnd = enemy.dashTargetPos
+          let dashPath = dashEnd - dashStart
+          let dashLenSq = dashPath.x * dashPath.x + dashPath.y * dashPath.y
+          if dashLenSq > 0.01'f32:
+            let proposedPos = enemy.pos + enemy.dashVelocity * dt
+            let fromStart = proposedPos - dashStart
+            let progress = clamp((fromStart.x * dashPath.x + fromStart.y * dashPath.y) / dashLenSq,
+                                 0.0'f32, 1.0'f32)
+            enemy.pos = dashStart + dashPath * progress
+            if progress >= 1.0'f32:
+              enemy.dashDuration = 0
+          else:
+            enemy.dashDuration = 0
 
           # Create dash trail particles ~15 times/sec regardless of fps
           if (enemy.dashDuration mod (1.0 / 15.0)) < dt:
@@ -6018,6 +6089,7 @@ proc updateGame*(game: var Game, dt: float32) =
             spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, trailColor, 5)
         else:
           # Dash complete
+          enemy.vel = enemy.dashVelocity
           enemy.isDashing = false
           enemy.dashDuration = 0
           if enemy.currentPhaseIndex < bossDef.phases.len:
