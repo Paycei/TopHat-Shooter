@@ -43,5 +43,12 @@
 ```bash
 git clone https://github.com/Paycei/TopHat-Shooter.git
 cd TopHat-Shooter
+
+# Instalar dependencias
 nimble install
-nimble release
+
+# Compilar para Windows (desde Windows)
+nimble WinRelease
+
+# Compilar para Linux (desde Linux)
+nimble LinuxRelease
