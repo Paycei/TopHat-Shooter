@@ -303,7 +303,7 @@ type
     elementType*: ElementType          # Which element this orb has
     orbLevel*: int                     # 1-3 = elemental level, 4 = legendary tier
     hitEnemies*: seq[int]              # Track which enemies were hit (by index)
-    lastHitTime*: Table[int, float32]  # Track when each enemy was last hit
+    lastHitTime*: Table[int, float32]  # Track when each enemy was last hit (pruned on access)
 
   Player* = ref object
     pos*: Vector2f
@@ -463,7 +463,7 @@ type
     slowTimer*: float32
     entranceWait*: float32        # Brief wait after arrival before boss begins attacking
     slowAmount*: float32
-    activeEffects*: Table[ElementType, ActiveEffect]  # Unified effect system
+    activeEffects*: array[ElementType, ActiveEffect]  # Unified effect system; indexed directly by ElementType
     chainLightningCooldown*: float32
 
     attackWarningTimer*: float32

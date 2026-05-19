@@ -4164,9 +4164,17 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   ## Returns true if damage was applied
 
   # Check if we can hit this enemy (cooldown check)
-  if orb.lastHitTime.hasKey(enemyIdx):
-    if currentTime - orb.lastHitTime[enemyIdx] < 0.5:  # 0.5s cooldown per enemy
-      return false
+  # Prune stale entries while we're here: any entry older than 2s is a dead
+  # enemy and will never be referenced again (IDs only increment).
+  var toDelete: seq[int]
+  for id, t in orb.lastHitTime:
+    if currentTime - t > 2.0:
+      toDelete.add(id)
+  for id in toDelete:
+    orb.lastHitTime.del(id)
+
+  if orb.lastHitTime.getOrDefault(enemyIdx, 0.0) > currentTime - 0.5:
+    return false  # Still within 0.5s cooldown
 
   # Calculate actual damage
   var actualBaseDamage = baseDamage

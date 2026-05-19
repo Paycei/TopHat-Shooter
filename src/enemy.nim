@@ -1,4 +1,4 @@
-﻿import raylib, types, random, math, wall, tables, boss_definitions, run_statistics, enemy_config, enemy_helpers
+﻿import raylib, types, random, math, wall, boss_definitions, run_statistics, enemy_config, enemy_helpers
 
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
   # Get enemy configuration
@@ -43,7 +43,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
       else: 0,
     attackPhase: 0,
     hasEnteredScreen: not config.requiresScreenEntry,  # Inverted logic
-    activeEffects: initTable[ElementType, ActiveEffect](),
+    activeEffects: default(array[ElementType, ActiveEffect]),
     dashCooldown: config.movement.dashCooldown,
     hexTeleportTimer: if config.movement.teleportCooldown > 0: config.movement.teleportCooldown + rand(1.0) else: 0,
     fakeWarningTimer: if config.specialBehaviorType == "fake_warning_teleport": 3.0 + rand(2.0) else: 0,
@@ -3087,7 +3087,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       dashVelocity: newVector2f(0, 0),
       dashDuration: 0,
       dashMaxDuration: 0,
-      activeEffects: initTable[ElementType, ActiveEffect]()
+      activeEffects: default(array[ElementType, ActiveEffect])
     )
 
 proc makeElite*(enemy: Enemy, waveNumber: int = 0) =

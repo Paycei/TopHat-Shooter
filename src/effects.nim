@@ -1,4 +1,4 @@
-import types, tables
+import types
 
 proc nullEffect(et: ElementType): EffectInstance =
   ## Returns a zeroed-out inactive EffectInstance for the given element type.
@@ -15,12 +15,12 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
   ## - Si el actual está INACTIVO/terminado, aplica el nuevo igual
   ## - Si es igual o más débil pero el actual está activo, ignora
 
-  # Revisar si no existe el efecto O si el efecto actual ya está completamente terminado
-  if not enemy.activeEffects.hasKey(effectType) or
-     (not enemy.activeEffects[effectType].primary.isActive and
-      enemy.activeEffects[effectType].primary.remainingDuration <= 0 and
-      enemy.activeEffects[effectType].fallback.remainingDuration <= 0):
-    # Nuevo efecto, crear o reinicializar completamente
+  let cur = enemy.activeEffects[effectType]
+
+  # Apply fresh when slot is completely idle
+  if not cur.primary.isActive and
+     cur.primary.remainingDuration <= 0 and
+     cur.fallback.remainingDuration <= 0:
     enemy.activeEffects[effectType] = ActiveEffect(
       primary: EffectInstance(
         elementType: effectType,
@@ -33,29 +33,23 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
       fallback: nullEffect(effectType)
     )
   else:
-    # Ya existe un efecto de este tipo y tiene duración o está activo
-    let currentEffect = enemy.activeEffects[effectType]
-
-    if damagePerSec > currentEffect.primary.damagePerSec:
-      # El nuevo efecto es más fuerte, guardamos el actual como fallback
-      var newActiveEffect = enemy.activeEffects[effectType]
-
-      # Guardar el efecto actual como fallback (si tiene duración restante)
-      if currentEffect.primary.remainingDuration > 0:
-        newActiveEffect.fallback = EffectInstance(
-          elementType: effectType,
-          damagePerSec: currentEffect.primary.damagePerSec,
-          remainingDuration: currentEffect.primary.remainingDuration,
-          maxDuration: currentEffect.primary.maxDuration,
-          isActive: false,
-          source: currentEffect.primary.source
-        )
-      else:
-        # El efecto anterior ya se acabó, no hay fallback
-        newActiveEffect.fallback = nullEffect(effectType)
-
-      # Aplicar el nuevo efecto como principal
-      newActiveEffect.primary = EffectInstance(
+    # Slot has an active or pending effect
+    if damagePerSec > cur.primary.damagePerSec:
+      # Stronger — push current to fallback if it still has duration
+      var updated = enemy.activeEffects[effectType]
+      updated.fallback =
+        if cur.primary.remainingDuration > 0:
+          EffectInstance(
+            elementType: effectType,
+            damagePerSec: cur.primary.damagePerSec,
+            remainingDuration: cur.primary.remainingDuration,
+            maxDuration: cur.primary.maxDuration,
+            isActive: false,
+            source: cur.primary.source
+          )
+        else:
+          nullEffect(effectType)
+      updated.primary = EffectInstance(
         elementType: effectType,
         damagePerSec: damagePerSec,
         remainingDuration: duration,
@@ -63,17 +57,15 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
         isActive: true,
         source: source
       )
-
-      enemy.activeEffects[effectType] = newActiveEffect
-    elif damagePerSec == currentEffect.primary.damagePerSec and currentEffect.primary.isActive:
-      # Mismo poder y primario está ACTIVO, extender duración
-      var updated = enemy.activeEffects[effectType]
-      # Si la nueva duración es mayor O si quiere refrescar, actualizar
-      if duration > currentEffect.primary.remainingDuration:
+      enemy.activeEffects[effectType] = updated
+    elif damagePerSec == cur.primary.damagePerSec and cur.primary.isActive:
+      # Same power and still active — extend if incoming duration is longer
+      if duration > cur.primary.remainingDuration:
+        var updated = enemy.activeEffects[effectType]
         updated.primary.remainingDuration = duration
         updated.primary.maxDuration = duration
-      enemy.activeEffects[effectType] = updated
-    # Si es más débil que el actual activo, no hacemos nada (ignora el efecto débil)
+        enemy.activeEffects[effectType] = updated
+    # Weaker than active primary — ignore
 
 proc updateEffects*(enemy: Enemy, dt: float32): float32 =
   ## Actualiza todos los efectos del enemigo y retorna el daño total a aplicar
@@ -81,35 +73,32 @@ proc updateEffects*(enemy: Enemy, dt: float32): float32 =
 
   var totalDamage: float32 = 0.0
 
-  for elementType, activeEffect in enemy.activeEffects.mpairs:
-    if activeEffect.primary.isActive and activeEffect.primary.remainingDuration > 0:
-      # El efecto primario sigue activo
-      totalDamage += activeEffect.primary.damagePerSec * dt
-      activeEffect.primary.remainingDuration -= dt
+  for elementType in ElementType:
+    var ae = enemy.activeEffects[elementType]
+    if ae.primary.isActive and ae.primary.remainingDuration > 0:
+      totalDamage += ae.primary.damagePerSec * dt
+      ae.primary.remainingDuration -= dt
 
-      # Verificar si el primario se acabó
-      if activeEffect.primary.remainingDuration <= 0:
-        activeEffect.primary.remainingDuration = 0
-        activeEffect.primary.isActive = false
+      if ae.primary.remainingDuration <= 0:
+        ae.primary.remainingDuration = 0
+        ae.primary.isActive = false
 
-        # Cambiar a fallback si existe
-        if activeEffect.fallback.remainingDuration > 0:
-          activeEffect.primary = activeEffect.fallback
-          activeEffect.primary.isActive = true
+        # Promote fallback if it has remaining duration
+        if ae.fallback.remainingDuration > 0:
+          ae.primary = ae.fallback
+          ae.primary.isActive = true
+          ae.fallback = nullEffect(elementType)
 
-          # Limpiar fallback
-          activeEffect.fallback = nullEffect(elementType)
+    # Tick fallback duration regardless
+    if ae.fallback.remainingDuration > 0:
+      ae.fallback.remainingDuration -= dt
+      if ae.fallback.remainingDuration < 0:
+        ae.fallback.remainingDuration = 0
 
-    # Asegurar que el fallback también se actualiza en tiempo (aunque no aplique daño)
-    if activeEffect.fallback.remainingDuration > 0:
-      activeEffect.fallback.remainingDuration -= dt
-      if activeEffect.fallback.remainingDuration < 0:
-        activeEffect.fallback.remainingDuration = 0
+    enemy.activeEffects[elementType] = ae
 
   return totalDamage
 
 proc hasActiveEffect*(enemy: Enemy, elementType: ElementType): bool =
   ## Retorna true si hay un efecto activo de ese tipo
-  if not enemy.activeEffects.hasKey(elementType):
-    return false
-  return enemy.activeEffects[elementType].primary.isActive
+  enemy.activeEffects[elementType].primary.isActive
