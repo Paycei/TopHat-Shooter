@@ -6,3 +6,4 @@ nimble.develop
 nimble.paths
 nimbledeps
 src/discord_config.nim
+*.zip
