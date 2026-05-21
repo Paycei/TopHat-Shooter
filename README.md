@@ -2,53 +2,50 @@
 
 ![Nim](https://img.shields.io/badge/Nim-FFE953?style=for-the-badge&logo=nim&logoColor=black)
 ![Raylib](https://img.shields.io/badge/Raylib-000000?style=for-the-badge&logo=c&logoColor=white)
-
 ![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=for-the-badge&logo=apache&logoColor=white)
 
-**TopHat-ShooterOS** es un *bullet hell* rápido, caótico y hecho en **Nim + Raylib** btw.
+TopHat-ShooterOS is a fast, chaotic bullet-heaven built with Nim + Raylib.
 
 ---
 
-## Contenido
+**Features**
 
-### Modos de juego
-- **Waves**: avanza por oleadas, consigue mejoras y enfréntate a jefes.
-- **Survival**: resiste todo lo que puedas mientras el caos escala (TODO).
+- Modes: Waves (wave-based) and Survival (coming soon).
+- 60+ power-ups, 13 enemy types, and 12 bosses.
+- Permanent upgrade shop, consumables, and deployable walls.
+- Builds for Windows and Linux using Nim.
 
-### Enemigos y jefes
-- **13 tipos de enemigos**, cada uno con un comportamiento distinto.
-- **12 Jefes que aparecen cada 5 oleadas**, con fases cambiantes y recompensas legendarias.
+**Installation & Running**
 
-### Progresión y combate
-- **60+ power-ups**, desde *multishot* hasta control del tiempo.
-- **Tienda**: mejora daño, velocidad, vida y más permanentemente.
-- **6 consumibles** y **muros defensivos** (aunque nadie los use están ahí).
-
----
-
-## Controles
-
-| Tecla           | Acción                         |
-|-----------------|--------------------------------|
-| WASD            | Moverse                        |
-| Mouse / Space   | Disparar                       |
-| E               | Colocar muro                   |
-| Q               | Usar power-up activo(s)        |
-| ESC             | Pausa                          |
-
----
-
-## Instalación y ejecución
+Note: To be able to compile TopHat-Shooteros, copy `src/discord_config.nim.example` to `src/discord_config.nim` and optionally add your discord app ID.
 
 ```bash
 git clone https://github.com/Paycei/TopHat-Shooter.git
 cd TopHat-Shooter
 
-# Instalar dependencias
+# Install dependencies
 nimble install
+```
 
-# Compilar para Windows (desde Windows)
+```
+# Run in debug mode
+nimble run
+```
+
+```
+# Build for Windows (run from Windows)
 nimble WinRelease
+```
 
-# Compilar para Linux (desde Linux)
+```
+# Build for Linux (run from Linux)
 nimble LinuxRelease
+```
+
+**Contributing**
+
+- Issues and pull requests are welcome.
+
+**License**
+
+Apache 2.0, see LICENSE.
