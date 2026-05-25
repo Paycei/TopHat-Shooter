@@ -1617,7 +1617,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_heal_power_desc2": "All healing received is amplified by 20%. Affects regeneration, lifesteal, and consumables.",
     "powerup_heal_power_desc3": "All healing received is amplified by 25%. Affects regeneration, lifesteal, and consumables.",
     "powerup_bountiful": "Cornucopia",
-    "powerup_bountiful_desc": "Enemies drop consumables double the time. Consumable effects are 50% stronger and last 50% longer. Every 15th kill triggers a jackpot.",
+    "powerup_bountiful_desc": "Double consumable drops. Consumables are 50% stronger and last 50% longer. Every 15th kill triggers a jackpot.",
 
     # Player Feedback
     "player_dodge": "DODGE!",
@@ -3077,7 +3077,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_heal_power_desc2": "Toda la curación recibida se amplifica un 20 %. Afecta a regeneración, roba-vida y consumibles.",
     "powerup_heal_power_desc3": "Toda la curación recibida se amplifica un 25 %. Afecta a regeneración, roba-vida y consumibles.",
     "powerup_bountiful": "Cornucopia",
-    "powerup_bountiful_desc": "Los enemigos sueltan consumibles el doble de veces. Los efectos duran un 50% más y son un 50% más potentes. Cada 15 kills garantiza un bote de consumibles.",
+    "powerup_bountiful_desc": "Doble drop de consumibles. Son un 50% más potentes y duran un 50% más. Cada 15 kills activa un jackpot.",
 
     # Stats Window
     "stats_window_title": "Monitor del Sistema - Análisis de Jugador",
