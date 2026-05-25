@@ -1,4 +1,5 @@
-import raylib, rlgl, types, player, enemy, bullet, consumable, coin, wall, ui/os_shop, particle, particle_pool, powerup, sound, random, math, settings, tables, effects, boss_definitions, run_statistics, gamemode_definitions, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, localization, enemy_config, enemy_helpers, particle_skins, d_systems, d_visuals, d_enhancements, ui/ui_constants, game3d/game_3d, survival, render_context, roguelite
+import raylib, rlgl, random, math, tables
+import types, settings, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, gamemode_definitions, run_statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -23,6 +24,85 @@ proc getDeathSequenceTimeScale(timer: float32): float32 =
   DEATH_SEQUENCE_FAST_SCALE
 
 proc updateLightningBolts*(game: var Game, dt: float32)
+
+proc clampByte(value: int): uint8 =
+  uint8(max(0, min(255, value)))
+
+proc withAlpha(color: Color, alpha: int): Color =
+  Color(r: color.r, g: color.g, b: color.b, a: clampByte(alpha))
+
+proc installPowerUp*(game: var Game, powerUp: PowerUp) =
+  ## Centralized install feedback so every selected power-up feels like an event.
+  applyPowerUp(game.player, powerUp)
+  trackPowerUpSelection(game, powerUp)
+
+  let accent = if powerUp.rarity == prLegendary:
+    Color(r: 255, g: 215, b: 0, a: 255)
+  else:
+    getPowerUpColor(powerUp.powerType)
+  let powerUpName = getPowerUpName(powerUp.powerType)
+
+  game.recentPowerUp = powerUp
+  game.recentPowerUpMaxTimer = if powerUp.rarity == prLegendary: 5.0'f32 else: 4.0'f32
+  game.recentPowerUpTimer = game.recentPowerUpMaxTimer
+  addNotification(game.osHUD, t(tkNotifInstalled) & " " & powerUpName,
+                  if powerUp.rarity == prLegendary: ntCritical else: ntInfo)
+  addShake(game.dopamine.screenShake, siPowerUp, accent)
+  spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                       accent, if powerUp.rarity == prLegendary: 72 else: 46)
+  playSound(stPowerUp, if powerUp.rarity == prLegendary: 1.0 else: 0.85)
+
+proc drawRecentPowerUpInstall(game: Game) =
+  if game.recentPowerUpTimer <= 0.0 or game.recentPowerUpMaxTimer <= 0.0:
+    return
+
+  let progress = clamp(game.recentPowerUpTimer / game.recentPowerUpMaxTimer, 0.0'f32, 1.0'f32)
+  let fadeIn = clamp((game.recentPowerUpMaxTimer - game.recentPowerUpTimer) / 0.22'f32, 0.0'f32, 1.0'f32)
+  let fadeOut = clamp(game.recentPowerUpTimer / 0.55'f32, 0.0'f32, 1.0'f32)
+  let alphaF = min(fadeIn, fadeOut)
+  let alpha = int(255.0'f32 * alphaF)
+  if alpha <= 0:
+    return
+
+  let powerUp = game.recentPowerUp
+  let accent = if powerUp.rarity == prLegendary:
+    Color(r: 255, g: 215, b: 0, a: 255)
+  else:
+    getPowerUpColor(powerUp.powerType)
+  let name = getPowerUpName(powerUp.powerType)
+  let title = if powerUp.rarity == prLegendary: "LEGENDARY INSTALLED" else: "POWER-UP INSTALLED"
+  let nameSize: int32 = if measureText(name, 18) > 220: 15 else: 18
+  let cardWidth: int32 = min(330'i32, max(220'i32, measureText(name, nameSize) + 88'i32))
+  let cardHeight: int32 = 58
+  let lift = (1.0'f32 - progress) * 20.0'f32
+  let pulse = 1.0'f32 + sin(game.time * 8.0'f32) * 0.035'f32
+  var cardX = (game.player.pos.x - cardWidth.float32 / 2.0'f32).int32
+  var cardY = (game.player.pos.y - game.player.radius - 92.0'f32 - lift).int32
+  cardX = clamp(cardX, 12'i32, game.screenWidth - cardWidth - 12'i32)
+  cardY = clamp(cardY, 38'i32, game.screenHeight - cardHeight - 24'i32)
+
+  let ringAlpha = int(145.0'f32 * alphaF)
+  for ring in 0..2:
+    let ringT = ((1.0'f32 - progress) + ring.float32 * 0.21'f32) mod 1.0'f32
+    let radius = game.player.radius + 22.0'f32 + ringT * 78.0'f32
+    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, radius,
+                    withAlpha(accent, int(ringAlpha.float32 * (1.0'f32 - ringT))))
+
+  let scaledW = (cardWidth.float32 * pulse).int32
+  let scaledH = (cardHeight.float32 * pulse).int32
+  cardX -= (scaledW - cardWidth) div 2
+  cardY -= (scaledH - cardHeight) div 2
+
+  drawRectangle(cardX + 3, cardY + 4, scaledW, scaledH, Color(r: 0, g: 0, b: 0, a: clampByte(alpha div 3)))
+  drawRectangle(cardX, cardY, scaledW, scaledH, Color(r: 7, g: 12, b: 20, a: clampByte(int(220.0'f32 * alphaF))))
+  drawRectangle(cardX, cardY, 4, scaledH, withAlpha(accent, alpha))
+  drawRectangleLines(Rectangle(x: cardX.float32, y: cardY.float32, width: scaledW.float32, height: scaledH.float32),
+                     1, withAlpha(accent, alpha))
+  drawPowerUpIcon(cardX + 12, cardY + 10, 38, powerUp.powerType, withAlpha(accent, alpha))
+  drawText(title, cardX + 61, cardY + 10, 10, withAlpha(accent, alpha))
+  drawText(name, cardX + 61, cardY + 25, nameSize, Color(r: 240, g: 248, b: 255, a: clampByte(alpha)))
+  let levelText = if powerUp.rarity == prLegendary: "ONE-SHOT MODULE" else: "LEVEL " & $powerUp.level
+  drawText(levelText, cardX + 61, cardY + 45, 9, Color(r: 165, g: 190, b: 210, a: clampByte(alpha)))
 
 proc spawnPlayerDeathExplosion(game: Game) =
   let deathPos = game.player.pos
@@ -1383,6 +1463,9 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     selectedShopItem: 0,
     menuSelection: 0,
     selectedPowerUp: 0,
+    recentPowerUp: PowerUp(powerType: puDoubleShot, level: 0, rarity: prCommon),
+    recentPowerUpTimer: 0.0,
+    recentPowerUpMaxTimer: 0.0,
     countdownTimer: 0.3,  # Start with ready countdown
     waveClearedTimer: 0,
     rerollCost: 0,  # Initialize reroll cost (set properly when entering power-up selection)
@@ -7794,6 +7877,11 @@ proc drawGame*(game: Game) =
   # Draw unified combined HUD panel (top-left, almost touching top)
   drawCombinedHUDPanel(game, 10, 2)
 
+  if game.recentPowerUpTimer > 0.0:
+    drawRecentPowerUpInstall(game)
+    if game.state notin {gsShop, gsPowerUpSelect}:
+      game.recentPowerUpTimer = max(0.0'f32, game.recentPowerUpTimer - dt)
+
   # Draw action log (notifications)
   drawActionLog(game.osHUD, game.screenWidth, game.screenHeight)
 
@@ -7942,7 +8030,7 @@ proc drawGame*(game: Game) =
   if globalSettings != nil and globalSettings.showDebugStats:
     drawDebugPanel(game, game.screenWidth, 2)
 
-  # Legendary Power-ups Panel (bottom-left corner) - Always show cooldowns for legendary abilities
+  # Compact Q ability cooldown strip replaces the old legendary cooldown window.
   drawLegendaryPowerUpsPanel(game, game.screenWidth.int32, game.screenHeight.int32)
 
   # Instructions only for non-legendary keys — hidden when the shop overlay is active

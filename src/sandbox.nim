@@ -1,6 +1,6 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
-import raylib, types, enemy, powerup, boss_definitions, std/strutils, random, localization, consumable, render_context
+import raylib, types, enemy, powerup, powerup_data, boss_definitions, std/strutils, random, localization, render_context, ui/icon_drawing
 
 const
   SIDEBAR_WIDTH = 300
@@ -9,6 +9,93 @@ const
   BUTTON_SPACING = 5
   TAB_HEIGHT = 40
   SCROLL_SPEED = 20
+  POWERUP_ITEM_HEIGHT = 82
+  POWERUP_ICON_SIZE = 34
+
+const sandboxLegendaryPowerUpTypes = [
+  puArcaneMastery, puBloodMastery, puBulletSpeed,
+  puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
+  puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
+  puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
+  puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWindMastery,
+  puVolatile, puBloodPact, puConduit, puAftershock, puNova, puBountiful
+]
+
+proc isSandboxLegendaryPowerUp(powerType: PowerUpType): bool =
+  for legendaryType in sandboxLegendaryPowerUpTypes:
+    if powerType == legendaryType:
+      return true
+  false
+
+proc fitSandboxText(text: string, maxWidth, fontSize: int32,
+                    minSize: int32 = 8): tuple[text: string, size: int32] =
+  var fs = fontSize
+  while fs > minSize and measureText(text, fs) > maxWidth:
+    dec fs
+  if measureText(text, fs) <= maxWidth:
+    return (text, fs)
+
+  var fitted = text
+  while fitted.len > 0 and measureText(fitted & "...", fs) > maxWidth:
+    fitted = fitted[0..^2]
+  (fitted & "...", fs)
+
+proc wrapSandboxText(text: string, maxWidth, fontSize: int32): seq[string] =
+  result = @[]
+  var words: seq[string] = @[]
+  for word in text.splitWhitespace():
+    words.add(word)
+  if words.len == 0:
+    return
+
+  var line = ""
+  for word in words:
+    let candidate = if line.len == 0: word else: line & " " & word
+    if measureText(candidate, fontSize) <= maxWidth:
+      line = candidate
+    else:
+      if line.len > 0:
+        result.add(line)
+      if measureText(word, fontSize) > maxWidth:
+        var chunk = ""
+        for ch in word:
+          if measureText(chunk & $ch, fontSize) <= maxWidth:
+            chunk &= $ch
+          else:
+            if chunk.len > 0:
+              result.add(chunk)
+            chunk = $ch
+        line = chunk
+      else:
+        line = word
+  if line.len > 0:
+    result.add(line)
+
+proc sandboxContentHeight(selectedTab: int): int32 =
+  case selectedTab
+  of 0:
+    10'i32 + 25'i32 + 13'i32 * (BUTTON_HEIGHT + BUTTON_SPACING) + 10'i32 + BUTTON_HEIGHT
+  of 1:
+    10'i32 + 25'i32 + 12'i32 * (BUTTON_HEIGHT + BUTTON_SPACING)
+  of 2:
+    let powerUpCount = ord(high(PowerUpType)) - ord(low(PowerUpType)) + 1
+    10'i32 + 24'i32 + 20'i32 + int32(powerUpCount) * (POWERUP_ITEM_HEIGHT + BUTTON_SPACING)
+  of 3:
+    560'i32
+  else:
+    0'i32
+
+proc maxSandboxScrollOffset(selectedTab: int, screenHeight: int32): int32 =
+  let contentStartY = 45'i32 + TAB_HEIGHT + 5'i32
+  let visibleHeight = max(0'i32, screenHeight - contentStartY)
+  max(0'i32, sandboxContentHeight(selectedTab) - visibleHeight)
+
+proc clampSandboxScroll(game: Game, screenHeight: int32) =
+  let maxScroll = maxSandboxScrollOffset(game.sandboxSelectedTab, screenHeight)
+  if game.sandboxScrollOffset < 0:
+    game.sandboxScrollOffset = 0
+  elif game.sandboxScrollOffset > maxScroll:
+    game.sandboxScrollOffset = maxScroll
 
 # UI DRAWING
 proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
@@ -67,48 +154,77 @@ proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
       drawText(bossDef.description, contentX + 5, currentY + 20, 12, Color(r: 200, g: 150, b: 150, a: 255))
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
-proc drawConsumablesTab(game: Game, sidebarX, startY, screenHeight: int32) =
+proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   var currentY: int32 = startY + 10 - game.sandboxScrollOffset
   let contentX: int32 = sidebarX + SIDEBAR_PADDING
-  let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
+  let cardWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
 
-  drawText("Spawn Consumables", contentX, currentY, 18, White)
-  currentY += 25
+  drawText("Power-Up Visuals", contentX, currentY, 18, White)
+  currentY += 24
+  drawText("Icon, rarity, and Lv.1 description preview", contentX, currentY, 10,
+           Color(r: 170, g: 185, b: 200, a: 255))
+  currentY += 20
 
-  # List all consumable types with spawn buttons
-  let consumableTypes = [
-    ("Health", ctHealth, "Restore 3 HP"),
-    ("Coin", ctCoin, "Collect 5 coins"),
-    ("Speed", ctSpeed, "Speed boost (30s)"),
-    ("Fire Rate", ctFireRate, "Fire rate boost (30s)"),
-    ("Shield Boost", ctShieldBoost, "Absorb hits (30s)"),
-    ("Magnet", ctMagnet, "Auto-collect items (30s)"),
-    ("Damage Boost", ctDamageBoost, "Damage boost (30s)"),
-    ("Invincibility", ctInvincibility, "Invulnerable (30s)"),
-    ("Double Coin", ctDoubleCoin, "2x coin value (30s)"),
-    ("Lifesteal", ctLifesteal, "Heal on kill (30s)")
-  ]
+  for powerOrdinal in ord(low(PowerUpType))..ord(high(PowerUpType)):
+    let powerType = PowerUpType(powerOrdinal)
+    let accent = getPowerUpColor(powerType)
+    let isLegendary = isSandboxLegendaryPowerUp(powerType)
 
-  for (name, consumableType, desc) in consumableTypes:
-    if currentY > startY - 50 and currentY < screenHeight - 50:  # Only draw visible items
-      # Get the consumable color
-      let color = case consumableType
-        of ctHealth: Color(r: 50, g: 255, b: 50, a: 255)
-        of ctCoin: Color(r: 255, g: 215, b: 0, a: 255)
-        of ctSpeed: Color(r: 0, g: 255, b: 255, a: 255)
-        of ctFireRate: Color(r: 255, g: 165, b: 0, a: 255)
-        of ctShieldBoost: Color(r: 0, g: 255, b: 255, a: 255)
-        of ctMagnet: Color(r: 147, g: 51, b: 234, a: 255)
-        of ctDamageBoost: Color(r: 255, g: 69, b: 0, a: 255)
-        of ctInvincibility: Color(r: 255, g: 0, b: 255, a: 255)
-        of ctDoubleCoin: Color(r: 255, g: 223, b: 0, a: 255)
-        of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)
+    if currentY > startY - POWERUP_ITEM_HEIGHT and currentY < screenHeight - 10:
+      let bgColor = if isLegendary:
+        Color(r: 58, g: 46, b: 20, a: 245)
+      else:
+        Color(r: 34, g: 42, b: 54, a: 245)
+      let borderColor = if isLegendary:
+        Color(r: 255, g: 215, b: 80, a: 220)
+      else:
+        Color(r: 80, g: 150, b: 200, a: 210)
 
-      drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, color)
-      drawRectangleLines(contentX, currentY, buttonWidth, BUTTON_HEIGHT, White)
-      drawText(name, contentX + 5, currentY + 5, 16, Black)
-      drawText(desc, contentX + 5, currentY + 20, 12, Color(r: 50, g: 50, b: 50, a: 255))
-    currentY += BUTTON_HEIGHT + BUTTON_SPACING
+      drawRectangle(contentX, currentY, cardWidth, POWERUP_ITEM_HEIGHT, bgColor)
+      drawRectangle(contentX, currentY, 3, POWERUP_ITEM_HEIGHT, accent)
+      drawRectangleLines(Rectangle(x: contentX.float32, y: currentY.float32,
+                                   width: cardWidth.float32, height: POWERUP_ITEM_HEIGHT.float32),
+                         1, borderColor)
+
+      let iconX = contentX + 10
+      let iconY = currentY + 11
+      drawRectangle(iconX - 3, iconY - 3, POWERUP_ICON_SIZE + 6, POWERUP_ICON_SIZE + 6,
+                    Color(r: 10, g: 16, b: 24, a: 190))
+      drawRectangleLines(Rectangle(x: (iconX - 3).float32, y: (iconY - 3).float32,
+                                   width: (POWERUP_ICON_SIZE + 6).float32,
+                                   height: (POWERUP_ICON_SIZE + 6).float32),
+                         1, Color(r: accent.r, g: accent.g, b: accent.b, a: 180))
+      drawPowerUpIcon(iconX, iconY, POWERUP_ICON_SIZE, powerType, accent)
+
+      let textX = contentX + 56
+      let badgeText = if isLegendary: "LEGENDARY" else: "COMMON"
+      let badgeWidth = measureText(badgeText, 9) + 8
+      let badgeX = contentX + cardWidth - badgeWidth - 7
+      drawRectangle(badgeX, currentY + 7, badgeWidth, 14,
+                    if isLegendary: Color(r: 120, g: 86, b: 16, a: 230)
+                    else: Color(r: 34, g: 88, b: 116, a: 230))
+      drawText(badgeText, badgeX + 4, currentY + 10, 9,
+               if isLegendary: Color(r: 255, g: 230, b: 120, a: 255)
+               else: Color(r: 160, g: 225, b: 255, a: 255))
+
+      let (nameText, nameSize) = fitSandboxText(getPowerUpName(powerType),
+                                                badgeX - textX - 5, 13)
+      drawText(nameText, textX, currentY + 8, nameSize, White)
+
+      drawText("Lv.1 preview", textX, currentY + 25, 9,
+               Color(r: 120, g: 200, b: 255, a: 255))
+
+      let desc = getPowerUpDescription(powerType, 1, game.player.damage)
+      let descLines = wrapSandboxText(desc, cardWidth - 64, 10)
+      let maxLines = min(3, descLines.len)
+      for i in 0..<maxLines:
+        drawText(descLines[i], textX, currentY + 39 + int32(i * 12), 10,
+                 Color(r: 185, g: 194, b: 205, a: 255))
+      if descLines.len > maxLines:
+        drawText("...", textX, currentY + 39 + int32(maxLines * 12), 10,
+                 Color(r: 150, g: 160, b: 170, a: 255))
+
+    currentY += POWERUP_ITEM_HEIGHT + BUTTON_SPACING
 
 proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   var currentY: int32 = startY + 10
@@ -203,7 +319,7 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   drawText(t(tkSandboxTitle), sidebarX + 10, 10, 20, Yellow)
 
   # Draw tabs
-  let tabs = [t(tkSandboxTabEnemies), t(tkSandboxTabBosses), "Cons.", t(tkSandboxTabControls)]
+  let tabs = [t(tkSandboxTabEnemies), t(tkSandboxTabBosses), "Pwr", t(tkSandboxTabControls)]
   let tabWidth: int32 = (SIDEBAR_WIDTH - SIDEBAR_PADDING * 5) div 4
   var currentY: int32 = 45
 
@@ -214,10 +330,15 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
     else:
       Color(r: 60, g: 60, b: 60, a: 255)
     drawRectangle(int32(tabX), int32(currentY), int32(tabWidth), int32(TAB_HEIGHT - 5), tabColor)
-    let textWidth = measureText(tabName, 16)
-    drawText(tabName, int32(tabX + (tabWidth - textWidth) div 2), int32(currentY + 10), int32(16), White)
+    let (fittedTabName, fittedTabSize) = fitSandboxText(tabName, tabWidth - 4, 14, 9)
+    let textWidth = measureText(fittedTabName, fittedTabSize)
+    drawText(fittedTabName, int32(tabX + (tabWidth - textWidth) div 2),
+             int32(currentY + 10), fittedTabSize, White)
 
   currentY += TAB_HEIGHT + 5
+
+  # Keep scrollable tab content from drawing back over the tab strip.
+  beginVirtualScissorMode(sidebarX, currentY, SIDEBAR_WIDTH, screenHeight - currentY)
 
   # Draw content based on selected tab
   case game.sandboxSelectedTab
@@ -225,12 +346,14 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
     drawEnemiesTab(game, sidebarX, currentY, screenHeight)
   of 1:  # Bosses tab
     drawBossesTab(game, sidebarX, currentY, screenHeight)
-  of 2:  # Consumables tab
-    drawConsumablesTab(game, sidebarX, currentY, screenHeight)
+  of 2:  # Power-up visuals tab
+    drawPowerUpsVisualsTab(game, sidebarX, currentY, screenHeight)
   of 3:  # Controls tab
     drawControlsTab(game, sidebarX, currentY, screenHeight)
   else:
     discard
+
+  endScissorMode()
 
 # INPUT HANDLING
 proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
@@ -290,28 +413,6 @@ proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, 
       # Spawn the selected boss
       let boss = spawnBoss(screenWidth, screenHeight, game.difficulty, game.bossCount, bossId * 5)
       game.enemies.add(boss)
-      return
-    currentY += BUTTON_HEIGHT + BUTTON_SPACING
-
-proc handleConsumablesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
-  let startY: int32 = 45 + TAB_HEIGHT + 5
-  var currentY: int32 = startY + 10 + 25 - game.sandboxScrollOffset
-  let contentX: int32 = sidebarX + SIDEBAR_PADDING
-  let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
-
-  let consumableTypes = [ctHealth, ctCoin, ctSpeed, ctFireRate, ctShieldBoost,
-                         ctMagnet, ctDamageBoost, ctInvincibility, ctDoubleCoin, ctLifesteal]
-
-  for consumableType in consumableTypes:
-    if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
-       mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
-      # Spawn consumable near player
-      let offsetX = rand(-100.0..100.0)
-      let offsetY = rand(-100.0..100.0)
-      let spawnX = game.player.pos.x + offsetX
-      let spawnY = game.player.pos.y + offsetY
-
-      game.consumables.add(newSpecificConsumable(spawnX, spawnY, consumableType))
       return
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
@@ -434,12 +535,13 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
         game.sandboxSidebarOpen = true
     return
 
+  clampSandboxScroll(game, screenHeight)
+
   # Handle scrolling
   let mouseWheel = getMouseWheelMove()
   if mouseWheel != 0:
     game.sandboxScrollOffset -= (mouseWheel * SCROLL_SPEED).int32
-    if game.sandboxScrollOffset < 0:
-      game.sandboxScrollOffset = 0
+    clampSandboxScroll(game, screenHeight)
 
   if isMouseButtonPressed(Left):
     let mousePos = getVirtualMousePosition()
@@ -473,8 +575,8 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
       handleEnemiesTabClick(game, mousePos, sidebarX, screenWidth, screenHeight)
     of 1:  # Bosses tab
       handleBossesTabClick(game, mousePos, sidebarX, screenWidth, screenHeight)
-    of 2:  # Consumables tab
-      handleConsumablesTabClick(game, mousePos, sidebarX, screenWidth, screenHeight)
+    of 2:  # Power-up visuals tab
+      discard
     of 3:  # Controls tab
       handleControlsTabClick(game, mousePos, sidebarX, screenWidth, screenHeight)
     else:

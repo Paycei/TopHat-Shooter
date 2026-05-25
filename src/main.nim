@@ -1,4 +1,5 @@
-import raylib, rlgl, types, game, ui/os_shop, wall, particle, powerup, player, coin, random, math, strutils, os, sound, settings, cheat, statistics, run_statistics, save_system, sandbox, discord_helpers, discord_presence, discord_config, gamemode_definitions, ui/lore_cinematic, ui/os_splash, ui/os_desktop, ui/os_window, ui/stats_window, ui/os_task_manager, localization, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins, ui/window_manager, boss_definitions, network/network, pvp_game, ui/pvp_window, game3d/game_3d, ui/loading_screen, render_context, roguelite, ui/os_roguelite, advancement, std/deques
+import raylib, rlgl, random, math, strutils, os, std/deques
+import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/pvp_window, ui/loading_screen, ui/window_manager
 
 const
   screenWidth = 1024
@@ -1669,11 +1670,7 @@ proc main() =
         # Select power-up with keyboard or mouse click on card
         if isKeyPressed(Enter) or isKeyPressed(E):
           let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
-          applyPowerUp(currentGame.player, chosenPowerUp)
-
-          # Track power-up selection for statistics
-          trackPowerUpSelection(currentGame, chosenPowerUp)
-
+          installPowerUp(currentGame, chosenPowerUp)
           currentGame.cameFromPowerUpSelect = true
           currentGame.state = gsShop
           currentGame.shopSidebarScroll = 0
@@ -1716,8 +1713,7 @@ proc main() =
               if checkCollisionPointRec(mousePos, cardRect):
                 currentGame.selectedPowerUp = i
                 let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
-                applyPowerUp(currentGame.player, chosenPowerUp)
-                trackPowerUpSelection(currentGame, chosenPowerUp)
+                installPowerUp(currentGame, chosenPowerUp)
                 currentGame.cameFromPowerUpSelect = true
                 currentGame.state = gsShop
                 currentGame.shopSidebarScroll = 0

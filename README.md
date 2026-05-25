@@ -17,8 +17,6 @@ TopHat-ShooterOS is a fast, chaotic bullet-heaven built with Nim + Raylib.
 
 **Installation & Running**
 
-Note: To be able to compile TopHat-Shooteros, copy `src/discord_config.nim.example` to `src/discord_config.nim` and optionally add your discord app ID.
-
 ```bash
 git clone https://github.com/Paycei/TopHat-Shooter.git
 cd TopHat-Shooter
@@ -29,7 +27,7 @@ nimble install
 
 ```
 # Run in debug mode
-nimble run
+nimble debug
 ```
 
 ```

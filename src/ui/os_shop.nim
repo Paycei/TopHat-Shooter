@@ -339,7 +339,7 @@ proc drawShop*(game: Game) =
                                         0'i32, maxScroll)
 
   # scissor clip the scrollable content
-  beginScissorMode(sidebarX, contentAreaY, SIDEBAR_WIDTH - SCROLLBAR_W - 1, contentAreaH)
+  beginVirtualScissorMode(sidebarX, contentAreaY, SIDEBAR_WIDTH - SCROLLBAR_W - 1, contentAreaH)
 
   var upgradeY: int32 = contentAreaY + 8 - game.shopSidebarScroll
 

@@ -1,7 +1,7 @@
 ## OS-Style Debug Panel
 ## System diagnostics and performance metrics
 
-import raylib, ../types, strutils, ../powerup, ../localization, ui_constants, ../render_context
+import raylib, ../types, strutils, ../powerup, ../localization, ui_constants, ../render_context, math, ../powerup_data, icon_drawing
 
 const
   DEBUG_PANEL_WIDTH = 200
@@ -10,6 +10,10 @@ const
   DEBUG_SECTION_SPACING = 2  # Reduced from 4
   DEBUG_TITLE_HEIGHT = 14  # Reduced from 16
   DEBUG_LINE_HEIGHT = 11  # Reduced from 12
+  LEGENDARY_Q_ICON_SIZE = 30
+  LEGENDARY_Q_ICON_GAP = 7
+  LEGENDARY_Q_PADDING = 6
+  LEGENDARY_Q_FOOTER_HEIGHT = 12
   HEADER_BG_COLOR: Color = Color(r: 0, g: 100, b: 120, a: 60)
   ACCENT_COLOR: Color = Color(r: 0, g: 220, b: 255, a: 255)
 
@@ -21,9 +25,12 @@ var debugPanelDragOffset* = Vector2(x: 0, y: 0)
 
 # State for legendary power-ups panel
 var legendaryPanelMinimized* = false
-var legendaryPanelPos* = Vector2(x: 10, y: -1)  # Default position (-1 for y means bottom-aligned)
+var legendaryPanelPos* = Vector2(x: -1, y: -1)  # Default position (-1 means bottom/right aligned)
 var legendaryPanelDragging* = false
 var legendaryPanelDragOffset* = Vector2(x: 0, y: 0)
+
+proc clampByte(value: int): uint8 =
+  uint8(max(0, min(255, value)))
 
 ## Calculate basic combat stats for display
 proc getDisplayStats(player: Player): tuple[damage: float32, fireRate: float32, speed: float32] =
@@ -580,9 +587,8 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
           yOffset, 9, Color(r: 255, g: 215, b: 0, a: 255))
 
 proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
-  ## Draw legendary power-ups status panel in OS style (bottom-left)
-  ## Movable and minimizable like other OS panels
-  let panelWidth: int32 = 220
+  ## Draw compact legendary Q ability cooldown strip.
+  var panelWidth: int32 = 220
 
   # Check if player has any power-ups shown in the legendary panel
   var hasAnyLegendary = false
@@ -594,10 +600,50 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
   if not hasAnyLegendary:
     return
 
+  var abilities: seq[PowerUp] = @[]
+  for powerUp in game.player.powerUps:
+    for pt in legendaryPanelTypes:
+      if powerUp.powerType == pt:
+        abilities.add(powerUp)
+        break
+  if abilities.len == 0:
+    return
+
+  let shownCount = min(abilities.len, 7)
+  let stripWidth = shownCount.int32 * LEGENDARY_Q_ICON_SIZE +
+                   (shownCount.int32 - 1) * LEGENDARY_Q_ICON_GAP
+  panelWidth = max(178'i32, stripWidth + LEGENDARY_Q_PADDING * 2 + 10)
+  let qContentHeight: int32 =
+    (DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 9 +
+     LEGENDARY_Q_ICON_SIZE + LEGENDARY_Q_FOOTER_HEIGHT).int32
+
+  var readyCount = 0
+  for powerUp in abilities:
+    let cooldown = case powerUp.powerType
+      of puTimeWarp: game.player.timeWarpCooldown
+      of puPhaseShift: game.player.phaseShiftCooldown
+      of puParry: game.player.parryCooldown
+      of puBloodPact: game.player.bloodPactCooldown
+      of puConduit: game.player.conduitCooldown
+      of puAftershock: game.player.aftershockCooldown
+      of puNova: game.player.novaCooldown
+      else: 0.0'f32
+    let ready = cooldown <= 0.0'f32 and
+                (case powerUp.powerType
+                 of puTimeWarp: game.player.timeWarpUsesThisWave < game.player.timeWarpMaxUsesPerWave
+                 of puBloodPact: game.player.hp > 1.0'f32
+                 of puNova: not game.player.novaActive
+                 else: true)
+    if ready:
+      inc readyCount
+
   # Calculate actual position
-  var actualX = legendaryPanelPos.x.int32
-  var actualY = if legendaryPanelPos.y < 0:
-    screenHeight - 160  # Default bottom position
+  var actualX: int32 = if legendaryPanelPos.x < 0:
+    screenWidth - panelWidth - 10'i32
+  else:
+    legendaryPanelPos.x.int32
+  var actualY: int32 = if legendaryPanelPos.y < 0:
+    screenHeight - qContentHeight - 10'i32  # Default bottom position
   else:
     legendaryPanelPos.y.int32
 
@@ -648,248 +694,186 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
     else:
       legendaryPanelDragging = false
 
-  # Calculate content height based on which panel power-ups the player has
-  var contentHeight: int32 = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT
-  for pt in legendaryPanelTypes:
-    if hasPowerUp(game.player, pt):
-      contentHeight += DEBUG_LINE_HEIGHT + 2
-  contentHeight += DEBUG_SECTION_SPACING
-
   # If minimized, only draw header bar
   if legendaryPanelMinimized:
-    # Draw minimized panel (just header)
     drawRectangle(actualX, actualY, panelWidth, DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT,
-                 Color(r: 5, g: 15, b: 25, a: 45))
-
-    # Cyan accent stripe on right edge
+                 Color(r: 5, g: 15, b: 25, a: 58))
     drawRectangle(actualX + panelWidth - 2, actualY, 2, DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT,
-                 Color(r: 0, g: 220, b: 255, a: 180))
-
-    # Panel border
+                 Color(r: 255, g: 215, b: 80, a: 165))
     drawRectangleLines(Rectangle(x: actualX.float32, y: actualY.float32,
                                   width: panelWidth.float32,
                                   height: (DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT).float32),
-                      DEBUG_PANEL_BORDER, Color(r: 0, g: 220, b: 255, a: 80))
-
-    var yOffset = actualY + DEBUG_PANEL_PADDING
-
-    # Header with minimize indicator
-    drawRectangle(actualX, yOffset, panelWidth - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
-
-    drawText(t(tkLegendaryPanelTitle), actualX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
+                      DEBUG_PANEL_BORDER, Color(r: 255, g: 215, b: 80, a: 75))
+    var qYOffset = actualY + DEBUG_PANEL_PADDING
+    drawRectangle(actualX, qYOffset, panelWidth - 2, DEBUG_TITLE_HEIGHT,
+                  Color(r: 120, g: 86, b: 0, a: 55))
+    drawText("[Q] ABILITIES", actualX + DEBUG_PANEL_PADDING + 5, qYOffset + 3, 11,
             Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(t(tkLegendaryPanelTitle), actualX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
+    drawText("[Q] ABILITIES", actualX + DEBUG_PANEL_PADDING + 4, qYOffset + 2, 11,
+            Color(r: 255, g: 230, b: 145, a: 255))
+    let countText = $readyCount & "/" & $abilities.len
+    let countW = measureText(countText, 10)
+    drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW,
+             qYOffset + 2, 10, Color(r: 255, g: 238, b: 170, a: 230))
+    let miniIconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
+    let miniIconY = qYOffset + 4
+    drawRectangleLines(Rectangle(x: miniIconX.float32, y: miniIconY.float32, width: 10, height: 10),
+                      1, Color(r: 255, g: 230, b: 145, a: 255))
+    return
 
-    # Draw maximize icon (square)
-    let iconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
-    let iconY = yOffset + 4
-    drawRectangleLines(Rectangle(x: iconX.float32, y: iconY.float32, width: 10, height: 10),
-                      1, ACCENT_COLOR)
-
-    return  # Don't draw rest of panel
-
-  # Panel background
-  drawRectangle(actualX, actualY, panelWidth, contentHeight,
-               Color(r: 5, g: 15, b: 25, a: 45))
-
-  # Cyan accent stripe on right edge
-  drawRectangle(actualX + panelWidth - 2, actualY, 2, contentHeight,
-               Color(r: 0, g: 220, b: 255, a: 180))
-
-  # Panel border
+  drawRectangle(actualX, actualY, panelWidth, qContentHeight,
+                Color(r: 5, g: 15, b: 25, a: 58))
+  drawRectangle(actualX, actualY + qContentHeight - 1, panelWidth, 1,
+                Color(r: 255, g: 215, b: 80, a: 95))
+  drawRectangle(actualX + panelWidth - 2, actualY, 2, qContentHeight,
+                Color(r: 255, g: 215, b: 80, a: 165))
   drawRectangleLines(Rectangle(x: actualX.float32, y: actualY.float32,
-                                width: panelWidth.float32, height: contentHeight.float32),
-                    DEBUG_PANEL_BORDER, Color(r: 0, g: 220, b: 255, a: 80))
+                                width: panelWidth.float32, height: qContentHeight.float32),
+                    DEBUG_PANEL_BORDER, Color(r: 255, g: 215, b: 80, a: 75))
 
-  var yOffset = actualY + DEBUG_PANEL_PADDING
-
-  # Header bar background
-  drawRectangle(actualX, yOffset, panelWidth - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
-
-  drawText(t(tkLegendaryPanelTitle), actualX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
+  var qYOffset = actualY + DEBUG_PANEL_PADDING
+  drawRectangle(actualX, qYOffset, panelWidth - 2, DEBUG_TITLE_HEIGHT,
+                Color(r: 120, g: 86, b: 0, a: 55))
+  drawText("[Q] ABILITIES", actualX + DEBUG_PANEL_PADDING + 5, qYOffset + 3, 11,
           Color(r: 0, g: 0, b: 0, a: 140))
-  drawText(t(tkLegendaryPanelTitle), actualX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
+  drawText("[Q] ABILITIES", actualX + DEBUG_PANEL_PADDING + 4, qYOffset + 2, 11,
+          Color(r: 255, g: 230, b: 145, a: 255))
+  let countText = $readyCount & "/" & $abilities.len
+  let countW = measureText(countText, 10)
+  drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW + 1,
+           qYOffset + 3, 10, Color(r: 0, g: 0, b: 0, a: 130))
+  drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW,
+           qYOffset + 2, 10, Color(r: 255, g: 238, b: 170, a: 235))
 
-  # Draw minimize icon (horizontal line)
-  let iconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
-  let iconY = yOffset + 9
-  drawLine(Vector2(x: iconX.float32, y: iconY.float32),
-          Vector2(x: (iconX + 10).float32, y: iconY.float32),
-          2, ACCENT_COLOR)
+  let miniIconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
+  let miniIconY = qYOffset + 9
+  drawLine(Vector2(x: miniIconX.float32, y: miniIconY.float32),
+          Vector2(x: (miniIconX + 10).float32, y: miniIconY.float32),
+          2, Color(r: 255, g: 230, b: 145, a: 255))
 
-  yOffset += DEBUG_TITLE_HEIGHT + 4
+  qYOffset += DEBUG_TITLE_HEIGHT + 6
+  let startX = actualX + (panelWidth - stripWidth) div 2
+  var hoverText = ""
 
-  # Time Warp
-  if hasPowerUp(game.player, puTimeWarp):
-    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
-                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
-                 Color(r: 18, g: 25, b: 35, a: 50))
-
-    let timeWarpColor = if game.player.timeWarpActive:
-      Color(r: 100, g: 255, b: 255, a: 255)  # Cyan when active
-    elif game.player.timeWarpCooldown > 0:
-      Color(r: 100, g: 100, b: 100, a: 200)  # Gray when on cooldown
+  for i in 0..<shownCount:
+    let powerUp = abilities[i]
+    let iconX = startX + i.int32 * (LEGENDARY_Q_ICON_SIZE + LEGENDARY_Q_ICON_GAP)
+    let accent = getPowerUpColor(powerUp.powerType)
+    let cooldown = case powerUp.powerType
+      of puTimeWarp: game.player.timeWarpCooldown
+      of puPhaseShift: game.player.phaseShiftCooldown
+      of puParry: game.player.parryCooldown
+      of puBloodPact: game.player.bloodPactCooldown
+      of puConduit: game.player.conduitCooldown
+      of puAftershock: game.player.aftershockCooldown
+      of puNova: game.player.novaCooldown
+      else: 0.0'f32
+    let active = (powerUp.powerType == puTimeWarp and game.player.timeWarpActive) or
+                 (powerUp.powerType == puPhaseShift and game.player.phaseShiftInvulnTimer > 0.0'f32) or
+                 (powerUp.powerType == puParry and game.player.parryActive) or
+                 (powerUp.powerType == puNova and game.player.novaActive)
+    let cooldownMax = case powerUp.powerType
+      of puTimeWarp: 10.0'f32
+      of puPhaseShift: 5.0'f32
+      of puParry: 5.0'f32
+      of puBloodPact: 5.0'f32
+      of puConduit: 15.0'f32
+      of puAftershock: 14.0'f32
+      of puNova: 16.0'f32
+      else: 1.0'f32
+    let ready = cooldown <= 0.0'f32 and
+                (case powerUp.powerType
+                 of puTimeWarp: game.player.timeWarpUsesThisWave < game.player.timeWarpMaxUsesPerWave
+                 of puBloodPact: game.player.hp > 1.0'f32
+                 of puNova: not game.player.novaActive
+                 else: true)
+    let pulse = if ready:
+      0.5'f32 + 0.5'f32 * sin(game.time * 5.0'f32 + i.float32)
     else:
-      Color(r: 100, g: 220, b: 255, a: 255)  # Light cyan when ready
-
-    drawText(t(tkLegendaryChronos), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(t(tkLegendaryChronos), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
-            timeWarpColor)
-
-    # Get uses available
-    let usesAvailable = game.player.timeWarpMaxUsesPerWave - game.player.timeWarpUsesThisWave
-    let maxUses = game.player.timeWarpMaxUsesPerWave
-
-    # Status on the right - showing cooldown in seconds and charges as current/max
-    var statusText = ""
-    if game.player.timeWarpActive:
-      statusText = t(tkLegendaryActive) & " (" & $usesAvailable & "/" & $maxUses & ")"
-    elif game.player.timeWarpCooldown > 0:
-      let cooldownSecs = game.player.timeWarpCooldown.int + 1
-      statusText = $cooldownSecs & "s (" & $usesAvailable & "/" & $maxUses & ")"
+      0.0'f32
+    let exhausted = powerUp.powerType == puTimeWarp and
+                    game.player.timeWarpUsesThisWave >= game.player.timeWarpMaxUsesPerWave
+    let bgColor = if active:
+      Color(r: accent.r, g: accent.g, b: accent.b, a: 96)
+    elif ready:
+      Color(r: accent.r, g: accent.g, b: accent.b, a: clampByte(58 + int(pulse * 32.0'f32)))
     else:
-      statusText = t(tkLegendaryReady) & " (" & $usesAvailable & "/" & $maxUses & ")"
-
-    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 90,
-            yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 91,
-            yOffset, 9, timeWarpColor)
-    yOffset += DEBUG_LINE_HEIGHT + 2
-
-  # Phase Shift
-  if hasPowerUp(game.player, puPhaseShift):
-    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
-                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
-                 Color(r: 12, g: 28, b: 25, a: 50))
-
-    let phaseColor = if game.player.phaseShiftInvulnTimer > 0:
-      Color(r: 150, g: 255, b: 200, a: 255)  # Green when dashing
-    elif game.player.phaseShiftCooldown > 0:
-      Color(r: 100, g: 100, b: 100, a: 200)  # Gray when on cooldown
+      Color(r: 12, g: 16, b: 23, a: 145)
+    let borderColor = if ready or active:
+      Color(r: accent.r, g: accent.g, b: accent.b, a: 220)
     else:
-      Color(r: 100, g: 255, b: 200, a: 255)  # Light green when ready
+      Color(r: accent.r, g: accent.g, b: accent.b, a: 95)
 
-    drawText(t(tkLegendaryPhase), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(t(tkLegendaryPhase), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
-            phaseColor)
+    drawRectangle(iconX + 1, qYOffset + 1, LEGENDARY_Q_ICON_SIZE, LEGENDARY_Q_ICON_SIZE,
+                  Color(r: 0, g: 0, b: 0, a: 85))
+    drawRectangle(iconX, qYOffset, LEGENDARY_Q_ICON_SIZE, LEGENDARY_Q_ICON_SIZE, bgColor)
+    drawRectangleLines(Rectangle(x: iconX.float32, y: qYOffset.float32,
+                                  width: LEGENDARY_Q_ICON_SIZE.float32,
+                                  height: LEGENDARY_Q_ICON_SIZE.float32),
+                       1, borderColor)
+    drawPowerUpIcon(iconX + 3, qYOffset + 3, LEGENDARY_Q_ICON_SIZE - 6, powerUp.powerType,
+                    if ready or active: accent else: Color(r: accent.r, g: accent.g, b: accent.b, a: 145))
 
-    # Status on the right - showing cooldown in seconds
-    var statusText = ""
-    if game.player.phaseShiftInvulnTimer > 0:
-      statusText = t(tkLegendaryDashing)
-    elif game.player.phaseShiftCooldown > 0:
-      let cooldownSecs = game.player.phaseShiftCooldown.int + 1
-      statusText = $cooldownSecs & "s"
+    let progress = if ready or active:
+      1.0'f32
+    elif cooldownMax > 0.0'f32:
+      clamp(1.0'f32 - cooldown / cooldownMax, 0.0'f32, 1.0'f32)
     else:
-      statusText = t(tkLegendaryReady)
+      0.0'f32
+    let progressW = max(0'i32, (LEGENDARY_Q_ICON_SIZE.float32 * progress).int32)
+    if progressW > 0:
+      drawRectangle(iconX, qYOffset + LEGENDARY_Q_ICON_SIZE - 3,
+                    progressW, 3, Color(r: accent.r, g: accent.g, b: accent.b, a: 215))
 
-    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 70,
-            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
-            yOffset, 10, phaseColor)
-    yOffset += DEBUG_LINE_HEIGHT + 2
+    if not ready and not active:
+      drawRectangle(iconX, qYOffset, LEGENDARY_Q_ICON_SIZE, LEGENDARY_Q_ICON_SIZE,
+                    Color(r: 0, g: 0, b: 0, a: 118))
+      let statusText = if exhausted:
+        "0"
+      elif cooldown > 0.0'f32:
+        $max(1, ceil(cooldown).int)
+      else:
+        "--"
+      let textW = measureText(statusText, 12)
+      drawText(statusText, iconX + LEGENDARY_Q_ICON_SIZE div 2 - textW div 2 + 1,
+               qYOffset + 8, 12, Color(r: 0, g: 0, b: 0, a: 200))
+      drawText(statusText, iconX + LEGENDARY_Q_ICON_SIZE div 2 - textW div 2,
+               qYOffset + 7, 12, Color(r: 230, g: 236, b: 245, a: 235))
 
-  # Parry
-  if hasPowerUp(game.player, puParry):
-    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
-                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
-                 Color(r: 25, g: 25, b: 12, a: 50))
+    let iconRect = Rectangle(x: iconX.float32, y: qYOffset.float32,
+                             width: LEGENDARY_Q_ICON_SIZE.float32,
+                             height: LEGENDARY_Q_ICON_SIZE.float32)
+    if checkCollisionPointRec(mousePos, iconRect):
+      let stateText = if active:
+        "ACTIVE"
+      elif ready:
+        "READY"
+      elif exhausted:
+        "OUT"
+      elif cooldown > 0.0'f32:
+        $max(1, ceil(cooldown).int) & "s"
+      else:
+        "--"
+      hoverText = getPowerUpName(powerUp.powerType) & "  " & stateText
 
-    let parryColor = if game.player.parryActive:
-      Color(r: 255, g: 255, b: 100, a: 255)  # Yellow when active
-    elif game.player.parryCooldown > 0:
-      Color(r: 100, g: 100, b: 100, a: 200)  # Gray when on cooldown
-    else:
-      Color(r: 255, g: 255, b: 150, a: 255)  # Light yellow when ready
-
-    drawText(t(tkLegendaryParry), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(t(tkLegendaryParry), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
-            parryColor)
-
-    # Status on the right - showing cooldown in seconds
-    var statusText = ""
-    if game.player.parryActive:
-      statusText = t(tkLegendaryActive)
-    elif game.player.parryCooldown > 0:
-      let cooldownSecs = game.player.parryCooldown.int + 1
-      statusText = $cooldownSecs & "s"
-    else:
-      statusText = t(tkLegendaryReady)
-
-    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 70,
-            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(statusText, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
-            yOffset, 10, parryColor)
-    yOffset += DEBUG_LINE_HEIGHT + 2
-
-  # Blood Pact (active)
-  if hasPowerUp(game.player, puBloodPact):
-    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
-                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
-                 Color(r: 25, g: 8, b: 8, a: 50))
-    let bpColor = if game.player.bloodPactCooldown > 0:
-      Color(r: 100, g: 100, b: 100, a: 200)
-    else:
-      Color(r: 220, g: 60, b: 60, a: 255)
-    drawText(t(tkLegendaryBloodPact), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(t(tkLegendaryBloodPact), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10, bpColor)
-    let bpStatus = if game.player.bloodPactCooldown > 0:
-      $(game.player.bloodPactCooldown.int + 1) & "s"
-    else:
-      t(tkLegendaryReady)
-    drawText(bpStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 70,
-            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(bpStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
-            yOffset, 10, bpColor)
-    yOffset += DEBUG_LINE_HEIGHT + 2
-
-  # Conduit (active)
-  if hasPowerUp(game.player, puConduit):
-    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
-                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
-                 Color(r: 12, g: 20, b: 30, a: 50))
-    let condColor = if game.player.conduitCooldown > 0:
-      Color(r: 100, g: 100, b: 100, a: 200)
-    else:
-      Color(r: 80, g: 160, b: 255, a: 255)
-    drawText(t(tkLegendaryConduit), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(t(tkLegendaryConduit), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10, condColor)
-    let condStatus = if game.player.conduitCooldown > 0:
-      $(game.player.conduitCooldown.int + 1) & "s"
-    else:
-      t(tkLegendaryReady)
-    drawText(condStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 70,
-            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(condStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
-            yOffset, 10, condColor)
-    yOffset += DEBUG_LINE_HEIGHT + 2
-
-  # Nova (active)
-  if hasPowerUp(game.player, puNova):
-    drawRectangle(actualX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
-                 panelWidth - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
-                 Color(r: 12, g: 18, b: 30, a: 50))
-    let novaColor = if game.player.novaActive:
-      Color(r: 180, g: 220, b: 255, a: 255)
-    elif game.player.novaCooldown > 0:
-      Color(r: 100, g: 100, b: 100, a: 200)
-    else:
-      Color(r: 140, g: 200, b: 255, a: 255)
-    drawText(t(tkLegendaryNova), actualX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(t(tkLegendaryNova), actualX + DEBUG_PANEL_PADDING + 5, yOffset, 10, novaColor)
-    let novaStatus = if game.player.novaActive: t(tkLegendaryFrozen)
-                     elif game.player.novaCooldown > 0: $(game.player.novaCooldown.int + 1) & "s"
-                     else: t(tkLegendaryReady)
-    drawText(novaStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 70,
-            yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(novaStatus, actualX + panelWidth - DEBUG_PANEL_PADDING - 71,
-            yOffset, 10, novaColor)
+  qYOffset += LEGENDARY_Q_ICON_SIZE + 4
+  let footerText = if hoverText.len > 0:
+    hoverText
+  elif readyCount > 0:
+    $readyCount & " ready"
+  else:
+    "cooling down"
+  var displayFooter = footerText
+  let footerMaxW = panelWidth - LEGENDARY_Q_PADDING * 2
+  while measureText(displayFooter, 9) > footerMaxW and displayFooter.len > 3:
+    displayFooter = displayFooter[0..^2]
+  if displayFooter.len < footerText.len:
+    displayFooter = displayFooter[0..^2] & ".."
+  let footerW = measureText(displayFooter, 9)
+  drawText(displayFooter, actualX + panelWidth div 2 - footerW div 2 + 1,
+           qYOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 125))
+  drawText(displayFooter, actualX + panelWidth div 2 - footerW div 2,
+           qYOffset, 9, Color(r: 210, g: 220, b: 235, a: 210))
 
 proc drawMinimalDebugInfo*(game: Game, x, y: int32) =
   ## Draw minimal debug info (just FPS and entity count)

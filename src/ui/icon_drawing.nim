@@ -1,7 +1,7 @@
 ## Icon Drawing System - Modern OS Theme with detail
 ## All icons drawn programmatically using shapes with depth and polish
 
-import raylib, ../types, math
+import raylib, rlgl, ../types, math
 
 type
   CurrencyIconType* = enum
@@ -88,9 +88,21 @@ proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
 
 proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   ## Draw power-up icons using geometric shapes with enhanced detail
-  let cx = x + size div 2
-  let cy = y + size div 2
-  let rad = size.float32 / 2.5
+  if size <= 0:
+    return
+
+  const IconDesignSize = 50'i32
+  let inset = max(1.0'f32, min(3.0'f32, size.float32 * 0.12'f32))
+  let scale = max(0.01'f32, (size.float32 - inset * 2.0'f32) / IconDesignSize.float32)
+
+  rlgl.pushMatrix()
+  defer: rlgl.popMatrix()
+  rlgl.translatef(x.float32 + inset, y.float32 + inset, 0.0'f32)
+  rlgl.scalef(scale, scale, 1.0'f32)
+
+  let cx = IconDesignSize div 2
+  let cy = IconDesignSize div 2
+  let rad = IconDesignSize.float32 / 2.5
 
   case powerType
   of puDoubleShot:
@@ -204,10 +216,11 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Shine highlight
     drawCircle(Vector2(x: (cx - 3).float32, y: (cy - 3).float32), 4, Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 180))
     # Fuse
-    drawRectangle(cx - 2, cy - int32(rad) - 8, 4, 10, Color(r: 80, g: 60, b: 40, a: 255))
+    let fuseTop = cy - int32(rad * 0.9'f32) - 3
+    drawRectangle(cx - 2, fuseTop, 4, 8, Color(r: 80, g: 60, b: 40, a: 255))
     # Spark on fuse
-    drawCircle(Vector2(x: cx.float32, y: (cy - int32(rad) - 8).float32), 4, Color(r: 255, g: 200, b: 50, a: 255))
-    drawCircle(Vector2(x: cx.float32, y: (cy - int32(rad) - 8).float32), 2, Color(r: 255, g: 255, b: 200, a: 255))
+    drawCircle(Vector2(x: cx.float32, y: fuseTop.float32), 3, Color(r: 255, g: 200, b: 50, a: 255))
+    drawCircle(Vector2(x: cx.float32, y: fuseTop.float32), 1.5'f32, Color(r: 255, g: 255, b: 200, a: 255))
     # Warning symbol on bomb
     drawLine(cx, cy - 5, cx, cy + 2, Color(r: 255, g: 100, b: 0, a: 255))
     drawCircle(Vector2(x: cx.float32, y: (cy + 5).float32), 1, Color(r: 255, g: 100, b: 0, a: 255))
@@ -383,7 +396,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Medical cross with pulse
     # Pulse rings
     for i in 1..3:
-      drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad + i.float32 * 3,
+      drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad + i.float32 * 2,
                      Color(r: color.r, g: color.g, b: color.b, a: uint8(100 - i * 25)))
     # Circle background
     drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), rad, Color(r: 0, g: 0, b: 0, a: 60))
@@ -777,9 +790,10 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Magical sparkles around gem
     for i in 0..5:
       let angle = i.float32 * PI / 3
-      let sparkleX = cx.float32 + cos(angle) * (rad + 8)
-      let sparkleY = cy.float32 + sin(angle) * (rad + 8)
-      drawCircle(Vector2(x: sparkleX, y: sparkleY), 2,
+      let sparkleOrbit = rad * 0.88'f32
+      let sparkleX = cx.float32 + cos(angle) * sparkleOrbit
+      let sparkleY = cy.float32 + sin(angle) * sparkleOrbit
+      drawCircle(Vector2(x: sparkleX, y: sparkleY), 1.6'f32,
                 Color(r: min(color.r + 120, 255), g: min(color.g + 120, 255), b: min(color.b + 120, 255), a: 180))
   of puParry:
     # Shield with reflection symbol

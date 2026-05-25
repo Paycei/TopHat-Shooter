@@ -880,6 +880,9 @@ type
     waveClearedTimer*: float32  # Timer for wave cleared transition
     powerUpChoices*: array[3, PowerUp]
     selectedPowerUp*: int
+    recentPowerUp*: PowerUp
+    recentPowerUpTimer*: float32
+    recentPowerUpMaxTimer*: float32
     rollAnimationActive*: bool
     rollAnimationTimer*: float32
     rollSpeed*: array[3, float32]       # Current scroll speed px/s (used by renderer for motion blur)
@@ -910,7 +913,7 @@ type
     statsMenuTab*: int  # 0 = Lifetime stats, 1 = Last Run stats
     sandboxSidebarOpen*: bool  # Is the sandbox control sidebar visible
     sandboxTypingBuffer*: string  # Buffer for detecting "ttt" input
-    sandboxSelectedTab*: int  # Current tab in sandbox UI (0=Enemies, 1=Bosses, 2=Controls)
+    sandboxSelectedTab*: int  # Current tab in sandbox UI (0=Enemies, 1=Bosses, 2=PowerUps, 3=Controls)
     sandboxScrollOffset*: int32  # Scroll position in sidebar
     shopSidebarScroll*: int32   # Scroll offset (px) for the in-game shop left panel
     sandboxGodMode*: bool  # Player invulnerability

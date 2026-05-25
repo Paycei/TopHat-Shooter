@@ -4,11 +4,13 @@
 import raylib, ../types, ../localization, math, ../powerup_data, ../roguelite, ui_constants, ../render_context, icon_drawing
 
 const
-  COMBINED_PANEL_WIDTH = 200
+  COMBINED_PANEL_WIDTH = 238
   COMBINED_PANEL_PADDING = 6
   COMBINED_SECTION_SPACING = 6
-  COMBINED_ITEM_HEIGHT = 14
+  COMBINED_ITEM_HEIGHT = 24
   COMBINED_TITLE_HEIGHT = 18
+  COMBINED_MAX_POWERUPS_VISIBLE = 5
+  COMBINED_POWERUP_OVERFLOW_HEIGHT = 14
   HEADER_BG_COLOR = Color(r: 0, g: 100, b: 120, a: 60)
   ACCENT_COLOR = Color(r: 0, g: 220, b: 255, a: 255)
 
@@ -17,6 +19,12 @@ var leftPanelMinimized* = false
 var leftPanelPos* = Vector2(x: 10, y: 2)  # Default position
 var leftPanelDragging* = false
 var leftPanelDragOffset* = Vector2(x: 0, y: 0)
+
+proc clampByte(value: int): uint8 =
+  uint8(max(0, min(255, value)))
+
+proc withAlpha(color: Color, alpha: int): Color =
+  Color(r: color.r, g: color.g, b: color.b, a: clampByte(alpha))
 
 proc bestFitPanelFontSize(text: string, maxWidth, fontSize: int32, minSize: int32 = 6): int32 =
   result = fontSize
@@ -116,9 +124,11 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     return  # Don't draw rest of panel
 
   # Calculate height based on content
-  let numPowerUps = min(game.player.powerUps.len, 5)  # Limit to 5 visible
+  let numPowerUps = min(game.player.powerUps.len, COMBINED_MAX_POWERUPS_VISIBLE)  # Newest installs stay visible.
+  let hasPowerUpOverflow = game.player.powerUps.len > numPowerUps
   let powerUpHeight = if numPowerUps > 0:
-    COMBINED_ITEM_HEIGHT * numPowerUps + 22
+    3 + 10 + (COMBINED_ITEM_HEIGHT * numPowerUps) +
+      (if hasPowerUpOverflow: COMBINED_POWERUP_OVERFLOW_HEIGHT else: 0)
   else:
     0
 
@@ -134,7 +144,8 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   else:
     0
 
-  let totalHeight = 82 + powerUpHeight + waveInfoHeight + rogueliteInfoHeight + (if powerUpHeight > 0: COMBINED_SECTION_SPACING else: 0)
+  let totalHeight = 82 + powerUpHeight + waveInfoHeight + rogueliteInfoHeight +
+                    (if powerUpHeight > 0: COMBINED_SECTION_SPACING else: 0)
 
   # Main panel background - more transparent and colorful
   drawRectangle(finalPanelX, yOffset, COMBINED_PANEL_WIDTH, totalHeight.int32,
@@ -455,9 +466,9 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
             Color(r: 200, g: 220, b: 240, a: 255))
     yOffset += 10
 
-    # List power-ups (limit to 5) - with alternating backgrounds like debug panel
-    for i in 0..<min(numPowerUps, 5):
-      let powerUp = game.player.powerUps[i]
+    # List newest power-ups first so the last install cannot vanish behind "+more".
+    for i in 0..<numPowerUps:
+      let powerUp = game.player.powerUps[game.player.powerUps.len - 1 - i]
 
       # Alternating row background
       let rowBg = if i mod 2 == 0:
@@ -469,43 +480,60 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
                    COMBINED_PANEL_WIDTH - (COMBINED_PANEL_PADDING * 2) - 6, COMBINED_ITEM_HEIGHT,
                    rowBg)
 
-      # Mini colored indicator
       let iconColor = if powerUp.rarity == prLegendary:
-        Color(r: 255, g: 215, b: 0, a: 200)
+        Color(r: 255, g: 215, b: 0, a: 255)
       else:
-        Color(r: 80, g: 140, b: 255, a: 200)
+        getPowerUpColor(powerUp.powerType)
+      let pulse = if i == 0:
+        0.5'f32 + 0.5'f32 * sin(game.time * 6.0'f32)
+      else:
+        0.0'f32
+      let glowAlpha = if powerUp.rarity == prLegendary: 70 + int(pulse * 45.0'f32) else: 32 + int(pulse * 38.0'f32)
 
-      drawRectangle(finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 2, 10, 10, iconColor)
-      drawRectangleLines(Rectangle(x: (finalPanelX + COMBINED_PANEL_PADDING + 8).float32, y: (yOffset + 2).float32,
-                                    width: 10.0, height: 10.0),
-                        1, Color(r: 255, g: 255, b: 255, a: 100))
+      drawRectangle(finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset + 3, 18, 18,
+                    Color(r: 0, g: 0, b: 0, a: 125))
+      drawRectangle(finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 2, 18, 18,
+                    withAlpha(iconColor, glowAlpha))
+      drawRectangleLines(Rectangle(x: (finalPanelX + COMBINED_PANEL_PADDING + 6).float32,
+                                    y: (yOffset + 2).float32,
+                                    width: 18.0, height: 18.0),
+                        1, withAlpha(iconColor, if powerUp.rarity == prLegendary: 240 else: 170))
+      drawPowerUpIcon(finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset + 3, 16,
+                      powerUp.powerType, iconColor)
 
       # Power-up name (shortened)
       let processName = getPowerUpName(powerUp.powerType)
       var displayName = processName
-      let maxWidth = 140
+      let maxWidth = 154
       while measureText(displayName, 9) > maxWidth and displayName.len > 3:
         displayName = displayName[0..^2]
       if displayName.len < processName.len:
         displayName = displayName[0..^2] & ".."
 
-      drawText(displayName, finalPanelX + COMBINED_PANEL_PADDING + 22, yOffset + 3, 9,
-              Color(r: 230, g: 230, b: 230, a: 255))
+      drawText(displayName, finalPanelX + COMBINED_PANEL_PADDING + 31, yOffset + 3, 9,
+              if powerUp.rarity == prLegendary:
+                Color(r: 255, g: 232, b: 145, a: 255)
+              else:
+                Color(r: 230, g: 238, b: 245, a: 255))
+
+      let hintText = if powerUp.rarity == prLegendary: "LEGENDARY" else: "PROCESS"
+      drawText(hintText, finalPanelX + COMBINED_PANEL_PADDING + 31, yOffset + 15, 6,
+               withAlpha(iconColor, if powerUp.rarity == prLegendary: 230 else: 150))
 
       # Level indicator
-      let levelText = "L" & $powerUp.level
-      let levelWidth = measureText(levelText, 8)
+      let levelText = if powerUp.rarity == prLegendary: "*" else: "L" & $powerUp.level
+      let levelWidth = measureText(levelText, 10)
       drawText(levelText, finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - levelWidth - 5,
-              yOffset + 4, 8, Color(r: 140, g: 140, b: 140, a: 255))
+              yOffset + 7, 10, withAlpha(iconColor, 235))
 
       yOffset += COMBINED_ITEM_HEIGHT
 
-    # Show "+X more" if there are more than 5
-    if game.player.powerUps.len > 5:
-      let moreText = "+" & $(game.player.powerUps.len - 5) & " more"
+    # Show "+X more" if there are more than the visible stack
+    if hasPowerUpOverflow:
+      let moreText = "+" & $(game.player.powerUps.len - numPowerUps) & " more"
 
       drawRectangle(finalPanelX + COMBINED_PANEL_PADDING + 3, yOffset - 1,
-                   COMBINED_PANEL_WIDTH - (COMBINED_PANEL_PADDING * 2) - 6, 12,
+                   COMBINED_PANEL_WIDTH - (COMBINED_PANEL_PADDING * 2) - 6, COMBINED_POWERUP_OVERFLOW_HEIGHT,
                    Color(r: 20, g: 25, b: 35, a: 100))
 
       drawText(moreText, finalPanelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 8,
