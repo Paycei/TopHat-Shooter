@@ -1,7 +1,5 @@
 import json, os, random, strutils, math
-import types, save_system, powerup
-import skins, bullet_skins, bullet_shapes, shapes, particle_skins
-import desktop_bg_skins, cube_skins
+import types, save_system, powerup, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins
 
 const
   RogueliteProfileVersion* = 3
@@ -38,7 +36,7 @@ proc saveRogueliteProfile*(profile: RogueliteProfile): bool
 proc commitRogueliteRunProgress*(game: Game, died: bool): bool
 
 proc heatChallengeRank*(heat: int): int =
-  ## Heat 1 is the default baseline; Heat 2/3 add challenge.
+  ## Heat 1 is the default baseline, Heat 2/3 add challenge.
   max(0, clamp(heat, RogueliteMinHeat, RogueliteMaxHeat) - RogueliteMinHeat)
 
 proc getRogueliteProfilePath*(): string =

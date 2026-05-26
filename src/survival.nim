@@ -1,6 +1,7 @@
 # SURVIVAL MODE - Time Survival specific logic
 
-import raylib, types, enemy, random, math, particle_pool, localization
+import raylib, random, math
+import types, enemy, particle_pool, localization
 
 proc spawnSurvivalEnemies*(game: Game) =
   ## Time-based enemy spawning for Survival mode.

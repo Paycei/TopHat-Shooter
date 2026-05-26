@@ -1,7 +1,8 @@
 ## OS-Style Debug Panel
 ## System diagnostics and performance metrics
 
-import raylib, ../types, strutils, ../powerup, ../localization, ui_constants, ../render_context, math, ../powerup_data, icon_drawing
+import raylib, strutils, math
+import ../types, ../powerup, ../localization, ui_constants, ../render_context, ../powerup_data, icon_drawing
 
 const
   DEBUG_PANEL_WIDTH = 200

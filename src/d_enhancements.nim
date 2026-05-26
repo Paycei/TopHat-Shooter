@@ -1,4 +1,5 @@
-import raylib, types, boss_definitions, localization
+import raylib
+import types, boss_definitions, localization
 
 type
   DamageDisplayType* = enum

@@ -1,4 +1,5 @@
-import raylib, types, math, bullet_skins, bullet_shapes
+import raylib, math
+import types, bullet_skins, bullet_shapes
 
 ## Boss ID -> bullet shape index. 0=circle, 1=diamond, 2=triangle, 3=star, 4=cross, 5=square
 const bossBulletShapeTable = [
@@ -127,7 +128,7 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
   of 5:  # Square (axis-aligned, slow rotation)
     drawNgonBullet(4, spin * 0.25, r + 6.2, 4.1 + pulse * 1.1, 0.55, 90)
 
-  of 3:  # Star (two overlapping triangles — structurally distinct, kept explicit)
+  of 3:  # Star (two overlapping triangles, structurally distinct, kept explicit)
     let rot1 = -PI / 2.0 + spin * 0.5
     let rot2 = PI / 2.0 + spin * 0.5
     drawNgon(cx, cy, r + 6.0, 3, rot1, silhouetteColor)
@@ -349,7 +350,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     # Fill center
     drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius * 0.5, color)
   elif bullet.isBossBullet and bullet.bossBulletShape > 0:
-    # Boss bullets with a unique shape — shape + glow already handled together
+    # Boss bullets with a unique shape shape + glow already handled together
     drawBossBulletShape(bullet, color, glowColor, gameTime)
   elif bullet.fromPlayer and not bullet.isEcho and bullet.bulletShape > 0:
     # Player cosmetic bullet shape
@@ -391,7 +392,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     # Boss bullets get a special strong glow effect
     elif bullet.isBossBullet:
       if bullet.bossBulletShape == 0:
-        # Circle fallback — draw old-style glow rings
+        # Circle fallback, draw old-style glow rings
         drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
                        Color(r: 255, g: 50, b: 150, a: 200))
         drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 7,

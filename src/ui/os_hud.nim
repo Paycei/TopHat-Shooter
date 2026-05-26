@@ -1,6 +1,7 @@
 ## OS-Style HUD System
 
-import raylib, ../types, math, ../localization, ui_constants, icon_drawing
+import raylib, math
+import ../types, ../localization, ui_constants, icon_drawing
 
 const
   PANEL_PADDING = 10
@@ -91,7 +92,7 @@ proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
 
     drawRectangle(x + PANEL_PADDING + 3, yOffset, fillWidth, barHeight, barColor)
 
-    # Singularity shield overlay — purple tint on the top portion of the HP bar
+    # Singularity shield overlay, purple tint on the top portion of the HP bar
     # that the shield currently protects (drawn on top of the HP fill).
     if player.singularityShield > 0.0:
       # Shield covers the topmost min(shield, hp) HP worth of the bar

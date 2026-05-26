@@ -1,5 +1,5 @@
-import raylib, types, random, math
-import ui/consumable_icons, ui/ui_constants
+import raylib, random, math
+import types, ui/consumable_icons, ui/ui_constants
 
 proc newConsumable*(x, y: float32, difficulty: float32): Consumable =
   # Weighted selection based on difficulty

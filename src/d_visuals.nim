@@ -1,4 +1,5 @@
-import raylib, types, d_systems, math, localization
+import raylib, math
+import types, d_systems, localization
 
 proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
                           currentTime: float32, posX, posY: int32) =
@@ -187,7 +188,7 @@ proc drawWaveStartBanner*(waveNumber: int, waveAge: float32,
   # Slide in from top, linger, then slide out
   let slideIn  = clamp(waveAge / SLIDE_TIME, 0.0, 1.0)
   let slideOut = clamp((SHOW_DURATION - waveAge) / SLIDE_TIME, 0.0, 1.0)
-  let ease     = slideIn * slideOut  # 0→1→0
+  let ease     = slideIn * slideOut  # 0->1->0
 
   let bannerH: int32 = 44
   let bannerY = int32((-bannerH.float32) + ease * (bannerH + 4).float32)
@@ -208,9 +209,9 @@ proc drawWaveStartBanner*(waveNumber: int, waveAge: float32,
   drawRectangle(0, bannerY, screenWidth, 2, accentColor)
   drawRectangle(0, bannerY + bannerH - 2, screenWidth, 2, accentColor)
 
-  # Wave text — centred
+  # Wave text, centred
   let waveLabel = if isBossWarning:
-    "BOSS INCOMING  —  WAVE " & $waveNumber
+    "BOSS INCOMING ,  WAVE " & $waveNumber
   else:
     "WAVE  " & $waveNumber
   let fontSize: int32 = 22

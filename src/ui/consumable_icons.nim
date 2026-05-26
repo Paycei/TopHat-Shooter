@@ -1,19 +1,8 @@
 ## Consumable Icon Drawing System - Simple & Clear Icons
 ## Redesigned for clarity and easy identification
 
-import raylib, ../types, math
-
-# Forward declarations
-proc drawHealthIcon(cx, cy: int32, size: float32)
-proc drawCoinIcon(cx, cy: int32, size: float32)
-proc drawSpeedIcon(cx, cy: int32, size: float32)
-proc drawInvincibilityIcon(cx, cy: int32, size: float32)
-proc drawFireRateIcon(cx, cy: int32, size: float32)
-proc drawMagnetIcon(cx, cy: int32, size: float32)
-proc drawShieldIcon(cx, cy: int32, size: float32)
-proc drawDoubleCoinIcon(cx, cy: int32, size: float32)
-proc drawDamageBoostIcon(cx, cy: int32, size: float32)
-proc drawLifestealIcon(cx, cy: int32, size: float32)
+import raylib, math
+import ../types
 
 proc drawHealthIcon(cx, cy: int32, size: float32) =
   ## Simple plus/cross symbol (medical cross)

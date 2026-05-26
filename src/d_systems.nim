@@ -1,4 +1,5 @@
-import raylib, types, math, random, localization
+import raylib, math, random
+import types, localization
 
 type
   ShakeIntensity* = enum

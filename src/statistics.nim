@@ -1,4 +1,5 @@
-import json, os, times, save_system, types
+import json, os, times
+import save_system, types
 
 type
   GameModeStats* = object

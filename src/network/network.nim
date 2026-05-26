@@ -1,6 +1,7 @@
 ## Core Networking Layer for PvP Mode
 
-import net, nativesockets, network_types, flatty, supersnappy, times, strutils, ../types, math
+import net, nativesockets, flatty, supersnappy, times, strutils, math
+import network_types, ../types
 
 const
   DEFAULT_PORT* = 7777

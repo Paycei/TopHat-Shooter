@@ -1,6 +1,5 @@
 import raylib, math, strutils
-import ../types, ../roguelite, ../localization, ../render_context
-import icon_drawing
+import ../types, ../roguelite, ../localization, ../render_context, icon_drawing
 
 # Unlock card grid constants
 
@@ -1152,14 +1151,14 @@ proc drawUnlockCardStatus(x, y: int, isPurchased, canBuy: bool,
   const cW = UnlockCardW
   const cH = UnlockCardH
 
-  # Purchased: badge is already drawn by drawUnlockCard; nothing extra needed here
+  # Purchased: badge is already drawn by drawUnlockCard, nothing extra needed here
   if isPurchased:
     return
 
   let statusColor = if canBuy: Color(r: 255, g: 215, b: 80, a: 255)
                     else: Color(r: 140, g: 142, b: 158, a: 255)
 
-  # Dim overlay — two-pass for a subtle depth gradient (top lighter, bottom darker)
+  # Dim overlay, two-pass for a subtle depth gradient (top lighter, bottom darker)
   if canBuy:
     drawRectangle(x.int32, (y + cH - 44).int32, cW, 44, Color(r: 0, g: 0, b: 0, a: 44))
     drawRectangle(x.int32, y.int32, cW, 3, softColor(statusColor, 135))
@@ -1196,7 +1195,7 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
   const cH = UnlockCardH
 
   let catColor = categoryColor(category)
-  # Each power family gets its own distinct color; everything else uses the category accent
+  # Each power family gets its own distinct color, everything else uses the category accent
   let itemColor = if category == rucPowerFamilies: familyColor(familyByUnlockIndex(index))
                   else: catColor
 
@@ -1401,7 +1400,7 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
                      softColor(catColor, 80))
   drawLine(panelX + 24, gridY - 1, panelX + PanelW - 24, gridY - 1, softColor(catColor, 115))
 
-  # Scroll hint — shown inside the grid area, bottom-right, only when scrollable
+  # Scroll hint, shown inside the grid area, bottom-right, only when scrollable
   if maxScroll > 0:
     let hintText = t("roguelite_scroll_hint")
     let hintW = measureText(hintText, 10)

@@ -1,7 +1,8 @@
 ﻿## OS-Style Enemy Labels
 ## Draw enemies with modern process/threat labels
 
-import raylib, ../types, math, ui_constants, ../localization
+import raylib, math
+import ../types, ui_constants, ../localization
 
 proc getEnemyProcessName*(enemy: Enemy): string =
   ## Generate a process name for an enemy based on type

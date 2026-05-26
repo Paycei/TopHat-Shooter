@@ -409,7 +409,7 @@ proc getAuraConfig(auraType: PowerUpType, level: int): AuraConfig =
       ringColor: Color(r: 120, g: 170, b: 255, a: 40),
       borderColor: Color(r: 100, g: 160, b: 255, a: 200),
       pulseSpeed: 1.5,
-      visualStyle: avsWind  # Closest style — swirling currents fit a slow field
+      visualStyle: avsWind  # Closest style, swirling currents fit a slow field
     )
   of puFireAura:
     result = AuraConfig(
@@ -687,7 +687,7 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
       drawCircle(Vector2(x: x + heartSize, y: y), heartSize, Color(r: 255, g: 100, b: 100, a: 180))
       drawCircle(Vector2(x: x, y: y + heartSize), heartSize * 1.2, Color(r: 255, g: 100, b: 100, a: 180))
 
-  # Draw outer border — 2 passes: soft outer glow, then solid ring at exact radius
+  # Draw outer border, 2 passes: soft outer glow, then solid ring at exact radius
   let br = config.borderColor.r
   let bg = config.borderColor.g
   let bb = config.borderColor.b
@@ -772,13 +772,6 @@ type CombatStats* = object
   critMultiplier*: float32  # Critical hit damage multiplier
   hasCrit*: bool            # Whether player has crit power-up
 
-proc getMultiShotDamageMultiplier(level: int): float32 =
-  ## Centralized per-bullet damage penalty for Multi-Shot.
-  ## Legendary Multi-Shot is still a large spike, just no longer a 3x base-DPS outlier.
-  case level
-  of 1: 0.7
-  else: 0.7
-
 proc calculateCombatStats*(player: Player): CombatStats =
   ## Calculates all combat stats in one place
   ## Single source of truth for damage, fire rate, crit chance calculations
@@ -793,7 +786,7 @@ proc calculateCombatStats*(player: Player): CombatStats =
 
   # Damage boost consumable
   if player.damageBoostTimer > 0:
-    result.damage *= 1.5  # +50% damage
+    result.damage *= 1.4  # +40% damage
 
   # Rage power-up - damage increases when HP is low
   for powerUp in player.powerUps:
@@ -809,7 +802,7 @@ proc calculateCombatStats*(player: Player): CombatStats =
 
   # Fire rate boost consumable
   if player.fireRateBoostTimer > 0:
-    result.fireRate *= 0.6
+    result.fireRate *= 0.75    # 25% faster fire rate (lower value = faster)
 
   # Double Shot penalty - 25% slower fire rate
   for powerUp in player.powerUps:
@@ -973,7 +966,7 @@ proc calculateContactDamageToEnemy*(player: Player, enemy: Enemy): tuple[damage:
 
   # Speed multiplier: 0.5x at zero movement, 1.5x at full speed (175)
   let speedRatio = player.vel.length() / player.baseSpeed
-  let speedMult = 0.5 + speedRatio * 1.0   # range: 0.5 – 1.5
+  let speedMult = 0.5 + speedRatio * 1.0   # range: 0.5: 1.5
   base *= speedMult
 
   # Max-HP bonus: +2% per HP above the base 9, capped at +50%
@@ -982,7 +975,7 @@ proc calculateContactDamageToEnemy*(player: Player, enemy: Enemy): tuple[damage:
 
   # Boss defense multiplier already handled by damageEnemy(), skip here
 
-  # Critical hit — uses the same CombatStats path as bullets
+  # Critical hit, uses the same CombatStats path as bullets
   let stats = calculateCombatStats(player)
   let (finalDamage, wasCrit) = applyCriticalHitWithFlag(stats, base)
   return (finalDamage, wasCrit)
@@ -1063,7 +1056,7 @@ proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2f) =
     # Linear interpolation base point
     let bx = fromPos.x + dx * t
     let by = fromPos.y + dy * t
-    # Random jag perpendicular – envelope tapers at both ends
+    # Random jag perpendicular: envelope tapers at both ends
     let env   = 1.0'f32 - abs(t * 2.0'f32 - 1.0'f32)
     let jag   = (rand(1.0) * 2.0 - 1.0).float32 * ampBase * env
     segs.add(newVector2f(bx + px * jag, by + py * jag))
@@ -1099,7 +1092,7 @@ proc drawLightningBolts*(game: Game) =
       let b = bolt.segments[i + 1]
       let ax = a.x.int32;  let ay = a.y.int32
       let bx = b.x.int32;  let by = b.y.int32
-      # Glow pass (drawn first, wider conceptually – draw offset copies)
+      # Glow pass (drawn first, wider conceptually: draw offset copies)
       drawLine(ax - 1, ay,     bx - 1, by,     glowColor)
       drawLine(ax + 1, ay,     bx + 1, by,     glowColor)
       drawLine(ax,     ay - 1, bx,     by - 1, glowColor)
@@ -1554,7 +1547,7 @@ proc calculateWaveEnemyCount(waveNumber: int): int =
 proc startWave*(game: Game) =
   game.waveInProgress = true
   game.waveStartTime = game.time  # Track when this wave started
-  # Visual pulse ring — cyan for normal waves, orange for boss-lead waves
+  # Visual pulse ring, cyan for normal waves, orange for boss-lead waves
   let wavePulseColor = if game.wavesUntilBoss == 0:
     Color(r: 255, g: 160, b: 0, a: 255)
   else:
@@ -1673,7 +1666,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etTriangle
 
       elif wave <= 35:
-        # Waves 31-35: Introduce DIAMOND; circles removed from wave 30+
+        # Waves 31-35: Introduce DIAMOND, circles removed from wave 30+
         if roll < 16: enemyType = etDiamond
         elif roll < 33: enemyType = etCube
         elif roll < 47: enemyType = etStar
@@ -1888,10 +1881,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     if hasDoubleShot:
       damage *= 0.85  # 15% less damage per bullet
 
-    # Multi-Shot remains premium, but no longer triples baseline DPS by itself.
+    # Multi-Shot no longer triples baseline DPS by itself.
     if hasMultiShot:
-      let multiLevel = getPowerUpLevel(game.player, puMultiShot)
-      damage *= getMultiShotDamageMultiplier(multiLevel)
+      damage *= 0.7
 
     var bulletRadius = BASE_PLAYER_BULLET_RADIUS
 
@@ -1922,7 +1914,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Apply Arcane Mastery bonus to Arcane bullets (damage + piercing)
     var arcanePiercing = hasPiercing  # Start with base piercing status
     if hasArcane and game.player.hasArcaneMastery:
-      damage *= 1.6  # +60% additional damage on top of Arcane Bullets bonus
+      damage *= 1.5  # +50% additional damage on top of Arcane Bullets bonus
       arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
 
     # Calculate slow, poison, fire, and wind effects
@@ -2117,13 +2109,12 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   # Apply Arcane Mastery bonus consistently to delayed burst bullets too.
   var arcanePiercing = hasPiercing
   if hasArcane and game.player.hasArcaneMastery:
-    damage *= 1.6
+    damage *= 1.5  # +50% additional damage on top of Arcane Bullets bonus
     arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
 
-  # NERF: Multi-shot bullets deal less damage per bullet (scales with level)
+  # NERF: Multi-shot bullets deal less damage per bullet
   if hasMultiShot:
-    let multiLevel = getPowerUpLevel(game.player, puMultiShot)
-    damage *= getMultiShotDamageMultiplier(multiLevel)
+    damage *= 0.7
 
   # Roll for critical hit
   let burstBaseDamagePreCrit = damage  # Store pre-crit value for puCriticalHit tracking
@@ -2337,7 +2328,7 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
     enemy.pos = enemy.pos + toTarget * enemy.speed * dt
 
   of "circle_player":
-    # Orbit around player — smooth velocity-based, constant natural speed
+    # Orbit around player, smooth velocity-based, constant natural speed
     let orbitRadius = 180.0
     let orbitAngularSpeed = 0.55  # radians per second
     let currentAngle = arctan2(enemy.pos.y - game.player.pos.y, enemy.pos.x - game.player.pos.x)
@@ -2366,7 +2357,7 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
       enemy.pos = enemy.pos + driftDir * enemy.speed * 0.45 * dt
 
   of "geometric_movement":
-    # Smooth lissajous/figure-eight movement — constant natural speed toward pattern target
+    # Smooth lissajous/figure-eight movement, constant natural speed toward pattern target
     let patternPhase = game.time * 1.0
     let targetX = centerX + sin(patternPhase) * 150.0
     let targetY = centerY + cos(patternPhase) * 150.0
@@ -2390,7 +2381,7 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
     enemy.pos = enemy.pos + blendedDir * enemy.speed * dt
 
   of "reality_break":
-    # Chaotic unpredictable movement — time-based multi-frequency angle, no per-frame rand
+    # Chaotic unpredictable movement, time-based multi-frequency angle, no per-frame rand
     let randomAngle = game.time * 1.3 + sin(game.time * 2.7 + enemy.pos.x * 0.01) * PI +
                       cos(game.time * 1.9 + enemy.pos.y * 0.01) * PI
     let randomDir = newVector2f(cos(randomAngle), sin(randomAngle))
@@ -2425,7 +2416,7 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
 
     enemy.pos = enemy.pos + baseMove + newVector2f(jitterX, jitterY)
 
-    # Constant electric particles — timer-gated to ~6 spawns/sec regardless of fps
+    # Constant electric particles, timer-gated to ~6 spawns/sec regardless of fps
     if (game.time mod 0.15) < dt:
       let sparkX = enemy.pos.x + (rand(1.0) - 0.5) * enemy.radius * 2
       let sparkY = enemy.pos.y + (rand(1.0) - 0.5) * enemy.radius * 2
@@ -2433,12 +2424,12 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
                      Color(r: 255, g: 255, b: 150, a: 255), 1)
 
   of "electric_surge":
-    # Rapid zigzag movement like lightning bolt — smooth continuous direction, not discrete phase buckets
+    # Rapid zigzag movement like lightning bolt, smooth continuous direction, not discrete phase buckets
     let surgeAngle = arctan2(toPlayer.y, toPlayer.x) + sin(game.time * 15.0) * 0.5
     let surgeDir = newVector2f(cos(surgeAngle), sin(surgeAngle))
     enemy.pos = enemy.pos + surgeDir * enemy.speed * 1.0 * dt
 
-    # Electric particles — gated to ~10 spawns/sec, not every frame
+    # Electric particles, gated to ~10 spawns/sec, not every frame
     if (game.time mod 0.1) < dt:
       spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                      Color(r: 220, g: 230, b: 255, a: 200), 2)
@@ -2466,7 +2457,7 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
 
   of "satellite_swarm":
     # Complex multi-layer orbit (Orbital Commander phase 2)
-    # Velocity-based movement toward the orbit target — no direct position assignment
+    # Velocity-based movement toward the orbit target, no direct position assignment
     let swarmAngle1 = game.time * 1.2
     let swarmAngle2 = game.time * 0.6
     let innerRadius = 150.0 + sin(game.time * 2.0) * 30.0
@@ -2556,7 +2547,7 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
 
   of "summon_frenzy":
     # Defensive positioning with occasional aggressive bursts (Summoner King phase 2)
-    # sin-based blend: aggressive near peak, defensive near trough — 5s period, fps-independent
+    # sin-based blend: aggressive near peak, defensive near trough, 5s period, fps-independent
     let frenzyBlend = sin(game.time * (PI * 2.0 / 5.0)) * 0.5 + 0.5  # 0..1 over 5s
     if frenzyBlend > 0.92:
       # Aggressive burst near the peak of each 5s cycle
@@ -2638,7 +2629,7 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
 
   of "chaotic_movement":
     # Unpredictable random movement (Chaos Weaver phase 1)
-    # Multi-frequency time-based angle — looks chaotic but smooth, no per-frame rand
+    # Multi-frequency time-based angle, looks chaotic but smooth, no per-frame rand
     let chaosFactor = sin(game.time * 7.0 + enemy.pos.x * 0.03) * 0.8
     let chaosAngle = game.time * 2.1 + sin(game.time * 5.3) * PI * 0.7
     let chaosDir = newVector2f(cos(chaosAngle + chaosFactor), sin(chaosAngle + chaosFactor))
@@ -2663,8 +2654,8 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
 
   of "total_chaos":
     # Maximum chaos - truly unpredictable
-    # Time-based trigger (~once every 1.5s) instead of per-frame rand — fps-independent
-    let chaosInterval = 1.5 + sin(game.time * 1.1) * 0.6  # 0.9–2.1s varying interval
+    # Time-based trigger (~once every 1.5s) instead of per-frame rand, fps-independent
+    let chaosInterval = 1.5 + sin(game.time * 1.1) * 0.6  # 0.9-2.1s varying interval
     discard chaosInterval
     if tryBossBehaviorTeleport(game, enemy, dt, 4.0, 5.4, 150.0, 260.0, phase.color, 20, 140.0):
       let chaosAngle = rand(1.0) * PI * 2.0
@@ -2702,7 +2693,7 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
     enemy.pos = enemy.pos + toBalance * enemy.speed * dt
 
   of "aggressive_mixed":
-    # Alternating between chase and strafe (Omega Entity phase 2) — sin-based blend, no frame dependency
+    # Alternating between chase and strafe (Omega Entity phase 2), sin-based blend, no frame dependency
     # Completes one full chase->strafe cycle every 1.5s
     let mixedBlend = sin(game.time * (PI * 2.0 / 1.5)) * 0.5 + 0.5  # 0..1
     let mixedStrafe = newVector2f(-toPlayer.y, toPlayer.x)
@@ -2823,7 +2814,7 @@ proc addBossAttackWarning(game: var Game, enemy: Enemy, attack: BossAttack) =
     of bapWave:    "boss_wave"
     of bapSummon:  "boss_summon"
     of bapSnipe:   "laser_pointer"
-    else:          return  # bapTargeted, bapOrbit — no pre-warning
+    else:          return  # bapTargeted, bapOrbit, no pre-warning
 
   # For dash attacks, targetPos is the actual landing spot (origin + dir x dashDist)
   # so the arrow in the warning covers the true path the boss will travel.
@@ -3772,7 +3763,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
 
   of bapMeteor:
-    # Falling projectiles from above — screen-wide barrage with a guaranteed dodge gap
+    # Falling projectiles from above, screen-wide barrage with a guaranteed dodge gap
     # SpecialData modes:
     # - "warn_impact":    Show warnings before meteors arrive
     # - "massive_impact": Larger meteorites, more coverage
@@ -4417,7 +4408,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
       let chainDamageWithCrit = applyCriticalHitFromStats(stats, baseDamage * 0.7)
       let chainDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
 
-      # Track lightning orb chain damage — belongs to puChainLightning regardless of trigger source
+      # Track lightning orb chain damage, belongs to puChainLightning regardless of trigger source
       trackPowerUpDamage(game, puChainLightning, chainDamage)
 
       game.showDamage(nearestEnemy.pos, chainDamage, fromPlayer = true,
@@ -4448,7 +4439,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
           let secondChainDamageWithCrit = applyCriticalHitFromStats(stats, baseDamage * 0.7)
           let secondChainDamage = damageEnemy(secondNearestEnemy, secondChainDamageWithCrit)
 
-          # Track second chain damage — belongs to puChainLightning regardless of trigger source
+          # Track second chain damage, belongs to puChainLightning regardless of trigger source
           trackPowerUpDamage(game, puChainLightning, secondChainDamage)
 
           game.showDamage(secondNearestEnemy.pos, secondChainDamage, fromPlayer = true,
@@ -5705,7 +5696,7 @@ proc updateGame*(game: var Game, dt: float32) =
     let effectDamage = updateEffects(enemy, effectiveDt)
     if effectDamage > 0:
       # Stars use hitCount instead of HP; only register a hit when the 0.5s
-      # aura-accumulation window flushes — not every frame (~60x/sec).
+      # aura-accumulation window flushes, not every frame (~60x/sec).
       let actualDamage = if enemy.enemyType == etStar:
         let timeSinceFlush = game.time - enemy.lastAuraDamageNumberTime
         if timeSinceFlush >= 0.5 or enemy.lastAuraDamageNumberTime == 0:
@@ -5902,7 +5893,7 @@ proc updateGame*(game: var Game, dt: float32) =
         spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius * 0.7)
         spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius * 0.4)
 
-      # Death particles — rich multi-layer burst
+      # Death particles, rich multi-layer burst
       spawnEnemyDeathBurst(game.particlePool, enemy.pos.x, enemy.pos.y,
                            enemy.color, enemy.radius, enemy.isBoss)
 
@@ -5923,7 +5914,7 @@ proc updateGame*(game: var Game, dt: float32) =
         if game.player.hasBountiful:
           game.player.bountifulKillCounter += 1
 
-          # Every 15th kill: jackpot burst — 3 consumables scattered around the enemy
+          # Every 15th kill: jackpot burst, 3 consumables scattered around the enemy
           if game.player.bountifulKillCounter >= 15:
             game.player.bountifulKillCounter = 0
             for j in 0..<3:
@@ -5948,9 +5939,9 @@ proc updateGame*(game: var Game, dt: float32) =
 
       game.player.kills += 1
 
-      # Lifesteal consumable - heal 1 HP per kill
+      # Lifesteal consumable - heal 50 HP per kill
       if game.player.lifestealTimer > 0:
-        heal(game.player, 1)
+        heal(game.player, 0.5)
         # Show heal damage number
         showDamage(game, game.player.pos, 1.0, true, false, dtHeal)
 
@@ -6124,7 +6115,7 @@ proc updateGame*(game: var Game, dt: float32) =
 
           # Reinitialize attack timers for new phase.
           # Use WARNING_LEAD_TIME so the pre-fire warning fires immediately and
-          # the attack follows 0.4 s later — fast phase-start without skipping warnings.
+          # the attack follows 0.4 s later, fast phase-start without skipping warnings.
           const PHASE_TRANSITION_LEAD = 0.4'f32
           enemy.attackTimers = @[]
           enemy.attackWarningFired = @[]
@@ -6204,7 +6195,7 @@ proc updateGame*(game: var Game, dt: float32) =
         const WARNING_LEAD_TIME = 0.4'f32
         for i, attack in phase.attacks:
           if i < enemy.attackTimers.len:
-            # Show pre-fire warning once per cycle — fires as soon as the timer
+            # Show pre-fire warning once per cycle, fires as soon as the timer
             # enters the warning window, regardless of cooldown length.
             # This works even when cooldown <= WARNING_LEAD_TIME.
             if enemy.attackTimers[i] <= WARNING_LEAD_TIME and
@@ -6476,7 +6467,7 @@ proc updateGame*(game: var Game, dt: float32) =
           else:
             accumulateAndShowContactDamage(game, enemy, contactDamageToEnemy)
 
-          # Visual feedback — more particles for crits
+          # Visual feedback, more particles for crits
           let contactParticleCount = if contactWasCrit: 8 else: 3
           spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.color, contactParticleCount)
 
@@ -6873,7 +6864,7 @@ proc updateGame*(game: var Game, dt: float32) =
             game.enemies[j].isBoss and game.enemies[j].invulnerabilityTimer > 0
 
           if game.enemies[j].enemyType == etStar:
-            # Stars use hit counter — show "1" per hit dealt
+            # Stars use hit counter, show "1" per hit dealt
             game.enemies[j].hitCount += 1
             showDamage(game, game.enemies[j].pos, 0.01, true, false, dtHitCount)
           else:
@@ -6991,7 +6982,7 @@ proc updateGame*(game: var Game, dt: float32) =
             if overchargeExtraDamage > 0:
               trackPowerUpDamage(game, puOvercharge, overchargeExtraDamage)
 
-            # Track Rage damage contribution — use multiplier baked in at fire time
+            # Track Rage damage contribution, use multiplier baked in at fire time
             if bullet.rageMultiplier > 1.0:
               let rageBonusDamage = actualDamage * (1.0 - 1.0 / bullet.rageMultiplier)
               trackPowerUpDamage(game, puRage, rageBonusDamage)
@@ -7840,7 +7831,7 @@ proc drawGame*(game: Game) =
         let y = game.player.pos.y + sin(angle) * ringRadius
         drawCircle(Vector2(x: x, y: y), 3, Color(r: 75, g: 0, b: 130, a: alpha))
 
-    # Draw outer boundary — 3-pass so the pull limit is always clearly visible
+    # Draw outer boundary, 3-pass so the pull limit is always clearly visible
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 4.0,
                    Color(r: 138, g: 43, b: 226, a: 55))
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 2.0,
@@ -7949,7 +7940,7 @@ proc drawGame*(game: Game) =
     # Avoid drawing over the wave banner when it's visible
     let bannerVisible = if game.waveInProgress: (game.time - game.waveStartTime) < 1.5 else: false
 
-    # Helper: draw a minimal warning — just an exclamation with a soft circular background
+    # Helper: draw a minimal warning, just an exclamation with a soft circular background
     proc drawSimpleWarning(xCenter, yCenter: int32, timeFactor: float32) =
       let pulse = (sin(game.time * 6.0) + 1.0) * 0.5
       let alphaF = clamp(0.5 + pulse * 0.5, 0.0, 1.0) * timeFactor
@@ -8076,7 +8067,7 @@ proc drawGame*(game: Game) =
   # Compact Q ability cooldown strip replaces the old legendary cooldown window.
   drawLegendaryPowerUpsPanel(game, game.screenWidth.int32, game.screenHeight.int32)
 
-  # Instructions only for non-legendary keys — hidden when the shop overlay is active
+  # Instructions only for non-legendary keys, hidden when the shop overlay is active
   if game.state != gsShop:
     drawText(t(tkGameInstructionsWall),
              game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)

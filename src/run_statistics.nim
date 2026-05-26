@@ -1,11 +1,5 @@
 ﻿import types, std/tables, times, math, strutils, boss_definitions
 
-# Forward declarations for functions defined later in file
-proc calculateDerivedMetrics*()
-proc updateDPS*(damage: float32)
-proc calculatePlayStyle*()
-proc trackPowerUpKill*(game: Game, powerType: PowerUpType)
-
 # Tracks ALL measurable gameplay data for analysis and visualization
 type
   # EVENT TRACKING - Time-series events for detailed timeline analysis
@@ -181,6 +175,100 @@ proc startNewRun*(gameMode: GameMode) =
   currentRunStats.startTime = $now()
   echo "[Stats] New run started: ", gameMode
 
+proc calculatePlayStyle*() =
+  if currentRunStats.isNil: return
+  let run = currentRunStats
+
+  # Priority-ordered classifier
+  if run.movement.phaseShiftsUsed >= 5:
+    run.comparison.playStyle = "Mobile"
+  elif run.combat.totalDamageTaken < 20.0 and run.movement.longestNoDamageStreak > 45.0:
+    run.comparison.playStyle = "Defensive"
+  elif run.movement.timeAtCriticalHP / max(1.0, run.runDuration) > 0.15:
+    run.comparison.playStyle = "Tank"
+  elif run.performance.averageDPS > run.performance.peakDPS * 0.6:
+    run.comparison.playStyle = "Aggressive"
+  else:
+    run.comparison.playStyle = "Balanced"
+
+  # Normalize aggression/caution to 0-100 for bar display
+  run.comparison.aggressionRating = clamp(
+    (run.performance.averageDPS / max(1.0, run.performance.peakDPS)) * 100.0, 0.0, 100.0)
+  run.comparison.cautionRating = clamp(
+    (run.movement.longestNoDamageStreak / max(1.0, run.runDuration)) * 100.0, 0.0, 100.0)
+
+proc calculateDerivedMetrics*() =
+  if currentRunStats.isNil: return
+
+  let totalShots = currentRunStats.combat.shotsFired
+  if totalShots > 0:
+    currentRunStats.combat.accuracyPercent =
+      (currentRunStats.combat.shotsHit.float32 / totalShots.float32) * 100.0
+
+  if currentRunStats.runDuration > 0:
+    currentRunStats.performance.averageDPS =
+      currentRunStats.combat.totalDamageDealt / currentRunStats.runDuration
+    currentRunStats.performance.killsPerMinute =
+      (currentRunStats.combat.totalKills.float32 / currentRunStats.runDuration) * 60.0
+
+  if currentRunStats.performance.waveTimes.len > 0:
+    currentRunStats.performance.averageWaveTime =
+      currentRunStats.performance.waveTimes.sum() / currentRunStats.performance.waveTimes.len.float32
+    currentRunStats.performance.fastestWave = currentRunStats.performance.waveTimes.min()
+    currentRunStats.performance.slowestWave = currentRunStats.performance.waveTimes.max()
+
+  # Damage per bullet that actually connected
+  if currentRunStats.combat.shotsHit > 0:
+    currentRunStats.performance.damagePerShot =
+      currentRunStats.combat.totalDamageDealt / currentRunStats.combat.shotsHit.float32
+  # Expected value per trigger pull including misses
+  if currentRunStats.combat.shotsFired > 0:
+    currentRunStats.performance.shotEfficiency =
+      currentRunStats.combat.totalDamageDealt / currentRunStats.combat.shotsFired.float32
+
+  if currentRunStats.combat.totalKills > 0:
+    currentRunStats.resources.coinEfficiency =
+      currentRunStats.resources.coinsEarned.float32 / currentRunStats.combat.totalKills.float32
+
+  currentRunStats.resources.coinsAtEnd =
+    currentRunStats.resources.coinsEarned - currentRunStats.resources.coinsSpent
+
+  if currentRunStats.runDuration > 0:
+    currentRunStats.movement.averageSpeed =
+      currentRunStats.movement.totalDistanceTraveled / currentRunStats.runDuration
+
+  if currentRunStats.movement.hitsTakenCount > 0:
+    currentRunStats.movement.averageTimeBetweenHits =
+      currentRunStats.runDuration / currentRunStats.movement.hitsTakenCount.float32
+
+  var maxDamage = 0.0
+  var minDamage = float32.high
+  var maxPowerUp: PowerUpType
+  var minPowerUp: PowerUpType
+  var foundMax = false
+  var foundMin = false
+
+  for powerType, damage in currentRunStats.powerUps.damageContribution:
+    if damage > maxDamage:
+      maxDamage = damage
+      maxPowerUp = powerType
+      foundMax = true
+    if damage < minDamage and damage > 0:
+      minDamage = damage
+      minPowerUp = powerType
+      foundMin = true
+
+  if foundMax:
+    currentRunStats.powerUps.mostEffectivePowerUp = maxPowerUp
+  if foundMin:
+    currentRunStats.powerUps.leastEffectivePowerUp = minPowerUp
+
+  calculatePlayStyle()
+  echo "[Stats] Derived metrics calculated"
+
+# LAST RUN STORAGE
+var lastCompletedRun*: RunStatistics = nil
+
 proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool, died: bool) =
   if currentRunStats.isNil:
     return
@@ -197,6 +285,33 @@ proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool
 
   calculateDerivedMetrics()
   echo "[Stats] Run ended - Wave: ", waveReached, " Score: ", finalScore
+
+proc updateDPS*(damage: float32) =
+  if currentRunStats.isNil: return
+
+  let currentTime = currentRunStats.runDuration
+  currentRunStats.performance.currentDPSWindow.add((currentTime, damage))
+
+  while currentRunStats.performance.currentDPSWindow.len > 0 and
+        currentTime - currentRunStats.performance.currentDPSWindow[0][0] > 5.0:
+    currentRunStats.performance.currentDPSWindow.delete(0)
+
+  var totalDamage = 0.0
+  for entry in currentRunStats.performance.currentDPSWindow:
+    totalDamage += entry[1]
+
+  let windowDuration =
+    if currentRunStats.performance.currentDPSWindow.len > 0:
+      max(0.1, currentTime - currentRunStats.performance.currentDPSWindow[0][0])
+    else:
+      max(0.1, currentTime)
+  let currentDPS = totalDamage / windowDuration
+
+  currentRunStats.performance.peakDPS = max(currentRunStats.performance.peakDPS, currentDPS)
+
+  if currentRunStats.performance.dpsHistory.len == 0 or
+     currentTime - currentRunStats.performance.dpsHistory[^1][0] >= 1.0:
+    currentRunStats.performance.dpsHistory.add((currentTime, currentDPS.float32))
 
 # COMBAT TRACKING
 proc recordShotFired*() =
@@ -463,131 +578,11 @@ proc recordWaveComplete*(waveNumber: int, waveTime: float32, gameTime: float32) 
     position: newVector2f(0, 0)
   ))
 
-proc updateDPS*(damage: float32) =
-  if currentRunStats.isNil: return
-
-  let currentTime = currentRunStats.runDuration
-  currentRunStats.performance.currentDPSWindow.add((currentTime, damage))
-
-  while currentRunStats.performance.currentDPSWindow.len > 0 and
-        currentTime - currentRunStats.performance.currentDPSWindow[0][0] > 5.0:
-    currentRunStats.performance.currentDPSWindow.delete(0)
-
-  var totalDamage = 0.0
-  for entry in currentRunStats.performance.currentDPSWindow:
-    totalDamage += entry[1]
-
-  let windowDuration =
-    if currentRunStats.performance.currentDPSWindow.len > 0:
-      max(0.1, currentTime - currentRunStats.performance.currentDPSWindow[0][0])
-    else:
-      max(0.1, currentTime)
-  let currentDPS = totalDamage / windowDuration
-
-  currentRunStats.performance.peakDPS = max(currentRunStats.performance.peakDPS, currentDPS)
-
-  if currentRunStats.performance.dpsHistory.len == 0 or
-     currentTime - currentRunStats.performance.dpsHistory[^1][0] >= 1.0:
-    currentRunStats.performance.dpsHistory.add((currentTime, currentDPS.float32))
-
 proc updateRunDuration*(dt: float32) =
   if currentRunStats.isNil: return
   currentRunStats.runDuration += dt
 
 # DERIVED METRICS CALCULATION
-proc calculatePlayStyle*() =
-  if currentRunStats.isNil: return
-  let run = currentRunStats
-
-  # Priority-ordered classifier
-  if run.movement.phaseShiftsUsed >= 5:
-    run.comparison.playStyle = "Mobile"
-  elif run.combat.totalDamageTaken < 20.0 and run.movement.longestNoDamageStreak > 45.0:
-    run.comparison.playStyle = "Defensive"
-  elif run.movement.timeAtCriticalHP / max(1.0, run.runDuration) > 0.15:
-    run.comparison.playStyle = "Tank"
-  elif run.performance.averageDPS > run.performance.peakDPS * 0.6:
-    run.comparison.playStyle = "Aggressive"
-  else:
-    run.comparison.playStyle = "Balanced"
-
-  # Normalize aggression/caution to 0-100 for bar display
-  run.comparison.aggressionRating = clamp(
-    (run.performance.averageDPS / max(1.0, run.performance.peakDPS)) * 100.0, 0.0, 100.0)
-  run.comparison.cautionRating = clamp(
-    (run.movement.longestNoDamageStreak / max(1.0, run.runDuration)) * 100.0, 0.0, 100.0)
-
-proc calculateDerivedMetrics*() =
-  if currentRunStats.isNil: return
-
-  let totalShots = currentRunStats.combat.shotsFired
-  if totalShots > 0:
-    currentRunStats.combat.accuracyPercent =
-      (currentRunStats.combat.shotsHit.float32 / totalShots.float32) * 100.0
-
-  if currentRunStats.runDuration > 0:
-    currentRunStats.performance.averageDPS =
-      currentRunStats.combat.totalDamageDealt / currentRunStats.runDuration
-    currentRunStats.performance.killsPerMinute =
-      (currentRunStats.combat.totalKills.float32 / currentRunStats.runDuration) * 60.0
-
-  if currentRunStats.performance.waveTimes.len > 0:
-    currentRunStats.performance.averageWaveTime =
-      currentRunStats.performance.waveTimes.sum() / currentRunStats.performance.waveTimes.len.float32
-    currentRunStats.performance.fastestWave = currentRunStats.performance.waveTimes.min()
-    currentRunStats.performance.slowestWave = currentRunStats.performance.waveTimes.max()
-
-  # Damage per bullet that actually connected
-  if currentRunStats.combat.shotsHit > 0:
-    currentRunStats.performance.damagePerShot =
-      currentRunStats.combat.totalDamageDealt / currentRunStats.combat.shotsHit.float32
-  # Expected value per trigger pull including misses
-  if currentRunStats.combat.shotsFired > 0:
-    currentRunStats.performance.shotEfficiency =
-      currentRunStats.combat.totalDamageDealt / currentRunStats.combat.shotsFired.float32
-
-  if currentRunStats.combat.totalKills > 0:
-    currentRunStats.resources.coinEfficiency =
-      currentRunStats.resources.coinsEarned.float32 / currentRunStats.combat.totalKills.float32
-
-  currentRunStats.resources.coinsAtEnd =
-    currentRunStats.resources.coinsEarned - currentRunStats.resources.coinsSpent
-
-  if currentRunStats.runDuration > 0:
-    currentRunStats.movement.averageSpeed =
-      currentRunStats.movement.totalDistanceTraveled / currentRunStats.runDuration
-
-  if currentRunStats.movement.hitsTakenCount > 0:
-    currentRunStats.movement.averageTimeBetweenHits =
-      currentRunStats.runDuration / currentRunStats.movement.hitsTakenCount.float32
-
-  var maxDamage = 0.0
-  var minDamage = float32.high
-  var maxPowerUp: PowerUpType
-  var minPowerUp: PowerUpType
-  var foundMax = false
-  var foundMin = false
-
-  for powerType, damage in currentRunStats.powerUps.damageContribution:
-    if damage > maxDamage:
-      maxDamage = damage
-      maxPowerUp = powerType
-      foundMax = true
-    if damage < minDamage and damage > 0:
-      minDamage = damage
-      minPowerUp = powerType
-      foundMin = true
-
-  if foundMax:
-    currentRunStats.powerUps.mostEffectivePowerUp = maxPowerUp
-  if foundMin:
-    currentRunStats.powerUps.leastEffectivePowerUp = minPowerUp
-
-  calculatePlayStyle()
-  echo "[Stats] Derived metrics calculated"
-
-# LAST RUN STORAGE
-var lastCompletedRun*: RunStatistics = nil
 
 proc saveLastCompletedRun*() =
   ## Store a copy of the current run for viewing (save to disk handled externally)
@@ -657,6 +652,9 @@ proc trackBulletHit*(game: Game, bullet: Bullet, enemy: Enemy, damage: float32) 
 proc trackBulletDespawn*(game: Game, bullet: Bullet, hitEnemy: bool) =
   if not hitEnemy and bullet.piercedEnemies == 0 and bullet.lifetime > 0.1:
     recordShotMissed()
+
+proc trackPowerUpKill*(game: Game, powerType: PowerUpType) =
+  recordPowerUpKill(powerType)
 
 proc trackEnemyKilled*(game: Game, enemy: Enemy,
                        killCredit: PowerUpType = puDoubleShot) =
@@ -741,9 +739,6 @@ proc trackPowerUpSelection*(game: Game, powerUp: PowerUp) =
 
 proc trackPowerUpDamage*(game: Game, powerType: PowerUpType, damage: float32) =
   recordPowerUpDamage(powerType, damage)
-
-proc trackPowerUpKill*(game: Game, powerType: PowerUpType) =
-  recordPowerUpKill(powerType)
 
 # Performance Integration
 proc trackWaveCompletion*(game: Game, waveNumber: int, waveTime: float32) =

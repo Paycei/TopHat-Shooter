@@ -1,4 +1,5 @@
-import raylib, math, ../localization, background_fx
+import raylib, math
+import ../localization, background_fx
 
 type
   LoadingScreen* = ref object

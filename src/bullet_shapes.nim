@@ -1,11 +1,12 @@
 ## Bullet Shapes System
 ## Cosmetic shapes for player bullets
 
-import raylib, types, math, localization
+import raylib, math
+import types, localization
 
 type
   BulletShapeType* = enum
-    bshCircle,    # Default – plain circle
+    bshCircle,    # Default plain circle
     bshTriangle,  # Three-pointed
     bshDiamond,   # Four-pointed rotated square
     bshSquare,    # Axis-aligned square
@@ -108,7 +109,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
                Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 45))
 
   of bshDiamond:
-    # Four-pointed diamond – tip points in direction of travel
+    # Four-pointed diamond: tip points in direction of travel
     let t = getTime()
     let r = radius * 1.1
     let rot = travelAngle  # tip of diamond faces travel direction
@@ -181,8 +182,8 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
           Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
           Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
           Color(r: color.r, g: color.g, b: color.b, a: 200))
-    # Interior hexagon – the overlap region of the two triangles.
-    # In a Star of David the inner hexagon vertices sit at r * (1/sqrt(3)) ≈ r * 0.577
+    # Interior hexagon: the overlap region of the two triangles.
+    # In a Star of David the inner hexagon vertices sit at r * (1/sqrt(3)) ~= r * 0.577
     # rotated 30° from the first triangle's base rotation.
     let rHex = r * 0.577
     let hexRot = rot1 + PI / 6.0  # 30° offset aligns with hexagon vertices

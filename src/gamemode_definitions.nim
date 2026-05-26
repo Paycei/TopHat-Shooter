@@ -1,8 +1,7 @@
 ## Gamemode Definitions System
 ## Centralizes gamemode configuration and behavior
 
-import types
-import localization
+import types, localization
 
 type
   GameModeDefinition* = object

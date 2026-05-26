@@ -2,7 +2,8 @@
 ## Power-up selection screen as modern software installation interface
 # The roll animation system is handled in powerup.nim
 
-import raylib, ../types, math, strutils, icon_drawing, ../localization, ../powerup_data, ../render_context
+import raylib, math, strutils
+import ../types, icon_drawing, ../localization, ../powerup_data, ../render_context
 
 const
   INSTALLER_WIDTH = 1000
@@ -326,7 +327,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   let screenHeight = game.screenHeight
   let isLegendary  = game.powerUpChoices[0].rarity == prLegendary
 
-  # Stop times – must match powerup.nim exactly
+  # Stop times: must match powerup.nim exactly
   let stopTimes: array[3, float32] = [
     if isLegendary: 2.0'f32 else: 1.5'f32,
     if isLegendary: 3.0'f32 else: 2.5'f32,
@@ -367,7 +368,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
   for i in 0..<(INSTALLER_HEIGHT div 40):
     drawRectangle(winX, winY + int32(i * 40), INSTALLER_WIDTH, 1, Color(r: 30, g: 36, b: 48, a: 255))
 
-  # Border – pulses chromatically while rolling
+  # Border: pulses chromatically while rolling
   if speedFrac > 0.02:
     let h = game.time * 4.0
     let r8 = uint8(127 + int(128.0 * sin(h)))

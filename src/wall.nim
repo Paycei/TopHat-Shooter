@@ -1,4 +1,5 @@
-import raylib, types, powerup
+import raylib
+import types, powerup
 
 proc newWall*(x, y: float32, player: Player): Wall =
   # Calculate HP based on WallMaster powerup

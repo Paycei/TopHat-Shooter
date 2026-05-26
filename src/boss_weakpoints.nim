@@ -1,4 +1,5 @@
-import math, random, raylib, types
+import math, random, raylib
+import types
 
 const TwoPi = PI * 2.0
 

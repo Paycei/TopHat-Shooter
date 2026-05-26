@@ -1,7 +1,8 @@
 ## OS-Style Task Manager (Pause Menu)
 ## Pause menu styled as system task manager with mouse support
 
-import raylib, ../types, ../powerup_data, math, ../localization, ../render_context
+import raylib, math
+import ../types, ../powerup_data, ../localization, ../render_context
 
 const
   TASK_MANAGER_WIDTH = 700
@@ -123,6 +124,106 @@ proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
     drawText(value, x + 300, yOffset, 14, White)
     yOffset += 25
 
+proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
+  ## Draw an OS-style "Are you sure?" confirmation dialog over the task manager.
+  result.confirmed = false
+  result.cancelled  = false
+
+  let sw = game.screenWidth
+  let sh = game.screenHeight
+  let mousePos = getVirtualMousePosition()
+
+  const
+    DW: int32 = 440
+    DH: int32 = 200
+    BTN_W: int32 = 160
+    BTN_H: int32 = 40
+
+  let dx: int32 = (sw - DW) div 2
+  let dy: int32 = (sh - DH) div 2
+
+  # Extra dark backdrop on top of the existing overlay
+  drawRectangle(0'i32, 0'i32, sw, sh, Color(r: 0, g: 0, b: 0, a: 120))
+
+  # Dialog shadow
+  drawRectangle(dx + 6, dy + 6, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
+  # Dialog background
+  drawRectangle(dx, dy, DW, DH, Color(r: 20, g: 25, b: 35, a: 255))
+  drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32,
+                               width: DW.float32, height: DH.float32),
+                     3, Color(r: 255, g: 80, b: 80, a: 255))
+
+  # Title bar
+  let tbH: int32 = 35
+  drawRectangle(dx, dy, DW, tbH, Color(r: 120, g: 30, b: 30, a: 255))
+  let titleStr = "CONFIRM EXIT"
+  let titleW = measureText(titleStr, 16)
+  drawText(titleStr, dx + (DW - titleW) div 2, dy + 8, 16,
+           Color(r: 255, g: 200, b: 200, a: 255))
+
+  # Body text
+  let bodyStr = "Return to main menu?"
+  let bodyW = measureText(bodyStr, 18)
+  drawText(bodyStr, dx + (DW - bodyW) div 2, dy + tbH + 28, 18, White)
+
+  let subStr = "Unsaved progress will be lost."
+  let subW = measureText(subStr, 13)
+  drawText(subStr, dx + (DW - subW) div 2, dy + tbH + 58, 13,
+           Color(r: 200, g: 150, b: 150, a: 255))
+
+  # Buttons row
+  let btnY: int32  = dy + DH - BTN_H - 22
+  let noX: int32   = dx + (DW div 2) - BTN_W - 12
+  let yesX: int32  = dx + (DW div 2) + 12
+
+  let noHov  = isMouseOverRect(mousePos, noX,  btnY, BTN_W, BTN_H)
+  let yesHov = isMouseOverRect(mousePos, yesX, btnY, BTN_W, BTN_H)
+  let ready  = game.pauseMenuExitCooldown <= 0.0
+
+  # Cancel button (green: safe)
+  let noBg = if noHov: Color(r: 0, g: 150, b: 0, a: 255) else: Color(r: 0, g: 110, b: 0, a: 255)
+  drawRectangle(noX, btnY, BTN_W, BTN_H, noBg)
+  drawRectangleLines(Rectangle(x: noX.float32, y: btnY.float32,
+                               width: BTN_W.float32, height: BTN_H.float32),
+                     if noHov: 3 else: 2,
+                     if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 200, b: 60, a: 255))
+  let noText = "[ESC] CANCEL"
+  let noTW = measureText(noText, 14)
+  drawText(noText, noX + (BTN_W - noTW) div 2, btnY + 12, 14, White)
+
+  # Confirm button (red: destructive) — disabled while cooldown active
+  let yesBg = if not ready:
+    Color(r: 90, g: 90, b: 90, a: 255)
+  elif yesHov:
+    Color(r: 160, g: 40, b: 40, a: 255)
+  else:
+    Color(r: 120, g: 30, b: 30, a: 255)
+
+  drawRectangle(yesX, btnY, BTN_W, BTN_H, yesBg)
+  drawRectangleLines(Rectangle(x: yesX.float32, y: btnY.float32,
+                               width: BTN_W.float32, height: BTN_H.float32),
+                     if (yesHov and ready): 3 else: 2,
+                     if not ready: Color(r: 140, g: 140, b: 140, a: 255)
+                     elif yesHov: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 200, g: 60, b: 60, a: 255))
+
+  # Replace quit text with remaining seconds while not ready
+  let yesText = if ready:
+    "[Q] EXIT"
+  else:
+    $(int(ceil(game.pauseMenuExitCooldown)))
+  let yesTW = measureText(yesText, 14)
+  drawText(yesText, yesX + (BTN_W - yesTW) div 2, btnY + 12, 14, White)
+
+  # Input
+  if isMouseButtonPressed(Left):
+    if noHov:
+      result.cancelled = true
+    elif yesHov and ready:
+      result.confirmed = true
+  if isKeyPressed(Escape): result.cancelled = true
+  # Only allow Q to confirm when cooldown has elapsed
+  if isKeyReleased(Q) and ready: result.confirmed = true
+
 proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeClicked, settingsClicked, exitClicked: bool, newTab: TaskManagerTab] =
   ## Draw the task manager (pause menu)
   ## Returns tuple indicating which button was clicked (if any) and which tab should be selected
@@ -135,6 +236,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   let screenHeight = game.screenHeight
   let mousePos = getVirtualMousePosition()
   let mouseSupported = game.mouseMovedRecently
+  let exitReady = game.pauseMenuExitCooldown <= 0 and not game.confirmQuitPending
 
   # Dark overlay
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 200))

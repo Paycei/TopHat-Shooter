@@ -1,6 +1,7 @@
 ## OS-Style Background System
 
-import raylib, math, random, ../types, background_fx
+import raylib, math, random
+import ../types, background_fx
 
 const
   MAX_DATA_PACKETS = 50
@@ -142,7 +143,7 @@ proc drawCombatGrid(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
   let alertPulse = sin(bg.gridPulseTime * 4.8) * 0.5 + 0.5
 
   # Atmospheric fills
-  # Large ambient centre glow — fills the dead centre of the arena
+  # Large ambient centre glow, fills the dead centre of the arena
   drawSoftGlow(centerX, centerY, arenaRadius * 1.4,
                Color(r: 0, g: 100, b: 160, a: alphaFrom(28.0 + pulse * 12.0)), 0.55)
   # Mid-arena depth ring fill
@@ -267,7 +268,7 @@ proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: i
           alphaFrom(160.0 + pulse * 65.0),
           Color(r: 110, g: 255, b: 165, a: 255))
       else:
-        # Inactive band — subtle dim outline, tiny label
+        # Inactive band, subtle dim outline, tiny label
         drawRing(center, innerR, outerR, 0.0, 360.0, 64,
           Color(r: 40, g: 80, b: 100, a: 14))
         drawCircleLines(cx.int32, cy.int32, radius,
@@ -283,7 +284,7 @@ proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: i
         drawCircle(center, outerR,
           Color(r: 255, g: 32, b: 22, a: fillA))
 
-        # Multi-pixel outline — flashes urgently
+        # Multi-pixel outline, flashes urgently
         let outA = alphaFrom(145.0 + fastPulse * 90.0)
         let thickness = if isPlayerHere: 6 else: 4
         for i in 0..<thickness:
@@ -294,7 +295,7 @@ proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: i
           alphaFrom(180.0 + fastPulse * 60.0),
           Color(r: 255, g: 80, b: 55, a: 255))
       else:
-        # Safe non-hazard band — dim reddish tint to hint at the mode
+        # Safe non-hazard band, dim reddish tint to hint at the mode
         drawRing(center, innerR, outerR, 0.0, 360.0, 64,
           Color(r: 80, g: 30, b: 30, a: 14))
         drawCircleLines(cx.int32, cy.int32, radius,
@@ -325,7 +326,7 @@ proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: i
         drawRing(center, radius - 4.0, radius + 4.0, startDeg, endDeg, 24,
           Color(r: 140, g: 235, b: 255, a: sectorOutA))
 
-      # Label above the ring — note it rotates conceptually so we always put it at top
+      # Label above the ring, note it rotates conceptually so we always put it at top
       drawZoneLabel("+ BONUS SECTORS", cx, cy, outerR,
         alphaFrom(130.0 + pulse * 55.0),
         Color(r: 120, g: 225, b: 255, a: 255))

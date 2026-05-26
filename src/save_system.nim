@@ -1,4 +1,5 @@
-import json, os, run_statistics, types, std/tables, strutils
+import json, os, std/tables, strutils
+import run_statistics, types
 
 # Settings type definition (moved from settings_types.nim)
 type

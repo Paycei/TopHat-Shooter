@@ -1,7 +1,8 @@
 ## Boss Definitions System
 ## Allows complete customization of boss behavior, properties, attacks, and phases
 
-import math, random, raylib, localization, types
+import math, random, raylib
+import localization, types
 
 type
   BossAttackPattern* = enum

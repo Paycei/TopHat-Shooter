@@ -1,10 +1,8 @@
 ## Power-up data module
 ## Contains shared power-up information (names, descriptions)
 
-import types
-import localization
-import raylib
-import strformat, math, strutils
+import raylib, strformat, math, strutils
+import types, localization
 
 proc getPowerUpName*(powerType: PowerUpType): string =
   case powerType
@@ -82,7 +80,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puBountiful: t(tkPowerupBountiful)
 
 proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: float32 = 1.0): string =
-  # Helper: format "base + scaled (pct%)" — values are multiplied x100 for display
+  # Helper: format "base + scaled (pct%)", values are multiplied x100 for display
   proc dmg(base: float32, scalePct: float32, pd: float32): string =
     let baseVal = round(base * 100).int
     let scaledVal = round(pd * scalePct * 100).int

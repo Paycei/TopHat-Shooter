@@ -91,7 +91,7 @@ proc bossPhaseColor(hpPercent: float32, originalColor: Color): Color =
   elif hpPercent <= 0.35: Color(r: 255, g: 150, b: 0,   a: 255)  # Orange        (third phase)
   elif hpPercent <= 0.50: Color(r: 255, g: 50,  b: 50,  a: 255)  # Red           (second phase)
   elif hpPercent <= 0.70: Color(r: 200, g: 100, b: 50,  a: 255)  # Dark orange   (getting damaged)
-  else: originalColor                                              # Full HP — keep spawn color
+  else: originalColor                                              # Full HP, keep spawn color
 
 proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
   # Apply slow field effect
@@ -103,7 +103,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
     # Boss update logic
     if enemy.entranceTimer > 0:
       enemy.entranceTimer -= dt
-      # Ease-in quad: gentle start, arrives at full speed — no deceleration pause
+      # Ease-in quad: gentle start, arrives at full speed, no deceleration pause
       let rawProgress = clamp(1.0 - (enemy.entranceTimer / 2.0), 0.0, 1.0)
       let progress = rawProgress * rawProgress
       enemy.pos.x = enemy.startPos.x + (enemy.targetPos.x - enemy.startPos.x) * progress
@@ -219,7 +219,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       else:
         enemy.dashTimer -= dt
         if enemy.dashTimer <= 0:
-          # Fire the dash — lock direction toward player right now
+          # Fire the dash, lock direction toward player right now
           let dir = (playerPos - enemy.pos).normalize()
           enemy.vel = dir * effectiveSpeed * dashMultiplier
           enemy.dashCooldown = config.movement.dashDuration  # Active dash duration
@@ -288,7 +288,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           if currentTime - enemy.lastWallDamageTime >= 1.0:
             wall.takeDamage(1.0)
             trackWallDamaged(game)
-            # Stars use a hit-count system, not HP — wall collisions must not
+            # Stars use a hit-count system, not HP, wall collisions must not
             # bypass that mechanic by draining the placeholder baseHP.
             enemy.lastWallDamageTime = currentTime
           break
@@ -531,7 +531,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       executeRangedAttack(enemy, playerPos, game)
 
     of etTrickster:
-      # Fake warning + teleport behavior — two phase:
+      # Fake warning + teleport behavior, two phase:
       #   attackPhase 0: idle, counting down fakeWarningTimer
       #   attackPhase 1: warning is showing, counting down attackWarningTimer until TP
       let trickWarningDuration = 1.0
@@ -558,7 +558,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             clamp(playerPos.y + sin(realAngle) * realDist, margin, game.screenHeight.float32 - margin)
           )
 
-          # Subtle hint at the REAL destination — small and easy to miss
+          # Subtle hint at the REAL destination, small and easy to miss
           game.attackWarnings.add(newAttackWarning(enemy.targetPos.x, enemy.targetPos.y, "trickster_real", trickWarningDuration))
 
           # Start waiting for the warning to expire before actually teleporting
@@ -566,7 +566,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.attackPhase = 1
 
       elif enemy.attackPhase == 1:
-        # Warning is showing — wait for it to expire, then teleport and shoot
+        # Warning is showing, wait for it to expire, then teleport and shoot
         enemy.attackWarningTimer -= dt
         if enemy.attackWarningTimer <= 0:
           enemy.pos = enemy.targetPos
@@ -591,9 +591,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       let config = getEnemyConfig(enemy.enemyType)
 
       # Three-phase state machine:
-      #   phase 0: idle — cloneTimer counts down, then pre-calculate & warn
-      #   phase 1: warning shown — attackWarningTimer counts down, then teleport
-      #   phase 2: turret mode — clones fire sequentially until cloneTimer expires -> phase 0
+      #   phase 0: idle, cloneTimer counts down, then pre-calculate & warn
+      #   phase 1: warning shown, attackWarningTimer counts down, then teleport
+      #   phase 2: turret mode, clones fire sequentially until cloneTimer expires -> phase 0
       let phantomWarnDuration = 0.9
       let cloneShotInterval   = 0.45  # seconds between each sequential clone shot
 
@@ -622,11 +622,11 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
               clamp(playerPos.y + sin(angle) * dist, margin, game.screenHeight.float32 - margin)
             ))
 
-          # Warn at the real teleport destination — portal marker
+          # Warn at the real teleport destination, portal marker
           game.attackWarnings.add(newAttackWarning(
             enemy.targetPos.x, enemy.targetPos.y, "phantom_arrive", phantomWarnDuration))
 
-          # Warn at every clone turret position — ghostly crosshair
+          # Warn at every clone turret position, ghostly crosshair
           for clonePos in enemy.clonePositions:
             game.attackWarnings.add(newAttackWarning(
               clonePos.x, clonePos.y, "phantom_clone", phantomWarnDuration))
@@ -635,7 +635,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.attackPhase = 1
 
       elif enemy.attackPhase == 1:
-        # Warnings visible — wait, then teleport and enter turret mode
+        # Warnings visible, wait, then teleport and enter turret mode
         enemy.attackWarningTimer -= dt
         if enemy.attackWarningTimer <= 0:
           enemy.pos = enemy.targetPos
@@ -747,7 +747,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         discard
 
     of etEnvironment:
-      discard  # Static non-combat entity — no movement logic
+      discard  # Static non-combat entity, no movement logic
 
     of etMage:
       # Magical enemy: homing bullets + meteorite summoning
@@ -1371,13 +1371,13 @@ proc drawEnemy*(enemy: Enemy) =
                      b: min(enemy.color.b + 80, 255).uint8, a: spikeAlpha))
       # Main body
       drawCircle(Vector2(x: cx, y: cy), r, enemy.color)
-      # Dark-tinted rim (same hue, much darker — no white)
+      # Dark-tinted rim (same hue, much darker, no white)
       drawCircleLines(cx.int32, cy.int32, r,
                      Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
       # Inner concentric ring for depth
       drawCircleLines(cx.int32, cy.int32, r * 0.55,
                      Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 120))
-      # Bright core dot — keep white, it's a tiny accent not an outline
+      # Bright core dot, keep white, it's a tiny accent not an outline
       drawCircle(Vector2(x: cx, y: cy), r * 0.20,
                 Color(r: 255, g: 255, b: 255, a: 200))
 
@@ -1396,7 +1396,7 @@ proc drawEnemy*(enemy: Enemy) =
       drawRectangleLines((cx - s).int32, (cy - s).int32,
                          (s * 2).int32, (s * 2).int32,
                          Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
-      # Inner X cross — "gun turret" visual cue for ranged attacker
+      # Inner X cross, "gun turret" visual cue for ranged attacker
       drawLine(Vector2(x: cx - s * 0.55, y: cy - s * 0.55),
                Vector2(x: cx + s * 0.55, y: cy + s * 0.55), 2,
                Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 160))
@@ -1413,7 +1413,7 @@ proc drawEnemy*(enemy: Enemy) =
                Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 130))
       drawLine(Vector2(x: cx - d, y: cy), Vector2(x: cx, y: cy - d), 2,
                Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 130))
-      # Corner accent circles — bright white, tiny, feels like rivets
+      # Corner accent circles, bright white, tiny, feels like rivets
       let cs = s * 0.14
       for ox, oy in [(-(s-cs), -(s-cs)), ((s-cs), -(s-cs)),
                      ((s-cs),  (s-cs)),  (-(s-cs),  (s-cs))].items:
@@ -1473,14 +1473,14 @@ proc drawEnemy*(enemy: Enemy) =
       # Dark hue-matched outline instead of white
       drawTriangleLines(v1, v2, v3,
                        Color(r: enemy.color.r div 3, g: enemy.color.g div 3, b: enemy.color.b div 3, a: 220))
-      # Inner triangle for depth — slightly lighter than the dark outline
+      # Inner triangle for depth, slightly lighter than the dark outline
       let is2 = 0.48
       let iv1 = Vector2(x: enemy.pos.x, y: enemy.pos.y - enemy.radius * is2)
       let iv2 = Vector2(x: enemy.pos.x - enemy.radius * 0.87 * is2, y: enemy.pos.y + enemy.radius * 0.5 * is2)
       let iv3 = Vector2(x: enemy.pos.x + enemy.radius * 0.87 * is2, y: enemy.pos.y + enemy.radius * 0.5 * is2)
       drawTriangleLines(iv1, iv2, iv3,
                        Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 130))
-      # Center core dot — tiny white accent, not an outline
+      # Center core dot, tiny white accent, not an outline
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y + enemy.radius * 0.12),
                 enemy.radius * 0.14, Color(r: 255, g: 255, b: 255, a: 200))
 
@@ -1516,7 +1516,7 @@ proc drawEnemy*(enemy: Enemy) =
         let p1 = Vector2(x: cx + cos(a1) * r1, y: cy + sin(a1) * r1)
         drawTriangle(p0, p1, Vector2(x: cx, y: cy), enemy.color)
 
-      # Star outline — dark golden, not white
+      # Star outline, dark golden, not white
       for i in 0..<points * 2:
         let a0 = i.float32       * PI / points.float32 - PI / 2.0
         let a1 = (i + 1).float32 * PI / points.float32 - PI / 2.0
@@ -1530,7 +1530,7 @@ proc drawEnemy*(enemy: Enemy) =
       drawCircle(Vector2(x: cx, y: cy), r * 0.20,
                 Color(r: 255, g: 255, b: 255, a: 230))
 
-      # Vertex node indicators — one glowing dot per required hit, dims when hit consumed
+      # Vertex node indicators, one glowing dot per required hit, dims when hit consumed
       for vi in 0..<enemy.requiredHits:
         let vAngle = vi.float32 * (PI * 2.0 / enemy.requiredHits.float32) - PI / 2.0
         let nodeR = r * 1.15
@@ -1550,7 +1550,7 @@ proc drawEnemy*(enemy: Enemy) =
           Vector2(x: cx + cos(vAngle) * nodeR, y: cy + sin(vAngle) * nodeR),
           3.0, nodeColor)
 
-      # Hit counter — white text on small dark pill
+      # Hit counter, white text on small dark pill
       let remaining = enemy.requiredHits - enemy.hitCount
       let text = $remaining
       let textWidth = measureText(text, 14)
@@ -1590,10 +1590,10 @@ proc drawEnemy*(enemy: Enemy) =
         drawLine(Vector2(x: cx + cos(ao) * r,  y: cy + sin(ao) * r),
                  Vector2(x: cx + cos(ai) * ir, y: cy + sin(ai) * ir),
                  1, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 90))
-      # Bright center core — tinted, not raw white
+      # Bright center core, tinted, not raw white
       drawCircle(Vector2(x: cx, y: cy), r * 0.18,
                 Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 230))
-      # Teleport blink warning — scatter-dissolve effect
+      # Teleport blink warning, scatter-dissolve effect
       if enemy.hexTeleportTimer < 0.5:
         let dissolveProgress = 1.0 - (enemy.hexTeleportTimer / 0.5)
         let blinkAlpha = uint8((sin(t * 30.0) * 0.5 + 0.5) * 180)
@@ -1700,7 +1700,7 @@ proc drawEnemy*(enemy: Enemy) =
       drawTriangle(Vector2(x: cx + r, y: cy),
                    Vector2(x: cx,     y: cy + r),
                    Vector2(x: cx - r, y: cy), enemy.color)
-      # Bright cyan outline — hardcoded because div 3 on cyan (r:0) produces near-black
+      # Bright cyan outline, hardcoded because div 3 on cyan (r:0) produces near-black
       let dv1 = Vector2(x: cx,     y: cy - r)
       let dv2 = Vector2(x: cx + r, y: cy)
       let dv3 = Vector2(x: cx,     y: cy + r)
@@ -1709,7 +1709,7 @@ proc drawEnemy*(enemy: Enemy) =
       drawLine(dv2, dv3, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
       drawLine(dv3, dv4, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
       drawLine(dv4, dv1, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
-      # Inner diamond for depth — slightly dimmer cyan
+      # Inner diamond for depth, slightly dimmer cyan
       let ir = r * 0.45
       let iv1 = Vector2(x: cx,      y: cy - ir)
       let iv2 = Vector2(x: cx + ir, y: cy)
@@ -1763,7 +1763,7 @@ proc drawEnemy*(enemy: Enemy) =
         drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
                  Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
                  2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 180))
-      # 8 radial spokes: center -> outer vertex — dark-tinted, not white
+      # 8 radial spokes: center -> outer vertex, dark-tinted, not white
       for i in 0..<8:
         let a = i.float32 * PI / 4.0
         drawLine(Vector2(x: cx, y: cy),
@@ -1801,7 +1801,7 @@ proc drawEnemy*(enemy: Enemy) =
         drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
                  Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
                  2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 180))
-      # 5 spokes from center to outer vertices — dark-tinted
+      # 5 spokes from center to outer vertices, dark-tinted
       for i in 0..<5:
         let a = i.float32 * PI * 2.0 / 5.0 - PI / 2.0
         drawLine(Vector2(x: cx, y: cy),
@@ -1843,7 +1843,7 @@ proc drawEnemy*(enemy: Enemy) =
                  2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 160))
       # Filled center
       drawCircle(Vector2(x: cx, y: cy), r * 0.32, enemy.color)
-      # Tinted core — not white
+      # Tinted core, not white
       drawCircle(Vector2(x: cx, y: cy), r * 0.16,
                 Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 220))
       # Mysterious outer pulse ring
@@ -1899,11 +1899,11 @@ proc drawEnemy*(enemy: Enemy) =
       let cx = enemy.pos.x
       let cy = enemy.pos.y
       let r  = enemy.radius
-      # Pulsing translucent fill (ghost body — not fully solid)
+      # Pulsing translucent fill (ghost body, not fully solid)
       let bodyAlpha = uint8(140 + sin(t * 2.0) * 30)
       drawCircle(Vector2(x: cx, y: cy), r,
                 Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: bodyAlpha))
-      # Outer wispy ring — fades in and out
+      # Outer wispy ring, fades in and out
       let wispAlpha = uint8((sin(t * 1.5) * 0.4 + 0.6) * 90)
       drawCircleLines(cx.int32, cy.int32, r + 6,
                      Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: wispAlpha))
@@ -1912,7 +1912,7 @@ proc drawEnemy*(enemy: Enemy) =
                      Color(r: 180, g: 180, b: 255, a: uint8(60 + sin(t * 3.0) * 30)))
       drawCircleLines(cx.int32, cy.int32, r * 0.35,
                      Color(r: 200, g: 200, b: 255, a: uint8(80 + sin(t * 4.5) * 30)))
-      # Dim center dot (almost invisible — ghost-like)
+      # Dim center dot (almost invisible, ghost-like)
       drawCircle(Vector2(x: cx, y: cy), r * 0.14,
                 Color(r: 240, g: 240, b: 255, a: 180))
       # Trailing fade ring
@@ -1949,11 +1949,11 @@ proc drawEnemy*(enemy: Enemy) =
                 Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: uint8(38 * auraPulse)))
 
       # Robe body (filled circle, slightly larger at bottom)
-      # Bottom robe hem — slightly wider oval hint via two offset circles
+      # Bottom robe hem, slightly wider oval hint via two offset circles
       drawCircle(Vector2(x: cx, y: cy + r * 0.15), r * 0.88, robeCol)
       # Main body
       drawCircle(Vector2(x: cx, y: cy), r, bodyCol)
-      # Robe hem dark edge (no white — dark tinted border)
+      # Robe hem dark edge (no white, dark tinted border)
       drawCircleLines(cx.int32, cy.int32, r,
                      Color(r: robeCol.r, g: robeCol.g, b: robeCol.b, a: 200))
 
@@ -1989,7 +1989,7 @@ proc drawEnemy*(enemy: Enemy) =
           Vector2(x: cx + cos(a0) * brimW, y: brimY + sin(a0) * brimH),
           Vector2(x: cx + cos(a1) * brimW, y: brimY + sin(a1) * brimH),
           2, robeCol)
-      # Hat star badge — tiny 4-pointed star on the cone
+      # Hat star badge, tiny 4-pointed star on the cone
       let badgeX = cx + (hatTipX - cx) * 0.45
       let badgeY = hatTipY + (brimY - hatTipY) * 0.42
       let bs = r * 0.11
@@ -2006,12 +2006,12 @@ proc drawEnemy*(enemy: Enemy) =
       let staffRootY  = cy + sin(staffAngle + PI) * r * 0.35
       let staffTipX   = staffRootX + cos(staffAngle) * staffLen
       let staffTipY   = staffRootY + sin(staffAngle) * staffLen
-      # Shaft — two-tone: dark base with bright highlight offset
+      # Shaft, two-tone: dark base with bright highlight offset
       drawLine(Vector2(x: staffRootX, y: staffRootY),
                Vector2(x: staffTipX,  y: staffTipY), 4, robeCol)
       drawLine(Vector2(x: staffRootX - 1, y: staffRootY - 1),
                Vector2(x: staffTipX  - 1, y: staffTipY  - 1), 2, accentCol)
-      # Orb at tip — teal glowing sphere
+      # Orb at tip, teal glowing sphere
       let orbPulse = sin(t * 4.5) * 0.35 + 0.65
       drawCircle(Vector2(x: staffTipX, y: staffTipY), r * 0.19 + orbPulse * 2,
                 Color(r: orbCol.r, g: orbCol.g, b: orbCol.b, a: uint8(60 * orbPulse)))
@@ -2118,14 +2118,14 @@ proc drawAttackWarning*(warning: AttackWarning) =
       Vector2(x: cx, y: impactY),
       3, Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: uint8(urgency.float32 * 0.35))
     )
-    # Thin bright core only in the bottom 60 px — gives a sharp arrival cue without blinding
+    # Thin bright core only in the bottom 60 px, gives a sharp arrival cue without blinding
     drawLine(
       Vector2(x: cx, y: impactY - 60.0),
       Vector2(x: cx, y: impactY),
       1, Color(r: 255, g: 220, b: 160, a: urgency)
     )
 
-    # Impact circle — grows slightly as warning expires
+    # Impact circle, grows slightly as warning expires
     let impactR = 10.0 + progress * 8.0 + pulse * 0.4
     drawCircleLines(cx.int32, impactY.int32, impactR,
                    Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: urgency))
@@ -2136,13 +2136,13 @@ proc drawAttackWarning*(warning: AttackWarning) =
               Color(r: 255, g: 180, b: 80, a: urgency))
 
   of "burst":
-    # Draw circular burst warning (generic / unused fallback — kept for safety)
+    # Draw circular burst warning (generic / unused fallback, kept for safety)
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 50.0 + pulse,
                    Color(r: 255, g: 100, b: 0, a: alpha))
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 70.0 + pulse,
                    Color(r: 255, g: 100, b: 0, a: (alpha div 2).uint8))
   of "fake":
-    # Generic fallback fake — kept for safety
+    # Generic fallback fake, kept for safety
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse,
                    Color(r: 255, g: 255, b: 0, a: alpha))
     drawText("!", (warning.pos.x - 8).int32, (warning.pos.y - 12).int32, 24,
@@ -2150,7 +2150,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
 
   # Triangle
   of "triangle_dash":
-    # Magenta starburst flash — very short duration, directional cue at launch point
+    # Magenta starburst flash, very short duration, directional cue at launch point
     let cx = warning.pos.x; let cy = warning.pos.y
     let r = 18.0 + pulse * 0.8
     for i in 0..<8:
@@ -2163,7 +2163,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
 
   # Hexagon
   of "hex_teleport":
-    # Purple contracting hexagon — shows EXACTLY where the hex will appear
+    # Purple contracting hexagon, shows EXACTLY where the hex will appear
     let cx = warning.pos.x; let cy = warning.pos.y
     # Outer hex shrinks inward as timer counts down (progress = 0->1 as lifetime->0)
     let progress = 1.0 - (warning.lifetime / warning.maxLifetime)
@@ -2190,7 +2190,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
 
   # Trickster
   of "trickster_decoy":
-    # Bright orange diamond + "?" — looks threatening but it's a lie
+    # Bright orange diamond + "?", looks threatening but it's a lie
     let cx = warning.pos.x; let cy = warning.pos.y
     let sz = 30.0 + pulse * 0.6
     # Outer glow circle
@@ -2205,14 +2205,14 @@ proc drawAttackWarning*(warning: AttackWarning) =
              3, Color(r: 255'u8, g: 140'u8, b: 0'u8, a: alpha))
     drawLine(Vector2(x: cx - sz, y: cy),      Vector2(x: cx,      y: cy - sz),
              3, Color(r: 255'u8, g: 140'u8, b: 0'u8, a: alpha))
-    # "?" text — hints it might be a trick
+    # "?" text, hints it might be a trick
     let qw = measureText("?", 22)
     drawText("?", (cx - qw / 2).int32, (cy - 11).int32, 22,
              Color(r: 255'u8, g: 200'u8, b: 0'u8, a: alpha))
 
   # Trickster real destination
   of "trickster_real":
-    # Tiny, dim magenta dot — easy to miss unless you're looking for it
+    # Tiny, dim magenta dot, easy to miss unless you're looking for it
     let cx = warning.pos.x; let cy = warning.pos.y
     let subtleAlpha = uint8(alpha.float32 * 0.35)  # Much dimmer than decoy
     let r = 8.0 + pulse * 0.2
@@ -2223,7 +2223,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
 
   # Phantom arrive
   of "phantom_arrive":
-    # Indigo/blue concentric portal rings — unambiguously "something is appearing here"
+    # Indigo/blue concentric portal rings, unambiguously "something is appearing here"
     let cx = warning.pos.x; let cy = warning.pos.y
     let progress = 1.0 - (warning.lifetime / warning.maxLifetime)
     # Rings converge inward as the phantom approaches
@@ -2247,7 +2247,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
 
   # Phantom clone / shoot origin
   of "phantom_clone":
-    # Ghostly white/teal crosshair — marks each bullet spawn point
+    # Ghostly white/teal crosshair, marks each bullet spawn point
     let cx = warning.pos.x; let cy = warning.pos.y
     let sz = 22.0 + pulse * 0.4
     let gap = 6.0  # Gap at center
@@ -2484,7 +2484,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     of "dimensional_rift":
       let cx = warning.pos.x; let cy = warning.pos.y
       let t = getTime()
-      let progress = 1.0'f32 - (warning.lifetime / warning.maxLifetime)  # 0→1 as warning expires
+      let progress = 1.0'f32 - (warning.lifetime / warning.maxLifetime)  # 0->1 as warning expires
 
       # Tear: a jagged fracture line across the rift centre
       # Two counter-rotating halves pull apart as the rift opens
@@ -2547,7 +2547,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
           drawLine(Vector2(x: cx, y: cy), Vector2(x: sx, y: sy),
                   1, Color(r: sCol.r, g: sCol.g, b: sCol.b, a: uint8(alpha.float32 * 0.25'f32)))
 
-      # Void core — deep black circle with a glowing rim
+      # Void core, deep black circle with a glowing rim
       let coreR = 9.0'f32 + progress * 5.0'f32 + sin(t * 8.0'f32) * 1.5'f32
       drawCircle(Vector2(x: cx, y: cy), coreR,
                 Color(r: 10'u8, g: 0'u8, b: 30'u8, a: uint8(alpha.float32 * 0.92'f32)))
@@ -2613,7 +2613,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       let nx = dx / dist; let ny = dy / dist  # unit direction
       let perpX = -ny;    let perpY = nx       # perpendicular
 
-      # Dashed shaft — 6 segments, solid/gap alternating
+      # Dashed shaft, 6 segments, solid/gap alternating
       let segCount = 6
       for i in 0..<segCount:
         if i mod 2 == 0:
@@ -2683,7 +2683,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                Color(r: 150'u8, g: 100'u8, b: 255'u8, a: alpha))
 
   of "boss_circle", "boss_spiral":
-    # Pulsing rings with tick marks — omnidirectional threat
+    # Pulsing rings with tick marks, omnidirectional threat
     let cx = warning.pos.x; let cy = warning.pos.y
     let r1 = 30.0 + pulse * 1.5
     let r2 = 46.0 + pulse * 1.2
@@ -2697,7 +2697,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                2, Color(r: 255'u8, g: 50'u8, b: 50'u8, a: alpha))
 
   of "boss_barrage":
-    # Ring with many radiating spokes — massive spray indicator
+    # Ring with many radiating spokes, massive spray indicator
     let cx = warning.pos.x; let cy = warning.pos.y
     let r = 28.0 + pulse
     drawCircleLines(cx.int32, cy.int32, r, Color(r: 255'u8, g: 50'u8, b: 0'u8, a: alpha))
@@ -2708,7 +2708,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                2, Color(r: 255'u8, g: 80'u8, b: 0'u8, a: alpha))
 
   of "boss_pulse":
-    # Three concentric pulsing rings — expanding shockwave cue
+    # Three concentric pulsing rings, expanding shockwave cue
     let cx = warning.pos.x; let cy = warning.pos.y
     for ring in 0..<3:
       let r = 20.0 + ring.float32 * 18.0 + pulse * 0.7
@@ -2717,7 +2717,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                      Color(r: 200'u8, g: 50'u8, b: 255'u8, a: ringAlpha))
 
   of "boss_chain":
-    # Rotating zigzag lightning spokes — chain lightning cue
+    # Rotating zigzag lightning spokes, chain lightning cue
     let cx = warning.pos.x; let cy = warning.pos.y
     let rot = getTime() * 2.0
     for i in 0..<4:

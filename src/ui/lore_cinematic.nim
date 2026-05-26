@@ -3,9 +3,8 @@
 ## The sequence is a raylib-rendered video: timed shots, camera drift, animated
 ## geometry, subtitles, scanlines, letterbox bars, and a final boot handoff.
 
-import raylib, rlgl, math, strutils, background_fx,
-       ../types, ../settings, ../skins, ../shapes, ../bullet_skins,
-       ../bullet_shapes, ../enemy, ../enemy_config, icon_drawing
+import raylib, rlgl, math, strutils
+import background_fx, ../types, ../settings, ../skins, ../shapes, ../bullet_skins, ../bullet_shapes, ../enemy, ../enemy_config, icon_drawing
 
 type
   LoreShot* = enum

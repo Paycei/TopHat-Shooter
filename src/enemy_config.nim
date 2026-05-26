@@ -1,7 +1,8 @@
 ## Enemy Configuration System
 ## Centralizes all enemy properties, behavior parameters, and attack patterns
 
-import raylib, types, math, random, localization
+import raylib, math, random
+import types, localization
 
 type
   EnemyAttackConfig* = object
@@ -678,7 +679,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       usesHitCount: false
     )
 
-  of etEnvironment:  # Non-combat entity — no movement, no attack
+  of etEnvironment:  # Non-combat entity, no movement, no attack
     result = EnemyConfig(
       enemyType: etEnvironment,
       name: "Environment",

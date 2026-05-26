@@ -1,4 +1,5 @@
-import raylib, types, sound, math, gamemode_definitions, powerup, powerup_data, localization, render_context, ui/os_shop
+import raylib, math
+import types, sound, gamemode_definitions, powerup, powerup_data, localization, render_context, ui/os_shop
 
 # ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
@@ -214,7 +215,7 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
       applyShopPurchaseEffect(game, shopIndex, purchase + 1, healHealth = false)
   game.player.hp = min(game.player.hp, game.player.maxHp)
 
-  # Clear all rotating orbs — they will be recreated by the reapply loop below
+  # Clear all rotating orbs, they will be recreated by the reapply loop below
   game.player.rotatingOrbs = @[]
 
   # Reapply all remaining power-ups

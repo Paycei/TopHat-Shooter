@@ -1,7 +1,8 @@
 ﻿## Discord Rich Presence Helper Functions
 ## Provides high-level functions to update Discord presence based on game state
 
-import discord_presence, types, strformat, math, gamemode_definitions, pvp_game
+import strformat, math
+import discord_presence, types, gamemode_definitions, pvp_game
 
 const
   PresenceAppName = "TopHat-ShooterOS"

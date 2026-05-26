@@ -1,4 +1,5 @@
-import raylib, types, wall, math, random, powerup, localization, skins, shapes, ui/ui_constants, std/deques
+import raylib, math, random, std/deques
+import types, wall, powerup, localization, skins, shapes, ui/ui_constants
 
 const
   PlayerAcceleration = 7.0'f32
@@ -94,7 +95,7 @@ proc newPlayer*(x, y: float32): Player =
     singularityShieldRegenRatePct: 0.005, # Regenerate 5% of max shield (0.5% of max HP) per second
     killsSinceLastHeal: 0,
     regenTimer: 0,
-    lastDamageTaken: -1,  # Unused sentinel kept for compatibility; see lastDamageEvent
+    lastDamageTaken: -1,  # Unused sentinel kept for compatibility, see lastDamageEvent
     lastDamageEvent: deNone,
     rageStacks: 0,
     critCharge: 0,
@@ -230,7 +231,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # Calculate current speed with boost
   var currentSpeed = player.speed
   if player.speedBoostTimer > 0:
-    currentSpeed *= 1.5
+    currentSpeed *= 1.4  # 40% speed boost
 
   var moveDir = newVector2f(0, 0)
 
@@ -363,12 +364,12 @@ proc drawPlayer*(player: Player) =
         if ringRadius > 2:
           drawCircleLines(player.pos.x.int32, player.pos.y.int32, ringRadius,
                          Color(r: 120, g: 170, b: 255, a: ringAlpha))
-      # Outer boundary ring — clearly visible
+      # Outer boundary ring, clearly visible
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, slowRadius + 3.0,
                      Color(r: 100, g: 150, b: 255, a: 70))
       drawCircleLines(player.pos.x.int32, player.pos.y.int32, slowRadius,
                      Color(r: 120, g: 170, b: 255, a: 210))
-      # Rotating dots at 68% radius — gives it a sense of rotation
+      # Rotating dots at 68% radius, gives it a sense of rotation
       let dashRadius = slowRadius * 0.68
       for d in 0..7:
         let dashAngle = time * (-0.55) + d.float32 * PI * 0.25
@@ -442,7 +443,7 @@ proc drawPlayer*(player: Player) =
     drawCircleLines(player.pos.x.int32, player.pos.y.int32, shieldRadius,
                     Color(r: 170, g: 110, b: 255, a: lineAlpha))
 
-  # Celestial Veil — soft translucent ring around the player while the charge is ready.
+  # Celestial Veil, soft translucent ring around the player while the charge is ready.
   if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
     let veilPulse   = 0.5 + 0.5 * sin(time * 3.0)
     let veilRadius  = player.radius * 1.65 + veilPulse * 3.0
@@ -465,12 +466,12 @@ proc drawPlayer*(player: Player) =
       drawCircle(Vector2(x: gx, y: gy), 2.5,
                  Color(r: 255, g: 255, b: 255, a: uint8(160 + (veilPulse * 80).int)))
 
-  # Dodge flash effect — takeDamage sets lastDamageEvent = deDodged as a one-frame signal.
+  # Dodge flash effect, takeDamage sets lastDamageEvent = deDodged as a one-frame signal.
   if player.lastDamageEvent == deDodged and player.hp > 0:
     drawText(t(tkPlayerDodge), (player.pos.x - 25).int32, (player.pos.y - 35).int32, 14, Yellow)
     player.lastDamageEvent = deNone  # Consume flag
 
-  # Celestial Veil absorbed-hit flash — takeDamage sets lastDamageEvent = deCelestialVeil.
+  # Celestial Veil absorbed-hit flash, takeDamage sets lastDamageEvent = deCelestialVeil.
   if player.lastDamageEvent == deCelestialVeil and player.hp > 0:
     drawText(t(tkPlayerVeil), (player.pos.x - 20).int32, (player.pos.y - 35).int32, 14,
              Color(r: 200, g: 200, b: 255, a: 255))
@@ -603,7 +604,7 @@ proc drawPlayer*(player: Player) =
 
         let segments = 16
 
-        # Pass 1 — outer glow halo (wide, soft)
+        # Pass 1, outer glow halo (wide, soft)
         for j in 0..<segments:
           let t1 = j.float32 / segments.float32
           let t2 = (j + 1).float32 / segments.float32
@@ -617,7 +618,7 @@ proc drawPlayer*(player: Player) =
           drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 6,
                   Color(r: arcR, g: arcG, b: arcB, a: 28))
 
-        # Pass 2 — main arc (solid, medium thickness)
+        # Pass 2, main arc (solid, medium thickness)
         for j in 0..<segments:
           let t1 = j.float32 / segments.float32
           let t2 = (j + 1).float32 / segments.float32
@@ -630,7 +631,7 @@ proc drawPlayer*(player: Player) =
           drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.5,
                   Color(r: arcR, g: arcG, b: arcB, a: 255))
 
-        # Pass 3 — inner highlight (bright white-tinted, thin)
+        # Pass 3, inner highlight (bright white-tinted, thin)
         for j in 0..<segments:
           let t1 = j.float32 / segments.float32
           let t2 = (j + 1).float32 / segments.float32
@@ -644,7 +645,7 @@ proc drawPlayer*(player: Player) =
           drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1,
                   Color(r: 200, g: 255, b: 255, a: 85))
 
-        # Endpoint energy nodes — animated pulse
+        # Endpoint energy nodes, animated pulse
         let nodePulse = 3.5 + sin(time * 6.0 + i.float32 * 2.1) * 1.5
         let ex1 = player.pos.x + cos(angle1) * shieldRadius
         let ey1 = player.pos.y + sin(angle1) * shieldRadius

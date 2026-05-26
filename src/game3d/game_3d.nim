@@ -2,9 +2,7 @@
 ## Main 3D game loop, state management, and integration
 
 import raylib, sequtils, random, math
-import types_3d, engine_3d, player_3d, boss_3d
-import ../types  # Import 2D types for Player integration
-import ../localization
+import types_3d, engine_3d, player_3d, boss_3d, ../types, ../localization
 
 type
   Game3D* = object

@@ -1,4 +1,5 @@
-import raylib, particle_types, types, random, math, strutils, particle_pool, ui/ui_constants, ui/icon_drawing
+import raylib, random, math, strutils
+import particle_types, types, particle_pool, ui/ui_constants, ui/icon_drawing
 
 export Particle, ParticlePool, newParticlePool, updateParticlePool, drawParticlePool
 export ParticleLayer, drawParticlePoolLayer
@@ -25,7 +26,7 @@ proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritic
 proc newCurrencyIndicator*(x, y: float32, amount: int,
                            kind: CurrencyIndicatorKind = cikCredits): CurrencyIndicator =
   let baseVelocityY = -76.0'f32
-  # Data shards fire every wave — tighter spread so they don't wander off-screen
+  # Data shards fire every wave, tighter spread so they don't wander off-screen
   let spreadRange = if kind == cikDataShards: 40.0 else: 72.0
   let horizontalSpread = (rand(1.0) - 0.5) * spreadRange
   # Shards stay visible longer since they're the most important roguelite number

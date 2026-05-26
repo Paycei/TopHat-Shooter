@@ -1,6 +1,86 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/pvp_window, ui/loading_screen, ui/window_manager
 
+# Global quit-confirmation dialog
+
+type ConfirmDialogContext = enum
+  cdcQuitToDesktop,  # Close the whole application
+  cdcQuitToMenu      # Return to main menu
+
+var
+  globalConfirmActive  = false
+  globalConfirmContext = cdcQuitToMenu
+
+proc showGlobalConfirm(ctx: ConfirmDialogContext) =
+  globalConfirmActive  = true
+  globalConfirmContext = ctx
+
+proc isOverRect(mp: Vector2, x, y, w, h: int32): bool =
+  mp.x >= x.float32 and mp.x <= (x + w).float32 and
+  mp.y >= y.float32 and mp.y <= (y + h).float32
+
+proc drawGlobalConfirmDialog(sw, sh: int32): int =
+  ## Returns 0 = still open, 1 = confirmed (yes), -1 = cancelled (no).
+  if not globalConfirmActive: return 0
+
+  let mp = getVirtualMousePosition()
+  const DW: int32 = 460; const DH: int32 = 210
+  const BW: int32 = 170; const BH: int32 = 42
+  let dx = (sw - DW) div 2; let dy = (sh - DH) div 2
+
+  drawRectangle(0, 0, sw, sh, Color(r: 0, g: 0, b: 0, a: 160))
+  drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
+  drawRectangle(dx, dy, DW, DH, Color(r: 18, g: 22, b: 32, a: 255))
+  drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
+                     3, Color(r: 255, g: 80, b: 80, a: 255))
+
+  let tbH: int32 = 36
+  drawRectangle(dx, dy, DW, tbH, Color(r: 120, g: 28, b: 28, a: 255))
+  let titleStr = if globalConfirmContext == cdcQuitToDesktop: "CONFIRM QUIT" else: "CONFIRM EXIT"
+  let tW = measureText(titleStr, 16)
+  drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, Color(r: 255, g: 200, b: 200, a: 255))
+
+  let bodyStr = if globalConfirmContext == cdcQuitToDesktop: "Close TopHat-ShooterOS?" else: "Return to main menu?"
+  let bW = measureText(bodyStr, 19)
+  drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 24, 19, White)
+  let subStr = "Unsaved progress will be lost."
+  let sW = measureText(subStr, 13)
+  drawText(subStr, dx + (DW - sW) div 2, dy + tbH + 54, 13, Color(r: 200, g: 150, b: 150, a: 255))
+
+  let btnY = dy + DH - BH - 22
+  let noX  = dx + (DW div 2) - BW - 12
+  let yesX = dx + (DW div 2) + 12
+  let noHov  = isOverRect(mp, noX,  btnY, BW, BH)
+  let yesHov = isOverRect(mp, yesX, btnY, BW, BH)
+
+  drawRectangle(noX, btnY, BW, BH,
+    if noHov: Color(r: 0, g: 145, b: 0, a: 255) else: Color(r: 0, g: 105, b: 0, a: 255))
+  drawRectangleLines(Rectangle(x: noX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+    if noHov: 3 else: 2,
+    if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 195, b: 55, a: 255))
+  let noTxt = "[ESC] CANCEL"; let nTW = measureText(noTxt, 14)
+  drawText(noTxt, noX + (BW - nTW) div 2, btnY + 13, 14, White)
+
+  drawRectangle(yesX, btnY, BW, BH,
+    if yesHov: Color(r: 158, g: 38, b: 38, a: 255) else: Color(r: 118, g: 28, b: 28, a: 255))
+  drawRectangleLines(Rectangle(x: yesX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+    if yesHov: 3 else: 2,
+    if yesHov: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 195, g: 55, b: 55, a: 255))
+  let yesTxt = if globalConfirmContext == cdcQuitToDesktop: "[Q] QUIT" else: "[Q] EXIT"
+  let yTW = measureText(yesTxt, 14)
+  drawText(yesTxt, yesX + (BW - yTW) div 2, btnY + 13, 14, White)
+
+  var decision = 0
+  if isMouseButtonPressed(Left):
+    if noHov:    decision = -1
+    elif yesHov: decision = 1
+  if isKeyPressed(Escape): decision = -1
+  if isKeyPressed(Q):      decision = 1
+
+  if decision != 0:
+    globalConfirmActive = false
+  return decision
+
 const
   screenWidth = 1024
   screenHeight = 768
@@ -237,7 +317,7 @@ proc main() =
   proc updateLoadingProgress(progress: float32, message: string) =
     loadingScreen.setProgress(progress, message)
 
-    # If the very first callback is already at 1.0, everything was cached —
+    # If the very first callback is already at 1.0, everything was cached,
     # skip drawing entirely so the loading screen never flickers on screen.
     if progress >= 1.0 and not loadingScreenShown:
       return
@@ -349,8 +429,22 @@ proc main() =
 
   # Track pending game mode launch during loading animation
   var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox, 9 = Roguelite
+  var windowCloseRequested = false  # True once the OS close button is clicked
 
-  while not windowShouldClose():
+  while not windowCloseRequested:
+    # Re-arm windowShouldClose each iteration; show confirm instead of quitting directly
+    if windowShouldClose():
+      let isInGame = currentGame.state in {gsPlaying, gsPaused, gsShop, gsCountdown,
+                                           gsWaveCleared, gsPowerUpSelect, gsDeathSequence,
+                                           gsRogueliteSectorSelect, gsPvPPlaying, gs3DBoss}
+      # Only show confirm when an active game session is running; closing the window
+      # from the main menu should exit immediately with no popup.
+      if isInGame:
+        if not globalConfirmActive:
+          showGlobalConfirm(cdcQuitToDesktop)
+      else:
+        # Splash / lore / game-over: just quit
+        windowCloseRequested = true
     # Check if fullscreen toggle was requested
     if fullscreenToggleRequested:
       fullscreenToggleRequested = false
@@ -463,7 +557,7 @@ proc main() =
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
-        of 9:  # Roguelite Mode — launched via the roguelite window Start button
+        of 9:  # Roguelite Mode, launched via the roguelite window Start button
           # Setup was already done in the roguelite window; start the run directly.
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile
@@ -503,7 +597,7 @@ proc main() =
       if updateResult.fullscreenToggle:
         fullscreenToggleRequested = true
 
-      # Handle roguelite window Start button — show loading screen then enter game
+      # Handle roguelite window Start button, show loading screen then enter game
       if updateResult.rogueliteLaunchGame:
         startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
         pendingGameMode = 9
@@ -645,8 +739,8 @@ proc main() =
         else:
           discard
 
-      # Process desktop actions
-      if action >= 0:
+      # Process desktop actions (skip if confirm dialog is open)
+      if action >= 0 and not globalConfirmActive:
         playSound(stMenuSelect)
         case action
         of 0:  # Play.exe - Wave-Based Mode
@@ -670,7 +764,7 @@ proc main() =
         of 5:  # Help.txt - Open Help Window
           globalWindowManager.openWindow(widHelp)
         of 6:  # Shutdown.exe - Quit
-          break
+          showGlobalConfirm(cdcQuitToDesktop)
         of 7:  # Sandbox.exe - Sandbox Mode
           startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
           pendingGameMode = 6
@@ -719,7 +813,7 @@ proc main() =
           of 5:  # Help.txt
             globalWindowManager.openWindow(widHelp)
           of 6:  # Shutdown.exe - Quit
-            break
+            showGlobalConfirm(cdcQuitToDesktop)
           of 7:  # Sandbox.exe
             startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
             pendingGameMode = 6
@@ -766,6 +860,13 @@ proc main() =
 
       # Draw loading overlay on top of everything if active
       drawLoadingOverlay(osDesktop, screenWidth, screenHeight)
+
+      # Draw quit-confirmation dialog if active (on top of everything)
+      if globalConfirmActive:
+        let confirmResult = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if confirmResult == 1:
+          windowCloseRequested = true  # confirmed quit to desktop
+        # confirmResult == -1 means cancelled, dialog already closed
 
       # Draw custom cursor on menu
       drawCustomCursor(currentGame.time)
@@ -1012,9 +1113,11 @@ proc main() =
       if isKeyPressed(Escape):
         if not isPvPMode(currentGame.mode):
           currentGame.state = gsPaused
+          currentGame.pauseMenuExitCooldown = 2.0
         else:
           # In PvP, show pause menu visually but keep game running
           currentGame.state = gsPaused
+          currentGame.pauseMenuExitCooldown = 2.0
 
       # Update game (only if cheat menu is not active)
       if not cheatMenu.active:
@@ -1056,11 +1159,12 @@ proc main() =
       # Alpha banner for roguelite mode
       if currentGame.mode == gmRoguelite:
         drawAlphaBanner(currentGame)
-
-      # Draw custom cursor during gameplay
-      drawCustomCursor(currentGame.time)
-
-      # Handle transition fade
+      # Draw window-close confirmation if triggered via OS close button
+      if globalConfirmActive:
+        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if r == 1:
+          windowCloseRequested = true
+        # r == -1: cancelled, dialog already dismissed
       if currentGame.transitioning:
         drawRectangle(0, 0, screenWidth, screenHeight,
                      fade(Black, currentGame.fadeAlpha))
@@ -1069,6 +1173,9 @@ proc main() =
           let textWidth = measureText(text, 30)
           drawText(text, screenWidth div 2 - textWidth div 2,
                   screenHeight div 2, 30, White)
+
+      # Draw custom cursor during gameplay (after dialogs so it appears on top)
+      drawCustomCursor(currentGame.time)
 
       endGameDrawing()
 
@@ -1116,6 +1223,12 @@ proc main() =
       if updateResult.fullscreenToggle:
         fullscreenToggleRequested = true
 
+      # Tick down the exit-button cooldown (prevents accidental Q on pause entry)
+      if currentGame.pauseMenuExitCooldown > 0:
+        currentGame.pauseMenuExitCooldown = max(0.0'f32, currentGame.pauseMenuExitCooldown - dt)
+
+      let exitReady = currentGame.pauseMenuExitCooldown <= 0 and not currentGame.confirmQuitPending
+
       # Only handle pause menu controls if no window is blocking interaction
       if not mouseOverWindow:
         # Pause menu navigation - Tab switching (Left/Right or A/D)
@@ -1145,32 +1258,25 @@ proc main() =
         elif isKeyPressed(Tab):  # Open Settings
           globalWindowManager.openWindow(widSettings)
           playSound(stMenuSelect)
-        elif isKeyPressed(Q):  # Quit to main menu
-          # Clean up PvP if active
-          if isPvP and not currentPvPGame.isNil and currentPvPGame.networkManager != nil:
-            # Send graceful disconnect before cleanup
-            if currentPvPGame.networkManager.isConnected:
-              disconnect(currentPvPGame.networkManager, "Player quit to menu")
-            cleanup(currentPvPGame.networkManager)
-            currentPvPGame = nil
-
-          cleanupGame(currentGame)
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-          currentGame.discordClient = globalDiscordClient
-          currentGame.state = gsMenu
-          playSound(stMenuSelect)
-        elif isKeyPressed(Escape):  # ESC also resumes (but only if no windows are open)
-          # Check if any windows are open
-          let hasOpenWindows = globalWindowManager.settings.window.visible or
-                               globalWindowManager.help.window.visible or
-                               globalWindowManager.stats.window.visible or
-                               globalWindowManager.shop.window.visible
-          if not hasOpenWindows:
-            # Return to appropriate state based on context
-            if isPvP:
-              currentGame.state = gsPvPPlaying
-            else:
-              currentGame.state = gsPlaying
+        elif isKeyPressed(Q):  # Quit to main menu, ask first (opens confirm immediately)
+          if not currentGame.confirmQuitPending:
+            currentGame.confirmQuitPending = true
+            playSound(stMenuNav)
+        elif isKeyPressed(Escape):  # ESC cancels confirm dialog, or resumes
+          if currentGame.confirmQuitPending:
+            currentGame.confirmQuitPending = false
+          else:
+            # Check if any windows are open
+            let hasOpenWindows = globalWindowManager.settings.window.visible or
+                                 globalWindowManager.help.window.visible or
+                                 globalWindowManager.stats.window.visible or
+                                 globalWindowManager.shop.window.visible
+            if not hasOpenWindows:
+              # Return to appropriate state based on context
+              if isPvP:
+                currentGame.state = gsPvPPlaying
+              else:
+                currentGame.state = gsPlaying
 
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
@@ -1216,16 +1322,10 @@ proc main() =
           globalWindowManager.openWindow(widSettings)
           playSound(stMenuSelect)
         elif menuResult.exitClicked:
-          # Clean up PvP if active
-          if isPvP and not currentPvPGame.isNil and currentPvPGame.networkManager != nil:
-            cleanup(currentPvPGame.networkManager)
-            currentPvPGame = nil
-
-          cleanupGame(currentGame)
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-          currentGame.discordClient = globalDiscordClient
-          currentGame.state = gsMenu
-          playSound(stMenuSelect)
+          # Ask for confirmation before quitting to menu (opens confirm immediately)
+          if not currentGame.confirmQuitPending:
+            currentGame.confirmQuitPending = true
+            playSound(stMenuNav)
 
       # Draw all windows on top of pause menu
       globalWindowManager.drawAllWindows(currentGame)
@@ -1234,8 +1334,27 @@ proc main() =
       if currentGame.mode == gmRoguelite:
         drawAlphaBanner(currentGame)
 
-      # Draw custom cursor (only if mouseSupport is enabled OR showCursorInMenus is enabled)
-      if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
+      # Draw quit-confirmation dialog on top of everything if pending
+      if currentGame.confirmQuitPending:
+        let confirmDlg = drawQuitConfirmDialog(currentGame)
+        if confirmDlg.confirmed:
+          currentGame.confirmQuitPending = false
+          # Perform the actual quit-to-menu
+          if isPvP and not currentPvPGame.isNil and currentPvPGame.networkManager != nil:
+            if currentPvPGame.networkManager.isConnected:
+              disconnect(currentPvPGame.networkManager, "Player quit to menu")
+            cleanup(currentPvPGame.networkManager)
+            currentPvPGame = nil
+          cleanupGame(currentGame)
+          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame.discordClient = globalDiscordClient
+          currentGame.state = gsMenu
+          playSound(stMenuSelect)
+        elif confirmDlg.cancelled:
+          currentGame.confirmQuitPending = false
+
+      # Draw custom cursor on top of everything (including the confirm dialog)
+      if currentGame.confirmQuitPending or globalSettings.mouseSupport or globalSettings.showCursorInMenus:
         drawCustomCursor(currentGame.time)
 
       endGameDrawing()

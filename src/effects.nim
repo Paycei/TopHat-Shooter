@@ -35,7 +35,7 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
   else:
     # Slot has an active or pending effect
     if damagePerSec > cur.primary.damagePerSec:
-      # Stronger — push current to fallback if it still has duration
+      # Stronger, push current to fallback if it still has duration
       var updated = enemy.activeEffects[effectType]
       updated.fallback =
         if cur.primary.remainingDuration > 0:
@@ -59,13 +59,13 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
       )
       enemy.activeEffects[effectType] = updated
     elif damagePerSec == cur.primary.damagePerSec and cur.primary.isActive:
-      # Same power and still active — extend if incoming duration is longer
+      # Same power and still active, extend if incoming duration is longer
       if duration > cur.primary.remainingDuration:
         var updated = enemy.activeEffects[effectType]
         updated.primary.remainingDuration = duration
         updated.primary.maxDuration = duration
         enemy.activeEffects[effectType] = updated
-    # Weaker than active primary — ignore
+    # Weaker than active primary, ignore
 
 proc updateEffects*(enemy: Enemy, dt: float32): float32 =
   ## Actualiza todos los efectos del enemigo y retorna el daño total a aplicar

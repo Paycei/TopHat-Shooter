@@ -1,17 +1,18 @@
 ## Cube Skin System
 ## Defines colour themes for the interactive 3-D cube on the OS desktop
 
-import raylib, localization
+import raylib
+import localization
 
 type
   CubeSkinType* = enum
-    cskDefault,  ## System Unit   – classic red/orange (free)
-    cskNeon,     ## Neon Pulse    – bright neon purple
-    cskIce,      ## Cryo Core     – icy blue crystalline
-    cskGold,     ## Gold Standard – luxury golden
-    cskShadow,   ## Shadow Node   – stealth dark
-    cskPlasma,   ## Plasma Rig    – electric blue-purple
-    cskMatrix    ## Data Node     – matrix green
+    cskDefault,  ## System Unit: classic red/orange
+    cskNeon,     ## Neon Pulse: bright neon purple
+    cskIce,      ## Cryo Core: icy blue crystalline
+    cskGold,     ## Gold Standard: luxury golden
+    cskShadow,   ## Shadow Node: stealth dark
+    cskPlasma,   ## Plasma Rig: electric blue-purple
+    cskMatrix    ## Data Node: matrix green
 
   CubeSkinData* = object
     name*: string

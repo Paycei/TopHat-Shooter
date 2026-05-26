@@ -1,7 +1,7 @@
 ## OS-themed advancement tracker window.
 
-import raylib, os_window, strutils
-import ../advancement, ../render_context
+import raylib, strutils
+import os_window, ../advancement, ../render_context
 
 type
   AdvancementsWindow* = ref object

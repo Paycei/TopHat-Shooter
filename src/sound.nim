@@ -1,4 +1,5 @@
-import raylib, math, random, os, streams, localization
+import raylib, math, random, os, streams
+import localization
 
 type
   SoundType* = enum
@@ -1034,7 +1035,7 @@ proc generateSimpleWave(freq: float32, t: float32, waveform: Instrument): float3
     let detune = sin(2.0 * PI * freq * 1.002 * t) * 0.15
     return (fundamental * 0.6 + h2 + h3 + h4 + h5 + detune)
   of inPluck:
-    # Bright synth pluck for arpeggios; rich enough to cut through, still soft.
+    # Bright synth pluck for arpeggios, rich enough to cut through, still soft.
     let phase = 2.0 * PI * freq * t
     let fundamental = sin(phase) * 0.68
     let h2 = sin(phase * 2.0) * 0.20

@@ -1,7 +1,8 @@
 ﻿## OS-Themed Help System
 ## Terminal-style documentation viewer
 
-import raylib, strutils, os_window, math, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, icon_drawing
+import raylib, strutils, math
+import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, icon_drawing
 
 const
   HELP_LINE_HEIGHT* = 18
@@ -189,7 +190,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
         # Add name with icon index (ordinal of PowerUpType) and the powerup's own color
         let puColor = getPowerUpColor(pu)
         help.addOutput(getPowerUpName(pu), puColor, i, 0)
-        # Use level 1 and default playerDamage for example descriptions; indent descriptions to align under name
+        # Use level 1 and default playerDamage for example descriptions, indent descriptions to align under name
         let desc = getPowerUpDescription(pu, 1, 1.0)
         for line in desc.split("\n"):
           help.addOutput(line, LightGray, -1, (HELP_ICON_SIZE + HELP_ICON_PADDING))

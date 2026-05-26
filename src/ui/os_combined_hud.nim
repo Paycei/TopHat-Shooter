@@ -1,7 +1,8 @@
 ﻿## Combined OS-Style HUD Panel
 ## Merges status and info panels into one compact, non-intrusive display
 
-import raylib, ../types, ../localization, math, ../powerup_data, ../roguelite, ui_constants, ../render_context, icon_drawing
+import raylib, math
+import ../types, ../localization, ../powerup_data, ../roguelite, ui_constants, ../render_context, icon_drawing
 
 const
   COMBINED_PANEL_WIDTH = 238
@@ -211,7 +212,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
                 else: Color(r: 255, g: 80, b: 80, a: 220)
   drawRectangle(finalPanelX + COMBINED_PANEL_PADDING, yOffset, fillWidth, barHeight, barColor)
 
-  # Singularity shield overlay — purple tint on the rightmost portion of the HP fill
+  # Singularity shield overlay, purple tint on the rightmost portion of the HP fill
   # covering however many HP points the shield currently protects
   if game.player.singularityShield > 0.0:
     let shieldCoveredHp = min(game.player.singularityShield, game.player.hp)

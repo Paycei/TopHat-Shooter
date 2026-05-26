@@ -30,7 +30,7 @@ type
     startHp*: float32       ## Starting HP per player (default 3)
     startSpeed*: float32    ## Base movement speed (default 200)
     startDamage*: float32   ## Bullet damage per hit (default 1.0)
-    fireRate*: float32      ## Seconds between shots – lower is faster (default 0.375)
+    fireRate*: float32      ## Seconds between shots: lower is faster (default 0.375)
     ## NOTE: PvP fire rate (0.375) is intentionally faster than singleplayer (0.425).
     ## The shorter TTK in PvP rewards mechanical skill and keeps matches snappy.
     bulletSpeed*: float32   ## Bullet travel speed (default 425)
@@ -39,7 +39,7 @@ type
     startWalls*: int        ## Walls at match start (default 3)
     killLimit*: int         ## Kills needed to win (default 5)
     respawnTime*: float32   ## Seconds before respawn (default 3.0)
-    timeLimit*: float32     ## Match time limit in seconds; 0 = unlimited (default 180)
+    timeLimit*: float32     ## Match time limit in seconds, 0 = unlimited (default 180)
     snapshotRate*: float32  ## Seconds between server->client state snapshots
     inputRate*: float32     ## Seconds between client->server input packets
 
@@ -145,7 +145,7 @@ type
     puSpecialRounds,   # Every Nth bullet has special on-hit effect
     puGiantSlayer,     # Deal % of enemy HP as bonus damage
     puCelestialVeil,   # LEGENDARY: Absorb 1 hit per wave
-    puVolatile,        # LEGENDARY passive: enemies with 2+ DoTs take +50% dmg; death pulse spreads elements
+    puVolatile,        # LEGENDARY passive: enemies with 2+ DoTs take +50% dmg, death pulse spreads elements
     puResonance,       # Normal passive: bullets hitting DoT enemies deal bonus elemental damage
     puBloodPact,       # LEGENDARY active: sacrifice 30% HP to deal it as split damage to all enemies
     puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
@@ -375,7 +375,7 @@ type
     poisonDamage*: float32
     poisonAccumulator*: float32  # Accumulates fractional poison damage until it reaches 1.0
     poisonSourceType*: EnemyType  # Enemy type that applied the poison (for stats tracking)
-    lastDamageAvoided*: float32  # Set by takeDamage when a hit is blocked; read by game.nim to record damageAvoided
+    lastDamageAvoided*: float32  # Set by takeDamage when a hit is blocked, read by game.nim to record damageAvoided
     parryActive*: bool  # True when actively parrying
     parryCooldown*: float32  # Cooldown timer between parries
     parryDuration*: float32  # How long the parry state lasts
@@ -404,7 +404,7 @@ type
     novaCooldown*: float32      # Countdown to next use (0 = ready)
     novaActive*: bool           # True while bullets are frozen
     novaFreezeTimer*: float32   # How long freeze remains
-    healPowerMult*: float32     # Multiplier for all healing received (default 1.0; increased by puHealPower)
+    healPowerMult*: float32     # Multiplier for all healing received (default 1.0, increased by puHealPower)
     hasBountiful*: bool         # True when Cornucopia legendary is active
     bountifulKillCounter*: int  # Counts kills for guaranteed-drop milestones (resets every 20)
 
@@ -529,7 +529,7 @@ type
     slowTimer*: float32
     entranceWait*: float32        # Brief wait after arrival before boss begins attacking
     slowAmount*: float32
-    activeEffects*: array[ElementType, ActiveEffect]  # Unified effect system; indexed directly by ElementType
+    activeEffects*: array[ElementType, ActiveEffect]  # Unified effect system, indexed directly by ElementType
     chainLightningCooldown*: float32
 
     attackWarningTimer*: float32
@@ -1008,6 +1008,8 @@ type
     deathSequenceFadeAlpha*: float32  # Fade opacity during death playback
     deathSequenceTimeScale*: float32  # Current playback time scale during death sequence
     lightningBolts*: seq[LightningBolt]  # Active lightning arc visuals
+    confirmQuitPending*: bool  # True while the quit-confirmation dialog is open
+    pauseMenuExitCooldown*: float32  # Countdown before Exit button/key becomes active (prevents accidental exit)
 
 proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
   AttackWarning(

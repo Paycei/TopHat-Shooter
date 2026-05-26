@@ -1,15 +1,13 @@
-import raylib, types, random, math, tables, ui/os_powerup_installer, d_visuals
+import raylib, random, math, tables
+import types, ui/os_powerup_installer, d_visuals
 
 # Canonical list of all elemental orb power-up types.
-# Note: puRotatingOrbs (the legendary all-elements orb) is intentionally excluded —
+# Note: puRotatingOrbs (the legendary all-elements orb) is intentionally excluded,
 # that one is checked separately in contexts that need it (e.g. hasAnyOrbPowerUp).
 const elementalOrbTypes* = [
   puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb,
   puFrostOrb, puArcaneOrb, puBloodOrb
 ]
-
-# Forward declarations for reroll system
-proc attemptRerollPowerUps*(game: Game): bool
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -455,7 +453,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Celestial Veil - absorbs 1 hit per wave
     player.celestialVeilActive = true
   of puVolatile:
-    # Volatile (Legendary passive) - flag set; logic handled in game.nim bullet-hit and death
+    # Volatile (Legendary passive) - flag set, logic handled in game.nim bullet-hit and death
     player.hasVolatile = true
   of puResonance:
     # Resonance (Normal passive, 3 levels) - set level
@@ -608,15 +606,16 @@ proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
   ## Update the slot machine roll animation.
   ##
   ## Three phases per slot:
-  ##   1. Constant speed  – scrolls at sharedSpeed px/s until brakeDuration before stopTime.
-  ##   2. Cubic ease-out  – the moment braking starts, we record the exact position and
+  ##   1. Constant speed: scrolls at sharedSpeed px/s until brakeDuration before stopTime.
+  ##   2. Cubic ease-out: the moment braking starts, we record the exact position and
   ##      remaining distance, then drive position purely from a cubic curve over time so
-  ##      the slot always lands exactly on finalPosition with zero speed.  No clamping hacks.
-  ##   3. Locked          – after stopTime the slot is pinned to finalPosition.
+  ##      the slot always lands exactly on finalPosition with zero speed. No clamping hacks.
+  ##   3. Locked: after stopTime the slot is pinned to finalPosition.
   ##
-  ## game.rollSpeed[i]         – current speed in px/s (read by renderer for motion blur)
-  ## game.rollPosition[i]      – accumulated scroll offset in px
-  ## game.rollBrakeStartPos[i] – position snapshotted when braking began (-1 = not yet)
+  ## game.rollSpeed[i]: current speed in px/s (read by renderer for motion blur)
+  ## game.rollPosition[i]: accumulated scroll offset in px
+  ## game.rollBrakeStartPos[i]: position snapshotted when braking began (-1 = not yet)
+
   if not game.rollAnimationActive:
     return
 
@@ -639,7 +638,7 @@ proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
     let finalPosition = float32(finalIndex) * cardHeight
 
     if game.rollAnimationTimer >= stopTimes[i]:
-      # Phase 3 – locked
+      # Phase 3: locked
       game.rollPosition[i] = finalPosition
       game.rollSpeed[i]    = 0.0
 
@@ -647,12 +646,12 @@ proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
       let timeUntilStop = stopTimes[i] - game.rollAnimationTimer
 
       if timeUntilStop > brakeDuration:
-        # Phase 1 – constant speed
+        # Phase 1: constant speed
         game.rollPosition[i] += sharedSpeed * deltaTime
         game.rollSpeed[i]     = sharedSpeed
 
       else:
-        # Phase 2 – cubic ease-out over the exact remaining distance
+        # Phase 2: cubic ease-out over the exact remaining distance
         # Snapshot the brake-entry position on the first frame of braking
         if game.rollBrakeStartPos[i] < 0.0'f32:
           game.rollBrakeStartPos[i] = game.rollPosition[i]
@@ -680,7 +679,7 @@ proc initPowerUpRollAnimation*(game: Game) =
   ## List-length guide (cardHeight=380, sharedSpeed=1000, brakeDuration=1.1):
   ##   Constant-phase distance = sharedSpeed * (stopTime - brakeDuration)
   ##   Brake-phase distance    = sharedSpeed * brakeDuration * 0.5  (avg speed)
-  ##   Total reachable px      ≈ sharedSpeed * (stopTime - 0.55)
+  ##   Total reachable px      = sharedSpeed * (stopTime - 0.55)
   ##   Max list length         = floor(total px / 380)
   ##
   ##   normal    stop times 1.5 / 2.5 / 3.5 s  -> max listLen: 2 / 5 / 7

@@ -1,7 +1,8 @@
 ## OS Window Framework
 ## Base system for all OS-style windows (Settings, Stats, Help)
 
-import raylib, math, ../render_context
+import raylib, math
+import ../render_context
 
 type
   WindowAnimation* = enum

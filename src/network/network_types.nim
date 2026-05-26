@@ -2,7 +2,8 @@
 ## Defines all network packet structures and a newPacket helper.
 ## Serialization and supersnappy compression are handled in network.nim.
 
-import raylib, ../types, times
+import raylib, times
+import ../types
 
 type
   PacketType* = enum
@@ -36,7 +37,7 @@ type
     placingWall*: bool
     wallPos*: Vector2f
     timestamp*: float32
-    dt*: float32   ## Frame delta-time when this input was captured; needed for accurate replay
+    dt*: float32   ## Frame delta-time when this input was captured, needed for accurate replay
 
   PlayerStateNet* = object
     playerIndex*: int

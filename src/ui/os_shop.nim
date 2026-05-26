@@ -1,7 +1,8 @@
 ## OS-Style Shop System
 ## Shop screen redesigned as a modern OS storefront interface
 
-import raylib, ../types, ../localization, math, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing, ../render_context, strutils
+import raylib, math, strutils
+import ../types, ../localization, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing, ../render_context
 
 const
   SHOP_WIDTH = 950
@@ -18,7 +19,7 @@ const
   SHOP_FIRE_RATE_CAP = 0.09'f32
   SHOP_MOVE_SPEED_GAIN = 15.0'f32
   SHOP_HEALTH_GAIN_BASE = 6
-  SHOP_BULLET_SPEED_GAIN = 11.0'f32
+  SHOP_BULLET_SPEED_GAIN = 10.0'f32
   SHOP_WALL_GAIN = 10
 
 proc shopFitText(text: string, maxWidth, fontSize: int32,
@@ -29,7 +30,7 @@ proc shopFitText(text: string, maxWidth, fontSize: int32,
     dec fs
   if measureText(text, fs) <= maxWidth:
     return (text, fs)
-  # Still too wide — truncate character by character
+  # Still too wide, truncate character by character
   var t = text
   while t.len > 0 and measureText(t & "...", fs) > maxWidth:
     t = t[0..^2]
@@ -172,7 +173,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
   let textX = x + 50
   drawText(text, textX, y + 8, 14, textColor)
 
-  # Description (if provided) — fit within the button so it never overflows
+  # Description (if provided), fit within the button so it never overflows
   if description.len > 0:
     let descColor = if canAfford:
       Color(r: 160, g: 170, b: 180, a: 255)

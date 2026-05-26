@@ -1,7 +1,8 @@
 ﻿## Shop Window
 ## OS-themed window for player and bullet customization with tabs
 
-import raylib, rlgl, os_window, os_desktop, background_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, math, strformat, strutils, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound
+import raylib, rlgl, math, strformat, strutils
+import os_window, os_desktop, background_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound
 
 type
   ShopTab* = enum
@@ -494,7 +495,7 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
   let rScaled = r * hoverScale
   let previewColor = Color(r: 0, g: 200, b: 200, a: 255)
   let glowColor   = Color(r: 0, g: 255, b: 255, a: 80)
-  let travelAngle = 0.0  # flying right; arrow uses this for orientation
+  let travelAngle = 0.0  # flying right, arrow uses this for orientation
   drawPlayerBulletShape(Vector2f(x: cx, y: cy), rScaled, shapeType, travelAngle, previewColor, glowColor)
 
   # Trail dots to give motion feel
@@ -678,7 +679,7 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
                else: Color(r: 40, g: 40, b: 50, a: 255)
   drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, cardBg)
 
-  # Mini background preview area (top portion of card) — rendered using the
+  # Mini background preview area (top portion of card), rendered using the
   # same backdrop helper and colours that the real desktop uses so the shop
   # card is a faithful thumbnail of the actual background.
   let previewH = 64
@@ -1022,7 +1023,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
       shop.previewKind = curKind
       shop.previewIndex = actual
 
-  # Reset hover state; keyboard focus will set hoveredSkin below
+  # Reset hover state, keyboard focus will set hoveredSkin below
   shop.hoveredSkin = -1
 
   # Compute gridLeft

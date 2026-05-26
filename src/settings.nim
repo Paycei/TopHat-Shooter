@@ -2,7 +2,8 @@
 ## Handles settings initialization, state management, and application
 
 from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, saveSettings, loadSettings
-import raylib, sound, localization, strutils
+import raylib, strutils
+import sound, localization
 export Settings
 
 var globalSettings*: Settings

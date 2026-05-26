@@ -1,7 +1,8 @@
 ## Enemy Helper Functions
 ## Centralized attack execution, movement, and special behaviors
 
-import raylib, types, random, math, tables, strutils, enemy_config, bullet, wall, run_statistics
+import raylib, random, math, tables, strutils
+import types, enemy_config, bullet, wall, run_statistics
 
 const
   EnemyInertiaAcceleration* = 4.5'f32

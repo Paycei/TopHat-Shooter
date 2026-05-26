@@ -1,7 +1,8 @@
 ## OS-Themed Desktop Environment Module
 ## Main menu as an operating system desktop
 
-import raylib, ../types, ../localization, math, strutils, strformat, times, ../render_context, background_fx, ../desktop_bg_skins, ../settings, ../cube_skins
+import raylib, math, strutils, strformat, times
+import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, ../settings, ../cube_skins
 
 type
   DesktopIconType* = enum
@@ -148,7 +149,7 @@ proc newOSDesktop*(): OSDesktop =
     loadingActive: false,
     loadingProgress: 0.0,
     loadingText: "",
-    # Start with identity quaternion; auto-rotation will spin it from here
+    # Start with identity quaternion, auto-rotation will spin it from here
     cubeQW: 1.0,
     cubeQX: 0.0,
     cubeQY: 0.0,
@@ -174,7 +175,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     CubeLinearDrag      = 2.8'f32
 
   # Helper: compose a small world-space rotation onto the cube quaternion.
-  # axis (ax,ay,az) must be unit length; angle in radians.
+  # axis (ax,ay,az) must be unit length, angle in radians.
   proc applyWorldRot(qw, qx, qy, qz: var float32, ax, ay, az, angle: float32) =
     let half = angle * 0.5'f32
     let s = sin(half)
@@ -211,8 +212,8 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     if isMouseButtonDown(Left):
       let ddx = mp.x - desktop.cubeDragLastX
       let ddy = mp.y - desktop.cubeDragLastY
-      # right drag  → rotate around world Y (up)
-      # down drag   → rotate around world X (right)
+      # right drag -> rotate around world Y (up)
+      # down drag -> rotate around world X (right)
       if abs(ddx) > 0.001'f32:
         applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
                       0, 1, 0, ddx * CubeDragSensitivity)
@@ -781,7 +782,7 @@ proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
 
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   ## Draw the active desktop background. If the player has selected a desktop
-  ## background from settings/shop use that; otherwise fall back to the
+  ## background from settings/shop use that otherwise fall back to the
   ## original hardcoded wallpaper. This ensures the shop's `dbgDefault` is
   ## a 1:1 copy of the hardcoded wallpaper when selected.
   var selectedBg: DesktopBgType = dbgDefault
@@ -906,7 +907,7 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
   # Get mouse position
   let mousePos = getVirtualMousePosition()
 
-  # Mouse hover detection — only update keyboard selection when the mouse actually moved,
+  # Mouse hover detection, only update keyboard selection when the mouse actually moved,
   # so keyboard navigation is never silently overwritten by a stationary cursor.
   if game.mouseMovedRecently:
     var hoveredIcon = -1
@@ -927,7 +928,7 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
     if isMouseButtonPressed(Left) and hoveredIcon >= 0:
       return desktop.icons[hoveredIcon].iconType.int
 
-  # Keyboard navigation — arrow keys AND WASD, with full 2D grid support.
+  # Keyboard navigation, arrow keys AND WASD, with full 2D grid support.
   # Moving any direction marks keyboard as in-use so the mouse won't jump the cursor.
   let col = if desktop.selectedIcon < COL0_COUNT: 0 else: 1
   let row = if col == 0: desktop.selectedIcon else: desktop.selectedIcon - COL0_COUNT

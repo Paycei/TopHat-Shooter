@@ -1,7 +1,8 @@
 ## Player Skins System
 ## Defines available player skins and rendering functions
 
-import raylib, types, math, localization
+import raylib, math
+import types, localization
 
 type
   SkinType* = enum

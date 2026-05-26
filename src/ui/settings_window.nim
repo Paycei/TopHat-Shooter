@@ -1,8 +1,8 @@
 ﻿## OS-Themed Settings Control Panel
 ## Tabbed settings interface matching the OS visual language
 
-import raylib, strutils, ../sound, ../save_system, os_window, ../settings, ../localization, ../render_context
-import ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types
+import raylib, strutils
+import ../sound, ../save_system, os_window, ../settings, ../localization, ../render_context, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types
 
 type
   SettingsTab* = enum

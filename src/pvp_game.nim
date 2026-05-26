@@ -1,7 +1,8 @@
 ## PvP Game Mode Logic
 ## Handles multiplayer player vs player combat with optional team support
 
-import raylib, types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, math, times, settings, strutils, sequtils, localization, render_context, ui/background_fx
+import raylib, math, times, strutils, sequtils
+import types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, settings, localization, render_context, ui/background_fx
 
 const
   PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
@@ -237,7 +238,7 @@ proc getSpawnPosition(playerIndex, totalPlayers: int, screenWidth, screenHeight:
   ## Calculate spawn position for a player based on their index (free-for-all)
   ## Distributes players evenly around the screen
   if totalPlayers == 2:
-    # Classic 1v1 positioning
+    # 1v1 positioning
     if playerIndex == 0:
       return newVector2f(screenWidth * 0.25, screenHeight * 0.5)
     else:
@@ -512,7 +513,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
     player.pos.x = clamp(player.pos.x, player.radius, pvp.screenWidth.float32 - player.radius)
     player.pos.y = clamp(player.pos.y, player.radius, pvp.screenHeight.float32 - player.radius)
   else:
-    # Player is not pressing any movement key — zero velocity so snapshots and
+    # Player is not pressing any movement key, zero velocity so snapshots and
     # extrapolation don't carry a stale direction forward after stopping.
     player.vel = newVector2f(0, 0)
 
@@ -576,7 +577,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
     # Must be within placement range of the placing player
     let inRange = distance(input.wallPos, placingPlayerPos) <= WALL_PLACEMENT_RANGE
     # Reuse waves-mode validation: not too close to placing player, no overlap with existing walls
-    # Pass empty enemy seq — PvP has no enemies
+    # Pass empty enemy seq, PvP has no enemies
     let validPos = isValidWallPlacement(input.wallPos, placingPlayerPos, pvp.walls, @[], 25)
 
     if inRange and validPos:
@@ -996,7 +997,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         pvp.players[localIdx].pos = serverPos
         pvp.localPosCorrection = newVector2f(0, 0)
       elif posDiff > corrThreshold:
-        # MEDIUM desync – accumulate for per-frame blending (replaces old one-shot lerp)
+        # MEDIUM desync: accumulate for per-frame blending (replaces old one-shot lerp)
         pvp.localPosCorrection.x = serverPos.x - pvp.players[localIdx].pos.x
         pvp.localPosCorrection.y = serverPos.y - pvp.players[localIdx].pos.y
       # else: SMALL desync - trust prediction completely
@@ -1070,7 +1071,7 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
         pvp.players[i].pos = interpState.prevPos
       elif t > 1.0:
         # Render time is past the latest snapshot: dead-reckon with velocity.
-        # Cap at 1.5x snapshot interval — enough to cover one late packet without
+        # Cap at 1.5x snapshot interval, enough to cover one late packet without
         # letting bad extrapolation run wild when the connection is poor.
         let extraDt = min((t - 1.0) * timeDiff, pvp.config.snapshotRate * 1.5)
         pvp.players[i].pos.x = interpState.targetPos.x + interpState.targetVel.x * extraDt
@@ -1206,7 +1207,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
     pvp.players[localIdx].pos = serverPos
     pvp.localPosCorrection = newVector2f(0, 0)
   elif posDiff > corrThreshold:
-    # MEDIUM desync – accumulate the full error into localPosCorrection so that
+    # MEDIUM desync: accumulate the full error into localPosCorrection so that
     # updatePvPClient can bleed it out smoothly every frame instead of jumping.
     # This replaces the old one-shot per-snapshot lerp that caused jitter.
     pvp.localPosCorrection.x = serverPos.x - pvp.players[localIdx].pos.x
@@ -1243,7 +1244,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   # The server snapshot is always a few frames behind the client due to network
   # latency.  If we blindly replace pvp.bullets with the snapshot contents, any
   # bullet the local player fired in the last RTT/2 ms gets destroyed for one
-  # frame and then reappears — producing the visible "laggy start" stutter.
+  # frame and then reappears, producing the visible "laggy start" stutter.
   #
   # Strategy:
   #   1. Collect the set of bullet IDs that the server knows about.
@@ -1255,19 +1256,19 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   # player whose bullets the client predicts.  Remote bullets are always
   # authoritative from the server.
 
-  # Step 1 – build the set of server-known IDs
+  # Step 1: build the set of server-known IDs
   var serverBulletIds: seq[int] = @[]
   for bulletState in serverState.bullets:
     serverBulletIds.add(bulletState.id)
 
-  # Step 2 – keep predicted bullets not yet in the snapshot
+  # Step 2: keep predicted bullets not yet in the snapshot
   var predictedBullets: seq[Bullet] = @[]
   for existingBullet in pvp.bullets:
     if existingBullet.ownerPlayerIndex == localIdx and
        existingBullet.bulletId notin serverBulletIds:
       predictedBullets.add(existingBullet)
 
-  # Step 3 – rebuild from server state, then append surviving predictions
+  # Step 3: rebuild from server state, then append surviving predictions
   pvp.bullets = @[]
   for bulletState in serverState.bullets:
     # Skip bullets that were recently destroyed (to prevent snapshot resurrection)
@@ -1361,7 +1362,7 @@ proc handleDisconnect*(pvp: PvPGameState, disconnectedIndex: int, reason: string
 
   pvp.disconnectPlayer(disconnectedIndex)
 
-  # In a 2-player game there's no one left to play against — end immediately.
+  # In a 2-player game there's no one left to play against, end immediately.
   if pvp.maxPlayers <= 2:
     pvp.gameOver = true
     pvp.isCountingDown = false
@@ -1375,7 +1376,7 @@ proc handleDisconnect*(pvp: PvPGameState, disconnectedIndex: int, reason: string
         pkt.reason = "Player disconnected"
         pvp.networkManager.sendPacket(pkt)
       else:
-        # Host disconnected — the remaining client wins
+        # Host disconnected, the remaining client wins
         pvp.winnerIndex = pvp.localPlayerIndex
         pvp.gameOverReason = "Opponent disconnected"
     else:
@@ -1410,10 +1411,10 @@ proc handleDisconnect*(pvp: PvPGameState, disconnectedIndex: int, reason: string
       pkt.reason = pvp.gameOverReason
       pvp.networkManager.sendPacket(pkt)
   else:
-    # Game continues — log who dropped out
+    # Game continues, log who dropped out
     let nick = if disconnectedIndex < pvp.playerNicknames.len:
       pvp.playerNicknames[disconnectedIndex] else: "Player " & $disconnectedIndex
-    echo "[PVP] ", nick, " dropped out — game continues with ",
+    echo "[PVP] ", nick, " dropped out, game continues with ",
          pvp.connectedPlayerCount(), " players remaining"
 
 proc handleNetworkEvents*(pvp: PvPGameState) =
@@ -1748,7 +1749,7 @@ proc drawPvP*(pvp: PvPGameState) =
     )
     drawCircle(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, wallColor)
     drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius, Brown)
-    # Wall health bar — drawn above the wall
+    # Wall health bar, drawn above the wall
     let wallHealthPercent = wall.hp / wall.maxHp
     let wallBarWidth = (wall.radius * 2).int32
     let wallBarHeight: int32 = 4
@@ -1767,7 +1768,7 @@ proc drawPvP*(pvp: PvPGameState) =
     # Faint ring showing max placement range
     drawCircleLines(localPlayer.pos.x.int32, localPlayer.pos.y.int32,
                     WALL_PLACEMENT_RANGE, Color(r: 180, g: 180, b: 255, a: 60))
-    # Ghost wall at cursor — green if placeable, red if not
+    # Ghost wall at cursor, green if placeable, red if not
     let mousePos = getVirtualMousePosition()
     let cursorPos = newVector2f(mousePos.x, mousePos.y)
     let inRange = distance(cursorPos, localPlayer.pos) <= WALL_PLACEMENT_RANGE
@@ -1904,7 +1905,7 @@ proc drawPvP*(pvp: PvPGameState) =
     let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 4))
     drawText(scoreText, scoreX.int32, 10, 20, White)
 
-  # Time — use only ASCII so raylib's default bitmap font can render it
+  # Time, use only ASCII so raylib's default bitmap font can render it
   let timeText = if pvp.config.timeLimit <= 0:
     "INF"
   else:
@@ -1927,7 +1928,7 @@ proc drawPvP*(pvp: PvPGameState) =
     let latencyText = "Ping: " & $pingValue & "ms"
     drawText(latencyText, 10, 10, 20, Yellow)
 
-  # Wall count for local player (bottom-left) — highlights when in placement mode
+  # Wall count for local player (bottom-left), highlights when in placement mode
   let localIdx = pvp.localPlayerIndex
   if localIdx < pvp.players.len:
     let wallCount = pvp.players[localIdx].walls

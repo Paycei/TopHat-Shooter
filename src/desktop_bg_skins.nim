@@ -1,17 +1,18 @@
 ## Desktop Background Skins System
 ## Defines available OS desktop background colour themes
 
-import raylib, localization
+import raylib
+import localization
 
 type
   DesktopBgType* = enum
-    dbgDefault,   ## OS Grid  – original animated circuit board (free)
-    dbgNeon,      ## Neon City – pink/purple neon lights
-    dbgMatrix,    ## Data Rain – cascading green code
-    dbgVoid,      ## Deep Void – dark space with stars
-    dbgSunrise,   ## System Sunrise – warm orange horizon
-    dbgOcean,     ## Neural Network – cool blue interconnected nodes
-    dbgInferno    ## Inferno Core – red volcanic heat
+    dbgDefault,   ## OS Grid : original animated circuit board (free)
+    dbgNeon,      ## Neon City: pink/purple neon lights
+    dbgMatrix,    ## Data Rain: cascading green code
+    dbgVoid,      ## Deep Void: dark space with stars
+    dbgSunrise,   ## System Sunrise: warm orange horizon
+    dbgOcean,     ## Neural Network: cool blue interconnected nodes
+    dbgInferno    ## Inferno Core: red volcanic heat
 
   DesktopBgData* = object
     name*: string

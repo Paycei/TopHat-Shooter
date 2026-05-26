@@ -1,7 +1,8 @@
 ## OS-Themed Splash Screen Module
 ## Displays a boot-like splash screen when the game starts
 
-import raylib, strutils, math, ../localization, background_fx
+import raylib, strutils, math
+import ../localization, background_fx
 
 type
   BootPhase* = enum

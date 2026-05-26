@@ -1,6 +1,7 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
-import raylib, types, enemy, powerup, powerup_data, boss_definitions, std/strutils, random, localization, render_context, ui/icon_drawing
+import raylib, std/strutils, random
+import types, enemy, powerup, powerup_data, boss_definitions, localization, render_context, ui/icon_drawing
 
 const
   SIDEBAR_WIDTH = 300
@@ -329,7 +330,7 @@ proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int
   else:
     trackY
 
-  # Thumb colour — brighter while dragging
+  # Thumb colour, brighter while dragging
   let thumbColor = if game.sandboxScrollbarDragging:
     Color(r: 140, g: 190, b: 255, a: 240)
   else:

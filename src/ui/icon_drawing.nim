@@ -1,7 +1,8 @@
 ## Icon Drawing System - Modern OS Theme with detail
 ## All icons drawn programmatically using shapes with depth and polish
 
-import raylib, rlgl, ../types, math
+import raylib, rlgl, math
+import ../types
 
 type
   CurrencyIconType* = enum
@@ -1063,11 +1064,11 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawRectangle(cx + 1, cy - 6, 3, 12, Color(r: 180, g: 220, b: 255, a: 220))
 
   of puHealPower:
-    # Heart with upward surge arrow — amplified healing
+    # Heart with upward surge arrow, amplified healing
     # Outer soft glow ring
     drawCircle(Vector2(x: cx.float32, y: cy.float32), rad + 3, Color(r: 255, g: 80, b: 120, a: 35))
     drawCircle(Vector2(x: cx.float32, y: cy.float32), rad + 1, Color(r: 255, g: 120, b: 150, a: 55))
-    # Heart — two lobes + a bottom point
+    # Heart, two lobes + a bottom point
     let lobeR = rad * 0.38
     let lobeOffX = rad * 0.30
     let lobeOffY = rad * 0.12
@@ -1113,10 +1114,10 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     let gold   = Color(r: 255, g: 200, b: 50,  a: 255)
     let bright = Color(r: 255, g: 235, b: 130, a: 255)
     let shadow = Color(r: 0,   g: 0,   b: 0,   a: 60)
-    # Horn body — thick arc curving from top-left to bottom-right
+    # Horn body, thick arc curving from top-left to bottom-right
     drawCircleLines(Vector2(x: (cx - 2).float32, y: cy.float32), rad * 0.85, gold)
     drawCircleLines(Vector2(x: (cx - 2).float32, y: cy.float32), rad * 0.75, Color(r: gold.r, g: gold.g, b: gold.b, a: 160))
-    # Opening of the horn (wide end, right side) — filled wedge hint
+    # Opening of the horn (wide end, right side), filled wedge hint
     drawCircle(Vector2(x: (cx + int32(rad * 0.6)).float32, y: (cy - int32(rad * 0.2)).float32), rad * 0.28, Color(r: gold.r, g: gold.g, b: gold.b, a: 90))
     # Three bouncing consumable dots spilling out (health=green, coin=gold, speed=cyan)
     let dotColors = [

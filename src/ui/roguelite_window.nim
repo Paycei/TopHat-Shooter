@@ -1,7 +1,8 @@
 ## Roguelite Window
 ## Wrap the existing roguelite panel inside an OS-style desktop window
 
-import raylib, math, os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound
+import raylib, math
+import os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound
 
 const HeatPurchaseCelebrationDuration = 1.35'f32
 
@@ -497,7 +498,7 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
     # Unlocks tab
     drawUnlocksContent(game, panelX, panelY, rw.unlockCategory, rw.unlockItem, rw.unlockScrollOffset)
     # Note: drawUnlocksContent already draws the full control bar (roguelite_unlock_shop_controls)
-    # at the panel bottom — no additional hint drawn here to avoid overlap.
+    # at the panel bottom, no additional hint drawn here to avoid overlap.
   else:
     # Setup tab
     let profile = game.rogueliteProfile

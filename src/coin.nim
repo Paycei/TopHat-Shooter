@@ -1,4 +1,5 @@
-import raylib, types, math
+import raylib, math
+import types
 
 proc newCoin*(x, y: float32, value: int = 1, isBoss: bool = false): Coin =
   # Scale coin radius based on value for visual feedback

@@ -1,7 +1,8 @@
 ## Particle Effects System for Player Shooting
 ## Defines customizable particle effects that appear when the player shoots
 
-import raylib, types, math, particle_pool, random, localization
+import raylib, math, random
+import types, particle_pool, localization
 
 type
   ParticleSkinType* = enum

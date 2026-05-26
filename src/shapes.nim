@@ -1,7 +1,8 @@
 ## Player Shapes System
 ## Defines available player shapes and rendering functions
 
-import raylib, types, math, localization
+import raylib, math
+import types, localization
 
 type
   ShapeType* = enum

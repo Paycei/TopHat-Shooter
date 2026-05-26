@@ -1,7 +1,8 @@
 ﻿## OS-Style System Screens
 ## Game Over as Modern System Crash, Victory as System Secured
 
-import raylib, ../types, math, ../localization
+import raylib, math
+import ../types, ../localization
 
 const
   SCREEN_WIDTH = 900

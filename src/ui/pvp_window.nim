@@ -1,7 +1,8 @@
 ## PvP Lobby Window
 ## Network lobby interface as an OS-style window
 
-import raylib, os_window, ../network/network, ../network/network_types, strutils, net, math, ../types, ../localization, ../render_context
+import raylib, strutils, net, math
+import os_window, ../network/network, ../network/network_types, ../types, ../localization, ../render_context
 
 type
   PvPWindow* = ref object
@@ -1345,7 +1346,7 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     statClick(contentX + 10 + colWc,     row2Yc, pvpWin.pvpConfig.bulletRadius,  0.5,   3.0,  25.0)
     statClickInt(contentX + 10 + colWc * 2, row2Yc, pvpWin.pvpConfig.startWalls, 1, 0, 10)
 
-    # Row 3: Time Limit (col 0) & Net Quality (col 1) — same row
+    # Row 3: Time Limit (col 0) & Net Quality (col 1), same row
     let row3Yc = row2Yc + 42
     let ctrlY3 = row3Yc + 15
     if mx >= (contentX + 10).float32 and mx <= (contentX + 32).float32 and
@@ -1361,7 +1362,7 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       else:
         pvpWin.pvpConfig.timeLimit = min(3600.0, pvpWin.pvpConfig.timeLimit + 30.0)
 
-    # Net Quality — cols 1+2, same row as Time Limit
+    # Net Quality, cols 1+2, same row as Time Limit
     let netPresets = [(1.0'f32 / 20.0'f32,  1.0'f32 / 20.0'f32),   # Low    20 ticks/s
                       (1.0'f32 / 32.0'f32,  1.0'f32 / 32.0'f32),   # Medium 32 ticks/s
                       (1.0'f32 / 64.0'f32,  1.0'f32 / 64.0'f32),   # High   64 ticks/s
