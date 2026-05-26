@@ -1897,6 +1897,10 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, damage)
     damage = damageWithCrit
 
+    # Cheap flat damage for Wind Bullets so the upgrade is meaningful
+    if hasPowerUp(game.player, puWindBullets):
+      damage += 0.5'f32
+
     # Check for Special Rounds power-up
     var isSpecialRound = false
     if hasPowerUp(game.player, puSpecialRounds):
@@ -1923,6 +1927,10 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let poisonEffect = fx.poison
     let fireEffect = fx.fire
     let windEffect = fx.wind
+
+    # Wind Mastery: increase bullet damage for wind bullets
+    if windEffect > 0 and game.player.hasWindMastery:
+      damage *= 2.5  # +150% damage for wind bullets
 
     if hasDoubleShot and hasMultiShot:
       # When both active: Fire multishot pattern (3 directions), then schedule second burst
@@ -2121,6 +2129,10 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(burstStats, damage)
   damage = damageWithCrit
 
+  # Cheap flat damage for Wind Bullets so the upgrade is meaningful
+  if hasPowerUp(game.player, puWindBullets):
+    damage += 0.5'f32
+
   if hasPowerUp(game.player, puHeavyRounds):
     let sizeLevel = getPowerUpLevel(game.player, puHeavyRounds)
     bulletRadius *= getHeavyRoundsSizeMultiplier(sizeLevel)
@@ -2130,6 +2142,10 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let poisonEffect = fx.poison
   let fireEffect = fx.fire
   let windEffect = fx.wind
+
+  # Wind Mastery: increase burst bullet damage for wind-enabled bullets
+  if windEffect > 0 and game.player.hasWindMastery:
+    damage *= 2.5  # +150% damage for wind bullets
 
   if hasMultiShot:
     let multiCount = 3  # Always 3 bullets for legendary Multi-Shot
@@ -4307,6 +4323,10 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   if orb.elementType == etArcane and game.player.hasArcaneMastery:
     actualBaseDamage *= 2.0  # +100% damage
 
+  # Apply Wind Mastery bonus for Wind orbs
+  if orb.elementType == etWind and game.player.hasWindMastery:
+    actualBaseDamage *= 2.5  # +150% damage
+
   # Use passed-in stats for crit calculation (avoids recomputing per orb hit)
   let damageWithCrit = applyCriticalHitFromStats(stats, actualBaseDamage)
   let actualDamage = damageEnemy(enemy, damageWithCrit)
@@ -5328,8 +5348,17 @@ proc updateGame*(game: var Game, dt: float32) =
         enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
 
         # Wind chip damage
-        let windChipDamage = damageEnemy(enemy, 0.3 * dt)
+        var baseWindChip = 0.3 * dt
+        if game.player.hasWindMastery:
+          baseWindChip *= 2.5  # +150% damage for wind aura chips
+
+        let windChipDamage = damageEnemy(enemy, baseWindChip)
         if windChipDamage > 0:
+          # Track wind aura damage and Wind Mastery contribution
+          trackPowerUpDamage(game, puWindAura, windChipDamage)
+          if game.player.hasWindMastery:
+            trackPowerUpDamage(game, puWindMastery, windChipDamage)
+
           accumulateAndShowAuraDamage(game, enemy, windChipDamage, dtDefault, false)
 
         # Apply slow ONLY if player has Wind Mastery
@@ -7018,6 +7047,12 @@ proc updateGame*(game: var Game, dt: float32) =
             # Track Arcane Bullets contribution (all arcane bullet damage)
             if bullet.isArcaneBullet:
               trackPowerUpDamage(game, puArcaneBullets, actualDamage)
+
+            # Track Wind Bullets contribution (if this bullet had wind push)
+            if bullet.windPushForce > 0:
+              trackPowerUpDamage(game, puWindBullets, actualDamage)
+              if game.player.hasWindMastery:
+                trackPowerUpDamage(game, puWindMastery, actualDamage)
 
             # Piercing Shots: extra hits are enabled by this power-up, but the damage
             # is already captured by the base bullet damage tracking above.

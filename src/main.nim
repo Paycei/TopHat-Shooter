@@ -1227,8 +1227,6 @@ proc main() =
       if currentGame.pauseMenuExitCooldown > 0:
         currentGame.pauseMenuExitCooldown = max(0.0'f32, currentGame.pauseMenuExitCooldown - dt)
 
-      let exitReady = currentGame.pauseMenuExitCooldown <= 0 and not currentGame.confirmQuitPending
-
       # Only handle pause menu controls if no window is blocking interaction
       if not mouseOverWindow:
         # Pause menu navigation - Tab switching (Left/Right or A/D)

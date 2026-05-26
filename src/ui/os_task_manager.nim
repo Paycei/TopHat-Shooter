@@ -236,7 +236,6 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   let screenHeight = game.screenHeight
   let mousePos = getVirtualMousePosition()
   let mouseSupported = game.mouseMovedRecently
-  let exitReady = game.pauseMenuExitCooldown <= 0 and not game.confirmQuitPending
 
   # Dark overlay
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 200))
