@@ -201,35 +201,35 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   let buttonsStartX = windowX + (TASK_MANAGER_WIDTH - 600) div 2
 
   # Check mouse hover for buttons
-  let resumeHovered = mouseSupported and isMouseOverRect(mousePos, buttonsStartX, buttonY, 180, BUTTON_HEIGHT)
+  let exitHovered = mouseSupported and isMouseOverRect(mousePos, buttonsStartX, buttonY, 180, BUTTON_HEIGHT)
   let settingsX = buttonsStartX + 180 + BUTTON_SPACING
   let settingsHovered = mouseSupported and isMouseOverRect(mousePos, settingsX, buttonY, 180, BUTTON_HEIGHT)
-  let exitX = settingsX + 180 + BUTTON_SPACING
-  let exitHovered = mouseSupported and isMouseOverRect(mousePos, exitX, buttonY, 180, BUTTON_HEIGHT)
+  let resumeX = settingsX + 180 + BUTTON_SPACING
+  let resumeHovered = mouseSupported and isMouseOverRect(mousePos, resumeX, buttonY, 180, BUTTON_HEIGHT)
 
   # Handle button clicks
   if mouseSupported and isMouseButtonPressed(Left):
-    if resumeHovered:
-      result.resumeClicked = true
+    if exitHovered:
+      result.exitClicked = true
     elif settingsHovered:
       result.settingsClicked = true
-    elif exitHovered:
-      result.exitClicked = true
+    elif resumeHovered:
+      result.resumeClicked = true
 
-  # Resume button
-  let resumeBgColor = if resumeHovered:
-    Color(r: 0, g: 150, b: 0, a: 255)
+  # Exit button
+  let exitBgColor = if exitHovered:
+    Color(r: 150, g: 40, b: 40, a: 255)
   else:
-    Color(r: 0, g: 120, b: 0, a: 255)
+    Color(r: 120, g: 30, b: 30, a: 255)
 
-  drawRectangle(buttonsStartX, buttonY, 180, BUTTON_HEIGHT, resumeBgColor)
+  drawRectangle(buttonsStartX, buttonY, 180, BUTTON_HEIGHT, exitBgColor)
   drawRectangleLines(Rectangle(x: buttonsStartX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
-                    if resumeHovered: 3 else: 2,
-                    if resumeHovered: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 255, b: 0, a: 255))
-  let resumeText = "[SPACE] RESUME"
-  let resumeWidth = measureText(resumeText, 14)
-  drawText(resumeText, buttonsStartX + (180 - resumeWidth) div 2,
+                    if exitHovered: 3 else: 2,
+                    if exitHovered: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 255, g: 80, b: 80, a: 255))
+  let exitText = "[Q] EXIT"
+  let exitWidth = measureText(exitText, 14)
+  drawText(exitText, buttonsStartX + (180 - exitWidth) div 2,
           buttonY + 12, 14, White)
 
   # Settings button
@@ -248,20 +248,20 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   drawText(settingsText, settingsX + (180 - settingsWidth) div 2,
           buttonY + 12, 14, White)
 
-  # Exit button
-  let exitBgColor = if exitHovered:
-    Color(r: 150, g: 40, b: 40, a: 255)
+  # Resume button
+  let resumeBgColor = if resumeHovered:
+    Color(r: 0, g: 150, b: 0, a: 255)
   else:
-    Color(r: 120, g: 30, b: 30, a: 255)
+    Color(r: 0, g: 120, b: 0, a: 255)
 
-  drawRectangle(exitX, buttonY, 180, BUTTON_HEIGHT, exitBgColor)
-  drawRectangleLines(Rectangle(x: exitX.float32, y: buttonY.float32,
+  drawRectangle(resumeX, buttonY, 180, BUTTON_HEIGHT, resumeBgColor)
+  drawRectangleLines(Rectangle(x: resumeX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
-                    if exitHovered: 3 else: 2,
-                    if exitHovered: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 255, g: 80, b: 80, a: 255))
-  let exitText = "[Q] EXIT"
-  let exitWidth = measureText(exitText, 14)
-  drawText(exitText, exitX + (180 - exitWidth) div 2,
+                    if resumeHovered: 3 else: 2,
+                    if resumeHovered: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 255, b: 0, a: 255))
+  let resumeText = "[SPACE] RESUME"
+  let resumeWidth = measureText(resumeText, 14)
+  drawText(resumeText, resumeX + (180 - resumeWidth) div 2,
           buttonY + 12, 14, White)
 
   # Status message

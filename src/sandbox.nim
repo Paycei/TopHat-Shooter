@@ -591,7 +591,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
     game.sandboxScrollOffset -= (mouseWheel * SCROLL_SPEED).int32
     clampSandboxScroll(game, screenHeight)
 
-  # --- Scrollbar drag ---
+  # Scrollbar drag
   let sidebarXSb = screenWidth - SIDEBAR_WIDTH
   let contentStartYSb: int32 = 45 + TAB_HEIGHT + 5
   let maxScrollSb = maxSandboxScrollOffset(game.sandboxSelectedTab, screenHeight)
@@ -622,7 +622,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
       let newThumbY = mpDrag.y - game.sandboxScrollbarDragOffsetY - trackYSb.float32
       game.sandboxScrollOffset = int32(newThumbY / thumbRangeSb.float32 * maxScrollSb.float32)
       clampSandboxScroll(game, screenHeight)
-  # --- End scrollbar drag ---
+  # End scrollbar drag
 
   if isMouseButtonPressed(Left):
     let mousePos = getVirtualMousePosition()

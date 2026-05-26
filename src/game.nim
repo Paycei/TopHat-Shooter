@@ -5915,7 +5915,7 @@ proc updateGame*(game: var Game, dt: float32) =
         let healthY = clampedPos.y
         let healthPos = clampLootPosition(healthX, healthY, game.screenWidth, game.screenHeight)
         game.consumables.add(newSpecificConsumable(healthPos.x, healthPos.y, ctHealth))
-      else:
+      elif not enemy.spawnedByBoss:
         # Cornucopia (puBountiful): increased drop rate + kill-milestone drops
         let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
         let consumableDifficulty = if game.mode == gmWaveBased: 1.0 else: game.difficulty
