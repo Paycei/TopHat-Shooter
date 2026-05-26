@@ -4,24 +4,23 @@ import types, settings, player, enemy, bullet, consumable, coin, wall, boss_defi
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
 const TIME_SURVIVAL_BOSS_INTERVAL = 60.0
-const DEATH_SEQUENCE_SLOW_DURATION = 1.1'f32
-const DEATH_SEQUENCE_SPEEDUP_DURATION = 0.35'f32
-const DEATH_SEQUENCE_FADE_DURATION = 0.65'f32
-const DEATH_SEQUENCE_TOTAL_DURATION =
-  DEATH_SEQUENCE_SLOW_DURATION + DEATH_SEQUENCE_SPEEDUP_DURATION + DEATH_SEQUENCE_FADE_DURATION
-const DEATH_SEQUENCE_SLOW_SCALE = 0.16'f32
-const DEATH_SEQUENCE_FAST_SCALE = 1.35'f32
+const DEATH_SLOW_DURATION = 1.1'f32
+const DEATH_SPEEDUP_DURATION = 0.35'f32
+const DEATH_FADE_DURATION = 0.65'f32
+const DEATH_TOTAL_DURATION = DEATH_SLOW_DURATION + DEATH_SPEEDUP_DURATION + DEATH_FADE_DURATION
+const DEATH_SLOW_SCALE = 0.16'f32
+const DEATH_FAST_SCALE = 1.35'f32
 
 proc getDeathSequenceTimeScale(timer: float32): float32 =
-  if timer < DEATH_SEQUENCE_SLOW_DURATION:
-    return DEATH_SEQUENCE_SLOW_SCALE
+  if timer < DEATH_SLOW_DURATION:
+    return DEATH_SLOW_SCALE
 
-  if timer < DEATH_SEQUENCE_SLOW_DURATION + DEATH_SEQUENCE_SPEEDUP_DURATION:
-    let t = clamp((timer - DEATH_SEQUENCE_SLOW_DURATION) / DEATH_SEQUENCE_SPEEDUP_DURATION, 0.0'f32, 1.0'f32)
+  if timer < DEATH_SLOW_DURATION + DEATH_SPEEDUP_DURATION:
+    let t = clamp((timer - DEATH_SLOW_DURATION) / DEATH_SPEEDUP_DURATION, 0.0'f32, 1.0'f32)
     let eased = 1.0'f32 - pow(1.0'f32 - t, 3.0'f32)
-    return DEATH_SEQUENCE_SLOW_SCALE + (DEATH_SEQUENCE_FAST_SCALE - DEATH_SEQUENCE_SLOW_SCALE) * eased
+    return DEATH_SLOW_SCALE + (DEATH_FAST_SCALE - DEATH_SLOW_SCALE) * eased
 
-  DEATH_SEQUENCE_FAST_SCALE
+  DEATH_FAST_SCALE
 
 proc updateLightningBolts*(game: var Game, dt: float32)
 
@@ -177,7 +176,7 @@ proc beginPlayerDeathSequence*(game: Game) =
   game.fadeAlpha = 0.0
   game.deathSequenceTimer = 0.0
   game.deathSequenceFadeAlpha = 0.0
-  game.deathSequenceTimeScale = DEATH_SEQUENCE_SLOW_SCALE
+  game.deathSequenceTimeScale = DEATH_SLOW_SCALE
   game.selectedGameOverButton = 0
   game.player.hp = 0
   game.player.vel = newVector2f(0, 0)
@@ -281,14 +280,14 @@ proc updateDeathSequencePlayback(game: var Game, dt: float32) =
     else:
       inc i
 
-  let fadeStart = DEATH_SEQUENCE_SLOW_DURATION + DEATH_SEQUENCE_SPEEDUP_DURATION
+  let fadeStart = DEATH_SLOW_DURATION + DEATH_SPEEDUP_DURATION
   game.deathSequenceFadeAlpha =
     if game.deathSequenceTimer <= fadeStart:
       0.0
     else:
-      clamp((game.deathSequenceTimer - fadeStart) / DEATH_SEQUENCE_FADE_DURATION, 0.0'f32, 1.0'f32)
+      clamp((game.deathSequenceTimer - fadeStart) / DEATH_FADE_DURATION, 0.0'f32, 1.0'f32)
 
-  if game.deathSequenceTimer >= DEATH_SEQUENCE_TOTAL_DURATION:
+  if game.deathSequenceTimer >= DEATH_TOTAL_DURATION:
     game.deathSequenceFadeAlpha = 1.0
     game.state = gsGameOver
 
@@ -8129,7 +8128,7 @@ proc drawDeathSequenceOverlay*(game: Game) =
       drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius,
                       Color(r: 255, g: 215, b: 120, a: uint8(ringAlpha.int div (i + 1))))
 
-  let slowPulseAlpha = uint8(max(0.0'f32, (1.0'f32 - timer / DEATH_SEQUENCE_SLOW_DURATION)) * 110.0'f32)
+  let slowPulseAlpha = uint8(max(0.0'f32, (1.0'f32 - timer / DEATH_SLOW_DURATION)) * 110.0'f32)
   if slowPulseAlpha > 0:
     let ringRadius = game.player.radius + 28.0'f32 + timer * 68.0'f32
     drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius,

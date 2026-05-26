@@ -577,18 +577,20 @@ proc main() =
       let mousePos = getVirtualMousePosition()
 
       # Play click sound for any left-click on the desktop (anywhere)
-      if isMouseButtonPressed(Left):
+      if isMouseButtonPressed(Left) and not globalConfirmActive:
         playSound(stMenuNav, 0.6)
 
       # Handle window clicks and check if desktop is blocked
-      discard globalWindowManager.handleWindowClick(mousePos)
+      # (skip when the confirm dialog is open so nothing behind it is clickable)
+      if not globalConfirmActive:
+        discard globalWindowManager.handleWindowClick(mousePos)
       let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
 
       # Update OS desktop (after mouseOverWindow is known, so cube drag respects windows)
       updateOSDesktop(osDesktop, dt, mouseOverWindow, screenWidth, screenHeight)
 
-      # Handle OS desktop input and get action (only if no windows are blocking)
-      let action = if not mouseOverWindow: handleDesktopInput(osDesktop, currentGame) else: -1
+      # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
+      let action = if not mouseOverWindow and not globalConfirmActive: handleDesktopInput(osDesktop, currentGame) else: -1
 
       # Update all windows
       let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight, currentGame)
@@ -598,12 +600,12 @@ proc main() =
         fullscreenToggleRequested = true
 
       # Handle roguelite window Start button, show loading screen then enter game
-      if updateResult.rogueliteLaunchGame:
+      if updateResult.rogueliteLaunchGame and not globalConfirmActive:
         startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
         pendingGameMode = 9
 
       # Handle PvP game ready
-      if updateResult.pvpGameReady:
+      if updateResult.pvpGameReady and not globalConfirmActive:
         echo "[MAIN] PvP game starting..."
 
         # Build connected players list
@@ -668,7 +670,8 @@ proc main() =
         globalWindowManager.closeAllWindows()
 
       # Handle PvP window clicks
-      if globalWindowManager.pvp.window.visible and not globalWindowManager.pvp.window.minimized:
+      if not globalConfirmActive and
+         globalWindowManager.pvp.window.visible and not globalWindowManager.pvp.window.minimized:
         let contentX = globalWindowManager.pvp.window.x + 2  # WINDOW_BORDER
         let contentY = globalWindowManager.pvp.window.y + 30 + 2  # TITLE_BAR_HEIGHT + WINDOW_BORDER
         let contentWidth = globalWindowManager.pvp.window.width - 4
@@ -789,7 +792,7 @@ proc main() =
         else: discard
 
       # Handle icon execution from help window commands
-      if updateResult.iconToExecute >= 0:
+      if updateResult.iconToExecute >= 0 and not globalConfirmActive:
         globalWindowManager.help.window.visible = false
         playSound(stMenuSelect)
         case updateResult.iconToExecute
@@ -1212,8 +1215,10 @@ proc main() =
         currentGame.mouseMovedRecently = true
 
       # Handle window clicks first (before pause menu interactions)
+      # Skip when either confirm dialog is open so nothing behind it is clickable
       let mousePos = getVirtualMousePosition()
-      discard globalWindowManager.handleWindowClick(mousePos)
+      if not globalConfirmActive and not currentGame.confirmQuitPending:
+        discard globalWindowManager.handleWindowClick(mousePos)
       let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
 
       # Update all windows
@@ -1228,7 +1233,8 @@ proc main() =
         currentGame.pauseMenuExitCooldown = max(0.0'f32, currentGame.pauseMenuExitCooldown - dt)
 
       # Only handle pause menu controls if no window is blocking interaction
-      if not mouseOverWindow:
+      # and neither confirm dialog is active
+      if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending:
         # Pause menu navigation - Tab switching (Left/Right or A/D)
         if isKeyPressed(Left) or isKeyPressed(A):
           currentGame.pauseMenuTab = case currentGame.pauseMenuTab
@@ -1301,14 +1307,14 @@ proc main() =
       # Draw OS-style Task Manager pause menu and handle mouse interactions
       let menuResult = drawOSTaskManager(currentGame, currentGame.pauseMenuTab)
 
-      # Handle tab changes from mouse (only if no windows are blocking)
-      if not mouseOverWindow:
+      # Handle tab changes from mouse (only if no windows are blocking and no confirm is open)
+      if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending:
         if menuResult.newTab != currentGame.pauseMenuTab:
           currentGame.pauseMenuTab = menuResult.newTab
           playSound(stMenuNav)
 
-      # Handle button clicks (only if no windows are blocking)
-      if not mouseOverWindow:
+      # Handle button clicks (only if no windows are blocking and no confirm is open)
+      if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending:
         if menuResult.resumeClicked:
           # Return to appropriate state based on context
           if isPvP:
@@ -1363,11 +1369,13 @@ proc main() =
       updateMouseTracking(currentGame)
 
       if isKeyPressed(Left) or isKeyPressed(A):
-        currentGame.selectedRogueliteSector = (currentGame.selectedRogueliteSector - 1 + 3) mod 3
-        markKeyboardUsed(currentGame)
+        if not globalConfirmActive:
+          currentGame.selectedRogueliteSector = (currentGame.selectedRogueliteSector - 1 + 3) mod 3
+          markKeyboardUsed(currentGame)
       if isKeyPressed(Right) or isKeyPressed(D):
-        currentGame.selectedRogueliteSector = (currentGame.selectedRogueliteSector + 1) mod 3
-        markKeyboardUsed(currentGame)
+        if not globalConfirmActive:
+          currentGame.selectedRogueliteSector = (currentGame.selectedRogueliteSector + 1) mod 3
+          markKeyboardUsed(currentGame)
 
       proc startSelectedSector() =
         selectRogueliteSector(currentGame, currentGame.selectedRogueliteSector)
@@ -1397,11 +1405,11 @@ proc main() =
         statsSavedThisGame = false
 
       if isKeyPressed(Enter) or isKeyPressed(E):
-        startSelectedSector()
+        if not globalConfirmActive: startSelectedSector()
       if isKeyPressed(Q):
-        closeRogueliteSectorSelect()
+        if not globalConfirmActive: closeRogueliteSectorSelect()
 
-      if isMouseButtonPressed(Left):
+      if isMouseButtonPressed(Left) and not globalConfirmActive:
         let mousePos = getVirtualMousePosition()
         const PanelW = 920
         const PanelH = 620
@@ -1428,6 +1436,12 @@ proc main() =
 
       beginGameDrawing()
       drawRogueliteSectorSelect(currentGame)
+
+      # Draw quit-confirmation dialog on top of everything if triggered by OS close button
+      if globalConfirmActive:
+        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if r == 1: windowCloseRequested = true
+
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 
@@ -1442,106 +1456,112 @@ proc main() =
       # Update mouse tracking
       updateMouseTracking(currentGame)
 
-      # Navigate shop with keyboard
-      if isKeyPressed(Down) or isKeyPressed(S):
-        currentGame.selectedShopItem = (currentGame.selectedShopItem + 1) mod 6
-        markKeyboardUsed(currentGame)
-      if isKeyPressed(Up) or isKeyPressed(W):
-        currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + 6) mod 6
-        markKeyboardUsed(currentGame)
+      if not globalConfirmActive:
+        # Navigate shop with keyboard
+        if isKeyPressed(Down) or isKeyPressed(S):
+          currentGame.selectedShopItem = (currentGame.selectedShopItem + 1) mod 6
+          markKeyboardUsed(currentGame)
+        if isKeyPressed(Up) or isKeyPressed(W):
+          currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + 6) mod 6
+          markKeyboardUsed(currentGame)
 
-      # Scroll the sidebar upgrade list with PageDown/PageUp or [/]
-      if isKeyPressed(PageDown) or isKeyPressed(RightBracket):
-        currentGame.shopSidebarScroll += 40
-        markKeyboardUsed(currentGame)
-      if isKeyPressed(PageUp) or isKeyPressed(LeftBracket):
-        currentGame.shopSidebarScroll = max(0'i32, currentGame.shopSidebarScroll - 40)
-        markKeyboardUsed(currentGame)
+        # Scroll the sidebar upgrade list with PageDown/PageUp or [/]
+        if isKeyPressed(PageDown) or isKeyPressed(RightBracket):
+          currentGame.shopSidebarScroll += 40
+          markKeyboardUsed(currentGame)
+        if isKeyPressed(PageUp) or isKeyPressed(LeftBracket):
+          currentGame.shopSidebarScroll = max(0'i32, currentGame.shopSidebarScroll - 40)
+          markKeyboardUsed(currentGame)
 
-      # Mouse click handling for shop items
-      if isMouseButtonPressed(Left):
-        let mousePos = getVirtualMousePosition()
+        # Mouse click handling for shop items
+        if isMouseButtonPressed(Left):
+          let mousePos = getVirtualMousePosition()
 
-        # Shop dimensions from shop.nim
-        const SHOP_WIDTH = 950
-        const SHOP_HEIGHT = 600
-        const TITLE_BAR_HEIGHT = 45
-        const SIDEBAR_WIDTH = 280
-        const ITEM_HEIGHT = 60
-        const ITEM_SPACING = 6
+          # Shop dimensions from shop.nim
+          const SHOP_WIDTH = 950
+          const SHOP_HEIGHT = 600
+          const TITLE_BAR_HEIGHT = 45
+          const SIDEBAR_WIDTH = 280
+          const ITEM_HEIGHT = 60
+          const ITEM_SPACING = 6
 
-        let windowX = (currentGame.screenWidth - SHOP_WIDTH) div 2
-        let windowY = (currentGame.screenHeight - SHOP_HEIGHT) div 2
+          let windowX = (currentGame.screenWidth - SHOP_WIDTH) div 2
+          let windowY = (currentGame.screenHeight - SHOP_HEIGHT) div 2
 
-        # Check close button click (X button in title bar)
-        let closeButtonSize = 28
-        let closeButtonX = windowX + SHOP_WIDTH - closeButtonSize - 10
-        let closeButtonY = windowY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
-        let closeButtonRect = Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
-                                        width: closeButtonSize.float32, height: closeButtonSize.float32)
+          # Check close button click (X button in title bar)
+          let closeButtonSize = 28
+          let closeButtonX = windowX + SHOP_WIDTH - closeButtonSize - 10
+          let closeButtonY = windowY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
+          let closeButtonRect = Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
+                                          width: closeButtonSize.float32, height: closeButtonSize.float32)
 
-        if checkCollisionPointRec(mousePos, closeButtonRect):
-          # Close shop and continue to next wave
+          if checkCollisionPointRec(mousePos, closeButtonRect):
+            # Close shop and continue to next wave
+            currentGame.cameFromPowerUpSelect = false
+            if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and currentGame.rogueliteRun.pendingSectorSelect:
+              currentGame.state = gsRogueliteSectorSelect
+            else:
+              currentGame.state = gsCountdown
+              currentGame.countdownTimer = 0.5
+          else:
+            let sidebarX = windowX + 10
+            let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
+            let shopX = sidebarX + SIDEBAR_WIDTH + 15
+            let shopY = sidebarY + 10
+            let itemsStartY = shopY + 35
+            let shopWidth = SHOP_WIDTH - SIDEBAR_WIDTH - 40
+
+            # Check shop item clicks
+            var clickedItem = -1
+            for i in 0..5:
+              let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
+              let itemRect = Rectangle(x: shopX.float32, y: itemY.float32,
+                                      width: shopWidth.float32, height: ITEM_HEIGHT.float32)
+
+              if checkCollisionPointRec(mousePos, itemRect):
+                clickedItem = i
+                break
+
+            # Check big buy button click
+            let buyButtonWidth = 220
+            let buyButtonHeight = 38
+            let bottomY = windowY + SHOP_HEIGHT - 65
+            let buyButtonX = windowX + SHOP_WIDTH - buyButtonWidth - 20
+            let buyButtonY = bottomY + 12
+            let buyButtonRect = Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
+                                          width: buyButtonWidth.float32, height: buyButtonHeight.float32)
+
+            if clickedItem >= 0:
+              # Clicked on an item - select and buy it
+              currentGame.selectedShopItem = clickedItem
+              buyShopItem(currentGame, clickedItem)
+            elif checkCollisionPointRec(mousePos, buyButtonRect):
+              # Clicked the buy button - buy selected item
+              buyShopItem(currentGame, currentGame.selectedShopItem)
+
+        # Buy item with keyboard
+        if isKeyPressed(Enter) or isKeyPressed(E):
+          buyShopItem(currentGame, currentGame.selectedShopItem)
+
+        # Close shop - ESC is intentionally not bound here; only Q or the in-window X button may close it.
+        if isKeyPressed(Q):
           currentGame.cameFromPowerUpSelect = false
           if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and currentGame.rogueliteRun.pendingSectorSelect:
             currentGame.state = gsRogueliteSectorSelect
           else:
             currentGame.state = gsCountdown
             currentGame.countdownTimer = 0.5
-        else:
-          let sidebarX = windowX + 10
-          let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
-          let shopX = sidebarX + SIDEBAR_WIDTH + 15
-          let shopY = sidebarY + 10
-          let itemsStartY = shopY + 35
-          let shopWidth = SHOP_WIDTH - SIDEBAR_WIDTH - 40
-
-          # Check shop item clicks
-          var clickedItem = -1
-          for i in 0..5:
-            let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
-            let itemRect = Rectangle(x: shopX.float32, y: itemY.float32,
-                                    width: shopWidth.float32, height: ITEM_HEIGHT.float32)
-
-            if checkCollisionPointRec(mousePos, itemRect):
-              clickedItem = i
-              break
-
-          # Check big buy button click
-          let buyButtonWidth = 220
-          let buyButtonHeight = 38
-          let bottomY = windowY + SHOP_HEIGHT - 65
-          let buyButtonX = windowX + SHOP_WIDTH - buyButtonWidth - 20
-          let buyButtonY = bottomY + 12
-          let buyButtonRect = Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
-                                        width: buyButtonWidth.float32, height: buyButtonHeight.float32)
-
-          if clickedItem >= 0:
-            # Clicked on an item - select and buy it
-            currentGame.selectedShopItem = clickedItem
-            buyShopItem(currentGame, clickedItem)
-          elif checkCollisionPointRec(mousePos, buyButtonRect):
-            # Clicked the buy button - buy selected item
-            buyShopItem(currentGame, currentGame.selectedShopItem)
-
-      # Buy item with keyboard
-      if isKeyPressed(Enter) or isKeyPressed(E):
-        buyShopItem(currentGame, currentGame.selectedShopItem)
-
-      # Close shop - always continue to next wave (no going back to power-up selection)
-      if isKeyPressed(Escape) or isKeyPressed(Q):
-        currentGame.cameFromPowerUpSelect = false
-        if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and currentGame.rogueliteRun.pendingSectorSelect:
-          currentGame.state = gsRogueliteSectorSelect
-        else:
-          currentGame.state = gsCountdown
-          currentGame.countdownTimer = 0.5
 
       beginGameDrawing()
       drawGame(currentGame)
       drawShop(currentGame)
       if currentGame.mode == gmRoguelite:
         drawAlphaBanner(currentGame)
+
+      # Draw quit-confirmation dialog on top of everything if triggered by OS close button
+      if globalConfirmActive:
+        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if r == 1: windowCloseRequested = true
 
       # Draw custom cursor
       drawCustomCursor(currentGame.time)
@@ -1740,8 +1760,8 @@ proc main() =
       # Update mouse tracking
       updateMouseTracking(currentGame)
 
-      # Only allow input after animation completes
-      if currentGame.canSelectPowerUp:
+      # Only allow input after animation completes and confirm dialog is not open
+      if currentGame.canSelectPowerUp and not globalConfirmActive:
         # Navigate power-up choices with keyboard
         if isKeyPressed(Left) or isKeyPressed(A):
           currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3
@@ -1849,15 +1869,19 @@ proc main() =
             if checkCollisionPointRec(mousePos, rerollRect):
               discard attemptRerollPowerUps(currentGame)
 
-        # Skip power-up selection
-        if isKeyPressed(Escape):
-          currentGame.state = gsCountdown
-          currentGame.countdownTimer = 0.5
+        # ESC is intentionally not bound here; only the in-window X button may close
+        # this screen without selecting a power-up.
 
       beginGameDrawing()
       drawPowerUpSelection(currentGame)
       if currentGame.mode == gmRoguelite:
         drawAlphaBanner(currentGame)
+
+      # Draw quit-confirmation dialog on top of everything if triggered by OS close button
+      if globalConfirmActive:
+        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if r == 1: windowCloseRequested = true
+
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 
