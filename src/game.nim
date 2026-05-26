@@ -3898,7 +3898,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
             angle: angle,
             radius: layerRadius,
             rotationSpeed: layerRotationSpeed,
-            hp: 8,  # REDUCED from 15 to 8 (easier to destroy)
+            hp: 1,  # 1-hit kill – satellites are glass-cannon threats, not tanks
             shootTimer: 0.5 + rand(1.0) + (layer.float32 * 0.3),  # Later layers shoot slightly later
             owner: enemy.id,
             laserActive: false,
@@ -7804,47 +7804,156 @@ proc drawGame*(game: Game) =
 
     # Draw boss satellites
     if enemy.isBoss and enemy.satellites.len > 0:
-      # OPTIMIZATION: Draw orbit trails first in single batch
-      # Only draw trails for every other satellite to reduce draw calls
+      # Orbit trail rings – one per unique radius
       for idx, sat in enemy.satellites:
-        if idx mod 2 == 0:  # Skip every other trail
+        if idx mod 2 == 0:
           drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sat.radius,
-                         Color(r: 100, g: 150, b: 255, a: 30))  # Reduced alpha (30 instead of 50)
+                         Color(r: 100, g: 150, b: 255, a: 25))
 
-      # Draw all satellites
+      # Draw each satellite as a detailed space-station miniature
       for sat in enemy.satellites:
-        # Draw satellite body
-        let satColor = if sat.hp > 5:
-          Color(r: 120, g: 180, b: 255, a: 255)  # Healthy - blue
-        else:
-          Color(r: 255, g: 150, b: 80, a: 255)   # Damaged - orange
+        let sx = sat.pos.x
+        let sy = sat.pos.y
+        let t  = game.time
 
-        drawCircle(Vector2(x: sat.pos.x, y: sat.pos.y), 18.0, satColor)  # INCREASED from 12.0 to 18.0 (larger, easier to see and hit)
+        # Whether this satellite is charging its laser
+        let charging  = sat.laserActive and sat.laserChargeTime < 1.5
+        let firing    = sat.laserActive and sat.laserChargeTime >= 1.5
 
-        if sat.laserActive and sat.laserChargeTime < 1.5:
-          # crosshair
-          let targetSize = 15.0
-          let pulseAlpha = uint8(150 + sin(game.time * 8.0) * 105)  # Pulsing effect
-          let targetColor = Color(r: 255, g: 50, b: 50, a: pulseAlpha)
+        # Pulse and glow drivers
+        let pulse     = sin(t * 5.0 + sat.angle * 3.0) * 0.5 + 0.5   # 0..1, per-satellite phase
+        let fastPulse = sin(t * 12.0 + sat.angle * 4.0) * 0.5 + 0.5
 
-          # Draw simple crosshair (X pattern)
-          drawLine(
-            Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y - targetSize),
-            Vector2(x: sat.laserTarget.x + targetSize, y: sat.laserTarget.y + targetSize),
-            2,
-            targetColor
-          )
-          drawLine(
-            Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y + targetSize),
-            Vector2(x: sat.laserTarget.x + targetSize, y: sat.laserTarget.y - targetSize),
-            2,
-            targetColor
-          )
-          # Single circle only
-          drawCircleLines(sat.laserTarget.x.int32, sat.laserTarget.y.int32, targetSize,
-                         targetColor)
+        # Color scheme: cool blue normally, hot red/orange when charging, white burst when firing
+        let coreColor =
+          if firing:    Color(r: 255, g: 255, b: 255, a: 255)
+          elif charging:Color(r: 255, g: uint8(60  + pulse * 100), b: 30,  a: 255)
+          else:         Color(r: 60,  g: uint8(160 + pulse * 60),  b: 255, a: 255)
 
-          # OPTIMIZATION: Skip targeting line during warning phase - laser beam itself is enough visual feedback
+        let glowColor =
+          if firing:    Color(r: 255, g: 220, b: 120, a: 160)
+          elif charging:Color(r: 255, g: 80,  b: 0,   a: uint8(100 + fastPulse * 120))
+          else:         Color(r: 80,  g: 140, b: 255, a: uint8(60  + pulse * 80))
+
+        let panelColor =
+          if firing:    Color(r: 220, g: 220, b: 255, a: 255)
+          elif charging:Color(r: 255, g: 200, b: 80,  a: 255)
+          else:         Color(r: 100, g: 180, b: 255, a: 220)
+
+        let rimColor  = Color(r: 200, g: 220, b: 255, a: 200)
+
+        #  outer glow halo
+        let glowR = 22.0 + pulse * 5.0 + (if charging: fastPulse * 8.0 else: 0.0)
+        drawCircle(Vector2(x: sx, y: sy), glowR,
+                   Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: uint8(glowColor.a.int div 3)))
+        drawCircleLines(sx.int32, sy.int32, glowR,
+                   Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a))
+
+        #  rotating outer shield ring
+        let shieldAngle = t * (if sat.rotationSpeed > 0: 2.2 else: -2.2) + sat.angle
+        for k in 0..5:
+          let ra = shieldAngle + k.float32 * (PI / 3.0)
+          let ax = sx + cos(ra) * 15.0
+          let ay = sy + sin(ra) * 15.0
+          drawCircle(Vector2(x: ax, y: ay), 2.5,
+                     Color(r: coreColor.r, g: coreColor.g, b: coreColor.b, a: uint8(160 + pulse * 80)))
+
+        #  hexagonal body outline
+        let bodyAngle = t * 0.4 * (if sat.rotationSpeed >= 0: 1.0 else: -1.0) + sat.angle * 0.3
+        for k in 0..5:
+          let a0 = bodyAngle + k.float32       * (PI / 3.0)
+          let a1 = bodyAngle + (k + 1).float32 * (PI / 3.0)
+          let bx0 = sx + cos(a0) * 11.0;  let by0 = sy + sin(a0) * 11.0
+          let bx1 = sx + cos(a1) * 11.0;  let by1 = sy + sin(a1) * 11.0
+          drawLine(Vector2(x: bx0, y: by0), Vector2(x: bx1, y: by1), 2.5, rimColor)
+
+        #  solar panel wings
+        # Two rigid arms extending perpendicular to the current orbit tangent
+        let tangentAngle = sat.angle + PI / 2.0  # tangent to orbit direction
+        for side in [-1.0, 1.0]:
+          let armAngle = tangentAngle + (if side > 0: 0.0 else: PI)
+          let panelDist = 14.0
+          let panelW    = 10.0
+          let panelH    = 5.0
+          # Arm strut
+          let armTipX = sx + cos(armAngle) * panelDist
+          let armTipY = sy + sin(armAngle) * panelDist
+          drawLine(Vector2(x: sx + cos(armAngle) * 5.0,  y: sy + sin(armAngle) * 5.0),
+                   Vector2(x: armTipX, y: armTipY), 2.0,
+                   Color(r: 180, g: 200, b: 220, a: 200))
+          # Panel rectangle (4 corners)
+          let perpX = cos(armAngle + PI / 2.0) * panelW
+          let perpY = sin(armAngle + PI / 2.0) * panelW
+          let fwdX  = cos(armAngle) * panelH
+          let fwdY  = sin(armAngle) * panelH
+          let p0 = Vector2(x: armTipX + perpX + fwdX, y: armTipY + perpY + fwdY)
+          let p1 = Vector2(x: armTipX - perpX + fwdX, y: armTipY - perpY + fwdY)
+          let p2 = Vector2(x: armTipX - perpX - fwdX, y: armTipY - perpY - fwdY)
+          let p3 = Vector2(x: armTipX + perpX - fwdX, y: armTipY + perpY - fwdY)
+          drawLine(p0, p1, 2.0, panelColor)
+          drawLine(p1, p2, 2.0, panelColor)
+          drawLine(p2, p3, 2.0, panelColor)
+          drawLine(p3, p0, 2.0, panelColor)
+          # Panel centre stripe (solar cell division)
+          let midA = Vector2(x: (p0.x + p3.x) * 0.5, y: (p0.y + p3.y) * 0.5)
+          let midB = Vector2(x: (p1.x + p2.x) * 0.5, y: (p1.y + p2.y) * 0.5)
+          drawLine(midA, midB, 1.0, Color(r: 120, g: 200, b: 255, a: 160))
+
+        #  core filled circle
+        drawCircle(Vector2(x: sx, y: sy), 9.0, coreColor)
+
+        #  lens flare dot
+        let lensR = 3.5 + (if firing: fastPulse * 4.0 else: pulse * 1.5)
+        drawCircle(Vector2(x: sx, y: sy), lensR,
+                   Color(r: 255, g: 255, b: 255, a: uint8(200 + fastPulse * 55)))
+
+        #  charging / firing effects
+        if charging:
+          # Spinning danger chevrons
+          let chevAngle = t * 6.0 + sat.angle
+          for k in 0..2:
+            let ca = chevAngle + k.float32 * (PI * 2.0 / 3.0)
+            let cx0 = sx + cos(ca) * 18.0
+            let cy0 = sy + sin(ca) * 18.0
+            let cx1 = sx + cos(ca + 0.4) * 13.0
+            let cy1 = sy + sin(ca + 0.4) * 13.0
+            let cx2 = sx + cos(ca - 0.4) * 13.0
+            let cy2 = sy + sin(ca - 0.4) * 13.0
+            drawLine(Vector2(x: cx0, y: cy0), Vector2(x: cx1, y: cy1), 2.0,
+                     Color(r: 255, g: 80, b: 0, a: uint8(180 + fastPulse * 75)))
+            drawLine(Vector2(x: cx0, y: cy0), Vector2(x: cx2, y: cy2), 2.0,
+                     Color(r: 255, g: 80, b: 0, a: uint8(180 + fastPulse * 75)))
+
+          # Expanding charge ring
+          let chargeProgress = sat.laserChargeTime / 1.5
+          let chargeRingR = 9.0 + chargeProgress * 24.0
+          drawCircleLines(sx.int32, sy.int32, chargeRingR,
+                          Color(r: 255, g: uint8(200 - chargeProgress * 150), b: 0,
+                                a: uint8(220 - chargeProgress * 120)))
+
+        elif firing:
+          # Rapid concentric flash rings
+          for k in 0..2:
+            let flashR = 8.0 + k.float32 * 7.0 + fastPulse * 5.0
+            drawCircleLines(sx.int32, sy.int32, flashR,
+                            Color(r: 255, g: 220, b: 120, a: uint8(180 - k * 50)))
+
+        #  target crosshair on the locked player position
+        if charging:
+          let targetSize = 16.0
+          let tAlpha = uint8(140 + fastPulse * 115)
+          let tColor = Color(r: 255, g: 60, b: 30, a: tAlpha)
+          # + crosshair
+          drawLine(Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y),
+                   Vector2(x: sat.laserTarget.x + targetSize, y: sat.laserTarget.y), 2.0, tColor)
+          drawLine(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y - targetSize),
+                   Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y + targetSize), 2.0, tColor)
+          # Inner dot
+          drawCircle(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y), 3.5,
+                     Color(r: 255, g: 255, b: 255, a: tAlpha))
+          # Outer pulsing ring
+          drawCircleLines(sat.laserTarget.x.int32, sat.laserTarget.y.int32,
+                          targetSize + fastPulse * 6.0, tColor)
 
   let playerVisible = game.state != gsDeathSequence
 
