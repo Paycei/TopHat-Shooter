@@ -60,7 +60,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
   of bshTriangle:
     # Equilateral triangle, tip pointing in travel direction.
     # travelAngle points right (0) = tip at right side of bullet.
-    # drawNgon-style: first vertex is placed at `rot`, so rot = travelAngle.
+    # drawNgon-style: first vertex is placed at rot, so rot = travelAngle.
     let rot = travelAngle
     let cx = pos.x; let cy = pos.y; let r = radius
     # Filled body using fan from center

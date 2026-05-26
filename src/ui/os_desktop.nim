@@ -783,8 +783,7 @@ proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   ## Draw the active desktop background. If the player has selected a desktop
   ## background from settings/shop use that otherwise fall back to the
-  ## original hardcoded wallpaper. This ensures the shop's `dbgDefault` is
-  ## a 1:1 copy of the hardcoded wallpaper when selected.
+  ## original hardcoded wallpaper.
   var selectedBg: DesktopBgType = dbgDefault
   if not globalSettings.isNil:
     selectedBg = DesktopBgType(globalSettings.desktopBg)

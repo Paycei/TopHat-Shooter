@@ -439,7 +439,7 @@ proc drawPill(x, y, w, h: int32, label: string, color: Color, filled: bool = fal
 
 proc drawUnlockCostsRight*(profile: RogueliteProfile, category: RogueliteUnlockCategory, index: int,
                           rightX, topY, iconSize, fontSize: int32, color: Color) =
-  ## Draw unlock costs right-aligned starting from `rightX`. Shows icons and amounts.
+  ## Draw unlock costs right-aligned starting from rightX. Shows icons and amounts.
   var rx = rightX
   let shardCost = unlockCost(profile, category, index)
   let overheatCost = unlockOverheatCoreCost(profile, category, index)

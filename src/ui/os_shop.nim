@@ -37,8 +37,8 @@ proc shopFitText(text: string, maxWidth, fontSize: int32,
   return (t & "...", fs)
 
 proc shopWrapText(text: string, maxWidth, fontSize: int32): seq[string] =
-  ## Word-wraps `text` into lines that each fit within `maxWidth` pixels at `fontSize`.
-  ## Words that are individually wider than `maxWidth` are hard-broken at the character level.
+  ## Word-wraps text into lines that each fit within maxWidth pixels at fontSize.
+  ## Words that are individually wider than maxWidth are hard-broken at the character level.
   result = @[]
   var words: seq[string] = @[]
   for w in text.splitWhitespace():

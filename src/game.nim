@@ -714,8 +714,8 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   ## Returns the actual damage to apply to enemy HP
   ## Handles multiple elite types for wave 25+ elites
   ##
-  ## Note: `enemy` is a ref object, so field mutations below (e.g. enemy.shieldHp -= ...)
-  ## are intentional and persist on the heap even though the parameter is a `let` binding.
+  ## Note: enemy is a ref object, so field mutations below (e.g. enemy.shieldHp -= ...)
+  ## are intentional and persist on the heap even though the parameter is a let binding.
   result = baseDamage
 
   # Boss defense multiplier: reduces all incoming damage
@@ -1037,7 +1037,7 @@ const LIGHTNING_SEGMENTS      = 8          # number of jagged waypoints
 
 proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2f) =
   ## Spawn a short-lived jagged lightning arc between two world positions.
-  ## Uses the deterministic particle-pool RNG via `rand`, so no extra state needed.
+  ## Uses the deterministic particle-pool RNG via rand, so no extra state needed.
   let dx = toPos.x - fromPos.x
   let dy = toPos.y - fromPos.y
   let len = sqrt(dx * dx + dy * dy)
@@ -7858,11 +7858,11 @@ proc drawGame*(game: Game) =
   # Foreground particles, such as player muzzle bursts, render over the player.
   drawParticlePoolLayer(game.particlePool, plForeground)
 
-  if game.player.lastDamageTaken > 0:
+  if game.player.lastDamageEvent == deDamage:
     # Re-use osBackground.alertLevel as a proxy for recent-damage intensity.
     # We clamp it to [0,1]; the existing alert system already fades it naturally.
     game.osBackground.alertLevel = min(game.osBackground.alertLevel + 0.5, 1.0)
-    game.player.lastDamageTaken = 0
+    game.player.lastDamageEvent = deNone
 
   let showLowHealthVignette = globalSettings == nil or globalSettings.showLowHealthVignette
   if showLowHealthVignette and game.osBackground.lowHealthVignetteLevel > 0:

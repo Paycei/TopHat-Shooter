@@ -95,7 +95,6 @@ proc newPlayer*(x, y: float32): Player =
     singularityShieldRegenRatePct: 0.005, # Regenerate 5% of max shield (0.5% of max HP) per second
     killsSinceLastHeal: 0,
     regenTimer: 0,
-    lastDamageTaken: -1,  # Unused sentinel kept for compatibility, see lastDamageEvent
     lastDamageEvent: deNone,
     rageStacks: 0,
     critCharge: 0,
@@ -902,7 +901,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
       # Reset regen timer on damage
       player.singularityShieldRegenTimer = 0.0
       # Mark recent damage for UI/feedback
-      player.lastDamageTaken = damage
+      player.lastDamageEvent = deDamage
     if finalDamage <= 0.0:
       return false
 
@@ -912,7 +911,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
   if player.hp < 0:
     player.hp = 0
 
-  player.lastDamageTaken = damage
+  player.lastDamageEvent = deDamage
   # Reset singularity shield regen timer on any player damage
   player.singularityShieldRegenTimer = 0.0
 

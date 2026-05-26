@@ -345,9 +345,6 @@ type
     singularityShieldRegenRatePct*: float32# Fraction of max HP regained per second when regenerating
     killsSinceLastHeal*: int
     regenTimer*: float32
-    lastDamageTaken*: float32
-    # ^ Actual damage amount when > 0.  For special one-frame signals use
-    # lastDamageEvent (below) which avoids fragile exact float comparisons.
     lastDamageEvent*: DamageEvent  # One-frame categorical signal set by takeDamage, consumed by drawPlayer
     rageStacks*: int
     critCharge*: float32
@@ -660,10 +657,15 @@ type
 
   DamageEvent* = enum
     ## Categorical one-frame signals written by takeDamage and read by drawPlayer.
-    ## Replaces the magic float sentinels previously encoded in lastDamageTaken
-    ## (-1 = no event, 0 = dodged, -2 = Celestial Veil blocked).
+    ## Replaces the previous float-sentinel lastDamageTaken mechanism.
+    ##
+    ##  - deNone: no pending event (idle / already consumed)
+    ##  - deDodged: player successfully dodged the hit
+    ##  - deDamage: player took damage (UI/alert signal)
+    ##  - deCelestialVeil: Celestial Veil absorbed the hit
     deNone,         # No pending event (idle / already consumed)
     deDodged,       # Player successfully dodged the hit
+    deDamage,       # Player took damage (UI/alert signal)
     deCelestialVeil # Celestial Veil absorbed the hit
 
   DamageNumber* = ref object
