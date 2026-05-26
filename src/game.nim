@@ -1673,30 +1673,28 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etTriangle
 
       elif wave <= 35:
-        # Waves 31-35: Introduce DIAMOND gradually instead of replacing the whole roster
-        if roll < 14: enemyType = etDiamond
-        elif roll < 26: enemyType = etCircle
-        elif roll < 41: enemyType = etCube
-        elif roll < 53: enemyType = etStar
-        elif roll < 67: enemyType = etCross
-        elif roll < 82: enemyType = etPentagon
+        # Waves 31-35: Introduce DIAMOND; circles removed from wave 30+
+        if roll < 16: enemyType = etDiamond
+        elif roll < 33: enemyType = etCube
+        elif roll < 47: enemyType = etStar
+        elif roll < 63: enemyType = etCross
+        elif roll < 80: enemyType = etPentagon
         else: enemyType = etTriangle
 
       elif wave <= 40:
-        # Waves 36-40: Keep pressure rising, but not with another abrupt roster cliff
-        if roll < 15: enemyType = etOctagon
-        elif roll < 27: enemyType = etCircle
-        elif roll < 41: enemyType = etCube
-        elif roll < 51: enemyType = etStar
-        elif roll < 65: enemyType = etCross
-        elif roll < 77: enemyType = etDiamond
-        elif roll < 87: enemyType = etPentagon
+        # Waves 36-40: Introduce OCTAGON
+        if roll < 17: enemyType = etOctagon
+        elif roll < 33: enemyType = etCube
+        elif roll < 44: enemyType = etStar
+        elif roll < 60: enemyType = etCross
+        elif roll < 74: enemyType = etDiamond
+        elif roll < 85: enemyType = etPentagon
         else: enemyType = etTriangle
 
       elif wave <= 45:
         # Waves 41-45: Introduce HEXAGON
         if roll < 18: enemyType = etHexagon
-        elif roll < 25: enemyType = etCube # Don't spawn circles after wave 40
+        elif roll < 25: enemyType = etCube
         elif roll < 35: enemyType = etStar
         elif roll < 55: enemyType = etCross
         elif roll < 73: enemyType = etDiamond
@@ -1707,7 +1705,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       elif wave <= 50:
         # Waves 46-50: Introduce TRICKSTER
         if roll < 20: enemyType = etTrickster
-        elif roll < 33: enemyType = etCube # Don't spawn circles after wave 40
+        elif roll < 33: enemyType = etCube
         elif roll < 39: enemyType = etStar
         elif roll < 48: enemyType = etCross
         elif roll < 56: enemyType = etDiamond
@@ -1719,7 +1717,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       elif wave <= 55:
         # Waves 51-55: Introduce PHANTOM
         if roll < 15: enemyType = etPhantom
-        elif roll < 26: enemyType = etCube # Don't spawn circles after wave 40
+        elif roll < 26: enemyType = etCube
         elif roll < 35: enemyType = etStar
         elif roll < 43: enemyType = etCross
         elif roll < 51: enemyType = etDiamond
@@ -1732,7 +1730,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       else:
         # Waves 56+: Introduce MAGE + balanced roster
         if roll < 10: enemyType = etMage
-        elif roll < 20: enemyType = etCube # Don't spawn circles or pentagons after wave 56
+        elif roll < 20: enemyType = etCube
         elif roll < 30: enemyType = etStar
         elif roll < 40: enemyType = etCross
         elif roll < 50: enemyType = etDiamond

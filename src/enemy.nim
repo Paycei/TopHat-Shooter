@@ -2953,67 +2953,68 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
     if roll < 80: enemyType = etCircle
     else: enemyType = etPentagon
   elif difficulty < 8.0:
-    # Phase 3: Add Triangles + Cubes start appearing
-    if roll < 60: enemyType = etCircle
-    elif roll < 80: enemyType = etPentagon
-    elif roll < 90: enemyType = etTriangle
-    else: enemyType = etCube
+    # Phase 3: Triangles + Cubes appear; circles fade out past difficulty 7.0
+    if difficulty < 7.0:
+      if roll < 60: enemyType = etCircle
+      elif roll < 80: enemyType = etPentagon
+      elif roll < 90: enemyType = etTriangle
+      else: enemyType = etCube
+    else:
+      # difficulty 7.0-8.0: no more circles, weight redistributed
+      if roll < 45: enemyType = etPentagon
+      elif roll < 72: enemyType = etTriangle
+      else: enemyType = etCube
   elif difficulty < 11.0:
-    # Phase 4: Add Stars + Cross, Cubes more common
-    if roll < 40: enemyType = etCircle
-    elif roll < 55: enemyType = etPentagon
-    elif roll < 65: enemyType = etCube
-    elif roll < 80: enemyType = etTriangle
-    elif roll < 90: enemyType = etStar
+    # Phase 4: Add Stars + Cross, Cubes more common; no circles
+    if roll < 30: enemyType = etPentagon
+    elif roll < 50: enemyType = etCube
+    elif roll < 68: enemyType = etTriangle
+    elif roll < 83: enemyType = etStar
     else: enemyType = etCross
   elif difficulty < 14.0:
-    # Phase 5: Add Diamond + Octagon
-    if roll < 25: enemyType = etCircle
-    elif roll < 38: enemyType = etPentagon
-    elif roll < 50: enemyType = etCube
-    elif roll < 62: enemyType = etTriangle
-    elif roll < 75: enemyType = etStar
-    elif roll < 83: enemyType = etCross
-    elif roll < 91: enemyType = etDiamond
+    # Phase 5: Add Diamond + Octagon; no circles
+    if roll < 17: enemyType = etPentagon
+    elif roll < 30: enemyType = etCube
+    elif roll < 44: enemyType = etTriangle
+    elif roll < 58: enemyType = etStar
+    elif roll < 70: enemyType = etCross
+    elif roll < 83: enemyType = etDiamond
     else: enemyType = etOctagon
   elif difficulty < 18.0:
-    # Phase 6: Add Hexagon
-    if roll < 18: enemyType = etCircle
-    elif roll < 30: enemyType = etPentagon
-    elif roll < 42: enemyType = etCube
-    elif roll < 54: enemyType = etTriangle
-    elif roll < 66: enemyType = etStar
-    elif roll < 74: enemyType = etCross
-    elif roll < 82: enemyType = etDiamond
-    elif roll < 91: enemyType = etOctagon
+    # Phase 6: Add Hexagon; no circles
+    if roll < 13: enemyType = etPentagon
+    elif roll < 26: enemyType = etCube
+    elif roll < 39: enemyType = etTriangle
+    elif roll < 52: enemyType = etStar
+    elif roll < 62: enemyType = etCross
+    elif roll < 72: enemyType = etDiamond
+    elif roll < 83: enemyType = etOctagon
     else: enemyType = etHexagon
   elif difficulty < 23.0:
-    # Phase 7: Add Trickster
-    if roll < 12: enemyType = etCircle
-    elif roll < 22: enemyType = etPentagon
-    elif roll < 32: enemyType = etCube
-    elif roll < 42: enemyType = etTriangle
-    elif roll < 54: enemyType = etStar
-    elif roll < 63: enemyType = etCross
-    elif roll < 72: enemyType = etDiamond
-    elif roll < 82: enemyType = etOctagon
-    elif roll < 91: enemyType = etHexagon
+    # Phase 7: Add Trickster; no circles
+    if roll < 12: enemyType = etPentagon
+    elif roll < 23: enemyType = etCube
+    elif roll < 34: enemyType = etTriangle
+    elif roll < 47: enemyType = etStar
+    elif roll < 57: enemyType = etCross
+    elif roll < 67: enemyType = etDiamond
+    elif roll < 77: enemyType = etOctagon
+    elif roll < 87: enemyType = etHexagon
     else: enemyType = etTrickster
   else:
-    # Phase 8: All enemies including Phantom, Mage, and rare Sniper
-    if roll < 8: enemyType = etCircle
-    elif roll < 15: enemyType = etPentagon
-    elif roll < 22: enemyType = etCube
-    elif roll < 29: enemyType = etTriangle
-    elif roll < 38: enemyType = etStar
-    elif roll < 45: enemyType = etCross
-    elif roll < 52: enemyType = etDiamond
-    elif roll < 60: enemyType = etOctagon
+    # Phase 8: All enemies including Phantom, Mage, and rare Sniper; no circles
+    if roll < 9: enemyType = etPentagon
+    elif roll < 17: enemyType = etCube
+    elif roll < 25: enemyType = etTriangle
+    elif roll < 34: enemyType = etStar
+    elif roll < 42: enemyType = etCross
+    elif roll < 50: enemyType = etDiamond
+    elif roll < 59: enemyType = etOctagon
     elif roll < 68: enemyType = etHexagon
     elif roll < 78: enemyType = etTrickster
     elif roll < 88: enemyType = etPhantom
-    elif roll < 98: enemyType = etMage  # 10% chance - powerful magic user
-    else: enemyType = etSniper  # Very rare 2% chance
+    elif roll < 98: enemyType = etMage
+    else: enemyType = etSniper
 
   newEnemy(x, y, difficulty, enemyType, game)
 
