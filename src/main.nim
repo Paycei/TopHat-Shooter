@@ -1720,8 +1720,8 @@ proc main() =
                 break
 
             # Check reroll button click
-            let rerollX = windowX + 50
             let rerollWidth = 220
+            let rerollX = windowX + (INSTALLER_WIDTH - rerollWidth) div 2
             let bottomY = windowY + INSTALLER_HEIGHT - 120
             let buttonY = bottomY + 15
             let buttonHeight = 42

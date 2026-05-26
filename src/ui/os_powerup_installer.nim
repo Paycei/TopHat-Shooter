@@ -532,8 +532,12 @@ proc drawOSPowerUpInstaller*(game: Game) =
   let rerollW    = 220
   let rerollX: int32 = int32(winX) + int32(INSTALLER_WIDTH - rerollW) div 2
   let canAfford  = game.player.coins >= game.rerollCost
+  let mousePos   = getVirtualMousePosition()
+  let rerollHovered = checkCollisionPointRec(mousePos,
+    Rectangle(x: rerollX.float32, y: buttonY.float32,
+              width: rerollW.float32, height: buttonH.float32))
   drawModernButton(rerollX, buttonY, int32(rerollW), int32(buttonH),
-                  t(tkPowerUpRerollOptions), canAfford, false, game.time)
+                  t(tkPowerUpRerollOptions), canAfford, canAfford and rerollHovered, game.time)
   let costText  = $game.rerollCost & " credits"
   let costW     = measureText(costText, 12)
   drawText(costText, int32(rerollX + int32(rerollW - costW) div 2), int32(buttonY + buttonH + 8), int32(12),
