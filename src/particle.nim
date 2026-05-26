@@ -114,6 +114,8 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
         fontSize = int32(clamp(16.0 + (dmgNum.damage / 5.0) * 4.0, 16.0, 24.0))
     of dtDefault:
       color = Color(r: 255, g: 255, b: 255, a: alpha.uint8)
+    of dtHitCount:
+      color = Color(r: 255, g: 255, b: 255, a: alpha.uint8)
 
     if dmgNum.damageType != dtHeal:
       fontSize = 18
@@ -139,6 +141,8 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
       color = Color(r: 50, g: 255, b: 50, a: alpha.uint8)
     of dtDefault:
       color = Color(r: 255, g: 150, b: 0, a: alpha.uint8)
+    of dtHitCount:
+      color = Color(r: 255, g: 255, b: 255, a: alpha.uint8)
 
     fontSize = 20
 
@@ -148,7 +152,9 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
   let displayDamage = dmgNum.damage * BALANCE_MULTIPLIER
 
   let damageText =
-    if displayDamage >= 10.0:
+    if dmgNum.damageType == dtHitCount:
+      $round(displayDamage).int
+    elif displayDamage >= 10.0:
       $round(displayDamage).int
     elif displayDamage >= 1.0:
       formatFloat(displayDamage, ffDecimal, 1)

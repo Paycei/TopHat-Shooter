@@ -5704,7 +5704,16 @@ proc updateGame*(game: var Game, dt: float32) =
 
     let effectDamage = updateEffects(enemy, effectiveDt)
     if effectDamage > 0:
-      let actualDamage = damageEnemy(enemy, effectDamage)
+      # Stars use hitCount instead of HP; only register a hit when the 0.5s
+      # aura-accumulation window flushes — not every frame (~60x/sec).
+      let actualDamage = if enemy.enemyType == etStar:
+        let timeSinceFlush = game.time - enemy.lastAuraDamageNumberTime
+        if timeSinceFlush >= 0.5 or enemy.lastAuraDamageNumberTime == 0:
+          enemy.hitCount += 1
+          accumulateAndShowAuraDamage(game, enemy, 0.01, dtHitCount, false)
+        0.0'f32
+      else:
+        damageEnemy(enemy, effectDamage)
       let trackedTickDamage = poisonTickDamage + fireTickDamage
 
       # Track DoT damage for power-up statistics based on active effect sources
@@ -6864,8 +6873,9 @@ proc updateGame*(game: var Game, dt: float32) =
             game.enemies[j].isBoss and game.enemies[j].invulnerabilityTimer > 0
 
           if game.enemies[j].enemyType == etStar:
-            # Stars use hit counter
+            # Stars use hit counter — show "1" per hit dealt
             game.enemies[j].hitCount += 1
+            showDamage(game, game.enemies[j].pos, 0.01, true, false, dtHitCount)
           else:
             # Apply elite modifiers to damage
             var actualDamage = finalDamage

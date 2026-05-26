@@ -655,7 +655,8 @@ type
     dtArcane,       # Purple - arcane damage
     dtExplosion,    # Orange - explosion damage
     dtCritical,     # Yellow - critical hits (from player)
-    dtHeal          # Green - healing (positive numbers)
+    dtHeal,         # Green - healing (positive numbers)
+    dtHitCount      # White - integer hit counter (no decimals, used for star hits)
 
   DamageEvent* = enum
     ## Categorical one-frame signals written by takeDamage and read by drawPlayer.
