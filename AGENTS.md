@@ -11,11 +11,12 @@
 ```powershell
 nimble install
 nimble debug
-nimble release
+nimble WinRelease
+nimble LinuxRelease
 ```
 
 - `nimble debug` builds and runs a debug build via `nim c -r --mm:orc -d:debug src/main.nim`.
-- `nimble release` builds `TopHatShooterOS.exe` via `nim c -d:danger --mm:orc --opt:speed --app:gui --passL:icono.res -o:TopHatShooterOS.exe src/main.nim`.
+- `nimble winrelease` builds `TopHatShooterOS.exe` via `nim c --cc:vcc -d:danger --mm:orc --opt:speed --parallelBuild:0 --app:gui --panics:on --passC:\"/O2 /Oi /Ot /GS- /fp:fast /arch:AVX2 /GL\" --passL:\"/link /LTCG /OPT:REF /OPT:ICF\" --passL:icono.res -o:TopHatShooterOS.exe src/main.nim`.
 
 ## Local Setup Notes
 

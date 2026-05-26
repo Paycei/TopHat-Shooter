@@ -6181,14 +6181,51 @@ proc updateGame*(game: var Game, dt: float32) =
       # Update boss behavior based on specialBehavior
       if enemy.currentPhaseIndex < bossDef.phases.len:
         let phase = bossDef.phases[enemy.currentPhaseIndex]
-        # Slow boss 50% when close to the player so they aren't instantly overwhelmed
-        const bossSlowRadius = 20.0
+
+        # Ranged-pattern bosses maintain a safe preferred distance from the player.
+        # Within the preferred radius they slow noticeably; inside the inner radius
+        # a retreat push is applied AFTER movement so pattern-based paths
+        # (figure-8, orbits, lasers) can't accidentally pin the player in a corner.
+        const RANGED_BOSS_PREFERRED_DIST = 150.0'f32  # Start slowing inside this
+        const RANGED_BOSS_INNER_DIST     =  80.0'f32  # Apply retreat push inside this
+        const RANGED_BOSS_CLOSE_DIST     =  20.0'f32  # Original hard-close slow for melee
+
+        let isRangedBossPhase = phase.specialBehavior in [
+          "geometric_movement", "laser_web",      "laser_chaos",
+          "defensive",          "summon_frenzy",
+          "prism_defense",      "prism_array",     "light_cascade",
+          "slow_time",          "time_distortion", "time_collapse",
+          "orbital_pattern",    "satellite_swarm", "deploy_satellites", "multi_orbital",
+          "electric_buildup",   "electric_surge"
+        ]
+
         let distToPlayer = distance(enemy.pos, game.player.pos)
         let savedSpeed = enemy.speed
-        if distToPlayer < bossSlowRadius and not enemy.isDashing:
-          enemy.speed *= 0.5
+        if not enemy.isDashing:
+          if isRangedBossPhase:
+            if distToPlayer < RANGED_BOSS_INNER_DIST:
+              # Very close: slow to 50% — noticeable but not a wall
+              enemy.speed *= 0.5
+            elif distToPlayer < RANGED_BOSS_PREFERRED_DIST:
+              # Gradual taper: full speed at preferred dist, 50% at inner dist
+              let t = (distToPlayer - RANGED_BOSS_INNER_DIST) /
+                      (RANGED_BOSS_PREFERRED_DIST - RANGED_BOSS_INNER_DIST)
+              enemy.speed *= 0.5 + t * 0.5
+          elif distToPlayer < RANGED_BOSS_CLOSE_DIST:
+            enemy.speed *= 0.5  # Original melee-boss hard-close slow
+
         updateCustomBossBehavior(game, enemy, phase, dt)
         enemy.speed = savedSpeed  # Always restore the real speed
+
+        # Post-movement retreat push: gently nudge ranged bosses away from
+        # the player after pattern movement to prevent unintended pin-downs.
+        if isRangedBossPhase and not enemy.isDashing:
+          let postDist = distance(enemy.pos, game.player.pos)
+          if postDist < RANGED_BOSS_INNER_DIST and postDist > 0.1'f32:
+            let awayDir = (enemy.pos - game.player.pos).normalize()
+            let pushStrength = (1.0'f32 - postDist / RANGED_BOSS_INNER_DIST) * 50.0'f32
+            enemy.pos.x += awayDir.x * pushStrength * dt
+            enemy.pos.y += awayDir.y * pushStrength * dt
 
       # Handle boss dash movement (overrides normal movement)
       if enemy.isDashing:
