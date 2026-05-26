@@ -12,6 +12,10 @@ const
   POWERUP_ITEM_HEIGHT = 82
   POWERUP_ICON_SIZE = 34
 
+const
+  SCROLLBAR_WIDTH = 8
+  SCROLLBAR_MIN_THUMB = 24
+
 const sandboxLegendaryPowerUpTypes = [
   puArcaneMastery, puBloodMastery, puBulletSpeed,
   puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
@@ -297,6 +301,47 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   drawText("Enter Boss #7 3D", contentX + 5, currentY + 5, 16, White)
   drawText("Test 3D Arena", contentX + 5, currentY + 20, 12, Color(r: 200, g: 200, b: 200, a: 255))
 
+proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int32) =
+  ## Draws a draggable scrollbar on the right edge of the sidebar.
+  ## Only visible when content exceeds the viewport.
+  let maxScroll = maxSandboxScrollOffset(game.sandboxSelectedTab, screenHeight)
+  if maxScroll <= 0:
+    return
+
+  let trackX    = sidebarX + SIDEBAR_WIDTH - SCROLLBAR_WIDTH - 2
+  let trackY    = contentStartY + 2
+  let trackH    = screenHeight - contentStartY - 4
+
+  # Track background
+  drawRectangle(trackX, trackY, SCROLLBAR_WIDTH, trackH,
+                Color(r: 30, g: 30, b: 40, a: 180))
+  drawRectangleLines(Rectangle(x: trackX.float32, y: trackY.float32,
+                               width: SCROLLBAR_WIDTH.float32, height: trackH.float32),
+                     1, Color(r: 60, g: 60, b: 80, a: 180))
+
+  # Thumb size proportional to visible / total content
+  let contentH  = sandboxContentHeight(game.sandboxSelectedTab)
+  let thumbH    = max(SCROLLBAR_MIN_THUMB,
+                      int32(trackH.float32 * (trackH.float32 / contentH.float32)))
+  let thumbRange = trackH - thumbH
+  let thumbY = if maxScroll > 0:
+    trackY + int32(thumbRange.float32 * (game.sandboxScrollOffset.float32 / maxScroll.float32))
+  else:
+    trackY
+
+  # Thumb colour — brighter while dragging
+  let thumbColor = if game.sandboxScrollbarDragging:
+    Color(r: 140, g: 190, b: 255, a: 240)
+  else:
+    Color(r: 90, g: 130, b: 190, a: 210)
+
+  drawRectangle(trackX + 1, thumbY, SCROLLBAR_WIDTH - 2, thumbH, thumbColor)
+  # Subtle grip lines
+  let midY = thumbY + thumbH div 2
+  for dy in [-4'i32, 0'i32, 4'i32]:
+    drawLine(trackX + 2, midY + dy, trackX + SCROLLBAR_WIDTH - 3, midY + dy,
+             Color(r: 200, g: 220, b: 255, a: 100))
+
 proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   if not game.sandboxSidebarOpen:
     # Draw toggle button when closed
@@ -354,6 +399,9 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
     discard
 
   endScissorMode()
+
+  # Draw scrollbar on top of (outside) the scissor region so it is always visible
+  drawSandboxScrollbar(game, sidebarX, currentY, screenHeight)
 
 # INPUT HANDLING
 proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
@@ -542,6 +590,39 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
   if mouseWheel != 0:
     game.sandboxScrollOffset -= (mouseWheel * SCROLL_SPEED).int32
     clampSandboxScroll(game, screenHeight)
+
+  # --- Scrollbar drag ---
+  let sidebarXSb = screenWidth - SIDEBAR_WIDTH
+  let contentStartYSb: int32 = 45 + TAB_HEIGHT + 5
+  let maxScrollSb = maxSandboxScrollOffset(game.sandboxSelectedTab, screenHeight)
+  let contentHSb = sandboxContentHeight(game.sandboxSelectedTab)
+  let trackXSb = sidebarXSb + SIDEBAR_WIDTH - SCROLLBAR_WIDTH - 2
+  let trackYSb = contentStartYSb + 2
+  let trackHSb = screenHeight - contentStartYSb - 4
+  let thumbHSb = max(SCROLLBAR_MIN_THUMB,
+                     int32(trackHSb.float32 * (trackHSb.float32 / contentHSb.float32)))
+  let thumbRangeSb = trackHSb - thumbHSb
+
+  if isMouseButtonPressed(Left):
+    let mpSb = getVirtualMousePosition()
+    if maxScrollSb > 0 and
+       mpSb.x >= trackXSb.float32 and mpSb.x <= (trackXSb + SCROLLBAR_WIDTH).float32 and
+       mpSb.y >= trackYSb.float32 and mpSb.y <= (trackYSb + trackHSb).float32:
+      let thumbYSb = trackYSb.float32 + thumbRangeSb.float32 *
+                     (game.sandboxScrollOffset.float32 / maxScrollSb.float32)
+      game.sandboxScrollbarDragging = true
+      game.sandboxScrollbarDragOffsetY = mpSb.y - thumbYSb
+
+  if isMouseButtonReleased(Left):
+    game.sandboxScrollbarDragging = false
+
+  if game.sandboxScrollbarDragging and isMouseButtonDown(Left):
+    let mpDrag = getVirtualMousePosition()
+    if maxScrollSb > 0 and thumbRangeSb > 0:
+      let newThumbY = mpDrag.y - game.sandboxScrollbarDragOffsetY - trackYSb.float32
+      game.sandboxScrollOffset = int32(newThumbY / thumbRangeSb.float32 * maxScrollSb.float32)
+      clampSandboxScroll(game, screenHeight)
+  # --- End scrollbar drag ---
 
   if isMouseButtonPressed(Left):
     let mousePos = getVirtualMousePosition()

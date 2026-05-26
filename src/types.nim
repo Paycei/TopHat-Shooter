@@ -982,6 +982,8 @@ type
     sandboxTypingBuffer*: string  # Buffer for detecting "ttt" input
     sandboxSelectedTab*: int  # Current tab in sandbox UI (0=Enemies, 1=Bosses, 2=PowerUps, 3=Controls)
     sandboxScrollOffset*: int32  # Scroll position in sidebar
+    sandboxScrollbarDragging*: bool     # True while the user is dragging the scrollbar thumb
+    sandboxScrollbarDragOffsetY*: float32  # Mouse Y offset within the thumb at drag start
     shopSidebarScroll*: int32   # Scroll offset (px) for the in-game shop left panel
     sandboxGodMode*: bool  # Player invulnerability
     sandboxFreezeEnemies*: bool  # Freeze all enemy movement
