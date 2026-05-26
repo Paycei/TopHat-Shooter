@@ -5541,7 +5541,7 @@ proc updateGame*(game: var Game, dt: float32) =
       fireDoubleShotBurst(game, shootDir, hasMultiShot)
       game.player.doubleShotDelay = 0  # Reset to 0
 
-  if isMouseButtonDown(Left) or isKeyDown(Space):
+  if (isMouseButtonDown(Left) and not game.wallPlacementMode) or isKeyDown(Space):
     if shootDir.length() > 0:
       shootBullet(game, shootDir)
 
@@ -8103,8 +8103,34 @@ proc drawGame*(game: Game) =
 
   # Instructions only for non-legendary keys, hidden when the shop overlay is active
   if game.state != gsShop:
-    drawText(t(tkGameInstructionsWall),
-             game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
+    if game.wallPlacementMode and game.player.walls > 0:
+      # Placement mode: range ring + ghost wall at cursor
+      let mousePos = getVirtualMousePosition()
+      let cursorPos = newVector2f(mousePos.x, mousePos.y)
+      let inRange = distance(cursorPos, game.player.pos) <= 250.0
+      let validPos = isValidWallPlacement(cursorPos, game.player.pos, game.walls, game.enemies, 25)
+      let canPlace = inRange and validPos
+
+      # Faint range indicator around the player
+      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, 250.0,
+                      Color(r: 180, g: 180, b: 255, a: 55))
+
+      # Ghost wall circle at cursor: green = valid, red = blocked
+      let ghostFill = if canPlace: Color(r: 80, g: 200, b: 80, a: 90)
+                      else: Color(r: 200, g: 60, b: 60, a: 90)
+      let ghostEdge = if canPlace: Color(r: 80, g: 255, b: 80, a: 200)
+                      else: Color(r: 255, g: 60, b: 60, a: 200)
+      drawCircle(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostFill)
+      drawCircleLines(cursorPos.x.int32, cursorPos.y.int32, 25, ghostEdge)
+
+      # Status text at bottom
+      let hintText = "[LMB] Place Wall  [E/RMB] Cancel  (" & $game.player.walls & " remaining)"
+      let hintW = measureText(hintText, 16)
+      drawText(hintText, game.screenWidth div 2 - hintW div 2,
+               game.screenHeight - 25, 16, Color(r: 180, g: 230, b: 180, a: 255))
+    else:
+      drawText(t(tkGameInstructionsWall),
+               game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
 
   # End 2D camera mode if screen shake was applied
   if shakeOffsetX != 0 or shakeOffsetY != 0:

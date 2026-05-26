@@ -88,4 +88,9 @@ proc isValidWallPlacement*(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall],
     if distance(pos, wall.pos) < radius + wall.radius:
       return false
 
+  # Check overlap with enemies
+  for enemy in enemies:
+    if distance(pos, enemy.pos) < radius + enemy.radius:
+      return false
+
   return true

@@ -1012,6 +1012,7 @@ type
     lightningBolts*: seq[LightningBolt]  # Active lightning arc visuals
     confirmQuitPending*: bool  # True while the quit-confirmation dialog is open
     pauseMenuExitCooldown*: float32  # Countdown before Exit button/key becomes active (prevents accidental exit)
+    wallPlacementMode*: bool   # Whether the player is in wall-placement mode (E toggles, RMB/walls=0 exits)
 
 proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
   AttackWarning(

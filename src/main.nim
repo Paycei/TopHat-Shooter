@@ -904,24 +904,36 @@ proc main() =
       if cheatMenu.active:
         updateCheatMenu(cheatMenu, currentGame)
 
-      # Only process game input if cheat menu is not active
-      if not cheatMenu.active:
+      # Only process game input if cheat menu is not active and confirm dialog is not open
+      if not cheatMenu.active and not globalConfirmActive:
         # Shop removed from gameplay - only accessible during power-up selection
 
-        # Place wall
+        # Wall placement mode (matches PvP system)
+        # E toggles placement mode; right-click or running out of walls exits it.
+        const WALL_PLACEMENT_RANGE_SP = 250.0
         if isKeyPressed(E) and currentGame.player.walls > 0:
+          currentGame.wallPlacementMode = not currentGame.wallPlacementMode
+        if isMouseButtonPressed(Right) and currentGame.wallPlacementMode:
+          currentGame.wallPlacementMode = false
+        if currentGame.player.walls <= 0:
+          currentGame.wallPlacementMode = false
+
+        # Left-click places wall while in placement mode
+        if currentGame.wallPlacementMode and isMouseButtonPressed(Left):
           let mousePos = getVirtualMousePosition()
           let wallPos = newVector2f(mousePos.x, mousePos.y)
-
-          if isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
-                                  currentGame.enemies, 25):
+          let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
+          if inRange and isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
+                                              currentGame.enemies, 25):
             currentGame.walls.add(newWall(mousePos.x, mousePos.y, currentGame.player))
             currentGame.player.walls -= 1
             spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)
             trackWallPlacement(currentGame, wallPos)
+            if currentGame.player.walls <= 0:
+              currentGame.wallPlacementMode = false
 
       # Activate ALL legendary power-ups with Q key (simultaneous activation)
-      if isKeyPressed(Q):
+      if isKeyPressed(Q) and not globalConfirmActive:
         var anyActivated = false
 
         # Time Warp - slow down time
@@ -1113,7 +1125,8 @@ proc main() =
           playSound(stPowerUp)
 
       # Pause (don't actually pause in PvP mode to avoid desync)
-      if isKeyPressed(Escape):
+      # Also skip if the confirm dialog is open (it acts as a hard pause)
+      if isKeyPressed(Escape) and not globalConfirmActive:
         if not isPvPMode(currentGame.mode):
           currentGame.state = gsPaused
           currentGame.pauseMenuExitCooldown = 2.0
@@ -1122,8 +1135,8 @@ proc main() =
           currentGame.state = gsPaused
           currentGame.pauseMenuExitCooldown = 2.0
 
-      # Update game (only if cheat menu is not active)
-      if not cheatMenu.active:
+      # Update game (only if cheat menu is not active and confirm dialog is not open)
+      if not cheatMenu.active and not globalConfirmActive:
         if isSandboxMode(currentGame.mode):
           # Handle sandbox input
           handleSandboxInput(currentGame, screenWidth, screenHeight)
@@ -1262,13 +1275,14 @@ proc main() =
         elif isKeyPressed(Tab):  # Open Settings
           globalWindowManager.openWindow(widSettings)
           playSound(stMenuSelect)
-        elif isKeyPressed(Q):  # Quit to main menu, ask first (opens confirm immediately)
+        elif isKeyPressed(Q) and currentGame.pauseMenuExitCooldown <= 0:  # Quit to main menu, ask first
           if not currentGame.confirmQuitPending:
             currentGame.confirmQuitPending = true
             playSound(stMenuNav)
         elif isKeyPressed(Escape):  # ESC cancels confirm dialog, or resumes
           if currentGame.confirmQuitPending:
             currentGame.confirmQuitPending = false
+            currentGame.pauseMenuExitCooldown = 2.0  # prevent immediate re-trigger
           else:
             # Check if any windows are open
             let hasOpenWindows = globalWindowManager.settings.window.visible or
@@ -1338,6 +1352,12 @@ proc main() =
       if currentGame.mode == gmRoguelite:
         drawAlphaBanner(currentGame)
 
+      # Draw OS-close confirmation dialog on top of everything if triggered by close button
+      # (separate from the in-game quit-to-menu confirm dialog)
+      if globalConfirmActive:
+        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if r == 1: windowCloseRequested = true
+
       # Draw quit-confirmation dialog on top of everything if pending
       if currentGame.confirmQuitPending:
         let confirmDlg = drawQuitConfirmDialog(currentGame)
@@ -1356,6 +1376,7 @@ proc main() =
           playSound(stMenuSelect)
         elif confirmDlg.cancelled:
           currentGame.confirmQuitPending = false
+          currentGame.pauseMenuExitCooldown = 2.0  # prevent immediate re-trigger
 
       # Draw custom cursor on top of everything (including the confirm dialog)
       if currentGame.confirmQuitPending or globalSettings.mouseSupport or globalSettings.showCursorInMenus:
@@ -1631,6 +1652,11 @@ proc main() =
       if currentGame.mode == gmRoguelite:
         drawAlphaBanner(currentGame)
 
+      # Draw OS-close confirmation dialog on top of everything if triggered by close button
+      if globalConfirmActive:
+        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if r == 1: windowCloseRequested = true
+
       # Draw custom cursor
       drawCustomCursor(currentGame.time)
 
@@ -1747,6 +1773,11 @@ proc main() =
 
       if currentGame.mode == gmRoguelite:
         drawAlphaBanner(currentGame)
+
+      # Draw OS-close confirmation dialog on top of everything if triggered by close button
+      if globalConfirmActive:
+        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if r == 1: windowCloseRequested = true
 
       endGameDrawing()
 

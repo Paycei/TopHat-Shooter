@@ -1061,6 +1061,13 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
         shop.previewOpen = false
     if isTopmost and isKeyPressed(Escape):
       shop.previewOpen = false
+  elif isTopmost and isKeyPressed(Escape):
+    # If search is focused, close search first; otherwise close the shop
+    if shop.searchFocused:
+      shop.searchFocused = false
+    else:
+      shop.window.visible = false
+      return true
 
   return false
 
