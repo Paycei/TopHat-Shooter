@@ -166,18 +166,29 @@ proc spawnVoidRifts(enemy: Enemy, playerPos: Vector2f, screenWidth, screenHeight
               true, i != enemy.weakPoint.realTargetIndex, false)
 
 proc spawnBackPlate(enemy: Enemy, playerPos: Vector2f) =
+  ## Spawn 3 cracked armour-plate shards in a fan on the Juggernaut's back,
+  ## exposed after a dash ends.  Centre shard + two flanking shards ±32°.
   enemy.weakPoint.targets = @[]
+  enemy.weakPoint.realTargetIndex = -1
+
+  # Direction pointing away from the player = boss's back
   var away = enemy.vel.normalize()
   if away.length() < 0.01'f32:
     away = (enemy.pos - playerPos).normalize()
   if away.length() < 0.01'f32:
     away = newVector2f(1, 0)
 
-  let angle = arctan2(away.y, away.x)
-  let orbitRadius = enemy.radius * 0.62'f32
-  let pos = enemy.pos + away * orbitRadius
-  addTarget(enemy, bwoDashBackPlate, 0, pos, angle, orbitRadius, 0, 2.8'f32,
-            true, false, true)
+  let baseAngle = arctan2(away.y, away.x)
+  let orbitR    = enemy.radius * 0.72'f32  # a bit further out for visibility
+  let life      = 2.8'f32
+  # Centre shard, left flank (~32°), right flank (~-32°)
+  let offsets   = [0.0'f32, 0.56'f32, -0.56'f32]
+
+  for i in 0..<3:
+    let a   = baseAngle + offsets[i]
+    let pos = enemy.pos + newVector2f(cos(a) * orbitR, sin(a) * orbitR)
+    addTarget(enemy, bwoDashBackPlate, i, pos, a, orbitR, 0.0'f32, life,
+              true, false, true)
 
 proc syncTargetActivity(enemy: Enemy, kind: BossWeakObjectiveKind) =
   if enemy.weakPoint.targets.len == 0:
@@ -232,8 +243,9 @@ proc weakPointVulnerabilityDuration(enemy: Enemy, kind: BossWeakObjectiveKind): 
   else: 0.0'f32
 
 proc openVulnerabilityWindow(enemy: Enemy, duration: float32) =
-  enemy.weakPoint.exposedTimer = duration
-  enemy.weakPoint.cooldownTimer = 0
+  enemy.weakPoint.exposedTimer     = duration
+  enemy.weakPoint.exposureDuration = duration   # snapshot so draw arc has the true max
+  enemy.weakPoint.cooldownTimer    = 0
   enemy.weakPoint.targets = @[]
   enemy.weakPoint.progress = 0
   enemy.weakPoint.sequenceIndex = 0
@@ -438,49 +450,164 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return
 
-  let time = getTime().float32
-  let pulse = sin(time * 7.0'f32) * 0.5'f32 + 0.5'f32
+  let time      = getTime().float32
+  let pulse     = sin(time * 7.0'f32) * 0.5'f32 + 0.5'f32
+  let slowPulse = sin(time * 3.5'f32) * 0.5'f32 + 0.5'f32
+  let kind      = effectiveWeakKind(enemy)
 
+  #  Vulnerability window 
   if enemy.weakPoint.exposedTimer > 0:
-    let ringRadius = enemy.radius + 10.0'f32 + pulse * 5.0'f32
-    let alpha = uint8(clamp(90.0'f32 + pulse * 95.0'f32, 0.0'f32, 220.0'f32))
-    let color = Color(r: 255, g: 235, b: 90, a: alpha)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius, color)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius + 8.0'f32,
-                    Color(r: 255, g: 255, b: 255, a: alpha div 3))
+    if kind == bwoDashBackPlate:
+      # Berserker: spinning blood-red cog/gear around the boss core
+      let toothCount = 8
+      let innerR = enemy.radius + 8.0'f32 + slowPulse * 4.0'f32
+      let outerR = innerR + 14.0'f32 + pulse * 6.0'f32
+      let spinAngle = time * 2.5'f32  # rotation speed
+      let alpha = uint8(clamp(150.0'f32 + pulse * 90.0'f32, 0.0'f32, 255.0'f32))
+      let coreCol   = Color(r: 220, g: 30,  b: 30,  a: alpha)
+      let rimCol    = Color(r: 255, g: 80,  b: 0,   a: alpha)
+      let glowCol   = Color(r: 255, g: 60,  b: 0,   a: alpha div 4)
+
+      # Outer glow ring
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, outerR + 10.0'f32, glowCol)
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, outerR + 6.0'f32,  glowCol)
+
+      # Draw gear teeth as thick radial lines alternating long/short
+      for t in 0..<toothCount * 2:
+        let a    = spinAngle + t.float32 * PI / toothCount.float32
+        let rEnd = if t mod 2 == 0: outerR else: (innerR + outerR) * 0.5'f32
+        let p1   = Vector2(x: enemy.pos.x + cos(a) * innerR,
+                           y: enemy.pos.y + sin(a) * innerR)
+        let p2   = Vector2(x: enemy.pos.x + cos(a) * rEnd,
+                           y: enemy.pos.y + sin(a) * rEnd)
+        drawLine(p1, p2, if t mod 2 == 0: 3.5'f32 else: 1.8'f32, rimCol)
+
+      # Inner ring
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, innerR, coreCol)
+      # Pulsing inner fill
+      let fillAlpha = uint8(clamp(40.0'f32 + pulse * 50.0'f32, 0.0'f32, 100.0'f32))
+      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), innerR * 0.85'f32,
+                 Color(r: 255, g: 40, b: 0, a: fillAlpha))
+    else:
+      # Generic vulnerability ring for other bosses (unchanged)
+      let ringRadius = enemy.radius + 10.0'f32 + pulse * 5.0'f32
+      let alpha = uint8(clamp(90.0'f32 + pulse * 95.0'f32, 0.0'f32, 220.0'f32))
+      let color = Color(r: 255, g: 235, b: 90, a: alpha)
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius, color)
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius + 8.0'f32,
+                      Color(r: 255, g: 255, b: 255, a: alpha div 3))
     return
 
+  #  Target drawing 
   for target in enemy.weakPoint.targets:
     if target.hit:
       continue
 
-    let activeAlpha = if target.active: uint8(220) else: uint8(90)
-    var color = target.color
-    color.a = activeAlpha
-    let ringRadius = target.hitRadius * (0.72'f32 + pulse * 0.12'f32)
-    drawCircle(Vector2(x: target.pos.x, y: target.pos.y), max(5.0'f32, ringRadius * 0.35'f32),
-               Color(r: color.r, g: color.g, b: color.b, a: activeAlpha div 3))
-    drawCircleLines(target.pos.x.int32, target.pos.y.int32, ringRadius, color)
-    drawLine(Vector2(x: target.pos.x - 6.0'f32, y: target.pos.y),
-             Vector2(x: target.pos.x + 6.0'f32, y: target.pos.y), 2.0'f32,
-             Color(r: 255, g: 255, b: 255, a: activeAlpha))
-    drawLine(Vector2(x: target.pos.x, y: target.pos.y - 6.0'f32),
-             Vector2(x: target.pos.x, y: target.pos.y + 6.0'f32), 2.0'f32,
-             Color(r: 255, g: 255, b: 255, a: activeAlpha))
+    if kind == bwoDashBackPlate:
+      #  Berserker Juggernaut: cracked armour-plate shard 
+      # Appearance: a jagged diamond/rhombus with inner crack lines and a
+      # fiery red-orange glow.  Hit targets stay dark until all 3 are struck.
+      let activeAlpha = if target.active: uint8(230) else: uint8(80)
+      let cr  = target.hitRadius  # shorthand
 
-    if showHints:
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, target.hitRadius + 5.0'f32,
-                      Color(r: color.r, g: color.g, b: color.b, a: activeAlpha div 4))
+      # Colour shifts from blood-red (centre shard) to ember-orange (flanks)
+      let shardCol = case target.index
+        of 0: Color(r: 255, g: 40,  b: 20,  a: activeAlpha)         # centre: deep red
+        of 1: Color(r: 255, g: 100, b: 10,  a: activeAlpha)         # flank: orange
+        else: Color(r: 255, g: 130, b: 0,   a: activeAlpha)         # flank: amber
+      let glowCol  = Color(r: shardCol.r, g: shardCol.g, b: shardCol.b,
+                           a: uint8(activeAlpha.int div 4))
+      let crackCol = Color(r: 255, g: 255, b: 220, a: uint8(activeAlpha.int * 3 div 4))
 
+      # Scale throb: the shard breathes in size
+      let scale = 1.0'f32 + pulse * 0.10'f32
+
+      # Diamond corner points (rotated toward the boss centre)
+      let ax   = enemy.pos.x - target.pos.x
+      let ay   = enemy.pos.y - target.pos.y
+      let aLen = sqrt(ax * ax + ay * ay)
+      let nx   = if aLen > 0.01'f32: ax / aLen else: 0.0'f32
+      let ny   = if aLen > 0.01'f32: ay / aLen else: 1.0'f32
+      let tx   = -ny   # tangent
+      let ty   =  nx
+
+      let tipIn  = cr * 1.05'f32 * scale  # tip pointing toward boss
+      let tipOut = cr * 0.90'f32 * scale  # tip pointing away
+      let side   = cr * 0.55'f32 * scale  # side width
+
+      let pIn   = Vector2(x: target.pos.x + nx * tipIn,  y: target.pos.y + ny * tipIn)
+      let pOut  = Vector2(x: target.pos.x - nx * tipOut, y: target.pos.y - ny * tipOut)
+      let pLeft = Vector2(x: target.pos.x + tx * side,   y: target.pos.y + ty * side)
+      let pRight= Vector2(x: target.pos.x - tx * side,   y: target.pos.y - ty * side)
+
+      # Soft glow halo (wide circle behind the diamond)
+      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * 1.0'f32 * scale, glowCol)
+
+      # Filled diamond (two triangles)
+      let cx = target.pos.x
+      let cy = target.pos.y
+      let fillCol = Color(r: shardCol.r div 3, g: shardCol.g div 4, b: 0, a: uint8(min(180, activeAlpha.int)))
+      # triangle 1: in -> left -> right
+      drawTriangle(pIn, pLeft, pRight, fillCol)
+      # triangle 2: out -> right -> left (winding kept consistent)
+      drawTriangle(pOut, pRight, pLeft, fillCol)
+
+      # Outline diamond edges
+      drawLine(pIn,    pLeft,  2.5'f32, shardCol)
+      drawLine(pLeft,  pOut,   2.5'f32, shardCol)
+      drawLine(pOut,   pRight, 2.5'f32, shardCol)
+      drawLine(pRight, pIn,    2.5'f32, shardCol)
+
+      # Inner crack lines (two crossing fissures)
+      let midLeft  = Vector2(x: (pIn.x + pLeft.x)  * 0.5'f32, y: (pIn.y + pLeft.y)  * 0.5'f32)
+      let midRight = Vector2(x: (pIn.x + pRight.x) * 0.5'f32, y: (pIn.y + pRight.y) * 0.5'f32)
+      let midBotL  = Vector2(x: (pOut.x + pLeft.x) * 0.5'f32, y: (pOut.y + pLeft.y) * 0.5'f32)
+      let midBotR  = Vector2(x: (pOut.x + pRight.x) * 0.5'f32, y: (pOut.y + pRight.y) * 0.5'f32)
+      drawLine(midLeft,  midBotR, 1.5'f32, crackCol)
+      drawLine(midRight, midBotL, 1.5'f32, crackCol)
+      # Central crack dot
+      drawCircle(Vector2(x: cx, y: cy), 2.5'f32 * scale, crackCol)
+
+      # Hit-radius hint ring (faint, just outside the diamond)
+      if showHints:
+        drawCircleLines(target.pos.x.int32, target.pos.y.int32,
+                        cr * scale + 4.0'f32,
+                        Color(r: shardCol.r, g: shardCol.g, b: shardCol.b,
+                              a: uint8(activeAlpha.int div 5)))
+
+    else:
+      # Generic target (all other boss weakpoint types)
+      let activeAlpha = if target.active: uint8(220) else: uint8(90)
+      var color = target.color
+      color.a = activeAlpha
+      let ringRadius = target.hitRadius * (0.72'f32 + pulse * 0.12'f32)
+      drawCircle(Vector2(x: target.pos.x, y: target.pos.y),
+                 max(5.0'f32, ringRadius * 0.35'f32),
+                 Color(r: color.r, g: color.g, b: color.b, a: activeAlpha div 3))
+      drawCircleLines(target.pos.x.int32, target.pos.y.int32, ringRadius, color)
+      drawLine(Vector2(x: target.pos.x - 6.0'f32, y: target.pos.y),
+               Vector2(x: target.pos.x + 6.0'f32, y: target.pos.y), 2.0'f32,
+               Color(r: 255, g: 255, b: 255, a: activeAlpha))
+      drawLine(Vector2(x: target.pos.x, y: target.pos.y - 6.0'f32),
+               Vector2(x: target.pos.x, y: target.pos.y + 6.0'f32), 2.0'f32,
+               Color(r: 255, g: 255, b: 255, a: activeAlpha))
+      if showHints:
+        drawCircleLines(target.pos.x.int32, target.pos.y.int32,
+                        target.hitRadius + 5.0'f32,
+                        Color(r: color.r, g: color.g, b: color.b, a: activeAlpha div 4))
+
+  #  Progress pips (shared) 
   if showHints and enemy.weakPoint.required > 1:
-    let pipRadius = 3.5'f32
+    let pipRadius = if kind == bwoDashBackPlate: 4.5'f32 else: 3.5'f32
     let totalWidth = enemy.weakPoint.required.float32 * 10.0'f32
     let startX = enemy.pos.x - totalWidth * 0.5'f32
     let y = enemy.pos.y + enemy.radius + 14.0'f32
     for i in 0..<enemy.weakPoint.required:
       let filled = i < enemy.weakPoint.progress
-      let pipColor = if filled:
-        Color(r: 255, g: 235, b: 80, a: 220)
+      let pipColor = if kind == bwoDashBackPlate:
+        if filled: Color(r: 255, g: 80,  b: 0,   a: 230)   # struck plate: ember
+        else:      Color(r: 90,  g: 60,  b: 60,  a: 130)   # intact: iron grey
       else:
-        Color(r: 120, g: 120, b: 130, a: 120)
+        if filled: Color(r: 255, g: 235, b: 80,  a: 220)
+        else:      Color(r: 120, g: 120, b: 130, a: 120)
       drawCircle(Vector2(x: startX + i.float32 * 10.0'f32, y: y), pipRadius, pipColor)

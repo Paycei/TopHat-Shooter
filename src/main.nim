@@ -8,12 +8,16 @@ type ConfirmDialogContext = enum
   cdcQuitToMenu      # Return to main menu
 
 var
-  globalConfirmActive  = false
-  globalConfirmContext = cdcQuitToMenu
+  globalConfirmActive      = false
+  globalConfirmContext     = cdcQuitToMenu
+  globalConfirmFrameGuard  = 0.0'f32  # Prevents Q from instantly confirming on dialog open
+  globalConfirmMouseGuard  = 0.0'f32  # 2-second cooldown before mouse/button click is accepted
 
 proc showGlobalConfirm(ctx: ConfirmDialogContext) =
-  globalConfirmActive  = true
-  globalConfirmContext = ctx
+  globalConfirmActive     = true
+  globalConfirmContext    = ctx
+  globalConfirmFrameGuard = 0.15'f32  # ~9 frames at 60 fps – absorbs the key that opened the dialog
+  globalConfirmMouseGuard = 2.0'f32   # 2-second anti-accident window before mouse confirm works
 
 proc isOverRect(mp: Vector2, x, y, w, h: int32): bool =
   mp.x >= x.float32 and mp.x <= (x + w).float32 and
@@ -52,6 +56,8 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
   let yesX = dx + (DW div 2) + 12
   let noHov  = isOverRect(mp, noX,  btnY, BW, BH)
   let yesHov = isOverRect(mp, yesX, btnY, BW, BH)
+  let mouseReady = globalConfirmMouseGuard <= 0.0
+  let keyReady   = globalConfirmMouseGuard  <= 0.0 and globalConfirmFrameGuard <= 0.0
 
   drawRectangle(noX, btnY, BW, BH,
     if noHov: Color(r: 0, g: 145, b: 0, a: 255) else: Color(r: 0, g: 105, b: 0, a: 255))
@@ -61,21 +67,29 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
   let noTxt = "[ESC] CANCEL"; let nTW = measureText(noTxt, 14)
   drawText(noTxt, noX + (BW - nTW) div 2, btnY + 13, 14, White)
 
-  drawRectangle(yesX, btnY, BW, BH,
-    if yesHov: Color(r: 158, g: 38, b: 38, a: 255) else: Color(r: 118, g: 28, b: 28, a: 255))
+  # YES button greyed out while mouse cooldown is active
+  let yesBg = if not mouseReady: Color(r: 90, g: 90, b: 90, a: 255)
+              elif yesHov:       Color(r: 158, g: 38, b: 38, a: 255)
+              else:              Color(r: 118, g: 28, b: 28, a: 255)
+  drawRectangle(yesX, btnY, BW, BH, yesBg)
   drawRectangleLines(Rectangle(x: yesX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
-    if yesHov: 3 else: 2,
-    if yesHov: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 195, g: 55, b: 55, a: 255))
-  let yesTxt = if globalConfirmContext == cdcQuitToDesktop: "[Q] QUIT" else: "[Q] EXIT"
+    if yesHov and mouseReady: 3 else: 2,
+    if not mouseReady:        Color(r: 140, g: 140, b: 140, a: 255)
+    elif yesHov:              Color(r: 255, g: 100, b: 100, a: 255)
+    else:                     Color(r: 195, g: 55, b: 55, a: 255))
+  # Show countdown while cooling down, normal label once ready
+  let yesTxt = if not mouseReady: $(int(ceil(globalConfirmMouseGuard)))
+               elif globalConfirmContext == cdcQuitToDesktop: "[Q] QUIT"
+               else: "[Q] EXIT"
   let yTW = measureText(yesTxt, 14)
   drawText(yesTxt, yesX + (BW - yTW) div 2, btnY + 13, 14, White)
 
   var decision = 0
   if isMouseButtonPressed(Left):
-    if noHov:    decision = -1
-    elif yesHov: decision = 1
+    if noHov:               decision = -1
+    elif yesHov and mouseReady: decision = 1
   if isKeyPressed(Escape): decision = -1
-  if isKeyPressed(Q):      decision = 1
+  if isKeyPressed(Q) and keyReady: decision = 1
 
   if decision != 0:
     globalConfirmActive = false
@@ -455,6 +469,12 @@ proc main() =
     updateRenderSupersampleState(settings)
 
     let dt = getFrameTime()
+
+    # Tick down the global confirm guards
+    if globalConfirmFrameGuard > 0:
+      globalConfirmFrameGuard = max(0.0'f32, globalConfirmFrameGuard - dt)
+    if globalConfirmMouseGuard > 0:
+      globalConfirmMouseGuard = max(0.0'f32, globalConfirmMouseGuard - dt)
 
     # Update render scale every frame in case window was resized
     updateRenderScale()
@@ -1129,11 +1149,9 @@ proc main() =
       if isKeyPressed(Escape) and not globalConfirmActive:
         if not isPvPMode(currentGame.mode):
           currentGame.state = gsPaused
-          currentGame.pauseMenuExitCooldown = 2.0
         else:
           # In PvP, show pause menu visually but keep game running
           currentGame.state = gsPaused
-          currentGame.pauseMenuExitCooldown = 2.0
 
       # Update game (only if cheat menu is not active and confirm dialog is not open)
       if not cheatMenu.active and not globalConfirmActive:
@@ -1241,9 +1259,13 @@ proc main() =
       if updateResult.fullscreenToggle:
         fullscreenToggleRequested = true
 
-      # Tick down the exit-button cooldown (prevents accidental Q on pause entry)
+      # Tick down the exit-button cooldown (prevents accidental mouse Exit click on pause entry)
       if currentGame.pauseMenuExitCooldown > 0:
         currentGame.pauseMenuExitCooldown = max(0.0'f32, currentGame.pauseMenuExitCooldown - dt)
+
+      # Tick down the per-dialog frame guard (prevents Q-open and Q-confirm same frame)
+      if currentGame.confirmQuitFrameGuard > 0:
+        currentGame.confirmQuitFrameGuard = max(0.0'f32, currentGame.confirmQuitFrameGuard - dt)
 
       # Only handle pause menu controls if no window is blocking interaction
       # and neither confirm dialog is active
@@ -1275,9 +1297,11 @@ proc main() =
         elif isKeyPressed(Tab):  # Open Settings
           globalWindowManager.openWindow(widSettings)
           playSound(stMenuSelect)
-        elif isKeyPressed(Q) and currentGame.pauseMenuExitCooldown <= 0:  # Quit to main menu, ask first
+        elif isKeyPressed(Q):  # Quit to main menu, ask first (no cooldown gate Q is intentional)
           if not currentGame.confirmQuitPending:
             currentGame.confirmQuitPending = true
+            currentGame.pauseMenuExitCooldown = 2.0         # countdown shown inside dialog
+            currentGame.confirmQuitFrameGuard = 0.15  # prevent same-frame auto-confirm in dialog
             playSound(stMenuNav)
         elif isKeyPressed(Escape):  # ESC cancels confirm dialog, or resumes
           if currentGame.confirmQuitPending:
@@ -1343,6 +1367,7 @@ proc main() =
           # Ask for confirmation before quitting to menu (opens confirm immediately)
           if not currentGame.confirmQuitPending:
             currentGame.confirmQuitPending = true
+            currentGame.pauseMenuExitCooldown = 2.0   # countdown shown inside dialog
             playSound(stMenuNav)
 
       # Draw all windows on top of pause menu
@@ -1565,7 +1590,7 @@ proc main() =
           buyShopItem(currentGame, currentGame.selectedShopItem)
 
         # Close shop - ESC is intentionally not bound here; only Q or the in-window X button may close it.
-        if isKeyPressed(Q):
+        if isKeyPressed(Q) and not globalConfirmActive:
           currentGame.cameFromPowerUpSelect = false
           if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and currentGame.rogueliteRun.pendingSectorSelect:
             currentGame.state = gsRogueliteSectorSelect

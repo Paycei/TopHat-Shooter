@@ -3860,8 +3860,13 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     # - "dual_layer_orbit": Two concentric rings of satellites
     # - "orbital_storm": Three concentric rings (maximum chaos)
 
-    # Only create satellites if they don't already exist
-    if enemy.satellites.len == 0:
+    # Only create satellites if they don't already exist AND the boss isn't
+    # currently in its vulnerability window (all satellites were just destroyed)
+    # AND the post-vulnerability cooldown has fully expired.
+    # Without this guard the bapOrbit attack fires again on its cooldown and
+    # immediately repopulates satellites, cutting the exposure window short.
+    if enemy.satellites.len == 0 and enemy.weakPoint.exposedTimer <= 0 and
+       enemy.weakPoint.cooldownTimer <= 0:
       let orbitMode = attack.specialData
       let satelliteCount = attack.projectileCount
       let baseOrbitRadius = attack.durationOrRadius
@@ -4148,6 +4153,10 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     if enemy.pendingDashLocked:
       dashStart = enemy.pendingDashStart
       dashTarget = enemy.pendingDashTarget
+      # Clamp the locked target too (it was set in a prior frame, same check)
+      let lockedPad = enemy.radius
+      dashTarget.x = clamp(dashTarget.x, lockedPad, game.screenWidth.float32 - lockedPad)
+      dashTarget.y = clamp(dashTarget.y, lockedPad, game.screenHeight.float32 - lockedPad)
       dashDist = distance(dashStart, dashTarget)
     else:
       dashDist = case dashMode
@@ -4156,6 +4165,13 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         of "rage_charge":   280.0'f32
         else:               350.0'f32
       dashTarget = dashStart + toPlayer * dashDist
+
+    # Clamp dash target to screen bounds so the boss can't leave the play area
+    let dashPad = enemy.radius
+    dashTarget.x = clamp(dashTarget.x, dashPad, game.screenWidth.float32 - dashPad)
+    dashTarget.y = clamp(dashTarget.y, dashPad, game.screenHeight.float32 - dashPad)
+    # Recompute actual distance after clamping (affects duration + trail spacing)
+    dashDist = distance(dashStart, dashTarget)
 
     let dashDir = if dashDist > 0.01'f32:
       (dashTarget - dashStart).normalize()
@@ -7794,6 +7810,35 @@ proc drawGame*(game: Game) =
     drawEnemy(enemy)
     if enemy.isBoss:
       drawBossWeakPoints(enemy, globalSettings == nil or globalSettings.showHints)
+      #  Vulnerability window: bold expanding rings so the player never misses it 
+      if enemy.weakPoint.exposedTimer > 0:
+        let vt   = enemy.weakPoint.exposedTimer
+        let vmax = enemy.weakPoint.exposureDuration
+        # vpct: 1.0 when window just opened, 0.0 when about to close
+        let vpct = clamp(vt / max(vmax, 0.001'f32), 0.0'f32, 1.0'f32)
+        let vp   = sin(game.time * 9.0) * 0.5 + 0.5
+        let va   = uint8(clamp(140.0 + vp * 115.0, 0.0, 255.0))
+        let vr1  = enemy.radius + 18.0 + vp * 7.0
+        let vr2  = enemy.radius + 30.0 + vp * 9.0
+        # Fixed dot-count arc: all N dots placed evenly, only the first
+        # floor(vpct*N) are lit no while-loop overshoot, no clipping.
+        const ARC_DOTS = 32
+        let litDots = int(vpct * ARC_DOTS.float32 + 0.5)  # round, never clips short
+        let arcR    = enemy.radius + 38.0
+        for k in 0..<ARC_DOTS:
+          let angle = k.float32 / ARC_DOTS.float32 * PI * 2.0 - PI * 0.5
+          let ax = enemy.pos.x + cos(angle) * arcR
+          let ay = enemy.pos.y + sin(angle) * arcR
+          let dotAlpha = if k < litDots:
+            uint8(clamp(vpct * 220.0, 60.0, 220.0))
+          else:
+            uint8(30)   # dim ghost so full circle shape is always readable
+          drawCircle(Vector2(x: ax, y: ay), 3.0,
+                     Color(r: 255, g: 235, b: 80, a: dotAlpha))
+        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, vr1,
+                        Color(r: 255, g: 235, b: 80, a: va))
+        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, vr2,
+                        Color(r: 255, g: 255, b: 200, a: uint8(va.int div 3)))
 
     # Draw OS-style enemy labels above each enemy
     drawEnemyLabel(enemy, showHealthBar = true, enabled = globalSettings.showEnemyLabels)
@@ -7809,6 +7854,12 @@ proc drawGame*(game: Game) =
         if idx mod 2 == 0:
           drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sat.radius,
                          Color(r: 100, g: 150, b: 255, a: 25))
+
+      #  Objective indicators 
+      let satIsObjective = enemy.weakPoint.enabled and
+                           enemy.weakPoint.kind == bwoSatelliteSet and
+                           enemy.weakPoint.exposedTimer <= 0 and
+                           enemy.weakPoint.cooldownTimer <= 0
 
       # Draw each satellite as a detailed space-station miniature
       for sat in enemy.satellites:
@@ -7954,6 +8005,17 @@ proc drawGame*(game: Game) =
           # Outer pulsing ring
           drawCircleLines(sat.laserTarget.x.int32, sat.laserTarget.y.int32,
                           targetSize + fastPulse * 6.0, tColor)
+
+        #  Objective diamond: show when satellite is a shoot-to-destroy target 
+        if satIsObjective:
+          let dp  = sin(game.time * 6.0 + sat.angle * 2.0) * 0.5 + 0.5
+          let da  = uint8(clamp(160.0 + dp * 95.0, 0.0, 255.0))
+          let ds  = 9.0 + dp * 3.0   # diamond half-size
+          let dcol = Color(r: 255, g: 220, b: 60, a: da)
+          drawLine(Vector2(x: sx,      y: sy - ds), Vector2(x: sx + ds, y: sy     ), 2.0, dcol)
+          drawLine(Vector2(x: sx + ds, y: sy     ), Vector2(x: sx,      y: sy + ds), 2.0, dcol)
+          drawLine(Vector2(x: sx,      y: sy + ds), Vector2(x: sx - ds, y: sy     ), 2.0, dcol)
+          drawLine(Vector2(x: sx - ds, y: sy     ), Vector2(x: sx,      y: sy - ds), 2.0, dcol)
 
   let playerVisible = game.state != gsDeathSequence
 

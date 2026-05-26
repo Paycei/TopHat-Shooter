@@ -89,9 +89,12 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   of 3: spec(bwoMeteorCracks, 2, 2)
   of 4: spec(bwoLaserPrisms, 2, 2)
   of 5: spec(bwoVoidRifts, 1, 3)
-  of 6: spec(bwoCoilSequence, 3, 3)
+  of 6: spec(bwoSatelliteSet, 3, 0)  # All satellites down -> vulnerability window
   of 7: spec(bwoSatelliteSet, 3, 0)
-  of 8: spec(bwoDashBackPlate, 1, 1)
+  of 8:
+    var s = spec(bwoDashBackPlate, 3, 3)
+    s.targetHitRadius = 32.0'f32  # Larger crack-plate hitboxes for the Juggernaut
+    s
   of 9: spec(bwoPrismSequence, 3, 3)
   of 10: spec(bwoClockNodes, 2, 4)
   of 11: spec(bwoChaosAnomalies, 3, 3)

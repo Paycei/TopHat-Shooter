@@ -178,7 +178,11 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
 
   let noHov  = isMouseOverRect(mousePos, noX,  btnY, BTN_W, BTN_H)
   let yesHov = isMouseOverRect(mousePos, yesX, btnY, BTN_W, BTN_H)
-  let ready  = game.pauseMenuExitCooldown <= 0.0
+  # Mouse confirm is gated by pauseMenuExitCooldown (2 s anti-accident window).
+  # Keyboard confirm is gated by pauseMenuExitCooldown too, PLUS the tiny
+  # frame-guard that prevents Q-open and Q-confirm firing in the same poll cycle.
+  let mouseReady = game.pauseMenuExitCooldown <= 0.0
+  let keyReady   = game.pauseMenuExitCooldown <= 0.0 and game.confirmQuitFrameGuard <= 0.0
 
   # Cancel button (green: safe)
   let noBg = if noHov: Color(r: 0, g: 150, b: 0, a: 255) else: Color(r: 0, g: 110, b: 0, a: 255)
@@ -191,8 +195,8 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   let noTW = measureText(noText, 14)
   drawText(noText, noX + (BTN_W - noTW) div 2, btnY + 12, 14, White)
 
-  # Confirm button (red: destructive) — disabled while cooldown active
-  let yesBg = if not ready:
+  # Confirm button (red: destructive) greyed while mouse cooldown is active
+  let yesBg = if not mouseReady:
     Color(r: 90, g: 90, b: 90, a: 255)
   elif yesHov:
     Color(r: 160, g: 40, b: 40, a: 255)
@@ -202,27 +206,27 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   drawRectangle(yesX, btnY, BTN_W, BTN_H, yesBg)
   drawRectangleLines(Rectangle(x: yesX.float32, y: btnY.float32,
                                width: BTN_W.float32, height: BTN_H.float32),
-                     if (yesHov and ready): 3 else: 2,
-                     if not ready: Color(r: 140, g: 140, b: 140, a: 255)
+                     if (yesHov and mouseReady): 3 else: 2,
+                     if not mouseReady: Color(r: 140, g: 140, b: 140, a: 255)
                      elif yesHov: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 200, g: 60, b: 60, a: 255))
 
-  # Replace quit text with remaining seconds while not ready
-  let yesText = if ready:
+  # Replace quit text with remaining seconds while mouse-cooldown is active
+  let yesText = if mouseReady:
     "[Q] EXIT"
   else:
     $(int(ceil(game.pauseMenuExitCooldown)))
   let yesTW = measureText(yesText, 14)
   drawText(yesText, yesX + (BTN_W - yesTW) div 2, btnY + 12, 14, White)
 
-  # Input
+  # Input keyboard uses keyReady (frame-guard only); mouse uses mouseReady (2 s cooldown).
   if isMouseButtonPressed(Left):
     if noHov:
       result.cancelled = true
-    elif yesHov and ready:
+    elif yesHov and mouseReady:
       result.confirmed = true
   if isKeyPressed(Escape): result.cancelled = true
-  # Only allow Q to confirm when cooldown has elapsed
-  if isKeyReleased(Q) and ready: result.confirmed = true
+  if isKeyPressed(Q)     and keyReady: result.confirmed = true
+  if isKeyPressed(Enter) and keyReady: result.confirmed = true
 
 proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeClicked, settingsClicked, exitClicked: bool, newTab: TaskManagerTab] =
   ## Draw the task manager (pause menu)
