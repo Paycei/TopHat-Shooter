@@ -1,7 +1,7 @@
 ## Boss Definitions System
 ## Allows complete customization of boss behavior, properties, attacks, and phases
 
-import math, random, raylib, localization
+import math, random, raylib, localization, types
 
 type
   BossAttackPattern* = enum
@@ -55,6 +55,47 @@ type
     phases*: seq[BossPhaseDefinition]
     specialAbilities*: seq[string]
     description*: string
+    weakPoint*: BossWeakPointDefinition
+
+proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
+  let (bodyMult, weakMult, exposure) =
+    if bossID in 1..4:
+      (0.90'f32, 1.35'f32, 2.4'f32)
+    elif bossID in 5..8:
+      (0.80'f32, 1.50'f32, 2.2'f32)
+    elif bossID in 9..11:
+      (0.70'f32, 1.65'f32, 2.0'f32)
+    elif bossID == 12:
+      (0.65'f32, 1.85'f32, 1.8'f32)
+    else:
+      (1.0'f32, 1.0'f32, 0.0'f32)
+
+  proc spec(kind: BossWeakObjectiveKind, requiredHits, targetCount: int): BossWeakPointDefinition =
+    BossWeakPointDefinition(
+      kind: kind,
+      requiredHits: requiredHits,
+      targetCount: targetCount,
+      bodyDamageMultiplier: bodyMult,
+      weakCoreMultiplier: weakMult,
+      exposureDuration: exposure,
+      cooldownDuration: 1.0'f32,
+      targetHitRadius: 22.0'f32
+    )
+
+  case bossID
+  of 1: spec(bwoSpiralAnchors, 3, 3)
+  of 2: spec(bwoSummonSigils, 3, 3)
+  of 3: spec(bwoMeteorCracks, 2, 2)
+  of 4: spec(bwoLaserPrisms, 2, 2)
+  of 5: spec(bwoVoidRifts, 1, 3)
+  of 6: spec(bwoCoilSequence, 3, 3)
+  of 7: spec(bwoSatelliteSet, 3, 0)
+  of 8: spec(bwoDashBackPlate, 1, 1)
+  of 9: spec(bwoPrismSequence, 3, 3)
+  of 10: spec(bwoClockNodes, 2, 4)
+  of 11: spec(bwoChaosAnomalies, 3, 3)
+  of 12: spec(bwoOmegaCycle, 3, 3)
+  else: BossWeakPointDefinition(kind: bwoNone)
 
 proc getBossDefinition*(bossNumber: int): BossDefinition =
   case bossNumber
@@ -455,9 +496,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 5.0,
               cooldown: 4.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
-              projectileCount: 4,  # NERFED from 6 (fewer lasers)
+              projectileCount: 3,  # NERFED from 4
               spreadAngle: 22.5,
-              durationOrRadius: 2.5,  # NERFED from 3.5 (shorter)
+              durationOrRadius: 2.5,  # NERFED from 3.5
               specialData: "prismatic_cage"
             ),
             BossAttack(
@@ -500,7 +541,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTargeted,
               damage: 2.5,  # NERFED from 1.5
-              cooldown: 2.0,  # EXTREMELY NERFED from 1.2
+              cooldown: 2.0,  # NERFED from 1.2
               projectileSpeed: 250.0,  # NERFED from 280.0
               projectileCount: 2,  # NERFED from 3
               spreadAngle: 12.0,  # NERFED from 18.0 (tighter)
@@ -1827,6 +1868,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     # After wave 60, generate random powerful bosses
     let randomBossType = rand(11) + 1
     return getBossDefinition(randomBossType)
+
+  result.weakPoint = bossWeakPointDefinitionFor(result.bossID)
 
 # Helper Functions
 

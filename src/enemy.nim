@@ -1,4 +1,4 @@
-﻿import raylib, types, random, math, wall, boss_definitions, run_statistics, enemy_config, enemy_helpers
+﻿import raylib, types, random, math, wall, boss_definitions, run_statistics, enemy_config, enemy_helpers, boss_weakpoints
 
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
   # Get enemy configuration
@@ -3132,6 +3132,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       pendingDashLocked: false,
       pendingDashStart: newVector2f(0, 0),
       pendingDashTarget: newVector2f(0, 0),
+      weakPoint: initBossWeakPointState(bossDef.weakPoint, bossDef.bossID),
       activeEffects: default(array[ElementType, ActiveEffect])
     )
 

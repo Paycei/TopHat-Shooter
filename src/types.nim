@@ -432,6 +432,72 @@ type
     laserTarget*: Vector2f  # Current player coordinates to target
     laserChargeTime*: float32  # Time to charge before firing
 
+  BossWeakObjectiveKind* = enum
+    bwoNone,
+    bwoSpiralAnchors,
+    bwoSummonSigils,
+    bwoMeteorCracks,
+    bwoLaserPrisms,
+    bwoVoidRifts,
+    bwoCoilSequence,
+    bwoSatelliteSet,
+    bwoDashBackPlate,
+    bwoPrismSequence,
+    bwoClockNodes,
+    bwoChaosAnomalies,
+    bwoOmegaCycle
+
+  BossWeakDamageSource* = enum
+    bwdsPassive,
+    bwdsDirectBody,
+    bwdsDirectWeakCore
+
+  BossWeakPointDefinition* = object
+    kind*: BossWeakObjectiveKind
+    requiredHits*: int
+    targetCount*: int
+    bodyDamageMultiplier*: float32
+    weakCoreMultiplier*: float32
+    exposureDuration*: float32
+    cooldownDuration*: float32
+    targetHitRadius*: float32
+
+  BossWeakPointTarget* = object
+    pos*: Vector2f
+    angle*: float32
+    orbitRadius*: float32
+    orbitSpeed*: float32
+    hitRadius*: float32
+    life*: float32
+    maxLife*: float32
+    index*: int
+    active*: bool
+    hit*: bool
+    decoy*: bool
+    relativeToBoss*: bool
+    color*: Color
+
+  BossWeakPointState* = object
+    enabled*: bool
+    kind*: BossWeakObjectiveKind
+    targets*: seq[BossWeakPointTarget]
+    progress*: int
+    required*: int
+    sequenceIndex*: int
+    exposedTimer*: float32
+    cooldownTimer*: float32
+    pulseTimer*: float32
+    bodyDamageMultiplier*: float32
+    weakCoreMultiplier*: float32
+    exposureDuration*: float32
+    cooldownDuration*: float32
+    targetHitRadius*: float32
+    phaseIndex*: int
+    lastDashActive*: bool
+    omegaWindowsCompleted*: int
+    realTargetIndex*: int
+    lastBossPos*: Vector2f
+
   Enemy* = ref object
     id*: int                      # Unique identifier for tracking bullet hits
     pos*: Vector2f
@@ -500,6 +566,7 @@ type
     pendingDashStart*: Vector2f  # Exact start point shown by the dash warning
     pendingDashTarget*: Vector2f  # Exact endpoint shown by the dash warning
     satellites*: seq[OrbitalSatellite]  # Persistent satellites that can be destroyed
+    weakPoint*: BossWeakPointState  # Boss objective weak-point state
     invulnerabilityTimer*: float32  # Brief invulnerability during phase transitions
     auraDamageAccumulator*: float32  # Accumulates aura damage over time
     lastAuraDamageNumberTime*: float32  # Last time a damage number was shown for auras

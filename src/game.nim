@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, tables
-import types, settings, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, gamemode_definitions, run_statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants
+import types, settings, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, gamemode_definitions, run_statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -754,6 +754,7 @@ proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
     return 0.0
 
   result = applyEliteModifiers(enemy, baseDamage)
+  result *= bossWeakPointDamageMultiplier(enemy, bwdsPassive)
 
   # Stars use hit counter for ALL damage sources
   if enemy.enemyType == etStar:
@@ -2230,7 +2231,7 @@ proc resetBossBehaviorState(enemy: Enemy, specialBehavior: string) =
 
   case specialBehavior
   of "critical_discharge":
-    enemy.teleportTimer = bossBehaviorRand(3.8, 5.0)
+    enemy.teleportTimer = 0.0
     enemy.shockwaveTimer = 0.0
   of "time_collapse":
     enemy.teleportTimer = 0.0
@@ -2239,7 +2240,7 @@ proc resetBossBehaviorState(enemy: Enemy, specialBehavior: string) =
     enemy.teleportTimer = bossBehaviorRand(4.0, 5.4)
     enemy.shockwaveTimer = bossBehaviorRand(3.2, 4.2)
   of "final_form":
-    enemy.teleportTimer = bossBehaviorRand(2.8, 3.6)
+    enemy.teleportTimer = bossBehaviorRand(5.2, 6.3)
     enemy.shockwaveTimer = 0.0
   of "enraged":
     enemy.teleportTimer = 0.0
@@ -2362,9 +2363,9 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
       let retreatDir = toPlayer * -1.0
       enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.85 * dt
     else:
-      # Drift toward center if far from player
-      let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
-      enemy.pos = enemy.pos + toCenter * enemy.speed * 0.3 * dt
+      let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
+      let driftDir = (strafeDir * 0.75 + toPlayer * 0.25).normalize()
+      enemy.pos = enemy.pos + driftDir * enemy.speed * 0.45 * dt
 
   of "geometric_movement":
     # Smooth lissajous/figure-eight movement — constant natural speed toward pattern target
@@ -2398,9 +2399,11 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
     enemy.pos = enemy.pos + randomDir * enemy.speed * dt
 
   of "laser_web":
-    # Stay in center, minimal movement
-    let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
-    enemy.pos = enemy.pos + toCenter * 20.0 * dt  # Very slow drift to center
+    let webPhase = game.time * 0.9
+    let webTarget = newVector2f(centerX + sin(webPhase) * 135.0,
+                                centerY + sin(webPhase * 2.0) * 80.0)
+    let toWeb = (webTarget - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toWeb * enemy.speed * 0.55 * dt
 
   of "laser_chaos":
     # Rapid erratic movement
@@ -2443,29 +2446,16 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
                      Color(r: 220, g: 230, b: 255, a: 200), 2)
 
   of "critical_discharge":
-    # Ultra-chaotic movement with occasional micro-teleports
-    # Use time-based trigger (~once every 2s) instead of per-frame rand, so rate is fps-independent
-    let zapInterval = 2.0 + sin(game.time * 0.8) * 0.5  # 1.5–2.5s varying interval
-    discard zapInterval
-    if tryBossBehaviorTeleport(game, enemy, dt, 3.8, 5.0, 120.0, 190.0, phase.color, 12, 125.0):
-      let zapAngle = rand(1.0) * PI * 2.0
-      let zapDist = 25.0 + rand(35.0)
-      var newX = enemy.pos.x + cos(zapAngle) * zapDist
-      var newY = enemy.pos.y + sin(zapAngle) * zapDist
-
-      # Clamp within screen boundaries
-      let margin = enemy.radius + 10.0
-      newX = clamp(newX, margin, game.screenWidth.float32 - margin)
-      newY = clamp(newY, margin, game.screenHeight.float32 - margin)
-
-      enemy.pos = newVector2f(newX, newY)
+    # Ultra-chaotic movement without forced teleports; this phase should feel unstable,
+    # but still preserve readable boss positioning.
+    let dischargeAngle = game.time * 18.0 + sin(game.time * 37.0) * 0.7
+    let chaosDir = newVector2f(cos(dischargeAngle), sin(dischargeAngle))
+    let chaseBlend = sin(game.time * 2.6) * 0.5 + 0.5
+    let dischargeDir = (chaosDir * (0.65 + chaseBlend * 0.25) + toPlayer * 0.35).normalize()
+    enemy.pos = enemy.pos + dischargeDir * enemy.speed * 0.95 * dt
+    if (game.time mod 0.12) < dt:
       spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                     Color(r: 255, g: 255, b: 255, a: 255), 15)
-    else:
-      # Normal zigzag but very fast
-      let dischargeAngle = game.time * 25.0 + sin(game.time * 50.0)
-      let chaosDir = newVector2f(cos(dischargeAngle), sin(dischargeAngle))
-      enemy.pos = enemy.pos + chaosDir * enemy.speed * 0.95 * dt
+                     Color(r: 255, g: 255, b: 255, a: 220), 2)
 
   of "orbital_pattern":
     # Slow, calculated circular orbit (Orbital Commander phase 1)
@@ -2504,9 +2494,12 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
     enemy.pos = enemy.pos + toPlayer * enemy.speed * 1.1 * dt
 
   of "deploy_satellites":
-    # Drift slowly toward screen center — velocity-based, not instant snap
-    let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
-    enemy.pos = enemy.pos + toCenter * enemy.speed * 0.4 * dt
+    # Hold a broad command orbit while satellites do the area control.
+    let deployAngle = game.time * 0.55
+    let deployTarget = newVector2f(centerX + cos(deployAngle) * 170.0,
+                                   centerY + sin(deployAngle) * 115.0)
+    let toDeploy = (deployTarget - enemy.pos).normalize()
+    enemy.pos = enemy.pos + toDeploy * enemy.speed * 0.65 * dt
 
   of "multi_orbital":
     # Slow rotation around player - smooth constant-speed drift into orbit
@@ -2577,7 +2570,9 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
         enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.8 * dt
       else:
         let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
-        enemy.pos = enemy.pos + toCenter * enemy.speed * 0.4 * dt
+        let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
+        let holdDir = (strafeDir * 0.65 + toCenter * 0.35).normalize()
+        enemy.pos = enemy.pos + holdDir * enemy.speed * 0.45 * dt
 
   of "berserk_rampage":
     # Extremely fast aggressive chase with wild movements (Berserker phase 3)
@@ -2589,8 +2584,8 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
     enemy.pos = enemy.pos + wildDir * enemy.speed * 1.1 * dt
 
   of "prism_defense":
-    # Stationary with slight orbital movement (Prism Architect phase 1)
-    let prismOrbitRadius = 80.0
+    # Deliberate prism orbit around the arena, wide enough to avoid center parking.
+    let prismOrbitRadius = 135.0
     let prismAngle = game.time * 0.5
     let prismX = centerX + cos(prismAngle) * prismOrbitRadius
     let prismY = centerY + sin(prismAngle) * prismOrbitRadius
@@ -2738,8 +2733,8 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
       # Aggressive chase
       enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
     of 2:
-      # Dash toward a position near player — time-gated teleport ~once per 0.8s
-      let finalTeleportInterval = 2.9 + sin(game.time * 0.9) * 0.7
+      # Rare reposition near the player; most of the phase stays movement-readable.
+      let finalTeleportInterval = 5.5 + sin(game.time * 0.9) * 0.8
       if (game.time mod finalTeleportInterval) < dt:
         let finalAngle = rand(1.0) * PI * 2.0
         var newX = game.player.pos.x + cos(finalAngle) * 140.0
@@ -5784,6 +5779,16 @@ proc updateGame*(game: var Game, dt: float32) =
       # Play enemy death sound
       playSound(stEnemyDeath, if enemy.isBoss: 1.0 else: 0.4)
 
+      if enemy.spawnedByBoss:
+        for bossIdx in 0..<game.enemies.len:
+          if game.enemies[bossIdx].isBoss:
+            let summonBonusDamage = registerBossSummonDestroyed(game.enemies[bossIdx])
+            if summonBonusDamage > 0:
+              game.enemies[bossIdx].hp -= summonBonusDamage
+              showDamage(game, game.enemies[bossIdx].pos, summonBonusDamage, true, false, dtArcane)
+              recordDamage(game.dopamine.realTimeStats, summonBonusDamage, game.time)
+            break
+
       # Boss-spawned minions don't drop coins (prevent farming)
       if not enemy.spawnedByBoss:
         # Calculate coin value with elite multiplier
@@ -6128,6 +6133,7 @@ proc updateGame*(game: var Game, dt: float32) =
           enemy.speed = calculatedSpeed
           enemy.defenseMultiplier = phase.defenseMultiplier  # Apply defense multiplier from phase
           resetBossBehaviorState(enemy, phase.specialBehavior)
+          resetBossWeakPointForPhase(enemy, bossDef.weakPoint, enemy.currentPhaseIndex)
           break
 
       # Update boss behavior based on specialBehavior
@@ -6178,6 +6184,8 @@ proc updateGame*(game: var Game, dt: float32) =
           if enemy.currentPhaseIndex < bossDef.phases.len:
             let endColor = bossDef.phases[enemy.currentPhaseIndex].color
             spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, endColor, 20)
+
+      updateBossWeakPoint(enemy, bossDef.weakPoint, game.player.pos, game.screenWidth, game.screenHeight, dt)
 
       # Update attack timers
       for i in 0..<enemy.attackTimers.len:
@@ -6333,12 +6341,8 @@ proc updateGame*(game: var Game, dt: float32) =
 
                   # Damage (only for level 2 and 3)
                   if shockwaveDamage > 0:
-                    # Stars use hit counter for all damage sources
-                    if shockEnemy.enemyType == etStar:
-                      shockEnemy.hitCount += 1
-                    else:
-                      shockEnemy.hp -= shockwaveDamage
-                    showDamage(game, shockEnemy.pos, shockwaveDamage, true, false, dtDefault)
+                    let actualShockwaveDamage = damageEnemy(shockEnemy, shockwaveDamage)
+                    showDamage(game, shockEnemy.pos, actualShockwaveDamage, true, false, dtDefault)
 
               # Visual feedback - shockwave ring
               for i in 0..8:
@@ -6420,12 +6424,8 @@ proc updateGame*(game: var Game, dt: float32) =
 
                   # Damage (only for level 2 and 3)
                   if shockwaveDamage > 0:
-                    # Stars use hit counter for all damage sources
-                    if shockEnemy.enemyType == etStar:
-                      shockEnemy.hitCount += 1
-                    else:
-                      shockEnemy.hp -= shockwaveDamage
-                    showDamage(game, shockEnemy.pos, shockwaveDamage, true, false, dtDefault)
+                    let actualShockwaveDamage = damageEnemy(shockEnemy, shockwaveDamage)
+                    showDamage(game, shockEnemy.pos, actualShockwaveDamage, true, false, dtDefault)
 
               # Visual feedback - shockwave ring
               for i in 0..8:
@@ -6627,6 +6627,10 @@ proc updateGame*(game: var Game, dt: float32) =
                     spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y,
                                   Red, 20)  # Smaller (20 instead of 25)
                     playSound(stEnemyDeath, 0.4)
+                    let satelliteBonusDamage = registerBossSatelliteDestroyed(enemy)
+                    if satelliteBonusDamage > 0:
+                      enemy.hp -= satelliteBonusDamage
+                      showDamage(game, enemy.pos, satelliteBonusDamage, true, false, dtArcane)
                     enemy.satellites.delete(i)
                     satelliteDestroyed = true
                     break
@@ -6807,6 +6811,28 @@ proc updateGame*(game: var Game, dt: float32) =
         if game.enemies[j].id in bullet.hitEnemies:
           continue
 
+        if game.enemies[j].isBoss:
+          let objectiveHit = resolveBossWeakPointTargetHit(game.enemies[j], bullet.pos, bullet.radius)
+          if objectiveHit.hit:
+            bullet.hitEnemies.add(game.enemies[j].id)
+            playSound(stEnemyHit, if objectiveHit.wrongTarget: 0.2 else: 0.35)
+            let particleColor = if objectiveHit.wrongTarget:
+              Color(r: 120, g: 80, b: 180, a: 255)
+            elif objectiveHit.completed:
+              Color(r: 255, g: 235, b: 90, a: 255)
+            else:
+              game.enemies[j].color
+            spawnExplosionPooled(game.particlePool, objectiveHit.pos.x, objectiveHit.pos.y,
+                                 particleColor, if objectiveHit.completed: 18 else: 8)
+            if objectiveHit.completed:
+              if objectiveHit.bonusDamage > 0:
+                game.enemies[j].hp -= objectiveHit.bonusDamage
+                showDamage(game, game.enemies[j].pos, objectiveHit.bonusDamage, true, false, dtArcane)
+                recordDamage(game.dopamine.realTimeStats, objectiveHit.bonusDamage, game.time)
+              addShake(game.dopamine.screenShake, siLarge)
+            hitEnemy = true
+            break
+
         if checkBulletEnemyCollision(bullet, game.enemies[j]):
           # Mark this enemy as hit by this bullet (using enemy ID, not index)
           bullet.hitEnemies.add(game.enemies[j].id)
@@ -6835,6 +6861,9 @@ proc updateGame*(game: var Game, dt: float32) =
 
           # Use the bullet's stored crit status (rolled when bullet was created)
           let isCrit = bullet.wasCrit
+          let weakCoreHit = bossWeakPointCoreHit(game.enemies[j], bullet.pos, bullet.radius)
+          let bossIsInvulnerable =
+            game.enemies[j].isBoss and game.enemies[j].invulnerabilityTimer > 0
 
           if game.enemies[j].enemyType == etStar:
             # Stars use hit counter
@@ -6873,6 +6902,11 @@ proc updateGame*(game: var Game, dt: float32) =
               shieldDamage += actualDamage
               actualDamage = 0
 
+            let weakDamageSource = if weakCoreHit: bwdsDirectWeakCore else: bwdsDirectBody
+            actualDamage *= bossWeakPointDamageMultiplier(game.enemies[j], weakDamageSource)
+            if bossIsInvulnerable:
+              actualDamage = 0
+
             game.enemies[j].hp -= actualDamage
 
             # Volatile: enemies with 2+ active DoTs take +50% bullet damage
@@ -6890,7 +6924,7 @@ proc updateGame*(game: var Game, dt: float32) =
 
             # Resonance: bullets hitting DoT enemies deal bonus damage equal to % of combined DPS
             var resonanceBonusDamage = 0.0
-            if game.player.resonanceLevel > 0 and bullet.fromPlayer:
+            if game.player.resonanceLevel > 0 and bullet.fromPlayer and not bossIsInvulnerable:
               var totalDoTDps = 0.0
               for et, ae in game.enemies[j].activeEffects:
                 if ae.primary.isActive:
@@ -6901,13 +6935,14 @@ proc updateGame*(game: var Game, dt: float32) =
                   of 2: 0.30
                   else: 0.40
                 resonanceBonusDamage = totalDoTDps * resonancePct
+                resonanceBonusDamage *= bossWeakPointDamageMultiplier(game.enemies[j], bwdsPassive)
                 game.enemies[j].hp -= resonanceBonusDamage
                 trackPowerUpDamage(game, puResonance, resonanceBonusDamage)
                 showDamage(game, game.enemies[j].pos, resonanceBonusDamage, true, false, dtPoison)
 
             # Giant Slayer: Deal % of enemy current HP as bonus damage
             var giantSlayerDamage = 0.0
-            if hasPowerUp(game.player, puGiantSlayer):
+            if hasPowerUp(game.player, puGiantSlayer) and not bossIsInvulnerable:
               let giantSlayerLevel = getPowerUpLevel(game.player, puGiantSlayer)
               let percentDamage = case giantSlayerLevel
                 of 1: 0.01  # 1% of current HP
@@ -6923,6 +6958,8 @@ proc updateGame*(game: var Game, dt: float32) =
               # Tank elite: 50% damage reduction
               if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
                 giantSlayerDamage *= 0.5  # 50% damage taken
+
+              giantSlayerDamage *= bossWeakPointDamageMultiplier(game.enemies[j], bwdsPassive)
 
               # Shielded elite: Giant Slayer damage goes through shield to HP
               game.enemies[j].hp -= giantSlayerDamage
@@ -7274,12 +7311,8 @@ proc updateGame*(game: var Game, dt: float32) =
 
                   # Damage (only for level 2 and 3)
                   if shockwaveDamage > 0:
-                    # Stars use hit counter for all damage sources
-                    if shockEnemy.enemyType == etStar:
-                      shockEnemy.hitCount += 1
-                    else:
-                      shockEnemy.hp -= shockwaveDamage
-                    showDamage(game, shockEnemy.pos, shockwaveDamage, true, false, dtDefault)
+                    let actualShockwaveDamage = damageEnemy(shockEnemy, shockwaveDamage)
+                    showDamage(game, shockEnemy.pos, actualShockwaveDamage, true, false, dtDefault)
 
               # Visual feedback - shockwave ring
               for i in 0..8:
@@ -7726,6 +7759,8 @@ proc drawGame*(game: Game) =
     if enemy.isElite:
       drawEliteAura(enemy, game.time)
     drawEnemy(enemy)
+    if enemy.isBoss:
+      drawBossWeakPoints(enemy, globalSettings == nil or globalSettings.showHints)
 
     # Draw OS-style enemy labels above each enemy
     drawEnemyLabel(enemy, showHealthBar = true, enabled = globalSettings.showEnemyLabels)
