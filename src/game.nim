@@ -6338,9 +6338,12 @@ proc updateGame*(game: var Game, dt: float32) =
     let effectivePlayerRadius = game.player.radius * 0.90  # 10% reduction = coyote
     if distance(enemy.pos, game.player.pos) < enemy.radius + effectivePlayerRadius:
       if enemy.isBoss:
-        # Boss deals continuous damage
-        if game.time - enemy.lastContactDamageTime >= 0.5:  # 2 HP per second
-          var bossContactDamage = enemy.contactDamage.float32  # Use contactDamage instead of damage
+        # Boss deals continuous damage: 10% of the player's max HP per second.
+        # Damage applied each tick is DPS * elapsed_time (capped to the intended interval)
+        if game.time - enemy.lastContactDamageTime >= 0.5:
+          let elapsed = min(game.time - enemy.lastContactDamageTime, 0.5'f32)
+          let bossDps = 0.10'f32 * game.player.maxHp
+          var bossContactDamage = bossDps * elapsed
 
           # Thorns reflection damage
           discard applyThornsReflection(game, game.player, bossContactDamage, enemy, "boss")
