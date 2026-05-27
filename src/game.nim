@@ -8335,7 +8335,7 @@ proc drawGame*(game: Game) =
       drawCircleLines(cursorPos.x.int32, cursorPos.y.int32, 25, ghostEdge)
 
       # Status text at bottom
-      let hintText = "[LMB] Place Wall  [E/RMB] Cancel  (" & $game.player.walls & " remaining)"
+      let hintText = "[Release E] Place Wall  (" & $game.player.walls & " remaining)"
       let hintW = measureText(hintText, 16)
       drawText(hintText, game.screenWidth div 2 - hintW div 2,
                game.screenHeight - 25, 16, Color(r: 180, g: 230, b: 180, a: 255))

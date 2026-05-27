@@ -935,18 +935,13 @@ proc main() =
       if not cheatMenu.active and not globalConfirmActive:
         # Shop removed from gameplay - only accessible during power-up selection
 
-        # Wall placement mode (matches PvP system)
-        # E toggles placement mode; right-click or running out of walls exits it.
+        # Wall placement mode: hold E to preview range, release E to place.
         const WALL_PLACEMENT_RANGE_SP = 250.0
-        if isKeyPressed(E) and currentGame.player.walls > 0:
-          currentGame.wallPlacementMode = not currentGame.wallPlacementMode
-        if isMouseButtonPressed(Right) and currentGame.wallPlacementMode:
-          currentGame.wallPlacementMode = false
-        if currentGame.player.walls <= 0:
-          currentGame.wallPlacementMode = false
+        let eHeld = isKeyDown(E) and currentGame.player.walls > 0
+        currentGame.wallPlacementMode = eHeld
 
-        # Left-click places wall while in placement mode
-        if currentGame.wallPlacementMode and isMouseButtonPressed(Left):
+        # Release E places the wall at the current cursor position
+        if isKeyReleased(E) and currentGame.player.walls > 0:
           let mousePos = getVirtualMousePosition()
           let wallPos = newVector2f(mousePos.x, mousePos.y)
           let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
@@ -956,8 +951,6 @@ proc main() =
             currentGame.player.walls -= 1
             spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)
             trackWallPlacement(currentGame, wallPos)
-            if currentGame.player.walls <= 0:
-              currentGame.wallPlacementMode = false
 
       # Activate ALL legendary power-ups with Q key (simultaneous activation)
       if isKeyPressed(Q) and not globalConfirmActive:

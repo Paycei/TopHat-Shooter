@@ -25,7 +25,6 @@ proc updateWall*(wall: Wall, dt: float32): bool =
   return wall.hp > 0 and wall.duration > 0
 
 proc drawWall*(wall: Wall, player: Player) =
-  let alpha = (wall.hp / wall.maxHp * 255).uint8
 
   # Check if player has Wall Turrets power-up for different visual style
   let hasTurrets = hasPowerUp(player, puWallTurrets)
@@ -33,11 +32,11 @@ proc drawWall*(wall: Wall, player: Player) =
   if hasTurrets:
     # Turret skin - metallic gray/silver with gun turret on top
     # Base platform (darker)
-    let baseColor = Color(r: 80, g: 80, b: 90, a: alpha)
+    let baseColor = Color(r: 80, g: 80, b: 90, a: 255)
     drawCircle(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, baseColor)
 
     # Turret body on top (lighter, smaller circle)
-    let turretColor = Color(r: 120, g: 120, b: 140, a: alpha)
+    let turretColor = Color(r: 120, g: 120, b: 140, a: 255)
     drawCircle(Vector2(x: wall.pos.x, y: wall.pos.y - wall.radius * 0.3), wall.radius * 0.6, turretColor)
 
     # Gun barrel (small rectangle pointing up/forward)
@@ -46,16 +45,16 @@ proc drawWall*(wall: Wall, player: Player) =
     drawRectangle((wall.pos.x - barrelWidth / 2).int32,
                   (wall.pos.y - wall.radius * 0.9).int32,
                   barrelWidth.int32, barrelHeight.int32,
-                  Color(r: 60, g: 60, b: 70, a: alpha))
+                  Color(r: 60, g: 60, b: 70, a: 255))
 
     # Metallic highlights/shine
     drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius,
-                   Color(r: 180, g: 180, b: 200, a: alpha))
+                   Color(r: 180, g: 180, b: 200, a: 255))
     drawCircleLines(wall.pos.x.int32, (wall.pos.y - wall.radius * 0.3).int32, wall.radius * 0.6,
-                   Color(r: 160, g: 160, b: 180, a: alpha))
+                   Color(r: 160, g: 160, b: 180, a: 255))
   else:
     # Normal wall skin - brown/wooden appearance
-    let color = Color(r: 139, g: 69, b: 19, a: alpha)
+    let color = Color(r: 139, g: 69, b: 19, a: 255)
     drawCircle(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, color)
     drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius, Black)
 
