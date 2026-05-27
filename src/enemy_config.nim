@@ -1,5 +1,14 @@
-## Enemy Configuration System
-## Centralizes all enemy properties, behavior parameters, and attack patterns
+## enemy_config.nim
+## Single source of truth for all enemy definitions: stats, attack/movement config,
+## spawn-pool membership, difficulty thresholds, and speed scaling.
+##
+## Adding a new enemy:
+## Touch ONLY these places:
+##   1. types.nim        -> add the EnemyType variant
+##   2. enemy_config.nim -> add a block in getEnemyConfig  (stats, attack, movement, speedScaling)
+##                      -> add ONE entry in allEnemyDefs   (introductionDifficulty, fadeOutDifficulty, spawnWeight)
+##   3. enemy.nim        -> add the update case in updateEnemy
+##   4. localization.nim -> add tkEnemyXName / tkEnemyXDesc keys + both-language strings
 
 import raylib, math, random
 import types, localization
@@ -69,6 +78,76 @@ type
     usesHitCount*: bool
     baseRequiredHits*: int
 
+    # Difficulty scaling
+    speedScaling*: float32            ## Speed gained per 1 unit of difficulty
+
+# Spawn-pool registry
+
+type
+  EnemyDef* = object
+    ## Spawn-pool membership for one enemy type.
+    ## Combat stats and behaviour parameters live in EnemyConfig / getEnemyConfig below.
+    introductionDifficulty*: float32  ## Minimum difficulty before this type can appear
+    fadeOutDifficulty*: float32       ## Removed from pool at/above this value; 0 = never
+    spawnWeight*: int                 ## Relative probability weight when active (0 = excluded)
+
+# One entry per EnemyType; named-index syntax keeps the compiler honest.
+#
+# Weight notes
+#
+# Weights are calibrated against the late-game distribution and apply whenever
+# the enemy is active.  Early-game is naturally correct because most types are
+# gated behind introductionDifficulty.
+#
+# Circle uses a large weight (30) so it dominates until Pentagon arrives
+# (diff 3 => ~77 % circle vs original 80 %).  After fade-out at diff 7 the
+# remaining enemies settle into near-equal shares, matching the original tables.
+# Sniper's low weight (2) matches the original 2 % late-pool chance.
+# etEnvironment has weight 0 and is never selected.
+const allEnemyDefs*: array[EnemyType, EnemyDef] = [
+  etCircle:      EnemyDef(introductionDifficulty:  0.0,   fadeOutDifficulty:  7.0, spawnWeight: 30),
+  etCube:        EnemyDef(introductionDifficulty:  5.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
+  etTriangle:    EnemyDef(introductionDifficulty:  5.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
+  etStar:        EnemyDef(introductionDifficulty:  8.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
+  etHexagon:     EnemyDef(introductionDifficulty: 14.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
+  etCross:       EnemyDef(introductionDifficulty:  8.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
+  etDiamond:     EnemyDef(introductionDifficulty: 11.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
+  etOctagon:     EnemyDef(introductionDifficulty: 11.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
+  etPentagon:    EnemyDef(introductionDifficulty:  3.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
+  etTrickster:   EnemyDef(introductionDifficulty: 18.0,   fadeOutDifficulty:  0.0, spawnWeight: 10),
+  etPhantom:     EnemyDef(introductionDifficulty: 23.0,   fadeOutDifficulty:  0.0, spawnWeight: 10),
+  etSniper:      EnemyDef(introductionDifficulty: 23.0,   fadeOutDifficulty:  0.0, spawnWeight:  2),
+  etMage:        EnemyDef(introductionDifficulty: 23.0,   fadeOutDifficulty:  0.0, spawnWeight: 10),
+  etEnvironment: EnemyDef(introductionDifficulty:  0.0,   fadeOutDifficulty:  0.0, spawnWeight:  0),
+]
+
+proc isSpawnable*(et: EnemyType, difficulty: float32): bool {.inline.} =
+  ## True when `et` belongs to the active spawn pool at `difficulty`.
+  let d = allEnemyDefs[et]
+  if d.spawnWeight <= 0: return false
+  if difficulty < d.introductionDifficulty: return false
+  if d.fadeOutDifficulty > 0.0'f32 and difficulty >= d.fadeOutDifficulty: return false
+  return true
+
+proc pickSpawnType*(difficulty: float32): EnemyType =
+  ## Weighted-random pick from the active pool at `difficulty`.
+  ## Falls back to etCircle when the pool is unexpectedly empty.
+  var totalWeight = 0
+  for et in EnemyType:
+    if isSpawnable(et, difficulty):
+      totalWeight += allEnemyDefs[et].spawnWeight
+  if totalWeight == 0:
+    return etCircle
+  var roll = rand(totalWeight - 1)
+  for et in EnemyType:
+    if isSpawnable(et, difficulty):
+      let w = allEnemyDefs[et].spawnWeight
+      if roll < w: return et
+      roll -= w
+  return etCircle  # unreachable in practice
+
+#  Per-enemy stat and behaviour configuration 
+
 # ENEMY CONFIGURATION DEFINITIONS
 proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   ## Returns the complete configuration for a given enemy type
@@ -102,7 +181,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: false,
       trailEffect: false,
       glowEffect: false,
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 10.0
     )
 
   of etPentagon:  # Single fast bullet, low fire rate
@@ -151,7 +231,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: true,
       trailEffect: false,
       glowEffect: true,       # Charge-up glow before firing
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 3.0
     )
 
   of etTriangle:  # Dash + erratic movement
@@ -187,7 +268,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: false,
       trailEffect: true,      # Shows motion trail during dash
       glowEffect: true,       # Charge-up glow before dash
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 10.0
     )
 
   of etStar:  # Tank that dashes when close
@@ -224,7 +306,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       trailEffect: false,
       glowEffect: true,       # Pulsing glow + charge glow
       usesHitCount: true,
-      baseRequiredHits: 10     # Base hits required (scales with difficulty)
+      baseRequiredHits: 10,    # Base hits required (scales with difficulty)
+      speedScaling: 6.0
     )
 
   of etCube:  # Ranged shooter
@@ -273,7 +356,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: true,  # Must enter screen before attacking
       trailEffect: false,
       glowEffect: false,
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 3.0
     )
 
   of etHexagon:  # Teleporting chaos
@@ -326,7 +410,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: false,
       trailEffect: false,
       glowEffect: true,       # Teleport warning glow
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 8.0
     )
 
   of etCross:  # Shows cross warning before attack
@@ -362,7 +447,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: false,
       trailEffect: true,       # Motion blur during dash
       glowEffect: true,        # Pulsing warning glow
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 4.0
     )
 
   of etDiamond:  # Shoots while dashing
@@ -415,7 +501,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: false,
       trailEffect: false,
       glowEffect: true,       # Dash indicator
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 12.0
     )
 
   of etOctagon:  # Many slow inaccurate projectiles
@@ -464,7 +551,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: true,
       trailEffect: false,
       glowEffect: true,       # Constant firing glow
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 3.0
     )
 
   of etTrickster:  # False warning, real attack elsewhere
@@ -517,7 +605,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: false,
       trailEffect: false,
       glowEffect: true,       # Mysterious pulse
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 5.0
     )
 
   of etPhantom:  # Unpredictable teleporter with fake clones
@@ -570,7 +659,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: false,
       trailEffect: false,
       glowEffect: true,       # Fade effect
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 6.0
     )
 
   of etSniper:  # Rare one-shot enemy with epic charging attack
@@ -623,7 +713,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: true,
       trailEffect: false,
       glowEffect: true,       # Charging rings
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 2.0
     )
 
   of etMage:  # Summons meteorites and shoots homing magic bullets
@@ -676,7 +767,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: true,
       trailEffect: false,
       glowEffect: true,       # Magical aura and casting glow
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 3.0
     )
 
   of etEnvironment:  # Non-combat entity, no movement, no attack
@@ -707,30 +799,21 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       requiresScreenEntry: false,
       trailEffect: false,
       glowEffect: false,
-      usesHitCount: false
+      usesHitCount: false,
+      speedScaling: 0.0
     )
 
 # HELPER FUNCTIONS
 
 proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: float32, radius: float32, speed: float32, requiredHits: int] =
-  ## Calculate scaled stats based on difficulty (wave number)
+  ## Calculate scaled stats based on difficulty (wave number).
+  ## Speed scaling is driven by config.speedScaling – set it in getEnemyConfig.
   # Wave-mode midgame was spiking too hard, so regular HP now ramps more gently.
   let strengthMultiplier = pow(1.15, difficulty)  # ~15% more HP per difficulty unit
 
   let hp = config.baseHP * strengthMultiplier
   let radius = config.baseRadius + difficulty * 1.5 + rand(5).float32
-  let speed = config.movement.baseSpeed + difficulty * (
-    if config.enemyType == etTriangle: 10.0
-    elif config.enemyType in [etCube, etOctagon, etPentagon, etMage]: 3.0
-    elif config.enemyType == etStar: 6.0
-    elif config.enemyType == etHexagon: 8.0
-    elif config.enemyType == etCross: 4.0
-    elif config.enemyType == etDiamond: 12.0
-    elif config.enemyType == etTrickster: 5.0
-    elif config.enemyType == etPhantom: 6.0
-    elif config.enemyType == etSniper: 2.0
-    else: 10.0
-  )
+  let speed = config.movement.baseSpeed + difficulty * config.speedScaling
 
   let requiredHits = if config.usesHitCount:
     config.baseRequiredHits + (difficulty * 1.5).int

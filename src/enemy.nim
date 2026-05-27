@@ -2932,6 +2932,10 @@ proc drawLaser*(laser: Laser) =
     discard
 
 proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Game): Enemy =
+  ## Spawn a random enemy off-screen at `difficulty`.
+  ## The type is chosen by `pickSpawnType` (enemy_data.nim) which consults
+  ## `allEnemyDefs` – introductionDifficulty, fadeOutDifficulty, and spawnWeight
+  ## are the only values that control what spawns and when.
   let side = rand(3)
   var x, y: float32
 
@@ -2941,82 +2945,7 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
   of 2: x = rand(screenWidth.int).float32; y = screenHeight.float32 + 30
   else: x = -30; y = rand(screenHeight.int).float32
 
-  # PROGRESSIVE DIFFICULTY SYSTEM
-  let roll = rand(100)
-  var enemyType: EnemyType
-
-  if difficulty < 2.0:
-    # Phase 1: Only circles
-    enemyType = etCircle
-  elif difficulty < 5.0:
-    # Phase 2: Circles + Pentagon
-    if roll < 80: enemyType = etCircle
-    else: enemyType = etPentagon
-  elif difficulty < 8.0:
-    # Phase 3: Triangles + Cubes appear; circles fade out past difficulty 7.0
-    if difficulty < 7.0:
-      if roll < 60: enemyType = etCircle
-      elif roll < 80: enemyType = etPentagon
-      elif roll < 90: enemyType = etTriangle
-      else: enemyType = etCube
-    else:
-      # difficulty 7.0-8.0: no more circles, weight redistributed
-      if roll < 45: enemyType = etPentagon
-      elif roll < 72: enemyType = etTriangle
-      else: enemyType = etCube
-  elif difficulty < 11.0:
-    # Phase 4: Add Stars + Cross, Cubes more common; no circles
-    if roll < 30: enemyType = etPentagon
-    elif roll < 50: enemyType = etCube
-    elif roll < 68: enemyType = etTriangle
-    elif roll < 83: enemyType = etStar
-    else: enemyType = etCross
-  elif difficulty < 14.0:
-    # Phase 5: Add Diamond + Octagon; no circles
-    if roll < 17: enemyType = etPentagon
-    elif roll < 30: enemyType = etCube
-    elif roll < 44: enemyType = etTriangle
-    elif roll < 58: enemyType = etStar
-    elif roll < 70: enemyType = etCross
-    elif roll < 83: enemyType = etDiamond
-    else: enemyType = etOctagon
-  elif difficulty < 18.0:
-    # Phase 6: Add Hexagon; no circles
-    if roll < 13: enemyType = etPentagon
-    elif roll < 26: enemyType = etCube
-    elif roll < 39: enemyType = etTriangle
-    elif roll < 52: enemyType = etStar
-    elif roll < 62: enemyType = etCross
-    elif roll < 72: enemyType = etDiamond
-    elif roll < 83: enemyType = etOctagon
-    else: enemyType = etHexagon
-  elif difficulty < 23.0:
-    # Phase 7: Add Trickster; no circles
-    if roll < 12: enemyType = etPentagon
-    elif roll < 23: enemyType = etCube
-    elif roll < 34: enemyType = etTriangle
-    elif roll < 47: enemyType = etStar
-    elif roll < 57: enemyType = etCross
-    elif roll < 67: enemyType = etDiamond
-    elif roll < 77: enemyType = etOctagon
-    elif roll < 87: enemyType = etHexagon
-    else: enemyType = etTrickster
-  else:
-    # Phase 8: All enemies including Phantom, Mage, and rare Sniper; no circles
-    if roll < 9: enemyType = etPentagon
-    elif roll < 17: enemyType = etCube
-    elif roll < 25: enemyType = etTriangle
-    elif roll < 34: enemyType = etStar
-    elif roll < 42: enemyType = etCross
-    elif roll < 50: enemyType = etDiamond
-    elif roll < 59: enemyType = etOctagon
-    elif roll < 68: enemyType = etHexagon
-    elif roll < 78: enemyType = etTrickster
-    elif roll < 88: enemyType = etPhantom
-    elif roll < 98: enemyType = etMage
-    else: enemyType = etSniper
-
-  newEnemy(x, y, difficulty, enemyType, game)
+  newEnemy(x, y, difficulty, pickSpawnType(difficulty), game)
 
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
   ## Spawns a boss - either custom (waves 1-60) or random (after wave 60)
