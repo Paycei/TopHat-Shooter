@@ -63,6 +63,8 @@ type
     tkSettingsShowHintsDesc = "settings_show_hints_desc"
     tkSettingsShowEnemyLabels = "settings_show_enemy_labels"
     tkSettingsShowEnemyLabelsDesc = "settings_show_enemy_labels_desc"
+    tkSettingsExitConfirm = "settings_exit_confirm"
+    tkSettingsExitConfirmDesc = "settings_exit_confirm_desc"
     tkSettingsLanguage = "settings_language"
     tkSettingsBackToMenu = "settings_back_to_menu"
     tkSettingsSectionDataManagement = "settings_section_data_management"
@@ -1121,6 +1123,16 @@ type
     tkConfirm = "general_confirm"
     tkCancel = "general_cancel"
 
+    # Exit Confirm Dialog
+    tkConfirmQuitTitle = "confirm_quit_title"
+    tkConfirmExitTitle = "confirm_exit_title"
+    tkConfirmQuitBody = "confirm_quit_body"
+    tkConfirmExitBody = "confirm_exit_body"
+    tkConfirmUnsaved = "confirm_unsaved"
+    tkConfirmCancelBtn = "confirm_cancel_btn"
+    tkConfirmQuitBtn = "confirm_quit_btn"
+    tkConfirmExitBtn = "confirm_exit_btn"
+
     # Wave Celebration (d_enhancements)
     tkWaveClearedText = "wave_cleared_text"
     tkBossDefeatedText = "boss_defeated_text"
@@ -1298,6 +1310,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_show_hints_desc": "(E: Wall, ESC: Pause)",
     "settings_show_enemy_labels": "Show Enemy Labels:",
     "settings_show_enemy_labels_desc": "(name tags above enemies)",
+    "settings_exit_confirm": "Exit Confirm:",
+    "settings_exit_confirm_desc": "(prompt when quitting game)",
     "settings_language": "Language:",
     "settings_back_to_menu": "Press ESC to return to menu",
     "settings_section_data_management": "DATA MANAGEMENT",
@@ -2698,7 +2712,17 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_11_name": "The Chaos Weaver",
     "boss_11_desc": "Weaves patterns of pure chaos, unpredictable and devastating",
     "boss_12_name": "The Omega Entity",
-    "boss_12_desc": "The ultimate challenge - combines all previous boss mechanics"
+    "boss_12_desc": "The ultimate challenge - combines all previous boss mechanics",
+
+    # Exit Confirm Dialog
+    "confirm_quit_title": "CONFIRM QUIT",
+    "confirm_exit_title": "CONFIRM EXIT",
+    "confirm_quit_body": "Close TopHat-ShooterOS?",
+    "confirm_exit_body": "Return to main menu?",
+    "confirm_unsaved": "Unsaved progress will be lost.",
+    "confirm_cancel_btn": "[ESC] CANCEL",
+    "confirm_quit_btn": "[Q] QUIT",
+    "confirm_exit_btn": "[Q] EXIT"
   }.toTable,
 
   Spanish: {
@@ -2758,6 +2782,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_show_hints_desc": "(E: Muro, ESC: Pausa)",
     "settings_show_enemy_labels": "Etiquetas:",
     "settings_show_enemy_labels_desc": "(nombres sobre enemigos)",
+    "settings_exit_confirm": "Confirmar Salida:",
+    "settings_exit_confirm_desc": "(aviso al salir del juego)",
     "settings_language": "Idioma:",
     "settings_back_to_menu": "ESC para volver",
     "settings_section_data_management": "DATOS",
@@ -4118,7 +4144,17 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_11_name": "El Tejedor del Caos",
     "boss_11_desc": "Teje patrones de caos puro, imprevisible y devastador",
     "boss_12_name": "La Entidad Omega",
-    "boss_12_desc": "El desafío final: combina todos los mecánicos anteriores"
+    "boss_12_desc": "El desafío final: combina todos los mecánicos anteriores",
+
+    # Exit Confirm Dialog
+    "confirm_quit_title": "CONFIRMAR SALIDA",
+    "confirm_exit_title": "CONFIRMAR VUELTA",
+    "confirm_quit_body": "¿Cerrar TopHat-ShooterOS?",
+    "confirm_exit_body": "¿Volver al menú principal?",
+    "confirm_unsaved": "El progreso no guardado se perderá.",
+    "confirm_cancel_btn": "[ESC] CANCELAR",
+    "confirm_quit_btn": "[Q] SALIR",
+    "confirm_exit_btn": "[Q] VOLVER"
   }.toTable
 }.toTable
 

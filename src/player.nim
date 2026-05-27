@@ -1,5 +1,5 @@
 import raylib, math, random, std/deques
-import types, wall, powerup, localization, skins, shapes, ui/ui_constants
+import types, wall, powerup, powerup_data, localization, skins, shapes, ui/ui_constants
 
 const
   PlayerAcceleration = 7.0'f32

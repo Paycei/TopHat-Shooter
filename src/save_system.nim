@@ -43,6 +43,7 @@ type
     cubeSkin*: int         # Current cube skin (stored as int)
     pvpNickname*: string  # Player nickname shown in PvP lobbies
     hasSeenIntro*: bool   # True after the lore cinematic has been seen once
+    exitConfirmEnabled*: bool  # Show exit confirm dialogs (default: false)
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -113,7 +114,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "desktopBg": settings.desktopBg,
     "cubeSkin": settings.cubeSkin,
     "pvpNickname": settings.pvpNickname,
-    "hasSeenIntro": settings.hasSeenIntro
+    "hasSeenIntro": settings.hasSeenIntro,
+    "exitConfirmEnabled": settings.exitConfirmEnabled
   }
 
 # Load Settings from JSON
@@ -198,6 +200,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("hasSeenIntro"):
     settings.hasSeenIntro = jsonNode["hasSeenIntro"].getBool()
+
+  if jsonNode.hasKey("exitConfirmEnabled"):
+    settings.exitConfirmEnabled = jsonNode["exitConfirmEnabled"].getBool()
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =

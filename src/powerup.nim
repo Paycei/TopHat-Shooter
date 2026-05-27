@@ -1,7 +1,5 @@
 import raylib, random, math, tables
-import types, ui/os_powerup_installer, d_visuals
-import powerup_data
-export powerup_data   # re-export so callers that import powerup keep the same API
+import types, powerup_data, ui/os_powerup_installer, d_visuals
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:

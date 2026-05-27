@@ -40,14 +40,14 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
 
   let tbH: int32 = 36
   drawRectangle(dx, dy, DW, tbH, Color(r: 120, g: 28, b: 28, a: 255))
-  let titleStr = if globalConfirmContext == cdcQuitToDesktop: "CONFIRM QUIT" else: "CONFIRM EXIT"
+  let titleStr = if globalConfirmContext == cdcQuitToDesktop: t(tkConfirmQuitTitle) else: t(tkConfirmExitTitle)
   let tW = measureText(titleStr, 16)
   drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, Color(r: 255, g: 200, b: 200, a: 255))
 
-  let bodyStr = if globalConfirmContext == cdcQuitToDesktop: "Close TopHat-ShooterOS?" else: "Return to main menu?"
+  let bodyStr = if globalConfirmContext == cdcQuitToDesktop: t(tkConfirmQuitBody) else: t(tkConfirmExitBody)
   let bW = measureText(bodyStr, 19)
   drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 24, 19, White)
-  let subStr = "Unsaved progress will be lost."
+  let subStr = t(tkConfirmUnsaved)
   let sW = measureText(subStr, 13)
   drawText(subStr, dx + (DW - sW) div 2, dy + tbH + 54, 13, Color(r: 200, g: 150, b: 150, a: 255))
 
@@ -64,7 +64,7 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
   drawRectangleLines(Rectangle(x: noX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if noHov: 3 else: 2,
     if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 195, b: 55, a: 255))
-  let noTxt = "[ESC] CANCEL"; let nTW = measureText(noTxt, 14)
+  let noTxt = t(tkConfirmCancelBtn); let nTW = measureText(noTxt, 14)
   drawText(noTxt, noX + (BW - nTW) div 2, btnY + 13, 14, White)
 
   # YES button greyed out while mouse cooldown is active
@@ -79,8 +79,8 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
     else:                     Color(r: 195, g: 55, b: 55, a: 255))
   # Show countdown while cooling down, normal label once ready
   let yesTxt = if not mouseReady: $(int(ceil(globalConfirmMouseGuard)))
-               elif globalConfirmContext == cdcQuitToDesktop: "[Q] QUIT"
-               else: "[Q] EXIT"
+               elif globalConfirmContext == cdcQuitToDesktop: t(tkConfirmQuitBtn)
+               else: t(tkConfirmExitBtn)
   let yTW = measureText(yesTxt, 14)
   drawText(yesTxt, yesX + (BW - yTW) div 2, btnY + 13, 14, White)
 
@@ -453,11 +453,12 @@ proc main() =
                                            gsRogueliteSectorSelect, gsPvPPlaying, gs3DBoss}
       # Only show confirm when an active game session is running; closing the window
       # from the main menu should exit immediately with no popup.
-      if isInGame:
+      # Sandbox has no progress to lose, so always quit immediately from it.
+      if isInGame and not isSandboxMode(currentGame.mode) and settings.exitConfirmEnabled:
         if not globalConfirmActive:
           showGlobalConfirm(cdcQuitToDesktop)
       else:
-        # Splash / lore / game-over: just quit
+        # Splash / lore / game-over / sandbox, or confirm dialogs disabled: just quit
         windowCloseRequested = true
     # Check if fullscreen toggle was requested
     if fullscreenToggleRequested:
@@ -787,7 +788,10 @@ proc main() =
         of 5:  # Help.txt - Open Help Window
           globalWindowManager.openWindow(widHelp)
         of 6:  # Shutdown.exe - Quit
-          showGlobalConfirm(cdcQuitToDesktop)
+          if settings.exitConfirmEnabled:
+            showGlobalConfirm(cdcQuitToDesktop)
+          else:
+            windowCloseRequested = true
         of 7:  # Sandbox.exe - Sandbox Mode
           startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
           pendingGameMode = 6
@@ -836,7 +840,10 @@ proc main() =
           of 5:  # Help.txt
             globalWindowManager.openWindow(widHelp)
           of 6:  # Shutdown.exe - Quit
-            showGlobalConfirm(cdcQuitToDesktop)
+            if settings.exitConfirmEnabled:
+              showGlobalConfirm(cdcQuitToDesktop)
+            else:
+              windowCloseRequested = true
           of 7:  # Sandbox.exe
             startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
             pendingGameMode = 6
@@ -1298,7 +1305,14 @@ proc main() =
           globalWindowManager.openWindow(widSettings)
           playSound(stMenuSelect)
         elif isKeyPressed(Q):  # Quit to main menu, ask first (no cooldown gate Q is intentional)
-          if not currentGame.confirmQuitPending:
+          if isSandboxMode(currentGame.mode) or not settings.exitConfirmEnabled:
+            # Sandbox has no progress to lose; or exit confirm is disabled: quit immediately
+            cleanupGame(currentGame)
+            currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame.discordClient = globalDiscordClient
+            currentGame.state = gsMenu
+            playSound(stMenuSelect)
+          elif not currentGame.confirmQuitPending:
             currentGame.confirmQuitPending = true
             currentGame.pauseMenuExitCooldown = 2.0         # countdown shown inside dialog
             currentGame.confirmQuitFrameGuard = 0.15  # prevent same-frame auto-confirm in dialog
@@ -1364,8 +1378,15 @@ proc main() =
           globalWindowManager.openWindow(widSettings)
           playSound(stMenuSelect)
         elif menuResult.exitClicked:
+          if isSandboxMode(currentGame.mode) or not settings.exitConfirmEnabled:
+            # Sandbox has no progress to lose; or exit confirm is disabled: quit immediately
+            cleanupGame(currentGame)
+            currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame.discordClient = globalDiscordClient
+            currentGame.state = gsMenu
+            playSound(stMenuSelect)
           # Ask for confirmation before quitting to menu (opens confirm immediately)
-          if not currentGame.confirmQuitPending:
+          elif not currentGame.confirmQuitPending:
             currentGame.confirmQuitPending = true
             currentGame.pauseMenuExitCooldown = 2.0   # countdown shown inside dialog
             playSound(stMenuNav)

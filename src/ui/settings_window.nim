@@ -184,7 +184,7 @@ proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rect
     else: 0
   Rectangle(
     x: (contentX + 40 + idx * (ButtonWidth + ButtonGap)).float32,
-    y: (contentY + 280).float32,
+    y: (contentY + 315).float32,
     width: ButtonWidth.float32,
     height: ButtonHeight.float32
   )
@@ -602,6 +602,17 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                       mousePos.y <= (yPos + 25).float32
   drawCheckbox(labelsCheckX, yPos, 25, settingsWin.settings.showEnemyLabels, labelsHovered)
   drawText(t(tkSettingsShowEnemyLabelsDesc), (labelsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 35
+
+  # Exit Confirm Dialogs
+  drawText(t(tkSettingsExitConfirm), (contentX + 40).int32, yPos.int32, 18, White)
+  let exitConfirmCheckX = contentX + 320
+  let exitConfirmHovered = mousePos.x >= exitConfirmCheckX.float32 and
+                           mousePos.x <= (exitConfirmCheckX + 25).float32 and
+                           mousePos.y >= yPos.float32 and
+                           mousePos.y <= (yPos + 25).float32
+  drawCheckbox(exitConfirmCheckX, yPos, 25, settingsWin.settings.exitConfirmEnabled, exitConfirmHovered)
+  drawText(t(tkSettingsExitConfirmDesc), (exitConfirmCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 50
 
   # Section: Localization
@@ -910,9 +921,17 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsWin.settings.showEnemyLabels = not settingsWin.settings.showEnemyLabels
         settingsChanged = true
 
+      # Exit confirm checkbox (25x25 hit area)
+      let exitConfirmCheckX = contentX + 320
+      let exitConfirmCheckY = contentY + 120
+      if mousePos.x >= exitConfirmCheckX.float32 and mousePos.x <= (exitConfirmCheckX + 25).float32 and
+         mousePos.y >= exitConfirmCheckY.float32 and mousePos.y <= (exitConfirmCheckY + 25).float32:
+        settingsWin.settings.exitConfirmEnabled = not settingsWin.settings.exitConfirmEnabled
+        settingsChanged = true
+
       # Language selector button
       let langButtonX = contentX + 320
-      let langButtonY = contentY + 165
+      let langButtonY = contentY + 200
       let langButtonWidth = 200
       let langButtonHeight = 35
       if mousePos.x >= langButtonX.float32 and mousePos.x <= (langButtonX + langButtonWidth).float32 and

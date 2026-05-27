@@ -37,7 +37,8 @@ proc initSettings*(): Settings =
     particleEffect: 0,  # Default to first particle effect (pskDefault)
     desktopBg: 0,        # Default to first desktop background (dbgDefault)
     cubeSkin: 0,         # Default to first cube skin (cskDefault)
-    pvpNickname: "Player"  # Default nickname for PvP
+    pvpNickname: "Player",  # Default nickname for PvP
+    exitConfirmEnabled: true  # Exit confirm dialogs enabled by default
   )
   globalSettings = result
 
