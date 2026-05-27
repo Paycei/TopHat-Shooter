@@ -693,27 +693,8 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   drawText("All Available Power-Ups - Scroll with Mouse Wheel", x + 20, currentY, 14, Yellow)
   currentY += 25
 
-  # Define all power-up types
-  let allPowerUpTypes: array[0..70, PowerUpType] = [
-    puArcaneAura, puArcaneBullets, puArcaneMastery, puArcaneOrb,
-    puBerserker, puBloodAura, puBloodBullets, puBloodMastery, puBloodOrb, puBloodPact,
-    puBulletRicochet, puBountiful, puBulletSpeed, puBulletSplit,
-    puCelestialVeil, puChainLightning, puConduit, puCriticalHit,
-    puDodgeChance, puDoubleShot, puEchoShots, puExplosiveBullets,
-    puFireAura, puFireBullets, puFireMastery, puFireOrb, puFortified,
-    puFrostMastery, puFrostOrb, puFrostShots,
-    puGiantSlayer, puGravityWell, puHealPower, puHeavyRounds, puLifeSteal,
-    puLightningAura, puLightningMastery, puLightningOrb, puLuckyCoins,
-    puMagicalBullets, puMaxHealth, puMultiShot,
-    puNova, puOvercharge, puParry, puPhaseShift, puPiercingShots,
-    puPoisonAura, puPoisonMastery, puPoisonOrb, puPoisonShot,
-    puPulseArmor, puRadialBurst, puRage, puRapidFire, puRegeneration, puResonance,
-    puRotatingOrbs, puRotatingShield, puSlowField,
-    puSpecialRounds, puSpeedBoost,
-    puThorns, puTimeWarp,
-    puVolatile, puWallMaster, puWallTurrets,
-    puWindAura, puWindBullets, puWindMastery, puWindOrb
-  ];
+  # All power-up types come directly from the registry enum.
+  let allPowerUpCount = ord(high(PowerUpType)) - ord(low(PowerUpType)) + 1
 
   # Scrollable area setup for available list
   let availableAreaHeight = y + contentHeight - currentY - 10
@@ -732,16 +713,16 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
       menu.scrollOffset = max(0, menu.scrollOffset - 1)
 
   # Calculate scroll bounds
-  let maxScroll = max(0, allPowerUpTypes.len - maxVisibleItems)
+  let maxScroll = max(0, allPowerUpCount - maxVisibleItems)
   if menu.scrollOffset > maxScroll:
     menu.scrollOffset = maxScroll
 
   # Draw visible items
   let startIdx = menu.scrollOffset
-  let endIdx = min(startIdx + maxVisibleItems, allPowerUpTypes.len)
+  let endIdx = min(startIdx + maxVisibleItems, allPowerUpCount)
 
   for i in startIdx..<endIdx:
-    let powerType = allPowerUpTypes[i]
+    let powerType = PowerUpType(ord(low(PowerUpType)) + i)
     let name = getPowerUpName(powerType)
     let itemY = currentY + (i - startIdx).int32 * itemHeight
 
@@ -787,7 +768,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   # Draw scroll indicator for available list
   if maxScroll > 0:
     let scrollY = y + contentHeight - 15
-    drawText("Showing " & $(startIdx + 1) & "-" & $endIdx & " of " & $allPowerUpTypes.len,
+    drawText("Showing " & $(startIdx + 1) & "-" & $endIdx & " of " & $allPowerUpCount,
             x + 20, scrollY, 10, Gray)
 
 proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =

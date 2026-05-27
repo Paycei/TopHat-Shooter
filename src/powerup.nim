@@ -1,13 +1,7 @@
 import raylib, random, math, tables
 import types, ui/os_powerup_installer, d_visuals
-
-# Canonical list of all elemental orb power-up types.
-# Note: puRotatingOrbs (the legendary all-elements orb) is intentionally excluded,
-# that one is checked separately in contexts that need it (e.g. hasAnyOrbPowerUp).
-const elementalOrbTypes* = [
-  puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb,
-  puFrostOrb, puArcaneOrb, puBloodOrb
-]
+import powerup_data
+export powerup_data   # re-export so callers that import powerup keep the same API
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -15,91 +9,29 @@ proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
       return true
   return false
 
-# Active legendary ability types shown in the legendary panel (all have cooldowns)
-const legendaryPanelTypes* = [
-  puTimeWarp, puPhaseShift, puParry,
-  puBloodPact, puConduit, puAftershock, puNova
-]
-
 proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
   for p in player.powerUps:
     if p.powerType == powerType:
       return p.level
   return 0
 
-proc getPowerUpFamily*(powerType: PowerUpType): RoguelitePowerFamily =
-  case powerType
-  of puRotatingShield, puFortified, puPulseArmor, puWallTurrets, puWallMaster,
-     puCelestialVeil, puThorns:
-    rpfShield
-  of puArcaneAura, puArcaneBullets, puArcaneOrb, puArcaneMastery, puOvercharge,
-     puEchoShots, puGravityWell:
-    rpfArcane
-  of puFireAura, puFireBullets, puFireOrb, puFireMastery:
-    rpfFire
-  of puFrostShots, puFrostOrb, puFrostMastery:
-    rpfFrost
-  of puPoisonAura, puPoisonShot, puPoisonOrb, puPoisonMastery:
-    rpfPoison
-  of puLightningAura, puLightningOrb, puLightningMastery, puChainLightning,
-     puConduit:
-    rpfLightning
-  of puWindAura, puWindBullets, puWindOrb, puWindMastery, puAftershock:
-    rpfWind
-  of puBloodAura, puBloodBullets, puBloodOrb, puBloodMastery, puBloodPact,
-     puLifeSteal:
-    rpfBlood
-  else:
-    rpfCore
-
 proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
                              allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood}): array[3, PowerUp] =
   # Generate 3 random power-up options with COMPLETELY SEPARATE pools
   var availablePowerUps: seq[PowerUp] = @[]
 
-  # Define LEGENDARY-EXCLUSIVE powerups (ONLY appear after boss defeats)
-  # ALL legendary powerups are SINGLE LEVEL ONLY
-  let legendaryOnlyTypes: array[0..29, PowerUpType] = [
-    puArcaneMastery, puBloodMastery, puBulletSpeed,
-    puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
-    puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
-    puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
-    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWindMastery,
-    puVolatile, puBloodPact, puConduit, puAftershock, puNova, puBountiful
-  ]
-
-  # Define NORMAL-ONLY powerups (ONLY appear after wave clears)
-  let normalOnlyTypes: array[0..41, PowerUpType] = [
-    puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura,
-    puBloodBullets, puBloodOrb, puBulletRicochet, puBulletSplit,
-    puChainLightning, puCriticalHit, puDodgeChance, puExplosiveBullets,
-    puFireAura, puFireBullets, puFireOrb, puFortified, puFrostOrb, puFrostShots,
-    puHeavyRounds, puLifeSteal, puLightningAura, puLightningOrb, puPiercingShots,
-    puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
-    puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
-    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance,
-    puHealPower, puWallTurrets
-  ]
-
-  # Define orb, aura, bullet, and mastery groups for exclusivity
-  # Note: puRotatingOrbs is intentionally excluded here (see elementalOrbTypes)
-  let orbTypes = elementalOrbTypes
-  let auraTypes: array[0..6, PowerUpType] = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
-  let bulletTypes: array[0..6, PowerUpType] = [puFireBullets, puPoisonShot, puFrostShots, puWindBullets, puArcaneBullets, puBloodBullets, puChainLightning]
-  let masteryTypes: array[0..6, PowerUpType] = [puFireMastery, puPoisonMastery, puFrostMastery, puArcaneMastery, puLightningMastery, puWindMastery, puBloodMastery]
-
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
-    for powerType in legendaryOnlyTypes:
+    for powerType in legendaryPool:
       let currentLevel = getPowerUpLevel(player, powerType)
-      if currentLevel == 0 and getPowerUpFamily(powerType) in allowedPowerFamilies:
+      if currentLevel == 0 and allPowerUpDefs[powerType].family in allowedPowerFamilies:
         # All legendaries are single-level, only offer if not owned
         availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
   else:
-    # NORMAL WAVE - offer ONLY normal power-ups (exclude legendary-exclusive types)
-    for powerType in normalOnlyTypes:
+    # NORMAL WAVE - offer ONLY normal power-ups
+    for powerType in normalPool:
       let currentLevel = getPowerUpLevel(player, powerType)
-      if getPowerUpFamily(powerType) notin allowedPowerFamilies:
+      if allPowerUpDefs[powerType].family notin allowedPowerFamilies:
         continue
       if currentLevel == 0:
         availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prCommon))
@@ -124,10 +56,10 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
 
     # Exceptions
 
-    let isOrb = powerUp.powerType in orbTypes
-    let isAura = powerUp.powerType in auraTypes
-    let isBullet = powerUp.powerType in bulletTypes
-    let isMastery = powerUp.powerType in masteryTypes
+    let isOrb    = allPowerUpDefs[powerUp.powerType].group == pugOrb
+    let isAura   = allPowerUpDefs[powerUp.powerType].group == pugAura
+    let isBullet = allPowerUpDefs[powerUp.powerType].group == pugBullet
+    let isMastery = allPowerUpDefs[powerUp.powerType].group == pugMastery
 
     if isOrb and hasOrb:
       continue
@@ -162,18 +94,18 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
       var attempts = 0
       while attempts < 100:  # Prevent infinite loop
         let randomPowerUp = if isLegendary:
-          let randomType = legendaryOnlyTypes[rand(legendaryOnlyTypes.high)]
+          let randomType = legendaryPool[rand(legendaryPool.high)]
           PowerUp(powerType: randomType, level: 1, rarity: prLegendary)
         else:
-          let randomType = normalOnlyTypes[rand(normalOnlyTypes.high)]
+          let randomType = normalPool[rand(normalPool.high)]
           PowerUp(powerType: randomType, level: 1, rarity: prCommon)
 
-        let isOrb = randomPowerUp.powerType in orbTypes
-        let isAura = randomPowerUp.powerType in auraTypes
-        let isBullet = randomPowerUp.powerType in bulletTypes
-        let isMastery = randomPowerUp.powerType in masteryTypes
+        let isOrb    = allPowerUpDefs[randomPowerUp.powerType].group == pugOrb
+        let isAura   = allPowerUpDefs[randomPowerUp.powerType].group == pugAura
+        let isBullet = allPowerUpDefs[randomPowerUp.powerType].group == pugBullet
+        let isMastery = allPowerUpDefs[randomPowerUp.powerType].group == pugMastery
 
-        if getPowerUpFamily(randomPowerUp.powerType) notin allowedPowerFamilies:
+        if allPowerUpDefs[randomPowerUp.powerType].family notin allowedPowerFamilies:
           attempts += 1
           continue
 
@@ -555,52 +487,31 @@ proc drawPowerUpSelection*(game: Game) =
 # SLOT MACHINE ROLL ANIMATION SYSTEM
 proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeType: PowerUpType): PowerUp =
   ## Generate a random power-up for the roll animation display, excluding a specific type.
-  ## These lists must stay in sync with legendaryOnlyTypes / normalOnlyTypes in generatePowerUpChoices.
-  let legendaryTypes = [
-    puArcaneMastery, puBloodMastery, puBulletSpeed,
-    puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
-    puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
-    puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
-    puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWindMastery,
-    puVolatile, puBloodPact, puConduit, puAftershock, puNova, puBountiful
-  ]
-
-  let normalTypes = [
-    puArcaneAura, puArcaneBullets, puArcaneOrb, puBerserker, puBloodAura,
-    puBloodBullets, puBloodOrb, puBulletRicochet, puBulletSplit,
-    puChainLightning, puCriticalHit, puDodgeChance, puExplosiveBullets,
-    puFireAura, puFireBullets, puFireOrb, puFortified, puFrostOrb, puFrostShots,
-    puHeavyRounds, puLifeSteal, puLightningAura, puLightningOrb, puPiercingShots,
-    puPoisonAura, puPoisonOrb, puPoisonShot, puPulseArmor, puRadialBurst, puRage,
-    puRegeneration, puRotatingShield, puSlowField, puThorns, puWindAura,
-    puWindBullets, puWindOrb, puSpecialRounds, puGiantSlayer, puResonance,
-    puHealPower, puWallTurrets
-  ]
-
+  ## Pool membership comes directly from the registry, no separate list to keep in sync.
   var availableTypes: seq[PowerUpType]
   if isLegendary:
-    for t in legendaryTypes:
+    for t in legendaryPool:
       if t != excludeType:
         availableTypes.add(t)
   else:
-    for t in normalTypes:
+    for t in normalPool:
       if t != excludeType:
         availableTypes.add(t)
 
   if availableTypes.len == 0:
     # Fallback if all types excluded (shouldn't happen)
     if isLegendary:
-      let t = legendaryTypes[rand(legendaryTypes.high)]
-      return PowerUp(powerType: t, level: 1, rarity: prLegendary)  # Legendaries are always level 1
+      let t = legendaryPool[rand(legendaryPool.high)]
+      return PowerUp(powerType: t, level: 1, rarity: prLegendary)
     else:
-      let t = normalTypes[rand(normalTypes.high)]
-      return PowerUp(powerType: t, level: 1, rarity: prCommon)  # Display level 1 for roll filler
+      let t = normalPool[rand(normalPool.high)]
+      return PowerUp(powerType: t, level: 1, rarity: prCommon)
 
   let t = availableTypes[rand(availableTypes.high)]
   if isLegendary:
-    result = PowerUp(powerType: t, level: 1, rarity: prLegendary)  # Legendaries are always level 1
+    result = PowerUp(powerType: t, level: 1, rarity: prLegendary)
   else:
-    result = PowerUp(powerType: t, level: 1, rarity: prCommon)  # Display level 1 for roll filler
+    result = PowerUp(powerType: t, level: 1, rarity: prCommon)
 
 proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
   ## Update the slot machine roll animation.

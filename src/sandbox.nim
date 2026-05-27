@@ -17,20 +17,9 @@ const
   SCROLLBAR_WIDTH = 8
   SCROLLBAR_MIN_THUMB = 24
 
-const sandboxLegendaryPowerUpTypes = [
-  puArcaneMastery, puBloodMastery, puBulletSpeed,
-  puCelestialVeil, puDoubleShot, puEchoShots, puFireMastery, puFrostMastery, puGravityWell,
-  puLightningMastery, puLuckyCoins, puMagicalBullets, puMaxHealth, puMultiShot,
-  puOvercharge, puParry, puPhaseShift, puPoisonMastery, puRapidFire,
-  puRotatingOrbs, puSpeedBoost, puTimeWarp, puWallMaster, puWindMastery,
-  puVolatile, puBloodPact, puConduit, puAftershock, puNova, puBountiful
-]
-
-proc isSandboxLegendaryPowerUp(powerType: PowerUpType): bool =
-  for legendaryType in sandboxLegendaryPowerUpTypes:
-    if powerType == legendaryType:
-      return true
-  false
+proc isSandboxLegendaryPowerUp(powerType: PowerUpType): bool {.inline.} =
+  ## Derived from the registry.
+  allPowerUpDefs[powerType].pool == puppLegendary
 
 proc fitSandboxText(text: string, maxWidth, fontSize: int32,
                     minSize: int32 = 8): tuple[text: string, size: int32] =

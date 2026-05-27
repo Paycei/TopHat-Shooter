@@ -81,78 +81,78 @@ type
     ctLifesteal         # Heal on kill
 
   PowerUpType* = enum
-    puDoubleShot,      # Shoots 2 bullets at once
-    puRotatingShield,  # Orbiting protective shield
-    puMagicalBullets,  # Bullets track enemies
-    puPiercingShots,   # Bullets pass through enemies
-    puMultiShot,       # Shoots in 3 directions
-    puExplosiveBullets,# Bullets explode on impact
-    puLifeSteal,       # Gain HP from kills
-    puRapidFire,       # Increased fire rate
-    puMaxHealth,       # Increase max HP
-    puSpeedBoost,      # Permanent speed increase
-    puBulletSpeed,     # Faster bullets
-    puLuckyCoins,      # Doubles coins collected
-    puWallMaster,      # Place stronger walls and increment turret damage
-    puRegeneration,    # Slowly restore HP
-    puDodgeChance,     # Chance to evade damage
-    puCriticalHit,     # Random critical damage
-    puBloodBullets,    # Lifesteal on hit
-    puBulletRicochet,  # Bullets ricochet off enemies
-    puSlowField,       # Enemies move slower nearby
-    puRage,            # Damage increases at low HP
-    puBerserker,       # Attack speed at low HP
-    puThorns,          # Reflect damage to attackers
-    puBulletSplit,     # Bullets split on impact
-    puChainLightning,  # Damage chains between enemies
-    puFrostShots,      # Bullets slow enemies
-    puPoisonShot,      # Poison bullets that apply DoT effect
-    puFireBullets,     # Bullets apply fire damage over time
-    puWindBullets,     # Bullets push enemies backwards
-    puFireAura,        # Fire damage over time aura
-    puLightningAura,   # Lightning damage that chains between enemies
-    puPoisonAura,      # Poison damage over time aura (lower damage, longer duration)
-    puWindAura,        # Pushes enemies away from player
-    puTimeWarp,        # Slow down time globally
-    puGravityWell,     # Pull enemies toward you
-    puPhaseShift,      # Teleport dash through enemies
-    puOvercharge,      # Bullets gain power over distance
-    puEchoShots,       # Bullets leave damaging trails
-    puRotatingOrbs,    # Rotating elemental orbs around player (LEGENDARY - all 7 elements)
-    puPoisonOrb,       # Poison elemental orb
-    puFireOrb,         # Fire elemental orb
-    puLightningOrb,    # Lightning elemental orb
-    puWindOrb,         # Wind elemental orb
-    puFrostOrb,        # Frost elemental orb
-    puArcaneOrb,       # Arcane elemental orb
-    puArcaneBullets,   # Arcane bullet version - enhanced damage
-    puArcaneAura,      # Arcane aura version - enhanced damage
-    puFireMastery,     # LEGENDARY: Enhance all fire effects (damage, duration, slow)
-    puPoisonMastery,   # LEGENDARY: Enhance all poison effects (damage, duration, slow)
-    puFrostMastery,    # LEGENDARY: Enhance all frost effects (damage, duration, slow)
-    puArcaneMastery,   # LEGENDARY: Enhance all arcane effects (damage, priecing)
-    puLightningMastery,# LEGENDARY: Enhance all lightning effects (damage, duration, slow)
-    puWindMastery,     # LEGENDARY: Enhance all wind effects (damage, duration, slow)
-    puParry,           # LEGENDARY: Active ability - invincible + bounce bullets
-    puBloodOrb,        # Blood elemental orb
-    puBloodAura,       # Blood damage aura with lifesteal
-    puBloodMastery,    # LEGENDARY: Enhance all blood effects (damage, lifesteal)
-    puRadialBurst,     # Shoots a circle of bullets periodically
-    puWallTurrets,     # LEGENDARY: Walls become turrets that shoot enemies
-    puPulseArmor,      # When you take damage, emit shockwave that pushes enemies back
-    puHeavyRounds,     # Larger bullets with knockback
-    puFortified,       # Reduce damage taken
-    puSpecialRounds,   # Every Nth bullet has special on-hit effect
-    puGiantSlayer,     # Deal % of enemy HP as bonus damage
-    puCelestialVeil,   # LEGENDARY: Absorb 1 hit per wave
-    puVolatile,        # LEGENDARY passive: enemies with 2+ DoTs take +50% dmg, death pulse spreads elements
-    puResonance,       # Normal passive: bullets hitting DoT enemies deal bonus elemental damage
-    puBloodPact,       # LEGENDARY active: sacrifice 30% HP to deal it as split damage to all enemies
-    puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
     puAftershock,      # LEGENDARY active: shockwave traces backward along movement path
-    puNova,            # LEGENDARY active: freeze all player bullets for 2s, then release at 1.5x speed
+    puArcaneAura,      # Arcane aura version - enhanced damage
+    puArcaneBullets,   # Arcane bullet version - enhanced damage
+    puArcaneMastery,   # LEGENDARY: Enhance all arcane effects (damage, priecing)
+    puArcaneOrb,       # Arcane elemental orb
+    puBerserker,       # Attack speed at low HP
+    puBloodAura,       # Blood damage aura with lifesteal
+    puBloodBullets,    # Lifesteal on hit
+    puBloodMastery,    # LEGENDARY: Enhance all blood effects (damage, lifesteal)
+    puBloodOrb,        # Blood elemental orb
+    puBloodPact,       # LEGENDARY active: sacrifice 30% HP to deal it as split damage to all enemies
+    puBountiful,       # LEGENDARY passive: greatly increase consumable drop rates, boost consumable effects, guarantee drops on kill milestones
+    puBulletRicochet,  # Bullets ricochet off enemies
+    puBulletSpeed,     # Faster bullets
+    puBulletSplit,     # Bullets split on impact
+    puCelestialVeil,   # LEGENDARY: Absorb 1 hit per wave
+    puChainLightning,  # Damage chains between enemies
+    puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
+    puCriticalHit,     # Random critical damage
+    puDodgeChance,     # Chance to evade damage
+    puDoubleShot,      # Shoots 2 bullets at once
+    puEchoShots,       # Bullets leave damaging trails
+    puExplosiveBullets,# Bullets explode on impact
+    puFireAura,        # Fire damage over time aura
+    puFireBullets,     # Bullets apply fire damage over time
+    puFireMastery,     # LEGENDARY: Enhance all fire effects (damage, duration, slow)
+    puFireOrb,         # Fire elemental orb
+    puFortified,       # Reduce damage taken
+    puFrostMastery,    # LEGENDARY: Enhance all frost effects (damage, duration, slow)
+    puFrostOrb,        # Frost elemental orb
+    puFrostShots,      # Bullets slow enemies
+    puGiantSlayer,     # Deal % of enemy HP as bonus damage
+    puGravityWell,     # Pull enemies toward you
     puHealPower,       # Normal passive: increase healing received from all sources by a percentage
-    puBountiful        # LEGENDARY passive: greatly increase consumable drop rates, boost consumable effects, guarantee drops on kill milestones
+    puHeavyRounds,     # Larger bullets with knockback
+    puLifeSteal,       # Gain HP from kills
+    puLightningAura,   # Lightning damage that chains between enemies
+    puLightningMastery,# LEGENDARY: Enhance all lightning effects (damage, duration, slow)
+    puLightningOrb,    # Lightning elemental orb
+    puLuckyCoins,      # Doubles coins collected
+    puMagicalBullets,  # Bullets track enemies
+    puMaxHealth,       # Increase max HP
+    puMultiShot,       # Shoots in 3 directions
+    puNova,            # LEGENDARY active: freeze all player bullets for 2s, then release at 1.5x speed
+    puOvercharge,      # Bullets gain power over distance
+    puParry,           # LEGENDARY: Active ability - invincible + bounce bullets
+    puPhaseShift,      # Teleport dash through enemies
+    puPiercingShots,   # Bullets pass through enemies
+    puPoisonAura,      # Poison damage over time aura (lower damage, longer duration)
+    puPoisonMastery,   # LEGENDARY: Enhance all poison effects (damage, duration, slow)
+    puPoisonOrb,       # Poison elemental orb
+    puPoisonShot,      # Poison bullets that apply DoT effect
+    puPulseArmor,      # When you take damage, emit shockwave that pushes enemies back
+    puRadialBurst,     # Shoots a circle of bullets periodically
+    puRage,            # Damage increases at low HP
+    puRapidFire,       # Increased fire rate
+    puRegeneration,    # Slowly restore HP
+    puResonance,       # Normal passive: bullets hitting DoT enemies deal bonus elemental damage
+    puRotatingOrbs,    # Rotating elemental orbs around player (LEGENDARY - all 7 elements)
+    puRotatingShield,  # Orbiting protective shield
+    puSlowField,       # Enemies move slower nearby
+    puSpecialRounds,   # Every Nth bullet has special on-hit effect
+    puSpeedBoost,      # Permanent speed increase
+    puThorns,          # Reflect damage to attackers
+    puTimeWarp,        # Slow down time globally
+    puVolatile,        # LEGENDARY passive: enemies with 2+ DoTs take +50% dmg, death pulse spreads elements
+    puWallMaster,      # Place stronger walls and increment turret damage
+    puWallTurrets,     # LEGENDARY: Walls become turrets that shoot enemies
+    puWindAura,        # Pushes enemies away from player
+    puWindBullets,     # Bullets push enemies backwards
+    puWindMastery,     # LEGENDARY: Enhance all wind effects (damage, duration, slow)
+    puWindOrb          # Wind elemental orb
 
   PowerUpRarity* = enum
     prCommon,

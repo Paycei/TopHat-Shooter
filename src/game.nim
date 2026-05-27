@@ -6204,7 +6204,7 @@ proc updateGame*(game: var Game, dt: float32) =
         if not enemy.isDashing:
           if isRangedBossPhase:
             if distToPlayer < RANGED_BOSS_INNER_DIST:
-              # Very close: slow to 50% — noticeable but not a wall
+              # Very close: slow to 50%, noticeable but not a wall
               enemy.speed *= 0.5
             elif distToPlayer < RANGED_BOSS_PREFERRED_DIST:
               # Gradual taper: full speed at preferred dist, 50% at inner dist
