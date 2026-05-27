@@ -1,12 +1,5 @@
 import raylib, random, math, strutils
-import particle_types, types, particle_pool, ui/ui_constants, ui/icon_drawing
-
-export Particle, ParticlePool, newParticlePool, updateParticlePool, drawParticlePool
-export ParticleLayer, drawParticlePoolLayer
-export spawnExplosionPooled, spawnTimedParticlesPooled, spawnTimedParticlesAroundPooled
-export spawnShockwavePooled, spawnExplosiveRingPooled, spawnSpiralExplosionPooled, spawnNovaExplosionPooled
-export spawnTrailParticlePooled, spawnEnemyDeathBurst
-export clearPool, getPoolStats
+import particle_types, types, ui/ui_constants, ui/icon_drawing
 
 proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritical: bool = false, damageType: DamageType = dtDefault): DamageNumber =
   let baseVelocityY = -80.0

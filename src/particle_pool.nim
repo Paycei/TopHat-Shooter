@@ -4,7 +4,6 @@
 import raylib, random, math
 import particle_types
 
-export ParticleStyle, ParticleLayer
 
 const
   DEFAULT_POOL_SIZE* = 2000

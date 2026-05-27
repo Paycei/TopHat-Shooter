@@ -2,7 +2,7 @@
 ## Main menu as an operating system desktop
 
 import raylib, math, strutils, strformat, times
-import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, ../settings, ../cube_skins
+import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, ../settings, ../save_system, ../cube_skins
 
 type
   DesktopIconType* = enum

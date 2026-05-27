@@ -2,7 +2,7 @@
 ## Tabbed settings interface matching the OS visual language
 
 import raylib, strutils
-import ../sound, ../save_system, os_window, ../settings, ../localization, ../render_context, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types
+import ../sound, ../save_system, os_window, ../localization, ../render_context, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types
 
 type
   SettingsTab* = enum

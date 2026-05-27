@@ -4,7 +4,6 @@
 from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, saveSettings, loadSettings
 import raylib, strutils
 import sound, localization
-export Settings
 
 var globalSettings*: Settings
 

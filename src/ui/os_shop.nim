@@ -2,7 +2,7 @@
 ## Shop screen redesigned as a modern OS storefront interface
 
 import raylib, math, strutils
-import ../types, ../localization, ../powerup_data, ../sound, ../settings, ../run_statistics, icon_drawing, ../render_context
+import ../types, ../localization, ../powerup_data, ../sound, ../settings, ../save_system, ../run_statistics, icon_drawing, ../render_context
 
 const
   SHOP_WIDTH = 950

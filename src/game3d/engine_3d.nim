@@ -4,9 +4,6 @@
 import raylib, math
 import types_3d
 
-export Vector3f, FPSCamera, Platform3D, Projectile3D, Arena3D
-export BossSatellite, Boss3D
-
 proc vec3*(x, y, z: float32): Vector3f =
   Vector3f(x: x, y: y, z: z)
 

@@ -2,7 +2,7 @@
 ## Handles multiplayer player vs player combat with optional team support
 
 import raylib, math, times, strutils, sequtils
-import types, player, bullet, wall, particle, particle_pool, sound, network/network_types, network/network, settings, localization, render_context, ui/background_fx
+import types, player, bullet, wall, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, ui/background_fx
 
 const
   PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
