@@ -473,6 +473,9 @@ type
     decoy*: bool
     relativeToBoss*: bool
     color*: Color
+    wrongHitFlash*: float32    ## Counts down (0.45 s) after hitting the wrong target – red flash overlay
+    hitFlashTimer*: float32    ## Counts down (0.30 s) after a correct hit – expanding burst ring
+    activeGraceTimer*: float32 ## Counts down (0.38 s) when a sequential target first becomes active – wider hitbox
 
   BossWeakPointState* = object
     enabled*: bool
