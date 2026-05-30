@@ -389,7 +389,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       name: t(tkBoss4Name),
       bossID: 4,
       baseHP: 500.0,
-      baseSpeed: 65.0,  # NERFED from 77.5
+      baseSpeed: 65.0,
       baseDamage: 2,
       baseRadius: 52.0,
       color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -399,7 +399,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Blueprint",
           hpThreshold: 1.0,
-          speedMultiplier: 1.0,  # NERFED from 1.1
+          speedMultiplier: 1.0,
           damageMultiplier: 1.0,
           defenseMultiplier: 1.2,
           color: Color(r: 0, g: 200, b: 255, a: 255),
@@ -1091,7 +1091,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 7.5,
               cooldown: 2.0,
               projectileSpeed: 200.0,
-              projectileCount: 1,
+              projectileCount: 3,
               spreadAngle: 0.0,
               durationOrRadius: 0.0
             )

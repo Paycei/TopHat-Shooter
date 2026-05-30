@@ -6925,7 +6925,7 @@ proc updateGame*(game: var Game, dt: float32) =
           # Calculate final damage with Overcharge modifier
           var finalDamage = bullet.damage
           var overchargeExtraDamage = 0.0
-          if hasPowerUp(game.player, puOvercharge):
+          if not bullet.isEcho and hasPowerUp(game.player, puOvercharge):
             # Overcharge: Bullets gain damage based on distance traveled
             # +1.5% damage per 10 units traveled, up to +150% at 1000 units
             # Formula: damage * (1 + min(travelDistance * 0.0015, 1.5))
@@ -6994,7 +6994,7 @@ proc updateGame*(game: var Game, dt: float32) =
 
             # Volatile: enemies with 2+ active DoTs take +50% bullet damage
             var volatileBonusDamage = 0.0
-            if game.player.hasVolatile and bullet.fromPlayer:
+            if game.player.hasVolatile and bullet.fromPlayer and not bullet.isEcho:
               var activeEffectCount = 0
               for et, ae in game.enemies[j].activeEffects:
                 if ae.primary.isActive:
@@ -7007,7 +7007,8 @@ proc updateGame*(game: var Game, dt: float32) =
 
             # Resonance: bullets hitting DoT enemies deal bonus damage equal to % of combined DPS
             var resonanceBonusDamage = 0.0
-            if game.player.resonanceLevel > 0 and bullet.fromPlayer and not bossIsInvulnerable:
+            if game.player.resonanceLevel > 0 and bullet.fromPlayer and
+                not bullet.isEcho and not bossIsInvulnerable:
               var totalDoTDps = 0.0
               for et, ae in game.enemies[j].activeEffects:
                 if ae.primary.isActive:
@@ -7025,7 +7026,8 @@ proc updateGame*(game: var Game, dt: float32) =
 
             # Giant Slayer: Deal % of enemy current HP as bonus damage
             var giantSlayerDamage = 0.0
-            if hasPowerUp(game.player, puGiantSlayer) and not bossIsInvulnerable:
+            if not bullet.isEcho and hasPowerUp(game.player, puGiantSlayer) and
+                not bossIsInvulnerable:
               let giantSlayerLevel = getPowerUpLevel(game.player, puGiantSlayer)
               let percentDamage = case giantSlayerLevel
                 of 1: 0.01  # 1% of current HP
@@ -7157,7 +7159,7 @@ proc updateGame*(game: var Game, dt: float32) =
                 k += 1
 
           # Heavy Rounds knockback effect
-          if hasPowerUp(game.player, puHeavyRounds):
+          if not bullet.isEcho and hasPowerUp(game.player, puHeavyRounds):
             let heavyLevel = getPowerUpLevel(game.player, puHeavyRounds)
             let knockbackForce = case heavyLevel
               of 1: 50.0   # Slight knockback
@@ -7177,7 +7179,7 @@ proc updateGame*(game: var Game, dt: float32) =
             game.enemies[j].pos.y = clamp(game.enemies[j].pos.y, game.enemies[j].radius, game.screenHeight.float32 - game.enemies[j].radius)
 
           # Special Rounds stun effect
-          if bullet.isSpecialRound:
+          if not bullet.isEcho and bullet.isSpecialRound:
             # Apply brief stun (80% slow for 0.5 seconds)
             let stunDuration = 0.5
             let baseStunAmount = 0.8  # 80% slow
@@ -7190,10 +7192,11 @@ proc updateGame*(game: var Game, dt: float32) =
                           Color(r: 255, g: 215, b: 0, a: 255), 15)
 
           # UNIFIED BULLET EFFECT SYSTEM
-          applyBulletEffects(game, bullet, game.enemies[j], dt)
+          if not bullet.isEcho:
+            applyBulletEffects(game, bullet, game.enemies[j], dt)
 
           # Bullet split on hit - SYNERGY: Inherits ALL bullet properties
-          if hasPowerUp(game.player, puBulletSplit) and not bullet.hasSplit:
+          if not bullet.isEcho and hasPowerUp(game.player, puBulletSplit) and not bullet.hasSplit:
             let splitLevel = getPowerUpLevel(game.player, puBulletSplit)
             let splitCount = splitLevel + 1  # 2, 3, or 4 bullets
 
@@ -7204,7 +7207,7 @@ proc updateGame*(game: var Game, dt: float32) =
                         game.enemies[j].color, 5)
 
           # Explosive bullets create area damage
-          if bullet.isExplosive:
+          if not bullet.isEcho and bullet.isExplosive:
             playSound(stExplosion, 0.5)
             let level = getPowerUpLevel(game.player, puExplosiveBullets)
             let explosionRadius = getExplosionRadius(level)
@@ -7254,7 +7257,7 @@ proc updateGame*(game: var Game, dt: float32) =
 
           # Bullet ricochet off enemies - SYNERGY: Works with piercing, split, and can trigger split on each hit
           var didRicochet = false
-          if bullet.bounceCount >= 0:
+          if not bullet.isEcho and bullet.bounceCount >= 0:
             let ricochetLevel = getPowerUpLevel(game.player, puBulletRicochet)
             let maxRicochets = ricochetLevel  # 1, 2, or 3 ricochets
 

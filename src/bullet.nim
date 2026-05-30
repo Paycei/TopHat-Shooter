@@ -644,8 +644,9 @@ proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f
 proc createEchoBullet*(game: Game, sourceBullet: Bullet,
                       damageMultiplier: float32 = 0.4, speedMultiplier: float32 = 0.5,
                       lifetime: float32 = 0.35) =
-  ## Create an echo trail bullet that inherits ALL properties
-  ## SYNERGY SYSTEM: Echo bullets can split, ricochet, explode, etc.
+  ## Create a damage-only echo trail bullet.
+  ## Echoes inherit the source's current damage and visuals, but not recursive
+  ## shot modifiers or on-hit effects.
   ## Echo bullets track their parent so they can be removed when parent hits
   let echoBullet = cloneBullet(
     sourceBullet,
@@ -654,7 +655,7 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
     damageMultiplier,
     speedMultiplier,
     0.8,  # Slightly smaller
-    false  # Can split (for echo + split synergy)
+    true  # Echo trails must not split recursively
   )
 
   # Assign unique bullet ID and track parent
@@ -666,9 +667,26 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
   echoBullet.isEcho = true
   echoBullet.lifetime = lifetime
 
-  # Reset bounce count for echoes (they get fresh ricochets)
-  if echoBullet.bounceCount >= 0:
-    echoBullet.bounceCount = 0
+  # Echoes are extra damage, not extra applications of every shot modifier.
+  echoBullet.isPiercing = false
+  echoBullet.isExplosive = false
+  echoBullet.bounceCount = -1
+  echoBullet.piercedEnemies = 0
+  echoBullet.hasSplit = true
+  echoBullet.slowAmount = 0
+  echoBullet.poisonDuration = 0
+  echoBullet.fireDuration = 0
+  echoBullet.windPushForce = 0
+  echoBullet.isArcaneBullet = false
+  echoBullet.isSpecialRound = false
+  echoBullet.isBonusFromMultiShot = false
+  echoBullet.isBonusFromDoubleShot = false
+  echoBullet.isFromWallTurret = false
+  echoBullet.isFromRadialBurst = false
+  echoBullet.isFromBulletSplit = false
+  echoBullet.isRicochet = false
+  echoBullet.isParried = false
+  echoBullet.isFromNova = false
 
   # Clear hitEnemies list so echo bullets can hit enemies independently
   echoBullet.hitEnemies.setLen(0)
