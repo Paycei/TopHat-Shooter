@@ -25,6 +25,7 @@ type
     totalPlayTime*: float32  # Total time across all modes
     firstPlayDate*: string
     lastPlayDate*: string
+    defeatedBossIDs*: seq[int]  # Boss definition IDs the player has defeated at least once
 
 # GLOBAL STATISTICS INSTANCE
 var globalStats*: Statistics
@@ -80,7 +81,8 @@ proc initStatistics*(): Statistics =
     totalGamesPlayed: 0,
     totalPlayTime: 0.0,
     firstPlayDate: "",
-    lastPlayDate: ""
+    lastPlayDate: "",
+    defeatedBossIDs: @[]
   )
   globalStats = result
 
@@ -97,6 +99,7 @@ proc resetStatistics*(stats: Statistics) =
   stats.totalPlayTime = fresh.totalPlayTime
   stats.firstPlayDate = fresh.firstPlayDate
   stats.lastPlayDate = fresh.lastPlayDate
+  stats.defeatedBossIDs = fresh.defeatedBossIDs
   globalStats = stats
 
 # JSON SERIALIZATION
@@ -153,7 +156,8 @@ proc statisticsToJson*(stats: Statistics): JsonNode =
     "totalGamesPlayed": stats.totalGamesPlayed,
     "totalPlayTime": stats.totalPlayTime,
     "firstPlayDate": stats.firstPlayDate,
-    "lastPlayDate": stats.lastPlayDate
+    "lastPlayDate": stats.lastPlayDate,
+    "defeatedBossIDs": stats.defeatedBossIDs
   }
 
 proc jsonToStatistics*(jsonNode: JsonNode, stats: Statistics) =
@@ -171,6 +175,10 @@ proc jsonToStatistics*(jsonNode: JsonNode, stats: Statistics) =
     stats.firstPlayDate = jsonNode["firstPlayDate"].getStr()
   if jsonNode.hasKey("lastPlayDate"):
     stats.lastPlayDate = jsonNode["lastPlayDate"].getStr()
+  if jsonNode.hasKey("defeatedBossIDs"):
+    stats.defeatedBossIDs = @[]
+    for idNode in jsonNode["defeatedBossIDs"]:
+      stats.defeatedBossIDs.add(idNode.getInt())
 
 # HELPER FUNCTIONS
 proc formatTime*(seconds: float32): string =
@@ -233,6 +241,17 @@ proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
     modeStats.averageWaveReached =
       (modeStats.averageWaveReached * float32(modeStats.gamesPlayed - 1) + float32(scoreReached)) /
       float32(modeStats.gamesPlayed)
+
+proc markBossDefeated*(stats: Statistics, bossDefinitionID: int) =
+  ## Record that the player has defeated this boss at least once. Used to decide
+  ## whether the boss's full phase layout may be revealed in the phase HUD.
+  if stats.isNil or bossDefinitionID <= 0:
+    return
+  if bossDefinitionID notin stats.defeatedBossIDs:
+    stats.defeatedBossIDs.add(bossDefinitionID)
+
+proc hasDefeatedBoss*(stats: Statistics, bossDefinitionID: int): bool =
+  not stats.isNil and bossDefinitionID in stats.defeatedBossIDs
 
 # SAVE/LOAD
 proc saveStatistics*(stats: Statistics): bool =

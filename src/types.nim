@@ -100,6 +100,7 @@ type
     puChainLightning,  # Damage chains between enemies
     puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
     puCriticalHit,     # Random critical damage
+    puCurse,           # Curse a % of random enemies; player deals bonus damage to cursed (greatly reduced vs bosses)
     puDodgeChance,     # Chance to evade damage
     puDoubleShot,      # Shoots 2 bullets at once
     puEchoShots,       # Bullets leave damaging trails
@@ -540,6 +541,8 @@ type
     clonePositions*: seq[Vector2f]
     cloneTimer*: float32
     hasEnteredScreen*: bool  # Tracks if ranged enemy is fully inside screen
+    cursed*: bool  # Marked by the Curse power-up; player deals bonus damage to this enemy
+    curseRolled*: bool  # True once curse eligibility has been evaluated (roll happens once per enemy)
     isElite*: bool  # Whether this is an elite enemy
     eliteType*: EliteType  # Type of elite modifier
     eliteTypes*: seq[EliteType]  # Multiple elite types for high-wave elites
@@ -553,6 +556,9 @@ type
     rotation*: float32  # Current rotation angle in radians
     bossDefinitionID*: int  # Which boss definition this uses
     currentPhaseIndex*: int  # Current phase index
+    bossTotalMaxHp*: float32  # Total scaled boss HP split across phase pools
+    bossPhaseHpPools*: seq[float32]  # Max HP for each boss phase pool
+    bossPhaseBreakFlashTimer*: float32  # Short visual pulse after a phase pool breaks
     attackTimers*: seq[float32]  # Individual cooldown timer for each attack in current phase
     attackWarningFired*: seq[bool]  # True once the pre-fire warning has been shown for this cycle
     defenseMultiplier*: float32  # Damage reduction multiplier
@@ -600,6 +606,7 @@ type
     travelDistance*: float32  # Track distance
     isEcho*: bool  # True if this is an echo clone bullet
     echoTrailTimer*: float32  # Timer for spawning echo clones
+    echoHitEnemies*: seq[int]  # Enemy IDs already damaged by echoes from this parent
     particleTrailTimer*: float32  # Accumulator for explosive bullet trail particles
     parentBulletId*: int  # ID of parent bullet
     bulletId*: int  # Unique ID for this bullet

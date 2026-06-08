@@ -512,6 +512,7 @@ type
     tkHelpFortified = "help_fortified"
     tkHelpSpecialRounds = "help_special_rounds"
     tkHelpGiantSlayer = "help_giant_slayer"
+    tkHelpCurse = "help_curse"
     tkHelpCelestialVeil = "help_celestial_veil"
     tkHelpVolatile = "help_volatile"
     tkHelpResonance = "help_resonance"
@@ -768,6 +769,7 @@ type
     tkPowerupFortified = "powerup_fortified"
     tkPowerupSpecialRounds = "powerup_special_rounds"
     tkPowerupGiantSlayer = "powerup_giant_slayer"
+    tkPowerupCurse = "powerup_curse"
 
     # Powerup Descriptions
     tkPowerupDoubleShotDesc = "powerup_double_shot_desc"
@@ -913,6 +915,9 @@ type
     tkPowerupGiantSlayerDesc1 = "powerup_giant_slayer_desc1"
     tkPowerupGiantSlayerDesc2 = "powerup_giant_slayer_desc2"
     tkPowerupGiantSlayerDesc3 = "powerup_giant_slayer_desc3"
+    tkPowerupCurseDesc1 = "powerup_curse_desc1"
+    tkPowerupCurseDesc2 = "powerup_curse_desc2"
+    tkPowerupCurseDesc3 = "powerup_curse_desc3"
     tkPowerupCelestialVeil = "powerup_celestial_veil"
     tkPowerupCelestialVeilDesc = "powerup_celestial_veil_desc"
     tkPowerupVolatile = "powerup_volatile"
@@ -1465,6 +1470,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_fortified": "Fortified",
     "powerup_special_rounds": "Special Rounds",
     "powerup_giant_slayer": "Giant Slayer",
+    "powerup_curse": "Curse",
     "powerup_celestial_veil": "Celestial Veil",
 
     # Powerup Descriptions
@@ -1516,9 +1522,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_thorns_desc1": "Reflect 100% damage to attacker",
     "powerup_thorns_desc2": "Reflect 200% damage to attacker",
     "powerup_thorns_desc3": "Reflect 300% damage to attacker",
-    "powerup_bullet_split_desc1": "Bullets split into 2 on hit",
-    "powerup_bullet_split_desc2": "Bullets split into 3 on hit",
-    "powerup_bullet_split_desc3": "Bullets split into 4 on hit",
+    "powerup_bullet_split_desc1": "Bullets split into 2 damage-only fragments",
+    "powerup_bullet_split_desc2": "Bullets split into 3 damage-only fragments",
+    "powerup_bullet_split_desc3": "Bullets split into 4 damage-only fragments",
     "powerup_chain_lightning_desc1": "Hit chains to 1 enemy (70% bullet dmg, 120 range, 0.05s stun)",
     "powerup_chain_lightning_desc2": "Hit chains to 2 enemies (85% bullet dmg, 140 range, 0.05s stun)",
     "powerup_chain_lightning_desc3": "Hit chains to 3 enemies (100% bullet dmg, 160 range, 0.05s stun)",
@@ -1550,7 +1556,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_gravity_well_desc": "Pull enemies in 300 radius. grants a 10% HP shield (5s delay to regen, regens 5%/s)",
     "powerup_phase_shift_desc": "Dash forward (5s cd, 0.5s invuln, scales with speed)",
     "powerup_overcharge_desc": "+10% dmg per 100 units traveled (max 150%, reaches at 1000 units)",
-    "powerup_echo_shots_desc": "Bullets leave ghost trail (60% dmg)",
+    "powerup_echo_shots_desc": "Bullets leave ghost trail (25% dmg)",
     "powerup_rotating_orbs_desc": "All 6 elemental orbs ({0} dmg/hit)",
     "powerup_poison_orb_desc1": "4 poison orbs ({0} dmg/hit)",
     "powerup_poison_orb_desc2": "8 poison orbs ({0} dmg/hit)",
@@ -1611,6 +1617,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_giant_slayer_desc1": "Deal 1% of enemy current HP as bonus damage",
     "powerup_giant_slayer_desc2": "Deal 1.75% of enemy current HP as bonus damage",
     "powerup_giant_slayer_desc3": "Deal 2.5% of enemy current HP as bonus damage",
+    "powerup_curse_desc1": "Curse 25% of enemies; deal +30% damage to cursed foes (greatly reduced vs bosses)",
+    "powerup_curse_desc2": "Curse 35% of enemies; deal +45% damage to cursed foes (greatly reduced vs bosses)",
+    "powerup_curse_desc3": "Curse 50% of enemies; deal +60% damage to cursed foes (greatly reduced vs bosses)",
     "powerup_celestial_veil_desc": "Absorb 1 hit per wave, resets at the start of each wave",
     "powerup_volatile": "Volatile",
     "powerup_volatile_desc": "Enemies with 2+ elements take +50% bullet dmg; on death they pulse their active elements to nearby foes",
@@ -2254,6 +2263,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_fortified": "Fortified - Reduce damage taken, gain max HP",
     "help_special_rounds": "Special Rounds - Every 5th bullet deals bonus damage",
     "help_giant_slayer": "Giant Slayer - Bonus damage vs high-HP enemies",
+    "help_curse": "Curse - Curses random enemies so you deal bonus damage to them",
     "help_celestial_veil": "Celestial Veil - Absorb one hit per wave",
     "help_volatile": "Volatile - Enemies with 2+ DoTs take +50% dmg",
     "help_resonance": "Resonance - Bullets on DoT targets deal elemental bonus",
@@ -2937,6 +2947,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_fortified": "Fortificado",
     "powerup_special_rounds": "Balas Especiales",
     "powerup_giant_slayer": "Matador de Gigantes",
+    "powerup_curse": "Maldición",
     "powerup_celestial_veil": "Velo Celestial",
 
     # Powerup Descriptions
@@ -2988,9 +2999,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_thorns_desc1": "Refleja el 50% del daño al atacante",
     "powerup_thorns_desc2": "Refleja el 100% del daño al atacante",
     "powerup_thorns_desc3": "Refleja el 200% del daño al atacante",
-    "powerup_bullet_split_desc1": "Balas se dividen en 2 al impactar",
-    "powerup_bullet_split_desc2": "Balas se dividen en 3 al impactar",
-    "powerup_bullet_split_desc3": "Balas se dividen en 4 al impactar",
+    "powerup_bullet_split_desc1": "Balas se dividen en 2 fragmentos de solo dano",
+    "powerup_bullet_split_desc2": "Balas se dividen en 3 fragmentos de solo dano",
+    "powerup_bullet_split_desc3": "Balas se dividen en 4 fragmentos de solo dano",
     "powerup_chain_lightning_desc1": "Golpe encadena a 1 enemigo (70% daño bala, rango 120, aturdimiento 0.05s)",
     "powerup_chain_lightning_desc2": "Golpe encadena a 2 enemigos (85% daño bala, rango 140, aturdimiento 0.05s)",
     "powerup_chain_lightning_desc3": "Golpe encadena a 3 enemigos (100% daño bala, rango 160, aturdimiento 0.05s)",
@@ -3022,7 +3033,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_gravity_well_desc": "Atrae a enemigosen radio 300. Escudo 10% de vida (5s retardo renege, 5%/s regen)",
     "powerup_phase_shift_desc": "Dash hacia delante (5 s cd, 0.5 s invuln., escala con velocidad)",
     "powerup_overcharge_desc": "+10% daño por 100 unidades recorridas (max 150%, alcanza a 1000 unidades)",
-    "powerup_echo_shots_desc": "Las balas dejan ecos fantasma (60% de daño)",
+    "powerup_echo_shots_desc": "Las balas dejan ecos fantasma (25% de daño)",
     "powerup_rotating_orbs_desc": "Obtienes los 6 orbes elementales ({0})",
     "powerup_poison_orb_desc1": "4 orbes veneno ({0})",
     "powerup_poison_orb_desc2": "8 orbes veneno ({0})",
@@ -3083,6 +3094,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_giant_slayer_desc1": "Inflige daño extra igual al 1% del HP actual del enemigo",
     "powerup_giant_slayer_desc2": "Inflige daño extra igual al 1.75% del HP actual del enemigo",
     "powerup_giant_slayer_desc3": "Inflige daño extra igual al 2.5% del HP actual del enemigo",
+    "powerup_curse_desc1": "Maldice al 25% de los enemigos; inflige +30% de daño a los malditos (muy reducido contra jefes)",
+    "powerup_curse_desc2": "Maldice al 35% de los enemigos; inflige +45% de daño a los malditos (muy reducido contra jefes)",
+    "powerup_curse_desc3": "Maldice al 50% de los enemigos; inflige +60% de daño a los malditos (muy reducido contra jefes)",
     "powerup_celestial_veil_desc": "Absorbe 1 golpe por oleada, se reinicia al empezar cada oleada",
     "powerup_volatile": "Volátil",
     "powerup_volatile_desc": "Enemigos con 2+ elementos reciben +50% daño de bala; al morir, propagan sus elementos cerca",
@@ -3535,6 +3549,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_fortified": "Fortificado - Reduce daño recibido y sube HP máx",
     "help_special_rounds": "Balas Especiales - La 5.ª bala causa daño extra",
     "help_giant_slayer": "Cazagigantes - Daño extra vs enemigos con mucho HP",
+    "help_curse": "Maldición - Maldice enemigos al azar para infligirles daño extra",
     "help_celestial_veil": "Velo Celestial - Absorbe un golpe por oleada",
     "help_volatile": "Volátil - Enemigos con 2+ DoTs sufren +50% daño",
     "help_resonance": "Resonancia - Balas en objetivos DoT causan bono elemental",

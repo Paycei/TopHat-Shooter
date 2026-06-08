@@ -226,6 +226,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     travelDistance: 0.0,  # Track distance for Overcharge
     isEcho: isEcho,  # Whether this is an echo trail bullet
     echoTrailTimer: 0.0,  # Timer for spawning echo trails
+    echoHitEnemies: @[],  # Track echo damage per parent/enemy pair
     bulletId: bulletId,  # Unique ID for this bullet
     parentBulletId: parentBulletId,  # ID of parent bullet (for echo tracking)
     isBossBullet: isBossBullet,  # Mark boss bullets for glow effect
@@ -572,11 +573,15 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
   # Copy hit enemies list for independent tracking
   for enemyIdx in original.hitEnemies:
     result.hitEnemies.add(enemyIdx)
+  for enemyIdx in original.echoHitEnemies:
+    result.echoHitEnemies.add(enemyIdx)
 
 proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
                         damageMultiplier: float32 = 0.5, speedMultiplier: float32 = 0.7) =
-  ## Create split bullets that inherit ALL properties from source bullet
-  ## SYNERGY SYSTEM: Split bullets maintain explosive, homing, piercing, poison, etc.
+  ## Create damage-only split fragments.
+  ## Split Shot creates extra hits, but child bullets should not become full
+  ## carriers for piercing, ricochet, explosive, elemental, or other on-hit
+  ## packages.
 
   # Get the original bullet's direction angle
   let baseAngle = arctan2(sourceBullet.vel.y, sourceBullet.vel.x)
@@ -615,6 +620,17 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
       true  # Prevent infinite splitting
     )
     splitBullet.isFromBulletSplit = true  # Mark for statistics tracking
+    splitBullet.isPiercing = false
+    splitBullet.isExplosive = false
+    splitBullet.bounceCount = -1
+    splitBullet.piercedEnemies = 0
+    splitBullet.slowAmount = 0
+    splitBullet.poisonDuration = 0
+    splitBullet.fireDuration = 0
+    splitBullet.windPushForce = 0
+    splitBullet.isArcaneBullet = false
+    splitBullet.isSpecialRound = false
+    splitBullet.isRicochet = false
 
     game.bullets.add(splitBullet)
 
@@ -647,7 +663,9 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
   ## Create a damage-only echo trail bullet.
   ## Echoes inherit the source's current damage and visuals, but not recursive
   ## shot modifiers or on-hit effects.
-  ## Echo bullets track their parent so they can be removed when parent hits
+  ## Echo bullets track their parent so they can be removed when parent hits.
+  ## They also inherit the parent's hit history so piercing/ricochet bullets
+  ## cannot echo-damage the same target repeatedly.
   let echoBullet = cloneBullet(
     sourceBullet,
     sourceBullet.pos,
@@ -688,7 +706,8 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
   echoBullet.isParried = false
   echoBullet.isFromNova = false
 
-  # Clear hitEnemies list so echo bullets can hit enemies independently
-  echoBullet.hitEnemies.setLen(0)
+  for enemyId in sourceBullet.echoHitEnemies:
+    if enemyId notin echoBullet.hitEnemies:
+      echoBullet.hitEnemies.add(enemyId)
 
   game.bullets.add(echoBullet)

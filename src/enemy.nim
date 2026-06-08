@@ -84,15 +84,6 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   # Increment enemy ID counter for next enemy
   game.nextEnemyId += 1
 
-proc bossPhaseColor(hpPercent: float32, originalColor: Color): Color =
-  ## Returns the boss tint color based on its current HP percentage.
-  ## Thresholds map to visual phases: full HP keeps the original spawn color.
-  if   hpPercent <= 0.25: Color(r: 255, g: 100, b: 255, a: 255)  # Magenta glow  (final phase)
-  elif hpPercent <= 0.35: Color(r: 255, g: 150, b: 0,   a: 255)  # Orange        (third phase)
-  elif hpPercent <= 0.50: Color(r: 255, g: 50,  b: 50,  a: 255)  # Red           (second phase)
-  elif hpPercent <= 0.70: Color(r: 200, g: 100, b: 50,  a: 255)  # Dark orange   (getting damaged)
-  else: originalColor                                              # Full HP, keep spawn color
-
 proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
   # Apply slow field effect
   var effectiveSpeed = getEffectiveSpeed(enemy.speed, game.currentWave)
@@ -116,10 +107,6 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
 
     enemy.shootTimer += dt
     enemy.spawnTimer += dt
-
-    # CUSTOM BOSS COLOR UPDATE (HP-based phases)
-    enemy.color = bossPhaseColor(enemy.hp / enemy.maxHp, enemy.color)
-
 
     # Custom bosses are moved by updateCustomBossBehavior in game.nim.
     # Running this generic chase first makes them snap toward the player,
@@ -1326,18 +1313,33 @@ proc drawThreatAura(enemy: Enemy) =
 
 proc drawEnemy*(enemy: Enemy) =
   ## Draws an enemy based on its type. Bosses are forwarded to drawCustomBoss.
+  if enemy.cursed:
+    # Pulsing purple hex-ring marking a cursed enemy (Curse power-up)
+    let cp = sin(getTime() * 4.0) * 0.5 + 0.5
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 4.0 + cp * 3.0,
+                    Color(r: 175, g: 60, b: 215, a: uint8(110 + cp * 90)))
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 7.0 + cp * 4.0,
+                    Color(r: 200, g: 110, b: 240, a: uint8(50 + cp * 60)))
+
   if enemy.isBoss:
     # Boss drawing
     drawCustomBoss(enemy)
 
-    # HP bar (common to all bosses)
-    let barWidth = enemy.radius * 2.5
-    let barHeight = 8.0
-    let hpPercent = enemy.hp / enemy.maxHp
-    drawRectangle((enemy.pos.x - enemy.radius * 1.25).int32, (enemy.pos.y - enemy.radius - 16).int32,
-                  barWidth.int32, barHeight.int32, Red)
-    drawRectangle((enemy.pos.x - enemy.radius * 1.25).int32, (enemy.pos.y - enemy.radius - 16).int32,
-                  (barWidth * hpPercent).int32, barHeight.int32, Green)
+    # Boss HP is shown by the top-of-screen phase HUD (drawBossPhaseHud).
+    # No per-body bar here, otherwise the boss appears to have two health bars.
+    let phasePulse = sin(getTime() * 7.0) * 0.5 + 0.5
+    let glowAlpha = if enemy.invulnerabilityTimer > 0:
+      uint8(125 + phasePulse * 90)
+    elif enemy.bossPhaseBreakFlashTimer > 0:
+      uint8(90 + phasePulse * 80)
+    else:
+      uint8(55)
+
+    if enemy.invulnerabilityTimer > 0:
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 13.0 + phasePulse * 5.0,
+                      Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: glowAlpha))
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 23.0 + phasePulse * 7.0,
+                      Color(r: 255, g: 255, b: 255, a: uint8(glowAlpha div 2)))
   else:
     drawThreatAura(enemy)
     case enemy.enemyType
@@ -2996,6 +2998,10 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
 
     # Create boss with custom stats
     let scaledHP = getScaledBossHP(bossDef, waveNumber)
+    let phaseHpPools = getBossPhaseHpPools(bossDef, scaledHP)
+    let firstPhaseHp =
+      if phaseHpPools.len > 0: phaseHpPools[0]
+      else: scaledHP
     let scaledSpeed = getScaledBossSpeed(bossDef, waveNumber)
     let scaledDamage = getScaledBossDamage(bossDef, waveNumber)
 
@@ -3022,8 +3028,8 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       vel: newVector2f(0, 0),
       radius: bossDef.baseRadius,
       collisionRadius: bossDef.baseRadius * 0.4,
-      hp: scaledHP,
-      maxHp: scaledHP,
+      hp: firstPhaseHp,
+      maxHp: firstPhaseHp,
       speed: firstPhaseSpeed,  # Apply speedMultiplier from first phase
       contactDamage: scaledDamage,  # Boss contact damage
       rangedDamage: scaledDamage,   # Boss ranged damage
@@ -3032,6 +3038,9 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       isBoss: true,
       bossDefinitionID: bossDef.bossID,
       currentPhaseIndex: 0,
+      bossTotalMaxHp: scaledHP,
+      bossPhaseHpPools: phaseHpPools,
+      bossPhaseBreakFlashTimer: 0.0,
       attackTimers: initialAttackTimers,
       attackWarningFired: initialAttackWarningFired,
       startPos: newVector2f(startX, startY),

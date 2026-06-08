@@ -1903,6 +1903,29 @@ proc getBossForWave*(waveNumber: int): BossDefinition =
   let bossNumber = getCustomBossNumber(waveNumber)
   return getBossDefinition(bossNumber)
 
+proc getBossPhaseHpPools*(boss: BossDefinition, scaledHp: float32): seq[float32] =
+  ## Splits total boss HP into one pool per phase using the existing threshold gaps.
+  if scaledHp <= 0.0'f32 or boss.phases.len == 0:
+    return @[max(scaledHp, 0.01'f32)]
+
+  var weights: seq[float32] = @[]
+  var totalWeight = 0.0'f32
+  for i, phase in boss.phases:
+    let nextThreshold =
+      if i + 1 < boss.phases.len:
+        boss.phases[i + 1].hpThreshold
+      else:
+        0.0'f32
+    let weight = max(0.0'f32, phase.hpThreshold - nextThreshold)
+    weights.add(weight)
+    totalWeight += weight
+
+  if totalWeight <= 0.0'f32:
+    return @[scaledHp]
+
+  for weight in weights:
+    result.add(max(0.01'f32, scaledHp * (weight / totalWeight)))
+
 proc getCurrentPhase*(boss: BossDefinition, currentHpPercent: float32): BossPhaseDefinition =
   ## Returns the current phase based on boss HP percentage
   result = boss.phases[0]  # Default to first phase

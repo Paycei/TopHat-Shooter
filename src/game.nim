@@ -1,9 +1,10 @@
-import raylib, rlgl, random, math, tables
-import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, particle_types, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, gamemode_definitions, run_statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints
+import raylib, rlgl, random, math, tables, strutils
+import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, particle_types, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints
 
 # Configurable boss wave enemy spawn reduction
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
 const TIME_SURVIVAL_BOSS_INTERVAL = 60.0
+const BOSS_PHASE_INVULNERABILITY_DURATION = 1.2'f32
 const DEATH_SLOW_DURATION = 1.1'f32
 const DEATH_SPEEDUP_DURATION = 0.35'f32
 const DEATH_FADE_DURATION = 0.65'f32
@@ -742,6 +743,22 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
     enemy.diamondShieldActive = false
     result = 0
 
+proc applyEnemyHpDamage(enemy: Enemy, damage: float32): float32 =
+  ## Applies raw HP damage. Bosses only lose HP from the active phase pool.
+  if damage <= 0.0'f32:
+    return 0.0'f32
+
+  if enemy.isBoss:
+    if enemy.invulnerabilityTimer > 0:
+      return 0.0'f32
+
+    let dealt = min(damage, max(enemy.hp, 0.0'f32))
+    enemy.hp -= dealt
+    return dealt
+
+  enemy.hp -= damage
+  damage
+
 proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
   ## Helper to apply damage to enemy with elite modifiers
   ## Combines applyEliteModifiers and HP reduction in one call
@@ -759,7 +776,7 @@ proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
   if enemy.enemyType == etStar:
     enemy.hitCount += 1
   else:
-    enemy.hp -= result
+    result = applyEnemyHpDamage(enemy, result)
 
 # CENTRALIZED COMBAT STATS SYSTEM
 # Single source of truth for all combat-related stat calculations
@@ -1150,6 +1167,8 @@ type
 proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
   ## Extract all active bullet effects from a bullet
   result = @[]
+  if bullet.isEcho or bullet.isFromBulletSplit:
+    return
 
   # Frost effect
   if bullet.slowAmount > 0 and hasPowerUp(game.player, puFrostShots):
@@ -1791,6 +1810,8 @@ type BulletEffects = tuple[
   wind: float32
 ]
 
+const WindBulletFlatDamageBonus = 0.5'f32
+
 proc calcBulletEffects(player: Player): BulletEffects =
   ## Computes the elemental/knockback values that every player bullet carries.
   ## Single source of truth shared by shootBullet and fireDoubleShotBurst.
@@ -1898,7 +1919,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
 
     # Cheap flat damage for Wind Bullets so the upgrade is meaningful
     if hasPowerUp(game.player, puWindBullets):
-      damage += 0.5'f32
+      damage += WindBulletFlatDamageBonus
 
     # Check for Special Rounds power-up
     var isSpecialRound = false
@@ -2130,7 +2151,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
 
   # Cheap flat damage for Wind Bullets so the upgrade is meaningful
   if hasPowerUp(game.player, puWindBullets):
-    damage += 0.5'f32
+    damage += WindBulletFlatDamageBonus
 
   if hasPowerUp(game.player, puHeavyRounds):
     let sizeLevel = getPowerUpLevel(game.player, puHeavyRounds)
@@ -2252,6 +2273,73 @@ proc resetBossBehaviorState(enemy: Enemy, specialBehavior: string) =
   else:
     enemy.teleportTimer = 0.0
     enemy.shockwaveTimer = 0.0
+
+proc bossPhaseMaxHp(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 =
+  if phaseIndex >= 0 and phaseIndex < enemy.bossPhaseHpPools.len:
+    return max(enemy.bossPhaseHpPools[phaseIndex], 0.01'f32)
+
+  if enemy.bossTotalMaxHp > 0.0'f32 and phaseCount > 0:
+    return max(enemy.bossTotalMaxHp / phaseCount.float32, 0.01'f32)
+
+  max(enemy.maxHp, 0.01'f32)
+
+proc transitionBossToPhase(game: var Game, enemy: Enemy, bossDef: BossDefinition,
+                           nextPhaseIndex: int) =
+  if nextPhaseIndex < 0 or nextPhaseIndex >= bossDef.phases.len:
+    return
+
+  let phase = bossDef.phases[nextPhaseIndex]
+  enemy.currentPhaseIndex = nextPhaseIndex
+  enemy.maxHp = bossPhaseMaxHp(enemy, nextPhaseIndex, bossDef.phases.len)
+  enemy.hp = enemy.maxHp
+
+  # Brief invulnerability and transition punch.
+  enemy.invulnerabilityTimer = BOSS_PHASE_INVULNERABILITY_DURATION
+  enemy.bossPhaseBreakFlashTimer = 0.9'f32
+  addShake(game.dopamine.screenShake, siLarge)
+
+  for ring in 1..5:
+    for j in 0..23:
+      let angle = j.float32 * PI * 2.0 / 24.0
+      let dist = ring.float32 * 35.0
+      let px = enemy.pos.x + cos(angle) * dist
+      let py = enemy.pos.y + sin(angle) * dist
+      spawnExplosionPooled(game.particlePool, px, py, phase.color, 8)
+
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 255, g: 255, b: 255, a: 255), 40)
+
+  if enemy.satellites.len > 0:
+    for satellite in enemy.satellites:
+      spawnExplosionPooled(game.particlePool, satellite.pos.x, satellite.pos.y,
+                           Color(r: 100, g: 150, b: 255, a: 255), 12)
+    enemy.satellites = @[]
+
+  const PHASE_TRANSITION_LEAD = 0.4'f32
+  enemy.attackTimers = @[]
+  enemy.attackWarningFired = @[]
+  for attack in phase.attacks:
+    enemy.attackTimers.add(PHASE_TRANSITION_LEAD)
+    enemy.attackWarningFired.add(false)
+
+  # Bosses keep their spawn color across phases (phase recoloring was a legacy mechanic).
+  let scaledBaseSpeed = getScaledBossSpeed(bossDef, game.currentWave)
+  enemy.speed = scaledBaseSpeed * phase.speedMultiplier
+  enemy.defenseMultiplier = phase.defenseMultiplier
+  resetBossBehaviorState(enemy, phase.specialBehavior)
+  resetBossWeakPointForPhase(enemy, bossDef.weakPoint, enemy.currentPhaseIndex)
+
+proc tryAdvanceBossPhase(game: var Game, enemy: Enemy): bool =
+  if not enemy.isBoss or enemy.hp > 0.0'f32 or enemy.bossDefinitionID <= 0:
+    return false
+
+  let bossDef = getBossDefinition(enemy.bossDefinitionID)
+  let nextPhaseIndex = enemy.currentPhaseIndex + 1
+  if nextPhaseIndex >= bossDef.phases.len:
+    return false
+
+  transitionBossToPhase(game, enemy, bossDef, nextPhaseIndex)
+  true
 
 proc isBossBehaviorBurstActive(enemy: Enemy, dt: float32,
                                activeDuration, cooldownMin, cooldownMax: float32): bool =
@@ -4771,7 +4859,8 @@ proc updateGame*(game: var Game, dt: float32) =
 
       let boss = game.enemies[^1]
       let bossDef = getBossDefinition(boss.bossDefinitionID)
-      startIntroduction(game.dopamine.bossIntro, bossDef.name, bossDef.description, boss.maxHp)
+      let introBossHp = if boss.bossTotalMaxHp > 0.0'f32: boss.bossTotalMaxHp else: boss.maxHp
+      startIntroduction(game.dopamine.bossIntro, bossDef.name, bossDef.description, introBossHp)
 
       for i in 0..<60:
         let angle = i.float32 * 0.1
@@ -5725,8 +5814,25 @@ proc updateGame*(game: var Game, dt: float32) =
   while enemyIdx < game.enemies.len:
     var enemy = game.enemies[enemyIdx]
 
+    # Curse power-up: evaluate curse eligibility once per enemy. Bosses are always
+    # cursed (so the greatly-reduced bonus reliably applies); normal enemies are
+    # cursed at random based on the power-up level.
+    if not enemy.curseRolled and hasPowerUp(game.player, puCurse):
+      enemy.curseRolled = true
+      if enemy.isBoss:
+        enemy.cursed = true
+      else:
+        let curseChance = case getPowerUpLevel(game.player, puCurse)
+          of 1: 0.25
+          of 2: 0.35
+          else: 0.50
+        enemy.cursed = rand(1.0) < curseChance
+
     # Update elite effects (regeneration, etc.)
     updateEliteEffects(enemy, dt)
+
+    if enemy.isBoss and enemy.bossPhaseBreakFlashTimer > 0:
+      enemy.bossPhaseBreakFlashTimer = max(0.0'f32, enemy.bossPhaseBreakFlashTimer - dt)
 
     # Update poison damage over time
     # Update all active effects for this enemy
@@ -5812,6 +5918,8 @@ proc updateGame*(game: var Game, dt: float32) =
       if enemy.slowTimer <= 0:
         enemy.slowAmount = 0
 
+    discard tryAdvanceBossPhase(game, enemy)
+
     if not updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game):  # Use slowed time
       # Enemy died - show any accumulated aura damage before death
       flushAccumulatedAuraDamage(game, enemy)
@@ -5826,9 +5934,10 @@ proc updateGame*(game: var Game, dt: float32) =
           if game.enemies[bossIdx].isBoss:
             let summonBonusDamage = registerBossSummonDestroyed(game.enemies[bossIdx])
             if summonBonusDamage > 0:
-              game.enemies[bossIdx].hp -= summonBonusDamage
-              showDamage(game, game.enemies[bossIdx].pos, summonBonusDamage, true, false, dtArcane)
-              recordDamage(game.dopamine.realTimeStats, summonBonusDamage, game.time)
+              let dealtSummonDamage = applyEnemyHpDamage(game.enemies[bossIdx], summonBonusDamage)
+              if dealtSummonDamage > 0:
+                showDamage(game, game.enemies[bossIdx].pos, dealtSummonDamage, true, false, dtArcane)
+                recordDamage(game.dopamine.realTimeStats, dealtSummonDamage, game.time)
             break
 
       # Boss-spawned minions don't drop coins (prevent farming)
@@ -6001,7 +6110,8 @@ proc updateGame*(game: var Game, dt: float32) =
         addShake(game.dopamine.screenShake, siMassive)
         activateSlowMo(game.dopamine.slowMotion, smtBossKill)
         # Record kill with high damage for stats
-        recordKill(game.dopamine.waveStats, enemy.maxHp)
+        let bossKillHp = if enemy.bossTotalMaxHp > 0.0'f32: enemy.bossTotalMaxHp else: enemy.maxHp
+        recordKill(game.dopamine.waveStats, bossKillHp)
       else:
         # Regular enemy kill - standard effects
         addShake(game.dopamine.screenShake, siMedium)
@@ -6042,6 +6152,11 @@ proc updateGame*(game: var Game, dt: float32) =
       # Check if boss was defeated
       if enemy.isBoss:
         bossDefeated = true
+        # Remember this boss so its full phase layout may be revealed next time.
+        if globalStats != nil and enemy.bossDefinitionID > 0 and
+           not globalStats.hasDefeatedBoss(enemy.bossDefinitionID):
+          globalStats.markBossDefeated(enemy.bossDefinitionID)
+          discard saveStatistics(globalStats)
         if game.mode == gmRoguelite:
           game.bossWaveManager.clearBossWave()
         elif shouldUseWaves(game.mode):
@@ -6112,71 +6227,14 @@ proc updateGame*(game: var Game, dt: float32) =
     # BOSS SPECIAL ATTACKS
     if enemy.isBoss:
       # CUSTOM BOSS ATTACKS - Full pattern system from boss_definitions.nim
-      # Get boss definition and check for phase transitions
+      # Get boss definition and update phase-shield timing.
       let bossDef = getBossDefinition(enemy.bossDefinitionID)
-      let hpPercent = enemy.hp / enemy.maxHp
 
       # Update invulnerability timer
       if enemy.invulnerabilityTimer > 0:
         enemy.invulnerabilityTimer -= dt
         if enemy.invulnerabilityTimer < 0:
           enemy.invulnerabilityTimer = 0
-
-      # Check if we need to transition to a new phase
-      for i, phase in bossDef.phases:
-        if hpPercent <= phase.hpThreshold and i > enemy.currentPhaseIndex:
-          enemy.currentPhaseIndex = i
-
-          # DRAMATIC PHASE TRANSITION EFFECTS
-          # 1. Brief invulnerability
-          enemy.invulnerabilityTimer = 2.0
-
-          # 2. Screen shake for impact
-          addShake(game.dopamine.screenShake, siLarge)
-
-          # 3. Massive particle explosion (expanding rings)
-          for ring in 1..5:
-            for j in 0..23:
-              let angle = j.float32 * PI * 2.0 / 24.0
-              let dist = ring.float32 * 35.0
-              let px = enemy.pos.x + cos(angle) * dist
-              let py = enemy.pos.y + sin(angle) * dist
-              spawnExplosionPooled(game.particlePool, px, py, phase.color, 8)
-
-          # 4. Extra burst at center
-          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                        Color(r: 255, g: 255, b: 255, a: 255), 40)
-
-          # REGENERATE SATELLITES - Clear existing satellites so new phase can spawn correct number
-          # This ensures bosses with satellite attacks get the proper count for the new phase
-          if enemy.satellites.len > 0:
-            # Create destruction effect for each destroyed satellite
-            for satellite in enemy.satellites:
-              spawnExplosionPooled(game.particlePool, satellite.pos.x, satellite.pos.y,
-                            Color(r: 100, g: 150, b: 255, a: 255), 12)
-            # Clear satellite list - new phase will regenerate with correct count
-            enemy.satellites = @[]
-
-          # Reinitialize attack timers for new phase.
-          # Use WARNING_LEAD_TIME so the pre-fire warning fires immediately and
-          # the attack follows 0.4 s later, fast phase-start without skipping warnings.
-          const PHASE_TRANSITION_LEAD = 0.4'f32
-          enemy.attackTimers = @[]
-          enemy.attackWarningFired = @[]
-          for attack in phase.attacks:
-            enemy.attackTimers.add(PHASE_TRANSITION_LEAD)
-            enemy.attackWarningFired.add(false)
-          # Update boss color and apply phase modifiers
-          enemy.color = phase.color
-          # Apply phase speedMultiplier to wave-scaled base speed
-          let scaledBaseSpeed = getScaledBossSpeed(bossDef, game.currentWave)
-          let calculatedSpeed = scaledBaseSpeed * phase.speedMultiplier
-
-          enemy.speed = calculatedSpeed
-          enemy.defenseMultiplier = phase.defenseMultiplier  # Apply defense multiplier from phase
-          resetBossBehaviorState(enemy, phase.specialBehavior)
-          resetBossWeakPointForPhase(enemy, bossDef.weakPoint, enemy.currentPhaseIndex)
-          break
 
       # Update boss behavior based on specialBehavior
       if enemy.currentPhaseIndex < bossDef.phases.len:
@@ -6711,8 +6769,9 @@ proc updateGame*(game: var Game, dt: float32) =
                     playSound(stEnemyDeath, 0.4)
                     let satelliteBonusDamage = registerBossSatelliteDestroyed(enemy)
                     if satelliteBonusDamage > 0:
-                      enemy.hp -= satelliteBonusDamage
-                      showDamage(game, enemy.pos, satelliteBonusDamage, true, false, dtArcane)
+                      let dealtSatelliteDamage = applyEnemyHpDamage(enemy, satelliteBonusDamage)
+                      if dealtSatelliteDamage > 0:
+                        showDamage(game, enemy.pos, dealtSatelliteDamage, true, false, dtArcane)
                     enemy.satellites.delete(i)
                     satelliteDestroyed = true
                     break
@@ -6819,14 +6878,14 @@ proc updateGame*(game: var Game, dt: float32) =
 
       bullet.echoTrailTimer += bulletDt
 
-      let spawnInterval = 0.05  # Was 0.08 - now spawns 60% faster
-      let echoDamageMultiplier = 0.60  # Was 0.40 - now deals 60% damage
+      let spawnInterval = 0.10
+      let echoDamageMultiplier = 0.25
 
       if bullet.echoTrailTimer >= spawnInterval:
         bullet.echoTrailTimer = 0.0
 
         # Create echo bullet
-        createEchoBullet(game, bullet, echoDamageMultiplier, 0.7, 0.7)
+        createEchoBullet(game, bullet, echoDamageMultiplier, 0.7, 0.45)
 
     # Check rotating shield collision
     if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):
@@ -6892,6 +6951,16 @@ proc updateGame*(game: var Game, dt: float32) =
         # Skip if this bullet already hit this enemy (using enemy ID)
         if game.enemies[j].id in bullet.hitEnemies:
           continue
+        if bullet.isEcho and bullet.parentBulletId > 0:
+          var parentAlreadyDamagedEnemy = false
+          for parentBullet in game.bullets:
+            if parentBullet.bulletId == bullet.parentBulletId:
+              parentAlreadyDamagedEnemy =
+                game.enemies[j].id in parentBullet.hitEnemies or
+                game.enemies[j].id in parentBullet.echoHitEnemies
+              break
+          if parentAlreadyDamagedEnemy:
+            continue
 
         if game.enemies[j].isBoss:
           let objectiveHit = resolveBossWeakPointTargetHit(game.enemies[j], bullet.pos, bullet.radius)
@@ -6908,9 +6977,10 @@ proc updateGame*(game: var Game, dt: float32) =
                                  particleColor, if objectiveHit.completed: 18 else: 8)
             if objectiveHit.completed:
               if objectiveHit.bonusDamage > 0:
-                game.enemies[j].hp -= objectiveHit.bonusDamage
-                showDamage(game, game.enemies[j].pos, objectiveHit.bonusDamage, true, false, dtArcane)
-                recordDamage(game.dopamine.realTimeStats, objectiveHit.bonusDamage, game.time)
+                let dealtObjectiveDamage = applyEnemyHpDamage(game.enemies[j], objectiveHit.bonusDamage)
+                if dealtObjectiveDamage > 0:
+                  showDamage(game, game.enemies[j].pos, dealtObjectiveDamage, true, false, dtArcane)
+                  recordDamage(game.dopamine.realTimeStats, dealtObjectiveDamage, game.time)
               addShake(game.dopamine.screenShake, siLarge)
             hitEnemy = true
             break
@@ -6918,6 +6988,12 @@ proc updateGame*(game: var Game, dt: float32) =
         if checkBulletEnemyCollision(bullet, game.enemies[j]):
           # Mark this enemy as hit by this bullet (using enemy ID, not index)
           bullet.hitEnemies.add(game.enemies[j].id)
+          if bullet.isEcho and bullet.parentBulletId > 0:
+            for parentBullet in game.bullets:
+              if parentBullet.bulletId == bullet.parentBulletId:
+                if game.enemies[j].id notin parentBullet.echoHitEnemies:
+                  parentBullet.echoHitEnemies.add(game.enemies[j].id)
+                break
 
           # Play enemy hit sound
           playSound(stEnemyHit, 0.3)
@@ -6990,7 +7066,7 @@ proc updateGame*(game: var Game, dt: float32) =
             if bossIsInvulnerable:
               actualDamage = 0
 
-            game.enemies[j].hp -= actualDamage
+            actualDamage = applyEnemyHpDamage(game.enemies[j], actualDamage)
 
             # Volatile: enemies with 2+ active DoTs take +50% bullet damage
             var volatileBonusDamage = 0.0
@@ -7001,9 +7077,10 @@ proc updateGame*(game: var Game, dt: float32) =
                   activeEffectCount += 1
               if activeEffectCount >= 2:
                 volatileBonusDamage = actualDamage * 0.5
-                game.enemies[j].hp -= volatileBonusDamage
+                volatileBonusDamage = applyEnemyHpDamage(game.enemies[j], volatileBonusDamage)
                 trackPowerUpDamage(game, puVolatile, volatileBonusDamage)
-                showDamage(game, game.enemies[j].pos, volatileBonusDamage, true, false, dtArcane)
+                if volatileBonusDamage > 0:
+                  showDamage(game, game.enemies[j].pos, volatileBonusDamage, true, false, dtArcane)
 
             # Resonance: bullets hitting DoT enemies deal bonus damage equal to % of combined DPS
             var resonanceBonusDamage = 0.0
@@ -7020,9 +7097,10 @@ proc updateGame*(game: var Game, dt: float32) =
                   else: 0.40
                 resonanceBonusDamage = totalDoTDps * resonancePct
                 resonanceBonusDamage *= bossWeakPointDamageMultiplier(game.enemies[j], bwdsPassive)
-                game.enemies[j].hp -= resonanceBonusDamage
+                resonanceBonusDamage = applyEnemyHpDamage(game.enemies[j], resonanceBonusDamage)
                 trackPowerUpDamage(game, puResonance, resonanceBonusDamage)
-                showDamage(game, game.enemies[j].pos, resonanceBonusDamage, true, false, dtPoison)
+                if resonanceBonusDamage > 0:
+                  showDamage(game, game.enemies[j].pos, resonanceBonusDamage, true, false, dtPoison)
 
             # Giant Slayer: Deal % of enemy current HP as bonus damage
             var giantSlayerDamage = 0.0
@@ -7047,7 +7125,7 @@ proc updateGame*(game: var Game, dt: float32) =
               giantSlayerDamage *= bossWeakPointDamageMultiplier(game.enemies[j], bwdsPassive)
 
               # Shielded elite: Giant Slayer damage goes through shield to HP
-              game.enemies[j].hp -= giantSlayerDamage
+              giantSlayerDamage = applyEnemyHpDamage(game.enemies[j], giantSlayerDamage)
 
               # Track Giant Slayer damage contribution
               trackPowerUpDamage(game, puGiantSlayer, giantSlayerDamage)
@@ -7056,11 +7134,30 @@ proc updateGame*(game: var Game, dt: float32) =
               if giantSlayerDamage > 0:
                 showDamage(game, game.enemies[j].pos, giantSlayerDamage, true, false, dtArcane)
 
-            # Track bullet hit for statistics (now includes Giant Slayer damage)
-            trackBulletHit(game, bullet, game.enemies[j], actualDamage + shieldDamage + giantSlayerDamage)
+            # Curse: cursed enemies take a % of this hit's damage as bonus damage.
+            # Based on actualDamage, which already includes mitigation and the direct
+            # weak-point multiplier, so no extra multipliers are applied here.
+            # Greatly reduced against bosses.
+            var curseDamage = 0.0
+            if not bullet.isEcho and bullet.fromPlayer and game.enemies[j].cursed and
+                hasPowerUp(game.player, puCurse) and not bossIsInvulnerable and actualDamage > 0:
+              var curseBonusPct = case getPowerUpLevel(game.player, puCurse)
+                of 1: 0.30'f32
+                of 2: 0.45'f32
+                else: 0.60'f32
+              if game.enemies[j].isBoss:
+                curseBonusPct *= 0.15  # greatly reduced against bosses
+              curseDamage = actualDamage * curseBonusPct
+              curseDamage = applyEnemyHpDamage(game.enemies[j], curseDamage)
+              trackPowerUpDamage(game, puCurse, curseDamage)
+              if curseDamage > 0:
+                showDamage(game, game.enemies[j].pos, curseDamage, true, false, dtArcane)
+
+            # Track bullet hit for statistics (now includes Giant Slayer + Curse damage)
+            trackBulletHit(game, bullet, game.enemies[j], actualDamage + shieldDamage + giantSlayerDamage + curseDamage)
 
             # Track damage for real-time DPS display
-            recordDamage(game.dopamine.realTimeStats, actualDamage + shieldDamage + giantSlayerDamage, game.time)
+            recordDamage(game.dopamine.realTimeStats, actualDamage + shieldDamage + giantSlayerDamage + curseDamage, game.time)
 
             # Track power-up damage contributions (only ACTUAL extra damage they caused)
 
@@ -7105,11 +7202,22 @@ proc updateGame*(game: var Game, dt: float32) =
             if bullet.isArcaneBullet:
               trackPowerUpDamage(game, puArcaneBullets, actualDamage)
 
-            # Track Wind Bullets contribution (if this bullet had wind push)
-            if bullet.windPushForce > 0:
-              trackPowerUpDamage(game, puWindBullets, actualDamage)
+            # Track only the damage wind actually added. Wind push itself is
+            # utility, and windPushForce can also include Heavy Rounds knockback.
+            if bullet.windPushForce > 0 and hasPowerUp(game.player, puWindBullets):
+              let windFlatDamage = if finalDamage > 0:
+                actualDamage * (WindBulletFlatDamageBonus / finalDamage)
+              else:
+                0.0'f32
+              if windFlatDamage > 0:
+                trackPowerUpDamage(game, puWindBullets, windFlatDamage)
               if game.player.hasWindMastery:
-                trackPowerUpDamage(game, puWindMastery, actualDamage)
+                let windMasteryDamage = if finalDamage > 0:
+                  actualDamage * ((bullet.damage - (bullet.damage / 2.5'f32)) / finalDamage)
+                else:
+                  0.0'f32
+                if windMasteryDamage > 0:
+                  trackPowerUpDamage(game, puWindMastery, windMasteryDamage)
 
             # Piercing Shots: extra hits are enabled by this power-up, but the damage
             # is already captured by the base bullet damage tracking above.
@@ -7192,10 +7300,9 @@ proc updateGame*(game: var Game, dt: float32) =
                           Color(r: 255, g: 215, b: 0, a: 255), 15)
 
           # UNIFIED BULLET EFFECT SYSTEM
-          if not bullet.isEcho:
-            applyBulletEffects(game, bullet, game.enemies[j], dt)
+          applyBulletEffects(game, bullet, game.enemies[j], dt)
 
-          # Bullet split on hit - SYNERGY: Inherits ALL bullet properties
+          # Bullet split on hit - creates damage-only child fragments
           if not bullet.isEcho and hasPowerUp(game.player, puBulletSplit) and not bullet.hasSplit:
             let splitLevel = getPowerUpLevel(game.player, puBulletSplit)
             let splitCount = splitLevel + 1  # 2, 3, or 4 bullets
@@ -7772,6 +7879,116 @@ proc updateGame*(game: var Game, dt: float32) =
   if game.player.hp <= 0 and game.state == gsPlaying:
     beginPlayerDeathSequence(game)
 
+proc drawBossPhaseHud(game: Game, enemy: Enemy) =
+  let bossDef = getBossDefinition(enemy.bossDefinitionID)
+  let phaseCount = max(1, max(bossDef.phases.len, enemy.bossPhaseHpPools.len))
+  let currentPhase = clamp(enemy.currentPhaseIndex, 0, phaseCount - 1)
+  # Only reveal the boss's full phase layout once the player has beaten it before;
+  # otherwise show bars up to the current phase and don't spoil what's coming.
+  let revealAll = hasDefeatedBoss(globalStats, enemy.bossDefinitionID)
+  let visiblePhases = if revealAll: phaseCount else: currentPhase + 1
+
+  let rowH = 13'i32
+  let headerH = 38'i32
+  let panelW = min(520'i32, max(340'i32, game.screenWidth - 80'i32))
+  let panelH = headerH + rowH * visiblePhases.int32 + 11'i32
+  let panelX = game.screenWidth div 2 - panelW div 2
+  let panelY = 10'i32
+  let activeColor =
+    if currentPhase < bossDef.phases.len: bossDef.phases[currentPhase].color
+    else: enemy.color
+
+  drawRectangle(panelX + 3, panelY + 4, panelW, panelH, Color(r: 0, g: 0, b: 0, a: 110))
+  drawRectangle(panelX, panelY, panelW, panelH, Color(r: 8, g: 12, b: 19, a: 232))
+  drawRectangle(panelX, panelY, panelW, 3, activeColor)
+  drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+                               width: panelW.float32, height: panelH.float32),
+                     1, withAlpha(activeColor, 210))
+
+  let threatName = getEnemyProcessName(enemy)
+  drawText("CRITICAL THREAT", panelX + 11, panelY + 7, 8, withAlpha(activeColor, 240))
+  drawText(threatName, panelX + 11, panelY + 17, 13, Color(r: 238, g: 245, b: 255, a: 255))
+
+  let phaseName =
+    if currentPhase < bossDef.phases.len:
+      bossDef.phases[currentPhase].name
+    else:
+      "Phase " & $(currentPhase + 1)
+  let phaseCountLabel = if revealAll: $phaseCount else: "?"
+  let phaseText = "PHASE " & $(currentPhase + 1) & "/" & phaseCountLabel & " :: " & phaseName
+  let phaseTextW = measureText(phaseText, 10)
+  drawText(phaseText, panelX + panelW - phaseTextW - 11, panelY + 9, 10, withAlpha(activeColor, 240))
+
+  let hpText = formatHealthDisplay(enemy.hp) & " / " & formatHealthDisplay(enemy.maxHp)
+  let hpTextW = measureText(hpText, 10)
+  drawText(hpText, panelX + panelW - hpTextW - 11, panelY + 23, 10, Color(r: 210, g: 225, b: 240, a: 255))
+
+  let barX = panelX + 12
+  let barW = panelW - 24
+  var y = panelY + headerH - 4
+  for i in 0..<visiblePhases:
+    let phaseColor =
+      if i < bossDef.phases.len: bossDef.phases[i].color
+      else: enemy.color
+    let phaseMax = bossPhaseMaxHp(enemy, i, phaseCount)
+    let fillPct =
+      if i < currentPhase:
+        1.0'f32
+      elif i == currentPhase:
+        clamp(enemy.hp / max(enemy.maxHp, 0.01'f32), 0.0'f32, 1.0'f32)
+      else:
+        0.0'f32
+    let fillW = int32(barW.float32 * fillPct)
+    let rowAlpha =
+      if i < currentPhase: 150
+      elif i == currentPhase: 255
+      else: 85
+    let rowBg = if i == currentPhase:
+      Color(r: 24, g: 30, b: 42, a: 230)
+    else:
+      Color(r: 12, g: 17, b: 25, a: 210)
+
+    drawRectangle(barX, y, barW, 9, rowBg)
+    if fillW > 0:
+      drawRectangleGradientH(barX, y, fillW, 9,
+                             withAlpha(phaseColor, rowAlpha),
+                             Color(r: min(255, phaseColor.r.int + 70).uint8,
+                                   g: min(255, phaseColor.g.int + 70).uint8,
+                                   b: min(255, phaseColor.b.int + 70).uint8,
+                                   a: rowAlpha.uint8))
+      drawRectangle(barX, y, fillW, 2, Color(r: 255, g: 255, b: 255, a: uint8(rowAlpha div 4)))
+
+    let label = "P" & $(i + 1)
+    drawText(label, barX + 4, y + 1, 8,
+             if i == currentPhase: White else: withAlpha(phaseColor, rowAlpha))
+
+    if i < currentPhase:
+      drawText("BREACHED", barX + barW - 52, y + 1, 8, Color(r: 255, g: 190, b: 110, a: 180))
+    elif i > currentPhase:
+      drawText("LOCKED", barX + barW - 40, y + 1, 8, Color(r: 120, g: 140, b: 160, a: 160))
+    else:
+      let poolText = formatHealthDisplay(enemy.hp) & "/" & formatHealthDisplay(phaseMax)
+      let poolTextW = measureText(poolText, 8)
+      drawText(poolText, barX + barW - poolTextW - 6, y + 1, 8, White)
+
+    drawRectangleLines(Rectangle(x: barX.float32, y: y.float32,
+                                 width: barW.float32, height: 9.0'f32),
+                       1, withAlpha(phaseColor, rowAlpha))
+    y += rowH
+
+  if enemy.invulnerabilityTimer > 0:
+    let shieldPct = clamp(enemy.invulnerabilityTimer / BOSS_PHASE_INVULNERABILITY_DURATION, 0.0'f32, 1.0'f32)
+    let shieldText = "PHASE FIREWALL " & formatFloat(enemy.invulnerabilityTimer, ffDecimal, 1) & "s"
+    let shieldW = measureText(shieldText, 10) + 16
+    let shieldX = panelX + panelW div 2 - shieldW div 2
+    let shieldY = panelY + panelH - 15
+    drawRectangle(shieldX, shieldY, shieldW, 12, Color(r: 5, g: 15, b: 24, a: 235))
+    drawRectangle(shieldX, shieldY, int32(shieldW.float32 * shieldPct), 12, withAlpha(activeColor, 125))
+    drawRectangleLines(Rectangle(x: shieldX.float32, y: shieldY.float32,
+                                 width: shieldW.float32, height: 12.0'f32),
+                       1, withAlpha(activeColor, 255))
+    drawText(shieldText, shieldX + 8, shieldY + 2, 10, White)
+
 proc drawGame*(game: Game) =
   # Calculate screen shake offset
   var shakeOffsetX: float32 = 0
@@ -8274,32 +8491,11 @@ proc drawGame*(game: Game) =
           drawSimpleWarning(cx, cy, (0.6 + 0.4 * entranceProg).float32)
           break
 
-  # Boss health bar (top of screen)
+  # Boss phase health bars (top of screen)
   if game.bossWaveManager.isBossActive():
     for enemy in game.enemies:
       if enemy.isBoss and enemy.entranceTimer <= 0:
-        let barWidth = 400
-        let barHeight = 25
-        let barX = game.screenWidth div 2 - barWidth div 2
-        let barY = 15
-        let hpPercent = enemy.hp / enemy.maxHp
-
-        # Health bar background
-        drawRectangle(int32(barX), int32(barY), int32(barWidth), int32(barHeight),
-                      Color(r: 60, g: 20, b: 20, a: 255))
-
-        # Health bar fill with gradient
-        let fillWidth = (barWidth.float32 * hpPercent).int32
-        let barColor = if hpPercent > 0.6: Green elif hpPercent > 0.3: Yellow else: Red
-        drawRectangle(int32(barX), int32(barY), fillWidth, int32(barHeight), barColor)
-
-        # Health bar border
-        drawRectangleLines(int32(barX), int32(barY), int32(barWidth), int32(barHeight), White)
-
-        # HP text
-        let hpText = $(enemy.hp.int) & " / " & $(enemy.maxHp.int)
-        let hpTextWidth = measureText(hpText, 16)
-        drawText(hpText, int32(game.screenWidth div 2 - hpTextWidth div 2), int32(barY + 4), 16, White)
+        drawBossPhaseHud(game, enemy)
         break
 
   # Time survival mode - show wave indicator (only for time survival)

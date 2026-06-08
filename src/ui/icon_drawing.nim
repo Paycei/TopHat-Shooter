@@ -320,6 +320,33 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Shine effect
     drawLine(cx - 1, cy - 9, cx - 1, cy - 3, Color(r: 255, g: 255, b: 255, a: 180))
 
+  of puCurse:
+    # Cursed skull: rounded cranium, two hollow eye sockets, a small toothy jaw
+    let dark = Color(r: color.r div 3, g: color.g div 3, b: color.b div 3, a: color.a)
+    let bright = Color(r: min(color.r.int + 90, 255).uint8,
+                       g: min(color.g.int + 90, 255).uint8,
+                       b: min(color.b.int + 90, 255).uint8, a: color.a)
+    # Pulsing curse halo
+    let cp = (sin(getTime() * 4.0) * 0.5 + 0.5).float32
+    drawCircleLines(cx, cy - 2, rad + 1.0 + cp * 2.0,
+                    Color(r: bright.r, g: bright.g, b: bright.b, a: uint8(70 + cp * 70)))
+    # Cranium
+    drawCircle(Vector2(x: cx.float32, y: (cy - 3).float32), rad * 0.85, color)
+    drawCircleLines(cx, cy - 3, rad * 0.85, dark)
+    # Jaw block
+    drawRectangle(cx - int32(rad * 0.45), cy + int32(rad * 0.35),
+                  int32(rad * 0.9), int32(rad * 0.45), color)
+    # Teeth gaps
+    drawLine(cx, cy + int32(rad * 0.35), cx, cy + int32(rad * 0.8), dark)
+    drawLine(cx - int32(rad * 0.22), cy + int32(rad * 0.35), cx - int32(rad * 0.22), cy + int32(rad * 0.8), dark)
+    drawLine(cx + int32(rad * 0.22), cy + int32(rad * 0.35), cx + int32(rad * 0.22), cy + int32(rad * 0.8), dark)
+    # Eye sockets
+    drawCircle(Vector2(x: (cx - int32(rad * 0.35)).float32, y: (cy - int32(rad * 0.15)).float32), rad * 0.26, dark)
+    drawCircle(Vector2(x: (cx + int32(rad * 0.35)).float32, y: (cy - int32(rad * 0.15)).float32), rad * 0.26, dark)
+    # Glowing eye points
+    drawCircle(Vector2(x: (cx - int32(rad * 0.35)).float32, y: (cy - int32(rad * 0.15)).float32), rad * 0.10, bright)
+    drawCircle(Vector2(x: (cx + int32(rad * 0.35)).float32, y: (cy - int32(rad * 0.15)).float32), rad * 0.10, bright)
+
   of puBulletSpeed:
     # Detailed rocket with flames
     # Shadow

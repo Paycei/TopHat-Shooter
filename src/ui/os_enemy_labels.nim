@@ -47,6 +47,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
   if not enabled or enemy.entranceTimer > 0:
     return  # Don't show label if disabled or during entrance
 
+  let drawLabelHealthBar = showHealthBar and not enemy.isBoss
   let processName = getEnemyProcessName(enemy)
   let fontSize: int32 = if enemy.isBoss: 9 else: 7  # Even smaller fonts (was 12/10)
   let labelWidth = measureText(processName, fontSize)
@@ -56,10 +57,11 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
   # Add space for icon prefix: [X]/[E] icons are ~16px, * icon is ~12px
   let iconWidth = if enemy.isBoss or enemy.isElite: 20 else: 14
   let totalWidth = labelWidth + labelPadding * 2 + iconWidth
-  let labelHeight = if showHealthBar: (if enemy.isBoss: 20 else: 18) else: 14  # Much shorter (was 38/28)
+  let labelHeight = if drawLabelHealthBar: 18 else: 14  # Much shorter (was 38/28)
 
   let labelX = enemy.pos.x - (totalWidth.float32 / 2.0)
-  let labelY = enemy.pos.y - enemy.radius - labelHeight.float32 - 8
+  let labelClearance = if enemy.isBoss: 26.0'f32 else: 8.0'f32
+  let labelY = enemy.pos.y - enemy.radius - labelHeight.float32 - labelClearance
 
   # Don't draw if off-screen with margin
   if labelY < -30 or labelY > 750:
@@ -184,7 +186,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
     # Regular enemies: just draw the process name
     drawText(processName, textX, iconY, fontSize, textColor)
 
-  if showHealthBar and (enemy.isElite or enemy.isBoss or enemy.maxHp > 30) and enemy.enemyType != etStar:
+  if drawLabelHealthBar and (enemy.isElite or enemy.maxHp > 30) and enemy.enemyType != etStar:
     let barY = labelY + 14  # Closer to label (was 18)
     let barWidth = totalWidth - 6
     let barX = labelX + 3

@@ -61,6 +61,7 @@ const allPowerUpDefs*: array[PowerUpType, PowerUpDef] = [
   puChainLightning:   PowerUpDef(pool: puppNormal,    family: rpfLightning, group: pugBullet,  maxLevel: 3, color: Color(r:255,g:255,b: 80,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puConduit:          PowerUpDef(pool: puppLegendary, family: rpfLightning, group: pugNone,    maxLevel: 1, color: Color(r:160,g:120,b:255,a:255), inLegendaryPanel: true,  isElementalOrb: false),
   puCriticalHit:      PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:255,g:200,b: 50,a:255), inLegendaryPanel: false, isElementalOrb: false),
+  puCurse:            PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:170,g: 60,b:210,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puDodgeChance:      PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:160,g:220,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puDoubleShot:       PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:100,g:180,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puEchoShots:        PowerUpDef(pool: puppLegendary, family: rpfArcane,    group: pugNone,    maxLevel: 1, color: Color(r:100,g:200,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
@@ -183,6 +184,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puRegeneration: t(tkPowerupRegeneration)
   of puDodgeChance: t(tkPowerupDodgeChance)
   of puCriticalHit: t(tkPowerupCriticalHit)
+  of puCurse: t(tkPowerupCurse)
   of puBloodBullets: t(tkPowerupBloodBullets)
   of puBulletRicochet: t(tkPowerupBulletRicochet)
   of puSlowField: t(tkPowerupSlowField)
@@ -328,6 +330,11 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     of 1: t(tkPowerupCriticalHitDesc1)
     of 2: t(tkPowerupCriticalHitDesc2)
     else: t(tkPowerupCriticalHitDesc3)
+  of puCurse:
+    case level
+    of 1: t(tkPowerupCurseDesc1)
+    of 2: t(tkPowerupCurseDesc2)
+    else: t(tkPowerupCurseDesc3)
   of puDodgeChance:
     case level
     of 1: t(tkPowerupDodgeChanceDesc1)

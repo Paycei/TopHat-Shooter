@@ -623,6 +623,7 @@ proc parsePowerUpType(s: string): PowerUpType =
   of "puResonance": puResonance
   of "puSpecialRounds": puSpecialRounds
   of "puGiantSlayer": puGiantSlayer
+  of "puCurse": puCurse
   of "puBloodPact": puBloodPact
   of "puConduit": puConduit
   of "puAftershock": puAftershock
