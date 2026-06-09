@@ -574,6 +574,17 @@ type
     satellites*: seq[OrbitalSatellite]  # Persistent satellites that can be destroyed
     weakPoint*: BossWeakPointState  # Boss objective weak-point state
     invulnerabilityTimer*: float32  # Brief invulnerability during phase transitions
+    # --- Boss engagement mechanics (force conscious play, not just facetank-and-shoot) ---
+    reflectShieldActive*: bool      # Body shots are reflected/blocked while this is up
+    reflectShieldTimer*: float32    # Time remaining on the current reflect shield
+    reflectShieldCooldown*: float32  # Time until the next reflect shield raises
+    bossStallTimer*: float32        # Time the current weak-point objective has gone unbroken
+    bossEnrageLevel*: float32       # 0 = calm; ramps while the objective is ignored (faster attacks)
+    addsGateActive*: bool           # True while living boss-summoned adds make the boss damage-immune
+    summonWaveActive*: bool         # Summoner King: a summoned wave is out; clearing it opens the window
+    ignoreHealPending*: float32     # Queued heal from weak-point targets that expired unhit (applied next frame)
+    windowDamageDealt*: float32     # Player damage dealt during the current vulnerability window
+    windowWasOpen*: bool            # Tracks vulnerability-window open->close edge for heal-on-ignore
     auraDamageAccumulator*: float32  # Accumulates aura damage over time
     lastAuraDamageNumberTime*: float32  # Last time a damage number was shown for auras
     auraDamageHadCrit*: bool  # Track if any crit occurred during accumulation period

@@ -3057,6 +3057,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       dashTimer: 0,
       hitCount: 0,
       requiredHits: 0,
+      reflectShieldCooldown: 7.0'f32,  # delay first overload shield ~7s into the fight
       lastContactDamageTime: 0,
       teleportTimer: 10.0,
       shockwaveTimer: 8.0,

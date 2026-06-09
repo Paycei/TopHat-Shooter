@@ -3,6 +3,7 @@ import types, settings, save_system, player, enemy, bullet, consumable, coin, wa
 
 # Configurable boss wave enemy spawn reduction
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
+const GATE_DAMAGE_LEAK = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
 const TIME_SURVIVAL_BOSS_INTERVAL = 60.0
 const BOSS_PHASE_INVULNERABILITY_DURATION = 1.2'f32
@@ -772,6 +773,13 @@ proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
 
   result = applyEliteModifiers(enemy, baseDamage)
   result *= bossWeakPointDamageMultiplier(enemy, bwdsPassive)
+
+  # Boss gate: while adds are alive or the overload shield is up (and no
+  # vulnerability window is open), throttle non-bullet damage too. Otherwise a
+  # DoT/aura/explosion build could chip a sealed boss and skip the mechanic.
+  if enemy.isBoss and enemy.weakPoint.exposedTimer <= 0 and
+      (enemy.addsGateActive or enemy.reflectShieldActive):
+    result *= GATE_DAMAGE_LEAK
 
   # Stars use hit counter for ALL damage sources
   if enemy.enemyType == etStar:
@@ -2342,6 +2350,88 @@ proc tryAdvanceBossPhase(game: var Game, enemy: Enemy): bool =
   transitionBossToPhase(game, enemy, bossDef, nextPhaseIndex)
   true
 
+# --- Boss engagement mechanics --------------------------------------------
+# These exist to stop "facetank and hold fire = win". They layer on top of the
+# weak-point durability gate: the body is heavily resisted, and on top of that
+# these mechanics demand the player consciously DO something (clear adds, stop
+# firing into a shield, break the objective before it enrages, and actually
+# spend the vulnerability window or the boss heals it back).
+const
+  REFLECT_SHIELD_DURATION  = 1.8'f32   # how long the overload shield stays up
+  REFLECT_SHIELD_INTERVAL  = 9.0'f32   # gap between overload shields
+  REFLECT_SHIELD_DAMAGE     = 2.0'f32  # damage a reflected shot does to the player
+  ENRAGE_STALL_THRESHOLD   = 5.0'f32   # seconds of ignoring an open objective before enrage builds
+  ENRAGE_RAMP_PER_SEC      = 0.5'f32   # enrage growth once stalling
+  ENRAGE_MAX               = 1.2'f32   # cap: attacks fire up to (1 + this)x as fast
+  ENRAGE_DECAY_PER_SEC     = 1.5'f32   # enrage falls off once the player re-engages
+  HEAL_ON_IGNORE_FRAC      = 0.04'f32  # phase HP refunded when a window is wasted
+
+proc bossLivingAddsCount(game: Game, enemy: Enemy): int =
+  ## Count adds that belong to a boss: its orbital satellites plus any enemy it summoned.
+  result = enemy.satellites.len
+  for other in game.enemies:
+    if other.spawnedByBoss and other.hp > 0:
+      result += 1
+
+proc updateBossMechanics(game: var Game, enemy: Enemy, dt: float32) =
+  if not enemy.isBoss:
+    return
+
+  let inWindow = enemy.weakPoint.exposedTimer > 0
+  let invuln   = enemy.invulnerabilityTimer > 0
+
+  # Adds-gate: while the boss's summoned adds/satellites live, its body is sealed.
+  enemy.addsGateActive = bossLivingAddsCount(game, enemy) > 0
+
+  # Overload shield: cycles up periodically and bounces body shots back.
+  # Never raises during a vulnerability window, a phase transition, or an adds-gate
+  # so the player always has a clear "do the mechanic" path.
+  if enemy.reflectShieldActive:
+    enemy.reflectShieldTimer -= dt
+    # A vulnerability window always takes priority - drop the shield so the
+    # player gets a clean window to burst the body.
+    if enemy.reflectShieldTimer <= 0 or inWindow:
+      enemy.reflectShieldActive = false
+      enemy.reflectShieldCooldown = REFLECT_SHIELD_INTERVAL
+  elif not inWindow and not invuln and not enemy.addsGateActive:
+    enemy.reflectShieldCooldown -= dt
+    if enemy.reflectShieldCooldown <= 0:
+      enemy.reflectShieldActive = true
+      enemy.reflectShieldTimer = REFLECT_SHIELD_DURATION
+
+  # Enrage on stall: if the objective is open and being ignored, attacks speed up.
+  let objectiveOpen = enemy.weakPoint.enabled and enemy.weakPoint.targets.len > 0 and
+                      not inWindow and not invuln and not enemy.addsGateActive
+  if objectiveOpen:
+    enemy.bossStallTimer += dt
+    if enemy.bossStallTimer > ENRAGE_STALL_THRESHOLD:
+      enemy.bossEnrageLevel = min(ENRAGE_MAX, enemy.bossEnrageLevel + ENRAGE_RAMP_PER_SEC * dt)
+  else:
+    enemy.bossStallTimer = 0
+    enemy.bossEnrageLevel = max(0.0'f32, enemy.bossEnrageLevel - ENRAGE_DECAY_PER_SEC * dt)
+
+  # Heal-on-ignore: a vulnerability window the player barely uses is refunded.
+  if inWindow and not enemy.windowWasOpen:
+    enemy.windowWasOpen = true
+    enemy.windowDamageDealt = 0
+  elif not inWindow and enemy.windowWasOpen:
+    enemy.windowWasOpen = false
+    let wasted = enemy.windowDamageDealt < enemy.maxHp * 0.03'f32
+    if wasted and enemy.hp > 0:
+      enemy.hp = min(enemy.maxHp, enemy.hp + enemy.maxHp * HEAL_ON_IGNORE_FRAC)
+      for ring in 0..1:
+        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                             Color(r: 80, g: 255, b: 130, a: 220), 12)
+
+  # Apply heals queued by weak-point targets that expired unhit (set in
+  # updateBossWeakPoint). Same green-flash feedback as the window refund so the
+  # player learns that ignored objectives let the boss recover.
+  if enemy.ignoreHealPending > 0 and enemy.hp > 0:
+    enemy.hp = min(enemy.maxHp, enemy.hp + enemy.ignoreHealPending)
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                         Color(r: 80, g: 255, b: 130, a: 200), 9)
+  enemy.ignoreHealPending = 0
+
 proc isBossBehaviorBurstActive(enemy: Enemy, dt: float32,
                                activeDuration, cooldownMin, cooldownMax: float32): bool =
   if enemy.burstTimer > 0:
@@ -3862,6 +3952,15 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         minion.speed = minion.speed * 0.70  # 30% slower
 
         game.enemies.add(minion)
+
+      # Mark a summoned wave as active. Clearing every add in it opens the boss's
+      # vulnerability window (Summoner King objective). Wave size drives the pips.
+      # Gated to the bwoSummonSigils objective so a future summoner with a different
+      # weak-point doesn't get its real objective's required/progress clobbered.
+      if enemy.isBoss and enemy.weakPoint.kind == bwoSummonSigils:
+        enemy.summonWaveActive = true
+        enemy.weakPoint.required = max(1, actualSpawnCount)
+        enemy.weakPoint.progress = 0
 
       # Visual feedback for summoning
       spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
@@ -5933,16 +6032,9 @@ proc updateGame*(game: var Game, dt: float32) =
       # Play enemy death sound
       playSound(stEnemyDeath, if enemy.isBoss: 1.0 else: 0.4)
 
-      if enemy.spawnedByBoss:
-        for bossIdx in 0..<game.enemies.len:
-          if game.enemies[bossIdx].isBoss:
-            let summonBonusDamage = registerBossSummonDestroyed(game.enemies[bossIdx])
-            if summonBonusDamage > 0:
-              let dealtSummonDamage = applyEnemyHpDamage(game.enemies[bossIdx], summonBonusDamage)
-              if dealtSummonDamage > 0:
-                showDamage(game, game.enemies[bossIdx].pos, dealtSummonDamage, true, false, dtArcane)
-                recordDamage(game.dopamine.realTimeStats, dealtSummonDamage, game.time)
-            break
+      # Summoner King's window now opens when its whole summoned wave is cleared
+      # (handled in the boss update loop via openBossSummonWindow), so individual
+      # add deaths no longer advance a separate objective counter.
 
       # Boss-spawned minions don't drop coins (prevent farming)
       if not enemy.spawnedByBoss:
@@ -6327,10 +6419,45 @@ proc updateGame*(game: var Game, dt: float32) =
             spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, endColor, 20)
 
       updateBossWeakPoint(enemy, bossDef.weakPoint, game.player.pos, game.screenWidth, game.screenHeight, dt)
+      updateBossMechanics(game, enemy, dt)
 
-      # Update attack timers
+      # Count this boss's still-living summoned adds. While any survive, the
+      # summon attack's countdown is frozen, so the loop is: summon -> player
+      # clears the adds -> countdown starts -> countdown ends -> summon again.
+      # This prevents an unkillable pile-up and keeps the adds-gate fair.
+      var livingSummons = 0
+      for other in game.enemies:
+        if other.spawnedByBoss and other.hp > 0:
+          livingSummons += 1
+      let hasSummonPhase = enemy.currentPhaseIndex < bossDef.phases.len
+
+      # Summoner King: drive the objective from the live add count (single source of
+      # truth - no desync). Pips show how much of the wave is cleared; clearing the
+      # whole wave opens the vulnerability window. Gated to the summon objective.
+      if enemy.summonWaveActive and enemy.weakPoint.kind == bwoSummonSigils:
+        enemy.weakPoint.progress = max(0, enemy.weakPoint.required - livingSummons)
+        if livingSummons == 0:
+          let summonWindow = openBossSummonWindow(enemy)
+          if summonWindow.opened:
+            enemy.summonWaveActive = false
+            enemy.weakPoint.required = 0  # hide the cleared pips during the window
+            if summonWindow.bonusDamage > 0:
+              let dealt = applyEnemyHpDamage(enemy, summonWindow.bonusDamage)
+              if dealt > 0:
+                showDamage(game, enemy.pos, dealt, true, false, dtArcane)
+                recordDamage(game.dopamine.realTimeStats, dealt, game.time)
+                addShake(game.dopamine.screenShake, siLarge)
+
+      # Update attack timers. Enrage (from ignoring an open objective) makes them
+      # tick down faster, so a stalled boss attacks more frequently.
+      let enrageRate = 1.0'f32 + enemy.bossEnrageLevel
       for i in 0..<enemy.attackTimers.len:
-        enemy.attackTimers[i] -= dt
+        # Freeze the summon countdown until every summoned add is dead.
+        if livingSummons > 0 and hasSummonPhase and
+            i < bossDef.phases[enemy.currentPhaseIndex].attacks.len and
+            bossDef.phases[enemy.currentPhaseIndex].attacks[i].attackType == bapSummon:
+          continue
+        enemy.attackTimers[i] -= dt * enrageRate
 
       # Execute attacks when timers expire, emit pre-fire warning ~0.4 s before each shot
       if enemy.currentPhaseIndex < bossDef.phases.len:
@@ -6995,6 +7122,23 @@ proc updateGame*(game: var Game, dt: float32) =
             hitEnemy = true
             break
 
+        # Overload shield: bounce body shots back at the player instead of letting
+        # them through. Only the body is shielded - weak-point targets above still
+        # register - so the player's path is "stop firing into the shield / dodge".
+        if game.enemies[j].isBoss and game.enemies[j].reflectShieldActive and
+            game.enemies[j].weakPoint.exposedTimer <= 0 and not bullet.isEcho and
+            checkBulletEnemyCollision(bullet, game.enemies[j]):
+          let dir = (game.player.pos - bullet.pos).normalize()
+          bullet.vel = dir * max(220.0'f32, bullet.vel.length())
+          bullet.fromPlayer = false
+          bullet.damage = REFLECT_SHIELD_DAMAGE
+          bullet.sourceEnemyId = game.enemies[j].id
+          bullet.sourceEnemyPos = game.enemies[j].pos
+          bullet.isParried = false
+          spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                               Color(r: 120, g: 200, b: 255, a: 255), 6)
+          break  # leave hitEnemy false so the reflected shot survives as an enemy bullet
+
         if checkBulletEnemyCollision(bullet, game.enemies[j]):
           # Mark this enemy as hit by this bullet (using enemy ID, not index)
           bullet.hitEnemies.add(game.enemies[j].id)
@@ -7073,10 +7217,20 @@ proc updateGame*(game: var Game, dt: float32) =
 
             let weakDamageSource = if weakCoreHit: bwdsDirectWeakCore else: bwdsDirectBody
             actualDamage *= bossWeakPointDamageMultiplier(game.enemies[j], weakDamageSource)
+            # Engagement gates: while adds are alive or the overload shield is up (and
+            # no vulnerability window is open), body damage barely leaks through, so
+            # the player must resolve the mechanic instead of shooting the body.
+            let bossWindowOpen = game.enemies[j].weakPoint.exposedTimer > 0
+            if game.enemies[j].isBoss and not bossWindowOpen and
+                (game.enemies[j].addsGateActive or game.enemies[j].reflectShieldActive):
+              actualDamage *= GATE_DAMAGE_LEAK
             if bossIsInvulnerable:
               actualDamage = 0
 
             actualDamage = applyEnemyHpDamage(game.enemies[j], actualDamage)
+            # Track damage spent inside a vulnerability window for the heal-on-ignore check.
+            if game.enemies[j].isBoss and bossWindowOpen:
+              game.enemies[j].windowDamageDealt += actualDamage
 
             # Volatile: enemies with 2+ active DoTs take +50% bullet damage
             var volatileBonusDamage = 0.0
@@ -8109,6 +8263,54 @@ proc drawGame*(game: Game) =
                         Color(r: 255, g: 235, b: 80, a: va))
         drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, vr2,
                         Color(r: 255, g: 255, b: 200, a: uint8(va.int div 3)))
+
+      # Enrage aura: red spikes that thicken as the boss is left to stall.
+      if enemy.bossEnrageLevel > 0.05'f32:
+        let elv  = clamp(enemy.bossEnrageLevel / ENRAGE_MAX, 0.0'f32, 1.0'f32)
+        let ep   = sin(game.time * 14.0) * 0.5 + 0.5
+        let er   = enemy.radius + 6.0 + ep * 6.0
+        let ea   = uint8(clamp(70.0 + elv * 160.0, 0.0, 255.0))
+        for s in 0..<12:
+          let a = game.time * 3.0 + s.float32 * PI / 6.0
+          drawLine(Vector2(x: enemy.pos.x + cos(a) * er, y: enemy.pos.y + sin(a) * er),
+                   Vector2(x: enemy.pos.x + cos(a) * (er + 8.0 + elv * 14.0),
+                           y: enemy.pos.y + sin(a) * (er + 8.0 + elv * 14.0)),
+                   1.5'f32 + elv * 1.5'f32, Color(r: 255, g: 50, b: 30, a: ea))
+
+      # Adds-gate seal: amber lock ring telling the player to clear the adds first.
+      if enemy.addsGateActive and enemy.weakPoint.exposedTimer <= 0:
+        let sp = sin(game.time * 4.0) * 0.5 + 0.5
+        let sa = uint8(clamp(110.0 + sp * 110.0, 0.0, 255.0))
+        let sr = enemy.radius + 14.0 + sp * 4.0
+        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sr,
+                        Color(r: 255, g: 180, b: 40, a: sa))
+        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sr + 5.0,
+                        Color(r: 255, g: 140, b: 20, a: uint8(sa.int div 2)))
+        if globalSettings == nil or globalSettings.showHints:
+          let gt = "SEALED \xE2\x80\x94 CLEAR ADDS"
+          drawText(gt, enemy.pos.x.int32 - measureText(gt, 10) div 2,
+                   (enemy.pos.y - enemy.radius - 26.0).int32, 10,
+                   Color(r: 255, g: 200, b: 90, a: 235))
+
+      # Overload shield: rotating cyan hex shell that bounces body shots back.
+      if enemy.reflectShieldActive:
+        let pp  = sin(game.time * 8.0) * 0.5 + 0.5
+        let shRad = enemy.radius + 16.0 + pp * 5.0
+        let sha = uint8(clamp(150.0 + pp * 95.0, 0.0, 255.0))
+        let spin = game.time * 1.4
+        var prev = Vector2(x: enemy.pos.x + cos(spin) * shRad, y: enemy.pos.y + sin(spin) * shRad)
+        for v in 1..6:
+          let a = spin + v.float32 * PI / 3.0
+          let cur = Vector2(x: enemy.pos.x + cos(a) * shRad, y: enemy.pos.y + sin(a) * shRad)
+          drawLine(prev, cur, 3.0'f32, Color(r: 90, g: 200, b: 255, a: sha))
+          prev = cur
+        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), shRad,
+                   Color(r: 90, g: 200, b: 255, a: uint8(sha.int div 8)))
+        if globalSettings == nil or globalSettings.showHints:
+          let st = "OVERLOAD \xE2\x80\x94 HOLD FIRE"
+          drawText(st, enemy.pos.x.int32 - measureText(st, 10) div 2,
+                   (enemy.pos.y - enemy.radius - 26.0).int32, 10,
+                   Color(r: 150, g: 220, b: 255, a: 235))
 
     # Draw OS-style enemy labels above each enemy
     drawEnemyLabel(enemy, showHealthBar = true, enabled = globalSettings.showEnemyLabels)

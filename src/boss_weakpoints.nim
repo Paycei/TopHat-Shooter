@@ -229,7 +229,10 @@ proc weakPointCompletionDamage(enemy: Enemy, kind: BossWeakObjectiveKind): float
     of bwoChaosAnomalies: 0.038'f32
     of bwoOmegaCycle: 0.045'f32
     else: 0.0'f32
-  max(0.0'f32, enemy.maxHp * pct)
+  # Completion burst scaled up alongside the heavier body resistance so a player
+  # who actually does the mechanic kills the boss in ~the same time as before.
+  const CompletionBurstScale = 1.4'f32
+  max(0.0'f32, enemy.maxHp * pct * CompletionBurstScale)
 
 proc weakPointVulnerabilityDuration(enemy: Enemy, kind: BossWeakObjectiveKind): float32 =
   case kind
@@ -297,6 +300,13 @@ proc updateTargetPositions(enemy: Enemy, dt: float32) =
     if enemy.weakPoint.targets[i].maxLife > 0:
       enemy.weakPoint.targets[i].life -= dt
       if enemy.weakPoint.targets[i].life <= 0:
+        # Ignoring a weak-point target (letting it expire unhit) lets the boss
+        # recover a little. Secondary pressure, not a main mechanic - decoys
+        # (void-rift fakes) don't count, since hitting them is the wrong play.
+        const HEAL_ON_TARGET_IGNORE_FRAC = 0.012'f32
+        if not enemy.weakPoint.targets[i].hit and not enemy.weakPoint.targets[i].decoy and
+           enemy.hp > 0:
+          enemy.ignoreHealPending += enemy.maxHp * HEAL_ON_TARGET_IGNORE_FRAC
         enemy.weakPoint.targets.delete(i)
         continue
 
@@ -347,6 +357,15 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
   if kind == bwoSatelliteSet:
     if enemy.satellites.len > 0 and enemy.weakPoint.progress == 0:
       enemy.weakPoint.required = max(1, enemy.satellites.len)
+    enemy.weakPoint.lastBossPos = enemy.pos
+    enemy.weakPoint.lastDashActive = enemy.isDashing
+    return
+
+  if kind == bwoSummonSigils:
+    # Summoner King: the objective is to destroy the boss's summoned adds, not to
+    # shoot orbiting targets. The wave is tracked in game.nim (required/progress
+    # derived from the live add count); clearing it opens the window via
+    # openBossSummonWindow. Spawn no orbit targets here.
     enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     return
@@ -447,16 +466,22 @@ proc registerBossSatelliteDestroyed*(enemy: Enemy): float32 =
   let completion = completeObjectiveHit(enemy)
   completion.bonusDamage
 
-proc registerBossSummonDestroyed*(enemy: Enemy): float32 =
+proc openBossSummonWindow*(enemy: Enemy): tuple[opened: bool, bonusDamage: float32] =
+  ## Called when the Summoner King's current summoned wave is fully cleared.
+  ## Opens the vulnerability window directly (no orbit targets / per-hit progress),
+  ## which is what makes this boss's objective distinct: clear the adds, not the sigils.
   if not enemy.isBoss or not enemy.weakPoint.enabled:
-    return 0.0'f32
-
+    return (false, 0.0'f32)
+  if effectiveWeakKind(enemy) != bwoSummonSigils:
+    return (false, 0.0'f32)
   if enemy.invulnerabilityTimer > 0 or enemy.weakPoint.exposedTimer > 0 or
-     effectiveWeakKind(enemy) != bwoSummonSigils:
-    return 0.0'f32
+     enemy.weakPoint.cooldownTimer > 0:
+    return (false, 0.0'f32)
 
-  let completion = completeObjectiveHit(enemy)
-  completion.bonusDamage
+  let bonusDamage = weakPointCompletionDamage(enemy, bwoSummonSigils)
+  let dur = weakPointVulnerabilityDuration(enemy, bwoSummonSigils)
+  openVulnerabilityWindow(enemy, dur)
+  (true, bonusDamage)
 
 proc bossWeakPointCoreHit*(enemy: Enemy, bulletPos: Vector2f, bulletRadius: float32): bool =
   false

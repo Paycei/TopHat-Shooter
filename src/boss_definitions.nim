@@ -59,15 +59,20 @@ type
     weakPoint*: BossWeakPointDefinition
 
 proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
+  # Body damage is heavily resisted; the real damage happens in the weak-point
+  # vulnerability window. The body/window gap (not raw HP) is what forces players
+  # to engage mechanics instead of facetanking. The gap widens on higher bosses
+  # because those were the worst offenders for "just shoot to win":
+  #   tier 1-4  ~3.6x   tier 5-8  ~6x   tier 9-11 ~11x   tier 12 ~17x
   let (bodyMult, weakMult, exposure) =
     if bossID in 1..4:
-      (0.90'f32, 1.35'f32, 2.4'f32)
+      (0.55'f32, 2.00'f32, 2.4'f32)
     elif bossID in 5..8:
-      (0.80'f32, 1.50'f32, 2.2'f32)
+      (0.40'f32, 2.50'f32, 2.2'f32)
     elif bossID in 9..11:
-      (0.70'f32, 1.65'f32, 2.0'f32)
+      (0.28'f32, 3.00'f32, 2.0'f32)
     elif bossID == 12:
-      (0.65'f32, 1.85'f32, 1.8'f32)
+      (0.20'f32, 3.40'f32, 1.8'f32)
     else:
       (1.0'f32, 1.0'f32, 0.0'f32)
 
@@ -212,7 +217,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 4.5,
+              cooldown: 2.5,  # reduced from 4.5: timer only ticks after adds are cleared
               projectileSpeed: 0.0,
               projectileCount: 4,
               spreadAngle: 0.0,
@@ -244,7 +249,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 3.75,
+              cooldown: 2.0,  # reduced from 3.75: timer only ticks after adds are cleared
               projectileSpeed: 0.0,
               projectileCount: 3,
               spreadAngle: 0.0,
