@@ -3664,6 +3664,8 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         (rand(20) + 20, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 50)  # Chaotic random pulse
       of "omega_pulse":
         (42, Color(r: 255, g: 100, b: 255, a: 255), 65)  # ULTIMATE pulse - huge and powerful
+      of "banish_nova":
+        (16, Color(r: 80, g: 220, b: 120, a: 255), 38)  # Summoner King: green banishment ring
       else:
         (24, phase.color, 35)  # Standard pulse
 
@@ -4497,6 +4499,46 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
         let starY = enemy.pos.y + sin(angle) * 50.0
         spawnExplosionPooled(game.particlePool, starX, starY,
                       Color(r: 200, g: 150, b: 255, a: 255), 4)
+
+  of bapMinionVolley:
+    # LEGION VOLLEY (Summoner King) - every living summoned add fires a single shot
+    # at the player in unison. This turns ignored adds into active pressure while the
+    # boss is sealed. Single shot per add
+    # keeps the worst case bounded by MAX_BOSS_SPAWNED_ENEMIES. If the wave is already
+    # cleared, the boss fires a fan itself so the attack still does something.
+    var firedFromAdds = 0
+    for other in game.enemies:
+      if other.spawnedByBoss and other.hp > 0:
+        let dir = (game.player.pos - other.pos).normalize()
+        game.bullets.add(newBullet(
+          x = other.pos.x, y = other.pos.y, direction = dir,
+          speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+          bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+          bulletRadius = attack.bulletRadius
+        ))
+        spawnExplosionPooled(game.particlePool, other.pos.x, other.pos.y,
+                             Color(r: 120, g: 230, b: 140, a: 255), 6)
+        firedFromAdds += 1
+
+    if firedFromAdds == 0:
+      # Fallback: fan from the boss aimed at the player
+      let baseAngle = arctan2(toPlayer.y, toPlayer.x)
+      let count = max(3, attack.projectileCount)
+      for i in 0..<count:
+        let offset = (i.float32 - count.float32 / 2.0) * attack.spreadAngle.degToRad() / count.float32
+        let dir = newVector2f(cos(baseAngle + offset), sin(baseAngle + offset))
+        game.bullets.add(newBullet(
+          x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+          speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+          bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+          bulletRadius = attack.bulletRadius
+        ))
+    else:
+      # Green command pulse from the boss telegraphs that the legion just fired.
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                           Color(r: 80, g: 220, b: 120, a: 220), 12)
 
 # ORBITAL WEAPONS SYSTEM
 

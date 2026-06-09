@@ -20,7 +20,8 @@ type
     bapSummon,           # Spawn minions
     bapDash,             # Dash attack
     bapBarrage,          # Massive projectile barrage
-    bapSnipe             # Precise aimed shots
+    bapSnipe,            # Precise aimed shots
+    bapMinionVolley      # Living summoned adds fire at the player in unison (Summoner King)
 
   BossAttack* = object
     attackType*: BossAttackPattern
@@ -233,6 +234,30 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               spreadAngle: 50.0,
               durationOrRadius: 0.0,
               bulletRadius: 10.0
+            ),
+            BossAttack(
+              # Legion Volley: short cooldown so the legion pressures the player
+              # while they clear the sealed wave.
+              attackType: bapMinionVolley,
+              damage: 1.0,
+              cooldown: 1.8,
+              projectileSpeed: 165.0,
+              projectileCount: 5,  # fallback fan when no adds are alive
+              spreadAngle: 45.0,
+              durationOrRadius: 0.0,
+              bulletRadius: 8.0
+            ),
+            BossAttack(
+              # Banishment Nova: occasional telegraphed green ring for spatial pressure.
+              attackType: bapPulse,
+              damage: 1.0,
+              cooldown: 6.0,
+              projectileSpeed: 135.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              bulletRadius: 8.0,
+              specialData: "banish_nova"
             )
           ]
         ),
@@ -275,6 +300,17 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               bulletRadius: 12.5
+            ),
+            BossAttack(
+              # Faster Legion Volley to match the tighter phase-2 summon loop.
+              attackType: bapMinionVolley,
+              damage: 1.0,
+              cooldown: 1.5,
+              projectileSpeed: 180.0,
+              projectileCount: 5,  # fallback fan when no adds are alive
+              spreadAngle: 50.0,
+              durationOrRadius: 0.0,
+              bulletRadius: 8.0
             )
           ]
         )
