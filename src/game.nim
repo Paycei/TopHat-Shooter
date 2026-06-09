@@ -2,6 +2,7 @@ import raylib, rlgl, random, math, tables, strutils
 import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, particle_types, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints
 
 # Configurable boss wave enemy spawn reduction
+const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
 const TIME_SURVIVAL_BOSS_INTERVAL = 60.0
 const BOSS_PHASE_INVULNERABILITY_DURATION = 1.2'f32
@@ -5675,6 +5676,9 @@ proc updateGame*(game: var Game, dt: float32) =
                           elif game.currentWave <= 12: 1.15
                           else: 1.2
 
+      # Wave enemies spawn 10% faster (shorter delay between spawn ticks).
+      baseSpawnRate *= 0.9
+
       if game.mode == gmRoguelite and game.rogueliteRun != nil:
         let run = game.rogueliteRun
         let pressure = run.activeSector.enemyPressure
@@ -6871,7 +6875,12 @@ proc updateGame*(game: var Game, dt: float32) =
           break
 
     # Echo Shots - spawn ghost trail bullets (LEGENDARY)
-    if bullet.fromPlayer and not bullet.isEcho and hasPowerUp(game.player, puEchoShots):
+    # Capped per parent bullet: echo output otherwise scales with bullet lifetime,
+    # so piercing/ricochet (which keep a bullet alive for the whole screen) would
+    # trail an unbounded number of 25% echoes. The count is inherited by clones
+    # (split fragments) so those can't reset the budget either.
+    if bullet.fromPlayer and not bullet.isEcho and bullet.echoSpawnCount < ECHO_MAX_SPAWNS and
+        hasPowerUp(game.player, puEchoShots):
       # Ensure parent bullet has an ID for tracking
       if bullet.bulletId == 0:
         assignBulletId(game, bullet)
@@ -6886,6 +6895,7 @@ proc updateGame*(game: var Game, dt: float32) =
 
         # Create echo bullet
         createEchoBullet(game, bullet, echoDamageMultiplier, 0.7, 0.45)
+        bullet.echoSpawnCount += 1
 
     # Check rotating shield collision
     if not bullet.fromPlayer and hasPowerUp(game.player, puRotatingShield):
@@ -7302,13 +7312,6 @@ proc updateGame*(game: var Game, dt: float32) =
           # UNIFIED BULLET EFFECT SYSTEM
           applyBulletEffects(game, bullet, game.enemies[j], dt)
 
-          # Bullet split on hit - creates damage-only child fragments
-          if not bullet.isEcho and hasPowerUp(game.player, puBulletSplit) and not bullet.hasSplit:
-            let splitLevel = getPowerUpLevel(game.player, puBulletSplit)
-            let splitCount = splitLevel + 1  # 2, 3, or 4 bullets
-
-            createSplitBullets(game, bullet, splitCount, 0.5, 0.7)
-
           # Impact particles
           spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
                         game.enemies[j].color, 5)
@@ -7392,10 +7395,6 @@ proc updateGame*(game: var Game, dt: float32) =
                 # Reduce damage by 50% per ricochet
                 bullet.damage = bullet.damage * 0.50
 
-                # SYNERGY: Reset split flag so ricochet bullets can split again on next hit
-                if hasPowerUp(game.player, puBulletSplit):
-                  bullet.hasSplit = false
-
                 hitEnemy = false  # Don't delete bullet
                 didRicochet = true
                 spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Yellow, 8)
@@ -7413,6 +7412,17 @@ proc updateGame*(game: var Game, dt: float32) =
                 hitEnemy = false  # Don't delete bullet yet, continue piercing
             elif bullet.bounceCount >= 0:
               hitEnemy = true
+
+          # Bullet split on the TERMINAL hit - the bullet divides on its final hit,
+          # once all pierces and ricochets are spent, shedding damage-only fragments
+          # where it dies. Gated on hitEnemy so a still-flying piercing/ricochet bullet
+          # doesn't split mid-path, and on `not bullet.hasSplit` so the fragments
+          # (which carry hasSplit=true) can never split again.
+          if hitEnemy and not bullet.isEcho and not bullet.hasSplit and
+              hasPowerUp(game.player, puBulletSplit):
+            let splitLevel = getPowerUpLevel(game.player, puBulletSplit)
+            let splitCount = splitLevel + 1  # 2, 3, or 4 fragments
+            createSplitBullets(game, bullet, splitCount, 0.5, 0.7)
 
           if hitEnemy:
             break

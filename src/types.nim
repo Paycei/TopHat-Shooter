@@ -606,6 +606,7 @@ type
     travelDistance*: float32  # Track distance
     isEcho*: bool  # True if this is an echo clone bullet
     echoTrailTimer*: float32  # Timer for spawning echo clones
+    echoSpawnCount*: int  # Echoes this parent (and its clones) have already spawned
     echoHitEnemies*: seq[int]  # Enemy IDs already damaged by echoes from this parent
     particleTrailTimer*: float32  # Accumulator for explosive bullet trail particles
     parentBulletId*: int  # ID of parent bullet

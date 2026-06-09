@@ -569,6 +569,7 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
   result.bounceCount = original.bounceCount  # Preserve ricochet state
   result.piercedEnemies = original.piercedEnemies  # Preserve pierce state
   result.hasSplit = preventSplit or original.hasSplit  # Preserve split state
+  result.echoSpawnCount = original.echoSpawnCount  # Inherit spent echo budget so clones don't reset it
 
   # Copy hit enemies list for independent tracking
   for enemyIdx in original.hitEnemies:

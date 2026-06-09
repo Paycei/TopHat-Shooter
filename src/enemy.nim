@@ -52,6 +52,14 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
     rotation: 0.0
   )
 
+  # Enemy offensive scaling. HP and speed already scale with difficulty, but
+  # contact/ranged damage was flat from config. Ramp it with difficulty so enemies
+  # grow naturally more dangerous, kicking in past difficulty 3 (~wave 15 in wave
+  # mode) so the buff is felt "especially from wave 15 onwards".
+  let enemyDamageScale = 1.0'f32 + max(0.0'f32, difficulty - 3.0'f32) * 0.10'f32
+  result.contactDamage *= enemyDamageScale
+  result.rangedDamage *= enemyDamageScale
+
   # Initialize boss-spawned flag (default: false, set to true by boss summon)
   result.spawnedByBoss = false
   result.threatLevel = 0
