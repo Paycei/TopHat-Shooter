@@ -7313,10 +7313,15 @@ proc updateGame*(game: var Game, dt: float32) =
             if not bullet.isEcho and hasPowerUp(game.player, puGiantSlayer) and
                 not bossIsInvulnerable:
               let giantSlayerLevel = getPowerUpLevel(game.player, puGiantSlayer)
-              let percentDamage = case giantSlayerLevel
-                of 1: 0.01  # 1% of current HP
-                of 2: 0.0175  # 1.75% of current HP
-                else: 0.025  # 2.5% of current HP
+              var percentDamage = case giantSlayerLevel
+                of 1: 0.025  # 2.5% of current HP vs normal enemies
+                of 2: 0.04   # 4% of current HP vs normal enemies
+                else: 0.06   # 6% of current HP vs normal enemies
+
+              # Giant Slayer hunts the rank-and-file: heavy against normal enemies,
+              # but far weaker against bosses.
+              if game.enemies[j].isBoss:
+                percentDamage *= 0.2  # reduced effect vs bosses
 
               giantSlayerDamage = game.enemies[j].hp * percentDamage
 
