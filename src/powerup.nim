@@ -330,12 +330,15 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puArcaneOrb:
     createElementalOrbs(player, etArcane, powerUp.level)
   of puArcaneBullets:
-    # Arcane bullets increase bullet damage only (not base player damage)
-    let damageBonus = case powerUp.level
-      of 1: 1.2   # +20% bullet damage
-      of 2: 1.4   # +40% bullet damage
-      else: 1.6   # +60% bullet damage
-    player.bulletDamageMult *= damageBonus
+    # Arcane bullets increase bullet damage only (not base player damage).
+    # Fresh pickup only: upgrades apply the incremental ratio in the
+    # already-owned branch below, otherwise the bonus would compound twice.
+    if getPowerUpLevel(player, puArcaneBullets) == 0:
+      let damageBonus = case powerUp.level
+        of 1: 1.2   # +20% bullet damage
+        of 2: 1.4   # +40% bullet damage
+        else: 1.6   # +60% bullet damage
+      player.bulletDamageMult *= damageBonus
   of puFireMastery:
     # Enhance fire effects
     player.hasFireMastery = true

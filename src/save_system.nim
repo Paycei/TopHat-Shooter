@@ -530,6 +530,8 @@ proc parseEnemyType(s: string): EnemyType =
   of "etTrickster": etTrickster
   of "etPhantom": etPhantom
   of "etSniper": etSniper
+  of "etMage": etMage
+  of "etEnvironment": etEnvironment
   else: etCircle
 
 # Helper to parse PowerUpRarity from string
@@ -629,6 +631,7 @@ proc parsePowerUpType(s: string): PowerUpType =
   of "puAftershock": puAftershock
   of "puNova": puNova
   of "puHealPower": puHealPower
+  of "puBountiful": puBountiful
   else: puDoubleShot
 
 # Helper to parse GameMode from string

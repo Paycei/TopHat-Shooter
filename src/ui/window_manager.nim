@@ -43,7 +43,8 @@ proc newWindowManager*(screenWidth, screenHeight: int,
                        BulletShapeType(gameSettings.bulletShape),
                        rogueliteProfile),
     pvp: newPvPWindow(screenWidth, screenHeight),
-    advancements: newAdvancementsWindow(screenWidth, screenHeight, advancementProfile),
+    advancements: newAdvancementsWindow(screenWidth, screenHeight, advancementProfile,
+                                        rogueliteProfile),
     roguelite: newRogueliteWindow(screenWidth, screenHeight, rogueliteProfile),
     nextZOrder: 1
   )

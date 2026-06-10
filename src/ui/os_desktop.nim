@@ -57,6 +57,19 @@ type
     cubeRotX*: float32
     cubeRotY*: float32
     cubeRotZ*: float32
+    # Orbital-escape easter egg: sustained fast spinning knocks the cube out of orbit
+    cubeEscapeArmed*: bool      # set by main while the advancement is still locked
+    cubeEscapeTriggered*: bool  # one-shot flag consumed by main to grant the advancement
+    cubeSpinHeat*: float32      # seconds of sustained fast spin accumulated so far
+    cubeEscaping*: bool
+    cubeEscapeTimer*: float32
+    cubeEscapeDirX*: float32
+    cubeEscapeDirY*: float32
+    cubeOffsetX*: float32       # render offset of the cube from its orbit slot
+    cubeOffsetY*: float32
+    # Transient OS-style toast (e.g. advancement unlocked)
+    toastText*: string
+    toastTimer*: float32
 
 var
   activeDesktop*: OSDesktop = nil
@@ -161,7 +174,18 @@ proc newOSDesktop*(): OSDesktop =
     cubeDragLastY: 0.0,
     cubeRotX: 0.0,
     cubeRotY: 0.0,
-    cubeRotZ: 0.0
+    cubeRotZ: 0.0,
+    cubeEscapeArmed: false,
+    cubeEscapeTriggered: false,
+    cubeSpinHeat: 0.0,
+    cubeEscaping: false,
+    cubeEscapeTimer: 0.0,
+    cubeEscapeDirX: 0.0,
+    cubeEscapeDirY: 0.0,
+    cubeOffsetX: 0.0,
+    cubeOffsetY: 0.0,
+    toastText: "",
+    toastTimer: 0.0
   )
 
 proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = false,
@@ -201,7 +225,8 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
   let ddst = sqrt((mp.x-cubeCX)*(mp.x-cubeCX) + (mp.y-cubeCY)*(mp.y-cubeCY))
   let overCube = ddst <= (CubeDragRadius + cubeSize * 2.0)
 
-  if isMouseButtonPressed(Left) and overCube and not mouseOverWindow:
+  if isMouseButtonPressed(Left) and overCube and not mouseOverWindow and
+     not desktop.cubeEscaping:
     desktop.cubeDragging  = true
     desktop.cubeDragLastX = mp.x
     desktop.cubeDragLastY = mp.y
@@ -235,9 +260,11 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     if abs(desktop.cubeAngVelX) > 0.0001'f32:
       applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
                     1, 0, 0, desktop.cubeAngVelX * dt)
-    let decay = exp(-CubeLinearDrag * dt)
-    desktop.cubeAngVelX *= decay
-    desktop.cubeAngVelY *= decay
+    if not desktop.cubeEscaping:
+      # No drag while flying free: the cube keeps its full tumble until it returns
+      let decay = exp(-CubeLinearDrag * dt)
+      desktop.cubeAngVelX *= decay
+      desktop.cubeAngVelY *= decay
     # Passive auto-rotation (world axes, original rates)
     applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
                   1, 0, 0, -0.171'f32 * dt)
@@ -245,6 +272,69 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
                   0, 1, 0, 0.133'f32 * dt)
     applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
                   0, 0, 1, 0.095'f32 * dt)
+  # Orbital-escape easter egg: spinning the cube fast for long enough knocks it
+  # out of orbit once (ever). Main consumes cubeEscapeTriggered to grant the
+  # advancement and only arms this while the advancement is still locked.
+  const
+    CubeEscapeSpinThreshold = 8.0'f32   # rad/s of combined spin counts as "fast"
+    CubeEscapeHeatNeeded    = 4.0'f32   # seconds of sustained fast spin to break orbit
+    CubeEscapeHeatDecay     = 2.0'f32   # heat drains this much faster than it builds
+    CubeEscapeFlyTime       = 2.2'f32
+    CubeEscapeHoldTime      = 1.4'f32
+    CubeEscapeReturnTime    = 2.4'f32
+
+  if desktop.cubeEscaping:
+    desktop.cubeEscapeTimer += dt
+    let flyDist = max(w, h) * 0.95'f32
+    let tEsc = desktop.cubeEscapeTimer
+    if tEsc < CubeEscapeFlyTime:
+      # Accelerate away from the orbit slot
+      let p = tEsc / CubeEscapeFlyTime
+      desktop.cubeOffsetX = desktop.cubeEscapeDirX * flyDist * p * p
+      desktop.cubeOffsetY = desktop.cubeEscapeDirY * flyDist * p * p
+    elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime:
+      desktop.cubeOffsetX = desktop.cubeEscapeDirX * flyDist
+      desktop.cubeOffsetY = desktop.cubeEscapeDirY * flyDist
+    elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime + CubeEscapeReturnTime:
+      # Smoothstep back into orbit
+      let p = (tEsc - CubeEscapeFlyTime - CubeEscapeHoldTime) / CubeEscapeReturnTime
+      let eased = 1.0'f32 - p * p * (3.0'f32 - 2.0'f32 * p)
+      desktop.cubeOffsetX = desktop.cubeEscapeDirX * flyDist * eased
+      desktop.cubeOffsetY = desktop.cubeEscapeDirY * flyDist * eased
+    else:
+      desktop.cubeEscaping = false
+      desktop.cubeOffsetX = 0.0
+      desktop.cubeOffsetY = 0.0
+      desktop.cubeAngVelX *= 0.1'f32
+      desktop.cubeAngVelY *= 0.1'f32
+  elif desktop.cubeEscapeArmed:
+    let spinSpeed = sqrt(desktop.cubeAngVelX * desktop.cubeAngVelX +
+                         desktop.cubeAngVelY * desktop.cubeAngVelY)
+    if spinSpeed >= CubeEscapeSpinThreshold:
+      desktop.cubeSpinHeat += dt
+    else:
+      desktop.cubeSpinHeat = max(0.0'f32, desktop.cubeSpinHeat - dt * CubeEscapeHeatDecay)
+    # Wobble in place as the orbit destabilizes, so the player gets feedback
+    let strain = desktop.cubeSpinHeat / CubeEscapeHeatNeeded
+    desktop.cubeOffsetX = sin(desktop.time * 37.0'f32) * 3.5'f32 * strain
+    desktop.cubeOffsetY = cos(desktop.time * 31.0'f32) * 3.5'f32 * strain
+    if desktop.cubeSpinHeat >= CubeEscapeHeatNeeded:
+      desktop.cubeEscaping = true
+      desktop.cubeEscapeTimer = 0.0
+      desktop.cubeSpinHeat = 0.0
+      desktop.cubeEscapeArmed = false
+      desktop.cubeEscapeTriggered = true
+      desktop.cubeDragging = false
+      # Fly off roughly along the spin direction, drifting upward
+      let dirX = (if desktop.cubeAngVelY >= 0: 1.0'f32 else: -1.0'f32)
+      let dirLen = sqrt(dirX * dirX + 0.55'f32 * 0.55'f32)
+      desktop.cubeEscapeDirX = dirX / dirLen
+      desktop.cubeEscapeDirY = -0.55'f32 / dirLen
+
+  # Tick down the desktop toast
+  if desktop.toastTimer > 0.0'f32:
+    desktop.toastTimer = max(0.0'f32, desktop.toastTimer - dt)
+
   # Convert cube quaternion to Euler angles (X, Y, Z) for wallpaper rendering
   # Rotation order: rotate X, then Y, then Z (Rx -> Ry -> Rz)
   let qw = desktop.cubeQW
@@ -720,7 +810,8 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     drawLine(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
 
 proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
-                          cubeRotX, cubeRotY, cubeRotZ: float32) =
+                          cubeRotX, cubeRotY, cubeRotZ: float32,
+                          cubeOffsetX: float32 = 0.0, cubeOffsetY: float32 = 0.0) =
   drawSharedBackdrop(screenWidth.int32, screenHeight.int32, time * 0.62,
                      Color(r: 5, g: 8, b: 18, a: 255),
                      Color(r: 18, g: 17, b: 34, a: 255),
@@ -754,7 +845,8 @@ proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
                Color(r: 165, g: 245, b: 255, a: uint8(120 + i * 18)))
 
   let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
-  drawZeroGravityWallpaperCube(centerX, centerY, min(w, h) * 0.042'f32, time,
+  drawZeroGravityWallpaperCube(centerX + cubeOffsetX, centerY + cubeOffsetY,
+                               min(w, h) * 0.042'f32, time,
                                cubeRotX, cubeRotY, cubeRotZ, currentCubeSkin)
 
   # Thin scan bands and routing traces.
@@ -792,7 +884,8 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   of dbgDefault:
     # Exact, hardcoded wallpaper (keeps cube rotations and all effects)
     drawDesktopWallpaper(screenWidth, screenHeight, desktop.time,
-                         desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ)
+                         desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
+                         desktop.cubeOffsetX, desktop.cubeOffsetY)
   else:
     # Generic rendering for other skins using the skin colours so the
     # shop preview and equipped background look consistent.
@@ -831,7 +924,8 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
     let centerX = w * 0.64
     let centerY = h * 0.46
     let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
-    drawZeroGravityWallpaperCube(centerX, centerY, min(w, h) * 0.042'f32, desktop.time,
+    drawZeroGravityWallpaperCube(centerX + desktop.cubeOffsetX, centerY + desktop.cubeOffsetY,
+                                 min(w, h) * 0.042'f32, desktop.time,
                                  desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ, currentCubeSkin)
 
     # Left-side launch column silhouette (keeps icons readable)
@@ -893,6 +987,25 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
           Color(r: 100, g: 100, b: 120, a: 200))
   drawText(t(tkOSEdition), 10, (screenHeight - 58).int32, 12,
           Color(r: 150, g: 150, b: 170, a: 180))
+
+  # Transient OS-style toast above the taskbar (bottom-right)
+  if desktop.toastTimer > 0.0'f32 and desktop.toastText.len > 0:
+    let fade = min(1.0'f32, desktop.toastTimer / 0.6'f32)
+    let alpha = uint8(255.0'f32 * fade)
+    let toastW = max(260'i32, measureText(desktop.toastText, 16) + 64)
+    let toastH = 52'i32
+    let toastX = int32(screenWidth - toastW.int - 16)
+    let toastY = int32(screenHeight - TASKBAR_HEIGHT - toastH.int - 14)
+    drawRectangle(toastX, toastY, toastW, toastH,
+                  Color(r: 12, g: 22, b: 34, a: uint8(232.0'f32 * fade)))
+    drawRectangleLines(Rectangle(x: toastX.float32, y: toastY.float32,
+                                 width: toastW.float32, height: toastH.float32), 2,
+                       Color(r: 255, g: 210, b: 80, a: alpha))
+    drawHexBadge(toastX + 26, toastY + toastH div 2, 14.0,
+                 Color(r: 60, g: 44, b: 8, a: uint8(220.0'f32 * fade)),
+                 Color(r: 255, g: 210, b: 80, a: alpha))
+    drawText(desktop.toastText, toastX + 48, toastY + (toastH - 16) div 2, 16,
+             Color(r: 235, g: 245, b: 255, a: alpha))
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
   ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements
@@ -969,6 +1082,10 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
     return desktop.icons[desktop.selectedIcon].iconType.int
 
   return -1
+
+proc showDesktopToast*(desktop: OSDesktop, text: string) =
+  desktop.toastText = text
+  desktop.toastTimer = 5.0
 
 proc startLoadingAnimation*(desktop: OSDesktop, text: string) =
   ## Start a loading animation with the given text

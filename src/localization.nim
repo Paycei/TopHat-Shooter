@@ -1305,19 +1305,15 @@ type
     tkAdvSyncDesc = "adv_sync_desc"
     tkAdvUnlockedCount = "adv_unlocked_count"
     tkAdvClaimedCount = "adv_claimed_count"
-    tkAdvClaimedPoints = "adv_claimed_points"
+    tkAdvShardBalance = "adv_shard_balance"
     tkAdvClaimAll = "adv_claim_all"
     tkAdvAllClaimed = "adv_all_claimed"
     tkAdvCategories = "adv_categories"
     tkAdvDetail = "adv_detail"
     tkAdvProgress = "adv_progress"
     tkAdvStatus = "adv_status"
-    tkAdvPoints = "adv_points"
     tkAdvReward = "adv_reward"
     tkAdvUnlockedAt = "adv_unlocked_at"
-    tkAdvPointsClaimed = "adv_points_claimed"
-    tkAdvPointsPending = "adv_points_pending"
-    tkAdvPointsReward = "adv_points_reward"
     tkAdvRewardClaimed = "adv_reward_claimed"
     tkAdvClaimReward = "adv_claim_reward"
     tkAdvLockedBtn = "adv_locked_btn"
@@ -1331,6 +1327,7 @@ type
 
     # Desktop
     tkDesktopNet = "desktop_net"
+    tkDesktopAdvancementUnlocked = "desktop_advancement_unlocked"
 
     # Debug panel runtime stats (effect labels already exist above)
     tkDebugPanelDps = "debug_panel_dps"
@@ -1806,8 +1803,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_status": "Status",
     "os_system_performance": "SYSTEM PERFORMANCE",
     "os_system_manager": "System Manager",
-    "os_system_paused": "System paused - press SPACE to continue",
-    "os_press_space_continue": "Press SPACE to continue",
 
     # OS Desktop / System Info
     "os_system_monitor": "System Monitor",
@@ -1825,33 +1820,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_wave_label": "Wave",
     "stats_time_label": "TIME",
     "stats_kills_label": "KILLS",
-    "stats_accuracy_label": "ACCURACY",
     "stats_avg_dps": "AVG DPS",
-    "stats_max_combo": "Max Combo",
-    "stats_avg_combo": "Avg Combo",
-    "stats_perfect_waves": "Perfect Waves",
-    "stats_play_style_aggressive": "Aggressive",
-    "stats_play_style_defensive": "Defensive",
-    "stats_play_style_mobile": "Mobile",
-    "stats_play_style_tank": "Tank",
     "stats_play_style_balanced": "Balanced",
     "stats_no_power_ups_selected": "No power-ups selected",
-    "stats_no_graph_data_short": "No graph data",
-    "stats_controls_footer": "[ENTER] Continue  |  [ESC] Close",
-    "stats_wave_mode": "Wave Mode",
-    "stats_time_survival_mode": "Time Survival",
-    "stats_sandbox_mode": "Sandbox",
-    "stats_pvp_mode": "PvP",
     "stats_bar_wave_max": "[WAVE] Max Reached",
     "stats_bar_kill_best": "[KILL] Best Performance",
     "stats_bar_boss_eliminated": "[BOSS] Eliminated",
     "stats_bar_time_survival": "[TIME] Longest Survival",
-    "stats_combat_label": "COMBAT",
-    "stats_movement_label": "MOVEMENT & SURVIVAL",
-    "stats_performance_label": "PERFORMANCE",
-    "stats_resources_label": "RESOURCES",
-    "stats_play_style_label": "PLAY STYLE",
-    "stats_dps_over_time_label": "DPS OVER TIME",
     "stats_host_default": "Host",
 
     # Enemy Labels
@@ -1945,7 +1920,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_time_warps": "Time Warps",
     "stats_near_deaths": "Near Deaths",
     "stats_best_streak": "Best Streak",
+    "stats_no_hit_streak": "No-Hit Streak",
     "stats_time_at_low_hp": "Time at Low HP",
+    "stats_successful_parries": "Successful Parries",
+    "stats_time_invincible": "Time Invincible",
     "stats_performance": "PERFORMANCE",
     "stats_peak_dps": "Peak DPS",
     "stats_average_dps": "Average DPS",
@@ -1975,10 +1953,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_accuracy_label": "Accuracy",
     "stats_shots_fired_label": "Shots Fired",
     "stats_shots_hit_label": "Shots Hit",
-    "stats_play_style_aggressive": "Aggressive",
-    "stats_play_style_defensive": "Defensive",
-    "stats_play_style_mobile": "Mobile",
-    "stats_play_style_tank": "Tank",
     "stats_no_previous_run": "No previous run statistics available",
     "stats_complete_game_stats": "Complete a game to see detailed run statistics",
     "stats_power_up_breakdown": "POWER-UP BREAKDOWN",
@@ -2014,6 +1988,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_system_secure_footer": "[OK] All systems operational | Defensive grid at maximum efficiency",
 
     # HUD/Notifications
+    "hud_system_status": "SYSTEM STATUS",
     "hud_integrity": "INTEGRITY:",
     "hud_charges": "CHARGES",
     "hud_processes": "PROCESSES",
@@ -2024,19 +1999,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_threats": "THREATS:",
     "notif_wave_initiated": "Wave initiated",
     "notif_wave_cleared": "Wave cleared",
-
-    # Debug Panel
-    "debug_panel_diagnostics": "DIAGNOSTICS",
-    "debug_panel_fps": "FPS",
-    "debug_panel_entities": "Ent",
-    "debug_panel_active_effects": "Active Effects",
-    "debug_panel_combat_stats": "Combat Stats",
-    "debug_panel_damage": "Damage",
-    "debug_panel_fire_rate": "Fire Rate",
-    "debug_panel_speed": "Speed",
-    "debug_panel_low_hp_bonuses": "Low HP Bonuses",
-    "debug_panel_rage": "Rage",
-    "debug_panel_berserker": "Berserk",
 
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNOSTICS",
@@ -2603,12 +2565,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_team_purple": "Purple",
     "pvp_team_none": "None",
 
-    "stats_play_style_aggressive": "Aggressive",
-    "stats_play_style_defensive": "Defensive",
-    "stats_play_style_mobile": "Mobile",
-    "stats_play_style_tank": "Tank",
     "stats_no_powerups_selected": "No power-ups selected",
-    "stats_dps_over_time_label": "DPS OVER TIME",
     "stats_no_graph_data_short": "No graph data",
     "stats_controls_footer": "[TAB/ESC] Return  [R] Restart  [Q] Menu",
 
@@ -2871,22 +2828,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Advancements window
     "adv_control_title": "ADVANCEMENT CONTROL",
-    "adv_sync_desc": "Persistent progression synced from lifetime stats, last runs, and roguelite profile data.",
+    "adv_sync_desc": "Persistent progression synced from lifetime stats, last runs, and roguelite profile data. Claim unlocks to bank Data Shards.",
     "adv_unlocked_count": "Unlocked",
     "adv_claimed_count": "Claimed",
-    "adv_claimed_points": "Claimed Points",
+    "adv_shard_balance": "Data Shards",
     "adv_claim_all": "Claim All +",
     "adv_all_claimed": "All Claimed",
     "adv_categories": "Categories",
     "adv_detail": "Detail",
     "adv_progress": "Progress",
     "adv_status": "Status",
-    "adv_points": "Points",
     "adv_reward": "Reward",
     "adv_unlocked_at": "Unlocked",
-    "adv_points_claimed": "claimed",
-    "adv_points_pending": "pending",
-    "adv_points_reward": "reward",
     "adv_reward_claimed": "Reward Claimed",
     "adv_claim_reward": "Claim Reward",
     "adv_locked_btn": "Locked",
@@ -2900,6 +2853,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Desktop
     "desktop_net": "NET",
+    "desktop_advancement_unlocked": "Advancement unlocked",
 
     # Debug panel runtime stats
     "debug_panel_dps": "DPS",
@@ -3356,7 +3310,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_time_warps": "Distorsiones Temporales",
     "stats_near_deaths": "Casi Muertes",
     "stats_best_streak": "Mejor Racha",
+    "stats_no_hit_streak": "Racha Sin Daño",
     "stats_time_at_low_hp": "Tiempo a HP Bajo",
+    "stats_successful_parries": "Paradas Exitosas",
+    "stats_time_invincible": "Tiempo Invencible",
     "stats_performance": "RENDIMIENTO",
     "stats_peak_dps": "DPS Máximo",
     "stats_average_dps": "DPS Promedio",
@@ -3386,10 +3343,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_accuracy_label": "Precisión",
     "stats_shots_fired_label": "Disparos Realizados",
     "stats_shots_hit_label": "Disparos Impactados",
-    "stats_play_style_aggressive": "Agresivo",
-    "stats_play_style_defensive": "Defensivo",
-    "stats_play_style_mobile": "Móvil",
-    "stats_play_style_tank": "Tanque",
     "stats_no_previous_run": "No hay estadísticas de ejecución anterior disponibles",
     "stats_complete_game_stats": "¡Completa un juego para ver estadísticas detalladas!",
     "stats_power_up_breakdown": "DESGLOSE DE MEJORAS",
@@ -3449,19 +3402,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "debug_panel_low_hp_bonuses": "Bonificaciones Bajo HP",
     "debug_panel_rage": "Furia",
     "debug_panel_berserker": "Berserker",
-
-    # Debug Panel
-    "debug_panel_diagnostics": "DIAGNÓSTICOS",
-    "debug_panel_fps": "FPS",
-    "debug_panel_entities": "Ent",
-    "debug_panel_active_effects": "Efectos Activos",
-    "debug_panel_combat_stats": "Estadísticas de Combate",
-    "debug_panel_damage": "Daño",
-    "debug_panel_fire_rate": "Cadencia",
-    "debug_panel_speed": "Velocidad",
-    "debug_panel_low_hp_bonuses": "Bonificaciones Bajo HP",
-    "debug_panel_rage": "Furia",
-    "debug_panel_berserker": "Berserker",
     "debug_panel_effect_speed": "Velocidad",
     "debug_panel_effect_invuln": "Invuln",
     "debug_panel_effect_fire": "Fuego",
@@ -3480,6 +3420,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_tab_bshapes": "F.BALA",
     "shop_tab_shapes": "FORMAS",
     "shop_tab_particles": "PARTÍCULAS",
+    "shop_tab_desktop": "ESCRITORIO",
+    "shop_tab_cubeskins": "CUBOS",
     "shop_scroll_hint": "Rueda del ratón para ver más",
     "shop_click_equip": "Clic para equipar",
     "shop_window_title": "Tienda Personaliz.",
@@ -3489,6 +3431,40 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_customize_bullets": "PERSONALIZA TUS BALAS",
     "shop_choose_shape": "ELIGE TU FORMA",
     "shop_customize_effects": "PERSONALIZA EFECTOS",
+    "shop_customize_desktop": "PERSONALIZA EL FONDO DE ESCRITORIO",
+    "shop_customize_cubeskins": "PERSONALIZA LOS ASPECTOS DE CUBOS",
+
+    # Desktop Background Skins
+    "dbg_default": "Cuadrícula OS",
+    "dbg_default_desc": "Placa de circuito animada clásica",
+    "dbg_neon": "Ciudad Neón",
+    "dbg_neon_desc": "Luces de neón rosas y moradas",
+    "dbg_matrix": "Lluvia de Datos",
+    "dbg_matrix_desc": "Cascadas de código verde",
+    "dbg_void": "Vacío Profundo",
+    "dbg_void_desc": "Espacio oscuro con estrellas lejanas",
+    "dbg_sunrise": "Amanecer del Sistema",
+    "dbg_sunrise_desc": "Cálido resplandor naranja del horizonte",
+    "dbg_ocean": "Red Neuronal",
+    "dbg_ocean_desc": "Nodos azules interconectados",
+    "dbg_inferno": "Núcleo Infernal",
+    "dbg_inferno_desc": "Ondas de calor volcánico rojas",
+
+    # Cube Skins
+    "csk_default": "Unidad del Sistema",
+    "csk_default_desc": "Cubo de combate clásico rojo-naranja",
+    "csk_neon": "Pulso Neón",
+    "csk_neon_desc": "Energía morada neón brillante",
+    "csk_ice": "Núcleo Criogénico",
+    "csk_ice_desc": "Caparazón cristalino azul hielo",
+    "csk_gold": "Estándar de Oro",
+    "csk_gold_desc": "Lujoso revestimiento dorado",
+    "csk_shadow": "Nodo Sombra",
+    "csk_shadow_desc": "Chasis oscuro en modo sigilo",
+    "csk_plasma": "Equipo de Plasma",
+    "csk_plasma_desc": "Plasma eléctrico azul-morado",
+    "csk_matrix": "Nodo de Datos",
+    "csk_matrix_desc": "Flujos de datos verde matrix",
 
     # Player Skins
     "skin_default": "Sistema base",
@@ -3946,8 +3922,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_status": "Estado",
     "os_system_performance": "RENDIMIENTO",
     "os_system_manager": "Admin. Sistema",
-    "os_system_paused": "Sistema pausado - presiona ESPACIO para continuar",
-    "os_press_space_continue": "Presiona ESPACIO para continuar",
 
     # OS Desktop / System Info
     "os_system_monitor": "Monitor del Sistema",
@@ -3965,33 +3939,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_wave_label": "Oleada",
     "stats_time_label": "TIEMPO",
     "stats_kills_label": "BAJAS",
-    "stats_accuracy_label": "PRECISIÓN",
     "stats_avg_dps": "DPS PROM",
-    "stats_max_combo": "Combo Máx",
-    "stats_avg_combo": "Combo Prom",
-    "stats_perfect_waves": "Oleadas Perfectas",
-    "stats_play_style_aggressive": "Agresivo",
-    "stats_play_style_defensive": "Defensivo",
-    "stats_play_style_mobile": "Móvil",
-    "stats_play_style_tank": "Tanque",
     "stats_play_style_balanced": "Equilibrado",
     "stats_no_power_ups_selected": "Sin mejoras seleccionadas",
-    "stats_no_graph_data_short": "Sin datos de gráfico",
-    "stats_controls_footer": "[ENTER] Continuar  |  [ESC] Cerrar",
-    "stats_wave_mode": "Modo Oleada",
-    "stats_time_survival_mode": "Supervivencia Temporal",
-    "stats_sandbox_mode": "Sandbox",
-    "stats_pvp_mode": "PvP",
     "stats_bar_wave_max": "[OLEADA] Máximo Alcanzado",
     "stats_bar_kill_best": "[MUERTES] Mejor Rendimiento",
     "stats_bar_boss_eliminated": "[JEFE] Eliminado",
     "stats_bar_time_survival": "[TIEMPO] Supervivencia Más Larga",
-    "stats_combat_label": "COMBATE",
-    "stats_movement_label": "MOVIMIENTO Y SUPERVIVENCIA",
-    "stats_performance_label": "RENDIMIENTO",
-    "stats_resources_label": "RECURSOS",
-    "stats_play_style_label": "ESTILO DE JUEGO",
-    "stats_dps_over_time_label": "DPS A TRAVÉS DEL TIEMPO",
     "stats_host_default": "Host",
 
     # Enemy Labels
@@ -4135,11 +4089,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_team_purple": "Púrpura",
     "pvp_team_none": "Ninguno",
 
-    "stats_play_style_aggressive": "Agresivo",
-    "stats_play_style_defensive": "Defensivo",
-    "stats_play_style_mobile": "Móvil",
-    "stats_play_style_tank": "Tanque",
-
     # Lifetime Stats Labels
     "stats_movement_label": "MOVIMIENTO",
     "stats_distance_label": "Distancia",
@@ -4168,6 +4117,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_dps_over_time_label": "DPS A TRAVÉS DEL TIEMPO",
     "stats_no_graph_data_short": "Sin datos de gráfico",
     "stats_controls_footer": "[TAB/ESC] Volver  [R] Reiniciar  [Q] Menú",
+    "stats_play_style_aggressive": "Agresivo",
+    "stats_play_style_defensive": "Defensivo",
+    "stats_play_style_mobile": "Móvil",
+    "stats_play_style_tank": "Tanque",
 
     # Gamemode Names and Descriptions
     "gamemode_wave_based_name": "Por Oleadas",
@@ -4398,22 +4351,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Advancements window
     "adv_control_title": "CONTROL DE LOGROS",
-    "adv_sync_desc": "Progresión persistente sincronizada con estadísticas totales, últimas partidas y datos del perfil roguelite.",
+    "adv_sync_desc": "Progresión persistente sincronizada con estadísticas totales, últimas partidas y datos del perfil roguelite. Reclama logros para ganar Fragmentos de Datos.",
     "adv_unlocked_count": "Desbloqueados",
     "adv_claimed_count": "Reclamados",
-    "adv_claimed_points": "Puntos Reclamados",
+    "adv_shard_balance": "Fragmentos de Datos",
     "adv_claim_all": "Reclamar Todo +",
     "adv_all_claimed": "Todo Reclamado",
     "adv_categories": "Categorías",
     "adv_detail": "Detalle",
     "adv_progress": "Progreso",
     "adv_status": "Estado",
-    "adv_points": "Puntos",
     "adv_reward": "Recompensa",
     "adv_unlocked_at": "Desbloqueado",
-    "adv_points_claimed": "reclamados",
-    "adv_points_pending": "pendientes",
-    "adv_points_reward": "recompensa",
     "adv_reward_claimed": "Recompensa Reclamada",
     "adv_claim_reward": "Reclamar Recompensa",
     "adv_locked_btn": "Bloqueado",
@@ -4427,6 +4376,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Desktop
     "desktop_net": "RED",
+    "desktop_advancement_unlocked": "Logro desbloqueado",
 
     # Debug panel runtime stats
     "debug_panel_dps": "DPS",

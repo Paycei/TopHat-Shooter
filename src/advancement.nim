@@ -25,8 +25,6 @@ type
     category*: AdvancementCategory
     tier*: AdvancementTier
     target*: float32
-    points*: int
-    reward*: string
 
   AdvancementEntry* = object
     id*: string
@@ -44,6 +42,7 @@ type
 const
   AdvancementProfileVersion* = 1
   AdvancementRogueliteSectorsPerAct = 3
+  CubeEscapeAdvancementId* = "mastery_escape_velocity"
 
 proc saveAdvancements*(profile: AdvancementProfile): bool
 
@@ -73,8 +72,26 @@ proc tierName*(tier: AdvancementTier): string =
   of atGold: "Gold"
   of atLegendary: "Legendary"
 
-proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
-  @[
+proc rewardShards*(tier: AdvancementTier): int =
+  ## Data Shard payout for claiming an unlocked advancement.
+  ## Calibrated against the roguelite unlock shop (45-280 shards per unlock).
+  case tier
+  of atBronze: 15
+  of atSilver: 40
+  of atGold: 90
+  of atLegendary: 200
+
+proc rewardCores*(tier: AdvancementTier): int =
+  ## Rare-currency payout; only Legendary advancements pay Cores so the
+  ## Heat 2+ core economy isn't trivialized.
+  case tier
+  of atLegendary: 1
+  else: 0
+
+proc rewardShards*(def: AdvancementDefinition): int = rewardShards(def.tier)
+proc rewardCores*(def: AdvancementDefinition): int = rewardCores(def.tier)
+
+const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "combat_first_breach",
       name: "First Breach",
@@ -82,8 +99,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acCombat,
       tier: atBronze,
       target: 1.0'f32,
-      points: 10,
-      reward: "Operator badge: Breach"
     ),
     AdvancementDefinition(
       id: "combat_threat_hunter",
@@ -92,8 +107,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acCombat,
       tier: atBronze,
       target: 100.0'f32,
-      points: 20,
-      reward: "20 advancement points"
     ),
     AdvancementDefinition(
       id: "combat_process_reaper",
@@ -102,8 +115,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acCombat,
       tier: atGold,
       target: 1000.0'f32,
-      points: 60,
-      reward: "Gold combat plate"
     ),
     AdvancementDefinition(
       id: "combat_boss_signal",
@@ -112,8 +123,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acCombat,
       tier: atBronze,
       target: 1.0'f32,
-      points: 20,
-      reward: "Boss telemetry feed"
     ),
     AdvancementDefinition(
       id: "combat_boss_hunter",
@@ -122,8 +131,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acCombat,
       tier: atSilver,
       target: 10.0'f32,
-      points: 45,
-      reward: "Hunter process tag"
     ),
     AdvancementDefinition(
       id: "combat_deadeye",
@@ -132,8 +139,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acCombat,
       tier: atGold,
       target: 85.0'f32,
-      points: 55,
-      reward: "Precision badge"
     ),
     AdvancementDefinition(
       id: "combat_combo_chain",
@@ -142,8 +147,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acCombat,
       tier: atSilver,
       target: 15.0'f32,
-      points: 35,
-      reward: "Combo analyzer"
     ),
     AdvancementDefinition(
       id: "combat_singularity",
@@ -152,8 +155,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acCombat,
       tier: atLegendary,
       target: 50.0'f32,
-      points: 100,
-      reward: "Legendary chain marker"
     ),
 
     AdvancementDefinition(
@@ -163,8 +164,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acSurvival,
       tier: atBronze,
       target: 5.0'f32,
-      points: 15,
-      reward: "Wave log access"
     ),
     AdvancementDefinition(
       id: "survival_sector_warden",
@@ -173,8 +172,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acSurvival,
       tier: atSilver,
       target: 15.0'f32,
-      points: 35,
-      reward: "Warden status line"
     ),
     AdvancementDefinition(
       id: "survival_firewall_legend",
@@ -183,8 +180,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acSurvival,
       tier: atLegendary,
       target: 35.0'f32,
-      points: 95,
-      reward: "Legendary firewall seal"
     ),
     AdvancementDefinition(
       id: "survival_five_minutes",
@@ -193,8 +188,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acSurvival,
       tier: atBronze,
       target: 300.0'f32,
-      points: 20,
-      reward: "Runtime monitor"
     ),
     AdvancementDefinition(
       id: "survival_twenty_minutes",
@@ -203,8 +196,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acSurvival,
       tier: atGold,
       target: 1200.0'f32,
-      points: 70,
-      reward: "Extended runtime flag"
     ),
     AdvancementDefinition(
       id: "survival_clean_window",
@@ -213,8 +204,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acSurvival,
       tier: atSilver,
       target: 30.0'f32,
-      points: 35,
-      reward: "Defensive trace"
     ),
     AdvancementDefinition(
       id: "survival_phantom_runtime",
@@ -223,8 +212,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acSurvival,
       tier: atLegendary,
       target: 90.0'f32,
-      points: 95,
-      reward: "Phantom shell tag"
     ),
 
     AdvancementDefinition(
@@ -234,8 +221,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acResources,
       tier: atBronze,
       target: 500.0'f32,
-      points: 20,
-      reward: "Credit ledger"
     ),
     AdvancementDefinition(
       id: "resource_vault_breach",
@@ -244,8 +229,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acResources,
       tier: atSilver,
       target: 2500.0'f32,
-      points: 40,
-      reward: "Vault marker"
     ),
     AdvancementDefinition(
       id: "resource_credit_blackhole",
@@ -254,8 +237,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acResources,
       tier: atGold,
       target: 10000.0'f32,
-      points: 75,
-      reward: "Gold economy plate"
     ),
     AdvancementDefinition(
       id: "resource_wallwright",
@@ -264,8 +245,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acResources,
       tier: atSilver,
       target: 20.0'f32,
-      points: 35,
-      reward: "Constructor permit"
     ),
     AdvancementDefinition(
       id: "resource_field_medic",
@@ -274,8 +253,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acResources,
       tier: atSilver,
       target: 25.0'f32,
-      points: 35,
-      reward: "Recovery badge"
     ),
 
     AdvancementDefinition(
@@ -285,8 +262,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acMastery,
       tier: atBronze,
       target: 1.0'f32,
-      points: 10,
-      reward: "Installer audit"
     ),
     AdvancementDefinition(
       id: "mastery_kernel_stack",
@@ -295,8 +270,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acMastery,
       tier: atSilver,
       target: 8.0'f32,
-      points: 35,
-      reward: "Stack visualizer"
     ),
     AdvancementDefinition(
       id: "mastery_legendary_handshake",
@@ -305,8 +278,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acMastery,
       tier: atSilver,
       target: 1.0'f32,
-      points: 35,
-      reward: "Legendary handshake key"
     ),
     AdvancementDefinition(
       id: "mastery_legendary_cluster",
@@ -315,8 +286,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acMastery,
       tier: atGold,
       target: 4.0'f32,
-      points: 70,
-      reward: "Cluster badge"
     ),
     AdvancementDefinition(
       id: "mastery_elemental_mesh",
@@ -325,8 +294,14 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acMastery,
       tier: atGold,
       target: 4.0'f32,
-      points: 70,
-      reward: "Elemental mesh map"
+    ),
+    AdvancementDefinition(
+      id: CubeEscapeAdvancementId,
+      name: "Escape Velocity",
+      description: "Spin the desktop cube fast enough, for long enough, to knock it out of orbit.",
+      category: acMastery,
+      tier: atGold,
+      target: 1.0'f32,
     ),
 
     AdvancementDefinition(
@@ -336,8 +311,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acRoguelite,
       tier: atBronze,
       target: 1.0'f32,
-      points: 20,
-      reward: "Sector route cache"
     ),
     AdvancementDefinition(
       id: "roguelite_act_runner",
@@ -346,8 +319,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acRoguelite,
       tier: atSilver,
       target: 5.0'f32,
-      points: 40,
-      reward: "Route planner"
     ),
     AdvancementDefinition(
       id: "roguelite_shard_cache",
@@ -356,8 +327,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acRoguelite,
       tier: atSilver,
       target: 100.0'f32,
-      points: 40,
-      reward: "Shard ledger"
     ),
     AdvancementDefinition(
       id: "roguelite_heat_check",
@@ -366,8 +335,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acRoguelite,
       tier: atSilver,
       target: 2.0'f32,
-      points: 40,
-      reward: "Heat dial"
     ),
     AdvancementDefinition(
       id: "roguelite_heat_singularity",
@@ -376,8 +343,6 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acRoguelite,
       tier: atLegendary,
       target: 3.0'f32,
-      points: 100,
-      reward: "Singularity heat plate"
     ),
     AdvancementDefinition(
       id: "roguelite_victory_kernel",
@@ -386,10 +351,11 @@ proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
       category: acRoguelite,
       tier: atLegendary,
       target: 1.0'f32,
-      points: 110,
-      reward: "Victory kernel seal"
     )
   ]
+
+proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
+  AllAdvancementDefs
 
 proc getAdvancementsPath*(): string =
   getAppDataPath() / "advancements.json"
@@ -485,26 +451,26 @@ proc totalClaimed*(profile: AdvancementProfile): int =
     if entry.claimed:
       inc result
 
-proc totalAvailablePoints*(profile: AdvancementProfile): int =
+proc totalClaimedShards*(profile: AdvancementProfile): int =
   if profile.isNil: return 0
-  for def in getAdvancementDefinitions():
-    let entry = profile.getAdvancementEntry(def.id)
-    if entry.unlocked:
-      result += def.points
-
-proc totalClaimedPoints*(profile: AdvancementProfile): int =
-  if profile.isNil: return 0
-  for def in getAdvancementDefinitions():
+  for def in AllAdvancementDefs:
     let entry = profile.getAdvancementEntry(def.id)
     if entry.claimed:
-      result += def.points
+      result += def.rewardShards
 
-proc unclaimedPoints*(profile: AdvancementProfile): int =
+proc unclaimedShards*(profile: AdvancementProfile): int =
   if profile.isNil: return 0
-  for def in getAdvancementDefinitions():
+  for def in AllAdvancementDefs:
     let entry = profile.getAdvancementEntry(def.id)
     if entry.unlocked and not entry.claimed:
-      result += def.points
+      result += def.rewardShards
+
+proc unclaimedCores*(profile: AdvancementProfile): int =
+  if profile.isNil: return 0
+  for def in AllAdvancementDefs:
+    let entry = profile.getAdvancementEntry(def.id)
+    if entry.unlocked and not entry.claimed:
+      result += def.rewardCores
 
 proc categoryTotals*(profile: AdvancementProfile,
                      category: AdvancementCategory): tuple[unlocked, total, unclaimed: int] =
@@ -558,24 +524,43 @@ proc rogueliteSectorsCleared(profile: RogueliteProfile): int =
 
 proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
                       lastRun: RunStatistics,
-                      rogueliteProfile: RogueliteProfile): float32 =
+                      rogueliteProfile: RogueliteProfile,
+                      liveRun: bool = false): float32 =
+  ## When liveRun is true, lastRun is the still-in-progress run: lifetime
+  ## totals don't include it yet, so its contributions are added on top.
   case def.id
   of "combat_first_breach", "combat_threat_hunter", "combat_process_reaper":
-    totalKills(stats).float32
+    var kills = totalKills(stats)
+    if liveRun and not lastRun.isNil:
+      kills += lastRun.combat.totalKills
+    kills.float32
   of "combat_boss_signal", "combat_boss_hunter":
-    totalBosses(stats).float32
+    var bosses = totalBosses(stats)
+    if liveRun and not lastRun.isNil:
+      bosses += lastRun.combat.bossKills
+    bosses.float32
   of "combat_deadeye":
-    if lastRun.isNil: 0.0'f32 else: lastRun.combat.accuracyPercent
+    # Accuracy is only derived when a run is finalized; never mid-run.
+    if lastRun.isNil or liveRun: 0.0'f32 else: lastRun.combat.accuracyPercent
   of "combat_combo_chain", "combat_singularity":
     if lastRun.isNil: 0.0'f32 else: lastRun.combat.maxCombo.float32
   of "survival_hold_line", "survival_sector_warden", "survival_firewall_legend":
-    highestWave(stats).float32
+    var wave = highestWave(stats)
+    if liveRun and not lastRun.isNil and lastRun.gameMode == gmWaveBased:
+      wave = max(wave, lastRun.waveReached)
+    wave.float32
   of "survival_five_minutes", "survival_twenty_minutes":
-    longestSurvival(stats)
+    var survived = longestSurvival(stats)
+    if liveRun and not lastRun.isNil and lastRun.gameMode == gmTimeSurvival:
+      survived = max(survived, lastRun.runDuration)
+    survived
   of "survival_clean_window", "survival_phantom_runtime":
     if lastRun.isNil: 0.0'f32 else: lastRun.movement.longestNoDamageStreak
   of "resource_cache_foundry", "resource_vault_breach", "resource_credit_blackhole":
-    totalCoins(stats).float32
+    var coins = totalCoins(stats)
+    if liveRun and not lastRun.isNil:
+      coins += lastRun.resources.coinsEarned
+    coins.float32
   of "resource_wallwright":
     if lastRun.isNil: 0.0'f32 else: lastRun.resources.wallsPlaced.float32
   of "resource_field_medic":
@@ -594,12 +579,19 @@ proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
     if rogueliteProfile.isNil: 0.0'f32 else: rogueliteProfile.highestHeat.float32
   of "roguelite_victory_kernel":
     if rogueliteProfile.isNil: 0.0'f32 else: rogueliteProfile.wins.float32
+  of CubeEscapeAdvancementId:
+    # Event-driven (desktop easter egg), never derived from stats; unlocked
+    # via unlockAdvancementDirectly. Returning 0 keeps sync from touching it.
+    0.0'f32
   else:
     0.0'f32
 
 proc syncAdvancements*(profile: AdvancementProfile, stats: Statistics,
                        lastRun: RunStatistics = nil,
-                       rogueliteProfile: RogueliteProfile = nil): seq[AdvancementDefinition] =
+                       rogueliteProfile: RogueliteProfile = nil,
+                       liveRun: bool = false): seq[AdvancementDefinition] =
+  ## Pass liveRun=true with the in-progress run stats to sync mid-run
+  ## (current-run contributions get added on top of saved lifetime stats).
   if profile.isNil:
     return @[]
   profile.ensureAdvancementEntries()
@@ -609,7 +601,7 @@ proc syncAdvancements*(profile: AdvancementProfile, stats: Statistics,
     if idx < 0:
       continue
 
-    let measured = measuredProgress(def, stats, lastRun, rogueliteProfile)
+    let measured = measuredProgress(def, stats, lastRun, rogueliteProfile, liveRun)
     if measured > profile.entries[idx].progress:
       profile.entries[idx].progress = measured
       profile.dirty = true
@@ -621,24 +613,60 @@ proc syncAdvancements*(profile: AdvancementProfile, stats: Statistics,
       profile.dirty = true
       result.add(def)
 
-proc claimAdvancement*(profile: AdvancementProfile, id: string): bool =
+proc isAdvancementUnlocked*(profile: AdvancementProfile, id: string): bool =
+  let idx = profile.findEntryIndex(id)
+  idx >= 0 and profile.entries[idx].unlocked
+
+proc unlockAdvancementDirectly*(profile: AdvancementProfile, id: string): bool =
+  ## Unlock an event-driven advancement that has no stat backing it.
+  ## Returns true only the first time it unlocks.
+  if profile.isNil:
+    return false
+  profile.ensureAdvancementEntries()
+  let idx = profile.findEntryIndex(id)
+  if idx < 0 or profile.entries[idx].unlocked:
+    return false
+  profile.entries[idx].progress = max(getAdvancementDefinition(id).target, 1.0'f32)
+  profile.entries[idx].unlocked = true
+  profile.entries[idx].unlockedAt = $now()
+  profile.recentUnlocks.add(id)
+  profile.dirty = true
+  true
+
+proc claimAdvancement*(profile: AdvancementProfile, id: string,
+                       wallet: RogueliteProfile): tuple[claimed: bool, shards, cores: int] =
+  ## Claim an unlocked advancement and credit its payout to the persistent
+  ## wallet (the roguelite profile, which backs the unlock and cosmetic shops).
+  ## Caller is responsible for saving both profiles.
   let idx = profile.findEntryIndex(id)
   if idx < 0:
-    return false
+    return (false, 0, 0)
   if profile.entries[idx].unlocked and not profile.entries[idx].claimed:
     profile.entries[idx].claimed = true
     profile.dirty = true
-    return true
-  false
+    let def = getAdvancementDefinition(id)
+    result = (true, def.rewardShards, def.rewardCores)
+    if not wallet.isNil:
+      wallet.dataShards += result.shards
+      wallet.cores += result.cores
 
-proc claimAllAdvancements*(profile: AdvancementProfile): int =
+proc claimAllAdvancements*(profile: AdvancementProfile,
+                           wallet: RogueliteProfile): tuple[count, shards, cores: int] =
+  ## Claim every unlocked-but-unclaimed advancement at once. Payouts are
+  ## credited to the wallet; caller saves both profiles.
   if profile.isNil:
-    return 0
+    return (0, 0, 0)
   for i in 0..<profile.entries.len:
     if profile.entries[i].unlocked and not profile.entries[i].claimed:
       profile.entries[i].claimed = true
       profile.dirty = true
-      inc result
+      let def = getAdvancementDefinition(profile.entries[i].id)
+      inc result.count
+      result.shards += def.rewardShards
+      result.cores += def.rewardCores
+  if not wallet.isNil:
+    wallet.dataShards += result.shards
+    wallet.cores += result.cores
 
 proc resetAdvancements*(profile: AdvancementProfile): bool =
   ## Reset an existing advancement profile in place so open windows keep their reference.
@@ -725,6 +753,10 @@ proc jsonToAdvancementProfile*(node: JsonNode): AdvancementProfile =
   if node.hasKey("recentUnlocks"):
     for item in node["recentUnlocks"]:
       result.recentUnlocks.add(item.getStr())
+  # Saves from before the menu toast queue existed accumulated unlocks here
+  # without ever consuming them; keep only the latest few to avoid toast spam.
+  if result.recentUnlocks.len > 5:
+    result.recentUnlocks = result.recentUnlocks[^5..^1]
 
   result.ensureAdvancementEntries()
 

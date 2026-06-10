@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager
+import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager
 
 # Global quit-confirmation dialog
 
@@ -381,6 +381,7 @@ proc main() =
     discard saveAdvancements(advancementProfile)
 
   var statsSavedThisGame = false  # Track if stats were saved for current game
+  var advancementSyncTimer = 0.0'f32  # Throttle for mid-run advancement checks
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   var lastFullscreenToggleTime = 0.0  # Debouncing for F11 key
 
@@ -404,6 +405,9 @@ proc main() =
   var osDesktop = newOSDesktop()
   # Expose the running desktop instance so UI previews can match its state
   activeDesktop = osDesktop
+  # Arm the cube orbital-escape easter egg only while its advancement is locked,
+  # so it can only ever happen once per profile.
+  osDesktop.cubeEscapeArmed = not isAdvancementUnlocked(advancementProfile, CubeEscapeAdvancementId)
 
   # Initialize window manager with all windows
   globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats, advancementProfile, rogueliteProfile)
@@ -417,6 +421,8 @@ proc main() =
       discard saveSettings(settings)
     if not globalWindowManager.isNil and not globalWindowManager.settings.isNil:
       globalWindowManager.settings.rogueliteProfile = profile
+    if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
+      globalWindowManager.advancements.rogueliteProfile = profile
     if not globalWindowManager.isNil and not globalWindowManager.shop.isNil:
       globalWindowManager.shop.rogueliteProfile = profile
       globalWindowManager.shop.selectedPlayerSkin = SkinType(settings.playerSkin)
@@ -649,6 +655,26 @@ proc main() =
 
       # Update OS desktop (after mouseOverWindow is known, so cube drag respects windows)
       updateOSDesktop(osDesktop, dt, mouseOverWindow, screenWidth, screenHeight)
+
+      # Cube knocked out of orbit by sustained fast spinning: grant the one-time advancement
+      if osDesktop.cubeEscapeTriggered:
+        osDesktop.cubeEscapeTriggered = false
+        if unlockAdvancementDirectly(advancementProfile, CubeEscapeAdvancementId):
+          discard saveAdvancements(advancementProfile)
+          if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
+            globalWindowManager.advancements.profile = advancementProfile
+
+      # Surface queued advancement unlocks (from runs or easter eggs) as OS
+      # toasts, one at a time as the previous toast expires.
+      if advancementProfile.recentUnlocks.len > 0 and
+         osDesktop.toastTimer <= 0.0'f32 and not globalConfirmActive:
+        let unlockedId = advancementProfile.recentUnlocks[0]
+        advancementProfile.recentUnlocks.delete(0)
+        discard saveAdvancements(advancementProfile)
+        let unlockedDef = getAdvancementDefinition(unlockedId)
+        if unlockedDef.id.len > 0:
+          showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
+                           unlockedDef.name)
 
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
       let action = if not mouseOverWindow and not globalConfirmActive: handleDesktopInput(osDesktop, currentGame) else: -1
@@ -1232,6 +1258,27 @@ proc main() =
               bullet.pos.y += bullet.vel.y * dt
         else:
           updateGame(currentGame, dt)
+
+      # Mid-run advancement sync: surface unlocks instantly through the HUD
+      # action log instead of waiting for the game-over stats save.
+      if not cheatMenu.active and not globalConfirmActive and
+         not isSandboxMode(currentGame.mode) and not currentRunStats.isNil:
+        advancementSyncTimer += dt
+        if advancementSyncTimer >= 2.0'f32:
+          advancementSyncTimer = 0.0'f32
+          let liveUnlocks = syncAdvancements(advancementProfile, stats, currentRunStats,
+                                             rogueliteProfile, liveRun = true)
+          if liveUnlocks.len > 0:
+            for unlockedDef in liveUnlocks:
+              addNotification(currentGame.osHUD,
+                              t(tkDesktopAdvancementUnlocked) & ": " & unlockedDef.name,
+                              ntCritical)
+              # Already announced in-game; don't re-toast it on the desktop later.
+              let queueIdx = advancementProfile.recentUnlocks.find(unlockedDef.id)
+              if queueIdx >= 0:
+                advancementProfile.recentUnlocks.delete(queueIdx)
+            playSound(stPowerUp, 0.9)
+            discard saveAdvancements(advancementProfile)
 
       beginGameDrawing()
 

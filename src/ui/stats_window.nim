@@ -446,9 +446,9 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       lineY += 20
       drawStatLine(col2X + 10, lineY, t(tkStatsTimeAtLowHP), formatDuration(runStats.movement.timeAtLowHP), Orange)
       lineY += 20
-      drawStatLine(col2X + 10, lineY, "Successful Parries", $runStats.movement.successfulParries, Gold)
+      drawStatLine(col2X + 10, lineY, t("stats_successful_parries"), $runStats.movement.successfulParries, Gold)
       lineY += 20
-      drawStatLine(col2X + 10, lineY, "Time Invincible", formatDuration(runStats.movement.timeInvincible), SkyBlue)
+      drawStatLine(col2X + 10, lineY, t("stats_time_invincible"), formatDuration(runStats.movement.timeInvincible), SkyBlue)
 
       # Performance Stats Panel
       drawStatPanel(col3X, y, col1Width, 240, t(tkStatsPerformance))

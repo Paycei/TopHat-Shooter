@@ -1,12 +1,13 @@
 ## OS-themed advancement tracker window.
 
 import raylib, strutils
-import os_window, ../advancement, ../render_context, ../localization
+import os_window, ../advancement, ../render_context, ../localization, ../types, ../roguelite
 
 type
   AdvancementsWindow* = ref object
     window*: OSWindow
     profile*: AdvancementProfile
+    rogueliteProfile*: RogueliteProfile  # Persistent wallet credited by claims
     currentCategory*: AdvancementCategory
     selectedId*: string
     scrollOffset*: int
@@ -149,8 +150,20 @@ proc hoverEnabled(advWin: AdvancementsWindow, mousePos: Vector2): bool =
   not advWin.isNil and not advWin.window.isNil and advWin.window.focused and
     isPointInWindow(advWin.window, mousePos.x, mousePos.y)
 
+proc payoutText*(def: AdvancementDefinition): string =
+  ## Human-readable claim payout, e.g. "+90 Shards" or "+200 Shards, +1 Cores".
+  result = "+" & $def.rewardShards & " " & t("roguelite_shards_short")
+  if def.rewardCores > 0:
+    result &= ", +" & $def.rewardCores & " " & t("roguelite_cores_short")
+
+proc saveClaimedProfiles(advWin: AdvancementsWindow) =
+  discard saveAdvancements(advWin.profile)
+  if not advWin.rogueliteProfile.isNil:
+    discard saveRogueliteProfile(advWin.rogueliteProfile)
+
 proc newAdvancementsWindow*(screenWidth, screenHeight: int,
-                            profile: AdvancementProfile): AdvancementsWindow =
+                            profile: AdvancementProfile,
+                            rogueliteProfile: RogueliteProfile): AdvancementsWindow =
   let windowWidth = 940
   let windowHeight = 660
   let windowX = (screenWidth - windowWidth) div 2
@@ -168,6 +181,7 @@ proc newAdvancementsWindow*(screenWidth, screenHeight: int,
   result = AdvancementsWindow(
     window: osWin,
     profile: profile,
+    rogueliteProfile: rogueliteProfile,
     currentCategory: acCombat,
     selectedId: "",
     scrollOffset: 0,
@@ -304,13 +318,16 @@ proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
                                  width: 160.0,
                                  height: 34.0)
     if checkCollisionPointRec(mousePos, claimAllRect):
-      if claimAllAdvancements(advWin.profile) > 0:
-        discard saveAdvancements(advWin.profile)
+      let granted = claimAllAdvancements(advWin.profile, advWin.rogueliteProfile)
+      if granted.count > 0:
+        advWin.saveClaimedProfiles()
     elif checkCollisionPointRec(mousePos, claimRect):
       let entry = advWin.profile.getAdvancementEntry(advWin.selectedId)
       if entry.unlocked and not entry.claimed:
-        if claimAdvancement(advWin.profile, advWin.selectedId):
-          discard saveAdvancements(advWin.profile)
+        let granted = claimAdvancement(advWin.profile, advWin.selectedId,
+                                       advWin.rogueliteProfile)
+        if granted.claimed:
+          advWin.saveClaimedProfiles()
 
   false
 
@@ -373,8 +390,9 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
   let totalDefs = getAdvancementDefinitions().len
   let unlocked = advWin.profile.totalUnlocked()
   let claimed = advWin.profile.totalClaimed()
-  let points = advWin.profile.totalClaimedPoints()
-  let pending = advWin.profile.unclaimedPoints()
+  let walletShards = if advWin.rogueliteProfile.isNil: 0
+                     else: advWin.rogueliteProfile.dataShards
+  let pending = advWin.profile.unclaimedShards()
 
   let statX = contentX + 465
   discard drawWrappedText(t(tkAdvSyncDesc),
@@ -384,8 +402,8 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
   drawText($unlocked & " / " & $totalDefs, statX.int32, (contentY + 30).int32, 20, White)
   drawText(t(tkAdvClaimedCount), (statX + 112).int32, (contentY + 12).int32, 12, LightGray)
   drawText($claimed, (statX + 112).int32, (contentY + 30).int32, 20, Color(r: 90, g: 255, b: 150, a: 255))
-  drawText(t(tkAdvClaimedPoints), (statX + 205).int32, (contentY + 12).int32, 12, LightGray)
-  drawText($points, (statX + 205).int32, (contentY + 30).int32, 20, Color(r: 255, g: 210, b: 70, a: 255))
+  drawText(t(tkAdvShardBalance), (statX + 205).int32, (contentY + 12).int32, 12, LightGray)
+  drawText($walletShards, (statX + 205).int32, (contentY + 30).int32, 20, Color(r: 255, g: 210, b: 70, a: 255))
 
   let claimAllRect = Rectangle(x: (contentX + contentW - 180).float32,
                                y: (contentY + 22).float32,
@@ -482,19 +500,11 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
     drawText(t(tkAdvStatus), (detailX + 14).int32, infoY.int32, 13, LightGray)
     drawText(statusLabel(entry), (detailX + 95).int32, infoY.int32, 13, statusColor(entry))
     infoY += 26
-    drawText(t(tkAdvPoints), (detailX + 14).int32, infoY.int32, 13, LightGray)
-    let pointText =
-      if entry.claimed: "+" & $selectedDef.points & " " & t(tkAdvPointsClaimed)
-      elif entry.unlocked: "+" & $selectedDef.points & " " & t(tkAdvPointsPending)
-      else: "+" & $selectedDef.points & " " & t(tkAdvPointsReward)
-    drawText(pointText, (detailX + 95).int32, infoY.int32, 13,
+    drawText(t(tkAdvReward), (detailX + 14).int32, infoY.int32, 13, LightGray)
+    drawText(payoutText(selectedDef), (detailX + 95).int32, infoY.int32, 13,
              if entry.claimed: Color(r: 90, g: 255, b: 150, a: 255)
              elif entry.unlocked: Color(r: 255, g: 210, b: 70, a: 255)
-             else: Color(r: 165, g: 178, b: 195, a: 255))
-    infoY += 26
-    drawText(t(tkAdvReward), (detailX + 14).int32, infoY.int32, 13, LightGray)
-    discard drawWrappedText(selectedDef.reward, detailX + 95, infoY, detailW - 112, 13,
-                            Color(r: 190, g: 220, b: 235, a: 255), 3)
+             else: Color(r: 190, g: 220, b: 235, a: 255))
 
     if entry.unlockedAt.len > 0:
       drawText(t(tkAdvUnlockedAt), (detailX + 14).int32, (bodyY + bodyH - 88).int32, 12, LightGray)
