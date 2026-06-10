@@ -7,7 +7,7 @@ export Deque
 type
   GameState* = enum
     gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
-    gsRogueliteSectorSelect, gsDeathSequence
+    gsRogueliteFloorSelect, gsDeathSequence
 
   GameMode* = enum
     gmWaveBased,
@@ -180,19 +180,65 @@ type
     rpfWind,
     rpfBlood
 
-  RogueliteSectorModifier* = enum
-    rsmSafehouse,
-    rsmOverclocked,
-    rsmEliteCache,
-    rsmFirewall,
-    rsmVolatileMemory,
-    rsmBlackMarket
+  DungeonFloorTheme* = enum
+    dftFirewall,
+    dftRecycleBin,
+    dftRegistry,
+    dftNetwork,
+    dftKernel,
+    dftCache,
+    dftCorruptedSector
 
-  RogueliteRewardType* = enum
-    rrwCredits,
-    rrwRelic,
-    rrwPowerFamily,
-    rrwShardCache
+  DungeonRoomKind* = enum
+    drkStart,
+    drkCombat,
+    drkElite,
+    drkTreasure,
+    drkShop,
+    drkBoss
+
+  DoorDir* = enum
+    ddUp,
+    ddRight,
+    ddDown,
+    ddLeft
+
+  DungeonPickupKind* = enum
+    dpkKey,
+    dpkCompass,
+    dpkMap,
+    dpkRelicPedestal,
+    dpkShardCache
+
+  DungeonPickup* = ref object
+    pos*: Vector2f
+    kind*: DungeonPickupKind
+    costCredits*: int     # 0 = free on touch
+    taken*: bool
+
+  DungeonRoom* = ref object
+    gridX*, gridY*: int
+    kind*: DungeonRoomKind
+    doors*: set[DoorDir]
+    cleared*: bool        # Encounter finished (start/shop rooms are born cleared)
+    visited*: bool        # Player has entered this room
+    seen*: bool           # Adjacent to a visited room (shows as outline on minimap)
+    locked*: bool         # Treasure rooms need a key to enter
+    encounterBudget*: int # Enemies to spawn on first entry
+    encounterSeed*: int
+    bfsDepth*: int        # Distance from the start room
+    obstacleSeed*: int
+    pickups*: seq[DungeonPickup]
+
+  DungeonFloor* = ref object
+    theme*: DungeonFloorTheme
+    floorNumber*: int
+    rooms*: seq[DungeonRoom]
+    currentRoom*: int
+    startIdx*: int
+    bossIdx*: int
+    mapRevealed*: bool    # Map pickup: full layout visible on minimap
+    compassFound*: bool   # Compass pickup: boss room marked on minimap
 
   RogueliteRelicType* = enum
     rrtNone,
@@ -207,21 +253,10 @@ type
     name*: string
     description*: string
 
-  RogueliteSector* = object
-    name*: string
-    modifier*: RogueliteSectorModifier
-    rewardType*: RogueliteRewardType
-    waveCount*: int
-    enemyPressure*: float32
-    eliteChanceBonus*: int
-    shardMultiplier*: float32
-    isElite*: bool
-
   RogueliteProfile* = ref object
     version*: int
     dataShards*: int
-    overheatCores*: int
-    singularityCores*: int
+    cores*: int
     unlockedStarterKits*: set[RogueliteStarterKit]
     unlockedPowerFamilies*: set[RoguelitePowerFamily]
     unlockedRelics*: set[RogueliteRelicType]
@@ -234,8 +269,8 @@ type
     unlockedCubeSkins*: seq[string]
     unlockedBossTier*: int
     highestHeat*: int
-    bestAct*: int
-    bestSector*: int
+    bestFloor*: int
+    bestRooms*: int
     bestEndlessLoop*: int
     totalRuns*: int
     wins*: int
@@ -244,23 +279,20 @@ type
     seed*: int
     starterKit*: RogueliteStarterKit
     heat*: int
-    act*: int
-    sector*: int
-    sectorsThisAct*: int
-    sectorWavesCleared*: int
-    totalSectorsCleared*: int
-    activeSector*: RogueliteSector
-    nextSectorChoices*: array[3, RogueliteSector]
+    floorNumber*: int                # 1..RogueliteFloorsToWin, resets each endless loop
+    floor*: DungeonFloor             # The active generated floor
+    totalRoomsCleared*: int
+    keys*: int                       # Opens locked treasure rooms
+    combatRoomsSinceDraft*: int      # Draft offered every 2nd combat/elite clear
+    usedThemes*: set[DungeonFloorTheme]
+    nextThemeChoices*: array[3, DungeonFloorTheme]
+    pendingFloorSelect*: bool
     relics*: seq[RogueliteRelic]
     shardsEarned*: int
-    overheatCoresEarned*: int
-    singularityCoresEarned*: int
+    coresEarned*: int
     endlessLoop*: int
-    pendingSectorSelect*: bool
-    pendingActBoss*: bool
     completed*: bool
     died*: bool
-    waveSurgeTier*: int  ## Unlocked Wave Surge level (1 = base, 2 = +1 wave/sector, 3 = +2 waves/sector)
 
   AttackWarning* = ref object
     pos*: Vector2f
@@ -324,6 +356,7 @@ type
     kills*: int
     walls*: int
     speedBoostTimer*: float32
+    outOfCombatSpeedBoost*: bool  # Roguelite: +25% move speed while no encounter is active
     invincibilityTimer*: float32
     fireRateBoostTimer*: float32
     magnetTimer*: float32
@@ -591,6 +624,7 @@ type
     lastAuraDamageType*: DamageType  # Track the damage type of accumulated aura damage
     contactDamageAccumulator*: float32  # Accumulates contact damage over time
     lastContactDamageNumberTime*: float32  # Last time a damage number was shown for contact
+    damageTuning*: float32  # Dungeon: attack-damage compression factor (0 or 1 = untouched)
 
   Bullet* = ref object
     pos*: Vector2f
@@ -663,6 +697,8 @@ type
     maxHp*: float32
     duration*: float32
     shootTimer*: float32  # Timer for turret shooting (puWallTurrets)
+    permanent*: bool      # Dungeon obstacle: ignores duration decay, not player-placed
+    obstacleTint*: Color  # Theme accent for permanent dungeon obstacles
 
   DamageType* = enum
     dtDefault,      # White - regular contact damage
@@ -703,8 +739,7 @@ type
   CurrencyIndicatorKind* = enum
     cikCredits,
     cikDataShards,
-    cikOverheatCores,
-    cikSingularityCores
+    cikCores
 
   CurrencyIndicator* = ref object
     pos*: Vector2f
@@ -1019,7 +1054,10 @@ type
     selectedRogueliteHeat*: int
     rogueliteHeatPulseTimer*: float32
     rogueliteHeatPulseDirection*: int
-    selectedRogueliteSector*: int
+    selectedRogueliteTheme*: int
+    roomTransitionActive*: bool      # Fade between dungeon rooms in progress
+    roomTransitionTimer*: float32
+    roomTransitionDir*: DoorDir      # Door the player walked through
     osBackground*: OSBackgroundState  # Animated background system
     osHUD*: OSHUDState  # OS-style HUD and notifications
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager

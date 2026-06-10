@@ -1,5 +1,5 @@
 import raylib, math, strutils
-import ../types, ../roguelite, ../localization, ../render_context, icon_drawing
+import ../types, ../roguelite, ../dungeon, ../localization, ../render_context, icon_drawing
 
 # Unlock card grid constants
 
@@ -159,31 +159,6 @@ proc locRelicName(relicType: RogueliteRelicType): string =
   of rrtEmergencyPatch: t("roguelite_relic_patch")
   of rrtDraftCache: t("roguelite_relic_draft")
 
-proc locModifierName(modifier: RogueliteSectorModifier): string =
-  case modifier
-  of rsmSafehouse: t("roguelite_modifier_safehouse")
-  of rsmOverclocked: t("roguelite_modifier_overclocked")
-  of rsmEliteCache: t("roguelite_modifier_elite_cache")
-  of rsmFirewall: t("roguelite_modifier_firewall")
-  of rsmVolatileMemory: t("roguelite_modifier_volatile")
-  of rsmBlackMarket: t("roguelite_modifier_black_market")
-
-proc locModifierDescription(modifier: RogueliteSectorModifier): string =
-  case modifier
-  of rsmSafehouse: t("roguelite_modifier_safehouse_desc")
-  of rsmOverclocked: t("roguelite_modifier_overclocked_desc")
-  of rsmEliteCache: t("roguelite_modifier_elite_cache_desc")
-  of rsmFirewall: t("roguelite_modifier_firewall_desc")
-  of rsmVolatileMemory: t("roguelite_modifier_volatile_desc")
-  of rsmBlackMarket: t("roguelite_modifier_black_market_desc")
-
-proc locRewardName(reward: RogueliteRewardType): string =
-  case reward
-  of rrwCredits: t("roguelite_reward_credits")
-  of rrwRelic: t("roguelite_reward_relic")
-  of rrwPowerFamily: t("roguelite_reward_family")
-  of rrwShardCache: t("roguelite_reward_shards")
-
 proc locKitRequirement(kit: RogueliteStarterKit): string =
   if starterKitCost(kit) == 0:
     t("roguelite_req_default")
@@ -203,115 +178,81 @@ proc drawBackdrop(game: Game, accent: Color) =
   drawLine(cx - 380, cy, cx + 380, cy, softColor(accent, 38))
   drawLine(cx, cy - 260, cx, cy + 260, softColor(accent, 38))
 
-proc drawMiniGlyph(cx, cy: int32, modifier: RogueliteSectorModifier, color: Color) =
-  case modifier
-  of rsmSafehouse:
-    drawRectangleLines(cx - 11, cy - 8, 22, 16, color)
-    drawLine(cx - 13, cy - 8, cx, cy - 20, color)
-    drawLine(cx, cy - 20, cx + 13, cy - 8, color)
-  of rsmOverclocked:
-    drawCircleLines(cx, cy, 17, color)
-    drawLine(cx, cy - 19, cx, cy + 19, color)
-    drawLine(cx - 19, cy, cx + 19, cy, color)
-  of rsmEliteCache:
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 16, softColor(color, 70))
-    drawRectangleLines(cx - 12, cy - 12, 24, 24, color)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 5, color)
-  of rsmFirewall:
+proc drawThemeGlyph(cx, cy: int32, theme: DungeonFloorTheme, color: Color) =
+  ## Large card glyph for each floor theme, desktop-OS flavored.
+  case theme
+  of dftFirewall:
     for i in 0..2:
       let ix = i.int32
       drawLine(cx - 16 + ix * 11, cy - 15, cx - 5 + ix * 11, cy + 15, color)
     drawRectangleLines(cx - 18, cy - 14, 36, 28, softColor(color, 180))
-  of rsmVolatileMemory:
-    drawTriangle(
-      Vector2(x: cx.float32, y: (cy - 19).float32),
-      Vector2(x: (cx - 17).float32, y: (cy + 14).float32),
-      Vector2(x: (cx + 17).float32, y: (cy + 14).float32),
-      softColor(color, 85))
-    drawTriangleLines(
-      Vector2(x: cx.float32, y: (cy - 19).float32),
-      Vector2(x: (cx - 17).float32, y: (cy + 14).float32),
-      Vector2(x: (cx + 17).float32, y: (cy + 14).float32),
-      color)
-  of rsmBlackMarket:
-    drawRectangleLines(cx - 17, cy - 13, 34, 26, color)
-    drawLine(cx - 9, cy - 17, cx + 9, cy - 17, color)
-    drawLine(cx - 9, cy - 17, cx - 15, cy - 13, color)
-    drawLine(cx + 9, cy - 17, cx + 15, cy - 13, color)
+  of dftRecycleBin:
+    drawRectangleLines(cx - 12, cy - 8, 24, 24, color)
+    drawLine(cx - 16, cy - 12, cx + 16, cy - 12, color)
+    drawLine(cx - 4, cy - 17, cx + 4, cy - 17, color)
+    drawLine(cx - 5, cy - 2, cx - 5, cy + 10, softColor(color, 200))
+    drawLine(cx, cy - 2, cx, cy + 10, softColor(color, 200))
+    drawLine(cx + 5, cy - 2, cx + 5, cy + 10, softColor(color, 200))
+  of dftRegistry:
+    drawLine(cx - 14, cy - 14, cx - 14, cy + 14, color)
+    for i in 0..2:
+      let iy = cy - 12 + i.int32 * 12
+      drawLine(cx - 14, iy, cx - 2, iy, color)
+      drawRectangleLines(cx - 2, iy - 5, 16, 10, softColor(color, 210))
+  of dftNetwork:
+    drawCircleLines(cx - 13, cy + 10, 6'f32, color)
+    drawCircleLines(cx + 14, cy + 6, 6'f32, color)
+    drawCircleLines(cx + 1, cy - 13, 6'f32, color)
+    drawLine(cx - 9, cy + 6, cx - 2, cy - 8, color)
+    drawLine(cx + 10, cy + 2, cx + 4, cy - 8, color)
+    drawLine(cx - 7, cy + 11, cx + 8, cy + 8, color)
+  of dftKernel:
+    drawRectangleLines(cx - 16, cy - 16, 32, 32, softColor(color, 160))
+    drawRectangleLines(cx - 10, cy - 10, 20, 20, color)
+    drawRectangle(cx - 4, cy - 4, 8, 8, color)
+  of dftCache:
+    drawRectangleLines(cx - 16, cy - 12, 22, 18, softColor(color, 150))
+    drawRectangleLines(cx - 8, cy - 5, 22, 18, color)
+  of dftCorruptedSector:
+    drawRectangleLines(cx - 14, cy - 12, 28, 24, color)
+    drawRectangle(cx - 18, cy - 4, 12, 4, color)
+    drawRectangle(cx + 4, cy + 2, 14, 4, softColor(color, 170))
+    drawRectangle(cx - 6, cy - 16, 10, 3, softColor(color, 170))
+    drawLine(cx - 10, cy + 16, cx + 12, cy + 16, softColor(color, 120))
 
-proc drawModifierGlyph(cx, cy: int32, modifier: RogueliteSectorModifier, color: Color,
-                       compact: bool = false) =
-  if not compact:
-    case modifier
-    of rsmSafehouse:
-      drawRectangleLines(cx - 8, cy - 6, 16, 12, color)
-      drawLine(cx - 9, cy - 6, cx, cy - 13, color)
-      drawLine(cx, cy - 13, cx + 9, cy - 6, color)
-    of rsmOverclocked:
-      drawCircleLines(cx, cy, 10, color)
-      drawLine(cx, cy - 12, cx, cy + 12, color)
-      drawLine(cx - 12, cy, cx + 12, cy, color)
-    of rsmEliteCache:
-      drawCircle(Vector2(x: cx.float32, y: cy.float32), 9, softColor(color, 70))
-      drawRectangleLines(cx - 7, cy - 7, 14, 14, color)
-      drawCircle(Vector2(x: cx.float32, y: cy.float32), 3, color)
-    of rsmFirewall:
-      for i in 0..2:
-        let ix = i.int32
-        drawLine(cx - 9 + ix * 6, cy - 8, cx - 3 + ix * 6, cy + 8, color)
-      drawRectangleLines(cx - 11, cy - 7, 22, 14, softColor(color, 180))
-    of rsmVolatileMemory:
-      drawTriangle(
-        Vector2(x: cx.float32, y: (cy - 11).float32),
-        Vector2(x: (cx - 9).float32, y: (cy + 7).float32),
-        Vector2(x: (cx + 9).float32, y: (cy + 7).float32),
-        softColor(color, 85))
-      drawTriangleLines(
-        Vector2(x: cx.float32, y: (cy - 11).float32),
-        Vector2(x: (cx - 9).float32, y: (cy + 7).float32),
-        Vector2(x: (cx + 9).float32, y: (cy + 7).float32),
-        color)
-    of rsmBlackMarket:
-      drawRectangleLines(cx - 10, cy - 7, 20, 14, color)
-      drawLine(cx - 5, cy - 10, cx + 5, cy - 10, color)
-      drawLine(cx - 5, cy - 10, cx - 8, cy - 7, color)
-      drawLine(cx + 5, cy - 10, cx + 8, cy - 7, color)
-    return
-
-  case modifier
-  of rsmSafehouse:
-    drawRectangleLines(cx - 6, cy - 4, 12, 8, color)
-    drawLine(cx - 7, cy - 4, cx, cy - 9, color)
-    drawLine(cx, cy - 9, cx + 7, cy - 4, color)
-  of rsmOverclocked:
-    drawCircleLines(cx, cy, 7, color)
-    drawLine(cx, cy - 9, cx, cy + 9, color)
-    drawLine(cx - 9, cy, cx + 9, cy, color)
-  of rsmEliteCache:
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 6, softColor(color, 70))
-    drawRectangleLines(cx - 5, cy - 5, 10, 10, color)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 2, color)
-  of rsmFirewall:
+proc drawKitGlyph(cx, cy: int32, kit: RogueliteStarterKit, color: Color,
+                  compact: bool = false) =
+  let s: int32 = if compact: 7 else: 10
+  case kit
+  of rskOperator:
+    # House/base shape
+    drawRectangleLines(cx - s + 2, cy - s div 2, (s - 2) * 2, s, color)
+    drawLine(cx - s, cy - s div 2, cx, cy - s - 2, color)
+    drawLine(cx, cy - s - 2, cx + s, cy - s div 2, color)
+  of rskBulwark:
+    # Firewall stripes
     for i in 0..2:
       let ix = i.int32
-      drawLine(cx - 7 + ix * 4, cy - 6, cx - 3 + ix * 4, cy + 6, color)
-    drawRectangleLines(cx - 7, cy - 5, 14, 10, softColor(color, 180))
-  of rsmVolatileMemory:
+      drawLine(cx - s + ix * ((s * 2) div 3), cy - s + 2, cx - s + 4 + ix * ((s * 2) div 3), cy + s - 2, color)
+    drawRectangleLines(cx - s - 1, cy - s div 2 - 2, (s + 1) * 2, s + 4, softColor(color, 180))
+  of rskArcanist:
+    # Arcane triangle
     drawTriangle(
-      Vector2(x: cx.float32, y: (cy - 8).float32),
-      Vector2(x: (cx - 7).float32, y: (cy + 5).float32),
-      Vector2(x: (cx + 7).float32, y: (cy + 5).float32),
+      Vector2(x: cx.float32, y: (cy - s - 1).float32),
+      Vector2(x: (cx - s).float32, y: (cy + s - 3).float32),
+      Vector2(x: (cx + s).float32, y: (cy + s - 3).float32),
       softColor(color, 85))
     drawTriangleLines(
-      Vector2(x: cx.float32, y: (cy - 8).float32),
-      Vector2(x: (cx - 7).float32, y: (cy + 5).float32),
-      Vector2(x: (cx + 7).float32, y: (cy + 5).float32),
+      Vector2(x: cx.float32, y: (cy - s - 1).float32),
+      Vector2(x: (cx - s).float32, y: (cy + s - 3).float32),
+      Vector2(x: (cx + s).float32, y: (cy + s - 3).float32),
       color)
-  of rsmBlackMarket:
-    drawRectangleLines(cx - 7, cy - 5, 14, 10, color)
-    drawLine(cx - 4, cy - 7, cx + 4, cy - 7, color)
-    drawLine(cx - 4, cy - 7, cx - 6, cy - 5, color)
-    drawLine(cx + 4, cy - 7, cx + 6, cy - 5, color)
+
+proc drawSurgeGlyph(cx, cy: int32, color: Color, compact: bool = false) =
+  let r: int32 = if compact: 7 else: 10
+  drawCircleLines(cx, cy, r.float32, color)
+  drawLine(cx, cy - r - 2, cx, cy + r + 2, color)
+  drawLine(cx - r - 2, cy, cx + r + 2, cy, color)
 
 proc drawMeter(x, y, w, h: int32, value: float32, color: Color) =
   drawRectangle(x, y, w, h, Color(r: 30, g: 36, b: 48, a: 255))
@@ -442,13 +383,10 @@ proc drawUnlockCostsRight*(profile: RogueliteProfile, category: RogueliteUnlockC
   ## Draw unlock costs right-aligned starting from rightX. Shows icons and amounts.
   var rx = rightX
   let shardCost = unlockCost(profile, category, index)
-  let overheatCost = unlockOverheatCoreCost(profile, category, index)
-  let singularityCost = unlockSingularityCoreCost(profile, category, index)
+  let coreCost = unlockCoreCost(profile, category, index)
   var parts: seq[tuple[icon: CurrencyIconType, amount: int]] = @[]
-  if singularityCost > 0:
-    parts.add((icon: ciSingularityCore, amount: singularityCost))
-  if overheatCost > 0:
-    parts.add((icon: ciOverheatCore, amount: overheatCost))
+  if coreCost > 0:
+    parts.add((icon: ciCore, amount: coreCost))
   if shardCost > 0:
     parts.add((icon: ciDataShards, amount: shardCost))
 
@@ -519,15 +457,14 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
               x + 46, y + 12, 92, 20, heatColor)
   drawTextFit($maxHeat & " / " & $RogueliteMaxHeat,
               x + 144, y + 14, 84, 13, LightGray)
-  let heatPressurePercent = int(round(heatRank.float32 *
-    RogueliteHeatPressurePerTier * 100.0'f32))
-  let heatShardPercent = int(round(heatRank.float32 *
-    RogueliteHeatShardMultiplierPerTier * 100.0'f32))
-  drawTextFit(t("roguelite_heat_effects") & ": +" & $heatPressurePercent & "% " &
-              t("roguelite_pressure") & ", +" &
-              $(heatRank * RogueliteHeatEliteBonusPerTier) & " " &
-              t("roguelite_elite") & ", +" & $heatShardPercent & "% " &
-              t("roguelite_shards"), x + 230, y + 13, w - 370, 13, LightGray)
+  let heatDifficultyPercent = int(round(heatRank.float32 *
+    RogueliteHeatDifficultyPerTier * 100.0'f32))
+  let heatBossPercent = int(round(heatRank.float32 *
+    RogueliteHeatBossDifficultyPerTier * 100.0'f32))
+  drawTextFit(t("roguelite_heat_effects") & ": +" & $heatDifficultyPercent & "% " &
+              t("roguelite_pressure") & ", +" & $heatBossPercent & "% " &
+              t("roguelite_boss") & ", " & t("roguelite_cores"),
+              x + 230, y + 13, w - 370, 13, LightGray)
 
   let pipStart = x + RogueliteHeatPipStartX
   let pipY = y + RogueliteHeatPipY
@@ -609,21 +546,21 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
               Color(r: 180, g: 192, b: 210, a: 255), 8)
 
 proc drawProgressRail(run: RogueliteRun, x, y, w: int32) =
-  let totalNodes = RogueliteSectorsPerAct + 1
+  ## Floor progression: 4 themed floors, each capped by its boss.
+  let totalNodes = RogueliteFloorsToWin
   let step = w div (totalNodes - 1).int32
   drawText(t("roguelite_run_flow"), x, y - 24, 15, Color(r: 150, g: 220, b: 255, a: 255))
   for i in 0..<totalNodes:
     let px = x + i.int32 * step
     if i < totalNodes - 1:
       drawLine(px, y, px + step, y, Color(r: 70, g: 95, b: 120, a: 255))
-    let completed = run.sectorsThisAct > i
-    let current = run.sectorsThisAct == i
-    let color = if i == totalNodes - 1: Color(r: 255, g: 120, b: 80, a: 255)
-                elif completed: Color(r: 0, g: 240, b: 160, a: 255)
+    let completed = run.floorNumber > i + 1
+    let current = run.floorNumber == i + 1
+    let color = if completed: Color(r: 0, g: 240, b: 160, a: 255)
                 elif current: Color(r: 0, g: 220, b: 255, a: 255)
                 else: Color(r: 90, g: 105, b: 125, a: 255)
     drawCircle(Vector2(x: px.float32, y: y.float32), if current: 10 else: 7, color)
-    let label = if i == totalNodes - 1: t("roguelite_boss") else: t("roguelite_sector") & " " & $(i + 1)
+    let label = t("roguelite_floor") & " " & $(i + 1)
     discard drawCenteredTextFit(label, px - (step div 2), y + 14, step, 11, LightGray, 8)
 
 proc categoryByIndex(index: int): RogueliteUnlockCategory =
@@ -809,7 +746,7 @@ proc drawCategoryGlyph(cx, cy: int32, category: RogueliteUnlockCategory, color: 
                        compact: bool = false) =
   case category
   of rucStarterKits:
-    drawModifierGlyph(cx, cy, rsmSafehouse, color, compact)
+    drawKitGlyph(cx, cy, rskOperator, color, compact)
   of rucPowerFamilies:
     let outer: int32 = if compact: 9 else: 11
     let cross: int32 = if compact: 7 else: 9
@@ -834,8 +771,7 @@ proc drawUnlockGlyph(profile: RogueliteProfile, category: RogueliteUnlockCategor
                      index, cx, cy: int32, color: Color, compact: bool = false) =
   case category
   of rucStarterKits:
-    let kit = starterByUnlockIndex(index)
-    drawModifierGlyph(cx, cy, if kit == rskBulwark: rsmFirewall elif kit == rskArcanist: rsmVolatileMemory else: rsmSafehouse, color, compact)
+    drawKitGlyph(cx, cy, starterByUnlockIndex(index), color, compact)
   of rucPowerFamilies:
     let family = familyByUnlockIndex(index)
     drawFamilyGlyph(cx, cy, family, familyColor(family), compact)
@@ -851,18 +787,7 @@ proc drawUnlockGlyph(profile: RogueliteProfile, category: RogueliteUnlockCategor
       drawCircleLines(cx, cy, ring.float32, color)
       drawTextFit($heat, cx - textOffset, cy - textOffset, labelW, fontSize, color)
     else:
-      drawModifierGlyph(cx, cy, rsmOverclocked, color, compact)  # Wave Surge
-
-proc drawRewardGlyph(cx, cy: int32, reward: RogueliteRewardType, color: Color) =
-  case reward
-  of rrwCredits:
-    drawCurrencyIcon(cx, cy, 24, ciCredits)
-  of rrwRelic:
-    drawCategoryGlyph(cx, cy, rucRelics, color)
-  of rrwPowerFamily:
-    drawCategoryGlyph(cx, cy, rucPowerFamilies, color)
-  of rrwShardCache:
-    drawCurrencyIcon(cx, cy, 24, ciDataShards)
+      drawSurgeGlyph(cx, cy, color, compact)  # Wave Surge
 
 proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, color: Color, hovered: bool = false) =
   let bgTop = if active: Color(r: 36, g: 86, b: 92, a: 255)
@@ -903,7 +828,7 @@ proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected, u
   drawCornerBrackets(x + 7, y + 7, CardW - 14, CardH - 14, 18, 1, softColor(color, if selected: 155 else: 82))
   drawCircle(Vector2(x: (x + CardW - 44).float32, y: (y + 40).float32), 24, softColor(color, 28))
   drawCircleLines(x + CardW - 44, y + 40, 24.0'f32, softColor(color, 100))
-  drawMiniGlyph(x + CardW - 44, y + 40, if kit == rskBulwark: rsmFirewall elif kit == rskArcanist: rsmVolatileMemory else: rsmSafehouse, color)
+  drawKitGlyph(x + CardW - 44, y + 40, kit, color)
   drawTextFit(locStarterName(kit), x + 18, y + 18, CardW - 92, 24, if unlocked: White else: Gray)
   let status = if unlocked: t("roguelite_unlocked") else: t("roguelite_locked")
   drawPill(x + 18, y + 52, 92, 22, status,
@@ -949,18 +874,15 @@ proc drawRogueliteSetup*(game: Game) =
 
   let profile = game.rogueliteProfile
   let shards = if profile.isNil: 0 else: profile.dataShards
-  let overheatCores = if profile.isNil: 0 else: profile.overheatCores
-  let singularityCores = if profile.isNil: 0 else: profile.singularityCores
+  let cores = if profile.isNil: 0 else: profile.cores
   let maxHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
   let bossTier = if profile.isNil: 1 else: profile.unlockedBossTier
   drawStatChip(x + 26, y + 58, 164, 48, t("roguelite_data_shards"), $shards, Gold, ciDataShards)
-  drawStatChip(x + 202, y + 58, 164, 48, t("roguelite_overheat_cores"), $overheatCores,
-               Color(r: 255, g: 130, b: 80, a: 255), ciOverheatCore)
-  drawStatChip(x + 378, y + 58, 164, 48, t("roguelite_singularity_cores"), $singularityCores,
-               Color(r: 170, g: 110, b: 255, a: 255), ciSingularityCore)
-  drawStatChip(x + 554, y + 58, 150, 48, t("roguelite_heat"), $maxHeat & " / " & $RogueliteMaxHeat,
+  drawStatChip(x + 202, y + 58, 164, 48, t("roguelite_cores"), $cores,
+               Color(r: 255, g: 130, b: 80, a: 255), ciCore)
+  drawStatChip(x + 378, y + 58, 150, 48, t("roguelite_heat"), $maxHeat & " / " & $RogueliteMaxHeat,
                Color(r: 255, g: 150, b: 80, a: 255), ciHeat)
-  drawStatChip(x + 716, y + 58, 178, 48, t("roguelite_boss_tier"), $bossTier,
+  drawStatChip(x + 540, y + 58, 178, 48, t("roguelite_boss_tier"), $bossTier,
                Color(r: 255, g: 120, b: 95, a: 255))
 
   let startX = x + 45
@@ -994,54 +916,56 @@ proc drawRogueliteSetup*(game: Game) =
   drawCenteredTextFit(t("roguelite_setup_controls"), x + 180, y + PanelH - 30, PanelW - 360, 14, LightGray)
   drawAlphaBanner(game)
 
-proc drawSectorCard(sector: RogueliteSector, x, y: int32, selected: bool, hovered: bool = false) =
+proc drawThemeCard(theme: DungeonFloorTheme, x, y: int32, selected: bool, hovered: bool = false) =
+  let accent = themeAccent(theme)
   let color = if selected: Color(r: 0, g: 220, b: 255, a: 255)
               elif hovered: Color(r: 130, g: 225, b: 255, a: 255)
-              elif sector.isElite: Color(r: 255, g: 120, b: 80, a: 255)
-              else: Color(r: 120, g: 150, b: 180, a: 255)
+              else: softColor(accent, 220)
+  let def = themeDef(theme)
   if hovered:
     drawRectangle(x + 4, y + 4, CardW, CardH, Color(r: 0, g: 0, b: 0, a: 115))
   drawRectangle(x, y, CardW, CardH,
                 if hovered: Color(r: 28, g: 38, b: 56, a: 255) else: Color(r: 22, g: 28, b: 42, a: 255))
-  drawRectangle(x, y, CardW, 76, softColor(color, 34))
+  drawRectangle(x, y, CardW, 76, softColor(accent, 34))
   drawRectangleLines(rectAt(x, y, CardW, CardH), if selected: 3 elif hovered: 2 else: 1, color)
-  drawCircle(Vector2(x: (x + CardW - 42).float32, y: (y + 40).float32), 18, softColor(color, 36))
-  drawMiniGlyph(x + CardW - 42, y + 40, sector.modifier, color)
-  drawTextFit(locModifierName(sector.modifier), x + 16, y + 16, CardW - 82, 21, White)
-  drawPill(x + 16, y + 47, 92, 22, if sector.isElite: t("roguelite_elite") else: t("roguelite_sector"),
-           color, sector.isElite)
+  drawCircle(Vector2(x: (x + CardW - 42).float32, y: (y + 40).float32), 18, softColor(accent, 36))
+  drawThemeGlyph(x + CardW - 42, y + 40, theme, accent)
+  drawTextFit(themeName(theme), x + 16, y + 16, CardW - 82, 21, White)
+  drawPill(x + 16, y + 47, 92, 22, t("roguelite_floor"), accent, false)
 
-  drawRewardGlyph(x + 33, y + 98, sector.rewardType, Gold)
-  drawTextFit(locRewardName(sector.rewardType), x + 58, y + 90, CardW - 74, 15, Gold)
-  drawTextFit(t("roguelite_waves") & ": " & $sector.waveCount, x + 58, y + 110, CardW - 74, 13, LightGray)
+  # Floor boss preview
+  drawCategoryGlyph(x + 33, y + 98, rucChallengeTiers, Color(r: 255, g: 120, b: 95, a: 255))
+  drawTextFit(t("dungeon_floor_boss"), x + 58, y + 90, CardW - 74, 13, Color(r: 255, g: 150, b: 120, a: 255))
+  drawTextFit(t("boss_" & $def.bossNumber & "_name"), x + 58, y + 107, CardW - 74, 14, Gold)
 
-  drawTextFit(t("roguelite_pressure") & ": " & $(int(sector.enemyPressure * 100)) & "%", x + 16, y + 139, 116, 13, LightGray)
-  drawMeter(x + 136, y + 143, 104, 8, (sector.enemyPressure - 0.9) / 1.8, color)
-  drawTextFit(t("roguelite_elite") & ": +" & $sector.eliteChanceBonus, x + 16, y + 163, 116, 13, LightGray)
-  drawMeter(x + 136, y + 167, 104, 8, sector.eliteChanceBonus.float32 / 60.0'f32, Color(r: 255, g: 130, b: 80, a: 255))
-  drawTextFit(t("roguelite_shards") & ": x" & $round(sector.shardMultiplier * 100).int & "%", x + 16, y + 187, 116, 13, Gold)
-  drawMeter(x + 136, y + 191, 104, 8, (sector.shardMultiplier - 0.8) / 1.3, Gold)
-  discard drawWrappedText(locModifierDescription(sector.modifier), x + 16, y + 215, CardW - 32, 13,
+  drawTextFit(t("roguelite_pressure") & ": " & $(int(def.pressureMod * 100)) & "%", x + 16, y + 139, 116, 13, LightGray)
+  drawMeter(x + 136, y + 143, 104, 8, (def.pressureMod - 0.9) / 0.5, accent)
+  drawTextFit(t("roguelite_elite") & ": +" & $def.eliteBonus, x + 16, y + 163, 116, 13, LightGray)
+  drawMeter(x + 136, y + 167, 104, 8, def.eliteBonus.float32 / 10.0'f32, Color(r: 255, g: 130, b: 80, a: 255))
+  drawTextFit(t("roguelite_shards") & ": x" & $round(def.shardMod * 100).int & "%", x + 16, y + 187, 116, 13, Gold)
+  drawMeter(x + 136, y + 191, 104, 8, (def.shardMod - 0.9) / 0.6, Gold)
+  discard drawWrappedText(themeDescription(theme), x + 16, y + 215, CardW - 32, 13,
                           Color(r: 180, g: 192, b: 210, a: 255), 2, 4)
 
-proc drawRogueliteSectorSelect*(game: Game) =
+proc drawRogueliteFloorSelect*(game: Game) =
   let x = (game.screenWidth - PanelW) div 2
   let y = (game.screenHeight - PanelH) div 2
   let canHover = mouseHoverEnabled(game)
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
   let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(game.screenWidth, game.screenHeight))
   drawBackdrop(game, Color(r: 0, g: 220, b: 255, a: 255))
-  drawPanel(x, y, PanelW, PanelH, t("roguelite_sector_title"), Color(r: 0, g: 220, b: 255, a: 255), closeHovered)
+  drawPanel(x, y, PanelW, PanelH, t("dungeon_floor_select_title"), Color(r: 0, g: 220, b: 255, a: 255), closeHovered)
 
   if game.rogueliteRun.isNil:
     drawText(t("roguelite_no_run"), x + 40, y + 90, 22, Red)
     return
 
   let run = game.rogueliteRun
-  drawStatChip(x + 28, y + 58, 190, 48, t("roguelite_act"), $run.act,
+  drawStatChip(x + 28, y + 58, 190, 48, t("roguelite_floor"),
+               $run.floorNumber & " / " & $RogueliteFloorsToWin,
                Color(r: 150, g: 220, b: 255, a: 255))
-  drawStatChip(x + 236, y + 58, 210, 48, t("roguelite_sector"),
-               $(run.sectorsThisAct + 1) & " / " & $RogueliteSectorsPerAct,
+  drawStatChip(x + 236, y + 58, 210, 48, t("dungeon_rooms_cleared"),
+               $run.totalRoomsCleared,
                Color(r: 0, g: 220, b: 255, a: 255))
   drawStatChip(x + 464, y + 58, 180, 48, t("roguelite_heat"), $run.heat,
                Color(r: 255, g: 150, b: 80, a: 255), ciHeat)
@@ -1054,11 +978,11 @@ proc drawRogueliteSectorSelect*(game: Game) =
   let cardY = y + 185
   for i in 0..2:
     let cardX = (startX + i * (CardW + CardGap)).int32
-    drawSectorCard(run.nextSectorChoices[i], cardX, cardY.int32,
-                   i == game.selectedRogueliteSector,
-                   canHover and isHovered(mousePos, cardX, cardY.int32, CardW, CardH))
+    drawThemeCard(run.nextThemeChoices[i], cardX, cardY.int32,
+                  i == game.selectedRogueliteTheme,
+                  canHover and isHovered(mousePos, cardX, cardY.int32, CardW, CardH))
 
-  drawCenteredTextFit(t("roguelite_sector_tip"), x + 60, y + PanelH - 63, PanelW - 120, 14, Color(r: 255, g: 210, b: 110, a: 255))
+  drawCenteredTextFit(t("dungeon_floor_select_tip"), x + 60, y + PanelH - 63, PanelW - 120, 14, Color(r: 255, g: 210, b: 110, a: 255))
   drawCenteredTextFit(t("roguelite_sector_controls"), x + 60, y + PanelH - 35, PanelW - 120, 15, LightGray)
   drawAlphaBanner(game)
 
@@ -1113,12 +1037,10 @@ proc drawUnlockCostPill(x, y, w, h: int32, profile: RogueliteProfile,
                         category: RogueliteUnlockCategory, index: int,
                         statusText: string, statusColor: Color) =
   let shardCost = unlockCost(profile, category, index)
-  let overheatCost = unlockOverheatCoreCost(profile, category, index)
-  let singularityCost = unlockSingularityCoreCost(profile, category, index)
+  let coreCost = unlockCoreCost(profile, category, index)
   var parts: seq[tuple[icon: CurrencyIconType, amount: int]] = @[]
-  if singularityCost > 0: parts.add((icon: ciSingularityCore, amount: singularityCost))
-  if overheatCost > 0:    parts.add((icon: ciOverheatCore, amount: overheatCost))
-  if shardCost > 0:       parts.add((icon: ciDataShards, amount: shardCost))
+  if coreCost > 0:  parts.add((icon: ciCore, amount: coreCost))
+  if shardCost > 0: parts.add((icon: ciDataShards, amount: shardCost))
 
   let iconSize: int32 = 15
   let padBetween: int32 = 5
@@ -1363,13 +1285,11 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
 
   # Stat chips
   drawStatChip(panelX + 26, panelY + 58, 164, 48, t("roguelite_data_shards"), $profile.dataShards, Gold, ciDataShards)
-  drawStatChip(panelX + 202, panelY + 58, 164, 48, t("roguelite_overheat_cores"), $profile.overheatCores,
-               Color(r: 255, g: 130, b: 80, a: 255), ciOverheatCore)
-  drawStatChip(panelX + 378, panelY + 58, 164, 48, t("roguelite_singularity_cores"), $profile.singularityCores,
-               Color(r: 170, g: 110, b: 255, a: 255), ciSingularityCore)
-  drawStatChip(panelX + 554, panelY + 58, 150, 48, t("roguelite_heat"), $profile.highestHeat & " / " & $RogueliteMaxHeat,
+  drawStatChip(panelX + 202, panelY + 58, 164, 48, t("roguelite_cores"), $profile.cores,
+               Color(r: 255, g: 130, b: 80, a: 255), ciCore)
+  drawStatChip(panelX + 378, panelY + 58, 150, 48, t("roguelite_heat"), $profile.highestHeat & " / " & $RogueliteMaxHeat,
                Color(r: 255, g: 150, b: 80, a: 255), ciHeat)
-  drawStatChip(panelX + 716, panelY + 58, 178, 48, t("roguelite_boss_tier"), $profile.unlockedBossTier & " / " & $RogueliteMaxBossTier,
+  drawStatChip(panelX + 540, panelY + 58, 178, 48, t("roguelite_boss_tier"), $profile.unlockedBossTier & " / " & $RogueliteMaxBossTier,
                Color(r: 255, g: 120, b: 95, a: 255))
 
   # Tabs

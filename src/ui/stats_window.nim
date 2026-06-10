@@ -773,7 +773,7 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
     of gmRoguelite: t("stats_roguelite_mode")
 
   drawText(modeText, (contentX + 10).int32, (contentY + 8).int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
-  let scoreLabel = if stats.gameMode == gmRoguelite: t("roguelite_sector") else: t("stats_wave_label")
+  let scoreLabel = if stats.gameMode == gmRoguelite: t("dungeon_rooms") else: t("stats_wave_label")
   drawText(scoreLabel & " " & $stats.waveReached, (contentX + 10).int32, (contentY + 24).int32, 24, Color(r: 255, g: 200, b: 50, a: 255))
 
   # Key stats

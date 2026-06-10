@@ -139,10 +139,8 @@ proc cosmeticCostLabel(cost: CosmeticCost): string =
   var parts: seq[string] = @[]
   if cost.dataShards > 0:
     parts.add($cost.dataShards & " " & t("roguelite_shards_short"))
-  if cost.overheatCores > 0:
-    parts.add($cost.overheatCores & " " & t("roguelite_overheat_short"))
-  if cost.singularityCores > 0:
-    parts.add($cost.singularityCores & " " & t("roguelite_singularity_short"))
+  if cost.cores > 0:
+    parts.add($cost.cores & " " & t("roguelite_cores_short"))
   if parts.len == 0: "FREE" else: parts.join(" + ")
 
 proc drawLockGlyph(x, y: int32, color: Color) =
@@ -230,10 +228,8 @@ proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, cos
   let statusText = if canBuy: t(tkShopBuy) else: t("roguelite_locked")
 
   var parts: seq[tuple[icon: CurrencyIconType, amount: int]] = @[]
-  if cost.singularityCores > 0:
-    parts.add((icon: ciSingularityCore, amount: cost.singularityCores))
-  if cost.overheatCores > 0:
-    parts.add((icon: ciOverheatCore, amount: cost.overheatCores))
+  if cost.cores > 0:
+    parts.add((icon: ciCore, amount: cost.cores))
   if cost.dataShards > 0:
     parts.add((icon: ciDataShards, amount: cost.dataShards))
 
@@ -1193,12 +1189,9 @@ proc drawShopWindow*(shop: ShopWindow) =
     let balanceX = contentX + contentWidth - 238
     drawCurrencyIcon(balanceX.int32, balanceY.int32, 16, ciDataShards)
     drawText($shop.rogueliteProfile.dataShards, (balanceX + 12).int32, (balanceY - 6).int32, 12, Gold)
-    drawCurrencyIcon((balanceX + 72).int32, balanceY.int32, 16, ciOverheatCore)
-    drawText($shop.rogueliteProfile.overheatCores, (balanceX + 84).int32, (balanceY - 6).int32, 12,
+    drawCurrencyIcon((balanceX + 72).int32, balanceY.int32, 16, ciCore)
+    drawText($shop.rogueliteProfile.cores, (balanceX + 84).int32, (balanceY - 6).int32, 12,
              Color(r: 255, g: 130, b: 80, a: 255))
-    drawCurrencyIcon((balanceX + 136).int32, balanceY.int32, 16, ciSingularityCore)
-    drawText($shop.rogueliteProfile.singularityCores, (balanceX + 148).int32, (balanceY - 6).int32, 12,
-             Color(r: 170, g: 110, b: 255, a: 255))
   elif shop.statusTimer <= 0:
     drawText(t("roguelite_no_profile"), (contentX + contentWidth - 150).int32, (headerY + 12).int32, 12, Red)
   if shop.statusTimer > 0 and shop.statusMessage.len > 0:

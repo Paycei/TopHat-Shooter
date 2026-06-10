@@ -100,8 +100,8 @@ type
     finalHP*, finalMaxHP*: float32
     finalCoins*: int
     finalPowerUps*: seq[PowerUp]
-    rogueliteActReached*: int
-    rogueliteSectorsCleared*: int
+    rogueliteFloorReached*: int
+    rogueliteRoomsCleared*: int
     rogueliteHeat*: int
     rogueliteEndlessLoop*: int
     rogueliteShardsEarned*: int
@@ -618,13 +618,13 @@ proc finalizeRunTracking*(game: Game) =
     if game.mode == gmWaveBased:
       game.currentWave
     elif game.mode == gmRoguelite and game.rogueliteRun != nil:
-      game.rogueliteRun.totalSectorsCleared
+      game.rogueliteRun.totalRoomsCleared
     else:
       int(game.time / 60)
   let finalScore = game.player.kills
   if game.mode == gmRoguelite and game.rogueliteRun != nil and not currentRunStats.isNil:
-    currentRunStats.rogueliteActReached = game.rogueliteRun.act
-    currentRunStats.rogueliteSectorsCleared = game.rogueliteRun.totalSectorsCleared
+    currentRunStats.rogueliteFloorReached = game.rogueliteRun.floorNumber
+    currentRunStats.rogueliteRoomsCleared = game.rogueliteRun.totalRoomsCleared
     currentRunStats.rogueliteHeat = game.rogueliteRun.heat
     currentRunStats.rogueliteEndlessLoop = game.rogueliteRun.endlessLoop
     currentRunStats.rogueliteShardsEarned = game.rogueliteRun.shardsEarned

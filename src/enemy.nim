@@ -763,7 +763,10 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         let specialData = parseSpecialData(config.specialData)
         let baseCount = getSpecialInt(specialData, "meteorite_count", 2)
         let randomExtra = getSpecialInt(specialData, "meteorite_count_random", 1)
-        let damage = getSpecialInt(specialData, "damage", 3)
+        var damage = getSpecialInt(specialData, "damage", 3)
+        # Dungeon stat tuning also compresses special-attack damage
+        if enemy.damageTuning > 0.0'f32 and enemy.damageTuning < 1.0'f32:
+          damage = max(1, int(round(damage.float32 * enemy.damageTuning)))
         let warningTime = getSpecialFloat(specialData, "warning_time", 1.5)
 
         # Meteorite count from config
@@ -3557,11 +3560,15 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       activeEffects: default(array[ElementType, ActiveEffect])
     )
 
-proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
+proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1) =
   ## Converts a regular enemy into an elite with enhanced stats and special abilities
   ## Elite chance increases with wave number, but the midgame ramp is kept gentler.
   ## Dual-modifier elites are delayed so waves 20-35 do not suddenly feel boss-like.
   ## BALANCED: Multiple effects apply with diminishing returns to prevent exponential growth
+  ##
+  ## `scalingWave` decouples stat magnitude from the chance roll: the dungeon
+  ## boosts `waveNumber` to guarantee elites in elite rooms, which must NOT
+  ## inflate the wave-calibrated stat bonuses below. Defaults to `waveNumber`.
 
   # Don't make bosses elite
   if enemy.isBoss:
@@ -3572,19 +3579,21 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
   if rand(99) >= eliteChance:
     return
 
+  let statWave = if scalingWave >= 0: scalingWave else: waveNumber
+
   enemy.isElite = true
   enemy.eliteAuraPhase = 0.0
   enemy.eliteTypes = @[]  # Initialize empty list for multiple types
-  enemy.threatLevel = max(enemy.threatLevel, if waveNumber >= 35: 3 elif waveNumber >= 20: 2 else: 1)
+  enemy.threatLevel = max(enemy.threatLevel, if statWave >= 35: 3 elif statWave >= 20: 2 else: 1)
 
   # Elite scaling multiplier based on wave, reduced to avoid runaway EHP.
-  let eliteScaling = 1.0 + (waveNumber.float32 * 0.03)
+  let eliteScaling = 1.0 + (statWave.float32 * 0.03)
   # Speed scaling is lighter still so modifiers add texture, not unavoidable pressure.
-  let eliteSpeedScaling = 1.0 + (waveNumber.float32 * 0.015)
+  let eliteSpeedScaling = 1.0 + (statWave.float32 * 0.015)
 
   # Determine number of elite effects based on wave
   # BALANCED: Delay dual-effect elites until later so midgame remains readable.
-  let numEffects = if waveNumber >= 35:
+  let numEffects = if statWave >= 35:
     # Waves 35+: 35% chance for a dual-effect elite
     if rand(99) < 35: 2 else: 1
   else:
@@ -3653,8 +3662,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Swift elites are smaller
       enemy.radius *= 0.9
       enemy.collisionRadius *= 0.9
-      enemy.contactDamage += float32(1 + (waveNumber div 5))
-      enemy.rangedDamage += float32(1 + (waveNumber div 5))
+      enemy.contactDamage += float32(1 + (statWave div 5))
+      enemy.rangedDamage += float32(1 + (statWave div 5))
       enemy.maxHp *= (0.9 * eliteScaling)
       enemy.hp *= (0.9 * eliteScaling)
 
@@ -3666,15 +3675,15 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Tank elites are larger
       enemy.radius *= 1.3
       enemy.collisionRadius *= 1.3
-      enemy.contactDamage += float32(waveNumber div 5)
-      enemy.rangedDamage += float32(waveNumber div 5)
+      enemy.contactDamage += float32(statWave div 5)
+      enemy.rangedDamage += float32(statWave div 5)
 
     of etVenomous:
       # Poisons player on contact
       # Balanced growth with reduced speed scaling
       enemy.speed *= (1.15 * eliteSpeedScaling * effectMultiplier)  # Uses speed scaling
-      enemy.contactDamage += float32(2 + (waveNumber div 7))
-      enemy.rangedDamage += float32(2 + (waveNumber div 7))
+      enemy.contactDamage += float32(2 + (statWave div 7))
+      enemy.rangedDamage += float32(2 + (statWave div 7))
       enemy.maxHp *= (1.3 * eliteScaling * effectMultiplier)  # Uses normal scaling
       enemy.hp *= (1.3 * eliteScaling * effectMultiplier)
 
@@ -3683,8 +3692,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Multiple effects reduce HP scaling but use reduced speed scaling
       enemy.maxHp *= (1.55 * eliteScaling * effectMultiplier)
       enemy.hp *= (1.55 * eliteScaling * effectMultiplier)
-      enemy.contactDamage += float32(2 + (waveNumber div 7))
-      enemy.rangedDamage += float32(2 + (waveNumber div 7))
+      enemy.contactDamage += float32(2 + (statWave div 7))
+      enemy.rangedDamage += float32(2 + (statWave div 7))
       enemy.speed *= (1.0 * eliteSpeedScaling * effectMultiplier)
 
     of etRegenerative:
@@ -3693,8 +3702,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       # Multiple effects reduce HP scaling
       enemy.maxHp *= (1.45 * eliteScaling * effectMultiplier)
       enemy.hp *= (1.45 * eliteScaling * effectMultiplier)
-      enemy.contactDamage += float32(1 + (waveNumber div 5))
-      enemy.rangedDamage += float32(1 + (waveNumber div 5))
+      enemy.contactDamage += float32(1 + (statWave div 5))
+      enemy.rangedDamage += float32(1 + (statWave div 5))
 
     of etShielded:
       # Has a shield that absorbs damage
@@ -3704,8 +3713,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0) =
       let shieldAmount = enemy.maxHp * 0.45  # Shield = 45% of max HP
       enemy.shieldHp = shieldAmount
       enemy.maxShieldHp = shieldAmount
-      enemy.contactDamage += float32(2 + (waveNumber div 5))
-      enemy.rangedDamage += float32(2 + (waveNumber div 5))
+      enemy.contactDamage += float32(2 + (statWave div 5))
+      enemy.rangedDamage += float32(2 + (statWave div 5))
 
     else:
       discard

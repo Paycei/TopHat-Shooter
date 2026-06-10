@@ -503,18 +503,15 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
     # Setup tab
     let profile = game.rogueliteProfile
     let shards = if profile.isNil: 0 else: profile.dataShards
-    let overheatCores = if profile.isNil: 0 else: profile.overheatCores
-    let singularityCores = if profile.isNil: 0 else: profile.singularityCores
+    let cores = if profile.isNil: 0 else: profile.cores
     let maxHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
     let bossTier = if profile.isNil: 1 else: profile.unlockedBossTier
     drawStatChip(panelX + 26, panelY + 58, 164, 48, t("roguelite_data_shards"), $shards, Gold, ciDataShards)
-    drawStatChip(panelX + 202, panelY + 58, 164, 48, t("roguelite_overheat_cores"), $overheatCores,
-                 Color(r: 255, g: 130, b: 80, a: 255), ciOverheatCore)
-    drawStatChip(panelX + 378, panelY + 58, 164, 48, t("roguelite_singularity_cores"), $singularityCores,
-                 Color(r: 170, g: 110, b: 255, a: 255), ciSingularityCore)
-    drawStatChip(panelX + 554, panelY + 58, 150, 48, t("roguelite_heat"), $maxHeat & " / " & $RogueliteMaxHeat,
+    drawStatChip(panelX + 202, panelY + 58, 164, 48, t("roguelite_cores"), $cores,
+                 Color(r: 255, g: 130, b: 80, a: 255), ciCore)
+    drawStatChip(panelX + 378, panelY + 58, 150, 48, t("roguelite_heat"), $maxHeat & " / " & $RogueliteMaxHeat,
                  Color(r: 255, g: 150, b: 80, a: 255), ciHeat)
-    drawStatChip(panelX + 716, panelY + 58, 178, 48, t("roguelite_boss_tier"), $bossTier,
+    drawStatChip(panelX + 540, panelY + 58, 178, 48, t("roguelite_boss_tier"), $bossTier,
                  Color(r: 255, g: 120, b: 95, a: 255))
 
     let startX = contentX + 45

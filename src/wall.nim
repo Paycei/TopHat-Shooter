@@ -21,10 +21,23 @@ proc newWall*(x, y: float32, player: Player): Wall =
   )
 
 proc updateWall*(wall: Wall, dt: float32): bool =
+  if wall.permanent:
+    # Dungeon obstacles never expire and ignore damage
+    return true
   wall.duration -= dt
   return wall.hp > 0 and wall.duration > 0
 
 proc drawWall*(wall: Wall, player: Player) =
+  if wall.permanent:
+    # Dungeon obstacle: solid block tinted with the floor theme accent
+    let tint = wall.obstacleTint
+    let body = Color(r: uint8(tint.r div 3), g: uint8(tint.g div 3),
+                     b: uint8(tint.b div 3), a: 255)
+    drawCircle(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, body)
+    drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius, tint)
+    drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius * 0.55'f32,
+                    Color(r: tint.r, g: tint.g, b: tint.b, a: 120))
+    return
 
   # Check if player has Wall Turrets power-up for different visual style
   let hasTurrets = hasPowerUp(player, puWallTurrets)
@@ -68,6 +81,8 @@ proc drawWall*(wall: Wall, player: Player) =
                 (barWidth * hpPercent).int32, barHeight.int32, Green)
 
 proc takeDamage*(wall: Wall, damage: float32) =
+  if wall.permanent:
+    return
   wall.hp -= damage
   if wall.hp < 0: wall.hp = 0
 

@@ -9,8 +9,7 @@ type
     ciNone,
     ciCredits,
     ciDataShards,
-    ciOverheatCore,
-    ciSingularityCore,
+    ciCore,
     ciHeat
 
 proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
@@ -46,7 +45,7 @@ proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
              Color(r: 220, g: 255, b: 255, a: alpha))
     drawCircle(Vector2(x: (cx - 2).float32, y: (cy - 3).float32), max(1.5'f32, radius * 0.16'f32),
                Color(r: 255, g: 255, b: 255, a: uint8(min(220, alpha.int))))
-  of ciOverheatCore:
+  of ciCore:
     let core = Color(r: 255, g: 95, b: 42, a: alpha)
     let hot = Color(r: 255, g: 214, b: 78, a: alpha)
     drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 2).float32), radius, shadow)
@@ -58,17 +57,6 @@ proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
       Vector2(x: cx.float32 - radius * 0.34'f32, y: cy.float32 - radius * 0.05'f32),
       Vector2(x: cx.float32 + radius * 0.32'f32, y: cy.float32 - radius * 0.08'f32),
       Color(r: 255, g: 245, b: 150, a: uint8(min(230, alpha.int))))
-  of ciSingularityCore:
-    let outer = Color(r: 170, g: 110, b: 255, a: alpha)
-    let inner = Color(r: 18, g: 8, b: 34, a: alpha)
-    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 2).float32), radius, shadow)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius, outer)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius * 0.64'f32, inner)
-    for i in 0..2:
-      let r = radius * (0.58'f32 + i.float32 * 0.26'f32)
-      drawCircleLines(cx, cy, r, Color(r: 190, g: 150, b: 255, a: uint8(max(45, alpha.int - i * 62))))
-    drawLine(cx - (radius * 0.75'f32).int32, cy, cx + (radius * 0.75'f32).int32, cy,
-             Color(r: 240, g: 230, b: 255, a: uint8(min(210, alpha.int))))
   of ciHeat:
     let heat = Color(r: 255, g: 120, b: 60, a: alpha)
     let bright = Color(r: 255, g: 222, b: 86, a: alpha)

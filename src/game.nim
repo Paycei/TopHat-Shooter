@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, tables, strutils
-import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, particle_types, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints
+import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, particle_types, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints
 
 # Configurable boss wave enemy spawn reduction
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
@@ -1519,7 +1519,7 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     selectedRogueliteHeat: RogueliteMinHeat,
     rogueliteHeatPulseTimer: 0.0,
     rogueliteHeatPulseDirection: 0,
-    selectedRogueliteSector: 0,
+    selectedRogueliteTheme: 0,
     # OS-Style Visual System
     osBackground: newOSBackground(),
     osHUD: newOSHUD(),
@@ -1584,15 +1584,9 @@ proc startWave*(game: Game) =
     game.screenHeight.float32 / 2.0,
     wavePulseColor)
   var waveEnemyCount = calculateWaveEnemyCount(game.currentWave)
-  if game.mode == gmRoguelite and game.rogueliteRun != nil:
-    let run = game.rogueliteRun
-    let pressure = run.activeSector.enemyPressure
-    let heatRank = heatChallengeRank(run.heat)
-    let fixedThreat = run.act + heatRank * RogueliteHeatEnemyCountBonus + run.endlessLoop * 6
-    waveEnemyCount = max(7, int(waveEnemyCount.float32 * pressure) + fixedThreat)
 
   # Apply boss wave reduction if this is a boss wave
-  if game.wavesUntilBoss == 0 and game.mode != gmRoguelite:
+  if game.wavesUntilBoss == 0:
     waveEnemyCount = (waveEnemyCount.float32 * BOSS_WAVE_SPAWN_MULTIPLIER).int
 
   game.waveEnemiesTotal = waveEnemyCount
@@ -1641,13 +1635,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
   # Spawn multiple enemies at once
   for _ in 0..<count:
     if game.waveEnemiesRemaining > 0:
-      let wave: int = if game.mode == gmRoguelite and game.rogueliteRun != nil:
-        let run = game.rogueliteRun
-        let heatRank = heatChallengeRank(run.heat)
-        game.currentWave + (run.act - 1) * 5 + run.sectorsThisAct * 2 +
-          heatRank * RogueliteHeatRosterWaveOffset + run.endlessLoop * 10
-      else:
-        game.currentWave
+      let wave: int = game.currentWave
       let roll: int = rand(100)
       var enemyType: EnemyType
 
@@ -1762,13 +1750,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etSniper
 
       # Wave enemies now use a softer difficulty slope so midgame HP does not outrun builds.
-      var baseDifficulty = (wave - 1).float32 / 4.0
-      if game.mode == gmRoguelite and game.rogueliteRun != nil:
-        let run = game.rogueliteRun
-        let heatRank = heatChallengeRank(run.heat)
-        baseDifficulty = baseDifficulty * run.activeSector.enemyPressure +
-                         heatRank.float32 * RogueliteHeatDifficultyPerTier +
-                         run.endlessLoop.float32 * 1.0
+      let baseDifficulty = (wave - 1).float32 / 4.0
 
       let side = rand(3)
       var x, y: float32
@@ -1779,24 +1761,51 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       else: x = -30; y = rand(game.screenHeight.int).float32
 
       let enemy = newEnemy(x, y, baseDifficulty, enemyType, game)
-      let eliteWave = if game.mode == gmRoguelite and game.rogueliteRun != nil:
-        wave + game.rogueliteRun.activeSector.eliteChanceBonus
-      else:
-        wave
-      makeElite(enemy, eliteWave)  # Chance to make enemy elite based on wave
-      if game.mode == gmRoguelite and game.rogueliteRun != nil:
-        let run = game.rogueliteRun
-        var visualThreat = 1 + (run.act - 1) + (run.heat div 2) + run.endlessLoop +
-          int(max(0.0'f32, run.activeSector.enemyPressure - 1.0'f32) * 2.2'f32)
-        if run.activeSector.isElite:
-          visualThreat += 1
-        if enemy.isElite:
-          visualThreat += 1
-        if enemy.contactDamage >= game.player.maxHp * 0.45:
-          visualThreat = max(visualThreat, 4)
-        enemy.threatLevel = max(enemy.threatLevel, clamp(visualThreat, 1, 5))
+      makeElite(enemy, wave)  # Chance to make enemy elite based on wave
       game.enemies.add(enemy)
       game.waveEnemiesRemaining -= 1
+
+proc spawnDungeonEnemies*(game: Game, count: int) =
+  ## Roguelite dungeon rooms: spawn from the floor theme's roster, scaled by
+  ## floor/room depth/heat instead of the wave number.
+  let run = game.rogueliteRun
+  if run == nil or run.floor == nil:
+    return
+  let room = currentDungeonRoom(run)
+  if room == nil:
+    return
+  let baseDifficulty = dungeonEnemyDifficulty(run, room)
+  let eliteRoll = dungeonEliteRoll(run, room)
+  for _ in 0..<count:
+    if game.waveEnemiesRemaining <= 0:
+      break
+    let enemyType = rollEncounterEnemyType(run, room)
+    let side = rand(3)
+    var x, y: float32
+    case side
+    of 0: x = rand(game.screenWidth.int).float32; y = -30
+    of 1: x = game.screenWidth.float32 + 30; y = rand(game.screenHeight.int).float32
+    of 2: x = rand(game.screenWidth.int).float32; y = game.screenHeight.float32 + 30
+    else: x = -30; y = rand(game.screenHeight.int).float32
+
+    let enemy = newEnemy(x, y, baseDifficulty, enemyType, game)
+    # Compress advanced types' stats toward the room threat before elite
+    # bonuses so elites scale relative to the tuned baseline. The elite roll
+    # only drives the CHANCE; stat magnitudes follow the room's wave
+    # equivalent so elite-room guarantees don't inflate elite damage.
+    tuneDungeonEnemyStats(enemy, run, room)
+    makeElite(enemy, eliteRoll,
+              scalingWave = int(dungeonRoomWaveEquivalent(run, room)))
+    var visualThreat = 1 + (run.floorNumber - 1) + (run.heat div 2) + run.endlessLoop
+    if room.kind == drkElite:
+      visualThreat += 1
+    if enemy.isElite:
+      visualThreat += 1
+    if enemy.contactDamage >= game.player.maxHp * 0.45:
+      visualThreat = max(visualThreat, 4)
+    enemy.threatLevel = max(enemy.threatLevel, clamp(visualThreat, 1, 5))
+    game.enemies.add(enemy)
+    game.waveEnemiesRemaining -= 1
 
 proc checkWaveComplete*(game: Game): bool =
   # Wave is complete when all enemies are defeated, none remain to spawn,
@@ -3059,6 +3068,12 @@ proc addBossAttackWarning(game: var Game, enemy: Enemy, attack: BossAttack) =
 
 proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
   ## Executes a single boss attack based on its pattern type
+  # Dungeon mode compresses boss attack damage toward the floor's threat
+  # (boss definitions assume the player power of their wave-mode slot).
+  # Shadowing the attack keeps every pattern below reading tuned damage.
+  var attack = attack
+  if enemy.damageTuning > 0.0'f32 and enemy.damageTuning < 1.0'f32:
+    attack.damage *= enemy.damageTuning
   let toPlayer = (game.player.pos - enemy.pos).normalize()
 
   case attack.attackType
@@ -4986,6 +5001,14 @@ proc updateGame*(game: var Game, dt: float32) =
       disableCursor()  # For mouse look
     return
 
+  # Dungeon crawler layer: room transitions, doors, pedestals, shop terminal.
+  # While a room transition is active the whole simulation pauses (fade frame).
+  if game.mode == gmRoguelite and game.state == gsPlaying:
+    if updateDungeon(game, dt):
+      game.time += dt
+      game.frameCount += 1
+      return
+
   # Update real-time stats power level
   calculatePowerLevel(game.dopamine.realTimeStats, game.player)
 
@@ -5039,12 +5062,12 @@ proc updateGame*(game: var Game, dt: float32) =
     # In wave-based mode, difficulty scales with wave number, not time
     if game.mode == gmWaveBased or game.mode == gmRoguelite:
       game.difficulty = (game.currentWave.float32 / 5.0) * modeDef.difficultyScale
-      if game.mode == gmRoguelite and game.rogueliteRun != nil:
-        let heatRank = heatChallengeRank(game.rogueliteRun.heat)
-        game.difficulty = game.difficulty * game.rogueliteRun.activeSector.enemyPressure +
-                          heatRank.float32 * RogueliteHeatDifficultyPerTier +
-                          game.rogueliteRun.act.float32 * 0.18 +
-                          game.rogueliteRun.endlessLoop.float32 * 0.9
+      if game.mode == gmRoguelite and game.rogueliteRun != nil and
+         game.rogueliteRun.floor != nil:
+        let room = currentDungeonRoom(game.rogueliteRun)
+        if room != nil:
+          game.difficulty = dungeonEnemyDifficulty(game.rogueliteRun, room) *
+                            modeDef.difficultyScale
     else:
       # In other modes, difficulty scales with time
       game.difficulty = (game.time / 10.0) * modeDef.difficultyScale
@@ -5263,6 +5286,7 @@ proc updateGame*(game: var Game, dt: float32) =
     j += 1
 
   # Update player (with wall collision)
+  game.player.outOfCombatSpeedBoost = game.mode == gmRoguelite and not game.waveInProgress
   updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
   updateBossArenaGameplay(game, dt)
 
@@ -5806,34 +5830,43 @@ proc updateGame*(game: var Game, dt: float32) =
   # MODE-SPECIFIC ENEMY SPAWNING
   if not isSandboxMode(game.mode):
     if shouldUseWaves(game.mode):
-    # WAVE-BASED MODE: Spawn enemies in defined waves
-    # Don't start a new wave if we're waiting for boss coin collection
-      let waitingForRogueliteBoss = game.mode == gmRoguelite and
-        game.rogueliteRun != nil and game.rogueliteRun.pendingActBoss
-      if not waitingForRogueliteBoss and not game.waveInProgress and game.bossWaveManager.canStartNewWave() and game.state == gsPlaying:
+      # WAVE-BASED MODE: Spawn enemies in defined waves.
+      # Roguelite dungeon rooms arm their own encounters in enterRoom, so
+      # only the classic wave modes auto-start waves here.
+      if game.mode != gmRoguelite and not game.waveInProgress and
+         game.bossWaveManager.canStartNewWave() and game.state == gsPlaying:
         # Start a new wave
         startWave(game)
 
     if game.waveInProgress and game.bossSpawnTimer <= 0:
       # DYNAMIC MULTIPLE ENEMY SPAWNING - scales more with wave number
-      # More enemies spawn at once as waves progress
-      var spawnCount = if game.currentWave <= 3: 1
-                       elif game.currentWave <= 8: (if rand(100) < 50: 1 else: 2)
-                       elif game.currentWave <= 15: (if rand(100) < 30: 1 elif rand(100) < 70: 2 else: 3)
-                       elif game.currentWave <= 25: (if rand(100) < 35: 1 elif rand(100) < 75: 2 else: 3)
+      # (in the dungeon, room threat plays the role of the wave number)
+      let cadenceWave = if game.mode == gmRoguelite and game.rogueliteRun != nil and
+                           game.rogueliteRun.floor != nil:
+        let room = currentDungeonRoom(game.rogueliteRun)
+        if room != nil: dungeonEffectiveThreat(game.rogueliteRun, room) + 4
+        else: game.currentWave
+      else:
+        game.currentWave
+
+      var spawnCount = if cadenceWave <= 3: 1
+                       elif cadenceWave <= 8: (if rand(100) < 50: 1 else: 2)
+                       elif cadenceWave <= 15: (if rand(100) < 30: 1 elif rand(100) < 70: 2 else: 3)
+                       elif cadenceWave <= 25: (if rand(100) < 35: 1 elif rand(100) < 75: 2 else: 3)
                        else: (if rand(100) < 15: 2 elif rand(100) < 45: 3 elif rand(100) < 75: 4 else: 5)
 
-      var baseSpawnRate = if game.currentWave <= 3: 1.0
-                          elif game.currentWave <= 7: 1.1
-                          elif game.currentWave <= 12: 1.15
+      var baseSpawnRate = if cadenceWave <= 3: 1.0
+                          elif cadenceWave <= 7: 1.1
+                          elif cadenceWave <= 12: 1.15
                           else: 1.2
 
       # Wave enemies spawn 10% faster (shorter delay between spawn ticks).
       baseSpawnRate *= 0.9
 
-      if game.mode == gmRoguelite and game.rogueliteRun != nil:
+      if game.mode == gmRoguelite and game.rogueliteRun != nil and
+         game.rogueliteRun.floor != nil:
         let run = game.rogueliteRun
-        let pressure = run.activeSector.enemyPressure
+        let pressure = themeDef(run.floor.theme).pressureMod
         let heatRank = heatChallengeRank(run.heat)
         spawnCount = max(spawnCount, int(ceil(spawnCount.float32 *
           min(2.0'f32, 0.82'f32 + pressure * 0.15'f32 +
@@ -5845,11 +5878,21 @@ proc updateGame*(game: var Game, dt: float32) =
           run.endlessLoop.float32 * 0.14'f32))
 
       if game.spawnTimer > baseSpawnRate and game.waveEnemiesRemaining > 0:
-        spawnWaveEnemies(game, spawnCount)
+        if game.mode == gmRoguelite:
+          spawnDungeonEnemies(game, spawnCount)
+        else:
+          spawnWaveEnemies(game, spawnCount)
         game.spawnTimer = 0
 
-      # Check if wave is complete
-      if checkWaveComplete(game):
+      # Check if wave is complete.
+      # Dungeon boss rooms are excluded: they look "empty" between entering
+      # and the boss actually spawning, and their clear is handled by the
+      # boss-defeated path instead.
+      let inDungeonBossRoom = game.mode == gmRoguelite and
+        game.rogueliteRun != nil and game.rogueliteRun.floor != nil and
+        currentDungeonRoom(game.rogueliteRun) != nil and
+        currentDungeonRoom(game.rogueliteRun).kind == drkBoss
+      if checkWaveComplete(game) and not inDungeonBossRoom:
         game.waveInProgress = false
 
         # Track wave completion for statistics
@@ -5879,25 +5922,10 @@ proc updateGame*(game: var Game, dt: float32) =
 
         var shouldOfferPowerUp = false
         if game.mode == gmRoguelite:
-          let prevShards   = game.rogueliteRun.shardsEarned
-          let prevOverheat = game.rogueliteRun.overheatCoresEarned
-          let prevSing     = game.rogueliteRun.singularityCoresEarned
-          let outcome = finishRogueliteWave(game)
-          shouldOfferPowerUp = outcome == rwoDraft
-          if outcome == rwoSectorClear:
-            game.rogueliteRun.pendingSectorSelect = true
-          elif outcome == rwoActBoss:
-            game.rogueliteRun.pendingActBoss = true
-          # Show floating indicators for any roguelite currency earned this wave
-          let shardDelta   = game.rogueliteRun.shardsEarned          - prevShards
-          let overheatDelta= game.rogueliteRun.overheatCoresEarned   - prevOverheat
-          let singDelta    = game.rogueliteRun.singularityCoresEarned - prevSing
-          if shardDelta > 0:
-            showCurrency(game, game.player.pos + newVector2f(0, -30), shardDelta, cikDataShards)
-          if overheatDelta > 0:
-            showCurrency(game, game.player.pos + newVector2f(22, -20), overheatDelta, cikOverheatCores)
-          if singDelta > 0:
-            showCurrency(game, game.player.pos + newVector2f(-22, -20), singDelta, cikSingularityCores)
+          # Dungeon room cleared: bank coins/shards, open the doors, and
+          # offer a draft every 2nd combat room.
+          let outcome = onRoomCleared(game)
+          shouldOfferPowerUp = outcome == dcoDraft
         else:
           # DON'T advance wave here if we're waiting for boss coin
           # The wave will advance when the boss coin is collected
@@ -5921,38 +5949,50 @@ proc updateGame*(game: var Game, dt: float32) =
 
         # Wave celebration removed from here - now only happens after boss defeat
 
-        # Transition to wave cleared state for 0.3s to let players collect coins
-        game.waveClearedTimer = 0.3
-        game.state = gsWaveCleared
-
-        # Store whether we should offer power-up after the timer
-        # Store this in cameFromPowerUpSelect as a temporary flag
-        game.cameFromPowerUpSelect = if game.mode == gmRoguelite:
-          shouldOfferPowerUp
+        if game.mode == gmRoguelite:
+          # Stay in the room: doors are open now; the draft (if any) pops
+          # immediately and returns straight to gameplay.
+          if shouldOfferPowerUp:
+            game.powerUpChoices = generatePowerUpChoices(
+              game.player, false, unlockedFamilySet(game.rogueliteProfile))
+            game.selectedPowerUp = 0
+            initPowerUpRollAnimation(game)
+            initializeRerollCost(game)
+            game.state = gsPowerUpSelect
         else:
-          shouldOfferPowerUp or (game.wavesUntilBoss <= 0)
+          # Transition to wave cleared state for 0.3s to let players collect coins
+          game.waveClearedTimer = 0.3
+          game.state = gsWaveCleared
+
+          # Store whether we should offer power-up after the timer
+          # Store this in cameFromPowerUpSelect as a temporary flag
+          game.cameFromPowerUpSelect = shouldOfferPowerUp or (game.wavesUntilBoss <= 0)
 
     # Boss wave spawning - don't spawn if there's a boss coin waiting to be collected
     if game.wavesUntilBoss == 0 and game.bossWaveManager.canSpawnBoss() and game.state == gsPlaying:
       game.bossCount += 1
       # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
-      let bossDifficulty = if game.mode == gmRoguelite and game.rogueliteRun != nil:
-        let heatRank = heatChallengeRank(game.rogueliteRun.heat)
-        ((game.currentWave - 1).float32 / 2.5) * game.rogueliteRun.activeSector.enemyPressure +
-          heatRank.float32 * RogueliteHeatBossDifficultyPerTier +
-          game.rogueliteRun.act.float32 * 0.4 +
-          game.rogueliteRun.endlessLoop.float32 * 1.5
+      let bossDifficulty = if game.mode == gmRoguelite and game.rogueliteRun != nil and
+                              game.rogueliteRun.floor != nil:
+        dungeonBossDifficulty(game.rogueliteRun)
       else:
         (game.currentWave - 1).float32 / 3.0
       # Use a boss wave that maps to the boss block (ceil to next multiple of 5)
       # This allows debug spawns when wavesUntilBoss is forced to 0 (boss appears
       # for the current boss block: waves 1-5 => boss 1, 6-10 => boss 2, etc.)
-      let bossBlockWave = if game.mode == gmRoguelite and game.rogueliteRun != nil:
-        let tierOffset = if game.rogueliteProfile != nil: (game.rogueliteProfile.unlockedBossTier - 1) * 3 else: 0
-        max(5, (game.rogueliteRun.act + game.rogueliteRun.endlessLoop * RogueliteActsToWin + tierOffset) * 5)
+      let bossBlockWave = if game.mode == gmRoguelite and game.rogueliteRun != nil and
+                             game.rogueliteRun.floor != nil:
+        # The floor theme picks the boss; the unlocked tier and endless loop
+        # shift it toward the harder definitions.
+        max(5, dungeonBossNumber(game) * 5)
       else:
         ((game.currentWave - 1) div 5 + 1) * 5
       spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
+      # Compress the scheduled boss's stats toward the floor's threat: the
+      # definition (and spawnBoss's wave scaling) assume its wave-mode slot.
+      if game.mode == gmRoguelite and game.rogueliteRun != nil and
+         game.pendingBoss != nil:
+        tuneDungeonBossStats(game.pendingBoss, game.rogueliteRun)
 
     elif isTimeSurvivalMode(game.mode):
       if game.bossTimer <= 0 and game.bossWaveManager.canSpawnBoss() and game.state == gsPlaying:
@@ -6540,6 +6580,9 @@ proc updateGame*(game: var Game, dt: float32) =
       # Only shoot if enemy has ranged attack configured
       if config.hasRangedAttack:
         let attackConfig = config.attack
+        # Per-enemy damage so elite bonuses and dungeon tuning reach bullets
+        let enemyBulletDamage = if enemy.rangedDamage > 0: enemy.rangedDamage
+                                else: attackConfig.damage
 
         # Check shoot timer
         if enemy.shootTimer > attackConfig.fireRate:
@@ -6559,7 +6602,7 @@ proc updateGame*(game: var Game, dt: float32) =
                 y = enemy.pos.y,
                 direction = spreadDir,
                 speed = attackConfig.bulletSpeed,
-                damage = attackConfig.damage,
+                damage = enemyBulletDamage,
                 fromPlayer = false,
                 isHoming = attackConfig.homingStrength > 0,
                 sourceEnemyId = enemy.id
@@ -6600,7 +6643,7 @@ proc updateGame*(game: var Game, dt: float32) =
                 y = enemy.pos.y,
                 direction = shootDir,
                 speed = attackConfig.bulletSpeed,
-                damage = attackConfig.damage,
+                damage = enemyBulletDamage,
                 fromPlayer = false,
                 isHoming = attackConfig.homingStrength > 0,
                 sourceEnemyId = enemy.id
@@ -6809,19 +6852,16 @@ proc updateGame*(game: var Game, dt: float32) =
     enemyIdx += 1
 
   if bossDefeated and game.mode == gmRoguelite:
-    let prevShards   = game.rogueliteRun.shardsEarned
-    let prevOverheat = game.rogueliteRun.overheatCoresEarned
-    let prevSing     = game.rogueliteRun.singularityCoresEarned
+    let prevShards = game.rogueliteRun.shardsEarned
+    let prevCores  = game.rogueliteRun.coresEarned
+    markBossRoomCleared(game)
     completeRogueliteBoss(game)
-    let shardDelta   = game.rogueliteRun.shardsEarned          - prevShards
-    let overheatDelta= game.rogueliteRun.overheatCoresEarned   - prevOverheat
-    let singDelta    = game.rogueliteRun.singularityCoresEarned - prevSing
+    let shardDelta = game.rogueliteRun.shardsEarned - prevShards
+    let coreDelta  = game.rogueliteRun.coresEarned  - prevCores
     if shardDelta > 0:
       showCurrency(game, game.player.pos + newVector2f(0, -40), shardDelta, cikDataShards)
-    if overheatDelta > 0:
-      showCurrency(game, game.player.pos + newVector2f(28, -26), overheatDelta, cikOverheatCores)
-    if singDelta > 0:
-      showCurrency(game, game.player.pos + newVector2f(-28, -26), singDelta, cikSingularityCores)
+    if coreDelta > 0:
+      showCurrency(game, game.player.pos + newVector2f(28, -26), coreDelta, cikCores)
     game.powerUpChoices = generatePowerUpChoices(game.player, true, unlockedFamilySet(game.rogueliteProfile))
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
@@ -8232,7 +8272,13 @@ proc drawGame*(game: Game) =
                      game.bossWaveManager.isBossActive(),
                      game.screenWidth, game.screenHeight)
   let showArenaVignette = globalSettings == nil or globalSettings.showArenaVignette
-  drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight, showArenaVignette)
+  let bgAccent = if game.mode == gmRoguelite and game.rogueliteRun != nil and
+                    game.rogueliteRun.floor != nil:
+    themeAccent(game.rogueliteRun.floor.theme)
+  else:
+    Color(r: 0, g: 0, b: 0, a: 0)
+  drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight,
+                   showArenaVignette, bgAccent)
 
   # Draw background particles first
   drawParticlePoolLayer(game.particlePool, plBackground)
@@ -8635,6 +8681,10 @@ proc drawGame*(game: Game) =
       Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
     drawRectangleGradientV(0, game.screenHeight - vW, game.screenWidth, vW,
       Color(r: 0, g: 0, b: 0, a: 0), Color(r: 255, g: 0, b: 0, a: vigAlpha))
+
+  # Dungeon layer: doors, pedestals, shop terminal, room-transition fade
+  if game.mode == gmRoguelite:
+    drawDungeonOverlay(game)
 
   # Draw damage numbers (on top of everything except UI)
   for damageNum in game.damageNumbers:

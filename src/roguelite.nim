@@ -1,31 +1,19 @@
-import json, os, random, strutils, math
+import json, os, random, strutils
 import types, save_system, powerup, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins
 
 const
-  RogueliteProfileVersion* = 3
-  RogueliteSectorsPerAct* = 3
-  RogueliteActsToWin* = 3
-  RogueliteBaseSectorWaves* = 3
+  RogueliteProfileVersion* = 4
+  RogueliteFloorsToWin* = 4
   RogueliteMinHeat* = 1
   RogueliteMaxHeat* = 3
   RogueliteMaxBossTier* = 3
-  RogueliteHeatPressurePerTier* = 0.08'f32
-  RogueliteHeatShardMultiplierPerTier* = 0.24'f32
-  RogueliteHeatEliteBonusPerTier* = 3
   RogueliteHeatRosterWaveOffset* = 1
-  RogueliteHeatEnemyCountBonus* = 1
   RogueliteHeatDifficultyPerTier* = 0.18'f32
   RogueliteHeatBossDifficultyPerTier* = 0.35'f32
   RogueliteHeatSpawnBurstPerTier* = 0.025'f32
   RogueliteHeatSpawnRatePerTier* = 0.035'f32
 
 type
-  RogueliteWaveOutcome* = enum
-    rwoContinue,
-    rwoDraft,
-    rwoSectorClear,
-    rwoActBoss
-
   RogueliteUnlockCategory* = enum
     rucStarterKits,
     rucPowerFamilies,
@@ -46,8 +34,7 @@ proc initRogueliteProfile*(): RogueliteProfile =
   result = RogueliteProfile(
     version: RogueliteProfileVersion,
     dataShards: 0,
-    overheatCores: 0,
-    singularityCores: 0,
+    cores: 0,
     unlockedStarterKits: {rskOperator},
     unlockedPowerFamilies: {rpfCore, rpfShield},
     unlockedRelics: {rrtDiscountProtocol},
@@ -60,8 +47,8 @@ proc initRogueliteProfile*(): RogueliteProfile =
     unlockedCubeSkins: @["cskDefault"],
     unlockedBossTier: 1,
     highestHeat: RogueliteMinHeat,
-    bestAct: 1,
-    bestSector: 0,
+    bestFloor: 1,
+    bestRooms: 0,
     bestEndlessLoop: 0,
     totalRuns: 0,
     wins: 0
@@ -104,9 +91,9 @@ proc relicDescription*(relic: RogueliteRelicType): string =
   case relic
   of rrtNone: "No active relic."
   of rrtDiscountProtocol: "Rerolls cost 20% less, never below 5 credits."
-  of rrtShardMagnet: "Shards from waves and sector clears are increased by 25%."
-  of rrtEliteDividend: "Elite sectors grant +25 credits and bonus shards."
-  of rrtEmergencyPatch: "Act bosses heal 2 HP and grant +1 shield charge."
+  of rrtShardMagnet: "Shards from cleared rooms are increased by 25%."
+  of rrtEliteDividend: "Elite rooms grant +30 credits and bonus shards."
+  of rrtEmergencyPatch: "Floor bosses heal 2 HP and grant +1 shield charge."
   of rrtDraftCache: "Rerolls cost 10 fewer credits after other discounts."
 
 proc makeRelic*(relicType: RogueliteRelicType): RogueliteRelic =
@@ -147,8 +134,7 @@ proc refreshRogueliteUnlocks*(profile: RogueliteProfile) =
   profile.unlockedBossTier = clamp(profile.unlockedBossTier, 1, RogueliteMaxBossTier)
   profile.highestHeat = clamp(profile.highestHeat, RogueliteMinHeat, RogueliteMaxHeat)
   profile.dataShards = max(0, profile.dataShards)
-  profile.overheatCores = max(0, profile.overheatCores)
-  profile.singularityCores = max(0, profile.singularityCores)
+  profile.cores = max(0, profile.cores)
 
 proc starterKitCost*(kit: RogueliteStarterKit): int =
   case kit
@@ -247,43 +233,27 @@ proc unlockCost*(profile: RogueliteProfile, category: RogueliteUnlockCategory, i
     elif index == 0: heatTierCost(profile.highestHeat + 1)
     else: bossTierCost(profile.unlockedBossTier + 1)
 
-proc unlockOverheatCoreCost*(profile: RogueliteProfile, category: RogueliteUnlockCategory, index: int): int =
+proc unlockCoreCost*(profile: RogueliteProfile, category: RogueliteUnlockCategory, index: int): int =
+  ## Rare-currency cost (cores only drop on Heat 2+, enforcing the
+  ## H1 -> H2 -> H3 ladder for the unlocks that demand them).
   case category
   of rucPowerFamilies:
     case familyByUnlockIndex(index)
     of rpfLightning, rpfWind: 2
-    of rpfBlood: 5
+    of rpfBlood: 9
     else: 0
   of rucRelics:
     case relicByUnlockIndex(index)
     of rrtEmergencyPatch: 1
-    of rrtEliteDividend: 4
+    of rrtEliteDividend: 8
     else: 0
   of rucChallengeTiers:
     if profile.isNil:
       0
     elif index == 0:
-      # Heat 3 costs 8 Overheat Cores (only earnable on Heat 2+),
-      # making it impossible to skip directly from Heat 1.
       if profile.highestHeat + 1 >= RogueliteMaxHeat: 8 else: 0
     else:
-      if profile.unlockedBossTier + 1 >= RogueliteMaxBossTier: 2 else: 0
-  else:
-    0
-
-proc unlockSingularityCoreCost*(profile: RogueliteProfile, category: RogueliteUnlockCategory, index: int): int =
-  case category
-  of rucPowerFamilies:
-    if familyByUnlockIndex(index) == rpfBlood: 1 else: 0
-  of rucRelics:
-    if relicByUnlockIndex(index) == rrtEliteDividend: 1 else: 0
-  of rucChallengeTiers:
-    if profile.isNil:
-      0
-    elif index == 1 and profile.unlockedBossTier + 1 >= RogueliteMaxBossTier:
-      1
-    else:
-      0
+      if profile.unlockedBossTier + 1 >= RogueliteMaxBossTier: 6 else: 0
   else:
     0
 
@@ -291,23 +261,19 @@ proc canPurchaseUnlock*(profile: RogueliteProfile, category: RogueliteUnlockCate
   if profile.isNil or isUnlockPurchased(profile, category, index):
     return false
   let cost = unlockCost(profile, category, index)
-  let overheatCost = unlockOverheatCoreCost(profile, category, index)
-  let singularityCost = unlockSingularityCoreCost(profile, category, index)
-  (cost > 0 or overheatCost > 0 or singularityCost > 0) and
+  let coreCost = unlockCoreCost(profile, category, index)
+  (cost > 0 or coreCost > 0) and
     profile.dataShards >= cost and
-    profile.overheatCores >= overheatCost and
-    profile.singularityCores >= singularityCost
+    profile.cores >= coreCost
 
 proc purchaseRogueliteUnlock*(profile: RogueliteProfile, category: RogueliteUnlockCategory, index: int): bool =
   if not canPurchaseUnlock(profile, category, index):
     return false
 
   let cost = unlockCost(profile, category, index)
-  let overheatCost = unlockOverheatCoreCost(profile, category, index)
-  let singularityCost = unlockSingularityCoreCost(profile, category, index)
+  let coreCost = unlockCoreCost(profile, category, index)
   profile.dataShards -= cost
-  profile.overheatCores -= overheatCost
-  profile.singularityCores -= singularityCost
+  profile.cores -= coreCost
   case category
   of rucStarterKits:
     profile.unlockedStarterKits.incl(starterByUnlockIndex(index))
@@ -387,8 +353,7 @@ proc rogueliteProfileToJson*(profile: RogueliteProfile): JsonNode =
   %* {
     "version": profile.version,
     "dataShards": profile.dataShards,
-    "overheatCores": profile.overheatCores,
-    "singularityCores": profile.singularityCores,
+    "cores": profile.cores,
     "unlockedStarterKits": starterSetToJson(profile.unlockedStarterKits),
     "unlockedPowerFamilies": familySetToJson(profile.unlockedPowerFamilies),
     "unlockedRelics": relicSetToJson(profile.unlockedRelics),
@@ -401,8 +366,8 @@ proc rogueliteProfileToJson*(profile: RogueliteProfile): JsonNode =
     "unlockedCubeSkins": stringSeqToJson(profile.unlockedCubeSkins),
     "unlockedBossTier": profile.unlockedBossTier,
     "highestHeat": profile.highestHeat,
-    "bestAct": profile.bestAct,
-    "bestSector": profile.bestSector,
+    "bestFloor": profile.bestFloor,
+    "bestRooms": profile.bestRooms,
     "bestEndlessLoop": profile.bestEndlessLoop,
     "totalRuns": profile.totalRuns,
     "wins": profile.wins
@@ -415,8 +380,13 @@ proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile =
 
   result.version = j.getOrDefault("version").getInt(0)
   result.dataShards = j.getOrDefault("dataShards").getInt(result.dataShards)
-  result.overheatCores = j.getOrDefault("overheatCores").getInt(result.overheatCores)
-  result.singularityCores = j.getOrDefault("singularityCores").getInt(result.singularityCores)
+  if j.hasKey("cores"):
+    result.cores = j["cores"].getInt(result.cores)
+  else:
+    # v3 -> v4 migration: merge the two old rare currencies into cores
+    # (singularity cores were ~4x rarer than overheat cores).
+    result.cores = j.getOrDefault("overheatCores").getInt(0) +
+                   4 * j.getOrDefault("singularityCores").getInt(0)
   let kits = parseStarterSet(j.getOrDefault("unlockedStarterKits"))
   if kits != {}: result.unlockedStarterKits = kits
   let families = parseFamilySet(j.getOrDefault("unlockedPowerFamilies"))
@@ -439,8 +409,11 @@ proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile =
     result.unlockedCubeSkins = parseStringSeq(j["unlockedCubeSkins"])
   result.unlockedBossTier = j.getOrDefault("unlockedBossTier").getInt(result.unlockedBossTier)
   result.highestHeat = j.getOrDefault("highestHeat").getInt(result.highestHeat)
-  result.bestAct = j.getOrDefault("bestAct").getInt(result.bestAct)
-  result.bestSector = j.getOrDefault("bestSector").getInt(result.bestSector)
+  # v3 profiles stored bestAct/bestSector; floors/rooms are their successors.
+  result.bestFloor = j.getOrDefault("bestFloor").getInt(
+    j.getOrDefault("bestAct").getInt(result.bestFloor))
+  result.bestRooms = j.getOrDefault("bestRooms").getInt(
+    j.getOrDefault("bestSector").getInt(result.bestRooms))
   result.bestEndlessLoop = j.getOrDefault("bestEndlessLoop").getInt(result.bestEndlessLoop)
   result.totalRuns = j.getOrDefault("totalRuns").getInt(result.totalRuns)
   result.wins = j.getOrDefault("wins").getInt(result.wins)
@@ -476,8 +449,7 @@ proc resetRogueliteProfile*(profile: RogueliteProfile): bool =
   let fresh = initRogueliteProfile()
   profile.version = fresh.version
   profile.dataShards = fresh.dataShards
-  profile.overheatCores = fresh.overheatCores
-  profile.singularityCores = fresh.singularityCores
+  profile.cores = fresh.cores
   profile.unlockedStarterKits = fresh.unlockedStarterKits
   profile.unlockedPowerFamilies = fresh.unlockedPowerFamilies
   profile.unlockedRelics = fresh.unlockedRelics
@@ -490,93 +462,12 @@ proc resetRogueliteProfile*(profile: RogueliteProfile): bool =
   profile.unlockedCubeSkins = fresh.unlockedCubeSkins
   profile.unlockedBossTier = fresh.unlockedBossTier
   profile.highestHeat = fresh.highestHeat
-  profile.bestAct = fresh.bestAct
-  profile.bestSector = fresh.bestSector
+  profile.bestFloor = fresh.bestFloor
+  profile.bestRooms = fresh.bestRooms
   profile.bestEndlessLoop = fresh.bestEndlessLoop
   profile.totalRuns = fresh.totalRuns
   profile.wins = fresh.wins
   saveRogueliteProfile(profile)
-
-proc sectorModifierName*(modifier: RogueliteSectorModifier): string =
-  case modifier
-  of rsmSafehouse: "Safehouse"
-  of rsmOverclocked: "Overclocked"
-  of rsmEliteCache: "Elite Cache"
-  of rsmFirewall: "Firewall"
-  of rsmVolatileMemory: "Volatile Memory"
-  of rsmBlackMarket: "Black Market"
-
-proc sectorModifierDescription*(sector: RogueliteSector): string =
-  case sector.modifier
-  of rsmSafehouse: "Low pressure and reliable credits."
-  of rsmOverclocked: "+18% pressure, +4 elite chance, +22% shards."
-  of rsmEliteCache: "+25% pressure, +18 elite chance, +45% shards."
-  of rsmFirewall: "+14% pressure, +6 elite chance, +18% shards."
-  of rsmVolatileMemory: "+32% pressure, +12 elite chance, +55% shards."
-  of rsmBlackMarket: "+10% pressure, +3 elite chance, bonus credits."
-
-proc rewardName*(reward: RogueliteRewardType): string =
-  case reward
-  of rrwCredits: "Credits"
-  of rrwRelic: "Relic"
-  of rrwPowerFamily: "Power Family"
-  of rrwShardCache: "Shard Cache"
-
-proc makeSector(modifier: RogueliteSectorModifier, reward: RogueliteRewardType,
-                act, sectorIndex, heat, endlessLoop, waveSurgeTier: int): RogueliteSector =
-  let heatRank = heatChallengeRank(heat)
-  let actPressure = max(0, act - 1).float32 * 0.13
-  let sectorPressure = max(0, sectorIndex - 1).float32 * 0.05
-  let endlessPressure = endlessLoop.float32 * 0.35
-  let heatPressure = heatRank.float32 * RogueliteHeatPressurePerTier
-  result = RogueliteSector(
-    name: sectorModifierName(modifier) & " " & $act & "." & $sectorIndex,
-    modifier: modifier,
-    rewardType: reward,
-    waveCount: RogueliteBaseSectorWaves + max(0, waveSurgeTier - 1),
-    enemyPressure: 1.0 + actPressure + sectorPressure + endlessPressure + heatPressure,
-    eliteChanceBonus: heatRank * RogueliteHeatEliteBonusPerTier + endlessLoop * 6 + act * 2,
-    shardMultiplier: 1.0 + heatRank.float32 * RogueliteHeatShardMultiplierPerTier + endlessLoop.float32 * 0.25,
-    isElite: modifier == rsmEliteCache
-  )
-
-  case modifier
-  of rsmSafehouse:
-    result.enemyPressure *= 0.94
-  of rsmOverclocked:
-    result.enemyPressure *= 1.18
-    result.eliteChanceBonus += 4
-    result.shardMultiplier *= 1.22
-  of rsmEliteCache:
-    result.enemyPressure *= 1.25
-    result.eliteChanceBonus += 18
-    result.shardMultiplier *= 1.45
-  of rsmFirewall:
-    result.enemyPressure *= 1.14
-    result.eliteChanceBonus += 6
-    result.shardMultiplier *= 1.18
-  of rsmVolatileMemory:
-    result.enemyPressure *= 1.32
-    result.eliteChanceBonus += 12
-    result.shardMultiplier *= 1.55
-  of rsmBlackMarket:
-    result.enemyPressure *= 1.10
-    result.eliteChanceBonus += 3
-    result.shardMultiplier *= 1.15
-
-proc generateSectorChoices*(run: RogueliteRun) =
-  if run.isNil: return
-  let act = run.act + run.endlessLoop * RogueliteActsToWin
-  let sectorIndex = run.sectorsThisAct + 1
-  let wst = max(1, run.waveSurgeTier)
-  run.nextSectorChoices[0] = makeSector(rsmSafehouse, rrwCredits, act, sectorIndex, run.heat, run.endlessLoop, wst)
-  run.nextSectorChoices[1] = makeSector(
-    if rand(100) < 50: rsmOverclocked else: rsmBlackMarket,
-    if rand(100) < 50: rrwShardCache else: rrwPowerFamily,
-    act, sectorIndex, run.heat, run.endlessLoop, wst)
-  run.nextSectorChoices[2] = makeSector(
-    if rand(100) < 65: rsmEliteCache else: rsmVolatileMemory,
-    rrwRelic, act, sectorIndex, run.heat, run.endlessLoop, wst)
 
 proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
                          starterKit: RogueliteStarterKit, heat: int) =
@@ -584,30 +475,25 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
   let maxUnlockedHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
   let clampedHeat = clamp(heat, RogueliteMinHeat, maxUnlockedHeat)
   let heatRank = heatChallengeRank(clampedHeat)
-  let waveSurgeTier = if profile.isNil: 1 else: clamp(profile.unlockedBossTier, 1, RogueliteMaxBossTier)
   game.rogueliteProfile = profile
   game.rogueliteRun = RogueliteRun(
     seed: rand(1_000_000_000),
     starterKit: starterKit,
     heat: clampedHeat,
-    act: 1,
-    sector: 0,
-    sectorsThisAct: 0,
-    sectorWavesCleared: 0,
-    totalSectorsCleared: 0,
-    activeSector: makeSector(rsmSafehouse, rrwCredits, 1, 1, clampedHeat, 0, waveSurgeTier),
+    floorNumber: 1,
+    floor: nil,
+    totalRoomsCleared: 0,
+    keys: 0,
+    combatRoomsSinceDraft: 0,
+    usedThemes: {},
+    pendingFloorSelect: true,
     relics: @[],
     shardsEarned: 0,
-    overheatCoresEarned: 0,
-    singularityCoresEarned: 0,
+    coresEarned: 0,
     endlessLoop: 0,
-    pendingSectorSelect: true,
-    pendingActBoss: false,
     completed: false,
-    died: false,
-    waveSurgeTier: waveSurgeTier
+    died: false
   )
-  generateSectorChoices(game.rogueliteRun)
 
   game.currentWave = 1
   game.wavesUntilBoss = 999
@@ -628,22 +514,10 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
 
   game.player.coins += heatRank * 5
 
-proc selectRogueliteSector*(game: Game, choiceIndex: int) =
-  if game.rogueliteRun.isNil: return
-  let idx = clamp(choiceIndex, 0, 2)
-  game.rogueliteRun.activeSector = game.rogueliteRun.nextSectorChoices[idx]
-  game.rogueliteRun.sectorWavesCleared = 0
-  game.rogueliteRun.pendingSectorSelect = false
-  game.rogueliteRun.pendingActBoss = false
-  game.waveInProgress = false
-  game.waveEnemiesRemaining = 0
-  game.spawnTimer = 0
-  game.wavesUntilBoss = 999
-
 const RogueliteRelicRewardOrder = [rrtDiscountProtocol, rrtShardMagnet, rrtEliteDividend,
                                    rrtEmergencyPatch, rrtDraftCache]
 
-proc grantNextUnlockedRelic(game: Game): bool =
+proc grantNextUnlockedRelic*(game: Game): bool =
   if game.rogueliteRun.isNil or game.rogueliteProfile.isNil:
     return false
 
@@ -654,23 +528,6 @@ proc grantNextUnlockedRelic(game: Game): bool =
       return true
   false
 
-proc awardHeatSectorEconomy(game: Game, sector: RogueliteSector) =
-  if game.rogueliteRun.isNil:
-    return
-
-  let heatRank = heatChallengeRank(game.rogueliteRun.heat)
-  if heatRank <= 0:
-    return
-
-  let eliteBonus = if sector.isElite: 1 else: 0
-  let cacheBonus = if sector.rewardType == rrwShardCache or sector.rewardType == rrwRelic: 1 else: 0
-  game.rogueliteRun.overheatCoresEarned += heatRank + eliteBonus + cacheBonus +
-                                           game.rogueliteRun.endlessLoop
-
-  if heatRank >= 2:
-    let singularityBonus = if sector.isElite or sector.rewardType == rrwRelic: 1 else: 0
-    game.rogueliteRun.singularityCoresEarned += singularityBonus
-
 proc awardHeatBossEconomy(game: Game) =
   if game.rogueliteRun.isNil:
     return
@@ -679,102 +536,43 @@ proc awardHeatBossEconomy(game: Game) =
   if heatRank <= 0:
     return
 
-  game.rogueliteRun.overheatCoresEarned += 2 + heatRank + game.rogueliteRun.endlessLoop * 2
+  game.rogueliteRun.coresEarned += 2 + heatRank + game.rogueliteRun.endlessLoop * 2
   if heatRank >= 2:
-    game.rogueliteRun.singularityCoresEarned += 1 + game.rogueliteRun.endlessLoop
-
-proc finishRogueliteWave*(game: Game): RogueliteWaveOutcome =
-  if game.rogueliteRun.isNil:
-    return rwoContinue
-
-  let sector = game.rogueliteRun.activeSector
-  game.rogueliteRun.sectorWavesCleared += 1
-  game.currentWave += 1
-
-  let relicShardMultiplier = if game.rogueliteRun.hasRelic(rrtShardMagnet): 1.25'f32 else: 1.0'f32
-  let effectiveShardMultiplier = sector.shardMultiplier * relicShardMultiplier
-  let heatRank = heatChallengeRank(game.rogueliteRun.heat)
-  let baseShard = 3 + game.rogueliteRun.act + heatRank * 2 +
-                  game.rogueliteRun.endlessLoop * 2
-  let shardBonus = int(ceil(baseShard.float32 * effectiveShardMultiplier))
-  game.rogueliteRun.shardsEarned += max(1, shardBonus)
-
-  if game.rogueliteRun.sectorWavesCleared >= sector.waveCount:
-    game.rogueliteRun.totalSectorsCleared += 1
-    game.rogueliteRun.sector += 1
-    game.rogueliteRun.sectorsThisAct += 1
-    game.rogueliteRun.shardsEarned += int(ceil((12 + game.rogueliteRun.act * 2 +
-      heatRank * 4 + game.rogueliteRun.endlessLoop * 4).float32 * effectiveShardMultiplier))
-    awardHeatSectorEconomy(game, sector)
-    if sector.rewardType == rrwCredits or sector.modifier == rsmBlackMarket:
-      game.player.coins += 26 + game.rogueliteRun.act * 7 + heatRank * 6 +
-                           game.rogueliteRun.endlessLoop * 10
-    if sector.rewardType == rrwShardCache:
-      game.rogueliteRun.shardsEarned += int(ceil((18 + game.rogueliteRun.act * 4 +
-        heatRank * 5 + game.rogueliteRun.endlessLoop * 10).float32 *
-        effectiveShardMultiplier))
-    if sector.rewardType == rrwPowerFamily:
-      game.player.coins += 12 + game.rogueliteRun.act * 4 + heatRank * 3
-    if sector.rewardType == rrwRelic:
-      if grantNextUnlockedRelic(game):
-        game.rogueliteRun.shardsEarned += int(ceil(8.0 * effectiveShardMultiplier))
-      else:
-        game.rogueliteRun.shardsEarned += int(ceil(18.0 * effectiveShardMultiplier))
-      game.player.coins += 18 + game.rogueliteRun.act * 4 + heatRank * 3
-    if sector.isElite:
-      game.player.coins += 15
-    if sector.isElite and game.rogueliteRun.hasRelic(rrtEliteDividend):
-      game.player.coins += 30
-      game.rogueliteRun.shardsEarned += int(ceil(16.0 * effectiveShardMultiplier))
-    if game.rogueliteRun.sectorsThisAct >= RogueliteSectorsPerAct:
-      game.rogueliteRun.pendingActBoss = true
-      game.wavesUntilBoss = 0
-      if sector.rewardType == rrwPowerFamily:
-        return rwoDraft
-      return rwoActBoss
-    game.rogueliteRun.pendingSectorSelect = true
-    generateSectorChoices(game.rogueliteRun)
-    if sector.rewardType == rrwPowerFamily:
-      return rwoDraft
-    return rwoSectorClear
-
-  if game.rogueliteRun.sectorWavesCleared == 2:
-    return rwoDraft
-  return rwoContinue
+    game.rogueliteRun.coresEarned += 4 * (1 + game.rogueliteRun.endlessLoop)
 
 proc completeRogueliteBoss*(game: Game) =
+  ## Floor boss defeated: bank rewards and either advance to the next floor's
+  ## theme select or close out a win (and roll into the endless loop).
   if game.rogueliteRun.isNil: return
-  let heatRank = heatChallengeRank(game.rogueliteRun.heat)
-  let bossShardReward = 50 + game.rogueliteRun.act * 16 + heatRank * 20 +
-                        game.rogueliteRun.endlessLoop * 24
-  game.rogueliteRun.shardsEarned += bossShardReward
+  let run = game.rogueliteRun
+  let heatRank = heatChallengeRank(run.heat)
+  let bossShardReward = 50 + run.floorNumber * 16 + heatRank * 20 +
+                        run.endlessLoop * 24
+  run.shardsEarned += bossShardReward
   awardHeatBossEconomy(game)
-  game.player.coins += 25 + game.rogueliteRun.act * 8 + heatRank * 7 +
-                       game.rogueliteRun.endlessLoop * 10
-  game.rogueliteRun.pendingActBoss = false
+  game.player.coins += 25 + run.floorNumber * 8 + heatRank * 7 +
+                       run.endlessLoop * 10
   game.wavesUntilBoss = 999
 
   discard grantNextUnlockedRelic(game)
 
-  if game.rogueliteRun.hasRelic(rrtEmergencyPatch):
+  if run.hasRelic(rrtEmergencyPatch):
     game.player.hp = min(game.player.maxHp, game.player.hp + 2.0)
     game.player.shieldHits += 1
 
-  if game.rogueliteRun.act >= RogueliteActsToWin:
-    game.rogueliteRun.completed = true
+  if run.floorNumber >= RogueliteFloorsToWin:
+    run.completed = true
     game.rogueliteProfile.wins += 1
     game.rogueliteProfile.bestEndlessLoop = max(game.rogueliteProfile.bestEndlessLoop,
-                                                game.rogueliteRun.endlessLoop)
+                                                run.endlessLoop)
     discard commitRogueliteRunProgress(game, false)
-    game.rogueliteRun.endlessLoop += 1
-    game.rogueliteRun.act = 1
-    game.rogueliteRun.sectorsThisAct = 0
+    run.endlessLoop += 1
+    run.floorNumber = 1
+    run.usedThemes = {}
   else:
-    game.rogueliteRun.act += 1
-    game.rogueliteRun.sectorsThisAct = 0
+    run.floorNumber += 1
 
-  game.rogueliteRun.pendingSectorSelect = true
-  generateSectorChoices(game.rogueliteRun)
+  run.pendingFloorSelect = true
 
 proc commitRogueliteRunProgress*(game: Game, died: bool): bool =
   if game.rogueliteProfile.isNil or game.rogueliteRun.isNil:
@@ -785,16 +583,15 @@ proc commitRogueliteRunProgress*(game: Game, died: bool): bool =
     game.rogueliteProfile.totalRuns += 1
 
   game.rogueliteProfile.dataShards += game.rogueliteRun.shardsEarned
-  game.rogueliteProfile.overheatCores += game.rogueliteRun.overheatCoresEarned
-  game.rogueliteProfile.singularityCores += game.rogueliteRun.singularityCoresEarned
-  game.rogueliteProfile.bestAct = max(game.rogueliteProfile.bestAct, game.rogueliteRun.act)
-  game.rogueliteProfile.bestSector = max(game.rogueliteProfile.bestSector,
-                                         game.rogueliteRun.totalSectorsCleared)
+  game.rogueliteProfile.cores += game.rogueliteRun.coresEarned
+  game.rogueliteProfile.bestFloor = max(game.rogueliteProfile.bestFloor,
+                                        game.rogueliteRun.floorNumber)
+  game.rogueliteProfile.bestRooms = max(game.rogueliteProfile.bestRooms,
+                                        game.rogueliteRun.totalRoomsCleared)
   game.rogueliteProfile.bestEndlessLoop = max(game.rogueliteProfile.bestEndlessLoop,
                                               game.rogueliteRun.endlessLoop)
   game.rogueliteRun.shardsEarned = 0
-  game.rogueliteRun.overheatCoresEarned = 0
-  game.rogueliteRun.singularityCoresEarned = 0
+  game.rogueliteRun.coresEarned = 0
   refreshRogueliteUnlocks(game.rogueliteProfile)
   saveRogueliteProfile(game.rogueliteProfile)
 
@@ -825,19 +622,16 @@ type
 
   CosmeticCost* = object
     dataShards*: int
-    overheatCores*: int
-    singularityCores*: int
+    cores*: int
 
-proc makeCost(dataShards: int, overheatCores: int = 0,
-              singularityCores: int = 0): CosmeticCost =
+proc makeCost(dataShards: int, cores: int = 0): CosmeticCost =
   CosmeticCost(
     dataShards: dataShards,
-    overheatCores: overheatCores,
-    singularityCores: singularityCores
+    cores: cores
   )
 
 proc isFree*(cost: CosmeticCost): bool =
-  cost.dataShards <= 0 and cost.overheatCores <= 0 and cost.singularityCores <= 0
+  cost.dataShards <= 0 and cost.cores <= 0
 
 proc ensureId(list: var seq[string], id: string) =
   if id.len == 0:
@@ -948,8 +742,8 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of skShadow: makeCost(130, 2)
     of skMatrix: makeCost(165, 3)
     of skRainbow: makeCost(190, 4)
-    of skVoid: makeCost(230, 6, 1)
-    of skPlasma: makeCost(250, 8, 1)
+    of skVoid: makeCost(230, 10)
+    of skPlasma: makeCost(250, 12)
   of ckBulletSkin:
     case BulletSkinType(index)
     of bskDefault: makeCost(0)
@@ -962,8 +756,8 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of bskShadow: makeCost(105, 2)
     of bskMatrix: makeCost(125, 2)
     of bskRainbow: makeCost(150, 3)
-    of bskVoid: makeCost(190, 5, 1)
-    of bskPlasma: makeCost(210, 6, 1)
+    of bskVoid: makeCost(190, 9)
+    of bskPlasma: makeCost(210, 10)
   of ckPlayerShape:
     case ShapeType(index)
     of shHexagon: makeCost(0)
@@ -990,8 +784,8 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of pskStars: makeCost(140, 2)
     of pskHearts: makeCost(150, 2)
     of pskLightning: makeCost(175, 4)
-    of pskRainbow: makeCost(205, 5, 1)
-    of pskVoid: makeCost(240, 7, 1)
+    of pskRainbow: makeCost(205, 9)
+    of pskVoid: makeCost(240, 11)
   of ckDesktopBg:
     case DesktopBgType(index)
     of dbgDefault: makeCost(0)
@@ -1000,7 +794,7 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of dbgVoid:    makeCost(70)
     of dbgSunrise: makeCost(90, 1)
     of dbgOcean:   makeCost(110, 1)
-    of dbgInferno: makeCost(150, 3, 1)
+    of dbgInferno: makeCost(150, 7)
   of ckCubeSkin:
     case CubeSkinType(index)
     of cskDefault: makeCost(0)
@@ -1020,8 +814,7 @@ proc canAffordCosmetic*(profile: RogueliteProfile, kind: CosmeticKind,
   let cost = cosmeticCost(kind, index)
   not cost.isFree and
     profile.dataShards >= cost.dataShards and
-    profile.overheatCores >= cost.overheatCores and
-    profile.singularityCores >= cost.singularityCores
+    profile.cores >= cost.cores
 
 proc purchaseCosmetic*(profile: RogueliteProfile, kind: CosmeticKind,
                        index: int): bool =
@@ -1035,8 +828,7 @@ proc purchaseCosmetic*(profile: RogueliteProfile, kind: CosmeticKind,
 
   let cost = cosmeticCost(kind, index)
   profile.dataShards -= cost.dataShards
-  profile.overheatCores -= cost.overheatCores
-  profile.singularityCores -= cost.singularityCores
+  profile.cores -= cost.cores
   addCosmeticUnlock(profile, kind, index)
   if not saveRogueliteProfile(profile):
     echo "Warning: Cosmetic unlock was applied, but the roguelite profile could not be saved."

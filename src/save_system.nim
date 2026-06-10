@@ -486,8 +486,8 @@ proc runStatisticsToJson*(runStats: RunStatistics): JsonNode =
     "finalMaxHP": runStats.finalMaxHP,
     "finalCoins": runStats.finalCoins,
     "finalPowerUps": finalPowerUpsArray,
-    "rogueliteActReached": runStats.rogueliteActReached,
-    "rogueliteSectorsCleared": runStats.rogueliteSectorsCleared,
+    "rogueliteFloorReached": runStats.rogueliteFloorReached,
+    "rogueliteRoomsCleared": runStats.rogueliteRoomsCleared,
     "rogueliteHeat": runStats.rogueliteHeat,
     "rogueliteEndlessLoop": runStats.rogueliteEndlessLoop,
     "rogueliteShardsEarned": runStats.rogueliteShardsEarned,
@@ -888,8 +888,11 @@ proc jsonToRunStatistics(j: JsonNode): RunStatistics =
     finalMaxHP: j["finalMaxHP"].getFloat(),
     finalCoins: j["finalCoins"].getInt(),
     finalPowerUps: @[],
-    rogueliteActReached: j.getOrDefault("rogueliteActReached").getInt(0),
-    rogueliteSectorsCleared: j.getOrDefault("rogueliteSectorsCleared").getInt(0),
+    # Old saves used act/sector names for these run stats; fall back to them.
+    rogueliteFloorReached: j.getOrDefault("rogueliteFloorReached").getInt(
+      j.getOrDefault("rogueliteActReached").getInt(0)),
+    rogueliteRoomsCleared: j.getOrDefault("rogueliteRoomsCleared").getInt(
+      j.getOrDefault("rogueliteSectorsCleared").getInt(0)),
     rogueliteHeat: j.getOrDefault("rogueliteHeat").getInt(0),
     rogueliteEndlessLoop: j.getOrDefault("rogueliteEndlessLoop").getInt(0),
     rogueliteShardsEarned: j.getOrDefault("rogueliteShardsEarned").getInt(0),

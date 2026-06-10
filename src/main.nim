@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager
+import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager
 
 # Global quit-confirmation dialog
 
@@ -267,7 +267,7 @@ proc drawCustomCursor*(time: float32) =
 proc isBondingGameplayState(state: GameState): bool =
   state in {gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver, gsCountdown,
             gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
-            gsRogueliteSectorSelect}
+            gsRogueliteFloorSelect}
 
 proc isBondingCombatState(state: GameState): bool =
   state in {gsPlaying, gsPvPPlaying}
@@ -275,7 +275,7 @@ proc isBondingCombatState(state: GameState): bool =
 proc isMenuOrGameState(state: GameState): bool =
   state in {gsSplash, gsLanguageSelect, gsMenu, gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver,
             gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
-            gsRogueliteSectorSelect}
+            gsRogueliteFloorSelect}
 
 proc updateInGameMouseBonding(settings: Settings, state: GameState) =
   if settings == nil:
@@ -453,7 +453,7 @@ proc main() =
     if windowShouldClose():
       let isInGame = currentGame.state in {gsPlaying, gsPaused, gsShop, gsCountdown,
                                            gsWaveCleared, gsPowerUpSelect, gsDeathSequence,
-                                           gsRogueliteSectorSelect, gsPvPPlaying, gs3DBoss}
+                                           gsRogueliteFloorSelect, gsPvPPlaying, gs3DBoss}
       # Only show confirm when an active game session is running; closing the window
       # from the main menu should exit immediately with no popup.
       # Sandbox has no progress to lose, so always quit immediately from it.
@@ -627,8 +627,9 @@ proc main() =
           let heat9 = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
           beginRogueliteRun(currentGame, rogueliteProfile, kit9, heat9)
           initializeRunTracking(currentGame)
-          currentGame.selectedRogueliteSector = 0
-          currentGame.state = gsRogueliteSectorSelect
+          generateThemeChoices(currentGame.rogueliteRun)
+          currentGame.selectedRogueliteTheme = 0
+          currentGame.state = gsRogueliteFloorSelect
           statsSavedThisGame = false
         else: discard
         pendingGameMode = -1  # Reset pending mode
@@ -1477,34 +1478,32 @@ proc main() =
 
       endGameDrawing()
 
-    of gsRogueliteSectorSelect:
+    of gsRogueliteFloorSelect:
       playMusic(mtMenu)
       currentGame.time += dt
       updateMouseTracking(currentGame)
 
       if isKeyPressed(Left) or isKeyPressed(A):
         if not globalConfirmActive:
-          currentGame.selectedRogueliteSector = (currentGame.selectedRogueliteSector - 1 + 3) mod 3
+          currentGame.selectedRogueliteTheme = (currentGame.selectedRogueliteTheme - 1 + 3) mod 3
           markKeyboardUsed(currentGame)
       if isKeyPressed(Right) or isKeyPressed(D):
         if not globalConfirmActive:
-          currentGame.selectedRogueliteSector = (currentGame.selectedRogueliteSector + 1) mod 3
+          currentGame.selectedRogueliteTheme = (currentGame.selectedRogueliteTheme + 1) mod 3
           markKeyboardUsed(currentGame)
 
-      proc startSelectedSector() =
-        selectRogueliteSector(currentGame, currentGame.selectedRogueliteSector)
+      proc startSelectedTheme() =
+        selectFloorTheme(currentGame, currentGame.selectedRogueliteTheme)
         currentGame.state = gsCountdown
         currentGame.countdownTimer = 0.5
         playSound(stMenuSelect)
 
-      proc closeRogueliteSectorSelect() =
+      proc closeRogueliteFloorSelect() =
         let preservedHeat = currentGame.selectedRogueliteHeat
         if currentGame.rogueliteRun != nil and
-           (currentGame.rogueliteRun.totalSectorsCleared > 0 or
+           (currentGame.rogueliteRun.totalRoomsCleared > 0 or
             currentGame.rogueliteRun.shardsEarned > 0 or
-            currentGame.rogueliteRun.overheatCoresEarned > 0 or
-            currentGame.rogueliteRun.singularityCoresEarned > 0 or
-            currentGame.rogueliteRun.sectorWavesCleared > 0):
+            currentGame.rogueliteRun.coresEarned > 0):
           discard commitRogueliteRunProgress(currentGame, true)
           setActiveRogueliteProfile(currentGame.rogueliteProfile)
         cleanupGame(currentGame)
@@ -1519,9 +1518,9 @@ proc main() =
         statsSavedThisGame = false
 
       if isKeyPressed(Enter) or isKeyPressed(E):
-        if not globalConfirmActive: startSelectedSector()
+        if not globalConfirmActive: startSelectedTheme()
       if isKeyPressed(Q):
-        if not globalConfirmActive: closeRogueliteSectorSelect()
+        if not globalConfirmActive: closeRogueliteFloorSelect()
 
       if isMouseButtonPressed(Left) and not globalConfirmActive:
         let mousePos = getVirtualMousePosition()
@@ -1536,7 +1535,7 @@ proc main() =
         let cardY = panelY + 185
         let closeRect = rogueliteCloseButtonRect(screenWidth.int32, screenHeight.int32)
         if checkCollisionPointRec(mousePos, closeRect):
-          closeRogueliteSectorSelect()
+          closeRogueliteFloorSelect()
         else:
           for i in 0..2:
             let rect = Rectangle(x: (startX + i * (CardW + CardGap)).float32,
@@ -1544,12 +1543,12 @@ proc main() =
                                  width: CardW.float32,
                                  height: CardH.float32)
             if checkCollisionPointRec(mousePos, rect):
-              currentGame.selectedRogueliteSector = i
-              startSelectedSector()
+              currentGame.selectedRogueliteTheme = i
+              startSelectedTheme()
               break
 
       beginGameDrawing()
-      drawRogueliteSectorSelect(currentGame)
+      drawRogueliteFloorSelect(currentGame)
 
       # Draw quit-confirmation dialog on top of everything if triggered by OS close button
       if globalConfirmActive:
@@ -1561,11 +1560,7 @@ proc main() =
 
     of gsShop:
       # Play power-up music in shop
-      if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and
-         currentGame.rogueliteRun.pendingSectorSelect:
-        playMusic(mtMenu)
-      else:
-        playMusic(mtPowerUp)
+      playMusic(mtPowerUp)
 
       # Update mouse tracking
       updateMouseTracking(currentGame)
@@ -1612,8 +1607,9 @@ proc main() =
           if checkCollisionPointRec(mousePos, closeButtonRect):
             # Close shop and continue to next wave
             currentGame.cameFromPowerUpSelect = false
-            if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and currentGame.rogueliteRun.pendingSectorSelect:
-              currentGame.state = gsRogueliteSectorSelect
+            if currentGame.mode == gmRoguelite:
+              # In the dungeon the shop is a room: just step back into it.
+              currentGame.state = gsPlaying
             else:
               currentGame.state = gsCountdown
               currentGame.countdownTimer = 0.5
@@ -1660,8 +1656,9 @@ proc main() =
         # Close shop - ESC is intentionally not bound here; only Q or the in-window X button may close it.
         if isKeyPressed(Q) and not globalConfirmActive:
           currentGame.cameFromPowerUpSelect = false
-          if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil and currentGame.rogueliteRun.pendingSectorSelect:
-            currentGame.state = gsRogueliteSectorSelect
+          if currentGame.mode == gmRoguelite:
+            # In the dungeon the shop is a room: just step back into it.
+            currentGame.state = gsPlaying
           else:
             currentGame.state = gsCountdown
             currentGame.countdownTimer = 0.5
@@ -1799,24 +1796,9 @@ proc main() =
       # Update particles and remove dead ones
 
       # Transition to power-up selection or next wave
+      # (the roguelite dungeon never enters gsWaveCleared; rooms resolve inline)
       if currentGame.waveClearedTimer <= 0:
-        if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
-          if currentGame.cameFromPowerUpSelect:
-            currentGame.powerUpChoices = generatePowerUpChoices(
-              currentGame.player, false, unlockedFamilySet(currentGame.rogueliteProfile))
-            currentGame.selectedPowerUp = 0
-            initPowerUpRollAnimation(currentGame)
-            initializeRerollCost(currentGame)
-            currentGame.state = gsPowerUpSelect
-          elif currentGame.rogueliteRun.pendingActBoss:
-            currentGame.state = gsPlaying
-          elif currentGame.rogueliteRun.pendingSectorSelect:
-            currentGame.state = gsShop
-            currentGame.shopSidebarScroll = 0
-          else:
-            currentGame.state = gsPlaying
-            startWave(currentGame)
-        else:
+        block waveClearedAdvance:
           let shouldOfferPowerUp = currentGame.cameFromPowerUpSelect
 
           if shouldOfferPowerUp and not currentGame.bossWaveManager.isBossCoinActive():
@@ -1884,6 +1866,22 @@ proc main() =
       # Update mouse tracking
       updateMouseTracking(currentGame)
 
+      proc continueAfterDraft() =
+        ## Route out of the draft screen. Classic modes visit the between-wave
+        ## shop; the dungeon returns to the room (or the next floor select
+        ## after a floor boss).
+        currentGame.cameFromPowerUpSelect = true
+        if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
+          if currentGame.rogueliteRun.pendingFloorSelect:
+            generateThemeChoices(currentGame.rogueliteRun)
+            currentGame.selectedRogueliteTheme = 0
+            currentGame.state = gsRogueliteFloorSelect
+          else:
+            currentGame.state = gsPlaying
+        else:
+          currentGame.state = gsShop
+          currentGame.shopSidebarScroll = 0
+
       # Only allow input after animation completes and confirm dialog is not open
       if currentGame.canSelectPowerUp and not globalConfirmActive:
         # Navigate power-up choices with keyboard
@@ -1932,9 +1930,7 @@ proc main() =
         if isKeyPressed(Enter) or isKeyPressed(E):
           let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
           installPowerUp(currentGame, chosenPowerUp)
-          currentGame.cameFromPowerUpSelect = true
-          currentGame.state = gsShop
-          currentGame.shopSidebarScroll = 0
+          continueAfterDraft()
 
         # Mouse click to select
         if isMouseButtonPressed(Left):
@@ -1960,10 +1956,8 @@ proc main() =
                                           width: closeButtonSize.float32, height: closeButtonSize.float32)
 
           if checkCollisionPointRec(mousePos, closeButtonRect):
-            # Close installer and go to shop
-            currentGame.cameFromPowerUpSelect = true
-            currentGame.state = gsShop
-            currentGame.shopSidebarScroll = 0
+            # Close installer without picking
+            continueAfterDraft()
           else:
             # Check card clicks
             for i in 0..2:
@@ -1975,9 +1969,7 @@ proc main() =
                 currentGame.selectedPowerUp = i
                 let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
                 installPowerUp(currentGame, chosenPowerUp)
-                currentGame.cameFromPowerUpSelect = true
-                currentGame.state = gsShop
-                currentGame.shopSidebarScroll = 0
+                continueAfterDraft()
                 break
 
             # Check reroll button click
@@ -2052,7 +2044,7 @@ proc main() =
           # Calculate score reached
           let scoreReached =
             if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
-              currentGame.rogueliteRun.totalSectorsCleared
+              currentGame.rogueliteRun.totalRoomsCleared
             elif currentGame.mode == gmTimeSurvival:
               0  # time mode uses longestSurvivalTime for bestScore internally; wave count is meaningless
             else:

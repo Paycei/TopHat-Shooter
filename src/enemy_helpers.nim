@@ -95,6 +95,10 @@ proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2f, game: var Game)
 
   # Get attack configuration
   let attack = config.attack
+  # Per-enemy damage (newEnemy seeds it from the config) so elite bonuses and
+  # dungeon stat tuning actually reach the bullets, instead of the raw config.
+  let bulletDamage = if enemy.rangedDamage > 0: enemy.rangedDamage
+                     else: attack.damage
   let dir = (playerPos - enemy.pos).normalize()
 
   # Determine bullet count (with randomization support)
@@ -134,7 +138,7 @@ proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2f, game: var Game)
       y = enemy.pos.y,
       direction = bulletDir,
       speed = attack.bulletSpeed,
-      damage = attack.damage,
+      damage = bulletDamage,
       fromPlayer = false,
       isHoming = attack.homingStrength > 0.0,
       isPiercing = false,

@@ -231,6 +231,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   var currentSpeed = player.speed
   if player.speedBoostTimer > 0:
     currentSpeed *= 1.4  # 40% speed boost
+  if player.outOfCombatSpeedBoost:
+    currentSpeed *= 1.25  # Roguelite out-of-combat bonus
 
   var moveDir = newVector2f(0, 0)
 

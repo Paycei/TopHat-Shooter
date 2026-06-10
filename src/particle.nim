@@ -25,8 +25,7 @@ proc newCurrencyIndicator*(x, y: float32, amount: int,
   # Shards stay visible longer since they're the most important roguelite number
   let maxLife = case kind
     of cikDataShards:        1.60'f32
-    of cikOverheatCores:     1.45'f32
-    of cikSingularityCores:  1.45'f32
+    of cikCores:             1.45'f32
     of cikCredits:           1.35'f32
 
   result = CurrencyIndicator(
@@ -188,13 +187,11 @@ proc drawCurrencyIndicator*(indicator: CurrencyIndicator) =
   let color = case indicator.kind
     of cikCredits: Color(r: 255, g: 224, b: 84, a: alpha.uint8)
     of cikDataShards: Color(r: 95, g: 225, b: 255, a: alpha.uint8)
-    of cikOverheatCores: Color(r: 255, g: 130, b: 72, a: alpha.uint8)
-    of cikSingularityCores: Color(r: 190, g: 142, b: 255, a: alpha.uint8)
+    of cikCores: Color(r: 255, g: 130, b: 72, a: alpha.uint8)
   let iconType = case indicator.kind
     of cikCredits: ciCredits
     of cikDataShards: ciDataShards
-    of cikOverheatCores: ciOverheatCore
-    of cikSingularityCores: ciSingularityCore
+    of cikCores: ciCore
   let sign = if indicator.amount >= 0: "+" else: "-"
   let displayText = sign & $abs(indicator.amount)
   let scaledFontSize = int32(max(12.0, 18.0 * popScale))

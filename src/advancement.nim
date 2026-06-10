@@ -554,7 +554,7 @@ proc countElementalPowerUps(runStats: RunStatistics): int =
 proc rogueliteSectorsCleared(profile: RogueliteProfile): int =
   if profile.isNil:
     return 0
-  max(profile.bestSector, max(0, profile.bestAct - 1) * AdvancementRogueliteSectorsPerAct)
+  max(profile.bestRooms, max(0, profile.bestFloor - 1) * AdvancementRogueliteSectorsPerAct)
 
 proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
                       lastRun: RunStatistics,

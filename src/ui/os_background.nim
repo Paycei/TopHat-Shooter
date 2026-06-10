@@ -453,12 +453,17 @@ proc updateOSBackground*(bg: var OSBackgroundState, dt: float32, playerHP: float
     ))
 
 proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
-                       showArenaVignette: bool = true) =
+                       showArenaVignette: bool = true,
+                       accentOverride: Color = Color(r: 0, g: 0, b: 0, a: 0)) =
   let topColor = Color(r: 4, g: 7, b: 16, a: 255)
   let bottomColor = Color(r: 14, g: 16, b: 30, a: 255)
   let gridColor = Color(r: 30, g: 44, b: 68, a: 36)
   let dotColor = Color(r: 92, g: 126, b: 175, a: 78)
-  let accentColor = Color(r: 0, g: 198, b: 236, a: 58)
+  # Dungeon floors tint the arena with their theme accent
+  let accentColor = if accentOverride.a > 0:
+    Color(r: accentOverride.r, g: accentOverride.g, b: accentOverride.b, a: 58)
+  else:
+    Color(r: 0, g: 198, b: 236, a: 58)
 
   drawSharedBackdrop(screenWidth, screenHeight, bg.gridPulseTime * 0.82,
                      topColor, bottomColor,
