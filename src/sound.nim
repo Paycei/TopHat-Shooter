@@ -32,7 +32,7 @@ var globalSoundSystem*: SoundSystem
 const
   SAMPLE_RATE = 44100'u32
   MUSIC_DURATION = 48.0'f32  # Long-form: 48 seconds
-  MUSIC_CACHE_VERSION = "v3"
+  MUSIC_CACHE_VERSION = "v4"
 
 proc expectedMusicCacheBytes(): int64 =
   int64(44 + int(MUSIC_DURATION * SAMPLE_RATE.float32) * 2)
@@ -953,195 +953,171 @@ proc loadOrGenerateSound(soundType: SoundType): Sound =
   of stGameOver: result = createGameOverSound(cacheFile)
   of stBuy: result = createBuySound(cacheFile)
 
-type
-  Note = object
-    freq: float32    # Frequency in Hz (0.0 = rest)
-    start: float32   # Start time in seconds
-    duration: float32  # Length in seconds
+# ============================================================================
+# PROCEDURAL MUSIC ENGINE (v4)
+#
+# Each track is described by a TrackSpec: tempo, tonic, a looping chord
+# progression (one chord per bar) and a per-bar intensity curve. The engine
+# arranges pads, bass, arpeggios, a lead melody and drums from that spec, so
+# every layer stays in key and on the grid. All BPMs are multiples of 5 so the
+# bar grid divides the 48-second buffer exactly and the tracks loop seamlessly.
+# ============================================================================
 
-  Instrument = enum
-    inMelody, inBass, inPad, inChord, inPluck
+type
+  InstrumentKind = enum
+    ikLead,   # detuned 3-voice saw lead
+    ikBell,   # soft bell with inharmonic partial
+    ikPluck,  # bright synth pluck with decaying brightness
+    ikBass,   # FM bass with sub oscillator
+    ikPad     # warm detuned pad
 
   PercussionVoice = enum
-    pvKick, pvSnare, pvHat, pvSoftTick, pvCrash
+    pvKick, pvSnare, pvHat, pvOpenHat, pvSoftTick, pvCrash
 
-  Section = object
-    name: string
-    startTime: float32
-    duration: float32
-    melody: seq[Note]
-    bass: seq[Note]
-    harmony: seq[Note]
-    chords: seq[Note]  # New chord layer
+  ChordQuality = enum
+    cqMajor, cqMinor, cqMajor7, cqMinor7, cqDom7, cqSus2
 
-# Note frequencies (4th octave as base)
-const
-  C3 = 130.81'f32
-  D3 = 146.83'f32
-  E3 = 164.81'f32
-  F3 = 174.61'f32
-  G3 = 196.00'f32
-  A3 = 220.00'f32
-  B3 = 246.94'f32
-  C4 = 261.63'f32
-  D4 = 293.66'f32
-  E4 = 329.63'f32
-  F4 = 349.23'f32
-  G4 = 392.00'f32
-  A4 = 440.00'f32
-  B4 = 493.88'f32
-  C5 = 523.25'f32
-  D5 = 587.33'f32
-  E5 = 659.25'f32
-  F5 = 698.46'f32
-  G5 = 783.99'f32
-  A5 = 880.00'f32
-  REST = 0.0'f32
+  BarChord = object
+    rootSemi: int          # semitones above the track tonic
+    quality: ChordQuality
 
-# CORE MUSIC SYNTHESIS FUNCTIONS
+  MelodyNote = object
+    semi: int              # semitones above the track tonic
+    start: float32         # beats from phrase start
+    dur: float32           # beats
+    accent: float32        # 0..1 extra emphasis
 
-proc generateSimpleWave(freq: float32, t: float32, waveform: Instrument): float32 =
-  ## Generate soft, non-intrusive waveforms for background music
+  DrumEvent = tuple[time: float32, voice: PercussionVoice, vol: float32]
+
+  TrackSpec = object
+    bpm: float32
+    tonic: float32
+    progression: seq[BarChord]   # cycled across bars
+    intensity: seq[float32]      # one entry per bar, drives the arrangement
+    melody: seq[MelodyNote]      # one phrase, repeated every phraseBars
+    phraseBars: int
+    melodyInstr: InstrumentKind
+    leadVol, bassVol, padVol, arpVol, drumVol: float32
+    arpStepBeats: float32        # arp note spacing in beats
+    pumpDepth: float32           # sidechain duck depth on melodic layers
+    echoDelay, echoMix: float32
+
+proc semiFreq(tonic: float32, semi: int): float32 {.inline.} =
+  tonic * pow(2.0'f32, semi.float32 / 12.0'f32)
+
+proc chordSemis(c: BarChord): seq[int] =
+  let base = case c.quality
+    of cqMajor: @[0, 4, 7]
+    of cqMinor: @[0, 3, 7]
+    of cqMajor7: @[0, 4, 7, 11]
+    of cqMinor7: @[0, 3, 7, 10]
+    of cqDom7: @[0, 4, 7, 10]
+    of cqSus2: @[0, 2, 7]
+  result = newSeq[int](base.len)
+  for i in 0..<base.len:
+    result[i] = c.rootSemi + base[i]
+
+# INSTRUMENT SYNTHESIS
+
+proc sawVoice(freq, t: float32): float32 =
+  ## Band-limited saw approximation from the first six harmonics.
+  var value = 0.0'f32
+  for h in 1..6:
+    value += sin(2.0 * PI * freq * h.float32 * t) / h.float32
+  value * 0.52
+
+proc instrumentWave(kind: InstrumentKind, freq, t, progress: float32): float32 =
   if freq <= 0.0:
     return 0.0
 
-  case waveform
-  of inMelody:
-    # Soft sine lead with gentle harmonics - not sharp or harsh
-    let fundamental = sin(2.0 * PI * freq * t)
-    let octave = sin(2.0 * PI * freq * 2.0 * t) * 0.08  # Very gentle octave
-    let fifth = sin(2.0 * PI * freq * 1.5 * t) * 0.05   # Hint of fifth
-    return fundamental * 0.85 + octave + fifth
-  of inBass:
-    # Deep, smooth bass - felt more than heard
-    let fundamental = sin(2.0 * PI * freq * t)
-    let subBass = sin(2.0 * PI * freq * 0.5 * t) * 0.25
-    return fundamental * 0.7 + subBass
-  of inPad:
-    # Extremely soft ambient pad - barely noticeable texture
-    let layer1 = sin(2.0 * PI * freq * t)
-    let layer2 = sin(2.0 * PI * freq * 1.005 * t)  # Very subtle detuning
-    let layer3 = sin(2.0 * PI * freq * 0.995 * t)
-    return (layer1 + layer2 + layer3) * 0.333
-  of inChord:
-    # Piano-like chord sound with attack characteristics
-    let fundamental = sin(2.0 * PI * freq * t)
-    # Add harmonic richness like a piano
-    let h2 = sin(2.0 * PI * freq * 2.0 * t) * 0.12      # Octave
-    let h3 = sin(2.0 * PI * freq * 3.0 * t) * 0.06      # Octave + fifth
-    let h4 = sin(2.0 * PI * freq * 4.0 * t) * 0.04      # 2 octaves
-    let h5 = sin(2.0 * PI * freq * 5.0 * t) * 0.03      # Upper harmonics
-    # Slight inharmonicity for piano character
-    let detune = sin(2.0 * PI * freq * 1.002 * t) * 0.15
-    return (fundamental * 0.6 + h2 + h3 + h4 + h5 + detune)
-  of inPluck:
-    # Bright synth pluck for arpeggios, rich enough to cut through, still soft.
+  case kind
+  of ikLead:
+    # Three detuned saws for a wide, modern lead
+    let a = sawVoice(freq * 0.9945, t)
+    let b = sawVoice(freq, t)
+    let c = sawVoice(freq * 1.0055, t)
+    result = (a + b + c) * 0.34
+  of ikBell:
     let phase = 2.0 * PI * freq * t
-    let fundamental = sin(phase) * 0.68
-    let h2 = sin(phase * 2.0) * 0.20
-    let h3 = sin(phase * 3.0) * 0.09
-    let shimmer = sin(phase * 2.01) * 0.06
-    return fundamental + h2 + h3 + shimmer
+    result = sin(phase) * 0.70 +
+             sin(phase * 2.0) * 0.18 * exp(-progress * 3.0) +
+             sin(phase * 2.756) * 0.12 * exp(-progress * 5.0) +
+             sin(phase * 4.0) * 0.05 * exp(-progress * 6.0)
+  of ikPluck:
+    # Upper harmonics fade as the note plays, like a closing filter
+    let bright = exp(-progress * 6.0)
+    let phase = 2.0 * PI * freq * t
+    result = sin(phase) * 0.62 +
+             sin(phase * 2.0) * 0.26 * bright +
+             sin(phase * 3.0) * 0.13 * bright +
+             sin(phase * 4.0) * 0.07 * bright * bright
+  of ikBass:
+    # Two-operator FM with a decaying index, plus a sub octave
+    let modIndex = 2.2 * exp(-progress * 3.5)
+    let carrier = sin(2.0 * PI * freq * t +
+                      sin(2.0 * PI * freq * 2.0 * t) * modIndex)
+    let sub = sin(2.0 * PI * freq * 0.5 * t)
+    result = carrier * 0.58 + sub * 0.42
+  of ikPad:
+    let drift = 1.0 + sin(2.0 * PI * 0.35 * t) * 0.004
+    result = (sin(2.0 * PI * freq * drift * t) +
+              sin(2.0 * PI * freq * 1.004 * t) +
+              sin(2.0 * PI * freq * 0.996 * t)) * 0.3
 
-proc applyNoteEnvelope(progress: float32, noteDuration: float32): float32 =
-  ## Apply gentle, smooth envelope - no harsh attacks or releases
-  let attackTime = min(0.15, noteDuration * 0.25)  # Slower, softer attack
-  let releaseTime = min(0.25, noteDuration * 0.35)  # Longer, gentler release
-  let attack = attackTime / noteDuration
-  let release = 1.0 - (releaseTime / noteDuration)
+proc voiceEnvelope(kind: InstrumentKind, progress, durSec: float32): float32 =
+  case kind
+  of ikPluck, ikBell:
+    let attack = min(0.01, durSec * 0.1) / durSec
+    if progress < attack:
+      result = progress / attack
+    else:
+      let rate = if kind == ikPluck: 5.5'f32 else: 3.2'f32
+      result = exp(-(progress - attack) * rate)
+  of ikLead:
+    let attack = min(0.05, durSec * 0.2) / durSec
+    let release = min(0.10, durSec * 0.3) / durSec
+    if progress < attack:
+      result = sin(progress / attack * PI * 0.5)
+    elif progress > 1.0 - release:
+      result = cos((progress - (1.0 - release)) / release * PI * 0.5)
+    else:
+      result = 1.0
+  of ikBass:
+    let attack = min(0.008, durSec * 0.1) / durSec
+    if progress < attack:
+      result = progress / attack
+    else:
+      result = 0.55 + 0.45 * exp(-(progress - attack) * 3.0)
+    if progress > 0.9:
+      result *= (1.0 - progress) / 0.1
+  of ikPad:
+    let attack = 0.22'f32
+    let release = 0.28'f32
+    if progress < attack:
+      result = sin(progress / attack * PI * 0.5)
+    elif progress > 1.0 - release:
+      result = cos((progress - (1.0 - release)) / release * PI * 0.5)
+    else:
+      result = 1.0
 
-  if progress < attack:
-    # Smooth fade in using sine curve
-    let attackProgress = progress / attack
-    return sin(attackProgress * PI * 0.5)  # Sine curve: smoother than linear
-  elif progress > release:
-    # Gentle fade out
-    let releaseProgress = (progress - release) / (1.0 - release)
-    return cos(releaseProgress * PI * 0.5)  # Cosine curve: smooth decay
-  else:
-    return 1.0
-
-proc renderNote(note: Note, samples: var seq[float32],
-                instrument: Instrument, volume: float32) =
-  ## Render one musical note into the sample buffer.
-  if note.freq <= 0.0 or note.duration <= 0.0:
+proc renderVoice(samples: var seq[float32], freq, startSec, durSec: float32,
+                 kind: InstrumentKind, volume: float32) =
+  if freq <= 0.0 or durSec <= 0.0:
     return
 
-  let startSample = max(0, int(note.start * SAMPLE_RATE.float32))
-  let endSample = min(int((note.start + note.duration) * SAMPLE_RATE.float32),
+  let startSample = max(0, int(startSec * SAMPLE_RATE.float32))
+  let endSample = min(int((startSec + durSec) * SAMPLE_RATE.float32),
                       samples.len)
-
   if startSample >= endSample:
     return
 
   for i in startSample..<endSample:
     let t = i.float32 / SAMPLE_RATE.float32
-    let noteTime = t - note.start
-    let progress = noteTime / note.duration
+    let progress = (t - startSec) / durSec
+    samples[i] += instrumentWave(kind, freq, t, progress) *
+                  voiceEnvelope(kind, progress, durSec) * volume
 
-    let wave = generateSimpleWave(note.freq, t, instrument)
-    let envelope = applyNoteEnvelope(progress, note.duration)
-
-    samples[i] += wave * envelope * volume
-
-proc renderNotes(notes: seq[Note], samples: var seq[float32],
-                instrument: Instrument, volume: float32) =
-  ## Render a sequence of notes into the sample buffer
-  for note in notes:
-    renderNote(note, samples, instrument, volume)
-
-proc renderChords(chords: seq[Note], samples: var seq[float32], volume: float32) =
-  ## Render piano chords - each note represents the root, chord contains root + third + fifth
-  for chord in chords:
-    if chord.freq <= 0.0:
-      continue
-
-    # Build triad: root, major third, perfect fifth
-    let root = chord.freq
-    let third = root * 1.25992  # Major third (4 semitones)
-    let fifth = root * 1.49831  # Perfect fifth (7 semitones)
-
-    let startSample = int(chord.start * SAMPLE_RATE.float32)
-    let endSample = int((chord.start + chord.duration) * SAMPLE_RATE.float32)
-
-    for i in startSample..<min(endSample, samples.len):
-      let t = i.float32 / SAMPLE_RATE.float32
-      let noteTime = t - chord.start
-      let progress = noteTime / chord.duration
-
-      # Piano-like envelope with quick attack and sustained decay
-      let envelope = applyNoteEnvelope(progress, chord.duration)
-
-      # Render all three notes of the chord
-      let wave1 = generateSimpleWave(root, t, inChord) * 0.4
-      let wave2 = generateSimpleWave(third, t, inChord) * 0.3
-      let wave3 = generateSimpleWave(fifth, t, inChord) * 0.3
-
-      samples[i] += (wave1 + wave2 + wave3) * envelope * volume
-
-proc applySectionDynamics(samples: var seq[float32], section: Section,
-                         globalVolume: float32) =
-  ## Apply very gentle volume transitions between sections
-  let startSample = int(section.startTime * SAMPLE_RATE.float32)
-  let endSample = int((section.startTime + section.duration) * SAMPLE_RATE.float32)
-  let fadeLength = int(1.5 * SAMPLE_RATE.float32)  # Longer 1.5 second fade
-
-  for i in startSample..<min(endSample, samples.len):
-    let sampleInSection = i - startSample
-    let sectionLength = endSample - startSample
-    var dynamicMultiplier = globalVolume
-
-    # Smooth fade in at start using sine curve
-    if sampleInSection < fadeLength:
-      let fadeProgress = sampleInSection.float32 / fadeLength.float32
-      dynamicMultiplier *= sin(fadeProgress * PI * 0.5)
-
-    # Smooth fade out at end using cosine curve
-    if (sectionLength - sampleInSection) < fadeLength:
-      let fadeProgress = (sectionLength - sampleInSection).float32 / fadeLength.float32
-      dynamicMultiplier *= cos((1.0 - fadeProgress) * PI * 0.5)
-
-    samples[i] *= dynamicMultiplier
+# PERCUSSION
 
 proc deterministicNoise(sampleIndex: int): float32 {.inline.} =
   ## Stable pseudo-noise so generated percussion is repeatable between runs.
@@ -1154,6 +1130,7 @@ proc renderPercussionHit(samples: var seq[float32], startTime: float32,
     of pvKick: 0.22'f32
     of pvSnare: 0.16'f32
     of pvHat: 0.045'f32
+    of pvOpenHat: 0.30'f32
     of pvSoftTick: 0.06'f32
     of pvCrash: 0.75'f32
 
@@ -1189,6 +1166,9 @@ proc renderPercussionHit(samples: var seq[float32], startTime: float32,
       value = snap + body
     of pvHat:
       value = highNoise * exp(-progress * 28.0) * 0.45
+    of pvOpenHat:
+      let sizzle = sin(2.0 * PI * 6800.0 * t) * 0.10
+      value = (highNoise * 0.38 + sizzle) * exp(-progress * 7.0)
     of pvSoftTick:
       let tone = sin(2.0 * PI * 1450.0 * t) * 0.22
       value = (tone + highNoise * 0.18) * exp(-progress * 22.0)
@@ -1199,101 +1179,7 @@ proc renderPercussionHit(samples: var seq[float32], startTime: float32,
 
     samples[i] += value * volume
 
-proc renderTrackGroove(track: MusicTrack, samples: var seq[float32]) =
-  let bpm = case track
-    of mtMenu: 92.0'f32
-    of mtWave: 146.0'f32
-    of mtPowerUp: 108.0'f32
-    of mtBoss: 164.0'f32
-
-  let beat = 60.0'f32 / bpm
-  let barLength = beat * 4.0
-  var barStart = 0.0'f32
-
-  while barStart < MUSIC_DURATION:
-    case track
-    of mtMenu:
-      renderPercussionHit(samples, barStart, 0.018, pvKick)
-      renderPercussionHit(samples, barStart + beat * 2.0, 0.014, pvSoftTick)
-      renderPercussionHit(samples, barStart + beat * 3.0, 0.012, pvSoftTick)
-    of mtPowerUp:
-      renderPercussionHit(samples, barStart, 0.034, pvKick)
-      renderPercussionHit(samples, barStart + beat * 2.0, 0.026, pvSnare)
-      var tick = barStart
-      while tick < min(barStart + barLength, MUSIC_DURATION):
-        renderPercussionHit(samples, tick, 0.010, pvHat)
-        tick += beat * 0.5
-    of mtWave:
-      renderPercussionHit(samples, barStart, 0.056, pvKick)
-      renderPercussionHit(samples, barStart + beat * 1.5, 0.038, pvKick)
-      renderPercussionHit(samples, barStart + beat * 2.0, 0.043, pvSnare)
-      renderPercussionHit(samples, barStart + beat * 3.0, 0.034, pvSnare)
-      var hat = barStart
-      while hat < min(barStart + barLength, MUSIC_DURATION):
-        renderPercussionHit(samples, hat, 0.014, pvHat)
-        hat += beat * 0.5
-    of mtBoss:
-      renderPercussionHit(samples, barStart, 0.072, pvKick)
-      renderPercussionHit(samples, barStart + beat * 0.75, 0.044, pvKick)
-      renderPercussionHit(samples, barStart + beat * 1.0, 0.054, pvSnare)
-      renderPercussionHit(samples, barStart + beat * 2.0, 0.066, pvKick)
-      renderPercussionHit(samples, barStart + beat * 3.0, 0.060, pvSnare)
-      var hat = barStart
-      while hat < min(barStart + barLength, MUSIC_DURATION):
-        renderPercussionHit(samples, hat, 0.015, pvHat)
-        hat += beat * 0.25
-
-    barStart += barLength
-
-proc renderSectionCrashes(sections: seq[Section], samples: var seq[float32],
-                          volume: float32) =
-  for section in sections:
-    if section.startTime > 0.01:
-      renderPercussionHit(samples, section.startTime, volume, pvCrash)
-
-proc renderArpeggios(chords: seq[Note], samples: var seq[float32],
-                     step, volume, octaveMultiplier, swing: float32) =
-  const arpPattern = [
-    1.0'f32, 1.25992'f32, 1.49831'f32, 2.0'f32,
-    1.49831'f32, 1.25992'f32
-  ]
-
-  for chord in chords:
-    if chord.freq <= 0.0 or chord.duration <= 0.0:
-      continue
-
-    var cursor = chord.start
-    var noteIndex = 0
-    while cursor < chord.start + chord.duration:
-      let swungStart = cursor + (if noteIndex mod 2 == 1: step * swing else: 0.0)
-      let remaining = chord.start + chord.duration - swungStart
-      let noteDuration = min(step * 0.68, remaining)
-      if noteDuration > 0.035:
-        let freq = chord.freq * arpPattern[noteIndex mod arpPattern.len] *
-                   octaveMultiplier
-        renderNote(Note(freq: freq, start: swungStart, duration: noteDuration),
-                   samples, inPluck, volume)
-      cursor += step
-      inc noteIndex
-
-proc renderBassPulses(notes: seq[Note], samples: var seq[float32],
-                      step, volume: float32) =
-  for note in notes:
-    if note.freq <= 0.0 or note.duration <= 0.0:
-      continue
-
-    var cursor = note.start
-    var pulseIndex = 0
-    while cursor < note.start + note.duration:
-      let remaining = note.start + note.duration - cursor
-      let pulseDuration = min(step * 0.72, remaining)
-      if pulseDuration > 0.04:
-        let accent = if pulseIndex mod 4 == 0: 1.0'f32 else: 0.72'f32
-        renderNote(Note(freq: note.freq * 0.5, start: cursor,
-                        duration: pulseDuration),
-                   samples, inBass, volume * accent)
-      cursor += step
-      inc pulseIndex
+# EFFECTS AND MASTERING
 
 proc applySingleEcho(samples: var seq[float32], delaySeconds, mix: float32) =
   let delaySamples = int(delaySeconds * SAMPLE_RATE.float32)
@@ -1303,35 +1189,19 @@ proc applySingleEcho(samples: var seq[float32], delaySeconds, mix: float32) =
   for i in countdown(samples.len - 1, delaySamples):
     samples[i] += samples[i - delaySamples] * mix
 
-proc renderTrackEnhancements(track: MusicTrack, sections: seq[Section],
-                             samples: var seq[float32]) =
-  ## Extra arrangement layers shared by all procedural tracks.
-  case track
-  of mtMenu:
-    for section in sections:
-      renderArpeggios(section.chords, samples, 0.50, 0.028, 1.0, 0.08)
-    renderTrackGroove(track, samples)
-    applySingleEcho(samples, 0.42, 0.055)
-  of mtPowerUp:
-    for section in sections:
-      renderArpeggios(section.chords, samples, 0.375, 0.039, 1.0, 0.10)
-    renderTrackGroove(track, samples)
-    renderSectionCrashes(sections, samples, 0.030)
-    applySingleEcho(samples, 0.28, 0.065)
-  of mtWave:
-    for section in sections:
-      renderArpeggios(section.chords, samples, 0.25, 0.044, 1.0, 0.06)
-      renderBassPulses(section.bass, samples, 0.25, 0.045)
-    renderTrackGroove(track, samples)
-    renderSectionCrashes(sections, samples, 0.042)
-    applySingleEcho(samples, 0.18, 0.050)
-  of mtBoss:
-    for section in sections:
-      renderArpeggios(section.chords, samples, 0.1875, 0.040, 0.75, 0.04)
-      renderBassPulses(section.bass, samples, 0.1875, 0.060)
-    renderTrackGroove(track, samples)
-    renderSectionCrashes(sections, samples, 0.058)
-    applySingleEcho(samples, 0.14, 0.045)
+proc applySidechainPump(samples: var seq[float32], kicks: seq[float32],
+                        depth: float32) =
+  ## Duck the melodic mix right after every kick for a pumping groove.
+  if depth <= 0.0:
+    return
+
+  let pumpSamples = int(0.22 * SAMPLE_RATE.float32)
+  for kick in kicks:
+    let startSample = max(0, int(kick * SAMPLE_RATE.float32))
+    let endSample = min(startSample + pumpSamples, samples.len)
+    for i in startSample..<endSample:
+      let dt = (i - startSample).float32 / SAMPLE_RATE.float32
+      samples[i] *= 1.0 - depth * exp(-dt * 16.0)
 
 proc finishMusic(samples: var seq[float32], filename: string,
                  outputGain: float32): Music =
@@ -1353,973 +1223,342 @@ proc finishMusic(samples: var seq[float32], filename: string,
   writeWavFile(filename, samples16, SAMPLE_RATE)
   result = loadMusicStream(filename)
 
-# MENU MUSIC
+# ARRANGEMENT
 
-proc createMenuMusicSections(): seq[Section] =
-  result = @[]
-  var currentTime = 0.0'f32
+proc renderPadBar(spec: TrackSpec, samples: var seq[float32],
+                  tones: seq[int], barStart, barLen, inten: float32) =
+  if spec.padVol <= 0.0:
+    return
 
-  # INTRO - Gentle opening with sparse notes (8 seconds)
-  var intro = Section(
-    name: "Intro",
-    startTime: currentTime,
-    duration: 8.0,
-    melody: @[
-      Note(freq: E5, start: currentTime + 0.0, duration: 1.5),
-      Note(freq: REST, start: currentTime + 1.5, duration: 0.5),
-      Note(freq: D5, start: currentTime + 2.0, duration: 1.5),
-      Note(freq: REST, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: C5, start: currentTime + 4.0, duration: 2.0),
-      Note(freq: REST, start: currentTime + 6.0, duration: 2.0)
-    ],
-    bass: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 4.0),
-      Note(freq: G4, start: currentTime + 4.0, duration: 4.0)
-    ],
-    harmony: @[],
-    chords: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: C4, start: currentTime + 2.0, duration: 2.0),
-      Note(freq: G3, start: currentTime + 4.0, duration: 2.0),
-      Note(freq: G3, start: currentTime + 6.0, duration: 2.0)
-    ]
-  )
-  result.add(intro)
-  currentTime += intro.duration
+  for idx in 0..<tones.len:
+    let vol = spec.padVol * (0.55 + 0.45 * inten) *
+              (if idx == 0: 1.0'f32 else: 0.8'f32)
+    renderVoice(samples, semiFreq(spec.tonic, tones[idx]),
+                barStart, barLen, ikPad, vol)
 
-  # SECTION A - Main theme (12 seconds)
-  var sectionA = Section(
-    name: "Main Theme",
-    startTime: currentTime,
-    duration: 12.0,
-    melody: @[
-      Note(freq: E5, start: currentTime + 0.0, duration: 1.0),
-      Note(freq: G5, start: currentTime + 1.0, duration: 1.0),
-      Note(freq: E5, start: currentTime + 2.0, duration: 1.5),
-      Note(freq: REST, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: D5, start: currentTime + 4.0, duration: 1.5),
-      Note(freq: C5, start: currentTime + 5.5, duration: 1.5),
-      Note(freq: REST, start: currentTime + 7.0, duration: 1.0),
-      Note(freq: G5, start: currentTime + 8.0, duration: 1.5),
-      Note(freq: E5, start: currentTime + 9.5, duration: 2.5)
-    ],
-    bass: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 3.0),
-      Note(freq: REST, start: currentTime + 3.0, duration: 1.0),
-      Note(freq: G4, start: currentTime + 4.0, duration: 3.0),
-      Note(freq: REST, start: currentTime + 7.0, duration: 1.0),
-      Note(freq: C4, start: currentTime + 8.0, duration: 4.0)
-    ],
-    harmony: @[
-      Note(freq: E4, start: currentTime + 0.0, duration: 4.0),
-      Note(freq: D4, start: currentTime + 4.0, duration: 3.0),
-      Note(freq: E4, start: currentTime + 8.0, duration: 4.0)
-    ],
-    chords: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 1.5),
-      Note(freq: E4, start: currentTime + 1.5, duration: 1.5),
-      Note(freq: C4, start: currentTime + 3.0, duration: 1.5),
-      Note(freq: G3, start: currentTime + 4.5, duration: 1.5),
-      Note(freq: D4, start: currentTime + 6.0, duration: 1.5),
-      Note(freq: C4, start: currentTime + 7.5, duration: 2.0),
-      Note(freq: E4, start: currentTime + 9.5, duration: 2.5)
-    ]
-  )
-  result.add(sectionA)
-  currentTime += sectionA.duration
+  # Octave shimmer when the track is running hot
+  if inten > 0.7:
+    renderVoice(samples, semiFreq(spec.tonic, tones[0] + 12),
+                barStart, barLen, ikPad, spec.padVol * 0.5)
 
-  # SECTION B - Variation with different contour (12 seconds)
-  var sectionB = Section(
-    name: "Variation",
-    startTime: currentTime,
-    duration: 12.0,
-    melody: @[
-      Note(freq: C5, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: REST, start: currentTime + 2.0, duration: 0.5),
-      Note(freq: D5, start: currentTime + 2.5, duration: 1.5),
-      Note(freq: E5, start: currentTime + 4.0, duration: 2.0),
-      Note(freq: REST, start: currentTime + 6.0, duration: 1.0),
-      Note(freq: G5, start: currentTime + 7.0, duration: 1.5),
-      Note(freq: F5, start: currentTime + 8.5, duration: 1.5),
-      Note(freq: E5, start: currentTime + 10.0, duration: 2.0)
-    ],
-    bass: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 4.0),
-      Note(freq: C4, start: currentTime + 4.0, duration: 3.0),
-      Note(freq: REST, start: currentTime + 7.0, duration: 1.0),
-      Note(freq: G4, start: currentTime + 8.0, duration: 4.0)
-    ],
-    harmony: @[
-      Note(freq: A4, start: currentTime + 0.0, duration: 4.0),
-      Note(freq: G4, start: currentTime + 4.0, duration: 3.0),
-      Note(freq: E4, start: currentTime + 8.0, duration: 4.0)
-    ],
-    chords: @[
-      Note(freq: F3, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: C4, start: currentTime + 2.0, duration: 2.0),
-      Note(freq: C4, start: currentTime + 4.0, duration: 1.5),
-      Note(freq: E4, start: currentTime + 5.5, duration: 1.5),
-      Note(freq: G3, start: currentTime + 7.0, duration: 2.0),
-      Note(freq: C4, start: currentTime + 9.0, duration: 3.0)
-    ]
-  )
-  result.add(sectionB)
-  currentTime += sectionB.duration
+proc renderBassBar(spec: TrackSpec, samples: var seq[float32],
+                   chord: BarChord, barStart, barLen, beat, inten: float32) =
+  if spec.bassVol <= 0.0:
+    return
 
-  # OUTRO - Gentle resolution (16 seconds)
-  var outro = Section(
-    name: "Outro",
-    startTime: currentTime,
-    duration: 16.0,
-    melody: @[
-      Note(freq: G5, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: E5, start: currentTime + 2.5, duration: 2.0),
-      Note(freq: REST, start: currentTime + 4.5, duration: 1.5),
-      Note(freq: D5, start: currentTime + 6.0, duration: 2.5),
-      Note(freq: C5, start: currentTime + 8.5, duration: 3.0),
-      Note(freq: REST, start: currentTime + 11.5, duration: 4.5)
-    ],
-    bass: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 4.0),
-      Note(freq: G4, start: currentTime + 4.0, duration: 4.0),
-      Note(freq: C4, start: currentTime + 8.0, duration: 8.0)
-    ],
-    harmony: @[
-      Note(freq: E4, start: currentTime + 0.0, duration: 6.0),
-      Note(freq: REST, start: currentTime + 6.0, duration: 2.0),
-      Note(freq: C4, start: currentTime + 8.0, duration: 8.0)
-    ],
-    chords: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 2.5),
-      Note(freq: E4, start: currentTime + 2.5, duration: 2.0),
-      Note(freq: G3, start: currentTime + 4.5, duration: 2.5),
-      Note(freq: D4, start: currentTime + 7.0, duration: 2.0),
-      Note(freq: C4, start: currentTime + 9.0, duration: 7.0)
-    ]
-  )
-  result.add(outro)
+  let rootFreq = semiFreq(spec.tonic, chord.rootSemi) * 0.5
+
+  if inten < 0.35:
+    # Sparse: one held root per bar
+    renderVoice(samples, rootFreq, barStart, barLen * 0.92, ikBass,
+                spec.bassVol * 0.8)
+  elif inten < 0.7:
+    # Moderate: quarter-note pulse with a fifth pickup
+    for step in 0..3:
+      let freq = if step == 3: rootFreq * 1.4983'f32 else: rootFreq
+      renderVoice(samples, freq, barStart + step.float32 * beat,
+                  beat * 0.85, ikBass, spec.bassVol * 0.9)
+  else:
+    # Driving eighth notes with octave jumps at peak intensity
+    for step in 0..7:
+      var freq = rootFreq
+      if inten >= 0.85 and step mod 4 == 2:
+        freq = rootFreq * 2.0
+      elif step == 6:
+        freq = rootFreq * 1.4983
+      let vol = spec.bassVol * (if step mod 2 == 0: 1.0'f32 else: 0.75'f32)
+      renderVoice(samples, freq, barStart + step.float32 * beat * 0.5,
+                  beat * 0.42, ikBass, vol)
+
+proc renderArpBar(spec: TrackSpec, samples: var seq[float32],
+                  tones: seq[int], barStart, barLen, beat, inten: float32) =
+  if spec.arpVol <= 0.0 or inten < 0.45:
+    return
+
+  # Chord tones across two octaves, played up and back down
+  var arpSemis: seq[int] = @[]
+  for s in tones:
+    arpSemis.add(s)
+  for s in tones:
+    arpSemis.add(s + 12)
+
+  let cycle = arpSemis.len * 2 - 2
+  let step = spec.arpStepBeats * beat
+  var pos = barStart
+  var idx = 0
+  while pos < barStart + barLen - 0.01:
+    let k = idx mod cycle
+    let j = if k < arpSemis.len: k else: cycle - k
+    renderVoice(samples, semiFreq(spec.tonic, arpSemis[j]), pos,
+                step * 0.85, ikPluck, spec.arpVol * (0.7 + 0.3 * inten))
+    pos += step
+    inc idx
+
+proc renderMelody(spec: TrackSpec, samples: var seq[float32],
+                  barLen, beat: float32) =
+  let numBars = spec.intensity.len
+  let phraseLen = spec.phraseBars.float32 * barLen
+
+  var phraseStart = 0.0'f32
+  while phraseStart < MUSIC_DURATION - 0.01:
+    for note in spec.melody:
+      let noteStart = phraseStart + note.start * beat
+      let bar = min(numBars - 1, int(noteStart / barLen))
+      let inten = spec.intensity[bar]
+      if inten < 0.4:
+        continue
+
+      let vol = spec.leadVol * (0.65 + 0.35 * inten) * (1.0 + note.accent * 0.3)
+      let freq = semiFreq(spec.tonic, note.semi)
+      renderVoice(samples, freq, noteStart, note.dur * beat * 0.95,
+                  spec.melodyInstr, vol)
+
+      # Octave doubling at peak intensity for extra width
+      if inten > 0.85:
+        renderVoice(samples, freq * 2.0, noteStart, note.dur * beat * 0.95,
+                    spec.melodyInstr, vol * 0.35)
+    phraseStart += phraseLen
+
+proc scheduleDrums(spec: TrackSpec, barLen, beat: float32,
+                   events: var seq[DrumEvent], kicks: var seq[float32]) =
+  let numBars = spec.intensity.len
+  if spec.drumVol <= 0.0:
+    return
+
+  for bar in 0..<numBars:
+    let barStart = bar.float32 * barLen
+    let inten = spec.intensity[bar]
+    if inten < 0.2:
+      continue
+
+    let vol = spec.drumVol
+
+    # Kick pattern
+    events.add((barStart, pvKick, vol))
+    kicks.add(barStart)
+    if inten >= 0.55:
+      events.add((barStart + beat * 2.0'f32, pvKick, vol * 0.9'f32))
+      kicks.add(barStart + beat * 2.0)
+    if inten >= 0.85:
+      events.add((barStart + beat * 3.5'f32, pvKick, vol * 0.7'f32))
+      kicks.add(barStart + beat * 3.5)
+
+    # Snare / backbeat
+    if inten >= 0.5:
+      events.add((barStart + beat, pvSnare, vol * 0.8'f32))
+      events.add((barStart + beat * 3.0'f32, pvSnare, vol * 0.8'f32))
+    elif inten >= 0.3:
+      events.add((barStart + beat * 2.0'f32, pvSoftTick, vol * 0.6'f32))
+
+    # Hats
+    if inten >= 0.85:
+      var pos = 0.0'f32
+      while pos < barLen - 0.01:
+        events.add((barStart + pos, pvHat, vol * 0.30'f32))
+        pos += beat * 0.25
+    elif inten >= 0.5:
+      var pos = 0.0'f32
+      var hatIdx = 0
+      while pos < barLen - 0.01:
+        let accent = if hatIdx mod 2 == 1: 0.32'f32 else: 0.22'f32
+        events.add((barStart + pos, pvHat, vol * accent))
+        pos += beat * 0.5
+        inc hatIdx
+
+    # Open hat on the last offbeat when the energy is high
+    if inten >= 0.75:
+      events.add((barStart + beat * 3.5'f32, pvOpenHat, vol * 0.35'f32))
+
+    # Crash on big intensity jumps (section starts)
+    if bar > 0 and inten - spec.intensity[bar - 1] >= 0.2:
+      events.add((barStart, pvCrash, vol * 0.8'f32))
+
+    # Snare fill closing every 4-bar phrase
+    if bar mod 4 == 3 and inten >= 0.55:
+      for j in 0..3:
+        events.add((barStart + beat * 3.0'f32 + j.float32 * beat * 0.25'f32,
+                    pvSnare, vol * (0.40'f32 + 0.12'f32 * j.float32)))
+
+proc composeTrack(spec: TrackSpec, filename: string,
+                  outputGain: float32): Music =
+  let beat = 60.0'f32 / spec.bpm
+  let barLen = beat * 4.0
+  let numBars = spec.intensity.len
+  var samples = newSeq[float32](int(MUSIC_DURATION * SAMPLE_RATE.float32))
+
+  # Melodic layers first so the sidechain pump only affects them
+  for bar in 0..<numBars:
+    let barStart = bar.float32 * barLen
+    let inten = spec.intensity[bar]
+    let chord = spec.progression[bar mod spec.progression.len]
+    let tones = chordSemis(chord)
+
+    renderPadBar(spec, samples, tones, barStart, barLen, inten)
+    renderBassBar(spec, samples, chord, barStart, barLen, beat, inten)
+    renderArpBar(spec, samples, tones, barStart, barLen, beat, inten)
+
+  renderMelody(spec, samples, barLen, beat)
+
+  var drumEvents: seq[DrumEvent] = @[]
+  var kicks: seq[float32] = @[]
+  scheduleDrums(spec, barLen, beat, drumEvents, kicks)
+
+  applySidechainPump(samples, kicks, spec.pumpDepth)
+
+  for event in drumEvents:
+    renderPercussionHit(samples, event.time, event.vol, event.voice)
+
+  applySingleEcho(samples, spec.echoDelay, spec.echoMix)
+  result = finishMusic(samples, filename, outputGain)
+
+proc mn(semi: int, start, dur: float32, accent: float32 = 0.0): MelodyNote =
+  MelodyNote(semi: semi, start: start, dur: dur, accent: accent)
+
+# TRACK DEFINITIONS
 
 proc createMenuMusic(filename: string): Music =
-  let sections = createMenuMusicSections()
-  var samples = newSeq[float32](int(MUSIC_DURATION * SAMPLE_RATE.float32))
-
-  for section in sections:
-    # Very quiet, non-intrusive background levels
-    renderNotes(section.melody, samples, inMelody, 0.12)
-    renderNotes(section.bass, samples, inBass, 0.15)
-    renderNotes(section.harmony, samples, inPad, 0.08)
-    renderChords(section.chords, samples, 0.18)  # Piano chords
-    applySectionDynamics(samples, section, 0.7)  # Reduce overall section volume
-
-  renderTrackEnhancements(mtMenu, sections, samples)
-  result = finishMusic(samples, filename, 0.58)
-
-# WAVE MUSIC
-
-proc createWaveMusicSections(): seq[Section] =
-  result = @[]
-  var currentTime = 0.0'f32
-
-  # INTRO - Immediate frenetic energy (8 seconds)
-  var intro = Section(
-    name: "Intro",
-    startTime: currentTime,
-    duration: 8.0,
+  ## Calm lo-fi loop in C major: Cmaj7 - Am7 - Fmaj7 - G7, soft bell lead.
+  let spec = TrackSpec(
+    bpm: 90.0,                    # 18 bars in 48 s
+    tonic: 261.63,                # C4
+    progression: @[
+      BarChord(rootSemi: 0, quality: cqMajor7),
+      BarChord(rootSemi: 9, quality: cqMinor7),
+      BarChord(rootSemi: 5, quality: cqMajor7),
+      BarChord(rootSemi: 7, quality: cqDom7)
+    ],
+    intensity: @[
+      0.25'f32, 0.30,
+      0.45, 0.50, 0.52, 0.55,
+      0.60, 0.60, 0.62, 0.62,
+      0.55, 0.55, 0.50, 0.45,
+      0.40, 0.35, 0.30, 0.28
+    ],
     melody: @[
-      Note(freq: D5, start: currentTime + 0.0, duration: 0.25),
-      Note(freq: E5, start: currentTime + 0.25, duration: 0.25),
-      Note(freq: F5, start: currentTime + 0.5, duration: 0.25),
-      Note(freq: G5, start: currentTime + 0.75, duration: 0.25),
-      Note(freq: A5, start: currentTime + 1.0, duration: 0.5),
-      Note(freq: G5, start: currentTime + 1.5, duration: 0.25),
-      Note(freq: F5, start: currentTime + 1.75, duration: 0.25),
-      Note(freq: E5, start: currentTime + 2.0, duration: 0.25),
-      Note(freq: D5, start: currentTime + 2.25, duration: 0.25),
-      Note(freq: A5, start: currentTime + 2.5, duration: 0.5),
-      Note(freq: G5, start: currentTime + 3.0, duration: 0.25),
-      Note(freq: A5, start: currentTime + 3.25, duration: 0.25),
-      Note(freq: F5, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: D5, start: currentTime + 4.0, duration: 0.25),
-      Note(freq: E5, start: currentTime + 4.25, duration: 0.25),
-      Note(freq: F5, start: currentTime + 4.5, duration: 0.25),
-      Note(freq: G5, start: currentTime + 4.75, duration: 0.25),
-      Note(freq: A5, start: currentTime + 5.0, duration: 0.5),
-      Note(freq: G5, start: currentTime + 5.5, duration: 0.5),
-      Note(freq: F5, start: currentTime + 6.0, duration: 0.5),
-      Note(freq: E5, start: currentTime + 6.5, duration: 0.75),
-      Note(freq: D5, start: currentTime + 7.25, duration: 0.75)
+      mn(16, 0.0, 1.5), mn(14, 2.0, 1.0), mn(19, 3.0, 1.0),
+      mn(16, 4.0, 2.0), mn(12, 6.5, 1.5),
+      mn(9, 8.0, 1.5), mn(12, 10.0, 1.0), mn(16, 11.0, 1.0),
+      mn(14, 12.0, 2.0), mn(11, 14.0, 2.0)
     ],
-    bass: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 0.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 1.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 1.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 2.0, duration: 0.5),
-      Note(freq: A4, start: currentTime + 2.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 3.0, duration: 0.5),
-      Note(freq: A4, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 4.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 4.5, duration: 0.5),
-      Note(freq: G4, start: currentTime + 5.0, duration: 1.0),
-      Note(freq: A4, start: currentTime + 6.0, duration: 2.0)
-    ],
-    harmony: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: A4, start: currentTime + 2.0, duration: 2.0),
-      Note(freq: F4, start: currentTime + 4.0, duration: 2.0),
-      Note(freq: E4, start: currentTime + 6.0, duration: 2.0)
-    ],
-    chords: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 1.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 2.0, duration: 1.0),
-      Note(freq: A3, start: currentTime + 3.0, duration: 1.0),
-      Note(freq: G3, start: currentTime + 4.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 5.0, duration: 1.0),
-      Note(freq: A3, start: currentTime + 6.0, duration: 2.0)
-    ]
-  )
-  result.add(intro)
-  currentTime += intro.duration
+    phraseBars: 4,
+    melodyInstr: ikBell,
+    leadVol: 0.11, bassVol: 0.12, padVol: 0.075, arpVol: 0.045,
+    drumVol: 0.025, arpStepBeats: 0.5, pumpDepth: 0.0,
+    echoDelay: 0.50, echoMix: 0.09)
 
-  # SECTION A - Relentless rapid-fire melody (14 seconds)
-  var sectionA = Section(
-    name: "Action Theme",
-    startTime: currentTime,
-    duration: 14.0,
-    melody: @[
-      Note(freq: D5, start: currentTime + 0.0, duration: 0.25),
-      Note(freq: F5, start: currentTime + 0.25, duration: 0.25),
-      Note(freq: A5, start: currentTime + 0.5, duration: 0.5),
-      Note(freq: D5, start: currentTime + 1.0, duration: 0.25),
-      Note(freq: F5, start: currentTime + 1.25, duration: 0.25),
-      Note(freq: G5, start: currentTime + 1.5, duration: 0.5),
-      Note(freq: F5, start: currentTime + 2.0, duration: 0.25),
-      Note(freq: E5, start: currentTime + 2.25, duration: 0.25),
-      Note(freq: D5, start: currentTime + 2.5, duration: 0.5),
-      Note(freq: A5, start: currentTime + 3.0, duration: 0.25),
-      Note(freq: G5, start: currentTime + 3.25, duration: 0.25),
-      Note(freq: F5, start: currentTime + 3.5, duration: 0.25),
-      Note(freq: E5, start: currentTime + 3.75, duration: 0.25),
-      Note(freq: D5, start: currentTime + 4.0, duration: 0.5),
-      Note(freq: F5, start: currentTime + 4.5, duration: 0.25),
-      Note(freq: A5, start: currentTime + 4.75, duration: 0.25),
-      Note(freq: G5, start: currentTime + 5.0, duration: 0.5),
-      Note(freq: F5, start: currentTime + 5.5, duration: 0.25),
-      Note(freq: D5, start: currentTime + 5.75, duration: 0.25),
-      Note(freq: E5, start: currentTime + 6.0, duration: 0.25),
-      Note(freq: F5, start: currentTime + 6.25, duration: 0.25),
-      Note(freq: G5, start: currentTime + 6.5, duration: 0.5),
-      Note(freq: A5, start: currentTime + 7.0, duration: 0.25),
-      Note(freq: G5, start: currentTime + 7.25, duration: 0.25),
-      Note(freq: F5, start: currentTime + 7.5, duration: 0.5),
-      Note(freq: D5, start: currentTime + 8.0, duration: 0.25),
-      Note(freq: E5, start: currentTime + 8.25, duration: 0.25),
-      Note(freq: F5, start: currentTime + 8.5, duration: 0.25),
-      Note(freq: A5, start: currentTime + 8.75, duration: 0.25),
-      Note(freq: G5, start: currentTime + 9.0, duration: 0.5),
-      Note(freq: F5, start: currentTime + 9.5, duration: 0.5),
-      Note(freq: E5, start: currentTime + 10.0, duration: 0.75),
-      Note(freq: D5, start: currentTime + 10.75, duration: 0.75),
-      Note(freq: F5, start: currentTime + 11.5, duration: 0.5),
-      Note(freq: A5, start: currentTime + 12.0, duration: 1.0),
-      Note(freq: G5, start: currentTime + 13.0, duration: 1.0)
-    ],
-    bass: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 0.5, duration: 0.5),
-      Note(freq: A4, start: currentTime + 1.0, duration: 0.5),
-      Note(freq: A4, start: currentTime + 1.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 2.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 2.5, duration: 0.5),
-      Note(freq: A4, start: currentTime + 3.0, duration: 0.5),
-      Note(freq: A4, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 4.0, duration: 0.5),
-      Note(freq: F4, start: currentTime + 4.5, duration: 0.5),
-      Note(freq: G4, start: currentTime + 5.0, duration: 1.0),
-      Note(freq: A4, start: currentTime + 6.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 7.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 7.5, duration: 0.5),
-      Note(freq: F4, start: currentTime + 8.0, duration: 1.0),
-      Note(freq: G4, start: currentTime + 9.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 10.0, duration: 4.0)
-    ],
-    harmony: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: A4, start: currentTime + 2.0, duration: 2.0),
-      Note(freq: F4, start: currentTime + 4.0, duration: 2.0),
-      Note(freq: D4, start: currentTime + 6.0, duration: 2.0),
-      Note(freq: E4, start: currentTime + 8.0, duration: 3.0),
-      Note(freq: F4, start: currentTime + 11.0, duration: 3.0)
-    ],
-    chords: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 0.75),
-      Note(freq: D4, start: currentTime + 0.75, duration: 0.75),
-      Note(freq: A3, start: currentTime + 1.5, duration: 0.75),
-      Note(freq: F4, start: currentTime + 2.25, duration: 0.75),
-      Note(freq: D4, start: currentTime + 3.0, duration: 1.0),
-      Note(freq: A3, start: currentTime + 4.0, duration: 0.75),
-      Note(freq: D4, start: currentTime + 4.75, duration: 0.75),
-      Note(freq: G3, start: currentTime + 5.5, duration: 1.0),
-      Note(freq: A3, start: currentTime + 6.5, duration: 1.0),
-      Note(freq: D4, start: currentTime + 7.5, duration: 1.0),
-      Note(freq: F4, start: currentTime + 8.5, duration: 1.0),
-      Note(freq: D4, start: currentTime + 9.5, duration: 1.5),
-      Note(freq: A3, start: currentTime + 11.0, duration: 3.0)
-    ]
-  )
-  result.add(sectionA)
-  currentTime += sectionA.duration
-
-  # SECTION B - Different pattern but equally frenetic (12 seconds)
-  var sectionB = Section(
-    name: "Contrast",
-    startTime: currentTime,
-    duration: 12.0,
-    melody: @[
-      Note(freq: E5, start: currentTime + 0.0, duration: 0.25),
-      Note(freq: G5, start: currentTime + 0.25, duration: 0.25),
-      Note(freq: C5, start: currentTime + 0.5, duration: 0.25),
-      Note(freq: E5, start: currentTime + 0.75, duration: 0.25),
-      Note(freq: D5, start: currentTime + 1.0, duration: 0.5),
-      Note(freq: E5, start: currentTime + 1.5, duration: 0.25),
-      Note(freq: G5, start: currentTime + 1.75, duration: 0.25),
-      Note(freq: F5, start: currentTime + 2.0, duration: 0.5),
-      Note(freq: E5, start: currentTime + 2.5, duration: 0.25),
-      Note(freq: D5, start: currentTime + 2.75, duration: 0.25),
-      Note(freq: C5, start: currentTime + 3.0, duration: 0.5),
-      Note(freq: E5, start: currentTime + 3.5, duration: 0.25),
-      Note(freq: G5, start: currentTime + 3.75, duration: 0.25),
-      Note(freq: A5, start: currentTime + 4.0, duration: 0.5),
-      Note(freq: G5, start: currentTime + 4.5, duration: 0.25),
-      Note(freq: F5, start: currentTime + 4.75, duration: 0.25),
-      Note(freq: E5, start: currentTime + 5.0, duration: 0.5),
-      Note(freq: D5, start: currentTime + 5.5, duration: 0.5),
-      Note(freq: C5, start: currentTime + 6.0, duration: 0.25),
-      Note(freq: D5, start: currentTime + 6.25, duration: 0.25),
-      Note(freq: E5, start: currentTime + 6.5, duration: 0.5),
-      Note(freq: G5, start: currentTime + 7.0, duration: 0.5),
-      Note(freq: F5, start: currentTime + 7.5, duration: 0.25),
-      Note(freq: E5, start: currentTime + 7.75, duration: 0.25),
-      Note(freq: D5, start: currentTime + 8.0, duration: 0.75),
-      Note(freq: E5, start: currentTime + 8.75, duration: 0.75),
-      Note(freq: G5, start: currentTime + 9.5, duration: 1.0),
-      Note(freq: C5, start: currentTime + 10.5, duration: 1.5)
-    ],
-    bass: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 0.5),
-      Note(freq: C4, start: currentTime + 0.5, duration: 0.5),
-      Note(freq: E4, start: currentTime + 1.0, duration: 0.5),
-      Note(freq: E4, start: currentTime + 1.5, duration: 0.5),
-      Note(freq: G4, start: currentTime + 2.0, duration: 0.5),
-      Note(freq: C4, start: currentTime + 2.5, duration: 0.5),
-      Note(freq: E4, start: currentTime + 3.0, duration: 0.5),
-      Note(freq: G4, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: C4, start: currentTime + 4.0, duration: 1.0),
-      Note(freq: G4, start: currentTime + 5.0, duration: 1.0),
-      Note(freq: C4, start: currentTime + 6.0, duration: 0.5),
-      Note(freq: E4, start: currentTime + 6.5, duration: 0.5),
-      Note(freq: G4, start: currentTime + 7.0, duration: 1.0),
-      Note(freq: C4, start: currentTime + 8.0, duration: 4.0)
-    ],
-    harmony: @[
-      Note(freq: E4, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: G4, start: currentTime + 2.0, duration: 2.0),
-      Note(freq: E4, start: currentTime + 4.0, duration: 2.0),
-      Note(freq: C4, start: currentTime + 6.0, duration: 2.0),
-      Note(freq: E4, start: currentTime + 8.0, duration: 4.0)
-    ],
-    chords: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 1.0),
-      Note(freq: E4, start: currentTime + 1.0, duration: 1.0),
-      Note(freq: G3, start: currentTime + 2.0, duration: 1.0),
-      Note(freq: C4, start: currentTime + 3.0, duration: 1.0),
-      Note(freq: E4, start: currentTime + 4.0, duration: 1.5),
-      Note(freq: G3, start: currentTime + 5.5, duration: 1.5),
-      Note(freq: C4, start: currentTime + 7.0, duration: 1.5),
-      Note(freq: E4, start: currentTime + 8.5, duration: 3.5)
-    ]
-  )
-  result.add(sectionB)
-  currentTime += sectionB.duration
-
-  # OUTRO - Sustained frenetic energy with resolution (14 seconds)
-  var outro = Section(
-    name: "Outro",
-    startTime: currentTime,
-    duration: 14.0,
-    melody: @[
-      Note(freq: A5, start: currentTime + 0.0, duration: 0.5),
-      Note(freq: G5, start: currentTime + 0.5, duration: 0.5),
-      Note(freq: F5, start: currentTime + 1.0, duration: 0.25),
-      Note(freq: E5, start: currentTime + 1.25, duration: 0.25),
-      Note(freq: D5, start: currentTime + 1.5, duration: 0.5),
-      Note(freq: F5, start: currentTime + 2.0, duration: 0.25),
-      Note(freq: A5, start: currentTime + 2.25, duration: 0.25),
-      Note(freq: G5, start: currentTime + 2.5, duration: 0.5),
-      Note(freq: F5, start: currentTime + 3.0, duration: 0.5),
-      Note(freq: D5, start: currentTime + 3.5, duration: 0.25),
-      Note(freq: E5, start: currentTime + 3.75, duration: 0.25),
-      Note(freq: F5, start: currentTime + 4.0, duration: 0.5),
-      Note(freq: A5, start: currentTime + 4.5, duration: 0.5),
-      Note(freq: G5, start: currentTime + 5.0, duration: 0.75),
-      Note(freq: F5, start: currentTime + 5.75, duration: 0.75),
-      Note(freq: D5, start: currentTime + 6.5, duration: 1.0),
-      Note(freq: F5, start: currentTime + 7.5, duration: 0.5),
-      Note(freq: A5, start: currentTime + 8.0, duration: 1.0),
-      Note(freq: G5, start: currentTime + 9.0, duration: 1.0),
-      Note(freq: D5, start: currentTime + 10.0, duration: 4.0)
-    ],
-    bass: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 0.5, duration: 0.5),
-      Note(freq: G4, start: currentTime + 1.0, duration: 1.0),
-      Note(freq: A4, start: currentTime + 2.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 3.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: F4, start: currentTime + 4.0, duration: 1.0),
-      Note(freq: G4, start: currentTime + 5.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 6.0, duration: 8.0)
-    ],
-    harmony: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 3.0),
-      Note(freq: A4, start: currentTime + 3.0, duration: 3.0),
-      Note(freq: D4, start: currentTime + 6.0, duration: 8.0)
-    ],
-    chords: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 1.0),
-      Note(freq: G3, start: currentTime + 1.0, duration: 1.0),
-      Note(freq: A3, start: currentTime + 2.0, duration: 1.5),
-      Note(freq: D4, start: currentTime + 3.5, duration: 1.5),
-      Note(freq: F4, start: currentTime + 5.0, duration: 1.5),
-      Note(freq: D4, start: currentTime + 6.5, duration: 7.5)
-    ]
-  )
-  result.add(outro)
+  result = composeTrack(spec, filename, 0.92)
 
 proc createWaveMusic(filename: string): Music =
-  let sections = createWaveMusicSections()
-  var samples = newSeq[float32](int(MUSIC_DURATION * SAMPLE_RATE.float32))
-
-  for section in sections:
-    # Still frenetic but much quieter in the background
-    renderNotes(section.melody, samples, inMelody, 0.14)
-    renderNotes(section.bass, samples, inBass, 0.17)
-    renderNotes(section.harmony, samples, inPad, 0.09)
-    renderChords(section.chords, samples, 0.20)  # Driving piano chords
-    applySectionDynamics(samples, section, 0.75)
-
-  renderTrackEnhancements(mtWave, sections, samples)
-  result = finishMusic(samples, filename, 0.54)
-
-# POWER-UP MUSIC
-
-proc createPowerUpMusicSections(): seq[Section] =
-  result = @[]
-  var currentTime = 0.0'f32
-
-  # INTRO - Bright opening (8 seconds)
-  var intro = Section(
-    name: "Intro",
-    startTime: currentTime,
-    duration: 8.0,
+  ## Driving combat loop in D minor: Dm - Bb - F - C with a supersaw lead.
+  let spec = TrackSpec(
+    bpm: 140.0,                   # 28 bars in 48 s
+    tonic: 293.66,                # D4
+    progression: @[
+      BarChord(rootSemi: 0, quality: cqMinor),
+      BarChord(rootSemi: 8, quality: cqMajor),
+      BarChord(rootSemi: 3, quality: cqMajor),
+      BarChord(rootSemi: 10, quality: cqMajor)
+    ],
+    intensity: @[
+      0.55'f32, 0.60, 0.65, 0.70,
+      0.75, 0.75, 0.80, 0.80,
+      0.80, 0.85, 0.85, 0.85,
+      0.55, 0.50, 0.55, 0.60,
+      0.90, 0.90, 0.92, 0.92,
+      0.95, 0.95, 0.95, 0.95,
+      0.80, 0.75, 0.70, 0.65
+    ],
     melody: @[
-      Note(freq: C5, start: currentTime + 0.0, duration: 1.0),
-      Note(freq: E5, start: currentTime + 1.0, duration: 1.0),
-      Note(freq: G5, start: currentTime + 2.0, duration: 1.5),
-      Note(freq: REST, start: currentTime + 3.5, duration: 1.0),
-      Note(freq: E5, start: currentTime + 4.5, duration: 1.5),
-      Note(freq: C5, start: currentTime + 6.0, duration: 2.0)
+      mn(12, 0.0, 0.75, 0.3), mn(7, 0.75, 0.25), mn(12, 1.0, 0.5),
+      mn(15, 1.5, 0.5), mn(14, 2.0, 1.0), mn(12, 3.0, 1.0),
+      mn(15, 4.0, 0.75, 0.3), mn(12, 4.75, 0.25), mn(15, 5.0, 0.5),
+      mn(17, 5.5, 0.5), mn(15, 6.0, 1.0), mn(12, 7.0, 1.0),
+      mn(7, 8.0, 0.5), mn(10, 8.5, 0.5), mn(15, 9.0, 1.0, 0.3),
+      mn(14, 10.0, 1.0), mn(10, 11.0, 1.0),
+      mn(14, 12.0, 0.5), mn(15, 12.5, 0.5), mn(14, 13.0, 0.5),
+      mn(12, 13.5, 0.5), mn(7, 14.0, 1.0), mn(10, 15.0, 1.0)
     ],
-    bass: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 4.0),
-      Note(freq: G4, start: currentTime + 4.0, duration: 4.0)
-    ],
-    harmony: @[],
-    chords: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 1.5),
-      Note(freq: E4, start: currentTime + 1.5, duration: 1.5),
-      Note(freq: G3, start: currentTime + 3.0, duration: 1.5),
-      Note(freq: C4, start: currentTime + 4.5, duration: 1.5),
-      Note(freq: G3, start: currentTime + 6.0, duration: 2.0)
-    ]
-  )
-  result.add(intro)
-  currentTime += intro.duration
+    phraseBars: 4,
+    melodyInstr: ikLead,
+    leadVol: 0.10, bassVol: 0.15, padVol: 0.055, arpVol: 0.055,
+    drumVol: 0.085, arpStepBeats: 0.25, pumpDepth: 0.45,
+    echoDelay: 0.321, echoMix: 0.06)
 
-  # SECTION A - Joyful main theme (14 seconds)
-  var sectionA = Section(
-    name: "Joyful Theme",
-    startTime: currentTime,
-    duration: 14.0,
-    melody: @[
-      Note(freq: E5, start: currentTime + 0.0, duration: 1.0),
-      Note(freq: G5, start: currentTime + 1.0, duration: 1.0),
-      Note(freq: C5, start: currentTime + 2.0, duration: 1.5),
-      Note(freq: REST, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: A5, start: currentTime + 4.0, duration: 1.5),
-      Note(freq: G5, start: currentTime + 5.5, duration: 1.5),
-      Note(freq: REST, start: currentTime + 7.0, duration: 1.0),
-      Note(freq: E5, start: currentTime + 8.0, duration: 1.5),
-      Note(freq: F5, start: currentTime + 9.5, duration: 1.0),
-      Note(freq: G5, start: currentTime + 10.5, duration: 3.5)
-    ],
-    bass: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 3.0),
-      Note(freq: REST, start: currentTime + 3.0, duration: 0.5),
-      Note(freq: F4, start: currentTime + 3.5, duration: 3.0),
-      Note(freq: REST, start: currentTime + 6.5, duration: 0.5),
-      Note(freq: C4, start: currentTime + 7.0, duration: 3.5),
-      Note(freq: G4, start: currentTime + 10.5, duration: 3.5)
-    ],
-    harmony: @[
-      Note(freq: E4, start: currentTime + 0.0, duration: 4.0),
-      Note(freq: A4, start: currentTime + 4.0, duration: 3.0),
-      Note(freq: REST, start: currentTime + 7.0, duration: 1.0),
-      Note(freq: E4, start: currentTime + 8.0, duration: 6.0)
-    ],
-    chords: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 1.5),
-      Note(freq: E4, start: currentTime + 1.5, duration: 1.5),
-      Note(freq: F4, start: currentTime + 3.0, duration: 1.5),
-      Note(freq: A3, start: currentTime + 4.5, duration: 1.5),
-      Note(freq: C4, start: currentTime + 6.0, duration: 2.0),
-      Note(freq: E4, start: currentTime + 8.0, duration: 3.0),
-      Note(freq: G3, start: currentTime + 11.0, duration: 3.0)
-    ]
-  )
-  result.add(sectionA)
-  currentTime += sectionA.duration
-
-  # SECTION B - Building variation (12 seconds)
-  var sectionB = Section(
-    name: "Building",
-    startTime: currentTime,
-    duration: 12.0,
-    melody: @[
-      Note(freq: C5, start: currentTime + 0.0, duration: 1.0),
-      Note(freq: D5, start: currentTime + 1.0, duration: 1.0),
-      Note(freq: E5, start: currentTime + 2.0, duration: 1.5),
-      Note(freq: G5, start: currentTime + 3.5, duration: 2.0),
-      Note(freq: REST, start: currentTime + 5.5, duration: 1.0),
-      Note(freq: A5, start: currentTime + 6.5, duration: 1.5),
-      Note(freq: G5, start: currentTime + 8.0, duration: 1.5),
-      Note(freq: E5, start: currentTime + 9.5, duration: 2.5)
-    ],
-    bass: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 3.0),
-      Note(freq: C4, start: currentTime + 3.0, duration: 3.0),
-      Note(freq: REST, start: currentTime + 6.0, duration: 0.5),
-      Note(freq: G4, start: currentTime + 6.5, duration: 5.5)
-    ],
-    harmony: @[
-      Note(freq: A4, start: currentTime + 0.0, duration: 3.0),
-      Note(freq: E4, start: currentTime + 3.0, duration: 3.0),
-      Note(freq: REST, start: currentTime + 6.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 7.0, duration: 5.0)
-    ],
-    chords: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 1.5),
-      Note(freq: C4, start: currentTime + 1.5, duration: 1.5),
-      Note(freq: E4, start: currentTime + 3.0, duration: 1.5),
-      Note(freq: A3, start: currentTime + 4.5, duration: 1.5),
-      Note(freq: G3, start: currentTime + 6.0, duration: 1.5),
-      Note(freq: D4, start: currentTime + 7.5, duration: 2.0),
-      Note(freq: F4, start: currentTime + 9.5, duration: 2.5)
-    ]
-  )
-  result.add(sectionB)
-  currentTime += sectionB.duration
-
-  # OUTRO - Gentle close (14 seconds)
-  var outro = Section(
-    name: "Outro",
-    startTime: currentTime,
-    duration: 14.0,
-    melody: @[
-      Note(freq: G5, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: E5, start: currentTime + 2.5, duration: 2.0),
-      Note(freq: REST, start: currentTime + 4.5, duration: 1.5),
-      Note(freq: C5, start: currentTime + 6.0, duration: 3.0),
-      Note(freq: REST, start: currentTime + 9.0, duration: 5.0)
-    ],
-    bass: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 4.0),
-      Note(freq: G4, start: currentTime + 4.0, duration: 5.0),
-      Note(freq: C4, start: currentTime + 9.0, duration: 5.0)
-    ],
-    harmony: @[
-      Note(freq: E4, start: currentTime + 0.0, duration: 5.0),
-      Note(freq: REST, start: currentTime + 5.0, duration: 1.0),
-      Note(freq: G4, start: currentTime + 6.0, duration: 8.0)
-    ],
-    chords: @[
-      Note(freq: C4, start: currentTime + 0.0, duration: 2.5),
-      Note(freq: E4, start: currentTime + 2.5, duration: 2.5),
-      Note(freq: G3, start: currentTime + 5.0, duration: 2.5),
-      Note(freq: C4, start: currentTime + 7.5, duration: 6.5)
-    ]
-  )
-  result.add(outro)
+  result = composeTrack(spec, filename, 0.88)
 
 proc createPowerUpMusic(filename: string): Music =
-  let sections = createPowerUpMusicSections()
-  var samples = newSeq[float32](int(MUSIC_DURATION * SAMPLE_RATE.float32))
-
-  for section in sections:
-    # Uplifting but gentle and unobtrusive
-    renderNotes(section.melody, samples, inMelody, 0.13)
-    renderNotes(section.bass, samples, inBass, 0.16)
-    renderNotes(section.harmony, samples, inPad, 0.08)
-    renderChords(section.chords, samples, 0.19)  # Bright piano chords
-    applySectionDynamics(samples, section, 0.7)
-
-  renderTrackEnhancements(mtPowerUp, sections, samples)
-  result = finishMusic(samples, filename, 0.56)
-
-# BOSS MUSIC
-
-proc createBossMusicSections(): seq[Section] =
-  result = @[]
-  var currentTime = 0.0'f32
-
-  # INTRO - Immediate aggressive frenzy (8 seconds)
-  var intro = Section(
-    name: "Intro",
-    startTime: currentTime,
-    duration: 8.0,
+  ## Uplifting reward loop in C major: C - G - Am - F with bright plucks.
+  let spec = TrackSpec(
+    bpm: 110.0,                   # 22 bars in 48 s
+    tonic: 261.63,                # C4
+    progression: @[
+      BarChord(rootSemi: 0, quality: cqMajor),
+      BarChord(rootSemi: 7, quality: cqMajor),
+      BarChord(rootSemi: 9, quality: cqMinor),
+      BarChord(rootSemi: 5, quality: cqMajor)
+    ],
+    intensity: @[
+      0.30'f32, 0.40,
+      0.55, 0.60, 0.60, 0.65,
+      0.70, 0.70, 0.75, 0.75,
+      0.80, 0.80, 0.80, 0.78,
+      0.70, 0.65, 0.60, 0.55,
+      0.50, 0.45, 0.40, 0.35
+    ],
     melody: @[
-      Note(freq: D5, start: currentTime + 0.0, duration: 0.2),
-      Note(freq: F5, start: currentTime + 0.2, duration: 0.2),
-      Note(freq: D5, start: currentTime + 0.4, duration: 0.2),
-      Note(freq: A5, start: currentTime + 0.6, duration: 0.2),
-      Note(freq: G5, start: currentTime + 0.8, duration: 0.4),
-      Note(freq: F5, start: currentTime + 1.2, duration: 0.2),
-      Note(freq: E5, start: currentTime + 1.4, duration: 0.2),
-      Note(freq: D5, start: currentTime + 1.6, duration: 0.4),
-      Note(freq: A5, start: currentTime + 2.0, duration: 0.2),
-      Note(freq: G5, start: currentTime + 2.2, duration: 0.2),
-      Note(freq: F5, start: currentTime + 2.4, duration: 0.2),
-      Note(freq: D5, start: currentTime + 2.6, duration: 0.2),
-      Note(freq: E5, start: currentTime + 2.8, duration: 0.4),
-      Note(freq: F5, start: currentTime + 3.2, duration: 0.2),
-      Note(freq: A5, start: currentTime + 3.4, duration: 0.2),
-      Note(freq: G5, start: currentTime + 3.6, duration: 0.4),
-      Note(freq: D5, start: currentTime + 4.0, duration: 0.2),
-      Note(freq: F5, start: currentTime + 4.2, duration: 0.2),
-      Note(freq: A5, start: currentTime + 4.4, duration: 0.2),
-      Note(freq: G5, start: currentTime + 4.6, duration: 0.2),
-      Note(freq: F5, start: currentTime + 4.8, duration: 0.4),
-      Note(freq: E5, start: currentTime + 5.2, duration: 0.2),
-      Note(freq: D5, start: currentTime + 5.4, duration: 0.2),
-      Note(freq: F5, start: currentTime + 5.6, duration: 0.4),
-      Note(freq: A5, start: currentTime + 6.0, duration: 0.5),
-      Note(freq: G5, start: currentTime + 6.5, duration: 0.5),
-      Note(freq: F5, start: currentTime + 7.0, duration: 1.0)
+      mn(19, 0.0, 1.0), mn(16, 1.0, 1.0), mn(12, 2.0, 2.0),
+      mn(14, 4.0, 1.0), mn(11, 5.0, 1.0), mn(7, 6.0, 2.0),
+      mn(9, 8.0, 1.5), mn(12, 9.5, 1.5), mn(16, 11.0, 1.0),
+      mn(14, 12.0, 1.0), mn(17, 13.0, 1.0), mn(16, 14.0, 2.0)
     ],
-    bass: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 0.4),
-      Note(freq: D4, start: currentTime + 0.4, duration: 0.4),
-      Note(freq: D4, start: currentTime + 0.8, duration: 0.4),
-      Note(freq: A4, start: currentTime + 1.2, duration: 0.4),
-      Note(freq: D4, start: currentTime + 1.6, duration: 0.4),
-      Note(freq: A4, start: currentTime + 2.0, duration: 0.4),
-      Note(freq: D4, start: currentTime + 2.4, duration: 0.4),
-      Note(freq: D4, start: currentTime + 2.8, duration: 0.4),
-      Note(freq: F4, start: currentTime + 3.2, duration: 0.4),
-      Note(freq: A4, start: currentTime + 3.6, duration: 0.4),
-      Note(freq: D4, start: currentTime + 4.0, duration: 0.4),
-      Note(freq: D4, start: currentTime + 4.4, duration: 0.4),
-      Note(freq: F4, start: currentTime + 4.8, duration: 0.4),
-      Note(freq: F4, start: currentTime + 5.2, duration: 0.4),
-      Note(freq: A4, start: currentTime + 5.6, duration: 0.4),
-      Note(freq: D4, start: currentTime + 6.0, duration: 2.0)
-    ],
-    harmony: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: A4, start: currentTime + 2.0, duration: 2.0),
-      Note(freq: F4, start: currentTime + 4.0, duration: 2.0),
-      Note(freq: A4, start: currentTime + 6.0, duration: 2.0)
-    ],
-    chords: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 0.5, duration: 0.5),
-      Note(freq: A3, start: currentTime + 1.0, duration: 0.5),
-      Note(freq: F4, start: currentTime + 1.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 2.0, duration: 1.0),
-      Note(freq: A3, start: currentTime + 3.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 4.0, duration: 1.0),
-      Note(freq: F4, start: currentTime + 5.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 6.0, duration: 2.0)
-    ]
-  )
-  result.add(intro)
-  currentTime += intro.duration
+    phraseBars: 4,
+    melodyInstr: ikLead,
+    leadVol: 0.095, bassVol: 0.13, padVol: 0.065, arpVol: 0.055,
+    drumVol: 0.05, arpStepBeats: 0.5, pumpDepth: 0.25,
+    echoDelay: 0.409, echoMix: 0.07)
 
-  # SECTION A - Maximum intensity with rapid-fire notes (14 seconds)
-  var sectionA = Section(
-    name: "Aggression",
-    startTime: currentTime,
-    duration: 14.0,
-    melody: @[
-      Note(freq: D5, start: currentTime + 0.0, duration: 0.2),
-      Note(freq: F5, start: currentTime + 0.2, duration: 0.2),
-      Note(freq: A5, start: currentTime + 0.4, duration: 0.4),
-      Note(freq: G5, start: currentTime + 0.8, duration: 0.2),
-      Note(freq: F5, start: currentTime + 1.0, duration: 0.2),
-      Note(freq: D5, start: currentTime + 1.2, duration: 0.2),
-      Note(freq: A5, start: currentTime + 1.4, duration: 0.2),
-      Note(freq: G5, start: currentTime + 1.6, duration: 0.4),
-      Note(freq: F5, start: currentTime + 2.0, duration: 0.2),
-      Note(freq: E5, start: currentTime + 2.2, duration: 0.2),
-      Note(freq: D5, start: currentTime + 2.4, duration: 0.2),
-      Note(freq: F5, start: currentTime + 2.6, duration: 0.2),
-      Note(freq: A5, start: currentTime + 2.8, duration: 0.4),
-      Note(freq: G5, start: currentTime + 3.2, duration: 0.2),
-      Note(freq: F5, start: currentTime + 3.4, duration: 0.2),
-      Note(freq: D5, start: currentTime + 3.6, duration: 0.4),
-      Note(freq: E5, start: currentTime + 4.0, duration: 0.2),
-      Note(freq: F5, start: currentTime + 4.2, duration: 0.2),
-      Note(freq: A5, start: currentTime + 4.4, duration: 0.2),
-      Note(freq: G5, start: currentTime + 4.6, duration: 0.2),
-      Note(freq: F5, start: currentTime + 4.8, duration: 0.4),
-      Note(freq: D5, start: currentTime + 5.2, duration: 0.2),
-      Note(freq: E5, start: currentTime + 5.4, duration: 0.2),
-      Note(freq: F5, start: currentTime + 5.6, duration: 0.4),
-      Note(freq: A5, start: currentTime + 6.0, duration: 0.2),
-      Note(freq: G5, start: currentTime + 6.2, duration: 0.2),
-      Note(freq: F5, start: currentTime + 6.4, duration: 0.2),
-      Note(freq: E5, start: currentTime + 6.6, duration: 0.2),
-      Note(freq: D5, start: currentTime + 6.8, duration: 0.4),
-      Note(freq: F5, start: currentTime + 7.2, duration: 0.2),
-      Note(freq: A5, start: currentTime + 7.4, duration: 0.2),
-      Note(freq: G5, start: currentTime + 7.6, duration: 0.4),
-      Note(freq: D5, start: currentTime + 8.0, duration: 0.2),
-      Note(freq: F5, start: currentTime + 8.2, duration: 0.2),
-      Note(freq: A5, start: currentTime + 8.4, duration: 0.4),
-      Note(freq: G5, start: currentTime + 8.8, duration: 0.4),
-      Note(freq: F5, start: currentTime + 9.2, duration: 0.2),
-      Note(freq: E5, start: currentTime + 9.4, duration: 0.2),
-      Note(freq: D5, start: currentTime + 9.6, duration: 0.4),
-      Note(freq: A5, start: currentTime + 10.0, duration: 0.5),
-      Note(freq: G5, start: currentTime + 10.5, duration: 0.5),
-      Note(freq: F5, start: currentTime + 11.0, duration: 0.75),
-      Note(freq: D5, start: currentTime + 11.75, duration: 0.75),
-      Note(freq: F5, start: currentTime + 12.5, duration: 0.5),
-      Note(freq: A5, start: currentTime + 13.0, duration: 1.0)
-    ],
-    bass: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 0.4),
-      Note(freq: D4, start: currentTime + 0.4, duration: 0.4),
-      Note(freq: A4, start: currentTime + 0.8, duration: 0.4),
-      Note(freq: A4, start: currentTime + 1.2, duration: 0.4),
-      Note(freq: D4, start: currentTime + 1.6, duration: 0.4),
-      Note(freq: F4, start: currentTime + 2.0, duration: 0.4),
-      Note(freq: D4, start: currentTime + 2.4, duration: 0.4),
-      Note(freq: A4, start: currentTime + 2.8, duration: 0.4),
-      Note(freq: F4, start: currentTime + 3.2, duration: 0.4),
-      Note(freq: D4, start: currentTime + 3.6, duration: 0.4),
-      Note(freq: D4, start: currentTime + 4.0, duration: 0.4),
-      Note(freq: F4, start: currentTime + 4.4, duration: 0.4),
-      Note(freq: A4, start: currentTime + 4.8, duration: 0.8),
-      Note(freq: D4, start: currentTime + 5.6, duration: 0.4),
-      Note(freq: F4, start: currentTime + 6.0, duration: 0.5),
-      Note(freq: A4, start: currentTime + 6.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 7.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 7.5, duration: 0.5),
-      Note(freq: F4, start: currentTime + 8.0, duration: 1.0),
-      Note(freq: A4, start: currentTime + 9.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 10.0, duration: 4.0)
-    ],
-    harmony: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: A4, start: currentTime + 2.0, duration: 2.0),
-      Note(freq: C5, start: currentTime + 4.0, duration: 2.0),
-      Note(freq: F4, start: currentTime + 6.0, duration: 2.0),
-      Note(freq: A4, start: currentTime + 8.0, duration: 3.0),
-      Note(freq: F4, start: currentTime + 11.0, duration: 3.0)
-    ],
-    chords: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 0.5),
-      Note(freq: A3, start: currentTime + 0.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 1.0, duration: 0.5),
-      Note(freq: F4, start: currentTime + 1.5, duration: 0.5),
-      Note(freq: A3, start: currentTime + 2.0, duration: 0.75),
-      Note(freq: D4, start: currentTime + 2.75, duration: 0.75),
-      Note(freq: F4, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 4.0, duration: 1.0),
-      Note(freq: A3, start: currentTime + 5.0, duration: 1.0),
-      Note(freq: F4, start: currentTime + 6.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 7.0, duration: 1.5),
-      Note(freq: F4, start: currentTime + 8.5, duration: 1.5),
-      Note(freq: A3, start: currentTime + 10.0, duration: 4.0)
-    ]
-  )
-  result.add(sectionA)
-  currentTime += sectionA.duration
-
-  # SECTION B - Different harmonic area but equally frenetic (12 seconds)
-  var sectionB = Section(
-    name: "Development",
-    startTime: currentTime,
-    duration: 12.0,
-    melody: @[
-      Note(freq: A5, start: currentTime + 0.0, duration: 0.2),
-      Note(freq: G5, start: currentTime + 0.2, duration: 0.2),
-      Note(freq: F5, start: currentTime + 0.4, duration: 0.2),
-      Note(freq: E5, start: currentTime + 0.6, duration: 0.2),
-      Note(freq: D5, start: currentTime + 0.8, duration: 0.4),
-      Note(freq: F5, start: currentTime + 1.2, duration: 0.2),
-      Note(freq: A5, start: currentTime + 1.4, duration: 0.2),
-      Note(freq: G5, start: currentTime + 1.6, duration: 0.4),
-      Note(freq: F5, start: currentTime + 2.0, duration: 0.2),
-      Note(freq: E5, start: currentTime + 2.2, duration: 0.2),
-      Note(freq: D5, start: currentTime + 2.4, duration: 0.2),
-      Note(freq: C5, start: currentTime + 2.6, duration: 0.2),
-      Note(freq: D5, start: currentTime + 2.8, duration: 0.4),
-      Note(freq: F5, start: currentTime + 3.2, duration: 0.2),
-      Note(freq: E5, start: currentTime + 3.4, duration: 0.2),
-      Note(freq: D5, start: currentTime + 3.6, duration: 0.4),
-      Note(freq: A5, start: currentTime + 4.0, duration: 0.2),
-      Note(freq: G5, start: currentTime + 4.2, duration: 0.2),
-      Note(freq: F5, start: currentTime + 4.4, duration: 0.2),
-      Note(freq: E5, start: currentTime + 4.6, duration: 0.2),
-      Note(freq: D5, start: currentTime + 4.8, duration: 0.4),
-      Note(freq: C5, start: currentTime + 5.2, duration: 0.2),
-      Note(freq: D5, start: currentTime + 5.4, duration: 0.2),
-      Note(freq: E5, start: currentTime + 5.6, duration: 0.4),
-      Note(freq: F5, start: currentTime + 6.0, duration: 0.2),
-      Note(freq: E5, start: currentTime + 6.2, duration: 0.2),
-      Note(freq: D5, start: currentTime + 6.4, duration: 0.2),
-      Note(freq: C5, start: currentTime + 6.6, duration: 0.2),
-      Note(freq: D5, start: currentTime + 6.8, duration: 0.4),
-      Note(freq: E5, start: currentTime + 7.2, duration: 0.2),
-      Note(freq: F5, start: currentTime + 7.4, duration: 0.2),
-      Note(freq: A5, start: currentTime + 7.6, duration: 0.4),
-      Note(freq: G5, start: currentTime + 8.0, duration: 0.5),
-      Note(freq: F5, start: currentTime + 8.5, duration: 0.5),
-      Note(freq: E5, start: currentTime + 9.0, duration: 0.75),
-      Note(freq: D5, start: currentTime + 9.75, duration: 0.75),
-      Note(freq: F5, start: currentTime + 10.5, duration: 1.5)
-    ],
-    bass: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 0.4),
-      Note(freq: F4, start: currentTime + 0.4, duration: 0.4),
-      Note(freq: C4, start: currentTime + 0.8, duration: 0.4),
-      Note(freq: C4, start: currentTime + 1.2, duration: 0.4),
-      Note(freq: F4, start: currentTime + 1.6, duration: 0.4),
-      Note(freq: A4, start: currentTime + 2.0, duration: 0.4),
-      Note(freq: C4, start: currentTime + 2.4, duration: 0.4),
-      Note(freq: D4, start: currentTime + 2.8, duration: 0.4),
-      Note(freq: F4, start: currentTime + 3.2, duration: 0.4),
-      Note(freq: D4, start: currentTime + 3.6, duration: 0.4),
-      Note(freq: F4, start: currentTime + 4.0, duration: 0.5),
-      Note(freq: C4, start: currentTime + 4.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 5.0, duration: 0.5),
-      Note(freq: F4, start: currentTime + 5.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 6.0, duration: 1.0),
-      Note(freq: F4, start: currentTime + 7.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 8.0, duration: 4.0)
-    ],
-    harmony: @[
-      Note(freq: A4, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: E4, start: currentTime + 2.0, duration: 2.0),
-      Note(freq: F4, start: currentTime + 4.0, duration: 2.0),
-      Note(freq: A4, start: currentTime + 6.0, duration: 2.0),
-      Note(freq: F4, start: currentTime + 8.0, duration: 4.0)
-    ],
-    chords: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 0.75),
-      Note(freq: C4, start: currentTime + 0.75, duration: 0.75),
-      Note(freq: F4, start: currentTime + 1.5, duration: 0.75),
-      Note(freq: A3, start: currentTime + 2.25, duration: 0.75),
-      Note(freq: D4, start: currentTime + 3.0, duration: 1.0),
-      Note(freq: F4, start: currentTime + 4.0, duration: 1.0),
-      Note(freq: A3, start: currentTime + 5.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 6.0, duration: 1.5),
-      Note(freq: F4, start: currentTime + 7.5, duration: 1.5),
-      Note(freq: D4, start: currentTime + 9.0, duration: 3.0)
-    ]
-  )
-  result.add(sectionB)
-  currentTime += sectionB.duration
-
-  # OUTRO - Relentless to the end (14 seconds)
-  var outro = Section(
-    name: "Outro",
-    startTime: currentTime,
-    duration: 14.0,
-    melody: @[
-      Note(freq: D5, start: currentTime + 0.0, duration: 0.25),
-      Note(freq: F5, start: currentTime + 0.25, duration: 0.25),
-      Note(freq: A5, start: currentTime + 0.5, duration: 0.5),
-      Note(freq: G5, start: currentTime + 1.0, duration: 0.5),
-      Note(freq: F5, start: currentTime + 1.5, duration: 0.5),
-      Note(freq: D5, start: currentTime + 2.0, duration: 0.5),
-      Note(freq: A5, start: currentTime + 2.5, duration: 0.5),
-      Note(freq: G5, start: currentTime + 3.0, duration: 0.5),
-      Note(freq: F5, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: D5, start: currentTime + 4.0, duration: 0.5),
-      Note(freq: F5, start: currentTime + 4.5, duration: 0.5),
-      Note(freq: A5, start: currentTime + 5.0, duration: 0.75),
-      Note(freq: G5, start: currentTime + 5.75, duration: 0.75),
-      Note(freq: F5, start: currentTime + 6.5, duration: 0.75),
-      Note(freq: E5, start: currentTime + 7.25, duration: 0.75),
-      Note(freq: D5, start: currentTime + 8.0, duration: 1.0),
-      Note(freq: F5, start: currentTime + 9.0, duration: 1.0),
-      Note(freq: A5, start: currentTime + 10.0, duration: 1.5),
-      Note(freq: D5, start: currentTime + 11.5, duration: 2.5)
-    ],
-    bass: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 0.5),
-      Note(freq: D4, start: currentTime + 0.5, duration: 0.5),
-      Note(freq: A4, start: currentTime + 1.0, duration: 0.5),
-      Note(freq: F4, start: currentTime + 1.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 2.0, duration: 0.5),
-      Note(freq: A4, start: currentTime + 2.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 3.0, duration: 0.5),
-      Note(freq: F4, start: currentTime + 3.5, duration: 0.5),
-      Note(freq: D4, start: currentTime + 4.0, duration: 1.0),
-      Note(freq: A4, start: currentTime + 5.0, duration: 1.0),
-      Note(freq: F4, start: currentTime + 6.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 7.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 8.0, duration: 6.0)
-    ],
-    harmony: @[
-      Note(freq: F4, start: currentTime + 0.0, duration: 2.0),
-      Note(freq: A4, start: currentTime + 2.0, duration: 2.0),
-      Note(freq: F4, start: currentTime + 4.0, duration: 2.0),
-      Note(freq: A4, start: currentTime + 6.0, duration: 2.0),
-      Note(freq: D4, start: currentTime + 8.0, duration: 6.0)
-    ],
-    chords: @[
-      Note(freq: D4, start: currentTime + 0.0, duration: 1.0),
-      Note(freq: A3, start: currentTime + 1.0, duration: 1.0),
-      Note(freq: F4, start: currentTime + 2.0, duration: 1.0),
-      Note(freq: D4, start: currentTime + 3.0, duration: 1.0),
-      Note(freq: A3, start: currentTime + 4.0, duration: 1.5),
-      Note(freq: D4, start: currentTime + 5.5, duration: 1.5),
-      Note(freq: F4, start: currentTime + 7.0, duration: 1.5),
-      Note(freq: D4, start: currentTime + 8.5, duration: 5.5)
-    ]
-  )
-  result.add(outro)
+  result = composeTrack(spec, filename, 0.90)
 
 proc createBossMusic(filename: string): Music =
-  let sections = createBossMusicSections()
-  var samples = newSeq[float32](int(MUSIC_DURATION * SAMPLE_RATE.float32))
+  ## Relentless boss loop in E phrygian: Em - F - Em - D, double-kick drums.
+  let spec = TrackSpec(
+    bpm: 160.0,                   # 32 bars in 48 s
+    tonic: 329.63,                # E4
+    progression: @[
+      BarChord(rootSemi: 0, quality: cqMinor),
+      BarChord(rootSemi: 1, quality: cqMajor),
+      BarChord(rootSemi: 0, quality: cqMinor),
+      BarChord(rootSemi: 10, quality: cqMajor)
+    ],
+    intensity: @[
+      0.70'f32, 0.75, 0.80, 0.80,
+      0.85, 0.85, 0.90, 0.90,
+      0.95, 0.95, 1.00, 1.00,
+      1.00, 1.00, 1.00, 0.95,
+      0.60, 0.60, 0.65, 0.70,
+      0.90, 0.95, 1.00, 1.00,
+      1.00, 1.00, 1.00, 1.00,
+      0.95, 0.90, 0.90, 0.85
+    ],
+    melody: @[
+      mn(12, 0.0, 0.5, 0.4), mn(7, 0.5, 0.25), mn(12, 0.75, 0.25),
+      mn(15, 1.0, 0.5), mn(13, 1.5, 0.5), mn(12, 2.0, 0.5),
+      mn(10, 2.5, 0.5), mn(12, 3.0, 1.0),
+      mn(13, 4.0, 0.5, 0.4), mn(8, 4.5, 0.25), mn(13, 4.75, 0.25),
+      mn(17, 5.0, 0.5), mn(15, 5.5, 0.5), mn(13, 6.0, 1.0), mn(12, 7.0, 1.0),
+      mn(12, 8.0, 0.5, 0.4), mn(15, 8.5, 0.5), mn(19, 9.0, 0.5),
+      mn(17, 9.5, 0.5), mn(15, 10.0, 0.5), mn(13, 10.5, 0.5), mn(12, 11.0, 1.0),
+      mn(10, 12.0, 0.5, 0.4), mn(13, 12.5, 0.5), mn(17, 13.0, 0.5),
+      mn(15, 13.5, 0.5), mn(13, 14.0, 0.75), mn(12, 14.75, 0.25),
+      mn(13, 15.0, 1.0)
+    ],
+    phraseBars: 4,
+    melodyInstr: ikLead,
+    leadVol: 0.105, bassVol: 0.16, padVol: 0.05, arpVol: 0.05,
+    drumVol: 0.10, arpStepBeats: 0.25, pumpDepth: 0.5,
+    echoDelay: 0.281, echoMix: 0.05)
 
-  for section in sections:
-    # Intense rhythm but stays in the background
-    renderNotes(section.melody, samples, inMelody, 0.15)
-    renderNotes(section.bass, samples, inBass, 0.18)
-    renderNotes(section.harmony, samples, inPad, 0.10)
-    renderChords(section.chords, samples, 0.21)  # Aggressive piano chords
-    applySectionDynamics(samples, section, 0.75)
-
-  renderTrackEnhancements(mtBoss, sections, samples)
-  result = finishMusic(samples, filename, 0.52)
-
+  result = composeTrack(spec, filename, 0.86)
 # MUSIC LOADING AND SYSTEM MANAGEMENT
 
 proc loadOrGenerateMusic(track: MusicTrack): Music =

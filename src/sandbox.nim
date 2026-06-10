@@ -153,9 +153,9 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   let contentX: int32 = sidebarX + SIDEBAR_PADDING
   let cardWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
 
-  drawText("Power-Up Visuals", contentX, currentY, 18, White)
+  drawText(t(tkSandboxPowerupVisuals), contentX, currentY, 18, White)
   currentY += 24
-  drawText("Icon, rarity, and Lv.1 description preview", contentX, currentY, 10,
+  drawText(t(tkSandboxVisualsSubtitle), contentX, currentY, 10,
            Color(r: 170, g: 185, b: 200, a: 255))
   currentY += 20
 
@@ -191,7 +191,7 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
       drawPowerUpIcon(iconX, iconY, POWERUP_ICON_SIZE, powerType, accent)
 
       let textX = contentX + 56
-      let badgeText = if isLegendary: "LEGENDARY" else: "COMMON"
+      let badgeText = if isLegendary: t(tkSandboxBadgeLegendary) else: t(tkSandboxBadgeCommon)
       let badgeWidth = measureText(badgeText, 9) + 8
       let badgeX = contentX + cardWidth - badgeWidth - 7
       drawRectangle(badgeX, currentY + 7, badgeWidth, 14,
@@ -205,7 +205,7 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
                                                 badgeX - textX - 5, 13)
       drawText(nameText, textX, currentY + 8, nameSize, White)
 
-      drawText("Lv.1 preview", textX, currentY + 25, 9,
+      drawText(t(tkSandboxLv1Preview), textX, currentY + 25, 9,
                Color(r: 120, g: 200, b: 255, a: 255))
 
       let desc = getPowerUpDescription(powerType, 1, game.player.damage)
@@ -228,13 +228,13 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   # God Mode toggle
   let godModeColor = if game.sandboxGodMode: Green else: Color(r: 80, g: 80, b: 80, a: 255)
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, godModeColor)
-  drawText(t(tkSandboxGodMode) & " " & (if game.sandboxGodMode: "ON" else: "OFF"), contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxGodMode) & " " & (if game.sandboxGodMode: t(tkCommonOn) else: t(tkCommonOff)), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
 
   # Freeze Enemies toggle
   let freezeColor = if game.sandboxFreezeEnemies: Color(r: 100, g: 150, b: 255, a: 255) else: Color(r: 80, g: 80, b: 80, a: 255)
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, freezeColor)
-  drawText(t(tkSandboxFreezeEnemies) & " " & (if game.sandboxFreezeEnemies: "ON" else: "OFF"), contentX + 5, currentY + 10, 16, White)
+  drawText(t(tkSandboxFreezeEnemies) & " " & (if game.sandboxFreezeEnemies: t(tkCommonOn) else: t(tkCommonOff)), contentX + 5, currentY + 10, 16, White)
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
 
   # Clear All Enemies button
@@ -288,8 +288,8 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
 
   # Enter Boss #7 3D Mode button
   drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 100, b: 255, a: 255))
-  drawText("Enter Boss #7 3D", contentX + 5, currentY + 5, 16, White)
-  drawText("Test 3D Arena", contentX + 5, currentY + 20, 12, Color(r: 200, g: 200, b: 200, a: 255))
+  drawText(t(tkSandboxEnterBoss3d), contentX + 5, currentY + 5, 16, White)
+  drawText(t(tkSandboxTest3dArena), contentX + 5, currentY + 20, 12, Color(r: 200, g: 200, b: 200, a: 255))
 
 proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int32) =
   ## Draws a draggable scrollbar on the right edge of the sidebar.

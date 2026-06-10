@@ -555,7 +555,7 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   # Network indicator (always connected in game)
   drawRectangle(indicatorX.int32, (clockY + 6).int32, 12, 8,
                Color(r: 50, g: 255, b: 50, a: 255))
-  drawText("NET", (indicatorX + 16).int32, (clockY + 3).int32, 12,
+  drawText(t(tkDesktopNet), (indicatorX + 16).int32, (clockY + 3).int32, 12,
           Color(r: 150, g: 150, b: 150, a: 255))
 
 type

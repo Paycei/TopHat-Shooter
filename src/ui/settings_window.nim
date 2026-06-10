@@ -35,6 +35,9 @@ type
     draggingVolume*: bool
     draggingMusic*: bool
 
+    # Set when the user clicks "Replay Intro"; consumed by the window manager
+    replayIntroRequested*: bool
+
     # Destructive reset confirmation state
     pendingReset*: SettingsResetAction
     resetConfirmTimer*: float32
@@ -72,6 +75,7 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     editingMusicVolume: false,
     draggingVolume: false,
     draggingMusic: false,
+    replayIntroRequested: false,
     pendingReset: sraNone,
     resetConfirmTimer: 0.0,
     resetStatus: "",
@@ -184,9 +188,17 @@ proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rect
     else: 0
   Rectangle(
     x: (contentX + 40 + idx * (ButtonWidth + ButtonGap)).float32,
-    y: (contentY + 315).float32,
+    y: (contentY + 335).float32,
     width: ButtonWidth.float32,
     height: ButtonHeight.float32
+  )
+
+proc replayIntroButtonRect(contentX, contentY: int): Rectangle =
+  Rectangle(
+    x: (contentX + 40).float32,
+    y: (contentY + 250).float32,
+    width: 200.float32,
+    height: 32.float32
   )
 
 proc resetActionLabel(action: SettingsResetAction): string =
@@ -650,7 +662,15 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(langDisplayText, (langButtonX + (langButtonWidth - langTextWidth) div 2).int32, yPos.int32, 18, White)
   drawText(">", (langButtonX + langButtonWidth - 25).int32, yPos.int32, 18, LightGray)
 
-  yPos += 60
+  yPos += 45
+
+  # Replay the opening story cinematic
+  block:
+    let rect = replayIntroButtonRect(contentX, contentY)
+    let hovered = checkCollisionPointRec(mousePos, rect)
+    drawSettingsButton(rect, t(tkSettingsReplayIntro), hovered, false)
+  yPos += 42
+
   drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionDataManagement), '!',
                    Color(r: 255, g: 95, b: 105, a: 255))
   yPos += 35
@@ -666,7 +686,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     let statusWidth = measureText(settingsWin.resetStatus, 14)
     drawText(settingsWin.resetStatus,
              (contentX + (contentW - statusWidth) div 2).int32,
-             (contentY + 324).int32, 14, LightGray)
+             (contentY + 344).int32, 14, LightGray)
 
 proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                           screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool] =
@@ -843,6 +863,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       settingsWin.draggingVolume = true
       let relativeX = mousePos.x - volumeSliderX.float32
       settingsWin.settings.volume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
+      setGameVolume(settingsWin.settings.volume)
 
     # Stop dragging on release
     if settingsWin.draggingVolume and not isMouseButtonDown(Left):
@@ -943,6 +964,11 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         setLanguage(nextLang)
         playSound(stMenuSelect)
         settingsChanged = true
+
+      # Replay intro button
+      if checkCollisionPointRec(mousePos, replayIntroButtonRect(contentX, contentY)):
+        settingsWin.replayIntroRequested = true
+        playSound(stMenuSelect)
 
       for action in [sraAllData, sraAdvancements, sraRogueliteData]:
         let rect = resetButtonRect(action, contentX, contentY)

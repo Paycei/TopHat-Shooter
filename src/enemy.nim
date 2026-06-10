@@ -869,6 +869,11 @@ proc drawCustomBoss*(enemy: Enemy) =
   let cx = enemy.pos.x
   let cy = enemy.pos.y
   let r  = enemy.radius
+  # How far the boss has ascended through its phases. The per-boss "ascension"
+  # overlay at the end of this proc uses it to make the boss look progressively
+  # more powerful (extra crowns, satellites, rings, …) each phase. 0 = base form.
+  let phaseLvl = max(0, enemy.currentPhaseIndex)
+  let pf = phaseLvl.float32
 
   proc poly(sides: int, radius, baseAngle, thick: float32, col: Color) =
     for i in 0 ..< sides:
@@ -886,6 +891,11 @@ proc drawCustomBoss*(enemy: Enemy) =
 
   proc glow(radius: float32, col: Color) =
     drawCircle(Vector2(x: cx, y: cy), radius, col)
+
+  proc hueCol(h: float32, alpha: uint8): Color =
+    Color(r: uint8(clamp(abs(sin(h*PI*2.0))*255.0, 0.0'f32, 255.0'f32)),
+          g: uint8(clamp(abs(sin((h+0.33)*PI*2.0))*255.0, 0.0'f32, 255.0'f32)),
+          b: uint8(clamp(abs(sin((h+0.66)*PI*2.0))*255.0, 0.0'f32, 255.0'f32)), a: alpha)
 
   case enemy.bossDefinitionID
 
@@ -1270,6 +1280,478 @@ proc drawCustomBoss*(enemy: Enemy) =
     poly(8, r, time, 2, White)
     glow(r*0.25, Color(r: 255, g: 255, b: 255, a: 255))
 
+  # Per-boss "ascension" visuals
+  # Each phase the boss survives into makes it LOOK more powerful, in a way
+  # tailored to its identity: the Orbital Commander fields more satellites, the
+  # Summoner King grows a taller crown, the Berserker bristles with more spikes,
+  # etc. Phase 0 (the base form) adds nothing; power escalates with phaseLvl.
+  if phaseLvl >= 1:
+    case enemy.bossDefinitionID
+    of 1:  # Spiral Guardian: extra cosmic rings + orbiting stars
+      for k in 0 ..< phaseLvl:
+        poly(14 + k*4, r + 16 + k.float32*7.0,
+             time*(0.6 + k.float32*0.3)*(if k mod 2 == 0: 1.0 else: -1.0), 2,
+             Color(r: 170, g: 110, b: 255, a: uint8(clamp(70 + k*22, 0, 255))))
+      let stars = phaseLvl*3
+      for i in 0 ..< stars:
+        let a = time*1.2 + i.float32*(TAU/stars.float32)
+        let d = r + 26 + pf*4.0
+        drawCircle(Vector2(x: cx+cos(a)*d, y: cy+sin(a)*d), 2.5 + pf*0.4,
+                   Color(r: 235, g: 205, b: 255, a: 225))
+
+    of 2:  # Summoner King: orbiting golden sigils + royal halo
+      let sig = 4 + phaseLvl*2
+      for i in 0 ..< sig:
+        let a = time*0.8 + i.float32*(TAU/sig.float32)
+        let d = r + 18 + pf*5.0
+        let sx = cx + cos(a)*d
+        let sy = cy + sin(a)*d
+        drawCircle(Vector2(x: sx, y: sy), 3.0 + pf*0.5, Color(r: 255, g: 215, b: 60, a: 235))
+        drawCircleLines(sx.int32, sy.int32, 5.0 + pf, Color(r: 200, g: 255, b: 120, a: 160))
+      poly(8, r + 12 + pf*4.0, time*0.4, 2, Color(r: 255, g: 215, b: 0, a: uint8(80 + phaseLvl*30)))
+
+    of 3:  # Meteor Striker: molten halo + orbiting fireballs
+      drawCircleLines(cx.int32, cy.int32, r + 18 + pf*6.0,
+                      Color(r: 255, g: 90, b: 0, a: uint8(70 + phaseLvl*30)))
+      let fb = phaseLvl + 1
+      for i in 0 ..< fb:
+        let a = time*1.4 + i.float32*(TAU/fb.float32)
+        let d = r + 22 + pf*5.0
+        let fx = cx + cos(a)*d
+        let fy = cy + sin(a)*d
+        drawCircle(Vector2(x: fx, y: fy), 4.0 + pf*0.6, Color(r: 255, g: 140, b: 20, a: 235))
+        drawCircle(Vector2(x: fx, y: fy), 2.0, Color(r: 255, g: 240, b: 150, a: 255))
+
+    of 4:  # Laser Architect: nested rotating frames + orbiting nodes
+      for k in 0 ..< phaseLvl:
+        let sides = if k mod 2 == 0: 6 else: 3
+        poly(sides, r + 12 + k.float32*8.0,
+             time*(0.4 + k.float32*0.25)*(if k mod 2 == 0: 1.0 else: -1.0), 2,
+             Color(r: 0, g: 220, b: 255, a: uint8(clamp(110 - k*20, 0, 255))))
+      let nodes = 4 + phaseLvl*2
+      for i in 0 ..< nodes:
+        let a = -time*0.5 + i.float32*(TAU/nodes.float32)
+        let d = r + 14 + pf*5.0
+        let nx = cx + cos(a)*d
+        let ny = cy + sin(a)*d
+        drawRectangle((nx-2.0).int32, (ny-2.0).int32, 4, 4, Color(r: 120, g: 255, b: 255, a: 225))
+
+    of 5:  # Void Dancer: deeper void halo + orbiting shards
+      glow(r + 24 + pf*8.0, Color(r: 20, g: 0, b: 40, a: uint8(55 + phaseLvl*22)))
+      for k in 0 ..< phaseLvl:
+        drawCircleLines(cx.int32, cy.int32, r + 14 + k.float32*7.0,
+                        Color(r: 140, g: 30, b: 200, a: uint8(clamp(120 - k*20, 0, 255))))
+      let shards = phaseLvl*3
+      for i in 0 ..< shards:
+        let a = -time*1.1 + i.float32*(TAU/shards.float32)
+        let d = r + 20 + pf*5.0
+        drawCircle(Vector2(x: cx+cos(a)*d, y: cy+sin(a)*d), 2.5 + pf*0.4,
+                   Color(r: 200, g: 80, b: 255, a: 225))
+
+    of 6:  # Chain Reactor: overcharged ring + orbiting energy orbs
+      poly(30, r + 12 + pf*5.0, time*2.5, 2, Color(r: 255, g: 255, b: 120, a: uint8(80 + phaseLvl*30)))
+      let orbs = phaseLvl + 1
+      for i in 0 ..< orbs:
+        let a = time*2.0 + i.float32*(TAU/orbs.float32)
+        let d = r + 20 + pf*5.0
+        let ox = cx + cos(a)*d
+        let oy = cy + sin(a)*d
+        drawLine(Vector2(x: cx, y: cy), Vector2(x: ox, y: oy), 1.0,
+                 Color(r: 255, g: 255, b: 100, a: uint8(55 + phaseLvl*25)))
+        drawCircle(Vector2(x: ox, y: oy), 4.0, Color(r: 255, g: 255, b: 150, a: 235))
+
+    of 7:  # Orbital Commander: MORE satellites (its signature power)
+      let extra = phaseLvl*2
+      for i in 0 ..< extra:
+        let satR = r + 30 + pf*6.0
+        let a = -time*0.8 + i.float32*(TAU/extra.float32)
+        let sx = cx + cos(a)*satR
+        let sy = cy + sin(a)*satR
+        drawCircle(Vector2(x: sx, y: sy), 5, Color(r: 180, g: 150, b: 255, a: 240))
+        drawCircleLines(sx.int32, sy.int32, 7, Color(r: 255, g: 255, b: 255, a: 130))
+        let panA = a + PI/2.0
+        drawLine(Vector2(x: sx+cos(panA)*7, y: sy+sin(panA)*7),
+                 Vector2(x: sx-cos(panA)*7, y: sy-sin(panA)*7), 2,
+                 Color(r: 200, g: 170, b: 255, a: 225))
+      poly(60, r + 30 + pf*6.0, time*0.1, 2, Color(r: 150, g: 120, b: 255, a: uint8(70 + phaseLvl*20)))
+
+    of 8:  # Berserker Juggernaut: rage halo + extra spike crown
+      glow(r + 16 + pf*6.0, Color(r: 255, g: 0, b: 0, a: uint8(40 + phaseLvl*25)))
+      let spikes = 6 + phaseLvl*2
+      for i in 0 ..< spikes:
+        let a = time*0.2 + i.float32*(TAU/spikes.float32) + 0.3
+        let inner = r + 6 + pf*2.0
+        let outer = inner + 10 + pf*5.0
+        drawLine(Vector2(x: cx+cos(a)*inner, y: cy+sin(a)*inner),
+                 Vector2(x: cx+cos(a)*outer, y: cy+sin(a)*outer), 3,
+                 Color(r: 220, g: 30, b: 20, a: 230))
+
+    of 9:  # Prism Architect: extra spectrum rings + orbiting prism shards
+      for k in 0 ..< (phaseLvl*2):
+        drawCircleLines(cx.int32, cy.int32, r + 10 + k.float32*5.0,
+                        hueCol(k.float32/6.0 + time*0.2, uint8(max(40, 120 - k*12))))
+      let shards = 3 + phaseLvl*2
+      for i in 0 ..< shards:
+        let a = time*0.9 + i.float32*(TAU/shards.float32)
+        let d = r + 16 + pf*5.0
+        drawCircle(Vector2(x: cx+cos(a)*d, y: cy+sin(a)*d), 3.0 + pf*0.4,
+                   hueCol(i.float32/shards.float32 + time*0.3, 230))
+
+    of 10:  # Timekeeper: extra gear rings + orbiting time glyphs
+      for k in 0 ..< phaseLvl:
+        poly(12 + k*4, r + 12 + k.float32*7.0,
+             time*(0.3 + k.float32*0.2)*(if k mod 2 == 0: 1.0 else: -1.0), 2,
+             Color(r: 0, g: 230, b: 230, a: uint8(clamp(120 - k*20, 0, 255))))
+      let glyphs = phaseLvl*2
+      for i in 0 ..< glyphs:
+        let a = -time*0.6 + i.float32*(TAU/glyphs.float32)
+        let d = r + 18 + pf*5.0
+        drawCircle(Vector2(x: cx+cos(a)*d, y: cy+sin(a)*d), 2.5, Color(r: 180, g: 255, b: 255, a: 220))
+
+    of 11:  # Chaos Weaver: denser chaos bolts + RGB-split halo
+      let bolts = phaseLvl*4
+      for i in 0 ..< bolts:
+        let a = (i.float32 + sin(time*4.0 + i.float32)*0.6)*(TAU/bolts.float32)
+        let d = r + 14 + pf*6.0 + sin(time*3.0 + i.float32)*4.0
+        drawLine(Vector2(x: cx, y: cy), Vector2(x: cx+cos(a)*d, y: cy+sin(a)*d), 1.5,
+                 Color(r: 220, g: 60, b: 230, a: 150))
+      let hr = r + 12 + pf*4.0
+      drawCircleLines((cx-pf*2.0).int32, cy.int32, hr, Color(r: 255, g: 0, b: 0, a: uint8(40 + phaseLvl*20)))
+      drawCircleLines((cx+pf*2.0).int32, cy.int32, hr, Color(r: 0, g: 255, b: 0, a: uint8(40 + phaseLvl*20)))
+
+    of 12:  # Omega Entity: color-cycling outer rings + energy pillars
+      for k in 0 ..< (phaseLvl + 1):
+        drawCircleLines(cx.int32, cy.int32, r + 14 + k.float32*8.0,
+                        hueCol(k.float32/4.0 + time*0.3, uint8(max(40, 110 - k*18))))
+      let pillars = 2 + phaseLvl
+      for d in 0 ..< pillars:
+        let a = time*0.5 + d.float32*(TAU/pillars.float32)
+        let reach = r + 26 + pf*6.0
+        drawLine(Vector2(x: cx+cos(a)*r, y: cy+sin(a)*r),
+                 Vector2(x: cx+cos(a)*reach, y: cy+sin(a)*reach), 3,
+                 hueCol(d.float32/pillars.float32 + time, 200))
+
+    else: discard
+
+proc drawBossPhaseTransition*(enemy: Enemy) =
+  ## Epic per-boss phase-change animation. Plays while a boss is invulnerable
+  ## during a phase transition (driven entirely by `invulnerabilityTimer`, which
+  ## is only ever set by `transitionBossToPhase`). The boss is frozen for this
+  ## whole window, so this fully owns the boss's transition visuals. Each boss
+  ## gets a thematically distinct "charge up and transform" beat:
+  ## energy gathers inward (charge), the core flashes white (snap), then the new
+  ## phase erupts outward (burst).
+  let dur = BossPhaseTransitionDuration
+  let p = clamp(1.0'f32 - enemy.invulnerabilityTimer / dur, 0.0'f32, 1.0'f32)
+  let time = getTime()
+  let cx = enemy.pos.x
+  let cy = enemy.pos.y
+  let r  = enemy.radius
+
+  # Two acts: gather (0..0.45) then release (0.45..1.0). `flash` peaks at the snap.
+  let charge = clamp(p / 0.45'f32, 0.0'f32, 1.0'f32)
+  let burst  = clamp((p - 0.45'f32) / 0.55'f32, 0.0'f32, 1.0'f32)
+  let flash  = 1.0'f32 - abs(p - 0.45'f32) / 0.45'f32
+  let gather = charge * (1.0'f32 - burst)   # charge visuals fade out as burst begins
+
+  proc a(x: float32): uint8 = uint8(clamp(x, 0.0'f32, 255.0'f32))
+
+  proc hueCol(h: float32, alpha: uint8): Color =
+    Color(r: a(abs(sin(h*PI*2.0))*255),
+          g: a(abs(sin((h+0.33)*PI*2.0))*255),
+          b: a(abs(sin((h+0.66)*PI*2.0))*255), a: alpha)
+
+  proc nz(seed: float32): float32 =
+    ## Cheap deterministic 0..1 hash (no global RNG: safe to call from drawing).
+    let v = sin(seed*127.1 + 13.7) * 43758.5453
+    v - floor(v)
+
+  proc ringT(radius, thick: float32, col: Color) =
+    for k in 0 ..< max(1, thick.int):
+      drawCircleLines(cx.int32, cy.int32, radius - thick*0.5 + k.float32, col)
+
+  proc shock(extra, thick: float32, col: Color) =
+    ## Expanding ring over the burst that fades as it grows.
+    if burst > 0.0'f32:
+      ringT(r + burst*extra, thick,
+            Color(r: col.r, g: col.g, b: col.b, a: a((1.0'f32 - burst) * col.a.float32)))
+
+  # Shared white-hot core flare at the snap moment.
+  if flash > 0.05'f32:
+    drawCircle(Vector2(x: cx, y: cy), r*(0.6 + flash*1.5), Color(r: 255, g: 255, b: 255, a: a(flash*190.0)))
+    drawCircle(Vector2(x: cx, y: cy), r*(0.3 + flash*0.7), Color(r: 255, g: 255, b: 255, a: a(flash*255.0)))
+
+  case enemy.bossDefinitionID
+
+  of 1:  # Spiral Guardian: vortex implosion then purple nova
+    for arm in 0 ..< 6:
+      let base = -time*5.0 + arm.float32*(TAU/6.0)
+      let outer = r*0.2 + (1.0'f32 - gather)*150.0
+      var prev = Vector2(x: cx, y: cy)
+      for step in 0 .. 12:
+        let t = step.float32 / 12.0
+        let dist = outer*(1.0 - t) + r*0.15*t
+        let ang = base + t*5.0
+        let pt = Vector2(x: cx + cos(ang)*dist, y: cy + sin(ang)*dist)
+        if step > 0:
+          drawLine(prev, pt, 2.0, Color(r: 190, g: 120, b: 255, a: a(200.0*gather)))
+        prev = pt
+    shock(170.0, 3.0, Color(r: 150, g: 70, b: 255, a: 220))
+    shock(110.0, 2.0, Color(r: 220, g: 160, b: 255, a: 160))
+
+  of 2:  # Summoner King: summoning ritual, golden release
+    let ringR = r + 18.0 + (1.0'f32 - gather)*60.0
+    for i in 0 ..< 12:
+      let a0 = time*1.2 + i.float32*(TAU/12.0)
+      let a1 = time*1.2 + (i+1).float32*(TAU/12.0)
+      drawLine(Vector2(x: cx+cos(a0)*ringR, y: cy+sin(a0)*ringR),
+               Vector2(x: cx+cos(a1)*ringR, y: cy+sin(a1)*ringR), 2.5,
+               Color(r: 80, g: 230, b: 90, a: a(220.0*max(gather, 0.3))))
+    for i in 0 ..< 6:
+      let ang = -time*2.0 + i.float32*(TAU/6.0)
+      drawCircle(Vector2(x: cx+cos(ang)*ringR, y: cy+sin(ang)*ringR), 4.0 + gather*2.0,
+                 Color(r: 255, g: 230, b: 90, a: a(255.0*max(gather, 0.35))))
+    for s in 0 ..< 3:
+      let off = (s.float32 - 1.0)*r*0.5
+      drawLine(Vector2(x: cx+off, y: cy), Vector2(x: cx+off, y: cy - (r+80.0)*gather), 3.0,
+               Color(r: 150, g: 255, b: 120, a: a(160.0*gather)))
+    shock(150.0, 3.0, Color(r: 255, g: 215, b: 60, a: 220))
+    for i in 0 ..< 6:
+      let ang = i.float32*(TAU/6.0)
+      let d = r + burst*150.0
+      drawCircle(Vector2(x: cx+cos(ang)*d, y: cy+sin(ang)*d), 5.0*(1.0-burst) + 1.0,
+                 Color(r: 120, g: 255, b: 90, a: a((1.0'f32-burst)*255.0)))
+
+  of 3:  # Meteor Striker: volcanic eruption
+    for i in 0 ..< 8:
+      let ang = i.float32*(TAU/8.0) + 0.2
+      let tip = r*0.2 + r*1.1*gather
+      var prev = Vector2(x: cx, y: cy)
+      for step in 1 .. 3:
+        let t = step.float32 / 3.0
+        let jit = sin(time*20.0 + i.float32*2.0 + step.float32)*6.0
+        let pt = Vector2(x: cx + cos(ang)*tip*t + cos(ang+1.57)*jit,
+                         y: cy + sin(ang)*tip*t + sin(ang+1.57)*jit)
+        drawLine(prev, pt, 3.0, Color(r: 255, g: a(120.0 + gather*100.0), b: 0, a: a(230.0*gather)))
+        prev = pt
+    shock(160.0, 4.0, Color(r: 255, g: 80, b: 0, a: 230))
+    shock(100.0, 2.0, Color(r: 255, g: 180, b: 30, a: 180))
+    for i in 0 ..< 10:
+      let hx = cx + sin(i.float32*1.7)*r*1.2
+      let ey = cy - burst*(120.0 + (i mod 5).float32*20.0)
+      drawLine(Vector2(x: hx, y: ey), Vector2(x: hx, y: ey+14.0), 2.0,
+               Color(r: 255, g: 160, b: 40, a: a((1.0'f32-burst)*220.0)))
+
+  of 4:  # Laser Architect: blueprint reconstruction
+    let cyan = Color(r: 0, g: 220, b: 255, a: a(230.0*max(gather, 0.3)))
+    let half = r + 14.0 + (1.0'f32 - gather)*70.0
+    let bl = 16.0'f32
+    for sx in [-1.0'f32, 1.0'f32]:
+      for sy in [-1.0'f32, 1.0'f32]:
+        let bx = cx + sx*half
+        let by = cy + sy*half
+        drawLine(Vector2(x: bx, y: by), Vector2(x: bx - sx*bl, y: by), 2.5, cyan)
+        drawLine(Vector2(x: bx, y: by), Vector2(x: bx, y: by - sy*bl), 2.5, cyan)
+    for i in 0 ..< 6:
+      let a0 = time*1.5 + i.float32*(TAU/6.0)
+      let a1 = time*1.5 + (i+1).float32*(TAU/6.0)
+      drawLine(Vector2(x: cx+cos(a0)*r*0.7, y: cy+sin(a0)*r*0.7),
+               Vector2(x: cx+cos(a1)*r*0.7, y: cy+sin(a1)*r*0.7), 2.0, cyan)
+    let sweep = time*1.5
+    let scanY = cy - half + 2.0*half*(sweep - floor(sweep))
+    drawLine(Vector2(x: cx-half, y: scanY), Vector2(x: cx+half, y: scanY), 1.5,
+             Color(r: 120, g: 255, b: 255, a: a(160.0*gather)))
+    shock(150.0, 3.0, Color(r: 0, g: 220, b: 255, a: 220))
+    if burst > 0.0'f32:
+      let g = r + burst*150.0
+      drawLine(Vector2(x: cx-g, y: cy), Vector2(x: cx+g, y: cy), 1.5, Color(r: 0, g: 220, b: 255, a: a((1.0'f32-burst)*150.0)))
+      drawLine(Vector2(x: cx, y: cy-g), Vector2(x: cx, y: cy+g), 1.5, Color(r: 0, g: 220, b: 255, a: a((1.0'f32-burst)*150.0)))
+
+  of 5:  # Void Dancer: collapsing black hole then reality tear
+    for k in 0 ..< 4:
+      let fr = gather + k.float32*0.25
+      let frac = fr - floor(fr)
+      let rad = (r+120.0)*(1.0 - frac) + r*0.2
+      drawCircleLines(cx.int32, cy.int32, rad, Color(r: 120, g: 20, b: 160, a: a(180.0*(1.0-frac)*max(gather, 0.2))))
+    drawCircle(Vector2(x: cx, y: cy), r*0.5*(1.0'f32-burst), Color(r: 10, g: 0, b: 20, a: a(220.0*gather)))
+    drawCircleLines(cx.int32, cy.int32, r*0.5*(1.0'f32-burst) + 2.0, Color(r: 220, g: 60, b: 230, a: a(230.0*gather)))
+    if burst > 0.0'f32:
+      let tr = r + burst*160.0
+      var prev = Vector2(x: cx+tr, y: cy)
+      for i in 1 .. 24:
+        let ang = i.float32*(TAU/24.0)
+        let jag = tr + sin(i.float32*3.0 + time*10.0)*10.0
+        let pt = Vector2(x: cx+cos(ang)*jag, y: cy+sin(ang)*jag)
+        drawLine(prev, pt, 2.0, Color(r: 200, g: 60, b: 230, a: a((1.0'f32-burst)*220.0)))
+        prev = pt
+
+  of 6:  # Chain Reactor: electric overload discharge
+    for i in 0 ..< 10:
+      let ang = time*3.0 + i.float32*(TAU/10.0)
+      let r0 = r + 4.0
+      let r1 = r + 10.0 + sin(time*30.0 + i.float32*5.0)*8.0*gather
+      drawLine(Vector2(x: cx+cos(ang)*r0, y: cy+sin(ang)*r0),
+               Vector2(x: cx+cos(ang)*r1, y: cy+sin(ang)*r1), 1.5,
+               Color(r: 255, g: 240, b: 80, a: a(220.0*gather)))
+    if burst > 0.0'f32:
+      for b in 0 ..< 8:
+        let ang = b.float32*(TAU/8.0) + time*0.5
+        var prev = Vector2(x: cx+cos(ang)*r, y: cy+sin(ang)*r)
+        let reach = r + burst*150.0
+        for step in 1 .. 5:
+          let t = step.float32 / 5.0
+          let jit = sin(time*40.0 + b.float32*7.0 + step.float32*2.0)*14.0*(1.0-t)
+          let d = r + (reach-r)*t
+          let pt = Vector2(x: cx+cos(ang)*d + cos(ang+1.57)*jit, y: cy+sin(ang)*d + sin(ang+1.57)*jit)
+          drawLine(prev, pt, 2.0, Color(r: 255, g: 255, b: 120, a: a((1.0'f32-burst)*240.0)))
+          prev = pt
+    shock(150.0, 2.0, Color(r: 255, g: 240, b: 80, a: 200))
+
+  of 7:  # Orbital Commander: satellite redeploy
+    for i in 0 ..< 8:
+      let ang = time*2.0 + i.float32*(TAU/8.0)
+      let dist = r*0.3 + (r+110.0)*(1.0'f32 - gather)
+      drawCircle(Vector2(x: cx+cos(ang)*dist, y: cy+sin(ang)*dist), 3.5,
+                 Color(r: 90, g: 160, b: 255, a: a(230.0*max(gather, 0.3))))
+    let rr = r + 20.0
+    for q in 0 ..< 4:
+      let a0 = time*0.8 + q.float32*(PI*0.5)
+      let a1 = a0 + 0.5
+      drawLine(Vector2(x: cx+cos(a0)*rr, y: cy+sin(a0)*rr),
+               Vector2(x: cx+cos(a1)*rr, y: cy+sin(a1)*rr), 2.5,
+               Color(r: 120, g: 190, b: 255, a: a(200.0*max(gather, 0.4))))
+    if burst > 0.0'f32:
+      for i in 0 ..< 8:
+        let ang = i.float32*(TAU/8.0)
+        let d = r + burst*130.0
+        drawCircle(Vector2(x: cx+cos(ang)*d, y: cy+sin(ang)*d), 4.0,
+                   Color(r: 90, g: 160, b: 255, a: a((1.0'f32 - burst*0.5)*230.0)))
+    shock(150.0, 3.0, Color(r: 80, g: 150, b: 255, a: 210))
+
+  of 8:  # Berserker Juggernaut: rage roar
+    let shake = sin(time*60.0)*4.0*gather
+    let bx = cx + shake
+    for i in 0 ..< 8:
+      let ang = i.float32*(TAU/8.0)
+      let d0 = r + 14.0 + (1.0'f32 - gather)*50.0
+      let p0 = Vector2(x: bx+cos(ang)*d0, y: cy+sin(ang)*d0)
+      let p1 = Vector2(x: bx+cos(ang-0.18)*(d0-12.0), y: cy+sin(ang-0.18)*(d0-12.0))
+      let p2 = Vector2(x: bx+cos(ang+0.18)*(d0-12.0), y: cy+sin(ang+0.18)*(d0-12.0))
+      drawLine(p1, p0, 3.0, Color(r: 255, g: 50, b: 30, a: a(230.0*gather)))
+      drawLine(p2, p0, 3.0, Color(r: 255, g: 50, b: 30, a: a(230.0*gather)))
+    drawCircle(Vector2(x: bx, y: cy), r*0.5, Color(r: 255, g: 40, b: 20, a: a(120.0*gather)))
+    if burst > 0.0'f32:
+      for w in 0 ..< 3:
+        let fr = burst - w.float32*0.18
+        if fr > 0.0'f32:
+          drawCircleLines(cx.int32, cy.int32, r + fr*170.0, Color(r: 255, g: 50, b: 30, a: a((1.0'f32-fr)*230.0)))
+      for i in 0 ..< 12:
+        let ang = i.float32*(TAU/12.0)
+        let d = r + burst*150.0
+        drawLine(Vector2(x: cx+cos(ang)*(d-12.0), y: cy+sin(ang)*(d-12.0)),
+                 Vector2(x: cx+cos(ang)*d, y: cy+sin(ang)*d), 3.0,
+                 Color(r: 255, g: 90, b: 40, a: a((1.0'f32-burst)*230.0)))
+
+  of 9:  # Prism Architect: prismatic refraction burst
+    for i in 0 ..< 12:
+      let ang = i.float32*(TAU/12.0) + time
+      let d = r*0.2 + (r+90.0)*(1.0'f32 - gather)
+      drawLine(Vector2(x: cx+cos(ang)*d, y: cy+sin(ang)*d),
+               Vector2(x: cx+cos(ang)*(d+10.0), y: cy+sin(ang)*(d+10.0)), 2.0,
+               Color(r: 255, g: 255, b: 255, a: a(200.0*gather)))
+    if burst > 0.0'f32:
+      for i in 0 ..< 18:
+        let ang = i.float32*(TAU/18.0)
+        let col = hueCol(i.float32/18.0, a((1.0'f32-burst)*230.0))
+        let d = r + burst*170.0
+        drawLine(Vector2(x: cx+cos(ang)*r, y: cy+sin(ang)*r),
+                 Vector2(x: cx+cos(ang)*d, y: cy+sin(ang)*d), 2.5, col)
+      for k in 0 ..< 3:
+        drawCircleLines(cx.int32, cy.int32, r + burst*130.0 - k.float32*14.0,
+                        hueCol(k.float32/3.0 + time, a((1.0'f32-burst)*200.0)))
+
+  of 10:  # Timekeeper: time rewind
+    let teal = Color(r: 120, g: 230, b: 210, a: a(220.0*max(gather, 0.3)))
+    let clockR = r + 22.0
+    for i in 0 ..< 12:
+      let ang = i.float32*(TAU/12.0)
+      drawLine(Vector2(x: cx+cos(ang)*(clockR-6.0), y: cy+sin(ang)*(clockR-6.0)),
+               Vector2(x: cx+cos(ang)*clockR, y: cy+sin(ang)*clockR), 2.0, teal)
+    drawCircleLines(cx.int32, cy.int32, clockR, teal)
+    let hAng = -time*6.0
+    drawLine(Vector2(x: cx, y: cy), Vector2(x: cx+cos(hAng)*r*0.7, y: cy+sin(hAng)*r*0.7), 2.5,
+             Color(r: 255, g: 220, b: 80, a: a(230.0*gather)))
+    let mAng = -time*2.0
+    drawLine(Vector2(x: cx, y: cy), Vector2(x: cx+cos(mAng)*r*0.45, y: cy+sin(mAng)*r*0.45), 2.5,
+             Color(r: 255, g: 220, b: 80, a: a(230.0*gather)))
+    for k in 1 .. 3:
+      let ga = -time*6.0 + k.float32*0.4
+      drawCircleLines((cx+cos(ga)*8.0).int32, (cy+sin(ga)*8.0).int32, r*0.8,
+                      Color(r: 120, g: 230, b: 210, a: a(60.0*gather/k.float32)))
+    shock(150.0, 3.0, Color(r: 120, g: 230, b: 210, a: 210))
+    if burst > 0.0'f32:
+      for i in 0 ..< 12:
+        let ang = i.float32*(TAU/12.0)
+        let d = r + burst*140.0
+        drawLine(Vector2(x: cx+cos(ang)*(d-10.0), y: cy+sin(ang)*(d-10.0)),
+                 Vector2(x: cx+cos(ang)*d, y: cy+sin(ang)*d), 2.0,
+                 Color(r: 255, g: 220, b: 80, a: a((1.0'f32-burst)*200.0)))
+
+  of 11:  # Chaos Weaver: glitch storm
+    let glitch = floor(time*15.0)
+    for i in 0 ..< 10:
+      let ang = nz(i.float32 + glitch)*TAU
+      let d = r*0.3 + nz(i.float32*2.3 + glitch)*(r+60.0)
+      let gx = cx + cos(ang)*d
+      let gy = cy + sin(ang)*d
+      let sz = 4.0 + nz(i.float32 + glitch + 5.0)*8.0
+      drawRectangleLines(gx.int32, gy.int32, sz.int32, sz.int32,
+                         Color(r: 200, g: 60, b: 230, a: a(220.0*max(gather, 0.4))))
+    for i in 0 ..< 6:
+      let a0 = nz(i.float32 + glitch + 9.0)*TAU
+      let a1 = a0 + 0.6 + nz(i.float32 + glitch + 3.0)
+      let rr = r + 12.0 + nz(i.float32 + glitch)*30.0
+      drawLine(Vector2(x: cx+cos(a0)*rr, y: cy+sin(a0)*rr),
+               Vector2(x: cx+cos(a1)*rr, y: cy+sin(a1)*rr), 2.0,
+               Color(r: 150, g: 80, b: 255, a: a(200.0*gather)))
+    if burst > 0.0'f32:
+      let br = r + burst*150.0
+      drawCircleLines((cx-8.0).int32, cy.int32, br, Color(r: 255, g: 0, b: 0, a: a((1.0'f32-burst)*180.0)))
+      drawCircleLines((cx+8.0).int32, cy.int32, br, Color(r: 0, g: 255, b: 0, a: a((1.0'f32-burst)*180.0)))
+      drawCircleLines(cx.int32, (cy+8.0).int32, br, Color(r: 0, g: 120, b: 255, a: a((1.0'f32-burst)*180.0)))
+
+  of 12:  # Omega Entity: ultimate ascension (grand finale)
+    for layer in 0 ..< 3:
+      let lr = r*(0.6 + layer.float32*0.3) + burst*60.0*layer.float32
+      let rot = time*(1.0 + layer.float32)*(if layer mod 2 == 0: 1.0 else: -1.0)
+      let pts = 6 + layer*3
+      for i in 0 ..< pts:
+        let a0 = rot + i.float32*(TAU/pts.float32)
+        let a1 = rot + (i+1).float32*(TAU/pts.float32)
+        let col = hueCol(layer.float32/3.0 + time*0.3, a(220.0*max(gather, 0.4)))
+        drawLine(Vector2(x: cx+cos(a0)*lr, y: cy+sin(a0)*lr),
+                 Vector2(x: cx+cos(a1)*lr, y: cy+sin(a1)*lr), 2.5, col)
+    for d in 0 ..< 4:
+      let ang = d.float32*(PI*0.5) + time*0.5
+      let reach = (r+100.0)*gather + burst*120.0
+      drawLine(Vector2(x: cx+cos(ang)*r, y: cy+sin(ang)*r),
+               Vector2(x: cx+cos(ang)*(r+reach), y: cy+sin(ang)*(r+reach)), 4.0,
+               hueCol(d.float32/4.0 + time, a(200.0*max(gather, burst))))
+    if burst > 0.0'f32:
+      for k in 0 ..< 4:
+        let fr = burst - k.float32*0.15
+        if fr > 0.0'f32:
+          drawCircleLines(cx.int32, cy.int32, r + fr*180.0, hueCol(k.float32/4.0 + time*0.5, a((1.0'f32-fr)*220.0)))
+
+  else:  # Unknown boss id: themed generic implode/nova (the case is on int, not an enum)
+    for i in 0 ..< 10:
+      let ang = i.float32*(TAU/10.0)
+      let d = r*0.2 + (r+90.0)*(1.0'f32 - gather)
+      drawLine(Vector2(x: cx+cos(ang)*d, y: cy+sin(ang)*d),
+               Vector2(x: cx+cos(ang)*(d+10.0), y: cy+sin(ang)*(d+10.0)), 2.0,
+               Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: a(220.0*gather)))
+    shock(150.0, 3.0, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 220))
+
 proc getThreatColor(level: int): Color =
   case clamp(level, 0, 5)
   of 0: Color(r: 0, g: 0, b: 0, a: 0)
@@ -1335,19 +1817,10 @@ proc drawEnemy*(enemy: Enemy) =
 
     # Boss HP is shown by the top-of-screen phase HUD (drawBossPhaseHud).
     # No per-body bar here, otherwise the boss appears to have two health bars.
-    let phasePulse = sin(getTime() * 7.0) * 0.5 + 0.5
-    let glowAlpha = if enemy.invulnerabilityTimer > 0:
-      uint8(125 + phasePulse * 90)
-    elif enemy.bossPhaseBreakFlashTimer > 0:
-      uint8(90 + phasePulse * 80)
-    else:
-      uint8(55)
-
+    # During a phase change the boss plays its epic, per-boss transformation
+    # animation, which owns all of the transition visuals.
     if enemy.invulnerabilityTimer > 0:
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 13.0 + phasePulse * 5.0,
-                      Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: glowAlpha))
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 23.0 + phasePulse * 7.0,
-                      Color(r: 255, g: 255, b: 255, a: uint8(glowAlpha div 2)))
+      drawBossPhaseTransition(enemy)
   else:
     drawThreatAura(enemy)
     case enemy.enemyType
@@ -2944,7 +3417,7 @@ proc drawLaser*(laser: Laser) =
 proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Game): Enemy =
   ## Spawn a random enemy off-screen at `difficulty`.
   ## The type is chosen by `pickSpawnType` (enemy_data.nim) which consults
-  ## `allEnemyDefs` – introductionDifficulty, fadeOutDifficulty, and spawnWeight
+  ## `allEnemyDefs`, introductionDifficulty, fadeOutDifficulty, and spawnWeight
   ## are the only values that control what spawns and when.
   let side = rand(3)
   var x, y: float32

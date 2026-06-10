@@ -236,16 +236,16 @@ proc weakPointCompletionDamage(enemy: Enemy, kind: BossWeakObjectiveKind): float
 
 proc weakPointVulnerabilityDuration(enemy: Enemy, kind: BossWeakObjectiveKind): float32 =
   case kind
-  of bwoSpiralAnchors:   1.8'f32   # was 1.5 – extra window to spend damage
+  of bwoSpiralAnchors:   1.8'f32   # was 1.5: extra window to spend damage
   of bwoSummonSigils:    2.4'f32   # was 2.2
-  of bwoMeteorCracks:    0.0'f32   # no window – damage comes from crack hits
+  of bwoMeteorCracks:    0.0'f32   # no window: damage comes from crack hits
   of bwoLaserPrisms:     2.8'f32
-  of bwoVoidRifts:       2.0'f32   # was 1.5 – reward for picking the real rift
+  of bwoVoidRifts:       2.0'f32   # was 1.5: reward for picking the real rift
   of bwoCoilSequence:    2.0'f32   # was 1.8
   of bwoSatelliteSet:    3.6'f32
-  of bwoDashBackPlate:   1.4'f32   # was 1.25 – slightly more generous
+  of bwoDashBackPlate:   1.4'f32   # was 1.25: slightly more generous
   of bwoPrismSequence:   2.0'f32
-  of bwoClockNodes:      2.8'f32   # was 2.5 – timing is hard, reward it
+  of bwoClockNodes:      2.8'f32   # was 2.5: timing is hard, reward it
   of bwoChaosAnomalies:  1.9'f32   # was 1.75
   of bwoOmegaCycle:      max(1.4'f32, enemy.weakPoint.exposureDuration * 0.7'f32)
   else: 0.0'f32
@@ -431,7 +431,7 @@ proc resolveBossWeakPointTargetHit*(enemy: Enemy, bulletPos: Vector2f,
       if kind == bwoVoidRifts and target.decoy:
         enemy.weakPoint.targets[i].hit = true
         enemy.weakPoint.targets[i].wrongHitFlash = 0.45'f32
-        enemy.weakPoint.cooldownTimer = 0.65'f32   # raised from 0.25 – punishes decoy hits more
+        enemy.weakPoint.cooldownTimer = 0.65'f32   # raised from 0.25: punishes decoy hits more
         result.wrongTarget = true
         return
 
@@ -721,7 +721,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius + 8.0'f32,
                       Color(r: 255, g: 255, b: 255, a: alpha div 3))
 
-    # Exposure time-left arc: green → yellow → red, drawn tight against the boss
+    # Exposure time-left arc: green -> yellow -> red, drawn tight against the boss
     if showHints:
       let arcR     = enemy.radius + 6.0'f32
       let segs     = max(3, int(tLeft * 36.0'f32))
@@ -743,10 +743,10 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
   let isSeqKind = kind in {bwoSpiralAnchors, bwoCoilSequence, bwoPrismSequence, bwoClockNodes}
 
   for target in enemy.weakPoint.targets:
-    # Hit-burst ring: correct hit just registered – expand then fade before gone
+    # Hit-burst ring: correct hit just registered: expand then fade before gone
     if target.hit:
       if target.hitFlashTimer > 0.0'f32:
-        let t    = target.hitFlashTimer / 0.30'f32          # 1.0 → 0.0
+        let t    = target.hitFlashTimer / 0.30'f32          # 1.0 -> 0.0
         let expR = target.hitRadius * (1.0'f32 + (1.0'f32 - t) * 1.9'f32)
         drawCircleLines(target.pos.x.int32, target.pos.y.int32, expR,
                         Color(r: 255, g: 255, b: 100,
@@ -845,7 +845,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
                         Color(r: col.r, g: col.g, b: col.b, a: activeAlpha div 4))
 
     of bwoMeteorCracks:
-      # Meteor Striker: jagged impact burst – alternating long/short spikes
+      # Meteor Striker: jagged impact burst: alternating long/short spikes
       let col     = Color(r: 255, g: 138, b: 38, a: activeAlpha)
       let glowCol = Color(r: col.r, g: col.g, b: col.b, a: activeAlpha div 4)
       let jit     = target.index.float32 * 0.7'f32   # each crack looks unique
@@ -897,7 +897,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let glowCol = Color(r: col.r, g: col.g, b: col.b, a: uint8(activeAlpha.int div 4))
       drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
       if isDecoy:
-        # Decoy: slow cross + dim ring – clearly "wrong"
+        # Decoy: slow cross + dim ring: clearly "wrong"
         let spinD = time * 0.5'f32
         for c in 0..<4:
           let a = c.float32 * PI * 0.5'f32 + spinD
@@ -979,7 +979,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
                         Color(r: col.r, g: col.g, b: col.b, a: activeAlpha div 4))
 
     of bwoClockNodes:
-      # Timekeeper: miniature clock face – hand sweeps in sync with sequenceIndex advance
+      # Timekeeper: miniature clock face: hand sweeps in sync with sequenceIndex advance
       let col     = Color(r: 75, g: 255, b: 225, a: activeAlpha)
       let glowCol = Color(r: col.r, g: col.g, b: col.b, a: activeAlpha div 4)
       drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
@@ -1131,7 +1131,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
           drawLine(eP, Vector2(x: eP.x - nx * 9.0'f32 - perpX, y: eP.y - ny * 9.0'f32 - perpY),
                    1.8'f32, Color(r: 255, g: 255, b: 255, a: aAlpha))
 
-  # Progress pips – wider spacing, per-type colour theme
+  # Progress pips: wider spacing, per-type colour theme
   if showHints and enemy.weakPoint.required > 1:
     let pipStep   = 13.0'f32
     let pipR      = if kind == bwoDashBackPlate: 4.8'f32 else: 4.2'f32

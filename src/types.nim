@@ -6,7 +6,7 @@ export Deque
 
 type
   GameState* = enum
-    gsSplash, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
+    gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
     gsRogueliteSectorSelect, gsDeathSequence
 
   GameMode* = enum
@@ -474,9 +474,9 @@ type
     decoy*: bool
     relativeToBoss*: bool
     color*: Color
-    wrongHitFlash*: float32    ## Counts down (0.45 s) after hitting the wrong target – red flash overlay
-    hitFlashTimer*: float32    ## Counts down (0.30 s) after a correct hit – expanding burst ring
-    activeGraceTimer*: float32 ## Counts down (0.38 s) when a sequential target first becomes active – wider hitbox
+    wrongHitFlash*: float32    ## Counts down (0.45 s) after hitting the wrong target, red flash overlay
+    hitFlashTimer*: float32    ## Counts down (0.30 s) after a correct hit, expanding burst ring
+    activeGraceTimer*: float32 ## Counts down (0.38 s) when a sequential target first becomes active, wider hitbox
 
   BossWeakPointState* = object
     enabled*: bool
@@ -574,7 +574,7 @@ type
     satellites*: seq[OrbitalSatellite]  # Persistent satellites that can be destroyed
     weakPoint*: BossWeakPointState  # Boss objective weak-point state
     invulnerabilityTimer*: float32  # Brief invulnerability during phase transitions
-    # --- Boss engagement mechanics (force conscious play, not just facetank-and-shoot) ---
+    # Boss engagement mechanics (force conscious play, not just facetank-and-shoot)
     reflectShieldActive*: bool      # Body shots are reflected/blocked while this is up
     reflectShieldTimer*: float32    # Time remaining on the current reflect shield
     reflectShieldCooldown*: float32  # Time until the next reflect shield raises
@@ -1163,6 +1163,11 @@ proc defaultPvPConfig*(): PvPConfig =
 const
   BulletSpeedDiminishStart* = 325.0'f32
   BulletSpeedDiminishScale* = 220.0'f32
+
+  # Duration of the epic boss phase-change animation. The boss is invulnerable
+  # and frozen for this whole window; the per-boss transition visuals in
+  # `drawBossPhaseTransition` are driven by how much of it has elapsed.
+  BossPhaseTransitionDuration* = 2.3'f32
 
 proc diminishedBulletSpeedGain*(currentSpeed, gain: float32): float32 =
   ## Keeps early bullet-speed gains intact, then tapers later gains smoothly.

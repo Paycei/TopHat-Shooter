@@ -193,6 +193,7 @@ type
     rogueliteLaunchGame*: bool  ## True when user pressed Start in the roguelite window
     iconToExecute*: int
     pvpGameReady*: bool  # True when PvP connection is established
+    replayIntro*: bool  # True when user clicked "Replay Intro" in settings
 
 proc updateAllWindows*(wm: WindowManager, dt: float32,
                        screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult =
@@ -203,6 +204,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
   result.rogueliteLaunchGame = false
   result.iconToExecute = -1
   result.pvpGameReady = false
+  result.replayIntro = false
 
   let visibleWindows = wm.getVisibleWindows()
 
@@ -216,6 +218,11 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       let settingsResult = updateSettingsWindow(wm.settings, dt, screenWidth, screenHeight, visibleWindows)
       if settingsResult.fullscreenToggle:
         result.fullscreenToggle = true
+      # Consume the replay-intro request so it can only fire once, and never
+      # lingers to trigger later (e.g. from a mid-game settings click).
+      if wm.settings.replayIntroRequested:
+        result.replayIntro = true
+        wm.settings.replayIntroRequested = false
 
     elif window == wm.stats.window:
       discard updateStatsWindow(wm.stats, dt, screenWidth, screenHeight, visibleWindows)

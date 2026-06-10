@@ -347,11 +347,11 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10
 
   # Current wave info
-  drawText("Current Wave: " & $game.currentWave, x + 20, currentY, 16, White)
+  drawText(t(tkCheatCurrentWave) & " " & $game.currentWave, x + 20, currentY, 16, White)
   currentY += 25
-  drawText("Waves until Boss: " & $game.wavesUntilBoss, x + 20, currentY, 16, White)
+  drawText(t(tkCheatWavesUntilBoss) & " " & $game.wavesUntilBoss, x + 20, currentY, 16, White)
   currentY += 25
-  drawText("Enemies alive: " & $game.enemies.len, x + 20, currentY, 16, White)
+  drawText(t(tkCheatEnemiesAlive) & " " & $game.enemies.len, x + 20, currentY, 16, White)
   currentY += 40
 
   # Buttons
@@ -365,7 +365,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   drawRectangle(centerX, currentY, buttonWidth, buttonHeight,
                 if skipHovered: Color(r: 80, g: 80, b: 0, a: 255) else: Color(r: 60, g: 60, b: 0, a: 255))
   drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, Yellow)
-  drawText("Skip Current Wave", centerX + 30, currentY + 12, 16, White)
+  drawText(t(tkCheatSkipWave), centerX + 30, currentY + 12, 16, White)
 
   if skipHovered and isMouseButtonPressed(Left):
     applyWaveCheat(game, "skip")
@@ -378,7 +378,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   drawRectangle(centerX, currentY, buttonWidth, buttonHeight,
                 if nextHovered: Color(r: 0, g: 80, b: 80, a: 255) else: Color(r: 0, g: 60, b: 60, a: 255))
   drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, SkyBlue)
-  drawText("Advance to Next Wave", centerX + 20, currentY + 12, 16, White)
+  drawText(t(tkCheatAdvanceWave), centerX + 20, currentY + 12, 16, White)
 
   if nextHovered and isMouseButtonPressed(Left):
     applyWaveCheat(game, "next")
@@ -391,7 +391,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   drawRectangle(centerX, currentY, buttonWidth, buttonHeight,
                 if bossHovered: Color(r: 80, g: 0, b: 0, a: 255) else: Color(r: 60, g: 0, b: 0, a: 255))
   drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, Red)
-  drawText("Trigger Boss Wave", centerX + 40, currentY + 12, 16, White)
+  drawText(t(tkCheatTriggerBoss), centerX + 40, currentY + 12, 16, White)
 
   if bossHovered and isMouseButtonPressed(Left):
     applyWaveCheat(game, "boss")
@@ -399,7 +399,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
 proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu) =
   var currentY = y + 10
 
-  drawText("Click to activate consumable (30 seconds)", x + 20, currentY, 14, Gray)
+  drawText(t(tkCheatActivateConsumable), x + 20, currentY, 14, Gray)
   currentY += 30
 
   # Consumable buttons (Speed, Invincibility, Fire Rate, Magnet, Health, Coin)
@@ -409,16 +409,16 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
   let centerX = x + (width - buttonWidth) div 2
 
   let consumables = [
-    ("Speed Boost",   "Speed",      Color(r: 0,   g: 255, b: 255, a: 255)),
-    ("Invincibility", "Invincibility", Color(r: 255, g: 0,   b: 255, a: 255)),
-    ("Fire Rate",     "Fire Rate",  Color(r: 255, g: 165, b: 0,   a: 255)),
-    ("Magnet",        "Magnet",     Color(r: 147, g: 51,  b: 234, a: 255)),
-    ("Health",        "Health",     Color(r: 50,  g: 255, b: 50,  a: 255)),
-    ("Coin",          "Coin",       Color(r: 255, g: 215, b: 0,   a: 255)),
-    ("Shield Boost",  "Shield",     Color(r: 0,   g: 255, b: 255, a: 255)),
-    ("Damage Boost",  "Damage",     Color(r: 255, g: 69,  b: 0,   a: 255)),
-    ("Double Coin",   "DoubleCoin", Color(r: 255, g: 223, b: 0,   a: 255)),
-    ("Lifesteal",     "Lifesteal",  Color(r: 139, g: 0,   b: 0,   a: 255))
+    (tkCheatSpeedBoost,     "Speed",      Color(r: 0,   g: 255, b: 255, a: 255)),
+    (tkCheatInvincibility,  "Invincibility", Color(r: 255, g: 0,   b: 255, a: 255)),
+    (tkCheatFireRate,       "Fire Rate",  Color(r: 255, g: 165, b: 0,   a: 255)),
+    (tkCheatMagnet,         "Magnet",     Color(r: 147, g: 51,  b: 234, a: 255)),
+    (tkCheatConsHealth,     "Health",     Color(r: 50,  g: 255, b: 50,  a: 255)),
+    (tkCheatConsCoin,       "Coin",       Color(r: 255, g: 215, b: 0,   a: 255)),
+    (tkCheatConsShield,     "Shield",     Color(r: 0,   g: 255, b: 255, a: 255)),
+    (tkCheatConsDamage,     "Damage",     Color(r: 255, g: 69,  b: 0,   a: 255)),
+    (tkCheatConsDoubleCoin, "DoubleCoin", Color(r: 255, g: 223, b: 0,   a: 255)),
+    (tkCheatConsLifesteal,  "Lifesteal",  Color(r: 139, g: 0,   b: 0,   a: 255))
   ]
 
   # Scrolling
@@ -437,7 +437,8 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
   let endIdx   = min(startIdx + maxVisible, consumables.len)
 
   for i in startIdx..<endIdx:
-    let (name, typeStr, color) = consumables[i]
+    let (nameKey, typeStr, color) = consumables[i]
+    let name = t(nameKey)
     let itemY = currentY + (i - startIdx).int32 * itemStride
     let rect = Rectangle(x: centerX.float32, y: itemY.float32,
                          width: buttonWidth.float32, height: buttonHeight.float32)
@@ -472,13 +473,13 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
       playSound(stPowerUp)
 
   if maxScroll > 0:
-    drawText("Showing " & $(startIdx + 1) & "-" & $endIdx & " of " & $consumables.len,
+    drawText(t(tkCheatShowingItems) & " " & $(startIdx + 1) & "-" & $endIdx & " " & t(tkCheatOf) & " " & $consumables.len,
              x + 20, y + height - 15, 10, Gray)
 
 proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10
 
-  drawText("Player Stats (Click buttons to modify)", x + 20, currentY, 14, Gray)
+  drawText(t(tkCheatPlayerStats), x + 20, currentY, 14, Gray)
   currentY += 30
 
   let labelX = x + 40
@@ -489,14 +490,14 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   let spacing: int32 = 8
 
   # Health
-  drawText("Health:", labelX, currentY + 5, 16, White)
+  drawText(t(tkCheatHealth), labelX, currentY + 5, 16, White)
   drawText($game.player.hp & " / " & $game.player.maxHp, valueX, currentY + 5, 16, Green)
 
   # Health buttons
   let healthButtons = [
-    ("Full", game.player.maxHp),
-    ("Half", game.player.maxHp / 2.0),
-    ("Low", 1.0.float32)
+    (t(tkCheatHealthFull), game.player.maxHp),
+    (t(tkCheatHealthHalf), game.player.maxHp / 2.0),
+    (t(tkCheatHealthLow), 1.0.float32)
   ]
 
   var btnX = buttonStartX
@@ -520,7 +521,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   currentY += buttonHeight + 20
 
   # Max Health
-  drawText("Max Health:", labelX, currentY + 5, 16, White)
+  drawText(t(tkCheatMaxHealth), labelX, currentY + 5, 16, White)
   drawText($game.player.maxHp, valueX, currentY + 5, 16, Yellow)
 
   let maxHealthButtons = [
@@ -551,7 +552,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   currentY += buttonHeight + 20
 
   # Coins
-  drawText("Coins:", labelX, currentY + 5, 16, White)
+  drawText(t(tkCheatCoins), labelX, currentY + 5, 16, White)
   drawText($game.player.coins, valueX, currentY + 5, 16, Yellow)
 
   let coinButtons = [
@@ -582,13 +583,13 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   currentY += buttonHeight + 20
 
   # Speed
-  drawText("Speed:", labelX, currentY + 5, 16, White)
+  drawText(t(tkCheatSpeed), labelX, currentY + 5, 16, White)
   drawText($int(game.player.baseSpeed), valueX, currentY + 5, 16, SkyBlue)
 
   let speedButtons = [
-    ("Normal", 200.float32),
-    ("Fast", 400.float32),
-    ("Max", 600.float32)
+    (t(tkCheatSpeedNormal), 200.float32),
+    (t(tkCheatSpeedFast), 400.float32),
+    (t(tkCheatSpeedMax), 600.float32)
   ]
 
   btnX = buttonStartX
@@ -612,7 +613,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
   currentY += buttonHeight + 30
 
   # Instructions
-  drawText("Tip: Modify stats to test different scenarios", x + 20, currentY, 12, Gray)
+  drawText(t(tkCheatModifyStats), x + 20, currentY, 12, Gray)
 
 proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu) =
   let contentHeight = height
@@ -620,7 +621,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
 
   var currentY = y + 10
 
-  drawText("Currently Owned (" & $game.player.powerUps.len & ") - Scroll with Mouse Wheel", x + 20, currentY, 14, Yellow)
+  drawText(t(tkCheatCurrentlyOwned) & " " & $game.player.powerUps.len, x + 20, currentY, 14, Yellow)
   currentY += 25
 
   # Owned power-ups scrollable area
@@ -629,7 +630,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   let ownedMaxVisible = max(1, ownedAreaHeight div ownedItemHeight)
 
   if game.player.powerUps.len == 0:
-    drawText("  None", x + 30, currentY, 12, Gray)
+    drawText("  " & t(tkCheatNone), x + 30, currentY, 12, Gray)
   else:
     # Handle mouse wheel scrolling for owned list
     let mousePos = getVirtualMousePosition()
@@ -655,7 +656,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
       let itemY = currentY + (i - ownedStartIdx).int32 * ownedItemHeight
 
       # Draw power-up name and level
-      drawText("  " & name & " - Lv " & $powerUp.level, x + 30, itemY + 7, 12, Green)
+      drawText("  " & name & " - " & t(tkCheatLv) & " " & $powerUp.level, x + 30, itemY + 7, 12, Green)
 
       # Remove button
       let removeX = x + width - 80
@@ -669,7 +670,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
                     if removeHovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255))
       drawRectangleLines(removeX, itemY + 2, removeWidth, removeHeight, Red)
 
-      let removeText = "Remove"
+      let removeText = t(tkCheatRemove)
       let removeTextWidth = measureText(removeText, 10)
       drawText(removeText, removeX + (removeWidth - removeTextWidth) div 2, itemY + 9, 10, White)
 
@@ -680,7 +681,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
     # Scroll indicator for owned list
     if ownedMaxScroll > 0:
       let scrollInfoY = dividerY - 18
-      drawText("Showing " & $(ownedStartIdx + 1) & "-" & $ownedEndIdx & " of " & $game.player.powerUps.len,
+      drawText(t(tkCheatShowingItems) & " " & $(ownedStartIdx + 1) & "-" & $ownedEndIdx & " " & t(tkCheatOf) & " " & $game.player.powerUps.len,
               x + 20, scrollInfoY, 10, Gray)
 
   # Draw divider line
@@ -690,7 +691,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
 
   currentY = dividerY + 15
 
-  drawText("All Available Power-Ups - Scroll with Mouse Wheel", x + 20, currentY, 14, Yellow)
+  drawText(t(tkCheatAllPowerUps), x + 20, currentY, 14, Yellow)
   currentY += 25
 
   # All power-up types come directly from the registry enum.
@@ -768,17 +769,17 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   # Draw scroll indicator for available list
   if maxScroll > 0:
     let scrollY = y + contentHeight - 15
-    drawText("Showing " & $(startIdx + 1) & "-" & $endIdx & " of " & $allPowerUpCount,
+    drawText(t(tkCheatShowingItems) & " " & $(startIdx + 1) & "-" & $endIdx & " " & t(tkCheatOf) & " " & $allPowerUpCount,
             x + 20, scrollY, 10, Gray)
 
 proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10
 
-  drawText("Active Enemies (" & $game.enemies.len & " alive)", x + 20, currentY, 16, Yellow)
+  drawText(t(tkCheatActiveEnemies) & " (" & $game.enemies.len & " " & t(tkCheatAlive) & ")", x + 20, currentY, 16, Yellow)
   currentY += 30
 
   if game.enemies.len == 0:
-    drawText("No enemies currently alive", x + 30, currentY, 14, Gray)
+    drawText(t(tkCheatNoEnemies), x + 30, currentY, 14, Gray)
     return
 
   # Draw enemy list with visual indicators
@@ -849,23 +850,23 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
     # Enemy name and type
     let nameX = x + 65
     let enemyName = if enemy.isBoss:
-      "CUSTOM BOSS"
+      t(tkCheatCustomBoss)
     else:
       case enemy.enemyType
-      of etCircle: "Circle Chaser"
-      of etCube: "Cube Shooter"
-      of etTriangle: "Triangle Dasher"
-      of etStar: "Star Tank"
-      of etHexagon: "Hexagon Teleporter"
-      of etCross: "Cross Laser"
-      of etDiamond: "Diamond Shooter"
-      of etOctagon: "Octagon Sprayer"
-      of etPentagon: "Pentagon Sniper"
-      of etTrickster: "Trickster"
-      of etPhantom: "Phantom"
-      of etSniper: "SNIPER"
-      of etMage: "Mage"
-      of etEnvironment: "Environment"
+      of etCircle: t(tkEnemyCircleName)
+      of etCube: t(tkEnemyCubeName)
+      of etTriangle: t(tkEnemyTriangleName)
+      of etStar: t(tkEnemyStarName)
+      of etHexagon: t(tkEnemyHexagonName)
+      of etCross: t(tkEnemyCrossName)
+      of etDiamond: t(tkEnemyDiamondName)
+      of etOctagon: t(tkEnemyOctagonName)
+      of etPentagon: t(tkEnemyPentagonName)
+      of etTrickster: t(tkEnemyTricksterName)
+      of etPhantom: t(tkEnemyPhantomName)
+      of etSniper: t(tkEnemySniperName)
+      of etMage: t(tkEnemyMageName)
+      of etEnvironment: t(tkCheatEnemyEnvironment)
 
     let nameColor = if enemy.isBoss: Red
                     elif enemy.enemyType == etSniper: Magenta
@@ -894,5 +895,5 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
   # Show count if more enemies than can display
   if game.enemies.len > maxVisible:
     let remainingY = y + height - 20
-    drawText("+ " & $(game.enemies.len - maxVisible) & " more enemies...",
+    drawText("+ " & $(game.enemies.len - maxVisible) & " " & t(tkCheatMoreEnemies),
             x + 20, remainingY, 12, Yellow)

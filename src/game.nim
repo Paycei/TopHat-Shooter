@@ -6,7 +6,7 @@ const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricoc
 const GATE_DAMAGE_LEAK = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
 const TIME_SURVIVAL_BOSS_INTERVAL = 60.0
-const BOSS_PHASE_INVULNERABILITY_DURATION = 1.2'f32
+const BOSS_PHASE_INVULNERABILITY_DURATION = BossPhaseTransitionDuration
 const DEATH_SLOW_DURATION = 1.1'f32
 const DEATH_SPEEDUP_DURATION = 0.35'f32
 const DEATH_FADE_DURATION = 0.65'f32
@@ -2302,9 +2302,18 @@ proc transitionBossToPhase(game: var Game, enemy: Enemy, bossDef: BossDefinition
   enemy.maxHp = bossPhaseMaxHp(enemy, nextPhaseIndex, bossDef.phases.len)
   enemy.hp = enemy.maxHp
 
-  # Brief invulnerability and transition punch.
+  # Invulnerability for the full epic transition, and a punch to sell it. The
+  # boss is frozen (see the movement guard in the boss update loop) and cannot
+  # be hurt while drawBossPhaseTransition plays its per-boss animation.
   enemy.invulnerabilityTimer = BOSS_PHASE_INVULNERABILITY_DURATION
   enemy.bossPhaseBreakFlashTimer = 0.9'f32
+  enemy.vel = newVector2f(0, 0)
+  enemy.isDashing = false
+  enemy.dashDuration = 0
+  # Reset enrage so attack timers (seeded to the full invuln duration below) tick
+  # at the base rate and only expire once the transition ends, no shots or
+  # telegraphs leak into the frozen animation.
+  enemy.bossEnrageLevel = 0.0'f32
   addShake(game.dopamine.screenShake, siLarge)
 
   for ring in 1..5:
@@ -2324,7 +2333,9 @@ proc transitionBossToPhase(game: var Game, enemy: Enemy, bossDef: BossDefinition
                            Color(r: 100, g: 150, b: 255, a: 255), 12)
     enemy.satellites = @[]
 
-  const PHASE_TRANSITION_LEAD = 0.4'f32
+  # Attacks stay silent for the whole transition, then resume the instant the
+  # boss becomes vulnerable again (lead == invuln duration).
+  const PHASE_TRANSITION_LEAD = BOSS_PHASE_INVULNERABILITY_DURATION
   enemy.attackTimers = @[]
   enemy.attackWarningFired = @[]
   for attack in phase.attacks:
@@ -2350,7 +2361,7 @@ proc tryAdvanceBossPhase(game: var Game, enemy: Enemy): bool =
   transitionBossToPhase(game, enemy, bossDef, nextPhaseIndex)
   true
 
-# --- Boss engagement mechanics --------------------------------------------
+# Boss engagement mechanics
 # These exist to stop "facetank and hold fire = win". They layer on top of the
 # weak-point durability gate: the body is heavily resisted, and on top of that
 # these mechanics demand the player consciously DO something (clear adds, stop
@@ -4093,7 +4104,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
             angle: angle,
             radius: layerRadius,
             rotationSpeed: layerRotationSpeed,
-            hp: 1,  # 1-hit kill – satellites are glass-cannon threats, not tanks
+            hp: 1,  # 1-hit kill, satellites are glass-cannon threats, not tanks
             shootTimer: 0.5 + rand(1.0) + (layer.float32 * 0.3),  # Later layers shoot slightly later
             owner: enemy.id,
             laserActive: false,
@@ -6374,8 +6385,10 @@ proc updateGame*(game: var Game, dt: float32) =
         if enemy.invulnerabilityTimer < 0:
           enemy.invulnerabilityTimer = 0
 
-      # Update boss behavior based on specialBehavior
-      if enemy.currentPhaseIndex < bossDef.phases.len:
+      # Update boss behavior based on specialBehavior. The boss holds completely
+      # still during a phase-change transition so the animation reads as a
+      # dramatic "charge up and transform" beat rather than a moving target.
+      if enemy.invulnerabilityTimer <= 0 and enemy.currentPhaseIndex < bossDef.phases.len:
         let phase = bossDef.phases[enemy.currentPhaseIndex]
 
         # Ranged-pattern bosses maintain a safe preferred distance from the player.
@@ -8117,16 +8130,16 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy) =
                      1, withAlpha(activeColor, 210))
 
   let threatName = getEnemyProcessName(enemy)
-  drawText("CRITICAL THREAT", panelX + 11, panelY + 7, 8, withAlpha(activeColor, 240))
+  drawText(t(tkBossThreatCritical), panelX + 11, panelY + 7, 8, withAlpha(activeColor, 240))
   drawText(threatName, panelX + 11, panelY + 17, 13, Color(r: 238, g: 245, b: 255, a: 255))
 
   let phaseName =
     if currentPhase < bossDef.phases.len:
       bossDef.phases[currentPhase].name
     else:
-      "Phase " & $(currentPhase + 1)
+      t(tkBossThreatPhaseName) & " " & $(currentPhase + 1)
   let phaseCountLabel = if revealAll: $phaseCount else: "?"
-  let phaseText = "PHASE " & $(currentPhase + 1) & "/" & phaseCountLabel & " :: " & phaseName
+  let phaseText = t(tkBossThreatPhaseHeader) & " " & $(currentPhase + 1) & "/" & phaseCountLabel & " :: " & phaseName
   let phaseTextW = measureText(phaseText, 10)
   drawText(phaseText, panelX + panelW - phaseTextW - 11, panelY + 9, 10, withAlpha(activeColor, 240))
 
@@ -8174,9 +8187,9 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy) =
              if i == currentPhase: White else: withAlpha(phaseColor, rowAlpha))
 
     if i < currentPhase:
-      drawText("BREACHED", barX + barW - 52, y + 1, 8, Color(r: 255, g: 190, b: 110, a: 180))
+      drawText(t(tkBossThreatBreached), barX + barW - 52, y + 1, 8, Color(r: 255, g: 190, b: 110, a: 180))
     elif i > currentPhase:
-      drawText("LOCKED", barX + barW - 40, y + 1, 8, Color(r: 120, g: 140, b: 160, a: 160))
+      drawText(t(tkBossThreatLocked), barX + barW - 40, y + 1, 8, Color(r: 120, g: 140, b: 160, a: 160))
     else:
       let poolText = formatHealthDisplay(enemy.hp) & "/" & formatHealthDisplay(phaseMax)
       let poolTextW = measureText(poolText, 8)
@@ -8368,7 +8381,7 @@ proc drawGame*(game: Game) =
 
     # Draw boss satellites
     if enemy.isBoss and enemy.satellites.len > 0:
-      # Orbit trail rings – one per unique radius
+      # Orbit trail rings, one per unique radius
       for idx, sat in enemy.satellites:
         if idx mod 2 == 0:
           drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sat.radius,

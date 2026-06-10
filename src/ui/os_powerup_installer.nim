@@ -49,6 +49,19 @@ proc drawModernButton(x, y, width, height: int32, text: string,
   let textWidth = measureText(text, 15)
   drawText(text, x + (width - textWidth) div 2, y + (height - 15) div 2, 15, textColor)
 
+proc wrapToLines(text: string, fontSize: int32, maxWidth: int32): seq[string] =
+  ## Greedy word-wrap of `text` to lines no wider than `maxWidth` at `fontSize`.
+  result = @[]
+  var currentLine = ""
+  for word in text.split(' '):
+    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
+    if measureText(testLine, fontSize) > maxWidth and currentLine.len > 0:
+      result.add(currentLine)
+      currentLine = word
+    else:
+      currentLine = testLine
+  if currentLine.len > 0: result.add(currentLine)
+
 proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
                     selected: bool, time: float32, playerDamage: float32,
                     alpha: float32 = 1.0) =
@@ -245,20 +258,23 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
                                 width: float32(width - 20), height: descBoxHeight.float32),
                     2.0, Color(r: 60, g: 80, b: 100, a: 255))
   let desc = getPowerUpDescription(powerUp.powerType, powerUp.level, playerDamage)
-  var descLines: seq[string] = @[]
-  var currentLine = ""
   let maxLineWidth = width - 44
-  for word in desc.split(' '):
-    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
-    if measureText(testLine, 14) > maxLineWidth:
-      if currentLine.len > 0: descLines.add(currentLine)
-      currentLine = word
-    else:
-      currentLine = testLine
-  if currentLine.len > 0: descLines.add(currentLine)
+  let availTextHeight = descBoxHeight - 20   # 12px top pad + ~8px bottom pad
+  # Shrink the font (14 -> 9) until the wrapped description fits the box height,
+  # so long descriptions (e.g. legendaries, longer languages) are never clipped.
+  var descFont: int32 = 14
+  var descLines: seq[string] = @[]
+  for fs in countdown(14'i32, 9'i32):
+    descFont = fs
+    descLines = wrapToLines(desc, fs, maxLineWidth)
+    if int32(descLines.len) * (fs + 6) <= availTextHeight:
+      break
+  let lineH = descFont + 6
+  let maxLines = max(1'i32, availTextHeight div lineH)
   for i, line in descLines:
-    if i < 4:
-      drawText(line, x + 22, yOff + 12 + int32(i * 20), 14, Color(r: 220, g: 230, b: 240, a: 255))
+    if int32(i) >= maxLines: break
+    drawText(line, x + 22, yOff + 12 + int32(i) * lineH, descFont,
+             Color(r: 220, g: 230, b: 240, a: 255))
   yOff += descBoxHeight + 8
 
   # Footer

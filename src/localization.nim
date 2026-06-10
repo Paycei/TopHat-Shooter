@@ -66,6 +66,7 @@ type
     tkSettingsExitConfirm = "settings_exit_confirm"
     tkSettingsExitConfirmDesc = "settings_exit_confirm_desc"
     tkSettingsLanguage = "settings_language"
+    tkSettingsReplayIntro = "settings_replay_intro"
     tkSettingsBackToMenu = "settings_back_to_menu"
     tkSettingsSectionDataManagement = "settings_section_data_management"
     tkSettingsResetAllData = "settings_reset_all_data"
@@ -101,6 +102,30 @@ type
     tkSettingsKeyboardF11 = "settings_keyboard_f11"
     tkSettingsKeyboardToggleFullscreen = "settings_keyboard_toggle_fullscreen"
     tkSettingsKeyboardTab = "settings_keyboard_tab"
+
+    # Intro / Lore Cinematic
+    tkLoreTitleCardSub = "lore_title_card_sub"
+    tkLoreLive = "lore_live"
+    tkLoreControlsFF = "lore_controls_ff"
+    tkLoreControlsFFActive = "lore_controls_ff_active"
+    tkLoreRecBreach = "lore_rec_breach"
+    tkLoreRecSwarm = "lore_rec_swarm"
+    tkLoreRecAwaken = "lore_rec_awaken"
+    tkLoreRecBoss = "lore_rec_boss"
+    tkLoreRecCounter = "lore_rec_counter"
+    tkLoreRecDirective = "lore_rec_directive"
+    tkLoreBreach1 = "lore_breach_1"
+    tkLoreBreach2 = "lore_breach_2"
+    tkLoreSwarm1 = "lore_swarm_1"
+    tkLoreSwarm2 = "lore_swarm_2"
+    tkLoreAwaken1 = "lore_awaken_1"
+    tkLoreAwaken2 = "lore_awaken_2"
+    tkLoreBoss1 = "lore_boss_1"
+    tkLoreBoss2 = "lore_boss_2"
+    tkLoreCounter1 = "lore_counter_1"
+    tkLoreCounter2 = "lore_counter_2"
+    tkLoreDirectiveTitle = "lore_directive_title"
+    tkLoreDirectiveSub = "lore_directive_sub"
 
     # Stats Window
     tkStatsWindowTitle = "stats_window_title"
@@ -1255,6 +1280,78 @@ type
     tkBoss12Name = "boss_12_name"
     tkBoss12Desc = "boss_12_desc"
 
+    # Common
+    tkCommonOn = "common_on"
+    tkCommonOff = "common_off"
+
+    # Boss threat HUD
+    tkBossThreatCritical = "boss_threat_critical"
+    tkBossThreatPhaseHeader = "boss_threat_phase_header"
+    tkBossThreatPhaseName = "boss_threat_phase_name"
+    tkBossThreatBreached = "boss_threat_breached"
+    tkBossThreatLocked = "boss_threat_locked"
+
+    # Sandbox power-up visuals tab
+    tkSandboxPowerupVisuals = "sandbox_powerup_visuals"
+    tkSandboxVisualsSubtitle = "sandbox_visuals_subtitle"
+    tkSandboxBadgeLegendary = "sandbox_badge_legendary"
+    tkSandboxBadgeCommon = "sandbox_badge_common"
+    tkSandboxLv1Preview = "sandbox_lv1_preview"
+    tkSandboxEnterBoss3d = "sandbox_enter_boss_3d"
+    tkSandboxTest3dArena = "sandbox_test_3d_arena"
+
+    # Advancements window
+    tkAdvControlTitle = "adv_control_title"
+    tkAdvSyncDesc = "adv_sync_desc"
+    tkAdvUnlockedCount = "adv_unlocked_count"
+    tkAdvClaimedCount = "adv_claimed_count"
+    tkAdvClaimedPoints = "adv_claimed_points"
+    tkAdvClaimAll = "adv_claim_all"
+    tkAdvAllClaimed = "adv_all_claimed"
+    tkAdvCategories = "adv_categories"
+    tkAdvDetail = "adv_detail"
+    tkAdvProgress = "adv_progress"
+    tkAdvStatus = "adv_status"
+    tkAdvPoints = "adv_points"
+    tkAdvReward = "adv_reward"
+    tkAdvUnlockedAt = "adv_unlocked_at"
+    tkAdvPointsClaimed = "adv_points_claimed"
+    tkAdvPointsPending = "adv_points_pending"
+    tkAdvPointsReward = "adv_points_reward"
+    tkAdvRewardClaimed = "adv_reward_claimed"
+    tkAdvClaimReward = "adv_claim_reward"
+    tkAdvLockedBtn = "adv_locked_btn"
+
+    # Stats window (untranslated leftovers)
+    tkStatsHealingSources = "stats_healing_sources"
+    tkStatsHealthConsumable = "stats_health_consumable"
+    tkStatsNoHealingData = "stats_no_healing_data"
+    tkStatsTotalEarned = "stats_total_earned"
+    tkStatsAnalyticsReport = "stats_analytics_report"
+
+    # Desktop
+    tkDesktopNet = "desktop_net"
+
+    # Debug panel runtime stats (effect labels already exist above)
+    tkDebugPanelDps = "debug_panel_dps"
+    tkDebugPanelCmin = "debug_panel_cmin"
+    tkDebugPanelAbilities = "debug_panel_abilities"
+
+    # Cheat / debug menu (new keys; many already exist above)
+    tkCheatLv = "cheat_lv"
+    tkCheatRemove = "cheat_remove"
+    tkCheatAlive = "cheat_alive"
+    tkCheatOf = "cheat_of"
+    tkCheatMoreEnemies = "cheat_more_enemies"
+    tkCheatCustomBoss = "cheat_custom_boss"
+    tkCheatEnemyEnvironment = "cheat_enemy_environment"
+    tkCheatConsHealth = "cheat_cons_health"
+    tkCheatConsCoin = "cheat_cons_coin"
+    tkCheatConsShield = "cheat_cons_shield"
+    tkCheatConsDamage = "cheat_cons_damage"
+    tkCheatConsDoubleCoin = "cheat_cons_double_coin"
+    tkCheatConsLifesteal = "cheat_cons_lifesteal"
+
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -1318,7 +1415,31 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_exit_confirm": "Exit Confirm:",
     "settings_exit_confirm_desc": "(prompt when quitting game)",
     "settings_language": "Language:",
+    "settings_replay_intro": "Replay Intro",
     "settings_back_to_menu": "Press ESC to return to menu",
+
+    "lore_title_card_sub": "ARCHIVE PLAYBACK // INCIDENT LOG",
+    "lore_live": "LIVE",
+    "lore_controls_ff": "HOLD ENTER: X2  |  HOLD SPACE: SKIP",
+    "lore_controls_ff_active": "HOLD ENTER: 2X ACTIVE  |  HOLD SPACE: SKIP",
+    "lore_rec_breach": "REC 00: SYSTEM BREACH",
+    "lore_rec_swarm": "REC 01: HOSTILE PROCESS FLOOD",
+    "lore_rec_awaken": "REC 02: TOPHAT KERNEL WAKE",
+    "lore_rec_boss": "REC 03: UNKNOWN ROOT ENTITY",
+    "lore_rec_counter": "REC 04: DEFENSE LOOP",
+    "lore_rec_directive": "REC 05: PROTOCOL HANDOFF",
+    "lore_breach_1": "An unknown server breaks into TopHat-ShooterOS.",
+    "lore_breach_2": "This is not noise. It is an invasion.",
+    "lore_swarm_1": "The corrupted pour in: shapes, shards, and hunger.",
+    "lore_swarm_2": "Every wave learns. Every wave gets closer.",
+    "lore_awaken_1": "TOPHAT boots as the last trusted process.",
+    "lore_awaken_2": "Directive: survive, adapt, purge.",
+    "lore_boss_1": "Something older stirs beneath the corruption.",
+    "lore_boss_2": "It writes the attacks while you watch.",
+    "lore_counter_1": "Your fire becomes patches. Their shards become power.",
+    "lore_counter_2": "The system can still be saved.",
+    "lore_directive_title": "DEFENSE PROTOCOL: ACTIVE",
+    "lore_directive_sub": "Good luck, TOPHAT.",
     "settings_section_data_management": "DATA MANAGEMENT",
     "settings_reset_all_data": "Reset All Data",
     "settings_reset_advancements": "Reset Advancements",
@@ -1628,7 +1749,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_resonance_desc2": "Bullets hitting enemies with active DoTs deal bonus damage equal to 30% of their combined elemental DPS",
     "powerup_resonance_desc3": "Bullets hitting enemies with active DoTs deal bonus damage equal to 40% of their combined elemental DPS",
     "powerup_blood_pact": "Blood Pact",
-    "powerup_blood_pact_desc": "Sacrifice 30% of your current HP and split that damage among all on-screen enemies. 5s cooldown",
+    "powerup_blood_pact_desc": "Sacrifice 30% of your current HP to unleash a blood nova, hitting EVERY enemy for 25% of its max HP plus bonus damage. Bosses resist it. 3s cooldown",
     "powerup_conduit": "Conduit",
     "powerup_conduit_desc": "Detonate all active DoTs on enemies for 3x their remaining tick damage, then clear the effects. 15s cooldown",
     "powerup_aftershock": "Aftershock",
@@ -2267,7 +2388,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_celestial_veil": "Celestial Veil - Absorb one hit per wave",
     "help_volatile": "Volatile - Enemies with 2+ DoTs take +50% dmg",
     "help_resonance": "Resonance - Bullets on DoT targets deal elemental bonus",
-    "help_blood_pact": "Blood Pact - Sacrifice HP to damage all enemies",
+    "help_blood_pact": "Blood Pact - Sacrifice HP to blast every enemy for a share of its max HP",
     "help_conduit": "Conduit - Detonate all DoTs for 3x burst damage",
     "help_aftershock": "Aftershock - Shockwave traces your movement path",
     "help_nova": "Nova - Freeze bullets then release at +50% speed",
@@ -2732,7 +2853,79 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_unsaved": "Unsaved progress will be lost.",
     "confirm_cancel_btn": "[ESC] CANCEL",
     "confirm_quit_btn": "[Q] QUIT",
-    "confirm_exit_btn": "[Q] EXIT"
+    "confirm_exit_btn": "[Q] EXIT",
+
+    # Common
+    "common_on": "ON",
+    "common_off": "OFF",
+
+    # Boss threat HUD
+    "boss_threat_critical": "CRITICAL THREAT",
+    "boss_threat_phase_header": "PHASE",
+    "boss_threat_phase_name": "Phase",
+    "boss_threat_breached": "BREACHED",
+    "boss_threat_locked": "LOCKED",
+
+    # Sandbox power-up visuals tab
+    "sandbox_powerup_visuals": "Power-Up Visuals",
+    "sandbox_visuals_subtitle": "Icon, rarity, and Lv.1 description preview",
+    "sandbox_badge_legendary": "LEGENDARY",
+    "sandbox_badge_common": "COMMON",
+    "sandbox_lv1_preview": "Lv.1 preview",
+    "sandbox_enter_boss_3d": "Enter Boss #7 3D",
+    "sandbox_test_3d_arena": "Test 3D Arena",
+
+    # Advancements window
+    "adv_control_title": "ADVANCEMENT CONTROL",
+    "adv_sync_desc": "Persistent progression synced from lifetime stats, last runs, and roguelite profile data.",
+    "adv_unlocked_count": "Unlocked",
+    "adv_claimed_count": "Claimed",
+    "adv_claimed_points": "Claimed Points",
+    "adv_claim_all": "Claim All +",
+    "adv_all_claimed": "All Claimed",
+    "adv_categories": "Categories",
+    "adv_detail": "Detail",
+    "adv_progress": "Progress",
+    "adv_status": "Status",
+    "adv_points": "Points",
+    "adv_reward": "Reward",
+    "adv_unlocked_at": "Unlocked",
+    "adv_points_claimed": "claimed",
+    "adv_points_pending": "pending",
+    "adv_points_reward": "reward",
+    "adv_reward_claimed": "Reward Claimed",
+    "adv_claim_reward": "Claim Reward",
+    "adv_locked_btn": "Locked",
+
+    # Stats window leftovers
+    "stats_healing_sources": "Healing Sources",
+    "stats_health_consumable": "Health Consumable",
+    "stats_no_healing_data": "No healing data",
+    "stats_total_earned": "Total Earned",
+    "stats_analytics_report": "System Analytics - Run Report",
+
+    # Desktop
+    "desktop_net": "NET",
+
+    # Debug panel runtime stats
+    "debug_panel_dps": "DPS",
+    "debug_panel_cmin": "C/min",
+    "debug_panel_abilities": "ABILITIES",
+
+    # Cheat / debug menu (new keys)
+    "cheat_lv": "Lv",
+    "cheat_remove": "Remove",
+    "cheat_alive": "alive",
+    "cheat_of": "of",
+    "cheat_more_enemies": "more enemies...",
+    "cheat_custom_boss": "CUSTOM BOSS",
+    "cheat_enemy_environment": "Environment",
+    "cheat_cons_health": "Health",
+    "cheat_cons_coin": "Coin",
+    "cheat_cons_shield": "Shield Boost",
+    "cheat_cons_damage": "Damage Boost",
+    "cheat_cons_double_coin": "Double Coin",
+    "cheat_cons_lifesteal": "Lifesteal"
   }.toTable,
 
   Spanish: {
@@ -2766,7 +2959,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_music": "Música:",
     "settings_fullscreen": "Pantalla:",
     "settings_fullscreen_toggle": "(F11 para cambiar)",
-    "settings_render_resolution": "Resolucion mejorada (SSAA):",
+    "settings_render_resolution": "Resolución mejorada (SSAA):",
     "settings_render_resolution_desc": "(mejora la nitidez en pantalla completa)",
     "settings_render_resolution_disabled": "Desactivada",
     "settings_render_resolution_enabled": "Activada",
@@ -2774,7 +2967,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_show_fps": "Mostrar FPS:",
     "settings_mouse_support": "Ratón:",
     "settings_mouse_support_desc": "(navegación de menú)",
-    "settings_mouse_bonding": "Bloqueo del raton:",
+    "settings_mouse_bonding": "Bloqueo del ratón:",
     "settings_mouse_bonding_desc": "(clic para cambiar el modo)",
     "settings_mouse_bonding_off": "Apagado",
     "settings_mouse_bonding_while_shooting": "Al disparar",
@@ -2795,7 +2988,31 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_exit_confirm": "Confirmar Salida:",
     "settings_exit_confirm_desc": "(aviso al salir del juego)",
     "settings_language": "Idioma:",
+    "settings_replay_intro": "Volver a ver intro",
     "settings_back_to_menu": "ESC para volver",
+
+    "lore_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // INCIDENTE",
+    "lore_live": "EN VIVO",
+    "lore_controls_ff": "ENTER: X2  |  ESPACIO: SALTAR",
+    "lore_controls_ff_active": "ENTER: X2 ACTIVO  |  ESPACIO: SALTAR",
+    "lore_rec_breach": "REC 00: BRECHA DEL SISTEMA",
+    "lore_rec_swarm": "REC 01: AVALANCHA DE PROCESOS",
+    "lore_rec_awaken": "REC 02: DESPERTAR DEL KERNEL",
+    "lore_rec_boss": "REC 03: ENTIDAD RAÍZ DESCONOCIDA",
+    "lore_rec_counter": "REC 04: BUCLE DE DEFENSA",
+    "lore_rec_directive": "REC 05: TRASPASO DE PROTOCOLO",
+    "lore_breach_1": "Un servidor desconocido invade TopHat-ShooterOS.",
+    "lore_breach_2": "No es ruido. Es una invasión.",
+    "lore_swarm_1": "Lo corrupto irrumpe: formas, fragmentos y hambre.",
+    "lore_swarm_2": "Cada oleada aprende. Cada oleada se acerca.",
+    "lore_awaken_1": "TOPHAT arranca como el último proceso fiable.",
+    "lore_awaken_2": "Directiva: sobrevive, adapta, purga.",
+    "lore_boss_1": "Algo más antiguo se agita bajo la corrupción.",
+    "lore_boss_2": "Escribe los ataques mientras lo observas.",
+    "lore_counter_1": "Tu fuego son parches. Sus fragmentos, poder.",
+    "lore_counter_2": "El sistema aún puede salvarse.",
+    "lore_directive_title": "PROTOCOLO DE DEFENSA: ACTIVO",
+    "lore_directive_sub": "Buena suerte, TOPHAT.",
     "settings_section_data_management": "DATOS",
     "settings_reset_all_data": "Reiniciar todo",
     "settings_reset_advancements": "Reiniciar avances",
@@ -2871,7 +3088,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_credits": "CR",
     "shop_bought": "Comprado",
     "shop_damage_plus": "Daño +",
-    "shop_damage_plus_desc": "Mejora de dano",
+    "shop_damage_plus_desc": "Mejora de daño",
     "shop_fire_rate_plus": "Cadencia +",
     "shop_fire_rate_plus_desc": "Mejora de cadencia",
     "shop_move_speed_plus": "Velocidad +",
@@ -2981,9 +3198,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_critical_hit_desc1": "20% probabilidad de 2x daño (todas fuentes)",
     "powerup_critical_hit_desc2": "35% probabilidad de 2x daño (todas fuentes)",
     "powerup_critical_hit_desc3": "50% probabilidad de 2x daño (todas fuentes)",
-    "powerup_blood_bullets_desc1": "Restaura 1 PV + 0.75% del daño de bala (sangre)",
-    "powerup_blood_bullets_desc2": "Restaura 1 PV + 1% del daño de bala (sangre)",
-    "powerup_blood_bullets_desc3": "Restaura 1 PV + 1.375% del daño de bala (sangre)",
+    "powerup_blood_bullets_desc1": "Restaura 1 HP + 0.75% del daño de bala (sangre)",
+    "powerup_blood_bullets_desc2": "Restaura 1 HP + 1% del daño de bala (sangre)",
+    "powerup_blood_bullets_desc3": "Restaura 1 HP + 1.375% del daño de bala (sangre)",
     "powerup_bullet_ricochet_desc1": "Balas rebotan 1 vez (50% daño por rebote)",
     "powerup_bullet_ricochet_desc2": "Balas rebotan 2 veces (50% daño por rebote)",
     "powerup_bullet_ricochet_desc3": "Balas rebotan 3 veces (50% daño por rebote)",
@@ -2999,9 +3216,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_thorns_desc1": "Refleja el 50% del daño al atacante",
     "powerup_thorns_desc2": "Refleja el 100% del daño al atacante",
     "powerup_thorns_desc3": "Refleja el 200% del daño al atacante",
-    "powerup_bullet_split_desc1": "Balas se dividen en 2 fragmentos de solo dano",
-    "powerup_bullet_split_desc2": "Balas se dividen en 3 fragmentos de solo dano",
-    "powerup_bullet_split_desc3": "Balas se dividen en 4 fragmentos de solo dano",
+    "powerup_bullet_split_desc1": "Las balas se dividen en 2 fragmentos que solo hacen daño",
+    "powerup_bullet_split_desc2": "Las balas se dividen en 3 fragmentos que solo hacen daño",
+    "powerup_bullet_split_desc3": "Las balas se dividen en 4 fragmentos que solo hacen daño",
     "powerup_chain_lightning_desc1": "Golpe encadena a 1 enemigo (70% daño bala, rango 120, aturdimiento 0.05s)",
     "powerup_chain_lightning_desc2": "Golpe encadena a 2 enemigos (85% daño bala, rango 140, aturdimiento 0.05s)",
     "powerup_chain_lightning_desc3": "Golpe encadena a 3 enemigos (100% daño bala, rango 160, aturdimiento 0.05s)",
@@ -3030,7 +3247,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_wind_aura_desc2": "Empujar enemigos en radio 250 (medio, 30 daño/s)",
     "powerup_wind_aura_desc3": "Empujar enemigos en radio 313 (fuerte, 30 daño/s)",
     "powerup_time_warp_desc": "Ralentiza el tiempo un 50% durante 3.5 s (2 usos/oleada, 10 s de recarga)",
-    "powerup_gravity_well_desc": "Atrae a enemigosen radio 300. Escudo 10% de vida (5s retardo renege, 5%/s regen)",
+    "powerup_gravity_well_desc": "Atrae a los enemigos en un radio de 300. Otorga un escudo del 10% de vida (5s de retardo antes de regenerar, 5%/s)",
     "powerup_phase_shift_desc": "Dash hacia delante (5 s cd, 0.5 s invuln., escala con velocidad)",
     "powerup_overcharge_desc": "+10% daño por 100 unidades recorridas (max 150%, alcanza a 1000 unidades)",
     "powerup_echo_shots_desc": "Las balas dejan ecos fantasma (25% de daño)",
@@ -3105,7 +3322,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_resonance_desc2": "Tus balas infligen daño extra igual al 30% del DPS elemental combinado si el objetivo tiene DoTs",
     "powerup_resonance_desc3": "Tus balas infligen daño extra igual al 40% del DPS elemental combinado si el objetivo tiene DoTs",
     "powerup_blood_pact": "Pacto de Sangre",
-    "powerup_blood_pact_desc": "Sacrifica el 30% de tu HP actual y lo reparte entre todos los enemigos en pantalla. Recarga 15 s",
+    "powerup_blood_pact_desc": "Sacrifica el 30% de tu HP actual para desatar una nova de sangre que golpea a CADA enemigo por el 25% de su HP máximo más daño extra. Los jefes la resisten. Recarga 3 s",
     "powerup_conduit": "Conducto",
     "powerup_conduit_desc": "Detona todos los DoTs activos por 3x su daño restante y luego los elimina. Recarga 15 s",
     "powerup_aftershock": "Réplica",
@@ -3142,7 +3359,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_movement_survival": "MOVIMIENTO Y SUPERVIVENCIA",
     "stats_distance": "Distancia",
     "stats_phase_shifts": "Cambios de Fase",
-    "stats_time_warps": "Saltos Temporales",
+    "stats_time_warps": "Distorsiones Temporales",
     "stats_near_deaths": "Casi Muertes",
     "stats_best_streak": "Mejor Racha",
     "stats_time_at_low_hp": "Tiempo a HP Bajo",
@@ -3548,12 +3765,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_heavy_rounds": "Balas Pesadas - Balas más grandes con retroceso",
     "help_fortified": "Fortificado - Reduce daño recibido y sube HP máx",
     "help_special_rounds": "Balas Especiales - La 5.ª bala causa daño extra",
-    "help_giant_slayer": "Cazagigantes - Daño extra vs enemigos con mucho HP",
+    "help_giant_slayer": "Matador de Gigantes - Daño extra vs enemigos con mucho HP",
     "help_curse": "Maldición - Maldice enemigos al azar para infligirles daño extra",
     "help_celestial_veil": "Velo Celestial - Absorbe un golpe por oleada",
     "help_volatile": "Volátil - Enemigos con 2+ DoTs sufren +50% daño",
     "help_resonance": "Resonancia - Balas en objetivos DoT causan bono elemental",
-    "help_blood_pact": "Pacto de Sangre - Sacrifica HP para dañar a todos los enemigos",
+    "help_blood_pact": "Pacto de Sangre - Sacrifica HP para golpear a cada enemigo por parte de su HP máximo",
     "help_conduit": "Conducto - Detona todos los DoTs por 3x daño",
     "help_aftershock": "Réplica - Onda de choque sigue tu camino de movimiento",
     "help_nova": "Nova - Congela balas y las libera al +50% velocidad",
@@ -3561,14 +3778,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_bountiful": "Cornucopia - Más consumibles y efectos mejorados",
 
     # Help System - Shop items
-    "help_shop_damage_plus": "Dano + (13 CR base)",
-    "help_shop_damage_plus_desc": "Mejora de dano de balas",
+    "help_shop_damage_plus": "Daño + (13 CR base)",
+    "help_shop_damage_plus_desc": "Mejora de daño de las balas",
     "help_shop_fire_rate_plus": "Cadencia + (13 CR base)",
     "help_shop_fire_rate_plus_desc": "Mejora de cadencia",
     "help_shop_move_speed_plus": "Velocidad + (10 CR base)",
     "help_shop_move_speed_plus_desc": "Mejora de movimiento",
-    "help_shop_max_health_plus": "Vida Max + (14 CR base)",
-    "help_shop_max_health_plus_desc": "Aumento de vida maxima",
+    "help_shop_max_health_plus": "Vida Máx + (14 CR base)",
+    "help_shop_max_health_plus_desc": "Aumento de vida máxima",
     "help_shop_bullet_speed_plus": "Vel. Balas + (9 CR base)",
     "help_shop_bullet_speed_plus_desc": "Mejora de velocidad de balas",
     "help_shop_wall_x4": "Muro x10 (18 CR base)",
@@ -3585,7 +3802,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_enemy_elite_desc": "- Versiones más fuertes de todos los tipos de enemigos\n  - Dejan caer más monedas al ser derrotados\n  - Aparecen en oleadas posteriores",
     "help_boss_every_5th": "Modo Oleadas: Cada 5ta oleada (5, 10, 15...)",
     "help_boss_every_60_sec": "Modo Supervivencia: Cada 60 segundos",
-    "help_cost_scaling_formula": "- Los objetos de tienda tienen limites estrictos\n  - Cada compra es mas fuerte y cuesta costBase * 1.8^comprado",
+    "help_cost_scaling_formula": "- Los objetos de tienda tienen límites estrictos\n  - Cada compra es más fuerte y cuesta costBase * 1.8^comprado",
     "help_kill_enemies_to_collect": "- Mata enemigos para recopilar monedas",
     "help_elite_drop_more": "- Los enemigos élite dejan caer más monedas",
     "help_boss_drop_large": "- Los jefes dejan caer grandes cantidades",
@@ -3631,7 +3848,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "sandbox_heal_full": "Curar al Máximo",
     "sandbox_add_coins": "Agregar 1000 Monedas",
     "sandbox_open_shop": "Abrir Tienda",
-    "sandbox_roll_power_ups": "Rodar Mejoras",
+    "sandbox_roll_power_ups": "Tirar Mejoras",
     "sandbox_title": "MODO SANDBOX",
     "sandbox_tab_enemies": "Enemigos",
     "sandbox_tab_bosses": "Jefes",
@@ -3751,9 +3968,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Stats Labels
     "stats_system_analytics": "Análisis del Sistema",
     "stats_run_report": "Informe de Ejecución",
-    "stats_wave_label": "Onda",
+    "stats_wave_label": "Oleada",
     "stats_time_label": "TIEMPO",
-    "stats_kills_label": "ASESINATOS",
+    "stats_kills_label": "BAJAS",
     "stats_accuracy_label": "PRECISIÓN",
     "stats_avg_dps": "DPS PROM",
     "stats_max_combo": "Combo Máx",
@@ -3933,7 +4150,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_movement_label": "MOVIMIENTO",
     "stats_distance_label": "Distancia",
     "stats_phase_shifts_label": "Cambios de Fase",
-    "stats_time_warps_label": "Saltos Temporales",
+    "stats_time_warps_label": "Distorsiones Temporales",
     "stats_near_deaths_label": "Casi Muertes",
     "stats_best_streak_label": "Mejor Racha",
     "stats_time_low_hp_label": "Tiempo HP Bajo",
@@ -3975,8 +4192,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_data_shards": "Fragmentos",
     "roguelite_shards": "Frag.",
     "roguelite_shards_short": "frag.",
-    "roguelite_overheat_cores": "Nucleos Calor",
-    "roguelite_singularity_cores": "Nucleos Apex",
+    "roguelite_overheat_cores": "Núcleos de Calor",
+    "roguelite_singularity_cores": "Núcleos Apex",
     "roguelite_overheat_short": "NC",
     "roguelite_singularity_short": "NA",
     "roguelite_heat": "Calor",
@@ -3985,9 +4202,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_sectors": "Sectores",
     "roguelite_endless": "Infinito",
     "roguelite_waves": "Oleadas",
-    "roguelite_pressure": "Presion",
-    "roguelite_elite": "Elite",
-    "roguelite_best": "Record",
+    "roguelite_pressure": "Presión",
+    "roguelite_elite": "Élite",
+    "roguelite_best": "Récord",
     "roguelite_kits": "Kits",
     "roguelite_families": "Familias",
     "roguelite_relics": "Reliquias",
@@ -4002,14 +4219,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_unlock_controls": "Volver ESC/U",
     "roguelite_unlock_shop_controls": "Grupo TAB/A-D  |  Item W/S  |  Comprar ENTER  |  Volver ESC",
     "roguelite_scroll_hint": "Rueda para ver más",
-    "roguelite_unlock_shop_hint": "Gasta fragmentos y nucleos de Calor alto. Los desbloqueos tardios necesitan economias de Calor 2+.",
+    "roguelite_unlock_shop_hint": "Gasta fragmentos y núcleos de Calor alto. Los desbloqueos tardíos requieren economías de Calor 2+.",
     "roguelite_unlock_categories": "GRUPOS",
     "roguelite_unlock_details": "DETALLES",
     "roguelite_unlock_cat_kits": "Kits",
     "roguelite_unlock_cat_families": "Familias",
     "roguelite_unlock_cat_relics": "Reliquias",
-    "roguelite_unlock_cat_challenge": "Desafio",
-    "roguelite_cost": "Coste",
+    "roguelite_unlock_cat_challenge": "Desafío",
+    "roguelite_cost": "Costo",
     "roguelite_ready_to_buy": "LISTO",
     "roguelite_not_enough_shards": "FALTAN RECURSOS",
     "roguelite_buy_unlock": "[ENTER] COMPRAR",
@@ -4017,30 +4234,30 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_already_unlocked": "COMPRADO",
     "roguelite_unlock_heat": "Calor",
     "roguelite_unlock_wave_surge": "Oleada Extra",
-    "roguelite_unlock_desc_wave_surge": "Anade +1 oleada por sector por nivel. Mas oleadas equivale a mas presion, elites y fragmentos.",
+    "roguelite_unlock_desc_wave_surge": "Añade +1 oleada por sector por nivel. Más oleadas equivale a más presión, élites y fragmentos.",
     "roguelite_wave_surge": "Oleada Extra",
-    "roguelite_unlock_desc_family": "Anade esta familia a futuros drafts.",
-    "roguelite_unlock_desc_family_core": "Anade mejoras base de estadisticas, balas, economia y supervivencia.",
-    "roguelite_unlock_desc_family_shield": "Anade armadura, muros, espinas y herramientas de escudo.",
-    "roguelite_unlock_desc_family_arcane": "Anade Aura Arcana, Balas Arcanas, Ecos, Gravedad y Sobrecarga.",
-    "roguelite_unlock_desc_family_fire": "Anade aura de fuego, balas de fuego, orbe y Maestria de Fuego.",
-    "roguelite_unlock_desc_family_frost": "Anade disparos lentos, orbe de hielo y Maestria de Hielo.",
-    "roguelite_unlock_desc_family_poison": "Anade aura, disparos, orbe y Maestria de Veneno.",
-    "roguelite_unlock_desc_family_lightning": "Anade aura/orbe electrico, Cadena, Conducto y maestria.",
-    "roguelite_unlock_desc_family_wind": "Anade aura/balas/orbe de viento, Replica y Maestria de Viento.",
-    "roguelite_unlock_desc_family_blood": "Anade robo de vida, armas de sangre, Pacto y Maestria.",
-    "roguelite_unlock_desc_discount": "Reliquia: los rerolls cuestan 20% menos, minimo 5 creditos.",
-    "roguelite_unlock_desc_shard": "Reliquia: +25% fragmentos de oleadas y sectores.",
-    "roguelite_unlock_desc_draft": "Reliquia: rerolls cuestan 10 creditos menos tras descuentos.",
+    "roguelite_unlock_desc_family": "Añade esta familia a los drafts futuros.",
+    "roguelite_unlock_desc_family_core": "Añade mejoras base de estadísticas, balas, economía y supervivencia.",
+    "roguelite_unlock_desc_family_shield": "Añade armadura, muros, espinas y herramientas de escudo.",
+    "roguelite_unlock_desc_family_arcane": "Añade Aura Arcana, Balas Arcanas, Ecos, Gravedad y Sobrecarga.",
+    "roguelite_unlock_desc_family_fire": "Añade aura de fuego, balas de fuego, orbe y Dominio del Fuego.",
+    "roguelite_unlock_desc_family_frost": "Añade disparos lentos, orbe de hielo y Dominio de Escarcha.",
+    "roguelite_unlock_desc_family_poison": "Añade aura, disparos, orbe y Dominio del Veneno.",
+    "roguelite_unlock_desc_family_lightning": "Añade aura/orbe eléctrico, Cadena, Conducto y dominio.",
+    "roguelite_unlock_desc_family_wind": "Añade aura/balas/orbe de viento, Réplica y Dominio del Viento.",
+    "roguelite_unlock_desc_family_blood": "Añade robo de vida, armas de sangre, Pacto y Dominio.",
+    "roguelite_unlock_desc_discount": "Reliquia: los rerolls cuestan un 20% menos, mínimo 5 créditos.",
+    "roguelite_unlock_desc_shard": "Reliquia: +25% de fragmentos de oleadas y sectores.",
+    "roguelite_unlock_desc_draft": "Reliquia: los rerolls cuestan 10 créditos menos tras descuentos.",
     "roguelite_unlock_desc_patch": "Reliquia: cada jefe cura 2 HP y da +1 carga de escudo.",
-    "roguelite_unlock_desc_elite": "Reliquia: sectores elite dan +25 creditos y fragmentos extra.",
-    "roguelite_unlock_desc_heat": "Desbloquea el siguiente Calor sobre el valor base. Calor 3 cuesta Nucleos Calor ganados en Calor 2+.",
-    "roguelite_unlock_desc_wave_surge_old": "Anade +1 oleada por sector por nivel.",
+    "roguelite_unlock_desc_elite": "Reliquia: los sectores élite dan +25 créditos y fragmentos extra.",
+    "roguelite_unlock_desc_heat": "Desbloquea el siguiente nivel de Calor sobre el valor base. Calor 3 cuesta Núcleos de Calor ganados en Calor 2+.",
+    "roguelite_unlock_desc_wave_surge_old": "Añade +1 oleada por sector por nivel.",
     "roguelite_starter_ready": "LISTO",
     "roguelite_boss": "Jefe",
     "roguelite_boss_tier": "Oleada Extra",
     "roguelite_run_flow": "RUTA DEL ACTO",
-    "roguelite_sector_tip": "Mas riesgo significa mas presion, mas elites y mas fragmentos.",
+    "roguelite_sector_tip": "Más riesgo significa más presión, más élites y más fragmentos.",
     "roguelite_combat_title": "SECTOR ROGUELITE",
     "roguelite_sector_wave": "Oleada",
     "roguelite_objective_clear": "Limpia oleada",
@@ -4048,12 +4265,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_objective_boss": "Luego: Jefe",
     "roguelite_objective_choose": "Luego: Sector",
     "roguelite_heat_effects": "Efectos",
-    "roguelite_heat_unlock_first": "Calor 1 esta desbloqueado por defecto.",
+    "roguelite_heat_unlock_first": "El Calor 1 está desbloqueado por defecto.",
     "roguelite_heat_unlock_next": "Compra Calor",
     "roguelite_heat_buy_next": "Comprar Calor",
     "roguelite_heat_maxed": "Calor al maximo",
-    "roguelite_heat_unlock_rule": "Calor 1 es el valor base. Calor 2 y 3 suman presion, elites, spawns rapidos, jefes duros, mas fragmentos y nucleos exclusivos.",
-    "roguelite_heat_core_rule": "Calor 2+ da Nucleos Calor. Calor 3 da Nucleos Apex.",
+    "roguelite_heat_unlock_rule": "El Calor 1 es el valor base. El Calor 2 y 3 suman presión, élites, apariciones más rápidas, jefes más duros, más fragmentos y núcleos exclusivos.",
+    "roguelite_heat_core_rule": "El Calor 2+ da Núcleos de Calor. El Calor 3 da Núcleos Apex.",
     "roguelite_req_default": "Inicial",
     "roguelite_req_35_act2": "35 fragmentos o Acto 2",
     "roguelite_req_75_act3": "75 fragmentos o Acto 3",
@@ -4077,31 +4294,31 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_family_blood": "Sangre",
     "roguelite_relic_none": "Ninguna",
     "roguelite_relic_discount": "Protocolo Descuento",
-    "roguelite_relic_shard": "Iman de Fragmentos",
+    "roguelite_relic_shard": "Imán de Fragmentos",
     "roguelite_relic_elite": "Dividendo Elite",
     "roguelite_relic_patch": "Parche de Emergencia",
-    "roguelite_relic_draft": "Cache de Seleccion",
+    "roguelite_relic_draft": "Caché de Selección",
     "roguelite_modifier_safehouse": "Refugio",
     "roguelite_modifier_overclocked": "Sobrecargado",
-    "roguelite_modifier_elite_cache": "Cache Elite",
+    "roguelite_modifier_elite_cache": "Caché Élite",
     "roguelite_modifier_firewall": "Cortafuegos",
-    "roguelite_modifier_volatile": "Memoria Volatil",
+    "roguelite_modifier_volatile": "Memoria Volátil",
     "roguelite_modifier_black_market": "Mercado Negro",
-    "roguelite_modifier_safehouse_desc": "Baja presion y creditos fiables.",
-    "roguelite_modifier_overclocked_desc": "+18% presion, +4 elite, +22% fragmentos.",
-    "roguelite_modifier_elite_cache_desc": "+25% presion, +18 elite, +45% fragmentos.",
-    "roguelite_modifier_firewall_desc": "+14% presion, +6 elite, +18% fragmentos.",
-    "roguelite_modifier_volatile_desc": "+32% presion, +12 elite, +55% fragmentos.",
-    "roguelite_modifier_black_market_desc": "+10% presion, +3 elite, creditos extra.",
-    "roguelite_reward_credits": "Creditos",
+    "roguelite_modifier_safehouse_desc": "Baja presión y créditos fiables.",
+    "roguelite_modifier_overclocked_desc": "+18% presión, +4 élite, +22% fragmentos.",
+    "roguelite_modifier_elite_cache_desc": "+25% presión, +18 élite, +45% fragmentos.",
+    "roguelite_modifier_firewall_desc": "+14% presión, +6 élite, +18% fragmentos.",
+    "roguelite_modifier_volatile_desc": "+32% presión, +12 élite, +55% fragmentos.",
+    "roguelite_modifier_black_market_desc": "+10% presión, +3 élite, créditos extra.",
+    "roguelite_reward_credits": "Créditos",
     "roguelite_reward_relic": "Reliquia",
     "roguelite_reward_family": "Draft Familia",
     "roguelite_reward_shards": "Cache Frag.",
-    "roguelite_no_run": "No hay ejecucion roguelite activa.",
+    "roguelite_no_run": "No hay ejecución roguelite activa.",
     "roguelite_no_profile": "No hay perfil roguelite cargado.",
     "roguelite_alpha_banner": "ALFA - EN DESARROLLO",
     "stats_tab_roguelite": "Roguelite",
-    "stats_roguelite_metrics": "METRICAS ROGUELITE",
+    "stats_roguelite_metrics": "MÉTRICAS ROGUELITE",
     "stats_roguelite_best_sectors": "Mejores Sectores",
     "stats_roguelite_runs": "Ejecuciones",
     "stats_roguelite_lifetime": "ROGUELITE TOTAL",
@@ -4169,7 +4386,79 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_unsaved": "El progreso no guardado se perderá.",
     "confirm_cancel_btn": "[ESC] CANCELAR",
     "confirm_quit_btn": "[Q] SALIR",
-    "confirm_exit_btn": "[Q] VOLVER"
+    "confirm_exit_btn": "[Q] VOLVER",
+
+    # Common
+    "common_on": "ACT.",
+    "common_off": "DESACT.",
+
+    # Boss threat HUD
+    "boss_threat_critical": "AMENAZA CRÍTICA",
+    "boss_threat_phase_header": "FASE",
+    "boss_threat_phase_name": "Fase",
+    "boss_threat_breached": "SUPERADA",
+    "boss_threat_locked": "BLOQUEADA",
+
+    # Sandbox power-up visuals tab
+    "sandbox_powerup_visuals": "Visuales de Mejoras",
+    "sandbox_visuals_subtitle": "Vista previa de icono, rareza y descripción Nv.1",
+    "sandbox_badge_legendary": "LEGENDARIA",
+    "sandbox_badge_common": "COMÚN",
+    "sandbox_lv1_preview": "Vista previa Nv.1",
+    "sandbox_enter_boss_3d": "Entrar Jefe #7 3D",
+    "sandbox_test_3d_arena": "Probar Arena 3D",
+
+    # Advancements window
+    "adv_control_title": "CONTROL DE LOGROS",
+    "adv_sync_desc": "Progresión persistente sincronizada con estadísticas totales, últimas partidas y datos del perfil roguelite.",
+    "adv_unlocked_count": "Desbloqueados",
+    "adv_claimed_count": "Reclamados",
+    "adv_claimed_points": "Puntos Reclamados",
+    "adv_claim_all": "Reclamar Todo +",
+    "adv_all_claimed": "Todo Reclamado",
+    "adv_categories": "Categorías",
+    "adv_detail": "Detalle",
+    "adv_progress": "Progreso",
+    "adv_status": "Estado",
+    "adv_points": "Puntos",
+    "adv_reward": "Recompensa",
+    "adv_unlocked_at": "Desbloqueado",
+    "adv_points_claimed": "reclamados",
+    "adv_points_pending": "pendientes",
+    "adv_points_reward": "recompensa",
+    "adv_reward_claimed": "Recompensa Reclamada",
+    "adv_claim_reward": "Reclamar Recompensa",
+    "adv_locked_btn": "Bloqueado",
+
+    # Stats window leftovers
+    "stats_healing_sources": "Fuentes de Curación",
+    "stats_health_consumable": "Consumible de Salud",
+    "stats_no_healing_data": "Sin datos de curación",
+    "stats_total_earned": "Total Ganado",
+    "stats_analytics_report": "Análisis del Sistema - Informe",
+
+    # Desktop
+    "desktop_net": "RED",
+
+    # Debug panel runtime stats
+    "debug_panel_dps": "DPS",
+    "debug_panel_cmin": "M/min",
+    "debug_panel_abilities": "HABILIDADES",
+
+    # Cheat / debug menu (new keys)
+    "cheat_lv": "Nv",
+    "cheat_remove": "Quitar",
+    "cheat_alive": "vivos",
+    "cheat_of": "de",
+    "cheat_more_enemies": "enemigos más...",
+    "cheat_custom_boss": "JEFE PERSONALIZADO",
+    "cheat_enemy_environment": "Entorno",
+    "cheat_cons_health": "Salud",
+    "cheat_cons_coin": "Moneda",
+    "cheat_cons_shield": "Impulso de Escudo",
+    "cheat_cons_damage": "Impulso de Daño",
+    "cheat_cons_double_coin": "Moneda Doble",
+    "cheat_cons_lifesteal": "Robo de Vida"
   }.toTable
 }.toTable
 

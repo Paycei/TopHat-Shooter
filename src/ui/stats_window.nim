@@ -648,7 +648,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
 
       # Healing Sources sub-section
       lineY += 28
-      drawText("Healing Sources", (col2X + 10).int32, lineY.int32, 14, Color(r: 80, g: 255, b: 160, a: 255))
+      drawText(t(tkStatsHealingSources), (col2X + 10).int32, lineY.int32, 14, Color(r: 80, g: 255, b: 160, a: 255))
       lineY += 20
 
       # Build combined list: power-up healing + health consumable healing
@@ -659,7 +659,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       let consumableHealing = float32(runStats.resources.healthConsumablesUsed) *
                               (0.75'f32 + 0.025'f32 * runStats.finalMaxHP)
       if consumableHealing > 0:
-        healList.add(("Health Consumable", consumableHealing))
+        healList.add((t(tkStatsHealthConsumable), consumableHealing))
       healList.sort(proc(a, b: (string, float32)): int = cmp(b[1], a[1]))
 
       if healList.len > 0:
@@ -669,7 +669,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           drawText(formatLargeNumber(hc[1] * BALANCE_MULTIPLIER), (col2X + 180).int32, lineY.int32, 13, Color(r: 80, g: 255, b: 160, a: 255))
           lineY += 18
       else:
-        drawText("No healing data", (col2X + 10).int32, lineY.int32, 13, Gray)
+        drawText(t(tkStatsNoHealingData), (col2X + 10).int32, lineY.int32, 13, Gray)
     else:
       let y = tabContentY + tabContentH div 2 - 20
       drawText(t(tkGameNoPowerUpData),
@@ -695,7 +695,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     var lineY = y + 42
     drawStatLine(contentX + 45, lineY, t(tkStatsPeakKills), $statsWin.stats.rogueliteMode.bestKills, Red)
     lineY += 24
-    drawStatLine(contentX + 45, lineY, "Total Earned", $statsWin.stats.rogueliteMode.totalCoins, Gold)
+    drawStatLine(contentX + 45, lineY, t(tkStatsTotalEarned), $statsWin.stats.rogueliteMode.totalCoins, Gold)
     lineY += 24
     drawStatLine(contentX + 45, lineY, t(tkStatsPlaytime), formatTime(statsWin.stats.rogueliteMode.totalTimePlayed))
     lineY += 24
@@ -751,7 +751,7 @@ proc drawGameOverStatsScreen*(stats: RunStatistics, screenWidth, screenHeight: i
   # Title bar
   drawRectangle(panelX, panelY, panelWidth, 32, Color(r: 40, g: 40, b: 50, a: 255))
   drawRectangle(panelX, panelY, panelWidth, 2, Color(r: 0, g: 180, b: 255, a: 255))
-  drawText("[#] System Analytics - Run Report", (panelX + 8).int32, (panelY + 8).int32, 16, White)
+  drawText("[#] " & t(tkStatsAnalyticsReport), (panelX + 8).int32, (panelY + 8).int32, 16, White)
 
   # Content area
   let contentX = panelX + 15

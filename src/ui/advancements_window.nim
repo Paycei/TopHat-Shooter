@@ -1,7 +1,7 @@
 ## OS-themed advancement tracker window.
 
 import raylib, strutils
-import os_window, ../advancement, ../render_context
+import os_window, ../advancement, ../render_context, ../localization
 
 type
   AdvancementsWindow* = ref object
@@ -367,7 +367,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
   let bodyH = contentH - HeaderHeight - Gap
 
   drawPanel(contentX, contentY, contentW, HeaderHeight, "")
-  drawText("ADVANCEMENT CONTROL", (contentX + 14).int32, (contentY + 10).int32, 20,
+  drawText(t(tkAdvControlTitle), (contentX + 14).int32, (contentY + 10).int32, 20,
            Color(r: 120, g: 220, b: 255, a: 255))
 
   let totalDefs = getAdvancementDefinitions().len
@@ -377,14 +377,14 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
   let pending = advWin.profile.unclaimedPoints()
 
   let statX = contentX + 465
-  discard drawWrappedText("Persistent progression synced from lifetime stats, last runs, and roguelite profile data.",
+  discard drawWrappedText(t(tkAdvSyncDesc),
                           contentX + 14, contentY + 36, statX - contentX - 34, 13,
                           Color(r: 170, g: 185, b: 205, a: 255), 2, 4, 11)
-  drawText("Unlocked", statX.int32, (contentY + 12).int32, 12, LightGray)
+  drawText(t(tkAdvUnlockedCount), statX.int32, (contentY + 12).int32, 12, LightGray)
   drawText($unlocked & " / " & $totalDefs, statX.int32, (contentY + 30).int32, 20, White)
-  drawText("Claimed", (statX + 112).int32, (contentY + 12).int32, 12, LightGray)
+  drawText(t(tkAdvClaimedCount), (statX + 112).int32, (contentY + 12).int32, 12, LightGray)
   drawText($claimed, (statX + 112).int32, (contentY + 30).int32, 20, Color(r: 90, g: 255, b: 150, a: 255))
-  drawText("Claimed Points", (statX + 205).int32, (contentY + 12).int32, 12, LightGray)
+  drawText(t(tkAdvClaimedPoints), (statX + 205).int32, (contentY + 12).int32, 12, LightGray)
   drawText($points, (statX + 205).int32, (contentY + 30).int32, 20, Color(r: 255, g: 210, b: 70, a: 255))
 
   let claimAllRect = Rectangle(x: (contentX + contentW - 180).float32,
@@ -394,11 +394,11 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
   let mousePos = getVirtualMousePosition()
   let canHover = advWin.hoverEnabled(mousePos)
   drawButton(claimAllRect,
-             if pending > 0: "Claim All +" & $pending else: "All Claimed",
+             if pending > 0: t(tkAdvClaimAll) & $pending else: t(tkAdvAllClaimed),
              pending > 0,
              canHover and pending > 0 and checkCollisionPointRec(mousePos, claimAllRect))
 
-  drawPanel(contentX, bodyY, SidebarWidth, bodyH, "Categories")
+  drawPanel(contentX, bodyY, SidebarWidth, bodyH, t(tkAdvCategories))
   var catY = bodyY + 32
   for category in allAdvancementCategories():
     let totals = advWin.profile.categoryTotals(category)
@@ -458,7 +458,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
 
   let detailX = listX + ListWidth + Gap
   let detailW = contentW - SidebarWidth - ListWidth - Gap * 2
-  drawPanel(detailX, bodyY, detailW, bodyH, "Detail")
+  drawPanel(detailX, bodyY, detailW, bodyH, t(tkAdvDetail))
 
   let selectedDef = getAdvancementDefinition(advWin.selectedId)
   if selectedDef.id.len > 0:
@@ -472,32 +472,32 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
                                   Color(r: 180, g: 192, b: 210, a: 255), 4)
 
     let progressY = descEnd + 20
-    drawText("Progress", (detailX + 14).int32, progressY.int32, 13, LightGray)
+    drawText(t(tkAdvProgress), (detailX + 14).int32, progressY.int32, 13, LightGray)
     drawText(formatAdvancementProgress(entry, selectedDef),
              (detailX + detailW - 118).int32, progressY.int32, 13, statusColor(entry))
     drawProgressBar(detailX + 14, progressY + 22, detailW - 28, 14,
                     advancementPercent(entry, selectedDef), accent)
 
     var infoY = progressY + 54
-    drawText("Status", (detailX + 14).int32, infoY.int32, 13, LightGray)
+    drawText(t(tkAdvStatus), (detailX + 14).int32, infoY.int32, 13, LightGray)
     drawText(statusLabel(entry), (detailX + 95).int32, infoY.int32, 13, statusColor(entry))
     infoY += 26
-    drawText("Points", (detailX + 14).int32, infoY.int32, 13, LightGray)
+    drawText(t(tkAdvPoints), (detailX + 14).int32, infoY.int32, 13, LightGray)
     let pointText =
-      if entry.claimed: "+" & $selectedDef.points & " claimed"
-      elif entry.unlocked: "+" & $selectedDef.points & " pending"
-      else: "+" & $selectedDef.points & " reward"
+      if entry.claimed: "+" & $selectedDef.points & " " & t(tkAdvPointsClaimed)
+      elif entry.unlocked: "+" & $selectedDef.points & " " & t(tkAdvPointsPending)
+      else: "+" & $selectedDef.points & " " & t(tkAdvPointsReward)
     drawText(pointText, (detailX + 95).int32, infoY.int32, 13,
              if entry.claimed: Color(r: 90, g: 255, b: 150, a: 255)
              elif entry.unlocked: Color(r: 255, g: 210, b: 70, a: 255)
              else: Color(r: 165, g: 178, b: 195, a: 255))
     infoY += 26
-    drawText("Reward", (detailX + 14).int32, infoY.int32, 13, LightGray)
+    drawText(t(tkAdvReward), (detailX + 14).int32, infoY.int32, 13, LightGray)
     discard drawWrappedText(selectedDef.reward, detailX + 95, infoY, detailW - 112, 13,
                             Color(r: 190, g: 220, b: 235, a: 255), 3)
 
     if entry.unlockedAt.len > 0:
-      drawText("Unlocked", (detailX + 14).int32, (bodyY + bodyH - 88).int32, 12, LightGray)
+      drawText(t(tkAdvUnlockedAt), (detailX + 14).int32, (bodyY + bodyH - 88).int32, 12, LightGray)
       discard drawTextFit(entry.unlockedAt, detailX + 95, bodyY + bodyH - 88, detailW - 105, 12,
                           Color(r: 160, g: 175, b: 195, a: 255))
 
@@ -506,9 +506,9 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
                               width: (detailW - 28).float32,
                               height: 34.0)
     drawButton(claimRect,
-               if entry.claimed: "Reward Claimed"
-               elif entry.unlocked: "Claim Reward"
-               else: "Locked",
+               if entry.claimed: t(tkAdvRewardClaimed)
+               elif entry.unlocked: t(tkAdvClaimReward)
+               else: t(tkAdvLockedBtn),
                entry.unlocked and not entry.claimed,
                canHover and entry.unlocked and not entry.claimed and checkCollisionPointRec(mousePos, claimRect))
 

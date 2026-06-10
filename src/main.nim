@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/pvp_window, ui/loading_screen, ui/window_manager
+import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager
 
 # Global quit-confirmation dialog
 
@@ -16,7 +16,7 @@ var
 proc showGlobalConfirm(ctx: ConfirmDialogContext) =
   globalConfirmActive     = true
   globalConfirmContext    = ctx
-  globalConfirmFrameGuard = 0.15'f32  # ~9 frames at 60 fps – absorbs the key that opened the dialog
+  globalConfirmFrameGuard = 0.15'f32  # ~9 frames at 60 fps absorbs the key that opened the dialog
   globalConfirmMouseGuard = 2.0'f32   # 2-second anti-accident window before mouse confirm works
 
 proc isOverRect(mp: Vector2, x, y, w, h: int32): bool =
@@ -116,6 +116,9 @@ var
   renderOffsetX: float32 = 0.0
   renderOffsetY: float32 = 0.0
   currentPvPGame: PvPGameState = nil
+  # Brief input lockout when the language-select screen opens, so the same click
+  # that dismissed the splash can't fall through and auto-pick a language.
+  languageSelectGuard: float32 = 0.0
 
 proc rebuildRenderTarget(supersampleScale: float32) =
   let renderTargetWidth = int32(screenWidth.float32 * supersampleScale)
@@ -270,7 +273,7 @@ proc isBondingCombatState(state: GameState): bool =
   state in {gsPlaying, gsPvPPlaying}
 
 proc isMenuOrGameState(state: GameState): bool =
-  state in {gsSplash, gsMenu, gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver,
+  state in {gsSplash, gsLanguageSelect, gsMenu, gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver,
             gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
             gsRogueliteSectorSelect}
 
@@ -523,7 +526,9 @@ proc main() =
 
         if anyKeyPressed:
           if not settings.hasSeenIntro:
-            currentGame.state = gsLoreIntro
+            # First run: let the player pick a language before the cinematic.
+            currentGame.state = gsLanguageSelect
+            languageSelectGuard = 0.18'f32
           else:
             currentGame.state = gsMenu
 
@@ -531,8 +536,42 @@ proc main() =
       drawSplashScreen(splashScreen, screenWidth, screenHeight)
       endGameDrawing()
 
+    of gsLanguageSelect:
+      playMusic(mtMenu)
+      currentGame.time += dt
+      if languageSelectGuard > 0:
+        languageSelectGuard -= dt
+
+      let mousePos = getVirtualMousePosition()
+      let rects = languageOptionRects(screenWidth.int32, screenHeight.int32)
+
+      # Pick by clicking a card or pressing 1 / 2.
+      var chosen = -1
+      if languageSelectGuard <= 0:
+        if isMouseButtonPressed(Left):
+          for i, r in rects:
+            if checkCollisionPointRec(mousePos, r):
+              chosen = i
+              break
+        if isKeyPressed(KeyboardKey.One): chosen = LangEnglish
+        elif isKeyPressed(KeyboardKey.Two): chosen = LangSpanish
+
+      if chosen >= 0:
+        let lang = if chosen == LangSpanish: Spanish else: English
+        setLanguage(lang)
+        settings.language = $lang
+        discard saveSettings(settings)
+        playSound(stMenuSelect)
+        currentGame.state = gsLoreIntro
+
+      beginGameDrawing()
+      drawLanguageSelect(screenWidth.int32, screenHeight.int32, currentGame.time, mousePos)
+      drawCustomCursor(currentGame.time)
+      endGameDrawing()
+
     of gsLoreIntro:
-      # Update cinematic. The opening story is intentionally unskippable.
+      # Tense score under the cinematic. Hold SPACE (3s) to skip, ENTER for 2x.
+      playMusic(mtBoss)
       updateLoreCinematic(loreCinematic, dt)
       if loreCinematic.complete:
         settings.hasSeenIntro = true
@@ -619,6 +658,11 @@ proc main() =
       # Handle fullscreen toggle from settings
       if updateResult.fullscreenToggle:
         fullscreenToggleRequested = true
+
+      # Handle "Replay Intro" from the settings window: re-enter the lore cinematic
+      if updateResult.replayIntro and not globalConfirmActive:
+        loreCinematic = newLoreCinematic()
+        currentGame.state = gsLoreIntro
 
       # Handle roguelite window Start button, show loading screen then enter game
       if updateResult.rogueliteLaunchGame and not globalConfirmActive:
@@ -1038,23 +1082,33 @@ proc main() =
                         Color(r: 255, g: 255, b: 255, a: 255), 35)
           anyActivated = true
 
-        # Blood Pact - sacrifice 30% HP, deal it as split damage to all enemies
+        # Blood Pact - sacrifice 30% current HP to unleash an amplified blood
+        # nova. Every enemy is hit for a big share of its OWN max HP (so it stays
+        # devastating at any wave) plus bonus damage from the blood spent. The
+        # damage is NO LONGER split across targets. Bosses resist the nova and
+        # are spared while invulnerable during a phase-change transition.
         if hasPowerUp(currentGame.player, puBloodPact) and currentGame.player.bloodPactCooldown <= 0:
-          if currentGame.player.hp > 1.0:
+          if currentGame.player.hp > 1.0 and currentGame.enemies.len > 0:
+            const
+              BLOOD_PACT_ENEMY_FRAC = 0.25'f32   # share of a normal enemy's max HP per cast
+              BLOOD_PACT_BOSS_FRAC  = 0.03'f32   # bosses only take a small share
+              BLOOD_PACT_BONUS_MULT = 5.0'f32    # bonus damage per point of HP sacrificed
             let sacrifice = currentGame.player.hp * 0.3
             currentGame.player.hp = max(0.1, currentGame.player.hp - sacrifice)
+            let bonus = sacrifice * BLOOD_PACT_BONUS_MULT
 
-            if currentGame.enemies.len > 0:
-              let damagePerEnemy = sacrifice / currentGame.enemies.len.float32
-              for enemy in currentGame.enemies:
-                let dealt = damagePerEnemy
-                enemy.hp -= dealt
-                trackPowerUpDamage(currentGame, puBloodPact, dealt)
-                showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
+            for enemy in currentGame.enemies:
+              if enemy.isBoss and enemy.invulnerabilityTimer > 0:
+                continue  # respect phase-transition invulnerability
+              let dealt = if enemy.isBoss: enemy.maxHp * BLOOD_PACT_BOSS_FRAC + bonus * 0.4
+                          else: enemy.maxHp * BLOOD_PACT_ENEMY_FRAC + bonus
+              enemy.hp -= dealt
+              trackPowerUpDamage(currentGame, puBloodPact, dealt)
+              showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
 
-            currentGame.player.bloodPactCooldown = 5.0
+            currentGame.player.bloodPactCooldown = 3.0
             spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
-                          Color(r: 200, g: 50, b: 50, a: 255), 30)
+                          Color(r: 220, g: 30, b: 30, a: 255), 60)
             anyActivated = true
 
         # Conduit - detonate all active DoTs for 3x remaining tick damage

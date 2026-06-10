@@ -807,7 +807,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
 
 proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: float32, radius: float32, speed: float32, requiredHits: int] =
   ## Calculate scaled stats based on difficulty (wave number).
-  ## Speed scaling is driven by config.speedScaling – set it in getEnemyConfig.
+  ## Speed scaling is driven by config.speedScaling, set it in getEnemyConfig.
   # Wave-mode midgame was spiking too hard, so regular HP now ramps more gently.
   let strengthMultiplier = pow(1.15, difficulty)  # ~15% more HP per difficulty unit
 

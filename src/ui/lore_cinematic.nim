@@ -4,7 +4,7 @@
 ## geometry, subtitles, scanlines, letterbox bars, and a final boot handoff.
 
 import raylib, rlgl, math, strutils
-import background_fx, ../types, ../settings, ../save_system, ../skins, ../shapes, ../bullet_skins, ../bullet_shapes, ../enemy, ../enemy_config, icon_drawing
+import background_fx, ../types, ../settings, ../save_system, ../skins, ../shapes, ../bullet_skins, ../bullet_shapes, ../enemy, ../enemy_config, ../localization, ../sound, icon_drawing
 
 type
   LoreShot* = enum
@@ -22,6 +22,7 @@ type
     frame*: int
     fastForwardActive*: bool
     skipHoldTimer*: float32
+    lastShotPlayed*: int  # Index of the shot whose audio cue last fired (-1 = none)
 
 const
   LoreFastForwardMultiplier = 2.0'f32
@@ -45,7 +46,8 @@ proc newLoreCinematic*(): LoreCinematic =
     scanlineOffset: 0,
     frame: 0,
     fastForwardActive: false,
-    skipHoldTimer: 0
+    skipHoldTimer: 0,
+    lastShotPlayed: -1
   )
 
 proc clamp01(v: float32): float32 =
@@ -205,12 +207,12 @@ proc drawVideoOverlay(lore: LoreCinematic, screenWidth, screenHeight: int32,
   drawRectangle(0, screenHeight - barH, screenWidth, barH, Black)
 
   let shotLabel = case shot
-    of lsBreach: "REC 00: SYSTEM BREACH"
-    of lsSwarm: "REC 01: HOSTILE PROCESS FLOOD"
-    of lsAwaken: "REC 02: TOPHAT KERNEL WAKE"
-    of lsBoss: "REC 03: UNKNOWN ROOT ENTITY"
-    of lsCounterattack: "REC 04: DEFENSE LOOP"
-    of lsDirective: "REC 05: PROTOCOL HANDOFF"
+    of lsBreach: t(tkLoreRecBreach)
+    of lsSwarm: t(tkLoreRecSwarm)
+    of lsAwaken: t(tkLoreRecAwaken)
+    of lsBoss: t(tkLoreRecBoss)
+    of lsCounterattack: t(tkLoreRecCounter)
+    of lsDirective: t(tkLoreRecDirective)
 
   let iconIndex = case shot
     of lsBreach: 3
@@ -222,7 +224,7 @@ proc drawVideoOverlay(lore: LoreCinematic, screenWidth, screenHeight: int32,
   drawShopIcon(24, 15, 22, iconIndex, Color(r: 0, g: 225, b: 225, a: 185))
   drawText(shotLabel, 54, 18, 14, Color(r: 160, g: 220, b: 220, a: 155))
   drawRectangle(screenWidth - 86, 23, 10, 10, Color(r: 255, g: 40, b: 60, a: 220))
-  drawText("LIVE", screenWidth - 70, 17, 16, Color(r: 255, g: 210, b: 220, a: 180))
+  drawText(t(tkLoreLive), screenWidth - 70, 17, 16, Color(r: 255, g: 210, b: 220, a: 180))
 
   let progressX = 92.int32
   let progressY = screenHeight - barH div 2 + 1
@@ -233,9 +235,9 @@ proc drawVideoOverlay(lore: LoreCinematic, screenWidth, screenHeight: int32,
 
   let controlText =
     if lore.fastForwardActive:
-      "HOLD ENTER: 2X ACTIVE  |  HOLD SPACE: SKIP"
+      t(tkLoreControlsFFActive)
     else:
-      "HOLD ENTER: X2  |  HOLD SPACE: SKIP"
+      t(tkLoreControlsFF)
   drawCenteredText(controlText, screenWidth div 2, screenHeight - 34, 14,
                    Color(r: 145, g: 160, b: 170, a: alphaByte(80.0'f32 + sin(lore.time * 4.0'f32) * 36.0'f32)))
 
@@ -303,8 +305,7 @@ proc drawBreachShot(local, duration: float32, screenWidth, screenHeight: int32,
   drawRectangle((cx - 5.0'f32).int32, (cy - 120.0'f32 * open).int32,
                 10, (240.0'f32 * open).int32, Color(r: 0, g: 245, b: 245, a: alphaByte(alpha * 135.0'f32)))
 
-  drawSubtitles(["A foreign server opens inside TopHat-ShooterOS.",
-                 "The breach is not noise. It is a signal."], screenWidth, screenHeight, alpha)
+  drawSubtitles([t(tkLoreBreach1), t(tkLoreBreach2)], screenWidth, screenHeight, alpha)
 
 proc drawSwarmShot(local, duration: float32, screenWidth, screenHeight: int32,
                    alpha: float32) =
@@ -348,8 +349,7 @@ proc drawSwarmShot(local, duration: float32, screenWidth, screenHeight: int32,
                          (screenWidth.float32 * rush * 0.35'f32).int32, screenHeight,
                          Color(r: 255, g: 20, b: 80, a: 0),
                          Color(r: 255, g: 20, b: 80, a: alphaByte(alpha * 60.0'f32)))
-  drawSubtitles(["The corrupted arrive as shapes, shards, and hunger.",
-                 "Every wave learns. Every wave gets closer."], screenWidth, screenHeight, alpha)
+  drawSubtitles([t(tkLoreSwarm1), t(tkLoreSwarm2)], screenWidth, screenHeight, alpha)
 
 proc drawAwakenShot(local, duration: float32, screenWidth, screenHeight: int32,
                     alpha: float32) =
@@ -368,8 +368,7 @@ proc drawAwakenShot(local, duration: float32, screenWidth, screenHeight: int32,
 
   drawEquippedPlayerModel(newVector2f(x, y), 31.0'f32 * (0.65'f32 + boot * 0.35'f32),
                           local, alpha, 0.22'f32)
-  drawSubtitles(["TOPHAT wakes as the last authorised process.",
-                 "Directive loaded: survive, adapt, and purge."], screenWidth, screenHeight, alpha)
+  drawSubtitles([t(tkLoreAwaken1), t(tkLoreAwaken2)], screenWidth, screenHeight, alpha)
 
 proc drawBossShot(local, duration: float32, screenWidth, screenHeight: int32,
                   alpha: float32) =
@@ -395,8 +394,7 @@ proc drawBossShot(local, duration: float32, screenWidth, screenHeight: int32,
                (cy + sin(a + 0.3'f32) * 260.0'f32).int32,
                Color(r: 255, g: 40, b: 120, a: alphaByte(alpha * 55.0'f32)))
 
-  drawSubtitles(["Something older sits beneath the corrupted layers.",
-                 "It is writing the attacks while you watch."], screenWidth, screenHeight, alpha)
+  drawSubtitles([t(tkLoreBoss1), t(tkLoreBoss2)], screenWidth, screenHeight, alpha)
 
 proc drawCounterShot(local, duration: float32, screenWidth, screenHeight: int32,
                      alpha: float32) =
@@ -421,8 +419,7 @@ proc drawCounterShot(local, duration: float32, screenWidth, screenHeight: int32,
     let r = 9.0'f32 + sin((p + local) * 9.0'f32) * 5.0'f32 + p * 38.0'f32
     drawCircleLines(Vector2(x: ex, y: ey), r, Color(r: 255, g: 160, b: 45, a: alphaByte(alpha * (1.0'f32 - p) * 170.0'f32)))
 
-  drawSubtitles(["Your shots become patches. Their fragments become upgrades.",
-                 "The system can still be saved."], screenWidth, screenHeight, alpha)
+  drawSubtitles([t(tkLoreCounter1), t(tkLoreCounter2)], screenWidth, screenHeight, alpha)
 
 proc drawDirectiveShot(local, duration: float32, screenWidth, screenHeight: int32,
                        alpha: float32) =
@@ -434,10 +431,20 @@ proc drawDirectiveShot(local, duration: float32, screenWidth, screenHeight: int3
                           local, alpha, 0.28'f32)
 
   let titleAlpha = alpha * easeInOut(local / 0.85'f32)
-  drawCenteredText("DEFENSE PROTOCOL: ACTIVE", screenWidth div 2, (screenHeight * 2 div 3).int32,
+  drawCenteredText(t(tkLoreDirectiveTitle), screenWidth div 2, (screenHeight * 2 div 3).int32,
                    32, Color(r: 255, g: 255, b: 255, a: alphaByte(titleAlpha * 255.0'f32)))
-  drawCenteredText("Good luck, TOPHAT.", screenWidth div 2, (screenHeight * 2 div 3 + 46).int32,
+  drawCenteredText(t(tkLoreDirectiveSub), screenWidth div 2, (screenHeight * 2 div 3 + 46).int32,
                    21, Color(r: 0, g: 230, b: 230, a: alphaByte(titleAlpha * 210.0'f32)))
+
+proc shotCue(shot: LoreShot): SoundType =
+  ## Per-shot audio sting, fired once when a new shot begins.
+  case shot
+  of lsBreach: stTeleport
+  of lsSwarm: stExplosion
+  of lsAwaken: stPowerUp
+  of lsBoss: stBossSpawn
+  of lsCounterattack: stShoot
+  of lsDirective: stShield
 
 proc updateLoreCinematic*(lore: LoreCinematic, dt: float32) =
   if lore.complete:
@@ -457,8 +464,63 @@ proc updateLoreCinematic*(lore: LoreCinematic, dt: float32) =
   lore.time += playbackDt
   lore.scanlineOffset += playbackDt * 118.0'f32
   inc lore.frame
+
+  # Fire a one-shot audio sting whenever playback crosses into a new shot.
+  let (curShot, _, _) = shotAt(lore.time)
+  if ord(curShot) != lore.lastShotPlayed:
+    lore.lastShotPlayed = ord(curShot)
+    playSound(shotCue(curShot), 0.6'f32)  # ducked so the sting sits under the score
+
   if lore.time >= LoreDuration:
     lore.complete = true
+
+proc drawTapeChange(screenWidth, screenHeight: int32, local: float32,
+                    frame: int, time: float32) =
+  ## Brief VHS "channel switch" burst at the start of each shot. Transient by
+  ## design (~0.18s) so it punctuates cuts without fighting the scene or subtitles.
+  const window = 0.18'f32
+  if local >= window:
+    return
+  let intensity = 1.0'f32 - local / window
+
+  # Displaced static bands with alternating chroma tint.
+  for i in 0..<7:
+    let seed = i.float32 * 23.7'f32 + floor(time * 60.0'f32)
+    let y = (fractCoord(sin(seed) * 43758.5453'f32) * screenHeight.float32).int32
+    let h = (3 + (frame + i * 13) mod 14).int32
+    let tint =
+      if i mod 2 == 0:
+        Color(r: 0, g: 235, b: 235, a: alphaByte(intensity * 120.0'f32))
+      else:
+        Color(r: 255, g: 40, b: 200, a: alphaByte(intensity * 110.0'f32))
+    drawRectangle(0, y, screenWidth, h, tint)
+
+  # Bright roll bar sweeping down fast.
+  let rollY = (fractCoord(local * 6.0'f32) * screenHeight.float32).int32
+  drawRectangle(0, rollY, screenWidth, 2, Color(r: 255, g: 255, b: 255, a: alphaByte(intensity * 180.0'f32)))
+  # Quick whole-frame flash on the hardest part of the cut.
+  drawRectangle(0, 0, screenWidth, screenHeight,
+                Color(r: 210, g: 245, b: 245, a: alphaByte(intensity * intensity * 60.0'f32)))
+
+proc drawTitleCard(lore: LoreCinematic, screenWidth, screenHeight: int32) =
+  ## Opening "archive playback" card; appears as the boot fade clears, then leaves.
+  let appear = clamp01((lore.time - 0.2'f32) / 0.5'f32)
+  let leave = clamp01((1.95'f32 - lore.time) / 0.5'f32)
+  let a = min(appear, leave)
+  if a <= 0.0'f32:
+    return
+  let cx = screenWidth div 2
+  let cy = screenHeight div 2 - 30
+  # Thin framing rules above and below the title.
+  let ruleW = (screenWidth.float32 * 0.32'f32 * a).int32
+  drawRectangle(cx - ruleW, cy - 16, ruleW * 2, 2,
+                Color(r: 0, g: 230, b: 230, a: alphaByte(a * 170.0'f32)))
+  drawRectangle(cx - ruleW, cy + 54, ruleW * 2, 2,
+                Color(r: 0, g: 230, b: 230, a: alphaByte(a * 170.0'f32)))
+  drawCenteredText("TopHat-ShooterOS", cx.int32, (cy).int32, 40,
+                   Color(r: 255, g: 255, b: 255, a: alphaByte(a * 255.0'f32)))
+  drawCenteredText(t(tkLoreTitleCardSub), cx.int32, (cy + 60).int32, 16,
+                   Color(r: 0, g: 230, b: 230, a: alphaByte(a * 200.0'f32)))
 
 proc drawLoreCinematic*(lore: LoreCinematic, screenWidth, screenHeight: int) =
   let (shot, local, duration) = shotAt(lore.time)
@@ -505,9 +567,13 @@ proc drawLoreCinematic*(lore: LoreCinematic, screenWidth, screenHeight: int) =
     drawDirectiveShot(local, duration, sW, sH, alpha)
   popMatrix()
 
+  # Cut punctuation sits over the scene but under the recorder chrome.
+  drawTapeChange(sW, sH, local, lore.frame, lore.time)
+
   let fadeIn = 1.0'f32 - easeInOut(lore.time / 0.75'f32)
   let fadeOut = easeInOut((lore.time - (LoreDuration - 0.9'f32)) / 0.9'f32)
   let fadeA = alphaByte(max(fadeIn, fadeOut) * 255.0'f32)
   drawVideoOverlay(lore, sW, sH, shot, local, duration)
+  drawTitleCard(lore, sW, sH)
   if fadeA > 0:
     drawRectangle(0, 0, sW, sH, Color(r: 0, g: 0, b: 0, a: fadeA))
