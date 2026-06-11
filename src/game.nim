@@ -400,6 +400,15 @@ proc completeBossWave*(game: Game) =
   # repeats every 5 waves in endless) from re-triggering the screen.
   if getCustomBossNumber(completedWave) == 12 and not game.hasWonGame:
     game.hasWonGame = true
+    # First-ever victory unlocks the secret kernel tophat cosmetic. It is
+    # equipped by default (and immediately, so it shows in endless) and can be
+    # toggled off in the shop's SECRET tab.
+    if not globalSettings.isNil and not globalSettings.kernelTophatUnlocked:
+      globalSettings.kernelTophatUnlocked = true
+      globalSettings.kernelTophatEquipped = true
+      discard saveSettings(globalSettings)
+      game.tophatJustUnlocked = true
+      game.player.wearsTophat = true
     game.selectedVictoryButton = 0
     playSound(stWaveComplete)
     game.state = gsVictory
@@ -1589,6 +1598,12 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
   result.player.shapeType = playerShape
   result.player.bulletShapeType = bulletShape
   result.player.particleSkinType = particleSkin
+  # Secret cosmetics: active only while both unlocked and enabled in the shop
+  result.player.wearsTophat = not globalSettings.isNil and
+    globalSettings.kernelTophatUnlocked and globalSettings.kernelTophatEquipped
+  result.player.hasOrbitalCube = not globalSettings.isNil and
+    globalSettings.orbitalCubeUnlocked and globalSettings.orbitalCubeEquipped
+  result.player.cubeSkinType = if globalSettings.isNil: 0 else: globalSettings.cubeSkin
 
   # Note: initializeRunTracking is called explicitly when starting a game
   # (not in sandbox mode) to ensure correct mode is tracked

@@ -56,6 +56,87 @@ proc getUnlockedShapes*(): seq[ShapeType] =
     if shapeDatabase[shapeType].isUnlocked:
       result.add(shapeType)
 
+proc topHatAlpha(v: float32): uint8 =
+  uint8(clamp(v, 0.0'f32, 255.0'f32))
+
+proc drawTopHat*(pos: Vector2f, radius: float32, time: float32,
+                 alpha: float32 = 1.0'f32,
+                 accent: Color = Color(r: 0, g: 230, b: 220, a: 255)) =
+  ## The kernel's signature tophat, perched on a shape of the given radius.
+  ## Every piece shares the same pivot and rotation so the hat tilts as one
+  ## unit, and it stays upright while the shape spins beneath it. Shared by
+  ## the lore cinematic, the in-game player (secret cosmetic), and the shop.
+  ## `accent` tints the band and outline — the kernel keeps the terminal cyan
+  ## default; cosmetic wearers pass their own color.
+  let bob = sin(time * 2.0'f32) * radius * 0.05'f32
+  let pivot = Vector2(x: pos.x, y: pos.y - radius * 0.74'f32 + bob)
+  let tilt = -9.0'f32 + sin(time * 1.6'f32) * 2.5'f32
+  let brimW = radius * 1.7'f32
+  let brimH = radius * 0.22'f32
+  let crownW = radius * 1.05'f32
+  let crownH = radius * 1.05'f32
+  let bandH = radius * 0.3'f32
+  let rim = max(1.0'f32, radius * 0.06'f32)
+  let hatColor = Color(r: 16, g: 20, b: 30, a: topHatAlpha(alpha * 245.0'f32))
+  let rimColor = Color(r: uint8(accent.r.float32 * 0.87'f32),
+                       g: uint8(accent.g.float32 * 0.87'f32),
+                       b: uint8(accent.b.float32 * 0.87'f32),
+                       a: topHatAlpha(alpha * 190.0'f32))
+  let bandColor = Color(r: accent.r, g: accent.g, b: accent.b,
+                        a: topHatAlpha(alpha * 235.0'f32))
+
+  # Cyan rim drawn behind each piece doubles as an outline on dark scenes.
+  drawRectangle(Rectangle(x: pivot.x, y: pivot.y,
+                          width: crownW + rim * 2.0'f32, height: crownH + rim),
+                Vector2(x: crownW * 0.5'f32 + rim, y: crownH + brimH + rim),
+                tilt, rimColor)
+  drawRectangle(Rectangle(x: pivot.x, y: pivot.y,
+                          width: brimW + rim * 2.0'f32, height: brimH + rim * 2.0'f32),
+                Vector2(x: brimW * 0.5'f32 + rim, y: brimH + rim),
+                tilt, rimColor)
+  # Crown above the brim, brim resting on the shape.
+  drawRectangle(Rectangle(x: pivot.x, y: pivot.y, width: crownW, height: crownH),
+                Vector2(x: crownW * 0.5'f32, y: crownH + brimH), tilt, hatColor)
+  drawRectangle(Rectangle(x: pivot.x, y: pivot.y, width: brimW, height: brimH),
+                Vector2(x: brimW * 0.5'f32, y: brimH), tilt, hatColor)
+  # Hat band in terminal cyan.
+  drawRectangle(Rectangle(x: pivot.x, y: pivot.y, width: crownW, height: bandH),
+                Vector2(x: crownW * 0.5'f32, y: bandH + brimH), tilt, bandColor)
+
+proc drawMiniCube*(center: Vector2, size: float32, time: float32,
+                   edgeColor, glowColor: Color) =
+  ## Tiny spinning wireframe cube — the desktop cube, pocket-sized. Used by
+  ## the orbital-cube secret cosmetic on the player and its shop preview.
+  const base = [
+    (-1.0'f32, -1.0'f32, -1.0'f32), (1.0'f32, -1.0'f32, -1.0'f32),
+    (1.0'f32, 1.0'f32, -1.0'f32), (-1.0'f32, 1.0'f32, -1.0'f32),
+    (-1.0'f32, -1.0'f32, 1.0'f32), (1.0'f32, -1.0'f32, 1.0'f32),
+    (1.0'f32, 1.0'f32, 1.0'f32), (-1.0'f32, 1.0'f32, 1.0'f32)]
+  const edges = [
+    (0, 1), (1, 2), (2, 3), (3, 0),
+    (4, 5), (5, 6), (6, 7), (7, 4),
+    (0, 4), (1, 5), (2, 6), (3, 7)]
+  let ax = time * 0.9'f32
+  let ay = time * 1.4'f32
+  let cax = cos(ax)
+  let sax = sin(ax)
+  let cay = cos(ay)
+  let say = sin(ay)
+  var pts: array[8, Vector2]
+  for i in 0..<8:
+    let (x, y, z) = base[i]
+    # Rotate around X, then Y; orthographic projection is fine at this size.
+    let y2 = y * cax - z * sax
+    let z2 = y * sax + z * cax
+    let x3 = x * cay + z2 * say
+    pts[i] = Vector2(x: center.x + x3 * size, y: center.y + y2 * size)
+  drawCircle(center, size * 1.9'f32,
+             Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 36))
+  for e in edges:
+    drawLine(pts[e[0]], pts[e[1]], 2.6'f32,
+             Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 110))
+    drawLine(pts[e[0]], pts[e[1]], 1.2'f32, edgeColor)
+
 proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
                      baseColor, secondaryColor, coreColor: Color,
                      time, rotation, pulse, glowIntensity: float32) =

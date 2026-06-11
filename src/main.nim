@@ -380,6 +380,14 @@ proc main() =
   if advancementProfile.dirty:
     discard saveAdvancements(advancementProfile)
 
+  # Retroactive grant: players who earned Escape Velocity before the orbital
+  # cube cosmetic existed receive it (equipped by default) on next launch.
+  if isAdvancementUnlocked(advancementProfile, CubeEscapeAdvancementId) and
+     not settings.orbitalCubeUnlocked:
+    settings.orbitalCubeUnlocked = true
+    settings.orbitalCubeEquipped = true
+    discard saveSettings(settings)
+
   var statsSavedThisGame = false  # Track if stats were saved for current game
   var advancementSyncTimer = 0.0'f32  # Throttle for mid-run advancement checks
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
@@ -736,6 +744,13 @@ proc main() =
           discard saveAdvancements(advancementProfile)
           if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
             globalWindowManager.advancements.profile = advancementProfile
+          # Achievement reward: the orbital cube player cosmetic — the cube you
+          # knocked out of orbit starts orbiting you. Equipped by default and
+          # toggleable in the shop's SECRET tab.
+          if not settings.orbitalCubeUnlocked:
+            settings.orbitalCubeUnlocked = true
+            settings.orbitalCubeEquipped = true
+            discard saveSettings(settings)
 
       # Surface queued advancement unlocks (from runs or easter eggs) as OS
       # toasts, one at a time as the previous toast expires.

@@ -44,6 +44,10 @@ type
     pvpNickname*: string  # Player nickname shown in PvP lobbies
     hasSeenIntro*: bool   # True after the lore cinematic has been seen once
     exitConfirmEnabled*: bool  # Show exit confirm dialogs (default: false)
+    kernelTophatUnlocked*: bool  # Secret cosmetic: earned by beating the wave-60 final boss
+    kernelTophatEquipped*: bool  # Whether the unlocked kernel tophat is worn in-game
+    orbitalCubeUnlocked*: bool  # Secret cosmetic: earned with the Escape Velocity advancement
+    orbitalCubeEquipped*: bool  # Whether the mini desktop cube orbits the player in-game
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -115,7 +119,11 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "cubeSkin": settings.cubeSkin,
     "pvpNickname": settings.pvpNickname,
     "hasSeenIntro": settings.hasSeenIntro,
-    "exitConfirmEnabled": settings.exitConfirmEnabled
+    "exitConfirmEnabled": settings.exitConfirmEnabled,
+    "kernelTophatUnlocked": settings.kernelTophatUnlocked,
+    "kernelTophatEquipped": settings.kernelTophatEquipped,
+    "orbitalCubeUnlocked": settings.orbitalCubeUnlocked,
+    "orbitalCubeEquipped": settings.orbitalCubeEquipped
   }
 
 # Load Settings from JSON
@@ -203,6 +211,18 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("exitConfirmEnabled"):
     settings.exitConfirmEnabled = jsonNode["exitConfirmEnabled"].getBool()
+
+  if jsonNode.hasKey("kernelTophatUnlocked"):
+    settings.kernelTophatUnlocked = jsonNode["kernelTophatUnlocked"].getBool()
+
+  if jsonNode.hasKey("kernelTophatEquipped"):
+    settings.kernelTophatEquipped = jsonNode["kernelTophatEquipped"].getBool()
+
+  if jsonNode.hasKey("orbitalCubeUnlocked"):
+    settings.orbitalCubeUnlocked = jsonNode["orbitalCubeUnlocked"].getBool()
+
+  if jsonNode.hasKey("orbitalCubeEquipped"):
+    settings.orbitalCubeEquipped = jsonNode["orbitalCubeEquipped"].getBool()
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =

@@ -94,42 +94,6 @@ proc equippedBulletShape(): BulletShapeType =
   else:
     BulletShapeType(clamp(globalSettings.bulletShape, ord(low(BulletShapeType)), ord(high(BulletShapeType))))
 
-proc drawKernelTopHat(pos: Vector2f, radius: float32, time: float32,
-                      alpha: float32 = 1.0'f32) =
-  ## The kernel's signature tophat, perched on the player model. Every piece
-  ## shares the same pivot and rotation so the hat tilts as one unit, and it
-  ## stays upright while the shape spins beneath it.
-  let bob = sin(time * 2.0'f32) * radius * 0.05'f32
-  let pivot = Vector2(x: pos.x, y: pos.y - radius * 0.74'f32 + bob)
-  let tilt = -9.0'f32 + sin(time * 1.6'f32) * 2.5'f32
-  let brimW = radius * 1.7'f32
-  let brimH = radius * 0.22'f32
-  let crownW = radius * 1.05'f32
-  let crownH = radius * 1.05'f32
-  let bandH = radius * 0.3'f32
-  let rim = max(1.0'f32, radius * 0.06'f32)
-  let hatColor = Color(r: 16, g: 20, b: 30, a: alphaByte(alpha * 245.0'f32))
-  let rimColor = Color(r: 0, g: 200, b: 200, a: alphaByte(alpha * 190.0'f32))
-  let bandColor = Color(r: 0, g: 230, b: 220, a: alphaByte(alpha * 235.0'f32))
-
-  # Cyan rim drawn behind each piece doubles as an outline on dark scenes.
-  drawRectangle(Rectangle(x: pivot.x, y: pivot.y,
-                          width: crownW + rim * 2.0'f32, height: crownH + rim),
-                Vector2(x: crownW * 0.5'f32 + rim, y: crownH + brimH + rim),
-                tilt, rimColor)
-  drawRectangle(Rectangle(x: pivot.x, y: pivot.y,
-                          width: brimW + rim * 2.0'f32, height: brimH + rim * 2.0'f32),
-                Vector2(x: brimW * 0.5'f32 + rim, y: brimH + rim),
-                tilt, rimColor)
-  # Crown above the brim, brim resting on the shape.
-  drawRectangle(Rectangle(x: pivot.x, y: pivot.y, width: crownW, height: crownH),
-                Vector2(x: crownW * 0.5'f32, y: crownH + brimH), tilt, hatColor)
-  drawRectangle(Rectangle(x: pivot.x, y: pivot.y, width: brimW, height: brimH),
-                Vector2(x: brimW * 0.5'f32, y: brimH), tilt, hatColor)
-  # Hat band in terminal cyan.
-  drawRectangle(Rectangle(x: pivot.x, y: pivot.y, width: crownW, height: bandH),
-                Vector2(x: crownW * 0.5'f32, y: bandH + brimH), tilt, bandColor)
-
 proc drawEquippedPlayerModel(pos: Vector2f, radius: float32, time: float32,
                              alpha: float32 = 1.0'f32, glowBoost: float32 = 0.0'f32) =
   let pulse = sin(time * 2.0'f32) * 0.5'f32 + 0.5'f32
@@ -188,7 +152,7 @@ proc drawKernelModel(pos: Vector2f, radius: float32, time: float32,
   let hatT = easeOut(clamp01((boot - 0.45'f32) / 0.45'f32))
   if hatT > 0.0'f32:
     let hatPos = newVector2f(pos.x, pos.y - (1.0'f32 - hatT) * r * 3.2'f32)
-    drawKernelTopHat(hatPos, r, time, alpha * hatT)
+    drawTopHat(hatPos, r, time, alpha * hatT)
 
 proc drawEquippedBulletModel(pos: Vector2f, radius: float32, travelAngle: float32,
                              time: float32, alpha: float32 = 1.0'f32) =

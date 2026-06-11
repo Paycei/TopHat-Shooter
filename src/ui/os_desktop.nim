@@ -838,6 +838,27 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     drawLine(projected[edge[0]], projected[edge[1]], 4, innerEdgeColor)
     drawLine(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
 
+  # Companion Cube skin: a pink heart on the front-most face. After the sort
+  # above, faces[5] has the highest depth and is the one drawn on top.
+  if skin == cskCompanion:
+    var hx = 0.0'f32
+    var hy = 0.0'f32
+    for corner in faces[5].corners:
+      hx += projected[corner].x
+      hy += projected[corner].y
+    hx /= 4.0'f32
+    hy /= 4.0'f32
+    let heartR = size * 0.3'f32
+    let heartColor = Color(r: 255, g: 105, b: 180, a: 235)
+    drawCircle(Vector2(x: hx - heartR * 0.55'f32, y: hy - heartR * 0.35'f32),
+               heartR * 0.62'f32, heartColor)
+    drawCircle(Vector2(x: hx + heartR * 0.55'f32, y: hy - heartR * 0.35'f32),
+               heartR * 0.62'f32, heartColor)
+    drawTriangle(Vector2(x: hx - heartR * 1.12'f32, y: hy - heartR * 0.08'f32),
+                 Vector2(x: hx, y: hy + heartR * 1.05'f32),
+                 Vector2(x: hx + heartR * 1.12'f32, y: hy - heartR * 0.08'f32),
+                 heartColor)
+
 proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
                           cubeRotX, cubeRotY, cubeRotZ: float32,
                           cubeOffsetX: float32 = 0.0, cubeOffsetY: float32 = 0.0) =

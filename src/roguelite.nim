@@ -804,6 +804,7 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of cskShadow:  makeCost(85, 1)
     of cskPlasma:  makeCost(120, 2)
     of cskMatrix:  makeCost(140, 2)
+    of cskCompanion: makeCost(155, 3)
 
 proc canAffordCosmetic*(profile: RogueliteProfile, kind: CosmeticKind,
                         index: int): bool =

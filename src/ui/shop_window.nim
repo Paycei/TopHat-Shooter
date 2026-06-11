@@ -13,6 +13,7 @@ type
     stParticles      # Particle effects tab
     stDesktopBg      # Desktop background skins tab
     stCubeSkins      # Cube skins tab
+    stSecret         # Secret items tab (victory-unlocked cosmetics)
 
   ShopWindow* = ref object
     window*: OSWindow
@@ -54,6 +55,11 @@ const
   TAB_HEIGHT = 40
   PREVIEW_BOX_WIDTH = 420
   PREVIEW_BOX_HEIGHT = 360
+  SHOP_TAB_COUNT = 8
+  SECRET_CARD_W = 240
+  SECRET_CARD_H = 220
+  SECRET_CARD_GAP = 40
+  SECRET_ITEM_COUNT = 2  # 0 = kernel tophat (player), 1 = cube tophat (desktop cube)
 
 proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle, rogueliteProfile: RogueliteProfile = nil): ShopWindow =
   let windowWidth = 820
@@ -142,6 +148,12 @@ proc cosmeticCostLabel(cost: CosmeticCost): string =
   if cost.cores > 0:
     parts.add($cost.cores & " " & t("roguelite_cores_short"))
   if parts.len == 0: "FREE" else: parts.join(" + ")
+
+proc secretCardPos(contentX, contentY, contentWidth, index: int): tuple[x, y: int] =
+  ## Layout for the SECRET tab's row of centered cards (shared by update/draw).
+  let totalW = SECRET_ITEM_COUNT * SECRET_CARD_W + (SECRET_ITEM_COUNT - 1) * SECRET_CARD_GAP
+  let left = contentX + (contentWidth - totalW) div 2
+  (x: left + index * (SECRET_CARD_W + SECRET_CARD_GAP), y: contentY + TAB_HEIGHT + 60)
 
 proc drawLockGlyph(x, y: int32, color: Color) =
   drawCircleLines(x + 10, y + 8, 7, color)
@@ -877,7 +889,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
 
   # Check tab clicks
   let tabY = contentY
-  let tabWidth = contentWidth div 7  # 7 tabs
+  let tabWidth = contentWidth div SHOP_TAB_COUNT
 
   if not shop.window.dragging and mouseY >= tabY and mouseY < tabY + TAB_HEIGHT and isTopmost:
     if shop.window.handledClickThisFrame:
@@ -905,10 +917,52 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
         shop.currentTab = stDesktopBg
         shop.scrollOffset = 0.0
         shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth * 6 and mouseX < contentX + contentWidth:
+      elif mouseX >= contentX + tabWidth * 6 and mouseX < contentX + tabWidth * 7:
         shop.currentTab = stCubeSkins
         shop.scrollOffset = 0.0
         shop.scrollVelocity = 0.0
+      elif mouseX >= contentX + tabWidth * 7 and mouseX < contentX + contentWidth:
+        shop.currentTab = stSecret
+        shop.scrollOffset = 0.0
+        shop.scrollVelocity = 0.0
+
+  # The SECRET tab is a short row of victory/achievement-unlocked toggles,
+  # not a CosmeticKind grid — handle it here and skip the grid machinery.
+  if shop.currentTab == stSecret:
+    shop.hoveredSkin = -1
+    for i in 0..<SECRET_ITEM_COUNT:
+      let (cardX, cardY) = secretCardPos(contentX, contentY, contentWidth, i)
+      if isTopmost and mouseX >= cardX and mouseX < cardX + SECRET_CARD_W and
+         mouseY >= cardY and mouseY < cardY + SECRET_CARD_H:
+        shop.hoveredSkin = i
+    let clicked = isTopmost and not shop.window.dragging and
+                  shop.window.handledClickThisFrame and shop.hoveredSkin >= 0
+    # Enter toggles the hovered card, defaulting to the first for keyboard use.
+    let toggleIndex =
+      if clicked: shop.hoveredSkin
+      elif isTopmost and isKeyPressed(Enter): max(0, shop.hoveredSkin)
+      else: -1
+    if toggleIndex >= 0 and not globalSettings.isNil:
+      var toggledOn = false
+      var toggled = false
+      if toggleIndex == 0 and globalSettings.kernelTophatUnlocked:
+        globalSettings.kernelTophatEquipped = not globalSettings.kernelTophatEquipped
+        toggledOn = globalSettings.kernelTophatEquipped
+        toggled = true
+      elif toggleIndex == 1 and globalSettings.orbitalCubeUnlocked:
+        globalSettings.orbitalCubeEquipped = not globalSettings.orbitalCubeEquipped
+        toggledOn = globalSettings.orbitalCubeEquipped
+        toggled = true
+      if toggled:
+        discard saveSettings(globalSettings)
+        playSound(stMenuSelect)
+        shop.statusMessage =
+          if toggledOn: t("shop_equipped") else: t("secret_tophat_unequipped")
+        shop.statusTimer = 1.2
+    if isTopmost and isKeyPressed(Escape):
+      shop.window.visible = false
+      return true
+    return false
 
   # Calculate grid area
   let headerHeight = 50
@@ -1070,6 +1124,119 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
 
   return false
 
+proc drawSecretCardChrome(cardX, cardY: int, unlocked, equipped, isHovered: bool) =
+  ## Card background and border. Magenta accents set the secret stock apart
+  ## from the regular tabs; equipped cards get the terminal-cyan border.
+  let borderColor =
+    if equipped: Color(r: 0, g: 230, b: 220, a: 255)
+    elif isHovered and unlocked: Color(r: 255, g: 120, b: 230, a: 255)
+    else: Color(r: 120, g: 60, b: 130, a: 255)
+  drawRectangle(cardX.int32, cardY.int32, SECRET_CARD_W.int32, SECRET_CARD_H.int32,
+                Color(r: 22, g: 18, b: 32, a: 255))
+  drawRectangleLines(Rectangle(x: cardX.float32, y: cardY.float32,
+                               width: SECRET_CARD_W.float32, height: SECRET_CARD_H.float32),
+                     2.0'f32, borderColor)
+
+proc drawSecretCardLabels(cardX, cardY: int, equipped: bool, name: string) =
+  let nameW = measureText(name, 16)
+  drawText(name, (cardX + (SECRET_CARD_W - nameW) div 2).int32, (cardY + 158).int32, 16, White)
+  let statusText = if equipped: t("shop_equipped") else: t("secret_click_to_wear")
+  let statusColor =
+    if equipped: Color(r: 0, g: 230, b: 220, a: 255)
+    else: Color(r: 200, g: 200, b: 210, a: 255)
+  let statusW = measureText(statusText, 12)
+  drawText(statusText, (cardX + (SECRET_CARD_W - statusW) div 2).int32,
+           (cardY + 188).int32, 12, statusColor)
+
+proc drawSecretCardLocked(cardX, cardY: int, hint: string) =
+  drawLockGlyph((cardX + SECRET_CARD_W div 2 - 10).int32, (cardY + 56).int32,
+                Color(r: 255, g: 120, b: 230, a: 255))
+  let mystery = "???"
+  let mysteryW = measureText(mystery, 24)
+  drawText(mystery, (cardX + (SECRET_CARD_W - mysteryW) div 2).int32, (cardY + 110).int32, 24,
+           Color(r: 170, g: 150, b: 185, a: 255))
+  let hintLines = wrapTwoLines(hint, (SECRET_CARD_W - 20).int32, 12)
+  let hint1W = measureText(hintLines.line1, 12)
+  drawText(hintLines.line1, (cardX + (SECRET_CARD_W - hint1W) div 2).int32,
+           (cardY + 172).int32, 12, Color(r: 150, g: 150, b: 165, a: 255))
+  if hintLines.line2.len > 0:
+    let hint2W = measureText(hintLines.line2, 12)
+    drawText(hintLines.line2, (cardX + (SECRET_CARD_W - hint2W) div 2).int32,
+             (cardY + 188).int32, 12, Color(r: 150, g: 150, b: 165, a: 255))
+
+proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, contentHeight: int) =
+  ## The SECRET tab: one card per secret cosmetic. Card 0 is the kernel tophat
+  ## (wave-60 victory); card 1 is the orbital cube (Escape Velocity advancement).
+  ## Clicking an unlocked card toggles whether it is worn.
+  let headerY = contentY + TAB_HEIGHT
+  drawText(t("shop_customize_secret"), (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
+  if shop.statusTimer > 0 and shop.statusMessage.len > 0:
+    drawText(shop.statusMessage, (contentX + contentWidth - 180).int32, (headerY + 31).int32, 11,
+             Color(r: 255, g: 210, b: 110, a: 255))
+
+  let hatUnlocked = not globalSettings.isNil and globalSettings.kernelTophatUnlocked
+  let hatEquipped = hatUnlocked and globalSettings.kernelTophatEquipped
+  let cubeUnlocked = not globalSettings.isNil and globalSettings.orbitalCubeUnlocked
+  let cubeEquipped = cubeUnlocked and globalSettings.orbitalCubeEquipped
+
+  # Card 0: kernel tophat, previewed on the player's current skin and shape.
+  let (hatX, hatY) = secretCardPos(contentX, contentY, contentWidth, 0)
+  drawSecretCardChrome(hatX, hatY, hatUnlocked, hatEquipped, shop.hoveredSkin == 0)
+  if hatUnlocked:
+    let centerX = (hatX + SECRET_CARD_W div 2).float32
+    let previewY = (hatY + 110).float32
+    let (primary, secondary, core) = getSkinColors(shop.selectedPlayerSkin, shop.animationTime)
+    let pulse = sin(shop.animationTime * 2.0'f32) * 0.5'f32 + 0.5'f32
+    drawPlayerShape(newVector2f(centerX, previewY), 30.0'f32, shop.selectedShape,
+                    primary, secondary, core, shop.animationTime,
+                    shop.animationTime * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
+    drawTopHat(newVector2f(centerX, previewY), 30.0'f32, shop.animationTime,
+               1.0'f32, primary)
+    drawSecretCardLabels(hatX, hatY, hatEquipped, t("secret_tophat_name"))
+  else:
+    drawSecretCardLocked(hatX, hatY, t("secret_locked_hint"))
+
+  # Card 1: orbital cube, previewed as the player's shape with the mini
+  # desktop cube (in the equipped cube skin's colors) circling it live.
+  let (cubeX, cubeY) = secretCardPos(contentX, contentY, contentWidth, 1)
+  drawSecretCardChrome(cubeX, cubeY, cubeUnlocked, cubeEquipped, shop.hoveredSkin == 1)
+  if cubeUnlocked:
+    let centerX = (cubeX + SECRET_CARD_W div 2).float32
+    let previewY = (cubeY + 105).float32
+    let (primary, secondary, core) = getSkinColors(shop.selectedPlayerSkin, shop.animationTime)
+    let pulse = sin(shop.animationTime * 2.0'f32) * 0.5'f32 + 0.5'f32
+    drawPlayerShape(newVector2f(centerX, previewY), 24.0'f32, shop.selectedShape,
+                    primary, secondary, core, shop.animationTime,
+                    shop.animationTime * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
+    let cubeData = getCubeSkinData(shop.selectedCubeSkin)
+    let orbitAngle = shop.animationTime * 1.3'f32
+    let orbitDist = 24.0'f32 * 2.1'f32 + sin(shop.animationTime * 2.1'f32) * 3.0'f32
+    drawMiniCube(Vector2(x: centerX + cos(orbitAngle) * orbitDist,
+                         y: previewY + sin(orbitAngle) * orbitDist * 0.72'f32),
+                 6.5'f32, shop.animationTime, cubeData.edgeColor, cubeData.glowColor)
+    drawSecretCardLabels(cubeX, cubeY, cubeEquipped, t("secret_orbital_cube_name"))
+  else:
+    drawSecretCardLocked(cubeX, cubeY, t("secret_cube_locked_hint"))
+
+  # Info panel mirrors the other tabs, describing the hovered card.
+  let infoPanelHeight = 50
+  let infoPanelY = contentY + contentHeight - infoPanelHeight
+  drawRectangle(contentX.int32, infoPanelY.int32, contentWidth.int32, infoPanelHeight.int32,
+                Color(r: 35, g: 35, b: 45, a: 255))
+  let infoIsCube = shop.hoveredSkin == 1
+  let infoUnlocked = if infoIsCube: cubeUnlocked else: hatUnlocked
+  if infoUnlocked:
+    let infoEquipped = if infoIsCube: cubeEquipped else: hatEquipped
+    let infoName = if infoIsCube: t("secret_orbital_cube_name") else: t("secret_tophat_name")
+    let wornText = if infoEquipped: infoName else: "---"
+    drawText(&"{t(\"shop_currently_equipped\")} {wornText}", (contentX + 10).int32,
+             (infoPanelY + 8).int32, 15, White)
+    let infoDesc = if infoIsCube: t("secret_orbital_cube_desc") else: t("secret_tophat_desc")
+    drawText(infoDesc, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+  else:
+    let lockedHint = if infoIsCube: t("secret_cube_locked_hint") else: t("secret_locked_hint")
+    drawText(lockedHint, (contentX + 10).int32, (infoPanelY + 18).int32, 13, Gray)
+
 proc drawShopWindow*(shop: ShopWindow) =
   ## Draw the shop window
   if shop.isNil or shop.window.isNil:
@@ -1094,7 +1261,7 @@ proc drawShopWindow*(shop: ShopWindow) =
                 Color(r: 25, g: 25, b: 35, a: 255))
 
   # Draw tabs
-  let tabWidth = contentWidth div 7  # 7 tabs
+  let tabWidth = contentWidth div SHOP_TAB_COUNT
   let tabY = contentY
 
   # Player Skins tab
@@ -1166,6 +1333,21 @@ proc drawShopWindow*(shop: ShopWindow) =
   let tab7Label = t("shop_tab_cubeskins")
   let tab7LabelX = contentX + tabWidth * 6 + (tabWidth - measureText(tab7Label, 12)) div 2
   drawText(tab7Label, tab7LabelX.int32, (tabY + 13).int32, 12, if tab7Active: White else: Gray)
+
+  # Secret items tab — magenta underline instead of the shop's orange
+  let tab8Active = shop.currentTab == stSecret
+  let tab8Color = if tab8Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
+  drawRectangle((contentX + tabWidth * 7).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab8Color)
+  if tab8Active:
+    drawRectangle((contentX + tabWidth * 7).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 120, b: 230, a: 255))
+  let tab8Label = t("shop_tab_secret")
+  let tab8LabelX = contentX + tabWidth * 7 + (tabWidth - measureText(tab8Label, 12)) div 2
+  drawText(tab8Label, tab8LabelX.int32, (tabY + 13).int32, 12, if tab8Active: White else: Gray)
+
+  # The SECRET tab draws its own single-card layout instead of the grid.
+  if shop.currentTab == stSecret:
+    drawSecretTabContent(shop, contentX, contentY, contentWidth, contentHeight)
+    return
 
   # Draw header
   let headerHeight = 50
@@ -1316,6 +1498,8 @@ proc drawShopWindow*(shop: ShopWindow) =
         let cost = cosmeticCost(ckCubeSkin, itemIndex)
         let costText = cosmeticCostLabel(cost)
         drawCubeSkinPreview(boxX, boxY, cubeType, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
+      of stSecret:
+        discard  # Handled by drawSecretTabContent (early return above)
 
     # Focus ring for keyboard navigation (drawn over card)
     if vIndex == shop.focusIndex:

@@ -2114,6 +2114,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_customize_desktop": "CUSTOMIZE DESKTOP BACKGROUND",
     "shop_customize_cubeskins": "CUSTOMIZE CUBE ENEMY SKINS",
 
+    # Secret items (shop SECRET tab)
+    "shop_tab_secret": "SECRET",
+    "shop_customize_secret": "SECRET ITEMS",
+    "secret_tophat_name": "Kernel Tophat",
+    "secret_tophat_desc": "The kernel's own tophat, entrusted to the one who secured the system.",
+    "secret_tophat_unequipped": "[UNEQUIPPED]",
+    "secret_click_to_wear": "Click to wear",
+    "secret_locked_hint": "Defeat the wave 60 final boss to unlock",
+    "secret_orbital_cube_name": "Orbital Cube",
+    "secret_orbital_cube_desc": "Knocked out of orbit, the desktop cube found a new one -- around you.",
+    "secret_cube_locked_hint": "Earn the 'Escape Velocity' advancement to unlock",
+    "victory_secret_unlocked": "[NEW] SECRET UNLOCKED: KERNEL TOPHAT -- equipped! Toggle it in the Shop's SECRET tab.",
+
     # Desktop Background Skins
     "dbg_default": "OS Grid",
     "dbg_default_desc": "Classic animated circuit board",
@@ -2145,6 +2158,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "csk_plasma_desc": "Electric blue-purple plasma",
     "csk_matrix": "Data Node",
     "csk_matrix_desc": "Matrix green data streams",
+    "csk_companion": "Companion Cube",
+    "csk_companion_desc": "It will never threaten to stab you. The heart is purely decorative.",
 
     # Player Skins
     "skin_default": "System Default",
@@ -3539,6 +3554,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_customize_desktop": "PERSONALIZA EL FONDO DE ESCRITORIO",
     "shop_customize_cubeskins": "PERSONALIZA LOS ASPECTOS DE CUBOS",
 
+    # Secret items (pestaña SECRETO de la tienda)
+    "shop_tab_secret": "SECRETO",
+    "shop_customize_secret": "OBJETOS SECRETOS",
+    "secret_tophat_name": "Sombrero del Kernel",
+    "secret_tophat_desc": "El sombrero de copa del propio kernel, confiado a quien aseguró el sistema.",
+    "secret_tophat_unequipped": "[DESEQUIPADO]",
+    "secret_click_to_wear": "Clic para llevarlo",
+    "secret_locked_hint": "Derrota al jefe final de la oleada 60 para desbloquearlo",
+    "secret_orbital_cube_name": "Cubo Orbital",
+    "secret_orbital_cube_desc": "Expulsado de su órbita, el cubo del escritorio encontró una nueva: tú.",
+    "secret_cube_locked_hint": "Consigue el logro 'Escape Velocity' para desbloquearlo",
+    "victory_secret_unlocked": "[NUEVO] SECRETO DESBLOQUEADO: SOMBRERO DEL KERNEL -- ¡equipado! Actívalo en la pestaña SECRETO de la tienda.",
+
     # Desktop Background Skins
     "dbg_default": "Cuadrícula OS",
     "dbg_default_desc": "Placa de circuito animada clásica",
@@ -3570,6 +3598,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "csk_plasma_desc": "Plasma eléctrico azul-morado",
     "csk_matrix": "Nodo de Datos",
     "csk_matrix_desc": "Flujos de datos verde matrix",
+    "csk_companion": "Cubo de Compañía",
+    "csk_companion_desc": "Nunca amenazará con apuñalarte. El corazón es puramente decorativo.",
 
     # Player Skins
     "skin_default": "Sistema base",

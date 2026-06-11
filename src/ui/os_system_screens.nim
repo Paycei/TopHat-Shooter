@@ -396,7 +396,16 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   drawRectangle(windowX, footerY, SCREEN_WIDTH, 35,
                Color(r: 30, g: 60, b: 45, a: 255))
 
-  let footerText = t(tkVictoryFooter)
-  let footerWidth = measureText(footerText, 13)
-  drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
-          Color(r: 180, g: 220, b: 190, a: 255))
+  # On the run that first earned the kernel tophat, the footer announces the
+  # secret unlock instead of the endless-mode hint.
+  if game.tophatJustUnlocked:
+    let secretText = t("victory_secret_unlocked")
+    let secretWidth = measureText(secretText, 13)
+    let secretPulse = sin(game.time * 4.0) * 0.5 + 0.5
+    drawText(secretText, windowX + (SCREEN_WIDTH - secretWidth) div 2, footerY + 10, 13,
+            Color(r: uint8(120 + secretPulse * 135), g: 255, b: 255, a: 255))
+  else:
+    let footerText = t(tkVictoryFooter)
+    let footerWidth = measureText(footerText, 13)
+    drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
+            Color(r: 180, g: 220, b: 190, a: 255))

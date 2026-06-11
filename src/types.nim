@@ -431,6 +431,9 @@ type
     bulletShapeType*: int  # Current equipped bullet shape (BulletShapeType ord)
     shapeType*: int  # Current equipped player shape
     particleSkinType*: int  # Current equipped particle effect
+    wearsTophat*: bool  # Secret kernel tophat cosmetic (unlocked by beating the wave-60 boss)
+    hasOrbitalCube*: bool  # Secret orbital-cube cosmetic (Escape Velocity advancement reward)
+    cubeSkinType*: int  # Equipped desktop-cube skin (colors the orbital cube companion)
     celestialVeilActive*: bool  # True if Celestial Veil can still absorb a hit this wave
     # Volatile (Legendary passive)
     hasVolatile*: bool          # Enemies with 2+ DoTs take +50% dmg and spread on death
@@ -1088,6 +1091,7 @@ type
     selectedGameOverButton*: int  # Selected button on game over screen (0=Restart, 1=Stats, 2=Exit)
     selectedVictoryButton*: int  # Selected button on victory screen (0=Continue, 1=Stats, 2=Menu)
     hasWonGame*: bool  # True once the wave-60 final boss is beaten; gates the one-time victory screen
+    tophatJustUnlocked*: bool  # True only on the run that first earned the kernel tophat (victory banner)
     deathCause*: DeathCause  # What killed the player (recorded once in beginPlayerDeathSequence)
     deathSourceName*: string  # Resolved name of the killer (enemy/boss); empty for hazards
     deathSourceWasBoss*: bool  # True if the killer was a boss (affects game-over styling)

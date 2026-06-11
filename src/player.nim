@@ -1,5 +1,5 @@
 import raylib, math, random, std/deques
-import types, wall, powerup, powerup_data, localization, skins, shapes, ui/ui_constants
+import types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants
 
 const
   PlayerAcceleration = 7.0'f32
@@ -541,6 +541,24 @@ proc drawPlayer*(player: Player) =
   let shapeType = player.shapeType.ShapeType
   drawPlayerShape(player.pos, player.radius, shapeType, baseColor, secondaryColor, coreColor,
                   time, rotation, pulse, glowIntensity)
+
+  # Secret cosmetic: the kernel's tophat, earned by clearing wave 60.
+  # Band and outline take the player's current body color so the hat
+  # matches the equipped skin (and status tints like invincibility gold).
+  if player.wearsTophat:
+    drawTopHat(player.pos, player.radius, time, 1.0'f32, baseColor)
+
+  # Secret cosmetic: the desktop cube, knocked out of orbit (Escape Velocity),
+  # now orbits the player. Colored by the equipped desktop-cube skin.
+  if player.hasOrbitalCube:
+    let cubeSkin = CubeSkinType(clamp(player.cubeSkinType, 0, ord(high(CubeSkinType))))
+    let cubeData = getCubeSkinData(cubeSkin)
+    let orbitAngle = time * 1.3
+    let orbitDist = player.radius * 2.5 + sin(time * 2.1) * 3.0
+    let cubeCenter = Vector2(
+      x: player.pos.x + cos(orbitAngle) * orbitDist,
+      y: player.pos.y + sin(orbitAngle) * orbitDist * 0.72 + sin(time * 3.1) * 2.0)
+    drawMiniCube(cubeCenter, 6.5'f32, time, cubeData.edgeColor, cubeData.glowColor)
 
   # 6. DATA PARTICLES (orbiting effect)
   if player.vel.length() > 10 or pulse > 0.7:

@@ -12,7 +12,8 @@ type
     cskGold,     ## Gold Standard: luxury golden
     cskShadow,   ## Shadow Node: stealth dark
     cskPlasma,   ## Plasma Rig: electric blue-purple
-    cskMatrix    ## Data Node: matrix green
+    cskMatrix,   ## Data Node: matrix green
+    cskCompanion ## Companion Cube: grey with a pink heart (Portal reference)
 
   CubeSkinData* = object
     name*: string
@@ -65,6 +66,12 @@ proc initCubeSkins*() =
     faceColor: Color(r: 0,   g: 180, b: 0,   a: 255),
     edgeColor: Color(r: 120, g: 255, b: 120, a: 255),
     glowColor: Color(r: 0,   g: 220, b: 0,   a: 180))
+
+  cubeSkinDatabase[cskCompanion] = CubeSkinData(
+    name: t("csk_companion"), description: t("csk_companion_desc"),
+    faceColor: Color(r: 118, g: 122, b: 134, a: 255),
+    edgeColor: Color(r: 205, g: 210, b: 220, a: 255),
+    glowColor: Color(r: 255, g: 105, b: 180, a: 180))
 
 proc getCubeSkinData*(skinType: CubeSkinType): CubeSkinData =
   cubeSkinDatabase[skinType]
