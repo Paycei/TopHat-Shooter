@@ -6169,8 +6169,13 @@ proc updateGame*(game: var Game, dt: float32) =
 
       # Enemy died - drop coins and particles
 
-      # Play enemy death sound
-      playSound(stEnemyDeath, if enemy.isBoss: 1.0 else: 0.4)
+      # Play enemy death sound; pitch creeps up with the kill combo so
+      # chained kills feel escalating (bosses keep their full deep sound)
+      if enemy.isBoss:
+        playSound(stEnemyDeath, 1.0)
+      else:
+        let comboPitch = 1.0'f32 + min(game.dopamine.comboSystem.killCount, 12).float32 * 0.015
+        playSound(stEnemyDeath, 0.4, comboPitch)
 
       # Summoner King's window now opens when its whole summoned wave is cleared
       # (handled in the boss update loop via openBossSummonWindow), so individual

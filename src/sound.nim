@@ -1,6 +1,11 @@
 import raylib, math, random, os, streams
 import localization
 
+# Raylib's playSound restarts a Sound that is already playing, cutting its
+# tail. Each sound gets a pool of aliases (shared sample data) played
+# round-robin so rapid-fire effects overlap instead of cutting each other off.
+const MAX_SOUND_VOICES = 4
+
 type
   SoundType* = enum
     stShoot, stEnemyHit, stEnemyDeath, stPlayerHit, stCoinPickup, stPowerUp,
@@ -19,6 +24,9 @@ type
     musicVolume*: float32
     initialized: bool
     cachedSounds: array[SoundType, Sound]
+    soundVoices: array[SoundType, array[MAX_SOUND_VOICES, SoundAlias]]
+    nextVoice: array[SoundType, int]
+    lastPlayTime: array[SoundType, float64]
     soundsGenerated: bool
     cachedMusic: array[MusicTrack, Music]
     musicGenerated: array[MusicTrack, bool]
@@ -1639,6 +1647,8 @@ proc generateAllSounds(sys: SoundSystem) =
   try:
     for st in SoundType:
       sys.cachedSounds[st] = loadOrGenerateSound(st)
+      for voice in 0..<MAX_SOUND_VOICES:
+        sys.soundVoices[st][voice] = loadSoundAlias(sys.cachedSounds[st])
     sys.soundsGenerated = true
     echo "All sounds loaded successfully!"
   except Exception as e:
@@ -1678,12 +1688,70 @@ proc closeSoundSystem*(sys: SoundSystem) =
     echo "Sound system closed"
 
 # PLAYBACK FUNCTIONS
-proc playSound*(soundType: SoundType, volumeMultiplier: float32 = 1.0) =
-  if globalSoundSystem == nil or not globalSoundSystem.enabled or not globalSoundSystem.soundsGenerated:
+proc pitchVariation(soundType: SoundType): float32 =
+  ## Max random pitch deviation per play. Constantly repeated combat sounds
+  ## get wide variation so they never sound robotic; musical jingles
+  ## (power-up, wave fanfare, buy, game over) stay at their composed pitch.
+  case soundType
+  of stEnemyHit: 0.14
+  of stShoot: 0.10
+  of stEnemyDeath: 0.09
+  of stExplosion: 0.08
+  of stWallPlace: 0.07
+  of stShield: 0.05
+  of stCoinPickup, stTeleport, stPlayerHit: 0.04
+  of stMenuNav: 0.02
+  of stPowerUp, stBossSpawn, stMenuSelect, stWaveComplete, stGameOver, stBuy: 0.0
+
+proc panSpread(soundType: SoundType): float32 =
+  ## Random stereo offset for battlefield sounds; UI and jingles stay centered.
+  ## Pan is in raylib's [-1, 1] range where 0 is center (NOT the older 0.5).
+  case soundType
+  of stShoot, stEnemyHit, stEnemyDeath, stExplosion, stCoinPickup, stWallPlace: 0.12
+  else: 0.0
+
+proc minReplayInterval(soundType: SoundType): float64 =
+  ## Shortest gap between two plays of the same sound. Prevents dozens of
+  ## same-frame hits/deaths from stacking into one clipped blast.
+  case soundType
+  of stShoot: 0.025
+  of stEnemyHit: 0.03
+  of stCoinPickup: 0.04
+  of stEnemyDeath: 0.05
+  of stExplosion: 0.07
+  of stPowerUp: 0.1
+  else: 0.0
+
+proc playSound*(soundType: SoundType, volumeMultiplier: float32 = 1.0,
+                pitch: float32 = 1.0) =
+  let sys = globalSoundSystem
+  if sys == nil or not sys.enabled or not sys.soundsGenerated:
     return
   try:
-    setSoundVolume(globalSoundSystem.cachedSounds[soundType], globalSoundSystem.masterVolume * volumeMultiplier)
-    raylib.playSound(globalSoundSystem.cachedSounds[soundType])
+    let minInterval = minReplayInterval(soundType)
+    if minInterval > 0.0:
+      let now = getTime()
+      if now - sys.lastPlayTime[soundType] < minInterval:
+        return
+      sys.lastPlayTime[soundType] = now
+
+    # Rotate through the alias pool so overlapping plays don't cut each other
+    let voiceIdx = sys.nextVoice[soundType]
+    sys.nextVoice[soundType] = (voiceIdx + 1) mod MAX_SOUND_VOICES
+    template voice: Sound = Sound(sys.soundVoices[soundType][voiceIdx])
+
+    setSoundVolume(voice, sys.masterVolume * volumeMultiplier)
+
+    let jitter = pitchVariation(soundType)
+    let finalPitch = if jitter > 0.0: pitch * (1.0'f32 + rand(-jitter..jitter)) else: pitch
+    setSoundPitch(voice, finalPitch)
+
+    # Always reset pan: voices are reused and keep their last value
+    let spread = panSpread(soundType)
+    let pan = if spread > 0.0: rand(-spread..spread) else: 0.0'f32
+    setSoundPan(voice, pan)
+
+    raylib.playSound(voice)
   except:
     discard
 
