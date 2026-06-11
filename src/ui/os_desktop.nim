@@ -727,6 +727,18 @@ proc drawWallpaperCubeFace(points: array[8, Vector2], face: WallpaperCubeFace) =
   drawTriangle(a, b, c, face.color)
   drawTriangle(a, c, d, face.color)
 
+proc drawTriangleBothWindings(a, b, c: Vector2, color: Color) =
+  ## Filled triangles are winding-sensitive when backface culling is active,
+  ## and the winding of face-local geometry flips as the cube tumbles — emit
+  ## both orders so the triangle can never be culled away.
+  drawTriangle(a, b, c, color)
+  drawTriangle(a, c, b, color)
+
+proc drawCompanionCornerCap(p: Vector2, size: float32) =
+  drawCircle(p, size * 0.17'f32, Color(r: 86, g: 89, b: 100, a: 240))
+  drawCircleLines(p.x.int32, p.y.int32, size * 0.17'f32,
+                  Color(r: 178, g: 181, b: 190, a: 200))
+
 proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
                                    angleX, angleY, angleZ: float32,
                                    skin: CubeSkinType = cskDefault) =
@@ -826,6 +838,13 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
       if faces[i].depth > faces[i + 1].depth:
         swap(faces[i], faces[i + 1])
 
+  # Companion Cube: caps on the far corners go in first, so the faces occlude
+  # them naturally instead of the caps popping in and out with rotation.
+  if skin == cskCompanion:
+    for i in 0 ..< 8:
+      if rotated[i].z < 0.0'f32:
+        drawCompanionCornerCap(projected[i], size)
+
   for face in faces:
     drawWallpaperCubeFace(projected, face)
 
@@ -834,30 +853,116 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
   if skin != cskDefault:
     edgeColor = Color(r: skinDataLocal.edgeColor.r, g: skinDataLocal.edgeColor.g, b: skinDataLocal.edgeColor.b, a: 220)
     innerEdgeColor = Color(r: skinDataLocal.glowColor.r, g: skinDataLocal.glowColor.g, b: skinDataLocal.glowColor.b, a: 100)
+  if skin == cskCompanion:
+    # The real Companion Cube keeps its color in the hearts only — the edge
+    # channels are recessed dark grey, not glowing pink.
+    innerEdgeColor = Color(r: 90, g: 93, b: 104, a: 130)
   for edge in CubeEdges:
     drawLine(projected[edge[0]], projected[edge[1]], 4, innerEdgeColor)
     drawLine(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
 
-  # Companion Cube skin: a pink heart on the front-most face. After the sort
-  # above, faces[5] has the highest depth and is the one drawn on top.
+  # Companion Cube skin: the Weighted Companion Cube look — a soft-pink heart
+  # on a light disc at the center of every visible face, plus rounded dark
+  # corner caps. Faces were depth-sorted above, so the last three are the
+  # camera-facing ones; each heart is drawn in its face's projected basis so
+  # it foreshortens and tracks the face as the cube tumbles.
   if skin == cskCompanion:
-    var hx = 0.0'f32
-    var hy = 0.0'f32
-    for corner in faces[5].corners:
-      hx += projected[corner].x
-      hy += projected[corner].y
-    hx /= 4.0'f32
-    hy /= 4.0'f32
-    let heartR = size * 0.3'f32
-    let heartColor = Color(r: 255, g: 105, b: 180, a: 235)
-    drawCircle(Vector2(x: hx - heartR * 0.55'f32, y: hy - heartR * 0.35'f32),
-               heartR * 0.62'f32, heartColor)
-    drawCircle(Vector2(x: hx + heartR * 0.55'f32, y: hy - heartR * 0.35'f32),
-               heartR * 0.62'f32, heartColor)
-    drawTriangle(Vector2(x: hx - heartR * 1.12'f32, y: hy - heartR * 0.08'f32),
-                 Vector2(x: hx, y: hy + heartR * 1.05'f32),
-                 Vector2(x: hx + heartR * 1.12'f32, y: hy - heartR * 0.08'f32),
-                 heartColor)
+    for fi in 3 .. 5:
+      let c0 = faces[fi].corners[0]
+      let c1 = faces[fi].corners[1]
+      let c2 = faces[fi].corners[2]
+      let c3 = faces[fi].corners[3]
+      # Build a *canonical* tangent frame for the heart instead of reading it
+      # off the face's corner winding (which differs per face, so the hearts
+      # used to point every which way). The face normal in cube space is just
+      # the face centre (the cube is centred at the origin), an axis unit vector.
+      let n = WallpaperCubePoint(
+        x: (base[c0].x + base[c1].x + base[c2].x + base[c3].x) * 0.25'f32,
+        y: (base[c0].y + base[c1].y + base[c2].y + base[c3].y) * 0.25'f32,
+        z: (base[c0].z + base[c1].z + base[c2].z + base[c3].z) * 0.25'f32)
+      # Choose a consistent "up". Screen-up is world -Y in this projection (the
+      # cube uses a y-down basis), so the four side faces take up = -Y: their
+      # hearts all sit upright and point toward the cube's top ring. The
+      # top/bottom faces (normal ±Y) have no in-plane vertical, so they fall
+      # back to +Z, tying into that ring. right = up × normal keeps a uniform
+      # handedness, so a camera-facing face always projects to a positive area.
+      var up3d: WallpaperCubePoint
+      if abs(n.y) < 0.5'f32:
+        up3d = WallpaperCubePoint(x: 0.0'f32, y: -1.0'f32, z: 0.0'f32)
+      else:
+        up3d = WallpaperCubePoint(x: 0.0'f32, y: 0.0'f32, z: 1.0'f32)
+      let right3d = WallpaperCubePoint(
+        x: up3d.y * n.z - up3d.z * n.y,
+        y: up3d.z * n.x - up3d.x * n.z,
+        z: up3d.x * n.y - up3d.y * n.x)
+
+      # Rotate the tangents with the cube and project them as screen vectors, so
+      # the heart stays painted on (foreshortens, attached) while keeping its
+      # consistent orientation. Each tangent is a unit cube axis = one face
+      # half-edge, so the projected basis matches the heart's previous size.
+      let rUp = rotateWallpaperCubePoint(up3d, angleX, angleY, angleZ)
+      let rRight = rotateWallpaperCubePoint(right3d, angleX, angleY, angleZ)
+      let fc3d = WallpaperCubePoint(
+        x: (rotated[c0].x + rotated[c1].x + rotated[c2].x + rotated[c3].x) * 0.25'f32,
+        y: (rotated[c0].y + rotated[c1].y + rotated[c2].y + rotated[c3].y) * 0.25'f32,
+        z: (rotated[c0].z + rotated[c1].z + rotated[c2].z + rotated[c3].z) * 0.25'f32)
+      let fcScreen = projectWallpaperCubePoint(fc3d, cx, cy, size)
+      let rightEnd = projectWallpaperCubePoint(
+        WallpaperCubePoint(x: fc3d.x + rRight.x, y: fc3d.y + rRight.y, z: fc3d.z + rRight.z),
+        cx, cy, size)
+      let upEnd = projectWallpaperCubePoint(
+        WallpaperCubePoint(x: fc3d.x + rUp.x, y: fc3d.y + rUp.y, z: fc3d.z + rUp.z),
+        cx, cy, size)
+      let sRx = rightEnd.x - fcScreen.x
+      let sRy = rightEnd.y - fcScreen.y
+      let sUx = upEnd.x - fcScreen.x
+      let sUy = upEnd.y - fcScreen.y
+
+      # Back-face cull. The cube body is translucent, so a heart on a face that
+      # has turned away would bleed through. With this right-handed tangent
+      # frame a camera-facing face projects to a positive screen area and a
+      # back face to negative, so we only draw the positive (visible) ones. The
+      # area also shrinks to zero at the silhouette, so the heart fades to a
+      # point there and the visible/hidden hand-off stays seamless.
+      if sRx * sUy - sRy * sUx <= 0.0'f32:
+        continue
+
+      # Light recessed disc behind the heart (a circle in the face plane).
+      let discColor = Color(r: 222, g: 224, b: 229, a: 255)
+      var prevDisc = Vector2(x: fcScreen.x + sRx * 0.55'f32, y: fcScreen.y + sRy * 0.55'f32)
+      for i in 1 .. 12:
+        let a = i.float32 / 12.0'f32 * PI * 2.0'f32
+        let dx = cos(a) * 0.55'f32
+        let dy = sin(a) * 0.55'f32
+        let cur = Vector2(x: fcScreen.x + sRx * dx + sUx * dy,
+                          y: fcScreen.y + sRy * dx + sUy * dy)
+        drawTriangleBothWindings(fcScreen, prevDisc, cur, discColor)
+        prevDisc = cur
+
+      # Classic parametric heart: width along the face's right axis, height
+      # along its up axis (negated so the point sits toward the bottom edge and
+      # the lobes — the heart's top — toward the up edge on every face).
+      let heartColor = Color(r: 244, g: 116, b: 150, a: 255)
+      var prevHeart = fcScreen  # placeholder; set from the i = 0 sample below
+      var first = true
+      for i in 0 .. 24:
+        let t = i.float32 / 24.0'f32 * PI * 2.0'f32
+        let hx = 0.34'f32 * (16.0'f32 * pow(sin(t), 3.0'f32)) / 17.0'f32
+        let yc = (13.0'f32 * cos(t) - 5.0'f32 * cos(2.0'f32 * t) -
+                  2.0'f32 * cos(3.0'f32 * t) - cos(4.0'f32 * t)) / 17.0'f32
+        let hy = (-yc - 0.15'f32) * 0.34'f32
+        let cur = Vector2(x: fcScreen.x + sRx * hx - sUx * hy,
+                          y: fcScreen.y + sRy * hx - sUy * hy)
+        if not first:
+          drawTriangleBothWindings(fcScreen, prevHeart, cur, heartColor)
+        prevHeart = cur
+        first = false
+
+    # Rounded corner caps on the near corners (the far ones were drawn
+    # under the faces before the face pass).
+    for i in 0 ..< 8:
+      if rotated[i].z >= 0.0'f32:
+        drawCompanionCornerCap(projected[i], size)
 
 proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
                           cubeRotX, cubeRotY, cubeRotZ: float32,

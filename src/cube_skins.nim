@@ -69,9 +69,9 @@ proc initCubeSkins*() =
 
   cubeSkinDatabase[cskCompanion] = CubeSkinData(
     name: t("csk_companion"), description: t("csk_companion_desc"),
-    faceColor: Color(r: 118, g: 122, b: 134, a: 255),
-    edgeColor: Color(r: 205, g: 210, b: 220, a: 255),
-    glowColor: Color(r: 255, g: 105, b: 180, a: 180))
+    faceColor: Color(r: 128, g: 130, b: 138, a: 255),
+    edgeColor: Color(r: 208, g: 210, b: 216, a: 255),
+    glowColor: Color(r: 244, g: 130, b: 160, a: 180))
 
 proc getCubeSkinData*(skinType: CubeSkinType): CubeSkinData =
   cubeSkinDatabase[skinType]
