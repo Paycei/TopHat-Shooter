@@ -3280,7 +3280,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       of "prismatic_storm": attack.projectileCount * 2  # Massive light show!
       of "temporal_beam": attack.projectileCount  # Temporal cross pattern
       of "chaos_beam": rand(attack.projectileCount) + attack.projectileCount  # Random chaos
-      of "omega_beam": attack.projectileCount * 2  # Massive ultimate beams
+      of "omega_beam": attack.projectileCount  # Ultimate beams (count tuned in boss_definitions; was *2 = 8, an undodgeable web)
       else: attack.projectileCount
 
     # Calculate all laser angles for the warning system
@@ -3482,7 +3482,11 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     let bulletCount = if isChaosAttack:
       (attack.projectileCount.float32 * (0.7 + rand(0.6))).int
     elif isOmegaBarrage:
-      attack.projectileCount * 2  # Double bullets for ultimate attack
+      # Honor the count from boss_definitions (already tuned to 30) instead of
+      # doubling it. The old *2 re-inflated the ring to 60 bullets — at the boss's
+      # firing radius that leaves no player-sized gap, which made the final phase
+      # an undodgeable wall and silently cancelled every nerf made to the data.
+      attack.projectileCount
     else:
       attack.projectileCount
 

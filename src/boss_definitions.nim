@@ -1867,9 +1867,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBarrage,
               damage: 32.0,  # NERFED from 5.0
-              cooldown: 1.2,  # NERFED from 0.8
+              cooldown: 1.8,  # NERFED from 0.8 -> 1.2 -> 1.8 (space rings so they don't form a gapless wall)
               projectileSpeed: 270.0,  # NERFED from 320.0
-              projectileCount: 30,  # NERFED from 60
+              projectileCount: 30,  # NERFED from 60 (also no longer doubled at runtime in game.nim)
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               specialData: "omega_barrage"
@@ -1887,7 +1887,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 32.0,  # NERFED from 6.0
-              cooldown: 2.5,  # NERFED from 1.8
+              cooldown: 3.2,  # NERFED from 1.8 -> 2.5 -> 3.2 (fewer overlapping blink-bursts during the barrage)
               projectileSpeed: 0.0,
               projectileCount: 4,  # NERFED from 6
               spreadAngle: 0.0,

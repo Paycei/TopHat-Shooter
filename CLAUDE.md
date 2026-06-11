@@ -26,7 +26,7 @@ Always run this after edits. Nim enforces **exhaustive `case` statements over en
 
 ### Top-level control flow
 - `src/main.nim` owns `proc main()`: it creates the window, holds the single `currentGame` object, and runs the frame loop as a **state machine over `GameState`** (`gsSplash`, `gsMenu`, `gsPlaying`, `gsShop`, `gsPowerUpSelect`, `gsPvPPlaying`, …). Each state has its own update/draw branch. Switching menus/modes = reassigning `currentGame` and setting `.state`.
-- `src/game.nim` (~8600 lines) is the monolithic gameplay core: `updateGame*` and `drawGame*` plus all combat — enemy AI, wave spawning, the bullet-vs-enemy hit resolution block, and most per-hit power-up effects. **When in doubt, gameplay logic lives here.**
+- `src/game.nim` (~9000 lines) is the monolithic gameplay core: `updateGame*` and `drawGame*` plus all combat — enemy AI, wave spawning, the bullet-vs-enemy hit resolution block, and most per-hit power-up effects. **When in doubt, gameplay logic lives here.**
 - `src/types.nim` is the single source of truth for the data model: `Game`, `Player`, `Enemy`, `Bullet`, and every enum. `Player`/`Enemy`/`Bullet` are `ref object`s (mutating a local copy mutates the shared instance — no write-back needed). `float32` is the pervasive numeric type.
 
 ### Game modes
@@ -47,6 +47,9 @@ All user-facing text goes through `t(key)`. There are parallel `English` and `Sp
 
 ### Persistence (`save_system.nim`)
 Saves are **JSON** written with `writeFile`, with hand-written parse procs (e.g. `parsePowerUpType`). Any new serialized enum value needs a branch added to its parse proc, or it silently falls back to a default.
+
+### Cosmetic skins (`skins.nim` and friends)
+Player/bullet/cube/particle/desktop-background skins are registry-driven like power-ups: a `*SkinType` enum → an `array[SkinType, SkinData]` populated in an `initialize*Skins()` proc, with names/descriptions pulled via `t()` (so localization keys are required in *both* language tables). Rendering uses exhaustive `case`s (e.g. `getSkinColors`). Unlock state is persisted in `save_system.nim`. Adding one mirrors the power-up recipe: enum value → registry entry → two localization keys → render branch → save parse branch. Modules: `skins.nim` (player), `bullet_skins.nim`, `cube_skins.nim`, `particle_skins.nim`, `desktop_bg_skins.nim`.
 
 ## Adding a power-up (the main content-extension workflow)
 

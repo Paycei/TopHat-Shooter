@@ -201,7 +201,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
   of shSquare:
     # Square shape with same hitbox radius (no rotation)
     # 1. OUTER ENERGY FIELD (square glow)
-    let squareSize = radius * 1.3  # Reduced from 1.5 to make even smaller
+    let squareSize = radius * 1.05  # Reduced from 1.3 to make even smaller
     for layer in 0..2:
       let layerSize = squareSize + layer.float32 * 6.0
       let layerAlpha = uint8((1.0 - layer.float32 / 3.0) * glowIntensity * 50)
@@ -241,7 +241,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       drawCircle(Vector2(x: x1, y: y1), 3.5, baseColor)
 
     # 4. INNER SQUARE (filled)
-    let innerSize = radius * 0.75
+    let innerSize = radius * 0.6
     let halfSize = innerSize / sqrt(2.0)
     let cx1 = pos.x + cos(PI / 4.0) * halfSize
     let cy1 = pos.y + sin(PI / 4.0) * halfSize
