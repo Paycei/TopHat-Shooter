@@ -273,8 +273,8 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
                   0, 0, 1, 0.095'f32 * dt)
   # Orbital-escape easter egg: spinning the cube fast for long enough knocks it
-  # out of orbit once (ever). Main consumes cubeEscapeTriggered to grant the
-  # advancement and only arms this while the advancement is still locked.
+  # out of orbit. This plays every time; main consumes cubeEscapeTriggered to
+  # grant the (one-shot) advancement the first time it ever happens.
   const
     CubeEscapeSpinThreshold = 8.0'f32   # rad/s of combined spin counts as "fast"
     CubeEscapeHeatNeeded    = 4.0'f32   # seconds of sustained fast spin to break orbit
@@ -322,7 +322,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
       desktop.cubeEscaping = true
       desktop.cubeEscapeTimer = 0.0
       desktop.cubeSpinHeat = 0.0
-      desktop.cubeEscapeArmed = false
+      # Stay armed so the easter egg can play again on the next sustained spin.
       desktop.cubeEscapeTriggered = true
       desktop.cubeDragging = false
       # Fly off roughly along the spin direction, drifting upward

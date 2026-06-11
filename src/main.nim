@@ -405,9 +405,10 @@ proc main() =
   var osDesktop = newOSDesktop()
   # Expose the running desktop instance so UI previews can match its state
   activeDesktop = osDesktop
-  # Arm the cube orbital-escape easter egg only while its advancement is locked,
-  # so it can only ever happen once per profile.
-  osDesktop.cubeEscapeArmed = not isAdvancementUnlocked(advancementProfile, CubeEscapeAdvancementId)
+  # Arm the cube orbital-escape easter egg unconditionally so it plays every time
+  # the player spins the cube out of orbit. The advancement it grants is still
+  # one-shot (unlockAdvancementDirectly is idempotent), so re-triggering is harmless.
+  osDesktop.cubeEscapeArmed = true
 
   # Initialize window manager with all windows
   globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats, advancementProfile, rogueliteProfile)
