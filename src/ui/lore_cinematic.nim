@@ -94,6 +94,42 @@ proc equippedBulletShape(): BulletShapeType =
   else:
     BulletShapeType(clamp(globalSettings.bulletShape, ord(low(BulletShapeType)), ord(high(BulletShapeType))))
 
+proc drawKernelTopHat(pos: Vector2f, radius: float32, time: float32,
+                      alpha: float32 = 1.0'f32) =
+  ## The kernel's signature tophat, perched on the player model. Every piece
+  ## shares the same pivot and rotation so the hat tilts as one unit, and it
+  ## stays upright while the shape spins beneath it.
+  let bob = sin(time * 2.0'f32) * radius * 0.05'f32
+  let pivot = Vector2(x: pos.x, y: pos.y - radius * 0.74'f32 + bob)
+  let tilt = -9.0'f32 + sin(time * 1.6'f32) * 2.5'f32
+  let brimW = radius * 1.7'f32
+  let brimH = radius * 0.22'f32
+  let crownW = radius * 1.05'f32
+  let crownH = radius * 1.05'f32
+  let bandH = radius * 0.3'f32
+  let rim = max(1.0'f32, radius * 0.06'f32)
+  let hatColor = Color(r: 16, g: 20, b: 30, a: alphaByte(alpha * 245.0'f32))
+  let rimColor = Color(r: 0, g: 200, b: 200, a: alphaByte(alpha * 190.0'f32))
+  let bandColor = Color(r: 0, g: 230, b: 220, a: alphaByte(alpha * 235.0'f32))
+
+  # Cyan rim drawn behind each piece doubles as an outline on dark scenes.
+  drawRectangle(Rectangle(x: pivot.x, y: pivot.y,
+                          width: crownW + rim * 2.0'f32, height: crownH + rim),
+                Vector2(x: crownW * 0.5'f32 + rim, y: crownH + brimH + rim),
+                tilt, rimColor)
+  drawRectangle(Rectangle(x: pivot.x, y: pivot.y,
+                          width: brimW + rim * 2.0'f32, height: brimH + rim * 2.0'f32),
+                Vector2(x: brimW * 0.5'f32 + rim, y: brimH + rim),
+                tilt, rimColor)
+  # Crown above the brim, brim resting on the shape.
+  drawRectangle(Rectangle(x: pivot.x, y: pivot.y, width: crownW, height: crownH),
+                Vector2(x: crownW * 0.5'f32, y: crownH + brimH), tilt, hatColor)
+  drawRectangle(Rectangle(x: pivot.x, y: pivot.y, width: brimW, height: brimH),
+                Vector2(x: brimW * 0.5'f32, y: brimH), tilt, hatColor)
+  # Hat band in terminal cyan.
+  drawRectangle(Rectangle(x: pivot.x, y: pivot.y, width: crownW, height: bandH),
+                Vector2(x: crownW * 0.5'f32, y: bandH + brimH), tilt, bandColor)
+
 proc drawEquippedPlayerModel(pos: Vector2f, radius: float32, time: float32,
                              alpha: float32 = 1.0'f32, glowBoost: float32 = 0.0'f32) =
   let pulse = sin(time * 2.0'f32) * 0.5'f32 + 0.5'f32
@@ -104,6 +140,55 @@ proc drawEquippedPlayerModel(pos: Vector2f, radius: float32, time: float32,
                   colorA(secondary, alpha * secondary.a.float32),
                   colorA(core, alpha * core.a.float32),
                   time, rotation, pulse, 0.4'f32 + pulse * 0.2'f32 + glowBoost)
+
+proc drawKernelModel(pos: Vector2f, radius: float32, time: float32,
+                     boot: float32, alpha: float32 = 1.0'f32) =
+  ## The TOPHAT kernel itself: a hexagonal core wrapped in counter-rotating
+  ## containment arcs. `boot` (0..1) drives the wake-up — the shell scales in,
+  ## the core lens charges, and the tophat drops on as the final stage.
+  let center = Vector2(x: pos.x, y: pos.y)
+  let pulse = sin(time * 2.6'f32) * 0.5'f32 + 0.5'f32
+  let r = radius * (0.7'f32 + boot * 0.3'f32)
+  let spin = time * 12.0'f32
+
+  # Counter-rotating containment arcs around the shell.
+  for ring in 0..<3:
+    let rr = r * (1.55'f32 + ring.float32 * 0.4'f32)
+    let dir = if ring mod 2 == 0: 1.0'f32 else: -1.0'f32
+    let base = time * dir * (30.0'f32 + ring.float32 * 16.0'f32)
+    let arcAlpha = alpha * boot * (130.0'f32 - ring.float32 * 30.0'f32)
+    for seg in 0..<3:
+      let start = base + seg.float32 * 120.0'f32
+      drawRing(center, rr - 1.5'f32, rr + 1.5'f32, start, start + 62.0'f32, 24,
+               Color(r: 0, g: 215, b: 230, a: alphaByte(arcAlpha)))
+
+  # Hexagonal shell with a slow spin; the hat stays upright on top.
+  drawPoly(center, 6, r, spin, Color(r: 8, g: 20, b: 28, a: alphaByte(alpha * 240.0'f32)))
+  drawPolyLines(center, 6, r, spin,
+                Color(r: 0, g: 225, b: 230, a: alphaByte(alpha * 230.0'f32)))
+  drawPolyLines(center, 6, r * 0.66'f32, -spin * 1.7'f32,
+                Color(r: 0, g: 170, b: 190, a: alphaByte(alpha * 150.0'f32)))
+
+  # Spokes from the shell vertices into the core.
+  for i in 0..<6:
+    let a = degToRad(spin) + i.float32 * PI / 3.0'f32
+    drawLine(Vector2(x: pos.x + cos(a) * r * 0.4'f32, y: pos.y + sin(a) * r * 0.4'f32),
+             Vector2(x: pos.x + cos(a) * r, y: pos.y + sin(a) * r), 1.5'f32,
+             Color(r: 0, g: 160, b: 180, a: alphaByte(alpha * 90.0'f32)))
+
+  # Core lens: charges with boot, breathes once awake.
+  let coreR = r * 0.34'f32 * (0.55'f32 + boot * 0.45'f32) * (0.92'f32 + pulse * 0.08'f32)
+  drawSoftGlow(pos.x, pos.y, coreR * 3.2'f32,
+               Color(r: 0, g: 240, b: 230, a: alphaByte(alpha * boot * 60.0'f32)), 1.0'f32)
+  drawCircle(center, coreR, Color(r: 0, g: 235, b: 225, a: alphaByte(alpha * 235.0'f32)))
+  drawCircle(center, coreR * 0.55'f32,
+             Color(r: 235, g: 255, b: 255, a: alphaByte(alpha * (140.0'f32 + boot * 110.0'f32))))
+
+  # The tophat drops on as the final stage of the wake-up.
+  let hatT = easeOut(clamp01((boot - 0.45'f32) / 0.45'f32))
+  if hatT > 0.0'f32:
+    let hatPos = newVector2f(pos.x, pos.y - (1.0'f32 - hatT) * r * 3.2'f32)
+    drawKernelTopHat(hatPos, r, time, alpha * hatT)
 
 proc drawEquippedBulletModel(pos: Vector2f, radius: float32, travelAngle: float32,
                              time: float32, alpha: float32 = 1.0'f32) =
@@ -304,6 +389,17 @@ proc drawBreachShot(local, duration: float32, screenWidth, screenHeight: int32,
                 (340.0'f32 * open).int32, 10, Color(r: 255, g: 230, b: 255, a: alphaByte(alpha * 190.0'f32)))
   drawRectangle((cx - 5.0'f32).int32, (cy - 120.0'f32 * open).int32,
                 10, (240.0'f32 * open).int32, Color(r: 0, g: 245, b: 245, a: alphaByte(alpha * 135.0'f32)))
+
+  # The kernel — the OS core the breach is tearing into — trembles harder as
+  # the rupture widens around it.
+  let jx = sin(local * 43.0'f32) * 2.4'f32 * open
+  let jy = cos(local * 51.0'f32) * 2.0'f32 * open
+  drawKernelModel(newVector2f(cx + jx, cy + jy), 36.0'f32, local, 1.0'f32, alpha)
+  # Corruption flicker crawling over the shell during breach spikes.
+  let spike = sin(local * 9.0'f32)
+  if spike > 0.55'f32:
+    drawPolyLines(Vector2(x: cx + jx, y: cy + jy), 6, 36.0'f32, local * 12.0'f32,
+                  Color(r: 255, g: 40, b: 190, a: alphaByte(alpha * (spike - 0.55'f32) * 380.0'f32)))
 
   drawSubtitles([t(tkLoreBreach1), t(tkLoreBreach2)], screenWidth, screenHeight, alpha)
 
