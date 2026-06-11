@@ -1,4 +1,4 @@
-import raylib, math, random, os, streams
+import raylib, math, random, os, streams, strutils
 import localization
 
 # Raylib's playSound restarts a Sound that is already playing, cutting its
@@ -41,6 +41,7 @@ const
   SAMPLE_RATE = 44100'u32
   MUSIC_DURATION = 48.0'f32  # Long-form: 48 seconds
   MUSIC_CACHE_VERSION = "v4"
+  SOUND_CACHE_VERSION = "v2"  # bump when any create* synthesis changes
 
 proc expectedMusicCacheBytes(): int64 =
   int64(44 + int(MUSIC_DURATION * SAMPLE_RATE.float32) * 2)
@@ -74,7 +75,7 @@ proc getSoundCacheFile(soundType: SoundType): string =
     of stShield: "shield"
     of stGameOver: "gameover"
     of stBuy: "buy"
-  result = cacheDir / (soundName & ".wav")
+  result = cacheDir / (soundName & "_" & SOUND_CACHE_VERSION & ".wav")
 
 proc getMusicCacheFile(track: MusicTrack): string =
   let cacheDir = getCacheDir()
@@ -151,141 +152,135 @@ proc writeWavFile(filename: string, samples: seq[int16], sampleRate: uint32) =
       stream.close()
 
 proc createLaserShoot(filename: string): Sound =
-  # High-tech laser with complex modulation
+  # Tight sci-fi "pew": pitch-swept core with light FM, a fast-fading bright
+  # harmonic, a small sub thump and a filtered attack tick. Phase accumulation
+  # keeps the sweep clean, and soft saturation adds body. Built to be heard
+  # ten times a second without fatiguing.
   let sampleRate: uint32 = 44100
-  let duration = 0.18
+  let duration = 0.14
   let frameCount = int(sampleRate.float32 * duration)
   var samples = newSeq[int16](frameCount)
+
+  let dt = 1.0 / sampleRate.float64
+  var corePhase, subPhase = 0.0
+  var noiseLP = 0.0
 
   for i in 0..<frameCount:
     let t = i.float32 / sampleRate.float32
     let progress = t / duration
 
-    # Main carrier - exponential pitch sweep
-    let carrierFreq = 2200.0 * exp(-progress * 6.0) + 250.0
+    # Core: exponential downward sweep, integrated as phase so the pitch
+    # glides smoothly instead of warbling
+    let coreFreq = 1600.0 * exp(-progress * 7.0) + 240.0
+    corePhase += 2.0 * PI * coreFreq * dt
+    let fm = sin(corePhase * 2.7) * 0.3 * exp(-progress * 9.0)
+    let core = sin(corePhase + fm) * 0.5
 
-    # FM synthesis for laser character
-    let modulator = sin(2.0 * PI * 8.0 * carrierFreq * t) * 0.3
-    let carrier = sin(2.0 * PI * carrierFreq * t + modulator)
+    # Bright opening "zing" that fades fast
+    let zing = sin(corePhase * 2.0) * 0.24 * exp(-progress * 13.0)
 
-    # Harmonics for brightness
-    let harmonic2 = sin(2.0 * PI * carrierFreq * 2.0 * t) * 0.25
-    let harmonic3 = sin(2.0 * PI * carrierFreq * 3.0 * t) * 0.12
+    # Sub thump for body behind the zap
+    let subFreq = 150.0 * exp(-progress * 4.0)
+    subPhase += 2.0 * PI * subFreq * dt
+    let thump = sin(subPhase) * 0.22 * exp(-progress * 14.0)
 
-    # Sub layer for depth
-    let sub = sin(2.0 * PI * carrierFreq * 0.5 * t) * 0.2
+    # Lowpass-filtered attack tick (texture without hiss)
+    noiseLP += 0.25 * (rand(-1.0..1.0) - noiseLP)
+    let tick = noiseLP * 0.55 * exp(-progress * 32.0)
 
-    # Noise layer for texture
-    let noise = rand(-1.0..1.0) * 0.08 * exp(-progress * 20.0)
+    let envelope = applyADSR(progress, 0.006, 0.10, 0.28, 0.55)
 
-    # Sharp attack, fast decay
-    let envelope = applyADSR(progress, 0.01, 0.08, 0.25, 0.61)
-
-    let value = (carrier * 0.4 + harmonic2 + harmonic3 + sub + noise) * envelope
-    samples[i] = int16(clamp(value * 32767.0 * 0.42, -32767.0, 32767.0))
+    # Soft saturation rounds the peaks and adds harmonics
+    let value = tanh((core + zing + thump + tick) * envelope * 1.7) * 0.6
+    samples[i] = int16(clamp(value * 32767.0 * 0.5, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
   result = loadSound(filename)
 
 proc createImpactHit(filename: string): Sound =
-  # Heavy, satisfying impact with multiple layers
+  # Punchy drum-like impact: a pitch-swept thump (phase-accumulated, like an
+  # 808 kick), a mid knock for definition and a lowpass-filtered crack burst
+  # instead of raw white noise. Soft saturation glues the layers together.
   let sampleRate: uint32 = 44100
-  let duration = 0.22
+  let duration = 0.16
   let frameCount = int(sampleRate.float32 * duration)
   var samples = newSeq[int16](frameCount)
+
+  let dt = 1.0 / sampleRate.float64
+  var thumpPhase, knockPhase = 0.0
+  var crackLP = 0.0
 
   for i in 0..<frameCount:
     let t = i.float32 / sampleRate.float32
     let progress = t / duration
 
-    # Layer 1: Deep thump - felt impact
-    let thumpFreq = 80.0 * exp(-progress * 18.0)
-    let thump = sin(2.0 * PI * thumpFreq * t) * 0.55
+    # Deep felt thump: 190 Hz dropping fast to ~55 Hz
+    let thumpFreq = 55.0 + 135.0 * exp(-progress * 16.0)
+    thumpPhase += 2.0 * PI * thumpFreq * dt
+    let thump = sin(thumpPhase) * 0.65 * exp(-progress * 7.0)
 
-    # Layer 2: Body - mid frequency punch
-    let bodyFreq = 280.0 * exp(-progress * 12.0)
-    let body = sin(2.0 * PI * bodyFreq * t) * 0.35
+    # Mid knock for definition through the mix
+    let knockFreq = 320.0 * exp(-progress * 9.0) + 120.0
+    knockPhase += 2.0 * PI * knockFreq * dt
+    let knock = sin(knockPhase) * 0.3 * exp(-progress * 12.0)
 
-    # Layer 3: Crunch - upper mid definition
-    let crunchFreq = 600.0 * exp(-progress * 10.0)
-    let crunch = sin(2.0 * PI * crunchFreq * t) * 0.25
+    # Crack: noise lowpassed around the upper mids, very fast decay.
+    # Filtering keeps the snap but loses the static hiss.
+    crackLP += 0.30 * (rand(-1.0..1.0) - crackLP)
+    let crack = crackLP * 0.85 * exp(-progress * 26.0)
 
-    # Layer 4: Initial click - attack transient
-    let click = if progress < 0.03:
-      sin(2.0 * PI * 2500.0 * t) * (1.0 - progress / 0.03) * 0.5
-    else:
-      0.0
+    # Short metallic ping so hits cut through at low volume
+    let ping = sin(2.0 * PI * 2100.0 * t) * 0.12 * exp(-progress * 30.0)
 
-    # Layer 5: Noise burst - texture
-    let noiseBurst = if progress < 0.08:
-      rand(-1.0..1.0) * (1.0 - progress / 0.08) * 0.35
-    else:
-      0.0
-
-    # Layer 6: Sustained noise - tail
-    let noiseTail = rand(-1.0..1.0) * 0.12 * exp(-progress * 25.0)
-
-    # Layer 7: Metallic ring - adds character
-    let ring = sin(2.0 * PI * 1800.0 * t) * 0.15 * exp(-progress * 15.0)
-
-    # Fast decay envelope
-    let envelope = exp(-progress * 16.0)
-
-    let value = (thump + body + crunch + click + noiseBurst + noiseTail + ring) * envelope
-    samples[i] = int16(clamp(value * 32767.0 * 0.75, -32767.0, 32767.0))
+    let value = tanh((thump + knock + crack + ping) * 1.6) * 0.62
+    samples[i] = int16(clamp(value * 32767.0 * 0.72, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
   result = loadSound(filename)
 
 proc createEnemyDeath(filename: string): Sound =
-  # Dramatic, satisfying enemy destruction
+  # Satisfying destruction "zap-drop": a clean phase-accumulated dive from
+  # high to sub frequencies with a tracking sub octave, plus lowpass-filtered
+  # debris crackle. Shorter than before (0.45 s) so dense kill chains stay
+  # readable, with saturation for weight.
   let sampleRate: uint32 = 44100
-  let duration = 0.65
+  let duration = 0.45
   let frameCount = int(sampleRate.float32 * duration)
   var samples = newSeq[int16](frameCount)
+
+  let dt = 1.0 / sampleRate.float64
+  var mainPhase, subPhase = 0.0
+  var burstLP, crackleLP = 0.0
 
   for i in 0..<frameCount:
     let t = i.float32 / sampleRate.float32
     let progress = t / duration
 
-    # Main sweep - dramatic downward pitch
-    let mainFreq = 1100.0 * exp(-progress * 5.0) + 35.0
-    let mainTone = sin(2.0 * PI * mainFreq * t) * 0.45
+    # Main dive: ~950 Hz falling to ~45 Hz, integrated as phase
+    let mainFreq = 900.0 * exp(-progress * 6.0) + 45.0
+    mainPhase += 2.0 * PI * mainFreq * dt
+    let mainTone = sin(mainPhase) * 0.48
 
-    # Sub octave - adds weight
-    let subOctave = sin(2.0 * PI * mainFreq * 0.5 * t) * 0.35
+    # Sub octave tracking the dive for weight
+    subPhase += PI * mainFreq * dt
+    let subOctave = sin(subPhase) * 0.38
 
-    # Perfect fifth - harmonic richness
-    let fifth = sin(2.0 * PI * mainFreq * 1.5 * t) * 0.22
+    # Slightly detuned partial for a broken, dissonant edge
+    let warble = sin(mainPhase * 1.17) * 0.14 * exp(-progress * 4.0)
 
-    # Upper harmonic - brightness
-    let upper = sin(2.0 * PI * mainFreq * 2.0 * t) * 0.15
+    # Impact burst: heavily lowpassed noise, only at the front
+    burstLP += 0.22 * (rand(-1.0..1.0) - burstLP)
+    let burst = burstLP * 0.9 * exp(-progress * 18.0)
 
-    # Initial impact burst
-    let impactNoise = if progress < 0.12:
-      rand(-1.0..1.0) * (1.0 - progress / 0.12) * 0.4
-    else:
-      0.0
+    # Debris crackle: brighter filtered noise sputtering out through the tail
+    crackleLP += 0.45 * (rand(-1.0..1.0) - crackleLP)
+    let crackle = (crackleLP - burstLP * 0.5) * 0.35 * exp(-progress * 6.0)
 
-    # Crackling decay
-    let crackle = if progress >= 0.12 and progress < 0.45:
-      rand(-1.0..1.0) * ((0.45 - progress) / 0.33) * 0.2
-    else:
-      0.0
+    let attackEnv = min(1.0, progress / 0.02)
+    let mainEnv = exp(-progress * 3.5)
 
-    # Rumble layer
-    let rumble = sin(2.0 * PI * 40.0 * t) * 0.25
-
-    # Dissonant warble for destruction feel
-    let warble = sin(2.0 * PI * (mainFreq * 1.15) * t) * 0.12
-
-    # Multi-stage envelope
-    let attackEnv = if progress < 0.05: progress / 0.05 else: 1.0
-    let mainEnv = exp(-progress * 3.0)
-
-    let value = (mainTone + subOctave + fifth + upper + impactNoise +
-                 crackle + rumble * mainEnv + warble) * attackEnv * mainEnv
-
+    let value = tanh((mainTone + subOctave + warble + burst + crackle) *
+                     attackEnv * mainEnv * 1.5) * 0.66
     samples[i] = int16(clamp(value * 32767.0 * 0.7, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
@@ -297,6 +292,8 @@ proc createPlayerHit(filename: string): Sound =
   let duration = 0.35
   let frameCount = int(sampleRate.float32 * duration)
   var samples = newSeq[int16](frameCount)
+
+  var noiseLP = 0.0
 
   for i in 0..<frameCount:
     let t = i.float32 / sampleRate.float32
@@ -321,14 +318,15 @@ proc createPlayerHit(filename: string): Sound =
     else:
       0.0
 
-    # Harsh noise burst - damage texture
+    # Damage noise, lowpass-filtered so it's gritty rather than hissy
+    noiseLP += 0.3 * (rand(-1.0..1.0) - noiseLP)
     let noiseBurst = if progress < 0.15:
-      rand(-1.0..1.0) * (1.0 - progress / 0.15) * 0.4
+      noiseLP * (1.0 - progress / 0.15) * 0.7
     else:
       0.0
 
     # Sustained noise - aftermath
-    let sustainedNoise = rand(-1.0..1.0) * 0.15 * exp(-progress * 10.0)
+    let sustainedNoise = noiseLP * 0.3 * exp(-progress * 10.0)
 
     # Distortion effect - damage intensity
     let distortionAmount = 1.2 + progress * 0.3
@@ -539,73 +537,50 @@ proc createBossSpawn(filename: string): Sound =
   result = loadSound(filename)
 
 proc createExplosion(filename: string): Sound =
-  # Epic layered explosion with multiple stages
+  # Cinematic boom built around a closing lowpass filter: the noise starts
+  # bright (the blast) and darkens into a low rumble as it decays, the way
+  # real explosions bloom. Underneath sits a phase-accumulated sub drop and
+  # a mid punch, glued with heavy soft saturation.
   let sampleRate: uint32 = 44100
-  let duration = 1.0
+  let duration = 0.9
   let frameCount = int(sampleRate.float32 * duration)
   var samples = newSeq[int16](frameCount)
+
+  let dt = 1.0 / sampleRate.float64
+  var subPhase, punchPhase = 0.0
+  var blastLP = 0.0
 
   for i in 0..<frameCount:
     let t = i.float32 / sampleRate.float32
     let progress = t / duration
 
-    # STAGE 1: Initial impact - very short sharp attack
-    let initialClick = if progress < 0.02:
-      sin(2.0 * PI * 3000.0 * t) * (1.0 - progress / 0.02) * 0.5
+    # Initial detonation click
+    let click = if progress < 0.015:
+      sin(2.0 * PI * 2800.0 * t) * (1.0 - progress / 0.015) * 0.5
     else:
       0.0
 
-    # STAGE 2: Main boom - deep bass explosion
-    let boomFreq = 60.0 * exp(-progress * 15.0)
-    let boom = sin(2.0 * PI * boomFreq * t) * 0.6
+    # Sub drop: 110 Hz collapsing to ~26 Hz, felt more than heard
+    let subFreq = 26.0 + 84.0 * exp(-progress * 9.0)
+    subPhase += 2.0 * PI * subFreq * dt
+    let sub = sin(subPhase) * 0.62 * exp(-progress * 3.2)
 
-    # STAGE 3: Body/punch - mid frequency impact
-    let punchFreq = 220.0 * exp(-progress * 12.0)
-    let punch = sin(2.0 * PI * punchFreq * t) * 0.4
+    # Mid punch for the body of the hit
+    let punchFreq = 240.0 * exp(-progress * 11.0) + 60.0
+    punchPhase += 2.0 * PI * punchFreq * dt
+    let punch = sin(punchPhase) * 0.4 * exp(-progress * 6.0)
 
-    # STAGE 4: Crackle - high frequency debris
-    let crackle = if progress < 0.15:
-      sin(2.0 * PI * (800.0 + rand(-200.0..200.0)) * t) * (1.0 - progress / 0.15) * 0.25
-    else:
-      0.0
+    # Blast noise through a closing filter: cutoff sweeps from wide open
+    # down to a muffled rumble across the tail
+    let alpha = 0.04 + 0.4 * exp(-progress * 5.0)
+    blastLP += alpha * (rand(-1.0..1.0) - blastLP)
+    let blast = blastLP * (0.95 * exp(-progress * 2.6))
 
-    # STAGE 5: Rumble - sustained low sub-bass
-    let rumble = sin(2.0 * PI * 25.0 * t) * 0.3
+    # Low metallic resonance ringing out of the blast
+    let resonance = sin(2.0 * PI * 420.0 * t) * 0.12 * exp(-progress * 4.0)
 
-    # STAGE 6: Noise layers - different densities over time
-    let earlyNoise = if progress < 0.08:
-      rand(-1.0..1.0) * (1.0 - progress / 0.08) * 0.5
-    else:
-      0.0
-
-    let midNoise = if progress >= 0.08 and progress < 0.35:
-      rand(-1.0..1.0) * 0.3
-    else:
-      0.0
-
-    let lateNoise = if progress >= 0.35:
-      rand(-1.0..1.0) * 0.15
-    else:
-      0.0
-
-    # STAGE 7: Resonance - adds metallic ring
-    let resonance = sin(2.0 * PI * 450.0 * t) * 0.15 * exp(-progress * 3.0)
-
-    # Multi-stage envelope
-    let mainEnvelope = exp(-progress * 4.5)
-    let sustainEnvelope = exp(-max(0.0, progress - 0.3) * 2.0)
-
-    let value = (
-      initialClick +
-      boom * mainEnvelope +
-      punch * mainEnvelope +
-      crackle +
-      rumble * sustainEnvelope +
-      (earlyNoise + midNoise + lateNoise) * mainEnvelope +
-      resonance
-    )
-
-    samples[i] = int16(clamp(value * 32767.0 * 0.65, -32767.0, 32767.0))
+    let value = tanh((click + sub + punch + blast + resonance) * 1.7) * 0.62
+    samples[i] = int16(clamp(value * 32767.0 * 0.68, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
   result = loadSound(filename)
@@ -1581,8 +1556,23 @@ proc loadOrGenerateMusic(track: MusicTrack): Music =
   of mtPowerUp: result = createPowerUpMusic(cacheFile)
   of mtBoss: result = createBossMusic(cacheFile)
 
+proc cleanStaleCacheFiles() =
+  ## Remove WAVs from older sound versions (pre-versioning files have no
+  ## "_v" suffix; outdated versions have a different one) so they don't
+  ## accumulate in the temp dir.
+  let cacheDir = getCacheDir()
+  for path in walkFiles(cacheDir / "*.wav"):
+    let name = splitFile(path).name
+    if not (name.endsWith("_" & SOUND_CACHE_VERSION) or
+            name.endsWith("_" & MUSIC_CACHE_VERSION)):
+      try:
+        removeFile(path)
+      except OSError:
+        discard
+
 # PRE-GENERATION SYSTEM
 proc preGenerateAllAssets*(verbose: bool = true, callback: AssetGenerationCallback = nil) =
+  cleanStaleCacheFiles()
   let cached = countCachedAssets()
   let totalAssets = SoundType.high.ord + 1 + MusicTrack.high.ord + 1
 

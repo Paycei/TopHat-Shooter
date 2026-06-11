@@ -512,6 +512,17 @@ proc main() =
       else:
         echo "ERROR: Failed to save statistics after ", MAX_RETRIES, " attempts"
 
+  proc openRunStatsWindow() =
+    ## Route the post-run "View Stats" action into the desktop stats window,
+    ## opened on the Last Run tab. The victory path arrives here before
+    ## persistRunResults has finalized the run, so refresh the derived metrics
+    ## and the last-run snapshot from the live run first.
+    if hasValidRunStats():
+      calculateDerivedMetrics()
+      saveLastCompletedRun()
+    globalWindowManager.openWindow(widStats)
+    globalWindowManager.stats.currentTab = stLastRun
+
   # Track pending game mode launch during loading animation
   var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox, 9 = Roguelite
   var windowCloseRequested = false  # True once the OS close button is clicked
@@ -2179,6 +2190,7 @@ proc main() =
       elif (isKeyPressed(Tab) or isKeyPressed(V)) or
            (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 1):
         if hasValidRunStats():
+          openRunStatsWindow()
           currentGame.state = gsRunStats
           playSound(stMenuSelect)
       # ESC or Q to exit (button 2)
@@ -2252,6 +2264,7 @@ proc main() =
         elif checkCollisionPointRec(mousePos, statsRect):
           # View stats
           if hasValidRunStats():
+            openRunStatsWindow()
             currentGame.state = gsRunStats
             playSound(stMenuSelect)
         elif checkCollisionPointRec(mousePos, exitRect):
@@ -2272,22 +2285,31 @@ proc main() =
       endGameDrawing()
 
     of gsRunStats:
-      # Display detailed run statistics
+      # Display detailed run statistics in the same desktop stats window as the
+      # main menu (opened on the Last Run tab by openRunStatsWindow).
 
       # Update time for animations
       currentGame.time += dt
 
-      # Return to the screen we came from (victory or game over) with Tab/Escape
+      let statsWin = globalWindowManager.stats
+
+      # Drive the window like the desktop does: reset the per-frame click flag,
+      # then let it handle dragging, tab clicks and its close button.
+      statsWin.window.handledClickThisFrame = false
+      let statsWindowClosed = updateStatsWindow(statsWin, dt, screenWidth,
+                                                screenHeight, [statsWin.window])
+
+      # Return to the screen we came from (victory or game over) with
+      # Tab/Escape or the window's close button
       let statsReturnState =
         if currentGame.previousState == gsVictory: gsVictory else: gsGameOver
-      if isKeyPressed(Tab):
-        currentGame.state = statsReturnState
-
-      if isKeyPressed(Escape):
+      if statsWindowClosed or isKeyPressed(Tab) or isKeyPressed(Escape):
+        statsWin.window.visible = false
         currentGame.state = statsReturnState
 
       # Quick restart
       if isKeyPressed(R):
+        statsWin.window.visible = false
         let previousMode = currentGame.mode
         let preservedRogueliteHeat =
           if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
@@ -2310,6 +2332,7 @@ proc main() =
 
       # Return to menu
       if isKeyPressed(Q):
+        statsWin.window.visible = false
         cleanupGame(currentGame)  # Clean up resources before creating new game
         currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -2317,17 +2340,31 @@ proc main() =
         statsSavedThisGame = false
 
       beginGameDrawing()
-      if hasValidRunStats():
-        drawGameOverStatsScreen(currentRunStats, screenWidth, screenHeight,
-                               currentGame.time, currentGame.showRunStatsGraphs)
-      else:
-        # Fallback if no stats available
-        clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
+      # Dark OS backdrop with subtle scan lines behind the floating window
+      clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
+      for i in 0..<(screenHeight div 3):
+        let lineY = i * 3 + int(currentGame.time * 50.0) mod 3
+        let alpha = uint8(3 + sin(currentGame.time + i.float32) * 3.0)
+        drawLine(Vector2(x: 0, y: lineY.float32),
+                Vector2(x: screenWidth.float32, y: lineY.float32),
+                1, Color(r: 40, g: 60, b: 80, a: alpha))
+
+      if statsWin.window.visible:
+        drawStatsWindow(statsWin, currentGame)
+        # Controls hint along the bottom edge
+        let footerText = t(tkStatsControlsFooter)
+        let footerWidth = measureText(footerText, 14)
+        drawText(footerText, (screenWidth.int32 - footerWidth) div 2, screenHeight - 26, 14,
+                Color(r: 0, g: 180, b: 255, a: 255))
+      elif currentGame.state == gsRunStats:
+        # Fallback if no stats available (skipped on the one frame where the
+        # window was just dismissed and we are about to leave this state)
         drawText(t(tkSystemNoStatistics),
                 screenWidth div 2 - 150, screenHeight div 2, 24, Red)
         drawText(t(tkSystemPressESCToReturn),
                 screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
 
+      drawCustomCursor(currentGame.time)
       endGameDrawing()
 
     of gsVictory:
@@ -2397,6 +2434,7 @@ proc main() =
         # View detailed run stats; ESC/Tab there returns here via previousState
         if hasValidRunStats():
           playSound(stMenuSelect)
+          openRunStatsWindow()
           currentGame.previousState = gsVictory
           currentGame.state = gsRunStats
       of 2:

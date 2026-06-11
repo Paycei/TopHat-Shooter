@@ -2,7 +2,7 @@
 ## Main menu as an operating system desktop
 
 import raylib, math, strutils, strformat, times
-import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, ../settings, ../save_system, ../cube_skins
+import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins
 
 type
   DesktopIconType* = enum
@@ -912,11 +912,20 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
     drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
                  Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g, b: bgData.primaryColor.b, a: 46), 0.5)
 
+    # Signature theme effects (skyline, code rain, nebulae, sun grid, ...)
+    drawDesktopBgThemeFx(selectedBg, screenWidth.int32, screenHeight.int32, desktop.time)
+
     for i in 0..3:
       let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
       let alpha = uint8(26 + i * 9)
       drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
                       Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: alpha))
+      # Orbiting node on each ring, matching the default wallpaper's motion
+      let nodeAngle = desktop.time * (0.22 + i.float32 * 0.04) + i.float32 * PI * 0.38
+      drawCircle(Vector2(x: w * 0.64 + cos(nodeAngle) * ringRadius,
+                         y: h * 0.46 + sin(nodeAngle) * ringRadius),
+                 3.0 + i.float32 * 0.35,
+                 Color(r: nodeColor.r, g: nodeColor.g, b: nodeColor.b, a: uint8(120 + i * 18)))
 
     # Draw the wallpaper cube using the currently equipped cube skin so the
     # menu background matches the cube preview/selection. Default skin uses

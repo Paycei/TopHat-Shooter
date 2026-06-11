@@ -2,7 +2,7 @@
 ## OS-themed window for player and bullet customization with tabs
 
 import raylib, rlgl, math, strformat, strutils
-import os_window, os_desktop, background_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound
+import os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound
 
 type
   ShopTab* = enum
@@ -726,6 +726,9 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
                  Color(r: nodeColor.r, g: nodeColor.g, b: nodeColor.b, a: 56), 0.55)
     drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
                  Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g, b: bgData.primaryColor.b, a: 46), 0.5)
+
+    # Signature theme effects so the card shows the real background look
+    drawDesktopBgThemeFx(bgType, SKIN_BOX_WIDTH.int32, previewH.int32, time)
 
     for i in 0..3:
       let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
