@@ -17,6 +17,7 @@ type
     diPvP           # PvP mode (PvP.exe) - 8
     diRoguelite     # Roguelite mode (Roguelite.exe) - 9
     diAdvancements  # Persistent advancement viewer (Advncmnts.exe) - 10
+    diChangelog     # Patch notes / changelog viewer (PATCHLOG.txt) - 11
 
   DesktopIcon* = object
     iconType*: DesktopIconType
@@ -98,6 +99,7 @@ proc getIconName(iconType: DesktopIconType): string =
   of diPvP: t(tkDesktopIconPvP)
   of diRoguelite: t(tkDesktopIconRoguelite)
   of diAdvancements: t(tkDesktopIconAdvancements)
+  of diChangelog: t(tkDesktopIconChangelog)
 
 proc bestDesktopLabelFontSize(text: string, maxWidth, preferredSize: int32,
                               minSize: int32 = ICON_LABEL_MIN_SIZE): int32 =
@@ -150,7 +152,10 @@ proc newOSDesktop*(): OSDesktop =
       DesktopIcon(iconType: diAdvancements, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3,
                   selected: false, name: getIconName(diAdvancements),
                   iconColor: Color(r: 90, g: 220, b: 255, a: 255)),
-      DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 4,
+      DesktopIcon(iconType: diChangelog, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 4,
+                  selected: false, name: getIconName(diChangelog),
+                  iconColor: Color(r: 255, g: 180, b: 80, a: 255)),
+      DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 5,
                   selected: false, name: getIconName(diQuit),
                   iconColor: Color(r: 255, g: 100, b: 100, a: 255))
     ],
@@ -595,6 +600,30 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
              Vector2(x: (ledgerX + 7).float32, y: (ledgerY + 26).float32),
              1, Color(r: 120, g: 220, b: 255, a: 180))
 
+  of diChangelog:
+    # Patch-notes document with a folded corner, text lines, and a "new" star
+    let docX = centerX - 13
+    let docY = centerY - 17
+    drawRectangle(docX.int32, docY.int32, 26, 34, Color(r: 240, g: 240, b: 246, a: 255))
+    drawRectangleLines(Rectangle(x: docX.float32, y: docY.float32,
+                                 width: 26.0, height: 34.0), 2, accent)
+    # Folded top-right corner
+    drawTriangle(Vector2(x: (docX + 26).float32, y: docY.float32),
+                 Vector2(x: (docX + 26).float32, y: (docY + 9).float32),
+                 Vector2(x: (docX + 17).float32, y: docY.float32), dim)
+    # Text lines of varying length
+    for i in 0..<4:
+      let lineY = docY + 8 + i * 6
+      let lineW = if i == 3: 10 else: 16 - (i mod 2) * 4
+      drawRectangle((docX + 5).int32, lineY.int32, lineW.int32, 2,
+                    Color(r: 70, g: 90, b: 120, a: 220))
+    # Sparkle marking fresh changes
+    let starX = (centerX + 12).float32
+    let starY = (centerY + 14).float32
+    drawLine(Vector2(x: starX - 5, y: starY), Vector2(x: starX + 5, y: starY), 2, bright)
+    drawLine(Vector2(x: starX, y: starY - 5), Vector2(x: starX, y: starY + 5), 2, bright)
+    drawCircle(Vector2(x: starX, y: starY), 1.5, White)
+
   # Icon label with shadow
   let labelY = icon.y + ICON_SIZE + 8
   drawDesktopLabel(icon.name, icon.x.int32, labelY.int32, selected)
@@ -1023,7 +1052,7 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
 
   # Column layout constants
   const COL0_COUNT = 6   # indices 0-5
-  const COL1_COUNT = 5   # indices 6-10
+  const COL1_COUNT = 6   # indices 6-11
 
   # Get mouse position
   let mousePos = getVirtualMousePosition()

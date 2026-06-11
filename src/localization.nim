@@ -28,6 +28,17 @@ type
     tkDesktopIconPvP = "desktop_icon_pvp"
     tkDesktopIconRoguelite = "desktop_icon_roguelite"
     tkDesktopIconAdvancements = "desktop_icon_advancements"
+    tkDesktopIconChangelog = "desktop_icon_changelog"
+
+    # Changelog window
+    tkChangelogWindowTitle = "changelog_window_title"
+    tkChangelogHeader = "changelog_header"
+    tkChangelogSince = "changelog_since"
+    tkChangelogLatest = "changelog_latest"
+    tkChangelogCatNew = "changelog_cat_new"
+    tkChangelogCatImproved = "changelog_cat_improved"
+    tkChangelogCatBalance = "changelog_cat_balance"
+    tkChangelogCatFixed = "changelog_cat_fixed"
 
     # Settings
     tkSettingsTitle = "settings_title"
@@ -1398,6 +1409,17 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_pvp": "DUELINK.exe",
     "desktop_icon_roguelite": "ROOTMAP_ALPHA.db",
     "desktop_icon_advancements": "ASCEND.db",
+    "desktop_icon_changelog": "PATCHLOG.txt",
+
+    # Changelog window
+    "changelog_window_title": "Patch Notes - Changelog",
+    "changelog_header": "What's New",
+    "changelog_since": "Changes since v5.5.2",
+    "changelog_latest": "LATEST",
+    "changelog_cat_new": "New",
+    "changelog_cat_improved": "Improvements",
+    "changelog_cat_balance": "Balance",
+    "changelog_cat_fixed": "Fixes",
 
     # Settings
     "settings_title": "SETTINGS",
@@ -2946,6 +2968,17 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_pvp": "DUELOS.exe",
     "desktop_icon_roguelite": "ROOTMAP_ALPHA.db",
     "desktop_icon_advancements": "ASCEND.db",
+    "desktop_icon_changelog": "PARCHES.txt",
+
+    # Changelog window
+    "changelog_window_title": "Notas del Parche - Cambios",
+    "changelog_header": "Novedades",
+    "changelog_since": "Cambios desde v5.5.2",
+    "changelog_latest": "RECIENTE",
+    "changelog_cat_new": "Nuevo",
+    "changelog_cat_improved": "Mejoras",
+    "changelog_cat_balance": "Balance",
+    "changelog_cat_fixed": "Correcciones",
 
     # Settings
     "settings_title": "CONFIG",

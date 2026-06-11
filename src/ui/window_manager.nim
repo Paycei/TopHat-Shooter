@@ -2,7 +2,7 @@
 ## Centralized window handling with state management
 
 import raylib, algorithm, sequtils
-import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, advancements_window, roguelite_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
+import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, advancements_window, roguelite_window, changelog_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
 
 type
   WindowID* = enum
@@ -13,6 +13,7 @@ type
     widPvP
     widAdvancements
     widRoguelite
+    widChangelog
 
   WindowManager* = ref object
     settings*: SettingsWindow
@@ -22,6 +23,7 @@ type
     pvp*: PvPWindow
     advancements*: AdvancementsWindow
     roguelite*: RogueliteWindow
+    changelog*: ChangelogWindow
     nextZOrder: int
 
 proc newWindowManager*(screenWidth, screenHeight: int,
@@ -46,6 +48,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
     advancements: newAdvancementsWindow(screenWidth, screenHeight, advancementProfile,
                                         rogueliteProfile),
     roguelite: newRogueliteWindow(screenWidth, screenHeight, rogueliteProfile),
+    changelog: newChangelogWindow(screenWidth, screenHeight),
     nextZOrder: 1
   )
 
@@ -57,6 +60,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.pvp.window.visible = false
   result.advancements.window.visible = false
   result.roguelite.window.visible = false
+  result.changelog.window.visible = false
 
 proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
   ## Get all windows in a single sequence
@@ -67,7 +71,8 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
     wm.shop.window,
     wm.pvp.window,
     wm.advancements.window,
-    wm.roguelite.window
+    wm.roguelite.window,
+    wm.changelog.window
   ]
 
 proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
@@ -94,6 +99,9 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widRoguelite:
     window = wm.roguelite.window
     wm.roguelite.showUnlocks = false  # Always open to setup view, not shop/unlocks
+  of widChangelog:
+    window = wm.changelog.window
+    wm.changelog.scrollOffset = 0  # Always open scrolled to the top
 
   window.visible = true
   window.minimized = false
@@ -116,6 +124,7 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widPvP: wm.pvp.window.visible = false
   of widAdvancements: wm.advancements.window.visible = false
   of widRoguelite: wm.roguelite.window.visible = false
+  of widChangelog: wm.changelog.window.visible = false
 
 proc closeAllWindows*(wm: WindowManager) =
   ## Close all open desktop windows (e.g. when starting a game)
@@ -126,6 +135,7 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.pvp.window.visible = false
   wm.advancements.window.visible = false
   wm.roguelite.window.visible = false
+  wm.changelog.window.visible = false
 
 proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
@@ -268,6 +278,9 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
     elif window == wm.advancements.window:
       discard updateAdvancementsWindow(wm.advancements, dt, screenWidth, screenHeight, visibleWindows)
 
+    elif window == wm.changelog.window:
+      updateChangelogWindow(wm.changelog, dt, screenWidth, screenHeight, visibleWindows)
+
 proc drawAllWindows*(wm: WindowManager, game: Game) =
   ## Draw all visible windows in z-order
   var visibleWindows = wm.getAllWindows().filterIt(it.visible)
@@ -299,5 +312,5 @@ proc drawAllWindows*(wm: WindowManager, game: Game) =
       drawAdvancementsWindow(wm.advancements)
     elif window == wm.roguelite.window:
       drawRogueliteWindow(wm.roguelite, game)
-    elif window == wm.help.window:
-      drawHelpWindow(wm.help)
+    elif window == wm.changelog.window:
+      drawChangelogWindow(wm.changelog)

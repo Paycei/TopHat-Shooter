@@ -957,6 +957,8 @@ proc main() =
         of 10: # Advncmnts.exe - Open Advancements Window
           refreshAdvancementProfile()
           globalWindowManager.openWindow(widAdvancements)
+        of 11: # PATCHLOG.txt - Open Changelog Window
+          globalWindowManager.openWindow(widChangelog)
         else: discard
 
       # Handle icon execution from help window commands
