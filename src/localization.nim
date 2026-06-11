@@ -214,6 +214,30 @@ type
     tkGameOverSystemFailedFooter = "game_over_system_failed_footer"
     tkGameOverSystemSecureFooter = "game_over_system_secure_footer"
 
+    # Victory Screen (wave 60 final boss cleared)
+    tkVictoryTitle = "victory_title"
+    tkVictorySubtitle = "victory_subtitle"
+    tkVictoryStatus = "victory_status"
+    tkVictoryReportHeader = "victory_report_header"
+    tkVictoryBossesDefeated = "victory_bosses_defeated"
+    tkVictoryContinueEndless = "victory_continue_endless"
+    tkVictoryViewStats = "victory_view_stats"
+    tkVictoryReturnMenu = "victory_return_menu"
+    tkVictoryFooter = "victory_footer"
+
+    # Game Over "cause of death" lines
+    tkGameOverCauseLabel = "game_over_cause_label"
+    tkDeathContact = "death_contact"
+    tkDeathBossContact = "death_boss_contact"
+    tkDeathProjectile = "death_projectile"
+    tkDeathLaser = "death_laser"
+    tkDeathExplosion = "death_explosion"
+    tkDeathMeteorite = "death_meteorite"
+    tkDeathPoison = "death_poison"
+    tkDeathHazard = "death_hazard"
+    tkDeathUnknown = "death_unknown"
+    tkDeathBossTag = "death_boss_tag"
+
     # HUD/Notifications
     tkHUDSystemStatus = "hud_system_status"
     tkHUDIntegrity = "hud_integrity"
@@ -1987,6 +2011,30 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_system_failed_footer": "[!] System will remain in failed state until manual restart",
     "game_over_system_secure_footer": "[OK] All systems operational | Defensive grid at maximum efficiency",
 
+    # Victory Screen (wave 60 final boss cleared)
+    "victory_title": "MISSION COMPLETE",
+    "victory_subtitle": "You purged the final intrusion and cleared all 60 waves!",
+    "victory_status": "SYSTEM FULLY SECURED -- THREAT LEVEL ZERO",
+    "victory_report_header": "=== FINAL DIAGNOSTICS ===",
+    "victory_bosses_defeated": "Bosses Defeated:",
+    "victory_continue_endless": "CONTINUE ENDLESS",
+    "victory_view_stats": "VIEW STATS",
+    "victory_return_menu": "RETURN TO MENU",
+    "victory_footer": "[OK] Endless protocol unlocked | How long can you hold the line?",
+
+    # Game Over "cause of death" lines
+    "game_over_cause_label": "CAUSE OF TERMINATION",
+    "death_contact": "Crushed by",
+    "death_boss_contact": "Annihilated by",
+    "death_projectile": "Shot down by",
+    "death_laser": "Disintegrated by",
+    "death_explosion": "Caught in a blast from",
+    "death_meteorite": "Bombarded by",
+    "death_poison": "Corroded by",
+    "death_hazard": "Lost to an arena hazard",
+    "death_unknown": "Connection to host terminated",
+    "death_boss_tag": "BOSS",
+
     # HUD/Notifications
     "hud_system_status": "SYSTEM STATUS",
     "hud_integrity": "INTEGRITY:",
@@ -3376,6 +3424,30 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_security_level_max": "NIVEL DE SEGURIDAD: MÁXIMO | TODOS LOS PROCESOS ESTABLES",
     "game_over_system_failed_footer": "[!] El sistema permanecerá en estado fallido hasta reinicio manual",
     "game_over_system_secure_footer": "[OK] Todos los sistemas operacionales | Cuadrícula defensiva en máxima eficiencia",
+
+    # Victory Screen (oleada 60, jefe final superado)
+    "victory_title": "MISIÓN COMPLETADA",
+    "victory_subtitle": "¡Purgaste la intrusión final y superaste las 60 oleadas!",
+    "victory_status": "SISTEMA TOTALMENTE SEGURO -- NIVEL DE AMENAZA CERO",
+    "victory_report_header": "=== DIAGNÓSTICO FINAL ===",
+    "victory_bosses_defeated": "Jefes Derrotados:",
+    "victory_continue_endless": "MODO INFINITO",
+    "victory_view_stats": "VER ESTADÍSTICAS",
+    "victory_return_menu": "VOLVER AL MENÚ",
+    "victory_footer": "[OK] Protocolo infinito desbloqueado | ¿Cuánto resistirás?",
+
+    # Game Over "cause of death" lines
+    "game_over_cause_label": "CAUSA DE LA TERMINACIÓN",
+    "death_contact": "Aplastado por",
+    "death_boss_contact": "Aniquilado por",
+    "death_projectile": "Abatido por",
+    "death_laser": "Desintegrado por",
+    "death_explosion": "Alcanzado por la explosión de",
+    "death_meteorite": "Bombardeado por",
+    "death_poison": "Corroído por",
+    "death_hazard": "Perdido ante un peligro de la arena",
+    "death_unknown": "Conexión con el host terminada",
+    "death_boss_tag": "JEFE",
 
     # HUD/Notifications
     "hud_system_status": "ESTADO DEL SISTEMA",

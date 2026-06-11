@@ -638,6 +638,7 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
       continue
 
     # Check player collisions with FRIENDLY FIRE PREVENTION
+    var bulletConsumed = false
     for playerIdx in 0..<pvp.players.len:
       let player = pvp.players[playerIdx]
       if player.hp <= 0 or player.invincibilityTimer > 0:
@@ -728,8 +729,14 @@ proc updateBullets*(pvp: PvPGameState, dt: float32) =
         playSound(stPlayerHit)
 
         pvp.bullets.delete(i)
-        i -= 1
+        bulletConsumed = true
         break
+
+    # The bullet was consumed by a player hit; it no longer exists, so skip the
+    # wall pass (which would otherwise run against the stale ref and delete the
+    # wrong bullet / index -1). delete(i) already shifted the next bullet into i.
+    if bulletConsumed:
+      continue
 
     # Check wall collisions
     var hitWall = false
@@ -1591,9 +1598,6 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
     of neDisconnect:
       echo "[PVP] Player ", event.disconnectPlayerIndex, " disconnected: ", event.reason
       handleDisconnect(pvp, event.disconnectPlayerIndex, event.reason)
-
-    else:
-      discard
 
 proc updatePvP*(pvp: PvPGameState, dt: float32) =
   ## Main PvP update function

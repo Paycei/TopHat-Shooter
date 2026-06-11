@@ -41,8 +41,6 @@ type
     of neDisconnect:
       disconnectPlayerIndex*: int
       reason*: string
-    else:
-      discard
 
   ConnectedClient* = object
     address*: string
@@ -136,9 +134,11 @@ proc sendPacket*(nm: NetworkManager, packet: Packet) =
 proc sendPing*(nm: NetworkManager, pingId: int) =
   var packet = newPacket(ptPing)
   packet.pingId = pingId
-  # Store elapsed time since a fixed reference rather than raw Unix epoch,
-  # so float32 precision is sufficient (small number instead of ~1.7e9).
-  packet.sendTime = (epochTime() / 1000.0).float32
+  # Store the epoch time wrapped to a 1000-second window rather than raw Unix
+  # epoch, so float32 precision is sufficient (small number instead of ~1.7e9).
+  # MUST match the time base the ptPong handler measures against (epochTime mod
+  # 1000.0); otherwise the round-trip subtraction is garbage and latency reads 0.
+  packet.sendTime = (epochTime() mod 1000.0).float32
   nm.sendPacket(packet)
 
 proc sendGameStart*(nm: NetworkManager, countdownTime: float32 = 3.0,

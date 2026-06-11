@@ -267,7 +267,7 @@ proc drawCustomCursor*(time: float32) =
 proc isBondingGameplayState(state: GameState): bool =
   state in {gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver, gsCountdown,
             gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
-            gsRogueliteFloorSelect}
+            gsRogueliteFloorSelect, gsVictory}
 
 proc isBondingCombatState(state: GameState): bool =
   state in {gsPlaying, gsPvPPlaying}
@@ -275,7 +275,7 @@ proc isBondingCombatState(state: GameState): bool =
 proc isMenuOrGameState(state: GameState): bool =
   state in {gsSplash, gsLanguageSelect, gsMenu, gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver,
             gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
-            gsRogueliteFloorSelect}
+            gsRogueliteFloorSelect, gsVictory}
 
 proc updateInGameMouseBonding(settings: Settings, state: GameState) =
   if settings == nil:
@@ -449,6 +449,67 @@ proc main() =
       discard saveAdvancements(advancementProfile)
     if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
       globalWindowManager.advancements.profile = advancementProfile
+
+  proc persistRunResults(game: Game) =
+    ## Finalize and save an ended run: last-run snapshot, lifetime statistics and
+    ## advancement sync. Idempotent via statsSavedThisGame so it is safe to call
+    ## from both the game-over and victory "return to menu" paths.
+    if hasValidRunStats():
+      finalizeRunTracking(game)
+      saveLastCompletedRun()  # Save to memory
+      if not currentRunStats.isNil:
+        discard saveLastRunStats(currentRunStats)  # Save to disk
+
+    if game.mode == gmRoguelite and game.rogueliteRun != nil:
+      discard commitRogueliteRunProgress(game, true)
+      setActiveRogueliteProfile(game.rogueliteProfile)
+
+    # Save lifetime statistics only once per run
+    if not statsSavedThisGame and not game.cheatsUsed:
+      let bossesKilled = if not currentRunStats.isNil:
+        currentRunStats.combat.bossKills
+      else:
+        game.bossCount
+
+      let scoreReached =
+        if game.mode == gmRoguelite and game.rogueliteRun != nil:
+          game.rogueliteRun.totalRoomsCleared
+        elif game.mode == gmTimeSurvival:
+          0  # time mode tracks longestSurvivalTime internally; wave count is meaningless
+        else:
+          game.currentWave
+
+      let coinsForStats = if not currentRunStats.isNil:
+        currentRunStats.resources.coinsEarned
+      else:
+        game.player.coins
+
+      updateStatsForMode(stats, game.mode, scoreReached, game.time,
+                         game.player.kills, coinsForStats, bossesKilled)
+
+      var saveSuccess = false
+      var retries = 0
+      const MAX_RETRIES = 3
+      while not saveSuccess and retries < MAX_RETRIES:
+        saveSuccess = saveStatistics(stats)
+        if not saveSuccess:
+          retries += 1
+          echo "Warning: Save attempt ", retries, " failed"
+          if retries < MAX_RETRIES:
+            let backoffTime = 0.1 * pow(2.0, float(retries - 1))
+            sleep(int(backoffTime * 1000.0))
+
+      if saveSuccess:
+        statsSavedThisGame = true
+        let unlockedAdvancements = syncAdvancements(advancementProfile, stats, currentRunStats, rogueliteProfile)
+        if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
+          globalWindowManager.advancements.profile = advancementProfile
+        if advancementProfile.dirty:
+          discard saveAdvancements(advancementProfile)
+        if unlockedAdvancements.len > 0:
+          echo "[Advancements] Unlocked ", unlockedAdvancements.len, " advancement(s)"
+      else:
+        echo "ERROR: Failed to save statistics after ", MAX_RETRIES, " attempts"
 
   # Track pending game mode launch during loading animation
   var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox, 9 = Roguelite
@@ -2054,6 +2115,10 @@ proc main() =
         stopMusic()
         playSound(stGameOver, 1.0)
         currentGame.gameOverSoundPlayed = true
+        # Claim the stats-return route: a run that passed through the victory
+        # screen leaves previousState = gsVictory, which would otherwise bounce
+        # a dead player back onto the victory screen from View Stats.
+        currentGame.previousState = gsGameOver
 
         # Update Discord Rich Presence to show game over state
         if not currentGame.discordClient.isNil:
@@ -2068,78 +2133,8 @@ proc main() =
             currentGame.discordClient = nil
             globalDiscordClient = nil
 
-        # Finalize run tracking and save for menu viewing
-        if hasValidRunStats():
-          finalizeRunTracking(currentGame)
-          saveLastCompletedRun()  # Save to memory
-          # Also save to disk
-          if not currentRunStats.isNil:
-            discard saveLastRunStats(currentRunStats)
-
-        if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
-          discard commitRogueliteRunProgress(currentGame, true)
-          setActiveRogueliteProfile(currentGame.rogueliteProfile)
-
-        # Save statistics only once per game over
-        if not statsSavedThisGame and not currentGame.cheatsUsed:
-          # Calculate bosses defeated using accurately tracked value
-          let bossesKilled = if not currentRunStats.isNil:
-            currentRunStats.combat.bossKills
-          else:
-            currentGame.bossCount
-
-          # Calculate score reached
-          let scoreReached =
-            if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
-              currentGame.rogueliteRun.totalRoomsCleared
-            elif currentGame.mode == gmTimeSurvival:
-              0  # time mode uses longestSurvivalTime for bestScore internally; wave count is meaningless
-            else:
-              currentGame.currentWave
-
-          # Use coinsEarned (total collected) not player.coins (end-of-run balance)
-          let coinsForStats = if not currentRunStats.isNil:
-            currentRunStats.resources.coinsEarned
-          else:
-            currentGame.player.coins
-
-          updateStatsForMode(stats,
-                             currentGame.mode,
-                             scoreReached,
-                             currentGame.time,
-                             currentGame.player.kills,
-                             coinsForStats,
-                             bossesKilled)
-
-          # Try to save with retry logic (3 attempts with exponential backoff)
-          var saveSuccess = false
-          var retries = 0
-          const MAX_RETRIES = 3
-
-          while not saveSuccess and retries < MAX_RETRIES:
-            saveSuccess = saveStatistics(stats)
-            if not saveSuccess:
-              retries += 1
-              echo "Warning: Save attempt ", retries, " failed"
-              if retries < MAX_RETRIES:
-                # Exponential backoff: wait 0.1s, 0.2s, 0.4s
-                let backoffTime = 0.1 * pow(2.0, float(retries - 1))
-                let backoffMs = int(backoffTime * 1000.0)
-                echo "Retrying in ", backoffTime, " seconds..."
-                sleep(backoffMs)
-
-          if saveSuccess:
-            statsSavedThisGame = true
-            let unlockedAdvancements = syncAdvancements(advancementProfile, stats, currentRunStats, rogueliteProfile)
-            if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
-              globalWindowManager.advancements.profile = advancementProfile
-            if advancementProfile.dirty:
-              discard saveAdvancements(advancementProfile)
-            if unlockedAdvancements.len > 0:
-              echo "[Advancements] Unlocked ", unlockedAdvancements.len, " advancement(s)"
-          else:
-            echo "ERROR: Failed to save statistics after ", MAX_RETRIES, " attempts"
-            # This error will be visible in console but game continues
+        # Finalize and persist the run (last-run snapshot, lifetime stats, advancements)
+        persistRunResults(currentGame)
 
       # Update mouse tracking
       updateMouseTracking(currentGame)
@@ -2281,13 +2276,14 @@ proc main() =
       # Update time for animations
       currentGame.time += dt
 
-      # Return to game over with Tab
+      # Return to the screen we came from (victory or game over) with Tab/Escape
+      let statsReturnState =
+        if currentGame.previousState == gsVictory: gsVictory else: gsGameOver
       if isKeyPressed(Tab):
-        currentGame.state = gsGameOver
+        currentGame.state = statsReturnState
 
-      # Return to game over screen with Escape
       if isKeyPressed(Escape):
-        currentGame.state = gsGameOver
+        currentGame.state = statsReturnState
 
       # Quick restart
       if isKeyPressed(R):
@@ -2331,6 +2327,92 @@ proc main() =
         drawText(t(tkSystemPressESCToReturn),
                 screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
 
+      endGameDrawing()
+
+    of gsVictory:
+      # One-time congratulations screen shown after the wave-60 final boss.
+      # Three choices: continue endlessly, view detailed stats, or return to menu.
+      currentGame.time += dt
+      updateMouseTracking(currentGame)
+
+      # Keyboard navigation across the 3 buttons
+      if isKeyPressed(Left) or isKeyPressed(A):
+        currentGame.selectedVictoryButton = (currentGame.selectedVictoryButton - 1 + 3) mod 3
+        playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
+      elif isKeyPressed(Right) or isKeyPressed(D):
+        currentGame.selectedVictoryButton = (currentGame.selectedVictoryButton + 1) mod 3
+        playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
+
+      # Button geometry MUST mirror drawSystemSecured exactly so click and draw align.
+      const VIC_SCREEN_HEIGHT = 600
+      const VIC_BUTTON_WIDTH = 220
+      const VIC_BUTTON_HEIGHT = 48
+      let vicWindowY = (screenHeight - VIC_SCREEN_HEIGHT) div 2
+      let vicButtonY = vicWindowY + VIC_SCREEN_HEIGHT - 100
+      let vicButtonSpacing = 40
+      let vicTotalWidth = VIC_BUTTON_WIDTH * 3 + vicButtonSpacing * 2
+      let vicButtonsX = (screenWidth - vicTotalWidth) div 2
+      let continueRect = Rectangle(x: vicButtonsX.float32, y: vicButtonY.float32,
+                                   width: VIC_BUTTON_WIDTH.float32, height: VIC_BUTTON_HEIGHT.float32)
+      let vicStatsX = vicButtonsX + VIC_BUTTON_WIDTH + vicButtonSpacing
+      let vicStatsRect = Rectangle(x: vicStatsX.float32, y: vicButtonY.float32,
+                                   width: VIC_BUTTON_WIDTH.float32, height: VIC_BUTTON_HEIGHT.float32)
+      let vicMenuX = vicStatsX + VIC_BUTTON_WIDTH + vicButtonSpacing
+      let vicMenuRect = Rectangle(x: vicMenuX.float32, y: vicButtonY.float32,
+                                  width: VIC_BUTTON_WIDTH.float32, height: VIC_BUTTON_HEIGHT.float32)
+
+      let vicMousePos = getVirtualMousePosition()
+      if checkCollisionPointRec(vicMousePos, continueRect):
+        currentGame.selectedVictoryButton = 0
+      elif checkCollisionPointRec(vicMousePos, vicStatsRect):
+        currentGame.selectedVictoryButton = 1
+      elif checkCollisionPointRec(vicMousePos, vicMenuRect):
+        currentGame.selectedVictoryButton = 2
+
+      # Resolve the chosen action: keyboard (Enter/Space/V/Tab/Esc/Q) or mouse click
+      var victoryAction = -1  # 0=continue, 1=stats, 2=menu
+      if isKeyPressed(Space) or (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 0):
+        victoryAction = 0
+      elif (isKeyPressed(Tab) or isKeyPressed(V)) or
+           (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 1):
+        victoryAction = 1
+      elif (isKeyPressed(Escape) or isKeyPressed(Q)) or
+           (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 2):
+        victoryAction = 2
+      elif isMouseButtonPressed(Left):
+        if checkCollisionPointRec(vicMousePos, continueRect): victoryAction = 0
+        elif checkCollisionPointRec(vicMousePos, vicStatsRect): victoryAction = 1
+        elif checkCollisionPointRec(vicMousePos, vicMenuRect): victoryAction = 2
+
+      case victoryAction
+      of 0:
+        # Continue endlessly: re-arm the queued power-up reward and resume play
+        playSound(stMenuSelect)
+        initPowerUpRollAnimation(currentGame)
+        currentGame.state = gsPowerUpSelect
+      of 1:
+        # View detailed run stats; ESC/Tab there returns here via previousState
+        if hasValidRunStats():
+          playSound(stMenuSelect)
+          currentGame.previousState = gsVictory
+          currentGame.state = gsRunStats
+      of 2:
+        # Return to menu: the run ends here, so persist results before leaving
+        playSound(stMenuSelect)
+        persistRunResults(currentGame)
+        cleanupGame(currentGame)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+        statsSavedThisGame = false
+      else:
+        discard
+
+      beginGameDrawing()
+      drawVictory(currentGame)
+      drawCustomCursor(currentGame.time)
       endGameDrawing()
 
     of gs3DBoss:

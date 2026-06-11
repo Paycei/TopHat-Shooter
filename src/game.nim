@@ -165,10 +165,41 @@ proc spawnPlayerDeathExplosion(game: Game) =
   spawnShockwavePooled(game.particlePool, deathPos.x, deathPos.y, 190.0)
   playSound(stExplosion, 0.9)
 
-proc beginPlayerDeathSequence*(game: Game) =
+proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
+                       sourceType: EnemyType): tuple[name: string, wasBoss: bool] =
+  ## Best-effort human-readable name for whatever killed the player.
+  # A concrete source object is the most reliable signal.
+  if source != nil:
+    if source.isBoss:
+      return (getBossDefinition(source.bossDefinitionID).name, true)
+    if source.enemyType != etEnvironment:
+      return (getEnemyConfig(source.enemyType).name, false)
+  # Lasers/meteorites/boss-melee rarely carry a source object but are strongly
+  # boss-associated — attribute to a living boss when one is present. (Bullets are
+  # excluded: they pass their real shooter, so a minion bullet during a boss wave
+  # must not be blamed on the boss.)
+  if cause in {dcLaser, dcMeteorite, dcBossContact}:
+    for e in game.enemies:
+      if e.isBoss:
+        return (getBossDefinition(e.bossDefinitionID).name, true)
+  # Fall back to the raw enemy type, skipping the environment sentinel.
+  if sourceType != etEnvironment:
+    return (getEnemyConfig(sourceType).name, false)
+  return ("", false)
+
+proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
+                               source: Enemy = nil, sourceType: EnemyType = etEnvironment) =
   ## Starts the delayed singleplayer death playback before the game-over screen.
   if game.state == gsDeathSequence or game.state == gsGameOver:
     return
+
+  # Record the killer exactly once. The guard above is the latch: same-frame
+  # corpse hits and death-playback collisions re-enter here but return early,
+  # so the first (true killing) call is the one that sticks.
+  game.deathCause = cause
+  let killer = resolveKillerName(game, cause, source, sourceType)
+  game.deathSourceName = killer.name
+  game.deathSourceWasBoss = killer.wasBoss
 
   if isPvPMode(game.mode):
     game.state = gsGameOver
@@ -320,6 +351,10 @@ proc isBossCoinActive*(manager: BossWaveManager): bool = manager.coinActive
 
 proc completeBossWave*(game: Game) =
   ## Centralized boss wave completion - handles cleanup, advancement, power-up
+  # Captured BEFORE the increment below: this is the wave whose boss was just
+  # beaten. getCustomBossNumber needs the boss-wave value (a multiple of 5), so
+  # reading it post-increment would return 0 and silently disable the victory.
+  let completedWave = game.currentWave
   for enemy in game.enemies:
     spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                   Color(r: 255, g: 50, b: 50, a: 255), 15)
@@ -357,7 +392,19 @@ proc completeBossWave*(game: Game) =
   game.powerUpChoices = generatePowerUpChoices(game.player, true)
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
-  game.state = gsPowerUpSelect
+
+  # Final boss (boss tier 12 = wave 60) beaten for the first time: show the
+  # one-time victory screen instead of the power-up select. The power-up reward
+  # stays queued, so "Continue Endless" re-arms the roll and drops the player
+  # straight into the selection. After this, hasWonGame keeps boss 12 (which
+  # repeats every 5 waves in endless) from re-triggering the screen.
+  if getCustomBossNumber(completedWave) == 12 and not game.hasWonGame:
+    game.hasWonGame = true
+    game.selectedVictoryButton = 0
+    playSound(stWaveComplete)
+    game.state = gsVictory
+  else:
+    game.state = gsPowerUpSelect
 
 proc spawnConfiguredBoss(game: Game, bossDifficulty: float32, bossBlockWave: int) =
   let bossNumber = getCustomBossNumber(bossBlockWave)
@@ -4929,7 +4976,7 @@ proc updateBossArenaGameplay(game: var Game, dt: float32) =
       playSound(stPlayerHit, 0.38)
 
     if playerDied:
-      beginPlayerDeathSequence(game)
+      beginPlayerDeathSequence(game, dcHazard)
 
 # MAIN GAME UPDATE LOOP
 proc updateGame*(game: var Game, dt: float32) =
@@ -4979,7 +5026,7 @@ proc updateGame*(game: var Game, dt: float32) =
           enableCursor()
         else:
           # Player died in 3D
-          beginPlayerDeathSequence(game)
+          beginPlayerDeathSequence(game, dcBossContact)
           enableCursor()
         # Clean up 3D game
         dealloc(game.game3D)
@@ -5269,7 +5316,7 @@ proc updateGame*(game: var Game, dt: float32) =
 
       if hit:
         if takeDamage(game.player, laser.damage.float32):
-          beginPlayerDeathSequence(game)
+          beginPlayerDeathSequence(game, dcLaser, sourceType = laser.enemyType)
         trackDamageAvoided(game)
         trackPlayerDamage(game, laser.damage.float32, laser.enemyType)
 
@@ -5361,7 +5408,7 @@ proc updateGame*(game: var Game, dt: float32) =
       game.player.poisonAccumulator -= wholeDamage  # Keep remainder
 
       if takeDamage(game.player, wholeDamage):
-        beginPlayerDeathSequence(game)
+        beginPlayerDeathSequence(game, dcPoison, sourceType = game.player.poisonSourceType)
       trackDamageAvoided(game)
 
       # Track poison damage for statistics
@@ -5373,7 +5420,7 @@ proc updateGame*(game: var Game, dt: float32) =
 
       # Additional safety check: ensure game ends if HP reaches 0
       if game.player.hp <= 0:
-        beginPlayerDeathSequence(game)
+        beginPlayerDeathSequence(game, dcPoison, sourceType = game.player.poisonSourceType)
 
     # Poison visual effect
     # Spawn ~20 particles/sec
@@ -6188,7 +6235,7 @@ proc updateGame*(game: var Game, dt: float32) =
         let distToPlayer = distance(enemy.pos, game.player.pos)
         if distToPlayer < eliteExplosionRadius:
           if takeDamage(game.player, eliteExplosionDamage):
-            beginPlayerDeathSequence(game)
+            beginPlayerDeathSequence(game, dcExplosion, source = enemy)
           trackDamageAvoided(game)
 
           # Track explosion damage for statistics
@@ -6215,7 +6262,7 @@ proc updateGame*(game: var Game, dt: float32) =
         let distToPlayer = distance(enemy.pos, game.player.pos)
         if distToPlayer < explosionRadius:
           if takeDamage(game.player, explosionDamage):
-            beginPlayerDeathSequence(game)
+            beginPlayerDeathSequence(game, dcExplosion, source = enemy)
           trackDamageAvoided(game)
 
           # Track boss explosion damage for statistics
@@ -6513,6 +6560,18 @@ proc updateGame*(game: var Game, dt: float32) =
             let endColor = bossDef.phases[enemy.currentPhaseIndex].color
             spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, endColor, 20)
 
+      # Boss smashes through dungeon obstacles. Custom bosses move by directly
+      # setting enemy.pos (above) and never run the enemy/wall collision path, so
+      # contact damage can't reach walls - destroy any obstacle the boss now
+      # overlaps. Setting hp to 0 lets the wall-update loop handle the explosion
+      # and queue the boss-room respawn (no self-damage to the boss). Skipped
+      # during the fly-in entrance so the boss doesn't clear a swath on arrival.
+      if enemy.entranceTimer <= 0:
+        for wall in game.walls:
+          if wall.permanent and wall.hp > 0 and
+             distance(enemy.pos, wall.pos) < enemy.radius + wall.radius:
+            wall.hp = 0
+
       updateBossWeakPoint(enemy, bossDef.weakPoint, game.player.pos, game.screenWidth, game.screenHeight, dt)
       updateBossMechanics(game, enemy, dt)
 
@@ -6726,7 +6785,7 @@ proc updateGame*(game: var Game, dt: float32) =
               game.player.pulseArmorCooldown = game.time
 
           if playerDied:
-            beginPlayerDeathSequence(game)
+            beginPlayerDeathSequence(game, dcBossContact, source = enemy)
 
           # Track boss contact damage for statistics
           trackPlayerDamage(game, bossContactDamage, enemy.enemyType)
@@ -6809,7 +6868,7 @@ proc updateGame*(game: var Game, dt: float32) =
               game.player.pulseArmorCooldown = game.time
 
           if playerDied:
-            beginPlayerDeathSequence(game)
+            beginPlayerDeathSequence(game, dcContact, source = enemy)
 
           # Track enemy contact damage for statistics
           trackPlayerDamage(game, enemyContactDamage, enemy.enemyType)
@@ -7737,7 +7796,14 @@ proc updateGame*(game: var Game, dt: float32) =
             discard applyThornsReflection(game, game.player, bulletDamage, sourceEnemy, "bullet")
 
         if takeDamage(game.player, bulletDamage):
-          beginPlayerDeathSequence(game)
+          # Resolve the real shooter so a minion's bullet isn't blamed on the boss.
+          var bulletKiller: Enemy = nil
+          for e in game.enemies:
+            if e.id == bullet.sourceEnemyId:
+              bulletKiller = e
+              break
+          beginPlayerDeathSequence(game, dcProjectile, source = bulletKiller,
+                                   sourceType = bullet.sourceEnemyType)
         else:
           # Pulse Armor shockwave when taking damage from bullets
           if hasPowerUp(game.player, puPulseArmor):
@@ -7852,7 +7918,7 @@ proc updateGame*(game: var Game, dt: float32) =
       # Check collision with player while falling
       if distance(meteorite.pos, game.player.pos) < meteorite.radius + game.player.radius:
         if takeDamage(game.player, meteorite.damage.float32):
-          beginPlayerDeathSequence(game)
+          beginPlayerDeathSequence(game, dcMeteorite, sourceType = etMage)
         trackDamageAvoided(game)
 
         # Track meteorite damage
@@ -8046,9 +8112,18 @@ proc updateGame*(game: var Game, dt: float32) =
   i = 0
   while i < game.walls.len:
     if not updateWall(game.walls[i], dt):
-      let damageBlocked = game.walls[i].maxHp - game.walls[i].hp
-      trackWallDestruction(game, damageBlocked)
-      spawnExplosionPooled(game.particlePool, game.walls[i].pos.x, game.walls[i].pos.y, Brown, 20)
+      let dead = game.walls[i]
+      # Boss-room obstacles re-form: stash a respawn record (off game.walls so it
+      # stops colliding while broken) instead of vanishing for good.
+      if dead.respawns:
+        game.pendingWallRespawns.add(PendingWallRespawn(
+          pos: dead.pos, radius: dead.radius, maxHp: dead.maxHp,
+          tint: dead.obstacleTint, timer: BossWallRespawnDelay))
+      let explosionColor = if dead.permanent: dead.obstacleTint else: Brown
+      # Destruction stats track player-built walls only, not dungeon obstacles.
+      if not dead.permanent:
+        trackWallDestruction(game, dead.maxHp - dead.hp)
+      spawnExplosionPooled(game.particlePool, dead.pos.x, dead.pos.y, explosionColor, 20)
       game.walls.delete(i)
       continue
 
@@ -8120,6 +8195,34 @@ proc updateGame*(game: var Game, dt: float32) =
           game.walls[i].shootTimer = turretCooldown
 
     i += 1
+
+  # Re-form smashed boss-room obstacles once their delay elapses. The re-add is
+  # held off while the player or the boss is standing on the spot, so a wall
+  # never traps the player or instantly re-breaks against the boss (flickering).
+  i = 0
+  while i < game.pendingWallRespawns.len:
+    game.pendingWallRespawns[i].timer -= dt
+    if game.pendingWallRespawns[i].timer <= 0:
+      let spot = game.pendingWallRespawns[i]
+      var blocked = distance(game.player.pos, spot.pos) < spot.radius + game.player.radius + 8
+      if not blocked:
+        for enemy in game.enemies:
+          if enemy.isBoss and distance(enemy.pos, spot.pos) < spot.radius + enemy.radius:
+            blocked = true
+            break
+      if blocked:
+        game.pendingWallRespawns[i].timer = 0.4'f32  # retry shortly
+        i += 1
+      else:
+        game.walls.add(Wall(
+          pos: spot.pos, radius: spot.radius,
+          hp: spot.maxHp, maxHp: spot.maxHp,
+          duration: 1.0, permanent: true, respawns: true,
+          obstacleTint: spot.tint))
+        spawnExplosionPooled(game.particlePool, spot.pos.x, spot.pos.y, spot.tint, 12)
+        game.pendingWallRespawns.delete(i)
+    else:
+      i += 1
 
   # Update particles
   updateParticlePool(game.particlePool, dt)
@@ -8711,8 +8814,10 @@ proc drawGame*(game: Game) =
     drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.dopamine.currentTime)
     drawMicroRewards(game.dopamine.microRewards)
 
-  # Wave start banner (slides in from top for first 1.5s of each wave)
-  if game.waveInProgress:
+  # Wave start banner (slides in from top for first 1.5s of each wave).
+  # Roguelite rooms reuse the wave machinery but have no wave number (currentWave
+  # stays pinned at 1), so the generic banner would flash "WAVE 1" on every room.
+  if game.waveInProgress and game.mode != gmRoguelite:
     let waveAge = game.time - game.waveStartTime
     let isBossNext = game.wavesUntilBoss == 0
     if globalSettings == nil or globalSettings.showHints:
@@ -8724,8 +8829,8 @@ proc drawGame*(game: Game) =
 
   # Boss entrance warning: flashing "!" on the screen edge the boss is entering from
   if game.bossWaveManager.isBossActive():
-    # Avoid drawing over the wave banner when it's visible
-    let bannerVisible = if game.waveInProgress: (game.time - game.waveStartTime) < 1.5 else: false
+    # Avoid drawing over the wave banner when it's visible (suppressed in roguelite)
+    let bannerVisible = if game.waveInProgress and game.mode != gmRoguelite: (game.time - game.waveStartTime) < 1.5 else: false
 
     # Helper: draw a minimal warning, just an exclamation with a soft circular background
     proc drawSimpleWarning(xCenter, yCenter: int32, timeFactor: float32) =
@@ -8813,8 +8918,10 @@ proc drawGame*(game: Game) =
           drawSimpleWarning(cx, cy, (0.6 + 0.4 * entranceProg).float32)
           break
 
-  # Boss phase health bars (top of screen)
-  if game.bossWaveManager.isBossActive():
+  # Boss phase health bars (top of screen).
+  # Sandbox spawns bosses straight into game.enemies without arming the
+  # bossWaveManager, so allow the HUD there too based on the enemy itself.
+  if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
     for enemy in game.enemies:
       if enemy.isBoss and enemy.entranceTimer <= 0:
         drawBossPhaseHud(game, enemy)
@@ -8912,6 +9019,10 @@ proc drawDeathSequenceOverlay*(game: Game) =
 proc drawGameOver*(game: Game) =
   # Use the new OS-style system crash screen
   drawSystemCrash(game, game.selectedGameOverButton)
+
+proc drawVictory*(game: Game) =
+  # OS-style "system secured" congratulations screen (wave-60 final boss cleared)
+  drawSystemSecured(game, game.selectedVictoryButton)
 
 proc drawWaveTransition*(game: Game) =
   # Draw the game in background

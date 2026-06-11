@@ -7,7 +7,7 @@ export Deque
 type
   GameState* = enum
     gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
-    gsRogueliteFloorSelect, gsDeathSequence
+    gsRogueliteFloorSelect, gsDeathSequence, gsVictory
 
   GameMode* = enum
     gmWaveBased,
@@ -58,6 +58,19 @@ type
     etSniper,      # Rare - charges one-shot epic attack with warning
     etMage,        # Summons meteorites and shoots homing magic bullets
     etEnvironment  # Sentinel: damage from arena hazards, not an enemy
+
+  DeathCause* = enum
+    ## How the player was killed, used by the game-over screen to explain the death.
+    ## dcUnknown MUST stay first so a freshly constructed Game zero-inits to it.
+    dcUnknown,       # No attributable source (PvP, edge cases)
+    dcContact,       # Touched a regular enemy
+    dcBossContact,   # Touched a boss
+    dcProjectile,    # Hit by an enemy bullet
+    dcLaser,         # Caught in an enemy laser beam
+    dcExplosion,     # Caught in an enemy/elite explosion
+    dcMeteorite,     # Struck by a falling meteorite
+    dcPoison,        # Poison damage-over-time finished the job
+    dcHazard         # Arena/environmental hazard
 
   EliteType* = enum
     etNone,        # Not elite
@@ -698,7 +711,17 @@ type
     duration*: float32
     shootTimer*: float32  # Timer for turret shooting (puWallTurrets)
     permanent*: bool      # Dungeon obstacle: ignores duration decay, not player-placed
+    respawns*: bool       # Boss-room obstacle: re-forms a while after being destroyed
     obstacleTint*: Color  # Theme accent for permanent dungeon obstacles
+
+  PendingWallRespawn* = object
+    ## A boss-room obstacle that was smashed and is waiting to re-form. Kept off
+    ## game.walls so it stops colliding while broken; re-added when timer expires.
+    pos*: Vector2f
+    radius*: float32
+    maxHp*: float32
+    tint*: Color
+    timer*: float32
 
   DamageType* = enum
     dtDefault,      # White - regular contact damage
@@ -986,6 +1009,7 @@ type
     coins*: seq[Coin]
     consumables*: seq[Consumable]
     walls*: seq[Wall]
+    pendingWallRespawns*: seq[PendingWallRespawn]  # Boss-room obstacles re-forming
     particlePool*: ParticlePool
     attackWarnings*: seq[AttackWarning]
     lasers*: seq[Laser]
@@ -1062,6 +1086,11 @@ type
     osHUD*: OSHUDState  # OS-style HUD and notifications
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
     selectedGameOverButton*: int  # Selected button on game over screen (0=Restart, 1=Stats, 2=Exit)
+    selectedVictoryButton*: int  # Selected button on victory screen (0=Continue, 1=Stats, 2=Menu)
+    hasWonGame*: bool  # True once the wave-60 final boss is beaten; gates the one-time victory screen
+    deathCause*: DeathCause  # What killed the player (recorded once in beginPlayerDeathSequence)
+    deathSourceName*: string  # Resolved name of the killer (enemy/boss); empty for hazards
+    deathSourceWasBoss*: bool  # True if the killer was a boss (affects game-over styling)
     dopamine*: DopamineState  # Dopamine enhancement systems
     game3D*: pointer  # Pointer to Game3D to avoid circular dependency
     transitioning*: bool  # Fade transition active

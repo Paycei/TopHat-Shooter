@@ -22,8 +22,9 @@ proc newWall*(x, y: float32, player: Player): Wall =
 
 proc updateWall*(wall: Wall, dt: float32): bool =
   if wall.permanent:
-    # Dungeon obstacles never expire and ignore damage
-    return true
+    # Dungeon obstacles ignore the duration timer, but enemies (and bosses) can
+    # now smash them: a permanent wall lives only while it still has HP.
+    return wall.hp > 0
   wall.duration -= dt
   return wall.hp > 0 and wall.duration > 0
 
@@ -37,6 +38,15 @@ proc drawWall*(wall: Wall, player: Player) =
     drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius, tint)
     drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius * 0.55'f32,
                     Color(r: tint.r, g: tint.g, b: tint.b, a: 120))
+    # Damage cue: once chipped, show a shrinking HP bar so the player can read
+    # that these obstacles are destructible (and, in boss rooms, re-forming).
+    if wall.hp < wall.maxHp:
+      let barWidth = wall.radius * 2
+      let hpPercent = wall.hp / wall.maxHp
+      drawRectangle((wall.pos.x - wall.radius).int32, (wall.pos.y - wall.radius - 8).int32,
+                    barWidth.int32, 3, Color(r: 60, g: 20, b: 20, a: 220))
+      drawRectangle((wall.pos.x - wall.radius).int32, (wall.pos.y - wall.radius - 8).int32,
+                    (barWidth * hpPercent).int32, 3, tint)
     return
 
   # Check if player has Wall Turrets power-up for different visual style
@@ -81,8 +91,6 @@ proc drawWall*(wall: Wall, player: Player) =
                 (barWidth * hpPercent).int32, barHeight.int32, Green)
 
 proc takeDamage*(wall: Wall, damage: float32) =
-  if wall.permanent:
-    return
   wall.hp -= damage
   if wall.hp < 0: wall.hp = 0
 

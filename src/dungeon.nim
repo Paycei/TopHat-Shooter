@@ -19,6 +19,11 @@ const
   ShopTerminalRadius* = 52'f32
   PickupRadius* = 26'f32
   RoomTransitionDuration* = 0.35'f32
+  CombatObstacleHp* = 4'f32          # Floor-1 combat obstacle HP; a kiting crowd chips these down
+  BossObstacleHp* = 6'f32            # Floor-1 boss obstacle HP; adds chip them, the boss one-shots
+  CombatObstacleHpPerFloor* = 2'f32  # Added per floor (and per endless loop) so late walls hold up
+  BossObstacleHpPerFloor* = 3'f32    # Added per floor (and per endless loop)
+  BossWallRespawnDelay* = 8'f32      # Seconds a smashed boss-room obstacle stays gone
 
 type
   DungeonThemeDef* = object
@@ -591,6 +596,7 @@ proc wipeRoomEntities*(game: Game) =
   game.meteorites = @[]
   game.lightningBolts = @[]
   game.walls = @[]
+  game.pendingWallRespawns = @[]
   game.pendingBoss = nil
   game.pendingBossTimer = 0
   game.bossSpawnTimer = 0
@@ -623,12 +629,23 @@ proc spawnRoomObstacles(game: Game, room: DungeonRoom) =
         tooClose = true
         break
     if tooClose: continue
+    # Boss-room obstacles re-form after the boss smashes them; combat-room ones
+    # are gone for good once enemies break through. HP grows with floor depth
+    # (and endless loops) so late-floor walls don't shatter instantly against
+    # the bigger, faster crowds down there.
+    let isBossRoom = room.kind == drkBoss
+    let run = game.rogueliteRun
+    let depth = (run.floorNumber - 1 + run.endlessLoop).float32
+    let obstacleHp =
+      if isBossRoom: BossObstacleHp + depth * BossObstacleHpPerFloor
+      else: CombatObstacleHp + depth * CombatObstacleHpPerFloor
     game.walls.add(Wall(
       pos: pos,
       radius: 26 + rng.rand(1.0).float32 * 10,
-      hp: 1.0, maxHp: 1.0,
+      hp: obstacleHp, maxHp: obstacleHp,
       duration: 1.0,
       permanent: true,
+      respawns: isBossRoom,
       obstacleTint: def.accent
     ))
     inc placed

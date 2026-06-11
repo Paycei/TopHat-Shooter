@@ -67,6 +67,30 @@ proc drawStat(x, y: int32, label, value: string, icon: string = "-",
 
   drawText(value, x + 450, y + 2, 15, valueColor)
 
+proc deathCauseVerbKey(cause: DeathCause): TranslationKey =
+  ## Verb phrase describing how the player died.
+  case cause
+  of dcContact: tkDeathContact
+  of dcBossContact: tkDeathBossContact
+  of dcProjectile: tkDeathProjectile
+  of dcLaser: tkDeathLaser
+  of dcExplosion: tkDeathExplosion
+  of dcMeteorite: tkDeathMeteorite
+  of dcPoison: tkDeathPoison
+  of dcHazard: tkDeathHazard
+  of dcUnknown: tkDeathUnknown
+
+proc composeDeathCause(game: Game): tuple[verb: string, killer: string, isBoss: bool] =
+  ## Splits the death message into a verb phrase and a (possibly empty) killer name.
+  ## Hazard/unknown are complete sentences with no killer. A name-requiring cause
+  ## that resolved no name (e.g. 3D boss with no live boss) degrades to "unknown".
+  let verbKey = deathCauseVerbKey(game.deathCause)
+  if game.deathCause in {dcHazard, dcUnknown}:
+    return (t(verbKey), "", false)
+  if game.deathSourceName.len == 0:
+    return (t(tkDeathUnknown), "", false)
+  return (t(verbKey), game.deathSourceName, game.deathSourceWasBoss)
+
 proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   ## Draw the enhanced Game Over screen as a modern system crash
   ## selectedButton: 0=Restart, 1=Stats, 2=Exit
@@ -98,60 +122,75 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
                                 height: (SCREEN_HEIGHT + 20).float32),
                     3, Color(r: 60, g: 120, b: 200, a: 255))
 
-  var yOffset = windowY + 30
+  var yOffset = windowY + 28
 
-  # Sad face emoticon with glow
-  let faceSize = 80
-  let faceX = windowX + 30
+  # Header row: glitchy sad face + title, with a danger icon on the right
   let pulse = sin(game.time * 2.0) * 0.2 + 0.8
+  let faceX = windowX + 30
+  drawText(":(", faceX, yOffset, 64,
+          Color(r: uint8(210 * pulse), g: uint8(90 * pulse), b: uint8(95 * pulse), a: 255))
 
-  drawText(":(", faceX, yOffset, int32(faceSize),
-          Color(r: uint8(180 * pulse), g: uint8(200 * pulse),
-                b: uint8(220 * pulse), a: 255))
+  drawText(t(tkGameOverCriticalFailure), faceX + 92, yOffset + 10, 34,
+          Color(r: 255, g: 95, b: 95, a: 255))
 
-  # Error icon box
-  let iconBoxX = windowX + SCREEN_WIDTH - 120
-  drawRectangle(iconBoxX, yOffset, 100, 100,
-               Color(r: 25, g: 55, b: 100, a: 255))
-  drawRectangleLines(Rectangle(x: iconBoxX.float32, y: yOffset.float32,
-                                width: 100.0, height: 100.0),
-                    2, Color(r: 80, g: 140, b: 220, a: 255))
-  drawText("[!]", iconBoxX + 25, yOffset + 20, 60,
-          Color(r: 255, g: 200, b: 100, a: 255))
+  let iconBoxX = windowX + SCREEN_WIDTH - 108
+  drawRectangle(iconBoxX, yOffset, 78, 78, Color(r: 60, g: 24, b: 28, a: 255))
+  drawRectangleLines(Rectangle(x: iconBoxX.float32, y: yOffset.float32, width: 78.0, height: 78.0),
+                    2, Color(r: 220, g: 80, b: 80, a: 255))
+  drawText("[X]", iconBoxX + 15, yOffset + 17, 44, Color(r: 255, g: 120, b: 120, a: 255))
 
-  yOffset += 110
+  yOffset += 86
 
-  # Main error message with better typography
-  let errorTitle = t(tkGameOverCriticalFailure)
-  drawText(errorTitle, windowX + 30, yOffset, 40,
-          Color(r: 255, g: 100, b: 100, a: 255))
-  yOffset += 55
+  # Short subtitle
+  drawText(t(tkGameOverErrorMsg), windowX + 30, yOffset, 16,
+          Color(r: 210, g: 220, b: 235, a: 255))
+  yOffset += 30
 
-  # Error subtitle
-  drawText(t(tkGameOverErrorMsg),
-          windowX + 30, yOffset, 18, Color(r: 220, g: 230, b: 240, a: 255))
-  yOffset += 28
-  drawText(t(tkSystemDefensiveProcesses),
-          windowX + 30, yOffset, 18, Color(r: 220, g: 230, b: 240, a: 255))
-  yOffset += 50
+  # ---- Cause of termination banner (headline of the redesign) ----
+  let cause = composeDeathCause(game)
+  const bannerH = 66
+  let bannerPulse = sin(game.time * 3.0) * 0.25 + 0.75
+  drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, bannerH,
+               Color(r: 46, g: 18, b: 22, a: 255))
+  drawRectangleLines(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
+                                width: (SCREEN_WIDTH - 60).float32, height: bannerH.float32),
+                    2.0, Color(r: uint8(255 * bannerPulse), g: 70, b: 70, a: 255))
+  drawText("[X]", windowX + 48, yOffset + 18, 30, Color(r: 255, g: 90, b: 90, a: 255))
+  drawText(t(tkGameOverCauseLabel), windowX + 98, yOffset + 12, 13,
+          Color(r: 205, g: 150, b: 150, a: 255))
 
-  # Error code section
-  drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, 35,
+  let verbX = windowX + 98
+  drawText(cause.verb, verbX, yOffset + 32, 22, Color(r: 235, g: 235, b: 240, a: 255))
+  if cause.killer.len > 0:
+    let verbW = measureText(cause.verb, 22)
+    let nameColor = if cause.isBoss: Color(r: 255, g: 170, b: 40, a: 255)
+                    else: Color(r: 255, g: 120, b: 120, a: 255)
+    drawText(cause.killer, verbX + verbW + 10, yOffset + 32, 22, nameColor)
+    if cause.isBoss:
+      # Boss tag pill after the name
+      let nameW = measureText(cause.killer, 22)
+      let tag = t(tkDeathBossTag)
+      let tagX = verbX + verbW + 10 + nameW + 12
+      let tagW = measureText(tag, 13) + 16
+      drawRectangle(tagX, yOffset + 35, tagW, 20, Color(r: 255, g: 170, b: 40, a: 255))
+      drawText(tag, tagX + 8, yOffset + 37, 13, Color(r: 40, g: 20, b: 0, a: 255))
+  yOffset += bannerH + 18
+
+  # Error code line (thin, themed)
+  drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, 30,
                Color(r: 25, g: 45, b: 75, a: 255))
   drawRectangleLines(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
-                                width: (SCREEN_WIDTH - 60).float32, height: 35.0),
+                                width: (SCREEN_WIDTH - 60).float32, height: 30.0),
                     1, Color(r: 60, g: 100, b: 160, a: 255))
+  drawText("[!]", windowX + 40, yOffset + 6, 16, Color(r: 255, g: 200, b: 100, a: 255))
+  drawText(t(tkGameOverErrorCode), windowX + 66, yOffset + 8, 14,
+          Color(r: 230, g: 235, b: 245, a: 255))
+  yOffset += 46
 
-  drawText("[!]", windowX + 40, yOffset + 8, 18, Color(r: 255, g: 200, b: 100, a: 255))
-  drawText(t(tkGameOverErrorCode),
-          windowX + 70, yOffset + 10, 14,
-          Color(r: 255, g: 255, b: 255, a: 255))
-  yOffset += 55
-
-  # Session statistics header
+  # Session diagnostics
   drawText("=== " & t(tkGameOverSessionDiagnostics) & " ===", windowX + 30, yOffset, 16,
           Color(r: 150, g: 180, b: 220, a: 255))
-  yOffset += 35
+  yOffset += 30
 
   # Format time
   let minutes = (game.time / 60.0).int
@@ -159,22 +198,21 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" &
                  (if seconds < 10: "0" else: "") & $seconds
 
-  # Draw statistics with icons
   drawStat(windowX + 40, yOffset, t(tkGameOverWaveReached), $game.currentWave, ">",
           Color(r: 255, g: 200, b: 100, a: 255))
   yOffset += STAT_LINE_HEIGHT
-
   drawStat(windowX + 40, yOffset, t(tkGameOverSystemUptime), timeText, "[T]",
           Color(r: 150, g: 200, b: 255, a: 255))
   yOffset += STAT_LINE_HEIGHT
-
   drawStat(windowX + 40, yOffset, t(tkGameOverThreatsEliminated), $game.player.kills, "[X]",
           Color(r: 255, g: 150, b: 150, a: 255))
   yOffset += STAT_LINE_HEIGHT
-
+  drawStat(windowX + 40, yOffset, t(tkVictoryBossesDefeated), $game.bossCount, "[B]",
+          Color(r: 255, g: 180, b: 120, a: 255))
+  yOffset += STAT_LINE_HEIGHT
   drawStat(windowX + 40, yOffset, t(tkGameOverResourcesCollected), $game.player.coins, "[$]",
           Color(r: 255, g: 215, b: 0, a: 255))
-  yOffset += 50  # Good spacing before buttons
+  yOffset += STAT_LINE_HEIGHT
 
   # Action buttons section - Positioned at bottom with proper spacing
   let buttonY = windowY + SCREEN_HEIGHT - 100  # 100px from bottom (plenty of space now)
@@ -206,8 +244,9 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
           Color(r: 180, g: 190, b: 200, a: 255))
 
-proc drawSystemSecured*(game: Game) =
-  ## Draw the enhanced Victory screen as system secured
+proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
+  ## Draw the wave-60 final-boss Victory screen as "system secured".
+  ## selectedButton: 0=Continue Endless, 1=View Stats, 2=Return to Menu
   let screenWidth = game.screenWidth
   let screenHeight = game.screenHeight
 
@@ -273,17 +312,16 @@ proc drawSystemSecured*(game: Game) =
 
   yOffset += 110
 
-  # Main success message
-  let successTitle = t(tkGameOverTitle)
+  # Main victory message
+  let successTitle = t(tkVictoryTitle)
   drawText(successTitle, windowX + 30, yOffset, 40,
           Color(r: 100, g: 255, b: 150, a: 255))
-  yOffset += 55
-
-  # Success subtitle
-  let statusLine = t(tkGameOverSecure)
-  drawText(statusLine, windowX + 30, yOffset, 24,
-          Color(r: 150, g: 255, b: 180, a: 255))
   yOffset += 50
+
+  # Congratulatory subtitle
+  drawText(t(tkVictorySubtitle), windowX + 30, yOffset, 18,
+          Color(r: 200, g: 255, b: 220, a: 255))
+  yOffset += 36
 
   # Status box
   drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, 35,
@@ -293,15 +331,15 @@ proc drawSystemSecured*(game: Game) =
                     1, Color(r: 0, g: 180, b: 100, a: 255))
 
   drawText("[OK]", windowX + 40, yOffset + 6, 20, Color(r: 100, g: 255, b: 150, a: 255))
-  drawText(t(tkGameOverSecurityLevelMax),
+  drawText(t(tkVictoryStatus),
           windowX + 70, yOffset + 10, 14,
           Color(r: 200, g: 255, b: 220, a: 255))
-  yOffset += 55
+  yOffset += 50
 
-  # Performance report header
-  drawText(t(tkGameOverPerformanceReport), windowX + 30, yOffset, 16,
+  # Final diagnostics header
+  drawText(t(tkVictoryReportHeader), windowX + 30, yOffset, 16,
           Color(r: 150, g: 220, b: 180, a: 255))
-  yOffset += 35
+  yOffset += 32
 
   # Format time
   let minutes = (game.time / 60.0).int
@@ -309,13 +347,20 @@ proc drawSystemSecured*(game: Game) =
   let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" &
                  (if seconds < 10: "0" else: "") & $seconds
 
-  # Draw statistics with icons and tree structure
-  drawStat(windowX + 40, yOffset, t(tkGameOverWavesSurvived), $game.currentWave, "|-",
+  # Draw statistics with icons and tree structure.
+  # currentWave is already incremented past the boss wave when we get here,
+  # so the cleared-wave count is currentWave - 1 (= 60 for the final boss).
+  let wavesCleared = max(0, game.currentWave - 1)
+  drawStat(windowX + 40, yOffset, t(tkGameOverWavesSurvived), $wavesCleared, "|-",
           Color(r: 150, g: 255, b: 180, a: 255))
   yOffset += STAT_LINE_HEIGHT
 
   drawStat(windowX + 40, yOffset, t(tkGameOverThreatsEliminated), $game.player.kills, "|-",
           Color(r: 150, g: 255, b: 180, a: 255))
+  yOffset += STAT_LINE_HEIGHT
+
+  drawStat(windowX + 40, yOffset, t(tkVictoryBossesDefeated), $game.bossCount, "|-",
+          Color(r: 255, g: 180, b: 120, a: 255))
   yOffset += STAT_LINE_HEIGHT
 
   drawStat(windowX + 40, yOffset, t(tkGameOverResourcesCollected), $game.player.coins, "|-",
@@ -324,7 +369,7 @@ proc drawSystemSecured*(game: Game) =
 
   drawStat(windowX + 40, yOffset, t(tkGameOverMissionDuration), timeText, "\\-",
           Color(r: 150, g: 200, b: 255, a: 255))
-  yOffset += 50
+  yOffset += 40
 
   # Action buttons section
   let buttonY = windowY + SCREEN_HEIGHT - 100
@@ -332,26 +377,26 @@ proc drawSystemSecured*(game: Game) =
   let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
   let buttonsX = (screenWidth - totalButtonWidth) div 2
 
-  # Continue button (primary)
+  # Continue Endless button (0)
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  t(tkGameOverContinue), "[SPACE]", true, game.time)
+                  t(tkVictoryContinueEndless), "[SPACE]", selectedButton == 0, game.time)
 
-  # Save Stats button
-  let saveX = buttonsX + BUTTON_WIDTH + buttonSpacing
-  drawModernButton(int32(saveX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  t(tkGameOverSaveLog), "[TAB]", false, game.time)
+  # View Stats button (1)
+  let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
+  drawModernButton(int32(statsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
+                  t(tkVictoryViewStats), "[V] [TAB]", selectedButton == 1, game.time)
 
-  # Exit button
-  let exitX = saveX + BUTTON_WIDTH + buttonSpacing
+  # Return to Menu button (2)
+  let exitX = statsX + BUTTON_WIDTH + buttonSpacing
   drawModernButton(int32(exitX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  t(tkGameOverExit), "[ESC]", false, game.time)
+                  t(tkVictoryReturnMenu), "[ESC] [Q]", selectedButton == 2, game.time)
 
   # Footer success text
   let footerY = windowY + SCREEN_HEIGHT - 35
   drawRectangle(windowX, footerY, SCREEN_WIDTH, 35,
                Color(r: 30, g: 60, b: 45, a: 255))
 
-  let footerText = t(tkGameOverSystemSecureFooter)
+  let footerText = t(tkVictoryFooter)
   let footerWidth = measureText(footerText, 13)
   drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
           Color(r: 180, g: 220, b: 190, a: 255))

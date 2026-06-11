@@ -147,8 +147,6 @@ type
     of ptPing, ptPong:
       pingId*: int
       sendTime*: float32
-    else:
-      discard
 
 proc newPacket*(kind: PacketType, tick: int = 0): Packet {.inline.} =
   ## Create a Packet with the given kind, tick, and current timestamp.
