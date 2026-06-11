@@ -74,18 +74,6 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       drawCircle(Vector2(x: pos.x, y: pos.y), layerRadius,
                 Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
 
-    # 2. ENERGY TENDRILS (outward radiating spikes from body edge)
-    let numTendrils = 8
-    for i in 0..<numTendrils:
-      let angle = rotation * 1.7 + i.float32 * PI / 4.0
-      let innerR = radius * 0.85
-      let outerR = radius * 1.4 + pulse * 6.0
-      let tendrilAlpha = uint8(60 + pulse * 90)
-      let bright = min(baseColor.r + 80, 255)
-      drawLine(Vector2(x: pos.x + cos(angle) * innerR, y: pos.y + sin(angle) * innerR),
-               Vector2(x: pos.x + cos(angle) * outerR, y: pos.y + sin(angle) * outerR),
-               1.5, Color(r: bright.uint8, g: min(baseColor.g + 80, 255).uint8,
-                          b: min(baseColor.b + 80, 255).uint8, a: tendrilAlpha))
     # CIRCUIT TRACES (inner glow layer)
     let numTraces = 6
     for i in 0..<numTraces:
@@ -98,8 +86,9 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let y2 = pos.y + sin(angle) * outerR
       let traceAlpha = uint8(80 + pulse * 60)
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1.5,
-              Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255),
-                    b: min(baseColor.b + 50, 255), a: traceAlpha))
+              Color(r: min(secondaryColor.r.int + 60, 255).uint8,
+                    g: min(secondaryColor.g.int + 60, 255).uint8,
+                    b: min(secondaryColor.b.int + 60, 255).uint8, a: traceAlpha))
 
     # 3. ROTATING HEXAGONAL FRAME
     let hexRadius = radius * 0.85
@@ -117,7 +106,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
 
     # 4. MAIN BODY CIRCLE
     drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.6,
-              Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
+              Color(r: secondaryColor.r div 2, g: secondaryColor.g div 2, b: secondaryColor.b div 2, a: 200))
 
     # 4b. INNER COUNTER-ROTATING TRIANGLE (unique hexagon sub-element)
     let triInner = radius * 0.45
@@ -127,9 +116,9 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let a1 = triRot + (i + 1).float32 * (PI * 2.0 / 3.0)
       drawLine(Vector2(x: pos.x + cos(a0) * triInner, y: pos.y + sin(a0) * triInner),
                Vector2(x: pos.x + cos(a1) * triInner, y: pos.y + sin(a1) * triInner),
-               1.5, Color(r: min(baseColor.r + 100, 255).uint8,
-                          g: min(baseColor.g + 100, 255).uint8,
-                          b: min(baseColor.b + 100, 255).uint8, a: uint8(120 + pulse * 80)))
+               1.5, Color(r: min(secondaryColor.r.int + 100, 255).uint8,
+                          g: min(secondaryColor.g.int + 100, 255).uint8,
+                          b: min(secondaryColor.b.int + 100, 255).uint8, a: uint8(120 + pulse * 80)))
 
     # 5. BRIGHT WHITE CORE
     drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
@@ -143,19 +132,6 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     # Triangle shape with same hitbox radius (no rotation)
     # 1. OUTER ENERGY FIELD (triangle glow)
     let triRadius = radius * 1.1  # Reduced from 1.3 to make visually smaller
-    # 1b. TENDRILS from each vertex
-    for i in 0..2:
-      let vAngle = i.float32 * (2.0 * PI / 3.0) - PI / 2.0
-      let vx = pos.x + cos(vAngle) * triRadius
-      let vy = pos.y + sin(vAngle) * triRadius
-      for t in 0..1:
-        let spread = (t.float32 - 0.5) * 0.45
-        let tx = pos.x + cos(vAngle + spread) * (triRadius * 1.5 + pulse * 5)
-        let ty = pos.y + sin(vAngle + spread) * (triRadius * 1.5 + pulse * 5)
-        drawLine(Vector2(x: vx, y: vy), Vector2(x: tx, y: ty), 1.5,
-                 Color(r: min(baseColor.r + 80, 255).uint8,
-                       g: min(baseColor.g + 80, 255).uint8,
-                       b: min(baseColor.b + 80, 255).uint8, a: uint8(50 + pulse * 80)))
     for layer in 0..2:
       let layerRadius = triRadius + layer.float32 * 5.0
       let layerAlpha = uint8((1.0 - layer.float32 / 3.0) * glowIntensity * 50)
@@ -179,8 +155,9 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let y2 = pos.y + sin(angle2) * innerR
       let traceAlpha = uint8(80 + pulse * 60)
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
-              Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255),
-                    b: min(baseColor.b + 50, 255), a: traceAlpha))
+              Color(r: min(secondaryColor.r.int + 60, 255).uint8,
+                    g: min(secondaryColor.g.int + 60, 255).uint8,
+                    b: min(secondaryColor.b.int + 60, 255).uint8, a: traceAlpha))
 
     # 3. MAIN TRIANGLE OUTLINE
     let triPoints = 3
@@ -203,7 +180,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     let v3x = pos.x + cos(4.0 * PI / 3.0 - PI / 2.0) * (radius * 0.6)
     let v3y = pos.y + sin(4.0 * PI / 3.0 - PI / 2.0) * (radius * 0.6)
     drawTriangle(Vector2(x: v1x, y: v1y), Vector2(x: v2x, y: v2y), Vector2(x: v3x, y: v3y),
-                Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
+                Color(r: secondaryColor.r div 2, g: secondaryColor.g div 2, b: secondaryColor.b div 2, a: 200))
 
     # 5. CORE CIRCLE
     drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
@@ -211,29 +188,20 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     let highlightY = pos.y - radius * 0.15
     drawCircle(Vector2(x: highlightX, y: highlightY), radius * 0.15,
               Color(r: 255, g: 255, b: 255, a: 180))
-    # ORBITING DOT unique to triangle
+    # ORBITING DOT unique to triangle (secondary-colored halo around a bright core)
     let orbitAngle = time * 4.5
     let orbitR = radius * 0.55
-    drawCircle(Vector2(x: pos.x + cos(orbitAngle) * orbitR, y: pos.y + sin(orbitAngle) * orbitR),
-               radius * 0.10, coreColor)
+    let orbitX = pos.x + cos(orbitAngle) * orbitR
+    let orbitY = pos.y + sin(orbitAngle) * orbitR
+    drawCircle(Vector2(x: orbitX, y: orbitY), radius * 0.16,
+               Color(r: secondaryColor.r, g: secondaryColor.g, b: secondaryColor.b,
+                     a: uint8(110 + pulse * 60)))
+    drawCircle(Vector2(x: orbitX, y: orbitY), radius * 0.10, coreColor)
 
   of shSquare:
     # Square shape with same hitbox radius (no rotation)
     # 1. OUTER ENERGY FIELD (square glow)
     let squareSize = radius * 1.3  # Reduced from 1.5 to make even smaller
-    # 1b. CORNER TENDRILS
-    for i in 0..3:
-      let cAngle = i.float32 * PI / 2.0 + PI / 4.0
-      let cx2 = pos.x + cos(cAngle) * squareSize
-      let cy2 = pos.y + sin(cAngle) * squareSize
-      for t in 0..1:
-        let sp = (t.float32 - 0.5) * 0.5
-        let tx = pos.x + cos(cAngle + sp) * (squareSize * 1.45 + pulse * 4)
-        let ty = pos.y + sin(cAngle + sp) * (squareSize * 1.45 + pulse * 4)
-        drawLine(Vector2(x: cx2, y: cy2), Vector2(x: tx, y: ty), 1.5,
-                 Color(r: min(baseColor.r + 80, 255).uint8,
-                       g: min(baseColor.g + 80, 255).uint8,
-                       b: min(baseColor.b + 80, 255).uint8, a: uint8(45 + pulse * 75)))
     for layer in 0..2:
       let layerSize = squareSize + layer.float32 * 6.0
       let layerAlpha = uint8((1.0 - layer.float32 / 3.0) * glowIntensity * 50)
@@ -256,8 +224,9 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let y2 = pos.y + sin(angle2) * innerR
       let traceAlpha = uint8(80 + pulse * 60)
       drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
-              Color(r: min(baseColor.r + 50, 255), g: min(baseColor.g + 50, 255),
-                    b: min(baseColor.b + 50, 255), a: traceAlpha))
+              Color(r: min(secondaryColor.r.int + 60, 255).uint8,
+                    g: min(secondaryColor.g.int + 60, 255).uint8,
+                    b: min(secondaryColor.b.int + 60, 255).uint8, a: traceAlpha))
 
     # 3. MAIN SQUARE OUTLINE
     for i in 0..3:
@@ -283,13 +252,13 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     let cx4 = pos.x + cos(7.0 * PI / 4.0) * halfSize
     let cy4 = pos.y + sin(7.0 * PI / 4.0) * halfSize
     drawTriangle(Vector2(x: cx1, y: cy1), Vector2(x: cx2, y: cy2), Vector2(x: pos.x, y: pos.y),
-                Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
+                Color(r: secondaryColor.r div 2, g: secondaryColor.g div 2, b: secondaryColor.b div 2, a: 200))
     drawTriangle(Vector2(x: cx2, y: cy2), Vector2(x: cx3, y: cy3), Vector2(x: pos.x, y: pos.y),
-                Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
+                Color(r: secondaryColor.r div 2, g: secondaryColor.g div 2, b: secondaryColor.b div 2, a: 200))
     drawTriangle(Vector2(x: cx3, y: cy3), Vector2(x: cx4, y: cy4), Vector2(x: pos.x, y: pos.y),
-                Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
+                Color(r: secondaryColor.r div 2, g: secondaryColor.g div 2, b: secondaryColor.b div 2, a: 200))
     drawTriangle(Vector2(x: cx4, y: cy4), Vector2(x: cx1, y: cy1), Vector2(x: pos.x, y: pos.y),
-                Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 200))
+                Color(r: secondaryColor.r div 2, g: secondaryColor.g div 2, b: secondaryColor.b div 2, a: 200))
 
     # 5. CORE CIRCLE
     drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)

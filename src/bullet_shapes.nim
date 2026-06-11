@@ -56,6 +56,9 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
     drawCircle(Vector2(x: pos.x, y: pos.y), radius + 3,
                Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 60))
     drawCircle(Vector2(x: pos.x, y: pos.y), radius, color)
+    # Off-center highlight gives the orb a rounded, energetic look
+    drawCircle(Vector2(x: pos.x - radius * 0.25, y: pos.y - radius * 0.25),
+               radius * 0.35, Color(r: 255, g: 255, b: 255, a: 130))
 
   of bshTriangle:
     # Equilateral triangle, tip pointing in travel direction.

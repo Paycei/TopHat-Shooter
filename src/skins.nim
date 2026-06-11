@@ -49,7 +49,7 @@ proc initializeSkins*() =
     primaryColor: Color(r: 255, g: 0, b: 180, a: 255),
     secondaryColor: Color(r: 200, g: 0, b: 150, a: 255),
     coreColor: Color(r: 255, g: 150, b: 230, a: 255),
-    isAnimated: false,
+    isAnimated: true,
     isUnlocked: true
   )
 
@@ -69,7 +69,7 @@ proc initializeSkins*() =
     primaryColor: Color(r: 255, g: 100, b: 0, a: 255),
     secondaryColor: Color(r: 255, g: 50, b: 0, a: 255),
     coreColor: Color(r: 255, g: 200, b: 100, a: 255),
-    isAnimated: false,
+    isAnimated: true,
     isUnlocked: true
   )
 
@@ -89,7 +89,7 @@ proc initializeSkins*() =
     primaryColor: Color(r: 255, g: 215, b: 0, a: 255),
     secondaryColor: Color(r: 255, g: 180, b: 0, a: 255),
     coreColor: Color(r: 255, g: 255, b: 200, a: 255),
-    isAnimated: false,
+    isAnimated: true,
     isUnlocked: true
   )
 
@@ -99,7 +99,7 @@ proc initializeSkins*() =
     primaryColor: Color(r: 150, g: 220, b: 255, a: 255),
     secondaryColor: Color(r: 100, g: 180, b: 255, a: 255),
     coreColor: Color(r: 240, g: 250, b: 255, a: 255),
-    isAnimated: false,
+    isAnimated: true,
     isUnlocked: true
   )
 
@@ -109,7 +109,7 @@ proc initializeSkins*() =
     primaryColor: Color(r: 60, g: 60, b: 80, a: 255),
     secondaryColor: Color(r: 40, g: 40, b: 60, a: 255),
     coreColor: Color(r: 180, g: 180, b: 200, a: 255),
-    isAnimated: false,
+    isAnimated: true,
     isUnlocked: true
   )
 
@@ -162,6 +162,50 @@ proc getSkinColors*(skinType: SkinType, time: float32): tuple[primary, secondary
 
   # Apply time-based animations for animated skins
   case skinType
+  of skNeonPink:
+    # Neon-sign buzz: brightness flutters like a slightly unstable tube light
+    let buzz = 0.85 + 0.15 * sin(time * 9.0) * sin(time * 2.3)
+    return (
+      Color(r: uint8(255.0 * buzz), g: 0, b: uint8(180.0 * buzz), a: 255),
+      Color(r: uint8(200.0 * buzz), g: 0, b: uint8(150.0 * buzz), a: 255),
+      Color(r: 255, g: uint8(120.0 + 60.0 * buzz), b: 230, a: 255)
+    )
+  of skSunset:
+    # Slow warm drift between deep crimson and bright orange
+    let drift = sin(time * 0.8) * 0.5 + 0.5
+    return (
+      Color(r: 255, g: uint8(60.0 + drift * 80.0), b: uint8(drift * 40.0), a: 255),
+      Color(r: 255, g: uint8(30.0 + drift * 50.0), b: 0, a: 255),
+      Color(r: 255, g: uint8(180.0 + drift * 40.0), b: uint8(90.0 + drift * 50.0), a: 255)
+    )
+  of skGold:
+    # Golden shimmer with a short periodic glint flash on the core
+    let shimmer = sin(time * 2.2) * 0.5 + 0.5
+    let glint = pow(max(0.0'f32, sin(time * 1.4)), 8.0'f32)
+    return (
+      Color(r: 255, g: uint8(195.0 + shimmer * 40.0), b: uint8(glint * 120.0), a: 255),
+      Color(r: uint8(235.0 + glint * 20.0), g: uint8(165.0 + shimmer * 30.0), b: 0, a: 255),
+      Color(r: 255, g: 255, b: uint8(170.0 + glint * 85.0), a: 255)
+    )
+  of skIce:
+    # Crystalline shimmer: cool blue-white sparkle drifting across the body
+    let shimmer = sin(time * 3.1) * 0.5 + 0.5
+    let sparkle = pow(max(0.0'f32, sin(time * 5.3 + 1.0)), 10.0'f32)
+    return (
+      Color(r: uint8(140.0 + shimmer * 40.0), g: uint8(210.0 + shimmer * 25.0), b: 255, a: 255),
+      Color(r: uint8(90.0 + shimmer * 30.0), g: uint8(170.0 + shimmer * 25.0), b: 255, a: 255),
+      Color(r: uint8(235.0 + sparkle * 20.0), g: uint8(245.0 + sparkle * 10.0), b: 255, a: 255)
+    )
+  of skShadow:
+    # Smoldering shadow: slow dim pulse with a faint violet ember undertone
+    let smolder = sin(time * 1.2) * 0.5 + 0.5
+    return (
+      Color(r: uint8(50.0 + smolder * 25.0), g: uint8(50.0 + smolder * 15.0),
+            b: uint8(75.0 + smolder * 35.0), a: 255),
+      Color(r: uint8(35.0 + smolder * 15.0), g: 40, b: uint8(55.0 + smolder * 25.0), a: 255),
+      Color(r: uint8(170.0 + smolder * 30.0), g: uint8(170.0 + smolder * 20.0),
+            b: uint8(195.0 + smolder * 40.0), a: 255)
+    )
   of skRainbow:
     # Cycle through rainbow spectrum
     let hue = (time * 0.5) mod 1.0

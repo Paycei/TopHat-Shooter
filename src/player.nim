@@ -523,6 +523,20 @@ proc drawPlayer*(player: Player) =
     baseColor = Color(r: 0, g: 255, b: 200, a: 255)  # Green-cyan tint
     glowIntensity += 0.2
 
+  # Skin-colored motion trail: faint afterimages while moving at speed.
+  # Skipped during speed boost, which draws its own stronger trail below.
+  if player.speedBoostTimer <= 0:
+    let speed = player.vel.length()
+    if speed > 80:
+      let trailStrength = min((speed - 80.0) / 260.0, 1.0)
+      for i in 1..3:
+        let trailAlpha = uint8(trailStrength * (42 - i * 11).float32)
+        let trailScale = 0.9 - i.float32 * 0.18
+        let trailX = player.pos.x - player.vel.x * i.float32 * 0.012
+        let trailY = player.pos.y - player.vel.y * i.float32 * 0.012
+        drawCircle(Vector2(x: trailX, y: trailY), player.radius * trailScale,
+                  Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: trailAlpha))
+
   # Draw player using selected shape
   let shapeType = player.shapeType.ShapeType
   drawPlayerShape(player.pos, player.radius, shapeType, baseColor, secondaryColor, coreColor,
@@ -537,8 +551,10 @@ proc drawPlayer*(player: Player) =
       let px = player.pos.x + cos(particleAngle) * particleDist
       let py = player.pos.y + sin(particleAngle) * particleDist
       let particleAlpha = uint8(100 + pulse * 80)
+      # Alternate primary/secondary skin colors so both show in motion
+      let pColor = if i mod 2 == 0: baseColor else: secondaryColor
       drawCircle(Vector2(x: px, y: py), 1.8,
-                Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: particleAlpha))
+                Color(r: pColor.r, g: pColor.g, b: pColor.b, a: particleAlpha))
 
   # Speed boost indicator (motion trails)
   if player.speedBoostTimer > 0:
