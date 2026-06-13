@@ -1863,7 +1863,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
-    "loading_subtitle": "v5.5 Edition",
+    "loading_subtitle": "v6.0 Edition",
     "loading_initializing": "Initializing...",
     "loading_generating_sound": "Generating sound",
     "loading_generating_music": "Generating music",
@@ -1893,7 +1893,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_memory": "Memory: 2.4 / 16 GB",
     "os_network": "Network: Connected",
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[v5.5 Edition]",
+    "os_edition": "[v6.0 Edition]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "NET",
 
@@ -4119,7 +4119,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_memory": "Memoria: 2.4 / 16 GB",
     "os_network": "Red: Conectada",
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[Edición v5.5]",
+    "os_edition": "[Edición v6.0]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "RED",
 

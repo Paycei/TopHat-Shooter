@@ -28,7 +28,7 @@ proc newSplashScreen*(): SplashScreen =
     phase: bpBIOS,
     timer: 0,
     bootMessages: @[
-      "BIOS v5.5.2 - TopHat Systems",
+      "BIOS v6.0.0 - TopHat Systems",
       "CPU: ElementalCore i9-9900K @ 3.60GHz",
       "Memory: 16384 MB OK",
       "Detecting hardware...",
@@ -36,7 +36,7 @@ proc newSplashScreen*(): SplashScreen =
       "Loading bootloader...",
       "TSOB version 2.04",
       "",
-      "Loading kernel: shooteros-5",
+      "Loading kernel: shooteros-6",
       "Initializing game engine...",
       "Starting graphics subsystem...",
       "Loading audio drivers...",
@@ -52,7 +52,7 @@ proc newSplashScreen*(): SplashScreen =
       "[ OK ] Discord Integration",
       "[ OK ] Customization System",
       "",
-      "TopHat-ShooterOS [v5.5 Edition]",
+      "TopHat-ShooterOS [v6.0 Edition]",
       "Ready to play.",
       ""
     ],
