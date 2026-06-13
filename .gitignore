@@ -2,6 +2,7 @@ nimblecache/
 htmldocs/
 nimcache*
 *.exe
+TopHatShooterOS
 nimble.develop
 nimble.paths
 nimbledeps

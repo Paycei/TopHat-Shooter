@@ -10,7 +10,7 @@ srcDir        = "src"
 
 requires "nim >= 2.2.10"
 requires "naylib >= 26.08.0"
-requires "flatty >= 0.3.4"
+requires "flatty >= 0.4.0"
 requires "supersnappy >= 2.1.4"
 
 task debug, "Run the game for development":
