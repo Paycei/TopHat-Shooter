@@ -927,7 +927,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
         shop.scrollVelocity = 0.0
 
   # The SECRET tab is a short row of victory/achievement-unlocked toggles,
-  # not a CosmeticKind grid — handle it here and skip the grid machinery.
+  # not a CosmeticKind grid, handle it here and skip the grid machinery.
   if shop.currentTab == stSecret:
     shop.hoveredSkin = -1
     for i in 0..<SECRET_ITEM_COUNT:
@@ -1334,7 +1334,7 @@ proc drawShopWindow*(shop: ShopWindow) =
   let tab7LabelX = contentX + tabWidth * 6 + (tabWidth - measureText(tab7Label, 12)) div 2
   drawText(tab7Label, tab7LabelX.int32, (tabY + 13).int32, 12, if tab7Active: White else: Gray)
 
-  # Secret items tab — magenta underline instead of the shop's orange
+  # Secret items tab, magenta underline instead of the shop's orange
   let tab8Active = shop.currentTab == stSecret
   let tab8Color = if tab8Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
   drawRectangle((contentX + tabWidth * 7).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab8Color)

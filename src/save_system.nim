@@ -43,6 +43,7 @@ type
     cubeSkin*: int         # Current cube skin (stored as int)
     pvpNickname*: string  # Player nickname shown in PvP lobbies
     hasSeenIntro*: bool   # True after the lore cinematic has been seen once
+    hasSeenEnding*: bool  # True after the endgame cinematic has been seen once
     exitConfirmEnabled*: bool  # Show exit confirm dialogs (default: false)
     kernelTophatUnlocked*: bool  # Secret cosmetic: earned by beating the wave-60 final boss
     kernelTophatEquipped*: bool  # Whether the unlocked kernel tophat is worn in-game
@@ -119,6 +120,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "cubeSkin": settings.cubeSkin,
     "pvpNickname": settings.pvpNickname,
     "hasSeenIntro": settings.hasSeenIntro,
+    "hasSeenEnding": settings.hasSeenEnding,
     "exitConfirmEnabled": settings.exitConfirmEnabled,
     "kernelTophatUnlocked": settings.kernelTophatUnlocked,
     "kernelTophatEquipped": settings.kernelTophatEquipped,
@@ -208,6 +210,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("hasSeenIntro"):
     settings.hasSeenIntro = jsonNode["hasSeenIntro"].getBool()
+
+  if jsonNode.hasKey("hasSeenEnding"):
+    settings.hasSeenEnding = jsonNode["hasSeenEnding"].getBool()
 
   if jsonNode.hasKey("exitConfirmEnabled"):
     settings.exitConfirmEnabled = jsonNode["exitConfirmEnabled"].getBool()

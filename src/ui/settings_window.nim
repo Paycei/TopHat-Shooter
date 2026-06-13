@@ -38,6 +38,9 @@ type
     # Set when the user clicks "Replay Intro"; consumed by the window manager
     replayIntroRequested*: bool
 
+    # Set when the user clicks "Replay Ending" (only offered once the game is won)
+    replayEndingRequested*: bool
+
     # Destructive reset confirmation state
     pendingReset*: SettingsResetAction
     resetConfirmTimer*: float32
@@ -76,6 +79,7 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     draggingVolume: false,
     draggingMusic: false,
     replayIntroRequested: false,
+    replayEndingRequested: false,
     pendingReset: sraNone,
     resetConfirmTimer: 0.0,
     resetStatus: "",
@@ -196,6 +200,15 @@ proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rect
 proc replayIntroButtonRect(contentX, contentY: int): Rectangle =
   Rectangle(
     x: (contentX + 40).float32,
+    y: (contentY + 250).float32,
+    width: 200.float32,
+    height: 32.float32
+  )
+
+proc replayEndingButtonRect(contentX, contentY: int): Rectangle =
+  ## Sits beside "Replay Intro"; only shown once the game has been beaten.
+  Rectangle(
+    x: (contentX + 40 + 210).float32,
     y: (contentY + 250).float32,
     width: 200.float32,
     height: 32.float32
@@ -669,6 +682,11 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     let rect = replayIntroButtonRect(contentX, contentY)
     let hovered = checkCollisionPointRec(mousePos, rect)
     drawSettingsButton(rect, t(tkSettingsReplayIntro), hovered, false)
+    # Replay the endgame cinematic, only offered once the game has been beaten.
+    if settingsWin.settings != nil and settingsWin.settings.hasSeenEnding:
+      let endRect = replayEndingButtonRect(contentX, contentY)
+      let endHovered = checkCollisionPointRec(mousePos, endRect)
+      drawSettingsButton(endRect, t(tkSettingsReplayEnding), endHovered, false)
   yPos += 42
 
   drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionDataManagement), '!',
@@ -968,6 +986,12 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       # Replay intro button
       if checkCollisionPointRec(mousePos, replayIntroButtonRect(contentX, contentY)):
         settingsWin.replayIntroRequested = true
+        playSound(stMenuSelect)
+
+      # Replay ending button (only active once the game has been beaten)
+      if settingsWin.settings != nil and settingsWin.settings.hasSeenEnding and
+         checkCollisionPointRec(mousePos, replayEndingButtonRect(contentX, contentY)):
+        settingsWin.replayEndingRequested = true
         playSound(stMenuSelect)
 
       for action in [sraAllData, sraAdvancements, sraRogueliteData]:

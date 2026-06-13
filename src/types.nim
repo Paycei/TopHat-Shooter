@@ -7,7 +7,7 @@ export Deque
 type
   GameState* = enum
     gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
-    gsRogueliteFloorSelect, gsDeathSequence, gsVictory
+    gsRogueliteFloorSelect, gsDeathSequence, gsVictory, gsEndgameCinematic
 
   GameMode* = enum
     gmWaveBased,

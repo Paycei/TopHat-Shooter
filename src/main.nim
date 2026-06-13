@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager
+import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager
 
 # Global quit-confirmation dialog
 
@@ -416,6 +416,13 @@ proc main() =
 
   var splashScreen = newSplashScreen()
   var loreCinematic = newLoreCinematic()
+  # Endgame ("system secured") cinematic. `endgameCinematicArmed` lazily reinitialises
+  # the timeline whenever we enter gsEndgameCinematic (the producer is game.nim, which
+  # can't touch this local). `endgameReplayMode` distinguishes a real first-win playthrough
+  # (hand off to the victory screen) from a settings-menu replay (return to the desktop).
+  var endgameCinematic = newEndgameCinematic()
+  var endgameCinematicArmed = false
+  var endgameReplayMode = false
   var osDesktop = newOSDesktop()
   # Expose the running desktop instance so UI previews can match its state
   activeDesktop = osDesktop
@@ -547,14 +554,20 @@ proc main() =
       let isInGame = currentGame.state in {gsPlaying, gsPaused, gsShop, gsCountdown,
                                            gsWaveCleared, gsPowerUpSelect, gsDeathSequence,
                                            gsRogueliteFloorSelect, gsPvPPlaying, gs3DBoss}
-      # Only show confirm when an active game session is running; closing the window
-      # from the main menu should exit immediately with no popup.
-      # Sandbox has no progress to lose, so always quit immediately from it.
-      if isInGame and not isSandboxMode(currentGame.mode) and settings.exitConfirmEnabled:
+      # Show the quit-confirm popup when an active game session is running (full
+      # anti-accident cooldown to protect the in-progress run). The main menu, the
+      # game-over screen, and sandbox mode also confirm, but with cooldown 0 -> YES
+      # is immediately clickable, since none of them has a live run to lose
+      # (matches the Shutdown.exe icon).
+      if settings.exitConfirmEnabled and isInGame and not isSandboxMode(currentGame.mode):
         if not globalConfirmActive:
           showGlobalConfirm(cdcQuitToDesktop)
+      elif settings.exitConfirmEnabled and
+           (currentGame.state in {gsMenu, gsGameOver} or isSandboxMode(currentGame.mode)):
+        if not globalConfirmActive:
+          showGlobalConfirm(cdcQuitToDesktop, cooldown = 0.0'f32)
       else:
-        # Splash / lore / game-over / sandbox, or confirm dialogs disabled: just quit
+        # Splash / lore / victory, or confirm dialogs disabled: just quit
         windowCloseRequested = true
     # Check if fullscreen toggle was requested
     if fullscreenToggleRequested:
@@ -676,6 +689,31 @@ proc main() =
       drawLoreCinematic(loreCinematic, screenWidth, screenHeight)
       endGameDrawing()
 
+    of gsEndgameCinematic:
+      # One-time outro, played the first time the wave-60 boss falls (or replayed
+      # from settings). Lazily (re)armed on entry since game.nim sets this state.
+      if not endgameCinematicArmed:
+        endgameCinematic = newEndgameCinematic()
+        endgameCinematicArmed = true
+      playMusic(mtMenu)  # calmer score than the tense intro's boss theme
+      updateEndgameCinematic(endgameCinematic, dt)
+      if endgameCinematic.complete:
+        endgameCinematicArmed = false
+        if not settings.hasSeenEnding:
+          settings.hasSeenEnding = true
+          discard saveSettings(settings)
+        if endgameReplayMode:
+          # Replayed from the desktop: there is no active run to congratulate.
+          endgameReplayMode = false
+          currentGame.state = gsMenu
+        else:
+          # First win: hand off to the "system secured" victory screen.
+          currentGame.state = gsVictory
+
+      beginGameDrawing()
+      drawEndgameCinematic(endgameCinematic, screenWidth, screenHeight)
+      endGameDrawing()
+
     of gsMenu:
       # Play menu music
       playMusic(mtMenu)
@@ -750,7 +788,7 @@ proc main() =
           discard saveAdvancements(advancementProfile)
           if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
             globalWindowManager.advancements.profile = advancementProfile
-          # Achievement reward: the orbital cube player cosmetic — the cube you
+          # Achievement reward: the orbital cube player cosmetic: the cube you
           # knocked out of orbit starts orbiting you. Equipped by default and
           # toggleable in the shop's SECRET tab.
           if not settings.orbitalCubeUnlocked:
@@ -784,6 +822,13 @@ proc main() =
       if updateResult.replayIntro and not globalConfirmActive:
         loreCinematic = newLoreCinematic()
         currentGame.state = gsLoreIntro
+
+      # Handle "Replay Ending" from the settings window: re-enter the outro. It
+      # returns to the desktop (not the victory screen) since no run is active.
+      if updateResult.replayEnding and not globalConfirmActive:
+        endgameReplayMode = true
+        endgameCinematicArmed = false  # force a fresh timeline on entry
+        currentGame.state = gsEndgameCinematic
 
       # Handle roguelite window Start button, show loading screen then enter game
       if updateResult.rogueliteLaunchGame and not globalConfirmActive:
@@ -2174,20 +2219,23 @@ proc main() =
       # Update mouse tracking
       updateMouseTracking(currentGame)
 
-      # Keyboard navigation - A/D/LEFT/RIGHT to change button selection
-      if isKeyPressed(Left) or isKeyPressed(A):
+      # Keyboard navigation - A/D/LEFT/RIGHT to change button selection.
+      # All game-over input is gated on `not globalConfirmActive` so the quit-confirm
+      # popup (OS close button) owns the keyboard/mouse while it is up; otherwise a
+      # single Escape/Q/click would both answer the dialog and fire a menu action.
+      if not globalConfirmActive and (isKeyPressed(Left) or isKeyPressed(A)):
         currentGame.selectedGameOverButton = (currentGame.selectedGameOverButton - 1 + 3) mod 3
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
-      elif isKeyPressed(Right) or isKeyPressed(D):
+      elif not globalConfirmActive and (isKeyPressed(Right) or isKeyPressed(D)):
         currentGame.selectedGameOverButton = (currentGame.selectedGameOverButton + 1) mod 3
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
 
       # Execute action based on selected button or direct key press
       # SPACE and R both trigger restart (button 0)
-      if (isKeyPressed(Space) or isKeyPressed(R)) or
-         (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 0):
+      if not globalConfirmActive and ((isKeyPressed(Space) or isKeyPressed(R)) or
+         (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 0)):
         # Store the current game mode before restarting
         let previousMode = currentGame.mode
         let preservedRogueliteHeat =
@@ -2210,15 +2258,15 @@ proc main() =
         playSound(stMenuSelect)
         statsSavedThisGame = false  # Reset for new game
       # TAB or V to view stats (button 1)
-      elif (isKeyPressed(Tab) or isKeyPressed(V)) or
-           (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 1):
+      elif not globalConfirmActive and ((isKeyPressed(Tab) or isKeyPressed(V)) or
+           (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 1)):
         if hasValidRunStats():
           openRunStatsWindow()
           currentGame.state = gsRunStats
           playSound(stMenuSelect)
       # ESC or Q to exit (button 2)
-      elif (isKeyPressed(Escape) or isKeyPressed(Q)) or
-           (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 2):
+      elif not globalConfirmActive and ((isKeyPressed(Escape) or isKeyPressed(Q)) or
+           (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 2)):
         cleanupGame(currentGame)  # Clean up resources before creating new game
         currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -2261,7 +2309,7 @@ proc main() =
         currentGame.selectedGameOverButton = 2
 
       # Mouse click handling
-      if isMouseButtonPressed(Left):
+      if not globalConfirmActive and isMouseButtonPressed(Left):
         if checkCollisionPointRec(mousePos, restartRect):
           # Restart game - preserve game mode
           let previousMode = currentGame.mode
@@ -2301,6 +2349,14 @@ proc main() =
 
       beginGameDrawing()
       drawGameOver(currentGame)
+
+      # Quit-confirmation dialog (OS close button). The run is already over, so the
+      # YES button is immediately clickable (cooldown 0 set when it was shown).
+      if globalConfirmActive:
+        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if r == 1:
+          windowCloseRequested = true
+        # r == -1: cancelled, dialog already dismissed
 
       # Draw custom cursor on game over screen
       drawCustomCursor(currentGame.time)

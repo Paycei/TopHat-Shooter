@@ -78,6 +78,7 @@ type
     tkSettingsExitConfirmDesc = "settings_exit_confirm_desc"
     tkSettingsLanguage = "settings_language"
     tkSettingsReplayIntro = "settings_replay_intro"
+    tkSettingsReplayEnding = "settings_replay_ending"
     tkSettingsBackToMenu = "settings_back_to_menu"
     tkSettingsSectionDataManagement = "settings_section_data_management"
     tkSettingsResetAllData = "settings_reset_all_data"
@@ -137,6 +138,24 @@ type
     tkLoreCounter2 = "lore_counter_2"
     tkLoreDirectiveTitle = "lore_directive_title"
     tkLoreDirectiveSub = "lore_directive_sub"
+
+    # Endgame / Outro Cinematic
+    tkEndTitleCardSub = "end_title_card_sub"
+    tkEndRecFall = "end_rec_fall"
+    tkEndRecPurge = "end_rec_purge"
+    tkEndRecRestore = "end_rec_restore"
+    tkEndRecCrown = "end_rec_crown"
+    tkEndRecSignoff = "end_rec_signoff"
+    tkEndFall1 = "end_fall_1"
+    tkEndFall2 = "end_fall_2"
+    tkEndPurge1 = "end_purge_1"
+    tkEndPurge2 = "end_purge_2"
+    tkEndRestore1 = "end_restore_1"
+    tkEndRestore2 = "end_restore_2"
+    tkEndCrown1 = "end_crown_1"
+    tkEndCrown2 = "end_crown_2"
+    tkEndSignoffTitle = "end_signoff_title"
+    tkEndSignoffSub = "end_signoff_sub"
 
     # Stats Window
     tkStatsWindowTitle = "stats_window_title"
@@ -1459,6 +1478,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_exit_confirm_desc": "(prompt when quitting game)",
     "settings_language": "Language:",
     "settings_replay_intro": "Replay Intro",
+    "settings_replay_ending": "Replay Ending",
     "settings_back_to_menu": "Press ESC to return to menu",
 
     "lore_title_card_sub": "ARCHIVE PLAYBACK // INCIDENT LOG",
@@ -1483,6 +1503,23 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_counter_2": "The system can still be saved.",
     "lore_directive_title": "DEFENSE PROTOCOL: ACTIVE",
     "lore_directive_sub": "Good luck, TOPHAT.",
+
+    "end_title_card_sub": "ARCHIVE PLAYBACK // INCIDENT RESOLVED",
+    "end_rec_fall": "REC 06: ROOT ENTITY PURGED",
+    "end_rec_purge": "REC 07: MEMORY RECLAIMED",
+    "end_rec_restore": "REC 08: KERNEL RESTORED",
+    "end_rec_crown": "REC 09: ROOT ACCESS GRANTED",
+    "end_rec_signoff": "REC 10: PROTOCOL COMPLETE",
+    "end_fall_1": "The root entity shatters.",
+    "end_fall_2": "Its code unravels into the void it crawled from.",
+    "end_purge_1": "The corruption recedes, sector by sector.",
+    "end_purge_2": "Clean memory is reclaimed in its wake.",
+    "end_restore_1": "TOPHAT kernel restored. Containment stable.",
+    "end_restore_2": "Threat level dropping... zero.",
+    "end_crown_1": "Root access granted.",
+    "end_crown_2": "You wear the crown of the kernel now.",
+    "end_signoff_title": "SYSTEM SECURED",
+    "end_signoff_sub": "Threat level zero. Stand down, TOPHAT.",
     "settings_section_data_management": "DATA MANAGEMENT",
     "settings_reset_all_data": "Reset All Data",
     "settings_reset_advancements": "Reset Advancements",
@@ -3033,6 +3070,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_exit_confirm_desc": "(aviso al salir del juego)",
     "settings_language": "Idioma:",
     "settings_replay_intro": "Volver a ver intro",
+    "settings_replay_ending": "Volver a ver final",
     "settings_back_to_menu": "ESC para volver",
 
     "lore_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // INCIDENTE",
@@ -3057,6 +3095,23 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_counter_2": "El sistema aún puede salvarse.",
     "lore_directive_title": "PROTOCOLO DE DEFENSA: ACTIVO",
     "lore_directive_sub": "Buena suerte, TOPHAT.",
+
+    "end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // INCIDENTE RESUELTO",
+    "end_rec_fall": "REC 06: ENTIDAD RAÍZ PURGADA",
+    "end_rec_purge": "REC 07: MEMORIA RECUPERADA",
+    "end_rec_restore": "REC 08: KERNEL RESTAURADO",
+    "end_rec_crown": "REC 09: ACCESO ROOT CONCEDIDO",
+    "end_rec_signoff": "REC 10: PROTOCOLO COMPLETO",
+    "end_fall_1": "La entidad raíz se hace pedazos.",
+    "end_fall_2": "Su código se deshace en el vacío del que surgió.",
+    "end_purge_1": "La corrupción retrocede, sector a sector.",
+    "end_purge_2": "Tras ella se recupera memoria limpia.",
+    "end_restore_1": "Kernel TOPHAT restaurado. Contención estable.",
+    "end_restore_2": "Nivel de amenaza bajando... cero.",
+    "end_crown_1": "Acceso root concedido.",
+    "end_crown_2": "Ahora llevas la corona del kernel.",
+    "end_signoff_title": "SISTEMA ASEGURADO",
+    "end_signoff_sub": "Nivel de amenaza cero. Descansa, TOPHAT.",
     "settings_section_data_management": "DATOS",
     "settings_reset_all_data": "Reiniciar todo",
     "settings_reset_advancements": "Reiniciar avances",

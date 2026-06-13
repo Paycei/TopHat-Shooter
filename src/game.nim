@@ -175,7 +175,7 @@ proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
     if source.enemyType != etEnvironment:
       return (getEnemyConfig(source.enemyType).name, false)
   # Lasers/meteorites/boss-melee rarely carry a source object but are strongly
-  # boss-associated — attribute to a living boss when one is present. (Bullets are
+  # boss-associated: attribute to a living boss when one is present. (Bullets are
   # excluded: they pass their real shooter, so a minion bullet during a boss wave
   # must not be blamed on the boss.)
   if cause in {dcLaser, dcMeteorite, dcBossContact}:
@@ -411,7 +411,13 @@ proc completeBossWave*(game: Game) =
       game.player.wearsTophat = true
     game.selectedVictoryButton = 0
     playSound(stWaveComplete)
-    game.state = gsVictory
+    # First-ever victory plays the one-time endgame cinematic; it hands off to
+    # the "system secured" screen when it ends. If the player has already seen
+    # the outro (e.g. a later session), drop straight onto the victory screen.
+    if not globalSettings.isNil and not globalSettings.hasSeenEnding:
+      game.state = gsEndgameCinematic
+    else:
+      game.state = gsVictory
   else:
     game.state = gsPowerUpSelect
 
@@ -3498,7 +3504,7 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       (attack.projectileCount.float32 * (0.7 + rand(0.6))).int
     elif isOmegaBarrage:
       # Honor the count from boss_definitions (already tuned to 30) instead of
-      # doubling it. The old *2 re-inflated the ring to 60 bullets — at the boss's
+      # doubling it. The old *2 re-inflated the ring to 60 bullets, at the boss's
       # firing radius that leaves no player-sized gap, which made the final phase
       # an undodgeable wall and silently cancelled every nerf made to the data.
       attack.projectileCount
@@ -6336,9 +6342,18 @@ proc updateGame*(game: var Game, dt: float32) =
               let by = clampedPos.y + sin(scatter) * 28.0'f32
               let bp = clampLootPosition(bx, by, game.screenWidth, game.screenHeight)
               game.consumables.add(newConsumable(bp.x, bp.y, consumableDifficulty))
-            # Also spawn bonus particles for the jackpot visual flair
-            spawnExplosionPooled(game.particlePool, clampedPos.x, clampedPos.y,
-                                 Color(r: 255, g: 200, b: 50, a: 255), 18)
+            # JACKPOT! A golden celebratory burst that's distinct from a normal
+            # kill explosion: a layered nova core, two expanding shockwave rings,
+            # and a coin-gold spiral, capped with a short screen pop.
+            let jackpotGold  = Color(r: 255, g: 215, b: 70, a: 255)
+            let jackpotAmber = Color(r: 255, g: 150, b: 30, a: 255)
+            spawnNovaExplosionPooled(game.particlePool, clampedPos.x, clampedPos.y,
+                                     95.0'f32, jackpotGold, jackpotAmber)
+            spawnShockwavePooled(game.particlePool, clampedPos.x, clampedPos.y, 55.0'f32)
+            spawnShockwavePooled(game.particlePool, clampedPos.x, clampedPos.y, 110.0'f32)
+            spawnSpiralExplosionPooled(game.particlePool, clampedPos.x, clampedPos.y,
+                                       75.0'f32, 5, jackpotGold)
+            addShake(game.dopamine.screenShake, siMedium, jackpotGold)
 
           # Base 30% drop chance for all other kills
           elif rand(99) < 30:

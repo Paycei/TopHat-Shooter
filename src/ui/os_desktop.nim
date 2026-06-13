@@ -729,7 +729,7 @@ proc drawWallpaperCubeFace(points: array[8, Vector2], face: WallpaperCubeFace) =
 
 proc drawTriangleBothWindings(a, b, c: Vector2, color: Color) =
   ## Filled triangles are winding-sensitive when backface culling is active,
-  ## and the winding of face-local geometry flips as the cube tumbles — emit
+  ## and the winding of face-local geometry flips as the cube tumbles, emit
   ## both orders so the triangle can never be culled away.
   drawTriangle(a, b, c, color)
   drawTriangle(a, c, b, color)
@@ -842,14 +842,14 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     edgeColor = Color(r: skinDataLocal.edgeColor.r, g: skinDataLocal.edgeColor.g, b: skinDataLocal.edgeColor.b, a: 220)
     innerEdgeColor = Color(r: skinDataLocal.glowColor.r, g: skinDataLocal.glowColor.g, b: skinDataLocal.glowColor.b, a: 100)
   if skin == cskCompanion:
-    # The real Companion Cube keeps its color in the hearts only — the edge
+    # The real Companion Cube keeps its color in the hearts only, the edge
     # channels are recessed dark grey, not glowing pink.
     innerEdgeColor = Color(r: 90, g: 93, b: 104, a: 130)
   for edge in CubeEdges:
     drawLine(projected[edge[0]], projected[edge[1]], 4, innerEdgeColor)
     drawLine(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
 
-  # Companion Cube skin: the Weighted Companion Cube look — a soft-pink heart
+  # Companion Cube skin: the Weighted Companion Cube look, a soft-pink heart
   # on a light disc at the center of every visible face. Faces were depth-sorted above, so the last three are the
   # camera-facing ones; each heart is drawn in its face's projected basis so
   # it foreshortens and tracks the face as the cube tumbles.
@@ -928,7 +928,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
 
       # Classic parametric heart: width along the face's right axis, height
       # along its up axis (negated so the point sits toward the bottom edge and
-      # the lobes — the heart's top — toward the up edge on every face).
+      # the lobes: the heart's top toward the up edge on every face).
       let heartColor = Color(r: 244, g: 116, b: 150, a: 255)
       var prevHeart = fcScreen  # placeholder; set from the i = 0 sample below
       var first = true

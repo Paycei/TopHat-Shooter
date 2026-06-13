@@ -66,7 +66,7 @@ proc drawTopHat*(pos: Vector2f, radius: float32, time: float32,
   ## Every piece shares the same pivot and rotation so the hat tilts as one
   ## unit, and it stays upright while the shape spins beneath it. Shared by
   ## the lore cinematic, the in-game player (secret cosmetic), and the shop.
-  ## `accent` tints the band and outline — the kernel keeps the terminal cyan
+  ## `accent` tints the band and outline: the kernel keeps the terminal cyan
   ## default; cosmetic wearers pass their own color.
   let bob = sin(time * 2.0'f32) * radius * 0.05'f32
   let pivot = Vector2(x: pos.x, y: pos.y - radius * 0.74'f32 + bob)
@@ -105,7 +105,7 @@ proc drawTopHat*(pos: Vector2f, radius: float32, time: float32,
 
 proc drawMiniCube*(center: Vector2, size: float32, time: float32,
                    edgeColor, glowColor: Color) =
-  ## Tiny spinning wireframe cube — the desktop cube, pocket-sized. Used by
+  ## Tiny spinning wireframe cube: the desktop cube, pocket-sized. Used by
   ## the orbital-cube secret cosmetic on the player and its shop preview.
   const base = [
     (-1.0'f32, -1.0'f32, -1.0'f32), (1.0'f32, -1.0'f32, -1.0'f32),

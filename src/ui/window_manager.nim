@@ -205,6 +205,7 @@ type
     iconToExecute*: int
     pvpGameReady*: bool  # True when PvP connection is established
     replayIntro*: bool  # True when user clicked "Replay Intro" in settings
+    replayEnding*: bool  # True when user clicked "Replay Ending" in settings
 
 proc updateAllWindows*(wm: WindowManager, dt: float32,
                        screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult =
@@ -216,6 +217,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
   result.iconToExecute = -1
   result.pvpGameReady = false
   result.replayIntro = false
+  result.replayEnding = false
 
   let visibleWindows = wm.getVisibleWindows()
 
@@ -234,6 +236,9 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       if wm.settings.replayIntroRequested:
         result.replayIntro = true
         wm.settings.replayIntroRequested = false
+      if wm.settings.replayEndingRequested:
+        result.replayEnding = true
+        wm.settings.replayEndingRequested = false
 
     elif window == wm.stats.window:
       discard updateStatsWindow(wm.stats, dt, screenWidth, screenHeight, visibleWindows)
