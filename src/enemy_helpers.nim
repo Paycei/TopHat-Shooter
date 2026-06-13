@@ -262,3 +262,80 @@ proc chasePlayer*(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed
   ## Simple chase movement toward player
   let dir = (playerPos - enemy.pos).normalize()
   return enemy.pos + dir * effectiveSpeed * dt
+
+# UNIFORM SPATIAL HASH GRID: proximity-query acceleration
+#
+# Purpose: replace the O(n²) / O(bullets × enemies) "scan every enemy" loops in
+# game.nim with O(n) neighbourhood queries. A bullet only ever collides with an
+# enemy a few pixels away. This grid buckets enemy indices by screen cell so a query
+# returns only the handful of enemies in the cells overlapping a small AABB.
+#
+#  - It stores enemy *indices* into `game.enemies`, valid only for one frame.
+#    The bullet loop never adds/deletes enemies, so indices stay stable while a
+#    grid is in use (rebuild once, query many).
+#  - Queries are *non-lossy supersets*: `nearby(pos, r)` yields every index whose
+#    cell overlaps the r-radius AABB around `pos`. Callers pass r large enough to
+#    cover the real hit distance (`bullet.radius + maxEnemyRadius`), then re-run
+#    the *exact* original distance test on each candidate. Enemies the grid skips
+#    are provably beyond hit range, so skipping them changes nothing.
+#  - Off-grid (far off-screen) enemies clamp into edge cells. They can only be
+#    returned for edge queries, where the caller's distance test rejects them
+#    no false hits and any *real* collision happens on-screen where binning is
+#    exact, so no real hit is ever missed.
+#  - Buckets are reused across frames (`setLen(0)` keeps capacity) so steady-state
+#    rebuilds allocate nothing. Inline iterators yield without allocating either.
+
+type
+  SpatialGrid* = object
+    cellSize: float32
+    cols, rows: int
+    originX, originY: float32        ## world coord of cell (0,0)'s top-left corner
+    cells: seq[seq[int32]]           ## row-major cols*rows buckets, reused across rebuilds
+
+proc gridClampi(v, lo, hi: int): int {.inline.} =
+  if v < lo: lo elif v > hi: hi else: v
+
+proc rebuild*(grid: var SpatialGrid, enemies: seq[Enemy],
+              cellSize, minX, minY, maxX, maxY: float32) =
+  ## Re-bin every enemy index into the grid. O(enemy count). Call once per frame
+  ## before a batch of queries; the produced indices are valid until `game.enemies`
+  ## is next mutated (add/delete), which must not happen between rebuild and use.
+  grid.cellSize = max(1.0'f32, cellSize)
+  grid.originX = minX
+  grid.originY = minY
+  let cols = max(1, int((maxX - minX) / grid.cellSize) + 1)
+  let rows = max(1, int((maxY - minY) / grid.cellSize) + 1)
+  let needed = cols * rows
+  if grid.cells.len < needed:
+    grid.cells.setLen(needed)
+  grid.cols = cols
+  grid.rows = rows
+
+  # Clear only the in-range buckets (keep their capacity for next frame).
+  for i in 0 ..< needed:
+    grid.cells[i].setLen(0)
+
+  let invCell = 1.0'f32 / grid.cellSize
+  for idx in 0 ..< enemies.len:
+    let p = enemies[idx].pos
+    let cx = gridClampi(int((p.x - minX) * invCell), 0, cols - 1)
+    let cy = gridClampi(int((p.y - minY) * invCell), 0, rows - 1)
+    grid.cells[cy * cols + cx].add(int32(idx))
+
+iterator nearby*(grid: SpatialGrid, pos: Vector2f, radius: float32): int =
+  ## Yield every enemy index in the cells overlapping the AABB
+  ## [pos - radius, pos + radius]. A non-lossy superset of the enemies within
+  ## `radius` of `pos`; the caller must still run its precise distance test.
+  ## No allocation, safe to call per-bullet in a hot loop.
+  if grid.cols > 0 and grid.rows > 0:
+    let invCell = 1.0'f32 / grid.cellSize
+    let r = max(0.0'f32, radius)
+    let minCx = gridClampi(int((pos.x - r - grid.originX) * invCell), 0, grid.cols - 1)
+    let maxCx = gridClampi(int((pos.x + r - grid.originX) * invCell), 0, grid.cols - 1)
+    let minCy = gridClampi(int((pos.y - r - grid.originY) * invCell), 0, grid.rows - 1)
+    let maxCy = gridClampi(int((pos.y + r - grid.originY) * invCell), 0, grid.rows - 1)
+    for cy in minCy .. maxCy:
+      let rowBase = cy * grid.cols
+      for cx in minCx .. maxCx:
+        for idx in grid.cells[rowBase + cx]:
+          yield int(idx)

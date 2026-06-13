@@ -1030,6 +1030,8 @@ type
     currencyIndicators*: seq[CurrencyIndicator]
     time*: float32
     frameCount*: int  # Frame counter for satellite optimizations
+    perfUpdateMs*: float32  # Smoothed wall-clock ms spent in updateGame (debug overlay)
+    perfDrawMs*: float32    # Smoothed wall-clock ms spent in drawGame   (debug overlay)
     spawnTimer*: float32
     bossTimer*: float32
     bossCount*: int

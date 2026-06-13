@@ -1057,7 +1057,7 @@ proc drawCustomBoss*(enemy: Enemy) =
     glow(r*0.08, Color(r: 255, g: 180, b: 255, a: 255))
 
   of 6:  # THE CHAIN REACTOR
-    # ---- Electric-storm helpers (immediate-mode jagged arcs, no RNG state) ----
+    # Electric-storm helpers (immediate-mode jagged arcs, no RNG state)
     # Voltage rises as the Reactor loses HP: arcs get longer and more violent.
     let volt   = 1.0'f32 + (1.0'f32 - hpPct) * 1.4'f32
     # Quantize time so arcs "snap" to a fresh jagged shape ~22x/sec -> crackle.

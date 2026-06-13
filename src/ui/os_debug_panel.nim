@@ -275,6 +275,30 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
 
   yOffset += 18
 
+  # Update / draw timing split (ms): shows whether simulation or rendering owns
+  # the frame. The spatial-grid-accelerated loops (collision, separation, homing)
+  # live in 'upd', so their effect shows there; if 'draw' dominates, the frame
+  # ceiling is draw-calls, not simulation -- threading the sim would do nothing.
+  block:
+    let updMs = game.perfUpdateMs
+    let drawMs = game.perfDrawMs
+    let updColor =
+      if updMs <= 4.0'f32: Color(r: 0, g: 255, b: 120, a: 255)
+      elif updMs <= 9.0'f32: Color(r: 255, g: 220, b: 100, a: 255)
+      else: Color(r: 255, g: 100, b: 100, a: 255)
+    let drawColor =
+      if drawMs <= 6.0'f32: Color(r: 0, g: 255, b: 120, a: 255)
+      elif drawMs <= 12.0'f32: Color(r: 255, g: 220, b: 100, a: 255)
+      else: Color(r: 255, g: 100, b: 100, a: 255)
+    drawText("upd", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
+            Color(r: 180, g: 200, b: 220, a: 255))
+    drawText(formatFloat(updMs.float, ffDecimal, 1) & "ms",
+            finalPanelX + DEBUG_PANEL_PADDING + 30, yOffset, 10, updColor)
+    drawText("draw", entityX, yOffset, 9, Color(r: 180, g: 200, b: 220, a: 255))
+    drawText(formatFloat(drawMs.float, ffDecimal, 1) & "ms",
+            entityX + 32, yOffset, 10, drawColor)
+  yOffset += 16
+
   # ACTIVE EFFECTS
   if activeTimers > 0:
     # Section separator line - cyan

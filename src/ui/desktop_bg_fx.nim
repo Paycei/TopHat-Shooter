@@ -25,7 +25,7 @@ proc wrapF(value, limit: float32): float32 =
 proc alphaU8(value: float32): uint8 =
   uint8(clamp(value, 0.0'f32, 255.0'f32))
 
-# ---------------------------------------------------------------- Neon City
+# Neon City
 
 proc drawNeonCityFx(w, h, time: float32) =
   let horizon = h * 0.80'f32
@@ -95,7 +95,7 @@ proc drawNeonCityFx(w, h, time: float32) =
     drawSoftGlow(sx + signW * 0.5'f32, sy, signW * 1.6'f32,
                  withAlpha(c, alphaU8(46.0'f32 * flick * broken)), 0.6)
 
-# ---------------------------------------------------------------- Data Rain
+# Data Rain
 
 proc drawDataRainFx(w, h, time: float32) =
   const glyphs = "01<>+#$%&=?*"
@@ -127,7 +127,7 @@ proc drawDataRainFx(w, h, time: float32) =
       drawSoftGlow(colX + fontSize.float32 * 0.4'f32, headY + cell * 0.5'f32, cell * 1.6'f32,
                    Color(r: 60, g: 255, b: 120, a: 36), 0.5)
 
-# ---------------------------------------------------------------- Deep Void
+# Deep Void
 
 proc drawDeepVoidFx(w, h, time: float32) =
   # Slowly drifting, breathing nebulae
@@ -177,7 +177,7 @@ proc drawDeepVoidFx(w, h, time: float32) =
                Vector2(x: px, y: py), 2.0'f32, streakCol)
       drawSoftGlow(px, py, 9.0'f32, withAlpha(streakCol, alphaU8(90.0'f32 * fade)), 0.7)
 
-# ---------------------------------------------------------------- System Sunrise
+# System Sunrise
 
 proc drawSunriseFx(w, h, time: float32) =
   let horizon = h * 0.64'f32
@@ -222,7 +222,7 @@ proc drawSunriseFx(w, h, time: float32) =
              1.0'f32 + t * 1.4'f32,
              Color(r: 255, g: 90, b: 170, a: alphaU8(26.0'f32 + t * 120.0'f32)))
 
-# ---------------------------------------------------------------- Neural Network
+# Neural Network
 
 proc drawNeuralNetFx(w, h, time: float32) =
   const NodeCount = 18
@@ -261,7 +261,7 @@ proc drawNeuralNetFx(w, h, time: float32) =
     if i mod 3 == 0:
       drawSoftGlow(px[i], py[i], r * 7.0'f32, Color(r: 0, g: 220, b: 200, a: 36), 0.5)
 
-# ---------------------------------------------------------------- Inferno Core
+# Inferno Core
 
 proc drawInfernoFx(w, h, time: float32) =
   # Pulsing heat welling up from the bottom of the screen
@@ -309,7 +309,7 @@ proc drawInfernoFx(w, h, time: float32) =
                 Color(r: 255, g: 70, b: 20, a: alphaU8(170.0'f32 * fade * flicker))
     drawCircle(Vector2(x: xPos, y: yPos), size, col)
 
-# ---------------------------------------------------------------- dispatcher
+# Dispatcher
 
 proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int32,
                            time: float32) =

@@ -36,7 +36,7 @@ const
   CHANGELOG_LINE_HEIGHT = 20
   CHANGELOG_SCROLL_STEP = 40
 
-# --- Curated changelog data -------------------------------------------------
+# Curated changelog data
 # Newest version first. Entry text is player-facing prose distilled from the
 # commit history since the last release tag (Release552), not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
@@ -122,7 +122,7 @@ proc newChangelogWindow*(screenWidth, screenHeight: int): ChangelogWindow =
     scrollOffset: 0
   )
 
-# --- Render-line model ------------------------------------------------------
+# Render-line model
 # The changelog is flattened to a flat list of drawable lines each frame so
 # wrapping and the current language are always up to date.
 type

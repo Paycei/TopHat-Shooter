@@ -1,4 +1,4 @@
-import raylib, rlgl, random, math, tables, strutils
+import raylib, rlgl, random, math, tables, strutils, algorithm
 import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, particle_types, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints
 
 # Configurable boss wave enemy spawn reduction
@@ -13,6 +13,45 @@ const DEATH_FADE_DURATION = 0.65'f32
 const DEATH_TOTAL_DURATION = DEATH_SLOW_DURATION + DEATH_SPEEDUP_DURATION + DEATH_FADE_DURATION
 const DEATH_SLOW_SCALE = 0.16'f32
 const DEATH_FAST_SCALE = 1.35'f32
+
+# Spatial-grid acceleration (SpatialGrid is in enemy_helpers.nim)
+# One grid + scratch set, reused every frame to bucket game.enemies by screen
+# cell so the bullet-vs-enemy and enemy-vs-enemy proximity loops run in ~O(n)
+# instead of O(bullets*enemies) / O(enemies^2). Module-global so steady-state
+# rebuilds allocate nothing (buckets keep their capacity across frames).
+const GRID_CELL_SIZE = 96.0'f32  # px. Comfortably exceeds any hit radius, so the
+                                 # neighbourhood query is a non-lossy superset,
+                                 # while staying small enough that buckets are sparse.
+const GRID_MARGIN = 200.0'f32    # world bounds extend this far past the screen so
+                                 # enemies spawning just off-screen still bin exactly.
+const GRID_MIN_ENEMIES = 24      # below this the per-bullet grid query + sort costs
+                                 # more than a plain full scan, so the bullet loop
+                                 # falls back to checking all enemies (it's already
+                                 # cheap at low counts, and the frame has headroom).
+
+var enemyGrid: SpatialGrid
+var gridBossIndices: seq[int]       # bosses are always force-checked: their weak-point
+                                    # targets can sit beyond the body hit radius.
+var gridMaxEnemyRadius: float32     # max enemy.radius          -> bullet-hit query reach
+var gridMaxCollisionRadius: float32 # max enemy.collisionRadius -> separation query reach
+var gridCandidates: seq[int]        # reused per-bullet candidate buffer (sorted+deduped)
+
+proc rebuildEnemyGrid(game: Game) =
+  ## Re-bucket every enemy and recompute the per-frame query reaches + boss list
+  ## in a single O(enemy count) pass. The resulting indices are valid only until
+  ## game.enemies is next mutated, so rebuild *immediately* before a query batch.
+  enemyGrid.rebuild(game.enemies, GRID_CELL_SIZE,
+                    -GRID_MARGIN, -GRID_MARGIN,
+                    game.screenWidth.float32 + GRID_MARGIN,
+                    game.screenHeight.float32 + GRID_MARGIN)
+  gridBossIndices.setLen(0)
+  gridMaxEnemyRadius = 0.0'f32
+  gridMaxCollisionRadius = 0.0'f32
+  for idx in 0 ..< game.enemies.len:
+    let e = game.enemies[idx]
+    if e.radius > gridMaxEnemyRadius: gridMaxEnemyRadius = e.radius
+    if e.collisionRadius > gridMaxCollisionRadius: gridMaxCollisionRadius = e.collisionRadius
+    if e.isBoss: gridBossIndices.add(idx)
 
 proc getDeathSequenceTimeScale(timer: float32): float32 =
   if timer < DEATH_SLOW_DURATION:
@@ -5113,6 +5152,13 @@ proc updateBossArenaGameplay(game: var Game, dt: float32) =
 
 # MAIN GAME UPDATE LOOP
 proc updateGame*(game: var Game, dt: float32) =
+  # Profiling: smoothed wall-clock ms spent here, surfaced in the debug panel so
+  # the update-vs-draw split is visible -- i.e. whether the spatial-grid-accelerated
+  # simulation loops are a meaningful slice of the frame or draw-calls dominate.
+  # `defer` captures every exit, including the early returns below.
+  let perfStart = getTime()
+  defer: game.perfUpdateMs = game.perfUpdateMs * 0.9'f32 +
+                             float32((getTime() - perfStart) * 1000.0) * 0.1'f32
   if game.state == gsDeathSequence:
     updateDeathSequencePlayback(game, dt)
     return
@@ -6632,9 +6678,21 @@ proc updateGame*(game: var Game, dt: float32) =
     enemyIdx += 1
 
   # Enemy-to-enemy collision detection (prevents overlapping)
-  # Uses smaller collisionRadius for more natural-feeling spacing
+  # Uses smaller collisionRadius for more natural-feeling spacing.
+  #
+  # Spatial-grid accelerated: instead of testing every enemy against every other
+  # (O(enemies^2)), each enemy only tests neighbours in nearby cells. The query
+  # radius -- this enemy's reach plus the largest collision radius on screen --
+  # is guaranteed to be >= the minDist of any genuinely overlapping pair, so no
+  # overlap that the old loop would resolve is skipped. The `j > i` guard keeps
+  # every unordered pair processed exactly once, and the push math is unchanged.
+  # (Like the original it stays a single-pass relaxation -- it reads live, already
+  # pushed positions -- so the soft spacing converges over frames exactly as before.)
+  rebuildEnemyGrid(game)
   for i in 0..<game.enemies.len:
-    for j in (i + 1)..<game.enemies.len:
+    let queryRadius = game.enemies[i].collisionRadius + gridMaxCollisionRadius
+    for j in enemyGrid.nearby(game.enemies[i].pos, queryRadius):
+      if j <= i: continue
       let dist = distance(game.enemies[i].pos, game.enemies[j].pos)
       let minDist = game.enemies[i].collisionRadius + game.enemies[j].collisionRadius
 
@@ -7260,6 +7318,14 @@ proc updateGame*(game: var Game, dt: float32) =
           # Already deleted, continue
           i -= 1
 
+  # Rebuild the spatial grid now that all enemy movement for this frame is done.
+  # The bullet loop below queries it instead of scanning every enemy per bullet.
+  # game.enemies is never added-to or deleted-from inside the bullet loop (enemy
+  # removal happens earlier, in the enemy-update loop), so these indices stay
+  # valid for the whole loop, and enemy positions only drift by knockback (a
+  # couple of pixels) -- far less than a cell -- so the buckets stay accurate.
+  rebuildEnemyGrid(game)
+
   # Update bullets
   i = 0
   while i < game.bullets.len:
@@ -7272,11 +7338,15 @@ proc updateGame*(game: var Game, dt: float32) =
         # HEAVY NERF: Much shorter tracking range and weaker turn rate
         let trackingRange = 120.0
 
-        # Find nearest enemy that HASN'T been hit by this bullet yet
+        # Find nearest enemy that HASN'T been hit by this bullet yet.
+        # Spatial-grid query: only enemies whose cell is within trackingRange can
+        # qualify, so we test a handful instead of every enemy. The query radius
+        # equals the (centre-to-centre) trackingRange, a non-lossy superset, so the
+        # nearest qualifying enemy is exactly the one the old full scan would pick.
         var nearestEnemy: Enemy = nil
         var nearestDist = 999999.0
 
-        for enemyIdx in 0..<game.enemies.len:
+        for enemyIdx in enemyGrid.nearby(bullet.pos, trackingRange.float32):
           let enemy = game.enemies[enemyIdx]
           let dist = distance(bullet.pos, enemy.pos)
 
@@ -7431,7 +7501,39 @@ proc updateGame*(game: var Game, dt: float32) =
     # Check bullet-enemy collision
     var hitEnemy = false
     if bullet.fromPlayer:
-      for j in 0..<game.enemies.len:
+      # Candidate enemies for this bullet, from the spatial grid: those whose cell
+      # is within hit range (bullet.radius + the largest enemy radius on screen),
+      # PLUS every boss. Bosses are always included because a boss weak-point target
+      # can sit beyond the body radius the grid keys on. After sorting + de-duping,
+      # iterating `gridCandidates` is identical to the old `0..<enemies.len` scan
+      # *restricted to in-range enemies*, in the same ascending index order -- and
+      # that is the same behaviour as the full scan, because the only gate before
+      # any state change is the distance test, which every skipped (far) enemy fails.
+      gridCandidates.setLen(0)
+      if game.enemies.len <= GRID_MIN_ENEMIES:
+        # Few enemies on screen: a full scan is already cheap, and skipping the
+        # grid query + sort + dedup avoids any per-bullet overhead. The resulting
+        # 0..<len index list is inherently sorted and unique -- so this branch is
+        # byte-for-byte the original loop.
+        for idx in 0 ..< game.enemies.len:
+          gridCandidates.add(idx)
+      else:
+        for cand in enemyGrid.nearby(bullet.pos, bullet.radius + gridMaxEnemyRadius):
+          gridCandidates.add(cand)
+        for bossIdx in gridBossIndices:
+          gridCandidates.add(bossIdx)
+        sort(gridCandidates)
+        var uniqueLen = 0
+        var prevCand = -1
+        for k in 0 ..< gridCandidates.len:
+          let v = gridCandidates[k]
+          if v != prevCand:
+            gridCandidates[uniqueLen] = v
+            inc uniqueLen
+            prevCand = v
+        gridCandidates.setLen(uniqueLen)
+
+      for j in gridCandidates:
         # Skip if this bullet already hit this enemy (using enemy ID)
         if game.enemies[j].id in bullet.hitEnemies:
           continue
@@ -8550,6 +8652,11 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy) =
     drawText(shieldText, shieldX + 8, shieldY + 2, 10, White)
 
 proc drawGame*(game: Game) =
+  # Profiling counterpart to updateGame: smoothed wall-clock ms spent drawing.
+  # (game is a ref, so mutating this field through the non-var binding is fine.)
+  let perfStart = getTime()
+  defer: game.perfDrawMs = game.perfDrawMs * 0.9'f32 +
+                           float32((getTime() - perfStart) * 1000.0) * 0.1'f32
   # Calculate screen shake offset
   var shakeOffsetX: float32 = 0
   var shakeOffsetY: float32 = 0

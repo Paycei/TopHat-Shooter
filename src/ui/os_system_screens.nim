@@ -146,7 +146,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
           Color(r: 210, g: 220, b: 235, a: 255))
   yOffset += 30
 
-  # ---- Cause of termination banner (headline of the redesign) ----
+  # Cause of termination banner (headline of the redesign)
   let cause = composeDeathCause(game)
   const bannerH = 66
   let bannerPulse = sin(game.time * 3.0) * 0.25 + 0.75
