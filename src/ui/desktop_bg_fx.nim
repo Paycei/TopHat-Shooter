@@ -309,6 +309,173 @@ proc drawInfernoFx(w, h, time: float32) =
                 Color(r: 255, g: 70, b: 20, a: alphaU8(170.0'f32 * fade * flicker))
     drawCircle(Vector2(x: xPos, y: yPos), size, col)
 
+# Aperture Test
+
+proc mixCol(a, b: Color, t: float32): Color =
+  ## Linear blend between two colours; t is clamped to [0,1].
+  let k = clamp(t, 0.0'f32, 1.0'f32)
+  Color(r: uint8(a.r.float32 + (b.r.float32 - a.r.float32) * k),
+        g: uint8(a.g.float32 + (b.g.float32 - a.g.float32) * k),
+        b: uint8(a.b.float32 + (b.b.float32 - a.b.float32) * k),
+        a: uint8(a.a.float32 + (b.a.float32 - a.a.float32) * k))
+
+proc drawAperturePortal(cx, cy, rx, ry, time: float32, rim, core: Color,
+                        spin: float32) =
+  ## A single oval portal: outer halo, a filled swirling event-horizon, and a
+  ## bright rim of light rotating around the edge. Built from primitives
+  ## (chord scanlines + perimeter dots) so it needs no ellipse API.
+  let scale = max(rx, ry) / 70.0'f32   # keep detail proportional to screen size
+
+  # Outer halo bleeding onto the chamber wall
+  drawSoftGlow(cx, cy, max(rx, ry) * 2.0'f32, withAlpha(rim, 70'u8), 0.7)
+
+  # Filled interior: horizontal chords of the ellipse, luminous toward the rim
+  # and darker at the centre (the "depth"), with a faint vertical shimmer.
+  const Rows = 30
+  for i in 0..Rows:
+    let fy = (i.float32 / Rows.float32) * 2.0'f32 - 1.0'f32   # -1 .. 1
+    let half = rx * sqrt(max(0.0'f32, 1.0'f32 - fy * fy))
+    if half < 0.5'f32: continue
+    let yy = cy + fy * ry
+    let edge = abs(fy)
+    let shimmer = 0.5'f32 + 0.5'f32 * sin(fy * 6.0'f32 - time * spin * 1.4'f32)
+    let bright = 0.85'f32 + 0.15'f32 * shimmer
+    let baseCol = mixCol(core, rim, edge * 0.85'f32)
+    # Fully opaque fill so the wall panels/seams never show through the portal;
+    # the swirl animates via brightness instead of alpha. Thickness tracks the
+    # chord spacing (scales with ry) so chords overlap into a solid fill from the
+    # 64px shop card up to 4K fullscreen.
+    let col = Color(r: alphaU8(baseCol.r.float32 * bright),
+                    g: alphaU8(baseCol.g.float32 * bright),
+                    b: alphaU8(baseCol.b.float32 * bright), a: 255)
+    let lineW = 2.0'f32 * ry / Rows.float32 + 1.0'f32
+    drawLine(Vector2(x: cx - half, y: yy), Vector2(x: cx + half, y: yy),
+             lineW, col)
+
+  # Rim of light: dots around the perimeter, brightness banded so the band spins
+  const RimSegs = 60
+  for k in 0..<RimSegs:
+    let ang = k.float32 / RimSegs.float32 * (PI * 2.0'f32)
+    let ex = cx + cos(ang) * rx
+    let ey = cy + sin(ang) * ry
+    let band = sin(ang * 3.0'f32 - time * spin) * 0.5'f32 + 0.5'f32
+    drawCircle(Vector2(x: ex, y: ey), (0.9'f32 + 1.8'f32 * band) * scale,
+               withAlpha(mixCol(rim, core, band * 0.6'f32),
+                         alphaU8(110.0'f32 + 130.0'f32 * band)))
+
+  # Two bright sparks orbiting just outside the rim
+  for s in 0..<2:
+    let ang = time * spin * 0.25'f32 + s.float32 * PI
+    let ox = cx + cos(ang) * rx * 1.08'f32
+    let oy = cy + sin(ang) * ry * 1.08'f32
+    drawCircle(Vector2(x: ox, y: oy), 1.6'f32 * scale, withAlpha(core, 230'u8))
+    drawSoftGlow(ox, oy, 8.0'f32 * scale, withAlpha(rim, 120'u8), 0.6)
+
+proc drawWallPanel(px, py, size, gap, base: float32, recessed: bool,
+                   tintR, tintG, tintB, tintAmt: float32) =
+  ## One Aperture wall panel: a light tile inset in the dark grout, with a
+  ## bevel (lit top-left / shadowed bottom-right, reversed when recessed) and
+  ## an optional colour bleed from a nearby portal.
+  let b = if recessed: base * 0.62'f32 else: base
+  # Cool off-white, nudged toward the portal colour by tintAmt.
+  let rr = b * 0.95'f32 + (tintR - b * 0.95'f32) * tintAmt
+  let gg = b * 0.98'f32 + (tintG - b * 0.98'f32) * tintAmt
+  let bb = b * 1.06'f32 + (tintB - b * 1.06'f32) * tintAmt
+  let panelColor = Color(r: alphaU8(rr), g: alphaU8(gg), b: alphaU8(bb), a: 255)
+
+  let x0 = px + gap
+  let y0 = py + gap
+  let s = size - gap * 2.0'f32
+  if s < 1.0'f32: return
+  drawRectangle(x0.int32, y0.int32, max(1'i32, s.int32), max(1'i32, s.int32), panelColor)
+
+  # Bevel: highlight on two edges, shadow on the opposite two.
+  let bw = max(1.0'f32, size * 0.035'f32)
+  let hi = withAlpha(Color(r: 255, g: 255, b: 255, a: 255),
+                     if recessed: 22'u8 else: 55'u8)
+  let sh = withAlpha(Color(r: 0, g: 0, b: 0, a: 255),
+                     if recessed: 80'u8 else: 55'u8)
+  let topLeft  = if recessed: sh else: hi   # extruded panels catch light top-left
+  let botRight = if recessed: hi else: sh
+  drawLine(Vector2(x: x0, y: y0), Vector2(x: x0 + s, y: y0), bw, topLeft)        # top
+  drawLine(Vector2(x: x0, y: y0), Vector2(x: x0, y: y0 + s), bw, topLeft)        # left
+  drawLine(Vector2(x: x0, y: y0 + s), Vector2(x: x0 + s, y: y0 + s), bw, botRight) # bottom
+  drawLine(Vector2(x: x0 + s, y: y0), Vector2(x: x0 + s, y: y0 + s), bw, botRight) # right
+
+proc drawPortalFx(w, h, time: float32) =
+  let rimBlue    = Color(r: 60,  g: 150, b: 255, a: 255)
+  let coreBlue   = Color(r: 190, g: 230, b: 255, a: 255)
+  let rimOrange  = Color(r: 255, g: 140, b: 30,  a: 255)
+  let coreOrange = Color(r: 255, g: 220, b: 150, a: 255)
+
+  # Portal geometry first, so the wall can pick up coloured light from them.
+  let portalRx = min(w, h) * 0.085'f32
+  let portalRy = min(w, h) * 0.175'f32
+  let breathe = 1.0'f32 + 0.03'f32 * sin(time * 1.3'f32)   # gentle size pulse
+  let bx = w * 0.2'f32
+  let by = h * 0.5'f32
+  let ox = w * 0.8'f32
+  let oy = h * 0.5'f32
+  let glowR = portalRy * 1.55'f32   # reach of each portal's light onto the wall
+
+  # --- Aperture test-chamber wall ---
+  # Dark grout fills the whole wall; the light panels are inset on top, so the
+  # gaps between them read as recessed seams.
+  drawRectangle(0, 0, w.int32, h.int32, Color(r: 24, g: 28, b: 35, a: 255))
+  const Cols = 10
+  let tile = w / Cols.float32
+  let rowsN = int(ceil(h / tile)) + 1
+  let gap = max(1.0'f32, tile * 0.018'f32)   # thin recessed seam between panels
+  for gyi in 0..<rowsN:
+    for gxi in 0..<Cols:
+      let cellX = gxi.float32 * tile
+      let cellY = gyi.float32 * tile
+      let ccx = cellX + tile * 0.5'f32
+      let ccy = cellY + tile * 0.5'f32
+      let seed = gxi.float32 * 12.7'f32 + gyi.float32 * 31.3'f32
+      let recessed = hash01(seed + 5.0'f32) > 0.85'f32
+      let base = 198.0'f32 + (hash01(seed) - 0.5'f32) * 16.0'f32
+      # Light bleed: nearer portal wins, blended into the panel tint.
+      let tB = clamp(1.0'f32 - sqrt((ccx-bx)*(ccx-bx) + (ccy-by)*(ccy-by)) / glowR, 0.0'f32, 1.0'f32)
+      let tO = clamp(1.0'f32 - sqrt((ccx-ox)*(ccx-ox) + (ccy-oy)*(ccy-oy)) / glowR, 0.0'f32, 1.0'f32)
+      var tintR, tintG, tintB, tintAmt = 0.0'f32
+      if tB >= tO and tB > 0.0'f32:
+        tintR = rimBlue.r.float32; tintG = rimBlue.g.float32; tintB = rimBlue.b.float32
+        tintAmt = tB * 0.33'f32
+      elif tO > 0.0'f32:
+        tintR = rimOrange.r.float32; tintG = rimOrange.g.float32; tintB = rimOrange.b.float32
+        tintAmt = tO * 0.33'f32
+      drawWallPanel(cellX, cellY, tile, gap, base, recessed,
+                    tintR, tintG, tintB, tintAmt)
+
+  # The two portals, facing each other across the chamber
+  drawAperturePortal(bx, by, portalRx * breathe, portalRy * breathe, time,
+                     rimBlue, coreBlue, 2.2'f32)
+  drawAperturePortal(ox, oy, portalRx * breathe, portalRy * breathe, time,
+                     rimOrange, coreOrange, -2.0'f32)
+
+  # Energy motes streaming between the portals along two bowed arcs, colour
+  # lerping blue -> orange so each reads as matter passing through.
+  const Motes = 18
+  let cxp = (bx + ox) * 0.5'f32
+  for m in 0..<Motes:
+    let lane = m mod 2
+    let bow = if lane == 0: -h * 0.20'f32 else: h * 0.18'f32
+    let dir = if lane == 0: 1.0'f32 else: -1.0'f32   # alternate flow direction
+    var tt = fract01(time * 0.16'f32 + m.float32 / Motes.float32)
+    if dir < 0.0'f32: tt = 1.0'f32 - tt
+    # quadratic bezier from blue (bx,by) via (cxp, by+bow) to orange (ox,oy)
+    let u = 1.0'f32 - tt
+    let px = u * u * bx + 2.0'f32 * u * tt * cxp + tt * tt * ox
+    let py = u * u * by + 2.0'f32 * u * tt * (by + bow) + tt * tt * oy
+    let col = mixCol(coreBlue, coreOrange, tt)
+    let edgeFade = sin(tt * PI)   # fade in/out near the portal mouths
+    let sz = (1.4'f32 + 1.2'f32 * edgeFade) * (min(w, h) / 600.0'f32)
+    drawCircle(Vector2(x: px, y: py), max(1.0'f32, sz),
+               withAlpha(col, alphaU8(200.0'f32 * edgeFade)))
+    if m mod 3 == 0:
+      drawSoftGlow(px, py, 6.0'f32, withAlpha(col, alphaU8(80.0'f32 * edgeFade)), 0.5)
+
 # Dispatcher
 
 proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int32,
@@ -324,3 +491,4 @@ proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int
   of dbgSunrise: drawSunriseFx(w, h, time)
   of dbgOcean: drawNeuralNetFx(w, h, time)
   of dbgInferno: drawInfernoFx(w, h, time)
+  of dbgPortal: drawPortalFx(w, h, time)

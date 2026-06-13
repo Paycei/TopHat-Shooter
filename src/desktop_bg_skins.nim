@@ -12,7 +12,8 @@ type
     dbgVoid,      ## Deep Void: dark space with stars
     dbgSunrise,   ## System Sunrise: warm orange horizon
     dbgOcean,     ## Neural Network: cool blue interconnected nodes
-    dbgInferno    ## Inferno Core: red volcanic heat
+    dbgInferno,   ## Inferno Core: red volcanic heat
+    dbgPortal     ## Aperture Test: blue/orange portals (Portal reference)
 
   DesktopBgData* = object
     name*: string
@@ -65,6 +66,14 @@ proc initDesktopBgSkins*() =
     primaryColor: Color(r: 255, g: 60,  b: 0,   a: 255),
     accentColor:  Color(r: 255, g: 200, b: 0,   a: 255),
     bgColor:      Color(r: 16,  g: 4,   b: 2,   a: 255))
+
+  # Aperture Science test chamber: the two signature portal colours, a cool
+  # blue (primary) and a warm orange (accent), over a dark panelled wall.
+  desktopBgDatabase[dbgPortal] = DesktopBgData(
+    name: t("dbg_portal"), description: t("dbg_portal_desc"),
+    primaryColor: Color(r: 60,  g: 150, b: 255, a: 255),
+    accentColor:  Color(r: 255, g: 150, b: 40,  a: 255),
+    bgColor:      Color(r: 6,   g: 9,   b: 16,  a: 255))
 
 proc getDesktopBgData*(bgType: DesktopBgType): DesktopBgData =
   desktopBgDatabase[bgType]

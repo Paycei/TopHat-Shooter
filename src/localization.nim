@@ -2179,6 +2179,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dbg_ocean_desc": "Cool blue interconnected nodes",
     "dbg_inferno": "Inferno Core",
     "dbg_inferno_desc": "Red volcanic heat waves",
+    "dbg_portal": "Aperture Test",
+    "dbg_portal_desc": "Twin portals trade light across the chamber",
 
     # Cube Skins
     "csk_default": "System Unit",
@@ -3637,6 +3639,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dbg_ocean_desc": "Nodos azules interconectados",
     "dbg_inferno": "Núcleo Infernal",
     "dbg_inferno_desc": "Ondas de calor volcánico rojas",
+    "dbg_portal": "Prueba Aperture",
+    "dbg_portal_desc": "Portales gemelos intercambian luz en la cámara",
 
     # Cube Skins
     "csk_default": "Unidad del Sistema",

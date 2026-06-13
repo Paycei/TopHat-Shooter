@@ -104,9 +104,12 @@ proc drawTopHat*(pos: Vector2f, radius: float32, time: float32,
                 Vector2(x: crownW * 0.5'f32, y: bandH + brimH), tilt, bandColor)
 
 proc drawMiniCube*(center: Vector2, size: float32, time: float32,
-                   edgeColor, glowColor: Color) =
+                   edgeColor, glowColor: Color,
+                   heartColor: Color = Color(r: 0, g: 0, b: 0, a: 0)) =
   ## Tiny spinning wireframe cube: the desktop cube, pocket-sized. Used by
   ## the orbital-cube secret cosmetic on the player and its shop preview.
+  ## When `heartColor` is opaque (the Companion Cube skin) a small Portal-style
+  ## heart is painted on the camera-facing side.
   const base = [
     (-1.0'f32, -1.0'f32, -1.0'f32), (1.0'f32, -1.0'f32, -1.0'f32),
     (1.0'f32, 1.0'f32, -1.0'f32), (-1.0'f32, 1.0'f32, -1.0'f32),
@@ -136,6 +139,77 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
     drawLine(pts[e[0]], pts[e[1]], 2.6'f32,
              Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 110))
     drawLine(pts[e[0]], pts[e[1]], 1.2'f32, edgeColor)
+
+  # Companion Cube skin: a soft-pink heart on a light disc at the centre of
+  # every camera-facing face, drawn in that face's own projected basis so it
+  # foreshortens and tumbles with the cube exactly like the full-size desktop
+  # cube. A signed-area back-face cull drops the hidden faces and fades each
+  # heart to a point at the silhouette, so the visible/hidden hand-off is
+  # seamless rather than popping in and out.
+  if heartColor.a > 0:
+    const faces = [
+      [0, 1, 2, 3], [4, 5, 6, 7],   # -Z, +Z
+      [0, 3, 7, 4], [1, 2, 6, 5],   # -X, +X
+      [0, 1, 5, 4], [3, 2, 6, 7]]   # -Y, +Y
+    # Rotate a cube-space direction and return its orthographic screen offset.
+    proc rotProj(x, y, z: float32): Vector2 =
+      let y2 = y * cax - z * sax
+      let z2 = y * sax + z * cax
+      let x3 = x * cay + z2 * say
+      Vector2(x: x3 * size, y: y2 * size)
+    for f in faces:
+      # Face normal in cube space is the face centre (cube centred at origin).
+      let nx = (base[f[0]][0] + base[f[1]][0] + base[f[2]][0] + base[f[3]][0]) * 0.25'f32
+      let ny = (base[f[0]][1] + base[f[1]][1] + base[f[2]][1] + base[f[3]][1]) * 0.25'f32
+      let nz = (base[f[0]][2] + base[f[1]][2] + base[f[2]][2] + base[f[3]][2]) * 0.25'f32
+      # Canonical "up": side faces point their hearts toward the top ring; the
+      # top/bottom faces (normal ±Y) fall back to +Z. right = up × normal keeps
+      # a uniform handedness, so a camera-facing face projects to positive area.
+      var ux, uy, uz: float32
+      if abs(ny) < 0.5'f32:
+        ux = 0.0'f32; uy = -1.0'f32; uz = 0.0'f32
+      else:
+        ux = 0.0'f32; uy = 0.0'f32; uz = 1.0'f32
+      let rx = uy * nz - uz * ny
+      let ry = uz * nx - ux * nz
+      let rz = ux * ny - uy * nx
+      let fc = rotProj(nx, ny, nz)
+      let fcScreen = Vector2(x: center.x + fc.x, y: center.y + fc.y)
+      let sR = rotProj(rx, ry, rz)
+      let sU = rotProj(ux, uy, uz)
+      # Back-face cull: a camera-facing face has positive signed screen area,
+      # which also shrinks to zero at the silhouette (heart fades to a point).
+      if sR.x * sU.y - sR.y * sU.x <= 0.0'f32:
+        continue
+      # Light recessed disc behind the heart (a circle in the face plane).
+      let discColor = Color(r: 222, g: 224, b: 229, a: 255)
+      var prevDisc = Vector2(x: fcScreen.x + sR.x * 0.55'f32, y: fcScreen.y + sR.y * 0.55'f32)
+      for i in 1 .. 12:
+        let a = i.float32 / 12.0'f32 * PI * 2.0'f32
+        let dx = cos(a) * 0.55'f32
+        let dy = sin(a) * 0.55'f32
+        let cur = Vector2(x: fcScreen.x + sR.x * dx + sU.x * dy,
+                          y: fcScreen.y + sR.y * dx + sU.y * dy)
+        drawTriangle(fcScreen, prevDisc, cur, discColor)
+        drawTriangle(fcScreen, cur, prevDisc, discColor)
+        prevDisc = cur
+      # Classic parametric heart: width along the face's right axis, height
+      # along its up axis (negated so the point sits toward the bottom edge).
+      var prevHeart = Vector2()
+      var first = true
+      for i in 0 .. 24:
+        let t = i.float32 / 24.0'f32 * PI * 2.0'f32
+        let hx = 0.34'f32 * (16.0'f32 * pow(sin(t), 3.0'f32)) / 17.0'f32
+        let yc = (13.0'f32 * cos(t) - 5.0'f32 * cos(2.0'f32 * t) -
+                  2.0'f32 * cos(3.0'f32 * t) - cos(4.0'f32 * t)) / 17.0'f32
+        let hy = (-yc - 0.15'f32) * 0.34'f32
+        let cur = Vector2(x: fcScreen.x + sR.x * hx - sU.x * hy,
+                          y: fcScreen.y + sR.y * hx - sU.y * hy)
+        if not first:
+          drawTriangle(fcScreen, prevHeart, cur, heartColor)
+          drawTriangle(fcScreen, cur, prevHeart, heartColor)
+        prevHeart = cur
+        first = false
 
 proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
                      baseColor, secondaryColor, coreColor: Color,

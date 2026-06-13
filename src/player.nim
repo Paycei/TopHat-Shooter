@@ -558,7 +558,9 @@ proc drawPlayer*(player: Player) =
     let cubeCenter = Vector2(
       x: player.pos.x + cos(orbitAngle) * orbitDist,
       y: player.pos.y + sin(orbitAngle) * orbitDist * 0.72 + sin(time * 3.1) * 2.0)
-    drawMiniCube(cubeCenter, 6.5'f32, time, cubeData.edgeColor, cubeData.glowColor)
+    let cubeHeart = if cubeSkin == cskCompanion: Color(r: 244, g: 116, b: 150, a: 255)
+                    else: Color(r: 0, g: 0, b: 0, a: 0)
+    drawMiniCube(cubeCenter, 6.5'f32, time, cubeData.edgeColor, cubeData.glowColor, cubeHeart)
 
   # 6. DATA PARTICLES (orbiting effect)
   if player.vel.length() > 10 or pulse > 0.7:

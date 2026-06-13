@@ -197,7 +197,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss2Name),
       bossID: 2,
-      baseHP: 180.0,
+      baseHP: 220.0,  # durability buff: was 180 (2nd-squishiest boss); now a tankier wall to grind through while clearing the legion
       baseSpeed: 65.0,
       baseDamage: 1,
       baseRadius: 50.0,
@@ -210,7 +210,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.9,
           damageMultiplier: 1.0,
-          defenseMultiplier: 1.0,
+          defenseMultiplier: 1.1,  # durability buff: shielded/defensive opening now resists ~10% of body damage (scales window damage equally, so the weak-point gap is preserved)
           color: Color(r: 50, g: 150, b: 50, a: 255),
           visualEffect: "shield",
           specialBehavior: "defensive",
@@ -266,7 +266,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.6,
           speedMultiplier: 1.0,
           damageMultiplier: 1.2,
-          defenseMultiplier: 0.95,
+          defenseMultiplier: 1.05,  # durability buff: raised from 0.95; kept below the defensive opening (1.1) to preserve the roster's "squishier when enraged" step-down
           color: Color(r: 30, g: 200, b: 30, a: 255),
           visualEffect: "glow",
           specialBehavior: "summon_frenzy",
@@ -321,7 +321,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss3Name),
       bossID: 3,
-      baseHP: 300.0,
+      baseHP: 330.0,  # small general buff: +10% pool (was 300)
       baseSpeed: 65.0,
       baseDamage: 2,
       baseRadius: 48.0,
@@ -333,8 +333,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Orbital Strike",
           hpThreshold: 1.0,
           speedMultiplier: 0.95,  # NERFED from 1.05
-          damageMultiplier: 1.0,
-          defenseMultiplier: 1.0,
+          damageMultiplier: 1.05,  # small general buff: was 1.0
+          defenseMultiplier: 1.05,  # small general buff: was 1.0 (slightly sturdier opening)
           color: Color(r: 255, g: 100, b: 0, a: 255),
           visualEffect: "pulse",
           specialBehavior: "circle_player",
@@ -364,7 +364,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Cataclysm",
           hpThreshold: 0.5,
           speedMultiplier: 1.0,  # NERFED from 1.1
-          damageMultiplier: 1.2,  # NERFED from 1.5
+          damageMultiplier: 1.25,  # small general buff: was 1.2 (NERFED from 1.5)
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 50, b: 0, a: 255),
           visualEffect: "aura",
@@ -395,7 +395,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Apocalypse",
           hpThreshold: 0.25,
           speedMultiplier: 1.1,
-          damageMultiplier: 1.3,
+          damageMultiplier: 1.35,  # small general buff: was 1.3
           defenseMultiplier: 1.075,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
@@ -492,9 +492,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 4.0,
               cooldown: 3.5,  # NERFED from 2.2
               projectileSpeed: 0.0,
-              projectileCount: 3,  # NERFED from 4 (fewer lasers)
+              projectileCount: 2,  # dodge buff: 4 beams instead of 6 (grid count is doubled in code), was 3
               spreadAngle: 45.0,
-              durationOrRadius: 3.0,  # NERFED from 3.5 (shorter duration)
+              durationOrRadius: 2.2,  # dodge buff: shorter active beam window, was 3.0
               specialData: "rotating_grid"
             ),
             BossAttack(
@@ -541,19 +541,19 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 5.0,
               cooldown: 4.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
-              projectileCount: 3,  # NERFED from 4
+              projectileCount: 2,  # dodge buff: 6 beams instead of 9 (cage count is tripled in code), was 3
               spreadAngle: 22.5,
-              durationOrRadius: 2.5,  # NERFED from 3.5
+              durationOrRadius: 2.0,  # dodge buff: shorter active beam window, was 2.5
               specialData: "prismatic_cage"
             ),
             BossAttack(
               attackType: bapLaser,
               damage: 5.0,
-              cooldown: 1.0,  # Rapid fire laser spam
+              cooldown: 1.8,  # dodge buff: was 1.0; timer runs free so 1.0 stacked ~3 overlapping beams (telegraph 1.2 + active), this gives real reposition gaps
               projectileSpeed: 0.0,
               projectileCount: 1,
               spreadAngle: 0.0,
-              durationOrRadius: 1.5,  # Short duration
+              durationOrRadius: 1.1,  # dodge buff: shorter active beam window, was 1.5
               specialData: "laser_snipe"  # Rapid tracking lasers
             ),
             BossAttack(
@@ -576,7 +576,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 2.5,  # NERFED from 1.5
+              damage: 2.5,
               cooldown: 6.5,  # NERFED from 5.0
               projectileSpeed: 160.0,  # NERFED from 175.0
               projectileCount: 0,
@@ -585,7 +585,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 2.5,  # NERFED from 1.5
+              damage: 2.5,
               cooldown: 2.0,  # NERFED from 1.2
               projectileSpeed: 250.0,  # NERFED from 280.0
               projectileCount: 2,  # NERFED from 3

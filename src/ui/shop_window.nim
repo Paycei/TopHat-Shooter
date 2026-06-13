@@ -1211,9 +1211,11 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
     let cubeData = getCubeSkinData(shop.selectedCubeSkin)
     let orbitAngle = shop.animationTime * 1.3'f32
     let orbitDist = 24.0'f32 * 2.1'f32 + sin(shop.animationTime * 2.1'f32) * 3.0'f32
+    let cubeHeart = if shop.selectedCubeSkin == cskCompanion: Color(r: 244, g: 116, b: 150, a: 255)
+                    else: Color(r: 0, g: 0, b: 0, a: 0)
     drawMiniCube(Vector2(x: centerX + cos(orbitAngle) * orbitDist,
                          y: previewY + sin(orbitAngle) * orbitDist * 0.72'f32),
-                 6.5'f32, shop.animationTime, cubeData.edgeColor, cubeData.glowColor)
+                 6.5'f32, shop.animationTime, cubeData.edgeColor, cubeData.glowColor, cubeHeart)
     drawSecretCardLabels(cubeX, cubeY, cubeEquipped, t("secret_orbital_cube_name"))
   else:
     drawSecretCardLocked(cubeX, cubeY, t("secret_cube_locked_hint"))

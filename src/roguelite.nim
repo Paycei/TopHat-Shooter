@@ -795,6 +795,7 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of dbgSunrise: makeCost(90, 1)
     of dbgOcean:   makeCost(110, 1)
     of dbgInferno: makeCost(150, 7)
+    of dbgPortal:  makeCost(200, 9)
   of ckCubeSkin:
     case CubeSkinType(index)
     of cskDefault: makeCost(0)
