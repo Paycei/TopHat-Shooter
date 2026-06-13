@@ -95,8 +95,8 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   of 3: spec(bwoMeteorCracks, 2, 2)
   of 4: spec(bwoLaserPrisms, 2, 2)
   of 5: spec(bwoVoidRifts, 1, 3)
-  of 6: spec(bwoSatelliteSet, 3, 0)  # All satellites down -> vulnerability window
-  of 7: spec(bwoSatelliteSet, 3, 0)
+  of 6: spec(bwoCoilSequence, 3, 3)  # Tap the discharge coils in order -> overload window
+  of 7: spec(bwoSatelliteSet, 3, 0)  # All satellites down -> vulnerability window
   of 8:
     var s = spec(bwoDashBackPlate, 3, 3)
     s.targetHitRadius = 32.0'f32  # Larger crack-plate hitboxes for the Juggernaut
@@ -801,14 +801,16 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "chain_basic"
             ),
             BossAttack(
-              attackType: bapOrbit,
-              damage: 6.5,
-              cooldown: 0.8,  # Constant orbiting charges
-              projectileSpeed: 75.0,
-              projectileCount: 3,  # 3 electric charges
-              spreadAngle: 120.0,  # Evenly spaced
-              durationOrRadius: 140.0,  # Orbit radius
-              specialData: "electric_charges"  # Electric orbs
+              # THUNDERSTRIKE: telegraphed ground lightning strikes (see
+              # spawnThunderstrike). projectileCount = strikes, durationOrRadius = radius.
+              attackType: bapMeteor,
+              damage: 7.0,
+              cooldown: 4.5,
+              projectileSpeed: 0.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 70.0,
+              specialData: "thunderstrike"
             ),
             BossAttack(
               attackType: bapTargeted,
@@ -842,14 +844,15 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "chain_storm"  # Multi-target chains
             ),
             BossAttack(
-              attackType: bapOrbit,
-              damage: 8.0,
-              cooldown: 0.5,
-              projectileSpeed: 90.0,
-              projectileCount: 5,  # More charges
-              spreadAngle: 72.0,
-              durationOrRadius: 160.0,
-              specialData: "dual_layer_orbit"  # Two layers of charges
+              # THUNDERSTRIKE: more strikes than phase 1.
+              attackType: bapMeteor,
+              damage: 7.0,
+              cooldown: 4.0,
+              projectileSpeed: 0.0,
+              projectileCount: 4,
+              spreadAngle: 0.0,
+              durationOrRadius: 68.0,
+              specialData: "thunderstrike"
             ),
             BossAttack(
               attackType: bapPulse,
@@ -862,13 +865,16 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "electric_discharge"
             ),
             BossAttack(
-              attackType: bapCircle,
+              # ARC LATTICE: radial lightning beams with one safe wedge (see
+              # spawnArcLattice). projectileCount = beams, durationOrRadius = thickness.
+              attackType: bapLaser,
               damage: 8.0,
-              cooldown: 3.0,
-              projectileSpeed: 160.0,
-              projectileCount: 16,  # Ring of lightning
-              spreadAngle: 360.0,
-              durationOrRadius: 0.0
+              cooldown: 6.0,
+              projectileSpeed: 0.0,
+              projectileCount: 9,
+              spreadAngle: 0.0,
+              durationOrRadius: 16.0,
+              specialData: "arc_lattice"
             )
           ]
         ),
@@ -893,24 +899,26 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "chain_overload"  # Maximum chain effect
             ),
             BossAttack(
-              attackType: bapOrbit,
-              damage: 8.0,
-              cooldown: 0.4,  # Constant barrage
-              projectileSpeed: 100.0,
-              projectileCount: 6,
-              spreadAngle: 60.0,
-              durationOrRadius: 180.0,
-              specialData: "orbital_storm"  # Triple layer
+              # ARC LATTICE: denser beam fan (narrower wedge) in the final phase.
+              attackType: bapLaser,
+              damage: 9.0,
+              cooldown: 5.5,
+              projectileSpeed: 0.0,
+              projectileCount: 12,
+              spreadAngle: 0.0,
+              durationOrRadius: 18.0,
+              specialData: "arc_lattice"
             ),
             BossAttack(
-              attackType: bapBarrage,
-              damage: 9.0,
-              cooldown: 3.0,
-              projectileSpeed: 230.0,
-              projectileCount: 32,  # Electric explosion
-              spreadAngle: 360.0,
-              durationOrRadius: 0.0,
-              specialData: "voltage_burst"
+              # THUNDERSTRIKE: heavy barrage of ground strikes.
+              attackType: bapMeteor,
+              damage: 8.0,
+              cooldown: 4.0,
+              projectileSpeed: 0.0,
+              projectileCount: 6,
+              spreadAngle: 0.0,
+              durationOrRadius: 66.0,
+              specialData: "thunderstrike"
             ),
             BossAttack(
               attackType: bapPulse,

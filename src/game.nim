@@ -3075,11 +3075,108 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
     elif frameDistance > teleportDistance:
       enemy.vel = newVector2f(0, 0)
 
+proc pointSegmentDistance(p, a, b: Vector2f): float32 =
+  ## Shortest distance from point p to the segment a-b (for beam hit tests).
+  let abx = b.x - a.x
+  let aby = b.y - a.y
+  let denom = abx * abx + aby * aby
+  let t = if denom > 0.0001'f32:
+            clamp(((p.x - a.x) * abx + (p.y - a.y) * aby) / denom, 0.0'f32, 1.0'f32)
+          else: 0.0'f32
+  let dx = p.x - (a.x + abx * t)
+  let dy = p.y - (a.y + aby * t)
+  sqrt(dx * dx + dy * dy)
+
+proc spawnThunderstrike(game: var Game, enemy: Enemy, attack: BossAttack,
+                        phase: BossPhaseDefinition) =
+  ## THUNDERSTRIKE: telegraphed ground lightning strikes. One strike leads the
+  ## player's movement (so standing still is unsafe); the rest scatter but keep
+  ## clear of the player's current spot, so the attack is always dodgeable.
+  let count  = max(1, attack.projectileCount)
+  let radius = if attack.durationOrRadius > 0: attack.durationOrRadius else: 70.0'f32
+  let dmg    = attack.damage * phase.damageMultiplier
+  let total  = TeslaStrikeTelegraph + TeslaStrikeActive
+  let w = game.screenWidth.float32
+  let h = game.screenHeight.float32
+
+  # Predictive strike: lead the player's velocity across the telegraph window.
+  var predicted = game.player.pos + game.player.vel * (TeslaStrikeTelegraph * 0.7'f32)
+  predicted.x = clamp(predicted.x, radius, w - radius)
+  predicted.y = clamp(predicted.y, radius, h - radius)
+
+  var positions = @[predicted]
+  let minDist = radius + game.player.radius + 80.0'f32
+  for k in 1 ..< count:
+    var p = predicted
+    var tries = 0
+    while tries < 12:
+      p = newVector2f(radius + rand(w - radius * 2.0),
+                      radius + rand(h - radius * 2.0))
+      inc tries
+      if distance(p, game.player.pos) >= minDist: break
+    positions.add(p)
+
+  for p in positions:
+    game.attackWarnings.add(AttackWarning(
+      pos: p, targetPos: p,
+      attackType: "tesla_strike",
+      lifetime: total, maxLifetime: total,
+      sourceEnemyId: enemy.id,
+      laserAngles: @[],
+      bulletRadius: radius,
+      bulletDamage: dmg,
+      bulletsCreated: false,   # reused flag: "strike has fired"
+      lasersCreated: false     # reused flag: "player already hit by this strike"
+    ))
+
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 255, g: 255, b: 150, a: 255), 16)
+
+proc spawnArcLattice(game: var Game, enemy: Enemy, attack: BossAttack,
+                     phase: BossPhaseDefinition) =
+  ## ARC LATTICE: lightning beams radiate from the boss in every direction
+  ## except one telegraphed "safe wedge". Dodge by moving into the wedge or by
+  ## backing off into the widening gaps between beams - the easier, more mobile
+  ## counterpart to the positional THUNDERSTRIKE. More beams -> tighter fan.
+  let beams = clamp(attack.projectileCount, 6, 16)
+  let dmg   = attack.damage * phase.damageMultiplier
+  let total = ArcBeamTelegraph + ArcBeamActive
+  let w = game.screenWidth.float32
+  let h = game.screenHeight.float32
+  let thick = if attack.durationOrRadius > 0: attack.durationOrRadius else: 16.0'f32
+  let cx = enemy.pos.x
+  let cy = enemy.pos.y
+  let reach = sqrt(w * w + h * h)            # always span to the far corner
+  let gapStart = rand(beams - 1)             # first beam index of the safe wedge
+  let gapSize = max(2, beams div 5)          # skip this many adjacent beams
+
+  for k in 0 ..< beams:
+    # A beam is skipped if its index falls in the (wrapping) safe wedge.
+    var inGap = false
+    for g in 0 ..< gapSize:
+      if (gapStart + g) mod beams == k: inGap = true
+    if inGap: continue
+    let ang = k.float32 * (PI * 2.0) / beams.float32
+    game.attackWarnings.add(AttackWarning(
+      pos: newVector2f(cx, cy),
+      targetPos: newVector2f(cx + cos(ang) * reach, cy + sin(ang) * reach),
+      attackType: "arc_beam", lifetime: total, maxLifetime: total,
+      sourceEnemyId: enemy.id, laserAngles: @[],
+      laserLength: thick, bulletDamage: dmg,
+      bulletsCreated: false, lasersCreated: false))
+
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 255, g: 255, b: 150, a: 255), 16)
+
 proc addBossAttackWarning(game: var Game, enemy: Enemy, attack: BossAttack) =
   ## Emits a short visual pre-fire warning for a boss attack.
   ## Called ~0.45 s before the attack actually fires.
   ## No-ops for types that already manage their own deferred-warning objects.
   const WARNING_DURATION = 0.45'f32
+
+  # The telegraphed-electricity attacks build their own long-lived warnings.
+  if attack.specialData in ["thunderstrike", "arc_lattice"]:
+    return
 
   # These types build their own AttackWarning objects with deferred execution
   if attack.attackType in [bapLaser, bapTeleport, bapMeteor]:
@@ -3143,6 +3240,17 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
   if enemy.damageTuning > 0.0'f32 and enemy.damageTuning < 1.0'f32:
     attack.damage *= enemy.damageTuning
   let toPlayer = (game.player.pos - enemy.pos).normalize()
+
+  # Special telegraphed electricity attacks build their own warnings and defer
+  # the strike to the warning-update loop; no bullets are spawned here.
+  case attack.specialData
+  of "thunderstrike":
+    spawnThunderstrike(game, enemy, attack, phase)
+    return
+  of "arc_lattice":
+    spawnArcLattice(game, enemy, attack, phase)
+    return
+  else: discard
 
   case attack.attackType
   of bapSpiral:
@@ -3747,21 +3855,21 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
       of "ground_slam":
         (28, Color(r: 150, g: 75, b: 30, a: 255), 40)  # Fewer but stronger, brown/rock color
       of "earthquake":
-        (36, Color(r: 100, g: 50, b: 20, a: 255), 60)  # MASSIVE slam, huge shake
+        (30, Color(r: 100, g: 50, b: 20, a: 255), 60)  # MASSIVE slam, huge shake
       of "overload_pulse":
-        (40, Color(r: 255, g: 255, b: 255, a: 255), 50)  # Maximum density, white overload
+        (32, Color(r: 255, g: 255, b: 255, a: 255), 50)  # Maximum density, white overload
       of "gravity_pulse":
         (30, Color(r: 150, g: 100, b: 255, a: 255), 45)  # Space purple
       of "blinding_pulse":
-        (38, Color(r: 255, g: 255, b: 255, a: 255), 55)  # Brilliant white light explosion
+        (34, Color(r: 255, g: 255, b: 255, a: 255), 55)  # Brilliant white light explosion
       of "chrono_pulse":
         (28, Color(r: 100, g: 220, b: 220, a: 255), 42)  # Temporal shockwave, cyan
       of "chrono_break":
-        (36, Color(r: 150, g: 255, b: 255, a: 255), 58)  # Massive time shattering pulse
+        (32, Color(r: 150, g: 255, b: 255, a: 255), 58)  # Massive time shattering pulse
       of "entropy_wave":
         (rand(20) + 20, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 50)  # Chaotic random pulse
       of "omega_pulse":
-        (42, Color(r: 255, g: 100, b: 255, a: 255), 65)  # ULTIMATE pulse - huge and powerful
+        (38, Color(r: 255, g: 100, b: 255, a: 255), 65)  # ULTIMATE pulse - huge and powerful
       of "banish_nova":
         (16, Color(r: 80, g: 220, b: 120, a: 255), 38)  # Summoner King: green banishment ring
       else:
@@ -5295,6 +5403,52 @@ proc updateGame*(game: var Game, dt: float32) =
           spawnExplosionPooled(game.particlePool, w.targetPos.x, -50.0 - step.float32 * 25.0,
                               Color(r: 150, g: 100, b: 255, a: 255), 3)
       game.attackWarnings[i].bulletsCreated = true
+
+    # TESLA STRIKE: telegraph expires -> a bolt slams the marked ground spot.
+    if game.attackWarnings[i].attackType == "tesla_strike":
+      let w = game.attackWarnings[i]
+      if w.lifetime <= TeslaStrikeActive:
+        if not w.bulletsCreated:
+          for b in 0..<3:
+            spawnLightningBolt(game,
+              newVector2f(w.targetPos.x + (rand(24.0) - 12.0), -40.0),
+              w.targetPos)
+          spawnExplosionPooled(game.particlePool, w.targetPos.x, w.targetPos.y,
+                               Color(r: 255, g: 255, b: 190, a: 255), 30)
+          addShake(game.dopamine.screenShake, siMedium)
+          w.bulletsCreated = true
+        if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
+           distance(game.player.pos, w.targetPos) <= w.bulletRadius + game.player.radius:
+          if takeDamage(game.player, w.bulletDamage):
+            beginPlayerDeathSequence(game, dcHazard)
+          trackDamageAvoided(game)
+          trackPlayerDamage(game, w.bulletDamage, etCircle)
+          game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
+                          isCritical = false, damageType = dtLightning)
+          w.lasersCreated = true
+
+    # ARC LATTICE: telegraph expires -> a lightning wall segment goes live.
+    if game.attackWarnings[i].attackType == "arc_beam":
+      let w = game.attackWarnings[i]
+      if w.lifetime <= ArcBeamActive:
+        if not w.bulletsCreated:
+          spawnLightningBolt(game, w.pos, w.targetPos)
+          spawnLightningBolt(game, w.pos, w.targetPos)
+          spawnExplosionPooled(game.particlePool,
+                               (w.pos.x + w.targetPos.x) * 0.5'f32,
+                               (w.pos.y + w.targetPos.y) * 0.5'f32,
+                               Color(r: 255, g: 255, b: 190, a: 255), 12)
+          w.bulletsCreated = true
+        if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
+           pointSegmentDistance(game.player.pos, w.pos, w.targetPos) <=
+             w.laserLength + game.player.radius:
+          if takeDamage(game.player, w.bulletDamage):
+            beginPlayerDeathSequence(game, dcHazard)
+          trackDamageAvoided(game)
+          trackPlayerDamage(game, w.bulletDamage, etCircle)
+          game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
+                          isCritical = false, damageType = dtLightning)
+          w.lasersCreated = true
 
     if game.attackWarnings[i].lifetime <= 0:
       game.attackWarnings.delete(i)

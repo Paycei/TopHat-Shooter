@@ -4,6 +4,15 @@ export Particle, ParticlePool, Vector2f
 export newVector2f, `+`, `-`, `*`, length, normalize, distance
 export Deque
 
+# Timing for the Chain Reactor's telegraphed electricity attacks. Shared so the
+# warning-update logic (game.nim) and the telegraph drawing (enemy.nim) agree on
+# exactly when the dodge window ends and the strike becomes lethal.
+const
+  TeslaStrikeTelegraph* = 0.95'f32  # dodge window before a ground strike lands
+  TeslaStrikeActive*    = 0.18'f32  # how long the strike zone stays lethal
+  ArcBeamTelegraph*     = 1.05'f32  # dodge window before a lightning wall fires
+  ArcBeamActive*        = 0.30'f32  # how long the wall stays lethal
+
 type
   GameState* = enum
     gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,

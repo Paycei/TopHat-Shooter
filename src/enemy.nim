@@ -1057,8 +1057,54 @@ proc drawCustomBoss*(enemy: Enemy) =
     glow(r*0.08, Color(r: 255, g: 180, b: 255, a: 255))
 
   of 6:  # THE CHAIN REACTOR
+    # ---- Electric-storm helpers (immediate-mode jagged arcs, no RNG state) ----
+    # Voltage rises as the Reactor loses HP: arcs get longer and more violent.
+    let volt   = 1.0'f32 + (1.0'f32 - hpPct) * 1.4'f32
+    # Quantize time so arcs "snap" to a fresh jagged shape ~22x/sec -> crackle.
+    let flick  = floor(time * 22.0)
+    let epulse = sin(time * 9.0) * 0.5 + 0.5
+    proc nz(x: float32): float32 =
+      ## Deterministic hash in -1..1 (fract-of-sin); cosmetic flicker only.
+      let s = sin(x * 127.1'f32 + 311.7'f32) * 43758.5453'f32
+      (s - floor(s)) * 2.0'f32 - 1.0'f32
+    proc bolt(ax, ay, bx, by, amp, seed: float32, core, halo: Color) =
+      ## Jagged lightning arc (ax,ay)->(bx,by), regenerated fresh each frame.
+      let dx = bx - ax
+      let dy = by - ay
+      let ln = sqrt(dx * dx + dy * dy)
+      if ln < 1.0'f32: return
+      let nx = -dy / ln
+      let ny =  dx / ln
+      const N = 8
+      var px = ax
+      var py = ay
+      for i in 1 .. N:
+        let t   = i.float32 / N.float32
+        let env = 1.0'f32 - abs(t * 2.0'f32 - 1.0'f32)   # taper toward endpoints
+        let off = (if i == N: 0.0'f32 else: nz(seed + i.float32 * 7.13'f32) * amp * env)
+        let qx  = ax + dx * t + nx * off
+        let qy  = ay + dy * t + ny * off
+        drawLine(Vector2(x: px, y: py), Vector2(x: qx, y: qy), 4.0, halo)  # soft glow
+        drawLine(Vector2(x: px, y: py), Vector2(x: qx, y: qy), 1.6, core)  # bright core
+        px = qx; py = qy
+    let arcCore = Color(r: 255, g: 255, b: 215, a: 255)
+    let arcHalo = Color(r: 120, g: 200, b: 255, a: 70)
+
     glow(r + 24 + blink*8,  Color(r: 255, g: 255, b: 80,  a: uint8(60*blink)))
     glow(r + 14 + pulse*5,  Color(r: 255, g: 220, b: 0,   a: 80))
+    # Ambient corona tendrils crackling around the body (slow rotation). Kept
+    # deliberately short and DIM so they read as an electric aura, not as an
+    # aimed attack - the bright full-length bolts are reserved for bapChain.
+    let tendCore = Color(r: 255, g: 240, b: 150, a: 150)
+    let tendHalo = Color(r: 120, g: 200, b: 255, a: 45)
+    for i in 0 ..< 3:
+      let baseA = time * 0.7 + i.float32 * (TAU / 3.0)
+      let reach = r * (1.25'f32 + 0.45'f32 * volt) + nz(flick + i.float32) * 12.0'f32
+      let ex = cx + cos(baseA) * reach
+      let ey = cy + sin(baseA) * reach
+      bolt(cx, cy, ex, ey, r * 0.30'f32, flick * 3.0 + i.float32 * 17.0, tendCore, tendHalo)
+      drawCircle(Vector2(x: ex, y: ey), 2.0'f32 + epulse * 1.2'f32,
+                 Color(r: 255, g: 255, b: 180, a: 150))
     for i in 0 ..< 6:
       let a      = i.float32 * PI / 3.0 + time*0.2
       let inner  = r * 0.20
@@ -1090,6 +1136,21 @@ proc drawCustomBoss*(enemy: Enemy) =
                1, Color(r: 255, g: 255, b: 255, a: sparkAlpha))
     glow(r*0.20 + blink*5, Color(r: 255, g: 255, b: 255, a: 255))
     glow(r*0.09, Color(r: 200, g: 255, b: 255, a: 255))
+    # Internal core crackle: short bright arcs from the core out to the shell.
+    for i in 0 ..< 5:
+      let a = time * 1.3 + i.float32 * (TAU / 5.0)
+      bolt(cx + cos(a) * r * 0.18'f32, cy + sin(a) * r * 0.18'f32,
+           cx + cos(a) * r * 0.90'f32, cy + sin(a) * r * 0.90'f32,
+           r * 0.16'f32, flick * 5.0 + i.float32 * 9.0, arcCore, arcHalo)
+    # Discharge arcs: the Reactor visibly charges its coil weak-points, tying the
+    # "tap the coils in sequence" mechanic to the electric theme. Active (next)
+    # coils get a fat bright arc; dormant ones a thin one.
+    for tgt in enemy.weakPoint.targets:
+      if tgt.hit: continue
+      let amp   = if tgt.active: 18.0'f32 else: 8.0'f32
+      let aCore = if tgt.active: arcCore else: Color(r: 200, g: 220, b: 255, a: 120)
+      bolt(cx, cy, tgt.pos.x, tgt.pos.y, amp,
+           flick * 2.0 + tgt.index.float32 * 23.0, aCore, arcHalo)
 
   of 7:  # THE ORBITAL COMMANDER
     glow(r + 22 + breathe*6, Color(r: 20, g: 10, b: 60, a: 50))
@@ -1351,17 +1412,24 @@ proc drawCustomBoss*(enemy: Enemy) =
         drawCircle(Vector2(x: cx+cos(a)*d, y: cy+sin(a)*d), 2.5 + pf*0.4,
                    Color(r: 200, g: 80, b: 255, a: 225))
 
-    of 6:  # Chain Reactor: overcharged ring + orbiting energy orbs
+    of 6:  # Chain Reactor: overcharged coil ring + radial discharge sparks
       poly(30, r + 12 + pf*5.0, time*2.5, 2, Color(r: 255, g: 255, b: 120, a: uint8(80 + phaseLvl*30)))
-      let orbs = phaseLvl + 1
-      for i in 0 ..< orbs:
-        let a = time*2.0 + i.float32*(TAU/orbs.float32)
-        let d = r + 20 + pf*5.0
-        let ox = cx + cos(a)*d
-        let oy = cy + sin(a)*d
-        drawLine(Vector2(x: cx, y: cy), Vector2(x: ox, y: oy), 1.0,
-                 Color(r: 255, g: 255, b: 100, a: uint8(55 + phaseLvl*25)))
-        drawCircle(Vector2(x: ox, y: oy), 4.0, Color(r: 255, g: 255, b: 150, a: 235))
+      # More phases -> a denser, more violent crown of forked sparks (no orbits).
+      let arms = 6 + phaseLvl*4
+      for i in 0 ..< arms:
+        let a   = time*3.0 + i.float32*(TAU/arms.float32)
+        let r0  = r + 6.0
+        let r1  = r + 16.0 + pf*9.0 + sin(time*14.0 + i.float32)*5.0
+        # Two-segment forked spark: bend it sideways at the midpoint.
+        let bend = (if i mod 2 == 0: 0.16 else: -0.16)
+        let mx  = cx + cos(a + bend) * (r0 + r1) * 0.5
+        let my  = cy + sin(a + bend) * (r0 + r1) * 0.5
+        let sparkA = uint8(120 + phaseLvl*30)
+        drawLine(Vector2(x: cx + cos(a)*r0, y: cy + sin(a)*r0),
+                 Vector2(x: mx, y: my), 1.5, Color(r: 255, g: 255, b: 200, a: sparkA))
+        drawLine(Vector2(x: mx, y: my),
+                 Vector2(x: cx + cos(a)*r1, y: cy + sin(a)*r1), 1.5,
+                 Color(r: 255, g: 255, b: 255, a: sparkA))
 
     of 7:  # Orbital Commander: MORE satellites (its signature power)
       let extra = phaseLvl*2
@@ -3233,6 +3301,48 @@ proc drawAttackWarning*(warning: AttackWarning) =
                1, Color(r: 80'u8, g: 200'u8, b: 60'u8, a: alpha))
       drawCircle(Vector2(x: cx + cos(a) * outerR, y: cy + sin(a) * outerR), 4.0,
                  Color(r: 100'u8, g: 255'u8, b: 80'u8, a: alpha))
+
+  of "tesla_strike":
+    # Chain Reactor ground strike. Pulsing danger ring that brightens as the
+    # bolt nears; a faint column shows it is coming from above. NOTE: the actual
+    # lethal flash is the bolt/particle system (ungated by showHints) - this is
+    # only the dodge telegraph.
+    let cx = warning.pos.x; let cy = warning.pos.y
+    let r  = warning.bulletRadius
+    let progress = 1.0 - warning.lifetime / warning.maxLifetime
+    if warning.lifetime <= TeslaStrikeActive:
+      drawCircle(Vector2(x: cx, y: cy), r, Color(r: 255'u8, g: 255'u8, b: 200'u8, a: 150'u8))
+      drawCircleLines(cx.int32, cy.int32, r, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 255'u8))
+    else:
+      let a2 = uint8(clamp(60.0 + progress * 170.0, 0.0, 255.0))
+      drawLine(Vector2(x: cx, y: 0), Vector2(x: cx, y: cy), 2,
+               Color(r: 255'u8, g: 240'u8, b: 120'u8, a: uint8(progress * 80.0)))
+      drawCircleLines(cx.int32, cy.int32, r,
+                     Color(r: 255'u8, g: 235'u8, b: 70'u8, a: a2))
+      drawCircleLines(cx.int32, cy.int32, r * 0.66,
+                     Color(r: 255'u8, g: 255'u8, b: 160'u8, a: (a2 div 2).uint8))
+      let rot = getTime() * 3.0
+      for k in 0..<8:
+        let ang = rot + k.float32 * PI / 4.0
+        drawLine(Vector2(x: cx + cos(ang) * r * 0.8, y: cy + sin(ang) * r * 0.8),
+                 Vector2(x: cx + cos(ang + 0.3) * r, y: cy + sin(ang + 0.3) * r),
+                 1.5, Color(r: 255'u8, g: 255'u8, b: 150'u8, a: a2))
+
+  of "arc_beam":
+    # Chain Reactor lightning wall segment. Dim full-width preview marks the kill
+    # zone; a bright thin core line + endpoint nodes make the path unambiguous.
+    let progress = 1.0 - warning.lifetime / warning.maxLifetime
+    let half = warning.laserLength
+    let a = Vector2(x: warning.pos.x, y: warning.pos.y)
+    let b = Vector2(x: warning.targetPos.x, y: warning.targetPos.y)
+    if warning.lifetime <= ArcBeamActive:
+      drawLine(a, b, half * 2.0, Color(r: 255'u8, g: 255'u8, b: 200'u8, a: 130'u8))
+    else:
+      let a2 = uint8(clamp(45.0 + progress * 160.0, 0.0, 255.0))
+      drawLine(a, b, half * 2.0, Color(r: 255'u8, g: 230'u8, b: 80'u8, a: (a2 div 5).uint8))
+      drawLine(a, b, 2, Color(r: 255'u8, g: 240'u8, b: 90'u8, a: a2))
+      drawCircle(a, 5.0, Color(r: 255'u8, g: 255'u8, b: 160'u8, a: a2))
+      drawCircle(b, 5.0, Color(r: 255'u8, g: 255'u8, b: 160'u8, a: a2))
 
   else:
     discard
