@@ -308,7 +308,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
         desktop.cubeOffsetX = entryOffX * p * p
         desktop.cubeOffsetY = entryOffY * p * p
       elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime:
-        # Hold at exit portal (position written every frame — no separate jump flag needed)
+        # Hold at exit portal (position written every frame, no separate jump flag needed)
         desktop.cubeOffsetX = exitOffX
         desktop.cubeOffsetY = exitOffY
       elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime + CubeEscapeReturnTime:

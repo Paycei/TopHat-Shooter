@@ -541,7 +541,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 5.0,
               cooldown: 4.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
-              projectileCount: 2,  # dodge buff: 6 beams instead of 9 (cage count is tripled in code), was 3
+              projectileCount: 3,
               spreadAngle: 22.5,
               durationOrRadius: 2.0,  # dodge buff: shorter active beam window, was 2.5
               specialData: "prismatic_cage"

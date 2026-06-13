@@ -8543,7 +8543,7 @@ proc updateGame*(game: var Game, dt: float32) =
   if game.player.hp <= 0 and game.state == gsPlaying:
     beginPlayerDeathSequence(game)
 
-proc drawBossPhaseHud(game: Game, enemy: Enemy) =
+proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10): int32 =
   let bossDef = getBossDefinition(enemy.bossDefinitionID)
   let phaseCount = max(1, max(bossDef.phases.len, enemy.bossPhaseHpPools.len))
   let currentPhase = clamp(enemy.currentPhaseIndex, 0, phaseCount - 1)
@@ -8557,7 +8557,7 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy) =
   let panelW = min(520'i32, max(340'i32, game.screenWidth - 80'i32))
   let panelH = headerH + rowH * visiblePhases.int32 + 11'i32
   let panelX = game.screenWidth div 2 - panelW div 2
-  let panelY = 10'i32
+  let panelY = topY
   let activeColor =
     if currentPhase < bossDef.phases.len: bossDef.phases[currentPhase].color
     else: enemy.color
@@ -8652,6 +8652,8 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy) =
                                  width: shieldW.float32, height: 12.0'f32),
                        1, withAlpha(activeColor, 255))
     drawText(shieldText, shieldX + 8, shieldY + 2, 10, White)
+
+  return panelY + panelH + 6
 
 proc drawGame*(game: Game) =
   # Profiling counterpart to updateGame: smoothed wall-clock ms spent drawing.
@@ -9220,14 +9222,18 @@ proc drawGame*(game: Game) =
           drawSimpleWarning(cx, cy, (0.6 + 0.4 * entranceProg).float32)
           break
 
-  # Boss phase health bars (top of screen).
+  # Boss phase health bars (top of screen), stacked downward up to 3.
   # Sandbox spawns bosses straight into game.enemies without arming the
   # bossWaveManager, so allow the HUD there too based on the enemy itself.
   if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
+    var nextBossBarY = 10'i32
+    var bossBarCount = 0
     for enemy in game.enemies:
       if enemy.isBoss and enemy.entranceTimer <= 0:
-        drawBossPhaseHud(game, enemy)
-        break
+        nextBossBarY = drawBossPhaseHud(game, enemy, nextBossBarY)
+        bossBarCount += 1
+        if bossBarCount >= 3:
+          break
 
   # Time survival mode - show wave indicator (only for time survival)
   if isTimeSurvivalMode(game.mode):
