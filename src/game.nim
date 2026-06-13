@@ -6915,7 +6915,8 @@ proc updateGame*(game: var Game, dt: float32) =
                 damage = enemyBulletDamage,
                 fromPlayer = false,
                 isHoming = attackConfig.homingStrength > 0,
-                sourceEnemyId = enemy.id
+                sourceEnemyId = enemy.id,
+                sourceEnemyType = enemy.enemyType
               )
 
               # Apply special bullet properties
@@ -6956,7 +6957,8 @@ proc updateGame*(game: var Game, dt: float32) =
                 damage = enemyBulletDamage,
                 fromPlayer = false,
                 isHoming = attackConfig.homingStrength > 0,
-                sourceEnemyId = enemy.id
+                sourceEnemyId = enemy.id,
+                sourceEnemyType = enemy.enemyType
               )
 
               # Apply special bullet properties
@@ -8153,7 +8155,7 @@ proc updateGame*(game: var Game, dt: float32) =
         trackDamageAvoided(game)
 
         # Track bullet damage for statistics
-        var sourceEnemyType = etCircle  # default fallback
+        var sourceEnemyType = etEnvironment  # sentinel: no attributable source
         if bullet.sourceEnemyId >= 0:
           for enemy in game.enemies:
             if enemy.id == bullet.sourceEnemyId:

@@ -1,7 +1,7 @@
 ## OS-Themed Desktop Environment Module
 ## Main menu as an operating system desktop
 
-import raylib, math, strutils, strformat, times
+import raylib, rlgl, math, strutils, strformat, times
 import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins
 
 type
@@ -1023,8 +1023,6 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
                          desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
                          desktop.cubeOffsetX, desktop.cubeOffsetY)
   else:
-    # Generic rendering for other skins using the skin colours so the
-    # shop preview and equipped background look consistent.
     let bgData = getDesktopBgData(selectedBg)
     let topColor = bgData.bgColor
     let bottomColor = darkened(topColor, 12)
@@ -1034,13 +1032,22 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
                           a: 34)
     let nodeColor = bgData.accentColor
     let accentColor = bgData.primaryColor
-
-    drawSharedBackdrop(screenWidth.int32, screenHeight.int32, desktop.time * 0.62,
-                       topColor, bottomColor, gridColor, nodeColor, accentColor,
-                       0.9, 0.8)
-
     let w = screenWidth.float32
     let h = screenHeight.float32
+
+    # Draw the shared backdrop at 1/6th the virtual canvas size so the grid
+    # cell count and star density match what the shop preview miniature shows.
+    # The fixed-size elements (48 px grid, 48 stars) are otherwise spread too
+    # thin at 1024×768 compared to the 170×64 shop card.
+    let refW = int32(ceil(w / 6.0'f32))
+    let refH = int32(ceil(h / 6.0'f32))
+    pushMatrix()
+    scalef(w / refW.float32, h / refH.float32, 1.0'f32)
+    drawSharedBackdrop(refW, refH, desktop.time * 0.62,
+                       topColor, bottomColor, gridColor, nodeColor, accentColor,
+                       0.9, 0.8)
+    popMatrix()
+
     drawSoftGlow(w * 0.64, h * 0.46, min(w, h) * 0.42,
                  Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: 70), 0.7)
     drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
@@ -1048,7 +1055,6 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
     drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
                  Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g, b: bgData.primaryColor.b, a: 46), 0.5)
 
-    # Signature theme effects (skyline, code rain, nebulae, sun grid, ...)
     drawDesktopBgThemeFx(selectedBg, screenWidth.int32, screenHeight.int32, desktop.time)
 
     for i in 0..3:
@@ -1056,30 +1062,18 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
       let alpha = uint8(26 + i * 9)
       drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
                       Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: alpha))
-      # Orbiting node on each ring, matching the default wallpaper's motion
       let nodeAngle = desktop.time * (0.22 + i.float32 * 0.04) + i.float32 * PI * 0.38
       drawCircle(Vector2(x: w * 0.64 + cos(nodeAngle) * ringRadius,
                          y: h * 0.46 + sin(nodeAngle) * ringRadius),
                  3.0 + i.float32 * 0.35,
                  Color(r: nodeColor.r, g: nodeColor.g, b: nodeColor.b, a: uint8(120 + i * 18)))
 
-    # Draw the wallpaper cube using the currently equipped cube skin so the
-    # menu background matches the cube preview/selection. Default skin uses
-    # the original hardcoded cube colors.
     let centerX = w * 0.64
     let centerY = h * 0.46
     let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
     drawZeroGravityWallpaperCube(centerX + desktop.cubeOffsetX, centerY + desktop.cubeOffsetY,
                                  min(w, h) * 0.042'f32, desktop.time,
                                  desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ, currentCubeSkin)
-
-    # Left-side launch column silhouette (keeps icons readable)
-    drawRectangleGradientH(0, 0, min(310, screenWidth).int32, screenHeight.int32,
-                           Color(r: 2, g: 5, b: 12, a: 155),
-                           Color(r: 2, g: 5, b: 12, a: 0))
-    drawLine(Vector2(x: 250.0, y: 42.0),
-             Vector2(x: 250.0 + sin(desktop.time * 0.9) * 10.0, y: h - 74.0),
-             1, Color(r: 70, g: 230, b: 255, a: 64))
 
   # Desktop icons
   for icon in desktop.icons:

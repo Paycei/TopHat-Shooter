@@ -188,7 +188,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 poisonDuration: float32 = 0, fireDuration: float32 = 0, windPushForce: float32 = 0,
                 isPentagon: bool = false, isEcho: bool = false,
                 isBossBullet: bool = false, isArcaneBullet: bool = false,
-                sourceEnemyId: int = -1, sourceEnemyType: EnemyType = etCircle,
+                sourceEnemyId: int = -1, sourceEnemyType: EnemyType = etEnvironment,
                 isBonusFromMultiShot: bool = false, isBonusFromDoubleShot: bool = false,
                 wasCrit: bool = false, isSpecialRound: bool = false,
                 isFromWallTurret: bool = false, isFromRadialBurst: bool = false,

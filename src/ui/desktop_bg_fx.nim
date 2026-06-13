@@ -141,14 +141,19 @@ proc drawDeepVoidFx(w, h, time: float32) =
               else: Color(r: 40, g: 70, b: 200, a: 22)
     drawSoftGlow(nx, ny, nr * breathe, col, 0.55)
 
+  # Scale star size and count so they look as bright and dense at full
+  # desktop as they do in the 170×64 shop preview card (reference: 64 px).
+  let sScale = min(w, h) / 64.0'f32 * 0.5'f32 + 0.5'f32
+  let starCount = int(22.0'f32 * sqrt(sScale))
+
   # Bright feature stars, some with cross sparkles
-  for s in 0..<22:
+  for s in 0..<starCount:
     let seed = s.float32 * 17.31'f32 + 5.5'f32
     let sx = hash01(seed) * w
     let sy = hash01(seed + 1.7'f32) * h
     let tw = sin(time * (0.9'f32 + hash01(seed + 3.3'f32) * 1.6'f32) + seed) * 0.5'f32 + 0.5'f32
-    let sr = 0.8'f32 + hash01(seed + 8.8'f32) * 1.6'f32
-    drawCircle(Vector2(x: sx, y: sy), sr + tw * 0.8'f32,
+    let sr = (0.8'f32 + hash01(seed + 8.8'f32) * 1.6'f32) * sScale
+    drawCircle(Vector2(x: sx, y: sy), sr + tw * 0.8'f32 * sScale,
                Color(r: 220, g: 215, b: 255, a: alphaU8(70.0'f32 + tw * 150.0'f32)))
     if hash01(seed + 12.0'f32) > 0.65'f32:
       let arm = (3.0'f32 + tw * 5.0'f32) * (0.6'f32 + sr * 0.3'f32)
@@ -175,7 +180,7 @@ proc drawDeepVoidFx(w, h, time: float32) =
       drawLine(Vector2(x: px - dirX * w * 0.45'f32 / mvLen * tailLen,
                        y: py - h * 0.35'f32 / mvLen * tailLen),
                Vector2(x: px, y: py), 2.0'f32, streakCol)
-      drawSoftGlow(px, py, 9.0'f32, withAlpha(streakCol, alphaU8(90.0'f32 * fade)), 0.7)
+      drawSoftGlow(px, py, 9.0'f32 * sScale, withAlpha(streakCol, alphaU8(90.0'f32 * fade)), 0.7)
 
 # System Sunrise
 
