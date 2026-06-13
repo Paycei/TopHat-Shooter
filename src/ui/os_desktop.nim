@@ -68,6 +68,8 @@ type
     cubeEscapeDirY*: float32
     cubeOffsetX*: float32       # render offset of the cube from its orbit slot
     cubeOffsetY*: float32
+    cubePortalMode*: bool       # escape routes through the portal background portals
+    cubePortalEnterRight*: bool # true = enter orange (right), exit blue (left)
     # Transient OS-style toast (e.g. advancement unlocked)
     toastText*: string
     toastTimer*: float32
@@ -189,6 +191,8 @@ proc newOSDesktop*(): OSDesktop =
     cubeEscapeDirY: 0.0,
     cubeOffsetX: 0.0,
     cubeOffsetY: 0.0,
+    cubePortalMode: false,
+    cubePortalEnterRight: false,
     toastText: "",
     toastTimer: 0.0
   )
@@ -290,28 +294,58 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
 
   if desktop.cubeEscaping:
     desktop.cubeEscapeTimer += dt
-    let flyDist = max(w, h) * 0.95'f32
     let tEsc = desktop.cubeEscapeTimer
-    if tEsc < CubeEscapeFlyTime:
-      # Accelerate away from the orbit slot
-      let p = tEsc / CubeEscapeFlyTime
-      desktop.cubeOffsetX = desktop.cubeEscapeDirX * flyDist * p * p
-      desktop.cubeOffsetY = desktop.cubeEscapeDirY * flyDist * p * p
-    elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime:
-      desktop.cubeOffsetX = desktop.cubeEscapeDirX * flyDist
-      desktop.cubeOffsetY = desktop.cubeEscapeDirY * flyDist
-    elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime + CubeEscapeReturnTime:
-      # Smoothstep back into orbit
-      let p = (tEsc - CubeEscapeFlyTime - CubeEscapeHoldTime) / CubeEscapeReturnTime
-      let eased = 1.0'f32 - p * p * (3.0'f32 - 2.0'f32 * p)
-      desktop.cubeOffsetX = desktop.cubeEscapeDirX * flyDist * eased
-      desktop.cubeOffsetY = desktop.cubeEscapeDirY * flyDist * eased
+    if desktop.cubePortalMode:
+      # Portal-background escape: cube flies into entry portal, teleports to exit,
+      # then smoothly returns to orbit.
+      # Portal positions match desktop_bg_fx.nim drawPortalFx: blue=(w*0.2,h*0.5), orange=(w*0.8,h*0.5)
+      let entryOffX = if desktop.cubePortalEnterRight: w * 0.8'f32 - cubeCX else: w * 0.2'f32 - cubeCX
+      let entryOffY = h * 0.5'f32 - cubeCY
+      let exitOffX  = if desktop.cubePortalEnterRight: w * 0.2'f32 - cubeCX else: w * 0.8'f32 - cubeCX
+      let exitOffY  = entryOffY
+      if tEsc < CubeEscapeFlyTime:
+        let p = tEsc / CubeEscapeFlyTime
+        desktop.cubeOffsetX = entryOffX * p * p
+        desktop.cubeOffsetY = entryOffY * p * p
+      elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime:
+        # Hold at exit portal (position written every frame — no separate jump flag needed)
+        desktop.cubeOffsetX = exitOffX
+        desktop.cubeOffsetY = exitOffY
+      elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime + CubeEscapeReturnTime:
+        # Smoothstep back to orbit from exit portal
+        let p = (tEsc - CubeEscapeFlyTime - CubeEscapeHoldTime) / CubeEscapeReturnTime
+        let eased = 1.0'f32 - p * p * (3.0'f32 - 2.0'f32 * p)
+        desktop.cubeOffsetX = exitOffX * eased
+        desktop.cubeOffsetY = exitOffY * eased
+      else:
+        desktop.cubeEscaping = false
+        desktop.cubePortalMode = false
+        desktop.cubeOffsetX = 0.0
+        desktop.cubeOffsetY = 0.0
+        desktop.cubeAngVelX *= 0.1'f32
+        desktop.cubeAngVelY *= 0.1'f32
     else:
-      desktop.cubeEscaping = false
-      desktop.cubeOffsetX = 0.0
-      desktop.cubeOffsetY = 0.0
-      desktop.cubeAngVelX *= 0.1'f32
-      desktop.cubeAngVelY *= 0.1'f32
+      let flyDist = max(w, h) * 0.95'f32
+      if tEsc < CubeEscapeFlyTime:
+        # Accelerate away from the orbit slot
+        let p = tEsc / CubeEscapeFlyTime
+        desktop.cubeOffsetX = desktop.cubeEscapeDirX * flyDist * p * p
+        desktop.cubeOffsetY = desktop.cubeEscapeDirY * flyDist * p * p
+      elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime:
+        desktop.cubeOffsetX = desktop.cubeEscapeDirX * flyDist
+        desktop.cubeOffsetY = desktop.cubeEscapeDirY * flyDist
+      elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime + CubeEscapeReturnTime:
+        # Smoothstep back into orbit
+        let p = (tEsc - CubeEscapeFlyTime - CubeEscapeHoldTime) / CubeEscapeReturnTime
+        let eased = 1.0'f32 - p * p * (3.0'f32 - 2.0'f32 * p)
+        desktop.cubeOffsetX = desktop.cubeEscapeDirX * flyDist * eased
+        desktop.cubeOffsetY = desktop.cubeEscapeDirY * flyDist * eased
+      else:
+        desktop.cubeEscaping = false
+        desktop.cubeOffsetX = 0.0
+        desktop.cubeOffsetY = 0.0
+        desktop.cubeAngVelX *= 0.1'f32
+        desktop.cubeAngVelY *= 0.1'f32
   elif desktop.cubeEscapeArmed:
     let spinSpeed = sqrt(desktop.cubeAngVelX * desktop.cubeAngVelX +
                          desktop.cubeAngVelY * desktop.cubeAngVelY)
@@ -330,11 +364,23 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
       # Stay armed so the easter egg can play again on the next sustained spin.
       desktop.cubeEscapeTriggered = true
       desktop.cubeDragging = false
-      # Fly off roughly along the spin direction, drifting upward
-      let dirX = (if desktop.cubeAngVelY >= 0: 1.0'f32 else: -1.0'f32)
-      let dirLen = sqrt(dirX * dirX + 0.55'f32 * 0.55'f32)
-      desktop.cubeEscapeDirX = dirX / dirLen
-      desktop.cubeEscapeDirY = -0.55'f32 / dirLen
+      # On the portal background, route through the portals; otherwise fly off-screen.
+      var selectedBg: DesktopBgType = dbgDefault
+      var currentCubeSkin: CubeSkinType = cskDefault
+      if not globalSettings.isNil:
+        selectedBg = DesktopBgType(globalSettings.desktopBg)
+        currentCubeSkin = CubeSkinType(globalSettings.cubeSkin)
+      if selectedBg == dbgPortal and currentCubeSkin == cskCompanion:
+        desktop.cubePortalMode = true
+        # Spin right (cubeAngVelY > 0) → enter the orange portal on the right
+        desktop.cubePortalEnterRight = desktop.cubeAngVelY >= 0.0'f32
+      else:
+        desktop.cubePortalMode = false
+        # Fly off roughly along the spin direction, drifting upward
+        let dirX = (if desktop.cubeAngVelY >= 0: 1.0'f32 else: -1.0'f32)
+        let dirLen = sqrt(dirX * dirX + 0.55'f32 * 0.55'f32)
+        desktop.cubeEscapeDirX = dirX / dirLen
+        desktop.cubeEscapeDirY = -0.55'f32 / dirLen
 
   # Tick down the desktop toast
   if desktop.toastTimer > 0.0'f32:
