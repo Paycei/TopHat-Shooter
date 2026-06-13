@@ -11,13 +11,19 @@ var
   globalConfirmActive      = false
   globalConfirmContext     = cdcQuitToMenu
   globalConfirmFrameGuard  = 0.0'f32  # Prevents Q from instantly confirming on dialog open
-  globalConfirmMouseGuard  = 0.0'f32  # 2-second cooldown before mouse/button click is accepted
+  globalConfirmMouseGuard  = 0.0'f32  # anti-accident cooldown before mouse/button click is accepted
 
-proc showGlobalConfirm(ctx: ConfirmDialogContext) =
+const DEFAULT_CONFIRM_COOLDOWN = 2.0'f32  # standard anti-accident window (seconds)
+
+proc showGlobalConfirm(ctx: ConfirmDialogContext, cooldown: float32 = DEFAULT_CONFIRM_COOLDOWN) =
+  ## `cooldown` is the seconds the YES button stays greyed out / counts down before it
+  ## accepts a click. Pass 0.0 to make confirmation immediate (e.g. the main-menu Quit
+  ## icon, where there's no in-progress run to protect). Defaults to the standard window
+  ## so in-game quits keep the anti-accident delay.
   globalConfirmActive     = true
   globalConfirmContext    = ctx
   globalConfirmFrameGuard = 0.15'f32  # ~9 frames at 60 fps absorbs the key that opened the dialog
-  globalConfirmMouseGuard = 2.0'f32   # 2-second anti-accident window before mouse confirm works
+  globalConfirmMouseGuard = max(0.0'f32, cooldown)
 
 proc isOverRect(mp: Vector2, x, y, w, h: int32): bool =
   mp.x >= x.float32 and mp.x <= (x + w).float32 and
@@ -948,7 +954,7 @@ proc main() =
           globalWindowManager.openWindow(widHelp)
         of 6:  # Shutdown.exe - Quit
           if settings.exitConfirmEnabled:
-            showGlobalConfirm(cdcQuitToDesktop)
+            showGlobalConfirm(cdcQuitToDesktop, cooldown = 0.0'f32)  # menu: no run to protect, confirm immediately
           else:
             windowCloseRequested = true
         of 7:  # Sandbox.exe - Sandbox Mode
@@ -1002,7 +1008,7 @@ proc main() =
             globalWindowManager.openWindow(widHelp)
           of 6:  # Shutdown.exe - Quit
             if settings.exitConfirmEnabled:
-              showGlobalConfirm(cdcQuitToDesktop)
+              showGlobalConfirm(cdcQuitToDesktop, cooldown = 0.0'f32)  # menu: no run to protect, confirm immediately
             else:
               windowCloseRequested = true
           of 7:  # Sandbox.exe

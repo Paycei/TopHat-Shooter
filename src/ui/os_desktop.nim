@@ -734,11 +734,6 @@ proc drawTriangleBothWindings(a, b, c: Vector2, color: Color) =
   drawTriangle(a, b, c, color)
   drawTriangle(a, c, b, color)
 
-proc drawCompanionCornerCap(p: Vector2, size: float32) =
-  drawCircle(p, size * 0.17'f32, Color(r: 86, g: 89, b: 100, a: 240))
-  drawCircleLines(p.x.int32, p.y.int32, size * 0.17'f32,
-                  Color(r: 178, g: 181, b: 190, a: 200))
-
 proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
                                    angleX, angleY, angleZ: float32,
                                    skin: CubeSkinType = cskDefault) =
@@ -838,13 +833,6 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
       if faces[i].depth > faces[i + 1].depth:
         swap(faces[i], faces[i + 1])
 
-  # Companion Cube: caps on the far corners go in first, so the faces occlude
-  # them naturally instead of the caps popping in and out with rotation.
-  if skin == cskCompanion:
-    for i in 0 ..< 8:
-      if rotated[i].z < 0.0'f32:
-        drawCompanionCornerCap(projected[i], size)
-
   for face in faces:
     drawWallpaperCubeFace(projected, face)
 
@@ -862,8 +850,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     drawLine(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
 
   # Companion Cube skin: the Weighted Companion Cube look — a soft-pink heart
-  # on a light disc at the center of every visible face, plus rounded dark
-  # corner caps. Faces were depth-sorted above, so the last three are the
+  # on a light disc at the center of every visible face. Faces were depth-sorted above, so the last three are the
   # camera-facing ones; each heart is drawn in its face's projected basis so
   # it foreshortens and tracks the face as the cube tumbles.
   if skin == cskCompanion:
@@ -957,12 +944,6 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
           drawTriangleBothWindings(fcScreen, prevHeart, cur, heartColor)
         prevHeart = cur
         first = false
-
-    # Rounded corner caps on the near corners (the far ones were drawn
-    # under the faces before the face pass).
-    for i in 0 ..< 8:
-      if rotated[i].z >= 0.0'f32:
-        drawCompanionCornerCap(projected[i], size)
 
 proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
                           cubeRotX, cubeRotY, cubeRotZ: float32,

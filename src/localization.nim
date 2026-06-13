@@ -2145,7 +2145,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Cube Skins
     "csk_default": "System Unit",
-    "csk_default_desc": "Classic red-orange combat cube",
+    "csk_default_desc": "Classic combat cube",
     "csk_neon": "Neon Pulse",
     "csk_neon_desc": "Bright neon purple energy",
     "csk_ice": "Cryo Core",
@@ -3585,7 +3585,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Cube Skins
     "csk_default": "Unidad del Sistema",
-    "csk_default_desc": "Cubo de combate clásico rojo-naranja",
+    "csk_default_desc": "Cubo de combate clásico",
     "csk_neon": "Pulso Neón",
     "csk_neon_desc": "Energía morada neón brillante",
     "csk_ice": "Núcleo Criogénico",
