@@ -280,9 +280,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.maxHp += 14.5
     player.hp += 14.5
   of puSpeedBoost:
-    # Single level only - +40% speed
-    player.speed *= 1.4
-    player.baseSpeed *= 1.4
+    # Single level only - +33% speed
+    player.speed *= 1.33
+    player.baseSpeed *= 1.33
   of puBulletSpeed:
     # Single level only - +40% speed, tapered if bullet speed is already high
     player.bulletSpeed = multiplyBulletSpeedDiminished(player.bulletSpeed, 1.4)
