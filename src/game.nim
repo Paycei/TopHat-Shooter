@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, tables, strutils, algorithm
-import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, particle_types, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints
+import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, particle_types, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints, anticheat
 
 # Configurable boss wave enemy spawn reduction
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
@@ -489,7 +489,7 @@ proc completeBossWave*(game: Game) =
     # First-ever victory unlocks the secret kernel tophat cosmetic. It is
     # equipped by default (and immediately, so it shows in endless) and can be
     # toggled off in the shop's SECRET tab.
-    if not globalSettings.isNil and not globalSettings.kernelTophatUnlocked:
+    if runIsLegit(game) and not globalSettings.isNil and not globalSettings.kernelTophatUnlocked:
       globalSettings.kernelTophatUnlocked = true
       globalSettings.kernelTophatEquipped = true
       discard saveSettings(globalSettings)
@@ -1602,6 +1602,7 @@ proc cleanupGame*(game: Game) =
     game.player.rotatingOrbs = @[]
 
 proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0, particleSkin: int = 0, bulletShape: int = 0): Game =
+  resetIntegritySnapshot()  # SACE: fresh last-good baseline; repopulates on first scanned frame
   let defaultMode = gmWaveBased  # Default to wave-based mode
   let modeDef = getGameModeDefinition(defaultMode)
 
@@ -5213,6 +5214,12 @@ proc updateGame*(game: var Game, dt: float32) =
     updateDeathSequencePlayback(game, dt)
     return
 
+  # SACE: per-frame sanity scan of player-critical values (catches external memory
+  # editors) plus surfacing any queued integrity notices (including load-time
+  # save-tamper detections) into the in-game notification panel.
+  scanRuntimeIntegrity(game)
+  drainIntegrityNotices(game)
+
   updateDopamine(game.dopamine, dt)
 
   let celebrationActive = updateCelebration(game.dopamine.waveCelebration, dt)
@@ -6680,7 +6687,7 @@ proc updateGame*(game: var Game, dt: float32) =
       if enemy.isBoss:
         bossDefeated = true
         # Remember this boss so its full phase layout may be revealed next time.
-        if globalStats != nil and enemy.bossDefinitionID > 0 and
+        if globalStats != nil and runIsLegit(game) and enemy.bossDefinitionID > 0 and
            not globalStats.hasDefeatedBoss(enemy.bossDefinitionID):
           globalStats.markBossDefeated(enemy.bossDefinitionID)
           discard saveStatistics(globalStats)

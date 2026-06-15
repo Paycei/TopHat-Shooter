@@ -443,6 +443,9 @@ type
     tkNotifInstalled = "notif_installed"
     tkNotifIntegrityCompromised = "notif_integrity_compromised"
     tkNotifIntegrityRestored = "notif_integrity_restored"
+    tkNotifAntiCheatTampered = "notif_anticheat_tampered"
+    tkNotifAntiCheatReverted = "notif_anticheat_reverted"
+    tkNotifAntiCheatRuntime = "notif_anticheat_runtime"
     tkNotifResourceAcquired = "notif_resource_acquired"
     tkNotifExecute = "notif_execute"
     tkNotifCooldown = "notif_cooldown"
@@ -2326,6 +2329,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "notif_installed": "Installed:",
     "notif_integrity_compromised": "Integrity compromised: -",
     "notif_integrity_restored": "System integrity restored: +",
+    "notif_anticheat_tampered": "SACE: save integrity violation detected",
+    "notif_anticheat_reverted": "SACE: tampered data reverted to last valid state",
+    "notif_anticheat_runtime": "SACE: anomalous values detected - run flagged",
     "notif_resource_acquired": "Resource acquired: +",
     "notif_execute": "> EXECUTE:",
     "notif_cooldown": "cooldown:",
@@ -3790,6 +3796,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "notif_installed": "Instalado:",
     "notif_integrity_compromised": "Integridad comprometida: -",
     "notif_integrity_restored": "Integridad del sistema restaurada: +",
+    "notif_anticheat_tampered": "SACE: violacion de integridad de guardado detectada",
+    "notif_anticheat_reverted": "SACE: datos manipulados revertidos al ultimo estado valido",
+    "notif_anticheat_runtime": "SACE: valores anomalos detectados - partida marcada",
     "notif_resource_acquired": "Recurso adquirido: +",
     "notif_execute": "> EJECUTAR:",
     "notif_cooldown": "enfriamiento:",

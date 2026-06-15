@@ -1,5 +1,5 @@
-import json, os, times
-import save_system, types
+import json, times
+import save_system, types, anticheat
 
 type
   GameModeStats* = object
@@ -255,38 +255,26 @@ proc hasDefeatedBoss*(stats: Statistics, bossDefinitionID: int): bool =
 
 # SAVE/LOAD
 proc saveStatistics*(stats: Statistics): bool =
-  try:
-    let jsonData = statisticsToJson(stats)
-    let jsonString = jsonData.pretty()
-    let savePath = getStatsPath()
-    writeFile(savePath, jsonString)
+  # SACE: lifetime stats are signed + .bak-mirrored so a hand-edited stats.json
+  # is caught on load and reverted to the last legitimate snapshot.
+  let savePath = getStatsPath()
+  if writeSignedJson(savePath, statisticsToJson(stats)):
     echo "Statistics saved successfully to ", savePath
     return true
-  except IOError as e:
-    echo "Error saving statistics: ", e.msg
-    return false
-  except Exception as e:
-    echo "Unexpected error saving statistics: ", e.msg
-    return false
+  echo "Error saving statistics to ", savePath
+  return false
 
 proc loadStatistics*(stats: Statistics): bool =
+  let savePath = getStatsPath()
+  let (node, status) = readVerifiedJson(savePath)
+  handleLoadStatus(savePath, "statistics", status)
+  if node.isNil:
+    echo "No statistics file found at ", savePath, ", using default stats"
+    return false
   try:
-    let savePath = getStatsPath()
-    if not fileExists(savePath):
-      echo "No statistics file found at ", savePath, ", using default stats"
-      return false
-
-    let jsonString = readFile(savePath)
-    let jsonData = parseJson(jsonString)
-    jsonToStatistics(jsonData, stats)
+    jsonToStatistics(node, stats)
     echo "Statistics loaded successfully from ", savePath
     return true
-  except IOError as e:
-    echo "Error loading statistics: ", e.msg
-    return false
-  except JsonParsingError as e:
-    echo "Error parsing statistics file: ", e.msg
-    return false
   except Exception as e:
-    echo "Unexpected error loading statistics: ", e.msg
+    echo "Error applying statistics: ", e.msg
     return false

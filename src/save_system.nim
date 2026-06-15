@@ -1,5 +1,5 @@
 import json, os, std/tables, strutils
-import run_statistics, types
+import run_statistics, types, anticheat
 
 # Settings type definition (moved from settings_types.nim)
 type
@@ -236,41 +236,31 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =
-  try:
-    let jsonData = settingsToJson(settings)
-    let jsonString = jsonData.pretty()
-    let savePath = getSettingsPath()
-    writeFile(savePath, jsonString)
+  # SACE: signed + .bak-mirrored so external edits to settings.json (which holds
+  # cosmetic unlock flags) are detectable and revertible on the next load.
+  let savePath = getSettingsPath()
+  if writeSignedJson(savePath, settingsToJson(settings)):
     echo "Settings saved successfully to ", savePath
     return true
-  except IOError as e:
-    echo "Error saving settings: ", e.msg
-    return false
-  except Exception as e:
-    echo "Unexpected error saving settings: ", e.msg
-    return false
+  echo "Error saving settings to ", savePath
+  return false
 
 # Load Settings from file
 proc loadSettings*(settings: Settings): bool =
+  let savePath = getSettingsPath()
+  let (node, status) = readVerifiedJson(savePath)
+  handleLoadStatus(savePath, "settings", status)
+  if node.isNil:
+    echo "No save file found at ", savePath, ", using default settings"
+    return false
   try:
-    let savePath = getSettingsPath()
-    if not fileExists(savePath):
-      echo "No save file found at ", savePath, ", using default settings"
-      return false
-
-    let jsonString = readFile(savePath)
-    let jsonData = parseJson(jsonString)
-    jsonToSettings(jsonData, settings)
+    # On tamper this node is the reverted .bak (last legitimate save) when one
+    # exists; otherwise the original values, but the run is already flagged.
+    jsonToSettings(node, settings)
     echo "Settings loaded successfully from ", savePath
     return true
-  except IOError as e:
-    echo "Error loading settings: ", e.msg
-    return false
-  except JsonParsingError as e:
-    echo "Error parsing settings file: ", e.msg
-    return false
   except Exception as e:
-    echo "Unexpected error loading settings: ", e.msg
+    echo "Error applying settings: ", e.msg
     return false
 
 # Helper to convert Table[EnemyType, int] to JSON

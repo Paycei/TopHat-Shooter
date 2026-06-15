@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager
+import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, anticheat, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager
 
 # Global quit-confirmation dialog
 
@@ -400,7 +400,7 @@ proc main() =
   # Retroactive grant: players who earned Escape Velocity before the orbital
   # cube cosmetic existed receive it (equipped by default) on next launch.
   if isAdvancementUnlocked(advancementProfile, CubeEscapeAdvancementId) and
-     not settings.orbitalCubeUnlocked:
+     not settings.orbitalCubeUnlocked and not integrityCompromised:
     settings.orbitalCubeUnlocked = true
     settings.orbitalCubeEquipped = true
     discard saveSettings(settings)
@@ -498,7 +498,7 @@ proc main() =
       setActiveRogueliteProfile(game.rogueliteProfile)
 
     # Save lifetime statistics only once per run
-    if not statsSavedThisGame and not game.cheatsUsed:
+    if not statsSavedThisGame and runIsLegit(game):
       let bossesKilled = if not currentRunStats.isNil:
         currentRunStats.combat.bossKills
       else:
@@ -796,7 +796,7 @@ proc main() =
       # Cube knocked out of orbit by sustained fast spinning: grant the one-time advancement
       if osDesktop.cubeEscapeTriggered:
         osDesktop.cubeEscapeTriggered = false
-        if unlockAdvancementDirectly(advancementProfile, CubeEscapeAdvancementId):
+        if not integrityCompromised and unlockAdvancementDirectly(advancementProfile, CubeEscapeAdvancementId):
           discard saveAdvancements(advancementProfile)
           if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
             globalWindowManager.advancements.profile = advancementProfile
