@@ -365,6 +365,17 @@ proc main() =
   initDesktopBgSkins()
   initCubeSkins()
 
+  # Re-run skin inits whenever the language changes so card names/descs
+  # reflect the new language without requiring a restart.
+  onLanguageChange = proc() =
+    initializeSkins()
+    initializeBulletSkins()
+    initializeBulletShapes()
+    initializeShapes()
+    initializeParticleSkins()
+    initDesktopBgSkins()
+    initCubeSkins()
+
   let cheatMenu = initCheatMenu()
 
   # Apply remaining settings
@@ -731,6 +742,7 @@ proc main() =
           currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmWaveBased)
+          applyComebackBonus(currentGame)
           initializeRunTracking(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
@@ -2246,6 +2258,7 @@ proc main() =
         currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
+        applyComebackBonus(currentGame)
         if previousMode == gmRoguelite:
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile
@@ -2321,6 +2334,7 @@ proc main() =
           currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, previousMode)  # Preserve the game mode
+          applyComebackBonus(currentGame)
           if previousMode == gmRoguelite:
             setActiveRogueliteProfile(loadRogueliteProfile())
             currentGame.rogueliteProfile = rogueliteProfile
@@ -2398,6 +2412,7 @@ proc main() =
         currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)
+        applyComebackBonus(currentGame)
         if previousMode == gmRoguelite:
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile

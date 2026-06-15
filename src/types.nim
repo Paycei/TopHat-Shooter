@@ -1118,6 +1118,8 @@ type
     pauseMenuExitCooldown*: float32  # Countdown before Exit button/key becomes active (prevents accidental exit)
     confirmQuitFrameGuard*: float32  # Short guard so Q-open and Q-confirm can't fire on the same frame
     wallPlacementMode*: bool   # Whether the player is in wall-placement mode (E toggles, RMB/walls=0 exits)
+    comebackBonusActive*: bool  # True while the +10% comeback stat bonus is in effect
+    comebackEndWave*: int        # Wave number at which the comeback bonus expires (copied from settings on run start)
 
 proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
   AttackWarning(

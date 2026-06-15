@@ -188,6 +188,36 @@ proc wrapTwoLines*(text: string, maxWidth: int32, fontSize: int32 = 10): tuple[l
     line2 = currentLine
   return (line1: line1, line2: line2)
 
+proc wrapIntoLines(text: string, maxWidth: int32, fontSize: int32, maxLines: int): seq[string] =
+  result = @[]
+  var cur = ""
+  for w in text.split(' '):
+    let test = if cur.len > 0: cur & " " & w else: w
+    if measureText(test, fontSize) <= maxWidth:
+      cur = test
+    else:
+      if result.len < maxLines - 1:
+        if cur.len > 0: result.add(cur)
+        cur = w
+      else:
+        break
+  if cur.len > 0 and result.len < maxLines:
+    result.add(cur)
+
+proc wrapDescAutoSize*(text: string, maxWidth: int32, startSize: int32 = 11, minSize: int32 = 8): tuple[line1, line2, line3: string, fontSize: int32] =
+  for size in countdown(startSize, minSize):
+    let lines = wrapIntoLines(text, maxWidth, size, 3)
+    if lines.join(" ").strip() == text.strip():
+      return (line1: if lines.len > 0: lines[0] else: "",
+              line2: if lines.len > 1: lines[1] else: "",
+              line3: if lines.len > 2: lines[2] else: "",
+              fontSize: size)
+  let lines = wrapIntoLines(text, maxWidth, minSize, 3)
+  return (line1: if lines.len > 0: lines[0] else: "",
+          line2: if lines.len > 1: lines[1] else: "",
+          line3: if lines.len > 2: lines[2] else: "",
+          fontSize: minSize)
+
 proc visibleCosmeticIndices*(kind: CosmeticKind, query: string): seq[int] =
   var q = query.toLowerAscii()
   result = @[]
@@ -381,22 +411,22 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
   drawText(skinData.name, nameX.int32, (y + 80).int32, nameSize, White)
 
-  # Skin description (2 lines max, wrapped)
+  # Skin description (2 lines max, auto-sized)
   let desc = skinData.description
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  let wrapped = wrapTwoLines(desc, maxDescWidth.int32, 11)
-  let line1 = wrapped.line1
-  let line2 = wrapped.line2
-
-  let descFont: int32 = 11
-  let desc1Width = measureText(line1, descFont)
+  let wrapped = wrapDescAutoSize(desc, maxDescWidth.int32)
+  let descFont = wrapped.fontSize
+  let desc1Width = measureText(wrapped.line1, descFont)
   let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(line1, desc1X.int32, (y + 100).int32, descFont, Gray)
-
-  if line2.len > 0:
-    let desc2Width = measureText(line2, 11)
+  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+  if wrapped.line2.len > 0:
+    let desc2Width = measureText(wrapped.line2, descFont)
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(line2, desc2X.int32, (y + 112).int32, 11, Gray)
+    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, Gray)
+  if wrapped.line3.len > 0:
+    let desc3Width = measureText(wrapped.line3, descFont)
+    let desc3X = x + (SKIN_BOX_WIDTH - desc3Width) div 2
+    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, Gray)
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -461,22 +491,22 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
   drawText(skinData.name, nameX.int32, (y + 80).int32, nameSize, White)
 
-  # Skin description (2 lines max, wrapped)
+  # Skin description (2 lines max, auto-sized)
   let desc = skinData.description
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  let wrapped = wrapTwoLines(desc, maxDescWidth.int32, 11)
-  let line1 = wrapped.line1
-  let line2 = wrapped.line2
-
-  let descFont: int32 = 11
-  let desc1Width = measureText(line1, descFont)
+  let wrapped = wrapDescAutoSize(desc, maxDescWidth.int32)
+  let descFont = wrapped.fontSize
+  let desc1Width = measureText(wrapped.line1, descFont)
   let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(line1, desc1X.int32, (y + 100).int32, descFont, Gray)
-
-  if line2.len > 0:
-    let desc2Width = measureText(line2, 11)
+  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+  if wrapped.line2.len > 0:
+    let desc2Width = measureText(wrapped.line2, descFont)
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(line2, desc2X.int32, (y + 112).int32, 11, Gray)
+    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, Gray)
+  if wrapped.line3.len > 0:
+    let desc3Width = measureText(wrapped.line3, descFont)
+    let desc3X = x + (SKIN_BOX_WIDTH - desc3Width) div 2
+    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, Gray)
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -519,18 +549,19 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
   let nameWidth = measureText(shapeData.name, nameSize)
   drawText(shapeData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32, (y + 80).int32, nameSize, White)
 
-  # Description (wrapped, 2 lines max)
+  # Description (wrapped, 2 lines max, auto-sized)
   let desc = shapeData.description
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  let wrapped = wrapTwoLines(desc, maxDescWidth.int32, 11)
-  let line1 = wrapped.line1
-  let line2 = wrapped.line2
-  let descFont: int32 = 11
-  let d1w = measureText(line1, descFont)
-  drawText(line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32, (y + 100).int32, descFont, Gray)
-  if line2.len > 0:
-    let d2w = measureText(line2, 11)
-    drawText(line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32, (y + 112).int32, 11, Gray)
+  let wrapped = wrapDescAutoSize(desc, maxDescWidth.int32)
+  let descFont = wrapped.fontSize
+  let d1w = measureText(wrapped.line1, descFont)
+  drawText(wrapped.line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32, (y + 100).int32, descFont, Gray)
+  if wrapped.line2.len > 0:
+    let d2w = measureText(wrapped.line2, descFont)
+    drawText(wrapped.line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32, (y + 112).int32, descFont, Gray)
+  if wrapped.line3.len > 0:
+    let d3w = measureText(wrapped.line3, descFont)
+    drawText(wrapped.line3, (x + (SKIN_BOX_WIDTH - d3w) div 2).int32, (y + 124).int32, descFont, Gray)
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -585,22 +616,22 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
   drawText(shapeData.name, nameX.int32, (y + 80).int32, nameSize, White)
 
-  # Shape description (2 lines max, wrapped)
+  # Shape description (2 lines max, auto-sized)
   let desc = shapeData.description
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  let wrapped = wrapTwoLines(desc, maxDescWidth.int32, 11)
-  let line1 = wrapped.line1
-  let line2 = wrapped.line2
-
-  let descFont: int32 = 11
-  let desc1Width = measureText(line1, descFont)
+  let wrapped = wrapDescAutoSize(desc, maxDescWidth.int32)
+  let descFont = wrapped.fontSize
+  let desc1Width = measureText(wrapped.line1, descFont)
   let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(line1, desc1X.int32, (y + 100).int32, descFont, Gray)
-
-  if line2.len > 0:
-    let desc2Width = measureText(line2, 11)
+  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+  if wrapped.line2.len > 0:
+    let desc2Width = measureText(wrapped.line2, descFont)
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(line2, desc2X.int32, (y + 112).int32, 11, Gray)
+    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, Gray)
+  if wrapped.line3.len > 0:
+    let desc3Width = measureText(wrapped.line3, descFont)
+    let desc3X = x + (SKIN_BOX_WIDTH - desc3Width) div 2
+    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, Gray)
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -657,21 +688,22 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
   drawText(particleDataInfo.name, nameX.int32, (y + 80).int32, 16, White)
 
-  # Particle description (2 lines max, wrapped)
+  # Particle description (2 lines max, auto-sized)
   let desc = particleDataInfo.description
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  let wrapped = wrapTwoLines(desc, maxDescWidth.int32, 11)
-  let line1 = wrapped.line1
-  let line2 = wrapped.line2
-
-  let desc1Width = measureText(line1, 11)
+  let wrapped = wrapDescAutoSize(desc, maxDescWidth.int32)
+  let descFont = wrapped.fontSize
+  let desc1Width = measureText(wrapped.line1, descFont)
   let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(line1, desc1X.int32, (y + 100).int32, 11, Gray)
-
-  if line2.len > 0:
-    let desc2Width = measureText(line2, 11)
+  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+  if wrapped.line2.len > 0:
+    let desc2Width = measureText(wrapped.line2, descFont)
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(line2, desc2X.int32, (y + 112).int32, 11, Gray)
+    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, Gray)
+  if wrapped.line3.len > 0:
+    let desc3Width = measureText(wrapped.line3, descFont)
+    let desc3X = x + (SKIN_BOX_WIDTH - desc3Width) div 2
+    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, Gray)
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -780,16 +812,21 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
   drawText(bgData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32,
            (y + 70).int32, nameSize, White)
 
-  # Description (wrapped 2 lines)
+  # Description (wrapped 2 lines, auto-sized)
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  let wrapped = wrapTwoLines(bgData.description, maxDescWidth.int32, 11)
-  let d1w = measureText(wrapped.line1, 11)
+  let wrapped = wrapDescAutoSize(bgData.description, maxDescWidth.int32)
+  let descFont = wrapped.fontSize
+  let d1w = measureText(wrapped.line1, descFont)
   drawText(wrapped.line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32,
-           (y + 90).int32, 11, Gray)
+           (y + 90).int32, descFont, Gray)
   if wrapped.line2.len > 0:
-    let d2w = measureText(wrapped.line2, 11)
+    let d2w = measureText(wrapped.line2, descFont)
     drawText(wrapped.line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32,
-             (y + 102).int32, 11, Gray)
+             (y + 102).int32, descFont, Gray)
+  if wrapped.line3.len > 0:
+    let d3w = measureText(wrapped.line3, descFont)
+    drawText(wrapped.line3, (x + (SKIN_BOX_WIDTH - d3w) div 2).int32,
+             (y + 114).int32, descFont, Gray)
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -835,16 +872,21 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
   drawText(skinData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32,
            (y + 80).int32, nameSize, White)
 
-  # Description (wrapped 2 lines)
+  # Description (wrapped 2 lines, auto-sized)
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  let wrapped = wrapTwoLines(skinData.description, maxDescWidth.int32, 11)
-  let d1w = measureText(wrapped.line1, 11)
+  let wrapped = wrapDescAutoSize(skinData.description, maxDescWidth.int32)
+  let descFont = wrapped.fontSize
+  let d1w = measureText(wrapped.line1, descFont)
   drawText(wrapped.line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32,
-           (y + 100).int32, 11, Gray)
+           (y + 100).int32, descFont, Gray)
   if wrapped.line2.len > 0:
-    let d2w = measureText(wrapped.line2, 11)
+    let d2w = measureText(wrapped.line2, descFont)
     drawText(wrapped.line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32,
-             (y + 112).int32, 11, Gray)
+             (y + 112).int32, descFont, Gray)
+  if wrapped.line3.len > 0:
+    let d3w = measureText(wrapped.line3, descFont)
+    drawText(wrapped.line3, (x + (SKIN_BOX_WIDTH - d3w) div 2).int32,
+             (y + 124).int32, descFont, Gray)
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 

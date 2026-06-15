@@ -49,6 +49,7 @@ type
     kernelTophatEquipped*: bool  # Whether the unlocked kernel tophat is worn in-game
     orbitalCubeUnlocked*: bool  # Secret cosmetic: earned with the Escape Velocity advancement
     orbitalCubeEquipped*: bool  # Whether the mini desktop cube orbits the player in-game
+    lastDeathWave*: int         # Wave the player died on last non-cheated wave-based run (0 = none)
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -125,7 +126,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "kernelTophatUnlocked": settings.kernelTophatUnlocked,
     "kernelTophatEquipped": settings.kernelTophatEquipped,
     "orbitalCubeUnlocked": settings.orbitalCubeUnlocked,
-    "orbitalCubeEquipped": settings.orbitalCubeEquipped
+    "orbitalCubeEquipped": settings.orbitalCubeEquipped,
+    "lastDeathWave": settings.lastDeathWave
   }
 
 # Load Settings from JSON
@@ -228,6 +230,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("orbitalCubeEquipped"):
     settings.orbitalCubeEquipped = jsonNode["orbitalCubeEquipped"].getBool()
+
+  if jsonNode.hasKey("lastDeathWave"):
+    settings.lastDeathWave = jsonNode["lastDeathWave"].getInt()
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =

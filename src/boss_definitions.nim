@@ -492,7 +492,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 4.0,
               cooldown: 3.5,  # NERFED from 2.2
               projectileSpeed: 0.0,
-              projectileCount: 2,  # dodge buff: 4 beams instead of 6 (grid count is doubled in code), was 3
+              projectileCount: 2,
               spreadAngle: 45.0,
               durationOrRadius: 2.2,  # dodge buff: shorter active beam window, was 3.0
               specialData: "rotating_grid"
@@ -549,7 +549,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 5.0,
-              cooldown: 1.8,  # dodge buff: was 1.0; timer runs free so 1.0 stacked ~3 overlapping beams (telegraph 1.2 + active), this gives real reposition gaps
+              cooldown: 1.8,
               projectileSpeed: 0.0,
               projectileCount: 1,
               spreadAngle: 0.0,

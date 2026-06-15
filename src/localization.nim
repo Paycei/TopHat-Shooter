@@ -1403,6 +1403,10 @@ type
     tkCheatConsDoubleCoin = "cheat_cons_double_coin"
     tkCheatConsLifesteal = "cheat_cons_lifesteal"
 
+    # Comeback mechanic
+    tkComebackBonusActive = "comeback_bonus_active"
+    tkComebackBonusUntil = "comeback_bonus_until"
+
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -2997,7 +3001,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_cons_shield": "Shield Boost",
     "cheat_cons_damage": "Damage Boost",
     "cheat_cons_double_coin": "Double Coin",
-    "cheat_cons_lifesteal": "Lifesteal"
+    "cheat_cons_lifesteal": "Lifesteal",
+
+    # Comeback mechanic
+    "comeback_bonus_active": "COMEBACK +10%",
+    "comeback_bonus_until": "until wave"
   }.toTable,
 
   Spanish: {
@@ -4590,12 +4598,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_cons_shield": "Impulso de Escudo",
     "cheat_cons_damage": "Impulso de Daño",
     "cheat_cons_double_coin": "Moneda Doble",
-    "cheat_cons_lifesteal": "Robo de Vida"
+    "cheat_cons_lifesteal": "Robo de Vida",
+
+    # Comeback mechanic
+    "comeback_bonus_active": "REGRESO +10%",
+    "comeback_bonus_until": "hasta oleada"
   }.toTable
 }.toTable
 
 # Current language (default to English)
 var currentLanguage*: Language = English
+
+# Optional callback invoked after language changes, used to refresh any data
+# that cached translated strings at initialization time (e.g. skin databases).
+var onLanguageChange*: proc() = nil
 
 # Get translation for a key
 proc t*(key: string): string =
@@ -4616,6 +4632,8 @@ proc t*(key: TranslationKey): string =
 # Set current language
 proc setLanguage*(lang: Language) =
   currentLanguage = lang
+  if not onLanguageChange.isNil:
+    onLanguageChange()
 
 # Get current language
 proc getLanguage*(): Language =

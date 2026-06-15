@@ -226,6 +226,44 @@ proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
     return (getEnemyConfig(sourceType).name, false)
   return ("", false)
 
+# Comeback mechanic: fixed additive deltas applied to a fresh player at run start.
+# Using additive amounts (not a percentage reversal at expiry) guarantees shop/power-up
+# purchases made during the run are not affected when the bonus is removed.
+const ComebackHpBonus    = 9.0'f32   * 0.1'f32  # +0.9
+const ComebackDmgBonus   = 1.0'f32   * 0.1'f32  # +0.1
+const ComebackSpeedBonus = 177.5'f32 * 0.1'f32  # +17.75
+const ComebackFrBonus    = 0.4275'f32 * 0.1'f32  # 0.04275 subtracted (lower = faster)
+const ComebackBsBonus    = 325.0'f32 * 0.1'f32  # +32.5
+
+proc removeComebackBonus(game: Game) =
+  game.comebackBonusActive = false
+  game.comebackEndWave = 0
+  game.player.maxHp -= ComebackHpBonus
+  game.player.hp = min(game.player.hp, game.player.maxHp)
+  game.player.damage -= ComebackDmgBonus
+  game.player.baseSpeed -= ComebackSpeedBonus
+  game.player.speed -= ComebackSpeedBonus
+  game.player.fireRate += ComebackFrBonus
+  game.player.bulletSpeed -= ComebackBsBonus
+
+proc applyComebackBonus*(game: Game) =
+  if globalSettings.isNil or globalSettings.lastDeathWave <= 0:
+    return
+  if game.mode != gmWaveBased:
+    return
+  game.comebackBonusActive = true
+  game.comebackEndWave = globalSettings.lastDeathWave
+  game.player.maxHp += ComebackHpBonus
+  game.player.hp = game.player.maxHp
+  game.player.damage += ComebackDmgBonus
+  game.player.baseSpeed += ComebackSpeedBonus
+  game.player.speed += ComebackSpeedBonus
+  game.player.fireRate -= ComebackFrBonus
+  game.player.bulletSpeed += ComebackBsBonus
+  # Consume the stored death wave so restarts don't re-apply it indefinitely
+  globalSettings.lastDeathWave = 0
+  discard saveSettings(globalSettings)
+
 proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
                                source: Enemy = nil, sourceType: EnemyType = etEnvironment) =
   ## Starts the delayed singleplayer death playback before the game-over screen.
@@ -243,6 +281,11 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   if isPvPMode(game.mode):
     game.state = gsGameOver
     return
+
+  # Save the death wave for the comeback mechanic on the next wave-based run.
+  if game.mode == gmWaveBased and not game.cheatsUsed and not globalSettings.isNil:
+    globalSettings.lastDeathWave = game.currentWave
+    discard saveSettings(globalSettings)
 
   game.state = gsDeathSequence
   game.transitioning = false
@@ -404,6 +447,10 @@ proc completeBossWave*(game: Game) =
   game.waveInProgress = false
   game.currentWave += 1
   game.wavesUntilBoss -= 1
+
+  if game.comebackBonusActive and game.currentWave >= game.comebackEndWave:
+    removeComebackBonus(game)
+
   # Golden pulse on boss defeat
   spawnWavePulse(game.osBackground,
     game.screenWidth.float32 / 2.0,
@@ -1922,6 +1969,9 @@ proc checkWaveComplete*(game: Game): bool =
 proc advanceWave*(game: Game) =
   game.currentWave += 1
   game.wavesUntilBoss -= 1
+
+  if game.comebackBonusActive and game.currentWave >= game.comebackEndWave:
+    removeComebackBonus(game)
 
   # Check if it's time for a boss (every 5 waves now)
   if game.wavesUntilBoss == 0:
@@ -6205,6 +6255,8 @@ proc updateGame*(game: var Game, dt: float32) =
             # Advance wave counters so the next wave uses the next wave number
             game.currentWave += 1
             game.wavesUntilBoss -= 1
+            if game.comebackBonusActive and game.currentWave >= game.comebackEndWave:
+              removeComebackBonus(game)
 
           # ADJUSTED: Power-ups less frequent (every 2 waves instead of every wave)
           shouldOfferPowerUp = (game.currentWave mod 2) == 0
@@ -9130,6 +9182,17 @@ proc drawGame*(game: Game) =
   drawWaveCelebration(game.dopamine.waveCelebration, game.screenWidth, game.screenHeight)
   drawBossIntroduction(game.dopamine.bossIntro, game.screenWidth, game.screenHeight)
   drawAchievementPopup(game.dopamine.achievements, game.screenWidth, game.screenHeight)
+
+  if game.comebackBonusActive:
+    let pulse = (sin(game.time * 2.5) * 0.15 + 0.85).float32
+    let alpha = uint8(clamp(pulse * 230.0, 0.0, 255.0))
+    let cbLabel = t(tkComebackBonusActive) & " (" & t(tkComebackBonusUntil) & " " & $game.comebackEndWave & ")"
+    let cbFontSize: int32 = 13
+    let cbW = measureText(cbLabel, cbFontSize)
+    let cbX = game.screenWidth div 2 - cbW div 2
+    let cbY: int32 = 6
+    drawRectangle(cbX - 6, cbY - 2, cbW + 12, cbFontSize + 6, Color(r: 0, g: 0, b: 0, a: uint8(clamp(pulse * 140.0, 0.0, 255.0))))
+    drawText(cbLabel, cbX, cbY, cbFontSize, Color(r: 80, g: 220, b: 100, a: alpha))
 
   # Boss entrance warning: flashing "!" on the screen edge the boss is entering from
   if game.bossWaveManager.isBossActive():
