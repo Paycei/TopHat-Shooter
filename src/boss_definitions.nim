@@ -375,7 +375,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 2.0,
               cooldown: 2.3,  # NERFED from 2.0
               projectileSpeed: 330.0,  # NERFED from 350.0
-              projectileCount: 7,  # NERFED from 8 (fewer meteors)
+              projectileCount: 7,  # NOTE: inert for bapMeteor, count comes from screen layout (zoneWidth / bRadius*5); meteor density is tuned via "massive_impact"/"apocalypse_mode" bullet-radius scaling, not this field
               spreadAngle: 0.0,
               durationOrRadius: 100.0,
               specialData: "massive_impact"
@@ -406,7 +406,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 2.5,  # NERFED from 3.0
               cooldown: 1.75,  # NERFED from 1.5
               projectileSpeed: 370.0,  # NERFED from 400.0
-              projectileCount: 11,  # NERFED from 12 (fewer meteors)
+              projectileCount: 11,  # NOTE: inert for bapMeteor, count comes from screen layout (zoneWidth / bRadius*5); meteor density is tuned via "apocalypse_mode" bullet-radius scaling, not this field
               spreadAngle: 0.0,
               durationOrRadius: 120.0,
               specialData: "apocalypse_mode"

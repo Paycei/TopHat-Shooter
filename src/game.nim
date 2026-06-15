@@ -4372,8 +4372,12 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
 
       # Create satellites in multiple orbital layers
       for layer in 0..<layerCount:
-        # Calculate satellites per layer (distribute evenly)
-        let satsThisLayer = satelliteCount div layerCount
+        # Distribute satellites across layers, spreading any remainder onto the
+        # first layers so the full authored projectileCount actually spawns.
+        # Plain `div` silently dropped satellites (8/3 -> 6, 5/2 -> 4), which
+        # under-delivered the boss AND shrank its all-satellites-down window.
+        let satsThisLayer = satelliteCount div layerCount +
+          (if layer < satelliteCount mod layerCount: 1 else: 0)
         let layerRadius = baseOrbitRadius + (layer.float32 * 50.0)  # Each layer 50px apart
         let angleOffset = if layer mod 2 == 0: 0.0 else: (PI / satsThisLayer.float32)  # Stagger alternating layers
         # Alternating layers rotate in opposite directions for visual complexity
@@ -6802,7 +6806,9 @@ proc updateGame*(game: var Game, dt: float32) =
           "prism_defense",      "prism_array",     "light_cascade",
           "slow_time",          "time_distortion", "time_collapse",
           "orbital_pattern",    "satellite_swarm", "deploy_satellites", "multi_orbital",
-          "electric_buildup",   "electric_surge"
+          "orbital_chaos",                          # Boss 7 P3: zone like its earlier phases (was omitted)
+          "electric_buildup",   "electric_surge",
+          "critical_discharge"                      # Boss 6 P3: zone like its earlier phases (was omitted)
         ]
 
         let distToPlayer = distance(enemy.pos, game.player.pos)
