@@ -109,6 +109,10 @@ proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHover
                                 width: width.float32, height: height.float32),
                     1, borderColor)
 
+  if isActive:
+    drawRectangle(x.int32, (y + height - 3).int32, width.int32, 3,
+                 Color(r: 0, g: 200, b: 255, a: 255))
+
   let textWidth = measureText(tabName, 16)
   let textX = x + (width - textWidth) div 2
   let textY = y + (height - 16) div 2
@@ -117,29 +121,45 @@ proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHover
   drawText(tabName, textX.int32, textY.int32, 16, textColor)
 
 proc drawCheckbox*(x, y, size: int, checked: bool, hovered: bool) =
-  let bgColor = if hovered:
-    Color(r: 80, g: 80, b: 100, a: 255)
+  let bgColor = if checked:
+    Color(r: 15, g: 75, b: 30, a: 255)
+  elif hovered:
+    Color(r: 70, g: 70, b: 95, a: 255)
   else:
-    Color(r: 60, g: 60, b: 80, a: 255)
+    Color(r: 50, g: 50, b: 70, a: 255)
 
   drawRectangle(x.int32, y.int32, size.int32, size.int32, bgColor)
+
+  let borderColor = if checked:
+    Color(r: 60, g: 220, b: 90, a: 255)
+  elif hovered:
+    Color(r: 0, g: 200, b: 255, a: 255)
+  else:
+    Color(r: 100, g: 100, b: 120, a: 255)
+  let borderThick: float32 = if checked or hovered: 2.0 else: 1.0
+
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                 width: size.float32, height: size.float32),
-                    1, Color(r: 120, g: 120, b: 140, a: 255))
+                    borderThick, borderColor)
 
   if checked:
-    drawLine(Vector2(x: (x + 5).float32, y: (y + size div 2).float32),
+    let checkColor = Color(r: 100, g: 255, b: 130, a: 255)
+    drawLine(Vector2(x: (x + 4).float32, y: (y + size div 2).float32),
             Vector2(x: (x + size div 2 - 2).float32, y: (y + size - 5).float32),
-            3, Green)
+            3, checkColor)
     drawLine(Vector2(x: (x + size div 2 - 2).float32, y: (y + size - 5).float32),
             Vector2(x: (x + size - 3).float32, y: (y + 3).float32),
-            3, Green)
+            3, checkColor)
 
 proc drawSlider*(x, y, width, height: int, value: float32, hovered: bool,
                 showTicks: bool = false, tickValues: seq[int] = @[]) =
   # Background
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
-               Color(r: 40, g: 40, b: 50, a: 255))
+               Color(r: 30, g: 30, b: 42, a: 255))
+
+  # Center groove for depth
+  drawRectangle(x.int32, (y + height div 2 - 1).int32, width.int32, 2,
+               Color(r: 15, g: 15, b: 22, a: 255))
 
   # Draw tick marks if enabled
   if showTicks and tickValues.len > 0:
@@ -167,21 +187,25 @@ proc drawSlider*(x, y, width, height: int, value: float32, hovered: bool,
     # Glow effect
     drawRectangle((handleX - 2).int32, (y - 5).int32, 14, (height + 10).int32,
                  Color(r: 255, g: 220, b: 100, a: 80))
-  drawRectangle((handleX).int32, (y - 3).int32, 10, (height + 6).int32,
-               if hovered: Gold else: White)
+  drawRectangle(handleX.int32, (y - 3).int32, 10, (height + 6).int32,
+               if hovered: Gold else: Color(r: 200, g: 200, b: 220, a: 255))
+  drawRectangle(handleX.int32, (y - 3).int32, 10, 2,
+               Color(r: 255, g: 255, b: 255, a: 90))
 
 proc drawSectionHeader*(x, y, width: int, title: string, iconChar: char, color: Color) =
-  ## Draw a section divider with icon
-  # Horizontal line
-  drawRectangle(x.int32, (y + 10).int32, width.int32, 2,
-               Color(r: 0, g: 200, b: 255, a: 100))
+  ## Draw a section divider with colored icon square
+  # Colored icon square
+  drawRectangle(x.int32, y.int32, 20, 22, color)
+  let charW = measureText($iconChar, 13)
+  drawText($iconChar, (x + (20 - charW) div 2).int32, (y + 4).int32, 13,
+          Color(r: 0, g: 0, b: 0, a: 220))
 
-  # Icon circle
-  drawCircle(Vector2(x: (x + 15).float32, y: (y + 11).float32), 10, color)
-  drawText($iconChar, (x + 10).int32, (y + 3).int32, 16, Black)
+  # Horizontal separator line
+  drawRectangle((x + 20).int32, (y + 10).int32, (width - 20).int32, 1,
+               Color(r: 0, g: 200, b: 255, a: 60))
 
   # Title text
-  drawText(title, (x + 35).int32, (y + 2).int32, 18,
+  drawText(title, (x + 26).int32, (y + 3).int32, 16,
           Color(r: 0, g: 220, b: 255, a: 255))
 
 proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rectangle =
@@ -395,34 +419,39 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(t(tkSettingsRenderResolutionDesc), renderModeButtonX.int32, yPos.int32, 14, LightGray)
   yPos += 25
 
-  # FPS Limit
+  # FPS Limit — text input for custom values
   drawText(t(tkSettingsFpsLimit), (contentX + 40).int32, yPos.int32, 18, White)
-
   let boxX = contentX + 320
   let boxY = yPos - 5
-  let boxWidth = 120
-  let boxHeight = 30
-
-  let boxColor = if settingsWin.editingFPS:
-    Color(r: 100, g: 100, b: 150, a: 255)
-  else:
-    Color(r: 60, g: 60, b: 80, a: 255)
-
-  drawRectangle(boxX.int32, boxY.int32, boxWidth.int32, boxHeight.int32, boxColor)
+  let boxWidth = 110
+  let boxHeight = 35
+  drawRectangle(boxX.int32, boxY.int32, boxWidth.int32, boxHeight.int32,
+               if settingsWin.editingFPS: Color(r: 100, g: 100, b: 150, a: 255)
+               else: Color(r: 60, g: 60, b: 80, a: 255))
   drawRectangleLines(Rectangle(x: boxX.float32, y: boxY.float32,
                                 width: boxWidth.float32, height: boxHeight.float32),
-                    if settingsWin.editingFPS: 2 else: 1,
-                    if settingsWin.editingFPS: Gold else: Gray)
-
+                    if settingsWin.editingFPS: 2.0'f32 else: 1.0'f32,
+                    if settingsWin.editingFPS: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
   let displayText = if settingsWin.editingFPS:
     settingsWin.settings.inputBuffer & "_"
   else:
     $settingsWin.settings.fpsLimit
-
-  let textWidth = measureText(displayText, 20)
+  let textWidth = measureText(displayText, 16)
   drawText(displayText, (boxX + (boxWidth - textWidth) div 2).int32,
-          (boxY + 5).int32, 20, White)
+          (boxY + (boxHeight - 16) div 2).int32, 16, White)
+
   yPos += 40
+
+  # VSync
+  drawText(t(tkSettingsVSync), (contentX + 40).int32, yPos.int32, 18, White)
+  let vsyncCheckX = contentX + 320
+  let vsyncHovered = mousePos.x >= vsyncCheckX.float32 and
+                     mousePos.x <= (vsyncCheckX + 25).float32 and
+                     mousePos.y >= yPos.float32 and
+                     mousePos.y <= (yPos + 25).float32
+  drawCheckbox(vsyncCheckX, yPos, 25, settingsWin.settings.vsyncEnabled, vsyncHovered)
+  drawText(t(tkSettingsVSyncDesc), (vsyncCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 35
 
   # Show FPS Counter
   drawText(t(tkSettingsShowFps), (contentX + 40).int32, yPos.int32, 18, White)
@@ -493,7 +522,9 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
 
   let volPercent = int(settingsWin.settings.volume * 100)
   drawText($volPercent & "%", (volumeSliderX + sliderWidth + 15).int32, yPos.int32, 18, White)
-  yPos += 45
+  drawText(t(tkSettingsSoundEffectsDesc), (contentX + 40).int32,
+          (volumeSliderY + sliderHeight + 4).int32, 12, Color(r: 120, g: 120, b: 150, a: 255))
+  yPos += 55
 
   # Music Volume
   drawText(t(tkSettingsMusic), (contentX + 40).int32, yPos.int32, 18, White)
@@ -510,6 +541,8 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
 
   let musicPercent = int(settingsWin.settings.musicVolume * 100)
   drawText($musicPercent & "%", (musicSliderX + sliderWidth + 15).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsMusicDesc), (contentX + 40).int32,
+          (musicSliderY + sliderHeight + 4).int32, 12, Color(r: 120, g: 120, b: 150, a: 255))
 
 proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
@@ -808,34 +841,45 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         playSound(stMenuSelect)
         settingsChanged = true
 
-      # FPS input box
+      # FPS text input box
       let boxX = contentX + 320
       let boxY = contentY + 145
-      let boxWidth = 120
-      let boxHeight = 30
+      let boxWidth = 110
+      let boxHeight = 35
       let boxHit = mousePos.x >= boxX.float32 and mousePos.x <= (boxX + boxWidth).float32 and
                    mousePos.y >= boxY.float32 and mousePos.y <= (boxY + boxHeight).float32
       if boxHit:
         if not settingsWin.editingFPS:
           settingsWin.editingFPS = true
-          settingsWin.settings.inputBuffer = ""
+          settingsWin.settings.inputBuffer = $settingsWin.settings.fpsLimit
       else:
         if settingsWin.editingFPS:
-          # Commit FPS on clicking outside
           if settingsWin.settings.inputBuffer.len > 0:
             try:
               let newFps = parseInt(settingsWin.settings.inputBuffer)
-              if newFps >= 30 and newFps <= 9999:
+              if newFps >= 1 and newFps <= 9999:
                 settingsWin.settings.fpsLimit = newFps.int32
                 setTargetFPS(settingsWin.settings.fpsLimit)
                 settingsChanged = true
             except:
               discard
-        settingsWin.editingFPS = false
+          settingsWin.editingFPS = false
+
+      # VSync checkbox
+      let vsyncCheckX = contentX + 320
+      let vsyncCheckY = contentY + 190
+      if mousePos.x >= vsyncCheckX.float32 and mousePos.x <= (vsyncCheckX + 25).float32 and
+         mousePos.y >= vsyncCheckY.float32 and mousePos.y <= (vsyncCheckY + 25).float32:
+        settingsWin.settings.vsyncEnabled = not settingsWin.settings.vsyncEnabled
+        if settingsWin.settings.vsyncEnabled:
+          setWindowState(flags(VsyncHint))
+        else:
+          clearWindowState(flags(VsyncHint))
+        settingsChanged = true
 
       # Show FPS checkbox (25x25 hit area)
       let fpsCheckX = contentX + 320
-      let fpsCheckY = contentY + 190
+      let fpsCheckY = contentY + 225
       if mousePos.x >= fpsCheckX.float32 and mousePos.x <= (fpsCheckX + 25).float32 and
          mousePos.y >= fpsCheckY.float32 and mousePos.y <= (fpsCheckY + 25).float32:
         settingsWin.settings.showFPS = not settingsWin.settings.showFPS
@@ -843,41 +887,39 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
 
       # Debug checkbox (25x25 hit area)
       let debugCheckX = contentX + 320
-      let debugCheckY = contentY + 225
+      let debugCheckY = contentY + 260
       if mousePos.x >= debugCheckX.float32 and mousePos.x <= (debugCheckX + 25).float32 and
          mousePos.y >= debugCheckY.float32 and mousePos.y <= (debugCheckY + 25).float32:
         settingsWin.settings.showDebugStats = not settingsWin.settings.showDebugStats
         settingsChanged = true
 
       let arenaVignetteCheckX = contentX + 320
-      let arenaVignetteCheckY = contentY + 260
+      let arenaVignetteCheckY = contentY + 295
       if mousePos.x >= arenaVignetteCheckX.float32 and mousePos.x <= (arenaVignetteCheckX + 25).float32 and
          mousePos.y >= arenaVignetteCheckY.float32 and mousePos.y <= (arenaVignetteCheckY + 25).float32:
         settingsWin.settings.showArenaVignette = not settingsWin.settings.showArenaVignette
         settingsChanged = true
 
       let lowHpVignetteCheckX = contentX + 320
-      let lowHpVignetteCheckY = contentY + 295
+      let lowHpVignetteCheckY = contentY + 330
       if mousePos.x >= lowHpVignetteCheckX.float32 and mousePos.x <= (lowHpVignetteCheckX + 25).float32 and
          mousePos.y >= lowHpVignetteCheckY.float32 and mousePos.y <= (lowHpVignetteCheckY + 25).float32:
         settingsWin.settings.showLowHealthVignette = not settingsWin.settings.showLowHealthVignette
         settingsChanged = true
 
-    # Handle FPS text input
+    # Keyboard input for FPS text box
     if settingsWin.editingFPS:
       let key = getCharPressed()
       if key > 0:
         let ch = char(key)
         if ch in '0'..'9' and settingsWin.settings.inputBuffer.len < 4:
           settingsWin.settings.inputBuffer.add(ch)
-
       if isKeyPressed(Backspace) and settingsWin.settings.inputBuffer.len > 0:
         settingsWin.settings.inputBuffer.setLen(settingsWin.settings.inputBuffer.len - 1)
-
       if isKeyPressed(Enter) and settingsWin.settings.inputBuffer.len > 0:
         try:
           let newFps = parseInt(settingsWin.settings.inputBuffer)
-          if newFps >= 30 and newFps <= 9999:
+          if newFps >= 1 and newFps <= 9999:
             settingsWin.settings.fpsLimit = newFps.int32
             setTargetFPS(settingsWin.settings.fpsLimit)
             settingsChanged = true
@@ -888,7 +930,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   # Handle Audio tab interactions
   if settingsWin.currentTab == stAudio and isTopmost:
     let volumeSliderX = contentX + 250
-    let volumeSliderY = contentY + 45
+    let volumeSliderY = contentY + 55
     let sliderWidth = 300
     let sliderHeight = 20
 
@@ -915,7 +957,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       settingsChanged = true  # Only save when slider is released
 
     # Music slider
-    let musicSliderY = contentY + 90
+    let musicSliderY = contentY + 110
     let musicHovered = mousePos.x >= volumeSliderX.float32 and
                        mousePos.x <= (volumeSliderX + sliderWidth).float32 and
                        mousePos.y >= musicSliderY.float32 and
@@ -935,6 +977,21 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     if settingsWin.draggingMusic and not isMouseButtonDown(Left):
       settingsWin.draggingMusic = false
       settingsChanged = true  # Only save when slider is released
+
+    # Mouse wheel adjusts the slider under the cursor
+    let wheelMove = getMouseWheelMove()
+    if wheelMove != 0.0'f32:
+      let hoverTol = 12.0'f32
+      if mousePos.x >= volumeSliderX.float32 and mousePos.x <= (volumeSliderX + sliderWidth).float32 and
+         mousePos.y >= (volumeSliderY.float32 - hoverTol) and mousePos.y <= (volumeSliderY.float32 + sliderHeight.float32 + hoverTol):
+        settingsWin.settings.volume = clamp(settingsWin.settings.volume + wheelMove * 0.05'f32, 0.0, 1.0)
+        setGameVolume(settingsWin.settings.volume)
+        settingsChanged = true
+      elif mousePos.x >= volumeSliderX.float32 and mousePos.x <= (volumeSliderX + sliderWidth).float32 and
+           mousePos.y >= (musicSliderY.float32 - hoverTol) and mousePos.y <= (musicSliderY.float32 + sliderHeight.float32 + hoverTol):
+        settingsWin.settings.musicVolume = clamp(settingsWin.settings.musicVolume + wheelMove * 0.05'f32, 0.0, 1.0)
+        setMusicVolume(settingsWin.settings.musicVolume)
+        settingsChanged = true
 
   # Handle Controls tab interactions
   if settingsWin.currentTab == stControls and isTopmost:

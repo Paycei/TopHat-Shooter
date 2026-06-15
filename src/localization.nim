@@ -46,6 +46,8 @@ type
     tkSettingsClickEdit = "settings_click_edit"
     tkSettingsSoundEffects = "settings_sound_effects"
     tkSettingsMusic = "settings_music"
+    tkSettingsSoundEffectsDesc = "settings_sound_effects_desc"
+    tkSettingsMusicDesc = "settings_music_desc"
     tkSettingsFullscreen = "settings_fullscreen"
     tkSettingsFullscreenToggle = "settings_fullscreen_toggle"
     tkSettingsRenderResolution = "settings_render_resolution"
@@ -53,6 +55,8 @@ type
     tkSettingsRenderResolutionDisabled = "settings_render_resolution_disabled"
     tkSettingsRenderResolutionEnabled = "settings_render_resolution_enabled"
     tkSettingsRenderResolutionFullscreenOnly = "settings_render_resolution_fullscreen_only"
+    tkSettingsVSync = "settings_vsync"
+    tkSettingsVSyncDesc = "settings_vsync_desc"
     tkSettingsShowFps = "settings_show_fps"
     tkSettingsMouseSupport = "settings_mouse_support"
     tkSettingsMouseSupportDesc = "settings_mouse_support_desc"
@@ -1466,6 +1470,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_click_edit": "Click to edit, Enter to confirm",
     "settings_sound_effects": "Sound Effects:",
     "settings_music": "Music:",
+    "settings_sound_effects_desc": "(explosions, UI, in-game effects)",
+    "settings_music_desc": "(background music volume)",
     "settings_fullscreen": "Fullscreen:",
     "settings_fullscreen_toggle": "(Press F11 to toggle)",
     "settings_render_resolution": "Improved resolution (SSAA):",
@@ -1473,6 +1479,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_render_resolution_disabled": "Disabled",
     "settings_render_resolution_enabled": "Enabled",
     "settings_render_resolution_fullscreen_only": "Fullscreen Only",
+    "settings_vsync": "VSync:",
+    "settings_vsync_desc": "(locks FPS to monitor refresh rate)",
     "settings_show_fps": "Show FPS:",
     "settings_mouse_support": "Mouse Support:",
     "settings_mouse_support_desc": "(new menu navigation)",
@@ -3080,6 +3088,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_click_edit": "Clic: editar, Enter: confirmar",
     "settings_sound_effects": "Efectos:",
     "settings_music": "Música:",
+    "settings_sound_effects_desc": "(explosiones, UI, efectos en juego)",
+    "settings_music_desc": "(volumen de música de fondo)",
     "settings_fullscreen": "Pantalla:",
     "settings_fullscreen_toggle": "(F11 para cambiar)",
     "settings_render_resolution": "Resolución mejorada (SSAA):",
@@ -3087,6 +3097,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_render_resolution_disabled": "Desactivada",
     "settings_render_resolution_enabled": "Activada",
     "settings_render_resolution_fullscreen_only": "Solo pantalla completa",
+    "settings_vsync": "VSync:",
+    "settings_vsync_desc": "(bloquea FPS al refresco del monitor)",
     "settings_show_fps": "Mostrar FPS:",
     "settings_mouse_support": "Ratón:",
     "settings_mouse_support_desc": "(navegación de menú)",

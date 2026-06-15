@@ -43,6 +43,7 @@ type
     hasSeenIntro*: bool   # True after the lore cinematic has been seen once
     hasSeenEnding*: bool  # True after the endgame cinematic has been seen once
     exitConfirmEnabled*: bool  # Show exit confirm dialogs (default: false)
+    vsyncEnabled*: bool        # Lock framerate to monitor refresh rate
     kernelTophatUnlocked*: bool  # Secret cosmetic: earned by beating the wave-60 final boss
     kernelTophatEquipped*: bool  # Whether the unlocked kernel tophat is worn in-game
     orbitalCubeUnlocked*: bool  # Secret cosmetic: earned with the Escape Velocity advancement
@@ -120,6 +121,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "hasSeenIntro": settings.hasSeenIntro,
     "hasSeenEnding": settings.hasSeenEnding,
     "exitConfirmEnabled": settings.exitConfirmEnabled,
+    "vsyncEnabled": settings.vsyncEnabled,
     "kernelTophatUnlocked": settings.kernelTophatUnlocked,
     "kernelTophatEquipped": settings.kernelTophatEquipped,
     "orbitalCubeUnlocked": settings.orbitalCubeUnlocked,
@@ -213,6 +215,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("exitConfirmEnabled"):
     settings.exitConfirmEnabled = jsonNode["exitConfirmEnabled"].getBool()
+
+  if jsonNode.hasKey("vsyncEnabled"):
+    settings.vsyncEnabled = jsonNode["vsyncEnabled"].getBool()
 
   if jsonNode.hasKey("kernelTophatUnlocked"):
     settings.kernelTophatUnlocked = jsonNode["kernelTophatUnlocked"].getBool()

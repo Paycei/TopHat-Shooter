@@ -64,3 +64,7 @@ proc applySettings*(settings: Settings) =
   setTargetFPS(settings.fpsLimit)
   setGameVolume(settings.volume)
   setMusicVolume(settings.musicVolume)
+  if settings.vsyncEnabled:
+    setWindowState(flags(VsyncHint))
+  else:
+    clearWindowState(flags(VsyncHint))
