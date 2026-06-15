@@ -47,6 +47,9 @@ type
     resetStatus*: string
     resetStatusTimer*: float32
 
+    # Keybind rebinding state (-1 = not rebinding, else = KeyAction ordinal being captured)
+    rebindingAction*: int
+
 proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
                         stats: Statistics = nil,
                         advancementProfile: AdvancementProfile = nil,
@@ -83,7 +86,8 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     pendingReset: sraNone,
     resetConfirmTimer: 0.0,
     resetStatus: "",
-    resetStatusTimer: 0.0
+    resetStatusTimer: 0.0,
+    rebindingAction: -1
   )
 
 proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHovered: bool) =
@@ -517,18 +521,6 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
 
   let mousePos = getVirtualMousePosition()
 
-  # Mouse Support
-  drawText(t(tkSettingsMouseSupport), (contentX + 40).int32, yPos.int32, 18, White)
-  let mouseCheckX = contentX + 320
-  let mouseHovered = mousePos.x >= mouseCheckX.float32 and
-                     mousePos.x <= (mouseCheckX + 25).float32 and
-                     mousePos.y >= yPos.float32 and
-                     mousePos.y <= (yPos + 25).float32
-  drawCheckbox(mouseCheckX, yPos, 25, settingsWin.settings.mouseSupport, mouseHovered)
-  drawText(t(tkSettingsMouseSupportDesc), (mouseCheckX + 35).int32,
-          (yPos + 3).int32, 14, LightGray)
-  yPos += 40
-
   # Mouse Bonding
   drawText(t(tkSettingsMouseBonding), (contentX + 40).int32, yPos.int32, 18, White)
   let bondingButtonX = contentX + 320
@@ -563,39 +555,73 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(t(tkSettingsMouseBondingDesc), bondingButtonX.int32, yPos.int32, 14, LightGray)
   yPos += 25
 
-  # Show Cursor in Menus
-  if not settingsWin.settings.mouseSupport:
-    drawText(t(tkSettingsShowCursor), (contentX + 40).int32, yPos.int32, 18,
-            Color(r: 180, g: 180, b: 180, a: 255))
-    let cursorCheckX = contentX + 320
-    let cursorHovered = mousePos.x >= cursorCheckX.float32 and
-                       mousePos.x <= (cursorCheckX + 25).float32 and
-                       mousePos.y >= yPos.float32 and
-                       mousePos.y <= (yPos + 25).float32
-    drawCheckbox(cursorCheckX, yPos, 25, settingsWin.settings.showCursorInMenus, cursorHovered)
-    drawText(t(tkSettingsShowCursorDesc), (cursorCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
-    yPos += 40
-
-  # Keyboard Shortcuts section
+  # Keybindings section
   yPos += 10
-  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionKeyboardShortcuts), '#',
+  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionKeybindings), '#',
                    Color(r: 100, g: 255, b: 200, a: 255))
   yPos += 35
 
-  # Display key bindings
-  let shortcuts = [
-    (t(tkSettingsKeyboardWASD), t(tkSettingsKeyboardMovement)),
-    (t(tkSettingsKeyboardMouseSpace), t(tkSettingsKeyboardShoot)),
-    (t(tkSettingsKeyboardE), t(tkSettingsKeyboardPlaceWall)),
-    (t(tkSettingsKeyboardQ), t(tkSettingsKeyboardLegendaryAbilities)),
-    (t(tkSettingsKeyboardESC), t(tkSettingsKeyboardPauseMenu)),
-    (t(tkSettingsKeyboardF11), t(tkSettingsKeyboardToggleFullscreen)),
+  let kbBtnW = 120
+  let kbBtnH = 22
+  let kbBtnX = contentX + contentW - kbBtnW - 20
+  let kbActions = [
+    (t(tkKeybindMoveUp),    kaMoveUp),
+    (t(tkKeybindMoveDown),  kaMoveDown),
+    (t(tkKeybindMoveLeft),  kaMoveLeft),
+    (t(tkKeybindMoveRight), kaMoveRight),
+    (t(tkKeybindShoot),     kaShoot),
+    (t(tkKeybindPlaceWall), kaPlaceWall),
+    (t(tkKeybindLegendary), kaLegendary),
   ]
 
-  for binding in shortcuts:
-    drawText(binding[0], (contentX + 50).int32, yPos.int32, 16, Gold)
-    drawText(binding[1], (contentX + 250).int32, yPos.int32, 16, White)
-    yPos += 22
+  for (label, action) in kbActions:
+    let isRebinding = settingsWin.rebindingAction == action.ord
+    let btnY = yPos
+    let btnHovered = not isRebinding and
+                     mousePos.x >= kbBtnX.float32 and mousePos.x <= (kbBtnX + kbBtnW).float32 and
+                     mousePos.y >= btnY.float32 and mousePos.y <= (btnY + kbBtnH).float32
+
+    let btnBg     = if isRebinding: Color(r: 180, g: 100, b: 0, a: 255)
+                    elif btnHovered: Color(r: 80, g: 80, b: 100, a: 255)
+                    else: Color(r: 45, g: 45, b: 65, a: 255)
+    let btnBorder = if isRebinding: Color(r: 255, g: 180, b: 0, a: 255)
+                    elif btnHovered: Gold
+                    else: Color(r: 100, g: 100, b: 120, a: 255)
+
+    drawText(label, (contentX + 30).int32, (yPos + 4).int32, 14, LightGray)
+    drawRectangle(kbBtnX.int32, btnY.int32, kbBtnW.int32, kbBtnH.int32, btnBg)
+    drawRectangleLines(Rectangle(x: kbBtnX.float32, y: btnY.float32,
+                                  width: kbBtnW.float32, height: kbBtnH.float32), 1, btnBorder)
+    let keyText  = if isRebinding: t(tkKeybindPressAnyKey)
+                   else: $settingsWin.settings.keybinds[action]
+    let keyFg    = if isRebinding: Color(r: 255, g: 220, b: 100, a: 255) else: White
+    let keyTextW = measureText(keyText, 13)
+    drawText(keyText, (kbBtnX + (kbBtnW - keyTextW) div 2).int32, (yPos + 4).int32, 13, keyFg)
+    yPos += 24
+
+  # Reset to defaults button
+  yPos += 6
+  let resetBtnX = contentX + 20
+  let resetBtnW = 160
+  let resetBtnH = 26
+  let resetHovered = mousePos.x >= resetBtnX.float32 and
+                     mousePos.x <= (resetBtnX + resetBtnW).float32 and
+                     mousePos.y >= yPos.float32 and
+                     mousePos.y <= (yPos + resetBtnH).float32
+  let resetBg = if resetHovered: Color(r: 80, g: 80, b: 100, a: 255)
+                else: Color(r: 50, g: 50, b: 70, a: 255)
+  drawRectangle(resetBtnX.int32, yPos.int32, resetBtnW.int32, resetBtnH.int32, resetBg)
+  drawRectangleLines(Rectangle(x: resetBtnX.float32, y: yPos.float32,
+                                width: resetBtnW.float32, height: resetBtnH.float32),
+                    1, if resetHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+  let resetText  = t(tkKeybindResetDefaults)
+  let resetTextW = measureText(resetText, 14)
+  drawText(resetText, (resetBtnX + (resetBtnW - resetTextW) div 2).int32, (yPos + 5).int32, 14, White)
+  yPos += 32
+
+  # Fixed-key note
+  drawText(t(tkKeybindNonRebindableNote), (contentX + 20).int32, yPos.int32, 12,
+           Color(r: 130, g: 130, b: 160, a: 255))
 
 proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
@@ -749,8 +775,8 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         break
       tabX += tabWidth + 10
 
-  # Tab switching with number keys (only when not minimized and not editing FPS)
-  if not settingsWin.window.minimized and not settingsWin.editingFPS:
+  # Tab switching with number keys (blocked while editing FPS or capturing a rebind)
+  if not settingsWin.window.minimized and not settingsWin.editingFPS and settingsWin.rebindingAction < 0:
     if isKeyPressed(One): settingsWin.currentTab = stGraphics
     if isKeyPressed(Two): settingsWin.currentTab = stAudio
     if isKeyPressed(Three): settingsWin.currentTab = stControls
@@ -913,17 +939,9 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   # Handle Controls tab interactions
   if settingsWin.currentTab == stControls and isTopmost:
     if settingsWin.window.handledClickThisFrame:
-      # Mouse support checkbox (25x25 hit area)
-      let mouseCheckX = contentX + 320
-      let mouseCheckY = contentY + 50
-      if mousePos.x >= mouseCheckX.float32 and mousePos.x <= (mouseCheckX + 25).float32 and
-         mousePos.y >= mouseCheckY.float32 and mousePos.y <= (mouseCheckY + 25).float32:
-        settingsWin.settings.mouseSupport = not settingsWin.settings.mouseSupport
-        settingsChanged = true
-
       # Mouse bonding mode selector
       let bondingButtonX = contentX + 320
-      let bondingButtonY = contentY + 85
+      let bondingButtonY = contentY + 45
       let bondingButtonWidth = 220
       let bondingButtonHeight = 35
       if mousePos.x >= bondingButtonX.float32 and mousePos.x <= (bondingButtonX + bondingButtonWidth).float32 and
@@ -932,14 +950,50 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         playSound(stMenuSelect)
         settingsChanged = true
 
-      # Show cursor checkbox
-      if not settingsWin.settings.mouseSupport:
-        let cursorCheckX = contentX + 320
-        let cursorCheckY = contentY + 150
-        if mousePos.x >= cursorCheckX.float32 and mousePos.x <= (cursorCheckX + 25).float32 and
-           mousePos.y >= cursorCheckY.float32 and mousePos.y <= (cursorCheckY + 25).float32:
-          settingsWin.settings.showCursorInMenus = not settingsWin.settings.showCursorInMenus
-          settingsChanged = true
+      # Keybind buttons — kbYBase mirrors drawControlsTab layout
+      let kbYBase = contentY + 155
+      let contentW = settingsWin.window.width - WINDOW_PADDING * 2
+      let kbBtnW = 120
+      let kbBtnH = 22
+      let kbBtnX = contentX + contentW - kbBtnW - 20
+      for action in KeyAction:
+        let rowY = kbYBase + action.ord * 24
+        if mousePos.x >= kbBtnX.float32 and mousePos.x <= (kbBtnX + kbBtnW).float32 and
+           mousePos.y >= rowY.float32 and mousePos.y <= (rowY + kbBtnH).float32:
+          settingsWin.rebindingAction = action.ord
+          playSound(stMenuSelect)
+          break
+
+      # Reset keybinds to defaults button
+      let resetBtnY = kbYBase + 7 * 24 + 6
+      let resetBtnX = contentX + 20
+      let resetBtnW = 160
+      let resetBtnH = 26
+      if mousePos.x >= resetBtnX.float32 and mousePos.x <= (resetBtnX + resetBtnW).float32 and
+         mousePos.y >= resetBtnY.float32 and mousePos.y <= (resetBtnY + resetBtnH).float32:
+        settingsWin.settings.keybinds = [
+          kaMoveUp:    KeyboardKey.W,
+          kaMoveDown:  KeyboardKey.S,
+          kaMoveLeft:  KeyboardKey.A,
+          kaMoveRight: KeyboardKey.D,
+          kaShoot:     KeyboardKey.Space,
+          kaPlaceWall: KeyboardKey.E,
+          kaLegendary: KeyboardKey.Q
+        ]
+        settingsWin.rebindingAction = -1
+        playSound(stMenuSelect)
+        settingsChanged = true
+
+  # Key capture for active rebind (runs every frame, gated so only the top window captures)
+  if settingsWin.currentTab == stControls and settingsWin.rebindingAction >= 0 and isTopmost:
+    let key = getKeyPressed()
+    if key != KeyboardKey.Null:
+      if key == KeyboardKey.Escape:
+        settingsWin.rebindingAction = -1
+      else:
+        settingsWin.settings.keybinds[KeyAction(settingsWin.rebindingAction)] = key
+        settingsWin.rebindingAction = -1
+        settingsChanged = true
 
   # Handle Gameplay tab interactions
   if settingsWin.currentTab == stGameplay and isTopmost:

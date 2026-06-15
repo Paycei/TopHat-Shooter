@@ -25,9 +25,7 @@ type
     fullscreen*: bool
     renderResolutionMode*: RenderResolutionMode
     showFPS*: bool
-    mouseSupport*: bool
     mouseBondingMode*: MouseBondingMode
-    showCursorInMenus*: bool
     showDebugStats*: bool
     showArenaVignette*: bool
     showLowHealthVignette*: bool
@@ -50,6 +48,7 @@ type
     orbitalCubeUnlocked*: bool  # Secret cosmetic: earned with the Escape Velocity advancement
     orbitalCubeEquipped*: bool  # Whether the mini desktop cube orbits the player in-game
     lastDeathWave*: int         # Wave the player died on last non-cheated wave-based run (0 = none)
+    keybinds*: KeyBindings      # Rebindable keyboard controls
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -103,9 +102,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "fullscreen": settings.fullscreen,
     "renderResolutionMode": $settings.renderResolutionMode,
     "showFPS": settings.showFPS,
-    "mouseSupport": settings.mouseSupport,
     "mouseBondingMode": $settings.mouseBondingMode,
-    "showCursorInMenus": settings.showCursorInMenus,
     "showDebugStats": settings.showDebugStats,
     "showArenaVignette": settings.showArenaVignette,
     "showLowHealthVignette": settings.showLowHealthVignette,
@@ -129,6 +126,10 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "orbitalCubeEquipped": settings.orbitalCubeEquipped,
     "lastDeathWave": settings.lastDeathWave
   }
+  var bindsObj = newJObject()
+  for action in KeyAction:
+    bindsObj[$action] = %($ settings.keybinds[action])
+  result["keybinds"] = bindsObj
 
 # Load Settings from JSON
 proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
@@ -153,9 +154,6 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
   if jsonNode.hasKey("showFPS"):
     settings.showFPS = jsonNode["showFPS"].getBool()
 
-  if jsonNode.hasKey("mouseSupport"):
-    settings.mouseSupport = jsonNode["mouseSupport"].getBool()
-
   if jsonNode.hasKey("mouseBondingMode"):
     try:
       settings.mouseBondingMode = parseEnum[MouseBondingMode](jsonNode["mouseBondingMode"].getStr())
@@ -164,9 +162,6 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
   elif jsonNode.hasKey("mouseBonding"):
     # Migrate the old checkbox to the legacy equivalent mode.
     settings.mouseBondingMode = if jsonNode["mouseBonding"].getBool(): mbmWhileShooting else: mbmOff
-
-  if jsonNode.hasKey("showCursorInMenus"):
-    settings.showCursorInMenus = jsonNode["showCursorInMenus"].getBool()
 
   if jsonNode.hasKey("showDebugStats"):
     settings.showDebugStats = jsonNode["showDebugStats"].getBool()
@@ -233,6 +228,16 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("lastDeathWave"):
     settings.lastDeathWave = jsonNode["lastDeathWave"].getInt()
+
+  if jsonNode.hasKey("keybinds"):
+    let binds = jsonNode["keybinds"]
+    for action in KeyAction:
+      let key = $action
+      if binds.hasKey(key):
+        try:
+          settings.keybinds[action] = parseEnum[KeyboardKey](binds[key].getStr())
+        except ValueError:
+          discard
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =

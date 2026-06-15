@@ -6156,7 +6156,7 @@ proc updateGame*(game: var Game, dt: float32) =
       fireDoubleShotBurst(game, shootDir, hasMultiShot)
       game.player.doubleShotDelay = 0  # Reset to 0
 
-  if (isMouseButtonDown(Left) and not game.wallPlacementMode) or isKeyDown(Space):
+  if (isMouseButtonDown(Left) and not game.wallPlacementMode) or isKeyDown(globalSettings.keybinds[kaShoot]):
     if shootDir.length() > 0:
       shootBullet(game, shootDir)
 

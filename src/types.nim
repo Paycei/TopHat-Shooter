@@ -1,8 +1,20 @@
 ﻿import raylib, std/tables, std/deques, discord_presence, particle_types, math
 
-export Particle, ParticlePool, Vector2f
+export Particle, ParticlePool, Vector2f, KeyboardKey
 export newVector2f, `+`, `-`, `*`, length, normalize, distance
 export Deque
+
+type
+  KeyAction* = enum
+    kaMoveUp
+    kaMoveDown
+    kaMoveLeft
+    kaMoveRight
+    kaShoot
+    kaPlaceWall
+    kaLegendary
+
+  KeyBindings* = array[KeyAction, KeyboardKey]
 
 # Timing for the Chain Reactor's telegraphed electricity attacks. Shared so the
 # warning-update logic (game.nim) and the telegraph drawing (enemy.nim) agree on

@@ -115,6 +115,19 @@ type
     tkSettingsKeyboardToggleFullscreen = "settings_keyboard_toggle_fullscreen"
     tkSettingsKeyboardTab = "settings_keyboard_tab"
 
+    # Rebindable keybinds UI
+    tkSettingsSectionKeybindings = "settings_section_keybindings"
+    tkKeybindMoveUp = "keybind_move_up"
+    tkKeybindMoveDown = "keybind_move_down"
+    tkKeybindMoveLeft = "keybind_move_left"
+    tkKeybindMoveRight = "keybind_move_right"
+    tkKeybindShoot = "keybind_shoot"
+    tkKeybindPlaceWall = "keybind_place_wall"
+    tkKeybindLegendary = "keybind_legendary"
+    tkKeybindPressAnyKey = "keybind_press_any_key"
+    tkKeybindResetDefaults = "keybind_reset_defaults"
+    tkKeybindNonRebindableNote = "keybind_non_rebindable_note"
+
     # Intro / Lore Cinematic
     tkLoreTitleCardSub = "lore_title_card_sub"
     tkLoreLive = "lore_live"
@@ -1561,6 +1574,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_keyboard_f11": "F11",
     "settings_keyboard_toggle_fullscreen": "Toggle Fullscreen",
     "settings_keyboard_tab": "Tab",
+
+    # Rebindable keybinds UI (English)
+    "settings_section_keybindings": "KEYBINDINGS",
+    "keybind_move_up": "Move Up",
+    "keybind_move_down": "Move Down",
+    "keybind_move_left": "Move Left",
+    "keybind_move_right": "Move Right",
+    "keybind_shoot": "Shoot",
+    "keybind_place_wall": "Place Wall / Interact",
+    "keybind_legendary": "Legendary Ability",
+    "keybind_press_any_key": "Press any key...",
+    "keybind_reset_defaults": "Reset to Defaults",
+    "keybind_non_rebindable_note": "ESC: Pause  |  F11: Fullscreen  (fixed)",
 
     # Game UI
     "game_pause": "PAUSED",
@@ -3162,6 +3188,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_keyboard_f11": "F11",
     "settings_keyboard_toggle_fullscreen": "P. Completa",
     "settings_keyboard_tab": "Tab",
+
+    # Rebindable keybinds UI (Spanish)
+    "settings_section_keybindings": "CONTROLES",
+    "keybind_move_up": "Mover Arriba",
+    "keybind_move_down": "Mover Abajo",
+    "keybind_move_left": "Mover Izquierda",
+    "keybind_move_right": "Mover Derecha",
+    "keybind_shoot": "Disparar",
+    "keybind_place_wall": "Colocar Muro / Interactuar",
+    "keybind_legendary": "Habilidad Legendaria",
+    "keybind_press_any_key": "Pulsa cualquier tecla...",
+    "keybind_reset_defaults": "Restaurar Valores",
+    "keybind_non_rebindable_note": "ESC: Pausa  |  F11: Pantalla completa  (fijos)",
 
     # Game UI
     "game_pause": "PAUSA",

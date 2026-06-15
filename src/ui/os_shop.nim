@@ -2,7 +2,7 @@
 ## Shop screen redesigned as a modern OS storefront interface
 
 import raylib, math, strutils
-import ../types, ../localization, ../powerup_data, ../sound, ../settings, ../save_system, ../run_statistics, icon_drawing, ../render_context
+import ../types, ../localization, ../powerup_data, ../sound, ../run_statistics, icon_drawing, ../render_context
 
 const
   SHOP_WIDTH = 950
@@ -329,15 +329,14 @@ proc drawShop*(game: Game) =
   game.shopSidebarScroll = clamp(game.shopSidebarScroll, 0'i32, maxScroll)
 
   # mouse-wheel scroll when cursor is over the sidebar
-  if globalSettings.mouseSupport:
-    let mp = getVirtualMousePosition()
-    let sidebarRect = Rectangle(x: sidebarX.float32, y: contentAreaY.float32,
-                                 width: SIDEBAR_WIDTH.float32, height: contentAreaH.float32)
-    if checkCollisionPointRec(mp, sidebarRect):
-      let wheel = getMouseWheelMove()
-      if wheel != 0.0:
-        game.shopSidebarScroll = clamp(game.shopSidebarScroll - int32(wheel * 20.0),
-                                        0'i32, maxScroll)
+  let mp = getVirtualMousePosition()
+  let sidebarRect = Rectangle(x: sidebarX.float32, y: contentAreaY.float32,
+                               width: SIDEBAR_WIDTH.float32, height: contentAreaH.float32)
+  if checkCollisionPointRec(mp, sidebarRect):
+    let wheel = getMouseWheelMove()
+    if wheel != 0.0:
+      game.shopSidebarScroll = clamp(game.shopSidebarScroll - int32(wheel * 20.0),
+                                      0'i32, maxScroll)
 
   # scissor clip the scrollable content
   beginVirtualScissorMode(sidebarX, contentAreaY, SIDEBAR_WIDTH - SCROLLBAR_W - 1, contentAreaH)
@@ -408,7 +407,7 @@ proc drawShop*(game: Game) =
   let itemsStartY = shopY + 35
 
   # Mouse hover detection
-  if globalSettings.mouseSupport and game.mouseMovedRecently and not game.keyboardUsedRecently:
+  if game.mouseMovedRecently and not game.keyboardUsedRecently:
     let mousePos = getVirtualMousePosition()
 
     for i in 0..5:
@@ -550,29 +549,28 @@ proc drawShop*(game: Game) =
           if canBuy: White else: Color(r: 150, g: 155, b: 160, a: 255))
 
   # Draw custom cursor
-  if globalSettings.mouseSupport or globalSettings.showCursorInMenus:
-    let mousePos = getVirtualMousePosition()
-    let cursorPulse = sin(game.time * 8.0) * 2 + 8
+  let mousePos = getVirtualMousePosition()
+  let cursorPulse = sin(game.time * 8.0) * 2 + 8
 
-    # Outer rotating ring
-    for i in 0..<8:
-      let angle = game.time * 4.0 + i.float32 * PI / 4.0
-      let x = mousePos.x + cos(angle) * cursorPulse
-      let y = mousePos.y + sin(angle) * cursorPulse
-      drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
+  # Outer rotating ring
+  for i in 0..<8:
+    let angle = game.time * 4.0 + i.float32 * PI / 4.0
+    let x = mousePos.x + cos(angle) * cursorPulse
+    let y = mousePos.y + sin(angle) * cursorPulse
+    drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
 
-    # Crosshair lines
-    drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y),
-            Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
-    drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y),
-            Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
-    drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8),
-            Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
-    drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3),
-            Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
+  # Crosshair lines
+  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y),
+          Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
+  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y),
+          Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8),
+          Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
+  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3),
+          Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
 
-    # Center dot
-    drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
+  # Center dot
+  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
 
 proc buyShopItem*(game: Game, index: int) =
   if index < 0 or index > 5: return

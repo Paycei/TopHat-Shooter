@@ -1,5 +1,5 @@
 import raylib, math, random, std/deques
-import types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants
+import types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, settings
 
 const
   PlayerAcceleration = 7.0'f32
@@ -236,10 +236,11 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
 
   var moveDir = newVector2f(0, 0)
 
-  if isKeyDown(W): moveDir.y -= 1
-  if isKeyDown(S): moveDir.y += 1
-  if isKeyDown(A): moveDir.x -= 1
-  if isKeyDown(D): moveDir.x += 1
+  let kb = globalSettings.keybinds
+  if isKeyDown(kb[kaMoveUp]): moveDir.y -= 1
+  if isKeyDown(kb[kaMoveDown]): moveDir.y += 1
+  if isKeyDown(kb[kaMoveLeft]): moveDir.x -= 1
+  if isKeyDown(kb[kaMoveRight]): moveDir.x += 1
 
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()

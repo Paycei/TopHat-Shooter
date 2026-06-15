@@ -10,7 +10,7 @@
 ## itself stays in game.nim and only reads the counters/state armed here.
 
 import raylib, random, math
-import types, roguelite, powerup, particle, sound, localization, boss_definitions
+import types, roguelite, powerup, particle, sound, localization, boss_definitions, settings
 
 const
   DoorZoneWidth* = 120'f32   # Length of the door opening along the edge
@@ -916,7 +916,7 @@ proc updateDungeon*(game: Game, dt: float32): bool =
     if distance(game.player.pos, pickup.pos) < PickupRadius + game.player.radius:
       if pickup.costCredits > 0:
         if game.player.coins >= pickup.costCredits and
-           (isKeyPressed(E) or isKeyPressed(Enter)):
+           (isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or isKeyPressed(Enter)):
           game.player.coins -= pickup.costCredits
           applyPickup(game, room, pickup)
       else:
@@ -926,7 +926,7 @@ proc updateDungeon*(game: Game, dt: float32): bool =
   # of this frame's gameplay update so the E press can't double as the
   # wall-placement toggle.
   if room.kind == drkShop and playerOnShopTerminal(game) and
-     (isKeyPressed(E) or isKeyPressed(Enter)):
+     (isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or isKeyPressed(Enter)):
     game.state = gsShop
     game.shopSidebarScroll = 0
     playSound(stMenuSelect)

@@ -2,6 +2,7 @@
 ## Handles settings initialization, state management, and application
 
 from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, saveSettings, loadSettings
+from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary
 import raylib, strutils
 import sound, localization
 
@@ -20,9 +21,7 @@ proc initSettings*(): Settings =
     fullscreen: false,
     renderResolutionMode: rrmFullscreenOnly,
     showFPS: false,
-    mouseSupport: true,
     mouseBondingMode: mbmWhileShooting,
-    showCursorInMenus: true,
     showDebugStats: true,
     showArenaVignette: true,
     showLowHealthVignette: true,
@@ -37,7 +36,16 @@ proc initSettings*(): Settings =
     desktopBg: 0,        # Default to first desktop background (dbgDefault)
     cubeSkin: 0,         # Default to first cube skin (cskDefault)
     pvpNickname: "Player",  # Default nickname for PvP
-    exitConfirmEnabled: true  # Exit confirm dialogs enabled by default
+    exitConfirmEnabled: true,  # Exit confirm dialogs enabled by default
+    keybinds: [
+      kaMoveUp:    KeyboardKey.W,
+      kaMoveDown:  KeyboardKey.S,
+      kaMoveLeft:  KeyboardKey.A,
+      kaMoveRight: KeyboardKey.D,
+      kaShoot:     KeyboardKey.Space,
+      kaPlaceWall: KeyboardKey.E,
+      kaLegendary: KeyboardKey.Q
+    ]
   )
   globalSettings = result
 

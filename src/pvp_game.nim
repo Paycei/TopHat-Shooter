@@ -412,18 +412,19 @@ proc startCountdown*(pvp: PvPGameState) =
 
 proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
   var moveDir = newVector2f(0, 0)
-  if isKeyDown(W): moveDir.y -= 1
-  if isKeyDown(S): moveDir.y += 1
-  if isKeyDown(A): moveDir.x -= 1
-  if isKeyDown(D): moveDir.x += 1
+  let kb = globalSettings.keybinds
+  if isKeyDown(kb[kaMoveUp]): moveDir.y -= 1
+  if isKeyDown(kb[kaMoveDown]): moveDir.y += 1
+  if isKeyDown(kb[kaMoveLeft]): moveDir.x -= 1
+  if isKeyDown(kb[kaMoveRight]): moveDir.x += 1
 
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()
 
   let mousePos = getVirtualMousePosition()
 
-  # Toggle wall-placement mode with E, right-click cancels it
-  if isKeyPressed(E) and pvp.players[pvp.localPlayerIndex].walls > 0:
+  # Toggle wall-placement mode with wall key, right-click cancels it
+  if isKeyPressed(globalSettings.keybinds[kaPlaceWall]) and pvp.players[pvp.localPlayerIndex].walls > 0:
     pvp.wallPlacementMode = not pvp.wallPlacementMode
   if isMouseButtonPressed(Right) and pvp.wallPlacementMode:
     pvp.wallPlacementMode = false

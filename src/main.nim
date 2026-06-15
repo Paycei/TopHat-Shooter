@@ -216,7 +216,7 @@ proc applyWindowMode(fullscreen: bool) =
 proc isMenuClickValid*(game: Game, settings: Settings, mousePos: Vector2f, buttonX: int32, buttonY: int32, buttonWidth: int32, buttonHeight: int32): bool =
   ## Helper function to validate mouse clicks in menus
   ## Returns true if mouse click is within button bounds and mouse support is enabled
-  if not settings.mouseSupport or not game.mouseMovedRecently:
+  if not game.mouseMovedRecently:
     return false
   return mousePos.x >= buttonX.float32 and mousePos.x <= (buttonX + buttonWidth).float32 and
          mousePos.y >= buttonY.float32 and mousePos.y <= (buttonY + buttonHeight).float32
@@ -1161,11 +1161,12 @@ proc main() =
 
         # Wall placement mode: hold E to preview range, release E to place.
         const WALL_PLACEMENT_RANGE_SP = 250.0
-        let eHeld = isKeyDown(E) and currentGame.player.walls > 0
+        let wallKey = globalSettings.keybinds[kaPlaceWall]
+        let eHeld = isKeyDown(wallKey) and currentGame.player.walls > 0
         currentGame.wallPlacementMode = eHeld
 
-        # Release E places the wall at the current cursor position
-        if isKeyReleased(E) and currentGame.player.walls > 0:
+        # Release wall key places the wall at the current cursor position
+        if isKeyReleased(wallKey) and currentGame.player.walls > 0:
           let mousePos = getVirtualMousePosition()
           let wallPos = newVector2f(mousePos.x, mousePos.y)
           let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
@@ -1176,8 +1177,8 @@ proc main() =
             spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)
             trackWallPlacement(currentGame, wallPos)
 
-      # Activate ALL legendary power-ups with Q key (simultaneous activation)
-      if isKeyPressed(Q) and not globalConfirmActive:
+      # Activate ALL legendary power-ups with the legendary key (simultaneous activation)
+      if isKeyPressed(globalSettings.keybinds[kaLegendary]) and not globalConfirmActive:
         var anyActivated = false
 
         # Time Warp - slow down time
@@ -1206,12 +1207,13 @@ proc main() =
           let cooldown = 5.0  # 5 second cooldown
           let invulnDuration = 0.5  # 0.5 second invulnerability after dash
 
-          # Calculate dash direction - PRIORITIZE WASD movement direction
+          # Calculate dash direction - PRIORITIZE movement keys
           var dashDir = newVector2f(0, 0)
-          if isKeyDown(W): dashDir.y -= 1
-          if isKeyDown(S): dashDir.y += 1
-          if isKeyDown(A): dashDir.x -= 1
-          if isKeyDown(D): dashDir.x += 1
+          let kb = globalSettings.keybinds
+          if isKeyDown(kb[kaMoveUp]): dashDir.y -= 1
+          if isKeyDown(kb[kaMoveDown]): dashDir.y += 1
+          if isKeyDown(kb[kaMoveLeft]): dashDir.x -= 1
+          if isKeyDown(kb[kaMoveRight]): dashDir.x += 1
 
           # Always activate cooldown and invulnerability
           currentGame.player.phaseShiftCooldown = cooldown
@@ -1496,9 +1498,7 @@ proc main() =
 
       # Update mouse tracking so the pause menu responds to mouse input immediately
       updateMouseTracking(currentGame)
-      # If mouse support is enabled, allow mouse interaction right away (no need to move first)
-      if globalSettings.mouseSupport:
-        currentGame.mouseMovedRecently = true
+      currentGame.mouseMovedRecently = true
 
       # Handle window clicks first (before pause menu interactions)
       # Skip when either confirm dialog is open so nothing behind it is clickable
@@ -1673,8 +1673,7 @@ proc main() =
           currentGame.pauseMenuExitCooldown = 2.0  # prevent immediate re-trigger
 
       # Draw custom cursor on top of everything (including the confirm dialog)
-      if currentGame.confirmQuitPending or globalSettings.mouseSupport or globalSettings.showCursorInMenus:
-        drawCustomCursor(currentGame.time)
+      drawCustomCursor(currentGame.time)
 
       endGameDrawing()
 
@@ -1853,8 +1852,8 @@ proc main() =
         if isKeyPressed(Enter) or isKeyPressed(E):
           buyShopItem(currentGame, currentGame.selectedShopItem)
 
-        # Close shop - ESC is intentionally not bound here; only Q or the in-window X button may close it.
-        if isKeyPressed(Q) and not globalConfirmActive:
+        # Close shop - ESC is intentionally not bound here; only the legendary key or the in-window X button may close it.
+        if isKeyPressed(globalSettings.keybinds[kaLegendary]) and not globalConfirmActive:
           currentGame.cameFromPowerUpSelect = false
           if currentGame.mode == gmRoguelite:
             # In the dungeon the shop is a room: just step back into it.
