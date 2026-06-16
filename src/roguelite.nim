@@ -797,6 +797,7 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of dbgInferno: makeCost(150, 7)
     of dbgPortal:  makeCost(200, 9)
     of dbgHorror:  makeCost(180, 8)
+    of dbgCyber:   makeCost(170, 8)
   of ckCubeSkin:
     case CubeSkinType(index)
     of cskDefault: makeCost(0)
@@ -808,6 +809,7 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of cskMatrix:  makeCost(140, 2)
     of cskCompanion: makeCost(155, 3)
     of cskJack:    makeCost(150, 3)
+    of cskCyber:   makeCost(135, 2)
 
 proc canAffordCosmetic*(profile: RogueliteProfile, kind: CosmeticKind,
                         index: int): bool =

@@ -837,13 +837,30 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
   if useCustomSkin:
     skinDataLocal = getCubeSkinData(skin)
 
+  # Fixed light in MODEL space: because it rotates with the cube, dotting it with
+  # a face's own (model-space) normal gives a brightness that is constant per face
+  # — the shading is baked onto each side and never tracks the camera.
+  const LightDirX = 0.442'f32
+  const LightDirY = -0.694'f32
+  const LightDirZ = 0.568'f32
+
   for i in 0..<6:
     var avgZ = 0.0'f32
+    var nX = 0.0'f32
+    var nY = 0.0'f32
+    var nZ = 0.0'f32
     for corner in CubeFaces[i]:
       avgZ += rotated[corner].z
-    avgZ /= 4.0'f32
+      nX += base[corner].x
+      nY += base[corner].y
+      nZ += base[corner].z
+    avgZ /= 4.0'f32          # still drives the painter's-algorithm depth sort
+    # Averaging a face's 4 base corners yields its centre = its unit normal (the
+    # cube is centred at the origin and axis-aligned), so no normalisation needed.
+    nX *= 0.25'f32; nY *= 0.25'f32; nZ *= 0.25'f32
 
-    let light = clamp((avgZ + 1.65'f32) / 3.3'f32, 0.0'f32, 1.0'f32)
+    let light = clamp((nX * LightDirX + nY * LightDirY + nZ * LightDirZ) * 0.5'f32 + 0.5'f32,
+                      0.0'f32, 1.0'f32)
     if not useCustomSkin:
       faces[i] = WallpaperCubeFace(
         corners: CubeFaces[i],
@@ -899,7 +916,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
   # on a light disc at the center of every visible face. Faces were depth-sorted above, so the last three are the
   # camera-facing ones; each heart is drawn in its face's projected basis so
   # it foreshortens and tracks the face as the cube tumbles.
-  if skin == cskCompanion or skin == cskJack:
+  if skin == cskCompanion or skin == cskJack or skin == cskCyber:
     for fi in 3 .. 5:
       let c0 = faces[fi].corners[0]
       let c1 = faces[fi].corners[1]
@@ -1014,6 +1031,60 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
             drawTriangleBothWindings(curTop, curBot, prevBot, candle)
           prevTop = curTop
           prevBot = curBot
+        continue
+
+      if skin == cskCyber:
+        # Cyberdeck: a holographic HUD panel projected on each face — a baked
+        # cyan glow, an inset neon frame with magenta corner brackets, scanline
+        # ticks, and a pulsing centre node. Drawn in the face's (right,up) basis
+        # via fp() so it foreshortens and rides the face like a real projection.
+        template fp(u, v: float32): Vector2 =
+          Vector2(x: fcScreen.x + sRx * (u) + sUx * (v),
+                  y: fcScreen.y + sRy * (u) + sUy * (v))
+        let cyan = Color(r: 80, g: 245, b: 255, a: 255)
+        let mag  = Color(r: 255, g: 60,  b: 200, a: 255)
+        let pulseC = 0.6'f32 + 0.4'f32 * sin(time * 3.0'f32 + fi.float32 * 2.0'f32)
+        # Baked cyan hologram glow (concentric discs, large->small, stacked).
+        const CRings = 7
+        const CSeg = 22
+        for g in 0 ..< CRings:
+          let gf = g.float32 / CRings.float32
+          let rr = 0.85'f32 * (1.0'f32 - gf)
+          let gc = Color(r: uint8(40.0'f32 + gf * 40.0'f32), g: 245, b: 255,
+                         a: uint8((9.0'f32 + gf * 9.0'f32) * pulseC))
+          var prevG = fp(rr, 0.0'f32)
+          for s in 1 .. CSeg:
+            let ang = s.float32 / CSeg.float32 * PI * 2.0'f32
+            let curG = fp(cos(ang) * rr, sin(ang) * rr)
+            drawTriangleBothWindings(fcScreen, prevG, curG, gc)
+            prevG = curG
+        # Inset neon frame (cyan) with a soft glow underlay.
+        const pin = 0.6'f32
+        let frame = [fp(-pin, -pin), fp(pin, -pin), fp(pin, pin), fp(-pin, pin)]
+        for k in 0 .. 3:
+          let a0 = frame[k]
+          let a1 = frame[(k + 1) mod 4]
+          drawLine(a0, a1, 3.0'f32, Color(r: 80, g: 245, b: 255, a: 55))
+          drawLine(a0, a1, 1.3'f32, cyan)
+        # Magenta corner brackets: short L-arms inset from each corner.
+        const bl = 0.22'f32
+        const cornerSigns = [(-1.0'f32, -1.0'f32), (1.0'f32, -1.0'f32),
+                             (1.0'f32, 1.0'f32), (-1.0'f32, 1.0'f32)]
+        for c in cornerSigns:
+          let cu = c[0] * pin
+          let cv = c[1] * pin
+          drawLine(fp(cu, cv), fp(cu - c[0] * bl, cv), 2.2'f32, mag)
+          drawLine(fp(cu, cv), fp(cu, cv - c[1] * bl), 2.2'f32, mag)
+        # Faint scanline ticks across the panel.
+        for r in 0 .. 2:
+          let vv = -0.30'f32 + r.float32 * 0.30'f32
+          drawLine(fp(-0.45'f32, vv), fp(0.45'f32, vv), 1.0'f32,
+                   Color(r: 80, g: 245, b: 255, a: 65))
+        # Pulsing centre node: cyan ring with a magenta core.
+        let nodeR = (3.0'f32 + 2.0'f32 * pulseC) * (size / 60.0'f32)
+        drawCircle(fcScreen, max(1.0'f32, nodeR * 1.7'f32),
+                   Color(r: 80, g: 245, b: 255, a: 120))
+        drawCircle(fcScreen, max(0.7'f32, nodeR), mag)
         continue
 
       # Light recessed disc behind the heart (a circle in the face plane).

@@ -14,7 +14,8 @@ type
     dbgOcean,     ## Neural Network: cool blue interconnected nodes
     dbgInferno,   ## Inferno Core: red volcanic heat
     dbgPortal,    ## Aperture Test: blue/orange portals (Portal reference)
-    dbgHorror     ## Kernel Panic: dread-soaked dark where the cube cowers
+    dbgHorror,    ## Kernel Panic: dread-soaked dark where the cube cowers
+    dbgCyber      ## Cyberspace: rain-soaked neon grid with glitching holograms
 
   DesktopBgData* = object
     name*: string
@@ -84,6 +85,14 @@ proc initDesktopBgSkins*() =
     primaryColor: Color(r: 150, g: 12,  b: 14,  a: 255),
     accentColor:  Color(r: 190, g: 180, b: 90,  a: 255),
     bgColor:      Color(r: 7,   g: 2,   b: 3,   a: 255))
+
+  # Cyberspace: the cyberpunk duotone — electric cyan (primary) and hot magenta
+  # (accent) over a deep teal-black night, for the rain-slicked neon grid look.
+  desktopBgDatabase[dbgCyber] = DesktopBgData(
+    name: t("dbg_cyber"), description: t("dbg_cyber_desc"),
+    primaryColor: Color(r: 80,  g: 245, b: 255, a: 255),
+    accentColor:  Color(r: 255, g: 60,  b: 200, a: 255),
+    bgColor:      Color(r: 4,   g: 8,   b: 16,  a: 255))
 
 proc getDesktopBgData*(bgType: DesktopBgType): DesktopBgData =
   desktopBgDatabase[bgType]

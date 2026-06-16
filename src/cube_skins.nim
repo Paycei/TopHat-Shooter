@@ -14,7 +14,8 @@ type
     cskPlasma,   ## Plasma Rig: electric blue-purple
     cskMatrix,   ## Data Node: matrix green
     cskCompanion, ## Companion Cube: grey with a pink heart (Portal reference)
-    cskJack      ## Jack-O'-Node: orange pumpkin with a carved, glowing face
+    cskJack,     ## Jack-O'-Node: orange pumpkin with a carved, glowing face
+    cskCyber     ## Cyberdeck: cyan/magenta with a holographic HUD panel per face
 
   CubeSkinData* = object
     name*: string
@@ -81,6 +82,14 @@ proc initCubeSkins*() =
     faceColor: Color(r: 235, g: 110, b: 15,  a: 255),
     edgeColor: Color(r: 255, g: 175, b: 50,  a: 255),
     glowColor: Color(r: 255, g: 140, b: 0,   a: 180))
+
+  # Cyberdeck: a neon duotone — cyan body, hot-magenta edges, cyan glow; the
+  # holographic HUD panel on each face is drawn in os_desktop's cube renderer.
+  cubeSkinDatabase[cskCyber] = CubeSkinData(
+    name: t("csk_cyber"), description: t("csk_cyber_desc"),
+    faceColor: Color(r: 20,  g: 120, b: 150, a: 255),
+    edgeColor: Color(r: 255, g: 60,  b: 200, a: 255),
+    glowColor: Color(r: 80,  g: 245, b: 255, a: 180))
 
 proc getCubeSkinData*(skinType: CubeSkinType): CubeSkinData =
   cubeSkinDatabase[skinType]

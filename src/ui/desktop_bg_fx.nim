@@ -568,6 +568,112 @@ proc drawHorrorFx(w, h, time: float32) =
                0.8'f32 + hash01(seed + 3.0'f32) * 1.0'f32,
                Color(r: 80, g: 70, b: 70, a: 60))
 
+# Cyberspace
+
+proc drawCyberFx(w, h, time: float32) =
+  ## A cyberpunk hacking console rather than a synthwave street: orthogonal neon
+  ## circuit traces (Manhattan-routed, with node pads and travelling data pulses),
+  ## floating holographic HUD panels with live data bars, chromatic glitch slices,
+  ## and faint CRT scanlines. No horizon/sun/grid-floor, to stay distinct from the
+  ## System Sunrise theme. Cyan/magenta duotone throughout.
+  let cyan = Color(r: 80,  g: 245, b: 255, a: 255)
+  let mag  = Color(r: 255, g: 60,  b: 200, a: 255)
+  let s = min(w, h)
+  let pad = max(2.0'f32, s * 0.007'f32)
+  let pulseR = max(1.5'f32, s * 0.004'f32)
+
+  # --- Circuit-board traces: orthogonal polylines with node pads + a data pulse.
+  const TraceCount = 10
+  for ti in 0 ..< TraceCount:
+    let seed = ti.float32 * 21.7'f32
+    let tint = if ti mod 2 == 0: cyan else: mag
+    var pts: array[5, Vector2]
+    let np = 4 + (if hash01(seed + 7.0'f32) > 0.5'f32: 1 else: 0)
+    # Enter from one of the four edges (spread for balance), then alternate
+    # horizontal/vertical steps. Edges 0/2 enter horizontally, 1/3 vertically.
+    let edge = int(hash01(seed + 1.0'f32) * 4.0'f32) mod 4
+    var horiz: bool
+    case edge
+    of 0: pts[0] = Vector2(x: 0.0'f32, y: hash01(seed + 2.0'f32) * h); horiz = true
+    of 1: pts[0] = Vector2(x: hash01(seed + 2.0'f32) * w, y: 0.0'f32); horiz = false
+    of 2: pts[0] = Vector2(x: w, y: hash01(seed + 2.0'f32) * h); horiz = true
+    else: pts[0] = Vector2(x: hash01(seed + 2.0'f32) * w, y: h); horiz = false
+    for k in 1 ..< np:
+      let prev = pts[k - 1]
+      let stepLen = 0.12'f32 + hash01(seed + k.float32 * 3.3'f32) * 0.26'f32
+      let dir = if hash01(seed + k.float32 * 3.3'f32 + 1.5'f32) > 0.5'f32: 1.0'f32 else: -1.0'f32
+      if horiz:
+        pts[k] = Vector2(x: clamp(prev.x + dir * stepLen * w, 0.0'f32, w), y: prev.y)
+      else:
+        pts[k] = Vector2(x: prev.x, y: clamp(prev.y + dir * stepLen * h, 0.0'f32, h))
+      horiz = not horiz
+    for k in 0 ..< (np - 1):
+      drawLine(pts[k], pts[k + 1], 3.0'f32, Color(r: tint.r, g: tint.g, b: tint.b, a: 38))
+      drawLine(pts[k], pts[k + 1], 1.3'f32, Color(r: tint.r, g: tint.g, b: tint.b, a: 150))
+    for k in 0 ..< np:
+      drawRectangle(int32(pts[k].x - pad), int32(pts[k].y - pad),
+                    int32(pad * 2.0'f32), int32(pad * 2.0'f32),
+                    Color(r: tint.r, g: tint.g, b: tint.b, a: 190))
+    # Travelling data pulse: equal time per segment along the polyline.
+    let segCount = np - 1
+    let tt = fract01(time * (0.18'f32 + hash01(seed + 5.0'f32) * 0.12'f32)) * segCount.float32
+    let si = min(segCount - 1, int(tt))
+    let lf = tt - si.float32
+    let pp = Vector2(x: pts[si].x + (pts[si + 1].x - pts[si].x) * lf,
+                     y: pts[si].y + (pts[si + 1].y - pts[si].y) * lf)
+    drawSoftGlow(pp.x, pp.y, s * 0.02'f32, Color(r: tint.r, g: tint.g, b: tint.b, a: 150), 0.6)
+    drawCircle(pp, pulseR, Color(r: 255, g: 255, b: 255, a: 230))
+
+  # --- Floating holographic HUD panels with animated data bars.
+  for pi in 0 ..< 3:
+    let seed = pi.float32 * 47.3'f32 + 4.0'f32
+    let pw = w * (0.10'f32 + hash01(seed) * 0.06'f32)
+    let phh = h * (0.07'f32 + hash01(seed + 1.0'f32) * 0.05'f32)
+    let px = (0.08'f32 + hash01(seed + 2.0'f32) * 0.80'f32) * (w - pw)
+    let py = (0.10'f32 + hash01(seed + 3.0'f32) * 0.70'f32) * (h - phh)
+    let tint = if pi mod 2 == 0: cyan else: mag
+    drawRectangle(px.int32, py.int32, pw.int32, phh.int32,
+                  Color(r: tint.r, g: tint.g, b: tint.b, a: 12))
+    # Corner brackets at all four corners.
+    let bl = min(pw, phh) * 0.28'f32
+    for cx2 in [0.0'f32, 1.0'f32]:
+      for cy2 in [0.0'f32, 1.0'f32]:
+        let cxp = px + cx2 * pw
+        let cyp = py + cy2 * phh
+        let sx = if cx2 < 0.5'f32: 1.0'f32 else: -1.0'f32
+        let sy = if cy2 < 0.5'f32: 1.0'f32 else: -1.0'f32
+        drawLine(Vector2(x: cxp, y: cyp), Vector2(x: cxp + sx * bl, y: cyp), 1.6'f32, tint)
+        drawLine(Vector2(x: cxp, y: cyp), Vector2(x: cxp, y: cyp + sy * bl), 1.6'f32, tint)
+    # Data bars: a fixed track with an animated fill.
+    for r in 0 ..< 3:
+      let by = py + phh * (0.26'f32 + r.float32 * 0.24'f32)
+      let frac = 0.3'f32 + 0.6'f32 * (sin(time * 1.5'f32 + seed + r.float32 * 1.3'f32) * 0.5'f32 + 0.5'f32)
+      let barH = max(1'i32, int32(phh * 0.07'f32))
+      drawRectangle(int32(px + pw * 0.12'f32), by.int32, int32(pw * 0.76'f32), barH,
+                    Color(r: tint.r, g: tint.g, b: tint.b, a: 35))
+      drawRectangle(int32(px + pw * 0.12'f32), by.int32, int32(pw * 0.76'f32 * frac), barH,
+                    Color(r: tint.r, g: tint.g, b: tint.b, a: 130))
+
+  # --- Rare chromatic-aberration glitch slice (cyan + magenta offset bars).
+  let gphase = fract01(time * 0.5'f32)
+  if gphase < 0.10'f32:
+    let f = sin(gphase / 0.10'f32 * PI)
+    let sliceY = hash01(floor(time * 0.5'f32)) * h
+    let sliceH = h * 0.04'f32
+    let off = w * 0.012'f32 * f
+    drawRectangle(int32(-off), sliceY.int32, w.int32, max(1'i32, sliceH.int32),
+                  Color(r: 0, g: 245, b: 255, a: alphaU8(45.0'f32 * f)))
+    drawRectangle(int32(off), int32(sliceY + sliceH * 0.4'f32), w.int32,
+                  max(1'i32, int32(sliceH * 0.7'f32)),
+                  Color(r: 255, g: 60, b: 200, a: alphaU8(45.0'f32 * f)))
+
+  # --- Faint CRT scanlines over the whole frame (constant pixel spacing).
+  var y = 0.0'f32
+  while y < h:
+    drawLine(Vector2(x: 0.0'f32, y: y), Vector2(x: w, y: y), 1.0'f32,
+             Color(r: 0, g: 0, b: 0, a: 26))
+    y += 3.0'f32
+
 # Dispatcher
 
 proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int32,
@@ -585,3 +691,4 @@ proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int
   of dbgInferno: drawInfernoFx(w, h, time)
   of dbgPortal: drawPortalFx(w, h, time)
   of dbgHorror: drawHorrorFx(w, h, time)
+  of dbgCyber: drawCyberFx(w, h, time)

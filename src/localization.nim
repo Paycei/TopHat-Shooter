@@ -2224,6 +2224,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dbg_portal_desc": "Twin portals trade light across the chamber",
     "dbg_horror": "Kernel Panic",
     "dbg_horror_desc": "Dread in the dark - even the cube trembles in fear",
+    "dbg_cyber": "Cyberspace",
+    "dbg_cyber_desc": "Live circuit traces, data pulses and glitching HUD panels",
 
     # Cube Skins
     "csk_default": "System Unit",
@@ -2244,6 +2246,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "csk_companion_desc": "It will never threaten to stab you. The heart is purely decorative.",
     "csk_jack": "Jack-O'-Node",
     "csk_jack_desc": "A carved pumpkin lit from within. Too smug to be scared of the dark.",
+    "csk_cyber": "Cyberdeck",
+    "csk_cyber_desc": "Holographic HUD panels glow on every face.",
 
     # Player Skins
     "skin_default": "System Default",
@@ -3712,6 +3716,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dbg_portal_desc": "Portales gemelos intercambian luz en la cámara",
     "dbg_horror": "Pánico del Kernel",
     "dbg_horror_desc": "Pavor en la oscuridad - hasta el cubo tiembla de miedo",
+    "dbg_cyber": "Ciberespacio",
+    "dbg_cyber_desc": "Circuitos vivos, pulsos de datos y paneles HUD con fallos",
 
     # Cube Skins
     "csk_default": "Unidad del Sistema",
@@ -3732,6 +3738,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "csk_companion_desc": "Nunca amenazará con apuñalarte. El corazón es puramente decorativo.",
     "csk_jack": "Nodo Calabaza",
     "csk_jack_desc": "Una calabaza tallada e iluminada por dentro. Demasiado engreída para temer a la oscuridad.",
+    "csk_cyber": "Ciberdeck",
+    "csk_cyber_desc": "Paneles HUD holográficos brillan en cada cara.",
 
     # Player Skins
     "skin_default": "Sistema base",
