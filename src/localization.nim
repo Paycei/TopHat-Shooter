@@ -2226,6 +2226,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dbg_horror_desc": "Dread in the dark - even the cube trembles in fear",
     "dbg_cyber": "Cyberspace",
     "dbg_cyber_desc": "Live circuit traces, data pulses and glitching HUD panels",
+    "dbg_casino": "High Roller",
+    "dbg_casino_desc": "Green felt, lucky suits, poker chips and gold",
 
     # Cube Skins
     "csk_default": "System Unit",
@@ -2248,6 +2250,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "csk_jack_desc": "A carved pumpkin lit from within. Too smug to be scared of the dark.",
     "csk_cyber": "Cyberdeck",
     "csk_cyber_desc": "Holographic HUD panels glow on every face.",
+    "csk_dice": "Lucky Die",
+    "csk_dice_desc": "Roll for initiative. Pips on every face.",
 
     # Player Skins
     "skin_default": "System Default",
@@ -3740,6 +3744,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "csk_jack_desc": "Una calabaza tallada e iluminada por dentro. Demasiado engreída para temer a la oscuridad.",
     "csk_cyber": "Ciberdeck",
     "csk_cyber_desc": "Paneles HUD holográficos brillan en cada cara.",
+    "csk_dice": "Dado de la Suerte",
+    "csk_dice_desc": "Tira el dado. Puntos en cada cara.",
 
     # Player Skins
     "skin_default": "Sistema base",

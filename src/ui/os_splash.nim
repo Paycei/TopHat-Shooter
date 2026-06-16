@@ -1,5 +1,5 @@
 ## OS-Themed Splash Screen: TopHat-ShooterOS v6.0 Edition
-## Two phases: BIOS amber POST → kernel model reveal with title and press-any-key.
+## Two phases: BIOS amber POST -> kernel model reveal with title and press-any-key.
 
 import raylib, strutils, math
 import ../localization, ../types, ../hardware_info, ../shapes,

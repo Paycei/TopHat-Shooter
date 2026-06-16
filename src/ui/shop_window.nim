@@ -713,7 +713,7 @@ proc beginPreviewClip(x, y, w, h: int32): PreviewClip =
   ## Clip a live preview to its own rect intersected with the enclosing scissor
   ## (the scrolled grid viewport). raylib scissors don't nest, so naively opening
   ## a scissor here would replace the grid clip and let a partially-scrolled
-  ## card's animated FX/cube bleed past the grid — and thus past the bottom of
+  ## card's animated FX/cube bleed past the grid and thus past the bottom of
   ## the shop window. Returns what endPreviewClip needs to restore the parent.
   if currentVirtualScissorIsActive():
     let p = getCurrentVirtualScissor()

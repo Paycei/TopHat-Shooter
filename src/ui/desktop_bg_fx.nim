@@ -525,7 +525,7 @@ proc drawHorrorFx(w, h, time: float32) =
     drawSoftGlow(mx, my, mr, Color(r: 120, g: 6, b: 10, a: ma), 0.6)
 
   # Eyes in the dark: each pair fades in over the first half of its own cycle,
-  # blinks, shifts its gaze, then is gone — never quite where you last saw them.
+  # blinks, shifts its gaze, then is gone , never quite where you last saw them.
   let eyeBase = min(w, h)
   for e in 0..<5:
     let seed = e.float32 * 41.7'f32 + 3.0'f32
@@ -674,6 +674,238 @@ proc drawCyberFx(w, h, time: float32) =
              Color(r: 0, g: 0, b: 0, a: 26))
     y += 3.0'f32
 
+# High Roller (casino)
+
+proc drawTri2(a, b, c: Vector2, col: Color) =
+  ## Filled triangle, both windings, so face-local fills never cull.
+  drawTriangle(a, b, c, col)
+  drawTriangle(a, c, b, col)
+
+proc drawHeartSuit(cx, cy, r: float32, col: Color) =
+  let cen = Vector2(x: cx, y: cy)
+  var prev = Vector2(x: cx, y: cy)
+  var first = true
+  for i in 0 .. 26:
+    let t = i.float32 / 26.0'f32 * PI * 2.0'f32
+    let hx = 16.0'f32 * pow(sin(t), 3.0'f32)
+    let hy = 13.0'f32 * cos(t) - 5.0'f32 * cos(2.0'f32 * t) -
+             2.0'f32 * cos(3.0'f32 * t) - cos(4.0'f32 * t)
+    let p = Vector2(x: cx + hx / 17.0'f32 * r, y: cy - hy / 17.0'f32 * r)
+    if not first: drawTri2(cen, prev, p, col)
+    prev = p
+    first = false
+
+proc drawSpadeSuit(cx, cy, r: float32, col: Color) =
+  # An inverted heart (point up) with a small stem.
+  let cen = Vector2(x: cx, y: cy)
+  var prev = Vector2(x: cx, y: cy)
+  var first = true
+  for i in 0 .. 26:
+    let t = i.float32 / 26.0'f32 * PI * 2.0'f32
+    let hx = 16.0'f32 * pow(sin(t), 3.0'f32)
+    let hy = 13.0'f32 * cos(t) - 5.0'f32 * cos(2.0'f32 * t) -
+             2.0'f32 * cos(3.0'f32 * t) - cos(4.0'f32 * t)
+    let p = Vector2(x: cx + hx / 17.0'f32 * r, y: cy + hy / 17.0'f32 * r)
+    if not first: drawTri2(cen, prev, p, col)
+    prev = p
+    first = false
+  drawTri2(Vector2(x: cx, y: cy + r * 0.15'f32),
+           Vector2(x: cx - r * 0.32'f32, y: cy + r * 0.66'f32),
+           Vector2(x: cx + r * 0.32'f32, y: cy + r * 0.66'f32), col)
+
+proc drawDiamondSuit(cx, cy, r: float32, col: Color) =
+  drawTri2(Vector2(x: cx, y: cy - r), Vector2(x: cx - r * 0.72'f32, y: cy),
+           Vector2(x: cx + r * 0.72'f32, y: cy), col)
+  drawTri2(Vector2(x: cx, y: cy + r), Vector2(x: cx - r * 0.72'f32, y: cy),
+           Vector2(x: cx + r * 0.72'f32, y: cy), col)
+
+proc drawClubSuit(cx, cy, r: float32, col: Color) =
+  let cr = r * 0.44'f32
+  drawCircle(Vector2(x: cx, y: cy - r * 0.34'f32), cr, col)
+  drawCircle(Vector2(x: cx - r * 0.42'f32, y: cy + r * 0.14'f32), cr, col)
+  drawCircle(Vector2(x: cx + r * 0.42'f32, y: cy + r * 0.14'f32), cr, col)
+  drawTri2(Vector2(x: cx, y: cy + r * 0.02'f32),
+           Vector2(x: cx - r * 0.30'f32, y: cy + r * 0.70'f32),
+           Vector2(x: cx + r * 0.30'f32, y: cy + r * 0.70'f32), col)
+
+proc drawCasinoChip(cx, cy, r, time, seed: float32, base: Color) =
+  ## A poker chip: coloured body, six white edge spots, and a lighter inner disc.
+  drawCircle(Vector2(x: cx, y: cy), r, base)
+  let white = Color(r: 240, g: 240, b: 244, a: base.a)
+  for k in 0 ..< 6:
+    let a = k.float32 / 6.0'f32 * PI * 2.0'f32 + time * 0.3'f32 + seed
+    drawCircle(Vector2(x: cx + cos(a) * r * 0.84'f32, y: cy + sin(a) * r * 0.84'f32),
+               r * 0.17'f32, white)
+  drawCircle(Vector2(x: cx, y: cy), r * 0.6'f32, withAlpha(white, alphaU8(0.45'f32 * base.a.float32)))
+  drawCircle(Vector2(x: cx, y: cy), r * 0.5'f32, base)
+
+proc drawSuitAt(kind: int, cx, cy, r: float32, col: Color) =
+  ## Dispatch one of the four card suits by index (0 heart, 1 diamond, 2 spade, 3 club).
+  case kind and 3
+  of 0: drawHeartSuit(cx, cy, r, col)
+  of 1: drawDiamondSuit(cx, cy, r, col)
+  of 2: drawSpadeSuit(cx, cy, r, col)
+  else: drawClubSuit(cx, cy, r, col)
+
+proc drawChipStack(cx, cyBase, r: float32, count: int, base: Color, time, seed: float32) =
+  ## A side-on stack of poker chips resting on the felt: thin stacked ellipses with
+  ## a darker lower edge for thickness, alternating bands, and a detailed top face.
+  let rv = r * 0.42'f32
+  let chipH = rv * 0.78'f32
+  let bob = sin(time * 1.1'f32 + seed) * r * 0.06'f32
+  let edgeLo = mixCol(base, Color(r: 0, g: 0, b: 0, a: base.a), 0.5'f32)
+  let band   = mixCol(base, Color(r: 245, g: 245, b: 248, a: base.a), 0.28'f32)
+  let white  = Color(r: 240, g: 240, b: 244, a: base.a)
+  for k in 0 ..< count:
+    let cy = cyBase + bob - k.float32 * chipH
+    drawEllipse(cx.int32, int32(cy + chipH * 0.55'f32), r, rv, edgeLo)
+    drawEllipse(cx.int32, cy.int32, r, rv, (if (k and 1) == 0: base else: band))
+  # Detailed top face: inner disc + six edge spots, like a real chip seen at an angle.
+  let topY = cyBase + bob - count.float32 * chipH
+  drawEllipse(cx.int32, topY.int32, r, rv, base)
+  drawEllipse(cx.int32, topY.int32, r * 0.62'f32, rv * 0.62'f32,
+              withAlpha(white, alphaU8(0.42'f32 * base.a.float32)))
+  drawEllipse(cx.int32, topY.int32, r * 0.5'f32, rv * 0.5'f32, base)
+  for kk in 0 ..< 6:
+    let a = kk.float32 / 6.0'f32 * PI * 2.0'f32 + time * 0.2'f32 + seed
+    drawCircle(Vector2(x: cx + cos(a) * r * 0.8'f32, y: topY + sin(a) * rv * 0.8'f32),
+               r * 0.12'f32, white)
+
+proc drawPlayingCard(cx, cy, cw, ch: float32, suit: int, suitRed: bool) =
+  ## A simple upright playing card: cream face on a faint border, a centre pip and
+  ## a small top-left corner pip. Built from rectangles + the suit fans (no rounded
+  ## primitives, so it survives the small shop-preview scale).
+  let face   = Color(r: 244, g: 242, b: 236, a: 255)
+  let border = Color(r: 206, g: 200, b: 188, a: 255)
+  let shadow = Color(r: 0, g: 0, b: 0, a: 90)
+  let sc = if suitRed: Color(r: 200, g: 36, b: 48, a: 255) else: Color(r: 24, g: 24, b: 30, a: 255)
+  drawRectangle(int32(cx - cw * 0.5'f32 + 2.0'f32), int32(cy - ch * 0.5'f32 + 3.0'f32),
+                cw.int32, ch.int32, shadow)
+  drawRectangle(int32(cx - cw * 0.5'f32 - 1.0'f32), int32(cy - ch * 0.5'f32 - 1.0'f32),
+                int32(cw + 2.0'f32), int32(ch + 2.0'f32), border)
+  drawRectangle(int32(cx - cw * 0.5'f32), int32(cy - ch * 0.5'f32), cw.int32, ch.int32, face)
+  drawSuitAt(suit, cx, cy, min(cw, ch) * 0.32'f32, sc)
+  drawSuitAt(suit, cx - cw * 0.32'f32, cy - ch * 0.32'f32, min(cw, ch) * 0.13'f32, sc)
+
+proc drawCasinoFx(w, h, time: float32) =
+  ## A poker table: an oval green-felt table with a radial-lit surface, a padded
+  ## leather rail, gold betting arcs and inlaid suit marks, under a warm pendant
+  ## light. Chip stacks and two hole cards rest on the near felt, lucky suits drift
+  ## up, and gold dust sparkles. The centre stays clear: the cube, its gold orbital
+  ## rings and the big roll-result number all render there on top.
+  let red  = Color(r: 215, g: 32,  b: 48,  a: 255)
+  let gold = Color(r: 255, g: 205, b: 70,  a: 255)
+  let s = min(w, h)
+  let tcx = w * 0.64'f32      # table centre tracks the cube + orbital rings
+  let tcy = h * 0.46'f32
+  let trh = s * 0.55'f32      # an oval: wider than tall
+  let trv = s * 0.42'f32
+
+  # 1. Dark room floor, a touch warmer near the table.
+  drawRectangleGradientV(0, 0, w.int32, h.int32,
+                         Color(r: 13, g: 21, b: 16, a: 224),
+                         Color(r: 3, g: 6, b: 5, a: 242))
+
+  # 2. Warm pendant light pooling from above the table.
+  drawSoftGlow(tcx, tcy - trv * 0.45'f32, trh * 1.05'f32,
+               Color(r: 255, g: 226, b: 150, a: 30), 0.7)
+
+  # 3. Table drop shadow on the floor.
+  drawEllipse(tcx.int32, int32(tcy + trv * 0.12'f32), trh + s * 0.06'f32, trv + s * 0.05'f32,
+              Color(r: 0, g: 0, b: 0, a: 120))
+
+  # 4. Padded leather rail: dark body, a lifted top highlight to round it, and an
+  #    inner shadow groove where the felt meets the rail.
+  drawEllipse(tcx.int32, tcy.int32, trh + s * 0.045'f32, trv + s * 0.045'f32,
+              Color(r: 42, g: 24, b: 13, a: 255))
+  drawEllipse(tcx.int32, int32(tcy - s * 0.012'f32), trh + s * 0.043'f32, trv + s * 0.04'f32,
+              Color(r: 78, g: 48, b: 26, a: 150))
+  drawEllipse(tcx.int32, tcy.int32, trh + s * 0.014'f32, trv + s * 0.014'f32,
+              Color(r: 26, g: 15, b: 8, a: 255))
+
+  # 5. Felt with a radial sheen: concentric ellipses from a dark edge to a lit
+  #    centre (largest/darkest first, smaller/lighter on top).
+  let feltEdge = Color(r: 13, g: 62, b: 37, a: 255)
+  let feltLit  = Color(r: 38, g: 116, b: 71, a: 255)
+  const Rings = 8
+  for i in 0 ..< Rings:
+    let t = i.float32 / (Rings - 1).float32          # 0 edge -> 1 centre
+    let rad = trh * (1.0'f32 - 0.9'f32 * t)
+    let radV = trv * (1.0'f32 - 0.9'f32 * t)
+    drawEllipse(tcx.int32, tcy.int32, rad, radV, mixCol(feltEdge, feltLit, t))
+  # Offset sheen toward the overhead light.
+  drawSoftGlow(tcx, tcy - trv * 0.28'f32, trh * 0.5'f32,
+               Color(r: 120, g: 205, b: 150, a: 22), 0.6)
+
+  # 6. Gold betting arcs (a bright double outer line and a faint inner one).
+  drawEllipseLines(tcx.int32, tcy.int32, trh * 0.8'f32, trv * 0.8'f32, withAlpha(gold, 150'u8))
+  drawEllipseLines(tcx.int32, tcy.int32, trh * 0.8'f32 + 1.0'f32, trv * 0.8'f32 + 1.0'f32,
+                   withAlpha(gold, 75'u8))
+  drawEllipseLines(tcx.int32, tcy.int32, trh * 0.6'f32, trv * 0.6'f32, withAlpha(gold, 55'u8))
+
+  # 7. Inlaid suit marks around the felt ring (top, right, bottom, left) - kept
+  #    faint and off-centre so they never crowd the cube.
+  for k in 0 ..< 4:
+    let a = k.float32 * (PI * 0.5'f32) - PI * 0.5'f32
+    let mx = tcx + cos(a) * trh * 0.7'f32
+    let my = tcy + sin(a) * trv * 0.7'f32
+    let col = if k < 2: red else: gold
+    drawSuitAt(k, mx, my, s * 0.022'f32, withAlpha(col, 95'u8))
+
+  # 8. Lucky suits drifting up and gently swaying, fading as they rise.
+  for i in 0 ..< 11:
+    let seed = i.float32 * 12.3'f32
+    let span = h + 60.0'f32
+    let yy = h + 30.0'f32 - wrapF(hash01(seed) * span +
+             time * (h * (0.02'f32 + hash01(seed + 1.0'f32) * 0.045'f32)), span)
+    let xx = hash01(seed + 2.0'f32) * w + sin(time * 0.4'f32 + seed) * w * 0.02'f32
+    let sr = s * (0.015'f32 + hash01(seed + 3.0'f32) * 0.013'f32)
+    let fade = clamp(yy / h * 1.15'f32, 0.0'f32, 1.0'f32)
+    let a = alphaU8(26.0'f32 + 80.0'f32 * fade)
+    case i mod 4
+    of 0: drawHeartSuit(xx, yy, sr, withAlpha(red, a))
+    of 1: drawDiamondSuit(xx, yy, sr, withAlpha(red, a))
+    of 2: drawSpadeSuit(xx, yy, sr, withAlpha(gold, a))
+    else: drawClubSuit(xx, yy, sr, withAlpha(gold, a))
+
+  # 9. Two overlapping hole cards resting on the lower-left felt.
+  let cardW = s * 0.072'f32
+  let cardH = s * 0.104'f32
+  drawPlayingCard(tcx - trh * 0.36'f32, tcy + trv * 0.6'f32, cardW, cardH, 2, false)
+  drawPlayingCard(tcx - trh * 0.36'f32 + cardW * 0.6'f32, tcy + trv * 0.56'f32,
+                  cardW, cardH, 0, true)
+
+  # 10. Chip stacks of varying height along the near (lower) rail.
+  let chipCols = [Color(r: 200, g: 40, b: 50, a: 255), Color(r: 40, g: 90, b: 200, a: 255),
+                  Color(r: 28, g: 28, b: 34, a: 255), Color(r: 230, g: 180, b: 50, a: 255),
+                  Color(r: 30, g: 140, b: 90, a: 255)]
+  for c in 0 ..< 5:
+    let seed = c.float32 * 17.3'f32 + 3.0'f32
+    let ang = PI * (0.58'f32 + 0.34'f32 * (c.float32 / 4.0'f32))   # arc across the near rail
+    let cx = tcx + cos(ang) * trh * 0.86'f32
+    let cy = tcy + sin(ang) * trv * 0.86'f32
+    drawChipStack(cx, cy, s * 0.028'f32, 3 + (c mod 3), chipCols[c mod chipCols.len], time, seed)
+
+  # 11. Gold sparkle dust twinkling over the felt.
+  for sp in 0 ..< 22:
+    let seed = sp.float32 * 8.7'f32 + 2.0'f32
+    let sx = hash01(seed) * w
+    let sy = hash01(seed + 1.0'f32) * h
+    let tw = sin(time * (1.5'f32 + hash01(seed + 2.0'f32) * 2.5'f32) + seed) * 0.5'f32 + 0.5'f32
+    drawCircle(Vector2(x: sx, y: sy), (0.6'f32 + hash01(seed + 3.0'f32) * 1.4'f32) * (0.5'f32 + tw),
+               Color(r: 255, g: 215, b: 110, a: alphaU8(24.0'f32 + tw * 130.0'f32)))
+
+  # 12. Soft dark edge vignette to keep focus on the table (edge gradients, never
+  #     corner glows).
+  let vw = w * 0.22'f32
+  let vh = h * 0.22'f32
+  let clear = Color(r: 0, g: 0, b: 0, a: 0)
+  let edge  = Color(r: 0, g: 0, b: 0, a: 120)
+  drawRectangleGradientH(0, 0, vw.int32, h.int32, edge, clear)
+  drawRectangleGradientH(int32(w - vw), 0, vw.int32, h.int32, clear, edge)
+  drawRectangleGradientV(0, 0, w.int32, vh.int32, edge, clear)
+  drawRectangleGradientV(0, int32(h - vh), w.int32, vh.int32, clear, edge)
+
 # Dispatcher
 
 proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int32,
@@ -692,3 +924,4 @@ proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int
   of dbgPortal: drawPortalFx(w, h, time)
   of dbgHorror: drawHorrorFx(w, h, time)
   of dbgCyber: drawCyberFx(w, h, time)
+  of dbgCasino: drawCasinoFx(w, h, time)

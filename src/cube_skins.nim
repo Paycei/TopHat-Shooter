@@ -15,7 +15,8 @@ type
     cskMatrix,   ## Data Node: matrix green
     cskCompanion, ## Companion Cube: grey with a pink heart (Portal reference)
     cskJack,     ## Jack-O'-Node: orange pumpkin with a carved, glowing face
-    cskCyber     ## Cyberdeck: cyan/magenta with a holographic HUD panel per face
+    cskCyber,    ## Cyberdeck: cyan/magenta with a holographic HUD panel per face
+    cskDice      ## Lucky Die: white die, dark pips (1-6) baked to each face
 
   CubeSkinData* = object
     name*: string
@@ -83,13 +84,21 @@ proc initCubeSkins*() =
     edgeColor: Color(r: 255, g: 175, b: 50,  a: 255),
     glowColor: Color(r: 255, g: 140, b: 0,   a: 180))
 
-  # Cyberdeck: a neon duotone — cyan body, hot-magenta edges, cyan glow; the
+  # Cyberdeck: a neon duotone , cyan body, hot-magenta edges, cyan glow; the
   # holographic HUD panel on each face is drawn in os_desktop's cube renderer.
   cubeSkinDatabase[cskCyber] = CubeSkinData(
     name: t("csk_cyber"), description: t("csk_cyber_desc"),
     faceColor: Color(r: 20,  g: 120, b: 150, a: 255),
     edgeColor: Color(r: 255, g: 60,  b: 200, a: 255),
     glowColor: Color(r: 80,  g: 245, b: 255, a: 180))
+
+  # Lucky Die: a classic white die with clean light edges; the dark pips (1..6,
+  # opposite faces summing to 7) are drawn per face in os_desktop's cube renderer.
+  cubeSkinDatabase[cskDice] = CubeSkinData(
+    name: t("csk_dice"), description: t("csk_dice_desc"),
+    faceColor: Color(r: 236, g: 237, b: 242, a: 255),
+    edgeColor: Color(r: 205, g: 207, b: 214, a: 255),
+    glowColor: Color(r: 255, g: 255, b: 255, a: 150))
 
 proc getCubeSkinData*(skinType: CubeSkinType): CubeSkinData =
   cubeSkinDatabase[skinType]

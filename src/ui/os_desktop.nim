@@ -70,6 +70,16 @@ type
     cubeOffsetY*: float32
     cubePortalMode*: bool       # escape routes through the portal background portals
     cubePortalEnterRight*: bool # true = enter orange (right), exit blue (left)
+    # Dice-roll easter egg: on the poker table with the dice skin, the escape
+    # becomes a die drop that settles on a random face and reports the number.
+    cubeDiceMode*: bool         # escape is a dice roll; also holds the cube still at rest after
+    cubeDiceResult*: int        # rolled face value (1..6)
+    cubeDiceTQW*: float32       # target orientation quaternion (result face -> camera)
+    cubeDiceTQX*: float32
+    cubeDiceTQY*: float32
+    cubeDiceTQZ*: float32
+    cubeDiceResultTimer*: float32  # seconds left to show the big result number
+    cubeDiceVelY*: float32      # vertical velocity of the die during the bounce drop
     # Transient OS-style toast (e.g. advancement unlocked)
     toastText*: string
     toastTimer*: float32
@@ -193,9 +203,53 @@ proc newOSDesktop*(): OSDesktop =
     cubeOffsetY: 0.0,
     cubePortalMode: false,
     cubePortalEnterRight: false,
+    cubeDiceMode: false,
+    cubeDiceResult: 0,
+    cubeDiceTQW: 1.0,
+    cubeDiceTQX: 0.0,
+    cubeDiceTQY: 0.0,
+    cubeDiceTQZ: 0.0,
+    cubeDiceResultTimer: 0.0,
+    cubeDiceVelY: 0.0,
     toastText: "",
     toastTimer: 0.0
   )
+
+proc diceTargetQuat(face: int): (float32, float32, float32, float32) =
+  ## Quaternion (w,x,y,z) that turns the die so the given `face` value points at
+  ## the camera (+z). Built as the minimal rotation taking that face's model
+  ## normal to +z; matches the pip mapping in drawZeroGravityWallpaperCube
+  ## (1:+z 6:-z 2:+x 5:-x 3:+y 4:-y). Identity for 1, 180° about X for 6.
+  var nx, ny, nz: float32 = 0.0'f32
+  case face
+  of 1: nz = 1.0'f32
+  of 6: nz = -1.0'f32
+  of 2: nx = 1.0'f32
+  of 5: nx = -1.0'f32
+  of 3: ny = 1.0'f32
+  else: ny = -1.0'f32        # 4
+  if nz > 0.999'f32: return (1.0'f32, 0.0'f32, 0.0'f32, 0.0'f32)
+  if nz < -0.999'f32: return (0.0'f32, 1.0'f32, 0.0'f32, 0.0'f32)
+  # axis = normalize(N x (0,0,1)) = normalize((ny, -nx, 0))
+  let al = sqrt(ny*ny + nx*nx)
+  let ax = ny / al
+  let ay = -nx / al
+  let angle = arccos(clamp(nz, -1.0'f32, 1.0'f32))
+  let sh = sin(angle * 0.5'f32)
+  (cos(angle * 0.5'f32), ax * sh, ay * sh, 0.0'f32)
+
+proc nlerpToward(qw, qx, qy, qz: var float32, tw, tx, ty, tz, t: float32) =
+  ## Normalized lerp of the cube quaternion toward a target, along the short arc.
+  var bw = tw; var bx = tx; var by = ty; var bz = tz
+  if qw*bw + qx*bx + qy*by + qz*bz < 0.0'f32:
+    bw = -bw; bx = -bx; by = -by; bz = -bz
+  let rw = qw + (bw - qw) * t
+  let rx = qx + (bx - qx) * t
+  let ry = qy + (by - qy) * t
+  let rz = qz + (bz - qz) * t
+  let l = sqrt(rw*rw + rx*rx + ry*ry + rz*rz)
+  if l > 1e-6'f32:
+    qw = rw / l; qx = rx / l; qy = ry / l; qz = rz / l
 
 proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = false,
                       screenWidth: int = 1024, screenHeight: int = 768) =
@@ -241,6 +295,10 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     desktop.cubeDragLastY = mp.y
     desktop.cubeAngVelX   = 0.0
     desktop.cubeAngVelY   = 0.0
+    # Grabbing a settled die releases the dice-roll hold and resumes free tumbling.
+    desktop.cubeDiceMode = false
+    desktop.cubeDiceResultTimer = 0.0
+    desktop.cubeDiceVelY = 0.0
 
   if desktop.cubeDragging:
     if isMouseButtonDown(Left):
@@ -261,7 +319,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     else:
       desktop.cubeDragging = false
 
-  if not desktop.cubeDragging:
+  if not desktop.cubeDragging and not desktop.cubeDiceMode:
     # Inertia: spin down from throw velocity
     if abs(desktop.cubeAngVelY) > 0.0001'f32:
       applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
@@ -295,7 +353,62 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
   if desktop.cubeEscaping:
     desktop.cubeEscapeTimer += dt
     let tEsc = desktop.cubeEscapeTimer
-    if desktop.cubePortalMode:
+    if desktop.cubeDiceMode:
+      # Dice roll: the die is *tossed* from wherever it currently sits (so there is
+      # never a jump), arcs up, then falls and bounces on the felt under gravity
+      # while tumbling. Once it comes to rest the spin eases onto the rolled face
+      # and it stays there (held) reporting the number. offsetY: 0 = table line,
+      # negative = above it. Position is integrated continuously every frame, so it
+      # is C0-continuous across every phase boundary (no teleport anywhere).
+      const Restitution = 0.46'f32      # energy kept per bounce
+      const SafetyTime = 4.5'f32        # hard cap so it can never hang
+      let g = h * 4.0'f32               # gravity, scaled to screen height
+      # "At rest" = sitting on the felt with little vertical motion left.
+      let resting = desktop.cubeOffsetY >= -0.5'f32 and
+                    abs(desktop.cubeDiceVelY) < h * 0.09'f32
+      if not resting and tEsc < SafetyTime:
+        # Airborne: integrate gravity, then resolve a bounce if it crosses the felt.
+        desktop.cubeDiceVelY += g * dt
+        desktop.cubeOffsetY += desktop.cubeDiceVelY * dt
+        desktop.cubeOffsetX = 0.0'f32
+        if desktop.cubeOffsetY >= 0.0'f32:
+          desktop.cubeOffsetY = 0.0'f32
+          if desktop.cubeDiceVelY > 0.0'f32:
+            desktop.cubeDiceVelY = -desktop.cubeDiceVelY * Restitution
+        # Tumble speed tracks how fast it is moving, so it spins down as it settles.
+        let spin = clamp(abs(desktop.cubeDiceVelY) / (h * 1.3'f32), 0.05'f32, 1.0'f32)
+        applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                      1, 0, 0, 12.0'f32 * spin * dt)
+        applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                      0, 1, 0, 9.0'f32 * spin * dt)
+      else:
+        # Settled on the felt: ease the orientation onto the rolled face.
+        desktop.cubeDiceVelY = 0.0'f32
+        desktop.cubeOffsetY = 0.0'f32
+        desktop.cubeOffsetX = 0.0'f32
+        nlerpToward(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                    desktop.cubeDiceTQW, desktop.cubeDiceTQX,
+                    desktop.cubeDiceTQY, desktop.cubeDiceTQZ,
+                    clamp(7.0'f32 * dt, 0.0'f32, 1.0'f32))
+        let dotT = abs(desktop.cubeQW * desktop.cubeDiceTQW +
+                       desktop.cubeQX * desktop.cubeDiceTQX +
+                       desktop.cubeQY * desktop.cubeDiceTQY +
+                       desktop.cubeQZ * desktop.cubeDiceTQZ)
+        if dotT > 0.9998'f32 or tEsc > SafetyTime:
+          # Snap exactly to the rolled face, stop, and report the number. Stay in
+          # dice mode (held) so it rests on the result until the player grabs it.
+          desktop.cubeQW = desktop.cubeDiceTQW; desktop.cubeQX = desktop.cubeDiceTQX
+          desktop.cubeQY = desktop.cubeDiceTQY; desktop.cubeQZ = desktop.cubeDiceTQZ
+          desktop.cubeOffsetX = 0.0'f32
+          desktop.cubeOffsetY = 0.0'f32
+          desktop.cubeAngVelX = 0.0'f32
+          desktop.cubeAngVelY = 0.0'f32
+          desktop.cubeDiceVelY = 0.0'f32
+          desktop.cubeEscaping = false
+          desktop.cubeDiceResultTimer = 3.5'f32
+          desktop.toastText = "Rolled a " & $desktop.cubeDiceResult & "!"
+          desktop.toastTimer = 5.0'f32
+    elif desktop.cubePortalMode:
       # Portal-background escape: cube flies into entry portal, teleports to exit,
       # then smoothly returns to orbit.
       # Portal positions match desktop_bg_fx.nim drawPortalFx: blue=(w*0.2,h*0.5), orange=(w*0.8,h*0.5)
@@ -370,11 +483,28 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
       if not globalSettings.isNil:
         selectedBg = DesktopBgType(globalSettings.desktopBg)
         currentCubeSkin = CubeSkinType(globalSettings.cubeSkin)
-      if selectedBg == dbgPortal and currentCubeSkin == cskCompanion:
+      if selectedBg == dbgCasino and currentCubeSkin == cskDice:
+        # Poker-table dice roll: pick a random face (biased by how hard it was
+        # spun) and the target orientation that brings it to the camera.
+        desktop.cubeDiceMode = true
+        desktop.cubePortalMode = false
+        let rr = sin(desktop.time * 12.9898'f32 +
+                     desktop.cubeAngVelY * 78.233'f32 +
+                     desktop.cubeAngVelX * 23.197'f32) * 43758.5453'f32
+        desktop.cubeDiceResult = clamp(1 + int((rr - floor(rr)) * 6.0'f32), 1, 6)
+        let (tw, tx, ty, tz) = diceTargetQuat(desktop.cubeDiceResult)
+        desktop.cubeDiceTQW = tw; desktop.cubeDiceTQX = tx
+        desktop.cubeDiceTQY = ty; desktop.cubeDiceTQZ = tz
+        # Toss it up from its current position (offset unchanged this frame, so the
+        # motion is continuous): an upward impulse, gravity does the rest.
+        desktop.cubeDiceVelY = -1.55'f32 * h
+      elif selectedBg == dbgPortal and currentCubeSkin == cskCompanion:
+        desktop.cubeDiceMode = false
         desktop.cubePortalMode = true
-        # Spin right (cubeAngVelY > 0) → enter the orange portal on the right
+        # Spin right (cubeAngVelY > 0) -> enter the orange portal on the right
         desktop.cubePortalEnterRight = desktop.cubeAngVelY >= 0.0'f32
       else:
+        desktop.cubeDiceMode = false
         desktop.cubePortalMode = false
         # Fly off roughly along the spin direction, drifting upward
         let dirX = (if desktop.cubeAngVelY >= 0: 1.0'f32 else: -1.0'f32)
@@ -385,6 +515,19 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
   # Tick down the desktop toast
   if desktop.toastTimer > 0.0'f32:
     desktop.toastTimer = max(0.0'f32, desktop.toastTimer - dt)
+
+  # Tick down the big dice-result number
+  if desktop.cubeDiceResultTimer > 0.0'f32:
+    desktop.cubeDiceResultTimer = max(0.0'f32, desktop.cubeDiceResultTimer - dt)
+
+  # Release the dice hold if the player leaves the poker table or dice skin while
+  # the die rests, so the cube doesn't stay frozen on a different wallpaper.
+  if desktop.cubeDiceMode and not desktop.cubeEscaping and not globalSettings.isNil:
+    if DesktopBgType(globalSettings.desktopBg) != dbgCasino or
+       CubeSkinType(globalSettings.cubeSkin) != cskDice:
+      desktop.cubeDiceMode = false
+      desktop.cubeDiceResultTimer = 0.0'f32
+      desktop.cubeDiceVelY = 0.0'f32
 
   # Convert cube quaternion to Euler angles (X, Y, Z) for wallpaper rendering
   # Rotation order: rotate X, then Y, then Z (Rx -> Ry -> Rz)
@@ -839,7 +982,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
 
   # Fixed light in MODEL space: because it rotates with the cube, dotting it with
   # a face's own (model-space) normal gives a brightness that is constant per face
-  # — the shading is baked onto each side and never tracks the camera.
+  # , the shading is baked onto each side and never tracks the camera.
   const LightDirX = 0.442'f32
   const LightDirY = -0.694'f32
   const LightDirZ = 0.568'f32
@@ -861,7 +1004,21 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
 
     let light = clamp((nX * LightDirX + nY * LightDirY + nZ * LightDirZ) * 0.5'f32 + 0.5'f32,
                       0.0'f32, 1.0'f32)
-    if not useCustomSkin:
+    if skin == cskDice:
+      # A real die is a solid object, not glass: opaque faces, cleanly shaded per
+      # baked side so the cube reads as a solid white body the pips sit on.
+      let sh = 0.72'f32 + light * 0.28'f32
+      faces[i] = WallpaperCubeFace(
+        corners: CubeFaces[i],
+        depth: avgZ,
+        color: Color(
+          r: uint8(clamp(236.0'f32 * sh, 0.0'f32, 255.0'f32)),
+          g: uint8(clamp(237.0'f32 * sh, 0.0'f32, 255.0'f32)),
+          b: uint8(clamp(242.0'f32 * sh, 0.0'f32, 255.0'f32)),
+          a: 255
+        )
+      )
+    elif not useCustomSkin:
       faces[i] = WallpaperCubeFace(
         corners: CubeFaces[i],
         depth: avgZ,
@@ -916,7 +1073,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
   # on a light disc at the center of every visible face. Faces were depth-sorted above, so the last three are the
   # camera-facing ones; each heart is drawn in its face's projected basis so
   # it foreshortens and tracks the face as the cube tumbles.
-  if skin == cskCompanion or skin == cskJack or skin == cskCyber:
+  if skin == cskCompanion or skin == cskJack or skin == cskCyber or skin == cskDice:
     for fi in 3 .. 5:
       let c0 = faces[fi].corners[0]
       let c1 = faces[fi].corners[1]
@@ -1034,7 +1191,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
         continue
 
       if skin == cskCyber:
-        # Cyberdeck: a holographic HUD panel projected on each face — a baked
+        # Cyberdeck: a holographic HUD panel projected on each face , a baked
         # cyan glow, an inset neon frame with magenta corner brackets, scanline
         # ticks, and a pulsing centre node. Drawn in the face's (right,up) basis
         # via fp() so it foreshortens and rides the face like a real projection.
@@ -1085,6 +1242,47 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
         drawCircle(fcScreen, max(1.0'f32, nodeR * 1.7'f32),
                    Color(r: 80, g: 245, b: 255, a: 120))
         drawCircle(fcScreen, max(0.7'f32, nodeR), mag)
+        continue
+
+      if skin == cskDice:
+        # Classic die: each physical face shows its pip count, identified by the
+        # model-space normal n so the number is baked to that side (opposite faces
+        # sum to 7). Pips are dark dots placed in the face's (right,up) basis via
+        # fp(), foreshortening with the cube.
+        template fp(u, v: float32): Vector2 =
+          Vector2(x: fcScreen.x + sRx * (u) + sUx * (v),
+                  y: fcScreen.y + sRy * (u) + sUy * (v))
+        let pip =
+          if   n.z >  0.5'f32: 1
+          elif n.z < -0.5'f32: 6
+          elif n.x >  0.5'f32: 2
+          elif n.x < -0.5'f32: 5
+          elif n.y >  0.5'f32: 3
+          else: 4
+        const d = 0.30'f32
+        var spots: seq[(float32, float32)]
+        case pip
+        of 1: spots = @[(0.0'f32, 0.0'f32)]
+        of 2: spots = @[(-d, -d), (d, d)]
+        of 3: spots = @[(-d, -d), (0.0'f32, 0.0'f32), (d, d)]
+        of 4: spots = @[(-d, -d), (d, -d), (-d, d), (d, d)]
+        of 5: spots = @[(-d, -d), (d, -d), (0.0'f32, 0.0'f32), (-d, d), (d, d)]
+        else: spots = @[(-d, -d), (d, -d), (-d, 0.0'f32), (d, 0.0'f32), (-d, d), (d, d)]
+        # Each pip is a filled disc in face-local units, drawn as a triangle fan
+        # through fp(): because fp projects the face plane, the disc comes out as a
+        # foreshortened ellipse painted ON the face, not a flat screen-facing dot.
+        # Radius capped under half the 0.30 pip spacing so the "6" never overlaps.
+        const pr = 0.14'f32
+        const PipSeg = 14
+        let pipCol = Color(r: 28, g: 28, b: 34, a: 255)
+        for sp in spots:
+          let centre = fp(sp[0], sp[1])
+          var prevP = fp(sp[0] + pr, sp[1])
+          for s in 1 .. PipSeg:
+            let ang = s.float32 / PipSeg.float32 * PI * 2.0'f32
+            let curP = fp(sp[0] + cos(ang) * pr, sp[1] + sin(ang) * pr)
+            drawTriangleBothWindings(centre, prevP, curP, pipCol)
+            prevP = curP
         continue
 
       # Light recessed disc behind the heart (a circle in the face plane).
@@ -1302,6 +1500,18 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
                                  centerY + desktop.cubeOffsetY + tremY,
                                  min(w, h) * 0.042'f32, desktop.time,
                                  desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ, currentCubeSkin)
+
+    # Dice roll result: a big gold number that pops above the settled die.
+    if desktop.cubeDiceResultTimer > 0.0'f32 and desktop.cubeDiceResult > 0:
+      let fade = min(1.0'f32, desktop.cubeDiceResultTimer / 0.6'f32)
+      let a = uint8(255.0'f32 * fade)
+      let label = $desktop.cubeDiceResult
+      let fs = int32(min(w, h) * 0.16'f32)
+      let lw = measureText(label, fs)
+      let lx = int32(centerX) - lw div 2
+      let ly = int32(centerY - min(w, h) * 0.20'f32) - fs div 2
+      drawText(label, lx + 3, ly + 3, fs, Color(r: 0, g: 0, b: 0, a: uint8(160.0'f32 * fade)))
+      drawText(label, lx, ly, fs, Color(r: 255, g: 215, b: 90, a: a))
 
   # Desktop icons
   for icon in desktop.icons:

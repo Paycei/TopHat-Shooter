@@ -15,7 +15,8 @@ type
     dbgInferno,   ## Inferno Core: red volcanic heat
     dbgPortal,    ## Aperture Test: blue/orange portals (Portal reference)
     dbgHorror,    ## Kernel Panic: dread-soaked dark where the cube cowers
-    dbgCyber      ## Cyberspace: rain-soaked neon grid with glitching holograms
+    dbgCyber,     ## Cyberspace: rain-soaked neon grid with glitching holograms
+    dbgCasino     ## High Roller: green felt, card suits, poker chips and gold
 
   DesktopBgData* = object
     name*: string
@@ -86,13 +87,21 @@ proc initDesktopBgSkins*() =
     accentColor:  Color(r: 190, g: 180, b: 90,  a: 255),
     bgColor:      Color(r: 7,   g: 2,   b: 3,   a: 255))
 
-  # Cyberspace: the cyberpunk duotone — electric cyan (primary) and hot magenta
+  # Cyberspace: the cyberpunk duotone , electric cyan (primary) and hot magenta
   # (accent) over a deep teal-black night, for the rain-slicked neon grid look.
   desktopBgDatabase[dbgCyber] = DesktopBgData(
     name: t("dbg_cyber"), description: t("dbg_cyber_desc"),
     primaryColor: Color(r: 80,  g: 245, b: 255, a: 255),
     accentColor:  Color(r: 255, g: 60,  b: 200, a: 255),
     bgColor:      Color(r: 4,   g: 8,   b: 16,  a: 255))
+
+  # High Roller: casino felt. Gold (primary) drives the orbital rings that frame
+  # the cube like a betting spot; casino red (accent) and a deep green felt base.
+  desktopBgDatabase[dbgCasino] = DesktopBgData(
+    name: t("dbg_casino"), description: t("dbg_casino_desc"),
+    primaryColor: Color(r: 255, g: 205, b: 70,  a: 255),
+    accentColor:  Color(r: 215, g: 32,  b: 48,  a: 255),
+    bgColor:      Color(r: 8,   g: 36,  b: 22,  a: 255))
 
 proc getDesktopBgData*(bgType: DesktopBgType): DesktopBgData =
   desktopBgDatabase[bgType]
