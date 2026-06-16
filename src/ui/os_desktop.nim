@@ -899,7 +899,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
   # on a light disc at the center of every visible face. Faces were depth-sorted above, so the last three are the
   # camera-facing ones; each heart is drawn in its face's projected basis so
   # it foreshortens and tracks the face as the cube tumbles.
-  if skin == cskCompanion:
+  if skin == cskCompanion or skin == cskJack:
     for fi in 3 .. 5:
       let c0 = faces[fi].corners[0]
       let c1 = faces[fi].corners[1]
@@ -958,6 +958,62 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
       # area also shrinks to zero at the silhouette, so the heart fades to a
       # point there and the visible/hidden hand-off stays seamless.
       if sRx * sUy - sRy * sUx <= 0.0'f32:
+        continue
+
+      if skin == cskJack:
+        # Jack-O'-Node: carve a glowing face into each visible side. Features are
+        # laid out in the face-local (right, up) basis so they foreshorten and
+        # ride the cube as it tumbles, exactly like the Companion heart.
+        template fp(u, v: float32): Vector2 =
+          Vector2(x: fcScreen.x + sRx * (u) + sUx * (v),
+                  y: fcScreen.y + sRy * (u) + sUy * (v))
+        let candle = Color(r: 255, g: 225, b: 120, a: 255)
+        # Candlelight baked onto the face: concentric translucent discs drawn in
+        # the face's own (right, up) plane via fp(), so the bloom foreshortens and
+        # rides each side like the carving (a screen-space glow looked detached
+        # and floated off the cube as it tumbled). Layered large->small, deep
+        # orange at the rim to bright candle at the core; the overlap stacks into
+        # a soft radial falloff. Gently flickers. Drawn before the opaque features
+        # so they stay crisp on top.
+        let flick = 0.74'f32 + 0.26'f32 * sin(time * 6.3'f32 + fi.float32 * 1.7'f32)
+        const GlowRings = 9
+        const GlowSeg = 24
+        for g in 0 ..< GlowRings:
+          let gf = g.float32 / GlowRings.float32
+          let rr = 0.95'f32 * (1.0'f32 - gf)
+          let gc = Color(r: 255,
+                         g: uint8(135.0'f32 + gf * 105.0'f32),
+                         b: uint8(20.0'f32 + gf * 95.0'f32),
+                         a: uint8((12.0'f32 + gf * 12.0'f32) * flick))
+          var prevG = fp(rr, 0.0'f32)
+          for s in 1 .. GlowSeg:
+            let ang = s.float32 / GlowSeg.float32 * PI * 2.0'f32
+            let curG = fp(cos(ang) * rr, sin(ang) * rr)
+            drawTriangleBothWindings(fcScreen, prevG, curG, gc)
+            prevG = curG
+        # Two triangular eyes and a small triangular nose.
+        drawTriangleBothWindings(fp(-0.34'f32, 0.32'f32), fp(-0.12'f32, 0.32'f32),
+                                 fp(-0.23'f32, 0.10'f32), candle)
+        drawTriangleBothWindings(fp(0.12'f32, 0.32'f32), fp(0.34'f32, 0.32'f32),
+                                 fp(0.23'f32, 0.10'f32), candle)
+        drawTriangleBothWindings(fp(-0.08'f32, 0.06'f32), fp(0.08'f32, 0.06'f32),
+                                 fp(0.0'f32, -0.07'f32), candle)
+        # Toothy grin: a smiling band whose lower edge zigzags into teeth.
+        const MTeeth = 6
+        var prevTop, prevBot: Vector2
+        for i in 0 .. MTeeth:
+          let f = i.float32 / MTeeth.float32
+          let u = -0.40'f32 + 0.80'f32 * f
+          let smile = (u / 0.40'f32) * (u / 0.40'f32)         # 0 centre, 1 corners
+          let vTop = -0.16'f32 - 0.14'f32 * (1.0'f32 - smile) # corners ride up
+          let vBot = vTop - (if i mod 2 == 0: 0.12'f32 else: 0.05'f32)
+          let curTop = fp(u, vTop)
+          let curBot = fp(u, vBot)
+          if i > 0:
+            drawTriangleBothWindings(prevTop, curTop, prevBot, candle)
+            drawTriangleBothWindings(curTop, curBot, prevBot, candle)
+          prevTop = curTop
+          prevBot = curBot
         continue
 
       # Light recessed disc behind the heart (a circle in the face plane).
@@ -1156,7 +1212,23 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
     let centerX = w * 0.64
     let centerY = h * 0.46
     let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
-    drawZeroGravityWallpaperCube(centerX + desktop.cubeOffsetX, centerY + desktop.cubeOffsetY,
+
+    # Kernel Panic: the cube cowers. A constant high-frequency jitter (terror)
+    # with an occasional larger flinch, layered ON TOP of cubeOffsetX/Y so the
+    # orbital-escape easter egg still owns that state. Suppressed mid-escape so
+    # the cube can fly cleanly. Stateless: derived purely from desktop.time, the
+    # same trick the escape "strain" shudder uses.
+    var tremX, tremY = 0.0'f32
+    if selectedBg == dbgHorror and not desktop.cubeEscaping and
+       currentCubeSkin != cskJack:
+      let t = desktop.time
+      let flinch = 1.0'f32 + 1.0'f32 * max(0.0'f32, sin(t * 0.9'f32) - 0.6'f32)
+      let amp = min(w, h) * 0.001'f32 * flinch
+      tremX = (sin(t * 53.0'f32) + 0.5'f32 * sin(t * 89.0'f32)) * amp
+      tremY = (cos(t * 61.0'f32) + 0.5'f32 * sin(t * 97.0'f32)) * amp
+
+    drawZeroGravityWallpaperCube(centerX + desktop.cubeOffsetX + tremX,
+                                 centerY + desktop.cubeOffsetY + tremY,
                                  min(w, h) * 0.042'f32, desktop.time,
                                  desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ, currentCubeSkin)
 

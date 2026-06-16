@@ -481,6 +481,93 @@ proc drawPortalFx(w, h, time: float32) =
     if m mod 3 == 0:
       drawSoftGlow(px, py, 6.0'f32, withAlpha(col, alphaU8(80.0'f32 * edgeFade)), 0.5)
 
+# Kernel Panic (horror)
+
+proc drawHorrorFx(w, h, time: float32) =
+  ## A suffocating dark scene: a heartbeat vignette tightening around the edges,
+  ## blood-red mist creeping low, pairs of eyes opening and blinking out in the
+  ## black, a failing light that flickers a sickly red, and ash drifting down.
+  ## Everything is sized relative to (w,h) so it holds from the 64px shop card up
+  ## to fullscreen, and the vignette is built from edge gradients rather than
+  ## corner glows (a dark soft-glow at a corner renders as an obvious dark dot).
+
+  # Frightened heartbeat: a double-thump envelope on a slow cycle (~52 bpm) that
+  # drives both the extra gloom and how far the vignette closes in.
+  let beat = fract01(time / 1.15'f32)
+  let thump = exp(-beat * 9.0'f32) +
+              0.6'f32 * exp(-((beat - 0.20'f32) * (beat - 0.20'f32)) * 90.0'f32)
+  let pulse = clamp(thump, 0.0'f32, 1.4'f32)
+
+  # Deepen the whole frame toward black-red so it reads darker than Deep Void.
+  drawRectangle(0, 0, w.int32, h.int32,
+                Color(r: 6, g: 1, b: 2, a: alphaU8(110.0'f32 + pulse * 45.0'f32)))
+
+  # Heartbeat vignette: four edge gradients fading inward, breathing with pulse.
+  let vw = w * (0.30'f32 + pulse * 0.05'f32)
+  let vh = h * (0.30'f32 + pulse * 0.05'f32)
+  let va = alphaU8(150.0'f32 + pulse * 70.0'f32)
+  let clear = Color(r: 0, g: 0, b: 0, a: 0)
+  let edge  = Color(r: 0, g: 0, b: 0, a: va)
+  drawRectangleGradientH(0, 0, vw.int32, h.int32, edge, clear)
+  drawRectangleGradientH(int32(w - vw), 0, vw.int32, h.int32, clear, edge)
+  drawRectangleGradientV(0, 0, w.int32, vh.int32, edge, clear)
+  drawRectangleGradientV(0, int32(h - vh), w.int32, vh.int32, clear, edge)
+
+  # Blood mist creeping along the lower half, drifting and breathing.
+  for m in 0..<5:
+    let seed = m.float32 * 27.3'f32
+    let mx = wrapF(hash01(seed) * w + time * (8.0'f32 + hash01(seed + 1.0'f32) * 14.0'f32),
+                   w * 1.4'f32) - w * 0.2'f32
+    let my = (0.55'f32 + hash01(seed + 2.0'f32) * 0.4'f32) * h +
+             sin(time * 0.3'f32 + seed) * h * 0.03'f32
+    let mr = min(w, h) * (0.12'f32 + hash01(seed + 3.0'f32) * 0.12'f32)
+    let ma = alphaU8(16.0'f32 + 10.0'f32 * (sin(time * 0.5'f32 + seed) * 0.5'f32 + 0.5'f32))
+    drawSoftGlow(mx, my, mr, Color(r: 120, g: 6, b: 10, a: ma), 0.6)
+
+  # Eyes in the dark: each pair fades in over the first half of its own cycle,
+  # blinks, shifts its gaze, then is gone — never quite where you last saw them.
+  let eyeBase = min(w, h)
+  for e in 0..<5:
+    let seed = e.float32 * 41.7'f32 + 3.0'f32
+    let cycle = 6.0'f32 + hash01(seed) * 5.0'f32
+    let ph = fract01(time / cycle + hash01(seed + 9.0'f32))
+    if ph >= 0.5'f32: continue                 # only present for half the cycle
+    let vis = sin(ph / 0.5'f32 * PI)           # fade in and back out
+    if vis <= 0.02'f32: continue
+    let ex = (0.12'f32 + hash01(seed + 1.0'f32) * 0.76'f32) * w
+    let ey = (0.12'f32 + hash01(seed + 2.0'f32) * 0.72'f32) * h
+    let gap = eyeBase * (0.012'f32 + hash01(seed + 4.0'f32) * 0.010'f32)
+    let er  = eyeBase * 0.006'f32
+    let blink = if fract01(time * 0.7'f32 + seed) > 0.93'f32: 0.12'f32 else: 1.0'f32
+    let look = sin(time * 0.6'f32 + seed) * gap * 0.3'f32
+    let col = if hash01(seed + 5.0'f32) > 0.6'f32:
+                Color(r: 255, g: 30,  b: 20, a: alphaU8(225.0'f32 * vis * blink))
+              else:
+                Color(r: 225, g: 215, b: 110, a: alphaU8(215.0'f32 * vis * blink))
+    for side in [-1.0'f32, 1.0'f32]:
+      let px = ex + side * gap + look
+      drawCircle(Vector2(x: px, y: ey), max(0.5'f32, er * blink), col)
+      drawSoftGlow(px, ey, er * 6.0'f32, withAlpha(col, alphaU8(70.0'f32 * vis * blink)), 0.5)
+
+  # Failing light: a brief, sickly red flash on a rare cadence, like something
+  # passing in front of a dying bulb.
+  let flick = fract01(time * 0.37'f32)
+  if flick < 0.04'f32:
+    let f = sin(flick / 0.04'f32 * PI)
+    drawRectangle(0, 0, w.int32, h.int32,
+                  Color(r: 60, g: 10, b: 12, a: alphaU8(70.0'f32 * f)))
+
+  # Ash/dust drifting down to keep the dark in motion.
+  let span = h + 40.0'f32
+  for d in 0..<40:
+    let seed = d.float32 * 6.1'f32
+    let dy = wrapF(hash01(seed) * span +
+                   time * (h * (0.03'f32 + hash01(seed + 1.0'f32) * 0.06'f32)), span)
+    let dx = hash01(seed + 2.0'f32) * w + sin(time * 0.4'f32 + seed) * w * 0.01'f32
+    drawCircle(Vector2(x: dx, y: dy),
+               0.8'f32 + hash01(seed + 3.0'f32) * 1.0'f32,
+               Color(r: 80, g: 70, b: 70, a: 60))
+
 # Dispatcher
 
 proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int32,
@@ -497,3 +584,4 @@ proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int
   of dbgOcean: drawNeuralNetFx(w, h, time)
   of dbgInferno: drawInfernoFx(w, h, time)
   of dbgPortal: drawPortalFx(w, h, time)
+  of dbgHorror: drawHorrorFx(w, h, time)

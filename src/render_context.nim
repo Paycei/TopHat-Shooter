@@ -42,13 +42,32 @@ proc setRenderSupersampleScale*(scale: float32) =
 proc getRenderSupersampleScale*(): float32 =
   currentRenderSupersampleScale
 
+var
+  currentVirtualScissorRect = (x: 0'i32, y: 0'i32, w: 0'i32, h: 0'i32)
+  currentVirtualScissorActive = false
+
 proc beginVirtualScissorMode*(x, y, width, height: int32) =
+  # Remember the requested clip in *virtual* (pre-supersample) coords. raylib
+  # scissors don't nest, so callers that need to clip within an existing clip
+  # (e.g. a live preview inside a scrolled grid) can read this back and intersect
+  # manually rather than blowing the parent clip away. Stored unscaled so a
+  # round-trip through beginVirtualScissorMode doesn't double-apply the scale.
+  currentVirtualScissorRect = (x, y, width, height)
+  currentVirtualScissorActive = true
   let supersampleScale = getRenderSupersampleScale()
   let scaledX = floor(x.float32 * supersampleScale).int32
   let scaledY = floor(y.float32 * supersampleScale).int32
   let scaledWidth = max(1'i32, ceil(width.float32 * supersampleScale).int32)
   let scaledHeight = max(1'i32, ceil(height.float32 * supersampleScale).int32)
   beginScissorMode(scaledX, scaledY, scaledWidth, scaledHeight)
+
+proc getCurrentVirtualScissor*(): tuple[x, y, w, h: int32] =
+  ## The clip rect most recently set via beginVirtualScissorMode, in virtual
+  ## coords. Only meaningful while currentVirtualScissorIsActive() is true.
+  currentVirtualScissorRect
+
+proc currentVirtualScissorIsActive*(): bool =
+  currentVirtualScissorActive
 
 proc getVirtualMousePosition*(): Vector2 =
   let screenPos = getMousePosition()

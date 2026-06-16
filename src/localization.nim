@@ -2222,6 +2222,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dbg_inferno_desc": "Red volcanic heat waves",
     "dbg_portal": "Aperture Test",
     "dbg_portal_desc": "Twin portals trade light across the chamber",
+    "dbg_horror": "Kernel Panic",
+    "dbg_horror_desc": "Dread in the dark - even the cube trembles in fear",
 
     # Cube Skins
     "csk_default": "System Unit",
@@ -2240,6 +2242,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "csk_matrix_desc": "Matrix green data streams",
     "csk_companion": "Companion Cube",
     "csk_companion_desc": "It will never threaten to stab you. The heart is purely decorative.",
+    "csk_jack": "Jack-O'-Node",
+    "csk_jack_desc": "A carved pumpkin lit from within. Too smug to be scared of the dark.",
 
     # Player Skins
     "skin_default": "System Default",
@@ -3706,6 +3710,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dbg_inferno_desc": "Ondas de calor volcánico rojas",
     "dbg_portal": "Prueba Aperture",
     "dbg_portal_desc": "Portales gemelos intercambian luz en la cámara",
+    "dbg_horror": "Pánico del Kernel",
+    "dbg_horror_desc": "Pavor en la oscuridad - hasta el cubo tiembla de miedo",
 
     # Cube Skins
     "csk_default": "Unidad del Sistema",
@@ -3724,6 +3730,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "csk_matrix_desc": "Flujos de datos verde matrix",
     "csk_companion": "Cubo de Compañía",
     "csk_companion_desc": "Nunca amenazará con apuñalarte. El corazón es puramente decorativo.",
+    "csk_jack": "Nodo Calabaza",
+    "csk_jack_desc": "Una calabaza tallada e iluminada por dentro. Demasiado engreída para temer a la oscuridad.",
 
     # Player Skins
     "skin_default": "Sistema base",

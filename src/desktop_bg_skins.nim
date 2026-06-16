@@ -13,7 +13,8 @@ type
     dbgSunrise,   ## System Sunrise: warm orange horizon
     dbgOcean,     ## Neural Network: cool blue interconnected nodes
     dbgInferno,   ## Inferno Core: red volcanic heat
-    dbgPortal     ## Aperture Test: blue/orange portals (Portal reference)
+    dbgPortal,    ## Aperture Test: blue/orange portals (Portal reference)
+    dbgHorror     ## Kernel Panic: dread-soaked dark where the cube cowers
 
   DesktopBgData* = object
     name*: string
@@ -74,6 +75,15 @@ proc initDesktopBgSkins*() =
     primaryColor: Color(r: 60,  g: 150, b: 255, a: 255),
     accentColor:  Color(r: 255, g: 150, b: 40,  a: 255),
     bgColor:      Color(r: 6,   g: 9,   b: 16,  a: 255))
+
+  # Kernel Panic: a suffocating dark where the only colours are dried-blood red
+  # (primary) and the sickly yellow-green of eyes catching the light (accent),
+  # over an almost-black, faintly red base.
+  desktopBgDatabase[dbgHorror] = DesktopBgData(
+    name: t("dbg_horror"), description: t("dbg_horror_desc"),
+    primaryColor: Color(r: 150, g: 12,  b: 14,  a: 255),
+    accentColor:  Color(r: 190, g: 180, b: 90,  a: 255),
+    bgColor:      Color(r: 7,   g: 2,   b: 3,   a: 255))
 
 proc getDesktopBgData*(bgType: DesktopBgType): DesktopBgData =
   desktopBgDatabase[bgType]

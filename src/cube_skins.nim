@@ -13,7 +13,8 @@ type
     cskShadow,   ## Shadow Node: stealth dark
     cskPlasma,   ## Plasma Rig: electric blue-purple
     cskMatrix,   ## Data Node: matrix green
-    cskCompanion ## Companion Cube: grey with a pink heart (Portal reference)
+    cskCompanion, ## Companion Cube: grey with a pink heart (Portal reference)
+    cskJack      ## Jack-O'-Node: orange pumpkin with a carved, glowing face
 
   CubeSkinData* = object
     name*: string
@@ -72,6 +73,14 @@ proc initCubeSkins*() =
     faceColor: Color(r: 128, g: 130, b: 138, a: 255),
     edgeColor: Color(r: 208, g: 210, b: 216, a: 255),
     glowColor: Color(r: 244, g: 130, b: 160, a: 180))
+
+  # Jack-O'-Node: a pumpkin-orange gourd; the carved face glows like candlelight
+  # (the carved features are drawn in os_desktop's wallpaper-cube renderer).
+  cubeSkinDatabase[cskJack] = CubeSkinData(
+    name: t("csk_jack"), description: t("csk_jack_desc"),
+    faceColor: Color(r: 235, g: 110, b: 15,  a: 255),
+    edgeColor: Color(r: 255, g: 175, b: 50,  a: 255),
+    glowColor: Color(r: 255, g: 140, b: 0,   a: 180))
 
 proc getCubeSkinData*(skinType: CubeSkinType): CubeSkinData =
   cubeSkinDatabase[skinType]

@@ -707,6 +707,34 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
+type PreviewClip = tuple[x, y, w, h: int32, hadParent: bool]
+
+proc beginPreviewClip(x, y, w, h: int32): PreviewClip =
+  ## Clip a live preview to its own rect intersected with the enclosing scissor
+  ## (the scrolled grid viewport). raylib scissors don't nest, so naively opening
+  ## a scissor here would replace the grid clip and let a partially-scrolled
+  ## card's animated FX/cube bleed past the grid — and thus past the bottom of
+  ## the shop window. Returns what endPreviewClip needs to restore the parent.
+  if currentVirtualScissorIsActive():
+    let p = getCurrentVirtualScissor()
+    let ix = max(x, p.x)
+    let iy = max(y, p.y)
+    let iw = max(0'i32, min(x + w, p.x + p.w) - ix)
+    let ih = max(0'i32, min(y + h, p.y + p.h) - iy)
+    beginVirtualScissorMode(ix, iy, iw, ih)
+    result = (p.x, p.y, p.w, p.h, true)
+  else:
+    beginVirtualScissorMode(x, y, w, h)
+    result = (x, y, w, h, false)
+
+proc endPreviewClip(clip: PreviewClip) =
+  ## Put the enclosing grid scissor back (instead of disabling scissoring), so
+  ## the card chrome and the cards drawn after this one stay clipped to the grid.
+  if clip.hadParent:
+    beginVirtualScissorMode(clip.x, clip.y, clip.w, clip.h)
+  else:
+    endScissorMode()
+
 proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
                             isSelected: bool, isHovered: bool,
                             isUnlocked: bool = true, canBuy: bool = false,
@@ -723,7 +751,7 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
   # same backdrop helper and colours that the real desktop uses so the shop
   # card is a faithful thumbnail of the actual background.
   let previewH = 64
-  beginVirtualScissorMode(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
+  let clip = beginPreviewClip(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
 
   if bgType == dbgDefault:
     # For the default skin draw the exact hardcoded wallpaper (including
@@ -795,7 +823,7 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
 
     popMatrix()
 
-  endScissorMode()
+  endPreviewClip(clip)
 
   # Border
   let borderColor = if isSelected: Color(r: 255, g: 150, b: 50, a: 255)
@@ -853,7 +881,7 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
   # Render every cube skin using the same 3-D wallpaper cube so the shop
   # preview always matches what the player sees on the desktop.
   let previewH = 64
-  beginVirtualScissorMode(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
+  let clip = beginPreviewClip(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
   let centerX = (x + SKIN_BOX_WIDTH div 2).float32
   # Move cube up slightly and reduce base size so it fits within the card area
   let centerY = (y + 40).float32
@@ -864,7 +892,7 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
   let aY = time * 0.133'f32
   let aZ = time * 0.095'f32
   drawZeroGravityWallpaperCube(centerX, centerY, cubeSize, time, aX, aY, aZ, skinType)
-  endScissorMode()
+  endPreviewClip(clip)
 
   # Name
   let nameSize: int32 = if isHovered: 17 else: 16
