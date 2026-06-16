@@ -80,6 +80,9 @@ type
     cubeDiceTQZ*: float32
     cubeDiceResultTimer*: float32  # seconds left to show the big result number
     cubeDiceVelY*: float32      # vertical velocity of the die during the bounce drop
+    # Kernel Panic + Jack-O'-Node: fast spinning fans the candle (0..1 glow boost)
+    # instead of breaking orbit; decays back when the player stops spinning.
+    cubeJackGlow*: float32
     # Transient OS-style toast (e.g. advancement unlocked)
     toastText*: string
     toastTimer*: float32
@@ -211,6 +214,7 @@ proc newOSDesktop*(): OSDesktop =
     cubeDiceTQZ: 0.0,
     cubeDiceResultTimer: 0.0,
     cubeDiceVelY: 0.0,
+    cubeJackGlow: 0.0,
     toastText: "",
     toastTimer: 0.0
   )
@@ -466,51 +470,64 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
       desktop.cubeSpinHeat += dt
     else:
       desktop.cubeSpinHeat = max(0.0'f32, desktop.cubeSpinHeat - dt * CubeEscapeHeatDecay)
-    # Wobble in place as the orbit destabilizes, so the player gets feedback
-    let strain = desktop.cubeSpinHeat / CubeEscapeHeatNeeded
-    desktop.cubeOffsetX = sin(desktop.time * 37.0'f32) * 3.5'f32 * strain
-    desktop.cubeOffsetY = cos(desktop.time * 31.0'f32) * 3.5'f32 * strain
-    if desktop.cubeSpinHeat >= CubeEscapeHeatNeeded:
-      desktop.cubeEscaping = true
-      desktop.cubeEscapeTimer = 0.0
-      desktop.cubeSpinHeat = 0.0
-      # Stay armed so the easter egg can play again on the next sustained spin.
-      desktop.cubeEscapeTriggered = true
-      desktop.cubeDragging = false
-      # On the portal background, route through the portals; otherwise fly off-screen.
-      var selectedBg: DesktopBgType = dbgDefault
-      var currentCubeSkin: CubeSkinType = cskDefault
-      if not globalSettings.isNil:
-        selectedBg = DesktopBgType(globalSettings.desktopBg)
-        currentCubeSkin = CubeSkinType(globalSettings.cubeSkin)
-      if selectedBg == dbgCasino and currentCubeSkin == cskDice:
-        # Poker-table dice roll: pick a random face (biased by how hard it was
-        # spun) and the target orientation that brings it to the camera.
-        desktop.cubeDiceMode = true
-        desktop.cubePortalMode = false
-        let rr = sin(desktop.time * 12.9898'f32 +
-                     desktop.cubeAngVelY * 78.233'f32 +
-                     desktop.cubeAngVelX * 23.197'f32) * 43758.5453'f32
-        desktop.cubeDiceResult = clamp(1 + int((rr - floor(rr)) * 6.0'f32), 1, 6)
-        let (tw, tx, ty, tz) = diceTargetQuat(desktop.cubeDiceResult)
-        desktop.cubeDiceTQW = tw; desktop.cubeDiceTQX = tx
-        desktop.cubeDiceTQY = ty; desktop.cubeDiceTQZ = tz
-        # Toss it up from its current position (offset unchanged this frame, so the
-        # motion is continuous): an upward impulse, gravity does the rest.
-        desktop.cubeDiceVelY = -1.55'f32 * h
-      elif selectedBg == dbgPortal and currentCubeSkin == cskCompanion:
-        desktop.cubeDiceMode = false
-        desktop.cubePortalMode = true
-        # Spin right (cubeAngVelY > 0) -> enter the orange portal on the right
-        desktop.cubePortalEnterRight = desktop.cubeAngVelY >= 0.0'f32
-      else:
-        desktop.cubeDiceMode = false
-        desktop.cubePortalMode = false
-        # Fly off roughly along the spin direction, drifting upward
-        let dirX = (if desktop.cubeAngVelY >= 0: 1.0'f32 else: -1.0'f32)
-        let dirLen = sqrt(dirX * dirX + 0.55'f32 * 0.55'f32)
-        desktop.cubeEscapeDirX = dirX / dirLen
-        desktop.cubeEscapeDirY = -0.55'f32 / dirLen
+    # Which background + skin is selected decides what sustained fast spinning does.
+    var selectedBg: DesktopBgType = dbgDefault
+    var currentCubeSkin: CubeSkinType = cskDefault
+    if not globalSettings.isNil:
+      selectedBg = DesktopBgType(globalSettings.desktopBg)
+      currentCubeSkin = CubeSkinType(globalSettings.cubeSkin)
+    if selectedBg == dbgHorror and currentCubeSkin == cskJack:
+      # Kernel Panic + Jack-O'-Node: spinning the pumpkin doesn't break orbit, it
+      # fans the candle inside - the carved face glows brighter the more it is
+      # spun, and fades back when the player stops. Cap heat so the glow tracks
+      # the spin responsively, and keep the cube in its orbit slot (no wobble).
+      desktop.cubeSpinHeat = min(desktop.cubeSpinHeat, CubeEscapeHeatNeeded)
+      desktop.cubeJackGlow = desktop.cubeSpinHeat / CubeEscapeHeatNeeded
+      desktop.cubeOffsetX = 0.0'f32
+      desktop.cubeOffsetY = 0.0'f32
+    else:
+      # Any other combo: the glow boost fades out, and sustained fast spinning
+      # breaks the cube out of orbit (the orbital-escape easter egg).
+      desktop.cubeJackGlow = max(0.0'f32, desktop.cubeJackGlow - dt * 2.5'f32)
+      # Wobble in place as the orbit destabilizes, so the player gets feedback
+      let strain = desktop.cubeSpinHeat / CubeEscapeHeatNeeded
+      desktop.cubeOffsetX = sin(desktop.time * 37.0'f32) * 3.5'f32 * strain
+      desktop.cubeOffsetY = cos(desktop.time * 31.0'f32) * 3.5'f32 * strain
+      if desktop.cubeSpinHeat >= CubeEscapeHeatNeeded:
+        desktop.cubeEscaping = true
+        desktop.cubeEscapeTimer = 0.0
+        desktop.cubeSpinHeat = 0.0
+        # Stay armed so the easter egg can play again on the next sustained spin.
+        desktop.cubeEscapeTriggered = true
+        desktop.cubeDragging = false
+        if selectedBg == dbgCasino and currentCubeSkin == cskDice:
+          # Poker-table dice roll: pick a random face (biased by how hard it was
+          # spun) and the target orientation that brings it to the camera.
+          desktop.cubeDiceMode = true
+          desktop.cubePortalMode = false
+          let rr = sin(desktop.time * 12.9898'f32 +
+                       desktop.cubeAngVelY * 78.233'f32 +
+                       desktop.cubeAngVelX * 23.197'f32) * 43758.5453'f32
+          desktop.cubeDiceResult = clamp(1 + int((rr - floor(rr)) * 6.0'f32), 1, 6)
+          let (tw, tx, ty, tz) = diceTargetQuat(desktop.cubeDiceResult)
+          desktop.cubeDiceTQW = tw; desktop.cubeDiceTQX = tx
+          desktop.cubeDiceTQY = ty; desktop.cubeDiceTQZ = tz
+          # Toss it up from its current position (offset unchanged this frame, so the
+          # motion is continuous): an upward impulse, gravity does the rest.
+          desktop.cubeDiceVelY = -1.55'f32 * h
+        elif selectedBg == dbgPortal and currentCubeSkin == cskCompanion:
+          desktop.cubeDiceMode = false
+          desktop.cubePortalMode = true
+          # Spin right (cubeAngVelY > 0) -> enter the orange portal on the right
+          desktop.cubePortalEnterRight = desktop.cubeAngVelY >= 0.0'f32
+        else:
+          desktop.cubeDiceMode = false
+          desktop.cubePortalMode = false
+          # Fly off roughly along the spin direction, drifting upward
+          let dirX = (if desktop.cubeAngVelY >= 0: 1.0'f32 else: -1.0'f32)
+          let dirLen = sqrt(dirX * dirX + 0.55'f32 * 0.55'f32)
+          desktop.cubeEscapeDirX = dirX / dirLen
+          desktop.cubeEscapeDirY = -0.55'f32 / dirLen
 
   # Tick down the desktop toast
   if desktop.toastTimer > 0.0'f32:
@@ -925,7 +942,8 @@ proc drawTriangleBothWindings(a, b, c: Vector2, color: Color) =
 
 proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
                                    angleX, angleY, angleZ: float32,
-                                   skin: CubeSkinType = cskDefault) =
+                                   skin: CubeSkinType = cskDefault,
+                                   glowBoost: float32 = 0.0'f32) =
   const
     CubeFaces: array[6, array[4, int]] = [
       [0, 1, 2, 3],
@@ -1141,7 +1159,14 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
         template fp(u, v: float32): Vector2 =
           Vector2(x: fcScreen.x + sRx * (u) + sUx * (v),
                   y: fcScreen.y + sRy * (u) + sUy * (v))
-        let candle = Color(r: 255, g: 225, b: 120, a: 255)
+        # Spinning the pumpkin on the Kernel Panic background fans the candle:
+        # glowBoost (0..1) brightens the bloom and warms the carved features toward
+        # a fierce white-hot grin. Stays baked per-face (no screen-space halo).
+        let gb = clamp(glowBoost, 0.0'f32, 1.0'f32)
+        let glowMul = 1.0'f32 + gb * 3.6'f32
+        let candle = Color(r: 255,
+                           g: uint8(min(255.0'f32, 225.0'f32 + gb * 30.0'f32)),
+                           b: uint8(min(255.0'f32, 120.0'f32 + gb * 125.0'f32)), a: 255)
         # Candlelight baked onto the face: concentric translucent discs drawn in
         # the face's own (right, up) plane via fp(), so the bloom foreshortens and
         # rides each side like the carving (a screen-space glow looked detached
@@ -1149,7 +1174,9 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
         # orange at the rim to bright candle at the core; the overlap stacks into
         # a soft radial falloff. Gently flickers. Drawn before the opaque features
         # so they stay crisp on top.
-        let flick = 0.74'f32 + 0.26'f32 * sin(time * 6.3'f32 + fi.float32 * 1.7'f32)
+        # Flicker harder the more it is fanned, so a charged jack visibly seethes.
+        let flick = (0.74'f32 + 0.26'f32 * sin(time * 6.3'f32 + fi.float32 * 1.7'f32)) *
+                    (1.0'f32 + gb * 0.35'f32 * sin(time * 13.0'f32 + fi.float32))
         const GlowRings = 9
         const GlowSeg = 24
         for g in 0 ..< GlowRings:
@@ -1158,7 +1185,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
           let gc = Color(r: 255,
                          g: uint8(135.0'f32 + gf * 105.0'f32),
                          b: uint8(20.0'f32 + gf * 95.0'f32),
-                         a: uint8((12.0'f32 + gf * 12.0'f32) * flick))
+                         a: uint8(min(255.0'f32, (12.0'f32 + gf * 12.0'f32) * flick * glowMul)))
           var prevG = fp(rr, 0.0'f32)
           for s in 1 .. GlowSeg:
             let ang = s.float32 / GlowSeg.float32 * PI * 2.0'f32
@@ -1418,6 +1445,62 @@ proc drawUsageRow(panelX, panelW, y: int32, label: string, pct: float32, color: 
   let pStr = $int(pct + 0.5'f32) & "%"
   drawText(pStr, panelX + panelW - 9 - measureText(pStr, 12), y, 12, color)
 
+proc drawHorrorWatchers(cx, cy, cubeSize, w, h, time, glow: float32) =
+  ## Kernel Panic reveal (only fires for the spun Jack-O'-Node, the one combo this
+  ## easter egg works on): as the candle is fanned (glow 0..1) the lantern throws
+  ## warm light into the dark room and things in the black wake up - pairs of
+  ## sickly eyes open and watch the cube, and a red dread bleeds in from the edges.
+  let g = clamp(glow, 0.0'f32, 1.0'f32)
+  if g <= 0.02'f32: return
+  let s = min(w, h)
+
+  # 1. The lantern casting flickering light into the room (a halo of *cast* light
+  #    around the cube - the pumpkin lighting its surroundings, not face shading).
+  let flick = 0.78'f32 + 0.22'f32 * sin(time * 7.3'f32) + 0.08'f32 * sin(time * 17.0'f32)
+  drawSoftGlow(cx, cy, cubeSize * (2.6'f32 + g * 5.0'f32),
+               Color(r: 255, g: 145, b: 35, a: uint8(min(255.0'f32, 80.0'f32 * g * flick))), 0.7)
+  drawSoftGlow(cx, cy, cubeSize * (1.5'f32 + g * 2.4'f32),
+               Color(r: 255, g: 195, b: 95, a: uint8(min(255.0'f32, 70.0'f32 * g * flick))), 0.85)
+
+  # 2. Eyes opening in the surrounding darkness, kept clear of the centre where the
+  #    cube sits. Each watcher wakes at a slightly higher glow, so they open in
+  #    sequence as the candle flares, and blink now and then.
+  const Haunts = 7
+  const hx = [0.16'f32, 0.86'f32, 0.09'f32, 0.93'f32, 0.40'f32, 0.74'f32, 0.28'f32]
+  const hy = [0.20'f32, 0.15'f32, 0.66'f32, 0.60'f32, 0.87'f32, 0.86'f32, 0.40'f32]
+  const hsz = [0.95'f32, 1.25'f32, 1.05'f32, 0.8'f32, 1.15'f32, 0.7'f32, 0.6'f32]
+  for k in 0 ..< Haunts:
+    let seed = k.float32 * 12.9898'f32
+    let wake = clamp((g - 0.12'f32 - 0.085'f32 * k.float32) / 0.32'f32, 0.0'f32, 1.0'f32)
+    if wake <= 0.0'f32: continue
+    let ex = hx[k] * w
+    let ey = hy[k] * h
+    let sc = s * 0.032'f32 * hsz[k]
+    let bt = sin(time * (0.6'f32 + 0.4'f32 * abs(sin(seed))) + seed * 9.0'f32)
+    let blink = if bt > 0.86'f32: max(0.06'f32, 1.0'f32 - (bt - 0.86'f32) / 0.14'f32) else: 1.0'f32
+    let open = wake * blink
+    let eyeA = uint8(225.0'f32 * wake)
+    let glowA = uint8(80.0'f32 * wake)
+    let eyeCol  = Color(r: 205, g: 220, b: 95, a: eyeA)
+    let darkSlit = Color(r: 9, g: 13, b: 6, a: eyeA)
+    let sway = sin(time * 0.5'f32 + seed) * sc * 0.1'f32
+    for side in [-1.0'f32, 1.0'f32]:
+      let eex = ex + side * sc * 1.05'f32 + sway
+      drawSoftGlow(eex, ey, sc * 1.35'f32, Color(r: 175, g: 210, b: 70, a: glowA), 0.6)
+      drawEllipse(eex.int32, ey.int32, sc * 0.72'f32, max(0.5'f32, sc * 0.46'f32 * open), eyeCol)
+      drawEllipse(eex.int32, ey.int32, sc * 0.16'f32, max(0.5'f32, sc * 0.4'f32 * open), darkSlit)
+
+  # 3. Red dread bleeding in from the edges, pulsing with the glow.
+  let dread = uint8(min(255.0'f32, 150.0'f32 * g * (0.7'f32 + 0.3'f32 * sin(time * 2.0'f32))))
+  let clear = Color(r: 0, g: 0, b: 0, a: 0)
+  let blood = Color(r: 110, g: 6, b: 8, a: dread)
+  let vw = w * 0.28'f32
+  let vh = h * 0.28'f32
+  drawRectangleGradientH(0, 0, vw.int32, h.int32, blood, clear)
+  drawRectangleGradientH(int32(w - vw), 0, vw.int32, h.int32, clear, blood)
+  drawRectangleGradientV(0, 0, w.int32, vh.int32, blood, clear)
+  drawRectangleGradientV(0, int32(h - vh), w.int32, vh.int32, clear, blood)
+
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   ## Draw the active desktop background. If the player has selected a desktop
   ## background from settings/shop use that otherwise fall back to the
@@ -1496,10 +1579,17 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
       tremX = (sin(t * 53.0'f32) + 0.5'f32 * sin(t * 89.0'f32)) * amp
       tremY = (cos(t * 61.0'f32) + 0.5'f32 * sin(t * 97.0'f32)) * amp
 
+    # Kernel Panic + spun Jack-O'-Node: reveal the watchers in the dark behind the
+    # cube before drawing it, so the lantern light and eyes sit underneath.
+    if selectedBg == dbgHorror and desktop.cubeJackGlow > 0.01'f32:
+      drawHorrorWatchers(centerX, centerY, min(w, h) * 0.042'f32,
+                         w, h, desktop.time, desktop.cubeJackGlow)
+
     drawZeroGravityWallpaperCube(centerX + desktop.cubeOffsetX + tremX,
                                  centerY + desktop.cubeOffsetY + tremY,
                                  min(w, h) * 0.042'f32, desktop.time,
-                                 desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ, currentCubeSkin)
+                                 desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
+                                 currentCubeSkin, desktop.cubeJackGlow)
 
     # Dice roll result: a big gold number that pops above the settled die.
     if desktop.cubeDiceResultTimer > 0.0'f32 and desktop.cubeDiceResult > 0:
