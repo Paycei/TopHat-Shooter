@@ -1931,7 +1931,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # OS Desktop / System Info
     "os_system_monitor": "System Monitor",
     "os_cpu_idle": "CPU: Idle",
-    "os_memory": "Memory: 2.4 / 16 GB",
+    "os_memory": "Memory",  # label only; live "<used> / <total> GB" appended in code
     "os_network": "Network: Connected",
     "os_tophat_os": "TopHat-ShooterOS",
     "os_edition": "[v6.0 Edition]",
@@ -4188,7 +4188,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # OS Desktop / System Info
     "os_system_monitor": "Monitor del Sistema",
     "os_cpu_idle": "CPU: Inactiva",
-    "os_memory": "Memoria: 2.4 / 16 GB",
+    "os_memory": "Memoria",  # label only; live "<used> / <total> GB" appended in code
     "os_network": "Red: Conectada",
     "os_tophat_os": "TopHat-ShooterOS",
     "os_edition": "[Edición v6.0]",

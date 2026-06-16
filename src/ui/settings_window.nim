@@ -419,7 +419,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(t(tkSettingsRenderResolutionDesc), renderModeButtonX.int32, yPos.int32, 14, LightGray)
   yPos += 25
 
-  # FPS Limit — text input for custom values
+  # FPS Limit: text input for custom values
   drawText(t(tkSettingsFpsLimit), (contentX + 40).int32, yPos.int32, 18, White)
   let boxX = contentX + 320
   let boxY = yPos - 5
@@ -1007,7 +1007,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         playSound(stMenuSelect)
         settingsChanged = true
 
-      # Keybind buttons — kbYBase mirrors drawControlsTab layout
+      # Keybind buttons: kbYBase mirrors drawControlsTab layout
       let kbYBase = contentY + 155
       let contentW = settingsWin.window.width - WINDOW_PADDING * 2
       let kbBtnW = 120

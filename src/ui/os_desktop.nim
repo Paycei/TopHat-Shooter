@@ -1054,6 +1054,45 @@ proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
            Vector2(x: 250.0 + sin(time * 0.9) * 10.0, y: h - 74.0),
            1, Color(r: 70, g: 230, b: 255, a: 64))
 
+proc simUsage(time, base, amp, speed, phase: float32): float32 =
+  ## Smooth pseudo-load for the decorative System Monitor: two layered sines so
+  ## the curve drifts slowly without looking obviously periodic. Not real data.
+  let v = base + sin(time * speed + phase) * amp +
+                 sin(time * speed * 2.7'f32 + phase * 1.7'f32) * amp * 0.35'f32
+  clamp(v, 2.0'f32, 99.0'f32)
+
+proc drawUsageRow(panelX, panelW, y: int32, label: string, pct: float32, color: Color) =
+  ## One System-Monitor line: label, a tracked fill bar with a bright leading
+  ## cap, and the percentage.
+  drawText(label, panelX + 9, y, 12, color)
+  let barX = panelX + 58
+  let barW = panelW - 58 - 44
+  let barY = y + 2
+  const barH = 9'i32
+  # Track + quarter ticks
+  drawRectangle(barX, barY, barW, barH, Color(r: 20, g: 28, b: 42, a: 235))
+  for q in 1 .. 3:
+    drawRectangle(barX + (barW * q.int32) div 4, barY, 1, barH,
+                  Color(r: 0, g: 70, b: 90, a: 150))
+  # Fill, top highlight, bright cap + glow
+  let fillW = int32(barW.float32 * clamp(pct, 0.0'f32, 100.0'f32) / 100.0'f32)
+  if fillW > 1:
+    drawRectangle(barX, barY, fillW, barH, Color(r: color.r, g: color.g, b: color.b, a: 205))
+    drawRectangle(barX, barY, fillW, 1,
+                  Color(r: uint8(min(255, color.r.int + 60)),
+                        g: uint8(min(255, color.g.int + 60)),
+                        b: uint8(min(255, color.b.int + 60)), a: 220))
+    let capX = barX + fillW
+    drawRectangle(capX - 2, barY, 2, barH, Color(r: 255, g: 255, b: 255, a: 170))
+    drawSoftGlow(capX.float32, (barY + barH div 2).float32, 7.0'f32,
+                 Color(r: color.r, g: color.g, b: color.b, a: 130), 1.0'f32)
+  drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
+                               width: barW.float32, height: barH.float32), 1,
+                     Color(r: 0, g: 90, b: 110, a: 150))
+  # Percentage, right-aligned
+  let pStr = $int(pct + 0.5'f32) & "%"
+  drawText(pStr, panelX + panelW - 9 - measureText(pStr, 12), y, 12, color)
+
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   ## Draw the active desktop background. If the player has selected a desktop
   ## background from settings/shop use that otherwise fall back to the
@@ -1128,44 +1167,80 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Taskbar
   drawTaskbar(screenWidth, screenHeight, desktop.time)
 
-  # System info panel in top-right corner (like a widget)
-  let panelX = screenWidth - 240
-  let panelY = 10
-  let panelW = 230
-  let panelH = 100
+  # ---- System Monitor widget (top-right) ----------------------------------
+  # Decorative readout: the bars show smoothly-drifting simulated load so the
+  # panel feels alive. Only Uptime is real (desktop session time).
+  let panelW = 240'i32
+  let panelH = 128'i32
+  let panelX = (screenWidth - panelW.int - 14).int32
+  let panelY = 12'i32
+  let tm = desktop.time
 
-  # Panel background with transparency
-  drawRectangle(panelX.int32, panelY.int32, panelW.int32, panelH.int32,
-               Color(r: 15, g: 20, b: 30, a: 180))
+  # Depth halo, gradient body, crisp border
+  drawSoftGlow((panelX + panelW div 2).float32, (panelY + panelH div 2).float32,
+               panelW.float32 * 0.62'f32, Color(r: 0, g: 120, b: 150, a: 24), 1.0'f32)
+  drawRectangleGradientV(panelX, panelY, panelW, panelH,
+                         Color(r: 18, g: 26, b: 38, a: 222),
+                         Color(r: 9, g: 13, b: 22, a: 222))
   drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
-                                width: panelW.float32, height: panelH.float32), 1,
-                    Color(r: 0, g: 180, b: 180, a: 200))
+                               width: panelW.float32, height: panelH.float32), 1,
+                     Color(r: 0, g: 180, b: 190, a: 210))
+  # Corner accents
+  let corner = Color(r: 0, g: 235, b: 235, a: 235)
+  const cl = 10'i32
+  drawRectangle(panelX, panelY, cl, 2, corner)
+  drawRectangle(panelX, panelY, 2, cl, corner)
+  drawRectangle(panelX + panelW - cl, panelY, cl, 2, corner)
+  drawRectangle(panelX + panelW - 2, panelY, 2, cl, corner)
+  drawRectangle(panelX, panelY + panelH - 2, cl, 2, corner)
+  drawRectangle(panelX, panelY + panelH - cl, 2, cl, corner)
+  drawRectangle(panelX + panelW - cl, panelY + panelH - 2, cl, 2, corner)
+  drawRectangle(panelX + panelW - 2, panelY + panelH - cl, 2, cl, corner)
 
-  # Panel title bar
-  drawRectangle(panelX.int32, panelY.int32, panelW.int32, 20,
-               Color(r: 0, g: 40, b: 60, a: 220))
-  drawText(t(tkOSSystemMonitor), (panelX + 8).int32, (panelY + 3).int32, 14,
-          Color(r: 0, g: 200, b: 200, a: 255))
+  # Title bar with a pulsing "live" dot
+  drawRectangleGradientV(panelX + 1, panelY + 1, panelW - 2, 21,
+                         Color(r: 0, g: 56, b: 78, a: 235),
+                         Color(r: 0, g: 32, b: 48, a: 235))
+  drawText(t(tkOSSystemMonitor), panelX + 9, panelY + 5, 14,
+           Color(r: 120, g: 235, b: 235, a: 255))
+  let pulse = sin(tm * 3.0'f32) * 0.5'f32 + 0.5'f32
+  drawCircle(Vector2(x: (panelX + panelW - 16).float32, y: (panelY + 11).float32),
+             4.0'f32, Color(r: 70, g: 255, b: 120, a: uint8(110.0'f32 + pulse * 145.0'f32)))
 
-  # System stats (simulated)
+  # CPU sparkline (scrolling filled waveform)
+  let gx = panelX + 9
+  let gy = panelY + 30
+  let gw = panelW - 18
+  const gh = 30'i32
+  drawRectangle(gx, gy, gw, gh, Color(r: 8, g: 14, b: 22, a: 215))
+  for i in 0 ..< gw.int:
+    let v = simUsage(tm - (gw.int - i).float32 * 0.05'f32,
+                     30.0'f32, 16.0'f32, 0.8'f32, 0.0'f32) / 100.0'f32
+    let h = int32(v * gh.float32)
+    drawRectangle(gx + i.int32, gy + gh - h, 1, h, Color(r: 0, g: 190, b: 160, a: 70))
+    drawRectangle(gx + i.int32, gy + gh - h, 1, 1, Color(r: 90, g: 255, b: 210, a: 200))
+  drawRectangleLines(Rectangle(x: gx.float32, y: gy.float32,
+                               width: gw.float32, height: gh.float32), 1,
+                     Color(r: 0, g: 80, b: 100, a: 140))
+
+  # Metric bars
+  var rowY = panelY + 68
+  drawUsageRow(panelX, panelW, rowY, "CPU",
+               simUsage(tm, 28.0'f32, 18.0'f32, 0.8'f32, 0.0'f32),
+               Color(r: 80, g: 230, b: 120, a: 255))
+  rowY += 20
+  drawUsageRow(panelX, panelW, rowY, t(tkOSMemory),
+               simUsage(tm, 58.0'f32, 9.0'f32, 0.16'f32, 2.0'f32),
+               Color(r: 90, g: 180, b: 255, a: 255))
+
+  # Uptime (real desktop session time)
   let uptime = int(desktop.time)
   let hours = uptime div 3600
   let minutes = (uptime mod 3600) div 60
   let seconds = uptime mod 60
-
-  var infoY = panelY + 28
-  drawText(t(tkOSCPUIdle), (panelX + 8).int32, infoY.int32, 12,
-          Color(r: 100, g: 255, b: 100, a: 255))
-  infoY += 18
-  drawText(t(tkOSMemory), (panelX + 8).int32, infoY.int32, 12,
-          Color(r: 100, g: 200, b: 255, a: 255))
-  infoY += 18
-  drawText(&"Uptime: {hours:02d}:{minutes:02d}:{seconds:02d}",
-          (panelX + 8).int32, infoY.int32, 12,
-          Color(r: 200, g: 200, b: 100, a: 255))
-  infoY += 18
-  drawText(t(tkOSNetwork), (panelX + 8).int32, infoY.int32, 12,
-          Color(r: 100, g: 255, b: 150, a: 255))
+  drawText(&"Uptime  {hours:02d}:{minutes:02d}:{seconds:02d}",
+           panelX + 9, panelY + panelH - 18, 12,
+           Color(r: 170, g: 190, b: 210, a: 200))
 
   # Bottom desktop info (version and edition)
   drawText(t(tkOSTopHatOS), 10, (screenHeight - 75).int32, 14,
