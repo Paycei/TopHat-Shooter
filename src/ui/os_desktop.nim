@@ -1215,7 +1215,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   drawRectangle(gx, gy, gw, gh, Color(r: 8, g: 14, b: 22, a: 215))
   for i in 0 ..< gw.int:
     let v = simUsage(tm - (gw.int - i).float32 * 0.05'f32,
-                     30.0'f32, 16.0'f32, 0.8'f32, 0.0'f32) / 100.0'f32
+                     40.0'f32, 3.5'f32, 0.12'f32, 0.0'f32) / 100.0'f32
     let h = int32(v * gh.float32)
     drawRectangle(gx + i.int32, gy + gh - h, 1, h, Color(r: 0, g: 190, b: 160, a: 70))
     drawRectangle(gx + i.int32, gy + gh - h, 1, 1, Color(r: 90, g: 255, b: 210, a: 200))
@@ -1226,11 +1226,11 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Metric bars
   var rowY = panelY + 68
   drawUsageRow(panelX, panelW, rowY, "CPU",
-               simUsage(tm, 28.0'f32, 18.0'f32, 0.8'f32, 0.0'f32),
+               simUsage(tm, 40.0'f32, 3.5'f32, 0.12'f32, 0.0'f32),
                Color(r: 80, g: 230, b: 120, a: 255))
   rowY += 20
   drawUsageRow(panelX, panelW, rowY, t(tkOSMemory),
-               simUsage(tm, 58.0'f32, 9.0'f32, 0.16'f32, 2.0'f32),
+               simUsage(tm, 40.0'f32, 2.5'f32, 0.08'f32, 2.0'f32),
                Color(r: 90, g: 180, b: 255, a: 255))
 
   # Uptime (real desktop session time)
