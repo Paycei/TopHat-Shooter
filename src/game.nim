@@ -396,6 +396,13 @@ proc updateDeathSequencePlayback(game: var Game, dt: float32) =
     else:
       inc i
 
+  i = 0
+  while i < game.perkIndicators.len:
+    if not updatePerkIndicator(game.perkIndicators[i], worldDt):
+      game.perkIndicators.delete(i)
+    else:
+      inc i
+
   let fadeStart = DEATH_SLOW_DURATION + DEATH_SPEEDUP_DURATION
   game.deathSequenceFadeAlpha =
     if game.deathSequenceTimer <= fadeStart:
@@ -1046,6 +1053,11 @@ proc showCurrency*(game: Game, pos: Vector2f, amount: int,
     return
   game.currencyIndicators.add(newCurrencyIndicator(pos.x, pos.y, amount, kind))
 
+proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) =
+  ## Centralized helper for floating "+SHIELD" / "+SPEED" style consumable
+  ## pickup indicators.
+  game.perkIndicators.add(newPerkIndicator(pos.x, pos.y, text, color))
+
 proc accumulateAndShowAuraDamage(game: Game, enemy: Enemy, actualDamage: float32,
                                   damageType: DamageType, wasCrit: bool = false) =
   ## Accumulates aura damage and displays damage numbers reliably
@@ -1622,6 +1634,7 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     meteorites: @[],
     damageNumbers: @[],
     currencyIndicators: @[],
+    perkIndicators: @[],
     time: 0,
     spawnTimer: 0,
     bossTimer: 60.0,
@@ -8419,14 +8432,17 @@ proc updateGame*(game: var Game, dt: float32) =
         activateSpeedBoost(game.player)
         if game.player.hasBountiful:
           game.player.speedBoostTimer *= 1.5'f32
+        showPerk(game, game.player.pos, "+SPEED", Cyan)
       of ctInvincibility:
         activateInvincibility(game.player)
         if game.player.hasBountiful:
           game.player.invincibilityTimer *= 1.5'f32
+        showPerk(game, game.player.pos, "+INVINCIBLE", Magenta)
       of ctFireRate:
         activateFireRateBoost(game.player)
         if game.player.hasBountiful:
           game.player.fireRateBoostTimer *= 1.5'f32
+        showPerk(game, game.player.pos, "+FIRE RATE", Orange)
       of ctMagnet:
         activateMagnet(game.player)
         # Spawn 3 coins in random positions around the player
@@ -8438,6 +8454,7 @@ proc updateGame*(game: var Game, dt: float32) =
           # Clamp coin position to be in bounds (in case player is near edge)
           let clampedPos = clampLootPosition(coinX, coinY, game.screenWidth, game.screenHeight)
           game.coins.add(newCoin(clampedPos.x, clampedPos.y, 1))
+        showPerk(game, game.player.pos, "+MAGNET", Purple)
       of ctShieldBoost:
         # Cornucopia: 3 hits (up from 2), 15s duration (up from 10s)
         if game.player.hasBountiful:
@@ -8446,12 +8463,16 @@ proc updateGame*(game: var Game, dt: float32) =
         else:
           game.player.shieldBoostTimer = 10.0
           game.player.shieldHits = 2
+        showPerk(game, game.player.pos, "+SHIELD", Color(r: 100, g: 200, b: 255, a: 255))
       of ctDoubleCoin:
         game.player.doubleCoinTimer = if game.player.hasBountiful: 15.0 else: 10.0
+        showPerk(game, game.player.pos, "+DOUBLE COIN", Color(r: 255, g: 223, b: 0, a: 255))
       of ctDamageBoost:
         game.player.damageBoostTimer = if game.player.hasBountiful: 15.0 else: 10.0
+        showPerk(game, game.player.pos, "+DAMAGE", Color(r: 255, g: 69, b: 0, a: 255))
       of ctLifesteal:
         game.player.lifestealTimer = if game.player.hasBountiful: 22.0 else: 15.0
+        showPerk(game, game.player.pos, "+LIFESTEAL", Color(r: 220, g: 20, b: 20, a: 255))
 
       let particleColor = case game.consumables[i].consumableType
         of ctHealth: Green
@@ -8603,6 +8624,13 @@ proc updateGame*(game: var Game, dt: float32) =
   while i < game.currencyIndicators.len:
     if not updateCurrencyIndicator(game.currencyIndicators[i], dt):
       game.currencyIndicators.delete(i)
+      continue
+    i += 1
+
+  i = 0
+  while i < game.perkIndicators.len:
+    if not updatePerkIndicator(game.perkIndicators[i], dt):
+      game.perkIndicators.delete(i)
       continue
     i += 1
 
@@ -9165,6 +9193,8 @@ proc drawGame*(game: Game) =
     drawDamageNumber(damageNum)
   for currencyIndicator in game.currencyIndicators:
     drawCurrencyIndicator(currencyIndicator)
+  for perkIndicator in game.perkIndicators:
+    drawPerkIndicator(perkIndicator)
 
   # Update OS-style HUD
   updateOSHUD(game.osHUD, dt)

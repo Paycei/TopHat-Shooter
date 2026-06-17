@@ -796,6 +796,16 @@ type
     maxLifetime*: float32
     kind*: CurrencyIndicatorKind
 
+  PerkIndicator* = ref object
+    ## Floating "+SHIELD" / "+SPEED" style label shown when the player picks up
+    ## a consumable buff. Drifts up from the player like a damage number.
+    pos*: Vector2f          # Current position
+    vel*: Vector2f          # Velocity (moves upward and fades, then falls)
+    text*: string           # Label text, e.g. "+SHIELD"
+    color*: Color            # Tint for the text
+    lifetime*: float32       # How long the indicator has existed
+    maxLifetime*: float32    # Total duration before disappearing
+
   LightningBolt* = ref object
     ## A short-lived jagged lightning arc drawn between two world positions.
     startPos*: Vector2f
@@ -1040,6 +1050,7 @@ type
     meteorites*: seq[Meteorite]
     damageNumbers*: seq[DamageNumber]
     currencyIndicators*: seq[CurrencyIndicator]
+    perkIndicators*: seq[PerkIndicator]
     time*: float32
     frameCount*: int  # Frame counter for satellite optimizations
     perfUpdateMs*: float32  # Smoothed wall-clock ms spent in updateGame (debug overlay)

@@ -37,6 +37,21 @@ proc newCurrencyIndicator*(x, y: float32, amount: int,
     kind: kind
   )
 
+proc newPerkIndicator*(x, y: float32, text: string, color: Color): PerkIndicator =
+  ## Floating "+SHIELD" style label for consumable pickups. Drifts upward like
+  ## a damage number, then gravity pulls it back down as it fades out.
+  let baseVelocityY = -70.0'f32
+  let horizontalSpread = (rand(1.0) - 0.5) * 50.0
+
+  result = PerkIndicator(
+    pos: newVector2f(x, y),
+    vel: newVector2f(horizontalSpread, baseVelocityY),
+    text: text,
+    color: color,
+    lifetime: 0,
+    maxLifetime: 1.3'f32
+  )
+
 proc updateDamageNumber*(dmgNum: DamageNumber, dt: float32): bool =
   dmgNum.vel.y += 200.0 * dt
   dmgNum.pos = dmgNum.pos + dmgNum.vel * dt
@@ -48,6 +63,13 @@ proc updateCurrencyIndicator*(indicator: CurrencyIndicator, dt: float32): bool =
   indicator.vel.y += 150.0 * dt
   indicator.pos = indicator.pos + indicator.vel * dt
   indicator.vel.x = indicator.vel.x * pow(0.92, 60.0 * dt)
+  indicator.lifetime += dt
+  return indicator.lifetime < indicator.maxLifetime
+
+proc updatePerkIndicator*(indicator: PerkIndicator, dt: float32): bool =
+  indicator.vel.y += 140.0 * dt
+  indicator.pos = indicator.pos + indicator.vel * dt
+  indicator.vel.x = indicator.vel.x * pow(0.93, 60.0 * dt)
   indicator.lifetime += dt
   return indicator.lifetime < indicator.maxLifetime
 
@@ -215,3 +237,30 @@ proc drawCurrencyIndicator*(indicator: CurrencyIndicator) =
 
   drawCurrencyIcon(x + iconSize div 2, y + scaledFontSize div 2, iconSize, iconType, alpha.uint8)
   drawText(displayText, x + iconSize + 5, y, scaledFontSize, color)
+
+proc drawPerkIndicator*(indicator: PerkIndicator) =
+  ## Draws a floating "+SHIELD" / "+SPEED" style consumable pickup label.
+  let progress = indicator.lifetime / indicator.maxLifetime
+  let alpha = (1.0 - progress) * 255.0
+  let popScale = 1.0 + sin((1.0 - progress) * PI) * 0.20
+  let fontSize = int32(max(12.0, 17.0 * popScale))
+
+  let color = Color(r: indicator.color.r, g: indicator.color.g, b: indicator.color.b, a: alpha.uint8)
+  let textWidth = measureText(indicator.text, fontSize)
+  let x = (indicator.pos.x - textWidth.float32 / 2.0).int32
+  let y = indicator.pos.y.int32
+
+  let glowColor = Color(r: color.r, g: color.g, b: color.b, a: uint8(alpha * 0.24))
+  for dx in [-2, 0, 2]:
+    for dy in [-2, 0, 2]:
+      if dx != 0 or dy != 0:
+        drawText(indicator.text, int32(x + dx), int32(y + dy), fontSize, glowColor)
+
+  for dx in [-1, 0, 1]:
+    for dy in [-1, 0, 1]:
+      if dx != 0 or dy != 0:
+        drawText(indicator.text, int32(x + dx), int32(y + dy), fontSize,
+                 Color(r: 0, g: 0, b: 0, a: uint8(alpha * 0.8)))
+
+  drawText(indicator.text, x, y, fontSize, color)
+
