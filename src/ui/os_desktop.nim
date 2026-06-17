@@ -490,12 +490,14 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
         desktop.cubeOffsetY = 0.0'f32
         desktop.cubeOffsetX = 0.0'f32
         if desktop.cubeDiceResult == 0:
-          # Phase 1: spin-down on felt. Friction kills residual tumble; the
-          # orientation at rest is what determines the result — no predetermined face.
+          # Felt spin-down. As spin decays below SettleThreshold a face-gravity
+          # pull grows quadratically — simulating friction catching a corner and
+          # weight flattening the die onto a face. The result face is always read
+          # from the actual resting orientation, never pre-computed.
           let totalSpin = sqrt(desktop.cubeDiceSpinX * desktop.cubeDiceSpinX +
                                desktop.cubeDiceSpinY * desktop.cubeDiceSpinY +
                                desktop.cubeDiceSpinZ * desktop.cubeDiceSpinZ)
-          if totalSpin > 0.5'f32 and tEsc < SafetyTime:
+          if totalSpin > 0.05'f32 and tEsc < SafetyTime:
             let feltDecay = clamp(1.0'f32 - FeltFriction * dt, 0.0'f32, 1.0'f32)
             desktop.cubeDiceSpinX *= feltDecay
             desktop.cubeDiceSpinY *= feltDecay
@@ -506,33 +508,25 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
                           0, 1, 0, desktop.cubeDiceSpinY * dt)
             applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
                           0, 0, 1, desktop.cubeDiceSpinZ * dt)
+            # Face gravity: zero at SettleThreshold, grows as friction kills spin.
+            const SettleThreshold = 3.0'f32
+            if totalSpin < SettleThreshold:
+              let isD20 = not globalSettings.isNil and
+                          CubeSkinType(globalSettings.cubeSkin) == cskD20
+              let (_, tw, tx, ty, tz) = faceUpFromQuat(
+                desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ, isD20)
+              let frac = 1.0'f32 - totalSpin / SettleThreshold
+              nlerpToward(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                          tw, tx, ty, tz, frac * frac * 2.5'f32 * dt)
           else:
-            # Spin fully decayed: read the result from the current orientation.
+            # Spin negligible or safety cap: read face from resting orientation.
             let isD20 = not globalSettings.isNil and
                         CubeSkinType(globalSettings.cubeSkin) == cskD20
-            let (rf, tw, tx, ty, tz) = faceUpFromQuat(
+            let (rf, _, _, _, _) = faceUpFromQuat(
               desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ, isD20)
             desktop.cubeDiceResult = rf
-            desktop.cubeDiceTQW = tw; desktop.cubeDiceTQX = tx
-            desktop.cubeDiceTQY = ty; desktop.cubeDiceTQZ = tz
-        else:
-          # Phase 2: result known, ease gently onto the exact face orientation.
-          nlerpToward(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
-                      desktop.cubeDiceTQW, desktop.cubeDiceTQX,
-                      desktop.cubeDiceTQY, desktop.cubeDiceTQZ,
-                      clamp(6.0'f32 * dt, 0.0'f32, 1.0'f32))
-          let dotT = abs(desktop.cubeQW * desktop.cubeDiceTQW +
-                         desktop.cubeQX * desktop.cubeDiceTQX +
-                         desktop.cubeQY * desktop.cubeDiceTQY +
-                         desktop.cubeQZ * desktop.cubeDiceTQZ)
-          if dotT > 0.9998'f32 or tEsc > SafetyTime:
-            desktop.cubeQW = desktop.cubeDiceTQW; desktop.cubeQX = desktop.cubeDiceTQX
-            desktop.cubeQY = desktop.cubeDiceTQY; desktop.cubeQZ = desktop.cubeDiceTQZ
-            desktop.cubeOffsetX = 0.0'f32
-            desktop.cubeOffsetY = 0.0'f32
             desktop.cubeAngVelX = 0.0'f32
             desktop.cubeAngVelY = 0.0'f32
-            desktop.cubeDiceVelY = 0.0'f32
             desktop.cubeDiceSpinX = 0.0'f32
             desktop.cubeDiceSpinY = 0.0'f32
             desktop.cubeDiceSpinZ = 0.0'f32
