@@ -85,7 +85,7 @@ proc initCubeSkins*() =
     edgeColor: Color(r: 255, g: 175, b: 50,  a: 255),
     glowColor: Color(r: 255, g: 140, b: 0,   a: 180))
 
-  # Cyberdeck: a neon duotone , cyan body, hot-magenta edges, cyan glow; the
+  # Cyberdeck: a neon duotone, cyan body, hot-magenta edges, cyan glow; the
   # holographic HUD panel on each face is drawn in os_desktop's cube renderer.
   cubeSkinDatabase[cskCyber] = CubeSkinData(
     name: t("csk_cyber"), description: t("csk_cyber_desc"),

@@ -491,7 +491,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
         desktop.cubeOffsetX = 0.0'f32
         if desktop.cubeDiceResult == 0:
           # Felt spin-down. As spin decays below SettleThreshold a face-gravity
-          # pull grows quadratically — simulating friction catching a corner and
+          # pull grows quadratically, simulating friction catching a corner and
           # weight flattening the die onto a face. The result face is always read
           # from the actual resting orientation, never pre-computed.
           let totalSpin = sqrt(desktop.cubeDiceSpinX * desktop.cubeDiceSpinX +
@@ -1585,7 +1585,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
         continue
 
       if skin == cskCyber:
-        # Cyberdeck: a holographic HUD panel projected on each face , a baked
+        # Cyberdeck: a holographic HUD panel projected on each face, a baked
         # cyan glow, an inset neon frame with magenta corner brackets, scanline
         # ticks, and a pulsing centre node. Drawn in the face's (right,up) basis
         # via fp() so it foreshortens and rides the face like a real projection.

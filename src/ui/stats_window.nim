@@ -301,7 +301,6 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
 
   case statsWin.currentTab
   of stLifetime:
-    # Existing lifetime stats
     var y = tabContentY + 20
 
     drawText(t(tkStatsPerformanceMonitor), (contentX + 20).int32, y.int32,
@@ -324,62 +323,93 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                   t(tkStatsPeakKills), $peakKills,
                   '*', Red)
 
-    y += cardHeight + 25
+    y += cardHeight + 20
 
-    drawText(t(tkStatsWaveModeMetrics), (contentX + 20).int32, y.int32, 18,
-            Color(r: 100, g: 200, b: 255, a: 255))
-    y += 25
+    let col1Width = (contentW - 36) div 3
+    let col1X = contentX + 12
+    let col2X = col1X + col1Width + 12
+    let col3X = col2X + col1Width + 12
+    let panelH = 210
 
-    let barWidth = contentW - 80
-    let barHeight = 24
+    let wm = statsWin.stats.waveMode
+    let tm = statsWin.stats.timeMode
+    let rl = statsWin.stats.rogueliteMode
 
-    drawSystemBar(contentX + 30, y, barWidth, barHeight,
-                 statsWin.stats.waveMode.highestWaveReached.float32,
-                 t("stats_bar_wave_max"), 50.0,
-                 Color(r: 100, g: 220, b: 255, a: 255), statsWin.animTime)
-    y += barHeight + 18
+    # Wave Mode panel
+    drawStatPanel(col1X, y, col1Width, panelH, t(tkStatsWaveModeMetrics))
+    var ly = y + 36
+    drawStatLine(col1X + 10, ly, "Best Wave",
+                (if wm.highestWaveReached > 0: $wm.highestWaveReached else: "--"),
+                Color(r: 100, g: 220, b: 255, a: 255))
+    ly += 22
+    drawStatLine(col1X + 10, ly, t(tkStatsAvgWave),
+                (if wm.gamesPlayed > 0: formatFloat(wm.averageWaveReached, ffDecimal, 1) else: "--"))
+    ly += 22
+    drawStatLine(col1X + 10, ly, "Total Kills",
+                formatLargeNumber(wm.totalKills.float32),
+                Color(r: 255, g: 200, b: 100, a: 255))
+    ly += 22
+    drawStatLine(col1X + 10, ly, "Best Kills",
+                $wm.bestKills)
+    ly += 22
+    drawStatLine(col1X + 10, ly, "Bosses Defeated",
+                $wm.bossesDefeated,
+                Color(r: 255, g: 100, b: 100, a: 255))
+    ly += 22
+    drawStatLine(col1X + 10, ly, "Runs Played", $wm.gamesPlayed)
+    ly += 22
+    drawStatLine(col1X + 10, ly, t(tkStatsPlaytime),
+                formatTime(wm.totalTimePlayed))
 
-    drawSystemBar(contentX + 30, y, barWidth, barHeight,
-                 statsWin.stats.waveMode.bestKills.float32,
-                 t("stats_bar_kill_best"), 500.0,
-                 Color(r: 255, g: 200, b: 100, a: 255), statsWin.animTime)
-    y += barHeight + 18
+    # Time Survival panel
+    drawStatPanel(col2X, y, col1Width, panelH, t(tkStatsTimeSurvivalMetrics))
+    ly = y + 36
+    drawStatLine(col2X + 10, ly, "Best Survival",
+                (if tm.longestSurvivalTime > 0: formatTime(tm.longestSurvivalTime) else: "--"),
+                Color(r: 255, g: 165, b: 0, a: 255))
+    ly += 22
+    drawStatLine(col2X + 10, ly, "Avg Survival",
+                (if tm.gamesPlayed > 0: formatTime(tm.averageSurvivalTime) else: "--"))
+    ly += 22
+    drawStatLine(col2X + 10, ly, "Total Kills",
+                formatLargeNumber(tm.totalKills.float32),
+                Color(r: 255, g: 200, b: 100, a: 255))
+    ly += 22
+    drawStatLine(col2X + 10, ly, "Best Kills", $tm.bestKills)
+    ly += 22
+    drawStatLine(col2X + 10, ly, "Bosses Defeated",
+                $tm.bossesDefeated,
+                Color(r: 255, g: 100, b: 100, a: 255))
+    ly += 22
+    drawStatLine(col2X + 10, ly, "Runs Played", $tm.gamesPlayed)
+    ly += 22
+    drawStatLine(col2X + 10, ly, t(tkStatsPlaytime),
+                formatTime(tm.totalTimePlayed))
 
-    drawSystemBar(contentX + 30, y, barWidth, barHeight,
-                 statsWin.stats.waveMode.bossesDefeated.float32,
-                 t("stats_bar_boss_eliminated"), 20.0,
-                 Color(r: 255, g: 100, b: 100, a: 255), statsWin.animTime)
-    y += barHeight + 30
-
-    drawText(t(tkStatsTimeSurvivalMetrics), (contentX + 20).int32, y.int32, 18,
-            Color(r: 255, g: 150, b: 100, a: 255))
-    y += 25
-
-    let survivalMins = statsWin.stats.timeMode.longestSurvivalTime.float32 / 60.0
-    drawSystemBar(contentX + 30, y, barWidth, barHeight,
-                 survivalMins, t("stats_bar_time_survival"), 10.0,
-                 Color(r: 255, g: 165, b: 0, a: 255), statsWin.animTime)
-    y += barHeight + 18
-
-    drawSystemBar(contentX + 30, y, barWidth, barHeight,
-                 statsWin.stats.timeMode.bestKills.float32,
-                 t("stats_bar_kill_best"), 500.0,
-                 Color(r: 255, g: 200, b: 100, a: 255), statsWin.animTime)
-    y += barHeight + 18
-
-    drawSystemBar(contentX + 30, y, barWidth, barHeight,
-                 statsWin.stats.timeMode.bossesDefeated.float32,
-                 t("stats_bar_boss_eliminated"), 20.0,
-                 Color(r: 255, g: 100, b: 100, a: 255), statsWin.animTime)
-
-    y += barHeight + 30
-    drawText(t("stats_roguelite_metrics"), (contentX + 20).int32, y.int32, 18,
-            Color(r: 0, g: 220, b: 180, a: 255))
-    y += 25
-    drawSystemBar(contentX + 30, y, barWidth, barHeight,
-                 statsWin.stats.rogueliteMode.highestWaveReached.float32,
-                 t("stats_roguelite_best_sectors"), 30.0,
-                 Color(r: 0, g: 220, b: 180, a: 255), statsWin.animTime)
+    # Roguelite panel
+    drawStatPanel(col3X, y, col1Width, panelH, t("stats_roguelite_metrics"))
+    ly = y + 36
+    drawStatLine(col3X + 10, ly, "Best Sector",
+                (if rl.highestWaveReached > 0: $rl.highestWaveReached else: "--"),
+                Color(r: 0, g: 220, b: 180, a: 255))
+    ly += 22
+    drawStatLine(col3X + 10, ly, "Avg Sector",
+                (if rl.gamesPlayed > 0: formatFloat(rl.averageWaveReached, ffDecimal, 1) else: "--"))
+    ly += 22
+    drawStatLine(col3X + 10, ly, "Total Kills",
+                formatLargeNumber(rl.totalKills.float32),
+                Color(r: 255, g: 200, b: 100, a: 255))
+    ly += 22
+    drawStatLine(col3X + 10, ly, "Best Kills", $rl.bestKills)
+    ly += 22
+    drawStatLine(col3X + 10, ly, "Bosses Defeated",
+                $rl.bossesDefeated,
+                Color(r: 255, g: 100, b: 100, a: 255))
+    ly += 22
+    drawStatLine(col3X + 10, ly, "Runs Played", $rl.gamesPlayed)
+    ly += 22
+    drawStatLine(col3X + 10, ly, t(tkStatsPlaytime),
+                formatTime(rl.totalTimePlayed))
 
   of stLastRun:
     if hasLastRun:

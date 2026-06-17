@@ -2057,14 +2057,12 @@ proc main() =
       endGameDrawing()
 
     of gsPowerUpSelect:
-      # Play power-up selection music
-      playMusic(mtPowerUp)
-
-      # Update roll animation
-      updatePowerUpRollAnimation(currentGame, dt)
-
-      # Update mouse tracking
-      updateMouseTracking(currentGame)
+      let isLegendaryRound = currentGame.powerUpChoices[0].rarity == prLegendary
+      let allowedFamiliesForDraft =
+        if currentGame.mode == gmRoguelite and currentGame.rogueliteProfile != nil:
+          currentGame.rogueliteProfile.unlockedPowerFamilies
+        else:
+          {rpfCore..rpfBlood}
 
       proc continueAfterDraft() =
         ## Route out of the draft screen. Classic modes visit the between-wave
@@ -2082,128 +2080,177 @@ proc main() =
           currentGame.state = gsShop
           currentGame.shopSidebarScroll = 0
 
-      # Only allow input after animation completes and confirm dialog is not open
-      if currentGame.canSelectPowerUp and not globalConfirmActive:
-        # Navigate power-up choices with keyboard
-        if isKeyPressed(Left) or isKeyPressed(A):
-          currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3
-          markKeyboardUsed(currentGame)
-        if isKeyPressed(Right) or isKeyPressed(D):
-          currentGame.selectedPowerUp = (currentGame.selectedPowerUp + 1) mod 3
-          markKeyboardUsed(currentGame)
+      if isPowerUpPoolExhausted(currentGame.player, isLegendaryRound, allowedFamiliesForDraft):
+        playMusic(mtPowerUp)
 
-        # Reroll power-ups with R key
-        if isKeyPressed(R):
-          let coinsPreReroll = currentGame.player.coins
-          if attemptRerollPowerUps(currentGame):
-            recordRerollSpent(coinsPreReroll - currentGame.player.coins)
-            markKeyboardUsed(currentGame)
-          # If reroll failed (not enough coins), do nothing (could add sound here)
-
-        # Mouse hover detection for card selection (only if keyboard not recently used)
-        if isMouseButtonPressed(Left) or currentGame.mouseMovedRecently:
-          let mousePos = getVirtualMousePosition()
-          # Use actual UI dimensions from os_powerup_installer.nim
-          const INSTALLER_WIDTH = 1000
-          const INSTALLER_HEIGHT = 650
-          const TITLE_BAR_HEIGHT = 45
-          const CARD_WIDTH = 280
-          const CARD_HEIGHT = 380
-          const CARD_SPACING = 35
-
-          let windowX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
-          let windowY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
-          let yPos = windowY + TITLE_BAR_HEIGHT + 75
-          let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
-          let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
-
-          # Check which card mouse is over - only if keyboard wasn't just used
-          if not currentGame.keyboardUsedRecently:
-            for i in 0..2:
-              let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
-              let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
-                                       width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
-
-              if checkCollisionPointRec(mousePos, cardRect):
-                currentGame.selectedPowerUp = i
-                break
-
-        # Select power-up with keyboard or mouse click on card
-        if isKeyPressed(Enter) or isKeyPressed(E):
-          let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
-          installPowerUp(currentGame, chosenPowerUp)
-          continueAfterDraft()
-
-        # Mouse click to select
-        if isMouseButtonPressed(Left):
-          let mousePos = getVirtualMousePosition()
-          const INSTALLER_WIDTH = 1000
-          const INSTALLER_HEIGHT = 650
-          const TITLE_BAR_HEIGHT = 45
-          const CARD_WIDTH = 280
-          const CARD_HEIGHT = 380
-          const CARD_SPACING = 35
-
-          let windowX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
-          let windowY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
-          let yPos = windowY + TITLE_BAR_HEIGHT + 75
-          let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
-          let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
-
-          # Check close button click (X button in title bar)
-          let closeButtonSize = 28
-          let closeButtonX = windowX + INSTALLER_WIDTH - closeButtonSize - 10
-          let closeButtonY = windowY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
-          let closeButtonRect = Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
-                                          width: closeButtonSize.float32, height: closeButtonSize.float32)
-
-          if checkCollisionPointRec(mousePos, closeButtonRect):
-            # Close installer without picking
+        if not globalConfirmActive:
+          if isKeyPressed(Enter) or isKeyPressed(E) or isKeyPressed(Space):
             continueAfterDraft()
-          else:
-            # Check card clicks
-            for i in 0..2:
-              let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
-              let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
-                                       width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
 
-              if checkCollisionPointRec(mousePos, cardRect):
-                currentGame.selectedPowerUp = i
-                let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
-                installPowerUp(currentGame, chosenPowerUp)
-                continueAfterDraft()
-                break
+          if isMouseButtonPressed(Left):
+            let mousePos = getVirtualMousePosition()
+            const INSTALLER_WIDTH = 1000
+            const INSTALLER_HEIGHT = 650
+            const TITLE_BAR_HEIGHT = 45
+            const CONTINUE_BTN_W = 300
+            const CONTINUE_BTN_H = 50
+            let winX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
+            let winY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
+            let continueBtnX = winX + (INSTALLER_WIDTH - CONTINUE_BTN_W) div 2
+            let continueBtnY = winY + INSTALLER_HEIGHT - 100
+            let closeButtonSize = 28
+            let closeButtonX = winX + INSTALLER_WIDTH - closeButtonSize - 10
+            let closeButtonY = winY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
+            if checkCollisionPointRec(mousePos,
+                Rectangle(x: continueBtnX.float32, y: continueBtnY.float32,
+                          width: CONTINUE_BTN_W.float32, height: CONTINUE_BTN_H.float32)) or
+               checkCollisionPointRec(mousePos,
+                Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
+                          width: closeButtonSize.float32, height: closeButtonSize.float32)):
+              continueAfterDraft()
 
-            # Check reroll button click
-            let rerollWidth = 220
-            let rerollX = windowX + (INSTALLER_WIDTH - rerollWidth) div 2
-            let bottomY = windowY + INSTALLER_HEIGHT - 120
-            let buttonY = bottomY + 15
-            let buttonHeight = 42
+        beginGameDrawing()
+        drawPowerUpSelectionExhausted(currentGame)
+        if currentGame.mode == gmRoguelite:
+          drawAlphaBanner(currentGame)
+        if globalConfirmActive:
+          let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+          if r == 1: windowCloseRequested = true
+        drawCustomCursor(currentGame.time)
+        endGameDrawing()
 
-            let rerollRect = Rectangle(x: rerollX.float32, y: buttonY.float32,
-                                        width: rerollWidth.float32, height: buttonHeight.float32)
+      else:
+        # Play power-up selection music
+        playMusic(mtPowerUp)
 
-            if checkCollisionPointRec(mousePos, rerollRect):
-              let coinsPreReroll = currentGame.player.coins
-              if attemptRerollPowerUps(currentGame):
-                recordRerollSpent(coinsPreReroll - currentGame.player.coins)
+        # Update roll animation
+        updatePowerUpRollAnimation(currentGame, dt)
 
-        # ESC is intentionally not bound here; only the in-window X button may close
-        # this screen without selecting a power-up.
+        # Update mouse tracking
+        updateMouseTracking(currentGame)
 
-      beginGameDrawing()
-      drawPowerUpSelection(currentGame)
-      if currentGame.mode == gmRoguelite:
-        drawAlphaBanner(currentGame)
+        # Only allow input after animation completes and confirm dialog is not open
+        if currentGame.canSelectPowerUp and not globalConfirmActive:
+          # Navigate power-up choices with keyboard
+          if isKeyPressed(Left) or isKeyPressed(A):
+            currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3
+            markKeyboardUsed(currentGame)
+          if isKeyPressed(Right) or isKeyPressed(D):
+            currentGame.selectedPowerUp = (currentGame.selectedPowerUp + 1) mod 3
+            markKeyboardUsed(currentGame)
 
-      # Draw quit-confirmation dialog on top of everything if triggered by OS close button
-      if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
-        if r == 1: windowCloseRequested = true
+          # Reroll power-ups with R key
+          if isKeyPressed(R):
+            let coinsPreReroll = currentGame.player.coins
+            if attemptRerollPowerUps(currentGame):
+              recordRerollSpent(coinsPreReroll - currentGame.player.coins)
+              markKeyboardUsed(currentGame)
+            # If reroll failed (not enough coins), do nothing (could add sound here)
 
-      drawCustomCursor(currentGame.time)
-      endGameDrawing()
+          # Mouse hover detection for card selection (only if keyboard not recently used)
+          if isMouseButtonPressed(Left) or currentGame.mouseMovedRecently:
+            let mousePos = getVirtualMousePosition()
+            # Use actual UI dimensions from os_powerup_installer.nim
+            const INSTALLER_WIDTH = 1000
+            const INSTALLER_HEIGHT = 650
+            const TITLE_BAR_HEIGHT = 45
+            const CARD_WIDTH = 280
+            const CARD_HEIGHT = 380
+            const CARD_SPACING = 35
+
+            let windowX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
+            let windowY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
+            let yPos = windowY + TITLE_BAR_HEIGHT + 75
+            let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
+            let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
+
+            # Check which card mouse is over - only if keyboard wasn't just used
+            if not currentGame.keyboardUsedRecently:
+              for i in 0..2:
+                let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
+                let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
+                                         width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
+
+                if checkCollisionPointRec(mousePos, cardRect):
+                  currentGame.selectedPowerUp = i
+                  break
+
+          # Select power-up with keyboard or mouse click on card
+          if isKeyPressed(Enter) or isKeyPressed(E):
+            let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
+            installPowerUp(currentGame, chosenPowerUp)
+            continueAfterDraft()
+
+          # Mouse click to select
+          if isMouseButtonPressed(Left):
+            let mousePos = getVirtualMousePosition()
+            const INSTALLER_WIDTH = 1000
+            const INSTALLER_HEIGHT = 650
+            const TITLE_BAR_HEIGHT = 45
+            const CARD_WIDTH = 280
+            const CARD_HEIGHT = 380
+            const CARD_SPACING = 35
+
+            let windowX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
+            let windowY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
+            let yPos = windowY + TITLE_BAR_HEIGHT + 75
+            let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
+            let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
+
+            # Check close button click (X button in title bar)
+            let closeButtonSize = 28
+            let closeButtonX = windowX + INSTALLER_WIDTH - closeButtonSize - 10
+            let closeButtonY = windowY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
+            let closeButtonRect = Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
+                                            width: closeButtonSize.float32, height: closeButtonSize.float32)
+
+            if checkCollisionPointRec(mousePos, closeButtonRect):
+              # Close installer without picking
+              continueAfterDraft()
+            else:
+              # Check card clicks
+              for i in 0..2:
+                let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
+                let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
+                                         width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
+
+                if checkCollisionPointRec(mousePos, cardRect):
+                  currentGame.selectedPowerUp = i
+                  let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
+                  installPowerUp(currentGame, chosenPowerUp)
+                  continueAfterDraft()
+                  break
+
+              # Check reroll button click
+              let rerollWidth = 220
+              let rerollX = windowX + (INSTALLER_WIDTH - rerollWidth) div 2
+              let bottomY = windowY + INSTALLER_HEIGHT - 120
+              let buttonY = bottomY + 15
+              let buttonHeight = 42
+
+              let rerollRect = Rectangle(x: rerollX.float32, y: buttonY.float32,
+                                          width: rerollWidth.float32, height: buttonHeight.float32)
+
+              if checkCollisionPointRec(mousePos, rerollRect):
+                let coinsPreReroll = currentGame.player.coins
+                if attemptRerollPowerUps(currentGame):
+                  recordRerollSpent(coinsPreReroll - currentGame.player.coins)
+
+          # ESC is intentionally not bound here; only the in-window X button may close
+          # this screen without selecting a power-up.
+
+        beginGameDrawing()
+        drawPowerUpSelection(currentGame)
+        if currentGame.mode == gmRoguelite:
+          drawAlphaBanner(currentGame)
+
+        # Draw quit-confirmation dialog on top of everything if triggered by OS close button
+        if globalConfirmActive:
+          let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+          if r == 1: windowCloseRequested = true
+
+        drawCustomCursor(currentGame.time)
+        endGameDrawing()
 
     of gsGameOver:
       # Stop music and play game over sound once

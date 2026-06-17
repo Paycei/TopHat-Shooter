@@ -561,3 +561,127 @@ proc drawOSPowerUpInstaller*(game: Game) =
           if canAfford: Color(r: 255, g: 215, b: 0, a: 255) else: Color(r: 120, g: 120, b: 130, a: 255))
   drawText("[R]", int32(rerollX + rerollW + 10), int32(buttonY + 13), int32(14), Color(r: 200, g: 200, b: 200, a: 255))
 
+
+proc drawPowerUpInstallerExhausted*(game: Game) =
+  ## Shown in place of the normal installer when every power-up in the pool is
+  ## already at its maximum level. Displays a completion badge and a Continue button.
+  let screenWidth  = game.screenWidth
+  let screenHeight = game.screenHeight
+
+  drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 180))
+
+  let winX = (screenWidth  - INSTALLER_WIDTH)  div 2
+  let winY = (screenHeight - INSTALLER_HEIGHT) div 2
+
+  # Shadow
+  for i in 1..4:
+    let off = int32(i * 2)
+    drawRectangle(winX + off, winY + off, INSTALLER_WIDTH, INSTALLER_HEIGHT,
+                 Color(r: 0, g: 0, b: 0, a: uint8(50 - i * 8)))
+
+  # Body
+  drawRectangle(winX, winY, INSTALLER_WIDTH, INSTALLER_HEIGHT, Color(r: 26, g: 32, b: 44, a: 255))
+
+  # Subtle grid lines
+  for i in 0..<(INSTALLER_HEIGHT div 40):
+    drawRectangle(winX, winY + int32(i * 40), INSTALLER_WIDTH, 1, Color(r: 30, g: 36, b: 48, a: 255))
+
+  # Border, green pulse to signal completion
+  let borderPulse = 0.7'f32 + 0.3'f32 * sin(game.time * 2.0)
+  drawRectangleLines(Rectangle(x: winX.float32, y: winY.float32,
+                                width: INSTALLER_WIDTH.float32, height: INSTALLER_HEIGHT.float32),
+                    4.0, Color(r: 50, g: 220, b: 120, a: uint8(255.0 * borderPulse)))
+  drawRectangleLines(Rectangle(x: float32(winX + 2), y: float32(winY + 2),
+                                width: float32(INSTALLER_WIDTH - 4), height: float32(INSTALLER_HEIGHT - 4)),
+                    1.0, Color(r: 60, g: 75, b: 95, a: 255))
+
+  # Title bar
+  drawRectangle(winX, winY, INSTALLER_WIDTH, TITLE_BAR_HEIGHT, Color(r: 40, g: 52, b: 70, a: 255))
+  drawRectangle(winX, winY, INSTALLER_WIDTH, 2, Color(r: 80, g: 100, b: 130, a: 255))
+  drawRectangle(winX, winY + TITLE_BAR_HEIGHT - 1, INSTALLER_WIDTH, 1, Color(r: 50, g: 220, b: 120, a: 255))
+
+  let titleText = "[OK] " & t(tkPowerUpAllInstalled)
+  let titleColor = Color(r: 80, g: 220, b: 140, a: 255)
+  drawText(titleText, winX + 17, winY + 13, 22, Color(r: 0, g: 0, b: 0, a: 120))
+  drawText(titleText, winX + 15, winY + 11, 22, titleColor)
+
+  # Close (X) button
+  let btnSz: int32 = 28
+  let closeY = winY + (TITLE_BAR_HEIGHT - btnSz) div 2
+  let closeX = winX + INSTALLER_WIDTH - btnSz - 10
+  drawRectangle(closeX, closeY, btnSz, btnSz, Color(r: 220, g: 50, b: 50, a: 255))
+  drawRectangleLines(Rectangle(x: closeX.float32, y: closeY.float32,
+                                width: btnSz.float32, height: btnSz.float32),
+                    1.0, Color(r: 180, g: 30, b: 30, a: 255))
+  drawText("X", closeX + 8, closeY + 5, 18, White)
+
+  # --- Completion badge (large circle with a geometric checkmark) ---
+  let badgeR  = 70.0'f32
+  let badgeCX = winX.float32 + INSTALLER_WIDTH.float32 * 0.5
+  let badgeCY = winY.float32 + TITLE_BAR_HEIGHT.float32 + 130.0
+  let pulse   = 0.75'f32 + 0.25'f32 * sin(game.time * 2.5)
+
+  # Glow rings
+  for i in 1..5:
+    let gr = badgeR + float32(i * 14)
+    let ga = uint8(float32(35 - i * 6) * pulse)
+    drawCircle(Vector2(x: badgeCX, y: badgeCY), gr,
+              Color(r: 50, g: 220, b: 120, a: ga))
+
+  # Badge fill
+  drawCircle(Vector2(x: badgeCX, y: badgeCY), badgeR,
+            Color(r: 20, g: 45, b: 30, a: 255))
+  drawCircle(Vector2(x: badgeCX, y: badgeCY), badgeR,
+            Color(r: 50, g: 220, b: 120, a: uint8(35.0 * pulse)))
+
+  # Checkmark: two line segments with thickness
+  let ck = Color(r: 80, g: 240, b: 150, a: 255)
+  let ckMidX  = badgeCX - badgeR * 0.08
+  let ckMidY  = badgeCY + badgeR * 0.18
+  drawLine(
+    Vector2(x: badgeCX - badgeR * 0.50, y: badgeCY + badgeR * 0.00),
+    Vector2(x: ckMidX,                  y: ckMidY),
+    4.0, ck)
+  drawLine(
+    Vector2(x: ckMidX,                  y: ckMidY),
+    Vector2(x: badgeCX + badgeR * 0.48, y: badgeCY - badgeR * 0.42),
+    4.0, ck)
+
+  # Badge outline
+  let outlinePulseA = uint8(200.0 * pulse)
+  for di in [-1'i32, 0'i32, 1'i32]:
+    drawCircle(Vector2(x: badgeCX, y: badgeCY), badgeR + float32(di) * 1.5,
+              Color(r: 80, g: 220, b: 140, a: if di == 0: outlinePulseA else: 60))
+
+  # --- Heading ---
+  let headY = int32(badgeCY + badgeR + 28.0)
+  let headText = t(tkPowerUpAllInstalled)
+  let headW = measureText(headText, 26)
+  drawText(headText, winX + (INSTALLER_WIDTH - headW) div 2 + 1, headY + 1, 26,
+           Color(r: 0, g: 0, b: 0, a: 150))
+  drawText(headText, winX + (INSTALLER_WIDTH - headW) div 2, headY, 26,
+           Color(r: 80, g: 240, b: 150, a: 255))
+
+  # --- Message text ---
+  let msgY = headY + 40
+  let msg = t(tkPowerUpAllInstalledMsg)
+  let msgLines = wrapToLines(msg, 14, INSTALLER_WIDTH - 200)
+  for i, line in msgLines:
+    let lineW = measureText(line, 14)
+    drawText(line, winX + (INSTALLER_WIDTH - lineW) div 2, msgY + int32(i) * 22, 14,
+             Color(r: 160, g: 190, b: 210, a: 255))
+
+  # --- Continue button ---
+  const CONTINUE_BTN_W = 300
+  const CONTINUE_BTN_H = 50
+  let continueBtnX = winX + (INSTALLER_WIDTH - CONTINUE_BTN_W) div 2
+  let continueBtnY = winY + INSTALLER_HEIGHT - 100
+  let mousePos = getVirtualMousePosition()
+  let btnHovered = checkCollisionPointRec(mousePos,
+    Rectangle(x: continueBtnX.float32, y: continueBtnY.float32,
+              width: CONTINUE_BTN_W.float32, height: CONTINUE_BTN_H.float32))
+  drawModernButton(continueBtnX, continueBtnY, CONTINUE_BTN_W, CONTINUE_BTN_H,
+                  t(tkPowerUpContinue), true, btnHovered, game.time)
+  drawText("[ENTER]", continueBtnX + CONTINUE_BTN_W + 12, continueBtnY + 17, 14,
+           Color(r: 180, g: 180, b: 180, a: 255))
+

@@ -13,6 +13,20 @@ proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
       return p.level
   return 0
 
+proc isOfferable*(player: Player, pt: PowerUpType,
+                  allowed: set[RoguelitePowerFamily]): bool {.inline.} =
+  allPowerUpDefs[pt].family in allowed and
+    getPowerUpLevel(player, pt) < allPowerUpDefs[pt].maxLevel
+
+proc isPowerUpPoolExhausted*(player: Player, isLegendary: bool,
+                              allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood}): bool =
+  ## Returns true when no power-up in the relevant pool can be offered.
+  let pool = if isLegendary: legendaryPool else: normalPool
+  for pt in pool:
+    if player.isOfferable(pt, allowedPowerFamilies):
+      return false
+  return true
+
 proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
                              allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood}): array[3, PowerUp] =
   # Generate 3 random power-up options with COMPLETELY SEPARATE pools
@@ -21,19 +35,17 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
     for powerType in legendaryPool:
-      let currentLevel = getPowerUpLevel(player, powerType)
-      if currentLevel == 0 and allPowerUpDefs[powerType].family in allowedPowerFamilies:
-        # All legendaries are single-level, only offer if not owned
+      if player.isOfferable(powerType, allowedPowerFamilies):
         availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
   else:
     # NORMAL WAVE - offer ONLY normal power-ups
     for powerType in normalPool:
-      let currentLevel = getPowerUpLevel(player, powerType)
-      if allPowerUpDefs[powerType].family notin allowedPowerFamilies:
+      if not player.isOfferable(powerType, allowedPowerFamilies):
         continue
+      let currentLevel = getPowerUpLevel(player, powerType)
       if currentLevel == 0:
         availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prCommon))
-      elif currentLevel < 3:
+      else:
         availablePowerUps.add(PowerUp(powerType: powerType, level: currentLevel + 1, rarity: prCommon))
 
   # Shuffle available power-ups
@@ -91,28 +103,30 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
       # Make sure to don't violate orb/aura/bullet/mastery pooling
       var attempts = 0
       while attempts < 100:  # Prevent infinite loop
-        let randomPowerUp = if isLegendary:
-          let randomType = legendaryPool[rand(legendaryPool.high)]
-          PowerUp(powerType: randomType, level: 1, rarity: prLegendary)
+        let randomType = if isLegendary:
+          legendaryPool[rand(legendaryPool.high)]
         else:
-          let randomType = normalPool[rand(normalPool.high)]
-          PowerUp(powerType: randomType, level: 1, rarity: prCommon)
+          normalPool[rand(normalPool.high)]
 
-        let isOrb    = allPowerUpDefs[randomPowerUp.powerType].group == pugOrb
-        let isAura   = allPowerUpDefs[randomPowerUp.powerType].group == pugAura
-        let isBullet = allPowerUpDefs[randomPowerUp.powerType].group == pugBullet
-        let isMastery = allPowerUpDefs[randomPowerUp.powerType].group == pugMastery
-
-        if allPowerUpDefs[randomPowerUp.powerType].family notin allowedPowerFamilies:
+        # Skip if already at max level or outside allowed families
+        if not player.isOfferable(randomType, allowedPowerFamilies):
           attempts += 1
           continue
+
+        let isOrb    = allPowerUpDefs[randomType].group == pugOrb
+        let isAura   = allPowerUpDefs[randomType].group == pugAura
+        let isBullet = allPowerUpDefs[randomType].group == pugBullet
+        let isMastery = allPowerUpDefs[randomType].group == pugMastery
 
         # Check if this violates our grouping rules
         if (isOrb and hasOrb) or (isAura and hasAura) or (isBullet and hasBullet) or (isMastery and hasMastery):
           attempts += 1
           continue
 
-        result[i] = randomPowerUp
+        let currentLevel = getPowerUpLevel(player, randomType)
+        let nextLevel = if currentLevel == 0: 1 else: currentLevel + 1
+        let rarity = if isLegendary: prLegendary else: prCommon
+        result[i] = PowerUp(powerType: randomType, level: nextLevel, rarity: rarity)
         if isOrb:
           hasOrb = true
         if isAura:
@@ -123,11 +137,8 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
           hasMastery = true
         break
 
-      if attempts >= 100:
-        result[i] = if isLegendary:
-          PowerUp(powerType: puDoubleShot, level: 1, rarity: prLegendary)
-        else:
-          PowerUp(powerType: puRegeneration, level: 1, rarity: prCommon)
+      # Fallback: pool was partially exhausted with grouping conflicts, leave slot as zero-value.
+      # isPowerUpPoolExhausted prevents reaching gsPowerUpSelect when fully exhausted.
 
 # ROTATING ORBS SYSTEM
 proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType, orbLevel: int = 1): RotatingOrb =
@@ -479,6 +490,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
 
 proc drawPowerUpSelection*(game: Game) =
   drawOSPowerUpInstaller(game)
+
+proc drawPowerUpSelectionExhausted*(game: Game) =
+  drawPowerUpInstallerExhausted(game)
 
   # Draw combo notification in BOTTOM RIGHT corner during power-up screen
   # Position it slightly higher to avoid being cut off at screen edge

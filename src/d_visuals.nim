@@ -211,7 +211,7 @@ proc drawWaveStartBanner*(waveNumber: int, waveAge: float32,
 
   # Wave text, centred
   let waveLabel = if isBossWarning:
-    "BOSS INCOMING ,  WAVE " & $waveNumber
+    "BOSS INCOMING -  WAVE " & $waveNumber
   else:
     "WAVE  " & $waveNumber
   let fontSize: int32 = 22

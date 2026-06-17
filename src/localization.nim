@@ -753,6 +753,9 @@ type
     tkPowerUpSelectUpgrade = "power_up_select_upgrade"
     tkPowerUpRolling = "power_up_rolling"
     tkPowerUpRerollOptions = "power_up_reroll_options"
+    tkPowerUpAllInstalled = "power_up_all_installed"
+    tkPowerUpAllInstalledMsg = "power_up_all_installed_msg"
+    tkPowerUpContinue = "power_up_continue"
     tkGamePause = "game_pause"
     tkGameResume = "game_resume"
     tkGameRestart = "game_restart"
@@ -2672,6 +2675,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "power_up_select_upgrade": "v SELECT UPGRADE TO INSTALL:",
     "power_up_rolling": "[!] ROLLING...",
     "power_up_reroll_options": "[R] Reroll Options",
+    "power_up_all_installed": "ALL PACKAGES INSTALLED",
+    "power_up_all_installed_msg": "Maximum loadout achieved. All available upgrades are already installed.",
+    "power_up_continue": "CONTINUE",
 
     # PvP Lobby
     "pvp_title": "PVP MODE",
@@ -4172,6 +4178,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "power_up_select_upgrade": "v SELECCIONA MEJORA PARA INSTALAR:",
     "power_up_rolling": "[!] GIRANDO...",
     "power_up_reroll_options": "[R] Opción de Nuevo Intento",
+    "power_up_all_installed": "TODOS LOS PAQUETES INSTALADOS",
+    "power_up_all_installed_msg": "Carga máxima alcanzada. Todas las mejoras disponibles ya están instaladas.",
+    "power_up_continue": "CONTINUAR",
 
     # Player Feedback
     "player_dodge": "¡ESQUIVA!",

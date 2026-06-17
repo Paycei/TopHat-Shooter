@@ -88,7 +88,7 @@ proc initDesktopBgSkins*() =
     accentColor:  Color(r: 190, g: 180, b: 90,  a: 255),
     bgColor:      Color(r: 7,   g: 2,   b: 3,   a: 255))
 
-  # Cyberspace: the cyberpunk duotone , electric cyan (primary) and hot magenta
+  # Cyberspace: the cyberpunk duotone, electric cyan (primary) and hot magenta
   # (accent) over a deep teal-black night, for the rain-slicked neon grid look.
   desktopBgDatabase[dbgCyber] = DesktopBgData(
     name: t("dbg_cyber"), description: t("dbg_cyber_desc"),

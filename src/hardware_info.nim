@@ -2,7 +2,7 @@
 ##
 ## Constraint: this runs during startup, so it must NOT spawn processes
 ## (`wmic` / PowerShell would each add hundreds of milliseconds). Everything
-## here is an in-process registry read or syscall , all sub-millisecond , so
+## here is an in-process registry read or syscall, all sub-millisecond, so
 ## detection runs synchronously when the splash is built. Any field that can't
 ## be read is left empty and the splash substitutes a themed placeholder, so the
 ## BIOS screen always looks complete.

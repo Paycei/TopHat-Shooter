@@ -525,7 +525,7 @@ proc drawHorrorFx(w, h, time: float32) =
     drawSoftGlow(mx, my, mr, Color(r: 120, g: 6, b: 10, a: ma), 0.6)
 
   # Eyes in the dark: each pair fades in over the first half of its own cycle,
-  # blinks, shifts its gaze, then is gone , never quite where you last saw them.
+  # blinks, shifts its gaze, then is gone, never quite where you last saw them.
   let eyeBase = min(w, h)
   for e in 0..<5:
     let seed = e.float32 * 41.7'f32 + 3.0'f32
