@@ -80,6 +80,9 @@ type
     cubeDiceTQZ*: float32
     cubeDiceResultTimer*: float32  # seconds left to show the big result number
     cubeDiceVelY*: float32      # vertical velocity of the die during the bounce drop
+    cubeDiceSpinX*: float32     # per-axis angular velocity while tumbling (rad/s)
+    cubeDiceSpinY*: float32
+    cubeDiceSpinZ*: float32
     # Kernel Panic + Jack-O'-Node: fast spinning fans the candle (0..1 glow boost)
     # instead of breaking orbit; decays back when the player stops spinning.
     cubeJackGlow*: float32
@@ -214,6 +217,9 @@ proc newOSDesktop*(): OSDesktop =
     cubeDiceTQZ: 0.0,
     cubeDiceResultTimer: 0.0,
     cubeDiceVelY: 0.0,
+    cubeDiceSpinX: 0.0,
+    cubeDiceSpinY: 0.0,
+    cubeDiceSpinZ: 0.0,
     cubeJackGlow: 0.0,
     toastText: "",
     toastTimer: 0.0
@@ -241,6 +247,91 @@ proc diceTargetQuat(face: int): (float32, float32, float32, float32) =
   let angle = arccos(clamp(nz, -1.0'f32, 1.0'f32))
   let sh = sin(angle * 0.5'f32)
   (cos(angle * 0.5'f32), ax * sh, ay * sh, 0.0'f32)
+
+proc d20TargetQuat(face: int): (float32, float32, float32, float32) =
+  ## Quaternion (w,x,y,z) that rotates the D20 so `face` value (1..20) points at
+  ## the camera (+z). Each normal is the normalized centroid of the three icosahedron
+  ## vertices for that face (derived from D20Verts/D20Faces/D20FaceNumbers).
+  ## Opposite faces sum to 21 and have antipodal normals. Same rotation formula
+  ## as diceTargetQuat: minimal arc from the face's outward normal to +z.
+  const
+    A = 0.35682'f32  # 1 / |centroid-sum vector| for all 20 faces
+    B = 0.93418'f32  # (2 + phi_inv) / |centroid-sum vector|
+    C = 0.57735'f32  # 1 / sqrt(3)
+  var nx, ny, nz: float32
+  case face
+  of  1: nx = -C; ny =  C; nz =  C
+  of  2: nx =  0; ny =  B; nz =  A
+  of  3: nx =  0; ny =  B; nz = -A
+  of  4: nx = -C; ny =  C; nz = -C
+  of  5: nx = -B; ny =  A; nz =  0
+  of  6: nx =  C; ny =  C; nz =  C
+  of  7: nx = -A; ny =  0; nz =  B
+  of  8: nx = -B; ny = -A; nz =  0
+  of  9: nx = -A; ny =  0; nz = -B
+  of 10: nx =  C; ny =  C; nz = -C
+  of 11: nx = -C; ny = -C; nz =  C
+  of 12: nx =  A; ny =  0; nz =  B
+  of 13: nx =  B; ny =  A; nz =  0
+  of 14: nx =  A; ny =  0; nz = -B
+  of 15: nx = -C; ny = -C; nz = -C
+  of 16: nx =  B; ny = -A; nz =  0
+  of 17: nx =  C; ny = -C; nz =  C
+  of 18: nx =  0; ny = -B; nz =  A
+  of 19: nx =  0; ny = -B; nz = -A
+  else:  nx =  C; ny = -C; nz = -C  # 20
+  if nz > 0.999'f32: return (1.0'f32, 0.0'f32, 0.0'f32, 0.0'f32)
+  if nz < -0.999'f32: return (0.0'f32, 1.0'f32, 0.0'f32, 0.0'f32)
+  let al = sqrt(ny * ny + nx * nx)
+  let ax = ny / al
+  let ay = -nx / al
+  let angle = arccos(clamp(nz, -1.0'f32, 1.0'f32))
+  let sh = sin(angle * 0.5'f32)
+  (cos(angle * 0.5'f32), ax * sh, ay * sh, 0.0'f32)
+
+proc faceUpFromQuat(qw, qx, qy, qz: float32; isD20: bool): (int, float32, float32, float32, float32) =
+  ## Camera direction in model space = third row of the rotation matrix from q.
+  ## The face whose outward normal has the highest dot with that direction is the
+  ## face pointing toward the camera (i.e. the face that landed up).
+  ## Returns (faceNumber, targetQW, targetQX, targetQY, targetQZ).
+  let camX = 2.0'f32 * (qx * qz - qw * qy)
+  let camY = 2.0'f32 * (qy * qz + qw * qx)
+  let camZ = 1.0'f32 - 2.0'f32 * (qx * qx + qy * qy)
+  if isD20:
+    const
+      A = 0.35682'f32
+      B = 0.93418'f32
+      C = 0.57735'f32
+      # Face normals for faces 1-20 in order (mirrors d20TargetQuat)
+      dnx: array[20, float32] = [
+        -C, 0.0'f32, 0.0'f32, -C, -B,  C, -A, -B, -A,  C,
+        -C,       A,       B,  A, -C,  B,  C, 0.0'f32, 0.0'f32,  C]
+      dny: array[20, float32] = [
+         C,       B,       B,  C,  A,  C, 0.0'f32, -A, 0.0'f32,  C,
+        -C, 0.0'f32,       A, 0.0'f32, -C, -A, -C,      -B,      -B, -C]
+      dnz: array[20, float32] = [
+         C,       A,      -A, -C, 0.0'f32,  C,  B, 0.0'f32, -B, -C,
+         C,       B, 0.0'f32, -B, -C, 0.0'f32,  C,       A,      -A, -C]
+    var best = -2.0'f32
+    var bestFace = 1
+    for i in 0..19:
+      let s = dnx[i] * camX + dny[i] * camY + dnz[i] * camZ
+      if s > best:
+        best = s
+        bestFace = i + 1
+    let (tw, tx, ty, tz) = d20TargetQuat(bestFace)
+    (bestFace, tw, tx, ty, tz)
+  else:
+    # Pip mapping: 1:+Z  6:-Z  2:+X  5:-X  3:+Y  4:-Y  (see diceTargetQuat)
+    var best = camZ
+    var bestFace = 1
+    if -camZ > best: best = -camZ; bestFace = 6
+    if  camX > best: best =  camX; bestFace = 2
+    if -camX > best: best = -camX; bestFace = 5
+    if  camY > best: best =  camY; bestFace = 3
+    if -camY > best: best = -camY; bestFace = 4
+    let (tw, tx, ty, tz) = diceTargetQuat(bestFace)
+    (bestFace, tw, tx, ty, tz)
 
 proc nlerpToward(qw, qx, qy, qz: var float32, tw, tx, ty, tz, t: float32) =
   ## Normalized lerp of the cube quaternion toward a target, along the short arc.
@@ -364,14 +455,15 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
       # and it stays there (held) reporting the number. offsetY: 0 = table line,
       # negative = above it. Position is integrated continuously every frame, so it
       # is C0-continuous across every phase boundary (no teleport anywhere).
-      const Restitution = 0.46'f32      # energy kept per bounce
-      const SafetyTime = 4.5'f32        # hard cap so it can never hang
-      let g = h * 4.0'f32               # gravity, scaled to screen height
-      # "At rest" = sitting on the felt with little vertical motion left.
+      const Restitution  = 0.46'f32   # energy kept per vertical bounce
+      const SafetyTime   = 4.5'f32   # hard cap so it can never hang
+      const AirDrag      = 0.4'f32   # fractional spin lost per second while airborne
+      const FeltFriction = 6.0'f32   # much stronger spin decay once the die is on felt
+      let g = h * 4.0'f32
       let resting = desktop.cubeOffsetY >= -0.5'f32 and
                     abs(desktop.cubeDiceVelY) < h * 0.09'f32
       if not resting and tEsc < SafetyTime:
-        # Airborne: integrate gravity, then resolve a bounce if it crosses the felt.
+        # Airborne: gravity, bounce off felt, independent per-axis tumble spin.
         desktop.cubeDiceVelY += g * dt
         desktop.cubeOffsetY += desktop.cubeDiceVelY * dt
         desktop.cubeOffsetX = 0.0'f32
@@ -379,39 +471,75 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
           desktop.cubeOffsetY = 0.0'f32
           if desktop.cubeDiceVelY > 0.0'f32:
             desktop.cubeDiceVelY = -desktop.cubeDiceVelY * Restitution
-        # Tumble speed tracks how fast it is moving, so it spins down as it settles.
-        let spin = clamp(abs(desktop.cubeDiceVelY) / (h * 1.3'f32), 0.05'f32, 1.0'f32)
+            # Scatter the tumble axis on each bounce so the roll looks unpredictable
+            let bc = sin(desktop.time * 23.7'f32 + desktop.cubeDiceVelY * 11.3'f32)
+            desktop.cubeDiceSpinX = desktop.cubeDiceSpinX * 0.7'f32 + bc * 5.0'f32
+            desktop.cubeDiceSpinZ = -desktop.cubeDiceSpinZ * 0.5'f32 + bc * 3.0'f32
+        let spinDecay = 1.0'f32 - AirDrag * dt
+        desktop.cubeDiceSpinX *= spinDecay
+        desktop.cubeDiceSpinY *= spinDecay
+        desktop.cubeDiceSpinZ *= spinDecay
         applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
-                      1, 0, 0, 12.0'f32 * spin * dt)
+                      1, 0, 0, desktop.cubeDiceSpinX * dt)
         applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
-                      0, 1, 0, 9.0'f32 * spin * dt)
+                      0, 1, 0, desktop.cubeDiceSpinY * dt)
+        applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                      0, 0, 1, desktop.cubeDiceSpinZ * dt)
       else:
-        # Settled on the felt: ease the orientation onto the rolled face.
         desktop.cubeDiceVelY = 0.0'f32
         desktop.cubeOffsetY = 0.0'f32
         desktop.cubeOffsetX = 0.0'f32
-        nlerpToward(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
-                    desktop.cubeDiceTQW, desktop.cubeDiceTQX,
-                    desktop.cubeDiceTQY, desktop.cubeDiceTQZ,
-                    clamp(7.0'f32 * dt, 0.0'f32, 1.0'f32))
-        let dotT = abs(desktop.cubeQW * desktop.cubeDiceTQW +
-                       desktop.cubeQX * desktop.cubeDiceTQX +
-                       desktop.cubeQY * desktop.cubeDiceTQY +
-                       desktop.cubeQZ * desktop.cubeDiceTQZ)
-        if dotT > 0.9998'f32 or tEsc > SafetyTime:
-          # Snap exactly to the rolled face, stop, and report the number. Stay in
-          # dice mode (held) so it rests on the result until the player grabs it.
-          desktop.cubeQW = desktop.cubeDiceTQW; desktop.cubeQX = desktop.cubeDiceTQX
-          desktop.cubeQY = desktop.cubeDiceTQY; desktop.cubeQZ = desktop.cubeDiceTQZ
-          desktop.cubeOffsetX = 0.0'f32
-          desktop.cubeOffsetY = 0.0'f32
-          desktop.cubeAngVelX = 0.0'f32
-          desktop.cubeAngVelY = 0.0'f32
-          desktop.cubeDiceVelY = 0.0'f32
-          desktop.cubeEscaping = false
-          desktop.cubeDiceResultTimer = 3.5'f32
-          desktop.toastText = "Rolled a " & $desktop.cubeDiceResult & "!"
-          desktop.toastTimer = 5.0'f32
+        if desktop.cubeDiceResult == 0:
+          # Phase 1: spin-down on felt. Friction kills residual tumble; the
+          # orientation at rest is what determines the result — no predetermined face.
+          let totalSpin = sqrt(desktop.cubeDiceSpinX * desktop.cubeDiceSpinX +
+                               desktop.cubeDiceSpinY * desktop.cubeDiceSpinY +
+                               desktop.cubeDiceSpinZ * desktop.cubeDiceSpinZ)
+          if totalSpin > 0.5'f32 and tEsc < SafetyTime:
+            let feltDecay = clamp(1.0'f32 - FeltFriction * dt, 0.0'f32, 1.0'f32)
+            desktop.cubeDiceSpinX *= feltDecay
+            desktop.cubeDiceSpinY *= feltDecay
+            desktop.cubeDiceSpinZ *= feltDecay
+            applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                          1, 0, 0, desktop.cubeDiceSpinX * dt)
+            applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                          0, 1, 0, desktop.cubeDiceSpinY * dt)
+            applyWorldRot(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                          0, 0, 1, desktop.cubeDiceSpinZ * dt)
+          else:
+            # Spin fully decayed: read the result from the current orientation.
+            let isD20 = not globalSettings.isNil and
+                        CubeSkinType(globalSettings.cubeSkin) == cskD20
+            let (rf, tw, tx, ty, tz) = faceUpFromQuat(
+              desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ, isD20)
+            desktop.cubeDiceResult = rf
+            desktop.cubeDiceTQW = tw; desktop.cubeDiceTQX = tx
+            desktop.cubeDiceTQY = ty; desktop.cubeDiceTQZ = tz
+        else:
+          # Phase 2: result known, ease gently onto the exact face orientation.
+          nlerpToward(desktop.cubeQW, desktop.cubeQX, desktop.cubeQY, desktop.cubeQZ,
+                      desktop.cubeDiceTQW, desktop.cubeDiceTQX,
+                      desktop.cubeDiceTQY, desktop.cubeDiceTQZ,
+                      clamp(6.0'f32 * dt, 0.0'f32, 1.0'f32))
+          let dotT = abs(desktop.cubeQW * desktop.cubeDiceTQW +
+                         desktop.cubeQX * desktop.cubeDiceTQX +
+                         desktop.cubeQY * desktop.cubeDiceTQY +
+                         desktop.cubeQZ * desktop.cubeDiceTQZ)
+          if dotT > 0.9998'f32 or tEsc > SafetyTime:
+            desktop.cubeQW = desktop.cubeDiceTQW; desktop.cubeQX = desktop.cubeDiceTQX
+            desktop.cubeQY = desktop.cubeDiceTQY; desktop.cubeQZ = desktop.cubeDiceTQZ
+            desktop.cubeOffsetX = 0.0'f32
+            desktop.cubeOffsetY = 0.0'f32
+            desktop.cubeAngVelX = 0.0'f32
+            desktop.cubeAngVelY = 0.0'f32
+            desktop.cubeDiceVelY = 0.0'f32
+            desktop.cubeDiceSpinX = 0.0'f32
+            desktop.cubeDiceSpinY = 0.0'f32
+            desktop.cubeDiceSpinZ = 0.0'f32
+            desktop.cubeEscaping = false
+            desktop.cubeDiceResultTimer = 3.5'f32
+            desktop.toastText = "Rolled a " & $desktop.cubeDiceResult & "!"
+            desktop.toastTimer = 5.0'f32
     elif desktop.cubePortalMode:
       # Portal-background escape: cube flies into entry portal, teleports to exit,
       # then smoothly returns to orbit.
@@ -500,20 +628,25 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
         # Stay armed so the easter egg can play again on the next sustained spin.
         desktop.cubeEscapeTriggered = true
         desktop.cubeDragging = false
-        if selectedBg == dbgCasino and currentCubeSkin == cskDice:
-          # Poker-table dice roll: pick a random face (biased by how hard it was
-          # spun) and the target orientation that brings it to the camera.
+        if (selectedBg == dbgCasino or selectedBg == dbgDragon) and
+           (currentCubeSkin == cskDice or currentCubeSkin == cskD20):
+          # Dice roll: any dice skin (Lucky Die or Dragon's Fang D20) on either
+          # dice background (Casino or Dragon's Lair). D20 rolls 1-20; Lucky Die
+          # rolls 1-6. Target quaternion settles the matching face toward the camera.
           desktop.cubeDiceMode = true
           desktop.cubePortalMode = false
-          let rr = sin(desktop.time * 12.9898'f32 +
-                       desktop.cubeAngVelY * 78.233'f32 +
-                       desktop.cubeAngVelX * 23.197'f32) * 43758.5453'f32
-          desktop.cubeDiceResult = clamp(1 + int((rr - floor(rr)) * 6.0'f32), 1, 6)
-          let (tw, tx, ty, tz) = diceTargetQuat(desktop.cubeDiceResult)
-          desktop.cubeDiceTQW = tw; desktop.cubeDiceTQX = tx
-          desktop.cubeDiceTQY = ty; desktop.cubeDiceTQZ = tz
-          # Toss it up from its current position (offset unchanged this frame, so the
-          # motion is continuous): an upward impulse, gravity does the rest.
+          desktop.cubeDiceResult = 0  # result is read from the resting orientation
+          # Seed tumble spin from the player's throw + a chaotic component so every
+          # roll looks different even at the same spin speed.
+          let throwChaos = sin(desktop.time * 17.3'f32 + desktop.cubeAngVelY * 5.1'f32)
+          let vy = desktop.cubeAngVelY
+          let vx = desktop.cubeAngVelX
+          let throwMag = clamp(abs(vy), 6.0'f32, 26.0'f32)
+          desktop.cubeDiceSpinY = throwMag * (if vy >= 0: 1.0'f32 else: -1.0'f32) +
+                                   throwChaos * 4.0'f32
+          desktop.cubeDiceSpinX = 10.0'f32 + abs(vx) * 0.8'f32 + throwChaos * 5.0'f32
+          desktop.cubeDiceSpinZ = throwChaos * 6.0'f32
+          # Toss it up from its current position: an upward impulse, gravity does the rest.
           desktop.cubeDiceVelY = -1.55'f32 * h
         elif selectedBg == dbgPortal and currentCubeSkin == cskCompanion:
           desktop.cubeDiceMode = false
@@ -537,14 +670,21 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
   if desktop.cubeDiceResultTimer > 0.0'f32:
     desktop.cubeDiceResultTimer = max(0.0'f32, desktop.cubeDiceResultTimer - dt)
 
-  # Release the dice hold if the player leaves the poker table or dice skin while
-  # the die rests, so the cube doesn't stay frozen on a different wallpaper.
+  # Release the dice hold if the player leaves a dice-combo (either dice skin on
+  # either dice background) while the die rests, so it doesn't stay frozen elsewhere.
   if desktop.cubeDiceMode and not desktop.cubeEscaping and not globalSettings.isNil:
-    if DesktopBgType(globalSettings.desktopBg) != dbgCasino or
-       CubeSkinType(globalSettings.cubeSkin) != cskDice:
+    let guardBg = DesktopBgType(globalSettings.desktopBg)
+    let guardSkin = CubeSkinType(globalSettings.cubeSkin)
+    let onDiceCombo = (guardBg == dbgCasino or guardBg == dbgDragon) and
+                      (guardSkin == cskDice or guardSkin == cskD20)
+    if not onDiceCombo:
       desktop.cubeDiceMode = false
+      desktop.cubeDiceResult = 0
       desktop.cubeDiceResultTimer = 0.0'f32
       desktop.cubeDiceVelY = 0.0'f32
+      desktop.cubeDiceSpinX = 0.0'f32
+      desktop.cubeDiceSpinY = 0.0'f32
+      desktop.cubeDiceSpinZ = 0.0'f32
 
   # Convert cube quaternion to Euler angles (X, Y, Z) for wallpaper rendering
   # Rotation order: rotate X, then Y, then Z (Rx -> Ry -> Rz)
