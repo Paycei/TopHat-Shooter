@@ -453,6 +453,7 @@ type
     shapeType*: int  # Current equipped player shape
     particleSkinType*: int  # Current equipped particle effect
     wearsTophat*: bool  # Secret kernel tophat cosmetic (unlocked by beating the wave-60 boss)
+    wearsCheaterHat*: bool  # Secret cheater hat cosmetic (unlocked by opening the cd+ cheat menu)
     hasOrbitalCube*: bool  # Secret orbital-cube cosmetic (Escape Velocity advancement reward)
     cubeSkinType*: int  # Equipped desktop-cube skin (colors the orbital cube companion)
     celestialVeilActive*: bool  # True if Celestial Veil can still absorb a hit this wave
@@ -1126,6 +1127,7 @@ type
     selectedVictoryButton*: int  # Selected button on victory screen (0=Continue, 1=Stats, 2=Menu)
     hasWonGame*: bool  # True once the wave-60 final boss is beaten; gates the one-time victory screen
     tophatJustUnlocked*: bool  # True only on the run that first earned the kernel tophat (victory banner)
+    cheaterHatJustEarned*: bool  # Pulsed true when cd+ cheat menu first opens; main.nim fires the unlock
     deathCause*: DeathCause  # What killed the player (recorded once in beginPlayerDeathSequence)
     deathSourceName*: string  # Resolved name of the killer (enemy/boss); empty for hazards
     deathSourceWasBoss*: bool  # True if the killer was a boss (affects game-over styling)

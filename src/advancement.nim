@@ -43,6 +43,7 @@ const
   AdvancementProfileVersion* = 1
   AdvancementRogueliteSectorsPerAct = 3
   CubeEscapeAdvancementId* = "mastery_escape_velocity"
+  CheaterAdvancementId* = "mastery_cheater"
 
 proc saveAdvancements*(profile: AdvancementProfile): bool
 
@@ -301,6 +302,14 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
       description: "Spin the desktop cube fast enough, for long enough, to knock it out of orbit.",
       category: acMastery,
       tier: atGold,
+      target: 1.0'f32,
+    ),
+    AdvancementDefinition(
+      id: CheaterAdvancementId,
+      name: "Cheater",
+      description: "Break the rules during a run.",
+      category: acMastery,
+      tier: atBronze,
       target: 1.0'f32,
     ),
 
@@ -579,7 +588,7 @@ proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
     if rogueliteProfile.isNil: 0.0'f32 else: rogueliteProfile.highestHeat.float32
   of "roguelite_victory_kernel":
     if rogueliteProfile.isNil: 0.0'f32 else: rogueliteProfile.wins.float32
-  of CubeEscapeAdvancementId:
+  of CubeEscapeAdvancementId, CheaterAdvancementId:
     # Event-driven (desktop easter egg), never derived from stats; unlocked
     # via unlockAdvancementDirectly. Returning 0 keeps sync from touching it.
     0.0'f32

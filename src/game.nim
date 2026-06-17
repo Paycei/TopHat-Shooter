@@ -499,9 +499,11 @@ proc completeBossWave*(game: Game) =
     if runIsLegit(game) and not globalSettings.isNil and not globalSettings.kernelTophatUnlocked:
       globalSettings.kernelTophatUnlocked = true
       globalSettings.kernelTophatEquipped = true
+      globalSettings.cheaterHatEquipped = false
       discard saveSettings(globalSettings)
       game.tophatJustUnlocked = true
       game.player.wearsTophat = true
+      game.player.wearsCheaterHat = false
     game.selectedVictoryButton = 0
     playSound(stWaveComplete)
     # First-ever victory plays the one-time endgame cinematic; it hands off to
@@ -1705,8 +1707,11 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
   result.player.bulletShapeType = bulletShape
   result.player.particleSkinType = particleSkin
   # Secret cosmetics: active only while both unlocked and enabled in the shop
-  result.player.wearsTophat = not globalSettings.isNil and
+  let cheaterHatActive = not globalSettings.isNil and
+    globalSettings.cheaterHatUnlocked and globalSettings.cheaterHatEquipped
+  result.player.wearsTophat = not globalSettings.isNil and not cheaterHatActive and
     globalSettings.kernelTophatUnlocked and globalSettings.kernelTophatEquipped
+  result.player.wearsCheaterHat = cheaterHatActive
   result.player.hasOrbitalCube = not globalSettings.isNil and
     globalSettings.orbitalCubeUnlocked and globalSettings.orbitalCubeEquipped
   result.player.cubeSkinType = if globalSettings.isNil: 0 else: globalSettings.cubeSkin

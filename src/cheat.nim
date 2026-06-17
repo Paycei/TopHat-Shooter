@@ -74,6 +74,7 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
           # Mark that cheats were used if menu opened during gameplay
           if menu.active and game.state == gsPlaying:
             game.cheatsUsed = true
+            game.cheaterHatJustEarned = true
 
           return
 
@@ -104,6 +105,7 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
           # Mark that cheats were used if menu opened during gameplay
           if menu.active and game.state == gsPlaying:
             game.cheatsUsed = true
+            game.cheaterHatJustEarned = true
 
           return
 

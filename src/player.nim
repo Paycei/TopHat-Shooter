@@ -549,6 +549,11 @@ proc drawPlayer*(player: Player) =
   if player.wearsTophat:
     drawTopHat(player.pos, player.radius, time, 1.0'f32, baseColor)
 
+  # Secret cosmetic: the cheater hat, earned by opening cd+ during a run.
+  # Drawn after the tophat so it visually takes priority when both are enabled.
+  if player.wearsCheaterHat:
+    drawCheaterHat(player.pos, player.radius, time)
+
   # Secret cosmetic: the desktop cube, knocked out of orbit (Escape Velocity),
   # now orbits the player. Colored by the equipped desktop-cube skin.
   if player.hasOrbitalCube:

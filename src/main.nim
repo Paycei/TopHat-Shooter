@@ -1151,6 +1151,20 @@ proc main() =
       # Check for cheat menu activation
       checkCheatSequence(cheatMenu, currentGame, currentGame.time)
 
+      if currentGame.cheaterHatJustEarned:
+        currentGame.cheaterHatJustEarned = false
+        let newlyUnlocked = unlockAdvancementDirectly(advancementProfile, CheaterAdvancementId)
+        if newlyUnlocked:
+          discard saveAdvancements(advancementProfile)
+        if not settings.cheaterHatUnlocked and
+           (newlyUnlocked or isAdvancementUnlocked(advancementProfile, CheaterAdvancementId)):
+          settings.cheaterHatUnlocked = true
+          settings.cheaterHatEquipped = true
+          settings.kernelTophatEquipped = false
+          currentGame.player.wearsTophat = false
+          currentGame.player.wearsCheaterHat = true
+          discard saveSettings(settings)
+
       # Update cheat menu if active (pauses game)
       if cheatMenu.active:
         updateCheatMenu(cheatMenu, currentGame)

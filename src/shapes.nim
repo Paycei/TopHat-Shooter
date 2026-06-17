@@ -103,6 +103,30 @@ proc drawTopHat*(pos: Vector2f, radius: float32, time: float32,
   drawRectangle(Rectangle(x: pivot.x, y: pivot.y, width: crownW, height: bandH),
                 Vector2(x: crownW * 0.5'f32, y: bandH + brimH), tilt, bandColor)
 
+proc drawCheaterHat*(pos: Vector2f, radius: float32, time: float32,
+                     alpha: float32 = 1.0'f32) =
+  ## White pointy hat, matching the simple gnome-hat silhouette.
+  let bob = sin(time * 2.0'f32) * radius * 0.05'f32
+  let brimY = pos.y - radius * 0.95'f32 + bob
+  let brimW = radius * 1.48'f32
+  let brimH = radius * 0.2'f32
+  let tip = Vector2(x: pos.x + sin(time * 1.4'f32) * radius * 0.08'f32,
+                    y: pos.y - radius * 2.16'f32 + bob)
+  let left = Vector2(x: pos.x - brimW * 0.5'f32, y: brimY + brimH * 0.45'f32)
+  let right = Vector2(x: pos.x + brimW * 0.5'f32, y: brimY + brimH * 0.45'f32)
+  let fill = Color(r: 248, g: 248, b: 255, a: topHatAlpha(alpha * 245.0'f32))
+  let shade = Color(r: 202, g: 210, b: 228, a: topHatAlpha(alpha * 220.0'f32))
+  let outline = Color(r: 116, g: 128, b: 148, a: topHatAlpha(alpha * 180.0'f32))
+  drawTriangle(tip, left, right, fill)
+  drawTriangleLines(tip, left, right, outline)
+  drawRectangleRounded(Rectangle(x: pos.x - brimW * 0.5'f32, y: brimY,
+                                 width: brimW, height: brimH),
+                       0.65'f32, 8, fill)
+  drawRectangleRoundedLines(Rectangle(x: pos.x - brimW * 0.5'f32, y: brimY,
+                                      width: brimW, height: brimH),
+                            0.65'f32, 8, 1.5'f32, outline)
+  drawCircle(Vector2(x: tip.x, y: tip.y), max(2.0'f32, radius * 0.11'f32), shade)
+
 proc drawMiniCube*(center: Vector2, size: float32, time: float32,
                    edgeColor, glowColor: Color,
                    heartColor: Color = Color(r: 0, g: 0, b: 0, a: 0),

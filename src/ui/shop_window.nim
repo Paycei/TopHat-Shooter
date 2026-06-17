@@ -59,7 +59,7 @@ const
   SECRET_CARD_W = 240
   SECRET_CARD_H = 220
   SECRET_CARD_GAP = 40
-  SECRET_ITEM_COUNT = 2  # 0 = kernel tophat (player), 1 = cube tophat (desktop cube)
+  SECRET_ITEM_COUNT = 3  # 0 = kernel tophat, 1 = orbital cube, 2 = cheater hat
 
 proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle, rogueliteProfile: RogueliteProfile = nil): ShopWindow =
   let windowWidth = 820
@@ -1017,11 +1017,19 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
       var toggled = false
       if toggleIndex == 0 and globalSettings.kernelTophatUnlocked:
         globalSettings.kernelTophatEquipped = not globalSettings.kernelTophatEquipped
+        if globalSettings.kernelTophatEquipped:
+          globalSettings.cheaterHatEquipped = false
         toggledOn = globalSettings.kernelTophatEquipped
         toggled = true
       elif toggleIndex == 1 and globalSettings.orbitalCubeUnlocked:
         globalSettings.orbitalCubeEquipped = not globalSettings.orbitalCubeEquipped
         toggledOn = globalSettings.orbitalCubeEquipped
+        toggled = true
+      elif toggleIndex == 2 and globalSettings.cheaterHatUnlocked:
+        globalSettings.cheaterHatEquipped = not globalSettings.cheaterHatEquipped
+        if globalSettings.cheaterHatEquipped:
+          globalSettings.kernelTophatEquipped = false
+        toggledOn = globalSettings.cheaterHatEquipped
         toggled = true
       if toggled:
         discard saveSettings(globalSettings)
@@ -1236,7 +1244,8 @@ proc drawSecretCardLocked(cardX, cardY: int, hint: string) =
 
 proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, contentHeight: int) =
   ## The SECRET tab: one card per secret cosmetic. Card 0 is the kernel tophat
-  ## (wave-60 victory); card 1 is the orbital cube (Escape Velocity advancement).
+  ## (wave-60 victory); card 1 is the orbital cube (Escape Velocity advancement);
+  ## card 2 is the cheater hat (cd+ menu advancement).
   ## Clicking an unlocked card toggles whether it is worn.
   let headerY = contentY + TAB_HEIGHT
   drawText(t("shop_customize_secret"), (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
@@ -1248,6 +1257,8 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
   let hatEquipped = hatUnlocked and globalSettings.kernelTophatEquipped
   let cubeUnlocked = not globalSettings.isNil and globalSettings.orbitalCubeUnlocked
   let cubeEquipped = cubeUnlocked and globalSettings.orbitalCubeEquipped
+  let cheaterUnlocked = not globalSettings.isNil and globalSettings.cheaterHatUnlocked
+  let cheaterEquipped = cheaterUnlocked and globalSettings.cheaterHatEquipped
 
   # Card 0: kernel tophat, previewed on the player's current skin and shape.
   let (hatX, hatY) = secretCardPos(contentX, contentY, contentWidth, 0)
@@ -1291,23 +1302,55 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
   else:
     drawSecretCardLocked(cubeX, cubeY, t("secret_cube_locked_hint"))
 
+  # Card 2: cheater hat, the shamefully pristine pointy hat.
+  let (cheaterX, cheaterY) = secretCardPos(contentX, contentY, contentWidth, 2)
+  drawSecretCardChrome(cheaterX, cheaterY, cheaterUnlocked, cheaterEquipped, shop.hoveredSkin == 2)
+  if cheaterUnlocked:
+    let centerX = (cheaterX + SECRET_CARD_W div 2).float32
+    let previewY = (cheaterY + 110).float32
+    let (primary, secondary, core) = getSkinColors(shop.selectedPlayerSkin, shop.animationTime)
+    let pulse = sin(shop.animationTime * 2.0'f32) * 0.5'f32 + 0.5'f32
+    drawPlayerShape(newVector2f(centerX, previewY), 30.0'f32, shop.selectedShape,
+                    primary, secondary, core, shop.animationTime,
+                    shop.animationTime * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
+    drawCheaterHat(newVector2f(centerX, previewY), 30.0'f32, shop.animationTime)
+    drawSecretCardLabels(cheaterX, cheaterY, cheaterEquipped, t("secret_cheater_hat_name"))
+  else:
+    drawSecretCardLocked(cheaterX, cheaterY, t("secret_unknown_locked_hint"))
+
   # Info panel mirrors the other tabs, describing the hovered card.
   let infoPanelHeight = 50
   let infoPanelY = contentY + contentHeight - infoPanelHeight
   drawRectangle(contentX.int32, infoPanelY.int32, contentWidth.int32, infoPanelHeight.int32,
                 Color(r: 35, g: 35, b: 45, a: 255))
   let infoIsCube = shop.hoveredSkin == 1
-  let infoUnlocked = if infoIsCube: cubeUnlocked else: hatUnlocked
+  let infoIsCheater = shop.hoveredSkin == 2
+  let infoUnlocked =
+    if infoIsCheater: cheaterUnlocked
+    elif infoIsCube: cubeUnlocked
+    else: hatUnlocked
   if infoUnlocked:
-    let infoEquipped = if infoIsCube: cubeEquipped else: hatEquipped
-    let infoName = if infoIsCube: t("secret_orbital_cube_name") else: t("secret_tophat_name")
+    let infoEquipped =
+      if infoIsCheater: cheaterEquipped
+      elif infoIsCube: cubeEquipped
+      else: hatEquipped
+    let infoName =
+      if infoIsCheater: t("secret_cheater_hat_name")
+      elif infoIsCube: t("secret_orbital_cube_name")
+      else: t("secret_tophat_name")
     let wornText = if infoEquipped: infoName else: "---"
     drawText(&"{t(\"shop_currently_equipped\")} {wornText}", (contentX + 10).int32,
              (infoPanelY + 8).int32, 15, White)
-    let infoDesc = if infoIsCube: t("secret_orbital_cube_desc") else: t("secret_tophat_desc")
+    let infoDesc =
+      if infoIsCheater: t("secret_cheater_hat_desc")
+      elif infoIsCube: t("secret_orbital_cube_desc")
+      else: t("secret_tophat_desc")
     drawText(infoDesc, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
   else:
-    let lockedHint = if infoIsCube: t("secret_cube_locked_hint") else: t("secret_locked_hint")
+    let lockedHint =
+      if infoIsCheater: t("secret_unknown_locked_hint")
+      elif infoIsCube: t("secret_cube_locked_hint")
+      else: t("secret_locked_hint")
     drawText(lockedHint, (contentX + 10).int32, (infoPanelY + 18).int32, 13, Gray)
 
 proc drawShopWindow*(shop: ShopWindow) =

@@ -884,3 +884,7 @@ proc sanitizeEquippedCosmetics*(settings: Settings,
      not cosmeticIsUnlocked(profile, ckCubeSkin, settings.cubeSkin):
     settings.cubeSkin = defaultCosmeticIndex(ckCubeSkin)
     result = true
+
+  if settings.kernelTophatEquipped and settings.cheaterHatEquipped:
+    settings.cheaterHatEquipped = false
+    result = true

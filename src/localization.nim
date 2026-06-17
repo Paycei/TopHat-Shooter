@@ -2203,9 +2203,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "secret_tophat_unequipped": "[UNEQUIPPED]",
     "secret_click_to_wear": "Click to wear",
     "secret_locked_hint": "Defeat the wave 60 final boss to unlock",
+    "secret_unknown_locked_hint": "Unlock condition unknown",
     "secret_orbital_cube_name": "Orbital Cube",
     "secret_orbital_cube_desc": "Knocked out of orbit, the desktop cube found a new one -- around you.",
     "secret_cube_locked_hint": "Earn the 'Escape Velocity' advancement to unlock",
+    "secret_cheater_hat_name": "Cheater Hat",
+    "secret_cheater_hat_desc": "A very white, very pointy hat for players who know exactly what cd+ does.",
     "victory_secret_unlocked": "[NEW] SECRET UNLOCKED: KERNEL TOPHAT -- equipped! Toggle it in the Shop's SECRET tab.",
 
     # Desktop Background Skins
@@ -3706,9 +3709,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "secret_tophat_unequipped": "[DESEQUIPADO]",
     "secret_click_to_wear": "Clic para llevarlo",
     "secret_locked_hint": "Derrota al jefe final de la oleada 60 para desbloquearlo",
+    "secret_unknown_locked_hint": "Condicion de desbloqueo desconocida",
     "secret_orbital_cube_name": "Cubo Orbital",
     "secret_orbital_cube_desc": "Expulsado de su órbita, el cubo del escritorio encontró una nueva: tú.",
     "secret_cube_locked_hint": "Consigue el logro 'Escape Velocity' para desbloquearlo",
+    "secret_cheater_hat_name": "Sombrero de Tramposo",
+    "secret_cheater_hat_desc": "Un sombrero muy blanco y puntiagudo para quienes saben exactamente qué hace cd+.",
     "victory_secret_unlocked": "[NUEVO] SECRETO DESBLOQUEADO: SOMBRERO DEL KERNEL -- ¡equipado! Actívalo en la pestaña SECRETO de la tienda.",
 
     # Desktop Background Skins

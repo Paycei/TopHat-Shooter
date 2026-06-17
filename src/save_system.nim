@@ -48,6 +48,8 @@ type
     kernelTophatEquipped*: bool  # Whether the unlocked kernel tophat is worn in-game
     orbitalCubeUnlocked*: bool  # Secret cosmetic: earned with the Escape Velocity advancement
     orbitalCubeEquipped*: bool  # Whether the mini desktop cube orbits the player in-game
+    cheaterHatUnlocked*: bool   # Secret cosmetic: earned by opening the cd+ cheat menu on a run
+    cheaterHatEquipped*: bool   # Whether the cheater hat is worn in-game
     lastDeathWave*: int         # Wave the player died on last non-cheated wave-based run (0 = none)
     keybinds*: KeyBindings      # Rebindable keyboard controls
 
@@ -126,6 +128,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "kernelTophatEquipped": settings.kernelTophatEquipped,
     "orbitalCubeUnlocked": settings.orbitalCubeUnlocked,
     "orbitalCubeEquipped": settings.orbitalCubeEquipped,
+    "cheaterHatUnlocked": settings.cheaterHatUnlocked,
+    "cheaterHatEquipped": settings.cheaterHatEquipped,
     "lastDeathWave": settings.lastDeathWave
   }
   var bindsObj = newJObject()
@@ -230,6 +234,12 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("orbitalCubeEquipped"):
     settings.orbitalCubeEquipped = jsonNode["orbitalCubeEquipped"].getBool()
+
+  if jsonNode.hasKey("cheaterHatUnlocked"):
+    settings.cheaterHatUnlocked = jsonNode["cheaterHatUnlocked"].getBool()
+
+  if jsonNode.hasKey("cheaterHatEquipped"):
+    settings.cheaterHatEquipped = jsonNode["cheaterHatEquipped"].getBool()
 
   if jsonNode.hasKey("lastDeathWave"):
     settings.lastDeathWave = jsonNode["lastDeathWave"].getInt()
