@@ -906,6 +906,211 @@ proc drawCasinoFx(w, h, time: float32) =
   drawRectangleGradientV(0, 0, w.int32, vh.int32, edge, clear)
   drawRectangleGradientV(0, int32(h - vh), w.int32, vh.int32, clear, edge)
 
+# Dragon's Lair
+
+proc drawRune(cx, cy, r: float32, col: Color) =
+  ## A simple angular ward-glyph: a diamond outline crossed by a vertical
+  ## tick, built from line primitives so it survives the small shop preview.
+  let top = Vector2(x: cx, y: cy - r)
+  let right = Vector2(x: cx + r * 0.7'f32, y: cy)
+  let bot = Vector2(x: cx, y: cy + r)
+  let left = Vector2(x: cx - r * 0.7'f32, y: cy)
+  drawLine(top, right, 1.4'f32, col)
+  drawLine(right, bot, 1.4'f32, col)
+  drawLine(bot, left, 1.4'f32, col)
+  drawLine(left, top, 1.4'f32, col)
+  drawLine(Vector2(x: cx, y: cy - r * 1.35'f32), Vector2(x: cx, y: cy + r * 1.35'f32),
+          1.2'f32, col)
+
+proc edgeX(localX, w, side: float32): float32 =
+  ## Folds a coordinate measured inward from a screen edge to actual screen x:
+  ## side<0 anchors to the left edge, side>0 mirrors the same plan to the right.
+  if side < 0.0'f32: localX else: w - localX
+
+proc drawDragonWing(shoulderX, shoulderY, s, time, side, seed: float32,
+                    membrane, rim: Color) =
+  ## A bat-style wing mantled above the shoulder: struts sweep entirely
+  ## through the outward side (never crossing in front of the head/neck) from
+  ## a trailing edge that droops outward-and-down along the spine to a
+  ## leading edge that sweeps outward-and-up, each gap filled as a membrane
+  ## triangle and the scalloped outer edge traced in a connecting line.
+  ## Mirrored via `side` by flipping only the horizontal component. `s` is
+  ## min(w,h) - the same scale reference the silhouette's body uses - so the
+  ## wing stays proportional to the dragon on wide/ultrawide aspect ratios
+  ## instead of ballooning with the full screen width.
+  const Struts = 5
+  let inward = if side < 0.0'f32: 1.0'f32 else: -1.0'f32
+  let flex = 1.0'f32 + 0.05'f32 * sin(time * 0.35'f32 + seed)
+  var tip: array[Struts, Vector2]
+  for i in 0 ..< Struts:
+    let f = i.float32 / (Struts - 1).float32          # 0 trailing -> 1 leading
+    let ang = 2.4'f32 + f * 1.98'f32
+    let len = s * (0.12'f32 + f * 0.095'f32) * flex
+    tip[i] = Vector2(x: shoulderX + cos(ang) * len * inward,
+                     y: shoulderY + sin(ang) * len)
+  let shoulder = Vector2(x: shoulderX, y: shoulderY)
+  for i in 0 ..< (Struts - 1):
+    drawTri2(shoulder, tip[i], tip[i + 1], membrane)
+  for i in 0 ..< Struts:
+    drawLine(shoulder, tip[i], 1.6'f32, rim)
+    drawCircle(tip[i], 1.6'f32, rim)
+  for i in 0 ..< (Struts - 1):
+    drawLine(tip[i], tip[i + 1], 1.4'f32, withAlpha(rim, 150'u8))
+
+proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
+  ## One black dragon coiled up a screen edge: tail at the bottom corner,
+  ## spine spikes climbing, a wing mantled above the shoulder, and a horned
+  ## head turned inward to watch the desktop. `side` selects the edge (<0
+  ## left, >0 right); every x-coordinate is built inward from that edge via
+  ## `edgeX`, so the same body plan mirrors cleanly to either side.
+  let s = min(w, h)
+  let inward = if side < 0.0'f32: 1.0'f32 else: -1.0'f32
+
+  const Segs = 16
+  var bx, by, br: array[Segs, float32]
+  for i in 0 ..< Segs:
+    let t = i.float32 / (Segs - 1).float32              # 0 tail -> 1 neck
+    let sway = sin(time * 0.45'f32 + t * 4.0'f32) * s * 0.01'f32 * (1.0'f32 - t * 0.5'f32)
+    let lean = sin(t * PI * 0.5'f32) * s * 0.20'f32      # bows inward as it climbs
+    bx[i] = edgeX(s * 0.045'f32 + lean + sway, w, side)
+    by[i] = h * (0.97'f32 - t * 0.66'f32)
+    br[i] = s * (0.018'f32 + 0.046'f32 * sin(t * PI * 0.85'f32 + 0.1'f32))
+
+  # Wing, mantled above a shoulder a bit past the body's midpoint, drawn
+  # before the body tube so the neck occludes any strut that passes behind
+  # it - this is what keeps the wing from visually fusing with the head.
+  let shIdx = int(0.60'f32 * (Segs - 1).float32)
+  let membrane = withAlpha(body, 235'u8)
+  drawDragonWing(bx[shIdx], by[shIdx], s, time, side, side * 11.0'f32 + 3.0'f32,
+                membrane, rim)
+
+  # Body: overlapping circles taper tail to neck into a continuous coil. The
+  # radius and the vertical step both scale with s/h, so they overlap by the
+  # same ratio whether this draws at 64px in the shop or at 4K fullscreen.
+  for i in 0 ..< Segs:
+    drawCircle(Vector2(x: bx[i], y: by[i]), br[i], body)
+  # A faint gold scale-line on every segment, drawn after all the fills so
+  # the overlapping arcs read as a scaled hide rather than a smooth tube.
+  for i in 0 ..< Segs:
+    drawCircleLines(bx[i].int32, by[i].int32, br[i], withAlpha(rim, 55'u8))
+
+  # Spine spikes: small gold triangles on alternating segments, angled
+  # outward and up so the silhouette reads as serrated against the dark.
+  for i in 0 ..< Segs:
+    if i mod 2 == 1 and i < Segs - 1:
+      let spike = br[i] * 1.7'f32
+      let outX = -inward * spike * 0.5'f32
+      let base1 = Vector2(x: bx[i] - outX * 0.3'f32, y: by[i] + br[i] * 0.3'f32)
+      let base2 = Vector2(x: bx[i] + outX * 0.3'f32, y: by[i] - br[i] * 0.3'f32)
+      let spikeTip = Vector2(x: bx[i] + outX, y: by[i] - spike * 0.95'f32)
+      drawTri2(base1, base2, spikeTip, rim)
+
+  # Tail fin resting at the tip, swaying gently.
+  let tailSway = sin(time * 0.6'f32) * s * 0.01'f32
+  let tailTip = Vector2(x: bx[0] - inward * s * 0.05'f32 + tailSway, y: by[0] + s * 0.045'f32)
+  drawTri2(Vector2(x: bx[0], y: by[0] - br[0]), Vector2(x: bx[0], y: by[0] + br[0]),
+          tailTip, body)
+
+  # Head: a wedge-shaped skull at the neck end, turned inward over the
+  # desktop, traced in a gold outline so it reads as its own shape rather
+  # than blending into the wing or the neck behind it.
+  let hx = bx[Segs - 1]
+  let hy = by[Segs - 1]
+  let headLen = s * 0.10'f32
+  let headW = s * 0.058'f32
+  let snout = Vector2(x: hx + inward * headLen, y: hy - headLen * 0.12'f32)
+  let jawTop = Vector2(x: hx, y: hy - headW * 0.6'f32)
+  let jawBot = Vector2(x: hx, y: hy + headW * 0.6'f32)
+  drawTri2(jawTop, jawBot, snout, body)
+  drawLine(jawTop, snout, 1.5'f32, rim)
+  drawLine(snout, jawBot, 1.5'f32, rim)
+  drawLine(jawBot, jawTop, 1.5'f32, rim)
+
+  # Twin horns sweeping back off the brow.
+  for hk in 0 ..< 2:
+    let hf = hk.float32
+    let hBase1 = Vector2(x: hx - inward * headW * (0.05'f32 + hf * 0.12'f32),
+                         y: hy - headW * (0.5'f32 + hf * 0.1'f32))
+    let hBase2 = Vector2(x: hx + inward * headW * 0.08'f32,
+                         y: hy - headW * (0.35'f32 + hf * 0.1'f32))
+    let hTip = Vector2(x: hx - inward * headLen * (0.45'f32 + hf * 0.25'f32),
+                       y: hy - headLen * (0.85'f32 + hf * 0.35'f32))
+    drawTri2(hBase1, hBase2, hTip, rim)
+
+  # Glowing ember eye, pulsing, with a soft bleed onto the dark hide.
+  let eyePulse = sin(time * 1.4'f32 + side * 3.0'f32) * 0.5'f32 + 0.5'f32
+  let eyePos = Vector2(x: hx + inward * headLen * 0.42'f32, y: hy - headW * 0.18'f32)
+  drawSoftGlow(eyePos.x, eyePos.y, headW * 0.7'f32,
+              withAlpha(ember, alphaU8(50.0'f32 + eyePulse * 40.0'f32)), 0.6)
+  drawCircle(eyePos, headW * 0.1'f32, withAlpha(ember, alphaU8(190.0'f32 + eyePulse * 60.0'f32)))
+
+  # Smoldering breath: a faint nostril glow with a few embers drifting up.
+  drawSoftGlow(snout.x, snout.y, headW * 0.4'f32, withAlpha(ember, 60'u8), 0.55)
+  for ek in 0 ..< 3:
+    let eseed = side * 7.0'f32 + ek.float32 * 5.3'f32
+    let ePhase = fract01(time * 0.18'f32 + hash01(eseed))
+    let ePos = Vector2(x: snout.x + inward * ePhase * headLen * 0.6'f32,
+                       y: snout.y - ePhase * headLen * 1.4'f32)
+    drawCircle(ePos, max(0.6'f32, headW * 0.05'f32 * (1.0'f32 - ePhase)),
+              withAlpha(ember, alphaU8(140.0'f32 * (1.0'f32 - ePhase))))
+
+proc drawDragonFx(w, h, time: float32) =
+  ## Dragon's Lair: the dark, rune-etched cover of an ancient grimoire. A
+  ## near-opaque black wash mutes the default OS grid to a whisper, gold
+  ## filigree frames the edges, ward-runes flicker in and out, embers drift
+  ## up from the lair below, and a black dragon coils up each side of the
+  ## screen with wings mantled and an ember eye watching the desktop.
+  let gold = Color(r: 205, g: 160, b: 60, a: 255)
+  let ember = Color(r: 200, g: 40, b: 20, a: 255)
+  let hide = Color(r: 20, g: 17, b: 22, a: 255)
+  let s = min(w, h)
+
+  # 1. Deepen the frame toward black so the shared grid/stars read as only a
+  # faint glimmer behind the cover art.
+  drawRectangle(0, 0, w.int32, h.int32, Color(r: 4, g: 3, b: 4, a: 205))
+
+  # 2. Gold filigree border, like tooling on a leather grimoire cover: a
+  # double inset line plus diamond flourishes at the corners and the
+  # midpoint of each edge.
+  let inset = s * 0.022'f32
+  drawRectangleLines(inset.int32, inset.int32, int32(w - inset * 2.0'f32),
+                     int32(h - inset * 2.0'f32), withAlpha(gold, 130'u8))
+  let inset2 = inset + s * 0.008'f32
+  drawRectangleLines(inset2.int32, inset2.int32, int32(w - inset2 * 2.0'f32),
+                     int32(h - inset2 * 2.0'f32), withAlpha(gold, 70'u8))
+  let flourishR = s * 0.012'f32
+  for fcx in [0.0'f32, 0.5'f32, 1.0'f32]:
+    for fcy in [0.0'f32, 0.5'f32, 1.0'f32]:
+      if fcx == 0.5'f32 and fcy == 0.5'f32: continue
+      drawRune(inset + fcx * (w - inset * 2.0'f32), inset + fcy * (h - inset * 2.0'f32),
+              flourishR, withAlpha(gold, 110'u8))
+
+  # 3. Ward-runes flickering in and out across the cover, each on its own slow cycle.
+  for r in 0 ..< 7:
+    let seed = r.float32 * 19.3'f32 + 2.0'f32
+    let cycle = 5.0'f32 + hash01(seed) * 4.0'f32
+    let ph = fract01(time / cycle + hash01(seed + 4.0'f32))
+    let vis = sin(ph * PI)
+    if vis <= 0.03'f32: continue
+    let rx = (0.12'f32 + hash01(seed + 1.0'f32) * 0.76'f32) * w
+    let ry = (0.12'f32 + hash01(seed + 2.0'f32) * 0.76'f32) * h
+    drawRune(rx, ry, s * 0.014'f32, withAlpha(gold, alphaU8(150.0'f32 * vis)))
+
+  # 4. Lair embers drifting up from below, sparse and slow.
+  for e in 0 ..< 16:
+    let seed = e.float32 * 9.1'f32
+    let span = h * 1.1'f32
+    let ey = h * 1.05'f32 - wrapF(hash01(seed) * span +
+             time * (h * (0.025'f32 + hash01(seed + 1.0'f32) * 0.05'f32)), span)
+    let ex = hash01(seed + 2.0'f32) * w + sin(time * 0.3'f32 + seed) * w * 0.015'f32
+    let fade = clamp(1.0'f32 - (h - ey) / h * 0.3'f32, 0.0'f32, 1.0'f32)
+    drawCircle(Vector2(x: ex, y: ey), s * (0.0025'f32 + hash01(seed + 3.0'f32) * 0.003'f32),
+              withAlpha(ember, alphaU8(60.0'f32 * fade)))
+
+  # 5. Twin black dragons coiled up either edge, mirrored.
+  drawDragonSilhouette(w, h, time, -1.0'f32, hide, gold, ember)
+  drawDragonSilhouette(w, h, time, 1.0'f32, hide, gold, ember)
+
 # Dispatcher
 
 proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int32,
@@ -925,3 +1130,4 @@ proc drawDesktopBgThemeFx*(bgType: DesktopBgType, screenWidth, screenHeight: int
   of dbgHorror: drawHorrorFx(w, h, time)
   of dbgCyber: drawCyberFx(w, h, time)
   of dbgCasino: drawCasinoFx(w, h, time)
+  of dbgDragon: drawDragonFx(w, h, time)

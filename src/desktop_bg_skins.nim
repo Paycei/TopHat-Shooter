@@ -16,7 +16,8 @@ type
     dbgPortal,    ## Aperture Test: blue/orange portals (Portal reference)
     dbgHorror,    ## Kernel Panic: dread-soaked dark where the cube cowers
     dbgCyber,     ## Cyberspace: rain-soaked neon grid with glitching holograms
-    dbgCasino     ## High Roller: green felt, card suits, poker chips and gold
+    dbgCasino,    ## High Roller: green felt, card suits, poker chips and gold
+    dbgDragon     ## Dragon's Lair: black dragons coiled at the edges of a rune-etched dark
 
   DesktopBgData* = object
     name*: string
@@ -102,6 +103,15 @@ proc initDesktopBgSkins*() =
     primaryColor: Color(r: 255, g: 205, b: 70,  a: 255),
     accentColor:  Color(r: 215, g: 32,  b: 48,  a: 255),
     bgColor:      Color(r: 8,   g: 36,  b: 22,  a: 255))
+
+  # Dragon's Lair: an ancient grimoire's cover. Antique gold (primary) traces
+  # the rune-work and dragon rim-light, smoldering ember red (accent) glows in
+  # the eyes and breath, over a near-black, faintly warm leather base.
+  desktopBgDatabase[dbgDragon] = DesktopBgData(
+    name: t("dbg_dragon"), description: t("dbg_dragon_desc"),
+    primaryColor: Color(r: 205, g: 160, b: 60,  a: 255),
+    accentColor:  Color(r: 200, g: 40,  b: 20,  a: 255),
+    bgColor:      Color(r: 6,   g: 4,   b: 5,   a: 255))
 
 proc getDesktopBgData*(bgType: DesktopBgType): DesktopBgData =
   desktopBgDatabase[bgType]

@@ -16,7 +16,8 @@ type
     cskCompanion, ## Companion Cube: grey with a pink heart (Portal reference)
     cskJack,     ## Jack-O'-Node: orange pumpkin with a carved, glowing face
     cskCyber,    ## Cyberdeck: cyan/magenta with a holographic HUD panel per face
-    cskDice      ## Lucky Die: white die, dark pips (1-6) baked to each face
+    cskDice,     ## Lucky Die: white die, dark pips (1-6) baked to each face
+    cskD20       ## Dragon's Fang: a true 20-sided icosahedron, obsidian and gold
 
   CubeSkinData* = object
     name*: string
@@ -99,6 +100,15 @@ proc initCubeSkins*() =
     faceColor: Color(r: 236, g: 237, b: 242, a: 255),
     edgeColor: Color(r: 205, g: 207, b: 214, a: 255),
     glowColor: Color(r: 255, g: 255, b: 255, a: 150))
+
+  # Dragon's Fang: a true 20-sided icosahedron (not a painted cube) tying into
+  # the Dragon's Lair background - obsidian faces, antique-gold facet edges,
+  # ember glow. Geometry + numerals are drawn in os_desktop's cube renderer.
+  cubeSkinDatabase[cskD20] = CubeSkinData(
+    name: t("csk_d20"), description: t("csk_d20_desc"),
+    faceColor: Color(r: 20,  g: 17,  b: 22,  a: 255),
+    edgeColor: Color(r: 205, g: 160, b: 60,  a: 255),
+    glowColor: Color(r: 200, g: 40,  b: 20,  a: 190))
 
 proc getCubeSkinData*(skinType: CubeSkinType): CubeSkinData =
   cubeSkinDatabase[skinType]

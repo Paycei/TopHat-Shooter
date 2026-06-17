@@ -2228,6 +2228,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dbg_cyber_desc": "Live circuit traces, data pulses and glitching HUD panels",
     "dbg_casino": "High Roller",
     "dbg_casino_desc": "Green felt, lucky suits, poker chips and gold",
+    "dbg_dragon": "Dragon's Lair",
+    "dbg_dragon_desc": "Black dragons coil at the edges of a rune-etched dark",
 
     # Cube Skins
     "csk_default": "System Unit",
@@ -2252,6 +2254,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "csk_cyber_desc": "Holographic HUD panels glow on every face.",
     "csk_dice": "Lucky Die",
     "csk_dice_desc": "Roll for initiative. Pips on every face.",
+    "csk_d20": "Dragon's Fang",
+    "csk_d20_desc": "A true 20-sided die, obsidian and gold. Roll for the lair.",
 
     # Player Skins
     "skin_default": "System Default",
@@ -3722,6 +3726,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dbg_horror_desc": "Pavor en la oscuridad - hasta el cubo tiembla de miedo",
     "dbg_cyber": "Ciberespacio",
     "dbg_cyber_desc": "Circuitos vivos, pulsos de datos y paneles HUD con fallos",
+    "dbg_casino": "Gran Apostador",
+    "dbg_casino_desc": "Fieltro verde, palos de la suerte, fichas y oro",
+    "dbg_dragon": "Guarida del Dragón",
+    "dbg_dragon_desc": "Dragones negros enroscados en los bordes de una oscuridad rúnica",
 
     # Cube Skins
     "csk_default": "Unidad del Sistema",
@@ -3746,6 +3754,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "csk_cyber_desc": "Paneles HUD holográficos brillan en cada cara.",
     "csk_dice": "Dado de la Suerte",
     "csk_dice_desc": "Tira el dado. Puntos en cada cara.",
+    "csk_d20": "Colmillo de Dragón",
+    "csk_d20_desc": "Un dado de veinte caras de verdad, obsidiana y oro. Tira por la guarida.",
 
     # Player Skins
     "skin_default": "Sistema base",

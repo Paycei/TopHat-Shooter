@@ -105,11 +105,50 @@ proc drawTopHat*(pos: Vector2f, radius: float32, time: float32,
 
 proc drawMiniCube*(center: Vector2, size: float32, time: float32,
                    edgeColor, glowColor: Color,
-                   heartColor: Color = Color(r: 0, g: 0, b: 0, a: 0)) =
+                   heartColor: Color = Color(r: 0, g: 0, b: 0, a: 0),
+                   isD20: bool = false) =
   ## Tiny spinning wireframe cube: the desktop cube, pocket-sized. Used by
   ## the orbital-cube secret cosmetic on the player and its shop preview.
   ## When `heartColor` is opaque (the Companion Cube skin) a small Portal-style
-  ## heart is painted on the camera-facing side.
+  ## heart is painted on the camera-facing side. When `isD20` is set, the
+  ## wireframe is a true icosahedron instead (no decoration support, same as
+  ## the other special-feature skins at this size).
+  if isD20:
+    const invPhi = 0.6180339887'f32
+    const verts = [
+      (-invPhi, 1.0'f32, 0.0'f32), (invPhi, 1.0'f32, 0.0'f32),
+      (-invPhi, -1.0'f32, 0.0'f32), (invPhi, -1.0'f32, 0.0'f32),
+      (0.0'f32, -invPhi, 1.0'f32), (0.0'f32, invPhi, 1.0'f32),
+      (0.0'f32, -invPhi, -1.0'f32), (0.0'f32, invPhi, -1.0'f32),
+      (1.0'f32, 0.0'f32, -invPhi), (1.0'f32, 0.0'f32, invPhi),
+      (-1.0'f32, 0.0'f32, -invPhi), (-1.0'f32, 0.0'f32, invPhi)]
+    const d20Edges = [
+      (0, 11), (5, 11), (0, 5), (1, 5), (0, 1), (1, 7), (0, 7), (7, 10), (0, 10), (10, 11),
+      (5, 9), (1, 9), (4, 11), (4, 5), (2, 10), (2, 11), (6, 7), (6, 10), (1, 8), (7, 8),
+      (3, 9), (4, 9), (3, 4), (2, 4), (2, 3), (2, 6), (3, 6), (6, 8), (3, 8), (8, 9)]
+    let ax = time * 0.9'f32
+    let ay = time * 1.4'f32
+    let cax = cos(ax)
+    let sax = sin(ax)
+    let cay = cos(ay)
+    let say = sin(ay)
+    var pts: array[12, Vector2]
+    for i in 0..<12:
+      let (x, y, z) = verts[i]
+      let y2 = y * cax - z * sax
+      let z2 = y * sax + z * cax
+      let x3 = x * cay + z2 * say
+      pts[i] = Vector2(x: center.x + x3 * size, y: center.y + y2 * size)
+    drawCircle(center, size * 1.9'f32,
+               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 36))
+    # Thinner strokes than the cube's: 30 edges packed into the same tiny
+    # silhouette would mud together at the cube's edge thickness.
+    for e in d20Edges:
+      drawLine(pts[e[0]], pts[e[1]], 2.0'f32,
+               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 110))
+      drawLine(pts[e[0]], pts[e[1]], 0.9'f32, edgeColor)
+    return
+
   const base = [
     (-1.0'f32, -1.0'f32, -1.0'f32), (1.0'f32, -1.0'f32, -1.0'f32),
     (1.0'f32, 1.0'f32, -1.0'f32), (-1.0'f32, 1.0'f32, -1.0'f32),

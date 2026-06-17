@@ -940,6 +940,237 @@ proc drawTriangleBothWindings(a, b, c: Vector2, color: Color) =
   drawTriangle(a, b, c, color)
   drawTriangle(a, c, b, color)
 
+# Fixed light in MODEL space, shared by every wallpaper-solid renderer: because
+# it rotates with the solid, dotting it with a face's own (model-space) normal
+# gives a brightness that is constant per face, the shading is baked onto each
+# side and never tracks the camera.
+const
+  LightDirX = 0.442'f32
+  LightDirY = -0.694'f32
+  LightDirZ = 0.568'f32
+
+const
+  D20InvPhi = 0.6180339887'f32 ## 1/phi: scales the classic (0,+-1,+-phi)
+    ## icosahedron vertices so every vertex's largest axis component reaches
+    ## exactly 1, matching the unit cube's own reach at the same `size`.
+  D20Verts: array[12, WallpaperCubePoint] = [
+    WallpaperCubePoint(x: -D20InvPhi, y:  1.0'f32,    z:  0.0'f32),
+    WallpaperCubePoint(x:  D20InvPhi, y:  1.0'f32,    z:  0.0'f32),
+    WallpaperCubePoint(x: -D20InvPhi, y: -1.0'f32,    z:  0.0'f32),
+    WallpaperCubePoint(x:  D20InvPhi, y: -1.0'f32,    z:  0.0'f32),
+    WallpaperCubePoint(x:  0.0'f32,   y: -D20InvPhi,  z:  1.0'f32),
+    WallpaperCubePoint(x:  0.0'f32,   y:  D20InvPhi,  z:  1.0'f32),
+    WallpaperCubePoint(x:  0.0'f32,   y: -D20InvPhi,  z: -1.0'f32),
+    WallpaperCubePoint(x:  0.0'f32,   y:  D20InvPhi,  z: -1.0'f32),
+    WallpaperCubePoint(x:  1.0'f32,   y:  0.0'f32,    z: -D20InvPhi),
+    WallpaperCubePoint(x:  1.0'f32,   y:  0.0'f32,    z:  D20InvPhi),
+    WallpaperCubePoint(x: -1.0'f32,   y:  0.0'f32,    z: -D20InvPhi),
+    WallpaperCubePoint(x: -1.0'f32,   y:  0.0'f32,    z:  D20InvPhi)
+  ]
+  ## Standard indexed icosahedron face list (12 verts / 20 tri faces / 30
+  ## edges, Euler check: 12 - 30 + 20 = 2).
+  D20Faces: array[20, array[3, int]] = [
+    [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
+    [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+    [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
+    [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]
+  ]
+  ## Face -> die value, indexed the same as D20Faces. A regular icosahedron is
+  ## centrally symmetric (face i's antipode is another face in this list), so
+  ## values are assigned in antipodal pairs summing to 21, exactly like a real
+  ## D20 (and this skin's own Lucky Die, whose pips sum to 7 on opposite faces).
+  D20FaceNumbers: array[20, int] = [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 18, 19, 20, 16, 12, 11, 15, 14, 13
+  ]
+  D20Edges: array[30, array[2, int]] = [
+    [0, 11], [5, 11], [0, 5],  [1, 5],  [0, 1],  [1, 7],  [0, 7],  [7, 10], [0, 10], [10, 11],
+    [5, 9],  [1, 9],  [4, 11], [4, 5],  [2, 10], [2, 11], [6, 7],  [6, 10], [1, 8],  [7, 8],
+    [3, 9],  [4, 9],  [3, 4],  [2, 4],  [2, 3],  [2, 6],  [3, 6],  [6, 8],  [3, 8],  [8, 9]
+  ]
+  ## For each entry in D20Edges, the two faces from D20Faces that share it.
+  ## Lets the edge pass draw each edge exactly once: visible if either adjacent
+  ## face is front-facing (silhouette edges included, pure back-face edges skipped).
+  D20EdgeFaces: array[30, array[2, int]] = [
+    [0, 4],  [0, 6],  [0, 1],  [1, 5],  [1, 2],  [2, 9],  [2, 3],  [3, 8],  [3, 4],  [4, 7],
+    [5, 15], [5, 19], [6, 16], [6, 15], [7, 17], [7, 16], [8, 18], [8, 17], [9, 19], [9, 18],
+    [10, 14],[10, 15],[10, 11],[11, 16],[11, 12],[12, 17],[12, 13],[13, 18],[13, 14],[14, 19]
+  ]
+
+type
+  D20Face = object
+    corners: array[3, int]
+    idx: int
+    depth: float32
+    nx, ny, nz: float32
+    color: Color
+
+proc drawD20WallpaperCube(centerX, centerY, size, time,
+                          angleX, angleY, angleZ: float32, skinData: CubeSkinData) =
+  ## Dragon's Fang: a real icosahedron standing in for the wallpaper cube, not
+  ## a paint job on the cube's 8-vert/6-face geometry. Reuses the cube's point
+  ## rotate/project helpers (shape-agnostic) but needs its own face/edge
+  ## tables and a painter's-algorithm sort sized for 20 faces instead of 6.
+  var rotated: array[12, WallpaperCubePoint]
+  var projected: array[12, Vector2]
+  for i in 0 ..< 12:
+    rotated[i] = rotateWallpaperCubePoint(D20Verts[i], angleX, angleY, angleZ)
+    projected[i] = projectWallpaperCubePoint(rotated[i], centerX, centerY, size)
+
+  var faces: array[20, D20Face]
+  for i in 0 ..< 20:
+    var avgZ = 0.0'f32
+    var nX = 0.0'f32
+    var nY = 0.0'f32
+    var nZ = 0.0'f32
+    for corner in D20Faces[i]:
+      avgZ += rotated[corner].z
+      nX += D20Verts[corner].x
+      nY += D20Verts[corner].y
+      nZ += D20Verts[corner].z
+    avgZ /= 3.0'f32
+    # A facet's averaged corners point the same way as its outward normal (true
+    # for any face of any solid centred at the origin) but, unlike the cube's
+    # axis-aligned faces, aren't already unit length, normalise before using
+    # this as a light direction.
+    let nLen = sqrt(nX * nX + nY * nY + nZ * nZ)
+    if nLen > 0.0001'f32:
+      nX /= nLen; nY /= nLen; nZ /= nLen
+    let light = clamp((nX * LightDirX + nY * LightDirY + nZ * LightDirZ) * 0.5'f32 + 0.5'f32,
+                      0.0'f32, 1.0'f32)
+    # Opaque, like the Lucky Die: a real gemstone, not cube glass. The base
+    # colour is near-black, so lean on the edge colour (gold) for the lit
+    # facets rather than a flat multiply, or the shading would barely show.
+    let baseC = skinData.faceColor
+    let hiC = skinData.edgeColor
+    faces[i] = D20Face(
+      corners: D20Faces[i],
+      idx: i,
+      depth: avgZ,
+      nx: nX, ny: nY, nz: nZ,
+      color: Color(
+        r: uint8(clamp(baseC.r.float32 + light * (hiC.r.float32 - baseC.r.float32) * 0.45'f32, 0.0'f32, 255.0'f32)),
+        g: uint8(clamp(baseC.g.float32 + light * (hiC.g.float32 - baseC.g.float32) * 0.45'f32, 0.0'f32, 255.0'f32)),
+        b: uint8(clamp(baseC.b.float32 + light * (hiC.b.float32 - baseC.b.float32) * 0.45'f32, 0.0'f32, 255.0'f32)),
+        a: 255
+      )
+    )
+
+  for pass in 0 ..< faces.len:
+    for i in 0 ..< (faces.len - 1):
+      if faces[i].depth > faces[i + 1].depth:
+        swap(faces[i], faces[i + 1])
+
+  let edgeColor = Color(r: skinData.edgeColor.r, g: skinData.edgeColor.g,
+                        b: skinData.edgeColor.b, a: 230)
+  let innerEdgeColor = Color(r: skinData.glowColor.r, g: skinData.glowColor.g,
+                             b: skinData.glowColor.b, a: 110)
+
+  var isFrontFacingByIdx: array[20, bool]
+  for face in faces:
+    let fn = WallpaperCubePoint(x: face.nx, y: face.ny, z: face.nz)
+    let rn = rotateWallpaperCubePoint(fn, angleX, angleY, angleZ)
+    isFrontFacingByIdx[face.idx] = rn.z > 0.0'f32
+
+  # Edge pass FIRST: the opaque fills drawn below cover all interior edge glow,
+  # leaving only the true silhouette boundary visible. Drawing edges last caused
+  # the 2.4px glow halo to bleed outside the filled area at every face vertex.
+  for i in 0 ..< 30:
+    if isFrontFacingByIdx[D20EdgeFaces[i][0]] or isFrontFacingByIdx[D20EdgeFaces[i][1]]:
+      drawLine(projected[D20Edges[i][0]], projected[D20Edges[i][1]], 2.4'f32, innerEdgeColor)
+      drawLine(projected[D20Edges[i][0]], projected[D20Edges[i][1]], 1.0'f32, edgeColor)
+
+  const SevenSeg: array[10, array[7, bool]] = [
+    [true,  true,  true,  true,  true,  true,  false], # 0: a b c d e f
+    [false, true,  true,  false, false, false, false], # 1: b c
+    [true,  true,  false, true,  true,  false, true ], # 2: a b d e g
+    [true,  true,  true,  true,  false, false, true ], # 3: a b c d g
+    [false, true,  true,  false, false, true,  true ], # 4: b c f g
+    [true,  false, true,  true,  false, true,  true ], # 5: a c d f g
+    [true,  false, true,  true,  true,  true,  true ], # 6: a c d e f g
+    [true,  true,  true,  false, false, false, false], # 7: a b c
+    [true,  true,  true,  true,  true,  true,  true ], # 8: all
+    [true,  true,  true,  true,  false, true,  true ]  # 9: a b c d f g
+  ]
+  const dHw = 0.10'f32
+  const dHh = 0.17'f32
+  const dDc = dHw + 0.025'f32
+
+  # Single painter's-order pass: draw each face's fill then immediately its
+  # numeral, so a nearer face's fill correctly occludes a farther face's
+  # numeral in the overlap region (same principle as the cube skin decorations).
+  for face in faces:
+    drawTriangleBothWindings(projected[face.corners[0]], projected[face.corners[1]],
+                             projected[face.corners[2]], face.color)
+    if not isFrontFacingByIdx[face.idx]:
+      continue
+    let n = WallpaperCubePoint(x: face.nx, y: face.ny, z: face.nz)
+    var refAxis: WallpaperCubePoint
+    if abs(n.y) < 0.5'f32:
+      refAxis = WallpaperCubePoint(x: 0.0'f32, y: -1.0'f32, z: 0.0'f32)
+    else:
+      refAxis = WallpaperCubePoint(x: 0.0'f32, y: 0.0'f32, z: 1.0'f32)
+    let nDotRef = n.x * refAxis.x + n.y * refAxis.y + n.z * refAxis.z
+    var tanUp = WallpaperCubePoint(
+      x: refAxis.x - nDotRef * n.x,
+      y: refAxis.y - nDotRef * n.y,
+      z: refAxis.z - nDotRef * n.z)
+    let tanUpLen = sqrt(tanUp.x * tanUp.x + tanUp.y * tanUp.y + tanUp.z * tanUp.z)
+    tanUp = WallpaperCubePoint(x: tanUp.x / tanUpLen, y: tanUp.y / tanUpLen,
+                               z: tanUp.z / tanUpLen)
+    let right3d = WallpaperCubePoint(
+      x: n.y * tanUp.z - n.z * tanUp.y,
+      y: n.z * tanUp.x - n.x * tanUp.z,
+      z: n.x * tanUp.y - n.y * tanUp.x)
+    let rUp = rotateWallpaperCubePoint(tanUp, angleX, angleY, angleZ)
+    let rRight = rotateWallpaperCubePoint(right3d, angleX, angleY, angleZ)
+    let fc3d = WallpaperCubePoint(
+      x: (rotated[face.corners[0]].x + rotated[face.corners[1]].x + rotated[face.corners[2]].x) / 3.0'f32,
+      y: (rotated[face.corners[0]].y + rotated[face.corners[1]].y + rotated[face.corners[2]].y) / 3.0'f32,
+      z: (rotated[face.corners[0]].z + rotated[face.corners[1]].z + rotated[face.corners[2]].z) / 3.0'f32)
+    let fcScreen = projectWallpaperCubePoint(fc3d, centerX, centerY, size)
+    let rightEnd = projectWallpaperCubePoint(
+      WallpaperCubePoint(x: fc3d.x + rRight.x, y: fc3d.y + rRight.y, z: fc3d.z + rRight.z),
+      centerX, centerY, size)
+    let upEnd = projectWallpaperCubePoint(
+      WallpaperCubePoint(x: fc3d.x + rUp.x, y: fc3d.y + rUp.y, z: fc3d.z + rUp.z),
+      centerX, centerY, size)
+    let sRx = rightEnd.x - fcScreen.x
+    let sRy = rightEnd.y - fcScreen.y
+    let sUx = upEnd.x - fcScreen.x
+    let sUy = upEnd.y - fcScreen.y
+    template fp(u, v: float32): Vector2 =
+      Vector2(x: fcScreen.x + sRx * (u) + sUx * (v),
+              y: fcScreen.y + sRy * (u) + sUy * (v))
+    template drawDigit(digit: int, du, dv, hw, hh: float32) =
+      let seg = SevenSeg[digit]
+      if seg[0]:
+        drawLine(fp(du - hw, dv + hh), fp(du + hw, dv + hh), 2.2'f32, innerEdgeColor)
+        drawLine(fp(du - hw, dv + hh), fp(du + hw, dv + hh), 1.0'f32, edgeColor)
+      if seg[1]:
+        drawLine(fp(du + hw, dv), fp(du + hw, dv + hh), 2.2'f32, innerEdgeColor)
+        drawLine(fp(du + hw, dv), fp(du + hw, dv + hh), 1.0'f32, edgeColor)
+      if seg[2]:
+        drawLine(fp(du + hw, dv - hh), fp(du + hw, dv), 2.2'f32, innerEdgeColor)
+        drawLine(fp(du + hw, dv - hh), fp(du + hw, dv), 1.0'f32, edgeColor)
+      if seg[3]:
+        drawLine(fp(du - hw, dv - hh), fp(du + hw, dv - hh), 2.2'f32, innerEdgeColor)
+        drawLine(fp(du - hw, dv - hh), fp(du + hw, dv - hh), 1.0'f32, edgeColor)
+      if seg[4]:
+        drawLine(fp(du - hw, dv - hh), fp(du - hw, dv), 2.2'f32, innerEdgeColor)
+        drawLine(fp(du - hw, dv - hh), fp(du - hw, dv), 1.0'f32, edgeColor)
+      if seg[5]:
+        drawLine(fp(du - hw, dv), fp(du - hw, dv + hh), 2.2'f32, innerEdgeColor)
+        drawLine(fp(du - hw, dv), fp(du - hw, dv + hh), 1.0'f32, edgeColor)
+      if seg[6]:
+        drawLine(fp(du - hw, dv), fp(du + hw, dv), 2.2'f32, innerEdgeColor)
+        drawLine(fp(du - hw, dv), fp(du + hw, dv), 1.0'f32, edgeColor)
+    let value = D20FaceNumbers[face.idx]
+    if value < 10:
+      drawDigit(value, 0.0'f32, 0.0'f32, dHw, dHh)
+    else:
+      drawDigit(value div 10, -dDc, 0.0'f32, dHw, dHh)
+      drawDigit(value mod 10,  dDc, 0.0'f32, dHw, dHh)
+
 proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
                                    angleX, angleY, angleZ: float32,
                                    skin: CubeSkinType = cskDefault,
@@ -963,6 +1194,28 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
   let cy = centerY
   let pulse = sin(time * 0.72'f32) * 0.5'f32 + 0.5'f32
 
+  drawSoftGlow(cx, cy, size * 2.15'f32,
+               Color(r: 0, g: 210, b: 255, a: uint8(34.0'f32 + pulse * 16.0'f32)), 0.6)
+  drawCircle(Vector2(x: cx, y: cy), size * 1.36'f32,
+             Color(r: 0, g: 180, b: 225, a: 18))
+
+  for i in 0..<5:
+    let orbitAngle = time * (0.18'f32 + i.float32 * 0.018'f32) + i.float32 * PI * 0.42'f32
+    let orbitRadius = size * (1.42'f32 + i.float32 * 0.09'f32)
+    let moteX = cx + cos(orbitAngle) * orbitRadius
+    let moteY = cy + sin(orbitAngle * 0.78'f32) * orbitRadius * 0.28'f32
+    drawCircle(Vector2(x: moteX, y: moteY), 1.3'f32 + i.float32 * 0.12'f32,
+               Color(r: 170, g: 250, b: 255, a: uint8(58 + i * 12)))
+
+  if skin == cskD20:
+    # A D20 is a different solid entirely (12 verts/20 tri faces), not a paint
+    # job on the cube's 8-vert/6-face geometry, hand off to its own renderer
+    # rather than threading icosahedron cases through every branch below that
+    # assumes a 6-faced cube (CubeFaces/CubeEdges, the "last 3 faces are
+    # camera-facing" trick, etc).
+    drawD20WallpaperCube(cx, cy, size, time, angleX, angleY, angleZ, getCubeSkinData(skin))
+    return
+
   var base: array[8, WallpaperCubePoint]
   base[0] = WallpaperCubePoint(x: -1.0, y: -1.0, z: -1.0)
   base[1] = WallpaperCubePoint(x:  1.0, y: -1.0, z: -1.0)
@@ -979,31 +1232,11 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     rotated[i] = rotateWallpaperCubePoint(base[i], angleX, angleY, angleZ)
     projected[i] = projectWallpaperCubePoint(rotated[i], cx, cy, size)
 
-  drawSoftGlow(cx, cy, size * 2.15'f32,
-               Color(r: 0, g: 210, b: 255, a: uint8(34.0'f32 + pulse * 16.0'f32)), 0.6)
-  drawCircle(Vector2(x: cx, y: cy), size * 1.36'f32,
-             Color(r: 0, g: 180, b: 225, a: 18))
-
-  for i in 0..<5:
-    let orbitAngle = time * (0.18'f32 + i.float32 * 0.018'f32) + i.float32 * PI * 0.42'f32
-    let orbitRadius = size * (1.42'f32 + i.float32 * 0.09'f32)
-    let moteX = cx + cos(orbitAngle) * orbitRadius
-    let moteY = cy + sin(orbitAngle * 0.78'f32) * orbitRadius * 0.28'f32
-    drawCircle(Vector2(x: moteX, y: moteY), 1.3'f32 + i.float32 * 0.12'f32,
-               Color(r: 170, g: 250, b: 255, a: uint8(58 + i * 12)))
-
   var faces: array[6, WallpaperCubeFace]
   var useCustomSkin = skin != cskDefault
   var skinDataLocal: CubeSkinData
   if useCustomSkin:
     skinDataLocal = getCubeSkinData(skin)
-
-  # Fixed light in MODEL space: because it rotates with the cube, dotting it with
-  # a face's own (model-space) normal gives a brightness that is constant per face
-  # , the shading is baked onto each side and never tracks the camera.
-  const LightDirX = 0.442'f32
-  const LightDirY = -0.694'f32
-  const LightDirZ = 0.568'f32
 
   for i in 0..<6:
     var avgZ = 0.0'f32
