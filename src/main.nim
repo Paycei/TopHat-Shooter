@@ -1985,6 +1985,7 @@ proc main() =
           if currentGame.player.doubleCoinTimer > 0:
             coinValue *= 2
           currentGame.player.coins += coinValue
+          trackCoinPickup(currentGame, coinValue)
           playSound(stCoinPickup, 0.5)
           spawnExplosionPooled(currentGame.particlePool, currentGame.coins[i].pos.x, currentGame.coins[i].pos.y, Gold, 6)
           currentGame.coins.delete(i)
@@ -2093,7 +2094,9 @@ proc main() =
 
         # Reroll power-ups with R key
         if isKeyPressed(R):
+          let coinsPreReroll = currentGame.player.coins
           if attemptRerollPowerUps(currentGame):
+            recordRerollSpent(coinsPreReroll - currentGame.player.coins)
             markKeyboardUsed(currentGame)
           # If reroll failed (not enough coins), do nothing (could add sound here)
 
@@ -2182,7 +2185,9 @@ proc main() =
                                         width: rerollWidth.float32, height: buttonHeight.float32)
 
             if checkCollisionPointRec(mousePos, rerollRect):
-              discard attemptRerollPowerUps(currentGame)
+              let coinsPreReroll = currentGame.player.coins
+              if attemptRerollPowerUps(currentGame):
+                recordRerollSpent(coinsPreReroll - currentGame.player.coins)
 
         # ESC is intentionally not bound here; only the in-window X button may close
         # this screen without selecting a power-up.

@@ -230,8 +230,7 @@ proc calculateDerivedMetrics*() =
     currentRunStats.resources.coinEfficiency =
       currentRunStats.resources.coinsEarned.float32 / currentRunStats.combat.totalKills.float32
 
-  currentRunStats.resources.coinsAtEnd =
-    currentRunStats.resources.coinsEarned - currentRunStats.resources.coinsSpent
+  currentRunStats.resources.coinsAtEnd = currentRunStats.finalCoins
 
   if currentRunStats.runDuration > 0:
     currentRunStats.movement.averageSpeed =
@@ -474,6 +473,10 @@ proc recordCoinSpent*(amount: int, itemName: string, gameTime: float32) =
     details: itemName,
     position: newVector2f(0, 0)
   ))
+
+proc recordRerollSpent*(amount: int) =
+  if currentRunStats.isNil: return
+  currentRunStats.resources.coinsSpent += amount
 
 proc recordWallPlaced*(gameTime: float32, pos: Vector2f) =
   if currentRunStats.isNil: return

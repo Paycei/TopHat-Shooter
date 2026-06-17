@@ -933,6 +933,9 @@ proc jsonToRunStatistics(j: JsonNode): RunStatistics =
     rogueliteRelics: @[]
   )
 
+  # Recompute coinsAtEnd from the authoritative finalCoins to fix old saves that stored a wrong value
+  result.resources.coinsAtEnd = result.finalCoins
+
   # Parse events
   for event in j["events"]:
     result.events.add(jsonToGameEvent(event))

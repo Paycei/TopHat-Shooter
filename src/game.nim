@@ -6280,6 +6280,7 @@ proc updateGame*(game: var Game, dt: float32) =
         if perfectWaveBonus > 0:
           game.player.coins += perfectWaveBonus
           playSound(stCoinPickup)  # Play coin sound for bonus
+          trackCoinPickup(game, perfectWaveBonus)
           trackPerfectWave()  # Track for statistics
 
         # Wave celebration removed from here - now only happens after boss defeat
@@ -6664,6 +6665,7 @@ proc updateGame*(game: var Game, dt: float32) =
         let comboBonus = addComboKill(game.dopamine.comboSystem, game.dopamine.currentTime)
         if comboBonus > 0:
           game.player.coins += comboBonus
+          trackCoinPickup(game, comboBonus)
           recordCombo(game.dopamine.waveStats, game.dopamine.comboSystem.killCount)
 
         # Track combo statistics for run stats
