@@ -1296,8 +1296,9 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
                     else: Color(r: 0, g: 0, b: 0, a: 0)
     drawMiniCube(Vector2(x: centerX + cos(orbitAngle) * orbitDist,
                          y: previewY + sin(orbitAngle) * orbitDist * 0.72'f32),
-                 6.5'f32, shop.animationTime, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
-                 isD20 = shop.selectedCubeSkin == cskD20)
+                 8.0'f32, shop.animationTime, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
+                 isD20 = shop.selectedCubeSkin == cskD20, skin = shop.selectedCubeSkin,
+                 secretStyle = true)
     drawSecretCardLabels(cubeX, cubeY, cubeEquipped, t("secret_orbital_cube_name"))
   else:
     drawSecretCardLocked(cubeX, cubeY, t("secret_cube_locked_hint"))

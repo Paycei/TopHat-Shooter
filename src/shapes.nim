@@ -2,7 +2,7 @@
 ## Defines available player shapes and rendering functions
 
 import raylib, math
-import types, localization
+import types, localization, cube_skins
 
 type
   ShapeType* = enum
@@ -127,16 +127,23 @@ proc drawCheaterHat*(pos: Vector2f, radius: float32, time: float32,
                             0.65'f32, 8, 1.5'f32, outline)
   drawCircle(Vector2(x: tip.x, y: tip.y), max(2.0'f32, radius * 0.11'f32), shade)
 
+proc drawTriangleBothWindings(a, b, c: Vector2, color: Color) =
+  drawTriangle(a, b, c, color)
+  drawTriangle(a, c, b, color)
+
 proc drawMiniCube*(center: Vector2, size: float32, time: float32,
                    edgeColor, glowColor: Color,
                    heartColor: Color = Color(r: 0, g: 0, b: 0, a: 0),
-                   isD20: bool = false) =
+                   isD20: bool = false,
+                   skin: CubeSkinType = cskDefault,
+                   secretStyle: bool = false) =
   ## Tiny spinning wireframe cube: the desktop cube, pocket-sized. Used by
   ## the orbital-cube secret cosmetic on the player and its shop preview.
   ## When `heartColor` is opaque (the Companion Cube skin) a small Portal-style
-  ## heart is painted on the camera-facing side. When `isD20` is set, the
-  ## wireframe is a true icosahedron instead (no decoration support, same as
-  ## the other special-feature skins at this size).
+  ## heart is painted on the camera-facing side. Decorated cube skins get a
+  ## compact painted-face pass so the tiny cosmetic still reads as its desktop
+  ## skin. `secretStyle` gives the orbital cube a cleaner one-face showcase.
+  ## When `isD20` is set, the wireframe is a true icosahedron instead.
   if isD20:
     const invPhi = 0.6180339887'f32
     const verts = [
@@ -150,6 +157,11 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
       (0, 11), (5, 11), (0, 5), (1, 5), (0, 1), (1, 7), (0, 7), (7, 10), (0, 10), (10, 11),
       (5, 9), (1, 9), (4, 11), (4, 5), (2, 10), (2, 11), (6, 7), (6, 10), (1, 8), (7, 8),
       (3, 9), (4, 9), (3, 4), (2, 4), (2, 3), (2, 6), (3, 6), (6, 8), (3, 8), (8, 9)]
+    const d20Faces = [
+      (0, 11, 5), (0, 5, 1), (0, 1, 7), (0, 7, 10), (0, 10, 11),
+      (1, 5, 9), (5, 11, 4), (11, 10, 2), (10, 7, 6), (7, 1, 8),
+      (3, 9, 4), (3, 4, 2), (3, 2, 6), (3, 6, 8), (3, 8, 9),
+      (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1)]
     let ax = time * 0.9'f32
     let ay = time * 1.4'f32
     let cax = cos(ax)
@@ -157,20 +169,47 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
     let cay = cos(ay)
     let say = sin(ay)
     var pts: array[12, Vector2]
+    var rotZ: array[12, float32]
     for i in 0..<12:
       let (x, y, z) = verts[i]
       let y2 = y * cax - z * sax
       let z2 = y * sax + z * cax
       let x3 = x * cay + z2 * say
+      rotZ[i] = -x * say + z2 * cay
       pts[i] = Vector2(x: center.x + x3 * size, y: center.y + y2 * size)
     drawCircle(center, size * 1.9'f32,
                Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 36))
+    type D20Face = object
+      corners: array[3, int]
+      depth: float32
+    var sortedD20Faces: array[20, D20Face]
+    for i in 0..<d20Faces.len:
+      let face = d20Faces[i]
+      sortedD20Faces[i] = D20Face(
+        corners: [face[0], face[1], face[2]],
+        depth: (rotZ[face[0]] + rotZ[face[1]] + rotZ[face[2]]) / 3.0'f32)
+    for pass in 0..<sortedD20Faces.len:
+      for i in 0..<(sortedD20Faces.len - 1):
+        if sortedD20Faces[i].depth > sortedD20Faces[i + 1].depth:
+          swap(sortedD20Faces[i], sortedD20Faces[i + 1])
+    let d20Data = getCubeSkinData(cskD20)
+    for face in sortedD20Faces:
+      if face.depth <= 0.0'f32:
+        continue
+      let light = clamp(0.72'f32 + face.depth * 0.12'f32, 0.48'f32, 1.0'f32)
+      let fill = Color(
+        r: uint8(clamp(d20Data.faceColor.r.float32 * light, 0.0'f32, 255.0'f32)),
+        g: uint8(clamp(d20Data.faceColor.g.float32 * light, 0.0'f32, 255.0'f32)),
+        b: uint8(clamp(d20Data.faceColor.b.float32 * light, 0.0'f32, 255.0'f32)),
+        a: 248)
+      drawTriangleBothWindings(pts[face.corners[0]], pts[face.corners[1]],
+                               pts[face.corners[2]], fill)
     # Thinner strokes than the cube's: 30 edges packed into the same tiny
     # silhouette would mud together at the cube's edge thickness.
     for e in d20Edges:
-      drawLine(pts[e[0]], pts[e[1]], 2.0'f32,
-               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 110))
-      drawLine(pts[e[0]], pts[e[1]], 0.9'f32, edgeColor)
+      drawLine(pts[e[0]], pts[e[1]], 1.2'f32,
+               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 55))
+      drawLine(pts[e[0]], pts[e[1]], 0.75'f32, edgeColor)
     return
 
   const base = [
@@ -182,6 +221,10 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
     (0, 1), (1, 2), (2, 3), (3, 0),
     (4, 5), (5, 6), (6, 7), (7, 4),
     (0, 4), (1, 5), (2, 6), (3, 7)]
+  const faces = [
+    [0, 1, 2, 3], [4, 5, 6, 7],   # -Z, +Z
+    [0, 3, 7, 4], [1, 2, 6, 5],   # -X, +X
+    [0, 1, 5, 4], [3, 2, 6, 7]]   # -Y, +Y
   let ax = time * 0.9'f32
   let ay = time * 1.4'f32
   let cax = cos(ax)
@@ -196,8 +239,85 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
     let z2 = y * sax + z * cax
     let x3 = x * cay + z2 * say
     pts[i] = Vector2(x: center.x + x3 * size, y: center.y + y2 * size)
-  drawCircle(center, size * 1.9'f32,
-             Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 36))
+  let shellGlow = if skin == cskDefault:
+    Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 36)
+  else:
+    Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 52)
+  drawCircle(center, size * 2.0'f32, shellGlow)
+  drawCircle(center, size * 1.35'f32,
+             Color(r: edgeColor.r, g: edgeColor.g, b: edgeColor.b, a: 18))
+
+  type MiniFace = object
+    corners: array[4, int]
+    depth: float32
+    normalX, normalY, normalZ: float32
+
+  var sortedFaces: array[6, MiniFace]
+  for i in 0..<faces.len:
+    var depth = 0.0'f32
+    var nx = 0.0'f32
+    var ny = 0.0'f32
+    var nz = 0.0'f32
+    for corner in faces[i]:
+      let (x, y, z) = base[corner]
+      let z2 = y * sax + z * cax
+      depth += z2
+      nx += x
+      ny += y
+      nz += z
+    sortedFaces[i] = MiniFace(corners: faces[i], depth: depth * 0.25'f32,
+                              normalX: nx * 0.25'f32,
+                              normalY: ny * 0.25'f32,
+                              normalZ: nz * 0.25'f32)
+
+  for pass in 0..<sortedFaces.len:
+    for i in 0..<(sortedFaces.len - 1):
+      if sortedFaces[i].depth > sortedFaces[i + 1].depth:
+        swap(sortedFaces[i], sortedFaces[i + 1])
+
+  let decoratedSkin = skin in {cskCompanion, cskJack, cskCyber, cskDice}
+  if decoratedSkin:
+    let skinData = getCubeSkinData(skin)
+    if secretStyle:
+      if skin != cskJack:
+        let face = sortedFaces[sortedFaces.high]
+        let light = clamp(0.76'f32 + face.depth * 0.18'f32, 0.58'f32, 1.0'f32)
+        let fill =
+          if skin == cskDice:
+            Color(r: uint8(238.0'f32 * light), g: uint8(239.0'f32 * light),
+                  b: uint8(244.0'f32 * light), a: 255)
+          else:
+            Color(
+              r: uint8(clamp(skinData.faceColor.r.float32 * light, 0.0'f32, 255.0'f32)),
+              g: uint8(clamp(skinData.faceColor.g.float32 * light, 0.0'f32, 255.0'f32)),
+              b: uint8(clamp(skinData.faceColor.b.float32 * light, 0.0'f32, 255.0'f32)),
+              a: if skin == cskCyber: 225'u8 else: 240'u8)
+        drawTriangleBothWindings(pts[face.corners[0]], pts[face.corners[1]],
+                                 pts[face.corners[2]], fill)
+        drawTriangleBothWindings(pts[face.corners[0]], pts[face.corners[2]],
+                                 pts[face.corners[3]], fill)
+    else:
+      for face in sortedFaces:
+        let light = clamp(0.7'f32 + face.depth * 0.16'f32, 0.52'f32, 1.0'f32)
+        let fill =
+          if skin == cskDice:
+            Color(r: uint8(238.0'f32 * light), g: uint8(239.0'f32 * light),
+                  b: uint8(244.0'f32 * light), a: 255)
+          else:
+            Color(
+              r: uint8(clamp(skinData.faceColor.r.float32 * light, 0.0'f32, 255.0'f32)),
+              g: uint8(clamp(skinData.faceColor.g.float32 * light, 0.0'f32, 255.0'f32)),
+              b: uint8(clamp(skinData.faceColor.b.float32 * light, 0.0'f32, 255.0'f32)),
+              a: if skin == cskCyber: 210'u8 else: 238'u8)
+        drawTriangleBothWindings(pts[face.corners[0]], pts[face.corners[1]],
+                                 pts[face.corners[2]], fill)
+        drawTriangleBothWindings(pts[face.corners[0]], pts[face.corners[2]],
+                                 pts[face.corners[3]], fill)
+    # A tiny inner glow gives the orbital cube a more polished, glassy feel.
+    drawCircle(center, size * 0.72'f32,
+               Color(r: skinData.glowColor.r, g: skinData.glowColor.g,
+                     b: skinData.glowColor.b, a: if skin == cskCyber: 28 else: 18))
+
   for e in edges:
     drawLine(pts[e[0]], pts[e[1]], 2.6'f32,
              Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 110))
@@ -209,30 +329,76 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
   # cube. A signed-area back-face cull drops the hidden faces and fades each
   # heart to a point at the silhouette, so the visible/hidden hand-off is
   # seamless rather than popping in and out.
-  if heartColor.a > 0:
-    const faces = [
-      [0, 1, 2, 3], [4, 5, 6, 7],   # -Z, +Z
-      [0, 3, 7, 4], [1, 2, 6, 5],   # -X, +X
-      [0, 1, 5, 4], [3, 2, 6, 7]]   # -Y, +Y
+  if decoratedSkin or heartColor.a > 0:
     # Rotate a cube-space direction and return its orthographic screen offset.
     proc rotProj(x, y, z: float32): Vector2 =
       let y2 = y * cax - z * sax
       let z2 = y * sax + z * cax
       let x3 = x * cay + z2 * say
       Vector2(x: x3 * size, y: y2 * size)
-    for f in faces:
-      # Face normal in cube space is the face centre (cube centred at origin).
-      let nx = (base[f[0]][0] + base[f[1]][0] + base[f[2]][0] + base[f[3]][0]) * 0.25'f32
-      let ny = (base[f[0]][1] + base[f[1]][1] + base[f[2]][1] + base[f[3]][1]) * 0.25'f32
-      let nz = (base[f[0]][2] + base[f[1]][2] + base[f[2]][2] + base[f[3]][2]) * 0.25'f32
-      # Canonical "up": side faces point their hearts toward the top ring; the
-      # top/bottom faces (normal ±Y) fall back to +Z. right = up × normal keeps
-      # a uniform handedness, so a camera-facing face projects to positive area.
-      var ux, uy, uz: float32
-      if abs(ny) < 0.5'f32:
-        ux = 0.0'f32; uy = -1.0'f32; uz = 0.0'f32
-      else:
-        ux = 0.0'f32; uy = 0.0'f32; uz = 1.0'f32
+
+    proc drawJackFace(fcScreen, sR, sU: Vector2) =
+      let candle = Color(r: 255, g: 224, b: 98, a: 255)
+      let ember = Color(r: 255, g: 122, b: 18, a: 120)
+      drawTriangleBothWindings(fcScreen,
+                               Vector2(x: fcScreen.x + sR.x * 0.72'f32,
+                                       y: fcScreen.y + sR.y * 0.72'f32),
+                               Vector2(x: fcScreen.x + sU.x * 0.72'f32,
+                                       y: fcScreen.y + sU.y * 0.72'f32),
+                               ember)
+      drawTriangleBothWindings(fcScreen,
+                               Vector2(x: fcScreen.x + sU.x * 0.72'f32,
+                                       y: fcScreen.y + sU.y * 0.72'f32),
+                               Vector2(x: fcScreen.x - sR.x * 0.72'f32,
+                                       y: fcScreen.y - sR.y * 0.72'f32),
+                               ember)
+      drawTriangleBothWindings(
+        Vector2(x: fcScreen.x - sR.x * 0.35'f32 + sU.x * 0.28'f32,
+                y: fcScreen.y - sR.y * 0.35'f32 + sU.y * 0.28'f32),
+        Vector2(x: fcScreen.x - sR.x * 0.12'f32 + sU.x * 0.28'f32,
+                y: fcScreen.y - sR.y * 0.12'f32 + sU.y * 0.28'f32),
+        Vector2(x: fcScreen.x - sR.x * 0.24'f32 + sU.x * 0.04'f32,
+                y: fcScreen.y - sR.y * 0.24'f32 + sU.y * 0.04'f32),
+        candle)
+      drawTriangleBothWindings(
+        Vector2(x: fcScreen.x + sR.x * 0.12'f32 + sU.x * 0.28'f32,
+                y: fcScreen.y + sR.y * 0.12'f32 + sU.y * 0.28'f32),
+        Vector2(x: fcScreen.x + sR.x * 0.35'f32 + sU.x * 0.28'f32,
+                y: fcScreen.y + sR.y * 0.35'f32 + sU.y * 0.28'f32),
+        Vector2(x: fcScreen.x + sR.x * 0.24'f32 + sU.x * 0.04'f32,
+                y: fcScreen.y + sR.y * 0.24'f32 + sU.y * 0.04'f32),
+        candle)
+      drawTriangleBothWindings(
+        Vector2(x: fcScreen.x - sR.x * 0.08'f32 + sU.x * 0.02'f32,
+                y: fcScreen.y - sR.y * 0.08'f32 + sU.y * 0.02'f32),
+        Vector2(x: fcScreen.x + sR.x * 0.08'f32 + sU.x * 0.02'f32,
+                y: fcScreen.y + sR.y * 0.08'f32 + sU.y * 0.02'f32),
+        Vector2(x: fcScreen.x + sU.x * -0.12'f32,
+                y: fcScreen.y + sU.y * -0.12'f32),
+        candle)
+      drawLine(Vector2(x: fcScreen.x - sR.x * 0.42'f32 - sU.x * 0.27'f32,
+                       y: fcScreen.y - sR.y * 0.42'f32 - sU.y * 0.27'f32),
+               Vector2(x: fcScreen.x - sR.x * 0.14'f32 - sU.x * 0.38'f32,
+                       y: fcScreen.y - sR.y * 0.14'f32 - sU.y * 0.38'f32),
+               2.0'f32, candle)
+      drawLine(Vector2(x: fcScreen.x - sR.x * 0.14'f32 - sU.x * 0.38'f32,
+                       y: fcScreen.y - sR.y * 0.14'f32 - sU.y * 0.38'f32),
+               Vector2(x: fcScreen.x + sR.x * 0.14'f32 - sU.x * 0.38'f32,
+                       y: fcScreen.y + sR.y * 0.14'f32 - sU.y * 0.38'f32),
+               2.0'f32, candle)
+      drawLine(Vector2(x: fcScreen.x + sR.x * 0.14'f32 - sU.x * 0.38'f32,
+                       y: fcScreen.y + sR.y * 0.14'f32 - sU.y * 0.38'f32),
+               Vector2(x: fcScreen.x + sR.x * 0.42'f32 - sU.x * 0.27'f32,
+                       y: fcScreen.y + sR.y * 0.42'f32 - sU.y * 0.27'f32),
+               2.0'f32, candle)
+
+    if secretStyle and skin == cskJack:
+      let nx = 0.0'f32
+      let ny = 0.0'f32
+      let nz = 1.0'f32
+      let ux = 0.0'f32
+      let uy = -1.0'f32
+      let uz = 0.0'f32
       let rx = uy * nz - uz * ny
       let ry = uz * nx - ux * nz
       let rz = ux * ny - uy * nx
@@ -240,39 +406,109 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
       let fcScreen = Vector2(x: center.x + fc.x, y: center.y + fc.y)
       let sR = rotProj(rx, ry, rz)
       let sU = rotProj(ux, uy, uz)
-      # Back-face cull: a camera-facing face has positive signed screen area,
-      # which also shrinks to zero at the silhouette (heart fades to a point).
-      if sR.x * sU.y - sR.y * sU.x <= 0.0'f32:
-        continue
-      # Light recessed disc behind the heart (a circle in the face plane).
-      let discColor = Color(r: 222, g: 224, b: 229, a: 255)
-      var prevDisc = Vector2(x: fcScreen.x + sR.x * 0.55'f32, y: fcScreen.y + sR.y * 0.55'f32)
-      for i in 1 .. 12:
-        let a = i.float32 / 12.0'f32 * PI * 2.0'f32
-        let dx = cos(a) * 0.55'f32
-        let dy = sin(a) * 0.55'f32
-        let cur = Vector2(x: fcScreen.x + sR.x * dx + sU.x * dy,
-                          y: fcScreen.y + sR.y * dx + sU.y * dy)
-        drawTriangle(fcScreen, prevDisc, cur, discColor)
-        drawTriangle(fcScreen, cur, prevDisc, discColor)
-        prevDisc = cur
-      # Classic parametric heart: width along the face's right axis, height
-      # along its up axis (negated so the point sits toward the bottom edge).
-      var prevHeart = Vector2()
-      var first = true
-      for i in 0 .. 24:
-        let t = i.float32 / 24.0'f32 * PI * 2.0'f32
-        let hx = 0.34'f32 * (16.0'f32 * pow(sin(t), 3.0'f32)) / 17.0'f32
-        let yc = (13.0'f32 * cos(t) - 5.0'f32 * cos(2.0'f32 * t) -
-                  2.0'f32 * cos(3.0'f32 * t) - cos(4.0'f32 * t)) / 17.0'f32
-        let hy = (-yc - 0.15'f32) * 0.34'f32
-        let cur = Vector2(x: fcScreen.x + sR.x * hx - sU.x * hy,
-                          y: fcScreen.y + sR.y * hx - sU.y * hy)
-        if not first:
-          drawTriangle(fcScreen, prevHeart, cur, heartColor)
-          drawTriangle(fcScreen, cur, prevHeart, heartColor)
-        prevHeart = cur
-        first = false
+      drawJackFace(fcScreen, sR, sU)
+    else:
+      for face in sortedFaces:
+        # Face normal in cube space is the face centre (cube centred at origin).
+        let nx = face.normalX
+        let ny = face.normalY
+        let nz = face.normalZ
+        # Canonical "up": side faces point their hearts toward the top ring; the
+        # top/bottom faces (normal ±Y) fall back to +Z. right = up × normal keeps
+        # a uniform handedness, so a camera-facing face projects to positive area.
+        var ux, uy, uz: float32
+        if abs(ny) < 0.5'f32:
+          ux = 0.0'f32; uy = -1.0'f32; uz = 0.0'f32
+        else:
+          ux = 0.0'f32; uy = 0.0'f32; uz = 1.0'f32
+        let rx = uy * nz - uz * ny
+        let ry = uz * nx - ux * nz
+        let rz = ux * ny - uy * nx
+        let fc = rotProj(nx, ny, nz)
+        let fcScreen = Vector2(x: center.x + fc.x, y: center.y + fc.y)
+        let sR = rotProj(rx, ry, rz)
+        let sU = rotProj(ux, uy, uz)
+        # Back-face cull: a camera-facing face has positive signed screen area,
+        # which also shrinks to zero at the silhouette (heart fades to a point).
+        if skin != cskJack and sR.x * sU.y - sR.y * sU.x <= 0.0'f32:
+          continue
+
+        template fp(u, v: float32): Vector2 =
+          Vector2(x: fcScreen.x + sR.x * (u) + sU.x * (v),
+                  y: fcScreen.y + sR.y * (u) + sU.y * (v))
+
+        if skin == cskJack:
+          drawJackFace(fcScreen, sR, sU)
+          continue
+
+        if skin == cskCyber:
+          let cyan = Color(r: 80, g: 245, b: 255, a: 235)
+          let mag = Color(r: 255, g: 60, b: 200, a: 235)
+          let p = 0.56'f32
+          let frame = [fp(-p, -p), fp(p, -p), fp(p, p), fp(-p, p)]
+          for k in 0..3:
+            drawLine(frame[k], frame[(k + 1) mod 4], 2.0'f32,
+                     Color(r: 80, g: 245, b: 255, a: 65))
+            drawLine(frame[k], frame[(k + 1) mod 4], 0.9'f32, cyan)
+          drawLine(fp(-0.42'f32, -0.16'f32), fp(0.42'f32, -0.16'f32), 0.8'f32, cyan)
+          drawLine(fp(-0.34'f32, 0.12'f32), fp(0.34'f32, 0.12'f32), 0.8'f32, cyan)
+          drawCircle(fcScreen, max(1.0'f32, size * 0.18'f32), mag)
+          continue
+
+        if skin == cskDice:
+          let pip =
+            if nx > 0.5'f32: 2
+            elif nx < -0.5'f32: 5
+            elif ny > 0.5'f32: 3
+            elif ny < -0.5'f32: 4
+            elif nz > 0.5'f32: 1
+            else: 6
+          const d = 0.30'f32
+          var spots: seq[(float32, float32)]
+          case pip
+          of 1: spots = @[(0.0'f32, 0.0'f32)]
+          of 2: spots = @[(-d, -d), (d, d)]
+          of 3: spots = @[(-d, -d), (0.0'f32, 0.0'f32), (d, d)]
+          of 4: spots = @[(-d, -d), (d, -d), (-d, d), (d, d)]
+          of 5: spots = @[(-d, -d), (d, -d), (0.0'f32, 0.0'f32), (-d, d), (d, d)]
+          else: spots = @[(-d, -d), (d, -d), (-d, 0.0'f32), (d, 0.0'f32), (-d, d), (d, d)]
+          let pipColor = Color(r: 26, g: 26, b: 32, a: 255)
+          for spot in spots:
+            drawCircle(fp(spot[0], spot[1]), max(1.0'f32, size * 0.13'f32), pipColor)
+          continue
+
+        if heartColor.a == 0:
+          continue
+
+        # Light recessed disc behind the heart (a circle in the face plane).
+        let discColor = Color(r: 222, g: 224, b: 229, a: 255)
+        var prevDisc = Vector2(x: fcScreen.x + sR.x * 0.55'f32, y: fcScreen.y + sR.y * 0.55'f32)
+        for i in 1 .. 12:
+          let a = i.float32 / 12.0'f32 * PI * 2.0'f32
+          let dx = cos(a) * 0.55'f32
+          let dy = sin(a) * 0.55'f32
+          let cur = Vector2(x: fcScreen.x + sR.x * dx + sU.x * dy,
+                            y: fcScreen.y + sR.y * dx + sU.y * dy)
+          drawTriangle(fcScreen, prevDisc, cur, discColor)
+          drawTriangle(fcScreen, cur, prevDisc, discColor)
+          prevDisc = cur
+        # Classic parametric heart: width along the face's right axis, height
+        # along its up axis (negated so the point sits toward the bottom edge).
+        var prevHeart = Vector2()
+        var first = true
+        for i in 0 .. 24:
+          let t = i.float32 / 24.0'f32 * PI * 2.0'f32
+          let hx = 0.34'f32 * (16.0'f32 * pow(sin(t), 3.0'f32)) / 17.0'f32
+          let yc = (13.0'f32 * cos(t) - 5.0'f32 * cos(2.0'f32 * t) -
+                    2.0'f32 * cos(3.0'f32 * t) - cos(4.0'f32 * t)) / 17.0'f32
+          let hy = (-yc - 0.15'f32) * 0.34'f32
+          let cur = Vector2(x: fcScreen.x + sR.x * hx - sU.x * hy,
+                            y: fcScreen.y + sR.y * hx - sU.y * hy)
+          if not first:
+            drawTriangle(fcScreen, prevHeart, cur, heartColor)
+            drawTriangle(fcScreen, cur, prevHeart, heartColor)
+          prevHeart = cur
+          first = false
 
 proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
                      baseColor, secondaryColor, coreColor: Color,

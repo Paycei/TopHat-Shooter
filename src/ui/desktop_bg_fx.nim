@@ -922,6 +922,57 @@ proc drawRune(cx, cy, r: float32, col: Color) =
   drawLine(Vector2(x: cx, y: cy - r * 1.35'f32), Vector2(x: cx, y: cy + r * 1.35'f32),
           1.2'f32, col)
 
+proc drawDragonGameCard(cx, cy, cw, ch: float32, accent, ink: Color) =
+  ## A fantasy ability card resting on the table. Kept axis-aligned because the
+  ## effect also renders in small shop cards where rotated text/rects get muddy.
+  let shadow = Color(r: 0, g: 0, b: 0, a: 100)
+  let paper = Color(r: 229, g: 203, b: 146, a: 245)
+  let edge = Color(r: 84, g: 48, b: 24, a: 245)
+  drawRectangle(int32(cx - cw * 0.5'f32 + 3.0'f32), int32(cy - ch * 0.5'f32 + 4.0'f32),
+                cw.int32, ch.int32, shadow)
+  drawRectangle(int32(cx - cw * 0.5'f32 - 1.0'f32), int32(cy - ch * 0.5'f32 - 1.0'f32),
+                int32(cw + 2.0'f32), int32(ch + 2.0'f32), edge)
+  drawRectangle(int32(cx - cw * 0.5'f32), int32(cy - ch * 0.5'f32), cw.int32, ch.int32, paper)
+  drawRectangleLines(int32(cx - cw * 0.41'f32), int32(cy - ch * 0.39'f32),
+                     int32(cw * 0.82'f32), int32(ch * 0.78'f32), withAlpha(edge, 150'u8))
+  drawRune(cx, cy - ch * 0.12'f32, min(cw, ch) * 0.18'f32, accent)
+  drawLine(Vector2(x: cx - cw * 0.28'f32, y: cy + ch * 0.18'f32),
+           Vector2(x: cx + cw * 0.28'f32, y: cy + ch * 0.18'f32), 1.0'f32, ink)
+  drawLine(Vector2(x: cx - cw * 0.22'f32, y: cy + ch * 0.28'f32),
+           Vector2(x: cx + cw * 0.22'f32, y: cy + ch * 0.28'f32), 1.0'f32, withAlpha(ink, 150'u8))
+
+proc drawDragonToken(cx, cy, r, time, seed: float32, base, rim: Color) =
+  ## A chunky cardboard/wood token, top-lit and stamped with a tiny rune.
+  let bob = sin(time * 0.7'f32 + seed) * r * 0.05'f32
+  drawEllipse(cx.int32, int32(cy + bob + r * 0.22'f32), r * 1.02'f32, r * 0.34'f32,
+              Color(r: 0, g: 0, b: 0, a: 85))
+  drawCircle(Vector2(x: cx, y: cy + bob), r, base)
+  drawCircleLines(cx.int32, int32(cy + bob), r, rim)
+  drawCircle(Vector2(x: cx - r * 0.20'f32, y: cy + bob - r * 0.22'f32),
+             r * 0.34'f32, withAlpha(Color(r: 255, g: 236, b: 170, a: 255), 34'u8))
+  drawRune(cx, cy + bob, r * 0.36'f32, withAlpha(rim, 170'u8))
+
+proc drawDragonMini(cx, cy, s: float32, body, rim, ember: Color) =
+  ## A tiny dragon/monster meeple silhouette for the table edge.
+  drawEllipse(cx.int32, int32(cy + s * 0.34'f32), s * 0.42'f32, s * 0.16'f32,
+              Color(r: 0, g: 0, b: 0, a: 80))
+  drawCircle(Vector2(x: cx, y: cy), s * 0.32'f32, body)
+  drawCircle(Vector2(x: cx + s * 0.34'f32, y: cy - s * 0.12'f32), s * 0.18'f32, body)
+  drawTri2(Vector2(x: cx - s * 0.08'f32, y: cy - s * 0.12'f32),
+           Vector2(x: cx - s * 0.58'f32, y: cy - s * 0.42'f32),
+           Vector2(x: cx - s * 0.28'f32, y: cy + s * 0.04'f32), withAlpha(body, 230'u8))
+  drawTri2(Vector2(x: cx + s * 0.08'f32, y: cy - s * 0.12'f32),
+           Vector2(x: cx + s * 0.48'f32, y: cy - s * 0.48'f32),
+           Vector2(x: cx + s * 0.36'f32, y: cy + s * 0.02'f32), withAlpha(body, 230'u8))
+  drawTri2(Vector2(x: cx + s * 0.42'f32, y: cy - s * 0.24'f32),
+           Vector2(x: cx + s * 0.62'f32, y: cy - s * 0.34'f32),
+           Vector2(x: cx + s * 0.50'f32, y: cy - s * 0.12'f32), rim)
+  drawCircle(Vector2(x: cx + s * 0.40'f32, y: cy - s * 0.16'f32), max(0.8'f32, s * 0.035'f32), ember)
+
+proc drawHexMapCell(cx, cy, r: float32, fill, line: Color) =
+  drawPoly(Vector2(x: cx, y: cy), 6, r, 30.0'f32, fill)
+  drawPolyLines(Vector2(x: cx, y: cy), 6, r, 30.0'f32, line)
+
 proc edgeX(localX, w, side: float32): float32 =
   ## Folds a coordinate measured inward from a screen edge to actual screen x:
   ## side<0 anchors to the left edge, side>0 mirrors the same plan to the right.
@@ -1055,48 +1106,148 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
               withAlpha(ember, alphaU8(140.0'f32 * (1.0'f32 - ePhase))))
 
 proc drawDragonFx(w, h, time: float32) =
-  ## Dragon's Lair: the dark, rune-etched cover of an ancient grimoire. A
-  ## near-opaque black wash mutes the default OS grid to a whisper, gold
-  ## filigree frames the edges, ward-runes flicker in and out, embers drift
-  ## up from the lair below, and a black dragon coils up each side of the
-  ## screen with wings mantled and an ember eye watching the desktop.
+  ## Dragon's Lair: now a fantasy tabletop game setup instead of only a
+  ## grimoire cover. A plank table, parchment battle map, dungeon markings,
+  ## character sheets, tokens, and tiny dragon minis sit under warm tavern
+  ## light, with the full-size dragons guarding the board edges.
   let gold = Color(r: 205, g: 160, b: 60, a: 255)
   let ember = Color(r: 200, g: 40, b: 20, a: 255)
   let hide = Color(r: 20, g: 17, b: 22, a: 255)
+  let wood = Color(r: 69, g: 37, b: 18, a: 255)
+  let woodHi = Color(r: 114, g: 68, b: 34, a: 210)
+  let parchment = Color(r: 191, g: 157, b: 96, a: 248)
+  let parchmentHi = Color(r: 229, g: 202, b: 139, a: 235)
+  let ink = Color(r: 76, g: 49, b: 28, a: 185)
   let s = min(w, h)
+  let tcx = w * 0.64'f32
+  let tcy = h * 0.46'f32
+  let mapW = s * 1.02'f32
+  let mapH = s * 0.70'f32
+  let mapX = tcx - mapW * 0.5'f32
+  let mapY = tcy - mapH * 0.5'f32
 
-  # 1. Deepen the frame toward black so the shared grid/stars read as only a
-  # faint glimmer behind the cover art.
-  drawRectangle(0, 0, w.int32, h.int32, Color(r: 4, g: 3, b: 4, a: 205))
+  # 1. Tavern-dark room with a warm pool of light over the board.
+  drawRectangleGradientV(0, 0, w.int32, h.int32,
+                         Color(r: 18, g: 10, b: 8, a: 232),
+                         Color(r: 3, g: 3, b: 4, a: 246))
+  drawSoftGlow(tcx, tcy - mapH * 0.35'f32, mapW * 0.78'f32,
+               Color(r: 255, g: 198, b: 105, a: 28), 0.7)
 
-  # 2. Gold filigree border, like tooling on a leather grimoire cover: a
-  # double inset line plus diamond flourishes at the corners and the
-  # midpoint of each edge.
-  let inset = s * 0.022'f32
-  drawRectangleLines(inset.int32, inset.int32, int32(w - inset * 2.0'f32),
-                     int32(h - inset * 2.0'f32), withAlpha(gold, 130'u8))
-  let inset2 = inset + s * 0.008'f32
-  drawRectangleLines(inset2.int32, inset2.int32, int32(w - inset2 * 2.0'f32),
-                     int32(h - inset2 * 2.0'f32), withAlpha(gold, 70'u8))
-  let flourishR = s * 0.012'f32
-  for fcx in [0.0'f32, 0.5'f32, 1.0'f32]:
-    for fcy in [0.0'f32, 0.5'f32, 1.0'f32]:
-      if fcx == 0.5'f32 and fcy == 0.5'f32: continue
-      drawRune(inset + fcx * (w - inset * 2.0'f32), inset + fcy * (h - inset * 2.0'f32),
-              flourishR, withAlpha(gold, 110'u8))
+  # 2. Wooden planks under everything, so the scene reads as a real campaign
+  # table instead of a casino table or magical book cover.
+  drawRectangle(0, 0, w.int32, h.int32, Color(r: 42, g: 23, b: 13, a: 205))
+  let plankH = max(24.0'f32, s * 0.085'f32)
+  var plankY = -plankH * 0.5'f32
+  var plankIndex = 0
+  while plankY < h + plankH:
+    let f = if (plankIndex and 1) == 0: 0.0'f32 else: 1.0'f32
+    let plankCol = mixCol(wood, woodHi, 0.18'f32 + f * 0.12'f32)
+    drawRectangle(0, plankY.int32, w.int32, int32(plankH + 2.0'f32), plankCol)
+    drawLine(Vector2(x: 0.0'f32, y: plankY), Vector2(x: w, y: plankY),
+             1.2'f32, Color(r: 24, g: 12, b: 7, a: 150))
+    for knot in 0 ..< 3:
+      let seed = plankIndex.float32 * 9.7'f32 + knot.float32 * 18.1'f32
+      let kx = hash01(seed) * w
+      let ky = plankY + plankH * (0.25'f32 + hash01(seed + 1.0'f32) * 0.5'f32)
+      drawEllipse(kx.int32, ky.int32, s * 0.014'f32, s * 0.005'f32,
+                  Color(r: 28, g: 14, b: 8, a: 95))
+    plankY += plankH
+    plankIndex += 1
 
-  # 3. Ward-runes flickering in and out across the cover, each on its own slow cycle.
-  for r in 0 ..< 7:
+  # 3. Parchment battle map with uneven corner folds and a warm central wash.
+  drawRectangle(int32(mapX + s * 0.018'f32), int32(mapY + s * 0.022'f32),
+                mapW.int32, mapH.int32, Color(r: 0, g: 0, b: 0, a: 112))
+  drawRectangle(mapX.int32, mapY.int32, mapW.int32, mapH.int32, parchment)
+  drawRectangleGradientV(mapX.int32, mapY.int32, mapW.int32, mapH.int32,
+                         parchmentHi, parchment)
+  drawRectangleLines(mapX.int32, mapY.int32, mapW.int32, mapH.int32,
+                     Color(r: 93, g: 55, b: 25, a: 210))
+  drawRectangleLines(int32(mapX + s * 0.014'f32), int32(mapY + s * 0.014'f32),
+                     int32(mapW - s * 0.028'f32), int32(mapH - s * 0.028'f32),
+                     Color(r: 115, g: 74, b: 33, a: 125))
+  let fold = s * 0.055'f32
+  drawTri2(Vector2(x: mapX, y: mapY), Vector2(x: mapX + fold, y: mapY),
+           Vector2(x: mapX, y: mapY + fold), Color(r: 162, g: 126, b: 75, a: 230))
+  drawTri2(Vector2(x: mapX + mapW, y: mapY + mapH),
+           Vector2(x: mapX + mapW - fold, y: mapY + mapH),
+           Vector2(x: mapX + mapW, y: mapY + mapH - fold),
+           Color(r: 161, g: 121, b: 70, a: 220))
+  drawSoftGlow(tcx, tcy - mapH * 0.10'f32, mapW * 0.36'f32,
+               Color(r: 255, g: 231, b: 162, a: 20), 0.68)
+
+  # 4. Hex battle map and dungeon-room strokes. The centre remains readable
+  # under the die, but the surrounding marks say "encounter map".
+  let hexR = s * 0.031'f32
+  for row in -3 .. 3:
+    for col in -4 .. 4:
+      let hx = tcx + col.float32 * hexR * 1.52'f32 + (if (row and 1) == 0: 0.0'f32 else: hexR * 0.76'f32)
+      let hy = tcy + row.float32 * hexR * 1.28'f32
+      if hx > mapX + hexR and hx < mapX + mapW - hexR and
+         hy > mapY + hexR and hy < mapY + mapH - hexR:
+        let fill = if (row + col) mod 3 == 0:
+                     Color(r: 108, g: 74, b: 38, a: 24)
+                   else:
+                     Color(r: 0, g: 0, b: 0, a: 0)
+        drawHexMapCell(hx, hy, hexR, fill, withAlpha(ink, 55'u8))
+  let roomCol = Color(r: 73, g: 43, b: 23, a: 145)
+  drawRectangleLines(int32(tcx - s * 0.31'f32), int32(tcy - s * 0.18'f32),
+                     int32(s * 0.22'f32), int32(s * 0.16'f32), roomCol)
+  drawRectangleLines(int32(tcx + s * 0.12'f32), int32(tcy + s * 0.03'f32),
+                     int32(s * 0.26'f32), int32(s * 0.18'f32), roomCol)
+  drawLine(Vector2(x: tcx - s * 0.09'f32, y: tcy - s * 0.10'f32),
+           Vector2(x: tcx + s * 0.12'f32, y: tcy + s * 0.09'f32), 1.2'f32, roomCol)
+  drawLine(Vector2(x: tcx - s * 0.02'f32, y: tcy + s * 0.15'f32),
+           Vector2(x: tcx + s * 0.25'f32, y: tcy + s * 0.15'f32), 1.2'f32, roomCol)
+  drawRune(tcx - mapW * 0.36'f32, tcy - mapH * 0.29'f32, s * 0.021'f32,
+           withAlpha(ember, 130'u8))
+  drawRune(tcx + mapW * 0.35'f32, tcy + mapH * 0.27'f32, s * 0.018'f32,
+           withAlpha(gold, 120'u8))
+
+  # 5. Character sheets, spell cards, tokens, and minis around the clear centre.
+  let cardW = s * 0.074'f32
+  let cardH = s * 0.112'f32
+  drawDragonGameCard(mapX + mapW * 0.13'f32, mapY + mapH * 0.76'f32, cardW, cardH,
+                     withAlpha(ember, 215'u8), Color(r: 65, g: 36, b: 20, a: 190))
+  drawDragonGameCard(mapX + mapW * 0.22'f32, mapY + mapH * 0.82'f32, cardW, cardH,
+                     withAlpha(gold, 220'u8), Color(r: 65, g: 36, b: 20, a: 170))
+  drawDragonGameCard(mapX + mapW * 0.84'f32, mapY + mapH * 0.19'f32, cardW, cardH,
+                     withAlpha(gold, 210'u8), Color(r: 65, g: 36, b: 20, a: 170))
+  drawRectangle(int32(mapX + mapW * 0.73'f32), int32(mapY + mapH * 0.70'f32),
+                int32(s * 0.18'f32), int32(s * 0.12'f32),
+                Color(r: 229, g: 203, b: 146, a: 230))
+  drawRectangleLines(int32(mapX + mapW * 0.73'f32), int32(mapY + mapH * 0.70'f32),
+                     int32(s * 0.18'f32), int32(s * 0.12'f32), withAlpha(ink, 170'u8))
+  for line in 0 ..< 4:
+    let ly = mapY + mapH * 0.73'f32 + line.float32 * s * 0.022'f32
+    drawLine(Vector2(x: mapX + mapW * 0.75'f32, y: ly),
+             Vector2(x: mapX + mapW * 0.88'f32, y: ly), 1.0'f32, withAlpha(ink, 115'u8))
+
+  for tok in 0 ..< 5:
+    let seed = tok.float32 * 12.7'f32 + 4.0'f32
+    let tx = mapX + mapW * (0.30'f32 + tok.float32 * 0.08'f32)
+    let ty = mapY + mapH * 0.19'f32 + sin(tok.float32) * s * 0.014'f32
+    let base = if tok mod 2 == 0:
+                 Color(r: 112, g: 25, b: 22, a: 245)
+               else:
+                 Color(r: 40, g: 52, b: 42, a: 245)
+    drawDragonToken(tx, ty, s * 0.018'f32, time, seed, base, withAlpha(gold, 220'u8))
+  drawDragonMini(mapX + mapW * 0.68'f32, mapY + mapH * 0.67'f32, s * 0.052'f32, hide, gold, ember)
+  drawDragonMini(mapX + mapW * 0.82'f32, mapY + mapH * 0.56'f32, s * 0.040'f32, hide, gold, ember)
+
+  # 6. Ward-runes flickering like active board spaces.
+  for r in 0 ..< 8:
     let seed = r.float32 * 19.3'f32 + 2.0'f32
     let cycle = 5.0'f32 + hash01(seed) * 4.0'f32
     let ph = fract01(time / cycle + hash01(seed + 4.0'f32))
     let vis = sin(ph * PI)
     if vis <= 0.03'f32: continue
-    let rx = (0.12'f32 + hash01(seed + 1.0'f32) * 0.76'f32) * w
-    let ry = (0.12'f32 + hash01(seed + 2.0'f32) * 0.76'f32) * h
-    drawRune(rx, ry, s * 0.014'f32, withAlpha(gold, alphaU8(150.0'f32 * vis)))
+    let ang = hash01(seed + 1.0'f32) * PI * 2.0'f32
+    let rr = 0.18'f32 + hash01(seed + 2.0'f32) * 0.46'f32
+    let rx = tcx + cos(ang) * mapW * rr
+    let ry = tcy + sin(ang) * mapH * rr
+    drawRune(rx, ry, s * 0.013'f32, withAlpha(gold, alphaU8(120.0'f32 * vis)))
 
-  # 4. Lair embers drifting up from below, sparse and slow.
+  # 7. Lair embers drifting up from below, sparse and slow.
   for e in 0 ..< 16:
     let seed = e.float32 * 9.1'f32
     let span = h * 1.1'f32
@@ -1107,9 +1258,20 @@ proc drawDragonFx(w, h, time: float32) =
     drawCircle(Vector2(x: ex, y: ey), s * (0.0025'f32 + hash01(seed + 3.0'f32) * 0.003'f32),
               withAlpha(ember, alphaU8(60.0'f32 * fade)))
 
-  # 5. Twin black dragons coiled up either edge, mirrored.
+  # 7. Twin black dragons coiled up either edge, mirrored.
   drawDragonSilhouette(w, h, time, -1.0'f32, hide, gold, ember)
   drawDragonSilhouette(w, h, time, 1.0'f32, hide, gold, ember)
+
+  # 8. Soft vignette keeps focus on the tabletop and makes the dragons feel
+  # like they are leaning in from the room around the game.
+  let clear = Color(r: 0, g: 0, b: 0, a: 0)
+  let edge = Color(r: 0, g: 0, b: 0, a: 125)
+  let vw = w * 0.18'f32
+  let vh = h * 0.18'f32
+  drawRectangleGradientH(0, 0, vw.int32, h.int32, edge, clear)
+  drawRectangleGradientH(int32(w - vw), 0, vw.int32, h.int32, clear, edge)
+  drawRectangleGradientV(0, 0, w.int32, vh.int32, edge, clear)
+  drawRectangleGradientV(0, int32(h - vh), w.int32, vh.int32, clear, edge)
 
 # Dispatcher
 

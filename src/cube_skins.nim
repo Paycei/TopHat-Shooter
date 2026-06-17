@@ -78,7 +78,7 @@ proc initCubeSkins*() =
     glowColor: Color(r: 244, g: 130, b: 160, a: 180))
 
   # Jack-O'-Node: a pumpkin-orange gourd; the carved face glows like candlelight
-  # (the carved features are drawn in os_desktop's wallpaper-cube renderer).
+  # (the carved features are drawn on one fixed side in os_desktop's wallpaper-cube renderer).
   cubeSkinDatabase[cskJack] = CubeSkinData(
     name: t("csk_jack"), description: t("csk_jack_desc"),
     faceColor: Color(r: 235, g: 110, b: 15,  a: 255),

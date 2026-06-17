@@ -1237,6 +1237,30 @@ proc drawD20WallpaperCube(centerX, centerY, size, time,
                              projected[face.corners[2]], face.color)
     if not isFrontFacingByIdx[face.idx]:
       continue
+    let fc3d = WallpaperCubePoint(
+      x: (rotated[face.corners[0]].x + rotated[face.corners[1]].x + rotated[face.corners[2]].x) / 3.0'f32,
+      y: (rotated[face.corners[0]].y + rotated[face.corners[1]].y + rotated[face.corners[2]].y) / 3.0'f32,
+      z: (rotated[face.corners[0]].z + rotated[face.corners[1]].z + rotated[face.corners[2]].z) / 3.0'f32)
+    let fcScreen = projectWallpaperCubePoint(fc3d, centerX, centerY, size)
+
+    # Inset triangular bevels and a dark cartouche make the D20 read as an
+    # engraved tabletop die rather than flat numbered facets.
+    let insetA = Vector2(
+      x: projected[face.corners[0]].x * 0.82'f32 + fcScreen.x * 0.18'f32,
+      y: projected[face.corners[0]].y * 0.82'f32 + fcScreen.y * 0.18'f32)
+    let insetB = Vector2(
+      x: projected[face.corners[1]].x * 0.82'f32 + fcScreen.x * 0.18'f32,
+      y: projected[face.corners[1]].y * 0.82'f32 + fcScreen.y * 0.18'f32)
+    let insetC = Vector2(
+      x: projected[face.corners[2]].x * 0.82'f32 + fcScreen.x * 0.18'f32,
+      y: projected[face.corners[2]].y * 0.82'f32 + fcScreen.y * 0.18'f32)
+    drawLine(insetA, insetB, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
+    drawLine(insetB, insetC, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
+    drawLine(insetC, insetA, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
+    drawLine(insetA, insetB, 0.55'f32, withAlpha(edgeColor, 185'u8))
+    drawLine(insetB, insetC, 0.55'f32, withAlpha(edgeColor, 185'u8))
+    drawLine(insetC, insetA, 0.55'f32, withAlpha(edgeColor, 185'u8))
+
     let n = WallpaperCubePoint(x: face.nx, y: face.ny, z: face.nz)
     var refAxis: WallpaperCubePoint
     if abs(n.y) < 0.5'f32:
@@ -1257,11 +1281,6 @@ proc drawD20WallpaperCube(centerX, centerY, size, time,
       z: n.x * tanUp.y - n.y * tanUp.x)
     let rUp = rotateWallpaperCubePoint(tanUp, angleX, angleY, angleZ)
     let rRight = rotateWallpaperCubePoint(right3d, angleX, angleY, angleZ)
-    let fc3d = WallpaperCubePoint(
-      x: (rotated[face.corners[0]].x + rotated[face.corners[1]].x + rotated[face.corners[2]].x) / 3.0'f32,
-      y: (rotated[face.corners[0]].y + rotated[face.corners[1]].y + rotated[face.corners[2]].y) / 3.0'f32,
-      z: (rotated[face.corners[0]].z + rotated[face.corners[1]].z + rotated[face.corners[2]].z) / 3.0'f32)
-    let fcScreen = projectWallpaperCubePoint(fc3d, centerX, centerY, size)
     let rightEnd = projectWallpaperCubePoint(
       WallpaperCubePoint(x: fc3d.x + rRight.x, y: fc3d.y + rRight.y, z: fc3d.z + rRight.z),
       centerX, centerY, size)
@@ -1275,6 +1294,15 @@ proc drawD20WallpaperCube(centerX, centerY, size, time,
     template fp(u, v: float32): Vector2 =
       Vector2(x: fcScreen.x + sRx * (u) + sUx * (v),
               y: fcScreen.y + sRy * (u) + sUy * (v))
+    const CartSeg = 18
+    let cartR = if D20FaceNumbers[face.idx] < 10: 0.31'f32 else: 0.42'f32
+    var prevCart = fp(cartR, 0.0'f32)
+    for c in 1 .. CartSeg:
+      let ang = c.float32 / CartSeg.float32 * PI * 2.0'f32
+      let curCart = fp(cos(ang) * cartR, sin(ang) * cartR * 0.76'f32)
+      drawTriangleBothWindings(fcScreen, prevCart, curCart, Color(r: 5, g: 4, b: 6, a: 82))
+      drawLine(prevCart, curCart, 0.65'f32, withAlpha(edgeColor, 115'u8))
+      prevCart = curCart
     template drawDigit(digit: int, du, dv, hw, hh: float32) =
       let seg = SevenSeg[digit]
       if seg[0]:
@@ -1455,15 +1483,18 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     drawLine(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
 
   # Companion Cube skin: the Weighted Companion Cube look, a soft-pink heart
-  # on a light disc at the center of every visible face. Faces were depth-sorted above, so the last three are the
-  # camera-facing ones; each heart is drawn in its face's projected basis so
-  # it foreshortens and tracks the face as the cube tumbles.
+  # on a light disc at the center of every visible face. Faces were depth-sorted
+  # above, so the last three are the camera-facing ones; each decoration is
+  # drawn in its face's projected basis so it foreshortens and tracks the face
+  # as the cube tumbles.
   if skin == cskCompanion or skin == cskJack or skin == cskCyber or skin == cskDice:
-    for fi in 3 .. 5:
-      let c0 = faces[fi].corners[0]
-      let c1 = faces[fi].corners[1]
-      let c2 = faces[fi].corners[2]
-      let c3 = faces[fi].corners[3]
+    let firstFace = if skin == cskJack: 1 else: 3
+    let lastFace = if skin == cskJack: 1 else: 5
+    for fi in firstFace .. lastFace:
+      let c0 = (if skin == cskJack: CubeFaces[fi][0] else: faces[fi].corners[0])
+      let c1 = (if skin == cskJack: CubeFaces[fi][1] else: faces[fi].corners[1])
+      let c2 = (if skin == cskJack: CubeFaces[fi][2] else: faces[fi].corners[2])
+      let c3 = (if skin == cskJack: CubeFaces[fi][3] else: faces[fi].corners[3])
       # Build a *canonical* tangent frame for the heart instead of reading it
       # off the face's corner winding (which differs per face, so the hearts
       # used to point every which way). The face normal in cube space is just
@@ -1510,17 +1541,14 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
       let sUx = upEnd.x - fcScreen.x
       let sUy = upEnd.y - fcScreen.y
 
-      # Back-face cull. The cube body is translucent, so a heart on a face that
-      # has turned away would bleed through. With this right-handed tangent
-      # frame a camera-facing face projects to a positive screen area and a
-      # back face to negative, so we only draw the positive (visible) ones. The
-      # area also shrinks to zero at the silhouette, so the heart fades to a
-      # point there and the visible/hidden hand-off stays seamless.
-      if sRx * sUy - sRy * sUx <= 0.0'f32:
+      # Back-face cull. The cube body is translucent, so most skins only draw on
+      # the camera-facing side. Jack is intentionally exempt so the carved face
+      # still reads through the cube when that side rotates away.
+      if skin != cskJack and sRx * sUy - sRy * sUx <= 0.0'f32:
         continue
 
       if skin == cskJack:
-        # Jack-O'-Node: carve a glowing face into each visible side. Features are
+        # Jack-O'-Node: carve a glowing face into one fixed side. Features are
         # laid out in the face-local (right, up) basis so they foreshorten and
         # ride the cube as it tumbles, exactly like the Companion heart.
         template fp(u, v: float32): Vector2 =
