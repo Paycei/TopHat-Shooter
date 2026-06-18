@@ -1,6 +1,13 @@
 import raylib, math
 import types
 
+const LOOT_MARGIN* = 50.0  # Distance from screen edge
+
+proc clampLootPosition*(x, y: float32, screenWidth, screenHeight: int32): tuple[x, y: float32] =
+  ## Clamps a position to be within screen bounds with margin
+  result.x = clamp(x, LOOT_MARGIN, screenWidth.float32 - LOOT_MARGIN)
+  result.y = clamp(y, LOOT_MARGIN, screenHeight.float32 - LOOT_MARGIN)
+
 proc newCoin*(x, y: float32, value: int = 1, isBoss: bool = false): Coin =
   # Scale coin radius based on value for visual feedback
   # Cap scaling at value 10 to prevent coins from becoming too large

@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, tables, strutils, algorithm
-import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, particle_types, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints, anticheat
+import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_skins, particle_types, effects, powerup, powerup_data, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/icon_drawing, ui/ui_constants, boss_weakpoints, anticheat, fx, ui/warnings
 
 # Configurable boss wave enemy spawn reduction
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
@@ -865,14 +865,11 @@ proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
   drawCircleLines(pos.x.int32, pos.y.int32, config.radius,
                  Color(r: br, g: bg, b: bb, a: 220))
 
-# CONFIGURABLE: Loot boundary margins (how far from edge loot can spawn)
-const LOOT_MARGIN = 50.0  # Distance from screen edge
-
-proc clampLootPosition(x, y: float32, screenWidth, screenHeight: int32): tuple[x, y: float32] =
-  ## Clamps a position to be within screen bounds with margin
-  ## Used to push loot spawned out-of-bounds back into playable area
-  result.x = clamp(x, LOOT_MARGIN, screenWidth.float32 - LOOT_MARGIN)
-  result.y = clamp(y, LOOT_MARGIN, screenHeight.float32 - LOOT_MARGIN)
+# Loot helpers moved to src/loot.nim (forwarding stub kept for compatibility)
+proc clampLootPosition*(x, y: float32, screenWidth, screenHeight: int32): tuple[x, y: float32] =
+  let r = coin.clampLootPosition(x, y, screenWidth, screenHeight)
+  result.x = r.x
+  result.y = r.y
 
 proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   ## Applies elite damage modifiers (tank reduction, shield absorption) and boss defense multiplier
@@ -1224,74 +1221,15 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
 
 # COMMON HELPER FUNCTIONS FOR POWER-UP CALCULATIONS
 
-# LIGHTNING BOLT VISUALS
-const LIGHTNING_BOLT_DURATION* = 0.18'f32  # seconds the arc stays visible
-const LIGHTNING_SEGMENTS      = 8          # number of jagged waypoints
-
+# Lightning visuals moved to src/fx.nim (forwarding stubs kept)
 proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2f) =
-  ## Spawn a short-lived jagged lightning arc between two world positions.
-  ## Uses the deterministic particle-pool RNG via rand, so no extra state needed.
-  let dx = toPos.x - fromPos.x
-  let dy = toPos.y - fromPos.y
-  let len = sqrt(dx * dx + dy * dy)
-  if len < 1.0: return
-
-  # Perpendicular unit vector for jag offsets
-  let px = -dy / len
-  let py =  dx / len
-
-  # Jag amplitude: ~15% of total length, decreasing toward endpoints
-  let ampBase = len * 0.15'f32
-
-  var segs: seq[Vector2f] = @[fromPos]
-  for i in 1..<LIGHTNING_SEGMENTS:
-    let t = float32(i) / float32(LIGHTNING_SEGMENTS)
-    # Linear interpolation base point
-    let bx = fromPos.x + dx * t
-    let by = fromPos.y + dy * t
-    # Random jag perpendicular: envelope tapers at both ends
-    let env   = 1.0'f32 - abs(t * 2.0'f32 - 1.0'f32)
-    let jag   = (rand(1.0) * 2.0 - 1.0).float32 * ampBase * env
-    segs.add(newVector2f(bx + px * jag, by + py * jag))
-  segs.add(toPos)
-
-  game.lightningBolts.add(LightningBolt(
-    startPos:    fromPos,
-    endPos:      toPos,
-    lifetime:    LIGHTNING_BOLT_DURATION,
-    maxLifetime: LIGHTNING_BOLT_DURATION,
-    segments:    segs
-  ))
+  fx.spawnLightningBoltInto(game.lightningBolts, fromPos, toPos)
 
 proc updateLightningBolts*(game: var Game, dt: float32) =
-  var i = 0
-  while i < game.lightningBolts.len:
-    game.lightningBolts[i].lifetime -= dt
-    if game.lightningBolts[i].lifetime <= 0:
-      game.lightningBolts.delete(i)
-    else:
-      inc i
+  fx.updateLightningBolts(game.lightningBolts, dt)
 
 proc drawLightningBolts*(game: Game) =
-  for bolt in game.lightningBolts:
-    let alpha = uint8(clamp(bolt.lifetime / bolt.maxLifetime * 255.0, 0.0, 255.0))
-    # Bright core (white-yellow)
-    let coreColor  = Color(r: 255, g: 255, b: 200, a: alpha)
-    # Wider glow (pale blue)
-    let glowColor  = Color(r: 140, g: 200, b: 255, a: uint8(alpha.int * 60 div 255))
-
-    for i in 0..<bolt.segments.len - 1:
-      let a = bolt.segments[i]
-      let b = bolt.segments[i + 1]
-      let ax = a.x.int32;  let ay = a.y.int32
-      let bx = b.x.int32;  let by = b.y.int32
-      # Glow pass (drawn first, wider conceptually: draw offset copies)
-      drawLine(ax - 1, ay,     bx - 1, by,     glowColor)
-      drawLine(ax + 1, ay,     bx + 1, by,     glowColor)
-      drawLine(ax,     ay - 1, bx,     by - 1, glowColor)
-      drawLine(ax,     ay + 1, bx,     by + 1, glowColor)
-      # Core pass
-      drawLine(ax, ay, bx, by, coreColor)
+  fx.drawLightningBolts(game.lightningBolts)
 
 proc getAuraRadius*(level: int): float32 =
   ## Standard aura radius based on level (used by most aura effects)
@@ -3201,149 +3139,14 @@ proc pointSegmentDistance(p, a, b: Vector2f): float32 =
   let dy = p.y - (a.y + aby * t)
   sqrt(dx * dx + dy * dy)
 
-proc spawnThunderstrike(game: var Game, enemy: Enemy, attack: BossAttack,
-                        phase: BossPhaseDefinition) =
-  ## THUNDERSTRIKE: telegraphed ground lightning strikes. One strike leads the
-  ## player's movement (so standing still is unsafe); the rest scatter but keep
-  ## clear of the player's current spot, so the attack is always dodgeable.
-  let count  = max(1, attack.projectileCount)
-  let radius = if attack.durationOrRadius > 0: attack.durationOrRadius else: 70.0'f32
-  let dmg    = attack.damage * phase.damageMultiplier
-  let total  = TeslaStrikeTelegraph + TeslaStrikeActive
-  let w = game.screenWidth.float32
-  let h = game.screenHeight.float32
+proc spawnThunderstrike*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  warnings.spawnThunderstrikeInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-  # Predictive strike: lead the player's velocity across the telegraph window.
-  var predicted = game.player.pos + game.player.vel * (TeslaStrikeTelegraph * 0.7'f32)
-  predicted.x = clamp(predicted.x, radius, w - radius)
-  predicted.y = clamp(predicted.y, radius, h - radius)
+proc spawnArcLattice*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  warnings.spawnArcLatticeInto(game.attackWarnings, game.particlePool, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-  var positions = @[predicted]
-  let minDist = radius + game.player.radius + 80.0'f32
-  for k in 1 ..< count:
-    var p = predicted
-    var tries = 0
-    while tries < 12:
-      p = newVector2f(radius + rand(w - radius * 2.0),
-                      radius + rand(h - radius * 2.0))
-      inc tries
-      if distance(p, game.player.pos) >= minDist: break
-    positions.add(p)
-
-  for p in positions:
-    game.attackWarnings.add(AttackWarning(
-      pos: p, targetPos: p,
-      attackType: "tesla_strike",
-      lifetime: total, maxLifetime: total,
-      sourceEnemyId: enemy.id,
-      laserAngles: @[],
-      bulletRadius: radius,
-      bulletDamage: dmg,
-      bulletsCreated: false,   # reused flag: "strike has fired"
-      lasersCreated: false     # reused flag: "player already hit by this strike"
-    ))
-
-  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                       Color(r: 255, g: 255, b: 150, a: 255), 16)
-
-proc spawnArcLattice(game: var Game, enemy: Enemy, attack: BossAttack,
-                     phase: BossPhaseDefinition) =
-  ## ARC LATTICE: lightning beams radiate from the boss in every direction
-  ## except one telegraphed "safe wedge". Dodge by moving into the wedge or by
-  ## backing off into the widening gaps between beams - the easier, more mobile
-  ## counterpart to the positional THUNDERSTRIKE. More beams -> tighter fan.
-  let beams = clamp(attack.projectileCount, 6, 16)
-  let dmg   = attack.damage * phase.damageMultiplier
-  let total = ArcBeamTelegraph + ArcBeamActive
-  let w = game.screenWidth.float32
-  let h = game.screenHeight.float32
-  let thick = if attack.durationOrRadius > 0: attack.durationOrRadius else: 16.0'f32
-  let cx = enemy.pos.x
-  let cy = enemy.pos.y
-  let reach = sqrt(w * w + h * h)            # always span to the far corner
-  let gapStart = rand(beams - 1)             # first beam index of the safe wedge
-  let gapSize = max(2, beams div 5)          # skip this many adjacent beams
-
-  for k in 0 ..< beams:
-    # A beam is skipped if its index falls in the (wrapping) safe wedge.
-    var inGap = false
-    for g in 0 ..< gapSize:
-      if (gapStart + g) mod beams == k: inGap = true
-    if inGap: continue
-    let ang = k.float32 * (PI * 2.0) / beams.float32
-    game.attackWarnings.add(AttackWarning(
-      pos: newVector2f(cx, cy),
-      targetPos: newVector2f(cx + cos(ang) * reach, cy + sin(ang) * reach),
-      attackType: "arc_beam", lifetime: total, maxLifetime: total,
-      sourceEnemyId: enemy.id, laserAngles: @[],
-      laserLength: thick, bulletDamage: dmg,
-      bulletsCreated: false, lasersCreated: false))
-
-  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                       Color(r: 255, g: 255, b: 150, a: 255), 16)
-
-proc addBossAttackWarning(game: var Game, enemy: Enemy, attack: BossAttack) =
-  ## Emits a short visual pre-fire warning for a boss attack.
-  ## Called ~0.45 s before the attack actually fires.
-  ## No-ops for types that already manage their own deferred-warning objects.
-  const WARNING_DURATION = 0.45'f32
-
-  # The telegraphed-electricity attacks build their own long-lived warnings.
-  if attack.specialData in ["thunderstrike", "arc_lattice"]:
-    return
-
-  # These types build their own AttackWarning objects with deferred execution
-  if attack.attackType in [bapLaser, bapTeleport, bapMeteor]:
-    return
-
-  let warningType = case attack.attackType
-    of bapDash:    "boss_dash"
-    of bapBurst:   "boss_burst"
-    of bapCircle:  "boss_circle"
-    of bapSpiral:  "boss_spiral"
-    of bapBarrage: "boss_barrage"
-    of bapPulse:   "boss_pulse"
-    of bapChain:   "boss_chain"
-    of bapWave:    "boss_wave"
-    of bapSummon:  "boss_summon"
-    of bapSnipe:   "laser_pointer"
-    else:          return  # bapTargeted, bapOrbit, no pre-warning
-
-  # For dash attacks, targetPos is the actual landing spot (origin + dir x dashDist)
-  # so the arrow in the warning covers the true path the boss will travel.
-  # All other attacks just lock onto the player's current position.
-  let warningTargetPos =
-    if attack.attackType == bapDash:
-      let toPlayer = game.player.pos - enemy.pos
-      let d = sqrt(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y)
-      let dir = if d > 0.01: newVector2f(toPlayer.x / d, toPlayer.y / d)
-                else: newVector2f(1.0'f32, 0.0'f32)
-      let dashDist = case attack.specialData
-        of "charge_attack": 350.0'f32
-        of "double_charge": 300.0'f32
-        of "rage_charge":   280.0'f32
-        else:               350.0'f32
-      newVector2f(enemy.pos.x + dir.x * dashDist, enemy.pos.y + dir.y * dashDist)
-    else:
-      game.player.pos
-
-  if attack.attackType == bapDash:
-    enemy.pendingDashLocked = true
-    enemy.pendingDashStart = enemy.pos
-    enemy.pendingDashTarget = warningTargetPos
-    enemy.vel = newVector2f(0, 0)
-
-  game.attackWarnings.add(AttackWarning(
-    pos:                  if attack.attackType == bapDash: enemy.pendingDashStart else: enemy.pos,
-    attackType:           warningType,
-    lifetime:             WARNING_DURATION,
-    maxLifetime:          WARNING_DURATION,
-    sourceEnemyId:        enemy.id,
-    laserAngles:          @[],
-    targetPos:            warningTargetPos,
-    bulletsCreated:       false,
-    isBossTeleportTarget: false
-  ))
+proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) =
+  warnings.addBossAttackWarningInto(game.attackWarnings, game.player, enemy, attack)
 
 proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
   ## Executes a single boss attack based on its pattern type
@@ -8523,102 +8326,15 @@ proc updateGame*(game: var Game, dt: float32) =
       game.walls.delete(i)
       continue
 
-    # Wall Turrets power-up - walls shoot at enemies (3 levels)
-    if hasPowerUp(game.player, puWallTurrets):
-      let turretLevel = getPowerUpLevel(game.player, puWallTurrets)
-      let turretCooldown = if turretLevel >= 2: 1.0 else: 1.5
-      let turretRange    = case turretLevel
-        of 1: 350.0
-        of 2: 425.0
-        else: 500.0
-      game.walls[i].shootTimer -= dt
-      if game.walls[i].shootTimer <= 0:
-        # Find nearest enemy
-        var nearestEnemy: Enemy = nil
-        var nearestDist = 999999.0
-        for enemy in game.enemies:
-          let dist = distance(game.walls[i].pos, enemy.pos)
-          if dist < nearestDist and dist < turretRange:
-            nearestDist = dist
-            nearestEnemy = enemy
-
-        # Shoot at nearest enemy
-        if nearestEnemy != nil:
-          let direction = (nearestEnemy.pos - game.walls[i].pos).normalize()
-
-          # Calculate turret damage based on WallMaster level and player damage scaling
-          var turretDamage = 1.0
-          if hasPowerUp(game.player, puWallMaster):
-            let fortifyLevel = getPowerUpLevel(game.player, puWallMaster)
-            turretDamage = case fortifyLevel
-              of 1: 1.5  # +50% damage
-              of 2: 2.0  # +100% damage
-              else: 3.0  # +200% damage
-
-          # Add damage scaling from player damage
-          let damageScaling = game.player.damage * 0.3
-          turretDamage += damageScaling
-
-          # Determine how many shots to fire (level 3 = twin shot)
-          let shotCount = if turretLevel >= 3: 2 else: 1
-
-          for _ in 0..<shotCount:
-            game.bullets.add(newBullet(
-              x = game.walls[i].pos.x,
-              y = game.walls[i].pos.y,
-              direction = direction,
-              speed = 350.0,
-              damage = turretDamage,
-              fromPlayer = true,  # Count as player damage for scoring
-              isHoming = false,
-              isPiercing = false,
-              isExplosive = false,
-              hasBounce = false,
-              canSplit = false,
-              slowAmount = 0.0,
-              poisonDuration = 0.0,
-              fireDuration = 0.0,
-              windPushForce = 0.0,
-              bulletSkin = game.player.bulletSkinType,
-              bulletShape = game.player.bulletShapeType,
-              isFromWallTurret = true
-            ))
-
-          # Visual feedback
-          spawnExplosionPooled(game.particlePool, game.walls[i].pos.x, game.walls[i].pos.y,
-                        Color(r: 255, g: 200, b: 100, a: 255), 8)
-
-          game.walls[i].shootTimer = turretCooldown
+    # Process turret behavior now in wall module
+    processWallTurret(game.walls[i], game.enemies, game.bullets, game.player, game.particlePool, dt,
+                      game.screenWidth, game.screenHeight)
 
     i += 1
 
-  # Re-form smashed boss-room obstacles once their delay elapses. The re-add is
-  # held off while the player or the boss is standing on the spot, so a wall
-  # never traps the player or instantly re-breaks against the boss (flickering).
-  i = 0
-  while i < game.pendingWallRespawns.len:
-    game.pendingWallRespawns[i].timer -= dt
-    if game.pendingWallRespawns[i].timer <= 0:
-      let spot = game.pendingWallRespawns[i]
-      var blocked = distance(game.player.pos, spot.pos) < spot.radius + game.player.radius + 8
-      if not blocked:
-        for enemy in game.enemies:
-          if enemy.isBoss and distance(enemy.pos, spot.pos) < spot.radius + enemy.radius:
-            blocked = true
-            break
-      if blocked:
-        game.pendingWallRespawns[i].timer = 0.4'f32  # retry shortly
-        i += 1
-      else:
-        game.walls.add(Wall(
-          pos: spot.pos, radius: spot.radius,
-          hp: spot.maxHp, maxHp: spot.maxHp,
-          duration: 1.0, permanent: true, respawns: true,
-          obstacleTint: spot.tint))
-        spawnExplosionPooled(game.particlePool, spot.pos.x, spot.pos.y, spot.tint, 12)
-        game.pendingWallRespawns.delete(i)
-    else:
-      i += 1
+  # Process pending wall respawns
+  processPendingWallRespawns(game.pendingWallRespawns, game.walls, game.enemies, game.player, game.particlePool, dt)
+
 
   # Update particles
   updateParticlePool(game.particlePool, dt)

@@ -1,5 +1,5 @@
 import raylib
-import types, powerup
+import types, powerup, bullet, particle_pool
 
 proc newWall*(x, y: float32, player: Player): Wall =
   # Calculate HP based on WallMaster powerup
@@ -116,3 +116,95 @@ proc isValidWallPlacement*(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall],
       return false
 
   return true
+
+proc processWallTurret*(wall: var Wall, enemies: seq[Enemy], bullets: var seq[Bullet],
+                        player: Player, particlePool: ParticlePool, dt: float32,
+                        screenWidth: int32, screenHeight: int32) =
+  # Handles turret cooldown, target selection and bullet spawn for a single wall
+  if not hasPowerUp(player, puWallTurrets):
+    return
+
+  let turretLevel = getPowerUpLevel(player, puWallTurrets)
+  let turretCooldown = if turretLevel >= 2: 1.0 else: 1.5
+  let turretRange = case turretLevel
+    of 1: 350.0
+    of 2: 425.0
+    else: 500.0
+
+  wall.shootTimer -= dt
+  if wall.shootTimer <= 0:
+    var nearestEnemy: Enemy = nil
+    var nearestDist = 999999.0
+    for e in enemies:
+      let dist = distance(wall.pos, e.pos)
+      if dist < nearestDist and dist < turretRange:
+        nearestDist = dist
+        nearestEnemy = e
+
+    if nearestEnemy != nil:
+      let direction = (nearestEnemy.pos - wall.pos).normalize()
+
+      var turretDamage = 1.0
+      if hasPowerUp(player, puWallMaster):
+        let fortifyLevel = getPowerUpLevel(player, puWallMaster)
+        turretDamage = case fortifyLevel
+          of 1: 1.5
+          of 2: 2.0
+          else: 3.0
+
+      let damageScaling = player.damage * 0.3
+      turretDamage += damageScaling
+
+      let shotCount = if turretLevel >= 3: 2 else: 1
+      for _ in 0..<shotCount:
+        bullets.add(newBullet(
+          x = wall.pos.x,
+          y = wall.pos.y,
+          direction = direction,
+          speed = 350.0,
+          damage = turretDamage,
+          fromPlayer = true,
+          isHoming = false,
+          isPiercing = false,
+          isExplosive = false,
+          hasBounce = false,
+          canSplit = false,
+          slowAmount = 0.0,
+          poisonDuration = 0.0,
+          fireDuration = 0.0,
+          windPushForce = 0.0,
+          bulletSkin = player.bulletSkinType,
+          bulletShape = player.bulletShapeType,
+          isFromWallTurret = true
+        ))
+
+      spawnExplosionPooled(particlePool, wall.pos.x, wall.pos.y, Color(r: 255, g: 200, b: 100, a: 255), 8)
+      wall.shootTimer = turretCooldown
+
+proc processPendingWallRespawns*(pending: var seq[PendingWallRespawn], walls: var seq[Wall],
+                                enemies: seq[Enemy], player: Player, particlePool: ParticlePool,
+                                dt: float32) =
+  var i = 0
+  while i < pending.len:
+    pending[i].timer -= dt
+    if pending[i].timer <= 0:
+      let spot = pending[i]
+      var blocked = distance(player.pos, spot.pos) < spot.radius + player.radius + 8
+      if not blocked:
+        for enemy in enemies:
+          if enemy.isBoss and distance(enemy.pos, spot.pos) < spot.radius + enemy.radius:
+            blocked = true
+            break
+      if blocked:
+        pending[i].timer = 0.4'f32
+        inc i
+      else:
+        walls.add(Wall(
+          pos: spot.pos, radius: spot.radius,
+          hp: spot.maxHp, maxHp: spot.maxHp,
+          duration: 1.0, permanent: true, respawns: true,
+          obstacleTint: spot.tint))
+        spawnExplosionPooled(particlePool, spot.pos.x, spot.pos.y, spot.tint, 12)
+        pending.delete(i)
+    else:
+      inc i
