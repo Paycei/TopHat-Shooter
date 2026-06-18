@@ -1,5 +1,5 @@
 import json, os, random, strutils
-import types, save_system, powerup, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins
+import types, settings, save_system, powerup, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins, anticheat
 
 const
   RogueliteProfileVersion* = 4
@@ -566,6 +566,10 @@ proc completeRogueliteBoss*(game: Game) =
     game.rogueliteProfile.bestEndlessLoop = max(game.rogueliteProfile.bestEndlessLoop,
                                                 run.endlessLoop)
     discard commitRogueliteRunProgress(game, false)
+    # Unlock Survival mode on a legitimate roguelite victory
+    if runIsLegit(game) and not globalSettings.isNil and not globalSettings.survivalUnlocked:
+      globalSettings.survivalUnlocked = true
+      discard saveSettings(globalSettings)
     run.endlessLoop += 1
     run.floorNumber = 1
     run.usedThemes = {}

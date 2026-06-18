@@ -33,6 +33,10 @@ type
     title*: string
     minimized*: bool
 
+  DesktopToast* = object
+    text*: string
+    timer*: float32
+
   OSDesktop* = ref object
     icons*: seq[DesktopIcon]
     selectedIcon*: int
@@ -86,9 +90,8 @@ type
     # Kernel Panic + Jack-O'-Node: fast spinning fans the candle (0..1 glow boost)
     # instead of breaking orbit; decays back when the player stops spinning.
     cubeJackGlow*: float32
-    # Transient OS-style toast (e.g. advancement unlocked)
-    toastText*: string
-    toastTimer*: float32
+    # Transient OS-style toasts (stacked)
+    toasts*: seq[DesktopToast]
 
 var
   activeDesktop*: OSDesktop = nil
@@ -97,6 +100,7 @@ const
   ICON_SIZE = 64
   ICON_SPACING = 100
   TASKBAR_HEIGHT = 40
+  MAX_DESKTOP_TOASTS* = 5
   DESKTOP_GRID_START_X = 80
   DESKTOP_GRID_START_Y = 80
   ICON_LABEL_WIDTH = 88
@@ -221,9 +225,10 @@ proc newOSDesktop*(): OSDesktop =
     cubeDiceSpinY: 0.0,
     cubeDiceSpinZ: 0.0,
     cubeJackGlow: 0.0,
-    toastText: "",
-    toastTimer: 0.0
+    toasts: @[]
   )
+
+proc showDesktopToast*(desktop: OSDesktop, text: string)
 
 proc diceTargetQuat(face: int): (float32, float32, float32, float32) =
   ## Quaternion (w,x,y,z) that turns the die so the given `face` value points at
@@ -532,8 +537,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
             desktop.cubeDiceSpinZ = 0.0'f32
             desktop.cubeEscaping = false
             desktop.cubeDiceResultTimer = 3.5'f32
-            desktop.toastText = "Rolled a " & $desktop.cubeDiceResult & "!"
-            desktop.toastTimer = 5.0'f32
+            showDesktopToast(desktop, "Rolled a " & $desktop.cubeDiceResult & "!")
     elif desktop.cubePortalMode:
       # Portal-background escape: cube flies into entry portal, teleports to exit,
       # then smoothly returns to orbit.
@@ -656,9 +660,15 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
           desktop.cubeEscapeDirX = dirX / dirLen
           desktop.cubeEscapeDirY = -0.55'f32 / dirLen
 
-  # Tick down the desktop toast
-  if desktop.toastTimer > 0.0'f32:
-    desktop.toastTimer = max(0.0'f32, desktop.toastTimer - dt)
+  # Tick down desktop toasts and remove expired entries
+  if desktop.toasts.len > 0:
+    var newToasts: seq[DesktopToast] = @[]
+    for t in desktop.toasts:
+      var nt = t
+      nt.timer = max(0.0'f32, nt.timer - dt)
+      if nt.timer > 0.0'f32:
+        newToasts.add(nt)
+    desktop.toasts = newToasts
 
   # Tick down the big dice-result number
   if desktop.cubeDiceResultTimer > 0.0'f32:
@@ -963,6 +973,35 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     drawLine(Vector2(x: starX - 5, y: starY), Vector2(x: starX + 5, y: starY), 2, bright)
     drawLine(Vector2(x: starX, y: starY - 5), Vector2(x: starX, y: starY + 5), 2, bright)
     drawCircle(Vector2(x: starX, y: starY), 1.5, White)
+  # Locked overlay for modes that are gated by progression
+  var isLocked = false
+  case icon.iconType
+  of diRoguelite:
+    if globalSettings.isNil or not globalSettings.rogueliteUnlocked:
+      isLocked = true
+  of diSurvival:
+    if globalSettings.isNil or not globalSettings.survivalUnlocked:
+      isLocked = true
+  else: discard
+
+  if isLocked:
+    let ix = icon.x.int32
+    let iy = icon.y.int32
+    # dim the icon tile
+    drawRectangle(ix + 4, iy + 4, ICON_SIZE.int32 - 8, ICON_SIZE.int32 - 8,
+                  Color(r: 0, g: 0, b: 0, a: 120))
+    # simple padlock: shackle (arc) + body
+    let lockW = 18'i32
+    let lockH = 12'i32
+    let lockCX = centerX
+    let lockCY = centerY - 2
+    let shackleR = 9.0'f32
+    drawCircleLines(Vector2(x: lockCX.float32, y: (lockCY - 6).float32), shackleR, Color(r: 235, g: 240, b: 245, a: 220))
+    drawRectangle((lockCX - lockW div 2).int32, (lockCY - 1).int32, lockW.int32, lockH.int32, Color(r: 235, g: 240, b: 245, a: 230))
+    drawRectangleLines(Rectangle(x: (lockCX - lockW div 2).float32, y: (lockCY - 1).float32,
+                                 width: lockW.float32, height: lockH.float32), 2, Color(r: 18, g: 22, b: 28, a: 200))
+    # keyhole
+    drawRectangle(lockCX - 1, lockCY + 2, 3, 5, Color(r: 18, g: 22, b: 28, a: 255))
 
   # Icon label with shadow
   let labelY = icon.y + ICON_SIZE + 8
@@ -2086,24 +2125,38 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   drawText(t(tkOSEdition), 10, (screenHeight - 58).int32, 12,
           Color(r: 150, g: 150, b: 170, a: 180))
 
-  # Transient OS-style toast above the taskbar (bottom-right)
-  if desktop.toastTimer > 0.0'f32 and desktop.toastText.len > 0:
-    let fade = min(1.0'f32, desktop.toastTimer / 0.6'f32)
-    let alpha = uint8(255.0'f32 * fade)
-    let toastW = max(260'i32, measureText(desktop.toastText, 16) + 64)
+  # Transient OS-style toasts above the taskbar (bottom-right), stacked
+  if desktop.toasts.len > 0:
     let toastH = 52'i32
-    let toastX = int32(screenWidth - toastW.int - 16)
-    let toastY = int32(screenHeight - TASKBAR_HEIGHT - toastH.int - 14)
-    drawRectangle(toastX, toastY, toastW, toastH,
-                  Color(r: 12, g: 22, b: 34, a: uint8(232.0'f32 * fade)))
-    drawRectangleLines(Rectangle(x: toastX.float32, y: toastY.float32,
-                                 width: toastW.float32, height: toastH.float32), 2,
-                       Color(r: 255, g: 210, b: 80, a: alpha))
-    drawHexBadge(toastX + 26, toastY + toastH div 2, 14.0,
-                 Color(r: 60, g: 44, b: 8, a: uint8(220.0'f32 * fade)),
-                 Color(r: 255, g: 210, b: 80, a: alpha))
-    drawText(desktop.toastText, toastX + 48, toastY + (toastH - 16) div 2, 16,
-             Color(r: 235, g: 245, b: 255, a: alpha))
+    let spacing = 8'i32
+    let numberToDraw = if desktop.toasts.len < MAX_DESKTOP_TOASTS: desktop.toasts.len else: MAX_DESKTOP_TOASTS
+    var j = 0
+    while j < numberToDraw:
+      let idx = desktop.toasts.len - 1 - j
+      let t = desktop.toasts[idx]
+      let fade = min(1.0'f32, t.timer / 0.6'f32)
+      let alpha = uint8(255.0'f32 * fade)
+      let toastW = max(260'i32, measureText(t.text, 16) + 64)
+      let toastX = int32(screenWidth - toastW.int - 16)
+      let toastY = int32(screenHeight - TASKBAR_HEIGHT - toastH.int - 14 - j * (toastH + spacing).int)
+      drawRectangle(toastX, toastY, toastW, toastH,
+                    Color(r: 12, g: 22, b: 34, a: uint8(232.0'f32 * fade)))
+      drawRectangleLines(Rectangle(x: toastX.float32, y: toastY.float32,
+                                   width: toastW.float32, height: toastH.float32), 2,
+                         Color(r: 255, g: 210, b: 80, a: alpha))
+      drawHexBadge(toastX + 26, toastY + toastH div 2, 14.0,
+                   Color(r: 60, g: 44, b: 8, a: uint8(220.0'f32 * fade)),
+                   Color(r: 255, g: 210, b: 80, a: alpha))
+      drawText(t.text, toastX + 48, toastY + (toastH - 16) div 2, 16,
+               Color(r: 235, g: 245, b: 255, a: alpha))
+      inc j
+
+proc showDesktopToast*(desktop: OSDesktop, text: string) =
+  if desktop.isNil: return
+  # Keep the sequence bounded to the max visible stack
+  if desktop.toasts.len >= MAX_DESKTOP_TOASTS:
+    desktop.toasts.delete(0)
+  desktop.toasts.add(DesktopToast(text: text, timer: 5.0'f32))
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
   ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements
@@ -2136,7 +2189,23 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
 
     # Mouse click
     if isMouseButtonPressed(Left) and hoveredIcon >= 0:
-      return desktop.icons[hoveredIcon].iconType.int
+        let clicked = desktop.icons[hoveredIcon]
+        # If the icon represents a locked mode, show a toast and swallow the click.
+        case clicked.iconType
+        of diRoguelite:
+          if not globalSettings.isNil and not globalSettings.rogueliteUnlocked:
+            showDesktopToast(desktop, t(tkDesktopModeLocked) & " " & t(tkRogueliteLockedDesc))
+            return -1
+          else:
+            return clicked.iconType.int
+        of diSurvival:
+          if not globalSettings.isNil and not globalSettings.survivalUnlocked:
+            showDesktopToast(desktop, t(tkDesktopModeLocked) & " " & t(tkSurvivalLockedDesc))
+            return -1
+          else:
+            return clicked.iconType.int
+        else:
+          return clicked.iconType.int
 
   # Keyboard navigation, arrow keys AND WASD, with full 2D grid support.
   # Moving any direction marks keyboard as in-use so the mouse won't jump the cursor.
@@ -2180,10 +2249,6 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
     return desktop.icons[desktop.selectedIcon].iconType.int
 
   return -1
-
-proc showDesktopToast*(desktop: OSDesktop, text: string) =
-  desktop.toastText = text
-  desktop.toastTimer = 5.0
 
 proc startLoadingAnimation*(desktop: OSDesktop, text: string) =
   ## Start a loading animation with the given text

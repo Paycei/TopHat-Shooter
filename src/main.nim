@@ -747,12 +747,15 @@ proc main() =
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 1:  # Time Survival Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-          currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, gmTimeSurvival)
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
-          statsSavedThisGame = false
+          if not settings.survivalUnlocked:
+            showDesktopToast(osDesktop, t(tkDesktopModeLocked) & " " & t(tkSurvivalLockedDesc))
+          else:
+            currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame.discordClient = globalDiscordClient
+            setGameMode(currentGame, gmTimeSurvival)
+            initializeRunTracking(currentGame)
+            currentGame.state = gsPlaying
+            statsSavedThisGame = false
         of 6:  # Sandbox Mode
           currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
@@ -761,19 +764,22 @@ proc main() =
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 9:  # Roguelite Mode, launched via the roguelite window Start button
+          if not settings.rogueliteUnlocked:
+            showDesktopToast(osDesktop, t(tkDesktopModeLocked) & " " & t(tkRogueliteLockedDesc))
+          else:
           # Setup was already done in the roguelite window; start the run directly.
-          setActiveRogueliteProfile(loadRogueliteProfile())
-          currentGame.rogueliteProfile = rogueliteProfile
-          let starterKits9 = [rskOperator, rskBulwark, rskArcanist]
-          let selectedIdx9 = clamp(currentGame.selectedRogueliteStarter, 0, starterKits9.high)
-          let kit9 = starterKits9[selectedIdx9]
-          let heat9 = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
-          beginRogueliteRun(currentGame, rogueliteProfile, kit9, heat9)
-          initializeRunTracking(currentGame)
-          generateThemeChoices(currentGame.rogueliteRun)
-          currentGame.selectedRogueliteTheme = 0
-          currentGame.state = gsRogueliteFloorSelect
-          statsSavedThisGame = false
+            setActiveRogueliteProfile(loadRogueliteProfile())
+            currentGame.rogueliteProfile = rogueliteProfile
+            let starterKits9 = [rskOperator, rskBulwark, rskArcanist]
+            let selectedIdx9 = clamp(currentGame.selectedRogueliteStarter, 0, starterKits9.high)
+            let kit9 = starterKits9[selectedIdx9]
+            let heat9 = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
+            beginRogueliteRun(currentGame, rogueliteProfile, kit9, heat9)
+            initializeRunTracking(currentGame)
+            generateThemeChoices(currentGame.rogueliteRun)
+            currentGame.selectedRogueliteTheme = 0
+            currentGame.state = gsRogueliteFloorSelect
+            statsSavedThisGame = false
         else: discard
         pendingGameMode = -1  # Reset pending mode
 
@@ -809,9 +815,9 @@ proc main() =
             discard saveSettings(settings)
 
       # Surface queued advancement unlocks (from runs or easter eggs) as OS
-      # toasts, one at a time as the previous toast expires.
-      if advancementProfile.recentUnlocks.len > 0 and
-         osDesktop.toastTimer <= 0.0'f32 and not globalConfirmActive:
+      # toasts; allow up to MAX_DESKTOP_TOASTS visible at once.
+      while advancementProfile.recentUnlocks.len > 0 and
+            osDesktop.toasts.len < MAX_DESKTOP_TOASTS and not globalConfirmActive:
         let unlockedId = advancementProfile.recentUnlocks[0]
         advancementProfile.recentUnlocks.delete(0)
         discard saveAdvancements(advancementProfile)

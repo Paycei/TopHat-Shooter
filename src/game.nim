@@ -504,6 +504,12 @@ proc completeBossWave*(game: Game) =
       game.tophatJustUnlocked = true
       game.player.wearsTophat = true
       game.player.wearsCheaterHat = false
+  
+  # Unlock Roguelite when the wave-20 boss (custom boss number 4) is defeated
+  if getCustomBossNumber(completedWave) == 4:
+    if runIsLegit(game) and not globalSettings.isNil and not globalSettings.rogueliteUnlocked:
+      globalSettings.rogueliteUnlocked = true
+      discard saveSettings(globalSettings)
     game.selectedVictoryButton = 0
     playSound(stWaveComplete)
     # First-ever victory plays the one-time endgame cinematic; it hands off to

@@ -218,6 +218,9 @@ type
     tkStatsDPSOverTime = "stats_dps_over_time"
     tkStatsNoGraphData = "stats_no_graph_data"
     tkStatsMaxCombo = "stats_max_combo"
+    tkDesktopModeLocked = "desktop_mode_locked"
+    tkSurvivalLockedDesc = "survival_locked_desc"
+    tkRogueliteLockedDesc = "roguelite_locked_desc"
     tkStatsAvgCombo = "stats_avg_combo"
     tkStatsPerfectWaves = "stats_perfect_waves"
     tkStatsWaveMode = "stats_wave_mode"
@@ -3047,6 +3050,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Desktop
     "desktop_net": "NET",
     "desktop_advancement_unlocked": "Advancement unlocked",
+    "desktop_mode_locked": "MODE LOCKED:",
+    "survival_locked_desc": "Unlock Time Survival by beating Roguelite mode.",
+    "roguelite_locked_desc": "Unlock Roguelite by defeating the Wave 20 boss in Wave Mode.",
 
     # Debug panel runtime stats
     "debug_panel_dps": "DPS",

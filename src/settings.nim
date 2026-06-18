@@ -46,6 +46,9 @@ proc initSettings*(): Settings =
       kaPlaceWall: KeyboardKey.E,
       kaLegendary: KeyboardKey.Q
     ]
+    ,
+    rogueliteUnlocked: false,
+    survivalUnlocked: false
   )
   globalSettings = result
 
