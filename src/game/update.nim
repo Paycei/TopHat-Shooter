@@ -38,164 +38,7 @@ proc updateBossArenaGameplay(game: var Game, dt: float32) =
       beginPlayerDeathSequence(game, dcHazard)
 
 # MAIN GAME UPDATE LOOP
-proc updateGame*(game: var Game, dt: float32) =
-  # Profiling: smoothed wall-clock ms spent here, surfaced in the debug panel so
-  # the update-vs-draw split is visible -- i.e. whether the spatial-grid-accelerated
-  # simulation loops are a meaningful slice of the frame or draw-calls dominate.
-  # `defer` captures every exit, including the early returns below.
-  let perfStart = getTime()
-  defer: game.perfUpdateMs = game.perfUpdateMs * 0.9'f32 +
-                             float32((getTime() - perfStart) * 1000.0) * 0.1'f32
-  if game.state == gsDeathSequence:
-    updateDeathSequencePlayback(game, dt)
-    return
-
-  # SACE: per-frame sanity scan of player-critical values (catches external memory
-  # editors) plus surfacing any queued integrity notices (including load-time
-  # save-tamper detections) into the in-game notification panel.
-  scanRuntimeIntegrity(game)
-  drainIntegrityNotices(game)
-
-  updateDopamine(game.dopamine, dt)
-
-  let celebrationActive = updateCelebration(game.dopamine.waveCelebration, dt)
-  let introActive = updateIntroduction(game.dopamine.bossIntro, dt)
-  updateAchievements(game.dopamine.achievements, dt)
-
-  # If wave celebration is active, pause the game completely and return early
-  if celebrationActive:
-    return
-
-  # If boss introduction is active, only allow player movement and particles
-  if introActive:
-    updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
-
-    # Update particles so visual feedback continues
-    updateParticlePool(game.particlePool, dt)
-
-    # Update game time
-    game.time += dt
-    game.frameCount += 1
-
-    return
-
-  # Handle 3D boss state
-  if game.state == gs3DBoss:
-    if game.game3D != nil:
-      var game3D = cast[ptr Game3D](game.game3D)
-      updateGame3D(game3D[], dt)
-
-      if not game3D[].active:
-        # 3D boss fight ended - return to 2D
-        if game3D[].won:
-          # Boss defeated - transfer health back
-          game.player.hp = game3D[].player.health
-          # Clean up and complete boss wave
-          game.bossWaveManager.bossDefeated()
-          game.bossWaveManager.coinActive = false  # Skip coin for 3D boss
-          completeBossWave(game)
-          game.state = gsPowerUpSelect
-          enableCursor()
-        else:
-          # Player died in 3D
-          beginPlayerDeathSequence(game, dcBossContact)
-          enableCursor()
-        # Clean up 3D game
-        dealloc(game.game3D)
-        game.game3D = nil
-    return
-
-  # Handle transition to 3D mode
-  if game.transitioning:
-    game.fadeAlpha += dt * 2.0
-    if game.fadeAlpha >= 1.0:
-      game.fadeAlpha = 1.0
-      game.transitioning = false
-
-      # Initialize and switch to 3D mode
-      var game3D = create(Game3D)
-      game3D[] = initGame3D(7, game.player)
-      game.game3D = cast[pointer](game3D)
-      game.state = gs3DBoss
-      disableCursor()  # For mouse look
-    return
-
-  # Dungeon crawler layer: room transitions, doors, pedestals, shop terminal.
-  # While a room transition is active the whole simulation pauses (fade frame).
-  if game.mode == gmRoguelite and game.state == gsPlaying:
-    if updateDungeon(game, dt):
-      game.time += dt
-      game.frameCount += 1
-      return
-
-  # Update real-time stats power level
-  calculatePowerLevel(game.dopamine.realTimeStats, game.player)
-
-  # Time Warp effect - apply slow to delta time for enemies/bullets
-  var effectiveDt = dt
-  if game.player.timeWarpActive:
-    let slowFactor = 0.5  # 50% slow = 50% speed (single level)
-    effectiveDt = dt * slowFactor
-
-  # Handle boss spawn warning timer (non-blocking)
-  if game.bossSpawnTimer > 0:
-    game.bossSpawnTimer -= dt
-
-  # Handle pending boss spawn (scheduled after a short warning)
-  if game.pendingBossTimer > 0:
-    game.pendingBossTimer -= dt
-    if game.pendingBossTimer <= 0 and game.pendingBoss != nil:
-      # Add the pending boss to the world now
-      game.enemies.add(game.pendingBoss)
-      game.pendingBoss = nil
-      # Block normal spawns briefly while the boss arrival settles
-      game.bossSpawnTimer = 1.5
-      playSound(stBossSpawn)
-
-      let boss = game.enemies[^1]
-      let bossDef = getBossDefinition(boss.bossDefinitionID)
-      let introBossHp = if boss.bossTotalMaxHp > 0.0'f32: boss.bossTotalMaxHp else: boss.maxHp
-      startIntroduction(game.dopamine.bossIntro, bossDef.name, bossDef.description, introBossHp)
-
-      for i in 0..<60:
-        let angle = i.float32 * 0.1
-        let dist = i.float32 * 3
-        let x = boss.pos.x + cos(angle) * dist
-        let y = boss.pos.y + sin(angle) * dist
-        spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
-
-  # Always update game time (player time not affected)
-  game.time += dt
-
-  # OPTIMIZATION: Track frame count for satellite optimizations
-  game.frameCount += 1
-
-  # Track movement and update run duration for statistics
-  trackMovementFrame(game, dt)
-
-  game.spawnTimer += dt
-
-  # Difficulty scaling (not in sandbox mode)
-  if not isSandboxMode(game.mode):
-    let modeDef = getGameModeDefinition(game.mode)
-    # In wave-based mode, difficulty scales with wave number, not time
-    if game.mode == gmWaveBased or game.mode == gmRoguelite:
-      game.difficulty = (game.currentWave.float32 / 5.0) * modeDef.difficultyScale
-      if game.mode == gmRoguelite and game.rogueliteRun != nil and
-         game.rogueliteRun.floor != nil:
-        let room = currentDungeonRoom(game.rogueliteRun)
-        if room != nil:
-          game.difficulty = dungeonEnemyDifficulty(game.rogueliteRun, room) *
-                            modeDef.difficultyScale
-    else:
-      # In other modes, difficulty scales with time
-      game.difficulty = (game.time / 10.0) * modeDef.difficultyScale
-
-  if isTimeSurvivalMode(game.mode) and game.state == gsPlaying and
-     not game.bossWaveManager.isBossActive() and
-     not game.bossWaveManager.isBossCoinActive():
-    game.bossTimer = max(0.0, game.bossTimer - dt)
-
+proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: float32) =
   # Update attack warnings and create lasers from boss warnings when they expire
   var i = 0
   while i < game.attackWarnings.len:
@@ -450,6 +293,8 @@ proc updateGame*(game: var Game, dt: float32) =
       continue
     j += 1
 
+
+proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   # Update player (with wall collision)
   game.player.outOfCombatSpeedBoost = game.mode == gmRoguelite and not game.waveInProgress
   updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
@@ -992,6 +837,8 @@ proc updateGame*(game: var Game, dt: float32) =
     if shootDir.length() > 0:
       shootBullet(game, shootDir)
 
+
+proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
   # MODE-SPECIFIC ENEMY SPAWNING
   if not isSandboxMode(game.mode):
     if shouldUseWaves(game.mode):
@@ -1171,6 +1018,8 @@ proc updateGame*(game: var Game, dt: float32) =
       # TIME SURVIVAL MODE: delegate to survival.nim
       spawnSurvivalEnemies(game)
 
+
+proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float32) =
   # Update enemies
 
   var enemyIdx = 0
@@ -2094,6 +1943,8 @@ proc updateGame*(game: var Game, dt: float32) =
     game.enemies = @[]
     game.bullets = @[]
 
+
+proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
   # Update boss satellites (persistent orbiting satellites)
   for enemy in game.enemies:
     if enemy.isBoss and enemy.satellites.len > 0:
@@ -2219,6 +2070,8 @@ proc updateGame*(game: var Game, dt: float32) =
           # Already deleted, continue
           i -= 1
 
+
+proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
   # Rebuild the spatial grid now that all enemy movement for this frame is done.
   # The bullet loop below queries it instead of scanning every enemy per bullet.
   # game.enemies is never added-to or deleted-from inside the bullet loop (enemy
@@ -2228,7 +2081,7 @@ proc updateGame*(game: var Game, dt: float32) =
   rebuildEnemyGrid(game)
 
   # Update bullets
-  i = 0
+  var i = 0
   while i < game.bullets.len:
     let bullet = game.bullets[i]
 
@@ -3094,8 +2947,10 @@ proc updateGame*(game: var Game, dt: float32) =
 
     i += 1
 
+
+proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float32) =
   # Update meteorites (from etMage enemy)
-  i = 0
+  var i = 0
   while i < game.meteorites.len:
     let meteorite = game.meteorites[i]
 
@@ -3370,3 +3225,169 @@ proc updateGame*(game: var Game, dt: float32) =
   if game.player.hp <= 0 and game.state == gsPlaying:
     beginPlayerDeathSequence(game)
 
+
+proc updateGame*(game: var Game, dt: float32) =
+  # Profiling: smoothed wall-clock ms spent here, surfaced in the debug panel so
+  # the update-vs-draw split is visible -- i.e. whether the spatial-grid-accelerated
+  # simulation loops are a meaningful slice of the frame or draw-calls dominate.
+  # `defer` captures every exit, including the early returns below.
+  let perfStart = getTime()
+  defer: game.perfUpdateMs = game.perfUpdateMs * 0.9'f32 +
+                             float32((getTime() - perfStart) * 1000.0) * 0.1'f32
+  if game.state == gsDeathSequence:
+    updateDeathSequencePlayback(game, dt)
+    return
+
+  # SACE: per-frame sanity scan of player-critical values (catches external memory
+  # editors) plus surfacing any queued integrity notices (including load-time
+  # save-tamper detections) into the in-game notification panel.
+  scanRuntimeIntegrity(game)
+  drainIntegrityNotices(game)
+
+  updateDopamine(game.dopamine, dt)
+
+  let celebrationActive = updateCelebration(game.dopamine.waveCelebration, dt)
+  let introActive = updateIntroduction(game.dopamine.bossIntro, dt)
+  updateAchievements(game.dopamine.achievements, dt)
+
+  # If wave celebration is active, pause the game completely and return early
+  if celebrationActive:
+    return
+
+  # If boss introduction is active, only allow player movement and particles
+  if introActive:
+    updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
+
+    # Update particles so visual feedback continues
+    updateParticlePool(game.particlePool, dt)
+
+    # Update game time
+    game.time += dt
+    game.frameCount += 1
+
+    return
+
+  # Handle 3D boss state
+  if game.state == gs3DBoss:
+    if game.game3D != nil:
+      var game3D = cast[ptr Game3D](game.game3D)
+      updateGame3D(game3D[], dt)
+
+      if not game3D[].active:
+        # 3D boss fight ended - return to 2D
+        if game3D[].won:
+          # Boss defeated - transfer health back
+          game.player.hp = game3D[].player.health
+          # Clean up and complete boss wave
+          game.bossWaveManager.bossDefeated()
+          game.bossWaveManager.coinActive = false  # Skip coin for 3D boss
+          completeBossWave(game)
+          game.state = gsPowerUpSelect
+          enableCursor()
+        else:
+          # Player died in 3D
+          beginPlayerDeathSequence(game, dcBossContact)
+          enableCursor()
+        # Clean up 3D game
+        dealloc(game.game3D)
+        game.game3D = nil
+    return
+
+  # Handle transition to 3D mode
+  if game.transitioning:
+    game.fadeAlpha += dt * 2.0
+    if game.fadeAlpha >= 1.0:
+      game.fadeAlpha = 1.0
+      game.transitioning = false
+
+      # Initialize and switch to 3D mode
+      var game3D = create(Game3D)
+      game3D[] = initGame3D(7, game.player)
+      game.game3D = cast[pointer](game3D)
+      game.state = gs3DBoss
+      disableCursor()  # For mouse look
+    return
+
+  # Dungeon crawler layer: room transitions, doors, pedestals, shop terminal.
+  # While a room transition is active the whole simulation pauses (fade frame).
+  if game.mode == gmRoguelite and game.state == gsPlaying:
+    if updateDungeon(game, dt):
+      game.time += dt
+      game.frameCount += 1
+      return
+
+  # Update real-time stats power level
+  calculatePowerLevel(game.dopamine.realTimeStats, game.player)
+
+  # Time Warp effect - apply slow to delta time for enemies/bullets
+  var effectiveDt = dt
+  if game.player.timeWarpActive:
+    let slowFactor = 0.5  # 50% slow = 50% speed (single level)
+    effectiveDt = dt * slowFactor
+
+  # Handle boss spawn warning timer (non-blocking)
+  if game.bossSpawnTimer > 0:
+    game.bossSpawnTimer -= dt
+
+  # Handle pending boss spawn (scheduled after a short warning)
+  if game.pendingBossTimer > 0:
+    game.pendingBossTimer -= dt
+    if game.pendingBossTimer <= 0 and game.pendingBoss != nil:
+      # Add the pending boss to the world now
+      game.enemies.add(game.pendingBoss)
+      game.pendingBoss = nil
+      # Block normal spawns briefly while the boss arrival settles
+      game.bossSpawnTimer = 1.5
+      playSound(stBossSpawn)
+
+      let boss = game.enemies[^1]
+      let bossDef = getBossDefinition(boss.bossDefinitionID)
+      let introBossHp = if boss.bossTotalMaxHp > 0.0'f32: boss.bossTotalMaxHp else: boss.maxHp
+      startIntroduction(game.dopamine.bossIntro, bossDef.name, bossDef.description, introBossHp)
+
+      for i in 0..<60:
+        let angle = i.float32 * 0.1
+        let dist = i.float32 * 3
+        let x = boss.pos.x + cos(angle) * dist
+        let y = boss.pos.y + sin(angle) * dist
+        spawnExplosionPooled(game.particlePool, x, y, boss.color, 3)
+
+  # Always update game time (player time not affected)
+  game.time += dt
+
+  # OPTIMIZATION: Track frame count for satellite optimizations
+  game.frameCount += 1
+
+  # Track movement and update run duration for statistics
+  trackMovementFrame(game, dt)
+
+  game.spawnTimer += dt
+
+  # Difficulty scaling (not in sandbox mode)
+  if not isSandboxMode(game.mode):
+    let modeDef = getGameModeDefinition(game.mode)
+    # In wave-based mode, difficulty scales with wave number, not time
+    if game.mode == gmWaveBased or game.mode == gmRoguelite:
+      game.difficulty = (game.currentWave.float32 / 5.0) * modeDef.difficultyScale
+      if game.mode == gmRoguelite and game.rogueliteRun != nil and
+         game.rogueliteRun.floor != nil:
+        let room = currentDungeonRoom(game.rogueliteRun)
+        if room != nil:
+          game.difficulty = dungeonEnemyDifficulty(game.rogueliteRun, room) *
+                            modeDef.difficultyScale
+    else:
+      # In other modes, difficulty scales with time
+      game.difficulty = (game.time / 10.0) * modeDef.difficultyScale
+
+  if isTimeSurvivalMode(game.mode) and game.state == gsPlaying and
+     not game.bossWaveManager.isBossActive() and
+     not game.bossWaveManager.isBossCoinActive():
+    game.bossTimer = max(0.0, game.bossTimer - dt)
+
+  updateAttackWarningsAndLasers(game, dt, effectiveDt)
+  updatePlayerAndAuras(game, dt, effectiveDt)
+  updateEnemySpawning(game, dt, effectiveDt)
+  updateEnemiesAndBossAttacks(game, dt, effectiveDt)
+  updateBossSatellites(game, dt, effectiveDt)
+  updateBulletsAndHits(game, dt, effectiveDt)
+  updateProjectilesAndCleanup(game, dt, effectiveDt)

@@ -765,6 +765,1519 @@ proc spawnArcLattice*(game: var Game, enemy: Enemy, attack: BossAttack, phase: B
 proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) =
   warnings.addBossAttackWarningInto(game.attackWarnings, game.player, enemy, attack)
 
+proc execBossAttackSpiral(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Rotating spiral pattern
+  for i in 0..<attack.projectileCount:
+    let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32 + game.time * attack.spreadAngle.degToRad()
+    let dir = newVector2f(cos(angle), sin(angle))
+    game.bullets.add(newBullet(
+      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+      speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+      bulletRadius = attack.bulletRadius
+    ))
+
+
+proc execBossAttackBurst(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Rapid burst in spread pattern
+  let baseAngle = arctan2(toPlayer.y, toPlayer.x)
+  for i in 0..<attack.projectileCount:
+    let offset = (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
+    let angle = baseAngle + offset
+    let dir = newVector2f(cos(angle), sin(angle))
+    game.bullets.add(newBullet(
+      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+      speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+      bulletRadius = attack.bulletRadius
+    ))
+
+
+proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # SpecialData modes:
+  # - "rainbow_wave": Colorful cascading pattern (Boss 9)
+  # - "temporal_wave": Time-distorted slow bullets (Boss 10)
+  # - Default: Standard sine wave pattern
+
+  let waveMode = attack.specialData
+
+  # Configure wave behavior based on mode
+  let (speedMultiplier, colorScheme) = case waveMode
+    of "rainbow_wave":
+      (1.0, "rainbow")  # Normal speed, rainbow particles
+    of "temporal_wave":
+      (0.7, "temporal")  # 30% slower, cyan particles
+    else:
+      (1.0, "default")  # Standard
+
+  for i in 0..<attack.projectileCount:
+    let t = i.float32 / attack.projectileCount.float32
+    let angle = t * attack.spreadAngle.degToRad() - attack.spreadAngle.degToRad() / 2.0 + arctan2(toPlayer.y, toPlayer.x)
+    let dir = newVector2f(cos(angle), sin(angle))
+
+    let bulletSpeed = attack.projectileSpeed * speedMultiplier
+
+    game.bullets.add(newBullet(
+      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+      speed = bulletSpeed, damage = attack.damage * phase.damageMultiplier,
+      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+      bulletRadius = attack.bulletRadius
+    ))
+
+    # Special visual effects per wave type
+    case colorScheme
+    of "rainbow":
+      # Create rainbow trail particles
+      let rainbowColor = case i mod 7
+        of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
+        of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
+        of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
+        of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
+        of 4: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
+        of 5: Color(r: 75, g: 0, b: 130, a: 255)    # Indigo
+        else: Color(r: 148, g: 0, b: 211, a: 255)   # Violet
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, rainbowColor, 4)
+    of "temporal":
+      # Cyan time-distortion particles
+      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                    Color(r: 100, g: 220, b: 220, a: 255), 3)
+    else:
+      discard
+
+
+proc execBossAttackTargeted(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Direct shots at player
+  for i in 0..<attack.projectileCount:
+    let spread = if attack.projectileCount > 1:
+      (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
+    else: 0.0
+    let angle = arctan2(toPlayer.y, toPlayer.x) + spread
+    let dir = newVector2f(cos(angle), sin(angle))
+    game.bullets.add(newBullet(
+      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+      speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+      bulletRadius = attack.bulletRadius
+    ))
+
+
+proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Perfect ring of bullets with thematic variants
+  # SpecialData modes:
+  # - "time_ring": Temporal distortion ring with pulsing cyan bullets (Boss 10)
+  # - Default: Standard perfect circle
+
+  let circleMode = attack.specialData
+
+  # Configure circle behavior based on mode
+  let (bulletSpeed, particleColor, rotationOffset) = case circleMode
+    of "time_ring":
+      (attack.projectileSpeed * 0.85, Color(r: 100, g: 220, b: 220, a: 255), game.time * 0.5)  # Slower temporal bullets with rotation
+    else:
+      (attack.projectileSpeed, phase.color, 0.0)  # Standard
+
+  # Create pre-fire visual effect for time_ring
+  if circleMode == "time_ring":
+    # Create temporal distortion rings before firing
+    for ring in 0..2:
+      let ringRadius = 30.0 + ring.float32 * 25.0
+      for i in 0..<16:
+        let angle = i.float32 * PI * 2.0 / 16.0
+        let ringX = enemy.pos.x + cos(angle) * ringRadius
+        let ringY = enemy.pos.y + sin(angle) * ringRadius
+        spawnExplosionPooled(game.particlePool, ringX, ringY,
+                      Color(r: 100, g: 220, b: 220, a: 255), 3)
+
+  # Create circle of bullets
+  for i in 0..<attack.projectileCount:
+    let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32 + rotationOffset
+    let dir = newVector2f(cos(angle), sin(angle))
+    game.bullets.add(newBullet(
+      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+      speed = bulletSpeed, damage = attack.damage * phase.damageMultiplier,
+      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+      bulletRadius = attack.bulletRadius
+    ))
+
+    # Add temporal particle trail for time_ring
+    if circleMode == "time_ring":
+      let trailRadius = 20.0
+      let trailX = enemy.pos.x + cos(angle) * trailRadius
+      let trailY = enemy.pos.y + sin(angle) * trailRadius
+      spawnExplosionPooled(game.particlePool, trailX, trailY, particleColor, 2)
+
+
+proc execBossAttackLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Boss laser with proper warning system
+  # Laser patterns customized via specialData
+  # EXISTING: "cross_laser", "rotating_grid", "prismatic_cage", "laser_snipe"
+
+  let patternType = attack.specialData
+  let laserCount = case patternType
+    of "rotating_grid": attack.projectileCount * 2  # Double density for grid
+    of "prismatic_cage": attack.projectileCount * 3  # Triple density for cage
+    of "splitting_laser": attack.projectileCount  # Triangle pattern
+    of "hexagonal_prism": 6  # Always 6 beams
+    of "prismatic_storm": attack.projectileCount * 2  # Massive light show!
+    of "temporal_beam": attack.projectileCount  # Temporal cross pattern
+    of "chaos_beam": rand(attack.projectileCount) + attack.projectileCount  # Random chaos
+    of "omega_beam": attack.projectileCount  # Ultimate beams (count tuned in boss_definitions; was *2 = 8, an undodgeable web)
+    else: attack.projectileCount
+
+  # Calculate all laser angles for the warning system
+  var warningAngles: seq[float32] = @[]
+
+  # For cross_laser pattern, always create 4 beams (cardinal directions)
+  let actualLaserCount = if patternType == "cross_laser": 4 else: laserCount
+
+  for i in 0..<actualLaserCount:
+    let angle = case patternType
+      of "rotating_grid":
+        # Grid pattern - two perpendicular sets
+        if i.float < actualLaserCount / 2:
+          i.float32 * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32
+        else:
+          (i.float32 - actualLaserCount.float / 2.0) * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32 + PI / 2.0
+
+      of "splitting_laser":
+        # Triangle pattern (120° apart) that appears to split/refract
+        i.float32 * (PI * 2.0 / 3.0) + game.time * 0.5  # Slow rotation
+
+      of "hexagonal_prism":
+        # Perfect hexagonal pattern (60° apart) - geometric precision
+        i.float32 * (PI / 3.0) + game.time * 0.3
+
+      of "prismatic_storm":
+        # Massive radial array with rainbow effect
+        # Create dense radial pattern with slight randomization for light scatter
+        let baseAngle = i.float32 * (PI * 2.0) / actualLaserCount.float32
+        baseAngle + (rand(1.0) - 0.5) * 0.15  # Slight scatter for prismatic effect
+
+      of "prismatic_cage":
+        # Calculate angle biased toward player with radial spread
+        let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y,
+                                     game.player.pos.x - enemy.pos.x)
+
+        # Create proper radial pattern with player bias
+        let segmentAngle = (PI * 2.0) / actualLaserCount.float32
+        let baseAngle = i.float32 * segmentAngle
+
+        # 40% of lasers aim near player, 60% are radial
+        if rand(100) < 40:
+          # Aim toward player with spread
+          angleToPlayer + (rand(1.0) - 0.5) * (PI / 3.0)  # ±60° spread
+        else:
+          # Radial distribution with slight randomization
+          baseAngle + (rand(1.0) - 0.5) * 0.2  # ±6° randomization
+
+      of "laser_snipe":
+        # Rapid fire lasers aimed directly at player with minimal spread
+        let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, game.player.pos.x - enemy.pos.x)
+        # Very tight spread around player position (5 degrees)
+        angleToPlayer + (rand(1.0) - 0.5) * 0.175
+
+      of "cross_laser":
+        # Cross pattern - always 4 beams in cardinal directions (0°, 90°, 180°, 270°)
+        i.float32 * (PI / 2.0) + game.time
+
+      of "temporal_beam":
+        # TEMPORAL BEAM - Time-distorted cross pattern with slow rotation
+        # Creates 4 beams in rotating cardinal directions
+        # Beams have temporal distortion effect (stuttering, phasing)
+        i.float32 * (PI / 2.0) + game.time * 0.4  # Slower rotation for time effect
+
+      of "chaos_beam":
+        # CHAOS BEAM - Completely unpredictable laser angles with clustering
+        # Create random cluster center for grouped chaos
+        let clusterCenter = if i == 0: rand(PI * 2.0) else: warningAngles[0] + rand(0.5)
+        let clusterSpread = 0.3 + rand(0.7)  # Variable clustering (0.3-1.0 radians)
+        # Random angle with slight clustering around center for chaotic but not totally random
+        clusterCenter + (rand(1.0) - 0.5) * clusterSpread
+
+      of "omega_beam":
+        # OMEGA BEAM - Ultimate laser pattern combining ALL previous mechanics
+        # Three different sub-patterns: radial, player-tracking, and temporal spiral
+
+        # Pattern 1: Rotating radial beams (Boss 4 style) - first third of lasers
+        if i < actualLaserCount div 3:
+          i.float32 * (PI * 2.0) / (actualLaserCount div 3).float32 + game.time * 0.8
+
+        # Pattern 2: Player-tracking spread (Boss 9 style) - middle third
+        elif i < (actualLaserCount * 2) div 3:
+          let idx = i - (actualLaserCount div 3)
+          let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y,
+                                       game.player.pos.x - enemy.pos.x)
+          let spread = (idx.float32 - (actualLaserCount div 3).float32 / 2.0) * 0.3
+          angleToPlayer + spread
+
+        # Pattern 3: Temporal spiraling beams (Boss 10 style) - last third
+        else:
+          let idx = i - (actualLaserCount * 2) div 3
+          let spiral = idx.float32 * 0.5 + game.time * 0.6
+          spiral + sin(game.time * 2.0) * 0.4  # Wavy temporal distortion
+
+      else:
+        # Default pattern - distribute evenly
+        i.float32 * (PI * 2.0) / actualLaserCount.float32 + game.time
+    warningAngles.add(angle)
+
+  # Add boss laser warning with proper visual indicators
+  # WARNING: Show for 1.2 seconds before firing (much longer than current 0.3s)
+  const BOSS_LASER_WARNING_TIME = 1.2
+  let laserDamage = (attack.damage * phase.damageMultiplier).int
+
+  # PRE-FIRE VISUAL EFFECTS for special laser patterns
+  if patternType == "chaos_beam":
+    # Create flickering chaotic particles along laser paths
+    for angle in warningAngles:
+      for step in 1..8:
+        let dist = step.float32 * 40.0
+        let px = enemy.pos.x + cos(angle) * dist
+        let py = enemy.pos.y + sin(angle) * dist
+        # Flickering random colors for chaos
+        let chaosColor = Color(
+          r: (100 + rand(155)).uint8,
+          g: (50 + rand(205)).uint8,
+          b: (100 + rand(155)).uint8,
+          a: 255
+        )
+        spawnExplosionPooled(game.particlePool, px, py, chaosColor, 3)
+
+  elif patternType == "omega_beam":
+    # MASSIVE rainbow particle explosion for ultimate laser
+    for ring in 0..6:
+      let ringRadius = 30.0 + ring.float32 * 28.0
+      for i in 0..<24:
+        let angle = i.float32 * PI * 2.0 / 24.0
+        let px = enemy.pos.x + cos(angle) * ringRadius
+        let py = enemy.pos.y + sin(angle) * ringRadius
+        # Rainbow spectrum
+        let rainbowColor = case i mod 7:
+          of 0: Color(r: 255, g: 0, b: 0, a: 255)
+          of 1: Color(r: 255, g: 127, b: 0, a: 255)
+          of 2: Color(r: 255, g: 255, b: 0, a: 255)
+          of 3: Color(r: 0, g: 255, b: 0, a: 255)
+          of 4: Color(r: 0, g: 255, b: 255, a: 255)
+          of 5: Color(r: 0, g: 0, b: 255, a: 255)
+          else: Color(r: 255, g: 0, b: 255, a: 255)
+        spawnExplosionPooled(game.particlePool, px, py, rainbowColor, 7)
+
+    # Add electric arcs (Boss 6 style)
+    for i in 0..<20:
+      let angle = i.float32 * PI * 2.0 / 20.0
+      let arcX = enemy.pos.x + cos(angle) * 70.0
+      let arcY = enemy.pos.y + sin(angle) * 70.0
+      spawnExplosionPooled(game.particlePool, arcX, arcY,
+                    Color(r: 255, g: 255, b: 200, a: 255), 6)
+
+  # Adjust laser length based on pattern type
+  # For prismatic_cage and laser_snipe, calculate length to reach screen edge
+  # Use diagonal distance from center to corner to ensure full coverage
+  let laserLength = if patternType in ["prismatic_cage", "laser_snipe"]:
+    # Calculate diagonal distance from center to corner for full screen coverage
+    # Add extra margin to guarantee lasers always reach beyond screen edges
+    let centerX = game.screenWidth.float32 / 2.0
+    let centerY = game.screenHeight.float32 / 2.0
+    let diagonalDistance = sqrt(centerX * centerX + centerY * centerY)
+    # Use 1.5x diagonal distance to ensure lasers always extend beyond screen
+    diagonalDistance * 1.5
+  else:
+    800.0
+
+  game.attackWarnings.add(newBossLaserWarning(
+    enemy.pos.x, enemy.pos.y,
+    BOSS_LASER_WARNING_TIME,
+    warningAngles,
+    laserLength,  # Adjusted based on pattern type
+    laserDamage,
+    attack.durationOrRadius,  # Laser active duration
+    patternType,  # Pass the pattern type for proper laser creation
+    enemy.enemyType,  # Track which enemy type created this attack
+    enemy.id  # Pass enemy ID so warning can follow boss
+  ))
+
+
+proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Massive bullet spray with multiple themes
+  # SpecialData modes:
+  # - "voltage_burst": Electric explosion with yellow bullets (Boss 6)
+  # - "blood_burst": Berserker rage explosion with red bullets (Boss 8)
+  # - "orbital_bombardment": Space bombardment from above (Boss 7)
+  # - "random_spread": Chaotic spread with random angles (Boss 11 Phase 1)
+  # - "chaos_storm", "entropy_burst": Randomized chaos attacks (Boss 11)
+  # - "chromatic_burst": Rainbow prismatic explosion (Boss 9 Phase 2)
+  # - "light_burst": Pure brilliance explosion (Boss 9 Phase 3)
+  # - "time_shatter": Reality-shattering temporal explosion (Boss 10 Phase 3)
+  # - "omega_barrage": Ultimate massive barrage from final boss (Boss 12 Phase 4)
+
+  let barrageMode = attack.specialData
+  let isChaosAttack = barrageMode in ["chaos_storm", "entropy_burst", "random_spread"]
+  let isElectricAttack = barrageMode == "voltage_burst"
+  let isBerserkAttack = barrageMode == "blood_burst"
+  let isOrbitalAttack = barrageMode == "orbital_bombardment"
+  let isChromaticAttack = barrageMode == "chromatic_burst"
+  let isLightAttack = barrageMode == "light_burst"
+  let isTimeShatter = barrageMode == "time_shatter"
+  let isOmegaBarrage = barrageMode == "omega_barrage"
+
+  # Randomize count ±30% for chaos
+  let bulletCount = if isChaosAttack:
+    (attack.projectileCount.float32 * (0.7 + rand(0.6))).int
+  elif isOmegaBarrage:
+    # Honor the count from boss_definitions (already tuned to 30) instead of
+    # doubling it. The old *2 re-inflated the ring to 60 bullets, at the boss's
+    # firing radius that leaves no player-sized gap, which made the final phase
+    # an undodgeable wall and silently cancelled every nerf made to the data.
+    attack.projectileCount
+  else:
+    attack.projectileCount
+
+  # Randomize spread for chaos
+  let spreadAngle = if isChaosAttack:
+    180.0 + rand(180.0)  # Might not even be 360!
+  else:
+    360.0
+
+  # MODE-SPECIFIC PRE-EXPLOSION EFFECTS
+  if isElectricAttack:
+    # Create electric sparks radiating outward
+    for i in 0..<bulletCount div 2:
+      let angle = i.float32 * PI * 2.0 / (bulletCount div 2).float32
+      let sparkX = enemy.pos.x + cos(angle) * 40.0
+      let sparkY = enemy.pos.y + sin(angle) * 40.0
+      spawnExplosionPooled(game.particlePool, sparkX, sparkY,
+                    Color(r: 255, g: 255, b: 100, a: 255), 4)
+
+  elif isBerserkAttack:
+    # Create blood/rage particles in circular waves
+    for ring in 0..2:
+      let ringRadius = 35.0 + ring.float32 * 25.0
+      for i in 0..<12:
+        let angle = i.float32 * PI * 2.0 / 12.0
+        let bloodX = enemy.pos.x + cos(angle) * ringRadius
+        let bloodY = enemy.pos.y + sin(angle) * ringRadius
+        spawnExplosionPooled(game.particlePool, bloodX, bloodY,
+                      Color(r: 200 + rand(55).uint8, g: 0, b: 0, a: 255), 5)
+
+    # Screen shake for rage
+    addShake(game.dopamine.screenShake, siLarge)
+
+  elif isOrbitalAttack:
+    # Create star field effect - bullets rain from space
+    for i in 0..<8:
+      let angle = i.float32 * PI * 2.0 / 8.0
+      let starX = enemy.pos.x + cos(angle) * 60.0
+      let starY = enemy.pos.y + sin(angle) * 60.0
+      spawnExplosionPooled(game.particlePool, starX, starY,
+                    Color(r: 200, g: 150, b: 255, a: 255), 6)
+
+  elif isChromaticAttack:
+    # Create rainbow prismatic rings expanding outward
+    for ring in 0..3:
+      let ringRadius = 30.0 + ring.float32 * 20.0
+      for i in 0..<12:
+        let angle = i.float32 * PI * 2.0 / 12.0
+        let prismX = enemy.pos.x + cos(angle) * ringRadius
+        let prismY = enemy.pos.y + sin(angle) * ringRadius
+        # Rainbow colors based on position
+        let rainbowColor = case i mod 7
+          of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
+          of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
+          of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
+          of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
+          of 4: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
+          of 5: Color(r: 75, g: 0, b: 130, a: 255)    # Indigo
+          else: Color(r: 148, g: 0, b: 211, a: 255)   # Violet
+        spawnExplosionPooled(game.particlePool, prismX, prismY, rainbowColor, 5)
+
+  elif isLightAttack:
+    # Create brilliant white/rainbow light explosion
+    for ring in 0..4:
+      let ringRadius = 25.0 + ring.float32 * 18.0
+      for i in 0..<16:
+        let angle = i.float32 * PI * 2.0 / 16.0
+        let lightX = enemy.pos.x + cos(angle) * ringRadius
+        let lightY = enemy.pos.y + sin(angle) * ringRadius
+        # Brilliant white with rainbow tint
+        let tint = case (i + ring) mod 7
+          of 0: Color(r: 255, g: 200, b: 200, a: 255)
+          of 1: Color(r: 255, g: 230, b: 200, a: 255)
+          of 2: Color(r: 255, g: 255, b: 200, a: 255)
+          of 3: Color(r: 200, g: 255, b: 200, a: 255)
+          of 4: Color(r: 200, g: 230, b: 255, a: 255)
+          of 5: Color(r: 230, g: 200, b: 255, a: 255)
+          else: Color(r: 255, g: 255, b: 255, a: 255)  # Pure white
+        spawnExplosionPooled(game.particlePool, lightX, lightY, tint, 6)
+
+    # Intense screen shake for brilliance
+    addShake(game.dopamine.screenShake, siLarge)
+
+  elif isTimeShatter:
+    # TIME SHATTER - Reality-breaking temporal fracture explosion
+    # Create massive expanding temporal cracks radiating outward
+    for ring in 0..6:
+      let ringRadius = 20.0 + ring.float32 * 25.0
+      for i in 0..<20:
+        let angle = i.float32 * PI * 2.0 / 20.0
+        let shatterX = enemy.pos.x + cos(angle) * ringRadius
+        let shatterY = enemy.pos.y + sin(angle) * ringRadius
+        # Bright cyan-white temporal fracture particles
+        let brightness = 100 + (ring * 20)
+        spawnExplosionPooled(game.particlePool, shatterX, shatterY,
+                      Color(r: brightness.uint8, g: 220 + (ring * 5).uint8, b: 220 + (ring * 5).uint8, a: 255), 5)
+
+    # Create radiating time crack lines extending far outward
+    for i in 0..<16:
+      let angle = i.float32 * PI * 2.0 / 16.0
+      for step in 1..20:
+        let crackRadius = step.float32 * 20.0
+        let crackX = enemy.pos.x + cos(angle) * crackRadius
+        let crackY = enemy.pos.y + sin(angle) * crackRadius
+        # Cyan temporal cracks with fading intensity
+        let fade = (255 - step * 8).clamp(100, 255)
+        spawnExplosionPooled(game.particlePool, crackX, crackY,
+                      Color(r: 100, g: 220, b: 220, a: fade.uint8), 3)
+
+    # Add swirling temporal distortion particles
+    for spiral in 0..<8:
+      for step in 0..15:
+        let spiralAngle = (spiral.float32 * PI / 4.0) + (step.float32 * 0.3)
+        let spiralRadius = step.float32 * 12.0
+        let spiralX = enemy.pos.x + cos(spiralAngle) * spiralRadius
+        let spiralY = enemy.pos.y + sin(spiralAngle) * spiralRadius
+        spawnExplosionPooled(game.particlePool, spiralX, spiralY,
+                      Color(r: 150, g: 255, b: 255, a: 255), 2)
+
+    # MASSIVE screen shake for reality-shattering effect
+    addShake(game.dopamine.screenShake, siMassive)
+
+  elif barrageMode == "omega_barrage":
+    # OMEGA BARRAGE - Ultimate final boss attack combining all elements
+    # Creates massive multi-colored explosion with all previous boss themes
+    # Rainbow prismatic rings (like Boss 9)
+    for ring in 0..5:
+      let ringRadius = 25.0 + ring.float32 * 30.0
+      for i in 0..<18:
+        let angle = i.float32 * PI * 2.0 / 18.0
+        let omegaX = enemy.pos.x + cos(angle) * ringRadius
+        let omegaY = enemy.pos.y + sin(angle) * ringRadius
+        # Rainbow colors cycling through spectrum
+        let rainbowColor = case i mod 7
+          of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
+          of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
+          of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
+          of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
+          of 4: Color(r: 0, g: 255, b: 255, a: 255)   # Cyan
+          of 5: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
+          else: Color(r: 255, g: 0, b: 255, a: 255)   # Magenta
+        spawnExplosionPooled(game.particlePool, omegaX, omegaY, rainbowColor, 6)
+
+    # Electric crackling effects (like Boss 6)
+    for i in 0..<bulletCount div 3:
+      let angle = i.float32 * PI * 2.0 / (bulletCount div 3).float32
+      let sparkX = enemy.pos.x + cos(angle) * 55.0
+      let sparkY = enemy.pos.y + sin(angle) * 55.0
+      spawnExplosionPooled(game.particlePool, sparkX, sparkY,
+                    Color(r: 255, g: 255, b: 100, a: 255), 5)
+
+    # Temporal rifts (like Boss 10)
+    for i in 0..<12:
+      let angle = i.float32 * PI * 2.0 / 12.0
+      for step in 1..12:
+        let riftRadius = step.float32 * 22.0
+        let riftX = enemy.pos.x + cos(angle) * riftRadius
+        let riftY = enemy.pos.y + sin(angle) * riftRadius
+        spawnExplosionPooled(game.particlePool, riftX, riftY,
+                      Color(r: 150, g: 255, b: 255, a: 255), 3)
+
+    # ABSOLUTELY MASSIVE screen shake - this is the ultimate attack
+    addShake(game.dopamine.screenShake, siMassive)
+
+  for i in 0..<bulletCount:
+    let angle = if isChaosAttack:
+      (i.float32 / bulletCount.float32) * spreadAngle.degToRad() + rand(1.0)
+    else:
+      i.float32 * PI * 2.0 / bulletCount.float32
+
+    let dir = newVector2f(cos(angle), sin(angle))
+
+    # Randomize speed ±25% for chaos
+    let speed = if isChaosAttack:
+      attack.projectileSpeed * (0.75 + rand(0.5))
+    else:
+      attack.projectileSpeed
+
+    # Randomize damage ±10% for chaos
+    let damage = if isChaosAttack:
+      attack.damage * phase.damageMultiplier * (0.9 + rand(0.2))
+    else:
+      attack.damage * phase.damageMultiplier
+
+    game.bullets.add(newBullet(
+      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+      speed = speed, damage = damage,
+      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+      bulletRadius = attack.bulletRadius
+    ))
+
+  # MODE-SPECIFIC EXPLOSIONS
+  let (explosionSize, explosionColor) = case barrageMode
+    of "voltage_burst":
+      (45, Color(r: 255, g: 255, b: 200, a: 255))  # Bright yellow electric
+    of "blood_burst":
+      (50, Color(r: 255, g: 0, b: 0, a: 255))  # Massive red rage explosion
+    of "orbital_bombardment":
+      (40, Color(r: 180, g: 120, b: 255, a: 255))  # Purple space explosion
+    of "chromatic_burst":
+      (42, Color(r: 255, g: 150, b: 255, a: 255))  # Pink/magenta prismatic
+    of "light_burst":
+      (55, Color(r: 255, g: 255, b: 255, a: 255))  # Massive white brilliance
+    of "time_shatter":
+      (65, Color(r: 150, g: 255, b: 255, a: 255))  # Massive cyan temporal shatter
+    of "random_spread":
+      (32, Color(r: rand(200).uint8 + 55, g: rand(200).uint8 + 55, b: rand(200).uint8 + 55, a: 255))  # Random bright chaos
+    of "chaos_storm", "entropy_burst":
+      (35, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255))  # Random chaos
+    of "omega_barrage":
+      (70, Color(r: 255, g: 50, b: 255, a: 255))  # MASSIVE pink/magenta final boss explosion
+    else:
+      (30, phase.color)  # Standard
+
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
+
+
+proc execBossAttackPulse(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Expanding ring with multiple thematic variants
+  # SpecialData modes:
+  # - "electric_discharge": Electric shockwave with crackling particles (Boss 6)
+  # - "ground_slam": Berserker impact with rocks/debris (Boss 8 Phase 2)
+  # - "earthquake": MASSIVE berserker slam, screen shake, cracks (Boss 8 Phase 3)
+  # - "overload_pulse": Intense electric overload (Boss 6 Phase 3)
+  # - "gravity_pulse": Space-themed gravity wave (Boss 7)
+  # - "blinding_pulse": Brilliant light explosion (Boss 9 Phase 3)
+  # - "entropy_wave": Chaotic unstable shockwave (Boss 11 Phase 3)
+  # - "omega_pulse": Ultimate combined shockwave (Boss 12 Phase 4)
+  # - Default: Standard pulse
+
+  let pulseMode = attack.specialData
+
+  # Configure pulse behavior and visuals based on mode
+  let (bulletCount, particleColor, explosionSize) = case pulseMode
+    of "electric_discharge":
+      (32, Color(r: 255, g: 255, b: 150, a: 255), 35)  # Dense electric pulse
+    of "ground_slam":
+      (28, Color(r: 150, g: 75, b: 30, a: 255), 40)  # Fewer but stronger, brown/rock color
+    of "earthquake":
+      (30, Color(r: 100, g: 50, b: 20, a: 255), 60)  # MASSIVE slam, huge shake
+    of "overload_pulse":
+      (32, Color(r: 255, g: 255, b: 255, a: 255), 50)  # Maximum density, white overload
+    of "gravity_pulse":
+      (30, Color(r: 150, g: 100, b: 255, a: 255), 45)  # Space purple
+    of "blinding_pulse":
+      (34, Color(r: 255, g: 255, b: 255, a: 255), 55)  # Brilliant white light explosion
+    of "chrono_pulse":
+      (28, Color(r: 100, g: 220, b: 220, a: 255), 42)  # Temporal shockwave, cyan
+    of "chrono_break":
+      (32, Color(r: 150, g: 255, b: 255, a: 255), 58)  # Massive time shattering pulse
+    of "entropy_wave":
+      (rand(20) + 20, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 50)  # Chaotic random pulse
+    of "omega_pulse":
+      (38, Color(r: 255, g: 100, b: 255, a: 255), 65)  # ULTIMATE pulse - huge and powerful
+    of "banish_nova":
+      (16, Color(r: 80, g: 220, b: 120, a: 255), 38)  # Summoner King: green banishment ring
+    else:
+      (24, phase.color, 35)  # Standard pulse
+
+  # TRIGGER SCREEN SHAKE
+  addShake(game.dopamine.screenShake, siLarge)
+
+  # Create expanding pulse ring
+  for i in 0..<bulletCount:
+    let angle = i.float32 * PI * 2.0 / bulletCount.float32
+    let dir = newVector2f(cos(angle), sin(angle))
+    game.bullets.add(newBullet(
+      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+      speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+      bulletRadius = attack.bulletRadius
+    ))
+
+  # MODE-SPECIFIC VISUAL ENHANCEMENTS
+  case pulseMode:
+    of "electric_discharge", "overload_pulse":
+      # Create multiple expanding particle rings
+      let ringCount = if pulseMode == "overload_pulse": 4 else: 3
+      for ring in 0..<ringCount:
+        let ringRadius = 30.0 + ring.float32 * 25.0
+        for i in 0..<16:
+          let angle = i.float32 * PI * 2.0 / 16.0
+          let sparkX = enemy.pos.x + cos(angle) * ringRadius
+          let sparkY = enemy.pos.y + sin(angle) * ringRadius
+          spawnExplosionPooled(game.particlePool, sparkX, sparkY,
+                        Color(r: 255, g: 255, b: 200, a: 255), 3)
+
+    of "ground_slam", "earthquake":
+      # Create rock/debris particles flying outward
+      let debrisCount = if pulseMode == "earthquake": 32 else: 20
+      for i in 0..<debrisCount:
+        let angle = i.float32 * PI * 2.0 / debrisCount.float32
+        let debrisRadius = 40.0 + rand(60.0)
+        let debrisX = enemy.pos.x + cos(angle) * debrisRadius
+        let debrisY = enemy.pos.y + sin(angle) * debrisRadius
+        # Brown/orange debris colors
+        spawnExplosionPooled(game.particlePool, debrisX, debrisY,
+                      Color(r: 120 + rand(80).uint8, g: 60 + rand(40).uint8, b: 20, a: 255), 4)
+
+      # Earthquake gets GROUND CRACKS (radial lines)
+      if pulseMode == "earthquake":
+        for i in 0..<8:
+          let angle = i.float32 * PI * 2.0 / 8.0
+          for step in 1..10:
+            let crackRadius = step.float32 * 15.0
+            let crackX = enemy.pos.x + cos(angle) * crackRadius
+            let crackY = enemy.pos.y + sin(angle) * crackRadius
+            spawnExplosionPooled(game.particlePool, crackX, crackY,
+                          Color(r: 80, g: 40, b: 10, a: 255), 2)
+
+    of "gravity_pulse":
+      # Space-themed spiral particles
+      for ring in 0..3:
+        let ringRadius = 35.0 + ring.float32 * 30.0
+        for i in 0..<12:
+          let angle = i.float32 * PI * 2.0 / 12.0 + ring.float32 * 0.3  # Spiral offset
+          let gravX = enemy.pos.x + cos(angle) * ringRadius
+          let gravY = enemy.pos.y + sin(angle) * ringRadius
+          spawnExplosionPooled(game.particlePool, gravX, gravY,
+                        Color(r: 150, g: 100, b: 255, a: 255), 3)
+
+    of "blinding_pulse":
+      # Brilliant prismatic light explosion with rainbow rings
+      for ring in 0..5:
+        let ringRadius = 30.0 + ring.float32 * 25.0
+        for i in 0..<20:
+          let angle = i.float32 * PI * 2.0 / 20.0
+          let lightX = enemy.pos.x + cos(angle) * ringRadius
+          let lightY = enemy.pos.y + sin(angle) * ringRadius
+          # Rainbow prismatic effect
+          let lightColor = case (i + ring) mod 7
+            of 0: Color(r: 255, g: 200, b: 200, a: 255)
+            of 1: Color(r: 255, g: 230, b: 200, a: 255)
+            of 2: Color(r: 255, g: 255, b: 200, a: 255)
+            of 3: Color(r: 200, g: 255, b: 200, a: 255)
+            of 4: Color(r: 200, g: 230, b: 255, a: 255)
+            of 5: Color(r: 230, g: 200, b: 255, a: 255)
+            else: Color(r: 255, g: 255, b: 255, a: 255)
+          spawnExplosionPooled(game.particlePool, lightX, lightY, lightColor, 4)
+
+    of "chrono_pulse":
+      # Temporal distortion waves - expanding time rings
+      for ring in 0..3:
+        let ringRadius = 35.0 + ring.float32 * 28.0
+        for i in 0..<14:
+          let angle = i.float32 * PI * 2.0 / 14.0
+          let timeX = enemy.pos.x + cos(angle) * ringRadius
+          let timeY = enemy.pos.y + sin(angle) * ringRadius
+          # Cyan/turquoise temporal particles with brightness variation
+          let brightness = 100 + (ring * 35)
+          spawnExplosionPooled(game.particlePool, timeX, timeY,
+                        Color(r: brightness.uint8, g: 220, b: 220, a: 255), 3)
+
+    of "chrono_break":
+      # MASSIVE reality-breaking time shatter effect
+      # Create multiple layers of temporal fractures
+      for ring in 0..5:
+        let ringRadius = 30.0 + ring.float32 * 30.0
+        for i in 0..<18:
+          let angle = i.float32 * PI * 2.0 / 18.0
+          let shatterX = enemy.pos.x + cos(angle) * ringRadius
+          let shatterY = enemy.pos.y + sin(angle) * ringRadius
+          # Bright cyan-white time shatter particles
+          spawnExplosionPooled(game.particlePool, shatterX, shatterY,
+                        Color(r: 150, g: 255, b: 255, a: 255), 5)
+
+      # Add radial time cracks extending outward
+      for i in 0..<12:
+        let angle = i.float32 * PI * 2.0 / 12.0
+        for step in 1..15:
+          let crackRadius = step.float32 * 18.0
+          let crackX = enemy.pos.x + cos(angle) * crackRadius
+          let crackY = enemy.pos.y + sin(angle) * crackRadius
+          spawnExplosionPooled(game.particlePool, crackX, crackY,
+                        Color(r: 100, g: 220, b: 220, a: 255), 2)
+
+    of "entropy_wave":
+      # ENTROPY WAVE - Chaotic unstable shockwave with randomized effects
+      # Create multiple chaotic spiral patterns with random colors
+      for spiral in 0..<rand(4) + 3:  # 3-6 spirals
+        for ring in 0..rand(5) + 3:  # Variable rings per spiral
+          let ringRadius = 25.0 + ring.float32 * (20.0 + rand(15.0))
+          let spiralAngle = (spiral.float32 * PI * 2.0 / (spiral + 3).float32) + rand(PI)
+          for i in 0..<rand(8) + 8:  # Variable particle count
+            let angle = i.float32 * PI * 2.0 / (i + 8).float32 + spiralAngle
+            let chaosX = enemy.pos.x + cos(angle) * ringRadius
+            let chaosY = enemy.pos.y + sin(angle) * ringRadius
+            # Completely random colors for pure chaos
+            let chaosColor = Color(
+              r: rand(200).uint8 + 55,
+              g: rand(200).uint8 + 55,
+              b: rand(200).uint8 + 55,
+              a: 255
+            )
+            spawnExplosionPooled(game.particlePool, chaosX, chaosY, chaosColor, rand(5) + 2)
+
+      # Add random crackling effects
+      for i in 0..<rand(15) + 10:
+        let randomAngle = rand(PI * 2.0)
+        let randomRadius = rand(120.0) + 30.0
+        let crackX = enemy.pos.x + cos(randomAngle) * randomRadius
+        let crackY = enemy.pos.y + sin(randomAngle) * randomRadius
+        spawnExplosionPooled(game.particlePool, crackX, crackY,
+                      Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 4)
+
+    of "omega_pulse":
+      # OMEGA PULSE - Ultimate shockwave combining all boss themes
+      # Rainbow prismatic rings (like Boss 9)
+      for ring in 0..6:
+        let ringRadius = 30.0 + ring.float32 * 32.0
+        for i in 0..<20:
+          let angle = i.float32 * PI * 2.0 / 20.0
+          let omegaX = enemy.pos.x + cos(angle) * ringRadius
+          let omegaY = enemy.pos.y + sin(angle) * ringRadius
+          # Rainbow spectrum
+          let rainbowColor = case i mod 7
+            of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
+            of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
+            of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
+            of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
+            of 4: Color(r: 0, g: 255, b: 255, a: 255)   # Cyan
+            of 5: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
+            else: Color(r: 255, g: 0, b: 255, a: 255)   # Magenta
+          spawnExplosionPooled(game.particlePool, omegaX, omegaY, rainbowColor, 6)
+
+      # Electric crackling (like Boss 6)
+      for i in 0..<16:
+        let angle = i.float32 * PI * 2.0 / 16.0
+        let sparkX = enemy.pos.x + cos(angle) * 65.0
+        let sparkY = enemy.pos.y + sin(angle) * 65.0
+        spawnExplosionPooled(game.particlePool, sparkX, sparkY,
+                      Color(r: 255, g: 255, b: 150, a: 255), 5)
+
+      # Temporal rifts (like Boss 10)
+      for i in 0..<14:
+        let angle = i.float32 * PI * 2.0 / 14.0
+        for step in 1..18:
+          let riftRadius = step.float32 * 20.0
+          let riftX = enemy.pos.x + cos(angle) * riftRadius
+          let riftY = enemy.pos.y + sin(angle) * riftRadius
+          spawnExplosionPooled(game.particlePool, riftX, riftY,
+                        Color(r: 150, g: 255, b: 255, a: 255), 3)
+
+      # Light brilliance bursts (like Boss 9)
+      for burst in 0..4:
+        let burstAngle = burst.float32 * PI * 2.0 / 5.0
+        for step in 0..8:
+          let burstRadius = step.float32 * 25.0
+          let burstX = enemy.pos.x + cos(burstAngle) * burstRadius
+          let burstY = enemy.pos.y + sin(burstAngle) * burstRadius
+          spawnExplosionPooled(game.particlePool, burstX, burstY,
+                        Color(r: 255, g: 255, b: 255, a: 255), 4)
+
+    else:
+      discard  # No extra effects for default
+
+  # Central explosion (size varies by mode)
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, particleColor, explosionSize)
+
+
+proc execBossAttackSummon(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Spawn minion enemies around the boss - customizable via specialData
+  # Parse specialData to determine minion types: "minion_circle", "minion_triangle", "minion_mixed"
+  var minionType = etCircle  # Default
+  var useVariation = false
+
+  if attack.specialData != "":
+    case attack.specialData
+    of "minion_circle":
+      minionType = etCircle
+    of "minion_triangle":
+      minionType = etTriangle
+    of "minion_cube":
+      minionType = etCube
+    of "minion_pentagon":
+      minionType = etPentagon
+    of "minion_mixed":
+      useVariation = true  # Vary minion types
+    else:
+      minionType = etCircle
+
+  # CAP: Count existing boss-spawned enemies to prevent overwhelming defensive builds
+  var bossSpawnedCount = 0
+  for e in game.enemies:
+    if e.spawnedByBoss:
+      bossSpawnedCount += 1
+
+  # Maximum boss-spawned enemies allowed at once (configurable cap)
+  const MAX_BOSS_SPAWNED_ENEMIES = 12
+
+  # Calculate how many we can actually spawn
+  let maxToSpawn = max(0, MAX_BOSS_SPAWNED_ENEMIES - bossSpawnedCount)
+  let actualSpawnCount = min(attack.projectileCount, maxToSpawn)
+
+  # Only proceed if we can spawn at least one enemy
+  if actualSpawnCount <= 0:
+    # Skip spawning but still show visual feedback
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 8)
+  else:
+    for i in 0..<actualSpawnCount:
+      let angle = i.float32 * PI * 2.0 / actualSpawnCount.float32
+      let spawnDist = enemy.radius + 60.0  # Spawn outside boss radius
+      let spawnX = enemy.pos.x + cos(angle) * spawnDist
+      let spawnY = enemy.pos.y + sin(angle) * spawnDist
+
+      # Determine this minion's type
+      var thisType = minionType
+      if useVariation:
+        # Vary between circle, triangle, and cube based on index
+        thisType = case i mod 3
+          of 0: etCircle
+          of 1: etTriangle
+          else: etCube
+
+      # Create minion with determined type
+      # Use a fixed base difficulty so minions don't become stronger over time
+      let minion = newEnemy(
+        spawnX, spawnY,
+        2.5,  # Fixed difficulty - does NOT scale with time
+        thisType,
+        game
+      )
+      # Mark as boss-spawned so it doesn't drop coins (prevent farming)
+      minion.spawnedByBoss = true
+      # Summoned enemies are already inside the arena, so they should engage immediately.
+      minion.hasEnteredScreen = true
+
+      case minion.enemyType
+      of etTriangle:
+        # Enter the triangle wind-up state right away instead of spawning "mid-dash".
+        minion.dashCooldown = 0.0
+        minion.dashTimer = 0.35 + rand(0.35)
+      of etDiamond:
+        minion.dashTimer = 0.0
+        minion.dashCooldown = 0.75 + rand(0.5)
+      else:
+        discard
+
+      # NERF: Make boss-summoned minions smaller and slower
+      minion.radius = minion.radius * 1.0  # 35% smaller
+      minion.collisionRadius = minion.collisionRadius * 1.0  # Keep collision consistent
+      minion.speed = minion.speed * 0.70  # 30% slower
+
+      game.enemies.add(minion)
+
+    # Mark a summoned wave as active. Clearing every add in it opens the boss's
+    # vulnerability window (Summoner King objective). Wave size drives the pips.
+    # Gated to the bwoSummonSigils objective so a future summoner with a different
+    # weak-point doesn't get its real objective's required/progress clobbered.
+    if enemy.isBoss and enemy.weakPoint.kind == bwoSummonSigils:
+      enemy.summonWaveActive = true
+      enemy.weakPoint.required = max(1, actualSpawnCount)
+      enemy.weakPoint.progress = 0
+
+    # Visual feedback for summoning
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
+
+
+proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Falling projectiles from above, screen-wide barrage with a guaranteed dodge gap
+  # SpecialData modes:
+  # - "warn_impact":    Show warnings before meteors arrive
+  # - "massive_impact": Larger meteorites, more coverage
+  # - "apocalypse_mode": Maximum meteorites, longer warnings
+  # - "satellite_strike": Purple space theme
+
+  let meteorMode = attack.specialData
+
+  # Resolve bullet radius: 0 means "use default 6" (see BossAttack type comment).
+  # A zero radius would make spacing = 0, causing an infinite loop in the layout loop below.
+  let rawMeteorRadius = if attack.bulletRadius > 0: attack.bulletRadius else: 6.0'f32
+
+  # Configure per-mode parameters
+  let (warningTime, meteorColor, bRadius) = case meteorMode
+    of "massive_impact":
+      (0.65'f32, Color(r: 255, g: 100, b: 0, a: 255),
+       rawMeteorRadius * 1.4)
+    of "apocalypse_mode":
+      (0.85'f32, Color(r: 255, g: 50, b: 0, a: 255),
+       rawMeteorRadius * 1.6)
+    of "satellite_strike":
+      (0.75'f32, Color(r: 180, g: 120, b: 255, a: 255),
+       rawMeteorRadius)
+    else:  # "warn_impact" and everything else
+      (0.55'f32, Color(r: 255, g: 150, b: 50, a: 255),
+       rawMeteorRadius)
+
+  # Layout: distribute meteors across 50% of the screen width
+  let sw        = game.screenWidth.float32
+  let margin    = 15.0'f32                       # keep away from edges
+  let spacing   = bRadius * 5.0'f32              # center-to-center distance (2.5x->5.0x = 50% fewer meteors)
+
+  # Barrage zone: half the screen width, randomly offset so it isn't always on one side
+  let zoneWidth = sw * 0.5'f32
+  let zoneStart = margin + rand(max(0.0'f32, sw - 2.0'f32 * margin - zoneWidth))
+  let zoneEnd   = zoneStart + zoneWidth
+
+  # Guaranteed safe gap: player must physically fit through it
+  let gapHalf   = game.player.radius + bRadius + 28.0'f32  # 28 px clearance each side
+  let gapMin    = zoneStart + gapHalf
+  let gapMax    = zoneEnd   - gapHalf
+  let gapCenter = gapMin + rand(max(0.0'f32, gapMax - gapMin))
+
+  # Collect all meteor X positions inside the zone that fall outside the gap
+  var meteorXs: seq[float32] = @[]
+  var mx = zoneStart + bRadius
+  while mx <= zoneEnd - bRadius:
+    if abs(mx - gapCenter) >= gapHalf:
+      meteorXs.add(mx)
+    mx += spacing
+
+  # For each position, place a timed warning, bullet spawns when warning expires
+  let impactY = clamp(game.player.pos.y + 80.0'f32,
+                      game.screenHeight.float32 * 0.5'f32,
+                      game.screenHeight.float32 * 0.85'f32)
+
+  for targetX in meteorXs:
+    var w = AttackWarning(
+      pos:          newVector2f(targetX, impactY),
+      targetPos:    newVector2f(targetX, -50.0),   # bullet spawn point
+      attackType:   "meteor",
+      lifetime:     warningTime,
+      maxLifetime:  warningTime,
+      sourceEnemyId: enemy.id,
+      bulletSpeed:  attack.projectileSpeed,
+      bulletDamage: attack.damage * phase.damageMultiplier,
+      bulletRadius: bRadius,
+      overrideColor: meteorColor,
+      bulletsCreated: false
+    )
+    game.attackWarnings.add(w)
+
+
+proc execBossAttackOrbit(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # ORBITAL SATELLITE SYSTEM
+  # Creates persistent satellites that orbit, shoot, and can be destroyed
+  # SpecialData modes:
+  # - "electric_charges": Electric Boss 6 - yellow sparking satellites
+  # - "satellite_orbit": Orbital Boss 7 - space theme, slower, methodical
+  # - "dual_layer_orbit": Two concentric rings of satellites
+  # - "orbital_storm": Three concentric rings (maximum chaos)
+
+  # Only create satellites if they don't already exist AND the boss isn't
+  # currently in its vulnerability window (all satellites were just destroyed)
+  # AND the post-vulnerability cooldown has fully expired.
+  # Without this guard the bapOrbit attack fires again on its cooldown and
+  # immediately repopulates satellites, cutting the exposure window short.
+  if enemy.satellites.len == 0 and enemy.weakPoint.exposedTimer <= 0 and
+     enemy.weakPoint.cooldownTimer <= 0:
+    let orbitMode = attack.specialData
+    let satelliteCount = attack.projectileCount
+    let baseOrbitRadius = attack.durationOrRadius
+
+    # Configure layers based on mode
+    let (layerCount, rotationSpeed, satelliteColor) = case orbitMode
+      of "electric_charges":
+        (1, 1.2, Color(r: 255, g: 255, b: 100, a: 255))  # Single fast layer, yellow
+      of "satellite_orbit":
+        (1, 0.6, Color(r: 150, g: 100, b: 255, a: 255))  # Single slow layer, purple
+      of "dual_layer_orbit":
+        (2, 1.0, Color(r: 200, g: 150, b: 255, a: 255))  # Two layers, medium speed
+      of "orbital_storm":
+        (3, 1.3, Color(r: 180, g: 120, b: 255, a: 255))  # Three layers, fast
+      else:
+        (1, 1.0, phase.color)  # Default single layer
+
+    # Create satellites in multiple orbital layers
+    for layer in 0..<layerCount:
+      # Distribute satellites across layers, spreading any remainder onto the
+      # first layers so the full authored projectileCount actually spawns.
+      # Plain `div` silently dropped satellites (8/3 -> 6, 5/2 -> 4), which
+      # under-delivered the boss AND shrank its all-satellites-down window.
+      let satsThisLayer = satelliteCount div layerCount +
+        (if layer < satelliteCount mod layerCount: 1 else: 0)
+      let layerRadius = baseOrbitRadius + (layer.float32 * 50.0)  # Each layer 50px apart
+      let angleOffset = if layer mod 2 == 0: 0.0 else: (PI / satsThisLayer.float32)  # Stagger alternating layers
+      # Alternating layers rotate in opposite directions for visual complexity
+      let layerRotationSpeed = if layer mod 2 == 0: rotationSpeed else: -rotationSpeed
+
+      for i in 0..<satsThisLayer:
+        let angle = i.float32 * (PI * 2.0 / satsThisLayer.float32) + angleOffset
+        enemy.satellites.add(OrbitalSatellite(
+          pos: newVector2f(
+            enemy.pos.x + cos(angle) * layerRadius,
+            enemy.pos.y + sin(angle) * layerRadius
+          ),
+          angle: angle,
+          radius: layerRadius,
+          rotationSpeed: layerRotationSpeed,
+          hp: 1,  # 1-hit kill, satellites are glass-cannon threats, not tanks
+          shootTimer: 0.5 + rand(1.0) + (layer.float32 * 0.3),  # Later layers shoot slightly later
+          owner: enemy.id,
+          laserActive: false,
+          laserTarget: game.player.pos,  # Initialize with current player position
+          laserChargeTime: 0.0
+        ))
+
+    # Visual effects based on mode
+    let (explosionSize, explosionColor) = case orbitMode
+      of "electric_charges":
+        (35, Color(r: 255, g: 255, b: 150, a: 255))  # Bright yellow sparks
+      of "satellite_orbit":
+        (30, Color(r: 150, g: 100, b: 255, a: 255))  # Purple space theme
+      of "dual_layer_orbit":
+        (40, Color(r: 200, g: 150, b: 255, a: 255))  # Bright purple
+      of "orbital_storm":
+        (50, Color(r: 255, g: 200, b: 255, a: 255))  # Massive pink explosion
+      else:
+        (30, phase.color)
+
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
+
+    # Extra ring effects for multi-layer
+    if layerCount > 1:
+      for layer in 0..<layerCount:
+        let ringRadius = baseOrbitRadius + (layer.float32 * 50.0)
+        for i in 0..<8:
+          let angle = i.float32 * (PI * 2.0 / 8.0)
+          let ringX = enemy.pos.x + cos(angle) * ringRadius
+          let ringY = enemy.pos.y + sin(angle) * ringRadius
+          spawnExplosionPooled(game.particlePool, ringX, ringY, satelliteColor, 3)
+
+
+proc execBossAttackChain(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # CHAIN LIGHTNING SYSTEM
+  # Chain mechanics with visual lightning arcs
+  # SpecialData modes:
+  # - "chain_basic": Simple 3-chain lightning (Phase 1)
+  # - "chain_storm": Multi-target chain web (Phase 2)
+  # - "chain_overload": Maximum chain lightning chaos (Phase 3)
+
+  let chainMode = attack.specialData
+
+  # Configure chain behavior based on mode
+  let (chainCount, chainsPerDirection, chainDecay) = case chainMode
+    of "chain_basic":
+      (attack.projectileCount, 2, 0.75)  # 3 directions, 2 chains each, 75% decay
+    of "chain_storm":
+      (attack.projectileCount, 3, 0.65)  # 5 directions, 3 chains each, 65% decay
+    of "chain_overload":
+      (attack.projectileCount, 4, 0.6)   # 8 directions, 4 chains each, 60% decay
+    else:
+      (attack.projectileCount, 2, 0.75)  # Default to basic
+
+  # Create chain lightning in multiple directions
+  for i in 0..<chainCount:
+    let baseAngle = i.float32 * (PI * 2.0 / chainCount.float32) + rand(0.3)
+    let dir = newVector2f(cos(baseAngle), sin(baseAngle))
+
+    var currentDamage = attack.damage * phase.damageMultiplier
+    var lastX = enemy.pos.x
+    var lastY = enemy.pos.y
+
+    # Create chain sequence in this direction
+    for chainStep in 1..chainsPerDirection:
+      let distance = chainStep.float32 * 80.0  # Distance between chain points
+      let chainX = enemy.pos.x + dir.x * distance
+      let chainY = enemy.pos.y + dir.y * distance
+
+      # Check if chain is still on screen
+      if chainX < 0 or chainX > game.screenWidth.float32 or
+         chainY < 0 or chainY > game.screenHeight.float32:
+        break
+
+      # VISUAL: Persistent jagged lightning arc between chain points
+      spawnLightningBolt(game, newVector2f(lastX, lastY), newVector2f(chainX, chainY))
+
+      # Create bullet at chain point
+      game.bullets.add(newBullet(
+        x = chainX, y = chainY,
+        direction = dir,
+        speed = 180.0 + rand(40.0),  # Slightly randomized speed
+        damage = currentDamage,
+        fromPlayer = false,
+        isBossBullet = true,
+        sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID)
+      ))
+
+      # Chain impact explosion
+      spawnExplosionPooled(game.particlePool, chainX, chainY,
+                    Color(r: 255, g: 255, b: 150, a: 255), 8)
+
+      # Decay damage for next chain
+      currentDamage *= chainDecay
+      lastX = chainX
+      lastY = chainY
+
+    # SPECIAL: Chain storm creates branching
+    if chainMode == "chain_storm" and rand(100) < 40:
+      # 40% chance to create a branch
+      let branchAngle = baseAngle + (if rand(2) == 0: 0.6 else: -0.6)
+      let branchDir = newVector2f(cos(branchAngle), sin(branchAngle))
+      let branchDist = 120.0
+      let branchX = enemy.pos.x + branchDir.x * branchDist
+      let branchY = enemy.pos.y + branchDir.y * branchDist
+
+      if branchX > 0 and branchX < game.screenWidth.float32 and
+         branchY > 0 and branchY < game.screenHeight.float32:
+        # VISUAL: Persistent lightning arc for branch
+        spawnLightningBolt(game, enemy.pos, newVector2f(branchX, branchY))
+
+        game.bullets.add(newBullet(
+          x = branchX, y = branchY,
+          direction = branchDir,
+          speed = 200.0,
+          damage = attack.damage * phase.damageMultiplier * 0.5,
+          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+      bulletRadius = attack.bulletRadius
+        ))
+
+  # Central explosion - varies by mode
+  let (explosionSize, explosionColor) = case chainMode
+    of "chain_overload": (40, Color(r: 255, g: 255, b: 255, a: 255))  # White overload
+    of "chain_storm": (30, Color(r: 255, g: 255, b: 150, a: 255))     # Bright yellow
+    else: (20, Color(r: 255, g: 255, b: 100, a: 255))                 # Yellow
+
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
+
+
+proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Teleport to new location and shoot - customized via specialData
+  # "afterimage_burst" = creates multiple images with burst effect
+  # "triple_clone" = teleports to 3 locations simultaneously
+  # "dimensional_rift" = creates rift visual effect
+
+  let teleportMode = attack.specialData
+  let teleportCount = case teleportMode
+    of "triple_clone": 3
+    of "time_echo": 2
+    of "echo_burst": 4
+    of "temporal_collapse": 6
+    of "afterimage_burst": 3 + rand(2)  # 3-4 ghost images with rapid bursts
+    of "chaos_blink": rand(2) + 1  # 1-2 random teleports with unstable reality tears
+    of "reality_shift": rand(2) + 2  # 2-3 reality shifts with dimensional bridges
+    of "dimensional_rift": 2  # 2 major dimensional rifts
+    of "dimensional_chaos": rand(3) + 3  # 3-5 chaotic dimension portals with vortexes
+    of "omega_blink": rand(2) + 4  # 4-5 ultimate teleports combining all effects
+    else: 1
+
+  # TELEPORT WARNING SYSTEM - Show player where boss will appear BEFORE bullets spawn
+  # Pre-calculate all teleport positions and create warning indicators
+  const BOSS_TELEPORT_MIN_DIST = 150.0  # Minimum distance boss can teleport near player
+  var teleportWarningPositions: seq[Vector2f] = @[]
+  for t in 0..<teleportCount:
+    var newX, newY: float32
+    var attempts = 0
+    while true:
+      newX = game.screenWidth.float32 * (0.2 + rand(0.6))
+      newY = game.screenHeight.float32 * (0.2 + rand(0.6))
+      let dx = newX - game.player.pos.x
+      let dy = newY - game.player.pos.y
+      let distSq = dx * dx + dy * dy
+      inc attempts
+      if distSq >= BOSS_TELEPORT_MIN_DIST * BOSS_TELEPORT_MIN_DIST or attempts >= 10:
+        break  # Accept position if far enough or after max retries
+    teleportWarningPositions.add(newVector2f(newX, newY))
+
+  # Create pre-warning indicators at each teleport location
+  let warningDuration = case teleportMode
+    of "afterimage_burst": 0.6
+    of "triple_clone": 0.7
+    of "time_echo": 0.5
+    of "echo_burst": 0.5
+    of "temporal_collapse": 0.6
+    of "chaos_blink": 0.5
+    of "reality_shift": 0.7
+    of "dimensional_rift": 0.8
+    of "dimensional_chaos": 0.7
+    of "omega_blink": 1.0
+    else: 0.5
+
+  # Create visual warnings for each teleport position
+  # Calculate bullet spawn parameters BEFORE creating warnings
+  let (bulletSpeed, bulletDamageMultiplier) = case teleportMode
+    of "time_echo":
+      (160.0, 0.65)  # Slower temporal echoes, reduced damage
+    of "echo_burst":
+      (200.0, 0.6)  # Many rapid echoes, lower damage
+    of "temporal_collapse":
+      (180.0, 0.7)  # Moderate speed reality-breaking shots
+    of "afterimage_burst":
+      (190.0 + rand(40.0), 0.65)  # Variable speed ghost shots
+    of "chaos_blink":
+      (170.0 + rand(60.0), 0.7)  # Random speed chaos
+    of "reality_shift":
+      (160.0 + rand(80.0), 0.65)  # Highly variable speed
+    of "dimensional_rift":
+      (180.0 + rand(50.0), 0.72)  # Dimensional rift shots with variance
+    of "dimensional_chaos":
+      (150.0 + rand(100.0), 0.75)  # Maximum speed variation
+    of "omega_blink":
+      (220.0, 0.8)  # Fast ultimate shots
+    else:
+      (200.0, 0.7)  # Default
+
+  for idx in 0..<teleportWarningPositions.len:
+    let warningPos = teleportWarningPositions[idx]
+    # Create warning with bullet spawn data stored
+    let warning = AttackWarning(
+      pos: warningPos,
+      attackType: "teleport_warning",
+      lifetime: warningDuration,
+      maxLifetime: warningDuration,
+      sourceEnemyId: enemy.id,
+      laserAngles: @[],
+      laserLength: 0.0,
+      laserCount: 0,
+      laserDamage: 0,
+      laserDuration: 0.0,
+      lasersCreated: false,
+      laserPattern: teleportMode,  # Store mode for visual rendering
+      enemyType: etCircle,
+      targetPos: warningPos,
+      fromSatellite: false,
+      # Store bullet spawn data for delayed creation
+      bulletCount: attack.projectileCount,
+      bulletSpeed: bulletSpeed,
+      bulletDamage: attack.damage * phase.damageMultiplier * bulletDamageMultiplier,
+      bulletSpreadAngle: 360.0,  # Full circle
+      bulletsCreated: false,
+      # Mark first position as where boss should teleport
+      isBossTeleportTarget: (idx == 0)
+    )
+    game.attackWarnings.add(warning)
+
+
+proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # BERSERKER DASH SYSTEM with multi-charge mechanics
+  # SpecialData modes:
+  # - "charge_attack": Basic charge with screen shake
+  # - "double_charge": Charges twice in rapid succession
+  # - "rage_charge": THREE charges in combo! Maximum aggression!
+
+  let dashMode = attack.specialData
+  var dashStart = enemy.pos
+  var dashTarget: Vector2f
+  var dashDist: float32
+  if enemy.pendingDashLocked:
+    dashStart = enemy.pendingDashStart
+    dashTarget = enemy.pendingDashTarget
+    # Clamp the locked target too (it was set in a prior frame, same check)
+    let lockedPad = enemy.radius
+    dashTarget.x = clamp(dashTarget.x, lockedPad, game.screenWidth.float32 - lockedPad)
+    dashTarget.y = clamp(dashTarget.y, lockedPad, game.screenHeight.float32 - lockedPad)
+    dashDist = distance(dashStart, dashTarget)
+  else:
+    dashDist = case dashMode
+      of "charge_attack": 350.0'f32
+      of "double_charge": 300.0'f32
+      of "rage_charge":   280.0'f32
+      else:               350.0'f32
+    dashTarget = dashStart + toPlayer * dashDist
+
+  # Clamp dash target to screen bounds so the boss can't leave the play area
+  let dashPad = enemy.radius
+  dashTarget.x = clamp(dashTarget.x, dashPad, game.screenWidth.float32 - dashPad)
+  dashTarget.y = clamp(dashTarget.y, dashPad, game.screenHeight.float32 - dashPad)
+  # Recompute actual distance after clamping (affects duration + trail spacing)
+  dashDist = distance(dashStart, dashTarget)
+
+  let dashDir = if dashDist > 0.01'f32:
+    (dashTarget - dashStart).normalize()
+  else:
+    toPlayer
+  var dashSpeed = attack.projectileSpeed
+
+  # Cap dash speed to player speed for fairness
+  # Bosses can charge at you, but never faster than you can move away
+  if dashSpeed > game.player.speed:
+    dashSpeed = game.player.speed
+
+  # Configure dash visuals based on mode. Distance is locked by the warning
+  # above so execution cannot retarget after the marker appears.
+  let trailColor = case dashMode
+    of "charge_attack":
+      Color(r: 255, g: 50, b: 0, a: 255)  # Single charge, red trail
+    of "double_charge":
+      Color(r: 255, g: 100, b: 0, a: 255)  # Double charge, bright red
+    of "rage_charge":
+      Color(r: 255, g: 0, b: 0, a: 255)  # TRIPLE charge, pure red
+    else:
+      phase.color  # Default
+
+  let dashTime = dashDist / dashSpeed  # Calculate duration based on speed
+
+  # Set up dash state with charge count
+  enemy.isDashing = true
+  enemy.pos = dashStart
+  enemy.dashVelocity = dashDir * dashSpeed
+  enemy.vel = enemy.dashVelocity
+  enemy.dashDuration = dashTime
+  enemy.dashMaxDuration = dashTime
+  enemy.dashTargetPos = dashTarget
+  enemy.pendingDashLocked = false
+
+  # Store remaining charges (will re-trigger after current dash finishes)
+  # This is handled in boss update logic by checking dashChargesRemaining
+
+  # SCREEN SHAKE based on mode
+  addShake(game.dopamine.screenShake, siLarge)
+
+  # Create MORE impressive trail effects for rage charges
+  let trailCount = if dashMode == "rage_charge": 8 elif dashMode == "double_charge": 6 else: 4
+  for i in 0..<trailCount:
+    let trailPos = i.float32 * (dashDist / trailCount.float32)
+    game.bullets.add(newBullet(
+      x = dashStart.x + dashDir.x * trailPos,
+      y = dashStart.y + dashDir.y * trailPos,
+      direction = dashDir,
+      speed = dashSpeed * 0.4,  # Trail effect
+      damage = attack.damage * phase.damageMultiplier * 0.6,  # Trail damage
+      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+      bulletRadius = attack.bulletRadius
+    ))
+
+  # Rage charges get FIRE RING on activation
+  if dashMode == "rage_charge":
+    for i in 0..<16:
+      let angle = i.float32 * (PI * 2.0 / 16.0)
+      let ringX = enemy.pos.x + cos(angle) * 60.0
+      let ringY = enemy.pos.y + sin(angle) * 60.0
+      spawnExplosionPooled(game.particlePool, ringX, ringY,
+                    Color(r: 255, g: 50, b: 0, a: 255), 5)
+
+  # Initial visual explosion with colors
+  let (explosionSize, explosionColor) = case dashMode
+    of "rage_charge": (40, Color(r: 255, g: 0, b: 0, a: 255))
+    of "double_charge": (30, Color(r: 255, g: 100, b: 0, a: 255))
+    else: (20, trailColor)
+
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
+
+
+proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # PRECISION SNIPE SYSTEM - Boss 7 Orbital Commander
+  # SpecialData modes:
+  # - "orbital_snipe": Aimed shot from satellite position (shows laser pointer warning)
+  # - "precision_strike": Double snipe with warning indicators
+  # - "satellite_barrage": Multiple rapid snipes from different angles
+  # - Default: Standard snipe
+
+  let snipeMode = attack.specialData
+
+  # Configure snipe behavior
+  let (showWarning, warningTime, bulletColor) = case snipeMode
+    of "orbital_snipe":
+      (true, 0.8, Color(r: 150, g: 100, b: 255, a: 255))  # Purple space snipe with warning
+    of "precision_strike":
+      (true, 0.6, Color(r: 200, g: 150, b: 255, a: 255))  # Bright purple, shorter warning
+    of "satellite_barrage":
+      (true, 0.4, Color(r: 180, g: 120, b: 255, a: 255))  # Quick warnings for rapid fire
+    else:
+      (false, 0.0, phase.color)  # No warning for default
+
+  # Show warning indicators at the TARGET position (near player), not at the enemy
+  if showWarning:
+    for i in 0..<attack.projectileCount:
+      let spread = if attack.projectileCount > 1:
+        (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
+      else: 0.0
+      let aimAngle = arctan2(toPlayer.y, toPlayer.x) + spread
+      # Project from enemy toward player to approximate impact point (capped at screen edge)
+      let maxDist = min(distance(enemy.pos, game.player.pos) + 80.0, 600.0)
+      let warnX = enemy.pos.x + cos(aimAngle) * maxDist
+      let warnY = enemy.pos.y + sin(aimAngle) * maxDist
+      game.attackWarnings.add(newAttackWarning(warnX, warnY, "laser_pointer", warningTime))
+
+  # Fire the actual snipe shots
+  for i in 0..<attack.projectileCount:
+    let spread = if attack.projectileCount > 1:
+      (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
+    else: 0.0
+    let angle = arctan2(toPlayer.y, toPlayer.x) + spread
+    let dir = newVector2f(cos(angle), sin(angle))
+
+    # Enhanced bullet for special snipes
+    game.bullets.add(newBullet(
+      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+      speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+      bulletRadius = attack.bulletRadius
+    ))
+
+    # Visual muzzle flash per shot
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, bulletColor, 8)
+
+  # Special visual effects for satellite snipes
+  if snipeMode == "satellite_barrage":
+    # Create star pattern around boss
+    for i in 0..<8:
+      let angle = i.float32 * PI * 2.0 / 8.0
+      let starX = enemy.pos.x + cos(angle) * 50.0
+      let starY = enemy.pos.y + sin(angle) * 50.0
+      spawnExplosionPooled(game.particlePool, starX, starY,
+                    Color(r: 200, g: 150, b: 255, a: 255), 4)
+
+
+proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # LEGION VOLLEY (Summoner King) - every living summoned add fires a single shot
+  # at the player in unison. This turns ignored adds into active pressure while the
+  # boss is sealed. Single shot per add
+  # keeps the worst case bounded by MAX_BOSS_SPAWNED_ENEMIES. If the wave is already
+  # cleared, the boss fires a fan itself so the attack still does something.
+  var firedFromAdds = 0
+  for other in game.enemies:
+    if other.spawnedByBoss and other.hp > 0:
+      let dir = (game.player.pos - other.pos).normalize()
+      game.bullets.add(newBullet(
+        x = other.pos.x, y = other.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
+      ))
+      spawnExplosionPooled(game.particlePool, other.pos.x, other.pos.y,
+                           Color(r: 120, g: 230, b: 140, a: 255), 6)
+      firedFromAdds += 1
+
+  if firedFromAdds == 0:
+    # Fallback: fan from the boss aimed at the player
+    let baseAngle = arctan2(toPlayer.y, toPlayer.x)
+    let count = max(3, attack.projectileCount)
+    for i in 0..<count:
+      let offset = (i.float32 - count.float32 / 2.0) * attack.spreadAngle.degToRad() / count.float32
+      let dir = newVector2f(cos(baseAngle + offset), sin(baseAngle + offset))
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius
+      ))
+  else:
+    # Green command pulse from the boss telegraphs that the legion just fired.
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                         Color(r: 80, g: 220, b: 120, a: 220), 12)
+
+
 proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
   ## Executes a single boss attack based on its pattern type
   # Dungeon mode compresses boss attack damage toward the floor's threat
@@ -788,1501 +2301,36 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
 
   case attack.attackType
   of bapSpiral:
-    # Rotating spiral pattern
-    for i in 0..<attack.projectileCount:
-      let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32 + game.time * attack.spreadAngle.degToRad()
-      let dir = newVector2f(cos(angle), sin(angle))
-      game.bullets.add(newBullet(
-        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-
+    execBossAttackSpiral(game, enemy, attack, phase, bossDef, toPlayer)
   of bapBurst:
-    # Rapid burst in spread pattern
-    let baseAngle = arctan2(toPlayer.y, toPlayer.x)
-    for i in 0..<attack.projectileCount:
-      let offset = (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
-      let angle = baseAngle + offset
-      let dir = newVector2f(cos(angle), sin(angle))
-      game.bullets.add(newBullet(
-        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-
+    execBossAttackBurst(game, enemy, attack, phase, bossDef, toPlayer)
   of bapWave:
-    # SpecialData modes:
-    # - "rainbow_wave": Colorful cascading pattern (Boss 9)
-    # - "temporal_wave": Time-distorted slow bullets (Boss 10)
-    # - Default: Standard sine wave pattern
-
-    let waveMode = attack.specialData
-
-    # Configure wave behavior based on mode
-    let (speedMultiplier, colorScheme) = case waveMode
-      of "rainbow_wave":
-        (1.0, "rainbow")  # Normal speed, rainbow particles
-      of "temporal_wave":
-        (0.7, "temporal")  # 30% slower, cyan particles
-      else:
-        (1.0, "default")  # Standard
-
-    for i in 0..<attack.projectileCount:
-      let t = i.float32 / attack.projectileCount.float32
-      let angle = t * attack.spreadAngle.degToRad() - attack.spreadAngle.degToRad() / 2.0 + arctan2(toPlayer.y, toPlayer.x)
-      let dir = newVector2f(cos(angle), sin(angle))
-
-      let bulletSpeed = attack.projectileSpeed * speedMultiplier
-
-      game.bullets.add(newBullet(
-        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = bulletSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-
-      # Special visual effects per wave type
-      case colorScheme
-      of "rainbow":
-        # Create rainbow trail particles
-        let rainbowColor = case i mod 7
-          of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
-          of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
-          of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
-          of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
-          of 4: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
-          of 5: Color(r: 75, g: 0, b: 130, a: 255)    # Indigo
-          else: Color(r: 148, g: 0, b: 211, a: 255)   # Violet
-        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, rainbowColor, 4)
-      of "temporal":
-        # Cyan time-distortion particles
-        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                      Color(r: 100, g: 220, b: 220, a: 255), 3)
-      else:
-        discard
-
+    execBossAttackWave(game, enemy, attack, phase, bossDef, toPlayer)
   of bapTargeted:
-    # Direct shots at player
-    for i in 0..<attack.projectileCount:
-      let spread = if attack.projectileCount > 1:
-        (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
-      else: 0.0
-      let angle = arctan2(toPlayer.y, toPlayer.x) + spread
-      let dir = newVector2f(cos(angle), sin(angle))
-      game.bullets.add(newBullet(
-        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-
+    execBossAttackTargeted(game, enemy, attack, phase, bossDef, toPlayer)
   of bapCircle:
-    # Perfect ring of bullets with thematic variants
-    # SpecialData modes:
-    # - "time_ring": Temporal distortion ring with pulsing cyan bullets (Boss 10)
-    # - Default: Standard perfect circle
-
-    let circleMode = attack.specialData
-
-    # Configure circle behavior based on mode
-    let (bulletSpeed, particleColor, rotationOffset) = case circleMode
-      of "time_ring":
-        (attack.projectileSpeed * 0.85, Color(r: 100, g: 220, b: 220, a: 255), game.time * 0.5)  # Slower temporal bullets with rotation
-      else:
-        (attack.projectileSpeed, phase.color, 0.0)  # Standard
-
-    # Create pre-fire visual effect for time_ring
-    if circleMode == "time_ring":
-      # Create temporal distortion rings before firing
-      for ring in 0..2:
-        let ringRadius = 30.0 + ring.float32 * 25.0
-        for i in 0..<16:
-          let angle = i.float32 * PI * 2.0 / 16.0
-          let ringX = enemy.pos.x + cos(angle) * ringRadius
-          let ringY = enemy.pos.y + sin(angle) * ringRadius
-          spawnExplosionPooled(game.particlePool, ringX, ringY,
-                        Color(r: 100, g: 220, b: 220, a: 255), 3)
-
-    # Create circle of bullets
-    for i in 0..<attack.projectileCount:
-      let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32 + rotationOffset
-      let dir = newVector2f(cos(angle), sin(angle))
-      game.bullets.add(newBullet(
-        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = bulletSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-
-      # Add temporal particle trail for time_ring
-      if circleMode == "time_ring":
-        let trailRadius = 20.0
-        let trailX = enemy.pos.x + cos(angle) * trailRadius
-        let trailY = enemy.pos.y + sin(angle) * trailRadius
-        spawnExplosionPooled(game.particlePool, trailX, trailY, particleColor, 2)
-
+    execBossAttackCircle(game, enemy, attack, phase, bossDef, toPlayer)
   of bapLaser:
-    # Boss laser with proper warning system
-    # Laser patterns customized via specialData
-    # EXISTING: "cross_laser", "rotating_grid", "prismatic_cage", "laser_snipe"
-
-    let patternType = attack.specialData
-    let laserCount = case patternType
-      of "rotating_grid": attack.projectileCount * 2  # Double density for grid
-      of "prismatic_cage": attack.projectileCount * 3  # Triple density for cage
-      of "splitting_laser": attack.projectileCount  # Triangle pattern
-      of "hexagonal_prism": 6  # Always 6 beams
-      of "prismatic_storm": attack.projectileCount * 2  # Massive light show!
-      of "temporal_beam": attack.projectileCount  # Temporal cross pattern
-      of "chaos_beam": rand(attack.projectileCount) + attack.projectileCount  # Random chaos
-      of "omega_beam": attack.projectileCount  # Ultimate beams (count tuned in boss_definitions; was *2 = 8, an undodgeable web)
-      else: attack.projectileCount
-
-    # Calculate all laser angles for the warning system
-    var warningAngles: seq[float32] = @[]
-
-    # For cross_laser pattern, always create 4 beams (cardinal directions)
-    let actualLaserCount = if patternType == "cross_laser": 4 else: laserCount
-
-    for i in 0..<actualLaserCount:
-      let angle = case patternType
-        of "rotating_grid":
-          # Grid pattern - two perpendicular sets
-          if i.float < actualLaserCount / 2:
-            i.float32 * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32
-          else:
-            (i.float32 - actualLaserCount.float / 2.0) * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32 + PI / 2.0
-
-        of "splitting_laser":
-          # Triangle pattern (120° apart) that appears to split/refract
-          i.float32 * (PI * 2.0 / 3.0) + game.time * 0.5  # Slow rotation
-
-        of "hexagonal_prism":
-          # Perfect hexagonal pattern (60° apart) - geometric precision
-          i.float32 * (PI / 3.0) + game.time * 0.3
-
-        of "prismatic_storm":
-          # Massive radial array with rainbow effect
-          # Create dense radial pattern with slight randomization for light scatter
-          let baseAngle = i.float32 * (PI * 2.0) / actualLaserCount.float32
-          baseAngle + (rand(1.0) - 0.5) * 0.15  # Slight scatter for prismatic effect
-
-        of "prismatic_cage":
-          # Calculate angle biased toward player with radial spread
-          let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y,
-                                       game.player.pos.x - enemy.pos.x)
-
-          # Create proper radial pattern with player bias
-          let segmentAngle = (PI * 2.0) / actualLaserCount.float32
-          let baseAngle = i.float32 * segmentAngle
-
-          # 40% of lasers aim near player, 60% are radial
-          if rand(100) < 40:
-            # Aim toward player with spread
-            angleToPlayer + (rand(1.0) - 0.5) * (PI / 3.0)  # ±60° spread
-          else:
-            # Radial distribution with slight randomization
-            baseAngle + (rand(1.0) - 0.5) * 0.2  # ±6° randomization
-
-        of "laser_snipe":
-          # Rapid fire lasers aimed directly at player with minimal spread
-          let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y, game.player.pos.x - enemy.pos.x)
-          # Very tight spread around player position (5 degrees)
-          angleToPlayer + (rand(1.0) - 0.5) * 0.175
-
-        of "cross_laser":
-          # Cross pattern - always 4 beams in cardinal directions (0°, 90°, 180°, 270°)
-          i.float32 * (PI / 2.0) + game.time
-
-        of "temporal_beam":
-          # TEMPORAL BEAM - Time-distorted cross pattern with slow rotation
-          # Creates 4 beams in rotating cardinal directions
-          # Beams have temporal distortion effect (stuttering, phasing)
-          i.float32 * (PI / 2.0) + game.time * 0.4  # Slower rotation for time effect
-
-        of "chaos_beam":
-          # CHAOS BEAM - Completely unpredictable laser angles with clustering
-          # Create random cluster center for grouped chaos
-          let clusterCenter = if i == 0: rand(PI * 2.0) else: warningAngles[0] + rand(0.5)
-          let clusterSpread = 0.3 + rand(0.7)  # Variable clustering (0.3-1.0 radians)
-          # Random angle with slight clustering around center for chaotic but not totally random
-          clusterCenter + (rand(1.0) - 0.5) * clusterSpread
-
-        of "omega_beam":
-          # OMEGA BEAM - Ultimate laser pattern combining ALL previous mechanics
-          # Three different sub-patterns: radial, player-tracking, and temporal spiral
-
-          # Pattern 1: Rotating radial beams (Boss 4 style) - first third of lasers
-          if i < actualLaserCount div 3:
-            i.float32 * (PI * 2.0) / (actualLaserCount div 3).float32 + game.time * 0.8
-
-          # Pattern 2: Player-tracking spread (Boss 9 style) - middle third
-          elif i < (actualLaserCount * 2) div 3:
-            let idx = i - (actualLaserCount div 3)
-            let angleToPlayer = arctan2(game.player.pos.y - enemy.pos.y,
-                                         game.player.pos.x - enemy.pos.x)
-            let spread = (idx.float32 - (actualLaserCount div 3).float32 / 2.0) * 0.3
-            angleToPlayer + spread
-
-          # Pattern 3: Temporal spiraling beams (Boss 10 style) - last third
-          else:
-            let idx = i - (actualLaserCount * 2) div 3
-            let spiral = idx.float32 * 0.5 + game.time * 0.6
-            spiral + sin(game.time * 2.0) * 0.4  # Wavy temporal distortion
-
-        else:
-          # Default pattern - distribute evenly
-          i.float32 * (PI * 2.0) / actualLaserCount.float32 + game.time
-      warningAngles.add(angle)
-
-    # Add boss laser warning with proper visual indicators
-    # WARNING: Show for 1.2 seconds before firing (much longer than current 0.3s)
-    const BOSS_LASER_WARNING_TIME = 1.2
-    let laserDamage = (attack.damage * phase.damageMultiplier).int
-
-    # PRE-FIRE VISUAL EFFECTS for special laser patterns
-    if patternType == "chaos_beam":
-      # Create flickering chaotic particles along laser paths
-      for angle in warningAngles:
-        for step in 1..8:
-          let dist = step.float32 * 40.0
-          let px = enemy.pos.x + cos(angle) * dist
-          let py = enemy.pos.y + sin(angle) * dist
-          # Flickering random colors for chaos
-          let chaosColor = Color(
-            r: (100 + rand(155)).uint8,
-            g: (50 + rand(205)).uint8,
-            b: (100 + rand(155)).uint8,
-            a: 255
-          )
-          spawnExplosionPooled(game.particlePool, px, py, chaosColor, 3)
-
-    elif patternType == "omega_beam":
-      # MASSIVE rainbow particle explosion for ultimate laser
-      for ring in 0..6:
-        let ringRadius = 30.0 + ring.float32 * 28.0
-        for i in 0..<24:
-          let angle = i.float32 * PI * 2.0 / 24.0
-          let px = enemy.pos.x + cos(angle) * ringRadius
-          let py = enemy.pos.y + sin(angle) * ringRadius
-          # Rainbow spectrum
-          let rainbowColor = case i mod 7:
-            of 0: Color(r: 255, g: 0, b: 0, a: 255)
-            of 1: Color(r: 255, g: 127, b: 0, a: 255)
-            of 2: Color(r: 255, g: 255, b: 0, a: 255)
-            of 3: Color(r: 0, g: 255, b: 0, a: 255)
-            of 4: Color(r: 0, g: 255, b: 255, a: 255)
-            of 5: Color(r: 0, g: 0, b: 255, a: 255)
-            else: Color(r: 255, g: 0, b: 255, a: 255)
-          spawnExplosionPooled(game.particlePool, px, py, rainbowColor, 7)
-
-      # Add electric arcs (Boss 6 style)
-      for i in 0..<20:
-        let angle = i.float32 * PI * 2.0 / 20.0
-        let arcX = enemy.pos.x + cos(angle) * 70.0
-        let arcY = enemy.pos.y + sin(angle) * 70.0
-        spawnExplosionPooled(game.particlePool, arcX, arcY,
-                      Color(r: 255, g: 255, b: 200, a: 255), 6)
-
-    # Adjust laser length based on pattern type
-    # For prismatic_cage and laser_snipe, calculate length to reach screen edge
-    # Use diagonal distance from center to corner to ensure full coverage
-    let laserLength = if patternType in ["prismatic_cage", "laser_snipe"]:
-      # Calculate diagonal distance from center to corner for full screen coverage
-      # Add extra margin to guarantee lasers always reach beyond screen edges
-      let centerX = game.screenWidth.float32 / 2.0
-      let centerY = game.screenHeight.float32 / 2.0
-      let diagonalDistance = sqrt(centerX * centerX + centerY * centerY)
-      # Use 1.5x diagonal distance to ensure lasers always extend beyond screen
-      diagonalDistance * 1.5
-    else:
-      800.0
-
-    game.attackWarnings.add(newBossLaserWarning(
-      enemy.pos.x, enemy.pos.y,
-      BOSS_LASER_WARNING_TIME,
-      warningAngles,
-      laserLength,  # Adjusted based on pattern type
-      laserDamage,
-      attack.durationOrRadius,  # Laser active duration
-      patternType,  # Pass the pattern type for proper laser creation
-      enemy.enemyType,  # Track which enemy type created this attack
-      enemy.id  # Pass enemy ID so warning can follow boss
-    ))
-
+    execBossAttackLaser(game, enemy, attack, phase, bossDef, toPlayer)
   of bapBarrage:
-    # Massive bullet spray with multiple themes
-    # SpecialData modes:
-    # - "voltage_burst": Electric explosion with yellow bullets (Boss 6)
-    # - "blood_burst": Berserker rage explosion with red bullets (Boss 8)
-    # - "orbital_bombardment": Space bombardment from above (Boss 7)
-    # - "random_spread": Chaotic spread with random angles (Boss 11 Phase 1)
-    # - "chaos_storm", "entropy_burst": Randomized chaos attacks (Boss 11)
-    # - "chromatic_burst": Rainbow prismatic explosion (Boss 9 Phase 2)
-    # - "light_burst": Pure brilliance explosion (Boss 9 Phase 3)
-    # - "time_shatter": Reality-shattering temporal explosion (Boss 10 Phase 3)
-    # - "omega_barrage": Ultimate massive barrage from final boss (Boss 12 Phase 4)
-
-    let barrageMode = attack.specialData
-    let isChaosAttack = barrageMode in ["chaos_storm", "entropy_burst", "random_spread"]
-    let isElectricAttack = barrageMode == "voltage_burst"
-    let isBerserkAttack = barrageMode == "blood_burst"
-    let isOrbitalAttack = barrageMode == "orbital_bombardment"
-    let isChromaticAttack = barrageMode == "chromatic_burst"
-    let isLightAttack = barrageMode == "light_burst"
-    let isTimeShatter = barrageMode == "time_shatter"
-    let isOmegaBarrage = barrageMode == "omega_barrage"
-
-    # Randomize count ±30% for chaos
-    let bulletCount = if isChaosAttack:
-      (attack.projectileCount.float32 * (0.7 + rand(0.6))).int
-    elif isOmegaBarrage:
-      # Honor the count from boss_definitions (already tuned to 30) instead of
-      # doubling it. The old *2 re-inflated the ring to 60 bullets, at the boss's
-      # firing radius that leaves no player-sized gap, which made the final phase
-      # an undodgeable wall and silently cancelled every nerf made to the data.
-      attack.projectileCount
-    else:
-      attack.projectileCount
-
-    # Randomize spread for chaos
-    let spreadAngle = if isChaosAttack:
-      180.0 + rand(180.0)  # Might not even be 360!
-    else:
-      360.0
-
-    # MODE-SPECIFIC PRE-EXPLOSION EFFECTS
-    if isElectricAttack:
-      # Create electric sparks radiating outward
-      for i in 0..<bulletCount div 2:
-        let angle = i.float32 * PI * 2.0 / (bulletCount div 2).float32
-        let sparkX = enemy.pos.x + cos(angle) * 40.0
-        let sparkY = enemy.pos.y + sin(angle) * 40.0
-        spawnExplosionPooled(game.particlePool, sparkX, sparkY,
-                      Color(r: 255, g: 255, b: 100, a: 255), 4)
-
-    elif isBerserkAttack:
-      # Create blood/rage particles in circular waves
-      for ring in 0..2:
-        let ringRadius = 35.0 + ring.float32 * 25.0
-        for i in 0..<12:
-          let angle = i.float32 * PI * 2.0 / 12.0
-          let bloodX = enemy.pos.x + cos(angle) * ringRadius
-          let bloodY = enemy.pos.y + sin(angle) * ringRadius
-          spawnExplosionPooled(game.particlePool, bloodX, bloodY,
-                        Color(r: 200 + rand(55).uint8, g: 0, b: 0, a: 255), 5)
-
-      # Screen shake for rage
-      addShake(game.dopamine.screenShake, siLarge)
-
-    elif isOrbitalAttack:
-      # Create star field effect - bullets rain from space
-      for i in 0..<8:
-        let angle = i.float32 * PI * 2.0 / 8.0
-        let starX = enemy.pos.x + cos(angle) * 60.0
-        let starY = enemy.pos.y + sin(angle) * 60.0
-        spawnExplosionPooled(game.particlePool, starX, starY,
-                      Color(r: 200, g: 150, b: 255, a: 255), 6)
-
-    elif isChromaticAttack:
-      # Create rainbow prismatic rings expanding outward
-      for ring in 0..3:
-        let ringRadius = 30.0 + ring.float32 * 20.0
-        for i in 0..<12:
-          let angle = i.float32 * PI * 2.0 / 12.0
-          let prismX = enemy.pos.x + cos(angle) * ringRadius
-          let prismY = enemy.pos.y + sin(angle) * ringRadius
-          # Rainbow colors based on position
-          let rainbowColor = case i mod 7
-            of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
-            of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
-            of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
-            of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
-            of 4: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
-            of 5: Color(r: 75, g: 0, b: 130, a: 255)    # Indigo
-            else: Color(r: 148, g: 0, b: 211, a: 255)   # Violet
-          spawnExplosionPooled(game.particlePool, prismX, prismY, rainbowColor, 5)
-
-    elif isLightAttack:
-      # Create brilliant white/rainbow light explosion
-      for ring in 0..4:
-        let ringRadius = 25.0 + ring.float32 * 18.0
-        for i in 0..<16:
-          let angle = i.float32 * PI * 2.0 / 16.0
-          let lightX = enemy.pos.x + cos(angle) * ringRadius
-          let lightY = enemy.pos.y + sin(angle) * ringRadius
-          # Brilliant white with rainbow tint
-          let tint = case (i + ring) mod 7
-            of 0: Color(r: 255, g: 200, b: 200, a: 255)
-            of 1: Color(r: 255, g: 230, b: 200, a: 255)
-            of 2: Color(r: 255, g: 255, b: 200, a: 255)
-            of 3: Color(r: 200, g: 255, b: 200, a: 255)
-            of 4: Color(r: 200, g: 230, b: 255, a: 255)
-            of 5: Color(r: 230, g: 200, b: 255, a: 255)
-            else: Color(r: 255, g: 255, b: 255, a: 255)  # Pure white
-          spawnExplosionPooled(game.particlePool, lightX, lightY, tint, 6)
-
-      # Intense screen shake for brilliance
-      addShake(game.dopamine.screenShake, siLarge)
-
-    elif isTimeShatter:
-      # TIME SHATTER - Reality-breaking temporal fracture explosion
-      # Create massive expanding temporal cracks radiating outward
-      for ring in 0..6:
-        let ringRadius = 20.0 + ring.float32 * 25.0
-        for i in 0..<20:
-          let angle = i.float32 * PI * 2.0 / 20.0
-          let shatterX = enemy.pos.x + cos(angle) * ringRadius
-          let shatterY = enemy.pos.y + sin(angle) * ringRadius
-          # Bright cyan-white temporal fracture particles
-          let brightness = 100 + (ring * 20)
-          spawnExplosionPooled(game.particlePool, shatterX, shatterY,
-                        Color(r: brightness.uint8, g: 220 + (ring * 5).uint8, b: 220 + (ring * 5).uint8, a: 255), 5)
-
-      # Create radiating time crack lines extending far outward
-      for i in 0..<16:
-        let angle = i.float32 * PI * 2.0 / 16.0
-        for step in 1..20:
-          let crackRadius = step.float32 * 20.0
-          let crackX = enemy.pos.x + cos(angle) * crackRadius
-          let crackY = enemy.pos.y + sin(angle) * crackRadius
-          # Cyan temporal cracks with fading intensity
-          let fade = (255 - step * 8).clamp(100, 255)
-          spawnExplosionPooled(game.particlePool, crackX, crackY,
-                        Color(r: 100, g: 220, b: 220, a: fade.uint8), 3)
-
-      # Add swirling temporal distortion particles
-      for spiral in 0..<8:
-        for step in 0..15:
-          let spiralAngle = (spiral.float32 * PI / 4.0) + (step.float32 * 0.3)
-          let spiralRadius = step.float32 * 12.0
-          let spiralX = enemy.pos.x + cos(spiralAngle) * spiralRadius
-          let spiralY = enemy.pos.y + sin(spiralAngle) * spiralRadius
-          spawnExplosionPooled(game.particlePool, spiralX, spiralY,
-                        Color(r: 150, g: 255, b: 255, a: 255), 2)
-
-      # MASSIVE screen shake for reality-shattering effect
-      addShake(game.dopamine.screenShake, siMassive)
-
-    elif barrageMode == "omega_barrage":
-      # OMEGA BARRAGE - Ultimate final boss attack combining all elements
-      # Creates massive multi-colored explosion with all previous boss themes
-      # Rainbow prismatic rings (like Boss 9)
-      for ring in 0..5:
-        let ringRadius = 25.0 + ring.float32 * 30.0
-        for i in 0..<18:
-          let angle = i.float32 * PI * 2.0 / 18.0
-          let omegaX = enemy.pos.x + cos(angle) * ringRadius
-          let omegaY = enemy.pos.y + sin(angle) * ringRadius
-          # Rainbow colors cycling through spectrum
-          let rainbowColor = case i mod 7
-            of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
-            of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
-            of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
-            of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
-            of 4: Color(r: 0, g: 255, b: 255, a: 255)   # Cyan
-            of 5: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
-            else: Color(r: 255, g: 0, b: 255, a: 255)   # Magenta
-          spawnExplosionPooled(game.particlePool, omegaX, omegaY, rainbowColor, 6)
-
-      # Electric crackling effects (like Boss 6)
-      for i in 0..<bulletCount div 3:
-        let angle = i.float32 * PI * 2.0 / (bulletCount div 3).float32
-        let sparkX = enemy.pos.x + cos(angle) * 55.0
-        let sparkY = enemy.pos.y + sin(angle) * 55.0
-        spawnExplosionPooled(game.particlePool, sparkX, sparkY,
-                      Color(r: 255, g: 255, b: 100, a: 255), 5)
-
-      # Temporal rifts (like Boss 10)
-      for i in 0..<12:
-        let angle = i.float32 * PI * 2.0 / 12.0
-        for step in 1..12:
-          let riftRadius = step.float32 * 22.0
-          let riftX = enemy.pos.x + cos(angle) * riftRadius
-          let riftY = enemy.pos.y + sin(angle) * riftRadius
-          spawnExplosionPooled(game.particlePool, riftX, riftY,
-                        Color(r: 150, g: 255, b: 255, a: 255), 3)
-
-      # ABSOLUTELY MASSIVE screen shake - this is the ultimate attack
-      addShake(game.dopamine.screenShake, siMassive)
-
-    for i in 0..<bulletCount:
-      let angle = if isChaosAttack:
-        (i.float32 / bulletCount.float32) * spreadAngle.degToRad() + rand(1.0)
-      else:
-        i.float32 * PI * 2.0 / bulletCount.float32
-
-      let dir = newVector2f(cos(angle), sin(angle))
-
-      # Randomize speed ±25% for chaos
-      let speed = if isChaosAttack:
-        attack.projectileSpeed * (0.75 + rand(0.5))
-      else:
-        attack.projectileSpeed
-
-      # Randomize damage ±10% for chaos
-      let damage = if isChaosAttack:
-        attack.damage * phase.damageMultiplier * (0.9 + rand(0.2))
-      else:
-        attack.damage * phase.damageMultiplier
-
-      game.bullets.add(newBullet(
-        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = speed, damage = damage,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-
-    # MODE-SPECIFIC EXPLOSIONS
-    let (explosionSize, explosionColor) = case barrageMode
-      of "voltage_burst":
-        (45, Color(r: 255, g: 255, b: 200, a: 255))  # Bright yellow electric
-      of "blood_burst":
-        (50, Color(r: 255, g: 0, b: 0, a: 255))  # Massive red rage explosion
-      of "orbital_bombardment":
-        (40, Color(r: 180, g: 120, b: 255, a: 255))  # Purple space explosion
-      of "chromatic_burst":
-        (42, Color(r: 255, g: 150, b: 255, a: 255))  # Pink/magenta prismatic
-      of "light_burst":
-        (55, Color(r: 255, g: 255, b: 255, a: 255))  # Massive white brilliance
-      of "time_shatter":
-        (65, Color(r: 150, g: 255, b: 255, a: 255))  # Massive cyan temporal shatter
-      of "random_spread":
-        (32, Color(r: rand(200).uint8 + 55, g: rand(200).uint8 + 55, b: rand(200).uint8 + 55, a: 255))  # Random bright chaos
-      of "chaos_storm", "entropy_burst":
-        (35, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255))  # Random chaos
-      of "omega_barrage":
-        (70, Color(r: 255, g: 50, b: 255, a: 255))  # MASSIVE pink/magenta final boss explosion
-      else:
-        (30, phase.color)  # Standard
-
-    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
-
+    execBossAttackBarrage(game, enemy, attack, phase, bossDef, toPlayer)
   of bapPulse:
-    # Expanding ring with multiple thematic variants
-    # SpecialData modes:
-    # - "electric_discharge": Electric shockwave with crackling particles (Boss 6)
-    # - "ground_slam": Berserker impact with rocks/debris (Boss 8 Phase 2)
-    # - "earthquake": MASSIVE berserker slam, screen shake, cracks (Boss 8 Phase 3)
-    # - "overload_pulse": Intense electric overload (Boss 6 Phase 3)
-    # - "gravity_pulse": Space-themed gravity wave (Boss 7)
-    # - "blinding_pulse": Brilliant light explosion (Boss 9 Phase 3)
-    # - "entropy_wave": Chaotic unstable shockwave (Boss 11 Phase 3)
-    # - "omega_pulse": Ultimate combined shockwave (Boss 12 Phase 4)
-    # - Default: Standard pulse
-
-    let pulseMode = attack.specialData
-
-    # Configure pulse behavior and visuals based on mode
-    let (bulletCount, particleColor, explosionSize) = case pulseMode
-      of "electric_discharge":
-        (32, Color(r: 255, g: 255, b: 150, a: 255), 35)  # Dense electric pulse
-      of "ground_slam":
-        (28, Color(r: 150, g: 75, b: 30, a: 255), 40)  # Fewer but stronger, brown/rock color
-      of "earthquake":
-        (30, Color(r: 100, g: 50, b: 20, a: 255), 60)  # MASSIVE slam, huge shake
-      of "overload_pulse":
-        (32, Color(r: 255, g: 255, b: 255, a: 255), 50)  # Maximum density, white overload
-      of "gravity_pulse":
-        (30, Color(r: 150, g: 100, b: 255, a: 255), 45)  # Space purple
-      of "blinding_pulse":
-        (34, Color(r: 255, g: 255, b: 255, a: 255), 55)  # Brilliant white light explosion
-      of "chrono_pulse":
-        (28, Color(r: 100, g: 220, b: 220, a: 255), 42)  # Temporal shockwave, cyan
-      of "chrono_break":
-        (32, Color(r: 150, g: 255, b: 255, a: 255), 58)  # Massive time shattering pulse
-      of "entropy_wave":
-        (rand(20) + 20, Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 50)  # Chaotic random pulse
-      of "omega_pulse":
-        (38, Color(r: 255, g: 100, b: 255, a: 255), 65)  # ULTIMATE pulse - huge and powerful
-      of "banish_nova":
-        (16, Color(r: 80, g: 220, b: 120, a: 255), 38)  # Summoner King: green banishment ring
-      else:
-        (24, phase.color, 35)  # Standard pulse
-
-    # TRIGGER SCREEN SHAKE
-    addShake(game.dopamine.screenShake, siLarge)
-
-    # Create expanding pulse ring
-    for i in 0..<bulletCount:
-      let angle = i.float32 * PI * 2.0 / bulletCount.float32
-      let dir = newVector2f(cos(angle), sin(angle))
-      game.bullets.add(newBullet(
-        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-
-    # MODE-SPECIFIC VISUAL ENHANCEMENTS
-    case pulseMode:
-      of "electric_discharge", "overload_pulse":
-        # Create multiple expanding particle rings
-        let ringCount = if pulseMode == "overload_pulse": 4 else: 3
-        for ring in 0..<ringCount:
-          let ringRadius = 30.0 + ring.float32 * 25.0
-          for i in 0..<16:
-            let angle = i.float32 * PI * 2.0 / 16.0
-            let sparkX = enemy.pos.x + cos(angle) * ringRadius
-            let sparkY = enemy.pos.y + sin(angle) * ringRadius
-            spawnExplosionPooled(game.particlePool, sparkX, sparkY,
-                          Color(r: 255, g: 255, b: 200, a: 255), 3)
-
-      of "ground_slam", "earthquake":
-        # Create rock/debris particles flying outward
-        let debrisCount = if pulseMode == "earthquake": 32 else: 20
-        for i in 0..<debrisCount:
-          let angle = i.float32 * PI * 2.0 / debrisCount.float32
-          let debrisRadius = 40.0 + rand(60.0)
-          let debrisX = enemy.pos.x + cos(angle) * debrisRadius
-          let debrisY = enemy.pos.y + sin(angle) * debrisRadius
-          # Brown/orange debris colors
-          spawnExplosionPooled(game.particlePool, debrisX, debrisY,
-                        Color(r: 120 + rand(80).uint8, g: 60 + rand(40).uint8, b: 20, a: 255), 4)
-
-        # Earthquake gets GROUND CRACKS (radial lines)
-        if pulseMode == "earthquake":
-          for i in 0..<8:
-            let angle = i.float32 * PI * 2.0 / 8.0
-            for step in 1..10:
-              let crackRadius = step.float32 * 15.0
-              let crackX = enemy.pos.x + cos(angle) * crackRadius
-              let crackY = enemy.pos.y + sin(angle) * crackRadius
-              spawnExplosionPooled(game.particlePool, crackX, crackY,
-                            Color(r: 80, g: 40, b: 10, a: 255), 2)
-
-      of "gravity_pulse":
-        # Space-themed spiral particles
-        for ring in 0..3:
-          let ringRadius = 35.0 + ring.float32 * 30.0
-          for i in 0..<12:
-            let angle = i.float32 * PI * 2.0 / 12.0 + ring.float32 * 0.3  # Spiral offset
-            let gravX = enemy.pos.x + cos(angle) * ringRadius
-            let gravY = enemy.pos.y + sin(angle) * ringRadius
-            spawnExplosionPooled(game.particlePool, gravX, gravY,
-                          Color(r: 150, g: 100, b: 255, a: 255), 3)
-
-      of "blinding_pulse":
-        # Brilliant prismatic light explosion with rainbow rings
-        for ring in 0..5:
-          let ringRadius = 30.0 + ring.float32 * 25.0
-          for i in 0..<20:
-            let angle = i.float32 * PI * 2.0 / 20.0
-            let lightX = enemy.pos.x + cos(angle) * ringRadius
-            let lightY = enemy.pos.y + sin(angle) * ringRadius
-            # Rainbow prismatic effect
-            let lightColor = case (i + ring) mod 7
-              of 0: Color(r: 255, g: 200, b: 200, a: 255)
-              of 1: Color(r: 255, g: 230, b: 200, a: 255)
-              of 2: Color(r: 255, g: 255, b: 200, a: 255)
-              of 3: Color(r: 200, g: 255, b: 200, a: 255)
-              of 4: Color(r: 200, g: 230, b: 255, a: 255)
-              of 5: Color(r: 230, g: 200, b: 255, a: 255)
-              else: Color(r: 255, g: 255, b: 255, a: 255)
-            spawnExplosionPooled(game.particlePool, lightX, lightY, lightColor, 4)
-
-      of "chrono_pulse":
-        # Temporal distortion waves - expanding time rings
-        for ring in 0..3:
-          let ringRadius = 35.0 + ring.float32 * 28.0
-          for i in 0..<14:
-            let angle = i.float32 * PI * 2.0 / 14.0
-            let timeX = enemy.pos.x + cos(angle) * ringRadius
-            let timeY = enemy.pos.y + sin(angle) * ringRadius
-            # Cyan/turquoise temporal particles with brightness variation
-            let brightness = 100 + (ring * 35)
-            spawnExplosionPooled(game.particlePool, timeX, timeY,
-                          Color(r: brightness.uint8, g: 220, b: 220, a: 255), 3)
-
-      of "chrono_break":
-        # MASSIVE reality-breaking time shatter effect
-        # Create multiple layers of temporal fractures
-        for ring in 0..5:
-          let ringRadius = 30.0 + ring.float32 * 30.0
-          for i in 0..<18:
-            let angle = i.float32 * PI * 2.0 / 18.0
-            let shatterX = enemy.pos.x + cos(angle) * ringRadius
-            let shatterY = enemy.pos.y + sin(angle) * ringRadius
-            # Bright cyan-white time shatter particles
-            spawnExplosionPooled(game.particlePool, shatterX, shatterY,
-                          Color(r: 150, g: 255, b: 255, a: 255), 5)
-
-        # Add radial time cracks extending outward
-        for i in 0..<12:
-          let angle = i.float32 * PI * 2.0 / 12.0
-          for step in 1..15:
-            let crackRadius = step.float32 * 18.0
-            let crackX = enemy.pos.x + cos(angle) * crackRadius
-            let crackY = enemy.pos.y + sin(angle) * crackRadius
-            spawnExplosionPooled(game.particlePool, crackX, crackY,
-                          Color(r: 100, g: 220, b: 220, a: 255), 2)
-
-      of "entropy_wave":
-        # ENTROPY WAVE - Chaotic unstable shockwave with randomized effects
-        # Create multiple chaotic spiral patterns with random colors
-        for spiral in 0..<rand(4) + 3:  # 3-6 spirals
-          for ring in 0..rand(5) + 3:  # Variable rings per spiral
-            let ringRadius = 25.0 + ring.float32 * (20.0 + rand(15.0))
-            let spiralAngle = (spiral.float32 * PI * 2.0 / (spiral + 3).float32) + rand(PI)
-            for i in 0..<rand(8) + 8:  # Variable particle count
-              let angle = i.float32 * PI * 2.0 / (i + 8).float32 + spiralAngle
-              let chaosX = enemy.pos.x + cos(angle) * ringRadius
-              let chaosY = enemy.pos.y + sin(angle) * ringRadius
-              # Completely random colors for pure chaos
-              let chaosColor = Color(
-                r: rand(200).uint8 + 55,
-                g: rand(200).uint8 + 55,
-                b: rand(200).uint8 + 55,
-                a: 255
-              )
-              spawnExplosionPooled(game.particlePool, chaosX, chaosY, chaosColor, rand(5) + 2)
-
-        # Add random crackling effects
-        for i in 0..<rand(15) + 10:
-          let randomAngle = rand(PI * 2.0)
-          let randomRadius = rand(120.0) + 30.0
-          let crackX = enemy.pos.x + cos(randomAngle) * randomRadius
-          let crackY = enemy.pos.y + sin(randomAngle) * randomRadius
-          spawnExplosionPooled(game.particlePool, crackX, crackY,
-                        Color(r: rand(255).uint8, g: rand(255).uint8, b: rand(255).uint8, a: 255), 4)
-
-      of "omega_pulse":
-        # OMEGA PULSE - Ultimate shockwave combining all boss themes
-        # Rainbow prismatic rings (like Boss 9)
-        for ring in 0..6:
-          let ringRadius = 30.0 + ring.float32 * 32.0
-          for i in 0..<20:
-            let angle = i.float32 * PI * 2.0 / 20.0
-            let omegaX = enemy.pos.x + cos(angle) * ringRadius
-            let omegaY = enemy.pos.y + sin(angle) * ringRadius
-            # Rainbow spectrum
-            let rainbowColor = case i mod 7
-              of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
-              of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
-              of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
-              of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
-              of 4: Color(r: 0, g: 255, b: 255, a: 255)   # Cyan
-              of 5: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
-              else: Color(r: 255, g: 0, b: 255, a: 255)   # Magenta
-            spawnExplosionPooled(game.particlePool, omegaX, omegaY, rainbowColor, 6)
-
-        # Electric crackling (like Boss 6)
-        for i in 0..<16:
-          let angle = i.float32 * PI * 2.0 / 16.0
-          let sparkX = enemy.pos.x + cos(angle) * 65.0
-          let sparkY = enemy.pos.y + sin(angle) * 65.0
-          spawnExplosionPooled(game.particlePool, sparkX, sparkY,
-                        Color(r: 255, g: 255, b: 150, a: 255), 5)
-
-        # Temporal rifts (like Boss 10)
-        for i in 0..<14:
-          let angle = i.float32 * PI * 2.0 / 14.0
-          for step in 1..18:
-            let riftRadius = step.float32 * 20.0
-            let riftX = enemy.pos.x + cos(angle) * riftRadius
-            let riftY = enemy.pos.y + sin(angle) * riftRadius
-            spawnExplosionPooled(game.particlePool, riftX, riftY,
-                          Color(r: 150, g: 255, b: 255, a: 255), 3)
-
-        # Light brilliance bursts (like Boss 9)
-        for burst in 0..4:
-          let burstAngle = burst.float32 * PI * 2.0 / 5.0
-          for step in 0..8:
-            let burstRadius = step.float32 * 25.0
-            let burstX = enemy.pos.x + cos(burstAngle) * burstRadius
-            let burstY = enemy.pos.y + sin(burstAngle) * burstRadius
-            spawnExplosionPooled(game.particlePool, burstX, burstY,
-                          Color(r: 255, g: 255, b: 255, a: 255), 4)
-
-      else:
-        discard  # No extra effects for default
-
-    # Central explosion (size varies by mode)
-    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, particleColor, explosionSize)
-
+    execBossAttackPulse(game, enemy, attack, phase, bossDef, toPlayer)
   of bapSummon:
-    # Spawn minion enemies around the boss - customizable via specialData
-    # Parse specialData to determine minion types: "minion_circle", "minion_triangle", "minion_mixed"
-    var minionType = etCircle  # Default
-    var useVariation = false
-
-    if attack.specialData != "":
-      case attack.specialData
-      of "minion_circle":
-        minionType = etCircle
-      of "minion_triangle":
-        minionType = etTriangle
-      of "minion_cube":
-        minionType = etCube
-      of "minion_pentagon":
-        minionType = etPentagon
-      of "minion_mixed":
-        useVariation = true  # Vary minion types
-      else:
-        minionType = etCircle
-
-    # CAP: Count existing boss-spawned enemies to prevent overwhelming defensive builds
-    var bossSpawnedCount = 0
-    for e in game.enemies:
-      if e.spawnedByBoss:
-        bossSpawnedCount += 1
-
-    # Maximum boss-spawned enemies allowed at once (configurable cap)
-    const MAX_BOSS_SPAWNED_ENEMIES = 12
-
-    # Calculate how many we can actually spawn
-    let maxToSpawn = max(0, MAX_BOSS_SPAWNED_ENEMIES - bossSpawnedCount)
-    let actualSpawnCount = min(attack.projectileCount, maxToSpawn)
-
-    # Only proceed if we can spawn at least one enemy
-    if actualSpawnCount <= 0:
-      # Skip spawning but still show visual feedback
-      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 8)
-    else:
-      for i in 0..<actualSpawnCount:
-        let angle = i.float32 * PI * 2.0 / actualSpawnCount.float32
-        let spawnDist = enemy.radius + 60.0  # Spawn outside boss radius
-        let spawnX = enemy.pos.x + cos(angle) * spawnDist
-        let spawnY = enemy.pos.y + sin(angle) * spawnDist
-
-        # Determine this minion's type
-        var thisType = minionType
-        if useVariation:
-          # Vary between circle, triangle, and cube based on index
-          thisType = case i mod 3
-            of 0: etCircle
-            of 1: etTriangle
-            else: etCube
-
-        # Create minion with determined type
-        # Use a fixed base difficulty so minions don't become stronger over time
-        let minion = newEnemy(
-          spawnX, spawnY,
-          2.5,  # Fixed difficulty - does NOT scale with time
-          thisType,
-          game
-        )
-        # Mark as boss-spawned so it doesn't drop coins (prevent farming)
-        minion.spawnedByBoss = true
-        # Summoned enemies are already inside the arena, so they should engage immediately.
-        minion.hasEnteredScreen = true
-
-        case minion.enemyType
-        of etTriangle:
-          # Enter the triangle wind-up state right away instead of spawning "mid-dash".
-          minion.dashCooldown = 0.0
-          minion.dashTimer = 0.35 + rand(0.35)
-        of etDiamond:
-          minion.dashTimer = 0.0
-          minion.dashCooldown = 0.75 + rand(0.5)
-        else:
-          discard
-
-        # NERF: Make boss-summoned minions smaller and slower
-        minion.radius = minion.radius * 1.0  # 35% smaller
-        minion.collisionRadius = minion.collisionRadius * 1.0  # Keep collision consistent
-        minion.speed = minion.speed * 0.70  # 30% slower
-
-        game.enemies.add(minion)
-
-      # Mark a summoned wave as active. Clearing every add in it opens the boss's
-      # vulnerability window (Summoner King objective). Wave size drives the pips.
-      # Gated to the bwoSummonSigils objective so a future summoner with a different
-      # weak-point doesn't get its real objective's required/progress clobbered.
-      if enemy.isBoss and enemy.weakPoint.kind == bwoSummonSigils:
-        enemy.summonWaveActive = true
-        enemy.weakPoint.required = max(1, actualSpawnCount)
-        enemy.weakPoint.progress = 0
-
-      # Visual feedback for summoning
-      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
-
+    execBossAttackSummon(game, enemy, attack, phase, bossDef, toPlayer)
   of bapMeteor:
-    # Falling projectiles from above, screen-wide barrage with a guaranteed dodge gap
-    # SpecialData modes:
-    # - "warn_impact":    Show warnings before meteors arrive
-    # - "massive_impact": Larger meteorites, more coverage
-    # - "apocalypse_mode": Maximum meteorites, longer warnings
-    # - "satellite_strike": Purple space theme
-
-    let meteorMode = attack.specialData
-
-    # Resolve bullet radius: 0 means "use default 6" (see BossAttack type comment).
-    # A zero radius would make spacing = 0, causing an infinite loop in the layout loop below.
-    let rawMeteorRadius = if attack.bulletRadius > 0: attack.bulletRadius else: 6.0'f32
-
-    # Configure per-mode parameters
-    let (warningTime, meteorColor, bRadius) = case meteorMode
-      of "massive_impact":
-        (0.65'f32, Color(r: 255, g: 100, b: 0, a: 255),
-         rawMeteorRadius * 1.4)
-      of "apocalypse_mode":
-        (0.85'f32, Color(r: 255, g: 50, b: 0, a: 255),
-         rawMeteorRadius * 1.6)
-      of "satellite_strike":
-        (0.75'f32, Color(r: 180, g: 120, b: 255, a: 255),
-         rawMeteorRadius)
-      else:  # "warn_impact" and everything else
-        (0.55'f32, Color(r: 255, g: 150, b: 50, a: 255),
-         rawMeteorRadius)
-
-    # Layout: distribute meteors across 50% of the screen width
-    let sw        = game.screenWidth.float32
-    let margin    = 15.0'f32                       # keep away from edges
-    let spacing   = bRadius * 5.0'f32              # center-to-center distance (2.5x->5.0x = 50% fewer meteors)
-
-    # Barrage zone: half the screen width, randomly offset so it isn't always on one side
-    let zoneWidth = sw * 0.5'f32
-    let zoneStart = margin + rand(max(0.0'f32, sw - 2.0'f32 * margin - zoneWidth))
-    let zoneEnd   = zoneStart + zoneWidth
-
-    # Guaranteed safe gap: player must physically fit through it
-    let gapHalf   = game.player.radius + bRadius + 28.0'f32  # 28 px clearance each side
-    let gapMin    = zoneStart + gapHalf
-    let gapMax    = zoneEnd   - gapHalf
-    let gapCenter = gapMin + rand(max(0.0'f32, gapMax - gapMin))
-
-    # Collect all meteor X positions inside the zone that fall outside the gap
-    var meteorXs: seq[float32] = @[]
-    var mx = zoneStart + bRadius
-    while mx <= zoneEnd - bRadius:
-      if abs(mx - gapCenter) >= gapHalf:
-        meteorXs.add(mx)
-      mx += spacing
-
-    # For each position, place a timed warning, bullet spawns when warning expires
-    let impactY = clamp(game.player.pos.y + 80.0'f32,
-                        game.screenHeight.float32 * 0.5'f32,
-                        game.screenHeight.float32 * 0.85'f32)
-
-    for targetX in meteorXs:
-      var w = AttackWarning(
-        pos:          newVector2f(targetX, impactY),
-        targetPos:    newVector2f(targetX, -50.0),   # bullet spawn point
-        attackType:   "meteor",
-        lifetime:     warningTime,
-        maxLifetime:  warningTime,
-        sourceEnemyId: enemy.id,
-        bulletSpeed:  attack.projectileSpeed,
-        bulletDamage: attack.damage * phase.damageMultiplier,
-        bulletRadius: bRadius,
-        overrideColor: meteorColor,
-        bulletsCreated: false
-      )
-      game.attackWarnings.add(w)
-
+    execBossAttackMeteor(game, enemy, attack, phase, bossDef, toPlayer)
   of bapOrbit:
-    # ORBITAL SATELLITE SYSTEM
-    # Creates persistent satellites that orbit, shoot, and can be destroyed
-    # SpecialData modes:
-    # - "electric_charges": Electric Boss 6 - yellow sparking satellites
-    # - "satellite_orbit": Orbital Boss 7 - space theme, slower, methodical
-    # - "dual_layer_orbit": Two concentric rings of satellites
-    # - "orbital_storm": Three concentric rings (maximum chaos)
-
-    # Only create satellites if they don't already exist AND the boss isn't
-    # currently in its vulnerability window (all satellites were just destroyed)
-    # AND the post-vulnerability cooldown has fully expired.
-    # Without this guard the bapOrbit attack fires again on its cooldown and
-    # immediately repopulates satellites, cutting the exposure window short.
-    if enemy.satellites.len == 0 and enemy.weakPoint.exposedTimer <= 0 and
-       enemy.weakPoint.cooldownTimer <= 0:
-      let orbitMode = attack.specialData
-      let satelliteCount = attack.projectileCount
-      let baseOrbitRadius = attack.durationOrRadius
-
-      # Configure layers based on mode
-      let (layerCount, rotationSpeed, satelliteColor) = case orbitMode
-        of "electric_charges":
-          (1, 1.2, Color(r: 255, g: 255, b: 100, a: 255))  # Single fast layer, yellow
-        of "satellite_orbit":
-          (1, 0.6, Color(r: 150, g: 100, b: 255, a: 255))  # Single slow layer, purple
-        of "dual_layer_orbit":
-          (2, 1.0, Color(r: 200, g: 150, b: 255, a: 255))  # Two layers, medium speed
-        of "orbital_storm":
-          (3, 1.3, Color(r: 180, g: 120, b: 255, a: 255))  # Three layers, fast
-        else:
-          (1, 1.0, phase.color)  # Default single layer
-
-      # Create satellites in multiple orbital layers
-      for layer in 0..<layerCount:
-        # Distribute satellites across layers, spreading any remainder onto the
-        # first layers so the full authored projectileCount actually spawns.
-        # Plain `div` silently dropped satellites (8/3 -> 6, 5/2 -> 4), which
-        # under-delivered the boss AND shrank its all-satellites-down window.
-        let satsThisLayer = satelliteCount div layerCount +
-          (if layer < satelliteCount mod layerCount: 1 else: 0)
-        let layerRadius = baseOrbitRadius + (layer.float32 * 50.0)  # Each layer 50px apart
-        let angleOffset = if layer mod 2 == 0: 0.0 else: (PI / satsThisLayer.float32)  # Stagger alternating layers
-        # Alternating layers rotate in opposite directions for visual complexity
-        let layerRotationSpeed = if layer mod 2 == 0: rotationSpeed else: -rotationSpeed
-
-        for i in 0..<satsThisLayer:
-          let angle = i.float32 * (PI * 2.0 / satsThisLayer.float32) + angleOffset
-          enemy.satellites.add(OrbitalSatellite(
-            pos: newVector2f(
-              enemy.pos.x + cos(angle) * layerRadius,
-              enemy.pos.y + sin(angle) * layerRadius
-            ),
-            angle: angle,
-            radius: layerRadius,
-            rotationSpeed: layerRotationSpeed,
-            hp: 1,  # 1-hit kill, satellites are glass-cannon threats, not tanks
-            shootTimer: 0.5 + rand(1.0) + (layer.float32 * 0.3),  # Later layers shoot slightly later
-            owner: enemy.id,
-            laserActive: false,
-            laserTarget: game.player.pos,  # Initialize with current player position
-            laserChargeTime: 0.0
-          ))
-
-      # Visual effects based on mode
-      let (explosionSize, explosionColor) = case orbitMode
-        of "electric_charges":
-          (35, Color(r: 255, g: 255, b: 150, a: 255))  # Bright yellow sparks
-        of "satellite_orbit":
-          (30, Color(r: 150, g: 100, b: 255, a: 255))  # Purple space theme
-        of "dual_layer_orbit":
-          (40, Color(r: 200, g: 150, b: 255, a: 255))  # Bright purple
-        of "orbital_storm":
-          (50, Color(r: 255, g: 200, b: 255, a: 255))  # Massive pink explosion
-        else:
-          (30, phase.color)
-
-      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
-
-      # Extra ring effects for multi-layer
-      if layerCount > 1:
-        for layer in 0..<layerCount:
-          let ringRadius = baseOrbitRadius + (layer.float32 * 50.0)
-          for i in 0..<8:
-            let angle = i.float32 * (PI * 2.0 / 8.0)
-            let ringX = enemy.pos.x + cos(angle) * ringRadius
-            let ringY = enemy.pos.y + sin(angle) * ringRadius
-            spawnExplosionPooled(game.particlePool, ringX, ringY, satelliteColor, 3)
-
+    execBossAttackOrbit(game, enemy, attack, phase, bossDef, toPlayer)
   of bapChain:
-    # CHAIN LIGHTNING SYSTEM
-    # Chain mechanics with visual lightning arcs
-    # SpecialData modes:
-    # - "chain_basic": Simple 3-chain lightning (Phase 1)
-    # - "chain_storm": Multi-target chain web (Phase 2)
-    # - "chain_overload": Maximum chain lightning chaos (Phase 3)
-
-    let chainMode = attack.specialData
-
-    # Configure chain behavior based on mode
-    let (chainCount, chainsPerDirection, chainDecay) = case chainMode
-      of "chain_basic":
-        (attack.projectileCount, 2, 0.75)  # 3 directions, 2 chains each, 75% decay
-      of "chain_storm":
-        (attack.projectileCount, 3, 0.65)  # 5 directions, 3 chains each, 65% decay
-      of "chain_overload":
-        (attack.projectileCount, 4, 0.6)   # 8 directions, 4 chains each, 60% decay
-      else:
-        (attack.projectileCount, 2, 0.75)  # Default to basic
-
-    # Create chain lightning in multiple directions
-    for i in 0..<chainCount:
-      let baseAngle = i.float32 * (PI * 2.0 / chainCount.float32) + rand(0.3)
-      let dir = newVector2f(cos(baseAngle), sin(baseAngle))
-
-      var currentDamage = attack.damage * phase.damageMultiplier
-      var lastX = enemy.pos.x
-      var lastY = enemy.pos.y
-
-      # Create chain sequence in this direction
-      for chainStep in 1..chainsPerDirection:
-        let distance = chainStep.float32 * 80.0  # Distance between chain points
-        let chainX = enemy.pos.x + dir.x * distance
-        let chainY = enemy.pos.y + dir.y * distance
-
-        # Check if chain is still on screen
-        if chainX < 0 or chainX > game.screenWidth.float32 or
-           chainY < 0 or chainY > game.screenHeight.float32:
-          break
-
-        # VISUAL: Persistent jagged lightning arc between chain points
-        spawnLightningBolt(game, newVector2f(lastX, lastY), newVector2f(chainX, chainY))
-
-        # Create bullet at chain point
-        game.bullets.add(newBullet(
-          x = chainX, y = chainY,
-          direction = dir,
-          speed = 180.0 + rand(40.0),  # Slightly randomized speed
-          damage = currentDamage,
-          fromPlayer = false,
-          isBossBullet = true,
-          sourceEnemyId = enemy.id,
-          bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID)
-        ))
-
-        # Chain impact explosion
-        spawnExplosionPooled(game.particlePool, chainX, chainY,
-                      Color(r: 255, g: 255, b: 150, a: 255), 8)
-
-        # Decay damage for next chain
-        currentDamage *= chainDecay
-        lastX = chainX
-        lastY = chainY
-
-      # SPECIAL: Chain storm creates branching
-      if chainMode == "chain_storm" and rand(100) < 40:
-        # 40% chance to create a branch
-        let branchAngle = baseAngle + (if rand(2) == 0: 0.6 else: -0.6)
-        let branchDir = newVector2f(cos(branchAngle), sin(branchAngle))
-        let branchDist = 120.0
-        let branchX = enemy.pos.x + branchDir.x * branchDist
-        let branchY = enemy.pos.y + branchDir.y * branchDist
-
-        if branchX > 0 and branchX < game.screenWidth.float32 and
-           branchY > 0 and branchY < game.screenHeight.float32:
-          # VISUAL: Persistent lightning arc for branch
-          spawnLightningBolt(game, enemy.pos, newVector2f(branchX, branchY))
-
-          game.bullets.add(newBullet(
-            x = branchX, y = branchY,
-            direction = branchDir,
-            speed = 200.0,
-            damage = attack.damage * phase.damageMultiplier * 0.5,
-            fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-          ))
-
-    # Central explosion - varies by mode
-    let (explosionSize, explosionColor) = case chainMode
-      of "chain_overload": (40, Color(r: 255, g: 255, b: 255, a: 255))  # White overload
-      of "chain_storm": (30, Color(r: 255, g: 255, b: 150, a: 255))     # Bright yellow
-      else: (20, Color(r: 255, g: 255, b: 100, a: 255))                 # Yellow
-
-    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
-
+    execBossAttackChain(game, enemy, attack, phase, bossDef, toPlayer)
   of bapTeleport:
-    # Teleport to new location and shoot - customized via specialData
-    # "afterimage_burst" = creates multiple images with burst effect
-    # "triple_clone" = teleports to 3 locations simultaneously
-    # "dimensional_rift" = creates rift visual effect
-
-    let teleportMode = attack.specialData
-    let teleportCount = case teleportMode
-      of "triple_clone": 3
-      of "time_echo": 2
-      of "echo_burst": 4
-      of "temporal_collapse": 6
-      of "afterimage_burst": 3 + rand(2)  # 3-4 ghost images with rapid bursts
-      of "chaos_blink": rand(2) + 1  # 1-2 random teleports with unstable reality tears
-      of "reality_shift": rand(2) + 2  # 2-3 reality shifts with dimensional bridges
-      of "dimensional_rift": 2  # 2 major dimensional rifts
-      of "dimensional_chaos": rand(3) + 3  # 3-5 chaotic dimension portals with vortexes
-      of "omega_blink": rand(2) + 4  # 4-5 ultimate teleports combining all effects
-      else: 1
-
-    # TELEPORT WARNING SYSTEM - Show player where boss will appear BEFORE bullets spawn
-    # Pre-calculate all teleport positions and create warning indicators
-    const BOSS_TELEPORT_MIN_DIST = 150.0  # Minimum distance boss can teleport near player
-    var teleportWarningPositions: seq[Vector2f] = @[]
-    for t in 0..<teleportCount:
-      var newX, newY: float32
-      var attempts = 0
-      while true:
-        newX = game.screenWidth.float32 * (0.2 + rand(0.6))
-        newY = game.screenHeight.float32 * (0.2 + rand(0.6))
-        let dx = newX - game.player.pos.x
-        let dy = newY - game.player.pos.y
-        let distSq = dx * dx + dy * dy
-        inc attempts
-        if distSq >= BOSS_TELEPORT_MIN_DIST * BOSS_TELEPORT_MIN_DIST or attempts >= 10:
-          break  # Accept position if far enough or after max retries
-      teleportWarningPositions.add(newVector2f(newX, newY))
-
-    # Create pre-warning indicators at each teleport location
-    let warningDuration = case teleportMode
-      of "afterimage_burst": 0.6
-      of "triple_clone": 0.7
-      of "time_echo": 0.5
-      of "echo_burst": 0.5
-      of "temporal_collapse": 0.6
-      of "chaos_blink": 0.5
-      of "reality_shift": 0.7
-      of "dimensional_rift": 0.8
-      of "dimensional_chaos": 0.7
-      of "omega_blink": 1.0
-      else: 0.5
-
-    # Create visual warnings for each teleport position
-    # Calculate bullet spawn parameters BEFORE creating warnings
-    let (bulletSpeed, bulletDamageMultiplier) = case teleportMode
-      of "time_echo":
-        (160.0, 0.65)  # Slower temporal echoes, reduced damage
-      of "echo_burst":
-        (200.0, 0.6)  # Many rapid echoes, lower damage
-      of "temporal_collapse":
-        (180.0, 0.7)  # Moderate speed reality-breaking shots
-      of "afterimage_burst":
-        (190.0 + rand(40.0), 0.65)  # Variable speed ghost shots
-      of "chaos_blink":
-        (170.0 + rand(60.0), 0.7)  # Random speed chaos
-      of "reality_shift":
-        (160.0 + rand(80.0), 0.65)  # Highly variable speed
-      of "dimensional_rift":
-        (180.0 + rand(50.0), 0.72)  # Dimensional rift shots with variance
-      of "dimensional_chaos":
-        (150.0 + rand(100.0), 0.75)  # Maximum speed variation
-      of "omega_blink":
-        (220.0, 0.8)  # Fast ultimate shots
-      else:
-        (200.0, 0.7)  # Default
-
-    for idx in 0..<teleportWarningPositions.len:
-      let warningPos = teleportWarningPositions[idx]
-      # Create warning with bullet spawn data stored
-      let warning = AttackWarning(
-        pos: warningPos,
-        attackType: "teleport_warning",
-        lifetime: warningDuration,
-        maxLifetime: warningDuration,
-        sourceEnemyId: enemy.id,
-        laserAngles: @[],
-        laserLength: 0.0,
-        laserCount: 0,
-        laserDamage: 0,
-        laserDuration: 0.0,
-        lasersCreated: false,
-        laserPattern: teleportMode,  # Store mode for visual rendering
-        enemyType: etCircle,
-        targetPos: warningPos,
-        fromSatellite: false,
-        # Store bullet spawn data for delayed creation
-        bulletCount: attack.projectileCount,
-        bulletSpeed: bulletSpeed,
-        bulletDamage: attack.damage * phase.damageMultiplier * bulletDamageMultiplier,
-        bulletSpreadAngle: 360.0,  # Full circle
-        bulletsCreated: false,
-        # Mark first position as where boss should teleport
-        isBossTeleportTarget: (idx == 0)
-      )
-      game.attackWarnings.add(warning)
-
+    execBossAttackTeleport(game, enemy, attack, phase, bossDef, toPlayer)
   of bapDash:
-    # BERSERKER DASH SYSTEM with multi-charge mechanics
-    # SpecialData modes:
-    # - "charge_attack": Basic charge with screen shake
-    # - "double_charge": Charges twice in rapid succession
-    # - "rage_charge": THREE charges in combo! Maximum aggression!
-
-    let dashMode = attack.specialData
-    var dashStart = enemy.pos
-    var dashTarget: Vector2f
-    var dashDist: float32
-    if enemy.pendingDashLocked:
-      dashStart = enemy.pendingDashStart
-      dashTarget = enemy.pendingDashTarget
-      # Clamp the locked target too (it was set in a prior frame, same check)
-      let lockedPad = enemy.radius
-      dashTarget.x = clamp(dashTarget.x, lockedPad, game.screenWidth.float32 - lockedPad)
-      dashTarget.y = clamp(dashTarget.y, lockedPad, game.screenHeight.float32 - lockedPad)
-      dashDist = distance(dashStart, dashTarget)
-    else:
-      dashDist = case dashMode
-        of "charge_attack": 350.0'f32
-        of "double_charge": 300.0'f32
-        of "rage_charge":   280.0'f32
-        else:               350.0'f32
-      dashTarget = dashStart + toPlayer * dashDist
-
-    # Clamp dash target to screen bounds so the boss can't leave the play area
-    let dashPad = enemy.radius
-    dashTarget.x = clamp(dashTarget.x, dashPad, game.screenWidth.float32 - dashPad)
-    dashTarget.y = clamp(dashTarget.y, dashPad, game.screenHeight.float32 - dashPad)
-    # Recompute actual distance after clamping (affects duration + trail spacing)
-    dashDist = distance(dashStart, dashTarget)
-
-    let dashDir = if dashDist > 0.01'f32:
-      (dashTarget - dashStart).normalize()
-    else:
-      toPlayer
-    var dashSpeed = attack.projectileSpeed
-
-    # Cap dash speed to player speed for fairness
-    # Bosses can charge at you, but never faster than you can move away
-    if dashSpeed > game.player.speed:
-      dashSpeed = game.player.speed
-
-    # Configure dash visuals based on mode. Distance is locked by the warning
-    # above so execution cannot retarget after the marker appears.
-    let trailColor = case dashMode
-      of "charge_attack":
-        Color(r: 255, g: 50, b: 0, a: 255)  # Single charge, red trail
-      of "double_charge":
-        Color(r: 255, g: 100, b: 0, a: 255)  # Double charge, bright red
-      of "rage_charge":
-        Color(r: 255, g: 0, b: 0, a: 255)  # TRIPLE charge, pure red
-      else:
-        phase.color  # Default
-
-    let dashTime = dashDist / dashSpeed  # Calculate duration based on speed
-
-    # Set up dash state with charge count
-    enemy.isDashing = true
-    enemy.pos = dashStart
-    enemy.dashVelocity = dashDir * dashSpeed
-    enemy.vel = enemy.dashVelocity
-    enemy.dashDuration = dashTime
-    enemy.dashMaxDuration = dashTime
-    enemy.dashTargetPos = dashTarget
-    enemy.pendingDashLocked = false
-
-    # Store remaining charges (will re-trigger after current dash finishes)
-    # This is handled in boss update logic by checking dashChargesRemaining
-
-    # SCREEN SHAKE based on mode
-    addShake(game.dopamine.screenShake, siLarge)
-
-    # Create MORE impressive trail effects for rage charges
-    let trailCount = if dashMode == "rage_charge": 8 elif dashMode == "double_charge": 6 else: 4
-    for i in 0..<trailCount:
-      let trailPos = i.float32 * (dashDist / trailCount.float32)
-      game.bullets.add(newBullet(
-        x = dashStart.x + dashDir.x * trailPos,
-        y = dashStart.y + dashDir.y * trailPos,
-        direction = dashDir,
-        speed = dashSpeed * 0.4,  # Trail effect
-        damage = attack.damage * phase.damageMultiplier * 0.6,  # Trail damage
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-
-    # Rage charges get FIRE RING on activation
-    if dashMode == "rage_charge":
-      for i in 0..<16:
-        let angle = i.float32 * (PI * 2.0 / 16.0)
-        let ringX = enemy.pos.x + cos(angle) * 60.0
-        let ringY = enemy.pos.y + sin(angle) * 60.0
-        spawnExplosionPooled(game.particlePool, ringX, ringY,
-                      Color(r: 255, g: 50, b: 0, a: 255), 5)
-
-    # Initial visual explosion with colors
-    let (explosionSize, explosionColor) = case dashMode
-      of "rage_charge": (40, Color(r: 255, g: 0, b: 0, a: 255))
-      of "double_charge": (30, Color(r: 255, g: 100, b: 0, a: 255))
-      else: (20, trailColor)
-
-    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
-
+    execBossAttackDash(game, enemy, attack, phase, bossDef, toPlayer)
   of bapSnipe:
-    # PRECISION SNIPE SYSTEM - Boss 7 Orbital Commander
-    # SpecialData modes:
-    # - "orbital_snipe": Aimed shot from satellite position (shows laser pointer warning)
-    # - "precision_strike": Double snipe with warning indicators
-    # - "satellite_barrage": Multiple rapid snipes from different angles
-    # - Default: Standard snipe
-
-    let snipeMode = attack.specialData
-
-    # Configure snipe behavior
-    let (showWarning, warningTime, bulletColor) = case snipeMode
-      of "orbital_snipe":
-        (true, 0.8, Color(r: 150, g: 100, b: 255, a: 255))  # Purple space snipe with warning
-      of "precision_strike":
-        (true, 0.6, Color(r: 200, g: 150, b: 255, a: 255))  # Bright purple, shorter warning
-      of "satellite_barrage":
-        (true, 0.4, Color(r: 180, g: 120, b: 255, a: 255))  # Quick warnings for rapid fire
-      else:
-        (false, 0.0, phase.color)  # No warning for default
-
-    # Show warning indicators at the TARGET position (near player), not at the enemy
-    if showWarning:
-      for i in 0..<attack.projectileCount:
-        let spread = if attack.projectileCount > 1:
-          (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
-        else: 0.0
-        let aimAngle = arctan2(toPlayer.y, toPlayer.x) + spread
-        # Project from enemy toward player to approximate impact point (capped at screen edge)
-        let maxDist = min(distance(enemy.pos, game.player.pos) + 80.0, 600.0)
-        let warnX = enemy.pos.x + cos(aimAngle) * maxDist
-        let warnY = enemy.pos.y + sin(aimAngle) * maxDist
-        game.attackWarnings.add(newAttackWarning(warnX, warnY, "laser_pointer", warningTime))
-
-    # Fire the actual snipe shots
-    for i in 0..<attack.projectileCount:
-      let spread = if attack.projectileCount > 1:
-        (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
-      else: 0.0
-      let angle = arctan2(toPlayer.y, toPlayer.x) + spread
-      let dir = newVector2f(cos(angle), sin(angle))
-
-      # Enhanced bullet for special snipes
-      game.bullets.add(newBullet(
-        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-
-      # Visual muzzle flash per shot
-      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, bulletColor, 8)
-
-    # Special visual effects for satellite snipes
-    if snipeMode == "satellite_barrage":
-      # Create star pattern around boss
-      for i in 0..<8:
-        let angle = i.float32 * PI * 2.0 / 8.0
-        let starX = enemy.pos.x + cos(angle) * 50.0
-        let starY = enemy.pos.y + sin(angle) * 50.0
-        spawnExplosionPooled(game.particlePool, starX, starY,
-                      Color(r: 200, g: 150, b: 255, a: 255), 4)
-
+    execBossAttackSnipe(game, enemy, attack, phase, bossDef, toPlayer)
   of bapMinionVolley:
-    # LEGION VOLLEY (Summoner King) - every living summoned add fires a single shot
-    # at the player in unison. This turns ignored adds into active pressure while the
-    # boss is sealed. Single shot per add
-    # keeps the worst case bounded by MAX_BOSS_SPAWNED_ENEMIES. If the wave is already
-    # cleared, the boss fires a fan itself so the attack still does something.
-    var firedFromAdds = 0
-    for other in game.enemies:
-      if other.spawnedByBoss and other.hp > 0:
-        let dir = (game.player.pos - other.pos).normalize()
-        game.bullets.add(newBullet(
-          x = other.pos.x, y = other.pos.y, direction = dir,
-          speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-          bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-          bulletRadius = attack.bulletRadius
-        ))
-        spawnExplosionPooled(game.particlePool, other.pos.x, other.pos.y,
-                             Color(r: 120, g: 230, b: 140, a: 255), 6)
-        firedFromAdds += 1
-
-    if firedFromAdds == 0:
-      # Fallback: fan from the boss aimed at the player
-      let baseAngle = arctan2(toPlayer.y, toPlayer.x)
-      let count = max(3, attack.projectileCount)
-      for i in 0..<count:
-        let offset = (i.float32 - count.float32 / 2.0) * attack.spreadAngle.degToRad() / count.float32
-        let dir = newVector2f(cos(baseAngle + offset), sin(baseAngle + offset))
-        game.bullets.add(newBullet(
-          x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-          speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-          bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-          bulletRadius = attack.bulletRadius
-        ))
-    else:
-      # Green command pulse from the boss telegraphs that the legion just fired.
-      spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                           Color(r: 80, g: 220, b: 120, a: 220), 12)
-
+    execBossAttackMinionVolley(game, enemy, attack, phase, bossDef, toPlayer)
 # ORBITAL WEAPONS SYSTEM
 
