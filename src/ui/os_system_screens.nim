@@ -289,11 +289,16 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   let checkX = windowX + 30
   let checkPulse = sin(game.time * 3.0) * 0.2 + 0.8
 
-  # Glow effect
+  # Glow effect: each larger layer is centered on the base glyph so the halo
+  # stays symmetric instead of smearing down-right (text grows from its anchor).
+  let baseW = measureText("[OK]", checkSize.int32)
+  let centerX = checkX + baseW div 2
+  let centerY = yOffset + checkSize.int32 div 2
   for i in 1..3:
-    let offset = i * 10
-    drawText("[OK]", int32(checkX - offset div 2), int32(yOffset - offset div 2),
-            int32(checkSize + offset),
+    let layerSize = (checkSize + i * 10).int32
+    let layerW = measureText("[OK]", layerSize)
+    drawText("[OK]", centerX - layerW div 2, centerY - layerSize div 2,
+            layerSize,
             Color(r: 0, g: uint8(255 * checkPulse), b: uint8(120 * checkPulse),
                   a: uint8(30 / i.float32)))
 
@@ -330,9 +335,13 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
                                 width: (SCREEN_WIDTH - 60).float32, height: 35.0),
                     1, Color(r: 0, g: 180, b: 100, a: 255))
 
-  drawText("[OK]", windowX + 40, yOffset + 6, 20, Color(r: 100, g: 255, b: 150, a: 255))
+  let statusIconX = windowX + 40
+  drawText("[OK]", statusIconX, yOffset + 6, 20, Color(r: 100, g: 255, b: 150, a: 255))
+  # Place the label after the measured icon width (+ padding) so the 4-char
+  # "[OK]" token can't bleed into the status text.
+  let statusTextX = statusIconX + measureText("[OK]", 20) + 14
   drawText(t(tkVictoryStatus),
-          windowX + 70, yOffset + 10, 14,
+          statusTextX, yOffset + 10, 14,
           Color(r: 200, g: 255, b: 220, a: 255))
   yOffset += 50
 

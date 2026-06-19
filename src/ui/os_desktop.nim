@@ -1264,9 +1264,23 @@ proc drawD20WallpaperCube(centerX, centerY, size, time,
     [true,  true,  true,  true,  true,  true,  true ], # 8: all
     [true,  true,  true,  true,  false, true,  true ]  # 9: a b c d f g
   ]
-  const dHw = 0.10'f32
-  const dHh = 0.17'f32
-  const dDc = dHw + 0.025'f32
+  const dHw = 0.115'f32
+  const dHh = 0.185'f32
+  const dDc = dHw + 0.03'f32
+
+  # Horizontal centre of a seven-seg glyph's actual INK (not its nominal cell).
+  # The left column (-hw) is inked by segments a,d,e,f,g and the right column
+  # (+hw) by a,b,c,d,g, so "1" (only b,c) lives entirely in the right column and
+  # its ink centre is +hw. Centring the cell would leave "1" jammed against the
+  # cartouche's right edge (and every tens digit of 10-19 is a "1"); offsetting
+  # by -inkCentre lands the drawn strokes on the face centre instead.
+  proc inkCentreU(digit: int, hw: float32): float32 =
+    let s = SevenSeg[digit]
+    let left  = s[0] or s[3] or s[4] or s[5] or s[6]
+    let right = s[0] or s[1] or s[2] or s[3] or s[6]
+    let uMin = (if left: -hw else: hw)
+    let uMax = (if right: hw else: -hw)
+    (uMin + uMax) * 0.5'f32
 
   # Single painter's-order pass: draw each face's fill then immediately its
   # numeral, so a nearer face's fill correctly occludes a farther face's
@@ -1330,16 +1344,34 @@ proc drawD20WallpaperCube(centerX, centerY, size, time,
     let sRy = rightEnd.y - fcScreen.y
     let sUx = upEnd.x - fcScreen.x
     let sUy = upEnd.y - fcScreen.y
+    # Anchor the numeral/cartouche at the on-screen centroid of the projected
+    # triangle, NOT at project(centroid3d). A perspective divide preserves
+    # cross-ratios, not centroids, so projecting the 3D face center lands biased
+    # toward the nearer vertices; on a tilted facet that pushes the number
+    # visibly off-centre. The mean of the three projected corners is the true
+    # visual centre of the drawn triangle, so the glyph reads centred at every
+    # tilt (and is a no-op on face-on facets, where the two points coincide).
+    let anchorX = (projected[face.corners[0]].x + projected[face.corners[1]].x +
+                   projected[face.corners[2]].x) / 3.0'f32
+    let anchorY = (projected[face.corners[0]].y + projected[face.corners[1]].y +
+                   projected[face.corners[2]].y) / 3.0'f32
     template fp(u, v: float32): Vector2 =
-      Vector2(x: fcScreen.x + sRx * (u) + sUx * (v),
-              y: fcScreen.y + sRy * (u) + sUy * (v))
+      Vector2(x: anchorX + sRx * (u) + sUx * (v),
+              y: anchorY + sRy * (u) + sUy * (v))
     const CartSeg = 18
-    let cartR = if D20FaceNumbers[face.idx] < 10: 0.31'f32 else: 0.42'f32
+    # A true circle in face space (equal u/v radius): it projects to the correctly
+    # foreshortened ellipse when the facet is tilted, but reads as a round token
+    # face-on rather than a permanently squashed oval. Sized to clear the digit
+    # bounding box (corner ~0.22 single / ~0.32 two-digit) with a small margin.
+    let cartR = if D20FaceNumbers[face.idx] < 10: 0.26'f32 else: 0.36'f32
+    # Fan apex sits on the same anchor as the rim (fp's origin), shared with the
+    # ink-centred numeral, so the disc stays centred on the number on every facet.
+    let cartCentre = fp(0.0'f32, 0.0'f32)
     var prevCart = fp(cartR, 0.0'f32)
     for c in 1 .. CartSeg:
       let ang = c.float32 / CartSeg.float32 * PI * 2.0'f32
-      let curCart = fp(cos(ang) * cartR, sin(ang) * cartR * 0.76'f32)
-      drawTriangleBothWindings(fcScreen, prevCart, curCart, Color(r: 5, g: 4, b: 6, a: 82))
+      let curCart = fp(cos(ang) * cartR, sin(ang) * cartR)
+      drawTriangleBothWindings(cartCentre, prevCart, curCart, Color(r: 5, g: 4, b: 6, a: 82))
       drawLine(prevCart, curCart, 0.65'f32, withAlpha(edgeColor, 115'u8))
       prevCart = curCart
     template drawDigit(digit: int, du, dv, hw, hh: float32) =
@@ -1367,10 +1399,12 @@ proc drawD20WallpaperCube(centerX, centerY, size, time,
         drawLine(fp(du - hw, dv), fp(du + hw, dv), 1.0'f32, edgeColor)
     let value = D20FaceNumbers[face.idx]
     if value < 10:
-      drawDigit(value, 0.0'f32, 0.0'f32, dHw, dHh)
+      drawDigit(value, -inkCentreU(value, dHw), 0.0'f32, dHw, dHh)
     else:
-      drawDigit(value div 10, -dDc, 0.0'f32, dHw, dHh)
-      drawDigit(value mod 10,  dDc, 0.0'f32, dHw, dHh)
+      let tens = value div 10
+      let ones = value mod 10
+      drawDigit(tens, -dDc - inkCentreU(tens, dHw), 0.0'f32, dHw, dHh)
+      drawDigit(ones,  dDc - inkCentreU(ones, dHw), 0.0'f32, dHw, dHh)
 
 proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
                                    angleX, angleY, angleZ: float32,
