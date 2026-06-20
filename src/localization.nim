@@ -221,6 +221,9 @@ type
     tkDesktopModeLocked = "desktop_mode_locked"
     tkSurvivalLockedDesc = "survival_locked_desc"
     tkRogueliteLockedDesc = "roguelite_locked_desc"
+    tkGameModeUnlocked = "game_mode_unlocked"
+    tkRogueliteUnlockedNotif = "roguelite_unlocked_notif"
+    tkSurvivalUnlockedNotif = "survival_unlocked_notif"
     tkStatsAvgCombo = "stats_avg_combo"
     tkStatsPerfectWaves = "stats_perfect_waves"
     tkStatsWaveMode = "stats_wave_mode"
@@ -3150,6 +3153,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_mode_locked": "MODE LOCKED:",
     "survival_locked_desc": "Unlock Time Survival by beating Roguelite mode.",
     "roguelite_locked_desc": "Unlock Roguelite by defeating the Wave 20 boss in Wave Mode.",
+    "game_mode_unlocked": "NEW MODE UNLOCKED:",
+    "roguelite_unlocked_notif": "Roguelite Mode is now available on the desktop!",
+    "survival_unlocked_notif": "Time Survival Mode is now available on the desktop!",
 
     # Debug panel runtime stats
     "debug_panel_dps": "DPS",
@@ -4886,6 +4892,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Desktop
     "desktop_net": "RED",
     "desktop_advancement_unlocked": "Logro desbloqueado",
+    "game_mode_unlocked": "NUEVO MODO DESBLOQUEADO:",
+    "roguelite_unlocked_notif": "¡El Modo Roguelite ya está disponible en el escritorio!",
+    "survival_unlocked_notif": "¡El Modo Supervivencia ya está disponible en el escritorio!",
 
     # Debug panel runtime stats
     "debug_panel_dps": "DPS",

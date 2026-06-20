@@ -62,6 +62,8 @@ type
     hasSeenSandboxIntro*: bool     # First-time sandbox mode intro played
     hasSeenPvPIntro*: bool         # First-time pvp mode intro played
     discoveredPowerUps*: seq[string] # Power-ups seen for the first time (name-serialized)
+    pendingRogueliteUnlockToast*: bool  # Runtime-only: show desktop toast on next menu visit
+    pendingSurvivalUnlockToast*: bool   # Runtime-only: show desktop toast on next menu visit
 
 # Get AppData directory path
 proc getAppDataPath*(): string =

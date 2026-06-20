@@ -543,12 +543,6 @@ proc completeBossWave*(game: Game) =
       game.tophatJustUnlocked = true
       game.player.wearsTophat = true
       game.player.wearsCheaterHat = false
-
-  # Unlock Roguelite when the wave-20 boss (custom boss number 4) is defeated
-  if getCustomBossNumber(completedWave) == 4:
-    if runIsLegit(game) and not globalSettings.isNil and not globalSettings.rogueliteUnlocked:
-      globalSettings.rogueliteUnlocked = true
-      discard saveSettings(globalSettings)
     game.selectedVictoryButton = 0
     playSound(stWaveComplete)
     # First-ever victory plays the one-time endgame cinematic; it hands off to
@@ -558,6 +552,16 @@ proc completeBossWave*(game: Game) =
       game.state = gsEndgameCinematic
     else:
       game.state = gsVictory
+
+  # Unlock Roguelite when the wave-20 boss (custom boss number 4) is defeated
+  elif getCustomBossNumber(completedWave) == 4:
+    if runIsLegit(game) and not globalSettings.isNil and not globalSettings.rogueliteUnlocked:
+      globalSettings.rogueliteUnlocked = true
+      discard saveSettings(globalSettings)
+      addNotification(game.osHUD, t(tkGameModeUnlocked) & " " & t(tkRogueliteUnlockedNotif), ntCritical)
+      globalSettings.pendingRogueliteUnlockToast = true
+    game.state = gsPowerUpSelect
+
   else:
     game.state = gsPowerUpSelect
 
@@ -2552,8 +2556,12 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       addShake(game.dopamine.screenShake, siMedium, Color(r: 180, g: 80, b: 255, a: 255))
     let prevShards = game.rogueliteRun.shardsEarned
     let prevCores  = game.rogueliteRun.coresEarned
+    let survivalWasUnlocked = not globalSettings.isNil and globalSettings.survivalUnlocked
     markBossRoomCleared(game)
     completeRogueliteBoss(game)
+    if not survivalWasUnlocked and not globalSettings.isNil and globalSettings.survivalUnlocked:
+      addNotification(game.osHUD, t(tkGameModeUnlocked) & " " & t(tkSurvivalUnlockedNotif), ntCritical)
+      globalSettings.pendingSurvivalUnlockToast = true
     let shardDelta = game.rogueliteRun.shardsEarned - prevShards
     let coreDelta  = game.rogueliteRun.coresEarned  - prevCores
     if shardDelta > 0:
