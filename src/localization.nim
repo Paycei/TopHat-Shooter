@@ -1433,6 +1433,103 @@ type
     tkComebackBonusActive = "comeback_bonus_active"
     tkComebackBonusUntil = "comeback_bonus_until"
 
+    # Settings: replay mode intros
+    tkSettingsReplayModeIntros = "settings_replay_mode_intros"
+
+    # Mode intro cutscenes — wave-based
+    tkModeIntroWaveTitle = "mode_intro_wave_title"
+    tkModeIntroWaveRec1  = "mode_intro_wave_rec1"
+    tkModeIntroWave1a    = "mode_intro_wave_1a"
+    tkModeIntroWave1b    = "mode_intro_wave_1b"
+    tkModeIntroWaveRec2  = "mode_intro_wave_rec2"
+    tkModeIntroWave2a    = "mode_intro_wave_2a"
+    tkModeIntroWave2b    = "mode_intro_wave_2b"
+
+    # Mode intro cutscenes — time survival
+    tkModeIntroSurvTitle = "mode_intro_surv_title"
+    tkModeIntroSurvRec1  = "mode_intro_surv_rec1"
+    tkModeIntroSurv1a    = "mode_intro_surv_1a"
+    tkModeIntroSurv1b    = "mode_intro_surv_1b"
+    tkModeIntroSurvRec2  = "mode_intro_surv_rec2"
+    tkModeIntroSurv2a    = "mode_intro_surv_2a"
+    tkModeIntroSurv2b    = "mode_intro_surv_2b"
+
+    # Mode intro cutscenes — roguelite
+    tkModeIntroRogueTitle = "mode_intro_rogue_title"
+    tkModeIntroRogueRec1  = "mode_intro_rogue_rec1"
+    tkModeIntroRogue1a    = "mode_intro_rogue_1a"
+    tkModeIntroRogue1b    = "mode_intro_rogue_1b"
+    tkModeIntroRogueRec2  = "mode_intro_rogue_rec2"
+    tkModeIntroRogue2a    = "mode_intro_rogue_2a"
+    tkModeIntroRogue2b    = "mode_intro_rogue_2b"
+
+    # Mode intro cutscenes — sandbox
+    tkModeIntroSandboxTitle = "mode_intro_sandbox_title"
+    tkModeIntroSandboxRec1  = "mode_intro_sandbox_rec1"
+    tkModeIntroSandbox1a    = "mode_intro_sandbox_1a"
+    tkModeIntroSandbox1b    = "mode_intro_sandbox_1b"
+
+    # Mode intro cutscenes — pvp
+    tkModeIntroPvPTitle = "mode_intro_pvp_title"
+    tkModeIntroPvPRec1  = "mode_intro_pvp_rec1"
+    tkModeIntroPvP1a    = "mode_intro_pvp_1a"
+    tkModeIntroPvP1b    = "mode_intro_pvp_1b"
+    tkModeIntroPvPRec2  = "mode_intro_pvp_rec2"
+    tkModeIntroPvP2a    = "mode_intro_pvp_2a"
+    tkModeIntroPvP2b    = "mode_intro_pvp_2b"
+    # Mode-exclusive power-up names
+    tkPowerupGlitchField    = "powerup_glitch_field"
+    tkPowerupTimeSurge      = "powerup_time_surge"
+    tkPowerupLastStand      = "powerup_last_stand"
+    tkPowerupRecursion      = "powerup_recursion"
+    tkPowerupSectorProtocol = "powerup_sector_protocol"
+    # Mode-exclusive power-up descriptions
+    tkPowerupGlitchFieldDesc1   = "powerup_glitch_field_desc1"
+    tkPowerupGlitchFieldDesc2   = "powerup_glitch_field_desc2"
+    tkPowerupGlitchFieldDesc3   = "powerup_glitch_field_desc3"
+    tkPowerupTimeSurgeDesc1     = "powerup_time_surge_desc1"
+    tkPowerupTimeSurgeDesc2     = "powerup_time_surge_desc2"
+    tkPowerupTimeSurgeDesc3     = "powerup_time_surge_desc3"
+    tkPowerupLastStandDesc      = "powerup_last_stand_desc"
+    tkPowerupRecursionDesc1     = "powerup_recursion_desc1"
+    tkPowerupRecursionDesc2     = "powerup_recursion_desc2"
+    tkPowerupRecursionDesc3     = "powerup_recursion_desc3"
+    tkPowerupSectorProtocolDesc = "powerup_sector_protocol_desc"
+    # Stage 5 survival-exclusive names
+    tkPowerupCrisisMode         = "powerup_crisis_mode"
+    tkPowerupAdaptiveFirewall   = "powerup_adaptive_firewall"
+    tkPowerupLastTransmission   = "powerup_last_transmission"
+    tkPowerupKillChain          = "powerup_kill_chain"
+    # Stage 5 survival-exclusive descriptions
+    tkPowerupCrisisModeDesc1        = "powerup_crisis_mode_desc1"
+    tkPowerupCrisisModeDesc2        = "powerup_crisis_mode_desc2"
+    tkPowerupCrisisModeDesc3        = "powerup_crisis_mode_desc3"
+    tkPowerupAdaptiveFirewallDesc1  = "powerup_adaptive_firewall_desc1"
+    tkPowerupAdaptiveFirewallDesc2  = "powerup_adaptive_firewall_desc2"
+    tkPowerupAdaptiveFirewallDesc3  = "powerup_adaptive_firewall_desc3"
+    tkPowerupLastTransmissionDesc1  = "powerup_last_transmission_desc1"
+    tkPowerupLastTransmissionDesc2  = "powerup_last_transmission_desc2"
+    tkPowerupLastTransmissionDesc3  = "powerup_last_transmission_desc3"
+    tkPowerupKillChainDesc          = "powerup_kill_chain_desc"
+    # Stage 5 roguelite-exclusive names
+    tkPowerupCorruptedCore      = "powerup_corrupted_core"
+    tkPowerupRoomEcho           = "powerup_room_echo"
+    tkPowerupChainReaction      = "powerup_chain_reaction"
+    tkPowerupKernelExploit      = "powerup_kernel_exploit"
+    # Stage 5 roguelite-exclusive descriptions
+    tkPowerupCorruptedCoreDesc1     = "powerup_corrupted_core_desc1"
+    tkPowerupCorruptedCoreDesc2     = "powerup_corrupted_core_desc2"
+    tkPowerupCorruptedCoreDesc3     = "powerup_corrupted_core_desc3"
+    tkPowerupRoomEchoDesc1          = "powerup_room_echo_desc1"
+    tkPowerupRoomEchoDesc2          = "powerup_room_echo_desc2"
+    tkPowerupRoomEchoDesc3          = "powerup_room_echo_desc3"
+    tkPowerupChainReactionDesc1     = "powerup_chain_reaction_desc1"
+    tkPowerupChainReactionDesc2     = "powerup_chain_reaction_desc2"
+    tkPowerupChainReactionDesc3     = "powerup_chain_reaction_desc3"
+    tkPowerupKernelExploitDesc      = "powerup_kernel_exploit_desc"
+    # Discovery banner
+    tkNewProcessInstalled = "new_process_installed"
+
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -3076,7 +3173,104 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Comeback mechanic
     "comeback_bonus_active": "COMEBACK +10%",
-    "comeback_bonus_until": "until wave"
+    "comeback_bonus_until": "until wave",
+
+    # Settings
+    "settings_replay_mode_intros": "Replay Mode Intros",
+
+    # Mode intro — wave-based
+    "mode_intro_wave_title": "THREAT RESPONSE",
+    "mode_intro_wave_rec1":  "RADAR SWEEP",
+    "mode_intro_wave_1a":    "BREACH DETECTED ON SECTOR 7",
+    "mode_intro_wave_1b":    "WAVE-DEFENSE PROTOCOL ACTIVATED",
+    "mode_intro_wave_rec2":  "DEPLOYMENT",
+    "mode_intro_wave_2a":    "SURVIVE EVERY WAVE, OPERATOR",
+    "mode_intro_wave_2b":    "THE KERNEL IS COUNTING ON YOU",
+
+    # Mode intro — time survival
+    "mode_intro_surv_title": "ENDURANCE PROTOCOL",
+    "mode_intro_surv_rec1":  "COUNTDOWN",
+    "mode_intro_surv_1a":    "UPTIME CHALLENGE INITIALIZED",
+    "mode_intro_surv_1b":    "HOW LONG CAN YOU HOLD THE LINE?",
+    "mode_intro_surv_rec2":  "UPTIME LOG",
+    "mode_intro_surv_2a":    "EVERY SECOND OF SURVIVAL IS LOGGED",
+    "mode_intro_surv_2b":    "BEAT YOUR RECORD. BREAK THE LIMIT.",
+
+    # Mode intro — roguelite
+    "mode_intro_rogue_title": "SECTOR SWEEP",
+    "mode_intro_rogue_rec1":  "DUNGEON MAP",
+    "mode_intro_rogue_1a":    "SECTOR INFILTRATION MODULE ARMED",
+    "mode_intro_rogue_1b":    "EXPLORE FLOORS, CLAIM RELICS",
+    "mode_intro_rogue_rec2":  "RELIC SCAN",
+    "mode_intro_rogue_2a":    "KERNEL PROCESSES AVAILABLE FOR HARVEST",
+    "mode_intro_rogue_2b":    "DISCOVER COMBINATIONS. REACH THE ROOT.",
+
+    # Mode intro — sandbox
+    "mode_intro_sandbox_title": "UNRESTRICTED ENV",
+    "mode_intro_sandbox_rec1":  "INIT SEQUENCE",
+    "mode_intro_sandbox_1a":    "TEST ENVIRONMENT ACTIVE",
+    "mode_intro_sandbox_1b":    "WARNING: NO GUARDRAILS. PROCEED FREELY.",
+
+    # Mode intro — pvp
+    "mode_intro_pvp_title": "HOSTILE NODE",
+    "mode_intro_pvp_rec1":  "NETWORK SCAN",
+    "mode_intro_pvp_1a":    "HOSTILE NODE DETECTED",
+    "mode_intro_pvp_1b":    "MULTI-AGENT CONFLICT PROTOCOL ENGAGED",
+    "mode_intro_pvp_rec2":  "ADVERSARY LOCK",
+    "mode_intro_pvp_2a":    "ADVERSARY SIGNATURE CONFIRMED",
+    "mode_intro_pvp_2b":    "ELIMINATE OR BE ELIMINATED.",
+    # Mode-exclusive power-up names
+    "powerup_glitch_field":    "GLITCH_FIELD.dll",
+    "powerup_time_surge":      "TIME_SURGE.exe",
+    "powerup_last_stand":      "LAST_STAND.sys",
+    "powerup_recursion":       "RECURSION.bin",
+    "powerup_sector_protocol": "SECTOR_PROTOCOL.exe",
+    # Mode-exclusive power-up descriptions
+    "powerup_glitch_field_desc1":   "Bullets have a 20% chance to scramble enemy navigation for 0.5s.",
+    "powerup_glitch_field_desc2":   "Bullets have a 30% chance to scramble enemy navigation for 0.5s.",
+    "powerup_glitch_field_desc3":   "Bullets have a 40% chance to scramble enemy navigation for 0.5s.",
+    "powerup_time_surge_desc1":     "Each kill extends your fire rate boost timer by 0.5s.",
+    "powerup_time_surge_desc2":     "Each kill extends your fire rate boost timer by 0.75s.",
+    "powerup_time_surge_desc3":     "Each kill extends your fire rate boost timer by 1s.",
+    "powerup_last_stand_desc":      "LEGENDARY: Once per life, surviving a killing blow grants 3s of invulnerability.",
+    "powerup_recursion_desc1":      "Install bonus: +8% permanent damage.",
+    "powerup_recursion_desc2":      "Install bonus: +14% permanent damage.",
+    "powerup_recursion_desc3":      "Install bonus: +20% permanent damage.",
+    "powerup_sector_protocol_desc": "LEGENDARY: Each kill grants +1 coin. Each new floor grants +15 coins.",
+    # Stage 5 survival-exclusive names
+    "powerup_crisis_mode":          "CRISIS_MODE.dll",
+    "powerup_adaptive_firewall":    "ADAPT_FW.exe",
+    "powerup_last_transmission":    "LAST_TX.dll",
+    "powerup_kill_chain":           "KILLCHAIN.exe",
+    # Stage 5 survival-exclusive descriptions
+    "powerup_crisis_mode_desc1":    "Below 30% HP: deal +15% bonus damage.",
+    "powerup_crisis_mode_desc2":    "Below 30% HP: deal +20% bonus damage.",
+    "powerup_crisis_mode_desc3":    "Below 30% HP: deal +25% bonus damage.",
+    "powerup_adaptive_firewall_desc1": "Taking a hit grants 3s of +25% fire rate.",
+    "powerup_adaptive_firewall_desc2": "Taking a hit grants 3s of +35% fire rate.",
+    "powerup_adaptive_firewall_desc3": "Taking a hit grants 3s of +45% fire rate.",
+    "powerup_last_transmission_desc1": "12% chance per kill to restore 0.5 HP.",
+    "powerup_last_transmission_desc2": "18% chance per kill to restore 0.5 HP.",
+    "powerup_last_transmission_desc3": "25% chance per kill to restore 0.5 HP.",
+    "powerup_kill_chain_desc":      "LEGENDARY: 5 kills within 3s triggers a 1.5x damage shockwave.",
+    # Stage 5 roguelite-exclusive names
+    "powerup_corrupted_core":       "CORRUPT_CORE.dll",
+    "powerup_room_echo":            "ROOM_ECHO.dll",
+    "powerup_chain_reaction":       "CHAIN_REACT.dll",
+    "powerup_kernel_exploit":       "KERNEL_EXPLOIT.sys",
+    # Stage 5 roguelite-exclusive descriptions
+    "powerup_corrupted_core_desc1": "Elite kills grant +1 max HP.",
+    "powerup_corrupted_core_desc2": "Elite kills grant +1.5 max HP.",
+    "powerup_corrupted_core_desc3": "Elite kills grant +2 max HP.",
+    "powerup_room_echo_desc1":      "Room clear grants 8 charged bullets dealing +60% damage.",
+    "powerup_room_echo_desc2":      "Room clear grants 12 charged bullets dealing +60% damage.",
+    "powerup_room_echo_desc3":      "Room clear grants 16 charged bullets dealing +60% damage.",
+    "powerup_chain_reaction_desc1": "20% chance per kill to drop a bonus coin.",
+    "powerup_chain_reaction_desc2": "30% chance per kill to drop a bonus coin.",
+    "powerup_chain_reaction_desc3": "40% chance per kill to drop a bonus coin.",
+    "powerup_kernel_exploit_desc":  "LEGENDARY: Defeating a boss grants +20% permanent damage.",
+    # Discovery banner
+    "new_process_installed":   "NEW PROCESS INSTALLED"
   }.toTable,
 
   Spanish: {
@@ -4715,7 +4909,104 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Comeback mechanic
     "comeback_bonus_active": "REGRESO +10%",
-    "comeback_bonus_until": "hasta oleada"
+    "comeback_bonus_until": "hasta oleada",
+
+    # Settings
+    "settings_replay_mode_intros": "Repetir Intros de Modo",
+
+    # Mode intro — wave-based
+    "mode_intro_wave_title": "RESPUESTA A AMENAZA",
+    "mode_intro_wave_rec1":  "BARRIDO DE RADAR",
+    "mode_intro_wave_1a":    "BRECHA DETECTADA EN SECTOR 7",
+    "mode_intro_wave_1b":    "PROTOCOLO DE DEFENSA POR OLEADAS ACTIVADO",
+    "mode_intro_wave_rec2":  "DESPLIEGUE",
+    "mode_intro_wave_2a":    "SOBREVIVE CADA OLEADA, OPERADOR",
+    "mode_intro_wave_2b":    "EL KERNEL CUENTA CONTIGO",
+
+    # Mode intro — time survival
+    "mode_intro_surv_title": "PROTOCOLO DE RESISTENCIA",
+    "mode_intro_surv_rec1":  "CUENTA REGRESIVA",
+    "mode_intro_surv_1a":    "DESAFÍO DE TIEMPO DE ACTIVIDAD INICIADO",
+    "mode_intro_surv_1b":    "¿CUÁNTO TIEMPO PUEDES AGUANTAR?",
+    "mode_intro_surv_rec2":  "REGISTRO DE TIEMPO",
+    "mode_intro_surv_2a":    "CADA SEGUNDO DE SUPERVIVENCIA SE REGISTRA",
+    "mode_intro_surv_2b":    "SUPERA TU RÉCORD. ROMPE EL LÍMITE.",
+
+    # Mode intro — roguelite
+    "mode_intro_rogue_title": "BARRIDO DE SECTOR",
+    "mode_intro_rogue_rec1":  "MAPA DE MAZMORRA",
+    "mode_intro_rogue_1a":    "MÓDULO DE INFILTRACIÓN DE SECTOR ARMADO",
+    "mode_intro_rogue_1b":    "EXPLORA PISOS, RECLAMA RELIQUIAS",
+    "mode_intro_rogue_rec2":  "ESCANEO DE RELIQUIA",
+    "mode_intro_rogue_2a":    "PROCESOS DEL KERNEL DISPONIBLES PARA COSECHAR",
+    "mode_intro_rogue_2b":    "DESCUBRE COMBINACIONES. LLEGA A LA RAÍZ.",
+
+    # Mode intro — sandbox
+    "mode_intro_sandbox_title": "ENTORNO SIN RESTRICCIONES",
+    "mode_intro_sandbox_rec1":  "SECUENCIA DE INICIO",
+    "mode_intro_sandbox_1a":    "ENTORNO DE PRUEBAS ACTIVO",
+    "mode_intro_sandbox_1b":    "ADVERTENCIA: SIN LIMITACIONES. PROCEDE LIBREMENTE.",
+
+    # Mode intro — pvp
+    "mode_intro_pvp_title": "NODO HOSTIL",
+    "mode_intro_pvp_rec1":  "ESCANEO DE RED",
+    "mode_intro_pvp_1a":    "NODO HOSTIL DETECTADO",
+    "mode_intro_pvp_1b":    "PROTOCOLO DE CONFLICTO MULTI-AGENTE ACTIVADO",
+    "mode_intro_pvp_rec2":  "BLOQUEO DE ADVERSARIO",
+    "mode_intro_pvp_2a":    "FIRMA DEL ADVERSARIO CONFIRMADA",
+    "mode_intro_pvp_2b":    "ELIMINA O SERAS ELIMINADO.",
+    # Mode-exclusive power-up names
+    "powerup_glitch_field":    "CAMPO_FALLO.dll",
+    "powerup_time_surge":      "OLEADA_TEMPORAL.exe",
+    "powerup_last_stand":      "ULTIMA_DEFENSA.sys",
+    "powerup_recursion":       "RECURSION.bin",
+    "powerup_sector_protocol": "PROTOCOLO_SECTOR.exe",
+    # Mode-exclusive power-up descriptions
+    "powerup_glitch_field_desc1":   "Las balas tienen un 20% de probabilidad de interferir la navegación enemiga por 0,5s.",
+    "powerup_glitch_field_desc2":   "Las balas tienen un 30% de probabilidad de interferir la navegación enemiga por 0,5s.",
+    "powerup_glitch_field_desc3":   "Las balas tienen un 40% de probabilidad de interferir la navegación enemiga por 0,5s.",
+    "powerup_time_surge_desc1":     "Cada eliminación extiende el temporizador de cadencia de fuego en 0,5s.",
+    "powerup_time_surge_desc2":     "Cada eliminación extiende el temporizador de cadencia de fuego en 0,75s.",
+    "powerup_time_surge_desc3":     "Cada eliminación extiende el temporizador de cadencia de fuego en 1s.",
+    "powerup_last_stand_desc":      "LEGENDARIO: Una vez por vida, sobrevivir a un golpe mortal otorga 3s de invulnerabilidad.",
+    "powerup_recursion_desc1":      "Bono de instalación: +8% de daño permanente.",
+    "powerup_recursion_desc2":      "Bono de instalación: +14% de daño permanente.",
+    "powerup_recursion_desc3":      "Bono de instalación: +20% de daño permanente.",
+    "powerup_sector_protocol_desc": "LEGENDARIO: Cada eliminación otorga +1 moneda. Cada nuevo piso otorga +15 monedas.",
+    # Stage 5 survival-exclusive names
+    "powerup_crisis_mode":          "MODO_CRISIS.dll",
+    "powerup_adaptive_firewall":    "FW_ADAPTABLE.exe",
+    "powerup_last_transmission":    "ULTIMA_TX.dll",
+    "powerup_kill_chain":           "CADENA_MORTAL.exe",
+    # Stage 5 survival-exclusive descriptions
+    "powerup_crisis_mode_desc1":    "Por debajo del 30% de HP: +15% de daño adicional.",
+    "powerup_crisis_mode_desc2":    "Por debajo del 30% de HP: +20% de daño adicional.",
+    "powerup_crisis_mode_desc3":    "Por debajo del 30% de HP: +25% de daño adicional.",
+    "powerup_adaptive_firewall_desc1": "Recibir un golpe otorga 3s de +25% de velocidad de disparo.",
+    "powerup_adaptive_firewall_desc2": "Recibir un golpe otorga 3s de +35% de velocidad de disparo.",
+    "powerup_adaptive_firewall_desc3": "Recibir un golpe otorga 3s de +45% de velocidad de disparo.",
+    "powerup_last_transmission_desc1": "12% de probabilidad por eliminación de restaurar 0,5 HP.",
+    "powerup_last_transmission_desc2": "18% de probabilidad por eliminación de restaurar 0,5 HP.",
+    "powerup_last_transmission_desc3": "25% de probabilidad por eliminación de restaurar 0,5 HP.",
+    "powerup_kill_chain_desc":      "LEGENDARIO: 5 eliminaciones en 3s desencadenan una onda de choque de 1,5x de daño.",
+    # Stage 5 roguelite-exclusive names
+    "powerup_corrupted_core":       "NUCLEO_CORRUPTO.dll",
+    "powerup_room_echo":            "ECO_SALA.dll",
+    "powerup_chain_reaction":       "REACCION_CADENA.dll",
+    "powerup_kernel_exploit":       "EXPLOIT_KERNEL.sys",
+    # Stage 5 roguelite-exclusive descriptions
+    "powerup_corrupted_core_desc1": "Eliminar élites otorga +1 HP máximo.",
+    "powerup_corrupted_core_desc2": "Eliminar élites otorga +1,5 HP máximo.",
+    "powerup_corrupted_core_desc3": "Eliminar élites otorga +2 HP máximo.",
+    "powerup_room_echo_desc1":      "Al limpiar una sala, obtén 8 balas cargadas con +60% de daño.",
+    "powerup_room_echo_desc2":      "Al limpiar una sala, obtén 12 balas cargadas con +60% de daño.",
+    "powerup_room_echo_desc3":      "Al limpiar una sala, obtén 16 balas cargadas con +60% de daño.",
+    "powerup_chain_reaction_desc1": "20% de probabilidad por eliminación de obtener una moneda extra.",
+    "powerup_chain_reaction_desc2": "30% de probabilidad por eliminación de obtener una moneda extra.",
+    "powerup_chain_reaction_desc3": "40% de probabilidad por eliminación de obtener una moneda extra.",
+    "powerup_kernel_exploit_desc":  "LEGENDARIO: Derrotar a un jefe otorga +20% de daño permanente.",
+    # Discovery banner
+    "new_process_installed":   "NUEVO PROCESO INSTALADO"
   }.toTable
 }.toTable
 

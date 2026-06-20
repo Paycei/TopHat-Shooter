@@ -545,7 +545,7 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
   # Roll Power-Ups button
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
-    game.powerUpChoices = generatePowerUpChoices(game.player, false)
+    game.powerUpChoices = generatePowerUpChoices(game.player, false, mode = game.mode)
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
     initializeRerollCost(game)

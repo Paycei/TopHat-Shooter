@@ -12,6 +12,7 @@
 import raylib, random, math
 import particle_types
 import types, roguelite, powerup, particle, sound, localization, boss_definitions, settings
+import coin
 
 const
   DoorZoneWidth* = 120'f32   # Length of the door opening along the edge
@@ -753,24 +754,6 @@ proc selectFloorTheme*(game: Game, choiceIndex: int) =
   let idx = clamp(choiceIndex, 0, 2)
   startDungeonFloor(game, game.rogueliteRun.nextThemeChoices[idx])
 
-proc collectAllCoins*(game: Game) =
-  ## Auto-bank every coin on the floor when the room is cleared, applying the
-  ## same multipliers as contact pickup (Lucky Coins, Double Coin).
-  if game.coins.len == 0: return
-  var totalValue = 0
-  for coin in game.coins:
-    var coinValue = coin.value
-    if hasPowerUp(game.player, puLuckyCoins):
-      coinValue *= 2
-    if game.player.doubleCoinTimer > 0:
-      coinValue *= 2
-    totalValue += coinValue
-  game.coins = @[]
-  if totalValue > 0:
-    game.player.coins += totalValue
-    playSound(stCoinPickup, 0.6)
-    game.currencyIndicators.add(newCurrencyIndicator(
-      game.player.pos.x, game.player.pos.y - 18, totalValue, cikCredits))
 
 proc onRoomCleared*(game: Game): DungeonClearOutcome =
   ## Combat/elite room finished: bank coins, award shards/keys, open doors.

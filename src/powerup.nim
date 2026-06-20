@@ -14,33 +14,38 @@ proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
   return 0
 
 proc isOfferable*(player: Player, pt: PowerUpType,
-                  allowed: set[RoguelitePowerFamily]): bool {.inline.} =
-  allPowerUpDefs[pt].family in allowed and
-    getPowerUpLevel(player, pt) < allPowerUpDefs[pt].maxLevel
+                  allowed: set[RoguelitePowerFamily],
+                  mode: GameMode): bool {.inline.} =
+  let def = allPowerUpDefs[pt]
+  (def.allowedModes == {} or mode in def.allowedModes) and
+    def.family in allowed and
+    getPowerUpLevel(player, pt) < def.maxLevel
 
 proc isPowerUpPoolExhausted*(player: Player, isLegendary: bool,
-                              allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood}): bool =
+                              allowedPowerFamilies: set[RoguelitePowerFamily],
+                              mode: GameMode): bool =
   ## Returns true when no power-up in the relevant pool can be offered.
   let pool = if isLegendary: legendaryPool else: normalPool
   for pt in pool:
-    if player.isOfferable(pt, allowedPowerFamilies):
+    if player.isOfferable(pt, allowedPowerFamilies, mode):
       return false
   return true
 
 proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
-                             allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood}): array[3, PowerUp] =
+                             allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood},
+                             mode: GameMode): array[3, PowerUp] =
   # Generate 3 random power-up options with COMPLETELY SEPARATE pools
   var availablePowerUps: seq[PowerUp] = @[]
 
   if isLegendary:
     # BOSS DEFEATED - offer ONLY legendary-exclusive power-ups
     for powerType in legendaryPool:
-      if player.isOfferable(powerType, allowedPowerFamilies):
+      if player.isOfferable(powerType, allowedPowerFamilies, mode):
         availablePowerUps.add(PowerUp(powerType: powerType, level: 1, rarity: prLegendary))
   else:
     # NORMAL WAVE - offer ONLY normal power-ups
     for powerType in normalPool:
-      if not player.isOfferable(powerType, allowedPowerFamilies):
+      if not player.isOfferable(powerType, allowedPowerFamilies, mode):
         continue
       let currentLevel = getPowerUpLevel(player, powerType)
       if currentLevel == 0:
@@ -109,7 +114,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
           normalPool[rand(normalPool.high)]
 
         # Skip if already at max level or outside allowed families
-        if not player.isOfferable(randomType, allowedPowerFamilies):
+        if not player.isOfferable(randomType, allowedPowerFamilies, mode):
           attempts += 1
           continue
 
@@ -416,6 +421,45 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Cornucopia: passive drop-rate booster. State stored on player.
     player.hasBountiful = true
     player.bountifulKillCounter = 0
+  of puGlitchField:
+    # GlitchField: 20/30/40% chance to briefly slow enemies hit by bullets
+    player.glitchChance = case powerUp.level
+      of 1: 0.20'f32
+      of 2: 0.30'f32
+      else: 0.40'f32
+  of puTimeSurge:
+    # TimeSurge: kills extend fire rate boost timer (effect applied in game.nim kill loop)
+    discard
+  of puLastStand:
+    # LastStand: one-shot near-death invulnerability (trigger in game.nim damage check)
+    discard
+  of puRecursion:
+    # Recursion: flat damage bonus on pickup
+    let bonus = case powerUp.level
+      of 1: 0.08'f32
+      of 2: 0.14'f32
+      else: 0.20'f32
+    player.damage *= (1.0'f32 + bonus)
+  of puSectorProtocol:
+    # SectorProtocol: kills grant +1 coin; new floors grant +15 coins (flag in game.nim)
+    player.hasSectorProtocol = true
+  of puCrisisMode:
+    discard  # Damage bonus applied in calculateCombatStats when HP < 30%
+  of puAdaptiveFirewall:
+    discard  # Timer set in takeDamage; fire rate bonus in calculateCombatStats
+  of puLastTransmission:
+    discard  # Chance heal triggered in game.nim kill loop
+  of puKillChain:
+    player.killChainCount = 0
+    player.killChainTimer = 0
+  of puCorruptedCore:
+    player.corruptedCoreHpAcc = 0
+  of puRoomEcho:
+    discard  # Charges granted on room clear in game.nim
+  of puChainReaction:
+    discard  # Chance coin drop triggered in game.nim kill loop
+  of puKernelExploit:
+    discard  # Damage bonus applied on boss defeat in game.nim
   else:
     discard
 
@@ -653,7 +697,7 @@ proc attemptRerollPowerUps*(game: Game): bool =
       game.rogueliteProfile.unlockedPowerFamilies
     else:
       {rpfCore..rpfBlood}
-  game.powerUpChoices = generatePowerUpChoices(game.player, isLegendary, allowedFamilies)
+  game.powerUpChoices = generatePowerUpChoices(game.player, isLegendary, allowedFamilies, game.mode)
 
   # Reset selection to first option
   game.selectedPowerUp = 0

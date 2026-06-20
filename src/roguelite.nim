@@ -560,6 +560,10 @@ proc completeRogueliteBoss*(game: Game) =
     game.player.hp = min(game.player.maxHp, game.player.hp + 2.0)
     game.player.shieldHits += 1
 
+  # SectorProtocol: bonus coins on floor completion
+  if game.player.hasSectorProtocol:
+    game.player.coins += 15
+
   if run.floorNumber >= RogueliteFloorsToWin:
     run.completed = true
     game.rogueliteProfile.wins += 1

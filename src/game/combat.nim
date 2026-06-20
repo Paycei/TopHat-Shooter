@@ -121,6 +121,29 @@ proc calculateCombatStats*(player: Player): CombatStats =
   if player.fireRateBoostTimer > 0:
     result.fireRate *= 0.75    # 25% faster fire rate (lower value = faster)
 
+  # CrisisMode: damage bonus when below 30% HP
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puCrisisMode:
+      let hpPct = player.hp / player.maxHp
+      if hpPct < 0.30'f32:
+        let bonus = case powerUp.level
+          of 1: 0.15'f32
+          of 2: 0.20'f32
+          else: 0.25'f32
+        result.damage *= (1.0'f32 + bonus)
+      break
+
+  # AdaptiveFirewall: fire rate boost after taking a hit
+  if player.adaptiveFirewallTimer > 0:
+    for powerUp in player.powerUps:
+      if powerUp.powerType == puAdaptiveFirewall:
+        let boost = case powerUp.level
+          of 1: 0.25'f32
+          of 2: 0.35'f32
+          else: 0.45'f32
+        result.fireRate *= (1.0'f32 - boost)  # lower = faster
+        break
+
   # Double Shot penalty - 25% slower fire rate
   for powerUp in player.powerUps:
     if powerUp.powerType == puDoubleShot:

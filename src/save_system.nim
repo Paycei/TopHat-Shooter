@@ -56,6 +56,12 @@ type
     survivalUnlocked*: bool     # Unlock flag: allows Time Survival mode from menu
     lastDeathWave*: int         # Wave the player died on last non-cheated wave-based run (0 = none)
     keybinds*: KeyBindings      # Rebindable keyboard controls
+    hasSeenWaveModeIntro*: bool    # First-time wave-based mode intro played
+    hasSeenSurvivalIntro*: bool    # First-time time-survival mode intro played
+    hasSeenRogueliteIntro*: bool   # First-time roguelite mode intro played
+    hasSeenSandboxIntro*: bool     # First-time sandbox mode intro played
+    hasSeenPvPIntro*: bool         # First-time pvp mode intro played
+    discoveredPowerUps*: seq[string] # Power-ups seen for the first time (name-serialized)
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -136,7 +142,13 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "cheaterHatEquipped": settings.cheaterHatEquipped,
     "rogueliteUnlocked": settings.rogueliteUnlocked,
     "survivalUnlocked": settings.survivalUnlocked,
-    "lastDeathWave": settings.lastDeathWave
+    "lastDeathWave": settings.lastDeathWave,
+    "hasSeenWaveModeIntro": settings.hasSeenWaveModeIntro,
+    "hasSeenSurvivalIntro": settings.hasSeenSurvivalIntro,
+    "hasSeenRogueliteIntro": settings.hasSeenRogueliteIntro,
+    "hasSeenSandboxIntro": settings.hasSeenSandboxIntro,
+    "hasSeenPvPIntro": settings.hasSeenPvPIntro,
+    "discoveredPowerUps": settings.discoveredPowerUps
   }
   var bindsObj = newJObject()
   for action in KeyAction:
@@ -255,6 +267,26 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("lastDeathWave"):
     settings.lastDeathWave = jsonNode["lastDeathWave"].getInt()
+
+  if jsonNode.hasKey("hasSeenWaveModeIntro"):
+    settings.hasSeenWaveModeIntro = jsonNode["hasSeenWaveModeIntro"].getBool()
+
+  if jsonNode.hasKey("hasSeenSurvivalIntro"):
+    settings.hasSeenSurvivalIntro = jsonNode["hasSeenSurvivalIntro"].getBool()
+
+  if jsonNode.hasKey("hasSeenRogueliteIntro"):
+    settings.hasSeenRogueliteIntro = jsonNode["hasSeenRogueliteIntro"].getBool()
+
+  if jsonNode.hasKey("hasSeenSandboxIntro"):
+    settings.hasSeenSandboxIntro = jsonNode["hasSeenSandboxIntro"].getBool()
+
+  if jsonNode.hasKey("hasSeenPvPIntro"):
+    settings.hasSeenPvPIntro = jsonNode["hasSeenPvPIntro"].getBool()
+
+  if jsonNode.hasKey("discoveredPowerUps"):
+    settings.discoveredPowerUps = @[]
+    for item in jsonNode["discoveredPowerUps"]:
+      settings.discoveredPowerUps.add(item.getStr())
 
   if jsonNode.hasKey("keybinds"):
     let binds = jsonNode["keybinds"]
@@ -684,6 +716,19 @@ proc parsePowerUpType(s: string): PowerUpType =
   of "puNova": puNova
   of "puHealPower": puHealPower
   of "puBountiful": puBountiful
+  of "puGlitchField": puGlitchField
+  of "puTimeSurge": puTimeSurge
+  of "puLastStand": puLastStand
+  of "puRecursion": puRecursion
+  of "puSectorProtocol": puSectorProtocol
+  of "puCrisisMode": puCrisisMode
+  of "puAdaptiveFirewall": puAdaptiveFirewall
+  of "puLastTransmission": puLastTransmission
+  of "puKillChain": puKillChain
+  of "puCorruptedCore": puCorruptedCore
+  of "puRoomEcho": puRoomEcho
+  of "puChainReaction": puChainReaction
+  of "puKernelExploit": puKernelExploit
   else: puDoubleShot
 
 # Helper to parse GameMode from string

@@ -28,6 +28,11 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
   applyPowerUp(game.player, powerUp)
   trackPowerUpSelection(game, powerUp)
 
+  let powerName = $powerUp.powerType
+  if not globalSettings.isNil and powerName notin globalSettings.discoveredPowerUps:
+    globalSettings.discoveredPowerUps.add(powerName)
+    discard saveSettings(globalSettings)
+
   let accent = if powerUp.rarity == prLegendary:
     Color(r: 255, g: 215, b: 0, a: 255)
   else:

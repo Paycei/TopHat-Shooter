@@ -1,95 +1,17 @@
-## Lore Cinematic Module
-## First-open cinematic that plays once, between the boot splash and the OS desktop.
-## The sequence is a raylib-rendered video: timed shots, camera drift, animated
-## geometry, subtitles, scanlines, letterbox bars, and a final boot handoff.
-##
-## Shot-agnostic rendering (models, chrome, easing) lives in `cinematic_common.nim`,
-## shared with the endgame cinematic so the two read as a matched pair.
+## Lore Cinematic — opening narrative.
+## Shot content (drawXxxShot procs) is identical to before; the boilerplate
+## LoreCinematic type/update/draw is replaced by newLoreCutscene() which
+## assembles a Cutscene from the generic framework in cutscene.nim.
 
 import raylib, rlgl, math
 import particle_types
-import background_fx, ../types, ../localization, ../sound, cinematic_common
-
-type
-  LoreShot* = enum
-    lsBreach
-    lsSwarm
-    lsAwaken
-    lsBoss
-    lsCounterattack
-    lsDirective
-
-  LoreCinematic* = ref object
-    time*: float32
-    complete*: bool
-    scanlineOffset*: float32
-    frame*: int
-    fastForwardActive*: bool
-    skipHoldTimer*: float32
-    lastShotPlayed*: int  # Index of the shot whose audio cue last fired (-1 = none)
+import background_fx, ../types, ../localization, ../sound, cinematic_common, cutscene
 
 const
-  LoreFastForwardMultiplier = 2.0'f32
-  LoreSkipHoldRequired = 3.0'f32
-  ShotDurations = [
-    5.60'f32, # breach
-    5.95'f32, # swarm
-    5.75'f32, # TOPHAT awakens
-    6.45'f32, # boss signal
-    5.65'f32, # counterattack
-    4.80'f32  # directive
-  ]
-  LoreDuration =
-    ShotDurations[0] + ShotDurations[1] + ShotDurations[2] +
-    ShotDurations[3] + ShotDurations[4] + ShotDurations[5]
+  LoreAccent = Color(r: 0, g: 230, b: 230, a: 255)
 
-proc newLoreCinematic*(): LoreCinematic =
-  LoreCinematic(
-    time: 0,
-    complete: false,
-    scanlineOffset: 0,
-    frame: 0,
-    fastForwardActive: false,
-    skipHoldTimer: 0,
-    lastShotPlayed: -1
-  )
-
-proc shotAt(time: float32): tuple[shot: LoreShot, local: float32, duration: float32] =
-  var cursor = 0.0'f32
-  for i, duration in ShotDurations:
-    if time < cursor + duration:
-      return (LoreShot(i), time - cursor, duration)
-    cursor += duration
-  (lsDirective, ShotDurations[^1], ShotDurations[^1])
-
-proc shotFade(local, duration: float32): float32 =
-  min(easeInOut(local / 1.35'f32), easeInOut((duration - local) / 1.55'f32))
-
-proc drawVideoOverlay(lore: LoreCinematic, screenWidth, screenHeight: int32,
-                      shot: LoreShot, local, duration: float32) =
-  let shotLabel = case shot
-    of lsBreach: t(tkLoreRecBreach)
-    of lsSwarm: t(tkLoreRecSwarm)
-    of lsAwaken: t(tkLoreRecAwaken)
-    of lsBoss: t(tkLoreRecBoss)
-    of lsCounterattack: t(tkLoreRecCounter)
-    of lsDirective: t(tkLoreRecDirective)
-
-  let iconIndex = case shot
-    of lsBreach: 3
-    of lsSwarm: 0
-    of lsAwaken: 4
-    of lsBoss: 7
-    of lsCounterattack: 0
-    of lsDirective: 10
-
-  # The boss shot gets extra tracking hits so the feed reads as the most unstable.
-  let glitchHot = shot == lsBoss and (lore.frame mod 63) < 5
-  drawCinematicOverlay(screenWidth, screenHeight, lore.time, lore.frame,
-                       lore.scanlineOffset, lore.fastForwardActive,
-                       lore.skipHoldTimer, LoreSkipHoldRequired, LoreDuration,
-                       shotLabel, t(tkLoreLive), t(tkLoreControlsFF),
-                       t(tkLoreControlsFFActive), iconIndex, glitchHot)
+# ---------------------------------------------------------------------------
+# Shot draw procs (unchanged content)
 
 proc drawBreachShot(local, duration: float32, screenWidth, screenHeight: int32,
                     alpha: float32) =
@@ -109,12 +31,9 @@ proc drawBreachShot(local, duration: float32, screenWidth, screenHeight: int32,
   drawRectangle((cx - 5.0'f32).int32, (cy - 120.0'f32 * open).int32,
                 10, (240.0'f32 * open).int32, Color(r: 0, g: 245, b: 245, a: alphaByte(alpha * 135.0'f32)))
 
-  # The kernel, the OS core the breach is tearing into, trembles harder as
-  # the rupture widens around it.
   let jx = sin(local * 43.0'f32) * 2.4'f32 * open
   let jy = cos(local * 51.0'f32) * 2.0'f32 * open
   drawKernelModel(newVector2f(cx + jx, cy + jy), 36.0'f32, local, 1.0'f32, alpha)
-  # Corruption flicker crawling over the shell during breach spikes.
   let spike = sin(local * 9.0'f32)
   if spike > 0.55'f32:
     drawPolyLines(Vector2(x: cx + jx, y: cy + jy), 6, 36.0'f32, local * 12.0'f32,
@@ -252,78 +171,23 @@ proc drawDirectiveShot(local, duration: float32, screenWidth, screenHeight: int3
   drawCenteredText(t(tkLoreDirectiveSub), screenWidth div 2, (screenHeight * 2 div 3 + 46).int32,
                    21, Color(r: 0, g: 230, b: 230, a: alphaByte(titleAlpha * 210.0'f32)))
 
-proc shotCue(shot: LoreShot): SoundType =
-  ## Per-shot audio sting, fired once when a new shot begins.
-  case shot
-  of lsBreach: stTeleport
-  of lsSwarm: stExplosion
-  of lsAwaken: stPowerUp
-  of lsBoss: stBossSpawn
-  of lsCounterattack: stShoot
-  of lsDirective: stShield
+# ---------------------------------------------------------------------------
+# Per-shot shake overrides
 
-proc updateLoreCinematic*(lore: LoreCinematic, dt: float32) =
-  if lore.complete:
-    return
+proc bossShake(time, local, duration, alpha: float32): float32 =
+  sin(time * 36.0'f32) * 3.0'f32 * alpha
 
-  lore.fastForwardActive = isKeyDown(Enter)
-  if isKeyDown(Space):
-    lore.skipHoldTimer = min(LoreSkipHoldRequired, lore.skipHoldTimer + dt)
+proc breachLateShake(time, local, duration, alpha: float32): float32 =
+  if local > duration * 0.58'f32:
+    sin(time * 44.0'f32) * 2.0'f32 * alpha
   else:
-    lore.skipHoldTimer = 0.0'f32
+    sin(time * 0.7'f32) * 1.2'f32 * alpha
 
-  if lore.skipHoldTimer >= LoreSkipHoldRequired:
-    lore.complete = true
-    return
+# ---------------------------------------------------------------------------
+# Backdrop
 
-  let playbackDt = dt * (if lore.fastForwardActive: LoreFastForwardMultiplier else: 1.0'f32)
-  lore.time += playbackDt
-  lore.scanlineOffset += playbackDt * 118.0'f32
-  inc lore.frame
-
-  # Fire a one-shot audio sting whenever playback crosses into a new shot.
-  let (curShot, _, _) = shotAt(lore.time)
-  if ord(curShot) != lore.lastShotPlayed:
-    lore.lastShotPlayed = ord(curShot)
-    playSound(shotCue(curShot), 0.6'f32)  # ducked so the sting sits under the score
-
-  if lore.time >= LoreDuration:
-    lore.complete = true
-
-proc drawTitleCard(lore: LoreCinematic, screenWidth, screenHeight: int32) =
-  ## Opening "archive playback" card; appears as the boot fade clears, then leaves.
-  let appear = clamp01((lore.time - 0.2'f32) / 0.5'f32)
-  let leave = clamp01((1.95'f32 - lore.time) / 0.5'f32)
-  let a = min(appear, leave)
-  if a <= 0.0'f32:
-    return
-  let cx = screenWidth div 2
-  let cy = screenHeight div 2 - 30
-  # Thin framing rules above and below the title.
-  let ruleW = (screenWidth.float32 * 0.32'f32 * a).int32
-  drawRectangle(cx - ruleW, cy - 16, ruleW * 2, 2,
-                Color(r: 0, g: 230, b: 230, a: alphaByte(a * 170.0'f32)))
-  drawRectangle(cx - ruleW, cy + 54, ruleW * 2, 2,
-                Color(r: 0, g: 230, b: 230, a: alphaByte(a * 170.0'f32)))
-  drawCenteredText("TopHat-ShooterOS", cx.int32, (cy).int32, 40,
-                   Color(r: 255, g: 255, b: 255, a: alphaByte(a * 255.0'f32)))
-  drawCenteredText(t(tkLoreTitleCardSub), cx.int32, (cy + 60).int32, 16,
-                   Color(r: 0, g: 230, b: 230, a: alphaByte(a * 200.0'f32)))
-
-proc drawLoreCinematic*(lore: LoreCinematic, screenWidth, screenHeight: int) =
-  let (shot, local, duration) = shotAt(lore.time)
-  let alpha = shotFade(local, duration)
-  let shake =
-    if shot == lsBoss:
-      sin(lore.time * 36.0'f32) * 3.0'f32 * alpha
-    elif shot == lsBreach and local > duration * 0.58'f32:
-      sin(lore.time * 44.0'f32) * 2.0'f32 * alpha
-    else:
-      sin(lore.time * 0.7'f32) * 1.2'f32 * alpha
-  let sW = screenWidth.int32
-  let sH = screenHeight.int32
-
-  drawSharedBackdrop(sW, sH, lore.time * 0.48'f32,
+proc loreBackdrop(time, _: float32, sw, sh: int32) =
+  drawSharedBackdrop(sw, sh, time * 0.48'f32,
                      Color(r: 2, g: 4, b: 8, a: 255),
                      Color(r: 8, g: 12, b: 20, a: 255),
                      Color(r: 16, g: 34, b: 44, a: 30),
@@ -331,37 +195,41 @@ proc drawLoreCinematic*(lore: LoreCinematic, screenWidth, screenHeight: int) =
                      Color(r: 0, g: 210, b: 210, a: 34),
                      0.55, 0.5)
 
-  # Camera drift is deliberately tiny so the scene reads as a video feed without
-  # making subtitles or UI hard to track.
-  let camX = shake
-  let camY = cos(lore.time * 0.84'f32) * 1.2'f32 * alpha
-  drawRectangle(camX.int32 - 8, camY.int32 - 8, sW + 16, sH + 16,
-                Color(r: 0, g: 0, b: 0, a: 35))
+# ---------------------------------------------------------------------------
+# Public factory — replaces newLoreCinematic + updateLoreCinematic + drawLoreCinematic
 
-  pushMatrix()
-  translatef(camX, camY, 0.0'f32)
-  case shot
-  of lsBreach:
-    drawBreachShot(local, duration, sW, sH, alpha)
-  of lsSwarm:
-    drawSwarmShot(local, duration, sW, sH, alpha)
-  of lsAwaken:
-    drawAwakenShot(local, duration, sW, sH, alpha)
-  of lsBoss:
-    drawBossShot(local, duration, sW, sH, alpha)
-  of lsCounterattack:
-    drawCounterShot(local, duration, sW, sH, alpha)
-  of lsDirective:
-    drawDirectiveShot(local, duration, sW, sH, alpha)
-  popMatrix()
+proc newLoreCutscene*(): Cutscene =
+  newCutscene(
+    shots = @[
+      CutsceneShot(duration: 5.60'f32, drawProc: drawBreachShot,   soundCue: stTeleport,
+                   label: t(tkLoreRecBreach),   iconIndex: 3,  shakeProc: breachLateShake),
+      CutsceneShot(duration: 5.95'f32, drawProc: drawSwarmShot,    soundCue: stExplosion,
+                   label: t(tkLoreRecSwarm),    iconIndex: 0),
+      CutsceneShot(duration: 5.75'f32, drawProc: drawAwakenShot,   soundCue: stPowerUp,
+                   label: t(tkLoreRecAwaken),   iconIndex: 4),
+      CutsceneShot(duration: 6.45'f32, drawProc: drawBossShot,     soundCue: stBossSpawn,
+                   label: t(tkLoreRecBoss),     iconIndex: 7,
+                   glitchMod: 63, glitchWindow: 5, shakeProc: bossShake),
+      CutsceneShot(duration: 5.65'f32, drawProc: drawCounterShot,  soundCue: stShoot,
+                   label: t(tkLoreRecCounter),  iconIndex: 0),
+      CutsceneShot(duration: 4.80'f32, drawProc: drawDirectiveShot, soundCue: stShield,
+                   label: t(tkLoreRecDirective), iconIndex: 10),
+    ],
+    accentColor       = LoreAccent,
+    titleCardText     = "TopHat-ShooterOS",
+    titleCardSub      = t(tkLoreTitleCardSub),
+    drawBackdropProc  = loreBackdrop,
+    swayAmp           = 1.2'f32,
+    musicTrack        = mtBoss,
+  )
 
-  # Cut punctuation sits over the scene but under the recorder chrome.
-  drawTapeChange(sW, sH, local, lore.frame, lore.time)
+# Keep legacy proc names so main.nim doesn't need patching until Stage 2 migration.
+type LoreCinematic* = Cutscene
 
-  let fadeIn = 1.0'f32 - easeInOut(lore.time / 0.75'f32)
-  let fadeOut = easeInOut((lore.time - (LoreDuration - 0.9'f32)) / 0.9'f32)
-  let fadeA = alphaByte(max(fadeIn, fadeOut) * 255.0'f32)
-  drawVideoOverlay(lore, sW, sH, shot, local, duration)
-  drawTitleCard(lore, sW, sH)
-  if fadeA > 0:
-    drawRectangle(0, 0, sW, sH, Color(r: 0, g: 0, b: 0, a: fadeA))
+proc newLoreCinematic*(): LoreCinematic = newLoreCutscene()
+
+proc updateLoreCinematic*(lore: LoreCinematic, dt: float32) =
+  updateCutscene(lore, dt)
+
+proc drawLoreCinematic*(lore: LoreCinematic, screenWidth, screenHeight: int) =
+  drawCutscene(lore, screenWidth, screenHeight)

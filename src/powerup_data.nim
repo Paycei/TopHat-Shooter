@@ -36,8 +36,9 @@ type
     group*:            PowerUpGroup
     maxLevel*:         int
     color*:            Color
-    inLegendaryPanel*: bool   ## Shows in the legendary active-ability HUD panel
-    isElementalOrb*:   bool   ## True for the 7 single-element orbs (NOT puRotatingOrbs)
+    inLegendaryPanel*: bool          ## Shows in the legendary active-ability HUD panel
+    isElementalOrb*:   bool          ## True for the 7 single-element orbs (NOT puRotatingOrbs)
+    allowedModes*:     set[GameMode] ## Empty = all modes; non-empty = restricted to listed modes
 
 # The registry: one entry per PowerUpType, named-index syntax keeps it safe
 
@@ -57,7 +58,7 @@ const allPowerUpDefs*: array[PowerUpType, PowerUpDef] = [
   puBulletRicochet:   PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:140,g:220,b:200,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puBulletSpeed:      PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:200,g:200,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puBulletSplit:      PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:180,g:140,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
-  puCelestialVeil:    PowerUpDef(pool: puppLegendary, family: rpfShield,    group: pugNone,    maxLevel: 1, color: Color(r:180,g:200,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
+  puCelestialVeil:    PowerUpDef(pool: puppLegendary, family: rpfShield,    group: pugNone,    maxLevel: 1, color: Color(r:180,g:200,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmWaveBased, gmRoguelite}),
   puChainLightning:   PowerUpDef(pool: puppNormal,    family: rpfLightning, group: pugBullet,  maxLevel: 3, color: Color(r:255,g:255,b: 80,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puConduit:          PowerUpDef(pool: puppLegendary, family: rpfLightning, group: pugNone,    maxLevel: 1, color: Color(r:160,g:120,b:255,a:255), inLegendaryPanel: true,  isElementalOrb: false),
   puCriticalHit:      PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:255,g:200,b: 50,a:255), inLegendaryPanel: false, isElementalOrb: false),
@@ -109,14 +110,30 @@ const allPowerUpDefs*: array[PowerUpType, PowerUpDef] = [
   puSpecialRounds:    PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:255,g:200,b: 80,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puSpeedBoost:       PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r: 80,g:200,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puThorns:           PowerUpDef(pool: puppNormal,    family: rpfShield,    group: pugNone,    maxLevel: 3, color: Color(r:100,g:200,b: 80,a:255), inLegendaryPanel: false, isElementalOrb: false),
-  puTimeWarp:         PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:180,g:180,b:255,a:255), inLegendaryPanel: true,  isElementalOrb: false),
+  puTimeWarp:         PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:180,g:180,b:255,a:255), inLegendaryPanel: true,  isElementalOrb: false, allowedModes: {gmWaveBased, gmRoguelite}),
   puVolatile:         PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:255,g: 80,b: 20,a:255), inLegendaryPanel: false, isElementalOrb: false),
-  puWallMaster:       PowerUpDef(pool: puppLegendary, family: rpfShield,    group: pugNone,    maxLevel: 1, color: Color(r:180,g:140,b:100,a:255), inLegendaryPanel: false, isElementalOrb: false),
-  puWallTurrets:      PowerUpDef(pool: puppNormal,    family: rpfShield,    group: pugNone,    maxLevel: 3, color: Color(r:200,g:180,b:100,a:255), inLegendaryPanel: false, isElementalOrb: false),
+  puWallMaster:       PowerUpDef(pool: puppLegendary, family: rpfShield,    group: pugNone,    maxLevel: 1, color: Color(r:180,g:140,b:100,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmWaveBased, gmRoguelite}),
+  puWallTurrets:      PowerUpDef(pool: puppNormal,    family: rpfShield,    group: pugNone,    maxLevel: 3, color: Color(r:200,g:180,b:100,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmWaveBased, gmRoguelite}),
   puWindAura:         PowerUpDef(pool: puppNormal,    family: rpfWind,      group: pugAura,    maxLevel: 3, color: Color(r:180,g:240,b:240,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puWindBullets:      PowerUpDef(pool: puppNormal,    family: rpfWind,      group: pugBullet,  maxLevel: 3, color: Color(r:180,g:240,b:240,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puWindMastery:      PowerUpDef(pool: puppLegendary, family: rpfWind,      group: pugMastery, maxLevel: 1, color: Color(r:160,g:255,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puWindOrb:          PowerUpDef(pool: puppNormal,    family: rpfWind,      group: pugOrb,     maxLevel: 3, color: Color(r:180,g:240,b:240,a:255), inLegendaryPanel: false, isElementalOrb: true),
+  # Mode-exclusive power-ups
+  puGlitchField:      PowerUpDef(pool: puppNormal,    family: rpfArcane,    group: pugNone,    maxLevel: 3, color: Color(r:120,g:255,b:180,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
+  puTimeSurge:        PowerUpDef(pool: puppNormal,    family: rpfWind,      group: pugNone,    maxLevel: 3, color: Color(r:100,g:200,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmTimeSurvival}),
+  puLastStand:        PowerUpDef(pool: puppLegendary, family: rpfShield,    group: pugNone,    maxLevel: 1, color: Color(r:255,g:220,b: 60,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmTimeSurvival}),
+  puRecursion:        PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:255,g:140,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
+  puSectorProtocol:   PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:255,g:200,b:100,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
+  # Survival-exclusive power-ups (Stage 5)
+  puCrisisMode:       PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:255,g: 80,b: 80,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmTimeSurvival}),
+  puAdaptiveFirewall: PowerUpDef(pool: puppNormal,    family: rpfShield,    group: pugNone,    maxLevel: 3, color: Color(r: 80,g:160,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmTimeSurvival}),
+  puLastTransmission: PowerUpDef(pool: puppNormal,    family: rpfBlood,     group: pugNone,    maxLevel: 3, color: Color(r:200,g: 60,b: 60,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmTimeSurvival}),
+  puKillChain:        PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:255,g:120,b: 50,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmTimeSurvival}),
+  # Roguelite-exclusive power-ups (Stage 5)
+  puCorruptedCore:    PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:120,g:255,b:120,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
+  puRoomEcho:         PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:100,g:180,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
+  puChainReaction:    PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:255,g:200,b: 60,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
+  puKernelExploit:    PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:180,g: 80,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
 ]
 
 # Derived constants, computed once at compile time from the registry above
@@ -241,6 +258,19 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puNova: t(tkPowerupNova)
   of puHealPower: t(tkPowerupHealPower)
   of puBountiful: t(tkPowerupBountiful)
+  of puGlitchField: t(tkPowerupGlitchField)
+  of puTimeSurge: t(tkPowerupTimeSurge)
+  of puLastStand: t(tkPowerupLastStand)
+  of puRecursion: t(tkPowerupRecursion)
+  of puSectorProtocol: t(tkPowerupSectorProtocol)
+  of puCrisisMode: t(tkPowerupCrisisMode)
+  of puAdaptiveFirewall: t(tkPowerupAdaptiveFirewall)
+  of puLastTransmission: t(tkPowerupLastTransmission)
+  of puKillChain: t(tkPowerupKillChain)
+  of puCorruptedCore: t(tkPowerupCorruptedCore)
+  of puRoomEcho: t(tkPowerupRoomEcho)
+  of puChainReaction: t(tkPowerupChainReaction)
+  of puKernelExploit: t(tkPowerupKernelExploit)
 
 # Descriptions
 
@@ -534,3 +564,56 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     of 1: t(tkPowerupWindOrbDesc1).replace("{0}", dmg(3.5, 0.175, playerDamage))
     of 2: t(tkPowerupWindOrbDesc2).replace("{0}", dmg(5.5, 0.175, playerDamage))
     else: t(tkPowerupWindOrbDesc3).replace("{0}", dmg(8.0, 0.175, playerDamage))
+  of puGlitchField:
+    case level
+    of 1: t(tkPowerupGlitchFieldDesc1)
+    of 2: t(tkPowerupGlitchFieldDesc2)
+    else: t(tkPowerupGlitchFieldDesc3)
+  of puTimeSurge:
+    case level
+    of 1: t(tkPowerupTimeSurgeDesc1)
+    of 2: t(tkPowerupTimeSurgeDesc2)
+    else: t(tkPowerupTimeSurgeDesc3)
+  of puLastStand:
+    t(tkPowerupLastStandDesc)
+  of puRecursion:
+    case level
+    of 1: t(tkPowerupRecursionDesc1)
+    of 2: t(tkPowerupRecursionDesc2)
+    else: t(tkPowerupRecursionDesc3)
+  of puSectorProtocol:
+    t(tkPowerupSectorProtocolDesc)
+  of puCrisisMode:
+    case level
+    of 1: t(tkPowerupCrisisModeDesc1)
+    of 2: t(tkPowerupCrisisModeDesc2)
+    else: t(tkPowerupCrisisModeDesc3)
+  of puAdaptiveFirewall:
+    case level
+    of 1: t(tkPowerupAdaptiveFirewallDesc1)
+    of 2: t(tkPowerupAdaptiveFirewallDesc2)
+    else: t(tkPowerupAdaptiveFirewallDesc3)
+  of puLastTransmission:
+    case level
+    of 1: t(tkPowerupLastTransmissionDesc1)
+    of 2: t(tkPowerupLastTransmissionDesc2)
+    else: t(tkPowerupLastTransmissionDesc3)
+  of puKillChain:
+    t(tkPowerupKillChainDesc)
+  of puCorruptedCore:
+    case level
+    of 1: t(tkPowerupCorruptedCoreDesc1)
+    of 2: t(tkPowerupCorruptedCoreDesc2)
+    else: t(tkPowerupCorruptedCoreDesc3)
+  of puRoomEcho:
+    case level
+    of 1: t(tkPowerupRoomEchoDesc1)
+    of 2: t(tkPowerupRoomEchoDesc2)
+    else: t(tkPowerupRoomEchoDesc3)
+  of puChainReaction:
+    case level
+    of 1: t(tkPowerupChainReactionDesc1)
+    of 2: t(tkPowerupChainReactionDesc2)
+    else: t(tkPowerupChainReactionDesc3)
+  of puKernelExploit:
+    t(tkPowerupKernelExploitDesc)

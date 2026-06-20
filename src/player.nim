@@ -152,6 +152,12 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.invincibilityTimer -= dt
   if player.fireRateBoostTimer > 0:
     player.fireRateBoostTimer -= dt
+  if player.adaptiveFirewallTimer > 0:
+    player.adaptiveFirewallTimer -= dt
+  if player.killChainTimer > 0:
+    player.killChainTimer -= dt
+    if player.killChainTimer <= 0:
+      player.killChainCount = 0  # Window expired, reset streak
   if player.magnetTimer > 0:
     player.magnetTimer -= dt
   if player.shieldBoostTimer > 0:
@@ -955,12 +961,23 @@ proc takeDamage*(player: Player, damage: float32): bool =
   # Reset singularity shield regen timer on any player damage
   player.singularityShieldRegenTimer = 0.0
 
+  # AdaptiveFirewall: fire rate boost after taking damage
+  if hasPowerUp(player, puAdaptiveFirewall):
+    player.adaptiveFirewallTimer = 3.0'f32
+
   # Pulse Armor - emit shockwave when taking damage (if not on cooldown)
   for powerUp in player.powerUps:
     if powerUp.powerType == puPulseArmor and player.pulseArmorCooldown <= 0:
       # Trigger shockwave - cooldown will be set in game.nim
       player.pulseArmorCooldown = -1.0  # -1 signals to trigger in game.nim
       break
+
+  # LastStand: intercept lethal damage once per life with 3s invulnerability
+  if player.hp <= 0 and hasPowerUp(player, puLastStand) and not player.lastStandActivated:
+    player.hp = 1.0'f32
+    player.lastStandActivated = true
+    player.invincibilityTimer = 3.0'f32
+    return false
 
   # Return true if HP reached 0 or below (death condition)
   return player.hp <= 0

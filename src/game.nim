@@ -521,7 +521,7 @@ proc completeBossWave*(game: Game) =
   # Use currentWave - 1 because currentWave was just incremented above
   startCelebration(game.dopamine.waveCelebration, game.currentWave - 1, game.dopamine.waveStats)
 
-  game.powerUpChoices = generatePowerUpChoices(game.player, true)
+  game.powerUpChoices = generatePowerUpChoices(game.player, true, mode = game.mode)
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
 
@@ -1529,6 +1529,14 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
           # offer a draft every 2nd combat room.
           let outcome = onRoomCleared(game)
           shouldOfferPowerUp = outcome == dcoDraft
+          # RoomEcho: grant charged bullets on room clear
+          if hasPowerUp(game.player, puRoomEcho):
+            let echoLevel = getPowerUpLevel(game.player, puRoomEcho)
+            let charges = case echoLevel
+              of 1: 8
+              of 2: 12
+              else: 16
+            game.player.roomEchoCharges += charges
         else:
           # DON'T advance wave here if we're waiting for boss coin
           # The wave will advance when the boss coin is collected
@@ -1560,7 +1568,7 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
           # immediately and returns straight to gameplay.
           if shouldOfferPowerUp:
             game.powerUpChoices = generatePowerUpChoices(
-              game.player, false, unlockedFamilySet(game.rogueliteProfile))
+              game.player, false, unlockedFamilySet(game.rogueliteProfile), game.mode)
             game.selectedPowerUp = 0
             initPowerUpRollAnimation(game)
             initializeRerollCost(game)
@@ -1749,49 +1757,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
       # Boss-spawned minions don't drop coins (prevent farming)
       if not enemy.spawnedByBoss:
-        # Calculate coin value with elite multiplier
-        var coinValue = if enemy.isBoss:
-          # Boss drops - in wave mode scale with waves, in other modes scale with difficulty
-          let baseAmount = if game.mode == gmWaveBased:
-            # Wave-based: scale with wave number instead of time
-            50 + (game.currentWave div 5) * 10  # +10 coins every 5 waves
-          else:
-            # Other modes: scale with difficulty (time-based)
-            30 + (game.difficulty * 3.5).int
-          # Add randomness: ±20% variation
-          let minAmount = (baseAmount.float32 * 0.9).int
-          let maxAmount = (baseAmount.float32 * 1.1).int
-          rand(minAmount..maxAmount)
-        else:
-          # Regular enemies drop based on type
-          # In wave mode, coins don't scale with waves to keep economy consistent
-          let waveBonus = if game.mode == gmWaveBased: 0 else: (game.currentWave div 10)
-          let baseValue = case enemy.enemyType
-            of etCircle: 1
-            of etCube: 3           # More coins since it's now harder
-            of etTriangle: 2
-            of etStar: 5
-            of etHexagon: 3
-            of etCross: 3
-            of etDiamond: 4
-            of etOctagon: 3
-            of etPentagon: 1       # Early game enemy, low coins
-            of etTrickster: 6
-            of etPhantom: 7
-            of etSniper: 10
-            of etMage: 10
-            of etEnvironment: 0
-          baseValue + waveBonus
-
-        # Elite enemies drop 1.5x coins (less common but tougher)
-        if enemy.isElite:
-          coinValue = (coinValue.float32 * 1.5).int
-
-        # Clamp coin position to be in bounds (for enemies killed out-of-bounds)
-        let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
-        # Boss coins are only required in wave mode.
-        let requiresBossCoin = enemy.isBoss and game.mode == gmWaveBased
-        game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, requiresBossCoin))
+        dropEnemyCoin(game, enemy)
 
       # Elite Explosive death effect
       # Handles multiple elite types (wave 25+)
@@ -1965,6 +1931,76 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           trackPowerUpHealing(game, puLifeSteal, 0.5 * game.player.healPowerMult)
           game.player.killsSinceLastHeal = 0
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
+
+      # TimeSurge: each kill extends the fire rate boost timer (survival only)
+      if hasPowerUp(game.player, puTimeSurge):
+        let surgeBonus = case getPowerUpLevel(game.player, puTimeSurge)
+          of 1: 0.5'f32
+          of 2: 0.75'f32
+          else: 1.0'f32
+        game.player.fireRateBoostTimer = min(game.player.fireRateBoostTimer + surgeBonus, 10.0'f32)
+
+      # SectorProtocol: each kill grants +1 coin
+      if game.player.hasSectorProtocol and not enemy.isBoss:
+        game.player.coins += 1
+
+      # LastTransmission: chance to heal 0.5 HP on kill
+      if hasPowerUp(game.player, puLastTransmission) and not enemy.isBoss:
+        let ltLevel = getPowerUpLevel(game.player, puLastTransmission)
+        let healChance = case ltLevel
+          of 1: 12
+          of 2: 18
+          else: 25
+        if rand(99) < healChance:
+          heal(game.player, 0.5)
+          trackPowerUpHealing(game, puLastTransmission, 0.5 * game.player.healPowerMult)
+          showDamage(game, game.player.pos, 0.5, true, false, dtHeal)
+
+      # KillChain: 5 kills in 3s triggers a shockwave
+      if hasPowerUp(game.player, puKillChain) and not enemy.isBoss:
+        game.player.killChainCount += 1
+        game.player.killChainTimer = 3.0'f32
+        if game.player.killChainCount >= 5:
+          game.player.killChainCount = 0
+          game.player.killChainTimer = 0
+          const killChainRadius = 350.0'f32
+          let chainStats = calculateCombatStats(game.player)
+          let chainDamage = chainStats.damage * 1.5'f32
+          for otherEnemy in game.enemies:
+            let dist = distance(game.player.pos, otherEnemy.pos)
+            if dist <= killChainRadius:
+              let actual = damageEnemy(otherEnemy, chainDamage)
+              trackPowerUpDamage(game, puKillChain, actual)
+              game.showDamage(otherEnemy.pos, actual, fromPlayer = true, isCritical = false, damageType = dtDefault)
+          spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                               Color(r: 255, g: 120, b: 50, a: 255), 50)
+          spawnShockwavePooled(game.particlePool, game.player.pos.x, game.player.pos.y, killChainRadius)
+          addShake(game.dopamine.screenShake, siMedium, Color(r: 255, g: 120, b: 50, a: 255))
+          playSound(stExplosion, 0.8)
+
+      # ChainReaction: chance to drop a bonus coin on kill
+      if hasPowerUp(game.player, puChainReaction) and not enemy.isBoss:
+        let crLevel = getPowerUpLevel(game.player, puChainReaction)
+        let coinChance = case crLevel
+          of 1: 20
+          of 2: 30
+          else: 40
+        if rand(99) < coinChance:
+          let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
+          game.coins.add(newCoin(clampedPos.x, clampedPos.y))
+
+      # CorruptedCore: elite kills grant max HP
+      if hasPowerUp(game.player, puCorruptedCore) and enemy.isElite and not enemy.isBoss:
+        let ccLevel = getPowerUpLevel(game.player, puCorruptedCore)
+        let hpGain = case ccLevel
+          of 1: 1.0'f32
+          of 2: 1.5'f32
+          else: 2.0'f32
+        game.player.maxHp += hpGain
+        heal(game.player, hpGain)
+        spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                             Color(r: 120, g: 255, b: 120, a: 255), 20)
+        showDamage(game, game.player.pos, hpGain, true, false, dtHeal)
 
       # Check if boss was defeated
       if enemy.isBoss:
@@ -2508,6 +2544,12 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     enemyIdx += 1
 
   if bossDefeated and game.mode == gmRoguelite:
+    # KernelExploit: boss defeat grants +20% permanent damage
+    if hasPowerUp(game.player, puKernelExploit):
+      game.player.damage *= 1.20'f32
+      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                           Color(r: 180, g: 80, b: 255, a: 255), 40)
+      addShake(game.dopamine.screenShake, siMedium, Color(r: 180, g: 80, b: 255, a: 255))
     let prevShards = game.rogueliteRun.shardsEarned
     let prevCores  = game.rogueliteRun.coresEarned
     markBossRoomCleared(game)
@@ -2518,7 +2560,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       showCurrency(game, game.player.pos + newVector2f(0, -40), shardDelta, cikDataShards)
     if coreDelta > 0:
       showCurrency(game, game.player.pos + newVector2f(28, -26), coreDelta, cikCores)
-    game.powerUpChoices = generatePowerUpChoices(game.player, true, unlockedFamilySet(game.rogueliteProfile))
+    game.powerUpChoices = generatePowerUpChoices(game.player, true, unlockedFamilySet(game.rogueliteProfile), game.mode)
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
     initializeRerollCost(game)
@@ -2531,7 +2573,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
   # In WAVE mode, power-ups are only given between waves, not on boss defeat
   if bossDefeated and not shouldUseWaves(game.mode):
     # Time survival: offer regular upgrades after boss
-    game.powerUpChoices = generatePowerUpChoices(game.player, false)
+    game.powerUpChoices = generatePowerUpChoices(game.player, false, mode = game.mode)
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
     game.state = gsPowerUpSelect
@@ -3121,6 +3163,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
               if curseDamage > 0:
                 showDamage(game, game.enemies[j].pos, curseDamage, true, false, dtArcane)
 
+            # GlitchField: chance to scramble enemy navigation (slow them)
+            if game.player.glitchChance > 0 and not game.enemies[j].isBoss and actualDamage > 0:
+              if rand(1.0) < game.player.glitchChance:
+                game.enemies[j].slowTimer  = 0.5'f32
+                game.enemies[j].slowAmount = 0.15'f32  # move at 15% speed
+
             # Track bullet hit for statistics (now includes Giant Slayer + Curse damage)
             trackBulletHit(game, bullet, game.enemies[j], actualDamage + shieldDamage + giantSlayerDamage + curseDamage)
 
@@ -3606,60 +3654,8 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
     i += 1
 
   # Update coins
-  i = 0
-  while i < game.coins.len:
-    if not updateCoin(game.coins[i], dt, game.coins.len):
-      game.coins.delete(i)
-      continue
-
-    # Check if coin is in player's collection aura (auto-collect)
-    if checkAuraCollision(game.coins[i], game.player, game.player.auraRadius):
-      # Pull coin toward player with magnet animation
-      moveCoinToPlayer(game.coins[i], game.player.pos, dt)
-
-      # Add subtle particle trail for magnet effect
-      spawnTimedParticlesPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, 18.0,
-                         Color(r: 255, g: 215, b: 0, a: 150), 1, dt)
-
-    # Magnet effect from consumable
-    if game.player.magnetTimer > 0:
-      moveCoinToPlayer(game.coins[i], game.player.pos, dt)
-
-    # Collect coin on contact
-    if checkPlayerCollision(game.coins[i], game.player):
-      let isBossCoin = game.coins[i].isBossCoin
-      # Apply Greed multiplier and Double Coin multiplier (they stack)
-      var coinValue = game.coins[i].value
-      if hasPowerUp(game.player, puLuckyCoins):
-        coinValue *= 2
-      if game.player.doubleCoinTimer > 0:
-        coinValue *= 2
-      game.player.coins += coinValue
-      showCurrency(game, game.coins[i].pos, coinValue, cikCredits)
-
-      # Track coin pickup for statistics
-      trackCoinPickup(game, coinValue)
-
-      recordCoin(game.dopamine.realTimeStats, game.dopamine.currentTime)
-      recordCoin(game.dopamine.waveStats)
-      if game.player.coins >= 1000:
-        discard unlockAchievement(game.dopamine.achievements, "wealthy")
-
-      playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
-      # Boss coins have red particles, regular coins have gold
-      let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold
-      spawnExplosionPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, coinParticleColor, if isBossCoin: 20 else: 6)
-
-      # If this was a boss coin, end the boss wave and advance
-      if isBossCoin and game.bossWaveManager.isBossCoinActive():
-        game.bossWaveManager.bossCoinCollected()
-        if shouldUseWaves(game.mode):
-          game.completeBossWave()
-
-      game.coins.delete(i)
-      continue
-
-    i += 1
+  if updateGameCoins(game, dt):
+    game.completeBossWave()
 
   # Update consumables
   i = 0
@@ -3718,15 +3714,7 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
         showPerk(game, game.player.pos, "+FIRE RATE", Orange)
       of ctMagnet:
         activateMagnet(game.player)
-        # Spawn 3 coins in random positions around the player
-        for _ in 0..<3:
-          let angle = rand(1.0) * PI * 2.0
-          let distance = 50.0 + rand(150.0)
-          let coinX = game.player.pos.x + cos(angle) * distance
-          let coinY = game.player.pos.y + sin(angle) * distance
-          # Clamp coin position to be in bounds (in case player is near edge)
-          let clampedPos = clampLootPosition(coinX, coinY, game.screenWidth, game.screenHeight)
-          game.coins.add(newCoin(clampedPos.x, clampedPos.y, 1))
+        spawnMagnetCoins(game)
         showPerk(game, game.player.pos, "+MAGNET", Purple)
       of ctShieldBoost:
         # Cornucopia: 3 hits (up from 2), 15s duration (up from 10s)
@@ -4175,8 +4163,7 @@ proc drawGame*(game: Game) =
     drawWall(wall, game.player)
 
   # Draw coins
-  for coin in game.coins:
-    drawCoin(coin)
+  drawGameCoins(game)
 
   # Draw consumables
   for consumable in game.consumables:
@@ -4584,6 +4571,7 @@ proc drawGame*(game: Game) =
   drawWaveCelebration(game.dopamine.waveCelebration, game.screenWidth, game.screenHeight)
   drawBossIntroduction(game.dopamine.bossIntro, game.screenWidth, game.screenHeight)
   drawAchievementPopup(game.dopamine.achievements, game.screenWidth, game.screenHeight)
+
 
   if game.comebackBonusActive:
     let pulse = (sin(game.time * 2.5) * 0.15 + 0.85).float32

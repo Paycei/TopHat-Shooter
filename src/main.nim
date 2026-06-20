@@ -1,7 +1,7 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import particle_types
 import game/combat, game/death
-import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, anticheat, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager
+import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, anticheat, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
 
 # Global quit-confirmation dialog
 
@@ -436,6 +436,13 @@ proc main() =
   var endgameCinematic = newEndgameCinematic()
   var endgameCinematicArmed = false
   var endgameReplayMode = false
+  # Generic cutscene state. activeCutscene holds whichever Cutscene is currently
+  # playing; cutsceneContinuation says where to go when it finishes.
+  # pendingModeAfterCutscene is the pendingGameMode value staged before a mode-intro
+  # cutscene plays (used by cscLaunchGame); -1 when not in use.
+  var activeCutscene: Cutscene = nil
+  var cutsceneContinuation: CutsceneContinuation = cscMenu
+  var pendingModeAfterCutscene: int = -1
   var osDesktop = newOSDesktop()
   # Expose the running desktop instance so UI previews can match its state
   activeDesktop = osDesktop
@@ -727,6 +734,38 @@ proc main() =
       drawEndgameCinematic(endgameCinematic, screenWidth, screenHeight)
       endGameDrawing()
 
+    of gsCutscene:
+      # Generic cutscene player.  activeCutscene must be set before entering this
+      # state; cutsceneContinuation controls where we go when it finishes.
+      if activeCutscene.isNil:
+        currentGame.state = gsMenu
+      else:
+        playMusic(activeCutscene.musicTrack)
+        updateCutscene(activeCutscene, dt)
+        if activeCutscene.complete:
+          case cutsceneContinuation
+          of cscMenu:
+            currentGame.state = gsMenu
+          of cscVictory:
+            currentGame.state = gsVictory
+          of cscLaunchGame:
+            # Mode-intro finished: start the loading animation and hand off to gsMenu.
+            # Mark the intro as seen + save happens in the mode-launch helper (Stage 3).
+            let loadText = case pendingModeAfterCutscene
+              of 0: "Launching Wave-Based Mode..."
+              of 1: "Launching Time Survival Mode..."
+              of 6: "Launching Sandbox Mode..."
+              of 9: "Launching Roguelite Mode..."
+              else: "Launching..."
+            startLoadingAnimation(osDesktop, loadText)
+            pendingGameMode = pendingModeAfterCutscene
+            pendingModeAfterCutscene = -1
+            currentGame.state = gsMenu
+
+        beginGameDrawing()
+        drawCutscene(activeCutscene, screenWidth, screenHeight)
+        endGameDrawing()
+
     of gsMenu:
       # Play menu music
       playMusic(mtMenu)
@@ -852,8 +891,16 @@ proc main() =
 
       # Handle roguelite window Start button, show loading screen then enter game
       if updateResult.rogueliteLaunchGame and not globalConfirmActive:
-        startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
-        pendingGameMode = 9
+        if not settings.hasSeenRogueliteIntro:
+          settings.hasSeenRogueliteIntro = true
+          discard saveSettings(settings)
+          activeCutscene = newRogueliteIntroCutscene()
+          cutsceneContinuation = cscLaunchGame
+          pendingModeAfterCutscene = 9
+          currentGame.state = gsCutscene
+        else:
+          startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
+          pendingGameMode = 9
 
       # Handle PvP game ready
       if updateResult.pvpGameReady and not globalConfirmActive:
@@ -998,11 +1045,27 @@ proc main() =
         playSound(stMenuSelect)
         case action
         of 0:  # Play.exe - Wave-Based Mode
-          startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
-          pendingGameMode = 0
+          if not settings.hasSeenWaveModeIntro:
+            settings.hasSeenWaveModeIntro = true
+            discard saveSettings(settings)
+            activeCutscene = newWaveIntroCutscene()
+            cutsceneContinuation = cscLaunchGame
+            pendingModeAfterCutscene = 0
+            currentGame.state = gsCutscene
+          else:
+            startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
+            pendingGameMode = 0
         of 1:  # Survival.exe - Time Survival Mode
-          startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
-          pendingGameMode = 1
+          if not settings.hasSeenSurvivalIntro:
+            settings.hasSeenSurvivalIntro = true
+            discard saveSettings(settings)
+            activeCutscene = newSurvivalIntroCutscene()
+            cutsceneContinuation = cscLaunchGame
+            pendingModeAfterCutscene = 1
+            currentGame.state = gsCutscene
+          else:
+            startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
+            pendingGameMode = 1
         of 2:  # Stats.exe - Open Statistics Window
           # Reload stats from disk before opening window
           discard loadStatistics(stats)
@@ -1023,12 +1086,27 @@ proc main() =
           else:
             windowCloseRequested = true
         of 7:  # Sandbox.exe - Sandbox Mode
-          startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
-          pendingGameMode = 6
+          if not settings.hasSeenSandboxIntro:
+            settings.hasSeenSandboxIntro = true
+            discard saveSettings(settings)
+            activeCutscene = newSandboxIntroCutscene()
+            cutsceneContinuation = cscLaunchGame
+            pendingModeAfterCutscene = 6
+            currentGame.state = gsCutscene
+          else:
+            startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
+            pendingGameMode = 6
         of 8:  # PvP.exe - Open PvP Window
-          openWindow(globalWindowManager, widPvP)
-          resetPvPWindow(globalWindowManager.pvp)
-          playSound(stMenuSelect)
+          if not settings.hasSeenPvPIntro:
+            settings.hasSeenPvPIntro = true
+            discard saveSettings(settings)
+            activeCutscene = newPvPIntroCutscene()
+            cutsceneContinuation = cscMenu  # returns to desktop; user clicks PvP again
+            currentGame.state = gsCutscene
+          else:
+            openWindow(globalWindowManager, widPvP)
+            resetPvPWindow(globalWindowManager.pvp)
+            playSound(stMenuSelect)
         of 9:  # Roguelite.exe - Roguelite Mode
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
@@ -1053,11 +1131,27 @@ proc main() =
         playSound(stMenuSelect)
         case updateResult.iconToExecute
           of 0:  # Play.exe - Wave-Based Mode
-            startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
-            pendingGameMode = 0
+            if not settings.hasSeenWaveModeIntro:
+              settings.hasSeenWaveModeIntro = true
+              discard saveSettings(settings)
+              activeCutscene = newWaveIntroCutscene()
+              cutsceneContinuation = cscLaunchGame
+              pendingModeAfterCutscene = 0
+              currentGame.state = gsCutscene
+            else:
+              startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
+              pendingGameMode = 0
           of 1:  # Survival.exe - Time Survival Mode
-            startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
-            pendingGameMode = 1
+            if not settings.hasSeenSurvivalIntro:
+              settings.hasSeenSurvivalIntro = true
+              discard saveSettings(settings)
+              activeCutscene = newSurvivalIntroCutscene()
+              cutsceneContinuation = cscLaunchGame
+              pendingModeAfterCutscene = 1
+              currentGame.state = gsCutscene
+            else:
+              startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
+              pendingGameMode = 1
           of 2:  # Stats.exe - Open Statistics Window
             discard loadStatistics(stats)
             let freshRunStats = loadLastRunStats()
@@ -1077,12 +1171,27 @@ proc main() =
             else:
               windowCloseRequested = true
           of 7:  # Sandbox.exe
-            startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
-            pendingGameMode = 6
+            if not settings.hasSeenSandboxIntro:
+              settings.hasSeenSandboxIntro = true
+              discard saveSettings(settings)
+              activeCutscene = newSandboxIntroCutscene()
+              cutsceneContinuation = cscLaunchGame
+              pendingModeAfterCutscene = 6
+              currentGame.state = gsCutscene
+            else:
+              startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
+              pendingGameMode = 6
           of 8:  # PvP.exe - Open PvP Window
-            openWindow(globalWindowManager, widPvP)
-            resetPvPWindow(globalWindowManager.pvp)
-            playSound(stMenuSelect)
+            if not settings.hasSeenPvPIntro:
+              settings.hasSeenPvPIntro = true
+              discard saveSettings(settings)
+              activeCutscene = newPvPIntroCutscene()
+              cutsceneContinuation = cscMenu
+              currentGame.state = gsCutscene
+            else:
+              openWindow(globalWindowManager, widPvP)
+              resetPvPWindow(globalWindowManager.pvp)
+              playSound(stMenuSelect)
           of 9:  # Roguelite.exe
             setActiveRogueliteProfile(loadRogueliteProfile())
             currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
@@ -1984,36 +2093,7 @@ proc main() =
       updatePlayer(currentGame.player, dt, screenWidth, screenHeight, currentGame.walls)
 
       # Update coins and handle collection
-      var i = 0
-      while i < currentGame.coins.len:
-        if not updateCoin(currentGame.coins[i], dt, currentGame.coins.len):
-          currentGame.coins.delete(i)
-          continue
-
-        # Check if coin is in player's collection aura (auto-collect)
-        if checkAuraCollision(currentGame.coins[i], currentGame.player, currentGame.player.auraRadius):
-          moveCoinToPlayer(currentGame.coins[i], currentGame.player.pos, dt)
-
-        # Magnet effect from consumable
-        if currentGame.player.magnetTimer > 0:
-          moveCoinToPlayer(currentGame.coins[i], currentGame.player.pos, dt)
-
-        # Collect coin on contact
-        if checkPlayerCollision(currentGame.coins[i], currentGame.player):
-          # Apply Lucky Coins (Greed) multiplier and Double Coin multiplier (they stack)
-          var coinValue = currentGame.coins[i].value
-          if hasPowerUp(currentGame.player, puLuckyCoins):
-            coinValue *= 2
-          if currentGame.player.doubleCoinTimer > 0:
-            coinValue *= 2
-          currentGame.player.coins += coinValue
-          trackCoinPickup(currentGame, coinValue)
-          playSound(stCoinPickup, 0.5)
-          spawnExplosionPooled(currentGame.particlePool, currentGame.coins[i].pos.x, currentGame.coins[i].pos.y, Gold, 6)
-          currentGame.coins.delete(i)
-          continue
-
-        i += 1
+      updateCoinsWaveCleared(currentGame, dt)
 
       # Update particles and remove dead ones
 
@@ -2031,10 +2111,10 @@ proc main() =
               # Trigger boss warning with LONGER duration
               currentGame.bossSpawnTimer = 3.0  # Increased from 1.5 to 3.0 seconds
               # ALWAYS offer power-up before boss (critical moment)
-              currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
+              currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false, mode = currentGame.mode)
             else:
               # Regular wave power-up
-              currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false)
+              currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false, mode = currentGame.mode)
 
             currentGame.selectedPowerUp = 0
             initPowerUpRollAnimation(currentGame)
@@ -2102,7 +2182,7 @@ proc main() =
           currentGame.state = gsShop
           currentGame.shopSidebarScroll = 0
 
-      if isPowerUpPoolExhausted(currentGame.player, isLegendaryRound, allowedFamiliesForDraft):
+      if isPowerUpPoolExhausted(currentGame.player, isLegendaryRound, allowedFamiliesForDraft, currentGame.mode):
         playMusic(mtPowerUp)
 
         if not globalConfirmActive:

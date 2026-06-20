@@ -114,6 +114,11 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     if hasPowerUp(game.player, puWindBullets):
       damage += WindBulletFlatDamageBonus
 
+    # RoomEcho: charged bullets from room clear deal bonus damage
+    if game.player.roomEchoCharges > 0:
+      damage *= 1.6'f32
+      game.player.roomEchoCharges -= 1
+
     # Check for Special Rounds power-up
     var isSpecialRound = false
     if hasPowerUp(game.player, puSpecialRounds):

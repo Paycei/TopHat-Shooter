@@ -24,7 +24,12 @@ const
 type
   GameState* = enum
     gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
-    gsRogueliteFloorSelect, gsDeathSequence, gsVictory, gsEndgameCinematic
+    gsRogueliteFloorSelect, gsDeathSequence, gsVictory, gsEndgameCinematic, gsCutscene
+
+  CutsceneContinuation* = enum
+    cscMenu,       ## after cutscene → gsMenu (intro, settings replays)
+    cscVictory,    ## after cutscene → gsVictory (first endgame win)
+    cscLaunchGame  ## after cutscene → startLoadingAnimation + pendingGameMode
 
   GameMode* = enum
     gmWaveBased,
@@ -183,7 +188,23 @@ type
     puWindAura,        # Pushes enemies away from player
     puWindBullets,     # Bullets push enemies backwards
     puWindMastery,     # LEGENDARY: Enhance all wind effects (damage, duration, slow)
-    puWindOrb          # Wind elemental orb
+    puWindOrb,         # Wind elemental orb
+    # Mode-exclusive power-ups (Stage 4)
+    puGlitchField,          # Bullets slow enemies (roguelite only)
+    puTimeSurge,            # Kills extend fire rate boost timer (survival only)
+    puLastStand,            # LEGENDARY: near-death invulnerability (survival only)
+    puRecursion,            # Flat damage bonus on pickup (roguelite only)
+    puSectorProtocol,       # LEGENDARY: kills/floors grant bonus coins (roguelite only)
+    # Survival-exclusive power-ups (Stage 5)
+    puCrisisMode,           # Below 30% HP: bonus damage (survival only)
+    puAdaptiveFirewall,     # Taking a hit boosts fire rate for 3s (survival only)
+    puLastTransmission,     # Chance to heal 0.5 HP on kill (survival only)
+    puKillChain,            # LEGENDARY: 5 kills in 3s triggers shockwave (survival only)
+    # Roguelite-exclusive power-ups (Stage 5)
+    puCorruptedCore,        # Elite kills grant max HP (roguelite only)
+    puRoomEcho,             # Room clear charges next N bullets with bonus damage (roguelite only)
+    puChainReaction,        # Kills have chance to drop bonus coin (roguelite only)
+    puKernelExploit         # LEGENDARY: boss defeat grants permanent damage (roguelite only)
 
   PowerUpRarity* = enum
     prCommon,
@@ -472,6 +493,14 @@ type
     healPowerMult*: float32     # Multiplier for all healing received (default 1.0, increased by puHealPower)
     hasBountiful*: bool         # True when Cornucopia legendary is active
     bountifulKillCounter*: int  # Counts kills for guaranteed-drop milestones (resets every 20)
+    glitchChance*: float32      # [0,1] probability that a bullet hit slows the enemy (GlitchField)
+    lastStandActivated*: bool   # True once LastStand invulnerability has fired this life
+    hasSectorProtocol*: bool    # True when Sector Protocol legendary is active
+    adaptiveFirewallTimer*: float32  # Fire rate boost duration after taking damage (AdaptiveFirewall)
+    killChainCount*: int             # Consecutive kill counter for KillChain
+    killChainTimer*: float32         # Window timer for KillChain kill streak
+    corruptedCoreHpAcc*: float32     # Fractional max-HP accumulator for CorruptedCore
+    roomEchoCharges*: int            # Charged bullets remaining from RoomEcho
 
   EffectInstance* = object
     elementType*: ElementType
@@ -1145,6 +1174,8 @@ type
     wallPlacementMode*: bool   # Whether the player is in wall-placement mode (E toggles, RMB/walls=0 exits)
     comebackBonusActive*: bool  # True while the +10% comeback stat bonus is in effect
     comebackEndWave*: int        # Wave number at which the comeback bonus expires (copied from settings on run start)
+    newProcessBannerTimer*: float32  # Countdown for the "new power-up discovered" banner (0 = hidden)
+    newProcessBannerName*: string    # Power-up name shown in the discovery banner
 
 proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
   AttackWarning(

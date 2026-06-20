@@ -1157,6 +1157,190 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawLine(tx - 3, ty,     tx + 3, ty,     Color(r: 255, g: 240, b: 100, a: 200))
     drawLine(tx,     ty - 3, tx,     ty + 3, Color(r: 255, g: 240, b: 100, a: 200))
 
+  of puGlitchField:
+    # Glitched horizontal scan lines — corrupted data aesthetic
+    let glitch = color
+    let dark   = Color(r: max(glitch.r - 60, 0), g: max(glitch.g - 60, 0), b: max(glitch.b - 60, 0), a: 255)
+    for row in 0..5:
+      let gy: int32 = cy - 12 + int32(row) * 5
+      let lineW: int32 = if row mod 2 == 0: 18 else: 12
+      let offX: int32  = if row mod 3 == 0: -2 else: 2
+      drawRectangle(cx - lineW div 2 + offX, gy, lineW,     2, glitch)
+      drawRectangle(cx - lineW div 2 + offX + lineW - 4, gy, 4, 2, dark)
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 5, Color(r: glitch.r, g: glitch.g, b: glitch.b, a: 80))
+
+  of puTimeSurge:
+    # Clock face with a lightning strike through it
+    let tc = color
+    let bright = Color(r: min(tc.r + 80, 255), g: min(tc.g + 80, 255), b: min(tc.b + 80, 255), a: 255)
+    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), 13, Color(r: 0, g: 0, b: 0, a: 70))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 13, tc)
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 13, Color(r: min(tc.r + 60, 255), g: min(tc.g + 60, 255), b: min(tc.b + 60, 255), a: 200))
+    # Clock hands
+    drawLine(cx, cy, cx, cy - 8, bright)
+    drawLine(cx, cy, cx + 6, cy + 2, bright)
+    # Lightning bolt overlay
+    let lx: array[5, int32] = [cx - 3, cx + 1, cx - 1, cx + 4, cx]
+    let ly: array[5, int32] = [cy - 7, cy - 1, cy - 1, cy + 7, cy + 7]
+    drawLine(lx[0], ly[0], lx[1], ly[1], Color(r: 255, g: 255, b: 120, a: 230))
+    drawLine(lx[1], ly[1], lx[2], ly[1], Color(r: 255, g: 255, b: 120, a: 230))
+    drawLine(lx[2], ly[1], lx[3], ly[2], Color(r: 255, g: 255, b: 120, a: 230))
+
+  of puLastStand:
+    # Shield silhouette with a heartbeat pulse line
+    let sc = color
+    let bright = Color(r: min(sc.r + 80, 255), g: min(sc.g + 80, 255), b: min(sc.b + 80, 255), a: 255)
+    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), 13, Color(r: 0, g: 0, b: 0, a: 70))
+    drawRectangle(cx - 10, cy - 13, 20, 16, sc)
+    drawRectangle(cx - 7, cy + 3, 14, 8, sc)
+    drawRectangle(cx - 4, cy + 11, 8, 6, sc)
+    drawRectangle(cx - 2, cy + 17, 4, 3, sc)
+    drawRectangle(cx - 11, cy - 14, 22, 3, bright)
+    # Heartbeat / EKG line across the shield
+    drawLine(cx - 10, cy - 2, cx - 5,  cy - 2, Color(r: 255, g: 80, b: 80, a: 230))
+    drawLine(cx - 5,  cy - 2, cx - 3,  cy - 8, Color(r: 255, g: 80, b: 80, a: 230))
+    drawLine(cx - 3,  cy - 8, cx,      cy + 4, Color(r: 255, g: 80, b: 80, a: 230))
+    drawLine(cx,      cy + 4, cx + 3,  cy - 5, Color(r: 255, g: 80, b: 80, a: 230))
+    drawLine(cx + 3,  cy - 5, cx + 5,  cy - 2, Color(r: 255, g: 80, b: 80, a: 230))
+    drawLine(cx + 5,  cy - 2, cx + 10, cy - 2, Color(r: 255, g: 80, b: 80, a: 230))
+
+  of puRecursion:
+    # Nested concentric circles, each slightly smaller — recursive pattern
+    let rc = color
+    for i in countdown(4, 0):
+      let rInner = rad * (float32(i) / 4.5'f32)
+      let alpha  = uint8(60 + i * 38)
+      drawCircle(Vector2(x: cx.float32, y: cy.float32), rInner,
+                 Color(r: rc.r, g: rc.g, b: rc.b, a: alpha))
+    # Small bright core dot
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 3,
+               Color(r: min(rc.r + 120, 255), g: min(rc.g + 120, 255), b: min(rc.b + 120, 255), a: 255))
+
+  of puSectorProtocol:
+    # Grid of 3x3 sector cells with a coin-glow in the center
+    let sec = color
+    let bright = Color(r: min(sec.r + 70, 255), g: min(sec.g + 70, 255), b: min(sec.b + 70, 255), a: 200)
+    let cellSize: int32 = 8
+    let gridOff: int32  = 12
+    for row in 0..2:
+      for col in 0..2:
+        let gx: int32 = cx - gridOff + int32(col) * (cellSize + 1)
+        let gy: int32 = cy - gridOff + int32(row) * (cellSize + 1)
+        let alpha: uint8 = if row == 1 and col == 1: 220 else: 120
+        drawRectangle(gx, gy, cellSize, cellSize, Color(r: sec.r, g: sec.g, b: sec.b, a: alpha))
+        drawRectangle(gx, gy, cellSize, 1, bright)
+    # Coin glyph in center cell
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 4, Color(r: 255, g: 215, b: 0, a: 240))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 2, Color(r: 255, g: 240, b: 120, a: 200))
+
+  of puCrisisMode:
+    # Low-HP warning bar with a spiking red glyph
+    let cc = color
+    let warn = Color(r: 255, g: 60, b: 60, a: 255)
+    # Three HP bar segments, last one blinking-red
+    drawRectangle(cx - 12, cy - 2, 6, 10, Color(r: cc.r, g: cc.g, b: cc.b, a: 180))
+    drawRectangle(cx - 4, cy - 2, 6, 10, Color(r: cc.r, g: cc.g, b: cc.b, a: 110))
+    drawRectangle(cx + 4, cy - 2, 6, 10, warn)
+    # Exclamation mark above bar
+    drawRectangle(cx + 6, cy - 13, 3, 7, warn)
+    drawRectangle(cx + 6, cy - 4, 3, 3, warn)
+
+  of puAdaptiveFirewall:
+    # Shield outline with a lightning bolt inside
+    let afc = color
+    let bright = Color(r: min(afc.r + 80, 255), g: min(afc.g + 80, 255), b: min(afc.b + 80, 255), a: 255)
+    drawRectangle(cx - 10, cy - 12, 20, 15, afc)
+    drawRectangle(cx - 7, cy + 3, 14, 7, afc)
+    drawRectangle(cx - 4, cy + 10, 8, 5, afc)
+    drawRectangle(cx - 2, cy + 15, 4, 3, afc)
+    # Lightning bolt inside shield
+    drawLine(cx - 2, cy - 8, cx + 2, cy - 2, bright)
+    drawLine(cx + 2, cy - 2, cx - 2, cy - 2, bright)
+    drawLine(cx - 2, cy - 2, cx + 3, cy + 6, bright)
+
+  of puLastTransmission:
+    # Fading signal bars with a small heartbeat tick
+    let ltc = color
+    let dim = Color(r: ltc.r div 2, g: ltc.g div 2, b: ltc.b div 2, a: 180)
+    # Signal strength bars (4 bars, rightmost full brightness)
+    drawRectangle(cx - 10, cy + 4,  4, 4, dim)
+    drawRectangle(cx - 4,  cy,      4, 8, Color(r: ltc.r, g: ltc.g, b: ltc.b, a: 140))
+    drawRectangle(cx + 2,  cy - 5,  4, 13, Color(r: ltc.r, g: ltc.g, b: ltc.b, a: 200))
+    drawRectangle(cx + 8,  cy - 10, 4, 18, ltc)
+    # Small heartbeat line above bars
+    drawLine(cx - 12, cy - 14, cx - 8, cy - 14, Color(r: 255, g: 80, b: 80, a: 200))
+    drawLine(cx - 8,  cy - 14, cx - 6, cy - 18, Color(r: 255, g: 80, b: 80, a: 200))
+    drawLine(cx - 6,  cy - 18, cx - 4, cy - 11, Color(r: 255, g: 80, b: 80, a: 200))
+    drawLine(cx - 4,  cy - 11, cx - 2, cy - 14, Color(r: 255, g: 80, b: 80, a: 200))
+
+  of puKillChain:
+    # Chain of 3 linked rings
+    let kcc = color
+    let bright = Color(r: min(kcc.r + 80, 255), g: min(kcc.g + 80, 255), b: min(kcc.b + 80, 255), a: 255)
+    drawCircleLines(Vector2(x: (cx - 9).float32, y: cy.float32), 5, kcc)
+    drawLine(cx - 4, cy, cx + 4, cy, kcc)
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 5, bright)
+    drawLine(cx + 4, cy, cx + 12, cy - 1, kcc)
+    drawCircleLines(Vector2(x: (cx + 9).float32, y: (cy - 1).float32), 5, kcc)
+    # Small skull/X above center ring to emphasize kill
+    drawLine(cx - 2, cy - 8, cx + 2, cy - 12, Color(r: 255, g: 200, b: 80, a: 220))
+    drawLine(cx + 2, cy - 8, cx - 2, cy - 12, Color(r: 255, g: 200, b: 80, a: 220))
+
+  of puCorruptedCore:
+    # Expanding rings with a corrupted/glitched center dot
+    let corc = color
+    for i in 1..3:
+      let ri = float32(i * 4)
+      let alpha = uint8(200 - i * 40)
+      drawCircleLines(Vector2(x: cx.float32, y: cy.float32), ri, Color(r: corc.r, g: corc.g, b: corc.b, a: alpha))
+    # Corrupted center with offset artifact
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 4, corc)
+    drawRectangle(cx + 2, cy - 5, 4, 3, Color(r: 0, g: 0, b: 0, a: 180))
+    drawRectangle(cx - 5, cy + 1, 3, 2, Color(r: min(corc.r + 100, 255), g: 255, b: min(corc.b + 100, 255), a: 200))
+    # Max HP icon: small plus sign
+    drawRectangle(cx - 1, cy - 16, 2, 6, Color(r: 255, g: 255, b: 200, a: 220))
+    drawRectangle(cx - 3, cy - 14, 6, 2, Color(r: 255, g: 255, b: 200, a: 220))
+
+  of puRoomEcho:
+    # Room outline with echo ripple bullets inside
+    let rec = color
+    let dim = Color(r: rec.r, g: rec.g, b: rec.b, a: 100)
+    # Room outline
+    drawRectangleLines(cx - 12, cy - 12, 24, 20, dim)
+    # Door gap at bottom
+    drawRectangle(cx - 4, cy + 8, 8, 2, Color(r: 0, g: 0, b: 0, a: 255))
+    # Echo bullet trail — 3 dots diminishing to the right
+    drawCircle(Vector2(x: (cx - 4).float32, y: (cy - 2).float32), 4, rec)
+    drawCircle(Vector2(x: (cx + 2).float32, y: (cy - 2).float32), 3, Color(r: rec.r, g: rec.g, b: rec.b, a: 180))
+    drawCircle(Vector2(x: (cx + 7).float32, y: (cy - 2).float32), 2, Color(r: rec.r, g: rec.g, b: rec.b, a: 100))
+
+  of puChainReaction:
+    # Three dots with arcing lines between them + coin glint
+    let crc = color
+    let gold = Color(r: 255, g: 215, b: 0, a: 240)
+    drawCircle(Vector2(x: (cx - 9).float32, y: (cy + 4).float32), 4, crc)
+    drawCircle(Vector2(x: cx.float32, y: (cy - 6).float32), 4, crc)
+    drawCircle(Vector2(x: (cx + 9).float32, y: (cy + 4).float32), 4, crc)
+    drawLine(cx - 5, cy + 2, cx - 2, cy - 4, Color(r: crc.r, g: crc.g, b: crc.b, a: 180))
+    drawLine(cx + 2, cy - 4, cx + 5, cy + 2, Color(r: crc.r, g: crc.g, b: crc.b, a: 180))
+    # Coin symbol above center
+    drawCircle(Vector2(x: cx.float32, y: (cy - 14).float32), 4, gold)
+    drawCircle(Vector2(x: cx.float32, y: (cy - 14).float32), 2, Color(r: 255, g: 240, b: 120, a: 200))
+
+  of puKernelExploit:
+    # Terminal prompt ">" with exploit spike lines
+    let ke = color
+    let bright = Color(r: min(ke.r + 80, 255), g: min(ke.g + 80, 255), b: min(ke.b + 80, 255), a: 255)
+    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), 13, Color(r: 0, g: 0, b: 0, a: 70))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 13, Color(r: ke.r, g: ke.g, b: ke.b, a: 80))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 13, ke)
+    # ">" prompt glyph
+    drawLine(cx - 5, cy - 6, cx + 3, cy, ke)
+    drawLine(cx + 3, cy, cx - 5, cy + 6, ke)
+    # Exploit "spike" lines radiating from edges
+    drawLine(cx + 8, cy - 8, cx + 12, cy - 12, bright)
+    drawLine(cx + 8, cy + 8, cx + 12, cy + 12, bright)
+
 proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
   let cx = x + size div 2
   let cy = y + size div 2

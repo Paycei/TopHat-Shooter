@@ -1,6 +1,10 @@
-import raylib, math
+import raylib, math, random
 import particle_types
 import types
+import particle, particle_pool
+import powerup, sound, d_systems, d_enhancements, run_statistics
+import game/combat
+import gamemode_definitions
 
 const LOOT_MARGIN* = 50.0  # Distance from screen edge
 
@@ -121,3 +125,149 @@ proc moveCoinToPlayer*(coin: Coin, playerPos: Vector2f, dt: float32) =
   let dir = (playerPos - coin.pos).normalize()
   let pullSpeed = 300.0
   coin.pos = coin.pos + dir * pullSpeed * dt
+
+proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty: float32): int =
+  if enemy.isBoss:
+    let baseAmount = if mode == gmWaveBased:
+      50 + (currentWave div 5) * 10  # +10 coins every 5 waves
+    else:
+      30 + (difficulty * 3.5).int
+    let minAmount = (baseAmount.float32 * 0.9).int
+    let maxAmount = (baseAmount.float32 * 1.1).int
+    result = rand(minAmount..maxAmount)
+  else:
+    let waveBonus = if mode == gmWaveBased: 0 else: (currentWave div 10)
+    let baseValue = case enemy.enemyType
+      of etCircle: 1
+      of etCube: 3           # More coins since it's now harder
+      of etTriangle: 2
+      of etStar: 5
+      of etHexagon: 3
+      of etCross: 3
+      of etDiamond: 4
+      of etOctagon: 3
+      of etPentagon: 1       # Early game enemy, low coins
+      of etTrickster: 6
+      of etPhantom: 7
+      of etSniper: 10
+      of etMage: 10
+      of etEnvironment: 0
+    result = baseValue + waveBonus
+  if enemy.isElite:
+    result = (result.float32 * 1.5).int
+
+proc dropEnemyCoin*(game: Game, enemy: Enemy) =
+  var coinValue = enemyCoinValue(enemy, game.mode, game.currentWave, game.difficulty)
+  let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
+  let requiresBossCoin = enemy.isBoss and game.mode == gmWaveBased
+  game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, requiresBossCoin))
+
+proc collectAllCoins*(game: Game) =
+  ## Auto-bank every coin on the floor when the room is cleared, applying the
+  ## same multipliers as contact pickup (Lucky Coins, Double Coin).
+  if game.coins.len == 0: return
+  var totalValue = 0
+  for coin in game.coins:
+    var coinValue = coin.value
+    if hasPowerUp(game.player, puLuckyCoins):
+      coinValue *= 2
+    if game.player.doubleCoinTimer > 0:
+      coinValue *= 2
+    totalValue += coinValue
+  game.coins = @[]
+  if totalValue > 0:
+    game.player.coins += totalValue
+    playSound(stCoinPickup, 0.6)
+    game.currencyIndicators.add(newCurrencyIndicator(
+      game.player.pos.x, game.player.pos.y - 18, totalValue, cikCredits))
+
+proc updateGameCoins*(game: Game, dt: float32): bool =
+  ## Update all coins, handle collection, and magnet/aura movement.
+  ## Returns true if a boss coin was collected and completeBossWave should be called.
+  var i = 0
+  while i < game.coins.len:
+    if not updateCoin(game.coins[i], dt, game.coins.len):
+      game.coins.delete(i)
+      continue
+
+    if checkAuraCollision(game.coins[i], game.player, game.player.auraRadius):
+      moveCoinToPlayer(game.coins[i], game.player.pos, dt)
+      spawnTimedParticlesPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, 18.0,
+                         Color(r: 255, g: 215, b: 0, a: 150), 1, dt)
+
+    if game.player.magnetTimer > 0:
+      moveCoinToPlayer(game.coins[i], game.player.pos, dt)
+
+    if checkPlayerCollision(game.coins[i], game.player):
+      let isBossCoin = game.coins[i].isBossCoin
+      var coinValue = game.coins[i].value
+      if hasPowerUp(game.player, puLuckyCoins):
+        coinValue *= 2
+      if game.player.doubleCoinTimer > 0:
+        coinValue *= 2
+      game.player.coins += coinValue
+      showCurrency(game, game.coins[i].pos, coinValue, cikCredits)
+
+      trackCoinPickup(game, coinValue)
+
+      recordCoin(game.dopamine.realTimeStats, game.dopamine.currentTime)
+      recordCoin(game.dopamine.waveStats)
+      if game.player.coins >= 1000:
+        discard unlockAchievement(game.dopamine.achievements, "wealthy")
+
+      playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
+      let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold
+      spawnExplosionPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, coinParticleColor, if isBossCoin: 20 else: 6)
+
+      if isBossCoin and game.bossWaveManager.coinActive:
+        game.bossWaveManager.coinActive = false
+        if shouldUseWaves(game.mode):
+          result = true
+
+      game.coins.delete(i)
+      continue
+
+    i += 1
+
+proc updateCoinsWaveCleared*(game: Game, dt: float32) =
+  ## Simplified coin update for the brief gsWaveCleared window.
+  ## Intentionally skips stat recording, achievement checks, and boss-coin logic.
+  var i = 0
+  while i < game.coins.len:
+    if not updateCoin(game.coins[i], dt, game.coins.len):
+      game.coins.delete(i)
+      continue
+
+    if checkAuraCollision(game.coins[i], game.player, game.player.auraRadius):
+      moveCoinToPlayer(game.coins[i], game.player.pos, dt)
+
+    if game.player.magnetTimer > 0:
+      moveCoinToPlayer(game.coins[i], game.player.pos, dt)
+
+    if checkPlayerCollision(game.coins[i], game.player):
+      var coinValue = game.coins[i].value
+      if hasPowerUp(game.player, puLuckyCoins):
+        coinValue *= 2
+      if game.player.doubleCoinTimer > 0:
+        coinValue *= 2
+      game.player.coins += coinValue
+      trackCoinPickup(game, coinValue)
+      playSound(stCoinPickup, 0.5)
+      spawnExplosionPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, Gold, 6)
+      game.coins.delete(i)
+      continue
+
+    i += 1
+
+proc spawnMagnetCoins*(game: Game) =
+  for _ in 0..<3:
+    let angle = rand(1.0) * PI * 2.0
+    let dist = 50.0 + rand(150.0)
+    let coinX = game.player.pos.x + cos(angle) * dist
+    let coinY = game.player.pos.y + sin(angle) * dist
+    let clampedPos = clampLootPosition(coinX, coinY, game.screenWidth, game.screenHeight)
+    game.coins.add(newCoin(clampedPos.x, clampedPos.y, 1))
+
+proc drawGameCoins*(game: Game) =
+  for coin in game.coins:
+    drawCoin(coin)
