@@ -1,3 +1,10 @@
+import raylib, rlgl, math, tables, types, player, particle_pool, particle_types, powerup
+import game/combat
+import game/bullets
+from run_statistics import trackPowerUpDamage, trackPowerUpHealing
+
+# ORBITAL WEAPONS SYSTEM
+
 proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
                     baseDamage: float32, orbPos: Vector2f, currentTime: float32,
                     enemyIdx: int, stats: CombatStats): bool =
@@ -255,7 +262,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
   of etNone:
     discard
 
-proc updateOrbitalWeapons(game: var Game, dt: float32) =
+proc updateOrbitalWeapons*(game: var Game, dt: float32) =
   ## Update all rotating orbs and handle collisions with enemies
 
   # Check if player has any orb power-ups

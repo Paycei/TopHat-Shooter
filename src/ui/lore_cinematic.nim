@@ -7,6 +7,7 @@
 ## shared with the endgame cinematic so the two read as a matched pair.
 
 import raylib, rlgl, math
+import particle_types
 import background_fx, ../types, ../localization, ../sound, cinematic_common
 
 type

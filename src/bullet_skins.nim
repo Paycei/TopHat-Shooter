@@ -2,7 +2,7 @@
 ## Defines available bullet skins and rendering functions
 
 import raylib, math
-import types, localization
+import localization
 
 type
   BulletSkinType* = enum

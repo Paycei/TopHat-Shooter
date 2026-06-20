@@ -1,4 +1,5 @@
 import raylib, math
+import particle_types
 import types
 
 const LOOT_MARGIN* = 50.0  # Distance from screen edge

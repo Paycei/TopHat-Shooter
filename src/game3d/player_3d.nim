@@ -2,7 +2,7 @@
 ## Handles 3D player movement, shooting, and weapon systems
 
 import raylib, math
-import types_3d, engine_3d, ../types
+import types_3d, engine_3d
 
 type
   Weapon3D* = object

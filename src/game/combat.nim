@@ -1,8 +1,7 @@
-# Loot helpers moved to src/loot.nim (forwarding stub kept for compatibility)
-proc clampLootPosition*(x, y: float32, screenWidth, screenHeight: int32): tuple[x, y: float32] =
-  let r = coin.clampLootPosition(x, y, screenWidth, screenHeight)
-  result.x = r.x
-  result.y = r.y
+import raylib, rlgl, random, types, particle, particle_pool, particle_types, powerup, run_statistics, boss_weakpoints
+import ui/os_background
+
+const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 
 proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
   ## Applies elite damage modifiers (tank reduction, shield absorption) and boss defense multiplier
@@ -38,7 +37,7 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
     enemy.diamondShieldActive = false
     result = 0
 
-proc applyEnemyHpDamage(enemy: Enemy, damage: float32): float32 =
+proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
   ## Applies raw HP damage. Bosses only lose HP from the active phase pool.
   if damage <= 0.0'f32:
     return 0.0'f32
@@ -54,7 +53,7 @@ proc applyEnemyHpDamage(enemy: Enemy, damage: float32): float32 =
   enemy.hp -= damage
   damage
 
-proc damageEnemy(enemy: Enemy, baseDamage: float32): float32 =
+proc damageEnemy*(enemy: Enemy, baseDamage: float32): float32 =
   ## Helper to apply damage to enemy with elite modifiers
   ## Combines applyEliteModifiers and HP reduction in one call
   ## Returns the actual damage dealt after modifiers
@@ -150,7 +149,7 @@ proc calculateCombatStats*(player: Player): CombatStats =
       else: 50  # 50% chance
     result.critMultiplier = 2.0
 
-proc applyBossArenaCombatBonus(game: Game, stats: var CombatStats) =
+proc applyBossArenaCombatBonus*(game: Game, stats: var CombatStats) =
   let bonus = getBossArenaCombatBonus(game.osBackground)
   stats.damage *= bonus.damageMult
   stats.fireRate *= bonus.fireRateMult
@@ -196,7 +195,7 @@ proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) =
   ## pickup indicators.
   game.perkIndicators.add(newPerkIndicator(pos.x, pos.y, text, color))
 
-proc accumulateAndShowAuraDamage(game: Game, enemy: Enemy, actualDamage: float32,
+proc accumulateAndShowAuraDamage*(game: Game, enemy: Enemy, actualDamage: float32,
                                   damageType: DamageType, wasCrit: bool = false) =
   ## Accumulates aura damage and displays damage numbers reliably
   ## Shows accumulated damage every 0.5 seconds to ensure visibility
@@ -242,7 +241,7 @@ proc flushAccumulatedAuraDamage*(game: Game, enemy: Enemy) =
     enemy.auraDamageAccumulator = 0
     enemy.auraDamageHadCrit = false
 
-proc accumulateAndShowContactDamage(game: Game, enemy: Enemy, actualDamage: float32) =
+proc accumulateAndShowContactDamage*(game: Game, enemy: Enemy, actualDamage: float32) =
   ## Accumulates contact damage and displays damage numbers every 0.5 seconds
   ## Shows accumulated damage to prevent spam from 10 HP/sec ticks
   const DAMAGE_NUMBER_INTERVAL = 0.5  # Show damage numbers every 0.5 seconds

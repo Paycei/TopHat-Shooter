@@ -12,6 +12,7 @@
 ## that clamp into edge cells are never within range and so are never required.
 
 import std/random
+import particle_types
 import "../src/types"
 import "../src/enemy_helpers"  # SpatialGrid was integrated here (was: spatial_grid.nim)
 

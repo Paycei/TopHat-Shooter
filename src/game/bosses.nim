@@ -1,3 +1,8 @@
+import raylib, rlgl, random, math, types, enemy, bullet, boss_definitions, particle_pool, particle_types, d_systems, enemy_helpers, boss_weakpoints, ui/warnings
+import game/bullets
+
+const BOSS_PHASE_INVULNERABILITY_DURATION* = BossPhaseTransitionDuration
+
 proc bossBehaviorRand(minValue, maxValue: float32): float32 =
   if maxValue <= minValue:
     return minValue
@@ -29,7 +34,7 @@ proc resetBossBehaviorState(enemy: Enemy, specialBehavior: string) =
     enemy.teleportTimer = 0.0
     enemy.shockwaveTimer = 0.0
 
-proc bossPhaseMaxHp(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 =
+proc bossPhaseMaxHp*(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 =
   if phaseIndex >= 0 and phaseIndex < enemy.bossPhaseHpPools.len:
     return max(enemy.bossPhaseHpPools[phaseIndex], 0.01'f32)
 
@@ -38,7 +43,7 @@ proc bossPhaseMaxHp(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 =
 
   max(enemy.maxHp, 0.01'f32)
 
-proc transitionBossToPhase(game: var Game, enemy: Enemy, bossDef: BossDefinition,
+proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinition,
                            nextPhaseIndex: int) =
   if nextPhaseIndex < 0 or nextPhaseIndex >= bossDef.phases.len:
     return
@@ -95,7 +100,7 @@ proc transitionBossToPhase(game: var Game, enemy: Enemy, bossDef: BossDefinition
   resetBossBehaviorState(enemy, phase.specialBehavior)
   resetBossWeakPointForPhase(enemy, bossDef.weakPoint, enemy.currentPhaseIndex)
 
-proc tryAdvanceBossPhase(game: var Game, enemy: Enemy): bool =
+proc tryAdvanceBossPhase*(game: var Game, enemy: Enemy): bool =
   if not enemy.isBoss or enemy.hp > 0.0'f32 or enemy.bossDefinitionID <= 0:
     return false
 
@@ -116,10 +121,10 @@ proc tryAdvanceBossPhase(game: var Game, enemy: Enemy): bool =
 const
   REFLECT_SHIELD_DURATION  = 1.8'f32   # how long the overload shield stays up
   REFLECT_SHIELD_INTERVAL  = 9.0'f32   # gap between overload shields
-  REFLECT_SHIELD_DAMAGE     = 2.0'f32  # damage a reflected shot does to the player
+  REFLECT_SHIELD_DAMAGE*     = 2.0'f32  # damage a reflected shot does to the player
   ENRAGE_STALL_THRESHOLD   = 5.0'f32   # seconds of ignoring an open objective before enrage builds
   ENRAGE_RAMP_PER_SEC      = 0.5'f32   # enrage growth once stalling
-  ENRAGE_MAX               = 1.2'f32   # cap: attacks fire up to (1 + this)x as fast
+  ENRAGE_MAX*               = 1.2'f32   # cap: attacks fire up to (1 + this)x as fast
   ENRAGE_DECAY_PER_SEC     = 1.5'f32   # enrage falls off once the player re-engages
   HEAL_ON_IGNORE_FRAC      = 0.04'f32  # phase HP refunded when a window is wasted
 
@@ -130,7 +135,7 @@ proc bossLivingAddsCount(game: Game, enemy: Enemy): int =
     if other.spawnedByBoss and other.hp > 0:
       result += 1
 
-proc updateBossMechanics(game: var Game, enemy: Enemy, dt: float32) =
+proc updateBossMechanics*(game: var Game, enemy: Enemy, dt: float32) =
   if not enemy.isBoss:
     return
 
@@ -246,7 +251,7 @@ proc tryBossBehaviorTeleport(game: Game, enemy: Enemy, dt: float32,
     game, enemy, minRadius, maxRadius, effectColor, effectSize, minPlayerDistance
   )
 
-proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefinition, dt: float32) =
+proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDefinition, dt: float32) =
   ## Updates boss movement based on phase specialBehavior
   if phase.specialBehavior == "":
     return
@@ -744,7 +749,7 @@ proc updateCustomBossBehavior(game: Game, enemy: var Enemy, phase: BossPhaseDefi
     elif frameDistance > teleportDistance:
       enemy.vel = newVector2f(0, 0)
 
-proc pointSegmentDistance(p, a, b: Vector2f): float32 =
+proc pointSegmentDistance*(p, a, b: Vector2f): float32 =
   ## Shortest distance from point p to the segment a-b (for beam hit tests).
   let abx = b.x - a.x
   let aby = b.y - a.y
@@ -2278,7 +2283,7 @@ proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack
                          Color(r: 80, g: 220, b: 120, a: 220), 12)
 
 
-proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
+proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
   ## Executes a single boss attack based on its pattern type
   # Dungeon mode compresses boss attack damage toward the floor's threat
   # (boss definitions assume the player power of their wave-mode slot).
@@ -2332,5 +2337,3 @@ proc executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, p
     execBossAttackSnipe(game, enemy, attack, phase, bossDef, toPlayer)
   of bapMinionVolley:
     execBossAttackMinionVolley(game, enemy, attack, phase, bossDef, toPlayer)
-# ORBITAL WEAPONS SYSTEM
-

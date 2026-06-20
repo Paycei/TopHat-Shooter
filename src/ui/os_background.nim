@@ -1,6 +1,7 @@
 ## OS-Style Background System
 
 import raylib, math, random
+import particle_types
 import ../types, background_fx
 
 const

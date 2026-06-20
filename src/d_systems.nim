@@ -1,4 +1,5 @@
 import raylib, math, random
+import particle_types
 import types, localization
 
 type

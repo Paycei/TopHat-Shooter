@@ -1,3 +1,31 @@
+import raylib, rlgl, random, math, types, settings, save_system, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, d_enhancements, gamemode_definitions, run_statistics, enemy_config, localization
+import game/bullets
+import ui/os_hud, ui/icon_drawing
+
+const DEATH_SLOW_DURATION* = 1.1'f32
+const DEATH_SPEEDUP_DURATION = 0.35'f32
+const DEATH_FADE_DURATION = 0.65'f32
+const DEATH_TOTAL_DURATION = DEATH_SLOW_DURATION + DEATH_SPEEDUP_DURATION + DEATH_FADE_DURATION
+const DEATH_SLOW_SCALE = 0.16'f32
+const DEATH_FAST_SCALE = 1.35'f32
+
+proc clampByte*(value: int): uint8 =
+  uint8(max(0, min(255, value)))
+
+proc withAlpha*(color: Color, alpha: int): Color =
+  Color(r: color.r, g: color.g, b: color.b, a: clampByte(alpha))
+
+proc getDeathSequenceTimeScale(timer: float32): float32 =
+  if timer < DEATH_SLOW_DURATION:
+    return DEATH_SLOW_SCALE
+
+  if timer < DEATH_SLOW_DURATION + DEATH_SPEEDUP_DURATION:
+    let t = clamp((timer - DEATH_SLOW_DURATION) / DEATH_SPEEDUP_DURATION, 0.0'f32, 1.0'f32)
+    let eased = 1.0'f32 - pow(1.0'f32 - t, 3.0'f32)
+    return DEATH_SLOW_SCALE + (DEATH_FAST_SCALE - DEATH_SLOW_SCALE) * eased
+
+  DEATH_FAST_SCALE
+
 proc installPowerUp*(game: var Game, powerUp: PowerUp) =
   ## Centralized install feedback so every selected power-up feels like an event.
   applyPowerUp(game.player, powerUp)
@@ -19,7 +47,7 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
                        accent, if powerUp.rarity == prLegendary: 72 else: 46)
   playSound(stPowerUp, if powerUp.rarity == prLegendary: 1.0 else: 0.85)
 
-proc drawRecentPowerUpInstall(game: Game) =
+proc drawRecentPowerUpInstall*(game: Game) =
   if game.recentPowerUpTimer <= 0.0 or game.recentPowerUpMaxTimer <= 0.0:
     return
 
@@ -161,7 +189,7 @@ const ComebackSpeedBonus = 177.5'f32 * 0.1'f32  # +17.75
 const ComebackFrBonus    = 0.4275'f32 * 0.1'f32  # 0.04275 subtracted (lower = faster)
 const ComebackBsBonus    = 325.0'f32 * 0.1'f32  # +32.5
 
-proc removeComebackBonus(game: Game) =
+proc removeComebackBonus*(game: Game) =
   game.comebackBonusActive = false
   game.comebackEndWave = 0
   game.player.maxHp -= ComebackHpBonus
@@ -227,7 +255,7 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   spawnPlayerDeathExplosion(game)
   addShake(game.dopamine.screenShake, siMassive)
 
-proc updateDeathSequencePlayback(game: var Game, dt: float32) =
+proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
   game.deathSequenceTimer += dt
   game.deathSequenceTimeScale = getDeathSequenceTimeScale(game.deathSequenceTimer)
   let worldDt = dt * game.deathSequenceTimeScale

@@ -1,9 +1,5 @@
 ﻿import raylib, std/tables, std/deques, discord_presence, particle_types, math
 
-export Particle, ParticlePool, Vector2f, KeyboardKey
-export newVector2f, `+`, `-`, `*`, length, normalize, distance
-export Deque
-
 type
   KeyAction* = enum
     kaMoveUp

@@ -2,7 +2,7 @@
 ## Defines available player skins and rendering functions
 
 import raylib, math
-import types, localization
+import localization
 
 type
   SkinType* = enum

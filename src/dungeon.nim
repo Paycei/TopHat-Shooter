@@ -10,6 +10,7 @@
 ## itself stays in game.nim and only reads the counters/state armed here.
 
 import raylib, random, math
+import particle_types
 import types, roguelite, powerup, particle, sound, localization, boss_definitions, settings
 
 const

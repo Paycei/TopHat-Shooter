@@ -1,3 +1,7 @@
+import raylib, math, types, bullet, particle_skins, particle_types, powerup, sound, d_systems, run_statistics
+import game/combat
+import game/bullets
+
 proc calcBulletEffects(player: Player): BulletEffects =
   ## Computes the elemental/knockback values that every player bullet carries.
   ## Single source of truth shared by shootBullet and fireDoubleShotBurst.

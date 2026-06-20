@@ -1,4 +1,5 @@
 import raylib, random, math
+import particle_types
 import types, ui/consumable_icons, ui/ui_constants
 
 proc newConsumable*(x, y: float32, difficulty: float32): Consumable =

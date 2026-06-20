@@ -1,4 +1,5 @@
 import raylib, math
+import particle_types
 import types, bullet_skins, bullet_shapes
 
 ## Boss ID -> bullet shape index. 0=circle, 1=diamond, 2=triangle, 3=star, 4=cross, 5=square

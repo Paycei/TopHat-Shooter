@@ -3,6 +3,7 @@
 ## Serialization and supersnappy compression are handled in network.nim.
 
 import raylib, times
+import particle_types
 import ../types
 
 type

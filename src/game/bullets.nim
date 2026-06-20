@@ -1,3 +1,16 @@
+import raylib, rlgl, random, math, types, player, particle_pool, particle_types, effects, powerup, fx
+import game/combat
+from run_statistics import trackPowerUpDamage, trackPowerUpHealing
+
+type BulletEffects* = tuple[
+  slow: float32,
+  poison: float32,
+  fire: float32,
+  wind: float32
+]
+
+const WindBulletFlatDamageBonus* = 0.5'f32
+
 # COMMON HELPER FUNCTIONS FOR POWER-UP CALCULATIONS
 
 # Lightning visuals moved to src/fx.nim (forwarding stubs kept)
@@ -9,13 +22,6 @@ proc updateLightningBolts*(game: var Game, dt: float32) =
 
 proc drawLightningBolts*(game: Game) =
   fx.drawLightningBolts(game.lightningBolts)
-
-proc getAuraRadius*(level: int): float32 =
-  ## Standard aura radius based on level (used by most aura effects)
-  case level
-  of 1: 187.5
-  of 2: 250.0
-  else: 312.5
 
 proc getExplosionRadius*(level: int): float32 =
   ## Standard explosion radius for explosive bullets
@@ -43,7 +49,7 @@ proc getBulletDamageType*(bullet: Bullet): DamageType =
 # UNIFIED BULLET EFFECT SYSTEM
 
 type
-  BulletEffectType* = enum
+  BulletEffectType = enum
     befFrost
     befPoison
     befFire
@@ -51,7 +57,7 @@ type
     befChainLightning
     befBlood
 
-  BulletEffect* = object
+  BulletEffect = object
     effectType*: BulletEffectType
     baseDamage*: float32
     duration*: float32
@@ -136,7 +142,7 @@ proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
       level: getPowerUpLevel(game.player, puBloodBullets)
     ))
 
-proc applyMasteryDoT(enemy: Enemy, elemType: ElementType,
+proc applyMasteryDoT*(enemy: Enemy, elemType: ElementType,
                      baseDmg, baseDur: float32,
                      hasMastery: bool,
                      masteryDmgMult, masteryDurMult: float32,

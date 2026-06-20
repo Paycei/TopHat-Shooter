@@ -9,6 +9,7 @@
 ## flips from corrupt magenta to a restored mint-green.
 
 import raylib, rlgl, math
+import particle_types
 import background_fx, ../types, ../shapes, ../localization, ../sound,
        cinematic_common
 

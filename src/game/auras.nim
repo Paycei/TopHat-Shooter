@@ -1,7 +1,34 @@
-proc getAuraRadius*(level: int): float32
+import raylib, rlgl, math, types, particle_types
+
+# Unified aura configuration and rendering system
+
+type
+  AuraVisualStyle = enum
+    avsFlames         # Fire aura - rising flames and wisps
+    avsLightning      # Lightning aura - electric arcs and bolts
+    avsPoison         # Poison aura - toxic bubbles and fog
+    avsWind           # Wind aura - swirling air currents
+    avsArcane         # Arcane aura - orbiting runes and sparkles
+    avsBlood          # Blood aura - dripping blood and mist
+
+type
+  AuraConfig = object
+    radius: float32
+    coreColor: Color
+    ringColor: Color
+    borderColor: Color
+    pulseSpeed: float32
+    visualStyle: AuraVisualStyle
+
+proc getAuraRadius*(level: int): float32 =
+  ## Standard aura radius based on level (used by most aura effects)
+  case level
+  of 1: 187.5
+  of 2: 250.0
+  else: 312.5
 
 # Aura configurations for each power-up type
-proc getAuraConfig(auraType: PowerUpType, level: int): AuraConfig =
+proc getAuraConfig*(auraType: PowerUpType, level: int): AuraConfig =
   let radius = getAuraRadius(level)
 
   case auraType
@@ -79,7 +106,7 @@ proc getAuraConfig(auraType: PowerUpType, level: int): AuraConfig =
       visualStyle: avsFlames
     )
 
-proc drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32) =
+proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32) =
   ## Unified aura drawing function that handles all visual styles
   let pulse = (sin(time * config.pulseSpeed) * 0.2 + 0.8).float32
 

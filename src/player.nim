@@ -1,4 +1,5 @@
 import raylib, math, random, std/deques
+import particle_types
 import types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, settings
 
 const

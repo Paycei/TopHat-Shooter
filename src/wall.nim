@@ -1,4 +1,5 @@
 import raylib
+import particle_types
 import types, powerup, bullet, particle_pool
 
 proc newWall*(x, y: float32, player: Player): Wall =

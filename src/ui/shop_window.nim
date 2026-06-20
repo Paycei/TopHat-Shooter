@@ -2,6 +2,7 @@
 ## OS-themed window for player and bullet customization with tabs
 
 import raylib, rlgl, math, strformat, strutils
+import particle_types
 import os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound
 
 type

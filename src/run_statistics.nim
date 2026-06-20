@@ -1,4 +1,5 @@
 ﻿import types, std/tables, times, math, strutils, boss_definitions
+import particle_types
 
 # Tracks ALL measurable gameplay data for analysis and visualization
 type
