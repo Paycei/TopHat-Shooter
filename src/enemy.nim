@@ -1,4 +1,4 @@
-﻿import raylib, types, random, math, wall, boss_definitions, run_statistics, enemy_config, enemy_helpers, boss_weakpoints
+﻿import raylib, types, random, math, wall, boss_definitions, run_statistics, enemy_config, enemy_helpers, boss_weakpoints, effects
 import particle_types
 
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
@@ -50,7 +50,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
     fakeWarningTimer: if config.specialBehaviorType == "fake_warning_teleport": 3.0 + rand(2.0) else: 0,
     cloneTimer: if config.specialBehaviorType == "clone_teleport": 2.0 + rand(1.5) else: 0,
     clonePositions: @[],
-    rotation: 0.0
+    rotation: 0.0,
+    spawnRingTimer: 0.45'f32
   )
 
   # Enemy offensive scaling. HP and speed already scale with difficulty, but
@@ -1875,6 +1876,45 @@ proc drawThreatAura(enemy: Enemy) =
 
 proc drawEnemy*(enemy: Enemy) =
   ## Draws an enemy based on its type. Bosses are forwarded to drawCustomBoss.
+  # Spawn ring: expanding coloured circle that fades out as the enemy materialises
+  if enemy.spawnRingTimer > 0:
+    let t = enemy.spawnRingTimer / 0.45'f32          # 1.0 (just spawned) → 0.0 (faded)
+    let ringRadius = enemy.radius * (1.0'f32 + (1.0'f32 - t) * 1.2'f32)
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius,
+                    Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: uint8(t * 200.0'f32)))
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius * 0.72'f32,
+                    Color(r: 255, g: 255, b: 255, a: uint8(t * 90.0'f32)))
+
+  # Status effect overlays: pulsing coloured ring tied to active DoT / slow state
+  let st = getTime()
+  if hasActiveEffect(enemy, etFire):
+    let p = float32(sin(st * 8.0) * 0.5 + 0.5)
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 3.0'f32 + p * 2.0'f32,
+                    Color(r: 255, g: uint8(80.0'f32 + p * 80.0'f32), b: 0, a: uint8(120.0'f32 + p * 80.0'f32)))
+  if hasActiveEffect(enemy, etPoison):
+    let p = float32(sin(st * 4.0) * 0.5 + 0.5)
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 3.0'f32 + p * 2.0'f32,
+                    Color(r: 30, g: uint8(180.0'f32 + p * 60.0'f32), b: 30, a: uint8(110.0'f32 + p * 80.0'f32)))
+  if hasActiveEffect(enemy, etLightning):
+    let p = float32(sin(st * 10.0) * 0.5 + 0.5)
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 4.0'f32 + p * 2.0'f32,
+                    Color(r: 200, g: 220, b: 255, a: uint8(100.0'f32 + p * 100.0'f32)))
+  if hasActiveEffect(enemy, etArcane):
+    let p = float32(sin(st * 5.0) * 0.5 + 0.5)
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 3.0'f32 + p * 2.0'f32,
+                    Color(r: 160, g: 0, b: 220, a: uint8(100.0'f32 + p * 90.0'f32)))
+  if enemy.slowAmount > 0.25'f32:
+    let p = float32(sin(st * 3.0) * 0.5 + 0.5)
+    let frostA = uint8(clamp(enemy.slowAmount * 160.0'f32, 40.0'f32, 160.0'f32))
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 5.0'f32 + p * 2.0'f32,
+                    Color(r: 150, g: 220, b: 255, a: frostA))
+
+  # Hit flash: additive white fill that decays over 0.10 s
+  if enemy.hitFlashTimer > 0:
+    let flashA = uint8(clamp(enemy.hitFlashTimer / 0.10'f32 * 210.0'f32, 0.0'f32, 210.0'f32))
+    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius,
+               Color(r: 255, g: 255, b: 255, a: flashA))
+
   if enemy.cursed:
     # Pulsing purple hex-ring marking a cursed enemy (Curse power-up)
     let cp = sin(getTime() * 4.0) * 0.5 + 0.5
@@ -1924,6 +1964,15 @@ proc drawEnemy*(enemy: Enemy) =
           1.8, Color(r: min(enemy.color.r + 80, 255).uint8,
                      g: min(enemy.color.g + 80, 255).uint8,
                      b: min(enemy.color.b + 80, 255).uint8, a: spikeAlpha))
+      # Comet tail when moving fast
+      if velLen > 40.0:
+        let tailDir = Vector2(x: -enemy.vel.x / velLen, y: -enemy.vel.y / velLen)
+        for ti in 1..3:
+          let tf = ti.float32
+          drawCircle(
+            Vector2(x: cx + tailDir.x * tf * r * 0.55, y: cy + tailDir.y * tf * r * 0.55),
+            r * (1.0'f32 - tf * 0.22'f32),
+            Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: uint8(55 - ti * 15)))
       # Main body
       drawCircle(Vector2(x: cx, y: cy), r, enemy.color)
       # Dark-tinted rim (same hue, much darker, no white)
@@ -1986,6 +2035,11 @@ proc drawEnemy*(enemy: Enemy) =
           1.5, Color(r: min(enemy.color.r + 60, 255).uint8,
                      g: min(enemy.color.g + 60, 255).uint8,
                      b: min(enemy.color.b + 60, 255).uint8, a: 180))
+      # Pulsing orange core — gun-turret charge indicator
+      let firePulse = float32(sin(t * 8.0) * 0.5 + 0.5)
+      drawCircle(Vector2(x: cx, y: cy), s * 0.22'f32 + firePulse * 2.0'f32,
+                Color(r: 255, g: uint8(120.0'f32 + firePulse * 80.0'f32), b: 0,
+                      a: uint8(160.0'f32 + firePulse * 60.0'f32)))
 
     of etTriangle:
       # During active dash: show a bright motion trail behind the triangle
@@ -2021,6 +2075,18 @@ proc drawEnemy*(enemy: Enemy) =
         let glowRadius = enemy.radius + 4.0 + chargePercent * 8.0
         drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), glowRadius,
                   Color(r: 255'u8, g: 80'u8, b: 255'u8, a: glowAlpha))
+        # Crackle lines from body when very close to dashing
+        if enemy.dashTimer < 0.8:
+          let crackle = (0.8'f32 - enemy.dashTimer) / 0.8'f32
+          for ci in 0..<6:
+            let ca = ci.float32 * PI / 3.0'f32 + float32(getTime() * 0.5)
+            let cLen = enemy.radius * 0.4'f32 * crackle
+            drawLine(
+              Vector2(x: enemy.pos.x + cos(ca) * enemy.radius * 0.3'f32,
+                      y: enemy.pos.y + sin(ca) * enemy.radius * 0.3'f32),
+              Vector2(x: enemy.pos.x + cos(ca) * (enemy.radius * 0.3'f32 + cLen),
+                      y: enemy.pos.y + sin(ca) * (enemy.radius * 0.3'f32 + cLen)),
+              1.5, Color(r: 255'u8, g: 80'u8, b: 255'u8, a: uint8(crackle * 200.0'f32)))
       let v1 = Vector2(x: enemy.pos.x, y: enemy.pos.y - enemy.radius)
       let v2 = Vector2(x: enemy.pos.x - enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
       let v3 = Vector2(x: enemy.pos.x + enemy.radius * 0.87, y: enemy.pos.y + enemy.radius * 0.5)
@@ -2060,11 +2126,12 @@ proc drawEnemy*(enemy: Enemy) =
                   Color(r: 255'u8, g: 200'u8, b: 0'u8, a: chargeGlow))
 
       # Draw filled star using triangle fan (10 segments alternating outer/inner)
+      let starRot = float32(getTime() * 0.25)
       let points = 5
       let innerR = r * 0.42
       for i in 0..<points * 2:
-        let a0 = i.float32       * PI / points.float32 - PI / 2.0
-        let a1 = (i + 1).float32 * PI / points.float32 - PI / 2.0
+        let a0 = i.float32       * PI / points.float32 - PI / 2.0 + starRot
+        let a1 = (i + 1).float32 * PI / points.float32 - PI / 2.0 + starRot
         let r0 = if i mod 2 == 0: r else: innerR
         let r1 = if (i + 1) mod 2 == 0: r else: innerR
         let p0 = Vector2(x: cx + cos(a0) * r0, y: cy + sin(a0) * r0)
@@ -2073,8 +2140,8 @@ proc drawEnemy*(enemy: Enemy) =
 
       # Star outline, dark golden, not white
       for i in 0..<points * 2:
-        let a0 = i.float32       * PI / points.float32 - PI / 2.0
-        let a1 = (i + 1).float32 * PI / points.float32 - PI / 2.0
+        let a0 = i.float32       * PI / points.float32 - PI / 2.0 + starRot
+        let a1 = (i + 1).float32 * PI / points.float32 - PI / 2.0 + starRot
         let r0 = if i mod 2 == 0: r else: innerR
         let r1 = if (i + 1) mod 2 == 0: r else: innerR
         drawLine(Vector2(x: cx + cos(a0) * r0, y: cy + sin(a0) * r0),
@@ -2087,7 +2154,7 @@ proc drawEnemy*(enemy: Enemy) =
 
       # Vertex node indicators, one glowing dot per required hit, dims when hit consumed
       for vi in 0..<enemy.requiredHits:
-        let vAngle = vi.float32 * (PI * 2.0 / enemy.requiredHits.float32) - PI / 2.0
+        let vAngle = vi.float32 * (PI * 2.0 / enemy.requiredHits.float32) - PI / 2.0 + starRot
         let nodeR = r * 1.15
         let isHit = vi < enemy.hitCount
         let nodeAlpha = if isHit: 40'u8 else: 230'u8
@@ -2105,8 +2172,17 @@ proc drawEnemy*(enemy: Enemy) =
           Vector2(x: cx + cos(vAngle) * nodeR, y: cy + sin(vAngle) * nodeR),
           3.0, nodeColor)
 
-      # Hit counter, white text on small dark pill
+      # Final-hit urgency pulse on the last surviving vertex node
       let remaining = enemy.requiredHits - enemy.hitCount
+      if remaining == 1:
+        let urgency = float32(sin(getTime() * 12.0) * 0.5 + 0.5)
+        let lastAngle = enemy.hitCount.float32 * (PI * 2.0 / enemy.requiredHits.float32) - PI / 2.0 + starRot
+        drawCircle(
+          Vector2(x: cx + cos(lastAngle) * r * 1.15'f32, y: cy + sin(lastAngle) * r * 1.15'f32),
+          8.0'f32 + urgency * 4.0'f32,
+          Color(r: 255, g: 230, b: 0, a: uint8(urgency * 180.0'f32)))
+
+      # Hit counter, white text on small dark pill
       let text = $remaining
       let textWidth = measureText(text, 14)
       drawCircle(Vector2(x: cx, y: cy), r * 0.28,
@@ -2123,6 +2199,15 @@ proc drawEnemy*(enemy: Enemy) =
       # Soft outer glow
       drawCircle(Vector2(x: cx, y: cy), r + 8,
                 Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
+      # Filled hex body — triangle fan gives visual weight to the wireframe
+      for i in 0..<6:
+        let fa0 = i.float32       * PI / 3.0'f32 + rot
+        let fa1 = (i + 1).float32 * PI / 3.0'f32 + rot
+        drawTriangle(
+          Vector2(x: cx, y: cy),
+          Vector2(x: cx + cos(fa0) * r, y: cy + sin(fa0) * r),
+          Vector2(x: cx + cos(fa1) * r, y: cy + sin(fa1) * r),
+          Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 55))
       # Outer hexagon (slowly rotating)
       for i in 0..<6:
         let a0 = i.float32       * PI / 3.0 + rot
@@ -2210,6 +2295,20 @@ proc drawEnemy*(enemy: Enemy) =
       drawLine(Vector2(x: ivx1, y: ivy1), Vector2(x: ivx2, y: ivy2), innerThickness,
               Color(r: 255, g: 150, b: 50, a: 255))
 
+      # Glowing arm-tip caps
+      let tipPoints = [
+        Vector2(x: hx2, y: hy2), Vector2(x: hx1, y: hy1),
+        Vector2(x: vx2, y: vy2), Vector2(x: vx1, y: vy1)]
+      let tipColor = if enemy.attackPhase == 2:
+          Color(r: 255, g: 255, b: 255, a: 220)
+        elif enemy.attackPhase == 1:
+          let tp = uint8((sin(getTime() * 15.0) * 0.5 + 0.5) * 220.0)
+          Color(r: 255, g: 30, b: 0, a: tp)
+        else:
+          Color(r: 255, g: 130, b: 30, a: 140)
+      for tip in tipPoints:
+        drawCircle(tip, enemy.radius * 0.13'f32, tipColor)
+
       # Draw central core - slightly larger
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.5, enemy.color)
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
@@ -2248,28 +2347,27 @@ proc drawEnemy*(enemy: Enemy) =
       # Soft glow halo
       drawCircle(Vector2(x: cx, y: cy), r + 8,
                 Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 30))
-      # Filled diamond (two triangles)
-      drawTriangle(Vector2(x: cx,     y: cy - r),
-                   Vector2(x: cx + r, y: cy),
-                   Vector2(x: cx - r, y: cy), enemy.color)
-      drawTriangle(Vector2(x: cx + r, y: cy),
-                   Vector2(x: cx,     y: cy + r),
-                   Vector2(x: cx - r, y: cy), enemy.color)
-      # Bright cyan outline, hardcoded because div 3 on cyan (r:0) produces near-black
-      let dv1 = Vector2(x: cx,     y: cy - r)
-      let dv2 = Vector2(x: cx + r, y: cy)
-      let dv3 = Vector2(x: cx,     y: cy + r)
-      let dv4 = Vector2(x: cx - r, y: cy)
+      # Spinning jewel — rotate 4 vertices by time
+      let dRot = float32(getTime() * 0.4)
+      let dv1 = Vector2(x: cx + cos(-PI/2.0'f32 + dRot) * r, y: cy + sin(-PI/2.0'f32 + dRot) * r)
+      let dv2 = Vector2(x: cx + cos(0.0'f32     + dRot) * r, y: cy + sin(0.0'f32     + dRot) * r)
+      let dv3 = Vector2(x: cx + cos( PI/2.0'f32 + dRot) * r, y: cy + sin( PI/2.0'f32 + dRot) * r)
+      let dv4 = Vector2(x: cx + cos( PI         + dRot) * r, y: cy + sin( PI         + dRot) * r)
+      # Filled diamond (two triangles, using rotated vertices)
+      drawTriangle(dv1, dv2, dv4, enemy.color)
+      drawTriangle(dv2, dv3, dv4, enemy.color)
+      # Bright cyan outline
       drawLine(dv1, dv2, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
       drawLine(dv2, dv3, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
       drawLine(dv3, dv4, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
       drawLine(dv4, dv1, 3, Color(r: 0'u8, g: 230'u8, b: 255'u8, a: 255))
-      # Inner diamond for depth, slightly dimmer cyan
+      # Inner diamond counter-offset for spinning-jewel facet effect
       let ir = r * 0.45
-      let iv1 = Vector2(x: cx,      y: cy - ir)
-      let iv2 = Vector2(x: cx + ir, y: cy)
-      let iv3 = Vector2(x: cx,      y: cy + ir)
-      let iv4 = Vector2(x: cx - ir, y: cy)
+      let iRot = dRot + 0.3'f32
+      let iv1 = Vector2(x: cx + cos(-PI/2.0'f32 + iRot) * ir, y: cy + sin(-PI/2.0'f32 + iRot) * ir)
+      let iv2 = Vector2(x: cx + cos(0.0'f32     + iRot) * ir, y: cy + sin(0.0'f32     + iRot) * ir)
+      let iv3 = Vector2(x: cx + cos( PI/2.0'f32 + iRot) * ir, y: cy + sin( PI/2.0'f32 + iRot) * ir)
+      let iv4 = Vector2(x: cx + cos( PI         + iRot) * ir, y: cy + sin( PI         + iRot) * ir)
       drawLine(iv1, iv2, 1, Color(r: 0'u8, g: 160'u8, b: 200'u8, a: 180))
       drawLine(iv2, iv3, 1, Color(r: 0'u8, g: 160'u8, b: 200'u8, a: 180))
       drawLine(iv3, iv4, 1, Color(r: 0'u8, g: 160'u8, b: 200'u8, a: 180))
@@ -2324,6 +2422,14 @@ proc drawEnemy*(enemy: Enemy) =
         drawLine(Vector2(x: cx, y: cy),
                  Vector2(x: cx + cos(a) * r * 0.48, y: cy + sin(a) * r * 0.48),
                  1, Color(r: enemy.color.r div 2, g: enemy.color.g div 2, b: enemy.color.b div 2, a: 100))
+      # Gun-port dots at outer vertices, pulsing with fire rate
+      let portGlow = float32(sin(t * 10.0) * 0.5 + 0.5)
+      for i in 0..<8:
+        let pa = i.float32 * PI / 4.0
+        drawCircle(
+          Vector2(x: cx + cos(pa) * r, y: cy + sin(pa) * r),
+          3.5'f32 + portGlow * 1.5'f32,
+          Color(r: 255, g: 255, b: uint8(portGlow * 80.0'f32), a: uint8(140.0'f32 + portGlow * 80.0'f32)))
       # Tinted center core
       drawCircle(Vector2(x: cx, y: cy), r * 0.20,
                 Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 220))
@@ -2340,10 +2446,11 @@ proc drawEnemy*(enemy: Enemy) =
       # Soft outer glow
       drawCircle(Vector2(x: cx, y: cy), r + 8,
                 Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
-      # Outer pentagon
+      # Outer pentagon — counter-rotates opposite to inner for gear-within-gear read
+      let rot2 = float32(-t * 0.18)
       for i in 0..<5:
-        let a0 = i.float32       * PI * 2.0 / 5.0 - PI / 2.0
-        let a1 = (i + 1).float32 * PI * 2.0 / 5.0 - PI / 2.0
+        let a0 = i.float32       * PI * 2.0 / 5.0 - PI / 2.0 + rot2
+        let a1 = (i + 1).float32 * PI * 2.0 / 5.0 - PI / 2.0 + rot2
         drawLine(Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
                  Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
                  3, enemy.color)
@@ -2371,6 +2478,14 @@ proc drawEnemy*(enemy: Enemy) =
         let glowIntensity = uint8(chargePercent * 200)
         drawCircle(Vector2(x: cx, y: cy), r + 7,
                   Color(r: 0, g: 255, b: 150, a: glowIntensity))
+      # Bullet preview dots at outer vertices when charging
+      if enemy.shootTimer > 1.5:
+        let previewAlpha = uint8(clamp((enemy.shootTimer - 1.5'f32) / 1.0'f32 * 180.0'f32, 0.0'f32, 180.0'f32))
+        for i in 0..<5:
+          let pa = i.float32 * PI * 2.0 / 5.0 - PI / 2.0 + rot2
+          drawCircle(
+            Vector2(x: cx + cos(pa) * r, y: cy + sin(pa) * r),
+            4.0'f32, Color(r: 0, g: 200, b: 100, a: previewAlpha))
 
     of etTrickster:
       let t  = getTime()
@@ -2378,6 +2493,15 @@ proc drawEnemy*(enemy: Enemy) =
       let cy = enemy.pos.y
       let r  = enemy.radius
       let rot = t  # rotates each frame
+      # Ghost silhouettes — flickering decoys orbiting the body
+      for gi in 0..1:
+        let gPhase = gi.float32 * PI + t * 2.5'f32
+        let gx = cx + cos(gPhase) * r * 1.4'f32
+        let gy = cy + sin(gPhase * 0.7'f32) * r * 1.4'f32
+        let gFlicker = float32(sin(t * 17.0 + gi.float32 * 2.1) * 0.5 + 0.5)
+        drawCircle(Vector2(x: gx, y: gy), r * 0.45'f32,
+                  Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b,
+                        a: uint8(gFlicker * 38.0'f32)))
       # Outer jagged ring
       let segments = 6
       for i in 0..<segments:
@@ -2424,14 +2548,33 @@ proc drawEnemy*(enemy: Enemy) =
       # Main body - circular with crosshair
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
 
-      # Crosshair pattern
-      let crossSize = enemy.radius * 0.6
-      drawLine(Vector2(x: enemy.pos.x - crossSize, y: enemy.pos.y),
-              Vector2(x: enemy.pos.x + crossSize, y: enemy.pos.y), 2,
-              Color(r: 255, g: 255, b: 255, a: 200))
-      drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y - crossSize),
-              Vector2(x: enemy.pos.x, y: enemy.pos.y + crossSize), 2,
-              Color(r: 255, g: 255, b: 255, a: 200))
+      # Crosshair: rotates slowly when idle, freezes red on lock-on
+      let cr = if enemy.attackPhase == 1: 0.0'f32 else: float32(sin(getTime() * 0.9) * 0.35)
+      let crossColor = if enemy.attackPhase == 1: Color(r: 255, g: 30, b: 30, a: 220)
+                       else: Color(r: 255, g: 255, b: 255, a: 200)
+      let cs = enemy.radius * 0.6'f32
+      drawLine(
+        Vector2(x: enemy.pos.x + cos(cr + PI) * cs, y: enemy.pos.y + sin(cr + PI) * cs),
+        Vector2(x: enemy.pos.x + cos(cr)      * cs, y: enemy.pos.y + sin(cr)      * cs),
+        2, crossColor)
+      drawLine(
+        Vector2(x: enemy.pos.x + cos(cr + PI/2.0'f32) * cs, y: enemy.pos.y + sin(cr + PI/2.0'f32) * cs),
+        Vector2(x: enemy.pos.x + cos(cr - PI/2.0'f32) * cs, y: enemy.pos.y + sin(cr - PI/2.0'f32) * cs),
+        2, crossColor)
+      # Scope tick marks draw inward as charge builds
+      if enemy.attackPhase == 1:
+        let chargeProgress = if enemy.attackExecuteTimer > 0.0'f32:
+          clamp(enemy.attackWarningTimer / enemy.attackExecuteTimer, 0.0'f32, 1.0'f32)
+          else: 0.0'f32
+        let tickLen = cs * 0.25'f32 * chargeProgress
+        for ti in 0..<4:
+          let ta = cr + ti.float32 * PI / 2.0'f32
+          let tipX = enemy.pos.x + cos(ta) * cs
+          let tipY = enemy.pos.y + sin(ta) * cs
+          drawLine(
+            Vector2(x: tipX, y: tipY),
+            Vector2(x: tipX - cos(ta) * tickLen, y: tipY - sin(ta) * tickLen),
+            2, Color(r: 255, g: 0, b: 0, a: 180))
 
       # Center dot
       drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), 3.0, Red)
@@ -2470,15 +2613,23 @@ proc drawEnemy*(enemy: Enemy) =
       # Dim center dot (almost invisible, ghost-like)
       drawCircle(Vector2(x: cx, y: cy), r * 0.14,
                 Color(r: 240, g: 240, b: 255, a: 180))
+      # Tiny eyes — subtle tell distinguishing the real phantom from clones
+      drawCircle(Vector2(x: cx - r * 0.18'f32, y: cy - r * 0.20'f32), r * 0.07'f32,
+                Color(r: 255, g: 255, b: 255, a: 190))
+      drawCircle(Vector2(x: cx + r * 0.18'f32, y: cy - r * 0.20'f32), r * 0.07'f32,
+                Color(r: 255, g: 255, b: 255, a: 190))
       # Trailing fade ring
       let fadeRing = sin(t * 3.0) * 8 + 12
       drawCircleLines(cx.int32, cy.int32, r + fadeRing,
                      Color(r: 150, g: 150, b: 255, a: 60))
-      # Draw fake clones (kept from original)
+      # Draw fake clones — blue-shifted so sharp players can eventually distinguish them
       for clonePos in enemy.clonePositions:
         let cloneAlpha = uint8((sin(t * 5.0) * 0.5 + 0.5) * 100)
         drawCircle(Vector2(x: clonePos.x, y: clonePos.y), r * 0.7,
-                  Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: cloneAlpha))
+                  Color(r: uint8(max(0, enemy.color.r.int - 20)),
+                        g: enemy.color.g,
+                        b: uint8(min(255, enemy.color.b.int + 60)),
+                        a: cloneAlpha))
         drawCircleLines(clonePos.x.int32, clonePos.y.int32, r * 0.7,
                        Color(r: 200, g: 200, b: 255, a: uint8(cloneAlpha.float32 * 0.6)))
 
@@ -2502,6 +2653,22 @@ proc drawEnemy*(enemy: Enemy) =
                 Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: uint8(22 * auraPulse)))
       drawCircle(Vector2(x: cx, y: cy), r + 9 + auraPulse * 3,
                 Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: uint8(38 * auraPulse)))
+
+      # Ground magic circle — drawn before robe body so it appears as a floor projection
+      let circleRot = float32(-t * 0.6)
+      let cgr = r * 1.35'f32
+      let cgy = cy + r * 0.5'f32
+      for i in 0..<6:
+        let ca0 = i.float32       * PI / 3.0'f32 + circleRot
+        let ca1 = (i + 1).float32 * PI / 3.0'f32 + circleRot
+        drawLine(
+          Vector2(x: cx + cos(ca0) * cgr,        y: cgy + sin(ca0) * cgr * 0.28'f32),
+          Vector2(x: cx + cos(ca1) * cgr,        y: cgy + sin(ca1) * cgr * 0.28'f32),
+          1, Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: 35))
+        drawLine(
+          Vector2(x: cx, y: cgy),
+          Vector2(x: cx + cos(ca0) * cgr * 0.6'f32, y: cgy + sin(ca0) * cgr * 0.28'f32 * 0.6'f32),
+          1, Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: 25))
 
       # Robe body (filled circle, slightly larger at bottom)
       # Bottom robe hem, slightly wider oval hint via two offset circles
@@ -3685,8 +3852,10 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1) =
   if enemy.isBoss:
     return
 
-  # Calculate elite chance based on wave (2% + 0.35% per wave, max 12%)
-  let eliteChance = min(2 + (waveNumber.float32 * 0.35).int, 12)
+  # Elite chance: ramps from 2% → 12% by wave 29, then continues +1%/wave to cap 32%
+  let baseChance = min(2 + (waveNumber.float32 * 0.35).int, 12)
+  let lateBonus = max(0, waveNumber - 28)
+  let eliteChance = min(baseChance + lateBonus, 32)
   if rand(99) >= eliteChance:
     return
 
@@ -3695,7 +3864,12 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1) =
   enemy.isElite = true
   enemy.eliteAuraPhase = 0.0
   enemy.eliteTypes = @[]  # Initialize empty list for multiple types
-  enemy.threatLevel = max(enemy.threatLevel, if statWave >= 35: 3 elif statWave >= 20: 2 else: 1)
+  enemy.threatLevel = max(enemy.threatLevel,
+    if statWave >= 60: 5
+    elif statWave >= 50: 4
+    elif statWave >= 35: 3
+    elif statWave >= 20: 2
+    else: 1)
 
   # Elite scaling multiplier based on wave, reduced to avoid runaway EHP.
   let eliteScaling = 1.0 + (statWave.float32 * 0.03)
@@ -3704,8 +3878,11 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1) =
 
   # Determine number of elite effects based on wave
   # BALANCED: Delay dual-effect elites until later so midgame remains readable.
-  let numEffects = if statWave >= 35:
-    # Waves 35+: 35% chance for a dual-effect elite
+  let numEffects = if statWave >= 55:
+    # Waves 55+: 65% chance for a dual-effect elite
+    if rand(99) < 65: 2 else: 1
+  elif statWave >= 35:
+    # Waves 35–54: 35% chance for a dual-effect elite
     if rand(99) < 35: 2 else: 1
   else:
     # Waves 1-34: Single effect
@@ -3871,40 +4048,21 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
   # Draw auras for each elite type (layered effect for multiple types)
   for idx, eType in enemy.eliteTypes:
     let auraColor = getEliteAuraColor(eType)
-    # Each aura is slightly offset for visibility
-    let radiusOffset = idx.float32 * 4.0
-    let auraRadius = enemy.radius + 8.0 + radiusOffset + (sin(gameTime * 3.0 + idx.float32) * 3.0)
+    let radiusOffset = idx.float32 * 5.0
 
-    # Draw outer glow rings (multiple for depth)
+    # Bold close ring — sits just outside the body, highest contrast
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32,
+      enemy.radius + 6.0 + radiusOffset,
+      Color(r: auraColor.r, g: auraColor.g, b: auraColor.b,
+            a: uint8(190.0'f32 * float32(pulseIntensity))))
+
+    # Three expanding outer glow rings
     for i in 0..2:
-      let ringRadius = auraRadius + i.float32 * 4.0
-      let alpha = uint8((180 - i * 50).float32 * pulseIntensity * 0.8)  # Slightly more transparent for multiple
-      let ringColor = Color(
-        r: auraColor.r,
-        g: auraColor.g,
-        b: auraColor.b,
-        a: alpha
-      )
-      drawCircleLines(
-        enemy.pos.x.int32,
-        enemy.pos.y.int32,
-        ringRadius,
-        ringColor
-      )
-
-    # Draw inner filled circle for core glow
-    let coreAlpha = uint8(60.0 * pulseIntensity)  # Less opaque for layering
-    let coreColor = Color(
-      r: auraColor.r,
-      g: auraColor.g,
-      b: auraColor.b,
-      a: coreAlpha
-    )
-    drawCircle(
-      Vector2(x: enemy.pos.x, y: enemy.pos.y),
-      auraRadius - 4.0,
-      coreColor
-    )
+      let ringRadius = enemy.radius + 13.0 + radiusOffset + i.float32 * 7.0 +
+                       float32(sin(gameTime * 3.0 + idx.float32) * 3.0)
+      let alpha = uint8((210.0'f32 - i.float32 * 55.0'f32) * float32(pulseIntensity))
+      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius,
+        Color(r: auraColor.r, g: auraColor.g, b: auraColor.b, a: alpha))
 
   # Draw health bar for Tank elites (above shield bar if present)
   if etTank in enemy.eliteTypes:
@@ -3984,6 +4142,82 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
       barHeight.int32,
       Color(r: 150, g: 220, b: 255, a: 255)
     )
+
+proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) =
+  ## Drawn AFTER drawEnemy — places colored outline and orbit crown on top of the body
+  if not enemy.isElite or enemy.eliteTypes.len == 0:
+    return
+
+  let pulseIntensity = float32(sin(enemy.eliteAuraPhase) * 0.3 + 0.7)
+  let numTypes = enemy.eliteTypes.len
+
+  # Layer A: colored body outline (on top of enemy body — most noticeable change)
+  for idx, eType in enemy.eliteTypes:
+    let col = getEliteAuraColor(eType)
+    let outlineR = enemy.radius + 1.5'f32 + idx.float32 * 3.0'f32
+    let outlineA = uint8((230.0'f32 - idx.float32 * 40.0'f32) * pulseIntensity)
+    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, outlineR,
+      Color(r: col.r, g: col.g, b: col.b, a: outlineA))
+
+  # Layer B: rotating orbit crown (6 bright dots per type, second type counter-rotates)
+  for idx, eType in enemy.eliteTypes:
+    let col = getEliteAuraColor(eType)
+    let orbitR = enemy.radius + 10.0'f32 + idx.float32 * 5.5'f32
+    let rotSpeed = if idx == 0: 2.2'f32 else: -1.8'f32
+    for di in 0..<6:
+      let ang = di.float32 * PI / 3.0'f32 + gameTime * rotSpeed + idx.float32 * PI / 6.0'f32
+      drawCircle(
+        Vector2(x: enemy.pos.x + cos(ang) * orbitR, y: enemy.pos.y + sin(ang) * orbitR),
+        2.6'f32 + pulseIntensity * 1.2'f32,
+        Color(r: col.r, g: col.g, b: col.b, a: uint8(210.0'f32 * pulseIntensity)))
+
+  # Layer C: type icon above the head, side-by-side for dual types
+  let iconS = 5.0'f32
+  let iconBaseY = enemy.pos.y - enemy.radius - 17.0'f32
+  for idx, eType in enemy.eliteTypes:
+    let col = getEliteAuraColor(eType)
+    let iconX = enemy.pos.x + (idx.float32 - (numTypes - 1).float32 * 0.5'f32) * 14.0'f32
+    let iconY = iconBaseY
+    case eType
+    of etSwift:
+      # Lightning bolt ⚡ (two segments)
+      drawLine(Vector2(x: iconX + 2, y: iconY - iconS),
+               Vector2(x: iconX - 1, y: iconY), 2, col)
+      drawLine(Vector2(x: iconX - 1, y: iconY),
+               Vector2(x: iconX - 3, y: iconY + iconS), 2, col)
+    of etTank:
+      # Shield arc (3-segment arc on top half + flat bottom)
+      for si in 0..<4:
+        let sa0 = PI + si.float32 * PI / 4.0'f32
+        let sa1 = PI + (si.float32 + 1.0'f32) * PI / 4.0'f32
+        drawLine(Vector2(x: iconX + cos(sa0) * iconS, y: iconY + sin(sa0) * iconS),
+                 Vector2(x: iconX + cos(sa1) * iconS, y: iconY + sin(sa1) * iconS),
+                 2, col)
+      drawLine(Vector2(x: iconX - iconS, y: iconY), Vector2(x: iconX + iconS, y: iconY), 2, col)
+    of etVenomous:
+      # X shape
+      drawLine(Vector2(x: iconX - iconS, y: iconY - iconS),
+               Vector2(x: iconX + iconS, y: iconY + iconS), 2, col)
+      drawLine(Vector2(x: iconX + iconS, y: iconY - iconS),
+               Vector2(x: iconX - iconS, y: iconY + iconS), 2, col)
+    of etExplosive:
+      # 4-point starburst
+      for si in 0..<4:
+        let sa = si.float32 * PI / 2.0'f32 + PI / 4.0'f32
+        drawLine(Vector2(x: iconX, y: iconY),
+                 Vector2(x: iconX + cos(sa) * iconS, y: iconY + sin(sa) * iconS), 2, col)
+    of etRegenerative:
+      # + (plus sign)
+      drawLine(Vector2(x: iconX - iconS, y: iconY),
+               Vector2(x: iconX + iconS, y: iconY), 2, col)
+      drawLine(Vector2(x: iconX, y: iconY - iconS),
+               Vector2(x: iconX, y: iconY + iconS), 2, col)
+    of etShielded:
+      # Circle outline
+      drawCircleLines(iconX.int32, iconY.int32, iconS,
+                      Color(r: col.r, g: col.g, b: col.b, a: 255))
+    of etNone:
+      discard
 
 proc updateEliteEffects*(enemy: Enemy, dt: float32) =
   ## Updates elite-specific effects like regeneration

@@ -1722,6 +1722,11 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       if enemy.slowTimer <= 0:
         enemy.slowAmount = 0
 
+    if enemy.hitFlashTimer > 0:
+      enemy.hitFlashTimer -= dt
+    if enemy.spawnRingTimer > 0:
+      enemy.spawnRingTimer -= dt
+
     discard tryAdvanceBossPhase(game, enemy)
 
     if not updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game):  # Use slowed time
@@ -3265,9 +3270,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           # UNIFIED BULLET EFFECT SYSTEM
           applyBulletEffects(game, bullet, game.enemies[j], dt)
 
-          # Impact particles
+          # Impact particles + hit flash
           spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                        game.enemies[j].color, 5)
+                        game.enemies[j].color, 10)
+          spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                        game.enemies[j].radius * 0.6)
+          game.enemies[j].hitFlashTimer = 0.10'f32
 
           # Explosive bullets create area damage
           if not bullet.isEcho and bullet.isExplosive:
@@ -4186,6 +4194,9 @@ proc drawGame*(game: Game) =
     if enemy.isElite:
       drawEliteAura(enemy, game.time)
     drawEnemy(enemy)
+    # Draw elite overlay after body so outline + orbit crown render on top
+    if enemy.isElite:
+      drawEliteOverlay(enemy, game.time)
     if enemy.isBoss:
       drawBossWeakPoints(enemy, globalSettings == nil or globalSettings.showHints)
       #  Vulnerability window: bold expanding rings so the player never misses it 
