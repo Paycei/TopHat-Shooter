@@ -343,5 +343,4 @@ import d_enhancements
 proc initEnhancedDopamine*(dopamine: var DopamineState) =
   dopamine.waveCelebration = newWaveCelebration()
   dopamine.bossIntro = newBossIntroduction()
-  dopamine.achievements = newAchievementManager()
   dopamine.realTimeStats = newRealTimeStats()

@@ -912,20 +912,7 @@ type
     bossArenaPlayerX*: float32
     bossArenaPlayerY*: float32
 
-  NotificationType* = enum
-    ntInfo,     # [INFO] messages
-    ntWarning,  # [WARN] messages
-    ntError,    # [ERR] messages
-    ntCritical  # [CRITICAL] messages
-
-  OSNotification* = object
-    message*: string
-    notifType*: NotificationType
-    lifetime*: float32
-    fadeTime*: float32
-
   OSHUDState* = object
-    notifications*: seq[OSNotification]
     panelPulse*: float32
     minimized*: bool
 
@@ -1026,20 +1013,6 @@ type
     bossHp*: float32
     phase*: int
 
-  Achievement* = object
-    id*: string
-    name*: string
-    description*: string
-    icon*: string
-    unlocked*: bool
-    justUnlocked*: bool
-    displayTimer*: float32
-
-  AchievementManager* = object
-    achievements*: seq[Achievement]
-    recentAchievement*: Achievement
-    showRecent*: bool
-
   RealTimeStats* = object
     dps*: float32
     damageDealt*: float32
@@ -1060,7 +1033,6 @@ type
     currentTime*: float32
     waveCelebration*: WaveCelebration
     bossIntro*: BossIntroduction
-    achievements*: AchievementManager
     realTimeStats*: RealTimeStats
 
   Game* = ref object
@@ -1150,7 +1122,8 @@ type
     roomTransitionTimer*: float32
     roomTransitionDir*: DoorDir      # Door the player walked through
     osBackground*: OSBackgroundState  # Animated background system
-    osHUD*: OSHUDState  # OS-style HUD and notifications
+    osHUD*: OSHUDState
+    pendingToasts*: seq[string]  # Toasts queued by subsystems; drained to desktop toasts each frame
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
     selectedGameOverButton*: int  # Selected button on game over screen (0=Restart, 1=Stats, 2=Exit)
     selectedVictoryButton*: int  # Selected button on victory screen (0=Continue, 1=Stats, 2=Menu)

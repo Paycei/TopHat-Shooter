@@ -11,35 +11,10 @@ const
   ACCENT_DIM = Color(r: 0, g: 150, b: 200, a: 180)
 
 proc newOSHUD*(): OSHUDState =
-  result = OSHUDState(
-    notifications: @[],
-    panelPulse: 0.0,
-    minimized: false
-  )
-
-proc addNotification*(hud: var OSHUDState, message: string, notifType: NotificationType) =
-  hud.notifications.add(OSNotification(
-    message: message,
-    notifType: notifType,
-    lifetime: 0.0,
-    fadeTime: 3.0
-  ))
-
-  # Keep only last 5 notifications
-  if hud.notifications.len > 5:
-    hud.notifications.delete(0)
+  result = OSHUDState(panelPulse: 0.0, minimized: false)
 
 proc updateOSHUD*(hud: var OSHUDState, dt: float32) =
   hud.panelPulse += dt
-
-  # Update notifications
-  var i = 0
-  while i < hud.notifications.len:
-    hud.notifications[i].lifetime += dt
-    if hud.notifications[i].lifetime > hud.notifications[i].fadeTime:
-      hud.notifications.delete(i)
-    else:
-      i += 1
 
 proc drawStatusPanel*(player: Player, x, y: int32, hud: OSHUDState) =
   let panelWidth: int32 = 280
@@ -240,54 +215,3 @@ proc drawPerformanceMetrics*(game: Game, x, y: int32) =
                    else: Color(r: 0, g: 255, b: 0, a: 255)  # Green
   drawText(t("hud_threats") & ": " & $threatCount, x + PANEL_PADDING, yOffset, 14, threatColor)
 
-proc drawActionLog*(hud: OSHUDState, screenWidth, screenHeight: int32) =
-  if hud.notifications.len == 0:
-    return
-
-  let logWidth: int32 = 400
-  let logHeight: int32 = 30
-  let logX = screenWidth div 2 - logWidth div 2
-
-  # Draw from bottom up (newest at bottom)
-  var yOffset: int32 = screenHeight - 60
-
-  var i = hud.notifications.len - 1
-  while i >= 0:
-    let notif = hud.notifications[i]
-
-    # Calculate fade
-    let fadeStart = notif.fadeTime - 0.5
-    let alpha = if notif.lifetime > fadeStart:
-      uint8((1.0 - (notif.lifetime - fadeStart) / 0.5) * 255)
-    else:
-      uint8(255)
-
-    # Background
-    let bgColor = case notif.notifType
-      of ntInfo: Color(r: 20, g: 40, b: 60, a: alpha div 2)
-      of ntWarning: Color(r: 60, g: 50, b: 20, a: alpha div 2)
-      of ntError: Color(r: 60, g: 20, b: 20, a: alpha div 2)
-      of ntCritical: Color(r: 80, g: 10, b: 10, a: alpha div 2)
-
-    drawRectangle(logX, yOffset, logWidth, logHeight, bgColor)
-
-    # Text
-    let prefix = case notif.notifType
-      of ntInfo: "[LOG] "
-      of ntWarning: "[WARN] "
-      of ntError: "[ERR] "
-      of ntCritical: "[CRITICAL] "
-
-    let textColor = case notif.notifType
-      of ntInfo: Color(r: 150, g: 200, b: 255, a: alpha)
-      of ntWarning: Color(r: 255, g: 200, b: 100, a: alpha)
-      of ntError: Color(r: 255, g: 100, b: 100, a: alpha)
-      of ntCritical: Color(r: 255, g: 50, b: 50, a: alpha)
-
-    drawText(prefix & notif.message, logX + 8, yOffset + 8, 14, textColor)
-
-    yOffset -= logHeight + 5
-    if yOffset < screenHeight div 2:
-      break  # Don't draw too many
-
-    i -= 1

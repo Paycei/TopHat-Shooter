@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, algorithm
-import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, boss_weakpoints, anticheat
+import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, boss_weakpoints
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
@@ -102,7 +102,6 @@ proc cleanupGame*(game: Game) =
     game.player.rotatingOrbs = @[]
 
 proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0, particleSkin: int = 0, bulletShape: int = 0): Game =
-  resetIntegritySnapshot()  # SACE: fresh last-good baseline; repopulates on first scanned frame
   let defaultMode = gmWaveBased  # Default to wave-based mode
   let modeDef = getGameModeDefinition(defaultMode)
 
@@ -535,7 +534,7 @@ proc completeBossWave*(game: Game) =
     # First-ever victory unlocks the secret kernel tophat cosmetic. It is
     # equipped by default (and immediately, so it shows in endless) and can be
     # toggled off in the shop's SECRET tab.
-    if runIsLegit(game) and not globalSettings.isNil and not globalSettings.kernelTophatUnlocked:
+    if not game.cheatsUsed and not globalSettings.isNil and not globalSettings.kernelTophatUnlocked:
       globalSettings.kernelTophatUnlocked = true
       globalSettings.kernelTophatEquipped = true
       globalSettings.cheaterHatEquipped = false
@@ -555,11 +554,10 @@ proc completeBossWave*(game: Game) =
 
   # Unlock Roguelite when the wave-20 boss (custom boss number 4) is defeated
   elif getCustomBossNumber(completedWave) == 4:
-    if runIsLegit(game) and not globalSettings.isNil and not globalSettings.rogueliteUnlocked:
+    if not game.cheatsUsed and not globalSettings.isNil and not globalSettings.rogueliteUnlocked:
       globalSettings.rogueliteUnlocked = true
       discard saveSettings(globalSettings)
-      addNotification(game.osHUD, t(tkGameModeUnlocked) & " " & t(tkRogueliteUnlockedNotif), ntCritical)
-      globalSettings.pendingRogueliteUnlockToast = true
+      game.pendingToasts.add(t(tkGameModeUnlocked) & " " & t(tkRogueliteUnlockedNotif))
     game.state = gsPowerUpSelect
 
   else:
@@ -1884,11 +1882,6 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # Show heal damage number
         showDamage(game, game.player.pos, 1.0, true, false, dtHeal)
 
-      if game.player.kills == 1:
-        discard unlockAchievement(game.dopamine.achievements, "first_blood")
-      if game.player.kills == 100:
-        discard unlockAchievement(game.dopamine.achievements, "centurion")
-
       recordKill(game.dopamine.realTimeStats)
 
       if enemy.isBoss:
@@ -2010,7 +2003,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       if enemy.isBoss:
         bossDefeated = true
         # Remember this boss so its full phase layout may be revealed next time.
-        if globalStats != nil and runIsLegit(game) and enemy.bossDefinitionID > 0 and
+        if globalStats != nil and not game.cheatsUsed and enemy.bossDefinitionID > 0 and
            not globalStats.hasDefeatedBoss(enemy.bossDefinitionID):
           globalStats.markBossDefeated(enemy.bossDefinitionID)
           discard saveStatistics(globalStats)
@@ -2021,11 +2014,6 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         else:
           game.bossWaveManager.clearBossWave()
           game.bossTimer = TIME_SURVIVAL_BOSS_INTERVAL
-
-        # Count total bosses defeated from game state
-        var totalBossesDefeated = game.bossCount
-        if totalBossesDefeated >= 10:
-          discard unlockAchievement(game.dopamine.achievements, "boss_slayer")
 
         # Mode-specific boss defeat handling - NO longer advance wave here
         # Wave will advance when boss coin is collected
@@ -2560,8 +2548,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     markBossRoomCleared(game)
     completeRogueliteBoss(game)
     if not survivalWasUnlocked and not globalSettings.isNil and globalSettings.survivalUnlocked:
-      addNotification(game.osHUD, t(tkGameModeUnlocked) & " " & t(tkSurvivalUnlockedNotif), ntCritical)
-      globalSettings.pendingSurvivalUnlockToast = true
+      game.pendingToasts.add(t(tkGameModeUnlocked) & " " & t(tkSurvivalUnlockedNotif))
     let shardDelta = game.rogueliteRun.shardsEarned - prevShards
     let coreDelta  = game.rogueliteRun.coresEarned  - prevCores
     if shardDelta > 0:
@@ -3833,17 +3820,10 @@ proc updateGame*(game: var Game, dt: float32) =
     updateDeathSequencePlayback(game, dt)
     return
 
-  # SACE: per-frame sanity scan of player-critical values (catches external memory
-  # editors) plus surfacing any queued integrity notices (including load-time
-  # save-tamper detections) into the in-game notification panel.
-  scanRuntimeIntegrity(game)
-  drainIntegrityNotices(game)
-
   updateDopamine(game.dopamine, dt)
 
   let celebrationActive = updateCelebration(game.dopamine.waveCelebration, dt)
   let introActive = updateIntroduction(game.dopamine.bossIntro, dt)
-  updateAchievements(game.dopamine.achievements, dt)
 
   # If wave celebration is active, pause the game completely and return early
   if celebrationActive:
@@ -4559,9 +4539,6 @@ proc drawGame*(game: Game) =
     if game.state notin {gsShop, gsPowerUpSelect}:
       game.recentPowerUpTimer = max(0.0'f32, game.recentPowerUpTimer - dt)
 
-  # Draw action log (notifications)
-  drawActionLog(game.osHUD, game.screenWidth, game.screenHeight)
-
   # Kill streak system removed - now only combo system is used
   if globalSettings == nil or globalSettings.showHints:
     drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.dopamine.currentTime)
@@ -4578,7 +4555,6 @@ proc drawGame*(game: Game) =
 
   drawWaveCelebration(game.dopamine.waveCelebration, game.screenWidth, game.screenHeight)
   drawBossIntroduction(game.dopamine.bossIntro, game.screenWidth, game.screenHeight)
-  drawAchievementPopup(game.dopamine.achievements, game.screenWidth, game.screenHeight)
 
   if game.comebackBonusActive:
     let pulse = (sin(game.time * 2.5) * 0.15 + 0.85).float32

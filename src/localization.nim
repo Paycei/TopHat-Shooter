@@ -466,9 +466,6 @@ type
     tkNotifInstalled = "notif_installed"
     tkNotifIntegrityCompromised = "notif_integrity_compromised"
     tkNotifIntegrityRestored = "notif_integrity_restored"
-    tkNotifAntiCheatTampered = "notif_anticheat_tampered"
-    tkNotifAntiCheatReverted = "notif_anticheat_reverted"
-    tkNotifAntiCheatRuntime = "notif_anticheat_runtime"
     tkNotifResourceAcquired = "notif_resource_acquired"
     tkNotifExecute = "notif_execute"
     tkNotifCooldown = "notif_cooldown"
@@ -1254,9 +1251,6 @@ type
     tkWaveCelebTime = "wave_celeb_time"
     tkWaveCelebCoins = "wave_celeb_coins"
     tkWaveCelebMaxCombo = "wave_celeb_max_combo"
-
-    # Achievement popup (d_enhancements)
-    tkAchievementUnlocked = "achievement_unlocked"
 
     # Real-time stats overlay (d_enhancements)
     tkRealStatsPower = "real_stats_power"
@@ -2078,9 +2072,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "wave_celeb_coins": "Coins Earned",
     "wave_celeb_max_combo": "Max Combo",
 
-    # Achievement popup
-    "achievement_unlocked": "ACHIEVEMENT UNLOCKED!",
-
     # Real-time stats overlay
     "real_stats_power": "Power",
     "real_stats_dps": "DPS",
@@ -2488,9 +2479,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "notif_installed": "Installed:",
     "notif_integrity_compromised": "Integrity compromised: -",
     "notif_integrity_restored": "System integrity restored: +",
-    "notif_anticheat_tampered": "SACE: save integrity violation detected",
-    "notif_anticheat_reverted": "SACE: tampered data reverted to last valid state",
-    "notif_anticheat_runtime": "SACE: anomalous values detected - run flagged",
     "notif_resource_acquired": "Resource acquired: +",
     "notif_execute": "> EXECUTE:",
     "notif_cooldown": "cooldown:",
@@ -3275,8 +3263,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_chain_reaction_desc2": "30% chance per kill to drop a bonus coin.",
     "powerup_chain_reaction_desc3": "40% chance per kill to drop a bonus coin.",
     "powerup_kernel_exploit_desc":  "LEGENDARY: Defeating a boss grants +20% permanent damage.",
-    # Discovery banner
-    "new_process_installed":   "NEW PROCESS INSTALLED"
+    "new_process_installed":   "NEW PROCESS DISCOVERED"
   }.toTable,
 
   Spanish: {
@@ -4097,9 +4084,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "notif_installed": "Instalado:",
     "notif_integrity_compromised": "Integridad comprometida: -",
     "notif_integrity_restored": "Integridad del sistema restaurada: +",
-    "notif_anticheat_tampered": "SACE: violacion de integridad de guardado detectada",
-    "notif_anticheat_reverted": "SACE: datos manipulados revertidos al ultimo estado valido",
-    "notif_anticheat_runtime": "SACE: valores anomalos detectados - partida marcada",
     "notif_resource_acquired": "Recurso adquirido: +",
     "notif_execute": "> EJECUTAR:",
     "notif_cooldown": "enfriamiento:",
@@ -4481,9 +4465,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "wave_celeb_time": "Tiempo",
     "wave_celeb_coins": "Monedas Ganadas",
     "wave_celeb_max_combo": "Combo Máximo",
-
-    # Achievement popup
-    "achievement_unlocked": "¡LOGRO DESBLOQUEADO!",
 
     # Real-time stats overlay
     "real_stats_power": "Poder",
@@ -5014,8 +4995,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_chain_reaction_desc2": "30% de probabilidad por eliminación de obtener una moneda extra.",
     "powerup_chain_reaction_desc3": "40% de probabilidad por eliminación de obtener una moneda extra.",
     "powerup_kernel_exploit_desc":  "LEGENDARIO: Derrotar a un jefe otorga +20% de daño permanente.",
-    # Discovery banner
-    "new_process_installed":   "NUEVO PROCESO INSTALADO"
+    "new_process_installed":   "NUEVO PROCESO DESCUBIERTO"
   }.toTable
 }.toTable
 

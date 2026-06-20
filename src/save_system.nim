@@ -1,7 +1,7 @@
 import json, os, std/tables, strutils
 import raylib
 import particle_types
-import run_statistics, types, anticheat
+import run_statistics, types
 
 # Settings type definition (moved from settings_types.nim)
 type
@@ -62,8 +62,6 @@ type
     hasSeenSandboxIntro*: bool     # First-time sandbox mode intro played
     hasSeenPvPIntro*: bool         # First-time pvp mode intro played
     discoveredPowerUps*: seq[string] # Power-ups seen for the first time (name-serialized)
-    pendingRogueliteUnlockToast*: bool  # Runtime-only: show desktop toast on next menu visit
-    pendingSurvivalUnlockToast*: bool   # Runtime-only: show desktop toast on next menu visit
 
 # Get AppData directory path
 proc getAppDataPath*(): string =
@@ -302,27 +300,23 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =
-  # SACE: signed + .bak-mirrored so external edits to settings.json (which holds
-  # cosmetic unlock flags) are detectable and revertible on the next load.
   let savePath = getSettingsPath()
-  if writeSignedJson(savePath, settingsToJson(settings)):
+  try:
+    writeFile(savePath, settingsToJson(settings).pretty())
     echo "Settings saved successfully to ", savePath
     return true
-  echo "Error saving settings to ", savePath
-  return false
+  except CatchableError:
+    echo "Error saving settings to ", savePath
+    return false
 
 # Load Settings from file
 proc loadSettings*(settings: Settings): bool =
   let savePath = getSettingsPath()
-  let (node, status) = readVerifiedJson(savePath)
-  handleLoadStatus(savePath, "settings", status)
-  if node.isNil:
+  if not fileExists(savePath):
     echo "No save file found at ", savePath, ", using default settings"
     return false
   try:
-    # On tamper this node is the reverted .bak (last legitimate save) when one
-    # exists; otherwise the original values, but the run is already flagged.
-    jsonToSettings(node, settings)
+    jsonToSettings(parseJson(readFile(savePath)), settings)
     echo "Settings loaded successfully from ", savePath
     return true
   except Exception as e:

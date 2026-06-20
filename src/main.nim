@@ -1,7 +1,7 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import particle_types
 import game/combat, game/death
-import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, anticheat, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
 
 # Global quit-confirmation dialog
 
@@ -402,7 +402,7 @@ proc main() =
   # Retroactive grant: players who earned Escape Velocity before the orbital
   # cube cosmetic existed receive it (equipped by default) on next launch.
   if isAdvancementUnlocked(advancementProfile, CubeEscapeAdvancementId) and
-     not settings.orbitalCubeUnlocked and not integrityCompromised:
+     not settings.orbitalCubeUnlocked:
     settings.orbitalCubeUnlocked = true
     settings.orbitalCubeEquipped = true
     discard saveSettings(settings)
@@ -507,7 +507,7 @@ proc main() =
       setActiveRogueliteProfile(game.rogueliteProfile)
 
     # Save lifetime statistics only once per run
-    if not statsSavedThisGame and runIsLegit(game):
+    if not statsSavedThisGame and not game.cheatsUsed:
       let bossesKilled = if not currentRunStats.isNil:
         currentRunStats.combat.bossKills
       else:
@@ -843,7 +843,7 @@ proc main() =
       # Cube knocked out of orbit by sustained fast spinning: grant the one-time advancement
       if osDesktop.cubeEscapeTriggered:
         osDesktop.cubeEscapeTriggered = false
-        if not integrityCompromised and unlockAdvancementDirectly(advancementProfile, CubeEscapeAdvancementId):
+        if unlockAdvancementDirectly(advancementProfile, CubeEscapeAdvancementId):
           discard saveAdvancements(advancementProfile)
           if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
             globalWindowManager.advancements.profile = advancementProfile
@@ -867,14 +867,6 @@ proc main() =
           showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
                            unlockedDef.name)
 
-      # Surface queued game-mode unlock notifications as desktop toasts.
-      if not globalConfirmActive:
-        if settings.pendingRogueliteUnlockToast:
-          settings.pendingRogueliteUnlockToast = false
-          showDesktopToast(osDesktop, t(tkGameModeUnlocked) & " " & t(tkRogueliteUnlockedNotif))
-        if settings.pendingSurvivalUnlockToast:
-          settings.pendingSurvivalUnlockToast = false
-          showDesktopToast(osDesktop, t(tkGameModeUnlocked) & " " & t(tkSurvivalUnlockedNotif))
 
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
       let action = if not mouseOverWindow and not globalConfirmActive: handleDesktopInput(osDesktop, currentGame) else: -1
@@ -1554,8 +1546,12 @@ proc main() =
         else:
           updateGame(currentGame, dt)
 
-      # Mid-run advancement sync: surface unlocks instantly through the HUD
-      # action log instead of waiting for the game-over stats save.
+      # Drain subsystem-queued toasts (power-up installs, unlocks).
+      for msg in currentGame.pendingToasts:
+        showDesktopToast(osDesktop, msg)
+      currentGame.pendingToasts.setLen(0)
+
+      # Mid-run advancement sync: surface unlocks as desktop toasts.
       if not cheatMenu.active and not globalConfirmActive and
          not isSandboxMode(currentGame.mode) and not currentRunStats.isNil:
         advancementSyncTimer += dt
@@ -1565,9 +1561,7 @@ proc main() =
                                              rogueliteProfile, liveRun = true)
           if liveUnlocks.len > 0:
             for unlockedDef in liveUnlocks:
-              addNotification(currentGame.osHUD,
-                              t(tkDesktopAdvancementUnlocked) & ": " & unlockedDef.name,
-                              ntCritical)
+              showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " & unlockedDef.name)
               # Already announced in-game; don't re-toast it on the desktop later.
               let queueIdx = advancementProfile.recentUnlocks.find(unlockedDef.id)
               if queueIdx >= 0:
@@ -1604,6 +1598,10 @@ proc main() =
           let textWidth = measureText(text, 30)
           drawText(text, screenWidth div 2 - textWidth div 2,
                   screenHeight div 2, 30, White)
+
+      # Desktop toasts overlay (advancement unlocks etc.)
+      tickDesktopToasts(osDesktop, dt)
+      drawDesktopToastsOverlay(osDesktop, screenWidth, screenHeight)
 
       # Draw custom cursor during gameplay (after dialogs so it appears on top)
       drawCustomCursor(currentGame.time)
@@ -2191,6 +2189,12 @@ proc main() =
           currentGame.state = gsShop
           currentGame.shopSidebarScroll = 0
 
+      updateOSHUD(currentGame.osHUD, dt)
+      tickDesktopToasts(osDesktop, dt)
+      for msg in currentGame.pendingToasts:
+        showDesktopToast(osDesktop, msg)
+      currentGame.pendingToasts.setLen(0)
+
       if isPowerUpPoolExhausted(currentGame.player, isLegendaryRound, allowedFamiliesForDraft, currentGame.mode):
         playMusic(mtPowerUp)
 
@@ -2227,6 +2231,7 @@ proc main() =
         if globalConfirmActive:
           let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
           if r == 1: windowCloseRequested = true
+        drawDesktopToastsOverlay(osDesktop, screenWidth, screenHeight)
         drawCustomCursor(currentGame.time)
         endGameDrawing()
 
@@ -2360,6 +2365,7 @@ proc main() =
           let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
           if r == 1: windowCloseRequested = true
 
+        drawDesktopToastsOverlay(osDesktop, screenWidth, screenHeight)
         drawCustomCursor(currentGame.time)
         endGameDrawing()
 

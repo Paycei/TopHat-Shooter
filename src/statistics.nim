@@ -1,5 +1,6 @@
 import json, times
-import save_system, types, anticheat
+import os
+import save_system, types
 
 type
   GameModeStats* = object
@@ -255,24 +256,22 @@ proc hasDefeatedBoss*(stats: Statistics, bossDefinitionID: int): bool =
 
 # SAVE/LOAD
 proc saveStatistics*(stats: Statistics): bool =
-  # SACE: lifetime stats are signed + .bak-mirrored so a hand-edited stats.json
-  # is caught on load and reverted to the last legitimate snapshot.
   let savePath = getStatsPath()
-  if writeSignedJson(savePath, statisticsToJson(stats)):
+  try:
+    writeFile(savePath, statisticsToJson(stats).pretty())
     echo "Statistics saved successfully to ", savePath
     return true
-  echo "Error saving statistics to ", savePath
-  return false
+  except CatchableError:
+    echo "Error saving statistics to ", savePath
+    return false
 
 proc loadStatistics*(stats: Statistics): bool =
   let savePath = getStatsPath()
-  let (node, status) = readVerifiedJson(savePath)
-  handleLoadStatus(savePath, "statistics", status)
-  if node.isNil:
+  if not fileExists(savePath):
     echo "No statistics file found at ", savePath, ", using default stats"
     return false
   try:
-    jsonToStatistics(node, stats)
+    jsonToStatistics(parseJson(readFile(savePath)), stats)
     echo "Statistics loaded successfully from ", savePath
     return true
   except Exception as e:

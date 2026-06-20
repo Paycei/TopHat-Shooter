@@ -2192,6 +2192,44 @@ proc showDesktopToast*(desktop: OSDesktop, text: string) =
     desktop.toasts.delete(0)
   desktop.toasts.add(DesktopToast(text: text, timer: 5.0'f32))
 
+proc tickDesktopToasts*(desktop: OSDesktop, dt: float32) =
+  ## Tick toast timers outside the full desktop update (e.g. during gameplay).
+  if desktop.isNil or desktop.toasts.len == 0: return
+  var newToasts: seq[DesktopToast] = @[]
+  for t in desktop.toasts:
+    var nt = t
+    nt.timer = max(0.0'f32, nt.timer - dt)
+    if nt.timer > 0.0'f32:
+      newToasts.add(nt)
+  desktop.toasts = newToasts
+
+proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int32) =
+  ## Draw the toast stack in the bottom-right corner without the full desktop frame.
+  if desktop.isNil or desktop.toasts.len == 0: return
+  let toastH = 52'i32
+  let spacing = 8'i32
+  let numberToDraw = min(desktop.toasts.len, MAX_DESKTOP_TOASTS)
+  var j = 0
+  while j < numberToDraw:
+    let idx = desktop.toasts.len - 1 - j
+    let toast = desktop.toasts[idx]
+    let fade = min(1.0'f32, toast.timer / 0.6'f32)
+    let alpha = uint8(255.0'f32 * fade)
+    let toastW = max(260'i32, measureText(toast.text, 16) + 64)
+    let toastX = int32(screenWidth - toastW - 16)
+    let toastY = int32(screenHeight - toastH - 14 - j * (toastH + spacing))
+    drawRectangle(toastX, toastY, toastW, toastH,
+                  Color(r: 12, g: 22, b: 34, a: uint8(232.0'f32 * fade)))
+    drawRectangleLines(Rectangle(x: toastX.float32, y: toastY.float32,
+                                 width: toastW.float32, height: toastH.float32), 2,
+                       Color(r: 255, g: 210, b: 80, a: alpha))
+    drawHexBadge(toastX + 26, toastY + toastH div 2, 14.0,
+                 Color(r: 60, g: 44, b: 8, a: uint8(220.0'f32 * fade)),
+                 Color(r: 255, g: 210, b: 80, a: alpha))
+    drawText(toast.text, toastX + 48, toastY + (toastH - 16) div 2, 16,
+             Color(r: 235, g: 245, b: 255, a: alpha))
+    inc j
+
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
   ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements
   ## Returns -1 if no action

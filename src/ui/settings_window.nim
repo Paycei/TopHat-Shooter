@@ -297,6 +297,35 @@ proc resetRogueliteLastRunProgress(): bool =
     return deleteLastRunStats()
   true
 
+proc resetProgressSettings(settings: Settings): bool =
+  if settings.isNil:
+    return false
+  settings.hasSeenIntro = false
+  settings.hasSeenEnding = false
+  settings.kernelTophatUnlocked = false
+  settings.kernelTophatEquipped = false
+  settings.orbitalCubeUnlocked = false
+  settings.orbitalCubeEquipped = false
+  settings.cheaterHatUnlocked = false
+  settings.cheaterHatEquipped = false
+  settings.rogueliteUnlocked = false
+  settings.survivalUnlocked = false
+  settings.lastDeathWave = 0
+  settings.hasSeenWaveModeIntro = false
+  settings.hasSeenSurvivalIntro = false
+  settings.hasSeenRogueliteIntro = false
+  settings.hasSeenSandboxIntro = false
+  settings.hasSeenPvPIntro = false
+  settings.discoveredPowerUps = @[]
+  return saveSettings(settings)
+
+proc resetRogueliteProgressSettings(settings: Settings): bool =
+  if settings.isNil:
+    return false
+  settings.rogueliteUnlocked = false
+  settings.hasSeenRogueliteIntro = false
+  return saveSettings(settings)
+
 proc performResetAction(settingsWin: SettingsWindow, action: SettingsResetAction): bool =
   result = true
   case action
@@ -306,6 +335,7 @@ proc performResetAction(settingsWin: SettingsWindow, action: SettingsResetAction
       result = resetAdvancements(settingsWin.advancementProfile) and result
     if not settingsWin.rogueliteProfile.isNil:
       result = resetRogueliteProfile(settingsWin.rogueliteProfile) and result
+    result = resetProgressSettings(settingsWin.settings) and result
   of sraAdvancements:
     if not settingsWin.advancementProfile.isNil:
       result = resetAdvancements(settingsWin.advancementProfile) and result
@@ -317,6 +347,7 @@ proc performResetAction(settingsWin: SettingsWindow, action: SettingsResetAction
       result = resetRogueliteLastRunProgress() and result
       if not settingsWin.advancementProfile.isNil:
         result = resetAdvancementCategory(settingsWin.advancementProfile, acRoguelite) and result
+      result = resetRogueliteProgressSettings(settingsWin.settings) and result
     else:
       result = false
   of sraNone:

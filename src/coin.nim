@@ -212,9 +212,6 @@ proc updateGameCoins*(game: Game, dt: float32): bool =
 
       recordCoin(game.dopamine.realTimeStats, game.dopamine.currentTime)
       recordCoin(game.dopamine.waveStats)
-      if game.player.coins >= 1000:
-        discard unlockAchievement(game.dopamine.achievements, "wealthy")
-
       playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
       let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold
       spawnExplosionPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, coinParticleColor, if isBossCoin: 20 else: 6)

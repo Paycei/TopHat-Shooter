@@ -1,6 +1,6 @@
-import raylib, rlgl, random, math, types, settings, save_system, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, d_enhancements, gamemode_definitions, run_statistics, enemy_config, localization
+import raylib, rlgl, random, math, types, settings, save_system, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization
 import game/bullets
-import ui/os_hud, ui/icon_drawing
+import ui/icon_drawing
 import utils
 export utils
 
@@ -46,10 +46,7 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
   game.recentPowerUpTimer = game.recentPowerUpMaxTimer
   let notifMsg = if isNewDiscovery: t(tkNewProcessInstalled) & ": " & powerUpName
                  else: t(tkNotifInstalled) & " " & powerUpName
-  let notifType = if powerUp.rarity == prLegendary: ntCritical
-                  elif isNewDiscovery: ntWarning
-                  else: ntInfo
-  addNotification(game.osHUD, notifMsg, notifType)
+  game.pendingToasts.add(notifMsg)
   addShake(game.dopamine.screenShake, siPowerUp, accent)
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                        accent, if powerUp.rarity == prLegendary: 72 else: 46)
@@ -272,7 +269,6 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
   game.frameCount += 1
 
   updateDopamine(game.dopamine, worldDt)
-  updateAchievements(game.dopamine.achievements, worldDt)
   updateLightningBolts(game, worldDt)
 
   var i = 0
