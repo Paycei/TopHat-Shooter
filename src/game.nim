@@ -473,17 +473,6 @@ proc checkWaveComplete(game: Game): bool =
   # AND boss coin has been collected (if there was one)
   return game.waveEnemiesRemaining == 0 and game.enemies.len == 0 and not game.bossWaveManager.isBossCoinActive()
 
-proc advanceWave(game: Game) =
-  game.currentWave += 1
-  game.wavesUntilBoss -= 1
-
-  if game.comebackBonusActive and game.currentWave >= game.comebackEndWave:
-    removeComebackBonus(game)
-
-  # Check if it's time for a boss (every 5 waves now)
-  if game.wavesUntilBoss == 0:
-    game.wavesUntilBoss = 4  # Reset counter - boss every 5 waves
-    # Boss wave will be triggered in update loop
 
 # ===== boss waves (was src/game/boss_waves.nim) =====
 # (BossWaveManager accessors are hoisted above the lifecycle section so the
@@ -4787,23 +4776,3 @@ proc drawGameOver*(game: Game) =
 proc drawVictory*(game: Game) =
   # OS-style "system secured" congratulations screen (wave-60 final boss cleared)
   drawSystemSecured(game, game.selectedVictoryButton)
-
-proc drawWaveTransition(game: Game) =
-  # Draw the game in background
-  drawGame(game)
-
-  # Dark overlay
-  drawRectangle(0, 0, game.screenWidth, game.screenHeight, Color(r: 0, g: 0, b: 0, a: 180))
-
-  # Title
-  drawText(t(tkGameGetReady), game.screenWidth div 2 - 120, game.screenHeight div 2 - 80, 50, Yellow)
-
-  # Boss wave notification with wave number
-  let bossWaveText = t(tkGameBossWavePrefix) & $(game.currentWave + 1)
-  let bossTextWidth = measureText(bossWaveText, 35)
-  drawText(bossWaveText, game.screenWidth div 2 - bossTextWidth div 2, game.screenHeight div 2, 35, Red)
-
-  drawText(t(tkGameIncoming), game.screenWidth div 2 - 75, game.screenHeight div 2 + 40, 30, Orange)
-
-  drawText(t(tkGamePressEnterToStart), game.screenWidth div 2 - 130, game.screenHeight - 80, 20, LightGray)
-

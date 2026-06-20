@@ -4,7 +4,6 @@
 import raylib, random, math
 import particle_types
 
-
 const
   DEFAULT_POOL_SIZE* = 2000
   POOL_GROWTH_SIZE* = 500
@@ -153,6 +152,13 @@ proc configureParticle(particle: var Particle, x, y, velX, velY: float32,
   particle.spin = spin
 
 proc reserveParticleSlot(pool: ParticlePool): int =
+  ## Returns the index of a free slot, or -1 if the pool is saturated at
+  ## MAX_POOL_SIZE. At saturation we drop the spawn (O(1)) rather than scanning
+  ## for the youngest particle to recycle: that scan was O(activeCount) on every
+  ## spawn precisely when the frame is already entity-starved, and dropping is
+  ## strictly better under overload (it lowers next-frame update/draw work
+  ## instead of pinning MAX_POOL_SIZE particles alive). At this count the render
+  ## LOD is already simplifying/skipping, so a slightly smaller burst is unseen.
   if pool.activeCount < pool.maxCapacity:
     result = pool.activeCount
     pool.activeCount += 1
@@ -167,17 +173,7 @@ proc reserveParticleSlot(pool: ParticlePool): int =
     pool.activeCount += 1
     return
 
-  var oldestIndex = 0
-  var oldestLifetimeRatio = 2.0'f32
-  for i in 0..<pool.activeCount:
-    let particle = pool.particles[i]
-    let ratio =
-      if particle.maxLifetime > 0: particle.lifetime / particle.maxLifetime
-      else: 0.0'f32
-    if ratio < oldestLifetimeRatio:
-      oldestLifetimeRatio = ratio
-      oldestIndex = i
-  result = oldestIndex
+  result = -1
 
 proc resetParticle(particle: var Particle, x, y: float32, color: Color, speed: float32) =
   ## Reset a particle to new values (for reuse)
@@ -215,6 +211,7 @@ proc acquireParticleDetailed*(pool: ParticlePool, x, y, velX, velY: float32,
                               layer: ParticleLayer = plBackground,
                               rotation: float32 = 0.0, spin: float32 = 0.0): bool =
   let idx = reserveParticleSlot(pool)
+  if idx < 0: return false  # pool saturated, drop the spawn
   configureParticle(pool.particles[idx], x, y, velX, velY, color,
                     lifetime, startSize, endSize, drag, gravity, glow,
                     style, layer, rotation, spin)
@@ -224,6 +221,7 @@ proc acquireParticleDetailed*(pool: ParticlePool, x, y, velX, velY: float32,
 proc acquireParticle*(pool: ParticlePool, x, y: float32, color: Color, speed: float32): bool =
   ## Get a particle from the pool and initialize it
   let idx = reserveParticleSlot(pool)
+  if idx < 0: return false  # pool saturated, drop the spawn
   resetParticle(pool.particles[idx], x, y, color, speed)
   pool.spawnedThisFrame += 1
   true

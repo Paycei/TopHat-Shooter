@@ -728,16 +728,6 @@ proc drawClubSuit(cx, cy, r: float32, col: Color) =
            Vector2(x: cx - r * 0.30'f32, y: cy + r * 0.70'f32),
            Vector2(x: cx + r * 0.30'f32, y: cy + r * 0.70'f32), col)
 
-proc drawCasinoChip(cx, cy, r, time, seed: float32, base: Color) =
-  ## A poker chip: coloured body, six white edge spots, and a lighter inner disc.
-  drawCircle(Vector2(x: cx, y: cy), r, base)
-  let white = Color(r: 240, g: 240, b: 244, a: base.a)
-  for k in 0 ..< 6:
-    let a = k.float32 / 6.0'f32 * PI * 2.0'f32 + time * 0.3'f32 + seed
-    drawCircle(Vector2(x: cx + cos(a) * r * 0.84'f32, y: cy + sin(a) * r * 0.84'f32),
-               r * 0.17'f32, white)
-  drawCircle(Vector2(x: cx, y: cy), r * 0.6'f32, withAlpha(white, alphaU8(0.45'f32 * base.a.float32)))
-  drawCircle(Vector2(x: cx, y: cy), r * 0.5'f32, base)
 
 proc drawSuitAt(kind: int, cx, cy, r: float32, col: Color) =
   ## Dispatch one of the four card suits by index (0 heart, 1 diamond, 2 spade, 3 club).
