@@ -225,33 +225,4 @@ proc drawWaveStartBanner*(waveNumber: int, waveAge: float32,
   # Main
   drawText(waveLabel, textX, textY, fontSize, accentColor)
 
-proc drawNewProcessBanner*(bannerTimer: float32, powerUpName: string,
-                            screenWidth, screenHeight: int32) =
-  ## Slide-in discovery banner: "NEW PROCESS INSTALLED — <name>"
-  ## bannerTimer counts down from 3.5 to 0.
-  const TOTAL_DURATION = 3.5'f32
-  const SLIDE_TIME     = 0.25'f32
-  if bannerTimer <= 0 or bannerTimer > TOTAL_DURATION:
-    return
 
-  let age      = TOTAL_DURATION - bannerTimer  # 0 → 3.5 as time passes
-  let slideIn  = clamp(age / SLIDE_TIME, 0.0'f32, 1.0'f32)
-  let slideOut = clamp(bannerTimer / SLIDE_TIME, 0.0'f32, 1.0'f32)
-  let ease     = slideIn * slideOut
-
-  let bannerH: int32 = 48
-  let bannerY = screenHeight - int32(ease * bannerH.float32)
-  let alpha = uint8(ease * 230)
-
-  drawRectangle(0, bannerY, screenWidth, bannerH,
-                Color(r: 10, g: 40, b: 10, a: uint8(ease * 210)))
-  let accent = Color(r: 80, g: 255, b: 120, a: alpha)
-  drawRectangle(0, bannerY, screenWidth, 2, accent)
-
-  let label    = "[ NEW PROCESS INSTALLED ]  " & powerUpName
-  let fontSize: int32 = 20
-  let textW  = measureText(label, fontSize)
-  let textX  = (screenWidth - textW) div 2
-  let textY  = bannerY + (bannerH - fontSize) div 2
-  drawText(label, textX + 1, textY + 1, fontSize, Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.5)))
-  drawText(label, textX, textY, fontSize, accent)

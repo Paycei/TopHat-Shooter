@@ -4572,7 +4572,6 @@ proc drawGame*(game: Game) =
   drawBossIntroduction(game.dopamine.bossIntro, game.screenWidth, game.screenHeight)
   drawAchievementPopup(game.dopamine.achievements, game.screenWidth, game.screenHeight)
 
-
   if game.comebackBonusActive:
     let pulse = (sin(game.time * 2.5) * 0.15 + 0.85).float32
     let alpha = uint8(clamp(pulse * 230.0, 0.0, 255.0))

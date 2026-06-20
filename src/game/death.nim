@@ -29,9 +29,11 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
   trackPowerUpSelection(game, powerUp)
 
   let powerName = $powerUp.powerType
+  var isNewDiscovery = false
   if not globalSettings.isNil and powerName notin globalSettings.discoveredPowerUps:
     globalSettings.discoveredPowerUps.add(powerName)
     discard saveSettings(globalSettings)
+    isNewDiscovery = true
 
   let accent = if powerUp.rarity == prLegendary:
     Color(r: 255, g: 215, b: 0, a: 255)
@@ -42,8 +44,12 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
   game.recentPowerUp = powerUp
   game.recentPowerUpMaxTimer = if powerUp.rarity == prLegendary: 5.0'f32 else: 4.0'f32
   game.recentPowerUpTimer = game.recentPowerUpMaxTimer
-  addNotification(game.osHUD, t(tkNotifInstalled) & " " & powerUpName,
-                  if powerUp.rarity == prLegendary: ntCritical else: ntInfo)
+  let notifMsg = if isNewDiscovery: t(tkNewProcessInstalled) & ": " & powerUpName
+                 else: t(tkNotifInstalled) & " " & powerUpName
+  let notifType = if powerUp.rarity == prLegendary: ntCritical
+                  elif isNewDiscovery: ntWarning
+                  else: ntInfo
+  addNotification(game.osHUD, notifMsg, notifType)
   addShake(game.dopamine.screenShake, siPowerUp, accent)
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                        accent, if powerUp.rarity == prLegendary: 72 else: 46)

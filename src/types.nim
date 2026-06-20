@@ -1174,8 +1174,6 @@ type
     wallPlacementMode*: bool   # Whether the player is in wall-placement mode (E toggles, RMB/walls=0 exits)
     comebackBonusActive*: bool  # True while the +10% comeback stat bonus is in effect
     comebackEndWave*: int        # Wave number at which the comeback bonus expires (copied from settings on run start)
-    newProcessBannerTimer*: float32  # Countdown for the "new power-up discovered" banner (0 = hidden)
-    newProcessBannerName*: string    # Power-up name shown in the discovery banner
 
 proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
   AttackWarning(
