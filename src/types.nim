@@ -566,6 +566,12 @@ type
     realTargetIndex*: int
     lastBossPos*: Vector2f
 
+  DamageAccumulator* = object
+    total*: float32
+    lastTime*: float32
+    damageType*: DamageType
+    hadCrit*: bool
+
   Enemy* = ref object
     id*: int                      # Unique identifier for tracking bullet hits
     pos*: Vector2f
@@ -652,12 +658,8 @@ type
     ignoreHealPending*: float32     # Queued heal from weak-point targets that expired unhit (applied next frame)
     windowDamageDealt*: float32     # Player damage dealt during the current vulnerability window
     windowWasOpen*: bool            # Tracks vulnerability-window open->close edge for heal-on-ignore
-    auraDamageAccumulator*: float32  # Accumulates aura damage over time
-    lastAuraDamageNumberTime*: float32  # Last time a damage number was shown for auras
-    auraDamageHadCrit*: bool  # Track if any crit occurred during accumulation period
-    lastAuraDamageType*: DamageType  # Track the damage type of accumulated aura damage
-    contactDamageAccumulator*: float32  # Accumulates contact damage over time
-    lastContactDamageNumberTime*: float32  # Last time a damage number was shown for contact
+    auraAcc*: DamageAccumulator
+    contactAcc*: DamageAccumulator
     damageTuning*: float32  # Dungeon: attack-damage compression factor (0 or 1 = untouched)
 
   Bullet* = ref object

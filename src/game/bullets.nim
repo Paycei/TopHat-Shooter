@@ -64,6 +64,12 @@ type
     hasMastery*: bool
     level*: int
 
+proc dotEffectDamage(level: int): float32 =
+  case level
+  of 1: 1.0'f32
+  of 2: 1.5'f32
+  else: 2.0'f32
+
 proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
   ## Extract all active bullet effects from a bullet
   result = @[]
@@ -82,35 +88,15 @@ proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
 
   # Poison effect
   if bullet.poisonDuration > 0 and hasPowerUp(game.player, puPoisonShot):
-    let poisonLevel = getPowerUpLevel(game.player, puPoisonShot)
-    let poisonDmg = case poisonLevel
-      of 1: 1.0
-      of 2: 1.5
-      else: 2.0
-
-    result.add(BulletEffect(
-      effectType: befPoison,
-      baseDamage: poisonDmg,
-      duration: bullet.poisonDuration,
-      hasMastery: game.player.hasPoisonMastery,
-      level: poisonLevel
-    ))
+    let lvl = getPowerUpLevel(game.player, puPoisonShot)
+    result.add(BulletEffect(effectType: befPoison, baseDamage: dotEffectDamage(lvl),
+      duration: bullet.poisonDuration, hasMastery: game.player.hasPoisonMastery, level: lvl))
 
   # Fire effect
   if bullet.fireDuration > 0 and hasPowerUp(game.player, puFireBullets):
-    let fireLevel = getPowerUpLevel(game.player, puFireBullets)
-    let fireDmg = case fireLevel
-      of 1: 1.0
-      of 2: 1.5
-      else: 2.0
-
-    result.add(BulletEffect(
-      effectType: befFire,
-      baseDamage: fireDmg,
-      duration: bullet.fireDuration,
-      hasMastery: game.player.hasFireMastery,
-      level: fireLevel
-    ))
+    let lvl = getPowerUpLevel(game.player, puFireBullets)
+    result.add(BulletEffect(effectType: befFire, baseDamage: dotEffectDamage(lvl),
+      duration: bullet.fireDuration, hasMastery: game.player.hasFireMastery, level: lvl))
 
   # Wind effect
   if bullet.windPushForce > 0 and hasPowerUp(game.player, puWindBullets):

@@ -1,6 +1,6 @@
 import raylib, math
 import particle_types
-import types, bullet_skins, bullet_shapes
+import types, bullet_skins, bullet_shapes, utils
 
 ## Boss ID -> bullet shape index. 0=circle, 1=diamond, 2=triangle, 3=star, 4=cross, 5=square
 const bossBulletShapeTable = [
@@ -22,18 +22,12 @@ const bossBulletShapeTable = [
 proc bossBulletShapeFor*(bossId: int): int =
   if bossId in 1..12: bossBulletShapeTable[bossId] else: 0
 
-proc clampColorChannel(value: int): uint8 =
-  uint8(clamp(value, 0, 255))
-
-proc withAlpha(color: Color, alpha: int): Color =
-  Color(r: color.r, g: color.g, b: color.b, a: clampColorChannel(alpha))
-
 proc shiftColor(color: Color, delta: int, alpha: int = -1): Color =
   Color(
-    r: clampColorChannel(color.r.int + delta),
-    g: clampColorChannel(color.g.int + delta),
-    b: clampColorChannel(color.b.int + delta),
-    a: if alpha >= 0: clampColorChannel(alpha) else: color.a
+    r: clampByte(color.r.int + delta),
+    g: clampByte(color.g.int + delta),
+    b: clampByte(color.b.int + delta),
+    a: if alpha >= 0: clampByte(alpha) else: color.a
   )
 
 proc drawNgon(cx, cy, r: float32, n: int, rotation: float32, color: Color) =

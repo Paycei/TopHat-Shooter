@@ -2,7 +2,7 @@
 ## Merges status and info panels into one compact, non-intrusive display
 
 import raylib, math
-import ../types, ../localization, ../powerup_data, ../roguelite, ../dungeon, ui_constants, ../render_context, icon_drawing
+import ../types, ../localization, ../powerup_data, ../roguelite, ../dungeon, ui_constants, ../render_context, icon_drawing, ../utils
 
 const
   COMBINED_PANEL_WIDTH = 238
@@ -20,12 +20,6 @@ var leftPanelMinimized* = false
 var leftPanelPos* = Vector2(x: 10, y: 2)  # Default position
 var leftPanelDragging* = false
 var leftPanelDragOffset* = Vector2(x: 0, y: 0)
-
-proc clampByte(value: int): uint8 =
-  uint8(max(0, min(255, value)))
-
-proc withAlpha(color: Color, alpha: int): Color =
-  Color(r: color.r, g: color.g, b: color.b, a: clampByte(alpha))
 
 proc bestFitPanelFontSize(text: string, maxWidth, fontSize: int32, minSize: int32 = 6): int32 =
   result = fontSize

@@ -70,7 +70,7 @@ proc canStartNewWave*(manager: BossWaveManager): bool =
   not manager.active and not manager.coinActive
 
 proc canSpawnBoss*(manager: BossWaveManager): bool =
-  not manager.active and not manager.coinActive
+  manager.canStartNewWave()
 
 proc isBossActive*(manager: BossWaveManager): bool = manager.active
 
@@ -982,10 +982,12 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       of 2: 0.45  # NERFED from 65% to 45% slow
       else: 0.55  # NERFED from 75% to 55% slow
     let slowRadius = getAuraRadius(level)
+    let slowRadiusSq = slowRadius * slowRadius
 
     for enemy in game.enemies:
-      let dist = distance(game.player.pos, enemy.pos)
-      if dist < slowRadius:
+      let sdx = game.player.pos.x - enemy.pos.x
+      let sdy = game.player.pos.y - enemy.pos.y
+      if sdx * sdx + sdy * sdy < slowRadiusSq:
         # Apply slow effect
         enemy.slowTimer = 0.2  # Refresh slow duration
         enemy.slowAmount = slowPercent
@@ -1013,10 +1015,12 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       of 2: 2.5
       else: 5.0
     let fireRadius = getAuraRadius(level)
+    let fireRadiusSq = fireRadius * fireRadius
 
     for enemy in game.enemies:
-      let dist = distance(game.player.pos, enemy.pos)
-      if dist < fireRadius:
+      let fdx = game.player.pos.x - enemy.pos.x
+      let fdy = game.player.pos.y - enemy.pos.y
+      if fdx * fdx + fdy * fdy < fireRadiusSq:
         applyMasteryDoT(enemy, etFire, fireDamagePerSec, fireDuration,
                         game.player.hasFireMastery,
                         masteryDmgMult = 2.5, masteryDurMult = 2.0,
@@ -1139,12 +1143,15 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
     if game.player.hasArcaneMastery:
       arcaneDamagePerSec *= 2.0  # +100% damage
 
+    let arcaneRadiusSq = arcaneRadius * arcaneRadius
+
     # Calculate combat stats once before loop
     let arcaneStats = calculateCombatStats(game.player)
 
     for enemy in game.enemies:
-      let dist = distance(game.player.pos, enemy.pos)
-      if dist < arcaneRadius:
+      let adx = game.player.pos.x - enemy.pos.x
+      let ady = game.player.pos.y - enemy.pos.y
+      if adx * adx + ady * ady < arcaneRadiusSq:
         let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(arcaneStats, arcaneDamagePerSec * dt)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
 
@@ -1175,10 +1182,12 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       of 2: 8.0
       else: 10.0
     let poisonRadius = getAuraRadius(level)
+    let poisonRadiusSq = poisonRadius * poisonRadius
 
     for enemy in game.enemies:
-      let dist = distance(game.player.pos, enemy.pos)
-      if dist < poisonRadius:
+      let pdx = game.player.pos.x - enemy.pos.x
+      let pdy = game.player.pos.y - enemy.pos.y
+      if pdx * pdx + pdy * pdy < poisonRadiusSq:
         applyMasteryDoT(enemy, etPoison, poisonDamagePerSec, poisonDuration,
                         game.player.hasPoisonMastery,
                         masteryDmgMult = 2.5, masteryDurMult = 2.0,
@@ -1643,8 +1652,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # Stars use hitCount instead of HP; only register a hit when the 0.5s
       # aura-accumulation window flushes, not every frame (~60x/sec).
       let actualDamage = if enemy.enemyType == etStar:
-        let timeSinceFlush = game.time - enemy.lastAuraDamageNumberTime
-        if timeSinceFlush >= 0.5 or enemy.lastAuraDamageNumberTime == 0:
+        let timeSinceFlush = game.time - enemy.auraAcc.lastTime
+        if timeSinceFlush >= 0.5 or enemy.auraAcc.lastTime == 0:
           enemy.hitCount += 1
           accumulateAndShowAuraDamage(game, enemy, 0.01, dtHitCount, false)
         0.0'f32

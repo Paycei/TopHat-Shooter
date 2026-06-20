@@ -2,7 +2,7 @@
 ## System diagnostics and performance metrics
 
 import raylib, strutils, math
-import ../types, ../powerup, ../localization, ui_constants, ../render_context, ../powerup_data, icon_drawing
+import ../types, ../powerup, ../localization, ui_constants, ../render_context, ../powerup_data, icon_drawing, ../utils
 
 const
   DEBUG_PANEL_WIDTH = 200
@@ -29,9 +29,6 @@ var legendaryPanelMinimized* = false
 var legendaryPanelPos* = Vector2(x: -1, y: -1)  # Default position (-1 means bottom/right aligned)
 var legendaryPanelDragging* = false
 var legendaryPanelDragOffset* = Vector2(x: 0, y: 0)
-
-proc clampByte(value: int): uint8 =
-  uint8(max(0, min(255, value)))
 
 ## Calculate basic combat stats for display
 proc getDisplayStats(player: Player): tuple[damage: float32, fireRate: float32, speed: float32] =

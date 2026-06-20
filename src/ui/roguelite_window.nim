@@ -2,7 +2,7 @@
 ## Wrap the existing roguelite panel inside an OS-style desktop window
 
 import raylib, math
-import os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound
+import os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound, ../utils
 
 const HeatPurchaseCelebrationDuration = 1.35'f32
 
@@ -34,9 +34,6 @@ proc newRogueliteWindow*(screenWidth, screenHeight: int, profile: RogueliteProfi
   result = RogueliteWindow(window: osWin, showUnlocks: false, unlockCategory: 0, unlockItem: 0,
                            unlockScrollOffset: 0.0, unlockScrollVelocity: 0.0, unlockMaxScrollOffset: 0.0,
                            purchaseCelebrationTimer: 0.0, purchaseCelebrationHeat: RogueliteMinHeat)
-
-proc withAlpha(color: Color, alpha: uint8): Color =
-  Color(r: color.r, g: color.g, b: color.b, a: alpha)
 
 proc triggerUnlockPurchaseFeedback(rw: RogueliteWindow, game: Game, profile: RogueliteProfile,
                                    category: RogueliteUnlockCategory, index: int) =

@@ -1,6 +1,6 @@
 import raylib, math, random, std/deques
 import particle_types
-import types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, settings
+import types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, settings, utils
 
 const
   PlayerAcceleration = 7.0'f32
@@ -21,12 +21,6 @@ proc refreshPlayerSize(player: Player) =
   let hpAboveBase = max(0.0'f32, player.maxHp - 7.5'f32)
   player.radius = player.baseRadius + sqrt(hpAboveBase) * 0.4'f32
   player.auraRadius = player.radius * 3.5
-
-proc clampByte(value: int): uint8 =
-  uint8(max(0, min(255, value)))
-
-proc colorAlpha(color: Color, alpha: int): Color =
-  Color(r: color.r, g: color.g, b: color.b, a: clampByte(alpha))
 
 proc brighten(color: Color, amount: int, alpha: int = 255): Color =
   Color(
@@ -750,7 +744,7 @@ proc drawPlayer*(player: Player) =
 
       drawLine(Vector2(x: player.pos.x, y: player.pos.y),
                Vector2(x: orbX, y: orbY), 1.0,
-               colorAlpha(color, 16 + min(12, orb.orbLevel * 3)))
+               withAlpha(color, 16 + min(12, orb.orbLevel * 3)))
 
       # Wide luminous trail following the actual orbit direction.
       const trailSegments = 12
@@ -765,9 +759,9 @@ proc drawPlayer*(player: Player) =
         let trailWidth = max(1.1'f32, orbSize * (0.18'f32 + fade * 0.22'f32))
         let trailAlpha = int(118.0'f32 * fade * fade)
         drawLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1), trailWidth,
-                 colorAlpha(color, trailAlpha))
+                 withAlpha(color, trailAlpha))
         drawLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1),
-                 max(1.0'f32, trailWidth * 0.32'f32), colorAlpha(hotColor, trailAlpha div 2))
+                 max(1.0'f32, trailWidth * 0.32'f32), withAlpha(hotColor, trailAlpha div 2))
 
       # Comet tail ghost-orbs give the path a readable sense of speed.
       for t in 1..8:
@@ -778,33 +772,33 @@ proc drawPlayer*(player: Player) =
         let tailSize = orbSize * 0.72 * (1.0'f32 - t.float32 * 0.085'f32)
         if tailSize > 1.5:
           drawCircle(Vector2(x: tailX, y: tailY), tailSize,
-                    colorAlpha(color, tailAlpha))
+                    withAlpha(color, tailAlpha))
           drawCircle(Vector2(x: tailX, y: tailY), tailSize * 0.38,
-                    colorAlpha(coreColor, tailAlpha div 2))
+                    withAlpha(coreColor, tailAlpha div 2))
 
       # Layered glow, shadow rim, body, and bright glassy core.
       drawCircle(Vector2(x: orbX, y: orbY), orbSize * 2.15 * tPulse,
-                colorAlpha(color, 18))
+                withAlpha(color, 18))
       drawCircle(Vector2(x: orbX, y: orbY), orbSize * 1.55,
-                colorAlpha(color, 52))
+                withAlpha(color, 52))
       drawCircle(Vector2(x: orbX, y: orbY), orbSize * 1.12,
-                colorAlpha(shadowColor, 210))
+                withAlpha(shadowColor, 210))
       drawCircle(Vector2(x: orbX, y: orbY), orbSize * 0.92, color)
 
       let ringPulse = orbSize * 1.24 + sin(time * 5.0 + orb.angle) * 2.6
       drawCircleLines(orbX.int32, orbY.int32, ringPulse,
-                     colorAlpha(hotColor, int(165.0'f32 * tPulseB)))
+                     withAlpha(hotColor, int(165.0'f32 * tPulseB)))
       drawCircleLines(orbX.int32, orbY.int32, orbSize * 1.02,
-                     colorAlpha(brighten(color, 80), 210))
+                     withAlpha(brighten(color, 80), 210))
 
       drawCircle(Vector2(x: orbX, y: orbY), orbSize * 0.46,
-                colorAlpha(coreColor, 190))
+                withAlpha(coreColor, 190))
       drawCircle(Vector2(x: orbX - orbSize * 0.20, y: orbY - orbSize * 0.20),
                 orbSize * 0.18,
                 Color(r: 255, g: 255, b: 255, a: 220))
       drawCircle(Vector2(x: orbX + orbSize * 0.18, y: orbY + orbSize * 0.16),
                 orbSize * 0.10,
-                colorAlpha(shadowColor, 125))
+                withAlpha(shadowColor, 125))
 
       # Element-specific visual effects (time-based)
       case orb.elementType:

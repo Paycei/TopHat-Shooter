@@ -154,17 +154,6 @@ proc applyBossArenaCombatBonus*(game: Game, stats: var CombatStats) =
   stats.damage *= bonus.damageMult
   stats.fireRate *= bonus.fireRateMult
 
-proc applyCriticalHitFromStats*(stats: CombatStats, baseDamage: float32): float32 =
-  ## Applies critical hit using pre-calculated stats
-  ## Returns damage with critical multiplier if crit occurs
-  if not stats.hasCrit:
-    return baseDamage
-
-  if rand(99) < stats.critChance:
-    return baseDamage * stats.critMultiplier
-  else:
-    return baseDamage
-
 proc applyCriticalHitWithFlag*(stats: CombatStats, baseDamage: float32): tuple[damage: float32, wasCrit: bool] =
   ## Applies critical hit using pre-calculated stats
   ## Returns tuple with damage and whether a crit occurred
@@ -175,6 +164,9 @@ proc applyCriticalHitWithFlag*(stats: CombatStats, baseDamage: float32): tuple[d
     return (baseDamage * stats.critMultiplier, true)
   else:
     return (baseDamage, false)
+
+proc applyCriticalHitFromStats*(stats: CombatStats, baseDamage: float32): float32 =
+  applyCriticalHitWithFlag(stats, baseDamage).damage
 
 # DAMAGE NUMBERS HELPER
 
@@ -195,85 +187,43 @@ proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) =
   ## pickup indicators.
   game.perkIndicators.add(newPerkIndicator(pos.x, pos.y, text, color))
 
+const DAMAGE_NUMBER_INTERVAL = 0.5'f32
+
+proc tickAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator,
+                      damage: float32, damageType: DamageType, wasCrit: bool = false) =
+  if acc.lastTime == 0:
+    acc.lastTime = game.time
+  acc.total += damage
+  acc.damageType = damageType
+  if wasCrit:
+    acc.hadCrit = true
+  if game.time - acc.lastTime >= DAMAGE_NUMBER_INTERVAL:
+    if acc.total > 0:
+      game.showDamage(enemy.pos, acc.total, fromPlayer = true,
+                      isCritical = acc.hadCrit, damageType = acc.damageType)
+    acc.total = 0
+    acc.hadCrit = false
+    acc.lastTime = game.time
+
+proc flushAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator) =
+  if acc.total > 0:
+    game.showDamage(enemy.pos, acc.total, fromPlayer = true,
+                    isCritical = acc.hadCrit, damageType = acc.damageType)
+    acc.total = 0
+    acc.hadCrit = false
+
 proc accumulateAndShowAuraDamage*(game: Game, enemy: Enemy, actualDamage: float32,
                                   damageType: DamageType, wasCrit: bool = false) =
-  ## Accumulates aura damage and displays damage numbers reliably
-  ## Shows accumulated damage every 0.5 seconds to ensure visibility
-  ## Handles shield absorption and zero-damage cases gracefully
-  const DAMAGE_NUMBER_INTERVAL = 0.5  # Show damage numbers every 0.5 seconds
-
-  # Initialize timer on first aura damage tick to prevent 0 damage reporting
-  if enemy.lastAuraDamageNumberTime == 0:
-    enemy.lastAuraDamageNumberTime = game.time
-
-  # Accumulate damage (even if 0, we track it)
-  enemy.auraDamageAccumulator += actualDamage
-
-  # Track the damage type for this accumulation period
-  enemy.lastAuraDamageType = damageType
-
-  # Track if ANY tick was a crit during this accumulation period
-  if wasCrit:
-    enemy.auraDamageHadCrit = true
-
-  # Check if enough time has passed to show a damage number
-  let timeSinceLastNumber = game.time - enemy.lastAuraDamageNumberTime
-
-  if timeSinceLastNumber >= DAMAGE_NUMBER_INTERVAL:
-    # Time to show accumulated damage (raw damage, not per-second)
-    if enemy.auraDamageAccumulator > 0:
-      # Show the raw accumulated damage with crit status
-      game.showDamage(enemy.pos, enemy.auraDamageAccumulator, fromPlayer = true,
-                      isCritical = enemy.auraDamageHadCrit, damageType = damageType)
-
-    # Reset accumulator, timer, and crit tracker
-    enemy.auraDamageAccumulator = 0
-    enemy.auraDamageHadCrit = false
-    enemy.lastAuraDamageNumberTime = game.time
+  tickAccumulator(game, enemy, enemy.auraAcc, actualDamage, damageType, wasCrit)
 
 proc flushAccumulatedAuraDamage*(game: Game, enemy: Enemy) =
-  ## Force display of any accumulated aura damage (used when enemy dies)
-  ## This ensures players see the total damage dealt even if enemy dies before 0.5s interval
-  if enemy.auraDamageAccumulator > 0:
-    game.showDamage(enemy.pos, enemy.auraDamageAccumulator, fromPlayer = true,
-                    isCritical = enemy.auraDamageHadCrit, damageType = enemy.lastAuraDamageType)
-    # Reset accumulator and crit tracker
-    enemy.auraDamageAccumulator = 0
-    enemy.auraDamageHadCrit = false
+  flushAccumulator(game, enemy, enemy.auraAcc)
 
 proc accumulateAndShowContactDamage*(game: Game, enemy: Enemy, actualDamage: float32) =
-  ## Accumulates contact damage and displays damage numbers every 0.5 seconds
-  ## Shows accumulated damage to prevent spam from 10 HP/sec ticks
-  const DAMAGE_NUMBER_INTERVAL = 0.5  # Show damage numbers every 0.5 seconds
-
-  # Initialize timer on first contact damage tick
-  if enemy.lastContactDamageNumberTime == 0:
-    enemy.lastContactDamageNumberTime = game.time
-
-  # Accumulate damage
-  enemy.contactDamageAccumulator += actualDamage
-
-  # Check if enough time has passed to show a damage number
-  let timeSinceLastNumber = game.time - enemy.lastContactDamageNumberTime
-
-  if timeSinceLastNumber >= DAMAGE_NUMBER_INTERVAL:
-    # Time to show accumulated damage
-    if enemy.contactDamageAccumulator > 0:
-      game.showDamage(enemy.pos, enemy.contactDamageAccumulator, fromPlayer = true,
-                      isCritical = false, damageType = dtDefault)
-
-    # Reset accumulator and timer
-    enemy.contactDamageAccumulator = 0
-    enemy.lastContactDamageNumberTime = game.time
+  tickAccumulator(game, enemy, enemy.contactAcc, actualDamage, dtDefault)
 
 proc flushAccumulatedContactDamage*(game: Game, enemy: Enemy) =
-  ## Force display of any accumulated contact damage (used when enemy dies)
-  ## This ensures players see the total damage dealt even if enemy dies before 0.5s interval
-  if enemy.contactDamageAccumulator > 0:
-    game.showDamage(enemy.pos, enemy.contactDamageAccumulator, fromPlayer = true,
-                    isCritical = false, damageType = dtDefault)
-    # Reset accumulator
-    enemy.contactDamageAccumulator = 0
+  flushAccumulator(game, enemy, enemy.contactAcc)
 
 proc calculateContactDamageToEnemy*(player: Player, enemy: Enemy): tuple[damage: float32, wasCrit: bool] =
   ## Player ramming into an enemy deals damage based on:
@@ -314,19 +264,13 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
 
   let thornsLevel = getPowerUpLevel(player, puThorns)
 
-  # Different reflection percentages for different damage types
-  let reflectPercent = case reflectType
-    of "bullet":
+  let reflectPercent =
+    if reflectType in ["bullet", "boss", "contact"]:
       case thornsLevel
-      of 1: 1.0  # 100% reflection
-      of 2: 2.0  # 200% reflection
-      else: 3.0  # 300% reflection
-    of "boss", "contact":
-      case thornsLevel
-      of 1: 1.0  # 100% reflection
-      of 2: 2.0  # 200% reflection
-      else: 3.0  # 300% reflection
-    else: 0.0
+      of 1: 1.0'f32  # 100% reflection
+      of 2: 2.0'f32  # 200% reflection
+      else: 3.0'f32  # 300% reflection
+    else: 0.0'f32
 
   let reflectDamageBase = damageToReflect * reflectPercent
 

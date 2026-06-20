@@ -1,6 +1,8 @@
 import raylib, rlgl, random, math, types, settings, save_system, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, d_enhancements, gamemode_definitions, run_statistics, enemy_config, localization
 import game/bullets
 import ui/os_hud, ui/icon_drawing
+import utils
+export utils
 
 const DEATH_SLOW_DURATION* = 1.1'f32
 const DEATH_SPEEDUP_DURATION = 0.35'f32
@@ -9,11 +11,6 @@ const DEATH_TOTAL_DURATION = DEATH_SLOW_DURATION + DEATH_SPEEDUP_DURATION + DEAT
 const DEATH_SLOW_SCALE = 0.16'f32
 const DEATH_FAST_SCALE = 1.35'f32
 
-proc clampByte*(value: int): uint8 =
-  uint8(max(0, min(255, value)))
-
-proc withAlpha*(color: Color, alpha: int): Color =
-  Color(r: color.r, g: color.g, b: color.b, a: clampByte(alpha))
 
 proc getDeathSequenceTimeScale(timer: float32): float32 =
   if timer < DEATH_SLOW_DURATION:

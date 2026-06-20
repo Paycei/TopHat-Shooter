@@ -2,6 +2,9 @@ import raylib, math, types, bullet, particle_skins, particle_types, powerup, sou
 import game/combat
 import game/bullets
 
+proc rotateVec(v: Vector2f, angle: float32): Vector2f =
+  newVector2f(v.x * cos(angle) - v.y * sin(angle), v.x * sin(angle) + v.y * cos(angle))
+
 proc calcBulletEffects(player: Player): BulletEffects =
   ## Computes the elemental/knockback values that every player bullet carries.
   ## Single source of truth shared by shootBullet and fireDoubleShotBurst.
@@ -150,10 +153,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       # Fire first burst (3 bullets = 1 normal + 2 bonus from Multi-Shot)
       for i in 0..<multiCount:
         let angle = (i.float32 - (multiCount - 1).float32 / 2.0) * spreadAngle
-        let spreadDir = newVector2f(
-          direction.x * cos(angle) - direction.y * sin(angle),
-          direction.x * sin(angle) + direction.y * cos(angle)
-        )
+        let spreadDir = rotateVec(direction, angle)
         let bullet = newBullet(
           x = game.player.pos.x,
           y = game.player.pos.y,
@@ -229,10 +229,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
 
       for i in 0..<bulletCount:
         let angle = (i.float32 - (bulletCount - 1).float32 / 2.0) * spreadAngle
-        let spreadDir = newVector2f(
-          direction.x * cos(angle) - direction.y * sin(angle),
-          direction.x * sin(angle) + direction.y * cos(angle)
-        )
+        let spreadDir = rotateVec(direction, angle)
         let bullet = newBullet(
           x = game.player.pos.x,
           y = game.player.pos.y,
@@ -363,10 +360,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
 
     for i in 0..<multiCount:
       let angle = (i.float32 - (multiCount - 1).float32 / 2.0) * spreadAngle
-      let spreadDir = newVector2f(
-        direction.x * cos(angle) - direction.y * sin(angle),
-        direction.x * sin(angle) + direction.y * cos(angle)
-      )
+      let spreadDir = rotateVec(direction, angle)
       let bullet = newBullet(
         x = game.player.pos.x,
         y = game.player.pos.y,

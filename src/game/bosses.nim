@@ -740,7 +740,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     # phase movement real mass by smoothing the velocity that reaches it.
     if frameDistance > 0.01'f32 and frameDistance <= teleportDistance:
       let desiredVel = frameMove * (1.0'f32 / dt)
-      let isJuggernaut = enemy.bossDefinitionID == 8
+      let isJuggernaut = enemy.bossDefinitionID == 8 # The Berserker Juggernaut
       let accel = if isJuggernaut: 2.8'f32 else: 1.7'f32
       let brake = if isJuggernaut: 0.55'f32 else: 0.8'f32
       enemy.pos = startPos

@@ -2,7 +2,7 @@
 ## Instead of constantly creating and destroying particles, we reuse them from a pool.
 
 import raylib, random, math
-import particle_types
+import particle_types, utils
 
 const
   DEFAULT_POOL_SIZE* = 2000
@@ -80,18 +80,15 @@ proc drawSimplifiedParticle(particle: ptr Particle, pos: Vector2, mainColor, cor
   of psEmber, psSoft:
     drawCircle(pos, max(0.7'f32, particle.size * 0.75'f32), mainColor)
 
-proc clampByte(value: float32): uint8 =
-  uint8(clamp(value, 0.0'f32, 255.0'f32).int)
-
 proc alphaScaled(color: Color, scale: float32): Color =
   result = color
-  result.a = clampByte(color.a.float32 * scale)
+  result.a = clampByteF(color.a.float32 * scale)
 
 proc brighten(color: Color, amount: float32): Color =
   result = Color(
-    r: clampByte(color.r.float32 + amount),
-    g: clampByte(color.g.float32 + amount),
-    b: clampByte(color.b.float32 + amount),
+    r: clampByteF(color.r.float32 + amount),
+    g: clampByteF(color.g.float32 + amount),
+    b: clampByteF(color.b.float32 + amount),
     a: color.a
   )
 
@@ -274,11 +271,10 @@ proc updateParticlePool*(pool: ParticlePool, dt: float32) =
   pool.activeCount = writeIndex
   pool.spawnedThisFrame = 0
 
-proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer) =
+proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer,
+                            screenWidth, screenHeight: float32) =
   ## Draw only particles assigned to the given layer
   let renderSettings = particleRenderSettings(pool.activeCount)
-  let screenWidth = getScreenWidth().float32
-  let screenHeight = getScreenHeight().float32
   var layerIndex = 0
 
   for i in 0..<pool.activeCount:
@@ -339,10 +335,15 @@ proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer) =
       drawPoly(pos, 4, particle.size, particle.rotation, mainColor)
       drawPoly(pos, 4, max(0.5'f32, particle.size * 0.55'f32), particle.rotation, coreColor)
 
+proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer) =
+  drawParticlePoolLayer(pool, layer, getScreenWidth().float32, getScreenHeight().float32)
+
 proc drawParticlePool*(pool: ParticlePool) =
   ## Draw all active particles from the pool
-  drawParticlePoolLayer(pool, plBackground)
-  drawParticlePoolLayer(pool, plForeground)
+  let sw = getScreenWidth().float32
+  let sh = getScreenHeight().float32
+  drawParticlePoolLayer(pool, plBackground, sw, sh)
+  drawParticlePoolLayer(pool, plForeground, sw, sh)
 
 proc spawnExplosionPooled*(pool: ParticlePool, x, y: float32, color: Color, count: int = 20) =
   ## Spawn a richer mixed explosion burst using the pool
