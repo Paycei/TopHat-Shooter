@@ -505,7 +505,7 @@ proc checkBulletPlayerCollision*(bullet: Bullet, player: Player): bool =
 
 proc checkBulletWallCollision*(bullet: Bullet, wall: Wall): bool =
   if bullet.fromPlayer: return false # Player bullets pass through walls
-  distance(bullet.pos, wall.pos) < bullet.radius + wall.radius
+  wallOverlapsCircle(wall, bullet.pos, bullet.radius)
 
 proc checkShieldCollision*(bullet: Bullet, shieldPos: Vector2f): bool =
   # Check if enemy bullet hits player's rotating shield

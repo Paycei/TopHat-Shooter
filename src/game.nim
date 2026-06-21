@@ -4713,23 +4713,73 @@ proc drawGame*(game: Game) =
   if game.state != gsShop:
     if game.wallPlacementMode and game.player.walls > 0:
       # Placement mode: range ring + ghost wall at cursor
+      const WallPlaceRange = 250.0'f32
       let mousePos = getVirtualMousePosition()
       let cursorPos = newVector2f(mousePos.x, mousePos.y)
-      let inRange = distance(cursorPos, game.player.pos) <= 250.0
+      let inRange = distance(cursorPos, game.player.pos) <= WallPlaceRange
       let validPos = isValidWallPlacement(cursorPos, game.player.pos, game.walls, game.enemies, 25)
       let canPlace = inRange and validPos
 
-      # Faint range indicator around the player
-      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, 250.0,
-                      Color(r: 180, g: 180, b: 255, a: 55))
+      # Range indicator around the player. Drawn after auras/orbs/player, so it
+      # already sits on top visually; it just has to be bold enough to read over
+      # all the glow beneath it. Pulse + glow + zone tint + rotating ticks.
+      let px = game.player.pos.x.int32
+      let py = game.player.pos.y.int32
+      let pulse = sin(game.time * 4.0) * 0.5 + 0.5         # 0..1 breathing
+      let ringR = WallPlaceRange + pulse * 4.0
+      let ringA = uint8(clamp(150.0 + pulse * 105.0, 0.0, 255.0))
 
-      # Ghost wall circle at cursor: green = valid, red = blocked
+      # Subtle fill so the buildable zone reads as an area, not just an edge.
+      drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), WallPlaceRange,
+                 Color(r: 90, g: 130, b: 255, a: 14))
+
+      # Boundary: outer glow -> bright core -> inner highlight (3-pass, like the
+      # gravity-pull limit ring) so the edge stays crisp over busy backgrounds.
+      drawCircleLines(px, py, ringR + 5.0, Color(r: 120, g: 160, b: 255, a: uint8(ringA.int div 4)))
+      drawCircleLines(px, py, ringR + 2.5, Color(r: 150, g: 185, b: 255, a: uint8(ringA.int div 2)))
+      drawCircleLines(px, py, ringR,       Color(r: 200, g: 225, b: 255, a: ringA))
+      drawCircleLines(px, py, ringR - 2.5, Color(r: 235, g: 245, b: 255, a: uint8(ringA.int div 2)))
+
+      # Rotating tick marks on the boundary make the ring unmistakable and give
+      # it motion the eye catches even through dense aura particles.
+      for i in 0 ..< 24:
+        let a = game.time * 0.6 + i.float32 / 24.0 * PI * 2.0
+        let tx = game.player.pos.x + cos(a) * ringR
+        let ty = game.player.pos.y + sin(a) * ringR
+        drawCircle(Vector2(x: tx, y: ty), 2.2 + pulse * 1.0,
+                   Color(r: 215, g: 235, b: 255, a: ringA))
+
+      # Ghost preview at cursor: green = valid, red = blocked. Turrets place as
+      # circular emplacements, plain walls as a slab facing away from the player,
+      # so preview whichever shape (and orientation) will actually be placed.
       let ghostFill = if canPlace: Color(r: 80, g: 200, b: 80, a: 90)
                       else: Color(r: 200, g: 60, b: 60, a: 90)
       let ghostEdge = if canPlace: Color(r: 80, g: 255, b: 80, a: 200)
                       else: Color(r: 255, g: 60, b: 60, a: 200)
-      drawCircle(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostFill)
-      drawCircleLines(cursorPos.x.int32, cursorPos.y.int32, 25, ghostEdge)
+      if hasPowerUp(game.player, puWallTurrets):
+        drawCircle(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostFill)
+        drawCircleLines(cursorPos.x.int32, cursorPos.y.int32, 25, ghostEdge)
+      else:
+        # Mirror drawBarricadeWall: thin along the outward normal, broad across.
+        let ga = arctan2(cursorPos.y - game.player.pos.y, cursorPos.x - game.player.pos.x)
+        let gca = cos(ga)
+        let gsa = sin(ga)
+        const gHalfLen = 25.0'f32
+        const gHalfThick = 25.0'f32 * WallSlabThicknessRatio
+        drawRectangle(Rectangle(x: cursorPos.x, y: cursorPos.y,
+                                width: gHalfThick * 2, height: gHalfLen * 2),
+                      Vector2(x: gHalfThick, y: gHalfLen), radToDeg(ga), ghostFill)
+        template gcorner(lx, ly: float32): Vector2 =
+          Vector2(x: cursorPos.x + lx * gca - ly * gsa,
+                  y: cursorPos.y + lx * gsa + ly * gca)
+        let c1 = gcorner(-gHalfThick, -gHalfLen)
+        let c2 = gcorner(gHalfThick, -gHalfLen)
+        let c3 = gcorner(gHalfThick, gHalfLen)
+        let c4 = gcorner(-gHalfThick, gHalfLen)
+        drawLine(c1, c2, 2.0'f32, ghostEdge)
+        drawLine(c2, c3, 2.0'f32, ghostEdge)
+        drawLine(c3, c4, 2.0'f32, ghostEdge)
+        drawLine(c4, c1, 2.0'f32, ghostEdge)
 
       # Status text at bottom
       let hintText = "[Release E] Place Wall  (" & $game.player.walls & " remaining)"

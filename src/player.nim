@@ -247,24 +247,58 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     moveDir = moveDir.normalize()
   let targetVel = moveDir * currentSpeed
   let inertiaScale = playerInertiaSizeScale(player)
-  let braking = PlayerBraking / inertiaScale
   let acceleration = (if moveDir.length() > 0: PlayerAcceleration else: PlayerBraking) / inertiaScale
   player.vel = approachVelocity(player.vel, targetVel, acceleration, dt)
 
   # Calculate next position
   let nextPos = player.pos + player.vel * dt
 
-  # Check wall collisions - player is blocked by walls
-  var canMove = true
-  for w in walls:
-    if checkPlayerWallCollision(nextPos, player.radius, w):
-      canMove = false
-      break
+  # Wall collision with sliding. The move is redirected along the contacted
+  # wall's surface normal so the player glides along faces hit at an angle.
+  # (Per-axis resolution alone freezes on rotated faces, where both the X-only
+  # and Y-only probes penetrate the slab.) A per-axis fallback handles inside
+  # corners where the tangential slide still ends inside a wall.
+  proc hitsAnyWall(p: Vector2f): bool =
+    for w in walls:
+      if checkPlayerWallCollision(p, player.radius, w):
+        return true
+    false
 
-  if canMove:
-    player.pos = nextPos
+  var move = nextPos - player.pos
+  if hitsAnyWall(player.pos + move):
+    # Subtract the component pushing into each contacted wall; iterate a few
+    # times so multi-wall contacts settle.
+    for _ in 0 ..< 3:
+      let target = player.pos + move
+      var n = newVector2f(0, 0)
+      var hit = false
+      for w in walls:
+        if checkPlayerWallCollision(target, player.radius, w):
+          n = n + wallContactNormal(w, target)
+          hit = true
+      if not hit: break
+      let nl = n.length()
+      if nl < 0.0001'f32: break
+      n = n * (1.0'f32 / nl)
+      let moveInto = move.x * n.x + move.y * n.y
+      if moveInto < 0:
+        move = move - n * moveInto        # project the move onto the wall tangent
+      let velInto = player.vel.x * n.x + player.vel.y * n.y
+      if velInto < 0:
+        player.vel = player.vel - n * velInto
+
+  if not hitsAnyWall(player.pos + move):
+    player.pos = player.pos + move
   else:
-    player.vel = approachVelocity(player.vel, newVector2f(0, 0), braking, dt)
+    # Inside corner: let whichever single axis is free still pass.
+    if not hitsAnyWall(newVector2f(player.pos.x + move.x, player.pos.y)):
+      player.pos.x = player.pos.x + move.x
+    else:
+      player.vel.x = 0
+    if not hitsAnyWall(newVector2f(player.pos.x, player.pos.y + move.y)):
+      player.pos.y = player.pos.y + move.y
+    else:
+      player.vel.y = 0
 
   # Clamp to screen
   if player.pos.x < player.radius:

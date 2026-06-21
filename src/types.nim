@@ -764,6 +764,9 @@ type
     maxHp*: float32
     duration*: float32
     shootTimer*: float32  # Timer for turret shooting (puWallTurrets)
+    angle*: float32       # Facing normal (radians), fixed at placement: points away from the player
+    turretAngle*: float32 # Smoothed barrel aim (radians) for the Wall Turrets skin
+    slabShape*: bool      # Hitbox + render as an oriented rectangle (plain wall) vs a circle (turret/obstacle)
     permanent*: bool      # Dungeon obstacle: ignores duration decay, not player-placed
     respawns*: bool       # Boss-room obstacle: re-forms a while after being destroyed
     obstacleTint*: Color  # Theme accent for permanent dungeon obstacles
@@ -1336,3 +1339,65 @@ proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
   # Apply reduction with natural diminishing returns
   # Formula: speed / (1 + factor) can never reduce to 0
   baseSpeed / (1.0 + reductionFactor)
+
+# Player-placed wall geometry. The collision footprint of a barricade slab is an
+# oriented rectangle: full collision radius along the face, this fraction of it
+# along the outward normal. Shared by the hitbox test, the renderer (wall.nim)
+# and the placement preview (game.nim) so shape never drifts between them.
+const WallSlabThicknessRatio* = 0.44'f32
+
+proc wallOverlapsCircle*(wall: Wall, center: Vector2f, radius: float32): bool =
+  ## True if a circle (entity at `center`, given `radius`) overlaps the wall's
+  ## collision shape. Turret/obstacle walls stay circular; slab walls use an
+  ## oriented-rectangle (OBB-vs-circle) test in the slab's local frame.
+  if not wall.slabShape:
+    return distance(center, wall.pos) < radius + wall.radius
+
+  let halfLen = wall.radius                          # along the face (tangent)
+  let halfThick = wall.radius * WallSlabThicknessRatio  # along the normal
+  let nx = cos(wall.angle)
+  let ny = sin(wall.angle)
+  # Center relative to the slab, projected onto its local axes.
+  let dx = center.x - wall.pos.x
+  let dy = center.y - wall.pos.y
+  let localX = dx * nx + dy * ny       # along +normal (thickness)
+  let localY = -dx * ny + dy * nx      # along the face (tangent = (-ny, nx))
+  # Closest point on the box (in local space) -> leftover offset to the center.
+  let ox = localX - clamp(localX, -halfThick, halfThick)
+  let oy = localY - clamp(localY, -halfLen, halfLen)
+  return ox * ox + oy * oy < radius * radius
+
+proc wallContactNormal*(wall: Wall, p: Vector2f): Vector2f =
+  ## Outward unit surface normal at point `p` (direction from the wall surface
+  ## toward `p`). Lets entities slide along wall faces by removing the velocity
+  ## component along this normal, instead of dead-stopping on contact.
+  if not wall.slabShape:
+    let d = p - wall.pos
+    let len = sqrt(d.x * d.x + d.y * d.y)
+    if len < 0.0001'f32: return newVector2f(0, -1)
+    return newVector2f(d.x / len, d.y / len)
+
+  let halfLen = wall.radius
+  let halfThick = wall.radius * WallSlabThicknessRatio
+  let nx = cos(wall.angle)
+  let ny = sin(wall.angle)
+  let dx = p.x - wall.pos.x
+  let dy = p.y - wall.pos.y
+  let localX = dx * nx + dy * ny       # normal axis
+  let localY = -dx * ny + dy * nx      # tangent axis
+  var ox = localX - clamp(localX, -halfThick, halfThick)
+  var oy = localY - clamp(localY, -halfLen, halfLen)
+  if abs(ox) < 0.0001'f32 and abs(oy) < 0.0001'f32:
+    # Point is inside the box: pick the nearest face to push out along.
+    if halfThick - abs(localX) <= halfLen - abs(localY):
+      ox = (if localX >= 0: 1.0'f32 else: -1.0'f32)
+      oy = 0
+    else:
+      ox = 0
+      oy = (if localY >= 0: 1.0'f32 else: -1.0'f32)
+  # Local offset -> world: normalAxis=(nx,ny), tangentAxis=(-ny,nx).
+  let wx = ox * nx - oy * ny
+  let wy = ox * ny + oy * nx
+  let len = sqrt(wx * wx + wy * wy)
+  if len < 0.0001'f32: return newVector2f(0, -1)
+  newVector2f(wx / len, wy / len)

@@ -127,7 +127,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       let desiredVel = dir * effectiveSpeed
       let nextPos = enemy.pos + applyEnemyInertia(enemy, desiredVel, dt) * dt
       for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+        if wallOverlapsCircle(wall, nextPos, enemy.radius):
           canMove = false
           if currentTime - enemy.lastWallDamageTime >= 1.0:
             wall.takeDamage(1.0)
@@ -152,7 +152,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       let desiredVel = dir * effectiveSpeed
       let nextPos = enemy.pos + applyEnemyInertia(enemy, desiredVel, dt) * dt
       for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+        if wallOverlapsCircle(wall, nextPos, enemy.radius):
           canMove = false
           if currentTime - enemy.lastWallDamageTime >= 1.0:
             wall.takeDamage(1.0)
@@ -244,7 +244,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       var canMove = true
       let nextPos = enemy.pos + enemy.vel * dt
       for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+        if wallOverlapsCircle(wall, nextPos, enemy.radius):
           canMove = false
           let wallDir = (enemy.pos - wall.pos).normalize()
           enemy.vel = wallDir * effectiveSpeed * 0.85
@@ -280,7 +280,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       let nextPos = enemy.pos + enemy.vel * dt
       var canMove = true
       for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+        if wallOverlapsCircle(wall, nextPos, enemy.radius):
           canMove = false
           if currentTime - enemy.lastWallDamageTime >= 1.0:
             wall.takeDamage(1.0)
@@ -345,7 +345,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         let nextPos = enemy.pos + applyEnemyInertia(enemy, dir * effectiveSpeed, dt) * dt
         var canMove = true
         for wall in walls:
-          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+          if wallOverlapsCircle(wall, nextPos, enemy.radius):
             canMove = false
             break
         if canMove:
@@ -395,7 +395,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           let nextPos = enemy.pos + enemy.vel * dt
           var canMove = true
           for wall in walls:
-            if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+            if wallOverlapsCircle(wall, nextPos, enemy.radius):
               canMove = false
               # Bounce off walls during dash
               let wallDir = (enemy.pos - wall.pos).normalize()
@@ -704,7 +704,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         let nextPos = enemy.pos + applyEnemyInertia(enemy, dir * effectiveSpeed * 0.8, dt) * dt
         var canMove = true
         for wall in walls:
-          if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+          if wallOverlapsCircle(wall, nextPos, enemy.radius):
             canMove = false
             break
         if canMove:
@@ -808,7 +808,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Check wall collisions
       var canMove = true
       for wall in walls:
-        if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+        if wallOverlapsCircle(wall, nextPos, enemy.radius):
           canMove = false
           if currentTime - enemy.lastWallDamageTime >= 1.0:
             wall.takeDamage(1.0)

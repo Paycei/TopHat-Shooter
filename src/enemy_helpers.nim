@@ -246,7 +246,7 @@ proc checkWallCollision*(enemy: var Enemy, nextPos: Vector2f, walls: seq[Wall], 
   ## Returns true if collision occurred
 
   for wall in walls:
-    if distance(nextPos, wall.pos) < enemy.radius + wall.radius:
+    if wallOverlapsCircle(wall, nextPos, enemy.radius):
       # Apply periodic wall damage
       if currentTime - enemy.lastWallDamageTime >= 1.0:
         wall.takeDamage(1.0)
