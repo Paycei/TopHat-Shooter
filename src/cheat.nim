@@ -195,6 +195,16 @@ proc applyPermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType, level
   playSound(stPowerUp)
 
 proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
+  # Capture the live speed BEFORE the rebuild below. The rebuild reconstructs speed
+  # from base + shop + remaining power-ups only, so it would discard any manual speed
+  # set via the cheat menu (applyStatCheat). Instead we surgically remove just the
+  # deleted power-up's contribution: puSpeedBoost is the only speed power-up and it
+  # applies as a trailing multiply (*1.33), so dividing it back out is exact and also
+  # preserves base/shop/other-power-ups/manual overrides. Factor is 1.0 for any other
+  # power-up (no speed effect), leaving the current speed untouched.
+  let preRemovalSpeed = game.player.speed
+  let removedSpeedFactor = (if powerUpType == puSpeedBoost: 1.33'f32 else: 1.0'f32)
+
   # Find and remove the power-up from player's list
   for i in countdown(game.player.powerUps.len - 1, 0):
     if game.player.powerUps[i].powerType == powerUpType:
@@ -203,7 +213,8 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
 
   # Reset player stats to TRUE base values (matching newPlayer) and reapply all remaining power-ups
   # This ensures stat modifications from the removed power-up are undone
-  game.player.baseSpeed = 175.0
+  game.player.speed = 177.5
+  game.player.baseSpeed = 177.5
   game.player.fireRate = 0.4275
   game.player.damage = 1.0
   game.player.bulletSpeed = 325.0
@@ -224,6 +235,13 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   for powerUp in game.player.powerUps:
     applyPowerUp(game.player, powerUp)
 
+  # Override the rebuilt speed with the surgically-adjusted value so manual speed
+  # cheats survive removal (see preRemovalSpeed note above). For the non-cheated case
+  # this equals exactly what the rebuild produced.
+  let adjustedSpeed = preRemovalSpeed / removedSpeedFactor
+  game.player.speed = adjustedSpeed
+  game.player.baseSpeed = adjustedSpeed
+
   playSound(stMenuSelect)
 
 proc applyStatCheat*(game: var Game, stat: string, value: float32) =
@@ -236,6 +254,9 @@ proc applyStatCheat*(game: var Game, stat: string, value: float32) =
   of "coins":
     game.player.coins = int(value)
   of "speed":
+    # Set both fields: `speed` is what movement reads per-frame (player.nim),
+    # `baseSpeed` feeds wave-scaling (getEffectiveSpeed) and the cheat-menu display.
+    game.player.speed = value
     game.player.baseSpeed = value
   else:
     discard
