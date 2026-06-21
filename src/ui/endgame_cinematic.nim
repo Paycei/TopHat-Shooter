@@ -1,4 +1,4 @@
-## Endgame Cinematic — outro narrative.
+## Endgame Cinematic, outro narrative.
 ## Plays once after the wave-60 boss falls. Shot content (drawXxxShot procs) is
 ## identical to before; EndgameCinematic is now a type alias for Cutscene, built by
 ## newEndgameCutscene() via the generic framework in cutscene.nim.
@@ -167,7 +167,7 @@ proc fallShake(time, local, duration, alpha: float32): float32 =
   sin(time * 38.0'f32) * 2.6'f32 * alpha * (1.0'f32 - easeInOut(local / duration))
 
 # ---------------------------------------------------------------------------
-# Backdrop — brightens as the run-time progresses (restore factor)
+# Backdrop, brightens as the run-time progresses
 
 proc endgameBackdrop(time, totalDuration: float32, sw, sh: int32) =
   let restore = clamp01(time / totalDuration)

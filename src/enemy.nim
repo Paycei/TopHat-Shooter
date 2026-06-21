@@ -2035,7 +2035,7 @@ proc drawEnemy*(enemy: Enemy) =
           1.5, Color(r: min(enemy.color.r + 60, 255).uint8,
                      g: min(enemy.color.g + 60, 255).uint8,
                      b: min(enemy.color.b + 60, 255).uint8, a: 180))
-      # Pulsing orange core — gun-turret charge indicator
+      # Pulsing orange core, gun-turret charge indicator
       let firePulse = float32(sin(t * 8.0) * 0.5 + 0.5)
       drawCircle(Vector2(x: cx, y: cy), s * 0.22'f32 + firePulse * 2.0'f32,
                 Color(r: 255, g: uint8(120.0'f32 + firePulse * 80.0'f32), b: 0,
@@ -2199,7 +2199,7 @@ proc drawEnemy*(enemy: Enemy) =
       # Soft outer glow
       drawCircle(Vector2(x: cx, y: cy), r + 8,
                 Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
-      # Filled hex body — triangle fan gives visual weight to the wireframe
+      # Filled hex body, triangle fan gives visual weight to the wireframe
       for i in 0..<6:
         let fa0 = i.float32       * PI / 3.0'f32 + rot
         let fa1 = (i + 1).float32 * PI / 3.0'f32 + rot
@@ -2347,7 +2347,7 @@ proc drawEnemy*(enemy: Enemy) =
       # Soft glow halo
       drawCircle(Vector2(x: cx, y: cy), r + 8,
                 Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 30))
-      # Spinning jewel — rotate 4 vertices by time
+      # Spinning jewel, rotate 4 vertices by time
       let dRot = float32(getTime() * 0.4)
       let dv1 = Vector2(x: cx + cos(-PI/2.0'f32 + dRot) * r, y: cy + sin(-PI/2.0'f32 + dRot) * r)
       let dv2 = Vector2(x: cx + cos(0.0'f32     + dRot) * r, y: cy + sin(0.0'f32     + dRot) * r)
@@ -2446,7 +2446,7 @@ proc drawEnemy*(enemy: Enemy) =
       # Soft outer glow
       drawCircle(Vector2(x: cx, y: cy), r + 8,
                 Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
-      # Outer pentagon — counter-rotates opposite to inner for gear-within-gear read
+      # Outer pentagon, counter-rotates opposite to inner for gear-within-gear read
       let rot2 = float32(-t * 0.18)
       for i in 0..<5:
         let a0 = i.float32       * PI * 2.0 / 5.0 - PI / 2.0 + rot2
@@ -2493,7 +2493,7 @@ proc drawEnemy*(enemy: Enemy) =
       let cy = enemy.pos.y
       let r  = enemy.radius
       let rot = t  # rotates each frame
-      # Ghost silhouettes — flickering decoys orbiting the body
+      # Ghost silhouettes, flickering decoys orbiting the body
       for gi in 0..1:
         let gPhase = gi.float32 * PI + t * 2.5'f32
         let gx = cx + cos(gPhase) * r * 1.4'f32
@@ -2613,7 +2613,7 @@ proc drawEnemy*(enemy: Enemy) =
       # Dim center dot (almost invisible, ghost-like)
       drawCircle(Vector2(x: cx, y: cy), r * 0.14,
                 Color(r: 240, g: 240, b: 255, a: 180))
-      # Tiny eyes — subtle tell distinguishing the real phantom from clones
+      # Tiny eyes, subtle tell distinguishing the real phantom from clones
       drawCircle(Vector2(x: cx - r * 0.18'f32, y: cy - r * 0.20'f32), r * 0.07'f32,
                 Color(r: 255, g: 255, b: 255, a: 190))
       drawCircle(Vector2(x: cx + r * 0.18'f32, y: cy - r * 0.20'f32), r * 0.07'f32,
@@ -2622,7 +2622,7 @@ proc drawEnemy*(enemy: Enemy) =
       let fadeRing = sin(t * 3.0) * 8 + 12
       drawCircleLines(cx.int32, cy.int32, r + fadeRing,
                      Color(r: 150, g: 150, b: 255, a: 60))
-      # Draw fake clones — blue-shifted so sharp players can eventually distinguish them
+      # Draw fake clones, blue-shifted so sharp players can eventually distinguish them
       for clonePos in enemy.clonePositions:
         let cloneAlpha = uint8((sin(t * 5.0) * 0.5 + 0.5) * 100)
         drawCircle(Vector2(x: clonePos.x, y: clonePos.y), r * 0.7,
@@ -2654,7 +2654,7 @@ proc drawEnemy*(enemy: Enemy) =
       drawCircle(Vector2(x: cx, y: cy), r + 9 + auraPulse * 3,
                 Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: uint8(38 * auraPulse)))
 
-      # Ground magic circle — drawn before robe body so it appears as a floor projection
+      # Ground magic circle, drawn before robe body so it appears as a floor projection
       let circleRot = float32(-t * 0.6)
       let cgr = r * 1.35'f32
       let cgy = cy + r * 0.5'f32
@@ -4050,7 +4050,7 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
     let auraColor = getEliteAuraColor(eType)
     let radiusOffset = idx.float32 * 5.0
 
-    # Bold close ring — sits just outside the body, highest contrast
+    # Bold close ring, sits just outside the body, highest contrast
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32,
       enemy.radius + 6.0 + radiusOffset,
       Color(r: auraColor.r, g: auraColor.g, b: auraColor.b,
@@ -4144,14 +4144,14 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
     )
 
 proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) =
-  ## Drawn AFTER drawEnemy — places colored outline and orbit crown on top of the body
+  ## Drawn AFTER drawEnemy, places colored outline and orbit crown on top of the body
   if not enemy.isElite or enemy.eliteTypes.len == 0:
     return
 
   let pulseIntensity = float32(sin(enemy.eliteAuraPhase) * 0.3 + 0.7)
   let numTypes = enemy.eliteTypes.len
 
-  # Layer A: colored body outline (on top of enemy body — most noticeable change)
+  # Layer A: colored body outline (on top of enemy body, most noticeable change)
   for idx, eType in enemy.eliteTypes:
     let col = getEliteAuraColor(eType)
     let outlineR = enemy.radius + 1.5'f32 + idx.float32 * 3.0'f32

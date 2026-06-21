@@ -17,6 +17,11 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   # Calculate actual damage
   var actualBaseDamage = baseDamage
 
+  # Arcane orbs are pure damage (no DoT/effect), so they get an inherent
+  # damage premium over the other elements to make that trade-off worthwhile.
+  if orb.elementType == etArcane:
+    actualBaseDamage *= 1.5  # +50% base damage
+
   # Apply Arcane Mastery bonus for Arcane orbs
   if orb.elementType == etArcane and game.player.hasArcaneMastery:
     actualBaseDamage *= 2.0  # +100% damage
@@ -84,8 +89,8 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     let poisonDmg = 0.3 + game.player.damage * 0.2
     applyMasteryDoT(enemy, etPoison, poisonDmg, 4.0,
                     game.player.hasPoisonMastery,
-                    masteryDmgMult = 2.5, masteryDurMult = 2.0,
-                    masterySlowAmount = 0.30, source = "orb")
+                    masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                    masterySlowAmount = 0.40, source = "orb")
 
     # Green particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
@@ -95,8 +100,8 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     let fireDmg = 0.4 + game.player.damage * 0.2
     applyMasteryDoT(enemy, etFire, fireDmg, 2.0,
                     game.player.hasFireMastery,
-                    masteryDmgMult = 2.5, masteryDurMult = 2.0,
-                    masterySlowAmount = 0.35, source = "orb")
+                    masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                    masterySlowAmount = 0.45, source = "orb")
 
     # Orange/red particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y, Orange, 5)

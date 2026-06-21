@@ -1,4 +1,4 @@
-## Mode-intro cutscenes — one per GameMode.
+## Mode-intro cutscenes, one per GameMode.
 ## Each plays once the first time a player enters that mode; the flag is set in
 ## main.nim before activating gsCutscene.  All factories return a Cutscene built
 ## on the generic framework in cutscene.nim; shot content uses the same

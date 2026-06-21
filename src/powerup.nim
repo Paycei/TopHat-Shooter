@@ -211,7 +211,7 @@ proc redistributeAllOrbs*(player: Player) =
       player.rotatingOrbs[idx].angle  = float32(j) * PI * 2.0 / float32(totalOrbs)
 
 proc createRotatingOrbs*(player: Player, level: int) =
-  ## Legendary: adds 1 orb of each of the 6 base elements on ring 4 (outermost).
+  ## Legendary: adds 1 orb of each of the 7 elements on ring 4 (outermost).
   ## Clears existing level-4 orbs first so reapply never duplicates them.
   var i = 0
   while i < player.rotatingOrbs.len:
@@ -221,12 +221,12 @@ proc createRotatingOrbs*(player: Player, level: int) =
       i += 1
   let elements = [etPoison, etFire, etLightning, etWind, etFrost, etArcane, etBlood]
   for element in elements:
-    for _ in 0..1:  # 2 orbs per element = 12 total
-      player.rotatingOrbs.add(RotatingOrb(
-        angle: 0.0, radius: 0.0,
-        elementType: element, orbLevel: 4,
-        hitEnemies: @[], lastHitTime: initTable[int, float32]()
-      ))
+    # 1 orb per element = 7 total
+    player.rotatingOrbs.add(RotatingOrb(
+      angle: 0.0, radius: 0.0,
+      elementType: element, orbLevel: 4,
+      hitEnemies: @[], lastHitTime: initTable[int, float32]()
+    ))
   redistributeAllOrbs(player)
 
 proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) =

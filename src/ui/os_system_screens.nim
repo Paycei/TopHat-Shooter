@@ -44,19 +44,23 @@ proc drawModernButton(x, y, width, height: int32, text: string,
                                 width: width.float32, height: height.float32),
                     borderWidth, borderColor)
 
-  # Button text
+  # Button text. When a hotkey hint is present we stack two centered lines
+  # (16px label + 12px hint with a 4px gap); otherwise the label is vertically
+  # centered on its own. Previously both were positioned independently and the
+  # label (ending at y+30) collided with the hint (drawn at y+30).
   let textWidth = measureText(text, 16)
   let textX = x + (width - textWidth) div 2
+  let labelY = if hotkey.len > 0: y + 7 else: y + (height - 16) div 2
 
   # Shadow for text
-  drawText(text, textX + 1, y + 15, 16, Color(r: 0, g: 0, b: 0, a: 120))
-  drawText(text, textX, y + 14, 16, White)
+  drawText(text, textX + 1, labelY + 1, 16, Color(r: 0, g: 0, b: 0, a: 120))
+  drawText(text, textX, labelY, 16, White)
 
   # Hotkey hint
   if hotkey.len > 0:
     let hkWidth = measureText(hotkey, 12)
     let hkX = x + (width - hkWidth) div 2
-    drawText(hotkey, hkX, y + height - 18, 12,
+    drawText(hotkey, hkX, labelY + 20, 12,
             Color(r: 200, g: 210, b: 220, a: 255))
 
 proc drawStat(x, y: int32, label, value: string, icon: string = "-",
@@ -187,8 +191,9 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
           Color(r: 230, g: 235, b: 245, a: 255))
   yOffset += 46
 
-  # Session diagnostics
-  drawText("=== " & t(tkGameOverSessionDiagnostics) & " ===", windowX + 30, yOffset, 16,
+  # Session diagnostics (the translation already includes the "=== ... ==="
+  # decoration, mirroring the victory screen's report header).
+  drawText(t(tkGameOverSessionDiagnostics), windowX + 30, yOffset, 16,
           Color(r: 150, g: 180, b: 220, a: 255))
   yOffset += 30
 

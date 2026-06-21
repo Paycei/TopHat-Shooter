@@ -50,7 +50,7 @@ proc rebuildEnemyGrid(game: Game) =
     if e.isBoss: gridBossIndices.add(idx)
 
 
-# ===== boss wave manager accessors (was src/game/boss_waves.nim) =====
+# Boss wave manager accessors
 # Centralized boss wave and coin management. Hoisted above lifecycle/waves
 # because procs there (cleanupGame, checkWaveComplete) call these.
 proc startBossWave(manager: var BossWaveManager) =
@@ -76,7 +76,7 @@ proc isBossActive*(manager: BossWaveManager): bool = manager.active
 
 proc isBossCoinActive*(manager: BossWaveManager): bool = manager.coinActive
 
-# ===== lifecycle (was src/game/lifecycle.nim) =====
+# Lifecycle
 proc cleanupGame*(game: Game) =
   ## Clean up game resources before creating a new game
   ## This prevents memory leaks and performance issues when returning to menu
@@ -221,15 +221,17 @@ proc setGameMode*(game: Game, mode: GameMode) =
     game.waveEnemiesRemaining = 0
     game.wavesUntilBoss = 4
 
-
-# ===== waves (was src/game/waves.nim) =====
+# Waves
 proc calculateWaveEnemyCount(waveNumber: int): int =
-  # Scale enemy count based on wave number
-  # Start with 8 enemies, add 2-3 per wave
-  result = int(8 + float(waveNumber - 1) * 1.5)
-  # Cap at 100 enemies per wave
-  if result > 100:
-    result = 100
+  ## Enemy count per wave: a smooth, decelerating curve with no hard cap.
+  ## The count keeps rising forever, but its slope continuously shrinks, so late
+  ## waves gain enemies ever more gradually instead of piling into a swarm.
+  ## This pairs with the compounding late-game HP buff in spawnWaveEnemies: as
+  ## individual enemies grow much tankier, the crowd grows slowly, so late waves
+  ## are a handful of beefy threats that reach the player rather than a 100-strong
+  ## crowd the player mows down without ever being threatened.
+  ##   wave 1 -> 8, wave 10 -> ~19, wave 30 -> ~35, wave 60 -> ~54, wave 100 -> ~76
+  result = int(8 + 2.2 * pow(float(waveNumber - 1), 0.75))
 
 proc startWave*(game: Game) =
   game.waveInProgress = true
@@ -421,6 +423,29 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       else: x = -30; y = rand(game.screenHeight.int).float32
 
       let enemy = newEnemy(x, y, baseDifficulty, enemyType, game)
+
+      # CONTINUOUS LATE-GAME SCALING:
+      # The player's damage compounds every wave (startWave's *= 1.012) on top of
+      # shop/power-up multipliers, so the enemy HP curve naturally falls behind and
+      # late-wave enemies get one-tapped before they ever threaten the player.
+      # Rather than a hard wave threshold, fold in a smooth per-wave multiplier that
+      # compounds exactly like the player's own growth: a fraction of a percent per
+      # wave, invisible early (a wave-3 circle gains <0.1 HP) and a large buff late,
+      # with no threshold, ceiling, or kink anywhere. Wave mode only, roguelite and
+      # survival scale through their own spawn paths.
+      block:
+        # Tankier: ~1.5% extra HP per wave, compounding. Stars are hit-count based
+        # (placeholder maxHp), so their durability is left to requiredHits.
+        if enemy.enemyType != etStar:
+          let hpScale = pow(1.015'f32, wave.float32)
+          enemy.maxHp *= hpScale
+          enemy.hp *= hpScale
+        # Stronger: ~0.5% extra damage per wave so the survivors that now reach the
+        # player keep pace as genuine threats instead of harmless chip damage.
+        let dmgScale = pow(1.005'f32, wave.float32)
+        enemy.contactDamage *= dmgScale
+        enemy.rangedDamage *= dmgScale
+
       makeElite(enemy, wave)  # Chance to make enemy elite based on wave
       game.enemies.add(enemy)
       game.waveEnemiesRemaining -= 1
@@ -473,7 +498,7 @@ proc checkWaveComplete(game: Game): bool =
   return game.waveEnemiesRemaining == 0 and game.enemies.len == 0 and not game.bossWaveManager.isBossCoinActive()
 
 
-# ===== boss waves (was src/game/boss_waves.nim) =====
+# Boss waves
 # (BossWaveManager accessors are hoisted above the lifecycle section so the
 # lifecycle/wave procs that call them are defined after their definitions.)
 proc completeBossWave*(game: Game) =
@@ -581,7 +606,7 @@ proc spawnConfiguredBoss*(game: Game, bossDifficulty: float32, bossBlockWave: in
     # Mark boss wave active so UI shows boss-related hints during the warning
     game.bossWaveManager.startBossWave()
 
-# ===== update (was src/game/update.nim) =====
+# Update
 proc currentBossArenaWave(game: Game): int =
   for enemy in game.enemies:
     if enemy.isBoss:
@@ -1025,8 +1050,8 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       if fdx * fdx + fdy * fdy < fireRadiusSq:
         applyMasteryDoT(enemy, etFire, fireDamagePerSec, fireDuration,
                         game.player.hasFireMastery,
-                        masteryDmgMult = 2.5, masteryDurMult = 2.0,
-                        masterySlowAmount = 0.35, source = "aura")
+                        masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                        masterySlowAmount = 0.45, source = "aura")
 
         # Visual fire particles
         spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
@@ -1192,8 +1217,8 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       if pdx * pdx + pdy * pdy < poisonRadiusSq:
         applyMasteryDoT(enemy, etPoison, poisonDamagePerSec, poisonDuration,
                         game.player.hasPoisonMastery,
-                        masteryDmgMult = 2.5, masteryDurMult = 2.0,
-                        masterySlowAmount = 0.30, source = "aura")
+                        masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                        masterySlowAmount = 0.40, source = "aura")
 
         # Visual poison particles
         spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
@@ -3967,7 +3992,7 @@ proc updateGame*(game: var Game, dt: float32) =
   updateBulletsAndHits(game, dt, effectiveDt)
   updateProjectilesAndCleanup(game, dt, effectiveDt)
 
-# ===== draw (was src/game/draw.nim) =====
+# Draw
 proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10): int32 =
   let bossDef = getBossDefinition(enemy.bossDefinitionID)
   let phaseCount = max(1, max(bossDef.phases.len, enemy.bossPhaseHpPools.len))

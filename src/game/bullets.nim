@@ -166,10 +166,10 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     # because bullet hits need debuffResistance scaling and a stronger-wins guard.
     applyMasteryDoT(enemy, etPoison, effect.baseDamage, effect.duration,
                     effect.hasMastery,
-                    masteryDmgMult = 2.5, masteryDurMult = 2.0,
+                    masteryDmgMult = 3.5, masteryDurMult = 2.0,
                     masterySlowAmount = 0.0, source = "shot")
     if effect.hasMastery:
-      let newSlowAmount = 0.30 * (1.0 - enemy.debuffResistance)
+      let newSlowAmount = 0.40 * (1.0 - enemy.debuffResistance)
       let actualDur = effect.duration * 2.0  # already scaled by masteryDurMult
       if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
         enemy.slowTimer = actualDur
@@ -178,10 +178,10 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
   of befFire:
     applyMasteryDoT(enemy, etFire, effect.baseDamage, effect.duration,
                     effect.hasMastery,
-                    masteryDmgMult = 2.5, masteryDurMult = 2.0,
+                    masteryDmgMult = 3.5, masteryDurMult = 2.0,
                     masterySlowAmount = 0.0, source = "shot")
     if effect.hasMastery:
-      let newSlowAmount = 0.35 * (1.0 - enemy.debuffResistance)
+      let newSlowAmount = 0.45 * (1.0 - enemy.debuffResistance)
       let actualDur = effect.duration * 2.0
       if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
         enemy.slowTimer = actualDur

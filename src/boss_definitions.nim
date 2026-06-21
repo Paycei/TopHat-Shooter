@@ -2021,7 +2021,12 @@ proc getScaledBossHP*(baseBoss: BossDefinition, waveNumber: int): float32 =
   ## Scales boss HP by boss tier, not raw wave count, to avoid extreme midgame cliffs.
   let bossSteps = max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
   let waveScale = 1.0 + bossSteps * 0.20  # 20% increase per boss tier
-  baseBoss.baseHP * waveScale
+  # Endless-only buff. Wave 60 is boss tier 11, so endlessSteps is exactly 0 for
+  # every campaign boss (waves 5-60) -> pow(_, 0) = 1.0 leaves them untouched. Past
+  # wave 60 it compounds, mirroring the player's exponential offense (shop + power-ups
+  # + startWave's per-wave damage growth) so endless bosses stop getting melted.
+  let endlessSteps = max(0.0'f32, bossSteps - 11.0)
+  baseBoss.baseHP * waveScale * pow(1.08'f32, endlessSteps)
 
 proc getScaledBossSpeed*(baseBoss: BossDefinition, waveNumber: int): float32 =
   ## Scales boss speed more gently so later bosses stay threatening without becoming frantic.
@@ -2032,13 +2037,19 @@ proc getScaledBossSpeed*(baseBoss: BossDefinition, waveNumber: int): float32 =
 proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): float32 =
   ## Scales boss damage based on wave number
   let additionalDamage = (waveNumber - 5) div 15  # +1 damage every 15 waves
-  float32(baseBoss.baseDamage + additionalDamage)
+  # Endless-only buff (see getScaledBossHP): 1.0 for waves 1-60, compounds past 60
+  # so endless bosses keep threatening a player stacked with defensive power-ups.
+  let bossSteps = max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
+  let endlessSteps = max(0.0'f32, bossSteps - 11.0)
+  float32(baseBoss.baseDamage + additionalDamage) * pow(1.05'f32, endlessSteps)
 
 proc getScaledAttackDamage*(baseAttack: BossAttack, waveNumber: int): float32 =
   ## Attack damage grows by boss tier to preserve patterns without massive midgame spikes.
   let bossSteps = max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
   let waveScale = 1.0 + bossSteps * 0.12
-  baseAttack.damage * waveScale
+  # Endless-only buff (see getScaledBossHP): 1.0 for waves 1-60, compounds past 60.
+  let endlessSteps = max(0.0'f32, bossSteps - 11.0)
+  baseAttack.damage * waveScale * pow(1.05'f32, endlessSteps)
 
 # Boss Visual Effects
 

@@ -1,4 +1,4 @@
-## Lore Cinematic — opening narrative.
+## Lore Cinematic: opening narrative.
 ## Shot content (drawXxxShot procs) is identical to before; the boilerplate
 ## LoreCinematic type/update/draw is replaced by newLoreCutscene() which
 ## assembles a Cutscene from the generic framework in cutscene.nim.
@@ -11,7 +11,7 @@ const
   LoreAccent = Color(r: 0, g: 230, b: 230, a: 255)
 
 # ---------------------------------------------------------------------------
-# Shot draw procs (unchanged content)
+# Shot draw procs
 
 proc drawBreachShot(local, duration: float32, screenWidth, screenHeight: int32,
                     alpha: float32) =
@@ -196,7 +196,7 @@ proc loreBackdrop(time, _: float32, sw, sh: int32) =
                      0.55, 0.5)
 
 # ---------------------------------------------------------------------------
-# Public factory — replaces newLoreCinematic + updateLoreCinematic + drawLoreCinematic
+# Public factory
 
 proc newLoreCutscene*(): Cutscene =
   newCutscene(

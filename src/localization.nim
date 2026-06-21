@@ -1433,7 +1433,7 @@ type
     # Settings: replay mode intros
     tkSettingsReplayModeIntros = "settings_replay_mode_intros"
 
-    # Mode intro cutscenes — wave-based
+    # Mode intro cutscenes: wave-based
     tkModeIntroWaveTitle = "mode_intro_wave_title"
     tkModeIntroWaveRec1  = "mode_intro_wave_rec1"
     tkModeIntroWave1a    = "mode_intro_wave_1a"
@@ -1442,7 +1442,7 @@ type
     tkModeIntroWave2a    = "mode_intro_wave_2a"
     tkModeIntroWave2b    = "mode_intro_wave_2b"
 
-    # Mode intro cutscenes — time survival
+    # Mode intro cutscenes: time survival
     tkModeIntroSurvTitle = "mode_intro_surv_title"
     tkModeIntroSurvRec1  = "mode_intro_surv_rec1"
     tkModeIntroSurv1a    = "mode_intro_surv_1a"
@@ -1451,7 +1451,7 @@ type
     tkModeIntroSurv2a    = "mode_intro_surv_2a"
     tkModeIntroSurv2b    = "mode_intro_surv_2b"
 
-    # Mode intro cutscenes — roguelite
+    # Mode intro cutscenes: roguelite
     tkModeIntroRogueTitle = "mode_intro_rogue_title"
     tkModeIntroRogueRec1  = "mode_intro_rogue_rec1"
     tkModeIntroRogue1a    = "mode_intro_rogue_1a"
@@ -1460,13 +1460,13 @@ type
     tkModeIntroRogue2a    = "mode_intro_rogue_2a"
     tkModeIntroRogue2b    = "mode_intro_rogue_2b"
 
-    # Mode intro cutscenes — sandbox
+    # Mode intro cutscenes: sandbox
     tkModeIntroSandboxTitle = "mode_intro_sandbox_title"
     tkModeIntroSandboxRec1  = "mode_intro_sandbox_rec1"
     tkModeIntroSandbox1a    = "mode_intro_sandbox_1a"
     tkModeIntroSandbox1b    = "mode_intro_sandbox_1b"
 
-    # Mode intro cutscenes — pvp
+    # Mode intro cutscenes: pvp
     tkModeIntroPvPTitle = "mode_intro_pvp_title"
     tkModeIntroPvPRec1  = "mode_intro_pvp_rec1"
     tkModeIntroPvP1a    = "mode_intro_pvp_1a"
@@ -3172,7 +3172,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Settings
     "settings_replay_mode_intros": "Replay Mode Intros",
 
-    # Mode intro — wave-based
+    # Mode intro: wave-based
     "mode_intro_wave_title": "THREAT RESPONSE",
     "mode_intro_wave_rec1":  "RADAR SWEEP",
     "mode_intro_wave_1a":    "BREACH DETECTED ON SECTOR 7",
@@ -3181,7 +3181,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_wave_2a":    "SURVIVE EVERY WAVE, OPERATOR",
     "mode_intro_wave_2b":    "THE KERNEL IS COUNTING ON YOU",
 
-    # Mode intro — time survival
+    # Mode intro: time survival
     "mode_intro_surv_title": "ENDURANCE PROTOCOL",
     "mode_intro_surv_rec1":  "COUNTDOWN",
     "mode_intro_surv_1a":    "UPTIME CHALLENGE INITIALIZED",
@@ -3190,7 +3190,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_surv_2a":    "EVERY SECOND OF SURVIVAL IS LOGGED",
     "mode_intro_surv_2b":    "BEAT YOUR RECORD. BREAK THE LIMIT.",
 
-    # Mode intro — roguelite
+    # Mode intro: roguelite
     "mode_intro_rogue_title": "SECTOR SWEEP",
     "mode_intro_rogue_rec1":  "DUNGEON MAP",
     "mode_intro_rogue_1a":    "SECTOR INFILTRATION MODULE ARMED",
@@ -3199,13 +3199,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_rogue_2a":    "KERNEL PROCESSES AVAILABLE FOR HARVEST",
     "mode_intro_rogue_2b":    "DISCOVER COMBINATIONS. REACH THE ROOT.",
 
-    # Mode intro — sandbox
+    # Mode intro: sandbox
     "mode_intro_sandbox_title": "UNRESTRICTED ENV",
     "mode_intro_sandbox_rec1":  "INIT SEQUENCE",
     "mode_intro_sandbox_1a":    "TEST ENVIRONMENT ACTIVE",
     "mode_intro_sandbox_1b":    "WARNING: NO GUARDRAILS. PROCEED FREELY.",
 
-    # Mode intro — pvp
+    # Mode intro: pvp
     "mode_intro_pvp_title": "HOSTILE NODE",
     "mode_intro_pvp_rec1":  "NETWORK SCAN",
     "mode_intro_pvp_1a":    "HOSTILE NODE DETECTED",
@@ -4904,7 +4904,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Settings
     "settings_replay_mode_intros": "Repetir Intros de Modo",
 
-    # Mode intro — wave-based
+    # Mode intro: wave-based
     "mode_intro_wave_title": "RESPUESTA A AMENAZA",
     "mode_intro_wave_rec1":  "BARRIDO DE RADAR",
     "mode_intro_wave_1a":    "BRECHA DETECTADA EN SECTOR 7",
@@ -4913,7 +4913,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_wave_2a":    "SOBREVIVE CADA OLEADA, OPERADOR",
     "mode_intro_wave_2b":    "EL KERNEL CUENTA CONTIGO",
 
-    # Mode intro — time survival
+    # Mode intro: time survival
     "mode_intro_surv_title": "PROTOCOLO DE RESISTENCIA",
     "mode_intro_surv_rec1":  "CUENTA REGRESIVA",
     "mode_intro_surv_1a":    "DESAFÍO DE TIEMPO DE ACTIVIDAD INICIADO",
@@ -4922,7 +4922,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_surv_2a":    "CADA SEGUNDO DE SUPERVIVENCIA SE REGISTRA",
     "mode_intro_surv_2b":    "SUPERA TU RÉCORD. ROMPE EL LÍMITE.",
 
-    # Mode intro — roguelite
+    # Mode intro: roguelite
     "mode_intro_rogue_title": "BARRIDO DE SECTOR",
     "mode_intro_rogue_rec1":  "MAPA DE MAZMORRA",
     "mode_intro_rogue_1a":    "MÓDULO DE INFILTRACIÓN DE SECTOR ARMADO",
@@ -4931,13 +4931,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_rogue_2a":    "PROCESOS DEL KERNEL DISPONIBLES PARA COSECHAR",
     "mode_intro_rogue_2b":    "DESCUBRE COMBINACIONES. LLEGA A LA RAÍZ.",
 
-    # Mode intro — sandbox
+    # Mode intro: sandbox
     "mode_intro_sandbox_title": "ENTORNO SIN RESTRICCIONES",
     "mode_intro_sandbox_rec1":  "SECUENCIA DE INICIO",
     "mode_intro_sandbox_1a":    "ENTORNO DE PRUEBAS ACTIVO",
     "mode_intro_sandbox_1b":    "ADVERTENCIA: SIN LIMITACIONES. PROCEDE LIBREMENTE.",
 
-    # Mode intro — pvp
+    # Mode intro: pvp
     "mode_intro_pvp_title": "NODO HOSTIL",
     "mode_intro_pvp_rec1":  "ESCANEO DE RED",
     "mode_intro_pvp_1a":    "NODO HOSTIL DETECTADO",

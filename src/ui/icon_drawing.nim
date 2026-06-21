@@ -1158,7 +1158,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawLine(tx,     ty - 3, tx,     ty + 3, Color(r: 255, g: 240, b: 100, a: 200))
 
   of puGlitchField:
-    # Glitched horizontal scan lines — corrupted data aesthetic
+    # Glitched horizontal scan lines, corrupted data aesthetic
     let glitch = color
     let dark   = Color(r: max(glitch.r - 60, 0), g: max(glitch.g - 60, 0), b: max(glitch.b - 60, 0), a: 255)
     for row in 0..5:
@@ -1205,7 +1205,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawLine(cx + 5,  cy - 2, cx + 10, cy - 2, Color(r: 255, g: 80, b: 80, a: 230))
 
   of puRecursion:
-    # Nested concentric circles, each slightly smaller — recursive pattern
+    # Nested concentric circles, each slightly smaller, recursive pattern
     let rc = color
     for i in countdown(4, 0):
       let rInner = rad * (float32(i) / 4.5'f32)
@@ -1309,7 +1309,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawRectangleLines(cx - 12, cy - 12, 24, 20, dim)
     # Door gap at bottom
     drawRectangle(cx - 4, cy + 8, 8, 2, Color(r: 0, g: 0, b: 0, a: 255))
-    # Echo bullet trail — 3 dots diminishing to the right
+    # Echo bullet trail, 3 dots diminishing to the right
     drawCircle(Vector2(x: (cx - 4).float32, y: (cy - 2).float32), 4, rec)
     drawCircle(Vector2(x: (cx + 2).float32, y: (cy - 2).float32), 3, Color(r: rec.r, g: rec.g, b: rec.b, a: 180))
     drawCircle(Vector2(x: (cx + 7).float32, y: (cy - 2).float32), 2, Color(r: rec.r, g: rec.g, b: rec.b, a: 100))

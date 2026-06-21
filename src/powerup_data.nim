@@ -305,9 +305,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     t(tkPowerupArcaneMasteryDesc)
   of puArcaneOrb:
     case level
-    of 1: t(tkPowerupArcaneOrbDesc1).replace("{0}", dmg(3.5, 0.175, playerDamage))
-    of 2: t(tkPowerupArcaneOrbDesc2).replace("{0}", dmg(5.5, 0.175, playerDamage))
-    else: t(tkPowerupArcaneOrbDesc3).replace("{0}", dmg(8.0, 0.175, playerDamage))
+    of 1: t(tkPowerupArcaneOrbDesc1).replace("{0}", dmg(5.25, 0.2625, playerDamage))
+    of 2: t(tkPowerupArcaneOrbDesc2).replace("{0}", dmg(8.25, 0.2625, playerDamage))
+    else: t(tkPowerupArcaneOrbDesc3).replace("{0}", dmg(12.0, 0.2625, playerDamage))
   of puBerserker:
     case level
     of 1: t(tkPowerupBerserkerDesc1)
