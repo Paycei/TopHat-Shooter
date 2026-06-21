@@ -140,7 +140,7 @@ proc getTeamName*(team: PvPTeam): string =
 
 proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
   let windowWidth = 600
-  let windowHeight = 750 # Perfect height top to bottom
+  let windowHeight = 670 # Sized to the hosting-config screen (the tallest state)
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
   let localIP = getLocalIP()
@@ -374,52 +374,69 @@ proc getTextCursorPos(text: string, fieldX: int, fieldY: int, fontSize: int, fie
 # UI helpers
 
 proc drawSectionDivider(x1, x2, y: int) =
-  drawRectangle(x1.int32, y.int32, (x2 - x1).int32, 1,
-               Color(r: 0, g: 200, b: 255, a: 100))
+  ## A thin accent line that glows in the middle and fades out toward both ends.
+  let w = x2 - x1
+  let half = w div 2
+  let edge = Color(r: 0, g: 200, b: 255, a: 0)
+  let mid  = Color(r: 0, g: 200, b: 255, a: 130)
+  drawRectangleGradientH(x1.int32, y.int32, half.int32, 1, edge, mid)
+  drawRectangleGradientH((x1 + half).int32, y.int32, (w - half).int32, 1, mid, edge)
 
 proc drawPrimaryButton(bx, by, bw, bh: int, label: string, hovered: bool,
                        baseColor = Color(r: 0, g: 60, b: 80, a: 255),
-                       hoverColor = Color(r: 50, g: 50, b: 60, a: 255),
+                       hoverColor = Color(r: 0, g: 95, b: 125, a: 255),
                        fontSize: int32 = 24) =
-  let col = if hovered: hoverColor else: baseColor
-  drawRectangle(bx.int32, by.int32, bw.int32, bh.int32, col)
-  let borderCol = if hovered: Color(r: 0, g: 200, b: 255, a: 255) else: Color(r: 80, g: 80, b: 100, a: 255)
-  drawRectangleLines(Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32), 1, borderCol)
+  drawRectangle(bx.int32, by.int32, bw.int32, bh.int32, if hovered: hoverColor else: baseColor)
+  # Glossy top highlight for a bit of depth
+  drawRectangle((bx + 1).int32, (by + 1).int32, (bw - 2).int32, (bh.float32 * 0.42'f32).int32,
+                Color(r: 255, g: 255, b: 255, a: if hovered: 26 else: 14))
+  let borderCol = if hovered: Color(r: 0, g: 220, b: 255, a: 255)
+                  else: Color(r: 70, g: 95, b: 115, a: 255)
+  drawRectangleLines(Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32),
+                     if hovered: 2.0'f32 else: 1.0'f32, borderCol)
   let tw = measureText(label, fontSize)
   drawText(label, (bx + (bw - tw) div 2).int32, (by + (bh - fontSize.int) div 2).int32, fontSize,
-           if hovered: Gold else: White)
+           if hovered: White else: Color(r: 220, g: 235, b: 245, a: 255))
 
 proc drawDangerButton(bx, by, bw, bh: int, label: string, hovered: bool, fontSize: int32 = 22) =
-  let col = if hovered: Color(r: 80, g: 30, b: 30, a: 255) else: Color(r: 50, g: 20, b: 20, a: 255)
+  let col = if hovered: Color(r: 95, g: 35, b: 35, a: 255) else: Color(r: 50, g: 22, b: 22, a: 255)
   drawRectangle(bx.int32, by.int32, bw.int32, bh.int32, col)
-  let borderCol = if hovered: Color(r: 200, g: 80, b: 80, a: 255) else: Color(r: 100, g: 50, b: 50, a: 255)
-  drawRectangleLines(Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32), 1, borderCol)
+  drawRectangle((bx + 1).int32, (by + 1).int32, (bw - 2).int32, (bh.float32 * 0.42'f32).int32,
+                Color(r: 255, g: 255, b: 255, a: if hovered: 22 else: 12))
+  let borderCol = if hovered: Color(r: 220, g: 90, b: 90, a: 255) else: Color(r: 110, g: 55, b: 55, a: 255)
+  drawRectangleLines(Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32),
+                     if hovered: 2.0'f32 else: 1.0'f32, borderCol)
   let tw = measureText(label, fontSize)
   drawText(label, (bx + (bw - tw) div 2).int32, (by + (bh - fontSize.int) div 2).int32, fontSize,
-           if hovered: Color(r: 255, g: 100, b: 100, a: 255) else: White)
+           if hovered: Color(r: 255, g: 130, b: 130, a: 255) else: Color(r: 235, g: 210, b: 210, a: 255))
 
 proc drawCheckbox(cbx, cby, cbSize: int, checked, hovered: bool, label: string, labelFontSize: int32 = 17) =
-  let bgColor = if hovered: Color(r: 80, g: 80, b: 100, a: 255) else: Color(r: 60, g: 60, b: 80, a: 255)
+  let rect = Rectangle(x: cbx.float32, y: cby.float32, width: cbSize.float32, height: cbSize.float32)
+  let bgColor = if checked: Color(r: 0, g: 70, b: 95, a: 255)
+                elif hovered: Color(r: 75, g: 75, b: 95, a: 255)
+                else: Color(r: 55, g: 55, b: 72, a: 255)
   drawRectangle(cbx.int32, cby.int32, cbSize.int32, cbSize.int32, bgColor)
-  drawRectangleLines(
-    Rectangle(x: cbx.float32, y: cby.float32, width: cbSize.float32, height: cbSize.float32),
-    1, Color(r: 120, g: 120, b: 140, a: 255))
+  let borderCol = if checked: Color(r: 0, g: 200, b: 255, a: 255)
+                  elif hovered: Color(r: 150, g: 150, b: 170, a: 255)
+                  else: Color(r: 110, g: 110, b: 130, a: 255)
+  drawRectangleLines(rect, 1.0'f32, borderCol)
   if checked:
+    let chkCol = Color(r: 0, g: 230, b: 180, a: 255)
     drawLine(Vector2(x: (cbx + 5).float32, y: (cby + cbSize div 2).float32),
-             Vector2(x: (cbx + cbSize div 2 - 2).float32, y: (cby + cbSize - 5).float32), 3, Green)
+             Vector2(x: (cbx + cbSize div 2 - 2).float32, y: (cby + cbSize - 5).float32), 3, chkCol)
     drawLine(Vector2(x: (cbx + cbSize div 2 - 2).float32, y: (cby + cbSize - 5).float32),
-             Vector2(x: (cbx + cbSize - 3).float32, y: (cby + 3).float32), 3, Green)
+             Vector2(x: (cbx + cbSize - 3).float32, y: (cby + 3).float32), 3, chkCol)
   drawText(label, (cbx + cbSize + 10).int32, (cby + (cbSize - labelFontSize.int) div 2).int32,
-           labelFontSize, Color(r: 220, g: 220, b: 220, a: 255))
+           labelFontSize, Color(r: 225, g: 225, b: 235, a: 255))
 
 proc drawInputField(fx, fy, fw, fh, textOffX, textOffY, fontSize: int, active: bool,
                     text, textBefore: string, cursorBlink: float32,
                     selStart, selEnd: int) =
-  let borderCol = if active: Color(r: 0, g: 200, b: 255, a: 255) else: Color(r: 80, g: 80, b: 100, a: 255)
-  let bgCol     = if active: Color(r: 0, g: 60, b: 80, a: 255) else: Color(r: 40, g: 40, b: 50, a: 255)
+  let rect = Rectangle(x: fx.float32, y: fy.float32, width: fw.float32, height: fh.float32)
+  let bgCol = if active: Color(r: 0, g: 55, b: 75, a: 255) else: Color(r: 38, g: 38, b: 50, a: 255)
   drawRectangle(fx.int32, fy.int32, fw.int32, fh.int32, bgCol)
-  drawRectangleLines(Rectangle(x: fx.float32, y: fy.float32,
-    width: fw.float32, height: fh.float32), 2, borderCol)
+  let borderCol = if active: Color(r: 0, g: 210, b: 255, a: 255) else: Color(r: 80, g: 80, b: 100, a: 255)
+  drawRectangleLines(rect, 2.0'f32, borderCol)
   if active:
     drawTextSelection(text, fx, fy, fontSize, selStart, selEnd)
   drawText(text, (fx + textOffX).int32, (fy + textOffY).int32, fontSize.int32, White)
@@ -427,7 +444,7 @@ proc drawInputField(fx, fy, fw, fh, textOffX, textOffY, fontSize: int, active: b
     let cx = fx + textOffX + measureText(textBefore, fontSize.int32)
     drawLine(Vector2(x: cx.float32, y: (fy + textOffY - 2).float32),
              Vector2(x: cx.float32, y: (fy + fh - textOffY + 2).float32), 2,
-             Color(r: 0, g: 200, b: 255, a: 255))
+             Color(r: 0, g: 210, b: 255, a: 255))
 
 proc handlePvPWindowInput*(pvpWin: PvPWindow) =
   if not pvpWin.window.visible or pvpWin.window.minimized:
@@ -443,22 +460,26 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
 
   if pvpWin.editingNickname:
     activeText = addr pvpWin.inputNickname
-    fieldX = contentX + 50
-    fieldY = contentY + 96 + 8
+    fieldX = contentX + 20
     fontSize = 20
-    fieldHeight = 28
+    if pvpWin.state == plsJoining:
+      fieldY = contentY + 80
+      fieldHeight = 36
+    else:
+      fieldY = contentY + 82
+      fieldHeight = 32
   elif pvpWin.editingIP:
     activeText = addr pvpWin.inputIP
-    fieldX = contentX + 50
-    fieldY = contentY + 172 + 10
+    fieldX = contentX + 20
+    fieldY = contentY + 158
     fontSize = 20
-    fieldHeight = 30
+    fieldHeight = 38
   elif pvpWin.editingPort:
     activeText = addr pvpWin.inputPort
-    fieldX = contentX + 50
-    fieldY = contentY + 250 + 10
+    fieldX = contentX + 20
+    fieldY = contentY + 226
     fontSize = 20
-    fieldHeight = 30
+    fieldHeight = 38
 
   if activeText != nil:
     let mousePos = getVirtualMousePosition()
@@ -683,7 +704,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
              (contentY + 68).int32, 14, Color(r: 120, g: 130, b: 140, a: 255))
 
     let btnW = 300
-    let btnH = 50
+    let btnH = 54
     let btnX = contentX + (contentWidth - btnW) div 2
     let hostY = contentY + 150
 
@@ -693,7 +714,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     drawText("[ H ]", (btnX + 10).int32, (hostY + (btnH - 16) div 2).int32, 16,
              Color(r: 100, g: 130, b: 160, a: 200))
 
-    let joinY = hostY + btnH + 16
+    let joinY = hostY + btnH + 22
     let joinHov = mousePos.x >= btnX.float32 and mousePos.x <= (btnX + btnW).float32 and
                   mousePos.y >= joinY.float32 and mousePos.y <= (joinY + btnH).float32
     drawPrimaryButton(btnX, joinY, btnW, btnH, t("pvp_join_game"), joinHov, fontSize = 24)
@@ -707,120 +728,115 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
              Color(r: 100, g: 110, b: 120, a: 200))
 
   of plsHostingConfig:
-    drawRectangle(contentX.int32, (contentY + 50).int32, contentWidth.int32, 1,
+    drawRectangle(contentX.int32, (contentY + 46).int32, contentWidth.int32, 1,
                   Color(r: 0, g: 200, b: 255, a: 100))
     let titleText = t("pvp_configure_hosting")
-    let titleW = measureText(titleText, 24)
+    let titleW = measureText(titleText, 22)
     drawText(titleText, (contentX + (contentWidth - titleW) div 2).int32,
-             (contentY + 16).int32, 24, Color(r: 0, g: 220, b: 255, a: 255))
+             (contentY + 14).int32, 22, Color(r: 0, g: 220, b: 255, a: 255))
 
-    drawText(t("pvp_nickname"), (contentX + 20).int32, (contentY + 62).int32, 18, White)
+    # --- Nickname ---
+    drawText(t("pvp_nickname"), (contentX + 20).int32, (contentY + 60).int32, 16, White)
     let nfX = contentX + 20
-    let nfY = contentY + 84
+    let nfY = contentY + 82
     let nfW = contentWidth - 40
-    let nfH = 36
+    let nfH = 32
     let nickBefore = if pvpWin.cursorPos > 0 and pvpWin.cursorPos <= pvpWin.inputNickname.len:
                        pvpWin.inputNickname[0..<pvpWin.cursorPos] else: ""
-    drawInputField(nfX, nfY, nfW, nfH, 10, 8, 20, pvpWin.editingNickname,
+    drawInputField(nfX, nfY, nfW, nfH, 10, 7, 20, pvpWin.editingNickname,
                    pvpWin.inputNickname, nickBefore, pvpWin.cursorBlink,
                    pvpWin.selectionStart, pvpWin.selectionEnd)
 
-    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 136)
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 132)
 
-    drawText(t("pvp_max_players"), (contentX + 20).int32, (contentY + 146).int32, 18, White)
-
-    let pcY = contentY + 172
-    let spacing = 80
-    let centerX = contentX + contentWidth div 2
-
-    let minusX = centerX - spacing
-    let minusHov = mousePos.x >= (minusX - 13).float32 and mousePos.x <= (minusX + 13).float32 and
-                   mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 26).float32
+    # --- Max Players (label left, stepper right, on one row) ---
+    drawText(t("pvp_max_players"), (contentX + 20).int32, (contentY + 150).int32, 16, White)
+    let pcY = contentY + 146
+    let mBoxX = contentX + contentWidth - 152
+    let pBoxX = contentX + contentWidth - 46
+    let cntCenterX = (mBoxX + 26 + pBoxX) div 2
     let canMinus = pvpWin.maxPlayers > 2
+    let minusHov = mousePos.x >= mBoxX.float32 and mousePos.x <= (mBoxX + 26).float32 and
+                   mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 26).float32
     let minusBg = if canMinus and minusHov: Color(r: 80, g: 80, b: 100, a: 255)
                   elif canMinus: Color(r: 50, g: 50, b: 65, a: 255)
                   else: Color(r: 35, g: 35, b: 45, a: 255)
-    drawRectangle((minusX - 13).int32, pcY.int32, 26, 26, minusBg)
-    drawRectangleLines(Rectangle(x: (minusX - 13).float32, y: pcY.float32, width: 26, height: 26),
+    drawRectangle(mBoxX.int32, pcY.int32, 26, 26, minusBg)
+    drawRectangleLines(Rectangle(x: mBoxX.float32, y: pcY.float32, width: 26, height: 26),
                        1, if canMinus: Color(r: 80, g: 80, b: 100, a: 255) else: Color(r: 50, g: 50, b: 60, a: 255))
     let mW = measureText("-", 22)
-    drawText("-", (minusX - mW div 2).int32, (pcY + 3).int32, 22,
+    drawText("-", (mBoxX + (26 - mW) div 2).int32, (pcY + 2).int32, 22,
              if canMinus: White else: Color(r: 80, g: 80, b: 80, a: 255))
 
     let cntStr = $pvpWin.maxPlayers
-    let cntW = measureText(cntStr, 24)
-    drawText(cntStr, (centerX - cntW div 2).int32, (pcY + 1).int32, 24, Color(r: 0, g: 200, b: 255, a: 255))
+    let cntW = measureText(cntStr, 22)
+    drawText(cntStr, (cntCenterX - cntW div 2).int32, (pcY + 1).int32, 22, Color(r: 0, g: 200, b: 255, a: 255))
 
-    let plusX = centerX + spacing
-    let plusHov = mousePos.x >= (plusX - 13).float32 and mousePos.x <= (plusX + 13).float32 and
-                  mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 26).float32
     let canPlus = pvpWin.maxPlayers < 16
+    let plusHov = mousePos.x >= pBoxX.float32 and mousePos.x <= (pBoxX + 26).float32 and
+                  mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 26).float32
     let plusBg = if canPlus and plusHov: Color(r: 80, g: 80, b: 100, a: 255)
                  elif canPlus: Color(r: 50, g: 50, b: 65, a: 255)
                  else: Color(r: 35, g: 35, b: 45, a: 255)
-    drawRectangle((plusX - 13).int32, pcY.int32, 26, 26, plusBg)
-    drawRectangleLines(Rectangle(x: (plusX - 13).float32, y: pcY.float32, width: 26, height: 26),
+    drawRectangle(pBoxX.int32, pcY.int32, 26, 26, plusBg)
+    drawRectangleLines(Rectangle(x: pBoxX.float32, y: pcY.float32, width: 26, height: 26),
                        1, if canPlus: Color(r: 80, g: 80, b: 100, a: 255) else: Color(r: 50, g: 50, b: 60, a: 255))
     let pW = measureText("+", 22)
-    drawText("+", (plusX - pW div 2).int32, (pcY + 3).int32, 22,
+    drawText("+", (pBoxX + (26 - pW) div 2).int32, (pcY + 2).int32, 22,
              if canPlus: White else: Color(r: 80, g: 80, b: 80, a: 255))
 
-    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 212)
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 184)
 
-    # Checkboxes
+    # --- Options (two checkboxes side by side) ---
     let cbSize = 20
     let cbX = contentX + 20
-    var cbY = contentY + 222
+    let cbY1 = contentY + 200
+    let showIPHov = mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 150).float32 and
+                    mousePos.y >= cbY1.float32 and mousePos.y <= (cbY1 + cbSize).float32
+    drawCheckbox(cbX, cbY1, cbSize, pvpWin.showIPs, showIPHov, t("pvp_show_ips"), 15)
+    let cbX2 = contentX + contentWidth div 2 + 10
+    let interpHov = mousePos.x >= cbX2.float32 and mousePos.x <= (cbX2 + cbSize + 180).float32 and
+                    mousePos.y >= cbY1.float32 and mousePos.y <= (cbY1 + cbSize).float32
+    drawCheckbox(cbX2, cbY1, cbSize, pvpWin.interpolationEnabled, interpHov, t("pvp_enable_interpolation"), 15)
 
-    let showIPHov = mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 200).float32 and
-                    mousePos.y >= cbY.float32 and mousePos.y <= (cbY + cbSize).float32
-    drawCheckbox(cbX, cbY, cbSize, pvpWin.showIPs, showIPHov, t("pvp_show_ips"))
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 236)
 
-    cbY += 28
-    let interpHov = mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 250).float32 and
-                    mousePos.y >= cbY.float32 and mousePos.y <= (cbY + cbSize).float32
-    drawCheckbox(cbX, cbY, cbSize, pvpWin.interpolationEnabled, interpHov, t("pvp_enable_interpolation"))
-
-    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 282)
-
-    # Teams
-    drawText(t("pvp_teams_mode"), (contentX + 20).int32, (contentY + 290).int32, 18, White)
-    cbY = contentY + 315
-    let teamEnHov = mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 230).float32 and
-                    mousePos.y >= cbY.float32 and mousePos.y <= (cbY + cbSize).float32
-    drawCheckbox(cbX, cbY, cbSize, pvpWin.teamsEnabled, teamEnHov, t("pvp_enable_teams"))
+    # --- Teams (checkbox left, team-count buttons right when enabled) ---
+    let cbY2 = contentY + 252
+    let teamEnHov = mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 150).float32 and
+                    mousePos.y >= cbY2.float32 and mousePos.y <= (cbY2 + cbSize).float32
+    drawCheckbox(cbX, cbY2, cbSize, pvpWin.teamsEnabled, teamEnHov, t("pvp_enable_teams"), 15)
 
     if pvpWin.teamsEnabled:
-      drawText(t("pvp_num_teams"), (contentX + 20).int32, (contentY + 344).int32, 16, LightGray)
-      let tbY = contentY + 342
-      let tbW = 42
-      let tbSp = 56
-      let tbStartX = contentX + 210
+      let tbY = contentY + 248
+      let tbW = 34
+      let tbSp = 44
+      let tbStartX = contentX + 240
       for tc in 2..6:
         let tbX = tbStartX + (tc - 2) * tbSp
         let isSel = pvpWin.numTeams == tc
         let tbHov = mousePos.x >= tbX.float32 and mousePos.x <= (tbX + tbW).float32 and
-                    mousePos.y >= tbY.float32 and mousePos.y <= (tbY + 30).float32
+                    mousePos.y >= tbY.float32 and mousePos.y <= (tbY + 28).float32
         let tbBg = if isSel: Color(r: 0, g: 60, b: 80, a: 255)
                    elif tbHov: Color(r: 50, g: 50, b: 60, a: 255)
                    else: Color(r: 40, g: 40, b: 50, a: 255)
-        drawRectangle(tbX.int32, tbY.int32, tbW.int32, 30.int32, tbBg)
-        drawRectangleLines(Rectangle(x: tbX.float32, y: tbY.float32, width: tbW.float32, height: 30),
+        drawRectangle(tbX.int32, tbY.int32, tbW.int32, 28.int32, tbBg)
+        drawRectangleLines(Rectangle(x: tbX.float32, y: tbY.float32, width: tbW.float32, height: 28),
                            1, if isSel: Color(r: 0, g: 200, b: 255, a: 255) else: Color(r: 80, g: 80, b: 100, a: 255))
         let tStr = $tc
         let tW = measureText(tStr, 18)
-        drawText(tStr, (tbX + (tbW - tW) div 2).int32, (tbY + 6).int32, 18,
+        drawText(tStr, (tbX + (tbW - tW) div 2).int32, (tbY + 5).int32, 18,
                  if isSel: Gold else: White)
 
     # GAME STATS SECTION
-    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 388)
-    drawText(t(tkPvPGameStats), (contentX + 20).int32, (contentY + 394).int32, 16,
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 288)
+    drawText(t(tkPvPGameStats), (contentX + 20).int32, (contentY + 296).int32, 14,
              Color(r: 0, g: 200, b: 255, a: 255))
 
     # Helper: draw a compact stat cell with label, minus, value, plus
     # Layout: 3 columns, 4 rows
     let colW = (contentWidth - 20) div 3
-    let baseStatY = contentY + 412
+    let baseStatY = contentY + 320
 
     template drawStatCell(cx, cy: int, lbl: string, valStr: string,
                           canDec, canInc: bool) =
@@ -857,7 +873,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
 
     # Row 0: HP | Kill Limit | Respawn Time
     let row0Y = baseStatY
-    let row1Y = baseStatY + 42
+    let row1Y = baseStatY + 46
     drawStatCell(contentX + 10,                row0Y,
       t(tkPvPStatHp),      $pvpWin.pvpConfig.startHp.int,
       pvpWin.pvpConfig.startHp > 1.0, pvpWin.pvpConfig.startHp < 20.0)
@@ -880,10 +896,10 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     drawStatCell(contentX + 10 + colW * 2,    row1Y,
       t(tkPvPStatFireRate),
       pvpWin.pvpConfig.fireRate.formatFloat(ffDecimal, 2),
-      pvpWin.pvpConfig.fireRate > 0.10, pvpWin.pvpConfig.fireRate < 1.50)
+      pvpWin.pvpConfig.fireRate > 0.105, pvpWin.pvpConfig.fireRate < 1.50)
 
     # Row 2: Bullet Speed | Bullet Radius | Start Walls
-    let row2Y = baseStatY + 84
+    let row2Y = baseStatY + 92
     drawStatCell(contentX + 10,                row2Y,
       t(tkPvPStatBulletSpeed), $pvpWin.pvpConfig.bulletSpeed.int,
       pvpWin.pvpConfig.bulletSpeed > 100.0, pvpWin.pvpConfig.bulletSpeed < 800.0)
@@ -895,7 +911,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       pvpWin.pvpConfig.startWalls > 0, pvpWin.pvpConfig.startWalls < 10)
 
     # Row 3: Time Limit (col 0) | Net Quality (col 1)
-    let row3Y = baseStatY + 126
+    let row3Y = baseStatY + 138
     let timeLimitStr = if pvpWin.pvpConfig.timeLimit <= 0: t(tkPvPValueOff)
                        else:
                          let m = (pvpWin.pvpConfig.timeLimit / 60).int
@@ -905,8 +921,8 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       t(tkPvPStatTimeLimit), timeLimitStr,
       pvpWin.pvpConfig.timeLimit > 0.0, true)
 
-    let canPrevNet = pvpWin.pvpConfig.snapshotRate < 0.067  # not already at Low
-    let canNextNet = pvpWin.pvpConfig.snapshotRate > 0.017  # not already at Ultra
+    let canPrevNet = pvpWin.pvpConfig.snapshotRate < 0.04   # not already at Low (1/20 = 0.05)
+    let canNextNet = pvpWin.pvpConfig.snapshotRate > 0.011  # not already at Ultra (1/128 = 0.0078)
     let netQualityStr =
       if pvpWin.pvpConfig.snapshotRate <= 1.0 / 128.0 + 0.001: t(tkPvPNetQualityUltra)
       elif pvpWin.pvpConfig.snapshotRate <= 1.0 / 64.0 + 0.001: t(tkPvPNetQualityHigh)
@@ -976,6 +992,10 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     var yOff = 176
     for i, client in pvpWin.networkManager.clients:
       yOff += 20
+      let stripe = if i mod 2 == 0: Color(r: 255, g: 255, b: 255, a: 10)
+                   else: Color(r: 0, g: 200, b: 255, a: 14)
+      drawRectangle((contentX + 16).int32, (contentY + yOff - 3).int32,
+        (contentWidth - 32).int32, 20, stripe)
       let nick = if client.nickname.len > 0: client.nickname else: t("pvp_player_num") & $(client.playerIndex + 1)
       let label = if pvpWin.teamsEnabled:
         let pIdx = client.playerIndex
@@ -1102,6 +1122,10 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
         drawText(t("pvp_click_badge_team"), (contentX + 20).int32, (contentY + 110).int32, 12,
                  Color(r: 120, g: 130, b: 140, a: 200))
 
+      let rowX = contentX + 16
+      let rowW = contentWidth - 32
+      drawRectangle(rowX.int32, (contentY + 124).int32, rowW.int32, 24,
+                    Color(r: 60, g: 50, b: 20, a: 90))
       let hostNick = if pvpWin.inputNickname.len > 0: pvpWin.inputNickname else: "Host"
       drawText("> " & hostNick & t("pvp_you"),
                (contentX + 30).int32, (contentY + 128).int32, 16,
@@ -1122,6 +1146,10 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       var yOff = 130
       for i, client in pvpWin.networkManager.clients:
         yOff += 24
+        let stripe = if i mod 2 == 0: Color(r: 255, g: 255, b: 255, a: 10)
+                     else: Color(r: 0, g: 200, b: 255, a: 14)
+        drawRectangle((contentX + 16).int32, (contentY + yOff - 4).int32,
+          (contentWidth - 32).int32, 24, stripe)
         let nick = if client.nickname.len > 0: client.nickname else: t("pvp_player_num") & $(client.playerIndex + 1)
         if pvpWin.teamsEnabled:
           let pIdx = client.playerIndex
@@ -1210,7 +1238,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     let panelW = contentWidth - 40
     let panelH = 80
     drawRectangle(panelX.int32, panelY.int32, panelW.int32, panelH.int32,
-                  Color(r: 25, g: 25, b: 35, a: 255))
+                  Color(r: 30, g: 22, b: 26, a: 255))
     drawRectangle(panelX.int32, panelY.int32, panelW.int32, 2,
                   Color(r: 180, g: 50, b: 50, a: 255))
     drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
@@ -1248,12 +1276,12 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
 
   of plsHostingConfig:
     let nfX = contentX + 20
-    let nfY = contentY + 84
+    let nfY = contentY + 82
     let nfW = contentWidth - 40
     if mousePos.x >= nfX.float32 and mousePos.x <= (nfX + nfW).float32 and
-       mousePos.y >= nfY.float32 and mousePos.y <= (nfY + 36).float32:
+       mousePos.y >= nfY.float32 and mousePos.y <= (nfY + 32).float32:
       pvpWin.editingNickname = true
-      let cp = getTextCursorPos(pvpWin.inputNickname, nfX, nfY + 8, 20, 28, mousePos.x, mousePos.y)
+      let cp = getTextCursorPos(pvpWin.inputNickname, nfX, nfY + 7, 20, 32, mousePos.x, mousePos.y)
       if cp >= 0:
         pvpWin.cursorPos = cp
         pvpWin.mouseDownPos = mousePos
@@ -1264,51 +1292,50 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     else:
       pvpWin.editingNickname = false
 
-    let pcY = contentY + 172
-    let spacing = 80
-    let centerX = contentX + contentWidth div 2
-    let minusX = centerX - spacing
-    if mousePos.x >= (minusX - 13).float32 and mousePos.x <= (minusX + 13).float32 and
-       mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 28).float32:
+    let pcY = contentY + 146
+    let mBoxX = contentX + contentWidth - 152
+    let pBoxX = contentX + contentWidth - 46
+    if mousePos.x >= mBoxX.float32 and mousePos.x <= (mBoxX + 26).float32 and
+       mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 26).float32:
       if pvpWin.maxPlayers > 2: pvpWin.maxPlayers -= 1
       return 0
-    let plusX = centerX + spacing
-    if mousePos.x >= (plusX - 13).float32 and mousePos.x <= (plusX + 13).float32 and
-       mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 28).float32:
+    if mousePos.x >= pBoxX.float32 and mousePos.x <= (pBoxX + 26).float32 and
+       mousePos.y >= pcY.float32 and mousePos.y <= (pcY + 26).float32:
       if pvpWin.maxPlayers < 16: pvpWin.maxPlayers += 1
       return 0
 
     let cbX = contentX + 20
     let cbSize = 20
-    if mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 200).float32 and
-       mousePos.y >= (contentY + 222).float32 and mousePos.y <= (contentY + 242).float32:
+    let cbX2 = contentX + contentWidth div 2 + 10
+    if mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 150).float32 and
+       mousePos.y >= (contentY + 200).float32 and mousePos.y <= (contentY + 220).float32:
       pvpWin.showIPs = not pvpWin.showIPs
       return 0
-    if mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 250).float32 and
-       mousePos.y >= (contentY + 250).float32 and mousePos.y <= (contentY + 270).float32:
+    if mousePos.x >= cbX2.float32 and mousePos.x <= (cbX2 + cbSize + 180).float32 and
+       mousePos.y >= (contentY + 200).float32 and mousePos.y <= (contentY + 220).float32:
       pvpWin.interpolationEnabled = not pvpWin.interpolationEnabled
       return 0
-    if mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 230).float32 and
-       mousePos.y >= (contentY + 315).float32 and mousePos.y <= (contentY + 335).float32:
+    if mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 150).float32 and
+       mousePos.y >= (contentY + 252).float32 and mousePos.y <= (contentY + 272).float32:
       pvpWin.teamsEnabled = not pvpWin.teamsEnabled
       return 0
 
     if pvpWin.teamsEnabled:
-      let tbY = contentY + 342
-      let tbW = 42
-      let tbSp = 56
-      let tbStartX = contentX + 210
+      let tbY = contentY + 248
+      let tbW = 34
+      let tbSp = 44
+      let tbStartX = contentX + 240
       for tc in 2..6:
         let tbX = tbStartX + (tc - 2) * tbSp
         if mousePos.x >= tbX.float32 and mousePos.x <= (tbX + tbW).float32 and
-           mousePos.y >= tbY.float32 and mousePos.y <= (tbY + 32).float32:
+           mousePos.y >= tbY.float32 and mousePos.y <= (tbY + 28).float32:
           pvpWin.numTeams = tc
           return 0
 
     # GAME STATS click handling
     let colWc = (contentWidth - 20) div 3
-    let row0Yc = contentY + 412
-    let row1Yc = row0Yc + 42
+    let row0Yc = contentY + 320
+    let row1Yc = row0Yc + 46
     let mx = mousePos.x
     let my = mousePos.y
 
@@ -1341,13 +1368,13 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     statClick(contentX + 10 + colWc,     row1Yc, pvpWin.pvpConfig.startDamage, 0.5,  0.5,   10.0)
     statClick(contentX + 10 + colWc * 2, row1Yc, pvpWin.pvpConfig.fireRate,    0.05, 0.10,  1.50)
     # Row 2: Bullet Speed | Bullet Radius | Start Walls
-    let row2Yc = row1Yc + 42
+    let row2Yc = row1Yc + 46
     statClick(contentX + 10,             row2Yc, pvpWin.pvpConfig.bulletSpeed,  25.0, 100.0, 800.0)
     statClick(contentX + 10 + colWc,     row2Yc, pvpWin.pvpConfig.bulletRadius,  0.5,   3.0,  25.0)
     statClickInt(contentX + 10 + colWc * 2, row2Yc, pvpWin.pvpConfig.startWalls, 1, 0, 10)
 
     # Row 3: Time Limit (col 0) & Net Quality (col 1), same row
-    let row3Yc = row2Yc + 42
+    let row3Yc = row2Yc + 46
     let ctrlY3 = row3Yc + 15
     if mx >= (contentX + 10).float32 and mx <= (contentX + 32).float32 and
        my >= ctrlY3.float32 and my <= (ctrlY3 + 22).float32:
@@ -1390,11 +1417,11 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
     let startBX = contentX + (contentWidth - 250) div 2
     let startBY = contentY + contentHeight - 118
     if mousePos.x >= startBX.float32 and mousePos.x <= (startBX + 250).float32 and
-       mousePos.y >= startBY.float32 and mousePos.y <= (startBY + 56).float32:
+       mousePos.y >= startBY.float32 and mousePos.y <= (startBY + 50).float32:
       return 6
-    let cancelBY = startBY + 64
+    let cancelBY = startBY + 58
     if mousePos.x >= startBX.float32 and mousePos.x <= (startBX + 250).float32 and
-       mousePos.y >= cancelBY.float32 and mousePos.y <= (cancelBY + 46).float32:
+       mousePos.y >= cancelBY.float32 and mousePos.y <= (cancelBY + 42).float32:
       return 3
 
   of plsHostingActive:
