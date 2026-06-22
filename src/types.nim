@@ -850,6 +850,16 @@ type
     maxLifetime*: float32
     segments*: seq[Vector2f] # Pre-computed jagged waypoints (including start & end)
 
+  ShockwaveRing* = ref object
+    ## An expanding ring that snaps out to a target radius and holds there
+    ## while fading, used to telegraph the *true size* of an AoE blast (e.g. the
+    ## Star enemy's death explosion) so the lethal boundary is legible.
+    pos*: Vector2f
+    maxRadius*: float32      # The exact radius the ring grows to (the kill edge)
+    lifetime*: float32       # Remaining display time
+    maxLifetime*: float32
+    color*: Color
+
   Laser* = ref object
     pos*: Vector2f          # Center position
     direction*: int         # 0=horizontal, 1=vertical, 2=both (cross)
@@ -1150,6 +1160,7 @@ type
     deathSequenceFadeAlpha*: float32  # Fade opacity during death playback
     deathSequenceTimeScale*: float32  # Current playback time scale during death sequence
     lightningBolts*: seq[LightningBolt]  # Active lightning arc visuals
+    shockwaveRings*: seq[ShockwaveRing]  # Active AoE-blast boundary rings (Star death, etc.)
     confirmQuitPending*: bool  # True while the quit-confirmation dialog is open
     pauseMenuExitCooldown*: float32  # Countdown before Exit button/key becomes active (prevents accidental exit)
     confirmQuitFrameGuard*: float32  # Short guard so Q-open and Q-confirm can't fire on the same frame

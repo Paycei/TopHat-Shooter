@@ -1435,6 +1435,9 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   # Decay active lightning bolt visuals
   updateLightningBolts(game, dt)
 
+  # Animate/expire AoE blast boundary rings (Star death, etc.)
+  updateShockwaveRings(game, dt)
+
 
   # Check shooting
   let mousePos = getVirtualMousePosition()
@@ -1817,7 +1820,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # Star explosion on death - damages player if too close
       if enemy.enemyType == etStar:
         const explosionRadius = 120.0  # LARGER explosion radius
-        const explosionDamage = 2.0
+        const explosionDamage = 3.0    # Buffed (was 2.0)
 
         # Play explosion sound
         playSound(stExplosion, 0.8)
@@ -1841,10 +1844,13 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
                       Color(r: 255, g: 150, b: 0, a: 255), 60)  # More particles
         spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                       Color(r: 255, g: 220, b: 100, a: 255), 40)  # Bright inner core
-        # Add multiple shockwave rings for clarity
+        # Boundary ring that snaps out to *exactly* the lethal radius and holds
+        # there while fading, so the player can read the blast size. Scattered
+        # particles alone fly past the edge and never show where damage ends.
+        spawnShockwaveRing(game, enemy.pos, explosionRadius,
+                           Color(r: 255, g: 140, b: 40, a: 255))
+        # A single spark ring at the boundary adds crackle without hiding the edge
         spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius)
-        spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius * 0.7)
-        spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionRadius * 0.4)
 
       # Death particles, rich multi-layer burst
       spawnEnemyDeathBurst(game.particlePool, enemy.pos.x, enemy.pos.y,
@@ -4172,6 +4178,9 @@ proc drawGame*(game: Game) =
 
   # Draw lightning bolt arcs (chain lightning visuals, short-lived)
   drawLightningBolts(game)
+
+  # Draw AoE blast boundary rings under the sparks so the lethal edge reads clearly
+  drawShockwaveRings(game)
 
   # Draw attack warnings (before everything else so they're visible)
   if globalSettings == nil or globalSettings.showHints:

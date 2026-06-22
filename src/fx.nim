@@ -38,6 +38,57 @@ proc spawnLightningBoltInto*(bolts: var seq[LightningBolt], fromPos, toPos: Vect
     segments:    segs
   ))
 
+const SHOCKWAVE_RING_DURATION* = 0.45'f32  # seconds the boundary ring stays visible
+
+proc spawnShockwaveRingInto*(rings: var seq[ShockwaveRing], pos: Vector2f,
+                             maxRadius: float32, color: Color) =
+  ## Spawn an expanding ring that marks the exact edge of an AoE blast.
+  rings.add(ShockwaveRing(
+    pos:         pos,
+    maxRadius:   maxRadius,
+    lifetime:    SHOCKWAVE_RING_DURATION,
+    maxLifetime: SHOCKWAVE_RING_DURATION,
+    color:       color
+  ))
+
+proc updateShockwaveRings*(rings: var seq[ShockwaveRing], dt: float32) =
+  var i = 0
+  while i < rings.len:
+    rings[i].lifetime -= dt
+    if rings[i].lifetime <= 0:
+      rings.delete(i)
+    else:
+      inc i
+
+proc drawShockwaveRings*(rings: seq[ShockwaveRing]) =
+  for ring in rings:
+    let frac     = ring.lifetime / ring.maxLifetime   # 1.0 -> 0.0 over life
+    let progress = 1.0'f32 - frac                       # 0.0 -> 1.0
+    # Snap outward over the first 30% of life (ease-out), then HOLD at the true
+    # radius for the rest while fading. A momentary flash at the edge isn't
+    # readable; holding the boundary is what lets the player gauge the size.
+    let expandT = clamp(progress / 0.30'f32, 0.0'f32, 1.0'f32)
+    let eased   = 1.0'f32 - pow(1.0'f32 - expandT, 2.0'f32)
+    let r       = ring.maxRadius * eased
+    let cx = ring.pos.x.int32
+    let cy = ring.pos.y.int32
+
+    # Interior wash: a faint filled disc conveys the *area*, not just the edge.
+    let fillA = uint8(clamp(frac * 55.0, 0.0, 55.0))
+    drawCircle(Vector2(x: ring.pos.x, y: ring.pos.y), r,
+               Color(r: ring.color.r, g: ring.color.g, b: ring.color.b, a: fillA))
+
+    # Bold boundary: three concentric outlines give a thick, unmistakable edge.
+    let edgeA = uint8(clamp(frac * 255.0, 0.0, 255.0))
+    let edge  = Color(r: ring.color.r, g: ring.color.g, b: ring.color.b, a: edgeA)
+    drawCircleLines(cx, cy, r - 1.0'f32, edge)
+    drawCircleLines(cx, cy, r,          edge)
+    drawCircleLines(cx, cy, r + 1.0'f32, edge)
+
+    # Bright inner highlight just inside the edge for extra pop/contrast.
+    let hiA = uint8(clamp(frac * 200.0, 0.0, 200.0))
+    drawCircleLines(cx, cy, r - 3.0'f32, Color(r: 255, g: 255, b: 230, a: hiA))
+
 proc updateLightningBolts*(bolts: var seq[LightningBolt], dt: float32) =
   var i = 0
   while i < bolts.len:

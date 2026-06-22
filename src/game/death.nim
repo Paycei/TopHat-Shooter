@@ -270,6 +270,7 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
 
   updateDopamine(game.dopamine, worldDt)
   updateLightningBolts(game, worldDt)
+  updateShockwaveRings(game, worldDt)
 
   var i = 0
   while i < game.attackWarnings.len:

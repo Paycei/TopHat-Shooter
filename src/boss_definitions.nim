@@ -836,7 +836,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapChain,
               damage: 7.0,
-              cooldown: 2.5,
+              cooldown: 3.0,  # Nerf: slower chain cadence, less screen clutter
               projectileSpeed: 0.0,
               projectileCount: 5,  # More chains
               spreadAngle: 0.0,
@@ -847,9 +847,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               # THUNDERSTRIKE: more strikes than phase 1.
               attackType: bapMeteor,
               damage: 7.0,
-              cooldown: 4.0,
+              cooldown: 4.5,  # Nerf: fewer, less frequent ground zones
               projectileSpeed: 0.0,
-              projectileCount: 4,
+              projectileCount: 3,
               spreadAngle: 0.0,
               durationOrRadius: 68.0,
               specialData: "thunderstrike"
@@ -857,11 +857,11 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapPulse,
               damage: 8.0,
-              cooldown: 4.5,
+              cooldown: 5.0,  # Nerf: more recovery time
               projectileSpeed: 210.0,
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 170.0,  # Electric shockwave
+              durationOrRadius: 150.0,  # Nerf: smaller electric shockwave
               specialData: "electric_discharge"
             ),
             BossAttack(
@@ -869,9 +869,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               # spawnArcLattice). projectileCount = beams, durationOrRadius = thickness.
               attackType: bapLaser,
               damage: 8.0,
-              cooldown: 6.0,
+              cooldown: 6.5,  # Nerf: less frequent beam walls
               projectileSpeed: 0.0,
-              projectileCount: 9,
+              projectileCount: 7,  # Nerf: fewer beams -> wider safe wedge
               spreadAngle: 0.0,
               durationOrRadius: 16.0,
               specialData: "arc_lattice"
@@ -891,9 +891,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapChain,
               damage: 10.5,
-              cooldown: 2.0,
+              cooldown: 2.5,  # Nerf: slower overload chains
               projectileSpeed: 0.0,
-              projectileCount: 8,  # Massive
+              projectileCount: 6,  # Nerf: fewer chains (was 8)
               spreadAngle: 0.0,
               durationOrRadius: 360.0,
               specialData: "chain_overload"  # Maximum chain effect
@@ -902,9 +902,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               # ARC LATTICE: denser beam fan (narrower wedge) in the final phase.
               attackType: bapLaser,
               damage: 9.0,
-              cooldown: 5.5,
+              cooldown: 6.0,  # Nerf: less frequent beam walls
               projectileSpeed: 0.0,
-              projectileCount: 12,
+              projectileCount: 9,  # Nerf: fewer beams -> wider safe wedge (was 12)
               spreadAngle: 0.0,
               durationOrRadius: 18.0,
               specialData: "arc_lattice"
@@ -913,9 +913,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               # THUNDERSTRIKE: heavy barrage of ground strikes.
               attackType: bapMeteor,
               damage: 8.0,
-              cooldown: 4.0,
+              cooldown: 4.5,  # Nerf: less frequent strikes
               projectileSpeed: 0.0,
-              projectileCount: 6,
+              projectileCount: 4,  # Nerf: fewer simultaneous ground zones (was 6)
               spreadAngle: 0.0,
               durationOrRadius: 66.0,
               specialData: "thunderstrike"
@@ -923,11 +923,11 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapPulse,
               damage: 9.5,
-              cooldown: 5.0,
-              projectileSpeed: 240.0,
+              cooldown: 5.5,  # Nerf: more recovery time
+              projectileSpeed: 220.0,  # Nerf: slower shockwave, easier to outrun
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 200.0,
+              durationOrRadius: 175.0,  # Nerf: smaller shockwave (was 200)
               specialData: "overload_pulse"  # Massive shockwave
             )
           ]

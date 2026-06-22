@@ -596,6 +596,7 @@ proc wipeRoomEntities*(game: Game) =
   game.lasers = @[]
   game.meteorites = @[]
   game.lightningBolts = @[]
+  game.shockwaveRings = @[]
   game.walls = @[]
   game.pendingWallRespawns = @[]
   game.pendingBoss = nil

@@ -23,6 +23,16 @@ proc updateLightningBolts*(game: var Game, dt: float32) =
 proc drawLightningBolts*(game: Game) =
   fx.drawLightningBolts(game.lightningBolts)
 
+# AoE-blast boundary rings (Star death explosion, etc.) — forwarding stubs
+proc spawnShockwaveRing*(game: var Game, pos: Vector2f, maxRadius: float32, color: Color) =
+  fx.spawnShockwaveRingInto(game.shockwaveRings, pos, maxRadius, color)
+
+proc updateShockwaveRings*(game: var Game, dt: float32) =
+  fx.updateShockwaveRings(game.shockwaveRings, dt)
+
+proc drawShockwaveRings*(game: Game) =
+  fx.drawShockwaveRings(game.shockwaveRings)
+
 proc getExplosionRadius*(level: int): float32 =
   ## Standard explosion radius for explosive bullets
   case level
