@@ -218,7 +218,7 @@ proc syncTargetActivity(enemy: Enemy, kind: BossWeakObjectiveKind) =
 proc weakPointCompletionDamage(enemy: Enemy, kind: BossWeakObjectiveKind): float32 =
   let pct = case kind
     of bwoSpiralAnchors: 0.020'f32
-    of bwoSummonSigils: 0.030'f32
+    of bwoSummonSigils: 0.020'f32   # trimmed from 0.030: add-clear bursts were too strong
     of bwoMeteorCracks: 0.040'f32
     of bwoLaserPrisms: 0.026'f32
     of bwoVoidRifts: 0.050'f32

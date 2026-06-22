@@ -67,7 +67,7 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   #   tier 1-4  ~3.6x   tier 5-8  ~6x   tier 9-11 ~11x   tier 12 ~17x
   let (bodyMult, weakMult, exposure) =
     if bossID in 1..4:
-      (0.55'f32, 2.00'f32, 2.4'f32)
+      (0.55'f32, 1.90'f32, 2.4'f32)
     elif bossID in 5..8:
       (0.40'f32, 2.50'f32, 2.2'f32)
     elif bossID in 9..11:
@@ -197,7 +197,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss2Name),
       bossID: 2,
-      baseHP: 220.0,  # durability buff: was 180 (2nd-squishiest boss); now a tankier wall to grind through while clearing the legion
+      baseHP: 250.0,  # durability buff: was 220 -> 250; was dying too fast off its add-clear windows, now a tankier wall to grind through while clearing the legion
       baseSpeed: 65.0,
       baseDamage: 1,
       baseRadius: 50.0,
@@ -537,18 +537,33 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           specialBehavior: "laser_chaos",
           attacks: @[
             BossAttack(
+              # Signature mega finale: the boss freezes, hardens, plays a charge
+              # animation and cancels its other attacks, then fires a single beam
+              # aimed at the player that ricochets 20 times off the screen edges.
+              # Long 2.5s telegraph (RicochetLaserTelegraph) + long cooldown make
+              # it a rare, readable "clear the whole arena" moment.
               attackType: bapLaser,
-              damage: 5.0,
+              damage: 9.0,  # huge: fully telegraphed + can only land one hit
+              cooldown: 19.0,
+              projectileSpeed: 0.0,
+              projectileCount: 20,  # bounce count
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "ricochet_laser"
+            ),
+            BossAttack(
+              attackType: bapLaser,
+              damage: 4.5,
               cooldown: 4.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
               projectileCount: 3,
               spreadAngle: 22.5,
-              durationOrRadius: 2.0,  # dodge buff: shorter active beam window, was 2.5
+              durationOrRadius: 1.5,  # dodge buff: shorter active beam window, was 2.5
               specialData: "prismatic_cage"
             ),
             BossAttack(
               attackType: bapLaser,
-              damage: 5.0,
+              damage: 4.5,
               cooldown: 1.8,
               projectileSpeed: 0.0,
               projectileCount: 1,
@@ -561,7 +576,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 2.5,
               cooldown: 4.5,  # NERFED from 3.5
               projectileSpeed: 140.0,  # NERFED from 155.0
-              projectileCount: 16,  # NERFED from 20
+              projectileCount: 14,  # NERFED from 16
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
@@ -570,7 +585,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 2.5,
               cooldown: 6.0,  # NERFED from 4.5
               projectileSpeed: 190.0,  # NERFED from 210.0
-              projectileCount: 16,  # NERFED from 20
+              projectileCount: 14,  # NERFED from 20
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
@@ -589,7 +604,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               cooldown: 2.0,  # NERFED from 1.2
               projectileSpeed: 250.0,  # NERFED from 280.0
               projectileCount: 2,  # NERFED from 3
-              spreadAngle: 12.0,  # NERFED from 18.0 (tighter)
+              spreadAngle: 12.0,  # NERFED from 18.0
               durationOrRadius: 0.0
             )
           ]

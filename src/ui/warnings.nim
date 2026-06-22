@@ -77,6 +77,99 @@ proc spawnArcLatticeInto*(warnings: var seq[AttackWarning], particlePool: Partic
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 255, g: 255, b: 150, a: 255), 16)
 
+proc computeRicochetPath*(startPos, startDir: Vector2f, bounces: int,
+                          screenWidth, screenHeight: int32): seq[Vector2f] =
+  ## Trace a beam from startPos along startDir, reflecting off the four screen
+  ## edges, recording a vertex at every bounce. Returns the polyline
+  ## [start, hit1, hit2, ... , end]. Pure screen-edge reflection (no walls).
+  const EPS = 0.05'f32
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+  var o = startPos
+  var d = startDir.normalize()
+  if d.length() < 0.0001'f32:
+    d = newVector2f(1, 0)
+  result = @[o]
+
+  for _ in 0 .. bounces:
+    # Distance to the next vertical edge (x = 0 or x = w) and horizontal edge.
+    var bestT = 1.0e9'f32
+    var normal = newVector2f(0, 0)
+
+    if d.x > EPS:
+      let t = (w - o.x) / d.x
+      if t > EPS and t < bestT:
+        bestT = t; normal = newVector2f(-1, 0)
+    elif d.x < -EPS:
+      let t = (0.0'f32 - o.x) / d.x
+      if t > EPS and t < bestT:
+        bestT = t; normal = newVector2f(1, 0)
+
+    if d.y > EPS:
+      let t = (h - o.y) / d.y
+      if t > EPS and t < bestT:
+        bestT = t; normal = newVector2f(0, -1)
+    elif d.y < -EPS:
+      let t = (0.0'f32 - o.y) / d.y
+      if t > EPS and t < bestT:
+        bestT = t; normal = newVector2f(0, 1)
+
+    if bestT >= 1.0e9'f32:
+      break  # Beam is parallel to and inside both axes (shouldn't happen)
+
+    let hit = o + d * bestT
+    result.add(hit)
+
+    # Reflect the direction about the edge normal: d' = d - 2(d·n)n
+    let dot = d.x * normal.x + d.y * normal.y
+    d = newVector2f(d.x - 2.0'f32 * dot * normal.x,
+                    d.y - 2.0'f32 * dot * normal.y).normalize()
+    # Nudge off the surface so the next iteration doesn't re-hit the same edge.
+    o = hit + d * EPS
+
+proc spawnRicochetLaserInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
+                             player: Player, screenWidth, screenHeight: int32,
+                             enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  ## The Laser Architect's signature beam: a single ray aimed at the player that
+  ## ricochets off the screen edges many times, telegraphed for the full wind-up
+  ## then lethal along its whole length for a short active flash.
+  let bounces = if attack.projectileCount > 0: attack.projectileCount else: 20
+  let dmg     = attack.damage * phase.damageMultiplier
+  let total   = RicochetLaserTelegraph + RicochetLaserActive
+
+  var aim = (player.pos - enemy.pos).normalize()
+  if aim.length() < 0.0001'f32:
+    aim = newVector2f(1, 0)
+
+  let path = computeRicochetPath(enemy.pos, aim, bounces, screenWidth, screenHeight)
+
+  # Lock the boss into a mega-cast channel for the whole wind-up + active beam:
+  # it freezes in place (movement skipped), its other attacks pause, and it
+  # hardens (MegaCastDamageTaken). The phase-transition-style freeze sells the
+  # "charging an ultimate" beat.
+  enemy.megaCastTimer = total
+  enemy.megaCastTotal = total
+  enemy.vel = newVector2f(0, 0)
+  enemy.isDashing = false
+
+  warnings.add(AttackWarning(
+    pos: enemy.pos,
+    targetPos: player.pos,
+    attackType: "ricochet_laser",
+    lifetime: total, maxLifetime: total,
+    sourceEnemyId: enemy.id,
+    laserAngles: @[],
+    laserLength: RicochetLaserHalfWidth,
+    bulletDamage: dmg,
+    enemyType: enemy.enemyType,
+    bulletsCreated: false,
+    lasersCreated: false,
+    ricochetPath: path
+  ))
+
+  spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 100, g: 220, b: 255, a: 255), 18)
+
 proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
                                enemy: Enemy, attack: BossAttack) =
   const WARNING_DURATION = 0.45'f32

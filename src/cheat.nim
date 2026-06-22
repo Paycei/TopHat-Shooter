@@ -101,7 +101,7 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
 
           # Mark that cheats were used if menu opened during gameplay.
           # The cheater hat is always earned; only cheatsUsed (which withholds
-          # progression unlocks) is exempt on debug builds — see ANTICHEAT_ENABLED.
+          # progression unlocks) is exempt on debug builds, see ANTICHEAT_ENABLED.
           if menu.active and game.state == gsPlaying:
             if ANTICHEAT_ENABLED:
               game.cheatsUsed = true
@@ -135,7 +135,7 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
 
           # Mark that cheats were used if menu opened during gameplay.
           # The cheater hat is always earned; only cheatsUsed (which withholds
-          # progression unlocks) is exempt on debug builds — see ANTICHEAT_ENABLED.
+          # progression unlocks) is exempt on debug builds, see ANTICHEAT_ENABLED.
           if menu.active and game.state == gsPlaying:
             if ANTICHEAT_ENABLED:
               game.cheatsUsed = true

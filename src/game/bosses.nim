@@ -767,6 +767,9 @@ proc spawnThunderstrike*(game: var Game, enemy: Enemy, attack: BossAttack, phase
 proc spawnArcLattice*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
   warnings.spawnArcLatticeInto(game.attackWarnings, game.particlePool, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
+proc spawnRicochetLaser*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  warnings.spawnRicochetLaserInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
+
 proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) =
   warnings.addBossAttackWarningInto(game.attackWarnings, game.player, enemy, attack)
 
@@ -2301,6 +2304,9 @@ proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, 
     return
   of "arc_lattice":
     spawnArcLattice(game, enemy, attack, phase)
+    return
+  of "ricochet_laser":
+    spawnRicochetLaser(game, enemy, attack, phase)
     return
   else: discard
 

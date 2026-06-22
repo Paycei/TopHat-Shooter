@@ -841,6 +841,44 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                           isCritical = false, damageType = dtLightning)
           w.lasersCreated = true
 
+    # RICOCHET LASER (boss 4 final phase): telegraph expires -> the beam-front
+    # races along the bounce route (RicochetLaserSweep). The swept-so-far portion
+    # is lethal; the player can only be struck ONCE (lasersCreated gate), so being
+    # caught by the leading edge is a single big hit, never a repeated burn.
+    if game.attackWarnings[i].attackType == "ricochet_laser":
+      let w = game.attackWarnings[i]
+      if w.lifetime <= RicochetLaserActive and w.ricochetPath.len >= 2:
+        if not w.bulletsCreated:
+          # Muzzle flash at the boss + a shake at the instant the beam launches.
+          spawnExplosionPooled(game.particlePool, w.ricochetPath[0].x, w.ricochetPath[0].y,
+                               Color(r: 200, g: 245, b: 255, a: 255), 14)
+          addShake(game.dopamine.screenShake, siMedium)
+          w.bulletsCreated = true
+        if not w.lasersCreated and game.player.invincibilityTimer <= 0:
+          # Only test the portion the beam-front has actually reached so far.
+          let activeElapsed = RicochetLaserActive - w.lifetime
+          let sweepFrac = clamp(activeElapsed / RicochetLaserSweep, 0.0'f32, 1.0'f32)
+          let frontDist = sweepFrac * polylineLength(w.ricochetPath)
+          let swept = ricochetSweptPath(w.ricochetPath, frontDist)
+          var hit = false
+          for s in 0 ..< swept.len - 1:
+            if pointSegmentDistance(game.player.pos, swept[s], swept[s + 1]) <=
+               w.laserLength + game.player.radius:
+              hit = true
+              break
+          if hit:
+            if takeDamage(game.player, w.bulletDamage):
+              beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
+            trackDamageAvoided(game)
+            trackPlayerDamage(game, w.bulletDamage, w.enemyType)
+            game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
+                            isCritical = false, damageType = dtLaser)
+            # Impact burst where the beam caught the player.
+            spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                                 Color(r: 230, g: 250, b: 255, a: 255), 20)
+            addShake(game.dopamine.screenShake, siLarge)
+            w.lasersCreated = true
+
     if game.attackWarnings[i].lifetime <= 0:
       game.attackWarnings.delete(i)
       continue
@@ -2124,10 +2162,22 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         if enemy.invulnerabilityTimer < 0:
           enemy.invulnerabilityTimer = 0
 
+      # Mega-cast channel (e.g. boss 4's ricochet beam): tick it down and keep
+      # the boss frozen in place while it charges.
+      if enemy.megaCastTimer > 0:
+        enemy.megaCastTimer -= dt
+        if enemy.megaCastTimer <= 0:
+          enemy.megaCastTimer = 0
+          enemy.megaCastTotal = 0
+        else:
+          enemy.vel = newVector2f(0, 0)
+
       # Update boss behavior based on specialBehavior. The boss holds completely
-      # still during a phase-change transition so the animation reads as a
-      # dramatic "charge up and transform" beat rather than a moving target.
-      if enemy.invulnerabilityTimer <= 0 and enemy.currentPhaseIndex < bossDef.phases.len:
+      # still during a phase-change transition (and while channelling a mega
+      # special) so the animation reads as a dramatic "charge up" beat rather
+      # than a moving target.
+      if enemy.invulnerabilityTimer <= 0 and enemy.megaCastTimer <= 0 and
+         enemy.currentPhaseIndex < bossDef.phases.len:
         let phase = bossDef.phases[enemy.currentPhaseIndex]
 
         # Ranged-pattern bosses maintain a safe preferred distance from the player.
@@ -2260,6 +2310,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # tick down faster, so a stalled boss attacks more frequently.
       let enrageRate = 1.0'f32 + enemy.bossEnrageLevel
       for i in 0..<enemy.attackTimers.len:
+        # While channelling a mega special the boss commits fully: every other
+        # attack countdown is paused so nothing else fires during the beam.
+        if enemy.megaCastTimer > 0:
+          break
         # Freeze the summon countdown until every summoned add is dead.
         if livingSummons > 0 and hasSummonPhase and
             i < bossDef.phases[enemy.currentPhaseIndex].attacks.len and
@@ -2272,6 +2326,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         let phase = bossDef.phases[enemy.currentPhaseIndex]
         const WARNING_LEAD_TIME = 0.4'f32
         for i, attack in phase.attacks:
+          # Once a mega cast is underway (including the moment it just started
+          # this frame), suppress every other attack's warning/fire.
+          if enemy.megaCastTimer > 0:
+            break
           if i < enemy.attackTimers.len:
             # Show pre-fire warning once per cycle, fires as soon as the timer
             # enters the warning window, regardless of cooldown length.
@@ -3086,6 +3144,11 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             # 0.5 = half defense (takes 2x damage), 1.0 = normal, 2.0 = double defense (takes 0.5x damage)
             if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
               actualDamage /= game.enemies[j].defenseMultiplier
+
+            # Mega-cast hardening: the boss is armored while channelling its
+            # signature beam, so bursting it down mid-cast is heavily resisted.
+            if game.enemies[j].isBoss and game.enemies[j].megaCastTimer > 0:
+              actualDamage *= MegaCastDamageTaken
 
             # Tank elite: 50% damage reduction
             # Handles multiple elite types
@@ -4187,6 +4250,11 @@ proc drawGame*(game: Game) =
     for warning in game.attackWarnings:
       drawAttackWarning(warning)
 
+  # The ricochet beam's live lethal pass renders regardless of the hint gate,
+  # so the active beam is always visible (the wind-up telegraph above is the hint).
+  for warning in game.attackWarnings:
+    drawRicochetLaserBeam(warning)
+
   # Draw lasers (after warnings, before walls for visual layering)
   for laser in game.lasers:
     drawLaser(laser)
@@ -4237,6 +4305,36 @@ proc drawGame*(game: Game) =
     if enemy.isElite:
       drawEliteOverlay(enemy, game.time)
     if enemy.isBoss:
+      # Mega-cast charge animation: rings converge on the frozen boss, energy
+      # spokes spin into it, and a core glow swells toward fire time. Sells the
+      # "channelling an ultimate" beat that pairs with the long beam telegraph.
+      if enemy.megaCastTimer > 0 and enemy.megaCastTotal > 0:
+        let charge = clamp(1.0'f32 - enemy.megaCastTimer / enemy.megaCastTotal, 0.0'f32, 1.0'f32)
+        let cx = enemy.pos.x
+        let cy = enemy.pos.y
+        let baseR = enemy.radius
+        for ring in 0..2:
+          let ph = (game.time * 1.5'f32 + ring.float32 * 0.33'f32) mod 1.0'f32
+          let conv = 1.0'f32 - ph                       # 1 = far out, 0 = at the boss
+          let rr = baseR + 18.0'f32 + conv * (120.0'f32 + charge * 60.0'f32)
+          let aa = uint8(clamp((1.0'f32 - conv) * 200.0'f32 * (0.4'f32 + charge * 0.6'f32), 0.0'f32, 255.0'f32))
+          drawCircleLines(cx.int32, cy.int32, rr, Color(r: 120, g: 230, b: 255, a: aa))
+        const spokes = 8
+        let rot = game.time * (2.0'f32 + charge * 6.0'f32)
+        for k in 0..<spokes:
+          let ang = rot + k.float32 * (PI * 2.0'f32 / spokes.float32)
+          let outer = baseR + 14.0'f32 + (1.0'f32 - charge) * 40.0'f32
+          let inner = baseR + 4.0'f32
+          drawLine(Vector2(x: cx + cos(ang) * outer, y: cy + sin(ang) * outer),
+                   Vector2(x: cx + cos(ang) * inner, y: cy + sin(ang) * inner),
+                   1.5'f32 + charge * 2.0'f32,
+                   Color(r: 200, g: 245, b: 255,
+                         a: uint8(clamp(120.0'f32 + charge * 135.0'f32, 0.0'f32, 255.0'f32))))
+        let pulse = sin(game.time * (10.0'f32 + charge * 20.0'f32)) * 0.5'f32 + 0.5'f32
+        let coreR = baseR * (0.6'f32 + charge * 0.5'f32 + pulse * 0.15'f32)
+        drawCircle(Vector2(x: cx, y: cy), coreR,
+                   Color(r: 150, g: 235, b: 255,
+                         a: uint8(clamp(60.0'f32 + charge * 120.0'f32 + pulse * 40.0'f32, 0.0'f32, 255.0'f32))))
       drawBossWeakPoints(enemy, globalSettings == nil or globalSettings.showHints)
       #  Vulnerability window: bold expanding rings so the player never misses it 
       if enemy.weakPoint.exposedTimer > 0:

@@ -21,6 +21,17 @@ const
   ArcBeamTelegraph*     = 1.05'f32  # dodge window before a lightning wall fires
   ArcBeamActive*        = 0.30'f32  # how long the wall stays lethal
 
+# Timing for The Laser Architect's (boss 4) ricochet beam. The path is traced
+# once when the warning spawns, telegraphed for the full wind-up, then the whole
+# polyline goes lethal for a short active flash. Shared by the warning-update
+# logic (game.nim) and the telegraph drawing (enemy.nim).
+const
+  RicochetLaserTelegraph* = 2.5'f32   # long dodge window: see the whole bounce path
+  RicochetLaserActive*    = 0.55'f32  # how long the traced beam stays lethal/visible
+  RicochetLaserSweep*     = 0.22'f32  # extremely quick: time for the beam-front to race the whole path
+  RicochetLaserHalfWidth* = 14.0'f32  # half-thickness of the lethal beam (px)
+  MegaCastDamageTaken*    = 0.4'f32   # fraction of damage a boss takes while channelling a mega special
+
 type
   GameState* = enum
     gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
@@ -373,6 +384,7 @@ type
     isBossTeleportTarget*: bool  # True if boss should teleport to this position
     bulletRadius*: float32       # Bullet radius for delayed-spawn attacks (e.g. meteors)
     overrideColor*: Color        # Optional color tint for this warning (alpha=0 = use default)
+    ricochetPath*: seq[Vector2f] # Precomputed bounce vertices for "ricochet_laser" beams
 
   ElementType* = enum
     etPoison,      # Green - poison damage over time
@@ -689,6 +701,8 @@ type
     bossEnrageLevel*: float32       # 0 = calm; ramps while the objective is ignored (faster attacks)
     addsGateActive*: bool           # True while living boss-summoned adds make the boss damage-immune
     summonWaveActive*: bool         # Summoner King: a summoned wave is out; clearing it opens the window
+    megaCastTimer*: float32         # >0 while channelling a mega special (boss frozen, other attacks paused, hardened)
+    megaCastTotal*: float32         # Full duration of the active mega cast, for animation progress
     ignoreHealPending*: float32     # Queued heal from weak-point targets that expired unhit (applied next frame)
     windowDamageDealt*: float32     # Player damage dealt during the current vulnerability window
     windowWasOpen*: bool            # Tracks vulnerability-window open->close edge for heal-on-ignore
@@ -1418,3 +1432,31 @@ proc wallContactNormal*(wall: Wall, p: Vector2f): Vector2f =
   let len = sqrt(wx * wx + wy * wy)
   if len < 0.0001'f32: return newVector2f(0, -1)
   newVector2f(wx / len, wy / len)
+
+proc polylineLength*(path: seq[Vector2f]): float32 =
+  ## Total arc length of a polyline (sum of segment lengths).
+  result = 0.0'f32
+  for s in 0 ..< path.len - 1:
+    result += distance(path[s], path[s + 1])
+
+proc ricochetSweptPath*(path: seq[Vector2f], frontDist: float32): seq[Vector2f] =
+  ## The first `frontDist` units of `path`, ending at the exact beam-front point.
+  ## Used to animate the ricochet beam "advancing" along its bounce route: the
+  ## returned polyline is everything the beam-front has reached so far.
+  if path.len == 0:
+    return @[]
+  result = @[path[0]]
+  if frontDist <= 0.0'f32 or path.len == 1:
+    return
+  var remaining = frontDist
+  for s in 0 ..< path.len - 1:
+    let segLen = distance(path[s], path[s + 1])
+    if segLen <= 0.0001'f32:
+      continue
+    if remaining >= segLen:
+      result.add(path[s + 1])
+      remaining -= segLen
+    else:
+      let t = remaining / segLen
+      result.add(path[s] + (path[s + 1] - path[s]) * t)
+      return

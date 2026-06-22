@@ -3512,8 +3512,98 @@ proc drawAttackWarning*(warning: AttackWarning) =
       drawCircle(a, 5.0, Color(r: 255'u8, g: 255'u8, b: 160'u8, a: a2))
       drawCircle(b, 5.0, Color(r: 255'u8, g: 255'u8, b: 160'u8, a: a2))
 
+  of "ricochet_laser":
+    # The Laser Architect's bouncing beam, wind-up telegraph only. A loud, hard
+    # to miss preview: a glowing danger band along the whole bounce route, a
+    # crisp core line, energy dashes marching toward the muzzle to show the shot
+    # direction, pulsing bounce nodes, and a colour that ramps cyan -> hot white
+    # as fire nears. The live lethal beam is drawn ungated by drawRicochetLaserBeam.
+    if warning.ricochetPath.len >= 2 and warning.lifetime > RicochetLaserActive:
+      let progress = 1.0'f32 - warning.lifetime / warning.maxLifetime  # 0 -> 1 toward fire
+      let pulse = (sin(getTime() * 12.0) * 0.5 + 0.5).float32
+      let a2 = uint8(clamp(70.0 + progress * 185.0, 0.0, 255.0))
+      let bandA = uint8(clamp((30.0 + progress * 90.0) * (0.7 + pulse * 0.3), 0.0, 255.0))
+      # Colour ramps from cyan to hot white/red as the shot becomes imminent.
+      let warm = uint8(clamp(progress * progress * 255.0, 0.0, 255.0))
+      let core = Color(r: (120.0 + warm.float32 * 0.53).uint8,
+                       g: (230.0 + (255.0 - 230.0) * progress).uint8,
+                       b: 255'u8, a: a2)
+      let halfW = warning.laserLength
+      let coreThick = 2.0 + progress * 3.0 + pulse * 1.5
+
+      for s in 0 ..< warning.ricochetPath.len - 1:
+        let p0 = warning.ricochetPath[s]
+        let p1 = warning.ricochetPath[s + 1]
+        let a0 = Vector2(x: p0.x, y: p0.y)
+        let b0 = Vector2(x: p1.x, y: p1.y)
+        # Wide danger band marking the kill width, then the bright core line.
+        drawLine(a0, b0, halfW * 2.0, Color(r: 0'u8, g: 190'u8, b: 255'u8, a: bandA))
+        drawLine(a0, b0, coreThick, core)
+
+      # Energy dashes marching along the path toward the muzzle (shot direction).
+      let totalLen = polylineLength(warning.ricochetPath)
+      if totalLen > 1.0:
+        const DASH_SPACING = 46.0'f32
+        let march = (getTime() * 320.0).float32 mod DASH_SPACING
+        var d = march
+        let dashA = uint8(clamp(120.0 + progress * 135.0, 0.0, 255.0))
+        while d < totalLen:
+          let head = ricochetSweptPath(warning.ricochetPath, d)
+          if head.len >= 1:
+            let hp = head[^1]
+            drawCircle(Vector2(x: hp.x, y: hp.y), 2.5 + progress * 1.5,
+                       Color(r: 235'u8, g: 250'u8, b: 255'u8, a: dashA))
+          d += DASH_SPACING
+
+      # Bounce nodes pulse so the ricochet corners read clearly.
+      for v in warning.ricochetPath:
+        drawCircle(Vector2(x: v.x, y: v.y), 4.0 + pulse * 2.0,
+                   Color(r: 180'u8, g: 240'u8, b: 255'u8, a: a2))
+      # Charging ring at the muzzle, tightening as the shot nears.
+      let muzzle = warning.ricochetPath[0]
+      drawCircleLines(muzzle.x.int32, muzzle.y.int32, 22.0 - progress * 12.0 + pulse * 4.0,
+                      Color(r: 220'u8, g: 250'u8, b: 255'u8, a: a2))
+
   else:
     discard
+
+proc drawRicochetLaserBeam*(warning: AttackWarning) =
+  ## Live lethal pass for the ricochet beam, drawn ungated (independent of the
+  ## showHints telegraph gate) so the active beam is always visible like a Laser.
+  ## The beam-front races along the path (RicochetLaserSweep) for an "advancing
+  ## shot" feel; only the swept-so-far portion is drawn, tipped by a bright head.
+  if warning.attackType != "ricochet_laser": return
+  if warning.lifetime > RicochetLaserActive: return
+  if warning.ricochetPath.len < 2: return
+
+  let halfW = warning.laserLength
+  let activeElapsed = RicochetLaserActive - warning.lifetime
+  let sweepFrac = clamp(activeElapsed / RicochetLaserSweep, 0.0'f32, 1.0'f32)
+  let totalLen = polylineLength(warning.ricochetPath)
+  let swept = ricochetSweptPath(warning.ricochetPath, sweepFrac * totalLen)
+  if swept.len < 1: return
+
+  # Trailing beam fades slightly once the front has fully arrived.
+  let tailFade = clamp(warning.lifetime / RicochetLaserActive, 0.4'f32, 1.0'f32)
+  let glowA = uint8(clamp(150.0'f32 * tailFade, 0.0'f32, 255.0'f32))
+  let coreA = uint8(clamp(255.0'f32 * tailFade, 0.0'f32, 255.0'f32))
+
+  for s in 0 ..< swept.len - 1:
+    let a0 = Vector2(x: swept[s].x, y: swept[s].y)
+    let b0 = Vector2(x: swept[s + 1].x, y: swept[s + 1].y)
+    drawLine(a0, b0, halfW * 2.0, Color(r: 120'u8, g: 230'u8, b: 255'u8, a: glowA))
+    drawLine(a0, b0, 3.5, Color(r: 235'u8, g: 255'u8, b: 255'u8, a: coreA))
+  # Bounce nodes the beam has already reached.
+  for v in swept:
+    drawCircle(Vector2(x: v.x, y: v.y), 5.0, Color(r: 200'u8, g: 245'u8, b: 255'u8, a: coreA))
+  # Bright travelling head at the beam-front while it is still racing.
+  if sweepFrac < 1.0'f32:
+    let head = swept[^1]
+    let hp = (sin(getTime() * 30.0) * 0.5 + 0.5).float32
+    drawCircle(Vector2(x: head.x, y: head.y), halfW + 6.0 + hp * 4.0,
+               Color(r: 200'u8, g: 245'u8, b: 255'u8, a: 130'u8))
+    drawCircle(Vector2(x: head.x, y: head.y), halfW * 0.6 + 3.0,
+               Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 255'u8))
 
 proc drawLaser*(laser: Laser) =
   # Calculate alpha based on lifetime with accelerated fade
