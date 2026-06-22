@@ -5,6 +5,14 @@ import roguelite
 # ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
 
+# Anti-cheat exemption for development builds. The anti-cheat is just the
+# `game.cheatsUsed` flag, which (when set) withholds every progression unlock
+# (survival mode, kernel tophat, roguelite unlock, run stats, death rewards).
+# Debug builds compile with -d:debug (see `nimble debug`); there the cheat menu
+# is a testing tool, so it must NOT mark the run as cheated or those unlocks
+# would never fire while developing. Release builds keep the anti-cheat active.
+const ANTICHEAT_ENABLED* = not defined(debug)
+
 type
   CheatMenuTab* = enum
     cmtWaves,
@@ -91,9 +99,12 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
           playSound(stMenuSelect)
           menu.keySequence.setLen(0)
 
-          # Mark that cheats were used if menu opened during gameplay
+          # Mark that cheats were used if menu opened during gameplay.
+          # The cheater hat is always earned; only cheatsUsed (which withholds
+          # progression unlocks) is exempt on debug builds — see ANTICHEAT_ENABLED.
           if menu.active and game.state == gsPlaying:
-            game.cheatsUsed = true
+            if ANTICHEAT_ENABLED:
+              game.cheatsUsed = true
             game.cheaterHatJustEarned = true
 
           return
@@ -122,9 +133,12 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
           playSound(stMenuSelect)
           menu.keySequence.setLen(0)
 
-          # Mark that cheats were used if menu opened during gameplay
+          # Mark that cheats were used if menu opened during gameplay.
+          # The cheater hat is always earned; only cheatsUsed (which withholds
+          # progression unlocks) is exempt on debug builds — see ANTICHEAT_ENABLED.
           if menu.active and game.state == gsPlaying:
-            game.cheatsUsed = true
+            if ANTICHEAT_ENABLED:
+              game.cheatsUsed = true
             game.cheaterHatJustEarned = true
 
           return
@@ -1045,7 +1059,8 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
 
   if btn(labelX, currentY, wideW, bh + 4, "Skip Floor (Complete Boss)",
          Color(r: 80, g: 0, b: 0, a: 255), Red):
-    game.cheatsUsed = true
+    if ANTICHEAT_ENABLED:
+      game.cheatsUsed = true
     game.cheatRogueliteSkipFloor = true
   currentY += bh + 16
 

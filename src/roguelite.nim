@@ -492,7 +492,8 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
     coresEarned: 0,
     endlessLoop: 0,
     completed: false,
-    died: false
+    died: false,
+    awaitingVictoryScreen: false
   )
 
   game.currentWave = 1
@@ -565,6 +566,10 @@ proc completeRogueliteBoss*(game: Game) =
     game.player.coins += 15
 
   if run.floorNumber >= RogueliteFloorsToWin:
+    # Final floor boss down. Bank the win immediately (so a victory is never lost),
+    # then hand off to the ending screen instead of silently rolling into the next
+    # endless loop. The endless roll is deferred to rogueliteContinueEndless, called
+    # only if the player chooses to push deeper rather than cash out.
     run.completed = true
     game.rogueliteProfile.wins += 1
     game.rogueliteProfile.bestEndlessLoop = max(game.rogueliteProfile.bestEndlessLoop,
@@ -574,12 +579,21 @@ proc completeRogueliteBoss*(game: Game) =
     if not game.cheatsUsed and not globalSettings.isNil and not globalSettings.survivalUnlocked:
       globalSettings.survivalUnlocked = true
       discard saveSettings(globalSettings)
-    run.endlessLoop += 1
-    run.floorNumber = 1
-    run.usedThemes = {}
+    run.awaitingVictoryScreen = true
+    # pendingFloorSelect stays false: no floor select until the player opts to continue.
   else:
     run.floorNumber += 1
+    run.pendingFloorSelect = true
 
+proc rogueliteContinueEndless*(run: RogueliteRun) =
+  ## Player chose "Continue" on the ending screen: roll the completed run into the
+  ## next endless loop. Mirrors the floor-reset the old completeRogueliteBoss did
+  ## inline, now gated behind the victory-screen choice.
+  if run.isNil: return
+  run.awaitingVictoryScreen = false
+  run.endlessLoop += 1
+  run.floorNumber = 1
+  run.usedThemes = {}
   run.pendingFloorSelect = true
 
 proc commitRogueliteRunProgress*(game: Game, died: bool): bool =

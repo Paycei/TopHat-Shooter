@@ -2584,10 +2584,16 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
     initializeRerollCost(game)
-    game.state = gsPowerUpSelect
     # Clear all enemies and bullets for clean screen
     game.enemies = @[]
     game.bullets = @[]
+    # Final floor cleared: show the ending screen first. The queued draft above is
+    # held in reserve and only consumed if the player chooses to loop deeper.
+    if game.rogueliteRun.awaitingVictoryScreen:
+      game.selectedVictoryButton = 0
+      game.state = gsRogueliteVictory
+    else:
+      game.state = gsPowerUpSelect
 
   # If boss was defeated in TIME SURVIVAL mode, trigger power-up selection
   # In WAVE mode, power-ups are only given between waves, not on boss defeat
@@ -2617,9 +2623,13 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
   initializeRerollCost(game)
-  game.state = gsPowerUpSelect
   game.enemies = @[]
   game.bullets = @[]
+  if game.rogueliteRun.awaitingVictoryScreen:
+    game.selectedVictoryButton = 0
+    game.state = gsRogueliteVictory
+  else:
+    game.state = gsPowerUpSelect
 
 
 proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =

@@ -24,7 +24,8 @@ const
 type
   GameState* = enum
     gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
-    gsRogueliteFloorSelect, gsDeathSequence, gsVictory, gsEndgameCinematic, gsCutscene
+    gsRogueliteFloorSelect, gsDeathSequence, gsVictory, gsEndgameCinematic, gsCutscene,
+    gsRogueliteVictory
 
   CutsceneContinuation* = enum
     cscMenu,       ## after cutscene → gsMenu (intro, settings replays)
@@ -344,6 +345,8 @@ type
     endlessLoop*: int
     completed*: bool
     died*: bool
+    awaitingVictoryScreen*: bool     # Final floor boss down: show the ending screen
+                                     # before deciding to cash out or loop deeper
 
   AttackWarning* = ref object
     pos*: Vector2f

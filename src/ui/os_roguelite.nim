@@ -987,6 +987,104 @@ proc drawRogueliteFloorSelect*(game: Game) =
   drawBetaBanner(game)
 
 
+proc rogueliteVictoryButtonRects*(screenWidth, screenHeight: int32): tuple[continueBtn, cashOut: Rectangle] =
+  ## Shared geometry so the ending screen's click hit-tests (main.nim) match the draw.
+  let panel = roguelitePanelRect(screenWidth, screenHeight)
+  const BtnW = 300'i32
+  const BtnH = 54'i32
+  const Gap = 44'i32
+  let totalW = BtnW * 2 + Gap
+  let bx = panel.x.int32 + (PanelW - totalW) div 2
+  let by = panel.y.int32 + PanelH - 96
+  result.continueBtn = rectAt(bx, by, BtnW, BtnH)
+  result.cashOut = rectAt(bx + BtnW + Gap, by, BtnW, BtnH)
+
+proc drawRogueliteEndButton(rect: Rectangle, label: string, color: Color, highlighted: bool) =
+  let x = rect.x.int32
+  let y = rect.y.int32
+  let w = rect.width.int32
+  let h = rect.height.int32
+  drawRectangle(x + 3, y + 4, w, h, Color(r: 0, g: 0, b: 0, a: 90))
+  drawSoftFill(x, y, w, h,
+    (if highlighted: softColor(color, 80) else: Color(r: 22, g: 30, b: 44, a: 245)),
+    (if highlighted: softColor(color, 32) else: Color(r: 12, g: 18, b: 30, a: 245)))
+  drawRectangleLines(rectAt(x, y, w, h), 2, softColor(color, if highlighted: 255 else: 150))
+  let fs = bestFitFontSize(label, w - 24, 20, 12)
+  discard drawCenteredTextFit(label, x + 12, y + (h - fs) div 2, w - 24, fs,
+    (if highlighted: Color(r: 255, g: 255, b: 255, a: 255) else: color))
+
+proc drawRogueliteVictory*(game: Game) =
+  ## The roguelite ending screen: shown the moment the final floor boss falls
+  ## (and on every subsequent endless-loop completion). Celebrates the win, recaps
+  ## the run, and offers the cash-out / push-deeper decision.
+  if game.rogueliteRun.isNil: return
+  let run = game.rogueliteRun
+  let accent = Color(r: 120, g: 255, b: 180, a: 255)   # "system secured" green
+  drawBackdrop(game, accent)
+  let x = (game.screenWidth - PanelW) div 2
+  let y = (game.screenHeight - PanelH) div 2
+  let isFirstWin = run.endlessLoop == 0
+  let title = if isFirstWin: t("roguelite_victory_title") else: t("roguelite_loop_cleared_title")
+  drawPanel(x, y, PanelW, PanelH, title, accent, omitTitleBar = true)
+
+  discard drawCenteredTextFit(
+    (if isFirstWin: t("roguelite_victory_subtitle") else: t("roguelite_loop_cleared_subtitle")),
+    x + 60, y + 70, PanelW - 120, 18, Color(r: 180, g: 230, b: 205, a: 255))
+
+  # Run recap chips
+  let chipY = y + 120
+  drawStatChip(x + 40, chipY, 200, 52, t("roguelite_floor"),
+               $RogueliteFloorsToWin & " / " & $RogueliteFloorsToWin, accent)
+  drawStatChip(x + 256, chipY, 200, 52, t("dungeon_rooms_cleared"),
+               $run.totalRoomsCleared, Color(r: 0, g: 220, b: 255, a: 255))
+  drawStatChip(x + 472, chipY, 180, 52, t("roguelite_heat"), $run.heat,
+               Color(r: 255, g: 150, b: 80, a: 255), ciHeat)
+  drawStatChip(x + 668, chipY, 212, 52, t("roguelite_endless"), $run.endlessLoop,
+               Color(r: 255, g: 210, b: 110, a: 255))
+
+  # Banked meta currency (run earnings already committed to the profile by now)
+  let curY = chipY + 68
+  if not game.rogueliteProfile.isNil:
+    drawStatChip(x + 40, curY, 300, 52, t("roguelite_shards"),
+                 $game.rogueliteProfile.dataShards,
+                 Color(r: 0, g: 220, b: 255, a: 255), ciDataShards)
+    drawStatChip(x + 356, curY, 300, 52, t("roguelite_cores"),
+                 $game.rogueliteProfile.cores,
+                 Color(r: 200, g: 160, b: 255, a: 255), ciCore)
+
+  # Relics carried into the win
+  let relicY = curY + 78
+  drawText(t("roguelite_relics_carried"), x + 40, relicY, 16,
+           Color(r: 156, g: 172, b: 196, a: 255))
+  if run.relics.len == 0:
+    drawText(t("roguelite_relics_none"), x + 40, relicY + 26, 14,
+             Color(r: 120, g: 130, b: 150, a: 255))
+  else:
+    var px = x + 40
+    let py = relicY + 26
+    for relic in run.relics:
+      let pillW = measureText(relic.name, 13).int32 + 26
+      if px + pillW > x + PanelW - 40: break
+      drawPill(px, py, pillW, 30, relic.name, Color(r: 0, g: 230, b: 170, a: 255))
+      px += pillW + 10
+
+  # Decision buttons
+  let rects = rogueliteVictoryButtonRects(game.screenWidth.int32, game.screenHeight.int32)
+  let canHover = mouseHoverEnabled(game)
+  let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
+  let contHi = game.selectedVictoryButton == 0 or
+               (canHover and checkCollisionPointRec(mousePos, rects.continueBtn))
+  let cashHi = game.selectedVictoryButton == 1 or
+               (canHover and checkCollisionPointRec(mousePos, rects.cashOut))
+  drawRogueliteEndButton(rects.continueBtn, t("roguelite_continue_endless"), accent, contHi)
+  drawRogueliteEndButton(rects.cashOut, t("roguelite_cash_out"),
+                         Color(r: 255, g: 210, b: 110, a: 255), cashHi)
+
+  drawCenteredTextFit(t("roguelite_victory_controls"), x + 60, y + PanelH - 34,
+                      PanelW - 120, 14, LightGray)
+  drawBetaBanner(game)
+
+
 # Unlock card grid helpers
 
 

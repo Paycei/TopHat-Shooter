@@ -275,7 +275,7 @@ proc drawCustomCursor*(time: float32) =
 proc isBondingGameplayState(state: GameState): bool =
   state in {gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver, gsCountdown,
             gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
-            gsRogueliteFloorSelect, gsVictory}
+            gsRogueliteFloorSelect, gsVictory, gsRogueliteVictory}
 
 proc isBondingCombatState(state: GameState): bool =
   state in {gsPlaying, gsPvPPlaying}
@@ -283,7 +283,7 @@ proc isBondingCombatState(state: GameState): bool =
 proc isMenuOrGameState(state: GameState): bool =
   state in {gsSplash, gsLanguageSelect, gsMenu, gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver,
             gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
-            gsRogueliteFloorSelect, gsVictory}
+            gsRogueliteFloorSelect, gsVictory, gsRogueliteVictory}
 
 proc updateInGameMouseBonding(settings: Settings, state: GameState) =
   if settings == nil:
@@ -503,7 +503,10 @@ proc main() =
         discard saveLastRunStats(currentRunStats)  # Save to disk
 
     if game.mode == gmRoguelite and game.rogueliteRun != nil:
-      discard commitRogueliteRunProgress(game, true)
+      # Cashing out from the ending screen is a banked win, not a death; anything
+      # else reaching here (real game-over, or dying in a later endless loop) is a
+      # death. awaitingVictoryScreen is only set while parked on the ending screen.
+      discard commitRogueliteRunProgress(game, not game.rogueliteRun.awaitingVictoryScreen)
       setActiveRogueliteProfile(game.rogueliteProfile)
 
     # Save lifetime statistics only once per run
@@ -2722,6 +2725,73 @@ proc main() =
 
       beginGameDrawing()
       drawVictory(currentGame)
+      drawCustomCursor(currentGame.time)
+      endGameDrawing()
+
+    of gsRogueliteVictory:
+      # Roguelite ending screen: the final floor boss is down and the win is already
+      # banked. Two choices: push deeper into the endless loop, or cash out and
+      # return to the roguelite hub. selectedVictoryButton: 0=continue, 1=cash out.
+      playMusic(mtMenu)
+      currentGame.time += dt
+      updateMouseTracking(currentGame)
+      tickDesktopToasts(osDesktop, dt)
+      for msg in currentGame.pendingToasts:
+        showDesktopToast(osDesktop, msg)
+      currentGame.pendingToasts.setLen(0)
+
+      if isKeyPressed(Left) or isKeyPressed(A) or isKeyPressed(Right) or isKeyPressed(D):
+        currentGame.selectedVictoryButton = (currentGame.selectedVictoryButton + 1) mod 2
+        playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
+
+      let rvRects = rogueliteVictoryButtonRects(screenWidth.int32, screenHeight.int32)
+      let rvMousePos = getVirtualMousePosition()
+      if checkCollisionPointRec(rvMousePos, rvRects.continueBtn):
+        currentGame.selectedVictoryButton = 0
+      elif checkCollisionPointRec(rvMousePos, rvRects.cashOut):
+        currentGame.selectedVictoryButton = 1
+
+      # Resolve: 0=continue endless, 1=cash out. Enter follows the highlighted button.
+      var rvAction = -1
+      if isKeyPressed(Space) or (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 0):
+        rvAction = 0
+      elif (isKeyPressed(Escape) or isKeyPressed(Q)) or
+           (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 1):
+        rvAction = 1
+      elif isMouseButtonPressed(Left):
+        if checkCollisionPointRec(rvMousePos, rvRects.continueBtn): rvAction = 0
+        elif checkCollisionPointRec(rvMousePos, rvRects.cashOut): rvAction = 1
+
+      case rvAction
+      of 0:
+        # Push deeper: roll into the next endless loop and take the queued post-boss
+        # draft (prepared in game.nim) as this floor's reward.
+        playSound(stMenuSelect)
+        if currentGame.rogueliteRun != nil:
+          rogueliteContinueEndless(currentGame.rogueliteRun)
+        initPowerUpRollAnimation(currentGame)
+        currentGame.state = gsPowerUpSelect
+      of 1:
+        # Cash out: the win is already banked, so persist the run record and return
+        # to the roguelite hub window (mirrors closing the floor-select).
+        playSound(stMenuSelect)
+        let preservedHeat = currentGame.selectedRogueliteHeat
+        persistRunResults(currentGame)
+        cleanupGame(currentGame)
+        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        setGameMode(currentGame, gmRoguelite)
+        currentGame.rogueliteProfile = rogueliteProfile
+        currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(preservedHeat, rogueliteProfile)
+        globalWindowManager.openWindow(widRoguelite)
+        currentGame.state = gsMenu
+        statsSavedThisGame = false
+      else:
+        discard
+
+      beginGameDrawing()
+      drawRogueliteVictory(currentGame)
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 
