@@ -1,5 +1,6 @@
 import raylib, math
 import types, sound, gamemode_definitions, powerup, powerup_data, localization, render_context, ui/os_shop
+import roguelite
 
 # ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
@@ -10,7 +11,8 @@ type
     cmtPowerUps,
     cmtStats,
     cmtPermanentPowerUps,
-    cmtEnemies
+    cmtEnemies,
+    cmtRoguelite   # Mode-specific tab; only shown/selectable in gmRoguelite
 
   CheatMenu* = ref object
     active*: bool
@@ -36,6 +38,24 @@ proc initCheatMenu*(): CheatMenu =
     ownedScrollOffset: 0
   )
   globalCheatMenu = result
+
+proc visibleTabs(game: Game): seq[CheatMenuTab] =
+  ## The five core tabs are always available; the roguelite tab is appended only
+  ## in dungeon runs, so the bar grows to 6 there and stays 5 everywhere else.
+  result = @[cmtWaves, cmtPowerUps, cmtStats, cmtPermanentPowerUps, cmtEnemies]
+  if game.mode == gmRoguelite:
+    result.add(cmtRoguelite)
+
+proc tabLabel(tab: CheatMenuTab, index: int): string =
+  ## Number prefix follows the tab's position in the visible list (1-based).
+  let n = index + 1
+  case tab
+  of cmtWaves: $n & ". Waves"
+  of cmtPowerUps: $n & ". Power"
+  of cmtStats: $n & ". Stats"
+  of cmtPermanentPowerUps: $n & ". Perma"
+  of cmtEnemies: $n & ". Enemies"
+  of cmtRoguelite: $n & ". Rogue"
 
 proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) =
   if not CHEATS_ENABLED: return
@@ -129,32 +149,21 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
     playSound(stMenuNav)
     return
 
-  # Tab switching with keyboard
-  if isKeyPressed(KeyboardKey.One) or isKeyPressed(KeyboardKey.Kp1):
-    menu.currentTab = cmtWaves
-    menu.scrollOffset = 0
-    menu.ownedScrollOffset = 0
-    playSound(stMenuNav)
-  elif isKeyPressed(KeyboardKey.Two) or isKeyPressed(KeyboardKey.Kp2):
-    menu.currentTab = cmtPowerUps
-    menu.scrollOffset = 0
-    menu.ownedScrollOffset = 0
-    playSound(stMenuNav)
-  elif isKeyPressed(KeyboardKey.Three) or isKeyPressed(KeyboardKey.Kp3):
-    menu.currentTab = cmtStats
-    menu.scrollOffset = 0
-    menu.ownedScrollOffset = 0
-    playSound(stMenuNav)
-  elif isKeyPressed(KeyboardKey.Four) or isKeyPressed(KeyboardKey.Kp4):
-    menu.currentTab = cmtPermanentPowerUps
-    menu.scrollOffset = 0
-    menu.ownedScrollOffset = 0
-    playSound(stMenuNav)
-  elif isKeyPressed(KeyboardKey.Five) or isKeyPressed(KeyboardKey.Kp5):
-    menu.currentTab = cmtEnemies
-    menu.scrollOffset = 0
-    menu.ownedScrollOffset = 0
-    playSound(stMenuNav)
+  # Tab switching with keyboard. Number keys map to the visible-tab list, which
+  # may include the roguelite tab (6th slot) when in a dungeon run. Explicit key
+  # tables avoid unsafe ordinal arithmetic over the hole-ridden KeyboardKey enum.
+  const tabNumKeys = [KeyboardKey.One, KeyboardKey.Two, KeyboardKey.Three,
+                      KeyboardKey.Four, KeyboardKey.Five, KeyboardKey.Six]
+  const tabKpKeys = [KeyboardKey.Kp1, KeyboardKey.Kp2, KeyboardKey.Kp3,
+                     KeyboardKey.Kp4, KeyboardKey.Kp5, KeyboardKey.Kp6]
+  let tabsForMode = visibleTabs(game)
+  for idx in 0..<min(tabsForMode.len, tabNumKeys.len):
+    if isKeyPressed(tabNumKeys[idx]) or isKeyPressed(tabKpKeys[idx]):
+      menu.currentTab = tabsForMode[idx]
+      menu.scrollOffset = 0
+      menu.ownedScrollOffset = 0
+      playSound(stMenuNav)
+      break
 
   # Handle scrolling for permanent power-ups tab
   if menu.currentTab == cmtPermanentPowerUps:
@@ -262,11 +271,27 @@ proc applyStatCheat*(game: var Game, stat: string, value: float32) =
     discard
   playSound(stMenuSelect)
 
+proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) =
+  ## Adjust the persisted meta currencies (data shards / cores) used to buy
+  ## roguelite unlocks, and immediately save so the roguelite window reflects it.
+  if game.rogueliteProfile.isNil: return
+  game.rogueliteProfile.dataShards = max(0, game.rogueliteProfile.dataShards + shards)
+  game.rogueliteProfile.cores = max(0, game.rogueliteProfile.cores + cores)
+  discard saveRogueliteProfile(game.rogueliteProfile)
+  playSound(stMenuSelect)
+
+proc applyRogueliteKeysCheat*(game: var Game, keys: int) =
+  ## Keys unlock the locked treasure rooms on the current floor (run-scoped).
+  if game.rogueliteRun.isNil: return
+  game.rogueliteRun.keys = max(0, game.rogueliteRun.keys + keys)
+  playSound(stMenuSelect)
+
 proc drawWavesTab(x, y, width, height: int32, game: var Game)
 proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu)
 proc drawStatsTab(x, y, width, height: int32, game: var Game)
 proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu)
 proc drawEnemiesTab(x, y, width, height: int32, game: var Game)
+proc drawRogueliteTab(x, y, width, height: int32, game: var Game)
 
 proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: int32) =
   if not menu.active or not CHEATS_ENABLED:
@@ -310,16 +335,24 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
   # Close instruction
   drawText(t(tkCheatCloseInstruction), panelX + 10, panelY + 35, 12, Gray)
 
-  # Tab buttons with mouse support
-  let tabY = panelY + 60
-  let tabWidth = panelWidth div 5
+  # Tab buttons with mouse support. The visible set is mode-dependent, so the
+  # bar splits the panel width evenly across however many tabs are present.
+  let tabsForMode = visibleTabs(game)
+  # If the active tab isn't valid for this mode (e.g. mode changed under us),
+  # snap back to the first tab so the dispatch below always has something to draw.
+  if menu.currentTab notin tabsForMode:
+    menu.currentTab = cmtWaves
 
-  let tabs = ["1. Waves", "2. Power", "3. Stats", "4. Perma", "5. Enemies"]
-  for i in 0'i32..4'i32:
+  let tabY = panelY + 60
+  let tabCount = tabsForMode.len.int32
+  let tabWidth = panelWidth div tabCount
+
+  for i in 0'i32..<tabCount:
+    let tab = tabsForMode[i]
     let tabX = panelX + (i * tabWidth)
     let tabRect = Rectangle(x: tabX.float32, y: tabY.float32, width: tabWidth.float32, height: 30.float32)
     let tabHovered = checkCollisionPointRec(getVirtualMousePosition(), tabRect)
-    let isActiveTab = CheatMenuTab(i) == menu.currentTab
+    let isActiveTab = tab == menu.currentTab
 
     var tabColor: Color
     if isActiveTab:
@@ -334,13 +367,13 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
 
     drawRectangle(tabX, tabY, tabWidth, 30, bgColor)
     drawRectangleLines(tabX, tabY, tabWidth, 30, tabColor)
-    let tabText = tabs[i]
+    let tabText = tabLabel(tab, i)
     let textWidth = measureText(tabText, 12)
     drawText(tabText, tabX + (tabWidth - textWidth) div 2, tabY + 9, 12, tabColor)
 
     # Handle tab click
     if tabHovered and isMouseButtonPressed(Left):
-      menu.currentTab = CheatMenuTab(i)
+      menu.currentTab = tab
       menu.scrollOffset = 0
       menu.ownedScrollOffset = 0
       playSound(stMenuNav)
@@ -360,6 +393,8 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     drawPermanentPowerUpsTab(panelX, contentY, panelWidth, contentHeight, game, menu)
   of cmtEnemies:
     drawEnemiesTab(panelX, contentY, panelWidth, contentHeight, game)
+  of cmtRoguelite:
+    drawRogueliteTab(panelX, contentY, panelWidth, contentHeight, game)
 
   # Draw cursor on top of everything when menu is active
   let mousePos = getVirtualMousePosition()
@@ -920,3 +955,99 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
     let remainingY = y + height - 20
     drawText("+ " & $(game.enemies.len - maxVisible) & " " & t(tkCheatMoreEnemies),
             x + 20, remainingY, 12, Yellow)
+
+proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
+  ## Mode-specific cheats for the dungeon roguelite: meta-currency injection (for
+  ## testing the unlock economy), keys, relic grants, and a floor-skip that
+  ## replays the floor-boss-defeated flow (see cheatCompleteRogueliteFloor).
+  var currentY = y + 10
+
+  if game.rogueliteRun.isNil or game.rogueliteProfile.isNil:
+    drawText("No active roguelite run.", x + 20, currentY, 14, Gray)
+    return
+
+  let run = game.rogueliteRun
+  let profile = game.rogueliteProfile
+
+  # Lighten a button colour on hover using int math so we never overflow uint8.
+  proc lighten(c: Color): Color =
+    Color(r: uint8(min(255, c.r.int + 40)),
+          g: uint8(min(255, c.g.int + 40)),
+          b: uint8(min(255, c.b.int + 40)), a: 255)
+
+  # Local button helper: draws a labelled button, returns true when clicked.
+  proc btn(bx, by, bw, bh: int32, label: string, base, border: Color): bool =
+    let rect = Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32)
+    let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
+    drawRectangle(bx, by, bw, bh, if hovered: lighten(base) else: base)
+    drawRectangleLines(bx, by, bw, bh, border)
+    let tw = measureText(label, 12)
+    drawText(label, bx + (bw - tw) div 2, by + (bh - 12) div 2, 12, White)
+    result = hovered and isMouseButtonPressed(Left)
+
+  # --- Run / profile info -------------------------------------------------
+  drawText("Floor: " & $run.floorNumber & " / " & $RogueliteFloorsToWin &
+           "    Endless Loop: " & $run.endlessLoop, x + 20, currentY, 14, White)
+  currentY += 22
+  drawText("Heat: " & $run.heat & "    Rooms Cleared: " & $run.totalRoomsCleared,
+           x + 20, currentY, 14, White)
+  currentY += 22
+  drawText("Keys: " & $run.keys & "    Relics: " & $run.relics.len,
+           x + 20, currentY, 14, White)
+  currentY += 22
+  drawText("Data Shards: " & $profile.dataShards & "    Cores: " & $profile.cores,
+           x + 20, currentY, 14, Gold)
+  currentY += 30
+
+  let labelX = x + 20
+  let btnStartX = x + 180
+  let bw: int32 = 70
+  let bh: int32 = 28
+  let gap: int32 = 8
+
+  # Data Shards row
+  drawText("Data Shards", labelX, currentY + 6, 14, White)
+  if btn(btnStartX, currentY, bw, bh, "+100", Color(r: 70, g: 60, b: 0, a: 255), Gold):
+    applyRogueliteCurrencyCheat(game, 100, 0)
+  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+500", Color(r: 70, g: 60, b: 0, a: 255), Gold):
+    applyRogueliteCurrencyCheat(game, 500, 0)
+  if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+1000", Color(r: 70, g: 60, b: 0, a: 255), Gold):
+    applyRogueliteCurrencyCheat(game, 1000, 0)
+  currentY += bh + 10
+
+  # Cores row
+  drawText("Cores", labelX, currentY + 6, 14, White)
+  if btn(btnStartX, currentY, bw, bh, "+1", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+    applyRogueliteCurrencyCheat(game, 0, 1)
+  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+    applyRogueliteCurrencyCheat(game, 0, 5)
+  if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+10", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+    applyRogueliteCurrencyCheat(game, 0, 10)
+  currentY += bh + 10
+
+  # Keys row
+  drawText("Keys", labelX, currentY + 6, 14, White)
+  if btn(btnStartX, currentY, bw, bh, "+1", Color(r: 60, g: 40, b: 0, a: 255), Orange):
+    applyRogueliteKeysCheat(game, 1)
+  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5", Color(r: 60, g: 40, b: 0, a: 255), Orange):
+    applyRogueliteKeysCheat(game, 5)
+  currentY += bh + 16
+
+  # Full-width actions: grant relic + skip floor
+  let wideW = width - 40
+  if btn(labelX, currentY, wideW, bh + 4, "Grant Next Unlocked Relic",
+         Color(r: 60, g: 0, b: 60, a: 255), Magenta):
+    if grantNextUnlockedRelic(game):
+      playSound(stPowerUp)
+    else:
+      playSound(stMenuNav)
+  currentY += bh + 14
+
+  if btn(labelX, currentY, wideW, bh + 4, "Skip Floor (Complete Boss)",
+         Color(r: 80, g: 0, b: 0, a: 255), Red):
+    game.cheatsUsed = true
+    game.cheatRogueliteSkipFloor = true
+  currentY += bh + 16
+
+  drawText("Currency changes are saved to your roguelite profile.",
+           labelX, currentY, 11, Gray)

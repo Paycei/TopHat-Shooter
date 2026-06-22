@@ -95,7 +95,7 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       hasTimeLimit: false,
       usesPowerUps: true,
       usesShop: true,
-      allowsCheats: false,
+      allowsCheats: true,
       spawnRate: 1.0,
       difficultyScale: 1.0,
       playerStartCoins: 0

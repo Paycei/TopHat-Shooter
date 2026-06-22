@@ -1287,6 +1287,13 @@ proc main() =
       if cheatMenu.active:
         updateCheatMenu(cheatMenu, currentGame)
 
+      # Roguelite cheat: "Skip Floor" sets a request flag (the cheat module can't
+      # import game.nim); execute the floor-completion flow here where it can.
+      if currentGame.cheatRogueliteSkipFloor:
+        currentGame.cheatRogueliteSkipFloor = false
+        cheatMenu.active = false
+        cheatCompleteRogueliteFloor(currentGame)
+
       # Only process game input if cheat menu is not active and confirm dialog is not open
       if not cheatMenu.active and not globalConfirmActive:
         # Shop removed from gameplay - only accessible during power-up selection
@@ -1583,7 +1590,7 @@ proc main() =
 
       # Alpha banner for roguelite mode
       if currentGame.mode == gmRoguelite:
-        drawAlphaBanner(currentGame)
+        drawBetaBanner(currentGame)
       # Draw window-close confirmation if triggered via OS close button
       if globalConfirmActive:
         let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
@@ -1615,7 +1622,7 @@ proc main() =
       drawGame(currentGame)
       drawDeathSequenceOverlay(currentGame)
       if currentGame.mode == gmRoguelite:
-        drawAlphaBanner(currentGame)
+        drawBetaBanner(currentGame)
       endGameDrawing()
 
     of gsPaused:
@@ -1782,7 +1789,7 @@ proc main() =
 
       # Alpha banner for roguelite mode
       if currentGame.mode == gmRoguelite:
-        drawAlphaBanner(currentGame)
+        drawBetaBanner(currentGame)
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       # (separate from the in-game quit-to-menu confirm dialog)
@@ -2004,7 +2011,7 @@ proc main() =
       drawGame(currentGame)
       drawShop(currentGame)
       if currentGame.mode == gmRoguelite:
-        drawAlphaBanner(currentGame)
+        drawBetaBanner(currentGame)
 
       # Draw quit-confirmation dialog on top of everything if triggered by OS close button
       if globalConfirmActive:
@@ -2077,7 +2084,7 @@ proc main() =
               Color(r: 255, g: 255, b: 100, a: alpha))
 
       if currentGame.mode == gmRoguelite:
-        drawAlphaBanner(currentGame)
+        drawBetaBanner(currentGame)
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       if globalConfirmActive:
@@ -2156,7 +2163,7 @@ proc main() =
               Color(r: 150, g: 255, b: 150, a: 255))
 
       if currentGame.mode == gmRoguelite:
-        drawAlphaBanner(currentGame)
+        drawBetaBanner(currentGame)
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       if globalConfirmActive:
@@ -2180,9 +2187,11 @@ proc main() =
         currentGame.cameFromPowerUpSelect = true
         if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
           if currentGame.rogueliteRun.pendingFloorSelect:
-            generateThemeChoices(currentGame.rogueliteRun)
-            currentGame.selectedRogueliteTheme = 0
-            currentGame.state = gsRogueliteFloorSelect
+            # Floor boss is down: drop the player back into the cleared boss room
+            # with the exit portal open. The descent only happens once they walk
+            # into it (updateDungeon), not automatically.
+            spawnRogueliteExitPortal(currentGame)
+            currentGame.state = gsPlaying
           else:
             currentGame.state = gsPlaying
         else:
@@ -2227,7 +2236,7 @@ proc main() =
         beginGameDrawing()
         drawPowerUpSelectionExhausted(currentGame)
         if currentGame.mode == gmRoguelite:
-          drawAlphaBanner(currentGame)
+          drawBetaBanner(currentGame)
         if globalConfirmActive:
           let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
           if r == 1: windowCloseRequested = true
@@ -2358,7 +2367,7 @@ proc main() =
         beginGameDrawing()
         drawPowerUpSelection(currentGame)
         if currentGame.mode == gmRoguelite:
-          drawAlphaBanner(currentGame)
+          drawBetaBanner(currentGame)
 
         # Draw quit-confirmation dialog on top of everything if triggered by OS close button
         if globalConfirmActive:

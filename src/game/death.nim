@@ -44,9 +44,9 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
   game.recentPowerUp = powerUp
   game.recentPowerUpMaxTimer = if powerUp.rarity == prLegendary: 5.0'f32 else: 4.0'f32
   game.recentPowerUpTimer = game.recentPowerUpMaxTimer
-  let notifMsg = if isNewDiscovery: t(tkNewProcessInstalled) & ": " & powerUpName
-                 else: t(tkNotifInstalled) & " " & powerUpName
-  game.pendingToasts.add(notifMsg)
+  # Only toast the first time a power-up is discovered; repeat installs skip the toast.
+  if isNewDiscovery:
+    game.pendingToasts.add(t(tkNewProcessInstalled) & ": " & powerUpName)
   addShake(game.dopamine.screenShake, siPowerUp, accent)
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                        accent, if powerUp.rarity == prLegendary: 72 else: 46)

@@ -1097,6 +1097,7 @@ type
     waveInProgress*: bool
     waveStartTime*: float32  # Track when current wave started for statistics
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
+    cheatRogueliteSkipFloor*: bool  # Roguelite cheat: request to complete the current floor (consumed in main.nim)
     lastMousePos*: Vector2f  # Track mouse position to detect movement
     mouseMovedRecently*: bool  # True if mouse has moved since last keyboard input
     keyboardUsedRecently*: bool  # True if keyboard was just used (disables mouse temporarily)
@@ -1124,6 +1125,8 @@ type
     roomTransitionActive*: bool      # Fade between dungeon rooms in progress
     roomTransitionTimer*: float32
     roomTransitionDir*: DoorDir      # Door the player walked through
+    bossPortalActive*: bool          # Roguelite: exit portal open in the cleared boss room
+    bossPortalTimer*: float32        # Drives the portal spawn + idle animation
     osBackground*: OSBackgroundState  # Animated background system
     osHUD*: OSHUDState
     pendingToasts*: seq[string]  # Toasts queued by subsystems; drained to desktop toasts each frame

@@ -328,8 +328,8 @@ proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
 proc rectAt(x, y, w, h: int32): Rectangle =
   Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32)
 
-proc drawAlphaBanner*(game: Game) =
-  ## Centered translucent ALPHA banner drawn at the top of the screen.
+proc drawBetaBanner*(game: Game) =
+  ## Centered translucent BETA banner drawn at the top of the screen.
   ## Signals to players that the roguelite mode is work-in-progress.
   let bannerW: int32 = 260
   let bannerX: int32 = (game.screenWidth - bannerW) div 2
@@ -337,7 +337,7 @@ proc drawAlphaBanner*(game: Game) =
   let pulse = (sin(game.time * 2.0'f32) * 0.5'f32 + 0.5'f32)
   let textAlpha = uint8(160 + int(pulse * 40.0'f32))
   let textColor = Color(r: 220, g: 205, b: 140, a: textAlpha)
-  let label = t("roguelite_alpha_banner")
+  let label = t("roguelite_beta_banner")
   discard drawCenteredTextFit(label, bannerX + 6, bannerY + 8,
                                bannerW - 12, 12, textColor, 9)
 
@@ -914,7 +914,7 @@ proc drawRogueliteSetup*(game: Game) =
   drawSmallButton(x + 680, btnY, 180, 42, t("roguelite_back"), false, Color(r: 255, g: 120, b: 120, a: 255),
                   canHover and isHovered(mousePos, x + 680, btnY, 180, 42))
   drawCenteredTextFit(t("roguelite_setup_controls"), x + 180, y + PanelH - 30, PanelW - 360, 14, LightGray)
-  drawAlphaBanner(game)
+  drawBetaBanner(game)
 
 proc drawThemeCard(theme: DungeonFloorTheme, x, y: int32, selected: bool, hovered: bool = false) =
   let accent = themeAccent(theme)
@@ -984,7 +984,7 @@ proc drawRogueliteFloorSelect*(game: Game) =
 
   drawCenteredTextFit(t("dungeon_floor_select_tip"), x + 60, y + PanelH - 63, PanelW - 120, 14, Color(r: 255, g: 210, b: 110, a: 255))
   drawCenteredTextFit(t("roguelite_sector_controls"), x + 60, y + PanelH - 35, PanelW - 120, 15, LightGray)
-  drawAlphaBanner(game)
+  drawBetaBanner(game)
 
 
 # Unlock card grid helpers

@@ -20,6 +20,8 @@ const
   DungeonGridSize* = 6       # Logical floor grid (6x6)
   ShopTerminalRadius* = 52'f32
   PickupRadius* = 26'f32
+  ExitPortalRadius* = 48'f32           # Player-entry radius of the boss-clear portal
+  ExitPortalSpawnDuration* = 1.1'f32   # Spawn animation length before it becomes enterable
   RoomTransitionDuration* = 0.35'f32
   CombatObstacleHp* = 4'f32          # Floor-1 combat obstacle HP; a kiting crowd chips these down
   BossObstacleHp* = 6'f32            # Floor-1 boss obstacle HP; adds chip them, the boss one-shots
@@ -268,20 +270,17 @@ proc dungeonBossDifficulty*(run: RogueliteRun): float32 =
     run.endlessLoop.float32 * 1.5'f32
 
 proc dungeonBossNumber*(game: Game): int =
-  ## Themed floor boss, shifted by the unlocked boss tier and endless loop.
-  ## The Final Sentinel (boss 12) is reserved for the final floor, and even
-  ## there it only takes over on a seeded roll or via tier/endless offsets.
+  ## Themed floor boss, constrained to the floor's allowed boss range:
+  ## floor 1 -> bosses 1-3, floor 2 -> 3-6, floor 3 -> 6-9, floor 4 -> 9-12.
+  ## Within that window the theme's bossNumber, the unlocked boss tier, and the
+  ## endless loop decide which boss actually shows up.
   let run = game.rogueliteRun
   let def = themeDef(run.floor.theme)
   let tierOffset = if game.rogueliteProfile != nil: game.rogueliteProfile.unlockedBossTier - 1 else: 0
+  let lo = max(1, (run.floorNumber - 1) * 3)
+  let hi = min(12, run.floorNumber * 3)
   var boss = def.bossNumber + tierOffset + run.endlessLoop
-  if run.floorNumber >= RogueliteFloorsToWin:
-    var rng = initRand(run.seed + run.endlessLoop * 7919 + 977)
-    if rng.rand(99) < 30:
-      boss = 12
-    result = clamp(boss, 1, 12)
-  else:
-    result = clamp(boss, 1, 11)
+  result = clamp(boss, lo, hi)
 
 proc dungeonBossWaveEquivalent(run: RogueliteRun): float32 =
   ## The wave-mode boss slot a floor boss should feel like: floor 1 plays like
@@ -734,6 +733,8 @@ proc startDungeonFloor*(game: Game, theme: DungeonFloorTheme) =
   let run = game.rogueliteRun
   run.usedThemes.incl(theme)
   run.pendingFloorSelect = false
+  game.bossPortalActive = false
+  game.bossPortalTimer = 0
   run.floor = generateFloor(game, theme, run.floorNumber)
   run.floor.currentRoom = run.floor.startIdx
   wipeRoomEntities(game)
@@ -813,6 +814,18 @@ proc markBossRoomCleared*(game: Game) =
   collectAllCoins(game)
   openDungeonDoors(game)
   game.waveInProgress = false
+
+proc exitPortalPos*(game: Game): Vector2f =
+  ## The boss-clear portal always forms at the center of the boss room.
+  newVector2f(game.screenWidth.float32 / 2, game.screenHeight.float32 / 2)
+
+proc spawnRogueliteExitPortal*(game: Game) =
+  ## Open the swirling exit portal in the cleared boss room. The floor only
+  ## advances once the player physically steps into it (see updateDungeon),
+  ## instead of teleporting straight to the next floor select.
+  game.bossPortalActive = true
+  game.bossPortalTimer = 0
+  playSound(stBossSpawn, 0.7)
 
 # ---------------------------------------------------------------------------
 # Per-frame update: transitions, doors, pickups, shop terminal
@@ -894,6 +907,19 @@ proc updateDungeon*(game: Game, dt: float32): bool =
 
   let room = floor.rooms[floor.currentRoom]
 
+  # Boss-clear exit portal: the floor only advances once the player walks into
+  # the portal. It animates in first (spawn animation) before becoming enterable.
+  if game.bossPortalActive and floor.currentRoom == floor.bossIdx:
+    game.bossPortalTimer += dt
+    if game.bossPortalTimer >= ExitPortalSpawnDuration and
+       distance(game.player.pos, exitPortalPos(game)) < ExitPortalRadius + game.player.radius:
+      game.bossPortalActive = false
+      playSound(stTeleport)
+      generateThemeChoices(run)
+      game.selectedRogueliteTheme = 0
+      game.state = gsRogueliteFloorSelect
+      return true
+
   # Pedestal pickups (only in safe/cleared state for combat rooms)
   for pickup in room.pickups:
     if pickup.taken: continue
@@ -951,15 +977,58 @@ proc drawPickupPedestal(game: Game, pickup: DungeonPickup) =
   case pickup.kind
   of dpkKey:
     drawCircleLines(cx, cy - 6, 7'f32 * pulse, Gold)
-    drawRectangle(cx - 1, cy - 2, 3, 13, Gold)
-    drawRectangle(cx + 1, cy + 6, 5, 3, Gold)
+    drawCircleLines(cx, cy - 6, 3'f32, Color(r: 255, g: 215, b: 0, a: 150))  # bow hole
+    drawRectangle(cx - 1, cy - 2, 3, 13, Gold)                                # shaft
+    drawRectangle(cx + 1, cy + 6, 5, 3, Gold)                                 # lower tooth
+    drawRectangle(cx + 1, cy + 2, 4, 3, Color(r: 255, g: 215, b: 0, a: 220))  # upper tooth
   of dpkCompass:
-    drawCircleLines(cx, cy - 4, 10'f32 * pulse, Color(r: 120, g: 220, b: 255, a: 255))
-    drawLine(cx - 5, cy + 1, cx + 5, cy - 9, Color(r: 255, g: 90, b: 90, a: 255))
+    let fx = cx.float32
+    let fy = (cy - 2).float32
+    let ring = 11.0'f32 * pulse
+    let rim = Color(r: 120, g: 220, b: 255, a: 255)
+    # Bezel: dark dial face + bright outer rim + faint inner ring
+    drawCircle(Vector2(x: fx, y: fy), ring, Color(r: 18, g: 40, b: 55, a: 200))
+    drawCircleLines(cx, cy - 2, ring, rim)
+    drawCircleLines(cx, cy - 2, ring - 3.0'f32, Color(r: 120, g: 220, b: 255, a: 110))
+    # Cardinal tick marks (N/E/S/W)
+    drawLine(Vector2(x: fx, y: fy - ring), Vector2(x: fx, y: fy - ring + 4.0'f32), 1.5'f32, rim)
+    drawLine(Vector2(x: fx, y: fy + ring), Vector2(x: fx, y: fy + ring - 4.0'f32), 1.5'f32, rim)
+    drawLine(Vector2(x: fx - ring, y: fy), Vector2(x: fx - ring + 4.0'f32, y: fy), 1.5'f32, rim)
+    drawLine(Vector2(x: fx + ring, y: fy), Vector2(x: fx + ring - 4.0'f32, y: fy), 1.5'f32, rim)
+    # Two-tone needle: red half points north, pale half points south
+    let nLen = ring - 2.0'f32
+    let hw = 3.5'f32
+    let north = Vector2(x: fx, y: fy - nLen)
+    let south = Vector2(x: fx, y: fy + nLen)
+    let east = Vector2(x: fx + hw, y: fy)
+    let west = Vector2(x: fx - hw, y: fy)
+    drawTriangle(north, west, east, Color(r: 255, g: 90, b: 90, a: 255))
+    drawTriangle(south, east, west, Color(r: 210, g: 235, b: 250, a: 255))
+    drawTriangleLines(north, west, east, Color(r: 255, g: 150, b: 150, a: 220))
+    drawTriangleLines(south, east, west, Color(r: 235, g: 245, b: 255, a: 220))
+    drawCircle(Vector2(x: fx, y: fy), 1.8'f32, RayWhite)  # center hub
   of dpkMap:
-    drawRectangleLines(Rectangle(x: (cx - 9).float32, y: (cy - 12).float32, width: 18, height: 14),
-                       1.0'f32, Color(r: 150, g: 255, b: 170, a: 255))
-    drawLine(cx - 5, cy - 9, cx + 4, cy - 2, Color(r: 150, g: 255, b: 170, a: 255))
+    let green = Color(r: 150, g: 255, b: 170, a: 255)
+    let fold = Color(r: 90, g: 170, b: 120, a: 200)
+    let mxL = cx - 11
+    let myT = cy - 13
+    const mw = 22'i32
+    const mh = 17'i32
+    # Parchment sheet with creases (a folded treasure map)
+    drawRectangle(mxL, myT, mw, mh, Color(r: 22, g: 40, b: 30, a: 200))
+    drawRectangleLines(Rectangle(x: mxL.float32, y: myT.float32, width: mw.float32, height: mh.float32),
+                       1.5'f32, green)
+    drawLine(mxL + 7, myT, mxL + 7, myT + mh, fold)
+    drawLine(mxL + 15, myT, mxL + 15, myT + mh, fold)
+    # Dashed route wandering toward the marker
+    drawLine(mxL + 3, myT + mh - 4, mxL + 7, myT + mh - 9, green)
+    drawLine(mxL + 9, myT + mh - 10, mxL + 13, myT + 5, green)
+    drawLine(mxL + 14, myT + 5, mxL + 17, myT + 7, green)
+    # "X marks the spot" destination
+    let xMx = mxL + 17
+    let xMy = myT + 7
+    drawLine(xMx - 2, xMy - 2, xMx + 2, xMy + 2, Color(r: 255, g: 90, b: 90, a: 255))
+    drawLine(xMx - 2, xMy + 2, xMx + 2, xMy - 2, Color(r: 255, g: 90, b: 90, a: 255))
     if pickup.costCredits > 0:
       let label = "$" & $pickup.costCredits & " [E]"
       let lw = measureText(label, 12)
@@ -972,6 +1041,63 @@ proc drawPickupPedestal(game: Game, pickup: DungeonPickup) =
   of dpkShardCache:
     drawPoly(Vector2(x: pickup.pos.x, y: pickup.pos.y - 5), 3, 9'f32 * pulse, 180,
              Color(r: 70, g: 215, b: 255, a: 255))
+
+proc drawExitPortal(game: Game) =
+  ## The swirling boss-clear portal: a dark vortex with rotating accent spiral
+  ## arms that scale into existence (spawn animation) then idle-pulse.
+  let run = game.rogueliteRun
+  let accent = themeAccent(run.floor.theme)
+  let center = exitPortalPos(game)
+  let cx = center.x
+  let cy = center.y
+  let tm = game.time
+  let spawnT = clamp(game.bossPortalTimer / ExitPortalSpawnDuration, 0.0'f32, 1.0'f32)
+  # Ease-out scale-in so the portal snaps open then settles.
+  let scale = 1.0'f32 - pow(1.0'f32 - spawnT, 3.0'f32)
+  let baseR = ExitPortalRadius * scale
+  const tau = 6.2831853'f32
+
+  # Outer glow + dark core
+  drawCircle(Vector2(x: cx, y: cy), baseR * 1.4'f32,
+             Color(r: accent.r, g: accent.g, b: accent.b, a: uint8(40.0'f32 * scale)))
+  drawCircle(Vector2(x: cx, y: cy), baseR,
+             Color(r: 8, g: 6, b: 18, a: uint8(235.0'f32 * scale)))
+
+  # Swirling spiral arms made of fading dots
+  const arms = 3
+  const pointsPerArm = 26
+  for a in 0..<arms:
+    let armOffset = (a.float32 / arms.float32) * tau
+    for i in 0..<pointsPerArm:
+      let frac = i.float32 / pointsPerArm.float32
+      let ang = armOffset + frac * 5.0'f32 + tm * 2.2'f32
+      let rr = baseR * (0.12'f32 + frac * 0.85'f32)
+      let px = cx + cos(ang) * rr
+      let py = cy + sin(ang) * rr
+      let aa = uint8(255.0'f32 * (1.0'f32 - frac) * scale)
+      drawCircle(Vector2(x: px, y: py), 1.5'f32 + (1.0'f32 - frac) * 2.5'f32,
+                 Color(r: accent.r, g: accent.g, b: accent.b, a: aa))
+
+  # Rotating rim rings
+  for k in 0..2:
+    let rr = baseR * (0.6'f32 + k.float32 * 0.18'f32)
+    let pulse = 0.6'f32 + 0.4'f32 * sin(tm * 3.0'f32 - k.float32)
+    drawCircleLines(cx.int32, cy.int32, rr,
+                    Color(r: accent.r, g: accent.g, b: accent.b,
+                          a: uint8(200.0'f32 * pulse * scale)))
+
+  # Spawn shockwave expanding outward while opening
+  if spawnT < 1.0'f32:
+    let shockR = ExitPortalRadius * (0.5'f32 + spawnT * 1.8'f32)
+    drawCircleLines(cx.int32, cy.int32, shockR,
+                    Color(r: accent.r, g: accent.g, b: accent.b,
+                          a: uint8(180.0'f32 * (1.0'f32 - spawnT))))
+  else:
+    # Prompt only once the portal is fully open and enterable.
+    let label = t("dungeon_portal_prompt")
+    let lw = measureText(label, 16)
+    let bob = sin(tm * 3.0'f32) * 3.0'f32
+    drawText(label, cx.int32 - lw div 2, (cy - baseR - 30 + bob).int32, 16, RayWhite)
 
 proc drawDungeonOverlay*(game: Game) =
   ## Doors, pedestals, shop terminal, and the room-transition fade.
@@ -1019,6 +1145,10 @@ proc drawDungeonOverlay*(game: Game) =
       let label = t("dungeon_shop_prompt")
       let lw = measureText(label, 14)
       drawText(label, pos.x.int32 - lw div 2, (pos.y - 44 * pulse).int32, 14, RayWhite)
+
+  # Boss-clear exit portal (drawn under the transition fade)
+  if game.bossPortalActive and floor.currentRoom == floor.bossIdx:
+    drawExitPortal(game)
 
   # Transition fade (dark at the midpoint)
   if game.roomTransitionActive:

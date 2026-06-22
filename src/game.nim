@@ -2602,6 +2602,26 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     game.bullets = @[]
 
 
+proc cheatCompleteRogueliteFloor*(game: var Game) =
+  ## Cheat-menu "Skip Floor": replicate the floor-boss-defeated path (see the
+  ## bossDefeated/gmRoguelite block above) so the run banks rewards, advances the
+  ## floor, and routes into the post-boss draft -> floor-select flow. Routed
+  ## through a request flag (cheatRogueliteSkipFloor) consumed by main.nim so the
+  ## cheat module never has to import game.nim.
+  if game.mode != gmRoguelite or game.rogueliteRun.isNil:
+    return
+  markBossRoomCleared(game)
+  completeRogueliteBoss(game)
+  game.powerUpChoices = generatePowerUpChoices(game.player, true,
+                          unlockedFamilySet(game.rogueliteProfile), game.mode)
+  game.selectedPowerUp = 0
+  initPowerUpRollAnimation(game)
+  initializeRerollCost(game)
+  game.state = gsPowerUpSelect
+  game.enemies = @[]
+  game.bullets = @[]
+
+
 proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
   # Update boss satellites (persistent orbiting satellites)
   for enemy in game.enemies:
