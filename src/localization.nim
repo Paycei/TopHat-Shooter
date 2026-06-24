@@ -1944,7 +1944,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_wall_turrets_desc1": "Walls shoot at enemies (100 + {0} (30%) dmg, 1.5s cooldown, 350px range)",
     "powerup_wall_turrets_desc2": "Walls shoot faster (100 + {0} (30%) dmg, 1.0s cooldown, 425px range)",
     "powerup_wall_turrets_desc3": "Walls fire twin shots (100 + {0} (30%) dmg x2, 1.0s cooldown, 500px range)",
-    "powerup_pulse_armor_desc1": "Taking damage pushes nearby enemies back (no dmg, +1% maxHP scaling)",
+    "powerup_pulse_armor_desc1": "Taking damage pushes nearby enemies back",
     "powerup_pulse_armor_desc2": "Shockwave pushes further and deals 200 + 1% maxHP damage",
     "powerup_pulse_armor_desc3": "Shockwave pushes even further and deals 400 + 1% maxHP damage",
     "powerup_heavy_rounds_desc1": "Bullets 15% larger with slight knockback",

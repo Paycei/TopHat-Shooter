@@ -1421,51 +1421,65 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
         coin.pos.x += toPlayer.x * pullForce * dt
         coin.pos.y += toPlayer.y * pullForce * dt
 
-  # Pulse Armor - emit shockwave when taking damage
-  if game.player.pulseArmorCooldown < 0:  # -1 signals trigger
+  # Pulse Armor - emit a real shove when taking damage. takeDamage() in player.nim
+  # sets pulseArmorTriggered as a one-frame flag; we consume it here.
+  if game.player.pulseArmorTriggered:
+    game.player.pulseArmorTriggered = false
     let level = getPowerUpLevel(game.player, puPulseArmor)
     if level > 0:
+      # pushForce feeds enemy.knockbackVel (a launch speed), not a per-frame nudge,
+      # so enemies visibly fly outward and coast to a stop over ~0.3s.
+      # Near-zero cooldown: Pulse Armor is a reactive on-hit effect, so it should
+      # fire on essentially every hit. The player's post-hit invincibility window
+      # naturally throttles how often it can actually trigger.
       let (pushRadius, pushForce, baseDamage, cooldown) = case level
-        of 1: (120.0, 400.0, 0.0, 8.0)    # Level 1: small radius, low force, no damage, 8s cooldown
-        of 2: (160.0, 500.0, 2.0, 6.0)    # Level 2: medium radius, medium force, 2 damage, 6s cooldown
-        else: (200.0, 600.0, 4.0, 4.0)     # Level 3: large radius, high force, 4 damage, 4s cooldown
+        of 1: (130.0'f32, 520.0'f32, 0.0'f32, 0.01'f32)   # small radius, firm shove, no damage
+        of 2: (175.0'f32, 680.0'f32, 2.0'f32, 0.01'f32)   # medium radius, strong shove, light damage
+        else: (220.0'f32, 850.0'f32, 4.0'f32, 0.01'f32)   # large radius, hard shove, real damage
 
-      # Calculate damage scaling from max HP (scales with tank stats)
-      let damageScaling = game.player.maxHp * 0.01  # 1% of max HP as scaling
+      # Damage scales with max HP so it stays relevant on tank builds
+      let damageScaling = game.player.maxHp * 0.01  # 1% of max HP
       let damage = baseDamage + damageScaling
 
-      # Push all enemies within radius (and damage them if level > 1)
+      var anyHit = false
       for enemy in game.enemies:
         let dist = distance(game.player.pos, enemy.pos)
-        if dist < pushRadius and dist > 5.0:
-          # Calculate push direction (away from player)
-          let awayFromPlayer = (enemy.pos - game.player.pos).normalize()
+        if dist < pushRadius:
+          anyHit = true
+          # Direction away from player; pick a deterministic fallback when overlapping
+          let delta = enemy.pos - game.player.pos
+          let awayFromPlayer =
+            if delta.length() > 0.01'f32: delta.normalize()
+            else: newVector2f(0, -1)
 
-          # Apply push force (stronger when closer)
-          let actualPushForce = pushForce * (1.0 - (dist / pushRadius))
-          enemy.vel.x += awayFromPlayer.x * actualPushForce
-          enemy.vel.y += awayFromPlayer.y * actualPushForce
+          # Stronger when closer, but with a floor so edge enemies still get launched.
+          # Bosses resist the shove heavily so they don't get yanked around.
+          let proximity = 0.4'f32 + 0.6'f32 * (1.0'f32 - dist / pushRadius)
+          let resistance = if enemy.isBoss: 0.18'f32 else: 1.0'f32
+          let launch = pushForce * proximity * resistance
+          # Overwrite rather than accumulate so repeated pulses feel consistent
+          enemy.knockbackVel = awayFromPlayer * launch
 
-          # Apply damage for level 2 and 3
+          # Damage for level 2 and 3 (bosses take reduced damage)
           if baseDamage > 0:
-            let actualDamage = damageEnemy(enemy, damage)
-            # Track pulse armor damage for statistics
+            let dmg = if enemy.isBoss: damage * 0.25'f32 else: damage
+            let actualDamage = damageEnemy(enemy, dmg)
             trackPowerUpDamage(game, puPulseArmor, actualDamage)
-            # Show damage number
             game.showDamage(enemy.pos, actualDamage, fromPlayer = true,
                           isCritical = false, damageType = dtDefault)
 
-      # Visual feedback - expanding shockwave ring
+      # Juice: expanding ring sized to the push radius, plus impact shake. Shake/sound
+      # only when the pulse actually catches something so empty pulses stay quiet.
+      let ringColor = Color(r: 120, g: 210, b: 255, a: 255)
+      spawnShockwaveRing(game, game.player.pos, pushRadius, ringColor)
       spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
-                    Color(r: 100, g: 200, b: 255, a: 255), 40)
+                    ringColor, 36)
+      if anyHit:
+        addShake(game.dopamine.screenShake, siMedium, ringColor)
+        playSound(stExplosion, 0.6)
 
-      # Set cooldown
+      # Set cooldown (counted down by updatePlayer in player.nim)
       game.player.pulseArmorCooldown = cooldown
-      playSound(stExplosion, 0.6)
-
-  # Update Pulse Armor cooldown
-  if game.player.pulseArmorCooldown > 0:
-    game.player.pulseArmorCooldown -= dt
 
   # Rotating Orbs power-up - elemental orbs that orbit the player and damage enemies
   updateOrbitalWeapons(game, dt)
@@ -1804,6 +1818,22 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       enemy.spawnRingTimer -= dt
 
     discard tryAdvanceBossPhase(game, enemy)
+
+    # Knockback impulse (Pulse Armor, etc.): integrated into position and decayed
+    # on its own timeline so the chase AI in updateEnemy can't instantly cancel it.
+    # This is what makes a shove read as a real launch-back rather than a nudge.
+    if enemy.knockbackVel.x != 0.0 or enemy.knockbackVel.y != 0.0:
+      enemy.pos.x += enemy.knockbackVel.x * effectiveDt
+      enemy.pos.y += enemy.knockbackVel.y * effectiveDt
+      # Keep knocked-back enemies on screen
+      enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
+      enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
+      # Exponential falloff: punchy launch that settles in ~0.3s, framerate-independent
+      let decay = pow(0.015'f32, effectiveDt)
+      enemy.knockbackVel.x *= decay
+      enemy.knockbackVel.y *= decay
+      if enemy.knockbackVel.length() < 5.0:
+        enemy.knockbackVel = newVector2f(0, 0)
 
     if not updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game):  # Use slowed time
       # Enemy died - show any accumulated aura damage before death
@@ -2448,55 +2478,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           let playerDied = takeDamage(game.player, bossContactDamage)
           trackDamageAvoided(game)
 
-          # Pulse Armor shockwave when taking damage
-          if not playerDied and hasPowerUp(game.player, puPulseArmor):
-            let pulseLevel = getPowerUpLevel(game.player, puPulseArmor)
-            # Check cooldown (1 second between shockwaves)
-            if game.time - game.player.pulseArmorCooldown >= 1.0:
-              # Shockwave parameters based on level
-              let shockwaveRadius = case pulseLevel
-                of 1: 100.0
-                of 2: 150.0
-                else: 200.0
-              let shockwaveDamage = case pulseLevel
-                of 1: 0.0
-                of 2: 2.0
-                else: 4.0
-              let shockwaveForce = case pulseLevel
-                of 1: 200.0
-                of 2: 300.0
-                else: 400.0
-
-              # Apply shockwave to all enemies in radius
-              for shockEnemy in game.enemies:
-                let dist = distance(game.player.pos, shockEnemy.pos)
-                if dist < shockwaveRadius:
-                  # Knockback
-                  let pushDir = (shockEnemy.pos - game.player.pos).normalize()
-                  let bossResistance = if shockEnemy.isBoss: 0.2 else: 1.0
-                  shockEnemy.pos.x += pushDir.x * shockwaveForce * 0.016 * bossResistance
-                  shockEnemy.pos.y += pushDir.y * shockwaveForce * 0.016 * bossResistance
-
-                  # Clamp to screen boundaries - enemies can't be pushed through borders
-                  shockEnemy.pos.x = clamp(shockEnemy.pos.x, shockEnemy.radius, game.screenWidth.float32 - shockEnemy.radius)
-                  shockEnemy.pos.y = clamp(shockEnemy.pos.y, shockEnemy.radius, game.screenHeight.float32 - shockEnemy.radius)
-
-                  # Damage (only for level 2 and 3)
-                  if shockwaveDamage > 0:
-                    let actualShockwaveDamage = damageEnemy(shockEnemy, shockwaveDamage)
-                    showDamage(game, shockEnemy.pos, actualShockwaveDamage, true, false, dtDefault)
-
-              # Visual feedback - shockwave ring
-              for i in 0..8:
-                let angle = (i.float32 / 8.0) * PI * 2.0
-                let particlePos = Vector2f(
-                  x: game.player.pos.x + cos(angle) * shockwaveRadius,
-                  y: game.player.pos.y + sin(angle) * shockwaveRadius
-                )
-                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y,
-                              Color(r: 150, g: 200, b: 255, a: 200), 5)
-
-              game.player.pulseArmorCooldown = game.time
+          # Pulse Armor knockback is handled centrally by the trigger block in
+          # updateGame (takeDamage above sets the -1 trigger flag).
 
           if playerDied:
             beginPlayerDeathSequence(game, dcBossContact, source = enemy)
@@ -2531,55 +2514,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           let playerDied = takeDamage(game.player, enemyContactDamage)
           trackDamageAvoided(game)
 
-          # Pulse Armor shockwave when taking damage
-          if not playerDied and hasPowerUp(game.player, puPulseArmor):
-            let pulseLevel = getPowerUpLevel(game.player, puPulseArmor)
-            # Check cooldown (1 second between shockwaves)
-            if game.time - game.player.pulseArmorCooldown >= 1.0:
-              # Shockwave parameters based on level
-              let shockwaveRadius = case pulseLevel
-                of 1: 100.0
-                of 2: 150.0
-                else: 200.0
-              let shockwaveDamage = case pulseLevel
-                of 1: 0.0
-                of 2: 2.0
-                else: 4.0
-              let shockwaveForce = case pulseLevel
-                of 1: 200.0
-                of 2: 300.0
-                else: 400.0
-
-              # Apply shockwave to all enemies in radius
-              for shockEnemy in game.enemies:
-                let dist = distance(game.player.pos, shockEnemy.pos)
-                if dist < shockwaveRadius:
-                  # Knockback
-                  let pushDir = (shockEnemy.pos - game.player.pos).normalize()
-                  let bossResistance = if shockEnemy.isBoss: 0.2 else: 1.0
-                  shockEnemy.pos.x += pushDir.x * shockwaveForce * 0.016 * bossResistance
-                  shockEnemy.pos.y += pushDir.y * shockwaveForce * 0.016 * bossResistance
-
-                  # Clamp to screen boundaries - enemies can't be pushed through borders
-                  shockEnemy.pos.x = clamp(shockEnemy.pos.x, shockEnemy.radius, game.screenWidth.float32 - shockEnemy.radius)
-                  shockEnemy.pos.y = clamp(shockEnemy.pos.y, shockEnemy.radius, game.screenHeight.float32 - shockEnemy.radius)
-
-                  # Damage (only for level 2 and 3)
-                  if shockwaveDamage > 0:
-                    let actualShockwaveDamage = damageEnemy(shockEnemy, shockwaveDamage)
-                    showDamage(game, shockEnemy.pos, actualShockwaveDamage, true, false, dtDefault)
-
-              # Visual feedback - shockwave ring
-              for i in 0..8:
-                let angle = (i.float32 / 8.0) * PI * 2.0
-                let particlePos = Vector2f(
-                  x: game.player.pos.x + cos(angle) * shockwaveRadius,
-                  y: game.player.pos.y + sin(angle) * shockwaveRadius
-                )
-                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y,
-                              Color(r: 150, g: 200, b: 255, a: 200), 5)
-
-              game.player.pulseArmorCooldown = game.time
+          # Pulse Armor knockback is handled centrally by the trigger block in
+          # updateGame (takeDamage above sets the -1 trigger flag).
 
           if playerDied:
             beginPlayerDeathSequence(game, dcContact, source = enemy)
@@ -3619,56 +3555,8 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
               break
           beginPlayerDeathSequence(game, dcProjectile, source = bulletKiller,
                                    sourceType = bullet.sourceEnemyType)
-        else:
-          # Pulse Armor shockwave when taking damage from bullets
-          if hasPowerUp(game.player, puPulseArmor):
-            let pulseLevel = getPowerUpLevel(game.player, puPulseArmor)
-            # Check cooldown (1 second between shockwaves)
-            if game.time - game.player.pulseArmorCooldown >= 1.0:
-              # Shockwave parameters based on level
-              let shockwaveRadius = case pulseLevel
-                of 1: 100.0
-                of 2: 150.0
-                else: 200.0
-              let shockwaveDamage = case pulseLevel
-                of 1: 0.0
-                of 2: 2.0
-                else: 4.0
-              let shockwaveForce = case pulseLevel
-                of 1: 200.0
-                of 2: 300.0
-                else: 400.0
-
-              # Apply shockwave to all enemies in radius
-              for shockEnemy in game.enemies:
-                let dist = distance(game.player.pos, shockEnemy.pos)
-                if dist < shockwaveRadius:
-                  # Knockback
-                  let pushDir = (shockEnemy.pos - game.player.pos).normalize()
-                  let bossResistance = if shockEnemy.isBoss: 0.2 else: 1.0
-                  shockEnemy.pos.x += pushDir.x * shockwaveForce * 0.016 * bossResistance
-                  shockEnemy.pos.y += pushDir.y * shockwaveForce * 0.016 * bossResistance
-
-                  # Clamp to screen boundaries - enemies can't be pushed through borders
-                  shockEnemy.pos.x = clamp(shockEnemy.pos.x, shockEnemy.radius, game.screenWidth.float32 - shockEnemy.radius)
-                  shockEnemy.pos.y = clamp(shockEnemy.pos.y, shockEnemy.radius, game.screenHeight.float32 - shockEnemy.radius)
-
-                  # Damage (only for level 2 and 3)
-                  if shockwaveDamage > 0:
-                    let actualShockwaveDamage = damageEnemy(shockEnemy, shockwaveDamage)
-                    showDamage(game, shockEnemy.pos, actualShockwaveDamage, true, false, dtDefault)
-
-              # Visual feedback - shockwave ring
-              for i in 0..8:
-                let angle = (i.float32 / 8.0) * PI * 2.0
-                let particlePos = Vector2f(
-                  x: game.player.pos.x + cos(angle) * shockwaveRadius,
-                  y: game.player.pos.y + sin(angle) * shockwaveRadius
-                )
-                spawnExplosionPooled(game.particlePool, particlePos.x, particlePos.y,
-                              Color(r: 150, g: 200, b: 255, a: 200), 5)
-
-              game.player.pulseArmorCooldown = game.time
+        # Pulse Armor knockback (on non-lethal hits) is handled centrally by the
+        # trigger block in updateGame (takeDamage sets the -1 trigger flag).
 
         trackDamageAvoided(game)
 

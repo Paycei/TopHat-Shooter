@@ -477,7 +477,8 @@ type
     parryCooldown*: float32  # Cooldown timer between parries
     parryDuration*: float32  # How long the parry state lasts
     radialBurstTimer*: float32  # Timer for periodic radial burst
-    pulseArmorCooldown*: float32  # Cooldown after triggering shockwave
+    pulseArmorCooldown*: float32  # Cooldown after triggering shockwave (always >= 0)
+    pulseArmorTriggered*: bool  # Set by takeDamage; consumed next frame in game.nim
     teamId*: PvPTeam  # Team assignment for PvP mode (ptNone for free-for-all)
     skinType*: int  # Current equipped skinHost
     bulletSkinType*: int  # Current equipped bullet skin
@@ -620,6 +621,7 @@ type
     id*: int                      # Unique identifier for tracking bullet hits
     pos*: Vector2f
     vel*: Vector2f
+    knockbackVel*: Vector2f       # Residual knockback impulse (Pulse Armor etc.); decays independently of chase AI
     radius*: float32              # Combat hitbox (visual size, used for bullets/player collision)
     collisionRadius*: float32     # Enemy-to-enemy collision hitbox
     hp*: float32

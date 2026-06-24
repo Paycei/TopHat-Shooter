@@ -119,6 +119,7 @@ proc newPlayer*(x, y: float32): Player =
     parryDuration: 0,
     radialBurstTimer: 0.0,
     pulseArmorCooldown: 0.0,
+    pulseArmorTriggered: false,
     skinType: 0,  # Default skin (skDefault)
     bulletSkinType: 0,
     bulletShapeType: 0,
@@ -219,9 +220,11 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       if player.aftershockPosHistory.len > 40:
         player.aftershockPosHistory.popFirst()
 
-  # Update Pulse Armor cooldown
+  # Update Pulse Armor cooldown. Clamp at 0 so it never crosses into negative
+  # (a negative cooldown used to be misread as the trigger sentinel, causing
+  # spurious auto-fires every cooldown cycle).
   if player.pulseArmorCooldown > 0:
-    player.pulseArmorCooldown -= dt
+    player.pulseArmorCooldown = max(0.0'f32, player.pulseArmorCooldown - dt)
 
   let oldRadius = player.radius
   refreshPlayerSize(player)
@@ -1000,11 +1003,9 @@ proc takeDamage*(player: Player, damage: float32): bool =
     player.adaptiveFirewallTimer = 3.0'f32
 
   # Pulse Armor - emit shockwave when taking damage (if not on cooldown)
-  for powerUp in player.powerUps:
-    if powerUp.powerType == puPulseArmor and player.pulseArmorCooldown <= 0:
-      # Trigger shockwave - cooldown will be set in game.nim
-      player.pulseArmorCooldown = -1.0  # -1 signals to trigger in game.nim
-      break
+  if player.pulseArmorCooldown <= 0 and hasPowerUp(player, puPulseArmor):
+    # Trigger shockwave next frame in game.nim; cooldown is set there.
+    player.pulseArmorTriggered = true
 
   # LastStand: intercept lethal damage once per life with 3s invulnerability
   if player.hp <= 0 and hasPowerUp(player, puLastStand) and not player.lastStandActivated:
