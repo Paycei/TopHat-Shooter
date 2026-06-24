@@ -281,22 +281,26 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
     let skinData = getCubeSkinData(skin)
     if secretStyle:
       if skin != cskJack:
-        let face = sortedFaces[sortedFaces.high]
-        let light = clamp(0.76'f32 + face.depth * 0.18'f32, 0.58'f32, 1.0'f32)
-        let fill =
-          if skin == cskDice:
-            Color(r: uint8(238.0'f32 * light), g: uint8(239.0'f32 * light),
-                  b: uint8(244.0'f32 * light), a: 255)
-          else:
-            Color(
-              r: uint8(clamp(skinData.faceColor.r.float32 * light, 0.0'f32, 255.0'f32)),
-              g: uint8(clamp(skinData.faceColor.g.float32 * light, 0.0'f32, 255.0'f32)),
-              b: uint8(clamp(skinData.faceColor.b.float32 * light, 0.0'f32, 255.0'f32)),
-              a: if skin == cskCyber: 225'u8 else: 240'u8)
-        drawTriangleBothWindings(pts[face.corners[0]], pts[face.corners[1]],
-                                 pts[face.corners[2]], fill)
-        drawTriangleBothWindings(pts[face.corners[0]], pts[face.corners[2]],
-                                 pts[face.corners[3]], fill)
+        # Solid cube body: fill every face (painter's order draws the nearer
+        # faces last) so the orbital cube reads as one solid object. Filling only
+        # the front-most face made that single face teleport from side to side as
+        # the cube spun, and left dice pips on the unfilled faces floating.
+        for face in sortedFaces:
+          let light = clamp(0.76'f32 + face.depth * 0.18'f32, 0.58'f32, 1.0'f32)
+          let fill =
+            if skin == cskDice:
+              Color(r: uint8(238.0'f32 * light), g: uint8(239.0'f32 * light),
+                    b: uint8(244.0'f32 * light), a: 255)
+            else:
+              Color(
+                r: uint8(clamp(skinData.faceColor.r.float32 * light, 0.0'f32, 255.0'f32)),
+                g: uint8(clamp(skinData.faceColor.g.float32 * light, 0.0'f32, 255.0'f32)),
+                b: uint8(clamp(skinData.faceColor.b.float32 * light, 0.0'f32, 255.0'f32)),
+                a: if skin == cskCyber: 225'u8 else: 240'u8)
+          drawTriangleBothWindings(pts[face.corners[0]], pts[face.corners[1]],
+                                   pts[face.corners[2]], fill)
+          drawTriangleBothWindings(pts[face.corners[0]], pts[face.corners[2]],
+                                   pts[face.corners[3]], fill)
     else:
       for face in sortedFaces:
         let light = clamp(0.7'f32 + face.depth * 0.16'f32, 0.52'f32, 1.0'f32)
@@ -474,8 +478,20 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
           of 5: spots = @[(-d, -d), (d, -d), (0.0'f32, 0.0'f32), (-d, d), (d, d)]
           else: spots = @[(-d, -d), (d, -d), (-d, 0.0'f32), (d, 0.0'f32), (-d, d), (d, d)]
           let pipColor = Color(r: 26, g: 26, b: 32, a: 255)
+          # Draw each pip as a disc in the face's own (right, up) plane via fp(),
+          # not a fixed screen circle: it foreshortens with the face and shrinks
+          # to a sliver as that face turns edge-on, so a face's pips fade in/out
+          # at the silhouette instead of popping in all at once mid-rotation.
+          const pr = 0.13'f32
+          const pipSeg = 12
           for spot in spots:
-            drawCircle(fp(spot[0], spot[1]), max(1.0'f32, size * 0.13'f32), pipColor)
+            let centre = fp(spot[0], spot[1])
+            var prevP = fp(spot[0] + pr, spot[1])
+            for s in 1 .. pipSeg:
+              let ang = s.float32 / pipSeg.float32 * PI * 2.0'f32
+              let curP = fp(spot[0] + cos(ang) * pr, spot[1] + sin(ang) * pr)
+              drawTriangleBothWindings(centre, prevP, curP, pipColor)
+              prevP = curP
           continue
 
         if heartColor.a == 0:
