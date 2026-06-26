@@ -1785,33 +1785,34 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
     let dirSign = if rand(1.0) < 0.5: 1.0'f32 else: -1.0'f32   # sweep left or right
     let ang = 0.55'f32 * dirSign                               # ~31deg from vertical
     let dir = newVector2f(sin(ang), cos(ang))                  # down-and-sideways
-    # Derive the travel length from the screen so the comet always enters just
-    # off the TOP edge and exits near the bottom, at ANY resolution. A fixed
-    # pixel `travel` put the spawn (and its warning streak) on-screen on tall
-    # windows, so the telegraph looked out-of-bounds. dir.y = cos(ang) > 0.
-    let spawnY = -60.0'f32                                     # just above the top edge
     let exitY  = sh * 0.92'f32                                 # impact point near bottom
-    let travel = (exitY - spawnY) / dir.y                      # spans the full height
+    # CRITICAL: the comet bullet (spawned when the warning expires, game.nim) is
+    # subject to isOffScreen culling (|x|,|y| beyond the screen by 50px). The far
+    # off-corner spawn the previous geometry used sat WELL past that margin, so the
+    # bullet was deleted the same frame it was born -> the diagonal comets never
+    # appeared. Walk backward up the incoming line only as far as the screen-box
+    # edge (inside the 50px margin), so the comet spawns just off-screen and
+    # survives. dir.y = cos(ang) > 0; the streak still tilts to the true path.
+    const cullM = 48.0'f32                                     # stay inside |50px| cull
     let safeLane = 1 + rand(max(1, count - 2))                 # which column stays open
     for k in 0 ..< count:
       if k == safeLane: continue
       let frac = k.float32 / (count - 1).float32
       let ix = 60.0'f32 + frac * (sw - 120.0'f32)             # on-screen exit column
       let impact = newVector2f(ix, exitY)
-      let spawn = impact - dir * travel                        # resolves to spawnY off-top
-      var w = AttackWarning(
-        pos:           impact,
-        targetPos:     spawn,
-        attackType:    "meteor",
-        lifetime:      warn,
-        maxLifetime:   warn,
-        sourceEnemyId: enemy.id,
-        bulletSpeed:   attack.projectileSpeed,
-        bulletDamage:  attack.damage * phase.damageMultiplier,
-        bulletRadius:  rockR,
-        overrideColor: Color(r: 255, g: 170, b: 60, a: 255),
-        bulletsCreated: false
-      )
+      # Backward distance to the nearest entry edge (top vs. the side the comet
+      # streaks in from), whichever the path crosses first.
+      let tTop = (impact.y + cullM) / dir.y
+      let tSide = if dir.x > 0.0001'f32: (impact.x + cullM) / dir.x
+                  elif dir.x < -0.0001'f32: (impact.x - (sw + cullM)) / dir.x
+                  else: 1.0e9'f32
+      let spawn = impact - dir * min(tTop, tSide)              # on the screen-box edge
+      var w = newAttackWarning(impact.x, impact.y, awtMeteor, warn, enemy.id)
+      w.targetPos = spawn
+      w.bulletSpeed = attack.projectileSpeed
+      w.bulletDamage = attack.damage * phase.damageMultiplier
+      w.bulletRadius = rockR
+      w.overrideColor = Color(r: 255, g: 170, b: 60, a: 255)
       game.attackWarnings.add(w)
     addShake(game.dopamine.screenShake, siSmall)
     return
@@ -1865,19 +1866,12 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
                       game.screenHeight.float32 * 0.85'f32)
 
   for targetX in meteorXs:
-    var w = AttackWarning(
-      pos:          newVector2f(targetX, impactY),
-      targetPos:    newVector2f(targetX, -50.0),   # bullet spawn point
-      attackType:   "meteor",
-      lifetime:     warningTime,
-      maxLifetime:  warningTime,
-      sourceEnemyId: enemy.id,
-      bulletSpeed:  attack.projectileSpeed,
-      bulletDamage: attack.damage * phase.damageMultiplier,
-      bulletRadius: bRadius,
-      overrideColor: meteorColor,
-      bulletsCreated: false
-    )
+    var w = newAttackWarning(targetX, impactY, awtMeteor, warningTime, enemy.id)
+    w.targetPos = newVector2f(targetX, -50.0)   # bullet spawn point
+    w.bulletSpeed = attack.projectileSpeed
+    w.bulletDamage = attack.damage * phase.damageMultiplier
+    w.bulletRadius = bRadius
+    w.overrideColor = meteorColor
     game.attackWarnings.add(w)
 
 
@@ -2148,31 +2142,17 @@ proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, ph
   for idx in 0..<teleportWarningPositions.len:
     let warningPos = teleportWarningPositions[idx]
     # Create warning with bullet spawn data stored
-    let warning = AttackWarning(
-      pos: warningPos,
-      attackType: "teleport_warning",
-      lifetime: warningDuration,
-      maxLifetime: warningDuration,
-      sourceEnemyId: enemy.id,
-      laserAngles: @[],
-      laserLength: 0.0,
-      laserCount: 0,
-      laserDamage: 0,
-      laserDuration: 0.0,
-      lasersCreated: false,
-      laserPattern: teleportMode,  # Store mode for visual rendering
-      enemyType: etCircle,
-      targetPos: warningPos,
-      fromSatellite: false,
-      # Store bullet spawn data for delayed creation
-      bulletCount: attack.projectileCount,
-      bulletSpeed: bulletSpeed,
-      bulletDamage: attack.damage * phase.damageMultiplier * bulletDamageMultiplier,
-      bulletSpreadAngle: 360.0,  # Full circle
-      bulletsCreated: false,
-      # Mark first position as where boss should teleport
-      isBossTeleportTarget: (idx == 0)
-    )
+    let warning = newAttackWarning(warningPos.x, warningPos.y, awtTeleportWarning,
+                                   warningDuration, enemy.id)
+    warning.laserPattern = teleportMode   # Store mode for visual rendering
+    warning.targetPos = warningPos
+    # Store bullet spawn data for delayed creation
+    warning.bulletCount = attack.projectileCount
+    warning.bulletSpeed = bulletSpeed
+    warning.bulletDamage = attack.damage * phase.damageMultiplier * bulletDamageMultiplier
+    warning.bulletSpreadAngle = 360.0   # Full circle
+    # Mark first position as where boss should teleport
+    warning.isBossTeleportTarget = (idx == 0)
     game.attackWarnings.add(warning)
 
 
@@ -2316,7 +2296,7 @@ proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase
       let maxDist = min(distance(enemy.pos, game.player.pos) + 80.0, 600.0)
       let warnX = enemy.pos.x + cos(aimAngle) * maxDist
       let warnY = enemy.pos.y + sin(aimAngle) * maxDist
-      game.attackWarnings.add(newAttackWarning(warnX, warnY, "laser_pointer", warningTime))
+      game.attackWarnings.add(newAttackWarning(warnX, warnY, awtLaserPointer, warningTime))
 
   # Fire the actual snipe shots
   for i in 0..<attack.projectileCount:

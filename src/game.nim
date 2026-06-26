@@ -658,14 +658,14 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
     # All other warnings are stamped at a fixed world position and must not move.
     let warnType = game.attackWarnings[i].attackType
     if game.attackWarnings[i].sourceEnemyId >= 0 and
-       (warnType == "boss_laser" or warnType == "satellite_laser"):
+       (warnType == awtBossLaser or warnType == awtSatelliteLaser):
       for enemy in game.enemies:
         if enemy.id == game.attackWarnings[i].sourceEnemyId:
           game.attackWarnings[i].pos = enemy.pos
           break
 
     # BOSS LASER SYSTEM: Create lasers when warning expires (at 0.1s remaining for smooth transition)
-    if game.attackWarnings[i].attackType == "boss_laser" and
+    if game.attackWarnings[i].attackType == awtBossLaser and
        not game.attackWarnings[i].lasersCreated and
        game.attackWarnings[i].lifetime <= 0.1:
 
@@ -706,7 +706,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
       game.attackWarnings[i].lasersCreated = true
 
     # TELEPORT WARNING SYSTEM: Spawn bullets when warning expires
-    if game.attackWarnings[i].attackType == "teleport_warning" and
+    if game.attackWarnings[i].attackType == awtTeleportWarning and
        not game.attackWarnings[i].bulletsCreated and
        game.attackWarnings[i].lifetime <= 0.1:
 
@@ -768,7 +768,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
       game.attackWarnings[i].bulletsCreated = true
 
     # METEOR SYSTEM: Spawn bullet when warning expires
-    if game.attackWarnings[i].attackType == "meteor" and
+    if game.attackWarnings[i].attackType == awtMeteor and
        not game.attackWarnings[i].bulletsCreated and
        game.attackWarnings[i].lifetime <= 0.05:
       let w = game.attackWarnings[i]
@@ -806,7 +806,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
       game.attackWarnings[i].bulletsCreated = true
 
     # TESLA STRIKE: telegraph expires -> a bolt slams the marked ground spot.
-    if game.attackWarnings[i].attackType == "tesla_strike":
+    if game.attackWarnings[i].attackType == awtTeslaStrike:
       let w = game.attackWarnings[i]
       if w.lifetime <= TeslaStrikeActive:
         if not w.bulletsCreated:
@@ -829,7 +829,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
           w.lasersCreated = true
 
     # ARC LATTICE: telegraph expires -> a lightning wall segment goes live.
-    if game.attackWarnings[i].attackType == "arc_beam":
+    if game.attackWarnings[i].attackType == awtArcBeam:
       let w = game.attackWarnings[i]
       if w.lifetime <= ArcBeamActive:
         if not w.bulletsCreated:
@@ -855,7 +855,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
     # races along the bounce route (RicochetLaserSweep). The swept-so-far portion
     # is lethal; the player can only be struck ONCE (lasersCreated gate), so being
     # caught by the leading edge is a single big hit, never a repeated burn.
-    if game.attackWarnings[i].attackType == "ricochet_laser":
+    if game.attackWarnings[i].attackType == awtRicochetLaser:
       let w = game.attackWarnings[i]
       if w.lifetime <= RicochetLaserActive and w.ricochetPath.len >= 2:
         if not w.bulletsCreated:
@@ -2690,7 +2690,7 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
               # Update existing warning position to follow satellite, or create new one
               var warningFound = false
               for warning in game.attackWarnings:
-                if warning.attackType == "satellite_laser" and
+                if warning.attackType == awtSatelliteLaser and
                    warning.sourceEnemyId == enemy.id and
                    warning.fromSatellite:
                   # Update warning position to follow satellite
@@ -4186,40 +4186,18 @@ proc drawGame*(game: Game) =
   # Draw meteorites (show both warning and falling meteorites)
   for meteorite in game.meteorites:
     if meteorite.warningTimer > 0:
-      let tp = meteorite.targetPos
-      let warningAlpha = if (meteorite.warningTimer * 6.0).int mod 2 == 0: uint8(220) else: uint8(110)
-      # progress 0 -> 1 as impact nears (used to tighten the converging ring).
+      # Real Meteorite rocks (etMage + boss signature modes) share the exact same
+      # telegraph as the boss bapMeteor columns. While warning, meteorite.pos is
+      # still the off-screen spawn, so passing it as the source makes the streak +
+      # arrowhead point along the true incoming direction.
       let prog = clamp(1.0'f32 - meteorite.warningTimer /
                        max(0.0001'f32, meteorite.maxWarningTime), 0.0'f32, 1.0'f32)
-      # Incoming direction: while warning, meteorite.pos is still the off-screen
-      # spawn point, so (target - pos) is exactly the path the rock will travel.
-      # `fromDir` points back toward the source, so a streak drawn along it reads
-      # as "rock incoming from the upper-left/right".
-      let inDir = (tp - meteorite.pos).normalize()
-      if inDir.x != 0 or inDir.y != 0:
-        let fromDir = newVector2f(-inDir.x, -inDir.y)
-        # Tapering dashed streak leading in from the source side.
-        let streakLen = 100.0'f32 + meteorite.radius * 2.0'f32
-        const segs = 6
-        for s in 0 ..< segs:
-          let f0 = s.float32 / segs.float32
-          let f1 = (s.float32 + 0.55'f32) / segs.float32   # gap after each dash
-          let p0 = newVector2f(tp.x + fromDir.x * streakLen * f0,
-                               tp.y + fromDir.y * streakLen * f0)
-          let p1 = newVector2f(tp.x + fromDir.x * streakLen * f1,
-                               tp.y + fromDir.y * streakLen * f1)
-          let a = uint8(clamp((1.0'f32 - f0) * 170.0'f32, 0.0'f32, 255.0'f32))
-          drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
-                   3.0'f32, Color(r: 255, g: 150, b: 40, a: a))
-        # Converging ring: a wide ring tightening onto the target as time runs out.
-        let convR = meteorite.radius + (1.0'f32 - prog) * (streakLen * 0.55'f32)
-        drawCircleLines(tp.x.int32, tp.y.int32, convR,
-                       Color(r: 255, g: 170, b: 60, a: uint8(110.0'f32 * (1.0'f32 - prog))))
-      # Flashing impact ring at the landing spot.
-      drawCircleLines(tp.x.int32, tp.y.int32, meteorite.radius,
-                     Color(r: 255, g: 100, b: 0, a: warningAlpha))
-      drawCircleLines(tp.x.int32, tp.y.int32, meteorite.radius + 5,
-                     Color(r: 255, g: 50, b: 0, a: warningAlpha div 2))
+      # Rocks with splashDamage explode on landing (blast = radius*3, matching the
+      # impact code); pass that so the telegraph shows the AoE. Direct-hit rocks
+      # pass 0 and get the plain (non-explosive) warning.
+      let blastR = if meteorite.splashDamage > 0: meteorite.radius * 3.0'f32 else: 0.0'f32
+      drawMeteorWarning(meteorite.targetPos, meteorite.pos, meteorite.radius,
+                        Color(r: 255, g: 140, b: 40, a: 255), prog, blastR)
     else:
       # Falling meteorite: a molten rock with a fiery tail streaming behind it.
       let r = meteorite.radius

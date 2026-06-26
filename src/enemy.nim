@@ -222,7 +222,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.dashCooldown = config.movement.dashDuration  # Active dash duration
           enemy.dashTimer = config.movement.dashCooldown + rand(1.0)  # Next cooldown
           # Show a brief directional warning so the player has a chance to react
-          game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "triangle_dash", 0.18))
+          game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, awtTriangleDash, 0.18))
         else:
           # WIND-UP MOVEMENT: zigzag toward player
           let dir = (playerPos - enemy.pos).normalize()
@@ -315,7 +315,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         let newY = clamp(playerPos.y + sin(angle) * teleportDist, margin, game.screenHeight.float32 - margin)
         enemy.targetPos = newVector2f(newX, newY)
         # Warn the player at the destination
-        game.attackWarnings.add(newAttackWarning(newX, newY, "hex_teleport", hexWarningTime))
+        game.attackWarnings.add(newAttackWarning(newX, newY, awtHexTeleport, hexWarningTime))
         enemy.attackPhase = 1  # Warning shown; don't add it again this cycle
         var nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed)
         nextPos = nextInertialEnemyPos(enemy, nextPos, dt)
@@ -358,7 +358,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.attackPhase = 1
           enemy.attackWarningTimer = 1.2  # Warning duration
           # Add warning to game
-          game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "cross", 1.2))
+          game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, awtCross, 1.2))
 
       of 1:  # Warning phase - stop moving, prepare for dash
         enemy.attackWarningTimer -= dt
@@ -439,7 +439,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         enemy.dashCooldown = config.movement.dashCooldown + rand(1.0)
 
         # Brief directional dash warning so the player can react
-        game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "triangle_dash", 0.18, enemy.id))
+        game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, awtTriangleDash, 0.18, enemy.id))
 
         # Shoot 3-spread at the start of each dash (uses config)
         executeRangedAttack(enemy, playerPos, game)
@@ -545,7 +545,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           let fakeY = clamp(playerPos.y + sin(fakeAngle) * fakeDist, margin, game.screenHeight.float32 - margin)
 
           # Show fake warning - player expects the attack here
-          game.attackWarnings.add(newAttackWarning(fakeX, fakeY, "trickster_decoy", trickWarningDuration))
+          game.attackWarnings.add(newAttackWarning(fakeX, fakeY, awtTricksterDecoy, trickWarningDuration))
 
           # Pre-calculate REAL destination (~90° away from the fake) and store it
           let realAngle = fakeAngle + PI * (0.5 + rand(1.0))
@@ -556,7 +556,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           )
 
           # Subtle hint at the REAL destination, small and easy to miss
-          game.attackWarnings.add(newAttackWarning(enemy.targetPos.x, enemy.targetPos.y, "trickster_real", trickWarningDuration))
+          game.attackWarnings.add(newAttackWarning(enemy.targetPos.x, enemy.targetPos.y, awtTricksterReal, trickWarningDuration))
 
           # Start waiting for the warning to expire before actually teleporting
           enemy.attackWarningTimer = trickWarningDuration
@@ -621,12 +621,12 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
 
           # Warn at the real teleport destination, portal marker
           game.attackWarnings.add(newAttackWarning(
-            enemy.targetPos.x, enemy.targetPos.y, "phantom_arrive", phantomWarnDuration))
+            enemy.targetPos.x, enemy.targetPos.y, awtPhantomArrive, phantomWarnDuration))
 
           # Warn at every clone turret position, ghostly crosshair
           for clonePos in enemy.clonePositions:
             game.attackWarnings.add(newAttackWarning(
-              clonePos.x, clonePos.y, "phantom_clone", phantomWarnDuration))
+              clonePos.x, clonePos.y, awtPhantomClone, phantomWarnDuration))
 
           enemy.attackWarningTimer = phantomWarnDuration
           enemy.attackPhase = 1
@@ -718,7 +718,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.attackWarningTimer = 0
           enemy.attackExecuteTimer = chargeTime
           # Emit a reticle warning that lasts the full charge duration
-          game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, "sniper_charge", chargeTime, enemy.id))
+          game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, awtSniperCharge, chargeTime, enemy.id))
 
       of 1:  # Charging phase - stands still, glows brighter
         enemy.attackWarningTimer += dt
@@ -2791,12 +2791,136 @@ proc drawEnemy*(enemy: Enemy) =
     of etEnvironment:
       discard  # Environmental objects have no draw logic here
 
+# --- Shared attack-warning telegraph vocabulary -----------------------------
+# Every telegraph derives its fade, pulse and danger build-up the SAME way, so
+# the whole warning system reads as one visual language. Branches still pick
+# their own shapes and per-archetype colours (red = laser, orange = dash,
+# purple = teleport, green = summon, yellow = lightning), but the *timing* of
+# alpha and intensity is standardized through these helpers instead of being
+# hand-recomputed per branch.
+
+proc warningPulse(): float32 {.inline.} =
+  ## Shared "breathing" pulse used so telegraphs feel alive. Range ~5..15.
+  sin(getTime() * 20.0).float32 * 5.0 + 10.0
+
+proc fadeAlpha(warning: AttackWarning): uint8 {.inline.} =
+  ## Telegraph that fades OUT as it expires (brightest when fresh). The default
+  ## for most enemy/boss markers.
+  uint8((warning.lifetime / warning.maxLifetime) * 200.0)
+
+proc warningProgress(warning: AttackWarning): float32 {.inline.} =
+  ## 0.0 when the warning appears, 1.0 the instant it fires. The clock for
+  ## telegraphs that ramp UP (reticles closing in, impact urgency rising).
+  1.0'f32 - warning.lifetime / warning.maxLifetime
+
+proc rampAlpha(warning: AttackWarning, base, span: float32,
+               maxA: float32 = 255.0'f32): uint8 {.inline.} =
+  ## Intensity that grows as the strike nears: base + progress*span, clamped.
+  ## Standardizes the shared "danger builds toward impact" ramp (meteors,
+  ## reticles, tesla strikes, arc beams, the ricochet telegraph).
+  uint8(clamp(base + warningProgress(warning) * span, 0.0'f32, maxA))
+
+proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
+                        baseCol: Color, progress: float32,
+                        blastRadius: float32 = 0.0'f32) =
+  ## The single, shared incoming-meteorite telegraph used by EVERY meteor: the
+  ## boss bapMeteor warning columns AND the real Meteorite rocks (etMage and the
+  ## boss signature modes). `source` is the off-screen entry point, so the streak
+  ## and arrowhead drawn from source->impact point along the rock's true travel
+  ## direction. `progress` is 0 when the warning appears, 1 at impact.
+  ##
+  ## `blastRadius > 0` marks a rock that EXPLODES on contact with the ground
+  ## (splash damage, e.g. boss-3's rocks). The telegraph then also draws the
+  ## ground blast AoE in hot red so an exploding rock reads instantly different
+  ## from a direct-hit one and the player knows how much room to clear.
+  let pulse = warningPulse()
+  let t = getTime()
+
+  # Travel direction: from where the rock enters toward where it lands.
+  var dir = (impact - source).normalize()
+  if dir.x == 0 and dir.y == 0: dir = newVector2f(0, 1)   # default: straight down
+  let perp = newVector2f(-dir.y, dir.x)
+  let fromDir = newVector2f(-dir.x, -dir.y)
+
+  let urgency = uint8(clamp(60.0'f32 + progress * 165.0'f32, 0.0'f32, 225.0'f32))
+  let ringR = max(radius, 9.0'f32)
+
+  # 1) SHORT incoming streak. Its length scales with the rock's size (bigger rock
+  #    -> longer, heavier streak) and is never longer than the real spawn
+  #    distance. A tapering dashed line leading into the impact from the source
+  #    side = the direction the rock is coming from.
+  let srcDist = (impact - source).length()
+  let streakLen = min(95.0'f32 + radius * 4.0'f32, srcDist)
+  const segs = 7
+  for s in 0 ..< segs:
+    let f0 = s.float32 / segs.float32
+    let f1 = (s.float32 + 0.6'f32) / segs.float32          # gap after each dash
+    # Bold, bright dashes with a high floor so the whole tail reads clearly
+    # instead of fading toward the source.
+    let a = uint8(clamp((0.7'f32 + 0.3'f32 * (1.0'f32 - f0)) * 255.0'f32,
+                        0.0'f32, 255.0'f32))
+    drawLine(Vector2(x: impact.x + fromDir.x * streakLen * f0,
+                     y: impact.y + fromDir.y * streakLen * f0),
+             Vector2(x: impact.x + fromDir.x * streakLen * f1,
+                     y: impact.y + fromDir.y * streakLen * f1),
+             2.0'f32 + radius * 0.05'f32,
+             Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: a))
+
+  # 2) Arrowhead at the impact pointing the way the rock travels (scales w/ size).
+  let headLen = 12.0'f32 + radius * 0.45'f32
+  let wing = headLen * 0.6'f32
+  drawLine(Vector2(x: impact.x, y: impact.y),
+           Vector2(x: impact.x - dir.x * headLen + perp.x * wing,
+                   y: impact.y - dir.y * headLen + perp.y * wing),
+           2.5'f32, Color(r: 255, g: 225, b: 170, a: urgency))
+  drawLine(Vector2(x: impact.x, y: impact.y),
+           Vector2(x: impact.x - dir.x * headLen - perp.x * wing,
+                   y: impact.y - dir.y * headLen - perp.y * wing),
+           2.5'f32, Color(r: 255, g: 225, b: 170, a: urgency))
+
+  # 3) Converging ring tightening onto the landing spot as impact nears.
+  let convR = ringR + (1.0'f32 - progress) * (22.0'f32 + radius * 1.2'f32)
+  drawCircleLines(impact.x.int32, impact.y.int32, convR,
+                 Color(r: baseCol.r, g: baseCol.g, b: baseCol.b,
+                       a: uint8(120.0'f32 * (1.0'f32 - progress))))
+
+  # 4) Impact zone: pulsing target ring + center dot mark the exact landing point.
+  let impactR = ringR + pulse * 0.35'f32
+  drawCircleLines(impact.x.int32, impact.y.int32, impactR,
+                 Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: urgency))
+  drawCircle(Vector2(x: impact.x, y: impact.y), 3.0'f32 + pulse * 0.22'f32,
+            Color(r: 255, g: 190, b: 90, a: urgency))
+
+  # 5) EXPLOSIVE rocks: telegraph the ground blast AoE so it reads as clearly
+  #    more dangerous than a direct-hit rock. A breathing dashed red danger ring
+  #    at the TRUE blast radius, a faint red fill, and inward hazard ticks.
+  if blastRadius > 0.0'f32:
+    let hotA = uint8(clamp(70.0'f32 + progress * 150.0'f32, 0.0'f32, 220.0'f32))
+    let br = blastRadius * (1.0'f32 + sin(t * 6.0'f32) * 0.03'f32)   # subtle breathe
+    drawCircle(Vector2(x: impact.x, y: impact.y), br,
+               Color(r: 255, g: 40, b: 0, a: uint8(hotA.float32 * 0.12'f32)))
+    const dashes = 22
+    let spin = t * 0.6'f32
+    for d in 0 ..< dashes:
+      if d mod 2 == 1: continue                                      # every other = gap
+      let a0 = d.float32 / dashes.float32 * (PI * 2.0'f32) + spin
+      let a1 = (d.float32 + 0.85'f32) / dashes.float32 * (PI * 2.0'f32) + spin
+      drawLine(Vector2(x: impact.x + cos(a0) * br, y: impact.y + sin(a0) * br),
+               Vector2(x: impact.x + cos(a1) * br, y: impact.y + sin(a1) * br),
+               2.5'f32, Color(r: 255, g: 70, b: 20, a: hotA))
+    for k in 0 ..< 8:                                               # inward hazard ticks
+      let a = k.float32 * (PI / 4.0'f32) + spin
+      drawLine(Vector2(x: impact.x + cos(a) * br, y: impact.y + sin(a) * br),
+               Vector2(x: impact.x + cos(a) * (br - 9.0'f32),
+                       y: impact.y + sin(a) * (br - 9.0'f32)),
+               2.0'f32, Color(r: 255, g: 130, b: 50, a: hotA))
+
 proc drawAttackWarning*(warning: AttackWarning) =
-  let alpha = uint8((warning.lifetime / warning.maxLifetime) * 200)
-  let pulse = sin(getTime() * 20.0) * 5 + 10
+  let alpha = fadeAlpha(warning)
+  let pulse = warningPulse()
 
   case warning.attackType
-  of "cross":
+  of awtCross:
     # Draw cross warning pattern - matches actual laser size
     let armLength = 100.0 + pulse  # Reduced from 180 to match laser
     drawLine(Vector2(x: warning.pos.x - armLength, y: warning.pos.y),
@@ -2812,69 +2936,26 @@ proc drawAttackWarning*(warning: AttackWarning) =
     drawLine(Vector2(x: warning.pos.x, y: warning.pos.y - armLength),
             Vector2(x: warning.pos.x, y: warning.pos.y + armLength), 2,
             Color(r: 255, g: 150, b: 0, a: alpha))
-  of "meteor":
-    # Trajectory streak along the real spawn->impact line + pulsing impact circle.
-    # Alpha builds from dim -> bright as the meteor approaches (urgency increases over time).
-    # For the classic vertical columns the line is straight down; for diagonal
-    # comets (targetPos offset to a side) it tilts to follow the true path, so
-    # the telegraph never lies about where the rock will travel.
-    let impactX = warning.pos.x
-    let impactY = warning.pos.y
-    # Spawn point: where the meteor enters. Falls back to "straight above" for
+  of awtMeteor:
+    # Boss bapMeteor columns route through the one shared meteor telegraph.
+    # targetPos holds the off-screen spawn point, so the streak + arrowhead point
+    # along the rock's true travel direction. Falls back to "straight above" for
     # any meteor warning that didn't record an explicit spawn (targetPos unset).
-    let spawnX = if warning.targetPos.x == 0 and warning.targetPos.y == 0: impactX
-                 else: warning.targetPos.x
-    let spawnY = if warning.targetPos.x == 0 and warning.targetPos.y == 0: 0.0'f32
-                 else: warning.targetPos.y
-    let midX = (spawnX + impactX) * 0.5
-    let midY = (spawnY + impactY) * 0.5
-    # progress: 0 when warning first appears, 1 when it is about to fire
-    let progress = 1.0 - (warning.lifetime / warning.maxLifetime)
-    let urgency = uint8(clamp(40.0 + progress * 160.0, 0, 200))
-
-    # Base color: orange-red
+    let spawn = if warning.targetPos.x == 0 and warning.targetPos.y == 0:
+                  newVector2f(warning.pos.x, 0.0'f32)
+                else: warning.targetPos
     let baseCol = if warning.overrideColor.a > 0: warning.overrideColor
                   else: Color(r: 255, g: 130, b: 30, a: 255)
+    drawMeteorWarning(warning.pos, spawn, warning.bulletRadius, baseCol,
+                      warningProgress(warning))
 
-    # Full trajectory line so the player can see every incoming streak and clearly
-    # identify the safe gap (the only lane with no line through it). Drawn in two
-    # segments: first half very faint, second half building to full urgency.
-    # Total alpha stays low enough that many overlapping lines never wash the screen.
-    drawLine(
-      Vector2(x: spawnX, y: spawnY),
-      Vector2(x: midX, y: midY),
-      2, Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: uint8(urgency.float32 * 0.12))
-    )
-    drawLine(
-      Vector2(x: midX, y: midY),
-      Vector2(x: impactX, y: impactY),
-      3, Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: uint8(urgency.float32 * 0.35))
-    )
-    # Thin bright core on the final approach, a sharp arrival cue without blinding.
-    let dir = (warning.pos - newVector2f(spawnX, spawnY)).normalize()
-    drawLine(
-      Vector2(x: impactX - dir.x * 60.0, y: impactY - dir.y * 60.0),
-      Vector2(x: impactX, y: impactY),
-      1, Color(r: 255, g: 220, b: 160, a: urgency)
-    )
-
-    # Impact circle, grows slightly as warning expires
-    let impactR = 10.0 + progress * 8.0 + pulse * 0.4
-    drawCircleLines(impactX.int32, impactY.int32, impactR,
-                   Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: urgency))
-    drawCircleLines(impactX.int32, impactY.int32, impactR * 1.4,
-                   Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: uint8(urgency.float32 * 0.3)))
-    # Center dot (orange, not white)
-    drawCircle(Vector2(x: impactX, y: impactY), 3.0 + pulse * 0.25,
-              Color(r: 255, g: 180, b: 80, a: urgency))
-
-  of "burst":
+  of awtBurst:
     # Draw circular burst warning (generic / unused fallback, kept for safety)
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 50.0 + pulse,
                    Color(r: 255, g: 100, b: 0, a: alpha))
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 70.0 + pulse,
                    Color(r: 255, g: 100, b: 0, a: (alpha div 2).uint8))
-  of "fake":
+  of awtFake:
     # Generic fallback fake, kept for safety
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse,
                    Color(r: 255, g: 255, b: 0, a: alpha))
@@ -2882,7 +2963,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
             Color(r: 255, g: 255, b: 0, a: alpha))
 
   # Triangle
-  of "triangle_dash":
+  of awtTriangleDash:
     # Magenta starburst flash, very short duration, directional cue at launch point
     let cx = warning.pos.x; let cy = warning.pos.y
     let r = 18.0 + pulse * 0.8
@@ -2895,11 +2976,11 @@ proc drawAttackWarning*(warning: AttackWarning) =
                Color(r: 255'u8, g: 180'u8, b: 255'u8, a: alpha))
 
   # Hexagon
-  of "hex_teleport":
+  of awtHexTeleport:
     # Purple contracting hexagon, shows EXACTLY where the hex will appear
     let cx = warning.pos.x; let cy = warning.pos.y
     # Outer hex shrinks inward as timer counts down (progress = 0->1 as lifetime->0)
-    let progress = 1.0 - (warning.lifetime / warning.maxLifetime)
+    let progress = warningProgress(warning)
     let outerR = 55.0 - progress * 20.0 + pulse * 0.5
     let innerR = outerR * 0.55
     for i in 0..<6:
@@ -2922,7 +3003,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                Color(r: 255'u8, g: 150'u8, b: 255'u8, a: alpha))
 
   # Trickster
-  of "trickster_decoy":
+  of awtTricksterDecoy:
     # Bright orange diamond + "?", looks threatening but it's a lie
     let cx = warning.pos.x; let cy = warning.pos.y
     let sz = 30.0 + pulse * 0.6
@@ -2944,7 +3025,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
              Color(r: 255'u8, g: 200'u8, b: 0'u8, a: alpha))
 
   # Trickster real destination
-  of "trickster_real":
+  of awtTricksterReal:
     # Tiny, dim magenta dot, easy to miss unless you're looking for it
     let cx = warning.pos.x; let cy = warning.pos.y
     let subtleAlpha = uint8(alpha.float32 * 0.35)  # Much dimmer than decoy
@@ -2955,10 +3036,10 @@ proc drawAttackWarning*(warning: AttackWarning) =
                Color(r: 255'u8, g: 80'u8, b: 220'u8, a: subtleAlpha))
 
   # Phantom arrive
-  of "phantom_arrive":
+  of awtPhantomArrive:
     # Indigo/blue concentric portal rings, unambiguously "something is appearing here"
     let cx = warning.pos.x; let cy = warning.pos.y
-    let progress = 1.0 - (warning.lifetime / warning.maxLifetime)
+    let progress = warningProgress(warning)
     # Rings converge inward as the phantom approaches
     for ring in 0..2:
       let baseR = 55.0 - ring.float32 * 14.0
@@ -2979,7 +3060,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                Color(r: 200'u8, g: 220'u8, b: 255'u8, a: alpha))
 
   # Phantom clone / shoot origin
-  of "phantom_clone":
+  of awtPhantomClone:
     # Ghostly white/teal crosshair, marks each bullet spawn point
     let cx = warning.pos.x; let cy = warning.pos.y
     let sz = 22.0 + pulse * 0.4
@@ -3001,7 +3082,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     drawCircleLines(cx.int32, cy.int32, sz,
                    Color(r: 120'u8, g: 220'u8, b: 210'u8, a: (alpha div 2).uint8))
 
-  of "boss_laser":
+  of awtBossLaser:
     # Boss laser warning with accurate beam visualization
     # Shows exactly where each laser beam will appear
     # Different drawing based on pattern type
@@ -3105,7 +3186,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       Color(r: 255, g: 255, b: 255, a: alpha)
     )
 
-  of "satellite_laser":
+  of awtSatelliteLaser:
     # Draw warning for satellite laser that extends through target point
     # Calculate direction from satellite through target to edge
     let toTarget = (warning.targetPos - warning.pos).normalize()
@@ -3188,7 +3269,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       Color(r: 255, g: 255, b: 255, a: alpha)
     )
 
-  of "teleport_warning":
+  of awtTeleportWarning:
     # Teleport warning - shows where boss will appear
     let warningMode = warning.laserPattern  # Contains the teleport mode
 
@@ -3217,7 +3298,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     of "dimensional_rift":
       let cx = warning.pos.x; let cy = warning.pos.y
       let t = getTime()
-      let progress = 1.0'f32 - (warning.lifetime / warning.maxLifetime)  # 0->1 as warning expires
+      let progress = warningProgress(warning)  # 0->1 as warning expires
 
       # Tear: a jagged fracture line across the rift centre
       # Two counter-rotating halves pull apart as the rift opens
@@ -3312,11 +3393,14 @@ proc drawAttackWarning*(warning: AttackWarning) =
     drawCircle(Vector2(x: warning.pos.x, y: warning.pos.y), 8.0 + pulse * centerPulse,
               Color(r: 255, g: 100, b: 200, a: uint8(alpha.float32 * centerPulse)))
 
-  of "sniper_charge":
-    # Red targeting reticle that fills in over the charge duration
+  of awtSniperCharge, awtLaserPointer:
+    # Red targeting reticle that fills in over the charge duration.
+    # awtLaserPointer (boss snipe) shares this reticle: previously it produced a
+    # "laser_pointer" string with no draw branch, so it silently fell through to
+    # the generic else and rendered nothing. Merging the cases is the fix.
     let cx = warning.pos.x; let cy = warning.pos.y
-    let progress = 1.0 - (warning.lifetime / warning.maxLifetime)
-    let urgency = uint8(clamp(60.0 + progress * 160.0, 0.0, 200.0))
+    let progress = warningProgress(warning)
+    let urgency = rampAlpha(warning, 60.0, 160.0, 200.0)
     # Outer ring shrinks as charge completes (sense of closing in)
     let outerR = 50.0 - progress * 20.0 + pulse * 0.4
     drawCircleLines(cx.int32, cy.int32, outerR,
@@ -3334,7 +3418,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     drawCircle(Vector2(x: cx, y: cy), dotR,
                Color(r: 255'u8, g: 0'u8, b: 0'u8, a: urgency))
 
-  of "boss_dash":
+  of awtBossDash:
     # Full-path dashed arrow from the boss's current position to the computed
     # landing spot (stored in targetPos at warning-creation time).
     # This gives the player a clear read of exactly where the boss will end up.
@@ -3378,7 +3462,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     drawCircleLines(cx.int32, cy.int32, 16.0'f32 + pulse * 0.5'f32,
                    Color(r: 255'u8, g: 180'u8, b: 0'u8, a: alpha))
 
-  of "boss_burst":
+  of awtBossBurst:
     # Fanned lines radiating toward the locked aim direction
     let cx = warning.pos.x; let cy = warning.pos.y
     let toTarget = warning.targetPos - warning.pos
@@ -3395,7 +3479,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     drawCircle(Vector2(x: cx, y: cy), 6.0,
                Color(r: 255'u8, g: 140'u8, b: 0'u8, a: alpha))
 
-  of "boss_wave":
+  of awtBossWave:
     # Dashed fan lines toward locked aim direction (blue/purple tone)
     let cx = warning.pos.x; let cy = warning.pos.y
     let toTarget = warning.targetPos - warning.pos
@@ -3415,7 +3499,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     drawCircle(Vector2(x: cx, y: cy), 6.0,
                Color(r: 150'u8, g: 100'u8, b: 255'u8, a: alpha))
 
-  of "boss_circle", "boss_spiral":
+  of awtBossCircle, awtBossSpiral:
     # Pulsing rings with tick marks, omnidirectional threat
     let cx = warning.pos.x; let cy = warning.pos.y
     let r1 = 30.0 + pulse * 1.5
@@ -3429,7 +3513,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                Vector2(x: cx + cos(a) * (r1 + 6), y: cy + sin(a) * (r1 + 6)),
                2, Color(r: 255'u8, g: 50'u8, b: 50'u8, a: alpha))
 
-  of "boss_barrage":
+  of awtBossBarrage:
     # Ring with many radiating spokes, massive spray indicator
     let cx = warning.pos.x; let cy = warning.pos.y
     let r = 28.0 + pulse
@@ -3440,7 +3524,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                Vector2(x: cx + cos(a) * (r + 14), y: cy + sin(a) * (r + 14)),
                2, Color(r: 255'u8, g: 80'u8, b: 0'u8, a: alpha))
 
-  of "boss_pulse":
+  of awtBossPulse:
     # Three concentric pulsing rings, expanding shockwave cue
     let cx = warning.pos.x; let cy = warning.pos.y
     for ring in 0..<3:
@@ -3449,7 +3533,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       drawCircleLines(cx.int32, cy.int32, r,
                      Color(r: 200'u8, g: 50'u8, b: 255'u8, a: ringAlpha))
 
-  of "boss_chain":
+  of awtBossChain:
     # Rotating zigzag lightning spokes, chain lightning cue
     let cx = warning.pos.x; let cy = warning.pos.y
     let rot = getTime() * 2.0
@@ -3464,7 +3548,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     drawCircleLines(cx.int32, cy.int32, 14.0 + pulse * 0.4,
                    Color(r: 255'u8, g: 255'u8, b: 150'u8, a: alpha))
 
-  of "boss_summon":
+  of awtBossSummon:
     # Spinning summoning circle with 6 rune-spokes and orbiting dots
     let cx = warning.pos.x; let cy = warning.pos.y
     let rot = getTime() * 2.0
@@ -3481,19 +3565,19 @@ proc drawAttackWarning*(warning: AttackWarning) =
       drawCircle(Vector2(x: cx + cos(a) * outerR, y: cy + sin(a) * outerR), 4.0,
                  Color(r: 100'u8, g: 255'u8, b: 80'u8, a: alpha))
 
-  of "tesla_strike":
+  of awtTeslaStrike:
     # Chain Reactor ground strike. Pulsing danger ring that brightens as the
     # bolt nears; a faint column shows it is coming from above. NOTE: the actual
     # lethal flash is the bolt/particle system (ungated by showHints) - this is
     # only the dodge telegraph.
     let cx = warning.pos.x; let cy = warning.pos.y
     let r  = warning.bulletRadius
-    let progress = 1.0 - warning.lifetime / warning.maxLifetime
+    let progress = warningProgress(warning)
     if warning.lifetime <= TeslaStrikeActive:
       drawCircle(Vector2(x: cx, y: cy), r, Color(r: 255'u8, g: 255'u8, b: 200'u8, a: 150'u8))
       drawCircleLines(cx.int32, cy.int32, r, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 255'u8))
     else:
-      let a2 = uint8(clamp(60.0 + progress * 170.0, 0.0, 255.0))
+      let a2 = rampAlpha(warning, 60.0, 170.0)
       drawLine(Vector2(x: cx, y: 0), Vector2(x: cx, y: cy), 2,
                Color(r: 255'u8, g: 240'u8, b: 120'u8, a: uint8(progress * 80.0)))
       drawCircleLines(cx.int32, cy.int32, r,
@@ -3507,32 +3591,31 @@ proc drawAttackWarning*(warning: AttackWarning) =
                  Vector2(x: cx + cos(ang + 0.3) * r, y: cy + sin(ang + 0.3) * r),
                  1.5, Color(r: 255'u8, g: 255'u8, b: 150'u8, a: a2))
 
-  of "arc_beam":
+  of awtArcBeam:
     # Chain Reactor lightning wall segment. Dim full-width preview marks the kill
     # zone; a bright thin core line + endpoint nodes make the path unambiguous.
-    let progress = 1.0 - warning.lifetime / warning.maxLifetime
     let half = warning.laserLength
     let a = Vector2(x: warning.pos.x, y: warning.pos.y)
     let b = Vector2(x: warning.targetPos.x, y: warning.targetPos.y)
     if warning.lifetime <= ArcBeamActive:
       drawLine(a, b, half * 2.0, Color(r: 255'u8, g: 255'u8, b: 200'u8, a: 130'u8))
     else:
-      let a2 = uint8(clamp(45.0 + progress * 160.0, 0.0, 255.0))
+      let a2 = rampAlpha(warning, 45.0, 160.0)
       drawLine(a, b, half * 2.0, Color(r: 255'u8, g: 230'u8, b: 80'u8, a: (a2 div 5).uint8))
       drawLine(a, b, 2, Color(r: 255'u8, g: 240'u8, b: 90'u8, a: a2))
       drawCircle(a, 5.0, Color(r: 255'u8, g: 255'u8, b: 160'u8, a: a2))
       drawCircle(b, 5.0, Color(r: 255'u8, g: 255'u8, b: 160'u8, a: a2))
 
-  of "ricochet_laser":
+  of awtRicochetLaser:
     # The Laser Architect's bouncing beam, wind-up telegraph only. A loud, hard
     # to miss preview: a glowing danger band along the whole bounce route, a
     # crisp core line, energy dashes marching toward the muzzle to show the shot
     # direction, pulsing bounce nodes, and a colour that ramps cyan -> hot white
     # as fire nears. The live lethal beam is drawn ungated by drawRicochetLaserBeam.
     if warning.ricochetPath.len >= 2 and warning.lifetime > RicochetLaserActive:
-      let progress = 1.0'f32 - warning.lifetime / warning.maxLifetime  # 0 -> 1 toward fire
+      let progress = warningProgress(warning)  # 0 -> 1 toward fire
       let pulse = (sin(getTime() * 12.0) * 0.5 + 0.5).float32
-      let a2 = uint8(clamp(70.0 + progress * 185.0, 0.0, 255.0))
+      let a2 = rampAlpha(warning, 70.0, 185.0)
       let bandA = uint8(clamp((30.0 + progress * 90.0) * (0.7 + pulse * 0.3), 0.0, 255.0))
       # Colour ramps from cyan to hot white/red as the shot becomes imminent.
       let warm = uint8(clamp(progress * progress * 255.0, 0.0, 255.0))
@@ -3575,7 +3658,10 @@ proc drawAttackWarning*(warning: AttackWarning) =
       drawCircleLines(muzzle.x.int32, muzzle.y.int32, 22.0 - progress * 12.0 + pulse * 4.0,
                       Color(r: 220'u8, g: 250'u8, b: 255'u8, a: a2))
 
-  else:
+  of awtNone:
+    # Unassigned/placeholder warning: nothing to telegraph. No `else` branch on
+    # purpose - the case is exhaustive so adding a new AttackWarningType forces a
+    # decision about its visual at compile time.
     discard
 
 proc drawRicochetLaserBeam*(warning: AttackWarning) =
@@ -3583,7 +3669,7 @@ proc drawRicochetLaserBeam*(warning: AttackWarning) =
   ## showHints telegraph gate) so the active beam is always visible like a Laser.
   ## The beam-front races along the path (RicochetLaserSweep) for an "advancing
   ## shot" feel; only the swept-so-far portion is drawn, tipped by a bright head.
-  if warning.attackType != "ricochet_laser": return
+  if warning.attackType != awtRicochetLaser: return
   if warning.lifetime > RicochetLaserActive: return
   if warning.ricochetPath.len < 2: return
 

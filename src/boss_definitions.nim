@@ -342,7 +342,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapMeteor,
               damage: 2.0,
-              cooldown: 3.5,  # rework: slightly longer cadence (was 3.2) to make room for the volley
+              cooldown: 3.75,  # rework: slightly longer cadence (was 3.2) to make room for the volley
               projectileSpeed: 280.0,
               projectileCount: 4,
               spreadAngle: 0.0,
@@ -385,7 +385,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapMeteor,
               damage: 2.0,
-              cooldown: 2.7,  # rework NERF: slower column cadence, was 2.3
+              cooldown: 3.0,  # rework NERF: slower column cadence, was 2.3
               projectileSpeed: 330.0,
               projectileCount: 7,  # NOTE: inert for column meteors, count comes from screen layout (zoneWidth / bRadius*5); density is tuned via "massive_impact" bullet-radius scaling
               spreadAngle: 0.0,
@@ -407,7 +407,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapPulse,
               damage: 1.0,
-              cooldown: 5.2,  # rework NERF: was 4.5
+              cooldown: 5.25,  # rework NERF: was 4.5
               projectileSpeed: 175.0,  # rework NERF: was 190.0
               projectileCount: 0,
               spreadAngle: 0.0,
@@ -428,7 +428,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapMeteor,
               damage: 2.5,
-              cooldown: 2.1,  # rework NERF: slower apocalypse rain, was 1.75
+              cooldown: 2.5,  # rework NERF: slower apocalypse rain, was 1.75
               projectileSpeed: 370.0,
               projectileCount: 11,  # NOTE: inert for column meteors, count comes from screen layout (zoneWidth / bRadius*5); density is tuned via "apocalypse_mode" bullet-radius scaling
               spreadAngle: 0.0,

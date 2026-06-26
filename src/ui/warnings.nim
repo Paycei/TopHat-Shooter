@@ -29,17 +29,11 @@ proc spawnThunderstrikeInto*(warnings: var seq[AttackWarning], particlePool: Par
     positions.add(p)
 
   for p in positions:
-    warnings.add(AttackWarning(
-      pos: p, targetPos: p,
-      attackType: "tesla_strike",
-      lifetime: total, maxLifetime: total,
-      sourceEnemyId: enemy.id,
-      laserAngles: @[],
-      bulletRadius: radius,
-      bulletDamage: dmg,
-      bulletsCreated: false,
-      lasersCreated: false
-    ))
+    var w = newAttackWarning(p.x, p.y, awtTeslaStrike, total, enemy.id)
+    w.targetPos = p
+    w.bulletRadius = radius
+    w.bulletDamage = dmg
+    warnings.add(w)
 
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 255, g: 255, b: 150, a: 255), 16)
@@ -66,13 +60,11 @@ proc spawnArcLatticeInto*(warnings: var seq[AttackWarning], particlePool: Partic
       if (gapStart + g) mod beams == k: inGap = true
     if inGap: continue
     let ang = k.float32 * (PI * 2.0) / beams.float32
-    warnings.add(AttackWarning(
-      pos: newVector2f(cx, cy),
-      targetPos: newVector2f(cx + cos(ang) * reach, cy + sin(ang) * reach),
-      attackType: "arc_beam", lifetime: total, maxLifetime: total,
-      sourceEnemyId: enemy.id, laserAngles: @[],
-      laserLength: thick, bulletDamage: dmg,
-      bulletsCreated: false, lasersCreated: false))
+    var w = newAttackWarning(cx, cy, awtArcBeam, total, enemy.id)
+    w.targetPos = newVector2f(cx + cos(ang) * reach, cy + sin(ang) * reach)
+    w.laserLength = thick
+    w.bulletDamage = dmg
+    warnings.add(w)
 
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 255, g: 255, b: 150, a: 255), 16)
@@ -152,20 +144,13 @@ proc spawnRicochetLaserInto*(warnings: var seq[AttackWarning], particlePool: Par
   enemy.vel = newVector2f(0, 0)
   enemy.isDashing = false
 
-  warnings.add(AttackWarning(
-    pos: enemy.pos,
-    targetPos: player.pos,
-    attackType: "ricochet_laser",
-    lifetime: total, maxLifetime: total,
-    sourceEnemyId: enemy.id,
-    laserAngles: @[],
-    laserLength: RicochetLaserHalfWidth,
-    bulletDamage: dmg,
-    enemyType: enemy.enemyType,
-    bulletsCreated: false,
-    lasersCreated: false,
-    ricochetPath: path
-  ))
+  var w = newAttackWarning(enemy.pos.x, enemy.pos.y, awtRicochetLaser, total, enemy.id)
+  w.targetPos = player.pos
+  w.laserLength = RicochetLaserHalfWidth
+  w.bulletDamage = dmg
+  w.enemyType = enemy.enemyType
+  w.ricochetPath = path
+  warnings.add(w)
 
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 100, g: 220, b: 255, a: 255), 18)
@@ -180,16 +165,16 @@ proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
     return
 
   let warningType = case attack.attackType
-    of bapDash:    "boss_dash"
-    of bapBurst:   "boss_burst"
-    of bapCircle:  "boss_circle"
-    of bapSpiral:  "boss_spiral"
-    of bapBarrage: "boss_barrage"
-    of bapPulse:   "boss_pulse"
-    of bapChain:   "boss_chain"
-    of bapWave:    "boss_wave"
-    of bapSummon:  "boss_summon"
-    of bapSnipe:   "laser_pointer"
+    of bapDash:    awtBossDash
+    of bapBurst:   awtBossBurst
+    of bapCircle:  awtBossCircle
+    of bapSpiral:  awtBossSpiral
+    of bapBarrage: awtBossBarrage
+    of bapPulse:   awtBossPulse
+    of bapChain:   awtBossChain
+    of bapWave:    awtBossWave
+    of bapSummon:  awtBossSummon
+    of bapSnipe:   awtLaserPointer
     else:          return
 
   let warningTargetPos =
@@ -213,14 +198,7 @@ proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
     enemy.pendingDashTarget = warningTargetPos
     enemy.vel = newVector2f(0, 0)
 
-  warnings.add(AttackWarning(
-    pos:                  if attack.attackType == bapDash: enemy.pendingDashStart else: enemy.pos,
-    attackType:           warningType,
-    lifetime:             WARNING_DURATION,
-    maxLifetime:          WARNING_DURATION,
-    sourceEnemyId:        enemy.id,
-    laserAngles:          @[],
-    targetPos:            warningTargetPos,
-    bulletsCreated:       false,
-    isBossTeleportTarget: false
-  ))
+  let warnPos = if attack.attackType == bapDash: enemy.pendingDashStart else: enemy.pos
+  var w = newAttackWarning(warnPos.x, warnPos.y, warningType, WARNING_DURATION, enemy.id)
+  w.targetPos = warningTargetPos
+  warnings.add(w)

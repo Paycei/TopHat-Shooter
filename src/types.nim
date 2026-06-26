@@ -359,9 +359,45 @@ type
     awaitingVictoryScreen*: bool     # Final floor boss down: show the ending screen
                                      # before deciding to cash out or loop deeper
 
+  AttackWarningType* = enum
+    ## Discriminator for every telegraphed attack warning. Replaces the old
+    ## stringly-typed `attackType` so producers (enemy.nim, bosses.nim,
+    ## ui/warnings.nim) and consumers (the update loop in game.nim, the draw
+    ## dispatch in enemy.nim) all share one compiler-checked set of cases.
+    ## awtNone is the zero default: a warning that was never assigned a type
+    ## renders as nothing instead of silently aliasing the first real value.
+    awtNone
+    awtCross            # regular enemy cross-laser telegraph
+    awtMeteor           # falling rock / satellite column (real game bullet on expiry)
+    awtBurst            # generic circular burst (fallback, rarely used)
+    awtFake             # generic fake "!" marker (fallback)
+    awtTriangleDash     # triangle enemy dash launch flash
+    awtHexTeleport      # hexagon enemy teleport destination
+    awtTricksterDecoy   # trickster's false (harmless) marker
+    awtTricksterReal    # trickster's true (dim) destination
+    awtPhantomArrive    # phantom real teleport destination
+    awtPhantomClone     # phantom clone turret spawn point
+    awtBossLaser        # boss multi-beam laser wind-up (spawns Lasers on expiry)
+    awtSatelliteLaser   # satellite beam through a locked target point
+    awtTeleportWarning  # boss teleport + delayed bullet burst
+    awtSniperCharge     # sniper enemy one-shot reticle
+    awtLaserPointer     # boss snipe reticle (shares the sniper reticle visual)
+    awtBossDash         # boss dash path arrow
+    awtBossBurst        # boss aimed burst fan
+    awtBossWave         # boss aimed wave fan
+    awtBossCircle       # boss omnidirectional ring
+    awtBossSpiral       # boss spiral (same visual as circle)
+    awtBossBarrage      # boss spray ring with spokes
+    awtBossPulse        # boss expanding shockwave rings
+    awtBossChain        # boss chain-lightning spokes
+    awtBossSummon       # boss summon circle
+    awtTeslaStrike      # Chain Reactor ground strike (TeslaStrike timing)
+    awtArcBeam          # Chain Reactor lightning wall (ArcBeam timing)
+    awtRicochetLaser    # Laser Architect bouncing beam (RicochetLaser timing)
+
   AttackWarning* = ref object
     pos*: Vector2f
-    attackType*: string  # "cross", "burst", "fake", "boss_laser", "satellite_laser", "teleport_warning"
+    attackType*: AttackWarningType
     lifetime*: float32
     maxLifetime*: float32
     sourceEnemyId*: int          # ID of enemy that created this warning (for tracking movement)
@@ -1185,27 +1221,18 @@ type
     comebackBonusActive*: bool  # True while the +10% comeback stat bonus is in effect
     comebackEndWave*: int        # Wave number at which the comeback bonus expires (copied from settings on run start)
 
-proc newAttackWarning*(x, y: float32, attackType: string, duration: float32, sourceEnemyId: int = -1): AttackWarning =
+proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
+                       duration: float32, sourceEnemyId: int = -1): AttackWarning =
+  ## The one base constructor every warning flows through. `ref object` fields
+  ## are zero-initialized by Nim, so only the non-default fields are set here;
+  ## the specialized constructors below layer their extra fields on top.
   AttackWarning(
     pos: newVector2f(x, y),
     attackType: attackType,
     lifetime: duration,
     maxLifetime: duration,
     sourceEnemyId: sourceEnemyId,
-    laserAngles: @[],
-    laserLength: 0.0,
-    laserCount: 0,
-    laserDamage: 0,
-    laserDuration: 0.0,
-    lasersCreated: false,
-    targetPos: newVector2f(0, 0),
-    fromSatellite: false,
-    bulletCount: 0,
-    bulletSpeed: 0.0,
-    bulletDamage: 0.0,
-    bulletSpreadAngle: 0.0,
-    bulletsCreated: false,
-    isBossTeleportTarget: false
+    laserAngles: @[]
   )
 
 proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32],
@@ -1213,54 +1240,21 @@ proc newBossLaserWarning*(x, y: float32, duration: float32, angles: seq[float32]
                          pattern: string = "", enemyType: EnemyType = etCircle,
                          sourceEnemyId: int = -1): AttackWarning =
   ## Creates a warning specifically for boss laser attacks with multiple beams
-  AttackWarning(
-    pos: newVector2f(x, y),
-    attackType: "boss_laser",
-    lifetime: duration,
-    maxLifetime: duration,
-    sourceEnemyId: sourceEnemyId,
-    laserAngles: angles,
-    laserLength: length,
-    laserCount: angles.len,
-    laserDamage: damage,
-    laserDuration: laserDuration,
-    lasersCreated: false,
-    laserPattern: pattern,
-    enemyType: enemyType,
-    bulletCount: 0,
-    bulletSpeed: 0.0,
-    bulletDamage: 0.0,
-    bulletSpreadAngle: 0.0,
-    bulletsCreated: false,
-    isBossTeleportTarget: false
-  )
+  result = newAttackWarning(x, y, awtBossLaser, duration, sourceEnemyId)
+  result.laserAngles = angles
+  result.laserLength = length
+  result.laserCount = angles.len
+  result.laserDamage = damage
+  result.laserDuration = laserDuration
+  result.laserPattern = pattern
+  result.enemyType = enemyType
 
 proc newSatelliteLaserWarning*(satelliteX, satelliteY, targetX, targetY: float32,
                                duration: float32, sourceEnemyId: int = -1): AttackWarning =
   ## Creates a warning for satellite laser attacks that extend through a target point
-  AttackWarning(
-    pos: newVector2f(satelliteX, satelliteY),
-    attackType: "satellite_laser",
-    lifetime: duration,
-    maxLifetime: duration,
-    sourceEnemyId: sourceEnemyId,
-    targetPos: newVector2f(targetX, targetY),
-    fromSatellite: true,
-    laserAngles: @[],
-    laserLength: 0.0,
-    laserCount: 0,
-    laserDamage: 0,
-    laserDuration: 0.0,
-    lasersCreated: false,
-    laserPattern: "",
-    enemyType: etCircle,
-    bulletCount: 0,
-    bulletSpeed: 0.0,
-    bulletDamage: 0.0,
-    bulletSpreadAngle: 0.0,
-    bulletsCreated: false,
-    isBossTeleportTarget: false
-  )
+  result = newAttackWarning(satelliteX, satelliteY, awtSatelliteLaser, duration, sourceEnemyId)
+  result.targetPos = newVector2f(targetX, targetY)
+  result.fromSatellite = true
 
 proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0, enemyType: EnemyType = etCircle): Laser =
   Laser(
