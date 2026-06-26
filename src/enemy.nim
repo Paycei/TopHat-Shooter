@@ -2813,10 +2813,21 @@ proc drawAttackWarning*(warning: AttackWarning) =
             Vector2(x: warning.pos.x, y: warning.pos.y + armLength), 2,
             Color(r: 255, g: 150, b: 0, a: alpha))
   of "meteor":
-    # Short danger streak above the impact point + pulsing impact circle.
+    # Trajectory streak along the real spawn->impact line + pulsing impact circle.
     # Alpha builds from dim -> bright as the meteor approaches (urgency increases over time).
-    let cx = warning.pos.x
+    # For the classic vertical columns the line is straight down; for diagonal
+    # comets (targetPos offset to a side) it tilts to follow the true path, so
+    # the telegraph never lies about where the rock will travel.
+    let impactX = warning.pos.x
     let impactY = warning.pos.y
+    # Spawn point: where the meteor enters. Falls back to "straight above" for
+    # any meteor warning that didn't record an explicit spawn (targetPos unset).
+    let spawnX = if warning.targetPos.x == 0 and warning.targetPos.y == 0: impactX
+                 else: warning.targetPos.x
+    let spawnY = if warning.targetPos.x == 0 and warning.targetPos.y == 0: 0.0'f32
+                 else: warning.targetPos.y
+    let midX = (spawnX + impactX) * 0.5
+    let midY = (spawnY + impactY) * 0.5
     # progress: 0 when warning first appears, 1 when it is about to fire
     let progress = 1.0 - (warning.lifetime / warning.maxLifetime)
     let urgency = uint8(clamp(40.0 + progress * 160.0, 0, 200))
@@ -2825,36 +2836,36 @@ proc drawAttackWarning*(warning: AttackWarning) =
     let baseCol = if warning.overrideColor.a > 0: warning.overrideColor
                   else: Color(r: 255, g: 130, b: 30, a: 255)
 
-    # Full-height trajectory line so the player can see every incoming column
-    # and clearly identify the safe gap (the only column with no line through it).
-    # Drawn in two segments: top half very faint, bottom half building to full urgency.
+    # Full trajectory line so the player can see every incoming streak and clearly
+    # identify the safe gap (the only lane with no line through it). Drawn in two
+    # segments: first half very faint, second half building to full urgency.
     # Total alpha stays low enough that many overlapping lines never wash the screen.
-    let midY = impactY * 0.5
     drawLine(
-      Vector2(x: cx, y: 0),
-      Vector2(x: cx, y: midY),
+      Vector2(x: spawnX, y: spawnY),
+      Vector2(x: midX, y: midY),
       2, Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: uint8(urgency.float32 * 0.12))
     )
     drawLine(
-      Vector2(x: cx, y: midY),
-      Vector2(x: cx, y: impactY),
+      Vector2(x: midX, y: midY),
+      Vector2(x: impactX, y: impactY),
       3, Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: uint8(urgency.float32 * 0.35))
     )
-    # Thin bright core only in the bottom 60 px, gives a sharp arrival cue without blinding
+    # Thin bright core on the final approach, a sharp arrival cue without blinding.
+    let dir = (warning.pos - newVector2f(spawnX, spawnY)).normalize()
     drawLine(
-      Vector2(x: cx, y: impactY - 60.0),
-      Vector2(x: cx, y: impactY),
+      Vector2(x: impactX - dir.x * 60.0, y: impactY - dir.y * 60.0),
+      Vector2(x: impactX, y: impactY),
       1, Color(r: 255, g: 220, b: 160, a: urgency)
     )
 
     # Impact circle, grows slightly as warning expires
     let impactR = 10.0 + progress * 8.0 + pulse * 0.4
-    drawCircleLines(cx.int32, impactY.int32, impactR,
+    drawCircleLines(impactX.int32, impactY.int32, impactR,
                    Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: urgency))
-    drawCircleLines(cx.int32, impactY.int32, impactR * 1.4,
+    drawCircleLines(impactX.int32, impactY.int32, impactR * 1.4,
                    Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: uint8(urgency.float32 * 0.3)))
     # Center dot (orange, not white)
-    drawCircle(Vector2(x: cx, y: impactY), 3.0 + pulse * 0.25,
+    drawCircle(Vector2(x: impactX, y: impactY), 3.0 + pulse * 0.25,
               Color(r: 255, g: 180, b: 80, a: urgency))
 
   of "burst":

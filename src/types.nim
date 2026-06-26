@@ -896,6 +896,7 @@ type
     damage*: int            # Damage on impact
     warningTimer*: float32  # Time before impact
     maxWarningTime*: float32 # Total warning duration
+    splashDamage*: float32  # AoE damage dealt on impact (0 = direct-contact only)
 
   ShopItem* = object
     name*: string

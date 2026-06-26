@@ -1709,8 +1709,113 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
   # - "massive_impact": Larger meteorites, more coverage
   # - "apocalypse_mode": Maximum meteorites, longer warnings
   # - "satellite_strike": Purple space theme
+  # Boss-3 signature modes (use the real falling-rock `Meteorite` system or
+  # angled barrages instead of the plain vertical column):
+  # - "meteor_volley":  Aimed cluster of large rocks slams the player's spot.
+  # - "meteor_ring":    Rocks rain in a ring around the player (safe in the eye).
+  # - "comet_cascade":  Diagonal comets sweep across the arena with one safe lane.
 
   let meteorMode = attack.specialData
+  let sw = game.screenWidth.float32
+  let sh = game.screenHeight.float32
+
+  # --- Boss-3 signature meteor variants -------------------------------------
+  # These give the Meteor Striker more identity than the basic vertical column.
+  # meteor_volley / meteor_ring spawn genuine falling rocks (warning circle +
+  # fast fall + impact burst) via game.meteorites, so they read very differently
+  # from the bullet barrage. They return early; none of the column layout runs.
+  let rockDamage = max(1, int(attack.damage * phase.damageMultiplier))
+  case meteorMode
+  of "meteor_volley":
+    # AIMED STRIKE: a tight cluster of oversized meteors hammers the player's
+    # current position, forcing a committed sideways dodge before they land.
+    let count = max(3, attack.projectileCount)
+    let warn = 0.9'f32
+    let rockR = max(attack.bulletRadius, 12.0'f32) * 1.6'f32
+    let baseX = game.player.pos.x
+    let baseY = clamp(game.player.pos.y, sh * 0.40'f32, sh * 0.85'f32)
+    # Shared incoming direction so the cluster reads as one barrage streaking in
+    # from the sky (long diagonal fire-trails) rather than dots dropping straight
+    # down. Enter from whichever side has the most room above the player.
+    let spawnFromRight = baseX < sw * 0.5'f32
+    let entryDx = (if spawnFromRight: 1.0'f32 else: -1.0'f32) * 540.0'f32
+    for k in 0 ..< count:
+      # Wider center-to-center spacing so the impacts read as a spread barrage,
+      # not one overlapping clump (each rock gets its own clear warning circle).
+      let spread = (k.float32 - (count - 1).float32 * 0.5'f32) * (rockR * 3.0'f32)
+      let tx = clamp(baseX + spread + (rand(24.0'f32) - 12.0'f32), 40.0'f32, sw - 40.0'f32)
+      let ty = clamp(baseY + (rand(60.0'f32) - 30.0'f32), sh * 0.35'f32, sh * 0.9'f32)
+      # Spawn well off the top edge and offset sideways -> long visible streak.
+      # Stagger the heights so the cluster lands as a quick drumroll, not a slap.
+      let sx = tx + entryDx + (rand(60.0'f32) - 30.0'f32)
+      let sy = -140.0'f32 - rand(120.0'f32) - k.float32 * 28.0'f32
+      let m = newMeteorite(tx, ty, sx, sy, rockDamage, warn)
+      m.radius = rockR
+      m.splashDamage = rockDamage.float32 * 0.5'f32   # impact blast = 50% of center hit
+      game.meteorites.add(m)
+    addShake(game.dopamine.screenShake, siMedium)
+    return
+  of "meteor_ring":
+    # ENCIRCLE: rocks slam down in a ring around the player. Standing still in
+    # the eye is safe; the danger is being caught mid-traversal across the band.
+    let count = max(6, attack.projectileCount)
+    let warn = 1.0'f32
+    let rockR = max(attack.bulletRadius, 11.0'f32) * 1.3'f32
+    let ringR = 150.0'f32 + rand(30.0'f32)
+    let startA = rand(TAU)
+    for k in 0 ..< count:
+      let a = startA + k.float32 * (TAU / count.float32)
+      let tx = clamp(game.player.pos.x + cos(a) * ringR, 40.0'f32, sw - 40.0'f32)
+      let ty = clamp(game.player.pos.y + sin(a) * ringR, sh * 0.18'f32, sh * 0.9'f32)
+      # Spawn high above so the rock (and its fire-trail) is visible falling in.
+      let m = newMeteorite(tx, ty, tx, -160.0'f32 - rand(80.0'f32), rockDamage, warn)
+      m.radius = rockR
+      m.splashDamage = rockDamage.float32 * 0.5'f32   # impact blast = 50% of center hit
+      game.meteorites.add(m)
+    addShake(game.dopamine.screenShake, siMedium)
+    return
+  of "comet_cascade":
+    # DIAGONAL SWEEP: comets streak across the arena at a shared angle, entering
+    # from one upper corner and exiting the opposite lower edge. One safe column
+    # is left open. Uses the warning->bullet path with an angled trajectory; the
+    # telegraph follows the real spawn->impact line (see drawAttackWarning).
+    let count = max(6, attack.projectileCount)
+    let warn = 0.8'f32
+    let rockR = (if attack.bulletRadius > 0: attack.bulletRadius else: 9.0'f32) * 1.25'f32
+    let dirSign = if rand(1.0) < 0.5: 1.0'f32 else: -1.0'f32   # sweep left or right
+    let ang = 0.55'f32 * dirSign                               # ~31deg from vertical
+    let dir = newVector2f(sin(ang), cos(ang))                  # down-and-sideways
+    # Derive the travel length from the screen so the comet always enters just
+    # off the TOP edge and exits near the bottom, at ANY resolution. A fixed
+    # pixel `travel` put the spawn (and its warning streak) on-screen on tall
+    # windows, so the telegraph looked out-of-bounds. dir.y = cos(ang) > 0.
+    let spawnY = -60.0'f32                                     # just above the top edge
+    let exitY  = sh * 0.92'f32                                 # impact point near bottom
+    let travel = (exitY - spawnY) / dir.y                      # spans the full height
+    let safeLane = 1 + rand(max(1, count - 2))                 # which column stays open
+    for k in 0 ..< count:
+      if k == safeLane: continue
+      let frac = k.float32 / (count - 1).float32
+      let ix = 60.0'f32 + frac * (sw - 120.0'f32)             # on-screen exit column
+      let impact = newVector2f(ix, exitY)
+      let spawn = impact - dir * travel                        # resolves to spawnY off-top
+      var w = AttackWarning(
+        pos:           impact,
+        targetPos:     spawn,
+        attackType:    "meteor",
+        lifetime:      warn,
+        maxLifetime:   warn,
+        sourceEnemyId: enemy.id,
+        bulletSpeed:   attack.projectileSpeed,
+        bulletDamage:  attack.damage * phase.damageMultiplier,
+        bulletRadius:  rockR,
+        overrideColor: Color(r: 255, g: 170, b: 60, a: 255),
+        bulletsCreated: false
+      )
+      game.attackWarnings.add(w)
+    addShake(game.dopamine.screenShake, siSmall)
+    return
+  else: discard
 
   # Resolve bullet radius: 0 means "use default 6" (see BossAttack type comment).
   # A zero radius would make spacing = 0, causing an infinite loop in the layout loop below.
@@ -1731,8 +1836,7 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
       (0.55'f32, Color(r: 255, g: 150, b: 50, a: 255),
        rawMeteorRadius)
 
-  # Layout: distribute meteors across 50% of the screen width
-  let sw        = game.screenWidth.float32
+  # Layout: distribute meteors across 50% of the screen width (sw defined above)
   let margin    = 15.0'f32                       # keep away from edges
   let spacing   = bRadius * 5.0'f32              # center-to-center distance (2.5x->5.0x = 50% fewer meteors)
 

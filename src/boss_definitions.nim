@@ -342,20 +342,32 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapMeteor,
               damage: 2.0,
-              cooldown: 3.2,  # NERFED from 3.0
-              projectileSpeed: 280.0,  # NERFED from 300.0
+              cooldown: 3.5,  # rework: slightly longer cadence (was 3.2) to make room for the volley
+              projectileSpeed: 280.0,
               projectileCount: 4,
               spreadAngle: 0.0,
               durationOrRadius: 80.0,
               specialData: "warn_impact"
             ),
             BossAttack(
+              # NEW signature: aimed cluster of oversized rocks slams the player's spot.
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 5.5,
+              projectileSpeed: 0.0,   # uses the falling-rock system's own fall speed
+              projectileCount: 3,     # ACTIVE for this mode (rock count), unlike the column modes
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              bulletRadius: 12.0,
+              specialData: "meteor_volley"
+            ),
+            BossAttack(
               attackType: bapTargeted,
               damage: 1.0,
-              cooldown: 1.75,  # NERFED from 1.5
-              projectileSpeed: 200.0,  # NERFED from 250.0
-              projectileCount: 3,
-              spreadAngle: 45.0,
+              cooldown: 2.1,  # rework NERF: was 1.75
+              projectileSpeed: 185.0,  # rework NERF: was 200.0
+              projectileCount: 2,  # rework NERF: was 3
+              spreadAngle: 40.0,  # rework NERF: tighter, was 45.0
               durationOrRadius: 0.0
             )
           ]
@@ -373,21 +385,33 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapMeteor,
               damage: 2.0,
-              cooldown: 2.3,  # NERFED from 2.0
-              projectileSpeed: 330.0,  # NERFED from 350.0
-              projectileCount: 7,  # NOTE: inert for bapMeteor, count comes from screen layout (zoneWidth / bRadius*5); meteor density is tuned via "massive_impact"/"apocalypse_mode" bullet-radius scaling, not this field
+              cooldown: 2.7,  # rework NERF: slower column cadence, was 2.3
+              projectileSpeed: 330.0,
+              projectileCount: 7,  # NOTE: inert for column meteors, count comes from screen layout (zoneWidth / bRadius*5); density is tuned via "massive_impact" bullet-radius scaling
               spreadAngle: 0.0,
               durationOrRadius: 100.0,
               specialData: "massive_impact"
             ),
             BossAttack(
+              # NEW signature: rocks rain in a ring around the player; the eye is safe.
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 6.5,
+              projectileSpeed: 0.0,
+              projectileCount: 8,     # ACTIVE for this mode (rocks in the ring)
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              bulletRadius: 11.0,
+              specialData: "meteor_ring"
+            ),
+            BossAttack(
               attackType: bapPulse,
               damage: 1.0,
-              cooldown: 4.5,  # NERFED from 4.0
-              projectileSpeed: 190.0,  # NERFED from 200.0
+              cooldown: 5.2,  # rework NERF: was 4.5
+              projectileSpeed: 175.0,  # rework NERF: was 190.0
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 150.0
+              durationOrRadius: 135.0  # rework NERF: smaller shockwave, was 150.0
             )
           ]
         ),
@@ -403,20 +427,32 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           attacks: @[
             BossAttack(
               attackType: bapMeteor,
-              damage: 2.5,  # NERFED from 3.0
-              cooldown: 1.75,  # NERFED from 1.5
-              projectileSpeed: 370.0,  # NERFED from 400.0
-              projectileCount: 11,  # NOTE: inert for bapMeteor, count comes from screen layout (zoneWidth / bRadius*5); meteor density is tuned via "apocalypse_mode" bullet-radius scaling, not this field
+              damage: 2.5,
+              cooldown: 2.1,  # rework NERF: slower apocalypse rain, was 1.75
+              projectileSpeed: 370.0,
+              projectileCount: 11,  # NOTE: inert for column meteors, count comes from screen layout (zoneWidth / bRadius*5); density is tuned via "apocalypse_mode" bullet-radius scaling
               spreadAngle: 0.0,
               durationOrRadius: 120.0,
               specialData: "apocalypse_mode"
             ),
             BossAttack(
+              # NEW signature finale: diagonal comets sweep across the arena, one safe lane.
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 5.0,
+              projectileSpeed: 480.0,  # ACTIVE: comet travel speed along the angled path
+              projectileCount: 9,      # ACTIVE: comet count (one is dropped for the safe lane)
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              bulletRadius: 11.0,
+              specialData: "comet_cascade"
+            ),
+            BossAttack(
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 3.0,  # NERFED from 2.5
-              projectileSpeed: 170.0,  # NERFED from 180.0
-              projectileCount: 16,  # NERFED from 20
+              cooldown: 4.0,  # rework NERF: was 3.0
+              projectileSpeed: 158.0,  # rework NERF: was 170.0
+              projectileCount: 11,  # rework NERF: was 16
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             )

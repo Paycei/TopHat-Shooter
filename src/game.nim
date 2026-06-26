@@ -777,9 +777,15 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
         if be.id == w.sourceEnemyId:
           bossShape = bossBulletShapeFor(be.bossDefinitionID)
           break
+      # Travel along the telegraphed spawn->impact line. For the classic vertical
+      # columns this resolves to straight down; for diagonal comets it follows the
+      # angled path the warning drew, keeping the telegraph honest.
+      let mDelta = w.pos - w.targetPos
+      let mDir = if mDelta.x == 0 and mDelta.y == 0: newVector2f(0, 1)
+                 else: mDelta.normalize()
       game.bullets.add(newBullet(
         x = w.targetPos.x, y = w.targetPos.y,
-        direction = newVector2f(0, 1),
+        direction = mDir,
         speed = w.bulletSpeed,
         damage = w.bulletDamage,
         fromPlayer = false, isBossBullet = true,
@@ -793,6 +799,10 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
         for step in 0..4:
           spawnExplosionPooled(game.particlePool, w.targetPos.x, -50.0 - step.float32 * 25.0,
                               Color(r: 150, g: 100, b: 255, a: 255), 3)
+      else:
+        # Orange meteor "sky-crack" spark as the rock punches into the arena.
+        spawnExplosionPooled(game.particlePool, w.targetPos.x, w.targetPos.y,
+                            Color(r: 255, g: 160, b: 40, a: 255), 3)
       game.attackWarnings[i].bulletsCreated = true
 
     # TESLA STRIKE: telegraph expires -> a bolt slams the marked ground spot.
@@ -3634,8 +3644,12 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
 
         playSound(stPlayerHit, 0.6)
 
-        # Create explosion effect
-        spawnExplosionPooled(game.particlePool, meteorite.pos.x, meteorite.pos.y, Orange, 25)
+        # Direct hit: scaled blast + shockwave + heavy shake.
+        let burst = clamp(int(meteorite.radius * 2.2'f32), 24, 90)
+        spawnExplosionPooled(game.particlePool, meteorite.pos.x, meteorite.pos.y, Orange, burst)
+        spawnShockwaveRing(game, meteorite.pos, meteorite.radius * 4.0'f32,
+                           Color(r: 255, g: 120, b: 0, a: 255))
+        addShake(game.dopamine.screenShake, siLarge)
 
         # Remove meteorite after hitting player
         game.meteorites.delete(i)
@@ -3651,8 +3665,30 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
           Color(r: 255, g: 100, b: 0, a: 255)  # Orange for massive impact
         else:
           Color(r: 255, g: 150, b: 50, a: 255) # Default peachy orange
-        # Create explosion effect with appropriate color
-        spawnExplosionPooled(game.particlePool, meteorite.pos.x, meteorite.pos.y, impactColor, 25)
+        # Impact scales with rock size: bigger rock -> bigger boom, ring, and shake.
+        let impactPos = meteorite.targetPos
+        let burst = clamp(int(meteorite.radius * 2.2'f32), 24, 90)
+        spawnExplosionPooled(game.particlePool, impactPos.x, impactPos.y, impactColor, burst)
+        # Hot white-gold core flash layered over the colored debris.
+        spawnExplosionPooled(game.particlePool, impactPos.x, impactPos.y,
+                             Color(r: 255, g: 230, b: 160, a: 255), burst div 3)
+        # Expanding shockwave ring + ground sparks sell the slam.
+        spawnShockwaveRing(game, impactPos, meteorite.radius * 4.0'f32, impactColor)
+        spawnShockwavePooled(game.particlePool, impactPos.x, impactPos.y, meteorite.radius * 3.0'f32)
+        addShake(game.dopamine.screenShake,
+                 if meteorite.radius >= 18.0'f32: siLarge else: siMedium)
+
+        # Impact blast: deal splash damage (50% of the center hit, set at spawn)
+        # to the player if caught within the explosion radius. Mage meteorites
+        # leave splashDamage at 0, so only the boss rocks blast on landing.
+        if meteorite.splashDamage > 0:
+          let blastR = meteorite.radius * 3.0'f32
+          if distance(impactPos, game.player.pos) < blastR + game.player.radius:
+            if takeDamage(game.player, meteorite.splashDamage):
+              beginPlayerDeathSequence(game, dcMeteorite, sourceType = etMage)
+            trackPlayerDamage(game, meteorite.splashDamage, etMage)
+            showDamage(game, game.player.pos, meteorite.splashDamage, false, false, dtExplosion)
+            playSound(stPlayerHit, 0.5)
 
         # Remove meteorite after impact
         game.meteorites.delete(i)
@@ -4150,21 +4186,68 @@ proc drawGame*(game: Game) =
   # Draw meteorites (show both warning and falling meteorites)
   for meteorite in game.meteorites:
     if meteorite.warningTimer > 0:
-      # Draw warning indicator at target position (flashing)
-      let warningAlpha = if (meteorite.warningTimer * 6.0).int mod 2 == 0: uint8(200) else: uint8(100)
-      drawCircleLines(meteorite.targetPos.x.int32, meteorite.targetPos.y.int32, meteorite.radius,
+      let tp = meteorite.targetPos
+      let warningAlpha = if (meteorite.warningTimer * 6.0).int mod 2 == 0: uint8(220) else: uint8(110)
+      # progress 0 -> 1 as impact nears (used to tighten the converging ring).
+      let prog = clamp(1.0'f32 - meteorite.warningTimer /
+                       max(0.0001'f32, meteorite.maxWarningTime), 0.0'f32, 1.0'f32)
+      # Incoming direction: while warning, meteorite.pos is still the off-screen
+      # spawn point, so (target - pos) is exactly the path the rock will travel.
+      # `fromDir` points back toward the source, so a streak drawn along it reads
+      # as "rock incoming from the upper-left/right".
+      let inDir = (tp - meteorite.pos).normalize()
+      if inDir.x != 0 or inDir.y != 0:
+        let fromDir = newVector2f(-inDir.x, -inDir.y)
+        # Tapering dashed streak leading in from the source side.
+        let streakLen = 100.0'f32 + meteorite.radius * 2.0'f32
+        const segs = 6
+        for s in 0 ..< segs:
+          let f0 = s.float32 / segs.float32
+          let f1 = (s.float32 + 0.55'f32) / segs.float32   # gap after each dash
+          let p0 = newVector2f(tp.x + fromDir.x * streakLen * f0,
+                               tp.y + fromDir.y * streakLen * f0)
+          let p1 = newVector2f(tp.x + fromDir.x * streakLen * f1,
+                               tp.y + fromDir.y * streakLen * f1)
+          let a = uint8(clamp((1.0'f32 - f0) * 170.0'f32, 0.0'f32, 255.0'f32))
+          drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                   3.0'f32, Color(r: 255, g: 150, b: 40, a: a))
+        # Converging ring: a wide ring tightening onto the target as time runs out.
+        let convR = meteorite.radius + (1.0'f32 - prog) * (streakLen * 0.55'f32)
+        drawCircleLines(tp.x.int32, tp.y.int32, convR,
+                       Color(r: 255, g: 170, b: 60, a: uint8(110.0'f32 * (1.0'f32 - prog))))
+      # Flashing impact ring at the landing spot.
+      drawCircleLines(tp.x.int32, tp.y.int32, meteorite.radius,
                      Color(r: 255, g: 100, b: 0, a: warningAlpha))
-      drawCircleLines(meteorite.targetPos.x.int32, meteorite.targetPos.y.int32, meteorite.radius + 5,
+      drawCircleLines(tp.x.int32, tp.y.int32, meteorite.radius + 5,
                      Color(r: 255, g: 50, b: 0, a: warningAlpha div 2))
     else:
-      # Draw falling meteorite
-      drawCircle(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), meteorite.radius,
-                Color(r: 255, g: 100, b: 0, a: 255))
-      # Add fiery glow effect
-      drawCircleLines(meteorite.pos.x.int32, meteorite.pos.y.int32, meteorite.radius + 3,
-                     Color(r: 255, g: 150, b: 0, a: 200))
-      drawCircleLines(meteorite.pos.x.int32, meteorite.pos.y.int32, meteorite.radius + 6,
-                     Color(r: 255, g: 200, b: 50, a: 100))
+      # Falling meteorite: a molten rock with a fiery tail streaming behind it.
+      let r = meteorite.radius
+      let dir = meteorite.vel.normalize()   # zero-safe; falls back to (0,0)
+      let td = if dir.x == 0 and dir.y == 0: newVector2f(0, 1) else: dir
+      # Tapering flame puffs trailing opposite the travel direction.
+      for t in 1 .. 6:
+        let f = t.float32
+        let tp = newVector2f(meteorite.pos.x - td.x * r * f * 0.85'f32,
+                             meteorite.pos.y - td.y * r * f * 0.85'f32)
+        let tr = max(2.0'f32, r * (1.0'f32 - f * 0.14'f32))
+        let a = uint8(clamp(210.0'f32 - f * 32.0'f32, 0.0'f32, 255.0'f32))
+        let gg = uint8(clamp(190.0'f32 - f * 26.0'f32, 50.0'f32, 255.0'f32))
+        drawCircle(Vector2(x: tp.x, y: tp.y), tr, Color(r: 255, g: gg, b: 30, a: a))
+      # Outer heat glow.
+      drawCircle(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), r + 6,
+                 Color(r: 255, g: 140, b: 0, a: 70))
+      # Molten body.
+      drawCircle(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), r,
+                 Color(r: 255, g: 90, b: 0, a: 255))
+      # Dark rocky core, offset toward the trailing edge so the front looks hottest.
+      drawCircle(Vector2(x: meteorite.pos.x - td.x * r * 0.25'f32,
+                         y: meteorite.pos.y - td.y * r * 0.25'f32),
+                 r * 0.55'f32, Color(r: 90, g: 38, b: 22, a: 255))
+      # Bright leading edge.
+      drawCircle(Vector2(x: meteorite.pos.x + td.x * r * 0.4'f32,
+                         y: meteorite.pos.y + td.y * r * 0.4'f32),
+                 r * 0.3'f32, Color(r: 255, g: 230, b: 150, a: 220))
 
   # Draw walls
   for wall in game.walls:
@@ -4297,7 +4380,7 @@ proc drawGame*(game: Game) =
         drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), shRad,
                    Color(r: 90, g: 200, b: 255, a: uint8(sha.int div 8)))
         if globalSettings == nil or globalSettings.showHints:
-          let st = "OVERLOAD \xE2\x80\x94 HOLD FIRE"
+          let st = "OVERLOAD - HOLD FIRE"
           drawText(st, enemy.pos.x.int32 - measureText(st, 10) div 2,
                    (enemy.pos.y - enemy.radius - 26.0).int32, 10,
                    Color(r: 150, g: 220, b: 255, a: 235))
@@ -4317,7 +4400,7 @@ proc drawGame*(game: Game) =
           drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sat.radius,
                          Color(r: 100, g: 150, b: 255, a: 25))
 
-      #  Objective indicators 
+      #  Objective indicators
       let satIsObjective = enemy.weakPoint.enabled and
                            enemy.weakPoint.kind == bwoSatelliteSet and
                            enemy.weakPoint.exposedTimer <= 0 and
