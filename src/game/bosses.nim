@@ -927,6 +927,35 @@ proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase:
 
 proc execBossAttackTargeted(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Direct shots at player
+  # SpecialData modes:
+  # - "royal_sigils": Summoner King - a fan of slow golden homing sigils that
+  #   gently curve toward the player (reuses the enemy-homing path in game.nim).
+  # - Default: plain aimed shots
+  if attack.specialData == "royal_sigils":
+    const sigilGold = Color(r: 255, g: 215, b: 90, a: 255)
+    # Self-contained telegraph: a royal summon ring + gold charge burst at the boss.
+    game.attackWarnings.add(newAttackWarning(enemy.pos.x, enemy.pos.y, awtBossSummon, 0.45, enemy.id))
+    for i in 0..<12:
+      let a = i.float32 * PI * 2.0 / 12.0
+      spawnExplosionPooled(game.particlePool,
+                           enemy.pos.x + cos(a) * 28.0, enemy.pos.y + sin(a) * 28.0,
+                           sigilGold, 4)
+    # Slow homing sigils fanned at the player; gentle tracking keeps them dodgeable.
+    let baseAngle = arctan2(toPlayer.y, toPlayer.x)
+    let count = max(1, attack.projectileCount)
+    for i in 0..<count:
+      let offset = (i.float32 - count.float32 / 2.0) * attack.spreadAngle.degToRad() / count.float32
+      let dir = newVector2f(cos(baseAngle + offset), sin(baseAngle + offset))
+      var sigil = newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isHoming = true, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        colorOverride = sigilGold, bulletRadius = attack.bulletRadius)
+      sigil.lifetime = 5.0  # outlive the default 4s so they track the player longer
+      game.bullets.add(sigil)
+    return
+
   for i in 0..<attack.projectileCount:
     let spread = if attack.projectileCount > 1:
       (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32

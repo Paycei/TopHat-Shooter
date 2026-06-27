@@ -217,14 +217,27 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "minion_circle"
             ),
             BossAttack(
+              # Generic wave demoted to occasional filler so the themed attacks lead.
               attackType: bapWave,
               damage: 1.0,
-              cooldown: 2.75,
+              cooldown: 5.5,
               projectileSpeed: 160.0,
               projectileCount: 5,
               spreadAngle: 50.0,
               durationOrRadius: 0.0,
               bulletRadius: 10.0
+            ),
+            BossAttack(
+              # Royal Sigils: slow golden homing sigils that gently track the player.
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 5.0, # Match Royal Sigils lifetime
+              projectileSpeed: 130.0,
+              projectileCount: 5,
+              spreadAngle: 125.0,
+              durationOrRadius: 0.0,
+              bulletRadius: 8.0,
+              specialData: "royal_sigils"
             ),
             BossAttack(
               # Legion Volley: short cooldown so the legion pressures the player
@@ -273,9 +286,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "minion_triangle"
             ),
             BossAttack(
+              # Generic burst demoted to occasional filler.
               attackType: bapBurst,
               damage: 1.0,
-              cooldown: 2.5,
+              cooldown: 5.0,
               projectileSpeed: 175.0,
               projectileCount: 5,
               spreadAngle: 60.0,
@@ -283,14 +297,27 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               bulletRadius: 9.0
             ),
             BossAttack(
+              # Generic ring demoted to occasional filler.
               attackType: bapCircle,
               damage: 1.0,
-              cooldown: 4.0,
+              cooldown: 6.5,
               projectileSpeed: 165.0,
               projectileCount: 10,
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               bulletRadius: 12.5
+            ),
+            BossAttack(
+              # Royal Sigils: a wider fan of notably larger homing sigils than phase 1.
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 5.0, # Match Royal Sigils lifetime
+              projectileSpeed: 140.0,
+              projectileCount: 7,
+              spreadAngle: 165.0,
+              durationOrRadius: 0.0,
+              bulletRadius: 14.0,
+              specialData: "royal_sigils"
             ),
             BossAttack(
               # Faster Legion Volley to match the tighter phase-2 summon loop.

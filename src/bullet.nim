@@ -22,6 +22,13 @@ const bossBulletShapeTable = [
 proc bossBulletShapeFor*(bossId: int): int =
   if bossId in 1..12: bossBulletShapeTable[bossId] else: 0
 
+## Bullets ease their alpha down over the final `BulletFadeOutTime` seconds of
+## their life, bottoming out at `BulletFadeFloor` (never fully transparent) so
+## they remain visible the instant they despawn instead of blinking out.
+const
+  BulletFadeOutTime* = 0.25'f32
+  BulletFadeFloor* = 0.18'f32
+
 proc shiftColor(color: Color, delta: int, alpha: int = -1): Color =
   Color(
     r: clampByte(color.r.int + delta),
@@ -314,10 +321,23 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
         glowColor = Color(r: 255, g: 225, b: 245, a: 220)
         trailColor = Color(r: 255, g: 130, b: 215, a: 240)
 
+  # Ease alpha from 1.0 down to BulletFadeFloor over the bullet's last
+  # BulletFadeOutTime seconds. Scaling the three derived colors here makes the
+  # body, trail, shaped draws and player glow rings (which read glowColor.a) all
+  # fade together; the remaining hardcoded accents are wrapped in faded() below.
+  let fadeT = clamp(bullet.lifetime / BulletFadeOutTime, 0.0'f32, 1.0'f32)
+  let fadeEase = fadeT * fadeT * (3.0'f32 - 2.0'f32 * fadeT)  # smoothstep
+  let fadeMul = fadeEase * (1.0'f32 - BulletFadeFloor) + BulletFadeFloor
+  template faded(c: Color): Color =
+    Color(r: c.r, g: c.g, b: c.b, a: uint8(float32(c.a) * fadeMul))
+  color = faded(color)
+  glowColor = faded(glowColor)
+  trailColor = faded(trailColor)
+
   if bullet.isBossBullet:
     let warningPulse = sin(gameTime * 10.0 + bullet.radius * 0.25) * 0.5 + 0.5
     drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius + 6.5 + warningPulse * 1.4,
-               Color(r: 10, g: 4, b: 22, a: 110))
+               faded(Color(r: 10, g: 4, b: 22, a: 110)))
     drawBossBulletTrail(bullet, trailColor)
 
   # Draw bullet trail for player bullets (showcases skin colors)
@@ -370,10 +390,10 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let dripSize = bullet.radius * (0.5 - i.float32 * 0.1)  # Smaller drips behind
       let dripAlpha = uint8(180 - i * 50)  # Fade drips
       drawCircle(Vector2(x: dripX, y: dripY), dripSize,
-                Color(r: 150, g: 30, b: 30, a: dripAlpha))
+                faded(Color(r: 150, g: 30, b: 30, a: dripAlpha)))
       # Add a darker blood dot below each drip for extra drippiness
       drawCircle(Vector2(x: dripX, y: dripY + dripSize * 0.5), dripSize * 0.4,
-                Color(r: 100, g: 20, b: 20, a: dripAlpha))
+                faded(Color(r: 100, g: 20, b: 20, a: dripAlpha)))
 
   # Add glow effect
   if not bullet.fromPlayer:
@@ -381,26 +401,26 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     if bullet.sourceEnemyType == etSniper:
       # Multiple red glow rings for sniper bullets
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
-                     Color(r: 255, g: 80, b: 80, a: 180))
+                     faded(Color(r: 255, g: 80, b: 80, a: 180)))
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
-                     Color(r: 255, g: 50, b: 50, a: 120))
+                     faded(Color(r: 255, g: 50, b: 50, a: 120)))
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6,
-                     Color(r: 255, g: 20, b: 20, a: 60))
+                     faded(Color(r: 255, g: 20, b: 20, a: 60)))
     # Boss bullets get a special strong glow effect
     elif bullet.isBossBullet:
       if bullet.bossBulletShape == 0:
         # Circle fallback, draw old-style glow rings
         drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
-                       Color(r: 255, g: 50, b: 150, a: 200))
+                       faded(Color(r: 255, g: 50, b: 150, a: 200)))
         drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 7,
-                       Color(r: 255, g: 100, b: 150, a: 120))
+                       faded(Color(r: 255, g: 100, b: 150, a: 120)))
         drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 10,
-                       Color(r: 255, g: 150, b: 180, a: 60))
+                       faded(Color(r: 255, g: 150, b: 180, a: 60)))
       # shaped boss bullets already drew their glow inside drawBossBulletShape
     else:
       # Regular enemy bullets - standard pink glow
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
-                     Color(r: 255, g: 100, b: 150, a: 100))
+                     faded(Color(r: 255, g: 100, b: 150, a: 100)))
   elif bullet.fromPlayer and not bullet.isEcho:
     # Player bullet skin glow effects
     # Draw multiple glow rings
@@ -412,40 +432,40 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
 
     # Add highlight to bullet
     drawCircle(Vector2(x: bullet.pos.x - 1.5, y: bullet.pos.y - 1.5), bullet.radius * 0.3,
-              Color(r: 255, g: 255, b: 255, a: 120))
+              faded(Color(r: 255, g: 255, b: 255, a: 120)))
 
   # Legacy glow effects for power-up modified bullets
   if bullet.isExplosive:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
-                   Color(r: 255, g: 150, b: 0, a: 150))
+                   faded(Color(r: 255, g: 150, b: 0, a: 150)))
   if bullet.windPushForce > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
-                   Color(r: 180, g: 220, b: 255, a: 150))
+                   faded(Color(r: 180, g: 220, b: 255, a: 150)))
   if bullet.slowAmount > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
-                   Color(r: 100, g: 150, b: 255, a: 150))
+                   faded(Color(r: 100, g: 150, b: 255, a: 150)))
   if bullet.poisonDuration > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
-                   Color(r: 50, g: 255, b: 50, a: 150))
+                   faded(Color(r: 50, g: 255, b: 50, a: 150)))
   if bullet.fireDuration > 0:
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
-                   Color(r: 255, g: 100, b: 30, a: 180))
+                   faded(Color(r: 255, g: 100, b: 30, a: 180)))
   if bullet.isArcaneBullet:
     # Arcane bullet glow - purple arcane aura
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
-                   Color(r: 200, g: 100, b: 255, a: 200))
+                   faded(Color(r: 200, g: 100, b: 255, a: 200)))
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
-                   Color(r: 150, g: 50, b: 200, a: 100))
+                   faded(Color(r: 150, g: 50, b: 200, a: 100)))
 
   # Special Round visual effect - golden glow with sparkles
   if bullet.isSpecialRound and bullet.fromPlayer:
     # Main golden glow
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
-                   Color(r: 255, g: 215, b: 0, a: 255))
+                   faded(Color(r: 255, g: 215, b: 0, a: 255)))
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
-                   Color(r: 255, g: 200, b: 50, a: 180))
+                   faded(Color(r: 255, g: 200, b: 50, a: 180)))
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6,
-                   Color(r: 255, g: 180, b: 100, a: 120))
+                   faded(Color(r: 255, g: 180, b: 100, a: 120)))
 
   # Overcharge visual effect - ONLY if player has the power-up
   if hasOvercharge and bullet.fromPlayer and bullet.travelDistance > 0:
@@ -483,14 +503,14 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
 
       # Draw expanding glow rings
       let glowRadius = bullet.radius + 2 + chargeLevel * 4
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius, glowColor)
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius, faded(glowColor))
 
       # Add a second, larger glow ring for high charge
       if chargeLevel > 0.5:
         let outerGlow = glowColor
         let outerRadius = glowRadius + 3
         drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, outerRadius,
-                       Color(r: outerGlow.r, g: outerGlow.g, b: outerGlow.b, a: outerGlow.a div 2))
+                       faded(Color(r: outerGlow.r, g: outerGlow.g, b: outerGlow.b, a: outerGlow.a div 2)))
 
 proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool =
   bullet.pos.x < -50 or bullet.pos.x > screenWidth.float32 + 50 or

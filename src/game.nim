@@ -2824,8 +2824,10 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
         let dist = distance(bullet.pos, game.player.pos)
 
         if dist < trackingRange:
-          # Gentle tracking strength for enemy bullets - dodgeable
-          let turnRate = 0.0075  # Reduced from 0.02 - very gentle curve
+          # Gentle tracking strength for enemy bullets - dodgeable.
+          # Boss homing bullets (Summoner King's Royal Sigils) curve a touch harder
+          # than regular mage bullets, but still stay dodgeable.
+          let turnRate = if bullet.isBossBullet: 0.013'f32 else: 0.009'f32
 
           let toPlayer = (game.player.pos - bullet.pos).normalize()
           let currentDir = bullet.vel.normalize()
