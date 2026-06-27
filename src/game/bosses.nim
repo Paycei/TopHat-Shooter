@@ -1743,38 +1743,52 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
     addShake(game.dopamine.screenShake, siMedium)
     return
   of "comet_cascade":
-    # DIAGONAL SWEEP: comets streak across the arena at a shared angle, entering
-    # from one upper corner and exiting the opposite lower edge. One safe column
-    # is left open. Uses the warning->bullet path with an angled trajectory; the
-    # telegraph follows the real spawn->impact line (see drawAttackWarning).
-    let count = max(6, attack.projectileCount)
+    # DIAGONAL SWEEP: a single coherent slanted line of parallel comets streaks
+    # across the arena at one shared angle. Every comet ENTERS FROM THE TOP edge
+    # and travels the SAME distance down to the bottom, so they descend as one
+    # front. (The previous geometry walked each comet back to whichever screen
+    # edge it hit first -> the ones nearest the entry side spawned half-way down a
+    # side wall and, sharing the spawn instant but not the travel length, arrived
+    # out of sync. That read as a scattered, "weird" spawn.) Unlike the vertical
+    # columns there is NO designated safe lane: the comets are spaced so the
+    # player can thread between ANY adjacent pair. Uses the warning->bullet path;
+    # the telegraph follows the real spawn->impact line (see drawMeteorWarning).
     let warn = 0.8'f32
     let rockR = (if attack.bulletRadius > 0: attack.bulletRadius else: 9.0'f32) * 1.25'f32
     let dirSign = if rand(1.0) < 0.5: 1.0'f32 else: -1.0'f32   # sweep left or right
-    let ang = 0.55'f32 * dirSign                               # ~31deg from vertical
+    let ang = 0.45'f32 * dirSign                               # ~26deg from vertical
     let dir = newVector2f(sin(ang), cos(ang))                  # down-and-sideways
-    let exitY  = sh * 0.92'f32                                 # impact point near bottom
-    # CRITICAL: the comet bullet (spawned when the warning expires, game.nim) is
-    # subject to isOffScreen culling (|x|,|y| beyond the screen by 50px). The far
-    # off-corner spawn the previous geometry used sat WELL past that margin, so the
-    # bullet was deleted the same frame it was born -> the diagonal comets never
-    # appeared. Walk backward up the incoming line only as far as the screen-box
-    # edge (inside the 50px margin), so the comet spawns just off-screen and
-    # survives. dir.y = cos(ang) > 0; the streak still tilts to the true path.
-    const cullM = 48.0'f32                                     # stay inside |50px| cull
-    let safeLane = 1 + rand(max(1, count - 2))                 # which column stays open
+    # Anchor BOTH endpoints screen-relative and SOLVE the travel length, so the
+    # spawn->impact distance is identical for every comet at any resolution (see
+    # the boss-meteor resolution-scaling note). CRITICAL: the comet bullet is
+    # culled the instant it sits beyond |50px| off-screen, so spawns live just
+    # above the top edge (-48px). The entry band is then restricted so each
+    # comet's bottom impact also lands back inside the arena, keeping the impact
+    # ring / arrowhead telegraph on-screen.
+    const cullM   = 48.0'f32                                   # stay inside |50px| cull
+    const marginX = 30.0'f32                                   # keep entries/impacts off the edge
+    let spawnY = -cullM                                        # just above the top edge
+    let exitY  = sh * 0.92'f32                                 # bottom impact line
+    let travel = (exitY - spawnY) / dir.y                      # identical for every comet
+    let drift  = dir.x * travel                                # horizontal shift top->bottom
+    # Top-edge entry band whose comets all land back inside [marginX, sw-marginX].
+    let bandLo = max(marginX, marginX - drift)
+    let bandHi = min(sw - marginX, sw - marginX - drift)
+    let bandWidth = max(0.0'f32, bandHi - bandLo)
+    # Dodge corridor: the comet lines are tilted by `ang`, so a horizontal spacing
+    # `dx` opens a PERPENDICULAR gap of `dx*cos(ang)` between neighbours. Size that
+    # gap to the player plus a rock on each side (+ clearance) and solve for `dx`,
+    # so the player can slip between any two adjacent comets without a safe lane.
+    let corridor = 2.0'f32 * (game.player.radius + rockR) + 24.0'f32
+    let dx = corridor / cos(ang)                              # cos(ang) == cos(-ang) > 0
+    # Fit as many comets as the band allows at that spacing, capped by the def's
+    # projectileCount; spacing then only widens (never tightens) the corridor.
+    let count = clamp(int(bandWidth / dx) + 1, 3, max(3, attack.projectileCount))
+    let spacing = if count > 1: bandWidth / (count - 1).float32 else: 0.0'f32
     for k in 0 ..< count:
-      if k == safeLane: continue
-      let frac = k.float32 / (count - 1).float32
-      let ix = 60.0'f32 + frac * (sw - 120.0'f32)             # on-screen exit column
-      let impact = newVector2f(ix, exitY)
-      # Backward distance to the nearest entry edge (top vs. the side the comet
-      # streaks in from), whichever the path crosses first.
-      let tTop = (impact.y + cullM) / dir.y
-      let tSide = if dir.x > 0.0001'f32: (impact.x + cullM) / dir.x
-                  elif dir.x < -0.0001'f32: (impact.x - (sw + cullM)) / dir.x
-                  else: 1.0e9'f32
-      let spawn = impact - dir * min(tTop, tSide)              # on the screen-box edge
+      let sx = bandLo + k.float32 * spacing                    # on-screen top entry
+      let spawn = newVector2f(sx, spawnY)
+      let impact = spawn + dir * travel                        # on-screen bottom impact
       var w = newAttackWarning(impact.x, impact.y, awtMeteor, warn, enemy.id)
       w.targetPos = spawn
       w.bulletSpeed = attack.projectileSpeed

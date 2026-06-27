@@ -441,7 +441,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 2.0,
               cooldown: 5.0,
               projectileSpeed: 480.0,  # ACTIVE: comet travel speed along the angled path
-              projectileCount: 9,      # ACTIVE: comet count (one is dropped for the safe lane)
+              projectileCount: 16,     # ACTIVE: max comet count cap (actual count fills the entry band at threadable spacing)
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
               bulletRadius: 11.0,
