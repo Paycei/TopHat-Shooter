@@ -4338,7 +4338,7 @@ proc drawGame*(game: Game) =
         drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sr + 5.0,
                         Color(r: 255, g: 140, b: 20, a: uint8(sa.int div 2)))
         if globalSettings == nil or globalSettings.showHints:
-          let gt = "SEALED \xE2\x80\x94 CLEAR ADDS"
+          let gt = "SEALED - CLEAR ADDS"
           drawText(gt, enemy.pos.x.int32 - measureText(gt, 10) div 2,
                    (enemy.pos.y - enemy.radius - 26.0).int32, 10,
                    Color(r: 255, g: 200, b: 90, a: 235))

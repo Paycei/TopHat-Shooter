@@ -3,7 +3,7 @@
 
 import raylib, math
 import particle_types
-import localization, cube_skins
+import localization, cube_skins, utils
 
 type
   ShapeType* = enum
@@ -50,15 +50,7 @@ proc getShapeData*(shapeType: ShapeType): ShapeData =
   ## Get the shape data for a specific shape type
   return shapeDatabase[shapeType]
 
-proc getUnlockedShapes*(): seq[ShapeType] =
-  ## Return a list of all unlocked shapes
-  result = @[]
-  for shapeType in ShapeType:
-    if shapeDatabase[shapeType].isUnlocked:
-      result.add(shapeType)
-
-proc topHatAlpha(v: float32): uint8 =
-  uint8(clamp(v, 0.0'f32, 255.0'f32))
+proc topHatAlpha(v: float32): uint8 = clampByteF(v)  # delegate to utils.clampByteF
 
 proc drawTopHat*(pos: Vector2f, radius: float32, time: float32,
                  alpha: float32 = 1.0'f32,

@@ -22,8 +22,7 @@ proc wrapF(value, limit: float32): float32 =
     return 0.0'f32
   value - floor(value / limit) * limit
 
-proc alphaU8(value: float32): uint8 =
-  uint8(clamp(value, 0.0'f32, 255.0'f32))
+proc alphaU8(value: float32): uint8 = clampByteF(value)  # delegate to utils.clampByteF
 
 # Neon City
 

@@ -25,14 +25,12 @@ proc easeOut*(t: float32): float32 =
   let x = clamp01(t)
   1.0'f32 - pow(1.0'f32 - x, 3.0'f32)
 
-proc alphaByte*(v: float32): uint8 =
-  uint8(clamp(v, 0.0'f32, 255.0'f32))
+proc alphaByte*(v: float32): uint8 = clampByteF(v)  # delegate to utils.clampByteF
 
 proc fractCoord*(value: float32): float32 =
   value - floor(value).float32
 
-proc colorA*(color: Color, alpha: float32): Color =
-  Color(r: color.r, g: color.g, b: color.b, a: alphaByte(alpha))
+proc colorA*(color: Color, alpha: float32): Color = withAlpha(color, alpha)  # delegate to utils.withAlpha
 
 # ---------------------------------------------------------------------------
 # Equipped cosmetics (mirrors what the player has selected in the shop)

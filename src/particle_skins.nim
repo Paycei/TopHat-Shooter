@@ -266,21 +266,6 @@ proc getParticleSkinDescription*(skinType: ParticleSkinType): string =
   ## Get the description of a particle skin
   return particleSkinDatabase[skinType].description
 
-proc isParticleSkinUnlocked*(skinType: ParticleSkinType): bool =
-  ## Check if a particle skin is unlocked
-  return particleSkinDatabase[skinType].isUnlocked
-
-proc unlockParticleSkin*(skinType: ParticleSkinType) =
-  ## Unlock a particle skin for use
-  particleSkinDatabase[skinType].isUnlocked = true
-
-proc getUnlockedParticleSkins*(): seq[ParticleSkinType] =
-  ## Get a list of all unlocked particle skins
-  result = @[]
-  for skinType in ParticleSkinType:
-    if isParticleSkinUnlocked(skinType):
-      result.add(skinType)
-
 proc shootingParticleStyle(skinType: ParticleSkinType, index: int): ParticleStyle =
   case skinType
   of pskFire, pskGold, pskLightning:

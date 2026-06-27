@@ -260,18 +260,3 @@ proc getSkinName*(skinType: SkinType): string =
 proc getSkinDescription*(skinType: SkinType): string =
   ## Get the description of a skin
   return skinDatabase[skinType].description
-
-proc isSkinUnlocked*(skinType: SkinType): bool =
-  ## Check if a skin is unlocked
-  return skinDatabase[skinType].isUnlocked
-
-proc unlockSkin*(skinType: SkinType) =
-  ## Unlock a skin for use
-  skinDatabase[skinType].isUnlocked = true
-
-proc getUnlockedSkins*(): seq[SkinType] =
-  ## Get a list of all unlocked skins
-  result = @[]
-  for skinType in SkinType:
-    if isSkinUnlocked(skinType):
-      result.add(skinType)

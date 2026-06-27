@@ -28,7 +28,7 @@ type
 
 var cubeSkinDatabase*: array[CubeSkinType, CubeSkinData]
 
-proc initCubeSkins*() =
+proc initializeCubeSkins*() =
   cubeSkinDatabase[cskDefault] = CubeSkinData(
     name: t("csk_default"), description: t("csk_default_desc"),
     faceColor: Color(r: 18,  g: 116, b: 168, a: 255),

@@ -311,6 +311,21 @@ proc updateInGameMouseBonding(settings: Settings, state: GameState) =
   if shouldBond:
     bondMouseToVirtualViewport()
 
+proc initializeAllCosmetics() =
+  ## Single source of truth for (re)populating every cosmetic database. Each
+  ## cosmetic module owns its own idempotent `initialize*` proc; this lists them
+  ## once so startup and the language-change hook rebuild all tables identically.
+  ## Safe to call repeatedly — these inits carry no unlock/equip state (that
+  ## lives in roguelite's CosmeticKind ownership and the equipped ints in
+  ## Settings), so re-running only refreshes localized card names/descriptions.
+  initializeSkins()
+  initializeBulletSkins()
+  initializeBulletShapes()
+  initializeShapes()
+  initializeParticleSkins()
+  initializeDesktopBgSkins()
+  initializeCubeSkins()
+
 proc main() =
   randomize()
 
@@ -358,25 +373,13 @@ proc main() =
 
   discard initSoundSystem(updateLoadingProgress)
 
-  # Initialize skin systems
-  initializeSkins()
-  initializeBulletSkins()
-  initializeBulletShapes()
-  initializeShapes()
-  initializeParticleSkins()
-  initDesktopBgSkins()
-  initCubeSkins()
+  # Initialize all cosmetic databases (single source of truth: initializeAllCosmetics).
+  initializeAllCosmetics()
 
-  # Re-run skin inits whenever the language changes so card names/descs
+  # Re-run cosmetic inits whenever the language changes so card names/descs
   # reflect the new language without requiring a restart.
   onLanguageChange = proc() =
-    initializeSkins()
-    initializeBulletSkins()
-    initializeBulletShapes()
-    initializeShapes()
-    initializeParticleSkins()
-    initDesktopBgSkins()
-    initCubeSkins()
+    initializeAllCosmetics()
 
   let cheatMenu = initCheatMenu()
 

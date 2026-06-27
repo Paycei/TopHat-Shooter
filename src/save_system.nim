@@ -2,6 +2,7 @@ import json, os, std/tables, strutils
 import raylib
 import particle_types
 import run_statistics, types
+import utils
 
 # Settings type definition (moved from settings_types.nim)
 type
@@ -595,165 +596,15 @@ proc saveLastRunStats*(runStats: RunStatistics): bool =
     echo "Unexpected error saving last run stats: ", e.msg
     return false
 
-# Helper to parse EnemyType from string
-proc parseEnemyType(s: string): EnemyType =
-  case s
-  of "etCircle": etCircle
-  of "etCube": etCube
-  of "etTriangle": etTriangle
-  of "etStar": etStar
-  of "etHexagon": etHexagon
-  of "etCross": etCross
-  of "etDiamond": etDiamond
-  of "etOctagon": etOctagon
-  of "etPentagon": etPentagon
-  of "etTrickster": etTrickster
-  of "etPhantom": etPhantom
-  of "etSniper": etSniper
-  of "etMage": etMage
-  of "etEnvironment": etEnvironment
-  else: etCircle
-
-# Helper to parse PowerUpRarity from string
-proc parsePowerUpRarity(s: string): PowerUpRarity =
-  case s
-  of "prCommon": prCommon
-  of "prLegendary": prLegendary
-  else: prCommon
-
-# Helper to parse ConsumableType from string
-proc parseConsumableType(s: string): ConsumableType =
-  case s
-  of "ctHealth": ctHealth
-  of "ctSpeed": ctSpeed
-  of "ctCoin": ctCoin
-  of "ctInvincibility": ctInvincibility
-  of "ctFireRate": ctFireRate
-  of "ctMagnet": ctMagnet
-  of "ctShieldBoost": ctShieldBoost
-  of "ctDoubleCoin": ctDoubleCoin
-  of "ctDamageBoost": ctDamageBoost
-  of "ctLifesteal": ctLifesteal
-  else: ctHealth
-
-# Helper to parse PowerUpType from string
-proc parsePowerUpType(s: string): PowerUpType =
-  case s
-  of "puDoubleShot": puDoubleShot
-  of "puRotatingShield": puRotatingShield
-  of "puMagicalBullets": puMagicalBullets
-  of "puPiercingShots": puPiercingShots
-  of "puMultiShot": puMultiShot
-  of "puExplosiveBullets": puExplosiveBullets
-  of "puLifeSteal": puLifeSteal
-  of "puRapidFire": puRapidFire
-  of "puMaxHealth": puMaxHealth
-  of "puSpeedBoost": puSpeedBoost
-  of "puBulletSpeed": puBulletSpeed
-  of "puLuckyCoins": puLuckyCoins
-  of "puWallMaster": puWallMaster
-  of "puRegeneration": puRegeneration
-  of "puDodgeChance": puDodgeChance
-  of "puCriticalHit": puCriticalHit
-  of "puBloodBullets": puBloodBullets
-  of "puBulletRicochet": puBulletRicochet
-  of "puSlowField": puSlowField
-  of "puRage": puRage
-  of "puBerserker": puBerserker
-  of "puThorns": puThorns
-  of "puBulletSplit": puBulletSplit
-  of "puChainLightning": puChainLightning
-  of "puFrostShots": puFrostShots
-  of "puPoisonShot": puPoisonShot
-  of "puFireBullets": puFireBullets
-  of "puWindBullets": puWindBullets
-  of "puFireAura": puFireAura
-  of "puLightningAura": puLightningAura
-  of "puPoisonAura": puPoisonAura
-  of "puWindAura": puWindAura
-  of "puTimeWarp": puTimeWarp
-  of "puGravityWell": puGravityWell
-  of "puPhaseShift": puPhaseShift
-  of "puOvercharge": puOvercharge
-  of "puEchoShots": puEchoShots
-  of "puRotatingOrbs": puRotatingOrbs
-  of "puPoisonOrb": puPoisonOrb
-  of "puFireOrb": puFireOrb
-  of "puLightningOrb": puLightningOrb
-  of "puWindOrb": puWindOrb
-  of "puFrostOrb": puFrostOrb
-  of "puArcaneOrb": puArcaneOrb
-  of "puArcaneBullets": puArcaneBullets
-  of "puArcaneAura": puArcaneAura
-  of "puFireMastery": puFireMastery
-  of "puPoisonMastery": puPoisonMastery
-  of "puFrostMastery": puFrostMastery
-  of "puArcaneMastery": puArcaneMastery
-  of "puLightningMastery": puLightningMastery
-  of "puWindMastery": puWindMastery
-  of "puParry": puParry
-  of "puBloodOrb": puBloodOrb
-  of "puBloodAura": puBloodAura
-  of "puBloodMastery": puBloodMastery
-  of "puRadialBurst": puRadialBurst
-  of "puWallTurrets": puWallTurrets
-  of "puPulseArmor": puPulseArmor
-  of "puHeavyRounds": puHeavyRounds
-  of "puFortified": puFortified
-  of "puCelestialVeil": puCelestialVeil
-  of "puVolatile": puVolatile
-  of "puResonance": puResonance
-  of "puSpecialRounds": puSpecialRounds
-  of "puGiantSlayer": puGiantSlayer
-  of "puCurse": puCurse
-  of "puBloodPact": puBloodPact
-  of "puConduit": puConduit
-  of "puAftershock": puAftershock
-  of "puNova": puNova
-  of "puHealPower": puHealPower
-  of "puBountiful": puBountiful
-  of "puGlitchField": puGlitchField
-  of "puTimeSurge": puTimeSurge
-  of "puLastStand": puLastStand
-  of "puRecursion": puRecursion
-  of "puSectorProtocol": puSectorProtocol
-  of "puCrisisMode": puCrisisMode
-  of "puAdaptiveFirewall": puAdaptiveFirewall
-  of "puLastTransmission": puLastTransmission
-  of "puKillChain": puKillChain
-  of "puCorruptedCore": puCorruptedCore
-  of "puRoomEcho": puRoomEcho
-  of "puChainReaction": puChainReaction
-  of "puKernelExploit": puKernelExploit
-  else: puDoubleShot
-
-# Helper to parse GameMode from string
-proc parseGameMode(s: string): GameMode =
-  case s
-  of "gmWaveBased": gmWaveBased
-  of "gmTimeSurvival": gmTimeSurvival
-  of "gmRoguelite": gmRoguelite
-  of "gmSandbox": gmSandbox
-  of "gmPvP": gmPvP
-  else: gmWaveBased
-
-# Helper to parse GameEventType from string
-proc parseGameEventType(s: string): GameEventType =
-  case s
-  of "geKill": geKill
-  of "geDamageTaken": geDamageTaken
-  of "geDamageDealt": geDamageDealt
-  of "gePowerUpChosen": gePowerUpChosen
-  of "geShopPurchase": geShopPurchase
-  of "geWaveComplete": geWaveComplete
-  of "geBossSpawn": geBossSpawn
-  of "geBossDefeat": geBossDefeat
-  of "geNearDeath": geNearDeath
-  of "geLegendaryUsed": geLegendaryUsed
-  of "geWallPlaced": geWallPlaced
-  of "geCoinCollected": geCoinCollected
-  of "geConsumableUsed": geConsumableUsed
-  else: geKill
+# Enum parse helpers. The on-disk format is the Nim symbol name (`$value`), so a
+# generic name-based parse round-trips byte-for-byte; `parseEnumOr` (utils.nim)
+# preserves the old silent fallback-to-default behavior on unknown input.
+proc parseEnemyType(s: string): EnemyType = parseEnumOr(s, etCircle)
+proc parsePowerUpRarity(s: string): PowerUpRarity = parseEnumOr(s, prCommon)
+proc parseConsumableType(s: string): ConsumableType = parseEnumOr(s, ctHealth)
+proc parsePowerUpType(s: string): PowerUpType = parseEnumOr(s, puDoubleShot)
+proc parseGameMode(s: string): GameMode = parseEnumOr(s, gmWaveBased)
+proc parseGameEventType(s: string): GameEventType = parseEnumOr(s, geKill)
 
 # Convert JSON to GameEvent
 proc jsonToGameEvent(j: JsonNode): GameEvent =

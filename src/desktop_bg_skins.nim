@@ -28,7 +28,7 @@ type
 
 var desktopBgDatabase*: array[DesktopBgType, DesktopBgData]
 
-proc initDesktopBgSkins*() =
+proc initializeDesktopBgSkins*() =
   desktopBgDatabase[dbgDefault] = DesktopBgData(
     name: t("dbg_default"), description: t("dbg_default_desc"),
     primaryColor: Color(r: 0,   g: 184, b: 225, a: 255),

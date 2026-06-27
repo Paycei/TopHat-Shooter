@@ -84,14 +84,6 @@ proc alphaScaled(color: Color, scale: float32): Color =
   result = color
   result.a = clampByteF(color.a.float32 * scale)
 
-proc brighten(color: Color, amount: float32): Color =
-  result = Color(
-    r: clampByteF(color.r.float32 + amount),
-    g: clampByteF(color.g.float32 + amount),
-    b: clampByteF(color.b.float32 + amount),
-    a: color.a
-  )
-
 proc newParticleTemplate(): Particle =
   Particle(
     pos: newVector2f(0, 0),

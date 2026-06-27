@@ -257,16 +257,9 @@ proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) 
   redistributeAllOrbs(player)
 
 proc getElementColor*(elementType: ElementType): Color =
-  ## Get the visual color for each element type
-  case elementType
-  of etPoison: Color(r: 100, g: 255, b: 100, a: 255)
-  of etFire: Color(r: 255, g: 100, b: 0, a: 255)
-  of etLightning: Color(r: 255, g: 255, b: 100, a: 255)
-  of etWind: Color(r: 200, g: 230, b: 255, a: 255)
-  of etFrost: Color(r: 150, g: 200, b: 255, a: 255)
-  of etArcane: Color(r: 200, g: 100, b: 255, a: 255)  # Purple for arcane
-  of etBlood: Color(r: 255, g: 50, b: 50, a: 255)     # Red for blood
-  of etNone: White
+  ## Visual color for each element type. Delegates to the canonical
+  ## `elementColor` table in types.nim (kept as an alias for existing callers).
+  elementColor(elementType)
 
 proc getElementDamage*(level: int): float32 =
   ## Get base damage per hit based on power-up level

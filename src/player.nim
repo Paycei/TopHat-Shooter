@@ -22,22 +22,6 @@ proc refreshPlayerSize(player: Player) =
   player.radius = player.baseRadius + sqrt(hpAboveBase) * 0.4'f32
   player.auraRadius = player.radius * 3.5
 
-proc brighten(color: Color, amount: int, alpha: int = 255): Color =
-  Color(
-    r: clampByte(color.r.int + amount),
-    g: clampByte(color.g.int + amount),
-    b: clampByte(color.b.int + amount),
-    a: clampByte(alpha)
-  )
-
-proc darken(color: Color, amount: int, alpha: int = 255): Color =
-  Color(
-    r: clampByte(color.r.int - amount),
-    g: clampByte(color.g.int - amount),
-    b: clampByte(color.b.int - amount),
-    a: clampByte(alpha)
-  )
-
 proc orbCoreColor(elementType: ElementType, base: Color): Color =
   case elementType
   of etFire: Color(r: 255, g: 225, b: 90, a: 255)

@@ -12,8 +12,7 @@ const
   BOSS_ARENA_DAMAGE = 0.35'f32
   BOSS_ARENA_DAMAGE_INTERVAL = 0.85'f32
 
-proc alphaFrom(value: float32): uint8 =
-  uint8(clamp(value, 0.0'f32, 255.0'f32))
+proc alphaFrom(value: float32): uint8 = clampByteF(value)  # delegate to utils.clampByteF
 
 proc bossArenaModeForWave(currentWave: int): BossArenaRingMode =
   if currentWave <= 0:

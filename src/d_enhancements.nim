@@ -48,15 +48,9 @@ proc getEnhancedDamageInfo*(damage: float32, maxHp: float32, isCrit: bool,
 
   # Elemental damage
   if elementType != etNone:
-    let elemColor = case elementType
-      of etFire: Color(r: 255, g: 80, b: 0, a: 255)
-      of etPoison: Color(r: 50, g: 255, b: 50, a: 255)
-      of etLightning: Color(r: 255, g: 255, b: 80, a: 255)
-      of etFrost: Color(r: 100, g: 200, b: 255, a: 255)
-      of etWind: Color(r: 200, g: 255, b: 255, a: 255)
-      of etArcane: Color(r: 180, g: 50, b: 200, a: 255)
-      of etBlood: Color(r: 200, g: 0, b: 0, a: 255)
-      else: White
+    # Use the canonical element color (types.elementColor) so damage-number tints
+    # match orbs/auras; this previously held a drifted hand-written copy.
+    let elemColor = elementColor(elementType)
 
     return (
       ddtElemental,

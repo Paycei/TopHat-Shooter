@@ -1,6 +1,8 @@
 ## Shared animated background helpers used across menus and arenas.
 
 import raylib, math
+import ../utils
+export utils  # propagate shared color/alpha helpers to importers of this module
 
 const
   BACKDROP_STAR_LAYERS = 3
@@ -14,14 +16,8 @@ proc wrapCoord(value, limit: float32): float32 =
 proc fractCoord(value: float32): float32 =
   value - floor(value).float32
 
-proc clampAlpha(value: float32): uint8 =
-  uint8(clamp(value, 0.0'f32, 255.0'f32))
-
 proc brightenChannel(value: uint8, delta: int): uint8 =
   uint8(clamp(value.int + delta, 0, 255))
-
-proc withAlpha*(color: Color, alpha: uint8): Color =
-  Color(r: color.r, g: color.g, b: color.b, a: alpha)
 
 proc drawSoftGlow*(centerX, centerY, radius: float32, color: Color, intensity: float32 = 1.0'f32) =
   if radius <= 0.0 or intensity <= 0.0:
@@ -30,7 +26,7 @@ proc drawSoftGlow*(centerX, centerY, radius: float32, color: Color, intensity: f
   var layer = 6
   while layer >= 1:
     let t = layer.float32 / 6.0
-    let alpha = clampAlpha(color.a.float32 * t * t * intensity)
+    let alpha = clampByteF(color.a.float32 * t * t * intensity)
     drawCircle(Vector2(x: centerX, y: centerY), radius * t, withAlpha(color, alpha))
     dec layer
 
@@ -56,7 +52,7 @@ proc drawParallaxStars(screenWidth, screenHeight: int32, time: float32,
       let twinkle =
         0.4'f32 +
         (sin(time * (1.8'f32 + layer.float32 * 0.45'f32) + seed * 2.8'f32) * 0.5'f32 + 0.5'f32) * 0.7'f32
-      let starAlpha = clampAlpha(layerAlpha * twinkle)
+      let starAlpha = clampByteF(layerAlpha * twinkle)
       let starColor =
         if layer == BACKDROP_STAR_LAYERS - 1:
           Color(
@@ -107,7 +103,7 @@ proc drawDriftingGrid(screenWidth, screenHeight: int32, time: float32,
           let cellY = gy div BACKDROP_GRID_SIZE
           let pulse = sin(time * 1.25'f32 + (cellX + cellY).float32 * 0.45'f32) * 0.5'f32 + 0.5'f32
           let nodeRadius = if ((cellX + cellY) mod 4) == 0: 2.0'f32 else: 1.35'f32
-          let nodeAlpha = clampAlpha(nodeColor.a.float32 * (0.5'f32 + pulse * 0.5'f32))
+          let nodeAlpha = clampByteF(nodeColor.a.float32 * (0.5'f32 + pulse * 0.5'f32))
           drawCircle(Vector2(x: drawX, y: drawY), nodeRadius, withAlpha(nodeColor, nodeAlpha))
         gy += BACKDROP_GRID_SIZE
     gx += BACKDROP_GRID_SIZE
@@ -127,7 +123,7 @@ proc drawSharedBackdrop*(screenWidth, screenHeight: int32, time: float32,
       screenHeight.float32 + 140.0'f32
     ) - 70.0'f32
     let swayY = sin(time * (0.55'f32 + band.float32 * 0.04'f32) + band.float32 * 0.8'f32) * 20.0'f32
-    let alpha = clampAlpha((8.0'f32 + band.float32 * 0.8'f32) * sweepAlphaScale)
+    let alpha = clampByteF((8.0'f32 + band.float32 * 0.8'f32) * sweepAlphaScale)
     drawLine(-40, (driftY + swayY).int32,
              screenWidth + 40, (driftY + 35.0'f32 + swayY * 0.4'f32).int32,
              withAlpha(accentColor, alpha))

@@ -308,30 +308,15 @@ proc relicSetToJson(s: set[RogueliteRelicType]): JsonNode =
     if value in s and value != rrtNone:
       result.add(%($value))
 
-proc parseStarterSet(j: JsonNode): set[RogueliteStarterKit] =
+proc parseEnumSet[T: enum](j: JsonNode): set[T] =
+  ## Parse a JSON array of `$value` symbol names into an enum set, silently
+  ## skipping any unknown member (so stale ids in old profiles are dropped, not
+  ## collapsed to a default). Unifies the previous per-enum set parsers.
   result = {}
   if j.kind != JArray: return
   for item in j:
     try:
-      result.incl(parseEnum[RogueliteStarterKit](item.getStr()))
-    except ValueError:
-      discard
-
-proc parseFamilySet(j: JsonNode): set[RoguelitePowerFamily] =
-  result = {}
-  if j.kind != JArray: return
-  for item in j:
-    try:
-      result.incl(parseEnum[RoguelitePowerFamily](item.getStr()))
-    except ValueError:
-      discard
-
-proc parseRelicSet(j: JsonNode): set[RogueliteRelicType] =
-  result = {}
-  if j.kind != JArray: return
-  for item in j:
-    try:
-      result.incl(parseEnum[RogueliteRelicType](item.getStr()))
+      result.incl(parseEnum[T](item.getStr()))
     except ValueError:
       discard
 
@@ -387,11 +372,11 @@ proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile =
     # (singularity cores were ~4x rarer than overheat cores).
     result.cores = j.getOrDefault("overheatCores").getInt(0) +
                    4 * j.getOrDefault("singularityCores").getInt(0)
-  let kits = parseStarterSet(j.getOrDefault("unlockedStarterKits"))
+  let kits = parseEnumSet[RogueliteStarterKit](j.getOrDefault("unlockedStarterKits"))
   if kits != {}: result.unlockedStarterKits = kits
-  let families = parseFamilySet(j.getOrDefault("unlockedPowerFamilies"))
+  let families = parseEnumSet[RoguelitePowerFamily](j.getOrDefault("unlockedPowerFamilies"))
   if families != {}: result.unlockedPowerFamilies = families
-  let relics = parseRelicSet(j.getOrDefault("unlockedRelics"))
+  let relics = parseEnumSet[RogueliteRelicType](j.getOrDefault("unlockedRelics"))
   if relics != {}: result.unlockedRelics = relics
   if j.hasKey("unlockedPlayerSkins"):
     result.unlockedPlayerSkins = parseStringSeq(j["unlockedPlayerSkins"])
@@ -669,25 +654,19 @@ proc hasId(list: seq[string], id: string): bool =
       return true
   false
 
-proc defaultCosmeticIndex*(kind: CosmeticKind): int =
-  case kind
-  of ckPlayerSkin: ord(skDefault)
-  of ckBulletSkin: ord(bskDefault)
-  of ckPlayerShape: ord(shHexagon)
-  of ckBulletShape: ord(bshCircle)
-  of ckParticle: ord(pskDefault)
-  of ckDesktopBg: ord(dbgDefault)
-  of ckCubeSkin: ord(cskDefault)
+const CosmeticInfo: array[CosmeticKind, tuple[count, defaultIndex: int]] = [
+  ckPlayerSkin:  (ord(high(SkinType)) + 1,        ord(skDefault)),
+  ckBulletSkin:  (ord(high(BulletSkinType)) + 1,  ord(bskDefault)),
+  ckPlayerShape: (ord(high(ShapeType)) + 1,       ord(shHexagon)),
+  ckBulletShape: (ord(high(BulletShapeType)) + 1, ord(bshCircle)),
+  ckParticle:    (ord(high(ParticleSkinType)) + 1, ord(pskDefault)),
+  ckDesktopBg:   (ord(high(DesktopBgType)) + 1,   ord(dbgDefault)),
+  ckCubeSkin:    (ord(high(CubeSkinType)) + 1,    ord(cskDefault)),
+]
 
-proc cosmeticCount*(kind: CosmeticKind): int =
-  case kind
-  of ckPlayerSkin: ord(high(SkinType)) + 1
-  of ckBulletSkin: ord(high(BulletSkinType)) + 1
-  of ckPlayerShape: ord(high(ShapeType)) + 1
-  of ckBulletShape: ord(high(BulletShapeType)) + 1
-  of ckParticle: ord(high(ParticleSkinType)) + 1
-  of ckDesktopBg: ord(high(DesktopBgType)) + 1
-  of ckCubeSkin: ord(high(CubeSkinType)) + 1
+proc defaultCosmeticIndex*(kind: CosmeticKind): int = CosmeticInfo[kind].defaultIndex
+
+proc cosmeticCount*(kind: CosmeticKind): int = CosmeticInfo[kind].count
 
 proc isValidCosmeticIndex*(kind: CosmeticKind, index: int): bool =
   index >= 0 and index < cosmeticCount(kind)
@@ -704,16 +683,36 @@ proc cosmeticId*(kind: CosmeticKind, index: int): string =
   of ckDesktopBg: $DesktopBgType(index)
   of ckCubeSkin: $CubeSkinType(index)
 
+proc unlockedList(profile: RogueliteProfile, kind: CosmeticKind): var seq[string] =
+  ## Single chokepoint mapping a CosmeticKind to its unlock-id list on the
+  ## profile. Returns the field by `var` so the ownership procs below share one
+  ## body instead of parallel per-kind cases.
+  case kind
+  of ckPlayerSkin: return profile.unlockedPlayerSkins
+  of ckBulletSkin: return profile.unlockedBulletSkins
+  of ckPlayerShape: return profile.unlockedPlayerShapes
+  of ckBulletShape: return profile.unlockedBulletShapes
+  of ckParticle: return profile.unlockedParticleSkins
+  of ckDesktopBg: return profile.unlockedDesktopBgs
+  of ckCubeSkin: return profile.unlockedCubeSkins
+
+proc equippedIndex(settings: Settings, kind: CosmeticKind): var int =
+  ## Single chokepoint mapping a CosmeticKind to its equipped-index field in
+  ## Settings (stored as a plain ordinal). Returned by `var` for read + write.
+  case kind
+  of ckPlayerSkin: return settings.playerSkin
+  of ckBulletSkin: return settings.bulletSkin
+  of ckPlayerShape: return settings.playerShape
+  of ckBulletShape: return settings.bulletShape
+  of ckParticle: return settings.particleEffect
+  of ckDesktopBg: return settings.desktopBg
+  of ckCubeSkin: return settings.cubeSkin
+
 proc ensureBaseCosmeticUnlocks*(profile: RogueliteProfile) =
   if profile.isNil:
     return
-  ensureId(profile.unlockedPlayerSkins, $skDefault)
-  ensureId(profile.unlockedBulletSkins, $bskDefault)
-  ensureId(profile.unlockedPlayerShapes, $shHexagon)
-  ensureId(profile.unlockedBulletShapes, $bshCircle)
-  ensureId(profile.unlockedParticleSkins, $pskDefault)
-  ensureId(profile.unlockedDesktopBgs, $dbgDefault)
-  ensureId(profile.unlockedCubeSkins, $cskDefault)
+  for kind in CosmeticKind:
+    ensureId(unlockedList(profile, kind), cosmeticId(kind, defaultCosmeticIndex(kind)))
 
 proc cosmeticIsUnlocked*(profile: RogueliteProfile, kind: CosmeticKind,
                          index: int): bool =
@@ -724,28 +723,12 @@ proc cosmeticIsUnlocked*(profile: RogueliteProfile, kind: CosmeticKind,
   if profile.isNil:
     return false
 
-  let id = cosmeticId(kind, index)
-  case kind
-  of ckPlayerSkin: hasId(profile.unlockedPlayerSkins, id)
-  of ckBulletSkin: hasId(profile.unlockedBulletSkins, id)
-  of ckPlayerShape: hasId(profile.unlockedPlayerShapes, id)
-  of ckBulletShape: hasId(profile.unlockedBulletShapes, id)
-  of ckParticle: hasId(profile.unlockedParticleSkins, id)
-  of ckDesktopBg: hasId(profile.unlockedDesktopBgs, id)
-  of ckCubeSkin: hasId(profile.unlockedCubeSkins, id)
+  hasId(unlockedList(profile, kind), cosmeticId(kind, index))
 
 proc addCosmeticUnlock(profile: RogueliteProfile, kind: CosmeticKind, index: int) =
   if profile.isNil:
     return
-  let id = cosmeticId(kind, index)
-  case kind
-  of ckPlayerSkin: ensureId(profile.unlockedPlayerSkins, id)
-  of ckBulletSkin: ensureId(profile.unlockedBulletSkins, id)
-  of ckPlayerShape: ensureId(profile.unlockedPlayerShapes, id)
-  of ckBulletShape: ensureId(profile.unlockedBulletShapes, id)
-  of ckParticle: ensureId(profile.unlockedParticleSkins, id)
-  of ckDesktopBg: ensureId(profile.unlockedDesktopBgs, id)
-  of ckCubeSkin: ensureId(profile.unlockedCubeSkins, id)
+  ensureId(unlockedList(profile, kind), cosmeticId(kind, index))
 
 proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
   if not isValidCosmeticIndex(kind, index) or index == defaultCosmeticIndex(kind):
@@ -872,40 +855,12 @@ proc sanitizeEquippedCosmetics*(settings: Settings,
     return false
   ensureBaseCosmeticUnlocks(profile)
 
-  if not isValidCosmeticIndex(ckPlayerSkin, settings.playerSkin) or
-     not cosmeticIsUnlocked(profile, ckPlayerSkin, settings.playerSkin):
-    settings.playerSkin = defaultCosmeticIndex(ckPlayerSkin)
-    result = true
-
-  if not isValidCosmeticIndex(ckBulletSkin, settings.bulletSkin) or
-     not cosmeticIsUnlocked(profile, ckBulletSkin, settings.bulletSkin):
-    settings.bulletSkin = defaultCosmeticIndex(ckBulletSkin)
-    result = true
-
-  if not isValidCosmeticIndex(ckPlayerShape, settings.playerShape) or
-     not cosmeticIsUnlocked(profile, ckPlayerShape, settings.playerShape):
-    settings.playerShape = defaultCosmeticIndex(ckPlayerShape)
-    result = true
-
-  if not isValidCosmeticIndex(ckBulletShape, settings.bulletShape) or
-     not cosmeticIsUnlocked(profile, ckBulletShape, settings.bulletShape):
-    settings.bulletShape = defaultCosmeticIndex(ckBulletShape)
-    result = true
-
-  if not isValidCosmeticIndex(ckParticle, settings.particleEffect) or
-     not cosmeticIsUnlocked(profile, ckParticle, settings.particleEffect):
-    settings.particleEffect = defaultCosmeticIndex(ckParticle)
-    result = true
-
-  if not isValidCosmeticIndex(ckDesktopBg, settings.desktopBg) or
-     not cosmeticIsUnlocked(profile, ckDesktopBg, settings.desktopBg):
-    settings.desktopBg = defaultCosmeticIndex(ckDesktopBg)
-    result = true
-
-  if not isValidCosmeticIndex(ckCubeSkin, settings.cubeSkin) or
-     not cosmeticIsUnlocked(profile, ckCubeSkin, settings.cubeSkin):
-    settings.cubeSkin = defaultCosmeticIndex(ckCubeSkin)
-    result = true
+  for kind in CosmeticKind:
+    let idx = equippedIndex(settings, kind)
+    if not isValidCosmeticIndex(kind, idx) or
+       not cosmeticIsUnlocked(profile, kind, idx):
+      equippedIndex(settings, kind) = defaultCosmeticIndex(kind)
+      result = true
 
   if settings.kernelTophatEquipped and settings.cheaterHatEquipped:
     settings.cheaterHatEquipped = false

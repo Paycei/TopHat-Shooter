@@ -215,18 +215,3 @@ proc getBulletSkinName*(skinType: BulletSkinType): string =
 proc getBulletSkinDescription*(skinType: BulletSkinType): string =
   ## Get the description of a bullet skin
   return bulletSkinDatabase[skinType].description
-
-proc isBulletSkinUnlocked*(skinType: BulletSkinType): bool =
-  ## Check if a bullet skin is unlocked
-  return bulletSkinDatabase[skinType].isUnlocked
-
-proc unlockBulletSkin*(skinType: BulletSkinType) =
-  ## Unlock a bullet skin for use
-  bulletSkinDatabase[skinType].isUnlocked = true
-
-proc getUnlockedBulletSkins*(): seq[BulletSkinType] =
-  ## Get a list of all unlocked bullet skins
-  result = @[]
-  for skinType in BulletSkinType:
-    if isBulletSkinUnlocked(skinType):
-      result.add(skinType)

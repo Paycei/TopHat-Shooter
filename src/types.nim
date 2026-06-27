@@ -1457,3 +1457,17 @@ proc ricochetSweptPath*(path: seq[Vector2f], frontDist: float32): seq[Vector2f] 
       let t = remaining / segLen
       result.add(path[s] + (path[s + 1] - path[s]) * t)
       return
+
+proc elementColor*(elementType: ElementType): Color =
+  ## Canonical base color for each element. Single source of truth shared by the
+  ## element visuals (orbs, auras, damage numbers). Defined here next to
+  ## `ElementType` so every consumer reaches it without an import cycle.
+  case elementType
+  of etPoison: Color(r: 100, g: 255, b: 100, a: 255)
+  of etFire: Color(r: 255, g: 100, b: 0, a: 255)
+  of etLightning: Color(r: 255, g: 255, b: 100, a: 255)
+  of etWind: Color(r: 200, g: 230, b: 255, a: 255)
+  of etFrost: Color(r: 150, g: 200, b: 255, a: 255)
+  of etArcane: Color(r: 200, g: 100, b: 255, a: 255)
+  of etBlood: Color(r: 255, g: 50, b: 50, a: 255)
+  of etNone: White

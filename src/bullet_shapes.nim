@@ -36,12 +36,6 @@ proc initializeBulletShapes*() =
     name: t("bshape_star"), description: t("bshape_star_desc"), isUnlocked: true)
 
 proc getBulletShapeData*(s: BulletShapeType): BulletShapeData = bulletShapeDatabase[s]
-proc isBulletShapeUnlocked*(s: BulletShapeType): bool = bulletShapeDatabase[s].isUnlocked
-
-proc getUnlockedBulletShapes*(): seq[BulletShapeType] =
-  for s in BulletShapeType:
-    if bulletShapeDatabase[s].isUnlocked:
-      result.add(s)
 
 # Drawing
 
