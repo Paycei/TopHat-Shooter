@@ -132,43 +132,6 @@ proc assignPlayerToTeam*(playerIndex: int, maxPlayers: int, teamsEnabled: bool):
     of 2: return ptGreen
     else: return ptYellow
 
-proc assignPlayerToTeamByCount*(playerIndex: int, teamCount: int): PvPTeam =
-  ## Assign a player to a team based on the desired number of teams (2-6)
-  case teamCount
-  of 2:
-    if playerIndex mod 2 == 0:
-      return ptRed
-    else:
-      return ptBlue
-  of 3:
-    case playerIndex mod 3
-    of 0: return ptRed
-    of 1: return ptBlue
-    else: return ptGreen
-  of 4:
-    case playerIndex mod 4
-    of 0: return ptRed
-    of 1: return ptBlue
-    of 2: return ptGreen
-    else: return ptYellow
-  of 5:
-    case playerIndex mod 5
-    of 0: return ptRed
-    of 1: return ptBlue
-    of 2: return ptGreen
-    of 3: return ptYellow
-    else: return ptOrange
-  of 6:
-    case playerIndex mod 6
-    of 0: return ptRed
-    of 1: return ptBlue
-    of 2: return ptGreen
-    of 3: return ptYellow
-    of 4: return ptOrange
-    else: return ptPurple
-  else:
-    return ptNone
-
 proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, screenWidth, screenHeight: float32): Vector2f =
   ## Calculate spawn position for a player based on their team
   ## Teams spawn grouped together in different quadrants

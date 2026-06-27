@@ -59,9 +59,6 @@ proc startBossWave(manager: var BossWaveManager) =
 proc bossDefeated*(manager: var BossWaveManager) =
   manager.active = false; manager.coinActive = true
 
-proc bossCoinCollected*(manager: var BossWaveManager) =
-  manager.coinActive = false
-
 proc clearBossWave*(manager: var BossWaveManager) =
   manager.active = false
   manager.coinActive = false

@@ -3,6 +3,16 @@ import game/bullets
 
 const BOSS_PHASE_INVULNERABILITY_DURATION* = BossPhaseTransitionDuration
 
+const RainbowPalette = [
+  Color(r: 255, g: 0,   b: 0,   a: 255),  # Red
+  Color(r: 255, g: 127, b: 0,   a: 255),  # Orange
+  Color(r: 255, g: 255, b: 0,   a: 255),  # Yellow
+  Color(r: 0,   g: 255, b: 0,   a: 255),  # Green
+  Color(r: 0,   g: 0,   b: 255, a: 255),  # Blue
+  Color(r: 75,  g: 0,   b: 130, a: 255),  # Indigo
+  Color(r: 148, g: 0,   b: 211, a: 255),  # Violet
+]
+
 proc bossBehaviorRand(minValue, maxValue: float32): float32 =
   if maxValue <= minValue:
     return minValue
@@ -773,18 +783,26 @@ proc spawnRicochetLaser*(game: var Game, enemy: Enemy, attack: BossAttack, phase
 proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) =
   warnings.addBossAttackWarningInto(game.attackWarnings, game.player, enemy, attack)
 
+proc spawnBossBullet(game: var Game, enemy: Enemy, attack: BossAttack,
+                     phase: BossPhaseDefinition, dir: Vector2f,
+                     speed = -1.0'f32, damage = -1.0'f32) =
+  ## Canonical boss-bullet spawn from the boss's own position. A negative speed
+  ## or damage means "use the default": attack.projectileSpeed and
+  ## attack.damage * phase.damageMultiplier respectively.
+  game.bullets.add(newBullet(
+    x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+    speed = (if speed < 0: attack.projectileSpeed else: speed),
+    damage = (if damage < 0: attack.damage * phase.damageMultiplier else: damage),
+    fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+    bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+    bulletRadius = attack.bulletRadius))
+
 proc execBossAttackSpiral(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Rotating spiral pattern
   for i in 0..<attack.projectileCount:
     let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32 + game.time * attack.spreadAngle.degToRad()
     let dir = newVector2f(cos(angle), sin(angle))
-    game.bullets.add(newBullet(
-      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-      speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-      bulletRadius = attack.bulletRadius
-    ))
+    spawnBossBullet(game, enemy, attack, phase, dir)
 
 
 proc execBossAttackBurst(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
@@ -794,13 +812,7 @@ proc execBossAttackBurst(game: var Game, enemy: Enemy, attack: BossAttack, phase
     let offset = (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
     let angle = baseAngle + offset
     let dir = newVector2f(cos(angle), sin(angle))
-    game.bullets.add(newBullet(
-      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-      speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-      bulletRadius = attack.bulletRadius
-    ))
+    spawnBossBullet(game, enemy, attack, phase, dir)
 
 
 proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
@@ -827,26 +839,13 @@ proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase:
 
     let bulletSpeed = attack.projectileSpeed * speedMultiplier
 
-    game.bullets.add(newBullet(
-      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-      speed = bulletSpeed, damage = attack.damage * phase.damageMultiplier,
-      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-      bulletRadius = attack.bulletRadius
-    ))
+    spawnBossBullet(game, enemy, attack, phase, dir, speed = bulletSpeed)
 
     # Special visual effects per wave type
     case colorScheme
     of "rainbow":
       # Create rainbow trail particles
-      let rainbowColor = case i mod 7
-        of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
-        of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
-        of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
-        of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
-        of 4: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
-        of 5: Color(r: 75, g: 0, b: 130, a: 255)    # Indigo
-        else: Color(r: 148, g: 0, b: 211, a: 255)   # Violet
+      let rainbowColor = RainbowPalette[i mod 7]
       spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, rainbowColor, 4)
     of "temporal":
       # Cyan time-distortion particles
@@ -864,13 +863,7 @@ proc execBossAttackTargeted(game: var Game, enemy: Enemy, attack: BossAttack, ph
     else: 0.0
     let angle = arctan2(toPlayer.y, toPlayer.x) + spread
     let dir = newVector2f(cos(angle), sin(angle))
-    game.bullets.add(newBullet(
-      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-      speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-      bulletRadius = attack.bulletRadius
-    ))
+    spawnBossBullet(game, enemy, attack, phase, dir)
 
 
 proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
@@ -904,13 +897,7 @@ proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phas
   for i in 0..<attack.projectileCount:
     let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32 + rotationOffset
     let dir = newVector2f(cos(angle), sin(angle))
-    game.bullets.add(newBullet(
-      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-      speed = bulletSpeed, damage = attack.damage * phase.damageMultiplier,
-      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-      bulletRadius = attack.bulletRadius
-    ))
+    spawnBossBullet(game, enemy, attack, phase, dir, speed = bulletSpeed)
 
     # Add temporal particle trail for time_ring
     if circleMode == "time_ring":
@@ -1193,14 +1180,7 @@ proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, pha
         let prismX = enemy.pos.x + cos(angle) * ringRadius
         let prismY = enemy.pos.y + sin(angle) * ringRadius
         # Rainbow colors based on position
-        let rainbowColor = case i mod 7
-          of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
-          of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
-          of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
-          of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
-          of 4: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
-          of 5: Color(r: 75, g: 0, b: 130, a: 255)    # Indigo
-          else: Color(r: 148, g: 0, b: 211, a: 255)   # Violet
+        let rainbowColor = RainbowPalette[i mod 7]
         spawnExplosionPooled(game.particlePool, prismX, prismY, rainbowColor, 5)
 
   elif isLightAttack:
@@ -1326,13 +1306,7 @@ proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, pha
     else:
       attack.damage * phase.damageMultiplier
 
-    game.bullets.add(newBullet(
-      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-      speed = speed, damage = damage,
-      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-      bulletRadius = attack.bulletRadius
-    ))
+    spawnBossBullet(game, enemy, attack, phase, dir, speed = speed, damage = damage)
 
   # MODE-SPECIFIC EXPLOSIONS
   let (explosionSize, explosionColor) = case barrageMode
@@ -1409,13 +1383,7 @@ proc execBossAttackPulse(game: var Game, enemy: Enemy, attack: BossAttack, phase
   for i in 0..<bulletCount:
     let angle = i.float32 * PI * 2.0 / bulletCount.float32
     let dir = newVector2f(cos(angle), sin(angle))
-    game.bullets.add(newBullet(
-      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-      speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-      bulletRadius = attack.bulletRadius
-    ))
+    spawnBossBullet(game, enemy, attack, phase, dir)
 
   # MODE-SPECIFIC VISUAL ENHANCEMENTS
   case pulseMode:
@@ -2307,13 +2275,7 @@ proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase
     let dir = newVector2f(cos(angle), sin(angle))
 
     # Enhanced bullet for special snipes
-    game.bullets.add(newBullet(
-      x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-      speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-      fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-      bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-      bulletRadius = attack.bulletRadius
-    ))
+    spawnBossBullet(game, enemy, attack, phase, dir)
 
     # Visual muzzle flash per shot
     spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, bulletColor, 8)
@@ -2357,13 +2319,7 @@ proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack
     for i in 0..<count:
       let offset = (i.float32 - count.float32 / 2.0) * attack.spreadAngle.degToRad() / count.float32
       let dir = newVector2f(cos(baseAngle + offset), sin(baseAngle + offset))
-      game.bullets.add(newBullet(
-        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
+      spawnBossBullet(game, enemy, attack, phase, dir)
   else:
     # Green command pulse from the boss telegraphs that the legion just fired.
     spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,

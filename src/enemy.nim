@@ -4211,17 +4211,6 @@ proc getEliteAuraColor*(eliteType: EliteType): Color =
   of etRegenerative: Color(r: 255, g: 100, b: 255, a: 255)  # Magenta
   of etShielded: Color(r: 100, g: 200, b: 255, a: 255)  # Cyan
 
-proc getEliteName*(eliteType: EliteType): string =
-  ## Returns the display name for each elite type
-  case eliteType
-  of etNone: ""
-  of etSwift: "Swift"
-  of etTank: "Tank"
-  of etVenomous: "Venomous"
-  of etExplosive: "Explosive"
-  of etRegenerative: "Regenerative"
-  of etShielded: "Shielded"
-
 proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
   ## Draws the visual aura around elite enemies
   ## For multi-elite enemies (wave 25+), draws layered auras with different colors

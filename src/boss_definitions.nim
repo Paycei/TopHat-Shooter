@@ -2036,53 +2036,28 @@ proc getCurrentPhase*(boss: BossDefinition, currentHpPercent: float32): BossPhas
     else:
       break
 
-proc updateBossAttackTimers*(attacks: var seq[BossAttack], dt: float32) =
-  ## Updates all attack timers for a boss
-  for attack in attacks.mitems:
-    attack.timer += dt
-
-proc canUseAttack*(attack: BossAttack): bool =
-  ## Checks if an attack is ready to be used
-  attack.timer >= attack.cooldown
-
-proc resetAttackTimer*(attack: var BossAttack) =
-  ## Resets an attack timer after use
-  attack.timer = 0.0
-
-proc getBossColorForPhase*(boss: BossDefinition, hpPercent: float32): Color =
-  ## Returns the color for the current boss phase
-  let phase = getCurrentPhase(boss, hpPercent)
-  phase.color
-
-proc getBossDescription*(bossNumber: int): string =
-  ## Returns a boss description for UI display
-  let boss = getBossDefinition(bossNumber)
-  boss.description
-
-proc getAllBossNames*(): seq[string] =
-  ## Returns all custom boss names for reference
-  result = @[]
-  for i in 1..12:
-    let boss = getBossDefinition(i)
-    result.add(boss.name)
-
 # Boss Stats Scaling
+
+proc bossTierSteps(waveNumber: int): float32 =
+  ## Boss progression in tiers (one per 5 waves past wave 5), not raw wave count.
+  max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
+
+proc endlessSteps(waveNumber: int): float32 =
+  ## Tiers past wave 60 (boss tier 11): 0 for every campaign boss, compounds in endless.
+  max(0.0'f32, bossTierSteps(waveNumber) - 11.0)
 
 proc getScaledBossHP*(baseBoss: BossDefinition, waveNumber: int): float32 =
   ## Scales boss HP by boss tier, not raw wave count, to avoid extreme midgame cliffs.
-  let bossSteps = max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
-  let waveScale = 1.0 + bossSteps * 0.20  # 20% increase per boss tier
+  let waveScale = 1.0 + bossTierSteps(waveNumber) * 0.20  # 20% increase per boss tier
   # Endless-only buff. Wave 60 is boss tier 11, so endlessSteps is exactly 0 for
   # every campaign boss (waves 5-60) -> pow(_, 0) = 1.0 leaves them untouched. Past
   # wave 60 it compounds, mirroring the player's exponential offense (shop + power-ups
   # + startWave's per-wave damage growth) so endless bosses stop getting melted.
-  let endlessSteps = max(0.0'f32, bossSteps - 11.0)
-  baseBoss.baseHP * waveScale * pow(1.08'f32, endlessSteps)
+  baseBoss.baseHP * waveScale * pow(1.08'f32, endlessSteps(waveNumber))
 
 proc getScaledBossSpeed*(baseBoss: BossDefinition, waveNumber: int): float32 =
   ## Scales boss speed more gently so later bosses stay threatening without becoming frantic.
-  let bossSteps = max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
-  let waveScale = 1.0 + bossSteps * 0.03
+  let waveScale = 1.0 + bossTierSteps(waveNumber) * 0.03
   baseBoss.baseSpeed * waveScale
 
 proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): float32 =
@@ -2090,34 +2065,4 @@ proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): float32 =
   let additionalDamage = (waveNumber - 5) div 15  # +1 damage every 15 waves
   # Endless-only buff (see getScaledBossHP): 1.0 for waves 1-60, compounds past 60
   # so endless bosses keep threatening a player stacked with defensive power-ups.
-  let bossSteps = max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
-  let endlessSteps = max(0.0'f32, bossSteps - 11.0)
-  float32(baseBoss.baseDamage + additionalDamage) * pow(1.05'f32, endlessSteps)
-
-proc getScaledAttackDamage*(baseAttack: BossAttack, waveNumber: int): float32 =
-  ## Attack damage grows by boss tier to preserve patterns without massive midgame spikes.
-  let bossSteps = max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
-  let waveScale = 1.0 + bossSteps * 0.12
-  # Endless-only buff (see getScaledBossHP): 1.0 for waves 1-60, compounds past 60.
-  let endlessSteps = max(0.0'f32, bossSteps - 11.0)
-  baseAttack.damage * waveScale * pow(1.05'f32, endlessSteps)
-
-# Boss Visual Effects
-
-proc getBossGlowIntensity*(visualEffect: string, gameTime: float32): float32 =
-  ## Returns glow intensity for boss visual effects
-  case visualEffect
-  of "glow":
-    0.5 + sin(gameTime * 3.0) * 0.3  # Pulsing glow
-  of "aura":
-    0.7 + sin(gameTime * 2.0) * 0.2  # Slow pulse
-  of "shield":
-    0.4 + sin(gameTime * 4.0) * 0.4  # Fast shield pulse
-  of "pulse":
-    abs(sin(gameTime * 2.5))  # Strong pulse effect
-  else:
-    0.5  # Default
-
-proc shouldSpawnParticles*(visualEffect: string): bool =
-  ## Determines if boss should spawn visual particles
-  visualEffect in ["glow", "aura", "pulse"]
+  float32(baseBoss.baseDamage + additionalDamage) * pow(1.05'f32, endlessSteps(waveNumber))
