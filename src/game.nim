@@ -2381,6 +2381,11 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
               enemy.attackTimers[i] = attack.cooldown
               enemy.attackWarningFired[i] = false
 
+      # Drive any in-flight spiral volley armed by bapSpiral. This emits one step
+      # per frame independent of the attack cooldown, which is what makes the
+      # bullet trail an actual spiral rather than a ring.
+      updateBossSpiralStream(game, enemy, dt)
+
     # Regular enemy shooting (config-driven system)
     if enemy.enemyType in [etCube, etHexagon, etOctagon, etPentagon, etPhantom, etDiamond, etMage]:
       let config = getEnemyConfig(enemy.enemyType)

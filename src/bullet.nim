@@ -306,6 +306,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
 
     if bullet.isBossBullet:
       if bullet.colorOverride.a > 0:
+        color = bullet.colorOverride
         glowColor = shiftColor(bullet.colorOverride, 55, 220)
         trailColor = withAlpha(shiftColor(bullet.colorOverride, 20), 235)
       else:

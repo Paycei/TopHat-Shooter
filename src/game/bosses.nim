@@ -798,11 +798,81 @@ proc spawnBossBullet(game: var Game, enemy: Enemy, attack: BossAttack,
     bulletRadius = attack.bulletRadius))
 
 proc execBossAttackSpiral(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
-  # Rotating spiral pattern
-  for i in 0..<attack.projectileCount:
-    let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32 + game.time * attack.spreadAngle.degToRad()
-    let dir = newVector2f(cos(angle), sin(angle))
-    spawnBossBullet(game, enemy, attack, phase, dir)
+  # A real spiral can't be fired in one instant from a single point - that is
+  # always a ring. Instead we arm an emitter (updated each frame in
+  # updateBossSpiralStream) that releases the volley's bullets one step at a
+  # time while the emission angle steadily rotates. Earlier bullets are already
+  # farther out at a smaller angle, so the live trail forms a spiral arm.
+  const
+    SpiralArms = 1                  # bullets per step (1 = single sweeping arm; raise for symmetric arms)
+    SpiralWindTurnsDefault = 1.5'f32 # loops the arm makes when the attack doesn't override it
+    SpiralWindowFrac = 0.6'f32      # fraction of the cooldown spent emitting (leaves a gap before the next volley)
+  # Per-attack override: a spiral can set durationOrRadius to how many turns it
+  # should wind (0 = use the default). Higher = a bigger, screen-filling coil.
+  # durationOrRadius is otherwise unused by the spiral pattern.
+  let windTurns = if attack.durationOrRadius > 0.0'f32: attack.durationOrRadius
+                  else: SpiralWindTurnsDefault
+  # The per-step angle must NOT evenly divide a full circle. With exactly
+  # 2*PI/N spacing, every loop past the first stacks its bullets onto the same N
+  # directions as the previous loop, collapsing the spiral into N straight radial
+  # spokes. Using 2*PI/(N + 0.5) guarantees a non-divisor, and the half-step makes
+  # each new loop interleave *between* the previous loop's bullets - so extra turns
+  # thicken one continuous arm instead of stacking into spokes.
+  let perTurn = max(2, attack.projectileCount).float32
+  let steps = max(3, int(round((perTurn + 0.5'f32) * windTurns)))
+  enemy.spiralEmitRemaining = steps
+  enemy.spiralEmitTotal = steps
+  enemy.spiralEmitArms = SpiralArms
+  enemy.spiralEmitInterval = (attack.cooldown * SpiralWindowFrac) / steps.float32
+  enemy.spiralEmitTimer = 0.0'f32  # fire the first step on the next stream update
+  enemy.spiralEmitAngle = arctan2(toPlayer.y, toPlayer.x)  # start the arm aimed at the player
+  enemy.spiralEmitAngleStep = (PI * 2.0) / (perTurn + 0.5'f32)  # off-ring spacing -> loops interleave, never align into spokes
+  enemy.spiralEmitSpeed = attack.projectileSpeed          # full speed: slow bullets would time out mid-screen
+  enemy.spiralEmitDamage = attack.damage * phase.damageMultiplier
+  enemy.spiralEmitRadius = attack.bulletRadius
+
+proc spiralBulletColor(progress: float32): Color =
+  ## Gradient along the spiral arm: electric cyan at the leading (outer, first
+  ## fired) end -> bright gold at the trailing (inner, last fired) end. The hue
+  ## sweep makes the arm's winding direction read at a glance, and both ends
+  ## contrast the bosses' usual pink bullets so the spiral pops off the field.
+  let t = clamp(progress, 0.0'f32, 1.0'f32)
+  proc mix(a, b: int): uint8 = uint8(a.float32 + (b - a).float32 * t)
+  Color(r: mix(90, 255), g: mix(235, 215), b: mix(255, 60), a: 255)
+
+proc updateBossSpiralStream*(game: var Game, enemy: Enemy, dt: float32) =
+  ## Per-frame driver for the bapSpiral emitter armed by execBossAttackSpiral.
+  ## Releases one spiral step (spiralEmitArms bullets) every spiralEmitInterval
+  ## seconds, advancing the emission angle each step so the trail spirals.
+  if enemy.spiralEmitRemaining <= 0: return
+  enemy.spiralEmitTimer -= dt
+  let arms = max(1, enemy.spiralEmitArms)
+  # `while` (not `if`) so a long frame can release several overdue steps and the
+  # leftover time carries into the next step, keeping the cadence even.
+  while enemy.spiralEmitTimer <= 0.0'f32 and enemy.spiralEmitRemaining > 0:
+    # Position along the arm (0 = first/outer bullet, 1 = last/inner) drives the
+    # colour gradient so the whole volley reads as one continuous winding ribbon.
+    let progress = if enemy.spiralEmitTotal > 1:
+        (enemy.spiralEmitTotal - enemy.spiralEmitRemaining).float32 / (enemy.spiralEmitTotal - 1).float32
+      else: 0.0'f32
+    let col = spiralBulletColor(progress)
+    for k in 0..<arms:
+      let angle = enemy.spiralEmitAngle + k.float32 * (PI * 2.0 / arms.float32)
+      let dir = newVector2f(cos(angle), sin(angle))
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+        speed = enemy.spiralEmitSpeed, damage = enemy.spiralEmitDamage,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = enemy.spiralEmitRadius, colorOverride = col))
+      # Colour-matched muzzle spark at the firing edge - a rotating flash that
+      # traces the emission angle and reinforces the spiral's sweep.
+      let muzzleX = enemy.pos.x + dir.x * (enemy.radius + 6.0'f32)
+      let muzzleY = enemy.pos.y + dir.y * (enemy.radius + 6.0'f32)
+      spawnExplosionPooled(game.particlePool, muzzleX, muzzleY, col, 2)
+    enemy.spiralEmitAngle += enemy.spiralEmitAngleStep
+    enemy.spiralEmitRemaining -= 1
+    enemy.spiralEmitTimer += enemy.spiralEmitInterval
 
 
 proc execBossAttackBurst(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =

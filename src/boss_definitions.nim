@@ -134,11 +134,11 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 0.75,
+              cooldown: 0.8,
               projectileSpeed: 160.0,
-              projectileCount: 9,
+              projectileCount: 10,
               spreadAngle: 45.0,
-              durationOrRadius: 0.0
+              durationOrRadius: 2.0  # spiral turns: a big screen-filling coil (the Guardian's signature)
             ),
             BossAttack(
               attackType: bapTargeted,
@@ -164,20 +164,11 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 1.0,
+              cooldown: 0.9,
               projectileSpeed: 170.0,
-              projectileCount: 10,
+              projectileCount: 12,
               spreadAngle: 30.0,
-              durationOrRadius: 0.0
-            ),
-            BossAttack(
-              attackType: bapCircle,
-              damage: 1.0,
-              cooldown: 3.0,
-              projectileSpeed: 112.5,
-              projectileCount: 10,
-              spreadAngle: 360.0,
-              durationOrRadius: 0.0
+              durationOrRadius: 2.5  # rage: an even larger, screen-filling spiral fired almost continuously
             ),
             BossAttack(
               attackType: bapTargeted,
@@ -440,7 +431,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapMeteor,
               damage: 2.0,
               cooldown: 5.0,
-              projectileSpeed: 480.0,  # ACTIVE: comet travel speed along the angled path
+              projectileSpeed: 440.0,  # ACTIVE: comet travel speed along the angled path
               projectileCount: 16,     # ACTIVE: max comet count cap (actual count fills the entry band at threadable spacing)
               spreadAngle: 0.0,
               durationOrRadius: 0.0,

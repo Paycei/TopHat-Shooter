@@ -719,6 +719,19 @@ type
     bossPhaseBreakFlashTimer*: float32  # Short visual pulse after a phase pool breaks
     attackTimers*: seq[float32]  # Individual cooldown timer for each attack in current phase
     attackWarningFired*: seq[bool]  # True once the pre-fire warning has been shown for this cycle
+    # Spiral emitter: bapSpiral drips its bullets out one step at a time over a
+    # short window (instead of one ring) so the rotating emission angle traces a
+    # real spiral arm. Active while spiralEmitRemaining > 0.
+    spiralEmitRemaining*: int      # Emission steps left in the current spiral volley
+    spiralEmitTotal*: int          # Total steps in the volley (for progress-along-arm coloring)
+    spiralEmitArms*: int           # Bullets emitted per step (symmetric arms)
+    spiralEmitTimer*: float32      # Countdown to the next emission step
+    spiralEmitInterval*: float32   # Seconds between emission steps
+    spiralEmitAngle*: float32      # Current emission angle (radians), advances each step
+    spiralEmitAngleStep*: float32  # Radians the angle advances per step (the winding)
+    spiralEmitSpeed*: float32      # Bullet speed for this volley (full speed - no early despawn)
+    spiralEmitDamage*: float32     # Phase-adjusted bullet damage for this volley
+    spiralEmitRadius*: float32     # Bullet radius override for this volley
     defenseMultiplier*: float32  # Damage reduction multiplier
     debuffResistance*: float32  # Stun/slow resistance multiplier
     isDashing*: bool  # Whether boss is currently executing a dash
