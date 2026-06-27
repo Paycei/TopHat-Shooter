@@ -117,6 +117,47 @@ proc applyShopPurchaseEffect*(game: Game, index: int, purchaseNumber: int, healH
   else:
     discard
 
+proc sandboxWaveAverageConfig*(base: SandboxConfig, wave: int): SandboxConfig =
+  ## Estimate the stat loadout a typical player would have *entering* `wave`,
+  ## starting from `base` (the wave-1 baseline stats). This recreates the two
+  ## real progression effects that compound over a run:
+  ##   1. Shop purchases — a typical player buys ~1.2 upgrades per wave, spread
+  ##      round-robin across the 6 upgrade types, using the real gain curves.
+  ##   2. The 1.012x-per-wave passive stat scaling applied in startWave.
+  ## It is an approximation (real spending varies), but every number flows through
+  ## the same formulas the live game uses, so the result is a believable build.
+  result = base
+  let w = max(1, wave)
+
+  # 1. Simulated shop purchases (~1.2 per wave since wave 1).
+  let totalPurchases = int(float32(w - 1) * 1.2'f32)
+  var bought: array[6, int]
+  for i in 0 ..< totalPurchases:
+    let slot = i mod 6
+    inc bought[slot]
+    let purchaseNumber = bought[slot]
+    case slot
+    of 0: result.damage += shopDamageGain(purchaseNumber)
+    of 1: result.fireRate = applyFireRateDiminished(result.fireRate,
+            SHOP_FIRE_RATE_GAIN, SHOP_FIRE_RATE_EXPONENT, SHOP_FIRE_RATE_CAP)
+    of 2: result.speed += SHOP_MOVE_SPEED_GAIN
+    of 3: result.maxHp += shopHealthGain(purchaseNumber).float32
+    of 4: result.bulletSpeed = addBulletSpeedDiminished(result.bulletSpeed, SHOP_BULLET_SPEED_GAIN)
+    of 5: result.walls += SHOP_WALL_GAIN
+    else: discard
+
+  # 2. Passive per-wave scaling (mirrors the loop in startWave).
+  let scaling = pow(1.012'f32, float32(w - 1))
+  result.maxHp *= scaling
+  result.damage *= scaling
+  result.speed *= scaling
+  result.bulletSpeed = multiplyBulletSpeedDiminished(result.bulletSpeed, scaling)
+  result.fireRate /= scaling   # lower = faster, so divide
+
+  # Some leftover spending money so the shop is usable on entry.
+  result.coins = base.coins + w * 5
+  result.startWave = w
+
 proc drawModernShopButton(x, y, width, height: int32, text: string,
                          cost: int, canAfford: bool, isSelected: bool,
                          time: float32, itemIndex: int = 0,

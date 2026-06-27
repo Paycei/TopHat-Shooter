@@ -1105,6 +1105,19 @@ type
     bossIntro*: BossIntroduction
     realTimeStats*: RealTimeStats
 
+  SandboxConfig* = object
+    ## Editable player-stat loadout chosen on the sandbox setup screen.
+    ## Kept separate from the live Player so presets / wave-average can be
+    ## previewed and re-rolled before being written through with applySandboxConfig.
+    maxHp*: float32
+    damage*: float32
+    fireRate*: float32     # cooldown between shots; LOWER is faster (mirrors Player.fireRate)
+    speed*: float32
+    bulletSpeed*: float32
+    walls*: int
+    coins*: int
+    startWave*: int        # wave the run begins on (also drives the wave-average preview)
+
   Game* = ref object
     state*: GameState
     mode*: GameMode
@@ -1181,6 +1194,7 @@ type
     shopSidebarScroll*: int32   # Scroll offset (px) for the in-game shop left panel
     sandboxGodMode*: bool  # Player invulnerability
     sandboxFreezeEnemies*: bool  # Freeze all enemy movement
+    sandboxConfig*: SandboxConfig  # Loadout chosen in the setup window, applied at launch
     discordClient*: DiscordClient  # Discord Rich Presence client
     rogueliteProfile*: RogueliteProfile
     rogueliteRun*: RogueliteRun

@@ -1382,6 +1382,30 @@ type
     tkSandboxEnterBoss3d = "sandbox_enter_boss_3d"
     tkSandboxTest3dArena = "sandbox_test_3d_arena"
 
+    # Sandbox setup screen
+    tkSandboxSetupTitle = "sandbox_setup_title"
+    tkSandboxSetupSubtitle = "sandbox_setup_subtitle"
+    tkSandboxStatMaxHp = "sandbox_stat_max_hp"
+    tkSandboxStatDamage = "sandbox_stat_damage"
+    tkSandboxStatFireRate = "sandbox_stat_fire_rate"
+    tkSandboxStatMoveSpeed = "sandbox_stat_move_speed"
+    tkSandboxStatBulletSpeed = "sandbox_stat_bullet_speed"
+    tkSandboxStatWalls = "sandbox_stat_walls"
+    tkSandboxStatCoins = "sandbox_stat_coins"
+    tkSandboxStatStartWave = "sandbox_stat_start_wave"
+    tkSandboxPresets = "sandbox_presets"
+    tkSandboxPresetFresh = "sandbox_preset_fresh"
+    tkSandboxPresetEarly = "sandbox_preset_early"
+    tkSandboxPresetMid = "sandbox_preset_mid"
+    tkSandboxPresetLate = "sandbox_preset_late"
+    tkSandboxPresetEnd = "sandbox_preset_end"
+    tkSandboxPresetGlass = "sandbox_preset_glass"
+    tkSandboxPresetTank = "sandbox_preset_tank"
+    tkSandboxApplyWaveAvg = "sandbox_apply_wave_avg"
+    tkSandboxStartRun = "sandbox_start_run"
+    tkSandboxBack = "sandbox_back"
+    tkSandboxCustomLoadout = "sandbox_custom_loadout"
+
     # Advancements window
     tkAdvControlTitle = "adv_control_title"
     tkAdvSyncDesc = "adv_sync_desc"
@@ -2728,6 +2752,28 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "sandbox_diff_plus": "Diff +",
     "sandbox_toggle": ">>",
     "sandbox_close": "X",
+    "sandbox_setup_title": "SANDBOX SETUP",
+    "sandbox_setup_subtitle": "Configure your loadout, pick a preset, or pull the average build for any wave.",
+    "sandbox_stat_max_hp": "Max HP",
+    "sandbox_stat_damage": "Damage",
+    "sandbox_stat_fire_rate": "Fire Rate",
+    "sandbox_stat_move_speed": "Move Speed",
+    "sandbox_stat_bullet_speed": "Bullet Speed",
+    "sandbox_stat_walls": "Walls",
+    "sandbox_stat_coins": "Coins",
+    "sandbox_stat_start_wave": "Start Wave",
+    "sandbox_presets": "PRESETS",
+    "sandbox_preset_fresh": "Fresh Start",
+    "sandbox_preset_early": "Early Game (W5)",
+    "sandbox_preset_mid": "Mid Game (W15)",
+    "sandbox_preset_late": "Late Game (W30)",
+    "sandbox_preset_end": "End Game (W60)",
+    "sandbox_preset_glass": "Glass Cannon",
+    "sandbox_preset_tank": "Juggernaut",
+    "sandbox_apply_wave_avg": "Use Wave Average",
+    "sandbox_start_run": "Start Sandbox",
+    "sandbox_back": "Back",
+    "sandbox_custom_loadout": "Custom loadout",
 
     # Cheat Menu
     "cheat_menu_title": "CHEAT MENU (TESTER BUILD)",
@@ -4348,6 +4394,28 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "sandbox_diff_plus": "Dif +",
     "sandbox_toggle": ">>",
     "sandbox_close": "X",
+    "sandbox_setup_title": "CONFIGURAR SANDBOX",
+    "sandbox_setup_subtitle": "Ajusta tu equipamiento, elige un preajuste o usa el promedio de cualquier oleada.",
+    "sandbox_stat_max_hp": "Vida Máx.",
+    "sandbox_stat_damage": "Daño",
+    "sandbox_stat_fire_rate": "Cadencia",
+    "sandbox_stat_move_speed": "Velocidad",
+    "sandbox_stat_bullet_speed": "Vel. Proyectil",
+    "sandbox_stat_walls": "Muros",
+    "sandbox_stat_coins": "Monedas",
+    "sandbox_stat_start_wave": "Oleada Inicial",
+    "sandbox_presets": "PREAJUSTES",
+    "sandbox_preset_fresh": "Inicio Nuevo",
+    "sandbox_preset_early": "Inicio (O5)",
+    "sandbox_preset_mid": "Medio (O15)",
+    "sandbox_preset_late": "Avanzado (O30)",
+    "sandbox_preset_end": "Final (O60)",
+    "sandbox_preset_glass": "Cañón de Cristal",
+    "sandbox_preset_tank": "Coloso",
+    "sandbox_apply_wave_avg": "Usar Promedio",
+    "sandbox_start_run": "Iniciar Sandbox",
+    "sandbox_back": "Volver",
+    "sandbox_custom_loadout": "Equipamiento personalizado",
 
     # Cheat Menu
     "cheat_menu_title": "MENÚ DE TRUCOS (COMPILACIÓN DE PRUEBA)",

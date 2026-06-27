@@ -2,7 +2,7 @@
 ## Centralized window handling with state management
 
 import raylib, algorithm, sequtils
-import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, advancements_window, roguelite_window, changelog_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
+import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
 
 type
   WindowID* = enum
@@ -11,6 +11,7 @@ type
     widStats
     widShop
     widPvP
+    widSandbox
     widAdvancements
     widRoguelite
     widChangelog
@@ -21,6 +22,7 @@ type
     stats*: StatsWindow
     shop*: ShopWindow
     pvp*: PvPWindow
+    sandbox*: SandboxWindow
     advancements*: AdvancementsWindow
     roguelite*: RogueliteWindow
     changelog*: ChangelogWindow
@@ -45,6 +47,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
                        BulletShapeType(gameSettings.bulletShape),
                        rogueliteProfile),
     pvp: newPvPWindow(screenWidth, screenHeight),
+    sandbox: newSandboxWindow(screenWidth, screenHeight),
     advancements: newAdvancementsWindow(screenWidth, screenHeight, advancementProfile,
                                         rogueliteProfile),
     roguelite: newRogueliteWindow(screenWidth, screenHeight, rogueliteProfile),
@@ -58,6 +61,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.stats.window.visible = false
   result.shop.window.visible = false
   result.pvp.window.visible = false
+  result.sandbox.window.visible = false
   result.advancements.window.visible = false
   result.roguelite.window.visible = false
   result.changelog.window.visible = false
@@ -70,6 +74,7 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
     wm.stats.window,
     wm.shop.window,
     wm.pvp.window,
+    wm.sandbox.window,
     wm.advancements.window,
     wm.roguelite.window,
     wm.changelog.window
@@ -95,6 +100,7 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widStats: window = wm.stats.window
   of widShop: window = wm.shop.window
   of widPvP: window = wm.pvp.window
+  of widSandbox: window = wm.sandbox.window
   of widAdvancements: window = wm.advancements.window
   of widRoguelite:
     window = wm.roguelite.window
@@ -122,6 +128,7 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widStats: wm.stats.window.visible = false
   of widShop: wm.shop.window.visible = false
   of widPvP: wm.pvp.window.visible = false
+  of widSandbox: wm.sandbox.window.visible = false
   of widAdvancements: wm.advancements.window.visible = false
   of widRoguelite: wm.roguelite.window.visible = false
   of widChangelog: wm.changelog.window.visible = false
@@ -133,6 +140,7 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.stats.window.visible = false
   wm.shop.window.visible = false
   wm.pvp.window.visible = false
+  wm.sandbox.window.visible = false
   wm.advancements.window.visible = false
   wm.roguelite.window.visible = false
   wm.changelog.window.visible = false
@@ -204,6 +212,7 @@ type
     rogueliteLaunchGame*: bool  ## True when user pressed Start in the roguelite window
     iconToExecute*: int
     pvpGameReady*: bool  # True when PvP connection is established
+    sandboxLaunchGame*: bool  # True when user pressed Start in the sandbox setup window
     replayIntro*: bool  # True when user clicked "Replay Intro" in settings
     replayEnding*: bool  # True when user clicked "Replay Ending" in settings
 
@@ -216,6 +225,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
   result.rogueliteLaunchGame = false
   result.iconToExecute = -1
   result.pvpGameReady = false
+  result.sandboxLaunchGame = false
   result.replayIntro = false
   result.replayEnding = false
 
@@ -273,6 +283,14 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       if wm.pvp.readyToStart:
         result.pvpGameReady = true
 
+    elif window == wm.sandbox.window:
+      let sandboxResult = updateSandboxWindow(wm.sandbox, dt, visibleWindows,
+                                              screenWidth, screenHeight)
+      if sandboxResult.shouldClose:
+        wm.sandbox.window.visible = false
+      if sandboxResult.launchGame:
+        result.sandboxLaunchGame = true
+
     elif window == wm.roguelite.window:
       let rogueliteResult = updateRogueliteWindow(wm.roguelite, dt, visibleWindows, screenWidth, screenHeight, currentGame)
       result.rogueliteClosed = rogueliteResult.shouldClose
@@ -313,6 +331,8 @@ proc drawAllWindows*(wm: WindowManager, game: Game) =
         let contentWidth = window.width - WINDOW_BORDER * 2
         let contentHeight = window.height - TITLE_BAR_HEIGHT - WINDOW_BORDER * 2
         drawPvPWindowContent(wm.pvp, contentX, contentY, contentWidth, contentHeight)
+    elif window == wm.sandbox.window:
+      drawSandboxWindow(wm.sandbox)
     elif window == wm.advancements.window:
       drawAdvancementsWindow(wm.advancements)
     elif window == wm.roguelite.window:

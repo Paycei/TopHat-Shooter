@@ -1,7 +1,7 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import particle_types
 import game/combat, game/death
-import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/language_select, ui/pvp_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/language_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
 
 # Global quit-confirmation dialog
 
@@ -808,6 +808,9 @@ proc main() =
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmSandbox)
           initializeRunTracking(currentGame)
+          # Apply the loadout configured in the sandbox setup window.
+          currentGame.sandboxConfig = globalWindowManager.sandbox.config
+          applySandboxConfig(currentGame)
           currentGame.state = gsPlaying
           statsSavedThisGame = false
         of 9:  # Roguelite Mode, launched via the roguelite window Start button
@@ -908,6 +911,14 @@ proc main() =
         else:
           startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
           pendingGameMode = 9
+
+      # Handle sandbox setup window Start button: show loading screen, then launch.
+      # The chosen loadout lives in globalWindowManager.sandbox.config and is read
+      # back in the pendingGameMode == 6 branch above.
+      if updateResult.sandboxLaunchGame and not globalConfirmActive:
+        globalWindowManager.closeWindow(widSandbox)
+        startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
+        pendingGameMode = 6
 
       # Handle PvP game ready
       if updateResult.pvpGameReady and not globalConfirmActive:
@@ -1092,17 +1103,17 @@ proc main() =
             showGlobalConfirm(cdcQuitToDesktop, cooldown = 0.0'f32)  # menu: no run to protect, confirm immediately
           else:
             windowCloseRequested = true
-        of 7:  # Sandbox.exe - Sandbox Mode
+        of 7:  # Sandbox.exe - Open Sandbox Setup Window
           if not settings.hasSeenSandboxIntro:
             settings.hasSeenSandboxIntro = true
             discard saveSettings(settings)
             activeCutscene = newSandboxIntroCutscene()
-            cutsceneContinuation = cscLaunchGame
-            pendingModeAfterCutscene = 6
+            cutsceneContinuation = cscMenu  # returns to desktop; user clicks Sandbox again
             currentGame.state = gsCutscene
           else:
-            startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
-            pendingGameMode = 6
+            openWindow(globalWindowManager, widSandbox)
+            resetSandboxWindow(globalWindowManager.sandbox)
+            playSound(stMenuSelect)
         of 8:  # PvP.exe - Open PvP Window
           if not settings.hasSeenPvPIntro:
             settings.hasSeenPvPIntro = true
@@ -1177,17 +1188,17 @@ proc main() =
               showGlobalConfirm(cdcQuitToDesktop, cooldown = 0.0'f32)  # menu: no run to protect, confirm immediately
             else:
               windowCloseRequested = true
-          of 7:  # Sandbox.exe
+          of 7:  # Sandbox.exe - Open Sandbox Setup Window
             if not settings.hasSeenSandboxIntro:
               settings.hasSeenSandboxIntro = true
               discard saveSettings(settings)
               activeCutscene = newSandboxIntroCutscene()
-              cutsceneContinuation = cscLaunchGame
-              pendingModeAfterCutscene = 6
+              cutsceneContinuation = cscMenu  # returns to desktop; user clicks Sandbox again
               currentGame.state = gsCutscene
             else:
-              startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
-              pendingGameMode = 6
+              openWindow(globalWindowManager, widSandbox)
+              resetSandboxWindow(globalWindowManager.sandbox)
+              playSound(stMenuSelect)
           of 8:  # PvP.exe - Open PvP Window
             if not settings.hasSeenPvPIntro:
               settings.hasSeenPvPIntro = true
