@@ -487,6 +487,10 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
   game.waveEnemiesRemaining = 0
   game.player.coins = 0
 
+  # Run-scoped class emblem worn over the body (0 = none). Distinct from the
+  # head-worn secret hats and orbital cube, so it stacks without overlapping.
+  game.player.rogueliteCosmetic = ord(starterKit) + 1
+
   case starterKit
   of rskOperator:
     game.player.coins = 15

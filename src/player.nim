@@ -591,6 +591,13 @@ proc drawPlayer*(player: Player) =
     drawMiniCube(cubeCenter, 8.0'f32, time, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
                 isD20 = cubeSkin == cskD20, skin = cubeSkin, secretStyle = true)
 
+  # Roguelite class emblem: a run-scoped cosmetic marking the chosen starter
+  # kit. Body/side-mounted (and an inner orbit for the Arcanist), so it never
+  # collides with the head-worn secret hats or the wider orbital-cube secret.
+  if player.rogueliteCosmetic > 0:
+    drawRogueliteClassCosmetic(player.pos, player.radius, time,
+                               player.rogueliteCosmetic, baseColor)
+
   # 6. DATA PARTICLES (orbiting effect)
   if player.vel.length() > 10 or pulse > 0.7:
     let numParticles = 8

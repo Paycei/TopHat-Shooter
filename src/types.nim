@@ -524,6 +524,7 @@ type
     wearsTophat*: bool  # Secret kernel tophat cosmetic (unlocked by beating the wave-60 boss)
     wearsCheaterHat*: bool  # Secret cheater hat cosmetic (unlocked by opening the cd+ cheat menu)
     hasOrbitalCube*: bool  # Secret orbital-cube cosmetic (Escape Velocity advancement reward)
+    rogueliteCosmetic*: int  # Run-scoped class emblem: 0 = none, else ord(RogueliteStarterKit)+1
     cubeSkinType*: int  # Equipped desktop-cube skin (colors the orbital cube companion)
     celestialVeilActive*: bool  # True if Celestial Veil can still absorb a hit this wave
     # Volatile (Legendary passive)

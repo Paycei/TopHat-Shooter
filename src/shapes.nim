@@ -124,6 +124,58 @@ proc drawTriangleBothWindings(a, b, c: Vector2, color: Color) =
   drawTriangle(a, b, c, color)
   drawTriangle(a, c, b, color)
 
+proc drawRogueliteClassCosmetic*(pos: Vector2f, radius: float32, time: float32,
+                                 kit: int, bodyColor: Color) =
+  ## Small, secondary class tell for the chosen roguelite starter kit
+  ## (1 = Operator, 2 = Bulwark, 3 = Arcanist): a compact ~0.4r emblem worn on
+  ## the lower-right "shoulder", just off the body rim. Deliberately understated
+  ## so it never competes with the player or overlaps the head-worn secret hats
+  ## (~pos.y - radius) or the wide orbital cube (2.5r).
+  let bob = sin(time * 2.0'f32) * radius * 0.04'f32
+  let ex  = pos.x + radius * 0.64'f32
+  let ey  = pos.y + radius * 0.64'f32 + bob
+  let es  = radius * 0.42'f32                                   # emblem half-extent
+  case kit
+  of 1:
+    # OPERATOR — a tiny recon reticle: a small ring, a center dot, and four ticks.
+    let green = Color(r: 90, g: 235, b: 170, a: 205)
+    drawCircle(Vector2(x: ex, y: ey), es * 0.78'f32, Color(r: 90, g: 235, b: 170, a: 45))
+    drawCircleLines(ex.int32, ey.int32, es * 0.55'f32, green)
+    drawCircle(Vector2(x: ex, y: ey), max(1.0'f32, radius * 0.07'f32), green)
+    for i in 0 ..< 4:
+      let a = i.float32 * (PI * 0.5'f32)
+      drawLine(Vector2(x: ex + cos(a) * es * 0.6'f32, y: ey + sin(a) * es * 0.6'f32),
+               Vector2(x: ex + cos(a) * es * 0.92'f32, y: ey + sin(a) * es * 0.92'f32),
+               max(1.0'f32, radius * 0.05'f32), green)
+  of 2:
+    # BULWARK — a tiny steel shield crest with a center seam and a stud.
+    let steel  = Color(r: 168, g: 184, b: 208, a: 215)
+    let steelHi = Color(r: 214, g: 226, b: 244, a: 230)
+    let topL = Vector2(x: ex - es * 0.55'f32, y: ey - es * 0.55'f32)
+    let topR = Vector2(x: ex + es * 0.55'f32, y: ey - es * 0.55'f32)
+    let tip  = Vector2(x: ex, y: ey + es * 0.7'f32)
+    drawTriangleBothWindings(topL, topR, tip, steel)
+    drawLine(topL, topR, max(1.0'f32, radius * 0.06'f32), steelHi)
+    drawLine(Vector2(x: ex, y: ey - es * 0.5'f32), tip,
+             max(1.0'f32, radius * 0.05'f32), steelHi)
+    drawCircle(Vector2(x: ex, y: ey - es * 0.18'f32), max(1.0'f32, radius * 0.06'f32),
+               Color(r: 248, g: 200, b: 110, a: 230))
+  of 3:
+    # ARCANIST — a tiny arcane rune: a diamond outline with a soft glow and core.
+    let line = Color(r: 210, g: 160, b: 255, a: 210)
+    drawCircle(Vector2(x: ex, y: ey), es * 0.7'f32, Color(r: 190, g: 120, b: 255, a: 45))
+    let up = Vector2(x: ex, y: ey - es * 0.7'f32)
+    let rt = Vector2(x: ex + es * 0.55'f32, y: ey)
+    let dn = Vector2(x: ex, y: ey + es * 0.7'f32)
+    let lf = Vector2(x: ex - es * 0.55'f32, y: ey)
+    let w  = max(1.0'f32, radius * 0.05'f32)
+    drawLine(up, rt, w, line); drawLine(rt, dn, w, line)
+    drawLine(dn, lf, w, line); drawLine(lf, up, w, line)
+    drawCircle(Vector2(x: ex, y: ey), max(1.0'f32, radius * 0.08'f32),
+               Color(r: 245, g: 225, b: 255, a: 235))
+  else:
+    discard
+
 proc drawMiniCube*(center: Vector2, size: float32, time: float32,
                    edgeColor, glowColor: Color,
                    heartColor: Color = Color(r: 0, g: 0, b: 0, a: 0),
