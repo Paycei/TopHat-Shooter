@@ -660,6 +660,8 @@ type
     # Game Notifications and UI
     tkGameWaveAnnouncementMain = "game_wave_announcement_main"
     tkGameInstructionsWall = "game_instructions_wall"
+    tkGameWallPlace = "game_wall_place"
+    tkGameWallPlaceRemaining = "game_wall_place_remaining"
     tkGameGetReady = "game_get_ready"
     tkGameBossWavePrefix = "game_boss_wave_prefix"
     tkGameIncoming = "game_incoming"
@@ -1367,6 +1369,9 @@ type
     tkBossThreatPhaseName = "boss_threat_phase_name"
     tkBossThreatBreached = "boss_threat_breached"
     tkBossThreatLocked = "boss_threat_locked"
+    tkBossPhaseFirewall = "boss_phase_firewall"
+    tkEnemySealedClearAdds = "enemy_sealed_clear_adds"
+    tkEnemyOverloadHoldFire = "enemy_overload_hold_fire"
 
     # Sandbox power-up visuals tab
     tkSandboxPowerupVisuals = "sandbox_powerup_visuals"
@@ -2673,6 +2678,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Game Notifications and UI
     "game_wave_announcement_main": "*** WAVE ***",
     "game_instructions_wall": "E: Wall | ESC: Pause",
+    "game_wall_place": "[Release E] Place Wall",
+    "game_wall_place_remaining": "remaining",
     "game_get_ready": "GET READY!",
     "game_boss_wave_prefix": "BOSS WAVE ",
     "game_incoming": "INCOMING",
@@ -3110,6 +3117,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_threat_phase_name": "Phase",
     "boss_threat_breached": "BREACHED",
     "boss_threat_locked": "LOCKED",
+    "boss_phase_firewall": "PHASE FIREWALL",
+    "enemy_sealed_clear_adds": "SEALED - CLEAR ADDS",
+    "enemy_overload_hold_fire": "OVERLOAD - HOLD FIRE",
 
     # Sandbox power-up visuals tab
     "sandbox_powerup_visuals": "Power-Up Visuals",
@@ -4288,6 +4298,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Game Notifications and UI
     "game_wave_announcement_main": "*** OLEADA ***",
     "game_instructions_wall": "E: Muro | ESC: Pausa",
+    "game_wall_place": "[Soltar E] Colocar Muro",
+    "game_wall_place_remaining": "restantes",
     "game_get_ready": "¡PREPÁRATE!",
     "game_boss_wave_prefix": "OLEADA DE JEFE ",
     "game_incoming": "PRÓXIMAMENTE",
@@ -4855,6 +4867,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_threat_phase_name": "Fase",
     "boss_threat_breached": "SUPERADA",
     "boss_threat_locked": "BLOQUEADA",
+    "boss_phase_firewall": "FIREWALL DE FASE",
+    "enemy_sealed_clear_adds": "SELLADO - ELIMINA REFUERZOS",
+    "enemy_overload_hold_fire": "SOBRECARGA - ALTO EL FUEGO",
 
     # Sandbox power-up visuals tab
     "sandbox_powerup_visuals": "Visuales de Mejoras",

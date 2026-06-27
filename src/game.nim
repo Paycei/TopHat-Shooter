@@ -4112,7 +4112,7 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10): int32 =
 
   if enemy.invulnerabilityTimer > 0:
     let shieldPct = clamp(enemy.invulnerabilityTimer / BOSS_PHASE_INVULNERABILITY_DURATION, 0.0'f32, 1.0'f32)
-    let shieldText = "PHASE FIREWALL " & formatFloat(enemy.invulnerabilityTimer, ffDecimal, 1) & "s"
+    let shieldText = t(tkBossPhaseFirewall) & " " & formatFloat(enemy.invulnerabilityTimer, ffDecimal, 1) & "s"
     let shieldW = measureText(shieldText, 10) + 16
     let shieldX = panelX + panelW div 2 - shieldW div 2
     let shieldY = panelY + panelH - 15
@@ -4335,7 +4335,7 @@ proc drawGame*(game: Game) =
         drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sr + 5.0,
                         Color(r: 255, g: 140, b: 20, a: uint8(sa.int div 2)))
         if globalSettings == nil or globalSettings.showHints:
-          let gt = "SEALED - CLEAR ADDS"
+          let gt = t(tkEnemySealedClearAdds)
           drawText(gt, enemy.pos.x.int32 - measureText(gt, 10) div 2,
                    (enemy.pos.y - enemy.radius - 26.0).int32, 10,
                    Color(r: 255, g: 200, b: 90, a: 235))
@@ -4355,7 +4355,7 @@ proc drawGame*(game: Game) =
         drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), shRad,
                    Color(r: 90, g: 200, b: 255, a: uint8(sha.int div 8)))
         if globalSettings == nil or globalSettings.showHints:
-          let st = "OVERLOAD - HOLD FIRE"
+          let st = t(tkEnemyOverloadHoldFire)
           drawText(st, enemy.pos.x.int32 - measureText(st, 10) div 2,
                    (enemy.pos.y - enemy.radius - 26.0).int32, 10,
                    Color(r: 150, g: 220, b: 255, a: 235))
@@ -4865,7 +4865,7 @@ proc drawGame*(game: Game) =
         drawLine(c4, c1, 2.0'f32, ghostEdge)
 
       # Status text at bottom
-      let hintText = "[Release E] Place Wall  (" & $game.player.walls & " remaining)"
+      let hintText = t(tkGameWallPlace) & "  (" & $game.player.walls & " " & t(tkGameWallPlaceRemaining) & ")"
       let hintW = measureText(hintText, 16)
       drawText(hintText, game.screenWidth div 2 - hintW div 2,
                game.screenHeight - 25, 16, Color(r: 180, g: 230, b: 180, a: 255))
