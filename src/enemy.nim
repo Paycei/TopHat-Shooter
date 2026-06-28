@@ -3658,6 +3658,37 @@ proc drawAttackWarning*(warning: AttackWarning) =
       drawCircleLines(muzzle.x.int32, muzzle.y.int32, 22.0 - progress * 12.0 + pulse * 4.0,
                       Color(r: 220'u8, g: 250'u8, b: 255'u8, a: a2))
 
+  of awtVoidRift:
+    # The Void Dancer's dimensional tear. The kill-zone ring is purple; an inner
+    # ring collapses INWARD toward the core as detonation nears (an implosion
+    # telegraph), with jagged void cracks radiating from a dark core. NOTE: the
+    # lethal eruption itself is the radial void bullets + implosion particles
+    # spawned in game.nim's warning loop (both ungated by showHints), so the kill
+    # moment stays visible even with hints off - this branch is only the dodge cue.
+    let cx = warning.pos.x; let cy = warning.pos.y
+    let r  = warning.bulletRadius
+    let progress = warningProgress(warning)  # 0 -> 1 toward collapse
+    if warning.lifetime <= VoidRiftActive:
+      drawCircle(Vector2(x: cx, y: cy), r, Color(r: 150'u8, g: 40'u8, b: 220'u8, a: 150'u8))
+      drawCircleLines(cx.int32, cy.int32, r, Color(r: 235'u8, g: 200'u8, b: 255'u8, a: 255'u8))
+      drawCircleLines(cx.int32, cy.int32, r * 0.5, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 220'u8))
+    else:
+      let a2 = rampAlpha(warning, 55.0, 175.0)
+      drawCircleLines(cx.int32, cy.int32, r,
+                     Color(r: 170'u8, g: 60'u8, b: 230'u8, a: a2))
+      let collapseR = r * (1.0 - progress * 0.7)
+      drawCircleLines(cx.int32, cy.int32, collapseR,
+                     Color(r: 220'u8, g: 150'u8, b: 255'u8, a: a2))
+      let rot = getTime() * 1.5
+      for k in 0..<6:
+        let ang = rot + k.float32 * PI / 3.0
+        let inner = newVector2f(cx + cos(ang) * collapseR * 0.4, cy + sin(ang) * collapseR * 0.4)
+        let outer = newVector2f(cx + cos(ang + 0.25) * r, cy + sin(ang + 0.25) * r)
+        drawLine(Vector2(x: inner.x, y: inner.y), Vector2(x: outer.x, y: outer.y),
+                 1.5, Color(r: 200'u8, g: 120'u8, b: 255'u8, a: a2))
+      drawCircle(Vector2(x: cx, y: cy), 5.0 + (1.0 - progress) * 4.0,
+                 Color(r: 30'u8, g: 0'u8, b: 50'u8, a: a2))
+
   of awtNone:
     # Unassigned/placeholder warning: nothing to telegraph. No `else` branch on
     # purpose - the case is exhaustive so adding a new AttackWarningType forces a

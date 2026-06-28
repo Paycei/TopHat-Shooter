@@ -38,6 +38,55 @@ proc spawnThunderstrikeInto*(warnings: var seq[AttackWarning], particlePool: Par
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 255, g: 255, b: 150, a: 255), 16)
 
+proc spawnVoidRiftsInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
+                         player: Player, screenWidth, screenHeight: int32,
+                         enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  ## The Void Dancer's signature: tear N rifts in space. Each rift is telegraphed
+  ## (a cracking purple tear + expanding danger ring) for the full wind-up, then
+  ## collapses into a lethal zone that spits a slow radial spray of void bullets.
+  ## Escalates by variant: void_rift -> void_rift_storm -> void_collapse. Mirrors
+  ## the thunderstrike path (deferred strike resolved in game.nim's warning loop).
+  let riftCount = case attack.specialData
+    of "void_rift_storm": 3
+    of "void_collapse":   3 + rand(1)   # 3-4 converging tears
+    else:                 2             # "void_rift"
+  let radius = if attack.durationOrRadius > 0: attack.durationOrRadius else: 90.0'f32
+  let burst  = max(1, attack.projectileCount)
+  let dmg    = attack.damage * phase.damageMultiplier
+  let total  = VoidRiftTelegraph + VoidRiftActive
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+
+  # First rift tears open where the player is drifting toward; the rest scatter,
+  # spaced so they can't all collapse onto the same spot.
+  var predicted = player.pos + player.vel * (VoidRiftTelegraph * 0.35'f32)
+  predicted.x = clamp(predicted.x, radius, w - radius)
+  predicted.y = clamp(predicted.y, radius, h - radius)
+
+  var positions = @[predicted]
+  let minDist = radius + player.radius + 70.0'f32
+  for k in 1 ..< riftCount:
+    var p = predicted
+    var tries = 0
+    while tries < 12:
+      p = newVector2f(radius + rand(w - radius * 2.0),
+                      radius + rand(h - radius * 2.0))
+      inc tries
+      if distance(p, player.pos) >= minDist: break
+    positions.add(p)
+
+  for p in positions:
+    var warn = newAttackWarning(p.x, p.y, awtVoidRift, total, enemy.id)
+    warn.targetPos = p
+    warn.bulletRadius = radius
+    warn.bulletDamage = dmg
+    warn.bulletCount = burst   # radial void bullets released when the rift collapses
+    warn.bulletSpeed = if attack.projectileSpeed > 0: attack.projectileSpeed else: 150.0'f32
+    warnings.add(warn)
+
+  spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 150, g: 40, b: 220, a: 255), 16)
+
 proc spawnArcLatticeInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                           screenWidth, screenHeight: int32,
                           enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =

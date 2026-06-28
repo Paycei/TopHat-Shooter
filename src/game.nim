@@ -848,6 +848,48 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                           isCritical = false, damageType = dtLightning)
           w.lasersCreated = true
 
+    # VOID RIFT (Void Dancer): telegraph expires -> the dimensional tear collapses,
+    # dealing zone damage at the rift and releasing a slow radial spray of void
+    # bullets. Mirrors the tesla strike: a one-shot eruption (bulletsCreated gate)
+    # plus a one-shot zone hit (lasersCreated gate). The bullets + implosion
+    # particles are the ungated lethal visual, so the collapse reads even with
+    # hints off.
+    if game.attackWarnings[i].attackType == awtVoidRift:
+      let w = game.attackWarnings[i]
+      if w.lifetime <= VoidRiftActive:
+        if not w.bulletsCreated:
+          var bossShape = 0
+          for be in game.enemies:
+            if be.id == w.sourceEnemyId:
+              bossShape = bossBulletShapeFor(be.bossDefinitionID)
+              break
+          let burst = max(1, w.bulletCount)
+          for b in 0..<burst:
+            let ang = b.float32 * (PI * 2.0) / burst.float32
+            game.bullets.add(newBullet(
+              x = w.targetPos.x, y = w.targetPos.y,
+              direction = newVector2f(cos(ang), sin(ang)),
+              speed = w.bulletSpeed,
+              damage = w.bulletDamage,
+              fromPlayer = false, isBossBullet = true,
+              sourceEnemyId = w.sourceEnemyId,
+              bossBulletShape = bossShape,
+              colorOverride = Color(r: 150, g: 40, b: 220, a: 255)
+            ))
+          spawnExplosionPooled(game.particlePool, w.targetPos.x, w.targetPos.y,
+                               Color(r: 160, g: 50, b: 230, a: 255), 26)
+          addShake(game.dopamine.screenShake, siMedium)
+          w.bulletsCreated = true
+        if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
+           distance(game.player.pos, w.targetPos) <= w.bulletRadius + game.player.radius:
+          if takeDamage(game.player, w.bulletDamage):
+            beginPlayerDeathSequence(game, dcHazard)
+          trackDamageAvoided(game)
+          trackPlayerDamage(game, w.bulletDamage, etCircle)
+          game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
+                          isCritical = false, damageType = dtArcane)
+          w.lasersCreated = true
+
     # RICOCHET LASER (boss 4 final phase): telegraph expires -> the beam-front
     # races along the bounce route (RicochetLaserSweep). The swept-so-far portion
     # is lethal; the player can only be struck ONCE (lasersCreated gate), so being

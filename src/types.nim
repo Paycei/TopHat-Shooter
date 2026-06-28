@@ -20,6 +20,8 @@ const
   TeslaStrikeActive*    = 0.18'f32  # how long the strike zone stays lethal
   ArcBeamTelegraph*     = 1.05'f32  # dodge window before a lightning wall fires
   ArcBeamActive*        = 0.30'f32  # how long the wall stays lethal
+  VoidRiftTelegraph*    = 1.75'f32   # dodge window before a Void Dancer rift collapses
+  VoidRiftActive*       = 0.25'f32  # how long the collapsing rift zone stays lethal
 
 # Timing for The Laser Architect's (boss 4) ricochet beam. The path is traced
 # once when the warning spawns, telegraphed for the full wind-up, then the whole
@@ -394,6 +396,7 @@ type
     awtTeslaStrike      # Chain Reactor ground strike (TeslaStrike timing)
     awtArcBeam          # Chain Reactor lightning wall (ArcBeam timing)
     awtRicochetLaser    # Laser Architect bouncing beam (RicochetLaser timing)
+    awtVoidRift         # Void Dancer collapsing dimensional tear (VoidRift timing)
 
   AttackWarning* = ref object
     pos*: Vector2f

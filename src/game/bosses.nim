@@ -780,6 +780,9 @@ proc spawnArcLattice*(game: var Game, enemy: Enemy, attack: BossAttack, phase: B
 proc spawnRicochetLaser*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
   warnings.spawnRicochetLaserInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
+proc spawnVoidRifts*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  warnings.spawnVoidRiftsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
+
 proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) =
   warnings.addBossAttackWarningInto(game.attackWarnings, game.player, enemy, attack)
 
@@ -2460,6 +2463,9 @@ proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, 
     return
   of "ricochet_laser":
     spawnRicochetLaser(game, enemy, attack, phase)
+    return
+  of "void_rift", "void_rift_storm", "void_collapse":
+    spawnVoidRifts(game, enemy, attack, phase)
     return
   else: discard
 

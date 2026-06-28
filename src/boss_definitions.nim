@@ -134,9 +134,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 0.8,
+              cooldown: 1.0,            # was 0.8 -> 1.0: a touch more breathing room between coils
               projectileSpeed: 160.0,
-              projectileCount: 10,
+              projectileCount: 7,       # was 10: thinner arm; ~15 bullets/volley instead of 21
               spreadAngle: 45.0,
               durationOrRadius: 2.0  # spiral turns: a big screen-filling coil (the Guardian's signature)
             ),
@@ -164,9 +164,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSpiral,
               damage: 1.0,
-              cooldown: 0.9,
+              cooldown: 1.1,            # was 0.9 -> 1.1: rage stays relentless but no longer wall-to-wall
               projectileSpeed: 170.0,
-              projectileCount: 12,
+              projectileCount: 9,       # was 12: ~21 bullets/volley instead of 31
               spreadAngle: 30.0,
               durationOrRadius: 2.5  # rage: an even larger, screen-filling spiral fired almost continuously
             ),
@@ -698,22 +698,34 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               durationOrRadius: 200.0,
               specialData: "afterimage_burst"
             ),
+            # Void Rift: signature themed attack - tears 2 collapsing rifts that
+            # erupt into zone damage + a radial void spray. Leads alongside teleport.
+            BossAttack(
+              attackType: bapMeteor,  # nominal; routed by specialData before attackType dispatch
+              damage: 6.0,
+              cooldown: 4.0,
+              projectileSpeed: 150.0,
+              projectileCount: 8,  # radial void bullets per rift
+              spreadAngle: 0.0,
+              durationOrRadius: 90.0,  # rift zone radius
+              specialData: "void_rift"
+            ),
             BossAttack(
               attackType: bapBurst,
-              damage: 6.0,  # NERFED from 2.0
-              cooldown: 2.5,  # NERFED from 2.0
-              projectileSpeed: 180.0,  # NERFED from 200.0
-              projectileCount: 5,  # NERFED from 7
-              spreadAngle: 35.0,  # NERFED from 40.0
+              damage: 6.0,
+              cooldown: 6.0,  # demoted to occasional filler (was 2.5)
+              projectileSpeed: 180.0,
+              projectileCount: 5,
+              spreadAngle: 35.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 6.0,  # NERFED from 2.0
-              cooldown: 2.8,  # NERFED from 2.3
-              projectileSpeed: 220.0,  # NERFED from 240.0
+              damage: 6.0,
+              cooldown: 6.5,  # demoted to occasional filler (was 2.8)
+              projectileSpeed: 220.0,
               projectileCount: 3,
-              spreadAngle: 10.0,  # NERFED from 12.0
+              spreadAngle: 10.0,
               durationOrRadius: 0.0
             )
           ]
@@ -738,30 +750,41 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               durationOrRadius: 250.0,
               specialData: "triple_clone"
             ),
+            # Void Rift Storm: 3 rifts with denser bursts - the Shadow Realm escalation.
+            BossAttack(
+              attackType: bapMeteor,  # nominal; routed by specialData
+              damage: 9.0,
+              cooldown: 4.0,
+              projectileSpeed: 150.0,
+              projectileCount: 10,
+              spreadAngle: 0.0,
+              durationOrRadius: 95.0,
+              specialData: "void_rift_storm"
+            ),
             BossAttack(
               attackType: bapWave,
-              damage: 6.0,  # NERFED from 2.0
-              cooldown: 2.2,  # NERFED from 1.8
-              projectileSpeed: 160.0,  # NERFED from 180.0
-              projectileCount: 5,  # NERFED from 6
-              spreadAngle: 50.0,  # NERFED from 55.0
+              damage: 6.0,
+              cooldown: 6.0,  # demoted to occasional filler (was 2.2)
+              projectileSpeed: 160.0,
+              projectileCount: 5,
+              spreadAngle: 50.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapCircle,
-              damage: 6.0,  # NERFED from 2.0
-              cooldown: 4.0,  # NERFED from 3.5
+              damage: 6.0,
+              cooldown: 6.5,  # demoted to occasional filler (was 4.0)
               projectileSpeed: 160.0,
-              projectileCount: 10,  # NERFED from 12
+              projectileCount: 10,
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapSpiral,
-              damage: 6.0,  # NERFED from 2.0
-              cooldown: 3.2,  # NERFED from 2.8
+              damage: 6.0,
+              cooldown: 6.0,  # demoted to occasional filler (was 3.2)
               projectileSpeed: 160.0,
-              projectileCount: 7,  # NERFED from 9
+              projectileCount: 7,
               spreadAngle: 30.0,
               durationOrRadius: 0.0
             )
@@ -787,49 +810,61 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               durationOrRadius: 300.0,
               specialData: "dimensional_rift"
             ),
+            # Void Collapse: 4-5 converging rifts with the densest bursts - the
+            # reality_break peak. Leads the phase alongside the teleport.
+            BossAttack(
+              attackType: bapMeteor,  # nominal; routed by specialData
+              damage: 11.0,
+              cooldown: 3.5,
+              projectileSpeed: 160.0,
+              projectileCount: 12,
+              spreadAngle: 0.0,
+              durationOrRadius: 110.0,
+              specialData: "void_collapse"
+            ),
             BossAttack(
               attackType: bapBarrage,
-              damage: 6.0,  # NERFED from 2.0
-              cooldown: 3.5,  # NERFED from 3.0
-              projectileSpeed: 170.0,  # NERFED from 180.0
-              projectileCount: 16,  # NERFED from 20
-              spreadAngle: 240.0,  # NERFED from 270.0
+              damage: 6.0,
+              cooldown: 6.5,  # demoted to occasional filler (was 3.5)
+              projectileSpeed: 170.0,
+              projectileCount: 16,
+              spreadAngle: 240.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapPulse,
-              damage: 6.0,  # NERFED from 2.0
-              cooldown: 5.0,  # NERFED from 4.5
-              projectileSpeed: 200.0,  # NERFED from 220.0
+              damage: 6.0,
+              cooldown: 6.5,  # demoted to occasional filler (was 5.0)
+              projectileSpeed: 200.0,
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 160.0,  # NERFED from 180.0
+              durationOrRadius: 160.0,
             ),
             BossAttack(
               attackType: bapDash,
-              damage: 6.0,  # NERFED from 3.0
-              cooldown: 5.5,  # NERFED from 5.0
-              projectileSpeed: 450.0,  # NERFED from 500.0
+              damage: 6.0,
+              cooldown: 5.5,  # kept long - reads as a void blink-dash
+              projectileSpeed: 450.0,
               projectileCount: 0,
               spreadAngle: 0.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapWave,
-              damage: 6.0,  # NERFED from 2.0
-              cooldown: 2.0,  # NERFED from 1.5
-              projectileSpeed: 190.0,  # NERFED from 210.0
-              projectileCount: 6,  # NERFED from 8
-              spreadAngle: 60.0,  # NERFED from 70.0
+              damage: 6.0,
+              cooldown: 6.0,  # demoted to occasional filler (was 2.0)
+              projectileSpeed: 190.0,
+              projectileCount: 6,
+              spreadAngle: 60.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapTargeted,
-              damage: 6.0,  # NERFED from 2.0
-              cooldown: 1.5,  # NERFED from 1.2
-              projectileSpeed: 240.0,  # NERFED from 260.0
-              projectileCount: 2,  # NERFED from 3
-              spreadAngle: 12.0,  # NERFED from 15.0
+              damage: 6.0,
+              cooldown: 6.5,  # demoted to occasional filler (was 1.5)
+              projectileSpeed: 240.0,
+              projectileCount: 2,
+              spreadAngle: 12.0,
               durationOrRadius: 0.0
             )
           ]
