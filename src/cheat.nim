@@ -602,7 +602,6 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
     ("500", 500.0.float32)
   ]
 
-
   btnX = buttonStartX
   for btnData in maxHealthButtons:
     let (label, value) = btnData

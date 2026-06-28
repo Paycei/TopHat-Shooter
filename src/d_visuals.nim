@@ -136,7 +136,6 @@ proc drawCombo*(combo: ComboSystem, screenWidth, screenHeight: int32, currentTim
   let baseY = screenHeight div 2
   drawComboAtPosition(combo, screenWidth, screenHeight, currentTime, baseX, baseY)
 
-
 # MICRO-REWARD DISPLAY
 proc drawMicroRewards*(tracker: MicroRewardTracker) =
   # Micro-rewards are now very subtle - just small text floating up
@@ -224,5 +223,3 @@ proc drawWaveStartBanner*(waveNumber: int, waveAge: float32,
     Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.6)))
   # Main
   drawText(waveLabel, textX, textY, fontSize, accentColor)
-
-

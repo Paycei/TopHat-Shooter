@@ -49,7 +49,6 @@ proc rebuildEnemyGrid(game: Game) =
     if e.collisionRadius > gridMaxCollisionRadius: gridMaxCollisionRadius = e.collisionRadius
     if e.isBoss: gridBossIndices.add(idx)
 
-
 # Boss wave manager accessors
 # Centralized boss wave and coin management. Hoisted above lifecycle/waves
 # because procs there (cleanupGame, checkWaveComplete) call these.
@@ -227,8 +226,11 @@ proc calculateWaveEnemyCount(waveNumber: int): int =
   ## individual enemies grow much tankier, the crowd grows slowly, so late waves
   ## are a handful of beefy threats that reach the player rather than a 100-strong
   ## crowd the player mows down without ever being threatened.
-  ##   wave 1 -> 8, wave 10 -> ~19, wave 30 -> ~35, wave 60 -> ~54, wave 100 -> ~76
-  result = int(8 + 2.2 * pow(float(waveNumber - 1), 0.75))
+  ## The exponent (0.6) keeps the slope shrinking, so the count still flattens out
+  ## past the midgame — high waves, and especially wave 40+, add bodies ever more
+  ## slowly instead of swelling into a swarm, but late waves stay a touch fuller.
+  ##   wave 1 -> 8, wave 10 -> ~19, wave 40 -> ~35, wave 60 -> ~42, wave 100 -> ~55
+  result = int(8 + 3.0 * pow(float(waveNumber - 1), 0.6))
 
 proc startWave*(game: Game) =
   game.waveInProgress = true
@@ -443,6 +445,19 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         enemy.contactDamage *= dmgScale
         enemy.rangedDamage *= dmgScale
 
+        # Softer SIZE growth (wave mode only): getScaledEnemyStats grows the
+        # radius LINEARLY (`difficulty * 1.5`), so by the late game enemies
+        # balloon into huge, easy-to-hit blobs. Re-shape just the wave-driven
+        # girth into a decelerating curve and subtract the difference, so high
+        # waves keep adding size ever more slowly. Early waves are untouched
+        # (the gap is ~0 until the midgame); a floor of half the original radius
+        # guards against over-shrinking on the very largest enemies.
+        let linearGirth = baseDifficulty * 1.5'f32
+        let softGirth = pow(max(baseDifficulty, 0.0'f32), 0.6'f32) * 1.5'f32
+        let girthCut = max(0.0'f32, linearGirth - softGirth)
+        enemy.radius = max(enemy.radius - girthCut, enemy.radius * 0.5'f32)
+        enemy.collisionRadius = enemy.radius * 0.4'f32
+
       makeElite(enemy, wave)  # Chance to make enemy elite based on wave
       game.enemies.add(enemy)
       game.waveEnemiesRemaining -= 1
@@ -493,7 +508,6 @@ proc checkWaveComplete(game: Game): bool =
   # Wave is complete when all enemies are defeated, none remain to spawn,
   # AND boss coin has been collected (if there was one)
   return game.waveEnemiesRemaining == 0 and game.enemies.len == 0 and not game.bossWaveManager.isBossCoinActive()
-
 
 # Boss waves
 # (BossWaveManager accessors are hoisted above the lifecycle section so the
@@ -988,7 +1002,6 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
       game.lasers.delete(j)
       continue
     j += 1
-
 
 proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   # Update player (with wall collision)
@@ -1539,7 +1552,6 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   # Animate/expire AoE blast boundary rings (Star death, etc.)
   updateShockwaveRings(game, dt)
 
-
   # Check shooting
   let mousePos = getVirtualMousePosition()
   let shootDir = newVector2f(mousePos.x - game.player.pos.x, mousePos.y - game.player.pos.y)
@@ -1558,7 +1570,6 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   if (isMouseButtonDown(Left) and not game.wallPlacementMode) or isKeyDown(globalSettings.keybinds[kaShoot]):
     if shootDir.length() > 0:
       shootBullet(game, shootDir)
-
 
 proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
   # MODE-SPECIFIC ENEMY SPAWNING
@@ -1747,7 +1758,6 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
         spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
       # TIME SURVIVAL MODE: delegate to survival.nim
       spawnSurvivalEnemies(game)
-
 
 proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float32) =
   # Update enemies
@@ -2661,7 +2671,6 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     game.enemies = @[]
     game.bullets = @[]
 
-
 proc cheatCompleteRogueliteFloor*(game: var Game) =
   ## Cheat-menu "Skip Floor": replicate the floor-boss-defeated path (see the
   ## bossDefeated/gmRoguelite block above) so the run banks rewards, advances the
@@ -2684,7 +2693,6 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
     game.state = gsRogueliteVictory
   else:
     game.state = gsPowerUpSelect
-
 
 proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
   # Update boss satellites (persistent orbiting satellites)
@@ -2811,7 +2819,6 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
         else:
           # Already deleted, continue
           i -= 1
-
 
 proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
   # Rebuild the spatial grid now that all enemy movement for this frame is done.
@@ -3657,7 +3664,6 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
     i += 1
 
-
 proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float32) =
   # Update meteorites (from etMage enemy)
   var i = 0
@@ -3871,7 +3877,6 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
   # Process pending wall respawns
   processPendingWallRespawns(game.pendingWallRespawns, game.walls, game.enemies, game.player, game.particlePool, dt)
 
-
   # Update particles
   updateParticlePool(game.particlePool, dt)
 
@@ -3900,7 +3905,6 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
   # This catches edge cases where HP reaches 0 but game didn't transition to game over
   if game.player.hp <= 0 and game.state == gsPlaying:
     beginPlayerDeathSequence(game)
-
 
 proc updateGame*(game: var Game, dt: float32) =
   # Profiling: smoothed wall-clock ms spent here, surfaced in the debug panel so

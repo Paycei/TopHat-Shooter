@@ -756,7 +756,6 @@ proc selectFloorTheme*(game: Game, choiceIndex: int) =
   let idx = clamp(choiceIndex, 0, 2)
   startDungeonFloor(game, game.rogueliteRun.nextThemeChoices[idx])
 
-
 proc onRoomCleared*(game: Game): DungeonClearOutcome =
   ## Combat/elite room finished: bank coins, award shards/keys, open doors.
   result = dcoNone

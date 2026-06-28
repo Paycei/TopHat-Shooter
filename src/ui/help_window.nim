@@ -276,7 +276,6 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpAvailableBetweenWaves), White)
       help.addOutput("", White)
 
-
     # Desktop icon execution commands
     of "play", "play.exe":
       help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconPlay), Color(r: 100, g: 200, b: 255, a: 255))
@@ -320,7 +319,6 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     help.addOutput(t(tkHelpErrorExecuting) & ": " & e.msg, Red)
     help.addOutput(t(tkHelpTypeHelp), LightGray)
     help.addOutput("", White)
-
 
 proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): int =
   ## Returns icon to execute: -1 = none, 0-6 = desktop icon index (6 = sandbox)
@@ -370,7 +368,6 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
                               max(0, help.outputLines.len - 15))
 
   return -1  # No icon to execute
-
 
 proc drawHelpWindow*(help: HelpWindow) =
   if not help.window.visible:

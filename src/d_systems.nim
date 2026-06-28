@@ -169,7 +169,6 @@ proc checkPerfectWaveCombo*(combo: var ComboSystem, waveEnemyCount: int): int =
     combo.lastPerfectWaveBonus = 0
     return 0
 
-
 # MICRO-REWARD TRACKER
 proc newMicroRewardTracker*(): MicroRewardTracker =
   result = MicroRewardTracker(

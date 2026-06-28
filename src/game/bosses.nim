@@ -877,7 +877,6 @@ proc updateBossSpiralStream*(game: var Game, enemy: Enemy, dt: float32) =
     enemy.spiralEmitRemaining -= 1
     enemy.spiralEmitTimer += enemy.spiralEmitInterval
 
-
 proc execBossAttackBurst(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Rapid burst in spread pattern
   let baseAngle = arctan2(toPlayer.y, toPlayer.x)
@@ -886,7 +885,6 @@ proc execBossAttackBurst(game: var Game, enemy: Enemy, attack: BossAttack, phase
     let angle = baseAngle + offset
     let dir = newVector2f(cos(angle), sin(angle))
     spawnBossBullet(game, enemy, attack, phase, dir)
-
 
 proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # SpecialData modes:
@@ -927,7 +925,6 @@ proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase:
     else:
       discard
 
-
 proc execBossAttackTargeted(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Direct shots at player
   # SpecialData modes:
@@ -966,7 +963,6 @@ proc execBossAttackTargeted(game: var Game, enemy: Enemy, attack: BossAttack, ph
     let angle = arctan2(toPlayer.y, toPlayer.x) + spread
     let dir = newVector2f(cos(angle), sin(angle))
     spawnBossBullet(game, enemy, attack, phase, dir)
-
 
 proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Perfect ring of bullets with thematic variants
@@ -1008,7 +1004,6 @@ proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phas
       let trailY = enemy.pos.y + sin(angle) * trailRadius
       spawnExplosionPooled(game.particlePool, trailX, trailY, particleColor, 2)
 
-
 proc execBossAttackLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Boss laser with proper warning system
   # Laser patterns customized via specialData
@@ -1017,7 +1012,7 @@ proc execBossAttackLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase
   let patternType = attack.specialData
   let laserCount = case patternType
     of "rotating_grid": attack.projectileCount * 2  # Double density for grid
-    of "prismatic_cage": attack.projectileCount * 3  # Triple density for cage
+    of "prismatic_cage": attack.projectileCount  # Do not multiply prismatic_cage lasers
     of "splitting_laser": attack.projectileCount  # Triangle pattern
     of "hexagonal_prism": 6  # Always 6 beams
     of "prismatic_storm": attack.projectileCount * 2  # Massive light show!
@@ -1197,7 +1192,6 @@ proc execBossAttackLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase
     enemy.enemyType,  # Track which enemy type created this attack
     enemy.id  # Pass enemy ID so warning can follow boss
   ))
-
 
 proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Massive bullet spray with multiple themes
@@ -1434,7 +1428,6 @@ proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, pha
       (30, phase.color)  # Standard
 
   spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
-
 
 proc execBossAttackPulse(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Expanding ring with multiple thematic variants
@@ -1673,7 +1666,6 @@ proc execBossAttackPulse(game: var Game, enemy: Enemy, attack: BossAttack, phase
   # Central explosion (size varies by mode)
   spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, particleColor, explosionSize)
 
-
 proc execBossAttackSummon(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Spawn minion enemies around the boss - customizable via specialData
   # Parse specialData to determine minion types: "minion_circle", "minion_triangle", "minion_mixed"
@@ -1770,7 +1762,6 @@ proc execBossAttackSummon(game: var Game, enemy: Enemy, attack: BossAttack, phas
 
     # Visual feedback for summoning
     spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
-
 
 proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Falling projectiles from above, screen-wide barrage with a guaranteed dodge gap
@@ -1958,7 +1949,6 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
     w.overrideColor = meteorColor
     game.attackWarnings.add(w)
 
-
 proc execBossAttackOrbit(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # ORBITAL SATELLITE SYSTEM
   # Creates persistent satellites that orbit, shoot, and can be destroyed
@@ -2047,7 +2037,6 @@ proc execBossAttackOrbit(game: var Game, enemy: Enemy, attack: BossAttack, phase
           let ringX = enemy.pos.x + cos(angle) * ringRadius
           let ringY = enemy.pos.y + sin(angle) * ringRadius
           spawnExplosionPooled(game.particlePool, ringX, ringY, satelliteColor, 3)
-
 
 proc execBossAttackChain(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # CHAIN LIGHTNING SYSTEM
@@ -2146,7 +2135,6 @@ proc execBossAttackChain(game: var Game, enemy: Enemy, attack: BossAttack, phase
 
   spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
 
-
 proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Teleport to new location and shoot - customized via specialData
   # "afterimage_burst" = creates multiple images with burst effect
@@ -2238,7 +2226,6 @@ proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, ph
     # Mark first position as where boss should teleport
     warning.isBossTeleportTarget = (idx == 0)
     game.attackWarnings.add(warning)
-
 
 proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # BERSERKER DASH SYSTEM with multi-charge mechanics
@@ -2347,7 +2334,6 @@ proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase:
 
   spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
 
-
 proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # PRECISION SNIPE SYSTEM - Boss 7 Orbital Commander
   # SpecialData modes:
@@ -2406,7 +2392,6 @@ proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase
       spawnExplosionPooled(game.particlePool, starX, starY,
                     Color(r: 200, g: 150, b: 255, a: 255), 4)
 
-
 proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # LEGION VOLLEY (Summoner King) - every living summoned add fires a single shot
   # at the player in unison. This turns ignored adds into active pressure while the
@@ -2440,7 +2425,6 @@ proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack
     # Green command pulse from the boss telegraphs that the legion just fired.
     spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                          Color(r: 80, g: 220, b: 120, a: 220), 12)
-
 
 proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
   ## Executes a single boss attack based on its pattern type

@@ -372,4 +372,3 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
   if game.deathSequenceTimer >= DEATH_TOTAL_DURATION:
     game.deathSequenceFadeAlpha = 1.0
     game.state = gsGameOver
-

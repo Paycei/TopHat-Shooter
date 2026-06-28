@@ -608,9 +608,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 4.5,
-              cooldown: 4.0,  # NERFED from 2.5
+              cooldown: 5.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
-              projectileCount: 3,
+              projectileCount: 8,
               spreadAngle: 22.5,
               durationOrRadius: 1.5,  # dodge buff: shorter active beam window, was 2.5
               specialData: "prismatic_cage"
@@ -987,7 +987,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.3,
           speedMultiplier: 1.2,
           damageMultiplier: 1.3,
-          defenseMultiplier: 0.85,
+          defenseMultiplier: 0.9,
           color: Color(r: 255, g: 255, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "critical_discharge",  # Chaotic electric movement
@@ -1202,7 +1202,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss8Name),
       bossID: 8,
-      baseHP: 1600.0,
+      baseHP: 1750.0,
       baseSpeed: 40.0,
       baseDamage: 4,
       baseRadius: 60.0,
@@ -1255,7 +1255,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.65,
           speedMultiplier: 0.8,  # NERFED from 1.1
           damageMultiplier: 1.3,
-          defenseMultiplier: 1.0,
+          defenseMultiplier: 1.1,
           color: Color(r: 255, g: 30, b: 0, a: 255),
           visualEffect: "aura",
           specialBehavior: "enraged_assault",  # Aggressive movement
@@ -1305,7 +1305,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.3,
           speedMultiplier: 1.0,  # NERFED from 1.2
           damageMultiplier: 1.5,
-          defenseMultiplier: 0.85,
+          defenseMultiplier: 0.9,
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
           specialBehavior: "berserk_rampage",  # Maximum aggression

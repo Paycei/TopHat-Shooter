@@ -876,7 +876,6 @@ proc main() =
           showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
                            unlockedDef.name)
 
-
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
       let action = if not mouseOverWindow and not globalConfirmActive: handleDesktopInput(osDesktop, currentGame) else: -1
 

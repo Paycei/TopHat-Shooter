@@ -1041,7 +1041,6 @@ type
     perfectWaveStreak*: int       # Number of consecutive perfect waves
     lastPerfectWaveBonus*: int    # Last bonus earned for display
 
-
   MicroReward* = object
     message*: string
     coins*: int

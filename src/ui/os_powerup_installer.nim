@@ -284,7 +284,6 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   let sizeWidth = measureText(sizeText, 11)
   drawText(sizeText, x + width - sizeWidth - 10, yOff + 2, 11, Color(r: 110, g: 120, b: 130, a: 255))
 
-
 # Rolling effects
 
 proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: bool,
@@ -335,7 +334,6 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
     let ny = int32(float32(cardY) + CARD_HEIGHT.float32 * 0.42 - rise)
     drawText(powerUpName, nx + 2, ny + 2, 18, Color(r: 0, g: 0, b: 0, a: tA))
     drawText(powerUpName, nx, ny, 18, Color(r: ac.r, g: ac.g, b: ac.b, a: tA))
-
 
 proc drawOSPowerUpInstaller*(game: Game) =
   ## Draw the power-up selection screen with slot machine roll animation.
@@ -444,7 +442,6 @@ proc drawOSPowerUpInstaller*(game: Game) =
   drawText(headerText, winX + (INSTALLER_WIDTH - headerW) div 2, yPos, 20, hColor)
   yPos += 40
 
-
   # Card area
   let totalCardW = CARD_WIDTH * 3 + CARD_SPACING * 2
   let startX = winX + (INSTALLER_WIDTH - totalCardW) div 2
@@ -519,7 +516,6 @@ proc drawOSPowerUpInstaller*(game: Game) =
     let name  = getPowerUpName(game.powerUpChoices[i].powerType)
     drawSlotLockEffect(cardX, yPos.int32, tSinceLock[i], isLegendary, name)
 
-
   # Bottom panel
   let bottomY = winY + INSTALLER_HEIGHT - 120
   drawRectangle(winX, bottomY - 15, INSTALLER_WIDTH, 120, Color(r: 30, g: 38, b: 52, a: 255))
@@ -560,7 +556,6 @@ proc drawOSPowerUpInstaller*(game: Game) =
   drawText(costText, int32(rerollX + int32(rerollW - costW) div 2), int32(buttonY + buttonH + 8), int32(12),
           if canAfford: Color(r: 255, g: 215, b: 0, a: 255) else: Color(r: 120, g: 120, b: 130, a: 255))
   drawText("[R]", int32(rerollX + rerollW + 10), int32(buttonY + 13), int32(14), Color(r: 200, g: 200, b: 200, a: 255))
-
 
 proc drawPowerUpInstallerExhausted*(game: Game) =
   ## Shown in place of the normal installer when every power-up in the pool is

@@ -317,4 +317,3 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
                 if reflectType == "boss": 8 elif reflectType == "contact": 6 else: 5)
 
   return actualDamage
-

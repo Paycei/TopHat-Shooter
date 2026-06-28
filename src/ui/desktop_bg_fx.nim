@@ -727,7 +727,6 @@ proc drawClubSuit(cx, cy, r: float32, col: Color) =
            Vector2(x: cx - r * 0.30'f32, y: cy + r * 0.70'f32),
            Vector2(x: cx + r * 0.30'f32, y: cy + r * 0.70'f32), col)
 
-
 proc drawSuitAt(kind: int, cx, cy, r: float32, col: Color) =
   ## Dispatch one of the four card suits by index (0 heart, 1 diamond, 2 spade, 3 club).
   case kind and 3

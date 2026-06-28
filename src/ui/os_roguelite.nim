@@ -986,7 +986,6 @@ proc drawRogueliteFloorSelect*(game: Game) =
   drawCenteredTextFit(t("roguelite_sector_controls"), x + 60, y + PanelH - 35, PanelW - 120, 15, LightGray)
   drawBetaBanner(game)
 
-
 proc rogueliteVictoryButtonRects*(screenWidth, screenHeight: int32): tuple[continueBtn, cashOut: Rectangle] =
   ## Shared geometry so the ending screen's click hit-tests (main.nim) match the draw.
   let panel = roguelitePanelRect(screenWidth, screenHeight)
@@ -1084,9 +1083,7 @@ proc drawRogueliteVictory*(game: Game) =
                       PanelW - 120, 14, LightGray)
   drawBetaBanner(game)
 
-
 # Unlock card grid helpers
-
 
 proc unlockLockGlyph(x, y: int32, color: Color) =
   drawCircleLines(x + 10, y + 8, 7, color)

@@ -1556,7 +1556,6 @@ type
     # Discovery banner
     tkNewProcessInstalled = "new_process_installed"
 
-
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
   English: {
