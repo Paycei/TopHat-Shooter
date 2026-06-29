@@ -2692,6 +2692,10 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
     game.selectedVictoryButton = 0
     game.state = gsRogueliteVictory
   else:
+    # Unlike the real boss-defeat path, the cheat can fire from any room, so the
+    # boss-room exit portal would be unreachable. Request that the draft route
+    # straight into floor select instead (consumed in main.nim continueAfterDraft).
+    game.cheatRogueliteDirectFloorSelect = true
     game.state = gsPowerUpSelect
 
 proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =

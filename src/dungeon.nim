@@ -9,7 +9,7 @@
 ## It must NOT import game.nim (game.nim imports this module); enemy spawning
 ## itself stays in game.nim and only reads the counters/state armed here.
 
-import raylib, random, math
+import raylib, random, math, tables
 import particle_types
 import types, roguelite, powerup, particle, sound, localization, boss_definitions, settings
 import coin
@@ -269,18 +269,56 @@ proc dungeonBossDifficulty*(run: RogueliteRun): float32 =
     heatRank.float32 * RogueliteHeatBossDifficultyPerTier +
     run.endlessLoop.float32 * 1.5'f32
 
+proc dungeonBossBand*(floorNumber: int): tuple[lo, hi: int] =
+  ## Non-overlapping per-floor boss bands. The latest floor is reserved for the
+  ## 12th (final) boss alone; bosses 1..11 are spread across the earlier floors,
+  ## so only the starter bosses can headline floor 1 and only the final boss can
+  ## appear on the last floor. Assumes the 4-floor / 12-boss layout.
+  if floorNumber >= RogueliteFloorsToWin:
+    (12, 12)
+  else:
+    case floorNumber
+    of 1: (1, 3)
+    of 2: (4, 7)
+    else: (8, 11)
+
+proc themeBossRank(theme: DungeonFloorTheme): tuple[rank, count: int] =
+  ## Difficulty rank of a theme among all themes, ordered by its authored
+  ## bossNumber (0 = easiest theme). Used to spread the themes evenly across a
+  ## floor's boss band instead of clamping their raw bossNumber (which saturates
+  ## every harder theme onto the band's top boss).
+  let mine = themeDef(theme).bossNumber
+  var rank = 0
+  var count = 0
+  for th in DungeonFloorTheme:
+    inc count
+    if themeDef(th).bossNumber < mine:
+      inc rank
+  (rank, count)
+
+proc dungeonBossNumberFor*(theme: DungeonFloorTheme,
+                           floorNumber, endlessLoop, unlockedBossTier: int): int =
+  ## Boss that will headline `floorNumber` for `theme`. The theme's difficulty
+  ## rank is mapped proportionally across the floor's exclusive band (see
+  ## dungeonBossBand) so each floor spans its whole boss range, then the unlocked
+  ## tier and endless loop nudge it up within the band. Pure so the floor-select
+  ## preview can call it before the floor itself is generated.
+  let band = dungeonBossBand(floorNumber)
+  let span = band.hi - band.lo
+  let (rank, count) = themeBossRank(theme)
+  let themePos = if span <= 0 or count <= 1: 0
+                 else: int(round(rank.float32 / (count - 1).float32 * span.float32))
+  let boss = band.lo + themePos + (unlockedBossTier - 1) + endlessLoop
+  clamp(boss, band.lo, band.hi)
+
+proc unlockedBossTierOf*(game: Game): int =
+  ## Boss tier from the active profile (1 when there is no profile yet).
+  if game.rogueliteProfile != nil: game.rogueliteProfile.unlockedBossTier else: 1
+
 proc dungeonBossNumber*(game: Game): int =
-  ## Themed floor boss, constrained to the floor's allowed boss range:
-  ## floor 1 -> bosses 1-3, floor 2 -> 3-6, floor 3 -> 6-9, floor 4 -> 9-12.
-  ## Within that window the theme's bossNumber, the unlocked boss tier, and the
-  ## endless loop decide which boss actually shows up.
   let run = game.rogueliteRun
-  let def = themeDef(run.floor.theme)
-  let tierOffset = if game.rogueliteProfile != nil: game.rogueliteProfile.unlockedBossTier - 1 else: 0
-  let lo = max(1, (run.floorNumber - 1) * 3)
-  let hi = min(12, run.floorNumber * 3)
-  var boss = def.bossNumber + tierOffset + run.endlessLoop
-  result = clamp(boss, lo, hi)
+  dungeonBossNumberFor(run.floor.theme, run.floorNumber, run.endlessLoop,
+                       unlockedBossTierOf(game))
 
 proc dungeonBossWaveEquivalent(run: RogueliteRun): float32 =
   ## The wave-mode boss slot a floor boss should feel like: floor 1 plays like
@@ -567,7 +605,7 @@ proc generateFloor*(game: Game, theme: DungeonFloorTheme, floorNumber: int): Dun
 # ---------------------------------------------------------------------------
 # Theme selection between floors
 
-proc generateThemeChoices*(run: RogueliteRun) =
+proc generateThemeChoices*(run: RogueliteRun, unlockedBossTier: int = 1) =
   if run.isNil: return
   var pool: seq[DungeonFloorTheme] = @[]
   for theme in DungeonFloorTheme:
@@ -578,10 +616,43 @@ proc generateThemeChoices*(run: RogueliteRun) =
     pool = @[]
     for theme in DungeonFloorTheme:
       pool.add(theme)
-  for i in 0..2:
-    let pick = rand(pool.len - 1)
-    run.nextThemeChoices[i] = pool[pick]
-    pool.delete(pick)
+
+  # Offer 3 themes whose floor bosses are all DISTINCT (no duplicate boss on the
+  # cards). Group the pool by the boss each theme maps to on this floor, then
+  # draw one theme from 3 distinct boss-groups. When the floor's band has fewer
+  # than 3 distinct bosses (the final floor is boss 12 only), the remaining slots
+  # fall back to leftover themes - still distinct themes, even if the boss repeats.
+  var groups = initTable[int, seq[DungeonFloorTheme]]()
+  var bossOrder: seq[int] = @[]
+  for theme in pool:
+    let boss = dungeonBossNumberFor(theme, run.floorNumber, run.endlessLoop,
+                                    unlockedBossTier)
+    if boss notin groups:
+      groups[boss] = @[]
+      bossOrder.add(boss)
+    groups[boss].add(theme)
+
+  shuffle(bossOrder)
+  var chosen: seq[DungeonFloorTheme] = @[]
+  for boss in bossOrder:
+    if chosen.len >= 3: break
+    let pick = rand(groups[boss].len - 1)
+    chosen.add(groups[boss][pick])
+    groups[boss].delete(pick)
+
+  if chosen.len < 3:
+    var leftovers: seq[DungeonFloorTheme] = @[]
+    for boss in bossOrder:
+      for theme in groups[boss]:
+        leftovers.add(theme)
+    shuffle(leftovers)
+    var idx = 0
+    while chosen.len < 3 and idx < leftovers.len:
+      chosen.add(leftovers[idx])
+      inc idx
+
+  for i in 0 .. 2:
+    run.nextThemeChoices[i] = chosen[i]
 
 # ---------------------------------------------------------------------------
 # Room state changes
@@ -915,7 +986,7 @@ proc updateDungeon*(game: Game, dt: float32): bool =
        distance(game.player.pos, exitPortalPos(game)) < ExitPortalRadius + game.player.radius:
       game.bossPortalActive = false
       playSound(stTeleport)
-      generateThemeChoices(run)
+      generateThemeChoices(run, unlockedBossTierOf(game))
       game.selectedRogueliteTheme = 0
       game.state = gsRogueliteFloorSelect
       return true

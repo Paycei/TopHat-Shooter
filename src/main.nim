@@ -826,7 +826,7 @@ proc main() =
             let heat9 = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
             beginRogueliteRun(currentGame, rogueliteProfile, kit9, heat9)
             initializeRunTracking(currentGame)
-            generateThemeChoices(currentGame.rogueliteRun)
+            generateThemeChoices(currentGame.rogueliteRun, unlockedBossTierOf(currentGame))
             currentGame.selectedRogueliteTheme = 0
             currentGame.state = gsRogueliteFloorSelect
             statsSavedThisGame = false
@@ -2203,12 +2203,22 @@ proc main() =
         currentGame.cameFromPowerUpSelect = true
         if currentGame.mode == gmRoguelite and currentGame.rogueliteRun != nil:
           if currentGame.rogueliteRun.pendingFloorSelect:
-            # Floor boss is down: drop the player back into the cleared boss room
-            # with the exit portal open. The descent only happens once they walk
-            # into it (updateDungeon), not automatically.
-            spawnRogueliteExitPortal(currentGame)
-            currentGame.state = gsPlaying
+            if currentGame.cheatRogueliteDirectFloorSelect:
+              # Cheat "Skip Floor": the boss-room exit portal may be unreachable
+              # (the cheat can fire from any room), so jump straight to floor
+              # select — mirroring what walking into the portal would do.
+              currentGame.cheatRogueliteDirectFloorSelect = false
+              generateThemeChoices(currentGame.rogueliteRun, unlockedBossTierOf(currentGame))
+              currentGame.selectedRogueliteTheme = 0
+              currentGame.state = gsRogueliteFloorSelect
+            else:
+              # Floor boss is down: drop the player back into the cleared boss room
+              # with the exit portal open. The descent only happens once they walk
+              # into it (updateDungeon), not automatically.
+              spawnRogueliteExitPortal(currentGame)
+              currentGame.state = gsPlaying
           else:
+            currentGame.cheatRogueliteDirectFloorSelect = false
             currentGame.state = gsPlaying
         else:
           currentGame.state = gsShop

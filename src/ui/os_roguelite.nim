@@ -916,7 +916,7 @@ proc drawRogueliteSetup*(game: Game) =
   drawCenteredTextFit(t("roguelite_setup_controls"), x + 180, y + PanelH - 30, PanelW - 360, 14, LightGray)
   drawBetaBanner(game)
 
-proc drawThemeCard(theme: DungeonFloorTheme, x, y: int32, selected: bool, hovered: bool = false) =
+proc drawThemeCard(theme: DungeonFloorTheme, x, y: int32, selected: bool, floorBossNumber: int, hovered: bool = false) =
   let accent = themeAccent(theme)
   let color = if selected: Color(r: 0, g: 220, b: 255, a: 255)
               elif hovered: Color(r: 130, g: 225, b: 255, a: 255)
@@ -936,7 +936,7 @@ proc drawThemeCard(theme: DungeonFloorTheme, x, y: int32, selected: bool, hovere
   # Floor boss preview
   drawCategoryGlyph(x + 33, y + 98, rucChallengeTiers, Color(r: 255, g: 120, b: 95, a: 255))
   drawTextFit(t("dungeon_floor_boss"), x + 58, y + 90, CardW - 74, 13, Color(r: 255, g: 150, b: 120, a: 255))
-  drawTextFit(t("boss_" & $def.bossNumber & "_name"), x + 58, y + 107, CardW - 74, 14, Gold)
+  drawTextFit(t("boss_" & $floorBossNumber & "_name"), x + 58, y + 107, CardW - 74, 14, Gold)
 
   drawTextFit(t("roguelite_pressure") & ": " & $(int(def.pressureMod * 100)) & "%", x + 16, y + 139, 116, 13, LightGray)
   drawMeter(x + 136, y + 143, 104, 8, (def.pressureMod - 0.9) / 0.5, accent)
@@ -976,10 +976,13 @@ proc drawRogueliteFloorSelect*(game: Game) =
 
   let startX = x + 45
   let cardY = y + 185
+  let bossTier = if game.rogueliteProfile != nil: game.rogueliteProfile.unlockedBossTier else: 1
   for i in 0..2:
     let cardX = (startX + i * (CardW + CardGap)).int32
+    let floorBoss = dungeonBossNumberFor(run.nextThemeChoices[i], run.floorNumber,
+                                         run.endlessLoop, bossTier)
     drawThemeCard(run.nextThemeChoices[i], cardX, cardY.int32,
-                  i == game.selectedRogueliteTheme,
+                  i == game.selectedRogueliteTheme, floorBoss,
                   canHover and isHovered(mousePos, cardX, cardY.int32, CardW, CardH))
 
   drawCenteredTextFit(t("dungeon_floor_select_tip"), x + 60, y + PanelH - 63, PanelW - 120, 14, Color(r: 255, g: 210, b: 110, a: 255))
