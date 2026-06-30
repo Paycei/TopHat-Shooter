@@ -47,7 +47,7 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       hasTimeLimit: false,
       usesPowerUps: true,
       usesShop: true,
-      allowsCheats: false,
+      allowsCheats: true,   # Enables the cheat menu's survival-specific tab (cmtSurvival)
       spawnRate: 1.0,
       difficultyScale: 1.0,
       playerStartCoins: 0

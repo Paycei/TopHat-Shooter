@@ -473,7 +473,7 @@ type
     coins*: int
     kills*: int
     walls*: int
-    # Roguelite-only in-run leveling (see xp_orb.nim / applyRoomClearLevelUps).
+    # In-run leveling for roguelite + time-survival (see xp_orb.nim / bankRunLevelUps).
     rogueliteLevel*: int        # Current run level, starts at 1
     xp*: int                    # XP accumulated toward the next level
     xpToNextLevel*: int         # Threshold for the next level-up
@@ -918,7 +918,8 @@ type
   CurrencyIndicatorKind* = enum
     cikCredits,
     cikDataShards,
-    cikCores
+    cikCores,
+    cikXp          # run-leveling XP orb pickup (roguelite + time-survival)
 
   CurrencyIndicator* = ref object
     pos*: Vector2f
@@ -1170,6 +1171,8 @@ type
     coins*: seq[Coin]
     xpOrbs*: seq[XpOrb]  # Roguelite-only experience particles
     pendingLevelDrafts*: int  # Roguelite: level-up power-up drafts queued at room clear
+    survivalLevelDraftActive*: bool  # Survival: current draft is a level-up (return to play, not shop)
+    survivalTime*: float32  # Survival: progression clock; pauses during boss fights (unlike game.time)
     consumables*: seq[Consumable]
     walls*: seq[Wall]
     pendingWallRespawns*: seq[PendingWallRespawn]  # Boss-room obstacles re-forming

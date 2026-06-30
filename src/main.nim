@@ -542,7 +542,10 @@ proc main() =
       else:
         game.player.coins
 
-      updateStatsForMode(stats, game.mode, scoreReached, game.time,
+      # Survival's score is its progression clock (which pauses during bosses), so it
+      # matches the HUD the player watched; other modes report real elapsed time.
+      let timeForStats = if isTimeSurvivalMode(game.mode): game.survivalTime else: game.time
+      updateStatsForMode(stats, game.mode, scoreReached, timeForStats,
                          game.player.kills, coinsForStats, bossesKilled)
 
       var saveSuccess = false
@@ -2303,6 +2306,11 @@ proc main() =
           else:
             currentGame.cheatRogueliteDirectFloorSelect = false
             currentGame.state = gsPlaying
+        elif isTimeSurvivalMode(currentGame.mode) and currentGame.survivalLevelDraftActive:
+          # Survival mid-run level-up draft: resume into the same battlefield,
+          # not the shop (the shop is reserved for the post-boss draft below).
+          currentGame.survivalLevelDraftActive = false
+          currentGame.state = gsPlaying
         else:
           currentGame.state = gsShop
           currentGame.shopSidebarScroll = 0

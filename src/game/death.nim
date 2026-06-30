@@ -392,7 +392,7 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
     game.deathSequenceFadeAlpha = 1.0
     # A long Time-Survival stand earns the "Long Watch" eulogy before game-over.
     # The cinematic (owned by main.nim) hands back to gsGameOver when it ends.
-    if game.mode == gmTimeSurvival and game.time >= SURVIVAL_ENDING_MIN_TIME:
+    if game.mode == gmTimeSurvival and game.survivalTime >= SURVIVAL_ENDING_MIN_TIME:
       game.state = gsSurvivalEndCinematic
     else:
       game.state = gsGameOver

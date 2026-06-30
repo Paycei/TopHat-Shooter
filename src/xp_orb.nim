@@ -1,9 +1,10 @@
 import raylib, math, random
 import particle_types
 import types
-import particle_pool, sound, powerup
+import particle_pool, sound, powerup, particle
 
-## Roguelite-only experience orbs. This module is a deliberate sibling of
+## Experience orbs for the run-leveling modes (roguelite + time-survival). This
+## module is a deliberate sibling of
 ## `coin.nim`: XP orbs drop on enemy death, auto-home to the player through the
 ## collection aura (and from anywhere while a Magnet consumable is active), and
 ## on pickup add to the player's run XP. It imports only low-level modules and
@@ -95,9 +96,10 @@ proc dataHarvestMultiplier(player: Player): float32 =
   else: 2.0
 
 proc dropEnemyXp*(game: Game, enemy: Enemy) =
-  ## Roguelite-only: drop XP orb(s) at the dead enemy's position. Bosses split
-  ## their lump into a small cluster for a satisfying shower of orbs.
-  if game.mode != gmRoguelite: return
+  ## Drop XP orb(s) at the dead enemy's position in the run-leveling modes
+  ## (roguelite + time-survival). Bosses split their lump into a small cluster
+  ## for a satisfying shower of orbs.
+  if game.mode notin {gmRoguelite, gmTimeSurvival}: return
   if enemy.spawnedByBoss: return
   let total = int(enemyXpValue(enemy).float32 * dataHarvestMultiplier(game.player))
   if total <= 0: return
@@ -136,6 +138,9 @@ proc updateGameXpOrbs*(game: Game, dt: float32) =
       playSound(stCoinPickup, 0.35, 1.4)  # higher pitch than coins
       spawnExplosionPooled(game.particlePool, game.xpOrbs[i].pos.x, game.xpOrbs[i].pos.y,
                            Color(r: 90, g: 255, b: 170, a: 255), 5)
+      # Floating "+N" pickup indicator, mirroring the coin pickup feedback.
+      game.currencyIndicators.add(newCurrencyIndicator(
+        game.xpOrbs[i].pos.x, game.xpOrbs[i].pos.y, game.xpOrbs[i].value, cikXp))
       game.xpOrbs.delete(i)
       continue
 

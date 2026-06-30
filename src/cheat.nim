@@ -20,7 +20,8 @@ type
     cmtStats,
     cmtPermanentPowerUps,
     cmtEnemies,
-    cmtRoguelite   # Mode-specific tab; only shown/selectable in gmRoguelite
+    cmtRoguelite,  # Mode-specific tab; only shown/selectable in gmRoguelite
+    cmtSurvival    # Mode-specific tab; only shown/selectable in gmTimeSurvival
 
   CheatMenu* = ref object
     active*: bool
@@ -48,11 +49,15 @@ proc initCheatMenu*(): CheatMenu =
   globalCheatMenu = result
 
 proc visibleTabs(game: Game): seq[CheatMenuTab] =
-  ## The five core tabs are always available; the roguelite tab is appended only
-  ## in dungeon runs, so the bar grows to 6 there and stays 5 everywhere else.
+  ## The five core tabs are always available; a mode-specific tab is appended for
+  ## the run-based modes (roguelite dungeon / time survival), so the bar grows to
+  ## 6 there and stays 5 everywhere else. The two extra tabs are mutually
+  ## exclusive, since a game is only ever in one mode at a time.
   result = @[cmtWaves, cmtPowerUps, cmtStats, cmtPermanentPowerUps, cmtEnemies]
   if game.mode == gmRoguelite:
     result.add(cmtRoguelite)
+  elif isTimeSurvivalMode(game.mode):
+    result.add(cmtSurvival)
 
 proc tabLabel(tab: CheatMenuTab, index: int): string =
   ## Number prefix follows the tab's position in the visible list (1-based).
@@ -64,6 +69,7 @@ proc tabLabel(tab: CheatMenuTab, index: int): string =
   of cmtPermanentPowerUps: $n & ". Perma"
   of cmtEnemies: $n & ". Enemies"
   of cmtRoguelite: $n & ". Rogue"
+  of cmtSurvival: $n & ". Surv"
 
 proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) =
   if not CHEATS_ENABLED: return
@@ -319,12 +325,35 @@ proc applyRogueliteKeysCheat*(game: var Game, keys: int) =
   game.rogueliteRun.keys = max(0, game.rogueliteRun.keys + keys)
   playSound(stMenuSelect)
 
+proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) =
+  ## Fast-forward (or rewind) the survival clock. In time-survival mode difficulty
+  ## is recomputed from game.survivalTime every frame (game.difficulty =
+  ## survivalTime/SurvivalDifficultyRamp * scale, see updateGame), so this clock is
+  ## the single honest knob for difficulty: bumping it cascades into spawn rate,
+  ## elite tiers and boss difficulty. Reaching 900 s (SURVIVAL_ENDING_MIN_TIME) also
+  ## arms the survival ending on the next death, so this is a progression cheat —
+  ## re-assert the anti-cheat flag (the menu-open path already sets it, this is
+  ## belt-and-suspenders, mirroring the roguelite skip).
+  game.survivalTime = max(0.0'f32, game.survivalTime + deltaSeconds)
+  if ANTICHEAT_ENABLED:
+    game.cheatsUsed = true
+  playSound(stMenuSelect)
+
+proc applySurvivalBossCheat*(game: var Game) =
+  ## Force the next survival boss to spawn as soon as possible by zeroing the boss
+  ## timer (normally a 60 s TIME_SURVIVAL_BOSS_INTERVAL countdown). The actual spawn
+  ## still goes through bossWaveManager.canSpawnBoss(), so this won't stack a boss
+  ## on top of one that's already active.
+  game.bossTimer = 0.0
+  playSound(stBossSpawn)
+
 proc drawWavesTab(x, y, width, height: int32, game: var Game)
 proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu)
 proc drawStatsTab(x, y, width, height: int32, game: var Game)
 proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu)
 proc drawEnemiesTab(x, y, width, height: int32, game: var Game)
 proc drawRogueliteTab(x, y, width, height: int32, game: var Game)
+proc drawSurvivalTab(x, y, width, height: int32, game: var Game)
 
 proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: int32) =
   if not menu.active or not CHEATS_ENABLED:
@@ -428,6 +457,8 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
     drawEnemiesTab(panelX, contentY, panelWidth, contentHeight, game)
   of cmtRoguelite:
     drawRogueliteTab(panelX, contentY, panelWidth, contentHeight, game)
+  of cmtSurvival:
+    drawSurvivalTab(panelX, contentY, panelWidth, contentHeight, game)
 
   # Draw cursor on top of everything when menu is active
   let mousePos = getVirtualMousePosition()
@@ -1124,4 +1155,82 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
   currentY += bh + 16
 
   drawText("Currency changes are saved to your roguelite profile.",
+           labelX, currentY, 11, Gray)
+
+proc drawSurvivalTab(x, y, width, height: int32, game: var Game) =
+  ## Mode-specific cheats for time-survival: fast-forward the survival clock (the
+  ## single knob that drives difficulty, since difficulty is recomputed from
+  ## game.time each frame) and force the next boss to spawn. Mirrors the roguelite
+  ## tab's button helpers and hardcoded-English convention (no localization keys).
+  var currentY = y + 10
+
+  # Lighten a button colour on hover using int math so we never overflow uint8.
+  proc lighten(c: Color): Color =
+    Color(r: uint8(min(255, c.r.int + 40)),
+          g: uint8(min(255, c.g.int + 40)),
+          b: uint8(min(255, c.b.int + 40)), a: 255)
+
+  # Local button helper: draws a labelled button, returns true when clicked.
+  proc btn(bx, by, bw, bh: int32, label: string, base, border: Color): bool =
+    let rect = Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32)
+    let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
+    drawRectangle(bx, by, bw, bh, if hovered: lighten(base) else: base)
+    drawRectangleLines(bx, by, bw, bh, border)
+    let tw = measureText(label, 12)
+    drawText(label, bx + (bw - tw) div 2, by + (bh - 12) div 2, 12, White)
+    result = hovered and isMouseButtonPressed(Left)
+
+  # --- Survival run info --------------------------------------------------
+  # Survival time as MM:SS; the 15:00 mark (SURVIVAL_ENDING_MIN_TIME = 900 s) is
+  # when the survival ending cinematic arms on death, so it's called out below.
+  let totalSecs = max(0, int(game.survivalTime))
+  let mins = totalSecs div 60
+  let secs = totalSecs mod 60
+  let timeStr = (if mins < 10: "0" else: "") & $mins & ":" &
+                (if secs < 10: "0" else: "") & $secs
+  # One-decimal difficulty via int math (strutils.formatFloat isn't imported here).
+  let diff10 = int(game.difficulty * 10.0)
+  let diffStr = $(diff10 div 10) & "." & $(diff10 mod 10)
+  drawText("Survival Time: " & timeStr & "    Difficulty: " & diffStr,
+           x + 20, currentY, 14, White)
+  currentY += 22
+  drawText("Bosses Spawned: " & $game.bossCount & "    Next Boss In: " &
+           $int(game.bossTimer) & "s", x + 20, currentY, 14, White)
+  currentY += 22
+  drawText("Enemies Alive: " & $game.enemies.len, x + 20, currentY, 14, White)
+  currentY += 30
+
+  let labelX = x + 20
+  let btnStartX = x + 180
+  let bw: int32 = 80
+  let bh: int32 = 28
+  let gap: int32 = 8
+
+  # Advance-time row. Difficulty derives from time, so these are the difficulty
+  # cheats; +15:00 jumps straight to the survival-ending threshold for testing.
+  drawText("Advance Time", labelX, currentY + 6, 14, White)
+  if btn(btnStartX, currentY, bw, bh, "+1 min", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+    applySurvivalTimeCheat(game, 60.0)
+  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5 min", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+    applySurvivalTimeCheat(game, 300.0)
+  if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+15 min", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+    applySurvivalTimeCheat(game, 900.0)
+  currentY += bh + 10
+
+  # Rewind-time row (clamped at 0 inside applySurvivalTimeCheat).
+  drawText("Rewind Time", labelX, currentY + 6, 14, White)
+  if btn(btnStartX, currentY, bw, bh, "-1 min", Color(r: 60, g: 40, b: 0, a: 255), Orange):
+    applySurvivalTimeCheat(game, -60.0)
+  if btn(btnStartX + (bw + gap), currentY, bw, bh, "-5 min", Color(r: 60, g: 40, b: 0, a: 255), Orange):
+    applySurvivalTimeCheat(game, -300.0)
+  currentY += bh + 16
+
+  # Full-width action: force the next survival boss to spawn ASAP.
+  let wideW = width - 40
+  if btn(labelX, currentY, wideW, bh + 4, "Spawn Boss Now",
+         Color(r: 80, g: 0, b: 0, a: 255), Red):
+    applySurvivalBossCheat(game)
+  currentY += bh + 16
+
+  drawText("Advancing time fast-forwards difficulty; +15 min reaches the ending threshold.",
            labelX, currentY, 11, Gray)

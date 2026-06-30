@@ -3913,11 +3913,16 @@ proc drawLaser*(laser: Laser) =
   else:
     discard
 
-proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Game): Enemy =
-  ## Spawn a random enemy off-screen at `difficulty`.
-  ## The type is chosen by `pickSpawnType` (enemy_data.nim) which consults
-  ## `allEnemyDefs`, introductionDifficulty, fadeOutDifficulty, and spawnWeight
-  ## are the only values that control what spawns and when.
+proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Game,
+                 rosterDifficulty: float32 = -1.0'f32): Enemy =
+  ## Spawn a random enemy off-screen. Enemy *stats* scale with `difficulty`; the
+  ## *type* is chosen by `pickSpawnType` (enemy_data.nim) from the pool gated by
+  ## introductionDifficulty/fadeOutDifficulty/spawnWeight in `allEnemyDefs`.
+  ##
+  ## `rosterDifficulty` (default -1 = "same as difficulty") decouples which types
+  ## may spawn from how strong they are. Survival passes a value just below the
+  ## current difficulty during a boss fight so no enemy type debuts mid-boss, while
+  ## keeping the stat scaling of the live difficulty.
   let side = rand(3)
   var x, y: float32
 
@@ -3927,7 +3932,8 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
   of 2: x = rand(screenWidth.int).float32; y = screenHeight.float32 + 30
   else: x = -30; y = rand(screenHeight.int).float32
 
-  newEnemy(x, y, difficulty, pickSpawnType(difficulty), game)
+  let typeDifficulty = if rosterDifficulty < 0.0'f32: difficulty else: rosterDifficulty
+  newEnemy(x, y, difficulty, pickSpawnType(typeDifficulty), game)
 
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
   ## Spawns a boss - either custom (waves 1-60) or random (after wave 60)

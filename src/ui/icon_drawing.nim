@@ -10,7 +10,8 @@ type
     ciCredits,
     ciDataShards,
     ciCore,
-    ciHeat
+    ciHeat,
+    ciXp
 
 proc drawLockIcon*(x, y, size: int32,
                    color: Color = Color(r: 170, g: 182, b: 198, a: 255)) =
@@ -104,6 +105,16 @@ proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
       Vector2(x: cx.float32 - radius * 0.28'f32, y: cy.float32 + radius * 0.55'f32),
       Vector2(x: cx.float32 + radius * 0.26'f32, y: cy.float32 + radius * 0.55'f32),
       bright)
+  of ciXp:
+    # XP orb: soft cyan-green glow + bright core, matching the in-world drawXpOrb
+    # so the floating "+N" indicator visually ties back to the orb that was picked up.
+    let glow = Color(r: 80, g: 255, b: 200, a: uint8(alpha.int div 4))
+    let body = Color(r: 90, g: 255, b: 170, a: alpha)
+    let core = Color(r: 220, g: 255, b: 240, a: alpha)
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius * 1.18'f32, glow)
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius, body)
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius * 0.5'f32, core)
+    drawCircleLines(cx, cy, radius, Color(r: 180, g: 255, b: 220, a: alpha))
   of ciNone:
     discard
 

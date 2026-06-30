@@ -8,7 +8,8 @@ import game/combat, game/auras, game/bullets, game/death, game/bosses,
 
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
-const TIME_SURVIVAL_BOSS_INTERVAL = 60.0
+const TIME_SURVIVAL_BOSS_INTERVAL = 90.0  # survival boss every 1.5 min
+const SurvivalDifficultyRamp = 45.0'f32   # seconds of survival per +1 difficulty
 
 # Spatial-grid acceleration (SpatialGrid is in enemy_helpers.nim)
 # One grid + scratch set, reused every frame to bucket game.enemies by screen
@@ -87,6 +88,8 @@ proc cleanupGame*(game: Game) =
   game.coins = @[]
   game.xpOrbs = @[]
   game.pendingLevelDrafts = 0
+  game.survivalLevelDraftActive = false
+  game.survivalTime = 0
   game.consumables = @[]
   game.walls = @[]
   game.attackWarnings = @[]
@@ -108,14 +111,23 @@ proc applyLevelUpStatBoost*(player: Player) =
   player.damage *= LevelDamageMult
   heal(player, player.maxHp * LevelHealFraction)
 
-proc applyRoomClearLevelUps*(game: Game) =
-  ## Roguelite: called once when a ROOM is completed. XP accumulates freely
-  ## during combat, but levels are only cashed in here — never mid-fight. Banks
-  ## every level the accumulated XP affords in one pass (multi-level), applies
-  ## the stat boosts immediately, and queues one power-up draft per level gained.
-  ## The drafts themselves are opened by checkPendingLevelDraft on subsequent
-  ## frames, so this proc never changes game.state.
-  if game.mode != gmRoguelite: return
+proc bankRunLevelUps*(game: Game) =
+  ## Cash in any levels the accumulated XP affords in one pass (multi-level),
+  ## apply the stat boosts immediately, and queue one power-up draft per level
+  ## gained. The drafts themselves are opened by checkPendingLevelDraft on
+  ## subsequent frames, so this proc never changes game.state.
+  ##
+  ## Roguelite calls this once per ROOM clear (levels never cash in mid-fight);
+  ## time-survival calls it every frame, so survival levels pop the instant the
+  ## XP bar fills (Vampire-Survivors style).
+  if game.mode notin {gmRoguelite, gmTimeSurvival}: return
+  # Survival: freeze leveling during a boss fight. The XP bar may fill to 100%,
+  # but the level-up (and its draft) is deferred until the boss is dead. XP earned
+  # past the threshold while the boss lives is discarded — the bar caps at full, so
+  # at most one level is banked the instant the boss falls.
+  if isTimeSurvivalMode(game.mode) and game.bossWaveManager.isBossActive():
+    game.player.xp = min(game.player.xp, game.player.xpToNextLevel)
+    return
   var levelsGained = 0
   while game.player.xp >= game.player.xpToNextLevel:
     game.player.xp -= game.player.xpToNextLevel
@@ -134,21 +146,32 @@ proc applyRoomClearLevelUps*(game: Game) =
              Color(r: 120, g: 255, b: 180, a: 255))
 
 proc checkPendingLevelDraft*(game: Game) =
-  ## Roguelite: opens one queued level-up draft, but only in normal play
-  ## (gsPlaying) — i.e. after a room clear, never while a modal is up. Opening
-  ## the queued drafts one-per-frame chains multi-level-ups: each draft pauses
-  ## the sim, the player picks, continueAfterDraft returns to gsPlaying, and the
-  ## next frame opens the following draft. Because the sim is frozen between
-  ## consecutive drafts, the whole stack resolves before the player can re-enter
-  ## combat.
-  if game.mode != gmRoguelite or game.state != gsPlaying: return
+  ## Opens one queued level-up draft, but only in normal play (gsPlaying) — never
+  ## while a modal is up. Opening the queued drafts one-per-frame chains
+  ## multi-level-ups: each draft pauses the sim, the player picks,
+  ## continueAfterDraft returns to gsPlaying, and the next frame opens the
+  ## following draft. Because the sim is frozen between consecutive drafts, the
+  ## whole stack resolves before the player can re-enter combat.
+  ##
+  ## Survival shares this path but flags the draft (survivalLevelDraftActive) so
+  ## continueAfterDraft routes back to play rather than the post-boss shop, and
+  ## draws from all power families since survival has no per-run unlock set.
+  if game.mode notin {gmRoguelite, gmTimeSurvival} or game.state != gsPlaying: return
+  # Survival: never open a level-up draft while a boss is alive — leveling is
+  # deferred until the fight ends (matches the XP freeze in bankRunLevelUps).
+  if isTimeSurvivalMode(game.mode) and game.bossWaveManager.isBossActive(): return
   if game.pendingLevelDrafts <= 0: return
   dec game.pendingLevelDrafts
-  game.powerUpChoices = generatePowerUpChoices(
-    game.player, false, unlockedFamilySet(game.rogueliteProfile), game.mode)
+  let families = if game.mode == gmRoguelite:
+    unlockedFamilySet(game.rogueliteProfile)
+  else:
+    {rpfCore..rpfBlood}
+  game.powerUpChoices = generatePowerUpChoices(game.player, false, families, game.mode)
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
   initializeRerollCost(game)
+  if isTimeSurvivalMode(game.mode):
+    game.survivalLevelDraftActive = true
   game.state = gsPowerUpSelect
 
 proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0, particleSkin: int = 0, bulletShape: int = 0): Game =
@@ -262,6 +285,7 @@ proc setGameMode*(game: Game, mode: GameMode) =
   # Apply mode-specific starting values
   game.player.coins = modeDef.playerStartCoins
   game.bossTimer = if isTimeSurvivalMode(mode): TIME_SURVIVAL_BOSS_INTERVAL else: 0.0
+  game.survivalTime = 0
   game.bossWaveManager.clearBossWave()
 
   # Reset wave-specific state if not using waves
@@ -1736,7 +1760,7 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
           let outcome = onRoomCleared(game)
           shouldOfferPowerUp = outcome == dcoDraft
           # Cash in any levels earned from XP collected during this room.
-          applyRoomClearLevelUps(game)
+          bankRunLevelUps(game)
           # RoomEcho: grant charged bullets on room clear
           if hasPowerUp(game.player, puRoomEcho):
             let echoLevel = getPowerUpLevel(game.player, puRoomEcho)
@@ -1982,8 +2006,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       if not enemy.spawnedByBoss:
         dropEnemyCoin(game, enemy)
 
-      # Roguelite: enemies also drop auto-homing XP orbs (dropEnemyXp guards
-      # mode + spawnedByBoss internally).
+      # Run-leveling modes (roguelite + survival): enemies also drop auto-homing
+      # XP orbs (dropEnemyXp guards mode + spawnedByBoss internally).
       dropEnemyXp(game, enemy)
 
       # Elite Explosive death effect
@@ -2698,7 +2722,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     # Boss room counts as a completed room: bank levels from XP collected in the
     # fight. Stat boosts apply now; the queued drafts (pendingLevelDrafts) open
     # once the player is back in normal play, after the post-boss legendary draft.
-    applyRoomClearLevelUps(game)
+    bankRunLevelUps(game)
     # KernelExploit: boss defeat grants +20% permanent damage
     if hasPowerUp(game.player, puKernelExploit):
       game.player.damage *= 1.20'f32
@@ -2744,8 +2768,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
   # Sandbox is excluded: its bosses are spawned freely as a testing tool, so
   # killing one must not pop a power-up draft (or any reward flow).
   if bossDefeated and not shouldUseWaves(game.mode) and game.mode != gmSandbox:
-    # Time survival: offer regular upgrades after boss
-    game.powerUpChoices = generatePowerUpChoices(game.player, false, mode = game.mode)
+    # Time survival: a defeated boss is a major milestone, so offer a LEGENDARY
+    # draft (isLegendary = true) to match the wave-mode boss reward in
+    # completeBossWave — not a common upgrade.
+    game.powerUpChoices = generatePowerUpChoices(game.player, true, mode = game.mode)
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
     game.state = gsPowerUpSelect
@@ -3842,10 +3868,16 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
   if updateGameCoins(game, dt):
     game.completeBossWave()
 
-  # Roguelite: collect XP orbs every frame, but only OPEN a queued level-up
-  # draft (levels are banked at room clear, see applyRoomClearLevelUps).
+  # Run-leveling: collect XP orbs every frame. Roguelite banks levels at room
+  # clear (see bankRunLevelUps), so here it only OPENS already-queued drafts.
+  # Survival has no room clear, so it banks levels continuously every frame and
+  # opens the draft the instant the XP bar fills.
   if game.mode == gmRoguelite:
     updateGameXpOrbs(game, dt)
+    checkPendingLevelDraft(game)
+  elif isTimeSurvivalMode(game.mode):
+    updateGameXpOrbs(game, dt)
+    bankRunLevelUps(game)
     checkPendingLevelDraft(game)
 
   # Update consumables
@@ -4132,6 +4164,17 @@ proc updateGame*(game: var Game, dt: float32) =
 
   game.spawnTimer += dt
 
+  # Survival progression clock + next-boss countdown. Both PAUSE whenever a boss
+  # (or its uncollected reward coin) is present, so the player can fight the boss
+  # without the world escalating around them or the next boss creeping closer.
+  # Difficulty derives from survivalTime below, so it freezes for the fight too.
+  # Ticked before the difficulty block so difficulty reflects the same frame.
+  if isTimeSurvivalMode(game.mode) and game.state == gsPlaying and
+     not game.bossWaveManager.isBossActive() and
+     not game.bossWaveManager.isBossCoinActive():
+    game.survivalTime += dt
+    game.bossTimer = max(0.0, game.bossTimer - dt)
+
   # Difficulty scaling (not in sandbox mode)
   if not isSandboxMode(game.mode):
     let modeDef = getGameModeDefinition(game.mode)
@@ -4145,13 +4188,11 @@ proc updateGame*(game: var Game, dt: float32) =
           game.difficulty = dungeonEnemyDifficulty(game.rogueliteRun, room) *
                             modeDef.difficultyScale
     else:
-      # In other modes, difficulty scales with time
-      game.difficulty = (game.time / 10.0) * modeDef.difficultyScale
-
-  if isTimeSurvivalMode(game.mode) and game.state == gsPlaying and
-     not game.bossWaveManager.isBossActive() and
-     not game.bossWaveManager.isBossCoinActive():
-    game.bossTimer = max(0.0, game.bossTimer - dt)
+      # In other modes, difficulty scales with time. Survival uses a gentle ramp
+      # (SurvivalDifficultyRamp s per +1 difficulty) so the early game is survivable
+      # to the first boss while the XP/level drafts build the player up; e.g. the
+      # 90s first boss sits at ~difficulty 2 (~wave-10 tier) instead of the old 6.
+      game.difficulty = (game.survivalTime / SurvivalDifficultyRamp) * modeDef.difficultyScale
 
   updateAttackWarningsAndLasers(game, dt, effectiveDt)
   updatePlayerAndAuras(game, dt, effectiveDt)
