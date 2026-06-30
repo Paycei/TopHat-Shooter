@@ -3,7 +3,12 @@ import types, sound, gamemode_definitions, powerup, powerup_data, localization, 
 import roguelite, settings, save_system
 
 # ENABLE/DISABLE CHEATS
-const CHEATS_ENABLED* = true
+# Release-build toggle: flip to `false` to ship a build with no cheat menu.
+# Debug builds (-d:debug, see `nimble debug`) ignore this toggle and ALWAYS
+# enable the cheat menu, since it's a core dev/testing tool. The toggle below
+# therefore only governs release builds.
+const RELEASE_CHEATS_ENABLED = true
+const CHEATS_ENABLED* = defined(debug) or RELEASE_CHEATS_ENABLED
 
 # Anti-cheat exemption for development builds. The anti-cheat is just the
 # `game.cheatsUsed` flag, which (when set) withholds every progression unlock

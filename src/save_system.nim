@@ -77,6 +77,12 @@ proc getAppDataPath*(): string =
 
   result = result / ".tophat" / "shooter"
 
+  # Debug builds (nimble debug -> -d:debug) get an isolated save directory so
+  # testers running release builds can't carry over progress cheated/unlocked
+  # via the debug build (which exposes the cheat menu and other dev shortcuts).
+  when defined(debug):
+    result = result / "debug"
+
   # Create directory if it doesn't exist
   if not dirExists(result):
     try:
