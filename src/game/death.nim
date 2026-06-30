@@ -11,6 +11,10 @@ const DEATH_TOTAL_DURATION = DEATH_SLOW_DURATION + DEATH_SPEEDUP_DURATION + DEAT
 const DEATH_SLOW_SCALE = 0.16'f32
 const DEATH_FAST_SCALE = 1.35'f32
 
+## Minimum Time-Survival run length (seconds) that earns the "Long Watch" outro.
+## A 15-minute stand is the threshold below which the run just rolls to game-over.
+const SURVIVAL_ENDING_MIN_TIME* = 900.0'f32
+
 
 proc getDeathSequenceTimeScale(timer: float32): float32 =
   if timer < DEATH_SLOW_DURATION:
@@ -386,4 +390,9 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
 
   if game.deathSequenceTimer >= DEATH_TOTAL_DURATION:
     game.deathSequenceFadeAlpha = 1.0
-    game.state = gsGameOver
+    # A long Time-Survival stand earns the "Long Watch" eulogy before game-over.
+    # The cinematic (owned by main.nim) hands back to gsGameOver when it ends.
+    if game.mode == gmTimeSurvival and game.time >= SURVIVAL_ENDING_MIN_TIME:
+      game.state = gsSurvivalEndCinematic
+    else:
+      game.state = gsGameOver

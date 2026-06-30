@@ -41,6 +41,11 @@ type
     # Set when the user clicks "Replay Ending" (only offered once the game is won)
     replayEndingRequested*: bool
 
+    # Set when the user clicks "Replay Roguelite" / "Replay Survival" (each only
+    # offered once that mode's ending cinematic has been seen)
+    replayRogueliteEndingRequested*: bool
+    replaySurvivalEndingRequested*: bool
+
     # Destructive reset confirmation state
     pendingReset*: SettingsResetAction
     resetConfirmTimer*: float32
@@ -83,6 +88,8 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     draggingMusic: false,
     replayIntroRequested: false,
     replayEndingRequested: false,
+    replayRogueliteEndingRequested: false,
+    replaySurvivalEndingRequested: false,
     pendingReset: sraNone,
     resetConfirmTimer: 0.0,
     resetStatus: "",
@@ -242,6 +249,24 @@ proc replayEndingButtonRect(contentX, contentY: int): Rectangle =
     height: 32.float32
   )
 
+proc replayRogueliteEndingButtonRect(contentX, contentY: int): Rectangle =
+  ## Second replay row; only shown once the roguelite outro has been seen.
+  Rectangle(
+    x: (contentX + 40).float32,
+    y: (contentY + 250 + 40).float32,
+    width: 200.float32,
+    height: 32.float32
+  )
+
+proc replaySurvivalEndingButtonRect(contentX, contentY: int): Rectangle =
+  ## Beside "Replay Roguelite"; only shown once the survival outro has been seen.
+  Rectangle(
+    x: (contentX + 40 + 210).float32,
+    y: (contentY + 250 + 40).float32,
+    width: 200.float32,
+    height: 32.float32
+  )
+
 proc resetActionLabel(action: SettingsResetAction): string =
   case action
   of sraAllData: t(tkSettingsResetAllData)
@@ -302,6 +327,8 @@ proc resetProgressSettings(settings: Settings): bool =
     return false
   settings.hasSeenIntro = false
   settings.hasSeenEnding = false
+  settings.hasSeenRogueliteEnding = false
+  settings.hasSeenSurvivalEnding = false
   settings.kernelTophatUnlocked = false
   settings.kernelTophatEquipped = false
   settings.orbitalCubeUnlocked = false
@@ -777,7 +804,16 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
       let endRect = replayEndingButtonRect(contentX, contentY)
       let endHovered = checkCollisionPointRec(mousePos, endRect)
       drawSettingsButton(endRect, t(tkSettingsReplayEnding), endHovered, false)
-  yPos += 42
+    # Second row: per-mode outros, each offered once that ending has been seen.
+    if settingsWin.settings != nil and settingsWin.settings.hasSeenRogueliteEnding:
+      let rogRect = replayRogueliteEndingButtonRect(contentX, contentY)
+      let rogHovered = checkCollisionPointRec(mousePos, rogRect)
+      drawSettingsButton(rogRect, t(tkSettingsReplayRogueliteEnding), rogHovered, false)
+    if settingsWin.settings != nil and settingsWin.settings.hasSeenSurvivalEnding:
+      let surRect = replaySurvivalEndingButtonRect(contentX, contentY)
+      let surHovered = checkCollisionPointRec(mousePos, surRect)
+      drawSettingsButton(surRect, t(tkSettingsReplaySurvivalEnding), surHovered, false)
+  yPos += 82
 
   drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionDataManagement), '!',
                    Color(r: 255, g: 95, b: 105, a: 255))
@@ -1134,6 +1170,17 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       if settingsWin.settings != nil and settingsWin.settings.hasSeenEnding and
          checkCollisionPointRec(mousePos, replayEndingButtonRect(contentX, contentY)):
         settingsWin.replayEndingRequested = true
+        playSound(stMenuSelect)
+
+      # Per-mode outro replays (only active once each has been seen)
+      if settingsWin.settings != nil and settingsWin.settings.hasSeenRogueliteEnding and
+         checkCollisionPointRec(mousePos, replayRogueliteEndingButtonRect(contentX, contentY)):
+        settingsWin.replayRogueliteEndingRequested = true
+        playSound(stMenuSelect)
+
+      if settingsWin.settings != nil and settingsWin.settings.hasSeenSurvivalEnding and
+         checkCollisionPointRec(mousePos, replaySurvivalEndingButtonRect(contentX, contentY)):
+        settingsWin.replaySurvivalEndingRequested = true
         playSound(stMenuSelect)
 
       for action in [sraAllData, sraAdvancements, sraRogueliteData]:

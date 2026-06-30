@@ -1,7 +1,7 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import particle_types
 import game/combat, game/death
-import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/language_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
 
 # Global quit-confirmation dialog
 
@@ -439,6 +439,16 @@ proc main() =
   var endgameCinematic = newEndgameCinematic()
   var endgameCinematicArmed = false
   var endgameReplayMode = false
+  # Roguelite ("Deep Recovery") and Survival ("Long Watch") outros mirror the
+  # endgame cinematic exactly: lazily (re)armed on entry since their producers
+  # (game.nim / game/death.nim) can only set the state, and a replay flag tells the
+  # finish handler to return to the desktop instead of the run-end screen.
+  var rogueliteEndCinematic = newRogueliteEndCinematic()
+  var rogueliteEndCinematicArmed = false
+  var rogueliteEndReplayMode = false
+  var survivalEndCinematic = newSurvivalEndCinematic()
+  var survivalEndCinematicArmed = false
+  var survivalEndReplayMode = false
   # Generic cutscene state. activeCutscene holds whichever Cutscene is currently
   # playing; cutsceneContinuation says where to go when it finishes.
   # pendingModeAfterCutscene is the pendingGameMode value staged before a mode-intro
@@ -740,6 +750,55 @@ proc main() =
       drawEndgameCinematic(endgameCinematic, screenWidth, screenHeight)
       endGameDrawing()
 
+    of gsRogueliteEndCinematic:
+      # One-time roguelite outro, played the first time the final-floor boss falls
+      # (or replayed from settings). game.nim sets this state, so arm lazily here.
+      if not rogueliteEndCinematicArmed:
+        rogueliteEndCinematic = newRogueliteEndCinematic()
+        rogueliteEndCinematicArmed = true
+      playMusic(mtMenu)
+      updateRogueliteEndCinematic(rogueliteEndCinematic, dt)
+      if rogueliteEndCinematic.complete:
+        rogueliteEndCinematicArmed = false
+        if not settings.hasSeenRogueliteEnding:
+          settings.hasSeenRogueliteEnding = true
+          discard saveSettings(settings)
+        if rogueliteEndReplayMode:
+          # Replayed from the desktop: there is no active run to send off.
+          rogueliteEndReplayMode = false
+          currentGame.state = gsMenu
+        else:
+          # First final-floor clear: hand off to the roguelite victory screen.
+          currentGame.state = gsRogueliteVictory
+
+      beginGameDrawing()
+      drawRogueliteEndCinematic(rogueliteEndCinematic, screenWidth, screenHeight)
+      endGameDrawing()
+
+    of gsSurvivalEndCinematic:
+      # Survival "Long Watch" eulogy, played on death after a 15+ minute stand
+      # (or replayed from settings). game/death.nim sets this state; arm lazily.
+      if not survivalEndCinematicArmed:
+        survivalEndCinematic = newSurvivalEndCinematic()
+        survivalEndCinematicArmed = true
+      playMusic(mtMenu)
+      updateSurvivalEndCinematic(survivalEndCinematic, dt)
+      if survivalEndCinematic.complete:
+        survivalEndCinematicArmed = false
+        if not settings.hasSeenSurvivalEnding:
+          settings.hasSeenSurvivalEnding = true
+          discard saveSettings(settings)
+        if survivalEndReplayMode:
+          survivalEndReplayMode = false
+          currentGame.state = gsMenu
+        else:
+          # The run is over: hand off to the game-over screen as usual.
+          currentGame.state = gsGameOver
+
+      beginGameDrawing()
+      drawSurvivalEndCinematic(survivalEndCinematic, screenWidth, screenHeight)
+      endGameDrawing()
+
     of gsCutscene:
       # Generic cutscene player.  activeCutscene must be set before entering this
       # state; cutsceneContinuation controls where we go when it finishes.
@@ -897,6 +956,18 @@ proc main() =
         endgameReplayMode = true
         endgameCinematicArmed = false  # force a fresh timeline on entry
         currentGame.state = gsEndgameCinematic
+
+      # Replay the roguelite / survival outros from settings. Like the endgame
+      # replay, these return to the desktop (no active run to resolve into).
+      if updateResult.replayRogueliteEnding and not globalConfirmActive:
+        rogueliteEndReplayMode = true
+        rogueliteEndCinematicArmed = false
+        currentGame.state = gsRogueliteEndCinematic
+
+      if updateResult.replaySurvivalEnding and not globalConfirmActive:
+        survivalEndReplayMode = true
+        survivalEndCinematicArmed = false
+        currentGame.state = gsSurvivalEndCinematic
 
       # Handle roguelite window Start button, show loading screen then enter game
       if updateResult.rogueliteLaunchGame and not globalConfirmActive:

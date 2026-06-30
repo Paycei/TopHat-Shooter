@@ -2729,7 +2729,13 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     # held in reserve and only consumed if the player chooses to loop deeper.
     if game.rogueliteRun.awaitingVictoryScreen:
       game.selectedVictoryButton = 0
-      game.state = gsRogueliteVictory
+      # First final-floor clear plays the one-time "Deep Recovery" outro, which
+      # hands off to the roguelite victory screen when it ends. Already-seen runs
+      # drop straight onto the victory screen.
+      if not globalSettings.isNil and not globalSettings.hasSeenRogueliteEnding:
+        game.state = gsRogueliteEndCinematic
+      else:
+        game.state = gsRogueliteVictory
     else:
       game.state = gsPowerUpSelect
 
@@ -2766,7 +2772,10 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
   game.bullets = @[]
   if game.rogueliteRun.awaitingVictoryScreen:
     game.selectedVictoryButton = 0
-    game.state = gsRogueliteVictory
+    if not globalSettings.isNil and not globalSettings.hasSeenRogueliteEnding:
+      game.state = gsRogueliteEndCinematic
+    else:
+      game.state = gsRogueliteVictory
   else:
     # Unlike the real boss-defeat path, the cheat can fire from any room, so the
     # boss-room exit portal would be unreachable. Request that the draft route

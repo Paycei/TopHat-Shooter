@@ -83,6 +83,8 @@ type
     tkSettingsLanguage = "settings_language"
     tkSettingsReplayIntro = "settings_replay_intro"
     tkSettingsReplayEnding = "settings_replay_ending"
+    tkSettingsReplayRogueliteEnding = "settings_replay_roguelite_ending"
+    tkSettingsReplaySurvivalEnding = "settings_replay_survival_ending"
     tkSettingsBackToMenu = "settings_back_to_menu"
     tkSettingsSectionDataManagement = "settings_section_data_management"
     tkSettingsResetAllData = "settings_reset_all_data"
@@ -173,6 +175,39 @@ type
     tkEndCrown2 = "end_crown_2"
     tkEndSignoffTitle = "end_signoff_title"
     tkEndSignoffSub = "end_signoff_sub"
+
+    # Roguelite Ending Cinematic ("Deep Recovery" / DELVE archive)
+    tkRogEndTitleCardSub = "rog_end_title_card_sub"
+    tkRogEndRecDescend = "rog_end_rec_descend"
+    tkRogEndRecCore = "rog_end_rec_core"
+    tkRogEndRecExtract = "rog_end_rec_extract"
+    tkRogEndRecAscend = "rog_end_rec_ascend"
+    tkRogEndRecSignoff = "rog_end_rec_signoff"
+    tkRogEndDescend1 = "rog_end_descend_1"
+    tkRogEndDescend2 = "rog_end_descend_2"
+    tkRogEndCore1 = "rog_end_core_1"
+    tkRogEndCore2 = "rog_end_core_2"
+    tkRogEndExtract1 = "rog_end_extract_1"
+    tkRogEndExtract2 = "rog_end_extract_2"
+    tkRogEndAscend1 = "rog_end_ascend_1"
+    tkRogEndAscend2 = "rog_end_ascend_2"
+    tkRogEndSignoffTitle = "rog_end_signoff_title"
+    tkRogEndSignoffSub = "rog_end_signoff_sub"
+
+    # Survival Ending Cinematic ("The Long Watch" / LOG archive)
+    tkSurEndTitleCardSub = "sur_end_title_card_sub"
+    tkSurEndRecWatch = "sur_end_rec_watch"
+    tkSurEndRecSurge = "sur_end_rec_surge"
+    tkSurEndRecFall = "sur_end_rec_fall"
+    tkSurEndRecSignoff = "sur_end_rec_signoff"
+    tkSurEndWatch1 = "sur_end_watch_1"
+    tkSurEndWatch2 = "sur_end_watch_2"
+    tkSurEndSurge1 = "sur_end_surge_1"
+    tkSurEndSurge2 = "sur_end_surge_2"
+    tkSurEndFall1 = "sur_end_fall_1"
+    tkSurEndFall2 = "sur_end_fall_2"
+    tkSurEndSignoffTitle = "sur_end_signoff_title"
+    tkSurEndSignoffSub = "sur_end_signoff_sub"
 
     # Stats Window
     tkStatsWindowTitle = "stats_window_title"
@@ -1648,6 +1683,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_language": "Language:",
     "settings_replay_intro": "Replay Intro",
     "settings_replay_ending": "Replay Ending",
+    "settings_replay_roguelite_ending": "Replay Roguelite",
+    "settings_replay_survival_ending": "Replay Survival",
     "settings_back_to_menu": "Press ESC to return to menu",
 
     "lore_title_card_sub": "ARCHIVE PLAYBACK // INCIDENT LOG",
@@ -1689,6 +1726,38 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "end_crown_2": "You wear the crown of the kernel now.",
     "end_signoff_title": "SYSTEM SECURED",
     "end_signoff_sub": "Threat level zero. Stand down, TOPHAT.",
+
+    "rog_end_title_card_sub": "ARCHIVE PLAYBACK // DEEP RECOVERY",
+    "rog_end_rec_descend": "DELVE 01: SECTOR DESCENT",
+    "rog_end_rec_core": "DELVE 02: CORRUPTED CORE",
+    "rog_end_rec_extract": "DELVE 03: DATA EXTRACTION",
+    "rog_end_rec_ascend": "DELVE 04: STACK ASCENT",
+    "rog_end_rec_signoff": "DELVE 05: SURFACE REACHED",
+    "rog_end_descend_1": "Down through the corrupted sectors you fell,",
+    "rog_end_descend_2": "each floor a deeper loop of the same rot.",
+    "rog_end_core_1": "At the base of the recursion waited the seed-",
+    "rog_end_core_2": "the corrupted core every sector grew from.",
+    "rog_end_extract_1": "You tore the data free, shard by shard,",
+    "rog_end_extract_2": "and the endless loop began to unwind.",
+    "rog_end_ascend_1": "Up through the collapsing stack you climbed,",
+    "rog_end_ascend_2": "recovered cores burning bright in hand.",
+    "rog_end_signoff_title": "SECTOR CLEARED",
+    "rog_end_signoff_sub": "The recursion is broken. The cores are yours.",
+
+    "sur_end_title_card_sub": "ARCHIVE PLAYBACK // THE LONG WATCH",
+    "sur_end_rec_watch": "LOG 01: THE LONG WATCH",
+    "sur_end_rec_surge": "LOG 02: FINAL SURGE",
+    "sur_end_rec_fall": "LOG 03: SIGNAL LOST",
+    "sur_end_rec_signoff": "LOG 04: WATCH REMEMBERED",
+    "sur_end_watch_1": "You held the breach long past every estimate,",
+    "sur_end_watch_2": "minute after minute, refusing to fall.",
+    "sur_end_surge_1": "But the flood never tired the way you did.",
+    "sur_end_surge_2": "The last surge found the gap you couldn't close.",
+    "sur_end_fall_1": "Your process dimmed, then went dark.",
+    "sur_end_fall_2": "The long watch was finally over.",
+    "sur_end_signoff_title": "SIGNAL LOST",
+    "sur_end_signoff_sub": "The system endures on the time you bought it.",
+
     "settings_section_data_management": "DATA MANAGEMENT",
     "settings_reset_all_data": "Reset All Data",
     "settings_reset_advancements": "Reset Advancements",
@@ -3443,6 +3512,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_language": "Idioma:",
     "settings_replay_intro": "Volver a ver intro",
     "settings_replay_ending": "Volver a ver final",
+    "settings_replay_roguelite_ending": "Volver a ver roguelite",
+    "settings_replay_survival_ending": "Volver a ver supervivencia",
     "settings_back_to_menu": "ESC para volver",
 
     "lore_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // INCIDENTE",
@@ -3484,6 +3555,38 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "end_crown_2": "Ahora llevas la corona del kernel.",
     "end_signoff_title": "SISTEMA ASEGURADO",
     "end_signoff_sub": "Nivel de amenaza cero. Descansa, TOPHAT.",
+
+    "rog_end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // RECUPERACIÓN PROFUNDA",
+    "rog_end_rec_descend": "DESCENSO 01: BAJADA DE SECTOR",
+    "rog_end_rec_core": "DESCENSO 02: NÚCLEO CORRUPTO",
+    "rog_end_rec_extract": "DESCENSO 03: EXTRACCIÓN DE DATOS",
+    "rog_end_rec_ascend": "DESCENSO 04: SUBIDA DE PILA",
+    "rog_end_rec_signoff": "DESCENSO 05: SUPERFICIE ALCANZADA",
+    "rog_end_descend_1": "Caíste por los sectores corruptos,",
+    "rog_end_descend_2": "cada piso un bucle más hondo de la misma podredumbre.",
+    "rog_end_core_1": "En el fondo de la recursión aguardaba la semilla-",
+    "rog_end_core_2": "el núcleo corrupto del que nació cada sector.",
+    "rog_end_extract_1": "Arrancaste los datos, fragmento a fragmento,",
+    "rog_end_extract_2": "y el bucle sin fin comenzó a deshacerse.",
+    "rog_end_ascend_1": "Subiste por la pila que se derrumbaba,",
+    "rog_end_ascend_2": "con los núcleos recuperados ardiendo en la mano.",
+    "rog_end_signoff_title": "SECTOR DESPEJADO",
+    "rog_end_signoff_sub": "La recursión está rota. Los núcleos son tuyos.",
+
+    "sur_end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // LA LARGA VIGILIA",
+    "sur_end_rec_watch": "REG 01: LA LARGA VIGILIA",
+    "sur_end_rec_surge": "REG 02: OLEADA FINAL",
+    "sur_end_rec_fall": "REG 03: SEÑAL PERDIDA",
+    "sur_end_rec_signoff": "REG 04: VIGILIA RECORDADA",
+    "sur_end_watch_1": "Resististe la brecha mucho más de lo previsto,",
+    "sur_end_watch_2": "minuto tras minuto, negándote a caer.",
+    "sur_end_surge_1": "Pero la marea nunca se cansó como tú.",
+    "sur_end_surge_2": "La última oleada halló la brecha que no pudiste cerrar.",
+    "sur_end_fall_1": "Tu proceso se atenuó y luego se apagó.",
+    "sur_end_fall_2": "La larga vigilia por fin terminó.",
+    "sur_end_signoff_title": "SEÑAL PERDIDA",
+    "sur_end_signoff_sub": "El sistema perdura por el tiempo que ganaste.",
+
     "settings_section_data_management": "DATOS",
     "settings_reset_all_data": "Reiniciar todo",
     "settings_reset_advancements": "Reiniciar avances",

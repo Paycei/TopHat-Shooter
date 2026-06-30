@@ -45,6 +45,8 @@ type
     pvpNickname*: string  # Player nickname shown in PvP lobbies
     hasSeenIntro*: bool   # True after the lore cinematic has been seen once
     hasSeenEnding*: bool  # True after the endgame cinematic has been seen once
+    hasSeenRogueliteEnding*: bool  # True after the roguelite ending cinematic has been seen once
+    hasSeenSurvivalEnding*: bool   # True after the survival ending cinematic has been seen once
     exitConfirmEnabled*: bool  # Show exit confirm dialogs (default: false)
     vsyncEnabled*: bool        # Lock framerate to monitor refresh rate
     kernelTophatUnlocked*: bool  # Secret cosmetic: earned by beating the wave-60 final boss
@@ -133,6 +135,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "pvpNickname": settings.pvpNickname,
     "hasSeenIntro": settings.hasSeenIntro,
     "hasSeenEnding": settings.hasSeenEnding,
+    "hasSeenRogueliteEnding": settings.hasSeenRogueliteEnding,
+    "hasSeenSurvivalEnding": settings.hasSeenSurvivalEnding,
     "exitConfirmEnabled": settings.exitConfirmEnabled,
     "vsyncEnabled": settings.vsyncEnabled,
     "kernelTophatUnlocked": settings.kernelTophatUnlocked,
@@ -235,6 +239,12 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("hasSeenEnding"):
     settings.hasSeenEnding = jsonNode["hasSeenEnding"].getBool()
+
+  if jsonNode.hasKey("hasSeenRogueliteEnding"):
+    settings.hasSeenRogueliteEnding = jsonNode["hasSeenRogueliteEnding"].getBool()
+
+  if jsonNode.hasKey("hasSeenSurvivalEnding"):
+    settings.hasSeenSurvivalEnding = jsonNode["hasSeenSurvivalEnding"].getBool()
 
   if jsonNode.hasKey("exitConfirmEnabled"):
     settings.exitConfirmEnabled = jsonNode["exitConfirmEnabled"].getBool()

@@ -38,7 +38,7 @@ type
   GameState* = enum
     gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
     gsRogueliteFloorSelect, gsDeathSequence, gsVictory, gsEndgameCinematic, gsCutscene,
-    gsRogueliteVictory
+    gsRogueliteVictory, gsRogueliteEndCinematic, gsSurvivalEndCinematic
 
   CutsceneContinuation* = enum
     cscMenu,       ## after cutscene → gsMenu (intro, settings replays)

@@ -215,6 +215,8 @@ type
     sandboxLaunchGame*: bool  # True when user pressed Start in the sandbox setup window
     replayIntro*: bool  # True when user clicked "Replay Intro" in settings
     replayEnding*: bool  # True when user clicked "Replay Ending" in settings
+    replayRogueliteEnding*: bool  # True when user clicked "Replay Roguelite" in settings
+    replaySurvivalEnding*: bool   # True when user clicked "Replay Survival" in settings
 
 proc updateAllWindows*(wm: WindowManager, dt: float32,
                        screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult =
@@ -228,6 +230,8 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
   result.sandboxLaunchGame = false
   result.replayIntro = false
   result.replayEnding = false
+  result.replayRogueliteEnding = false
+  result.replaySurvivalEnding = false
 
   let visibleWindows = wm.getVisibleWindows()
 
@@ -249,6 +253,12 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       if wm.settings.replayEndingRequested:
         result.replayEnding = true
         wm.settings.replayEndingRequested = false
+      if wm.settings.replayRogueliteEndingRequested:
+        result.replayRogueliteEnding = true
+        wm.settings.replayRogueliteEndingRequested = false
+      if wm.settings.replaySurvivalEndingRequested:
+        result.replaySurvivalEnding = true
+        wm.settings.replaySurvivalEndingRequested = false
 
     elif window == wm.stats.window:
       discard updateStatsWindow(wm.stats, dt, screenWidth, screenHeight, visibleWindows)
