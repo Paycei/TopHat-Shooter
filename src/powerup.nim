@@ -427,12 +427,10 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # LastStand: one-shot near-death invulnerability (trigger in game.nim damage check)
     discard
   of puRecursion:
-    # Recursion: flat damage bonus on pickup
-    let bonus = case powerUp.level
-      of 1: 0.08'f32
-      of 2: 0.14'f32
-      else: 0.20'f32
-    player.damage *= (1.0'f32 + bonus)
+    # Recursion: immediate damage bonus for the current run. The matching
+    # permanent, cross-run accumulation onto the roguelite profile happens in
+    # installPowerUp (which has game/profile context).
+    player.damage *= (1.0'f32 + recursionDamageBonusForLevel(powerUp.level))
   of puSectorProtocol:
     # SectorProtocol: kills grant +1 coin; new floors grant +15 coins (flag in game.nim)
     player.hasSectorProtocol = true

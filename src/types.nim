@@ -339,6 +339,14 @@ type
     bestEndlessLoop*: int
     totalRuns*: int
     wins*: int
+    recursionDamageBonus*: float32       # Permanent, cross-run damage multiplier
+                                         # bonus accumulated from every Recursion
+                                         # power-up ever picked up. Applied to the
+                                         # player's damage at the start of each run.
+    recursionLevel*: int                 # Permanent ladder position (0..maxLevel)
+                                         # for Recursion. Pre-seeded onto the player
+                                         # each run so the draft offers the NEXT
+                                         # level instead of restarting at 1.
     seenAffordableUnlocks*: seq[string]  # Stable keys of unlocks the player has
                                          # already been shown as affordable; gates
                                          # the shop button's "deal" badge so it only

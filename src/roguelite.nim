@@ -1,5 +1,5 @@
-import json, os, random, strutils
-import types, settings, save_system, powerup, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins
+import json, os, random, strutils, math
+import types, settings, save_system, powerup, powerup_data, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins
 
 const
   RogueliteProfileVersion* = 4
@@ -52,6 +52,8 @@ proc initRogueliteProfile*(): RogueliteProfile =
     bestEndlessLoop: 0,
     totalRuns: 0,
     wins: 0,
+    recursionDamageBonus: 0.0'f32,
+    recursionLevel: 0,
     seenAffordableUnlocks: @[]
   )
 
@@ -412,6 +414,8 @@ proc rogueliteProfileToJson*(profile: RogueliteProfile): JsonNode =
     "bestEndlessLoop": profile.bestEndlessLoop,
     "totalRuns": profile.totalRuns,
     "wins": profile.wins,
+    "recursionDamageBonus": profile.recursionDamageBonus,
+    "recursionLevel": profile.recursionLevel,
     "seenAffordableUnlocks": stringSeqToJson(profile.seenAffordableUnlocks)
   }
 
@@ -459,6 +463,16 @@ proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile =
   result.bestEndlessLoop = j.getOrDefault("bestEndlessLoop").getInt(result.bestEndlessLoop)
   result.totalRuns = j.getOrDefault("totalRuns").getInt(result.totalRuns)
   result.wins = j.getOrDefault("wins").getInt(result.wins)
+  result.recursionDamageBonus = j.getOrDefault("recursionDamageBonus").getFloat(result.recursionDamageBonus).float32
+  if j.hasKey("recursionLevel"):
+    result.recursionLevel = j["recursionLevel"].getInt(0)
+  elif result.recursionDamageBonus > 0.0'f32:
+    # Migrate pre-ladder saves: the old model only ever banked level-1 picks
+    # (each +recursionDamageBonusForLevel(1)), so the bonus divided by that
+    # per-pick amount recovers how many levels were earned.
+    let perPick = recursionDamageBonusForLevel(1)
+    result.recursionLevel = clamp(int(round(result.recursionDamageBonus / perPick)),
+                                  0, getPowerUpMaxLevel(puRecursion))
   if j.hasKey("seenAffordableUnlocks"):
     result.seenAffordableUnlocks = parseStringSeq(j["seenAffordableUnlocks"])
   refreshRogueliteUnlocks(result)
@@ -511,6 +525,8 @@ proc resetRogueliteProfile*(profile: RogueliteProfile): bool =
   profile.bestEndlessLoop = fresh.bestEndlessLoop
   profile.totalRuns = fresh.totalRuns
   profile.wins = fresh.wins
+  profile.recursionDamageBonus = fresh.recursionDamageBonus
+  profile.recursionLevel = fresh.recursionLevel
   saveRogueliteProfile(profile)
 
 proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
@@ -562,6 +578,20 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
     applyPowerUp(game.player, PowerUp(powerType: puArcaneBullets, level: 1, rarity: prCommon))
 
   game.player.coins += heatRank * 5
+
+  # Permanent cross-run damage earned from every Recursion ever picked up.
+  # The player object is freshly built (newGame) with base damage when the
+  # roguelite window opens, so this multiplier is applied exactly once per run.
+  if not profile.isNil and profile.recursionDamageBonus > 0.0'f32:
+    game.player.damage *= (1.0'f32 + profile.recursionDamageBonus)
+
+  # Seed the player's Recursion ladder position so the draft offers the NEXT
+  # level (recursionLevel + 1) rather than restarting at level 1. We add the
+  # entry directly instead of via applyPowerUp because the damage for these
+  # banked levels is already applied above through recursionDamageBonus.
+  if not profile.isNil and profile.recursionLevel > 0:
+    game.player.powerUps.add(
+      PowerUp(powerType: puRecursion, level: profile.recursionLevel, rarity: prCommon))
 
 const RogueliteRelicRewardOrder = [rrtDiscountProtocol, rrtShardMagnet, rrtEliteDividend,
                                    rrtEmergencyPatch, rrtDraftCache]

@@ -1,5 +1,5 @@
 import raylib, math, strutils
-import ../types, ../roguelite, ../dungeon, ../localization, ../render_context, icon_drawing
+import ../types, ../roguelite, ../powerup_data, ../dungeon, ../localization, ../render_context, icon_drawing
 
 # Unlock card grid constants
 
@@ -947,6 +947,16 @@ proc drawRogueliteSetup*(game: Game) =
   drawStatChip(x + 540, y + 58, 178, 48, t("roguelite_boss_tier"), $bossTier,
                Color(r: 255, g: 120, b: 95, a: 255))
 
+  # Permanent Recursion damage banked across runs. Only surfaces once earned, so
+  # it reads as a reward the player has built up rather than dead UI at 0%.
+  let recursionBonus = if profile.isNil: 0.0'f32 else: profile.recursionDamageBonus
+  if recursionBonus > 0.0'f32:
+    let pct = int(round(recursionBonus * 100.0'f32))
+    let maxLv = getPowerUpMaxLevel(puRecursion)
+    drawStatChip(x + 730, y + 58, 162, 48,
+                 t("roguelite_recursion") & " " & t("roguelite_level") & $profile.recursionLevel & "/" & $maxLv,
+                 "+" & $pct & "%", Color(r: 255, g: 140, b: 255, a: 255))
+
   let startX = x + 45
   let cardY = y + 122
   for idx, kit in [rskOperator, rskBulwark, rskArcanist]:
@@ -1114,6 +1124,19 @@ proc drawRogueliteFloorSelect*(game: Game) =
       drawThemeCard(run.nextThemeChoices[i], cardX, cardY.int32,
                     i == game.selectedRogueliteTheme, floorBoss,
                     canHover and isHovered(mousePos, cardX, cardY.int32, CardW, CardH))
+
+  # Permanent Recursion damage carried across runs. The top chip row is already
+  # full here, so it surfaces as a centred pill in the band below the cards.
+  let recursionBonus = if game.rogueliteProfile.isNil: 0.0'f32
+                       else: game.rogueliteProfile.recursionDamageBonus
+  if recursionBonus > 0.0'f32:
+    let pct = int(round(recursionBonus * 100.0'f32))
+    let lv = if game.rogueliteProfile.isNil: 0 else: game.rogueliteProfile.recursionLevel
+    let pillLabel = t("roguelite_recursion") & " " & t("roguelite_level") & $lv & "/" &
+                    $getPowerUpMaxLevel(puRecursion) & "  +" & $pct & "% " & t("roguelite_recursion_dmg")
+    const pillW = 400'i32
+    drawPill(x + (PanelW - pillW) div 2, y + 462, pillW, 30, pillLabel,
+             Color(r: 255, g: 140, b: 255, a: 255), filled = true)
 
   if not isFinalDungeonFloor(run):
     # The themed-roll tip is meaningless on the single-card final floor; the card's

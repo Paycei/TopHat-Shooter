@@ -181,6 +181,15 @@ proc getPowerUpColor*(pt: PowerUpType): Color {.inline.} =
 proc getPowerUpMaxLevel*(pt: PowerUpType): int {.inline.} =
   allPowerUpDefs[pt].maxLevel
 
+proc recursionDamageBonusForLevel*(level: int): float32 {.inline.} =
+  ## Fractional damage bonus granted by one Recursion pickup of the given level.
+  ## Shared so the immediate run boost (applyPowerUp) and the permanent
+  ## cross-run accumulation (installPowerUp -> profile) never drift apart.
+  case level
+  of 1: 0.08'f32
+  of 2: 0.14'f32
+  else: 0.20'f32
+
 # Names
 
 proc getPowerUpName*(powerType: PowerUpType): string =

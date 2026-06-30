@@ -1,4 +1,4 @@
-import raylib, rlgl, random, math, types, settings, save_system, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization
+import raylib, rlgl, random, math, types, settings, save_system, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite
 import game/bullets
 import ui/icon_drawing
 import utils
@@ -27,6 +27,17 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
   ## Centralized install feedback so every selected power-up feels like an event.
   applyPowerUp(game.player, powerUp)
   trackPowerUpSelection(game, powerUp)
+
+  # Recursion permanently banks its damage onto the roguelite profile, so the
+  # bonus compounds across every future run (applyPowerUp above already granted
+  # the current run its share). Persist immediately so the gain survives a quit.
+  if powerUp.powerType == puRecursion and game.mode == gmRoguelite and
+     not game.rogueliteProfile.isNil:
+    game.rogueliteProfile.recursionDamageBonus += recursionDamageBonusForLevel(powerUp.level)
+    # Advance the permanent ladder so future runs (and re-rolls) offer the level
+    # above this one, capped at the power-up's max level.
+    game.rogueliteProfile.recursionLevel = max(game.rogueliteProfile.recursionLevel, powerUp.level)
+    discard saveRogueliteProfile(game.rogueliteProfile)
 
   let powerName = $powerUp.powerType
   var isNewDiscovery = false
