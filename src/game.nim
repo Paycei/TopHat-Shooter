@@ -3089,7 +3089,8 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             game.enemies[j].weakPoint.exposedTimer <= 0 and not bullet.isEcho and
             checkBulletEnemyCollision(bullet, game.enemies[j]):
           let dir = (game.player.pos - bullet.pos).normalize()
-          bullet.vel = dir * max(220.0'f32, bullet.vel.length())
+          # Parried shots rocket back at 150% of their incoming speed (220 floor keeps slow shots dangerous).
+          bullet.vel = dir * max(220.0'f32, bullet.vel.length() * 1.5'f32)
           bullet.fromPlayer = false
           bullet.damage = REFLECT_SHIELD_DAMAGE
           bullet.sourceEnemyId = game.enemies[j].id

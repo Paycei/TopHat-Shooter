@@ -52,6 +52,17 @@ proc calcBulletEffects(player: Player): BulletEffects =
 
   (slow, poison, fire, wind)
 
+proc baseBulletSpeed(player: Player): float32 =
+  ## Player bullets travel at 1.2x the configured bulletSpeed, plus a *subtle*
+  ## nudge tied to how much faster than baseline the player is currently moving.
+  ## Only the excess over baseline (ratio - 1.0) feeds in, and at a low 0.15
+  ## transfer, so a +33% Speed Boost adds just ~+5% bullet speed — barely
+  ## noticeable, while a baseline-speed player sees no change at all.
+  result = player.bulletSpeed * 1.2
+  if player.baseSpeed > 0:
+    let speedRatio = player.speed / player.baseSpeed
+    result *= 1.0'f32 + (speedRatio - 1.0'f32) * 0.15'f32
+
 proc shootBullet*(game: Game, direction: Vector2f) =
   # Calculate all combat stats once at the start
   var stats = calculateCombatStats(game.player)
@@ -74,7 +85,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let hasArcane: bool = hasPowerUp(game.player, puArcaneBullets)
 
     # Base bullet properties - use calculated stats
-    var speed = game.player.bulletSpeed * 1.2
+    var speed = baseBulletSpeed(game.player)
     var damage = stats.damage  # Already includes Rage bonus
 
     # Compute rage multiplier at fire time so hit-block can isolate the bonus
@@ -322,7 +333,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let hasSplit = hasPowerUp(game.player, puBulletSplit)
   let hasArcane = hasPowerUp(game.player, puArcaneBullets)
 
-  var speed = game.player.bulletSpeed * 1.2
+  var speed = baseBulletSpeed(game.player)
   var damage = burstStats.damage * 0.85  # Second bullet reduced by 15%
   var bulletRadius = BASE_PLAYER_BULLET_RADIUS
 
