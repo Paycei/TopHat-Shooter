@@ -282,19 +282,22 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   # Apply immediate stat bonuses for new powerup types
   case powerUp.powerType
   of puRapidFire:
-    # Single level only - +40% fire rate
-    player.fireRate *= 0.714  # 1 / 1.4
+    # Overclock (Legendary): no flat fire-rate stat. The whole effect is the
+    # sustained-fire spin-up (up to +30% faster) handled in game.nim/combat.nim.
+    discard
   of puMaxHealth:
-    # Single level only - +14.5 HP
-    player.maxHp += 14.5
-    player.hp += 14.5
+    # Juggernaut (Legendary): no flat HP grant. The effect is the max-HP-scaled
+    # damage bonus in calculateCombatStats (which counts base HP too).
+    discard
   of puSpeedBoost:
-    # Single level only - +33% speed
-    player.speed *= 1.33
-    player.baseSpeed *= 1.33
+    # Momentum (Legendary): no flat move-speed stat. The effect is the
+    # move-while-firing damage bonus (up to +25%) in calculateCombatStats.
+    discard
   of puBulletSpeed:
-    # Single level only - +40% speed, tapered if bullet speed is already high
-    player.bulletSpeed = multiplyBulletSpeedDiminished(player.bulletSpeed, 1.4)
+    # Lightspeed Tracer (Legendary): no bullet-speed stat -- the whole effect is
+    # the instant hitscan lead hit fired in shooting.nim. Owning the power-up is
+    # all that's needed; the generic add below registers it.
+    discard
   of puTimeWarp:
     # Single level only - 2 uses per wave
     player.timeWarpMaxUsesPerWave = 2
@@ -451,6 +454,8 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     discard  # Chance coin drop triggered in game.nim kill loop
   of puKernelExploit:
     discard  # Damage bonus applied on boss defeat in game.nim
+  of puDataHarvest:
+    discard  # XP multiplier read at drop time in xp_orb.nim dropEnemyXp
   else:
     discard
 

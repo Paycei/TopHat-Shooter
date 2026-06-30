@@ -117,9 +117,29 @@ proc calculateCombatStats*(player: Player): CombatStats =
       let damageBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
       result.damage *= damageBonus
 
+  # Speed Boost (Legendary) - Momentum: the faster you move, the harder you hit.
+  # Scales 0 -> +25% damage as movement speed climbs to baseline; rewards the
+  # constant kiting that the bullet-heaven loop is built around. vel can exceed
+  # baseSpeed (the +33% boost, consumables), so the ratio is clamped to 1.0.
+  if hasPowerUp(player, puSpeedBoost) and player.baseSpeed > 0:
+    let speedRatio = min(player.vel.length() / player.baseSpeed, 1.0'f32)
+    result.damage *= 1.0'f32 + speedRatio * 0.25'f32
+
+  # Max Health (Legendary) - Juggernaut: convert vitality into raw power.
+  # +2% damage per 1.0 max HP (i.e. per 100 displayed HP), counting base HP too,
+  # capped at +40%. Base 9 HP alone -> ~+18%; stacking Fortified pushes to the cap.
+  if hasPowerUp(player, puMaxHealth):
+    result.damage *= 1.0'f32 + min(player.maxHp * 0.02'f32, 0.40'f32)
+
   # Fire rate boost consumable
   if player.fireRateBoostTimer > 0:
     result.fireRate *= 0.75    # 25% faster fire rate (lower value = faster)
+
+  # Rapid Fire (Legendary) - Spin-up: the base +40% fire rate is baked in at
+  # pickup; sustained fire spins the barrel up to a further 30% faster. The
+  # spin-up meter is ramped/decayed in game.nim's shooting block.
+  if hasPowerUp(player, puRapidFire):
+    result.fireRate *= 1.0'f32 - player.rapidFireSpinup * 0.30'f32
 
   # CrisisMode: damage bonus when below 30% HP
   for powerUp in player.powerUps:

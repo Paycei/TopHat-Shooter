@@ -134,6 +134,7 @@ const allPowerUpDefs*: array[PowerUpType, PowerUpDef] = [
   puRoomEcho:         PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:100,g:180,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
   puChainReaction:    PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:255,g:200,b: 60,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
   puKernelExploit:    PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:180,g: 80,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
+  puDataHarvest:      PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r: 90,g:255,b:170,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmRoguelite}),
 ]
 
 # Derived constants, computed once at compile time from the registry above
@@ -280,6 +281,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puRoomEcho: t(tkPowerupRoomEcho)
   of puChainReaction: t(tkPowerupChainReaction)
   of puKernelExploit: t(tkPowerupKernelExploit)
+  of puDataHarvest: t(tkPowerupDataHarvest)
 
 # Descriptions
 
@@ -626,3 +628,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     else: t(tkPowerupChainReactionDesc3)
   of puKernelExploit:
     t(tkPowerupKernelExploitDesc)
+  of puDataHarvest:
+    case level
+    of 1: t(tkPowerupDataHarvestDesc1)
+    of 2: t(tkPowerupDataHarvestDesc2)
+    else: t(tkPowerupDataHarvestDesc3)

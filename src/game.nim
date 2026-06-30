@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, algorithm
-import types, settings, save_system, player, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, boss_weakpoints
+import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, boss_weakpoints
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
@@ -85,6 +85,8 @@ proc cleanupGame*(game: Game) =
   game.enemies = @[]
   game.bullets = @[]
   game.coins = @[]
+  game.xpOrbs = @[]
+  game.pendingLevelDrafts = 0
   game.consumables = @[]
   game.walls = @[]
   game.attackWarnings = @[]
@@ -96,6 +98,58 @@ proc cleanupGame*(game: Game) =
   # Clear player rotating orbs
   if not game.player.isNil:
     game.player.rotatingOrbs = @[]
+
+proc applyLevelUpStatBoost*(player: Player) =
+  ## Roguelite per-level reward: a small balanced stat bundle plus a partial heal.
+  const LevelMaxHpGain = 2.0'f32      # +max HP (radius/aura scale follow via refreshPlayerSize)
+  const LevelDamageMult = 1.04'f32    # +4% damage, compounding
+  const LevelHealFraction = 0.25'f32  # heal a quarter of the (new) max HP
+  player.maxHp += LevelMaxHpGain
+  player.damage *= LevelDamageMult
+  heal(player, player.maxHp * LevelHealFraction)
+
+proc applyRoomClearLevelUps*(game: Game) =
+  ## Roguelite: called once when a ROOM is completed. XP accumulates freely
+  ## during combat, but levels are only cashed in here — never mid-fight. Banks
+  ## every level the accumulated XP affords in one pass (multi-level), applies
+  ## the stat boosts immediately, and queues one power-up draft per level gained.
+  ## The drafts themselves are opened by checkPendingLevelDraft on subsequent
+  ## frames, so this proc never changes game.state.
+  if game.mode != gmRoguelite: return
+  var levelsGained = 0
+  while game.player.xp >= game.player.xpToNextLevel:
+    game.player.xp -= game.player.xpToNextLevel
+    inc game.player.rogueliteLevel
+    game.player.xpToNextLevel = xpRequiredForLevel(game.player.rogueliteLevel)
+    applyLevelUpStatBoost(game.player)
+    inc levelsGained
+  if levelsGained > 0:
+    game.pendingLevelDrafts += levelsGained
+    # Juice: one sound, burst, and banner summarizing the room's level gains.
+    playSound(stPowerUp)
+    spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                         Color(r: 120, g: 255, b: 180, a: 255), 24)
+    showPerk(game, newVector2f(game.player.pos.x, game.player.pos.y - 28),
+             t("roguelite_level_up") & " " & $game.player.rogueliteLevel,
+             Color(r: 120, g: 255, b: 180, a: 255))
+
+proc checkPendingLevelDraft*(game: Game) =
+  ## Roguelite: opens one queued level-up draft, but only in normal play
+  ## (gsPlaying) — i.e. after a room clear, never while a modal is up. Opening
+  ## the queued drafts one-per-frame chains multi-level-ups: each draft pauses
+  ## the sim, the player picks, continueAfterDraft returns to gsPlaying, and the
+  ## next frame opens the following draft. Because the sim is frozen between
+  ## consecutive drafts, the whole stack resolves before the player can re-enter
+  ## combat.
+  if game.mode != gmRoguelite or game.state != gsPlaying: return
+  if game.pendingLevelDrafts <= 0: return
+  dec game.pendingLevelDrafts
+  game.powerUpChoices = generatePowerUpChoices(
+    game.player, false, unlockedFamilySet(game.rogueliteProfile), game.mode)
+  game.selectedPowerUp = 0
+  initPowerUpRollAnimation(game)
+  initializeRerollCost(game)
+  game.state = gsPowerUpSelect
 
 proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0, particleSkin: int = 0, bulletShape: int = 0): Game =
   let defaultMode = gmWaveBased  # Default to wave-based mode
@@ -1567,7 +1621,18 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       fireDoubleShotBurst(game, shootDir, hasMultiShot)
       game.player.doubleShotDelay = 0  # Reset to 0
 
-  if (isMouseButtonDown(Left) and not game.wallPlacementMode) or isKeyDown(globalSettings.keybinds[kaShoot]):
+  let isFiring = (isMouseButtonDown(Left) and not game.wallPlacementMode) or
+                 isKeyDown(globalSettings.keybinds[kaShoot])
+
+  # Rapid Fire (Legendary) spin-up: holding fire ramps the meter to full in ~1.5s;
+  # releasing decays it in ~0.8s. calculateCombatStats reads it for the bonus rate.
+  if hasPowerUp(game.player, puRapidFire):
+    if isFiring:
+      game.player.rapidFireSpinup = min(1.0'f32, game.player.rapidFireSpinup + dt / 1.5'f32)
+    else:
+      game.player.rapidFireSpinup = max(0.0'f32, game.player.rapidFireSpinup - dt / 0.8'f32)
+
+  if isFiring:
     if shootDir.length() > 0:
       shootBullet(game, shootDir)
 
@@ -1667,10 +1732,11 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
 
         var shouldOfferPowerUp = false
         if game.mode == gmRoguelite:
-          # Dungeon room cleared: bank coins/shards, open the doors, and
-          # offer a draft every 2nd combat room.
+          # Dungeon room cleared: bank coins/shards and open the doors.
           let outcome = onRoomCleared(game)
           shouldOfferPowerUp = outcome == dcoDraft
+          # Cash in any levels earned from XP collected during this room.
+          applyRoomClearLevelUps(game)
           # RoomEcho: grant charged bullets on room clear
           if hasPowerUp(game.player, puRoomEcho):
             let echoLevel = getPowerUpLevel(game.player, puRoomEcho)
@@ -1915,6 +1981,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # Boss-spawned minions don't drop coins (prevent farming)
       if not enemy.spawnedByBoss:
         dropEnemyCoin(game, enemy)
+
+      # Roguelite: enemies also drop auto-homing XP orbs (dropEnemyXp guards
+      # mode + spawnedByBoss internally).
+      dropEnemyXp(game, enemy)
 
       # Elite Explosive death effect
       # Handles multiple elite types (wave 25+)
@@ -2625,6 +2695,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     enemyIdx += 1
 
   if bossDefeated and game.mode == gmRoguelite:
+    # Boss room counts as a completed room: bank levels from XP collected in the
+    # fight. Stat boosts apply now; the queued drafts (pendingLevelDrafts) open
+    # once the player is back in normal play, after the post-boss legendary draft.
+    applyRoomClearLevelUps(game)
     # KernelExploit: boss defeat grants +20% permanent damage
     if hasPowerUp(game.player, puKernelExploit):
       game.player.damage *= 1.20'f32
@@ -3759,6 +3833,12 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
   if updateGameCoins(game, dt):
     game.completeBossWave()
 
+  # Roguelite: collect XP orbs every frame, but only OPEN a queued level-up
+  # draft (levels are banked at room clear, see applyRoomClearLevelUps).
+  if game.mode == gmRoguelite:
+    updateGameXpOrbs(game, dt)
+    checkPendingLevelDraft(game)
+
   # Update consumables
   i = 0
   while i < game.consumables.len:
@@ -4290,6 +4370,10 @@ proc drawGame*(game: Game) =
 
   # Draw coins
   drawGameCoins(game)
+
+  # Draw roguelite XP orbs
+  if game.mode == gmRoguelite:
+    drawGameXpOrbs(game)
 
   # Draw consumables
   for consumable in game.consumables:

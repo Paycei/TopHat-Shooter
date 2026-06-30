@@ -218,7 +218,8 @@ type
     puCorruptedCore,        # Elite kills grant max HP (roguelite only)
     puRoomEcho,             # Room clear charges next N bullets with bonus damage (roguelite only)
     puChainReaction,        # Kills have chance to drop bonus coin (roguelite only)
-    puKernelExploit         # LEGENDARY: boss defeat grants permanent damage (roguelite only)
+    puKernelExploit,        # LEGENDARY: boss defeat grants permanent damage (roguelite only)
+    puDataHarvest           # +XP gained per enemy (roguelite only)
 
   PowerUpRarity* = enum
     prCommon,
@@ -472,6 +473,10 @@ type
     coins*: int
     kills*: int
     walls*: int
+    # Roguelite-only in-run leveling (see xp_orb.nim / applyRoomClearLevelUps).
+    rogueliteLevel*: int        # Current run level, starts at 1
+    xp*: int                    # XP accumulated toward the next level
+    xpToNextLevel*: int         # Threshold for the next level-up
     speedBoostTimer*: float32
     outOfCombatSpeedBoost*: bool  # Roguelite: +25% move speed while no encounter is active
     invincibilityTimer*: float32
@@ -569,6 +574,7 @@ type
     killChainTimer*: float32         # Window timer for KillChain kill streak
     corruptedCoreHpAcc*: float32     # Fractional max-HP accumulator for CorruptedCore
     roomEchoCharges*: int            # Charged bullets remaining from RoomEcho
+    rapidFireSpinup*: float32        # [0,1] minigun spin-up from sustained fire (RapidFire legendary)
 
   EffectInstance* = object
     elementType*: ElementType
@@ -834,6 +840,15 @@ type
     value*: int
     lifetime*: float32
     isBossCoin*: bool  # Special coin from boss that must be collected to end wave
+
+  XpOrb* = ref object
+    ## Roguelite-only experience particle. Mirrors Coin: drops on enemy death,
+    ## auto-homes to the player via the collection aura / magnet, and on pickup
+    ## adds `value` to the player's run XP (see xp_orb.nim).
+    pos*: Vector2f
+    radius*: float32
+    value*: int
+    lifetime*: float32
 
   Consumable* = ref object
     pos*: Vector2f
@@ -1153,6 +1168,8 @@ type
     bullets*: seq[Bullet]
     bulletIdCounter*: int  # Counter for generating unique bullet IDs
     coins*: seq[Coin]
+    xpOrbs*: seq[XpOrb]  # Roguelite-only experience particles
+    pendingLevelDrafts*: int  # Roguelite: level-up power-up drafts queued at room clear
     consumables*: seq[Consumable]
     walls*: seq[Wall]
     pendingWallRespawns*: seq[PendingWallRespawn]  # Boss-room obstacles re-forming

@@ -896,10 +896,12 @@ proc onRoomCleared*(game: Game): DungeonClearOutcome =
     game.player.pos.x, game.player.pos.y - 36, max(1, shardBonus), cikDataShards))
 
   if room.kind in {drkCombat, drkElite}:
+    # Power-ups now come exclusively from leveling up (see applyRoomClearLevelUps
+    # in game.nim); room clears no longer trigger a draft. The counter is kept
+    # harmless for any other consumers but no longer opens the draft.
     run.combatRoomsSinceDraft += 1
     if run.combatRoomsSinceDraft >= 2:
       run.combatRoomsSinceDraft = 0
-      result = dcoDraft
 
 proc markBossRoomCleared*(game: Game) =
   ## Called from the boss-defeated handler in game.nim.

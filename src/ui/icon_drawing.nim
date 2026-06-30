@@ -1373,6 +1373,23 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawLine(cx + 8, cy - 8, cx + 12, cy - 12, bright)
     drawLine(cx + 8, cy + 8, cx + 12, cy + 12, bright)
 
+  of puDataHarvest:
+    # XP orbs streaming upward into a collector, with a gain chevron on top.
+    let dh = color
+    let dim = Color(r: dh.r, g: dh.g, b: dh.b, a: 110)
+    # Three small orbs rising toward the center, diminishing downward.
+    drawCircle(Vector2(x: (cx - 7).float32, y: (cy + 9).float32), 2, dim)
+    drawCircle(Vector2(x: (cx + 6).float32, y: (cy + 6).float32), 2, Color(r: dh.r, g: dh.g, b: dh.b, a: 160))
+    drawCircle(Vector2(x: cx.float32, y: (cy + 3).float32), 3, dh)
+    # Bright core orb being collected.
+    drawCircle(Vector2(x: cx.float32, y: (cy - 2).float32), 5, Color(r: dh.r, g: dh.g, b: dh.b, a: 90))
+    drawCircle(Vector2(x: cx.float32, y: (cy - 2).float32), 3.5, dh)
+    drawCircle(Vector2(x: cx.float32, y: (cy - 2).float32), 1.6, Color(r: 230, g: 255, b: 245, a: 230))
+    # Upward "gain" chevron above the orb.
+    let bright = Color(r: min(dh.r + 70, 255), g: min(dh.g + 70, 255), b: min(dh.b + 70, 255), a: 255)
+    drawLine(cx - 6, cy - 9, cx, cy - 14, bright)
+    drawLine(cx, cy - 14, cx + 6, cy - 9, bright)
+
 proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
   let cx = x + size div 2
   let cy = y + size div 2

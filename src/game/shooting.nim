@@ -1,4 +1,5 @@
 import raylib, math, types, bullet, particle_skins, particle_types, powerup, sound, d_systems, run_statistics
+import fx
 import game/combat
 import game/bullets
 
@@ -62,6 +63,53 @@ proc baseBulletSpeed(player: Player): float32 =
   if player.baseSpeed > 0:
     let speedRatio = player.speed / player.baseSpeed
     result *= 1.0'f32 + (speedRatio - 1.0'f32) * 0.15'f32
+
+const
+  TracerMaxRange   = 1400.0'f32  # px; long enough to cross the whole arena
+  TracerHalfWidth  = 14.0'f32    # px; aim-assist forgiveness either side of the line
+  TracerDamageMult = 0.75'f32    # fraction of the shot's damage delivered instantly
+
+proc fireLightspeedTracer(game: Game, origin, dir: Vector2f, stats: combat.CombatStats) =
+  ## Bullet Speed (Legendary) "Lightspeed Tracer": casts an instant hitscan beam
+  ## down the firing line and deals guaranteed damage to the FIRST enemy it
+  ## crosses, before the physical bullet has even travelled. Single-target with
+  ## no AoE or elemental riders -- the whole payoff is the unmissable lead hit.
+  let len = dir.length()
+  if len < 0.0001'f32:
+    return
+  let dx = dir.x / len
+  let dy = dir.y / len
+
+  # Walk the ray: keep the enemy with the smallest forward projection (t) whose
+  # perpendicular distance to the line falls within its radius + beam width.
+  var bestEnemy: Enemy = nil
+  var bestT = TracerMaxRange
+  for enemy in game.enemies:
+    if enemy.isBoss and enemy.invulnerabilityTimer > 0:
+      continue
+    let vx = enemy.pos.x - origin.x
+    let vy = enemy.pos.y - origin.y
+    let t = vx * dx + vy * dy              # projection along the beam
+    if t <= 0.0'f32 or t > bestT:
+      continue
+    let perpDist = abs(vx * (-dy) + vy * dx)  # distance from the beam line
+    if perpDist <= enemy.radius + TracerHalfWidth:
+      bestEnemy = enemy
+      bestT = t
+
+  if bestEnemy == nil:
+    return
+
+  let tracerBase = stats.damage * TracerDamageMult
+  let (tracerDmg, wasCrit) = applyCriticalHitWithFlag(stats, tracerBase)
+  let actual = damageEnemy(bestEnemy, tracerDmg)
+  if actual > 0:
+    trackPowerUpDamage(game, puBulletSpeed, actual)
+    showDamage(game, bestEnemy.pos, actual, fromPlayer = true,
+               isCritical = wasCrit, damageType = dtDefault)
+
+  # Instant beam visual from the muzzle to the struck enemy.
+  spawnLightningBoltInto(game.lightningBolts, origin, bestEnemy.pos)
 
 proc shootBullet*(game: Game, direction: Vector2f) =
   # Calculate all combat stats once at the start
@@ -304,6 +352,11 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
+
+    # Bullet Speed (Legendary): fire the instant hitscan lead hit down the aim
+    # line, once per shot (independent of Multi-/Double-Shot bullet counts).
+    if hasPowerUp(game.player, puBulletSpeed):
+      fireLightspeedTracer(game, game.player.pos, direction, stats)
 
     game.player.lastShot = game.time
 

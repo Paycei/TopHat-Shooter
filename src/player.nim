@@ -16,11 +16,23 @@ proc playerInertiaSizeScale(player: Player): float32 =
   let safeRadius = max(player.radius, 1.0'f32)
   clamp(sqrt(safeRadius / PlayerInertiaReferenceRadius), 0.75'f32, 1.85'f32)
 
+proc dataHarvestRangeMult*(player: Player): float32 =
+  ## DATA_HARVEST.dll widens the pickup/collection aura: +25% / +50% / +100%
+  ## at levels 1 / 2 / 3 (mirrors its XP multiplier in xp_orb.nim).
+  case getPowerUpLevel(player, puDataHarvest)
+  of 0: 1.0'f32
+  of 1: 1.25'f32
+  of 2: 1.5'f32
+  else: 2.0'f32
+
 proc refreshPlayerSize(player: Player) =
   ## Keep radius-derived gameplay values current before movement inertia reads them.
   let hpAboveBase = max(0.0'f32, player.maxHp - 7.5'f32)
   player.radius = player.baseRadius + sqrt(hpAboveBase) * 0.4'f32
-  player.auraRadius = player.radius * 3.5
+  # Base collection aura, widened by DATA_HARVEST.dll. This single assignment is
+  # the source of truth for pickup range (coins, XP orbs, and consumables all
+  # test against player.auraRadius), so the bonus applies everywhere at once.
+  player.auraRadius = player.radius * 3.5 * dataHarvestRangeMult(player)
 
 proc orbCoreColor(elementType: ElementType, base: Color): Color =
   case elementType
@@ -51,6 +63,9 @@ proc newPlayer*(x, y: float32): Player =
     coins: 0,
     kills: 0,
     walls: 0,
+    rogueliteLevel: 1,    # Roguelite in-run level (see xp_orb.nim)
+    xp: 0,
+    xpToNextLevel: 10,    # mirrors xpRequiredForLevel(1) in xp_orb.nim
     speedBoostTimer: 0,
     invincibilityTimer: 0,
     fireRateBoostTimer: 0,
@@ -79,6 +94,7 @@ proc newPlayer*(x, y: float32): Player =
     critCharge: 0,
     auraRadius: 50.0,  # Invisible coin collection aura
     doubleShotDelay: 0,
+    rapidFireSpinup: 0,  # Minigun spin-up meter (RapidFire legendary)
     bulletCounter: 0,  # Track bullets fired for special rounds power-up
     timeWarpCooldown: 0,
     timeWarpActive: false,

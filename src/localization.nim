@@ -1562,6 +1562,10 @@ type
     tkPowerupChainReactionDesc2     = "powerup_chain_reaction_desc2"
     tkPowerupChainReactionDesc3     = "powerup_chain_reaction_desc3"
     tkPowerupKernelExploitDesc      = "powerup_kernel_exploit_desc"
+    tkPowerupDataHarvest        = "powerup_data_harvest"
+    tkPowerupDataHarvestDesc1       = "powerup_data_harvest_desc1"
+    tkPowerupDataHarvestDesc2       = "powerup_data_harvest_desc2"
+    tkPowerupDataHarvestDesc3       = "powerup_data_harvest_desc3"
     # Discovery banner
     tkNewProcessInstalled = "new_process_installed"
 
@@ -1793,10 +1797,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_multi_shot": "Multi-Shot",
     "powerup_explosive_bullets": "Explosive Rounds",
     "powerup_life_steal": "Life Steal",
-    "powerup_rapid_fire": "Rapid Fire",
-    "powerup_max_health": "Vitality",
-    "powerup_speed_boost": "Agility",
-    "powerup_bullet_speed": "Velocity",
+    "powerup_rapid_fire": "Overclock",
+    "powerup_max_health": "Juggernaut",
+    "powerup_speed_boost": "Momentum",
+    "powerup_bullet_speed": "Lightspeed",
     "powerup_lucky_coins": "Greed",
     "powerup_wall_master": "Fortify",
     "powerup_regeneration": "Regeneration",
@@ -1868,10 +1872,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_life_steal_desc1": "Heal 50 HP per 12 kills",
     "powerup_life_steal_desc2": "Heal 50 HP per 9 kills",
     "powerup_life_steal_desc3": "Heal 50 HP per 6 kills",
-    "powerup_rapid_fire_desc": "+40% fire rate",
-    "powerup_max_health_desc": "+1450 max HP",
-    "powerup_speed_boost_desc": "+33% movement speed",
-    "powerup_bullet_speed_desc": "+40% bullet speed",
+    "powerup_rapid_fire_desc": "Spin-up: hold fire to ramp fire rate up to +30% faster",
+    "powerup_max_health_desc": "Juggernaut: +2% damage per 100 max HP, including base HP (up to +40%)",
+    "powerup_speed_boost_desc": "Momentum: deal up to +25% damage while moving",
+    "powerup_bullet_speed_desc": "Lightspeed: each shot fires an instant tracer beam that hits the first enemy in line for 75% damage",
     "powerup_lucky_coins_desc": "Doubles all coins collected",
     "powerup_wall_master_desc": "Walls have +250% HP turrets have +100% damage",
     "powerup_regeneration_desc1": "Regen 150-250 HP per wave",
@@ -2971,6 +2975,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_cores_short": "Cores",
     "roguelite_heat": "Heat",
     "roguelite_floor": "Floor",
+    "roguelite_level": "LV",
+    "roguelite_level_up": "LEVEL UP!",
     "roguelite_endless": "Endless",
     "roguelite_pressure": "Pressure",
     "roguelite_elite": "Elite",
@@ -3353,6 +3359,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_chain_reaction_desc2": "30% chance per kill to drop a bonus coin.",
     "powerup_chain_reaction_desc3": "40% chance per kill to drop a bonus coin.",
     "powerup_kernel_exploit_desc":  "LEGENDARY: Defeating a boss grants +20% permanent damage.",
+    "powerup_data_harvest":         "DATA_HARVEST.dll",
+    "powerup_data_harvest_desc1":   "Enemies grant +25% XP. +25% pickup range.",
+    "powerup_data_harvest_desc2":   "Enemies grant +50% XP. +50% pickup range.",
+    "powerup_data_harvest_desc3":   "Enemies grant +100% XP. +100% pickup range.",
     "new_process_installed":   "NEW PROCESS DISCOVERED"
   }.toTable,
 
@@ -3582,10 +3592,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_multi_shot": "Multidisparo",
     "powerup_explosive_bullets": "Balas Explosivas",
     "powerup_life_steal": "Robo de Vida",
-    "powerup_rapid_fire": "Fuego Rápido",
-    "powerup_max_health": "Vitalidad",
-    "powerup_speed_boost": "Agilidad",
-    "powerup_bullet_speed": "Velocidad",
+    "powerup_rapid_fire": "Sobrecarga",
+    "powerup_max_health": "Coloso",
+    "powerup_speed_boost": "Impulso",
+    "powerup_bullet_speed": "Lightspeed",
     "powerup_lucky_coins": "Codicia",
     "powerup_wall_master": "Maestro de Muros",
     "powerup_regeneration": "Regeneración",
@@ -3657,10 +3667,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_life_steal_desc1": "Restaura 100 HP cada 20 bajas",
     "powerup_life_steal_desc2": "Restaura 100 HP cada 15 bajas",
     "powerup_life_steal_desc3": "Restaura 100 HP cada 10 bajas",
-    "powerup_rapid_fire_desc": "+40% cadencia de fuego",
-    "powerup_max_health_desc": "+1450 HP máximo",
-    "powerup_speed_boost_desc": "+33% velocidad movimiento",
-    "powerup_bullet_speed_desc": "+40% velocidad de balas",
+    "powerup_rapid_fire_desc": "Sobrecarga: mantén el disparo para acelerar la cadencia hasta +30%",
+    "powerup_max_health_desc": "Coloso: +2% de daño por cada 100 HP máx, incluyendo HP base (máx +40%)",
+    "powerup_speed_boost_desc": "Impulso: hasta +25% de daño en movimiento",
+    "powerup_bullet_speed_desc": "Lightspeed: cada disparo lanza un rayo trazador instantáneo que golpea al primer enemigo en línea por 75% de daño",
     "powerup_lucky_coins_desc": "Duplica todas las monedas recogidas",
     "powerup_wall_master_desc": "Los muros ganan +250% de HP y las torretas +100% de daño",
     "powerup_regeneration_desc1": "Regenera 150-250 HP por oleada",
@@ -4759,6 +4769,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_cores_short": "Núcleos",
     "roguelite_heat": "Calor",
     "roguelite_floor": "Piso",
+    "roguelite_level": "NV",
+    "roguelite_level_up": "¡SUBIÓ DE NIVEL!",
     "roguelite_endless": "Infinito",
     "roguelite_pressure": "Presión",
     "roguelite_elite": "Élite",
@@ -5138,6 +5150,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_chain_reaction_desc2": "30% de probabilidad por eliminación de obtener una moneda extra.",
     "powerup_chain_reaction_desc3": "40% de probabilidad por eliminación de obtener una moneda extra.",
     "powerup_kernel_exploit_desc":  "LEGENDARIO: Derrotar a un jefe otorga +20% de daño permanente.",
+    "powerup_data_harvest":         "COSECHA_DATOS.dll",
+    "powerup_data_harvest_desc1":   "Los enemigos otorgan +25% de XP. +25% de rango de recogida.",
+    "powerup_data_harvest_desc2":   "Los enemigos otorgan +50% de XP. +50% de rango de recogida.",
+    "powerup_data_harvest_desc3":   "Los enemigos otorgan +100% de XP. +100% de rango de recogida.",
     "new_process_installed":   "NUEVO PROCESO DESCUBIERTO"
   }.toTable
 }.toTable
