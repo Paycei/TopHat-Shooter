@@ -157,6 +157,22 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
       tier: atLegendary,
       target: 50.0'f32,
     ),
+    AdvancementDefinition(
+      id: "combat_extermination",
+      name: "Extermination Protocol",
+      description: "Defeat 10,000 enemies across all tracked modes.",
+      category: acCombat,
+      tier: atGold,
+      target: 10000.0'f32,
+    ),
+    AdvancementDefinition(
+      id: "combat_boss_codex",
+      name: "Full Boss Codex",
+      description: "Defeat all 12 unique boss-class processes at least once.",
+      category: acCombat,
+      tier: atLegendary,
+      target: 12.0'f32,
+    ),
 
     AdvancementDefinition(
       id: "survival_hold_line",
@@ -177,10 +193,18 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "survival_firewall_legend",
       name: "Firewall Legend",
-      description: "Reach wave 35 in wave mode.",
+      description: "Reach wave 30 in wave mode (the sixth boss gauntlet).",
+      category: acSurvival,
+      tier: atGold,
+      target: 30.0'f32,
+    ),
+    AdvancementDefinition(
+      id: "survival_kernel_breaker",
+      name: "Kernel Breaker",
+      description: "Reach wave 60 and face the twelfth boss — the final gauntlet.",
       category: acSurvival,
       tier: atLegendary,
-      target: 35.0'f32,
+      target: 60.0'f32,
     ),
     AdvancementDefinition(
       id: "survival_five_minutes",
@@ -197,6 +221,14 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
       category: acSurvival,
       tier: atGold,
       target: 1200.0'f32,
+    ),
+    AdvancementDefinition(
+      id: "survival_deep_runtime",
+      name: "Deep Runtime",
+      description: "Survive for 30 minutes in time survival.",
+      category: acSurvival,
+      tier: atLegendary,
+      target: 1800.0'f32,
     ),
     AdvancementDefinition(
       id: "survival_clean_window",
@@ -505,6 +537,12 @@ proc totalBosses(stats: Statistics): int =
   if stats.isNil: return 0
   stats.waveMode.bossesDefeated + stats.timeMode.bossesDefeated + stats.rogueliteMode.bossesDefeated
 
+proc uniqueBossesDefeated(stats: Statistics): int =
+  ## Distinct boss definitions cleared at least once. There are 12 unique
+  ## bosses (one per 5-wave gauntlet up to wave 60); the codex tracks coverage.
+  if stats.isNil: return 0
+  stats.defeatedBossIDs.len
+
 proc highestWave(stats: Statistics): int =
   if stats.isNil: return 0
   max(stats.waveMode.highestWaveReached, stats.waveMode.bestScore)
@@ -538,7 +576,8 @@ proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
   ## When liveRun is true, lastRun is the still-in-progress run: lifetime
   ## totals don't include it yet, so its contributions are added on top.
   case def.id
-  of "combat_first_breach", "combat_threat_hunter", "combat_process_reaper":
+  of "combat_first_breach", "combat_threat_hunter", "combat_process_reaper",
+     "combat_extermination":
     var kills = totalKills(stats)
     if liveRun and not lastRun.isNil:
       kills += lastRun.combat.totalKills
@@ -548,17 +587,22 @@ proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
     if liveRun and not lastRun.isNil:
       bosses += lastRun.combat.bossKills
     bosses.float32
+  of "combat_boss_codex":
+    # Distinct-boss coverage is recorded into lifetime stats on each kill, so
+    # the live run is already reflected; no liveRun add-on needed.
+    uniqueBossesDefeated(stats).float32
   of "combat_deadeye":
     # Accuracy is only derived when a run is finalized; never mid-run.
     if lastRun.isNil or liveRun: 0.0'f32 else: lastRun.combat.accuracyPercent
   of "combat_combo_chain", "combat_singularity":
     if lastRun.isNil: 0.0'f32 else: lastRun.combat.maxCombo.float32
-  of "survival_hold_line", "survival_sector_warden", "survival_firewall_legend":
+  of "survival_hold_line", "survival_sector_warden", "survival_firewall_legend",
+     "survival_kernel_breaker":
     var wave = highestWave(stats)
     if liveRun and not lastRun.isNil and lastRun.gameMode == gmWaveBased:
       wave = max(wave, lastRun.waveReached)
     wave.float32
-  of "survival_five_minutes", "survival_twenty_minutes":
+  of "survival_five_minutes", "survival_twenty_minutes", "survival_deep_runtime":
     var survived = longestSurvival(stats)
     if liveRun and not lastRun.isNil and lastRun.gameMode == gmTimeSurvival:
       survived = max(survived, lastRun.runDuration)
