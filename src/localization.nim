@@ -749,6 +749,9 @@ type
     tkCheatAllPowerUps = "cheat_all_power_ups"
     tkCheatActiveEnemies = "cheat_active_enemies"
     tkCheatNoEnemies = "cheat_no_enemies"
+    tkCheatDiscoveryCodex = "cheat_discovery_codex"
+    tkCheatDiscoverAll = "cheat_discover_all"
+    tkCheatUndiscoverAll = "cheat_undiscover_all"
 
     # Power-up Installer
     tkPowerUpInstallerTitle = "power_up_installer_title"
@@ -761,6 +764,7 @@ type
     tkPowerUpAllInstalled = "power_up_all_installed"
     tkPowerUpAllInstalledMsg = "power_up_all_installed_msg"
     tkPowerUpContinue = "power_up_continue"
+    tkPowerUpNewBadge = "power_up_new_badge"
     tkGamePause = "game_pause"
     tkGameResume = "game_resume"
     tkGameRestart = "game_restart"
@@ -2812,6 +2816,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_all_power_ups": "All Available Power-Ups (scroll with UP/DOWN):",
     "cheat_active_enemies": "Active Enemies",
     "cheat_no_enemies": "No enemies currently alive",
+    "cheat_discovery_codex": "Discovery Codex:",
+    "cheat_discover_all": "Discover All Power-Ups",
+    "cheat_undiscover_all": "Un-Discover All",
 
     # Power-up Installer
     "power_up_installer_title": "LEGENDARY UPGRADE INSTALLER",
@@ -2824,6 +2831,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "power_up_all_installed": "ALL PACKAGES INSTALLED",
     "power_up_all_installed_msg": "Maximum loadout achieved. All available upgrades are already installed.",
     "power_up_continue": "CONTINUE",
+    "power_up_new_badge": "NEW",
 
     # PvP Lobby
     "pvp_title": "PVP MODE",
@@ -4461,6 +4469,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_all_power_ups": "Todas las Mejoras Disponibles (desplázate con ARRIBA/ABAJO):",
     "cheat_active_enemies": "Enemigos Activos",
     "cheat_no_enemies": "Sin enemigos actualmente vivos",
+    "cheat_discovery_codex": "Códice de Descubrimiento:",
+    "cheat_discover_all": "Descubrir Todas las Mejoras",
+    "cheat_undiscover_all": "Olvidar Todas las Mejoras",
 
     # Power-up Installer
     "power_up_installer_title": "INSTALADOR DE MEJORA LEGENDARIA",
@@ -4473,6 +4484,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "power_up_all_installed": "TODOS LOS PAQUETES INSTALADOS",
     "power_up_all_installed_msg": "Carga máxima alcanzada. Todas las mejoras disponibles ya están instaladas.",
     "power_up_continue": "CONTINUAR",
+    "power_up_new_badge": "NUEVO",
 
     # Player Feedback
     "player_dodge": "¡ESQUIVA!",

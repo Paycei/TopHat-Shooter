@@ -3,7 +3,7 @@
 # The roll animation system is handled in powerup.nim
 
 import raylib, math, strutils
-import ../types, icon_drawing, ../localization, ../powerup_data, ../render_context
+import ../types, icon_drawing, ../localization, ../powerup_data, ../render_context, ../settings
 
 const
   INSTALLER_WIDTH = 1000
@@ -102,6 +102,39 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
                     if selected: 3.0 else: 2.0, borderColor)
+
+  # "NEW" badge: a simple indicator for power-ups the player has never installed.
+  # It reads the same codex (globalSettings.discoveredPowerUps, keyed by the enum
+  # symbol via `$powerUp.powerType`) that death.nim records first-time installs
+  # into, so it appears on every game mode's selection screen automatically.
+  # `a > 0.5` keeps it hidden during the fast blur frames of the slot roll.
+  if not globalSettings.isNil and a > 0.5'f32 and
+     ($powerUp.powerType notin globalSettings.discoveredPowerUps):
+    let newText = t(tkPowerUpNewBadge)
+    let newFont: int32 = 12
+    let newTextW = measureText(newText, newFont)
+    let nbW = newTextW + 14
+    let nbH: int32 = 20
+    let nbX = x + width - nbW - 8
+    let nbY = y + 9
+    let pulse = sin(time * 5.0) * 0.3 + 0.7
+    # Pulsing glow rings (green reads as "new/unlocked", distinct from the blue
+    # standard accent and the gold legendary accent).
+    for gi in 1..3:
+      let go = int32(gi) * 2
+      drawRectangleLines(
+        Rectangle(x: float32(nbX - go), y: float32(nbY - go),
+                  width: float32(nbW + go * 2), height: float32(nbH + go * 2)),
+        1.0, Color(r: 70, g: 240, b: 130, a: uint8(float32(90 div gi) * pulse * a)))
+    drawRectangle(nbX + 1, nbY + 1, nbW, nbH, Color(r: 0, g: 0, b: 0, a: uint8(90.0 * a)))
+    drawRectangle(nbX, nbY, nbW, nbH, Color(r: 22, g: 64, b: 38, a: uint8(255.0 * a)))
+    drawRectangle(nbX, nbY, nbW, 2, Color(r: 120, g: 255, b: 170, a: uint8(160.0 * a)))
+    drawRectangleLines(Rectangle(x: nbX.float32, y: nbY.float32,
+                                  width: nbW.float32, height: nbH.float32),
+                      2.0, Color(r: 80, g: 240, b: 130, a: uint8(255.0 * a * pulse)))
+    let ntx = nbX + (nbW - newTextW) div 2
+    drawText(newText, ntx + 1, nbY + 5, newFont, Color(r: 0, g: 0, b: 0, a: uint8(150.0 * a)))
+    drawText(newText, ntx, nbY + 4, newFont, Color(r: 190, g: 255, b: 210, a: uint8(255.0 * a)))
 
   var yOff = y + 20
 

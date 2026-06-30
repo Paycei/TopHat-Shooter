@@ -1,6 +1,6 @@
 import raylib, math
 import types, sound, gamemode_definitions, powerup, powerup_data, localization, render_context, ui/os_shop
-import roguelite
+import roguelite, settings, save_system
 
 # ENABLE/DISABLE CHEATS
 const CHEATS_ENABLED* = true
@@ -285,6 +285,25 @@ proc applyStatCheat*(game: var Game, stat: string, value: float32) =
     discard
   playSound(stMenuSelect)
 
+proc discoverAllPowerUpsCheat*(game: var Game) =
+  ## Fill the persistent discovery codex with every PowerUpType, keyed the same
+  ## way death.nim records a first install (`$powerUp.powerType`), then save so
+  ## the "NEW" badge on the selection screen clears for all power-ups.
+  if globalSettings.isNil: return
+  globalSettings.discoveredPowerUps = @[]
+  for pt in PowerUpType:
+    globalSettings.discoveredPowerUps.add($pt)
+  discard saveSettings(globalSettings)
+  playSound(stMenuSelect)
+
+proc undiscoverAllPowerUpsCheat*(game: var Game) =
+  ## Clear the discovery codex so every power-up reads as undiscovered again
+  ## (useful for re-testing the first-discovery toast and the "NEW" badge).
+  if globalSettings.isNil: return
+  globalSettings.discoveredPowerUps = @[]
+  discard saveSettings(globalSettings)
+  playSound(stMenuNav)
+
 proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) =
   ## Adjust the persisted meta currencies (data shards / cores) used to buy
   ## roguelite unlocks, and immediately save so the roguelite window reflects it.
@@ -470,6 +489,47 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
 
 proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu) =
   var currentY = y + 10
+
+  # --- Discovery codex controls -----------------------------------------
+  # Toggle globalSettings.discoveredPowerUps, the persistent codex that drives
+  # the "NEW" badge on the power-up selection screen.
+  let totalPowerUps = ord(high(PowerUpType)) - ord(low(PowerUpType)) + 1
+  let discoveredCount = if globalSettings.isNil: 0 else: globalSettings.discoveredPowerUps.len
+  drawText(t(tkCheatDiscoveryCodex) & " " & $discoveredCount & " / " & $totalPowerUps,
+           x + 20, currentY, 14, Gray)
+  currentY += 24
+
+  let discBtnW = (width - 60) div 2
+  let discBtnH: int32 = 32
+  let discX = x + 20
+  let undiscX = x + 40 + discBtnW
+
+  # Discover All
+  let discRect = Rectangle(x: discX.float32, y: currentY.float32,
+                           width: discBtnW.float32, height: discBtnH.float32)
+  let discHovered = checkCollisionPointRec(getVirtualMousePosition(), discRect)
+  drawRectangle(discX, currentY, discBtnW, discBtnH,
+                if discHovered: Color(r: 0, g: 110, b: 0, a: 255) else: Color(r: 0, g: 75, b: 0, a: 255))
+  drawRectangleLines(discX, currentY, discBtnW, discBtnH, Green)
+  let discLabel = t(tkCheatDiscoverAll)
+  let discTW = measureText(discLabel, 13)
+  drawText(discLabel, discX + (discBtnW - discTW) div 2, currentY + 9, 13, White)
+  if discHovered and isMouseButtonPressed(Left):
+    discoverAllPowerUpsCheat(game)
+
+  # Un-Discover All
+  let undiscRect = Rectangle(x: undiscX.float32, y: currentY.float32,
+                             width: discBtnW.float32, height: discBtnH.float32)
+  let undiscHovered = checkCollisionPointRec(getVirtualMousePosition(), undiscRect)
+  drawRectangle(undiscX, currentY, discBtnW, discBtnH,
+                if undiscHovered: Color(r: 110, g: 0, b: 0, a: 255) else: Color(r: 75, g: 0, b: 0, a: 255))
+  drawRectangleLines(undiscX, currentY, discBtnW, discBtnH, Red)
+  let undiscLabel = t(tkCheatUndiscoverAll)
+  let undiscTW = measureText(undiscLabel, 13)
+  drawText(undiscLabel, undiscX + (discBtnW - undiscTW) div 2, currentY + 9, 13, White)
+  if undiscHovered and isMouseButtonPressed(Left):
+    undiscoverAllPowerUpsCheat(game)
+  currentY += discBtnH + 16
 
   drawText(t(tkCheatActivateConsumable), x + 20, currentY, 14, Gray)
   currentY += 30
