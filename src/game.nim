@@ -2660,8 +2660,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       game.state = gsPowerUpSelect
 
   # If boss was defeated in TIME SURVIVAL mode, trigger power-up selection
-  # In WAVE mode, power-ups are only given between waves, not on boss defeat
-  if bossDefeated and not shouldUseWaves(game.mode):
+  # In WAVE mode, power-ups are only given between waves, not on boss defeat.
+  # Sandbox is excluded: its bosses are spawned freely as a testing tool, so
+  # killing one must not pop a power-up draft (or any reward flow).
+  if bossDefeated and not shouldUseWaves(game.mode) and game.mode != gmSandbox:
     # Time survival: offer regular upgrades after boss
     game.powerUpChoices = generatePowerUpChoices(game.player, false, mode = game.mode)
     game.selectedPowerUp = 0

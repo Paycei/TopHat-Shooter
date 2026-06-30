@@ -30,7 +30,11 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
 
   let powerName = $powerUp.powerType
   var isNewDiscovery = false
-  if not globalSettings.isNil and powerName notin globalSettings.discoveredPowerUps:
+  # Sandbox and cheated runs are testing tools, not real progression: never
+  # record (or toast) a "first discovery" from them, so the codex only reflects
+  # power-ups earned legitimately in normal play.
+  let allowDiscovery = game.mode != gmSandbox and not game.cheatsUsed
+  if allowDiscovery and not globalSettings.isNil and powerName notin globalSettings.discoveredPowerUps:
     globalSettings.discoveredPowerUps.add(powerName)
     discard saveSettings(globalSettings)
     isNewDiscovery = true
