@@ -343,6 +343,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
     rw.unlockItem = 0
     rw.unlockScrollOffset = 0.0
     rw.unlockScrollVelocity = 0.0
+    markAffordableUnlocksSeen(profile)
   if rw.window.focused and (isKeyPressed(Escape) or isKeyPressed(Q)):
     rw.window.visible = false
     game.state = gsMenu
@@ -371,16 +372,20 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
 
   if isMouseButtonPressed(Left):
     let mousePos = getVirtualMousePosition()
-    let panelX = contentX
-    let panelY = contentY
-    let startX = panelX + 45
+    let panelX = contentX.int32
+    let panelY = contentY.int32
+    # Mirror the draw-side layout grid so hit-rects line up with what's rendered.
+    let gridW: int32 = 3 * RogueliteCardW + 2 * RogueliteCardGap
+    let gridLeft: int32 = panelX + (RoguelitePanelW - gridW) div 2
+    let colStep: int32 = RogueliteCardW + RogueliteCardGap
+    let startX = gridLeft
     let cardY = panelY + 122
     let btnY = panelY + RoguelitePanelH - 82
     var clickHandled = false
 
     # Card clicks
     for i in 0..2:
-      let rect = Rectangle(x: (startX + i * (RogueliteCardW + RogueliteCardGap)).float32,
+      let rect = Rectangle(x: (startX + i.int32 * colStep).float32,
                            y: cardY.float32,
                            width: RogueliteCardW.float32,
                            height: RogueliteCardH.float32)
@@ -439,9 +444,12 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
             break
 
     # Bottom buttons
-    let unlockRect = Rectangle(x: (panelX + 60).float32, y: btnY.float32, width: 180, height: 42)
-    let startRect  = Rectangle(x: (panelX + 370).float32, y: btnY.float32, width: 180, height: 42)
-    let backRect   = Rectangle(x: (panelX + 680).float32, y: btnY.float32, width: 180, height: 42)
+    let btnW: int32 = 220
+    let btnH: int32 = 46
+    let colInset: int32 = RogueliteCardW div 2 - btnW div 2
+    let unlockRect = Rectangle(x: (gridLeft + colInset).float32, y: btnY.float32, width: btnW.float32, height: btnH.float32)
+    let startRect  = Rectangle(x: (gridLeft + colStep + colInset).float32, y: btnY.float32, width: btnW.float32, height: btnH.float32)
+    let backRect   = Rectangle(x: (gridLeft + 2 * colStep + colInset).float32, y: btnY.float32, width: btnW.float32, height: btnH.float32)
 
     if not clickHandled and checkCollisionPointRec(mousePos, unlockRect):
       rw.showUnlocks = true
@@ -449,6 +457,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
       rw.unlockItem = 0
       rw.unlockScrollOffset = 0.0
       rw.unlockScrollVelocity = 0.0
+      markAffordableUnlocksSeen(profile)
     elif not clickHandled and checkCollisionPointRec(mousePos, startRect):
       if tryLaunch():
         rw.window.visible = false
@@ -486,10 +495,14 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
   let panelY = contentY.int32
 
   # Panel header (replaces the full panel title-bar drawn by drawPanel)
-  let title = if rw.showUnlocks: t("roguelite_unlocks_title") else: t("roguelite_setup_title")
+  # The OS window chrome already shows the title at the top bar, so the inner
+  # panel header repeating it read as redundant. For the setup view use that band
+  # as a guidance subtitle instead; the unlocks view keeps its section title.
+  let headerLabel = if rw.showUnlocks: t("roguelite_unlocks_title")
+                    else: t("roguelite_setup_subtitle")
   let panelAccent = if rw.showUnlocks: Color(r: 255, g: 215, b: 0, a: 255)
                     else: Color(r: 0, g: 220, b: 255, a: 255)
-  drawPanel(panelX, panelY, RoguelitePanelW, RoguelitePanelH, title, panelAccent, false, true)
+  drawPanel(panelX, panelY, RoguelitePanelW, RoguelitePanelH, headerLabel, panelAccent, false, true)
 
   if rw.showUnlocks:
     # Unlocks tab
@@ -503,21 +516,33 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
     let cores = if profile.isNil: 0 else: profile.cores
     let maxHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
     let bossTier = if profile.isNil: 1 else: profile.unlockedBossTier
-    drawStatChip(panelX + 26, panelY + 58, 164, 48, t("roguelite_data_shards"), $shards, Gold, ciDataShards)
-    drawStatChip(panelX + 202, panelY + 58, 164, 48, t("roguelite_cores"), $cores,
+    # Shared layout grid: everything (chips, cards, buttons) aligns to the
+    # centered three-card block so the columns line up vertically instead of each
+    # row using its own ad-hoc margins.
+    let gridW: int32 = 3 * RogueliteCardW + 2 * RogueliteCardGap
+    let gridLeft: int32 = panelX + (RoguelitePanelW - gridW) div 2
+    let colStep: int32 = RogueliteCardW + RogueliteCardGap
+
+    const ChipGap: int32 = 14
+    let chipW: int32 = (gridW - 3 * ChipGap) div 4
+    let chipStep: int32 = chipW + ChipGap
+    let chipY: int32 = panelY + 58
+    drawStatChip(gridLeft, chipY, chipW, 48, t("roguelite_data_shards"), $shards, Gold, ciDataShards)
+    drawStatChip(gridLeft + chipStep, chipY, chipW, 48, t("roguelite_cores"), $cores,
                  Color(r: 255, g: 130, b: 80, a: 255), ciCore)
-    drawStatChip(panelX + 378, panelY + 58, 150, 48, t("roguelite_heat"), $maxHeat & " / " & $RogueliteMaxHeat,
+    drawStatChip(gridLeft + 2 * chipStep, chipY, chipW, 48, t("roguelite_heat"),
+                 $maxHeat & " / " & $RogueliteMaxHeat,
                  Color(r: 255, g: 150, b: 80, a: 255), ciHeat)
-    drawStatChip(panelX + 540, panelY + 58, 178, 48, t("roguelite_boss_tier"), $bossTier,
+    drawStatChip(gridLeft + 3 * chipStep, chipY, chipW, 48, t("roguelite_boss_tier"), $bossTier,
                  Color(r: 255, g: 120, b: 95, a: 255))
 
-    let startX = contentX + 45
+    let startX = gridLeft
     let cardY = contentY + 122
     let canHover = game.mouseMovedRecently and not game.keyboardUsedRecently
     let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
     for idx, kit in [rskOperator, rskBulwark, rskArcanist].pairs:
       let unlocked = profile.isNil or kit in profile.unlockedStarterKits
-      let cardX = (startX + idx * (RogueliteCardW + RogueliteCardGap)).int32
+      let cardX = startX + idx.int32 * colStep
       let hovered = canHover and checkCollisionPointRec(mousePos,
         Rectangle(x: cardX.float32, y: cardY.float32,
                   width: RogueliteCardW.float32, height: RogueliteCardH.float32))
@@ -536,16 +561,25 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
     let startLabel = if selectedUnlocked: t("roguelite_start")
                      elif selectedCanBuy: t("roguelite_buy_unlock")
                      else: t("roguelite_need_more_shards")
-    drawSmallButton(panelX + 60, btnY.int32, 180, 42, t("roguelite_unlocks"), false,
-                    Color(r: 120, g: 200, b: 255, a: 255),
-                    canHover and checkCollisionPointRec(mousePos, Rectangle(x: (panelX + 60).float32, y: btnY.float32, width: 180, height: 42)))
-    drawSmallButton(panelX + 370, btnY.int32, 180, 42, startLabel,
+    let shopHasDeal = hasUnseenAffordableUnlock(profile)
+    # Each button is centered under its card column so card→action reads as one
+    # vertical lane (Shop·Operator, Start·Bulwark, Back·Arcanist).
+    let btnW: int32 = 220
+    let btnH: int32 = 46
+    let colInset: int32 = RogueliteCardW div 2 - btnW div 2
+    let shopX: int32 = gridLeft + colInset
+    let startBtnX: int32 = gridLeft + colStep + colInset
+    let backX: int32 = gridLeft + 2 * colStep + colInset
+    drawShopButton(shopX, btnY.int32, btnW, btnH, t("roguelite_unlocks"), game.time,
+                   shopHasDeal,
+                   canHover and checkCollisionPointRec(mousePos, Rectangle(x: shopX.float32, y: btnY.float32, width: btnW.float32, height: btnH.float32)))
+    drawSmallButton(startBtnX, btnY.int32, btnW, btnH, startLabel,
                     selectedUnlocked or selectedCanBuy, Color(r: 0, g: 240, b: 160, a: 255),
-                    canHover and checkCollisionPointRec(mousePos, Rectangle(x: (panelX + 370).float32, y: btnY.float32, width: 180, height: 42)))
-    drawSmallButton(panelX + 680, btnY.int32, 180, 42, t("roguelite_back"), false,
+                    canHover and checkCollisionPointRec(mousePos, Rectangle(x: startBtnX.float32, y: btnY.float32, width: btnW.float32, height: btnH.float32)))
+    drawSmallButton(backX, btnY.int32, btnW, btnH, t("roguelite_back"), false,
                     Color(r: 255, g: 120, b: 120, a: 255),
-                    canHover and checkCollisionPointRec(mousePos, Rectangle(x: (panelX + 680).float32, y: btnY.float32, width: 180, height: 42)))
-    drawCenteredTextFit(t("roguelite_setup_controls"), panelX + 180, panelY + RoguelitePanelH - 30,
-                        RoguelitePanelW - 360, 14, LightGray)
+                    canHover and checkCollisionPointRec(mousePos, Rectangle(x: backX.float32, y: btnY.float32, width: btnW.float32, height: btnH.float32)))
+    drawCenteredTextFit(t("roguelite_setup_controls"), gridLeft, panelY + RoguelitePanelH - 30,
+                        gridW, 14, LightGray)
 
   drawHeatPurchaseCelebration(rw, panelX, panelY)

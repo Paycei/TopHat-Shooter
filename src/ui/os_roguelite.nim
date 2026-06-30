@@ -808,6 +808,49 @@ proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, color: Col
   discard drawCenteredTextFit(label, x + 7, y + (h - fontSize) div 2, w - 14, 15,
                               if active or hovered: color else: LightGray, 9)
 
+proc drawShopButton*(x, y, w, h: int32, label: string, time: float32,
+                     hasDeal: bool, hovered: bool = false) =
+  ## High-emphasis entry point to the Shard Unlocks shop. Unlike drawSmallButton
+  ## this one is gold, breathes with a glow halo, carries a shard icon, and pops a
+  ## red "!" badge when something is affordable — so it stops reading as just one
+  ## of three equal-weight footer buttons.
+  let gold = Color(r: 255, g: 210, b: 90, a: 255)
+  let pulse = sin(time * 4.0'f32) * 0.5'f32 + 0.5'f32          # 0..1
+  # Outer glow halo: a few expanding line-rects fading outward.
+  let baseGlow = 46 + int(pulse * 60.0'f32) + (if hovered: 50 else: 0)
+  for i in countdown(3, 1):
+    let pad = i.int32 * 3
+    let a = uint8(clamp(baseGlow - i * 12, 0, 255))
+    drawRectangleLines(rectAt(x - pad, y - pad, w + pad * 2, h + pad * 2), 1, softColor(gold, a))
+  # Drop shadow + warm body.
+  drawRectangle(x + 3, y + 4, w, h, Color(r: 0, g: 0, b: 0, a: 130))
+  let bgTop = if hovered: Color(r: 96, g: 72, b: 26, a: 255) else: Color(r: 74, g: 56, b: 22, a: 255)
+  let bgBottom = if hovered: Color(r: 58, g: 41, b: 14, a: 255) else: Color(r: 44, g: 32, b: 12, a: 255)
+  drawSoftFill(x, y, w, h, bgTop, bgBottom)
+  drawScanlines(x + 4, y + 4, w - 8, h - 8, Color(r: 255, g: 255, b: 255, a: 6))
+  drawRectangle(x, y, w, 3, softColor(gold, 235))
+  drawRectangleLines(rectAt(x, y, w, h), if hovered: 3 else: 2,
+                     softColor(gold, uint8(clamp(195 + int(pulse * 55.0'f32), 0, 255))))
+  drawCornerBrackets(x + 4, y + 4, w - 8, h - 8, 12, 1, softColor(gold, 175))
+  # Shard icon, left.
+  let iconCX = x + 26
+  let iconCY = y + h div 2
+  drawCircle(Vector2(x: iconCX.float32, y: iconCY.float32), 15.0'f32,
+             softColor(gold, uint8(28 + int(pulse * 30.0'f32))))
+  drawCurrencyIcon(iconCX, iconCY, 22, ciDataShards)
+  # Label.
+  let fontSize = bestFitFontSize(label, w - 56, 16, 9)
+  discard drawCenteredTextFit(label, x + 44, y + (h - fontSize) div 2, w - 56, fontSize, gold, 9)
+  # Deal badge: pulsing red "!" in the upper-right corner.
+  if hasDeal:
+    let badgeR = 9.0'f32 + pulse * 2.0'f32
+    let bx = x + w - 4
+    let by = y - 2
+    drawCircle(Vector2(x: bx.float32, y: by.float32), badgeR + 2.0'f32, Color(r: 0, g: 0, b: 0, a: 120))
+    drawCircle(Vector2(x: bx.float32, y: by.float32), badgeR, Color(r: 255, g: 90, b: 80, a: 255))
+    drawCircleLines(bx, by, badgeR, White)
+    discard drawCenteredTextFit("!", bx - 7, by - 7, 14, 14, White, 12)
+
 proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected, unlocked: bool, hovered: bool = false) =
   let color = if selected: Color(r: 0, g: 220, b: 255, a: 255)
               elif hovered: Color(r: 120, g: 220, b: 255, a: 255)
@@ -826,6 +869,25 @@ proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected, u
   drawRectangle(x, y, CardW, 3, softColor(color, if selected: 220 else: 125))
   drawRectangleLines(rectAt(x, y, CardW, CardH), if selected: 3 elif hovered: 2 else: 1, color)
   drawCornerBrackets(x + 7, y + 7, CardW - 14, CardH - 14, 18, 1, softColor(color, if selected: 155 else: 82))
+  # Emblem medallion: fills the otherwise-empty mid-body so cards read as
+  # deliberate panels rather than mostly blank. Drawn before the text/pills so
+  # those stay crisp on top; faint + slowly rotating to add life without noise.
+  block:
+    let emblemCX = x + CardW div 2
+    let emblemCY = y + 176
+    let baseA: uint8 = if selected: 26 elif hovered: 18 else: 11
+    let lineA: uint8 = if selected: 95 elif hovered: 60 else: 36
+    drawCircle(Vector2(x: emblemCX.float32, y: emblemCY.float32), 34.0'f32, softColor(color, baseA))
+    drawCircleLines(emblemCX, emblemCY, 34.0'f32, softColor(color, lineA))
+    drawCircleLines(emblemCX, emblemCY, 27.0'f32, softColor(color, uint8(lineA.int * 2 div 3)))
+    for i in 0..<8:
+      let a = (i.float32 / 8.0'f32) * (PI.float32 * 2.0'f32) + game.time * 0.4'f32
+      let r1 = 38.0'f32
+      let r2 = 43.0'f32
+      drawLine((emblemCX.float32 + cos(a) * r1).int32, (emblemCY.float32 + sin(a) * r1).int32,
+               (emblemCX.float32 + cos(a) * r2).int32, (emblemCY.float32 + sin(a) * r2).int32,
+               softColor(color, uint8(lineA.int * 3 div 4)))
+    drawKitGlyph(emblemCX, emblemCY, kit, softColor(color, if unlocked: 235 else: 150))
   drawCircle(Vector2(x: (x + CardW - 44).float32, y: (y + 40).float32), 24, softColor(color, 28))
   drawCircleLines(x + CardW - 44, y + 40, 24.0'f32, softColor(color, 100))
   drawKitGlyph(x + CardW - 44, y + 40, kit, color)
@@ -947,6 +1009,69 @@ proc drawThemeCard(theme: DungeonFloorTheme, x, y: int32, selected: bool, floorB
   discard drawWrappedText(themeDescription(theme), x + 16, y + 215, CardW - 32, 13,
                           Color(r: 180, g: 192, b: 210, a: 255), 2, 4)
 
+proc finalBossCardRect*(screenWidth, screenHeight: int32): Rectangle =
+  ## Geometry of the single special final-boss card. Shared by the renderer and
+  ## the floor-select input handler so the hit-test matches what is drawn.
+  let panelX = (screenWidth - PanelW) div 2
+  let panelY = (screenHeight - PanelH) div 2
+  const w = CardW * 2 + CardGap
+  const h = CardH + 24
+  Rectangle(
+    x: (panelX + (PanelW - w) div 2).float32,
+    y: (panelY + 180).float32,
+    width: w.float32,
+    height: h.float32)
+
+proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
+  ## The final floor's one-and-only choice: a wide, pulsing crimson/gold card for
+  ## boss 12, deliberately styled apart from the regular theme cards.
+  let x = rect.x.int32
+  let y = rect.y.int32
+  let w = rect.width.int32
+  let h = rect.height.int32
+  let pulse = sin(game.time.float32 * 3.2'f32) * 0.5'f32 + 0.5'f32
+  let crimson = Color(r: 235, g: 50, b: 62, a: 255)
+  let gold = Color(r: 255, g: 210, b: 110, a: 255)
+  let accent = themeAccent(FinalFloorTheme)
+  let borderA = uint8(150.0'f32 + pulse * 105.0'f32)
+
+  # Shadow + dark crimson body with a brighter header band and top accent rule.
+  drawRectangle(x + 6, y + 9, w, h, Color(r: 0, g: 0, b: 0, a: 160))
+  drawRectangle(x, y, w, h, Color(r: 26, g: 8, b: 14, a: if hovered: 255 else: 248))
+  drawRectangle(x, y, w, 96, softColor(crimson, if hovered: 44 else: 32))
+  drawRectangle(x, y, w, 4, crimson)
+
+  # Pulsing crimson border, inner gold trim, and corner brackets.
+  drawRectangleLines(rectAt(x, y, w, h), 3,
+                     Color(r: crimson.r, g: crimson.g, b: crimson.b, a: borderA))
+  drawRectangleLines(rectAt(x + 4, y + 4, w - 8, h - 8), 1, softColor(gold, 110))
+  drawCornerBrackets(x + 10, y + 10, w - 20, h - 20, 28, 2,
+                     softColor(gold, uint8(120.0'f32 + pulse * 110.0'f32)))
+
+  # FINAL BOSS pill.
+  drawPill(x + 22, y + 24, 158, 32, t("dungeon_final_floor_label"), crimson, true)
+
+  # Pulsing boss glyph on the right.
+  let glyphX = x + w - 74
+  let glyphY = y + 62
+  drawCircle(Vector2(x: glyphX.float32, y: glyphY.float32), 30.0'f32 + pulse * 6.0'f32,
+             softColor(crimson, 34))
+  drawThemeGlyph(glyphX, glyphY, FinalFloorTheme, accent)
+
+  # Boss label + name.
+  drawTextFit(t("dungeon_floor_boss"), x + 24, y + 66, w - 150, 15,
+              Color(r: 255, g: 150, b: 120, a: 255))
+  drawTextFit(t("boss_12_name"), x + 24, y + 86, w - 150, 30, gold)
+
+  # Flavor description.
+  discard drawWrappedText(t("dungeon_final_floor_desc"), x + 24, y + 140, w - 48, 16,
+                          Color(r: 222, g: 198, b: 208, a: 255), 2, 6)
+
+  # Pulsing warning line near the bottom.
+  drawCenteredTextFit(t("dungeon_final_floor_warning"), x + 20, y + h - 42, w - 40, 17,
+                      Color(r: crimson.r, g: crimson.g, b: crimson.b,
+                            a: uint8(170.0'f32 + pulse * 80.0'f32)))
+
 proc drawRogueliteFloorSelect*(game: Game) =
   let x = (game.screenWidth - PanelW) div 2
   let y = (game.screenHeight - PanelH) div 2
@@ -974,18 +1099,26 @@ proc drawRogueliteFloorSelect*(game: Game) =
 
   drawProgressRail(run, x + 120, y + 132, 680)
 
-  let startX = x + 45
-  let cardY = y + 185
-  let bossTier = if game.rogueliteProfile != nil: game.rogueliteProfile.unlockedBossTier else: 1
-  for i in 0..2:
-    let cardX = (startX + i * (CardW + CardGap)).int32
-    let floorBoss = dungeonBossNumberFor(run.nextThemeChoices[i], run.floorNumber,
-                                         run.endlessLoop, bossTier)
-    drawThemeCard(run.nextThemeChoices[i], cardX, cardY.int32,
-                  i == game.selectedRogueliteTheme, floorBoss,
-                  canHover and isHovered(mousePos, cardX, cardY.int32, CardW, CardH))
+  if isFinalDungeonFloor(run):
+    let cardRect = finalBossCardRect(game.screenWidth.int32, game.screenHeight.int32)
+    drawFinalBossCard(game, cardRect,
+                      canHover and checkCollisionPointRec(mousePos, cardRect))
+  else:
+    let startX = x + 45
+    let cardY = y + 185
+    let bossTier = if game.rogueliteProfile != nil: game.rogueliteProfile.unlockedBossTier else: 1
+    for i in 0..2:
+      let cardX = (startX + i * (CardW + CardGap)).int32
+      let floorBoss = dungeonBossNumberFor(run.nextThemeChoices[i], run.floorNumber,
+                                           run.endlessLoop, bossTier)
+      drawThemeCard(run.nextThemeChoices[i], cardX, cardY.int32,
+                    i == game.selectedRogueliteTheme, floorBoss,
+                    canHover and isHovered(mousePos, cardX, cardY.int32, CardW, CardH))
 
-  drawCenteredTextFit(t("dungeon_floor_select_tip"), x + 60, y + PanelH - 63, PanelW - 120, 14, Color(r: 255, g: 210, b: 110, a: 255))
+  if not isFinalDungeonFloor(run):
+    # The themed-roll tip is meaningless on the single-card final floor; the card's
+    # own warning line carries the stakes there.
+    drawCenteredTextFit(t("dungeon_floor_select_tip"), x + 60, y + PanelH - 63, PanelW - 120, 14, Color(r: 255, g: 210, b: 110, a: 255))
   drawCenteredTextFit(t("roguelite_sector_controls"), x + 60, y + PanelH - 35, PanelW - 120, 15, LightGray)
   drawBetaBanner(game)
 

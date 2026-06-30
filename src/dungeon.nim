@@ -308,8 +308,17 @@ proc dungeonBossNumberFor*(theme: DungeonFloorTheme,
   let (rank, count) = themeBossRank(theme)
   let themePos = if span <= 0 or count <= 1: 0
                  else: int(round(rank.float32 / (count - 1).float32 * span.float32))
-  let boss = band.lo + themePos + (unlockedBossTier - 1) + endlessLoop
-  clamp(boss, band.lo, band.hi)
+  # Wrap the tier/endless nudge *within* the band instead of clamping it. Adding a
+  # flat offset and clamping saturates every theme onto band.hi the moment the
+  # offset reaches the span (e.g. boss tier 3 on floor 1, span 2), collapsing all
+  # three theme cards onto a single boss. A modular shift preserves the number of
+  # distinct bosses the rank spread produced at tier 1, so generateThemeChoices
+  # still has distinct boss-groups to draw three different cards from. (Tier/loop
+  # difficulty is applied to the boss's *stats* in tuneDungeonBossStats, not to
+  # which boss number headlines the floor.)
+  let slots = span + 1
+  if slots <= 1: band.lo
+  else: band.lo + ((themePos + (unlockedBossTier - 1) + endlessLoop) mod slots)
 
 proc unlockedBossTierOf*(game: Game): int =
   ## Boss tier from the active profile (1 when there is no profile yet).
@@ -605,8 +614,24 @@ proc generateFloor*(game: Game, theme: DungeonFloorTheme, floorNumber: int): Dun
 # ---------------------------------------------------------------------------
 # Theme selection between floors
 
+const FinalFloorTheme* = dftCorruptedSector
+  ## The single arena that headlines the final floor (boss 12). The corrupted
+  ## sector is the most degraded theme, fitting the run's last process.
+
+proc isFinalDungeonFloor*(run: RogueliteRun): bool =
+  ## The final floor offers one special "final boss" arena (always boss 12)
+  ## instead of a three-theme roll. Gates generation, rendering and input.
+  not run.isNil and run.floorNumber >= RogueliteFloorsToWin
+
 proc generateThemeChoices*(run: RogueliteRun, unlockedBossTier: int = 1) =
   if run.isNil: return
+  if isFinalDungeonFloor(run):
+    # Final floor: no roll. A single fixed arena that always headlines boss 12.
+    # Every slot resolves to it so any selection index lands on the same theme,
+    # and the floor-select UI renders one special card.
+    for i in 0 .. 2:
+      run.nextThemeChoices[i] = FinalFloorTheme
+    return
   var pool: seq[DungeonFloorTheme] = @[]
   for theme in DungeonFloorTheme:
     if theme notin run.usedThemes:

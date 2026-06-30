@@ -1843,12 +1843,13 @@ proc main() =
       currentGame.time += dt
       updateMouseTracking(currentGame)
 
+      # The final floor offers a single card, so there is nothing to navigate.
       if isKeyPressed(Left) or isKeyPressed(A):
-        if not globalConfirmActive:
+        if not globalConfirmActive and not isFinalDungeonFloor(currentGame.rogueliteRun):
           currentGame.selectedRogueliteTheme = (currentGame.selectedRogueliteTheme - 1 + 3) mod 3
           markKeyboardUsed(currentGame)
       if isKeyPressed(Right) or isKeyPressed(D):
-        if not globalConfirmActive:
+        if not globalConfirmActive and not isFinalDungeonFloor(currentGame.rogueliteRun):
           currentGame.selectedRogueliteTheme = (currentGame.selectedRogueliteTheme + 1) mod 3
           markKeyboardUsed(currentGame)
 
@@ -1880,7 +1881,9 @@ proc main() =
       if isKeyPressed(Enter) or isKeyPressed(E):
         if not globalConfirmActive: startSelectedTheme()
       if isKeyPressed(Q):
-        if not globalConfirmActive: closeRogueliteFloorSelect()
+        if not globalConfirmActive:
+          if settings.exitConfirmEnabled: showGlobalConfirm(cdcQuitToMenu)
+          else: closeRogueliteFloorSelect()
 
       if isMouseButtonPressed(Left) and not globalConfirmActive:
         let mousePos = getVirtualMousePosition()
@@ -1895,7 +1898,12 @@ proc main() =
         let cardY = panelY + 185
         let closeRect = rogueliteCloseButtonRect(screenWidth.int32, screenHeight.int32)
         if checkCollisionPointRec(mousePos, closeRect):
-          closeRogueliteFloorSelect()
+          if settings.exitConfirmEnabled: showGlobalConfirm(cdcQuitToMenu)
+          else: closeRogueliteFloorSelect()
+        elif isFinalDungeonFloor(currentGame.rogueliteRun):
+          if checkCollisionPointRec(mousePos, finalBossCardRect(screenWidth.int32, screenHeight.int32)):
+            currentGame.selectedRogueliteTheme = 0
+            startSelectedTheme()
         else:
           for i in 0..2:
             let rect = Rectangle(x: (startX + i * (CardW + CardGap)).float32,
@@ -1910,10 +1918,14 @@ proc main() =
       beginGameDrawing()
       drawRogueliteFloorSelect(currentGame)
 
-      # Draw quit-confirmation dialog on top of everything if triggered by OS close button
+      # Draw the confirm dialog on top of everything. Two triggers share it here:
+      # the OS close button (cdcQuitToDesktop -> quit app) and the in-screen Q /
+      # panel-close exit (cdcQuitToMenu -> abandon back to the roguelite setup).
       if globalConfirmActive:
         let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
-        if r == 1: windowCloseRequested = true
+        if r == 1:
+          if globalConfirmContext == cdcQuitToDesktop: windowCloseRequested = true
+          else: closeRogueliteFloorSelect()
 
       drawCustomCursor(currentGame.time)
       endGameDrawing()

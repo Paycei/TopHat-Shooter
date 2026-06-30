@@ -51,7 +51,8 @@ proc initRogueliteProfile*(): RogueliteProfile =
     bestRooms: 0,
     bestEndlessLoop: 0,
     totalRuns: 0,
-    wins: 0
+    wins: 0,
+    seenAffordableUnlocks: @[]
   )
 
 proc starterName*(kit: RogueliteStarterKit): string =
@@ -266,6 +267,61 @@ proc canPurchaseUnlock*(profile: RogueliteProfile, category: RogueliteUnlockCate
     profile.dataShards >= cost and
     profile.cores >= coreCost
 
+proc canAffordAnyUnlock*(profile: RogueliteProfile): bool =
+  ## True if at least one not-yet-owned unlock is purchasable right now.
+  ## Drives the "deal available" badge on the shop button so the player has a
+  ## reason to open the shop the moment they can spend.
+  if profile.isNil:
+    return false
+  for category in RogueliteUnlockCategory:
+    for index in 0..<unlockCount(category):
+      if canPurchaseUnlock(profile, category, index):
+        return true
+  false
+
+proc unlockKey(profile: RogueliteProfile, category: RogueliteUnlockCategory, index: int): string =
+  ## Stable identity for an unlock, used to remember which affordable items the
+  ## player has already seen. Kits/families/relics key off their enum value;
+  ## challenge tiers key off the concrete next level (so buying one tier still lets
+  ## the *next*, genuinely-new tier re-trigger the badge).
+  case category
+  of rucStarterKits: "kit:" & $starterByUnlockIndex(index)
+  of rucPowerFamilies: "fam:" & $familyByUnlockIndex(index)
+  of rucRelics: "relic:" & $relicByUnlockIndex(index)
+  of rucChallengeTiers:
+    if profile.isNil: "tier:?"
+    elif index == 0: "heat:" & $(profile.highestHeat + 1)
+    else: "boss:" & $(profile.unlockedBossTier + 1)
+
+proc hasUnseenAffordableUnlock*(profile: RogueliteProfile): bool =
+  ## True only when an affordable unlock exists that the player has NOT yet been
+  ## shown. Drives the shop button's "deal" badge so it appears once per newly
+  ## affordable item and clears after the player opens the shop.
+  if profile.isNil:
+    return false
+  for category in RogueliteUnlockCategory:
+    for index in 0..<unlockCount(category):
+      if canPurchaseUnlock(profile, category, index) and
+         unlockKey(profile, category, index) notin profile.seenAffordableUnlocks:
+        return true
+  false
+
+proc markAffordableUnlocksSeen*(profile: RogueliteProfile) =
+  ## Record every currently-affordable unlock as seen, then persist. Called when
+  ## the shop opens so the badge clears until something *new* becomes affordable.
+  if profile.isNil:
+    return
+  var changed = false
+  for category in RogueliteUnlockCategory:
+    for index in 0..<unlockCount(category):
+      if canPurchaseUnlock(profile, category, index):
+        let key = unlockKey(profile, category, index)
+        if key notin profile.seenAffordableUnlocks:
+          profile.seenAffordableUnlocks.add(key)
+          changed = true
+  if changed:
+    discard saveRogueliteProfile(profile)
+
 proc purchaseRogueliteUnlock*(profile: RogueliteProfile, category: RogueliteUnlockCategory, index: int): bool =
   if not canPurchaseUnlock(profile, category, index):
     return false
@@ -355,7 +411,8 @@ proc rogueliteProfileToJson*(profile: RogueliteProfile): JsonNode =
     "bestRooms": profile.bestRooms,
     "bestEndlessLoop": profile.bestEndlessLoop,
     "totalRuns": profile.totalRuns,
-    "wins": profile.wins
+    "wins": profile.wins,
+    "seenAffordableUnlocks": stringSeqToJson(profile.seenAffordableUnlocks)
   }
 
 proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile =
@@ -402,6 +459,8 @@ proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile =
   result.bestEndlessLoop = j.getOrDefault("bestEndlessLoop").getInt(result.bestEndlessLoop)
   result.totalRuns = j.getOrDefault("totalRuns").getInt(result.totalRuns)
   result.wins = j.getOrDefault("wins").getInt(result.wins)
+  if j.hasKey("seenAffordableUnlocks"):
+    result.seenAffordableUnlocks = parseStringSeq(j["seenAffordableUnlocks"])
   refreshRogueliteUnlocks(result)
 
 proc loadRogueliteProfile*(): RogueliteProfile =

@@ -339,6 +339,10 @@ type
     bestEndlessLoop*: int
     totalRuns*: int
     wins*: int
+    seenAffordableUnlocks*: seq[string]  # Stable keys of unlocks the player has
+                                         # already been shown as affordable; gates
+                                         # the shop button's "deal" badge so it only
+                                         # nags about newly-affordable items.
 
   RogueliteRun* = ref object
     seed*: int
