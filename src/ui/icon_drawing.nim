@@ -12,6 +12,38 @@ type
     ciCore,
     ciHeat
 
+proc drawLockIcon*(x, y, size: int32,
+                   color: Color = Color(r: 170, g: 182, b: 198, a: 255)) =
+  ## Programmatic padlock used to mark undiscovered / locked content. Drawn to
+  ## fill the `size` x `size` box anchored at (x, y), mirroring drawPowerUpIcon's
+  ## footprint so it slots into the same icon area.
+  let fx = x.float32
+  let fy = y.float32
+  let s  = size.float32
+
+  # Lock body: rounded rectangle filling the lower ~55% of the box.
+  let bodyW = s * 0.74
+  let bodyH = s * 0.52
+  let bodyX = fx + (s - bodyW) * 0.5
+  let bodyY = fy + s - bodyH
+  drawRectangleRounded(Rectangle(x: bodyX, y: bodyY, width: bodyW, height: bodyH),
+                       0.32, 6, color)
+
+  # Shackle: the top half of a ring tucked into the body's top edge (180deg->360deg
+  # passes through the top because raylib angles run clockwise with +Y down).
+  let shackleR = s * 0.27
+  let shackleW = s * 0.10
+  drawRing(Vector2(x: fx + s * 0.5, y: bodyY),
+           shackleR - shackleW, shackleR, 180.0, 360.0, 24, color)
+
+  # Keyhole: a dark circle with a slit, centred on the body.
+  let khColor = Color(r: 25, g: 30, b: 40, a: color.a)
+  let khCX = fx + s * 0.5
+  let khCY = bodyY + bodyH * 0.42
+  drawCircle(Vector2(x: khCX, y: khCY), s * 0.085, khColor)
+  drawRectangle(int32(khCX - s * 0.03), int32(khCY),
+                max(1'i32, int32(s * 0.06)), int32(s * 0.17), khColor)
+
 proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
                        alpha: uint8 = 255) =
   ## Draw compact currency/status icons for HUDs and shops.

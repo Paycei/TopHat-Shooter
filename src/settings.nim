@@ -2,11 +2,19 @@
 ## Handles settings initialization, state management, and application
 
 from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, saveSettings, loadSettings
-from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary
+from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, PowerUpType
 import raylib, strutils
 import sound, localization
 
 var globalSettings*: Settings
+
+proc isPowerUpDiscovered*(pt: PowerUpType): bool =
+  ## True if `pt` is in the persistent discovery codex. The codex stores the enum
+  ## symbol (`$pt`), matching how death.nim records a power-up's first install.
+  ## When settings aren't loaded yet (nil), treat everything as discovered so the
+  ## reference screens never hide content during early init or in tests.
+  if globalSettings.isNil: return true
+  $pt in globalSettings.discoveredPowerUps
 
 proc initSettings*(): Settings =
   ## Initialize settings with default values and load from save file

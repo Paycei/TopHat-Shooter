@@ -2,7 +2,7 @@
 ## Terminal-style documentation viewer
 
 import raylib, strutils, math
-import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, icon_drawing
+import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
 
 const
   HELP_LINE_HEIGHT* = 18
@@ -187,13 +187,20 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       # List all power-up names and short descriptions from authoritative source
       for i in ord(low(PowerUpType)) .. ord(high(PowerUpType)):
         let pu = PowerUpType(i)
-        # Add name with icon index (ordinal of PowerUpType) and the powerup's own color
-        let puColor = getPowerUpColor(pu)
-        help.addOutput(getPowerUpName(pu), puColor, i, 0)
-        # Use level 1 and default playerDamage for example descriptions, indent descriptions to align under name
-        let desc = getPowerUpDescription(pu, 1, 1.0)
-        for line in desc.split("\n"):
-          help.addOutput(line, LightGray, -1, (HELP_ICON_SIZE + HELP_ICON_PADDING))
+        if isPowerUpDiscovered(pu):
+          # Add name with icon index (ordinal of PowerUpType) and the powerup's own color
+          let puColor = getPowerUpColor(pu)
+          help.addOutput(getPowerUpName(pu), puColor, i, 0)
+          # Use level 1 and default playerDamage for example descriptions, indent descriptions to align under name
+          let desc = getPowerUpDescription(pu, 1, 1.0)
+          for line in desc.split("\n"):
+            help.addOutput(line, LightGray, -1, (HELP_ICON_SIZE + HELP_ICON_PADDING))
+        else:
+          # Undiscovered: a lock icon (sentinel -2) and preset text, hiding the
+          # power-up's name and description until it's found in a run.
+          help.addOutput(t(tkHelpPowerUpLockedName), Color(r: 130, g: 140, b: 155, a: 255), -2, 0)
+          help.addOutput(t(tkHelpPowerUpLockedDesc), Color(r: 120, g: 130, b: 145, a: 255),
+                         -1, (HELP_ICON_SIZE + HELP_ICON_PADDING))
         help.addOutput("", White, -1, 0)
 
     of "enemies":
@@ -402,7 +409,9 @@ proc drawHelpWindow*(help: HelpWindow) =
   var stopRendering = false
   while i < help.outputLines.len and not stopRendering:
     let line = help.outputLines[i]
-    let iconPresent = line.icon >= 0
+    let hasPowerUpIcon = line.icon >= 0
+    let hasLockIcon = line.icon == -2  # sentinel: undiscovered power-up
+    let iconPresent = hasPowerUpIcon or hasLockIcon
     var availableW: int32 = (contentW - 20).int32 - line.indent.int32
     if iconPresent:
       availableW = availableW - int32(HELP_ICON_SIZE + HELP_ICON_PADDING)
@@ -414,7 +423,10 @@ proc drawHelpWindow*(help: HelpWindow) =
     # Draw icon (on first wrapped line) if present
     if iconPresent and wrapped.len > 0:
       let iconX = (baseTextX + line.indent).int32
-      drawPowerUpIcon(iconX, yPos.int32, int32(HELP_ICON_SIZE), PowerUpType(line.icon), line.color)
+      if hasLockIcon:
+        drawLockIcon(iconX, yPos.int32, int32(HELP_ICON_SIZE), line.color)
+      else:
+        drawPowerUpIcon(iconX, yPos.int32, int32(HELP_ICON_SIZE), PowerUpType(line.icon), line.color)
     
     var firstWrapped = true
     for wline in wrapped:

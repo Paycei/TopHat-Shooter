@@ -478,6 +478,8 @@ type
     tkHelpControlsKeybindings = "help_controls_keybindings"
     tkHelpGameplayTopic = "help_gameplay_topic"
     tkHelpPowerUpsTopic = "help_power_ups_topic"
+    tkHelpPowerUpLockedName = "help_powerup_locked_name"
+    tkHelpPowerUpLockedDesc = "help_powerup_locked_desc"
     tkHelpEnemiesTopic = "help_enemies_topic"
     tkHelpBossesTopic = "help_bosses_topic"
     tkHelpShopTopic = "help_shop_topic"
@@ -1383,6 +1385,9 @@ type
     tkSandboxBadgeLegendary = "sandbox_badge_legendary"
     tkSandboxBadgeCommon = "sandbox_badge_common"
     tkSandboxLv1Preview = "sandbox_lv1_preview"
+    tkSandboxBadgeLocked = "sandbox_badge_locked"
+    tkSandboxPowerupLockedName = "sandbox_powerup_locked_name"
+    tkSandboxPowerupLockedDesc = "sandbox_powerup_locked_desc"
     tkSandboxEnterBoss3d = "sandbox_enter_boss_3d"
     tkSandboxTest3dArena = "sandbox_test_3d_arena"
 
@@ -2523,6 +2528,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_controls_keybindings": "CONTROLS & KEYBINDINGS",
     "help_gameplay_topic": "GAME MODES",
     "help_power_ups_topic": "POWER-UPS REFERENCE",
+    "help_powerup_locked_name": "??? - Undiscovered",
+    "help_powerup_locked_desc": "[LOCKED] Discover this power-up during a run to reveal its details.",
     "help_enemies_topic": "ENEMY TYPES",
     "help_bosses_topic": "BOSS INFORMATION",
     "help_shop_topic": "SHOP ITEMS",
@@ -3187,6 +3194,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "sandbox_badge_legendary": "LEGENDARY",
     "sandbox_badge_common": "COMMON",
     "sandbox_lv1_preview": "Lv.1 preview",
+    "sandbox_badge_locked": "LOCKED",
+    "sandbox_powerup_locked_name": "??? Undiscovered",
+    "sandbox_powerup_locked_desc": "Locked. Discover this power-up in a run to reveal its details.",
     "sandbox_enter_boss_3d": "Enter Boss #7 3D",
     "sandbox_test_3d_arena": "Test 3D Arena",
 
@@ -4176,6 +4186,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_controls_keybindings": "CONTROLES Y ATAJOS DE TECLADO",
     "help_gameplay_topic": "MODOS DE JUEGO",
     "help_power_ups_topic": "REFERENCIA DE MEJORAS",
+    "help_powerup_locked_name": "??? - No Descubierto",
+    "help_powerup_locked_desc": "[BLOQUEADO] Descubre esta mejora durante una partida para revelar sus detalles.",
     "help_enemies_topic": "TIPOS DE ENEMIGOS",
     "help_bosses_topic": "INFORMACIÓN DE JEFES",
     "help_shop_topic": "ARTÍCULOS DE TIENDA",
@@ -4970,6 +4982,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "sandbox_badge_legendary": "LEGENDARIA",
     "sandbox_badge_common": "COMÚN",
     "sandbox_lv1_preview": "Vista previa Nv.1",
+    "sandbox_badge_locked": "BLOQUEADO",
+    "sandbox_powerup_locked_name": "??? No Descubierto",
+    "sandbox_powerup_locked_desc": "Bloqueado. Descubre esta mejora en una partida para revelar sus detalles.",
     "sandbox_enter_boss_3d": "Entrar Jefe #7 3D",
     "sandbox_test_3d_arena": "Probar Arena 3D",
 

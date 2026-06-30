@@ -1,7 +1,7 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
 import raylib, std/strutils, random
-import types, enemy, powerup, powerup_data, boss_definitions, localization, render_context, ui/icon_drawing
+import types, enemy, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing
 
 const
   SIDEBAR_WIDTH = 300
@@ -161,8 +161,12 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
 
   for powerOrdinal in ord(low(PowerUpType))..ord(high(PowerUpType)):
     let powerType = PowerUpType(powerOrdinal)
-    let accent = getPowerUpColor(powerType)
-    let isLegendary = isSandboxLegendaryPowerUp(powerType)
+    # Undiscovered power-ups are masked: a neutral accent, lock icon, generic
+    # badge, and preset text hide both their identity and their stats.
+    let discovered = isPowerUpDiscovered(powerType)
+    let accent = if discovered: getPowerUpColor(powerType)
+                 else: Color(r: 96, g: 106, b: 122, a: 255)
+    let isLegendary = discovered and isSandboxLegendaryPowerUp(powerType)
 
     if currentY > startY - POWERUP_ITEM_HEIGHT and currentY < screenHeight - 10:
       let bgColor = if isLegendary:
@@ -188,27 +192,38 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
                                    width: (POWERUP_ICON_SIZE + 6).float32,
                                    height: (POWERUP_ICON_SIZE + 6).float32),
                          1, Color(r: accent.r, g: accent.g, b: accent.b, a: 180))
-      drawPowerUpIcon(iconX, iconY, POWERUP_ICON_SIZE, powerType, accent)
+      if discovered:
+        drawPowerUpIcon(iconX, iconY, POWERUP_ICON_SIZE, powerType, accent)
+      else:
+        drawLockIcon(iconX, iconY, POWERUP_ICON_SIZE, accent)
 
       let textX = contentX + 56
-      let badgeText = if isLegendary: t(tkSandboxBadgeLegendary) else: t(tkSandboxBadgeCommon)
+      let badgeText = if not discovered: t(tkSandboxBadgeLocked)
+                      elif isLegendary: t(tkSandboxBadgeLegendary)
+                      else: t(tkSandboxBadgeCommon)
       let badgeWidth = measureText(badgeText, 9) + 8
       let badgeX = contentX + cardWidth - badgeWidth - 7
       drawRectangle(badgeX, currentY + 7, badgeWidth, 14,
-                    if isLegendary: Color(r: 120, g: 86, b: 16, a: 230)
+                    if not discovered: Color(r: 58, g: 64, b: 76, a: 230)
+                    elif isLegendary: Color(r: 120, g: 86, b: 16, a: 230)
                     else: Color(r: 34, g: 88, b: 116, a: 230))
       drawText(badgeText, badgeX + 4, currentY + 10, 9,
-               if isLegendary: Color(r: 255, g: 230, b: 120, a: 255)
+               if not discovered: Color(r: 175, g: 185, b: 200, a: 255)
+               elif isLegendary: Color(r: 255, g: 230, b: 120, a: 255)
                else: Color(r: 160, g: 225, b: 255, a: 255))
 
-      let (nameText, nameSize) = fitSandboxText(getPowerUpName(powerType),
-                                                badgeX - textX - 5, 13)
-      drawText(nameText, textX, currentY + 8, nameSize, White)
+      let displayName = if discovered: getPowerUpName(powerType)
+                        else: t(tkSandboxPowerupLockedName)
+      let (nameText, nameSize) = fitSandboxText(displayName, badgeX - textX - 5, 13)
+      drawText(nameText, textX, currentY + 8, nameSize,
+               if discovered: White else: Color(r: 170, g: 180, b: 195, a: 255))
 
-      drawText(t(tkSandboxLv1Preview), textX, currentY + 25, 9,
-               Color(r: 120, g: 200, b: 255, a: 255))
+      if discovered:
+        drawText(t(tkSandboxLv1Preview), textX, currentY + 25, 9,
+                 Color(r: 120, g: 200, b: 255, a: 255))
 
-      let desc = getPowerUpDescription(powerType, 1, game.player.damage)
+      let desc = if discovered: getPowerUpDescription(powerType, 1, game.player.damage)
+                 else: t(tkSandboxPowerupLockedDesc)
       let descLines = wrapSandboxText(desc, cardWidth - 64, 10)
       let maxLines = min(3, descLines.len)
       for i in 0..<maxLines:

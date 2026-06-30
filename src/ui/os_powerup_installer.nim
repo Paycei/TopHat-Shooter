@@ -108,8 +108,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   # symbol via `$powerUp.powerType`) that death.nim records first-time installs
   # into, so it appears on every game mode's selection screen automatically.
   # `a > 0.5` keeps it hidden during the fast blur frames of the slot roll.
-  if not globalSettings.isNil and a > 0.5'f32 and
-     ($powerUp.powerType notin globalSettings.discoveredPowerUps):
+  if a > 0.5'f32 and not isPowerUpDiscovered(powerUp.powerType):
     let newText = t(tkPowerUpNewBadge)
     let newFont: int32 = 12
     let newTextW = measureText(newText, newFont)
