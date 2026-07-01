@@ -130,6 +130,48 @@ proc drawExtractShot(local, duration: float32, screenWidth, screenHeight: int32,
 
   drawSubtitles([t(tkRogEndExtract1), t(tkRogEndExtract2)], screenWidth, screenHeight, alpha)
 
+proc drawRevealShot(local, duration: float32, screenWidth, screenHeight: int32,
+                    alpha: float32) =
+  ## ORIGIN EXPOSED: in the seed's dying light, the truth is laid bare. A single
+  ## flash peaks mid-shot and burns away the seed to expose an ancient lattice
+  ## behind it - a structure older than the OS, proof the breach only woke the Root.
+  let cx = screenWidth.float32 * 0.5'f32
+  let cy = screenHeight.float32 * 0.45'f32
+  # Flash envelope: rises to a hard peak near the middle, then settles.
+  let t01 = local / duration
+  let flash = exp(-((t01 - 0.42'f32) * (t01 - 0.42'f32)) / 0.018'f32)
+  let settle = easeOut(clamp01((t01 - 0.5'f32) / 0.5'f32))
+
+  drawSoftGlow(cx, cy, 200.0'f32 + flash * 260.0'f32,
+               colorA(RogAccent, alpha * (40.0'f32 + flash * 150.0'f32)), 1.0'f32)
+
+  # The ancient lattice revealed behind the seed: nested rotating polygons in a
+  # cold violet, fading up as the seed burns away. Older geometry than the gold.
+  for i in 0..<7:
+    let r = 40.0'f32 + i.float32 * 30.0'f32
+    let sides = 6'i32
+    let rot = local * (6.0'f32 + i.float32 * 2.0'f32) * (if i mod 2 == 0: 1.0'f32 else: -1.0'f32)
+    let latA = alpha * settle * (140.0'f32 - i.float32 * 14.0'f32)
+    drawPolyLines(Vector2(x: cx, y: cy), sides, r, rot,
+                  Color(r: 150, g: 60, b: 255, a: alphaByte(latA)))
+
+  # Radial truth-rays firing out at the flash peak.
+  for i in 0..<24:
+    let a = i.float32 * PI * 2.0'f32 / 24.0'f32 + local * 0.2'f32
+    let len = 60.0'f32 + flash * 360.0'f32
+    drawLine(cx.int32, cy.int32,
+             (cx + cos(a) * len).int32, (cy + sin(a) * len).int32,
+             colorA(RogAccent, alpha * flash * 120.0'f32))
+
+  # The seed itself, dimming and shrinking as the flash consumes it.
+  let seedR = 38.0'f32 * (1.0'f32 - settle * 0.55'f32)
+  drawPoly(Vector2(x: cx, y: cy), 6, seedR, local * 16.0'f32,
+           Color(r: 24, g: 8, b: 30, a: alphaByte(alpha * (1.0'f32 - settle) * 240.0'f32)))
+  drawCircle(Vector2(x: cx, y: cy), seedR * 0.34'f32,
+             colorA(RogAccent, alpha * (60.0'f32 + flash * 195.0'f32)))
+
+  drawSubtitles([t(tkRogEndReveal1), t(tkRogEndReveal2)], screenWidth, screenHeight, alpha)
+
 proc drawAscendShot(local, duration: float32, screenWidth, screenHeight: int32,
                     alpha: float32) =
   ## Climbing back up the collapsing stack: rings expand outward (the inverse of the
@@ -225,6 +267,9 @@ proc newRogueliteEndCutscene*(): Cutscene =
                    glitchMod: 67, glitchWindow: 5, shakeProc: coreShake),
       CutsceneShot(duration: 5.30'f32, drawProc: drawExtractShot, soundCue: stPowerUp,
                    label: t(tkRogEndRecExtract), iconIndex: 4),
+      CutsceneShot(duration: 5.40'f32, drawProc: drawRevealShot,  soundCue: stBossSpawn,
+                   label: t(tkRogEndRecReveal),  iconIndex: 3,
+                   glitchMod: 53, glitchWindow: 6, shakeProc: coreShake),
       CutsceneShot(duration: 5.20'f32, drawProc: drawAscendShot,  soundCue: stShield,
                    label: t(tkRogEndRecAscend),  iconIndex: 0),
       CutsceneShot(duration: 5.40'f32, drawProc: drawRogSignoffShot, soundCue: stWaveComplete,

@@ -121,6 +121,66 @@ proc drawSurFallShot(local, duration: float32, screenWidth, screenHeight: int32,
 
   drawSubtitles([t(tkSurEndFall1), t(tkSurEndFall2)], screenWidth, screenHeight, alpha)
 
+proc drawShutdownShot(local, duration: float32, screenWidth, screenHeight: int32,
+                      alpha: float32) =
+  ## SYSTEM HALTED: the kernel's status lights go dark one by one, then the display
+  ## itself powers off with a CRT collapse - the bookend to the BIOS boot splash.
+  let cx = screenWidth.float32 * 0.5'f32
+  let cy = screenHeight.float32 * 0.46'f32
+  let t01 = local / duration
+
+  # The frame is already mostly dark and only gets darker.
+  drawRectangle(0, 0, screenWidth, screenHeight,
+                Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * (110.0'f32 + t01 * 90.0'f32))))
+
+  # Grid of kernel status lights extinguishing in sequence over the first ~70%.
+  const cols = 6
+  const rows = 3
+  let total = cols * rows
+  let lit = clamp01(t01 / 0.7'f32)   # lights finish extinguishing at 70% of the shot
+  let gapX = 46.0'f32
+  let gapY = 40.0'f32
+  let originX = cx - (cols - 1).float32 * gapX * 0.5'f32
+  let originY = cy - (rows - 1).float32 * gapY * 0.5'f32
+  for r in 0..<rows:
+    for c in 0..<cols:
+      let idx = r * cols + c
+      # Lights go out left-to-right, top-to-bottom as `lit` advances.
+      let off = lit * total.float32 > idx.float32 + 1.0'f32
+      let lx = originX + c.float32 * gapX
+      let ly = originY + r.float32 * gapY
+      if off:
+        drawCircleLines(Vector2(x: lx, y: ly), 5.0'f32,
+                        colorA(SurAccent, alpha * 28.0'f32))
+      else:
+        let flick = 0.7'f32 + 0.3'f32 * (sin(local * 12.0'f32 + idx.float32) * 0.5'f32 + 0.5'f32)
+        drawSoftGlow(lx, ly, 16.0'f32, colorA(SurAccent, alpha * flick * 70.0'f32), 1.0'f32)
+        drawCircle(Vector2(x: lx, y: ly), 5.0'f32, colorA(SurAccent, alpha * flick * 230.0'f32))
+
+  # CRT power-off collapse over the final ~30%: image crushes to a bright scanline,
+  # then to a center dot, then nothing.
+  let off01 = clamp01((t01 - 0.7'f32) / 0.3'f32)
+  if off01 > 0.0'f32:
+    # Black out the grid region as the tube discharges.
+    drawRectangle(0, 0, screenWidth, screenHeight,
+                  Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * off01 * 255.0'f32)))
+    let collapse = easeInOut(off01)
+    if collapse < 0.85'f32:
+      # Horizontal scanline spanning a width that shrinks toward a point.
+      let lineW = screenWidth.float32 * (1.0'f32 - collapse) + 4.0'f32
+      let lineH = 3.0'f32 + (1.0'f32 - collapse) * 2.0'f32
+      drawRectangle((cx - lineW * 0.5'f32).int32, (cy - lineH * 0.5'f32).int32,
+                    lineW.int32, lineH.int32,
+                    Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * 235.0'f32)))
+    else:
+      # Final dying pinpoint.
+      let dot = (1.0'f32 - (collapse - 0.85'f32) / 0.15'f32) * 4.0'f32
+      if dot > 0.2'f32:
+        drawCircle(Vector2(x: cx, y: cy), dot,
+                   Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * 235.0'f32)))
+
+  drawSubtitles([t(tkSurEndShutdown1), t(tkSurEndShutdown2)], screenWidth, screenHeight, alpha)
+
 proc drawSurSignoffShot(local, duration: float32, screenWidth, screenHeight: int32,
                         alpha: float32) =
   ## The watch remembered: a single ember holds against the dark while the log is
@@ -178,6 +238,9 @@ proc newSurvivalEndCutscene*(): Cutscene =
       CutsceneShot(duration: 4.60'f32, drawProc: drawSurFallShot,   soundCue: stTeleport,
                    label: t(tkSurEndRecFall),    iconIndex: 7,
                    glitchMod: 41, glitchWindow: 7, shakeProc: fallShake),
+      CutsceneShot(duration: 5.00'f32, drawProc: drawShutdownShot,  soundCue: stMenuSelect,
+                   label: t(tkSurEndRecShutdown), iconIndex: 5,
+                   glitchMod: 37, glitchWindow: 9, shakeProc: fallShake),
       CutsceneShot(duration: 4.80'f32, drawProc: drawSurSignoffShot, soundCue: stMenuSelect,
                    label: t(tkSurEndRecSignoff), iconIndex: 5),
     ],
