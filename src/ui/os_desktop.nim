@@ -2,7 +2,7 @@
 ## Main menu as an operating system desktop
 
 import raylib, rlgl, math, strutils, strformat, times
-import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins
+import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../particle_types
 
 type
   DesktopIconType* = enum
@@ -1036,23 +1036,72 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
 
   drawText(t("os_tophat_button"), (startBtnX + 35).int32, (startBtnY + 7).int32, 18, White)
 
-  # System tray - clock with dynamic time
+  # System tray - clock with dynamic time. HH and MM are drawn at fixed x
+  # positions and the ":" blinks in its own reserved slot at a true 1 Hz (from
+  # the real wall-clock nanosecond). Drawing the pieces separately keeps the
+  # minutes from sliding when the colon disappears.
   let currentTime = now()
-  let timeStr = currentTime.format("HH:mm")
+  let hhStr = currentTime.format("HH")
+  let mmStr = currentTime.format("mm")
   let dateStr = currentTime.format("MM/dd")
 
   let clockX = screenWidth - 80
   let clockY = startBtnY + 2
-  drawText(timeStr, clockX.int32, clockY.int32, 16,
-          Color(r: 0, g: 255, b: 255, a: 255))
+  let clockCol = Color(r: 0, g: 255, b: 255, a: 255)
+  let hhW = measureText(hhStr, 16)
+  let colonW = measureText(":", 16)
+  drawText(hhStr, clockX.int32, clockY.int32, 16, clockCol)
+  if currentTime.nanosecond < 500_000_000:
+    drawText(":", (clockX + hhW).int32, clockY.int32, 16, clockCol)
+  drawText(mmStr, (clockX + hhW + colonW).int32, clockY.int32, 16, clockCol)
   drawText(dateStr, (clockX - 10).int32, (clockY + 16).int32, 12,
           Color(r: 100, g: 200, b: 200, a: 255))
 
+  # Volume indicator - a speaker with radiating sound-wave arcs plus a percentage.
+  # The arcs (not stacked bars) and the "%" label make it read unambiguously as
+  # master volume, so it can't be mistaken for the network/signal indicator.
+  # Average of the effects (`volume`) and music channels, so the tray reflects
+  # overall loudness rather than just one slider.
+  let vol = if globalSettings.isNil: 0.5'f32
+            else: (globalSettings.volume + globalSettings.musicVolume) * 0.5'f32
+  let muted = vol <= 0.001'f32
+  let volX = screenWidth - 222
+  let cy = (clockY + 9).float32          # vertical centre, aligned with the clock text
+  let spkCol = if muted: Color(r: 255, g: 110, b: 110, a: 255)
+               else: Color(r: 175, g: 228, b: 228, a: 255)
+  # Speaker: a solid cone (back box + triangular flare).
+  drawRectangle(volX.int32, (cy - 3.0'f32).int32, 4, 6, spkCol)
+  drawTriangle(Vector2(x: (volX + 4).float32, y: cy - 6.0'f32),
+               Vector2(x: (volX + 4).float32, y: cy + 6.0'f32),
+               Vector2(x: (volX + 11).float32, y: cy), spkCol)
+  if muted:
+    # Muted: a red cross where the sound waves would be.
+    drawLine(Vector2(x: (volX + 15).float32, y: cy - 5.0'f32),
+             Vector2(x: (volX + 23).float32, y: cy + 5.0'f32), 2, spkCol)
+    drawLine(Vector2(x: (volX + 23).float32, y: cy - 5.0'f32),
+             Vector2(x: (volX + 15).float32, y: cy + 5.0'f32), 2, spkCol)
+  else:
+    # Concentric sound-wave arcs; each lights as the volume crosses its band.
+    let waveCenter = Vector2(x: (volX + 9).float32, y: cy)
+    for i in 0..2:
+      let r = 6.5'f32 + i.float32 * 4.0'f32
+      let lit = vol >= i.float32 / 3.0'f32
+      let arcCol = if lit: Color(r: 0, g: 235, b: 205, a: 255)
+                   else: Color(r: 45, g: 70, b: 75, a: 180)
+      drawRing(waveCenter, r - 1.0'f32, r + 0.6'f32, -52.0'f32, 52.0'f32, 14, arcCol)
+  # Percentage label removes any doubt about what the icon represents.
+  let pctText = $int(round(vol * 100.0'f32)) & "%"
+  drawText(pctText, (volX + 28).int32, (clockY + 3).int32, 12,
+           if muted: Color(r: 255, g: 130, b: 130, a: 255)
+           else: Color(r: 135, g: 212, b: 212, a: 255))
+
   # System indicators with icons
-  let indicatorX = screenWidth - 170
-  # Network indicator (always connected in game)
+  let indicatorX = screenWidth - 146
+  # Network indicator: a "connected" LED that softly pulses so it reads as live.
+  let netPulse = (sin(time * 3.0) * 0.5 + 0.5)
+  let netAlpha = uint8(170.0 + netPulse * 85.0)
   drawRectangle(indicatorX.int32, (clockY + 6).int32, 12, 8,
-               Color(r: 50, g: 255, b: 50, a: 255))
+               Color(r: 50, g: 255, b: 50, a: netAlpha))
   drawText(t(tkDesktopNet), (indicatorX + 16).int32, (clockY + 3).int32, 12,
           Color(r: 150, g: 150, b: 150, a: 255))
 
