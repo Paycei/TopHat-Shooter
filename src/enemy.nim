@@ -3997,30 +3997,95 @@ proc drawAttackWarning*(warning: AttackWarning) =
                      (4 - c).float32 + 1.0, Color(r: 255'u8, g: 200'u8, b: 110'u8, a: a2))
 
   of awtChaosWeave:
-    # Chaos Weaver thread, wind-up only: the jagged polyline shimmers with a
-    # colour that cycles hue chaotically, jittering slightly so it looks alive.
-    # The taut lethal snap is drawn ungated in drawSignatureAttackActive.
-    if warning.ricochetPath.len >= 2 and warning.lifetime > ChaosWeaveActive:
-      let progress = warningProgress(warning)
-      let a2 = rampAlpha(warning, 40.0, 170.0)
-      let t = getTime() * 6.0
-      for s in 0 ..< warning.ricochetPath.len - 1:
-        let p0 = warning.ricochetPath[s]
-        let p1 = warning.ricochetPath[s + 1]
-        let hue = t + s.float32 * 0.9
-        let col = Color(
-          r: uint8(150.0 + 105.0 * sin(hue)),
-          g: uint8(60.0 + 50.0 * sin(hue + 2.0)),
-          b: uint8(150.0 + 105.0 * sin(hue + 4.0)), a: a2)
-        drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
-                 warning.laserLength * 2.0,
-                 Color(r: col.r, g: col.g, b: col.b, a: (a2 div 5).uint8))
-        drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
-                 1.0 + progress * 1.5, col)
-      # Knot sparks at the kinks.
-      for v in warning.ricochetPath:
-        drawCircle(Vector2(x: v.x, y: v.y), 3.0,
-                   Color(r: 255'u8, g: 120'u8, b: 255'u8, a: a2))
+    # Chaos Weaver, wind-up only. Two warning kinds share the type:
+    # - threads (ricochetPath >= 2): a faint "pattern" line shows the full run
+    #   from the start, then a bright NEEDLE stitches the shimmering thread
+    #   along it, and the finished thread pulls taut just before the snap.
+    # - knots (laserPattern == "knot"): a tightening marker at a thread
+    #   crossing; its ring CONTRACTS toward the tear (expansion is reserved
+    #   for the lethal window, per the house rule).
+    # The taut lethal snap / knot tear are drawn ungated in
+    # drawSignatureAttackActive.
+    if warning.lifetime > ChaosWeaveActive:
+      if warning.laserPattern == "knot":
+        let toTear = warning.lifetime - ChaosWeaveActive
+        let span = max(0.1'f32, warning.maxLifetime - ChaosWeaveActive)
+        let urgency = clamp(1.0'f32 - toTear / span, 0.0'f32, 1.0'f32)
+        let pulse = (sin(getTime() * (6.0 + urgency * 14.0)) * 0.5 + 0.5).float32
+        let a2 = uint8(60.0 + urgency * 160.0)
+        # Contracting ring: the knot cinches tight as the tear approaches.
+        let ringR = 26.0'f32 - urgency * 16.0'f32
+        drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, ringR,
+                        Color(r: 255'u8, g: 120'u8, b: 255'u8, a: a2))
+        drawCircle(Vector2(x: warning.pos.x, y: warning.pos.y),
+                   4.0 + pulse * 2.5,
+                   Color(r: 255'u8, g: 170'u8, b: 255'u8, a: a2))
+        # Rotating cross of thread stubs - reads as the two strands knotted.
+        let spin = getTime().float32 * (1.0'f32 + urgency * 3.0'f32)
+        for k in 0 ..< 4:
+          let ang = spin + k.float32 * PI * 0.5'f32
+          drawLine(Vector2(x: warning.pos.x + cos(ang) * 6.0,
+                           y: warning.pos.y + sin(ang) * 6.0),
+                   Vector2(x: warning.pos.x + cos(ang) * ringR,
+                           y: warning.pos.y + sin(ang) * ringR),
+                   1.5, Color(r: 220'u8, g: 110'u8, b: 255'u8, a: (a2 div 2).uint8))
+      elif warning.ricochetPath.len >= 2:
+        let toSnap = warning.lifetime - ChaosWeaveActive
+        let a2 = rampAlpha(warning, 40.0, 170.0)
+        # Faint pattern line + edge pins: the full run is honest from frame one.
+        for s in 0 ..< warning.ricochetPath.len - 1:
+          let p0 = warning.ricochetPath[s]
+          let p1 = warning.ricochetPath[s + 1]
+          drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                   1.0, Color(r: 200'u8, g: 80'u8, b: 220'u8, a: 45'u8))
+        for pin in [warning.ricochetPath[0], warning.ricochetPath[^1]]:
+          drawCircle(Vector2(x: pin.x, y: pin.y), 4.0,
+                     Color(r: 255'u8, g: 140'u8, b: 255'u8, a: 120'u8))
+        if toSnap <= ChaosWeaveTautPause + ChaosWeaveNeedleTime:
+          # Needle phase: the laid portion of the thread grows behind the
+          # needle head; the shimmering hue-cycled strand only exists where
+          # the needle has already been.
+          let stitchFrac = clamp(
+            1.0'f32 - (toSnap - ChaosWeaveTautPause) / ChaosWeaveNeedleTime,
+            0.0'f32, 1.0'f32)
+          let totalLen = polylineLength(warning.ricochetPath)
+          let laid = ricochetSweptPath(warning.ricochetPath, stitchFrac * totalLen)
+          let taut = toSnap <= ChaosWeaveTautPause
+          let t = getTime() * 6.0
+          if laid.len >= 2:
+            for s in 0 ..< laid.len - 1:
+              let p0 = laid[s]
+              let p1 = laid[s + 1]
+              let hue = t + s.float32 * 0.9
+              var col = Color(
+                r: uint8(150.0 + 105.0 * sin(hue)),
+                g: uint8(60.0 + 50.0 * sin(hue + 2.0)),
+                b: uint8(150.0 + 105.0 * sin(hue + 4.0)), a: a2)
+              if taut:
+                # Drawn taut: the strand blanches white-hot and thickens.
+                col = Color(r: 255'u8, g: 220'u8, b: 255'u8, a: a2)
+              drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                       warning.laserLength * 2.0,
+                       Color(r: col.r, g: col.g, b: col.b, a: (a2 div 5).uint8))
+              drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                       (if taut: 3.0'f32 else: 1.8'f32), col)
+          if not taut and laid.len >= 1:
+            # The needle head: a hot white bead with a short spark fan.
+            let head = laid[^1]
+            drawCircle(Vector2(x: head.x, y: head.y), 10.0,
+                       Color(r: 255'u8, g: 160'u8, b: 255'u8, a: 70'u8))
+            drawCircle(Vector2(x: head.x, y: head.y), 4.5,
+                       Color(r: 255'u8, g: 250'u8, b: 255'u8, a: 255'u8))
+            for k in 0 ..< 3:
+              let ang = getTime().float32 * 9.0'f32 + k.float32 * (PI * 2.0 / 3.0)
+              drawLine(Vector2(x: head.x, y: head.y),
+                       Vector2(x: head.x + cos(ang) * 12.0, y: head.y + sin(ang) * 12.0),
+                       1.5, Color(r: 255'u8, g: 200'u8, b: 255'u8, a: 180'u8))
+          if taut:
+            # Kink pins flare while the thread strains against them.
+            for v in warning.ricochetPath:
+              drawCircle(Vector2(x: v.x, y: v.y), 3.5,
+                         Color(r: 255'u8, g: 240'u8, b: 255'u8, a: a2))
 
   of awtOmegaQuadrant:
     # Omega Entity judgement quadrant, wind-up only: the doomed quadrant is
@@ -4332,35 +4397,70 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
                  Vector2(x: cx + cos(tka) * 20.0, y: cy + sin(tka) * 20.0),
                  1.5, Color(r: br, g: bg, b: bb, a: 180'u8))
   of awtChaosWeave:
-    if warning.lifetime <= ChaosWeaveActive and warning.ricochetPath.len >= 2:
+    if warning.lifetime <= ChaosWeaveActive:
       let fade = clamp(warning.lifetime / ChaosWeaveActive, 0.35'f32, 1.0'f32)
       # burst: 0 at the snap -> 1 as the threads die; drives the kink sparks.
       let burst = 1.0'f32 - clamp(warning.lifetime / ChaosWeaveActive, 0.0'f32, 1.0'f32)
       let glowA = uint8(140.0'f32 * fade)
       let coreA = uint8(255.0'f32 * fade)
-      for s in 0 ..< warning.ricochetPath.len - 1:
-        let p0 = warning.ricochetPath[s]
-        let p1 = warning.ricochetPath[s + 1]
-        # Alternate segment hues so the weave reads as braided strands.
-        let hot = if s mod 2 == 0: Color(r: 255'u8, g: 70'u8, b: 255'u8, a: glowA)
-                  else: Color(r: 170'u8, g: 60'u8, b: 255'u8, a: glowA)
-        drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
-                 warning.laserLength * 3.4,
-                 Color(r: hot.r, g: hot.g, b: hot.b, a: (glowA div 2).uint8))
-        drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
-                 warning.laserLength * 2.0, hot)
-        drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
-                 2.5, Color(r: 255'u8, g: 230'u8, b: 255'u8, a: coreA))
-      # Vertex nodes flare and throw sparks where the thread kinks.
-      for i, v in warning.ricochetPath:
-        drawCircle(Vector2(x: v.x, y: v.y), 3.5 + 4.0 * fade,
-                   Color(r: 255'u8, g: 240'u8, b: 255'u8, a: coreA))
-        for k in 0..<3:
-          let ang = i.float32 * 2.1 + k.float32 * (PI * 2.0) / 3.0
-          let sp = Vector2(x: v.x + cos(ang) * (6.0 + burst * 16.0),
-                           y: v.y + sin(ang) * (6.0 + burst * 16.0))
-          drawLine(Vector2(x: v.x, y: v.y), sp, 1.5,
-                   Color(r: 255'u8, g: 150'u8, b: 255'u8, a: uint8(180.0 * fade)))
+      if warning.laserPattern == "knot":
+        # Knot tear: the cinched crossing rips open - a white flash, an
+        # expanding shred ring, and radial thread-ends whipping outward
+        # alongside the real bullets it releases.
+        let cx = warning.pos.x
+        let cy = warning.pos.y
+        drawCircle(Vector2(x: cx, y: cy), 10.0'f32 * fade + burst * 6.0'f32,
+                   Color(r: 255'u8, g: 255'u8, b: 255'u8, a: coreA))
+        drawCircleLines(cx.int32, cy.int32, 12.0'f32 + burst * 46.0'f32,
+                        Color(r: 255'u8, g: 130'u8, b: 255'u8, a: glowA))
+        drawCircleLines(cx.int32, cy.int32, 6.0'f32 + burst * 30.0'f32,
+                        Color(r: 255'u8, g: 200'u8, b: 255'u8, a: coreA))
+        for k in 0 ..< 6:
+          let ang = k.float32 * PI / 3.0'f32 + 0.3'f32
+          let inner = 8.0'f32 + burst * 20.0'f32
+          let outer = inner + 10.0'f32 + burst * 18.0'f32
+          drawLine(Vector2(x: cx + cos(ang) * inner, y: cy + sin(ang) * inner),
+                   Vector2(x: cx + cos(ang) * outer, y: cy + sin(ang) * outer),
+                   2.0, Color(r: 255'u8, g: 150'u8, b: 255'u8, a: glowA))
+      elif warning.ricochetPath.len >= 2:
+        # Plucked-string vibration: each segment's bright core bows around a
+        # displaced midpoint, oscillating hard at the snap and settling as the
+        # thread dies (amplitude rides 1 - burst).
+        let vibAmp = 8.0'f32 * (1.0'f32 - burst)
+        let vibT = getTime() * 45.0
+        for s in 0 ..< warning.ricochetPath.len - 1:
+          let p0 = warning.ricochetPath[s]
+          let p1 = warning.ricochetPath[s + 1]
+          # Alternate segment hues so the weave reads as braided strands.
+          let hot = if s mod 2 == 0: Color(r: 255'u8, g: 70'u8, b: 255'u8, a: glowA)
+                    else: Color(r: 170'u8, g: 60'u8, b: 255'u8, a: glowA)
+          drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                   warning.laserLength * 3.4,
+                   Color(r: hot.r, g: hot.g, b: hot.b, a: (glowA div 2).uint8))
+          drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                   warning.laserLength * 2.0, hot)
+          # Bowed white core: midpoint displaced perpendicular to the segment.
+          let seg = p1 - p0
+          let segLen = max(0.001'f32, sqrt(seg.x * seg.x + seg.y * seg.y))
+          let nx = -seg.y / segLen
+          let ny = seg.x / segLen
+          let bow = sin(vibT + s.float32 * 2.3).float32 * vibAmp
+          let mid = Vector2(x: (p0.x + p1.x) * 0.5'f32 + nx * bow,
+                            y: (p0.y + p1.y) * 0.5'f32 + ny * bow)
+          drawLine(Vector2(x: p0.x, y: p0.y), mid, 2.5,
+                   Color(r: 255'u8, g: 230'u8, b: 255'u8, a: coreA))
+          drawLine(mid, Vector2(x: p1.x, y: p1.y), 2.5,
+                   Color(r: 255'u8, g: 230'u8, b: 255'u8, a: coreA))
+        # Vertex nodes flare and throw sparks where the thread kinks.
+        for i, v in warning.ricochetPath:
+          drawCircle(Vector2(x: v.x, y: v.y), 3.5 + 4.0 * fade,
+                     Color(r: 255'u8, g: 240'u8, b: 255'u8, a: coreA))
+          for k in 0..<3:
+            let ang = i.float32 * 2.1 + k.float32 * (PI * 2.0) / 3.0
+            let sp = Vector2(x: v.x + cos(ang) * (6.0 + burst * 16.0),
+                             y: v.y + sin(ang) * (6.0 + burst * 16.0))
+            drawLine(Vector2(x: v.x, y: v.y), sp, 1.5,
+                     Color(r: 255'u8, g: 150'u8, b: 255'u8, a: uint8(180.0 * fade)))
   of awtOmegaQuadrant:
     if warning.lifetime <= OmegaQuadActive:
       let hx = warning.targetPos.x; let hy = warning.targetPos.y

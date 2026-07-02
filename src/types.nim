@@ -65,6 +65,13 @@ const
   ClockChimeSpeed*       = 190.0'f32 # chime bullet speed along the 12 tick rays
   ChaosWeaveTelegraph*   = 1.6'f32   # Chaos Weaver: jagged threads shimmer before snapping taut
   ChaosWeaveActive*      = 0.35'f32  # threads' lethal flash
+  ChaosWeaveStagger*     = 0.5'f32   # per-thread extra lifetime: threads snap in stitch order
+  ChaosWeaveNeedleTime*  = 0.9'f32   # the needle stitches each thread over this window
+  ChaosWeaveTautPause*   = 0.35'f32  # fully-stitched thread pulls taut before the snap
+  ChaosKnotDelay*        = 0.4'f32   # thread crossings tear open this long after the last snap
+  ChaosKnotBullets*      = 6         # slow bullets released per torn knot
+  ChaosKnotMax*          = 4         # hard cap on knots per weave (density guard)
+  ChaosKnotBulletSpeed*  = 120.0'f32 # torn-knot bullet speed (slow, dodgeable ring)
   OmegaQuadTelegraph*    = 1.6'f32   # Omega Entity: dodge window before the FIRST quadrant erupts
   OmegaQuadActive*       = 0.35'f32  # each quadrant's lethal window
   OmegaQuadStagger*      = 0.7'f32   # delay between successive quadrant eruptions

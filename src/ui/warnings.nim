@@ -467,13 +467,16 @@ proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: Partic
                           player: Player, screenWidth, screenHeight: int32,
                           enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
   ## The Chaos Weaver's signature: jagged threads of raw entropy are stitched
-  ## across the whole arena, shimmer through the telegraph, then snap taut and
-  ## lethal for a flash. Each thread is one warning holding its polyline in
+  ## across the whole arena by a visible needle, pull taut, then snap lethal
+  ## IN STITCH ORDER (per-thread stagger encoded as extra lifetime, like the
+  ## fissure march). Each thread is one warning holding its polyline in
   ## ricochetPath. Threads run roughly screen-edge to screen-edge with random
-  ## kinks, and one thread is aimed through the player's vicinity.
+  ## kinks, and one thread is aimed through the player's vicinity. Where two
+  ## threads cross, a "knot" warning (laserPattern = "knot", empty path) is
+  ## pinned: after the last thread snaps, the knots tear open into slow radial
+  ## bullet rings - the weave's finale. Knot count is hard-capped.
   let threads = clamp(attack.projectileCount, 1, 4)
   let dmg   = attack.damage * phase.damageMultiplier
-  let total = ChaosWeaveTelegraph + ChaosWeaveActive
   let w = screenWidth.float32
   let h = screenHeight.float32
 
@@ -484,6 +487,21 @@ proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: Partic
     of 2: newVector2f(0.0'f32, rand(h))
     else: newVector2f(w, rand(h))
 
+  proc segIntersect(a1, a2, b1, b2: Vector2f): (bool, Vector2f) =
+    ## Proper segment-segment intersection; endpoints (outer 5%) excluded so
+    ## knots never land exactly on a shared vertex.
+    let r = a2 - a1
+    let s = b2 - b1
+    let denom = r.x * s.y - r.y * s.x
+    if abs(denom) < 0.0001'f32: return (false, newVector2f(0, 0))
+    let qp = b1 - a1
+    let ti = (qp.x * s.y - qp.y * s.x) / denom
+    let u = (qp.x * r.y - qp.y * r.x) / denom
+    if ti < 0.05'f32 or ti > 0.95'f32 or u < 0.05'f32 or u > 0.95'f32:
+      return (false, newVector2f(0, 0))
+    (true, a1 + r * ti)
+
+  var threadPaths: seq[seq[Vector2f]] = @[]
   for t in 0 ..< threads:
     var a = edgePoint()
     var b = edgePoint()
@@ -512,12 +530,52 @@ proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: Partic
       path.add(along + perp * (rand(120.0'f32) - 60.0'f32))
     path.add(b)
 
+    # Stitch order = spawn order: thread t outlives thread t-1 by the stagger,
+    # so the shared "fires when lifetime <= Active" resolution snaps them in
+    # sequence with no bespoke timer.
+    let total = ChaosWeaveTelegraph + ChaosWeaveActive + t.float32 * ChaosWeaveStagger
     var warn = newAttackWarning(a.x, a.y, awtChaosWeave, total, enemy.id)
     warn.targetPos = b
     warn.laserLength = 9.0'f32  # thread half-width
     warn.bulletDamage = dmg
     warn.ricochetPath = path
     warnings.add(warn)
+    threadPaths.add(path)
+
+  # Knots: pin a marker wherever two threads cross (deduped, hard-capped).
+  # They tear open shortly after the LAST thread snaps.
+  var knots: seq[Vector2f] = @[]
+  for i in 0 ..< threadPaths.len:
+    for j in i + 1 ..< threadPaths.len:
+      for si in 0 ..< threadPaths[i].len - 1:
+        for sj in 0 ..< threadPaths[j].len - 1:
+          let (hit, p) = segIntersect(threadPaths[i][si], threadPaths[i][si + 1],
+                                      threadPaths[j][sj], threadPaths[j][sj + 1])
+          if hit:
+            var tooClose = false
+            for k in knots:
+              if distance(k, p) < 60.0'f32:
+                tooClose = true
+                break
+            if not tooClose:
+              knots.add(p)
+  if knots.len > ChaosKnotMax:
+    # Keep an even spread of the crossings rather than the first N.
+    var picked: seq[Vector2f] = @[]
+    for n in 0 ..< ChaosKnotMax:
+      picked.add(knots[(n * knots.len) div ChaosKnotMax])
+    knots = picked
+
+  let lastThreadTotal = ChaosWeaveTelegraph + ChaosWeaveActive +
+                        (threads - 1).float32 * ChaosWeaveStagger
+  for kp in knots:
+    var knot = newAttackWarning(kp.x, kp.y, awtChaosWeave,
+                                lastThreadTotal + ChaosKnotDelay, enemy.id)
+    knot.laserPattern = "knot"     # empty ricochetPath: thread draw/hit skip it
+    knot.bulletCount = ChaosKnotBullets
+    knot.bulletSpeed = ChaosKnotBulletSpeed
+    knot.bulletDamage = dmg * 0.6'f32
+    warnings.add(knot)
 
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 255, g: 80, b: 255, a: 255), 16)

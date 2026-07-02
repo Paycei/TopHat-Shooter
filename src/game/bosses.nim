@@ -910,9 +910,37 @@ proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase:
   # SpecialData modes:
   # - "rainbow_wave": Colorful cascading pattern (Boss 9)
   # - "temporal_wave": Time-distorted slow bullets (Boss 10)
+  # - "needle_stitch": Chaos Weaver seam - silver needles criss-cross the aim
+  #   line like a sewing machine running a stitch at the player (Boss 11)
   # - Default: Standard sine wave pattern
 
   let waveMode = attack.specialData
+
+  if waveMode == "needle_stitch":
+    # Each needle starts offset to one side of the aim line and flies slightly
+    # angled back across it, so consecutive needles criss-cross mid-flight and
+    # the volley reads as a running stitch. Staggered speeds stretch it into a
+    # dashed seam; the gaps between crossings are the dodge.
+    const needleSilver = Color(r: 235, g: 235, b: 255, a: 255)
+    let aim = arctan2(toPlayer.y, toPlayer.x)
+    let fwd = newVector2f(cos(aim), sin(aim))
+    let perp = newVector2f(-fwd.y, fwd.x)
+    let count = max(3, attack.projectileCount)
+    for i in 0..<count:
+      let side = if i mod 2 == 0: 1.0'f32 else: -1.0'f32
+      let origin = enemy.pos + perp * (side * 24.0'f32) + fwd * (enemy.radius + 8.0'f32)
+      let crossAng = aim - side * 0.14'f32   # lean back across the seam
+      let dir = newVector2f(cos(crossAng), sin(crossAng))
+      let sp = attack.projectileSpeed *
+               (0.8'f32 + 0.4'f32 * i.float32 / max(1, count - 1).float32)
+      game.bullets.add(newBullet(
+        x = origin.x, y = origin.y, direction = dir,
+        speed = sp, damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius, colorOverride = needleSilver))
+      spawnExplosionPooled(game.particlePool, origin.x, origin.y, needleSilver, 2)
+    return
 
   # Configure wave behavior based on mode
   let (speedMultiplier, colorScheme) = case waveMode
@@ -988,9 +1016,33 @@ proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phas
   # Perfect ring of bullets with thematic variants
   # SpecialData modes:
   # - "time_ring": Temporal distortion ring with pulsing cyan bullets (Boss 10)
+  # - "unravel": Chaos Weaver spool - the ring unwinds off the boss on
+  #   tangent-biased headings with staggered speeds, so the volley spins out
+  #   as one spiralling loose thread instead of a clean radial ring (Boss 11)
   # - Default: Standard perfect circle
 
   let circleMode = attack.specialData
+
+  if circleMode == "unravel":
+    let count = max(4, attack.projectileCount)
+    let spinBase = game.time * 0.4
+    for i in 0..<count:
+      let ang = spinBase + i.float32 * PI * 2.0 / count.float32
+      let radial = newVector2f(cos(ang), sin(ang))
+      let tangent = newVector2f(-radial.y, radial.x)
+      # Radial + tangential mix = every bullet leaves on a pinwheel heading.
+      let dir = (radial * 0.8'f32 + tangent * 0.6'f32).normalize()
+      # Speed climbs around the ring: the "thread end" outruns the rest and
+      # the volley shears into a visible unwinding spiral arm.
+      let sp = attack.projectileSpeed *
+               (0.7'f32 + 0.55'f32 * i.float32 / max(1, count - 1).float32)
+      spawnBossBullet(game, enemy, attack, phase, dir, speed = sp,
+                      origin = enemy.pos + radial * 34.0'f32)
+      spawnExplosionPooled(game.particlePool,
+                           enemy.pos.x + radial.x * 34.0'f32,
+                           enemy.pos.y + radial.y * 34.0'f32,
+                           Color(r: 230, g: 120, b: 255, a: 255), 2)
+    return
 
   # Configure circle behavior based on mode
   let (bulletSpeed, particleColor, rotationOffset) = case circleMode

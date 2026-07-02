@@ -1209,11 +1209,36 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
               w.lasersCreated = true
               break
 
-    # CHAOS WEAVE (Chaos Weaver): the jagged thread snaps taut and lethal for a
-    # flash; hit test walks the polyline segments. One hit per thread.
+    # CHAOS WEAVE (Chaos Weaver): threads snap taut and lethal in stitch order
+    # (staggered lifetimes); hit test walks the polyline segments, one hit per
+    # thread. Knot warnings (laserPattern == "knot", empty path) tear open
+    # after the last snap and release a slow radial ring of REAL bullets - the
+    # ungated finale, visible with hints off.
     if game.attackWarnings[i].attackType == awtChaosWeave:
       let w = game.attackWarnings[i]
-      if w.lifetime <= ChaosWeaveActive and w.ricochetPath.len >= 2:
+      if w.lifetime <= ChaosWeaveActive and w.laserPattern == "knot":
+        if not w.bulletsCreated:
+          var knotBossShape = 0
+          for be in game.enemies:
+            if be.id == w.sourceEnemyId:
+              knotBossShape = bossBulletShapeFor(be.bossDefinitionID)
+              break
+          let ringCount = max(1, w.bulletCount)
+          let ringOffset = rand(1.0'f32) * PI * 2.0'f32
+          for b in 0 ..< ringCount:
+            let ang = ringOffset + b.float32 * (PI * 2.0) / ringCount.float32
+            game.bullets.add(newBullet(
+              x = w.pos.x, y = w.pos.y,
+              direction = newVector2f(cos(ang), sin(ang)),
+              speed = w.bulletSpeed, damage = w.bulletDamage,
+              fromPlayer = false, isBossBullet = true,
+              sourceEnemyId = w.sourceEnemyId,
+              bossBulletShape = knotBossShape))
+          spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y,
+                               Color(r: 255, g: 140, b: 255, a: 255), 10)
+          addShake(game.dopamine.screenShake, siMedium)
+          w.bulletsCreated = true
+      elif w.lifetime <= ChaosWeaveActive and w.ricochetPath.len >= 2:
         if not w.bulletsCreated:
           # Snap sparks at the kinks - the ungated lethal cue alongside the beam.
           for v in w.ricochetPath:

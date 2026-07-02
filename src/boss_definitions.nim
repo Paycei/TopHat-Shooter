@@ -1813,7 +1813,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBarrage,
               damage: 19.5,  # NERFED from 2.0
-              cooldown: 3.0,  # demoted: the chaos weave leads, spray fills gaps
+              cooldown: 3.5,  # demoted: the chaos weave leads, spray fills gaps
               projectileSpeed: 170.0,  # NERFED from 200.0
               projectileCount: 12,  # NERFED from 15
               spreadAngle: 180.0,
@@ -1823,7 +1823,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 22.0,  # NERFED from 3.0
-              cooldown: 3.5,  # NERFED from 3.0
+              cooldown: 4.0,
               projectileSpeed: 0.0,
               projectileCount: 0,
               spreadAngle: 0.0,
@@ -1831,12 +1831,13 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "chaos_blink"
             ),
             BossAttack(
-              # Chaos Weave: signature themed attack - jagged threads of raw
-              # entropy are stitched across the arena, shimmer through the
-              # telegraph, then snap taut and lethal for a flash.
+              # Chaos Weave: signature - a needle visibly stitches jagged
+              # threads across the arena along a faint pattern line; threads
+              # pull taut and snap lethal in stitch order, and crossings tear
+              # open into knots (slow bullet rings) as the finale.
               attackType: bapLaser,  # nominal; routed by specialData before attackType dispatch
               damage: 19.5,
-              cooldown: 6.5,
+              cooldown: 6.0,
               projectileSpeed: 0.0,
               projectileCount: 2,    # threads per weave
               spreadAngle: 0.0,
@@ -1844,14 +1845,16 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "chaos_weave"
             ),
             BossAttack(
-              # Generic fan demoted to occasional filler.
+              # Needle Stitch: a dashed seam of silver needles criss-crossing
+              # the aim line - the Weaver runs a stitch at the player.
               attackType: bapWave,
-              damage: 19.5,  # NERFED from 2.0
-              cooldown: 5.5,
-              projectileSpeed: 190.0,  # NERFED from 220.0
-              projectileCount: 5,  # NERFED from 6
-              spreadAngle: 60.0,
-              durationOrRadius: 0.0
+              damage: 19.5,
+              cooldown: 4.5,
+              projectileSpeed: 230.0,
+              projectileCount: 7,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "needle_stitch"
             )
           ]
         ),
@@ -1868,7 +1871,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBarrage,
               damage: 22.0,  # NERFED from 3.0
-              cooldown: 2.5,  # demoted: the chaos weave leads, spray fills gaps
+              cooldown: 3.0,  # demoted: the chaos weave leads, spray fills gaps
               projectileSpeed: 210.0,  # NERFED from 250.0
               projectileCount: 18,  # NERFED from 24
               spreadAngle: 360.0,
@@ -1878,7 +1881,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 22.0,  # NERFED from 4.0
-              cooldown: 2.5,  # NERFED from 2.0
+              cooldown: 3.5,
               projectileSpeed: 0.0,
               projectileCount: 2,  # NERFED from 3
               spreadAngle: 0.0,
@@ -1886,7 +1889,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "reality_shift"
             ),
             BossAttack(
-              # Chaos Weave: a third thread joins the stitch.
+              # Chaos Weave: a third thread joins the stitch - crossings (and
+              # so torn knots) become common.
               attackType: bapLaser,  # nominal; routed by specialData
               damage: 22.0,
               cooldown: 5.5,
@@ -1897,24 +1901,18 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "chaos_weave"
             ),
             BossAttack(
-              # Generic ring demoted to occasional filler.
+              # Unravel: the Weaver's spool spins out - a pinwheel ring that
+              # shears into one unwinding spiral thread. Replaced the old
+              # chaos_beam laser spam (4-8 random lasers): the Weaver stitches,
+              # it doesn't shoot beams.
               attackType: bapCircle,
-              damage: 22.0,  # NERFED from 3.0
-              cooldown: 6.0,
-              projectileSpeed: 150.0,  # NERFED from 170.0
-              projectileCount: 22,  # NERFED from 28
+              damage: 22.0,
+              cooldown: 5.0,
+              projectileSpeed: 170.0,
+              projectileCount: 18,
               spreadAngle: 360.0,
-              durationOrRadius: 0.0
-            ),
-            BossAttack(
-              attackType: bapLaser,
-              damage: 25.0,  # NERFED from 4.0
-              cooldown: 4.5,  # NERFED from 4.0
-              projectileSpeed: 0.0,
-              projectileCount: 4,  # NERFED from 5
-              spreadAngle: 72.0,
-              durationOrRadius: 3.0,  # NERFED from 3.5
-              specialData: "chaos_beam"
+              durationOrRadius: 0.0,
+              specialData: "unravel"
             )
           ]
         ),
@@ -1931,7 +1929,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBarrage,
               damage: 22.0,  # NERFED from 4.0
-              cooldown: 2.2,  # demoted: the chaos weave leads, spray fills gaps
+              cooldown: 2.8,  # demoted: the chaos weave leads, spray fills gaps
               projectileSpeed: 250.0,  # NERFED from 300.0
               projectileCount: 30,  # NERFED from 40
               spreadAngle: 360.0,
@@ -1941,7 +1939,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 27.5,  # NERFED from 5.0
-              cooldown: 2.0,  # NERFED from 1.5
+              cooldown: 2.5,
               projectileSpeed: 0.0,
               projectileCount: 3,  # NERFED from 5
               spreadAngle: 0.0,
@@ -1950,9 +1948,11 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               # Chaos Weave finale: four threads - the arena becomes the loom.
+              # The staggered stitch + knot tears run ~3.9s, so the cooldown
+              # leaves a breather between weaves.
               attackType: bapLaser,  # nominal; routed by specialData
               damage: 25.0,
-              cooldown: 5.0,
+              cooldown: 6.0,
               projectileSpeed: 0.0,
               projectileCount: 4,
               spreadAngle: 0.0,
@@ -1962,7 +1962,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapPulse,
               damage: 22.0,  # NERFED from 4.0
-              cooldown: 3.5,  # NERFED from 3.0
+              cooldown: 4.0,
               projectileSpeed: 240.0,  # NERFED from 280.0
               projectileCount: 0,
               spreadAngle: 0.0,
