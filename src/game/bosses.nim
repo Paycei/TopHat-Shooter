@@ -1033,9 +1033,9 @@ proc execBossAttackLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase
   let laserCount = case patternType
     of "rotating_grid": attack.projectileCount * 2  # Double density for grid
     of "prismatic_cage": attack.projectileCount  # Do not multiply prismatic_cage lasers
-    of "splitting_laser": attack.projectileCount  # Triangle pattern
-    of "hexagonal_prism": 6  # Always 6 beams
-    of "prismatic_storm": attack.projectileCount * 2  # Massive light show!
+    of "splitting_laser": attack.projectileCount  # Rotating radial fan
+    of "hexagonal_prism": attack.projectileCount  # Even radial ring (count from the definition)
+    of "prismatic_storm": attack.projectileCount  # No hidden x2: the cascade needs open floor
     of "temporal_beam": attack.projectileCount  # Temporal cross pattern
     of "chaos_beam": rand(attack.projectileCount) + attack.projectileCount  # Random chaos
     of "omega_beam": attack.projectileCount  # Ultimate beams (count tuned in boss_definitions; was *2 = 8, an undodgeable web)
@@ -1057,12 +1057,12 @@ proc execBossAttackLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase
           (i.float32 - actualLaserCount.float / 2.0) * attack.spreadAngle.degToRad() / (actualLaserCount / 2).float32 + PI / 2.0
 
       of "splitting_laser":
-        # Triangle pattern (120° apart) that appears to split/refract
-        i.float32 * (PI * 2.0 / 3.0) + game.time * 0.5  # Slow rotation
+        # Evenly spaced rotating fan (120° apart at the classic count of 3)
+        i.float32 * (PI * 2.0 / actualLaserCount.float32) + game.time * 0.5  # Slow rotation
 
       of "hexagonal_prism":
-        # Perfect hexagonal pattern (60° apart) - geometric precision
-        i.float32 * (PI / 3.0) + game.time * 0.3
+        # Evenly spaced geometric ring (hexagonal at the classic count of 6)
+        i.float32 * (PI * 2.0 / actualLaserCount.float32) + game.time * 0.3
 
       of "prismatic_storm":
         # Massive radial array with rainbow effect
@@ -2445,7 +2445,7 @@ proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, 
   of "orbital_sweep":
     spawnOrbitalSweep(game, enemy, attack, phase)
     return
-  of "seismic_fissure":
+  of "seismic_fissure", "seismic_fissure_chase":
     spawnSeismicFissure(game, enemy, attack, phase)
     return
   of "prism_refraction":

@@ -1276,11 +1276,11 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               # marching chain of staggered detonations to outrun sideways.
               attackType: bapMeteor,  # nominal; routed by specialData before attackType dispatch
               damage: 10.5,
-              cooldown: 6.0,
+              cooldown: 5.0,
               projectileSpeed: 0.0,
-              projectileCount: 4,      # eruption steps in the chain
+              projectileCount: 6,      # eruption steps in the chain
               spreadAngle: 0.0,
-              durationOrRadius: 55.0,  # per-step eruption radius
+              durationOrRadius: 60.0,  # per-step eruption radius
               specialData: "seismic_fissure"
             ),
             BossAttack(
@@ -1336,14 +1336,16 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "ground_slam"  # Rage shockwave
             ),
             BossAttack(
-              # Seismic Fissure: longer, faster marching chain in bloodrage.
+              # Seismic Fissure: longer marching chain that FORKS in bloodrage -
+              # spreadAngle > 0 splits the crack into a V after two shared steps,
+              # so dodging sideways off one branch walks toward the other.
               attackType: bapMeteor,  # nominal; routed by specialData
               damage: 14.0,
-              cooldown: 5.5,
+              cooldown: 4.5,
               projectileSpeed: 0.0,
-              projectileCount: 6,
-              spreadAngle: 0.0,
-              durationOrRadius: 58.0,
+              projectileCount: 8,
+              spreadAngle: 50.0,       # full fork angle between the two branches
+              durationOrRadius: 62.0,
               specialData: "seismic_fissure"
             ),
             BossAttack(
@@ -1409,15 +1411,19 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "blood_burst"
             ),
             BossAttack(
-              # Seismic Fissure finale: a long rampage crack chasing the player.
+              # Seismic Fissure finale: cast ONCE, then a crack head pursues the
+              # player for the rest of the fight (just under base move speed),
+              # dropping telegraphed eruptions beneath itself. Re-casts while
+              # the chaser lives are no-ops, so the cooldown only matters until
+              # the first successful cast.
               attackType: bapMeteor,  # nominal; routed by specialData
               damage: 14.0,
               cooldown: 4.5,
               projectileSpeed: 0.0,
-              projectileCount: 8,
+              projectileCount: 0,      # unused by the chase variant
               spreadAngle: 0.0,
-              durationOrRadius: 60.0,
-              specialData: "seismic_fissure"
+              durationOrRadius: 62.0,  # eruption radius the chaser drops
+              specialData: "seismic_fissure_chase"
             ),
             BossAttack(
               # Generic ring demoted to occasional filler.
@@ -1459,17 +1465,17 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 13.0,
-              cooldown: 3.5,
+              cooldown: 4.5,
               projectileSpeed: 0.0,
-              projectileCount: 3,  # Triangle pattern
+              projectileCount: 3,  # Leaves floor for the cascade
               spreadAngle: 120.0,
-              durationOrRadius: 2.5,
+              durationOrRadius: 1.8,
               specialData: "splitting_laser"  # Lasers that refract
             ),
             BossAttack(
               attackType: bapWave,
               damage: 13.0,
-              cooldown: 2.5,
+              cooldown: 4.5,
               projectileSpeed: 160.0,
               projectileCount: 5,  # Rainbow wave
               spreadAngle: 50.0,
@@ -1477,27 +1483,18 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "rainbow_wave"
             ),
             BossAttack(
-              # Prism Refraction: signature themed attack - a feed beam charges
-              # a focal prism conjured near the player, which refracts it into
-              # a lethal star of rainbow rays after a readable wind-up.
+              # Prism Refraction: signature refraction CASCADE - a feed beam
+              # charges a focal prism near the player; its finite ray star
+              # then re-splits through mini prisms at the ray ends one beat
+              # later. The spent focus is the shelter.
               attackType: bapLaser,  # nominal; routed by specialData before attackType dispatch
               damage: 13.0,
-              cooldown: 6.0,
+              cooldown: 9.0,
               projectileSpeed: 0.0,
-              projectileCount: 5,    # refracted rays in the star
+              projectileCount: 5,    # rays in the primary star (= mini prisms)
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
               specialData: "prism_refraction"
-            ),
-            BossAttack(
-              # Generic targeted demoted to occasional filler so light attacks lead.
-              attackType: bapTargeted,
-              damage: 13.0,
-              cooldown: 5.0,
-              projectileSpeed: 200.0,
-              projectileCount: 3,
-              spreadAngle: 20.0,
-              durationOrRadius: 0.0
             )
           ]
         ),
@@ -1514,53 +1511,33 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapLaser,
               damage: 16.5,
-              cooldown: 3.0,
+              cooldown: 4.5,
               projectileSpeed: 0.0,
-              projectileCount: 6,  # Hexagonal pattern
+              projectileCount: 5,  # Cross ring (was a 6-beam hexagon; more open floor)
               spreadAngle: 60.0,
-              durationOrRadius: 3.0,
-              specialData: "hexagonal_prism"  # 6-way split
+              durationOrRadius: 2.0,
+              specialData: "hexagonal_prism"  # Even radial split
             ),
             BossAttack(
               attackType: bapBarrage,
               damage: 16.5,
-              cooldown: 3.5,
-              projectileSpeed: 180.0,
-              projectileCount: 20,  # Rainbow burst
+              cooldown: 6.5,
+              projectileSpeed: 160.0,
+              projectileCount: 18,  # Rainbow burst
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               specialData: "chromatic_burst"
             ),
             BossAttack(
-              # Prism Refraction: a wider star from the spectrum array.
+              # Prism Refraction cascade: a wider star, more mini prisms.
               attackType: bapLaser,  # nominal; routed by specialData
               damage: 16.5,
-              cooldown: 5.0,
+              cooldown: 8.5,
               projectileSpeed: 0.0,
-              projectileCount: 7,
+              projectileCount: 6,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
               specialData: "prism_refraction"
-            ),
-            BossAttack(
-              # Generic ring demoted to occasional filler.
-              attackType: bapCircle,
-              damage: 16.5,
-              cooldown: 6.5,
-              projectileSpeed: 145.0,
-              projectileCount: 16,  # Light ring
-              spreadAngle: 360.0,
-              durationOrRadius: 0.0
-            ),
-            BossAttack(
-              # Generic fan demoted to occasional filler.
-              attackType: bapWave,
-              damage: 19.5,
-              cooldown: 5.5,
-              projectileSpeed: 170.0,
-              projectileCount: 7,  # Rainbow wave
-              spreadAngle: 60.0,
-              durationOrRadius: 0.0
             )
           ]
         ),
@@ -1575,19 +1552,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           specialBehavior: "light_cascade",  # Sweeping arc movements
           attacks: @[
             BossAttack(
+              # Shorter storm on a long cooldown: it must be a PUNCTUATION
+              # between cascades, never a constant floor of lasers under them.
               attackType: bapLaser,
               damage: 19.5,
-              cooldown: 2.0,
+              cooldown: 6.5,
               projectileSpeed: 0.0,
-              projectileCount: 7,  # Massive prism array
+              projectileCount: 5,  # Prism array (no hidden x2 anymore: 4 real beams)
               spreadAngle: 30.0,
-              durationOrRadius: 4.0,
-              specialData: "prismatic_storm"  # Many splitting lasers
+              durationOrRadius: 1.5,
+              specialData: "prismatic_storm"  # Splitting lasers
             ),
             BossAttack(
               attackType: bapPulse,
               damage: 16.5,
-              cooldown: 3.5,
+              cooldown: 7.5,
               projectileSpeed: 270.0,
               projectileCount: 0,
               spreadAngle: 0.0,
@@ -1597,33 +1576,25 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBarrage,
               damage: 16.5,
-              cooldown: 2.5,
+              cooldown: 8.0,
               projectileSpeed: 240.0,
-              projectileCount: 40,  # Rainbow explosion
+              projectileCount: 28,  # Rainbow explosion
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               specialData: "light_burst"
             ),
             BossAttack(
-              # Prism Refraction finale: the densest ray star, cast often.
+              # Prism Refraction finale: densest cascade the cap allows
+              # (7-ray primary, 6 mini prisms of 5 rays). Long cooldown:
+              # the cascade is the phase's SET-PIECE, not its rotation filler.
               attackType: bapLaser,  # nominal; routed by specialData
               damage: 19.5,
-              cooldown: 4.5,
+              cooldown: 8.0,
               projectileSpeed: 0.0,
-              projectileCount: 9,
+              projectileCount: 7,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
               specialData: "prism_refraction"
-            ),
-            BossAttack(
-              # Generic ring demoted to occasional filler.
-              attackType: bapCircle,
-              damage: 16.5,
-              cooldown: 5.5,
-              projectileSpeed: 160.0,
-              projectileCount: 20,  # Dense light ring
-              spreadAngle: 360.0,
-              durationOrRadius: 0.0
             )
           ]
         )

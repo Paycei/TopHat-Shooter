@@ -753,6 +753,41 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
           game.attackWarnings[i].pos = enemy.pos
           break
 
+    # SEISMIC CHASER (Berserker Juggernaut phase 3): the crack head is the one
+    # deliberately mobile warning - it pursues the player at FissureChaseSpeed
+    # (just under base move speed, so running works but stopping never does)
+    # and drops a normally-telegraphed awtFissure eruption under itself every
+    # FissureChaseInterval. It is not lethal itself; only the pops it drops
+    # are. It lives until its boss dies.
+    if warnType == awtFissureChaser:
+      let w = game.attackWarnings[i]
+      var bossAlive = false
+      for enemy in game.enemies:
+        if enemy.id == w.sourceEnemyId:
+          bossAlive = true
+          break
+      if not bossAlive:
+        w.lifetime = 0
+      else:
+        var chaseDir = game.player.pos - w.pos
+        if chaseDir.length() > 1.0'f32:
+          chaseDir = chaseDir.normalize()
+          w.pos = w.pos + chaseDir * (FissureChaseSpeed * dt)
+        w.laserDuration -= dt  # repurposed: countdown to the next eruption
+        if w.laserDuration <= 0:
+          w.laserDuration = FissureChaseInterval
+          w.bulletCount += 1  # running step index, varies each pop's crack render
+          # Chaser pops erupt on a much shorter fuse than chain steps: the
+          # pursuit itself is the long-range warning, so each drop only needs
+          # a snap "get off this spot" cue.
+          var pop = newAttackWarning(w.pos.x, w.pos.y, awtFissure,
+                                     FissureChasePopWarn + FissureActive, w.sourceEnemyId)
+          pop.targetPos = w.pos
+          pop.bulletRadius = w.bulletRadius
+          pop.bulletDamage = w.bulletDamage
+          pop.bulletCount = w.bulletCount
+          game.attackWarnings.add(pop)
+
     # BOSS LASER SYSTEM: Create lasers when warning expires (at 0.1s remaining for smooth transition)
     if game.attackWarnings[i].attackType == awtBossLaser and
        not game.attackWarnings[i].lasersCreated and
@@ -1078,20 +1113,26 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                           isCritical = false, damageType = dtExplosion)
           w.lasersCreated = true
 
-    # PRISM REFRACTION (Prism Architect): the feed beam and every refracted ray
-    # go lethal together for a short flash. Geometry lives in ricochetPath as
-    # [origin, focus, rayEnd...]; the player can only be struck once per cast.
+    # PRISM REFRACTION (Prism Architect): each star (primary AND every cascade
+    # mini, staggered) goes lethal for a short flash. Geometry lives in
+    # ricochetPath as [origin, focus, rayEnd...]; bulletCount is the generation
+    # and a mini's feed vertex (parent focus -> mini) is cosmetic, never lethal
+    # — the spent primary focus must stay a safe shelter. One strike per star.
     if game.attackWarnings[i].attackType == awtPrismRays:
       let w = game.attackWarnings[i]
       if w.lifetime <= PrismRayActive and w.ricochetPath.len >= 3:
         if not w.bulletsCreated:
           spawnExplosionPooled(game.particlePool, w.ricochetPath[1].x, w.ricochetPath[1].y,
-                               Color(r: 255, g: 230, b: 255, a: 255), 22)
-          addShake(game.dopamine.screenShake, siMedium)
+                               Color(r: 255, g: 230, b: 255, a: 255),
+                               if w.bulletCount == 0: 36 else: 12)
+          addShake(game.dopamine.screenShake,
+                   if w.bulletCount == 0: siLarge else: siSmall,
+                   Color(r: 235, g: 210, b: 255, a: 255))
           w.bulletsCreated = true
         if not w.lasersCreated and game.player.invincibilityTimer <= 0:
           let focus = w.ricochetPath[1]
-          var hit = pointSegmentDistance(game.player.pos, w.ricochetPath[0], focus) <=
+          var hit = w.bulletCount == 0 and
+                    pointSegmentDistance(game.player.pos, w.ricochetPath[0], focus) <=
                     w.laserLength + game.player.radius
           if not hit:
             for k in 2 ..< w.ricochetPath.len:

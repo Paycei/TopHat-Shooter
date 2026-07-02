@@ -295,22 +295,58 @@ proc spawnSeismicFissureInto*(warnings: var seq[AttackWarning], particlePool: Pa
   let w = screenWidth.float32
   let h = screenHeight.float32
 
-  var dir = (player.pos - enemy.pos).normalize()
+  # Phase-3 variant ("seismic_fissure_chase"): instead of a fixed chain, one
+  # persistent crack head is released that pursues the player for the rest of
+  # the fight, dropping telegraphed eruptions under itself (game.nim drives
+  # the pursuit + drops). Cast once: re-casts while a chaser lives are no-ops.
+  if attack.specialData == "seismic_fissure_chase":
+    for existing in warnings:
+      if existing.attackType == awtFissureChaser and existing.sourceEnemyId == enemy.id:
+        return
+    var chaser = newAttackWarning(enemy.pos.x, enemy.pos.y, awtFissureChaser,
+                                  99999.0'f32, enemy.id)
+    chaser.bulletRadius = radius
+    chaser.bulletDamage = dmg
+    chaser.laserDuration = 0.9'f32  # repurposed: countdown to the next eruption drop
+    warnings.add(chaser)
+    spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
+                         Color(r: 255, g: 90, b: 30, a: 255), 24)
+    return
+
+  # Aim where the player is HEADED, not where they stand: strafing at cast
+  # time no longer trivially invalidates the whole chain.
+  let lead = player.pos + player.vel * 0.35'f32
+  var dir = (lead - enemy.pos).normalize()
   if dir.length() < 0.0001'f32:
     dir = newVector2f(1, 0)
   let spacing = radius * 1.45'f32
 
+  # spreadAngle > 0 makes the chain FORK: the first two steps are shared, then
+  # the crack splits into two branches at +/- half the spread, so a sideways
+  # dodge away from one branch walks toward the other.
+  let forkHalf = attack.spreadAngle * PI / 360.0'f32
+  let baseAng = arctan2(dir.y, dir.x)
+  var branchDirs = @[dir]
+  if forkHalf > 0.001'f32:
+    branchDirs = @[newVector2f(cos(baseAng - forkHalf), sin(baseAng - forkHalf)),
+                   newVector2f(cos(baseAng + forkHalf), sin(baseAng + forkHalf))]
+
+  var stepIdx = 0
   for k in 0 ..< steps:
-    var p = enemy.pos + dir * (enemy.radius + spacing * (k.float32 + 0.6'f32))
-    p.x = clamp(p.x, radius * 0.5'f32, w - radius * 0.5'f32)
-    p.y = clamp(p.y, radius * 0.5'f32, h - radius * 0.5'f32)
-    let total = FissureTelegraph + FissureActive + k.float32 * FissureStagger
-    var warn = newAttackWarning(p.x, p.y, awtFissure, total, enemy.id)
-    warn.targetPos = p
-    warn.bulletRadius = radius
-    warn.bulletDamage = dmg
-    warn.bulletCount = k  # step index, used by the render for the marching cue
-    warnings.add(warn)
+    # Shared trunk for the first two steps, then one warning per branch.
+    let dirs = if k < 2 or branchDirs.len == 1: @[dir] else: branchDirs
+    for bd in dirs:
+      var p = enemy.pos + bd * (enemy.radius + spacing * (k.float32 + 0.6'f32))
+      p.x = clamp(p.x, radius * 0.5'f32, w - radius * 0.5'f32)
+      p.y = clamp(p.y, radius * 0.5'f32, h - radius * 0.5'f32)
+      let total = FissureTelegraph + FissureActive + k.float32 * FissureStagger
+      var warn = newAttackWarning(p.x, p.y, awtFissure, total, enemy.id)
+      warn.targetPos = p
+      warn.bulletRadius = radius
+      warn.bulletDamage = dmg
+      warn.bulletCount = stepIdx  # step index, used by the render for the marching cue
+      warnings.add(warn)
+      stepIdx += 1
 
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 255, g: 90, b: 30, a: 255), 16)
@@ -318,39 +354,74 @@ proc spawnSeismicFissureInto*(warnings: var seq[AttackWarning], particlePool: Pa
 proc spawnPrismRaysInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                          player: Player, screenWidth, screenHeight: int32,
                          enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
-  ## The Prism Architect's signature: the boss fires a feed beam into a focal
-  ## prism conjured near the player; on impact the prism refracts it into a
-  ## lethal star of rays. The whole geometry (feed + rays) is precomputed here
-  ## and stored on ricochetPath as [origin, focus, rayEnd1, .., rayEndN]: the
-  ## first two vertices are the feed beam, every further vertex is a ray from
-  ## the focus. Render + hit test both walk that layout.
+  ## The Prism Architect's signature, a two-beat REFRACTION CASCADE. Beat one:
+  ## the boss feeds a beam into a focal prism conjured beside the player, which
+  ## splits it into a FINITE star of rays. Beat two: every ray end ignites a
+  ## mini prism that re-splits the light one beat later, rippling around the
+  ## ring — and no mini ray points back through the spent primary focus, so
+  ## the dodge verb is: sidestep the star, then dive INTO its dark wake.
+  ## Each star is its own warning; geometry rides ricochetPath as
+  ## [origin, focus, rayEnd1, .., rayEndN] and bulletCount is the generation
+  ## (0 = primary, 1 = mini; a mini's feed vertex is cosmetic, never lethal).
   let rays = clamp(attack.projectileCount, 3, 12)
   let dmg  = attack.damage * phase.damageMultiplier
-  let total = PrismRayTelegraph + PrismRayActive
   let w = screenWidth.float32
   let h = screenHeight.float32
-  let reach = sqrt(w * w + h * h)
+  let reach = min(w, h) * 0.5'f32    # rays stop where the mini prisms ignite
+  let miniReach = reach * 0.7'f32
 
   # Focus lands beside the player, not on them: the danger is the ray star,
   # and a slight offset keeps "stand still" from being an accidental safe spot.
   var focus = player.pos + player.vel * (PrismRayTelegraph * 0.3'f32)
   let sideAng = rand(1.0) * PI * 2.0
   focus = focus + newVector2f(cos(sideAng), sin(sideAng)) * 60.0'f32
-  focus.x = clamp(focus.x, 60.0'f32, w - 60.0'f32)
-  focus.y = clamp(focus.y, 60.0'f32, h - 60.0'f32)
+  focus.x = clamp(focus.x, 80.0'f32, w - 80.0'f32)
+  focus.y = clamp(focus.y, 80.0'f32, h - 80.0'f32)
 
-  var path = @[enemy.pos, focus]
   let baseAng = rand(1.0) * PI * 2.0
+  let spacing = (PI * 2.0) / rays.float32
+  var path = @[enemy.pos, focus]
   for k in 0 ..< rays:
-    let ang = baseAng + k.float32 * (PI * 2.0) / rays.float32
+    let ang = baseAng + k.float32 * spacing
     path.add(newVector2f(focus.x + cos(ang) * reach, focus.y + sin(ang) * reach))
 
-  var warn = newAttackWarning(enemy.pos.x, enemy.pos.y, awtPrismRays, total, enemy.id)
+  var warn = newAttackWarning(enemy.pos.x, enemy.pos.y, awtPrismRays,
+                              PrismRayTelegraph + PrismRayActive, enemy.id)
   warn.targetPos = focus
-  warn.laserLength = 10.0'f32  # beam half-width
+  warn.laserLength = 14.0'f32  # beam half-width
   warn.bulletDamage = dmg
   warn.ricochetPath = path
   warnings.add(warn)
+
+  # Beat two: mini prisms at the ray ends. Their stars fan out from the ring
+  # (the half-spacing offset keeps every mini ray off the primary focus, so
+  # the wake stays a true shelter) and their extra lifetime staggers the pops
+  # into a ripple instead of one simultaneous wall of light. Both counts are
+  # CAPPED below the primary's density: a 9-ray primary igniting 9 stars of
+  # 7 rays saturated the arena — at most 6 minis (evenly picked ray ends) of
+  # at most 5 rays keeps beat two dodgeable at every phase.
+  let minis = min(rays, 6)
+  let miniRays = clamp(rays - 2, 3, 5)
+  let miniSpacing = (PI * 2.0) / miniRays.float32
+  for m in 0 ..< minis:
+    let k = (m * rays) div minis  # evenly spaced pick of ray ends
+    var mf = path[2 + k]
+    mf.x = clamp(mf.x, 30.0'f32, w - 30.0'f32)
+    mf.y = clamp(mf.y, 30.0'f32, h - 30.0'f32)
+    var mpath = @[focus, mf]
+    let backAng = baseAng + k.float32 * spacing + PI  # from mini back to focus
+    for j in 0 ..< miniRays:
+      let ang = backAng + (j.float32 + 0.5'f32) * miniSpacing
+      mpath.add(newVector2f(mf.x + cos(ang) * miniReach, mf.y + sin(ang) * miniReach))
+    let total = PrismRayTelegraph + PrismRayActive + PrismMiniTelegraph +
+                PrismRayActive + m.float32 * PrismMiniStagger
+    var mw = newAttackWarning(mf.x, mf.y, awtPrismRays, total, enemy.id)
+    mw.targetPos = mf
+    mw.laserLength = 10.0'f32
+    mw.bulletDamage = dmg
+    mw.ricochetPath = mpath
+    mw.bulletCount = 1  # generation: mini
+    warnings.add(mw)
 
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 255, g: 200, b: 255, a: 255), 14)

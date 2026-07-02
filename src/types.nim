@@ -46,8 +46,13 @@ const
   FissureTelegraph*      = 1.0'f32   # Juggernaut: dodge window before the FIRST fissure pop
   FissureActive*         = 0.22'f32  # each eruption's lethal window
   FissureStagger*        = 0.16'f32  # delay between successive pops as the crack marches
+  FissureChaseSpeed*     = 150.0'f32 # phase-3 chaser crack speed (just below base player speed)
+  FissureChaseInterval*  = 0.55'f32  # seconds between eruptions the chaser drops as it travels
+  FissureChasePopWarn*   = 0.4'f32   # chaser-dropped eruptions pop much faster than chain steps
   PrismRayTelegraph*     = 1.6'f32   # Prism Architect: wind-up showing feed beam + refracted star
   PrismRayActive*        = 0.4'f32   # refracted rays' lethal flash
+  PrismMiniTelegraph*    = 0.9'f32   # cascade beat two: mini prisms' shorter ignite wind-up
+  PrismMiniStagger*      = 0.12'f32  # per-mini extra delay so beat two ripples around the ring
   ClockSweepTelegraph*   = 1.4'f32   # Timekeeper: hands fade in before they go lethal
   ClockSweepActive*      = 2.8'f32   # hands rotate while lethal; move with the gap
   ClockSweepHalfWidth*   = 12.0'f32  # half-thickness of each clock-hand beam (px)
@@ -435,6 +440,7 @@ type
     awtVoidRift         # Void Dancer collapsing dimensional tear (VoidRift timing)
     awtOrbitalSweep     # Orbital Commander scan: a moving satellite wall crosses the arena, one safe lane (OrbitalSweep timing)
     awtFissure          # Juggernaut ground crack: staggered eruptions marching at the player (Fissure timing)
+    awtFissureChaser    # Juggernaut phase-3 crack head: pursues the player forever, dropping awtFissure pops (FissureChase timing)
     awtPrismRays        # Prism Architect focal beam that splits into a lethal ray star (PrismRay timing)
     awtClockSweep       # Timekeeper rotating clock-hand beams (ClockSweep timing)
     awtChaosWeave       # Chaos Weaver jagged arena-spanning threads (ChaosWeave timing)
