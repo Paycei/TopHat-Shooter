@@ -34,6 +34,29 @@ const
   RicochetLaserHalfWidth* = 14.0'f32  # half-thickness of the lethal beam (px)
   MegaCastDamageTaken*    = 0.4'f32   # fraction of damage a boss takes while channelling a mega special
 
+# Timing for the bosses 7-12 signature attacks. Same contract as the tesla
+# strike consts above: the warning-update resolution (game.nim) and the
+# telegraph/active drawing (enemy.nim) must agree on when each dodge window
+# ends, so the values live here in types.nim where both sides import them.
+const
+  OrbitalSweepTelegraph* = 1.7'f32   # Orbital Commander: scan corridor shown before the wall enters
+  OrbitalSweepActive*    = 3.0'f32   # time the satellite wall takes to cross the whole arena
+  OrbitalSweepHalfThick* = 24.0'f32  # half-thickness of the moving energy wall (px)
+  OrbitalSweepStagger*   = 1.6'f32   # delay between walls when a volley sends several
+  FissureTelegraph*      = 1.0'f32   # Juggernaut: dodge window before the FIRST fissure pop
+  FissureActive*         = 0.22'f32  # each eruption's lethal window
+  FissureStagger*        = 0.16'f32  # delay between successive pops as the crack marches
+  PrismRayTelegraph*     = 1.6'f32   # Prism Architect: wind-up showing feed beam + refracted star
+  PrismRayActive*        = 0.4'f32   # refracted rays' lethal flash
+  ClockSweepTelegraph*   = 1.4'f32   # Timekeeper: hands fade in before they go lethal
+  ClockSweepActive*      = 2.8'f32   # hands rotate while lethal; move with the gap
+  ClockSweepHalfWidth*   = 12.0'f32  # half-thickness of each clock-hand beam (px)
+  ChaosWeaveTelegraph*   = 1.6'f32   # Chaos Weaver: jagged threads shimmer before snapping taut
+  ChaosWeaveActive*      = 0.35'f32  # threads' lethal flash
+  OmegaQuadTelegraph*    = 1.6'f32   # Omega Entity: dodge window before the FIRST quadrant erupts
+  OmegaQuadActive*       = 0.35'f32  # each quadrant's lethal window
+  OmegaQuadStagger*      = 0.7'f32   # delay between successive quadrant eruptions
+
 type
   GameState* = enum
     gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
@@ -410,6 +433,12 @@ type
     awtArcBeam          # Chain Reactor lightning wall (ArcBeam timing)
     awtRicochetLaser    # Laser Architect bouncing beam (RicochetLaser timing)
     awtVoidRift         # Void Dancer collapsing dimensional tear (VoidRift timing)
+    awtOrbitalSweep     # Orbital Commander scan: a moving satellite wall crosses the arena, one safe lane (OrbitalSweep timing)
+    awtFissure          # Juggernaut ground crack: staggered eruptions marching at the player (Fissure timing)
+    awtPrismRays        # Prism Architect focal beam that splits into a lethal ray star (PrismRay timing)
+    awtClockSweep       # Timekeeper rotating clock-hand beams (ClockSweep timing)
+    awtChaosWeave       # Chaos Weaver jagged arena-spanning threads (ChaosWeave timing)
+    awtOmegaQuadrant    # Omega Entity sequential quadrant detonations (OmegaQuad timing)
 
   AttackWarning* = ref object
     pos*: Vector2f
@@ -1498,6 +1527,28 @@ proc polylineLength*(path: seq[Vector2f]): float32 =
   result = 0.0'f32
   for s in 0 ..< path.len - 1:
     result += distance(path[s], path[s + 1])
+
+proc orbitalSweepCenter*(warning: AttackWarning): Vector2f =
+  ## Centre of the Orbital Commander's moving scan wall as a pure function of
+  ## the warning's remaining lifetime: parked at the entry edge (pos) through
+  ## the telegraph, then travelling linearly to the exit edge (targetPos) over
+  ## the active window. Shared by the render (enemy.nim) and the lethal hit
+  ## test (game.nim) so the drawn wall and the damaging wall never drift.
+  let progress = clamp((OrbitalSweepActive - warning.lifetime) / OrbitalSweepActive,
+                       0.0'f32, 1.0'f32)
+  warning.pos + (warning.targetPos - warning.pos) * progress
+
+proc clockSweepHandAngle*(warning: AttackWarning, hand: int): float32 =
+  ## Angle of the Timekeeper clock hand `hand` as a pure function of the
+  ## warning's remaining lifetime. Shared by the telegraph/live render
+  ## (enemy.nim) and the lethal hit test (game.nim) so they can never drift.
+  ## During the telegraph (lifetime > ClockSweepActive) the hands hold their
+  ## starting angle; once active they sweep at bulletSpeed rad/s.
+  let elapsedActive = clamp(ClockSweepActive - warning.lifetime, 0.0'f32, ClockSweepActive)
+  let handCount = max(1, warning.laserCount)
+  warning.bulletSpreadAngle +
+    hand.float32 * (PI.float32 * 2.0'f32 / handCount.float32) +
+    warning.bulletSpeed * elapsedActive
 
 proc ricochetSweptPath*(path: seq[Vector2f], frontDist: float32): seq[Vector2f] =
   ## The first `frontDist` units of `path`, ending at the exact beam-front point.

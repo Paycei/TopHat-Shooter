@@ -783,17 +783,37 @@ proc spawnRicochetLaser*(game: var Game, enemy: Enemy, attack: BossAttack, phase
 proc spawnVoidRifts*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
   warnings.spawnVoidRiftsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
+proc spawnOrbitalSweep*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  warnings.spawnOrbitalSweepInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
+
+proc spawnSeismicFissure*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  warnings.spawnSeismicFissureInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
+
+proc spawnPrismRays*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  warnings.spawnPrismRaysInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
+
+proc spawnClockSweep*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  warnings.spawnClockSweepInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
+
+proc spawnChaosWeave*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  warnings.spawnChaosWeaveInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
+
+proc spawnOmegaQuadrants*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  warnings.spawnOmegaQuadrantsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
+
 proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) =
   warnings.addBossAttackWarningInto(game.attackWarnings, game.player, enemy, attack)
 
 proc spawnBossBullet(game: var Game, enemy: Enemy, attack: BossAttack,
                      phase: BossPhaseDefinition, dir: Vector2f,
-                     speed = -1.0'f32, damage = -1.0'f32) =
-  ## Canonical boss-bullet spawn from the boss's own position. A negative speed
+                     speed = -1.0'f32, damage = -1.0'f32,
+                     origin = enemy.pos) =
+  ## Canonical boss-bullet spawn, from the boss's own position unless an
+  ## explicit origin is given (e.g. satellite-fired snipes). A negative speed
   ## or damage means "use the default": attack.projectileSpeed and
   ## attack.damage * phase.damageMultiplier respectively.
   game.bullets.add(newBullet(
-    x = enemy.pos.x, y = enemy.pos.y, direction = dir,
+    x = origin.x, y = origin.y, direction = dir,
     speed = (if speed < 0: attack.projectileSpeed else: speed),
     damage = (if damage < 0: attack.damage * phase.damageMultiplier else: damage),
     fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
@@ -1972,15 +1992,15 @@ proc execBossAttackOrbit(game: var Game, enemy: Enemy, attack: BossAttack, phase
     # Configure layers based on mode
     let (layerCount, rotationSpeed, satelliteColor) = case orbitMode
       of "electric_charges":
-        (1, 1.2, Color(r: 255, g: 255, b: 100, a: 255))  # Single fast layer, yellow
+        (1, 0.8, Color(r: 255, g: 255, b: 100, a: 255))  # Single layer, yellow
       of "satellite_orbit":
         (1, 0.6, Color(r: 150, g: 100, b: 255, a: 255))  # Single slow layer, purple
       of "dual_layer_orbit":
-        (2, 1.0, Color(r: 200, g: 150, b: 255, a: 255))  # Two layers, medium speed
+        (2, 0.7, Color(r: 200, g: 150, b: 255, a: 255))  # Two layers, slow drift
       of "orbital_storm":
-        (3, 1.3, Color(r: 180, g: 120, b: 255, a: 255))  # Three layers, fast
+        (3, 0.85, Color(r: 180, g: 120, b: 255, a: 255))  # Three layers, slightly faster
       else:
-        (1, 1.0, phase.color)  # Default single layer
+        (1, 0.7, phase.color)  # Default single layer (Omega Entity), slow drift
 
     # Create satellites in multiple orbital layers
     for layer in 0..<layerCount:
@@ -2336,61 +2356,32 @@ proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase:
 
 proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # PRECISION SNIPE SYSTEM - Boss 7 Orbital Commander
-  # SpecialData modes:
-  # - "orbital_snipe": Aimed shot from satellite position (shows laser pointer warning)
-  # - "precision_strike": Double snipe with warning indicators
-  # - "satellite_barrage": Multiple rapid snipes from different angles
-  # - Default: Standard snipe
+  # The snipe is SATELLITE fire: every shot originates from one of the boss's
+  # live orbital satellites, dead-aimed at the player from that satellite's
+  # position. With all satellites destroyed there is nothing to fire from, so
+  # the attack is skipped outright (addBossAttackWarningInto gates its pre-fire
+  # reticle on the same condition, so no orphan warning appears either).
+  if enemy.satellites.len == 0:
+    return
 
-  let snipeMode = attack.specialData
+  let bulletColor = case attack.specialData
+    of "orbital_snipe":     Color(r: 150, g: 100, b: 255, a: 255)
+    of "precision_strike":  Color(r: 200, g: 150, b: 255, a: 255)
+    of "satellite_barrage": Color(r: 180, g: 120, b: 255, a: 255)
+    else:                   phase.color
 
-  # Configure snipe behavior
-  let (showWarning, warningTime, bulletColor) = case snipeMode
-    of "orbital_snipe":
-      (true, 0.8, Color(r: 150, g: 100, b: 255, a: 255))  # Purple space snipe with warning
-    of "precision_strike":
-      (true, 0.6, Color(r: 200, g: 150, b: 255, a: 255))  # Bright purple, shorter warning
-    of "satellite_barrage":
-      (true, 0.4, Color(r: 180, g: 120, b: 255, a: 255))  # Quick warnings for rapid fire
-    else:
-      (false, 0.0, phase.color)  # No warning for default
-
-  # Show warning indicators at the TARGET position (near player), not at the enemy
-  if showWarning:
-    for i in 0..<attack.projectileCount:
-      let spread = if attack.projectileCount > 1:
-        (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
-      else: 0.0
-      let aimAngle = arctan2(toPlayer.y, toPlayer.x) + spread
-      # Project from enemy toward player to approximate impact point (capped at screen edge)
-      let maxDist = min(distance(enemy.pos, game.player.pos) + 80.0, 600.0)
-      let warnX = enemy.pos.x + cos(aimAngle) * maxDist
-      let warnY = enemy.pos.y + sin(aimAngle) * maxDist
-      game.attackWarnings.add(newAttackWarning(warnX, warnY, awtLaserPointer, warningTime))
-
-  # Fire the actual snipe shots
+  # Cycle through satellites when there are more shots than satellites. The
+  # differing origins replace the old spreadAngle fan: each shot flies straight
+  # at the player but converges from a different orbital direction.
   for i in 0..<attack.projectileCount:
-    let spread = if attack.projectileCount > 1:
-      (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
-    else: 0.0
-    let angle = arctan2(toPlayer.y, toPlayer.x) + spread
-    let dir = newVector2f(cos(angle), sin(angle))
-
-    # Enhanced bullet for special snipes
-    spawnBossBullet(game, enemy, attack, phase, dir)
-
-    # Visual muzzle flash per shot
-    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, bulletColor, 8)
-
-  # Special visual effects for satellite snipes
-  if snipeMode == "satellite_barrage":
-    # Create star pattern around boss
-    for i in 0..<8:
-      let angle = i.float32 * PI * 2.0 / 8.0
-      let starX = enemy.pos.x + cos(angle) * 50.0
-      let starY = enemy.pos.y + sin(angle) * 50.0
-      spawnExplosionPooled(game.particlePool, starX, starY,
-                    Color(r: 200, g: 150, b: 255, a: 255), 4)
+    let sat = enemy.satellites[i mod enemy.satellites.len]
+    let toTarget = game.player.pos - sat.pos
+    let d = sqrt(toTarget.x * toTarget.x + toTarget.y * toTarget.y)
+    let dir = if d > 0.01: newVector2f(toTarget.x / d, toTarget.y / d)
+              else: newVector2f(1.0'f32, 0.0'f32)
+    spawnBossBullet(game, enemy, attack, phase, dir, origin = sat.pos)
+    # Muzzle flash at the firing satellite, not the boss
+    spawnExplosionPooled(game.particlePool, sat.pos.x, sat.pos.y, bulletColor, 8)
 
 proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # LEGION VOLLEY (Summoner King) - every living summoned add fires a single shot
@@ -2450,6 +2441,24 @@ proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, 
     return
   of "void_rift", "void_rift_storm", "void_collapse":
     spawnVoidRifts(game, enemy, attack, phase)
+    return
+  of "orbital_sweep":
+    spawnOrbitalSweep(game, enemy, attack, phase)
+    return
+  of "seismic_fissure":
+    spawnSeismicFissure(game, enemy, attack, phase)
+    return
+  of "prism_refraction":
+    spawnPrismRays(game, enemy, attack, phase)
+    return
+  of "clock_sweep":
+    spawnClockSweep(game, enemy, attack, phase)
+    return
+  of "chaos_weave":
+    spawnChaosWeave(game, enemy, attack, phase)
+    return
+  of "omega_judgement":
+    spawnOmegaQuadrants(game, enemy, attack, phase)
     return
   else: discard
 

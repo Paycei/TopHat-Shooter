@@ -204,6 +204,300 @@ proc spawnRicochetLaserInto*(warnings: var seq[AttackWarning], particlePool: Par
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 100, g: 220, b: 255, a: 255), 18)
 
+proc spawnOrbitalSweepInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
+                            player: Player, screenWidth, screenHeight: int32,
+                            enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  ## The Orbital Commander's signature: a kill-satellite enters off one screen
+  ## edge and drags a screen-spanning energy wall across the WHOLE arena at
+  ## constant speed. The wall has one safe data-gap; because the gap sits at a
+  ## fixed offset along the wall, it traces a clear LANE down the arena - the
+  ## telegraph paints the doomed band and that lane, then the wall physically
+  ## sweeps through (position resolved by orbitalSweepCenter, shared with the
+  ## hit test). Unlike every zone/beam attack in the game, the hazard MOVES:
+  ## the dodge is "reach the lane before the wall reaches you".
+  ## Volleys (projectileCount > 1) send extra walls on perpendicular headings,
+  ## staggered via the extra-lifetime trick.
+  let sweeps  = clamp(attack.projectileCount, 1, 3)
+  # Multi-wall volleys widen every wall's safe lane (+35% per extra wall):
+  # the crosswise follow-up already makes the dodge a two-step re-route, so
+  # the gap compensates rather than stacking difficulty twice.
+  let baseGapHalf = if attack.durationOrRadius > 0: attack.durationOrRadius else: 90.0'f32
+  let gapHalf = baseGapHalf * (1.0'f32 + 0.35'f32 * (sweeps - 1).float32)
+  let dmg     = attack.damage * phase.damageMultiplier
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+  const MARGIN = 60.0'f32  # wall starts/ends fully off-screen
+
+  let baseHeading = rand(3)  # 0 right, 1 left, 2 down, 3 up
+  for k in 0 ..< sweeps:
+    # Follow-up walls turn 90 degrees so a volley rakes the arena crosswise.
+    let heading = (baseHeading + k * (if sweeps > 1: 1 else: 0) * 2) mod 4
+    var startC, endC: Vector2f
+    var travelAngle: float32
+    var halfSpan: float32
+    case heading
+    of 0:  # entering left edge, travelling right; wall is vertical
+      startC = newVector2f(-MARGIN, h * 0.5'f32)
+      endC   = newVector2f(w + MARGIN, h * 0.5'f32)
+      travelAngle = 0.0'f32
+      halfSpan = h * 0.5'f32 + MARGIN
+    of 1:  # entering right edge, travelling left
+      startC = newVector2f(w + MARGIN, h * 0.5'f32)
+      endC   = newVector2f(-MARGIN, h * 0.5'f32)
+      travelAngle = PI
+      halfSpan = h * 0.5'f32 + MARGIN
+    of 2:  # entering top edge, travelling down; wall is horizontal
+      startC = newVector2f(w * 0.5'f32, -MARGIN)
+      endC   = newVector2f(w * 0.5'f32, h + MARGIN)
+      travelAngle = PI * 0.5'f32
+      halfSpan = w * 0.5'f32 + MARGIN
+    else:  # entering bottom edge, travelling up
+      startC = newVector2f(w * 0.5'f32, h + MARGIN)
+      endC   = newVector2f(w * 0.5'f32, -MARGIN)
+      travelAngle = PI * 1.5'f32
+      halfSpan = w * 0.5'f32 + MARGIN
+
+    # The safe lane lands somewhere in the middle 70% of the wall, re-rolled a
+    # few times if it sits on the player: the scan must force movement, never
+    # reward standing still.
+    let u = newVector2f(-sin(travelAngle), cos(travelAngle))  # along the wall
+    let playerAlong = (player.pos.x - startC.x) * u.x + (player.pos.y - startC.y) * u.y
+    var gapOffset = 0.0'f32
+    for tries in 0 ..< 6:
+      gapOffset = (rand(2.0'f32) - 1.0'f32) * halfSpan * 0.7'f32
+      if abs(gapOffset - playerAlong) > gapHalf + 50.0'f32: break
+
+    let total = OrbitalSweepTelegraph + OrbitalSweepActive + k.float32 * OrbitalSweepStagger
+    var warn = newAttackWarning(startC.x, startC.y, awtOrbitalSweep, total, enemy.id)
+    warn.targetPos = endC
+    warn.bulletSpreadAngle = travelAngle
+    warn.laserLength = OrbitalSweepHalfThick     # wall half-thickness
+    warn.bulletRadius = gapHalf                  # safe-gap half-width
+    warn.bulletSpeed = halfSpan                  # wall half-span along u
+    warn.laserAngles = @[gapOffset]              # gap centre, offset along u
+    warn.bulletDamage = dmg
+    warnings.add(warn)
+
+  spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 150, g: 100, b: 255, a: 255), 14)
+
+proc spawnSeismicFissureInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
+                              player: Player, screenWidth, screenHeight: int32,
+                              enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  ## The Berserker Juggernaut's signature: the ground cracks from the boss
+  ## toward the player and erupts step by step - a marching chain of staggered
+  ## detonations. Each step is its own warning whose extra lifetime IS the
+  ## stagger, so the shared resolution logic (fires when lifetime <= Active)
+  ## pops them in sequence without any bespoke timer.
+  let steps  = clamp(attack.projectileCount, 3, 10)
+  let radius = if attack.durationOrRadius > 0: attack.durationOrRadius else: 55.0'f32
+  let dmg    = attack.damage * phase.damageMultiplier
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+
+  var dir = (player.pos - enemy.pos).normalize()
+  if dir.length() < 0.0001'f32:
+    dir = newVector2f(1, 0)
+  let spacing = radius * 1.45'f32
+
+  for k in 0 ..< steps:
+    var p = enemy.pos + dir * (enemy.radius + spacing * (k.float32 + 0.6'f32))
+    p.x = clamp(p.x, radius * 0.5'f32, w - radius * 0.5'f32)
+    p.y = clamp(p.y, radius * 0.5'f32, h - radius * 0.5'f32)
+    let total = FissureTelegraph + FissureActive + k.float32 * FissureStagger
+    var warn = newAttackWarning(p.x, p.y, awtFissure, total, enemy.id)
+    warn.targetPos = p
+    warn.bulletRadius = radius
+    warn.bulletDamage = dmg
+    warn.bulletCount = k  # step index, used by the render for the marching cue
+    warnings.add(warn)
+
+  spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 255, g: 90, b: 30, a: 255), 16)
+
+proc spawnPrismRaysInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
+                         player: Player, screenWidth, screenHeight: int32,
+                         enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  ## The Prism Architect's signature: the boss fires a feed beam into a focal
+  ## prism conjured near the player; on impact the prism refracts it into a
+  ## lethal star of rays. The whole geometry (feed + rays) is precomputed here
+  ## and stored on ricochetPath as [origin, focus, rayEnd1, .., rayEndN]: the
+  ## first two vertices are the feed beam, every further vertex is a ray from
+  ## the focus. Render + hit test both walk that layout.
+  let rays = clamp(attack.projectileCount, 3, 12)
+  let dmg  = attack.damage * phase.damageMultiplier
+  let total = PrismRayTelegraph + PrismRayActive
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+  let reach = sqrt(w * w + h * h)
+
+  # Focus lands beside the player, not on them: the danger is the ray star,
+  # and a slight offset keeps "stand still" from being an accidental safe spot.
+  var focus = player.pos + player.vel * (PrismRayTelegraph * 0.3'f32)
+  let sideAng = rand(1.0) * PI * 2.0
+  focus = focus + newVector2f(cos(sideAng), sin(sideAng)) * 60.0'f32
+  focus.x = clamp(focus.x, 60.0'f32, w - 60.0'f32)
+  focus.y = clamp(focus.y, 60.0'f32, h - 60.0'f32)
+
+  var path = @[enemy.pos, focus]
+  let baseAng = rand(1.0) * PI * 2.0
+  for k in 0 ..< rays:
+    let ang = baseAng + k.float32 * (PI * 2.0) / rays.float32
+    path.add(newVector2f(focus.x + cos(ang) * reach, focus.y + sin(ang) * reach))
+
+  var warn = newAttackWarning(enemy.pos.x, enemy.pos.y, awtPrismRays, total, enemy.id)
+  warn.targetPos = focus
+  warn.laserLength = 10.0'f32  # beam half-width
+  warn.bulletDamage = dmg
+  warn.ricochetPath = path
+  warnings.add(warn)
+
+  spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 255, g: 200, b: 255, a: 255), 14)
+
+proc spawnClockSweepInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
+                          player: Player, screenWidth, screenHeight: int32,
+                          enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  ## The Timekeeper's signature: clock hands materialize around a fixed pivot
+  ## (the boss's position at cast time) and sweep the arena while lethal. The
+  ## player survives by rotating with a gap between hands. The hands' angle is
+  ## a pure function of the warning's remaining lifetime, so the render
+  ## (enemy.nim) and the hit test (game.nim) recompute it identically.
+  let hands = clamp(attack.projectileCount, 2, 4)
+  let dmg   = attack.damage * phase.damageMultiplier
+  let total = ClockSweepTelegraph + ClockSweepActive
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+
+  var warn = newAttackWarning(enemy.pos.x, enemy.pos.y, awtClockSweep, total, enemy.id)
+  warn.targetPos = enemy.pos                     # frozen pivot
+  warn.laserCount = hands
+  warn.laserLength = ClockSweepHalfWidth
+  warn.bulletRadius = sqrt(w * w + h * h)        # beam reach: past every corner
+  warn.bulletDamage = dmg
+  warn.bulletSpreadAngle = rand(1.0'f32) * PI * 2.0'f32  # starting hand angle
+  # Sweep speed: sign alternates per cast so the safe direction isn't rote.
+  warn.bulletSpeed = (if attack.projectileSpeed > 0: attack.projectileSpeed.degToRad()
+                      else: 0.7'f32) * (if rand(1) == 0: 1.0'f32 else: -1.0'f32)
+  warnings.add(warn)
+
+  spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 100, g: 240, b: 240, a: 255), 14)
+
+proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
+                          player: Player, screenWidth, screenHeight: int32,
+                          enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  ## The Chaos Weaver's signature: jagged threads of raw entropy are stitched
+  ## across the whole arena, shimmer through the telegraph, then snap taut and
+  ## lethal for a flash. Each thread is one warning holding its polyline in
+  ## ricochetPath. Threads run roughly screen-edge to screen-edge with random
+  ## kinks, and one thread is aimed through the player's vicinity.
+  let threads = clamp(attack.projectileCount, 1, 4)
+  let dmg   = attack.damage * phase.damageMultiplier
+  let total = ChaosWeaveTelegraph + ChaosWeaveActive
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+
+  proc edgePoint(): Vector2f =
+    case rand(3)
+    of 0: newVector2f(rand(w), 0.0'f32)
+    of 1: newVector2f(rand(w), h)
+    of 2: newVector2f(0.0'f32, rand(h))
+    else: newVector2f(w, rand(h))
+
+  for t in 0 ..< threads:
+    var a = edgePoint()
+    var b = edgePoint()
+    # Re-roll near-degenerate threads that hug a single edge.
+    var tries = 0
+    while distance(a, b) < min(w, h) * 0.6'f32 and tries < 8:
+      b = edgePoint()
+      inc tries
+    if t == 0:
+      # First thread threatens the player's area: pass near (not through) them.
+      let jitterAng = rand(1.0) * PI * 2.0
+      let mid = player.pos + newVector2f(cos(jitterAng), sin(jitterAng)) * 70.0'f32
+      let dir = (b - a).normalize()
+      a = mid - dir * max(w, h)
+      b = mid + dir * max(w, h)
+      a.x = clamp(a.x, 0.0'f32, w); a.y = clamp(a.y, 0.0'f32, h)
+      b.x = clamp(b.x, 0.0'f32, w); b.y = clamp(b.y, 0.0'f32, h)
+
+    # Kink the thread: subdivide and jitter perpendicular to the main run.
+    const KINKS = 5
+    let run = b - a
+    let perp = newVector2f(-run.y, run.x).normalize()
+    var path = @[a]
+    for k in 1 .. KINKS:
+      let along = a + run * (k.float32 / (KINKS + 1).float32)
+      path.add(along + perp * (rand(120.0'f32) - 60.0'f32))
+    path.add(b)
+
+    var warn = newAttackWarning(a.x, a.y, awtChaosWeave, total, enemy.id)
+    warn.targetPos = b
+    warn.laserLength = 9.0'f32  # thread half-width
+    warn.bulletDamage = dmg
+    warn.ricochetPath = path
+    warnings.add(warn)
+
+  spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 255, g: 80, b: 255, a: 255), 16)
+
+proc spawnOmegaQuadrantsInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
+                              player: Player, screenWidth, screenHeight: int32,
+                              enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+  ## The Omega Entity's finale: a mega-cast "judgement" that detonates three of
+  ## the four screen quadrants in sequence, sparing exactly one - the player
+  ## must read the order and hop through the safe pocket. Like seismic
+  ## fissures, the per-quadrant stagger is encoded as extra lifetime so the
+  ## shared resolution logic fires them in order. The boss channels (frozen,
+  ## hardened, other attacks paused) for the entire sequence.
+  let dmg = attack.damage * phase.damageMultiplier
+  let w = screenWidth.float32
+  let h = screenHeight.float32
+  let halfExt = newVector2f(w * 0.25'f32, h * 0.25'f32)
+  let centers = [
+    newVector2f(w * 0.25'f32, h * 0.25'f32),  # top-left
+    newVector2f(w * 0.75'f32, h * 0.25'f32),  # top-right
+    newVector2f(w * 0.25'f32, h * 0.75'f32),  # bottom-left
+    newVector2f(w * 0.75'f32, h * 0.75'f32)]  # bottom-right
+
+  # The spared quadrant is the one the player currently occupies - the attack
+  # chases them OUT of the other three, it never spawns as an unavoidable hit.
+  var safe = 0
+  if player.pos.x >= w * 0.5'f32: safe += 1
+  if player.pos.y >= h * 0.5'f32: safe += 2
+
+  var order: seq[int] = @[]
+  for q in 0 ..< 4:
+    if q != safe: order.add(q)
+  # Shuffle the eruption order so the sequence must be read each cast.
+  for k in countdown(order.high, 1):
+    let j = rand(k)
+    swap(order[k], order[j])
+
+  var slot = 0
+  for q in order:
+    let total = OmegaQuadTelegraph + OmegaQuadActive + slot.float32 * OmegaQuadStagger
+    var warn = newAttackWarning(centers[q].x, centers[q].y, awtOmegaQuadrant, total, enemy.id)
+    warn.targetPos = halfExt          # rect half-extents (hit test is an AABB check)
+    warn.bulletDamage = dmg
+    warn.bulletCount = slot           # eruption index, drawn as the sequence number
+    warnings.add(warn)
+    inc slot
+
+  # Channel for the full sequence: frozen, hardened, other attacks paused
+  # (same mega-cast contract as the Laser Architect's ricochet beam).
+  let castTotal = OmegaQuadTelegraph + OmegaQuadActive +
+                  (order.len - 1).float32 * OmegaQuadStagger
+  enemy.megaCastTimer = castTotal
+  enemy.megaCastTotal = castTotal
+  enemy.vel = newVector2f(0, 0)
+  enemy.isDashing = false
+
+  spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 255, g: 60, b: 90, a: 255), 20)
+
 proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
                                enemy: Enemy, attack: BossAttack) =
   const WARNING_DURATION = 0.45'f32
@@ -211,6 +505,10 @@ proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
   if attack.specialData in ["thunderstrike", "arc_lattice"]:
     return
   if attack.attackType in [bapLaser, bapTeleport, bapMeteor]:
+    return
+  # Snipe shots come from the boss's orbital satellites; with none alive the
+  # attack itself is skipped (execBossAttackSnipe), so skip the reticle too.
+  if attack.attackType == bapSnipe and enemy.satellites.len == 0:
     return
 
   let warningType = case attack.attackType
@@ -247,7 +545,12 @@ proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
     enemy.pendingDashTarget = warningTargetPos
     enemy.vel = newVector2f(0, 0)
 
-  let warnPos = if attack.attackType == bapDash: enemy.pendingDashStart else: enemy.pos
+  # The snipe reticle belongs ON the target: drawn at the boss it read as a
+  # random marker that "did nothing". Other warnings stay boss-anchored.
+  let warnPos =
+    if attack.attackType == bapDash: enemy.pendingDashStart
+    elif attack.attackType == bapSnipe: warningTargetPos
+    else: enemy.pos
   var w = newAttackWarning(warnPos.x, warnPos.y, warningType, WARNING_DURATION, enemy.id)
   w.targetPos = warningTargetPos
   warnings.add(w)

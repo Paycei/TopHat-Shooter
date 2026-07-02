@@ -1082,9 +1082,24 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "orbital_snipe"  # Aimed from satellite
             ),
             BossAttack(
+              # Orbital Scan: signature themed attack - a kill-satellite drags
+              # a screen-spanning energy wall across the whole arena; the only
+              # safe spot is the data-gap lane painted by the telegraph.
+              attackType: bapMeteor,  # nominal; routed by specialData before attackType dispatch
+              damage: 10.5,
+              cooldown: 8.5,           # long: the crossing itself occupies ~4s
+              projectileSpeed: 0.0,
+              projectileCount: 1,      # walls per volley
+              spreadAngle: 0.0,
+              durationOrRadius: 95.0,  # safe-gap half-width
+              specialData: "orbital_sweep"
+            ),
+            BossAttack(
+              # Generic targeted demoted to occasional filler so the themed
+              # satellite/gravity kit leads.
               attackType: bapTargeted,
               damage: 7.0,
-              cooldown: 2.5,
+              cooldown: 5.5,
               projectileSpeed: 200.0,
               projectileCount: 3,
               spreadAngle: 15.0,
@@ -1115,30 +1130,43 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSnipe,
               damage: 10.5,
-              cooldown: 3.0,
-              projectileSpeed: 350.0,
+              cooldown: 4.5,  # Eased: satellite-fired snipes converge from several angles now
+              projectileSpeed: 300.0,
               projectileCount: 2,  # Double snipe
               spreadAngle: 20.0,
               durationOrRadius: 0.0,
               specialData: "precision_strike"
             ),
             BossAttack(
+              # Orbital Scan: two crosswise walls, staggered - the second lane
+              # opens perpendicular to the first, forcing a re-route mid-dodge.
+              attackType: bapMeteor,  # nominal; routed by specialData
+              damage: 12.0,
+              cooldown: 9.5,
+              projectileSpeed: 0.0,
+              projectileCount: 2,
+              spreadAngle: 0.0,
+              durationOrRadius: 85.0,
+              specialData: "orbital_sweep"
+            ),
+            BossAttack(
+              # Generic ring demoted to occasional filler.
               attackType: bapCircle,
               damage: 10.5,
-              cooldown: 4.5,
-              projectileSpeed: 140.0,
-              projectileCount: 16,
+              cooldown: 8.0,
+              projectileSpeed: 125.0,
+              projectileCount: 12,  # Eased: sparser ring, dodgeable mid-sweep
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
               attackType: bapPulse,
               damage: 10.5,
-              cooldown: 6.0,
+              cooldown: 7.5,
               projectileSpeed: 150.0,
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 220.0,
+              durationOrRadius: 190.0,  # Eased: smaller shockwave
               specialData: "gravity_pulse"  # Space-themed pulse
             )
           ]
@@ -1158,7 +1186,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 14.0,
               cooldown: 0.6,
               projectileSpeed: 100.0,
-              projectileCount: 8,
+              projectileCount: 6,  # Eased: fewer satellites = fewer laser sources (was 8)
               spreadAngle: 45.0,
               durationOrRadius: 220.0,
               specialData: "orbital_storm"  # Triple layer orbit
@@ -1166,19 +1194,31 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapSnipe,
               damage: 14.0,
-              cooldown: 2.5,
-              projectileSpeed: 400.0,
+              cooldown: 4.0,  # Eased: satellite-fired snipes converge from several angles now
+              projectileSpeed: 330.0,
               projectileCount: 3,  # Triple precision strike
               spreadAngle: 25.0,
               durationOrRadius: 0.0,
               specialData: "satellite_barrage"
             ),
             BossAttack(
+              # Orbital Scan finale: two crosswise walls with tighter gaps.
+              attackType: bapMeteor,  # nominal; routed by specialData
+              damage: 14.0,
+              cooldown: 9.0,
+              projectileSpeed: 0.0,
+              projectileCount: 2,
+              spreadAngle: 0.0,
+              durationOrRadius: 72.0,
+              specialData: "orbital_sweep"
+            ),
+            BossAttack(
+              # Generic spray demoted to occasional filler.
               attackType: bapBarrage,
               damage: 14.0,
-              cooldown: 3.5,
-              projectileSpeed: 240.0,
-              projectileCount: 24,
+              cooldown: 6.5,
+              projectileSpeed: 210.0,
+              projectileCount: 16,  # Eased: sparser spray, dodgeable mid-sweep (was 24)
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               specialData: "orbital_bombardment"
@@ -1186,9 +1226,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapMeteor,
               damage: 14.0,
-              cooldown: 5.0,
+              cooldown: 6.5,
               projectileSpeed: 280.0,
-              projectileCount: 5,  # Satellite drops
+              projectileCount: 4,  # Satellite drops (eased from 5)
               spreadAngle: 0.0,
               durationOrRadius: 100.0,
               specialData: "satellite_strike"
@@ -1231,18 +1271,33 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "charge_attack"
             ),
             BossAttack(
+              # Seismic Fissure: signature themed attack - the ground cracks
+              # from the boss toward the player and erupts step by step, a
+              # marching chain of staggered detonations to outrun sideways.
+              attackType: bapMeteor,  # nominal; routed by specialData before attackType dispatch
+              damage: 10.5,
+              cooldown: 6.0,
+              projectileSpeed: 0.0,
+              projectileCount: 4,      # eruption steps in the chain
+              spreadAngle: 0.0,
+              durationOrRadius: 55.0,  # per-step eruption radius
+              specialData: "seismic_fissure"
+            ),
+            BossAttack(
+              # Generic fan demoted to occasional filler so charge + fissure lead.
               attackType: bapWave,
               damage: 10.5,
-              cooldown: 3.0,
+              cooldown: 6.0,
               projectileSpeed: 170.0,
               projectileCount: 4,
               spreadAngle: 80.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
+              # Generic targeted demoted to occasional filler.
               attackType: bapTargeted,
               damage: 10.5,
-              cooldown: 2.0,
+              cooldown: 4.5,
               projectileSpeed: 200.0,
               projectileCount: 3,
               spreadAngle: 0.0,
@@ -1281,18 +1336,31 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "ground_slam"  # Rage shockwave
             ),
             BossAttack(
+              # Seismic Fissure: longer, faster marching chain in bloodrage.
+              attackType: bapMeteor,  # nominal; routed by specialData
+              damage: 14.0,
+              cooldown: 5.5,
+              projectileSpeed: 0.0,
+              projectileCount: 6,
+              spreadAngle: 0.0,
+              durationOrRadius: 58.0,
+              specialData: "seismic_fissure"
+            ),
+            BossAttack(
+              # Generic ring demoted to occasional filler.
               attackType: bapCircle,
               damage: 14.0,
-              cooldown: 2.5,
+              cooldown: 5.5,
               projectileSpeed: 160.0,
               projectileCount: 12,  # Rage burst
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
+              # Generic fan demoted to occasional filler.
               attackType: bapWave,
               damage: 14.0,
-              cooldown: 2.0,
+              cooldown: 5.5,
               projectileSpeed: 180.0,
               projectileCount: 5,
               spreadAngle: 90.0,
@@ -1341,9 +1409,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "blood_burst"
             ),
             BossAttack(
+              # Seismic Fissure finale: a long rampage crack chasing the player.
+              attackType: bapMeteor,  # nominal; routed by specialData
+              damage: 14.0,
+              cooldown: 4.5,
+              projectileSpeed: 0.0,
+              projectileCount: 8,
+              spreadAngle: 0.0,
+              durationOrRadius: 60.0,
+              specialData: "seismic_fissure"
+            ),
+            BossAttack(
+              # Generic ring demoted to occasional filler.
               attackType: bapCircle,
               damage: 14.0,
-              cooldown: 2.0,
+              cooldown: 5.0,
               projectileSpeed: 170.0,
               projectileCount: 16,
               spreadAngle: 360.0,
@@ -1397,9 +1477,23 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "rainbow_wave"
             ),
             BossAttack(
+              # Prism Refraction: signature themed attack - a feed beam charges
+              # a focal prism conjured near the player, which refracts it into
+              # a lethal star of rainbow rays after a readable wind-up.
+              attackType: bapLaser,  # nominal; routed by specialData before attackType dispatch
+              damage: 13.0,
+              cooldown: 6.0,
+              projectileSpeed: 0.0,
+              projectileCount: 5,    # refracted rays in the star
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "prism_refraction"
+            ),
+            BossAttack(
+              # Generic targeted demoted to occasional filler so light attacks lead.
               attackType: bapTargeted,
               damage: 13.0,
-              cooldown: 2.0,
+              cooldown: 5.0,
               projectileSpeed: 200.0,
               projectileCount: 3,
               spreadAngle: 20.0,
@@ -1438,18 +1532,31 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "chromatic_burst"
             ),
             BossAttack(
+              # Prism Refraction: a wider star from the spectrum array.
+              attackType: bapLaser,  # nominal; routed by specialData
+              damage: 16.5,
+              cooldown: 5.0,
+              projectileSpeed: 0.0,
+              projectileCount: 7,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "prism_refraction"
+            ),
+            BossAttack(
+              # Generic ring demoted to occasional filler.
               attackType: bapCircle,
               damage: 16.5,
-              cooldown: 4.0,
+              cooldown: 6.5,
               projectileSpeed: 145.0,
               projectileCount: 16,  # Light ring
               spreadAngle: 360.0,
               durationOrRadius: 0.0
             ),
             BossAttack(
+              # Generic fan demoted to occasional filler.
               attackType: bapWave,
               damage: 19.5,
-              cooldown: 2.5,
+              cooldown: 5.5,
               projectileSpeed: 170.0,
               projectileCount: 7,  # Rainbow wave
               spreadAngle: 60.0,
@@ -1498,9 +1605,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "light_burst"
             ),
             BossAttack(
+              # Prism Refraction finale: the densest ray star, cast often.
+              attackType: bapLaser,  # nominal; routed by specialData
+              damage: 19.5,
+              cooldown: 4.5,
+              projectileSpeed: 0.0,
+              projectileCount: 9,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "prism_refraction"
+            ),
+            BossAttack(
+              # Generic ring demoted to occasional filler.
               attackType: bapCircle,
               damage: 16.5,
-              cooldown: 3.0,
+              cooldown: 5.5,
               projectileSpeed: 160.0,
               projectileCount: 20,  # Dense light ring
               spreadAngle: 360.0,
@@ -1554,9 +1673,24 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "temporal_wave"
             ),
             BossAttack(
+              # Clock Sweep: signature themed attack - clock hands materialize
+              # around a frozen pivot and sweep the arena while lethal; the
+              # player survives by rotating with the gap between hands.
+              # projectileSpeed = sweep speed in degrees/second.
+              attackType: bapLaser,  # nominal; routed by specialData before attackType dispatch
+              damage: 16.0,
+              cooldown: 9.0,          # long: the sweep itself occupies ~4s
+              projectileSpeed: 40.0,
+              projectileCount: 2,     # hands
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "clock_sweep"
+            ),
+            BossAttack(
+              # Generic targeted demoted to occasional filler.
               attackType: bapTargeted,
               damage: 16.0,
-              cooldown: 3.0,
+              cooldown: 6.0,
               projectileSpeed: 160.0,
               projectileCount: 1,
               spreadAngle: 0.0,
@@ -1585,9 +1719,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "echo_burst"  # Many afterimages
             ),
             BossAttack(
+              # Clock Sweep: a third hand joins and the sweep quickens.
+              attackType: bapLaser,  # nominal; routed by specialData
+              damage: 19.0,
+              cooldown: 8.0,
+              projectileSpeed: 46.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "clock_sweep"
+            ),
+            BossAttack(
+              # Generic ring demoted to occasional filler.
               attackType: bapCircle,
               damage: 19.0,
-              cooldown: 2.5,
+              cooldown: 5.0,
               projectileSpeed: 170.0,
               projectileCount: 16,  # Time ring
               spreadAngle: 360.0,
@@ -1605,9 +1751,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "chrono_pulse"  # Time shockwave
             ),
             BossAttack(
+              # Generic spiral demoted to occasional filler.
               attackType: bapSpiral,
               damage: 19.0,
-              cooldown: 3.5,
+              cooldown: 6.0,
               projectileSpeed: 150.0,
               projectileCount: 12,  # Time spiral
               spreadAngle: 30.0,
@@ -1646,6 +1793,17 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "time_shatter"
             ),
             BossAttack(
+              # Clock Sweep finale: three fast hands - time is running out.
+              attackType: bapLaser,  # nominal; routed by specialData
+              damage: 22.5,
+              cooldown: 7.5,
+              projectileSpeed: 55.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "clock_sweep"
+            ),
+            BossAttack(
               attackType: bapLaser,
               damage: 22.5,
               cooldown: 4.0,
@@ -1666,9 +1824,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "chrono_break"  # Massive time pulse
             ),
             BossAttack(
+              # Generic ring demoted to occasional filler.
               attackType: bapCircle,
               damage: 19.0,
-              cooldown: 2.0,
+              cooldown: 4.5,
               projectileSpeed: 180.0,
               projectileCount: 24,  # Dense time ring
               spreadAngle: 360.0,
@@ -1704,7 +1863,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBarrage,
               damage: 19.5,  # NERFED from 2.0
-              cooldown: 2.0,  # NERFED from 1.5
+              cooldown: 3.0,  # demoted: the chaos weave leads, spray fills gaps
               projectileSpeed: 170.0,  # NERFED from 200.0
               projectileCount: 12,  # NERFED from 15
               spreadAngle: 180.0,
@@ -1722,9 +1881,23 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "chaos_blink"
             ),
             BossAttack(
+              # Chaos Weave: signature themed attack - jagged threads of raw
+              # entropy are stitched across the arena, shimmer through the
+              # telegraph, then snap taut and lethal for a flash.
+              attackType: bapLaser,  # nominal; routed by specialData before attackType dispatch
+              damage: 19.5,
+              cooldown: 6.5,
+              projectileSpeed: 0.0,
+              projectileCount: 2,    # threads per weave
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "chaos_weave"
+            ),
+            BossAttack(
+              # Generic fan demoted to occasional filler.
               attackType: bapWave,
               damage: 19.5,  # NERFED from 2.0
-              cooldown: 2.5,  # NERFED from 2.0
+              cooldown: 5.5,
               projectileSpeed: 190.0,  # NERFED from 220.0
               projectileCount: 5,  # NERFED from 6
               spreadAngle: 60.0,
@@ -1745,7 +1918,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBarrage,
               damage: 22.0,  # NERFED from 3.0
-              cooldown: 1.5,  # NERFED from 1.0
+              cooldown: 2.5,  # demoted: the chaos weave leads, spray fills gaps
               projectileSpeed: 210.0,  # NERFED from 250.0
               projectileCount: 18,  # NERFED from 24
               spreadAngle: 360.0,
@@ -1763,9 +1936,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "reality_shift"
             ),
             BossAttack(
+              # Chaos Weave: a third thread joins the stitch.
+              attackType: bapLaser,  # nominal; routed by specialData
+              damage: 22.0,
+              cooldown: 5.5,
+              projectileSpeed: 0.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "chaos_weave"
+            ),
+            BossAttack(
+              # Generic ring demoted to occasional filler.
               attackType: bapCircle,
               damage: 22.0,  # NERFED from 3.0
-              cooldown: 3.0,  # NERFED from 2.5
+              cooldown: 6.0,
               projectileSpeed: 150.0,  # NERFED from 170.0
               projectileCount: 22,  # NERFED from 28
               spreadAngle: 360.0,
@@ -1796,7 +1981,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapBarrage,
               damage: 22.0,  # NERFED from 4.0
-              cooldown: 1.2,  # NERFED from 0.8
+              cooldown: 2.2,  # demoted: the chaos weave leads, spray fills gaps
               projectileSpeed: 250.0,  # NERFED from 300.0
               projectileCount: 30,  # NERFED from 40
               spreadAngle: 360.0,
@@ -1812,6 +1997,17 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               spreadAngle: 0.0,
               durationOrRadius: 450.0,  # NERFED from 500.0
               specialData: "dimensional_chaos"
+            ),
+            BossAttack(
+              # Chaos Weave finale: four threads - the arena becomes the loom.
+              attackType: bapLaser,  # nominal; routed by specialData
+              damage: 25.0,
+              cooldown: 5.0,
+              projectileSpeed: 0.0,
+              projectileCount: 4,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "chaos_weave"
             ),
             BossAttack(
               attackType: bapPulse,
@@ -1908,9 +2104,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               durationOrRadius: 360.0  # NERFED from 400.0
             ),
             BossAttack(
+              # Generic spray demoted to occasional filler.
               attackType: bapBarrage,
               damage: 29.0,  # NERFED from 3.0
-              cooldown: 2.5,  # NERFED from 2.0
+              cooldown: 4.0,
               projectileSpeed: 220.0,  # NERFED from 250.0
               projectileCount: 24,  # NERFED from 32
               spreadAngle: 360.0,
@@ -1956,9 +2153,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               durationOrRadius: 260.0  # NERFED from 300.0
             ),
             BossAttack(
+              # Generic ring demoted to occasional filler.
               attackType: bapCircle,
               damage: 29.0,  # NERFED from 3.0
-              cooldown: 2.5,  # NERFED from 2.0
+              cooldown: 5.0,
               projectileSpeed: 170.0,  # NERFED from 200.0
               projectileCount: 26,  # NERFED from 32
               spreadAngle: 360.0,
@@ -1976,6 +2174,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           visualEffect: "glow",
           specialBehavior: "final_form",
           attacks: @[
+            BossAttack(
+              # OMEGA JUDGEMENT: signature mega finale. The boss freezes into a
+              # hardened channel (mega-cast, like the Laser Architect's ricochet
+              # beam) and detonates three of the four screen quadrants in a
+              # shuffled sequence, sparing only the quadrant the player was in
+              # when the cast began - read the order, hop the safe pocket.
+              attackType: bapMeteor,  # nominal; routed by specialData before attackType dispatch
+              damage: 34.0,   # huge: fully telegraphed, one hit max per quadrant
+              cooldown: 16.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "omega_judgement"
+            ),
             BossAttack(
               attackType: bapBarrage,
               damage: 32.0,  # NERFED from 5.0

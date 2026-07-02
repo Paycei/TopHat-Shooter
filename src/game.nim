@@ -1020,6 +1020,175 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
             addShake(game.dopamine.screenShake, siLarge)
             w.lasersCreated = true
 
+    # ORBITAL SWEEP (Orbital Commander): while active, a screen-spanning energy
+    # wall travels across the arena (its centre resolved per-frame by
+    # orbitalSweepCenter, the same function the render uses). The player is hit
+    # if the wall reaches them while they are NOT inside its safe gap - a
+    # moving hazard, tested every frame, one hit max per wall.
+    if game.attackWarnings[i].attackType == awtOrbitalSweep:
+      let w = game.attackWarnings[i]
+      if w.lifetime <= OrbitalSweepActive:
+        if not w.bulletsCreated:
+          # Entry flash where the satellite breaches the arena edge.
+          spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y,
+                               Color(r: 190, g: 150, b: 255, a: 255), 16)
+          addShake(game.dopamine.screenShake, siSmall)
+          w.bulletsCreated = true
+        if not w.lasersCreated and game.player.invincibilityTimer <= 0:
+          let c = orbitalSweepCenter(w)
+          let ang = w.bulletSpreadAngle
+          let v = newVector2f(cos(ang), sin(ang))    # travel direction
+          let u = newVector2f(-sin(ang), cos(ang))   # along the wall
+          let rel = game.player.pos - c
+          let dAcross = rel.x * v.x + rel.y * v.y
+          let dAlong = rel.x * u.x + rel.y * u.y
+          let gapOffset = if w.laserAngles.len > 0: w.laserAngles[0] else: 0.0'f32
+          if abs(dAcross) <= w.laserLength + game.player.radius and
+             abs(dAlong) <= w.bulletSpeed and
+             abs(dAlong - gapOffset) > w.bulletRadius:
+            if takeDamage(game.player, w.bulletDamage):
+              beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
+            trackDamageAvoided(game)
+            trackPlayerDamage(game, w.bulletDamage, etCircle)
+            game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
+                            isCritical = false, damageType = dtLaser)
+            spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                                 Color(r: 200, g: 160, b: 255, a: 255), 14)
+            w.lasersCreated = true
+
+    # SEISMIC FISSURE (Berserker Juggernaut): each step of the marching crack
+    # pops when ITS lifetime enters the active window - the per-step stagger is
+    # baked into the lifetimes at spawn, so this shared check fires the chain
+    # in sequence automatically.
+    if game.attackWarnings[i].attackType == awtFissure:
+      let w = game.attackWarnings[i]
+      if w.lifetime <= FissureActive:
+        if not w.bulletsCreated:
+          spawnExplosionPooled(game.particlePool, w.targetPos.x, w.targetPos.y,
+                               Color(r: 255, g: 140, b: 50, a: 255), 18)
+          addShake(game.dopamine.screenShake, siSmall)
+          w.bulletsCreated = true
+        if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
+           distance(game.player.pos, w.targetPos) <= w.bulletRadius + game.player.radius:
+          if takeDamage(game.player, w.bulletDamage):
+            beginPlayerDeathSequence(game, dcHazard)
+          trackDamageAvoided(game)
+          trackPlayerDamage(game, w.bulletDamage, etCircle)
+          game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
+                          isCritical = false, damageType = dtExplosion)
+          w.lasersCreated = true
+
+    # PRISM REFRACTION (Prism Architect): the feed beam and every refracted ray
+    # go lethal together for a short flash. Geometry lives in ricochetPath as
+    # [origin, focus, rayEnd...]; the player can only be struck once per cast.
+    if game.attackWarnings[i].attackType == awtPrismRays:
+      let w = game.attackWarnings[i]
+      if w.lifetime <= PrismRayActive and w.ricochetPath.len >= 3:
+        if not w.bulletsCreated:
+          spawnExplosionPooled(game.particlePool, w.ricochetPath[1].x, w.ricochetPath[1].y,
+                               Color(r: 255, g: 230, b: 255, a: 255), 22)
+          addShake(game.dopamine.screenShake, siMedium)
+          w.bulletsCreated = true
+        if not w.lasersCreated and game.player.invincibilityTimer <= 0:
+          let focus = w.ricochetPath[1]
+          var hit = pointSegmentDistance(game.player.pos, w.ricochetPath[0], focus) <=
+                    w.laserLength + game.player.radius
+          if not hit:
+            for k in 2 ..< w.ricochetPath.len:
+              if pointSegmentDistance(game.player.pos, focus, w.ricochetPath[k]) <=
+                 w.laserLength + game.player.radius:
+                hit = true
+                break
+          if hit:
+            if takeDamage(game.player, w.bulletDamage):
+              beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
+            trackDamageAvoided(game)
+            trackPlayerDamage(game, w.bulletDamage, etCircle)
+            game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
+                            isCritical = false, damageType = dtLaser)
+            w.lasersCreated = true
+
+    # CLOCK SWEEP (Timekeeper): while active the hands rotate around the frozen
+    # pivot (angles recomputed from lifetime via clockSweepHandAngle, the same
+    # function the render uses). Being caught by a hand is a single big hit.
+    if game.attackWarnings[i].attackType == awtClockSweep:
+      let w = game.attackWarnings[i]
+      if w.lifetime <= ClockSweepActive:
+        if not w.bulletsCreated:
+          spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y,
+                               Color(r: 150, g: 255, b: 255, a: 255), 16)
+          addShake(game.dopamine.screenShake, siSmall)
+          w.bulletsCreated = true
+        if not w.lasersCreated and game.player.invincibilityTimer <= 0:
+          for hand in 0 ..< max(1, w.laserCount):
+            let ang = clockSweepHandAngle(w, hand)
+            let tip = newVector2f(w.pos.x + cos(ang) * w.bulletRadius,
+                                  w.pos.y + sin(ang) * w.bulletRadius)
+            if pointSegmentDistance(game.player.pos, w.pos, tip) <=
+               w.laserLength + game.player.radius:
+              if takeDamage(game.player, w.bulletDamage):
+                beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
+              trackDamageAvoided(game)
+              trackPlayerDamage(game, w.bulletDamage, etCircle)
+              game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
+                              isCritical = false, damageType = dtFrost)
+              w.lasersCreated = true
+              break
+
+    # CHAOS WEAVE (Chaos Weaver): the jagged thread snaps taut and lethal for a
+    # flash; hit test walks the polyline segments. One hit per thread.
+    if game.attackWarnings[i].attackType == awtChaosWeave:
+      let w = game.attackWarnings[i]
+      if w.lifetime <= ChaosWeaveActive and w.ricochetPath.len >= 2:
+        if not w.bulletsCreated:
+          # Snap sparks at the kinks - the ungated lethal cue alongside the beam.
+          for v in w.ricochetPath:
+            spawnExplosionPooled(game.particlePool, v.x, v.y,
+                                 Color(r: 255, g: 90, b: 255, a: 255), 4)
+          addShake(game.dopamine.screenShake, siSmall)
+          w.bulletsCreated = true
+        if not w.lasersCreated and game.player.invincibilityTimer <= 0:
+          var hit = false
+          for s in 0 ..< w.ricochetPath.len - 1:
+            if pointSegmentDistance(game.player.pos, w.ricochetPath[s], w.ricochetPath[s + 1]) <=
+               w.laserLength + game.player.radius:
+              hit = true
+              break
+          if hit:
+            if takeDamage(game.player, w.bulletDamage):
+              beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
+            trackDamageAvoided(game)
+            trackPlayerDamage(game, w.bulletDamage, etCircle)
+            game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
+                            isCritical = false, damageType = dtArcane)
+            w.lasersCreated = true
+
+    # OMEGA JUDGEMENT (Omega Entity): quadrants erupt in their staggered order
+    # (lifetimes encode the sequence, like the fissure). The hit is an AABB
+    # test against the quadrant rect; one hit per quadrant.
+    if game.attackWarnings[i].attackType == awtOmegaQuadrant:
+      let w = game.attackWarnings[i]
+      if w.lifetime <= OmegaQuadActive:
+        if not w.bulletsCreated:
+          # Scattered eruption bursts across the quadrant sell the scale.
+          for b in 0..<5:
+            spawnExplosionPooled(game.particlePool,
+                                 w.pos.x + (rand(2.0'f32) - 1.0'f32) * w.targetPos.x * 0.8'f32,
+                                 w.pos.y + (rand(2.0'f32) - 1.0'f32) * w.targetPos.y * 0.8'f32,
+                                 Color(r: 255, g: 80, b: 110, a: 255), 8)
+          addShake(game.dopamine.screenShake, siLarge)
+          w.bulletsCreated = true
+        if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
+           abs(game.player.pos.x - w.pos.x) <= w.targetPos.x + game.player.radius and
+           abs(game.player.pos.y - w.pos.y) <= w.targetPos.y + game.player.radius:
+          if takeDamage(game.player, w.bulletDamage):
+            beginPlayerDeathSequence(game, dcHazard)
+          trackDamageAvoided(game)
+          trackPlayerDamage(game, w.bulletDamage, etCircle)
+          game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
+                          isCritical = false, damageType = dtFire)
+          w.lasersCreated = true
+
     if game.attackWarnings[i].lifetime <= 0:
       game.attackWarnings.delete(i)
       continue
@@ -2926,6 +3095,14 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
                       if dealtSatelliteDamage > 0:
                         showDamage(game, enemy.pos, dealtSatelliteDamage, true, false, dtArcane)
                     enemy.satellites.delete(i)
+                    # Last satellite down: a snipe reticle already telegraphing
+                    # has lost its firing platform (the shot will be skipped),
+                    # so retire it instead of leaving an orphan warning.
+                    if enemy.satellites.len == 0:
+                      for w in countdown(game.attackWarnings.high, 0):
+                        if game.attackWarnings[w].attackType == awtLaserPointer and
+                           game.attackWarnings[w].sourceEnemyId == enemy.id:
+                          game.attackWarnings.delete(w)
                     satelliteDestroyed = true
                     break
 
@@ -4363,8 +4540,10 @@ proc drawGame*(game: Game) =
 
   # The ricochet beam's live lethal pass renders regardless of the hint gate,
   # so the active beam is always visible (the wind-up telegraph above is the hint).
+  # Same for the bosses 7-12 signature attacks' lethal flashes.
   for warning in game.attackWarnings:
     drawRicochetLaserBeam(warning)
+    drawSignatureAttackActive(warning)
 
   # Draw lasers (after warnings, before walls for visual layering)
   for laser in game.lasers:
