@@ -450,6 +450,14 @@ proc spawnClockSweepInto*(warnings: var seq[AttackWarning], particlePool: Partic
   # Sweep speed: sign alternates per cast so the safe direction isn't rote.
   warn.bulletSpeed = (if attack.projectileSpeed > 0: attack.projectileSpeed.degToRad()
                       else: 0.7'f32) * (if rand(1) == 0: 1.0'f32 else: -1.0'f32)
+  # Sweep variants, flagged via laserPattern for clockSweepHandAngle:
+  # "rewind" (phase 3) - mid-sweep freeze, then the sweep reverses faster and
+  # the cast ends with a 12-ray chime. "tick" (phase 2) - escapement mode,
+  # the hands snap forward in discrete jerks.
+  if attack.specialData == "clock_sweep_rewind":
+    warn.laserPattern = "rewind"
+  elif attack.specialData == "clock_sweep_tick":
+    warn.laserPattern = "tick"
   warnings.add(warn)
 
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,

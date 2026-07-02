@@ -56,6 +56,13 @@ const
   ClockSweepTelegraph*   = 1.4'f32   # Timekeeper: hands fade in before they go lethal
   ClockSweepActive*      = 2.8'f32   # hands rotate while lethal; move with the gap
   ClockSweepHalfWidth*   = 12.0'f32  # half-thickness of each clock-hand beam (px)
+  ClockRewindPoint*      = 0.45'f32  # rewind cast: fraction of the active sweep before time freezes
+  ClockRewindHold*       = 0.25'f32  # seconds the hands hang frozen before rewinding
+  ClockRewindFactor*     = 1.6'f32   # rewind sweep speed multiplier (the way back is faster)
+  ClockTickPeriod*       = 0.35'f32  # tick cast: seconds per escapement tick
+  ClockTickMove*         = 0.30'f32  # fraction of each tick period the hands spend snapping
+  ClockChimeWindup*      = 0.6'f32   # rewind finale: seconds the 12 tick rays glow before the strike
+  ClockChimeSpeed*       = 190.0'f32 # chime bullet speed along the 12 tick rays
   ChaosWeaveTelegraph*   = 1.6'f32   # Chaos Weaver: jagged threads shimmer before snapping taut
   ChaosWeaveActive*      = 0.35'f32  # threads' lethal flash
   OmegaQuadTelegraph*    = 1.6'f32   # Omega Entity: dodge window before the FIRST quadrant erupts
@@ -1544,17 +1551,50 @@ proc orbitalSweepCenter*(warning: AttackWarning): Vector2f =
                        0.0'f32, 1.0'f32)
   warning.pos + (warning.targetPos - warning.pos) * progress
 
-proc clockSweepHandAngle*(warning: AttackWarning, hand: int): float32 =
+proc escapementTime*(t: float32): float32 =
+  ## Warps continuous seconds into Timekeeper escapement seconds: time only
+  ## advances during the first ClockTickMove of each ClockTickPeriod, then
+  ## holds - so anything driven by it moves in discrete snaps while covering
+  ## the same total span on average.
+  let whole = floor(t / ClockTickPeriod)
+  let frac = t - whole * ClockTickPeriod
+  (whole + clamp(frac / (ClockTickPeriod * ClockTickMove), 0.0'f32, 1.0'f32)) *
+    ClockTickPeriod
+
+proc clockSweepHandAngle*(warning: AttackWarning, hand: int,
+                          lifetimeOffset: float32 = 0.0'f32): float32 =
   ## Angle of the Timekeeper clock hand `hand` as a pure function of the
   ## warning's remaining lifetime. Shared by the telegraph/live render
   ## (enemy.nim) and the lethal hit test (game.nim) so they can never drift.
   ## During the telegraph (lifetime > ClockSweepActive) the hands hold their
-  ## starting angle; once active they sweep at bulletSpeed rad/s.
-  let elapsedActive = clamp(ClockSweepActive - warning.lifetime, 0.0'f32, ClockSweepActive)
-  let handCount = max(1, warning.laserCount)
-  warning.bulletSpreadAngle +
-    hand.float32 * (PI.float32 * 2.0'f32 / handCount.float32) +
-    warning.bulletSpeed * elapsedActive
+  ## starting angle; once active they sweep at bulletSpeed rad/s. Tick casts
+  ## (laserPattern == "tick", phase 2) snap forward in discrete escapement
+  ## jerks. Rewind casts (laserPattern == "rewind", phase 3) tick forward
+  ## until ClockRewindPoint, freeze for ClockRewindHold, then tick BACKWARD
+  ## with ClockRewindFactor-times bigger snaps. `lifetimeOffset` samples the
+  ## angle as it was that many seconds earlier (motion-blur ghosts) or later
+  ## when negative (next-snap preview).
+  let elapsedActive = clamp(ClockSweepActive - (warning.lifetime + lifetimeOffset),
+                            0.0'f32, ClockSweepActive)
+  let base = warning.bulletSpreadAngle +
+             hand.float32 * (PI.float32 * 2.0'f32 / max(1, warning.laserCount).float32)
+  if warning.laserPattern == "rewind":
+    let freezeAt = ClockSweepActive * ClockRewindPoint
+    let resumeAt = freezeAt + ClockRewindHold
+    let swept =
+      if elapsedActive <= freezeAt:
+        warning.bulletSpeed * escapementTime(elapsedActive)
+      elif elapsedActive <= resumeAt:
+        warning.bulletSpeed * escapementTime(freezeAt)
+      else:
+        warning.bulletSpeed * escapementTime(freezeAt) -
+          warning.bulletSpeed * ClockRewindFactor *
+            escapementTime(elapsedActive - resumeAt)
+    base + swept
+  elif warning.laserPattern == "tick":
+    base + warning.bulletSpeed * escapementTime(elapsedActive)
+  else:
+    base + warning.bulletSpeed * elapsedActive
 
 proc ricochetSweptPath*(path: seq[Vector2f], frontDist: float32): seq[Vector2f] =
   ## The first `frontDist` units of `path`, ending at the exact beam-front point.

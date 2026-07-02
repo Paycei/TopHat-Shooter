@@ -2451,7 +2451,7 @@ proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, 
   of "prism_refraction":
     spawnPrismRays(game, enemy, attack, phase)
     return
-  of "clock_sweep":
+  of "clock_sweep", "clock_sweep_tick", "clock_sweep_rewind":
     spawnClockSweep(game, enemy, attack, phase)
     return
   of "chaos_weave":

@@ -3977,11 +3977,24 @@ proc drawAttackWarning*(warning: AttackWarning) =
                  Vector2(x: cx + cos(ang) * reach, y: cy + sin(ang) * reach),
                  2.0, Color(r: 150'u8, g: 255'u8, b: 255'u8, a: a2))
       # Sweep-direction cue: three chevron dots leading off the first hand.
+      # Tick casts space them a full escapement snap apart, so the length of
+      # each jerk is readable before the hands go live.
       let lead = clockSweepHandAngle(warning, 0)
+      let sweepSign = (if warning.bulletSpeed >= 0: 1.0'f32 else: -1.0'f32)
+      let chevStep = (if warning.laserPattern in ["tick", "rewind"]:
+                        abs(warning.bulletSpeed) * ClockTickPeriod
+                      else: 0.12'f32)
       for c in 1..3:
-        let ang = lead + (if warning.bulletSpeed >= 0: 1.0'f32 else: -1.0'f32) * c.float32 * 0.12'f32
+        let ang = lead + sweepSign * c.float32 * chevStep
         drawCircle(Vector2(x: cx + cos(ang) * 90.0, y: cy + sin(ang) * 90.0),
                    (4 - c).float32 + 1.0, Color(r: 200'u8, g: 255'u8, b: 255'u8, a: a2))
+      # Rewind cast: amber counter-chevrons on a wider ring warn that the
+      # sweep will freeze and come back the other way.
+      if warning.laserPattern == "rewind":
+        for c in 1..3:
+          let ang = lead - sweepSign * c.float32 * 0.12'f32
+          drawCircle(Vector2(x: cx + cos(ang) * 120.0, y: cy + sin(ang) * 120.0),
+                     (4 - c).float32 + 1.0, Color(r: 255'u8, g: 200'u8, b: 110'u8, a: a2))
 
   of awtChaosWeave:
     # Chaos Weaver thread, wind-up only: the jagged polyline shimmers with a
@@ -4229,35 +4242,95 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
     if warning.lifetime <= ClockSweepActive:
       let cx = warning.pos.x; let cy = warning.pos.y
       let reach = warning.bulletRadius
-      let sweepDir = (if warning.bulletSpeed >= 0: 1.0'f32 else: -1.0'f32)
+      let elapsed = ClockSweepActive - warning.lifetime
+      let freezeAt = ClockSweepActive * ClockRewindPoint
+      let isRewind = warning.laserPattern == "rewind"
+      let holding = isRewind and elapsed > freezeAt and
+                    elapsed <= freezeAt + ClockRewindHold
+      let reversed = isRewind and elapsed > freezeAt + ClockRewindHold
+      let isTick = warning.laserPattern == "tick"
+      # Both tick and rewind casts move in escapement snaps. The tick clock is
+      # segment-local for rewind (restarts after the freeze); -1 marks frozen.
+      let tickLocalT =
+        if isRewind:
+          (if elapsed <= freezeAt: elapsed
+           elif holding: -1.0'f32
+           else: elapsed - (freezeAt + ClockRewindHold))
+        elif isTick: elapsed
+        else: -1.0'f32
+      let tickFrac = (tickLocalT / ClockTickPeriod) -
+                     floor(tickLocalT / ClockTickPeriod)
+      let snapping = tickLocalT >= 0.0'f32 and tickFrac < ClockTickMove
+      # Once time flows backward the whole mechanism shifts to amber.
+      let br = (if reversed: 255'u8 else: 80'u8)
+      let bg = (if reversed: 190'u8 else: 230'u8)
+      let bb = (if reversed: 90'u8 else: 230'u8)
       for hand in 0 ..< max(1, warning.laserCount):
         let ang = clockSweepHandAngle(warning, hand)
         let tip = Vector2(x: cx + cos(ang) * reach, y: cy + sin(ang) * reach)
-        # Motion-blur ghosts trail BEHIND the sweep so the rotation direction
-        # reads from the blur alone.
+        # Motion-blur ghosts sample the shared angle function slightly in the
+        # past, so the blur trails honestly through the freeze and reversal.
         for g in 1..3:
-          let ga = ang - sweepDir * g.float32 * 0.05'f32
+          let ga = clockSweepHandAngle(warning, hand, g.float32 * 0.05'f32)
           let gtip = Vector2(x: cx + cos(ga) * reach, y: cy + sin(ga) * reach)
           drawLine(Vector2(x: cx, y: cy), gtip, warning.laserLength * 2.0,
-                   Color(r: 80'u8, g: 230'u8, b: 230'u8, a: uint8(70 - g * 18)))
+                   Color(r: br, g: bg, b: bb, a: uint8(70 - g * 18)))
+        if isTick or isRewind:
+          # Escapement preview: a faint line marks where this hand parks after
+          # the NEXT snap, so the jump is dodged on information, not reflex.
+          # During the rewind freeze this points where the hand rewinds TO.
+          let na = clockSweepHandAngle(warning, hand, -ClockTickPeriod)
+          drawLine(Vector2(x: cx, y: cy),
+                   Vector2(x: cx + cos(na) * reach, y: cy + sin(na) * reach),
+                   1.5, Color(r: 150'u8, g: 255'u8, b: 255'u8, a: 70'u8))
         drawLine(Vector2(x: cx, y: cy), tip, warning.laserLength * 3.2,
-                 Color(r: 80'u8, g: 230'u8, b: 230'u8, a: 70'u8))
+                 Color(r: br, g: bg, b: bb, a: 70'u8))
         drawLine(Vector2(x: cx, y: cy), tip, warning.laserLength * 2.0,
-                 Color(r: 80'u8, g: 230'u8, b: 230'u8, a: 130'u8))
+                 Color(r: br, g: bg, b: bb, a: 130'u8))
         drawLine(Vector2(x: cx, y: cy), tip, 3.0,
                  Color(r: 220'u8, g: 255'u8, b: 255'u8, a: 255'u8))
+        if snapping:
+          # The jerk itself flares white for the duration of the snap.
+          drawLine(Vector2(x: cx, y: cy), tip, warning.laserLength * 2.6,
+                   Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 110'u8))
         # White-hot glint scything along at the hand's tip.
         drawCircle(tip, 6.0, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 230'u8))
+      # The frozen instant: the clock stops dead - a white flare and an amber
+      # ring hang at the pivot until time lurches backward.
+      if holding:
+        let hp = clamp((elapsed - freezeAt) / ClockRewindHold, 0.0'f32, 1.0'f32)
+        drawCircle(Vector2(x: cx, y: cy), 26.0 + hp * 10.0,
+                   Color(r: 255'u8, g: 255'u8, b: 255'u8,
+                         a: uint8(160.0'f32 * (1.0'f32 - hp * 0.5'f32))))
+        drawCircleLines(cx.int32, cy.int32, 40.0'f32 + hp * 55.0'f32,
+                        Color(r: 255'u8, g: 210'u8, b: 130'u8,
+                              a: uint8(220.0'f32 * (1.0'f32 - hp))))
+      # Rewind finale wind-up: the clock is about to STRIKE. The 12 tick rays
+      # charge amber and lengthen; the chime bullets (game.nim) fire along
+      # exactly these rays when the sweep expires.
+      if reversed and warning.lifetime < ClockChimeWindup:
+        let cp = 1.0'f32 - warning.lifetime / ClockChimeWindup
+        for k in 0..<12:
+          let ca = k.float32 * PI / 6.0
+          drawLine(Vector2(x: cx + cos(ca) * 24.0, y: cy + sin(ca) * 24.0),
+                   Vector2(x: cx + cos(ca) * (40.0'f32 + cp * 55.0'f32),
+                           y: cy + sin(ca) * (40.0'f32 + cp * 55.0'f32)),
+                   2.0 + cp * 2.5,
+                   Color(r: 255'u8, g: 210'u8, b: 130'u8,
+                         a: uint8(80.0'f32 + 170.0'f32 * cp)))
+        drawCircleLines(cx.int32, cy.int32, 24.0'f32 + cp * 8.0'f32,
+                        Color(r: 255'u8, g: 230'u8, b: 170'u8,
+                              a: uint8(120.0'f32 + 130.0'f32 * cp)))
       # Pivot: hub, clock-face ring, and tick marks flicking past the hands.
       drawCircle(Vector2(x: cx, y: cy), 9.0,
                  Color(r: 230'u8, g: 255'u8, b: 255'u8, a: 255'u8))
       drawCircleLines(cx.int32, cy.int32, 20.0'f32,
-                      Color(r: 150'u8, g: 245'u8, b: 245'u8, a: 200'u8))
+                      Color(r: br, g: bg, b: bb, a: 200'u8))
       for k in 0..<12:
         let tka = k.float32 * PI / 6.0
         drawLine(Vector2(x: cx + cos(tka) * 16.0, y: cy + sin(tka) * 16.0),
                  Vector2(x: cx + cos(tka) * 20.0, y: cy + sin(tka) * 20.0),
-                 1.5, Color(r: 150'u8, g: 245'u8, b: 245'u8, a: 180'u8))
+                 1.5, Color(r: br, g: bg, b: bb, a: 180'u8))
   of awtChaosWeave:
     if warning.lifetime <= ChaosWeaveActive and warning.ricochetPath.len >= 2:
       let fade = clamp(warning.lifetime / ChaosWeaveActive, 0.35'f32, 1.0'f32)

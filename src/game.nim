@@ -1160,6 +1160,39 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                                Color(r: 150, g: 255, b: 255, a: 255), 16)
           addShake(game.dopamine.screenShake, siSmall)
           w.bulletsCreated = true
+        # Rewind cast: one amber jolt the instant time starts flowing backward
+        # (bulletCount doubles as the one-shot gate; the sweep never uses it).
+        if w.laserPattern == "rewind" and w.bulletCount == 0 and
+           ClockSweepActive - w.lifetime > ClockSweepActive * ClockRewindPoint:
+          w.bulletCount = 1
+          spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y,
+                               Color(r: 255, g: 200, b: 110, a: 255), 18)
+          addShake(game.dopamine.screenShake, siMedium)
+        # Rewind finale: as the sweep expires the clock STRIKES - 12 chime
+        # bullets fire down the tick rays the render has been charging amber.
+        if w.laserPattern == "rewind" and w.bulletCount == 1 and
+           w.lifetime <= 0.05:
+          w.bulletCount = 2
+          var chimeShape = 0
+          for be in game.enemies:
+            if be.id == w.sourceEnemyId:
+              chimeShape = bossBulletShapeFor(be.bossDefinitionID)
+              break
+          for k in 0..<12:
+            let ca = k.float32 * PI / 6.0'f32
+            game.bullets.add(newBullet(
+              x = w.pos.x + cos(ca) * 22.0'f32,
+              y = w.pos.y + sin(ca) * 22.0'f32,
+              direction = newVector2f(cos(ca), sin(ca)),
+              speed = ClockChimeSpeed,
+              damage = w.bulletDamage * 0.6'f32,
+              fromPlayer = false, isBossBullet = true,
+              sourceEnemyId = w.sourceEnemyId,
+              bossBulletShape = chimeShape
+            ))
+          spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y,
+                               Color(r: 255, g: 210, b: 130, a: 255), 24)
+          addShake(game.dopamine.screenShake, siMedium)
         if not w.lasersCreated and game.player.invincibilityTimer <= 0:
           for hand in 0 ..< max(1, w.laserCount):
             let ang = clockSweepHandAngle(w, hand)

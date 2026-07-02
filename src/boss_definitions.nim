@@ -1617,7 +1617,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Temporal Echo",
           hpThreshold: 1.0,
           speedMultiplier: 0.7,
-          damageMultiplier: 0.9,
+          damageMultiplier: 1.0,
           defenseMultiplier: 1.3,
           color: Color(r: 0, g: 180, b: 180, a: 255),
           visualEffect: "pulse",
@@ -1626,7 +1626,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 16.0,
-              cooldown: 4.0,
+              cooldown: 3.5,
               projectileSpeed: 0.0,
               projectileCount: 2,  # Creates 2 temporal echoes
               spreadAngle: 0.0,
@@ -1637,9 +1637,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               attackType: bapWave,
               damage: 16.0,
               cooldown: 2.5,
-              projectileSpeed: 140.0,  # Slow time wave
-              projectileCount: 7,
-              spreadAngle: 50.0,
+              projectileSpeed: 150.0,  # Slow time wave
+              projectileCount: 9,
+              spreadAngle: 55.0,
               durationOrRadius: 0.0,
               specialData: "temporal_wave"
             ),
@@ -1650,30 +1650,20 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               # projectileSpeed = sweep speed in degrees/second.
               attackType: bapLaser,  # nominal; routed by specialData before attackType dispatch
               damage: 16.0,
-              cooldown: 9.0,          # long: the sweep itself occupies ~4s
+              cooldown: 7.0,          # long: the sweep itself occupies ~4s
               projectileSpeed: 40.0,
               projectileCount: 2,     # hands
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
               specialData: "clock_sweep"
-            ),
-            BossAttack(
-              # Generic targeted demoted to occasional filler.
-              attackType: bapTargeted,
-              damage: 16.0,
-              cooldown: 6.0,
-              projectileSpeed: 160.0,
-              projectileCount: 1,
-              spreadAngle: 0.0,
-              durationOrRadius: 0.0
             )
           ]
         ),
         BossPhaseDefinition(
           name: "Time Fracture",
           hpThreshold: 0.6,
-          speedMultiplier: 1.1,
-          damageMultiplier: 1.2,
+          speedMultiplier: 1.2,
+          damageMultiplier: 1.1,
           defenseMultiplier: 1.2,
           color: Color(r: 100, g: 220, b: 220, a: 255),  # Brighter cyan
           visualEffect: "aura",
@@ -1682,31 +1672,35 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 19.0,
-              cooldown: 3.0,
+              cooldown: 4.5,          # each echo fires its own ring - keep them rare
               projectileSpeed: 0.0,
-              projectileCount: 4,  # Multiple time clones
+              projectileCount: 3,     # echo count AND bullets per echo (9 total)
               spreadAngle: 0.0,
               durationOrRadius: 350.0,
               specialData: "echo_burst"  # Many afterimages
             ),
             BossAttack(
-              # Clock Sweep: a third hand joins and the sweep quickens.
+              # Clock Sweep, escapement mode: a third hand joins and the hands
+              # now snap forward in discrete TICKS - cross a hand right after
+              # it snaps, before the next jerk. A faint preview line shows
+              # where each hand lands next tick.
               attackType: bapLaser,  # nominal; routed by specialData
               damage: 19.0,
-              cooldown: 8.0,
-              projectileSpeed: 46.0,
+              cooldown: 6.0,
+              projectileSpeed: 50.0,
               projectileCount: 3,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
-              specialData: "clock_sweep"
+              specialData: "clock_sweep_tick"
             ),
             BossAttack(
-              # Generic ring demoted to occasional filler.
+              # Generic ring demoted to occasional filler. (The old time spiral
+              # was cut outright: ring + spiral + echoes together read as noise.)
               attackType: bapCircle,
               damage: 19.0,
-              cooldown: 5.0,
+              cooldown: 6.5,
               projectileSpeed: 170.0,
-              projectileCount: 16,  # Time ring
+              projectileCount: 14,  # Time ring
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               specialData: "time_ring"
@@ -1714,22 +1708,12 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapPulse,
               damage: 19.0,
-              cooldown: 5.0,
+              cooldown: 5.5,
               projectileSpeed: 190.0,
               projectileCount: 0,
               spreadAngle: 0.0,
               durationOrRadius: 240.0,
               specialData: "chrono_pulse"  # Time shockwave
-            ),
-            BossAttack(
-              # Generic spiral demoted to occasional filler.
-              attackType: bapSpiral,
-              damage: 19.0,
-              cooldown: 6.0,
-              projectileSpeed: 150.0,
-              projectileCount: 12,  # Time spiral
-              spreadAngle: 30.0,
-              durationOrRadius: 0.0
             )
           ]
         ),
@@ -1737,7 +1721,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Time Collapse",
           hpThreshold: 0.4,
           speedMultiplier: 1.3,  # Fast blinking
-          damageMultiplier: 1.4,
+          damageMultiplier: 1.3,
           defenseMultiplier: 0.9,
           color: Color(r: 150, g: 255, b: 255, a: 255),  # Bright cyan/white
           visualEffect: "glow",
@@ -1746,38 +1730,43 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapTeleport,
               damage: 22.5,
-              cooldown: 2.0,  # Rapid teleports
+              cooldown: 5.0,  # each clone fires a ring - was drowning the sweep
               projectileSpeed: 0.0,
-              projectileCount: 6,  # Many temporal clones
+              projectileCount: 4,  # clone count AND bullets per clone (16 total)
               spreadAngle: 0.0,
               durationOrRadius: 400.0,
               specialData: "temporal_collapse"  # Reality-breaking teleports
             ),
             BossAttack(
+              # Time shatter kept as rare punctuation, not a constant wall.
               attackType: bapBarrage,
               damage: 19.0,
-              cooldown: 2.5,
-              projectileSpeed: 260.0,
-              projectileCount: 48,  # Time explosion
+              cooldown: 7.0,
+              projectileSpeed: 220.0,
+              projectileCount: 24,  # Time explosion
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               specialData: "time_shatter"
             ),
             BossAttack(
-              # Clock Sweep finale: three fast hands - time is running out.
+              # Clock Sweep finale: three hands TICK forward in escapement
+              # snaps, FREEZE, then rewind in bigger backward snaps, and the
+              # cast ends with a 12-ray chime strike. This is the phase's
+              # lead attack: shortest cooldown of any clock_sweep cast, and
+              # the generic dense ring that used to share this slot was cut.
               attackType: bapLaser,  # nominal; routed by specialData
               damage: 22.5,
-              cooldown: 7.5,
+              cooldown: 5.5,
               projectileSpeed: 55.0,
               projectileCount: 3,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
-              specialData: "clock_sweep"
+              specialData: "clock_sweep_rewind"
             ),
             BossAttack(
               attackType: bapLaser,
               damage: 22.5,
-              cooldown: 4.0,
+              cooldown: 7.5,
               projectileSpeed: 0.0,
               projectileCount: 4,  # Time beams
               spreadAngle: 90.0,
@@ -1787,22 +1776,12 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapPulse,
               damage: 19.0,
-              cooldown: 4.5,
+              cooldown: 7.5,
               projectileSpeed: 220.0,
               projectileCount: 0,
               spreadAngle: 0.0,
               durationOrRadius: 270.0,
               specialData: "chrono_break"  # Massive time pulse
-            ),
-            BossAttack(
-              # Generic ring demoted to occasional filler.
-              attackType: bapCircle,
-              damage: 19.0,
-              cooldown: 4.5,
-              projectileSpeed: 180.0,
-              projectileCount: 24,  # Dense time ring
-              spreadAngle: 360.0,
-              durationOrRadius: 0.0
             )
           ]
         )
