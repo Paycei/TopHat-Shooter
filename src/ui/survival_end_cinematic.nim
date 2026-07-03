@@ -250,6 +250,7 @@ proc newSurvivalEndCutscene*(): Cutscene =
     drawBackdropProc = survivalBackdrop,
     swayAmp          = 1.0'f32,
     musicTrack       = mtMenu,
+    cornerTag        = t(tkLorePlayback),
   )
 
 # Legacy-style wrappers so main.nim mirrors the endgame-cinematic call sites.

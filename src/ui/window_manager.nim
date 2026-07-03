@@ -217,6 +217,11 @@ type
     replayEnding*: bool  # True when user clicked "Replay Ending" in settings
     replayRogueliteEnding*: bool  # True when user clicked "Replay Roguelite" in settings
     replaySurvivalEnding*: bool   # True when user clicked "Replay Survival" in settings
+    replayWaveIntro*: bool        # True when user clicked "Wave Intro" in settings
+    replaySurvivalIntro*: bool    # True when user clicked "Survival Intro" in settings
+    replayRogueliteIntro*: bool   # True when user clicked "Roguelite Intro" in settings
+    replaySandboxIntro*: bool     # True when user clicked "Sandbox Intro" in settings
+    replayPvPIntro*: bool         # True when user clicked "PvP Intro" in settings
 
 proc updateAllWindows*(wm: WindowManager, dt: float32,
                        screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult =
@@ -232,6 +237,11 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
   result.replayEnding = false
   result.replayRogueliteEnding = false
   result.replaySurvivalEnding = false
+  result.replayWaveIntro = false
+  result.replaySurvivalIntro = false
+  result.replayRogueliteIntro = false
+  result.replaySandboxIntro = false
+  result.replayPvPIntro = false
 
   let visibleWindows = wm.getVisibleWindows()
 
@@ -259,6 +269,21 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       if wm.settings.replaySurvivalEndingRequested:
         result.replaySurvivalEnding = true
         wm.settings.replaySurvivalEndingRequested = false
+      if wm.settings.replayWaveIntroRequested:
+        result.replayWaveIntro = true
+        wm.settings.replayWaveIntroRequested = false
+      if wm.settings.replaySurvivalIntroRequested:
+        result.replaySurvivalIntro = true
+        wm.settings.replaySurvivalIntroRequested = false
+      if wm.settings.replayRogueliteIntroRequested:
+        result.replayRogueliteIntro = true
+        wm.settings.replayRogueliteIntroRequested = false
+      if wm.settings.replaySandboxIntroRequested:
+        result.replaySandboxIntro = true
+        wm.settings.replaySandboxIntroRequested = false
+      if wm.settings.replayPvPIntroRequested:
+        result.replayPvPIntro = true
+        wm.settings.replayPvPIntroRequested = false
 
     elif window == wm.stats.window:
       discard updateStatsWindow(wm.stats, dt, screenWidth, screenHeight, visibleWindows)

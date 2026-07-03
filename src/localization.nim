@@ -85,6 +85,11 @@ type
     tkSettingsReplayEnding = "settings_replay_ending"
     tkSettingsReplayRogueliteEnding = "settings_replay_roguelite_ending"
     tkSettingsReplaySurvivalEnding = "settings_replay_survival_ending"
+    tkSettingsReplayWaveIntro = "settings_replay_wave_intro"
+    tkSettingsReplaySurvivalIntro = "settings_replay_survival_intro"
+    tkSettingsReplayRogueliteIntro = "settings_replay_roguelite_intro"
+    tkSettingsReplaySandboxIntro = "settings_replay_sandbox_intro"
+    tkSettingsReplayPvPIntro = "settings_replay_pvp_intro"
     tkSettingsBackToMenu = "settings_back_to_menu"
     tkSettingsSectionDataManagement = "settings_section_data_management"
     tkSettingsResetAllData = "settings_reset_all_data"
@@ -99,7 +104,10 @@ type
     tkSettingsTabAudio = "settings_tab_audio"
     tkSettingsTabControls = "settings_tab_controls"
     tkSettingsTabGameplay = "settings_tab_gameplay"
+    tkSettingsTabCinematics = "settings_tab_cinematics"
 
+    tkSettingsSectionStory = "settings_section_story"
+    tkSettingsSectionModeIntros = "settings_section_mode_intros"
     tkSettingsSectionDisplay = "settings_section_display"
     tkSettingsSectionVolumeControl = "settings_section_volume_control"
     tkSettingsSectionInputMethod = "settings_section_input_method"
@@ -137,6 +145,7 @@ type
     # Intro / Lore Cinematic
     tkLoreTitleCardSub = "lore_title_card_sub"
     tkLoreLive = "lore_live"
+    tkLorePlayback = "lore_playback"
     tkLoreControlsFF = "lore_controls_ff"
     tkLoreControlsFFActive = "lore_controls_ff_active"
     tkLoreRecBreach = "lore_rec_breach"
@@ -1691,10 +1700,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_replay_ending": "Replay Ending",
     "settings_replay_roguelite_ending": "Replay Roguelite",
     "settings_replay_survival_ending": "Replay Survival",
+    "settings_replay_wave_intro": "Wave Intro",
+    "settings_replay_survival_intro": "Survival Intro",
+    "settings_replay_roguelite_intro": "Roguelite Intro",
+    "settings_replay_sandbox_intro": "Sandbox Intro",
+    "settings_replay_pvp_intro": "PvP Intro",
     "settings_back_to_menu": "Press ESC to return to menu",
 
     "lore_title_card_sub": "ARCHIVE PLAYBACK // INCIDENT LOG",
     "lore_live": "LIVE",
+    "lore_playback": "PLAY",
     "lore_controls_ff": "HOLD ENTER: X2  |  HOLD SPACE: SKIP",
     "lore_controls_ff_active": "HOLD ENTER: 2X ACTIVE  |  HOLD SPACE: SKIP",
     "lore_rec_breach": "REC 00: SYSTEM BREACH",
@@ -1783,7 +1798,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_audio": "Audio",
     "settings_tab_controls": "Controls",
     "settings_tab_gameplay": "Gameplay",
+    "settings_tab_cinematics": "Cinematics",
 
+    "settings_section_story": "STORY CINEMATICS",
+    "settings_section_mode_intros": "MODE INTROS",
     "settings_section_display": "DISPLAY",
     "settings_section_volume_control": "VOLUME CONTROL",
     "settings_section_input_method": "INPUT METHOD",
@@ -3349,41 +3367,42 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Settings
     "settings_replay_mode_intros": "Replay Mode Intros",
 
-    # Mode intro: wave-based
-    "mode_intro_wave_title": "THREAT RESPONSE",
+    # Mode intro: wave-based (Act 1-2 live open; the ending archive is
+    # "ARCHIVE PLAYBACK // INCIDENT RESOLVED" — this is the same incident, live)
+    "mode_intro_wave_title": "LIVE DISPATCH // THREAT RESPONSE",
     "mode_intro_wave_rec1":  "RADAR SWEEP",
-    "mode_intro_wave_1a":    "BREACH DETECTED ON SECTOR 7",
+    "mode_intro_wave_1a":    "THE BREACH IS OPEN. THE FLOOD POURS IN.",
     "mode_intro_wave_1b":    "WAVE-DEFENSE PROTOCOL ACTIVATED",
     "mode_intro_wave_rec2":  "DEPLOYMENT",
-    "mode_intro_wave_2a":    "SURVIVE EVERY WAVE, OPERATOR",
-    "mode_intro_wave_2b":    "THE KERNEL IS COUNTING ON YOU",
+    "mode_intro_wave_2a":    "EVERY WAVE LEARNS. EVERY WAVE GETS CLOSER.",
+    "mode_intro_wave_2b":    "HOLD THE LINE, OPERATOR.",
 
-    # Mode intro: time survival
-    "mode_intro_surv_title": "ENDURANCE PROTOCOL",
+    # Mode intro: time survival (Act 4 live open of "THE LONG WATCH")
+    "mode_intro_surv_title": "LIVE DISPATCH // THE LONG WATCH",
     "mode_intro_surv_rec1":  "COUNTDOWN",
-    "mode_intro_surv_1a":    "UPTIME CHALLENGE INITIALIZED",
-    "mode_intro_surv_1b":    "HOW LONG CAN YOU HOLD THE LINE?",
+    "mode_intro_surv_1a":    "THE ROOT IS PURGED. THE FLOOD STILL COMES.",
+    "mode_intro_surv_1b":    "THE LONG WATCH BEGINS.",
     "mode_intro_surv_rec2":  "UPTIME LOG",
-    "mode_intro_surv_2a":    "EVERY SECOND OF SURVIVAL IS LOGGED",
-    "mode_intro_surv_2b":    "BEAT YOUR RECORD. BREAK THE LIMIT.",
+    "mode_intro_surv_2a":    "EVERY SECOND OF UPTIME IS LOGGED.",
+    "mode_intro_surv_2b":    "NO RELIEF IS COMING. HOLD ANYWAY.",
 
-    # Mode intro: roguelite
-    "mode_intro_rogue_title": "SECTOR SWEEP",
-    "mode_intro_rogue_rec1":  "DUNGEON MAP",
-    "mode_intro_rogue_1a":    "SECTOR INFILTRATION MODULE ARMED",
-    "mode_intro_rogue_1b":    "EXPLORE FLOORS, CLAIM RELICS",
+    # Mode intro: roguelite (Act 3 live open of "DEEP RECOVERY")
+    "mode_intro_rogue_title": "LIVE DISPATCH // DEEP RECOVERY",
+    "mode_intro_rogue_rec1":  "STACK MAP",
+    "mode_intro_rogue_1a":    "THE SURFACE IS SECURE. THE ROT STILL PULSES BELOW.",
+    "mode_intro_rogue_1b":    "DESCEND THE STACK, SECTOR BY SECTOR.",
     "mode_intro_rogue_rec2":  "RELIC SCAN",
-    "mode_intro_rogue_2a":    "KERNEL PROCESSES AVAILABLE FOR HARVEST",
-    "mode_intro_rogue_2b":    "DISCOVER COMBINATIONS. REACH THE ROOT.",
+    "mode_intro_rogue_2a":    "RECOVER LOST KERNEL PROCESSES. CLAIM RELICS.",
+    "mode_intro_rogue_2b":    "FIND WHAT THE ROOT GREW FROM.",
 
-    # Mode intro: sandbox
-    "mode_intro_sandbox_title": "UNRESTRICTED ENV",
+    # Mode intro: sandbox (non-canon — outside the incident archive)
+    "mode_intro_sandbox_title": "OFF THE RECORD // TEST ENVIRONMENT",
     "mode_intro_sandbox_rec1":  "INIT SEQUENCE",
     "mode_intro_sandbox_1a":    "TEST ENVIRONMENT ACTIVE",
     "mode_intro_sandbox_1b":    "WARNING: NO GUARDRAILS. PROCEED FREELY.",
 
-    # Mode intro: pvp
-    "mode_intro_pvp_title": "HOSTILE NODE",
+    # Mode intro: pvp (non-canon — outside the incident archive)
+    "mode_intro_pvp_title": "EXTERNAL FEED // HOSTILE NODE",
     "mode_intro_pvp_rec1":  "NETWORK SCAN",
     "mode_intro_pvp_1a":    "HOSTILE NODE DETECTED",
     "mode_intro_pvp_1b":    "MULTI-AGENT CONFLICT PROTOCOL ENGAGED",
@@ -3526,10 +3545,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_replay_ending": "Volver a ver final",
     "settings_replay_roguelite_ending": "Volver a ver roguelite",
     "settings_replay_survival_ending": "Volver a ver supervivencia",
+    "settings_replay_wave_intro": "Intro Oleadas",
+    "settings_replay_survival_intro": "Intro Supervivencia",
+    "settings_replay_roguelite_intro": "Intro Roguelite",
+    "settings_replay_sandbox_intro": "Intro Sandbox",
+    "settings_replay_pvp_intro": "Intro JcJ",
     "settings_back_to_menu": "ESC para volver",
 
     "lore_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // INCIDENTE",
     "lore_live": "EN VIVO",
+    "lore_playback": "PLAY",
     "lore_controls_ff": "ENTER: X2  |  ESPACIO: SALTAR",
     "lore_controls_ff_active": "ENTER: X2 ACTIVO  |  ESPACIO: SALTAR",
     "lore_rec_breach": "REC 00: BRECHA DEL SISTEMA",
@@ -3618,7 +3643,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_audio": "Audio",
     "settings_tab_controls": "Controles",
     "settings_tab_gameplay": "Juego",
+    "settings_tab_cinematics": "Cinemáticas",
 
+    "settings_section_story": "CINEMÁTICAS DE HISTORIA",
+    "settings_section_mode_intros": "INTROS DE MODO",
     "settings_section_display": "PANTALLA",
     "settings_section_volume_control": "VOLUMEN",
     "settings_section_input_method": "ENTRADA",
@@ -5181,46 +5209,46 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_replay_mode_intros": "Repetir Intros de Modo",
 
     # Mode intro: wave-based
-    "mode_intro_wave_title": "RESPUESTA A AMENAZA",
+    "mode_intro_wave_title": "EN DIRECTO // RESPUESTA A AMENAZA",
     "mode_intro_wave_rec1":  "BARRIDO DE RADAR",
-    "mode_intro_wave_1a":    "BRECHA DETECTADA EN SECTOR 7",
+    "mode_intro_wave_1a":    "LA BRECHA ESTÁ ABIERTA. LA CORRUPCIÓN IRRUMPE.",
     "mode_intro_wave_1b":    "PROTOCOLO DE DEFENSA POR OLEADAS ACTIVADO",
     "mode_intro_wave_rec2":  "DESPLIEGUE",
-    "mode_intro_wave_2a":    "SOBREVIVE CADA OLEADA, OPERADOR",
-    "mode_intro_wave_2b":    "EL KERNEL CUENTA CONTIGO",
+    "mode_intro_wave_2a":    "CADA OLEADA APRENDE. CADA OLEADA SE ACERCA.",
+    "mode_intro_wave_2b":    "AGUANTA LA LÍNEA, OPERADOR.",
 
     # Mode intro: time survival
-    "mode_intro_surv_title": "PROTOCOLO DE RESISTENCIA",
+    "mode_intro_surv_title": "EN DIRECTO // LA LARGA VIGILIA",
     "mode_intro_surv_rec1":  "CUENTA REGRESIVA",
-    "mode_intro_surv_1a":    "DESAFÍO DE TIEMPO DE ACTIVIDAD INICIADO",
-    "mode_intro_surv_1b":    "¿CUÁNTO TIEMPO PUEDES AGUANTAR?",
+    "mode_intro_surv_1a":    "LA RAÍZ FUE PURGADA. LA MAREA SIGUE LLEGANDO.",
+    "mode_intro_surv_1b":    "LA LARGA VIGILIA COMIENZA.",
     "mode_intro_surv_rec2":  "REGISTRO DE TIEMPO",
-    "mode_intro_surv_2a":    "CADA SEGUNDO DE SUPERVIVENCIA SE REGISTRA",
-    "mode_intro_surv_2b":    "SUPERA TU RÉCORD. ROMPE EL LÍMITE.",
+    "mode_intro_surv_2a":    "CADA SEGUNDO DE ACTIVIDAD QUEDA REGISTRADO.",
+    "mode_intro_surv_2b":    "NO VENDRÁN REFUERZOS. AGUANTA IGUAL.",
 
     # Mode intro: roguelite
-    "mode_intro_rogue_title": "BARRIDO DE SECTOR",
-    "mode_intro_rogue_rec1":  "MAPA DE MAZMORRA",
-    "mode_intro_rogue_1a":    "MÓDULO DE INFILTRACIÓN DE SECTOR ARMADO",
-    "mode_intro_rogue_1b":    "EXPLORA PISOS, RECLAMA RELIQUIAS",
+    "mode_intro_rogue_title": "EN DIRECTO // RECUPERACIÓN PROFUNDA",
+    "mode_intro_rogue_rec1":  "MAPA DE LA PILA",
+    "mode_intro_rogue_1a":    "LA SUPERFICIE ESTÁ ASEGURADA. LA PODREDUMBRE AÚN LATE ABAJO.",
+    "mode_intro_rogue_1b":    "DESCIENDE LA PILA, SECTOR A SECTOR.",
     "mode_intro_rogue_rec2":  "ESCANEO DE RELIQUIA",
-    "mode_intro_rogue_2a":    "PROCESOS DEL KERNEL DISPONIBLES PARA COSECHAR",
-    "mode_intro_rogue_2b":    "DESCUBRE COMBINACIONES. LLEGA A LA RAÍZ.",
+    "mode_intro_rogue_2a":    "RECUPERA PROCESOS PERDIDOS DEL KERNEL. RECLAMA RELIQUIAS.",
+    "mode_intro_rogue_2b":    "ENCUENTRA AQUELLO DE LO QUE NACIÓ LA RAÍZ.",
 
     # Mode intro: sandbox
-    "mode_intro_sandbox_title": "ENTORNO SIN RESTRICCIONES",
+    "mode_intro_sandbox_title": "FUERA DE REGISTRO // ENTORNO DE PRUEBAS",
     "mode_intro_sandbox_rec1":  "SECUENCIA DE INICIO",
     "mode_intro_sandbox_1a":    "ENTORNO DE PRUEBAS ACTIVO",
     "mode_intro_sandbox_1b":    "ADVERTENCIA: SIN LIMITACIONES. PROCEDE LIBREMENTE.",
 
     # Mode intro: pvp
-    "mode_intro_pvp_title": "NODO HOSTIL",
+    "mode_intro_pvp_title": "SEÑAL EXTERNA // NODO HOSTIL",
     "mode_intro_pvp_rec1":  "ESCANEO DE RED",
     "mode_intro_pvp_1a":    "NODO HOSTIL DETECTADO",
     "mode_intro_pvp_1b":    "PROTOCOLO DE CONFLICTO MULTI-AGENTE ACTIVADO",
     "mode_intro_pvp_rec2":  "BLOQUEO DE ADVERSARIO",
     "mode_intro_pvp_2a":    "FIRMA DEL ADVERSARIO CONFIRMADA",
-    "mode_intro_pvp_2b":    "ELIMINA O SERAS ELIMINADO.",
+    "mode_intro_pvp_2b":    "ELIMINA O SERÁS ELIMINADO.",
     # Mode-exclusive power-up names
     "powerup_glitch_field":    "CAMPO_FALLO.dll",
     "powerup_time_surge":      "OLEADA_TEMPORAL.exe",

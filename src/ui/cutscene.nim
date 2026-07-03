@@ -33,6 +33,7 @@ type
     accentColor*:   Color
     titleCardText*: string     ## large title drawn on the opening card
     titleCardSub*:  string     ## subtitle under the title (already t()-resolved by caller)
+    cornerTag*:     string     ## deck-status chip top-right; "" → t(tkLoreLive)
     drawBackdropProc*: CutsceneBackdropProc
     swayAmp*:       float32    ## default camX/camY idle sway amplitude
     skipHoldRequired*:  float32
@@ -56,12 +57,13 @@ proc newCutscene*(shots: seq[CutsceneShot],
                   swayAmp: float32 = 1.2'f32,
                   skipHoldRequired: float32 = 3.0'f32,
                   fastForwardMult: float32 = 2.0'f32,
-                  musicTrack: MusicTrack = mtBoss): Cutscene =
+                  musicTrack: MusicTrack = mtBoss,
+                  cornerTag: string = ""): Cutscene =
   var total = 0.0'f32
   for s in shots: total += s.duration
   Cutscene(
     shots: shots, totalDuration: total, accentColor: accentColor,
-    titleCardText: titleCardText, titleCardSub: titleCardSub,
+    titleCardText: titleCardText, titleCardSub: titleCardSub, cornerTag: cornerTag,
     drawBackdropProc: drawBackdropProc, swayAmp: swayAmp,
     skipHoldRequired: skipHoldRequired, fastForwardMult: fastForwardMult,
     musicTrack: musicTrack,
@@ -139,7 +141,8 @@ proc drawCutscene*(c: Cutscene, sw, sh: int) =
   let glitchHot = shot.glitchMod > 0 and (c.frame mod shot.glitchMod) < shot.glitchWindow
   drawCinematicOverlay(sW, sH, c.time, c.frame, c.scanlineOffset,
                        c.fastForwardActive, c.skipHoldTimer, c.skipHoldRequired,
-                       c.totalDuration, shot.label, t(tkLoreLive),
+                       c.totalDuration, shot.label,
+                       (if c.cornerTag.len > 0: c.cornerTag else: t(tkLoreLive)),
                        t(tkLoreControlsFF), t(tkLoreControlsFFActive),
                        shot.iconIndex, glitchHot, c.accentColor)
 

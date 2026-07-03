@@ -10,6 +10,7 @@ type
     stAudio
     stControls
     stGameplay
+    stCinematics
 
   SettingsResetAction* = enum
     sraNone
@@ -45,6 +46,14 @@ type
     # offered once that mode's ending cinematic has been seen)
     replayRogueliteEndingRequested*: bool
     replaySurvivalEndingRequested*: bool
+
+    # Set when the user clicks one of the mode-intro replays in the Cinematics tab
+    # (each offered once that mode's intro cutscene has been seen).
+    replayWaveIntroRequested*: bool
+    replaySurvivalIntroRequested*: bool
+    replayRogueliteIntroRequested*: bool
+    replaySandboxIntroRequested*: bool
+    replayPvPIntroRequested*: bool
 
     # Destructive reset confirmation state
     pendingReset*: SettingsResetAction
@@ -90,6 +99,11 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     replayEndingRequested: false,
     replayRogueliteEndingRequested: false,
     replaySurvivalEndingRequested: false,
+    replayWaveIntroRequested: false,
+    replaySurvivalIntroRequested: false,
+    replayRogueliteIntroRequested: false,
+    replaySandboxIntroRequested: false,
+    replayPvPIntroRequested: false,
     pendingReset: sraNone,
     resetConfirmTimer: 0.0,
     resetStatus: "",
@@ -232,40 +246,79 @@ proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rect
     height: ButtonHeight.float32
   )
 
-proc replayIntroButtonRect(contentX, contentY: int): Rectangle =
+# ---------------------------------------------------------------------------
+# Cinematics tab: every replayable cutscene in one gallery. The Story section
+# holds the lore intro + the three ending cinematics; the Mode Intros section
+# holds the five per-mode opening cutscenes. Each entry is gated behind the same
+# "has been seen once" flag that governs when its cutscene first plays, so the
+# tab doubles as an unlock tracker (locked entries render greyed and inert).
+
+type
+  ReplayCine = enum
+    rcLoreIntro, rcWaveEnding, rcRogueliteEnding, rcSurvivalEnding,
+    rcWaveIntro, rcSurvivalIntro, rcRogueliteIntro, rcSandboxIntro, rcPvPIntro
+
+proc replayCineLayout(rc: ReplayCine): tuple[col, rowY: int] =
+  ## (column, y-offset from the tab content origin) for each button.
+  case rc
+  of rcLoreIntro:       (0, 45)
+  of rcWaveEnding:      (1, 45)
+  of rcRogueliteEnding: (0, 85)
+  of rcSurvivalEnding:  (1, 85)
+  of rcWaveIntro:       (0, 165)
+  of rcSurvivalIntro:   (1, 165)
+  of rcRogueliteIntro:  (0, 205)
+  of rcSandboxIntro:    (1, 205)
+  of rcPvPIntro:        (0, 245)
+
+proc replayCineRect(rc: ReplayCine, contentX, contentY: int): Rectangle =
+  let (col, rowY) = replayCineLayout(rc)
   Rectangle(
-    x: (contentX + 40).float32,
-    y: (contentY + 250).float32,
+    x: (contentX + 40 + col * 210).float32,
+    y: (contentY + rowY).float32,
     width: 200.float32,
     height: 32.float32
   )
 
-proc replayEndingButtonRect(contentX, contentY: int): Rectangle =
-  ## Sits beside "Replay Intro"; only shown once the game has been beaten.
-  Rectangle(
-    x: (contentX + 40 + 210).float32,
-    y: (contentY + 250).float32,
-    width: 200.float32,
-    height: 32.float32
-  )
+proc replayCineLabel(rc: ReplayCine): string =
+  case rc
+  of rcLoreIntro:       t(tkSettingsReplayIntro)
+  of rcWaveEnding:      t(tkSettingsReplayEnding)
+  of rcRogueliteEnding: t(tkSettingsReplayRogueliteEnding)
+  of rcSurvivalEnding:  t(tkSettingsReplaySurvivalEnding)
+  of rcWaveIntro:       t(tkSettingsReplayWaveIntro)
+  of rcSurvivalIntro:   t(tkSettingsReplaySurvivalIntro)
+  of rcRogueliteIntro:  t(tkSettingsReplayRogueliteIntro)
+  of rcSandboxIntro:    t(tkSettingsReplaySandboxIntro)
+  of rcPvPIntro:        t(tkSettingsReplayPvPIntro)
 
-proc replayRogueliteEndingButtonRect(contentX, contentY: int): Rectangle =
-  ## Second replay row; only shown once the roguelite outro has been seen.
-  Rectangle(
-    x: (contentX + 40).float32,
-    y: (contentY + 250 + 40).float32,
-    width: 200.float32,
-    height: 32.float32
-  )
+proc replayCineUnlocked(rc: ReplayCine, s: Settings): bool =
+  ## The lore intro is always replayable; everything else follows its "seen" flag.
+  if s == nil: return rc == rcLoreIntro
+  case rc
+  of rcLoreIntro:       true
+  of rcWaveEnding:      s.hasSeenEnding
+  of rcRogueliteEnding: s.hasSeenRogueliteEnding
+  of rcSurvivalEnding:  s.hasSeenSurvivalEnding
+  of rcWaveIntro:       s.hasSeenWaveModeIntro
+  of rcSurvivalIntro:   s.hasSeenSurvivalIntro
+  of rcRogueliteIntro:  s.hasSeenRogueliteIntro
+  of rcSandboxIntro:    s.hasSeenSandboxIntro
+  of rcPvPIntro:        s.hasSeenPvPIntro
 
-proc replaySurvivalEndingButtonRect(contentX, contentY: int): Rectangle =
-  ## Beside "Replay Roguelite"; only shown once the survival outro has been seen.
-  Rectangle(
-    x: (contentX + 40 + 210).float32,
-    y: (contentY + 250 + 40).float32,
-    width: 200.float32,
-    height: 32.float32
-  )
+proc requestReplayCine(settingsWin: SettingsWindow, rc: ReplayCine) =
+  ## Route a click on an unlocked entry into the matching request flag; main.nim
+  ## consumes these via the window manager and enters the cutscene.
+  case rc
+  of rcLoreIntro:       settingsWin.replayIntroRequested = true
+  of rcWaveEnding:      settingsWin.replayEndingRequested = true
+  of rcRogueliteEnding: settingsWin.replayRogueliteEndingRequested = true
+  of rcSurvivalEnding:  settingsWin.replaySurvivalEndingRequested = true
+  of rcWaveIntro:       settingsWin.replayWaveIntroRequested = true
+  of rcSurvivalIntro:   settingsWin.replaySurvivalIntroRequested = true
+  of rcRogueliteIntro:  settingsWin.replayRogueliteIntroRequested = true
+  of rcSandboxIntro:    settingsWin.replaySandboxIntroRequested = true
+  of rcPvPIntro:        settingsWin.replayPvPIntroRequested = true
 
 proc resetActionLabel(action: SettingsResetAction): string =
   case action
@@ -275,9 +328,11 @@ proc resetActionLabel(action: SettingsResetAction): string =
   else: ""
 
 proc drawSettingsButton(rect: Rectangle, label: string, hovered: bool, danger: bool,
-                        confirming: bool = false) =
+                        confirming: bool = false, disabled: bool = false) =
   let bg =
-    if confirming:
+    if disabled:
+      Color(r: 34, g: 34, b: 44, a: 255)
+    elif confirming:
       Color(r: 135, g: 64, b: 22, a: 255)
     elif danger and hovered:
       Color(r: 120, g: 38, b: 50, a: 255)
@@ -288,7 +343,9 @@ proc drawSettingsButton(rect: Rectangle, label: string, hovered: bool, danger: b
     else:
       Color(r: 60, g: 60, b: 80, a: 255)
   let border =
-    if confirming:
+    if disabled:
+      Color(r: 60, g: 60, b: 72, a: 255)
+    elif confirming:
       Gold
     elif danger:
       Color(r: 255, g: 95, b: 105, a: 255)
@@ -304,7 +361,7 @@ proc drawSettingsButton(rect: Rectangle, label: string, hovered: bool, danger: b
   drawText(label,
            rect.x.int32 + (rect.width.int32 - textWidth) div 2,
            rect.y.int32 + (rect.height.int32 - fontSize) div 2,
-           fontSize, White)
+           fontSize, if disabled: Color(r: 110, g: 110, b: 124, a: 255) else: White)
 
 proc resetLifetimeProgress(settingsWin: SettingsWindow): bool =
   result = true
@@ -794,26 +851,8 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
 
   yPos += 45
 
-  # Replay the opening story cinematic
-  block:
-    let rect = replayIntroButtonRect(contentX, contentY)
-    let hovered = checkCollisionPointRec(mousePos, rect)
-    drawSettingsButton(rect, t(tkSettingsReplayIntro), hovered, false)
-    # Replay the endgame cinematic, only offered once the game has been beaten.
-    if settingsWin.settings != nil and settingsWin.settings.hasSeenEnding:
-      let endRect = replayEndingButtonRect(contentX, contentY)
-      let endHovered = checkCollisionPointRec(mousePos, endRect)
-      drawSettingsButton(endRect, t(tkSettingsReplayEnding), endHovered, false)
-    # Second row: per-mode outros, each offered once that ending has been seen.
-    if settingsWin.settings != nil and settingsWin.settings.hasSeenRogueliteEnding:
-      let rogRect = replayRogueliteEndingButtonRect(contentX, contentY)
-      let rogHovered = checkCollisionPointRec(mousePos, rogRect)
-      drawSettingsButton(rogRect, t(tkSettingsReplayRogueliteEnding), rogHovered, false)
-    if settingsWin.settings != nil and settingsWin.settings.hasSeenSurvivalEnding:
-      let surRect = replaySurvivalEndingButtonRect(contentX, contentY)
-      let surHovered = checkCollisionPointRec(mousePos, surRect)
-      drawSettingsButton(surRect, t(tkSettingsReplaySurvivalEnding), surHovered, false)
-  yPos += 82
+  # (Cinematic replays now live in their own Cinematics tab.)
+  yPos += 50
 
   drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionDataManagement), '!',
                    Color(r: 255, g: 95, b: 105, a: 255))
@@ -831,6 +870,27 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     drawText(settingsWin.resetStatus,
              (contentX + (contentW - statusWidth) div 2).int32,
              (contentY + 344).int32, 14, LightGray)
+
+proc drawCinematicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
+  ## Gallery of every replayable cutscene, split into Story and Mode Intros.
+  ## Unlocked entries are clickable; locked ones render greyed and inert.
+  let mousePos = getVirtualMousePosition()
+  let s = settingsWin.settings
+
+  # Section: Story cinematics (lore intro + the three endings).
+  drawSectionHeader(contentX + 20, contentY + 15, contentW - 40,
+                    t(tkSettingsSectionStory), 'S', Color(r: 120, g: 200, b: 255, a: 255))
+
+  # Section: per-mode opening cutscenes.
+  drawSectionHeader(contentX + 20, contentY + 135, contentW - 40,
+                    t(tkSettingsSectionModeIntros), 'M', Color(r: 200, g: 160, b: 255, a: 255))
+
+  for rc in ReplayCine:
+    let rect = replayCineRect(rc, contentX, contentY)
+    let unlocked = replayCineUnlocked(rc, s)
+    let hovered = unlocked and checkCollisionPointRec(mousePos, rect)
+    drawSettingsButton(rect, replayCineLabel(rc), hovered, false,
+                       confirming = false, disabled = not unlocked)
 
 proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                           screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool] =
@@ -865,10 +925,10 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   if not settingsWin.window.minimized and settingsWin.window.handledClickThisFrame and isTopmost:
     let tabY = settingsWin.window.y + TITLE_BAR_HEIGHT + 10
     let tabHeight = 35
-    let tabWidth = 140
+    let tabWidth = 118
     var tabX = contentX
 
-    for tab in [stGraphics, stAudio, stControls, stGameplay]:
+    for tab in [stGraphics, stAudio, stControls, stGameplay, stCinematics]:
       if mousePos.x >= tabX.float32 and mousePos.x <= (tabX + tabWidth).float32 and
          mousePos.y >= tabY.float32 and mousePos.y <= (tabY + tabHeight).float32:
         settingsWin.currentTab = tab
@@ -881,6 +941,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     if isKeyPressed(Two): settingsWin.currentTab = stAudio
     if isKeyPressed(Three): settingsWin.currentTab = stControls
     if isKeyPressed(Four): settingsWin.currentTab = stGameplay
+    if isKeyPressed(Five): settingsWin.currentTab = stCinematics
 
   var fullscreenToggle = false
   var settingsChanged = false
@@ -1161,32 +1222,20 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         playSound(stMenuSelect)
         settingsChanged = true
 
-      # Replay intro button
-      if checkCollisionPointRec(mousePos, replayIntroButtonRect(contentX, contentY)):
-        settingsWin.replayIntroRequested = true
-        playSound(stMenuSelect)
-
-      # Replay ending button (only active once the game has been beaten)
-      if settingsWin.settings != nil and settingsWin.settings.hasSeenEnding and
-         checkCollisionPointRec(mousePos, replayEndingButtonRect(contentX, contentY)):
-        settingsWin.replayEndingRequested = true
-        playSound(stMenuSelect)
-
-      # Per-mode outro replays (only active once each has been seen)
-      if settingsWin.settings != nil and settingsWin.settings.hasSeenRogueliteEnding and
-         checkCollisionPointRec(mousePos, replayRogueliteEndingButtonRect(contentX, contentY)):
-        settingsWin.replayRogueliteEndingRequested = true
-        playSound(stMenuSelect)
-
-      if settingsWin.settings != nil and settingsWin.settings.hasSeenSurvivalEnding and
-         checkCollisionPointRec(mousePos, replaySurvivalEndingButtonRect(contentX, contentY)):
-        settingsWin.replaySurvivalEndingRequested = true
-        playSound(stMenuSelect)
-
       for action in [sraAllData, sraAdvancements, sraRogueliteData]:
         let rect = resetButtonRect(action, contentX, contentY)
         if checkCollisionPointRec(mousePos, rect):
           settingsWin.requestResetAction(action)
+          break
+
+  # Handle Cinematics tab interactions
+  if settingsWin.currentTab == stCinematics and isTopmost:
+    if settingsWin.window.handledClickThisFrame:
+      for rc in ReplayCine:
+        if replayCineUnlocked(rc, settingsWin.settings) and
+           checkCollisionPointRec(mousePos, replayCineRect(rc, contentX, contentY)):
+          settingsWin.requestReplayCine(rc)
+          playSound(stMenuSelect)
           break
 
   # Save settings if changed
@@ -1213,16 +1262,17 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
   # Draw tab headers
   let tabY = contentY
   let tabHeight = 35
-  let tabWidth = 140
+  let tabWidth = 118
   let mousePos = getVirtualMousePosition()
 
   var tabX = contentX
-  for tab in [stGraphics, stAudio, stControls, stGameplay]:
+  for tab in [stGraphics, stAudio, stControls, stGameplay, stCinematics]:
     let tabName = case tab
       of stGraphics: t(tkSettingsTabGraphics)
       of stAudio: t(tkSettingsTabAudio)
       of stControls: t(tkSettingsTabControls)
       of stGameplay: t(tkSettingsTabGameplay)
+      of stCinematics: t(tkSettingsTabCinematics)
 
     let isActive = settingsWin.currentTab == tab
     let isHovered = mousePos.x >= tabX.float32 and
@@ -1253,6 +1303,8 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
     drawControlsTab(settingsWin, contentX, tabContentY, contentW, tabContentH)
   of stGameplay:
     drawGameplayTab(settingsWin, contentX, tabContentY, contentW, tabContentH)
+  of stCinematics:
+    drawCinematicsTab(settingsWin, contentX, tabContentY, contentW, tabContentH)
 
   # Draw resize indicator
   drawResizeIndicator(settingsWin.window)

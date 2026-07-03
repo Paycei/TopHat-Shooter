@@ -221,6 +221,7 @@ proc newLoreCutscene*(): Cutscene =
     drawBackdropProc  = loreBackdrop,
     swayAmp           = 1.2'f32,
     musicTrack        = mtBoss,
+    cornerTag         = t(tkLorePlayback),
   )
 
 # Keep legacy proc names so main.nim doesn't need patching until Stage 2 migration.

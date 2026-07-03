@@ -795,8 +795,10 @@ proc main() =
           survivalEndReplayMode = false
           currentGame.state = gsMenu
         else:
-          # The run is over: hand off to the game-over screen as usual.
-          currentGame.state = gsGameOver
+          # The run is over. The "Long Watch" eulogy is the true send-off for a
+          # survival death, so close the game once it finishes playing rather than
+          # dropping to the game-over screen.
+          windowCloseRequested = true
 
       beginGameDrawing()
       drawSurvivalEndCinematic(survivalEndCinematic, screenWidth, screenHeight)
@@ -971,6 +973,21 @@ proc main() =
         survivalEndReplayMode = true
         survivalEndCinematicArmed = false
         currentGame.state = gsSurvivalEndCinematic
+
+      # Replay a per-mode opening cutscene from settings. These run through the
+      # generic cutscene player and return to the desktop (cscMenu) rather than
+      # launching the mode, so watching an intro never starts a run.
+      block replayModeIntros:
+        var intro: Cutscene = nil
+        if updateResult.replayWaveIntro: intro = newWaveIntroCutscene()
+        elif updateResult.replaySurvivalIntro: intro = newSurvivalIntroCutscene()
+        elif updateResult.replayRogueliteIntro: intro = newRogueliteIntroCutscene()
+        elif updateResult.replaySandboxIntro: intro = newSandboxIntroCutscene()
+        elif updateResult.replayPvPIntro: intro = newPvPIntroCutscene()
+        if intro != nil and not globalConfirmActive:
+          activeCutscene = intro
+          cutsceneContinuation = cscMenu
+          currentGame.state = gsCutscene
 
       # Handle roguelite window Start button, show loading screen then enter game
       if updateResult.rogueliteLaunchGame and not globalConfirmActive:

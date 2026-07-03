@@ -203,6 +203,7 @@ proc newEndgameCutscene*(): Cutscene =
     drawBackdropProc = endgameBackdrop,
     swayAmp          = 1.0'f32,
     musicTrack       = mtMenu,
+    cornerTag        = t(tkLorePlayback),
   )
 
 # Keep legacy proc names so main.nim continues to compile without changes.
