@@ -63,8 +63,19 @@ type
     hasSeenPvPIntro*: bool         # First-time pvp mode intro played
     discoveredPowerUps*: seq[string] # Power-ups seen for the first time (name-serialized)
 
-# Get AppData directory path
-proc getAppDataPath*(): string =
+# Save profiles: every save file lives inside one of MaxProfileSlots per-profile
+# folders (<root>/profiles/<slot>/), the same isolation idea as the debug/release
+# split below. A profile "exists" when its folder holds a profile.json meta file
+# (which records the difficulty chosen at creation). The root profiles.json only
+# remembers the last-used slot so boot can preload that profile's settings
+# before the profile-select screen appears.
+const MaxProfileSlots* = 3
+
+var activeProfileSlot* = 1  # 1..MaxProfileSlots; all get*Path procs point here
+
+proc getRootDataPath*(): string =
+  ## Base save directory shared by all profiles (and holder of the last-used
+  ## slot marker). Per-profile data must go through getAppDataPath instead.
   when defined(windows):
     result = getEnv("APPDATA")
   elif defined(macosx):
@@ -80,6 +91,20 @@ proc getAppDataPath*(): string =
   when defined(debug):
     result = result / "debug"
 
+  if not dirExists(result):
+    try:
+      createDir(result)
+      echo "Created save directory: ", result
+    except:
+      echo "Warning: Could not create save directory: ", result
+
+proc getProfileDir*(slot: int): string =
+  getRootDataPath() / "profiles" / $slot
+
+# Get the active profile's data directory (all save files live here)
+proc getAppDataPath*(): string =
+  result = getProfileDir(activeProfileSlot)
+
   # Create directory if it doesn't exist
   if not dirExists(result):
     try:
@@ -87,6 +112,104 @@ proc getAppDataPath*(): string =
       echo "Created save directory: ", result
     except:
       echo "Warning: Could not create save directory: ", result
+
+proc getProfileMetaPath(slot: int): string =
+  getProfileDir(slot) / "profile.json"
+
+proc getLastUsedSlotPath(): string =
+  getRootDataPath() / "profiles.json"
+
+proc profileExists*(slot: int): bool =
+  fileExists(getProfileMetaPath(slot))
+
+proc loadProfileDifficulty*(slot: int): GameDifficulty =
+  ## Difficulty recorded in the slot's profile.json; medium (the legacy
+  ## balance) when the file is missing or unreadable.
+  result = gdMedium
+  try:
+    let path = getProfileMetaPath(slot)
+    if fileExists(path):
+      let meta = parseJson(readFile(path))
+      if meta.hasKey("difficulty"):
+        result = parseEnumOr(meta["difficulty"].getStr(), gdMedium)
+  except CatchableError:
+    echo "Warning: could not read profile meta for slot ", slot
+
+proc createProfile*(slot: int, difficulty: GameDifficulty): bool =
+  ## Creates the slot folder and its profile.json meta. Safe to call on an
+  ## existing slot (rewrites the meta only).
+  try:
+    createDir(getProfileDir(slot))
+    writeFile(getProfileMetaPath(slot),
+              pretty(%* {"difficulty": $difficulty}))
+    echo "Created profile ", slot, " (", $difficulty, ")"
+    true
+  except CatchableError:
+    echo "Error: could not create profile ", slot
+    false
+
+proc deleteProfile*(slot: int): bool =
+  ## Removes the whole slot folder (all of that profile's save data).
+  try:
+    if dirExists(getProfileDir(slot)):
+      removeDir(getProfileDir(slot))
+      echo "Deleted profile ", slot
+    true
+  except CatchableError:
+    echo "Error: could not delete profile ", slot
+    false
+
+proc getLastUsedProfileSlot*(): int =
+  ## Slot the player used last session (for preloading settings at boot and
+  ## highlighting on the profile-select screen). Defaults to 1.
+  result = 1
+  try:
+    let path = getLastUsedSlotPath()
+    if fileExists(path):
+      let data = parseJson(readFile(path))
+      if data.hasKey("lastUsedSlot"):
+        result = clamp(data["lastUsedSlot"].getInt(1), 1, MaxProfileSlots)
+  except CatchableError:
+    echo "Warning: could not read last-used profile slot"
+
+proc setLastUsedProfileSlot*(slot: int) =
+  try:
+    writeFile(getLastUsedSlotPath(), pretty(%* {"lastUsedSlot": slot}))
+  except CatchableError:
+    echo "Warning: could not persist last-used profile slot"
+
+proc migrateLegacySaveFiles*() =
+  ## One-time conversion from the pre-profile layout: save files that sit
+  ## directly in the root data dir are moved into profile 1, which is stamped
+  ## with medium difficulty (the balance those saves were played on).
+  ## Idempotent: files are only moved when the destination doesn't have them,
+  ## and profile.json is only written if missing.
+  const legacyFiles = ["settings.json", "stats.json", "last_run.json",
+                       "advancements.json", "roguelite_profile.json"]
+  let root = getRootDataPath()
+  var hasLegacy = false
+  for f in legacyFiles:
+    if fileExists(root / f):
+      hasLegacy = true
+      break
+  if not hasLegacy:
+    return
+
+  try:
+    createDir(getProfileDir(1))
+    for f in legacyFiles:
+      let src = root / f
+      let dst = getProfileDir(1) / f
+      if fileExists(src):
+        if not fileExists(dst):
+          moveFile(src, dst)
+          echo "Migrated legacy save file ", f, " to profile 1"
+        # If the destination already exists, leave the stray root copy alone
+        # rather than destroy either version.
+    if not profileExists(1):
+      discard createProfile(1, gdMedium)
+  except CatchableError as e:
+    echo "Warning: legacy save migration failed: ", e.msg
 
 # Path to the save files
 proc getSettingsPath*(): string =

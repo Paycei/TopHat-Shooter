@@ -25,6 +25,9 @@ proc initGame3D*(bossId: int, player2D: Player): Game3D =
   result.camera = initCamera3D(startPos)
   result.player = newPlayer3D(startPos, player2D.hp)
   result.boss = getBoss3D(bossId)
+  # Profile difficulty scales the 3D boss pool like its 2D counterparts
+  result.boss.health *= difficultyEnemyHpMult()
+  result.boss.maxHealth *= difficultyEnemyHpMult()
   result.projectiles = @[]
   result.damageNumbers = @[]
   result.active = true
@@ -167,7 +170,7 @@ proc updateGame3D*(game: var Game3D, dt: float32) =
           proj.active = false
       else:
         if distance(proj.pos, game.player.pos) < 5.0:
-          game.player.health -= proj.damage
+          game.player.health -= proj.damage * difficultyEnemyDamageMult()
           proj.active = false
 
   # Remove dead projectiles

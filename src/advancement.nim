@@ -426,6 +426,30 @@ proc hasDefinition(id: string): bool =
       return true
   false
 
+proc loadAdvancementCompletionForSlot*(slot: int): float32 =
+  ## Fraction [0,1] of defined advancements marked unlocked in the given save
+  ## profile slot. Reads that slot's file directly so the profile-select
+  ## screen can show every slot's completion without switching the active
+  ## profile. A missing or unreadable file counts as 0 progress.
+  let total = getAdvancementDefinitions().len
+  if total == 0:
+    return 0.0
+  var unlocked = 0
+  try:
+    let path = getProfileDir(slot) / "advancements.json"
+    if not fileExists(path):
+      return 0.0
+    let node = parseJson(readFile(path))
+    if node.hasKey("entries"):
+      for item in node["entries"]:
+        # Stale ids from removed advancements must not inflate the ratio.
+        if item.getOrDefault("unlocked").getBool(false) and
+           hasDefinition(item.getOrDefault("id").getStr("")):
+          inc unlocked
+  except CatchableError:
+    return 0.0
+  min(1.0'f32, unlocked.float32 / total.float32)
+
 proc ensureAdvancementEntries*(profile: AdvancementProfile) =
   if profile.isNil:
     return

@@ -1119,6 +1119,7 @@ type
     # System Messages
     tkSystemDefensiveProcesses = "system_defensive_processes"
     tkSystemPressAnyKey = "system_press_any_key"
+    tkBiosFastBoot = "bios_fast_boot"
     tkSystemNoStatistics = "system_no_statistics"
     tkSystemPressESCToReturn = "system_press_esc_to_return"
 
@@ -2139,6 +2140,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # System Messages
     "system_defensive_processes": "All defensive processes have been terminated.",
     "system_press_any_key": "Press almost any key to continue...",
+    "bios_fast_boot": "Press any key to fast boot",
     "system_no_statistics": "No statistics available",
     "system_press_esc_to_return": "Press ESC to return",
 
@@ -4672,6 +4674,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # System Messages
     "system_defensive_processes": "Todos los procesos defensivos han sido terminados.",
     "system_press_any_key": "Presiona cualquier tecla para continuar...",
+    "bios_fast_boot": "Presiona cualquier tecla para arranque rápido",
     "system_no_statistics": "No hay estadísticas disponibles",
     "system_press_esc_to_return": "Presiona ESC para volver",
 

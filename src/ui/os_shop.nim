@@ -21,6 +21,10 @@ const
   SHOP_HEALTH_GAIN_BASE = 6
   SHOP_BULLET_SPEED_GAIN = 10.0'f32
   SHOP_WALL_GAIN = 10
+  # Base costs per shop slot (damage, fire rate, move speed, max hp, bullet
+  # speed, walls). Shared by initShopItems and the sandbox wave-average
+  # simulation so the two can never disagree.
+  SHOP_BASE_COSTS = [13, 13, 10, 14, 9, 18]
 
 proc shopFitText(text: string, maxWidth, fontSize: int32,
                  minSize: int32 = 8): tuple[text: string, size: int32] =
@@ -80,12 +84,12 @@ proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
   result = int32(lines.len) * lineHeight
 
 proc initShopItems*(): array[6, ShopItem] =
-  result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: 13, bought: 0)
-  result[1] = ShopItem(name: t(tkShopFireRatePlus), description: t(tkShopFireRatePlusDesc), baseCost: 13, bought: 0)
-  result[2] = ShopItem(name: t(tkShopMoveSpeedPlus), description: t(tkShopMoveSpeedPlusDesc), baseCost: 10, bought: 0)
-  result[3] = ShopItem(name: t(tkShopMaxHealthPlus), description: t(tkShopMaxHealthPlusDesc), baseCost: 14, bought: 0)
-  result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: 9, bought: 0)
-  result[5] = ShopItem(name: t(tkShopWallX4), description: t(tkShopWallX4Desc), baseCost: 18, bought: 0)
+  result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: SHOP_BASE_COSTS[0], bought: 0)
+  result[1] = ShopItem(name: t(tkShopFireRatePlus), description: t(tkShopFireRatePlusDesc), baseCost: SHOP_BASE_COSTS[1], bought: 0)
+  result[2] = ShopItem(name: t(tkShopMoveSpeedPlus), description: t(tkShopMoveSpeedPlusDesc), baseCost: SHOP_BASE_COSTS[2], bought: 0)
+  result[3] = ShopItem(name: t(tkShopMaxHealthPlus), description: t(tkShopMaxHealthPlusDesc), baseCost: SHOP_BASE_COSTS[3], bought: 0)
+  result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: SHOP_BASE_COSTS[4], bought: 0)
+  result[5] = ShopItem(name: t(tkShopWallX4), description: t(tkShopWallX4Desc), baseCost: SHOP_BASE_COSTS[5], bought: 0)
 
 proc getCurrentCost*(item: ShopItem): int =
   result = (item.baseCost.float32 * pow(SHOP_COST_MULTIPLIER.float32, item.bought.float32)).int
@@ -117,45 +121,83 @@ proc applyShopPurchaseEffect*(game: Game, index: int, purchaseNumber: int, healH
   else:
     discard
 
+proc waveEnemyCoinEstimate(wave: int): float32 =
+  ## Expected coins from a single non-boss kill at `wave`: the per-tier spawn
+  ## roll tables in spawnWaveEnemies (game.nim) folded with enemyCoinValue's
+  ## per-type payouts (coin.nim). One entry per 5-wave roster tier; the last
+  ## entry covers waves 56+ where the roster stops changing.
+  const tierAvg = [1.0'f32, 1.0, 1.4, 1.85, 2.2, 2.35,
+                   2.9, 3.0, 3.1, 3.4, 3.95, 4.7]
+  tierAvg[min((wave - 1) div 5, tierAvg.high)]
+
 proc sandboxWaveAverageConfig*(base: SandboxConfig, wave: int): SandboxConfig =
   ## Estimate the stat loadout a typical player would have *entering* `wave`,
-  ## starting from `base` (the wave-1 baseline stats). This recreates the two
-  ## real progression effects that compound over a run:
-  ##   1. Shop purchases — a typical player buys ~1.2 upgrades per wave, spread
-  ##      round-robin across the 6 upgrade types, using the real gain curves.
-  ##   2. The 1.012x-per-wave passive stat scaling applied in startWave.
-  ## It is an approximation (real spending varies), but every number flows through
-  ## the same formulas the live game uses, so the result is a believable build.
+  ## starting from `base` (the wave-1 baseline stats). Rather than assuming a
+  ## fixed number of shop purchases, this replays the run wave by wave with the
+  ## real progression formulas, so late-wave builds stay honest:
+  ##   1. startWave's 1.012x passive scaling is applied once per wave *before*
+  ##      that wave's shopping, so (like a real run) early purchases compound
+  ##      for the rest of the run while late purchases barely do.
+  ##   2. Coin income follows the real enemy-count curve, the spawn-mix coin
+  ##      averages, and boss bounties (~90% of drops collected).
+  ##   3. Shop purchases are constrained by that budget and the real 1.8x cost
+  ##      curve: always buy the cheapest affordable upgrade, which keeps the
+  ##      six upgrade tracks at roughly equal cost tiers (balanced spending).
+  ## Still an approximation (elites, combo bonuses, and spending taste vary),
+  ## but every stat gain flows through the live game's own formulas and every
+  ## purchase had to be paid for at the real price.
   result = base
   let w = max(1, wave)
-
-  # 1. Simulated shop purchases (~1.2 per wave since wave 1).
-  let totalPurchases = int(float32(w - 1) * 1.2'f32)
+  var coins = base.coins.float32
   var bought: array[6, int]
-  for i in 0 ..< totalPurchases:
-    let slot = i mod 6
-    inc bought[slot]
-    let purchaseNumber = bought[slot]
-    case slot
-    of 0: result.damage += shopDamageGain(purchaseNumber)
-    of 1: result.fireRate = applyFireRateDiminished(result.fireRate,
-            SHOP_FIRE_RATE_GAIN, SHOP_FIRE_RATE_EXPONENT, SHOP_FIRE_RATE_CAP)
-    of 2: result.speed += SHOP_MOVE_SPEED_GAIN
-    of 3: result.maxHp += shopHealthGain(purchaseNumber).float32
-    of 4: result.bulletSpeed = addBulletSpeedDiminished(result.bulletSpeed, SHOP_BULLET_SPEED_GAIN)
-    of 5: result.walls += SHOP_WALL_GAIN
-    else: discard
 
-  # 2. Passive per-wave scaling (mirrors the loop in startWave).
-  let scaling = pow(1.012'f32, float32(w - 1))
-  result.maxHp *= scaling
-  result.damage *= scaling
-  result.speed *= scaling
-  result.bulletSpeed = multiplyBulletSpeedDiminished(result.bulletSpeed, scaling)
-  result.fireRate /= scaling   # lower = faster, so divide
+  for n in 1 ..< w:
+    # startWave's per-wave scaling for wave n (mirrors game.nim).
+    const waveScaling = 1.012'f32
+    result.maxHp *= waveScaling
+    result.damage *= waveScaling
+    result.speed *= waveScaling
+    result.bulletSpeed = multiplyBulletSpeedDiminished(result.bulletSpeed, waveScaling)
+    result.fireRate /= waveScaling   # lower = faster, so divide
 
-  # Some leftover spending money so the shop is usable on entry.
-  result.coins = base.coins + w * 5
+    # Income from clearing wave n: enemy count mirrors calculateWaveEnemyCount
+    # (game.nim), boss waves spawn 25% of normal but pay the boss bounty.
+    var enemyCount = 8.0'f32 + 3.0'f32 * pow(float32(n - 1), 0.6'f32)
+    let isBossWave = n mod 5 == 0
+    if isBossWave:
+      enemyCount *= 0.25'f32
+    var income = enemyCount * waveEnemyCoinEstimate(n)
+    if isBossWave:
+      income += float32(50 + (n div 5) * 10)   # enemyCoinValue's boss payout
+    coins += income * 0.9'f32   # some drops expire uncollected
+
+    # Shop between waves: buy the cheapest affordable upgrade until broke,
+    # at the real getCurrentCost price (baseCost * 1.8^bought).
+    while true:
+      var slot = 0
+      var slotCost = high(int)
+      for s in 0 ..< 6:
+        let cost = int(SHOP_BASE_COSTS[s].float32 *
+                       pow(SHOP_COST_MULTIPLIER, bought[s].float32))
+        if cost < slotCost:
+          slot = s
+          slotCost = cost
+      if slotCost.float32 > coins:
+        break
+      coins -= slotCost.float32
+      inc bought[slot]
+      case slot
+      of 0: result.damage += shopDamageGain(bought[0])
+      of 1: result.fireRate = applyFireRateDiminished(result.fireRate,
+              SHOP_FIRE_RATE_GAIN, SHOP_FIRE_RATE_EXPONENT, SHOP_FIRE_RATE_CAP)
+      of 2: result.speed += SHOP_MOVE_SPEED_GAIN
+      of 3: result.maxHp += shopHealthGain(bought[3]).float32
+      of 4: result.bulletSpeed = addBulletSpeedDiminished(result.bulletSpeed, SHOP_BULLET_SPEED_GAIN)
+      of 5: result.walls += SHOP_WALL_GAIN
+      else: discard
+
+  # Whatever wasn't spent is the pocket money the build enters the wave with.
+  result.coins = coins.int
   result.startWave = w
 
 proc drawModernShopButton(x, y, width, height: int32, text: string,

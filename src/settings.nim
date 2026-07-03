@@ -16,8 +16,10 @@ proc isPowerUpDiscovered*(pt: PowerUpType): bool =
   if globalSettings.isNil: return true
   $pt in globalSettings.discoveredPowerUps
 
-proc initSettings*(): Settings =
-  ## Initialize settings with default values and load from save file
+proc newDefaultSettings*(): Settings =
+  ## Fresh Settings object holding only the built-in defaults (no disk access,
+  ## no global registration). Used both at first boot and to wipe leftover
+  ## state before loading a different profile's settings file.
   result = Settings(
     fpsLimit: 60,
     volume: 0.5,
@@ -58,17 +60,27 @@ proc initSettings*(): Settings =
     rogueliteUnlocked: false,
     survivalUnlocked: false
   )
-  globalSettings = result
 
-  # Try to load saved settings
-  discard loadSettings(result)
-
-  # Apply loaded language setting
+proc reloadSettingsFromDisk*(settings: Settings) =
+  ## Reset `settings` to defaults in place, then load the active profile's
+  ## settings file over them and apply its language. In-place so every holder
+  ## of the ref (globalSettings, the window manager, ...) sees the new values.
+  ## Fields missing from the file (or a missing file) stay at their defaults,
+  ## which is what makes profile switching safe: nothing leaks from the
+  ## previously loaded profile.
+  settings[] = newDefaultSettings()[]
+  discard loadSettings(settings)
   try:
-    setLanguage(parseEnum[Language](result.language))
+    setLanguage(parseEnum[Language](settings.language))
   except:
     setLanguage(English)
-    result.language = "english"
+    settings.language = "english"
+
+proc initSettings*(): Settings =
+  ## Initialize settings with default values and load from save file
+  result = newDefaultSettings()
+  globalSettings = result
+  reloadSettingsFromDisk(result)
 
 proc applySettings*(settings: Settings) =
   ## Apply settings to the game engine and systems

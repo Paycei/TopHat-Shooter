@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import particle_types, game/combat, game/death, types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+import particle_types, game/combat, game/death, types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
 
 # Global quit-confirmation dialog
 
@@ -125,6 +125,8 @@ var
   # Brief input lockout when the language-select screen opens, so the same click
   # that dismissed the splash can't fall through and auto-pick a language.
   languageSelectGuard: float32 = 0.0
+  # Same idea for the profile-select screen (which opens directly off the splash).
+  profileSelectGuard: float32 = 0.0
 
 proc rebuildRenderTarget(supersampleScale: float32) =
   let renderTargetWidth = int32(screenWidth.float32 * supersampleScale)
@@ -279,7 +281,7 @@ proc isBondingCombatState(state: GameState): bool =
   state in {gsPlaying, gsPvPPlaying}
 
 proc isMenuOrGameState(state: GameState): bool =
-  state in {gsSplash, gsLanguageSelect, gsMenu, gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver,
+  state in {gsSplash, gsProfileSelect, gsLanguageSelect, gsMenu, gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver,
             gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
             gsRogueliteFloorSelect, gsVictory, gsRogueliteVictory}
 
@@ -326,6 +328,20 @@ proc initializeAllCosmetics() =
 
 proc main() =
   randomize()
+
+  # Save-profile bootstrap: convert pre-profile saves into profile 1, then
+  # point the save system at the last-used profile so its settings drive
+  # window creation. The profile-select screen shown after the splash can
+  # still switch to another profile (switchToProfile reloads everything).
+  migrateLegacySaveFiles()
+  activeProfileSlot = getLastUsedProfileSlot()
+  if not profileExists(activeProfileSlot):
+    activeProfileSlot = 1
+    for slot in 1..MaxProfileSlots:
+      if profileExists(slot):
+        activeProfileSlot = slot
+        break
+  currentDifficulty = loadProfileDifficulty(activeProfileSlot)
 
   let settings = initSettings()
 
@@ -429,6 +445,7 @@ proc main() =
   currentGame.discordClient = globalDiscordClient
 
   var splashScreen = newSplashScreen()
+  var profileSelect = newProfileSelectState()
   var loreCinematic = newLoreCinematic()
   # Endgame ("system secured") cinematic. `endgameCinematicArmed` lazily reinitialises
   # the timeline whenever we enter gsEndgameCinematic (the producer is game.nim, which
@@ -490,6 +507,40 @@ proc main() =
 
   proc defaultRogueliteHeatSelection(profile: RogueliteProfile): int =
     clampedRogueliteHeatSelection(RogueliteMinHeat, profile)
+
+  proc switchToProfile(slot: int) =
+    ## Point the save system at profile `slot` and reload every save-backed
+    ## system from that profile's folder. Settings/stats are mutated in place
+    ## (they are refs shared with the window manager); the advancement and
+    ## roguelite profiles are replaced and re-propagated like elsewhere.
+    activeProfileSlot = slot
+    setLastUsedProfileSlot(slot)
+    currentDifficulty = loadProfileDifficulty(slot)
+
+    reloadSettingsFromDisk(settings)
+    applySettings(settings)
+    applyWindowMode(settings.fullscreen)
+
+    stats[] = initStatistics()[]
+    discard loadStatistics(stats)
+
+    let freshRunStats = loadLastRunStats()
+    if freshRunStats.isNil:
+      clearLastCompletedRun()
+    else:
+      loadLastCompletedRun(freshRunStats)
+
+    advancementProfile = loadAdvancements()
+    setActiveRogueliteProfile(loadRogueliteProfile())
+    discard syncAdvancements(advancementProfile, stats, getLastRunStats(), rogueliteProfile)
+    if advancementProfile.dirty:
+      discard saveAdvancements(advancementProfile)
+    if not globalWindowManager.isNil:
+      if not globalWindowManager.advancements.isNil:
+        globalWindowManager.advancements.profile = advancementProfile
+      if not globalWindowManager.pvp.isNil:
+        globalWindowManager.pvp.inputNickname = settings.pvpNickname
+        globalWindowManager.pvp.networkManager.hostNickname = settings.pvpNickname
 
   proc refreshAdvancementProfile() =
     discard loadStatistics(stats)
@@ -645,38 +696,68 @@ proc main() =
       # Update splash screen
       updateSplashScreen(splashScreen, dt)
 
-      # Skip splash with any key or mouse button
+      # Any key or mouse button fast-boots through the splash, then skips it
       var anyKeyPressed = false
-      if splashScreen.complete:
-        # Check for any key press (scan through common keys)
-        if isKeyPressed(Space) or isKeyPressed(Enter) or isKeyPressed(Escape):
-          anyKeyPressed = true
-        else:
-          # Check A-Z by iterating integer range and casting to KeyboardKey
-          for i in ord(A)..ord(Z):
+      # Check for any key press (scan through common keys)
+      if isKeyPressed(Space) or isKeyPressed(Enter) or isKeyPressed(Escape):
+        anyKeyPressed = true
+      else:
+        # Check A-Z by iterating integer range and casting to KeyboardKey
+        for i in ord(A)..ord(Z):
+          if isKeyPressed(cast[KeyboardKey](i)):
+            anyKeyPressed = true
+            break
+        # If still none, check 0-9 (use KeyboardKey.Zero..KeyboardKey.Nine cast via ord)
+        if not anyKeyPressed:
+          for i in ord(KeyboardKey.Zero)..ord(KeyboardKey.Nine):
             if isKeyPressed(cast[KeyboardKey](i)):
               anyKeyPressed = true
               break
-          # If still none, check 0-9 (use KeyboardKey.Zero..KeyboardKey.Nine cast via ord)
-          if not anyKeyPressed:
-            for i in ord(KeyboardKey.Zero)..ord(KeyboardKey.Nine):
-              if isKeyPressed(cast[KeyboardKey](i)):
-                anyKeyPressed = true
-                break
-        # Also check mouse buttons
-        if isMouseButtonPressed(Left) or isMouseButtonPressed(Right):
-          anyKeyPressed = true
+      # Also check mouse buttons
+      if isMouseButtonPressed(Left) or isMouseButtonPressed(Right):
+        anyKeyPressed = true
 
-        if anyKeyPressed:
-          if not settings.hasSeenIntro:
-            # First run: let the player pick a language before the cinematic.
-            currentGame.state = gsLanguageSelect
-            languageSelectGuard = 0.18'f32
-          else:
-            currentGame.state = gsMenu
+      if anyKeyPressed:
+        if splashScreen.complete:
+          # Always pick (or create) a save profile first; the profile decides
+          # whether the language screen / intro cinematic still needs to play.
+          profileSelect.refreshSlots()
+          currentGame.state = gsProfileSelect
+          profileSelectGuard = 0.18'f32
+        else:
+          # Mid-boot press: fast-forward the BIOS / kernel reveal instead.
+          fastForwardSplash(splashScreen)
 
       beginGameDrawing()
       drawSplashScreen(splashScreen, screenWidth, screenHeight)
+      endGameDrawing()
+
+    of gsProfileSelect:
+      playMusic(mtMenu)
+      currentGame.time += dt
+      if profileSelectGuard > 0:
+        profileSelectGuard -= dt
+
+      let mousePos = getVirtualMousePosition()
+      var chosenSlot = 0
+      if profileSelectGuard <= 0:
+        chosenSlot = updateProfileSelect(profileSelect, dt, mousePos,
+                                         screenWidth.int32, screenHeight.int32)
+
+      if chosenSlot > 0:
+        switchToProfile(chosenSlot)
+        playSound(stMenuSelect)
+        if not settings.hasSeenIntro:
+          # Fresh profile: pick a language before the intro cinematic.
+          currentGame.state = gsLanguageSelect
+          languageSelectGuard = 0.18'f32
+        else:
+          currentGame.state = gsMenu
+
+      beginGameDrawing()
+      drawProfileSelect(profileSelect, screenWidth.int32, screenHeight.int32,
+                        currentGame.time, mousePos, activeProfileSlot)
+      drawCustomCursor(currentGame.time)
       endGameDrawing()
 
     of gsLanguageSelect:

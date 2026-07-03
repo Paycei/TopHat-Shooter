@@ -1,12 +1,27 @@
 ## OS-Themed Splash Screen: TopHat-ShooterOS v6.0 Edition
 ## Two phases: BIOS amber POST -> kernel model reveal with title and press-any-key.
 
-import raylib, strutils, math
-import particle_types, ../localization, ../hardware_info, ../shapes, background_fx, cinematic_common
+import raylib, math
+import particle_types, ../localization, ../hardware_info, ../shapes, ../sound, background_fx, cinematic_common
 
-const BIOS_DUR = 2.2'f32
+const
+  BIOS_DUR   = 3.0'f32   # POST phase length; any key fast-boots past it
+  BIOS_PRINT = 0.68'f32  # fraction of the phase spent printing POST lines
+  STATUS_LAG = 0.22'f32  # pause between a line printing and its status resolving
+  BIOS_OFF   = 0.24'f32  # CRT collapse window at the end of the phase
 
 type
+  BiosLineKind = enum
+    blPlain      ## printed verbatim (banner, copyright, spacing)
+    blStatus     ## dotted leader; status resolves STATUS_LAG after the line prints
+    blRamCount   ## blStatus whose value counts up while the probe is pending
+    blCountdown  ## live "Booting in N seconds" line, driven by the phase clock
+
+  BiosLine = object
+    kind: BiosLineKind
+    text: string
+    status: string
+
   BootPhase* = enum
     bpBIOS
     bpComplete
@@ -18,19 +33,23 @@ type
     complete*: bool
     scanlineOffset*: float32
     kernelBoot*: float32
-    biosLines*: seq[string]  # POST report, built from detected hardware at boot
+    biosLines: seq[BiosLine]  # POST report, built from detected hardware at boot
+    biosVisible: int          # lines printed so far (advanced in update, read by draw)
+    ramMB: int                # detected RAM, drives the count-up on the RAM line
+    poweredOn: bool           # power-on beep fired
+    seatSparked: bool         # kernel-seat spark sound fired
 
-proc dotLine(prefix: string, status = "OK"): string =
-  ## Pads `prefix` with a dotted leader so `status` lands near the right edge,
-  ## reproducing the classic POST "............  OK" alignment.
-  result = prefix & " "
-  while result.len < 60: result.add('.')
-  result.add(" " & status)
+proc statusLine(text, status: string): BiosLine =
+  BiosLine(kind: blStatus, text: text, status: status)
 
-proc buildBiosLines(): seq[string] =
+proc plainLine(text: string): BiosLine =
+  BiosLine(kind: blPlain, text: text)
+
+proc buildBiosLines(): (seq[BiosLine], int) =
   ## The POST report. CPU/RAM/GPU/DISK/HOST come from real hardware detection
   ## (`hardware_info`); each falls back to a themed placeholder if a probe fails,
-  ## and NET/SND/USB/BOOT stay as in-world flavour.
+  ## and NET/SND/USB/KRNL/BOOT stay as in-world flavour. Also returns the RAM MB
+  ## so the draw pass can animate the classic memory-test count-up.
   let hw = getHardwareInfo()
 
   let cpu = if hw.cpuName.len > 0: hw.cpuName else: "TopHat ElementalCore Processor"
@@ -51,23 +70,29 @@ proc buildBiosLines(): seq[string] =
   let host = if hw.hostName.len > 0: hw.hostName else: "TOPHAT-PC"
   let osn  = if hw.osName.len  > 0: hw.osName  else: "ShooterOS 6.0"
 
-  result = @[
-    "TOPHAT SYSTEMS, INC.  -  BIOS v6.0.0  -  BUILD 20260616",
-    "Copyright (C) 2024-2026 TopHat Systems, Inc.  All Rights Reserved.",
-    "",
-    cpuLine,
-    dotLine("RAM  : " & $ramMB & " MB (" & $ramGB & " GB)"),
-    dotLine("GPU  : " & gpu),
-    dotLine(diskLine),
-    dotLine("HOST : " & host & "  /  " & osn),
-    dotLine("NET  : TopHat Gigabit Ethernet"),
-    dotLine("SND  : TopHat Audio Pro"),
-    dotLine("USB  : xHCI Host Controller v3.1"),
-    dotLine("BOOT : shooteros-6.0  (Secure Boot: ENABLED)"),
-    "",
-    "Press <DEL> to enter BIOS Setup  |  <F11> to select Boot Device",
-    "Booting TopHat-ShooterOS in  0 seconds...",
+  result[0] = @[
+    plainLine("TOPHAT SYSTEMS, INC.  -  BIOS v6.0.0  -  BUILD 20260616"),
+    plainLine("Copyright (C) 2024-2026 TopHat Systems, Inc.  All Rights Reserved."),
+    plainLine(""),
+    statusLine(cpuLine, "OK"),
+    BiosLine(kind: blRamCount,
+             text: "RAM  : " & $ramMB & " MB (" & $ramGB & " GB)", status: "OK"),
+    statusLine("GPU  : " & gpu, "OK"),
+    statusLine(diskLine, "OK"),
+    statusLine("HOST : " & host & "  /  " & osn, "OK"),
+    statusLine("NET  : TopHat Gigabit Ethernet", "OK"),
+    statusLine("SND  : TopHat Audio Pro", "OK"),
+    statusLine("USB  : xHCI Host Controller v3.1", "OK"),
+    statusLine("KRNL : TOPHAT.SYS v6.0", "LOADED"),
+    statusLine("BOOT : shooteros-6.0  (Secure Boot)", "ENABLED"),
+    plainLine(""),
+    BiosLine(kind: blCountdown, text: "Booting TopHat-ShooterOS in"),
   ]
+  result[1] = ramMB
+
+proc biosRevealTime(splash: SplashScreen, i: int): float32 =
+  ## When line `i` prints: lines are spaced evenly across the print window.
+  i.float32 / splash.biosLines.len.float32 * (BIOS_DUR * BIOS_PRINT)
 
 proc drawSplashScanlines(sw, sh: int32, offset: float32, color: Color) =
   let count = sh div 4
@@ -108,22 +133,72 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   let hTitle = "TOPHAT SYSTEMS, INC.  BIOS VERSION 6.0.0"
   let hTitleW = measureText(hTitle, 22)
   drawText(hTitle, sw div 2 - hTitleW div 2, 14, 22, Color(r: 10, g: 6, b: 0, a: 255))
+  let hDate = "06/16/2026"
+  let hDateW = measureText(hDate, 18)
+  drawText(hDate, sw - 20 - hDateW, 17, 18, Color(r: 10, g: 6, b: 0, a: 255))
+  drawText("POST", 20, 17, 18, Color(r: 10, g: 6, b: 0, a: 255))
   drawRectangle(4, (4 + hH).int32, sw - 8, 2, Color(r: 220, g: 150, b: 30, a: 255))
 
-  # POST lines, all visible quickly
-  let visible = min(
-    int(splash.phaseTimer / BIOS_DUR * (splash.biosLines.len.float32 + 1.0'f32)) + 1,
-    splash.biosLines.len)
+  # POST lines print on the update clock; each probe's status resolves a beat
+  # after its line, so the report reads as live checks instead of a done deal.
+  let postAmber = Color(r: 255, g: 170, b: 20, a: 255)
   var yPos = 4 + hH + 16
-  for i in 0..<visible:
+  for i in 0..<splash.biosVisible:
     let line = splash.biosLines[i]
-    if line.len == 0: yPos += 10; continue
-    var col = Color(r: 255, g: 170, b: 20, a: 255)
-    if "OK" in line:       col = Color(r: 80, g: 255, b: 80, a: 255)
-    elif i == 0:            col = Color(r: 255, g: 220, b: 80, a: 255)
-    elif "Booting" in line: col = Color(r: 200, g: 130, b: 15, a: 220)
-    drawText(line, 20, yPos.int32, 18, col)
+    if line.kind == blPlain and line.text.len == 0:
+      yPos += 10
+      continue
+    case line.kind
+    of blPlain:
+      let col = if i == 0: Color(r: 255, g: 220, b: 80, a: 255) else: postAmber
+      drawText(line.text, 20, yPos.int32, 18, col)
+    of blCountdown:
+      let secsLeft = max(0, int(ceil(BIOS_DUR - BIOS_OFF - splash.phaseTimer)))
+      let txt = line.text & " " & $secsLeft &
+                (if secsLeft == 1: " second..." else: " seconds...")
+      drawText(txt, 20, yPos.int32, 18, Color(r: 200, g: 130, b: 15, a: 220))
+    of blStatus, blRamCount:
+      let sinceReveal = splash.phaseTimer - splash.biosRevealTime(i)
+      let resolved = sinceReveal >= STATUS_LAG
+      var body = line.text
+      if line.kind == blRamCount and not resolved:
+        # The classic memory-test count-up, racing to the detected total.
+        let f = clamp01(sinceReveal / STATUS_LAG)
+        body = "RAM  : " & $int(splash.ramMB.float32 * f) & " MB"
+      # Pad the dotted leader by measured pixel width (the font is not
+      # monospace), so every status lands in one aligned column.
+      var padded = body & " "
+      while measureText(padded, 18) < 452 and padded.len < 96: padded.add('.')
+      drawText(padded, 20, yPos.int32, 18, postAmber)
+      let statusX = 20 + max(measureText(padded, 18), 452) + 8
+      if resolved:
+        # Fresh statuses flash white for a beat, then settle green.
+        let col =
+          if sinceReveal - STATUS_LAG < 0.12'f32:
+            Color(r: 245, g: 255, b: 245, a: 255)
+          else:
+            Color(r: 80, g: 255, b: 80, a: 255)
+        drawText(line.status, statusX, yPos.int32, 18, col)
+      else:
+        # Probe spinner while the check is in flight.
+        const spinner = ["|", "/", "-", "\\"]
+        drawText(spinner[int(splash.timer * 12.0'f32) mod 4], statusX, yPos.int32, 18,
+                 Color(r: 255, g: 210, b: 90, a: 230))
     yPos += 22
+
+  # Blinking block cursor at the print head while the report is still printing.
+  if splash.biosVisible < splash.biosLines.len and int(splash.timer * 3.0'f32) mod 2 == 0:
+    drawRectangle(20, yPos.int32 + 2, 10, 15, postAmber)
+
+  # Setup hints pinned to the bottom edge, where real firmware puts them.
+  drawText("Press <DEL> to enter BIOS Setup  |  <F11> to select Boot Device",
+           20, sh - 32, 18, Color(r: 215, g: 140, b: 20, a: 210))
+  if splash.phaseTimer > 0.9'f32:
+    let hint  = t(tkBiosFastBoot)
+    let hintW = measureText(hint, 16)
+    drawText(hint, sw - hintW - 20, sh - 30, 16,
+             Color(r: 255, g: 200, b: 80,
+                   a: alphaByte(140.0'f32 + sin(splash.timer * 4.0'f32) * 60.0'f32)))
 
   # Brand column on the right: a hero TOPHAT emblem above an etched version plate.
   # This is the protagonist of the BIOS screen and a cold-amber foreshadow of the
@@ -208,6 +283,11 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   drawText(ed, cx - edW div 2, badgeY + 108, 18,
            Color(r: 215, g: 150, b: 30, a: bA))
 
+  # Phosphor shimmer: the whole tube breathes slightly, like a warm CRT.
+  let flick = sin(splash.timer * 11.0'f32) * 0.5'f32 + sin(splash.timer * 6.7'f32) * 0.5'f32
+  drawRectangle(0, 0, sw, sh,
+                Color(r: 255, g: 180, b: 60, a: alphaByte(4.0'f32 + flick * 3.0'f32)))
+
   # CRT power-on: the amber monitor warms up, opening from a centre line.
   let warm = clamp01(splash.phaseTimer / 0.32'f32)
   if warm < 1.0'f32:
@@ -220,8 +300,8 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   # kernel reveal. The kernel phase re-opens from this same line (in cyan), so
   # the amber->cyan cut reads as one continuous monitor switch.
   let tLeft = BIOS_DUR - splash.phaseTimer
-  if tLeft < 0.24'f32:
-    let cf = clamp01(1.0'f32 - tLeft / 0.24'f32)
+  if tLeft < BIOS_OFF:
+    let cf = clamp01(1.0'f32 - tLeft / BIOS_OFF)
     drawCRTAperture(sw, sh, 1.0'f32 - easeInOut(cf),
                     Color(r: 255, g: 230, b: 150, a: 255))
     drawRectangle(0, 0, sw, sh,
@@ -316,12 +396,28 @@ proc drawSplashComplete(splash: SplashScreen, sw, sh: int32) =
 # Public API
 
 proc newSplashScreen*(): SplashScreen =
+  let (lines, ramMB) = buildBiosLines()  # detect real hardware once, at construction
   SplashScreen(
     phase: bpBIOS, timer: 0, phaseTimer: 0,
-    complete: false,  # skip enabled only after BIOS phase plays out
+    complete: false,  # skip enabled only after the kernel reveal settles
     scanlineOffset: 0, kernelBoot: 0,
-    biosLines: buildBiosLines()  # detect real hardware once, at construction
+    biosLines: lines, ramMB: ramMB
   )
+
+proc handOffToKernel(splash: SplashScreen) =
+  splash.phase      = bpComplete
+  splash.phaseTimer = 0
+  playSound(stMenuSelect, 0.55'f32, 0.9'f32)  # boot handoff blip
+
+proc fastForwardSplash*(splash: SplashScreen) =
+  ## Any key during the boot fast-forwards it: skip the rest of the POST, then
+  ## snap the kernel reveal to its settled (press-any-key) state.
+  case splash.phase
+  of bpBIOS:
+    if splash.phaseTimer > 0.25'f32:  # ignore keypress residue from launch
+      splash.handOffToKernel()
+  of bpComplete:
+    splash.phaseTimer = max(splash.phaseTimer, 1.5'f32 * 0.85'f32)
 
 proc updateSplashScreen*(splash: SplashScreen, dt: float32) =
   splash.timer          += dt
@@ -330,12 +426,25 @@ proc updateSplashScreen*(splash: SplashScreen, dt: float32) =
 
   case splash.phase
   of bpBIOS:
+    if not splash.poweredOn:
+      splash.poweredOn = true
+      playSound(stMenuSelect, 0.5'f32, 1.45'f32)  # POST beep as the CRT warms
+    var vis = 0
+    while vis < splash.biosLines.len and
+          splash.phaseTimer >= splash.biosRevealTime(vis):
+      inc vis
+    if vis > splash.biosVisible:
+      splash.biosVisible = vis
+      if splash.biosLines[vis - 1].text.len > 0:
+        playSound(stMenuNav, 0.18'f32, 1.5'f32)   # teletype tick per printed line
     if splash.phaseTimer >= BIOS_DUR:
-      splash.phase      = bpComplete
-      splash.phaseTimer = 0
+      splash.handOffToKernel()
 
   of bpComplete:
     splash.kernelBoot = min(splash.phaseTimer / 1.5'f32, 1.0'f32)
+    if not splash.seatSparked and splash.kernelBoot >= 0.82'f32:
+      splash.seatSparked = true
+      playSound(stPowerUp, 0.5'f32)  # tophat seats onto the kernel
     if splash.kernelBoot >= 0.85'f32:
       splash.complete = true  # enable skip only once "press any key" is visible
 

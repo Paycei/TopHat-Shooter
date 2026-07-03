@@ -8,8 +8,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   # Calculate scaled stats
   let stats = getScaledEnemyStats(config, difficulty)
 
-  # Enforce minimum HP of 0.01
-  let finalHp = max(stats.hp, 0.01)
+  # Enforce minimum HP of 0.01 (profile difficulty scales HP for every enemy)
+  let finalHp = max(stats.hp * difficultyEnemyHpMult(), 0.01)
 
   # Create base enemy with config values
   result = Enemy(
@@ -4866,8 +4866,9 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       startX = centerX; startY = -100
       targetX = centerX; targetY = centerY - orbitLandRadius
 
-    # Create boss with custom stats
-    let scaledHP = getScaledBossHP(bossDef, waveNumber)
+    # Create boss with custom stats (profile difficulty scales the total pool,
+    # so phase HP pools derived from it inherit the multiplier too)
+    let scaledHP = getScaledBossHP(bossDef, waveNumber) * difficultyEnemyHpMult()
     let phaseHpPools = getBossPhaseHpPools(bossDef, scaledHP)
     let firstPhaseHp =
       if phaseHpPools.len > 0: phaseHpPools[0]

@@ -925,7 +925,7 @@ proc drawPlayer*(player: Player) =
       else:
         discard  # etNone or other unknown types
 
-proc takeDamage*(player: Player, damage: float32): bool =
+proc takeDamageRaw(player: Player, damage: float32): bool =
   ## Returns true if player died (HP reached 0 or below), false otherwise
   player.lastDamageAvoided = 0.0  # Reset each call
   # Shield boost absorbs hits first
@@ -1022,6 +1022,13 @@ proc takeDamage*(player: Player, damage: float32): bool =
 
   # Return true if HP reached 0 or below (death condition)
   return player.hp <= 0
+
+proc takeDamage*(player: Player, damage: float32): bool =
+  ## Single intake point for all PvE damage to the player. The profile
+  ## difficulty scales here so every source (contact, bullets, lasers,
+  ## meteors, explosions) is covered without touching each call site.
+  ## PvP has its own damage path and is intentionally unaffected.
+  takeDamageRaw(player, damage * difficultyEnemyDamageMult())
 
 proc heal*(player: Player, amount: float32) =
   player.hp += amount * player.healPowerMult

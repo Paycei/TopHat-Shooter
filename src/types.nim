@@ -85,9 +85,14 @@ const
 
 type
   GameState* = enum
-    gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
+    gsSplash, gsProfileSelect, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
     gsRogueliteFloorSelect, gsDeathSequence, gsVictory, gsEndgameCinematic, gsCutscene,
     gsRogueliteVictory, gsRogueliteEndCinematic, gsSurvivalEndCinematic
+
+  GameDifficulty* = enum
+    ## Per-profile difficulty picked when a save profile is created.
+    ## The on-disk form is the value string ("easy"/"medium"/"hard").
+    gdEasy = "easy", gdMedium = "medium", gdHard = "hard"
 
   CutsceneContinuation* = enum
     cscMenu,       ## after cutscene → gsMenu (intro, settings replays)
@@ -1339,6 +1344,23 @@ type
     wallPlacementMode*: bool   # Whether the player is in wall-placement mode (E toggles, RMB/walls=0 exits)
     comebackBonusActive*: bool  # True while the +10% comeback stat bonus is in effect
     comebackEndWave*: int        # Wave number at which the comeback bonus expires (copied from settings on run start)
+
+# Selected difficulty of the active save profile. Set at boot / on profile
+# switch (main.nim) and read by the spawn/damage choke points below. Medium is
+# the pre-difficulty-system balance, so its multipliers are exactly 1.0.
+var currentDifficulty* = gdMedium
+
+proc difficultyEnemyHpMult*(): float32 =
+  case currentDifficulty
+  of gdEasy: 0.75'f32
+  of gdMedium: 1.0'f32
+  of gdHard: 1.35'f32
+
+proc difficultyEnemyDamageMult*(): float32 =
+  case currentDifficulty
+  of gdEasy: 0.70'f32
+  of gdMedium: 1.0'f32
+  of gdHard: 1.30'f32
 
 proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
                        duration: float32, sourceEnemyId: int = -1): AttackWarning =
