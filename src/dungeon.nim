@@ -10,9 +10,7 @@
 ## itself stays in game.nim and only reads the counters/state armed here.
 
 import raylib, random, math, tables
-import particle_types
-import types, roguelite, powerup, particle, sound, localization, boss_definitions, settings
-import coin
+import particle_types, types, roguelite, powerup, particle, sound, localization, boss_definitions, settings, coin
 
 const
   DoorZoneWidth* = 120'f32   # Length of the door opening along the edge

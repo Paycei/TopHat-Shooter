@@ -1,7 +1,5 @@
 import raylib, math, random
-import particle_types
-import types
-import particle_pool, sound, powerup, particle
+import particle_types, types, particle_pool, sound, powerup, particle
 
 ## Experience orbs for the run-leveling modes (roguelite + time-survival). This
 ## module is a deliberate sibling of

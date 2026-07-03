@@ -1,7 +1,5 @@
-import std/math
-import raylib
-import particle_types
-import types, powerup, bullet, particle_pool
+import std/math, raylib
+import particle_types, types, powerup, bullet, particle_pool
 
 proc newWall*(x, y: float32, player: Player): Wall =
   # Calculate HP based on WallMaster powerup

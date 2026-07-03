@@ -1,6 +1,5 @@
 import raylib, math
-import types, sound, gamemode_definitions, powerup, powerup_data, localization, render_context, ui/os_shop
-import roguelite, settings, save_system
+import types, sound, gamemode_definitions, powerup, powerup_data, localization, render_context, ui/os_shop, roguelite, settings, save_system
 
 # ENABLE/DISABLE CHEATS
 # Release-build toggle: flip to `false` to ship a build with no cheat menu.

@@ -1,8 +1,7 @@
 ## Shared utility helpers used across multiple modules.
 ## Only depends on the standard library and raylib, no game-state imports.
 
-import raylib
-import std/strutils
+import raylib, std/strutils
 
 # Enum parsing
 

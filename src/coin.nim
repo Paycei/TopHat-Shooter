@@ -1,10 +1,5 @@
 import raylib, math, random
-import particle_types
-import types
-import particle, particle_pool
-import powerup, sound, d_systems, d_enhancements, run_statistics
-import game/combat
-import gamemode_definitions
+import particle_types, types, particle, particle_pool, powerup, sound, d_systems, d_enhancements, run_statistics, game/combat, gamemode_definitions
 
 const LOOT_MARGIN* = 50.0  # Distance from screen edge
 

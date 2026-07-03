@@ -1,5 +1,5 @@
-import types, math, random, raylib
-import particle_types
+import math, random, raylib
+import types, particle_types
 
 const LIGHTNING_BOLT_DURATION* = 0.18'f32  # seconds the arc stays visible
 const LIGHTNING_SEGMENTS*      = 8

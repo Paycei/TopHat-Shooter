@@ -1,5 +1,5 @@
-import raylib, rlgl, random, math, types, enemy, bullet, boss_definitions, particle_pool, particle_types, d_systems, enemy_helpers, boss_weakpoints, ui/warnings
-import game/bullets
+import raylib, rlgl, random, math
+import types, enemy, bullet, boss_definitions, particle_pool, particle_types, d_systems, enemy_helpers, boss_weakpoints, ui/warnings, game/bullets
 
 const BOSS_PHASE_INVULNERABILITY_DURATION* = BossPhaseTransitionDuration
 

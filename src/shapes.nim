@@ -2,8 +2,7 @@
 ## Defines available player shapes and rendering functions
 
 import raylib, math
-import particle_types
-import localization, cube_skins, utils
+import particle_types, localization, cube_skins, utils
 
 type
   ShapeType* = enum

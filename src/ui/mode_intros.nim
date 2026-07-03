@@ -5,8 +5,7 @@
 ## cinematic_common helpers as the lore and endgame cinematics.
 
 import raylib, rlgl, math
-import particle_types
-import background_fx, ../types, ../localization, ../sound, cinematic_common, cutscene
+import particle_types, background_fx, ../types, ../localization, ../sound, cinematic_common, cutscene
 
 # ---------------------------------------------------------------------------
 # Shared accent colours

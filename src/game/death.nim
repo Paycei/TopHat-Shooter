@@ -1,7 +1,5 @@
-import raylib, rlgl, random, math, types, settings, save_system, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite
-import game/bullets
-import ui/icon_drawing
-import utils
+import raylib, rlgl, random, math
+import types, settings, save_system, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite, game/bullets, ui/icon_drawing, utils
 export utils
 
 const DEATH_SLOW_DURATION* = 1.1'f32

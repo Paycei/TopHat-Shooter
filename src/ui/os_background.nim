@@ -1,8 +1,7 @@
 ## OS-Style Background System
 
 import raylib, math, random
-import particle_types
-import ../types, background_fx
+import particle_types, ../types, background_fx
 
 const
   MAX_DATA_PACKETS = 50

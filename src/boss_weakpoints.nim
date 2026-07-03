@@ -1,6 +1,5 @@
 import math, random, raylib
-import particle_types
-import types
+import particle_types, types
 
 const TwoPi = PI * 2.0
 

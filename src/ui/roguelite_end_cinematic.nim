@@ -6,9 +6,7 @@
 ## and a climb back to the surface with the recovered cores in hand.
 
 import raylib, rlgl, math
-import particle_types
-import background_fx, ../shapes, ../localization, ../sound,
-       cinematic_common, cutscene
+import particle_types, background_fx, ../shapes, ../localization, ../sound, cinematic_common, cutscene
 
 const
   RogAccent* = Color(r: 255, g: 190, b: 70, a: 255)   # recovered-data amber/gold

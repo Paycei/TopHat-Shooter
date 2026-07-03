@@ -1,6 +1,5 @@
 import raylib, math, random
-import particle_types
-import types, localization
+import particle_types, types, localization
 
 type
   ShakeIntensity* = enum

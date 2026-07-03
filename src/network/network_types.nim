@@ -3,8 +3,7 @@
 ## Serialization and supersnappy compression are handled in network.nim.
 
 import raylib, times
-import particle_types
-import ../types
+import particle_types, ../types
 
 type
   PacketType* = enum

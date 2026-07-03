@@ -1,6 +1,5 @@
-import raylib, rlgl, math, tables, types, player, particle_pool, particle_types, powerup
-import game/combat
-import game/bullets
+import raylib, rlgl, math, tables
+import types, player, particle_pool, particle_types, powerup, game/combat, game/bullets
 from run_statistics import trackPowerUpDamage, trackPowerUpHealing
 
 # ORBITAL WEAPONS SYSTEM

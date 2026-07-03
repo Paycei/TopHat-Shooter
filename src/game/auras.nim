@@ -1,4 +1,5 @@
-import raylib, rlgl, math, types, particle_types
+import raylib, rlgl, math
+import types, particle_types
 
 # Unified aura configuration and rendering system
 

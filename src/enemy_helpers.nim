@@ -2,8 +2,7 @@
 ## Centralized attack execution, movement, and special behaviors
 
 import raylib, random, math, tables, strutils
-import particle_types
-import types, enemy_config, bullet, wall, run_statistics
+import particle_types, types, enemy_config, bullet, wall, run_statistics
 
 const
   EnemyInertiaAcceleration* = 4.5'f32

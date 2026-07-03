@@ -3,8 +3,7 @@ import types, settings, save_system, player, enemy, bullet, consumable, coin, xp
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
-import game/combat, game/auras, game/bullets, game/death, game/bosses,
-       game/orbitals, game/shooting
+import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting
 
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn

@@ -1,5 +1,5 @@
-import raylib, rlgl, random, math, types, player, particle_pool, particle_types, effects, powerup, fx
-import game/combat
+import raylib, rlgl, random, math
+import types, player, particle_pool, particle_types, effects, powerup, fx, game/combat
 from run_statistics import trackPowerUpDamage, trackPowerUpHealing
 
 type BulletEffects* = tuple[

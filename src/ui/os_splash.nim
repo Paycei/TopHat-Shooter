@@ -2,9 +2,7 @@
 ## Two phases: BIOS amber POST -> kernel model reveal with title and press-any-key.
 
 import raylib, strutils, math
-import particle_types
-import ../localization, ../hardware_info, ../shapes,
-       background_fx, cinematic_common
+import particle_types, ../localization, ../hardware_info, ../shapes, background_fx, cinematic_common
 
 const BIOS_DUR = 2.2'f32
 

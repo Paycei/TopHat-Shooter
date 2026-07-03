@@ -4,9 +4,7 @@
 ## newEndgameCutscene() via the generic framework in cutscene.nim.
 
 import raylib, rlgl, math
-import particle_types
-import background_fx, ../types, ../shapes, ../localization, ../sound,
-       cinematic_common, cutscene
+import particle_types, background_fx, ../types, ../shapes, ../localization, ../sound, cinematic_common, cutscene
 
 const
   EndAccent* = Color(r: 60, g: 235, b: 160, a: 255)  # "restored" mint-green

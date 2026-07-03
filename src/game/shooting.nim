@@ -1,7 +1,5 @@
-import raylib, math, types, bullet, particle_skins, particle_types, powerup, sound, d_systems, run_statistics
-import fx
-import game/combat
-import game/bullets
+import raylib, math
+import types, bullet, particle_skins, particle_types, powerup, sound, d_systems, run_statistics, fx, game/combat, game/bullets
 
 proc rotateVec(v: Vector2f, angle: float32): Vector2f =
   newVector2f(v.x * cos(angle) - v.y * sin(angle), v.x * sin(angle) + v.y * cos(angle))

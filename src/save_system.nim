@@ -1,8 +1,5 @@
-import json, os, std/tables, strutils
-import raylib
-import particle_types
-import run_statistics, types
-import utils
+import json, os, std/tables, strutils, raylib
+import particle_types, run_statistics, types, utils
 
 # Settings type definition (moved from settings_types.nim)
 type

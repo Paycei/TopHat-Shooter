@@ -1,5 +1,5 @@
-import raylib, rlgl, random, types, particle, particle_pool, particle_types, powerup, run_statistics, boss_weakpoints
-import ui/os_background
+import raylib, rlgl, random
+import types, particle, particle_pool, particle_types, powerup, run_statistics, boss_weakpoints, ui/os_background
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 

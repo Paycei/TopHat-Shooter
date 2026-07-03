@@ -1,5 +1,5 @@
-import types, random, particle_pool, boss_definitions, math, raylib
-import particle_types
+import random, math, raylib
+import types, particle_pool, boss_definitions, particle_types
 
 proc spawnThunderstrikeInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                              player: Player, screenWidth, screenHeight: int32,

@@ -2,8 +2,7 @@
 ## Cosmetic shapes for player bullets
 
 import raylib, math
-import particle_types
-import localization
+import particle_types, localization
 
 type
   BulletShapeType* = enum
