@@ -91,10 +91,10 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
   drawText(yesTxt, yesX + (BW - yTW) div 2, btnY + 13, 14, White)
 
   var decision = 0
-  if isMouseButtonPressed(Left):
+  if isPointerPressed():
     if noHov:               decision = -1
     elif yesHov and mouseReady: decision = 1
-  if isKeyPressed(Escape): decision = -1
+  if isBackPressed(): decision = -1
   if isKeyPressed(Q) and keyReady: decision = 1
 
   if decision != 0:
@@ -237,7 +237,7 @@ proc updateMouseTracking*(game: Game) =
     game.mouseMovedRecently = true
     game.keyboardUsedRecently = false
   # Any mouse button press counts as "movement" for click responsiveness
-  if isMouseButtonPressed(Left) or isMouseButtonPressed(Right) or isMouseButtonPressed(Middle):
+  if isPointerPressed() or isMouseButtonPressed(Right) or isMouseButtonPressed(Middle):
     game.mouseMovedRecently = true
     game.keyboardUsedRecently = false
   game.lastMousePos = newVector2f(currentPos.x, currentPos.y)
@@ -287,6 +287,13 @@ proc isMenuOrGameState(state: GameState): bool =
 
 proc updateInGameMouseBonding(settings: Settings, state: GameState) =
   if settings == nil:
+    releaseMouseClip()
+    return
+
+  # While the gamepad drives, don't clip or warp the OS cursor: bonding would
+  # fight the (parked) physical mouse, and a stray warp would look like mouse
+  # activity to the device arbitration.
+  if isGamepadActive():
     releaseMouseClip()
     return
 
@@ -668,6 +675,21 @@ proc main() =
 
     let dt = getFrameTime()
 
+    # Gamepad layer: device arbitration + virtual cursor. Must run before the
+    # state machine so every getVirtualMousePosition() this frame agrees on the
+    # active device. Sandbox stays in menu-cursor mode: its object placement is
+    # cursor-driven, not twin-stick.
+    setPreferredGamepad(globalSettings.preferredGamepad.int32)
+    updateGamepadInput(dt, screenWidth.float32, screenHeight.float32,
+                       getRealVirtualMousePosition())
+    # The global confirm dialog freezes gameplay updates, so nothing would
+    # write the aim point; give the pad a live menu cursor instead.
+    setGamepadCursorMode(
+      if currentGame.state in {gsPlaying, gsPvPPlaying} and
+         not isSandboxMode(currentGame.mode) and
+         not globalConfirmActive: cmGameplayAim
+      else: cmMenuCursor)
+
     # Tick down the global confirm guards
     if globalConfirmFrameGuard > 0:
       globalConfirmFrameGuard = max(0.0'f32, globalConfirmFrameGuard - dt)
@@ -714,7 +736,7 @@ proc main() =
               anyKeyPressed = true
               break
       # Also check mouse buttons
-      if isMouseButtonPressed(Left) or isMouseButtonPressed(Right):
+      if isPointerPressed() or isMouseButtonPressed(Right):
         anyKeyPressed = true
 
       if anyKeyPressed:
@@ -772,7 +794,7 @@ proc main() =
       # Pick by clicking a card or pressing 1 / 2.
       var chosen = -1
       if languageSelectGuard <= 0:
-        if isMouseButtonPressed(Left):
+        if isPointerPressed():
           for i, r in rects:
             if checkCollisionPointRec(mousePos, r):
               chosen = i
@@ -980,7 +1002,7 @@ proc main() =
       let mousePos = getVirtualMousePosition()
 
       # Play click sound for any left-click on the desktop (anywhere)
-      if isMouseButtonPressed(Left) and not globalConfirmActive:
+      if isPointerPressed() and not globalConfirmActive:
         playSound(stMenuNav, 0.6)
 
       # Handle window clicks and check if desktop is blocked
@@ -1487,11 +1509,15 @@ proc main() =
         # Wall placement mode: hold E to preview range, release E to place.
         const WALL_PLACEMENT_RANGE_SP = 250.0
         let wallKey = globalSettings.keybinds[kaPlaceWall]
-        let eHeld = isKeyDown(wallKey) and currentGame.player.walls > 0
+        let wallBindHeld = isKeyDown(wallKey) or
+                           isGamepadBindDown(globalSettings.gamepadBinds, kaPlaceWall)
+        let eHeld = wallBindHeld and currentGame.player.walls > 0
         currentGame.wallPlacementMode = eHeld
 
         # Release wall key places the wall at the current cursor position
-        if isKeyReleased(wallKey) and currentGame.player.walls > 0:
+        if (isKeyReleased(wallKey) or
+            isGamepadBindReleased(globalSettings.gamepadBinds, kaPlaceWall)) and
+           currentGame.player.walls > 0:
           let mousePos = getVirtualMousePosition()
           let wallPos = newVector2f(mousePos.x, mousePos.y)
           let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
@@ -1503,7 +1529,7 @@ proc main() =
             trackWallPlacement(currentGame, wallPos)
 
       # Activate ALL legendary power-ups with the legendary key (simultaneous activation)
-      if isKeyPressed(globalSettings.keybinds[kaLegendary]) and not globalConfirmActive:
+      if (isKeyPressed(globalSettings.keybinds[kaLegendary]) or isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)) and not globalConfirmActive:
         var anyActivated = false
 
         # Time Warp - slow down time
@@ -1707,7 +1733,7 @@ proc main() =
 
       # Pause (don't actually pause in PvP mode to avoid desync)
       # Also skip if the confirm dialog is open (it acts as a hard pause)
-      if isKeyPressed(Escape) and not globalConfirmActive:
+      if (isBackPressed() or isGamepadStartPressed()) and not globalConfirmActive:
         if not isPvPMode(currentGame.mode):
           currentGame.state = gsPaused
         else:
@@ -1896,7 +1922,7 @@ proc main() =
             currentGame.pauseMenuExitCooldown = 2.0         # countdown shown inside dialog
             currentGame.confirmQuitFrameGuard = 0.15  # prevent same-frame auto-confirm in dialog
             playSound(stMenuNav)
-        elif isKeyPressed(Escape):  # ESC cancels confirm dialog, or resumes
+        elif (isBackPressed() or isGamepadStartPressed()):  # ESC cancels confirm dialog, or resumes
           if currentGame.confirmQuitPending:
             currentGame.confirmQuitPending = false
             currentGame.pauseMenuExitCooldown = 2.0  # prevent immediate re-trigger
@@ -2055,7 +2081,7 @@ proc main() =
           if settings.exitConfirmEnabled: showGlobalConfirm(cdcQuitToMenu)
           else: closeRogueliteFloorSelect()
 
-      if isMouseButtonPressed(Left) and not globalConfirmActive:
+      if isPointerPressed() and not globalConfirmActive:
         let mousePos = getVirtualMousePosition()
         const PanelW = 920
         const PanelH = 620
@@ -2125,7 +2151,7 @@ proc main() =
           markKeyboardUsed(currentGame)
 
         # Mouse click handling for shop items
-        if isMouseButtonPressed(Left):
+        if isPointerPressed():
           let mousePos = getVirtualMousePosition()
 
           # Shop dimensions from shop.nim
@@ -2196,7 +2222,7 @@ proc main() =
           buyShopItem(currentGame, currentGame.selectedShopItem)
 
         # Close shop - ESC is intentionally not bound here; only the legendary key or the in-window X button may close it.
-        if isKeyPressed(globalSettings.keybinds[kaLegendary]) and not globalConfirmActive:
+        if (isKeyPressed(globalSettings.keybinds[kaLegendary]) or isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)) and not globalConfirmActive:
           currentGame.cameFromPowerUpSelect = false
           if currentGame.mode == gmRoguelite:
             # In the dungeon the shop is a room: just step back into it.
@@ -2424,7 +2450,7 @@ proc main() =
           if isKeyPressed(Enter) or isKeyPressed(E) or isKeyPressed(Space):
             continueAfterDraft()
 
-          if isMouseButtonPressed(Left):
+          if isPointerPressed():
             let mousePos = getVirtualMousePosition()
             const INSTALLER_WIDTH = 1000
             const INSTALLER_HEIGHT = 650
@@ -2486,7 +2512,7 @@ proc main() =
             # If reroll failed (not enough coins), do nothing (could add sound here)
 
           # Mouse hover detection for card selection (only if keyboard not recently used)
-          if isMouseButtonPressed(Left) or currentGame.mouseMovedRecently:
+          if isPointerPressed() or currentGame.mouseMovedRecently:
             let mousePos = getVirtualMousePosition()
             # Use actual UI dimensions from os_powerup_installer.nim
             const INSTALLER_WIDTH = 1000
@@ -2520,7 +2546,7 @@ proc main() =
             continueAfterDraft()
 
           # Mouse click to select
-          if isMouseButtonPressed(Left):
+          if isPointerPressed():
             let mousePos = getVirtualMousePosition()
             const INSTALLER_WIDTH = 1000
             const INSTALLER_HEIGHT = 650
@@ -2668,7 +2694,7 @@ proc main() =
           currentGame.state = gsRunStats
           playSound(stMenuSelect)
       # ESC or Q to exit (button 2)
-      elif not globalConfirmActive and ((isKeyPressed(Escape) or isKeyPressed(Q)) or
+      elif not globalConfirmActive and ((isBackPressed() or isKeyPressed(Q)) or
            (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 2)):
         cleanupGame(currentGame)  # Clean up resources before creating new game
         currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
@@ -2712,7 +2738,7 @@ proc main() =
         currentGame.selectedGameOverButton = 2
 
       # Mouse click handling
-      if not globalConfirmActive and isMouseButtonPressed(Left):
+      if not globalConfirmActive and isPointerPressed():
         if checkCollisionPointRec(mousePos, restartRect):
           # Restart game - preserve game mode
           let previousMode = currentGame.mode
@@ -2786,7 +2812,7 @@ proc main() =
       # Tab/Escape or the window's close button
       let statsReturnState =
         if currentGame.previousState == gsVictory: gsVictory else: gsGameOver
-      if statsWindowClosed or isKeyPressed(Tab) or isKeyPressed(Escape):
+      if statsWindowClosed or isKeyPressed(Tab) or isBackPressed():
         statsWin.window.visible = false
         currentGame.state = statsReturnState
 
@@ -2900,10 +2926,10 @@ proc main() =
       elif (isKeyPressed(Tab) or isKeyPressed(V)) or
            (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 1):
         victoryAction = 1
-      elif (isKeyPressed(Escape) or isKeyPressed(Q)) or
+      elif (isBackPressed() or isKeyPressed(Q)) or
            (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 2):
         victoryAction = 2
-      elif isMouseButtonPressed(Left):
+      elif isPointerPressed():
         if checkCollisionPointRec(vicMousePos, continueRect): victoryAction = 0
         elif checkCollisionPointRec(vicMousePos, vicStatsRect): victoryAction = 1
         elif checkCollisionPointRec(vicMousePos, vicMenuRect): victoryAction = 2
@@ -2966,10 +2992,10 @@ proc main() =
       var rvAction = -1
       if isKeyPressed(Space) or (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 0):
         rvAction = 0
-      elif (isKeyPressed(Escape) or isKeyPressed(Q)) or
+      elif (isBackPressed() or isKeyPressed(Q)) or
            (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 1):
         rvAction = 1
-      elif isMouseButtonPressed(Left):
+      elif isPointerPressed():
         if checkCollisionPointRec(rvMousePos, rvRects.continueBtn): rvAction = 0
         elif checkCollisionPointRec(rvMousePos, rvRects.cashOut): rvAction = 1
 
@@ -3042,7 +3068,7 @@ proc main() =
         playMusic(mtBoss)  # Intense music for PvP
 
       # Check for pause (visual only - game continues running)
-      if isKeyPressed(Escape) and not currentPvPGame.gameOver:
+      if isBackPressed() and not currentPvPGame.gameOver:
         currentGame.state = gsPaused
 
       # Update Discord Rich Presence (throttled internally to prevent lag)
@@ -3063,7 +3089,7 @@ proc main() =
       updatePvP(currentPvPGame, dt)
 
       # Check for exit when game is over
-      if currentPvPGame.gameOver and isKeyPressed(Escape):
+      if currentPvPGame.gameOver and isBackPressed():
         # Send disconnect packet to notify opponent (graceful disconnect)
         if currentPvPGame.networkManager != nil and currentPvPGame.networkManager.isConnected:
           disconnect(currentPvPGame.networkManager, "Player left to menu")

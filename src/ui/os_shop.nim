@@ -416,7 +416,7 @@ proc drawShop*(game: Game) =
   let sidebarRect = Rectangle(x: sidebarX.float32, y: contentAreaY.float32,
                                width: SIDEBAR_WIDTH.float32, height: contentAreaH.float32)
   if checkCollisionPointRec(mp, sidebarRect):
-    let wheel = getMouseWheelMove()
+    let wheel = getPointerWheelMove()
     if wheel != 0.0:
       game.shopSidebarScroll = clamp(game.shopSidebarScroll - int32(wheel * 20.0),
                                       0'i32, maxScroll)

@@ -45,7 +45,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   )
 
   # Start dragging
-  if isMouseButtonPressed(Left) and checkCollisionPointRec(mousePos, headerRect):
+  if isPointerPressed() and checkCollisionPointRec(mousePos, headerRect):
     # Check if clicking on minimize button area (right side of header)
     let minimizeButtonX = panelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - 12
     let minimizeButtonRect = Rectangle(
@@ -68,7 +68,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
 
   # Update dragging
   if leftPanelDragging:
-    if isMouseButtonDown(Left):
+    if isPointerDown():
       leftPanelPos = Vector2(
         x: mousePos.x - leftPanelDragOffset.x,
         y: mousePos.y - leftPanelDragOffset.y

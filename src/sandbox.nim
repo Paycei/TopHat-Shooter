@@ -579,7 +579,7 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
 proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
   if not game.sandboxSidebarOpen:
     # Check toggle button click
-    if isMouseButtonPressed(Left):
+    if isPointerPressed():
       let mousePos = getVirtualMousePosition()
       let toggleX = screenWidth - 50
       let toggleY = screenHeight div 2 - 30
@@ -591,7 +591,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
   clampSandboxScroll(game, screenHeight)
 
   # Handle scrolling
-  let mouseWheel = getMouseWheelMove()
+  let mouseWheel = getPointerWheelMove()
   if mouseWheel != 0:
     game.sandboxScrollOffset -= (mouseWheel * SCROLL_SPEED).int32
     clampSandboxScroll(game, screenHeight)
@@ -608,7 +608,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
                      int32(trackHSb.float32 * (trackHSb.float32 / contentHSb.float32)))
   let thumbRangeSb = trackHSb - thumbHSb
 
-  if isMouseButtonPressed(Left):
+  if isPointerPressed():
     let mpSb = getVirtualMousePosition()
     if maxScrollSb > 0 and
        mpSb.x >= trackXSb.float32 and mpSb.x <= (trackXSb + SCROLLBAR_WIDTH).float32 and
@@ -618,10 +618,10 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
       game.sandboxScrollbarDragging = true
       game.sandboxScrollbarDragOffsetY = mpSb.y - thumbYSb
 
-  if isMouseButtonReleased(Left):
+  if isPointerReleased():
     game.sandboxScrollbarDragging = false
 
-  if game.sandboxScrollbarDragging and isMouseButtonDown(Left):
+  if game.sandboxScrollbarDragging and isPointerDown():
     let mpDrag = getVirtualMousePosition()
     if maxScrollSb > 0 and thumbRangeSb > 0:
       let newThumbY = mpDrag.y - game.sandboxScrollbarDragOffsetY - trackYSb.float32
@@ -629,7 +629,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
       clampSandboxScroll(game, screenHeight)
   # End scrollbar drag
 
-  if isMouseButtonPressed(Left):
+  if isPointerPressed():
     let mousePos = getVirtualMousePosition()
     let sidebarX = screenWidth - SIDEBAR_WIDTH
 

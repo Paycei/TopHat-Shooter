@@ -12,6 +12,32 @@ type
 
   KeyBindings* = array[KeyAction, KeyboardKey]
 
+  # Gamepad binds mirror KeyBindings over the same actions. GamepadButton.Unknown
+  # is the "unbound" sentinel. A (click/confirm), B (back), Start (pause) and the
+  # sticks/dpad-cursor are reserved by the input layer and never appear here.
+  GamepadBindings* = array[KeyAction, GamepadButton]
+
+const
+  defaultKeybinds*: KeyBindings = [
+    kaMoveUp:    KeyboardKey.W,
+    kaMoveDown:  KeyboardKey.S,
+    kaMoveLeft:  KeyboardKey.A,
+    kaMoveRight: KeyboardKey.D,
+    kaShoot:     KeyboardKey.Space,
+    kaPlaceWall: KeyboardKey.E,
+    kaLegendary: KeyboardKey.Q
+  ]
+
+  defaultGamepadBinds*: GamepadBindings = [
+    kaMoveUp:    GamepadButton.LeftFaceUp,     # dpad; the left stick is always-on analog
+    kaMoveDown:  GamepadButton.LeftFaceDown,
+    kaMoveLeft:  GamepadButton.LeftFaceLeft,
+    kaMoveRight: GamepadButton.LeftFaceRight,
+    kaShoot:     GamepadButton.RightTrigger2,  # RT (right stick also autofires)
+    kaPlaceWall: GamepadButton.RightFaceLeft,  # X
+    kaLegendary: GamepadButton.RightFaceUp     # Y
+  ]
+
 # Timing for the Chain Reactor's telegraphed electricity attacks. Shared so the
 # warning-update logic (game.nim) and the telegraph drawing (enemy.nim) agree on
 # exactly when the dodge window ends and the strike becomes lethal.

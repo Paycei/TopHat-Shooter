@@ -1,4 +1,8 @@
 import raylib, math
+import gamepad_input
+# Re-export so every module that already imports render_context (all ui/, game,
+# pvp_game, sandbox, main) sees the pointer wrappers and gamepad queries.
+export gamepad_input
 
 when defined(windows):
   type
@@ -69,12 +73,23 @@ proc getCurrentVirtualScissor*(): tuple[x, y, w, h: int32] =
 proc currentVirtualScissorIsActive*(): bool =
   currentVirtualScissorActive
 
-proc getVirtualMousePosition*(): Vector2 =
+proc getRealVirtualMousePosition*(): Vector2 =
+  ## The physical mouse position in virtual coords, ignoring the gamepad
+  ## cursor. Used for device arbitration and cursor handoff seeding.
   let screenPos = getMousePosition()
   result.x = (screenPos.x - currentRenderOffsetX) / currentRenderScale
   result.y = (screenPos.y - currentRenderOffsetY) / currentRenderScale
   result.x = clamp(result.x, 0.0'f32, currentVirtualWidth)
   result.y = clamp(result.y, 0.0'f32, currentVirtualHeight)
+
+proc getVirtualMousePosition*(): Vector2 =
+  ## The pointer position every menu/HUD/aim call site reads. While the gamepad
+  ## is the active device this is the gamepad virtual cursor (menu mode) or the
+  ## gameplay aim point, so the entire mouse-driven UI works from the pad.
+  if isGamepadActive():
+    gamepadCursorPos()
+  else:
+    getRealVirtualMousePosition()
 
 proc bondMouseToVirtualViewport*() =
   ## Keep the mouse inside the active virtual viewport.

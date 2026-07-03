@@ -246,7 +246,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
                      mousePos.y >= gridY.float32 and
                      mousePos.y < (gridY + gridH).float32
     if inGridArea and not rw.window.dragging:
-      let wheelMove = getMouseWheelMove()
+      let wheelMove = getPointerWheelMove()
       if wheelMove != 0:
         rw.unlockScrollVelocity += -wheelMove * 400.0'f32
 
@@ -260,7 +260,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
         rw.unlockScrollVelocity *= clamp(1.0'f32 - dt * 8.0'f32, 0.0'f32, 1.0'f32)
 
     # Mouse clicks
-    if isMouseButtonPressed(Left):
+    if isPointerPressed():
       let scrollInt = int(round(rw.unlockScrollOffset))
       let gridLeft = panelX + (RoguelitePanelW - (columns * UnlockCardW + (columns - 1) * UnlockCardPad)) div 2
 
@@ -370,7 +370,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
       result.launchGame = true
       return
 
-  if isMouseButtonPressed(Left):
+  if isPointerPressed():
     let mousePos = getVirtualMousePosition()
     let panelX = contentX.int32
     let panelY = contentY.int32

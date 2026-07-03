@@ -218,7 +218,7 @@ proc updateHold(sw: SandboxWindow, dt: float32) =
   ## Continue an active hold: repeat the adjustment at an accelerating pace.
   if sw.holdStat < 0:
     return
-  if not isMouseButtonDown(MouseButton.Left):
+  if not isPointerDown():
     sw.holdStat = -1
     return
   sw.holdTimer -= dt
@@ -256,7 +256,7 @@ proc updateSandboxWindow*(sw: SandboxWindow, dt: float32,
   let ch = (sw.window.height - TITLE_BAR_HEIGHT - WINDOW_BORDER * 2).int32
   let lay = computeLayout(cx, cy, cw, ch)
 
-  if not isMouseButtonPressed(MouseButton.Left):
+  if not isPointerPressed():
     return
   let mp = getVirtualMousePosition()
 

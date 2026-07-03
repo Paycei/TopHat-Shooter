@@ -483,21 +483,21 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
 
   if activeText != nil:
     let mousePos = getVirtualMousePosition()
-    if isMouseButtonPressed(Left):
+    if isPointerPressed():
       let cursorPos = getTextCursorPos(activeText[], fieldX, fieldY, fontSize, fieldHeight, mousePos.x, mousePos.y)
       if cursorPos >= 0:
         pvpWin.mouseDownPos = mousePos
         pvpWin.isDragging = true
         pvpWin.selectionStart = cursorPos
         pvpWin.selectionEnd = cursorPos
-    if pvpWin.isDragging and isMouseButtonDown(Left):
+    if pvpWin.isDragging and isPointerDown():
       let cursorPos = getTextCursorPos(activeText[], fieldX, fieldY, fontSize, fieldHeight, mousePos.x, mousePos.y)
       if cursorPos >= 0:
         let dragDist = sqrt((mousePos.x - pvpWin.mouseDownPos.x) * (mousePos.x - pvpWin.mouseDownPos.x) +
                            (mousePos.y - pvpWin.mouseDownPos.y) * (mousePos.y - pvpWin.mouseDownPos.y))
         if dragDist > 3.0:
           pvpWin.selectionEnd = cursorPos
-    if isMouseButtonReleased(Left):
+    if isPointerReleased():
       pvpWin.isDragging = false
       if pvpWin.selectionStart == pvpWin.selectionEnd:
         pvpWin.cursorPos = pvpWin.selectionStart
@@ -1257,7 +1257,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
 
 proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, contentHeight: int): int =
   ## Returns: 0 = no action, 1 = host config, 2 = join, 3 = back/cancel, 4 = connect, 5 = start game, 6 = start hosting
-  if not isMouseButtonPressed(Left):
+  if not isPointerPressed():
     return 0
   let mousePos = getVirtualMousePosition()
   case pvpWin.state

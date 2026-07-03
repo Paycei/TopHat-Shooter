@@ -2,7 +2,7 @@
 ## Handles settings initialization, state management, and application
 
 from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, saveSettings, loadSettings
-from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, PowerUpType
+from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds
 import raylib, strutils
 import sound, localization
 
@@ -47,16 +47,10 @@ proc newDefaultSettings*(): Settings =
     cubeSkin: 0,         # Default to first cube skin (cskDefault)
     pvpNickname: "Player",  # Default nickname for PvP
     exitConfirmEnabled: true,  # Exit confirm dialogs enabled by default
-    keybinds: [
-      kaMoveUp:    KeyboardKey.W,
-      kaMoveDown:  KeyboardKey.S,
-      kaMoveLeft:  KeyboardKey.A,
-      kaMoveRight: KeyboardKey.D,
-      kaShoot:     KeyboardKey.Space,
-      kaPlaceWall: KeyboardKey.E,
-      kaLegendary: KeyboardKey.Q
-    ]
-    ,
+    keybinds: defaultKeybinds,
+    gamepadBinds: defaultGamepadBinds,
+    preferredGamepad: -1,  # Auto: use the first detected controller
+    aimAssistEnabled: true,
     rogueliteUnlocked: false,
     survivalUnlocked: false
   )

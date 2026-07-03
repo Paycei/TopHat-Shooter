@@ -86,7 +86,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   )
 
   # Start dragging or minimize
-  if isMouseButtonPressed(Left) and checkCollisionPointRec(mousePos, headerRect):
+  if isPointerPressed() and checkCollisionPointRec(mousePos, headerRect):
     # Check if clicking on minimize button area (right side of header)
     let minimizeButtonX = finalPanelX + DEBUG_PANEL_WIDTH - DEBUG_PANEL_PADDING - 12
     let minimizeButtonRect = Rectangle(
@@ -109,7 +109,7 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
 
   # Update dragging
   if debugPanelDragging:
-    if isMouseButtonDown(Left):
+    if isPointerDown():
       debugPanelPos = Vector2(
         x: mousePos.x - debugPanelDragOffset.x,
         y: mousePos.y - debugPanelDragOffset.y
@@ -680,7 +680,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
   )
 
   # Start dragging or minimize
-  if isMouseButtonPressed(Left) and checkCollisionPointRec(mousePos, headerRect):
+  if isPointerPressed() and checkCollisionPointRec(mousePos, headerRect):
     # Check if clicking on minimize button area (right side of header)
     let minimizeButtonX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
     let minimizeButtonRect = Rectangle(
@@ -703,7 +703,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32) =
 
   # Update dragging
   if legendaryPanelDragging:
-    if isMouseButtonDown(Left):
+    if isPointerDown():
       legendaryPanelPos = Vector2(
         x: mousePos.x - legendaryPanelDragOffset.x,
         y: mousePos.y - legendaryPanelDragOffset.y

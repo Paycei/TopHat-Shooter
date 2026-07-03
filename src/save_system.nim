@@ -56,6 +56,9 @@ type
     survivalUnlocked*: bool     # Unlock flag: allows Time Survival mode from menu
     lastDeathWave*: int         # Wave the player died on last non-cheated wave-based run (0 = none)
     keybinds*: KeyBindings      # Rebindable keyboard controls
+    gamepadBinds*: GamepadBindings  # Rebindable gamepad controls (same actions)
+    preferredGamepad*: int      # Chosen pad index, -1 = auto (first detected)
+    aimAssistEnabled*: bool     # Gamepad aim assist (cone snap to nearest enemy)
     hasSeenWaveModeIntro*: bool    # First-time wave-based mode intro played
     hasSeenSurvivalIntro*: bool    # First-time time-survival mode intro played
     hasSeenRogueliteIntro*: bool   # First-time roguelite mode intro played
@@ -285,6 +288,12 @@ proc settingsToJson*(settings: Settings): JsonNode =
   for action in KeyAction:
     bindsObj[$action] = %($ settings.keybinds[action])
   result["keybinds"] = bindsObj
+  var padBindsObj = newJObject()
+  for action in KeyAction:
+    padBindsObj[$action] = %($ settings.gamepadBinds[action])
+  result["gamepadBinds"] = padBindsObj
+  result["preferredGamepad"] = %settings.preferredGamepad
+  result["aimAssistEnabled"] = %settings.aimAssistEnabled
 
 # Load Settings from JSON
 proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
@@ -434,6 +443,22 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
           settings.keybinds[action] = parseEnum[KeyboardKey](binds[key].getStr())
         except ValueError:
           discard
+
+  if jsonNode.hasKey("gamepadBinds"):
+    let binds = jsonNode["gamepadBinds"]
+    for action in KeyAction:
+      let key = $action
+      if binds.hasKey(key):
+        try:
+          settings.gamepadBinds[action] = parseEnum[GamepadButton](binds[key].getStr())
+        except ValueError:
+          discard
+
+  if jsonNode.hasKey("preferredGamepad"):
+    settings.preferredGamepad = jsonNode["preferredGamepad"].getInt()
+
+  if jsonNode.hasKey("aimAssistEnabled"):
+    settings.aimAssistEnabled = jsonNode["aimAssistEnabled"].getBool()
 
 # Save Settings to file
 proc saveSettings*(settings: Settings): bool =

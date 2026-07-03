@@ -329,7 +329,7 @@ proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
     let listRect = Rectangle(x: (listX + 8).float32, y: cardStartY.float32,
                              width: (ListWidth - 16).float32, height: listH.float32)
     if checkCollisionPointRec(mousePos, listRect):
-      let wheel = getMouseWheelMove()
+      let wheel = getPointerWheelMove()
       if wheel != 0:
         advWin.scrollOffset = clamp(advWin.scrollOffset - int(wheel),
                                     0, max(0, defs.len - maxVisible))

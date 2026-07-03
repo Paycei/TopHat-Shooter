@@ -1,5 +1,5 @@
 import raylib, math, random, std/deques
-import particle_types, types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, settings, utils
+import gamepad_input, particle_types, types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, settings, utils
 
 const
   PlayerAcceleration = 7.0'f32
@@ -245,7 +245,20 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if isKeyDown(kb[kaMoveLeft]): moveDir.x -= 1
   if isKeyDown(kb[kaMoveRight]): moveDir.x += 1
 
-  if moveDir.length() > 0:
+  if isGamepadActive():
+    let ls = leftStick()
+    moveDir.x += ls.x
+    moveDir.y += ls.y
+    let gb = globalSettings.gamepadBinds
+    if isGamepadBindDown(gb, kaMoveUp): moveDir.y -= 1
+    if isGamepadBindDown(gb, kaMoveDown): moveDir.y += 1
+    if isGamepadBindDown(gb, kaMoveLeft): moveDir.x -= 1
+    if isGamepadBindDown(gb, kaMoveRight): moveDir.x += 1
+
+  # Clamp instead of always normalizing: keyboard input still normalizes the
+  # diagonal, while partial analog stick deflection keeps its magnitude so the
+  # player can walk slowly.
+  if moveDir.length() > 1:
     moveDir = moveDir.normalize()
   let targetVel = moveDir * currentSpeed
   let inertiaScale = playerInertiaSizeScale(player)

@@ -219,7 +219,7 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   drawText(yesText, yesX + (BTN_W - yesTW) div 2, btnY + 12, 14, White)
 
   # Input keyboard uses keyReady (frame-guard only); mouse uses mouseReady (2 s cooldown).
-  if isMouseButtonPressed(Left):
+  if isPointerPressed():
     if noHov:
       result.cancelled = true
     elif yesHov and mouseReady:
@@ -278,7 +278,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   let performanceHovered = mouseSupported and isMouseOverRect(mousePos, windowX + tabWidth.int32, tabY, tabWidth.int32, TAB_HEIGHT)
 
   # Handle tab clicks
-  if mouseSupported and isMouseButtonPressed(Left):
+  if mouseSupported and isPointerPressed():
     if processesHovered:
       result.newTab = tmtProcesses
     elif performanceHovered:
@@ -313,7 +313,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   let resumeHovered = mouseSupported and isMouseOverRect(mousePos, resumeX, buttonY, 180, BUTTON_HEIGHT)
 
   # Handle button clicks
-  if mouseSupported and isMouseButtonPressed(Left):
+  if mouseSupported and isPointerPressed():
     if exitHovered:
       result.exitClicked = true
     elif settingsHovered:

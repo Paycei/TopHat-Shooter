@@ -3,6 +3,7 @@
 
 import raylib, algorithm, sequtils
 import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
+import ../gamepad_input
 
 type
   WindowID* = enum
@@ -147,7 +148,7 @@ proc closeAllWindows*(wm: WindowManager) =
 
 proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
-  if not isMouseButtonPressed(Left):
+  if not isPointerPressed():
     return false
 
   # Get visible windows sorted by z-order (highest first)

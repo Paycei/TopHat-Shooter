@@ -261,14 +261,14 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
     return false
 
   # Check ESC key to close window when focused
-  if window.focused and isKeyPressed(KeyboardKey.Escape):
+  if window.focused and isBackPressed():
     return true
 
   let mousePos = getVirtualMousePosition()
 
   # Handle dragging
   if window.dragging:
-    if isMouseButtonDown(Left):
+    if isPointerDown():
       window.x = int(mousePos.x) - window.dragOffsetX
       window.y = int(mousePos.y) - window.dragOffsetY
       window.x = max(0, min(window.x, screenWidth - window.width))
@@ -279,7 +279,7 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
 
   # Handle resizing
   if window.resizing:
-    if isMouseButtonDown(Left):
+    if isPointerDown():
       case window.resizeEdge
       of 1:  # Right edge
         window.width = max(MIN_WINDOW_WIDTH, int(mousePos.x) - window.x)
@@ -295,7 +295,7 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
       window.resizeEdge = 0
     return false
 
-  if isMouseButtonPressed(Left):
+  if isPointerPressed():
     let clickOnThisWindowArea = if window.minimized:
       isPointInTitleBar(window, mousePos.x, mousePos.y)
     else:

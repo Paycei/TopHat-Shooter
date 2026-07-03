@@ -284,7 +284,7 @@ proc updateChangelogWindow*(cl: ChangelogWindow, dt: float32,
   let viewH = h - 16
   let maxScroll = max(0, totalContentHeight(cl, textWidth) - viewH)
 
-  let wheel = getMouseWheelMove()
+  let wheel = getPointerWheelMove()
   if wheel != 0:
     cl.scrollOffset = clamp(cl.scrollOffset - int(wheel * CHANGELOG_SCROLL_STEP),
                             0, maxScroll)

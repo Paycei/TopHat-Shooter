@@ -381,13 +381,36 @@ proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
   if isKeyDown(kb[kaMoveLeft]): moveDir.x -= 1
   if isKeyDown(kb[kaMoveRight]): moveDir.x += 1
 
-  if moveDir.length() > 0:
+  if isGamepadActive():
+    let ls = leftStick()
+    moveDir.x += ls.x
+    moveDir.y += ls.y
+    let gb = globalSettings.gamepadBinds
+    if isGamepadBindDown(gb, kaMoveUp): moveDir.y -= 1
+    if isGamepadBindDown(gb, kaMoveDown): moveDir.y += 1
+    if isGamepadBindDown(gb, kaMoveLeft): moveDir.x -= 1
+    if isGamepadBindDown(gb, kaMoveRight): moveDir.x += 1
+
+  # Clamp instead of normalize so partial stick deflection keeps its magnitude
+  if moveDir.length() > 1:
     moveDir = moveDir.normalize()
 
-  let mousePos = getVirtualMousePosition()
+  var mousePos = getVirtualMousePosition()
+  if isGamepadActive():
+    # Twin-stick aim at a fixed radius. Deliberately NO aim assist in PvP:
+    # snapping onto other players would be a fairness problem. Walls are
+    # placed at the same stick-aimed point.
+    let dir = aimDir()
+    const AimPointRadius = 240.0'f32
+    let localPos = pvp.players[pvp.localPlayerIndex].pos
+    mousePos = Vector2(x: localPos.x + dir.x * AimPointRadius,
+                       y: localPos.y + dir.y * AimPointRadius)
+    setGamepadAimPoint(mousePos)
 
   # Toggle wall-placement mode with wall key, right-click cancels it
-  if isKeyPressed(globalSettings.keybinds[kaPlaceWall]) and pvp.players[pvp.localPlayerIndex].walls > 0:
+  if (isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or
+      isGamepadBindPressed(globalSettings.gamepadBinds, kaPlaceWall)) and
+     pvp.players[pvp.localPlayerIndex].walls > 0:
     pvp.wallPlacementMode = not pvp.wallPlacementMode
   if isMouseButtonPressed(Right) and pvp.wallPlacementMode:
     pvp.wallPlacementMode = false
@@ -396,8 +419,10 @@ proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
     pvp.wallPlacementMode = false
 
   # In wall-placement mode: left-click places a wall instead of shooting
-  let placingWall = pvp.wallPlacementMode and isMouseButtonPressed(Left)
-  let shooting    = (not pvp.wallPlacementMode) and isMouseButtonDown(Left)
+  let placingWall = pvp.wallPlacementMode and isPointerPressed()
+  let shooting    = (not pvp.wallPlacementMode) and
+                    (isMouseButtonDown(Left) or
+                     gamepadFireDown(globalSettings.gamepadBinds))
 
   result = PlayerInput(
     tick: pvp.serverTick,

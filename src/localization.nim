@@ -141,6 +141,16 @@ type
     tkKeybindPressAnyKey = "keybind_press_any_key"
     tkKeybindResetDefaults = "keybind_reset_defaults"
     tkKeybindNonRebindableNote = "keybind_non_rebindable_note"
+    tkGamepadColumnKey = "gamepad_column_key"
+    tkGamepadColumnPad = "gamepad_column_pad"
+    tkGamepadPressAnyButton = "gamepad_press_any_button"
+    tkGamepadReservedNote = "gamepad_reserved_note"
+    tkSettingsAimAssist = "settings_aim_assist"
+    tkSettingsAimAssistDesc = "settings_aim_assist_desc"
+    tkSettingsController = "settings_controller"
+    tkSettingsControllerDesc = "settings_controller_desc"
+    tkSettingsControllerAuto = "settings_controller_auto"
+    tkSettingsControllerNone = "settings_controller_none"
 
     # Intro / Lore Cinematic
     tkLoreTitleCardSub = "lore_title_card_sub"
@@ -1836,6 +1846,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "keybind_press_any_key": "Press any key...",
     "keybind_reset_defaults": "Reset to Defaults",
     "keybind_non_rebindable_note": "ESC: Pause  |  F11: Fullscreen  (fixed)",
+    "gamepad_column_key": "Key",
+    "gamepad_column_pad": "Pad",
+    "gamepad_press_any_button": "Press a button...",
+    "gamepad_reserved_note": "Pad: A = click, B = back, Start = pause (fixed)",
+    "settings_aim_assist": "Aim Assist",
+    "settings_aim_assist_desc": "Gamepad aim snaps to nearby enemies",
+    "settings_controller": "Controller",
+    "settings_controller_desc": "Which detected gamepad controls the game",
+    "settings_controller_auto": "Auto (first detected)",
+    "settings_controller_none": "No controller detected",
 
     # Game UI
     "game_pause": "PAUSED",
@@ -3682,6 +3702,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "keybind_press_any_key": "Pulsa cualquier tecla...",
     "keybind_reset_defaults": "Restaurar Valores",
     "keybind_non_rebindable_note": "ESC: Pausa  |  F11: Pantalla completa  (fijos)",
+    "gamepad_column_key": "Tecla",
+    "gamepad_column_pad": "Mando",
+    "gamepad_press_any_button": "Pulsa un boton...",
+    "gamepad_reserved_note": "Mando: A = clic, B = atras, Start = pausa (fijos)",
+    "settings_aim_assist": "Asistencia de Apuntado",
+    "settings_aim_assist_desc": "El apuntado con mando se ajusta a enemigos cercanos",
+    "settings_controller": "Mando",
+    "settings_controller_desc": "Que mando detectado controla el juego",
+    "settings_controller_auto": "Auto (primero detectado)",
+    "settings_controller_none": "Ningun mando detectado",
 
     # Game UI
     "game_pause": "PAUSA",

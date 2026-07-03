@@ -1929,7 +1929,40 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   updateShockwaveRings(game, dt)
 
   # Check shooting
-  let mousePos = getVirtualMousePosition()
+  let pointerPos = getVirtualMousePosition()
+  var mousePos = newVector2f(pointerPos.x, pointerPos.y)
+  if isGamepadActive():
+    # Twin-stick aim: the right stick gives a direction, not a position, so
+    # project an aim point at a fixed radius from the player. With aim assist
+    # on, snap onto the best enemy within a narrow cone of that direction
+    # (angular offset scored with a small distance tiebreak) so the crosshair
+    # visibly locks on.
+    let dir = aimDir()
+    const AimPointRadius = 240.0'f32
+    const AssistMaxRange = 600.0'f32
+    const AssistConeHalfAngle = PI.float32 / 10.0'f32  # 18 degrees
+    mousePos = newVector2f(game.player.pos.x + dir.x * AimPointRadius,
+                           game.player.pos.y + dir.y * AimPointRadius)
+    if globalSettings.aimAssistEnabled:
+      var bestScore = float32.high
+      for enemy in game.enemies:
+        let toEnemy = newVector2f(enemy.pos.x - game.player.pos.x,
+                                  enemy.pos.y - game.player.pos.y)
+        let dist = toEnemy.length()
+        if dist < 1.0'f32 or dist > AssistMaxRange:
+          continue
+        let angleOffset = abs(arctan2(
+          dir.x * toEnemy.y - dir.y * toEnemy.x,
+          dir.x * toEnemy.x + dir.y * toEnemy.y))
+        if angleOffset > AssistConeHalfAngle:
+          continue
+        let score = angleOffset + dist * 0.001'f32
+        if score < bestScore:
+          bestScore = score
+          mousePos = newVector2f(enemy.pos.x, enemy.pos.y)
+    mousePos.x = clamp(mousePos.x, 0.0'f32, game.screenWidth.float32)
+    mousePos.y = clamp(mousePos.y, 0.0'f32, game.screenHeight.float32)
+    setGamepadAimPoint(Vector2(x: mousePos.x, y: mousePos.y))
   let shootDir = newVector2f(mousePos.x - game.player.pos.x, mousePos.y - game.player.pos.y)
 
   # Handle delayed double-shot bursts (rapid succession)
@@ -1944,7 +1977,9 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       game.player.doubleShotDelay = 0  # Reset to 0
 
   let isFiring = (isMouseButtonDown(Left) and not game.wallPlacementMode) or
-                 isKeyDown(globalSettings.keybinds[kaShoot])
+                 isKeyDown(globalSettings.keybinds[kaShoot]) or
+                 (not game.wallPlacementMode and
+                  gamepadFireDown(globalSettings.gamepadBinds))
 
   # Rapid Fire (Legendary) spin-up: holding fire ramps the meter to full in ~1.5s;
   # releasing decays it in ~0.8s. calculateCombatStats reads it for the bonus rate.

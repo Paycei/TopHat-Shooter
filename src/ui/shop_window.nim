@@ -1108,7 +1108,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
 
   # Handle wheel -> add to scroll velocity (inertial scrolling)
   if inGridArea and not shop.window.dragging and isTopmost:
-    let wheelMove = getMouseWheelMove()
+    let wheelMove = getPointerWheelMove()
     if wheelMove != 0:
       shop.scrollVelocity += -wheelMove * 400.0'f32
 

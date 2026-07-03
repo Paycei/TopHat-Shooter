@@ -11,6 +11,7 @@
 
 import raylib, math
 import ../save_system, ../types, ../advancement
+import ../gamepad_input
 
 type
   ProfileSelectMode* = enum
@@ -130,7 +131,7 @@ proc updateProfileSelect*(state: ProfileSelectState, dt: float32,
       let rects = confirmDialogRects(screenWidth, screenHeight)
       if isKeyPressed(Escape):
         state.confirmDeleteSlot = 0
-      elif isMouseButtonPressed(Left):
+      elif isPointerPressed():
         if checkCollisionPointRec(mousePos, rects.noBtn):
           state.confirmDeleteSlot = 0
         elif checkCollisionPointRec(mousePos, rects.yesBtn) and
@@ -147,7 +148,7 @@ proc updateProfileSelect*(state: ProfileSelectState, dt: float32,
     elif isKeyPressed(KeyboardKey.Two): pickedSlot = 2
     elif isKeyPressed(KeyboardKey.Three): pickedSlot = 3
 
-    if isMouseButtonPressed(Left):
+    if isPointerPressed():
       for slot in 1..MaxProfileSlots:
         if state.slots[slot].exists and
            checkCollisionPointRec(mousePos, deleteButtonRect(cards[slot])):
@@ -176,7 +177,7 @@ proc updateProfileSelect*(state: ProfileSelectState, dt: float32,
     if isKeyPressed(KeyboardKey.One): picked = ord(gdEasy)
     elif isKeyPressed(KeyboardKey.Two): picked = ord(gdMedium)
     elif isKeyPressed(KeyboardKey.Three): picked = ord(gdHard)
-    if isMouseButtonPressed(Left):
+    if isPointerPressed():
       let cards = difficultyCardRects(screenWidth, screenHeight)
       for d in GameDifficulty:
         if checkCollisionPointRec(mousePos, cards[d]):

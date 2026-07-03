@@ -388,7 +388,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
   let ddst = sqrt((mp.x-cubeCX)*(mp.x-cubeCX) + (mp.y-cubeCY)*(mp.y-cubeCY))
   let overCube = ddst <= (CubeDragRadius + cubeSize * 2.0)
 
-  if isMouseButtonPressed(Left) and overCube and not mouseOverWindow and
+  if isPointerPressed() and overCube and not mouseOverWindow and
      not desktop.cubeEscaping:
     desktop.cubeDragging  = true
     desktop.cubeDragLastX = mp.x
@@ -401,7 +401,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     desktop.cubeDiceVelY = 0.0
 
   if desktop.cubeDragging:
-    if isMouseButtonDown(Left):
+    if isPointerDown():
       let ddx = mp.x - desktop.cubeDragLastX
       let ddy = mp.y - desktop.cubeDragLastY
       # right drag -> rotate around world Y (up)
@@ -2309,7 +2309,7 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
         break
 
     # Mouse click
-    if isMouseButtonPressed(Left) and hoveredIcon >= 0:
+    if isPointerPressed() and hoveredIcon >= 0:
         let clicked = desktop.icons[hoveredIcon]
         # If the icon represents a locked mode, show a toast and swallow the click.
         case clicked.iconType
