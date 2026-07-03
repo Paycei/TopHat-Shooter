@@ -21,11 +21,23 @@ proc spawnThunderstrikeInto*(warnings: var seq[AttackWarning], particlePool: Par
   for k in 1 ..< count:
     var p = predicted
     var tries = 0
+    var farEnough = false
     while tries < 12:
       p = newVector2f(radius + rand(w - radius * 2.0),
                       radius + rand(h - radius * 2.0))
       inc tries
-      if distance(p, player.pos) >= minDist: break
+      if distance(p, player.pos) >= minDist:
+        farEnough = true
+        break
+    if not farEnough:
+      # Fail closed (mirrors the boss-teleport warnings): push the last roll out
+      # to the legal ring instead of accepting a strike on top of the player.
+      var away = p - player.pos
+      if away.x == 0 and away.y == 0:
+        away = newVector2f(1.0'f32, 0.0'f32)
+      p = player.pos + away.normalize() * minDist
+      p.x = clamp(p.x, radius, w - radius)
+      p.y = clamp(p.y, radius, h - radius)
     positions.add(p)
 
   for p in positions:
@@ -68,11 +80,23 @@ proc spawnVoidRiftsInto*(warnings: var seq[AttackWarning], particlePool: Particl
   for k in 1 ..< riftCount:
     var p = predicted
     var tries = 0
+    var farEnough = false
     while tries < 12:
       p = newVector2f(radius + rand(w - radius * 2.0),
                       radius + rand(h - radius * 2.0))
       inc tries
-      if distance(p, player.pos) >= minDist: break
+      if distance(p, player.pos) >= minDist:
+        farEnough = true
+        break
+    if not farEnough:
+      # Fail closed (mirrors the boss-teleport warnings): push the last roll out
+      # to the legal ring instead of collapsing a rift on top of the player.
+      var away = p - player.pos
+      if away.x == 0 and away.y == 0:
+        away = newVector2f(1.0'f32, 0.0'f32)
+      p = player.pos + away.normalize() * minDist
+      p.x = clamp(p.x, radius, w - radius)
+      p.y = clamp(p.y, radius, h - radius)
     positions.add(p)
 
   for p in positions:
