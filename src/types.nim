@@ -72,9 +72,16 @@ const
   ChaosKnotBullets*      = 6         # slow bullets released per torn knot
   ChaosKnotMax*          = 4         # hard cap on knots per weave (density guard)
   ChaosKnotBulletSpeed*  = 120.0'f32 # torn-knot bullet speed (slow, dodgeable ring)
-  OmegaQuadTelegraph*    = 1.6'f32   # Omega Entity: dodge window before the FIRST quadrant erupts
-  OmegaQuadActive*       = 0.35'f32  # each quadrant's lethal window
-  OmegaQuadStagger*      = 0.7'f32   # delay between successive quadrant eruptions
+  OmegaQuadTelegraph*    = 1.5'f32   # Omega Entity: window to reach the FIRST shelter (gates open)
+  OmegaQuadActive*       = 0.35'f32  # each eruption's lethal window
+  OmegaQuadStagger*      = 1.0'f32   # the judgement heartbeat: seconds between beats
+  OmegaQuadBeats*        = 4         # migration beats before the final shelter is judged
+  OmegaJudgeGrid*        = 3         # Omega phase: 3x3 cells, 8 erupt per beat
+  OmegaLessonBeats*      = 2         # Beta/Gamma rehearsal: fewer hops, same rules
+  OmegaLessonGrid*       = 2         # rehearsal grid: the four quadrants
+  OmegaLessonStagger*    = 1.4'f32   # rehearsal heartbeat: slower, time to read the gold
+  OmegaEmberCount*       = 8         # slow ember bullets hurled by the vacated shelter's eruption
+  OmegaEmberSpeed*       = 150.0'f32 # ember drift speed (weavable debris, not a wall)
 
 type
   GameState* = enum

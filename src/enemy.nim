@@ -1874,6 +1874,52 @@ proc drawThreatAura(enemy: Enemy) =
       drawRectangle(px.int32, pipY.int32, 5, 5, Color(r: color.r, g: color.g, b: color.b, a: 230))
       drawRectangleLines(px.int32, pipY.int32, 5, 5, Color(r: 255, g: 255, b: 255, a: 150))
 
+proc drawOmegaGlyph*(cx, cy, r, thick: float32, col: Color) =
+  ## A programmatic Ω: a ring open at the bottom (raylib ring angles: 0 deg =
+  ## +x, clockwise on screen, so the 45..135 gap faces down) plus two
+  ## outward-running feet at the arc ends. Used by the Omega Entity's warning
+  ## sigils, eruption brands and final-form halo.
+  drawRing(Vector2(x: cx, y: cy), r - thick, r + thick, 135.0, 405.0, 24, col)
+  let f = r * 0.7071'f32
+  drawLine(Vector2(x: cx - f, y: cy + f), Vector2(x: cx - f - r * 0.55'f32, y: cy + f),
+           thick * 2.0, col)
+  drawLine(Vector2(x: cx + f, y: cy + f), Vector2(x: cx + f + r * 0.55'f32, y: cy + f),
+           thick * 2.0, col)
+
+proc drawOmegaFinalFormHalo(enemy: Enemy) =
+  ## Boss 12's final-phase presence: a pulsing double ring with three Omega
+  ## glyphs orbiting the body. While the boss channels the judgement
+  ## (megaCastTimer > 0) the halo flares - rings brighten, the glyphs whirl,
+  ## and charge rays rush inward - so the mega-cast is unmissable even before
+  ## the first quadrant washes in.
+  let t = getTime().float32
+  let channeling = enemy.megaCastTimer > 0.0'f32
+  let p = float32(sin(t * (if channeling: 12.0 else: 5.0))) * 0.5'f32 + 0.5'f32
+  let haloR = enemy.radius + 20.0'f32 + p * 6.0'f32
+  let baseA = if channeling: uint8(200.0 + p * 55.0) else: uint8(110.0 + p * 50.0)
+  drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, haloR,
+                  Color(r: 255'u8, g: 60'u8, b: 255'u8, a: baseA))
+  drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, haloR + 7.0'f32,
+                  Color(r: 255'u8, g: 220'u8, b: 255'u8, a: (baseA div 2).uint8))
+  let spin = t * (if channeling: 2.6'f32 else: 1.0'f32)
+  for k in 0 ..< 3:
+    let ang = spin + k.float32 * (PI * 2.0 / 3.0)
+    drawOmegaGlyph(enemy.pos.x + cos(ang) * haloR,
+                   enemy.pos.y + sin(ang) * haloR - 2.0'f32,
+                   8.0'f32, 1.5'f32,
+                   Color(r: 255'u8, g: 200'u8, b: 255'u8, a: baseA))
+  if channeling:
+    # Judgement charge: rays race inward toward the halo while the cast holds.
+    let rush = (t * 2.2'f32) mod 1.0'f32
+    for k in 0 ..< 8:
+      let ang = k.float32 * PI * 0.25'f32 + spin * 0.5'f32
+      let outer = haloR + 34.0'f32 - rush * 24.0'f32
+      drawLine(Vector2(x: enemy.pos.x + cos(ang) * outer,
+                       y: enemy.pos.y + sin(ang) * outer),
+               Vector2(x: enemy.pos.x + cos(ang) * (outer - 9.0'f32),
+                       y: enemy.pos.y + sin(ang) * (outer - 9.0'f32)),
+               2.0, Color(r: 255'u8, g: 240'u8, b: 255'u8, a: uint8(220.0'f32 * (1.0'f32 - rush))))
+
 proc drawEnemy*(enemy: Enemy) =
   ## Draws an enemy based on its type. Bosses are forwarded to drawCustomBoss.
   # Spawn ring: expanding coloured circle that fades out as the enemy materialises
@@ -1924,6 +1970,10 @@ proc drawEnemy*(enemy: Enemy) =
                     Color(r: 200, g: 110, b: 240, a: uint8(50 + cp * 60)))
 
   if enemy.isBoss:
+    # Omega Entity final form: the halo sits under the body so the boss
+    # visibly ascends when the last phase begins.
+    if enemy.bossDefinitionID == 12 and enemy.currentPhaseIndex >= 3:
+      drawOmegaFinalFormHalo(enemy)
     # Boss drawing
     drawCustomBoss(enemy)
 
@@ -3273,11 +3323,33 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # Teleport warning - shows where boss will appear
     let warningMode = warning.laserPattern  # Contains the teleport mode
 
-    # Base pulsing circle for all teleport warnings
-    drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse * 2,
-                   Color(r: 150, g: 100, b: 255, a: alpha))
-    drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 60.0 + pulse,
-                   Color(r: 150, g: 100, b: 255, a: (alpha div 2).uint8))
+    if warning.isBossTeleportTarget:
+      # THE BOSS BODY ARRIVES HERE - unmistakably distinct from the echo
+      # points: a body-sized ring (laserLength carries the boss radius) that
+      # fills in as arrival nears, plus four rays collapsing onto it.
+      let bossR = max(30.0'f32, warning.laserLength)
+      let arrive = warningProgress(warning)     # 0 -> 1 as the boss lands
+      drawCircle(Vector2(x: warning.pos.x, y: warning.pos.y), bossR,
+                 Color(r: 180'u8, g: 90'u8, b: 255'u8, a: uint8(20.0 + arrive * 70.0)))
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, bossR + 4.0 + pulse * 2.0,
+                      Color(r: 220'u8, g: 140'u8, b: 255'u8, a: alpha))
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32,
+                      bossR * (1.0'f32 - arrive) + 6.0'f32,
+                      Color(r: 255'u8, g: 255'u8, b: 255'u8, a: alpha))
+      for k in 0 ..< 4:
+        let ang = getTime().float32 * 2.0'f32 + k.float32 * PI * 0.5'f32
+        let outer = bossR + 34.0'f32 - arrive * 26.0'f32
+        drawLine(Vector2(x: warning.pos.x + cos(ang) * outer,
+                         y: warning.pos.y + sin(ang) * outer),
+                 Vector2(x: warning.pos.x + cos(ang) * (outer - 12.0'f32),
+                         y: warning.pos.y + sin(ang) * (outer - 12.0'f32)),
+                 2.5, Color(r: 255'u8, g: 200'u8, b: 255'u8, a: alpha))
+    else:
+      # Echo point: bullets will spawn here, but the boss will not.
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse * 2,
+                     Color(r: 150, g: 100, b: 255, a: alpha))
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 60.0 + pulse,
+                     Color(r: 150, g: 100, b: 255, a: (alpha div 2).uint8))
 
     # Mode-specific visual effects
     case warningMode
@@ -4088,28 +4160,64 @@ proc drawAttackWarning*(warning: AttackWarning) =
                          Color(r: 255'u8, g: 240'u8, b: 255'u8, a: a2))
 
   of awtOmegaQuadrant:
-    # Omega Entity judgement quadrant, wind-up only: the doomed quadrant is
-    # washed in a rising red field with a hazard border and its eruption-order
-    # number pulsing at the centre. The eruption flash is drawn ungated.
-    if warning.lifetime > OmegaQuadActive:
+    # Omega Entity judgement, wind-up only. Warnings for every beat exist
+    # from the cast, but laserLength carries each one's SHOW window (one beat)
+    # so only the UPCOMING beat is drawn - three doomed quadrants rising red
+    # plus one gold "shelter" guide (non-lethal, marks where to be). The
+    # spared finale (laserPattern == "spared") telegraphs in doom-gold: the
+    # last refuge expires.
+    if warning.laserPattern == "shelter":
+      # The gold pocket: calm inviting outline, tightening as the beat nears.
+      let showWindow = max(0.1'f32, warning.laserLength)
+      if warning.lifetime <= showWindow:
+        let urgency = clamp(1.0'f32 - warning.lifetime / showWindow, 0.0'f32, 1.0'f32)
+        let pulse = (sin(getTime() * 6.0) * 0.5 + 0.5).float32
+        let hx = warning.targetPos.x; let hy = warning.targetPos.y
+        let inset = 14.0'f32 + (1.0'f32 - urgency) * 26.0'f32
+        let lineA = uint8(clamp(90.0 + urgency * 120.0 + pulse * 40.0, 0.0, 255.0))
+        drawRectangle((warning.pos.x - hx).int32, (warning.pos.y - hy).int32,
+                      (hx * 2.0).int32, (hy * 2.0).int32,
+                      Color(r: 255'u8, g: 215'u8, b: 120'u8, a: uint8(10.0 + urgency * 16.0)))
+        drawRectangleLines(Rectangle(x: warning.pos.x - hx + inset,
+                                     y: warning.pos.y - hy + inset,
+                                     width: (hx - inset) * 2.0'f32,
+                                     height: (hy - inset) * 2.0'f32),
+                           3.0, Color(r: 255'u8, g: 225'u8, b: 150'u8, a: lineA))
+        drawOmegaGlyph(warning.pos.x, warning.pos.y - 6.0, 20.0'f32 + pulse * 4.0'f32,
+                       2.0, Color(r: 255'u8, g: 235'u8, b: 180'u8, a: lineA))
+    elif warning.lifetime > OmegaQuadActive and
+         warning.lifetime <= OmegaQuadActive + max(0.1'f32, warning.laserLength):
+      let spared = warning.laserPattern == "spared"
+      let showWindow = max(0.1'f32, warning.laserLength)
       let hx = warning.targetPos.x; let hy = warning.targetPos.y
       let x0 = (warning.pos.x - hx).int32; let y0 = (warning.pos.y - hy).int32
       let w2 = (hx * 2.0).int32; let h2 = (hy * 2.0).int32
       let toPop = warning.lifetime - OmegaQuadActive
-      let urgency = clamp(1.0'f32 - toPop / OmegaQuadTelegraph, 0.0'f32, 1.0'f32)
+      let urgency = clamp(1.0'f32 - toPop / showWindow, 0.0'f32, 1.0'f32)
       let pulse = (sin(getTime() * 10.0) * 0.5 + 0.5).float32
       let fillA = uint8(clamp(14.0 + urgency * 46.0 * (0.75 + pulse * 0.25), 0.0, 255.0))
       let lineA = uint8(clamp(60.0 + urgency * 180.0, 0.0, 255.0))
-      drawRectangle(x0, y0, w2, h2, Color(r: 255'u8, g: 40'u8, b: 70'u8, a: fillA))
+      let fillCol = if spared: Color(r: 255'u8, g: 180'u8, b: 60'u8, a: fillA)
+                    else: Color(r: 255'u8, g: 40'u8, b: 70'u8, a: fillA)
+      let lineCol = if spared: Color(r: 255'u8, g: 210'u8, b: 120'u8, a: lineA)
+                    else: Color(r: 255'u8, g: 90'u8, b: 110'u8, a: lineA)
+      drawRectangle(x0, y0, w2, h2, fillCol)
       drawRectangleLines(Rectangle(x: x0.float32, y: y0.float32,
                                    width: w2.float32, height: h2.float32),
-                         3.0, Color(r: 255'u8, g: 90'u8, b: 110'u8, a: lineA))
-      # Eruption-order pips: N+1 dots at the quadrant centre (0-based slot).
-      let pips = warning.bulletCount + 1
-      for p in 0 ..< pips:
-        let px = warning.pos.x + (p.float32 - (pips - 1).float32 * 0.5'f32) * 18.0'f32
-        drawCircle(Vector2(x: px, y: warning.pos.y), 5.0 + pulse * 2.0,
-                   Color(r: 255'u8, g: 200'u8, b: 210'u8, a: lineA))
+                         3.0, lineCol)
+      # Rotating Omega sigil: the Entity's mark of judgement. It tightens
+      # (slows and shrinks) as the pop approaches.
+      let sigilR = 46.0'f32 - urgency * 14.0'f32
+      let spin = getTime().float32 * (0.8'f32 + urgency * 1.6'f32)
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, sigilR + 10.0,
+                      Color(r: lineCol.r, g: lineCol.g, b: lineCol.b, a: (lineA div 3).uint8))
+      for k in 0 ..< 3:
+        let ang = spin + k.float32 * (PI * 2.0 / 3.0)
+        drawCircle(Vector2(x: warning.pos.x + cos(ang) * (sigilR + 10.0),
+                           y: warning.pos.y + sin(ang) * (sigilR + 10.0)),
+                   3.0, lineCol)
+      drawOmegaGlyph(warning.pos.x, warning.pos.y - 6.0, sigilR * 0.55'f32, 2.0,
+                     Color(r: lineCol.r, g: lineCol.g, b: lineCol.b, a: (lineA div 2 + lineA div 4).uint8))
 
   of awtNone:
     # Unassigned/placeholder warning: nothing to telegraph. No `else` branch on
@@ -4462,15 +4570,17 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
             drawLine(Vector2(x: v.x, y: v.y), sp, 1.5,
                      Color(r: 255'u8, g: 150'u8, b: 255'u8, a: uint8(180.0 * fade)))
   of awtOmegaQuadrant:
-    if warning.lifetime <= OmegaQuadActive:
+    if warning.laserPattern != "shelter" and warning.lifetime <= OmegaQuadActive:
+      let spared = warning.laserPattern == "spared"
       let hx = warning.targetPos.x; let hy = warning.targetPos.y
       let x0f = warning.pos.x - hx; let y0f = warning.pos.y - hy
       let w2f = hx * 2.0'f32; let h2f = hy * 2.0'f32
       let fade = clamp(warning.lifetime / OmegaQuadActive, 0.4'f32, 1.0'f32)
       # burst: 0 at detonation -> 1 as it dies; drives the imploding frame.
       let burst = 1.0'f32 - clamp(warning.lifetime / OmegaQuadActive, 0.0'f32, 1.0'f32)
-      drawRectangle(x0f.int32, y0f.int32, w2f.int32, h2f.int32,
-                    Color(r: 255'u8, g: 70'u8, b: 100'u8, a: uint8(120.0'f32 * fade)))
+      let washCol = if spared: Color(r: 255'u8, g: 190'u8, b: 70'u8, a: uint8(120.0'f32 * fade))
+                    else: Color(r: 255'u8, g: 70'u8, b: 100'u8, a: uint8(120.0'f32 * fade))
+      drawRectangle(x0f.int32, y0f.int32, w2f.int32, h2f.int32, washCol)
       drawRectangleLines(Rectangle(x: x0f, y: y0f, width: w2f, height: h2f),
                          4.0, Color(r: 255'u8, g: 220'u8, b: 230'u8, a: uint8(255.0'f32 * fade)))
       # A second frame rushes inward as the quadrant consumes itself.
@@ -4488,6 +4598,22 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
       drawCircle(Vector2(x: warning.pos.x, y: warning.pos.y),
                  16.0'f32 * fade + burst * 14.0'f32,
                  Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(210.0'f32 * fade)))
+      # The Entity's mark, branded outward by the blast: an expanding Omega.
+      # The spared-quadrant finale brands bigger and rings twice - the whole
+      # judgement closes on this beat.
+      let glyphCol = if spared: Color(r: 255'u8, g: 230'u8, b: 150'u8, a: uint8(230.0'f32 * fade))
+                     else: Color(r: 255'u8, g: 180'u8, b: 200'u8, a: uint8(230.0'f32 * fade))
+      let glyphR = if spared: 28.0'f32 + burst * 64.0'f32
+                   else: 22.0'f32 + burst * 34.0'f32
+      drawOmegaGlyph(warning.pos.x, warning.pos.y - 6.0, glyphR,
+                     (if spared: 3.5'f32 else: 2.5'f32), glyphCol)
+      if spared:
+        drawCircleLines(warning.pos.x.int32, warning.pos.y.int32,
+                        glyphR + 26.0'f32 + burst * 60.0'f32,
+                        Color(r: 255'u8, g: 220'u8, b: 140'u8, a: uint8(180.0'f32 * fade)))
+        drawCircleLines(warning.pos.x.int32, warning.pos.y.int32,
+                        glyphR + 14.0'f32 + burst * 34.0'f32,
+                        Color(r: 255'u8, g: 245'u8, b: 200'u8, a: uint8(220.0'f32 * fade)))
   else:
     discard
 

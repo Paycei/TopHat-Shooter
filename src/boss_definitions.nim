@@ -2015,13 +2015,18 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               durationOrRadius: 220.0  # NERFED from 250.0
             ),
             BossAttack(
-              attackType: bapLaser,
-              damage: 32.0,  # NERFED from 4.0
-              cooldown: 4.5,  # NERFED from 4.0
+              # ECHO OF THE STORMCALLER (boss 6): telegraphed ground
+              # thunderstrikes. The Omega Entity fights with the arsenal of
+              # every fallen process - replaced a generic pattern-less laser.
+              # projectileCount = strikes, durationOrRadius = radius.
+              attackType: bapMeteor,
+              damage: 32.0,
+              cooldown: 4.5,
               projectileSpeed: 0.0,
-              projectileCount: 3,  # NERFED from 4
-              spreadAngle: 90.0,
-              durationOrRadius: 3.5  # NERFED from 4.0
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 80.0,
+              specialData: "thunderstrike"
             )
           ]
         ),
@@ -2035,6 +2040,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           visualEffect: "aura",
           specialBehavior: "aggressive_mixed",
           attacks: @[
+            BossAttack(
+              # JUDGEMENT REHEARSAL (first sighting): the 2x2 lesson cast of
+              # the Omega finale - follow the hopping gold quadrant, the last
+              # shelter is judged in gold. Introduced here and repeated in
+              # Gamma so the Omega phase's 3x3 full-tempo trial reads
+              # instantly. See the Gamma entry for the full description.
+              attackType: bapMeteor,  # nominal; routed by specialData before attackType dispatch
+              damage: 24.0,   # a lesson should sting, not execute
+              cooldown: 14.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "omega_judgement_lesson"
+            ),
             BossAttack(
               attackType: bapMeteor,
               damage: 29.0,  # NERFED from 4.0
@@ -2054,14 +2074,16 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               durationOrRadius: 360.0  # NERFED from 400.0
             ),
             BossAttack(
-              # Generic spray demoted to occasional filler.
+              # ECHO OF THE ORBITAL COMMANDER (boss 7): orbital bombardment
+              # spray with its star-field flare - themed filler, not a plain ring.
               attackType: bapBarrage,
               damage: 29.0,  # NERFED from 3.0
-              cooldown: 4.0,
+              cooldown: 4.5,  # de-spam: 24 @4.0s alongside meteors+chains walled the phase
               projectileSpeed: 220.0,  # NERFED from 250.0
-              projectileCount: 24,  # NERFED from 32
+              projectileCount: 16,  # de-spam: 15 deg spacing left no lane mid-field
               spreadAngle: 360.0,
-              durationOrRadius: 0.0
+              durationOrRadius: 0.0,
+              specialData: "orbital_bombardment"
             )
           ]
         ),
@@ -2070,19 +2092,40 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.5,
           speedMultiplier: 1.15,  # NERFED from 1.5
           damageMultiplier: 1.25,  # NERFED from 1.6
-          defenseMultiplier: 1.0,  # NERFED from 1.1
+          defenseMultiplier: 1.1,
           color: Color(r: 255, g: 255, b: 0, a: 255),
           visualEffect: "pulse",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
+              # JUDGEMENT REHEARSAL (second sighting, same as Beta's): the
+              # 2x2 lesson cast of the Omega finale. Same rules and visual
+              # language (all cells but one erupt, follow the hopping gold
+              # shelter, the last shelter is judged in gold), but on the four
+              # big quadrants with only OmegaLessonBeats hops on the slower
+              # OmegaLessonStagger heartbeat - the player learns "go to gold,
+              # gold moves, gold expires" here so phase 4's full-tempo 3x3
+              # trial reads instantly.
+              attackType: bapMeteor,  # nominal; routed by specialData before attackType dispatch
+              damage: 24.0,   # a lesson should sting, not execute
+              cooldown: 14.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "omega_judgement_lesson"
+            ),
+            BossAttack(
+              # ECHO OF THE TIMEKEEPER (boss 10): time-echo blinks that leave
+              # slow temporal afterimage shots - was a bare default teleport.
               attackType: bapTeleport,
               damage: 29.0,  # NERFED from 5.0
-              cooldown: 3.0,  # NERFED from 2.5
+              cooldown: 4.0,  # de-spam: echo shots overlapped every ring/pulse cast
               projectileSpeed: 0.0,
               projectileCount: 3,  # NERFED from 4
               spreadAngle: 0.0,
-              durationOrRadius: 360.0  # NERFED from 400.0
+              durationOrRadius: 360.0,  # NERFED from 400.0
+              specialData: "time_echo"
             ),
             BossAttack(
               attackType: bapDash,
@@ -2096,21 +2139,23 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             BossAttack(
               attackType: bapPulse,
               damage: 29.0,  # NERFED from 4.0
-              cooldown: 4.5,  # NERFED from 4.0
+              cooldown: 5.0,  # de-spam: pulse + time_ring + echo shots stacked walls
               projectileSpeed: 240.0,  # NERFED from 280.0
               projectileCount: 0,
               spreadAngle: 0.0,
               durationOrRadius: 260.0  # NERFED from 300.0
             ),
             BossAttack(
-              # Generic ring demoted to occasional filler.
+              # ECHO OF THE TIMEKEEPER (boss 10): temporal distortion ring -
+              # slower cyan bullets on a rotating offset, pairs with time_echo.
               attackType: bapCircle,
               damage: 29.0,  # NERFED from 3.0
               cooldown: 5.0,
               projectileSpeed: 170.0,  # NERFED from 200.0
-              projectileCount: 26,  # NERFED from 32
+              projectileCount: 18,  # de-spam: 26 left ~14 deg gaps, unthreadable mid-field
               spreadAngle: 360.0,
-              durationOrRadius: 0.0
+              durationOrRadius: 0.0,
+              specialData: "time_ring"
             )
           ]
         ),
@@ -2119,61 +2164,69 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.2,
           speedMultiplier: 1.2,
           damageMultiplier: 1.5,
-          defenseMultiplier: 2.5,
+          defenseMultiplier: 3.0,
           color: Color(r: 255, g: 0, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "final_form",
           attacks: @[
             BossAttack(
-              # OMEGA JUDGEMENT: signature mega finale. The boss freezes into a
-              # hardened channel (mega-cast, like the Laser Architect's ricochet
-              # beam) and detonates three of the four screen quadrants in a
-              # shuffled sequence, sparing only the quadrant the player was in
-              # when the cast began - read the order, hop the safe pocket.
+              # OMEGA JUDGEMENT: signature mega finale, the musical-chairs
+              # trial the Beta/Gamma rehearsals taught, at full tempo on the
+              # OmegaJudgeGrid 3x3. The boss freezes into a hardened channel
+              # and every heartbeat (OmegaQuadStagger) EIGHT cells erupt
+              # while the gold shelter HOPS to an adjacent cell (never the
+              # cell the frozen boss stands over) - the player must migrate
+              # every beat, weaving the ember ring the vacated shelter hurls
+              # after them (movement between cells is free; the beat
+              # pressure is the trial). After OmegaQuadBeats hops the final
+              # shelter is judged in gold - break out into already-spent
+              # ground. Damage/cooldown carry the phase's weight: the
+              # fillers are only the space between trials.
               attackType: bapMeteor,  # nominal; routed by specialData before attackType dispatch
-              damage: 34.0,   # huge: fully telegraphed, one hit max per quadrant
-              cooldown: 16.0,
+              damage: 32.0,   # big but not one-hit-max anymore: a bad run can eat one per beat
+              cooldown: 13.0,
               projectileSpeed: 0.0,
               projectileCount: 0,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
               specialData: "omega_judgement"
             ),
+            # THE BEAT GRID: every Omega-phase filler cooldown is a multiple
+            # of the barrage's 2.4s heartbeat (2.4 / 4.8 / 7.2), so the phase
+            # feels frenetic but lands on a learnable metronome instead of
+            # drifting into random overlap soup.
             BossAttack(
+              # Judgement ring: dense two-tone ring with ONE marked safe lane
+              # cut toward the player (see execBossAttackBarrage).
               attackType: bapBarrage,
-              damage: 32.0,  # NERFED from 5.0
-              cooldown: 1.8,  # NERFED from 0.8 -> 1.2 -> 1.8 (space rings so they don't form a gapless wall)
+              damage: 26.0,  # power moved into the judgement
+              cooldown: 2.4,  # the heartbeat (de-spam: 1.8 stacked rings mid-flight)
               projectileSpeed: 270.0,  # NERFED from 320.0
-              projectileCount: 30,  # NERFED from 60 (also no longer doubled at runtime in game.nim)
+              projectileCount: 20,  # de-spam from 30 -> 24 -> 20
               spreadAngle: 360.0,
               durationOrRadius: 0.0,
               specialData: "omega_barrage"
             ),
             BossAttack(
-              attackType: bapLaser,
-              damage: 37.0,  # NERFED from 6.0
-              cooldown: 3.0,  # NERFED from 2.5
-              projectileSpeed: 0.0,
-              projectileCount: 4,  # NERFED from 5
-              spreadAngle: 45.0,
-              durationOrRadius: 4.0,  # NERFED from 5.0
-              specialData: "omega_beam"
-            ),
-            BossAttack(
+              # omega_beam (4 lasers @3s, up almost constantly) was REMOVED:
+              # lasers must not headline the finale. The judgement is the
+              # centerpiece; barrage/blink/pulse fill between casts.
               attackType: bapTeleport,
-              damage: 32.0,  # NERFED from 6.0
-              cooldown: 3.2,  # NERFED from 1.8 -> 2.5 -> 3.2 (fewer overlapping blink-bursts during the barrage)
+              damage: 26.0,  # power moved into the judgement
+              cooldown: 7.2,  # every 3rd heartbeat; fixed 4 blinks (no rand)
               projectileSpeed: 0.0,
-              projectileCount: 4,  # NERFED from 6
+              projectileCount: 3,  # de-spam: 4 blinks x 4 = 16 arrival shots was a fifth wall
               spreadAngle: 0.0,
               durationOrRadius: 450.0,  # NERFED from 500.0
               specialData: "omega_blink"
             ),
             BossAttack(
+              # Gap ladder: three stepped-speed rings, gaps marching clockwise
+              # from the player's bearing (see execBossAttackPulse).
               attackType: bapPulse,
-              damage: 32.0,  # NERFED from 5.0
-              cooldown: 3.5,  # NERFED from 3.0
-              projectileSpeed: 260.0,  # NERFED from 300.0
+              damage: 26.0,  # power moved into the judgement
+              cooldown: 4.8,  # every 2nd heartbeat
+              projectileSpeed: 260.0,  # ring speeds derive from this (x1.15/x0.9/x0.65)
               projectileCount: 0,
               spreadAngle: 0.0,
               durationOrRadius: 300.0,  # NERFED from 350.0

@@ -1262,20 +1262,51 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                             isCritical = false, damageType = dtArcane)
             w.lasersCreated = true
 
-    # OMEGA JUDGEMENT (Omega Entity): quadrants erupt in their staggered order
-    # (lifetimes encode the sequence, like the fissure). The hit is an AABB
-    # test against the quadrant rect; one hit per quadrant.
+    # OMEGA JUDGEMENT (Omega Entity): every heartbeat three quadrants erupt
+    # and the gold shelter hops (lifetimes encode the beats, like the
+    # fissure). The hit is an AABB test against the quadrant rect; one hit
+    # per warning. Gold "shelter" guide markers are non-lethal and never
+    # erupt.
     if game.attackWarnings[i].attackType == awtOmegaQuadrant:
       let w = game.attackWarnings[i]
-      if w.lifetime <= OmegaQuadActive:
+      if w.laserPattern != "shelter" and w.lifetime <= OmegaQuadActive:
         if not w.bulletsCreated:
-          # Scattered eruption bursts across the quadrant sell the scale.
-          for b in 0..<5:
+          # Scattered eruption bursts across the quadrant sell the scale; the
+          # spared-quadrant finale erupts in gold, matching its telegraph.
+          let spared = w.laserPattern == "spared"
+          let chase = w.laserPattern == "chase"
+          let popCol = if spared: Color(r: 255, g: 210, b: 110, a: 255)
+                       else: Color(r: 255, g: 80, b: 110, a: 255)
+          # Up to 8 cells erupt per beat on the Omega 3x3 grid - only the
+          # featured cells (chase/finale) get the full burst count.
+          let bursts = if chase or spared: 5 else: 3
+          for b in 0..<bursts:
             spawnExplosionPooled(game.particlePool,
                                  w.pos.x + (rand(2.0'f32) - 1.0'f32) * w.targetPos.x * 0.8'f32,
                                  w.pos.y + (rand(2.0'f32) - 1.0'f32) * w.targetPos.y * 0.8'f32,
-                                 Color(r: 255, g: 80, b: 110, a: 255), 8)
-          addShake(game.dopamine.screenShake, siLarge)
+                                 popCol, 8)
+          # Judgement embers: only the CHASE eruption (the shelter the player
+          # just vacated) and the gold finale hurl a sparse ring of slow REAL
+          # bullets - drifting debris to weave mid-migration. Three rings per
+          # beat would be soup; one ring chasing the player is pressure.
+          if chase or spared:
+            var emberShape = 0
+            for be in game.enemies:
+              if be.id == w.sourceEnemyId:
+                emberShape = bossBulletShapeFor(be.bossDefinitionID)
+                break
+            let emberN = if spared: OmegaEmberCount + 2 else: OmegaEmberCount
+            let emberOfs = rand(1.0'f32) * PI * 2.0'f32
+            for b in 0 ..< emberN:
+              let ang = emberOfs + b.float32 * (PI * 2.0) / emberN.float32
+              game.bullets.add(newBullet(
+                x = w.pos.x, y = w.pos.y,
+                direction = newVector2f(cos(ang), sin(ang)),
+                speed = OmegaEmberSpeed, damage = w.bulletDamage * 0.5'f32,
+                fromPlayer = false, isBossBullet = true,
+                sourceEnemyId = w.sourceEnemyId, bossBulletShape = emberShape,
+                colorOverride = popCol))
+            addShake(game.dopamine.screenShake, siLarge)
           w.bulletsCreated = true
         if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
            abs(game.player.pos.x - w.pos.x) <= w.targetPos.x + game.player.radius and

@@ -799,7 +799,8 @@ proc spawnChaosWeave*(game: var Game, enemy: Enemy, attack: BossAttack, phase: B
   warnings.spawnChaosWeaveInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
 proc spawnOmegaQuadrants*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
-  warnings.spawnOmegaQuadrantsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
+  warnings.spawnOmegaQuadrantsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase,
+                                   lesson = attack.specialData == "omega_judgement_lesson")
 
 proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) =
   warnings.addBossAttackWarningInto(game.attackWarnings, game.player, enemy, attack)
@@ -1276,9 +1277,48 @@ proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, pha
   # - "chromatic_burst": Rainbow prismatic explosion (Boss 9 Phase 2)
   # - "light_burst": Pure brilliance explosion (Boss 9 Phase 3)
   # - "time_shatter": Reality-shattering temporal explosion (Boss 10 Phase 3)
-  # - "omega_barrage": Ultimate massive barrage from final boss (Boss 12 Phase 4)
+  # - "omega_barrage": final boss heartbeat ring with ONE marked safe lane (Boss 12 Phase 4)
 
   let barrageMode = attack.specialData
+
+  if barrageMode == "omega_barrage":
+    # OMEGA BARRAGE - the Omega phase's heartbeat (fires on the 2.4s beat
+    # grid). A dense two-tone judgement ring with exactly ONE safe lane, cut
+    # toward the player's position at the moment of firing: stand your ground
+    # or slide into the lane, never guess. The lane edges are flagged by two
+    # particle rays so the gap reads even against the bullet glow.
+    const GapHalf = 0.5'f32   # ~57 deg total safe lane
+    let gapAng = arctan2(toPlayer.y, toPlayer.x)
+    let count = max(8, attack.projectileCount)
+    let arcSpan = PI * 2.0'f32 - GapHalf * 2.0'f32
+    for i in 0..<count:
+      let ang = gapAng + GapHalf + (i.float32 + 0.5'f32) / count.float32 * arcSpan
+      # Two-tone ring: alternating magenta/white reads as a single woven band.
+      let col = if i mod 2 == 0: Color(r: 255, g: 60, b: 255, a: 255)
+                else: Color(r: 255, g: 235, b: 255, a: 255)
+      game.bullets.add(newBullet(
+        x = enemy.pos.x, y = enemy.pos.y,
+        direction = newVector2f(cos(ang), sin(ang)),
+        speed = attack.projectileSpeed,
+        damage = attack.damage * phase.damageMultiplier,
+        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+        bulletRadius = attack.bulletRadius, colorOverride = col))
+    # Safe-lane edge rays: white spark trails along both gap borders.
+    for side in [-1.0'f32, 1.0'f32]:
+      let edge = gapAng + side * GapHalf
+      for step in 1..6:
+        let d = step.float32 * 52.0'f32 + enemy.radius
+        spawnExplosionPooled(game.particlePool,
+                             enemy.pos.x + cos(edge) * d,
+                             enemy.pos.y + sin(edge) * d,
+                             Color(r: 255, g: 255, b: 255, a: 255), 2)
+    # Muzzle flash ring + a measured beat of shake (the siMassive-every-cast
+    # of the old omega_barrage buried the judgement's impact).
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                         Color(r: 255, g: 80, b: 255, a: 255), 22)
+    addShake(game.dopamine.screenShake, siMedium)
+    return
   let isChaosAttack = barrageMode in ["chaos_storm", "entropy_burst", "random_spread"]
   let isElectricAttack = barrageMode == "voltage_burst"
   let isBerserkAttack = barrageMode == "blood_burst"
@@ -1412,48 +1452,6 @@ proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, pha
     # MASSIVE screen shake for reality-shattering effect
     addShake(game.dopamine.screenShake, siMassive)
 
-  elif barrageMode == "omega_barrage":
-    # OMEGA BARRAGE - Ultimate final boss attack combining all elements
-    # Creates massive multi-colored explosion with all previous boss themes
-    # Rainbow prismatic rings (like Boss 9)
-    for ring in 0..5:
-      let ringRadius = 25.0 + ring.float32 * 30.0
-      for i in 0..<18:
-        let angle = i.float32 * PI * 2.0 / 18.0
-        let omegaX = enemy.pos.x + cos(angle) * ringRadius
-        let omegaY = enemy.pos.y + sin(angle) * ringRadius
-        # Rainbow colors cycling through spectrum
-        let rainbowColor = case i mod 7
-          of 0: Color(r: 255, g: 0, b: 0, a: 255)     # Red
-          of 1: Color(r: 255, g: 127, b: 0, a: 255)   # Orange
-          of 2: Color(r: 255, g: 255, b: 0, a: 255)   # Yellow
-          of 3: Color(r: 0, g: 255, b: 0, a: 255)     # Green
-          of 4: Color(r: 0, g: 255, b: 255, a: 255)   # Cyan
-          of 5: Color(r: 0, g: 0, b: 255, a: 255)     # Blue
-          else: Color(r: 255, g: 0, b: 255, a: 255)   # Magenta
-        spawnExplosionPooled(game.particlePool, omegaX, omegaY, rainbowColor, 6)
-
-    # Electric crackling effects (like Boss 6)
-    for i in 0..<bulletCount div 3:
-      let angle = i.float32 * PI * 2.0 / (bulletCount div 3).float32
-      let sparkX = enemy.pos.x + cos(angle) * 55.0
-      let sparkY = enemy.pos.y + sin(angle) * 55.0
-      spawnExplosionPooled(game.particlePool, sparkX, sparkY,
-                    Color(r: 255, g: 255, b: 100, a: 255), 5)
-
-    # Temporal rifts (like Boss 10)
-    for i in 0..<12:
-      let angle = i.float32 * PI * 2.0 / 12.0
-      for step in 1..12:
-        let riftRadius = step.float32 * 22.0
-        let riftX = enemy.pos.x + cos(angle) * riftRadius
-        let riftY = enemy.pos.y + sin(angle) * riftRadius
-        spawnExplosionPooled(game.particlePool, riftX, riftY,
-                      Color(r: 150, g: 255, b: 255, a: 255), 3)
-
-    # ABSOLUTELY MASSIVE screen shake - this is the ultimate attack
-    addShake(game.dopamine.screenShake, siMassive)
-
   for i in 0..<bulletCount:
     let angle = if isChaosAttack:
       (i.float32 / bulletCount.float32) * spreadAngle.degToRad() + rand(1.0)
@@ -1511,10 +1509,56 @@ proc execBossAttackPulse(game: var Game, enemy: Enemy, attack: BossAttack, phase
   # - "gravity_pulse": Space-themed gravity wave (Boss 7)
   # - "blinding_pulse": Brilliant light explosion (Boss 9 Phase 3)
   # - "entropy_wave": Chaotic unstable shockwave (Boss 11 Phase 3)
-  # - "omega_pulse": Ultimate combined shockwave (Boss 12 Phase 4)
+  # - "omega_pulse": final boss GAP LADDER - three concentric rings whose safe
+  #   gaps step around the clock, forcing a readable weave (Boss 12 Phase 4)
   # - Default: Standard pulse
 
   let pulseMode = attack.specialData
+
+  if pulseMode == "omega_pulse":
+    # OMEGA PULSE - the gap ladder. Three rings launch together at stepped
+    # speeds, so they arrive as three separate walls; each ring's ~75 deg safe
+    # gap sits 55 deg clockwise of the previous one (always clockwise - the
+    # ladder is learnable, not guessable). Ring 1 (fastest, arrives first) has
+    # its gap dead on the player's current bearing.
+    const
+      GapHalf = 0.65'f32          # ~75 deg safe gap per ring
+      GapStep = 0.96'f32          # ~55 deg clockwise ladder step per ring
+    let baseAng = arctan2(toPlayer.y, toPlayer.x)
+    let ringSpeeds = [attack.projectileSpeed * 1.15'f32,
+                      attack.projectileSpeed * 0.9'f32,
+                      attack.projectileSpeed * 0.65'f32]
+    # Ring colours run white -> gold -> magenta so the arrival ORDER is
+    # readable at a glance even while all three are in flight.
+    let ringCols = [Color(r: 255'u8, g: 245'u8, b: 255'u8, a: 255'u8),
+                    Color(r: 255'u8, g: 200'u8, b: 90'u8, a: 255'u8),
+                    Color(r: 255'u8, g: 70'u8, b: 255'u8, a: 255'u8)]
+    const RingCount = 16   # per ring; 3 rings per cast (de-spam from 20)
+    let arcSpan = PI * 2.0'f32 - GapHalf * 2.0'f32
+    for ring in 0 ..< 3:
+      let gapAng = baseAng + ring.float32 * GapStep
+      for i in 0 ..< RingCount:
+        let ang = gapAng + GapHalf + (i.float32 + 0.5'f32) / RingCount.float32 * arcSpan
+        game.bullets.add(newBullet(
+          x = enemy.pos.x, y = enemy.pos.y,
+          direction = newVector2f(cos(ang), sin(ang)),
+          speed = ringSpeeds[ring],
+          damage = attack.damage * phase.damageMultiplier,
+          fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
+          bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
+          bulletRadius = attack.bulletRadius, colorOverride = ringCols[ring]))
+      # Colour-matched spark ray down each ring's gap centre: the ladder's
+      # rungs are drawn for the player before the walls arrive.
+      for step in 1..5:
+        let d = step.float32 * 46.0'f32 + enemy.radius
+        spawnExplosionPooled(game.particlePool,
+                             enemy.pos.x + cos(gapAng) * d,
+                             enemy.pos.y + sin(gapAng) * d,
+                             ringCols[ring], 2)
+    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                         Color(r: 255, g: 150, b: 255, a: 255), 18)
+    addShake(game.dopamine.screenShake, siLarge)
+    return
 
   # Configure pulse behavior and visuals based on mode
   let (bulletCount, particleColor, explosionSize) = case pulseMode
@@ -2224,25 +2268,40 @@ proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, ph
     of "reality_shift": rand(2) + 2  # 2-3 reality shifts with dimensional bridges
     of "dimensional_rift": 2  # 2 major dimensional rifts
     of "dimensional_chaos": rand(3) + 3  # 3-5 chaotic dimension portals with vortexes
-    of "omega_blink": rand(2) + 4  # 4-5 ultimate teleports combining all effects
+    of "omega_blink": 4  # fixed count: the Omega phase is frenetic but never random
     else: 1
 
   # TELEPORT WARNING SYSTEM - Show player where boss will appear BEFORE bullets spawn
-  # Pre-calculate all teleport positions and create warning indicators
-  const BOSS_TELEPORT_MIN_DIST = 150.0  # Minimum distance boss can teleport near player
+  # Pre-calculate all teleport positions and create warning indicators.
+  # The minimum distance is SURFACE distance: it scales with the boss's radius
+  # so big bosses (the Omega Entity is r=70) can't materialise flush against
+  # the player, and it FAILS CLOSED - if the random rolls can't find a legal
+  # spot, the position is pushed radially away from the player instead of
+  # being accepted too close (the old fail-open was the "teleported onto me"
+  # bug).
+  let minTeleportDist = 200.0'f32 + enemy.radius + game.player.radius
   var teleportWarningPositions: seq[Vector2f] = @[]
   for t in 0..<teleportCount:
     var newX, newY: float32
     var attempts = 0
-    while true:
+    var farEnough = false
+    while attempts < 10:
       newX = game.screenWidth.float32 * (0.2 + rand(0.6))
       newY = game.screenHeight.float32 * (0.2 + rand(0.6))
       let dx = newX - game.player.pos.x
       let dy = newY - game.player.pos.y
-      let distSq = dx * dx + dy * dy
       inc attempts
-      if distSq >= BOSS_TELEPORT_MIN_DIST * BOSS_TELEPORT_MIN_DIST or attempts >= 10:
-        break  # Accept position if far enough or after max retries
+      if dx * dx + dy * dy >= minTeleportDist * minTeleportDist:
+        farEnough = true
+        break
+    if not farEnough:
+      # Push the last roll out to the legal ring around the player.
+      var away = newVector2f(newX, newY) - game.player.pos
+      if away.x == 0 and away.y == 0:
+        away = newVector2f(1.0'f32, 0.0'f32)
+      let pushed = game.player.pos + away.normalize() * minTeleportDist
+      newX = clamp(pushed.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
+      newY = clamp(pushed.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
     teleportWarningPositions.add(newVector2f(newX, newY))
 
   # Create pre-warning indicators at each teleport location
@@ -2295,8 +2354,11 @@ proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, ph
     warning.bulletSpeed = bulletSpeed
     warning.bulletDamage = attack.damage * phase.damageMultiplier * bulletDamageMultiplier
     warning.bulletSpreadAngle = 360.0   # Full circle
-    # Mark first position as where boss should teleport
+    # Mark first position as where boss should teleport; carry the boss's
+    # radius so the render can draw an arrival ring at true body size.
     warning.isBossTeleportTarget = (idx == 0)
+    if idx == 0:
+      warning.laserLength = enemy.radius
     game.attackWarnings.add(warning)
 
 proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
@@ -2509,7 +2571,7 @@ proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, 
   of "chaos_weave":
     spawnChaosWeave(game, enemy, attack, phase)
     return
-  of "omega_judgement":
+  of "omega_judgement", "omega_judgement_lesson":
     spawnOmegaQuadrants(game, enemy, attack, phase)
     return
   else: discard

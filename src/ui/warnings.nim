@@ -582,58 +582,127 @@ proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: Partic
 
 proc spawnOmegaQuadrantsInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                               player: Player, screenWidth, screenHeight: int32,
-                              enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
-  ## The Omega Entity's finale: a mega-cast "judgement" that detonates three of
-  ## the four screen quadrants in sequence, sparing exactly one - the player
-  ## must read the order and hop through the safe pocket. Like seismic
-  ## fissures, the per-quadrant stagger is encoded as extra lifetime so the
-  ## shared resolution logic fires them in order. The boss channels (frozen,
-  ## hardened, other attacks paused) for the entire sequence.
+                              enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition,
+                              lesson: bool = false) =
+  ## The Omega Entity's judgement, the musical-chairs trial: the shelter
+  ## HOPS. Every heartbeat all grid cells but one erupt at once, and the
+  ## surviving gold-marked shelter is a different, edge-adjacent cell each
+  ## beat - the player must migrate every beat, weaving the ember ring the
+  ## vacated shelter hurls after them. Movement between cells is FREE - the
+  ## beat pressure is the trial, no seam hazards. After the last hop the
+  ## final shelter itself is judged in gold - the player breaks out into
+  ## already-spent ground. Like seismic fissures, beat timing is encoded as
+  ## extra lifetime so the shared resolution logic fires everything in
+  ## order; laserLength carries each warning's telegraph SHOW window so only
+  ## the upcoming beat is drawn.
+  ## The boss channels (frozen, hardened, other attacks paused) throughout -
+  ## and because it is frozen, the cell its body stands over can NEVER be
+  ## picked as a shelter: contact damage would make that pocket a lie.
+  ##
+  ## `lesson` (Beta/Gamma phases, specialData "omega_judgement_lesson") is
+  ## the REHEARSAL: identical rules and visual language on the four big
+  ## quadrants (OmegaLessonGrid), fewer hops, slower heartbeat - it teaches
+  ## "follow the gold, gold expires" before the Omega phase runs the trial
+  ## at full tempo on the OmegaJudgeGrid 3x3.
+  let beats = if lesson: OmegaLessonBeats else: OmegaQuadBeats
+  let stagger = if lesson: OmegaLessonStagger else: OmegaQuadStagger
+  let grid = if lesson: OmegaLessonGrid else: OmegaJudgeGrid
   let dmg = attack.damage * phase.damageMultiplier
   let w = screenWidth.float32
   let h = screenHeight.float32
-  let halfExt = newVector2f(w * 0.25'f32, h * 0.25'f32)
-  let centers = [
-    newVector2f(w * 0.25'f32, h * 0.25'f32),  # top-left
-    newVector2f(w * 0.75'f32, h * 0.25'f32),  # top-right
-    newVector2f(w * 0.25'f32, h * 0.75'f32),  # bottom-left
-    newVector2f(w * 0.75'f32, h * 0.75'f32)]  # bottom-right
+  let cellW = w / grid.float32
+  let cellH = h / grid.float32
+  let halfExt = newVector2f(cellW * 0.5'f32, cellH * 0.5'f32)
 
-  # The spared quadrant is the one the player currently occupies - the attack
-  # chases them OUT of the other three, it never spawns as an unavoidable hit.
-  var safe = 0
-  if player.pos.x >= w * 0.5'f32: safe += 1
-  if player.pos.y >= h * 0.5'f32: safe += 2
+  proc centerOf(cell: (int, int)): Vector2f =
+    newVector2f((cell[0].float32 + 0.5'f32) * cellW,
+                (cell[1].float32 + 0.5'f32) * cellH)
 
-  var order: seq[int] = @[]
-  for q in 0 ..< 4:
-    if q != safe: order.add(q)
-  # Shuffle the eruption order so the sequence must be read each cast.
-  for k in countdown(order.high, 1):
-    let j = rand(k)
-    swap(order[k], order[j])
+  proc cellOf(p: Vector2f): (int, int) =
+    (clamp(int(p.x / cellW), 0, grid - 1), clamp(int(p.y / cellH), 0, grid - 1))
 
-  var slot = 0
-  for q in order:
-    let total = OmegaQuadTelegraph + OmegaQuadActive + slot.float32 * OmegaQuadStagger
-    var warn = newAttackWarning(centers[q].x, centers[q].y, awtOmegaQuadrant, total, enemy.id)
-    warn.targetPos = halfExt          # rect half-extents (hit test is an AABB check)
-    warn.bulletDamage = dmg
-    warn.bulletCount = slot           # eruption index, drawn as the sequence number
-    warnings.add(warn)
-    inc slot
+  # The frozen boss squats on this cell for the whole channel - it is banned
+  # from ever being the shelter.
+  let bossCell = cellOf(enemy.pos)
+
+  # The chain starts where the player stands - beat one erupts it, so the
+  # first move is forced immediately (during the opening telegraph).
+  var prev = cellOf(player.pos)
+  var shelter = prev
+  for beat in 1 .. beats:
+    # Next shelter: edge-adjacent to the current one (never diagonal, so
+    # every hop crosses a single border) and never the boss's cell. Corner
+    # cells have two neighbours and the boss occupies at most one, so there
+    # is always a candidate.
+    var cands: seq[(int, int)] = @[]
+    for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+      let n = (shelter[0] + dx, shelter[1] + dy)
+      if n[0] < 0 or n[0] >= grid or n[1] < 0 or n[1] >= grid: continue
+      if n == bossCell: continue
+      cands.add(n)
+    shelter = cands[rand(cands.high)]
+    let popAt = OmegaQuadTelegraph + (beat - 1).float32 * stagger
+    # Telegraphs appear one beat ahead (the whole opening window for beat 1).
+    let showWindow = if beat == 1: OmegaQuadTelegraph else: stagger
+
+    # Every doomed cell of this beat.
+    for cx in 0 ..< grid:
+      for cy in 0 ..< grid:
+        if (cx, cy) == shelter: continue
+        let c = centerOf((cx, cy))
+        var warn = newAttackWarning(c.x, c.y, awtOmegaQuadrant,
+                                    popAt + OmegaQuadActive, enemy.id)
+        warn.targetPos = halfExt      # rect half-extents (hit test is an AABB check)
+        warn.bulletDamage = dmg
+        warn.laserLength = showWindow
+        if (cx, cy) == prev:
+          # The vacated shelter erupts as the "chase": it alone hurls embers
+          # and carries the beat's screen shake (density guard: one ring/beat).
+          warn.laserPattern = "chase"
+        warnings.add(warn)
+
+    # Gold shelter marker: non-lethal "BE HERE" guide, expiring at the beat.
+    let sc = centerOf(shelter)
+    var mark = newAttackWarning(sc.x, sc.y, awtOmegaQuadrant, popAt, enemy.id)
+    mark.targetPos = halfExt
+    mark.laserPattern = "shelter"
+    mark.laserLength = showWindow
+    warnings.add(mark)
+    prev = shelter
+
+  # THE SHELTERED ARE JUDGED LAST: one beat after the final hop, the last
+  # shelter itself detonates in gold - a full stagger to break out into
+  # already-spent ground.
+  let sparedPop = OmegaQuadTelegraph + beats.float32 * stagger
+  let fc = centerOf(shelter)
+  var sparedWarn = newAttackWarning(fc.x, fc.y, awtOmegaQuadrant,
+                                    sparedPop + OmegaQuadActive, enemy.id)
+  sparedWarn.targetPos = halfExt
+  sparedWarn.bulletDamage = dmg
+  sparedWarn.laserLength = stagger
+  sparedWarn.laserPattern = "spared"
+  warnings.add(sparedWarn)
 
   # Channel for the full sequence: frozen, hardened, other attacks paused
   # (same mega-cast contract as the Laser Architect's ricochet beam).
-  let castTotal = OmegaQuadTelegraph + OmegaQuadActive +
-                  (order.len - 1).float32 * OmegaQuadStagger
+  # The gold judgement of the final shelter is the last event.
+  let castTotal = sparedPop + OmegaQuadActive
   enemy.megaCastTimer = castTotal
   enemy.megaCastTotal = castTotal
   enemy.vel = newVector2f(0, 0)
   enemy.isDashing = false
 
+  # Cast opening: judgement sparks bloom at every cell's heart.
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 255, g: 60, b: 90, a: 255), 20)
+  # Every cell blooms red: nowhere is spared for long. The gold shelter
+  # marker (drawn per beat) is the only promise of safety.
+  for cx in 0 ..< grid:
+    for cy in 0 ..< grid:
+      let c = centerOf((cx, cy))
+      spawnExplosionPooled(particlePool, c.x, c.y,
+                           Color(r: 255, g: 70, b: 100, a: 255),
+                           (if lesson: 8 else: 4))
 
 proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
                                enemy: Enemy, attack: BossAttack) =
