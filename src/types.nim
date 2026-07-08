@@ -225,7 +225,7 @@ type
     puBulletRicochet,  # Bullets ricochet off enemies
     puBulletSpeed,     # Faster bullets
     puBulletSplit,     # Bullets split on impact
-    puCelestialVeil,   # LEGENDARY: Absorb 1 hit per wave
+    puCelestialVeil,   # LEGENDARY: Absorb 2 hits per wave
     puChainLightning,  # Damage chains between enemies
     puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
     puCriticalHit,     # Random critical damage
@@ -633,7 +633,7 @@ type
     hasOrbitalCube*: bool  # Secret orbital-cube cosmetic (Escape Velocity advancement reward)
     rogueliteCosmetic*: int  # Run-scoped class emblem: 0 = none, else ord(RogueliteStarterKit)+1
     cubeSkinType*: int  # Equipped desktop-cube skin (colors the orbital cube companion)
-    celestialVeilActive*: bool  # True if Celestial Veil can still absorb a hit this wave
+    celestialVeilCharges*: int  # Number of Celestial Veil charges left this wave (decremented when a hit is absorbed)
     # Volatile (Legendary passive)
     hasVolatile*: bool          # Enemies with 2+ DoTs take +50% dmg and spread on death
     # Resonance (Normal passive)

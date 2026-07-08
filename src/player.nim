@@ -496,7 +496,7 @@ proc drawPlayer*(player: Player) =
                     Color(r: 170, g: 110, b: 255, a: lineAlpha))
 
   # Celestial Veil, soft translucent ring around the player while the charge is ready.
-  if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
+  if player.celestialVeilCharges > 0 and hasPowerUp(player, puCelestialVeil):
     let veilPulse   = 0.5 + 0.5 * sin(time * 3.0)
     let veilRadius  = player.radius * 1.65 + veilPulse * 3.0
     let veilAlpha   = uint8(40 + (veilPulse * 30).int)
@@ -963,9 +963,9 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     player.lastDamageAvoided = damage
     return false
 
-  # Celestial Veil - absorb 1 hit per wave
-  if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
-    player.celestialVeilActive = false
+  # Celestial Veil - absorb 2 hits per wave
+  if player.celestialVeilCharges > 0 and hasPowerUp(player, puCelestialVeil):
+    player.celestialVeilCharges = player.celestialVeilCharges - 1
     player.lastDamageAvoided = damage
     player.lastDamageEvent = deCelestialVeil  # Signal "veil blocked"
     return false

@@ -365,9 +365,9 @@ proc startWave*(game: Game) =
         bullet.isFromNova = true  # Mark for damage tracking
     game.player.novaActive = false
     game.player.novaFreezeTimer = 0
-  # Reset Celestial Veil charge for new wave
+  # Reset Celestial Veil charges for new wave
   if hasPowerUp(game.player, puCelestialVeil):
-    game.player.celestialVeilActive = true
+    game.player.celestialVeilCharges = 2
 
 proc spawnWaveEnemies*(game: Game, count: int) =
   # Spawn multiple enemies at once

@@ -767,7 +767,7 @@ proc applyRoomScaling(game: Game) =
   game.player.aftershockCooldown = 0
   game.player.novaCooldown = 0
   if hasPowerUp(game.player, puCelestialVeil):
-    game.player.celestialVeilActive = true
+    game.player.celestialVeilCharges = 2
 
 proc openDungeonDoors*(game: Game) =
   let room = currentDungeonRoom(game.rogueliteRun)
