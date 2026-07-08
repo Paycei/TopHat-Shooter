@@ -298,9 +298,15 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       healPercent *= 2.0  # +100% lifesteal
 
     let healAmount = 0.01 + effect.baseDamage * healPercent
+    # heal() applies the player's healPowerMult; attribute base vs multiplier separately
     heal(game.player, healAmount)
     if healAmount > 0.01:
-      trackPowerUpHealing(game, puBloodBullets, healAmount * game.player.healPowerMult)
+      # Attribute the base healing to the lifesteal source
+      trackPowerUpHealing(game, puBloodBullets, healAmount)
+      # Attribute any bonus from the global heal multiplier to the heal-power power-up
+      let bonusHealing = healAmount * (game.player.healPowerMult - 1.0)
+      if bonusHealing > 0.001 and hasPowerUp(game.player, puHealPower):
+        trackPowerUpHealing(game, puHealPower, bonusHealing)
 
     if healAmount > 0.01:
       spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 3)

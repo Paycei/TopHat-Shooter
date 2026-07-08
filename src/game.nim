@@ -1815,7 +1815,11 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
     if totalHealing > 0:
       let actualHeal = totalHealing * game.player.healPowerMult
       game.player.hp = min(game.player.hp + actualHeal, game.player.maxHp)
-      trackPowerUpHealing(game, puBloodAura, actualHeal)
+      # Attribute base healing to the Blood Aura and any multiplier bonus to puHealPower
+      trackPowerUpHealing(game, puBloodAura, totalHealing)
+      let bonusHealing = totalHealing * (game.player.healPowerMult - 1.0)
+      if bonusHealing > 0.001 and hasPowerUp(game.player, puHealPower):
+        trackPowerUpHealing(game, puHealPower, bonusHealing)
 
       # Show healing number periodically using tracked time
       if game.time - lastBloodHealTime >= BLOOD_HEAL_DISPLAY_INTERVAL:
@@ -2083,7 +2087,11 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
             healAmount = 3.5 + rand(3.0)  # 3.5 to 6.5
 
           heal(game.player, healAmount)
-          trackPowerUpHealing(game, puRegeneration, healAmount * game.player.healPowerMult)
+          # Attribute base healing to regeneration and multiplier bonus to puHealPower
+          trackPowerUpHealing(game, puRegeneration, healAmount)
+          let bonusHealing = healAmount * (game.player.healPowerMult - 1.0)
+          if bonusHealing > 0.001 and hasPowerUp(game.player, puHealPower):
+            trackPowerUpHealing(game, puHealPower, bonusHealing)
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
         playSound(stWaveComplete)
 
@@ -2510,7 +2518,11 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
         if game.player.killsSinceLastHeal >= healsPerKills:
           heal(game.player, 1.0)  # Heal 100 HP
-          trackPowerUpHealing(game, puLifeSteal, 1.0 * game.player.healPowerMult)
+          # Attribute base healing to the lifesteal source and bonus to puHealPower
+          trackPowerUpHealing(game, puLifeSteal, 1.0)
+          let bonusHealing = 1.0 * (game.player.healPowerMult - 1.0)
+          if bonusHealing > 0.001 and hasPowerUp(game.player, puHealPower):
+            trackPowerUpHealing(game, puHealPower, bonusHealing)
           game.player.killsSinceLastHeal = 0
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
 
@@ -2535,7 +2547,11 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           else: 25
         if rand(99) < healChance:
           heal(game.player, 0.5)
-          trackPowerUpHealing(game, puLastTransmission, 0.5 * game.player.healPowerMult)
+          # Attribute base healing to Last Transmission and bonus to puHealPower
+          trackPowerUpHealing(game, puLastTransmission, 0.5)
+          let bonusHealing = 0.5 * (game.player.healPowerMult - 1.0)
+          if bonusHealing > 0.001 and hasPowerUp(game.player, puHealPower):
+            trackPowerUpHealing(game, puHealPower, bonusHealing)
           showDamage(game, game.player.pos, 0.5, true, false, dtHeal)
 
       # KillChain: 5 kills in 3s triggers a shockwave
