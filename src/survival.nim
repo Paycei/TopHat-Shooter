@@ -7,7 +7,7 @@ import types, enemy, particle_pool, localization
 # spawn value, which lands on an integer (boss N spawns at difficulty N*2). Enemy
 # introductionDifficulty thresholds are also integers, so spawning ambient enemies
 # at `difficulty - 0.5` drops exactly the type whose introduction coincides with
-# this boss's difficulty — i.e. nothing the player hasn't already seen debuts mid-boss.
+# this boss's difficulty, i.e. nothing the player hasn't already seen debuts mid-boss.
 const SurvivalBossRosterEpsilon = 0.5'f32
 
 proc spawnSurvivalEnemies*(game: Game) =

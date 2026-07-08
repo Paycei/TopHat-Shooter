@@ -1076,7 +1076,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
                             a: uint8(clamp(fp * 65.0'f32, 0.0'f32, 255.0'f32))))
 
     # Sequence-order dots (only for sequential kinds, only when hints on)
-    # Drawn as a row of small dots below the target: 1 dot = hit first, 2 = second…
+    # Drawn as a row of small dots below the target: 1 dot = hit first, 2 = second...
     # Already-hit entries simply vanish from the loop, so the dot count communicates
     # which un-hit target comes next.
     if showHints and isSeqKind:

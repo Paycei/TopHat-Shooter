@@ -382,7 +382,7 @@ proc spawnPrismRaysInto*(warnings: var seq[AttackWarning], particlePool: Particl
   ## the boss feeds a beam into a focal prism conjured beside the player, which
   ## splits it into a FINITE star of rays. Beat two: every ray end ignites a
   ## mini prism that re-splits the light one beat later, rippling around the
-  ## ring — and no mini ray points back through the spent primary focus, so
+  ## ring, and no mini ray points back through the spent primary focus, so
   ## the dodge verb is: sidestep the star, then dive INTO its dark wake.
   ## Each star is its own warning; geometry rides ricochetPath as
   ## [origin, focus, rayEnd1, .., rayEndN] and bulletCount is the generation
@@ -422,7 +422,7 @@ proc spawnPrismRaysInto*(warnings: var seq[AttackWarning], particlePool: Particl
   # the wake stays a true shelter) and their extra lifetime staggers the pops
   # into a ripple instead of one simultaneous wall of light. Both counts are
   # CAPPED below the primary's density: a 9-ray primary igniting 9 stars of
-  # 7 rays saturated the arena — at most 6 minis (evenly picked ray ends) of
+  # 7 rays saturated the arena, at most 6 minis (evenly picked ray ends) of
   # at most 5 rays keeps beat two dodgeable at every phase.
   let minis = min(rays, 6)
   let miniRays = clamp(rays - 2, 3, 5)

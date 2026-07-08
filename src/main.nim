@@ -322,7 +322,7 @@ proc initializeAllCosmetics() =
   ## Single source of truth for (re)populating every cosmetic database. Each
   ## cosmetic module owns its own idempotent `initialize*` proc; this lists them
   ## once so startup and the language-change hook rebuild all tables identically.
-  ## Safe to call repeatedly — these inits carry no unlock/equip state (that
+  ## Safe to call repeatedly, these inits carry no unlock/equip state (that
   ## lives in roguelite's CosmeticKind ownership and the equipped ints in
   ## Settings), so re-running only refreshes localized card names/descriptions.
   initializeSkins()
@@ -1625,8 +1625,8 @@ proc main() =
             const
               BLOOD_PACT_ENEMY_FRAC = 0.25'f32   # share of a normal enemy's max HP per cast
               BLOOD_PACT_BOSS_FRAC  = 0.03'f32   # bosses only take a small share
-              BLOOD_PACT_BONUS_MULT = 5.0'f32    # bonus damage per point of HP sacrificed
-            let sacrifice = currentGame.player.hp * 0.3
+              BLOOD_PACT_BONUS_MULT = 2.5'f32    # bonus damage per point of HP sacrificed
+            let sacrifice = currentGame.player.hp * 0.2
             currentGame.player.hp = max(0.1, currentGame.player.hp - sacrifice)
             let bonus = sacrifice * BLOOD_PACT_BONUS_MULT
 
@@ -2414,7 +2414,7 @@ proc main() =
             if currentGame.cheatRogueliteDirectFloorSelect:
               # Cheat "Skip Floor": the boss-room exit portal may be unreachable
               # (the cheat can fire from any room), so jump straight to floor
-              # select — mirroring what walking into the portal would do.
+              # select, mirroring what walking into the portal would do.
               currentGame.cheatRogueliteDirectFloorSelect = false
               generateThemeChoices(currentGame.rogueliteRun, unlockedBossTierOf(currentGame))
               currentGame.selectedRogueliteTheme = 0

@@ -1629,7 +1629,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
       # cube uses a y-down basis), so the four side faces take up = -Y: their
       # hearts all sit upright and point toward the cube's top ring. The
       # top/bottom faces (normal ±Y) have no in-plane vertical, so they fall
-      # back to +Z, tying into that ring. right = up × normal keeps a uniform
+      # back to +Z, tying into that ring. right = up x normal keeps a uniform
       # handedness, so a camera-facing face always projects to a positive area.
       var up3d: WallpaperCubePoint
       if abs(n.y) < 0.5'f32:
@@ -2048,7 +2048,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
     # Draw the shared backdrop at 1/6th the virtual canvas size so the grid
     # cell count and star density match what the shop preview miniature shows.
     # The fixed-size elements (48 px grid, 48 stars) are otherwise spread too
-    # thin at 1024×768 compared to the 170×64 shop card.
+    # thin at 1024x768 compared to the 170x64 shop card.
     let refW = int32(ceil(w / 6.0'f32))
     let refH = int32(ceil(h / 6.0'f32))
     pushMatrix()

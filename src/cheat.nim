@@ -335,7 +335,7 @@ proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) =
   ## survivalTime/SurvivalDifficultyRamp * scale, see updateGame), so this clock is
   ## the single honest knob for difficulty: bumping it cascades into spawn rate,
   ## elite tiers and boss difficulty. Reaching 900 s (SURVIVAL_ENDING_MIN_TIME) also
-  ## arms the survival ending on the next death, so this is a progression cheat —
+  ## arms the survival ending on the next death, so this is a progression cheat,
   ## re-assert the anti-cheat flag (the menu-open path already sets it, this is
   ## belt-and-suspenders, mirroring the roguelite skip).
   game.survivalTime = max(0.0'f32, game.survivalTime + deltaSeconds)

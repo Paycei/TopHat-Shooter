@@ -387,9 +387,9 @@ proc drawProfileSelect*(state: ProfileSelectState, screenWidth, screenHeight: in
       drawCenteredText(nameEs, cx, (rect.y + 74).int32, 18,
                        Color(r: 170, g: 185, b: 205, a: 230))
       let lines = case d
-        of gdEasy: @["-25% enemy HP / vida", "-30% enemy damage / dano"]
+        of gdEasy: @["-25% enemy HP / vida", "-30% enemy damage / daño"]
         of gdMedium: @["The classic balance", "El equilibrio clasico"]
-        of gdHard: @["+35% enemy HP / vida", "+30% enemy damage / dano"]
+        of gdHard: @["+35% enemy HP / vida", "+30% enemy damage / daño"]
       for i, line in lines:
         drawCenteredText(line, cx, (rect.y + 130.0'f32 + i.float32 * 26.0'f32).int32, 15,
                          Color(r: 200, g: 212, b: 228, a: 240))

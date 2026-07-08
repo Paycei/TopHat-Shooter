@@ -141,7 +141,7 @@ proc drawDeepVoidFx(w, h, time: float32) =
     drawSoftGlow(nx, ny, nr * breathe, col, 0.55)
 
   # Scale star size and count so they look as bright and dense at full
-  # desktop as they do in the 170×64 shop preview card (reference: 64 px).
+  # desktop as they do in the 170x64 shop preview card (reference: 64 px).
   let sScale = min(w, h) / 64.0'f32 * 0.5'f32 + 0.5'f32
   let starCount = int(22.0'f32 * sqrt(sScale))
 

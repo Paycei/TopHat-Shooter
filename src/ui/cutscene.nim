@@ -24,7 +24,7 @@ type
     ## Set glitchMod = 0 to disable entirely.
     glitchMod*:    int
     glitchWindow*: int
-    ## Per-shot camX shake.  nil → cutscene-level swayAmp default.
+    ## Per-shot camX shake.  nil -> cutscene-level swayAmp default.
     shakeProc*: CutsceneShakeProc
 
   Cutscene* = ref object
@@ -33,7 +33,7 @@ type
     accentColor*:   Color
     titleCardText*: string     ## large title drawn on the opening card
     titleCardSub*:  string     ## subtitle under the title (already t()-resolved by caller)
-    cornerTag*:     string     ## deck-status chip top-right; "" → t(tkLoreLive)
+    cornerTag*:     string     ## deck-status chip top-right; "" -> t(tkLoreLive)
     drawBackdropProc*: CutsceneBackdropProc
     swayAmp*:       float32    ## default camX/camY idle sway amplitude
     skipHoldRequired*:  float32

@@ -389,9 +389,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puFortified:
     # Fortified reduces damage taken + increases max HP
     let hpBonus = case powerUp.level
-      of 1: 3.5   # +350 HP
-      of 2: 7.0  # +700 HP
-      else: 10.5  # +1050 HP
+      of 1: 2.5   # +250 HP
+      of 2: 5.0  # +500 HP
+      else: 7.5  # +750 HP
     player.maxHp += hpBonus
     player.hp += hpBonus
   of puCelestialVeil:

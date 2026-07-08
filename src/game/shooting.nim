@@ -55,7 +55,7 @@ proc baseBulletSpeed(player: Player): float32 =
   ## Player bullets travel at 1.2x the configured bulletSpeed, plus a *subtle*
   ## nudge tied to how much faster than baseline the player is currently moving.
   ## Only the excess over baseline (ratio - 1.0) feeds in, and at a low 0.15
-  ## transfer, so a +33% Speed Boost adds just ~+5% bullet speed — barely
+  ## transfer, so a +33% Speed Boost adds just ~+5% bullet speed, barely
   ## noticeable, while a baseline-speed player sees no change at all.
   result = player.bulletSpeed * 1.2
   if player.baseSpeed > 0:

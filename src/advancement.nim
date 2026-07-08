@@ -201,7 +201,7 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "survival_kernel_breaker",
       name: "Kernel Breaker",
-      description: "Reach wave 60 and face the twelfth boss — the final gauntlet.",
+      description: "Reach wave 60 and face the twelfth boss - the final gauntlet.",
       category: acSurvival,
       tier: atLegendary,
       target: 60.0'f32,

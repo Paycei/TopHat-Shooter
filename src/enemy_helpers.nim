@@ -265,7 +265,7 @@ proc chasePlayer*(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed
 
 # UNIFORM SPATIAL HASH GRID: proximity-query acceleration
 #
-# Purpose: replace the O(n²) / O(bullets × enemies) "scan every enemy" loops in
+# Purpose: replace the O(n²) / O(bullets x enemies) "scan every enemy" loops in
 # game.nim with O(n) neighbourhood queries. A bullet only ever collides with an
 # enemy a few pixels away. This grid buckets enemy indices by screen cell so a query
 # returns only the handful of enemies in the cells overlapping a small AABB.

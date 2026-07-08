@@ -562,7 +562,7 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
                      elif selectedCanBuy: t("roguelite_buy_unlock")
                      else: t("roguelite_need_more_shards")
     let shopHasDeal = hasUnseenAffordableUnlock(profile)
-    # Each button is centered under its card column so card→action reads as one
+    # Each button is centered under its card column so card->action reads as one
     # vertical lane (Shop·Operator, Start·Bulwark, Back·Arcanist).
     let btnW: int32 = 220
     let btnH: int32 = 46

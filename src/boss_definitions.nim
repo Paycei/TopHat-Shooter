@@ -1253,7 +1253,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Warmup",
           hpThreshold: 1.0,
-          speedMultiplier: 0.7,
+          speedMultiplier: 0.8,
           damageMultiplier: 0.9,
           defenseMultiplier: 1.2,
           color: Color(r: 200, g: 0, b: 0, a: 255),
@@ -1308,7 +1308,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Bloodrage",
           hpThreshold: 0.65,
-          speedMultiplier: 0.8,  # NERFED from 1.1
+          speedMultiplier: 0.9,  # NERFED from 1.1
           damageMultiplier: 1.3,
           defenseMultiplier: 1.1,
           color: Color(r: 255, g: 30, b: 0, a: 255),
@@ -1373,7 +1373,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Unstoppable",
           hpThreshold: 0.3,
-          speedMultiplier: 1.0,  # NERFED from 1.2
+          speedMultiplier: 1.1,  # NERFED from 1.2
           damageMultiplier: 1.5,
           defenseMultiplier: 0.9,
           color: Color(r: 255, g: 0, b: 0, a: 255),
@@ -1444,7 +1444,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss9Name),
       bossID: 9,
-      baseHP: 1900.0,
+      baseHP: 2000.0,
       baseSpeed: 55.0,
       baseDamage: 4,
       baseRadius: 56.0,
@@ -1500,10 +1500,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         ),
         BossPhaseDefinition(
           name: "Spectrum Array",
-          hpThreshold: 0.6,
+          hpThreshold: 0.67,
           speedMultiplier: 1.1,
           damageMultiplier: 1.2,
-          defenseMultiplier: 1.15,
+          defenseMultiplier: 1.1,
           color: Color(r: 200, g: 150, b: 255, a: 255),
           visualEffect: "aura",
           specialBehavior: "prism_array",  # Figure-8 patterns
@@ -1544,8 +1544,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: "Pure Brilliance",
           hpThreshold: 0.33,
-          speedMultiplier: 1.15,
-          damageMultiplier: 1.3,
+          speedMultiplier: 1.2,
+          damageMultiplier: 1.25,
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 255, b: 255, a: 255),
           visualEffect: "glow",
@@ -1605,7 +1605,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss10Name),
       bossID: 10,
-      baseHP: 2400.0,
+      baseHP: 2600.0,
       baseSpeed: 55.0,
       baseDamage: 5,
       baseRadius: 62.0,
@@ -1618,7 +1618,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.7,
           damageMultiplier: 1.0,
-          defenseMultiplier: 1.3,
+          defenseMultiplier: 1.1,
           color: Color(r: 0, g: 180, b: 180, a: 255),
           visualEffect: "pulse",
           specialBehavior: "slow_time",  # Slow methodical movement
@@ -1661,7 +1661,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         ),
         BossPhaseDefinition(
           name: "Time Fracture",
-          hpThreshold: 0.6,
+          hpThreshold: 0.65,
           speedMultiplier: 1.2,
           damageMultiplier: 1.1,
           defenseMultiplier: 1.2,
@@ -1722,7 +1722,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.4,
           speedMultiplier: 1.3,  # Fast blinking
           damageMultiplier: 1.3,
-          defenseMultiplier: 0.9,
+          defenseMultiplier: 1.2,
           color: Color(r: 150, g: 255, b: 255, a: 255),  # Bright cyan/white
           visualEffect: "glow",
           specialBehavior: "time_collapse",  # Fast blinking movement
@@ -1792,7 +1792,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss11Name),
       bossID: 11,
-      baseHP: 3000.0,
+      baseHP: 3100.0,
       baseSpeed: 60.0,
       baseDamage: 5,
       baseRadius: 58.0,

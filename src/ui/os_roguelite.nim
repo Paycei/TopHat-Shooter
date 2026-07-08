@@ -812,7 +812,7 @@ proc drawShopButton*(x, y, w, h: int32, label: string, time: float32,
                      hasDeal: bool, hovered: bool = false) =
   ## High-emphasis entry point to the Shard Unlocks shop. Unlike drawSmallButton
   ## this one is gold, breathes with a glow halo, carries a shard icon, and pops a
-  ## red "!" badge when something is affordable — so it stops reading as just one
+  ## red "!" badge when something is affordable, so it stops reading as just one
   ## of three equal-weight footer buttons.
   let gold = Color(r: 255, g: 210, b: 90, a: 255)
   let pulse = sin(time * 4.0'f32) * 0.5'f32 + 0.5'f32          # 0..1

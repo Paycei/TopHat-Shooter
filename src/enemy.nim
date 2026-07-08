@@ -876,7 +876,7 @@ proc drawCustomBoss*(enemy: Enemy) =
   let r  = enemy.radius
   # How far the boss has ascended through its phases. The per-boss "ascension"
   # overlay at the end of this proc uses it to make the boss look progressively
-  # more powerful (extra crowns, satellites, rings, …) each phase. 0 = base form.
+  # more powerful (extra crowns, satellites, rings, ...) each phase. 0 = base form.
   let phaseLvl = max(0, enemy.currentPhaseIndex)
   let pf = phaseLvl.float32
 
@@ -1924,7 +1924,7 @@ proc drawEnemy*(enemy: Enemy) =
   ## Draws an enemy based on its type. Bosses are forwarded to drawCustomBoss.
   # Spawn ring: expanding coloured circle that fades out as the enemy materialises
   if enemy.spawnRingTimer > 0:
-    let t = enemy.spawnRingTimer / 0.45'f32          # 1.0 (just spawned) → 0.0 (faded)
+    let t = enemy.spawnRingTimer / 0.45'f32          # 1.0 (just spawned) -> 0.0 (faded)
     let ringRadius = enemy.radius * (1.0'f32 + (1.0'f32 - t) * 1.2'f32)
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius,
                     Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: uint8(t * 200.0'f32)))
@@ -3936,7 +3936,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # the primary: boss feed beam + finite ray star, each ray its own hue.
     # Minis (bulletCount > 0) idle as a dim seed diamond at their ray end
     # until the primary has fired, then ignite a shorter telegraph of their
-    # own star. No connector is drawn from the spent primary focus — the wake
+    # own star. No connector is drawn from the spent primary focus, the wake
     # must READ as shelter. Lethal pass is ungated in drawSignatureAttackActive.
     if warning.ricochetPath.len >= 3 and warning.lifetime > PrismRayActive:
       let isMini = warning.bulletCount > 0
@@ -4961,7 +4961,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1) =
   if enemy.isBoss:
     return
 
-  # Elite chance: ramps from 2% → 12% by wave 29, then continues +1%/wave to cap 32%
+  # Elite chance: ramps from 2% -> 12% by wave 29, then continues +1%/wave to cap 32%
   let baseChance = min(2 + (waveNumber.float32 * 0.35).int, 12)
   let lateBonus = max(0, waveNumber - 28)
   let eliteChance = min(baseChance + lateBonus, 32)
@@ -4991,7 +4991,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1) =
     # Waves 55+: 65% chance for a dual-effect elite
     if rand(99) < 65: 2 else: 1
   elif statWave >= 35:
-    # Waves 35–54: 35% chance for a dual-effect elite
+    # Waves 35-54: 35% chance for a dual-effect elite
     if rand(99) < 35: 2 else: 1
   else:
     # Waves 1-34: Single effect

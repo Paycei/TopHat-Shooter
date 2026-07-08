@@ -121,9 +121,9 @@ type
     gdEasy = "easy", gdMedium = "medium", gdHard = "hard"
 
   CutsceneContinuation* = enum
-    cscMenu,       ## after cutscene → gsMenu (intro, settings replays)
-    cscVictory,    ## after cutscene → gsVictory (first endgame win)
-    cscLaunchGame  ## after cutscene → startLoadingAnimation + pendingGameMode
+    cscMenu,       ## after cutscene -> gsMenu (intro, settings replays)
+    cscVictory,    ## after cutscene -> gsVictory (first endgame win)
+    cscLaunchGame  ## after cutscene -> startLoadingAnimation + pendingGameMode
 
   GameMode* = enum
     gmWaveBased,
@@ -815,8 +815,8 @@ type
     shieldHp*: float32  # For shielded elites
     maxShieldHp*: float32  # Maximum shield HP
     diamondShieldActive*: bool  # 1-hit shield for diamond enemies (like Celestial Veil)
-    hitFlashTimer*: float32    # countdown from 0.10 → 0 on bullet hit; drives white body flash
-    spawnRingTimer*: float32   # countdown from 0.45 → 0 on spawn; drives expanding ring pop-in
+    hitFlashTimer*: float32    # countdown from 0.10 -> 0 on bullet hit; drives white body flash
+    spawnRingTimer*: float32   # countdown from 0.45 -> 0 on spawn; drives expanding ring pop-in
     regenTimer*: float32  # For regenerative elites
     spawnedByBoss*: bool  # True if spawned by boss summon attack
     rotation*: float32  # Current rotation angle in radians

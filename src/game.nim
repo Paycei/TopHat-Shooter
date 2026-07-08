@@ -122,7 +122,7 @@ proc bankRunLevelUps*(game: Game) =
   if game.mode notin {gmRoguelite, gmTimeSurvival}: return
   # Survival: freeze leveling during a boss fight. The XP bar may fill to 100%,
   # but the level-up (and its draft) is deferred until the boss is dead. XP earned
-  # past the threshold while the boss lives is discarded — the bar caps at full, so
+  # past the threshold while the boss lives is discarded, the bar caps at full, so
   # at most one level is banked the instant the boss falls.
   if isTimeSurvivalMode(game.mode) and game.bossWaveManager.isBossActive():
     game.player.xp = min(game.player.xp, game.player.xpToNextLevel)
@@ -145,7 +145,7 @@ proc bankRunLevelUps*(game: Game) =
              Color(r: 120, g: 255, b: 180, a: 255))
 
 proc checkPendingLevelDraft*(game: Game) =
-  ## Opens one queued level-up draft, but only in normal play (gsPlaying) — never
+  ## Opens one queued level-up draft, but only in normal play (gsPlaying), never
   ## while a modal is up. Opening the queued drafts one-per-frame chains
   ## multi-level-ups: each draft pauses the sim, the player picks,
   ## continueAfterDraft returns to gsPlaying, and the next frame opens the
@@ -156,7 +156,7 @@ proc checkPendingLevelDraft*(game: Game) =
   ## continueAfterDraft routes back to play rather than the post-boss shop, and
   ## draws from all power families since survival has no per-run unlock set.
   if game.mode notin {gmRoguelite, gmTimeSurvival} or game.state != gsPlaying: return
-  # Survival: never open a level-up draft while a boss is alive — leveling is
+  # Survival: never open a level-up draft while a boss is alive, leveling is
   # deferred until the fight ends (matches the XP freeze in bankRunLevelUps).
   if isTimeSurvivalMode(game.mode) and game.bossWaveManager.isBossActive(): return
   if game.pendingLevelDrafts <= 0: return
@@ -304,7 +304,7 @@ proc calculateWaveEnemyCount(waveNumber: int): int =
   ## are a handful of beefy threats that reach the player rather than a 100-strong
   ## crowd the player mows down without ever being threatened.
   ## The exponent (0.6) keeps the slope shrinking, so the count still flattens out
-  ## past the midgame — high waves, and especially wave 40+, add bodies ever more
+  ## past the midgame, high waves, and especially wave 40+, add bodies ever more
   ## slowly instead of swelling into a swarm, but late waves stay a touch fuller.
   ##   wave 1 -> 8, wave 10 -> ~19, wave 40 -> ~35, wave 60 -> ~42, wave 100 -> ~55
   result = int(8 + 3.0 * pow(float(waveNumber - 1), 0.6))
@@ -1116,7 +1116,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
     # mini, staggered) goes lethal for a short flash. Geometry lives in
     # ricochetPath as [origin, focus, rayEnd...]; bulletCount is the generation
     # and a mini's feed vertex (parent focus -> mini) is cosmetic, never lethal
-    # — the spent primary focus must stay a safe shelter. One strike per star.
+    #, the spent primary focus must stay a safe shelter. One strike per star.
     if game.attackWarnings[i].attackType == awtPrismRays:
       let w = game.attackWarnings[i]
       if w.lifetime <= PrismRayActive and w.ricochetPath.len >= 3:
@@ -2504,13 +2504,13 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         let level = getPowerUpLevel(game.player, puLifeSteal)
         game.player.killsSinceLastHeal += 1
         let healsPerKills = case level
-          of 1: 12
-          of 2: 9
-          else: 6
+          of 1: 10
+          of 2: 7
+          else: 5
 
         if game.player.killsSinceLastHeal >= healsPerKills:
-          heal(game.player, 0.5)  # Heal 0.5 HP
-          trackPowerUpHealing(game, puLifeSteal, 0.5 * game.player.healPowerMult)
+          heal(game.player, 1.0)  # Heal 100 HP
+          trackPowerUpHealing(game, puLifeSteal, 1.0 * game.player.healPowerMult)
           game.player.killsSinceLastHeal = 0
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
 
@@ -3103,7 +3103,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
   if bossDefeated and not shouldUseWaves(game.mode) and game.mode != gmSandbox:
     # Time survival: a defeated boss is a major milestone, so offer a LEGENDARY
     # draft (isLegendary = true) to match the wave-mode boss reward in
-    # completeBossWave — not a common upgrade.
+    # completeBossWave, not a common upgrade.
     game.powerUpChoices = generatePowerUpChoices(game.player, true, mode = game.mode)
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
