@@ -1633,9 +1633,9 @@ proc main() =
             for enemy in currentGame.enemies:
               if enemy.isBoss and enemy.invulnerabilityTimer > 0:
                 continue  # respect phase-transition invulnerability
-              let dealt = if enemy.isBoss: enemy.maxHp * BLOOD_PACT_BOSS_FRAC + bonus * 0.4
-                          else: enemy.maxHp * BLOOD_PACT_ENEMY_FRAC + bonus
-              enemy.hp -= dealt
+              let intended = if enemy.isBoss: enemy.maxHp * BLOOD_PACT_BOSS_FRAC + bonus * 0.4
+                             else: enemy.maxHp * BLOOD_PACT_ENEMY_FRAC + bonus
+              let dealt = applyEnemyHpDamage(enemy, intended)
               trackPowerUpDamage(currentGame, puBloodPact, dealt)
               showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
 
@@ -1655,8 +1655,7 @@ proc main() =
             for et in elementsToDetonate:
               var ae = enemy.activeEffects[et]
               let burstDmg = ae.primary.remainingDuration * ae.primary.damagePerSec * 3.0
-              let dealt = burstDmg
-              enemy.hp -= dealt
+              let dealt = applyEnemyHpDamage(enemy, burstDmg)
               trackPowerUpDamage(currentGame, puConduit, dealt)
               showDamage(currentGame, enemy.pos, dealt, true, false, dtFire)
               totalDetonated += dealt
@@ -1697,8 +1696,7 @@ proc main() =
                     let dist = distance(closest, enemy.pos)
                     if dist <= shockwaveWidth + enemy.radius:
                       hitEnemyIds.add(enemy.id)
-                      let dealt = baseDamage
-                      enemy.hp -= dealt
+                      let dealt = applyEnemyHpDamage(enemy, baseDamage)
                       trackPowerUpDamage(currentGame, puAftershock, dealt)
                       showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
                       # Knockback away from path

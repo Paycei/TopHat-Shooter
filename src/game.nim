@@ -3058,12 +3058,18 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           let contactParticleCount = if contactWasCrit: 8 else: 3
           spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.color, contactParticleCount)
 
-          # Remove enemy if HP reaches 0
+          # Remove enemy if HP reaches 0. Bosses are never deleted here: a boss
+          # at 0 HP may still have phases left, and full defeat bookkeeping
+          # (bossDefeated, wave flow, rewards) lives in the main enemy update
+          # loop, so a contact kill must funnel through it instead.
           if enemy.hp <= 0:
-            # Flush any accumulated contact damage before death
-            flushAccumulatedContactDamage(game, enemy)
-            game.enemies.delete(enemyIdx)
-            continue
+            if enemy.isBoss:
+              discard tryAdvanceBossPhase(game, enemy)
+            else:
+              # Flush any accumulated contact damage before death
+              flushAccumulatedContactDamage(game, enemy)
+              game.enemies.delete(enemyIdx)
+              continue
 
     enemyIdx += 1
 
