@@ -164,7 +164,9 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   var contentHeight: int32 = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 2  # Header (reduced spacing)
 
   # FPS/Entity row
-  contentHeight += 22  # Reduced from 26
+  contentHeight += 18
+  # upd/draw timing row
+  contentHeight += 16
 
   # Add height for active timers
   var activeTimers = 0
@@ -177,10 +179,11 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
   if game.player.parryActive: activeTimers += 1
 
   if activeTimers > 0:
-    contentHeight += int32(12 + (activeTimers * DEBUG_LINE_HEIGHT) + DEBUG_SECTION_SPACING)  # Reduced header from 14
+    # separator(3) + header(12) + rows + section spacing
+    contentHeight += int32(15 + (activeTimers * DEBUG_LINE_HEIGHT) + DEBUG_SECTION_SPACING)
 
-  # Always show combat stats
-  contentHeight += int32(12 + (DEBUG_LINE_HEIGHT * 3) + 4 + DEBUG_SECTION_SPACING)  # Reduced spacing
+  # Always show combat stats: separator(4) + header(14) + 3 lines + trailing 6
+  contentHeight += int32(18 + (DEBUG_LINE_HEIGHT * 3) + 4 + DEBUG_SECTION_SPACING)
 
   # Add height for rage/berserker bonuses if applicable
   let hpPercent = game.player.hp / game.player.maxHp
@@ -188,7 +191,8 @@ proc drawDebugPanel*(game: Game, x, y: int32) =
     var bonusCount = 0
     if hasPowerUp(game.player, puRage): bonusCount += 1
     if hasPowerUp(game.player, puBerserker): bonusCount += 1
-    contentHeight += int32(12 + (bonusCount * DEBUG_LINE_HEIGHT) + 4)  # Reduced spacing
+    # separator(4) + header(14) + rows
+    contentHeight += int32(18 + (bonusCount * DEBUG_LINE_HEIGHT))
 
   var dopamineLines = 0
   # Streak mechanic removed
