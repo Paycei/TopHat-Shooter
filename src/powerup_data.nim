@@ -392,14 +392,14 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     else: t(tkPowerupExplosiveBulletsDesc3)
   of puFireAura:
     case level
-    of 1: t(tkPowerupFireAuraDesc1).replace("{0}", dmgPs(1.0, 0.3, playerDamage))
-    of 2: t(tkPowerupFireAuraDesc2).replace("{0}", dmgPs(2.5, 0.3, playerDamage))
-    else: t(tkPowerupFireAuraDesc3).replace("{0}", dmgPs(5.0, 0.3, playerDamage))
+    of 1: t(tkPowerupFireAuraDesc1).replace("{0}", dmgPs(1.5, 0.35, playerDamage))
+    of 2: t(tkPowerupFireAuraDesc2).replace("{0}", dmgPs(3.5, 0.35, playerDamage))
+    else: t(tkPowerupFireAuraDesc3).replace("{0}", dmgPs(6.5, 0.35, playerDamage))
   of puFireBullets:
     case level
-    of 1: t(tkPowerupFireBulletsDesc1).replace("{0}", dmgPs(0.5, 0.2, playerDamage))
-    of 2: t(tkPowerupFireBulletsDesc2).replace("{0}", dmgPs(1.0, 0.2, playerDamage))
-    else: t(tkPowerupFireBulletsDesc3).replace("{0}", dmgPs(1.5, 0.2, playerDamage))
+    of 1: t(tkPowerupFireBulletsDesc1).replace("{0}", dmgPs(2.5, 0.25, playerDamage))
+    of 2: t(tkPowerupFireBulletsDesc2).replace("{0}", dmgPs(3.75, 0.25, playerDamage))
+    else: t(tkPowerupFireBulletsDesc3).replace("{0}", dmgPs(5.0, 0.25, playerDamage))
   of puFireMastery:
     t(tkPowerupFireMasteryDesc)
   of puFireOrb:
@@ -481,9 +481,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     else: t(tkPowerupPiercingShotsDesc3)
   of puPoisonAura:
     case level
-    of 1: t(tkPowerupPoisonAuraDesc1).replace("{0}", dmgPs(1.0, 0.3, playerDamage))
-    of 2: t(tkPowerupPoisonAuraDesc2).replace("{0}", dmgPs(2.5, 0.3, playerDamage))
-    else: t(tkPowerupPoisonAuraDesc3).replace("{0}", dmgPs(5.0, 0.3, playerDamage))
+    of 1: t(tkPowerupPoisonAuraDesc1).replace("{0}", dmgPs(0.8, 0.25, playerDamage))
+    of 2: t(tkPowerupPoisonAuraDesc2).replace("{0}", dmgPs(2.0, 0.25, playerDamage))
+    else: t(tkPowerupPoisonAuraDesc3).replace("{0}", dmgPs(4.0, 0.25, playerDamage))
   of puPoisonMastery:
     t(tkPowerupPoisonMasteryDesc)
   of puPoisonOrb:
@@ -493,9 +493,9 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     else: t(tkPowerupPoisonOrbDesc3).replace("{0}", dmg(8.0, 0.175, playerDamage))
   of puPoisonShot:
     case level
-    of 1: t(tkPowerupPoisonShotDesc1).replace("{0}", dmgPs(1.0, 0.2, playerDamage))
-    of 2: t(tkPowerupPoisonShotDesc2).replace("{0}", dmgPs(1.5, 0.2, playerDamage))
-    else: t(tkPowerupPoisonShotDesc3).replace("{0}", dmgPs(2.0, 0.2, playerDamage))
+    of 1: t(tkPowerupPoisonShotDesc1).replace("{0}", dmgPs(1.5, 0.2, playerDamage))
+    of 2: t(tkPowerupPoisonShotDesc2).replace("{0}", dmgPs(2.5, 0.2, playerDamage))
+    else: t(tkPowerupPoisonShotDesc3).replace("{0}", dmgPs(3.75, 0.2, playerDamage))
   of puPulseArmor:
     case level
     of 1: t(tkPowerupPulseArmorDesc1)

@@ -11,6 +11,15 @@ type BulletEffects* = tuple[
 
 const WindBulletFlatDamageBonus* = 0.5'f32
 
+# Mastery multipliers, shared by every fire/poison DoT source (bullets, auras,
+# orbs) so the element identity stays consistent: fire mastery makes the burn
+# hotter, poison mastery makes the venom linger.
+const
+  FireMasteryDmgMult* = 4.5'f32
+  FireMasteryDurMult* = 1.5'f32
+  PoisonMasteryDmgMult* = 2.5'f32
+  PoisonMasteryDurMult* = 3.0'f32
+
 # COMMON HELPER FUNCTIONS FOR POWER-UP CALCULATIONS
 
 # Lightning visuals moved to src/fx.nim (forwarding stubs kept)
@@ -41,14 +50,12 @@ proc getExplosionRadius*(level: int): float32 =
   else: 100.0
 
 proc getBulletDamageType*(bullet: Bullet): DamageType =
-  ## Determine the damage type for a bullet based on its properties
-  ## Returns the appropriate elemental type or dtDefault for normal bullets
+  ## Determine the damage-number color for a bullet's DIRECT hit.
+  ## Fire/poison riders deliberately do NOT tint the direct hit: element colors
+  ## are reserved for the DoT ticks themselves, so the player can tell their
+  ## bullet damage (white) apart from burn/poison damage (orange/green).
   if bullet.isArcaneBullet:
     return dtArcane
-  elif bullet.fireDuration > 0:
-    return dtFire
-  elif bullet.poisonDuration > 0:
-    return dtPoison
   elif bullet.slowAmount > 0:
     return dtFrost  # Frost/slow bullets use the dedicated frost color (light blue)
   elif bullet.windPushForce > 0:
@@ -74,11 +81,22 @@ type
     hasMastery*: bool
     level*: int
 
-proc dotEffectDamage(level: int): float32 =
-  case level
-  of 1: 1.0'f32
-  of 2: 1.5'f32
-  else: 2.0'f32
+proc fireDotDamage(level: int, playerDamage: float32): float32 =
+  ## Fire identity: hot and fast - high dps over a short burn.
+  let base = case level
+    of 1: 2.5'f32
+    of 2: 3.75'f32
+    else: 5.0'f32
+  base + playerDamage * 0.25
+
+proc poisonDotDamage(level: int, playerDamage: float32): float32 =
+  ## Poison identity: slow drip - lower dps but a much longer duration,
+  ## so the total damage slightly exceeds fire's if the target stays alive.
+  let base = case level
+    of 1: 1.5'f32
+    of 2: 2.5'f32
+    else: 3.75'f32
+  base + playerDamage * 0.2
 
 proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
   ## Extract all active bullet effects from a bullet
@@ -99,13 +117,15 @@ proc getBulletEffects(game: Game, bullet: Bullet): seq[BulletEffect] =
   # Poison effect
   if bullet.poisonDuration > 0 and hasPowerUp(game.player, puPoisonShot):
     let lvl = getPowerUpLevel(game.player, puPoisonShot)
-    result.add(BulletEffect(effectType: befPoison, baseDamage: dotEffectDamage(lvl),
+    result.add(BulletEffect(effectType: befPoison,
+      baseDamage: poisonDotDamage(lvl, game.player.damage),
       duration: bullet.poisonDuration, hasMastery: game.player.hasPoisonMastery, level: lvl))
 
   # Fire effect
   if bullet.fireDuration > 0 and hasPowerUp(game.player, puFireBullets):
     let lvl = getPowerUpLevel(game.player, puFireBullets)
-    result.add(BulletEffect(effectType: befFire, baseDamage: dotEffectDamage(lvl),
+    result.add(BulletEffect(effectType: befFire,
+      baseDamage: fireDotDamage(lvl, game.player.damage),
       duration: bullet.fireDuration, hasMastery: game.player.hasFireMastery, level: lvl))
 
   # Wind effect
@@ -176,11 +196,11 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     # because bullet hits need debuffResistance scaling and a stronger-wins guard.
     applyMasteryDoT(enemy, etPoison, effect.baseDamage, effect.duration,
                     effect.hasMastery,
-                    masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                    masteryDmgMult = PoisonMasteryDmgMult, masteryDurMult = PoisonMasteryDurMult,
                     masterySlowAmount = 0.0, source = "shot")
     if effect.hasMastery:
       let newSlowAmount = 0.40 * (1.0 - enemy.debuffResistance)
-      let actualDur = effect.duration * 2.0  # already scaled by masteryDurMult
+      let actualDur = effect.duration * PoisonMasteryDurMult  # already scaled by masteryDurMult
       if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
         enemy.slowTimer = actualDur
         enemy.slowAmount = newSlowAmount
@@ -188,11 +208,11 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
   of befFire:
     applyMasteryDoT(enemy, etFire, effect.baseDamage, effect.duration,
                     effect.hasMastery,
-                    masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                    masteryDmgMult = FireMasteryDmgMult, masteryDurMult = FireMasteryDurMult,
                     masterySlowAmount = 0.0, source = "shot")
     if effect.hasMastery:
       let newSlowAmount = 0.45 * (1.0 - enemy.debuffResistance)
-      let actualDur = effect.duration * 2.0
+      let actualDur = effect.duration * FireMasteryDurMult
       if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
         enemy.slowTimer = actualDur
         enemy.slowAmount = newSlowAmount

@@ -1934,13 +1934,47 @@ proc drawEnemy*(enemy: Enemy) =
   # Status effect overlays: pulsing coloured ring tied to active DoT / slow state
   let st = getTime()
   if hasActiveEffect(enemy, etFire):
+    # Burning: hot body glow + flickering flame wedges licking off the top,
+    # deliberately louder and faster than poison so the two DoTs read apart
     let p = float32(sin(st * 8.0) * 0.5 + 0.5)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 3.0'f32 + p * 2.0'f32,
-                    Color(r: 255, g: uint8(80.0'f32 + p * 80.0'f32), b: 0, a: uint8(120.0'f32 + p * 80.0'f32)))
+    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius,
+               Color(r: 255, g: 120, b: 0, a: uint8(35.0'f32 + p * 20.0'f32)))
+    let seed = float32(enemy.id mod 7)
+    for i in 0..3:
+      let fi = i.float32
+      let flick = float32(sin(st * (9.0 + fi * 2.3) + seed + fi * 1.7) * 0.5 + 0.5)
+      let ang = float32(-PI / 2.0) + (fi - 1.5'f32) * 0.55'f32 +
+                float32(sin(st * 5.0 + fi * 2.1)) * 0.15'f32
+      let bx = enemy.pos.x + cos(ang) * enemy.radius * 0.9'f32
+      let by = enemy.pos.y + sin(ang) * enemy.radius * 0.9'f32
+      let h = 6.0'f32 + flick * 8.0'f32
+      let w = 2.5'f32 + flick * 2.0'f32
+      let flameCol = if i mod 2 == 0:
+        Color(r: 255, g: 150, b: 0, a: uint8(150.0'f32 + flick * 90.0'f32))
+      else:
+        Color(r: 255, g: 220, b: 60, a: uint8(120.0'f32 + flick * 90.0'f32))
+      drawTriangle(Vector2(x: bx, y: by - h),
+                   Vector2(x: bx - w, y: by),
+                   Vector2(x: bx + w, y: by), flameCol)
   if hasActiveEffect(enemy, etPoison):
-    let p = float32(sin(st * 4.0) * 0.5 + 0.5)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 3.0'f32 + p * 2.0'f32,
-                    Color(r: 30, g: uint8(180.0'f32 + p * 60.0'f32), b: 30, a: uint8(110.0'f32 + p * 80.0'f32)))
+    # Poisoned: sickly green body tint + slow toxic bubbles drifting upward,
+    # calm and drippy in contrast to fire's rapid flicker. Tint and bubble
+    # count intensify as poison stacks ramp toward the cap.
+    let stackFrac = clamp(enemy.poisonStacks / poisonStackCap(enemy), 0.0'f32, 1.0'f32)
+    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius,
+               Color(r: 60, g: 220, b: 60, a: uint8(50.0'f32 + stackFrac * 45.0'f32)))
+    let pseed = float32(enemy.id mod 11)
+    let bubbleCount = 2 + int(stackFrac * 3.0'f32)
+    for i in 0..bubbleCount:
+      let fi = i.float32
+      let cycle = float32((st * 0.55 + fi * 0.37 + pseed * 0.13) mod 1.0)
+      let ang = pseed + fi * 2.4'f32
+      let bx = enemy.pos.x + cos(ang) * enemy.radius * 0.6'f32 +
+               float32(sin(st * 2.0 + fi)) * 2.0'f32
+      let by = enemy.pos.y + enemy.radius * 0.4'f32 - cycle * (enemy.radius * 1.6'f32 + 10.0'f32)
+      let bubbleA = uint8((1.0'f32 - cycle) * 180.0'f32)
+      drawCircleLines(bx.int32, by.int32, 2.0'f32 + cycle * 2.5'f32,
+                      Color(r: 120, g: 255, b: 120, a: bubbleA))
   if hasActiveEffect(enemy, etLightning):
     let p = float32(sin(st * 10.0) * 0.5 + 0.5)
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 4.0'f32 + p * 2.0'f32,

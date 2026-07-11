@@ -868,6 +868,8 @@ type
     windowWasOpen*: bool            # Tracks vulnerability-window open->close edge for heal-on-ignore
     auraAcc*: DamageAccumulator
     contactAcc*: DamageAccumulator
+    dotAccs*: array[ElementType, DamageAccumulator]  # Per-element DoT tick display, so fire/poison numbers stay separate and keep their own color
+    poisonStacks*: float32        # Ramp built while poisoned (effects.nim); boosts poison tick damage up to a cap, resets when poison fully expires
     damageTuning*: float32  # Dungeon: attack-damage compression factor (0 or 1 = untouched)
 
   Bullet* = ref object
@@ -1693,3 +1695,13 @@ proc elementColor*(elementType: ElementType): Color =
   of etArcane: Color(r: 200, g: 100, b: 255, a: 255)
   of etBlood: Color(r: 255, g: 50, b: 50, a: 255)
   of etNone: White
+
+proc elementDamageType*(elementType: ElementType): DamageType =
+  ## Damage-number color category for each element's DoT ticks.
+  case elementType
+  of etPoison: dtPoison
+  of etFire: dtFire
+  of etLightning: dtLightning
+  of etFrost: dtFrost
+  of etArcane: dtArcane
+  else: dtDefault

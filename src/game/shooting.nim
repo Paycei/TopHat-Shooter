@@ -18,21 +18,20 @@ proc calcBulletEffects(player: Player): BulletEffects =
     if player.hasFrostMastery:
       slow += 0.2  # +20% slow (total up to 80%)
 
+  # These are DoT *durations* in seconds (dps lives in bullets.nim
+  # fireDotDamage/poisonDotDamage): poison lingers 1.5-2x longer than fire,
+  # matching the power-up descriptions.
   if hasPowerUp(player, puPoisonShot):
-    let lvl = getPowerUpLevel(player, puPoisonShot)
-    let scale = player.damage * 0.1
-    poison = case lvl
-      of 1: 1.0 + scale
-      of 2: 1.5 + scale
-      else: 2.0 + scale
+    poison = case getPowerUpLevel(player, puPoisonShot)
+      of 1: 4.0
+      of 2: 5.0
+      else: 6.0
 
   if hasPowerUp(player, puFireBullets):
-    let lvl = getPowerUpLevel(player, puFireBullets)
-    let scale = player.damage * 0.1
-    fire = case lvl
-      of 1: 1.0 + scale
-      of 2: 1.5 + scale
-      else: 2.0 + scale
+    fire = case getPowerUpLevel(player, puFireBullets)
+      of 1: 2.0
+      of 2: 3.0
+      else: 4.0
 
   if hasPowerUp(player, puWindBullets):
     let lvl = getPowerUpLevel(player, puWindBullets)

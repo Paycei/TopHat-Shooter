@@ -1515,18 +1515,19 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
           if enemy.slowTimer <= 0:
             enemy.slowAmount = 0
 
-  # Fire Aura power-up effect - applies burning damage over time
+  # Fire Aura power-up effect - hot burn: higher dps than poison but the
+  # after-burn fades quickly once enemies leave the aura
   if hasPowerUp(game.player, puFireAura):
     let level = getPowerUpLevel(game.player, puFireAura)
-    let damageScaling = game.player.damage * 0.3
+    let damageScaling = game.player.damage * 0.35
     let fireDamagePerSec = case level
-      of 1: 1.0 + damageScaling
-      of 2: 2.5 + damageScaling
-      else: 5.0 + damageScaling
+      of 1: 1.5 + damageScaling
+      of 2: 3.5 + damageScaling
+      else: 6.5 + damageScaling
     let fireDuration = case level
       of 1: 2.0
-      of 2: 2.5
-      else: 5.0
+      of 2: 3.0
+      else: 4.0
     let fireRadius = getAuraRadius(level)
     let fireRadiusSq = fireRadius * fireRadius
 
@@ -1536,7 +1537,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       if fdx * fdx + fdy * fdy < fireRadiusSq:
         applyMasteryDoT(enemy, etFire, fireDamagePerSec, fireDuration,
                         game.player.hasFireMastery,
-                        masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                        masteryDmgMult = FireMasteryDmgMult, masteryDurMult = FireMasteryDurMult,
                         masterySlowAmount = 0.45, source = "aura")
 
         # Visual fire particles
@@ -1682,14 +1683,15 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
                                  enemy.radius + 3.0, 7.2,
                                  Color(r: 200, g: 100, b: 255, a: 255), 2, dt)
 
-  # Poison Aura power-up effect - low damage, longer duration
+  # Poison Aura power-up effect - slow drip: lower dps than fire but the
+  # venom keeps ticking for up to 10s after enemies leave the aura
   if hasPowerUp(game.player, puPoisonAura):
     let level = getPowerUpLevel(game.player, puPoisonAura)
-    let damageScaling = game.player.damage * 0.3
+    let damageScaling = game.player.damage * 0.25
     let poisonDamagePerSec = case level
-      of 1: 1.0 + damageScaling
-      of 2: 2.5 + damageScaling
-      else: 5.0 + damageScaling
+      of 1: 0.8 + damageScaling
+      of 2: 2.0 + damageScaling
+      else: 4.0 + damageScaling
     let poisonDuration = case level
       of 1: 6.0
       of 2: 8.0
@@ -1703,7 +1705,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       if pdx * pdx + pdy * pdy < poisonRadiusSq:
         applyMasteryDoT(enemy, etPoison, poisonDamagePerSec, poisonDuration,
                         game.player.hasPoisonMastery,
-                        masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                        masteryDmgMult = PoisonMasteryDmgMult, masteryDurMult = PoisonMasteryDurMult,
                         masterySlowAmount = 0.40, source = "aura")
 
         # Visual poison particles
@@ -2228,14 +2230,20 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     if enemy.isBoss and enemy.bossPhaseBreakFlashTimer > 0:
       enemy.bossPhaseBreakFlashTimer = max(0.0'f32, enemy.bossPhaseBreakFlashTimer - dt)
 
-    # Update poison damage over time
-    # Update all active effects for this enemy
-    var poisonTickDamage = 0.0'f32
-    var fireTickDamage = 0.0'f32
-    if hasActiveEffect(enemy, etPoison):
-      poisonTickDamage = enemy.activeEffects[etPoison].primary.damagePerSec * effectiveDt
-    if hasActiveEffect(enemy, etFire):
-      fireTickDamage = enemy.activeEffects[etFire].primary.damagePerSec * effectiveDt
+    # Update all active DoT effects for this enemy, remembering each element's
+    # share of the tick so damage numbers and statistics can stay per-element.
+    var elemTickDamage: array[ElementType, float32]
+    var totalTickDamage = 0.0'f32
+    for et in ElementType:
+      if hasActiveEffect(enemy, et):
+        elemTickDamage[et] = enemy.activeEffects[et].primary.damagePerSec * effectiveDt
+        if et == etPoison:
+          # Keep the display/statistics share in sync with the stacked tick
+          # that updateEffects is about to deal
+          elemTickDamage[et] *= poisonStackMultiplier(enemy)
+        totalTickDamage += elemTickDamage[et]
+    let poisonTickDamage = elemTickDamage[etPoison]
+    let fireTickDamage = elemTickDamage[etFire]
 
     let effectDamage = updateEffects(enemy, effectiveDt)
     if effectDamage > 0:
@@ -2289,18 +2297,14 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           if game.player.hasFireMastery:
             trackPowerUpDamage(game, puFireMastery, fireActualDamage)
 
-      # Use accumulation system for reliable DOT damage numbers
-      # Determine damage type based on active effects
-      var dotDamageType = dtDefault
-      if hasActiveEffect(enemy, etPoison):
-        dotDamageType = dtPoison
-      elif hasActiveEffect(enemy, etFire):
-        dotDamageType = dtFire
-      elif hasActiveEffect(enemy, etLightning):
-        dotDamageType = dtLightning  # Use lightning color for lightning
-
-      # Use accumulation system like auras (shows every 0.5s)
-      accumulateAndShowAuraDamage(game, enemy, actualDamage, dotDamageType, false)
+      # Per-element damage numbers: each element accumulates separately so a
+      # burning+poisoned enemy shows fast orange ticks AND slow green chunks
+      # instead of one merged number in whichever color happened to win.
+      if enemy.enemyType != etStar and totalTickDamage > 0:
+        for et in ElementType:
+          if elemTickDamage[et] > 0:
+            let elemShare = actualDamage * (elemTickDamage[et] / totalTickDamage)
+            accumulateDotDamage(game, enemy, et, elemShare)
 
     # Update chain lightning cooldown
     if enemy.chainLightningCooldown > 0:
@@ -2336,8 +2340,9 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         enemy.knockbackVel = newVector2f(0, 0)
 
     if not updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game):  # Use slowed time
-      # Enemy died - show any accumulated aura damage before death
+      # Enemy died - show any accumulated aura/DoT damage before death
       flushAccumulatedAuraDamage(game, enemy)
+      flushAccumulatedDotDamage(game, enemy)
 
       # Enemy died - drop coins and particles
 

@@ -1,5 +1,24 @@
 import types
 
+# Poison stacking: the longer an enemy stays poisoned, the harder each tick
+# hits. Bosses reach the same cap but ramp at half speed, so poison needs
+# sustained uptime before it hits full power against them.
+const
+  PoisonStackDamageBonus* = 0.10'f32  # each stack: +10% poison tick damage
+  PoisonStackRate* = 1.0'f32          # stacks gained per second poisoned
+  PoisonStackRateBoss* = 0.5'f32
+  PoisonMaxStacksNormal* = 10.0'f32   # up to 2x poison damage
+  PoisonMaxStacksBoss* = 10.0'f32     # same ceiling, but takes 20s of uptime
+
+proc poisonStackCap*(enemy: Enemy): float32 =
+  if enemy.isBoss: PoisonMaxStacksBoss else: PoisonMaxStacksNormal
+
+proc poisonStackMultiplier*(enemy: Enemy): float32 =
+  ## Current poison damage multiplier from accumulated stacks. Single source of
+  ## truth: the tick in updateEffects, the damage-number share in game.nim and
+  ## Conduit's detonation burst all read this.
+  1.0'f32 + enemy.poisonStacks * PoisonStackDamageBonus
+
 proc nullEffect(et: ElementType): EffectInstance =
   ## Returns a zeroed-out inactive EffectInstance for the given element type.
   EffectInstance(elementType: et, damagePerSec: 0.0, remainingDuration: 0.0,
@@ -76,7 +95,14 @@ proc updateEffects*(enemy: Enemy, dt: float32): float32 =
   for elementType in ElementType:
     var ae = enemy.activeEffects[elementType]
     if ae.primary.isActive and ae.primary.remainingDuration > 0:
-      totalDamage += ae.primary.damagePerSec * dt
+      var tick = ae.primary.damagePerSec * dt
+      if elementType == etPoison:
+        # Stack multiplier uses this frame's pre-gain value so it matches the
+        # per-element display share computed in game.nim before this call
+        tick *= poisonStackMultiplier(enemy)
+        let rate = if enemy.isBoss: PoisonStackRateBoss else: PoisonStackRate
+        enemy.poisonStacks = min(poisonStackCap(enemy), enemy.poisonStacks + rate * dt)
+      totalDamage += tick
       ae.primary.remainingDuration -= dt
 
       if ae.primary.remainingDuration <= 0:
@@ -96,6 +122,12 @@ proc updateEffects*(enemy: Enemy, dt: float32): float32 =
         ae.fallback.remainingDuration = 0
 
     enemy.activeEffects[elementType] = ae
+
+    # Poison ramp resets only once the slot is fully idle (no primary, no
+    # pending fallback) - brief reapplication gaps keep the stacks
+    if elementType == etPoison and not ae.primary.isActive and
+       ae.fallback.remainingDuration <= 0:
+      enemy.poisonStacks = 0
 
   return totalDamage
 

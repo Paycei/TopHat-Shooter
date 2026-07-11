@@ -232,15 +232,24 @@ proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) =
 
 const DAMAGE_NUMBER_INTERVAL = 0.5'f32
 
+proc dotNumberInterval*(elementType: ElementType): float32 =
+  ## Per-element damage-number cadence: fire reads as a rapid burn (frequent
+  ## small numbers), poison as a slow drip (rare chunky numbers).
+  case elementType
+  of etFire: 0.25'f32
+  of etPoison: 1.0'f32
+  else: DAMAGE_NUMBER_INTERVAL
+
 proc tickAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator,
-                      damage: float32, damageType: DamageType, wasCrit: bool = false) =
+                      damage: float32, damageType: DamageType, wasCrit: bool = false,
+                      interval: float32 = DAMAGE_NUMBER_INTERVAL) =
   if acc.lastTime == 0:
     acc.lastTime = game.time
   acc.total += damage
   acc.damageType = damageType
   if wasCrit:
     acc.hadCrit = true
-  if game.time - acc.lastTime >= DAMAGE_NUMBER_INTERVAL:
+  if game.time - acc.lastTime >= interval:
     if acc.total > 0:
       game.showDamage(enemy.pos, acc.total, fromPlayer = true,
                       isCritical = acc.hadCrit, damageType = acc.damageType)
@@ -261,6 +270,16 @@ proc accumulateAndShowAuraDamage*(game: Game, enemy: Enemy, actualDamage: float3
 
 proc flushAccumulatedAuraDamage*(game: Game, enemy: Enemy) =
   flushAccumulator(game, enemy, enemy.auraAcc)
+
+proc accumulateDotDamage*(game: Game, enemy: Enemy, elementType: ElementType,
+                          actualDamage: float32) =
+  tickAccumulator(game, enemy, enemy.dotAccs[elementType], actualDamage,
+                  elementDamageType(elementType),
+                  interval = dotNumberInterval(elementType))
+
+proc flushAccumulatedDotDamage*(game: Game, enemy: Enemy) =
+  for et in ElementType:
+    flushAccumulator(game, enemy, enemy.dotAccs[et])
 
 proc accumulateAndShowContactDamage*(game: Game, enemy: Enemy, actualDamage: float32) =
   tickAccumulator(game, enemy, enemy.contactAcc, actualDamage, dtDefault)

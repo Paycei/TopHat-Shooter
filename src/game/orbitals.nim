@@ -86,9 +86,9 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
   case orb.elementType
   of etPoison:
     let poisonDmg = 0.3 + game.player.damage * 0.2
-    applyMasteryDoT(enemy, etPoison, poisonDmg, 4.0,
+    applyMasteryDoT(enemy, etPoison, poisonDmg, 5.0,
                     game.player.hasPoisonMastery,
-                    masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                    masteryDmgMult = PoisonMasteryDmgMult, masteryDurMult = PoisonMasteryDurMult,
                     masterySlowAmount = 0.40, source = "orb")
 
     # Green particles
@@ -96,10 +96,10 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
                    Color(r: 100, g: 255, b: 100, a: 255), 5)
 
   of etFire:
-    let fireDmg = 0.4 + game.player.damage * 0.2
+    let fireDmg = 0.6 + game.player.damage * 0.25
     applyMasteryDoT(enemy, etFire, fireDmg, 2.0,
                     game.player.hasFireMastery,
-                    masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                    masteryDmgMult = FireMasteryDmgMult, masteryDurMult = FireMasteryDurMult,
                     masterySlowAmount = 0.45, source = "orb")
 
     # Orange/red particles
