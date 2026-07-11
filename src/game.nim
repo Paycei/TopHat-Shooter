@@ -488,7 +488,16 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         else: enemyType = etSniper
 
       # Wave enemies now use a softer difficulty slope so midgame HP does not outrun builds.
-      let baseDifficulty = (wave - 1).float32 / 4.0
+      # SMOOTH LATE-GAME DECELERATION: the stat curves (base HP pow, the per-wave
+      # HP/damage multipliers below, and elite stat bonuses) compound on the wave
+      # number, so late waves were outpacing player growth. Feed them a smoothly
+      # compressed wave instead: w / (1 + w/150) tracks the raw wave almost 1:1
+      # early (wave 5 -> 4.8), then decelerates continuously with no threshold or
+      # kink (wave 45 -> ~34.6, wave 60 -> ~42.9), staying strictly increasing
+      # forever for endless play. Elite *chance* and spawn counts still use the
+      # raw wave, so the late game stays busy, just not spongy.
+      let statWave: float32 = wave.float32 / (1.0'f32 + wave.float32 / 150.0'f32)
+      let baseDifficulty = (statWave - 1.0'f32) / 4.0
 
       let side = rand(3)
       var x, y: float32
@@ -513,12 +522,12 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         # Tankier: ~1.5% extra HP per wave, compounding. Stars are hit-count based
         # (placeholder maxHp), so their durability is left to requiredHits.
         if enemy.enemyType != etStar:
-          let hpScale = pow(1.015'f32, wave.float32)
+          let hpScale = pow(1.015'f32, statWave)
           enemy.maxHp *= hpScale
           enemy.hp *= hpScale
         # Stronger: ~0.5% extra damage per wave so the survivors that now reach the
         # player keep pace as genuine threats instead of harmless chip damage.
-        let dmgScale = pow(1.005'f32, wave.float32)
+        let dmgScale = pow(1.005'f32, statWave)
         enemy.contactDamage *= dmgScale
         enemy.rangedDamage *= dmgScale
 
@@ -535,7 +544,8 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         enemy.radius = max(enemy.radius - girthCut, enemy.radius * 0.5'f32)
         enemy.collisionRadius = enemy.radius * 0.4'f32
 
-      makeElite(enemy, wave)  # Chance to make enemy elite based on wave
+      # Elite chance still rolls on the raw wave; stat bonuses use the softened wave.
+      makeElite(enemy, wave, scalingWave = statWave.int)
       game.enemies.add(enemy)
       game.waveEnemiesRemaining -= 1
 
