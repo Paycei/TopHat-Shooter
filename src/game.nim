@@ -5323,7 +5323,9 @@ proc drawGame*(game: Game) =
   # Sandbox spawns bosses straight into game.enemies without arming the
   # bossWaveManager, so allow the HUD there too based on the enemy itself.
   if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
-    var nextBossBarY = 10'i32
+    # In survival the timer card owns the top-center spot; stack boss bars below it.
+    var nextBossBarY = if isTimeSurvivalMode(game.mode): SurvivalHudBottomY + 6'i32
+                       else: 10'i32
     var bossBarCount = 0
     for enemy in game.enemies:
       if enemy.isBoss and enemy.entranceTimer <= 0:

@@ -68,6 +68,13 @@ proc spawnSurvivalEnemies*(game: Game) =
                            newest.pos.y + sin(angle) * dist,
                            newest.color, 3)
 
+# Fixed vertical footprint of the survival HUD card. Must mirror the layout
+# constants inside drawSurvivalHUD (padY + timerSize + vGap + barH + padY).
+# game.nim uses SurvivalHudBottomY to start boss health bars below the timer.
+const
+  SurvivalHudPanelY*: int32 = 8
+  SurvivalHudBottomY*: int32 = SurvivalHudPanelY + 9 + 30 + 7 + 12 + 9
+
 proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   ## Top-center survival HUD: a single rounded "OS card" holding the survived-time
   ## stopwatch on top and the run level + XP progress bar below it (Vampire-
@@ -130,7 +137,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   let panelW = contentW + padX * 2
   let panelH = padY + timerSize + vGap + barH + padY
   let panelX = screenWidth div 2 - panelW div 2
-  const panelY: int32 = 8
+  const panelY: int32 = SurvivalHudPanelY
 
   # --- Card background ----------------------------------------------------
   let panelRect = Rectangle(x: panelX.float32, y: panelY.float32,
