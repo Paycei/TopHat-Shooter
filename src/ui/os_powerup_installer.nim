@@ -2,8 +2,8 @@
 ## Power-up selection screen as modern software installation interface
 # The roll animation system is handled in powerup.nim
 
-import raylib, math, strutils
-import ../types, icon_drawing, ../localization, ../powerup_data, ../render_context, ../settings
+import raylib, math
+import ../types, icon_drawing, ../localization, ../powerup_data, ../render_context, ../settings, ui_helpers
 
 const
   INSTALLER_WIDTH = 1000
@@ -48,19 +48,6 @@ proc drawModernButton(x, y, width, height: int32, text: string,
   let textColor = if not enabled: Color(r: 100, g: 100, b: 110, a: 255) else: White
   let textWidth = measureText(text, 15)
   drawText(text, x + (width - textWidth) div 2, y + (height - 15) div 2, 15, textColor)
-
-proc wrapToLines(text: string, fontSize: int32, maxWidth: int32): seq[string] =
-  ## Greedy word-wrap of `text` to lines no wider than `maxWidth` at `fontSize`.
-  result = @[]
-  var currentLine = ""
-  for word in text.split(' '):
-    let testLine = if currentLine.len > 0: currentLine & " " & word else: word
-    if measureText(testLine, fontSize) > maxWidth and currentLine.len > 0:
-      result.add(currentLine)
-      currentLine = word
-    else:
-      currentLine = testLine
-  if currentLine.len > 0: result.add(currentLine)
 
 proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
                     selected: bool, time: float32, playerDamage: float32,
@@ -298,7 +285,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   var descLines: seq[string] = @[]
   for fs in countdown(14'i32, 9'i32):
     descFont = fs
-    descLines = wrapToLines(desc, fs, maxLineWidth)
+    descLines = wrapTextLines(desc, maxLineWidth, fs)
     if int32(descLines.len) * (fs + 6) <= availTextHeight:
       break
   let lineH = descFont + 6
@@ -692,7 +679,7 @@ proc drawPowerUpInstallerExhausted*(game: Game) =
   # --- Message text ---
   let msgY = headY + 40
   let msg = t(tkPowerUpAllInstalledMsg)
-  let msgLines = wrapToLines(msg, 14, INSTALLER_WIDTH - 200)
+  let msgLines = wrapTextLines(msg, INSTALLER_WIDTH - 200, 14)
   for i, line in msgLines:
     let lineW = measureText(line, 14)
     drawText(line, winX + (INSTALLER_WIDTH - lineW) div 2, msgY + int32(i) * 22, 14,

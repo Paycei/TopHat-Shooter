@@ -122,12 +122,8 @@ proc tryAdvanceBossPhase*(game: var Game, enemy: Enemy): bool =
   transitionBossToPhase(game, enemy, bossDef, nextPhaseIndex)
   true
 
-# Boss engagement mechanics
-# These exist to stop "facetank and hold fire = win". They layer on top of the
-# weak-point durability gate: the body is heavily resisted, and on top of that
-# these mechanics demand the player consciously DO something (clear adds, stop
-# firing into a shield, break the objective before it enrages, and actually
-# spend the vulnerability window or the boss heals it back).
+# Boss engagement mechanics: stop "facetank and hold fire = win" by demanding
+# active play on top of the weak-point gate (clear adds, respect shields, etc).
 const
   REFLECT_SHIELD_DURATION  = 1.8'f32   # how long the overload shield stays up
   REFLECT_SHIELD_INTERVAL  = 9.0'f32   # gap between overload shields

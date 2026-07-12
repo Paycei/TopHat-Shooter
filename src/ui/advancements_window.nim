@@ -1,7 +1,7 @@
 ## OS-themed advancement tracker window.
 
 import raylib, strutils, math
-import os_window, ../advancement, ../render_context, ../localization, ../types, ../roguelite
+import os_window, ../advancement, ../render_context, ../localization, ../types, ../roguelite, ../utils, ui_helpers
 
 type
   AdvancementsWindow* = ref object
@@ -40,9 +40,6 @@ proc lighten(c: Color, amount: int): Color =
         g: uint8(min(255, c.g.int + amount)),
         b: uint8(min(255, c.b.int + amount)), a: c.a)
 
-proc withA(c: Color, a: int): Color =
-  Color(r: c.r, g: c.g, b: c.b, a: uint8(clamp(a, 0, 255)))
-
 proc drawTierChip(x, y, w, h: int, tier: AdvancementTier, solid: bool) =
   ## Small rounded tier badge. `solid` fills with the tier color (dark text);
   ## otherwise it's a translucent outlined pill (tier-colored text).
@@ -57,10 +54,10 @@ proc drawTierChip(x, y, w, h: int, tier: AdvancementTier, solid: bool) =
     drawRectangleRounded(rect, 0.5'f32, 6, c)
     drawRectangleRounded(Rectangle(x: rect.x, y: rect.y, width: rect.width,
                                    height: rect.height * 0.5'f32), 0.5'f32, 6,
-                         withA(White, 38))
+                         withAlpha(White, 38))
     drawText(label, tx.int32, ty.int32, fs, Color(r: 16, g: 19, b: 27, a: 255))
   else:
-    drawRectangleRounded(rect, 0.5'f32, 6, withA(c, 40))
+    drawRectangleRounded(rect, 0.5'f32, 6, withAlpha(c, 40))
     drawRectangleRoundedLines(rect, 0.5'f32, 6, 1.0'f32, c)
     drawText(label, tx.int32, ty.int32, fs, c)
 
@@ -79,46 +76,6 @@ proc statusLabel(entry: AdvancementEntry): string =
     "Unlocked"
   else:
     "In Progress"
-
-proc bestFitFontSize(text: string, maxWidth, preferredSize: int32,
-                     minSize: int32 = 9): int32 =
-  result = preferredSize
-  if maxWidth <= 0:
-    return
-  while result > minSize and measureText(text, result) > maxWidth:
-    dec result
-
-proc drawTextFit(text: string, x, y, maxWidth: int, fontSize: int32,
-                 color: Color, minSize: int32 = 9): int32 =
-  result = bestFitFontSize(text, maxWidth.int32, fontSize, minSize)
-  drawText(text, x.int32, y.int32, result, color)
-
-proc wrapTextLines(text: string, maxWidth, fontSize: int32): seq[string] =
-  let words = text.splitWhitespace()
-  if words.len == 0:
-    return @[]
-
-  var currentLine = ""
-  for word in words:
-    let candidate = if currentLine.len == 0: word else: currentLine & " " & word
-    if currentLine.len == 0 or measureText(candidate, fontSize) <= maxWidth:
-      currentLine = candidate
-    else:
-      result.add(currentLine)
-      currentLine = word
-
-  if currentLine.len > 0:
-    result.add(currentLine)
-
-proc bestWrapFontSize(text: string, maxWidth, preferredSize: int32,
-                      maxLines: int, minSize: int32 = 9): int32 =
-  result = preferredSize
-  if maxWidth <= 0:
-    return
-  while result > minSize:
-    if wrapTextLines(text, maxWidth, result).len <= maxLines:
-      return
-    dec result
 
 proc drawWrappedText(text: string, x, y, maxWidth: int, fontSize: int32,
                      color: Color, maxLines: int = 6, lineGap: int = 6,
@@ -148,10 +105,10 @@ proc drawProgressBar(x, y, width, height: int, ratio: float32, color: Color,
     # Glossy highlight across the top third of the fill.
     if height >= 6:
       drawRectangle(x.int32, y.int32, fillWidth.int32, max(1, height div 3).int32,
-                    withA(White, 42))
+                    withAlpha(White, 42))
   # Completed bars get a softly pulsing accent border; everyone else a flat one.
   let border =
-    if complete: withA(lighten(color, 30), 150 + int(90.0'f32 * pulse))
+    if complete: withAlpha(lighten(color, 30), 150 + int(90.0'f32 * pulse))
     else: Color(r: 70, g: 82, b: 102, a: 255)
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
@@ -190,7 +147,7 @@ proc drawButton(rect: Rectangle, label: string, enabled: bool, hovered: bool,
   if enabled:
     drawRectangleGradientV(rect.x.int32, rect.y.int32, rect.width.int32,
                            max(1, rect.height.int32 div 2),
-                           withA(White, 30), withA(White, 0))
+                           withAlpha(White, 30), withAlpha(White, 0))
   drawRectangleLines(rect, (if enabled and pulse > 0.0'f32: 2 else: 1), border)
   let tw = measureText(label, 14)
   drawText(label, (rect.x.int32 + (rect.width.int32 - tw) div 2),
@@ -393,7 +350,7 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
     Color(r: 26, g: 33, b: 47, a: 255)
   else:
     Color(r: 22, g: 26, b: 37, a: 255)
-  let border = if claimable: withA(lighten(accent, 20), 170 + int(85.0'f32 * pulse))
+  let border = if claimable: withAlpha(lighten(accent, 20), 170 + int(85.0'f32 * pulse))
                elif selected or hovered: accent
                else: Color(r: 62, g: 74, b: 96, a: 255)
 
@@ -405,13 +362,13 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
   if claimable:
     drawRectangleLines(Rectangle(x: (x - 1).float32, y: (y - 1).float32,
                                  width: (width + 2).float32, height: (height + 2).float32),
-                       2, withA(accent, 35 + int(70.0'f32 * pulse)))
+                       2, withAlpha(accent, 35 + int(70.0'f32 * pulse)))
   drawRectangle(x.int32, y.int32, 4, height.int32, accent)
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
                      if claimable or selected or hovered: 2 else: 1, border)
 
-  discard drawTextFit(def.name, x + 12, y + 8, width - 120, 16,
+  discard drawTextFit(def.name, (x + 12).int32, (y + 8).int32, (width - 120).int32, 16,
                       if hovered or selected: White else: Color(r: 220, g: 228, b: 240, a: 255), 11)
   drawTierChip(x + width - 72, y + 8, 64, 16, def.tier, false)
   discard drawWrappedText(def.description, x + 12, y + 30, width - 26, 12,
@@ -520,7 +477,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
     if totals.unclaimed > 0:
       let dotPos = Vector2(x: (contentX + SidebarWidth - 15).float32, y: (catY + 26).float32)
       let gold = Color(r: 255, g: 210, b: 70, a: 255)
-      drawCircle(dotPos, 4.0'f32 + pulse * 2.5'f32, withA(gold, 60))
+      drawCircle(dotPos, 4.0'f32 + pulse * 2.5'f32, withAlpha(gold, 60))
       drawCircle(dotPos, 4.0'f32, gold)
     catY += 44
 
@@ -565,7 +522,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
     let entry = advWin.profile.getAdvancementEntry(selectedDef.id)
     let accent = tierColor(selectedDef.tier)
     drawTierChip(detailX + 14, bodyY + 32, 78, 19, selectedDef.tier, true)
-    discard drawTextFit(selectedDef.name, detailX + 14, bodyY + 55, detailW - 28, 22, White, 12)
+    discard drawTextFit(selectedDef.name, (detailX + 14).int32, (bodyY + 55).int32, (detailW - 28).int32, 22, White, 12)
     let descEnd = drawWrappedText(selectedDef.description, detailX + 14, bodyY + 90,
                                   detailW - 28, 14,
                                   Color(r: 180, g: 192, b: 210, a: 255), 4)
@@ -589,7 +546,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
 
     if entry.unlockedAt.len > 0:
       drawText(t(tkAdvUnlockedAt), (detailX + 14).int32, (bodyY + bodyH - 88).int32, 12, LightGray)
-      discard drawTextFit(entry.unlockedAt, detailX + 95, bodyY + bodyH - 88, detailW - 105, 12,
+      discard drawTextFit(entry.unlockedAt, (detailX + 95).int32, (bodyY + bodyH - 88).int32, (detailW - 105).int32, 12,
                           Color(r: 160, g: 175, b: 195, a: 255))
 
     let claimRect = Rectangle(x: (detailX + 14).float32,

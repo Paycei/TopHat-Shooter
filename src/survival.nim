@@ -3,11 +3,9 @@
 import raylib, random, math
 import types, enemy, particle_pool, localization
 
-# During a boss fight survivalTime (and thus difficulty) is frozen at the boss's
-# spawn value, which lands on an integer (boss N spawns at difficulty N*2). Enemy
-# introductionDifficulty thresholds are also integers, so spawning ambient enemies
-# at `difficulty - 0.5` drops exactly the type whose introduction coincides with
-# this boss's difficulty, i.e. nothing the player hasn't already seen debuts mid-boss.
+# During a boss fight difficulty is frozen at the boss's spawn value (an integer);
+# introduction thresholds are also integers, so spawning at `difficulty - 0.5`
+# guarantees no enemy type debuts mid-boss.
 const SurvivalBossRosterEpsilon = 0.5'f32
 
 proc spawnSurvivalEnemies*(game: Game) =

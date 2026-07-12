@@ -38,9 +38,11 @@ const
     kaLegendary: GamepadButton.RightFaceUp     # Y
   ]
 
-# Timing for the Chain Reactor's telegraphed electricity attacks. Shared so the
-# warning-update logic (game.nim) and the telegraph drawing (enemy.nim) agree on
-# exactly when the dodge window ends and the strike becomes lethal.
+# Telegraphed-attack timing. Lives here so the warning-update logic (game.nim)
+# and the telegraph drawing (enemy.nim) agree on exactly when each dodge window
+# ends and the attack becomes lethal.
+
+# Chain Reactor electricity attacks:
 const
   TeslaStrikeTelegraph* = 0.95'f32  # dodge window before a ground strike lands
   TeslaStrikeActive*    = 0.18'f32  # how long the strike zone stays lethal
@@ -49,10 +51,8 @@ const
   VoidRiftTelegraph*    = 1.75'f32   # dodge window before a Void Dancer rift collapses
   VoidRiftActive*       = 0.25'f32  # how long the collapsing rift zone stays lethal
 
-# Timing for The Laser Architect's (boss 4) ricochet beam. The path is traced
-# once when the warning spawns, telegraphed for the full wind-up, then the whole
-# polyline goes lethal for a short active flash. Shared by the warning-update
-# logic (game.nim) and the telegraph drawing (enemy.nim).
+# Laser Architect (boss 4) ricochet beam: path traced once at warning spawn,
+# telegraphed for the full wind-up, then the whole polyline flashes lethal.
 const
   RicochetLaserTelegraph* = 2.5'f32   # long dodge window: see the whole bounce path
   RicochetLaserActive*    = 0.55'f32  # how long the traced beam stays lethal/visible
@@ -60,10 +60,7 @@ const
   RicochetLaserHalfWidth* = 14.0'f32  # half-thickness of the lethal beam (px)
   MegaCastDamageTaken*    = 0.4'f32   # fraction of damage a boss takes while channelling a mega special
 
-# Timing for the bosses 7-12 signature attacks. Same contract as the tesla
-# strike consts above: the warning-update resolution (game.nim) and the
-# telegraph/active drawing (enemy.nim) must agree on when each dodge window
-# ends, so the values live here in types.nim where both sides import them.
+# Bosses 7-12 signature attacks:
 const
   OrbitalSweepTelegraph* = 1.7'f32   # Orbital Commander: scan corridor shown before the wall enters
   OrbitalSweepActive*    = 3.0'f32   # time the satellite wall takes to cross the whole arena

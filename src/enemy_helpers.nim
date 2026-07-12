@@ -10,6 +10,15 @@ const
   EnemyInertiaReferenceRadius* = 10.5'f32
   BossInertiaReferenceRadius* = 50.0'f32
 
+proc randomEdgeSpawnPos*(screenWidth, screenHeight: int32,
+                         margin: float32 = 30): tuple[x, y: float32] =
+  ## Random point just outside a random screen edge (shared spawn pattern).
+  case rand(3)
+  of 0: (rand(screenWidth.int).float32, -margin)
+  of 1: (screenWidth.float32 + margin, rand(screenHeight.int).float32)
+  of 2: (rand(screenWidth.int).float32, screenHeight.float32 + margin)
+  else: (-margin, rand(screenHeight.int).float32)
+
 proc approachVelocity*(current, target: Vector2f, acceleration, dt: float32): Vector2f =
   ## Framerate-independent velocity easing shared by enemy movement patterns.
   let blend = 1.0'f32 - pow(0.001'f32, acceleration * dt)

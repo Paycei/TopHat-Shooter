@@ -10,11 +10,9 @@ const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
 const TIME_SURVIVAL_BOSS_INTERVAL = 90.0  # survival boss every 1.5 min
 const SurvivalDifficultyRamp = 45.0'f32   # seconds of survival per +1 difficulty
 
-# Spatial-grid acceleration (SpatialGrid is in enemy_helpers.nim)
-# One grid + scratch set, reused every frame to bucket game.enemies by screen
-# cell so the bullet-vs-enemy and enemy-vs-enemy proximity loops run in ~O(n)
-# instead of O(bullets*enemies) / O(enemies^2). Module-global so steady-state
-# rebuilds allocate nothing (buckets keep their capacity across frames).
+# Spatial-grid acceleration (SpatialGrid is in enemy_helpers.nim): buckets
+# game.enemies by screen cell so the proximity loops run in ~O(n) instead of
+# O(bullets*enemies). Module-global so steady-state rebuilds allocate nothing.
 const GRID_CELL_SIZE = 96.0'f32  # px. Comfortably exceeds any hit radius, so the
                                  # neighbourhood query is a non-lossy superset,
                                  # while staying small enough that buckets are sparse.
@@ -49,9 +47,7 @@ proc rebuildEnemyGrid(game: Game) =
     if e.collisionRadius > gridMaxCollisionRadius: gridMaxCollisionRadius = e.collisionRadius
     if e.isBoss: gridBossIndices.add(idx)
 
-# Boss wave manager accessors
-# Centralized boss wave and coin management. Hoisted above lifecycle/waves
-# because procs there (cleanupGame, checkWaveComplete) call these.
+# Boss wave manager accessors, hoisted above lifecycle/waves which call them.
 proc startBossWave(manager: var BossWaveManager) =
   manager.active = true; manager.coinActive = false
 
@@ -74,14 +70,9 @@ proc isBossCoinActive*(manager: BossWaveManager): bool = manager.coinActive
 
 # Lifecycle
 proc cleanupGame*(game: Game) =
-  ## Clean up game resources before creating a new game
-  ## This prevents memory leaks and performance issues when returning to menu
-
-  # Don't cleanup Discord client - it's global and persists across sessions
-  # Just clear the reference
+  ## Release game object references before creating a new game.
+  # Only drop the Discord reference - the client is global and persists across sessions.
   game.discordClient = nil
-
-  # Clear all game objects to help garbage collector
   game.enemies = @[]
   game.bullets = @[]
   game.coins = @[]
@@ -97,7 +88,6 @@ proc cleanupGame*(game: Game) =
   game.damageNumbers = @[]
   game.currencyIndicators = @[]
 
-  # Clear player rotating orbs
   if not game.player.isNil:
     game.player.rotatingOrbs = @[]
 
@@ -296,17 +286,9 @@ proc setGameMode*(game: Game, mode: GameMode) =
 
 # Waves
 proc calculateWaveEnemyCount(waveNumber: int): int =
-  ## Enemy count per wave: a smooth, decelerating curve with no hard cap.
-  ## The count keeps rising forever, but its slope continuously shrinks, so late
-  ## waves gain enemies ever more gradually instead of piling into a swarm.
-  ## This pairs with the compounding late-game HP buff in spawnWaveEnemies: as
-  ## individual enemies grow much tankier, the crowd grows slowly, so late waves
-  ## are a handful of beefy threats that reach the player rather than a 100-strong
-  ## crowd the player mows down without ever being threatened.
-  ## The exponent (0.6) keeps the slope shrinking, so the count still flattens out
-  ## past the midgame, high waves, and especially wave 40+, add bodies ever more
-  ## slowly instead of swelling into a swarm, but late waves stay a touch fuller.
-  ##   wave 1 -> 8, wave 10 -> ~19, wave 40 -> ~35, wave 60 -> ~42, wave 100 -> ~55
+  ## Enemy count per wave: uncapped but decelerating, pairing with the compounding
+  ## late-game HP buff in spawnWaveEnemies (few beefy threats, not a mowable swarm).
+  ##   wave 1 -> 8, wave 10 -> ~19, wave 40 -> ~35, wave 100 -> ~55
   result = int(8 + 3.0 * pow(float(waveNumber - 1), 0.6))
 
 proc startWave*(game: Game) =
@@ -499,14 +481,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       let statWave: float32 = wave.float32 / (1.0'f32 + wave.float32 / 150.0'f32)
       let baseDifficulty = (statWave - 1.0'f32) / 4.0
 
-      let side = rand(3)
-      var x, y: float32
-      case side
-      of 0: x = rand(game.screenWidth.int).float32; y = -30
-      of 1: x = game.screenWidth.float32 + 30; y = rand(game.screenHeight.int).float32
-      of 2: x = rand(game.screenWidth.int).float32; y = game.screenHeight.float32 + 30
-      else: x = -30; y = rand(game.screenHeight.int).float32
-
+      let (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
       let enemy = newEnemy(x, y, baseDifficulty, enemyType, game)
 
       # CONTINUOUS LATE-GAME SCALING:
@@ -564,14 +539,7 @@ proc spawnDungeonEnemies(game: Game, count: int) =
     if game.waveEnemiesRemaining <= 0:
       break
     let enemyType = rollEncounterEnemyType(run, room)
-    let side = rand(3)
-    var x, y: float32
-    case side
-    of 0: x = rand(game.screenWidth.int).float32; y = -30
-    of 1: x = game.screenWidth.float32 + 30; y = rand(game.screenHeight.int).float32
-    of 2: x = rand(game.screenWidth.int).float32; y = game.screenHeight.float32 + 30
-    else: x = -30; y = rand(game.screenHeight.int).float32
-
+    let (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
     let enemy = newEnemy(x, y, baseDifficulty, enemyType, game)
     # Compress advanced types' stats toward the room threat before elite
     # bonuses so elites scale relative to the tuned baseline. The elite roll
@@ -744,16 +712,13 @@ proc updateBossArenaGameplay(game: var Game, dt: float32) =
     if playerDied:
       beginPlayerDeathSequence(game, dcHazard)
 
-# MAIN GAME UPDATE LOOP
 proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: float32) =
-  # Update attack warnings and create lasers from boss warnings when they expire
   var i = 0
   while i < game.attackWarnings.len:
     game.attackWarnings[i].lifetime -= dt
 
-    # Only laser-beam warnings need to follow their source enemy as it moves
-    # during the wind-up (so the drawn lines stay anchored to the boss).
-    # All other warnings are stamped at a fixed world position and must not move.
+    # Only laser-beam warnings follow their source enemy during wind-up;
+    # every other warning is stamped at a fixed world position.
     let warnType = game.attackWarnings[i].attackType
     if game.attackWarnings[i].sourceEnemyId >= 0 and
        (warnType == awtBossLaser or warnType == awtSatelliteLaser):
@@ -2259,43 +2224,32 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         damageEnemy(enemy, effectDamage)
       let trackedTickDamage = poisonTickDamage + fireTickDamage
 
-      # Track DoT damage for power-up statistics based on active effect sources
+      # Track DoT damage for power-up statistics; attribute each element's tick
+      # to whichever power-up applied the effect (its primary source).
       if poisonTickDamage > 0:
-        # Check source to determine which power-up to attribute
-        let poisonEffect = enemy.activeEffects[etPoison]
         let poisonActualDamage =
           if trackedTickDamage > 0: actualDamage * (poisonTickDamage / trackedTickDamage)
           else: actualDamage
-        if poisonEffect.primary.source == "aura":
-          trackPowerUpDamage(game, puPoisonAura, poisonActualDamage)
-          if game.player.hasPoisonMastery:
-            trackPowerUpDamage(game, puPoisonMastery, poisonActualDamage)
-        elif poisonEffect.primary.source == "shot" or poisonEffect.primary.source == "bullet":
-          trackPowerUpDamage(game, puPoisonShot, poisonActualDamage)
-          if game.player.hasPoisonMastery:
-            trackPowerUpDamage(game, puPoisonMastery, poisonActualDamage)
-        elif poisonEffect.primary.source == "orb":
-          trackPowerUpDamage(game, puPoisonOrb, poisonActualDamage)
-          if game.player.hasPoisonMastery:
-            trackPowerUpDamage(game, puPoisonMastery, poisonActualDamage)
+        var attributed = true
+        case enemy.activeEffects[etPoison].primary.source
+        of "aura": trackPowerUpDamage(game, puPoisonAura, poisonActualDamage)
+        of "shot", "bullet": trackPowerUpDamage(game, puPoisonShot, poisonActualDamage)
+        of "orb": trackPowerUpDamage(game, puPoisonOrb, poisonActualDamage)
+        else: attributed = false
+        if attributed and game.player.hasPoisonMastery:
+          trackPowerUpDamage(game, puPoisonMastery, poisonActualDamage)
       if fireTickDamage > 0:
-        # Check source to determine which power-up to attribute
-        let fireEffect = enemy.activeEffects[etFire]
         let fireActualDamage =
           if trackedTickDamage > 0: actualDamage * (fireTickDamage / trackedTickDamage)
           else: actualDamage
-        if fireEffect.primary.source == "aura":
-          trackPowerUpDamage(game, puFireAura, fireActualDamage)
-          if game.player.hasFireMastery:
-            trackPowerUpDamage(game, puFireMastery, fireActualDamage)
-        elif fireEffect.primary.source == "shot" or fireEffect.primary.source == "bullet":
-          trackPowerUpDamage(game, puFireBullets, fireActualDamage)
-          if game.player.hasFireMastery:
-            trackPowerUpDamage(game, puFireMastery, fireActualDamage)
-        elif fireEffect.primary.source == "orb":
-          trackPowerUpDamage(game, puFireOrb, fireActualDamage)
-          if game.player.hasFireMastery:
-            trackPowerUpDamage(game, puFireMastery, fireActualDamage)
+        var attributed = true
+        case enemy.activeEffects[etFire].primary.source
+        of "aura": trackPowerUpDamage(game, puFireAura, fireActualDamage)
+        of "shot", "bullet": trackPowerUpDamage(game, puFireBullets, fireActualDamage)
+        of "orb": trackPowerUpDamage(game, puFireOrb, fireActualDamage)
+        else: attributed = false
+        if attributed and game.player.hasFireMastery:
+          trackPowerUpDamage(game, puFireMastery, fireActualDamage)
 
       # Per-element damage numbers: each element accumulates separately so a
       # burning+poisoned enemy shows fast orange ticks AND slow green chunks
@@ -3882,17 +3836,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
               showDamage(game, game.enemies[j].pos, actualDamage, true, isCrit, bulletDmgType)
           hitEnemy = true
 
-          # Remove all echo trail bullets when main bullet hits an enemy
-          # This prevents the entire trail from stacking damage on one target
+          # Drop the whole echo trail when the main bullet hits, so the trail
+          # can't stack damage on one target.
           if not bullet.isEcho and bullet.bulletId > 0:
-            # Remove all echo children of this bullet
-            var k = 0
-            while k < game.bullets.len:
+            for k in countdown(game.bullets.high, 0):
               if game.bullets[k].isEcho and game.bullets[k].parentBulletId == bullet.bulletId:
                 game.bullets.delete(k)
-                # Don't increment k since we removed an element
-              else:
-                k += 1
 
           # Heavy Rounds knockback effect
           if not bullet.isEcho and hasPowerUp(game.player, puHeavyRounds):

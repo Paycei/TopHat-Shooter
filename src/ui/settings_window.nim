@@ -249,12 +249,9 @@ proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rect
     height: ButtonHeight.float32
   )
 
-# ---------------------------------------------------------------------------
-# Cinematics tab: every replayable cutscene in one gallery. The Story section
-# holds the lore intro + the three ending cinematics; the Mode Intros section
-# holds the five per-mode opening cutscenes. Each entry is gated behind the same
-# "has been seen once" flag that governs when its cutscene first plays, so the
-# tab doubles as an unlock tracker (locked entries render greyed and inert).
+# Cinematics tab: replayable cutscene gallery. Each entry is gated behind the
+# same "seen once" flag that governs its first play, so locked entries render
+# greyed and inert until unlocked.
 
 type
   ReplayCine = enum

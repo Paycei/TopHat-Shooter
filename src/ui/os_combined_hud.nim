@@ -2,7 +2,7 @@
 ## Merges status and info panels into one compact, non-intrusive display
 
 import raylib, math
-import ../types, ../localization, ../powerup_data, ../roguelite, ../dungeon, ui_constants, ../render_context, icon_drawing, ../utils
+import ../types, ../localization, ../powerup_data, ../roguelite, ../dungeon, ui_constants, ../render_context, icon_drawing, ../utils, ui_helpers
 
 const
   COMBINED_PANEL_WIDTH = 238
@@ -20,13 +20,6 @@ var leftPanelMinimized* = false
 var leftPanelPos* = Vector2(x: 10, y: 2)  # Default position
 var leftPanelDragging* = false
 var leftPanelDragOffset* = Vector2(x: 0, y: 0)
-
-proc bestFitPanelFontSize(text: string, maxWidth, fontSize: int32, minSize: int32 = 6): int32 =
-  result = fontSize
-  if maxWidth <= 0:
-    return
-  while result > minSize and measureText(text, result) > maxWidth:
-    dec result
 
 proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   ## Draw unified HUD panel combining status and wave/powerup info
@@ -378,7 +371,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     yOffset += 3
 
     let combatTitle = t("roguelite_combat_title")
-    let combatTitleSize = bestFitPanelFontSize(combatTitle, contentW, 9)
+    let combatTitleSize = bestFitFontSize(combatTitle, contentW, 9, 6)
     drawText(combatTitle,
             finalPanelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, combatTitleSize,
             Color(r: 0, g: 0, b: 0, a: 100))
@@ -388,7 +381,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
 
     let route = t("roguelite_floor") & " " & $run.floorNumber & "/" & $RogueliteFloorsToWin &
                 "  " & t("dungeon_keys") & " " & $run.keys
-    let routeSize = bestFitPanelFontSize(route, contentW, 10)
+    let routeSize = bestFitFontSize(route, contentW, 10, 6)
     drawText(route,
             finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, routeSize,
             Color(r: 0, g: 0, b: 0, a: 130))
@@ -479,7 +472,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
                     t("roguelite_shards") & " +" & $run.shardsEarned
     if run.coresEarned > 0:
       shardText &= "  " & t("roguelite_cores_short") & " +" & $run.coresEarned
-    let shardSize = bestFitPanelFontSize(shardText, contentW - 15, 9)
+    let shardSize = bestFitFontSize(shardText, contentW - 15, 9, 6)
     drawCurrencyIcon(finalPanelX + COMBINED_PANEL_PADDING + 10, yOffset + 6, 12, ciHeat)
     drawText(shardText,
             finalPanelX + COMBINED_PANEL_PADDING + 22, yOffset + 1, shardSize,
@@ -490,7 +483,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
 
     let relicText = t("roguelite_relics") & " " & $run.relics.len & "  " &
                     t("roguelite_endless") & " " & $run.endlessLoop
-    let relicSize = bestFitPanelFontSize(relicText, contentW, 9)
+    let relicSize = bestFitFontSize(relicText, contentW, 9, 6)
     drawText(relicText,
             finalPanelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, relicSize,
             Color(r: 0, g: 0, b: 0, a: 130))

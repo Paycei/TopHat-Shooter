@@ -9,7 +9,6 @@
 import raylib, rlgl, math, strutils
 import particle_types, background_fx, ../types, ../settings, ../save_system, ../skins, ../shapes, ../bullet_skins, ../bullet_shapes, ../enemy, ../enemy_config, icon_drawing
 
-# ---------------------------------------------------------------------------
 # Maths / colour helpers
 
 proc clamp01*(v: float32): float32 =
@@ -30,7 +29,6 @@ proc fractCoord*(value: float32): float32 =
 
 proc colorA*(color: Color, alpha: float32): Color = withAlpha(color, alpha)  # delegate to utils.withAlpha
 
-# ---------------------------------------------------------------------------
 # Equipped cosmetics (mirrors what the player has selected in the shop)
 
 proc equippedSkin*(): SkinType =
@@ -169,7 +167,6 @@ proc drawRealBossModel*(x, y, radius, time: float32, screenWidth, screenHeight: 
   boss.spawnTimer = 0
   drawEnemy(boss)
 
-# ---------------------------------------------------------------------------
 # Text / atmosphere
 
 proc drawCenteredText*(text: string, x, y: int32, size: int32, color: Color) =
@@ -241,7 +238,6 @@ proc drawTapeChange*(screenWidth, screenHeight: int32, local: float32,
   drawRectangle(0, 0, screenWidth, screenHeight,
                 Color(r: 210, g: 245, b: 245, a: alphaByte(intensity * intensity * 60.0'f32)))
 
-# ---------------------------------------------------------------------------
 # Recorder chrome (the "playback feed" UI around the scene)
 
 proc drawCinematicOverlay*(screenWidth, screenHeight: int32,

@@ -1,7 +1,7 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
 import raylib, std/strutils, random
-import types, enemy, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing
+import types, enemy, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing
 
 const
   SIDEBAR_WIDTH = 300
@@ -422,14 +422,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
       # Spawn enemy from side of screen
-      let side = rand(3)
-      var spawnX, spawnY: float32
-      case side
-      of 0: spawnX = rand(screenWidth.int).float32; spawnY = -30
-      of 1: spawnX = screenWidth.float32 + 30; spawnY = rand(screenHeight.int).float32
-      of 2: spawnX = rand(screenWidth.int).float32; spawnY = screenHeight.float32 + 30
-      else: spawnX = -30; spawnY = rand(screenHeight.int).float32
-
+      let (spawnX, spawnY) = randomEdgeSpawnPos(screenWidth, screenHeight)
       let enemy = newEnemy(spawnX, spawnY, game.difficulty, enemyType, game)
       game.enemies.add(enemy)
       return
@@ -441,14 +434,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     # Spawn 10 random enemies
     for i in 0..<10:
-      let side = rand(3)
-      var spawnX, spawnY: float32
-      case side
-      of 0: spawnX = rand(screenWidth.int).float32; spawnY = -30
-      of 1: spawnX = screenWidth.float32 + 30; spawnY = rand(screenHeight.int).float32
-      of 2: spawnX = rand(screenWidth.int).float32; spawnY = screenHeight.float32 + 30
-      else: spawnX = -30; spawnY = rand(screenHeight.int).float32
-
+      let (spawnX, spawnY) = randomEdgeSpawnPos(screenWidth, screenHeight)
       let randomType = enemyTypes[rand(enemyTypes.len - 1)]
       let enemy = newEnemy(spawnX, spawnY, game.difficulty, randomType, game)
       game.enemies.add(enemy)

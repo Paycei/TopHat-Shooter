@@ -2875,13 +2875,8 @@ proc drawEnemy*(enemy: Enemy) =
     of etEnvironment:
       discard  # Environmental objects have no draw logic here
 
-# --- Shared attack-warning telegraph vocabulary -----------------------------
-# Every telegraph derives its fade, pulse and danger build-up the SAME way, so
-# the whole warning system reads as one visual language. Branches still pick
-# their own shapes and per-archetype colours (red = laser, orange = dash,
-# purple = teleport, green = summon, yellow = lightning), but the *timing* of
-# alpha and intensity is standardized through these helpers instead of being
-# hand-recomputed per branch.
+# Shared attack-warning telegraph vocabulary: unified fade/pulse/build-up
+# timing via these helpers; branches only pick shapes and per-archetype colors.
 
 proc warningPulse(): float32 {.inline.} =
   ## Shared "breathing" pulse used so telegraphs feel alive. Range ~5..15.
@@ -4841,15 +4836,7 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
   ## may spawn from how strong they are. Survival passes a value just below the
   ## current difficulty during a boss fight so no enemy type debuts mid-boss, while
   ## keeping the stat scaling of the live difficulty.
-  let side = rand(3)
-  var x, y: float32
-
-  case side
-  of 0: x = rand(screenWidth.int).float32; y = -30
-  of 1: x = screenWidth.float32 + 30; y = rand(screenHeight.int).float32
-  of 2: x = rand(screenWidth.int).float32; y = screenHeight.float32 + 30
-  else: x = -30; y = rand(screenHeight.int).float32
-
+  let (x, y) = randomEdgeSpawnPos(screenWidth, screenHeight)
   let typeDifficulty = if rosterDifficulty < 0.0'f32: difficulty else: rosterDifficulty
   newEnemy(x, y, difficulty, pickSpawnType(typeDifficulty), game)
 
