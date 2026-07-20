@@ -31,6 +31,10 @@ var
   currentVirtualHeight = 768.0'f32
   currentRenderSupersampleScale = 1.0'f32
   mouseClipActive = false
+  # Horizontal offset of the gameplay world inside the virtual screen. In classic
+  # (4:3) mode the world fills the virtual screen so this is 0; in widescreen
+  # (16:9) mode the 1024-wide world is centered and this is the left gutter width.
+  currentWorldViewOffsetX = 0.0'f32
 
 proc updateRenderInputTransform*(scale, offsetX, offsetY: float32,
                                  virtualWidth, virtualHeight: int32) =
@@ -39,6 +43,22 @@ proc updateRenderInputTransform*(scale, offsetX, offsetY: float32,
   currentRenderOffsetY = offsetY
   currentVirtualWidth = virtualWidth.float32
   currentVirtualHeight = virtualHeight.float32
+
+proc setWorldViewOffset*(x: float32) =
+  ## Set the horizontal offset of the gameplay world within the virtual screen.
+  ## Called by main each frame alongside updateRenderInputTransform.
+  currentWorldViewOffsetX = x
+
+proc getWorldViewOffsetX*(): float32 =
+  currentWorldViewOffsetX
+
+proc getVirtualScreenWidth*(): int32 =
+  ## Full virtual screen width (1024 classic / 1366 widescreen).
+  currentVirtualWidth.int32
+
+proc getVirtualScreenHeight*(): int32 =
+  ## Full virtual screen height (768).
+  currentVirtualHeight.int32
 
 proc setRenderSupersampleScale*(scale: float32) =
   currentRenderSupersampleScale = max(scale, 1.0'f32)
@@ -90,6 +110,19 @@ proc getVirtualMousePosition*(): Vector2 =
     gamepadCursorPos()
   else:
     getRealVirtualMousePosition()
+
+proc getWorldMousePosition*(): Vector2 =
+  ## The pointer position in gameplay WORLD coords (virtual pointer minus the
+  ## world view offset). In the left gutter this can go negative; callers expect
+  ## world coordinates, so it is intentionally NOT clamped.
+  result = getVirtualMousePosition()
+  result.x -= currentWorldViewOffsetX
+
+proc setGamepadAimPointWorld*(p: Vector2) =
+  ## Store a gameplay aim point expressed in WORLD coords. The stored "virtual
+  ## mouse" is uniformly virtual for both mouse and pad, so the offset is added
+  ## back here before handing off to setGamepadAimPoint.
+  setGamepadAimPoint(Vector2(x: p.x + currentWorldViewOffsetX, y: p.y))
 
 proc bondMouseToVirtualViewport*() =
   ## Keep the mouse inside the active virtual viewport.

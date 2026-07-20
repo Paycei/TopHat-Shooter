@@ -352,7 +352,7 @@ proc nlerpToward(qw, qx, qy, qz: var float32, tw, tx, ty, tz, t: float32) =
     qw = rw / l; qx = rx / l; qy = ry / l; qz = rz / l
 
 proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = false,
-                      screenWidth: int = 1024, screenHeight: int = 768) =
+                      screenWidth: int, screenHeight: int) =
   desktop.time += dt
 
   # Cube drag & inertia (quaternion, world-space axes)

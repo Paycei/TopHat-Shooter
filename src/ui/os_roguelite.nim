@@ -164,13 +164,13 @@ proc locKitRequirement(kit: RogueliteStarterKit): string =
     t("roguelite_cost") & " " & $starterKitCost(kit) & " " & t("roguelite_shards_short")
 
 proc drawBackdrop(game: Game, accent: Color) =
-  drawRectangle(0, 0, game.screenWidth, game.screenHeight, Color(r: 5, g: 9, b: 16, a: 255))
-  for x in countup(0, game.screenWidth, 48):
-    drawLine(x.int32, 0, x.int32, game.screenHeight, Color(r: 24, g: 42, b: 58, a: 80))
-  for y in countup(0, game.screenHeight, 48):
-    drawLine(0, y.int32, game.screenWidth, y.int32, Color(r: 24, g: 42, b: 58, a: 70))
-  let cx = game.screenWidth div 2
-  let cy = game.screenHeight div 2
+  drawRectangle(0, 0, getVirtualScreenWidth(), getVirtualScreenHeight(), Color(r: 5, g: 9, b: 16, a: 255))
+  for x in countup(0, getVirtualScreenWidth(), 48):
+    drawLine(x.int32, 0, x.int32, getVirtualScreenHeight(), Color(r: 24, g: 42, b: 58, a: 80))
+  for y in countup(0, getVirtualScreenHeight(), 48):
+    drawLine(0, y.int32, getVirtualScreenWidth(), y.int32, Color(r: 24, g: 42, b: 58, a: 70))
+  let cx = getVirtualScreenWidth() div 2
+  let cy = getVirtualScreenHeight() div 2
   for i in 0..3:
     drawCircleLines(cx, cy, (150 + i * 72).float32, withAlpha(accent, uint8(34 - i * 6)))
   drawLine(cx - 380, cy, cx + 380, cy, withAlpha(accent, 38))
@@ -278,7 +278,7 @@ proc drawBetaBanner*(game: Game) =
   ## Centered translucent BETA banner drawn at the top of the screen.
   ## Signals to players that the roguelite mode is work-in-progress.
   let bannerW: int32 = 260
-  let bannerX: int32 = (game.screenWidth - bannerW) div 2
+  let bannerX: int32 = (getVirtualScreenWidth() - bannerW) div 2
   let bannerY: int32 = 8
   let pulse = (sin(game.time * 2.0'f32) * 0.5'f32 + 0.5'f32)
   let textAlpha = uint8(160 + int(pulse * 40.0'f32))
@@ -872,11 +872,11 @@ proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected, u
              Color(r: 100, g: 255, b: 170, a: 255), true)
 
 proc drawRogueliteSetup*(game: Game) =
-  let x = (game.screenWidth - PanelW) div 2
-  let y = (game.screenHeight - PanelH) div 2
+  let x = (getVirtualScreenWidth() - PanelW) div 2
+  let y = (getVirtualScreenHeight() - PanelH) div 2
   let canHover = mouseHoverEnabled(game)
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
-  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(game.screenWidth, game.screenHeight))
+  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(getVirtualScreenWidth(), getVirtualScreenHeight()))
   drawBackdrop(game, Color(r: 0, g: 220, b: 255, a: 255))
   drawPanel(x, y, PanelW, PanelH, t("roguelite_setup_title"), Color(r: 0, g: 220, b: 255, a: 255), closeHovered)
 
@@ -1029,11 +1029,11 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
                             a: uint8(170.0'f32 + pulse * 80.0'f32)))
 
 proc drawRogueliteFloorSelect*(game: Game) =
-  let x = (game.screenWidth - PanelW) div 2
-  let y = (game.screenHeight - PanelH) div 2
+  let x = (getVirtualScreenWidth() - PanelW) div 2
+  let y = (getVirtualScreenHeight() - PanelH) div 2
   let canHover = mouseHoverEnabled(game)
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
-  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(game.screenWidth, game.screenHeight))
+  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(getVirtualScreenWidth(), getVirtualScreenHeight()))
   drawBackdrop(game, Color(r: 0, g: 220, b: 255, a: 255))
   drawPanel(x, y, PanelW, PanelH, t("dungeon_floor_select_title"), Color(r: 0, g: 220, b: 255, a: 255), closeHovered)
 
@@ -1056,7 +1056,7 @@ proc drawRogueliteFloorSelect*(game: Game) =
   drawProgressRail(run, x + 120, y + 132, 680)
 
   if isFinalDungeonFloor(run):
-    let cardRect = finalBossCardRect(game.screenWidth.int32, game.screenHeight.int32)
+    let cardRect = finalBossCardRect(getVirtualScreenWidth().int32, getVirtualScreenHeight().int32)
     drawFinalBossCard(game, cardRect,
                       canHover and checkCollisionPointRec(mousePos, cardRect))
   else:
@@ -1125,8 +1125,8 @@ proc drawRogueliteVictory*(game: Game) =
   let run = game.rogueliteRun
   let accent = Color(r: 120, g: 255, b: 180, a: 255)   # "system secured" green
   drawBackdrop(game, accent)
-  let x = (game.screenWidth - PanelW) div 2
-  let y = (game.screenHeight - PanelH) div 2
+  let x = (getVirtualScreenWidth() - PanelW) div 2
+  let y = (getVirtualScreenHeight() - PanelH) div 2
   let isFirstWin = run.endlessLoop == 0
   let title = if isFirstWin: t("roguelite_victory_title") else: t("roguelite_loop_cleared_title")
   drawPanel(x, y, PanelW, PanelH, title, accent, omitTitleBar = true)
@@ -1173,7 +1173,7 @@ proc drawRogueliteVictory*(game: Game) =
       px += pillW + 10
 
   # Decision buttons
-  let rects = rogueliteVictoryButtonRects(game.screenWidth.int32, game.screenHeight.int32)
+  let rects = rogueliteVictoryButtonRects(getVirtualScreenWidth().int32, getVirtualScreenHeight().int32)
   let canHover = mouseHoverEnabled(game)
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
   let contHi = game.selectedVictoryButton == 0 or
@@ -1640,11 +1640,11 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
                       PanelW - 116, 13, LightGray)
 
 proc drawRogueliteUnlocks*(game: Game, categoryIndex: int = 0, itemIndex: int = 0) =
-  let x = (game.screenWidth - PanelW) div 2
-  let y = (game.screenHeight - PanelH) div 2
+  let x = (getVirtualScreenWidth() - PanelW) div 2
+  let y = (getVirtualScreenHeight() - PanelH) div 2
   let canHover = mouseHoverEnabled(game)
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
-  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(game.screenWidth, game.screenHeight))
+  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(getVirtualScreenWidth(), getVirtualScreenHeight()))
   let accent = Color(r: 255, g: 215, b: 0, a: 255)
   drawBackdrop(game, Color(r: 255, g: 215, b: 0, a: 255))
   drawPanel(x, y, PanelW, PanelH, t("roguelite_unlocks_title"), accent, closeHovered)

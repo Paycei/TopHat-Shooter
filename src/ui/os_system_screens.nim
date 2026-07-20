@@ -2,7 +2,7 @@
 ## Game Over as Modern System Crash, Victory as System Secured
 
 import raylib, math
-import ../types, ../localization
+import ../types, ../localization, ../render_context
 
 const
   SCREEN_WIDTH = 900
@@ -98,8 +98,8 @@ proc composeDeathCause(game: Game): tuple[verb: string, killer: string, isBoss: 
 proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
   ## Draw the enhanced Game Over screen as a modern system crash
   ## selectedButton: 0=Restart, 1=Stats, 2=Exit
-  let screenWidth = game.screenWidth
-  let screenHeight = game.screenHeight
+  let screenWidth = getVirtualScreenWidth()
+  let screenHeight = getVirtualScreenHeight()
 
   # Animated scan lines effect
   for i in 0..<(screenHeight div 4):
@@ -252,8 +252,8 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
 proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   ## Draw the wave-60 final-boss Victory screen as "system secured".
   ## selectedButton: 0=Continue Endless, 1=View Stats, 2=Return to Menu
-  let screenWidth = game.screenWidth
-  let screenHeight = game.screenHeight
+  let screenWidth = getVirtualScreenWidth()
+  let screenHeight = getVirtualScreenHeight()
 
   # Animated background particles (success effect)
   for i in 0..30:

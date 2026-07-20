@@ -73,7 +73,7 @@ const
   SurvivalHudPanelY*: int32 = 8
   SurvivalHudBottomY*: int32 = SurvivalHudPanelY + 9 + 30 + 7 + 12 + 9
 
-proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
+proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: bool = false) =
   ## Top-center survival HUD: a single rounded "OS card" holding the survived-time
   ## stopwatch on top and the run level + XP progress bar below it (Vampire-
   ## Survivors-style leveling: kills fill the bar, which opens a power-up draft).
@@ -134,7 +134,8 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   let contentW = max(timerRowW, barRowW)
   let panelW = contentW + padX * 2
   let panelH = padY + timerSize + vGap + barH + padY
-  let panelX = screenWidth div 2 - panelW div 2
+  let panelX = if alignRight: screenWidth - panelW - 8
+               else: screenWidth div 2 - panelW div 2
   const panelY: int32 = SurvivalHudPanelY
 
   # --- Card background ----------------------------------------------------
@@ -218,4 +219,6 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   if waveProgress > 0.6 and not game.bossWaveManager.active:
     let banner = t(tkGameWaveAnnouncementMain)
     let bannerW = measureText(banner, 25)
-    drawText(banner, screenWidth div 2 - bannerW div 2, panelY + panelH + 6, 25, Red)
+    let bannerX = if alignRight: panelX + panelW div 2 - bannerW div 2
+                  else: screenWidth div 2 - bannerW div 2
+    drawText(banner, bannerX, panelY + panelH + 6, 25, Red)

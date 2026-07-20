@@ -293,8 +293,8 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
     drawText(badgeText, badgeX + 5, badgeY + 3, 10, badgeText2Color)
 
 proc drawShop*(game: Game) =
-  let screenWidth = game.screenWidth
-  let screenHeight = game.screenHeight
+  let screenWidth = getVirtualScreenWidth()
+  let screenHeight = getVirtualScreenHeight()
 
   # Animated scan lines effect
   for i in 0..<(screenHeight div 4):

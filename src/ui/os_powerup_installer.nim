@@ -356,8 +356,8 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
 
 proc drawOSPowerUpInstaller*(game: Game) =
   ## Draw the power-up selection screen with slot machine roll animation.
-  let screenWidth  = game.screenWidth
-  let screenHeight = game.screenHeight
+  let screenWidth  = getVirtualScreenWidth()
+  let screenHeight = getVirtualScreenHeight()
   let isLegendary  = game.powerUpChoices[0].rarity == prLegendary
 
   # Stop times: must match powerup.nim exactly
@@ -579,8 +579,8 @@ proc drawOSPowerUpInstaller*(game: Game) =
 proc drawPowerUpInstallerExhausted*(game: Game) =
   ## Shown in place of the normal installer when every power-up in the pool is
   ## already at its maximum level. Displays a completion badge and a Continue button.
-  let screenWidth  = game.screenWidth
-  let screenHeight = game.screenHeight
+  let screenWidth  = getVirtualScreenWidth()
+  let screenHeight = getVirtualScreenHeight()
 
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 180))
 

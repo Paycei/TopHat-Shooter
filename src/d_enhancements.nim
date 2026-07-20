@@ -1,4 +1,4 @@
-import raylib
+import raylib, strutils
 import types, boss_definitions, localization
 
 type
@@ -252,6 +252,126 @@ proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: i
 
     drawText(titleText, titleX, centerY + 20, 20.int32,
       Color(r: 180, g: 180, b: 180, a: nameAlpha))
+
+# WIDESCREEN GUTTER VARIANTS
+# Compact cards that fit inside a 171px gutter column. They keep the timing /
+# alpha animation logic of the fullscreen versions but drop the fullscreen
+# darken (which would cover the centered gameplay world) and wrap their text.
+proc wrapTextToWidth(text: string, fontSize, maxWidth: int32): seq[string] =
+  ## Greedy word-wrap so a label fits inside a narrow gutter card.
+  result = @[]
+  var current = ""
+  for word in text.split(' '):
+    if word.len == 0:
+      continue
+    let candidate = if current.len == 0: word else: current & " " & word
+    if measureText(candidate, fontSize) <= maxWidth or current.len == 0:
+      current = candidate
+    else:
+      result.add(current)
+      current = word
+  if current.len > 0:
+    result.add(current)
+
+proc drawWaveCelebrationGutter*(celebration: WaveCelebration,
+                                gutterX, gutterW, topY: int32): int32 =
+  ## Right-gutter card. Returns the next stack Y (== topY when nothing is drawn).
+  if not celebration.active:
+    return topY
+
+  let progress = celebration.animationTimer / celebration.maxAnimationTime
+  let slideProgress = min(1.0'f32, celebration.animationTimer * 3.0'f32)
+  let cardW: int32 = min(gutterW - 8, 163'i32)
+  let slideOff = int32((1.0'f32 - slideProgress) * (cardW.float32 + 12.0'f32))
+  let cardX = gutterX + (gutterW - cardW) div 2 + slideOff
+  let cardY: int32 = topY
+  let titleAlpha = uint8(clamp((1.0'f32 - progress) * 255.0'f32 + 40.0'f32, 0.0, 255.0))
+
+  let waveText = if isBossWave(celebration.waveNumber):
+    t(tkBossDefeatedText) & " " & $getCustomBossNumber(celebration.waveNumber) & " DEFEATED"
+  else:
+    t(tkWaveClearedText) & " " & $celebration.waveNumber & " CLEARED"
+  let titleFont: int32 = 15
+  let titleLines = wrapTextToWidth(waveText, titleFont, cardW - 10)
+
+  # Stat rows (only when revealed).
+  var statRows: seq[(string, string)] = @[]
+  if celebration.showStats:
+    statRows.add((t(tkWaveCelebKills), $celebration.stats.kills))
+    statRows.add((t(tkWaveCelebAccuracy), $(int(celebration.stats.accuracy)) & "%"))
+    statRows.add((t(tkWaveCelebTime), $(int(celebration.stats.survivalTime)) & "s"))
+    statRows.add((t(tkWaveCelebCoins), $celebration.stats.coinsEarned))
+    if celebration.stats.maxCombo > 1:
+      statRows.add((t(tkWaveCelebMaxCombo), $(celebration.stats.maxCombo) & "x"))
+
+  let titleH = titleLines.len.int32 * (titleFont + 3)
+  let statH = if statRows.len > 0: 6'i32 + statRows.len.int32 * 16'i32 else: 0'i32
+  let cardH = 10'i32 + titleH + statH
+  let statsAlpha = uint8(min(celebration.statsRevealTimer * 255.0, 255.0))
+
+  drawRectangle(cardX, cardY, cardW, cardH, Color(r: 20, g: 20, b: 40, a: uint8(min(titleAlpha, 210))))
+  drawRectangle(cardX, cardY, 2, cardH, Color(r: 255, g: 215, b: 0, a: titleAlpha))
+  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, Color(r: 255, g: 215, b: 0, a: titleAlpha))
+
+  var ty = cardY + 5
+  for ln in titleLines:
+    let tw = measureText(ln, titleFont)
+    drawText(ln, cardX + (cardW - tw) div 2, ty, titleFont,
+      Color(r: 255, g: 215, b: 0, a: titleAlpha))
+    ty += titleFont + 3
+
+  if statRows.len > 0:
+    ty += 4
+    for row in statRows:
+      drawText(row[0], cardX + 8, ty, 12,
+        Color(r: 200, g: 200, b: 200, a: statsAlpha))
+      let vw = measureText(row[1], 12)
+      drawText(row[1], cardX + cardW - 8 - vw, ty, 12,
+        Color(r: 255, g: 255, b: 255, a: statsAlpha))
+      ty += 16
+  return cardY + cardH + 6
+
+proc drawBossIntroductionGutter*(intro: BossIntroduction,
+                                 gutterX, gutterW, topY: int32): int32 =
+  ## Right-gutter card. Returns the next stack Y (== topY when nothing is drawn).
+  if not intro.active:
+    return topY
+  if intro.phase < 1:
+    return topY
+
+  let nameAlpha = uint8(min((intro.timer - 0.5) * 255.0, 255.0))
+  let cardW: int32 = min(gutterW - 8, 163'i32)
+  let cardX = gutterX + (gutterW - cardW) div 2
+  let cardY: int32 = topY
+
+  let nameFont: int32 = 22
+  let nameLines = wrapTextToWidth(intro.bossName, nameFont, cardW - 10)
+  let titleFont: int32 = 13
+  let titleLines = wrapTextToWidth(intro.bossTitle, titleFont, cardW - 10)
+
+  let nameH = nameLines.len.int32 * (nameFont + 3)
+  let titleH = titleLines.len.int32 * (titleFont + 2)
+  let cardH = 12'i32 + nameH + 6'i32 + titleH
+
+  drawRectangle(cardX, cardY, cardW, cardH,
+    Color(r: 25, g: 8, b: 8, a: uint8(min(nameAlpha, 200))))
+  drawRectangle(cardX, cardY, 2, cardH, Color(r: 255, g: 100, b: 100, a: nameAlpha))
+  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, Color(r: 255, g: 100, b: 100, a: nameAlpha))
+
+  var ty = cardY + 6
+  for ln in nameLines:
+    let tw = measureText(ln, nameFont)
+    let tx = cardX + (cardW - tw) div 2
+    drawText(ln, tx + 1, ty + 1, nameFont, Color(r: 0, g: 0, b: 0, a: uint8(nameAlpha div 2)))
+    drawText(ln, tx, ty, nameFont, Color(r: 255, g: 100, b: 100, a: nameAlpha))
+    ty += nameFont + 3
+  ty += 6
+  for ln in titleLines:
+    let tw = measureText(ln, titleFont)
+    drawText(ln, cardX + (cardW - tw) div 2, ty, titleFont,
+      Color(r: 180, g: 180, b: 180, a: nameAlpha))
+    ty += titleFont + 2
+  return cardY + cardH + 6
 
 # REAL-TIME STATS HUD
 proc newRealTimeStats*(): RealTimeStats =

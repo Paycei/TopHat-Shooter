@@ -102,12 +102,26 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
   return decision
 
 const
-  screenWidth = 1024
-  screenHeight = 768
+  WorldWidth = 1024   # Gameplay world width -- fixed forever, independent of HUD layout
+  WorldHeight = 768   # Gameplay world height -- fixed forever
   maxRenderSupersampleFactor = 2
   maxRenderSupersampleScale = maxRenderSupersampleFactor.float32
   targetFPS = 60
   MOUSE_MOVEMENT_THRESHOLD = 2.0  # Minimum pixel movement to count as "mouse moved"
+
+# Virtual screen (desktop / menus / render target) size. Height is fixed at 768;
+# width switches with the HUD layout setting: 1024 classic (4:3), 1366 widescreen
+# (16:9). These are vars because the setting can toggle live.
+var
+  screenWidth: int32 = WorldWidth.int32
+  screenHeight: int32 = WorldHeight.int32
+
+proc virtualWidthFor(layout: HudLayout): int32 =
+  ## Virtual screen width for a HUD layout: widescreen widens the desktop to 16:9
+  ## while the gameplay world stays WorldWidth; classic keeps the world size.
+  case layout
+  of hlWidescreen: 1366'i32
+  of hlClassic: WorldWidth.int32
 
 # Global Discord client that persists across game sessions
 var globalDiscordClient: DiscordClient = nil
@@ -118,6 +132,7 @@ var globalWindowManager: WindowManager = nil
 var
   renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
   currentRenderTargetSupersampleScale: float32 = 0.0
+  currentRenderTargetVirtualWidth: int32 = 0  # Virtual width the render texture was built at
   renderScale: float32 = 1.0
   renderOffsetX: float32 = 0.0
   renderOffsetY: float32 = 0.0
@@ -134,6 +149,7 @@ proc rebuildRenderTarget(supersampleScale: float32) =
   renderTarget = loadRenderTexture(renderTargetWidth, renderTargetHeight)
   setTextureFilter(renderTarget.texture, Bilinear)
   currentRenderTargetSupersampleScale = supersampleScale
+  currentRenderTargetVirtualWidth = screenWidth.int32
 
 proc getConfiguredRenderSupersampleScale(settings: Settings): float32 =
   case settings.renderResolutionMode
@@ -146,7 +162,9 @@ proc getConfiguredRenderSupersampleScale(settings: Settings): float32 =
 
 proc updateRenderSupersampleState(settings: Settings) =
   let targetSupersampleScale = getConfiguredRenderSupersampleScale(settings)
-  if abs(targetSupersampleScale - currentRenderTargetSupersampleScale) > 0.001'f32:
+  # Rebuild when EITHER the supersample factor or the virtual resolution changed.
+  if abs(targetSupersampleScale - currentRenderTargetSupersampleScale) > 0.001'f32 or
+     screenWidth.int32 != currentRenderTargetVirtualWidth:
     rebuildRenderTarget(targetSupersampleScale)
   setRenderSupersampleScale(targetSupersampleScale)
 
@@ -168,6 +186,9 @@ proc updateRenderScale() =
   renderOffsetY = (windowHeight.float32 - scaledHeight) / 2.0
   updateRenderInputTransform(renderScale, renderOffsetX, renderOffsetY,
                              screenWidth.int32, screenHeight.int32)
+  # Center the fixed-size world inside the (possibly wider) virtual screen. 0 in
+  # classic mode; the left-gutter width in widescreen mode.
+  setWorldViewOffset(((screenWidth - WorldWidth) div 2).float32)
 
 proc beginGameDrawing() =
   ## Begin drawing to the virtual render target
@@ -352,6 +373,11 @@ proc main() =
 
   let settings = initSettings()
 
+  # Size the virtual screen from the saved HUD layout BEFORE the window is
+  # created, so the window opens at the correct width (and every downstream
+  # newWindowManager / render-target build sees the right size).
+  screenWidth = virtualWidthFor(settings.hudLayout)
+
   # Set up window with appropriate flags based on saved settings
   if settings.fullscreen:
     setConfigFlags(flags(WindowUndecorated, WindowResizable))
@@ -435,6 +461,7 @@ proc main() =
   var advancementSyncTimer = 0.0'f32  # Throttle for mid-run advancement checks
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   var lastFullscreenToggleTime = 0.0  # Debouncing for F11 key
+  var appliedHudLayout = settings.hudLayout  # Last virtual-resolution applied to the window/pipeline
 
   # Initialize global Discord client (persists across game sessions)
   # Wrapped in try-catch to handle Discord connection failures gracefully
@@ -446,7 +473,7 @@ proc main() =
     # Discord initialization failed - continue without Rich Presence
     globalDiscordClient = nil
 
-  var currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+  var currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
   currentGame.state = gsSplash  # Start with splash screen
   # Assign global Discord client to game
   currentGame.discordClient = globalDiscordClient
@@ -672,6 +699,25 @@ proc main() =
         echo "Warning: Failed to save settings to disk"
 
     updateRenderSupersampleState(settings)
+
+    # Live HUD-layout (virtual resolution) toggle. When the setting changes,
+    # resize the virtual screen + window, rebuild the render target, recenter the
+    # window on the monitor (windowed only), recompute the letterbox + world
+    # offset, and re-lay-out the desktop windows for the new width.
+    if settings.hudLayout != appliedHudLayout:
+      appliedHudLayout = settings.hudLayout
+      screenWidth = virtualWidthFor(settings.hudLayout)
+      rebuildRenderTarget(getRenderSupersampleScale())
+      if not settings.fullscreen:
+        setWindowSize(screenWidth, screenHeight)
+        let monitor = getCurrentMonitor()
+        let monitorWidth = getMonitorWidth(monitor)
+        let monitorHeight = getMonitorHeight(monitor)
+        setWindowPosition((monitorWidth - screenWidth) div 2,
+                          (monitorHeight - screenHeight) div 2)
+      updateRenderScale()
+      if not globalWindowManager.isNil:
+        globalWindowManager.relayoutWindows(screenWidth, screenHeight)
 
     let dt = getFrameTime()
 
@@ -951,7 +997,7 @@ proc main() =
         globalWindowManager.closeAllWindows()
         case pendingGameMode
         of 0:  # Wave-Based Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmWaveBased)
           applyComebackBonus(currentGame)
@@ -962,14 +1008,14 @@ proc main() =
           if not settings.survivalUnlocked:
             showDesktopToast(osDesktop, t(tkDesktopModeLocked) & " " & t(tkSurvivalLockedDesc))
           else:
-            currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
             setGameMode(currentGame, gmTimeSurvival)
             initializeRunTracking(currentGame)
             currentGame.state = gsPlaying
             statsSavedThisGame = false
         of 6:  # Sandbox Mode
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmSandbox)
           initializeRunTracking(currentGame)
@@ -1157,8 +1203,8 @@ proc main() =
         echo "[MAIN] Total players: ", connectedPlayers.len, ", Local index: ", localPlayerIndex
 
         currentPvPGame = newPvPGameState(
-          screenWidth.int32,
-          screenHeight.int32,
+          WorldWidth.int32,
+          WorldHeight.int32,
           globalWindowManager.pvp.isHost,
           connectedPlayers.len,  # Use actual number of connected players, not configured maxPlayers
           connectedPlayers,
@@ -1318,7 +1364,7 @@ proc main() =
             playSound(stMenuSelect)
         of 9:  # Roguelite.exe - Roguelite Mode
           setActiveRogueliteProfile(loadRogueliteProfile())
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           currentGame.rogueliteProfile = rogueliteProfile
           setGameMode(currentGame, gmRoguelite)
@@ -1403,7 +1449,7 @@ proc main() =
               playSound(stMenuSelect)
           of 9:  # Roguelite.exe
             setActiveRogueliteProfile(loadRogueliteProfile())
-            currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
             currentGame.rogueliteProfile = rogueliteProfile
             setGameMode(currentGame, gmRoguelite)
@@ -1746,7 +1792,7 @@ proc main() =
       if not cheatMenu.active and not globalConfirmActive:
         if isSandboxMode(currentGame.mode):
           # Handle sandbox input
-          handleSandboxInput(currentGame, screenWidth, screenHeight)
+          handleSandboxInput(currentGame, currentGame.screenWidth, currentGame.screenHeight)
           # Update sandbox mode (god mode, freeze enemies, etc.)
           updateSandboxMode(currentGame, dt)
           # Update game normally (unless enemies are frozen)
@@ -1915,7 +1961,7 @@ proc main() =
           if isSandboxMode(currentGame.mode) or not settings.exitConfirmEnabled:
             # Sandbox has no progress to lose; or exit confirm is disabled: quit immediately
             cleanupGame(currentGame)
-            currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
             currentGame.state = gsMenu
             playSound(stMenuSelect)
@@ -1988,7 +2034,7 @@ proc main() =
           if isSandboxMode(currentGame.mode) or not settings.exitConfirmEnabled:
             # Sandbox has no progress to lose; or exit confirm is disabled: quit immediately
             cleanupGame(currentGame)
-            currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
             currentGame.state = gsMenu
             playSound(stMenuSelect)
@@ -2023,7 +2069,7 @@ proc main() =
             cleanup(currentPvPGame.networkManager)
             currentPvPGame = nil
           cleanupGame(currentGame)
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           currentGame.state = gsMenu
           playSound(stMenuSelect)
@@ -2066,7 +2112,7 @@ proc main() =
           discard commitRogueliteRunProgress(currentGame, true)
           setActiveRogueliteProfile(currentGame.rogueliteProfile)
         cleanupGame(currentGame)
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, gmRoguelite)
         currentGame.rogueliteProfile = rogueliteProfile
@@ -2164,8 +2210,10 @@ proc main() =
           const ITEM_HEIGHT = 60
           const ITEM_SPACING = 6
 
-          let windowX = (currentGame.screenWidth - SHOP_WIDTH) div 2
-          let windowY = (currentGame.screenHeight - SHOP_HEIGHT) div 2
+          # Mirror drawShopScreen: it centers on the VIRTUAL screen (wider than
+          # the world in widescreen mode), so hit-testing must too.
+          let windowX = (getVirtualScreenWidth() - SHOP_WIDTH) div 2
+          let windowY = (getVirtualScreenHeight() - SHOP_HEIGHT) div 2
 
           # Check close button click (X button in title bar)
           let closeButtonSize = 28
@@ -2330,7 +2378,7 @@ proc main() =
       currentGame.waveClearedTimer -= dt
 
       # Continue coin collection during this phase
-      updatePlayer(currentGame.player, dt, screenWidth, screenHeight, currentGame.walls)
+      updatePlayer(currentGame.player, dt, currentGame.screenWidth, currentGame.screenHeight, currentGame.walls)
 
       # Update coins and handle collection
       updateCoinsWaveCleared(currentGame, dt)
@@ -2459,8 +2507,9 @@ proc main() =
             const TITLE_BAR_HEIGHT = 45
             const CONTINUE_BTN_W = 300
             const CONTINUE_BTN_H = 50
-            let winX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
-            let winY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
+            # Mirror the installer draw: centered on the VIRTUAL screen.
+            let winX = (getVirtualScreenWidth() - INSTALLER_WIDTH) div 2
+            let winY = (getVirtualScreenHeight() - INSTALLER_HEIGHT) div 2
             let continueBtnX = winX + (INSTALLER_WIDTH - CONTINUE_BTN_W) div 2
             let continueBtnY = winY + INSTALLER_HEIGHT - 100
             let closeButtonSize = 28
@@ -2524,8 +2573,9 @@ proc main() =
             const CARD_HEIGHT = 380
             const CARD_SPACING = 35
 
-            let windowX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
-            let windowY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
+            # Mirror the installer draw: centered on the VIRTUAL screen.
+            let windowX = (getVirtualScreenWidth() - INSTALLER_WIDTH) div 2
+            let windowY = (getVirtualScreenHeight() - INSTALLER_HEIGHT) div 2
             let yPos = windowY + TITLE_BAR_HEIGHT + 75
             let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
             let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
@@ -2557,8 +2607,9 @@ proc main() =
             const CARD_HEIGHT = 380
             const CARD_SPACING = 35
 
-            let windowX = (currentGame.screenWidth - INSTALLER_WIDTH) div 2
-            let windowY = (currentGame.screenHeight - INSTALLER_HEIGHT) div 2
+            # Mirror the installer draw: centered on the VIRTUAL screen.
+            let windowX = (getVirtualScreenWidth() - INSTALLER_WIDTH) div 2
+            let windowY = (getVirtualScreenHeight() - INSTALLER_HEIGHT) div 2
             let yPos = windowY + TITLE_BAR_HEIGHT + 75
             let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
             let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
@@ -2673,7 +2724,7 @@ proc main() =
             currentGame.rogueliteRun.heat
           else:
             currentGame.selectedRogueliteHeat
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
         applyComebackBonus(currentGame)
@@ -2699,7 +2750,7 @@ proc main() =
       elif not globalConfirmActive and ((isBackPressed() or isKeyPressed(Q)) or
            (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 2)):
         cleanupGame(currentGame)  # Clean up resources before creating new game
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         playSound(stMenuSelect)
@@ -2749,7 +2800,7 @@ proc main() =
               currentGame.rogueliteRun.heat
             else:
               currentGame.selectedRogueliteHeat
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, previousMode)  # Preserve the game mode
           applyComebackBonus(currentGame)
@@ -2773,7 +2824,7 @@ proc main() =
         elif checkCollisionPointRec(mousePos, exitRect):
           # Return to menu
           cleanupGame(currentGame)
-          currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           currentGame.state = gsMenu
           playSound(stMenuSelect)
@@ -2827,7 +2878,7 @@ proc main() =
             currentGame.rogueliteRun.heat
           else:
             currentGame.selectedRogueliteHeat
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)
         applyComebackBonus(currentGame)
@@ -2846,7 +2897,7 @@ proc main() =
       if isKeyPressed(Q):
         statsWin.window.visible = false
         cleanupGame(currentGame)  # Clean up resources before creating new game
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         statsSavedThisGame = false
@@ -2954,7 +3005,7 @@ proc main() =
         playSound(stMenuSelect)
         persistRunResults(currentGame)
         cleanupGame(currentGame)
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu
         statsSavedThisGame = false
@@ -3017,7 +3068,7 @@ proc main() =
         let preservedHeat = currentGame.selectedRogueliteHeat
         persistRunResults(currentGame)
         cleanupGame(currentGame)
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, gmRoguelite)
         currentGame.rogueliteProfile = rogueliteProfile
@@ -3104,7 +3155,7 @@ proc main() =
         currentPvPGame = nil
 
         # Return to menu
-        currentGame = newGame(screenWidth, screenHeight, settings.playerSkin,
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin,
                              settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         currentGame.state = gsMenu

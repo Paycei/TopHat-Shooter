@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, algorithm
-import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, boss_weakpoints
+import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, ui/ui_helpers, boss_weakpoints
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
@@ -1910,7 +1910,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   updateShockwaveRings(game, dt)
 
   # Check shooting
-  let pointerPos = getVirtualMousePosition()
+  let pointerPos = getWorldMousePosition()
   var mousePos = newVector2f(pointerPos.x, pointerPos.y)
   if isGamepadActive():
     # Twin-stick aim: the right stick gives a direction, not a position, so
@@ -1943,7 +1943,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
           mousePos = newVector2f(enemy.pos.x, enemy.pos.y)
     mousePos.x = clamp(mousePos.x, 0.0'f32, game.screenWidth.float32)
     mousePos.y = clamp(mousePos.y, 0.0'f32, game.screenHeight.float32)
-    setGamepadAimPoint(Vector2(x: mousePos.x, y: mousePos.y))
+    setGamepadAimPointWorld(Vector2(x: mousePos.x, y: mousePos.y))
   let shootDir = newVector2f(mousePos.x - game.player.pos.x, mousePos.y - game.player.pos.y)
 
   # Handle delayed double-shot bursts (rapid succession)
@@ -4530,7 +4530,8 @@ proc updateGame*(game: var Game, dt: float32) =
   updateProjectilesAndCleanup(game, dt, effectiveDt)
 
 # Draw
-proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10): int32 =
+proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
+                      alignRight: bool = false, slotH: int32 = 0): int32 =
   let bossDef = getBossDefinition(enemy.bossDefinitionID)
   let phaseCount = max(1, max(bossDef.phases.len, enemy.bossPhaseHpPools.len))
   let currentPhase = clamp(enemy.currentPhaseIndex, 0, phaseCount - 1)
@@ -4540,15 +4541,114 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10): int32 =
   let visiblePhases = if revealAll: phaseCount else: currentPhase + 1
 
   let rowH = 13'i32
-  let headerH = 38'i32
-  let panelW = min(520'i32, max(340'i32, game.screenWidth - 80'i32))
+  let headerH = 38'i32   # classic horizontal header (widescreen uses its own card)
+  # Widescreen right-gutter variant: size the panel to the gutter width so it sits
+  # flush in the side band rather than overlapping the arena.
+  let gutterW = (getVirtualScreenWidth() - game.screenWidth) div 2
+  let panelW = if alignRight: gutterW - 8'i32
+               else: min(520'i32, max(340'i32, game.screenWidth - 80'i32))
   let panelH = headerH + rowH * visiblePhases.int32 + 11'i32
-  let panelX = game.screenWidth div 2 - panelW div 2
+  let panelX = if alignRight: getVirtualScreenWidth() - panelW - 4'i32
+               else: game.screenWidth div 2 - panelW div 2
   let panelY = topY
   let activeColor =
     if currentPhase < bossDef.phases.len: bossDef.phases[currentPhase].color
     else: enemy.color
 
+  # A subtle pulse when the boss is low or briefly invulnerable at a phase change,
+  # so the widescreen bar demands attention at the dramatic beats.
+  let hpFrac = clamp(enemy.hp / max(enemy.maxHp, 0.01'f32), 0.0'f32, 1.0'f32)
+  let pulseT = if alignRight and (hpFrac < 0.28'f32 or enemy.invulnerabilityTimer > 0.0'f32):
+                 (0.5'f32 + 0.5'f32 * sin(game.time * 8.0'f32))
+               else: 0.0'f32
+
+  if alignRight:
+    # ===== WIDESCREEN VERTICAL BOSS CARD =====
+    # A tall column card filling the right gutter: boss name up top, a tall
+    # bottom-to-top HP bar as the centerpiece, a phase-pip column alongside it,
+    # plus the breathing glow / low-HP pulse.
+    let cardH = if slotH > 0'i32: slotH else: 176'i32
+    let threatName = getEnemyProcessName(enemy)
+    let phaseCountLabel = if revealAll: $phaseCount else: "?"
+    let phaseText = t(tkBossThreatPhaseHeader) & " " & $(currentPhase + 1) & "/" & phaseCountLabel
+    let hpText = formatHealthDisplay(enemy.hp) & " / " & formatHealthDisplay(enemy.maxHp)
+
+    # Breathing outer glow.
+    let glowA = uint8(clamp(50.0'f32 + pulseT * 150.0'f32, 0.0, 255.0))
+    drawRectangleLines(Rectangle(x: (panelX - 2).float32, y: (panelY - 2).float32,
+                                 width: (panelW + 4).float32, height: (cardH + 4).float32),
+                       2, withAlpha(activeColor, glowA.int))
+    drawRectangle(panelX + 3, panelY + 4, panelW, cardH, Color(r: 0, g: 0, b: 0, a: 110))
+    drawRectangle(panelX, panelY, panelW, cardH, Color(r: 8, g: 12, b: 19, a: 236))
+    drawRectangle(panelX, panelY, panelW, 4, activeColor)
+    drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+                                 width: panelW.float32, height: cardH.float32),
+                       2, withAlpha(activeColor, 230))
+
+    # Header: CRITICAL PROCESS label, big boss name, compact phase text.
+    drawText(t(tkBossThreatCritical), panelX + 11, panelY + 7, 8, withAlpha(activeColor, 240))
+    let nameSize = bestFitFontSize(threatName, panelW - 22, 18, 10)
+    drawText(threatName, panelX + 12, panelY + 18, nameSize, Color(r: 0, g: 0, b: 0, a: 150))
+    drawText(threatName, panelX + 11, panelY + 17, nameSize, Color(r: 240, g: 247, b: 255, a: 255))
+    let phaseSize = bestFitFontSize(phaseText, panelW - 22, 9, 7)
+    drawText(phaseText, panelX + 11, panelY + 34, phaseSize, withAlpha(activeColor, 245))
+
+    # Vertical HP bar (current phase pool), filling bottom-to-top.
+    let barTop = panelY + 46
+    let barBot = panelY + cardH - 20
+    let barAreaH = max(20'i32, barBot - barTop)
+    let barW = 52'i32
+    let barX = panelX + 13
+    drawRectangle(barX, barTop, barW, barAreaH, Color(r: 10, g: 14, b: 20, a: 235))
+    let fillH = int32(barAreaH.float32 * hpFrac)
+    if fillH > 0:
+      let fy = barBot - fillH
+      let bright = Color(r: min(255, activeColor.r.int + 80).uint8,
+                         g: min(255, activeColor.g.int + 80).uint8,
+                         b: min(255, activeColor.b.int + 80).uint8, a: 255)
+      drawRectangleGradientV(barX, fy, barW, fillH, bright, withAlpha(activeColor, 235))
+      drawRectangle(barX, fy, barW, 2, Color(r: 255, g: 255, b: 255, a: 205))
+    drawRectangleLines(Rectangle(x: barX.float32, y: barTop.float32,
+                                 width: barW.float32, height: barAreaH.float32),
+                       2, withAlpha(activeColor, 235))
+    # HP value under the bar.
+    let hpValW = measureText(hpText, 9)
+    drawText(hpText, barX + barW div 2 - hpValW div 2, barBot + 4, 9,
+             Color(r: 210, g: 225, b: 240, a: 255))
+
+    # Phase-pip column beside the bar (P1 at the bottom, PN at the top).
+    let pipX = barX + barW + 9
+    let pipW = max(8'i32, panelX + panelW - 11 - pipX)
+    let pipGap = 3'i32
+    let pc = max(1, phaseCount).int32
+    let pipH = max(4'i32, (barAreaH - (pc - 1) * pipGap) div pc)
+    for p in 0..<pc:
+      let py = barBot - (p + 1) * pipH - p * pipGap
+      let pcol = if p < bossDef.phases.len: bossDef.phases[p].color else: enemy.color
+      let (pfill, pa) =
+        if p < currentPhase: (true, 150)
+        elif p == currentPhase: (true, int(200.0'f32 + pulseT * 55.0'f32))
+        elif revealAll: (false, 70)
+        else: (false, 40)
+      if pfill:
+        drawRectangle(pipX, py, pipW, pipH, withAlpha(pcol, pa))
+      else:
+        drawRectangle(pipX, py, pipW, pipH, Color(r: 14, g: 20, b: 28, a: 200))
+      drawRectangleLines(Rectangle(x: pipX.float32, y: py.float32, width: pipW.float32, height: pipH.float32),
+                         1, withAlpha(pcol, pa))
+      if pipH >= 12:
+        drawText("P" & $(p + 1), pipX + 3, py + (pipH - 8) div 2, 8,
+                 if p == currentPhase: White else: withAlpha(pcol, pa))
+
+    # Firewall / phase-transition invulnerability indicator.
+    if enemy.invulnerabilityTimer > 0:
+      let shieldText = t(tkBossPhaseFirewall)
+      let stW = measureText(shieldText, 9)
+      drawText(shieldText, panelX + panelW div 2 - stW div 2, panelY + cardH - 12, 9,
+               withAlpha(activeColor, uint8(clamp(190.0'f32 + pulseT * 65.0'f32, 0.0, 255.0)).int))
+    return panelY + cardH + 6
+
+  # ----- Classic horizontal boss bar (widescreen returned early above) -----
   drawRectangle(panelX + 3, panelY + 4, panelW, panelH, Color(r: 0, g: 0, b: 0, a: 110))
   drawRectangle(panelX, panelY, panelW, panelH, Color(r: 8, g: 12, b: 19, a: 232))
   drawRectangle(panelX, panelY, panelW, 3, activeColor)
@@ -4557,9 +4657,6 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10): int32 =
                      1, withAlpha(activeColor, 210))
 
   let threatName = getEnemyProcessName(enemy)
-  drawText(t(tkBossThreatCritical), panelX + 11, panelY + 7, 8, withAlpha(activeColor, 240))
-  drawText(threatName, panelX + 11, panelY + 17, 13, Color(r: 238, g: 245, b: 255, a: 255))
-
   let phaseName =
     if currentPhase < bossDef.phases.len:
       bossDef.phases[currentPhase].name
@@ -4567,12 +4664,15 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10): int32 =
       t(tkBossThreatPhaseName) & " " & $(currentPhase + 1)
   let phaseCountLabel = if revealAll: $phaseCount else: "?"
   let phaseText = t(tkBossThreatPhaseHeader) & " " & $(currentPhase + 1) & "/" & phaseCountLabel & " :: " & phaseName
-  let phaseTextW = measureText(phaseText, 10)
-  drawText(phaseText, panelX + panelW - phaseTextW - 11, panelY + 9, 10, withAlpha(activeColor, 240))
-
   let hpText = formatHealthDisplay(enemy.hp) & " / " & formatHealthDisplay(enemy.maxHp)
-  let hpTextW = measureText(hpText, 10)
-  drawText(hpText, panelX + panelW - hpTextW - 11, panelY + 23, 10, Color(r: 210, g: 225, b: 240, a: 255))
+
+  block:
+    drawText(t(tkBossThreatCritical), panelX + 11, panelY + 7, 8, withAlpha(activeColor, 240))
+    drawText(threatName, panelX + 11, panelY + 17, 13, Color(r: 238, g: 245, b: 255, a: 255))
+    let phaseTextW = measureText(phaseText, 10)
+    drawText(phaseText, panelX + panelW - phaseTextW - 11, panelY + 9, 10, withAlpha(activeColor, 240))
+    let hpTextW = measureText(hpText, 10)
+    drawText(hpText, panelX + panelW - hpTextW - 11, panelY + 23, 10, Color(r: 210, g: 225, b: 240, a: 255))
 
   let barX = panelX + 12
   let barW = panelW - 24
@@ -4656,9 +4756,18 @@ proc drawGame*(game: Game) =
   shakeOffsetX = shakeOffset.x
   shakeOffsetY = shakeOffset.y
 
-  if shakeOffsetX != 0 or shakeOffsetY != 0:
+  # ===================== WORLD PASS =====================
+  # Everything drawn here is translated by the world view offset (widescreen
+  # gutters) plus screen shake, and clipped to the world rect so nothing bleeds
+  # into the side gutters. The HUD pass below is untranslated (virtual coords).
+  let worldOffX = getWorldViewOffsetX()
+  let worldScissorOpen = worldOffX > 0
+  if worldScissorOpen:
+    beginVirtualScissorMode(worldOffX.int32, 0, game.screenWidth, game.screenHeight)
+  let worldPassOpen = worldOffX != 0 or shakeOffsetX != 0 or shakeOffsetY != 0
+  if worldPassOpen:
     pushMatrix()
-    translatef(shakeOffsetX, shakeOffsetY, 0.0'f32)
+    translatef(worldOffX + shakeOffsetX, shakeOffsetY, 0.0'f32)
 
   # Update and draw OS-style background
   let dt = getFrameTime()
@@ -5112,41 +5221,6 @@ proc drawGame*(game: Game) =
     game.osBackground.alertLevel = min(game.osBackground.alertLevel + 0.5, 1.0)
     game.player.lastDamageEvent = deNone
 
-  let showLowHealthVignette = globalSettings == nil or globalSettings.showLowHealthVignette
-  if showLowHealthVignette and game.osBackground.lowHealthVignetteLevel > 0:
-    let lowHpLevel = game.osBackground.lowHealthVignetteLevel
-    let beatWave = max(0.0, sin(game.time * (3.4 + lowHpLevel * 1.6)))
-    let beatScale = 1.0 + beatWave * (0.06 + lowHpLevel * 0.10)
-    let lowHpMaxAlpha = lowHpLevel * 62.0 * beatScale
-    let maxInset = 140.0 * (1.0 + beatWave * (0.03 + lowHpLevel * 0.04))
-    for band in 0..7:
-      let bandT = band.float32 / 7.0
-      let inset = int32(bandT * maxInset)
-      let bandAlpha = uint8(lowHpMaxAlpha * (1.0 - bandT) * 0.85)
-      if bandAlpha == 0:
-        continue
-
-      let bandRect = Rectangle(
-        x: inset.float32,
-        y: inset.float32,
-        width: max(0, game.screenWidth - inset * 2).float32,
-        height: max(0, game.screenHeight - inset * 2).float32
-      )
-      drawRectangleLines(bandRect, 3, Color(r: 255, g: 0, b: 0, a: bandAlpha))
-
-  # Full-screen red vignette when alertLevel > 0
-  if game.osBackground.alertLevel > 0:
-    let vigAlpha = uint8(game.osBackground.alertLevel * 92)
-    let vW: int32 = 160
-    drawRectangleGradientH(0, 0, vW, game.screenHeight,
-      Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
-    drawRectangleGradientH(game.screenWidth - vW, 0, vW, game.screenHeight,
-      Color(r: 0, g: 0, b: 0, a: 0), Color(r: 255, g: 0, b: 0, a: vigAlpha))
-    drawRectangleGradientV(0, 0, game.screenWidth, vW,
-      Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
-    drawRectangleGradientV(0, game.screenHeight - vW, game.screenWidth, vW,
-      Color(r: 0, g: 0, b: 0, a: 0), Color(r: 255, g: 0, b: 0, a: vigAlpha))
-
   # Dungeon layer: doors, pedestals, shop terminal, room-transition fade
   if game.mode == gmRoguelite:
     drawDungeonOverlay(game)
@@ -5159,46 +5233,17 @@ proc drawGame*(game: Game) =
   for perkIndicator in game.perkIndicators:
     drawPerkIndicator(perkIndicator)
 
-  # Update OS-style HUD
-  updateOSHUD(game.osHUD, dt)
-
-  # Draw unified combined HUD panel (top-left, almost touching top)
-  drawCombinedHUDPanel(game, 10, 2)
-
+  # Recent power-up install card (world-anchored above the player).
   if game.recentPowerUpTimer > 0.0:
     drawRecentPowerUpInstall(game)
     if game.state notin {gsShop, gsPowerUpSelect}:
       game.recentPowerUpTimer = max(0.0'f32, game.recentPowerUpTimer - dt)
 
-  # Kill streak system removed - now only combo system is used
+  # Micro rewards float near the player, so they belong in the world pass.
   if globalSettings == nil or globalSettings.showHints:
-    drawCombo(game.dopamine.comboSystem, game.screenWidth, game.screenHeight, game.dopamine.currentTime)
     drawMicroRewards(game.dopamine.microRewards)
 
-  # Wave start banner (slides in from top for first 1.5s of each wave).
-  # Roguelite rooms reuse the wave machinery but have no wave number (currentWave
-  # stays pinned at 1), so the generic banner would flash "WAVE 1" on every room.
-  if game.waveInProgress and game.mode != gmRoguelite:
-    let waveAge = game.time - game.waveStartTime
-    let isBossNext = game.wavesUntilBoss == 0
-    if globalSettings == nil or globalSettings.showHints:
-      drawWaveStartBanner(game.currentWave, waveAge, game.screenWidth, game.screenHeight, isBossNext)
-
-  drawWaveCelebration(game.dopamine.waveCelebration, game.screenWidth, game.screenHeight)
-  drawBossIntroduction(game.dopamine.bossIntro, game.screenWidth, game.screenHeight)
-
-  if game.comebackBonusActive:
-    let pulse = (sin(game.time * 2.5) * 0.15 + 0.85).float32
-    let alpha = uint8(clamp(pulse * 230.0, 0.0, 255.0))
-    let cbLabel = t(tkComebackBonusActive) & " (" & t(tkComebackBonusUntil) & " " & $game.comebackEndWave & ")"
-    let cbFontSize: int32 = 13
-    let cbW = measureText(cbLabel, cbFontSize)
-    let cbX = game.screenWidth div 2 - cbW div 2
-    let cbY: int32 = 6
-    drawRectangle(cbX - 6, cbY - 2, cbW + 12, cbFontSize + 6, Color(r: 0, g: 0, b: 0, a: uint8(clamp(pulse * 140.0, 0.0, 255.0))))
-    drawText(cbLabel, cbX, cbY, cbFontSize, Color(r: 80, g: 220, b: 100, a: alpha))
-
-  # Boss entrance warning: flashing "!" on the screen edge the boss is entering from
+  # Boss entrance warning: flashing "!" on the world edge the boss is entering from
   if game.bossWaveManager.isBossActive():
     # Avoid drawing over the wave banner when it's visible (suppressed in roguelite)
     let bannerVisible = if game.waveInProgress and game.mode != gmRoguelite: (game.time - game.waveStartTime) < 1.5 else: false
@@ -5289,118 +5334,317 @@ proc drawGame*(game: Game) =
           drawSimpleWarning(cx, cy, (0.6 + 0.4 * entranceProg).float32)
           break
 
-  # Boss phase health bars (top of screen), stacked downward up to 3.
-  # Sandbox spawns bosses straight into game.enemies without arming the
-  # bossWaveManager, so allow the HUD there too based on the enemy itself.
-  if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
-    # In survival the timer card owns the top-center spot; stack boss bars below it.
-    var nextBossBarY = if isTimeSurvivalMode(game.mode): SurvivalHudBottomY + 6'i32
-                       else: 10'i32
-    var bossBarCount = 0
-    for enemy in game.enemies:
-      if enemy.isBoss and enemy.entranceTimer <= 0:
-        nextBossBarY = drawBossPhaseHud(game, enemy, nextBossBarY)
-        bossBarCount += 1
-        if bossBarCount >= 3:
-          break
+  # Wall-placement range ring + ghost preview (world-anchored at the cursor).
+  if game.state != gsShop and game.wallPlacementMode and game.player.walls > 0:
+    const WallPlaceRange = 250.0'f32
+    let mousePos = getWorldMousePosition()
+    let cursorPos = newVector2f(mousePos.x, mousePos.y)
+    let inRange = distance(cursorPos, game.player.pos) <= WallPlaceRange
+    let validPos = isValidWallPlacement(cursorPos, game.player.pos, game.walls, game.enemies, 25)
+    let canPlace = inRange and validPos
 
-  # Time survival mode - show wave indicator (only for time survival)
-  if isTimeSurvivalMode(game.mode):
-    drawSurvivalHUD(game, game.screenWidth, game.screenHeight)
+    # Range indicator around the player. Drawn after auras/orbs/player, so it
+    # already sits on top visually; it just has to be bold enough to read over
+    # all the glow beneath it. Pulse + glow + zone tint + rotating ticks.
+    let px = game.player.pos.x.int32
+    let py = game.player.pos.y.int32
+    let pulse = sin(game.time * 4.0) * 0.5 + 0.5         # 0..1 breathing
+    let ringR = WallPlaceRange + pulse * 4.0
+    let ringA = uint8(clamp(150.0 + pulse * 105.0, 0.0, 255.0))
 
-  # Combined HUD panel already shows all info, no need for separate panels
+    # Subtle fill so the buildable zone reads as an area, not just an edge.
+    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), WallPlaceRange,
+               Color(r: 90, g: 130, b: 255, a: 14))
 
-  # OS-Style Debug Panel (right side, touching right edge) - controlled by showDebugStats setting
-  if globalSettings != nil and globalSettings.showDebugStats:
-    drawDebugPanel(game, game.screenWidth, 2)
+    # Boundary: outer glow -> bright core -> inner highlight (3-pass, like the
+    # gravity-pull limit ring) so the edge stays crisp over busy backgrounds.
+    drawCircleLines(px, py, ringR + 5.0, Color(r: 120, g: 160, b: 255, a: uint8(ringA.int div 4)))
+    drawCircleLines(px, py, ringR + 2.5, Color(r: 150, g: 185, b: 255, a: uint8(ringA.int div 2)))
+    drawCircleLines(px, py, ringR,       Color(r: 200, g: 225, b: 255, a: ringA))
+    drawCircleLines(px, py, ringR - 2.5, Color(r: 235, g: 245, b: 255, a: uint8(ringA.int div 2)))
 
-  # Compact Q ability cooldown strip replaces the old legendary cooldown window.
-  drawLegendaryPowerUpsPanel(game, game.screenWidth.int32, game.screenHeight.int32)
+    # Rotating tick marks on the boundary make the ring unmistakable and give
+    # it motion the eye catches even through dense aura particles.
+    for i in 0 ..< 24:
+      let a = game.time * 0.6 + i.float32 / 24.0 * PI * 2.0
+      let tx = game.player.pos.x + cos(a) * ringR
+      let ty = game.player.pos.y + sin(a) * ringR
+      drawCircle(Vector2(x: tx, y: ty), 2.2 + pulse * 1.0,
+                 Color(r: 215, g: 235, b: 255, a: ringA))
+
+    # Ghost preview at cursor: green = valid, red = blocked. Turrets place as
+    # circular emplacements, plain walls as a slab facing away from the player,
+    # so preview whichever shape (and orientation) will actually be placed.
+    let ghostFill = if canPlace: Color(r: 80, g: 200, b: 80, a: 90)
+                    else: Color(r: 200, g: 60, b: 60, a: 90)
+    let ghostEdge = if canPlace: Color(r: 80, g: 255, b: 80, a: 200)
+                    else: Color(r: 255, g: 60, b: 60, a: 200)
+    if hasPowerUp(game.player, puWallTurrets):
+      drawCircle(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostFill)
+      drawCircleLines(cursorPos.x.int32, cursorPos.y.int32, 25, ghostEdge)
+    else:
+      # Mirror drawBarricadeWall: thin along the outward normal, broad across.
+      let ga = arctan2(cursorPos.y - game.player.pos.y, cursorPos.x - game.player.pos.x)
+      let gca = cos(ga)
+      let gsa = sin(ga)
+      const gHalfLen = 25.0'f32
+      const gHalfThick = 25.0'f32 * WallSlabThicknessRatio
+      drawRectangle(Rectangle(x: cursorPos.x, y: cursorPos.y,
+                              width: gHalfThick * 2, height: gHalfLen * 2),
+                    Vector2(x: gHalfThick, y: gHalfLen), radToDeg(ga), ghostFill)
+      template gcorner(lx, ly: float32): Vector2 =
+        Vector2(x: cursorPos.x + lx * gca - ly * gsa,
+                y: cursorPos.y + lx * gsa + ly * gca)
+      let c1 = gcorner(-gHalfThick, -gHalfLen)
+      let c2 = gcorner(gHalfThick, -gHalfLen)
+      let c3 = gcorner(gHalfThick, gHalfLen)
+      let c4 = gcorner(-gHalfThick, gHalfLen)
+      drawLine(c1, c2, 2.0'f32, ghostEdge)
+      drawLine(c2, c3, 2.0'f32, ghostEdge)
+      drawLine(c3, c4, 2.0'f32, ghostEdge)
+      drawLine(c4, c1, 2.0'f32, ghostEdge)
+
+  # ===================== END WORLD PASS =====================
+  if worldPassOpen:
+    popMatrix()
+  if worldScissorOpen:
+    endScissorMode()
+
+  # ===================== HUD PASS =====================
+  # Untranslated, virtual coords. The HUD stays fixed while the world shakes,
+  # and spans the full virtual width so the widescreen gutters are covered.
+  let vw = getVirtualScreenWidth()
+  let vh = getVirtualScreenHeight()
+
+  let showLowHealthVignette = globalSettings == nil or globalSettings.showLowHealthVignette
+  if showLowHealthVignette and game.osBackground.lowHealthVignetteLevel > 0:
+    let lowHpLevel = game.osBackground.lowHealthVignetteLevel
+    let beatWave = max(0.0, sin(game.time * (3.4 + lowHpLevel * 1.6)))
+    let beatScale = 1.0 + beatWave * (0.06 + lowHpLevel * 0.10)
+    let lowHpMaxAlpha = lowHpLevel * 62.0 * beatScale
+    let maxInset = 140.0 * (1.0 + beatWave * (0.03 + lowHpLevel * 0.04))
+    for band in 0..7:
+      let bandT = band.float32 / 7.0
+      let inset = int32(bandT * maxInset)
+      let bandAlpha = uint8(lowHpMaxAlpha * (1.0 - bandT) * 0.85)
+      if bandAlpha == 0:
+        continue
+
+      let bandRect = Rectangle(
+        x: inset.float32,
+        y: inset.float32,
+        width: max(0, vw - inset * 2).float32,
+        height: max(0, vh - inset * 2).float32
+      )
+      drawRectangleLines(bandRect, 3, Color(r: 255, g: 0, b: 0, a: bandAlpha))
+
+  # Full-screen red vignette when alertLevel > 0
+  if game.osBackground.alertLevel > 0:
+    let vigAlpha = uint8(game.osBackground.alertLevel * 92)
+    let vW: int32 = 160
+    drawRectangleGradientH(0, 0, vW, vh,
+      Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
+    drawRectangleGradientH(vw - vW, 0, vW, vh,
+      Color(r: 0, g: 0, b: 0, a: 0), Color(r: 255, g: 0, b: 0, a: vigAlpha))
+    drawRectangleGradientV(0, 0, vw, vW,
+      Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
+    drawRectangleGradientV(0, vh - vW, vw, vW,
+      Color(r: 0, g: 0, b: 0, a: 0), Color(r: 255, g: 0, b: 0, a: vigAlpha))
+
+  # Update OS-style HUD
+  updateOSHUD(game.osHUD, dt)
+
+  # Draw unified combined HUD panel (top-left, almost touching top)
+  let hudLayout = if globalSettings == nil: hlClassic else: globalSettings.hudLayout
+  if hudLayout == hlWidescreen:
+    drawBorderHUDPanel(game)
+  else:
+    drawCombinedHUDPanel(game, 10, 2)
+
+  # Right/left gutter geometry (widescreen: world is 1024 wide, centered).
+  let rightGutterX = getWorldViewOffsetX().int32 + 1024'i32
+  let rightGutterW = vw - rightGutterX
+  let leftGutterW = getWorldViewOffsetX().int32
+
+  let showHints = globalSettings == nil or globalSettings.showHints
+  let waveAge = game.time - game.waveStartTime
+  let isBossNext = game.wavesUntilBoss == 0
+  # Roguelite rooms reuse the wave machinery but have no wave number, so the
+  # generic banner would flash "WAVE 1" on every room; suppress it there.
+  let showWaveBanner = game.waveInProgress and game.mode != gmRoguelite and showHints
+
+  # Comeback-bonus label. Classic: small pulsing strip top-center. Widescreen:
+  # a wrapped, accent-edged card in the left gutter. Factored out so each layout
+  # branch can call it at the correct point in its own draw order (classic keeps
+  # its original z-order: after the boss intro, before the boss bars).
+  proc drawComebackBonus() =
+    if not game.comebackBonusActive:
+      return
+    let pulse = (sin(game.time * 2.5) * 0.15 + 0.85).float32
+    let alpha = uint8(clamp(pulse * 230.0, 0.0, 255.0))
+    let cbLabel = t(tkComebackBonusActive) & " (" & t(tkComebackBonusUntil) & " " & $game.comebackEndWave & ")"
+    let cbFontSize: int32 = 13
+    if hudLayout == hlWidescreen:
+      # Left-gutter wrapped card (below the border HUD, above the bottom hints).
+      let cardW: int32 = min(leftGutterW - 8, 163'i32)
+      let cardX: int32 = 4
+      let cardY: int32 = 560
+      var words = cbLabel.split(' ')
+      var cbLines: seq[string] = @[]
+      var cur = ""
+      for w in words:
+        if w.len == 0: continue
+        let cand = if cur.len == 0: w else: cur & " " & w
+        if measureText(cand, cbFontSize) <= cardW - 8 or cur.len == 0:
+          cur = cand
+        else:
+          cbLines.add(cur); cur = w
+      if cur.len > 0: cbLines.add(cur)
+      let cardH: int32 = 6 + cbLines.len.int32 * (cbFontSize + 3)
+      drawRectangle(cardX, cardY, cardW, cardH, Color(r: 8, g: 18, b: 12, a: uint8(clamp(pulse * 170.0, 0.0, 255.0))))
+      drawRectangle(cardX, cardY, 2, cardH, Color(r: 80, g: 220, b: 100, a: alpha))
+      var cbTy = cardY + 3
+      for ln in cbLines:
+        drawText(ln, cardX + 4, cbTy, cbFontSize, Color(r: 80, g: 220, b: 100, a: alpha))
+        cbTy += cbFontSize + 3
+    else:
+      let cbW = measureText(cbLabel, cbFontSize)
+      let cbX = vw div 2 - cbW div 2
+      let cbY: int32 = 6
+      drawRectangle(cbX - 6, cbY - 2, cbW + 12, cbFontSize + 6, Color(r: 0, g: 0, b: 0, a: uint8(clamp(pulse * 140.0, 0.0, 255.0))))
+      drawText(cbLabel, cbX, cbY, cbFontSize, Color(r: 80, g: 220, b: 100, a: alpha))
+
+  if hudLayout == hlWidescreen:
+    # ---- WIDESCREEN RIGHT-GUTTER COLUMN (top-to-bottom via a running cursor) --
+    # Top stack (dynamic): survival timer card owns the very top; boss bars flow
+    # beneath it; transient cards (wave banner / celebration / boss intro) flow
+    # beneath the boss bars but are capped into a safe band. Bottom stack (fixed):
+    # combo card then the legendary strip are bottom-anchored so the persistent
+    # cards can never collide with the dynamic top stack.
+    # Bottom stack is fixed first so the boss band knows how much room it has.
+    const legendaryReserve: int32 = 192   # legendary strip max height + margin
+    const comboCardH: int32 = 70
+    const transientBand: int32 = 150      # room reserved for the tallest transient
+    let comboCardY = vh - legendaryReserve - comboCardH - 6'i32
+    # Boss cards must all fit above this line so transients (and thus the combo
+    # card below them) can never be overlapped, even with 3 bosses.
+    let bossBandBottom = comboCardY - transientBand
+
+    var rgY: int32 = if isTimeSurvivalMode(game.mode): SurvivalHudBottomY + 6'i32 else: 10'i32
+    if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
+      # Count active bosses (<=3) so each vertical card can be sized to fit.
+      var bossCount = 0
+      for enemy in game.enemies:
+        if enemy.isBoss and enemy.entranceTimer <= 0:
+          inc bossCount
+          if bossCount >= 3: break
+      if bossCount > 0:
+        const cardGap: int32 = 6
+        let avail = max(bossCount.int32 * 74'i32, bossBandBottom - rgY)
+        let perCard = clamp((avail - (bossCount.int32 - 1) * cardGap) div bossCount.int32,
+                            72'i32, 190'i32)
+        var drawn = 0
+        for enemy in game.enemies:
+          if enemy.isBoss and enemy.entranceTimer <= 0:
+            rgY = drawBossPhaseHud(game, enemy, rgY, alignRight = true, slotH = perCard)
+            inc drawn
+            if drawn >= 3: break
+
+    # Transient cards never start below the boss band, so even the tallest of
+    # them (the multi-line wave-celebration card, ~135px) clears the combo card.
+    var tY = min(rgY, bossBandBottom)
+    if showWaveBanner:
+      tY = drawWaveStartBannerGutter(game.currentWave, waveAge,
+                                     rightGutterX, rightGutterW, tY, isBossNext)
+    tY = drawWaveCelebrationGutter(game.dopamine.waveCelebration, rightGutterX, rightGutterW, tY)
+    tY = drawBossIntroductionGutter(game.dopamine.bossIntro, rightGutterX, rightGutterW, tY)
+
+    if showHints:
+      drawComboGutterCard(game.dopamine.comboSystem, rightGutterX, rightGutterW,
+                          comboCardY, game.dopamine.currentTime)
+
+    if isTimeSurvivalMode(game.mode):
+      drawSurvivalHUD(game, vw, vh, alignRight = true)
+
+    if globalSettings != nil and globalSettings.showDebugStats:
+      drawDebugPanel(game, vw, 2, anchorLeftDefault = true)
+
+    drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = true)
+    drawComebackBonus()
+  else:
+    # ---- CLASSIC HUD (unchanged) ----
+    if showHints:
+      drawCombo(game.dopamine.comboSystem, vw, vh, game.dopamine.currentTime)
+    if showWaveBanner:
+      drawWaveStartBanner(game.currentWave, waveAge, vw, vh, isBossNext)
+    drawWaveCelebration(game.dopamine.waveCelebration, vw, vh)
+    drawBossIntroduction(game.dopamine.bossIntro, vw, vh)
+    drawComebackBonus()
+    if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
+      var nextBossBarY = if isTimeSurvivalMode(game.mode): SurvivalHudBottomY + 6'i32
+                         else: 10'i32
+      var bossBarCount = 0
+      for enemy in game.enemies:
+        if enemy.isBoss and enemy.entranceTimer <= 0:
+          nextBossBarY = drawBossPhaseHud(game, enemy, nextBossBarY, alignRight = false)
+          bossBarCount += 1
+          if bossBarCount >= 3:
+            break
+    if isTimeSurvivalMode(game.mode):
+      drawSurvivalHUD(game, vw, vh, alignRight = false)
+    if globalSettings != nil and globalSettings.showDebugStats:
+      drawDebugPanel(game, vw, 2, anchorLeftDefault = false)
+    drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = false)
 
   # Instructions only for non-legendary keys, hidden when the shop overlay is active
   if game.state != gsShop:
-    if game.wallPlacementMode and game.player.walls > 0:
-      # Placement mode: range ring + ghost wall at cursor
-      const WallPlaceRange = 250.0'f32
-      let mousePos = getVirtualMousePosition()
-      let cursorPos = newVector2f(mousePos.x, mousePos.y)
-      let inRange = distance(cursorPos, game.player.pos) <= WallPlaceRange
-      let validPos = isValidWallPlacement(cursorPos, game.player.pos, game.walls, game.enemies, 25)
-      let canPlace = inRange and validPos
-
-      # Range indicator around the player. Drawn after auras/orbs/player, so it
-      # already sits on top visually; it just has to be bold enough to read over
-      # all the glow beneath it. Pulse + glow + zone tint + rotating ticks.
-      let px = game.player.pos.x.int32
-      let py = game.player.pos.y.int32
-      let pulse = sin(game.time * 4.0) * 0.5 + 0.5         # 0..1 breathing
-      let ringR = WallPlaceRange + pulse * 4.0
-      let ringA = uint8(clamp(150.0 + pulse * 105.0, 0.0, 255.0))
-
-      # Subtle fill so the buildable zone reads as an area, not just an edge.
-      drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), WallPlaceRange,
-                 Color(r: 90, g: 130, b: 255, a: 14))
-
-      # Boundary: outer glow -> bright core -> inner highlight (3-pass, like the
-      # gravity-pull limit ring) so the edge stays crisp over busy backgrounds.
-      drawCircleLines(px, py, ringR + 5.0, Color(r: 120, g: 160, b: 255, a: uint8(ringA.int div 4)))
-      drawCircleLines(px, py, ringR + 2.5, Color(r: 150, g: 185, b: 255, a: uint8(ringA.int div 2)))
-      drawCircleLines(px, py, ringR,       Color(r: 200, g: 225, b: 255, a: ringA))
-      drawCircleLines(px, py, ringR - 2.5, Color(r: 235, g: 245, b: 255, a: uint8(ringA.int div 2)))
-
-      # Rotating tick marks on the boundary make the ring unmistakable and give
-      # it motion the eye catches even through dense aura particles.
-      for i in 0 ..< 24:
-        let a = game.time * 0.6 + i.float32 / 24.0 * PI * 2.0
-        let tx = game.player.pos.x + cos(a) * ringR
-        let ty = game.player.pos.y + sin(a) * ringR
-        drawCircle(Vector2(x: tx, y: ty), 2.2 + pulse * 1.0,
-                   Color(r: 215, g: 235, b: 255, a: ringA))
-
-      # Ghost preview at cursor: green = valid, red = blocked. Turrets place as
-      # circular emplacements, plain walls as a slab facing away from the player,
-      # so preview whichever shape (and orientation) will actually be placed.
-      let ghostFill = if canPlace: Color(r: 80, g: 200, b: 80, a: 90)
-                      else: Color(r: 200, g: 60, b: 60, a: 90)
-      let ghostEdge = if canPlace: Color(r: 80, g: 255, b: 80, a: 200)
-                      else: Color(r: 255, g: 60, b: 60, a: 200)
-      if hasPowerUp(game.player, puWallTurrets):
-        drawCircle(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostFill)
-        drawCircleLines(cursorPos.x.int32, cursorPos.y.int32, 25, ghostEdge)
-      else:
-        # Mirror drawBarricadeWall: thin along the outward normal, broad across.
-        let ga = arctan2(cursorPos.y - game.player.pos.y, cursorPos.x - game.player.pos.x)
-        let gca = cos(ga)
-        let gsa = sin(ga)
-        const gHalfLen = 25.0'f32
-        const gHalfThick = 25.0'f32 * WallSlabThicknessRatio
-        drawRectangle(Rectangle(x: cursorPos.x, y: cursorPos.y,
-                                width: gHalfThick * 2, height: gHalfLen * 2),
-                      Vector2(x: gHalfThick, y: gHalfLen), radToDeg(ga), ghostFill)
-        template gcorner(lx, ly: float32): Vector2 =
-          Vector2(x: cursorPos.x + lx * gca - ly * gsa,
-                  y: cursorPos.y + lx * gsa + ly * gca)
-        let c1 = gcorner(-gHalfThick, -gHalfLen)
-        let c2 = gcorner(gHalfThick, -gHalfLen)
-        let c3 = gcorner(gHalfThick, gHalfLen)
-        let c4 = gcorner(-gHalfThick, gHalfLen)
-        drawLine(c1, c2, 2.0'f32, ghostEdge)
-        drawLine(c2, c3, 2.0'f32, ghostEdge)
-        drawLine(c3, c4, 2.0'f32, ghostEdge)
-        drawLine(c4, c1, 2.0'f32, ghostEdge)
-
-      # Status text at bottom
-      let hintText = t(tkGameWallPlace) & "  (" & $game.player.walls & " " & t(tkGameWallPlaceRemaining) & ")"
-      let hintW = measureText(hintText, 16)
-      drawText(hintText, game.screenWidth div 2 - hintW div 2,
-               game.screenHeight - 25, 16, Color(r: 180, g: 230, b: 180, a: 255))
+    let instrText = if game.wallPlacementMode and game.player.walls > 0:
+      t(tkGameWallPlace) & "  (" & $game.player.walls & " " & t(tkGameWallPlaceRemaining) & ")"
     else:
-      drawText(t(tkGameInstructionsWall),
-               game.screenWidth div 2 - 100, game.screenHeight - 25, 16, LightGray)
-
-  # End 2D camera mode if screen shake was applied
-  if shakeOffsetX != 0 or shakeOffsetY != 0:
-    popMatrix()
+      t(tkGameInstructionsWall)
+    let instrColor = if game.wallPlacementMode and game.player.walls > 0:
+      Color(r: 180, g: 230, b: 180, a: 255)
+    else:
+      LightGray
+    if hudLayout == hlWidescreen:
+      # A small left-gutter card (subtle bg + accent edge, wrapped text) instead
+      # of bare centered text, consistent with the integrated left column.
+      let cardW: int32 = min(leftGutterW - 8, 163'i32)
+      let textW: int32 = cardW - 12
+      var iwords = instrText.split(' ')
+      var iLines: seq[string] = @[]
+      var icur = ""
+      for w in iwords:
+        if w.len == 0: continue
+        let cand = if icur.len == 0: w else: icur & " " & w
+        if measureText(cand, 14) <= textW or icur.len == 0:
+          icur = cand
+        else:
+          iLines.add(icur); icur = w
+      if icur.len > 0: iLines.add(icur)
+      let lineH: int32 = 16
+      let cardH: int32 = 8 + iLines.len.int32 * lineH
+      let cardX: int32 = 4
+      let cardY: int32 = vh - 6 - cardH
+      let accent = if game.wallPlacementMode and game.player.walls > 0:
+        Color(r: 120, g: 220, b: 140, a: 200)
+      else:
+        Color(r: 0, g: 220, b: 255, a: 200)
+      drawRectangle(cardX, cardY, cardW, cardH, Color(r: 8, g: 15, b: 25, a: 170))
+      drawRectangle(cardX, cardY, 2, cardH, accent)
+      drawRectangleLines(Rectangle(x: cardX.float32, y: cardY.float32,
+                                   width: cardW.float32, height: cardH.float32),
+                         1, Color(r: accent.r, g: accent.g, b: accent.b, a: 70))
+      var iy = cardY + 5
+      for ln in iLines:
+        drawText(ln, cardX + 8, iy, 14, instrColor)
+        iy += lineH
+    else:
+      if game.wallPlacementMode and game.player.walls > 0:
+        let hintW = measureText(instrText, 16)
+        drawText(instrText, vw div 2 - hintW div 2, vh - 25, 16, instrColor)
+      else:
+        drawText(instrText, vw div 2 - 100, vh - 25, 16, instrColor)
 
 proc drawDeathSequenceOverlay*(game: Game) =
   let timer = game.deathSequenceTimer

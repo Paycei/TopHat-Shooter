@@ -76,6 +76,10 @@ type
     tkSettingsLowHealthVignetteDesc = "settings_low_health_vignette_desc"
     tkSettingsShowHints = "settings_show_hints"
     tkSettingsShowHintsDesc = "settings_show_hints_desc"
+    tkSettingsHudLayout = "settings_hud_layout"
+    tkSettingsHudLayoutDesc = "settings_hud_layout_desc"
+    tkSettingsHudLayoutClassic = "settings_hud_layout_classic"
+    tkSettingsHudLayoutWidescreen = "settings_hud_layout_widescreen"
     tkSettingsShowEnemyLabels = "settings_show_enemy_labels"
     tkSettingsShowEnemyLabelsDesc = "settings_show_enemy_labels_desc"
     tkSettingsExitConfirm = "settings_exit_confirm"
@@ -1702,6 +1706,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_low_health_vignette_desc": "(red warning when HP is low)",
     "settings_show_hints": "Show Hints:",
     "settings_show_hints_desc": "(E: Wall, ESC: Pause)",
+    "settings_hud_layout": "HUD Layout:",
+    "settings_hud_layout_desc": "(Widescreen adds side UI bands)",
+    "settings_hud_layout_classic": "Classic (4:3)",
+    "settings_hud_layout_widescreen": "Widescreen (16:9)",
     "settings_show_enemy_labels": "Show Enemy Labels:",
     "settings_show_enemy_labels_desc": "(name tags above enemies)",
     "settings_exit_confirm": "Exit Confirm:",
@@ -3558,6 +3566,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_low_health_vignette_desc": "(aviso rojo con poca vida)",
     "settings_show_hints": "Consejos:",
     "settings_show_hints_desc": "(E: Muro, ESC: Pausa)",
+    "settings_hud_layout": "Diseño del HUD:",
+    "settings_hud_layout_desc": "(Panorámico añade paneles laterales)",
+    "settings_hud_layout_classic": "Clásico (4:3)",
+    "settings_hud_layout_widescreen": "Panorámico (16:9)",
     "settings_show_enemy_labels": "Etiquetas:",
     "settings_show_enemy_labels_desc": "(nombres sobre enemigos)",
     "settings_exit_confirm": "Confirmar Salida:",

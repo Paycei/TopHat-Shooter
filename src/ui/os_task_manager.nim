@@ -129,8 +129,8 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   result.confirmed = false
   result.cancelled  = false
 
-  let sw = game.screenWidth
-  let sh = game.screenHeight
+  let sw = getVirtualScreenWidth()
+  let sh = getVirtualScreenHeight()
   let mousePos = getVirtualMousePosition()
 
   const
@@ -236,8 +236,8 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   result.exitClicked = false
   result.newTab = selectedTab
 
-  let screenWidth = game.screenWidth
-  let screenHeight = game.screenHeight
+  let screenWidth = getVirtualScreenWidth()
+  let screenHeight = getVirtualScreenHeight()
   let mousePos = getVirtualMousePosition()
   let mouseSupported = game.mouseMovedRecently
 

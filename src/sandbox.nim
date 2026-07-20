@@ -348,16 +348,21 @@ proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int
              Color(r: 200, g: 220, b: 255, a: 100))
 
 proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
+  # The sidebar is a screen-edge UI panel: anchor it to the VIRTUAL screen edge
+  # (in widescreen the world is narrower than the virtual screen, so the world
+  # width would put it in the wrong place). The passed screenWidth is kept for
+  # world spawn bounds only.
+  let viewW = getVirtualScreenWidth()
   if not game.sandboxSidebarOpen:
     # Draw toggle button when closed
-    let toggleX = screenWidth - 50
+    let toggleX = viewW - 50
     let toggleY = screenHeight div 2 - 30
     drawRectangle(toggleX, toggleY, 40, 60, Color(r: 50, g: 50, b: 50, a: 200))
     drawText(t(tkSandboxToggle), toggleX + 8, toggleY + 18, 24, White)
     return
 
   # Draw sidebar background
-  let sidebarX = screenWidth - SIDEBAR_WIDTH
+  let sidebarX = viewW - SIDEBAR_WIDTH
   drawRectangle(sidebarX, 0, SIDEBAR_WIDTH, screenHeight, Color(r: 40, g: 40, b: 40, a: 230))
 
   # Draw close button
@@ -567,7 +572,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
     # Check toggle button click
     if isPointerPressed():
       let mousePos = getVirtualMousePosition()
-      let toggleX = screenWidth - 50
+      let toggleX = getVirtualScreenWidth() - 50
       let toggleY = screenHeight div 2 - 30
       if mousePos.x >= toggleX.float32 and mousePos.x <= (toggleX + 40).float32 and
          mousePos.y >= toggleY.float32 and mousePos.y <= (toggleY + 60).float32:
@@ -582,8 +587,8 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
     game.sandboxScrollOffset -= (mouseWheel * SCROLL_SPEED).int32
     clampSandboxScroll(game, screenHeight)
 
-  # Scrollbar drag
-  let sidebarXSb = screenWidth - SIDEBAR_WIDTH
+  # Scrollbar drag (screen-edge UI: anchor to the virtual screen edge)
+  let sidebarXSb = getVirtualScreenWidth() - SIDEBAR_WIDTH
   let contentStartYSb: int32 = 45 + TAB_HEIGHT + 5
   let maxScrollSb = maxSandboxScrollOffset(game.sandboxSelectedTab, screenHeight)
   let contentHSb = sandboxContentHeight(game.sandboxSelectedTab)
@@ -617,7 +622,9 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
 
   if isPointerPressed():
     let mousePos = getVirtualMousePosition()
-    let sidebarX = screenWidth - SIDEBAR_WIDTH
+    # Screen-edge UI: anchor to the virtual screen edge. The screenWidth param is
+    # forwarded to the tab click handlers below purely for world spawn bounds.
+    let sidebarX = getVirtualScreenWidth() - SIDEBAR_WIDTH
 
     # Only process clicks within the sidebar area
     if mousePos.x < sidebarX.float32:

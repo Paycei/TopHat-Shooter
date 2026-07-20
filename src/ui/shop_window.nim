@@ -918,7 +918,7 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWindow]): bool =
+proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
   ## Update shop window. Returns true if window should close
   if shop.isNil or shop.window.isNil:
     return true
@@ -937,7 +937,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
 
   updateOSWindow(shop.window, dt)
 
-  let shouldClose = handleOSWindowInput(shop.window, 1024, 768, allWindows)
+  let shouldClose = handleOSWindowInput(shop.window, screenWidth, screenHeight, allWindows)
   if shouldClose:
     shop.window.visible = false
     return true

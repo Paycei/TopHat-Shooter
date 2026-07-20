@@ -1,7 +1,7 @@
 ## Settings Backend Module
 ## Handles settings initialization, state management, and application
 
-from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, saveSettings, loadSettings
+from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, saveSettings, loadSettings
 from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds
 import raylib, strutils
 import sound, localization
@@ -36,6 +36,7 @@ proc newDefaultSettings*(): Settings =
     showArenaVignette: true,
     showLowHealthVignette: true,
     showHints: true,
+    hudLayout: hlClassic,
     showEnemyLabels: true,
     language: "english",  # Default language is English
     playerSkin: 0,  # Default to first skin (skDefault)

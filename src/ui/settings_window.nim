@@ -481,6 +481,16 @@ proc nextRenderResolutionMode(mode: RenderResolutionMode): RenderResolutionMode 
   of rrmEnabled: rrmFullscreenOnly
   of rrmFullscreenOnly: rrmDisabled
 
+proc getHudLayoutLabel(mode: HudLayout): string =
+  case mode
+  of hlClassic: t(tkSettingsHudLayoutClassic)
+  of hlWidescreen: t(tkSettingsHudLayoutWidescreen)
+
+proc nextHudLayout(mode: HudLayout): HudLayout =
+  case mode
+  of hlClassic: hlWidescreen
+  of hlWidescreen: hlClassic
+
 proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
 
@@ -609,6 +619,39 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                              mousePos.y <= (yPos + 25).float32
   drawCheckbox(lowHpVignetteCheckX, yPos, 25, settingsWin.settings.showLowHealthVignette, lowHpVignetteHovered)
   drawText(t(tkSettingsLowHealthVignetteDesc), (lowHpVignetteCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 35
+
+  # HUD layout cycle button
+  drawText(t(tkSettingsHudLayout), (contentX + 40).int32, yPos.int32, 18, White)
+  let hudLayoutButtonX = contentX + 320
+  let hudLayoutButtonY = yPos - 5
+  let hudLayoutButtonWidth = 220
+  let hudLayoutButtonHeight = 35
+  let hudLayoutHovered = mousePos.x >= hudLayoutButtonX.float32 and
+                         mousePos.x <= (hudLayoutButtonX + hudLayoutButtonWidth).float32 and
+                         mousePos.y >= hudLayoutButtonY.float32 and
+                         mousePos.y <= (hudLayoutButtonY + hudLayoutButtonHeight).float32
+
+  let hudLayoutBgColor = if hudLayoutHovered:
+    Color(r: 80, g: 80, b: 100, a: 255)
+  else:
+    Color(r: 60, g: 60, b: 80, a: 255)
+
+  drawRectangle(hudLayoutButtonX.int32, hudLayoutButtonY.int32,
+                hudLayoutButtonWidth.int32, hudLayoutButtonHeight.int32, hudLayoutBgColor)
+  drawRectangleLines(Rectangle(x: hudLayoutButtonX.float32, y: hudLayoutButtonY.float32,
+                                width: hudLayoutButtonWidth.float32, height: hudLayoutButtonHeight.float32),
+                    1, if hudLayoutHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+
+  let hudLayoutText = getHudLayoutLabel(settingsWin.settings.hudLayout)
+  let hudLayoutTextWidth = measureText(hudLayoutText, 16)
+  drawText("<", hudLayoutButtonX.int32 + 10, yPos.int32, 18, LightGray)
+  drawText(hudLayoutText,
+          (hudLayoutButtonX + (hudLayoutButtonWidth - hudLayoutTextWidth) div 2).int32,
+          yPos.int32, 16, White)
+  drawText(">", (hudLayoutButtonX + hudLayoutButtonWidth - 25).int32, yPos.int32, 18, LightGray)
+
+  drawText(t(tkSettingsHudLayoutDesc), (contentX + 40).int32, (yPos + 21).int32, 14, LightGray)
 
 proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
@@ -1136,6 +1179,16 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       if mousePos.x >= lowHpVignetteCheckX.float32 and mousePos.x <= (lowHpVignetteCheckX + 25).float32 and
          mousePos.y >= lowHpVignetteCheckY.float32 and mousePos.y <= (lowHpVignetteCheckY + 25).float32:
         settingsWin.settings.showLowHealthVignette = not settingsWin.settings.showLowHealthVignette
+        settingsChanged = true
+
+      let hudLayoutButtonX = contentX + 320
+      let hudLayoutButtonY = contentY + 360
+      let hudLayoutButtonWidth = 220
+      let hudLayoutButtonHeight = 35
+      if mousePos.x >= hudLayoutButtonX.float32 and mousePos.x <= (hudLayoutButtonX + hudLayoutButtonWidth).float32 and
+         mousePos.y >= hudLayoutButtonY.float32 and mousePos.y <= (hudLayoutButtonY + hudLayoutButtonHeight).float32:
+        settingsWin.settings.hudLayout = nextHudLayout(settingsWin.settings.hudLayout)
+        playSound(stMenuSelect)
         settingsChanged = true
 
     # Keyboard input for FPS text box

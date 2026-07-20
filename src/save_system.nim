@@ -14,6 +14,10 @@ type
     rrmEnabled = "enabled"
     rrmFullscreenOnly = "fullscreen_only"
 
+  HudLayout* = enum
+    hlClassic = "classic"
+    hlWidescreen = "widescreen"
+
   Settings* = ref object
     fpsLimit*: int32
     volume*: float32
@@ -30,6 +34,7 @@ type
     showArenaVignette*: bool
     showLowHealthVignette*: bool
     showHints*: bool
+    hudLayout*: HudLayout
     showEnemyLabels*: bool
     language*: string
     playerSkin*: int  # Current player skin (stored as int)
@@ -252,6 +257,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "showArenaVignette": settings.showArenaVignette,
     "showLowHealthVignette": settings.showLowHealthVignette,
     "showHints": settings.showHints,
+    "hudLayout": $settings.hudLayout,
     "showEnemyLabels": settings.showEnemyLabels,
     "language": settings.language,
     "playerSkin": settings.playerSkin,
@@ -338,6 +344,12 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("showHints"):
     settings.showHints = jsonNode["showHints"].getBool()
+
+  if jsonNode.hasKey("hudLayout"):
+    try:
+      settings.hudLayout = parseEnum[HudLayout](jsonNode["hudLayout"].getStr())
+    except ValueError:
+      settings.hudLayout = hlClassic
 
   if jsonNode.hasKey("showEnemyLabels"):
     settings.showEnemyLabels = jsonNode["showEnemyLabels"].getBool()

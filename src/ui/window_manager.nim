@@ -146,6 +146,20 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.roguelite.window.visible = false
   wm.changelog.window.visible = false
 
+proc relayoutWindows*(wm: WindowManager, screenWidth, screenHeight: int) =
+  ## React to a virtual-resolution change (classic <-> widescreen). Only the
+  ## X axis / width changes across the toggle (height stays 768), so closed
+  ## windows are re-centered horizontally (preserving each window's intended
+  ## vertical position) and open windows are only re-clamped -- mirroring the
+  ## drag clamp in handleOSWindowInput -- so a dragged window is never yanked
+  ## yet also never stranded off-screen.
+  for window in wm.getAllWindows():
+    if window.visible:
+      window.x = max(0, min(window.x, screenWidth - window.width))
+      window.y = max(0, min(window.y, screenHeight - 100))
+    else:
+      window.x = (screenWidth - window.width) div 2
+
 proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
   if not isPointerPressed():
@@ -290,7 +304,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       discard updateStatsWindow(wm.stats, dt, screenWidth, screenHeight, visibleWindows)
 
     elif window == wm.shop.window:
-      result.shopClosed = updateShopWindow(wm.shop, dt, visibleWindows)
+      result.shopClosed = updateShopWindow(wm.shop, dt, screenWidth, screenHeight, visibleWindows)
       if result.shopClosed:
         wm.shop.window.visible = false
 
