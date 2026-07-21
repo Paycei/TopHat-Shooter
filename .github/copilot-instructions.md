@@ -68,5 +68,3 @@ Notes:
 - The repository's automated commit trailer is expected for machine-made commits; check project CONTRIBUTING/AGENTS docs for policies.
 
 ---
-
-Summary: created .github/copilot-instructions.md with build commands, architecture notes, and repository-specific conventions derived from README.md, AGENTS.md, and CLAUDE.md. Want adjustments or additional coverage (e.g., deeper guidance for power-up additions or network code)?

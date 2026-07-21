@@ -5559,7 +5559,15 @@ proc drawGame*(game: Game) =
     if showWaveBanner:
       tY = drawWaveStartBannerGutter(game.currentWave, waveAge,
                                      rightGutterX, rightGutterW, tY, isBossNext)
-    tY = drawWaveCelebrationGutter(game.dopamine.waveCelebration, rightGutterX, rightGutterW, tY)
+    # Boss kills keep the classic fullscreen celebration even in widescreen (drawn
+    # over the 1024-wide world column, so it reads exactly like 4:3); only ordinary
+    # wave clears are demoted to the compact gutter card.
+    if game.dopamine.waveCelebration.active and
+       isBossWave(game.dopamine.waveCelebration.waveNumber):
+      drawWaveCelebration(game.dopamine.waveCelebration, 1024'i32, vh,
+                          getWorldViewOffsetX().int32)
+    else:
+      tY = drawWaveCelebrationGutter(game.dopamine.waveCelebration, rightGutterX, rightGutterW, tY)
     tY = drawBossIntroductionGutter(game.dopamine.bossIntro, rightGutterX, rightGutterW, tY)
 
     if showHints:

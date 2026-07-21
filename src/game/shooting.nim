@@ -64,7 +64,7 @@ proc baseBulletSpeed(player: Player): float32 =
 const
   TracerMaxRange   = 1400.0'f32  # px; long enough to cross the whole arena
   TracerHalfWidth  = 14.0'f32    # px; aim-assist forgiveness either side of the line
-  TracerDamageMult = 0.75'f32    # fraction of the shot's damage delivered instantly
+  TracerDamageMult = 0.50'f32    # fraction of the shot's damage delivered instantly
 
 proc fireLightspeedTracer(game: Game, origin, dir: Vector2f, stats: combat.CombatStats) =
   ## Bullet Speed (Legendary) "Lightspeed Tracer": casts an instant hitscan beam

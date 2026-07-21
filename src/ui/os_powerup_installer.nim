@@ -6,13 +6,91 @@ import raylib, math
 import ../types, icon_drawing, ../localization, ../powerup_data, ../render_context, ../settings, ui_helpers, ../utils
 
 const
-  INSTALLER_WIDTH = 1000
-  INSTALLER_HEIGHT = 650
-  TITLE_BAR_HEIGHT = 45
-  CARD_WIDTH = 280
-  CARD_HEIGHT = 380
-  CARD_SPACING = 35
-  PROGRESS_BAR_HEIGHT = 22
+  INSTALLER_BASE_WIDTH: int32 = 1000   # classic (4:3) width -- do not change
+  INSTALLER_MAX_GROWTH: int32 = 260    # widescreen cap -> 1260 wide, ~53px gutters
+  INSTALLER_HEIGHT: int32 = 650
+  TITLE_BAR_HEIGHT: int32 = 45
+  CARD_BASE_WIDTH: int32 = 280
+  CARD_HEIGHT: int32 = 380             # fixed: powerup.nim's roll math scrolls by this
+  CARD_BASE_SPACING: int32 = 35
+  CARD_MAX_SPACING_GROWTH: int32 = 20
+  PROGRESS_BAR_HEIGHT: int32 = 22
+  CONTINUE_BTN_W: int32 = 300
+  CONTINUE_BTN_H: int32 = 50
+  REROLL_BTN_W: int32 = 220
+  REROLL_BTN_H: int32 = 42
+  CLOSE_BTN_SIZE: int32 = 28
+
+type
+  InstallerLayout* = object
+    ## Resolved geometry of the power-up installer for the current virtual
+    ## resolution. `installerLayout()` is the single source of truth: the draw
+    ## pass here and the click hit-testing in main.nim both read it, so the two
+    ## can never disagree the way the old duplicated const blocks could.
+    winX*, winY*, winW*, winH*: int32
+    closeX*, closeY*, closeSize*: int32
+    cardsX*, cardsY*: int32              # top-left of the first card
+    cardW*, cardH*, cardSpacing*: int32
+    bottomY*: int32                      # top of the bottom control panel
+    rerollX*, rerollY*, rerollW*, rerollH*: int32
+    continueX*, continueY*, continueW*, continueH*: int32
+
+proc installerLayout*(): InstallerLayout =
+  ## Widescreen (16:9) hands the panel ~260 extra pixels. Rather than banking it
+  ## as margin, it is split between the three cards (~73px each) and the gaps
+  ## between them (+20px), so descriptions wrap into fewer lines and the icon /
+  ## badge row breathes. In classic the growth term is 0 and every number below
+  ## collapses to the original hand-tuned layout.
+  let grow = min(getExtraVirtualWidth(), INSTALLER_MAX_GROWTH)
+  let spacingGrow = min(grow div 10, CARD_MAX_SPACING_GROWTH)
+
+  result.winW = INSTALLER_BASE_WIDTH + grow
+  result.winH = INSTALLER_HEIGHT
+  result.winX = (getVirtualScreenWidth() - result.winW) div 2
+  result.winY = (getVirtualScreenHeight() - result.winH) div 2
+
+  result.closeSize = CLOSE_BTN_SIZE
+  result.closeX = result.winX + result.winW - result.closeSize - 10
+  result.closeY = result.winY + (TITLE_BAR_HEIGHT - result.closeSize) div 2
+
+  result.cardSpacing = CARD_BASE_SPACING + spacingGrow
+  result.cardW = CARD_BASE_WIDTH + (grow - spacingGrow * 2) div 3
+  result.cardH = CARD_HEIGHT
+  let totalCardW = result.cardW * 3 + result.cardSpacing * 2
+  result.cardsX = result.winX + (result.winW - totalCardW) div 2
+  # Title bar, then a 20px gap + 40px instruction header above the card row.
+  result.cardsY = result.winY + TITLE_BAR_HEIGHT + 60
+
+  result.bottomY = result.winY + result.winH - 120
+  result.rerollW = REROLL_BTN_W
+  result.rerollH = REROLL_BTN_H
+  result.rerollX = result.winX + (result.winW - result.rerollW) div 2
+  result.rerollY = result.bottomY + 15
+
+  result.continueW = CONTINUE_BTN_W
+  result.continueH = CONTINUE_BTN_H
+  result.continueX = result.winX + (result.winW - result.continueW) div 2
+  result.continueY = result.winY + result.winH - 100
+
+proc cardX*(l: InstallerLayout, i: int): int32 =
+  ## Left edge of card `i` (0..2).
+  l.cardsX + int32(i) * (l.cardW + l.cardSpacing)
+
+proc cardRect*(l: InstallerLayout, i: int): Rectangle =
+  Rectangle(x: l.cardX(i).float32, y: l.cardsY.float32,
+            width: l.cardW.float32, height: l.cardH.float32)
+
+proc closeRect*(l: InstallerLayout): Rectangle =
+  Rectangle(x: l.closeX.float32, y: l.closeY.float32,
+            width: l.closeSize.float32, height: l.closeSize.float32)
+
+proc rerollRect*(l: InstallerLayout): Rectangle =
+  Rectangle(x: l.rerollX.float32, y: l.rerollY.float32,
+            width: l.rerollW.float32, height: l.rerollH.float32)
+
+proc continueRect*(l: InstallerLayout): Rectangle =
+  Rectangle(x: l.continueX.float32, y: l.continueY.float32,
+            width: l.continueW.float32, height: l.continueH.float32)
 
 proc drawModernButton(x, y, width, height: int32, text: string,
                      enabled: bool = true, highlight: bool = false,
@@ -290,9 +368,13 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
       break
   let lineH = descFont + 6
   let maxLines = max(1'i32, availTextHeight div lineH)
+  # Center the block vertically: a wide (16:9) card wraps the same text into
+  # fewer lines, and top-aligning them would leave a growing void underneath.
+  let shownLines = min(int32(descLines.len), maxLines)
+  let textTop = max(yOff + 10, yOff + (descBoxHeight - shownLines * lineH) div 2)
   for i, line in descLines:
     if int32(i) >= maxLines: break
-    drawText(line, x + 22, yOff + 12 + int32(i) * lineH, descFont,
+    drawText(line, x + 22, textTop + int32(i) * lineH, descFont,
              Color(r: 220, g: 230, b: 240, a: 255))
   yOff += descBoxHeight + 8
 
@@ -305,7 +387,8 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
 
 # Rolling effects
 
-proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: bool,
+proc drawSlotLockEffect(cardX, cardY, cardW, cardH: int32,
+                        tSinceLock: float32, isLegendary: bool,
                         powerUpName: string) =
   ## Called once per slot, outside scissor mode, to draw the lock-in burst.
   ## tSinceLock: seconds since this slot stopped (must be >= 0 and < ~1.2 to be visible)
@@ -324,16 +407,16 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
     drawRectangleLines(
       Rectangle(x: float32(cardX) - expansion,
                 y: float32(cardY) - expansion,
-                width: float32(CARD_WIDTH) + expansion * 2.0,
-                height: float32(CARD_HEIGHT) + expansion * 2.0),
+                width: float32(cardW) + expansion * 2.0,
+                height: float32(cardH) + expansion * 2.0),
       max(1.0, 4.0 * (1.0 - ringProgress)),
       withAlpha(ac, ringA))
 
   # 3. Particle burst (16 particles radiating outward)
   let pFade = 1.0'f32 - clamp(tSinceLock * 1.8'f32, 0.0'f32, 1.0'f32)
   if pFade > 0.0:
-    let cx = cardX.float32 + CARD_WIDTH.float32 * 0.5
-    let cy = cardY.float32 + CARD_HEIGHT.float32 * 0.5
+    let cx = cardX.float32 + cardW.float32 * 0.5
+    let cy = cardY.float32 + cardH.float32 * 0.5
     let dist = tSinceLock * 180.0
     for i in 0..<16:
       let angle = float32(i) / 16.0 * PI * 2.0
@@ -349,8 +432,8 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
     let rise = tSinceLock * 60.0
     let tA = uint8(255.0 * textFade * textFade)
     let nameW = measureText(powerUpName, 18)
-    let nx = cardX + (CARD_WIDTH - nameW) div 2
-    let ny = int32(float32(cardY) + CARD_HEIGHT.float32 * 0.42 - rise)
+    let nx = cardX + (cardW - nameW) div 2
+    let ny = int32(float32(cardY) + cardH.float32 * 0.42 - rise)
     drawText(powerUpName, nx + 2, ny + 2, 18, Color(r: 0, g: 0, b: 0, a: tA))
     drawText(powerUpName, nx, ny, 18, withAlpha(ac, tA))
 
@@ -384,22 +467,25 @@ proc drawOSPowerUpInstaller*(game: Game) =
   # Background overlay
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 180))
 
-  # Window
-  let winX = (screenWidth  - INSTALLER_WIDTH)  div 2
-  let winY = (screenHeight - INSTALLER_HEIGHT) div 2
+  # Window (widens in 16:9 -- see installerLayout)
+  let L = installerLayout()
+  let winX = L.winX
+  let winY = L.winY
+  let winW = L.winW
+  let winH = L.winH
 
   # Shadow
   for i in 1..4:
     let off = int32(i * 2)
-    drawRectangle(int32(winX) + off, int32(winY) + off, int32(INSTALLER_WIDTH), int32(INSTALLER_HEIGHT),
+    drawRectangle(winX + off, winY + off, winW, winH,
                  Color(r: 0, g: 0, b: 0, a: uint8(50 - i * 8)))
 
   # Body
-  drawRectangle(winX, winY, INSTALLER_WIDTH, INSTALLER_HEIGHT, Color(r: 26, g: 32, b: 44, a: 255))
+  drawRectangle(winX, winY, winW, winH, Color(r: 26, g: 32, b: 44, a: 255))
 
   # Subtle grid lines
-  for i in 0..<(INSTALLER_HEIGHT div 40):
-    drawRectangle(winX, winY + int32(i * 40), INSTALLER_WIDTH, 1, Color(r: 30, g: 36, b: 48, a: 255))
+  for i in 0..<(winH div 40):
+    drawRectangle(winX, winY + int32(i * 40), winW, 1, Color(r: 30, g: 36, b: 48, a: 255))
 
   # Border: pulses chromatically while rolling
   if speedFrac > 0.02:
@@ -411,32 +497,32 @@ proc drawOSPowerUpInstaller*(game: Game) =
       let go = gi.int32
       drawRectangleLines(
         Rectangle(x: float32(winX - go), y: float32(winY - go),
-                  width: float32(INSTALLER_WIDTH + go * 2), height: float32(INSTALLER_HEIGHT + go * 2)),
+                  width: float32(winW + go * 2), height: float32(winH + go * 2)),
         1.0, Color(r: r8, g: g8, b: b8, a: uint8(int(50 * speedFrac) div gi)))
     drawRectangleLines(Rectangle(x: winX.float32, y: winY.float32,
-                                  width: INSTALLER_WIDTH.float32, height: INSTALLER_HEIGHT.float32),
+                                  width: winW.float32, height: winH.float32),
                       4.0, Color(r: r8, g: g8, b: b8, a: 255))
   else:
     drawRectangleLines(Rectangle(x: winX.float32, y: winY.float32,
-                                  width: INSTALLER_WIDTH.float32, height: INSTALLER_HEIGHT.float32),
+                                  width: winW.float32, height: winH.float32),
                       4.0, Color(r: 0, g: 180, b: 255, a: 255))
   drawRectangleLines(Rectangle(x: float32(winX + 2), y: float32(winY + 2),
-                                width: float32(INSTALLER_WIDTH - 4), height: float32(INSTALLER_HEIGHT - 4)),
+                                width: float32(winW - 4), height: float32(winH - 4)),
                     1.0, Color(r: 60, g: 75, b: 95, a: 255))
 
   # Title bar
-  drawRectangle(winX, winY, INSTALLER_WIDTH, TITLE_BAR_HEIGHT, Color(r: 40, g: 52, b: 70, a: 255))
-  drawRectangle(winX, winY, INSTALLER_WIDTH, 2, Color(r: 80, g: 100, b: 130, a: 255))
-  drawRectangle(winX, winY + TITLE_BAR_HEIGHT - 1, INSTALLER_WIDTH, 1, Color(r: 0, g: 140, b: 200, a: 255))
+  drawRectangle(winX, winY, winW, TITLE_BAR_HEIGHT, Color(r: 40, g: 52, b: 70, a: 255))
+  drawRectangle(winX, winY, winW, 2, Color(r: 80, g: 100, b: 130, a: 255))
+  drawRectangle(winX, winY + TITLE_BAR_HEIGHT - 1, winW, 1, Color(r: 0, g: 140, b: 200, a: 255))
 
   let titleText = "[*] " & (if isLegendary: t(tkPowerUpInstallerTitle) else: t(tkPowerUpInstallerTitleGeneric))
   let titleColor = if isLegendary: Gold else: Color(r: 100, g: 200, b: 255, a: 255)
   drawText(titleText, winX + 17, winY + 13, 22, Color(r: 0, g: 0, b: 0, a: 120))
   drawText(titleText, winX + 15, winY + 11, 22, titleColor)
 
-  let btnSz: int32 = 28
-  let closeY = winY + (TITLE_BAR_HEIGHT - btnSz) div 2
-  let closeX = winX + INSTALLER_WIDTH - btnSz - 10
+  let btnSz = L.closeSize
+  let closeY = L.closeY
+  let closeX = L.closeX
   drawRectangle(closeX, closeY, btnSz, btnSz, Color(r: 220, g: 50, b: 50, a: 255))
   drawRectangleLines(Rectangle(x: closeX.float32, y: closeY.float32,
                                 width: btnSz.float32, height: btnSz.float32),
@@ -458,21 +544,21 @@ proc drawOSPowerUpInstaller*(game: Game) =
     else:
       Color(r: 200, g: 220, b: 240, a: 255)
   let headerW = measureText(headerText, 20)
-  drawText(headerText, winX + (INSTALLER_WIDTH - headerW) div 2, yPos, 20, hColor)
-  yPos += 40
+  drawText(headerText, winX + (winW - headerW) div 2, yPos, 20, hColor)
 
   # Card area
-  let totalCardW = CARD_WIDTH * 3 + CARD_SPACING * 2
-  let startX = winX + (INSTALLER_WIDTH - totalCardW) div 2
+  yPos = L.cardsY
+  let cardW = L.cardW
+  let cardHi = L.cardH
 
   # ROLLING MODE
   if game.rollAnimationActive:
     for i in 0..2:
-      let cardX = int32(startX + i * (CARD_WIDTH + CARD_SPACING))
+      let cardX = L.cardX(i)
       let cardY = yPos
 
       let position = game.rollPosition[i]
-      let cardH    = CARD_HEIGHT.float32
+      let cardH    = cardHi.float32
 
       # Index of the card whose top edge is at or just above the viewport top
       let firstIdx = int(position / cardH)
@@ -483,7 +569,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
       let cardAlpha = clamp(1.0'f32 - speedFrac * 0.75'f32, 0.25'f32, 1.0'f32)
 
       # Draw cards through the slot viewport
-      beginVirtualScissorMode(cardX, cardY, CARD_WIDTH, CARD_HEIGHT)
+      beginVirtualScissorMode(cardX, cardY, cardW, cardHi)
 
       # j=0: card above viewport (needed when offsetY is non-zero)
       # j=1: primary card in viewport
@@ -492,7 +578,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
         let idx = firstIdx + j - 1
         if idx >= 0 and idx < game.rollPowerUpList[i].len:
           let drawY = int32(float32(cardY) + offsetY + float32(j - 1) * cardH)
-          drawProcessCard(cardX, drawY, CARD_WIDTH, CARD_HEIGHT,
+          drawProcessCard(cardX, drawY, cardW, cardHi,
                          game.rollPowerUpList[i][idx],
                          false, game.time, game.player.damage, cardAlpha)
 
@@ -501,19 +587,19 @@ proc drawOSPowerUpInstaller*(game: Game) =
       # Speed streak lines along left edge of each slot when fast
       if speedFrac > 0.3:
         for s in 0..4:
-          let streakOffset = int32(s * (CARD_HEIGHT div 5))
+          let streakOffset = int32(s) * (cardHi div 5)
           let streakA = uint8(70.0 * speedFrac * (1.0 - float32(s) / 5.0))
           let sc = if isLegendary: Color(r: 255, g: 215, b: 0, a: streakA)
                    else:           Color(r: 0, g: 180, b: 255, a: streakA)
-          drawRectangle(cardX, cardY + streakOffset, 3, CARD_HEIGHT div 5, sc)
-          drawRectangle(cardX + CARD_WIDTH - 3, cardY + streakOffset, 3, CARD_HEIGHT div 5, sc)
+          drawRectangle(cardX, cardY + streakOffset, 3, cardHi div 5, sc)
+          drawRectangle(cardX + cardW - 3, cardY + streakOffset, 3, cardHi div 5, sc)
 
   # SETTLED MODE
   else:
     # Spotlight glow behind selected card
-    let selX = startX + game.selectedPowerUp * (CARD_WIDTH + CARD_SPACING)
-    let glowCX = selX.float32 + CARD_WIDTH.float32 * 0.5
-    let glowCY = yPos.float32 + CARD_HEIGHT.float32 * 0.5
+    let selX = L.cardX(game.selectedPowerUp)
+    let glowCX = selX.float32 + cardW.float32 * 0.5
+    let glowCY = yPos.float32 + cardHi.float32 * 0.5
     let gp = 0.55'f32 + 0.45'f32 * sin(game.time * 4.5)
     for gl in 1..6:
       let gR = 50.0'f32 + gl.float32 * 30.0'f32
@@ -523,22 +609,20 @@ proc drawOSPowerUpInstaller*(game: Game) =
       drawCircle(Vector2(x: glowCX, y: glowCY), gR, gc)
 
     for i in 0..2:
-      let cardX = int32(startX + i * (CARD_WIDTH + CARD_SPACING))
-      drawProcessCard(cardX, yPos, CARD_WIDTH, CARD_HEIGHT,
+      drawProcessCard(L.cardX(i), yPos, cardW, cardHi,
                      game.powerUpChoices[i],
                      i == game.selectedPowerUp,
                      game.time, game.player.damage, 1.0)
 
   # Lock-in burst effects (drawn outside any scissor mode)
   for i in 0..2:
-    let cardX = int32(startX + i * (CARD_WIDTH + CARD_SPACING))
-    let name  = getPowerUpName(game.powerUpChoices[i].powerType)
-    drawSlotLockEffect(cardX, yPos.int32, tSinceLock[i], isLegendary, name)
+    let name = getPowerUpName(game.powerUpChoices[i].powerType)
+    drawSlotLockEffect(L.cardX(i), yPos, cardW, cardHi, tSinceLock[i], isLegendary, name)
 
   # Bottom panel
-  let bottomY = winY + INSTALLER_HEIGHT - 120
-  drawRectangle(winX, bottomY - 15, INSTALLER_WIDTH, 120, Color(r: 30, g: 38, b: 52, a: 255))
-  drawRectangle(winX, bottomY - 15, INSTALLER_WIDTH, 2, Color(r: 0, g: 140, b: 200, a: 255))
+  let bottomY = L.bottomY
+  drawRectangle(winX, bottomY - 15, winW, 120, Color(r: 30, g: 38, b: 52, a: 255))
+  drawRectangle(winX, bottomY - 15, winW, 2, Color(r: 0, g: 140, b: 200, a: 255))
 
   # Coin counter
   let coinBoxX: int32 = winX + 50
@@ -559,22 +643,20 @@ proc drawOSPowerUpInstaller*(game: Game) =
   drawText(t("shop_available_balance"), coinBoxX + 40, coinBoxY + 30, 10, Color(r: 180, g: 180, b: 150, a: 255))
 
   # Reroll button
-  let buttonY    = bottomY + 15
-  let buttonH    = 42
-  let rerollW    = 220
-  let rerollX: int32 = int32(winX) + int32(INSTALLER_WIDTH - rerollW) div 2
+  let buttonY    = L.rerollY
+  let buttonH    = L.rerollH
+  let rerollW    = L.rerollW
+  let rerollX    = L.rerollX
   let canAfford  = game.player.coins >= game.rerollCost
   let mousePos   = getVirtualMousePosition()
-  let rerollHovered = checkCollisionPointRec(mousePos,
-    Rectangle(x: rerollX.float32, y: buttonY.float32,
-              width: rerollW.float32, height: buttonH.float32))
-  drawModernButton(rerollX, buttonY, int32(rerollW), int32(buttonH),
+  let rerollHovered = checkCollisionPointRec(mousePos, L.rerollRect())
+  drawModernButton(rerollX, buttonY, rerollW, buttonH,
                   t(tkPowerUpRerollOptions), canAfford, canAfford and rerollHovered, game.time)
   let costText  = $game.rerollCost & " credits"
   let costW     = measureText(costText, 12)
-  drawText(costText, int32(rerollX + int32(rerollW - costW) div 2), int32(buttonY + buttonH + 8), int32(12),
+  drawText(costText, rerollX + (rerollW - costW) div 2, buttonY + buttonH + 8, 12,
           if canAfford: Color(r: 255, g: 215, b: 0, a: 255) else: Color(r: 120, g: 120, b: 130, a: 255))
-  drawText("[R]", int32(rerollX + rerollW + 10), int32(buttonY + 13), int32(14), Color(r: 200, g: 200, b: 200, a: 255))
+  drawText("[R]", rerollX + rerollW + 10, buttonY + 13, 14, Color(r: 200, g: 200, b: 200, a: 255))
 
 proc drawPowerUpInstallerExhausted*(game: Game) =
   ## Shown in place of the normal installer when every power-up in the pool is
@@ -584,35 +666,38 @@ proc drawPowerUpInstallerExhausted*(game: Game) =
 
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 180))
 
-  let winX = (screenWidth  - INSTALLER_WIDTH)  div 2
-  let winY = (screenHeight - INSTALLER_HEIGHT) div 2
+  let L = installerLayout()
+  let winX = L.winX
+  let winY = L.winY
+  let winW = L.winW
+  let winH = L.winH
 
   # Shadow
   for i in 1..4:
     let off = int32(i * 2)
-    drawRectangle(winX + off, winY + off, INSTALLER_WIDTH, INSTALLER_HEIGHT,
+    drawRectangle(winX + off, winY + off, winW, winH,
                  Color(r: 0, g: 0, b: 0, a: uint8(50 - i * 8)))
 
   # Body
-  drawRectangle(winX, winY, INSTALLER_WIDTH, INSTALLER_HEIGHT, Color(r: 26, g: 32, b: 44, a: 255))
+  drawRectangle(winX, winY, winW, winH, Color(r: 26, g: 32, b: 44, a: 255))
 
   # Subtle grid lines
-  for i in 0..<(INSTALLER_HEIGHT div 40):
-    drawRectangle(winX, winY + int32(i * 40), INSTALLER_WIDTH, 1, Color(r: 30, g: 36, b: 48, a: 255))
+  for i in 0..<(winH div 40):
+    drawRectangle(winX, winY + int32(i * 40), winW, 1, Color(r: 30, g: 36, b: 48, a: 255))
 
   # Border, green pulse to signal completion
   let borderPulse = 0.7'f32 + 0.3'f32 * sin(game.time * 2.0)
   drawRectangleLines(Rectangle(x: winX.float32, y: winY.float32,
-                                width: INSTALLER_WIDTH.float32, height: INSTALLER_HEIGHT.float32),
+                                width: winW.float32, height: winH.float32),
                     4.0, Color(r: 50, g: 220, b: 120, a: uint8(255.0 * borderPulse)))
   drawRectangleLines(Rectangle(x: float32(winX + 2), y: float32(winY + 2),
-                                width: float32(INSTALLER_WIDTH - 4), height: float32(INSTALLER_HEIGHT - 4)),
+                                width: float32(winW - 4), height: float32(winH - 4)),
                     1.0, Color(r: 60, g: 75, b: 95, a: 255))
 
   # Title bar
-  drawRectangle(winX, winY, INSTALLER_WIDTH, TITLE_BAR_HEIGHT, Color(r: 40, g: 52, b: 70, a: 255))
-  drawRectangle(winX, winY, INSTALLER_WIDTH, 2, Color(r: 80, g: 100, b: 130, a: 255))
-  drawRectangle(winX, winY + TITLE_BAR_HEIGHT - 1, INSTALLER_WIDTH, 1, Color(r: 50, g: 220, b: 120, a: 255))
+  drawRectangle(winX, winY, winW, TITLE_BAR_HEIGHT, Color(r: 40, g: 52, b: 70, a: 255))
+  drawRectangle(winX, winY, winW, 2, Color(r: 80, g: 100, b: 130, a: 255))
+  drawRectangle(winX, winY + TITLE_BAR_HEIGHT - 1, winW, 1, Color(r: 50, g: 220, b: 120, a: 255))
 
   let titleText = "[OK] " & t(tkPowerUpAllInstalled)
   let titleColor = Color(r: 80, g: 220, b: 140, a: 255)
@@ -620,9 +705,9 @@ proc drawPowerUpInstallerExhausted*(game: Game) =
   drawText(titleText, winX + 15, winY + 11, 22, titleColor)
 
   # Close (X) button
-  let btnSz: int32 = 28
-  let closeY = winY + (TITLE_BAR_HEIGHT - btnSz) div 2
-  let closeX = winX + INSTALLER_WIDTH - btnSz - 10
+  let btnSz = L.closeSize
+  let closeY = L.closeY
+  let closeX = L.closeX
   drawRectangle(closeX, closeY, btnSz, btnSz, Color(r: 220, g: 50, b: 50, a: 255))
   drawRectangleLines(Rectangle(x: closeX.float32, y: closeY.float32,
                                 width: btnSz.float32, height: btnSz.float32),
@@ -631,7 +716,7 @@ proc drawPowerUpInstallerExhausted*(game: Game) =
 
   # --- Completion badge (large circle with a geometric checkmark) ---
   let badgeR  = 70.0'f32
-  let badgeCX = winX.float32 + INSTALLER_WIDTH.float32 * 0.5
+  let badgeCX = winX.float32 + winW.float32 * 0.5
   let badgeCY = winY.float32 + TITLE_BAR_HEIGHT.float32 + 130.0
   let pulse   = 0.75'f32 + 0.25'f32 * sin(game.time * 2.5)
 
@@ -671,31 +756,27 @@ proc drawPowerUpInstallerExhausted*(game: Game) =
   let headY = int32(badgeCY + badgeR + 28.0)
   let headText = t(tkPowerUpAllInstalled)
   let headW = measureText(headText, 26)
-  drawText(headText, winX + (INSTALLER_WIDTH - headW) div 2 + 1, headY + 1, 26,
+  drawText(headText, winX + (winW - headW) div 2 + 1, headY + 1, 26,
            Color(r: 0, g: 0, b: 0, a: 150))
-  drawText(headText, winX + (INSTALLER_WIDTH - headW) div 2, headY, 26,
+  drawText(headText, winX + (winW - headW) div 2, headY, 26,
            Color(r: 80, g: 240, b: 150, a: 255))
 
   # --- Message text ---
   let msgY = headY + 40
   let msg = t(tkPowerUpAllInstalledMsg)
-  let msgLines = wrapTextLines(msg, INSTALLER_WIDTH - 200, 14)
+  let msgLines = wrapTextLines(msg, winW - 200, 14)
   for i, line in msgLines:
     let lineW = measureText(line, 14)
-    drawText(line, winX + (INSTALLER_WIDTH - lineW) div 2, msgY + int32(i) * 22, 14,
+    drawText(line, winX + (winW - lineW) div 2, msgY + int32(i) * 22, 14,
              Color(r: 160, g: 190, b: 210, a: 255))
 
   # --- Continue button ---
-  const CONTINUE_BTN_W = 300
-  const CONTINUE_BTN_H = 50
-  let continueBtnX = winX + (INSTALLER_WIDTH - CONTINUE_BTN_W) div 2
-  let continueBtnY = winY + INSTALLER_HEIGHT - 100
+  let continueBtnX = L.continueX
+  let continueBtnY = L.continueY
   let mousePos = getVirtualMousePosition()
-  let btnHovered = checkCollisionPointRec(mousePos,
-    Rectangle(x: continueBtnX.float32, y: continueBtnY.float32,
-              width: CONTINUE_BTN_W.float32, height: CONTINUE_BTN_H.float32))
-  drawModernButton(continueBtnX, continueBtnY, CONTINUE_BTN_W, CONTINUE_BTN_H,
+  let btnHovered = checkCollisionPointRec(mousePos, L.continueRect())
+  drawModernButton(continueBtnX, continueBtnY, L.continueW, L.continueH,
                   t(tkPowerUpContinue), true, btnHovered, game.time)
-  drawText("[ENTER]", continueBtnX + CONTINUE_BTN_W + 12, continueBtnY + 17, 14,
+  drawText("[ENTER]", continueBtnX + L.continueW + 12, continueBtnY + 17, 14,
            Color(r: 180, g: 180, b: 180, a: 255))
 
