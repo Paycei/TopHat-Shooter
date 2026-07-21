@@ -47,8 +47,20 @@ proc expectedMusicCacheBytes(): int64 =
   int64(44 + int(MUSIC_DURATION * SAMPLE_RATE.float32) * 2)
 
 # CACHE MANAGEMENT
+when defined(android):
+  # Same writable internal-data path used for saves (see save_system + the
+  # android_glue.c shim, which is compiled there). Declared without {.compile.}
+  # so the C object is built once; the symbol is resolved at link time.
+  proc nimAndroidInternalDataPath(): cstring {.importc.}
+
 proc getCacheDir(): string =
-  result = getTempDir() / "shooteros_music_cache"
+  when defined(android):
+    # /tmp is not writable on Android; use app-internal storage. Absolute paths
+    # work for both Nim writeFile (cache generation) and raylib loadSound (its
+    # raw-fopen fallback), so the synthesized .wav cache round-trips correctly.
+    result = $nimAndroidInternalDataPath() / "shooteros_music_cache"
+  else:
+    result = getTempDir() / "shooteros_music_cache"
   if not dirExists(result):
     createDir(result)
   # Delete old cache folder if it exists

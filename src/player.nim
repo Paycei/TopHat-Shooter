@@ -1,6 +1,6 @@
 import raylib, math, random, std/deques
 import particle_types
-import types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, settings, utils
+import types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, utils, input_intent
 
 const
   PlayerAcceleration = 7.0'f32
@@ -238,13 +238,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.outOfCombatSpeedBoost:
     currentSpeed *= 1.25  # Roguelite out-of-combat bonus
 
-  var moveDir = newVector2f(0, 0)
-
-  let kb = globalSettings.keybinds
-  if isKeyDown(kb[kaMoveUp]): moveDir.y -= 1
-  if isKeyDown(kb[kaMoveDown]): moveDir.y += 1
-  if isKeyDown(kb[kaMoveLeft]): moveDir.x -= 1
-  if isKeyDown(kb[kaMoveRight]): moveDir.x += 1
+  # Movement intent (WASD on desktop, left virtual joystick on mobile).
+  var moveDir = getMoveVector()
 
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()

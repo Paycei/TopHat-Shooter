@@ -5,6 +5,7 @@ import types, settings, save_system, player, enemy, bullet, consumable, coin, xp
 
 import game/combat, game/auras, game/bullets, game/death, game/bosses,
        game/orbitals, game/shooting
+import input_intent
 
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -1630,9 +1631,10 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   # Animate/expire AoE blast boundary rings (Star death, etc.)
   updateShockwaveRings(game, dt)
 
-  # Check shooting
-  let mousePos = getVirtualMousePosition()
-  let shootDir = newVector2f(mousePos.x - game.player.pos.x, mousePos.y - game.player.pos.y)
+  # Check shooting. Aim target is the mouse on desktop, the right joystick's
+  # projected point on mobile (see input_intent.getAimTarget).
+  let aimTarget = getAimTarget(game.player.pos)
+  let shootDir = newVector2f(aimTarget.x - game.player.pos.x, aimTarget.y - game.player.pos.y)
 
   # Handle delayed double-shot bursts (rapid succession)
   # LEGENDARY Double Shot: Only 1 additional burst after 0.08s delay
@@ -1645,8 +1647,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       fireDoubleShotBurst(game, shootDir, hasMultiShot)
       game.player.doubleShotDelay = 0  # Reset to 0
 
-  let isFiring = (isMouseButtonDown(Left) and not game.wallPlacementMode) or
-                 isKeyDown(globalSettings.keybinds[kaShoot])
+  let isFiring = input_intent.isFiring(game.wallPlacementMode)
 
   # Rapid Fire (Legendary) spin-up: holding fire ramps the meter to full in ~1.5s;
   # releasing decays it in ~0.8s. calculateCombatStats reads it for the bonus rate.

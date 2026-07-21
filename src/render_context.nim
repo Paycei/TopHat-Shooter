@@ -36,6 +36,11 @@ proc updateRenderInputTransform*(scale, offsetX, offsetY: float32,
   currentVirtualWidth = virtualWidth.float32
   currentVirtualHeight = virtualHeight.float32
 
+proc getRenderScale*(): float32 =
+  ## Physical-pixels-per-virtual-pixel (the letterbox scale). A screen-space
+  ## length L maps to L / getRenderScale() virtual units.
+  currentRenderScale
+
 proc setRenderSupersampleScale*(scale: float32) =
   currentRenderSupersampleScale = max(scale, 1.0'f32)
 
@@ -69,12 +74,23 @@ proc getCurrentVirtualScissor*(): tuple[x, y, w, h: int32] =
 proc currentVirtualScissorIsActive*(): bool =
   currentVirtualScissorActive
 
-proc getVirtualMousePosition*(): Vector2 =
-  let screenPos = getMousePosition()
+proc screenToVirtual*(screenPos: Vector2): Vector2 =
+  ## Map a physical-window pixel coordinate into the virtual 1024x768 canvas,
+  ## undoing the letterbox offset + scale. Shared by the mouse and touch paths so
+  ## both land in the same space the game draws in. Clamped to the virtual bounds.
   result.x = (screenPos.x - currentRenderOffsetX) / currentRenderScale
   result.y = (screenPos.y - currentRenderOffsetY) / currentRenderScale
   result.x = clamp(result.x, 0.0'f32, currentVirtualWidth)
   result.y = clamp(result.y, 0.0'f32, currentVirtualHeight)
+
+proc getVirtualMousePosition*(): Vector2 =
+  screenToVirtual(getMousePosition())
+
+proc getVirtualTouchPosition*(index: int32): Vector2 =
+  ## Touch point `index` in virtual-canvas coordinates (same transform as the
+  ## mouse). On desktop raylib mirrors the mouse onto touch point 0, so this
+  ## doubles as a mouse-driven test path for the touch UI.
+  screenToVirtual(getTouchPosition(index))
 
 proc bondMouseToVirtualViewport*() =
   ## Keep the mouse inside the active virtual viewport.

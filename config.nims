@@ -10,8 +10,38 @@ when withDir(thisDir(), system.fileExists("nimble.paths")):
 # which only ever holds Windows absolute paths plus --noNimblePath. On Windows
 # that is exactly right and the block below is skipped. On Linux those paths
 # don't exist, so we re-discover the deps from this user's Nimble package dir.
-when not defined(windows):
-  import std/strutils
+#
+# IMPORTANT: this must key off the *host* machine, NOT `hostOS`/`defined(windows)`
+# — both of those follow the `--os` switch during cross-compilation (e.g. an
+# Android build on a Windows host reports hostOS == "android"). We instead detect
+# the host from an OS-set env var that `--os` can't move: Windows always exports
+# OS=Windows_NT. This lets `nimble android` on Windows still find the host's deps.
+import std/strutils
+
+let hostIsWindows = getEnv("OS") == "Windows_NT" or getEnv("USERPROFILE").len > 0
+
+proc baseName(p: string): string =
+  # Last path component, separator-agnostic (avoids relying on extractFilename
+  # being available in the NimScript VM).
+  let i = max(p.rfind('\\'), p.rfind('/'))
+  p[i + 1 .. ^1]
+
+proc pkgVersion(dirName: string): seq[int] =
+  # "naylib-26.08.0-<hash>" -> @[26, 8, 0]; the hash field is ignored.
+  let parts = dirName.split('-')
+  if parts.len >= 2:
+    for n in parts[1].split('.'):
+      try: result.add(parseInt(n))
+      except ValueError: result.add(0)
+
+proc isNewer(a, b: seq[int]): bool =
+  for i in 0 ..< max(a.len, b.len):
+    let av = if i < a.len: a[i] else: 0
+    let bv = if i < b.len: b[i] else: 0
+    if av != bv: return av > bv
+  false
+
+if not hostIsWindows:
   let pkgsDir = getEnv("HOME") & "/.nimble/pkgs2"
   if dirExists(pkgsDir):
     for dir in listDirs(pkgsDir):
@@ -19,39 +49,12 @@ when not defined(windows):
          dir.contains("/supersnappy-"):
         switch("path", dir)
   switch("path", thisDir() & "/src")
-
-# On Windows nimble.paths normally holds correct absolute paths, so this is a
-# no-op on the machine that generated it. But those paths are hardcoded to one
-# user's home (e.g. C:\Users\<name>\.nimble), so a *different* Windows checkout
-# can't resolve them. Re-discover from the local Nimble package dir, mirroring
-# the Linux block. Unlike Linux we must be version-aware: several versions of a
-# dep can be installed side by side (this machine has naylib 25.x and 26.x), and
-# adding the stale one to the search path could shadow the required >=26.08.0.
-# So pick the highest installed version of each package.
-when defined(windows):
-  import std/strutils
-
-  proc baseName(p: string): string =
-    # Last path component, separator-agnostic (avoids relying on extractFilename
-    # being available in the NimScript VM).
-    let i = max(p.rfind('\\'), p.rfind('/'))
-    p[i + 1 .. ^1]
-
-  proc pkgVersion(dirName: string): seq[int] =
-    # "naylib-26.08.0-<hash>" -> @[26, 8, 0]; the hash field is ignored.
-    let parts = dirName.split('-')
-    if parts.len >= 2:
-      for n in parts[1].split('.'):
-        try: result.add(parseInt(n))
-        except ValueError: result.add(0)
-
-  proc isNewer(a, b: seq[int]): bool =
-    for i in 0 ..< max(a.len, b.len):
-      let av = if i < a.len: a[i] else: 0
-      let bv = if i < b.len: b[i] else: 0
-      if av != bv: return av > bv
-    false
-
+else:
+  # Windows host (native or cross-compiling). nimble.paths holds absolute paths
+  # hardcoded to one user's home, so a different checkout can't resolve them.
+  # Re-discover from the local Nimble package dir, version-aware: several versions
+  # of a dep can be installed side by side, and adding a stale one to the search
+  # path could shadow the required >=26.08.0 — so pick the highest of each.
   let nimbleHome = getEnv("NIMBLE_DIR", getEnv("USERPROFILE") & "\\.nimble")
   let pkgsDir = nimbleHome & "\\pkgs2"
   if dirExists(pkgsDir):

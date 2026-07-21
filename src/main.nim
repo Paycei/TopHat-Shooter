@@ -1,7 +1,10 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import particle_types
 import game/combat, game/death
-import types, settings, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+import types, settings, game, player, input_intent, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+
+when defined(mobile):
+  import mobile_controls  # updateMobileControls / drawMobileControls hooks
 
 # Global quit-confirmation dialog
 
@@ -198,6 +201,11 @@ proc endGameDrawing() =
 
 proc applyWindowMode(fullscreen: bool) =
   ## Apply borderless fullscreen or centered windowed mode at runtime.
+  when defined(android):
+    # Android manages a single fullscreen surface; resizing/positioning it (e.g.
+    # setWindowSize(1024,768)) would shrink the game into a corner. The per-frame
+    # updateRenderScale still maintains the letterbox + touch transform.
+    return
   if fullscreen:
     setWindowState(flags(WindowUndecorated))
     let monitor = getCurrentMonitor()
@@ -416,14 +424,17 @@ proc main() =
   var lastFullscreenToggleTime = 0.0  # Debouncing for F11 key
 
   # Initialize global Discord client (persists across game sessions)
-  # Wrapped in try-catch to handle Discord connection failures gracefully
-  try:
-    globalDiscordClient = newDiscordClient(DISCORD_APP_ID)
-    if not globalDiscordClient.isNil:
-      discard globalDiscordClient.connect()  # Start background thread
-  except:
-    # Discord initialization failed - continue without Rich Presence
-    globalDiscordClient = nil
+  # Wrapped in try-catch to handle Discord connection failures gracefully.
+  # Skipped on Android: there is no desktop Discord to reach, and the connect()
+  # spins up a background IPC thread that would only ever fail.
+  when not defined(android):
+    try:
+      globalDiscordClient = newDiscordClient(DISCORD_APP_ID)
+      if not globalDiscordClient.isNil:
+        discard globalDiscordClient.connect()  # Start background thread
+    except:
+      # Discord initialization failed - continue without Rich Presence
+      globalDiscordClient = nil
 
   var currentGame = newGame(screenWidth, screenHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
   currentGame.state = gsSplash  # Start with splash screen
@@ -1336,6 +1347,11 @@ proc main() =
       endGameDrawing()
 
     of gsPlaying:
+      # Poll touch controls before any input is read this frame (input_intent
+      # reads the resulting state). No-op / not compiled on desktop.
+      when defined(mobile):
+        updateMobileControls(dt)
+
       # Dynamic music based on game state
       if currentGame.bossWaveManager.isBossActive():
         playMusic(mtBoss)
@@ -1388,26 +1404,27 @@ proc main() =
       if not cheatMenu.active and not globalConfirmActive:
         # Shop removed from gameplay - only accessible during power-up selection
 
-        # Wall placement mode: hold E to preview range, release E to place.
+        # Wall placement mode: hold (E / wall button) to preview range, release
+        # to place. Placement target is the aim point (mouse on desktop, aim
+        # joystick on mobile).
         const WALL_PLACEMENT_RANGE_SP = 250.0
-        let wallKey = globalSettings.keybinds[kaPlaceWall]
-        let eHeld = isKeyDown(wallKey) and currentGame.player.walls > 0
+        let eHeld = placeWallHeld() and currentGame.player.walls > 0
         currentGame.wallPlacementMode = eHeld
 
-        # Release wall key places the wall at the current cursor position
-        if isKeyReleased(wallKey) and currentGame.player.walls > 0:
-          let mousePos = getVirtualMousePosition()
-          let wallPos = newVector2f(mousePos.x, mousePos.y)
+        # Releasing the wall control places the wall at the current aim target.
+        if placeWallReleased() and currentGame.player.walls > 0:
+          let wallPos = getAimTarget(currentGame.player.pos)
           let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
           if inRange and isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
                                               currentGame.enemies, 25):
-            currentGame.walls.add(newWall(mousePos.x, mousePos.y, currentGame.player))
+            currentGame.walls.add(newWall(wallPos.x, wallPos.y, currentGame.player))
             currentGame.player.walls -= 1
-            spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)
+            spawnExplosionPooled(currentGame.particlePool, wallPos.x, wallPos.y, Brown, 15)
             trackWallPlacement(currentGame, wallPos)
 
-      # Activate ALL legendary power-ups with the legendary key (simultaneous activation)
-      if isKeyPressed(globalSettings.keybinds[kaLegendary]) and not globalConfirmActive:
+      # Activate ALL legendary power-ups with the legendary control (key on
+      # desktop, ability button on mobile) — simultaneous activation.
+      if abilityPressed() and not globalConfirmActive:
         var anyActivated = false
 
         # Time Warp - slow down time
@@ -1436,13 +1453,8 @@ proc main() =
           let cooldown = 5.0  # 5 second cooldown
           let invulnDuration = 0.5  # 0.5 second invulnerability after dash
 
-          # Calculate dash direction - PRIORITIZE movement keys
-          var dashDir = newVector2f(0, 0)
-          let kb = globalSettings.keybinds
-          if isKeyDown(kb[kaMoveUp]): dashDir.y -= 1
-          if isKeyDown(kb[kaMoveDown]): dashDir.y += 1
-          if isKeyDown(kb[kaMoveLeft]): dashDir.x -= 1
-          if isKeyDown(kb[kaMoveRight]): dashDir.x += 1
+          # Dash direction follows movement intent (WASD desktop / move stick mobile).
+          var dashDir = abilityDirection()
 
           # Always activate cooldown and invulnerability
           currentGame.player.phaseShiftCooldown = cooldown
@@ -1611,7 +1623,7 @@ proc main() =
 
       # Pause (don't actually pause in PvP mode to avoid desync)
       # Also skip if the confirm dialog is open (it acts as a hard pause)
-      if isKeyPressed(Escape) and not globalConfirmActive:
+      if pausePressed() and not globalConfirmActive:
         if not isPvPMode(currentGame.mode):
           currentGame.state = gsPaused
         else:
@@ -1670,6 +1682,10 @@ proc main() =
 
       # Normal 2D rendering
       drawGame(currentGame)
+
+      # Touch joysticks + action buttons, on top of the game/HUD (mobile only).
+      when defined(mobile):
+        drawMobileControls()
 
       # Draw sandbox UI if in sandbox mode
       if isSandboxMode(currentGame.mode):
@@ -3004,5 +3020,18 @@ proc main() =
   closeSoundSystem(globalSoundSystem)
   closeWindow()
 
-when isMainModule:
-  main()
+when defined(android):
+  # Android entry point. The app is built as a shared library (--app:lib), whose
+  # real entry is raylib's `android_main` (native_app_glue), which in turn calls
+  # the C `main` symbol. Nim's --app:lib emits `NimMain` (runtime + GC init) but
+  # no C `main`, so we export one: init the Nim runtime, then run the game. The
+  # desktop `when isMainModule: main()` auto-run is suppressed here so the game
+  # doesn't also start from inside NimMain.
+  proc NimMain() {.importc.}
+  proc androidEntry(argc: cint, argv: ptr cstring): cint {.exportc: "main", cdecl.} =
+    NimMain()
+    main()
+    return 0
+else:
+  when isMainModule:
+    main()

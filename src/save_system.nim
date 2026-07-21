@@ -66,9 +66,18 @@ type
     hasSeenPvPIntro*: bool         # First-time pvp mode intro played
     discoveredPowerUps*: seq[string] # Power-ups seen for the first time (name-serialized)
 
+when defined(android):
+  # See src/android_glue.c. Returns the app's writable internal-data dir, since
+  # Nim's writeFile bypasses raylib's internalDataPath prefixing.
+  {.compile: "android_glue.c".}
+  proc nimAndroidInternalDataPath(): cstring {.importc.}
+
 # Get AppData directory path
 proc getAppDataPath*(): string =
-  when defined(windows):
+  when defined(android):
+    # App-private internal storage (e.g. /data/user/0/<pkg>/files) — writable.
+    result = $nimAndroidInternalDataPath()
+  elif defined(windows):
     result = getEnv("APPDATA")
   elif defined(macosx):
     result = getEnv("HOME") & "/Library/Application Support"

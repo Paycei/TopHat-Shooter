@@ -1,0 +1,44 @@
+// Native-only Android app: the game is a shared library (libmain.so) loaded by
+// android.app.NativeActivity. No Java/Kotlin sources (application hasCode=false).
+// The .so files are produced by `nimble androidLib` into src/main/jniLibs/<abi>.
+plugins {
+    id 'com.android.application' version '8.5.2'
+}
+
+android {
+    namespace 'com.paycei.tophatshooter'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.paycei.tophatshooter'
+        minSdk 29          // matches AndroidApiLevel in TopHatShooter.nimble
+        targetSdk 34
+        versionCode 1
+        versionName '6.0.0'
+        ndk {
+            // Keep in sync with the ABIs you built (ANDROID_ABIS). Only ABIs with
+            // a matching libmain.so under jniLibs will actually run.
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+            assets.srcDirs = ['src/main/assets']
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    // Keep libmain.so extractable so the loader/NativeActivity can dlopen it.
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+}

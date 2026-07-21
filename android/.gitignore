@@ -1,0 +1,6 @@
+.gradle/
+build/
+app/build/
+local.properties
+# Built native libs (produced by `nimble androidLib`)
+app/src/main/jniLibs/*/libmain.so

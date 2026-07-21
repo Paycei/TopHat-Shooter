@@ -1,0 +1,3 @@
+# APK assets. Currently empty: all sounds are synthesized at runtime and cached
+# to internal storage, and all art is drawn programmatically. Drop read-only
+# asset files here if any are ever added (raylib loads them via the asset manager).

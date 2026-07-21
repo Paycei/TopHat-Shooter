@@ -12,7 +12,13 @@ nimble debug          # nim c -r --mm:orc -d:debug src/main.nim  (build + run, t
 nimble WinRelease     # optimized MSVC build -> TopHatShooterOS.exe (Windows, needs VC++ Build Tools)
 nimble WinReleaseMin  # release optimized for size
 nimble LinuxRelease   # optimized Linux build
+nimble androidLib     # cross-compile libmain.so per ABI (needs ANDROID_NDK)
+nimble android        # androidLib + gradle -> Android APK (needs SDK+JDK+gradle)
 ```
+
+Verify the mobile build without a phone: `nim check --mm:orc -d:mobile src/main.nim`
+(touch controls compile-check), and `nim c -r -d:mobile src/main.nim` runs it on
+desktop with the mouse acting as a single touch point. See "Mobile / Android port".
 
 **There is no test suite.** The primary correctness check is compilation:
 
@@ -54,6 +60,46 @@ Saves are **JSON** written with `writeFile`, with hand-written parse procs (e.g.
 
 ### Cosmetic skins (`skins.nim` and friends)
 Player/bullet/cube/particle/desktop-background skins are registry-driven like power-ups: a `*SkinType` enum → an `array[SkinType, SkinData]` populated in an `initialize*Skins()` proc, with names/descriptions pulled via `t()` (so localization keys are required in *both* language tables). Rendering uses exhaustive `case`s (e.g. `getSkinColors`). Unlock state is persisted in `save_system.nim`. Adding one mirrors the power-up recipe: enum value → registry entry → two localization keys → render branch → save parse branch. Modules: `skins.nim` (player), `bullet_skins.nim`, `cube_skins.nim`, `particle_skins.nim`, `desktop_bg_skins.nim`.
+
+### Mobile / Android port (the `mobile-test` branch)
+
+The Android build is the **same codebase** as desktop, not a fork — so desktop
+changes port to mobile automatically. Two independent compile flags:
+- `-d:mobile` — enables the twin-stick touch controls + touch HUD. Runs on
+  desktop too (raylib maps the mouse to touch point 0), so it's testable without
+  a phone.
+- `defined(android)` — auto-set by `--os:android`; guards platform specifics.
+
+Key modules and the rule for keeping the port cheap:
+- `src/input_intent.nim` is the **single seam** between input devices and
+  gameplay. Gameplay asks for *intents* (`getMoveVector`, `getAimTarget`,
+  `isFiring`, `abilityPressed`, `placeWallHeld/Released`, `pausePressed`). On
+  desktop each returns exactly the old inline behavior; on `-d:mobile` it reads
+  `src/mobile_controls.nim`. Only **three** gameplay call-sites consume it
+  (player movement `player.nim`, aim/fire `game.nim`, ability/wall/pause
+  `main.nim`) — keep that surface small. A new power-up/enemy/boss needs **zero**
+  mobile work. Add to `input_intent` only when introducing a genuinely new
+  *input action*; add a `when defined(android)` guard only for a genuinely new
+  *desktop-only API* call.
+- `src/mobile_controls.nim` (`when defined(mobile)`) owns all touch state: two
+  floating joysticks (left move, right aim/auto-fire) + pause/ability/wall
+  buttons, drawn from `main.nim`'s `gsPlaying` branch. It must never import
+  game/player (would cycle through `input_intent`).
+- `render_context.screenToVirtual` / `getVirtualTouchPosition` map touch (and
+  mouse) through the letterbox into the virtual 1024×768 canvas.
+- Platform gating: saves + synthesized-sound cache write to Android internal
+  storage via `src/android_glue.c` (`getAppDataPath` in `save_system.nim`,
+  `getCacheDir` in `sound.nim`). Discord and `applyWindowMode` are no-ops on
+  Android. The Android C entry point (`main` → `NimMain` → game) is the
+  `when defined(android)` block at the bottom of `main.nim`.
+- `config.nims` locates Nimble deps by the **host** env (`OS=Windows_NT`), not
+  `hostOS`/`defined(windows)` — those follow `--os` during cross-compilation.
+- Build project lives in `android/` (gradle + manifest + vector icon; no Java).
+  `nimble androidLib` cross-compiles `libmain.so`; `nimble android` packages a
+  working `app-debug.apk` (verified). Known-good toolchain: NDK r30, JDK 21, a
+  **pinned Gradle 8.7 wrapper** (`android/gradlew` — the system Gradle 9.x + JDK
+  25 can't run AGP 8.5.2), AGP 8.5.2, compileSdk 34. On-device runtime is not yet
+  verified. Details + gotchas in `android/README.md`.
 
 ## Adding a power-up (the main content-extension workflow)
 
