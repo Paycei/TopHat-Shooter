@@ -2,7 +2,7 @@
 ## OS-themed window for player and bullet customization with tabs
 
 import raylib, rlgl, math, strformat, strutils
-import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound
+import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils
 
 type
   ShopTab* = enum
@@ -473,14 +473,14 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
     let trailRadius = bulletRadius * (1.0 - i.float32 * 0.15)
     let trailAlpha = uint8((1.0 - i.float32 * 0.2) * float32(trailColor.a))
     drawCircle(Vector2(x: trailX, y: centerY), trailRadius,
-              Color(r: trailColor.r, g: trailColor.g, b: trailColor.b, a: trailAlpha))
+              withAlpha(trailColor, trailAlpha))
 
   # Glow
   for i in 0..2:
     let glowRadius = bulletRadius + (i.float32 + 1) * 3.0
     let glowAlpha = uint8((1.0 - i.float32 / 3.0) * float32(glowColor.a))
     drawCircle(Vector2(x: centerX, y: centerY), glowRadius,
-              Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowAlpha))
+              withAlpha(glowColor, glowAlpha))
 
   # Main bullet
   drawCircle(Vector2(x: centerX, y: centerY), bulletRadius, primaryColor)
@@ -798,11 +798,11 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
     let nodeColor = bgData.accentColor
     let accentColor = bgData.primaryColor
     drawSoftGlow(w * 0.64, h * 0.46, min(w, h) * 0.42,
-                 Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: 70), 0.7)
+                 withAlpha(accentColor, 70), 0.7)
     drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
-                 Color(r: nodeColor.r, g: nodeColor.g, b: nodeColor.b, a: 56), 0.55)
+                 withAlpha(nodeColor, 56), 0.55)
     drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
-                 Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g, b: bgData.primaryColor.b, a: 46), 0.5)
+                 withAlpha(bgData.primaryColor, 46), 0.5)
 
     # Signature theme effects so the card shows the real background look
     drawDesktopBgThemeFx(bgType, SKIN_BOX_WIDTH.int32, previewH.int32, time)
@@ -811,7 +811,7 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
       let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
       let alpha = uint8(26 + i * 9)
       drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
-                      Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: alpha))
+                      withAlpha(accentColor, alpha))
 
     # Draw the wallpaper cube using the currently equipped cube skin so the
     # preview matches the full desktop. Prefer the running desktop's time

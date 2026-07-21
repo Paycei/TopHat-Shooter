@@ -328,7 +328,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
   let fadeEase = fadeT * fadeT * (3.0'f32 - 2.0'f32 * fadeT)  # smoothstep
   let fadeMul = fadeEase * (1.0'f32 - BulletFadeFloor) + BulletFadeFloor
   template faded(c: Color): Color =
-    Color(r: c.r, g: c.g, b: c.b, a: uint8(float32(c.a) * fadeMul))
+    withAlpha(c, uint8(float32(c.a) * fadeMul))
   color = faded(color)
   glowColor = faded(glowColor)
   trailColor = faded(trailColor)
@@ -349,7 +349,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let trailRadius = bullet.radius * (1.0 - i.float32 * 0.15)
       let trailAlpha = uint8((1.0 - i.float32 * 0.25) * float32(trailColor.a))
       drawCircle(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
-                Color(r: trailColor.r, g: trailColor.g, b: trailColor.b, a: trailAlpha))
+                withAlpha(trailColor, trailAlpha))
 
   # Draw pentagon shape for pentagon bullets
   if bullet.isPentagon:
@@ -427,7 +427,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let glowRadius = bullet.radius + 2.0 + i.float32 * 2.0
       let glowAlpha = uint8(float32(glowColor.a) * (1.0 - i.float32 * 0.4))
       drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius,
-                     Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowAlpha))
+                     withAlpha(glowColor, glowAlpha))
 
     # Add highlight to bullet
     drawCircle(Vector2(x: bullet.pos.x - 1.5, y: bullet.pos.y - 1.5), bullet.radius * 0.3,
@@ -509,7 +509,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
         let outerGlow = glowColor
         let outerRadius = glowRadius + 3
         drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, outerRadius,
-                       faded(Color(r: outerGlow.r, g: outerGlow.g, b: outerGlow.b, a: outerGlow.a div 2)))
+                       faded(withAlpha(outerGlow, outerGlow.a div 2)))
 
 proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool =
   bullet.pos.x < -50 or bullet.pos.x > screenWidth.float32 + 50 or

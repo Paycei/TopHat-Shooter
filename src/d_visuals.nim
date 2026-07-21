@@ -1,5 +1,5 @@
 import raylib, math
-import types, d_systems, localization
+import types, d_systems, localization, utils
 
 proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
                           currentTime: float32, posX, posY: int32) =
@@ -36,7 +36,7 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
   # Draw glow effect (multiple layers)
   for i in countdown(3, 1):
     let glowAlpha = uint8((fadeAlpha.float32 * 0.3 * (4 - i).float32 / 3.0).int)
-    let glowColor = Color(r: comboColor.r, g: comboColor.g, b: comboColor.b, a: glowAlpha)
+    let glowColor = withAlpha(comboColor, glowAlpha)
     drawText(multiplier, (baseX - i).int32, (baseY - i).int32, finalFontSize, glowColor)
     drawText(multiplier, (baseX + i).int32, (baseY + i).int32, finalFontSize, glowColor)
 
@@ -308,16 +308,16 @@ proc drawComboGutterCard*(combo: ComboSystem, gutterX, gutterW, topY: int32,
   let accA = fadeAlpha.int
 
   drawRectangle(cardX, topY, cardW, cardH, Color(r: 8, g: 14, b: 22, a: uint8(min(accA, 210))))
-  drawRectangle(cardX, topY, 2, cardH, Color(r: tierColor.r, g: tierColor.g, b: tierColor.b, a: fadeAlpha))
+  drawRectangle(cardX, topY, 2, cardH, withAlpha(tierColor, fadeAlpha))
   drawRectangleLines(Rectangle(x: cardX.float32, y: topY.float32, width: cardW.float32, height: cardH.float32),
-                     1, Color(r: tierColor.r, g: tierColor.g, b: tierColor.b, a: uint8(accA * 90 div 255)))
+                     1, withAlpha(tierColor, uint8(accA * 90 div 255)))
 
   let comboText = if kc >= 20: t(tkComboInsane)
                   elif kc >= 15: t(tkComboCrazy)
                   elif kc >= 10: t(tkComboSick)
                   else: t(tkComboLabel)
   drawText(comboText, cardX + 8, topY + 6, 11,
-    Color(r: tierColor.r, g: tierColor.g, b: tierColor.b, a: fadeAlpha))
+    withAlpha(tierColor, fadeAlpha))
 
   let pulse = (sin(combo.displayTimer * 8.0) + 1.0) * 0.5
   let baseSize = min(30.0 + kc.float32 * 1.2, 46.0)
@@ -326,7 +326,7 @@ proc drawComboGutterCard*(combo: ComboSystem, gutterX, gutterW, topY: int32,
   let mx = cardX + (cardW - mw) div 2
   let my = topY + 20
   drawText(multiplier, mx + 2, my + 2, mult, Color(r: 0, g: 0, b: 0, a: uint8(accA * 60 div 255)))
-  drawText(multiplier, mx, my, mult, Color(r: tierColor.r, g: tierColor.g, b: tierColor.b, a: fadeAlpha))
+  drawText(multiplier, mx, my, mult, withAlpha(tierColor, fadeAlpha))
 
   # Decay bar underneath (displayTimer runs 5 -> 0).
   let barY = topY + cardH - 10
@@ -334,4 +334,4 @@ proc drawComboGutterCard*(combo: ComboSystem, gutterX, gutterW, topY: int32,
   let frac = clamp(combo.displayTimer / 5.0'f32, 0.0'f32, 1.0'f32)
   drawRectangle(cardX + 8, barY, barW, 5, Color(r: 20, g: 26, b: 36, a: fadeAlpha))
   drawRectangle(cardX + 8, barY, int32(barW.float32 * frac), 5,
-    Color(r: tierColor.r, g: tierColor.g, b: tierColor.b, a: fadeAlpha))
+    withAlpha(tierColor, fadeAlpha))

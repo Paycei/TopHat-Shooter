@@ -35,11 +35,6 @@ proc claimPulse(animTime: float32): float32 =
   ## 0..1 breathing curve used to draw attention to claimable rewards.
   sin(animTime * 4.0'f32) * 0.5'f32 + 0.5'f32
 
-proc lighten(c: Color, amount: int): Color =
-  Color(r: uint8(min(255, c.r.int + amount)),
-        g: uint8(min(255, c.g.int + amount)),
-        b: uint8(min(255, c.b.int + amount)), a: c.a)
-
 proc drawTierChip(x, y, w, h: int, tier: AdvancementTier, solid: bool) =
   ## Small rounded tier badge. `solid` fills with the tier color (dark text);
   ## otherwise it's a translucent outlined pill (tier-colored text).
@@ -108,7 +103,7 @@ proc drawProgressBar(x, y, width, height: int, ratio: float32, color: Color,
                     withAlpha(White, 42))
   # Completed bars get a softly pulsing accent border; everyone else a flat one.
   let border =
-    if complete: withAlpha(lighten(color, 30), 150 + int(90.0'f32 * pulse))
+    if complete: withAlpha(brighten(color, 30, color.a.int), 150 + int(90.0'f32 * pulse))
     else: Color(r: 70, g: 82, b: 102, a: 255)
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
@@ -350,7 +345,7 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
     Color(r: 26, g: 33, b: 47, a: 255)
   else:
     Color(r: 22, g: 26, b: 37, a: 255)
-  let border = if claimable: withAlpha(lighten(accent, 20), 170 + int(85.0'f32 * pulse))
+  let border = if claimable: withAlpha(brighten(accent, 20, accent.a.int), 170 + int(85.0'f32 * pulse))
                elif selected or hovered: accent
                else: Color(r: 62, g: 74, b: 96, a: 255)
 

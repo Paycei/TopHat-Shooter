@@ -1,5 +1,5 @@
 import raylib, random, math
-import particle_types, types, ui/consumable_icons, ui/ui_constants
+import particle_types, types, ui/consumable_icons, ui/ui_constants, utils
 
 proc newConsumable*(x, y: float32, difficulty: float32): Consumable =
   # Weighted selection based on difficulty
@@ -83,7 +83,7 @@ proc drawConsumable*(consumable: Consumable) =
   let auraR1 = size + 7 + sin(t * 4.0) * 2.5
   let auraR2 = size + 13 + sin(t * 3.0 + 1.0) * 3.0
   drawCircle(Vector2(x: consumable.pos.x, y: consumable.pos.y), auraR2,
-    Color(r: auraColor.r, g: auraColor.g, b: auraColor.b, a: uint8(auraColor.a.float32 * 0.5)))
+    withAlpha(auraColor, uint8(auraColor.a.float32 * 0.5)))
   drawCircle(Vector2(x: consumable.pos.x, y: consumable.pos.y), auraR1, auraColor)
 
   # 4 rotating sparkle dots around the aura ring
@@ -92,7 +92,7 @@ proc drawConsumable*(consumable: Consumable) =
     let sr = auraR1 + 2.0
     drawCircle(
       Vector2(x: consumable.pos.x + cos(sa) * sr, y: consumable.pos.y + sin(sa) * sr),
-      2.0, Color(r: auraColor.r, g: auraColor.g, b: auraColor.b, a: 200))
+      2.0, withAlpha(auraColor, 200))
 
   # Draw background circle
   let color = getConsumableColor(consumable.consumableType)

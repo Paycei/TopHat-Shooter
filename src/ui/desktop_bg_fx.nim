@@ -8,7 +8,7 @@
 ## translates the matrix and clips with a scissor before calling in).
 
 import raylib, math
-import background_fx, ../desktop_bg_skins
+import background_fx, ../desktop_bg_skins, ../utils
 
 proc fract01(value: float32): float32 =
   value - floor(value)
@@ -607,12 +607,12 @@ proc drawCyberFx(w, h, time: float32) =
         pts[k] = Vector2(x: prev.x, y: clamp(prev.y + dir * stepLen * h, 0.0'f32, h))
       horiz = not horiz
     for k in 0 ..< (np - 1):
-      drawLine(pts[k], pts[k + 1], 3.0'f32, Color(r: tint.r, g: tint.g, b: tint.b, a: 38))
-      drawLine(pts[k], pts[k + 1], 1.3'f32, Color(r: tint.r, g: tint.g, b: tint.b, a: 150))
+      drawLine(pts[k], pts[k + 1], 3.0'f32, withAlpha(tint, 38))
+      drawLine(pts[k], pts[k + 1], 1.3'f32, withAlpha(tint, 150))
     for k in 0 ..< np:
       drawRectangle(int32(pts[k].x - pad), int32(pts[k].y - pad),
                     int32(pad * 2.0'f32), int32(pad * 2.0'f32),
-                    Color(r: tint.r, g: tint.g, b: tint.b, a: 190))
+                    withAlpha(tint, 190))
     # Travelling data pulse: equal time per segment along the polyline.
     let segCount = np - 1
     let tt = fract01(time * (0.18'f32 + hash01(seed + 5.0'f32) * 0.12'f32)) * segCount.float32
@@ -620,7 +620,7 @@ proc drawCyberFx(w, h, time: float32) =
     let lf = tt - si.float32
     let pp = Vector2(x: pts[si].x + (pts[si + 1].x - pts[si].x) * lf,
                      y: pts[si].y + (pts[si + 1].y - pts[si].y) * lf)
-    drawSoftGlow(pp.x, pp.y, s * 0.02'f32, Color(r: tint.r, g: tint.g, b: tint.b, a: 150), 0.6)
+    drawSoftGlow(pp.x, pp.y, s * 0.02'f32, withAlpha(tint, 150), 0.6)
     drawCircle(pp, pulseR, Color(r: 255, g: 255, b: 255, a: 230))
 
   # --- Floating holographic HUD panels with animated data bars.
@@ -632,7 +632,7 @@ proc drawCyberFx(w, h, time: float32) =
     let py = (0.10'f32 + hash01(seed + 3.0'f32) * 0.70'f32) * (h - phh)
     let tint = if pi mod 2 == 0: cyan else: mag
     drawRectangle(px.int32, py.int32, pw.int32, phh.int32,
-                  Color(r: tint.r, g: tint.g, b: tint.b, a: 12))
+                  withAlpha(tint, 12))
     # Corner brackets at all four corners.
     let bl = min(pw, phh) * 0.28'f32
     for cx2 in [0.0'f32, 1.0'f32]:
@@ -649,9 +649,9 @@ proc drawCyberFx(w, h, time: float32) =
       let frac = 0.3'f32 + 0.6'f32 * (sin(time * 1.5'f32 + seed + r.float32 * 1.3'f32) * 0.5'f32 + 0.5'f32)
       let barH = max(1'i32, int32(phh * 0.07'f32))
       drawRectangle(int32(px + pw * 0.12'f32), by.int32, int32(pw * 0.76'f32), barH,
-                    Color(r: tint.r, g: tint.g, b: tint.b, a: 35))
+                    withAlpha(tint, 35))
       drawRectangle(int32(px + pw * 0.12'f32), by.int32, int32(pw * 0.76'f32 * frac), barH,
-                    Color(r: tint.r, g: tint.g, b: tint.b, a: 130))
+                    withAlpha(tint, 130))
 
   # --- Rare chromatic-aberration glitch slice (cyan + magenta offset bars).
   let gphase = fract01(time * 0.5'f32)

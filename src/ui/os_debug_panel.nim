@@ -872,15 +872,15 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
     let exhausted = powerUp.powerType == puTimeWarp and
                     game.player.timeWarpUsesThisWave >= game.player.timeWarpMaxUsesPerWave
     let bgColor = if active:
-      Color(r: accent.r, g: accent.g, b: accent.b, a: 96)
+      withAlpha(accent, 96)
     elif ready:
-      Color(r: accent.r, g: accent.g, b: accent.b, a: clampByte(58 + int(pulse * 32.0'f32)))
+      withAlpha(accent, clampByte(58 + int(pulse * 32.0'f32)))
     else:
       Color(r: 12, g: 16, b: 23, a: 145)
     let borderColor = if ready or active:
-      Color(r: accent.r, g: accent.g, b: accent.b, a: 220)
+      withAlpha(accent, 220)
     else:
-      Color(r: accent.r, g: accent.g, b: accent.b, a: 95)
+      withAlpha(accent, 95)
 
     drawRectangle(iconX + 1, iconY + 1, LEGENDARY_Q_ICON_SIZE, LEGENDARY_Q_ICON_SIZE,
                   Color(r: 0, g: 0, b: 0, a: 85))
@@ -890,7 +890,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
                                   height: LEGENDARY_Q_ICON_SIZE.float32),
                        1, borderColor)
     drawPowerUpIcon(iconX + 3, iconY + 3, LEGENDARY_Q_ICON_SIZE - 6, powerUp.powerType,
-                    if ready or active: accent else: Color(r: accent.r, g: accent.g, b: accent.b, a: 145))
+                    if ready or active: accent else: withAlpha(accent, 145))
 
     let progress = if ready or active:
       1.0'f32
@@ -901,7 +901,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
     let progressW = max(0'i32, (LEGENDARY_Q_ICON_SIZE.float32 * progress).int32)
     if progressW > 0:
       drawRectangle(iconX, iconY + LEGENDARY_Q_ICON_SIZE - 3,
-                    progressW, 3, Color(r: accent.r, g: accent.g, b: accent.b, a: 215))
+                    progressW, 3, withAlpha(accent, 215))
 
     if not ready and not active:
       drawRectangle(iconX, iconY, LEGENDARY_Q_ICON_SIZE, LEGENDARY_Q_ICON_SIZE,

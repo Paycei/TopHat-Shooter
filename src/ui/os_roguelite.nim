@@ -999,7 +999,7 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
 
   # Pulsing crimson border, inner gold trim, and corner brackets.
   drawRectangleLines(rectAt(x, y, w, h), 3,
-                     Color(r: crimson.r, g: crimson.g, b: crimson.b, a: borderA))
+                     withAlpha(crimson, borderA))
   drawRectangleLines(rectAt(x + 4, y + 4, w - 8, h - 8), 1, withAlpha(gold, 110))
   drawCornerBrackets(x + 10, y + 10, w - 20, h - 20, 28, 2,
                      withAlpha(gold, uint8(120.0'f32 + pulse * 110.0'f32)))

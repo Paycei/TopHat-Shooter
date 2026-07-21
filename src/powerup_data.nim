@@ -3,8 +3,8 @@
 ##
 ## Adding a new power-up:
 ##   1. Add it to `PowerUpType` in types.nim
-##   2. Add exactly ONE entry  `allPowerUpDefs` below.
-##      Pool membership, group toexclusivity, family, colour, panel visibility,
+##   2. Add exactly ONE entry to `allPowerUpDefs` below.
+##      Pool membership, exclusivity group, family, colour, panel visibility,
 ##      and max level all derive automatically from that one entry.
 ##   3. Add the name to `getPowerUpName`.
 ##   4. Add the description cases to `getPowerUpDescription`.

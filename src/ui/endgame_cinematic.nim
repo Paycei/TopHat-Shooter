@@ -4,7 +4,7 @@
 ## newEndgameCutscene() via the generic framework in cutscene.nim.
 
 import raylib, rlgl, math
-import particle_types, background_fx, ../types, ../shapes, ../localization, ../sound, cinematic_common, cutscene
+import particle_types, background_fx, ../types, ../shapes, ../localization, ../sound, cinematic_common, cutscene, ../utils
 
 const
   EndAccent* = Color(r: 60, g: 235, b: 160, a: 255)  # "restored" mint-green
@@ -65,7 +65,7 @@ proc drawPurgeShot(local, duration: float32, screenWidth, screenHeight: int32,
                          colorA(EndAccent, alpha * 55.0'f32),
                          colorA(EndAccent, 0.0'f32))
   drawDataRain(screenWidth, screenHeight, local, alpha * 0.85'f32,
-               Color(r: EndAccent.r, g: EndAccent.g, b: EndAccent.b, a: 255))
+               withAlpha(EndAccent, 255))
 
   let enemyKinds = [etCircle, etCube, etTriangle, etStar, etCross, etDiamond, etOctagon]
   for i in 0..<14:

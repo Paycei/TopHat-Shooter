@@ -10,7 +10,7 @@
 ## itself stays in game.nim and only reads the counters/state armed here.
 
 import raylib, random, math, tables
-import gamepad_input, particle_types, types, roguelite, powerup, particle, sound, localization, boss_definitions, settings, coin
+import gamepad_input, particle_types, types, roguelite, powerup, particle, sound, localization, boss_definitions, settings, coin, utils
 
 const
   DoorZoneWidth* = 120'f32   # Length of the door opening along the edge
@@ -1062,7 +1062,7 @@ proc doorColor(game: Game, room: DungeonRoom, dir: DoorDir): Color =
     return Color(r: 200, g: 60, b: 60, a: 220)
   if n >= 0 and run.floor.rooms[n].locked:
     return Color(r: 255, g: 200, b: 60, a: 230)
-  Color(r: accent.r, g: accent.g, b: accent.b, a: 230)
+  withAlpha(accent, 230)
 
 proc drawPickupPedestal(game: Game, pickup: DungeonPickup) =
   let cx = pickup.pos.x.int32
@@ -1155,7 +1155,7 @@ proc drawExitPortal(game: Game) =
 
   # Outer glow + dark core
   drawCircle(Vector2(x: cx, y: cy), baseR * 1.4'f32,
-             Color(r: accent.r, g: accent.g, b: accent.b, a: uint8(40.0'f32 * scale)))
+             withAlpha(accent, uint8(40.0'f32 * scale)))
   drawCircle(Vector2(x: cx, y: cy), baseR,
              Color(r: 8, g: 6, b: 18, a: uint8(235.0'f32 * scale)))
 
@@ -1172,7 +1172,7 @@ proc drawExitPortal(game: Game) =
       let py = cy + sin(ang) * rr
       let aa = uint8(255.0'f32 * (1.0'f32 - frac) * scale)
       drawCircle(Vector2(x: px, y: py), 1.5'f32 + (1.0'f32 - frac) * 2.5'f32,
-                 Color(r: accent.r, g: accent.g, b: accent.b, a: aa))
+                 withAlpha(accent, aa))
 
   # Rotating rim rings
   for k in 0..2:
@@ -1208,7 +1208,7 @@ proc drawDungeonOverlay*(game: Game) =
   for dir in room.doors:
     let rect = doorRect(game, dir)
     let color = doorColor(game, room, dir)
-    let fill = Color(r: color.r, g: color.g, b: color.b, a: 60)
+    let fill = withAlpha(color, 60)
     drawRectangle(rect, fill)
     drawRectangleLines(rect, 2.0'f32, color)
     let n = floor.neighborIndex(floor.currentRoom, dir)

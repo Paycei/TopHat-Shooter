@@ -185,24 +185,16 @@ proc unlockCount*(category: RogueliteUnlockCategory): int =
   of rucChallengeTiers: 2
 
 proc starterByUnlockIndex*(index: int): RogueliteStarterKit =
-  case clamp(index, 0, 2)
-  of 0: rskOperator
-  of 1: rskBulwark
-  else: rskArcanist
+  ## Unlock order is the declaration order, so derive it instead of restating it.
+  RogueliteStarterKit(clamp(index, 0, ord(high(RogueliteStarterKit))))
 
 proc familyByUnlockIndex*(index: int): RoguelitePowerFamily =
-  case clamp(index, 0, 8)
-  of 0: rpfCore
-  of 1: rpfShield
-  of 2: rpfArcane
-  of 3: rpfFire
-  of 4: rpfFrost
-  of 5: rpfPoison
-  of 6: rpfLightning
-  of 7: rpfWind
-  else: rpfBlood
+  ## Unlock order is the declaration order, so derive it instead of restating it.
+  RoguelitePowerFamily(clamp(index, 0, ord(high(RoguelitePowerFamily))))
 
 proc relicByUnlockIndex*(index: int): RogueliteRelicType =
+  ## NOT ordinal-aligned: this is a deliberate display order, not the enum order
+  ## (index 2 is rrtDraftCache while ord 3 is rrtEliteDividend). Keep it explicit.
   case clamp(index, 0, 4)
   of 0: rrtDiscountProtocol
   of 1: rrtShardMagnet

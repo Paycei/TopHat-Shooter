@@ -3,7 +3,7 @@
 # The roll animation system is handled in powerup.nim
 
 import raylib, math
-import ../types, icon_drawing, ../localization, ../powerup_data, ../render_context, ../settings, ui_helpers
+import ../types, icon_drawing, ../localization, ../powerup_data, ../render_context, ../settings, ui_helpers, ../utils
 
 const
   INSTALLER_WIDTH = 1000
@@ -134,7 +134,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
                                 width: iconSize.float32, height: iconSize.float32), 2.0, accentColor)
   drawRectangleLines(Rectangle(x: float32(iconX + 2), y: float32(yOff + 2),
                                 width: float32(iconSize - 4), height: float32(iconSize - 4)),
-                    1.0, Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: 120))
+                    1.0, withAlpha(accentColor, 120))
 
   # Legendary corner decorations
   if powerUp.rarity == prLegendary and a > 0.6:
@@ -327,7 +327,7 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
                 width: float32(CARD_WIDTH) + expansion * 2.0,
                 height: float32(CARD_HEIGHT) + expansion * 2.0),
       max(1.0, 4.0 * (1.0 - ringProgress)),
-      Color(r: ac.r, g: ac.g, b: ac.b, a: ringA))
+      withAlpha(ac, ringA))
 
   # 3. Particle burst (16 particles radiating outward)
   let pFade = 1.0'f32 - clamp(tSinceLock * 1.8'f32, 0.0'f32, 1.0'f32)
@@ -341,7 +341,7 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
       let py = cy + sin(angle) * dist * 0.55  # flatten ellipse
       let pSize = max(1.5, 5.5 * pFade)
       let pA = uint8(240.0 * pFade * pFade)
-      drawCircle(Vector2(x: px, y: py), pSize, Color(r: ac.r, g: ac.g, b: ac.b, a: pA))
+      drawCircle(Vector2(x: px, y: py), pSize, withAlpha(ac, pA))
 
   # 4. Rising name text (floats upward and fades)
   let textFade = 1.0'f32 - clamp(tSinceLock * 1.4'f32, 0.0'f32, 1.0'f32)
@@ -352,7 +352,7 @@ proc drawSlotLockEffect(cardX, cardY: int32, tSinceLock: float32, isLegendary: b
     let nx = cardX + (CARD_WIDTH - nameW) div 2
     let ny = int32(float32(cardY) + CARD_HEIGHT.float32 * 0.42 - rise)
     drawText(powerUpName, nx + 2, ny + 2, 18, Color(r: 0, g: 0, b: 0, a: tA))
-    drawText(powerUpName, nx, ny, 18, Color(r: ac.r, g: ac.g, b: ac.b, a: tA))
+    drawText(powerUpName, nx, ny, 18, withAlpha(ac, tA))
 
 proc drawOSPowerUpInstaller*(game: Game) =
   ## Draw the power-up selection screen with slot machine roll animation.

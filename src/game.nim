@@ -3,7 +3,7 @@ import types, settings, save_system, player, enemy, bullet, consumable, coin, xp
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
-import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting
+import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting, utils
 
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -1354,111 +1354,14 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
       continue
     j += 1
 
-proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
-  # Update player (with wall collision)
-  game.player.outOfCombatSpeedBoost = game.mode == gmRoguelite and not game.waveInProgress
-  updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
-  updateBossArenaGameplay(game, dt)
-
-  # Nova freeze expiry: when novaActive becomes false, release bullets
-  if not game.player.novaActive:
-    for bullet in game.bullets:
-      if bullet.isFrozenByNova and bullet.fromPlayer:
-        bullet.vel = bullet.vel * 1.5
-        bullet.isFrozenByNova = false
-        bullet.isFromNova = true  # Mark for damage tracking
-
-  # Radial Burst power-up - periodic circle of bullets
-  if hasPowerUp(game.player, puRadialBurst):
-    game.player.radialBurstTimer -= dt
-    if game.player.radialBurstTimer <= 0:
-      let level = getPowerUpLevel(game.player, puRadialBurst)
-      let (bulletCount, cooldown) = case level
-        of 1: (8, 3.5)
-        of 2: (10, 3.0)
-        else: (14, 2.0)
-
-      # Calculate combat stats for radial burst bullets
-      var stats = calculateCombatStats(game.player)
-      applyBossArenaCombatBonus(game, stats)
-
-      # Fire circle of bullets
-      for i in 0..<bulletCount:
-        let angle = (i.float32 / bulletCount.float32) * PI * 2.0
-        let direction = newVector2f(cos(angle), sin(angle))
-
-        # Create bullet with player's current stats
-        let damageWithCrit = applyCriticalHitFromStats(stats, stats.damage)
-
-        game.bullets.add(newBullet(
-          x = game.player.pos.x,
-          y = game.player.pos.y,
-          direction = direction,
-          speed = game.player.bulletSpeed,
-          damage = damageWithCrit,
-          fromPlayer = true,
-          isHoming = false,
-          isPiercing = hasPowerUp(game.player, puPiercingShots),
-          isExplosive = hasPowerUp(game.player, puExplosiveBullets),
-          hasBounce = hasPowerUp(game.player, puBulletRicochet),
-          canSplit = hasPowerUp(game.player, puBulletSplit),
-          slowAmount = 0.0,  # Add elemental effects if player has them
-          poisonDuration = 0.0,
-          fireDuration = 0.0,
-          windPushForce = 0.0,
-          bulletSkin = game.player.bulletSkinType,
-          bulletShape = game.player.bulletShapeType,
-          isFromRadialBurst = true
-        ))
-
-      # Visual feedback
-      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
-                    Color(r: 100, g: 200, b: 255, a: 255), 25)
-
-      game.player.radialBurstTimer = cooldown
-
-  # Player poison damage from venomous elites
-  # Uses accumulator system to ensure only whole number damage is applied
-  if game.player.poisonTimer > 0:
-    game.player.poisonTimer -= dt
-
-    # Accumulate fractional damage
-    game.player.poisonAccumulator += game.player.poisonDamage * dt
-
-    # Apply damage in whole number increments
-    if game.player.poisonAccumulator >= 1.0:
-      let wholeDamage = game.player.poisonAccumulator.int.float32  # Floor to whole number
-      game.player.poisonAccumulator -= wholeDamage  # Keep remainder
-
-      if takeDamage(game.player, wholeDamage):
-        beginPlayerDeathSequence(game, dcPoison, sourceType = game.player.poisonSourceType)
-      trackDamageAvoided(game)
-
-      # Track poison damage for statistics
-      trackPlayerDamage(game, wholeDamage, game.player.poisonSourceType)
-
-      # Create damage number for poison damage
-      game.showDamage(game.player.pos, wholeDamage, fromPlayer = false,
-                      isCritical = false, damageType = dtPoison)
-
-      # Additional safety check: ensure game ends if HP reaches 0
-      if game.player.hp <= 0:
-        beginPlayerDeathSequence(game, dcPoison, sourceType = game.player.poisonSourceType)
-
-    # Poison visual effect
-    # Spawn ~20 particles/sec
-    spawnTimedParticlesPooled(game.particlePool, game.player.pos.x, game.player.pos.y, 20.0, Green, 2, dt)
-
-  # Regeneration power-up is now handled per wave completion, not per time interval
-  # See wave completion code for regeneration logic
-
+proc updatePlayerAuras(game: var Game, dt: float32) =
   # Slow Field power-up effect
   if hasPowerUp(game.player, puSlowField):
     let level = getPowerUpLevel(game.player, puSlowField)
     let slowPercent = case level
-      of 1: 0.30  # NERFED from 50% to 30% slow
-      of 2: 0.45  # NERFED from 65% to 45% slow
-      else: 0.55  # NERFED from 75% to 55% slow
+      of 1: 0.30
+      of 2: 0.45
+      else: 0.55
     let slowRadius = getAuraRadius(level)
     let slowRadiusSq = slowRadius * slowRadius
 
@@ -1805,41 +1708,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
                         isCritical = false, damageType = dtHeal)
         lastBloodHealTime = game.time
 
-  # Gravity Well (Singularity) - Pull enemies toward player with bonus effect on ranged
-  if hasPowerUp(game.player, puGravityWell):
-    let pullRadius = 300.0  # Single level - balanced radius
-    let basePullStrength = 100.0
-
-    for enemy in game.enemies:
-      let dist = distance(game.player.pos, enemy.pos)
-      if dist < pullRadius and dist > 10.0:  # Don't pull if too close
-        # Calculate direction to player
-        let toPlayer = (game.player.pos - enemy.pos).normalize()
-
-        # Check if this is a ranged enemy (gets 50% extra pull)
-        let isRanged = enemy.enemyType in [etCube, etPentagon, etOctagon, etHexagon, etSniper]
-        let pullMultiplier = if isRanged: 1.5 else: 1.0
-
-        # Apply pull force (stronger when closer)
-        let pullForce = basePullStrength * pullMultiplier * (1.0 - (dist / pullRadius))
-        enemy.pos.x += toPlayer.x * pullForce * dt
-        enemy.pos.y += toPlayer.y * pullForce * dt
-
-        # Spawn visual particles for gravity effect (more for ranged enemies)
-        let particleRate = if isRanged: 15.0 else: 9.0
-        let particleColor = if isRanged: Color(r: 138, g: 43, b: 226, a: 220) else: Color(r: 75, g: 0, b: 130, a: 200)
-        spawnTimedParticlesAroundPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
-                                 pullRadius, particleRate, particleColor, 2, dt)
-    # Also pull coins
-    let coinPullMultiplier = 0.0  # No coins for now
-    for coin in game.coins:
-      let dist = distance(game.player.pos, coin.pos)
-      if dist < pullRadius and dist > 10.0:
-        let toPlayer = (game.player.pos - coin.pos).normalize()
-        let pullForce = basePullStrength * coinPullMultiplier * (1.0 - (dist / pullRadius))
-        coin.pos.x += toPlayer.x * pullForce * dt
-        coin.pos.y += toPlayer.y * pullForce * dt
-
+proc updatePulseArmor(game: var Game) =
   # Pulse Armor - emit a real shove when taking damage. takeDamage() in player.nim
   # sets pulseArmorTriggered as a one-frame flag; we consume it here.
   if game.player.pulseArmorTriggered:
@@ -1900,15 +1769,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       # Set cooldown (counted down by updatePlayer in player.nim)
       game.player.pulseArmorCooldown = cooldown
 
-  # Rotating Orbs power-up - elemental orbs that orbit the player and damage enemies
-  updateOrbitalWeapons(game, dt)
-
-  # Decay active lightning bolt visuals
-  updateLightningBolts(game, dt)
-
-  # Animate/expire AoE blast boundary rings (Star death, etc.)
-  updateShockwaveRings(game, dt)
-
+proc updatePlayerFiring(game: var Game, dt: float32) =
   # Check shooting
   let pointerPos = getWorldMousePosition()
   var mousePos = newVector2f(pointerPos.x, pointerPos.y)
@@ -1973,6 +1834,146 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   if isFiring:
     if shootDir.length() > 0:
       shootBullet(game, shootDir)
+
+proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
+  # Update player (with wall collision)
+  game.player.outOfCombatSpeedBoost = game.mode == gmRoguelite and not game.waveInProgress
+  updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
+  updateBossArenaGameplay(game, dt)
+
+  # Nova freeze expiry: when novaActive becomes false, release bullets
+  if not game.player.novaActive:
+    for bullet in game.bullets:
+      if bullet.isFrozenByNova and bullet.fromPlayer:
+        bullet.vel = bullet.vel * 1.5
+        bullet.isFrozenByNova = false
+        bullet.isFromNova = true  # Mark for damage tracking
+
+  # Radial Burst power-up - periodic circle of bullets
+  if hasPowerUp(game.player, puRadialBurst):
+    game.player.radialBurstTimer -= dt
+    if game.player.radialBurstTimer <= 0:
+      let level = getPowerUpLevel(game.player, puRadialBurst)
+      let (bulletCount, cooldown) = case level
+        of 1: (8, 3.5)
+        of 2: (10, 3.0)
+        else: (14, 2.0)
+
+      # Calculate combat stats for radial burst bullets
+      var stats = calculateCombatStats(game.player)
+      applyBossArenaCombatBonus(game, stats)
+
+      # Fire circle of bullets
+      for i in 0..<bulletCount:
+        let angle = (i.float32 / bulletCount.float32) * PI * 2.0
+        let direction = newVector2f(cos(angle), sin(angle))
+
+        # Create bullet with player's current stats
+        let damageWithCrit = applyCriticalHitFromStats(stats, stats.damage)
+
+        game.bullets.add(newBullet(
+          x = game.player.pos.x,
+          y = game.player.pos.y,
+          direction = direction,
+          speed = game.player.bulletSpeed,
+          damage = damageWithCrit,
+          fromPlayer = true,
+          isHoming = false,
+          isPiercing = hasPowerUp(game.player, puPiercingShots),
+          isExplosive = hasPowerUp(game.player, puExplosiveBullets),
+          hasBounce = hasPowerUp(game.player, puBulletRicochet),
+          canSplit = hasPowerUp(game.player, puBulletSplit),
+          slowAmount = 0.0,  # Add elemental effects if player has them
+          poisonDuration = 0.0,
+          fireDuration = 0.0,
+          windPushForce = 0.0,
+          bulletSkin = game.player.bulletSkinType,
+          bulletShape = game.player.bulletShapeType,
+          isFromRadialBurst = true
+        ))
+
+      # Visual feedback
+      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                    Color(r: 100, g: 200, b: 255, a: 255), 25)
+
+      game.player.radialBurstTimer = cooldown
+
+  # Player poison damage from venomous elites
+  # Uses accumulator system to ensure only whole number damage is applied
+  if game.player.poisonTimer > 0:
+    game.player.poisonTimer -= dt
+
+    # Accumulate fractional damage
+    game.player.poisonAccumulator += game.player.poisonDamage * dt
+
+    # Apply damage in whole number increments
+    if game.player.poisonAccumulator >= 1.0:
+      let wholeDamage = game.player.poisonAccumulator.int.float32  # Floor to whole number
+      game.player.poisonAccumulator -= wholeDamage  # Keep remainder
+
+      if takeDamage(game.player, wholeDamage):
+        beginPlayerDeathSequence(game, dcPoison, sourceType = game.player.poisonSourceType)
+      trackDamageAvoided(game)
+
+      # Track poison damage for statistics
+      trackPlayerDamage(game, wholeDamage, game.player.poisonSourceType)
+
+      # Create damage number for poison damage
+      game.showDamage(game.player.pos, wholeDamage, fromPlayer = false,
+                      isCritical = false, damageType = dtPoison)
+
+      # Additional safety check: ensure game ends if HP reaches 0
+      if game.player.hp <= 0:
+        beginPlayerDeathSequence(game, dcPoison, sourceType = game.player.poisonSourceType)
+
+    # Poison visual effect
+    # Spawn ~20 particles/sec
+    spawnTimedParticlesPooled(game.particlePool, game.player.pos.x, game.player.pos.y, 20.0, Green, 2, dt)
+
+  # Regeneration power-up is now handled per wave completion, not per time interval
+  # See wave completion code for regeneration logic
+
+  updatePlayerAuras(game, dt)
+
+  # Gravity Well (Singularity) - Pull enemies toward player with bonus effect on ranged
+  if hasPowerUp(game.player, puGravityWell):
+    let pullRadius = 300.0  # Single level - balanced radius
+    let basePullStrength = 100.0
+
+    for enemy in game.enemies:
+      let dist = distance(game.player.pos, enemy.pos)
+      if dist < pullRadius and dist > 10.0:  # Don't pull if too close
+        # Calculate direction to player
+        let toPlayer = (game.player.pos - enemy.pos).normalize()
+
+        # Check if this is a ranged enemy (gets 50% extra pull)
+        let isRanged = enemy.enemyType in [etCube, etPentagon, etOctagon, etHexagon, etSniper]
+        let pullMultiplier = if isRanged: 1.5 else: 1.0
+
+        # Apply pull force (stronger when closer)
+        let pullForce = basePullStrength * pullMultiplier * (1.0 - (dist / pullRadius))
+        enemy.pos.x += toPlayer.x * pullForce * dt
+        enemy.pos.y += toPlayer.y * pullForce * dt
+
+        # Spawn visual particles for gravity effect (more for ranged enemies)
+        let particleRate = if isRanged: 15.0 else: 9.0
+        let particleColor = if isRanged: Color(r: 138, g: 43, b: 226, a: 220) else: Color(r: 75, g: 0, b: 130, a: 200)
+        spawnTimedParticlesAroundPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                                 pullRadius, particleRate, particleColor, 2, dt)
+    # Gravity Well deliberately does not pull coins.
+
+  updatePulseArmor(game)
+
+  # Rotating Orbs power-up - elemental orbs that orbit the player and damage enemies
+  updateOrbitalWeapons(game, dt)
+
+  # Decay active lightning bolt visuals
+  updateLightningBolts(game, dt)
+
+  # Animate/expire AoE blast boundary rings (Star death, etc.)
+  updateShockwaveRings(game, dt)
+
+  updatePlayerFiring(game, dt)
 
 proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
   # MODE-SPECIFIC ENEMY SPAWNING
@@ -2097,7 +2098,7 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
             if game.comebackBonusActive and game.currentWave >= game.comebackEndWave:
               removeComebackBonus(game)
 
-          # ADJUSTED: Power-ups less frequent (every 2 waves instead of every wave)
+          # Power-ups are offered every 2 waves, not every wave.
           shouldOfferPowerUp = (game.currentWave mod 2) == 0
 
         # Calculate final wave stats
@@ -2351,7 +2352,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # Star explosion on death - damages player if too close
       if enemy.enemyType == etStar:
         const explosionRadius = 120.0  # LARGER explosion radius
-        const explosionDamage = 3.0    # Buffed (was 2.0)
+        const explosionDamage = 3.0
 
         # Play explosion sound
         playSound(stExplosion, 0.8)
@@ -2457,10 +2458,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # Regular enemy kill - standard effects
         addShake(game.dopamine.screenShake, siMedium)
         activateSlowMo(game.dopamine.slowMotion, smtKill)
-        # Record kill with damage dealt
         recordKill(game.dopamine.waveStats, 0)  # Don't track individual enemy damage for non-bosses
-
-      # Kill streak system removed - only using combo system now
 
       # Track combo and award bonus coins (but not for boss minions)
       if not enemy.spawnedByBoss:
@@ -3011,8 +3009,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           if enemy.enemyType == etStar:
             enemy.hitCount += 1
           else:
-            let actualContactDmg = damageEnemy(enemy, contactDamageToEnemy)
-            discard actualContactDmg
+            discard damageEnemy(enemy, contactDamageToEnemy)
 
           enemy.lastContactDamageTime = game.time
 
@@ -3135,6 +3132,10 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
 
 proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
   # Update boss satellites (persistent orbiting satellites)
+  # Screen dims are frame-constant, so the laser's max reach is computed once here
+  # rather than per satellite per frame.
+  let maxScreenDist = sqrt(game.screenWidth.float32 * game.screenWidth.float32 +
+                           game.screenHeight.float32 * game.screenHeight.float32)
   for enemy in game.enemies:
     if enemy.isBoss and enemy.satellites.len > 0:
       var i = enemy.satellites.len - 1
@@ -3170,11 +3171,6 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
             # Calculate direction through locked target position to screen edge
             let toTarget = (enemy.satellites[i].laserTarget - enemy.satellites[i].pos).normalize()
             let targetAngle = arctan2(toTarget.y, toTarget.x)
-
-            # Calculate maximum laser length to reach screen edge
-            # OPTIMIZATION: Cache this value per enemy instead of recalculating
-            let maxScreenDist = sqrt(game.screenWidth.float32 * game.screenWidth.float32 +
-                                     game.screenHeight.float32 * game.screenHeight.float32)
 
             # WARNING PHASE (first 1.5 seconds)
             if enemy.satellites[i].laserChargeTime < 1.5:
@@ -3220,29 +3216,28 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
               # Visual feedback for laser firing - reduced frequency
               if game.frameCount mod 8 == 0:  # Reduced from every 2 frames to every 8
                 spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y,
-                              Color(r: 255, g: 200, b: 100, a: 255), 6)  # Smaller particles (6 instead of 8)
+                              Color(r: 255, g: 200, b: 100, a: 255), 6)
 
-        # OPTIMIZATION: Bullet collision - only check if satellite is on screen
+        # Off-screen satellites skip the bullet-collision scan entirely.
         var satelliteDestroyed = false
         let onScreen = enemy.satellites[i].pos.x > -50 and enemy.satellites[i].pos.x < game.screenWidth.float32 + 50 and
                        enemy.satellites[i].pos.y > -50 and enemy.satellites[i].pos.y < game.screenHeight.float32 + 50
 
         if onScreen:
-          # OPTIMIZATION: Check only player bullets in spatial proximity
           for bullet in game.bullets:
             if bullet.fromPlayer:
               # Quick AABB check before distance calculation
               let dx = abs(bullet.pos.x - enemy.satellites[i].pos.x)
               let dy = abs(bullet.pos.y - enemy.satellites[i].pos.y)
-              if dx < 25.0 and dy < 25.0:  # INCREASED from 20.0 to 25.0 (easier to hit)
-                if dx * dx + dy * dy < 484.0:  # INCREASED from 225.0 to 484.0 (22.0 * 22.0 = 484, larger hitbox)
+              if dx < 25.0 and dy < 25.0:
+                if dx * dx + dy * dy < 484.0:  # 22.0^2
                   enemy.satellites[i].hp -= 1
                   spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y,
-                                Color(r: 255, g: 150, b: 0, a: 255), 6)  # Smaller (6 instead of 8)
+                                Color(r: 255, g: 150, b: 0, a: 255), 6)
                   if enemy.satellites[i].hp <= 0:
                     # Satellite destroyed!
                     spawnExplosionPooled(game.particlePool, enemy.satellites[i].pos.x, enemy.satellites[i].pos.y,
-                                  Red, 20)  # Smaller (20 instead of 25)
+                                  Red, 20)
                     playSound(stEnemyDeath, 0.4)
                     let satelliteBonusDamage = registerBossSatelliteDestroyed(enemy)
                     if satelliteBonusDamage > 0:
@@ -3285,7 +3280,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
     if bullet.isHoming:
       if bullet.fromPlayer and game.enemies.len > 0:
         # Player homing bullets track enemies (LEGENDARY - Single Level)
-        # HEAVY NERF: Much shorter tracking range and weaker turn rate
+        # Deliberately weak homing: short range and a low turn rate.
         let trackingRange = 120.0
 
         # Find nearest enemy that HASN'T been hit by this bullet yet.
@@ -3306,8 +3301,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             nearestEnemy = enemy
 
         if nearestEnemy != nil:
-          # HEAVY NERF: Much weaker tracking - bullets barely curve
-          let turnRate = 0.02  # NERFED from 0.05
+          let turnRate = 0.02
 
           let toEnemy = (nearestEnemy.pos - bullet.pos).normalize()
           let currentDir = bullet.vel.normalize()
@@ -3485,39 +3479,49 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             prevCand = v
         gridCandidates.setLen(uniqueLen)
 
-      for j in gridCandidates:
-        # Skip if this bullet already hit this enemy (using enemy ID)
-        if game.enemies[j].id in bullet.hitEnemies:
-          continue
-        if bullet.isEcho and bullet.parentBulletId > 0:
-          var parentAlreadyDamagedEnemy = false
-          for parentBullet in game.bullets:
-            if parentBullet.bulletId == bullet.parentBulletId:
-              parentAlreadyDamagedEnemy =
-                game.enemies[j].id in parentBullet.hitEnemies or
-                game.enemies[j].id in parentBullet.echoHitEnemies
-              break
-          if parentAlreadyDamagedEnemy:
-            continue
+      # The echo parent is keyed only by bullet.parentBulletId, which does not depend on
+      # the candidate enemy, so resolve it once per bullet rather than rescanning
+      # game.bullets for every candidate. Bullet is a ref, so the two uses below still
+      # see (and can mutate) the live parent. nil = the parent already despawned, which
+      # matches the old "no match found" path.
+      var echoParent: Bullet = nil
+      if bullet.isEcho and bullet.parentBulletId > 0:
+        for parentBullet in game.bullets:
+          if parentBullet.bulletId == bullet.parentBulletId:
+            echoParent = parentBullet
+            break
 
-        if game.enemies[j].isBoss:
-          let objectiveHit = resolveBossWeakPointTargetHit(game.enemies[j], bullet.pos, bullet.radius)
+      for j in gridCandidates:
+        # Enemy is a ref and the bullet loop never adds or deletes enemies while the
+        # grid is live (see the spatial-grid notes in enemy_helpers), so binding the
+        # candidate once is free and identical to indexing it 79 times.
+        let target = game.enemies[j]
+        # Skip if this bullet already hit this enemy (using enemy ID)
+        if target.id in bullet.hitEnemies:
+          continue
+        if echoParent != nil and
+           (target.id in echoParent.hitEnemies or
+            target.id in echoParent.echoHitEnemies):
+          continue
+
+        if target.isBoss:
+          let objectiveHit = resolveBossWeakPointTargetHit(target, bullet.pos, bullet.radius)
           if objectiveHit.hit:
-            bullet.hitEnemies.add(game.enemies[j].id)
+            bullet.hitEnemies.add(target.id)
             playSound(stEnemyHit, if objectiveHit.wrongTarget: 0.2 else: 0.35)
             let particleColor = if objectiveHit.wrongTarget:
               Color(r: 120, g: 80, b: 180, a: 255)
             elif objectiveHit.completed:
               Color(r: 255, g: 235, b: 90, a: 255)
             else:
-              game.enemies[j].color
+              target.color
             spawnExplosionPooled(game.particlePool, objectiveHit.pos.x, objectiveHit.pos.y,
                                  particleColor, if objectiveHit.completed: 18 else: 8)
             if objectiveHit.completed:
               if objectiveHit.bonusDamage > 0:
-                let dealtObjectiveDamage = applyEnemyHpDamage(game.enemies[j], objectiveHit.bonusDamage)
+                let dealtObjectiveDamage = applyEnemyHpDamage(target, objectiveHit.bonusDamage)
                 if dealtObjectiveDamage > 0:
-                  showDamage(game, game.enemies[j].pos, dealtObjectiveDamage, true, false, dtArcane)
+                  showDamage(game, target.pos, dealtObjectiveDamage, true, false, dtArcane)
                   recordDamage(game.dopamine.realTimeStats, dealtObjectiveDamage, game.time)
               addShake(game.dopamine.screenShake, siLarge)
             hitEnemy = true
@@ -3526,30 +3530,26 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
         # Overload shield: bounce body shots back at the player instead of letting
         # them through. Only the body is shielded - weak-point targets above still
         # register - so the player's path is "stop firing into the shield / dodge".
-        if game.enemies[j].isBoss and game.enemies[j].reflectShieldActive and
-            game.enemies[j].weakPoint.exposedTimer <= 0 and not bullet.isEcho and
-            checkBulletEnemyCollision(bullet, game.enemies[j]):
+        if target.isBoss and target.reflectShieldActive and
+            target.weakPoint.exposedTimer <= 0 and not bullet.isEcho and
+            checkBulletEnemyCollision(bullet, target):
           let dir = (game.player.pos - bullet.pos).normalize()
           # Parried shots rocket back at 150% of their incoming speed (220 floor keeps slow shots dangerous).
           bullet.vel = dir * max(220.0'f32, bullet.vel.length() * 1.5'f32)
           bullet.fromPlayer = false
           bullet.damage = REFLECT_SHIELD_DAMAGE
-          bullet.sourceEnemyId = game.enemies[j].id
-          bullet.sourceEnemyPos = game.enemies[j].pos
+          bullet.sourceEnemyId = target.id
+          bullet.sourceEnemyPos = target.pos
           bullet.isParried = false
           spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
                                Color(r: 120, g: 200, b: 255, a: 255), 6)
           break  # leave hitEnemy false so the reflected shot survives as an enemy bullet
 
-        if checkBulletEnemyCollision(bullet, game.enemies[j]):
+        if checkBulletEnemyCollision(bullet, target):
           # Mark this enemy as hit by this bullet (using enemy ID, not index)
-          bullet.hitEnemies.add(game.enemies[j].id)
-          if bullet.isEcho and bullet.parentBulletId > 0:
-            for parentBullet in game.bullets:
-              if parentBullet.bulletId == bullet.parentBulletId:
-                if game.enemies[j].id notin parentBullet.echoHitEnemies:
-                  parentBullet.echoHitEnemies.add(game.enemies[j].id)
-                break
+          bullet.hitEnemies.add(target.id)
+          if echoParent != nil and target.id notin echoParent.echoHitEnemies:
+            echoParent.echoHitEnemies.add(target.id)
 
           # Play enemy hit sound
           playSound(stEnemyHit, 0.3)
@@ -3558,14 +3558,8 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           var finalDamage = bullet.damage
           var overchargeExtraDamage = 0.0
           if not bullet.isEcho and hasPowerUp(game.player, puOvercharge):
-            # Overcharge: Bullets gain damage based on distance traveled
-            # +1.5% damage per 10 units traveled, up to +150% at 1000 units
-            # Formula: damage * (1 + min(travelDistance * 0.0015, 1.5))
-            # Examples:
-            #   - 100 units = +15% damage (1.15x)
-            #   - 500 units = +75% damage (1.75x)
-            #   - 1000+ units = +150% damage (2.5x, 2.5x damage!)
-
+            # Overcharge: bullets ramp up with distance travelled, capping at 2.5x
+            # total damage (reached at 1000 units).
             let damagePerUnit = 0.0015  # 0.15% per unit, 1.5% per 10 units
             let maxBonus = 1.5  # Max +150% damage (2.5x total)
             let bonusMultiplier = min(bullet.travelDistance * damagePerUnit, maxBonus)
@@ -3575,90 +3569,90 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
           # Use the bullet's stored crit status (rolled when bullet was created)
           let isCrit = bullet.wasCrit
-          let weakCoreHit = bossWeakPointCoreHit(game.enemies[j], bullet.pos, bullet.radius)
+          let weakCoreHit = bossWeakPointCoreHit(target, bullet.pos, bullet.radius)
           let bossIsInvulnerable =
-            game.enemies[j].isBoss and game.enemies[j].invulnerabilityTimer > 0
+            target.isBoss and target.invulnerabilityTimer > 0
 
-          if game.enemies[j].enemyType == etStar:
+          if target.enemyType == etStar:
             # Stars use hit counter, show "1" per hit dealt
-            game.enemies[j].hitCount += 1
-            showDamage(game, game.enemies[j].pos, 0.01, true, false, dtHitCount)
+            target.hitCount += 1
+            showDamage(game, target.pos, 0.01, true, false, dtHitCount)
           else:
             # Apply elite modifiers to damage
             var actualDamage = finalDamage
 
             # Higher defenseMultiplier = MORE defense (takes LESS damage)
             # 0.5 = half defense (takes 2x damage), 1.0 = normal, 2.0 = double defense (takes 0.5x damage)
-            if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
-              actualDamage /= game.enemies[j].defenseMultiplier
+            if target.isBoss and target.defenseMultiplier > 0:
+              actualDamage /= target.defenseMultiplier
 
             # Mega-cast hardening: the boss is armored while channelling its
             # signature beam, so bursting it down mid-cast is heavily resisted.
-            if game.enemies[j].isBoss and game.enemies[j].megaCastTimer > 0:
+            if target.isBoss and target.megaCastTimer > 0:
               actualDamage *= MegaCastDamageTaken
 
             # Tank elite: 50% damage reduction
             # Handles multiple elite types
-            if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
+            if target.isElite and etTank in target.eliteTypes:
               actualDamage *= 0.5  # 50% damage taken
 
             # Shielded elite: shield absorbs damage first
             var shieldDamage = 0.0  # Track damage absorbed by shield
-            if game.enemies[j].isElite and etShielded in game.enemies[j].eliteTypes and game.enemies[j].shieldHp > 0:
-              if game.enemies[j].shieldHp >= actualDamage:
+            if target.isElite and etShielded in target.eliteTypes and target.shieldHp > 0:
+              if target.shieldHp >= actualDamage:
                 # Shield absorbs all damage
                 shieldDamage = actualDamage
-                game.enemies[j].shieldHp -= actualDamage
+                target.shieldHp -= actualDamage
                 actualDamage = 0
               else:
                 # Shield breaks, remaining damage goes to HP
-                shieldDamage = game.enemies[j].shieldHp
-                actualDamage -= game.enemies[j].shieldHp
-                game.enemies[j].shieldHp = 0
+                shieldDamage = target.shieldHp
+                actualDamage -= target.shieldHp
+                target.shieldHp = 0
 
             # Diamond enemy: 1-hit shield absorbs the first bullet entirely (like Celestial Veil)
-            if game.enemies[j].enemyType == etDiamond and game.enemies[j].diamondShieldActive:
-              game.enemies[j].diamondShieldActive = false
+            if target.enemyType == etDiamond and target.diamondShieldActive:
+              target.diamondShieldActive = false
               shieldDamage += actualDamage
               actualDamage = 0
 
             let weakDamageSource = if weakCoreHit: bwdsDirectWeakCore else: bwdsDirectBody
-            actualDamage *= bossWeakPointDamageMultiplier(game.enemies[j], weakDamageSource)
+            actualDamage *= bossWeakPointDamageMultiplier(target, weakDamageSource)
             # Engagement gates: while adds are alive or the overload shield is up (and
             # no vulnerability window is open), body damage barely leaks through, so
             # the player must resolve the mechanic instead of shooting the body.
-            let bossWindowOpen = game.enemies[j].weakPoint.exposedTimer > 0
-            if game.enemies[j].isBoss and not bossWindowOpen and
-                (game.enemies[j].addsGateActive or game.enemies[j].reflectShieldActive):
+            let bossWindowOpen = target.weakPoint.exposedTimer > 0
+            if target.isBoss and not bossWindowOpen and
+                (target.addsGateActive or target.reflectShieldActive):
               actualDamage *= GATE_DAMAGE_LEAK
             if bossIsInvulnerable:
               actualDamage = 0
 
-            actualDamage = applyEnemyHpDamage(game.enemies[j], actualDamage)
+            actualDamage = applyEnemyHpDamage(target, actualDamage)
             # Track damage spent inside a vulnerability window for the heal-on-ignore check.
-            if game.enemies[j].isBoss and bossWindowOpen:
-              game.enemies[j].windowDamageDealt += actualDamage
+            if target.isBoss and bossWindowOpen:
+              target.windowDamageDealt += actualDamage
 
             # Volatile: enemies with 2+ active DoTs take +50% bullet damage
             var volatileBonusDamage = 0.0
             if game.player.hasVolatile and bullet.fromPlayer and not bullet.isEcho:
               var activeEffectCount = 0
-              for et, ae in game.enemies[j].activeEffects:
+              for et, ae in target.activeEffects:
                 if ae.primary.isActive:
                   activeEffectCount += 1
               if activeEffectCount >= 2:
                 volatileBonusDamage = actualDamage * 0.5
-                volatileBonusDamage = applyEnemyHpDamage(game.enemies[j], volatileBonusDamage)
+                volatileBonusDamage = applyEnemyHpDamage(target, volatileBonusDamage)
                 trackPowerUpDamage(game, puVolatile, volatileBonusDamage)
                 if volatileBonusDamage > 0:
-                  showDamage(game, game.enemies[j].pos, volatileBonusDamage, true, false, dtArcane)
+                  showDamage(game, target.pos, volatileBonusDamage, true, false, dtArcane)
 
             # Resonance: bullets hitting DoT enemies deal bonus damage equal to % of combined DPS
             var resonanceBonusDamage = 0.0
             if game.player.resonanceLevel > 0 and bullet.fromPlayer and
                 not bullet.isEcho and not bossIsInvulnerable:
               var totalDoTDps = 0.0
-              for et, ae in game.enemies[j].activeEffects:
+              for et, ae in target.activeEffects:
                 if ae.primary.isActive:
                   totalDoTDps += ae.primary.damagePerSec
               if totalDoTDps > 0:
@@ -3667,11 +3661,11 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
                   of 2: 0.30
                   else: 0.40
                 resonanceBonusDamage = totalDoTDps * resonancePct
-                resonanceBonusDamage *= bossWeakPointDamageMultiplier(game.enemies[j], bwdsPassive)
-                resonanceBonusDamage = applyEnemyHpDamage(game.enemies[j], resonanceBonusDamage)
+                resonanceBonusDamage *= bossWeakPointDamageMultiplier(target, bwdsPassive)
+                resonanceBonusDamage = applyEnemyHpDamage(target, resonanceBonusDamage)
                 trackPowerUpDamage(game, puResonance, resonanceBonusDamage)
                 if resonanceBonusDamage > 0:
-                  showDamage(game, game.enemies[j].pos, resonanceBonusDamage, true, false, dtPoison)
+                  showDamage(game, target.pos, resonanceBonusDamage, true, false, dtPoison)
 
             # Giant Slayer: Deal % of enemy current HP as bonus damage
             var giantSlayerDamage = 0.0
@@ -3685,58 +3679,58 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
               # Giant Slayer hunts the rank-and-file: heavy against normal enemies,
               # but far weaker against bosses.
-              if game.enemies[j].isBoss:
+              if target.isBoss:
                 percentDamage *= 0.2  # reduced effect vs bosses
 
-              giantSlayerDamage = game.enemies[j].hp * percentDamage
+              giantSlayerDamage = target.hp * percentDamage
 
               # Apply elite modifiers to Giant Slayer damage too
-              if game.enemies[j].isBoss and game.enemies[j].defenseMultiplier > 0:
-                giantSlayerDamage /= game.enemies[j].defenseMultiplier
+              if target.isBoss and target.defenseMultiplier > 0:
+                giantSlayerDamage /= target.defenseMultiplier
 
               # Tank elite: 50% damage reduction
-              if game.enemies[j].isElite and etTank in game.enemies[j].eliteTypes:
+              if target.isElite and etTank in target.eliteTypes:
                 giantSlayerDamage *= 0.5  # 50% damage taken
 
-              giantSlayerDamage *= bossWeakPointDamageMultiplier(game.enemies[j], bwdsPassive)
+              giantSlayerDamage *= bossWeakPointDamageMultiplier(target, bwdsPassive)
 
               # Shielded elite: Giant Slayer damage goes through shield to HP
-              giantSlayerDamage = applyEnemyHpDamage(game.enemies[j], giantSlayerDamage)
+              giantSlayerDamage = applyEnemyHpDamage(target, giantSlayerDamage)
 
               # Track Giant Slayer damage contribution
               trackPowerUpDamage(game, puGiantSlayer, giantSlayerDamage)
 
               # Show Giant Slayer damage number in distinct color (purple/arcane)
               if giantSlayerDamage > 0:
-                showDamage(game, game.enemies[j].pos, giantSlayerDamage, true, false, dtArcane)
+                showDamage(game, target.pos, giantSlayerDamage, true, false, dtArcane)
 
             # Curse: cursed enemies take a % of this hit's damage as bonus damage.
             # Based on actualDamage, which already includes mitigation and the direct
             # weak-point multiplier, so no extra multipliers are applied here.
             # Greatly reduced against bosses.
             var curseDamage = 0.0
-            if not bullet.isEcho and bullet.fromPlayer and game.enemies[j].cursed and
+            if not bullet.isEcho and bullet.fromPlayer and target.cursed and
                 hasPowerUp(game.player, puCurse) and not bossIsInvulnerable and actualDamage > 0:
               var curseBonusPct = case getPowerUpLevel(game.player, puCurse)
                 of 1: 0.30'f32
                 of 2: 0.45'f32
                 else: 0.60'f32
-              if game.enemies[j].isBoss:
+              if target.isBoss:
                 curseBonusPct *= 0.15  # greatly reduced against bosses
               curseDamage = actualDamage * curseBonusPct
-              curseDamage = applyEnemyHpDamage(game.enemies[j], curseDamage)
+              curseDamage = applyEnemyHpDamage(target, curseDamage)
               trackPowerUpDamage(game, puCurse, curseDamage)
               if curseDamage > 0:
-                showDamage(game, game.enemies[j].pos, curseDamage, true, false, dtArcane)
+                showDamage(game, target.pos, curseDamage, true, false, dtArcane)
 
             # GlitchField: chance to scramble enemy navigation (slow them)
-            if game.player.glitchChance > 0 and not game.enemies[j].isBoss and actualDamage > 0:
+            if game.player.glitchChance > 0 and not target.isBoss and actualDamage > 0:
               if rand(1.0) < game.player.glitchChance:
-                game.enemies[j].slowTimer  = 0.5'f32
-                game.enemies[j].slowAmount = 0.15'f32  # move at 15% speed
+                target.slowTimer  = 0.5'f32
+                target.slowAmount = 0.15'f32  # move at 15% speed
 
             # Track bullet hit for statistics (now includes Giant Slayer + Curse damage)
-            trackBulletHit(game, bullet, game.enemies[j], actualDamage + shieldDamage + giantSlayerDamage + curseDamage)
+            trackBulletHit(game, bullet, target, actualDamage + shieldDamage + giantSlayerDamage + curseDamage)
 
             # Track damage for real-time DPS display
             recordDamage(game.dopamine.realTimeStats, actualDamage + shieldDamage + giantSlayerDamage + curseDamage, game.time)
@@ -3828,12 +3822,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
             # Create damage number for shield damage (blue colored for shields)
             if shieldDamage > 0:
-              showDamage(game, game.enemies[j].pos, shieldDamage, true, isCrit, dtLaser)
+              showDamage(game, target.pos, shieldDamage, true, isCrit, dtLaser)
 
             # Create damage number for HP damage (player damage to enemy) - only if damage was dealt
             if actualDamage > 0:
               let bulletDmgType = getBulletDamageType(bullet)
-              showDamage(game, game.enemies[j].pos, actualDamage, true, isCrit, bulletDmgType)
+              showDamage(game, target.pos, actualDamage, true, isCrit, bulletDmgType)
           hitEnemy = true
 
           # Drop the whole echo trail when the main bullet hits, so the trail
@@ -3853,38 +3847,38 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
             # Calculate knockback direction (away from bullet trajectory)
             let pushDir = bullet.vel.normalize()
-            let bossResistance = if game.enemies[j].isBoss: 0.2 else: 1.0
+            let bossResistance = if target.isBoss: 0.2 else: 1.0
 
             # Apply knockback to enemy
-            game.enemies[j].pos.x += pushDir.x * knockbackForce * 0.016 * bossResistance
-            game.enemies[j].pos.y += pushDir.y * knockbackForce * 0.016 * bossResistance
+            target.pos.x += pushDir.x * knockbackForce * 0.016 * bossResistance
+            target.pos.y += pushDir.y * knockbackForce * 0.016 * bossResistance
 
             # Clamp to screen boundaries - enemies can't be pushed through borders
-            game.enemies[j].pos.x = clamp(game.enemies[j].pos.x, game.enemies[j].radius, game.screenWidth.float32 - game.enemies[j].radius)
-            game.enemies[j].pos.y = clamp(game.enemies[j].pos.y, game.enemies[j].radius, game.screenHeight.float32 - game.enemies[j].radius)
+            target.pos.x = clamp(target.pos.x, target.radius, game.screenWidth.float32 - target.radius)
+            target.pos.y = clamp(target.pos.y, target.radius, game.screenHeight.float32 - target.radius)
 
           # Special Rounds stun effect
           if not bullet.isEcho and bullet.isSpecialRound:
             # Apply brief stun (80% slow for 0.5 seconds)
             let stunDuration = 0.5
             let baseStunAmount = 0.8  # 80% slow
-            let stunAmount = baseStunAmount * (1.0 - game.enemies[j].debuffResistance)
-            game.enemies[j].slowTimer = stunDuration
-            game.enemies[j].slowAmount = max(game.enemies[j].slowAmount, stunAmount)
+            let stunAmount = baseStunAmount * (1.0 - target.debuffResistance)
+            target.slowTimer = stunDuration
+            target.slowAmount = max(target.slowAmount, stunAmount)
 
             # Visual feedback - extra particles in gold color
             spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
                           Color(r: 255, g: 215, b: 0, a: 255), 15)
 
           # UNIFIED BULLET EFFECT SYSTEM
-          applyBulletEffects(game, bullet, game.enemies[j], dt)
+          applyBulletEffects(game, bullet, target, dt)
 
           # Impact particles + hit flash
           spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                        game.enemies[j].color, 10)
+                        target.color, 10)
           spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                        game.enemies[j].radius * 0.6)
-          game.enemies[j].hitFlashTimer = 0.10'f32
+                        target.radius * 0.6)
+          target.hitFlashTimer = 0.10'f32
 
           # Explosive bullets create area damage
           if not bullet.isEcho and bullet.isExplosive:
@@ -4742,6 +4736,163 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
 
   return panelY + panelH + 6
 
+proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) =
+  ## One boss satellite drawn as a space-station miniature. Pulled out of drawGame
+  ## verbatim; it only ever needed the satellite, the clock and the objective flag.
+  let sx = sat.pos.x
+  let sy = sat.pos.y
+  let t  = time
+
+  # Whether this satellite is charging its laser
+  let charging  = sat.laserActive and sat.laserChargeTime < 1.5
+  let firing    = sat.laserActive and sat.laserChargeTime >= 1.5
+
+  # Pulse and glow drivers
+  let pulse     = sin(t * 5.0 + sat.angle * 3.0) * 0.5 + 0.5   # 0..1, per-satellite phase
+  let fastPulse = sin(t * 12.0 + sat.angle * 4.0) * 0.5 + 0.5
+
+  # Color scheme: cool blue normally, hot red/orange when charging, white burst when firing
+  let coreColor =
+    if firing:    Color(r: 255, g: 255, b: 255, a: 255)
+    elif charging:Color(r: 255, g: uint8(60  + pulse * 100), b: 30,  a: 255)
+    else:         Color(r: 60,  g: uint8(160 + pulse * 60),  b: 255, a: 255)
+
+  let glowColor =
+    if firing:    Color(r: 255, g: 220, b: 120, a: 160)
+    elif charging:Color(r: 255, g: 80,  b: 0,   a: uint8(100 + fastPulse * 120))
+    else:         Color(r: 80,  g: 140, b: 255, a: uint8(60  + pulse * 80))
+
+  let panelColor =
+    if firing:    Color(r: 220, g: 220, b: 255, a: 255)
+    elif charging:Color(r: 255, g: 200, b: 80,  a: 255)
+    else:         Color(r: 100, g: 180, b: 255, a: 220)
+
+  let rimColor  = Color(r: 200, g: 220, b: 255, a: 200)
+
+  #  outer glow halo
+  let glowR = 22.0 + pulse * 5.0 + (if charging: fastPulse * 8.0 else: 0.0)
+  drawCircle(Vector2(x: sx, y: sy), glowR,
+             withAlpha(glowColor, uint8(glowColor.a.int div 3)))
+  drawCircleLines(sx.int32, sy.int32, glowR,
+             withAlpha(glowColor, glowColor.a))
+
+  #  rotating outer shield ring
+  let shieldAngle = t * (if sat.rotationSpeed > 0: 2.2 else: -2.2) + sat.angle
+  for k in 0..5:
+    let ra = shieldAngle + k.float32 * (PI / 3.0)
+    let ax = sx + cos(ra) * 15.0
+    let ay = sy + sin(ra) * 15.0
+    drawCircle(Vector2(x: ax, y: ay), 2.5,
+               withAlpha(coreColor, uint8(160 + pulse * 80)))
+
+  #  hexagonal body outline
+  let bodyAngle = t * 0.4 * (if sat.rotationSpeed >= 0: 1.0 else: -1.0) + sat.angle * 0.3
+  for k in 0..5:
+    let a0 = bodyAngle + k.float32       * (PI / 3.0)
+    let a1 = bodyAngle + (k + 1).float32 * (PI / 3.0)
+    let bx0 = sx + cos(a0) * 11.0;  let by0 = sy + sin(a0) * 11.0
+    let bx1 = sx + cos(a1) * 11.0;  let by1 = sy + sin(a1) * 11.0
+    drawLine(Vector2(x: bx0, y: by0), Vector2(x: bx1, y: by1), 2.5, rimColor)
+
+  #  solar panel wings
+  # Two rigid arms extending perpendicular to the current orbit tangent
+  let tangentAngle = sat.angle + PI / 2.0  # tangent to orbit direction
+  for side in [-1.0, 1.0]:
+    let armAngle = tangentAngle + (if side > 0: 0.0 else: PI)
+    let panelDist = 14.0
+    let panelW    = 10.0
+    let panelH    = 5.0
+    # Arm strut
+    let armTipX = sx + cos(armAngle) * panelDist
+    let armTipY = sy + sin(armAngle) * panelDist
+    drawLine(Vector2(x: sx + cos(armAngle) * 5.0,  y: sy + sin(armAngle) * 5.0),
+             Vector2(x: armTipX, y: armTipY), 2.0,
+             Color(r: 180, g: 200, b: 220, a: 200))
+    # Panel rectangle (4 corners)
+    let perpX = cos(armAngle + PI / 2.0) * panelW
+    let perpY = sin(armAngle + PI / 2.0) * panelW
+    let fwdX  = cos(armAngle) * panelH
+    let fwdY  = sin(armAngle) * panelH
+    let p0 = Vector2(x: armTipX + perpX + fwdX, y: armTipY + perpY + fwdY)
+    let p1 = Vector2(x: armTipX - perpX + fwdX, y: armTipY - perpY + fwdY)
+    let p2 = Vector2(x: armTipX - perpX - fwdX, y: armTipY - perpY - fwdY)
+    let p3 = Vector2(x: armTipX + perpX - fwdX, y: armTipY + perpY - fwdY)
+    drawLine(p0, p1, 2.0, panelColor)
+    drawLine(p1, p2, 2.0, panelColor)
+    drawLine(p2, p3, 2.0, panelColor)
+    drawLine(p3, p0, 2.0, panelColor)
+    # Panel centre stripe (solar cell division)
+    let midA = Vector2(x: (p0.x + p3.x) * 0.5, y: (p0.y + p3.y) * 0.5)
+    let midB = Vector2(x: (p1.x + p2.x) * 0.5, y: (p1.y + p2.y) * 0.5)
+    drawLine(midA, midB, 1.0, Color(r: 120, g: 200, b: 255, a: 160))
+
+  #  core filled circle
+  drawCircle(Vector2(x: sx, y: sy), 9.0, coreColor)
+
+  #  lens flare dot
+  let lensR = 3.5 + (if firing: fastPulse * 4.0 else: pulse * 1.5)
+  drawCircle(Vector2(x: sx, y: sy), lensR,
+             Color(r: 255, g: 255, b: 255, a: uint8(200 + fastPulse * 55)))
+
+  #  charging / firing effects
+  if charging:
+    # Spinning danger chevrons
+    let chevAngle = t * 6.0 + sat.angle
+    for k in 0..2:
+      let ca = chevAngle + k.float32 * (PI * 2.0 / 3.0)
+      let cx0 = sx + cos(ca) * 18.0
+      let cy0 = sy + sin(ca) * 18.0
+      let cx1 = sx + cos(ca + 0.4) * 13.0
+      let cy1 = sy + sin(ca + 0.4) * 13.0
+      let cx2 = sx + cos(ca - 0.4) * 13.0
+      let cy2 = sy + sin(ca - 0.4) * 13.0
+      drawLine(Vector2(x: cx0, y: cy0), Vector2(x: cx1, y: cy1), 2.0,
+               Color(r: 255, g: 80, b: 0, a: uint8(180 + fastPulse * 75)))
+      drawLine(Vector2(x: cx0, y: cy0), Vector2(x: cx2, y: cy2), 2.0,
+               Color(r: 255, g: 80, b: 0, a: uint8(180 + fastPulse * 75)))
+
+    # Expanding charge ring
+    let chargeProgress = sat.laserChargeTime / 1.5
+    let chargeRingR = 9.0 + chargeProgress * 24.0
+    drawCircleLines(sx.int32, sy.int32, chargeRingR,
+                    Color(r: 255, g: uint8(200 - chargeProgress * 150), b: 0,
+                          a: uint8(220 - chargeProgress * 120)))
+
+  elif firing:
+    # Rapid concentric flash rings
+    for k in 0..2:
+      let flashR = 8.0 + k.float32 * 7.0 + fastPulse * 5.0
+      drawCircleLines(sx.int32, sy.int32, flashR,
+                      Color(r: 255, g: 220, b: 120, a: uint8(180 - k * 50)))
+
+  #  target crosshair on the locked player position
+  if charging:
+    let targetSize = 16.0
+    let tAlpha = uint8(140 + fastPulse * 115)
+    let tColor = Color(r: 255, g: 60, b: 30, a: tAlpha)
+    # + crosshair
+    drawLine(Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y),
+             Vector2(x: sat.laserTarget.x + targetSize, y: sat.laserTarget.y), 2.0, tColor)
+    drawLine(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y - targetSize),
+             Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y + targetSize), 2.0, tColor)
+    # Inner dot
+    drawCircle(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y), 3.5,
+               Color(r: 255, g: 255, b: 255, a: tAlpha))
+    # Outer pulsing ring
+    drawCircleLines(sat.laserTarget.x.int32, sat.laserTarget.y.int32,
+                    targetSize + fastPulse * 6.0, tColor)
+
+  #  Objective diamond: show when satellite is a shoot-to-destroy target 
+  if isObjective:
+    let dp  = sin(time * 6.0 + sat.angle * 2.0) * 0.5 + 0.5
+    let da  = uint8(clamp(160.0 + dp * 95.0, 0.0, 255.0))
+    let ds  = 9.0 + dp * 3.0   # diamond half-size
+    let dcol = Color(r: 255, g: 220, b: 60, a: da)
+    drawLine(Vector2(x: sx,      y: sy - ds), Vector2(x: sx + ds, y: sy     ), 2.0, dcol)
+    drawLine(Vector2(x: sx + ds, y: sy     ), Vector2(x: sx,      y: sy + ds), 2.0, dcol)
+    drawLine(Vector2(x: sx,      y: sy + ds), Vector2(x: sx - ds, y: sy     ), 2.0, dcol)
+    drawLine(Vector2(x: sx - ds, y: sy     ), Vector2(x: sx,      y: sy - ds), 2.0, dcol)
+
 proc drawGame*(game: Game) =
   # Profiling counterpart to updateGame: smoothed wall-clock ms spent drawing.
   # (game is a ref, so mutating this field through the non-var binding is fine.)
@@ -5015,159 +5166,7 @@ proc drawGame*(game: Game) =
 
       # Draw each satellite as a detailed space-station miniature
       for sat in enemy.satellites:
-        let sx = sat.pos.x
-        let sy = sat.pos.y
-        let t  = game.time
-
-        # Whether this satellite is charging its laser
-        let charging  = sat.laserActive and sat.laserChargeTime < 1.5
-        let firing    = sat.laserActive and sat.laserChargeTime >= 1.5
-
-        # Pulse and glow drivers
-        let pulse     = sin(t * 5.0 + sat.angle * 3.0) * 0.5 + 0.5   # 0..1, per-satellite phase
-        let fastPulse = sin(t * 12.0 + sat.angle * 4.0) * 0.5 + 0.5
-
-        # Color scheme: cool blue normally, hot red/orange when charging, white burst when firing
-        let coreColor =
-          if firing:    Color(r: 255, g: 255, b: 255, a: 255)
-          elif charging:Color(r: 255, g: uint8(60  + pulse * 100), b: 30,  a: 255)
-          else:         Color(r: 60,  g: uint8(160 + pulse * 60),  b: 255, a: 255)
-
-        let glowColor =
-          if firing:    Color(r: 255, g: 220, b: 120, a: 160)
-          elif charging:Color(r: 255, g: 80,  b: 0,   a: uint8(100 + fastPulse * 120))
-          else:         Color(r: 80,  g: 140, b: 255, a: uint8(60  + pulse * 80))
-
-        let panelColor =
-          if firing:    Color(r: 220, g: 220, b: 255, a: 255)
-          elif charging:Color(r: 255, g: 200, b: 80,  a: 255)
-          else:         Color(r: 100, g: 180, b: 255, a: 220)
-
-        let rimColor  = Color(r: 200, g: 220, b: 255, a: 200)
-
-        #  outer glow halo
-        let glowR = 22.0 + pulse * 5.0 + (if charging: fastPulse * 8.0 else: 0.0)
-        drawCircle(Vector2(x: sx, y: sy), glowR,
-                   Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: uint8(glowColor.a.int div 3)))
-        drawCircleLines(sx.int32, sy.int32, glowR,
-                   Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowColor.a))
-
-        #  rotating outer shield ring
-        let shieldAngle = t * (if sat.rotationSpeed > 0: 2.2 else: -2.2) + sat.angle
-        for k in 0..5:
-          let ra = shieldAngle + k.float32 * (PI / 3.0)
-          let ax = sx + cos(ra) * 15.0
-          let ay = sy + sin(ra) * 15.0
-          drawCircle(Vector2(x: ax, y: ay), 2.5,
-                     Color(r: coreColor.r, g: coreColor.g, b: coreColor.b, a: uint8(160 + pulse * 80)))
-
-        #  hexagonal body outline
-        let bodyAngle = t * 0.4 * (if sat.rotationSpeed >= 0: 1.0 else: -1.0) + sat.angle * 0.3
-        for k in 0..5:
-          let a0 = bodyAngle + k.float32       * (PI / 3.0)
-          let a1 = bodyAngle + (k + 1).float32 * (PI / 3.0)
-          let bx0 = sx + cos(a0) * 11.0;  let by0 = sy + sin(a0) * 11.0
-          let bx1 = sx + cos(a1) * 11.0;  let by1 = sy + sin(a1) * 11.0
-          drawLine(Vector2(x: bx0, y: by0), Vector2(x: bx1, y: by1), 2.5, rimColor)
-
-        #  solar panel wings
-        # Two rigid arms extending perpendicular to the current orbit tangent
-        let tangentAngle = sat.angle + PI / 2.0  # tangent to orbit direction
-        for side in [-1.0, 1.0]:
-          let armAngle = tangentAngle + (if side > 0: 0.0 else: PI)
-          let panelDist = 14.0
-          let panelW    = 10.0
-          let panelH    = 5.0
-          # Arm strut
-          let armTipX = sx + cos(armAngle) * panelDist
-          let armTipY = sy + sin(armAngle) * panelDist
-          drawLine(Vector2(x: sx + cos(armAngle) * 5.0,  y: sy + sin(armAngle) * 5.0),
-                   Vector2(x: armTipX, y: armTipY), 2.0,
-                   Color(r: 180, g: 200, b: 220, a: 200))
-          # Panel rectangle (4 corners)
-          let perpX = cos(armAngle + PI / 2.0) * panelW
-          let perpY = sin(armAngle + PI / 2.0) * panelW
-          let fwdX  = cos(armAngle) * panelH
-          let fwdY  = sin(armAngle) * panelH
-          let p0 = Vector2(x: armTipX + perpX + fwdX, y: armTipY + perpY + fwdY)
-          let p1 = Vector2(x: armTipX - perpX + fwdX, y: armTipY - perpY + fwdY)
-          let p2 = Vector2(x: armTipX - perpX - fwdX, y: armTipY - perpY - fwdY)
-          let p3 = Vector2(x: armTipX + perpX - fwdX, y: armTipY + perpY - fwdY)
-          drawLine(p0, p1, 2.0, panelColor)
-          drawLine(p1, p2, 2.0, panelColor)
-          drawLine(p2, p3, 2.0, panelColor)
-          drawLine(p3, p0, 2.0, panelColor)
-          # Panel centre stripe (solar cell division)
-          let midA = Vector2(x: (p0.x + p3.x) * 0.5, y: (p0.y + p3.y) * 0.5)
-          let midB = Vector2(x: (p1.x + p2.x) * 0.5, y: (p1.y + p2.y) * 0.5)
-          drawLine(midA, midB, 1.0, Color(r: 120, g: 200, b: 255, a: 160))
-
-        #  core filled circle
-        drawCircle(Vector2(x: sx, y: sy), 9.0, coreColor)
-
-        #  lens flare dot
-        let lensR = 3.5 + (if firing: fastPulse * 4.0 else: pulse * 1.5)
-        drawCircle(Vector2(x: sx, y: sy), lensR,
-                   Color(r: 255, g: 255, b: 255, a: uint8(200 + fastPulse * 55)))
-
-        #  charging / firing effects
-        if charging:
-          # Spinning danger chevrons
-          let chevAngle = t * 6.0 + sat.angle
-          for k in 0..2:
-            let ca = chevAngle + k.float32 * (PI * 2.0 / 3.0)
-            let cx0 = sx + cos(ca) * 18.0
-            let cy0 = sy + sin(ca) * 18.0
-            let cx1 = sx + cos(ca + 0.4) * 13.0
-            let cy1 = sy + sin(ca + 0.4) * 13.0
-            let cx2 = sx + cos(ca - 0.4) * 13.0
-            let cy2 = sy + sin(ca - 0.4) * 13.0
-            drawLine(Vector2(x: cx0, y: cy0), Vector2(x: cx1, y: cy1), 2.0,
-                     Color(r: 255, g: 80, b: 0, a: uint8(180 + fastPulse * 75)))
-            drawLine(Vector2(x: cx0, y: cy0), Vector2(x: cx2, y: cy2), 2.0,
-                     Color(r: 255, g: 80, b: 0, a: uint8(180 + fastPulse * 75)))
-
-          # Expanding charge ring
-          let chargeProgress = sat.laserChargeTime / 1.5
-          let chargeRingR = 9.0 + chargeProgress * 24.0
-          drawCircleLines(sx.int32, sy.int32, chargeRingR,
-                          Color(r: 255, g: uint8(200 - chargeProgress * 150), b: 0,
-                                a: uint8(220 - chargeProgress * 120)))
-
-        elif firing:
-          # Rapid concentric flash rings
-          for k in 0..2:
-            let flashR = 8.0 + k.float32 * 7.0 + fastPulse * 5.0
-            drawCircleLines(sx.int32, sy.int32, flashR,
-                            Color(r: 255, g: 220, b: 120, a: uint8(180 - k * 50)))
-
-        #  target crosshair on the locked player position
-        if charging:
-          let targetSize = 16.0
-          let tAlpha = uint8(140 + fastPulse * 115)
-          let tColor = Color(r: 255, g: 60, b: 30, a: tAlpha)
-          # + crosshair
-          drawLine(Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y),
-                   Vector2(x: sat.laserTarget.x + targetSize, y: sat.laserTarget.y), 2.0, tColor)
-          drawLine(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y - targetSize),
-                   Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y + targetSize), 2.0, tColor)
-          # Inner dot
-          drawCircle(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y), 3.5,
-                     Color(r: 255, g: 255, b: 255, a: tAlpha))
-          # Outer pulsing ring
-          drawCircleLines(sat.laserTarget.x.int32, sat.laserTarget.y.int32,
-                          targetSize + fastPulse * 6.0, tColor)
-
-        #  Objective diamond: show when satellite is a shoot-to-destroy target 
-        if satIsObjective:
-          let dp  = sin(game.time * 6.0 + sat.angle * 2.0) * 0.5 + 0.5
-          let da  = uint8(clamp(160.0 + dp * 95.0, 0.0, 255.0))
-          let ds  = 9.0 + dp * 3.0   # diamond half-size
-          let dcol = Color(r: 255, g: 220, b: 60, a: da)
-          drawLine(Vector2(x: sx,      y: sy - ds), Vector2(x: sx + ds, y: sy     ), 2.0, dcol)
-          drawLine(Vector2(x: sx + ds, y: sy     ), Vector2(x: sx,      y: sy + ds), 2.0, dcol)
-          drawLine(Vector2(x: sx,      y: sy + ds), Vector2(x: sx - ds, y: sy     ), 2.0, dcol)
-          drawLine(Vector2(x: sx - ds, y: sy     ), Vector2(x: sx,      y: sy - ds), 2.0, dcol)
+        drawBossSatellite(sat, game.time, satIsObjective)
 
   let playerVisible = game.state != gsDeathSequence
 
@@ -5489,17 +5488,7 @@ proc drawGame*(game: Game) =
       let cardW: int32 = min(leftGutterW - 8, 163'i32)
       let cardX: int32 = 4
       let cardY: int32 = 560
-      var words = cbLabel.split(' ')
-      var cbLines: seq[string] = @[]
-      var cur = ""
-      for w in words:
-        if w.len == 0: continue
-        let cand = if cur.len == 0: w else: cur & " " & w
-        if measureText(cand, cbFontSize) <= cardW - 8 or cur.len == 0:
-          cur = cand
-        else:
-          cbLines.add(cur); cur = w
-      if cur.len > 0: cbLines.add(cur)
+      let cbLines = wrapTextLines(cbLabel, cardW - 8, cbFontSize)
       let cardH: int32 = 6 + cbLines.len.int32 * (cbFontSize + 3)
       drawRectangle(cardX, cardY, cardW, cardH, Color(r: 8, g: 18, b: 12, a: uint8(clamp(pulse * 170.0, 0.0, 255.0))))
       drawRectangle(cardX, cardY, 2, cardH, Color(r: 80, g: 220, b: 100, a: alpha))
@@ -5611,17 +5600,7 @@ proc drawGame*(game: Game) =
       # of bare centered text, consistent with the integrated left column.
       let cardW: int32 = min(leftGutterW - 8, 163'i32)
       let textW: int32 = cardW - 12
-      var iwords = instrText.split(' ')
-      var iLines: seq[string] = @[]
-      var icur = ""
-      for w in iwords:
-        if w.len == 0: continue
-        let cand = if icur.len == 0: w else: icur & " " & w
-        if measureText(cand, 14) <= textW or icur.len == 0:
-          icur = cand
-        else:
-          iLines.add(icur); icur = w
-      if icur.len > 0: iLines.add(icur)
+      let iLines = wrapTextLines(instrText, textW, 14)
       let lineH: int32 = 16
       let cardH: int32 = 8 + iLines.len.int32 * lineH
       let cardX: int32 = 4
@@ -5634,7 +5613,7 @@ proc drawGame*(game: Game) =
       drawRectangle(cardX, cardY, 2, cardH, accent)
       drawRectangleLines(Rectangle(x: cardX.float32, y: cardY.float32,
                                    width: cardW.float32, height: cardH.float32),
-                         1, Color(r: accent.r, g: accent.g, b: accent.b, a: 70))
+                         1, withAlpha(accent, 70))
       var iy = cardY + 5
       for ln in iLines:
         drawText(ln, cardX + 8, iy, 14, instrColor)

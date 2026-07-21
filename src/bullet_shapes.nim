@@ -2,7 +2,7 @@
 ## Cosmetic shapes for player bullets
 
 import raylib, math
-import particle_types, localization
+import particle_types, localization, utils
 
 type
   BulletShapeType* = enum
@@ -48,7 +48,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
   of bshCircle:
     # Glow ring
     drawCircle(Vector2(x: pos.x, y: pos.y), radius + 3,
-               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 60))
+               withAlpha(glowColor, 60))
     drawCircle(Vector2(x: pos.x, y: pos.y), radius, color)
     # Off-center highlight gives the orb a rounded, energetic look
     drawCircle(Vector2(x: pos.x - radius * 0.25, y: pos.y - radius * 0.25),
@@ -68,7 +68,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
         Vector2(x: cx, y: cy),
         Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
         Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
-        Color(r: color.r, g: color.g, b: color.b, a: 200))
+        withAlpha(color, 200))
     # Outline
     for i in 0..<3:
       let a0 = rot + i.float32 * (2.0 * PI / 3.0)
@@ -79,7 +79,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
         1.5, color)
     # Glow
     drawCircle(Vector2(x: pos.x, y: pos.y), radius + 2,
-               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 40))
+               withAlpha(glowColor, 40))
 
   of bshPentagon:
     # Regular pentagon, one vertex tip pointing in travel direction
@@ -93,7 +93,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
         Vector2(x: cx, y: cy),
         Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
         Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
-        Color(r: color.r, g: color.g, b: color.b, a: 210))
+        withAlpha(color, 210))
     # Outline
     for i in 0..<5:
       let a0 = rot + i.float32 * (2.0 * PI / 5.0)
@@ -103,7 +103,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
         Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
         1.5, color)
     drawCircle(Vector2(x: cx, y: cy), radius + 2,
-               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 45))
+               withAlpha(glowColor, 45))
 
   of bshDiamond:
     # Four-pointed diamond: tip points in direction of travel
@@ -115,9 +115,9 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
     let tail   = Vector2(x: pos.x + cos(rot + PI)        * r, y: pos.y + sin(rot + PI)        * r)
     let left   = Vector2(x: pos.x + cos(rot - PI / 2.0)  * r, y: pos.y + sin(rot - PI / 2.0)  * r)
     drawTriangle(tip, right, tail,
-                 Color(r: color.r, g: color.g, b: color.b, a: 200))
+                 withAlpha(color, 200))
     drawTriangle(tip, tail, left,
-                 Color(r: color.r, g: color.g, b: color.b, a: 200))
+                 withAlpha(color, 200))
     # Outline
     drawLine(tip, right, 1.5, color)
     drawLine(right, tail, 1.5, color)
@@ -136,7 +136,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
     # Highlight
     drawLine(tip, right, 1, Color(r: 255, g: 255, b: 255, a: 80))
     drawCircle(Vector2(x: pos.x, y: pos.y), radius + 2,
-               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 50))
+               withAlpha(glowColor, 50))
 
   of bshSquare:
     # Square rotated so one corner points in the direction of travel
@@ -152,16 +152,16 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
                      y: pos.y + sin(rot + 3.0 * PI / 2.0) * h * 1.414)
     # Fill via two triangles
     drawTriangle(tl, tr, br,
-                 Color(r: color.r, g: color.g, b: color.b, a: 200))
+                 withAlpha(color, 200))
     drawTriangle(tl, br, bl,
-                 Color(r: color.r, g: color.g, b: color.b, a: 200))
+                 withAlpha(color, 200))
     # Outline
     drawLine(tl, tr, 1.5, color)
     drawLine(tr, br, 1.5, color)
     drawLine(br, bl, 1.5, color)
     drawLine(bl, tl, 1.5, color)
     drawCircle(Vector2(x: pos.x, y: pos.y), radius + 2,
-               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 45))
+               withAlpha(glowColor, 45))
 
   of bshStar:
     # Six-pointed star = two overlapping equilateral triangles (same as boss star shape).
@@ -178,7 +178,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
           Vector2(x: cx, y: cy),
           Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
           Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
-          Color(r: color.r, g: color.g, b: color.b, a: 200))
+          withAlpha(color, 200))
     # Interior hexagon: the overlap region of the two triangles.
     # In a Star of David the inner hexagon vertices sit at r * (1/sqrt(3)) ~= r * 0.577
     # rotated 30° from the first triangle's base rotation.
@@ -214,4 +214,4 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
         Vector2(x: cx + cos(sa1) * spinHexR, y: cy + sin(sa1) * spinHexR),
         1.0, Color(r: 255, g: 255, b: 255, a: 100))
     drawCircle(Vector2(x: pos.x, y: pos.y), radius + 4,
-               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 55))
+               withAlpha(glowColor, 55))

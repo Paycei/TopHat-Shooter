@@ -2,7 +2,7 @@
 ## Main menu as an operating system desktop
 
 import raylib, rlgl, math, strutils, strformat, times
-import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../particle_types
+import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../particle_types, ../utils
 
 type
   DesktopIconType* = enum
@@ -725,17 +725,6 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     desktop.icons[i].name = getIconName(desktop.icons[i].iconType)
     desktop.icons[i].selected = (i == desktop.selectedIcon)
 
-proc brightened(color: Color, delta: int): Color =
-  Color(
-    r: uint8(clamp(color.r.int + delta, 0, 255)),
-    g: uint8(clamp(color.g.int + delta, 0, 255)),
-    b: uint8(clamp(color.b.int + delta, 0, 255)),
-    a: color.a
-  )
-
-proc darkened(color: Color, delta: int): Color =
-  brightened(color, -delta)
-
 proc drawHexBadge(cx, cy: int32, radius: float32, fill, edge: Color, rotation: float32 = PI / 6.0) =
   var points: array[6, Vector2]
   for i in 0..<6:
@@ -757,13 +746,13 @@ proc drawIconTile(icon: DesktopIcon, time: float32, selected: bool) =
   let x = icon.x.int32 + offsetX
   let y = icon.y.int32 + offsetY
   let accent = icon.iconColor
-  let edge = if selected: brightened(accent, 35) else: Color(r: 86, g: 104, b: 130, a: 235)
+  let edge = if selected: brighten(accent, 35, accent.a.int) else: Color(r: 86, g: 104, b: 130, a: 235)
   let topFill = if selected: Color(r: 36, g: 50, b: 70, a: 248) else: Color(r: 24, g: 32, b: 48, a: 232)
   let bottomFill = if selected: Color(r: 18, g: 24, b: 38, a: 250) else: Color(r: 12, g: 17, b: 28, a: 238)
 
   if selected:
     drawSoftGlow(icon.x.float32 + ICON_SIZE.float32 * 0.5, icon.y.float32 + ICON_SIZE.float32 * 0.5,
-                 45.0, Color(r: accent.r, g: accent.g, b: accent.b, a: 90), 0.85)
+                 45.0, withAlpha(accent, 90), 0.85)
 
   drawRectangle(x + 5, y + 7, iconSize, iconSize, Color(r: 0, g: 0, b: 0, a: 95))
   drawRectangleGradientV(x, y, iconSize, iconSize, topFill, bottomFill)
@@ -785,11 +774,11 @@ proc drawIconTile(icon: DesktopIcon, time: float32, selected: bool) =
            2, Color(r: 205, g: 245, b: 255, a: if selected: 150 else: 72))
   drawLine(Vector2(x: (x + 5).float32, y: (y + iconSize - 7).float32),
            Vector2(x: (x + iconSize - 8).float32, y: (y + iconSize - 7).float32),
-           1, Color(r: accent.r, g: accent.g, b: accent.b, a: if selected: 175 else: 95))
+           1, withAlpha(accent, if selected: 175 else: 95))
 
   let scanY = y + 12 + int32((sin(time * 2.4 + icon.iconType.int.float32) * 0.5 + 0.5) * (iconSize.float32 - 24.0))
   drawRectangle(x + 8, scanY, iconSize - 16, 2,
-                Color(r: accent.r, g: accent.g, b: accent.b, a: if selected: 92 else: 38))
+                withAlpha(accent, if selected: 92 else: 38))
 
 proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
   drawIconTile(icon, time, selected)
@@ -798,10 +787,10 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
   let centerX = (icon.x + ICON_SIZE div 2).int32
   let centerY = (icon.y + ICON_SIZE div 2).int32
   let accent = icon.iconColor
-  let bright = brightened(accent, 55)
-  let dim = darkened(accent, 45)
+  let bright = brighten(accent, 55, accent.a.int)
+  let dim = brighten(accent, -(45), accent.a.int)
   drawHexBadge(centerX, centerY, 22.0, Color(r: 8, g: 14, b: 24, a: 160),
-               Color(r: accent.r, g: accent.g, b: accent.b, a: 120),
+               withAlpha(accent, 120),
                PI / 6.0 + time * 0.08)
 
   case icon.iconType
@@ -1594,8 +1583,8 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
   var edgeColor = Color(r: 190, g: 250, b: 255, a: 220)
   var innerEdgeColor = Color(r: 0, g: 215, b: 255, a: 100)
   if skin != cskDefault:
-    edgeColor = Color(r: skinDataLocal.edgeColor.r, g: skinDataLocal.edgeColor.g, b: skinDataLocal.edgeColor.b, a: 220)
-    innerEdgeColor = Color(r: skinDataLocal.glowColor.r, g: skinDataLocal.glowColor.g, b: skinDataLocal.glowColor.b, a: 100)
+    edgeColor = withAlpha(skinDataLocal.edgeColor, 220)
+    innerEdgeColor = withAlpha(skinDataLocal.glowColor, 100)
   if skin == cskCompanion:
     # The real Companion Cube keeps its color in the hearts only, the edge
     # channels are recessed dark grey, not glowing pink.
@@ -1946,7 +1935,7 @@ proc drawUsageRow(panelX, panelW, y: int32, label: string, pct: float32, color: 
   # Fill, top highlight, bright cap + glow
   let fillW = int32(barW.float32 * clamp(pct, 0.0'f32, 100.0'f32) / 100.0'f32)
   if fillW > 1:
-    drawRectangle(barX, barY, fillW, barH, Color(r: color.r, g: color.g, b: color.b, a: 205))
+    drawRectangle(barX, barY, fillW, barH, withAlpha(color, 205))
     drawRectangle(barX, barY, fillW, 1,
                   Color(r: uint8(min(255, color.r.int + 60)),
                         g: uint8(min(255, color.g.int + 60)),
@@ -1954,7 +1943,7 @@ proc drawUsageRow(panelX, panelW, y: int32, label: string, pct: float32, color: 
     let capX = barX + fillW
     drawRectangle(capX - 2, barY, 2, barH, Color(r: 255, g: 255, b: 255, a: 170))
     drawSoftGlow(capX.float32, (barY + barH div 2).float32, 7.0'f32,
-                 Color(r: color.r, g: color.g, b: color.b, a: 130), 1.0'f32)
+                 withAlpha(color, 130), 1.0'f32)
   drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
                                width: barW.float32, height: barH.float32), 1,
                      Color(r: 0, g: 90, b: 110, a: 150))
@@ -2035,7 +2024,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   else:
     let bgData = getDesktopBgData(selectedBg)
     let topColor = bgData.bgColor
-    let bottomColor = darkened(topColor, 12)
+    let bottomColor = brighten(topColor, -(12), topColor.a.int)
     let gridColor = Color(r: uint8((bgData.primaryColor.r.int + bgData.accentColor.r.int) div 2),
                           g: uint8((bgData.primaryColor.g.int + bgData.accentColor.g.int) div 2),
                           b: uint8((bgData.primaryColor.b.int + bgData.accentColor.b.int) div 2),
@@ -2059,11 +2048,11 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
     popMatrix()
 
     drawSoftGlow(w * 0.64, h * 0.46, min(w, h) * 0.42,
-                 Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: 70), 0.7)
+                 withAlpha(accentColor, 70), 0.7)
     drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
-                 Color(r: nodeColor.r, g: nodeColor.g, b: nodeColor.b, a: 56), 0.55)
+                 withAlpha(nodeColor, 56), 0.55)
     drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
-                 Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g, b: bgData.primaryColor.b, a: 46), 0.5)
+                 withAlpha(bgData.primaryColor, 46), 0.5)
 
     drawDesktopBgThemeFx(selectedBg, screenWidth.int32, screenHeight.int32, desktop.time)
 
@@ -2071,12 +2060,12 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
       let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
       let alpha = uint8(26 + i * 9)
       drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
-                      Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: alpha))
+                      withAlpha(accentColor, alpha))
       let nodeAngle = desktop.time * (0.22 + i.float32 * 0.04) + i.float32 * PI * 0.38
       drawCircle(Vector2(x: w * 0.64 + cos(nodeAngle) * ringRadius,
                          y: h * 0.46 + sin(nodeAngle) * ringRadius),
                  3.0 + i.float32 * 0.35,
-                 Color(r: nodeColor.r, g: nodeColor.g, b: nodeColor.b, a: uint8(120 + i * 18)))
+                 withAlpha(nodeColor, uint8(120 + i * 18)))
 
     let centerX = w * 0.64
     let centerY = h * 0.46

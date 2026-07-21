@@ -477,7 +477,7 @@ proc drawPlayer*(player: Player) =
     let shieldAlpha = 80 + (sin(getTime() * 4.0) * 40).int
     let shieldRadius = player.radius * 1.4 * shieldPulse
     drawCircle(Vector2(x: player.pos.x, y: player.pos.y), shieldRadius,
-              Color(r: Cyan.r, g: Cyan.g, b: Cyan.b, a: shieldAlpha.uint8))
+              withAlpha(Cyan, shieldAlpha.uint8))
     drawCircleLines(player.pos.x.int32, player.pos.y.int32, shieldRadius, Cyan)
     # Draw shield hit counter
     let hitsText = $player.shieldHits
@@ -548,7 +548,7 @@ proc drawPlayer*(player: Player) =
     glowIntensity = 0.8 + pulse * 0.2
     # Extra glow layers
     drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8,
-              Color(r: Cyan.r, g: Cyan.g, b: Cyan.b, a: phaseAlpha.uint8))
+              withAlpha(Cyan, phaseAlpha.uint8))
     drawText(t(tkPlayerPhase), (player.pos.x - 30).int32, (player.pos.y - 40).int32, 14, Cyan)
   # Parry active visual effect - white/silver shield
   elif player.parryActive:
@@ -586,7 +586,7 @@ proc drawPlayer*(player: Player) =
         let trailX = player.pos.x - player.vel.x * i.float32 * 0.012
         let trailY = player.pos.y - player.vel.y * i.float32 * 0.012
         drawCircle(Vector2(x: trailX, y: trailY), player.radius * trailScale,
-                  Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: trailAlpha))
+                  withAlpha(baseColor, trailAlpha))
 
   # Draw player using selected shape
   let shapeType = player.shapeType.ShapeType
@@ -638,7 +638,7 @@ proc drawPlayer*(player: Player) =
       # Alternate primary/secondary skin colors so both show in motion
       let pColor = if i mod 2 == 0: baseColor else: secondaryColor
       drawCircle(Vector2(x: px, y: py), 1.8,
-                Color(r: pColor.r, g: pColor.g, b: pColor.b, a: particleAlpha))
+                withAlpha(pColor, particleAlpha))
 
   # Speed boost indicator (motion trails)
   if player.speedBoostTimer > 0:

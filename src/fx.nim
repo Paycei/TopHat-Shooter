@@ -1,5 +1,5 @@
 import math, random, raylib
-import types, particle_types
+import types, particle_types, utils
 
 const LIGHTNING_BOLT_DURATION* = 0.18'f32  # seconds the arc stays visible
 const LIGHTNING_SEGMENTS*      = 8
@@ -76,11 +76,11 @@ proc drawShockwaveRings*(rings: seq[ShockwaveRing]) =
     # Interior wash: a faint filled disc conveys the *area*, not just the edge.
     let fillA = uint8(clamp(frac * 55.0, 0.0, 55.0))
     drawCircle(Vector2(x: ring.pos.x, y: ring.pos.y), r,
-               Color(r: ring.color.r, g: ring.color.g, b: ring.color.b, a: fillA))
+               withAlpha(ring.color, fillA))
 
     # Bold boundary: three concentric outlines give a thick, unmistakable edge.
     let edgeA = uint8(clamp(frac * 255.0, 0.0, 255.0))
-    let edge  = Color(r: ring.color.r, g: ring.color.g, b: ring.color.b, a: edgeA)
+    let edge  = withAlpha(ring.color, edgeA)
     drawCircleLines(cx, cy, r - 1.0'f32, edge)
     drawCircleLines(cx, cy, r,          edge)
     drawCircleLines(cx, cy, r + 1.0'f32, edge)

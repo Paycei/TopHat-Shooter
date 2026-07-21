@@ -302,9 +302,9 @@ proc isBondingCombatState(state: GameState): bool =
   state in {gsPlaying, gsPvPPlaying}
 
 proc isMenuOrGameState(state: GameState): bool =
-  state in {gsSplash, gsProfileSelect, gsLanguageSelect, gsMenu, gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver,
-            gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying,
-            gsRogueliteFloorSelect, gsVictory, gsRogueliteVictory}
+  ## Every bonding gameplay state, plus the pre-game menus.
+  isBondingGameplayState(state) or
+    state in {gsSplash, gsProfileSelect, gsLanguageSelect, gsMenu}
 
 proc updateInGameMouseBonding(settings: Settings, state: GameState) =
   if settings == nil:
@@ -1781,12 +1781,9 @@ proc main() =
 
       # Pause (don't actually pause in PvP mode to avoid desync)
       # Also skip if the confirm dialog is open (it acts as a hard pause)
+      # In PvP the pause menu is shown but the sim keeps running (see gsPaused below).
       if (isBackPressed() or isGamepadStartPressed()) and not globalConfirmActive:
-        if not isPvPMode(currentGame.mode):
-          currentGame.state = gsPaused
-        else:
-          # In PvP, show pause menu visually but keep game running
-          currentGame.state = gsPaused
+        currentGame.state = gsPaused
 
       # Update game (only if cheat menu is not active and confirm dialog is not open)
       if not cheatMenu.active and not globalConfirmActive:
@@ -1931,14 +1928,7 @@ proc main() =
       # and neither confirm dialog is active
       if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending:
         # Pause menu navigation - Tab switching (Left/Right or A/D)
-        if isKeyPressed(Left) or isKeyPressed(A):
-          currentGame.pauseMenuTab = case currentGame.pauseMenuTab
-            of tmtProcesses: tmtPerformance
-            of tmtPerformance: tmtProcesses
-            else: tmtProcesses
-          playSound(stMenuNav)
-          markKeyboardUsed(currentGame)
-        elif isKeyPressed(Right) or isKeyPressed(D):
+        if isKeyPressed(Left) or isKeyPressed(A) or isKeyPressed(Right) or isKeyPressed(D):
           currentGame.pauseMenuTab = case currentGame.pauseMenuTab
             of tmtProcesses: tmtPerformance
             of tmtPerformance: tmtProcesses
@@ -2395,14 +2385,11 @@ proc main() =
             # Determine if it's a boss wave power-up
             let isBossWave = currentGame.wavesUntilBoss <= 0
 
+            # A power-up is always offered, boss wave or not (before a boss it is the
+            # critical moment); a boss wave additionally gets a longer warning.
             if isBossWave:
-              # Trigger boss warning with LONGER duration
-              currentGame.bossSpawnTimer = 3.0  # Increased from 1.5 to 3.0 seconds
-              # ALWAYS offer power-up before boss (critical moment)
-              currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false, mode = currentGame.mode)
-            else:
-              # Regular wave power-up
-              currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false, mode = currentGame.mode)
+              currentGame.bossSpawnTimer = 3.0
+            currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false, mode = currentGame.mode)
 
             currentGame.selectedPowerUp = 0
             initPowerUpRollAnimation(currentGame)

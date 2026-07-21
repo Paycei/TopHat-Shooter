@@ -617,8 +617,6 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
   of "total_chaos":
     # Maximum chaos - truly unpredictable
     # Time-based trigger (~once every 1.5s) instead of per-frame rand, fps-independent
-    let chaosInterval = 1.5 + sin(game.time * 1.1) * 0.6  # 0.9-2.1s varying interval
-    discard chaosInterval
     if tryBossBehaviorTeleport(game, enemy, dt, 4.0, 5.4, 150.0, 260.0, phase.color, 20, 140.0):
       let chaosAngle = rand(1.0) * PI * 2.0
       let chaosDist = 80.0 + rand(180.0)

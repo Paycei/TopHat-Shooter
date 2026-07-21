@@ -1,7 +1,7 @@
 ## OS-Style Background System
 
 import raylib, math, random
-import particle_types, ../types, background_fx
+import particle_types, ../types, background_fx, ../utils
 
 const
   MAX_DATA_PACKETS = 50
@@ -460,7 +460,7 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
   let dotColor = Color(r: 92, g: 126, b: 175, a: 78)
   # Dungeon floors tint the arena with their theme accent
   let accentColor = if accentOverride.a > 0:
-    Color(r: accentOverride.r, g: accentOverride.g, b: accentOverride.b, a: 58)
+    withAlpha(accentOverride, 58)
   else:
     Color(r: 0, g: 198, b: 236, a: 58)
 
@@ -526,13 +526,13 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
   for ring in bg.wavePulseRings:
     let rAlpha = uint8(ring.alpha * 180)
     drawSoftGlow(ring.centerX, ring.centerY, ring.radius * 0.85,
-                 Color(r: ring.color.r, g: ring.color.g, b: ring.color.b, a: uint8(rAlpha.float32 * 0.25)), 0.55)
+                 withAlpha(ring.color, uint8(rAlpha.float32 * 0.25)), 0.55)
     drawCircleLines(ring.centerX.int32, ring.centerY.int32, ring.radius,
-      Color(r: ring.color.r, g: ring.color.g, b: ring.color.b, a: rAlpha))
+      withAlpha(ring.color, rAlpha))
     # Double-ring for thickness feel
     if ring.radius > 4:
       drawCircleLines(ring.centerX.int32, ring.centerY.int32, ring.radius - 3,
-        Color(r: ring.color.r, g: ring.color.g, b: ring.color.b, a: uint8(rAlpha.float32 * 0.5)))
+        withAlpha(ring.color, uint8(rAlpha.float32 * 0.5)))
 
   # Critical status border pulse
   if bg.alertLevel > 0.5:

@@ -608,26 +608,25 @@ proc spawnOmegaQuadrantsInto*(warnings: var seq[AttackWarning], particlePool: Pa
                               player: Player, screenWidth, screenHeight: int32,
                               enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition,
                               lesson: bool = false) =
-  ## The Omega Entity's judgement, the musical-chairs trial: the shelter
-  ## HOPS. Every heartbeat all grid cells but one erupt at once, and the
-  ## surviving gold-marked shelter is a different, edge-adjacent cell each
-  ## beat - the player must migrate every beat, weaving the ember ring the
-  ## vacated shelter hurls after them. Movement between cells is FREE - the
-  ## beat pressure is the trial, no seam hazards. After the last hop the
-  ## final shelter itself is judged in gold - the player breaks out into
-  ## already-spent ground. Like seismic fissures, beat timing is encoded as
-  ## extra lifetime so the shared resolution logic fires everything in
-  ## order; laserLength carries each warning's telegraph SHOW window so only
-  ## the upcoming beat is drawn.
-  ## The boss channels (frozen, hardened, other attacks paused) throughout -
-  ## and because it is frozen, the cell its body stands over can NEVER be
-  ## picked as a shelter: contact damage would make that pocket a lie.
+  ## The Omega Entity's judgement: the shelter HOPS. Every beat all grid cells
+  ## but one erupt, and the surviving gold-marked shelter is a different,
+  ## edge-adjacent cell each beat, so the player must migrate every beat while
+  ## dodging the ember ring the vacated shelter fires after them. Movement
+  ## between cells is FREE (no seam hazards); the beat pressure is the trial.
+  ## After the last hop the final shelter is itself judged.
   ##
-  ## `lesson` (Beta/Gamma phases, specialData "omega_judgement_lesson") is
-  ## the REHEARSAL: identical rules and visual language on the four big
-  ## quadrants (OmegaLessonGrid), fewer hops, slower heartbeat - it teaches
-  ## "follow the gold, gold expires" before the Omega phase runs the trial
-  ## at full tempo on the OmegaJudgeGrid 3x3.
+  ## Like seismic fissures, beat timing is encoded as extra lifetime so the
+  ## shared resolution logic fires everything in order; laserLength carries each
+  ## warning's telegraph SHOW window so only the upcoming beat is drawn.
+  ##
+  ## The boss channels (frozen, hardened, other attacks paused) throughout, and
+  ## because it is frozen the cell its body stands over can NEVER be picked as a
+  ## shelter - contact damage would make that pocket unsurvivable.
+  ##
+  ## `lesson` (Beta/Gamma phases, specialData "omega_judgement_lesson") is the
+  ## rehearsal: identical rules on the four big quadrants (OmegaLessonGrid),
+  ## fewer hops and a slower heartbeat, before the Omega phase runs the trial at
+  ## full tempo on the OmegaJudgeGrid 3x3.
   let beats = if lesson: OmegaLessonBeats else: OmegaQuadBeats
   let stagger = if lesson: OmegaLessonStagger else: OmegaQuadStagger
   let grid = if lesson: OmegaLessonGrid else: OmegaJudgeGrid

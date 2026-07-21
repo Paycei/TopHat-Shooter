@@ -1,7 +1,7 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
 import raylib, std/strutils, random
-import types, enemy, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing
+import types, enemy, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing, utils
 
 const
   SIDEBAR_WIDTH = 300
@@ -191,7 +191,7 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
       drawRectangleLines(Rectangle(x: (iconX - 3).float32, y: (iconY - 3).float32,
                                    width: (POWERUP_ICON_SIZE + 6).float32,
                                    height: (POWERUP_ICON_SIZE + 6).float32),
-                         1, Color(r: accent.r, g: accent.g, b: accent.b, a: 180))
+                         1, withAlpha(accent, 180))
       if discovered:
         drawPowerUpIcon(iconX, iconY, POWERUP_ICON_SIZE, powerType, accent)
       else:

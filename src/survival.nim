@@ -1,7 +1,7 @@
 # SURVIVAL MODE - Time Survival specific logic
 
 import raylib, random, math
-import types, enemy, particle_pool, localization
+import types, enemy, particle_pool, localization, utils
 
 # During a boss fight difficulty is frozen at the boss's spawn value (an integer);
 # introduction thresholds are also integers, so spawning at `difficulty - 0.5`
@@ -143,14 +143,14 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: 
                             width: panelW.float32, height: panelH.float32)
   drawRectangleRounded(panelRect, 0.32'f32, 6, Color(r: 8, g: 18, b: 28, a: 205))
   drawRectangleRoundedLines(panelRect, 0.32'f32, 6, 1.5'f32,
-                            Color(r: accent.r, g: accent.g, b: accent.b, a: 150))
+                            withAlpha(accent, 150))
 
   # --- Row 1: stopwatch icon + MM:SS.CC -----------------------------------
   let timerRowX = panelX + (panelW - timerRowW) div 2
   let timerY = panelY + padY
   let cx = (timerRowX + clockR).float32
   let cy = (timerY + timerSize div 2).float32
-  let faintAccent = Color(r: accent.r, g: accent.g, b: accent.b, a: 90)
+  let faintAccent = withAlpha(accent, 90)
   # Crown: a little button + stem on top so the icon reads as a handheld stopwatch.
   drawRectangle((cx - 2.0).int32, (cy - clockR.float32 - 4.0).int32, 4, 4, accent)
   drawCircle(Vector2(x: cx, y: cy - clockR.float32 - 4.5), 2.0'f32, accent)
@@ -162,7 +162,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: 
     let ta = q.float32 * (PI.float32 / 2.0)
     drawLine(Vector2(x: cx + cos(ta) * (clockR.float32 - 2.4), y: cy + sin(ta) * (clockR.float32 - 2.4)),
              Vector2(x: cx + cos(ta) * (clockR.float32 - 0.6), y: cy + sin(ta) * (clockR.float32 - 0.6)),
-             1.0'f32, Color(r: accent.r, g: accent.g, b: accent.b, a: 130))
+             1.0'f32, withAlpha(accent, 130))
   # Hand sweeps once per minute of survival time; since survivalTime freezes during
   # a boss, the hand visibly stops there (reinforced by the gray-out + pause glyph).
   let handAng = (clampedT mod 60.0) / 60.0 * (PI.float32 * 2.0) - PI.float32 / 2.0
@@ -176,7 +176,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: 
   let digitsX = timerRowX + clockBox + (timerSlotW - timerDigitsW) div 2
   if not bossActive:
     drawText(timeStr, digitsX, timerY - 1, timerSize,
-             Color(r: accent.r, g: accent.g, b: accent.b, a: 55))
+             withAlpha(accent, 55))
   drawText(timeStr, digitsX + 1, timerY + 1, timerSize, inkShadow)
   drawText(timeStr, digitsX, timerY, timerSize, digitColor)
   # Centiseconds: smaller + dimmer, baseline-aligned under the big digits.
@@ -184,7 +184,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: 
   let centiY = timerY + (timerSize - centiSize)
   drawText(centiStr, centiX + 1, centiY + 1, centiSize, inkShadow)
   drawText(centiStr, centiX, centiY, centiSize,
-           Color(r: digitColor.r, g: digitColor.g, b: digitColor.b, a: 175))
+           withAlpha(digitColor, 175))
   # Pause glyph (two bars) past the centiseconds while the clock is frozen by a boss.
   if bossActive:
     let pbX = centiX + centiSlotW + 8
@@ -197,7 +197,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: 
   let divY = (timerY + timerSize + vGap div 2).float32
   drawLine(Vector2(x: (panelX + padX).float32, y: divY),
            Vector2(x: (panelX + panelW - padX).float32, y: divY),
-           1.0'f32, Color(r: accent.r, g: accent.g, b: accent.b, a: 55))
+           1.0'f32, withAlpha(accent, 55))
 
   # --- Row 2: level label + XP bar ----------------------------------------
   let barRowX = panelX + (panelW - barRowW) div 2

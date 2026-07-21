@@ -372,9 +372,9 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
           discard
         if room.visited or floor.mapRevealed:
           let fill = if room.cleared or room.kind in {drkStart, drkShop, drkTreasure}:
-            Color(r: cellColor.r, g: cellColor.g, b: cellColor.b, a: 180)
+            withAlpha(cellColor, 180)
           else:
-            Color(r: cellColor.r, g: cellColor.g, b: cellColor.b, a: 90)
+            withAlpha(cellColor, 90)
           drawRectangle(cx, cy, cell, cell, fill)
         drawRectangleLines(Rectangle(x: cx.float32, y: cy.float32,
                                      width: cell.float32, height: cell.float32),

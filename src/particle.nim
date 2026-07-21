@@ -1,5 +1,5 @@
 import raylib, random, math, strutils
-import particle_types, types, ui/ui_constants, ui/icon_drawing
+import particle_types, types, utils, ui/ui_constants, ui/icon_drawing
 
 proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritical: bool = false, damageType: DamageType = dtDefault): DamageNumber =
   let baseVelocityY = -80.0
@@ -226,7 +226,7 @@ proc drawCurrencyIndicator*(indicator: CurrencyIndicator) =
   let x = (indicator.pos.x - totalWidth.float32 / 2.0).int32
   let y = indicator.pos.y.int32
 
-  let glowColor = Color(r: color.r, g: color.g, b: color.b, a: uint8(alpha * 0.24))
+  let glowColor = withAlpha(color, uint8(alpha * 0.24))
   for dx in [-2, 0, 2]:
     for dy in [-2, 0, 2]:
       if dx != 0 or dy != 0:
@@ -248,12 +248,12 @@ proc drawPerkIndicator*(indicator: PerkIndicator) =
   let popScale = 1.0 + sin((1.0 - progress) * PI) * 0.20
   let fontSize = int32(max(12.0, 17.0 * popScale))
 
-  let color = Color(r: indicator.color.r, g: indicator.color.g, b: indicator.color.b, a: alpha.uint8)
+  let color = withAlpha(indicator.color, alpha.uint8)
   let textWidth = measureText(indicator.text, fontSize)
   let x = (indicator.pos.x - textWidth.float32 / 2.0).int32
   let y = indicator.pos.y.int32
 
-  let glowColor = Color(r: color.r, g: color.g, b: color.b, a: uint8(alpha * 0.24))
+  let glowColor = withAlpha(color, uint8(alpha * 0.24))
   for dx in [-2, 0, 2]:
     for dy in [-2, 0, 2]:
       if dx != 0 or dy != 0:

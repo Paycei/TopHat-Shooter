@@ -5,7 +5,7 @@
 ## cinematic_common helpers as the lore and endgame cinematics.
 
 import raylib, rlgl, math
-import particle_types, background_fx, ../types, ../localization, ../sound, cinematic_common, cutscene
+import particle_types, background_fx, ../types, ../localization, ../sound, cinematic_common, cutscene, ../utils
 
 # ---------------------------------------------------------------------------
 # Shared accent colours
@@ -27,7 +27,7 @@ proc simpleBackdrop(accent: Color): CutsceneBackdropProc =
                        Color(r: 8,  g: 10, b: 16, a: 255),
                        Color(r: 14, g: 22, b: 28, a: 28),
                        Color(r: 30, g: 80, b: 90, a: 38),
-                       Color(r: accent.r, g: accent.g, b: accent.b, a: 30),
+                       withAlpha(accent, 30),
                        0.48, 0.42)
 
 # ---------------------------------------------------------------------------
