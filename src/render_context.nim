@@ -60,6 +60,17 @@ proc getVirtualScreenHeight*(): int32 =
   ## Full virtual screen height (768).
   currentVirtualHeight.int32
 
+const BaseVirtualWidth* = 1024'i32
+  ## The classic (4:3) virtual width. Every fixed-size panel in the game was laid
+  ## out against this, so it is the baseline "no extra room" width.
+
+proc getExtraVirtualWidth*(): int32 =
+  ## Horizontal virtual pixels available beyond the classic layout width:
+  ## 0 in classic (4:3), 342 in widescreen (16:9). Centered UI panels grow by a
+  ## capped share of this instead of leaving the extra width as empty gutters,
+  ## which keeps classic pixel-identical (the growth term is exactly 0 there).
+  max(0'i32, getVirtualScreenWidth() - BaseVirtualWidth)
+
 proc setRenderSupersampleScale*(scale: float32) =
   currentRenderSupersampleScale = max(scale, 1.0'f32)
 

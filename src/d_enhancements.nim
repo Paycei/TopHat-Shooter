@@ -105,14 +105,19 @@ proc updateCelebration*(celebration: var WaveCelebration, dt: float32): bool =
 
   return true
 
-proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeight: int32) =
+proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeight: int32,
+                          originX: int32 = 0) =
+  ## Fullscreen celebration overlay. `originX`/`screenWidth` describe the column it
+  ## fills: classic passes the whole screen, widescreen passes the 1024-wide world
+  ## column so the overlay keeps its 4:3 proportions instead of stretching over the
+  ## gutters.
   if not celebration.active:
     return
 
   let progress = celebration.animationTimer / celebration.maxAnimationTime
 
   # Draw darkened background
-  drawRectangle(0, 0, screenWidth, screenHeight,
+  drawRectangle(originX, 0, screenWidth, screenHeight,
     Color(r: 0, g: 0, b: 0, a: uint8(100 * (1.0 - progress))))
 
   # Main text with slide-in animation
@@ -122,7 +127,7 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
   else:
     t(tkWaveClearedText) & " " & $celebration.waveNumber & " CLEARED"
   let textWidth = measureText(waveText, 48.int32)
-  let textX = int32((screenWidth.float32 - textWidth.float32) * slideProgress)
+  let textX = originX + int32((screenWidth.float32 - textWidth.float32) * slideProgress)
   let textY = screenHeight div 2 - 100
 
   # Draw text with glow effect
@@ -139,7 +144,7 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
   if celebration.showStats:
     let statsAlpha = uint8(min(celebration.statsRevealTimer * 255.0, 255.0))
     let statsY = textY + 80
-    let centerX = screenWidth div 2
+    let centerX = originX + screenWidth div 2
 
     # Stats box background
     let boxWidth = 400

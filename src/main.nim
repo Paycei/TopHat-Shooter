@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import particle_types, game/combat, game/death, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+import particle_types, game/combat, game/death, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
 
 # Global quit-confirmation dialog
 
@@ -2375,27 +2375,11 @@ proc main() =
         if isPointerPressed():
           let mousePos = getVirtualMousePosition()
 
-          # Shop dimensions from shop.nim
-          const SHOP_WIDTH = 950
-          const SHOP_HEIGHT = 600
-          const TITLE_BAR_HEIGHT = 45
-          const SIDEBAR_WIDTH = 280
-          const ITEM_HEIGHT = 60
-          const ITEM_SPACING = 6
+          # Geometry comes straight from os_shop.nim's layout, so widescreen
+          # (which widens the panel and the rows) needs no change here.
+          let L = shopLayout()
 
-          # Mirror drawShopScreen: it centers on the VIRTUAL screen (wider than
-          # the world in widescreen mode), so hit-testing must too.
-          let windowX = (getVirtualScreenWidth() - SHOP_WIDTH) div 2
-          let windowY = (getVirtualScreenHeight() - SHOP_HEIGHT) div 2
-
-          # Check close button click (X button in title bar)
-          let closeButtonSize = 28
-          let closeButtonX = windowX + SHOP_WIDTH - closeButtonSize - 10
-          let closeButtonY = windowY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
-          let closeButtonRect = Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
-                                          width: closeButtonSize.float32, height: closeButtonSize.float32)
-
-          if checkCollisionPointRec(mousePos, closeButtonRect):
+          if checkCollisionPointRec(mousePos, L.closeRect()):
             # Close shop and continue to next wave
             currentGame.cameFromPowerUpSelect = false
             if currentGame.mode == gmRoguelite:
@@ -2405,38 +2389,18 @@ proc main() =
               currentGame.state = gsCountdown
               currentGame.countdownTimer = 0.5
           else:
-            let sidebarX = windowX + 10
-            let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
-            let shopX = sidebarX + SIDEBAR_WIDTH + 15
-            let shopY = sidebarY + 10
-            let itemsStartY = shopY + 35
-            let shopWidth = SHOP_WIDTH - SIDEBAR_WIDTH - 40
-
             # Check shop item clicks
             var clickedItem = -1
             for i in 0..5:
-              let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
-              let itemRect = Rectangle(x: shopX.float32, y: itemY.float32,
-                                      width: shopWidth.float32, height: ITEM_HEIGHT.float32)
-
-              if checkCollisionPointRec(mousePos, itemRect):
+              if checkCollisionPointRec(mousePos, L.itemRect(i)):
                 clickedItem = i
                 break
-
-            # Check big buy button click
-            let buyButtonWidth = 220
-            let buyButtonHeight = 38
-            let bottomY = windowY + SHOP_HEIGHT - 65
-            let buyButtonX = windowX + SHOP_WIDTH - buyButtonWidth - 20
-            let buyButtonY = bottomY + 12
-            let buyButtonRect = Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
-                                          width: buyButtonWidth.float32, height: buyButtonHeight.float32)
 
             if clickedItem >= 0:
               # Clicked on an item - select and buy it
               currentGame.selectedShopItem = clickedItem
               buyShopItem(currentGame, clickedItem)
-            elif checkCollisionPointRec(mousePos, buyButtonRect):
+            elif checkCollisionPointRec(mousePos, L.buyRect()):
               # Clicked the buy button - buy selected item
               buyShopItem(currentGame, currentGame.selectedShopItem)
 
@@ -2672,25 +2636,11 @@ proc main() =
 
           if isPointerPressed():
             let mousePos = getVirtualMousePosition()
-            const INSTALLER_WIDTH = 1000
-            const INSTALLER_HEIGHT = 650
-            const TITLE_BAR_HEIGHT = 45
-            const CONTINUE_BTN_W = 300
-            const CONTINUE_BTN_H = 50
-            # Mirror the installer draw: centered on the VIRTUAL screen.
-            let winX = (getVirtualScreenWidth() - INSTALLER_WIDTH) div 2
-            let winY = (getVirtualScreenHeight() - INSTALLER_HEIGHT) div 2
-            let continueBtnX = winX + (INSTALLER_WIDTH - CONTINUE_BTN_W) div 2
-            let continueBtnY = winY + INSTALLER_HEIGHT - 100
-            let closeButtonSize = 28
-            let closeButtonX = winX + INSTALLER_WIDTH - closeButtonSize - 10
-            let closeButtonY = winY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
-            if checkCollisionPointRec(mousePos,
-                Rectangle(x: continueBtnX.float32, y: continueBtnY.float32,
-                          width: CONTINUE_BTN_W.float32, height: CONTINUE_BTN_H.float32)) or
-               checkCollisionPointRec(mousePos,
-                Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
-                          width: closeButtonSize.float32, height: closeButtonSize.float32)):
+            # Geometry comes straight from os_powerup_installer.nim's layout,
+            # which already accounts for the wider 16:9 panel.
+            let L = installerLayout()
+            if checkCollisionPointRec(mousePos, L.continueRect()) or
+               checkCollisionPointRec(mousePos, L.closeRect()):
               continueAfterDraft()
 
         beginGameDrawing()
@@ -2735,29 +2685,13 @@ proc main() =
           # Mouse hover detection for card selection (only if keyboard not recently used)
           if isPointerPressed() or currentGame.mouseMovedRecently:
             let mousePos = getVirtualMousePosition()
-            # Use actual UI dimensions from os_powerup_installer.nim
-            const INSTALLER_WIDTH = 1000
-            const INSTALLER_HEIGHT = 650
-            const TITLE_BAR_HEIGHT = 45
-            const CARD_WIDTH = 280
-            const CARD_HEIGHT = 380
-            const CARD_SPACING = 35
-
-            # Mirror the installer draw: centered on the VIRTUAL screen.
-            let windowX = (getVirtualScreenWidth() - INSTALLER_WIDTH) div 2
-            let windowY = (getVirtualScreenHeight() - INSTALLER_HEIGHT) div 2
-            let yPos = windowY + TITLE_BAR_HEIGHT + 75
-            let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
-            let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
+            # Card geometry comes straight from os_powerup_installer.nim's layout.
+            let L = installerLayout()
 
             # Check which card mouse is over - only if keyboard wasn't just used
             if not currentGame.keyboardUsedRecently:
               for i in 0..2:
-                let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
-                let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
-                                         width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
-
-                if checkCollisionPointRec(mousePos, cardRect):
+                if checkCollisionPointRec(mousePos, L.cardRect(i)):
                   currentGame.selectedPowerUp = i
                   break
 
@@ -2770,38 +2704,16 @@ proc main() =
           # Mouse click to select
           if isPointerPressed():
             let mousePos = getVirtualMousePosition()
-            const INSTALLER_WIDTH = 1000
-            const INSTALLER_HEIGHT = 650
-            const TITLE_BAR_HEIGHT = 45
-            const CARD_WIDTH = 280
-            const CARD_HEIGHT = 380
-            const CARD_SPACING = 35
+            # Card / button geometry comes straight from os_powerup_installer.nim.
+            let L = installerLayout()
 
-            # Mirror the installer draw: centered on the VIRTUAL screen.
-            let windowX = (getVirtualScreenWidth() - INSTALLER_WIDTH) div 2
-            let windowY = (getVirtualScreenHeight() - INSTALLER_HEIGHT) div 2
-            let yPos = windowY + TITLE_BAR_HEIGHT + 75
-            let totalCardWidth = CARD_WIDTH * 3 + CARD_SPACING * 2
-            let startX = windowX + (INSTALLER_WIDTH - totalCardWidth) div 2
-
-            # Check close button click (X button in title bar)
-            let closeButtonSize = 28
-            let closeButtonX = windowX + INSTALLER_WIDTH - closeButtonSize - 10
-            let closeButtonY = windowY + (TITLE_BAR_HEIGHT - closeButtonSize) div 2
-            let closeButtonRect = Rectangle(x: closeButtonX.float32, y: closeButtonY.float32,
-                                            width: closeButtonSize.float32, height: closeButtonSize.float32)
-
-            if checkCollisionPointRec(mousePos, closeButtonRect):
+            if checkCollisionPointRec(mousePos, L.closeRect()):
               # Close installer without picking
               continueAfterDraft()
             else:
               # Check card clicks
               for i in 0..2:
-                let cardX = startX + i * (CARD_WIDTH + CARD_SPACING)
-                let cardRect = Rectangle(x: cardX.float32, y: yPos.float32,
-                                         width: CARD_WIDTH.float32, height: CARD_HEIGHT.float32)
-
-                if checkCollisionPointRec(mousePos, cardRect):
+                if checkCollisionPointRec(mousePos, L.cardRect(i)):
                   currentGame.selectedPowerUp = i
                   let chosenPowerUp = currentGame.powerUpChoices[currentGame.selectedPowerUp]
                   installPowerUp(currentGame, chosenPowerUp)
@@ -2809,16 +2721,7 @@ proc main() =
                   break
 
               # Check reroll button click
-              let rerollWidth = 220
-              let rerollX = windowX + (INSTALLER_WIDTH - rerollWidth) div 2
-              let bottomY = windowY + INSTALLER_HEIGHT - 120
-              let buttonY = bottomY + 15
-              let buttonHeight = 42
-
-              let rerollRect = Rectangle(x: rerollX.float32, y: buttonY.float32,
-                                          width: rerollWidth.float32, height: buttonHeight.float32)
-
-              if checkCollisionPointRec(mousePos, rerollRect):
+              if checkCollisionPointRec(mousePos, L.rerollRect()):
                 let coinsPreReroll = currentGame.player.coins
                 if attemptRerollPowerUps(currentGame):
                   recordRerollSpent(coinsPreReroll - currentGame.player.coins)
