@@ -18,6 +18,8 @@ type
     pskHearts,       # Heart-shaped particles
     pskLightning,    # Electric yellow sparks
     pskVoid,         # Black hole dark energy
+    pskAmethyst,     # Violet crystal shimmer (completes the Amethyst trio)
+    pskMatrix,       # Digital green code rain (completes the Matrix trio)
 
   ParticleSkinData* = object
     name*: string
@@ -176,6 +178,30 @@ proc initializeParticleSkins*() =
     isUnlocked: true
   )
 
+  particleSkinDatabase[pskAmethyst] = ParticleSkinData(
+    name: t("particle_amethyst"),
+    description: t("particle_amethyst_desc"),
+    primaryColor: Color(r: 150, g: 0, b: 255, a: 255),
+    secondaryColor: Color(r: 220, g: 180, b: 255, a: 255),
+    particleCount: 12,
+    particleSpeed: 100.0,
+    useCustomShape: false,
+    isAnimated: true,
+    isUnlocked: true
+  )
+
+  particleSkinDatabase[pskMatrix] = ParticleSkinData(
+    name: t("particle_matrix"),
+    description: t("particle_matrix_desc"),
+    primaryColor: Color(r: 0, g: 255, b: 70, a: 255),
+    secondaryColor: Color(r: 150, g: 255, b: 180, a: 255),
+    particleCount: 14,
+    particleSpeed: 130.0,
+    useCustomShape: false,
+    isAnimated: true,
+    isUnlocked: true
+  )
+
 proc getParticleSkinColors*(skinType: ParticleSkinType, time: float32): tuple[primary, secondary: Color] =
   ## Get the colors for particle skin, applying animations if needed
   let skin = particleSkinDatabase[skinType]
@@ -250,6 +276,20 @@ proc getParticleSkinColors*(skinType: ParticleSkinType, time: float32): tuple[pr
       Color(r: uint8(20 + swirl * 60), g: 0, b: uint8(40 + swirl * 80), a: 255),
       Color(r: uint8(80 + swirl * 40), g: uint8(40 * swirl), b: uint8(120 + swirl * 60), a: 255)
     )
+  of pskAmethyst:
+    # Slow violet crystal shimmer
+    let shimmer = sin(time * 3.5) * 0.5 + 0.5
+    return (
+      Color(r: uint8(130 + shimmer * 50), g: uint8(shimmer * 40), b: 255, a: 255),
+      Color(r: uint8(210 + shimmer * 30), g: uint8(160 + shimmer * 40), b: 255, a: 255)
+    )
+  of pskMatrix:
+    # Pulsing digital green
+    let pulse = sin(time * 4.0) * 0.3 + 0.7
+    return (
+      Color(r: 0, g: uint8(pulse * 255), b: uint8(50 + pulse * 40), a: 255),
+      Color(r: uint8(120 * pulse), g: 255, b: uint8(150 + pulse * 60), a: 255)
+    )
   else:
     # Fallback to static colors
     return (skin.primaryColor, skin.secondaryColor)
@@ -270,9 +310,9 @@ proc shootingParticleStyle(skinType: ParticleSkinType, index: int): ParticleStyl
   case skinType
   of pskFire, pskGold, pskLightning:
     if index mod 3 == 0: psSoft else: psSpark
-  of pskIce, pskStars:
+  of pskIce, pskStars, pskMatrix:
     if index mod 2 == 0: psShard else: psSoft
-  of pskToxic, pskShadow, pskVoid, pskHearts:
+  of pskToxic, pskShadow, pskVoid, pskHearts, pskAmethyst:
     if index mod 3 == 0: psSoft else: psEmber
   else:
     if index mod 4 == 0: psSpark else: psSoft
@@ -312,8 +352,10 @@ proc shootingParticleGlow(skinType: ParticleSkinType): float32 =
   case skinType
   of pskLightning, pskPlasma, pskVoid:
     1.35'f32
-  of pskGold, pskStars, pskFire:
+  of pskGold, pskStars, pskFire, pskMatrix:
     1.1'f32
+  of pskAmethyst:
+    1.2'f32
   else:
     0.9'f32
 

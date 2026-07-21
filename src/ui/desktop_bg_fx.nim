@@ -967,19 +967,23 @@ proc edgeX(localX, w, side: float32): float32 =
   if side < 0.0'f32: localX else: w - localX
 
 proc drawDragonWing(shoulderX, shoulderY, s, time, side, seed: float32,
-                    membrane, rim: Color) =
-  ## A bat-style wing mantled above the shoulder: struts sweep entirely
-  ## through the outward side (never crossing in front of the head/neck) from
-  ## a trailing edge that droops outward-and-down along the spine to a
-  ## leading edge that sweeps outward-and-up, each gap filled as a membrane
-  ## triangle and the scalloped outer edge traced in a connecting line.
-  ## Mirrored via `side` by flipping only the horizontal component. `s` is
-  ## min(w,h) - the same scale reference the silhouette's body uses - so the
-  ## wing stays proportional to the dragon on wide/ultrawide aspect ratios
-  ## instead of ballooning with the full screen width.
+                    membrane, rim, ember: Color) =
+  ## A bat-style wing mantled above the shoulder: five finger-bone struts sweep
+  ## entirely through the outward side (never crossing in front of the
+  ## head/neck) from a trailing edge that droops outward-and-down along the
+  ## spine to a leading edge that sweeps outward-and-up. Each bay between two
+  ## struts is filled as two triangles meeting at a scallop midpoint pulled
+  ## back toward the shoulder, so the trailing edge dips between the bones like
+  ## a real wing membrane instead of cutting a straight chord; the fill is
+  ## lightest near the struts (catching rim light) and a faint warm glow bleeds
+  ## through the web behind it. Mirrored via `side` by flipping only the
+  ## horizontal component. `s` is min(w,h) - the same scale reference the
+  ## silhouette's body uses - so the wing stays proportional to the dragon on
+  ## wide/ultrawide aspect ratios instead of ballooning with the full width.
   const Struts = 5
   let inward = if side < 0.0'f32: 1.0'f32 else: -1.0'f32
   let flex = 1.0'f32 + 0.05'f32 * sin(time * 0.35'f32 + seed)
+  let shoulder = Vector2(x: shoulderX, y: shoulderY)
   var tip: array[Struts, Vector2]
   for i in 0 ..< Struts:
     let f = i.float32 / (Struts - 1).float32          # 0 trailing -> 1 leading
@@ -987,14 +991,76 @@ proc drawDragonWing(shoulderX, shoulderY, s, time, side, seed: float32,
     let len = s * (0.12'f32 + f * 0.095'f32) * flex
     tip[i] = Vector2(x: shoulderX + cos(ang) * len * inward,
                      y: shoulderY + sin(ang) * len)
-  let shoulder = Vector2(x: shoulderX, y: shoulderY)
+
+  # The scallop dip point for the bay between struts i and i+1: the midpoint of
+  # the two tips pulled ~20% back toward the shoulder.
+  proc dipOf(i: int): Vector2 =
+    let mid = Vector2(x: (tip[i].x + tip[i + 1].x) * 0.5'f32,
+                      y: (tip[i].y + tip[i + 1].y) * 0.5'f32)
+    Vector2(x: mid.x + (shoulderX - mid.x) * 0.20'f32,
+            y: mid.y + (shoulderY - mid.y) * 0.20'f32)
+
+  # Faint warm backlight bleeding through the web before the membrane fills.
+  drawSoftGlow((shoulderX + tip[Struts div 2].x) * 0.5'f32,
+               (shoulderY + tip[Struts div 2].y) * 0.5'f32,
+               s * 0.10'f32, withAlpha(ember, 20'u8), 0.5)
+  # Membrane bays, each split at its dip so the outer edge scallops inward.
   for i in 0 ..< (Struts - 1):
-    drawTri2(shoulder, tip[i], tip[i + 1], membrane)
+    let f = (i.float32 + 0.5'f32) / (Struts - 1).float32
+    let lit = mixCol(membrane, rim, 0.09'f32 + f * 0.05'f32)
+    let dip = dipOf(i)
+    drawTri2(shoulder, tip[i], dip, lit)
+    drawTri2(shoulder, dip, tip[i + 1], membrane)
+  # Finger-bones and their tip nubs.
   for i in 0 ..< Struts:
     drawLine(shoulder, tip[i], 1.6'f32, rim)
     drawCircle(tip[i], 1.6'f32, rim)
+  # Scalloped trailing edge traced through the dip points.
   for i in 0 ..< (Struts - 1):
-    drawLine(tip[i], tip[i + 1], 1.4'f32, withAlpha(rim, 150'u8))
+    let dip = dipOf(i)
+    drawLine(tip[i], dip, 1.3'f32, withAlpha(rim, 150'u8))
+    drawLine(dip, tip[i + 1], 1.3'f32, withAlpha(rim, 150'u8))
+  # Thumb claw hooking off the leading strut tip.
+  let lead = tip[Struts - 1]
+  drawTri2(lead, Vector2(x: lead.x + inward * s * 0.012'f32, y: lead.y - s * 0.004'f32),
+           Vector2(x: lead.x + inward * s * 0.028'f32, y: lead.y - s * 0.032'f32), rim)
+
+proc drawDragonForeleg(hipX, hipY, s, time, side, seed: float32,
+                       body, rim: Color) =
+  ## A short two-jointed foreleg dropping inward from the shoulder so a clawed
+  ## hand rests over the board edge. Upper and lower limb are tapered quads
+  ## (two triangles each) and three claws fan downward off the wrist. Mirrored
+  ## via `side`; every length scales off `s = min(w,h)`.
+  let inward = if side < 0.0'f32: 1.0'f32 else: -1.0'f32
+  let twitch = sin(time * 0.5'f32 + seed) * s * 0.006'f32
+  let upperLen = s * 0.075'f32
+  let lowerLen = s * 0.060'f32
+  let hip = Vector2(x: hipX, y: hipY)
+  let elbow = Vector2(x: hipX + inward * upperLen * 0.75'f32,
+                      y: hipY + upperLen * 0.55'f32)
+  let wrist = Vector2(x: elbow.x + inward * lowerLen * 0.55'f32 + twitch,
+                      y: elbow.y + lowerLen * 0.80'f32)
+  let uW = s * 0.026'f32
+  let lW = s * 0.019'f32
+  # Upper limb (hip -> elbow) then lower limb (elbow -> wrist) as tapered quads.
+  drawTri2(Vector2(x: hip.x - uW, y: hip.y), Vector2(x: hip.x + uW, y: hip.y),
+           Vector2(x: elbow.x + inward * lW, y: elbow.y), body)
+  drawTri2(Vector2(x: hip.x + uW, y: hip.y),
+           Vector2(x: elbow.x + inward * lW, y: elbow.y),
+           Vector2(x: elbow.x - inward * lW, y: elbow.y), body)
+  drawCircle(elbow, lW, body)
+  drawTri2(Vector2(x: elbow.x - inward * lW, y: elbow.y),
+           Vector2(x: elbow.x + inward * lW, y: elbow.y), wrist, body)
+  # Three claws splaying downward-and-inward from the wrist, gold at the tips.
+  for ck in 0 ..< 3:
+    let spread = ck.float32 - 1.0'f32                  # -1, 0, 1
+    let clen = s * (0.030'f32 - abs(spread) * 0.004'f32)
+    let ctip = Vector2(x: wrist.x + inward * (0.15'f32 + spread * 0.35'f32) * clen,
+                       y: wrist.y + clen)
+    let cw = s * 0.006'f32
+    drawTri2(Vector2(x: wrist.x - cw, y: wrist.y),
+             Vector2(x: wrist.x + cw, y: wrist.y), ctip, body)
+    drawCircle(ctip, max(0.7'f32, s * 0.005'f32), rim)
 
 proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
   ## One black dragon coiled up a screen edge: tail at the bottom corner,
@@ -1021,17 +1087,48 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
   let shIdx = int(0.60'f32 * (Segs - 1).float32)
   let membrane = withAlpha(body, 235'u8)
   drawDragonWing(bx[shIdx], by[shIdx], s, time, side, side * 11.0'f32 + 3.0'f32,
-                membrane, rim)
+                membrane, rim, ember)
 
-  # Body: overlapping circles taper tail to neck into a continuous coil. The
-  # radius and the vertical step both scale with s/h, so they overlap by the
-  # same ratio whether this draws at 64px in the shop or at 4K fullscreen.
+  # Body: a smooth tapered ribbon. For each spine node we place two rim points
+  # perpendicular to the local spine direction; consecutive nodes' rim points
+  # stitch into a triangle strip and a node circle rounds each joint, giving a
+  # continuous coil with none of the lumps a bare stack of circles leaves. The
+  # radii scale with s, so it fills identically at 64px in the shop and at 4K.
+  var lx, ly, rx, ry: array[Segs, float32]
   for i in 0 ..< Segs:
-    drawCircle(Vector2(x: bx[i], y: by[i]), br[i], body)
-  # A faint gold scale-line on every segment, drawn after all the fills so
-  # the overlapping arcs read as a scaled hide rather than a smooth tube.
+    let ax = if i < Segs - 1: bx[i + 1] else: bx[i]
+    let ay = if i < Segs - 1: by[i + 1] else: by[i]
+    let px = if i > 0: bx[i - 1] else: bx[i]
+    let py = if i > 0: by[i - 1] else: by[i]
+    var dx = ax - px
+    var dy = ay - py
+    let dl = max(0.0001'f32, sqrt(dx * dx + dy * dy))
+    dx /= dl; dy /= dl
+    lx[i] = bx[i] - dy * br[i]; ly[i] = by[i] + dx * br[i]
+    rx[i] = bx[i] + dy * br[i]; ry[i] = by[i] - dx * br[i]
+  for i in 0 ..< (Segs - 1):
+    drawTri2(Vector2(x: lx[i], y: ly[i]), Vector2(x: rx[i], y: ry[i]),
+             Vector2(x: lx[i + 1], y: ly[i + 1]), body)
+    drawTri2(Vector2(x: rx[i], y: ry[i]), Vector2(x: rx[i + 1], y: ry[i + 1]),
+             Vector2(x: lx[i + 1], y: ly[i + 1]), body)
   for i in 0 ..< Segs:
-    drawCircleLines(bx[i].int32, by[i].int32, br[i], withAlpha(rim, 55'u8))
+    drawCircle(Vector2(x: bx[i], y: by[i]), br[i] * 0.98'f32, body)
+
+  # Warm rim on the inward-facing contour, brightest near the head and fading
+  # to black down the tail: one side catches the tavern glow while the outer
+  # contour stays in shadow, which is what gives the flat-black coil volume.
+  # A faint gold scale-line rides the same lit edge for hide texture.
+  for i in 1 ..< Segs:
+    let t = i.float32 / (Segs - 1).float32
+    let lit = mixCol(body, rim, 0.15'f32 + t * 0.45'f32)
+    let ex = bx[i] + inward * br[i] * 0.92'f32
+    let pex = bx[i - 1] + inward * br[i - 1] * 0.92'f32
+    drawLine(Vector2(x: pex, y: by[i - 1]), Vector2(x: ex, y: by[i]),
+             max(1.2'f32, br[i] * 0.30'f32), lit)
+  for i in 0 ..< Segs:
+    let t = i.float32 / (Segs - 1).float32
+    drawCircleLines(bx[i].int32, by[i].int32, br[i],
+                    withAlpha(rim, alphaU8(18.0'f32 + t * 42.0'f32)))
 
   # Spine spikes: small gold triangles on alternating segments, angled
   # outward and up so the silhouette reads as serrated against the dark.
@@ -1044,26 +1141,57 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
       let spikeTip = Vector2(x: bx[i] + outX, y: by[i] - spike * 0.95'f32)
       drawTri2(base1, base2, spikeTip, rim)
 
-  # Tail fin resting at the tip, swaying gently.
-  let tailSway = sin(time * 0.6'f32) * s * 0.01'f32
-  let tailTip = Vector2(x: bx[0] - inward * s * 0.05'f32 + tailSway, y: by[0] + s * 0.045'f32)
-  drawTri2(Vector2(x: bx[0], y: by[0] - br[0]), Vector2(x: bx[0], y: by[0] + br[0]),
-          tailTip, body)
+  # Foreleg: a clawed limb dropping inward from the shoulder to grip the board
+  # edge, drawn after the body coil so it reads as being in front of it.
+  drawDragonForeleg(bx[shIdx], by[shIdx] + br[shIdx] * 0.6'f32, s, time, side,
+                    side * 5.0'f32 + 1.0'f32, body, rim)
 
-  # Head: a wedge-shaped skull at the neck end, turned inward over the
-  # desktop, traced in a gold outline so it reads as its own shape rather
-  # than blending into the wing or the neck behind it.
+  # Tail fin: a barbed arrowhead swaying gently at the tip.
+  let tailSway = sin(time * 0.6'f32) * s * 0.01'f32
+  let t0 = Vector2(x: bx[0], y: by[0])
+  let tdx = -inward * s * 0.055'f32 + tailSway
+  let tdy = s * 0.05'f32
+  let tailTip = Vector2(x: t0.x + tdx, y: t0.y + tdy)
+  let tailMid = Vector2(x: t0.x + tdx * 0.62'f32, y: t0.y + tdy * 0.62'f32)
+  drawTri2(Vector2(x: t0.x, y: t0.y - br[0]), Vector2(x: t0.x, y: t0.y + br[0]),
+           tailTip, body)
+  drawTri2(tailTip, tailMid,
+           Vector2(x: tailTip.x - inward * s * 0.024'f32, y: tailTip.y - s * 0.026'f32), body)
+  drawTri2(tailTip, tailMid,
+           Vector2(x: tailTip.x + inward * s * 0.010'f32, y: tailTip.y + s * 0.022'f32), body)
+  drawLine(t0, tailTip, 1.3'f32, withAlpha(rim, 90'u8))
+
+  # Head: an assembled skull turned inward over the desktop - an upper cranium
+  # and snout with a brow ridge, plus a separate hinged lower jaw so the mouth
+  # reads as a real maw (breathing open a hair via `time`), gold fangs along
+  # the bite, and a gold outline so the head never blends into the neck/wing.
   let hx = bx[Segs - 1]
   let hy = by[Segs - 1]
-  let headLen = s * 0.10'f32
-  let headW = s * 0.058'f32
-  let snout = Vector2(x: hx + inward * headLen, y: hy - headLen * 0.12'f32)
-  let jawTop = Vector2(x: hx, y: hy - headW * 0.6'f32)
-  let jawBot = Vector2(x: hx, y: hy + headW * 0.6'f32)
-  drawTri2(jawTop, jawBot, snout, body)
-  drawLine(jawTop, snout, 1.5'f32, rim)
-  drawLine(snout, jawBot, 1.5'f32, rim)
-  drawLine(jawBot, jawTop, 1.5'f32, rim)
+  let headLen = s * 0.11'f32
+  let headW = s * 0.060'f32
+  let gape = (sin(time * 0.9'f32 + side) * 0.5'f32 + 0.5'f32) * headW * 0.16'f32
+  let hinge = Vector2(x: hx, y: hy + headW * 0.10'f32)
+  let brow = Vector2(x: hx - inward * headW * 0.10'f32, y: hy - headW * 0.62'f32)
+  let snoutTop = Vector2(x: hx + inward * headLen * 0.86'f32, y: hy - headW * 0.28'f32)
+  let snout = Vector2(x: hx + inward * headLen, y: hy - headLen * 0.02'f32)
+  let jawTip = Vector2(x: hx + inward * headLen * 0.72'f32, y: hy + headW * 0.30'f32 + gape)
+  drawTri2(hinge, brow, snoutTop, body)         # upper cranium
+  drawTri2(hinge, snoutTop, snout, body)         # snout
+  drawTri2(hinge, snout, jawTip, body)           # hinged lower jaw
+  # Gold fangs along the bite line.
+  for tk in 0 ..< 3:
+    let tf = 0.24'f32 + tk.float32 * 0.26'f32
+    let mx = snout.x + (hinge.x - snout.x) * tf
+    let my = snout.y + (hinge.y - snout.y) * tf
+    drawTri2(Vector2(x: mx - inward * headW * 0.022'f32, y: my),
+             Vector2(x: mx + inward * headW * 0.022'f32, y: my),
+             Vector2(x: mx - inward * headW * 0.02'f32, y: my + headW * 0.17'f32 + gape * 0.4'f32),
+             withAlpha(rim, 205'u8))
+  drawLine(hinge, brow, 1.5'f32, rim)
+  drawLine(brow, snoutTop, 1.5'f32, rim)
+  drawLine(snoutTop, snout, 1.5'f32, rim)
+  drawLine(snout, jawTip, 1.3'f32, withAlpha(rim, 160'u8))
+  drawLine(jawTip, hinge, 1.3'f32, withAlpha(rim, 120'u8))
 
   # Twin horns sweeping back off the brow.
   for hk in 0 ..< 2:
@@ -1075,12 +1203,18 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
     let hTip = Vector2(x: hx - inward * headLen * (0.45'f32 + hf * 0.25'f32),
                        y: hy - headLen * (0.85'f32 + hf * 0.35'f32))
     drawTri2(hBase1, hBase2, hTip, rim)
+  # Cheek horn jutting back off the jaw hinge.
+  let chBase = Vector2(x: hx + inward * headW * 0.02'f32, y: hy + headW * 0.16'f32)
+  drawTri2(chBase,
+           Vector2(x: chBase.x + inward * headW * 0.12'f32, y: chBase.y + headW * 0.04'f32),
+           Vector2(x: chBase.x - inward * headLen * 0.26'f32, y: chBase.y + headLen * 0.16'f32),
+           rim)
 
-  # Glowing ember eye, pulsing, with a soft bleed onto the dark hide.
+  # Glowing ember eye set under the brow, pulsing, with a soft bleed onto hide.
   let eyePulse = sin(time * 1.4'f32 + side * 3.0'f32) * 0.5'f32 + 0.5'f32
-  let eyePos = Vector2(x: hx + inward * headLen * 0.42'f32, y: hy - headW * 0.18'f32)
-  drawSoftGlow(eyePos.x, eyePos.y, headW * 0.7'f32,
-              withAlpha(ember, alphaU8(50.0'f32 + eyePulse * 40.0'f32)), 0.6)
+  let eyePos = Vector2(x: hx + inward * headLen * 0.34'f32, y: hy - headW * 0.34'f32)
+  drawSoftGlow(eyePos.x, eyePos.y, headW * 0.52'f32,
+              withAlpha(ember, alphaU8(40.0'f32 + eyePulse * 34.0'f32)), 0.6)
   drawCircle(eyePos, headW * 0.1'f32, withAlpha(ember, alphaU8(190.0'f32 + eyePulse * 60.0'f32)))
 
   # Smoldering breath: a faint nostril glow with a few embers drifting up.

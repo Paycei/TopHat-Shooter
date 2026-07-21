@@ -18,6 +18,8 @@ type
     skMatrix,       # Green matrix style
     skVoid,         # Dark purple void
     skPlasma,       # Blue/purple plasma
+    skStars,        # White-gold twinkle (completes the Stars trio)
+    skLightning,    # Electric blue crackle (completes the Lightning trio)
 
   SkinData* = object
     name*: string
@@ -153,6 +155,26 @@ proc initializeSkins*() =
     isUnlocked: true
   )
 
+  skinDatabase[skStars] = SkinData(
+    name: t("skin_stars"),
+    description: t("skin_stars_desc"),
+    primaryColor: Color(r: 255, g: 240, b: 140, a: 255),
+    secondaryColor: Color(r: 220, g: 190, b: 90, a: 255),
+    coreColor: Color(r: 255, g: 255, b: 255, a: 255),
+    isAnimated: true,
+    isUnlocked: true
+  )
+
+  skinDatabase[skLightning] = SkinData(
+    name: t("skin_lightning"),
+    description: t("skin_lightning_desc"),
+    primaryColor: Color(r: 120, g: 190, b: 255, a: 255),
+    secondaryColor: Color(r: 90, g: 140, b: 255, a: 255),
+    coreColor: Color(r: 240, g: 250, b: 255, a: 255),
+    isAnimated: true,
+    isUnlocked: true
+  )
+
 proc getSkinColors*(skinType: SkinType, time: float32): tuple[primary, secondary, core: Color] =
   ## Get the colors for a skin, applying animations if needed
   let skin = skinDatabase[skinType]
@@ -244,6 +266,23 @@ proc getSkinColors*(skinType: SkinType, time: float32): tuple[primary, secondary
       Color(r: blueVal, g: blueVal, b: purpleVal, a: 255),
       Color(r: uint8(150 - oscillation * 50), g: 50, b: purpleVal, a: 255),
       Color(r: 200, g: 200, b: 255, a: 255)
+    )
+  of skStars:
+    # Warm white-gold twinkle with periodic sparkle on the core
+    let twinkle = sin(time * 4.5) * 0.5 + 0.5
+    let sparkle = pow(max(0.0'f32, sin(time * 6.1 + 0.7)), 9.0'f32)
+    return (
+      Color(r: 255, g: uint8(225 + twinkle * 30), b: uint8(120 + twinkle * 70), a: 255),
+      Color(r: uint8(210 + twinkle * 30), g: uint8(180 + twinkle * 30), b: uint8(80 + twinkle * 40), a: 255),
+      Color(r: 255, g: 255, b: uint8(210 + sparkle * 45), a: 255)
+    )
+  of skLightning:
+    # Electric blue crackle: fast erratic brightness flicker
+    let crackle = 0.75 + 0.25 * sin(time * 13.0) * sin(time * 4.7)
+    return (
+      Color(r: uint8(90.0 * crackle), g: uint8(170.0 * crackle), b: 255, a: 255),
+      Color(r: uint8(70.0 * crackle), g: uint8(130.0 * crackle), b: 255, a: 255),
+      Color(r: uint8(220 + 35.0 * crackle), g: 250, b: 255, a: 255)
     )
   else:
     # Fallback to static colors
