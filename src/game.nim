@@ -3,7 +3,7 @@ import types, settings, save_system, player, enemy, bullet, consumable, coin, xp
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
-import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting, utils
+import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting, run_save, suspend, utils
 
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -161,6 +161,8 @@ proc checkPendingLevelDraft*(game: Game) =
   initializeRerollCost(game)
   if isTimeSurvivalMode(game.mode):
     game.survivalLevelDraftActive = true
+    saveRunState(game)  # Survival autosave checkpoint at each level draft.
+    deleteSuspendSnapshot()  # Boundary reached: the pre-exit snapshot is stale.
   game.state = gsPowerUpSelect
 
 proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0, particleSkin: int = 0, bulletShape: int = 0): Game =
@@ -622,6 +624,8 @@ proc completeBossWave*(game: Game) =
   # repeats every 5 waves in endless) from re-triggering the screen.
   if getCustomBossNumber(completedWave) == 12 and not game.hasWonGame:
     game.hasWonGame = true
+    deleteRunSave()  # Run is won: no longer resumable.
+    deleteSuspendSnapshot()  # Drop the exact snapshot too.
     # First-ever victory unlocks the secret kernel tophat cosmetic. It is
     # equipped by default (and immediately, so it shows in endless) and can be
     # toggled off in the shop's SECRET tab.
@@ -2124,10 +2128,16 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
             initPowerUpRollAnimation(game)
             initializeRerollCost(game)
             game.state = gsPowerUpSelect
+          # Autosave checkpoint: room cleared, doors open.
+          saveRunState(game)
+          deleteSuspendSnapshot()  # Boundary: the pre-exit snapshot is stale.
         else:
           # Transition to wave cleared state for 0.3s to let players collect coins
           game.waveClearedTimer = 0.3
           game.state = gsWaveCleared
+          # Autosave checkpoint: wave cleared (about to start the next wave).
+          saveRunState(game)
+          deleteSuspendSnapshot()  # Boundary: the pre-exit snapshot is stale.
 
           # Store whether we should offer power-up after the timer
           # Store this in cameFromPowerUpSelect as a temporary flag
@@ -3055,6 +3065,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     let survivalWasUnlocked = not globalSettings.isNil and globalSettings.survivalUnlocked
     markBossRoomCleared(game)
     completeRogueliteBoss(game)
+    saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
+    deleteSuspendSnapshot()  # Boundary: the pre-exit snapshot is stale.
     if not survivalWasUnlocked and not globalSettings.isNil and globalSettings.survivalUnlocked:
       game.pendingToasts.add(t(tkGameModeUnlocked) & " " & t(tkSurvivalUnlockedNotif))
     let shardDelta = game.rogueliteRun.shardsEarned - prevShards
@@ -3110,6 +3122,8 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
     return
   markBossRoomCleared(game)
   completeRogueliteBoss(game)
+  saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
+  deleteSuspendSnapshot()  # Boundary: the pre-exit snapshot is stale.
   game.powerUpChoices = generatePowerUpChoices(game.player, true,
                           unlockedFamilySet(game.rogueliteProfile), game.mode)
   game.selectedPowerUp = 0

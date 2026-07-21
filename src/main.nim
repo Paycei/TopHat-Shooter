@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import particle_types, game/combat, game/death, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+import particle_types, game/combat, game/death, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
 
 # Global quit-confirmation dialog
 
@@ -99,6 +99,70 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
 
   if decision != 0:
     globalConfirmActive = false
+  return decision
+
+# Resume-run prompt (Continue / New Run) shown when launching a mode that has a
+# matching saved run. Neutral two-button OS-themed dialog, gamepad-navigable via
+# the pointer/back abstraction.
+var
+  resumePromptActive = false
+  resumePromptMode   = gmWaveBased  # mode the saved run belongs to
+
+proc drawResumeDialog(sw, sh: int32): int =
+  ## Returns 0 = still open, 1 = Continue (resume), -1 = New Run (fresh).
+  if not resumePromptActive: return 0
+  let mp = getVirtualMousePosition()
+  const DW: int32 = 480; const DH: int32 = 210
+  const BW: int32 = 180; const BH: int32 = 44
+  let dx = (sw - DW) div 2; let dy = (sh - DH) div 2
+
+  drawRectangle(0, 0, sw, sh, Color(r: 0, g: 0, b: 0, a: 170))
+  drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
+  drawRectangle(dx, dy, DW, DH, Color(r: 16, g: 24, b: 34, a: 255))
+  drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
+                     3, Color(r: 0, g: 200, b: 255, a: 255))
+
+  let tbH: int32 = 36
+  drawRectangle(dx, dy, DW, tbH, Color(r: 20, g: 70, b: 100, a: 255))
+  let titleStr = t(tkResumeRunTitle)
+  let tW = measureText(titleStr, 16)
+  drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, Color(r: 200, g: 240, b: 255, a: 255))
+
+  let bodyStr = t(tkResumeRunBody)
+  let bW = measureText(bodyStr, 17)
+  drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 34, 17, White)
+
+  let btnY = dy + DH - BH - 22
+  let newX = dx + (DW div 2) - BW - 12
+  let contX = dx + (DW div 2) + 12
+  let newHov  = isOverRect(mp, newX,  btnY, BW, BH)
+  let contHov = isOverRect(mp, contX, btnY, BW, BH)
+
+  # New Run (amber: discards the save)
+  drawRectangle(newX, btnY, BW, BH,
+    if newHov: Color(r: 150, g: 95, b: 0, a: 255) else: Color(r: 110, g: 70, b: 0, a: 255))
+  drawRectangleLines(Rectangle(x: newX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+    if newHov: 3 else: 2,
+    if newHov: Color(r: 255, g: 180, b: 60, a: 255) else: Color(r: 200, g: 140, b: 40, a: 255))
+  let newTxt = t(tkResumeNewRun); let nTW = measureText(newTxt, 14)
+  drawText(newTxt, newX + (BW - nTW) div 2, btnY + 14, 14, White)
+
+  # Continue (cyan: resume)
+  drawRectangle(contX, btnY, BW, BH,
+    if contHov: Color(r: 0, g: 130, b: 165, a: 255) else: Color(r: 0, g: 95, b: 125, a: 255))
+  drawRectangleLines(Rectangle(x: contX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+    if contHov: 3 else: 2,
+    if contHov: Color(r: 80, g: 220, b: 255, a: 255) else: Color(r: 0, g: 180, b: 220, a: 255))
+  let contTxt = t(tkResumeContinue); let cTW = measureText(contTxt, 14)
+  drawText(contTxt, contX + (BW - cTW) div 2, btnY + 14, 14, White)
+
+  var decision = 0
+  if isPointerPressed():
+    if newHov:       decision = -1
+    elif contHov:    decision = 1
+  if isBackPressed(): decision = -1
+  if decision != 0:
+    resumePromptActive = false
   return decision
 
 const
@@ -668,6 +732,7 @@ proc main() =
 
   # Track pending game mode launch during loading animation
   var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox, 9 = Roguelite
+  var pendingResume = false  # True when the pending launch should resume a saved run
   var windowCloseRequested = false  # True once the OS close button is clicked
 
   while not windowCloseRequested:
@@ -1000,9 +1065,29 @@ proc main() =
           currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
           setGameMode(currentGame, gmWaveBased)
-          applyComebackBonus(currentGame)
-          initializeRunTracking(currentGame)
-          currentGame.state = gsPlaying
+          # Primary resume path: an EXACT snapshot restores the whole live sim
+          # (and its run stats). On any failure fall back to the checkpoint.
+          var exactResume0 = false
+          if pendingResume and hasSuspendSnapshot():
+            if restoreGame(currentGame):
+              # Give a brief reorient countdown when dropping back into live play
+              # (leave shop / power-up / floor-select states as restored).
+              if currentGame.state == gsPlaying:
+                currentGame.state = gsCountdown
+                currentGame.countdownTimer = 3.0
+              exactResume0 = true
+            else:
+              deleteSuspendSnapshot()
+          if exactResume0:
+            discard  # snapshot carried the full sim + currentRunStats
+          elif pendingResume and applySavedRun(currentGame):
+            initializeRunTracking(currentGame)  # checkpoint resume: fresh stats
+          else:
+            deleteRunSave()
+            deleteSuspendSnapshot()
+            applyComebackBonus(currentGame)
+            currentGame.state = gsPlaying
+            initializeRunTracking(currentGame)
           statsSavedThisGame = false
         of 1:  # Time Survival Mode
           if not settings.survivalUnlocked:
@@ -1011,8 +1096,24 @@ proc main() =
             currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
             setGameMode(currentGame, gmTimeSurvival)
-            initializeRunTracking(currentGame)
-            currentGame.state = gsPlaying
+            var exactResume1 = false
+            if pendingResume and hasSuspendSnapshot():
+              if restoreGame(currentGame):
+                if currentGame.state == gsPlaying:
+                  currentGame.state = gsCountdown
+                  currentGame.countdownTimer = 3.0
+                exactResume1 = true
+              else:
+                deleteSuspendSnapshot()
+            if exactResume1:
+              discard
+            elif pendingResume and applySavedRun(currentGame):
+              initializeRunTracking(currentGame)
+            else:
+              deleteRunSave()
+              deleteSuspendSnapshot()
+              currentGame.state = gsPlaying
+              initializeRunTracking(currentGame)
             statsSavedThisGame = false
         of 6:  # Sandbox Mode
           currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
@@ -1027,6 +1128,37 @@ proc main() =
         of 9:  # Roguelite Mode, launched via the roguelite window Start button
           if not settings.rogueliteUnlocked:
             showDesktopToast(osDesktop, t(tkDesktopModeLocked) & " " & t(tkRogueliteLockedDesc))
+          elif pendingResume:
+            # Resume a saved roguelite run, bypassing the setup window.
+            setActiveRogueliteProfile(loadRogueliteProfile())
+            currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame.discordClient = globalDiscordClient
+            setGameMode(currentGame, gmRoguelite)
+            currentGame.rogueliteProfile = rogueliteProfile
+            # Exact snapshot first; restoreGame keeps the LIVE rogueliteProfile
+            # (meta-currency earned after the snapshot is not rolled back) and
+            # only the run-scoped state comes from the snapshot.
+            var exactResume9 = false
+            if hasSuspendSnapshot():
+              if restoreGame(currentGame):
+                if currentGame.state == gsPlaying:
+                  currentGame.state = gsCountdown
+                  currentGame.countdownTimer = 3.0
+                currentGame.selectedRogueliteTheme = 0
+                exactResume9 = true
+              else:
+                deleteSuspendSnapshot()
+            if exactResume9:
+              discard
+            elif applySavedRun(currentGame):
+              initializeRunTracking(currentGame)
+              currentGame.selectedRogueliteTheme = 0
+            else:
+              deleteRunSave()
+              deleteSuspendSnapshot()
+              globalWindowManager.openWindow(widRoguelite)
+              currentGame.state = gsMenu
+            statsSavedThisGame = false
           else:
           # Setup was already done in the roguelite window; start the run directly.
             setActiveRogueliteProfile(loadRogueliteProfile())
@@ -1035,6 +1167,8 @@ proc main() =
             let selectedIdx9 = clamp(currentGame.selectedRogueliteStarter, 0, starterKits9.high)
             let kit9 = starterKits9[selectedIdx9]
             let heat9 = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
+            deleteRunSave()  # Fresh run of this mode discards any saved run.
+            deleteSuspendSnapshot()
             beginRogueliteRun(currentGame, rogueliteProfile, kit9, heat9)
             initializeRunTracking(currentGame)
             generateThemeChoices(currentGame.rogueliteRun, unlockedBossTierOf(currentGame))
@@ -1043,6 +1177,7 @@ proc main() =
             statsSavedThisGame = false
         else: discard
         pendingGameMode = -1  # Reset pending mode
+        pendingResume = false
 
       # Handle window and desktop input
       let mousePos = getVirtualMousePosition()
@@ -1088,7 +1223,7 @@ proc main() =
                            unlockedDef.name)
 
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
-      let action = if not mouseOverWindow and not globalConfirmActive: handleDesktopInput(osDesktop, currentGame) else: -1
+      let action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive: handleDesktopInput(osDesktop, currentGame) else: -1
 
       # Update all windows
       let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight, currentGame)
@@ -1307,6 +1442,9 @@ proc main() =
             cutsceneContinuation = cscLaunchGame
             pendingModeAfterCutscene = 0
             currentGame.state = gsCutscene
+          elif hasSavedRun() and loadSavedRunMode() == gmWaveBased:
+            resumePromptActive = true
+            resumePromptMode = gmWaveBased
           else:
             startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
             pendingGameMode = 0
@@ -1318,6 +1456,9 @@ proc main() =
             cutsceneContinuation = cscLaunchGame
             pendingModeAfterCutscene = 1
             currentGame.state = gsCutscene
+          elif hasSavedRun() and loadSavedRunMode() == gmTimeSurvival:
+            resumePromptActive = true
+            resumePromptMode = gmTimeSurvival
           else:
             startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
             pendingGameMode = 1
@@ -1363,16 +1504,20 @@ proc main() =
             resetPvPWindow(globalWindowManager.pvp)
             playSound(stMenuSelect)
         of 9:  # Roguelite.exe - Roguelite Mode
-          setActiveRogueliteProfile(loadRogueliteProfile())
-          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-          currentGame.discordClient = globalDiscordClient
-          currentGame.rogueliteProfile = rogueliteProfile
-          setGameMode(currentGame, gmRoguelite)
-          currentGame.state = gsMenu
-          currentGame.selectedRogueliteStarter = 0
-          currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
-          globalWindowManager.openWindow(widRoguelite)
-          statsSavedThisGame = false
+          if settings.rogueliteUnlocked and hasSavedRun() and loadSavedRunMode() == gmRoguelite:
+            resumePromptActive = true
+            resumePromptMode = gmRoguelite
+          else:
+            setActiveRogueliteProfile(loadRogueliteProfile())
+            currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame.discordClient = globalDiscordClient
+            currentGame.rogueliteProfile = rogueliteProfile
+            setGameMode(currentGame, gmRoguelite)
+            currentGame.state = gsMenu
+            currentGame.selectedRogueliteStarter = 0
+            currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
+            globalWindowManager.openWindow(widRoguelite)
+            statsSavedThisGame = false
         of 10: # Advncmnts.exe - Open Advancements Window
           refreshAdvancementProfile()
           globalWindowManager.openWindow(widAdvancements)
@@ -1493,6 +1638,38 @@ proc main() =
         if confirmResult == 1:
           windowCloseRequested = true  # confirmed quit to desktop
         # confirmResult == -1 means cancelled, dialog already closed
+
+      # Resume-run prompt: Continue resumes the saved run, New Run discards it.
+      if resumePromptActive:
+        let resumeResult = drawResumeDialog(screenWidth, screenHeight)
+        if resumeResult != 0:
+          pendingResume = resumeResult == 1
+          if resumeResult == -1:
+            deleteRunSave()          # "New Run" discards both the checkpoint
+            deleteSuspendSnapshot()  # and the exact snapshot.
+          case resumePromptMode
+          of gmTimeSurvival:
+            startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
+            pendingGameMode = 1
+          of gmRoguelite:
+            if resumeResult == 1:
+              startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
+              pendingGameMode = 9
+            else:
+              # Fresh roguelite goes through the setup window.
+              setActiveRogueliteProfile(loadRogueliteProfile())
+              currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+              currentGame.discordClient = globalDiscordClient
+              currentGame.rogueliteProfile = rogueliteProfile
+              setGameMode(currentGame, gmRoguelite)
+              currentGame.state = gsMenu
+              currentGame.selectedRogueliteStarter = 0
+              currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
+              globalWindowManager.openWindow(widRoguelite)
+              statsSavedThisGame = false
+          else:
+            startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
+            pendingGameMode = 0
 
       # Draw custom cursor on menu
       drawCustomCursor(currentGame.time)
@@ -1950,6 +2127,8 @@ proc main() =
         elif isKeyPressed(Q):  # Quit to main menu, ask first (no cooldown gate Q is intentional)
           if isSandboxMode(currentGame.mode) or not settings.exitConfirmEnabled:
             # Sandbox has no progress to lose; or exit confirm is disabled: quit immediately
+            saveRunState(currentGame)
+            suspendGame(currentGame)  # Exact mid-run snapshot (primary resume path).
             cleanupGame(currentGame)
             currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
@@ -2023,6 +2202,8 @@ proc main() =
         elif menuResult.exitClicked:
           if isSandboxMode(currentGame.mode) or not settings.exitConfirmEnabled:
             # Sandbox has no progress to lose; or exit confirm is disabled: quit immediately
+            saveRunState(currentGame)
+            suspendGame(currentGame)  # Exact mid-run snapshot (primary resume path).
             cleanupGame(currentGame)
             currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
@@ -2058,6 +2239,8 @@ proc main() =
               disconnect(currentPvPGame.networkManager, "Player quit to menu")
             cleanup(currentPvPGame.networkManager)
             currentPvPGame = nil
+          saveRunState(currentGame)
+          suspendGame(currentGame)  # Exact mid-run snapshot (primary resume path).
           cleanupGame(currentGame)
           currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
@@ -3152,6 +3335,11 @@ proc main() =
       drawPvP(currentPvPGame)
       drawCustomCursor(currentPvPGame.gameTime)
       endGameDrawing()
+
+  # Checkpoint the live run on shutdown so it can be resumed next launch.
+  if not currentGame.isNil:
+    saveRunState(currentGame)
+    suspendGame(currentGame)  # Exact snapshot: the primary resume path on relaunch.
 
   # Cleanup global Discord Rich Presence client
   if not globalDiscordClient.isNil:

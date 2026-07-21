@@ -286,6 +286,10 @@ type
     tkSurvivalLockedDesc = "survival_locked_desc"
     tkRogueliteLockedDesc = "roguelite_locked_desc"
     tkGameModeUnlocked = "game_mode_unlocked"
+    tkResumeRunTitle = "resume_run_title"
+    tkResumeRunBody = "resume_run_body"
+    tkResumeContinue = "resume_continue"
+    tkResumeNewRun = "resume_new_run"
     tkRogueliteUnlockedNotif = "roguelite_unlocked_notif"
     tkSurvivalUnlockedNotif = "survival_unlocked_notif"
     tkStatsAvgCombo = "stats_avg_combo"
@@ -3538,6 +3542,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_data_harvest_desc1":   "Enemies grant +25% XP. +25% pickup range.",
     "powerup_data_harvest_desc2":   "Enemies grant +50% XP. +50% pickup range.",
     "powerup_data_harvest_desc3":   "Enemies grant +100% XP. +100% pickup range.",
+    "resume_run_title":        "SAVED RUN FOUND",
+    "resume_run_body":         "Continue your saved run or start a new one?",
+    "resume_continue":         "CONTINUE",
+    "resume_new_run":          "NEW RUN",
     "new_process_installed":   "NEW PROCESS DISCOVERED"
   }.toTable,
 
@@ -5441,6 +5449,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_data_harvest_desc1":   "Los enemigos otorgan +25% de XP. +25% de rango de recogida.",
     "powerup_data_harvest_desc2":   "Los enemigos otorgan +50% de XP. +50% de rango de recogida.",
     "powerup_data_harvest_desc3":   "Los enemigos otorgan +100% de XP. +100% de rango de recogida.",
+    "resume_run_title":        "PARTIDA GUARDADA ENCONTRADA",
+    "resume_run_body":         "Continuar tu partida guardada o empezar una nueva?",
+    "resume_continue":         "CONTINUAR",
+    "resume_new_run":          "NUEVA PARTIDA",
     "new_process_installed":   "NUEVO PROCESO DESCUBIERTO"
   }.toTable
 }.toTable
