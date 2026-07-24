@@ -17,7 +17,7 @@ proc bossArenaModeForWave(currentWave: int): BossArenaRingMode =
   if currentWave <= 0:
     return barmNone
 
-  let bossTier = max(1, currentWave div 5)
+  let bossTier = max(1, currentWave div BossWaveInterval)
   case bossTier mod 3
   of 1: barmBoon
   of 2: barmHazard

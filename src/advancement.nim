@@ -177,34 +177,34 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "survival_hold_line",
       name: "Hold the Line",
-      description: "Reach wave 5 in wave mode.",
+      description: "Reach wave 4 in wave mode.",
       category: acSurvival,
       tier: atBronze,
-      target: 5.0'f32,
+      target: 4.0'f32,
     ),
     AdvancementDefinition(
       id: "survival_sector_warden",
       name: "Sector Warden",
-      description: "Reach wave 15 in wave mode.",
+      description: "Reach wave 12 in wave mode.",
       category: acSurvival,
       tier: atSilver,
-      target: 15.0'f32,
+      target: 12.0'f32,
     ),
     AdvancementDefinition(
       id: "survival_firewall_legend",
       name: "Firewall Legend",
-      description: "Reach wave 30 in wave mode (the sixth boss gauntlet).",
+      description: "Reach wave 24 in wave mode (the sixth boss gauntlet).",
       category: acSurvival,
       tier: atGold,
-      target: 30.0'f32,
+      target: 24.0'f32,
     ),
     AdvancementDefinition(
       id: "survival_kernel_breaker",
       name: "Kernel Breaker",
-      description: "Reach wave 60 and face the twelfth boss - the final gauntlet.",
+      description: "Reach wave 48 and face the twelfth boss - the final gauntlet.",
       category: acSurvival,
       tier: atLegendary,
-      target: 60.0'f32,
+      target: 48.0'f32,
     ),
     AdvancementDefinition(
       id: "survival_five_minutes",
@@ -563,7 +563,7 @@ proc totalBosses(stats: Statistics): int =
 
 proc uniqueBossesDefeated(stats: Statistics): int =
   ## Distinct boss definitions cleared at least once. There are 12 unique
-  ## bosses (one per 5-wave gauntlet up to wave 60); the codex tracks coverage.
+  ## bosses (one per 4-wave gauntlet up to wave 48); the codex tracks coverage.
   if stats.isNil: return 0
   stats.defeatedBossIDs.len
 

@@ -331,7 +331,10 @@ proc applySavedRun*(game: Game): bool =
     case game.mode
     of gmWaveBased:
       game.currentWave = j.getOrDefault("currentWave").getInt(1)
-      game.wavesUntilBoss = j.getOrDefault("wavesUntilBoss").getInt(4)
+      # Clamped: saves written before the interval-4 cadence can hold 4, which
+      # would schedule one stale 5-wave gap before the counter resyncs.
+      game.wavesUntilBoss = min(j.getOrDefault("wavesUntilBoss").getInt(BossWaveInterval - 1),
+                                BossWaveInterval - 1)
       game.bossCount = j.getOrDefault("bossCount").getInt(0)
       game.rerollCost = j.getOrDefault("rerollCost").getInt(0)
       game.hasWonGame = j.getOrDefault("hasWonGame").getBool(false)

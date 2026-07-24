@@ -54,11 +54,11 @@ const
 # Laser Architect (boss 4) ricochet beam: path traced once at warning spawn,
 # telegraphed for the full wind-up, then the whole polyline flashes lethal.
 const
-  RicochetLaserTelegraph* = 2.5'f32   # long dodge window: see the whole bounce path
-  RicochetLaserActive*    = 0.55'f32  # how long the traced beam stays lethal/visible
-  RicochetLaserSweep*     = 0.22'f32  # extremely quick: time for the beam-front to race the whole path
+  RicochetLaserTelegraph* = 2.0'f32   # long dodge window: see the whole bounce path
+  RicochetLaserActive*    = 0.5'f32  # how long the traced beam stays lethal/visible
+  RicochetLaserSweep*     = 0.15'f32  # extremely quick: time for the beam-front to race the whole path
   RicochetLaserHalfWidth* = 14.0'f32  # half-thickness of the lethal beam (px)
-  MegaCastDamageTaken*    = 0.4'f32   # fraction of damage a boss takes while channelling a mega special
+  MegaCastDamageTaken*    = 0.3'f32   # fraction of damage a boss takes while channelling a mega special
 
 # Bosses 7-12 signature attacks:
 const
@@ -1374,6 +1374,12 @@ type
 # switch (main.nim) and read by the spawn/damage choke points below. Medium is
 # the pre-difficulty-system balance, so its multipliers are exactly 1.0.
 var currentDifficulty* = gdMedium
+
+# Wave-mode boss cadence: a boss spawns on every wave that is a multiple of this
+# (waves 5, 10, ... 60 for the 12-boss campaign). All cadence math -- isBossWave,
+# the wavesUntilBoss countdown, boss bounty, shop income estimates -- routes
+# through this constant rather than hardcoding the interval.
+const BossWaveInterval* = 5
 
 proc difficultyEnemyHpMult*(): float32 =
   case currentDifficulty

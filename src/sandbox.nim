@@ -454,8 +454,10 @@ proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, 
   for bossId in 1..12:
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
-      # Spawn the selected boss
-      let boss = spawnBoss(screenWidth, screenHeight, game.difficulty, game.bossCount, bossId * 5)
+      # Spawn the selected boss. The synthetic wave must be a real boss wave
+      # (bossId * BossWaveInterval): spawnBoss returns nil for non-boss waves,
+      # and a hardcoded stride desyncs the boss identity from the button.
+      let boss = spawnBoss(screenWidth, screenHeight, game.difficulty, game.bossCount, bossId * BossWaveInterval)
       game.enemies.add(boss)
       return
     currentY += BUTTON_HEIGHT + BUTTON_SPACING

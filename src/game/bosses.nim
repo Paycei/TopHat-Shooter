@@ -2525,6 +2525,60 @@ proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack
     spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                          Color(r: 80, g: 220, b: 120, a: 220), 12)
 
+const
+  LaserActiveDurationScale = 0.35'f32
+    ## Fraction of a laser attack's configured `durationOrRadius` that the live
+    ## beam actually stays lethal. Beams are instant hitscan walls with no
+    ## travel time to read, so their whole difficulty is "how long is this cell
+    ## of the arena deleted" - the shorter the window, the sooner the player
+    ## gets the floor back.
+  LaserThreatFloor = 0.15'f32
+    ## Beam time below this is ignored as a threat. Some enemies (the dashing
+    ## cube) respawn a one-frame laser every frame; without this floor their
+    ## `lifetime` of ~dt would read as a permanent threat and starve the
+    ## suppression logic below into never letting an attack through.
+  LaserOverlapDeferMax* = 0.6'f32
+    ## A beam with less than this left is worth simply waiting out: the aimed
+    ## volley is delayed until the floor is clear instead of being thinned.
+  LaserOverlapDensityScale = 0.5'f32
+    ## Projectile multiplier for aimed volleys that do fire during a long beam.
+
+const LaserOverlapSuppressed* = {bapTargeted, bapBurst, bapWave, bapBarrage,
+                                 bapSnipe, bapMinionVolley}
+  ## The attack patterns that aim *at the player*. Radial/arena patterns
+  ## (circle, spiral, pulse, meteor...) are left alone: they threaten space the
+  ## player is already reading, whereas an aimed volley on top of a beam wall
+  ## removes the one lane the beam left open.
+
+proc bossLaserActiveDuration*(configuredDuration: float32): float32 =
+  ## The single formula turning a definition's configured beam duration into the
+  ## lethal window. Both the spawn site (game.nim) and the threat estimate below
+  ## go through it so they can never disagree about how long a beam lives.
+  configuredDuration * LaserActiveDurationScale
+
+proc bossLaserThreatRemaining*(game: Game): float32 =
+  ## Seconds until the arena is free of beam threat: the longest remaining life
+  ## among live lasers, and for beams still in their telegraph, the telegraph
+  ## plus the lethal window it will become. Returns 0 when nothing meaningful is
+  ## pending.
+  for laser in game.lasers:
+    if laser.lifetime > result:
+      result = laser.lifetime
+  for warning in game.attackWarnings:
+    if warning.attackType == awtBossLaser and not warning.lasersCreated:
+      let total = warning.lifetime + bossLaserActiveDuration(warning.laserDuration)
+      if total > result:
+        result = total
+  if result < LaserThreatFloor:
+    result = 0.0
+
+proc thinnedForLaserOverlap*(attack: BossAttack): BossAttack =
+  ## Halved-density copy of an aimed attack, for when it fires anyway because
+  ## the beam window is too long to be worth waiting out.
+  result = attack
+  result.projectileCount = max(1, int(attack.projectileCount.float32 *
+                                      LaserOverlapDensityScale))
+
 proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
   ## Executes a single boss attack based on its pattern type
   # Dungeon mode compresses boss attack damage toward the floor's threat

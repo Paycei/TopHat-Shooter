@@ -4765,20 +4765,20 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
   newEnemy(x, y, difficulty, pickSpawnType(typeDifficulty), game)
 
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
-  ## Spawns a boss - either custom (waves 1-60) or random (after wave 60)
+  ## Spawns a boss - either custom (bosses 1-12) or random (past the campaign)
   ##
-  ## CUSTOM BOSSES (every 5 waves):
+  ## CUSTOM BOSSES (every BossWaveInterval waves):
   ##   - Use definitions from boss_definitions.nim
   ##   - HP-based phase system
   ##   - Unique attack patterns and abilities per boss
   ##
-  ## Boss 12 (The Final Sentinel) repeats after wave 60 with increased stats
+  ## Boss 12 (The Final Sentinel) repeats past the campaign with increased stats
   ##
-  # Check if this should be a custom boss (every 5 waves)
+  # Check if this should be a custom boss (every BossWaveInterval waves)
   let useCustomBoss = isBossWave(waveNumber)
 
   if useCustomBoss:
-    # CUSTOM BOSS CREATION (Waves 1-60, every 5 waves)
+    # CUSTOM BOSS CREATION (waves 5-60, every BossWaveInterval waves)
     # Custom bosses use the advanced definition system from boss_definitions.nim
     # They have HP-based phases (defined in BossDefinition) and don't transform
     let bossDef = getBossForWave(waveNumber)

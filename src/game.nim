@@ -211,7 +211,7 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     gameOverSoundPlayed: false,
     # Wave-based mode fields
     currentWave: 1,
-    wavesUntilBoss: 4,  # Boss appears at waves 5, 10, 15, etc.
+    wavesUntilBoss: BossWaveInterval - 1,  # Boss appears at waves 5, 10, 15, etc.
     waveEnemiesRemaining: 0,
     waveEnemiesTotal: 0,
     waveInProgress: false,
@@ -284,7 +284,7 @@ proc setGameMode*(game: Game, mode: GameMode) =
     game.currentWave = 1
     game.waveInProgress = false
     game.waveEnemiesRemaining = 0
-    game.wavesUntilBoss = 4
+    game.wavesUntilBoss = BossWaveInterval - 1
 
 # Waves
 proc calculateWaveEnemyCount(waveNumber: int): int =
@@ -572,8 +572,9 @@ proc checkWaveComplete(game: Game): bool =
 proc completeBossWave*(game: Game) =
   ## Centralized boss wave completion - handles cleanup, advancement, power-up
   # Captured BEFORE the increment below: this is the wave whose boss was just
-  # beaten. getCustomBossNumber needs the boss-wave value (a multiple of 5), so
-  # reading it post-increment would return 0 and silently disable the victory.
+  # beaten. getCustomBossNumber needs the boss-wave value (a multiple of
+  # BossWaveInterval), so reading it post-increment would return 0 and silently
+  # disable the victory.
   let completedWave = game.currentWave
   for enemy in game.enemies:
     spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
@@ -596,7 +597,7 @@ proc completeBossWave*(game: Game) =
     Color(r: 255, g: 215, b: 0, a: 255))
 
   if game.wavesUntilBoss <= 0:
-    game.wavesUntilBoss = 4  # Next boss in 5 waves
+    game.wavesUntilBoss = BossWaveInterval - 1  # Next boss BossWaveInterval waves later
 
   # Reset combo after boss wave
   game.dopamine.comboSystem.killCount = 0
@@ -609,7 +610,7 @@ proc completeBossWave*(game: Game) =
   # Calculate final wave stats for celebration
   calculateAccuracy(game.dopamine.waveStats)
 
-  # Trigger wave celebration AFTER boss is defeated (every boss wave = every 5th wave)
+  # Trigger wave celebration AFTER boss is defeated (every boss wave = every 4th wave)
   # Use currentWave - 1 because currentWave was just incremented above
   startCelebration(game.dopamine.waveCelebration, game.currentWave - 1, game.dopamine.waveStats)
 
@@ -617,11 +618,11 @@ proc completeBossWave*(game: Game) =
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
 
-  # Final boss (boss tier 12 = wave 60) beaten for the first time: show the
+  # Final boss (boss number 12 = wave 48) beaten for the first time: show the
   # one-time victory screen instead of the power-up select. The power-up reward
   # stays queued, so "Continue Endless" re-arms the roll and drops the player
   # straight into the selection. After this, hasWonGame keeps boss 12 (which
-  # repeats every 5 waves in endless) from re-triggering the screen.
+  # repeats every 4 waves in endless) from re-triggering the screen.
   if getCustomBossNumber(completedWave) == 12 and not game.hasWonGame:
     game.hasWonGame = true
     deleteRunSave()  # Run is won: no longer resumable.
@@ -647,7 +648,7 @@ proc completeBossWave*(game: Game) =
     else:
       game.state = gsVictory
 
-  # Unlock Roguelite when the wave-20 boss (custom boss number 4) is defeated
+  # Unlock Roguelite when the wave-16 boss (custom boss number 4) is defeated
   elif getCustomBossNumber(completedWave) == 4:
     if not game.cheatsUsed and not globalSettings.isNil and not globalSettings.rogueliteUnlocked:
       globalSettings.rogueliteUnlocked = true
@@ -680,10 +681,10 @@ proc spawnConfiguredBoss*(game: Game, bossDifficulty: float32, bossBlockWave: in
 proc currentBossArenaWave(game: Game): int =
   for enemy in game.enemies:
     if enemy.isBoss:
-      return max(5, enemy.bossDefinitionID * 5)
+      return max(BossWaveInterval, enemy.bossDefinitionID * BossWaveInterval)
 
   if game.bossWaveManager.isBossActive():
-    return max(5, ((game.currentWave - 1) div 5 + 1) * 5)
+    return max(BossWaveInterval, ((game.currentWave - 1) div BossWaveInterval + 1) * BossWaveInterval)
 
   game.currentWave
 
@@ -787,8 +788,10 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
       else:
         3  # Single rotated beam (for prismatic_cage, laser_snipe, and other radial patterns)
 
-      # Reduce laser duration - all lasers last shorter now (0.5x duration)
-      let reducedDuration = game.attackWarnings[i].laserDuration * 0.5
+      # Beams are hitscan walls, so their whole cost to the player is how long
+      # a lane stays deleted. bossLaserActiveDuration is the shared formula
+      # (scale + hard cap) that bossLaserThreatRemaining also reads.
+      let reducedDuration = bossLaserActiveDuration(game.attackWarnings[i].laserDuration)
 
       # Create all the lasers for this warning at boss's current position
       for angle in game.attackWarnings[i].laserAngles:
@@ -2102,8 +2105,20 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
             if game.comebackBonusActive and game.currentWave >= game.comebackEndWave:
               removeComebackBonus(game)
 
-          # Power-ups are offered every 2 waves, not every wave.
-          shouldOfferPowerUp = (game.currentWave mod 2) == 0
+          # Power-ups are offered on a subset of waves, not every wave. Note
+          # game.currentWave was just incremented, so this reads the *upcoming*
+          # wave number.
+          #
+          # Wave mode: offer on every wave of a boss cycle except the first, i.e.
+          # the 2nd and 3rd of each 4-wave block. The 4th is the boss wave, which
+          # always grants a selection via completeBossWave. That's 3 selections
+          # per cycle (36 over the 48-wave campaign), matching the pacing of the
+          # old every-2-waves rule on the old 5-wave cycle.
+          #
+          # Other modes have no 4-wave boss cycle, so they keep the every-2 rule.
+          shouldOfferPowerUp =
+            if game.mode == gmWaveBased: (game.currentWave mod BossWaveInterval) >= 2
+            else: (game.currentWave mod 2) == 0
 
         # Calculate final wave stats
         calculateAccuracy(game.dopamine.waveStats)
@@ -2152,16 +2167,17 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
         dungeonBossDifficulty(game.rogueliteRun)
       else:
         (game.currentWave - 1).float32 / 3.0
-      # Use a boss wave that maps to the boss block (ceil to next multiple of 5)
-      # This allows debug spawns when wavesUntilBoss is forced to 0 (boss appears
-      # for the current boss block: waves 1-5 => boss 1, 6-10 => boss 2, etc.)
+      # Use a boss wave that maps to the boss block (ceil to next multiple of
+      # BossWaveInterval). This allows debug spawns when wavesUntilBoss is forced
+      # to 0 (boss appears for the current boss block: waves 1-4 => boss 1,
+      # 5-8 => boss 2, etc.)
       let bossBlockWave = if game.mode == gmRoguelite and game.rogueliteRun != nil and
                              game.rogueliteRun.floor != nil:
         # The floor theme picks the boss; the unlocked tier and endless loop
         # shift it toward the harder definitions.
-        max(5, dungeonBossNumber(game) * 5)
+        max(BossWaveInterval, dungeonBossNumber(game) * BossWaveInterval)
       else:
-        ((game.currentWave - 1) div 5 + 1) * 5
+        ((game.currentWave - 1) div BossWaveInterval + 1) * BossWaveInterval
       spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
       # Compress the scheduled boss's stats toward the floor's threat: the
       # definition (and spawnBoss's wave scaling) assume its wave-mode slot.
@@ -2172,7 +2188,7 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
     elif isTimeSurvivalMode(game.mode):
       if game.bossTimer <= 0 and game.bossWaveManager.canSpawnBoss() and game.state == gsPlaying:
         game.bossCount += 1
-        let bossBlockWave = max(5, game.bossCount * 5)
+        let bossBlockWave = max(BossWaveInterval, game.bossCount * BossWaveInterval)
         let bossDifficulty = max(game.difficulty, (bossBlockWave - 1).float32 / 3.0)
         spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
       # TIME SURVIVAL MODE: delegate to survival.nim
@@ -2849,7 +2865,22 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
               enemy.attackWarningFired[i] = true
             # Fire attack when timer reaches zero; reset for next cycle
             if enemy.attackTimers[i] <= 0:
-              executeCustomBossAttack(game, enemy, attack, phase, bossDef)
+              # Beams already own part of the floor. Stacking an *aimed* volley
+              # on top of one takes away the lane the beam left open, which is
+              # what makes beam phases read as undodgeable. A beam that is
+              # nearly spent just delays the volley (re-telegraphed on the way
+              # back in); a beam with real time left lets it through at half
+              # density so the boss is never fully muzzled.
+              let beamRemain = bossLaserThreatRemaining(game)
+              if beamRemain > 0 and attack.attackType in LaserOverlapSuppressed:
+                if beamRemain <= LaserOverlapDeferMax:
+                  enemy.attackTimers[i] = beamRemain
+                  enemy.attackWarningFired[i] = false
+                  continue
+                executeCustomBossAttack(game, enemy, thinnedForLaserOverlap(attack),
+                                        phase, bossDef)
+              else:
+                executeCustomBossAttack(game, enemy, attack, phase, bossDef)
               enemy.attackTimers[i] = attack.cooldown
               enemy.attackWarningFired[i] = false
 

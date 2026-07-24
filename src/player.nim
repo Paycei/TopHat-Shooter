@@ -593,7 +593,7 @@ proc drawPlayer*(player: Player) =
   drawPlayerShape(player.pos, player.radius, shapeType, baseColor, secondaryColor, coreColor,
                   time, rotation, pulse, glowIntensity)
 
-  # Secret cosmetic: the kernel's tophat, earned by clearing wave 60.
+  # Secret cosmetic: the kernel's tophat, earned by clearing the final boss wave.
   # Band and outline take the player's current body color so the hat
   # matches the equipped skin (and status tints like invincibility gold).
   if player.wearsTophat:

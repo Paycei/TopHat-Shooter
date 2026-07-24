@@ -335,7 +335,7 @@ type
     tkGameOverSystemFailedFooter = "game_over_system_failed_footer"
     tkGameOverSystemSecureFooter = "game_over_system_secure_footer"
 
-    # Victory Screen (wave 60 final boss cleared)
+    # Victory Screen (wave 48 final boss cleared)
     tkVictoryTitle = "victory_title"
     tkVictorySubtitle = "victory_subtitle"
     tkVictoryStatus = "victory_status"
@@ -2382,7 +2382,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_system_failed_footer": "[!] System will remain in failed state until manual restart",
     "game_over_system_secure_footer": "[OK] All systems operational | Defensive grid at maximum efficiency",
 
-    # Victory Screen (wave 60 final boss cleared)
+    # Victory Screen (wave 48 final boss cleared)
     "victory_title": "MISSION COMPLETE",
     "victory_subtitle": "You purged the final intrusion and cleared all 60 waves!",
     "victory_status": "SYSTEM FULLY SECURED -- THREAT LEVEL ZERO",
@@ -2470,7 +2470,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "secret_tophat_desc": "The kernel's own tophat, entrusted to the one who secured the system.",
     "secret_tophat_unequipped": "[UNEQUIPPED]",
     "secret_click_to_wear": "Click to wear",
-    "secret_locked_hint": "Defeat the wave 60 final boss to unlock",
+    "secret_locked_hint": "Defeat the wave 48 final boss to unlock",
     "secret_unknown_locked_hint": "Unlock condition unknown",
     "secret_orbital_cube_name": "Orbital Cube",
     "secret_orbital_cube_desc": "Knocked out of orbit, the desktop cube found a new one -- around you.",
@@ -2752,7 +2752,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Help System - Gameplay section
     "help_wave_mode": "WAVE-BASED MODE",
-    "help_wave_mode_desc": "- Clear waves of enemies\n  - Boss appears every 5th wave\n  - Choose power-up after each wave\n  - Shop opens after power-up selection",
+    "help_wave_mode_desc": "- Clear waves of enemies\n  - Boss appears every 4th wave\n  - Choose power-up after each wave\n  - Shop opens after power-up selection",
     "help_survival_mode": "SURVIVAL MODE",
     "help_survival_mode_desc": "- Survive endless enemy hordes\n  - Enemies spawn continuously\n  - Boss appears every 60 seconds",
     "help_sandbox_mode": "SANDBOX MODE",
@@ -2874,7 +2874,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_shop_wall_x4_desc": "Buy 10 deployable walls",
 
     # Help System - Misc
-    "help_wave_mode_info": "Wave Mode: Every 5th wave (5, 10, 15...)",
+    "help_wave_mode_info": "Wave Mode: Every 4th wave (4, 8, 12...)",
     "help_survival_mode_info": "Survival Mode: Every 60 seconds",
     "help_enemy_chaser": "- Normal chasing enemies\n  - Follows player movement\n  - Most common enemy type",
     "help_enemy_turret": "- Stationary or slow-moving shooters\n  - Fires projectiles at player\n  - Keep your distance",
@@ -2882,7 +2882,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_enemy_tank": "- High HP enemies\n  - Requires many hits to defeat\n  - Dashes when getting close",
     "help_enemy_warper": "- Teleporting chaos enemy\n  - Unpredictable movement\n  - Can appear anywhere suddenly",
     "help_enemy_elite_desc": "- Tougher versions of all enemy types\n  - Drop more coins when defeated\n  - Spawn in later waves",
-    "help_boss_every_5th": "Wave Mode: Every 5th wave (5, 10, 15...)",
+    "help_boss_every_5th": "Wave Mode: Every 4th wave (4, 8, 12...)",
     "help_boss_every_60_sec": "Survival Mode: Every 60 seconds",
     "help_cost_scaling_formula": "- Shop items have strict purchase caps\n  - Each buy is stronger and costs baseCost * 1.8^bought",
     "help_kill_enemies_to_collect": "- Kill enemies to collect coins",
@@ -3134,7 +3134,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Gamemode Names and Descriptions
     "gamemode_wave_based_name": "Wave-Based",
-    "gamemode_wave_based_desc": "Fight through waves of enemies. Defeat bosses every 5 waves for legendary upgrades.",
+    "gamemode_wave_based_desc": "Fight through waves of enemies. Defeat bosses every 4 waves for legendary upgrades.",
     "gamemode_time_survival_name": "Time Survival",
     "gamemode_time_survival_desc": "Survive as long as possible. Difficulty increases over time.",
     "gamemode_sandbox_name": "Sandbox",
@@ -3414,7 +3414,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_advancement_unlocked": "Advancement unlocked",
     "desktop_mode_locked": "MODE LOCKED:",
     "survival_locked_desc": "Unlock Time Survival by beating Roguelite mode.",
-    "roguelite_locked_desc": "Unlock Roguelite by defeating the Wave 20 boss in Wave Mode.",
+    "roguelite_locked_desc": "Unlock Roguelite by defeating the Wave 16 boss in Wave Mode.",
     "game_mode_unlocked": "NEW MODE UNLOCKED:",
     "roguelite_unlocked_notif": "Roguelite Mode is now available on the desktop!",
     "survival_unlocked_notif": "Time Survival Mode is now available on the desktop!",
@@ -4159,7 +4159,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_system_failed_footer": "[!] El sistema permanecerá en estado fallido hasta reinicio manual",
     "game_over_system_secure_footer": "[OK] Todos los sistemas operacionales | Cuadrícula defensiva en máxima eficiencia",
 
-    # Victory Screen (oleada 60, jefe final superado)
+    # Victory Screen (oleada 48, jefe final superado)
     "victory_title": "MISIÓN COMPLETADA",
     "victory_subtitle": "¡Purgaste la intrusión final y superaste las 60 oleadas!",
     "victory_status": "SISTEMA TOTALMENTE SEGURO -- NIVEL DE AMENAZA CERO",
@@ -4247,7 +4247,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "secret_tophat_desc": "El sombrero de copa del propio kernel, confiado a quien aseguró el sistema.",
     "secret_tophat_unequipped": "[DESEQUIPADO]",
     "secret_click_to_wear": "Clic para llevarlo",
-    "secret_locked_hint": "Derrota al jefe final de la oleada 60 para desbloquearlo",
+    "secret_locked_hint": "Derrota al jefe final de la oleada 48 para desbloquearlo",
     "secret_unknown_locked_hint": "Condicion de desbloqueo desconocida",
     "secret_orbital_cube_name": "Cubo Orbital",
     "secret_orbital_cube_desc": "Expulsado de su órbita, el cubo del escritorio encontró una nueva: tú.",
@@ -4529,7 +4529,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Help System - Gameplay section
     "help_wave_mode": "MODO OLEADAS",
-    "help_wave_mode_desc": "- Elimina oleadas de enemigos\n  - Jefe aparece cada 5ta oleada\n  - Elige mejora después de cada oleada\n  - Tienda abre después de seleccionar mejora",
+    "help_wave_mode_desc": "- Elimina oleadas de enemigos\n  - Jefe aparece cada 4ta oleada\n  - Elige mejora después de cada oleada\n  - Tienda abre después de seleccionar mejora",
     "help_survival_mode": "MODO SUPERVIVENCIA",
     "help_survival_mode_desc": "- Sobrevive hordas infinitas de enemigos\n  - Los enemigos aparecen continuamente\n  - Jefe aparece cada 60 segundos",
     "help_sandbox_mode": "MODO SANDBOX",
@@ -4651,7 +4651,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_shop_wall_x4_desc": "Compra 10 muros desplegables",
 
     # Help System - Misc
-    "help_wave_mode_info": "Modo Oleadas: Cada 5ta oleada (5, 10, 15...)",
+    "help_wave_mode_info": "Modo Oleadas: Cada 4ta oleada (4, 8, 12...)",
     "help_survival_mode_info": "Modo Supervivencia: Cada 60 segundos",
     "help_enemy_chaser": "- Enemigos de persecución normal\n  - Sigue el movimiento del jugador\n  - Tipo de enemigo más común",
     "help_enemy_turret": "- Disparadores estacionarios o lentos\n  - Dispara proyectiles al jugador\n  - Mantén la distancia",
@@ -4659,7 +4659,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_enemy_tank": "- Enemigos con HP alto\n  - Requiere muchos golpes para derrotar\n  - Dashea cuando se acerca",
     "help_enemy_warper": "- Enemigo caótico de teletransportación\n  - Movimiento impredecible\n  - Puede aparecer en cualquier lugar repentinamente",
     "help_enemy_elite_desc": "- Versiones más fuertes de todos los tipos de enemigos\n  - Dejan caer más monedas al ser derrotados\n  - Aparecen en oleadas posteriores",
-    "help_boss_every_5th": "Modo Oleadas: Cada 5ta oleada (5, 10, 15...)",
+    "help_boss_every_5th": "Modo Oleadas: Cada 4ta oleada (4, 8, 12...)",
     "help_boss_every_60_sec": "Modo Supervivencia: Cada 60 segundos",
     "help_cost_scaling_formula": "- Los objetos de tienda tienen límites estrictos\n  - Cada compra es más fuerte y cuesta costBase * 1.8^comprado",
     "help_kill_enemies_to_collect": "- Mata enemigos para recopilar monedas",
@@ -5042,7 +5042,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Gamemode Names and Descriptions
     "gamemode_wave_based_name": "Por Oleadas",
-    "gamemode_wave_based_desc": "Lucha contra oleadas de enemigos. Derrota a los jefes cada 5 oleadas para obtener mejoras legendarias.",
+    "gamemode_wave_based_desc": "Lucha contra oleadas de enemigos. Derrota a los jefes cada 4 oleadas para obtener mejoras legendarias.",
     "gamemode_time_survival_name": "Supervivencia por Tiempo",
     "gamemode_time_survival_desc": "Sobrevive el mayor tiempo posible. La dificultad aumenta con el tiempo.",
     "gamemode_sandbox_name": "Sandbox",
@@ -5322,7 +5322,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_advancement_unlocked": "Logro desbloqueado",
     "desktop_mode_locked": "MODO BLOQUEADO:",
     "survival_locked_desc": "Desbloquea Supervivencia en Tiempo derrotando el modo Roguelite.",
-    "roguelite_locked_desc": "Desbloquea Roguelite derrotando el jefe de la Ola 20 en Modo de Olas.",
+    "roguelite_locked_desc": "Desbloquea Roguelite derrotando el jefe de la Ola 16 en Modo de Olas.",
     "game_mode_unlocked": "NUEVO MODO DESBLOQUEADO:",
     "roguelite_unlocked_notif": "¡El Modo Roguelite ya está disponible en el escritorio!",
     "survival_unlocked_notif": "¡El Modo Supervivencia ya está disponible en el escritorio!",

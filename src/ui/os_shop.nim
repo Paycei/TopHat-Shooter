@@ -229,12 +229,12 @@ proc sandboxWaveAverageConfig*(base: SandboxConfig, wave: int): SandboxConfig =
     # Income from clearing wave n: enemy count mirrors calculateWaveEnemyCount
     # (game.nim), boss waves spawn 25% of normal but pay the boss bounty.
     var enemyCount = 8.0'f32 + 3.0'f32 * pow(float32(n - 1), 0.6'f32)
-    let isBossWave = n mod 5 == 0
+    let isBossWave = n mod BossWaveInterval == 0
     if isBossWave:
       enemyCount *= 0.25'f32
     var income = enemyCount * waveEnemyCoinEstimate(n)
     if isBossWave:
-      income += float32(50 + (n div 5) * 10)   # enemyCoinValue's boss payout
+      income += float32(50 + (n div BossWaveInterval) * 10)   # enemyCoinValue's boss payout
     coins += income * 0.9'f32   # some drops expire uncollected
 
     # Shop between waves: buy the cheapest affordable upgrade until broke,

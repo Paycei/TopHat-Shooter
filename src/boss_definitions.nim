@@ -335,7 +335,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  of 3:  # Wave 15 - THE METEOR STRIKER
+  of 3:  # Wave 12 - THE METEOR STRIKER
     result = BossDefinition(
       name: t(tkBoss3Name),
       bossID: 3,
@@ -479,7 +479,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  of 4:  # Wave 20 - THE LASER ARCHITECT
+  of 4:  # Wave 16 - THE LASER ARCHITECT
     result = BossDefinition(
       name: t(tkBoss4Name),
       bossID: 4,
@@ -607,18 +607,18 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapLaser,
-              damage: 4.5,
+              damage: 4.0,
               cooldown: 5.0,  # NERFED from 2.5
               projectileSpeed: 0.0,
-              projectileCount: 8,
+              projectileCount: 7,
               spreadAngle: 22.5,
               durationOrRadius: 1.5,  # dodge buff: shorter active beam window, was 2.5
               specialData: "prismatic_cage"
             ),
             BossAttack(
               attackType: bapLaser,
-              damage: 4.5,
-              cooldown: 1.8,
+              damage: 3.5,
+              cooldown: 1.0,
               projectileSpeed: 0.0,
               projectileCount: 1,
               spreadAngle: 0.0,
@@ -651,15 +651,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               projectileCount: 0,
               spreadAngle: 0.0,
               durationOrRadius: 140.0  # NERFED from 160.0
-            ),
-            BossAttack(
-              attackType: bapTargeted,
-              damage: 2.5,
-              cooldown: 2.0,  # NERFED from 1.2
-              projectileSpeed: 250.0,  # NERFED from 280.0
-              projectileCount: 2,  # NERFED from 3
-              spreadAngle: 12.0,  # NERFED from 18.0
-              durationOrRadius: 0.0
             )
           ]
         )
@@ -872,7 +863,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  of 6:  # Wave 30 - THE CHAIN REACTOR
+  of 6:  # Wave 24 - THE CHAIN REACTOR
     result = BossDefinition(
       name: t(tkBoss6Name),
       bossID: 6,
@@ -1974,7 +1965,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  of 12:  # Wave 60 - THE OMEGA ENTITY
+  of 12:  # Wave 48 - THE OMEGA ENTITY
     result = BossDefinition(
       name: t(tkBoss12Name),
       bossID: 12,
@@ -2237,8 +2228,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  else:  # Wave 65+ - RANDOM BOSSES
-    # After wave 60, generate random powerful bosses
+  else:  # Boss 13+ (endless) - RANDOM BOSSES
+    # Past the 12-boss campaign, generate random powerful bosses
     let randomBossType = rand(11) + 1
     return getBossDefinition(randomBossType)
 
@@ -2247,16 +2238,16 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
 # Helper Functions
 
 proc isBossWave*(waveNumber: int): bool =
-  ## Checks if the current wave should spawn a custom boss (every 5 waves, no limit)
-  waveNumber mod 5 == 0
+  ## Checks if the current wave should spawn a custom boss (every BossWaveInterval waves, no limit)
+  waveNumber mod BossWaveInterval == 0
 
 proc getCustomBossNumber*(waveNumber: int): int =
   ## Returns the custom boss number (1-12) for the given wave
-  ## After wave 60, continues with boss 12
-  if waveNumber <= 0 or waveNumber mod 5 != 0:
+  ## After the last campaign boss wave, continues with boss 12
+  if waveNumber <= 0 or waveNumber mod BossWaveInterval != 0:
     return 0
 
-  let bossNumber = waveNumber div 5
+  let bossNumber = waveNumber div BossWaveInterval
   if bossNumber > 12:
     return 12  # Boss 12 continues indefinitely with scaled stats
 
@@ -2264,7 +2255,7 @@ proc getCustomBossNumber*(waveNumber: int): int =
 
 proc getBossForWave*(waveNumber: int): BossDefinition =
   ## Gets the appropriate boss definition for a wave number
-  ## After wave 60, uses boss 12 with stats scaled per wave
+  ## Past the 12-boss campaign, uses boss 12 with stats scaled per wave
   if not isBossWave(waveNumber):
     # Not a boss wave, return empty definition
     return BossDefinition()
@@ -2308,20 +2299,24 @@ proc getCurrentPhase*(boss: BossDefinition, currentHpPercent: float32): BossPhas
 # Boss Stats Scaling
 
 proc bossTierSteps(waveNumber: int): float32 =
-  ## Boss progression in tiers (one per 5 waves past wave 5), not raw wave count.
+  ## Scaling steps as a function of raw wave number (one per 5 waves past wave 5).
+  ## Deliberately NOT keyed to BossWaveInterval, though with the interval-5 cadence
+  ## the two happen to coincide: bosses land on waves 5, 10, ... 60, i.e. exactly one
+  ## scaling step per boss.
   max(0.0'f32, (waveNumber.float32 - 5.0) / 5.0)
 
 proc endlessSteps(waveNumber: int): float32 =
-  ## Tiers past wave 60 (boss tier 11): 0 for every campaign boss, compounds in endless.
+  ## Steps past wave 60: 0 for every campaign boss (last one is wave 60), compounds
+  ## once an endless run pushes past wave 60.
   max(0.0'f32, bossTierSteps(waveNumber) - 11.0)
 
 proc getScaledBossHP*(baseBoss: BossDefinition, waveNumber: int): float32 =
-  ## Scales boss HP by boss tier, not raw wave count, to avoid extreme midgame cliffs.
-  let waveScale = 1.0 + bossTierSteps(waveNumber) * 0.20  # 20% increase per boss tier
-  # Endless-only buff. Wave 60 is boss tier 11, so endlessSteps is exactly 0 for
-  # every campaign boss (waves 5-60) -> pow(_, 0) = 1.0 leaves them untouched. Past
-  # wave 60 it compounds, mirroring the player's exponential offense (shop + power-ups
-  # + startWave's per-wave damage growth) so endless bosses stop getting melted.
+  ## Scales boss HP by scaling step, not raw wave count, to avoid extreme midgame cliffs.
+  let waveScale = 1.0 + bossTierSteps(waveNumber) * 0.20  # 20% increase per step
+  # Endless-only buff. endlessSteps is exactly 0 for every campaign boss (waves 5-60)
+  # -> pow(_, 0) = 1.0 leaves them untouched. Past wave 60 it compounds, mirroring the
+  # player's exponential offense (shop + power-ups + startWave's per-wave damage
+  # growth) so endless bosses stop getting melted.
   baseBoss.baseHP * waveScale * pow(1.08'f32, endlessSteps(waveNumber))
 
 proc getScaledBossSpeed*(baseBoss: BossDefinition, waveNumber: int): float32 =
@@ -2332,6 +2327,6 @@ proc getScaledBossSpeed*(baseBoss: BossDefinition, waveNumber: int): float32 =
 proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): float32 =
   ## Scales boss damage based on wave number
   let additionalDamage = (waveNumber - 5) div 15  # +1 damage every 15 waves
-  # Endless-only buff (see getScaledBossHP): 1.0 for waves 1-60, compounds past 60
+  # Endless-only buff (see getScaledBossHP): 1.0 for every campaign boss, compounds past wave 60
   # so endless bosses keep threatening a player stacked with defensive power-ups.
   float32(baseBoss.baseDamage + additionalDamage) * pow(1.05'f32, endlessSteps(waveNumber))

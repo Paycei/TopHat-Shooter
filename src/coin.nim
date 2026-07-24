@@ -124,7 +124,7 @@ proc moveCoinToPlayer*(coin: Coin, playerPos: Vector2f, dt: float32) =
 proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty: float32): int =
   if enemy.isBoss:
     let baseAmount = if mode == gmWaveBased:
-      50 + (currentWave div 5) * 10  # +10 coins every 5 waves
+      50 + (currentWave div BossWaveInterval) * 10  # +10 coins per boss number
     else:
       30 + (difficulty * 3.5).int
     let minAmount = (baseAmount.float32 * 0.9).int
