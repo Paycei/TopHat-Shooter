@@ -599,6 +599,12 @@ proc completeBossWave*(game: Game) =
   if game.wavesUntilBoss <= 0:
     game.wavesUntilBoss = BossWaveInterval - 1  # Next boss BossWaveInterval waves later
 
+  # Write a death-surviving block checkpoint capturing the state entering the
+  # next block (wave 6/11/16/...). Bypasses the run-save state gate because the
+  # transient state at this moment is not one of the resumable states.
+  if game.mode == gmWaveBased:
+    saveBlockCheckpoint(game)
+
   # Reset combo after boss wave
   game.dopamine.comboSystem.killCount = 0
   game.dopamine.comboSystem.bonusCoins = 0
@@ -610,7 +616,7 @@ proc completeBossWave*(game: Game) =
   # Calculate final wave stats for celebration
   calculateAccuracy(game.dopamine.waveStats)
 
-  # Trigger wave celebration AFTER boss is defeated (every boss wave = every 4th wave)
+  # Trigger wave celebration AFTER boss is defeated (every boss wave = every BossWaveInterval-th wave)
   # Use currentWave - 1 because currentWave was just incremented above
   startCelebration(game.dopamine.waveCelebration, game.currentWave - 1, game.dopamine.waveStats)
 
@@ -618,14 +624,15 @@ proc completeBossWave*(game: Game) =
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
 
-  # Final boss (boss number 12 = wave 48) beaten for the first time: show the
+  # Final boss (boss number 12 = wave 60) beaten for the first time: show the
   # one-time victory screen instead of the power-up select. The power-up reward
   # stays queued, so "Continue Endless" re-arms the roll and drops the player
   # straight into the selection. After this, hasWonGame keeps boss 12 (which
-  # repeats every 4 waves in endless) from re-triggering the screen.
+  # repeats every 5 waves in endless) from re-triggering the screen.
   if getCustomBossNumber(completedWave) == 12 and not game.hasWonGame:
     game.hasWonGame = true
     deleteRunSave()  # Run is won: no longer resumable.
+    deleteBlockCheckpoint()  # Won run: drop the block checkpoint too.
     deleteSuspendSnapshot()  # Drop the exact snapshot too.
     # First-ever victory unlocks the secret kernel tophat cosmetic. It is
     # equipped by default (and immediately, so it shows in endless) and can be
@@ -2007,17 +2014,17 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
 
       var spawnCount = if cadenceWave <= 3: 1
                        elif cadenceWave <= 8: (if rand(100) < 50: 1 else: 2)
-                       elif cadenceWave <= 15: (if rand(100) < 30: 1 elif rand(100) < 70: 2 else: 3)
-                       elif cadenceWave <= 25: (if rand(100) < 35: 1 elif rand(100) < 75: 2 else: 3)
-                       else: (if rand(100) < 15: 2 elif rand(100) < 45: 3 elif rand(100) < 75: 4 else: 5)
+                       elif cadenceWave <= 15: (if rand(100) < 30: 2 elif rand(100) < 70: 3 else: 4)
+                       elif cadenceWave <= 25: (if rand(100) < 35: 2 elif rand(100) < 75: 3 else: 4)
+                       else: (if rand(100) < 15: 3 elif rand(100) < 45: 4 elif rand(100) < 75: 5 else: 6)
 
       var baseSpawnRate = if cadenceWave <= 3: 1.0
                           elif cadenceWave <= 7: 1.1
                           elif cadenceWave <= 12: 1.15
                           else: 1.2
 
-      # Wave enemies spawn 10% faster (shorter delay between spawn ticks).
-      baseSpawnRate *= 0.9
+      # Wave enemies spawn faster (shorter delay between spawn ticks).
+      baseSpawnRate *= 0.65
 
       if game.mode == gmRoguelite and game.rogueliteRun != nil and
          game.rogueliteRun.floor != nil:
@@ -2110,12 +2117,12 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
           # wave number.
           #
           # Wave mode: offer on every wave of a boss cycle except the first, i.e.
-          # the 2nd and 3rd of each 4-wave block. The 4th is the boss wave, which
-          # always grants a selection via completeBossWave. That's 3 selections
-          # per cycle (36 over the 48-wave campaign), matching the pacing of the
-          # old every-2-waves rule on the old 5-wave cycle.
+          # the 2nd, 3rd and 4th of each 5-wave block. The 5th is the boss wave,
+          # which always grants a selection via completeBossWave. That's 3
+          # selections per cycle (36 over the 60-wave campaign), matching the
+          # pacing of the old every-2-waves rule.
           #
-          # Other modes have no 4-wave boss cycle, so they keep the every-2 rule.
+          # Other modes have no 5-wave boss cycle, so they keep the every-2 rule.
           shouldOfferPowerUp =
             if game.mode == gmWaveBased: (game.currentWave mod BossWaveInterval) >= 2
             else: (game.currentWave mod 2) == 0
@@ -5679,12 +5686,24 @@ proc drawGame*(game: Game) =
         drawText(instrText, vw div 2 - 100, vh - 25, 16, instrColor)
 
 proc drawDeathSequenceOverlay*(game: Game) =
+  # This overlay is drawn AFTER drawGame's world pass has closed, so it runs in
+  # raw virtual (screen) space with no world translate. Fullscreen elements must
+  # therefore span the virtual view (vw/vh) -- using game.screenWidth (the 1024
+  # world) would leave the widescreen gutters uncovered and put the right-edge
+  # vignette mid-screen. Player-centered bursts add worldOffX so they line up
+  # with the player, which the world pass drew shifted into the centered world.
+  let vw = getVirtualScreenWidth()
+  let vh = getVirtualScreenHeight()
+  let worldOffX = getWorldViewOffsetX()
+  let playerX = game.player.pos.x + worldOffX
+  let playerY = game.player.pos.y
+
   let timer = game.deathSequenceTimer
   let impactFlash = max(0.0'f32, 1.0'f32 - timer / 0.28'f32)
   if impactFlash > 0:
-    drawRectangle(0, 0, game.screenWidth, game.screenHeight,
+    drawRectangle(0, 0, vw, vh,
                   Color(r: 255, g: 242, b: 205, a: uint8(impactFlash * 145.0'f32)))
-    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y),
+    drawCircle(Vector2(x: playerX, y: playerY),
                46.0'f32 + (1.0'f32 - impactFlash) * 130.0'f32,
                Color(r: 255, g: 190, b: 80, a: uint8(impactFlash * 155.0'f32)))
 
@@ -5693,35 +5712,37 @@ proc drawDeathSequenceOverlay*(game: Game) =
   if ringAlpha > 0:
     for i in 0..2:
       let ringRadius = game.player.radius + 34.0'f32 + ringProgress * (145.0'f32 + i.float32 * 78.0'f32)
-      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius,
+      drawCircleLines(playerX.int32, playerY.int32, ringRadius,
                       Color(r: 255, g: 215, b: 120, a: uint8(ringAlpha.int div (i + 1))))
 
   let slowPulseAlpha = uint8(max(0.0'f32, (1.0'f32 - timer / DEATH_SLOW_DURATION)) * 110.0'f32)
   if slowPulseAlpha > 0:
     let ringRadius = game.player.radius + 28.0'f32 + timer * 68.0'f32
-    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringRadius,
+    drawCircleLines(playerX.int32, playerY.int32, ringRadius,
                     Color(r: 255, g: 65, b: 65, a: slowPulseAlpha))
-    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), game.player.radius + 5.0'f32,
+    drawCircle(Vector2(x: playerX, y: playerY), game.player.radius + 5.0'f32,
                Color(r: 255, g: 35, b: 35, a: uint8(slowPulseAlpha div 3)))
 
   let vignetteAlpha = uint8(min(120.0'f32, 55.0'f32 + game.deathSequenceFadeAlpha * 65.0'f32))
   let edgeW: int32 = 190
-  drawRectangleGradientH(0, 0, edgeW, game.screenHeight,
+  drawRectangleGradientH(0, 0, edgeW, vh,
     Color(r: 125, g: 0, b: 0, a: vignetteAlpha), Color(r: 0, g: 0, b: 0, a: 0))
-  drawRectangleGradientH(game.screenWidth - edgeW, 0, edgeW, game.screenHeight,
+  drawRectangleGradientH(vw - edgeW, 0, edgeW, vh,
     Color(r: 0, g: 0, b: 0, a: 0), Color(r: 125, g: 0, b: 0, a: vignetteAlpha))
-  drawRectangleGradientV(0, 0, game.screenWidth, edgeW,
+  drawRectangleGradientV(0, 0, vw, edgeW,
     Color(r: 125, g: 0, b: 0, a: vignetteAlpha), Color(r: 0, g: 0, b: 0, a: 0))
-  drawRectangleGradientV(0, game.screenHeight - edgeW, game.screenWidth, edgeW,
+  drawRectangleGradientV(0, vh - edgeW, vw, edgeW,
     Color(r: 0, g: 0, b: 0, a: 0), Color(r: 125, g: 0, b: 0, a: vignetteAlpha))
 
   if game.deathSequenceFadeAlpha > 0:
-    drawRectangle(0, 0, game.screenWidth, game.screenHeight,
+    drawRectangle(0, 0, vw, vh,
                   Color(r: 0, g: 0, b: 0, a: uint8(game.deathSequenceFadeAlpha * 255.0'f32)))
 
 proc drawGameOver*(game: Game) =
-  # Use the new OS-style system crash screen
-  drawSystemCrash(game, game.selectedGameOverButton)
+  # Use the new OS-style system crash screen. A wave-mode block checkpoint that
+  # survived death adds a leading "Continue (Wave N)" option.
+  let showContinue = game.mode == gmWaveBased and hasBlockCheckpoint()
+  drawSystemCrash(game, game.selectedGameOverButton, showContinue, blockCheckpointWave())
 
 proc drawVictory*(game: Game) =
   # OS-style "system secured" congratulations screen (wave-60 final boss cleared)

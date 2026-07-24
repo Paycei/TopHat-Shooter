@@ -335,7 +335,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  of 3:  # Wave 12 - THE METEOR STRIKER
+  of 3:  # Wave 15 - THE METEOR STRIKER
     result = BossDefinition(
       name: t(tkBoss3Name),
       bossID: 3,
@@ -479,7 +479,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  of 4:  # Wave 16 - THE LASER ARCHITECT
+  of 4:  # Wave 20 - THE LASER ARCHITECT
     result = BossDefinition(
       name: t(tkBoss4Name),
       bossID: 4,
@@ -863,7 +863,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  of 6:  # Wave 24 - THE CHAIN REACTOR
+  of 6:  # Wave 30 - THE CHAIN REACTOR
     result = BossDefinition(
       name: t(tkBoss6Name),
       bossID: 6,
@@ -1965,7 +1965,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  of 12:  # Wave 48 - THE OMEGA ENTITY
+  of 12:  # Wave 60 - THE OMEGA ENTITY
     result = BossDefinition(
       name: t(tkBoss12Name),
       bossID: 12,

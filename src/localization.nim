@@ -1319,6 +1319,10 @@ type
     tkConfirmCancelBtn = "confirm_cancel_btn"
     tkConfirmQuitBtn = "confirm_quit_btn"
     tkConfirmExitBtn = "confirm_exit_btn"
+    tkConfirmCheckpointTitle = "confirm_checkpoint_title"
+    tkConfirmCheckpointRestartBody = "confirm_checkpoint_restart_body"
+    tkConfirmCheckpointSub = "confirm_checkpoint_sub"
+    tkConfirmRestartBtn = "confirm_restart_btn"
 
     # Wave Celebration (d_enhancements)
     tkWaveClearedText = "wave_cleared_text"
@@ -2367,7 +2371,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_threats_eliminated": "Threats Eliminated:",
     "game_over_resources_collected": "Resources Collected:",
     "game_over_mission_duration": "Mission Duration:",
-    "game_over_continue": "> CONTINUE",
+    "game_over_continue": "CONTINUE (WAVE",
     "game_over_save_log": "[S] SAVE LOG",
     "game_over_critical_failure": "CRITICAL SYSTEM FAILURE",
     "game_over_error_msg": "Your system has encountered a critical error and needs to reboot.",
@@ -2752,7 +2756,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Help System - Gameplay section
     "help_wave_mode": "WAVE-BASED MODE",
-    "help_wave_mode_desc": "- Clear waves of enemies\n  - Boss appears every 4th wave\n  - Choose power-up after each wave\n  - Shop opens after power-up selection",
+    "help_wave_mode_desc": "- Clear waves of enemies\n  - Boss appears every 5th wave\n  - Choose power-up after each wave\n  - Shop opens after power-up selection",
     "help_survival_mode": "SURVIVAL MODE",
     "help_survival_mode_desc": "- Survive endless enemy hordes\n  - Enemies spawn continuously\n  - Boss appears every 60 seconds",
     "help_sandbox_mode": "SANDBOX MODE",
@@ -2874,7 +2878,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_shop_wall_x4_desc": "Buy 10 deployable walls",
 
     # Help System - Misc
-    "help_wave_mode_info": "Wave Mode: Every 4th wave (4, 8, 12...)",
+    "help_wave_mode_info": "Wave Mode: Every 5th wave (5, 10, 15...)",
     "help_survival_mode_info": "Survival Mode: Every 60 seconds",
     "help_enemy_chaser": "- Normal chasing enemies\n  - Follows player movement\n  - Most common enemy type",
     "help_enemy_turret": "- Stationary or slow-moving shooters\n  - Fires projectiles at player\n  - Keep your distance",
@@ -2882,7 +2886,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_enemy_tank": "- High HP enemies\n  - Requires many hits to defeat\n  - Dashes when getting close",
     "help_enemy_warper": "- Teleporting chaos enemy\n  - Unpredictable movement\n  - Can appear anywhere suddenly",
     "help_enemy_elite_desc": "- Tougher versions of all enemy types\n  - Drop more coins when defeated\n  - Spawn in later waves",
-    "help_boss_every_5th": "Wave Mode: Every 4th wave (4, 8, 12...)",
+    "help_boss_every_5th": "Wave Mode: Every 5th wave (5, 10, 15...)",
     "help_boss_every_60_sec": "Survival Mode: Every 60 seconds",
     "help_cost_scaling_formula": "- Shop items have strict purchase caps\n  - Each buy is stronger and costs baseCost * 1.8^bought",
     "help_kill_enemies_to_collect": "- Kill enemies to collect coins",
@@ -3134,7 +3138,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Gamemode Names and Descriptions
     "gamemode_wave_based_name": "Wave-Based",
-    "gamemode_wave_based_desc": "Fight through waves of enemies. Defeat bosses every 4 waves for legendary upgrades.",
+    "gamemode_wave_based_desc": "Fight through waves of enemies. Defeat bosses every 5 waves for legendary upgrades.",
     "gamemode_time_survival_name": "Time Survival",
     "gamemode_time_survival_desc": "Survive as long as possible. Difficulty increases over time.",
     "gamemode_sandbox_name": "Sandbox",
@@ -3357,6 +3361,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_cancel_btn": "[ESC] CANCEL",
     "confirm_quit_btn": "[Q] QUIT",
     "confirm_exit_btn": "[Q] EXIT",
+    "confirm_checkpoint_title": "CHECKPOINT AVAILABLE",
+    "confirm_checkpoint_restart_body": "Restart from wave 1?",
+    "confirm_checkpoint_sub": "You can still CONTINUE from your last checkpoint.",
+    "confirm_restart_btn": "[R] RESTART",
 
     # Common
     "common_on": "ON",
@@ -4144,7 +4152,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_threats_eliminated": "Amenazas Eliminadas:",
     "game_over_resources_collected": "Recursos Recopilados:",
     "game_over_mission_duration": "Duración de la Misión:",
-    "game_over_continue": "> CONTINUAR",
+    "game_over_continue": "CONTINUAR (OLEADA",
     "game_over_save_log": "[G] GUARDAR REGISTRO",
     "game_over_critical_failure": "FALLO CRÍTICO DEL SISTEMA",
     "game_over_error_msg": "Tu sistema ha encontrado un error crítico y necesita reiniciarse.",
@@ -4529,7 +4537,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Help System - Gameplay section
     "help_wave_mode": "MODO OLEADAS",
-    "help_wave_mode_desc": "- Elimina oleadas de enemigos\n  - Jefe aparece cada 4ta oleada\n  - Elige mejora después de cada oleada\n  - Tienda abre después de seleccionar mejora",
+    "help_wave_mode_desc": "- Elimina oleadas de enemigos\n  - Jefe aparece cada 5ta oleada\n  - Elige mejora después de cada oleada\n  - Tienda abre después de seleccionar mejora",
     "help_survival_mode": "MODO SUPERVIVENCIA",
     "help_survival_mode_desc": "- Sobrevive hordas infinitas de enemigos\n  - Los enemigos aparecen continuamente\n  - Jefe aparece cada 60 segundos",
     "help_sandbox_mode": "MODO SANDBOX",
@@ -4651,7 +4659,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_shop_wall_x4_desc": "Compra 10 muros desplegables",
 
     # Help System - Misc
-    "help_wave_mode_info": "Modo Oleadas: Cada 4ta oleada (4, 8, 12...)",
+    "help_wave_mode_info": "Modo Oleadas: Cada 5ta oleada (5, 10, 15...)",
     "help_survival_mode_info": "Modo Supervivencia: Cada 60 segundos",
     "help_enemy_chaser": "- Enemigos de persecución normal\n  - Sigue el movimiento del jugador\n  - Tipo de enemigo más común",
     "help_enemy_turret": "- Disparadores estacionarios o lentos\n  - Dispara proyectiles al jugador\n  - Mantén la distancia",
@@ -4659,7 +4667,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_enemy_tank": "- Enemigos con HP alto\n  - Requiere muchos golpes para derrotar\n  - Dashea cuando se acerca",
     "help_enemy_warper": "- Enemigo caótico de teletransportación\n  - Movimiento impredecible\n  - Puede aparecer en cualquier lugar repentinamente",
     "help_enemy_elite_desc": "- Versiones más fuertes de todos los tipos de enemigos\n  - Dejan caer más monedas al ser derrotados\n  - Aparecen en oleadas posteriores",
-    "help_boss_every_5th": "Modo Oleadas: Cada 4ta oleada (4, 8, 12...)",
+    "help_boss_every_5th": "Modo Oleadas: Cada 5ta oleada (5, 10, 15...)",
     "help_boss_every_60_sec": "Modo Supervivencia: Cada 60 segundos",
     "help_cost_scaling_formula": "- Los objetos de tienda tienen límites estrictos\n  - Cada compra es más fuerte y cuesta costBase * 1.8^comprado",
     "help_kill_enemies_to_collect": "- Mata enemigos para recopilar monedas",
@@ -5042,7 +5050,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Gamemode Names and Descriptions
     "gamemode_wave_based_name": "Por Oleadas",
-    "gamemode_wave_based_desc": "Lucha contra oleadas de enemigos. Derrota a los jefes cada 4 oleadas para obtener mejoras legendarias.",
+    "gamemode_wave_based_desc": "Lucha contra oleadas de enemigos. Derrota a los jefes cada 5 oleadas para obtener mejoras legendarias.",
     "gamemode_time_survival_name": "Supervivencia por Tiempo",
     "gamemode_time_survival_desc": "Sobrevive el mayor tiempo posible. La dificultad aumenta con el tiempo.",
     "gamemode_sandbox_name": "Sandbox",
@@ -5265,6 +5273,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_cancel_btn": "[ESC] CANCELAR",
     "confirm_quit_btn": "[Q] SALIR",
     "confirm_exit_btn": "[Q] VOLVER",
+    "confirm_checkpoint_title": "PUNTO DE CONTROL DISPONIBLE",
+    "confirm_checkpoint_restart_body": "¿Reiniciar desde la oleada 1?",
+    "confirm_checkpoint_sub": "Todavía puedes CONTINUAR desde tu último punto de control.",
+    "confirm_restart_btn": "[R] REINICIAR",
 
     # Common
     "common_on": "ACT.",

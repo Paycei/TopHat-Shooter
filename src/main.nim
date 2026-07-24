@@ -4,8 +4,11 @@ import particle_types, game/combat, game/death, types, settings, effects, game, 
 # Global quit-confirmation dialog
 
 type ConfirmDialogContext = enum
-  cdcQuitToDesktop,  # Close the whole application
-  cdcQuitToMenu      # Return to main menu
+  cdcQuitToDesktop,   # Close the whole application
+  cdcQuitToMenu,      # Return to main menu
+  cdcAbandonRestart,  # Game over restart while a block checkpoint could be continued
+  cdcAbandonExit,     # Game over exit-to-menu while a block checkpoint could be continued
+  cdcPostGameExit     # Exit to menu from game over/victory/run-stats (no checkpoint at stake)
 
 var
   globalConfirmActive      = false
@@ -46,14 +49,27 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
 
   let tbH: int32 = 36
   drawRectangle(dx, dy, DW, tbH, Color(r: 120, g: 28, b: 28, a: 255))
-  let titleStr = if globalConfirmContext == cdcQuitToDesktop: t(tkConfirmQuitTitle) else: t(tkConfirmExitTitle)
+  let titleStr = case globalConfirmContext
+                 of cdcQuitToDesktop: t(tkConfirmQuitTitle)
+                 of cdcQuitToMenu, cdcPostGameExit: t(tkConfirmExitTitle)
+                 of cdcAbandonRestart, cdcAbandonExit: t(tkConfirmCheckpointTitle)
   let tW = measureText(titleStr, 16)
   drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, Color(r: 255, g: 200, b: 200, a: 255))
 
-  let bodyStr = if globalConfirmContext == cdcQuitToDesktop: t(tkConfirmQuitBody) else: t(tkConfirmExitBody)
+  let bodyStr = case globalConfirmContext
+                of cdcQuitToDesktop: t(tkConfirmQuitBody)
+                of cdcQuitToMenu, cdcAbandonExit, cdcPostGameExit: t(tkConfirmExitBody)
+                of cdcAbandonRestart: t(tkConfirmCheckpointRestartBody)
   let bW = measureText(bodyStr, 19)
   drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 24, 19, White)
-  let subStr = t(tkConfirmUnsaved)
+  # cdcPostGameExit has no subtitle: the run is already over and results are
+  # already persisted, so there's no "unsaved progress" to warn about.
+  let subStr = if globalConfirmContext in {cdcAbandonRestart, cdcAbandonExit}:
+                 t(tkConfirmCheckpointSub)
+               elif globalConfirmContext == cdcPostGameExit:
+                 ""
+               else:
+                 t(tkConfirmUnsaved)
   let sW = measureText(subStr, 13)
   drawText(subStr, dx + (DW - sW) div 2, dy + tbH + 54, 13, Color(r: 200, g: 150, b: 150, a: 255))
 
@@ -85,8 +101,11 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
     else:                     Color(r: 195, g: 55, b: 55, a: 255))
   # Show countdown while cooling down, normal label once ready
   let yesTxt = if not mouseReady: $(int(ceil(globalConfirmMouseGuard)))
-               elif globalConfirmContext == cdcQuitToDesktop: t(tkConfirmQuitBtn)
-               else: t(tkConfirmExitBtn)
+               else:
+                 case globalConfirmContext
+                 of cdcQuitToDesktop: t(tkConfirmQuitBtn)
+                 of cdcQuitToMenu, cdcAbandonExit, cdcPostGameExit: t(tkConfirmExitBtn)
+                 of cdcAbandonRestart: t(tkConfirmRestartBtn)
   let yTW = measureText(yesTxt, 14)
   drawText(yesTxt, yesX + (BW - yTW) div 2, btnY + 13, 14, White)
 
@@ -95,7 +114,10 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
     if noHov:               decision = -1
     elif yesHov and mouseReady: decision = 1
   if isBackPressed(): decision = -1
-  if isKeyPressed(Q) and keyReady: decision = 1
+  if keyReady:
+    if globalConfirmContext == cdcAbandonRestart:
+      if isKeyPressed(R): decision = 1
+    elif isKeyPressed(Q): decision = 1
 
   if decision != 0:
     globalConfirmActive = false
@@ -743,14 +765,16 @@ proc main() =
                                            gsRogueliteFloorSelect, gsPvPPlaying, gs3DBoss}
       # Show the quit-confirm popup when an active game session is running (full
       # anti-accident cooldown to protect the in-progress run). The main menu, the
-      # game-over screen, and sandbox mode also confirm, but with cooldown 0 -> YES
-      # is immediately clickable, since none of them has a live run to lose
-      # (matches the Shutdown.exe icon).
+      # game-over/victory screens (and the run-stats screen reached from them), and
+      # sandbox mode also confirm, but with cooldown 0 -> YES is immediately
+      # clickable, since none of them has a live run to lose (matches the
+      # Shutdown.exe icon).
       if settings.exitConfirmEnabled and isInGame and not isSandboxMode(currentGame.mode):
         if not globalConfirmActive:
           showGlobalConfirm(cdcQuitToDesktop)
       elif settings.exitConfirmEnabled and
-           (currentGame.state in {gsMenu, gsGameOver} or isSandboxMode(currentGame.mode)):
+           (currentGame.state in {gsMenu, gsGameOver, gsVictory, gsRunStats} or
+            isSandboxMode(currentGame.mode)):
         if not globalConfirmActive:
           showGlobalConfirm(cdcQuitToDesktop, cooldown = 0.0'f32)
       else:
@@ -1082,8 +1106,13 @@ proc main() =
             discard  # snapshot carried the full sim + currentRunStats
           elif pendingResume and applySavedRun(currentGame):
             initializeRunTracking(currentGame)  # checkpoint resume: fresh stats
+          elif pendingResume and applyBlockCheckpoint(currentGame):
+            # No live run save, but a death-surviving block checkpoint exists:
+            # resume from the last cleared boss block. No comeback bonus here.
+            initializeRunTracking(currentGame)
           else:
             deleteRunSave()
+            deleteBlockCheckpoint()  # fresh run: discard the block checkpoint too
             deleteSuspendSnapshot()
             applyComebackBonus(currentGame)
             currentGame.state = gsPlaying
@@ -1442,7 +1471,10 @@ proc main() =
             cutsceneContinuation = cscLaunchGame
             pendingModeAfterCutscene = 0
             currentGame.state = gsCutscene
-          elif hasSavedRun() and loadSavedRunMode() == gmWaveBased:
+          elif (hasSavedRun() and loadSavedRunMode() == gmWaveBased) or
+               hasBlockCheckpoint():
+            # Offer resume for a live run save OR a death-surviving block
+            # checkpoint (wave mode only).
             resumePromptActive = true
             resumePromptMode = gmWaveBased
           else:
@@ -1645,7 +1677,8 @@ proc main() =
         if resumeResult != 0:
           pendingResume = resumeResult == 1
           if resumeResult == -1:
-            deleteRunSave()          # "New Run" discards both the checkpoint
+            deleteRunSave()          # "New Run" discards the checkpoint,
+            deleteBlockCheckpoint()  # the death-surviving block checkpoint,
             deleteSuspendSnapshot()  # and the exact snapshot.
           case resumePromptMode
           of gmTimeSurvival:
@@ -2535,7 +2568,7 @@ proc main() =
             # A power-up is always offered, boss wave or not (before a boss it is the
             # critical moment); a boss wave additionally gets a longer warning.
             if isBossWave:
-              currentGame.bossSpawnTimer = 3.0
+              currentGame.bossSpawnTimer = 2.0
             currentGame.powerUpChoices = generatePowerUpChoices(currentGame.player, false, mode = currentGame.mode)
 
             currentGame.selectedPowerUp = 0
@@ -2773,24 +2806,31 @@ proc main() =
       # Update mouse tracking
       updateMouseTracking(currentGame)
 
-      # Keyboard navigation - A/D/LEFT/RIGHT to change button selection.
-      # All game-over input is gated on `not globalConfirmActive` so the quit-confirm
-      # popup (OS close button) owns the keyboard/mouse while it is up; otherwise a
-      # single Escape/Q/click would both answer the dialog and fire a menu action.
-      if not globalConfirmActive and (isKeyPressed(Left) or isKeyPressed(A)):
-        currentGame.selectedGameOverButton = (currentGame.selectedGameOverButton - 1 + 3) mod 3
-        playSound(stMenuNav)
-        markKeyboardUsed(currentGame)
-      elif not globalConfirmActive and (isKeyPressed(Right) or isKeyPressed(D)):
-        currentGame.selectedGameOverButton = (currentGame.selectedGameOverButton + 1) mod 3
-        playSound(stMenuNav)
-        markKeyboardUsed(currentGame)
+      # A death-surviving wave-mode block checkpoint prepends a "Continue" option,
+      # shifting Restart/Stats/Exit indices up by one (idxOff).
+      let goShowContinue = currentGame.mode == gmWaveBased and hasBlockCheckpoint()
+      let goOptionCount = if goShowContinue: 4 else: 3
+      let goIdxOff = if goShowContinue: 1 else: 0
+      let goRestartIdx = goIdxOff
+      let goStatsIdx = goIdxOff + 1
+      let goExitIdx = goIdxOff + 2
 
-      # Execute action based on selected button or direct key press
-      # SPACE and R both trigger restart (button 0)
-      if not globalConfirmActive and ((isKeyPressed(Space) or isKeyPressed(R)) or
-         (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 0)):
-        # Store the current game mode before restarting
+      # Nested action helpers (shared by keyboard, gamepad and mouse dispatch).
+      proc doContinue() =
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        setGameMode(currentGame, gmWaveBased)
+        # Resume the saved block; NO comeback bonus on this path.
+        if applyBlockCheckpoint(currentGame):
+          initializeRunTracking(currentGame)
+        else:
+          # Checkpoint failed to apply: fall back to a fresh run.
+          currentGame.state = gsPlaying
+          initializeRunTracking(currentGame)
+        playSound(stMenuSelect)
+        statsSavedThisGame = false
+
+      proc doRestart() =
         let previousMode = currentGame.mode
         let preservedRogueliteHeat =
           if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
@@ -2812,16 +2852,14 @@ proc main() =
           currentGame.state = gsPlaying
         playSound(stMenuSelect)
         statsSavedThisGame = false  # Reset for new game
-      # TAB or V to view stats (button 1)
-      elif not globalConfirmActive and ((isKeyPressed(Tab) or isKeyPressed(V)) or
-           (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 1)):
+
+      proc doStats() =
         if hasValidRunStats():
           openRunStatsWindow()
           currentGame.state = gsRunStats
           playSound(stMenuSelect)
-      # ESC or Q to exit (button 2)
-      elif not globalConfirmActive and ((isBackPressed() or isKeyPressed(Q)) or
-           (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 2)):
+
+      proc doExit() =
         cleanupGame(currentGame)  # Clean up resources before creating new game
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -2829,89 +2867,106 @@ proc main() =
         playSound(stMenuSelect)
         statsSavedThisGame = false  # Reset for new game
 
-      # Mouse hover detection for button highlighting
+      # When a checkpoint is available, Restart/Exit first ask for confirmation so
+      # the player can't accidentally lose the chance to continue their run.
+      proc requestRestart() =
+        if goShowContinue: showGlobalConfirm(cdcAbandonRestart, 1.0)
+        else: doRestart()
+
+      proc requestExit() =
+        if goShowContinue: showGlobalConfirm(cdcAbandonExit, 1.0)
+        elif settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit)
+        else: doExit()
+
+      # Keyboard navigation - A/D/LEFT/RIGHT to change button selection.
+      # All game-over input is gated on `not globalConfirmActive` so the quit-confirm
+      # popup (OS close button) owns the keyboard/mouse while it is up; otherwise a
+      # single Escape/Q/click would both answer the dialog and fire a menu action.
+      if not globalConfirmActive and (isKeyPressed(Left) or isKeyPressed(A)):
+        currentGame.selectedGameOverButton = (currentGame.selectedGameOverButton - 1 + goOptionCount) mod goOptionCount
+        playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
+      elif not globalConfirmActive and (isKeyPressed(Right) or isKeyPressed(D)):
+        currentGame.selectedGameOverButton = (currentGame.selectedGameOverButton + 1) mod goOptionCount
+        playSound(stMenuNav)
+        markKeyboardUsed(currentGame)
+
+      # Execute action based on selected button or direct key press.
+      # C directly triggers Continue when the option is available.
+      if not globalConfirmActive and goShowContinue and
+         (isKeyPressed(C) or (isKeyPressed(Enter) and currentGame.selectedGameOverButton == 0)):
+        doContinue()
+      # SPACE and R both trigger restart
+      elif not globalConfirmActive and ((isKeyPressed(Space) or isKeyPressed(R)) or
+         (isKeyPressed(Enter) and currentGame.selectedGameOverButton == goRestartIdx)):
+        requestRestart()
+      # TAB or V to view stats
+      elif not globalConfirmActive and ((isKeyPressed(Tab) or isKeyPressed(V)) or
+           (isKeyPressed(Enter) and currentGame.selectedGameOverButton == goStatsIdx)):
+        doStats()
+      # ESC or Q to exit
+      elif not globalConfirmActive and ((isBackPressed() or isKeyPressed(Q)) or
+           (isKeyPressed(Enter) and currentGame.selectedGameOverButton == goExitIdx)):
+        requestExit()
+
+      # Mouse hover detection for button highlighting. Layout must mirror
+      # drawSystemCrash (narrower buttons/spacing when Continue is present).
       let mousePos = getVirtualMousePosition()
       const SCREEN_HEIGHT = 600
-      const BUTTON_WIDTH = 220
       const BUTTON_HEIGHT = 48
 
+      let goButtonW = if goShowContinue: 200 else: 220
+      let goButtonSpacing = if goShowContinue: 24 else: 40
       let windowY = (screenHeight - SCREEN_HEIGHT) div 2
       let buttonY = windowY + SCREEN_HEIGHT - 100
-      let buttonSpacing = 40
-      let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
+      let totalButtonWidth = goButtonW * goOptionCount + goButtonSpacing * (goOptionCount - 1)
       let buttonsX = (screenWidth - totalButtonWidth) div 2
 
-      # Restart button (button 0)
-      let restartRect = Rectangle(x: buttonsX.float32, y: buttonY.float32,
-                                   width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
+      proc goButtonRect(slot: int): Rectangle =
+        # slot is the on-screen position (0-based) left-to-right.
+        let x = buttonsX + slot * (goButtonW + goButtonSpacing)
+        Rectangle(x: x.float32, y: buttonY.float32,
+                  width: goButtonW.float32, height: BUTTON_HEIGHT.float32)
 
-      # View Stats button (button 1)
-      let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
-      let statsRect = Rectangle(x: statsX.float32, y: buttonY.float32,
-                                width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
-
-      # Exit button (button 2)
-      let exitX = statsX + BUTTON_WIDTH + buttonSpacing
-      let exitRect = Rectangle(x: exitX.float32, y: buttonY.float32,
-                               width: BUTTON_WIDTH.float32, height: BUTTON_HEIGHT.float32)
+      # Optional Continue at slot 0; then Restart/Stats/Exit.
+      let continueRect = goButtonRect(0)
+      let restartRect = goButtonRect(goIdxOff)
+      let statsRect = goButtonRect(goIdxOff + 1)
+      let exitRect = goButtonRect(goIdxOff + 2)
 
       # Mouse hover - update selected button
-      if checkCollisionPointRec(mousePos, restartRect):
+      if goShowContinue and checkCollisionPointRec(mousePos, continueRect):
         currentGame.selectedGameOverButton = 0
+      elif checkCollisionPointRec(mousePos, restartRect):
+        currentGame.selectedGameOverButton = goRestartIdx
       elif checkCollisionPointRec(mousePos, statsRect):
-        currentGame.selectedGameOverButton = 1
+        currentGame.selectedGameOverButton = goStatsIdx
       elif checkCollisionPointRec(mousePos, exitRect):
-        currentGame.selectedGameOverButton = 2
+        currentGame.selectedGameOverButton = goExitIdx
 
       # Mouse click handling
       if not globalConfirmActive and isPointerPressed():
-        if checkCollisionPointRec(mousePos, restartRect):
-          # Restart game - preserve game mode
-          let previousMode = currentGame.mode
-          let preservedRogueliteHeat =
-            if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
-              currentGame.rogueliteRun.heat
-            else:
-              currentGame.selectedRogueliteHeat
-          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-          currentGame.discordClient = globalDiscordClient
-          setGameMode(currentGame, previousMode)  # Preserve the game mode
-          applyComebackBonus(currentGame)
-          if previousMode == gmRoguelite:
-            setActiveRogueliteProfile(loadRogueliteProfile())
-            currentGame.rogueliteProfile = rogueliteProfile
-            currentGame.selectedRogueliteHeat = clampedRogueliteHeatSelection(preservedRogueliteHeat, rogueliteProfile)
-            globalWindowManager.openWindow(widRoguelite)
-            currentGame.state = gsMenu
-          else:
-            initializeRunTracking(currentGame)
-            currentGame.state = gsPlaying
-          playSound(stMenuSelect)
-          statsSavedThisGame = false
+        if goShowContinue and checkCollisionPointRec(mousePos, continueRect):
+          doContinue()
+        elif checkCollisionPointRec(mousePos, restartRect):
+          requestRestart()
         elif checkCollisionPointRec(mousePos, statsRect):
-          # View stats
-          if hasValidRunStats():
-            openRunStatsWindow()
-            currentGame.state = gsRunStats
-            playSound(stMenuSelect)
+          doStats()
         elif checkCollisionPointRec(mousePos, exitRect):
-          # Return to menu
-          cleanupGame(currentGame)
-          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-          currentGame.discordClient = globalDiscordClient
-          currentGame.state = gsMenu
-          playSound(stMenuSelect)
-          statsSavedThisGame = false
+          requestExit()
 
       beginGameDrawing()
       drawGameOver(currentGame)
 
-      # Quit-confirmation dialog (OS close button). The run is already over, so the
-      # YES button is immediately clickable (cooldown 0 set when it was shown).
+      # Confirmation dialog: OS close button (quit contexts) or the
+      # abandon-checkpoint guard on Restart/Exit.
       if globalConfirmActive:
         let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
         if r == 1:
-          windowCloseRequested = true
+          case globalConfirmContext
+          of cdcAbandonRestart: doRestart()
+          of cdcAbandonExit, cdcPostGameExit: doExit()
+          else: windowCloseRequested = true
         # r == -1: cancelled, dialog already dismissed
 
       # Draw custom cursor on game over screen
@@ -2934,16 +2989,25 @@ proc main() =
       let statsWindowClosed = updateStatsWindow(statsWin, dt, screenWidth,
                                                 screenHeight, [statsWin.window])
 
+      proc doReturnToMenuFromStats() =
+        statsWin.window.visible = false
+        cleanupGame(currentGame)  # Clean up resources before creating new game
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+        statsSavedThisGame = false
+
       # Return to the screen we came from (victory or game over) with
-      # Tab/Escape or the window's close button
+      # Tab/Escape or the window's close button. Gated on the confirm dialog
+      # so Escape cancels the dialog instead of also leaving this screen.
       let statsReturnState =
         if currentGame.previousState == gsVictory: gsVictory else: gsGameOver
-      if statsWindowClosed or isKeyPressed(Tab) or isBackPressed():
+      if not globalConfirmActive and (statsWindowClosed or isKeyPressed(Tab) or isBackPressed()):
         statsWin.window.visible = false
         currentGame.state = statsReturnState
 
       # Quick restart
-      if isKeyPressed(R):
+      if not globalConfirmActive and isKeyPressed(R):
         statsWin.window.visible = false
         let previousMode = currentGame.mode
         let preservedRogueliteHeat =
@@ -2966,14 +3030,10 @@ proc main() =
           currentGame.state = gsPlaying
         statsSavedThisGame = false
 
-      # Return to menu
-      if isKeyPressed(Q):
-        statsWin.window.visible = false
-        cleanupGame(currentGame)  # Clean up resources before creating new game
-        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-        currentGame.discordClient = globalDiscordClient
-        currentGame.state = gsMenu
-        statsSavedThisGame = false
+      # Return to menu, asking for confirmation first (unless disabled in settings)
+      if not globalConfirmActive and isKeyPressed(Q):
+        if settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit)
+        else: doReturnToMenuFromStats()
 
       beginGameDrawing()
       # Dark OS backdrop with subtle scan lines behind the floating window
@@ -3000,6 +3060,13 @@ proc main() =
         drawText(t(tkSystemPressESCToReturn),
                 screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
 
+      if globalConfirmActive:
+        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if r == 1:
+          case globalConfirmContext
+          of cdcPostGameExit: doReturnToMenuFromStats()
+          else: windowCloseRequested = true
+
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 
@@ -3009,12 +3076,26 @@ proc main() =
       currentGame.time += dt
       updateMouseTracking(currentGame)
 
+      proc doReturnToMenuFromVictory() =
+        # Return to menu: the run ends here, so persist results before leaving
+        playSound(stMenuSelect)
+        persistRunResults(currentGame)
+        cleanupGame(currentGame)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+        statsSavedThisGame = false
+
+      proc requestReturnToMenuFromVictory() =
+        if settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit)
+        else: doReturnToMenuFromVictory()
+
       # Keyboard navigation across the 3 buttons
-      if isKeyPressed(Left) or isKeyPressed(A):
+      if not globalConfirmActive and (isKeyPressed(Left) or isKeyPressed(A)):
         currentGame.selectedVictoryButton = (currentGame.selectedVictoryButton - 1 + 3) mod 3
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
-      elif isKeyPressed(Right) or isKeyPressed(D):
+      elif not globalConfirmActive and (isKeyPressed(Right) or isKeyPressed(D)):
         currentGame.selectedVictoryButton = (currentGame.selectedVictoryButton + 1) mod 3
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
@@ -3038,27 +3119,29 @@ proc main() =
                                   width: VIC_BUTTON_WIDTH.float32, height: VIC_BUTTON_HEIGHT.float32)
 
       let vicMousePos = getVirtualMousePosition()
-      if checkCollisionPointRec(vicMousePos, continueRect):
-        currentGame.selectedVictoryButton = 0
-      elif checkCollisionPointRec(vicMousePos, vicStatsRect):
-        currentGame.selectedVictoryButton = 1
-      elif checkCollisionPointRec(vicMousePos, vicMenuRect):
-        currentGame.selectedVictoryButton = 2
+      if not globalConfirmActive:
+        if checkCollisionPointRec(vicMousePos, continueRect):
+          currentGame.selectedVictoryButton = 0
+        elif checkCollisionPointRec(vicMousePos, vicStatsRect):
+          currentGame.selectedVictoryButton = 1
+        elif checkCollisionPointRec(vicMousePos, vicMenuRect):
+          currentGame.selectedVictoryButton = 2
 
       # Resolve the chosen action: keyboard (Enter/Space/V/Tab/Esc/Q) or mouse click
       var victoryAction = -1  # 0=continue, 1=stats, 2=menu
-      if isKeyPressed(Space) or (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 0):
-        victoryAction = 0
-      elif (isKeyPressed(Tab) or isKeyPressed(V)) or
-           (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 1):
-        victoryAction = 1
-      elif (isBackPressed() or isKeyPressed(Q)) or
-           (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 2):
-        victoryAction = 2
-      elif isPointerPressed():
-        if checkCollisionPointRec(vicMousePos, continueRect): victoryAction = 0
-        elif checkCollisionPointRec(vicMousePos, vicStatsRect): victoryAction = 1
-        elif checkCollisionPointRec(vicMousePos, vicMenuRect): victoryAction = 2
+      if not globalConfirmActive:
+        if isKeyPressed(Space) or (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 0):
+          victoryAction = 0
+        elif (isKeyPressed(Tab) or isKeyPressed(V)) or
+             (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 1):
+          victoryAction = 1
+        elif (isBackPressed() or isKeyPressed(Q)) or
+             (isKeyPressed(Enter) and currentGame.selectedVictoryButton == 2):
+          victoryAction = 2
+        elif isPointerPressed():
+          if checkCollisionPointRec(vicMousePos, continueRect): victoryAction = 0
+          elif checkCollisionPointRec(vicMousePos, vicStatsRect): victoryAction = 1
+          elif checkCollisionPointRec(vicMousePos, vicMenuRect): victoryAction = 2
 
       case victoryAction
       of 0:
@@ -3074,19 +3157,19 @@ proc main() =
           currentGame.previousState = gsVictory
           currentGame.state = gsRunStats
       of 2:
-        # Return to menu: the run ends here, so persist results before leaving
-        playSound(stMenuSelect)
-        persistRunResults(currentGame)
-        cleanupGame(currentGame)
-        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-        currentGame.discordClient = globalDiscordClient
-        currentGame.state = gsMenu
-        statsSavedThisGame = false
+        # Return to menu, asking for confirmation first (unless disabled in settings)
+        requestReturnToMenuFromVictory()
       else:
         discard
 
       beginGameDrawing()
       drawVictory(currentGame)
+      if globalConfirmActive:
+        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        if r == 1:
+          case globalConfirmContext
+          of cdcPostGameExit: doReturnToMenuFromVictory()
+          else: windowCloseRequested = true
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 

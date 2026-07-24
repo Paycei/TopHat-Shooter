@@ -22,13 +22,16 @@ import types, save_system, utils, roguelite, dungeon
 
 const RunSaveVersion = 1
 
-proc getRunSavePath*(): string =
-  getAppDataPath() / "run_save.json"
+const RunSaveFile = "run_save.json"
+const BlockCheckpointFile = "run_checkpoint.json"
 
-proc deleteRunSave*() =
+proc getRunSavePath*(file: string = RunSaveFile): string =
+  getAppDataPath() / file
+
+proc deleteRunSave*(file: string = RunSaveFile) =
   ## Remove the current profile's run save, if any.
   try:
-    let path = getRunSavePath()
+    let path = getRunSavePath(file)
     if fileExists(path):
       removeFile(path)
   except CatchableError:
@@ -239,23 +242,27 @@ proc rogueliteRunToJson(run: RogueliteRun): JsonNode =
 proc isSupportedRunMode(mode: GameMode): bool =
   mode in {gmWaveBased, gmTimeSurvival, gmRoguelite}
 
-proc saveRunState*(game: Game) =
+proc saveRunState*(game: Game, file: string = RunSaveFile,
+                   bypassStateGate: bool = false) =
   ## Serialize durable run state for the current mode. No-op for unsupported
   ## modes (PvP / sandbox / 3D boss) or when there is nothing to resume.
   if game.isNil or not isSupportedRunMode(game.mode):
     return
   # Only an actually-live run is resumable. Guards against persisting the idle
   # menu Game (which defaults to gmWaveBased) as a bogus wave-1 save on shutdown.
-  if game.state notin {gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared,
+  # A block-checkpoint write (bypassStateGate) may fire at the boss-completion
+  # moment where the transient state is not one of the resumable states.
+  if not bypassStateGate and
+     game.state notin {gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared,
                        gsPowerUpSelect, gsRogueliteFloorSelect}:
     return
   # Never persist a finished/failed run.
   if game.hasWonGame and game.mode == gmWaveBased:
-    deleteRunSave()
+    deleteRunSave(file)
     return
   if game.mode == gmRoguelite and (game.rogueliteRun.isNil or
      game.rogueliteRun.completed or game.rogueliteRun.died):
-    deleteRunSave()
+    deleteRunSave(file)
     return
 
   var root = %* {
@@ -282,14 +289,14 @@ proc saveRunState*(game: Game) =
   else: discard
 
   try:
-    writeFile(getRunSavePath(), root.pretty())
+    writeFile(getRunSavePath(file), root.pretty())
   except CatchableError:
     echo "Warning: could not write run save"
 
-proc loadRunSaveJson(): JsonNode =
+proc loadRunSaveJson(file: string = RunSaveFile): JsonNode =
   ## Parse the run save, returning nil on any failure or version mismatch.
   try:
-    let path = getRunSavePath()
+    let path = getRunSavePath(file)
     if not fileExists(path):
       return nil
     let j = parseJson(readFile(path))
@@ -299,8 +306,8 @@ proc loadRunSaveJson(): JsonNode =
   except CatchableError:
     return nil
 
-proc hasSavedRun*(): bool =
-  loadRunSaveJson() != nil
+proc hasSavedRun*(file: string = RunSaveFile): bool =
+  loadRunSaveJson(file) != nil
 
 proc loadSavedRunMode*(): GameMode =
   ## Mode of the current saved run, or gmWaveBased if there is no valid save
@@ -309,12 +316,12 @@ proc loadSavedRunMode*(): GameMode =
   if j.isNil: return gmWaveBased
   parseMode(j.getOrDefault("mode").getStr("gmWaveBased"))
 
-proc applySavedRun*(game: Game): bool =
+proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
   ## Restore saved state onto a freshly constructed Game that has already had
   ## newGame + setGameMode(savedMode) applied. Returns false on parse failure or
   ## version/mode mismatch; the caller then deletes the file and starts fresh.
   ## On success the game.state is set to the correct resume entry state.
-  let j = loadRunSaveJson()
+  let j = loadRunSaveJson(file)
   if j.isNil:
     return false
 
@@ -439,3 +446,31 @@ proc applySavedRun*(game: Game): bool =
     return true
   except CatchableError:
     return false
+
+# ---------------------------------------------------------------------------
+# Block checkpoint: a durable, death-surviving wave-mode checkpoint written when
+# a boss block is cleared. Stored in a SEPARATE file so player death (which
+# deletes the normal run save) leaves it intact, enabling "Continue (Wave N)".
+# ---------------------------------------------------------------------------
+proc saveBlockCheckpoint*(game: Game) =
+  ## Persist the current wave-mode run as a death-surviving checkpoint. Uses the
+  ## state-gate bypass so it can fire at the boss-completion moment.
+  if game.isNil or game.mode != gmWaveBased:
+    return
+  saveRunState(game, BlockCheckpointFile, bypassStateGate = true)
+
+proc hasBlockCheckpoint*(): bool =
+  loadRunSaveJson(BlockCheckpointFile) != nil
+
+proc blockCheckpointWave*(): int =
+  ## Wave the block checkpoint resumes at, or 1 if there is no valid checkpoint.
+  let j = loadRunSaveJson(BlockCheckpointFile)
+  if j.isNil: return 1
+  j.getOrDefault("currentWave").getInt(1)
+
+proc applyBlockCheckpoint*(game: Game): bool =
+  ## Restore the block checkpoint onto a freshly constructed wave-mode Game.
+  applySavedRun(game, BlockCheckpointFile)
+
+proc deleteBlockCheckpoint*() =
+  deleteRunSave(BlockCheckpointFile)
