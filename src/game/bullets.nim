@@ -11,13 +11,38 @@ type BulletEffects* = tuple[
 
 const WindBulletFlatDamageBonus* = 0.5'f32
 
+# Every mastery except Blood gives the same headline damage bonus (+150%), so a
+# player can read "mastery = 2.5x damage on that element" and be right no matter
+# which element they drafted. Blood keeps its own (x2 damage + x2 lifesteal)
+# because half of its payoff is sustain rather than damage.
+#
+# Crucially this multiplies the ELEMENT's own damage - a DoT tick, an orb hit,
+# an aura pulse - never the bullet's base damage. Scaling a whole bullet by a
+# mastery multiplies every other damage power-up along with it, which is how you
+# get 6x builds out of two legendaries.
+const MasteryDamageMult* = 2.5'f32
+
+# Arcane is the exception on the low side: its mastery also grants piercing (and
+# arcane orbs already carry a +50% inherent premium), so its damage bonus is
+# held to +75% instead of the shared +150%.
+const ArcaneMasteryDmgMult* = 1.75'f32
+
+proc windBulletFlatBonus*(player: Player): float32 =
+  ## Wind Bullets' own flat damage contribution to a bullet, mastery included.
+  ## The mastery scales this small flat number and nothing else - wind's payoff
+  ## is the push and the slow, not the bullet damage.
+  result = WindBulletFlatDamageBonus
+  if player.hasWindMastery:
+    result *= MasteryDamageMult
+
 # Mastery multipliers, shared by every fire/poison DoT source (bullets, auras,
-# orbs) so the element identity stays consistent: fire mastery makes the burn
-# hotter, poison mastery makes the venom linger.
+# orbs) so the element identity stays consistent: both masteries hit for the
+# same +150%, and the duration multipliers are what keep fire a hot burst and
+# poison a long drip.
 const
-  FireMasteryDmgMult* = 4.5'f32
+  FireMasteryDmgMult* = MasteryDamageMult
   FireMasteryDurMult* = 1.5'f32
-  PoisonMasteryDmgMult* = 2.5'f32
+  PoisonMasteryDmgMult* = MasteryDamageMult
   PoisonMasteryDurMult* = 3.0'f32
 
 # COMMON HELPER FUNCTIONS FOR POWER-UP CALCULATIONS
@@ -224,7 +249,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
 
     var actualWindForce = bullet.windPushForce
     if effect.hasMastery:
-      actualWindForce *= 2.5  # +150% stronger
+      actualWindForce *= 3.5  # +250% stronger
 
     # Apply push
     enemy.pos.x += pushDir.x * actualWindForce * dt * bossResistance
@@ -237,9 +262,9 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     # Apply slow only with mastery (reduced by debuffResistance for bosses)
     if effect.hasMastery:
       enemy.slowTimer = 0.2
-      let slowValue = 0.40 * (1.0 - enemy.debuffResistance)
+      let slowValue = 0.45 * (1.0 - enemy.debuffResistance)
       if enemy.slowAmount < slowValue:
-        enemy.slowAmount = slowValue  # 40% slow
+        enemy.slowAmount = slowValue  # 45% slow
 
     # Visual wind effect particles
     for k in 0..3:
@@ -264,8 +289,10 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
         of 2: 150.0
         else: 175.0
 
+      var chainDmgMult = 1.0'f32
       if effect.hasMastery:
         chainRange *= 1.5  # +50% range
+        chainDmgMult = MasteryDamageMult  # +150% damage
 
       # Stun primary target (reduced by debuffResistance for bosses)
       # Only apply if stronger than current slow or current slow expired
@@ -281,7 +308,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
         if game.enemies[k] != enemy and chained < chainCount:
           let dist = distance(enemy.pos, game.enemies[k].pos)
           if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
-            let chainDmgBase = effect.baseDamage * chainDamage
+            let chainDmgBase = effect.baseDamage * chainDamage * chainDmgMult
             let chainDmgWithCrit = applyCriticalHitFromStats(stats, chainDmgBase)
             let actualDamage = damageEnemy(game.enemies[k], chainDmgWithCrit)
 

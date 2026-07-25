@@ -532,6 +532,11 @@ type
     etBlood,       # Dark red - damage + lifesteal
     etNone         # No element (shouldn't happen)
 
+  AuraSlot* = enum
+    ## One slot per player aura power-up. Each slot owns its own pulse timer so
+    ## stacked auras fire on staggered beats instead of all landing together.
+    asSlow, asFire, asLightning, asPoison, asWind, asArcane, asBlood
+
   RotatingOrb* = ref object
     angle*: float32                    # Current angle around player
     radius*: float32                   # Distance from player
@@ -619,6 +624,10 @@ type
     radialBurstTimer*: float32  # Timer for periodic radial burst
     pulseArmorCooldown*: float32  # Cooldown after triggering shockwave (always >= 0)
     pulseArmorTriggered*: bool  # Set by takeDamage; consumed next frame in game.nim
+    auraPulseTimers*: array[AuraSlot, float32]  # Per-aura countdown to its next pulse
+    auraFlashTimers*: array[AuraSlot, float32]  # Per-aura countdown after a pulse; drives the ring flash
+    auraPulsePrimed*: set[AuraSlot]  # Slots whose first pulse has been phase-offset already
+    auraPulseSeq*: array[AuraSlot, int32]  # Bumped on every pulse; enemies store the last one that swept them
     teamId*: PvPTeam  # Team assignment for PvP mode (ptNone for free-for-all)
     skinType*: int  # Current equipped skinHost
     bulletSkinType*: int  # Current equipped bullet skin
@@ -761,6 +770,7 @@ type
 
   Enemy* = ref object
     id*: int                      # Unique identifier for tracking bullet hits
+    auraWaveHitSeq*: array[AuraSlot, int32]  # Last aura pulse (per slot) whose wavefront already hit this enemy
     pos*: Vector2f
     vel*: Vector2f
     knockbackVel*: Vector2f       # Residual knockback impulse (Pulse Armor etc.); decays independently of chase AI

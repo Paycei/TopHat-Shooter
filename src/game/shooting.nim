@@ -16,7 +16,7 @@ proc calcBulletEffects(player: Player): BulletEffects =
       of 2: 0.4
       else: 0.6
     if player.hasFrostMastery:
-      slow += 0.2  # +20% slow (total up to 80%)
+      slow += 0.25  # +25% slow (total up to 85% at level 3)
 
   # These are DoT *durations* in seconds (dps lives in bullets.nim
   # fireDotDamage/poisonDotDamage): poison lingers 1.5-2x longer than fire,
@@ -168,7 +168,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
 
     # Cheap flat damage for Wind Bullets so the upgrade is meaningful
     if hasPowerUp(game.player, puWindBullets):
-      damage += WindBulletFlatDamageBonus
+      damage += windBulletFlatBonus(game.player)
 
     # RoomEcho: charged bullets from room clear deal bonus damage
     if game.player.roomEchoCharges > 0:
@@ -192,7 +192,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Apply Arcane Mastery bonus to Arcane bullets (damage + piercing)
     var arcanePiercing = hasPiercing  # Start with base piercing status
     if hasArcane and game.player.hasArcaneMastery:
-      damage *= 1.5  # +50% additional damage on top of Arcane Bullets bonus
+      damage *= ArcaneMasteryDmgMult  # +75% on top of the Arcane Bullets bonus
       arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
 
     # Calculate slow, poison, fire, and wind effects
@@ -201,10 +201,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     let poisonEffect = fx.poison
     let fireEffect = fx.fire
     let windEffect = fx.wind
-
-    # Wind Mastery: increase bullet damage for wind bullets
-    if windEffect > 0 and game.player.hasWindMastery:
-      damage *= 2.5  # +150% damage for wind bullets
 
     if hasDoubleShot and hasMultiShot:
       # When both active: Fire multishot pattern (3 directions), then schedule second burst
@@ -390,7 +386,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   # Apply Arcane Mastery bonus consistently to delayed burst bullets too.
   var arcanePiercing = hasPiercing
   if hasArcane and game.player.hasArcaneMastery:
-    damage *= 1.5  # +50% additional damage on top of Arcane Bullets bonus
+    damage *= ArcaneMasteryDmgMult  # +75% on top of the Arcane Bullets bonus
     arcanePiercing = true  # Grant piercing to Arcane bullets with mastery
 
   # NERF: Multi-shot bullets deal less damage per bullet
@@ -404,7 +400,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
 
   # Cheap flat damage for Wind Bullets so the upgrade is meaningful
   if hasPowerUp(game.player, puWindBullets):
-    damage += WindBulletFlatDamageBonus
+    damage += windBulletFlatBonus(game.player)
 
   if hasPowerUp(game.player, puHeavyRounds):
     let sizeLevel = getPowerUpLevel(game.player, puHeavyRounds)
@@ -415,10 +411,6 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   let poisonEffect = fx.poison
   let fireEffect = fx.fire
   let windEffect = fx.wind
-
-  # Wind Mastery: increase burst bullet damage for wind-enabled bullets
-  if windEffect > 0 and game.player.hasWindMastery:
-    damage *= 2.5  # +150% damage for wind bullets
 
   if hasMultiShot:
     let multiCount = 3  # Always 3 bullets for legendary Multi-Shot

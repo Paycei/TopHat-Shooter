@@ -1379,100 +1379,162 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
     j += 1
 
 proc updatePlayerAuras(game: var Game, dt: float32) =
-  # Slow Field power-up effect
-  if hasPowerUp(game.player, puSlowField):
-    let level = getPowerUpLevel(game.player, puSlowField)
+  # ALL auras are pulse-based: instead of applying a sliver of effect every
+  # frame (invisible, and indistinguishable when several auras overlap), each
+  # aura fires a discrete beat on its own timer, announced by a shockwave ring
+  # in its own color at its own radius. See src/game/auras.nim for the shared
+  # radius bands, cadences and colors that the renderer reads back.
+  template auraPulse(auraType: PowerUpType, mastery: bool, body: untyped) =
+    ## Runs `body` on every frame this aura's wavefront is sweeping outward,
+    ## injecting `level`, `radius`, `interval`, `slot`, `front` (how far the
+    ## wave has got this frame) and `justFired` (true only on the launch frame).
+    ##
+    ## The pulse is NOT instant-in-radius any more: the body must gate each
+    ## enemy on `auraWaveCatches(game.player, enemy, slot, front)`, which is
+    ## true exactly once per enemy per pulse, on the frame the ring reaches it.
+    ## So damage lands as the ring passes, matching what is drawn - an enemy at
+    ## the rim is hit ~0.3s after one standing on top of the player. Anything
+    ## that should happen once for the whole pulse (screen shake, a burst at the
+    ## player) belongs under `justFired`.
+    ##
+    ## Each aura owns a slot timer on the player, and the first tick is
+    ## phase-offset, so stacked auras beat independently rather than all landing
+    ## on the same frame.
+    if hasPowerUp(game.player, auraType):
+      let level {.inject.} = getPowerUpLevel(game.player, auraType)
+      let radius {.inject.} = getAuraRadiusFor(auraType, level)
+      let interval {.inject.} = getAuraPulseInterval(auraType, level, mastery)
+      let slot {.inject.} = auraSlotOf(auraType)
+      # The flash timer doubles as the wave clock: it runs AuraFlashDuration ->
+      # 0, and the first AuraWaveTravelTime of that is the outbound trip. Its
+      # value before and after this frame's decrement gives the wave's previous
+      # and current position - no separate wave state to keep in sync.
+      let prevFlash = game.player.auraFlashTimers[slot]
+      if prevFlash > 0:
+        game.player.auraFlashTimers[slot] = max(0.0'f32, prevFlash - dt)
+      if slot notin game.player.auraPulsePrimed:
+        game.player.auraPulsePrimed.incl(slot)
+        game.player.auraPulseTimers[slot] = interval * auraPhaseOffset(slot)
+      game.player.auraPulseTimers[slot] -= dt
+      var justFired {.inject.} = false
+      if game.player.auraPulseTimers[slot] <= 0:
+        game.player.auraPulseTimers[slot] = interval
+        game.player.auraFlashTimers[slot] = AuraFlashDuration
+        # Bumping the sequence retires every enemy's mark at once, which is what
+        # re-arms them for this new wave. No shockwave ring here: those snap to
+        # full radius in ~0.13s and would outrun the wave that actually hits.
+        inc game.player.auraPulseSeq[slot]
+        justFired = true
+      let prevElapsed =
+        if prevFlash > 0: AuraFlashDuration - prevFlash else: AuraFlashDuration
+      let curElapsed = AuraFlashDuration - game.player.auraFlashTimers[slot]
+      # Sweep while the front is still in flight. The `prevElapsed` guard is what
+      # gives the final frame a full-radius sweep (clamped below) and then stops:
+      # without it, a long frame could retire the wave with its outermost shell
+      # never swept, and enemies at the rim would be skipped.
+      let sweeping = prevElapsed < AuraWaveTravelTime and curElapsed > 0.0'f32
+      if justFired or sweeping:
+        let front {.inject.} =
+          if sweeping: auraWaveFrontRadius(min(curElapsed, AuraWaveTravelTime), radius)
+          else: 0.0'f32
+        body
+
+  # Per-pulse particle budget. The ring already carries the beat, so the
+  # per-enemy bursts are pure garnish - unbounded, a 100-enemy wave under
+  # several auras would spawn thousands of particles on a single frame.
+  const AuraFxBudget = 20
+
+  # Slow Field - chills everything in range on the beat
+  auraPulse(puSlowField, false):
+    var fxBudget = AuraFxBudget
     let slowPercent = case level
-      of 1: 0.30
-      of 2: 0.45
-      else: 0.55
-    let slowRadius = getAuraRadius(level)
-    let slowRadiusSq = slowRadius * slowRadius
+      of 1: 0.30'f32
+      of 2: 0.45'f32
+      else: 0.55'f32
+    # Slow is this aura's whole identity, so the debuff is held until the next
+    # pulse (plus a little overlap) instead of lapsing between beats.
+    let holdTime = interval * 1.15
+    let chipDamage = 0.4'f32 * interval
 
     for enemy in game.enemies:
-      let sdx = game.player.pos.x - enemy.pos.x
-      let sdy = game.player.pos.y - enemy.pos.y
-      if sdx * sdx + sdy * sdy < slowRadiusSq:
-        # Apply slow effect
-        enemy.slowTimer = 0.2  # Refresh slow duration
+      if auraWaveCatches(game.player, enemy, slot, front):
+        enemy.slowTimer = holdTime
         enemy.slowAmount = slowPercent
-        # Frost chip damage
-        let slowChipDamage = damageEnemy(enemy, 0.4 * dt)
+        let slowChipDamage = damageEnemy(enemy, chipDamage)
         if slowChipDamage > 0:
           accumulateAndShowAuraDamage(game, enemy, slowChipDamage, dtFrost, false)
-      else:
-        # Decay slow effect when outside range
-        if enemy.slowTimer > 0:
-          enemy.slowTimer -= dt
-          if enemy.slowTimer <= 0:
-            enemy.slowAmount = 0
+        if fxBudget > 0:
+          dec fxBudget
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                               getAuraPulseColor(puSlowField), 4)
 
-  # Fire Aura power-up effect - hot burn: higher dps than poison but the
-  # after-burn fades quickly once enemies leave the aura
-  if hasPowerUp(game.player, puFireAura):
-    let level = getPowerUpLevel(game.player, puFireAura)
+  # Fire Aura - the beat ignites everything in range. Hot burn: higher dps than
+  # poison, but the after-burn fades quickly once enemies leave the aura.
+  auraPulse(puFireAura, game.player.hasFireMastery):
+    var fxBudget = AuraFxBudget
     let damageScaling = game.player.damage * 0.35
     let fireDamagePerSec = case level
       of 1: 1.5 + damageScaling
       of 2: 3.5 + damageScaling
       else: 6.5 + damageScaling
-    let fireDuration = case level
-      of 1: 2.0
-      of 2: 3.0
-      else: 4.0
-    let fireRadius = getAuraRadius(level)
-    let fireRadiusSq = fireRadius * fireRadius
+    # Burn must outlast the gap between beats or the aura's dps would drop just
+    # from being pulsed, so the level duration is floored at one cycle + 20%.
+    let fireDuration = max(case level
+      of 1: 2.0'f32
+      of 2: 3.0'f32
+      else: 4.0'f32, interval * 1.2)
 
     for enemy in game.enemies:
-      let fdx = game.player.pos.x - enemy.pos.x
-      let fdy = game.player.pos.y - enemy.pos.y
-      if fdx * fdx + fdy * fdy < fireRadiusSq:
+      if auraWaveCatches(game.player, enemy, slot, front):
         applyMasteryDoT(enemy, etFire, fireDamagePerSec, fireDuration,
                         game.player.hasFireMastery,
                         masteryDmgMult = FireMasteryDmgMult, masteryDurMult = FireMasteryDurMult,
                         masterySlowAmount = 0.45, source = "aura")
 
-        # Visual fire particles
-        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                                 enemy.radius + 5.0, 4.8, Red, 2, dt, -3.0)
+        # Ignition burst on the beat, then the DoT keeps its own small flames
+        if fxBudget > 0:
+          dec fxBudget
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                               getAuraPulseColor(puFireAura), 5)
 
-  # Lightning Aura power-up effect - low damage with chain lightning
-  if hasPowerUp(game.player, puLightningAura):
-    let level = getPowerUpLevel(game.player, puLightningAura)
+  # Lightning Aura - one arc storm per beat. Pulsing suits this aura best: the
+  # chains are now a single readable burst instead of one-frame flickers.
+  auraPulse(puLightningAura, game.player.hasLightningMastery):
+    var fxBudget = AuraFxBudget
     let damageScaling = game.player.damage * 0.3
-    var lightningDamagePerSec = case level
-      of 1: 1.0 + damageScaling
-      of 2: 2.5 + damageScaling
-      else: 5.0 + damageScaling
+    # Per-beat damage = the old per-second value times the cycle length, so the
+    # sustained dps is preserved and each hit is a number you can actually read.
+    var lightningDamage = (case level
+      of 1: 1.0'f32 + damageScaling
+      of 2: 2.5'f32 + damageScaling
+      else: 5.0'f32 + damageScaling) * interval
     var maxChains = case level
       of 1: 1
       of 2: 2
       else: 4
-    let lightningRadius = getAuraRadius(level)
     let chainRange = 80.0  # Distance lightning can chain between enemies
 
     # Apply Lightning Mastery bonuses if owned
     if game.player.hasLightningMastery:
-      lightningDamagePerSec *= 2.5  # +150% damage
+      lightningDamage *= MasteryDamageMult  # +150% damage
       maxChains += 1  # +1 chain
 
-    # Build list of enemies in range
-    var enemiesInRange: seq[tuple[enemy: Enemy, dist: float32]] = @[]
+    # Only the enemies the arc front reached this frame - the storm rolls
+    # outward with the ring instead of striking the whole field at once.
+    var enemiesInRange: seq[Enemy] = @[]
     for enemy in game.enemies:
-      let dist = distance(game.player.pos, enemy.pos)
-      if dist < lightningRadius:
-        enemiesInRange.add((enemy: enemy, dist: dist))
+      if auraWaveCatches(game.player, enemy, slot, front):
+        enemiesInRange.add(enemy)
 
     # Calculate combat stats once before loop
     let stats = calculateCombatStats(game.player)
 
     # Apply damage and chain lightning
     var processedEnemies: seq[Enemy] = @[]
-    for entry in enemiesInRange:
-      let enemy = entry.enemy
+    for enemy in enemiesInRange:
       if enemy notin processedEnemies:
         # Apply initial damage with crit chance using centralized stats
-        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, lightningDamagePerSec * dt)
+        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, lightningDamage)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
         processedEnemies.add(enemy)
 
@@ -1485,15 +1547,17 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
         # Use accumulation system for reliable damage numbers
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dtLightning, wasCrit)
 
-        # Apply slow ONLY if player has Lightning Mastery
+        # Apply slow ONLY if player has Lightning Mastery (held until next beat)
         if game.player.hasLightningMastery:
-          enemy.slowTimer = 0.2
+          enemy.slowTimer = interval * 1.15
           if enemy.slowAmount < 0.25:
             enemy.slowAmount = 0.25  # 25% slow
 
         # Visual lightning spark
-        spawnTimedParticlesPooled(game.particlePool, enemy.pos.x, enemy.pos.y, 6.0,
-                           Color(r: 150, g: 200, b: 255, a: 255), 3, dt)
+        if fxBudget > 0:
+          dec fxBudget
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                               getAuraPulseColor(puLightningAura), 5)
 
         # Chain to nearby enemies
         var currentEnemy = enemy
@@ -1503,15 +1567,21 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
           var nearestEnemy: Enemy = nil
 
           for other in game.enemies:
-            if other != currentEnemy and other notin processedEnemies:
+            # Skip anything this pulse already spent itself on, whether the
+            # front swept it earlier or an earlier link chained to it
+            if other != currentEnemy and other notin processedEnemies and
+               not auraWaveAlreadyHit(game.player, other, slot):
               let chainDist = distance(currentEnemy.pos, other.pos)
               if chainDist < chainRange and chainDist < nearestDist:
                 nearestDist = chainDist
                 nearestEnemy = other
 
           if nearestEnemy != nil:
+            # Chaining consumes the target for this pulse, so the front cannot
+            # reach it later and hit it a second time
+            markAuraWaveHit(game.player, nearestEnemy, slot)
             # Apply chained damage (same as initial) with crit chance using centralized stats
-            let (chainDamageWithCrit, chainWasCrit) = applyCriticalHitWithFlag(stats, lightningDamagePerSec * dt)
+            let (chainDamageWithCrit, chainWasCrit) = applyCriticalHitWithFlag(stats, lightningDamage)
             let chainedDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
             processedEnemies.add(nearestEnemy)
 
@@ -1524,7 +1594,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
             accumulateAndShowAuraDamage(game, nearestEnemy, chainedDamage, dtLightning, chainWasCrit)
 
             # Apply 5% slow effect to chained enemy
-            nearestEnemy.slowTimer = 0.2
+            nearestEnemy.slowTimer = interval * 1.15
             if nearestEnemy.slowAmount < 0.05:
               nearestEnemy.slowAmount = 0.05
 
@@ -1535,30 +1605,25 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
           else:
             break  # No more enemies to chain to
 
-  # Arcane Aura power-up effect - pure arcane damage
-  if hasPowerUp(game.player, puArcaneAura):
-    let level = getPowerUpLevel(game.player, puArcaneAura)
+  # Arcane Aura - pure arcane damage, the fastest and tightest of the beats
+  auraPulse(puArcaneAura, game.player.hasArcaneMastery):
+    var fxBudget = AuraFxBudget
     let damageScaling = game.player.damage * 0.3
-    var arcaneDamagePerSec = case level
-      of 1: 3.5 + damageScaling
-      of 2: 7.5 + damageScaling
-      else: 10.0 + damageScaling
-    let arcaneRadius = getAuraRadius(level)
+    var arcaneDamage = (case level
+      of 1: 3.5'f32 + damageScaling
+      of 2: 7.5'f32 + damageScaling
+      else: 10.0'f32 + damageScaling) * interval
 
     # Apply Arcane Mastery bonuses if owned
     if game.player.hasArcaneMastery:
-      arcaneDamagePerSec *= 2.0  # +100% damage
-
-    let arcaneRadiusSq = arcaneRadius * arcaneRadius
+      arcaneDamage *= ArcaneMasteryDmgMult  # +75% damage
 
     # Calculate combat stats once before loop
     let arcaneStats = calculateCombatStats(game.player)
 
     for enemy in game.enemies:
-      let adx = game.player.pos.x - enemy.pos.x
-      let ady = game.player.pos.y - enemy.pos.y
-      if adx * adx + ady * ady < arcaneRadiusSq:
-        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(arcaneStats, arcaneDamagePerSec * dt)
+      if auraWaveCatches(game.player, enemy, slot, front):
+        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(arcaneStats, arcaneDamage)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
 
         # Track arcane aura damage for statistics
@@ -1571,131 +1636,135 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dtArcane, wasCrit)
 
         # Visual arcane particles (purple sparkles)
-        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                                 enemy.radius + 3.0, 7.2,
-                                 Color(r: 200, g: 100, b: 255, a: 255), 2, dt)
+        if fxBudget > 0:
+          dec fxBudget
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                               getAuraPulseColor(puArcaneAura), 5)
 
-  # Poison Aura power-up effect - slow drip: lower dps than fire but the
-  # venom keeps ticking for up to 10s after enemies leave the aura
-  if hasPowerUp(game.player, puPoisonAura):
-    let level = getPowerUpLevel(game.player, puPoisonAura)
+  # Poison Aura - slow drip: lower dps than fire but the venom keeps ticking for
+  # up to 10s after enemies leave the aura, so it barely notices being pulsed
+  auraPulse(puPoisonAura, game.player.hasPoisonMastery):
+    var fxBudget = AuraFxBudget
     let damageScaling = game.player.damage * 0.25
     let poisonDamagePerSec = case level
       of 1: 0.8 + damageScaling
       of 2: 2.0 + damageScaling
       else: 4.0 + damageScaling
-    let poisonDuration = case level
-      of 1: 6.0
-      of 2: 8.0
-      else: 10.0
-    let poisonRadius = getAuraRadius(level)
-    let poisonRadiusSq = poisonRadius * poisonRadius
+    let poisonDuration = max(case level
+      of 1: 6.0'f32
+      of 2: 8.0'f32
+      else: 10.0'f32, interval * 1.2)
 
     for enemy in game.enemies:
-      let pdx = game.player.pos.x - enemy.pos.x
-      let pdy = game.player.pos.y - enemy.pos.y
-      if pdx * pdx + pdy * pdy < poisonRadiusSq:
+      if auraWaveCatches(game.player, enemy, slot, front):
         applyMasteryDoT(enemy, etPoison, poisonDamagePerSec, poisonDuration,
                         game.player.hasPoisonMastery,
                         masteryDmgMult = PoisonMasteryDmgMult, masteryDurMult = PoisonMasteryDurMult,
                         masterySlowAmount = 0.40, source = "aura")
 
         # Visual poison particles
-        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                                 enemy.radius + 5.0, 3.6,
-                                 Color(r: 100, g: 255, a: 200), 2, dt, -3.0)
+        if fxBudget > 0:
+          dec fxBudget
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                               getAuraPulseColor(puPoisonAura), 4)
 
-  # Wind Aura power-up effect - pushes enemies away from player (slow aura but different mechanic)
-  if hasPowerUp(game.player, puWindAura):
-    let level = getPowerUpLevel(game.player, puWindAura)
-    var pushStrength = case level
-      of 1: 50.0   # Weak push
-      of 2: 80.0   # Medium push
-      else: 120.0  # Strong push
-    let windRadius = getAuraRadius(level)
-
-    # Apply Wind Mastery bonuses if owned
+  # Wind Aura - the gust blasts every enemy in radius outward (Pulse Armor style
+  # shove). This is the one aura whose beat also moves the battlefield.
+  auraPulse(puWindAura, game.player.hasWindMastery):
+    # Launch speed fed into enemy.knockbackVel (a shove that coasts to a stop),
+    # not a per-frame nudge, so the gust reads as a single hit of force.
+    var pushForce = case level
+      of 1: 420.0'f32
+      of 2: 560.0'f32
+      else: 700.0'f32
+    var gustDamage = (case level
+      of 1: 2.0'f32
+      of 2: 4.0'f32
+      else: 7.0'f32) + game.player.damage * 0.25'f32
     if game.player.hasWindMastery:
-      pushStrength *= 2.5  # Stronger push (+150%)
+      pushForce *= 2.2  # the gust is wind's identity, so mastery leans on it
+      gustDamage *= MasteryDamageMult  # +150% damage, same as every other mastery
 
     for enemy in game.enemies:
-      let dist = distance(game.player.pos, enemy.pos)
-      if dist < windRadius and dist > 5.0:  # Don't push if too close
-        # Calculate push direction (away from player)
-        let pushDir = (enemy.pos - game.player.pos).normalize()
+      if auraWaveCatches(game.player, enemy, slot, front):
+        let dist = distance(game.player.pos, enemy.pos)
+        # Deterministic fallback direction when the enemy overlaps the player
+        let delta = enemy.pos - game.player.pos
+        let awayFromPlayer =
+          if delta.length() > 0.01'f32: delta.normalize()
+          else: newVector2f(0, -1)
 
-        # Bosses are much more resistant to wind push (10% effectiveness)
-        let bossResistance = if enemy.isBoss: 0.1 else: 1.0
+        # Stronger up close, with a floor so enemies at the rim still get moved.
+        # Bosses barely budge so they can't be kited around by the aura alone.
+        let proximity = 0.4'f32 + 0.6'f32 * (1.0'f32 - dist / radius)
+        let resistance = if enemy.isBoss: 0.12'f32 else: 1.0'f32
+        # Overwrite rather than accumulate so repeated gusts feel consistent
+        enemy.knockbackVel = awayFromPlayer * (pushForce * proximity * resistance)
 
-        # Apply push force (stronger when closer)
-        let pushForce = pushStrength * (1.0 - (dist / windRadius)) * bossResistance
-        enemy.pos.x += pushDir.x * pushForce * dt
-        enemy.pos.y += pushDir.y * pushForce * dt
-
-        # Clamp to screen boundaries - enemies can't be pushed through borders
-        enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
-        enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
-
-        # Wind chip damage
-        var baseWindChip = 0.3 * dt
-        if game.player.hasWindMastery:
-          baseWindChip *= 2.5  # +150% damage for wind aura chips
-
-        let windChipDamage = damageEnemy(enemy, baseWindChip)
-        if windChipDamage > 0:
-          # Track wind aura damage and Wind Mastery contribution
-          trackPowerUpDamage(game, puWindAura, windChipDamage)
+        let dmg = if enemy.isBoss: gustDamage * 0.25'f32 else: gustDamage
+        let windDamage = damageEnemy(enemy, dmg)
+        if windDamage > 0:
+          trackPowerUpDamage(game, puWindAura, windDamage)
           if game.player.hasWindMastery:
-            trackPowerUpDamage(game, puWindMastery, windChipDamage)
+            trackPowerUpDamage(game, puWindMastery, windDamage)
+          game.showDamage(enemy.pos, windDamage, fromPlayer = true,
+                          isCritical = false, damageType = dtDefault)
 
-          accumulateAndShowAuraDamage(game, enemy, windChipDamage, dtDefault, false)
-
-        # Apply slow ONLY if player has Wind Mastery
+        # Apply slow ONLY if player has Wind Mastery - held until the next gust
         if game.player.hasWindMastery:
-          enemy.slowTimer = 0.2
-          if enemy.slowAmount < 0.40:
-            enemy.slowAmount = 0.40  # 40% slow
+          enemy.slowTimer = interval * 1.15
+          if enemy.slowAmount < 0.45:
+            enemy.slowAmount = 0.45  # 45% slow
 
-        # Visual wind particles (outward from player toward enemies)
-        spawnTimedParticlesAroundPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
-                                 windRadius * 0.8, 4.8,
-                                 Color(r: 200, g: 230, b: 255, a: 150), 2, dt)
+    # Extra juice, launch frame only: the air burst is the gust leaving the
+    # player, so it fires once with the wave rather than every sweep frame.
+    # Shake/sound need a look-ahead over the full radius - the front has not
+    # reached anyone yet on this frame, but we still want one shake per gust
+    # instead of one per enemy the ring later catches. Wind is the only aura
+    # that shakes: it is the only one that physically moves enemies.
+    if justFired:
+      let gustColor = getAuraPulseColor(puWindAura)
+      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                    gustColor, 24)
+      var willHit = false
+      for enemy in game.enemies:
+        if distance(game.player.pos, enemy.pos) < radius:
+          willHit = true
+          break
+      if willHit:
+        addShake(game.dopamine.screenShake, siSmall, gustColor)
+        playSound(stExplosion, 0.35)
 
-  # Blood Aura power-up effect - damage with lifesteal
-  if hasPowerUp(game.player, puBloodAura):
-    let level = getPowerUpLevel(game.player, puBloodAura)
+  # Blood Aura - damage with lifesteal, drained in one bite per beat
+  auraPulse(puBloodAura, game.player.hasBloodMastery):
+    var fxBudget = AuraFxBudget
     let damageScaling = game.player.damage * 0.275
-    var bloodDamagePerSec = case level
-      of 1: 1.0 + damageScaling
-      of 2: 2.5 + damageScaling
-      else: 5.0 + damageScaling
+    var bloodDamage = (case level
+      of 1: 1.0'f32 + damageScaling
+      of 2: 2.5'f32 + damageScaling
+      else: 5.0'f32 + damageScaling) * interval
     let lifestealPercent = case level
       of 1: 0.025  # 2.5% lifesteal
       of 2: 0.05   # 5% lifesteal
       else: 0.075  # 7.5% lifesteal
-    let bloodRadius = getAuraRadius(level)
 
     # Apply Blood Mastery bonuses if owned
     var actualLifestealPercent: float64 = lifestealPercent
     if game.player.hasBloodMastery:
-      bloodDamagePerSec *= 2.0  # +100% damage
+      bloodDamage *= 2.0  # +100% damage
       actualLifestealPercent *= 2.0  # +100% lifesteal
 
-    # Static variable to track last healing number display time
-    var lastBloodHealTime {.global.} = 0.0
-    const BLOOD_HEAL_DISPLAY_INTERVAL = 0.5  # Show healing number every 0.5 seconds
-
-    # Accumulate healing for display (show healing number once per 0.5s)
+    # The beat is its own display throttle, so the drain heals and shows once
+    # per pulse - no global timestamp needed to keep the numbers readable.
     var totalHealing = 0.0
 
     # Calculate combat stats once before loop
     let bloodStats = calculateCombatStats(game.player)
 
     for enemy in game.enemies:
-      let dist = distance(game.player.pos, enemy.pos)
-      if dist < bloodRadius:
+      if auraWaveCatches(game.player, enemy, slot, front):
         # Apply blood damage with crit chance using centralized stats
-        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(bloodStats, bloodDamagePerSec * dt)
+        let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(bloodStats, bloodDamage)
         let actualDamage = damageEnemy(enemy, damageWithCrit)
 
         # Track blood aura damage for statistics
@@ -1711,9 +1780,10 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
         accumulateAndShowAuraDamage(game, enemy, actualDamage, dtFire, wasCrit)
 
         # Visual blood particles
-        spawnTimedParticlesAroundPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                                 enemy.radius + 5.0, 4.8,
-                                 Color(r: 255, g: 50, b: 50, a: 255), 2, dt, -3.0)
+        if fxBudget > 0:
+          dec fxBudget
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                               getAuraPulseColor(puBloodAura), 5)
 
     # Apply accumulated healing to player (scaled by healPowerMult)
     if totalHealing > 0:
@@ -1725,12 +1795,9 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
       if bonusHealing > 0.001 and hasPowerUp(game.player, puHealPower):
         trackPowerUpHealing(game, puHealPower, bonusHealing)
 
-      # Show healing number periodically using tracked time
-      if game.time - lastBloodHealTime >= BLOOD_HEAL_DISPLAY_INTERVAL:
-        # Display raw accumulated healing (not per-second)
-        game.showDamage(game.player.pos, totalHealing, fromPlayer = true,
-                        isCritical = false, damageType = dtHeal)
-        lastBloodHealTime = game.time
+      # One healing number per beat
+      game.showDamage(game.player.pos, totalHealing, fromPlayer = true,
+                      isCritical = false, damageType = dtHeal)
 
 proc updatePulseArmor(game: var Game) =
   # Pulse Armor - emit a real shove when taking damage. takeDamage() in player.nim
@@ -3843,17 +3910,15 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             # Track only the damage wind actually added. Wind push itself is
             # utility, and windPushForce can also include Heavy Rounds knockback.
             if bullet.windPushForce > 0 and hasPowerUp(game.player, puWindBullets):
-              let windFlatDamage = if finalDamage > 0:
-                actualDamage * (WindBulletFlatDamageBonus / finalDamage)
-              else:
-                0.0'f32
+              # Share of the final hit that one point of pre-crit damage is worth
+              let dmgShare = if finalDamage > 0: actualDamage / finalDamage else: 0.0'f32
+              let windFlatDamage = WindBulletFlatDamageBonus * dmgShare
               if windFlatDamage > 0:
                 trackPowerUpDamage(game, puWindBullets, windFlatDamage)
               if game.player.hasWindMastery:
-                let windMasteryDamage = if finalDamage > 0:
-                  actualDamage * ((bullet.damage - (bullet.damage / 2.5'f32)) / finalDamage)
-                else:
-                  0.0'f32
+                # Mastery owns only the extra flat damage it added on top
+                let windMasteryDamage =
+                  (windBulletFlatBonus(game.player) - WindBulletFlatDamageBonus) * dmgShare
                 if windMasteryDamage > 0:
                   trackPowerUpDamage(game, puWindMastery, windMasteryDamage)
 
@@ -5261,13 +5326,29 @@ proc drawGame*(game: Game) =
 
   # UNIFIED AURA RENDERING
   # Draw all active aura effects using the unified aura system
+  # Each aura draws at its own radius with its own charge sweep, so a player
+  # running several can read every one of them at a glance. Widest first, so the
+  # tighter inner rings stay legible on top.
   const AURA_TYPES = [puSlowField, puFireAura, puLightningAura, puPoisonAura, puWindAura, puArcaneAura, puBloodAura]
   if playerVisible:
     for auraType in AURA_TYPES:
       if hasPowerUp(game.player, auraType):
         let level = getPowerUpLevel(game.player, auraType)
         let config = getAuraConfig(auraType, level)
-        drawAuraEffect(game.player.pos, config, game.time)
+        let slot = auraSlotOf(auraType)
+        let mastery = case auraType
+          of puFireAura: game.player.hasFireMastery
+          of puLightningAura: game.player.hasLightningMastery
+          of puPoisonAura: game.player.hasPoisonMastery
+          of puWindAura: game.player.hasWindMastery
+          of puArcaneAura: game.player.hasArcaneMastery
+          of puBloodAura: game.player.hasBloodMastery
+          else: false
+        let interval = getAuraPulseInterval(auraType, level, mastery)
+        # Sweep fills as the timer runs down toward the next pulse
+        let charge = clamp(1.0'f32 - game.player.auraPulseTimers[slot] / interval, 0.0, 1.0)
+        let flash = clamp(game.player.auraFlashTimers[slot] / AuraFlashDuration, 0.0, 1.0)
+        drawAuraEffect(game.player.pos, config, game.time, charge, flash)
 
   # Draw player
   if playerVisible:

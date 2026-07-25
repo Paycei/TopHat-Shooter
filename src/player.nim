@@ -119,6 +119,7 @@ proc newPlayer*(x, y: float32): Player =
     radialBurstTimer: 0.0,
     pulseArmorCooldown: 0.0,
     pulseArmorTriggered: false,
+    auraPulsePrimed: {},  # aura timers phase-offset on first tick, see updatePlayerAuras
     skinType: 0,  # Default skin (skDefault)
     bulletSkinType: 0,
     bulletShapeType: 0,
