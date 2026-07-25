@@ -343,7 +343,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     enemy.pos = enemy.pos + blendedDir * enemy.speed * dt
 
   of "reality_break":
-    # Chaotic unpredictable movement, time-based multi-frequency angle, no per-frame rand
+    # Chaotic unpredictable movement, time-based multi-frequency angle
     let randomAngle = game.time * 1.3 + sin(game.time * 2.7 + enemy.pos.x * 0.01) * PI +
                       cos(game.time * 1.9 + enemy.pos.y * 0.01) * PI
     let randomDir = newVector2f(cos(randomAngle), sin(randomAngle))

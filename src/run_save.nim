@@ -28,8 +28,23 @@ const BlockCheckpointFile = "run_checkpoint.json"
 proc getRunSavePath*(file: string = RunSaveFile): string =
   getAppDataPath() / file
 
+# Block-checkpoint presence cache. The game-over screen asks "is there a
+# checkpoint, and for which wave?" from both its input branch and its draw
+# branch, every frame -- without this that is two file reads plus two full JSON
+# parses per frame. This process is the only writer, so the cache only has to be
+# dropped when we write/delete, and it is keyed by path so switching profiles
+# (which changes getAppDataPath) re-reads on its own.
+var bcCachePath = ""      # "" = nothing cached yet
+var bcCacheExists = false
+var bcCacheWave = 1
+
+proc invalidateBlockCheckpointCache*() =
+  bcCachePath = ""
+
 proc deleteRunSave*(file: string = RunSaveFile) =
   ## Remove the current profile's run save, if any.
+  if file == BlockCheckpointFile:
+    invalidateBlockCheckpointCache()
   try:
     let path = getRunSavePath(file)
     if fileExists(path):
@@ -68,6 +83,7 @@ proc playerToJson(p: Player): JsonNode =
 
   result = %* {
     "hp": p.hp, "maxHp": p.maxHp,
+    "baseRadius": p.baseRadius,
     "speed": p.speed, "baseSpeed": p.baseSpeed,
     "damage": p.damage, "bulletDamageMult": p.bulletDamageMult,
     "fireRate": p.fireRate, "bulletSpeed": p.bulletSpeed,
@@ -117,6 +133,9 @@ proc applyPlayerJson(p: Player, j: JsonNode) =
     if j.hasKey(key): field = j[key].getBool()
 
   f("hp", p.hp); f("maxHp", p.maxHp)
+  # baseRadius is permanently grown by Heavy Rounds, so it is build state, not a
+  # constant: without it a resumed run silently drops that power-up's drawback.
+  f("baseRadius", p.baseRadius)
   f("speed", p.speed); f("baseSpeed", p.baseSpeed)
   f("damage", p.damage); f("bulletDamageMult", p.bulletDamageMult)
   f("fireRate", p.fireRate); f("bulletSpeed", p.bulletSpeed)
@@ -265,11 +284,20 @@ proc saveRunState*(game: Game, file: string = RunSaveFile,
     deleteRunSave(file)
     return
 
+  # Per-item purchase counts drive BOTH the shop's price curve
+  # (baseCost * 1.8^bought) and the per-purchase gain curves, so they are durable
+  # run state. The stat gains themselves are already baked into the saved player,
+  # so these are restored as counters only -- never re-applied as effects.
+  var shopBought = newJArray()
+  for item in game.shopItems:
+    shopBought.add(%item.bought)
+
   var root = %* {
     "version": RunSaveVersion,
     "mode": $game.mode,
     "cheatsUsed": game.cheatsUsed,
     "time": game.time,
+    "shopBought": shopBought,
     "player": playerToJson(game.player)
   }
 
@@ -280,6 +308,12 @@ proc saveRunState*(game: Game, file: string = RunSaveFile,
     root["bossCount"] = %game.bossCount
     root["rerollCost"] = %game.rerollCost
     root["hasWonGame"] = %game.hasWonGame
+    # The comeback bonus is a temporary stat loan that the wave-advance path
+    # pays back once currentWave reaches comebackEndWave. Its stat half rides
+    # along in the player snapshot, so dropping the bookkeeping half here would
+    # leave nothing to trigger removeComebackBonus -- the loan turns permanent.
+    root["comebackBonusActive"] = %game.comebackBonusActive
+    root["comebackEndWave"] = %game.comebackEndWave
   of gmTimeSurvival:
     root["survivalTime"] = %game.survivalTime
     root["bossTimer"] = %game.bossTimer
@@ -335,6 +369,14 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
     if j.hasKey("player"):
       applyPlayerJson(game.player, j["player"])
 
+    # Restore the shop price/gain curves. Counters only: the purchases they paid
+    # for are already part of the restored player stats (re-applying the effects
+    # here would double them).
+    let shopBought = j.getOrDefault("shopBought")
+    if shopBought.kind == JArray:
+      for i in 0 ..< min(shopBought.len, game.shopItems.len):
+        game.shopItems[i].bought = max(0, shopBought[i].getInt(0))
+
     case game.mode
     of gmWaveBased:
       game.currentWave = j.getOrDefault("currentWave").getInt(1)
@@ -345,6 +387,8 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
       game.bossCount = j.getOrDefault("bossCount").getInt(0)
       game.rerollCost = j.getOrDefault("rerollCost").getInt(0)
       game.hasWonGame = j.getOrDefault("hasWonGame").getBool(false)
+      game.comebackBonusActive = j.getOrDefault("comebackBonusActive").getBool(false)
+      game.comebackEndWave = j.getOrDefault("comebackEndWave").getInt(0)
       game.waveInProgress = false
       game.waveEnemiesRemaining = 0
       game.bossWaveManager = BossWaveManager(active: false, coinActive: false)
@@ -454,19 +498,29 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
 # ---------------------------------------------------------------------------
 proc saveBlockCheckpoint*(game: Game) =
   ## Persist the current wave-mode run as a death-surviving checkpoint. Uses the
-  ## state-gate bypass so it can fire at the boss-completion moment.
+  ## state-gate bypass so it can fire outside the resumable states.
   if game.isNil or game.mode != gmWaveBased:
     return
+  invalidateBlockCheckpointCache()
   saveRunState(game, BlockCheckpointFile, bypassStateGate = true)
 
+proc refreshBlockCheckpointCache() =
+  let path = getRunSavePath(BlockCheckpointFile)
+  if bcCachePath == path:
+    return
+  let j = loadRunSaveJson(BlockCheckpointFile)
+  bcCacheExists = j != nil
+  bcCacheWave = if j.isNil: 1 else: j.getOrDefault("currentWave").getInt(1)
+  bcCachePath = path
+
 proc hasBlockCheckpoint*(): bool =
-  loadRunSaveJson(BlockCheckpointFile) != nil
+  refreshBlockCheckpointCache()
+  bcCacheExists
 
 proc blockCheckpointWave*(): int =
   ## Wave the block checkpoint resumes at, or 1 if there is no valid checkpoint.
-  let j = loadRunSaveJson(BlockCheckpointFile)
-  if j.isNil: return 1
-  j.getOrDefault("currentWave").getInt(1)
+  refreshBlockCheckpointCache()
+  bcCacheWave
 
 proc applyBlockCheckpoint*(game: Game): bool =
   ## Restore the block checkpoint onto a freshly constructed wave-mode Game.

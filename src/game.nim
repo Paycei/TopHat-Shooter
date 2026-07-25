@@ -294,6 +294,17 @@ proc calculateWaveEnemyCount(waveNumber: int): int =
   result = int(8 + 3.0 * pow(float(waveNumber - 1), 0.6))
 
 proc startWave*(game: Game) =
+  # Death-surviving block checkpoint, written at the START of each boss block
+  # (waves 5, 9, 13, ... for a BossWaveInterval of 4 -- wavesUntilBoss is only
+  # back at its full value on a block's first wave). Two reasons for the timing:
+  #   * it runs AFTER the previous boss's reward draft and shop visit, so those
+  #     are part of the checkpoint instead of being lost on a Continue;
+  #   * it runs BEFORE the per-wave stat scaling below, so resuming replays this
+  #     exact startWave call once rather than compounding the scaling.
+  if game.mode == gmWaveBased and game.currentWave > 1 and
+     game.wavesUntilBoss == BossWaveInterval - 1:
+    saveBlockCheckpoint(game)
+
   game.waveInProgress = true
   game.waveStartTime = game.time  # Track when this wave started
   # Visual pulse ring, cyan for normal waves, orange for boss-lead waves
@@ -599,11 +610,10 @@ proc completeBossWave*(game: Game) =
   if game.wavesUntilBoss <= 0:
     game.wavesUntilBoss = BossWaveInterval - 1  # Next boss BossWaveInterval waves later
 
-  # Write a death-surviving block checkpoint capturing the state entering the
-  # next block (wave 6/11/16/...). Bypasses the run-save state gate because the
-  # transient state at this moment is not one of the resumable states.
-  if game.mode == gmWaveBased:
-    saveBlockCheckpoint(game)
+  # (The death-surviving block checkpoint is NOT written here: at this point the
+  # boss reward draft and the between-wave shop have not happened yet. It is
+  # written at the top of startWave for the block's first wave instead, so the
+  # checkpoint carries the reward power-up and any shop purchases.)
 
   # Reset combo after boss wave
   game.dopamine.comboSystem.killCount = 0

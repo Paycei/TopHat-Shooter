@@ -636,6 +636,9 @@ proc main() =
     activeProfileSlot = slot
     setLastUsedProfileSlot(slot)
     currentDifficulty = loadProfileDifficulty(slot)
+    # Run saves are per-profile; drop the cached checkpoint lookup so the new
+    # profile's own checkpoint (or absence of one) is what gets read back.
+    invalidateBlockCheckpointCache()
 
     reloadSettingsFromDisk(settings)
     applySettings(settings)
@@ -2822,7 +2825,9 @@ proc main() =
         setGameMode(currentGame, gmWaveBased)
         # Resume the saved block; NO comeback bonus on this path.
         if applyBlockCheckpoint(currentGame):
-          initializeRunTracking(currentGame)
+          # Same run, resumed: keep the accumulated run statistics (power-ups
+          # collected, kills, damage, time) instead of zeroing them.
+          resumeRunTracking(currentGame)
         else:
           # Checkpoint failed to apply: fall back to a fresh run.
           currentGame.state = gsPlaying
@@ -2837,6 +2842,12 @@ proc main() =
             currentGame.rogueliteRun.heat
           else:
             currentGame.selectedRogueliteHeat
+        # An explicit restart abandons the checkpointed run (the confirm dialog
+        # already warned that Continue was still available), exactly like the
+        # menu's "New Run". Keeping the file would let a fresh wave-1 run die at
+        # wave 2 and still offer "Continue (Wave 21)" from the discarded run.
+        if previousMode == gmWaveBased:
+          deleteBlockCheckpoint()
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
@@ -2875,7 +2886,7 @@ proc main() =
 
       proc requestExit() =
         if goShowContinue: showGlobalConfirm(cdcAbandonExit, 1.0)
-        elif settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit)
+        elif settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit, cooldown = 0.0'f32)
         else: doExit()
 
       # Keyboard navigation - A/D/LEFT/RIGHT to change button selection.
@@ -3015,6 +3026,9 @@ proc main() =
             currentGame.rogueliteRun.heat
           else:
             currentGame.selectedRogueliteHeat
+        # Same abandon rule as the game-over Restart button.
+        if previousMode == gmWaveBased:
+          deleteBlockCheckpoint()
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)
@@ -3032,7 +3046,7 @@ proc main() =
 
       # Return to menu, asking for confirmation first (unless disabled in settings)
       if not globalConfirmActive and isKeyPressed(Q):
-        if settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit)
+        if settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit, cooldown = 0.0'f32)
         else: doReturnToMenuFromStats()
 
       beginGameDrawing()
@@ -3087,7 +3101,7 @@ proc main() =
         statsSavedThisGame = false
 
       proc requestReturnToMenuFromVictory() =
-        if settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit)
+        if settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit, cooldown = 0.0'f32)
         else: doReturnToMenuFromVictory()
 
       # Keyboard navigation across the 3 buttons

@@ -55,7 +55,6 @@ type
     baseRadius*: float32
     color*: Color
     phases*: seq[BossPhaseDefinition]
-    specialAbilities*: seq[string]
     description*: string
     weakPoint*: BossWeakPointDefinition
 
@@ -67,13 +66,13 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   #   tier 1-4  ~3.6x   tier 5-8  ~6x   tier 9-11 ~11x   tier 12 ~17x
   let (bodyMult, weakMult, exposure) =
     if bossID in 1..4:
-      (0.55'f32, 1.90'f32, 2.4'f32)
+      (0.55'f32, 1.5'f32, 2.4'f32)
     elif bossID in 5..8:
-      (0.40'f32, 2.50'f32, 2.2'f32)
+      (0.40'f32, 2.0'f32, 2.2'f32)
     elif bossID in 9..11:
-      (0.28'f32, 3.00'f32, 2.0'f32)
+      (0.28'f32, 2.5'f32, 2.0'f32)
     elif bossID == 12:
-      (0.20'f32, 3.40'f32, 1.8'f32)
+      (0.20'f32, 3.0'f32, 1.8'f32)
     else:
       (1.0'f32, 1.0'f32, 0.0'f32)
 
@@ -119,7 +118,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 45.0,
       color: Color(r: 100, g: 50, b: 200, a: 255),
       description: t(tkBoss1Desc),
-      specialAbilities: @["spiral_master", "phase_shift"],
       phases: @[
         BossPhaseDefinition(
           name: "Awakening",
@@ -194,7 +192,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 50.0,
       color: Color(r: 50, g: 150, b: 50, a: 255),
       description: t(tkBoss2Desc),
-      specialAbilities: @["summon_master", "minion_empowerment"],
       phases: @[
         BossPhaseDefinition(
           name: "Legion's Call",
@@ -345,7 +342,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 48.0,
       color: Color(r: 255, g: 100, b: 0, a: 255),
       description: t(tkBoss3Desc),
-      specialAbilities: @["meteor_shower", "impact_zone"],
       phases: @[
         BossPhaseDefinition(
           name: "Orbital Strike",
@@ -489,7 +485,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 52.0,
       color: Color(r: 0, g: 200, b: 255, a: 255),
       description: t(tkBoss4Desc),
-      specialAbilities: @["laser_geometry", "grid_lock"],
       phases: @[
         BossPhaseDefinition(
           name: "Blueprint",
@@ -667,7 +662,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 46.0,
       color: Color(r: 80, g: 0, b: 120, a: 255),
       description: t(tkBoss5Desc),
-      specialAbilities: @["void_blink", "shadow_clone", "dimensional_tear"],
       phases: @[
         BossPhaseDefinition(
           name: "Phase Walk",
@@ -785,15 +779,15 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: "Void Ascension",
           hpThreshold: 0.35,
           speedMultiplier: 1.1,  # NERFED from 1.2
-          damageMultiplier: 1.2,  # NERFED from 1.5
-          defenseMultiplier: 0.9,
+          damageMultiplier: 1.1,  # NERFED from 1.5
+          defenseMultiplier: 1.5,
           color: Color(r: 160, g: 40, b: 220, a: 255),
           visualEffect: "glow",
           specialBehavior: "reality_break",
           attacks: @[
             BossAttack(
               attackType: bapTeleport,
-              damage: 12.0,
+              damage: 10.0,
               cooldown: 2.5,  # NERFED from 2.0
               projectileSpeed: 0.0,
               projectileCount: 2,  # NERFED from 3
@@ -805,10 +799,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             # reality_break peak. Leads the phase alongside the teleport.
             BossAttack(
               attackType: bapMeteor,  # nominal; routed by specialData
-              damage: 11.0,
+              damage: 10.0,
               cooldown: 3.5,
               projectileSpeed: 160.0,
-              projectileCount: 12,
+              projectileCount: 10,
               spreadAngle: 0.0,
               durationOrRadius: 110.0,
               specialData: "void_collapse"
@@ -818,7 +812,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 6.0,
               cooldown: 6.5,  # demoted to occasional filler (was 3.5)
               projectileSpeed: 170.0,
-              projectileCount: 16,
+              projectileCount: 14,
               spreadAngle: 240.0,
               durationOrRadius: 0.0
             ),
@@ -845,7 +839,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 6.0,
               cooldown: 6.0,  # demoted to occasional filler (was 2.0)
               projectileSpeed: 190.0,
-              projectileCount: 6,
+              projectileCount: 4,
               spreadAngle: 60.0,
               durationOrRadius: 0.0
             ),
@@ -873,7 +867,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 55.0,
       color: Color(r: 255, g: 255, b: 0, a: 255),  # Bright electric yellow
       description: t(tkBoss6Desc),
-      specialAbilities: @["chain_lightning", "electric_field", "voltage_spike"],
       phases: @[
         BossPhaseDefinition(
           name: "Charging",
@@ -1040,7 +1033,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 58.0,
       color: Color(r: 150, g: 100, b: 255, a: 255),
       description: t(tkBoss7Desc),
-      specialAbilities: @["satellite_control", "orbital_strike", "gravity_lock"],
       phases: @[
         BossPhaseDefinition(
           name: "Satellite Deploy",
@@ -1239,7 +1231,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 60.0,
       color: Color(r: 200, g: 0, b: 0, a: 255),
       description: t(tkBoss8Desc),
-      specialAbilities: @["rage_buildup", "crushing_charge", "blood_fury"],
       phases: @[
         BossPhaseDefinition(
           name: "Warmup",
@@ -1441,7 +1432,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 56.0,
       color: Color(r: 255, g: 200, b: 255, a: 255),
       description: t(tkBoss9Desc),
-      specialAbilities: @["prism_refraction", "light_split", "rainbow_cascade"],
       phases: @[
         BossPhaseDefinition(
           name: "First Refraction",
@@ -1602,7 +1592,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 62.0,
       color: Color(r: 0, g: 180, b: 180, a: 255),
       description: t(tkBoss10Desc),
-      specialAbilities: @["temporal_echo", "time_rewind", "chrono_break"],
       phases: @[
         BossPhaseDefinition(
           name: "Temporal Echo",
@@ -1789,7 +1778,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 58.0,
       color: Color(r: 180, g: 0, b: 180, a: 255),
       description: t(tkBoss11Desc),
-      specialAbilities: @["chaos_field", "random_teleport", "entropy_burst"],
       phases: @[
         BossPhaseDefinition(
           name: "Discord",
@@ -1975,7 +1963,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       baseRadius: 70.0,
       color: Color(r: 255, g: 50, b: 50, a: 255),
       description: t(tkBoss12Desc),
-      specialAbilities: @["omni_attack", "adaptive_defense", "final_form"],
       phases: @[
         BossPhaseDefinition(
           name: "Alpha Phase",
