@@ -1,6 +1,7 @@
 ## Save-profile selection screen, shown right after the splash on every launch.
 ##
-## Three slots; each slot is an isolated save folder (see save_system.nim).
+## One slot per difficulty (see MaxProfileSlots); each slot is an isolated save
+## folder (see save_system.nim).
 ## Clicking an empty slot opens the difficulty picker and creates the profile;
 ## clicking an occupied slot selects it; the small delete button under an
 ## occupied slot needs a second confirming click.
@@ -15,7 +16,7 @@ import ../gamepad_input
 
 type
   ProfileSelectMode* = enum
-    psmSlots,       # picking / deleting one of the three slots
+    psmSlots,       # picking / deleting one of the save slots
     psmDifficulty   # choosing the difficulty for a slot being created
 
   ProfileSlotInfo* = object
@@ -49,17 +50,24 @@ proc newProfileSelectState*(): ProfileSelectState =
 
 # --- Geometry (shared by input handling and drawing) ---
 
+const
+  # A four-card row has to fit the narrow (4:3, 1024-wide) virtual screen, so the
+  # card/gap sizes are shared by both rows rather than tuned per screen.
+  CardW = 220.0'f32
+  CardGap = 24.0'f32
+
+proc rowStartX(screenWidth: int32, count: int): float32 =
+  ## Left edge of a horizontally centered row of `count` CardW-wide cards.
+  let totalW = CardW * count.float32 + CardGap * (count - 1).float32
+  (screenWidth.float32 - totalW) / 2.0'f32
+
 proc slotCardRects(screenWidth, screenHeight: int32): array[1..MaxProfileSlots, Rectangle] =
-  const
-    cardW = 250.0'f32
-    cardH = 300.0'f32
-    gap   = 45.0'f32
-  let totalW = cardW * 3.0'f32 + gap * 2.0'f32
-  let startX = (screenWidth.float32 - totalW) / 2.0'f32
+  const cardH = 300.0'f32
+  let startX = rowStartX(screenWidth, MaxProfileSlots)
   let y      = screenHeight.float32 / 2.0'f32 - cardH / 2.0'f32 + 30.0'f32
   for i in 1..MaxProfileSlots:
-    result[i] = Rectangle(x: startX + (i - 1).float32 * (cardW + gap), y: y,
-                          width: cardW, height: cardH)
+    result[i] = Rectangle(x: startX + (i - 1).float32 * (CardW + CardGap), y: y,
+                          width: CardW, height: cardH)
 
 proc deleteButtonRect(card: Rectangle): Rectangle =
   Rectangle(x: card.x + card.width * 0.18'f32,
@@ -84,16 +92,12 @@ proc confirmDialogRects(screenWidth, screenHeight: int32):
                             width: BW, height: BH)
 
 proc difficultyCardRects(screenWidth, screenHeight: int32): array[GameDifficulty, Rectangle] =
-  const
-    cardW = 250.0'f32
-    cardH = 260.0'f32
-    gap   = 45.0'f32
-  let totalW = cardW * 3.0'f32 + gap * 2.0'f32
-  let startX = (screenWidth.float32 - totalW) / 2.0'f32
+  const cardH = 260.0'f32
+  let startX = rowStartX(screenWidth, ord(high(GameDifficulty)) + 1)
   let y      = screenHeight.float32 / 2.0'f32 - cardH / 2.0'f32 + 30.0'f32
   for d in GameDifficulty:
-    result[d] = Rectangle(x: startX + ord(d).float32 * (cardW + gap), y: y,
-                          width: cardW, height: cardH)
+    result[d] = Rectangle(x: startX + ord(d).float32 * (CardW + CardGap), y: y,
+                          width: CardW, height: cardH)
 
 # --- Shared label data ---
 
@@ -102,13 +106,15 @@ proc difficultyColor(d: GameDifficulty): Color =
   of gdEasy:   Color(r: 80, g: 205, b: 120, a: 255)
   of gdMedium: Color(r: 240, g: 190, b: 60, a: 255)
   of gdHard:   Color(r: 235, g: 80, b: 80, a: 255)
+  of gdNightmare: Color(r: 190, g: 70, b: 245, a: 255)
 
 proc difficultyLabel(d: GameDifficulty): string =
-  # Bilingual where the words differ; "NORMAL" reads the same in both.
+  # Bilingual where the words differ; "NORMAL"/"NIGHTMARE" read in both.
   case d
   of gdEasy:   "EASY / FACIL"
   of gdMedium: "NORMAL"
   of gdHard:   "HARD / DIFICIL"
+  of gdNightmare: "NIGHTMARE"
 
 # --- Input handling ---
 
@@ -147,6 +153,7 @@ proc updateProfileSelect*(state: ProfileSelectState, dt: float32,
     if isKeyPressed(KeyboardKey.One): pickedSlot = 1
     elif isKeyPressed(KeyboardKey.Two): pickedSlot = 2
     elif isKeyPressed(KeyboardKey.Three): pickedSlot = 3
+    elif isKeyPressed(KeyboardKey.Four): pickedSlot = 4
 
     if isPointerPressed():
       for slot in 1..MaxProfileSlots:
@@ -177,6 +184,7 @@ proc updateProfileSelect*(state: ProfileSelectState, dt: float32,
     if isKeyPressed(KeyboardKey.One): picked = ord(gdEasy)
     elif isKeyPressed(KeyboardKey.Two): picked = ord(gdMedium)
     elif isKeyPressed(KeyboardKey.Three): picked = ord(gdHard)
+    elif isKeyPressed(KeyboardKey.Four): picked = ord(gdNightmare)
     if isPointerPressed():
       let cards = difficultyCardRects(screenWidth, screenHeight)
       for d in GameDifficulty:
@@ -379,20 +387,33 @@ proc drawProfileSelect*(state: ProfileSelectState, screenWidth, screenHeight: in
         of gdEasy: "EASY"
         of gdMedium: "MEDIUM"
         of gdHard: "HARD"
+        of gdNightmare: "NIGHTMARE"
       let nameEs = case d
         of gdEasy: "Facil"
         of gdMedium: "Normal"
         of gdHard: "Dificil"
-      drawCenteredText(name, cx, (rect.y + 34).int32, 32, difficultyColor(d))
+        of gdNightmare: "Pesadilla"
+      # "NIGHTMARE" is the longest title by far; shrink it so it stays inside the
+      # card instead of bleeding into its neighbours.
+      let nameSize = if d == gdNightmare: 24'i32 else: 32'i32
+      drawCenteredText(name, cx, (rect.y + 38).int32, nameSize, difficultyColor(d))
       drawCenteredText(nameEs, cx, (rect.y + 74).int32, 18,
                        Color(r: 170, g: 185, b: 205, a: 230))
       let lines = case d
         of gdEasy: @["-25% enemy HP / vida", "-30% enemy damage / daño"]
         of gdMedium: @["The classic balance", "El equilibrio clasico"]
         of gdHard: @["+35% enemy HP / vida", "+30% enemy damage / daño"]
+        of gdNightmare: @["+50% enemy HP / vida", "+50% enemy damage / daño",
+                          "NO CONTINUE / SIN CONTINUAR", "Death = restart at wave 1",
+                          "Muerte = reinicio en oleada 1"]
       for i, line in lines:
-        drawCenteredText(line, cx, (rect.y + 130.0'f32 + i.float32 * 26.0'f32).int32, 15,
-                         Color(r: 200, g: 212, b: 228, a: 240))
+        # The nightmare card carries more lines, in a smaller type size.
+        let lineSize = if d == gdNightmare: 12'i32 else: 15'i32
+        let lineStep = if d == gdNightmare: 21.0'f32 else: 26.0'f32
+        let lineTop = if d == gdNightmare: 112.0'f32 else: 130.0'f32
+        drawCenteredText(line, cx, (rect.y + lineTop + i.float32 * lineStep).int32, lineSize,
+                         if d == gdNightmare and i == 2: difficultyColor(d)
+                         else: Color(r: 200, g: 212, b: 228, a: 240))
       drawCenteredText("[" & $(ord(d) + 1) & "]  Click / Clic", cx,
                        (rect.y + rect.height - 32.0'f32).int32, 14,
                        Color(r: 130, g: 150, b: 170, a: 220))

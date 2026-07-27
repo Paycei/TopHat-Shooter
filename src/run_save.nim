@@ -380,8 +380,8 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
     case game.mode
     of gmWaveBased:
       game.currentWave = j.getOrDefault("currentWave").getInt(1)
-      # Clamped: saves written before the interval-4 cadence can hold 4, which
-      # would schedule one stale 5-wave gap before the counter resyncs.
+      # Clamped so a save written under a different boss cadence cannot schedule
+      # a stale, longer gap before the counter resyncs.
       game.wavesUntilBoss = min(j.getOrDefault("wavesUntilBoss").getInt(BossWaveInterval - 1),
                                 BossWaveInterval - 1)
       game.bossCount = j.getOrDefault("bossCount").getInt(0)
@@ -499,7 +499,8 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
 proc saveBlockCheckpoint*(game: Game) =
   ## Persist the current wave-mode run as a death-surviving checkpoint. Uses the
   ## state-gate bypass so it can fire outside the resumable states.
-  if game.isNil or game.mode != gmWaveBased:
+  ## Nightmare profiles never write one -- see difficultyAllowsContinue.
+  if game.isNil or game.mode != gmWaveBased or not difficultyAllowsContinue():
     return
   invalidateBlockCheckpointCache()
   saveRunState(game, BlockCheckpointFile, bypassStateGate = true)
@@ -514,6 +515,10 @@ proc refreshBlockCheckpointCache() =
   bcCachePath = path
 
 proc hasBlockCheckpoint*(): bool =
+  ## Nightmare answers "no" even if a file somehow exists (e.g. a checkpoint left
+  ## behind by an older build), so the Continue option can never come back.
+  if not difficultyAllowsContinue():
+    return false
   refreshBlockCheckpointCache()
   bcCacheExists
 

@@ -77,7 +77,7 @@ type
 # (which records the difficulty chosen at creation). The root profiles.json only
 # remembers the last-used slot so boot can preload that profile's settings
 # before the profile-select screen appears.
-const MaxProfileSlots* = 3
+const MaxProfileSlots* = 4  # one per GameDifficulty, so every difficulty fits
 
 var activeProfileSlot* = 1  # 1..MaxProfileSlots; all get*Path procs point here
 

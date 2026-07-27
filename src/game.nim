@@ -665,7 +665,7 @@ proc completeBossWave*(game: Game) =
     else:
       game.state = gsVictory
 
-  # Unlock Roguelite when the wave-16 boss (custom boss number 4) is defeated
+  # Unlock Roguelite when the wave-20 boss (custom boss number 4) is defeated
   elif getCustomBossNumber(completedWave) == 4:
     if not game.cheatsUsed and not globalSettings.isNil and not globalSettings.rogueliteUnlocked:
       globalSettings.rogueliteUnlocked = true
@@ -2139,21 +2139,18 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
         let waveTime = game.time - game.waveStartTime
         trackWaveCompletion(game, game.currentWave, waveTime)
 
-        # Regeneration power-up - heal variable HP per wave based on level
+        # Regeneration power-up - heal a flat amount plus a share of max HP per
+        # wave, mirroring the health consumable's (flat + % of maxHp) shape so a
+        # grown health pool keeps the regen relevant instead of leaving it a
+        # rounding error. Crossover with the old flat rolls sits around 2000 max
+        # HP: slightly weaker before that, noticeably stronger after.
         if hasPowerUp(game.player, puRegeneration):
           let level = getPowerUpLevel(game.player, puRegeneration)
-          var healAmount = 0.0
-
-          case level
-          of 1:
-            # Level 1: 1.5-2.5 health (base)
-            healAmount = 1.5 + rand(1.0)  # 1.5 to 2.5
-          of 2:
-            # Level 2: 2.5-4.5 health
-            healAmount = 2.5 + rand(2.0)  # 2.5 to 4.5
-          else:
-            # Level 3: 3.5-6.5 health
-            healAmount = 3.5 + rand(3.0)  # 3.5 to 6.5
+          let (flatHeal, maxHpShare) = case level
+            of 1: (1.5'f32, 0.03'f32)
+            of 2: (2.5'f32, 0.05'f32)
+            else: (3.5'f32, 0.07'f32)
+          let healAmount = flatHeal + maxHpShare * game.player.maxHp
 
           heal(game.player, healAmount)
           # Attribute base healing to regeneration and multiplier bonus to puHealPower
@@ -2253,8 +2250,8 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
         (game.currentWave - 1).float32 / 3.0
       # Use a boss wave that maps to the boss block (ceil to next multiple of
       # BossWaveInterval). This allows debug spawns when wavesUntilBoss is forced
-      # to 0 (boss appears for the current boss block: waves 1-4 => boss 1,
-      # 5-8 => boss 2, etc.)
+      # to 0 (boss appears for the current boss block: waves 1-5 => boss 1,
+      # 6-10 => boss 2, etc.)
       let bossBlockWave = if game.mode == gmRoguelite and game.rogueliteRun != nil and
                              game.rogueliteRun.floor != nil:
         # The floor theme picks the boss; the unlocked tier and endless loop

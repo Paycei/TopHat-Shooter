@@ -114,8 +114,10 @@ type
 
   GameDifficulty* = enum
     ## Per-profile difficulty picked when a save profile is created.
-    ## The on-disk form is the value string ("easy"/"medium"/"hard").
-    gdEasy = "easy", gdMedium = "medium", gdHard = "hard"
+    ## The on-disk form is the value string ("easy"/"medium"/"hard"/"nightmare").
+    ## Nightmare additionally disables the death-surviving block checkpoint
+    ## (see difficultyAllowsContinue below), so every death restarts at wave 1.
+    gdEasy = "easy", gdMedium = "medium", gdHard = "hard", gdNightmare = "nightmare"
 
   CutsceneContinuation* = enum
     cscMenu,       ## after cutscene -> gsMenu (intro, settings replays)
@@ -1396,12 +1398,21 @@ proc difficultyEnemyHpMult*(): float32 =
   of gdEasy: 0.75'f32
   of gdMedium: 1.0'f32
   of gdHard: 1.35'f32
+  of gdNightmare: 1.5'f32
 
 proc difficultyEnemyDamageMult*(): float32 =
   case currentDifficulty
   of gdEasy: 0.70'f32
   of gdMedium: 1.0'f32
   of gdHard: 1.30'f32
+  of gdNightmare: 1.5'f32
+
+proc difficultyAllowsContinue*(): bool =
+  ## Whether the death-surviving block checkpoint ("Continue (Wave N)") exists on
+  ## this profile. Nightmare has no second chances: dying always means a fresh
+  ## run from wave 1. Gated at the run_save.nim write/read choke points so every
+  ## consumer (game-over screen, resume prompt) loses the option at once.
+  currentDifficulty != gdNightmare
 
 proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
                        duration: float32, sourceEnemyId: int = -1): AttackWarning =

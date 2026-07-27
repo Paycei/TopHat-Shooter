@@ -335,7 +335,7 @@ type
     tkGameOverSystemFailedFooter = "game_over_system_failed_footer"
     tkGameOverSystemSecureFooter = "game_over_system_secure_footer"
 
-    # Victory Screen (wave 48 final boss cleared)
+    # Victory Screen (wave 60 final boss cleared)
     tkVictoryTitle = "victory_title"
     tkVictorySubtitle = "victory_subtitle"
     tkVictoryStatus = "victory_status"
@@ -2014,9 +2014,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_bullet_speed_desc": "Lightspeed: each shot fires an instant tracer beam that hits the first enemy in line for 50% damage",
     "powerup_lucky_coins_desc": "Doubles all coins collected",
     "powerup_wall_master_desc": "Walls have +250% HP turrets have +100% damage",
-    "powerup_regeneration_desc1": "Regen 150-250 HP per wave",
-    "powerup_regeneration_desc2": "Regen 250-450 HP per wave",
-    "powerup_regeneration_desc3": "Regen 350-650 HP per wave",
+    "powerup_regeneration_desc1": "Regen 150 HP + 3% max HP per wave",
+    "powerup_regeneration_desc2": "Regen 250 HP + 5% max HP per wave",
+    "powerup_regeneration_desc3": "Regen 350 HP + 7% max HP per wave",
     "powerup_dodge_chance_desc1": "15% chance to dodge hits",
     "powerup_dodge_chance_desc2": "20% chance to dodge hits",
     "powerup_dodge_chance_desc3": "30% chance to dodge hits",
@@ -2182,7 +2182,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
-    "loading_subtitle": "v6.0 Edition",
+    "loading_subtitle": "v6.1 Edition",
     "loading_initializing": "Initializing...",
     "loading_generating_sound": "Generating sound",
     "loading_generating_music": "Generating music",
@@ -2212,7 +2212,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_memory": "Memory",  # label only; live "<used> / <total> GB" appended in code
     "os_network": "Network: Connected",
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[v6.0 Edition]",
+    "os_edition": "[v6.1 Edition]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "NET",
 
@@ -2386,7 +2386,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_system_failed_footer": "[!] System will remain in failed state until manual restart",
     "game_over_system_secure_footer": "[OK] All systems operational | Defensive grid at maximum efficiency",
 
-    # Victory Screen (wave 48 final boss cleared)
+    # Victory Screen (wave 60 final boss cleared)
     "victory_title": "MISSION COMPLETE",
     "victory_subtitle": "You purged the final intrusion and cleared all 60 waves!",
     "victory_status": "SYSTEM FULLY SECURED -- THREAT LEVEL ZERO",
@@ -2474,7 +2474,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "secret_tophat_desc": "The kernel's own tophat, entrusted to the one who secured the system.",
     "secret_tophat_unequipped": "[UNEQUIPPED]",
     "secret_click_to_wear": "Click to wear",
-    "secret_locked_hint": "Defeat the wave 48 final boss to unlock",
+    "secret_locked_hint": "Defeat the wave 60 final boss to unlock",
     "secret_unknown_locked_hint": "Unlock condition unknown",
     "secret_orbital_cube_name": "Orbital Cube",
     "secret_orbital_cube_desc": "Knocked out of orbit, the desktop cube found a new one -- around you.",
@@ -3422,7 +3422,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_advancement_unlocked": "Advancement unlocked",
     "desktop_mode_locked": "MODE LOCKED:",
     "survival_locked_desc": "Unlock Time Survival by beating Roguelite mode.",
-    "roguelite_locked_desc": "Unlock Roguelite by defeating the Wave 16 boss in Wave Mode.",
+    "roguelite_locked_desc": "Unlock Roguelite by defeating the Wave 20 boss in Wave Mode.",
     "game_mode_unlocked": "NEW MODE UNLOCKED:",
     "roguelite_unlocked_notif": "Roguelite Mode is now available on the desktop!",
     "survival_unlocked_notif": "Time Survival Mode is now available on the desktop!",
@@ -3927,9 +3927,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_bullet_speed_desc": "Lightspeed: cada disparo lanza un rayo trazador instantáneo que golpea al primer enemigo en línea por 50% de daño",
     "powerup_lucky_coins_desc": "Duplica todas las monedas recogidas",
     "powerup_wall_master_desc": "Los muros ganan +250% de HP y las torretas +100% de daño",
-    "powerup_regeneration_desc1": "Regenera 150-250 HP por oleada",
-    "powerup_regeneration_desc2": "Regenera 250-450 HP por oleada",
-    "powerup_regeneration_desc3": "Regenera 350-650 HP por oleada",
+    "powerup_regeneration_desc1": "Regenera 150 HP + 3% de vida máxima por oleada",
+    "powerup_regeneration_desc2": "Regenera 250 HP + 5% de vida máxima por oleada",
+    "powerup_regeneration_desc3": "Regenera 350 HP + 7% de vida máxima por oleada",
     "powerup_dodge_chance_desc1": "15% de probabilidad de esquivar golpes",
     "powerup_dodge_chance_desc2": "20% de probabilidad de esquivar golpes",
     "powerup_dodge_chance_desc3": "30% de probabilidad de esquivar golpes",
@@ -4167,7 +4167,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_system_failed_footer": "[!] El sistema permanecerá en estado fallido hasta reinicio manual",
     "game_over_system_secure_footer": "[OK] Todos los sistemas operacionales | Cuadrícula defensiva en máxima eficiencia",
 
-    # Victory Screen (oleada 48, jefe final superado)
+    # Victory Screen (oleada 60, jefe final superado)
     "victory_title": "MISIÓN COMPLETADA",
     "victory_subtitle": "¡Purgaste la intrusión final y superaste las 60 oleadas!",
     "victory_status": "SISTEMA TOTALMENTE SEGURO -- NIVEL DE AMENAZA CERO",
@@ -4255,7 +4255,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "secret_tophat_desc": "El sombrero de copa del propio kernel, confiado a quien aseguró el sistema.",
     "secret_tophat_unequipped": "[DESEQUIPADO]",
     "secret_click_to_wear": "Clic para llevarlo",
-    "secret_locked_hint": "Derrota al jefe final de la oleada 48 para desbloquearlo",
+    "secret_locked_hint": "Derrota al jefe final de la oleada 60 para desbloquearlo",
     "secret_unknown_locked_hint": "Condicion de desbloqueo desconocida",
     "secret_orbital_cube_name": "Cubo Orbital",
     "secret_orbital_cube_desc": "Expulsado de su órbita, el cubo del escritorio encontró una nueva: tú.",
@@ -4858,7 +4858,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_memory": "Memoria",  # label only; live "<used> / <total> GB" appended in code
     "os_network": "Red: Conectada",
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[Edición v6.0]",
+    "os_edition": "[Edición v6.1]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "RED",
 
@@ -5334,7 +5334,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_advancement_unlocked": "Logro desbloqueado",
     "desktop_mode_locked": "MODO BLOQUEADO:",
     "survival_locked_desc": "Desbloquea Supervivencia en Tiempo derrotando el modo Roguelite.",
-    "roguelite_locked_desc": "Desbloquea Roguelite derrotando el jefe de la Ola 16 en Modo de Olas.",
+    "roguelite_locked_desc": "Desbloquea Roguelite derrotando el jefe de la Ola 20 en Modo de Olas.",
     "game_mode_unlocked": "NUEVO MODO DESBLOQUEADO:",
     "roguelite_unlocked_notif": "¡El Modo Roguelite ya está disponible en el escritorio!",
     "survival_unlocked_notif": "¡El Modo Supervivencia ya está disponible en el escritorio!",
