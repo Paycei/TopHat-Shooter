@@ -5055,10 +5055,25 @@ proc drawGame*(game: Game) =
   let worldScissorOpen = worldOffX > 0
   if worldScissorOpen:
     beginVirtualScissorMode(worldOffX.int32, 0, game.screenWidth, game.screenHeight)
-  let worldPassOpen = worldOffX != 0 or shakeOffsetX != 0 or shakeOffsetY != 0
+  # On mobile the world is additionally magnified about the arena centre, because
+  # the letterbox scale is pinned by the virtual height and this is the only way
+  # to make the arena physically bigger on a phone. See MobileWorldZoom (types).
+  # The scissor above already clips the overspill to the world rect.
+  const worldZoom = when defined(mobile): MobileWorldZoom else: 1.0'f32
+  let worldPassOpen = worldOffX != 0 or shakeOffsetX != 0 or shakeOffsetY != 0 or
+                      worldZoom != 1.0'f32
   if worldPassOpen:
     pushMatrix()
     translatef(worldOffX + shakeOffsetX, shakeOffsetY, 0.0'f32)
+    when defined(mobile):
+      # Scale about the world centre: move the centre to the origin, scale, move
+      # back. Applied after the offset/shake translate, so it composes in world
+      # coords and the shake keeps its screen-space magnitude.
+      let worldCx = game.screenWidth.float32 * 0.5'f32
+      let worldCy = game.screenHeight.float32 * 0.5'f32
+      translatef(worldCx, worldCy, 0.0'f32)
+      scalef(worldZoom, worldZoom, 1.0'f32)
+      translatef(-worldCx, -worldCy, 0.0'f32)
 
   # Update and draw OS-style background
   let dt = getFrameTime()

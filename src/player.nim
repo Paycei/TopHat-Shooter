@@ -302,18 +302,23 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     else:
       player.vel.y = 0
 
-  # Clamp to screen
-  if player.pos.x < player.radius:
-    player.pos.x = player.radius
+  # Clamp to screen. On mobile the world is drawn magnified about its centre
+  # (MobileWorldZoom) with no camera, so an outer band of the arena is off-screen
+  # — inset the bounds by exactly that band or the player could walk out of view.
+  # mobileViewInset is 0 on desktop, making this identical to the old clamp there.
+  let insetX = mobileViewInset(screenWidth.float32)
+  let insetY = mobileViewInset(screenHeight.float32)
+  if player.pos.x < insetX + player.radius:
+    player.pos.x = insetX + player.radius
     if player.vel.x < 0: player.vel.x = 0
-  if player.pos.x > screenWidth.float32 - player.radius:
-    player.pos.x = screenWidth.float32 - player.radius
+  if player.pos.x > screenWidth.float32 - insetX - player.radius:
+    player.pos.x = screenWidth.float32 - insetX - player.radius
     if player.vel.x > 0: player.vel.x = 0
-  if player.pos.y < player.radius:
-    player.pos.y = player.radius
+  if player.pos.y < insetY + player.radius:
+    player.pos.y = insetY + player.radius
     if player.vel.y < 0: player.vel.y = 0
-  if player.pos.y > screenHeight.float32 - player.radius:
-    player.pos.y = screenHeight.float32 - player.radius
+  if player.pos.y > screenHeight.float32 - insetY - player.radius:
+    player.pos.y = screenHeight.float32 - insetY - player.radius
     if player.vel.y > 0: player.vel.y = 0
 
   # Update shield angle for rotating shield power-up

@@ -1,7 +1,7 @@
 ## Combined OS-Style HUD Panel
 ## Merges status and info panels into one compact, non-intrusive display
 
-import raylib, math
+import raylib, rlgl, math
 import ../types, ../localization, ../powerup_data, ../roguelite, ../dungeon, ui_constants, ../render_context, icon_drawing, ../utils, ui_helpers
 
 const
@@ -22,10 +22,15 @@ var leftPanelPos* = Vector2(x: 10, y: 2)  # Default position
 var leftPanelDragging* = false
 var leftPanelDragOffset* = Vector2(x: 0, y: 0)
 
-proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimizeIcon: bool) =
+proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32,
+                         showMinimizeIcon: bool): int32 {.discardable.} =
   ## Draw the full status/wave/roguelite/power-up content column, parameterized
   ## by plain geometry so both the draggable classic panel and the fixed Border
   ## layout can share it. No input handling lives here.
+  ##
+  ## Returns the height the column actually consumed, in its own (unscaled)
+  ## units. drawBorderHUDPanel uses that to pick a magnification that still fits
+  ## the screen; callers that don't care can ignore it.
   var yOffset = panelY
 
   # Calculate height based on content
@@ -502,6 +507,10 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
       drawText(moreText, panelX + COMBINED_PANEL_PADDING + 7, yOffset, 8,
               Color(r: 120, g: 120, b: 120, a: 255))
 
+      yOffset += COMBINED_POWERUP_OVERFLOW_HEIGHT
+
+  result = yOffset - panelY
+
 proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   ## Draw unified HUD panel combining status and wave/powerup info
   # Use stored position instead of parameters
@@ -598,7 +607,33 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
 
   drawHUDPanelContent(game, finalPanelX, yOffset, COMBINED_PANEL_WIDTH, showMinimizeIcon = true)
 
+when defined(mobile):
+  var lastBorderHudHeight = 512'i32
+    ## Unscaled height the column used last frame. Unscaled, so feeding it back
+    ## into the scale below cannot oscillate — the input is scale-independent.
+
 proc drawBorderHUDPanel*(game: Game) =
   ## Fixed-position status column for the Border HUD layout, pinned to the top-left
   ## screen edge. No dragging or minimize behavior.
-  drawHUDPanelContent(game, 0, 0, BORDER_PANEL_WIDTH, showMinimizeIcon = false)
+  when defined(mobile):
+    # The column's ~50 text and gauge draws are hand-positioned against
+    # BORDER_PANEL_WIDTH, so bumping font sizes individually would mean
+    # re-laying out every row. Magnify the whole column with one matrix instead:
+    # uniform, no reflow, and it can't desynchronize a label from its bar.
+    #
+    # The budget is the real gutter, which on mobile is wider than the desktop's
+    # 171 because the canvas is fitted to the device aspect (main.mobileVirtualWidth).
+    # Height is the other bound — a tall column (roguelite rows + a full power-up
+    # stack) would otherwise run off the bottom.
+    let gutterW = getWorldViewOffsetX()
+    let widthCap = gutterW / BORDER_PANEL_WIDTH.float32
+    let heightCap = (getVirtualScreenHeight().float32 - 8.0'f32) /
+                    max(1.0'f32, lastBorderHudHeight.float32)
+    let k = clamp(min(widthCap, heightCap), 1.0'f32, 2.0'f32)
+    pushMatrix()
+    scalef(k, k, 1.0'f32)
+    lastBorderHudHeight = drawHUDPanelContent(game, 0, 0, BORDER_PANEL_WIDTH,
+                                              showMinimizeIcon = false)
+    popMatrix()
+  else:
+    drawHUDPanelContent(game, 0, 0, BORDER_PANEL_WIDTH, showMinimizeIcon = false)

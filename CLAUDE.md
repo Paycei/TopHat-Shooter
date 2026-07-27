@@ -131,7 +131,30 @@ and the keyboard are drawn from `drawCustomCursor`, which is repurposed on mobil
 Other pieces:
 - `render_context.screenToVirtual` maps touch (and mouse) through the letterbox
   into the virtual canvas (1024×768 classic, 1366×768 widescreen — mobile
-  defaults to widescreen, see `settings.nim`).
+  defaults to widescreen, see `settings.nim`). On mobile the widescreen width is
+  not fixed: `main.mobileVirtualWidth` fits it to the device aspect (1366–1792,
+  stepped by 32). This is free, because `updateRenderScale` takes
+  `min(w/vw, h/vh)` and a phone in landscape always makes the **height** term
+  win — widening the canvas only reclaims the black side bars and spends them on
+  wider HUD gutters.
+- **Phone legibility** — the game was laid out for a monitor, and the letterbox
+  scale is pinned by the 768-tall canvas, so nothing about the *layout* can make
+  it bigger. Two levers, both mobile-only:
+  - `MobileWorldZoom` (`types.nim`, 1.25×) magnifies the gameplay world about
+    the arena centre, in the `WORLD PASS` matrix in `drawGame`. There is no
+    camera, so an outer band of the arena is permanently off-screen;
+    `mobileViewInset` (same file) insets the player clamp in `updatePlayer` by
+    exactly that band so the player can never leave view. It returns 0 on
+    desktop, which is what keeps both call sites behaviour-neutral there.
+    Deliberately **not** applied to `pvp_game`'s world pass: the arena size is
+    networked and must not depend on the local interface, and both duellists
+    have to stay visible.
+  - `drawBorderHUDPanel` (`ui/os_combined_hud.nim`) magnifies the whole status
+    column with one matrix rather than per-widget font bumps — its ~50 draws are
+    hand-positioned against `BORDER_PANEL_WIDTH`, so scaling uniformly is the
+    only way a label can't drift from its bar. The factor is bounded by the real
+    gutter width *and* by the column height reported back from
+    `drawHUDPanelContent`.
 - Cinematics: `ui/cutscene.nim`'s `updateCutscene` is the single input path for
   all nine of them. On mobile it is hold-anywhere-1.5s to skip, no fast-forward.
 - HUD elements that bottom-anchor into the right gutter must reserve

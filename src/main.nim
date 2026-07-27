@@ -232,11 +232,38 @@ var
   screenWidth: int32 = WorldWidth.int32
   screenHeight: int32 = WorldHeight.int32
 
+when defined(mobile):
+  const
+    MobileMinVirtualWidth = 1366'i32   # 16:9, the desktop widescreen canvas
+    MobileMaxVirtualWidth = 1792'i32   # ~21:9; past this the gutters dwarf the world
+    MobileVirtualWidthStep = 32'i32    # keeps (w - WorldWidth) div 2 exact
+
+  proc mobileVirtualWidth(): int32 =
+    ## Widescreen canvas width fitted to the REAL device aspect.
+    ##
+    ## updateRenderScale takes min(windowW/virtualW, windowH/virtualH), and a phone
+    ## in landscape is always wider than 16:9, so the height term always wins.
+    ## Widening the virtual canvas therefore costs nothing in world size — it only
+    ## reclaims the black side bars a 19.5:9 screen would otherwise waste and
+    ## spends them on wider HUD gutters, which is what lets the status column be
+    ## drawn bigger (drawBorderHUDPanel).
+    ##
+    ## Quantized so a window resize can't thrash the render target, and clamped so
+    ## a tablet-ish aspect can't shrink the world into a sliver of a huge canvas.
+    let w = getScreenWidth()
+    let h = getScreenHeight()
+    if w <= 0 or h <= 0:
+      return MobileMinVirtualWidth   # called once before initWindow
+    let fitted = int32(WorldHeight.float32 * w.float32 / h.float32)
+    let stepped = (fitted div MobileVirtualWidthStep) * MobileVirtualWidthStep
+    clamp(stepped, MobileMinVirtualWidth, MobileMaxVirtualWidth)
+
 proc virtualWidthFor(layout: HudLayout): int32 =
   ## Virtual screen width for a HUD layout: widescreen widens the desktop to 16:9
   ## while the gameplay world stays WorldWidth; classic keeps the world size.
   case layout
-  of hlWidescreen: 1366'i32
+  of hlWidescreen:
+    when defined(mobile): mobileVirtualWidth() else: 1366'i32
   of hlClassic: WorldWidth.int32
 
 # Global Discord client that persists across game sessions
@@ -855,9 +882,14 @@ proc main() =
     # resize the virtual screen + window, rebuild the render target, recenter the
     # window on the monitor (windowed only), recompute the letterbox + world
     # offset, and re-lay-out the desktop windows for the new width.
-    if settings.hudLayout != appliedHudLayout:
+    # On mobile the widescreen width also tracks the device aspect, which is only
+    # known once the surface exists (and can change on a fold/resize), so compare
+    # the computed width too rather than the layout alone. On desktop the width is
+    # a pure function of the layout, so this extra term is never true there.
+    let desiredVirtualWidth = virtualWidthFor(settings.hudLayout)
+    if settings.hudLayout != appliedHudLayout or desiredVirtualWidth != screenWidth:
       appliedHudLayout = settings.hudLayout
-      screenWidth = virtualWidthFor(settings.hudLayout)
+      screenWidth = desiredVirtualWidth
       rebuildRenderTarget(getRenderSupersampleScale())
       # Same hazard applyWindowMode guards against: Android owns a single
       # fullscreen surface, so resizing/repositioning it would shrink the game

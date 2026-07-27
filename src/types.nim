@@ -17,6 +17,31 @@ type
   # sticks/dpad-cursor are reserved by the input layer and never appear here.
   GamepadBindings* = array[KeyAction, GamepadButton]
 
+const MobileWorldZoom* = 1.25'f32
+  ## Magnification applied to the gameplay world on mobile, about the arena
+  ## centre. The letterbox scale is pinned by the 768-tall virtual canvas against
+  ## the phone's landscape height (main.updateRenderScale takes the min of the two
+  ## axis ratios, and height always wins on a phone), so this is the only lever
+  ## that makes the arena physically bigger — at the cost of showing less of it.
+  ##
+  ## There is no camera: the scale is about a fixed centre, so an outer band of
+  ## the arena is permanently off-screen. Player movement is inset to match
+  ## (mobileViewInset, applied in player.updatePlayer) so the player can never
+  ## walk out of view. Enemies and projectiles still use the full arena and are
+  ## simply clipped while inside that band.
+  ##
+  ## PvE only. PvP shares one networked arena whose size must not depend on the
+  ## local interface, and both duellists have to stay visible, so pvp_game's world
+  ## pass is deliberately left unzoomed.
+
+proc mobileViewInset*(extent: float32): float32 {.inline.} =
+  ## Width of the off-screen band on ONE side of an axis of the given extent.
+  ## Zero on desktop, so every call site is behaviour-neutral there.
+  when defined(mobile):
+    extent * 0.5'f32 * (1.0'f32 - 1.0'f32 / MobileWorldZoom)
+  else:
+    0.0'f32
+
 const
   defaultKeybinds*: KeyBindings = [
     kaMoveUp:    KeyboardKey.W,
