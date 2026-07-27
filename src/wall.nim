@@ -199,7 +199,16 @@ proc checkEnemyWallCollision*(enemy: Enemy, wall: Wall): bool =
 proc checkPlayerWallCollision*(playerPos: Vector2f, playerRadius: float32, wall: Wall): bool =
   wallOverlapsCircle(wall, playerPos, playerRadius)
 
-proc isValidWallPlacement*(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall], enemies: seq[Enemy], radius: float32): bool =
+proc isValidWallPlacement*(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall], enemies: seq[Enemy],
+                           radius: float32, worldWidth, worldHeight: int32): bool =
+  ## `pos` is in WORLD coords. In the widescreen layout the cursor can sit in the
+  ## side gutters, which is world x < 0 or x > worldWidth, so the arena bounds
+  ## have to be rejected explicitly -- the pointer is no longer confined to the
+  ## arena the way it is in the classic layout.
+  if pos.x < radius or pos.x > worldWidth.float32 - radius or
+     pos.y < radius or pos.y > worldHeight.float32 - radius:
+    return false
+
   # Check if too close to player
   if distance(pos, playerPos) < radius * 2:
     return false

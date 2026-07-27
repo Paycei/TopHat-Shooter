@@ -5479,7 +5479,8 @@ proc drawGame*(game: Game) =
     let mousePos = getWorldMousePosition()
     let cursorPos = newVector2f(mousePos.x, mousePos.y)
     let inRange = distance(cursorPos, game.player.pos) <= WallPlaceRange
-    let validPos = isValidWallPlacement(cursorPos, game.player.pos, game.walls, game.enemies, 25)
+    let validPos = isValidWallPlacement(cursorPos, game.player.pos, game.walls, game.enemies, 25,
+                                        game.screenWidth, game.screenHeight)
     let canPlace = inRange and validPos
 
     # Range indicator around the player. Drawn after auras/orbs/player, so it

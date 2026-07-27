@@ -1777,11 +1777,16 @@ proc main() =
         if (isKeyReleased(wallKey) or
             isGamepadBindReleased(globalSettings.gamepadBinds, kaPlaceWall)) and
            currentGame.player.walls > 0:
-          let mousePos = getVirtualMousePosition()
+          # WORLD coords: the wall lives in the 1024-wide world, which is
+          # centered inside the wider virtual screen in widescreen mode. Using
+          # the virtual pointer here would skew placement by the gutter width
+          # and disagree with the ghost preview in drawGame (also world coords).
+          let mousePos = getWorldMousePosition()
           let wallPos = newVector2f(mousePos.x, mousePos.y)
           let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
           if inRange and isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
-                                              currentGame.enemies, 25):
+                                              currentGame.enemies, 25,
+                                              currentGame.screenWidth, currentGame.screenHeight):
             currentGame.walls.add(newWall(mousePos.x, mousePos.y, currentGame.player))
             currentGame.player.walls -= 1
             spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)

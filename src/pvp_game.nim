@@ -567,7 +567,8 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput, 
     let inRange = distance(input.wallPos, placingPlayerPos) <= WALL_PLACEMENT_RANGE
     # Reuse waves-mode validation: not too close to placing player, no overlap with existing walls
     # Pass empty enemy seq, PvP has no enemies
-    let validPos = isValidWallPlacement(input.wallPos, placingPlayerPos, pvp.walls, @[], 25)
+    let validPos = isValidWallPlacement(input.wallPos, placingPlayerPos, pvp.walls, @[], 25,
+                                        pvp.screenWidth, pvp.screenHeight)
 
     if inRange and validPos:
       let newWall = Wall(
@@ -1778,7 +1779,8 @@ proc drawPvP*(pvp: PvPGameState) =
     let mousePos = getWorldMousePosition()
     let cursorPos = newVector2f(mousePos.x, mousePos.y)
     let inRange = distance(cursorPos, localPlayer.pos) <= WALL_PLACEMENT_RANGE
-    let validPos = isValidWallPlacement(cursorPos, localPlayer.pos, pvp.walls, @[], 25)
+    let validPos = isValidWallPlacement(cursorPos, localPlayer.pos, pvp.walls, @[], 25,
+                                        pvp.screenWidth, pvp.screenHeight)
     let ghostColor = if inRange and validPos:
       Color(r: 80, g: 200, b: 80, a: 100)
     else:
