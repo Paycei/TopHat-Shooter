@@ -3,7 +3,8 @@ import types, particle, particle_pool, particle_types, powerup, run_statistics, 
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 
-proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
+proc applyEliteModifiers(enemy: Enemy, baseDamage: float32,
+                         consumesDiamondShield: bool = true): float32 =
   ## Applies elite damage modifiers (tank reduction, shield absorption) and boss defense multiplier
   ## Returns the actual damage to apply to enemy HP
   ## Handles multiple elite types for wave 25+ elites
@@ -32,8 +33,11 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32): float32 =
       result -= enemy.shieldHp
       enemy.shieldHp = 0
 
-  # Diamond enemy: 1-hit shield absorbs the first hit entirely (like Celestial Veil)
-  if enemy.enemyType == etDiamond and enemy.diamondShieldActive:
+  # Diamond enemy: 1-hit shield absorbs the first hit entirely (like Celestial Veil).
+  # Only a real hit spends it. Auras and DoT ticks funnel through here too, and
+  # a sub-1-damage chip tick popping the shield the instant the Diamond drifted
+  # into aura range deleted the mechanic outright for every aura build.
+  if consumesDiamondShield and enemy.enemyType == etDiamond and enemy.diamondShieldActive:
     enemy.diamondShieldActive = false
     result = 0
 
@@ -53,17 +57,21 @@ proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
   enemy.hp -= damage
   damage
 
-proc damageEnemy*(enemy: Enemy, baseDamage: float32): float32 =
+proc damageEnemy*(enemy: Enemy, baseDamage: float32,
+                  consumesDiamondShield: bool = true): float32 =
   ## Helper to apply damage to enemy with elite modifiers
   ## Combines applyEliteModifiers and HP reduction in one call
   ## Returns the actual damage dealt after modifiers
   ## Note: Enemies can die (hp = 0) but can't have fractional HP below 0.01 while alive
+  ##
+  ## Pass `consumesDiamondShield = false` for passive damage (auras, DoT ticks)
+  ## so it chips HP without spending the Diamond one-hit shield.
 
   # Check boss invulnerability (during phase transitions)
   if enemy.isBoss and enemy.invulnerabilityTimer > 0:
     return 0.0
 
-  result = applyEliteModifiers(enemy, baseDamage)
+  result = applyEliteModifiers(enemy, baseDamage, consumesDiamondShield)
   result *= bossWeakPointDamageMultiplier(enemy, bwdsPassive)
 
   # Boss gate: while adds are alive or the overload shield is up (and no

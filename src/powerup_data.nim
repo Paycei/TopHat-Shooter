@@ -183,10 +183,14 @@ proc getPowerUpMaxLevel*(pt: PowerUpType): int {.inline.} =
   allPowerUpDefs[pt].maxLevel
 
 proc recursionDamageBonusForLevel*(level: int): float32 {.inline.} =
-  ## Fractional damage bonus granted by one Recursion pickup of the given level.
+  ## TOTAL fractional damage bonus for holding Recursion at the given level --
+  ## cumulative, not per-rung. Reaching level 3 is worth +20% in all, so an
+  ## upgrade must apply the difference between two calls, never the whole value
+  ## again (see applyPowerUp).
   ## Shared so the immediate run boost (applyPowerUp) and the permanent
   ## cross-run accumulation (installPowerUp -> profile) never drift apart.
   case level
+  of 0: 0.0'f32
   of 1: 0.08'f32
   of 2: 0.14'f32
   else: 0.20'f32
