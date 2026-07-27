@@ -1789,11 +1789,15 @@ proc main() =
         currentGame.wallPlacementMode = eHeld
 
         # Releasing the wall control places the wall at the current aim target.
+        # getAimTarget already returns WORLD coords (the wall lives in the
+        # 1024-wide world, centered inside the wider virtual screen in
+        # widescreen mode), so it agrees with the ghost preview in drawGame.
         if placeWallReleased() and currentGame.player.walls > 0:
           let wallPos = getAimTarget(currentGame.player.pos)
           let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
           if inRange and isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
-                                              currentGame.enemies, 25):
+                                              currentGame.enemies, 25,
+                                              currentGame.screenWidth, currentGame.screenHeight):
             currentGame.walls.add(newWall(wallPos.x, wallPos.y, currentGame.player))
             currentGame.player.walls -= 1
             spawnExplosionPooled(currentGame.particlePool, wallPos.x, wallPos.y, Brown, 15)
