@@ -1112,6 +1112,9 @@ proc main() =
           elif pendingResume and applyBlockCheckpoint(currentGame):
             # No live run save, but a death-surviving block checkpoint exists:
             # resume from the last cleared boss block. No comeback bonus here.
+            # Reaching this path means the run save was deleted by a death, so
+            # the run is no longer flawless.
+            currentGame.runHadDeath = true
             initializeRunTracking(currentGame)
           else:
             deleteRunSave()
@@ -2039,6 +2042,22 @@ proc main() =
         showDesktopToast(osDesktop, msg)
       currentGame.pendingToasts.setLen(0)
 
+      # Mythic flawless clear: game.nim raises the flag the frame wave mode is
+      # won with no deaths on record. Event-driven, so syncAdvancements never
+      # derives it -- this is the only place it can unlock.
+      if currentGame.flawlessWaveVictory:
+        currentGame.flawlessWaveVictory = false
+        if unlockAdvancementDirectly(advancementProfile, FlawlessWaveAdvancementId):
+          discard saveAdvancements(advancementProfile)
+          if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
+            globalWindowManager.advancements.profile = advancementProfile
+          showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
+                           getAdvancementDefinition(FlawlessWaveAdvancementId).name)
+          let queueIdx = advancementProfile.recentUnlocks.find(FlawlessWaveAdvancementId)
+          if queueIdx >= 0:
+            advancementProfile.recentUnlocks.delete(queueIdx)
+          playSound(stPowerUp, 0.9)
+
       # Mid-run advancement sync: surface unlocks as desktop toasts.
       if not cheatMenu.active and not globalConfirmActive and
          not isSandboxMode(currentGame.mode) and not currentRunStats.isNil:
@@ -2838,6 +2857,8 @@ proc main() =
         if applyBlockCheckpoint(currentGame):
           # Same run, resumed: keep the accumulated run statistics (power-ups
           # collected, kills, damage, time) instead of zeroing them.
+          # Pressing Continue is what voids the Flawless Kernel advancement.
+          currentGame.runHadDeath = true
           resumeRunTracking(currentGame)
         else:
           # Checkpoint failed to apply: fall back to a fresh run.

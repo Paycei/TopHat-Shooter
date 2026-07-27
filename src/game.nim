@@ -218,6 +218,8 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     waveStartTime: 0.0,
     # Cheat tracking
     cheatsUsed: false,  # Reset to false at start of each run
+    runHadDeath: false,
+    flawlessWaveVictory: false,
     # Mouse tracking for menu navigation
     lastMousePos: newVector2f(0, 0),
     mouseMovedRecently: false,
@@ -641,6 +643,11 @@ proc completeBossWave*(game: Game) =
   # repeats every 5 waves in endless) from re-triggering the screen.
   if getCustomBossNumber(completedWave) == 12 and not game.hasWonGame:
     game.hasWonGame = true
+    # Mythic "Flawless Kernel": the whole run reached here without a single
+    # death (runHadDeath is sticky across saves and is set by any Continue).
+    # Raised as a one-shot flag because the advancement profile lives in main().
+    if not game.runHadDeath and not game.cheatsUsed:
+      game.flawlessWaveVictory = true
     deleteRunSave()  # Run is won: no longer resumable.
     deleteBlockCheckpoint()  # Won run: drop the block checkpoint too.
     deleteSuspendSnapshot()  # Drop the exact snapshot too.

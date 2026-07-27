@@ -1518,6 +1518,8 @@ type
     tkAdvRewardClaimed = "adv_reward_claimed"
     tkAdvClaimReward = "adv_claim_reward"
     tkAdvLockedBtn = "adv_locked_btn"
+    tkAdvTierLegend = "adv_tier_legend"
+    tkAdvCategoryLabel = "adv_category_label"
 
     # Stats window (untranslated leftovers)
     tkStatsHealingSources = "stats_healing_sources"
@@ -1671,7 +1673,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_play": "WAVE0.exe",
     "desktop_icon_survival": "LASTSTAND.exe",
     "desktop_icon_stats": "LOGS.dat",
-    "desktop_icon_settings": "CFGNODE.sys",
+    "desktop_icon_settings": "SETTINGS.sys",
     "desktop_icon_help": "MANUAL.exe",
     "desktop_icon_quit": "POWEROFF.exe",
     "desktop_icon_sandbox": "LAB.exe",
@@ -3434,6 +3436,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "adv_reward_claimed": "Reward Claimed",
     "adv_claim_reward": "Claim Reward",
     "adv_locked_btn": "Locked",
+    "adv_tier_legend": "Rarity",
+    "adv_category_label": "Category",
 
     # Stats window leftovers
     "stats_healing_sources": "Healing Sources",
@@ -3596,7 +3600,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_play": "WAVE0.exe",
     "desktop_icon_survival": "LASTSTAND.exe",
     "desktop_icon_stats": "REGS.dat",
-    "desktop_icon_settings": "NODOCFG.sys",
+    "desktop_icon_settings": "CONFIG.sys",
     "desktop_icon_help": "MANUAL.exe",
     "desktop_icon_quit": "APAGAR.exe",
     "desktop_icon_sandbox": "LAB.exe",
@@ -4866,7 +4870,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
-    "loading_subtitle": "Edición v5.5",
+    "loading_subtitle": "Edición v6.1",
     "loading_initializing": "Inicializando...",
     "loading_generating_sound": "Generando sonido",
     "loading_generating_music": "Generando música",
@@ -5358,6 +5362,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "adv_reward_claimed": "Recompensa Reclamada",
     "adv_claim_reward": "Reclamar Recompensa",
     "adv_locked_btn": "Bloqueado",
+    "adv_tier_legend": "Rareza",
+    "adv_category_label": "Categoría",
 
     # Stats window leftovers
     "stats_healing_sources": "Fuentes de Curación",

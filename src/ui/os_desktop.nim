@@ -107,6 +107,12 @@ const
   ICON_LABEL_WIDTH = 88
   ICON_LABEL_FONT_SIZE = 14
   ICON_LABEL_MIN_SIZE = 9
+  DESKTOP_MARGIN_RIGHT = 80
+    ## Gap between the right screen edge and the right edge of a corner-anchored
+    ## icon's label block (mirrors DESKTOP_GRID_START_X on the left).
+  DESKTOP_MARGIN_BOTTOM = 28
+    ## Gap between the taskbar and the bottom of a corner-anchored icon's hover
+    ## box, so hovering the icon never fights the taskbar for the click.
 
 proc getIconName(iconType: DesktopIconType): string =
   ## Get the localized name for a desktop icon
@@ -142,6 +148,25 @@ proc drawDesktopLabel(text: string, x, y: int32, selected: bool) =
   let drawX = labelX + max(0'i32, (ICON_LABEL_WIDTH - lineWidth) div 2)
   drawText(text, drawX + 2, y + 2, fontSize, shadowColor)
   drawText(text, drawX, y, fontSize, textColor)
+
+proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) =
+  ## Re-anchor the screen-relative desktop icons. Every other icon lives on the
+  ## fixed top-left grid, but diCredits is pinned to the bottom-right corner, so
+  ## its slot has to follow the virtual canvas (1024 classic vs 1366 widescreen,
+  ## switchable at runtime from settings).
+  if desktop.isNil:
+    return
+  # The label is wider than the icon and drawn centred on it, so the visual
+  # right edge sits half the overhang past the icon box.
+  const labelOverhang = (ICON_LABEL_WIDTH - ICON_SIZE) div 2
+  # Hover box runs from y - 10 to y + ICON_SIZE + 48 (see handleDesktopInput).
+  const hoverBottomOffset = ICON_SIZE + 48
+  let cornerX = screenWidth - DESKTOP_MARGIN_RIGHT - ICON_SIZE - labelOverhang
+  let cornerY = screenHeight - TASKBAR_HEIGHT - DESKTOP_MARGIN_BOTTOM - hoverBottomOffset
+  for icon in desktop.icons.mitems:
+    if icon.iconType == diCredits:
+      icon.x = max(cornerX, DESKTOP_GRID_START_X)
+      icon.y = max(cornerY, DESKTOP_GRID_START_Y)
 
 proc newOSDesktop*(): OSDesktop =
   result = OSDesktop(
@@ -182,8 +207,9 @@ proc newOSDesktop*(): OSDesktop =
       DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 5,
                   selected: false, name: getIconName(diQuit),
                   iconColor: Color(r: 255, g: 100, b: 100, a: 255)),
-      # Third column: the two full columns above are already as tall as the
-      # desktop allows (a 7th row would collide with the taskbar).
+      # Bottom-right corner, off the top-left grid. The real position is set by
+      # layoutDesktopIcons (it depends on the current virtual canvas size); this
+      # is just a safe placeholder until that first pass runs.
       DesktopIcon(iconType: diCredits, x: DESKTOP_GRID_START_X + ICON_SPACING * 2, y: DESKTOP_GRID_START_Y,
                   selected: false, name: getIconName(diCredits),
                   iconColor: Color(r: 255, g: 110, b: 160, a: 255))
@@ -234,6 +260,8 @@ proc newOSDesktop*(): OSDesktop =
     cubeJackGlow: 0.0,
     toasts: @[]
   )
+  # Anchor the corner icons before the first frame draws or hit-tests them.
+  layoutDesktopIcons(result, getVirtualScreenWidth().int, getVirtualScreenHeight().int)
 
 proc showDesktopToast*(desktop: OSDesktop, text: string)
 
@@ -361,6 +389,10 @@ proc nlerpToward(qw, qx, qy, qz: var float32, tw, tx, ty, tz, t: float32) =
 proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = false,
                       screenWidth: int, screenHeight: int) =
   desktop.time += dt
+
+  # Keep corner-anchored icons glued to the corner when the HUD layout (and with
+  # it the virtual canvas width) changes at runtime.
+  layoutDesktopIcons(desktop, screenWidth, screenHeight)
 
   # Cube drag & inertia (quaternion, world-space axes)
   const
@@ -787,6 +819,23 @@ proc drawIconTile(icon: DesktopIcon, time: float32, selected: bool) =
   drawRectangle(x + 8, scanY, iconSize - 16, 2,
                 withAlpha(accent, if selected: 92 else: 38))
 
+proc v2(x, y: float32): Vector2 {.inline.} = Vector2(x: x, y: y)
+
+proc drawIconTri(a, b, c: Vector2, col: Color) =
+  ## Winding-safe triangle. raylib culls back faces, so a triangle whose points
+  ## happen to be wound the wrong way silently renders nothing -- very easy to
+  ## trip over when hand-placing icon geometry. Reorder instead of failing.
+  let cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+  if cross < 0.0'f32: drawTriangle(a, b, c, col)
+  else: drawTriangle(a, c, b, col)
+
+proc drawIconDisc(cx, cy, r: float32, fill, edge: Color, thick: float32 = 2.0) =
+  ## Filled disc with a rim. Every icon glyph sits on the busy animated
+  ## wallpaper, so shapes need their own dark backing plus a bright edge to
+  ## hold their silhouette.
+  drawCircle(v2(cx, cy), r, fill)
+  drawRing(v2(cx, cy), r - thick, r, 0.0, 360.0, 32, edge)
+
 proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
   drawIconTile(icon, time, selected)
 
@@ -802,149 +851,246 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
 
   case icon.iconType
   of diPlay:
-    # Launch prism
-    drawTriangle(
-      Vector2(x: (centerX - 9).float32, y: (centerY - 14).float32),
-      Vector2(x: (centerX - 9).float32, y: (centerY + 14).float32),
-      Vector2(x: (centerX + 16).float32, y: centerY.float32),
-      accent
-    )
-    drawTriangle(
-      Vector2(x: (centerX - 5).float32, y: (centerY - 7).float32),
-      Vector2(x: (centerX - 5).float32, y: (centerY + 7).float32),
-      Vector2(x: (centerX + 7).float32, y: centerY.float32),
-      bright
-    )
+    # Launch prism, with thruster streaks so it reads as "start a run" rather
+    # than "resume a video".
+    let pcx = centerX.float32
+    let pcy = centerY.float32
+    for i in 0..2:
+      let phase = (time * 1.5'f32 + i.float32 * 0.31'f32) mod 1.0'f32
+      let sx = pcx - 11.0'f32 - phase * 11.0'f32
+      let sy = pcy - 7.0'f32 + i.float32 * 7.0'f32
+      drawLine(v2(sx, sy), v2(sx + 7.0'f32, sy), 2,
+               withAlpha(bright, uint8(165.0'f32 * (1.0'f32 - phase))))
+    drawIconTri(v2(pcx - 11, pcy - 16), v2(pcx - 11, pcy + 16), v2(pcx + 18, pcy),
+                Color(r: 8, g: 12, b: 20, a: 235))
+    drawIconTri(v2(pcx - 9, pcy - 13), v2(pcx - 9, pcy + 13), v2(pcx + 15, pcy), accent)
+    drawIconTri(v2(pcx - 5, pcy - 7), v2(pcx - 5, pcy + 7), v2(pcx + 7, pcy), bright)
 
   of diSurvival:
-    # Survival shield timer
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 18, dim)
-    drawCircleLines(Vector2(x: centerX.float32, y: centerY.float32), 18, bright)
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 4, bright)
-    drawLine(Vector2(x: centerX.float32, y: centerY.float32),
-            Vector2(x: centerX.float32, y: centerY.float32 - 15), 3, White)
-    drawLine(Vector2(x: centerX.float32, y: centerY.float32),
-            Vector2(x: centerX.float32 + 10, y: centerY.float32), 3, White)
+    # Stopwatch: survival is "how long did you last", and the crown + sweeping
+    # hand say that far faster than the old clock-face-plus-orbiting-dots did.
+    let scx = centerX.float32
+    let scy = centerY.float32 + 2.0'f32
+    # Crown and side button on top of the case.
+    drawRectangle((centerX - 4).int32, (scy - 22.0'f32).int32, 8, 5, bright)
+    drawLine(v2(scx + 12, scy - 17), v2(scx + 17, scy - 22), 4, dim)
+    drawIconDisc(scx, scy, 17.0, Color(r: 10, g: 16, b: 26, a: 245), bright, 2.5)
+    # Quarter ticks.
     for i in 0..3:
-      let angle = i.float32 * PI / 2.0 + time * 0.6
-      drawCircle(Vector2(x: centerX.float32 + cos(angle) * 22.0,
-                         y: centerY.float32 + sin(angle) * 22.0), 2.2, accent)
+      let a = i.float32 * (PI / 2.0'f32)
+      let ca = cos(a)
+      let sa = sin(a)
+      drawLine(v2(scx + ca * 10.0, scy + sa * 10.0),
+               v2(scx + ca * 13.5, scy + sa * 13.5), 2, withAlpha(accent, 210))
+    # Fixed minute hand plus a hand that actually sweeps.
+    drawLine(v2(scx, scy), v2(scx, scy - 11), 3, White)
+    let sweep = time * 1.25'f32 - PI / 2.0'f32
+    drawLine(v2(scx, scy), v2(scx + cos(sweep) * 13.0, scy + sin(sweep) * 13.0), 2, accent)
+    drawCircle(v2(scx, scy), 2.4, bright)
 
   of diStatistics:
-    # Analytics bars with trend line
-    drawRectangle(centerX - 17, centerY + 5, 7, 15, dim)
-    drawRectangle(centerX - 5, centerY - 2, 7, 22, accent)
-    drawRectangle(centerX + 7, centerY - 10, 7, 30, bright)
-    drawLine(Vector2(x: (centerX - 18).float32, y: (centerY + 2).float32),
-             Vector2(x: (centerX - 3).float32, y: (centerY - 8).float32), 2, White)
-    drawLine(Vector2(x: (centerX - 3).float32, y: (centerY - 8).float32),
-             Vector2(x: (centerX + 18).float32, y: (centerY - 17).float32), 2, White)
+    # Analytics bars on a real axis, with the trend line ending in a marker.
+    let bx = centerX.float32
+    let by = centerY.float32
+    drawLine(v2(bx - 19, by + 19), v2(bx + 19, by + 19), 2, withAlpha(bright, 200))
+    drawLine(v2(bx - 19, by - 19), v2(bx - 19, by + 19), 2, withAlpha(bright, 120))
+    let heights = [13'i32, 20'i32, 28'i32]
+    let barCols = [dim, accent, bright]
+    for i in 0..2:
+      let h = heights[i]
+      let x = centerX - 15 + i.int32 * 11
+      drawRectangle(x, (centerY + 18 - h).int32, 8, h, barCols[i])
+      drawRectangleLines(Rectangle(x: x.float32, y: (centerY + 18 - h).float32,
+                                   width: 8.0, height: h.float32), 1,
+                         Color(r: 8, g: 12, b: 20, a: 190))
+    drawLine(v2(bx - 12, by + 2), v2(bx - 1, by - 6), 2, White)
+    drawLine(v2(bx - 1, by - 6), v2(bx + 11, by - 14), 2, White)
+    drawCircle(v2(bx + 11, by - 14), 3.0, White)
 
   of diSettings:
-    # Tuning sliders
-    for i in 0..2:
-      let y = centerY - 13 + i * 13
-      drawLine(Vector2(x: (centerX - 18).float32, y: y.float32),
-               Vector2(x: (centerX + 18).float32, y: y.float32), 3, dim)
-      let knobX = centerX - 10 + ((i * 13) mod 27)
-      drawCircle(Vector2(x: knobX.float32, y: y.float32), 5, bright)
-      drawCircleLines(Vector2(x: knobX.float32, y: y.float32), 7, accent)
+    # Slowly turning cog. The old three-slider glyph read as an audio mixer;
+    # the gear is the one settings symbol every player already knows.
+    let cogCX = centerX.float32
+    let cogCY = centerY.float32
+    let spin = time * 0.35'f32
+    # Teeth: thick radial spokes poking out past the body rim.
+    for i in 0..7:
+      let a = spin + i.float32 * (PI / 4.0'f32)
+      let ca = cos(a)
+      let sa = sin(a)
+      drawLine(Vector2(x: cogCX + ca * 11.0'f32, y: cogCY + sa * 11.0'f32),
+               Vector2(x: cogCX + ca * 20.0'f32, y: cogCY + sa * 20.0'f32), 8, dim)
+      drawLine(Vector2(x: cogCX + ca * 11.0'f32, y: cogCY + sa * 11.0'f32),
+               Vector2(x: cogCX + ca * 18.0'f32, y: cogCY + sa * 18.0'f32), 4, bright)
+    # Body, rim and hub hole.
+    drawCircle(Vector2(x: cogCX, y: cogCY), 14, accent)
+    drawCircleLines(Vector2(x: cogCX, y: cogCY), 14, bright)
+    drawCircle(Vector2(x: cogCX, y: cogCY), 6, Color(r: 8, g: 12, b: 20, a: 255))
+    drawCircleLines(Vector2(x: cogCX, y: cogCY), 6.5, bright)
 
   of diShop:
-    # Store crate with swatches
-    drawRectangle(centerX - 15, centerY - 9, 30, 24, accent)
-    drawRectangle(centerX - 12, centerY - 14, 24, 8, dim)
-    drawLine(Vector2(x: (centerX - 7).float32, y: (centerY - 14).float32),
-             Vector2(x: (centerX - 7).float32, y: (centerY - 22).float32), 3, bright)
-    drawLine(Vector2(x: (centerX + 7).float32, y: (centerY - 14).float32),
-             Vector2(x: (centerX + 7).float32, y: (centerY - 22).float32), 3, bright)
-    drawLine(Vector2(x: (centerX - 7).float32, y: (centerY - 22).float32),
-             Vector2(x: (centerX + 7).float32, y: (centerY - 22).float32), 3, bright)
+    # Shopping bag with paint swatches. The old crate silhouette was ambiguous;
+    # a bag with a bold handle arc is unmistakably "store".
+    let sx = centerX.float32
+    let sy = centerY.float32
+    # Handle first so the bag body overlaps its feet.
+    drawRing(v2(sx, sy - 8.0), 6.0, 9.0, 180.0, 360.0, 20, bright)
+    # Body: slightly tapered, dark backing then accent face.
+    drawIconTri(v2(sx - 16, sy - 7), v2(sx - 13, sy + 18), v2(sx + 13, sy + 18), accent)
+    drawIconTri(v2(sx - 16, sy - 7), v2(sx + 13, sy + 18), v2(sx + 16, sy - 7), accent)
+    drawLine(v2(sx - 16, sy - 7), v2(sx + 16, sy - 7), 3, dim)
+    drawLine(v2(sx - 13, sy + 18), v2(sx + 13, sy + 18), 2, dim)
     let colors = [
       Color(r: 255, g: 100, b: 180, a: 255),
       Color(r: 0, g: 255, b: 100, a: 255),
       Color(r: 0, g: 200, b: 255, a: 255)
     ]
     for i in 0..<3:
-      drawCircle(Vector2(x: (centerX - 8 + i * 8).float32, y: (centerY + 5).float32), 4.5, colors[i])
+      let px = sx - 8.0'f32 + i.float32 * 8.0'f32
+      drawCircle(v2(px, sy + 6.0), 4.2, Color(r: 8, g: 12, b: 20, a: 220))
+      drawCircle(v2(px, sy + 6.0), 3.2, colors[i])
 
   of diHelp:
-    # Luminous document
-    drawRectangle(centerX - 13, centerY - 18, 26, 34, accent)
-    drawTriangle(Vector2(x: (centerX + 13).float32, y: (centerY - 18).float32),
-                 Vector2(x: (centerX + 13).float32, y: (centerY - 6).float32),
-                 Vector2(x: (centerX + 1).float32, y: (centerY - 18).float32), bright)
-    drawText("?", centerX - 7, centerY - 10, 26, White)
+    # Manual: a book rather than a sheet, so it never reads as the changelog
+    # document sitting two icons away.
+    let hx = centerX.float32
+    let hy = centerY.float32
+    drawRectangle((centerX - 15).int32, (centerY - 17).int32, 30, 34, accent)
+    drawRectangle((centerX - 15).int32, (centerY - 17).int32, 6, 34, dim)
+    drawRectangleLines(Rectangle(x: hx - 15, y: hy - 17, width: 30.0, height: 34.0), 2,
+                       Color(r: 8, g: 12, b: 20, a: 220))
+    # Page edge highlight on the open side.
+    drawLine(v2(hx + 13, hy - 15), v2(hx + 13, hy + 15), 2, withAlpha(bright, 200))
+    drawText("?", (centerX - 4).int32, (centerY - 13).int32, 27, White)
 
   of diQuit:
-    # Shutdown ring
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 19, dim)
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 12, Color(r: 8, g: 12, b: 20, a: 255))
-    drawCircleLines(Vector2(x: centerX.float32, y: centerY.float32), 18, bright)
-    drawRectangle(centerX - 2, centerY - 21, 4, 18, bright)
+    # True power glyph: a broken ring with the stem sitting in the gap.
+    let qx = centerX.float32
+    let qy = centerY.float32
+    drawCircle(v2(qx, qy), 18.0, Color(r: 8, g: 12, b: 20, a: 210))
+    drawRing(v2(qx, qy), 12.0, 17.0, 250.0, 650.0, 40, dim)
+    drawRing(v2(qx, qy), 13.5, 16.0, 250.0, 650.0, 40, bright)
+    drawRectangle((centerX - 3).int32, (centerY - 21).int32, 6, 18,
+                  Color(r: 8, g: 12, b: 20, a: 235))
+    drawRectangle((centerX - 2).int32, (centerY - 20).int32, 4, 16, bright)
 
   of diSandbox:
-    # Lab flask
-    let flaskColor = accent
-    let liquidColor = Color(r: 0, g: 200, b: 255, a: 200)
-    let baseWidth = 20'i32
+    # Lab flask with bubbles rising through the liquid.
+    let baseWidth = 22'i32
     let topWidth = 12'i32
-    let flaskHeight = 24'i32
-    let flaskBottom = centerY + 12
-    let flaskTop = flaskBottom - flaskHeight
-    drawRectangle(centerX - topWidth div 2, flaskTop, topWidth, 8, flaskColor)
-    drawTriangle(
-      Vector2(x: (centerX - topWidth div 2).float32, y: (flaskTop + 8).float32),
-      Vector2(x: (centerX - baseWidth div 2).float32, y: flaskBottom.float32),
-      Vector2(x: (centerX + baseWidth div 2).float32, y: flaskBottom.float32),
-      flaskColor
-    )
-    drawRectangle(centerX - baseWidth div 2 + 3, flaskBottom - 10, baseWidth - 6, 8, liquidColor)
-    drawCircle(Vector2(x: (centerX - 4).float32, y: (flaskBottom - 5).float32), 2, White)
-    drawCircle(Vector2(x: (centerX + 3).float32, y: (flaskBottom - 8).float32), 1.5, White)
+    let flaskBottom = centerY + 13
+    let flaskTop = flaskBottom - 26
+    let liquidColor = Color(r: 0, g: 200, b: 255, a: 220)
+    # Neck, rim and body.
+    drawRectangle(centerX - topWidth div 2, flaskTop, topWidth, 9, accent)
+    drawRectangle(centerX - topWidth div 2 - 2, flaskTop - 3, topWidth + 4, 4, bright)
+    drawIconTri(v2((centerX - topWidth div 2).float32, (flaskTop + 9).float32),
+                v2((centerX - baseWidth div 2).float32, flaskBottom.float32),
+                v2((centerX + baseWidth div 2).float32, flaskBottom.float32), accent)
+    drawIconTri(v2((centerX - topWidth div 2).float32, (flaskTop + 9).float32),
+                v2((centerX + baseWidth div 2).float32, flaskBottom.float32),
+                v2((centerX + topWidth div 2).float32, (flaskTop + 9).float32), accent)
+    drawRectangle(centerX - baseWidth div 2 + 4, flaskBottom - 9, baseWidth - 8, 8, liquidColor)
+    drawIconTri(v2((centerX - 7).float32, (flaskBottom - 9).float32),
+                v2((centerX - baseWidth div 2 + 4).float32, (flaskBottom - 1).float32),
+                v2((centerX + baseWidth div 2 - 4).float32, (flaskBottom - 1).float32), liquidColor)
+    for i in 0..2:
+      let phase = (time * 0.8'f32 + i.float32 * 0.37'f32) mod 1.0'f32
+      let by = flaskBottom.float32 - 8.0'f32 - phase * 16.0'f32
+      drawCircle(v2(centerX.float32 - 4.0'f32 + i.float32 * 4.0'f32, by),
+                 1.8'f32 - phase * 0.6'f32,
+                 Color(r: 255, g: 255, b: 255, a: uint8(210.0'f32 * (1.0'f32 - phase))))
 
   of diPvP:
-    # Versus duel glyph
-    drawLine(Vector2(x: (centerX - 18).float32, y: (centerY + 15).float32),
-             Vector2(x: (centerX + 13).float32, y: (centerY - 16).float32), 4, accent)
-    drawLine(Vector2(x: (centerX + 18).float32, y: (centerY + 15).float32),
-             Vector2(x: (centerX - 13).float32, y: (centerY - 16).float32), 4, bright)
-    drawRectangle(centerX - 17, centerY + 10, 10, 4, dim)
-    drawRectangle(centerX + 7, centerY + 10, 10, 4, dim)
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 6, Color(r: 255, g: 255, b: 255, a: 205))
-    drawCircle(Vector2(x: centerX.float32, y: centerY.float32), 3, accent)
+    # Crossed swords. The bare X read as a "close" glyph; blades with tips,
+    # crossguards and pommels read as a duel.
+    let px = centerX.float32
+    let py = centerY.float32
+    for s in 0..1:
+      let flip = if s == 0: 1.0'f32 else: -1.0'f32
+      let col = if s == 0: accent else: bright
+      # Blade runs from a lower corner to the opposite top corner. Everything
+      # else is derived from that direction so the hilt parts stay square to
+      # the blade instead of being eyeballed per side.
+      let hilt = v2(px - flip * 15.0'f32, py + 16.0'f32)
+      let tip = v2(px + flip * 15.0'f32, py - 17.0'f32)
+      let dx = tip.x - hilt.x
+      let dy = tip.y - hilt.y
+      let len = sqrt(dx * dx + dy * dy)
+      let ux = dx / len
+      let uy = dy / len
+      let perpX = -uy
+      let perpY = ux
+      # Blade: dark backing stroke, then the bright edge, stopping short so the
+      # tip triangle forms the point.
+      let bladeEnd = v2(tip.x - ux * 7.0'f32, tip.y - uy * 7.0'f32)
+      drawLine(hilt, tip, 6, Color(r: 8, g: 12, b: 20, a: 230))
+      drawLine(v2(hilt.x + ux * 8.0'f32, hilt.y + uy * 8.0'f32), bladeEnd, 3, col)
+      drawIconTri(tip,
+                  v2(bladeEnd.x + perpX * 3.2'f32, bladeEnd.y + perpY * 3.2'f32),
+                  v2(bladeEnd.x - perpX * 3.2'f32, bladeEnd.y - perpY * 3.2'f32), col)
+      # Crossguard: square to the blade, a fixed step up from the grip.
+      let guard = v2(hilt.x + ux * 9.0'f32, hilt.y + uy * 9.0'f32)
+      drawLine(v2(guard.x + perpX * 6.5'f32, guard.y + perpY * 6.5'f32),
+               v2(guard.x - perpX * 6.5'f32, guard.y - perpY * 6.5'f32), 3, dim)
+      # Grip and pommel.
+      drawLine(hilt, guard, 3, dim)
+      drawCircle(hilt, 3.2, bright)
+    drawCircle(v2(px, py), 5.5, Color(r: 255, g: 255, b: 255, a: 215))
+    drawCircle(v2(px, py), 2.6, accent)
 
   of diRoguelite:
-    # Branching sector nodes
-    let nodeColor = accent
-    let top = Vector2(x: centerX.float32, y: (centerY - 18).float32)
-    let left = Vector2(x: (centerX - 18).float32, y: (centerY + 12).float32)
-    let mid = Vector2(x: centerX.float32, y: (centerY + 18).float32)
-    let right = Vector2(x: (centerX + 18).float32, y: (centerY + 12).float32)
-    drawLine(top, left, 3, Color(r: 120, g: 255, b: 220, a: 220))
-    drawLine(top, mid, 3, Color(r: 120, g: 255, b: 220, a: 220))
-    drawLine(top, right, 3, Color(r: 120, g: 255, b: 220, a: 220))
-    drawCircle(top, 7, nodeColor)
-    drawCircle(left, 6, Gold)
-    drawCircle(mid, 6, nodeColor)
-    drawCircle(right, 6, Color(r: 255, g: 110, b: 90, a: 255))
+    # Route map read bottom-to-top: you start at the base node, the path forks,
+    # and the run ends at the boss diamond. The old flat 4-node cluster had no
+    # direction to it.
+    let mx = centerX.float32
+    let my = centerY.float32
+    let start = v2(mx, my + 17)
+    let forkL = v2(mx - 14, my + 3)
+    let forkR = v2(mx + 14, my + 3)
+    let boss  = v2(mx, my - 15)
+    let pathCol = Color(r: 120, g: 255, b: 220, a: 210)
+    for (a, b) in [(start, forkL), (start, forkR), (forkL, boss), (forkR, boss)]:
+      drawLine(a, b, 4, Color(r: 8, g: 12, b: 20, a: 200))
+      drawLine(a, b, 2, pathCol)
+    # Nodes: dark cores with bright rims so they stay legible over the paths.
+    drawIconDisc(start.x, start.y, 5.5, Color(r: 8, g: 12, b: 20, a: 245), accent, 2.0)
+    drawIconDisc(forkL.x, forkL.y, 5.5, Color(r: 8, g: 12, b: 20, a: 245), Gold, 2.0)
+    drawIconDisc(forkR.x, forkR.y, 5.5, Color(r: 8, g: 12, b: 20, a: 245), accent, 2.0)
+    # Boss node as a diamond, the one shape the others do not use.
+    let bossCol = Color(r: 255, g: 110, b: 90, a: 255)
+    drawIconTri(v2(boss.x, boss.y - 8), v2(boss.x - 8, boss.y), v2(boss.x, boss.y + 8), bossCol)
+    drawIconTri(v2(boss.x, boss.y - 8), v2(boss.x, boss.y + 8), v2(boss.x + 8, boss.y), bossCol)
+    drawCircle(v2(boss.x, boss.y), 2.6, Color(r: 255, g: 240, b: 220, a: 240))
 
   of diAdvancements:
-    # Progress ledger with tier nodes
-    let ledgerX = centerX - 16
-    let ledgerY = centerY - 18
-    drawRectangle(ledgerX.int32, ledgerY.int32, 32, 36, Color(r: 18, g: 28, b: 42, a: 255))
-    drawRectangleLines(Rectangle(x: ledgerX.float32, y: ledgerY.float32,
-                                 width: 32.0, height: 36.0), 2, accent)
-    for i in 0..<3:
-      let rowY = ledgerY + 8 + i * 9
-      drawCircle(Vector2(x: (ledgerX + 7).float32, y: rowY.float32), 3,
-                 if i == 0: Gold elif i == 1: accent else: Color(r: 90, g: 255, b: 150, a: 255))
-      drawRectangle((ledgerX + 13).int32, (rowY - 2).int32, (12 + i * 3).int32, 3,
-                    Color(r: 170, g: 210, b: 230, a: 220))
-    drawLine(Vector2(x: (ledgerX + 7).float32, y: (ledgerY + 8).float32),
-             Vector2(x: (ledgerX + 7).float32, y: (ledgerY + 26).float32),
-             1, Color(r: 120, g: 220, b: 255, a: 180))
+    # Trophy. The old ledger-of-rows glyph collided with the help and changelog
+    # documents; a cup is the one universally read "achievements" symbol.
+    let tx = centerX.float32
+    let ty = centerY.float32
+    # Side handles, drawn before the cup so the cup laps over their roots.
+    drawRing(v2(tx - 11.0, ty - 8.0), 4.5, 7.0, 90.0, 270.0, 18, dim)
+    drawRing(v2(tx + 11.0, ty - 8.0), 4.5, 7.0, 270.0, 450.0, 18, dim)
+    # Cup bowl, tapering to the stem.
+    drawIconTri(v2(tx - 12, ty - 17), v2(tx - 9, ty + 2), v2(tx + 9, ty + 2), Gold)
+    drawIconTri(v2(tx - 12, ty - 17), v2(tx + 9, ty + 2), v2(tx + 12, ty - 17), Gold)
+    drawLine(v2(tx - 12, ty - 17), v2(tx + 12, ty - 17), 3, bright)
+    # Stem and base.
+    drawRectangle((centerX - 3).int32, (centerY + 2).int32, 6, 7, dim)
+    drawRectangle((centerX - 10).int32, (centerY + 9).int32, 20, 5, Gold)
+    drawRectangle((centerX - 12).int32, (centerY + 14).int32, 24, 4, dim)
+    # Star on the cup face: a 10-point fan alternating outer and inner radius
+    # (a 5-point fan would just draw a pentagon).
+    let starY = ty - 8.0'f32
+    let starCol = Color(r: 255, g: 250, b: 225, a: 235)
+    for i in 0..9:
+      let a = -PI / 2.0'f32 + i.float32 * (PI / 5.0'f32)
+      let b = a + (PI / 5.0'f32)
+      let ra = if i mod 2 == 0: 7.0'f32 else: 3.1'f32
+      let rb = if i mod 2 == 0: 3.1'f32 else: 7.0'f32
+      drawIconTri(v2(tx, starY),
+                  v2(tx + cos(a) * ra, starY + sin(a) * ra),
+                  v2(tx + cos(b) * rb, starY + sin(b) * rb), starCol)
 
   of diChangelog:
     # Patch-notes document with a folded corner, text lines, and a "new" star
@@ -957,12 +1103,14 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     drawTriangle(Vector2(x: (docX + 26).float32, y: docY.float32),
                  Vector2(x: (docX + 26).float32, y: (docY + 9).float32),
                  Vector2(x: (docX + 17).float32, y: docY.float32), dim)
-    # Text lines of varying length
+    # Text lines of varying length, each led by a bullet so it reads as notes.
     for i in 0..<4:
       let lineY = docY + 8 + i * 6
-      let lineW = if i == 3: 10 else: 16 - (i mod 2) * 4
-      drawRectangle((docX + 5).int32, lineY.int32, lineW.int32, 2,
-                    Color(r: 70, g: 90, b: 120, a: 220))
+      let lineW = if i == 3: 9 else: 14 - (i mod 2) * 4
+      drawCircle(v2((docX + 5).float32, (lineY + 1).float32), 1.4,
+                 Color(r: 90, g: 130, b: 175, a: 235))
+      drawRectangle((docX + 9).int32, lineY.int32, lineW.int32, 3,
+                    Color(r: 70, g: 90, b: 120, a: 235))
     # Sparkle marking fresh changes
     let starX = (centerX + 12).float32
     let starY = (centerY + 14).float32
